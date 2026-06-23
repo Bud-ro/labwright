@@ -182,6 +182,27 @@ printable ASCII, and the content is unmistakably control/parameter names —
 payloads return null.) These are the named inputs/outputs/controls of the VI — a
 high-value layer for "what does this VI do".
 
+### `C4 19` = description / help text — confirmed ✅ (heuristic extraction)
+
+`C4 19` holds the VI's **description / tooltip help text**, often HTML-ish
+(`<B>…</B>`) and multi-line. Corpus evidence (2,728 records): payloads are
+length-prefixed text segments (`<u8 len> <text>`, sometimes several per record);
+the readable content is unmistakably documentation — e.g. `<B>error in</B> can
+accept error information wired from VIs previously called…`. The inner
+multi-segment framing is **not fully decoded**, so `HeapRecord.descriptionText`
+recovers the text via length-prefixed printable+whitespace runs (≥6 chars) —
+**heuristic** (occasional one-char clipping at segment seams), not exact fields.
+→ aggregated by `ViModel.descriptions`. (Validated: 409 corpus VIs, 1,838
+descriptions across 371 VIs, 0 crashes; total.)
+
+### `C4 5F` = a rectangle of unclear role — partial 🔬
+
+`C4 5F` (len 8) also decodes as a 4× `s16` rectangle (97% `bottom ≥ top ∧
+right ≥ left`), but with **negative coordinates and degenerate points** (e.g.
+`(-782,-72,-782,-72)`) — so it is a rectangle primitive whose *semantic role*
+(offset? sub-region? connector extent?) is **not yet determined**. Documented, but
+deliberately **not modeled** (no accessor) to avoid assigning a false meaning.
+
 ### `C4` records are length-prefixed — confirmed ✅ (the walker seed)
 
 Every `C4` record has the shape:

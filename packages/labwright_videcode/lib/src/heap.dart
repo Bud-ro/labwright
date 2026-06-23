@@ -72,6 +72,40 @@ class HeapRecord {
     }
     return String.fromCharCodes(payload);
   }
+
+  /// If this is a **`C4 19` description record** (opcode `0x19`), the embedded
+  /// help/tooltip text — often HTML-ish (`<B>…</B>`) and multi-line — extracted as
+  /// its printable text runs joined by spaces; null if none.
+  ///
+  /// **Heuristic**: `C4 19`'s inner framing is a not-yet-decoded count-prefixed
+  /// set of strings, so this recovers the *readable text* rather than the exact
+  /// field structure. Confirmed across the corpus to hold VI documentation text
+  /// (e.g. `<B>source</B> describes the origin of the error…`). Total.
+  String? get descriptionText {
+    if (opcode != 0x19) return null;
+    bool isText(int start, int len) {
+      for (var j = start; j < start + len; j++) {
+        final c = payload[j];
+        if (c >= 32 && c < 127) continue;
+        if (c == 9 || c == 10 || c == 13) continue; // tab/newline/CR
+        return false;
+      }
+      return true;
+    }
+
+    final runs = <String>[];
+    var i = 0;
+    while (i < payload.length) {
+      final len = payload[i]; // u8 length prefix
+      if (len >= 6 && i + 1 + len <= payload.length && isText(i + 1, len)) {
+        runs.add(String.fromCharCodes(payload.sublist(i + 1, i + 1 + len)));
+        i += 1 + len;
+      } else {
+        i++;
+      }
+    }
+    return runs.isEmpty ? null : runs.join('\n');
+  }
 }
 
 /// A bounding rectangle in LabVIEW's field order (`top, left, bottom, right`),

@@ -77,6 +77,19 @@ class ViModel {
     return out;
   }
 
+  /// The VI's **description / help text** blocks, extracted from `C4 19` records
+  /// (control tooltips, often HTML-ish). Heuristic text recovery; deduped,
+  /// order-preserving.
+  List<String> get descriptions {
+    final seen = <String>{};
+    final out = <String>[];
+    for (final r in heapRecords) {
+      final s = r.descriptionText;
+      if (s != null && seen.add(s)) out.add(s);
+    }
+    return out;
+  }
+
   /// All distinct, deduped label strings across [stringTables], order-preserving.
   /// Convenience for "what does this VI contain".
   List<String> get labels {
