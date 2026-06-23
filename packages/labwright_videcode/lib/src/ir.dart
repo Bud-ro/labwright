@@ -71,6 +71,7 @@ class ViModel {
     final seen = <String>{};
     final out = <String>[];
     for (final r in heapRecords) {
+      if (r.kind != HeapOpcode.caption) continue;
       final s = r.text;
       if (s != null && seen.add(s)) out.add(s);
     }

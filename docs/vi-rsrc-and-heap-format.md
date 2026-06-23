@@ -203,15 +203,33 @@ right ≥ left`), but with **negative coordinates and degenerate points** (e.g.
 (offset? sub-region? connector extent?) is **not yet determined**. Documented, but
 deliberately **not modeled** (no accessor) to avoid assigning a false meaning.
 
-### Opcode catalog — `HeapOpcode` (one source of truth)
+### Opcode catalog — `HeapOpcode` + `HeapShape` (one source of truth)
 
 All reverse-engineered opcodes live in one documented place: the `HeapOpcode`
 enhanced enum in `labwright_videcode/lib/src/heap.dart`. Each value records the
-record's meaning, payload layout, corpus evidence, and decoding status
-(**decoded** / **structural** / **unknown**); raw bytes map via `HeapRecord.kind`
-/ `HeapOpcode.fromByte`. Current catalog: `bounds` (2D), `size` (1F),
-`stringTable` (2E), `caption` (22), `description` (19), `rect5f` (5F, structural).
-New opcodes are added there as they are confirmed.
+record's meaning, payload layout, corpus evidence, decoding status, and a
+**`HeapShape`** (rectangle / string / stringTable / helpText / none) that drives
+the generic decoders on `HeapRecord` (`rect`, `text`). Raw bytes map via
+`HeapRecord.kind` / `HeapOpcode.fromByte`.
+
+Current catalog:
+
+| opcode | name | shape | status | accessor |
+|--------|------|-------|--------|----------|
+| `2D` | bounds | rectangle | decoded | `bounds` (position+size) |
+| `1F` | size | rectangle | decoded | `sizeRect` (origin-anchored) |
+| `2E` | stringTable | stringTable | decoded | `HeapStringTable` |
+| `22` | caption | string | decoded | `text` (control name) |
+| `27` | plotName | string | decoded | `text` (e.g. `Plot 0`) |
+| `74` | formatString | string | decoded | `text` (e.g. `%020b`) |
+| `19` | description | helpText | decoded* | `descriptionText` (heuristic) |
+| `5F` `4C` `D6` `62` `26` | rect* | rectangle | structural | `rect` (role TBD) |
+
+The `rect*` opcodes are all confirmed 4× `s16` rectangles (≈100% valid) whose
+semantic *role* is not yet determined, so they expose only the generic `rect`
+accessor — never a false meaning. New opcodes are added here as confirmed.
+(Validated: 0 crashes; plotName 927, formatString 816, the rect opcodes ~300–820
+each decode cleanly across the corpus.)
 
 ### `C4` records are length-prefixed — confirmed ✅ (the walker seed)
 

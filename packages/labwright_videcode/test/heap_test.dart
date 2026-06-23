@@ -35,6 +35,34 @@ void main() {
     expect(heapC4RecordsFromDecoded([bdex(heap)]).single.kind, HeapOpcode.bounds);
   });
 
+  test('HeapShape taxonomy: string opcodes decode via text, rect opcodes via rect', () {
+    // plot name (0x27) and format string (0x74) are string-shaped -> text.
+    final plot = <int>[0xc4, 0x27, 6, ...'Plot 0'.codeUnits];
+    final fmt = <int>[0xc4, 0x74, 5, ...'%020b'.codeUnits];
+    final recs = heapC4RecordsFromDecoded([bdex([...plot, ...fmt])]);
+    expect(recs[0].kind, HeapOpcode.plotName);
+    expect(recs[0].text, 'Plot 0');
+    expect(recs[1].kind, HeapOpcode.formatString);
+    expect(recs[1].text, '%020b');
+    expect(recs[0].kind.shape, HeapShape.string);
+
+    // a structural rect opcode (0x4c) decodes via the generic rect accessor.
+    final r4c = <int>[0xc4, 0x4c, 0x08, 0xff, 0xdf, 0xff, 0x8e, 0x01, 0xd1, 0x02, 0xad];
+    final rec = heapC4RecordsFromDecoded([bdex(r4c)]).single;
+    expect(rec.kind, HeapOpcode.rect4c);
+    expect(rec.kind.shape, HeapShape.rectangle);
+    expect(rec.bounds, isNull); // not the semantic bounds opcode
+    expect(rec.rect, isNotNull);
+    expect([rec.rect!.top, rec.rect!.left], [-33, -114]);
+  });
+
+  test('HeapOpcode isDecoded marks semantics vs structural', () {
+    expect(HeapOpcode.plotName.isDecoded, isTrue);
+    expect(HeapOpcode.formatString.isDecoded, isTrue);
+    expect(HeapOpcode.rect4c.isDecoded, isFalse);
+    expect(HeapOpcode.rectD6.isDecoded, isFalse);
+  });
+
   test('frames C4 length-prefixed records and skips payloads', () {
     final strTable = <int>[...pascal('Hi'), ...pascal('Yo')]; // 6 bytes
     final heap = <int>[

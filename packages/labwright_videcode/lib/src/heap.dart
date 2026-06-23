@@ -17,8 +17,9 @@ const int kHeapRecordPrefix = 0xc4;
 ///
 /// Status legend:
 /// - **decoded** — payload semantics confirmed and exposed by a typed accessor.
-/// - **structural** — record framing/shape known, but the semantic role is not
-///   yet determined, so it is intentionally not interpreted.
+/// - **structural** — payload *shape* known (e.g. it is a rectangle), but the
+///   semantic role is not yet determined, so it is intentionally not given a
+///   meaning-specific accessor.
 /// - **unknown** — not catalogued.
 ///
 /// See `docs/vi-rsrc-and-heap-format.md` for the full evidence and probe history.
@@ -27,49 +28,87 @@ enum HeapOpcode {
   /// big-endian `s16` fields `top, left, bottom, right`, in pixels: the position
   /// and size of a control / node / decoration. Corpus: 99% are valid rectangles
   /// with sane dimensions. Decoded by [HeapRecord.bounds].
-  bounds(0x2d),
+  bounds(0x2d, HeapShape.rectangle),
 
   /// `0x1F` — **origin-anchored size rectangle** (decoded). Same 8-byte 4× `s16`
   /// layout as [bounds] but `top == left == 0`, so it encodes a height×width
   /// extent rather than a position. Corpus: 100% valid, origin-anchored. Decoded
   /// by [HeapRecord.sizeRect].
-  size(0x1f),
+  size(0x1f, HeapShape.rectangle),
 
   /// `0x2E` — **string table** (decoded). The only variable-length confirmed
   /// opcode: the payload is `len` bytes of packed `[u8 strlen][chars]` Pascal
   /// strings (a `u16` length is used when the table exceeds 255 bytes). Holds a
   /// group of related labels (enum/ring items, captions). Decoded by
   /// [HeapStringTable] / the string-table parser.
-  stringTable(0x2e),
+  stringTable(0x2e, HeapShape.stringTable),
 
   /// `0x22` — **caption** (decoded). A single control / parameter name; the
-  /// payload *is* the text, sized by the record's own length byte (no inner
-  /// prefix). Corpus: 97% printable. Decoded by [HeapRecord.text].
-  caption(0x22),
+  /// payload *is* the text, sized by the record's own length byte. Corpus: 97%
+  /// printable. Decoded by [HeapRecord.text].
+  caption(0x22, HeapShape.string),
+
+  /// `0x27` — **plot / legend name** (decoded). A single string naming a plot or
+  /// series, e.g. `Plot 0`, `Plot 1`. Same single-string payload as [caption]
+  /// (100% printable across the corpus). Decoded by [HeapRecord.text].
+  plotName(0x27, HeapShape.string),
+
+  /// `0x74` — **numeric format string** (decoded). A single string holding a
+  /// display format specifier, e.g. `%020b`, `%016b`, `%#_6g`. Single-string
+  /// payload (96% printable). Decoded by [HeapRecord.text].
+  formatString(0x74, HeapShape.string),
 
   /// `0x19` — **description / help text** (decoded, heuristic). HTML-ish
   /// (`<B>…</B>`), multi-line tooltip/help text stored as length-prefixed text
   /// segments. The inner multi-segment framing is not fully decoded, so the text
   /// is recovered heuristically by [HeapRecord.descriptionText].
-  description(0x19),
+  description(0x19, HeapShape.helpText),
 
   /// `0x5F` — **rectangle, role undetermined** (structural). Decodes as a 4× `s16`
   /// rectangle (97% valid) but allows negative coordinates and degenerate points,
-  /// so its semantic role (offset? sub-region? connector extent?) is unknown. Not
-  /// interpreted, to avoid assigning a false meaning.
-  rect5f(0x5f),
+  /// so its semantic role (offset? sub-region? connector extent?) is unknown.
+  /// Readable via the generic [HeapRecord.rect]; no meaning-specific accessor.
+  rect5f(0x5f, HeapShape.rectangle),
+
+  /// `0x4C` — **rectangle, role undetermined** (structural). 8-byte 4× `s16`
+  /// rectangle (100% valid), often all-zero or with negative coordinates. Role
+  /// not yet determined. Readable via [HeapRecord.rect].
+  rect4c(0x4c, HeapShape.rectangle),
+
+  /// `0xD6` — **rectangle, role undetermined** (structural). 8-byte 4× `s16`
+  /// rectangle (100% valid), frequently origin-anchored like [size]. Role not yet
+  /// determined. Readable via [HeapRecord.rect].
+  rectD6(0xd6, HeapShape.rectangle),
+
+  /// `0x62` — **rectangle, role undetermined** (structural). 8-byte 4× `s16`
+  /// rectangle (100% valid), typically positive coordinates like [bounds]. Role
+  /// not yet determined. Readable via [HeapRecord.rect].
+  rect62(0x62, HeapShape.rectangle),
+
+  /// `0x26` — **rectangle, role undetermined** (structural). 8-byte 4× `s16`
+  /// rectangle (100% valid). Role not yet determined. Readable via
+  /// [HeapRecord.rect].
+  rect26(0x26, HeapShape.rectangle),
 
   /// A heap opcode that is not (yet) catalogued. Its [byte] is -1; use
   /// [HeapRecord.opcode] for the actual byte value.
-  unknown(-1);
+  unknown(-1, HeapShape.none);
 
-  const HeapOpcode(this.byte);
+  const HeapOpcode(this.byte, this.shape);
 
   /// The opcode byte (the value after [kHeapRecordPrefix]); -1 for [unknown].
   final int byte;
 
-  /// Whether this opcode's payload semantics are decoded (vs. structural/unknown).
-  bool get isDecoded => this != unknown && this != rect5f;
+  /// The shape of this opcode's payload (rectangle / string / …) — drives the
+  /// generic accessors on [HeapRecord].
+  final HeapShape shape;
+
+  /// Whether this opcode has a confirmed *semantic* meaning (a meaning-specific
+  /// accessor), vs. merely a known shape (structural) or unknown.
+  bool get isDecoded => switch (this) {
+        bounds || size || stringTable || caption || plotName || formatString || description => true,
+        rect5f || rect4c || rectD6 || rect62 || rect26 || unknown => false,
+      };
 
   /// Maps a raw opcode byte to its [HeapOpcode], or [unknown] if not catalogued.
   static HeapOpcode fromByte(int b) {
@@ -78,6 +117,25 @@ enum HeapOpcode {
     }
     return unknown;
   }
+}
+
+/// The shape of a heap record's payload — what kind of value it holds, used to
+/// drive the generic decoders on [HeapRecord]. See [HeapOpcode.shape].
+enum HeapShape {
+  /// An 8-byte 4× big-endian `s16` rectangle (`top, left, bottom, right`).
+  rectangle,
+
+  /// A single string occupying the whole payload (sized by the record length).
+  string,
+
+  /// A table of packed Pascal strings (the `C4 2E` form).
+  stringTable,
+
+  /// Length-prefixed help/description text segments (the `C4 19` form).
+  helpText,
+
+  /// No known shape (uncatalogued opcode).
+  none,
 }
 
 /// A length-prefixed **`C4` opcode record** in a decompressed VI heap.
@@ -121,6 +179,11 @@ class HeapRecord {
   /// Total bytes this record occupies: `0xC4` + opcode + length byte + payload.
   int get byteLength => 3 + payload.length;
 
+  /// The 4× `s16` rectangle for any [HeapShape.rectangle] opcode (`bounds`,
+  /// `size`, `rect5f`, `rect4c`, …); null otherwise. The generic accessor — see
+  /// [bounds] / [sizeRect] for the meaning-specific specializations.
+  HeapRect? get rect => kind.shape == HeapShape.rectangle ? HeapRect.fromPayload(payload) : null;
+
   /// If this is a [HeapOpcode.bounds] record, the object's bounding rectangle —
   /// four big-endian `s16` fields `top, left, bottom, right`, in pixels; else null.
   /// (Position/size of a control/node/decoration.)
@@ -131,11 +194,12 @@ class HeapRecord {
   /// distinct from [bounds] so positional layout data is not polluted by sizes.
   HeapRect? get sizeRect => kind == HeapOpcode.size ? HeapRect.fromPayload(payload) : null;
 
-  /// If this is a [HeapOpcode.caption] record, the payload decoded as text — a
-  /// single control caption / name; else null. The whole payload is the string
-  /// (no inner prefix). Null when empty or not fully printable ASCII.
+  /// If this is a single-string opcode ([HeapShape.string]: caption, plot name,
+  /// or format string), the payload decoded as text — the whole payload is the
+  /// string (no inner prefix); else null. Null when empty or not fully printable
+  /// ASCII.
   String? get text {
-    if (kind != HeapOpcode.caption || payload.isEmpty) return null;
+    if (kind.shape != HeapShape.string || payload.isEmpty) return null;
     for (final b in payload) {
       if (b < 32 || b >= 127) return null;
     }
