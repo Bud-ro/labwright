@@ -271,6 +271,23 @@ fabricate a graph**; we extract what is reliably framed (version, title,
 strings, component sizes) and treat opcode-table recovery as a future,
 incremental effort (cross-referencing many VIs and known node patterns).
 
+### Object assembly: bounds ↔ label — confirmed ✅ (first graph-level synthesis)
+
+The ordered `C4` record stream lets labeled objects be assembled: **a labeled
+object emits its bounds (`C4 2D`) immediately followed by its label table
+(`C4 2E`)**. Corpus evidence: of the framed label tables (2E, ≥2 strings),
+**100%** have a `C4 2D` bounds within ±5 records and **99.8%** have it
+*immediately preceding* (record-distance −1). (The reverse is only ~15%: most
+bounds are unlabeled decorations/nodes/wire segments — expected.)
+
+→ `ViModel.objects` → `List<ViObject {sectionTag, bounds, labels, name, …}>`,
+assembled by `assembleObjects` (pair each framed `C4 2E` with the `C4 2D` within
+3 preceding records). Validated: 409 corpus VIs, **2,875 labeled objects** across
+261 VIs, 0 crashes — e.g. positioned enum items `"Sine"`, `"Rising"`, `"8-bit"`
+each with their `HeapRect`. **Partial and honest**: only *labeled* objects are
+assembled (not unlabeled nodes/wires), so this is a named-control/positioned-item
+layer, not yet the full block-diagram graph.
+
 ## Stage 4 IR seed — `ViModel` (partial fidelity)
 
 `buildViModel(viBytes) → ViModel` is the single read-only entry point and the
