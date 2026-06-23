@@ -1,0 +1,89 @@
+# LabVIEW `.vi` (RSRC) format — reverse-engineering notes
+
+Clean-room notes derived **solely from `.vi` binary files** (the public Pico
+NI-LabVIEW example corpus), not from LabVIEW itself. These document what
+`labwright_viparse` + `labwright_videcode` decode today and what blocks full
+block-diagram graph recovery.
+
+## Container (RSRC) — fully decoded ✅
+
+A `.vi`/`.ctl`/`.llb` is an RSRC container, big-endian:
+
+```
+0x00  "RSRC\r\n"                     magic
+0x06  u16   format version (e.g. 3)
+0x08  4s    file type   (LVIN = VI, LVCC = control/typedef)
+0x0c  4s    creator     (LBVW)
+0x10  u32   info-section offset      (the resource map, near EOF)
+0x14  u32   info-section size
+0x18  u32   data-section offset      (= 0x20; the block data area)
+0x1c  u32   data-section size
+```
+
+Layout is `[32-byte header][data area][info/resource-map]`. The info section
+repeats the header, then at `info+0x2c` holds a u32 offset (relative to `info`)
+to the **block list**:
+
+```
+block list:  u32 count, then `count` entries of { 4s tag, u32 n1, u32 n2 }
+             n1 = sectionCount - 1 ; n2 = offset (rel to info) to the section descriptors
+```
+
+Each block owns `n1+1` **section descriptors**, 20 bytes each:
+
+```
+u32 index, u32 dataOffset, u32, u32, u32 = 0xFFFFFFFF   (sentinel)
+```
+
+The trailing `0xFFFFFFFF` reliably distinguishes a real section descriptor from
+the interleaved name-table rows (which carry `tag→offset` pairs instead). A
+section's bytes live at `dataArea + dataOffset` as `[u32 length][bytes]`.
+→ `labwright_viparse.readViSections` (validated: 435 corpus VIs, ~20k sections,
+0 crashes).
+
+## Section compression — fully decoded ✅
+
+Heap sections are stored as `[u32 decompressedSize][zlib stream]` (CMF byte
+`0x78`). `labwright_videcode.inflateSection` inflates them; uncompressed
+sections pass through. (Validated: ~2k sections inflate, BDEx 1.2 KB–208 KB,
+0 crashes.) Notable blocks: `BDEx` (block-diagram heap), `FPHb` (front panel),
+`DTHP`/`VCTP` (data types), `vers` (version+title), `CONP` (connector pane),
+`LIvi`/`LIfp`/`LIbd` (sub-VI links), `icl8`/`ICON` (icon).
+
+## `vers` block — decoded ✅
+
+Contains a Pascal version string (`10.0`, `9.0`, …) and a `VIDS` record
+(`'VIDS'` + `[u8 len][title]`). → `decodeVersion` (432/435 corpus VIs yield
+both).
+
+## Heap body (`BDEx`/`BDHb`) — partially understood, graph recovery BLOCKED ⛔
+
+The decompressed heap is `[u32 contentLen][opcode/object stream]`. The stream is
+**not** a simple `[tag][len]` tree; it is LabVIEW's opcode-serialized object
+heap. Observed invariants (consistent across the corpus):
+
+- Every BDEx body begins identically: `10 18 02 fe 00 7e fd 00 XX 10 f5 02 fe
+  00 4c fd 00 XX 64 cb 01 … 10 55 01 fb …`.
+- A 6-byte record `14 19 01 fd <u16>` repeats heavily (hundreds of times) — a
+  dominant object/reference kind.
+- `0xfd` recurs as a record/field marker; 2-byte values (`02 fe`, `10 f5`,
+  `64 cb`, `10 55`, `14 19`, …) look like type/opcode codes.
+- Human-readable strings (control labels, help text, value lists) are embedded
+  as length-prefixed runs — reliably extractable (`extractHeapStrings`).
+
+**Blocker:** decoding the stream into a node/wire/terminal graph requires the
+per-opcode payload-length table (LabVIEW's heap object semantics). Without it the
+cursor can't be advanced generically, so the records other than the obvious
+repeats can't be reliably framed. This is the same wall `pylabview` hit — even
+after years it does not recover executable logic. We therefore **do not
+fabricate a graph**; we extract what is reliably framed (version, title,
+strings, component sizes) and treat opcode-table recovery as a future,
+incremental effort (cross-referencing many VIs and known node patterns).
+
+## What the layers expose today
+
+- `labwright_viparse`: container summary (`parseVi`) + raw sections (`readViSections`).
+- `labwright_videcode`: `decodeSections`/`inflateSection` (decompressed bytes),
+  `decodeVersion` (version+title), `extractHeapStrings` (best-effort labels),
+  `blockComponents` (per-block sizes). Heap-graph parsing is the next stage,
+  pending the opcode table.

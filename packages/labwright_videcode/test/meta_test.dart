@@ -48,7 +48,27 @@ void main() {
     expect(strings, isNot(contains('1234'))); // numeric noise dropped
   });
 
-  test('decodeVersion and extractHeapStrings are total over arbitrary bytes', () {
+  test('componentsFromDecoded summarizes per-block sizes, largest first', () {
+    DecodedSection d(String tag, int rawLen, int decLen, bool comp) => DecodedSection(
+          section: ViSection(tag: tag, index: 0, dataOffset: 0, bytes: Uint8List(rawLen)),
+          bytes: Uint8List(decLen),
+          wasCompressed: comp,
+        );
+    final comps = componentsFromDecoded([
+      d('FPHb', 100, 100, false),
+      d('BDEx', 50, 5000, true), // compressed -> big decompressed
+      d('BDEx', 20, 200, true), // second BDEx section
+    ]);
+    expect(comps.first.tag, 'BDEx'); // largest decompressed first
+    final bd = comps.firstWhere((c) => c.tag == 'BDEx');
+    expect(bd.sectionCount, 2);
+    expect(bd.decompressedBytes, 5200);
+    expect(bd.rawBytes, 70);
+    expect(bd.compressed, isTrue);
+    expect(comps.firstWhere((c) => c.tag == 'FPHb').compressed, isFalse);
+  });
+
+  test('decodeVersion, extractHeapStrings, blockComponents are total over arbitrary bytes', () {
     final rng = Random(8);
     for (var i = 0; i < 2000; i++) {
       final n = rng.nextInt(200);
@@ -56,6 +76,7 @@ void main() {
       try {
         decodeVersion(b);
         extractHeapStrings(b);
+        blockComponents(b);
       } on ViFormatException {
         // acceptable
       } catch (e) {

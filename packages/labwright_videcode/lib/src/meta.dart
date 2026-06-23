@@ -38,6 +38,60 @@ ViVersionInfo versionFromSections(Iterable<ViSection> sections) {
   return ViVersionInfo(version: version, title: title);
 }
 
+/// A VI block summarized by size — its component footprint. Reliable (just
+/// section sizes), regardless of whether the heap's logic can be parsed.
+class BlockComponent {
+  const BlockComponent({
+    required this.tag,
+    required this.sectionCount,
+    required this.rawBytes,
+    required this.decompressedBytes,
+    required this.compressed,
+  });
+
+  /// The 4-char block tag (e.g. `BDEx`, `FPHb`, `DTHP`).
+  final String tag;
+
+  /// Number of sections in this block.
+  final int sectionCount;
+
+  /// Total stored (possibly compressed) bytes across the block's sections.
+  final int rawBytes;
+
+  /// Total bytes after inflation (== [rawBytes] for uncompressed blocks).
+  final int decompressedBytes;
+
+  /// Whether any section in the block was zlib-compressed.
+  final bool compressed;
+}
+
+/// Per-block size summary for a VI (largest decompressed first) — the VI's
+/// "components" view (how heavy the block diagram / front panel / type data are).
+/// Reliable and total.
+List<BlockComponent> blockComponents(Uint8List viBytes) => componentsFromDecoded(decodeSections(viBytes));
+
+/// [blockComponents] over already-decoded sections.
+List<BlockComponent> componentsFromDecoded(Iterable<DecodedSection> decoded) {
+  final byTag = <String, List<DecodedSection>>{};
+  for (final d in decoded) {
+    (byTag[d.tag] ??= <DecodedSection>[]).add(d);
+  }
+  final out = <BlockComponent>[];
+  byTag.forEach((tag, list) {
+    var raw = 0;
+    var dec = 0;
+    var comp = false;
+    for (final d in list) {
+      raw += d.section.bytes.length;
+      dec += d.bytes.length;
+      if (d.wasCompressed) comp = true;
+    }
+    out.add(BlockComponent(tag: tag, sectionCount: list.length, rawBytes: raw, decompressedBytes: dec, compressed: comp));
+  });
+  out.sort((a, b) => b.decompressedBytes.compareTo(a.decompressedBytes));
+  return out;
+}
+
 /// Best-effort human-readable strings embedded in a VI's heaps (control labels,
 /// help/tooltip text, value lists). **Heuristic**, not authoritative: the heap
 /// is an opcode-serialized object tree, so this scans for length-prefixed
