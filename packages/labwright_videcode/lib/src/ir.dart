@@ -213,7 +213,7 @@ List<ViObject> assembleObjects(List<HeapRecord> records, List<HeapStringTable> s
         lastBounds = null; // consume
       }
     } else if (r.kind == HeapOpcode.stringTable && inRange) {
-      final t = framed['${r.sectionTag}@${r.offset + 3}'];
+      final t = framed['${r.sectionTag}@${r.offset + r.headerLength}'];
       if (t != null) {
         out.add(ViObject(
           sectionTag: r.sectionTag,

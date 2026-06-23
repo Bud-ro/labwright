@@ -202,6 +202,7 @@ class HeapRecord {
     required this.offset,
     required this.opcode,
     required this.payload,
+    this.headerLength = 3,
   });
 
   /// The 4-char tag of the section this record lives in (e.g. `BDEx`, `FPHb`).
@@ -209,6 +210,12 @@ class HeapRecord {
 
   /// Byte offset of the introducing `0xC4` within the decompressed section.
   final int offset;
+
+  /// Bytes from the introducing `0xC4` to the start of [payload]: **3** for the
+  /// normal `C4 <op> <u8 len>` header, **5** for the extended-length form
+  /// `C4 <op> FF <u16 len>` (used when the payload exceeds 255 bytes). The
+  /// payload therefore starts at `offset + headerLength`.
+  final int headerLength;
 
   /// The opcode selector byte (the byte after `0xC4`), e.g. `0x2D`, `0x2E`, `0x1F`.
   /// Prefer [kind] for matching against the known-opcode catalog.
@@ -220,8 +227,8 @@ class HeapRecord {
   /// This record's catalogued [HeapOpcode] (or [HeapOpcode.unknown]).
   HeapOpcode get kind => HeapOpcode.fromByte(opcode);
 
-  /// Total bytes this record occupies: `0xC4` + opcode + length byte + payload.
-  int get byteLength => 3 + payload.length;
+  /// Total bytes this record occupies: header ([headerLength]) + payload.
+  int get byteLength => headerLength + payload.length;
 
   /// The 4× `s16` rectangle for any [HeapShape.rectangle] opcode (`bounds`,
   /// `size`, `rect5f`, `rect4c`, …); null otherwise. The generic accessor — see
@@ -324,23 +331,44 @@ List<HeapRecord> scanC4Records(Uint8List h, String sectionTag) {
   final n = h.length;
   var i = 0;
   while (i < n) {
-    if (h[i] == kHeapRecordPrefix && i + 3 <= n) {
-      final op = h[i + 1];
-      final len = h[i + 2];
-      if (i + 3 + len <= n) {
-        out.add(HeapRecord(
-          sectionTag: sectionTag,
-          offset: i,
-          opcode: op,
-          payload: Uint8List.sublistView(h, i + 3, i + 3 + len),
-        ));
-        i += 3 + len;
-        continue;
-      }
+    final r = c4FrameAt(h, i, sectionTag);
+    if (r != null) {
+      out.add(r);
+      i += r.byteLength;
+      continue;
     }
     i++;
   }
   return out;
+}
+
+/// Frames a `C4` record at [i] (if [h]\[i\] is `0xC4` and the record fits),
+/// handling both the normal `C4 <op> <u8 len>` header and the extended-length
+/// escape `C4 <op> FF <u16 len>` (payload > 255 bytes). Returns null otherwise.
+/// Total/bounds-safe.
+HeapRecord? c4FrameAt(Uint8List h, int i, String sectionTag) {
+  final n = h.length;
+  if (i + 3 > n || h[i] != kHeapRecordPrefix) return null;
+  final op = h[i + 1];
+  final lenByte = h[i + 2];
+  int headerLen;
+  int len;
+  if (lenByte == 0xff) {
+    if (i + 5 > n) return null;
+    headerLen = 5;
+    len = (h[i + 3] << 8) | h[i + 4];
+  } else {
+    headerLen = 3;
+    len = lenByte;
+  }
+  if (i + headerLen + len > n) return null;
+  return HeapRecord(
+    sectionTag: sectionTag,
+    offset: i,
+    opcode: op,
+    payload: Uint8List.sublistView(h, i + headerLen, i + headerLen + len),
+    headerLength: headerLen,
+  );
 }
 
 /// A bounding rectangle in LabVIEW's field order (`top, left, bottom, right`),
@@ -400,6 +428,179 @@ List<HeapRecord> heapC4RecordsFromDecoded(Iterable<DecodedSection> decoded) {
     out.addAll(scanC4Records(d.bytes, d.tag));
   }
   return out;
+}
+
+/// One record found by [walkHeapBody]: its byte span and lead opcode byte.
+class HeapSpan {
+  const HeapSpan({required this.offset, required this.length, required this.lead});
+
+  /// Byte offset of the record's start within the heap body.
+  final int offset;
+
+  /// Total byte length of the record.
+  final int length;
+
+  /// The record's lead byte — `0xC4` for a [HeapRecord]-style record, otherwise a
+  /// non-`C4` record family byte (`0x10`, `0x84`, `0x14`, …).
+  final int lead;
+
+  /// Whether this is a `C4`-prefixed (length-prefixed) record.
+  bool get isC4Record => lead == kHeapRecordPrefix;
+}
+
+/// Result of sequentially walking a decompressed heap body with [walkHeapBody]:
+/// the ordered record spans, how far the walk got, and where (if anywhere) it
+/// hit an opcode it could not frame.
+class HeapWalk {
+  const HeapWalk({
+    required this.spans,
+    required this.coveredBytes,
+    required this.bodyBytes,
+    this.stoppedAtOffset,
+    this.stoppedLead,
+  });
+
+  /// The records framed, in heap order.
+  final List<HeapSpan> spans;
+
+  /// Bytes consumed by recognized records.
+  final int coveredBytes;
+
+  /// Length of the record stream (the body minus its leading `u32` content-length).
+  final int bodyBytes;
+
+  /// Offset where the walk stopped on an un-framable opcode, or null if it walked
+  /// to the end.
+  final int? stoppedAtOffset;
+
+  /// The lead byte that stopped the walk (null if it completed).
+  final int? stoppedLead;
+
+  /// Fraction of the record stream covered before stopping (1.0 if complete).
+  double get coverage => bodyBytes <= 0 ? 1.0 : coveredBytes / bodyBytes;
+
+  /// Whether the walk reached the end of the body.
+  bool get complete => stoppedAtOffset == null;
+}
+
+/// The byte length of the heap record at [i] in [h], or null if [i] is not a
+/// recognized record start (the walk stops there). This is the **BDEx record
+/// skip table** — the reverse-engineered framing of every record family known so
+/// far, validated by sequential walking (≈93% mean body coverage; full,
+/// exact-EOF walks on the majority of corpus VIs). Total/bounds-safe.
+///
+/// Record families (lead byte → framing):
+/// - `C4` — length-prefixed: `3 + u8len`, or `5 + u16len` for the `FF` escape.
+/// - `84` — fixed 6 bytes (an RGB color tuple).
+/// - `10`/`12`/`11`/`0a` — typed-list node: opcode, subop, `u8` count, type tag,
+///   then items. Tag `FB` → 2-byte items (`4 + 2*count`); tag `FE`/`FD` → 3-byte
+///   items (`3 + 3*count`). `11`/`0a` are 2 bytes when no type tag follows.
+/// - `14` — fixed 6 bytes (`14 sub 01 fd|fe s16`).
+/// - `08`/`09`/`04` — fixed 2 bytes.
+/// - `24` → 3 bytes; `44` → 4 bytes; `64` → 5 bytes (the `64 cb 26` form → 3).
+/// - `02` (with `FE`) — fixed 7 bytes.
+/// - `25` — node (`25 2d` → `3 + 2*count`, `25 3a` → 3) or attribute (3).
+/// - attribute nibble-family (opcode low nibble in {4,5,6}): the high nibble sets
+///   the value width — `2x`→3, `4x`→4, `6x`→5, `8x`→6, `Ex`→2, `Cx`→`3 + u8len`.
+int? recordSkip(Uint8List h, int i) {
+  final n = h.length;
+  if (i >= n) return null;
+  final op = h[i];
+  switch (op) {
+    case 0xc4:
+      if (i + 3 > n) return null;
+      final lb = h[i + 2];
+      if (lb == 0xff) {
+        if (i + 5 > n) return null;
+        return 5 + ((h[i + 3] << 8) | h[i + 4]);
+      }
+      return 3 + lb;
+    case 0x84:
+      return 6;
+    case 0x10:
+    case 0x12:
+      return _typedList(h, i);
+    case 0x11:
+      return (i + 4 <= n && _isTypeTag(h[i + 3])) ? _typedList(h, i) : 2;
+    case 0x0a:
+      return (i + 4 <= n && _isTypeTag(h[i + 3])) ? _typedList(h, i) : 2;
+    case 0x14:
+      return (i + 4 <= n && h[i + 2] == 1 && (h[i + 3] == 0xfd || h[i + 3] == 0xfe)) ? 6 : null;
+    case 0x08:
+    case 0x09:
+    case 0x04:
+      return 2;
+    case 0x24:
+      return 3;
+    case 0x44:
+      return 4;
+    case 0x64:
+      return (i + 3 <= n && h[i + 1] == 0xcb && h[i + 2] == 0x26) ? 3 : 5;
+    case 0x02:
+      return (i + 2 <= n && h[i + 1] == 0xfe) ? 7 : null;
+    case 0x25:
+      if (i + 2 > n) return null;
+      if (h[i + 1] == 0x2d) return (i + 3 <= n) ? 3 + 2 * h[i + 2] : null;
+      return 3;
+  }
+  final lo = op & 0x0f;
+  if (lo == 4 || lo == 5 || lo == 6) {
+    switch (op >> 4) {
+      case 2:
+        return 3;
+      case 4:
+        return 4;
+      case 6:
+        return 5;
+      case 8:
+        return 6;
+      case 0xe:
+        return 2;
+      case 0xc:
+        return (i + 3 <= n) ? 3 + h[i + 2] : null;
+    }
+  }
+  return null;
+}
+
+bool _isTypeTag(int t) => t == 0xfb || t == 0xfe || t == 0xfd;
+
+int? _typedList(Uint8List h, int i) {
+  if (i + 4 > h.length) return null;
+  final count = h[i + 2];
+  final tag = h[i + 3];
+  if (tag == 0xfb) return 4 + 2 * count;
+  if (tag == 0xfe || tag == 0xfd) return 3 + 3 * count;
+  return null;
+}
+
+/// Sequentially walks a decompressed heap [body] (e.g. a `BDEx` section's bytes)
+/// as an ordered record stream, starting after the leading `u32` content-length,
+/// using [recordSkip]. Stops at the first opcode it cannot frame and reports how
+/// far it got. Total/bounds-safe — never throws.
+HeapWalk walkHeapBody(Uint8List body) {
+  final spans = <HeapSpan>[];
+  final n = body.length;
+  if (n < 4) return HeapWalk(spans: spans, coveredBytes: 0, bodyBytes: n < 0 ? 0 : (n - 4).clamp(0, n));
+  final bodyBytes = n - 4;
+  var i = 4;
+  var covered = 0;
+  while (i < n) {
+    final s = recordSkip(body, i);
+    if (s == null || s <= 0 || i + s > n) {
+      return HeapWalk(
+        spans: spans,
+        coveredBytes: covered,
+        bodyBytes: bodyBytes,
+        stoppedAtOffset: i,
+        stoppedLead: body[i],
+      );
+    }
+    spans.add(HeapSpan(offset: i, length: s, lead: body[i]));
+    covered += s;
+    i += s;
+  }
+  return HeapWalk(spans: spans, coveredBytes: covered, bodyBytes: bodyBytes);
 }
 
 /// Frequency of each `C4` opcode across a VI's heaps — the opcode census that

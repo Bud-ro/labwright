@@ -300,7 +300,37 @@ The IR (Stage 4) will be built from those leaves with **honest partial fidelity*
 not from a fabricated full graph; cracking the nested object/type model is the
 long-tail effort that would raise fidelity over time.
 
-### Non-`C4` record families — anchored-decode results 🔬 (ready to integrate)
+### Sequential heap walker — ✅ ~93% of `BDEx` decoded (the mastery milestone)
+
+The non-`C4` record families have now been decoded well enough to **walk a `BDEx`
+body sequentially** as an ordered record stream. `walkHeapBody(body)` starts after
+the leading `u32` content-length and frames each record via `recordSkip` (the
+reverse-engineered skip table), stopping only at an opcode it can't frame.
+
+**Result (validated independently on the corpus): mean coverage 93.30%, with full
+exact-EOF walks on 361/398 `BDEx` bodies, 0 crashes.** Every completed walk ends
+*exactly* at the body length — strong evidence the skip table is correct (no rule
+over- or under-consumes). This is the heart of format mastery: the heap is no
+longer ~23% understood (the `C4` leaves) but ~93% traversable.
+
+Decoded record families (see `recordSkip` for the exact rules):
+- **`C4`** length-prefixed, incl. the **extended-length escape** `C4 <op> FF <u16
+  len>` (header 5 bytes) for payloads > 255 — *also fixed in the `C4` scanner and
+  string-table parser, which previously mis-framed escaped records*.
+- **`84`** = fixed 6-byte RGB color tuple.
+- **`10`/`12`/`11`/`0a`** = typed-list nodes (`<op><subop><u8 count><typetag>
+  <items>`; tag `FB`→2-byte items, `FE`/`FD`→3-byte items).
+- **`14`** = fixed 6-byte (`14 sub 01 fd s16`); **`08`/`09`/`04`** = 2-byte;
+  **`24`** = 3, **`44`** = 4, **`64`** = 5 (`64 cb 26`→3); **`02 FE`** = 7.
+- **attribute nibble-family** (opcode low-nibble ∈ {4,5,6}): the high nibble sets
+  the value width (`2x`→3 … `8x`→6, `Ex`→2, `Cx`→`3+u8len`).
+
+**Remaining ~7%:** the walk stops almost always at `0x00` — an `FD` item with the
+high bit set inside a `10` typed-list is wider than 3 bytes (a value escape not
+yet decoded), plus legitimate trailing zero padding. Decoding that `FD` escape is
+the next step toward 100%.
+
+### Non-`C4` record families — anchored-decode results 🔬
 
 Using confirmed `C4` record boundaries as **anchors** (the byte right after a
 framed `C4` record is a guaranteed record start), the two dominant non-`C4`
@@ -336,6 +366,21 @@ neighbor families (`08`/`09`/`11`/`14`/`64 cb`) are decoded.
   (`C4 C4`), DLL paths (`C4 A4`), and type-descriptor token streams (the
   `08/09/10/11/14/C5` opcodes — a distinct, still-undecoded DTHP grammar). This is
   where front-panel control *types* live and reuse our existing `C4` decoder.
+
+**Type-pool probe — negative (control *type kind* still undecoded):** the classic
+flat LabVIEW `VCTP` type-descriptor pool (`[u16 len][u16 typecode]…`) does **not**
+exist here — in these compiled VIs `VCTP` is a **4-byte stub in 380/380** files.
+Type kind (numeric/bool/string/cluster/…) lives only inside the `DTHP` nested
+token grammar (the `02 fe 00 XX` field is *not* a clean type code), so per-control
+type recovery needs that grammar cracked — not yet done.
+
+**Front-panel object record (corpus-thin but confirmed):** an object-form
+`FPHb`/`FPSE` record is a **fixed 72-byte header then a `u32`-length ASCII name**
+to section end: `u32 _, u32 typeFlags @4, u32 _, s16×4 rect @0x0C, …, u32 nameLen
+@0x48, name`. `FPSE` carries the per-control name + bounds; the 1246-byte `FPHb`
+template is an embedded *pixmap*, not controls. Only ~3 corpus VIs have real
+panels, so multi-control framing and the `typeFlags`→kind mapping remain
+unconfirmed (needs a top-level-VI corpus).
 
 ### Negatives / artifacts (do not model)
 

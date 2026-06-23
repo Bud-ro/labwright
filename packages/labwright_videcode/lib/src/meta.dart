@@ -227,33 +227,29 @@ class _FramedTable {
   final int consumed; // total bytes consumed (opcode + len + region)
 }
 
-/// If [h] at [i] is a `C4 2E <len> <region>` string table — where `<region>` is
-/// exactly `<len>` bytes of packed `[u8 len][printable]` Pascal strings (≥2 of
-/// them) — returns it; otherwise null. The opcode is the **2-byte `C4 2E`**
-/// (`0xC4` precedes `0x2E` in 100% of corpus tables — requiring it rejects stray
-/// `0x2E` bytes inside string content). Tries a `u8` length, then a `u16` length
-/// (for tables >255 bytes). Total/bounds-safe.
+/// If [h] at [i] is a `C4 2E` string table — `<region>` is exactly `<len>` bytes
+/// of packed `[u8 len][printable]` Pascal strings (≥2 of them) — returns it;
+/// otherwise null. The opcode is the **2-byte `C4 2E`** (`0xC4` precedes `0x2E`
+/// in 100% of corpus tables). Length is a `u8`, or the extended-length escape
+/// `C4 2E FF <u16 len>` for tables >255 bytes (header 5 bytes). Total/bounds-safe.
 _FramedTable? _tryFramedTable(Uint8List h, int i) {
   final n = h.length;
-  if (i + 2 > n || h[i] != kHeapRecordPrefix || h[i + 1] != HeapOpcode.stringTable.byte) {
+  if (i + 3 > n || h[i] != kHeapRecordPrefix || h[i + 1] != HeapOpcode.stringTable.byte) {
     return null;
   }
-  // u8 length
-  if (i + 3 <= n) {
-    final l = h[i + 2];
-    if (l >= 2 && i + 3 + l <= n) {
-      final strs = _packedPascals(h, i + 3, l);
-      if (strs != null && strs.length >= 2) return _FramedTable(strs, 3, 3 + l);
-    }
+  int header;
+  int l;
+  if (h[i + 2] == 0xff) {
+    if (i + 5 > n) return null;
+    header = 5;
+    l = (h[i + 3] << 8) | h[i + 4];
+  } else {
+    header = 3;
+    l = h[i + 2];
   }
-  // u16 length (big tables)
-  if (i + 4 <= n) {
-    final l = (h[i + 2] << 8) | h[i + 3];
-    if (l >= 2 && i + 4 + l <= n) {
-      final strs = _packedPascals(h, i + 4, l);
-      if (strs != null && strs.length >= 2) return _FramedTable(strs, 4, 4 + l);
-    }
-  }
+  if (l < 2 || i + header + l > n) return null;
+  final strs = _packedPascals(h, i + header, l);
+  if (strs != null && strs.length >= 2) return _FramedTable(strs, header, header + l);
   return null;
 }
 

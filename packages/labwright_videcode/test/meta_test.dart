@@ -124,7 +124,8 @@ void main() {
     }
     expect(entries.length > 255, isTrue);
     final heap = <int>[
-      0xc4, 0x2e, (entries.length >> 8) & 0xff, entries.length & 0xff, ...entries,
+      // extended-length escape: C4 2E FF <u16 len> <region>
+      0xc4, 0x2e, 0xff, (entries.length >> 8) & 0xff, entries.length & 0xff, ...entries,
     ];
     final decoded = DecodedSection(
       section: ViSection(tag: 'BDEx', index: 0, dataOffset: 0, bytes: Uint8List.fromList(heap)),
@@ -134,7 +135,7 @@ void main() {
     final tables = heapStringTablesFromDecoded([decoded]);
     expect(tables.length, 1);
     expect(tables.first.framed, isTrue);
-    expect(tables.first.offset, 4); // after C4 2E + u16 len
+    expect(tables.first.offset, 5); // after C4 2E FF + u16 len
     expect(tables.first.strings, expected);
   });
 
