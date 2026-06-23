@@ -300,6 +300,46 @@ The IR (Stage 4) will be built from those leaves with **honest partial fidelity*
 not from a fabricated full graph; cracking the nested object/type model is the
 long-tail effort that would raise fidelity over time.
 
+### Nesting tree + absolute coordinates — ✅ validated (integration pending)
+
+The heap is a **balanced typed-group tree**: an object opens with a high-nibble-1
+opcode carrying `10 xx 02 fe <u16 kind> fd <u16 oid>` and closes with the matching
+high-nibble-0 opcode (`08/09/0a/0b xx`, same tag byte `xx`). Walking with a
+tag-matched stack yields the **parent/child tree directly** — no parent field
+needed. Validated independently: **single root in 398/398** `BDEx` bodies (root
+kind always `0x7e`), one parent per object.
+
+This solves the **object-local coordinate** problem: `abs_origin(child) =
+abs_origin(parent) + (child.localTop, child.localLeft)` (wrapper objects with no
+bounds pass the origin through). After the transform, a node's terminals fall
+inside the node ~100% (vs 0% with raw bounds; the broad child-in-parent rate is
+75%, the residual being icon/viewport decorations that legitimately draw outside).
+→ This is the keystone for a future faithful layout. *Validated; integration into
+`graph.dart` (parentOid + absolute bounds) is the next focused step.*
+
+### `CONP` / `CPC2` — VI interface — partial 🔬
+
+- **`CPC2` = the VI's top-level description** (`[u32 len][ASCII]`), e.g. "This
+  example demonstrates how to stream data…". → `cpc2Description` / `ViModel.description`.
+  (Validated: 256/409 VIs, 0 crashes.) The non-description `CPC2` variants are a
+  compiled cache.
+- **`CONP` = connector-pane pattern stub**: a pattern id (`0x3C` = the standard
+  4-2-2-4 12-terminal template, constant across this corpus) + a table of MD5/GUID
+  **link hashes** — **no per-terminal list**. So the VI's input/output↔control
+  binding is **not** recoverable from `CONP`/`CPC2` (it lives in the `FPSE` panel
+  heap, not yet decoded). Documented negative.
+
+### Structure sub-diagrams — partial 🔬
+
+Diagram containers (root `0x4c`, frames) carry an explicit **child reflist**
+`10 55 01 fb <u16 N> N×(14 19 01 fd <oid>) 08 55` — a **valid forest** (0 duplicate
+placements, 17,609 entries) listing ~74% of placeable objects (nodes 100%,
+terminals 60–95%; wires/sub-parts/decoration 0%). The **structure→its-frame**
+pointer is **not** explicit (only document-adjacency heuristic, ~71%); per-frame
+grouping for multi-frame case/sequence is not encoded. Family split: `0x53` =
+loop family, `0x52` = case/sequence family (via the `64 cb` subtype nibble);
+human labels (While vs For, Case vs Sequence) not pinned without ground truth.
+
 ### Block-diagram graph — ✅ recovered (objects + wires)
 
 With the walker complete, the `BDEx` record stream segments into a real graph:

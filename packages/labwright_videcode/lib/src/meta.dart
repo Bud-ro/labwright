@@ -323,6 +323,31 @@ bool _looksWordy(String s) {
   return false;
 }
 
+/// The VI's top-level **description / help text**, from the `CPC2` block, stored
+/// as `[u32 len][ASCII]` (e.g. "This closes the device…"). Returns null when the
+/// `CPC2` block is a compiled-cache/empty variant rather than a description.
+/// Total.
+String? cpc2Description(Iterable<ViSection> sections) {
+  for (final s in sections) {
+    if (s.tag != 'CPC2') continue;
+    final b = s.bytes;
+    if (b.length < 5) continue;
+    final len = (b[0] << 24) | (b[1] << 16) | (b[2] << 8) | b[3];
+    if (len <= 0 || 4 + len > b.length) continue;
+    var ok = true;
+    for (var i = 4; i < 4 + len; i++) {
+      final c = b[i];
+      if (c == 9 || c == 10 || c == 13) continue;
+      if (c < 32 || c >= 127) {
+        ok = false;
+        break;
+      }
+    }
+    if (ok) return String.fromCharCodes(b.sublist(4, 4 + len));
+  }
+  return null;
+}
+
 /// Reads the `VIDS` record's title (`'VIDS'` then `[u8 len][string]`) from a
 /// `vers` section, or null.
 String? _vidsTitle(Uint8List b) {

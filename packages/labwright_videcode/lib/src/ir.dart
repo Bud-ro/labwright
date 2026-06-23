@@ -25,6 +25,7 @@ class ViModel {
   const ViModel({
     required this.version,
     required this.title,
+    this.description,
     required this.components,
     required this.stringTables,
     required this.heapRecords,
@@ -36,6 +37,9 @@ class ViModel {
 
   /// The VI's embedded title/description (from the `vers` block), or null.
   final String? title;
+
+  /// The VI's top-level description / help text (from the `CPC2` block), or null.
+  final String? description;
 
   /// Per-block size summary (block diagram / front panel / type data weights),
   /// largest decompressed first.
@@ -250,6 +254,7 @@ ViModel buildViModelFromDecoded(Iterable<DecodedSection> decoded) {
   return ViModel(
     version: ver.version,
     title: ver.title,
+    description: cpc2Description(list.map((d) => d.section)),
     components: componentsFromDecoded(list),
     stringTables: heapStringTablesFromDecoded(list),
     heapRecords: heapC4RecordsFromDecoded(list),
