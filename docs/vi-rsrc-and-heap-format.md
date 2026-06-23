@@ -173,6 +173,33 @@ until the non-`C4` opcode lengths (`10 xx`, `84 xx`, `14 19 01 fd`, `64 cb`,
 frame a spurious record (the scan resynchronizes after). Decoding those non-`C4`
 record lengths is the path to a full walker → the node/wire graph.
 
+### The non-`C4` region is *nested*, not a flat record stream — measured ⛔
+
+How far does the self-describing layer get us? Across the corpus, the `C4`
+length-prefixed records cover only **23% of `BDEx` bytes** (2.55 MB of 10.65 MB).
+The remaining 77% begins at gaps dominated by **`0x10`** (78,928 gaps) and
+**`0x84`** (72,929) records. Two hypotheses for these were tested by building a
+*sequential* walker (start at the body, skip each record by its rule, measure how
+far it gets before an unknown/invalid skip):
+- **Flat length-prefixed** (`10 <u8 len> …`, `84 <u8 len> …`, like `C4`): **0%**
+  sequential coverage — stalls on the very first such record.
+- **Flat fixed-size** (`10`=2, `02`=4, `fd`=3, `14 19 01 fd`=6, …): also **0%** —
+  desyncs within ~30 bytes.
+
+The fixed-size walk reveals *why*: after a `10 XX` record comes `01 fb` / `02 fe`
+/ `01 fe` — a **`<u8 count> <type-opcode>` sub-list**, i.e. the heap beyond the
+`C4` leaves is a **nested, count-prefixed object tree**, not a flat opcode stream.
+A correct walker must model that nesting (object → typed field lists → leaf
+values), so a flat opcode-length table is provably insufficient. This is the same
+wall `pylabview` hit. **We therefore do not ship a sequential walker** (it would
+desync and mislead).
+
+What this means for the graph: the reliably-decodable layer is the `C4` leaves —
+string tables (labels), and the `C4 2D`/`1F` value records — plus their order.
+The IR (Stage 4) will be built from those leaves with **honest partial fidelity**,
+not from a fabricated full graph; cracking the nested object/type model is the
+long-tail effort that would raise fidelity over time.
+
 **Preamble probes — partial / negative results (do not over-claim):**
 - `C4 19` (2,750×) sits next to multi-line text (help/descriptions) but is **not**
   a simple length-prefixed text field: the text blob that follows has no `u8`/`u16`
