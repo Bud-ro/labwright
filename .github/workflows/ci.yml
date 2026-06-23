@@ -1,0 +1,30 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    name: build (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      # One workspace resolution, then analyze + test each package.
+      - run: dart pub get
+      - run: dart analyze --fatal-infos
+      - run: dart test
+        working-directory: packages/labwright_core
+      - run: dart test
+        working-directory: packages/labwright_tdms
+      - run: dart test
+        working-directory: packages/labwright_viparse

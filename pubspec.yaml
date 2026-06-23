@@ -10,6 +10,7 @@ environment:
 workspace:
   - packages/labwright_core
   - packages/labwright_tdms
+  - packages/labwright_viparse
 
 dev_dependencies:
   lints: ^5.0.0

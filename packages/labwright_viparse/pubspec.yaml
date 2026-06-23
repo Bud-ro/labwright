@@ -1,0 +1,18 @@
+name: labwright_viparse
+description: >-
+  Clean-room, LabVIEW-less reader for the LabVIEW RSRC (.vi/.ctl/.llb) container.
+  Parses the header + resource-block inventory into a VI summary ("what it is/does":
+  front panel, block diagram, connector pane, sub-VI links). Pure Dart, web-safe.
+version: 0.0.1
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+executables:
+  vi-inspect: inspect
+
+dev_dependencies:
+  test: ^1.25.0
+  lints: ^5.0.0
