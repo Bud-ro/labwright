@@ -1,0 +1,18 @@
+name: labwright_daq
+description: >-
+  Labwright DAQ hardware-abstraction layer: device-agnostic AnalogInput/Output,
+  DigitalIO, Counter, and sample streams, plus a simulated backend for
+  hardware-free tests. Real backends bind to native/qdaq via ffigen.
+version: 0.0.1
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  labwright_core: ^0.0.1
+
+dev_dependencies:
+  test: ^1.25.0
+  lints: ^5.0.0
