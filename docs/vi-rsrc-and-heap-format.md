@@ -324,6 +324,21 @@ coordinates, and a faithful absolute layout stays blocked on the close ambiguity
 (Honest correction of an earlier over-optimistic note: the top-level single-root
 holds, but it does not imply a clean per-object tree.)
 
+**Second route also blocked (measured).** The alternative — build nesting from the
+explicit child-reflist `10 55 01 fb <N>` + N×`14 19 01 fd <oid>` (which a parallel
+agent reported as a clean 74%-coverage forest) — does **not** reproduce in the
+authoritative flat object model: there `10 55 01 fb` lists are the **wire-endpoint
+lists**, not spatial child lists, so treating them as containment gives only **8%
+of objects a parent and 7% child-in-parent** containment. The agent's clean forest
+relied on the any-tag tree *and* on separating the **overloaded `0x68` class**
+(used for *both* wires and frame containers) — neither of which is resolved.
+
+**Net:** per-object nesting + absolute coordinates is a genuine open problem
+gated on (a) the `08 19` close-vs-data disambiguation and (b) splitting the `0x68`
+wire/frame overload. Two routes tried and validated-as-insufficient. The format is
+otherwise mastered; this (and `FPSE` I/O binding, exact numeric type widths) is the
+hard residue that likely needs ground truth or substantially deeper decoding.
+
 ### `CONP` / `CPC2` — VI interface — partial 🔬
 
 - **`CPC2` = the VI's top-level description** (`[u32 len][ASCII]`), e.g. "This
