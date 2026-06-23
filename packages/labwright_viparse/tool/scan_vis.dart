@@ -22,12 +22,23 @@ void main(List<String> args) {
 
   var parsed = 0, rejected = 0, crashed = 0;
   var withBD = 0, withFP = 0, withCONP = 0, withSub = 0, named = 0;
+  var totalSections = 0, filesWithBdSection = 0, sectionCrashes = 0;
   final crashes = <String>[];
   final samples = <String>[];
 
   for (final f in files) {
+    final bytes = f.readAsBytesSync();
+    // Section extraction (Stage 1): must be total — count sections, never crash.
     try {
-      final vi = parseVi(f.readAsBytesSync());
+      final secs = readViSections(bytes);
+      totalSections += secs.length;
+      if (secs.any((s) => s.tag == 'BDHb' || s.tag == 'BDEx')) filesWithBdSection++;
+    } catch (e) {
+      sectionCrashes++;
+      if (crashes.length < 20) crashes.add('${f.path} [sections]: ${e.runtimeType}: $e');
+    }
+    try {
+      final vi = parseVi(bytes);
       parsed++;
       if (vi.hasBlockDiagram) withBD++;
       if (vi.hasFrontPanel) withFP++;
@@ -52,7 +63,11 @@ void main(List<String> args) {
     ..writeln('  has sub-VI links  : $withSub')
     ..writeln('  recovered a name  : $named')
     ..writeln('cleanly rejected (ViFormatException): $rejected')
-    ..writeln('CRASHED (non-ViFormatException)     : $crashed');
+    ..writeln('CRASHED (non-ViFormatException)     : $crashed')
+    ..writeln('--- sections (Stage 1) ---')
+    ..writeln('total sections extracted : $totalSections')
+    ..writeln('files with BD section     : $filesWithBdSection')
+    ..writeln('section extraction crashes: $sectionCrashes');
   if (samples.isNotEmpty) {
     stdout.writeln('\nsample summaries:');
     for (final s in samples) {

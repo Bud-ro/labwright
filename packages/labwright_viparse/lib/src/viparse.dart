@@ -80,7 +80,92 @@ class ViSummary {
   }
 }
 
+/// One block section's raw bytes located in the RSRC data area.
+///
+/// A block (e.g. `BDHb`, `vers`) owns one or more sections; each is stored in
+/// the data area as a length-prefixed run. Heap sections remain **as stored**
+/// here — typically zlib-compressed; inflation + heap parsing live in the
+/// `labwright_videcode` layer so this reader stays pure and web-safe.
+class ViSection {
+  ViSection({required this.tag, required this.index, required this.dataOffset, required this.bytes});
+
+  /// The 4-char block tag this section belongs to.
+  final String tag;
+
+  /// The section's 0-based index within its block.
+  final int index;
+
+  /// The section's offset within the RSRC data area (diagnostic).
+  final int dataOffset;
+
+  /// The section's bytes exactly as stored (heap sections stay compressed).
+  final Uint8List bytes;
+}
+
 const List<int> _magic = [0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a]; // "RSRC\r\n"
+
+/// Extracts every block section's raw bytes from an RSRC container.
+///
+/// Total and bounds-safe like [parseVi]: a malformed *container* (bad magic,
+/// truncated header/block-list) throws [ViFormatException], while an individual
+/// ill-formed section descriptor is skipped — so the result is a best-effort
+/// (possibly partial) list, never a crash. Each real section descriptor is a
+/// 20-byte record terminated by the `0xFFFFFFFF` sentinel, which distinguishes
+/// it from the interleaved name-table records.
+List<ViSection> readViSections(Uint8List bytes) {
+  final d = ByteData.sublistView(bytes);
+
+  int u32(int p) {
+    if (p < 0 || p + 4 > bytes.length) throw ViFormatException('truncated u32 at $p');
+    return d.getUint32(p);
+  }
+
+  String tag(int p) => String.fromCharCodes(bytes.sublist(p, p + 4));
+
+  if (bytes.length < 32) throw ViFormatException('too small to be an RSRC file');
+  for (var i = 0; i < _magic.length; i++) {
+    if (bytes[i] != _magic[i]) throw ViFormatException('not an RSRC/.vi file (bad magic)');
+  }
+
+  final infoOffset = u32(16);
+  final dataOffset = u32(24);
+  final dataSize = u32(28);
+  if (infoOffset + 0x30 > bytes.length) throw ViFormatException('info section offset out of range');
+
+  final blockListRel = u32(infoOffset + 0x2c);
+  final countPos = infoOffset + blockListRel;
+  final count = u32(countPos);
+  if (count > 100000) throw ViFormatException('implausible block count $count');
+
+  const sentinel = 0xFFFFFFFF;
+  const descSize = 20;
+  final sections = <ViSection>[];
+  var entry = countPos + 4;
+  for (var i = 0; i < count && entry + 12 <= bytes.length; i++) {
+    final t = tag(entry);
+    final sectionCount = u32(entry + 4) + 1; // stored as count-1
+    final descRel = u32(entry + 8);
+    entry += 12;
+    if (!_printableTag(t)) continue;
+    for (var s = 0; s < sectionCount; s++) {
+      final dpos = infoOffset + descRel + s * descSize;
+      if (dpos < 0 || dpos + descSize > bytes.length) break;
+      if (d.getUint32(dpos + 16) != sentinel) continue; // name-table row, not a section
+      final secRel = d.getUint32(dpos + 4);
+      final pos = dataOffset + secRel;
+      if (pos < 0 || pos + 4 > bytes.length) continue;
+      final len = d.getUint32(pos);
+      if (len > dataSize || pos + 4 + len > bytes.length) continue;
+      sections.add(ViSection(
+        tag: t,
+        index: s,
+        dataOffset: secRel,
+        bytes: Uint8List.sublistView(bytes, pos + 4, pos + 4 + len),
+      ));
+    }
+  }
+  return sections;
+}
 
 /// Parses a LabVIEW RSRC container (`.vi`) into a [ViSummary]. Big-endian.
 ViSummary parseVi(Uint8List bytes) {
