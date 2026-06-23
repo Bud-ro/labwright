@@ -41,6 +41,10 @@ void main() {
         initialSource: 'test',
         initialVersion: const ViVersionInfo(version: '10.0', title: 'My Example'),
         initialStrings: const ['Conversion time', 'error out', 'Range Volts'],
+        initialComponents: const [
+          BlockComponent(tag: 'BDEx', sectionCount: 1, rawBytes: 5000, decompressedBytes: 78000, compressed: true),
+          BlockComponent(tag: 'FPHb', sectionCount: 1, rawBytes: 1200, decompressedBytes: 1200, compressed: false),
+        ],
       ),
     ));
 
@@ -49,6 +53,9 @@ void main() {
     expect(find.text('My Example'), findsOneWidget);
     expect(find.textContaining('Embedded strings (3)'), findsOneWidget);
     expect(find.text('Conversion time'), findsOneWidget);
+    expect(find.text('Components (by decompressed size)'), findsOneWidget);
+    expect(find.text('BDEx'), findsOneWidget); // only in components (not in inventory blocks)
+    expect(find.textContaining('76.2 KB'), findsOneWidget); // 78000 bytes formatted
 
     // Filtering the string list.
     await tester.enterText(find.byKey(const Key('string-search')), 'error');

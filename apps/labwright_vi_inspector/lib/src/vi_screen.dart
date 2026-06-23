@@ -20,6 +20,7 @@ class ViInspectorScreen extends StatefulWidget {
     this.initialSource,
     this.initialVersion,
     this.initialStrings,
+    this.initialComponents,
   });
 
   /// Optional summary to show on first build (used by tests).
@@ -34,6 +35,9 @@ class ViInspectorScreen extends StatefulWidget {
   /// Optional embedded strings to show on first build (tests).
   final List<String>? initialStrings;
 
+  /// Optional per-block components to show on first build (tests).
+  final List<BlockComponent>? initialComponents;
+
   @override
   State<ViInspectorScreen> createState() => _ViInspectorScreenState();
 }
@@ -46,6 +50,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
   bool _dragging = false;
   ViVersionInfo? _version;
   List<String> _strings = const [];
+  List<BlockComponent> _components = const [];
 
   @override
   void initState() {
@@ -54,6 +59,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
     _source = widget.initialSource ?? '';
     _version = widget.initialVersion;
     _strings = widget.initialStrings ?? const [];
+    _components = widget.initialComponents ?? const [];
   }
 
   @override
@@ -68,9 +74,11 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
     final load = summarize(bytes);
     ViVersionInfo? version;
     var strings = const <String>[];
+    var components = const <BlockComponent>[];
     if (load.isOk) {
       version = decodeVersion(bytes);
       strings = extractHeapStrings(bytes);
+      components = blockComponents(bytes);
     }
     setState(() {
       _summary = load.summary;
@@ -78,6 +86,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
       _source = source;
       _version = version;
       _strings = strings;
+      _components = components;
     });
   }
 
@@ -197,6 +206,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                               source: _source,
                               version: _version,
                               strings: _strings,
+                              components: _components,
                             ),
                 ),
               ),
@@ -252,11 +262,13 @@ class _SummaryView extends StatefulWidget {
     required this.source,
     required this.version,
     required this.strings,
+    required this.components,
   });
   final ViSummary summary;
   final String source;
   final ViVersionInfo? version;
   final List<String> strings;
+  final List<BlockComponent> components;
 
   @override
   State<_SummaryView> createState() => _SummaryViewState();
@@ -334,6 +346,19 @@ class _SummaryViewState extends State<_SummaryView> {
             ),
         ]),
 
+        if (widget.components.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          const Text('Components (by decompressed size)', style: TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          for (final c in widget.components.take(20))
+            _kv(
+              c.sectionCount > 1 ? '${c.tag} ×${c.sectionCount}' : c.tag,
+              c.compressed
+                  ? '${_fmtSize(c.decompressedBytes)}  (zlib ${_fmtSize(c.rawBytes)})'
+                  : _fmtSize(c.decompressedBytes),
+            ),
+        ],
+
         if (widget.strings.isNotEmpty) ...[
           const SizedBox(height: 16),
           Text('Embedded strings (${widget.strings.length})', style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -398,6 +423,8 @@ class _SummaryViewState extends State<_SummaryView> {
           ],
         ),
       );
+
+  static String _fmtSize(int n) => n >= 1024 ? '${(n / 1024).toStringAsFixed(1)} KB' : '$n B';
 
   static Widget _cap(String label, bool on) => Chip(
         avatar: Icon(on ? Icons.check_circle : Icons.remove_circle_outline,
