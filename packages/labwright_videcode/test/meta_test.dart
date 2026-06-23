@@ -80,6 +80,50 @@ void main() {
         <String>['Range Volts', 'error out', 'Channel', 'Sample Rate']);
   });
 
+  test('heapStringTablesFromDecoded frames a 0x2E <len> opcode table exactly', () {
+    final body = <int>[...pascal('Sine'), ...pascal('Square'), ...pascal('Ramp Up')];
+    final heap = <int>[
+      0xaa, 0xbb, // leading noise
+      0x2e, body.length, ...body, // 0x2E <u8 len> <packed pascals>
+      0x00, // break
+    ];
+    final decoded = DecodedSection(
+      section: ViSection(tag: 'BDEx', index: 0, dataOffset: 0, bytes: Uint8List.fromList(heap)),
+      bytes: Uint8List.fromList(heap),
+      wasCompressed: false,
+    );
+    final tables = heapStringTablesFromDecoded([decoded]);
+    expect(tables.length, 1);
+    expect(tables.first.framed, isTrue);
+    expect(tables.first.offset, 4); // after 0xaa 0xbb 0x2e <len>
+    expect(tables.first.strings, <String>['Sine', 'Square', 'Ramp Up']);
+  });
+
+  test('heapStringTablesFromDecoded frames a 0x2E <u16 len> big table', () {
+    // >255 bytes -> u16 length. Build ~30 strings.
+    final entries = <int>[];
+    final expected = <String>[];
+    for (var k = 0; k < 30; k++) {
+      final s = 'Channel Number $k';
+      expected.add(s);
+      entries.addAll(pascal(s));
+    }
+    expect(entries.length > 255, isTrue);
+    final heap = <int>[
+      0x2e, (entries.length >> 8) & 0xff, entries.length & 0xff, ...entries,
+    ];
+    final decoded = DecodedSection(
+      section: ViSection(tag: 'BDEx', index: 0, dataOffset: 0, bytes: Uint8List.fromList(heap)),
+      bytes: Uint8List.fromList(heap),
+      wasCompressed: false,
+    );
+    final tables = heapStringTablesFromDecoded([decoded]);
+    expect(tables.length, 1);
+    expect(tables.first.framed, isTrue);
+    expect(tables.first.offset, 3); // after 0x2e + u16 len
+    expect(tables.first.strings, expected);
+  });
+
   test('heapStringTables is total over arbitrary bytes', () {
     final rng = Random(11);
     for (var i = 0; i < 2000; i++) {

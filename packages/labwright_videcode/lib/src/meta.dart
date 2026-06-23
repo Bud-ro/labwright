@@ -99,12 +99,25 @@ List<BlockComponent> componentsFromDecoded(Iterable<DecodedSection> decoded) {
 /// back-to-back `[u8 len][chars]` run. The *grouping* is real structure: these
 /// strings share an owner, so keeping them together (rather than flattening to a
 /// bag of strings) is genuine graph-relevant progress. [offset] is the run's byte
-/// position within its **decompressed** section, so future opcode work can
-/// correlate a table with the object preamble that precedes it (see the format
-/// doc — those preamble bytes recur byte-identically across VIs but their field
-/// semantics are not yet decoded, so we deliberately do not interpret them here).
+/// position within its **decompressed** section.
+///
+/// [framed] distinguishes confidence:
+/// - `true` — the table was delimited by the confirmed **`0x2E <len>` opcode**
+///   (`0x2E`, then a `u8` byte-length, or a `u16` when >255, then exactly that
+///   many bytes of packed Pascal strings). This is a structurally exact boundary,
+///   not a guess — across the corpus the opcode's length field matches the table
+///   size with zero exceptions (see the format doc).
+/// - `false` — the table was located by the heuristic run-scan fallback (a run of
+///   ≥2 consecutive valid Pascal strings). Used for tables not introduced by
+///   `0x2E` (e.g. long help-text tables, which use a different, not-yet-decoded
+///   framing). Best-effort: may occasionally merge adjacent tables or clip.
 class HeapStringTable {
-  const HeapStringTable({required this.sectionTag, required this.offset, required this.strings});
+  const HeapStringTable({
+    required this.sectionTag,
+    required this.offset,
+    required this.strings,
+    this.framed = false,
+  });
 
   /// The 4-char tag of the section this table lives in (e.g. `BDEx`, `FPHb`).
   final String sectionTag;
@@ -114,6 +127,10 @@ class HeapStringTable {
 
   /// The useful (wordy, deduped, order-preserving) labels in this table.
   final List<String> strings;
+
+  /// Whether this table was delimited by the confirmed `0x2E <len>` opcode
+  /// (exact), versus the heuristic run-scan fallback.
+  final bool framed;
 }
 
 /// Best-effort human-readable strings embedded in a VI's heaps (control labels,
@@ -132,48 +149,123 @@ List<HeapStringTable> heapStringTables(Uint8List viBytes, {int minLength = 4, in
 /// [heapStringTables] over already-decoded sections.
 ///
 /// Strings live in the heap as **contiguous Pascal-string tables** (`[u8 len]
-/// [chars]` packed back-to-back, no per-string opcode tag). We only emit a table
-/// for a **run** of at least [minRun] consecutive valid Pascal strings — this
-/// rejects the coincidental single length-byte matches that a naive whole-heap
-/// scan produces. Within a table the strings are filtered to wordy ones of
-/// length ≥ [minLength] and deduped (preserving order); a table with no useful
-/// strings is dropped. Single-pass and total.
+/// [chars]` packed back-to-back, no per-string opcode tag). Most are introduced
+/// by the confirmed **`0x2E <len>` opcode** — those are parsed structurally
+/// (exact boundary, [HeapStringTable.framed] == true). Bytes not covered by a
+/// framed table fall back to a **heuristic run-scan**: a run of at least [minRun]
+/// consecutive valid Pascal strings (rejecting coincidental single length-byte
+/// matches), emitted with `framed == false`. Within a table the strings are
+/// filtered to wordy ones of length ≥ [minLength] and deduped (preserving order);
+/// a table with no useful strings is dropped. Single forward pass and total.
 List<HeapStringTable> heapStringTablesFromDecoded(Iterable<DecodedSection> decoded,
     {int minLength = 4, int minRun = 2}) {
   final out = <HeapStringTable>[];
+
+  List<String> filt(List<String> raw) {
+    final seen = <String>{};
+    final keep = <String>[];
+    for (final s in raw) {
+      if (s.length >= minLength && _looksWordy(s) && seen.add(s)) keep.add(s);
+    }
+    return keep;
+  }
+
   for (final d in decoded) {
     final h = d.bytes;
+    final n = h.length;
     var i = 0;
-    while (i < h.length) {
-      final len = h[i]; // u8 length (max 255)
-      if (len >= 1 && i + 1 + len <= h.length && _allPrintable(h, i + 1, len)) {
-        final runStart = i;
-        final raw = <String>[];
-        while (i < h.length) {
-          final l = h[i];
-          if (l >= 1 && i + 1 + l <= h.length && _allPrintable(h, i + 1, l)) {
-            raw.add(String.fromCharCodes(h.sublist(i + 1, i + 1 + l)));
-            i += 1 + l;
-          } else {
-            break;
-          }
+    var heurStart = -1;
+    final heur = <String>[];
+
+    void flushHeur() {
+      if (heur.length >= minRun) {
+        final keep = filt(heur);
+        if (keep.isNotEmpty) {
+          out.add(HeapStringTable(sectionTag: d.tag, offset: heurStart, strings: keep));
         }
-        if (raw.length >= minRun) {
-          final seen = <String>{};
-          final keep = <String>[];
-          for (final s in raw) {
-            if (s.length >= minLength && _looksWordy(s) && seen.add(s)) keep.add(s);
-          }
-          if (keep.isNotEmpty) {
-            out.add(HeapStringTable(sectionTag: d.tag, offset: runStart, strings: keep));
-          }
+      }
+      heur.clear();
+      heurStart = -1;
+    }
+
+    while (i < n) {
+      // Prefer the confirmed structural opcode: 0x2E <len> <packed pascals>.
+      final framed = _tryFramedTable(h, i);
+      if (framed != null) {
+        flushHeur();
+        final keep = filt(framed.strings);
+        if (keep.isNotEmpty) {
+          out.add(HeapStringTable(
+              sectionTag: d.tag, offset: i + framed.headerLen, strings: keep, framed: true));
         }
+        i += framed.consumed;
+        continue;
+      }
+      // Heuristic fallback: accumulate a run of valid Pascal strings.
+      final len = h[i];
+      if (len >= 1 && i + 1 + len <= n && _allPrintable(h, i + 1, len)) {
+        if (heur.isEmpty) heurStart = i;
+        heur.add(String.fromCharCodes(h.sublist(i + 1, i + 1 + len)));
+        i += 1 + len;
       } else {
+        flushHeur();
         i++;
       }
     }
+    flushHeur();
   }
   return out;
+}
+
+/// Result of structurally framing a `0x2E <len>` string table at a byte offset.
+class _FramedTable {
+  const _FramedTable(this.strings, this.headerLen, this.consumed);
+  final List<String> strings; // all entries (unfiltered)
+  final int headerLen; // bytes from the 0x2E opcode to the first string (2 or 3)
+  final int consumed; // total bytes consumed (opcode + len + region)
+}
+
+/// If [h] at [i] is a `0x2E <len> <region>` string table — where `<region>` is
+/// exactly `<len>` bytes of packed `[u8 len][printable]` Pascal strings (≥2 of
+/// them) — returns it; otherwise null. Tries a `u8` length, then a `u16` length
+/// (for tables >255 bytes). Total/bounds-safe.
+_FramedTable? _tryFramedTable(Uint8List h, int i) {
+  final n = h.length;
+  if (i >= n || h[i] != 0x2e) return null;
+  // u8 length
+  if (i + 2 <= n) {
+    final l = h[i + 1];
+    if (l >= 2 && i + 2 + l <= n) {
+      final strs = _packedPascals(h, i + 2, l);
+      if (strs != null && strs.length >= 2) return _FramedTable(strs, 2, 2 + l);
+    }
+  }
+  // u16 length (big tables)
+  if (i + 3 <= n) {
+    final l = (h[i + 1] << 8) | h[i + 2];
+    if (l >= 2 && i + 3 + l <= n) {
+      final strs = _packedPascals(h, i + 3, l);
+      if (strs != null && strs.length >= 2) return _FramedTable(strs, 3, 3 + l);
+    }
+  }
+  return null;
+}
+
+/// Parses exactly [len] bytes at [start] as packed `[u8 L][L printable]` Pascal
+/// strings. Returns the strings only if the region is consumed exactly (no
+/// trailing bytes, no zero-length or non-printable entry); otherwise null. Total.
+List<String>? _packedPascals(Uint8List h, int start, int len) {
+  final end = start + len;
+  if (end > h.length) return null;
+  final out = <String>[];
+  var i = start;
+  while (i < end) {
+    final l = h[i];
+    if (l == 0 || i + 1 + l > end || !_allPrintable(h, i + 1, l)) return null;
+    out.add(String.fromCharCodes(h.sublist(i + 1, i + 1 + l)));
+    i += 1 + l;
+  }
+  return out.isEmpty ? null : out;
 }
 
 /// [extractHeapStrings] over already-decoded sections — the flat, globally

@@ -83,23 +83,49 @@ heap. Observed invariants (consistent across the corpus):
 Each run is a **string table** belonging to a single owning object (e.g. an
 enum/ring control's item labels). The grouping is real structure — these labels
 share an owner — so `heapStringTables` exposes them as a typed
-`HeapStringTable {sectionTag, offset, strings}` (offset = run start within the
-decompressed section). `extractHeapStrings` is just the flattened, deduped view.
-Demonstrated on the corpus: a single table recovers a waveform selector's full
-item list — `Sine, Square, Triangle, Ramp Up, Ramp Down, Sinc, Gaussian, Half
-Sine, White Noise, PRBS, Arbitrary` — as one group. (Validated: 409 corpus VIs,
-9054 tables, 0 crashes.)
+`HeapStringTable {sectionTag, offset, strings, framed}` (offset = run start within
+the decompressed section). `extractHeapStrings` is just the flattened, deduped
+view. Demonstrated on the corpus: a single table recovers a waveform selector's
+full item list — `Sine, Square, Triangle, Ramp Up, Ramp Down, Sinc, Gaussian,
+Half Sine, White Noise, PRBS, Arbitrary` — as one group. (Validated: 409 corpus
+VIs, 0 crashes.)
 
-**Run-header probes — negative results (do not assume a count):**
-- The string count is **not** stored adjacent to the table. A `u8`/`u16` equal to
-  the run's string count appears at *no* offset within an 8-byte window before the
-  run start: 0/694 runs (and 0/158 long runs ≥4) match. So a table is located by
-  its content (the run), not by a length prefix we can read directly.
-- Tables *are* preceded by a **byte-identical preamble** that recurs across VIs —
-  e.g. every 7-string table is preceded by `…08 19 08 25 09 2d c4 2e 2a`. This is
-  strong evidence each table belongs to a fixed object kind, but the preamble's
-  field semantics are **not yet decoded**, so `HeapStringTable` records the offset
-  (to correlate later) without interpreting those bytes.
+### `0x2E` string-table opcode — confirmed ✅ (first true opcode)
+
+Most string tables are introduced by a single opcode, framed exactly:
+
+```
+0x2E  <len>  <len bytes of packed [u8 strlen][chars] Pascal strings>
+        len = u8  when the table is ≤255 bytes
+        len = u16 (big-endian) when the table is >255 bytes
+```
+
+This is **structural**, not a content heuristic — and it is exception-free across
+the corpus. Restricting to clean single tables, `byte[start-1]` (the byte right
+before the first string) equals the table's total byte length in **919/919**
+cases, and in **every** one of those `byte[start-2] == 0x2E` (0 counter-examples);
+the 10 tables >255 bytes all carry a matching `u16` length. Parsing structurally
+from the opcode (read `0x2E`, read `len`, consume exactly `len` bytes as packed
+Pascal strings) yields clean enum/ring item lists, e.g. a gain selector
+`2500mV, 1225mV, 625mV, 313mV, 156mV, 78mV, 39mV`. Corpus-wide: **2908
+opcode-framed tables across 263 VIs, 0 crashes.** These tables carry
+`HeapStringTable.framed == true` (exact boundary); tables found only by the
+heuristic run-scan fallback carry `framed == false`.
+
+What `0x2E <len>` does **not** yet tell us: which *kind* of object owns the table
+(enum vs ring vs caption set) and the object's id — those live in the preceding
+preamble (below), still undecoded. But exact table boundaries + the confirmed
+opcode are a real opcode-table entry and the seed of the heap parser.
+
+**Run-header / preamble probes — negative results (do not assume these):**
+- The string *count* is **not** stored adjacent to the table (the length field is
+  in *bytes*, not entries). A `u8`/`u16` equal to the run's string count appears at
+  *no* offset in an 8-byte window before the run: 0/694 runs (0/158 long runs).
+- Tables are preceded by a **byte-identical preamble** that recurs across VIs —
+  e.g. 7-string tables by `…08 19 08 25 09 2d c4 2e 2a` (the trailing `2e <b>` is
+  exactly the opcode + length above). The bytes *before* `2e` (`…25 09 2d c4`)
+  recur but their field semantics are **not yet decoded**; `HeapStringTable`
+  records the offset to correlate later rather than interpreting them.
 - The `14 19 01 fd <u16>` record's `u16` is **not** a 0-based index (0 VIs show a
   0,1,2,… sequence); values cluster like assigned object IDs. Unconfirmed without
   a cross-reference target, so it is **not** modeled.
