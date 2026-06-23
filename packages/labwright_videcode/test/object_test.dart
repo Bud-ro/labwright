@@ -27,6 +27,18 @@ void main() {
     expect([o.bounds.top, o.bounds.left, o.bounds.bottom, o.bounds.right], [53, 581, 91, 696]);
   });
 
+  test('pairs a C4 2D bounds with a following C4 22 caption into a named object', () {
+    final heap = <int>[
+      0xc4, 0x2d, 0x08, 0x00, 0x0a, 0x00, 0x14, 0x00, 0x28, 0x00, 0x64, // bounds 10,20,40,100
+      0xc4, 0x22, 13, ...'Trigger Source'.codeUnits.take(13), // caption immediately after
+    ];
+    final o = buildViModelFromDecoded([bdex(heap)]).objects.single;
+    expect(o.caption, 'Trigger Sourc'); // 13 chars
+    expect(o.name, 'Trigger Sourc');
+    expect(o.labels, isEmpty);
+    expect(o.bounds.left, 20);
+  });
+
   test('a bounds with no following label is not assembled into an object', () {
     final heap = <int>[
       0xc4, 0x2d, 0x08, 0, 0, 0, 0, 0, 10, 0, 10, // lone bounds

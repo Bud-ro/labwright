@@ -292,13 +292,20 @@ object emits its bounds (`C4 2D`) immediately followed by its label table
 *immediately preceding* (record-distance −1). (The reverse is only ~15%: most
 bounds are unlabeled decorations/nodes/wire segments — expected.)
 
-→ `ViModel.objects` → `List<ViObject {sectionTag, bounds, labels, name, …}>`,
-assembled by `assembleObjects` (pair each framed `C4 2E` with the `C4 2D` within
-3 preceding records). Validated: 409 corpus VIs, **2,875 labeled objects** across
-261 VIs, 0 crashes — e.g. positioned enum items `"Sine"`, `"Rising"`, `"8-bit"`
-each with their `HeapRect`. **Partial and honest**: only *labeled* objects are
-assembled (not unlabeled nodes/wires), so this is a named-control/positioned-item
-layer, not yet the full block-diagram graph.
+A bounds object is named by **either** form, both immediately following it:
+- a `C4 2E` string *table* (enum/ring items) — 99.8% of tables follow a bounds;
+- a `C4 22` *caption* (control/parameter name) — 99.4% of captions follow a
+  bounds (100% within ±5 records, distance −1 dominant).
+
+→ `ViModel.objects` → `List<ViObject {sectionTag, bounds, caption, labels, name,
+…}>`, assembled by `assembleObjects` (pair each `C4 22` caption or framed `C4 2E`
+table with the `C4 2D` within 3 preceding records; one bounds → one name).
+Validated: 409 corpus VIs, **27,436 named objects** across 401 VIs (24,561 by
+caption + 2,875 by label table), 0 crashes — e.g. positioned controls
+`"Trigger Source"`, `"sigGenEnabled"`, `"General AWG Settings"` each with their
+`HeapRect`. **Partial and honest**: only *named* objects are assembled (not
+unlabeled nodes/wires), so this is a named-control/positioned-item layer, not yet
+the full block-diagram graph.
 
 ## Stage 4 IR seed — `ViModel` (partial fidelity)
 

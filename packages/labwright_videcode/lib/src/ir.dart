@@ -91,18 +91,21 @@ class ViModel {
   }
 }
 
-/// A **labeled, positioned VI object** assembled from adjacent heap records: a
-/// `C4 2D` bounds record immediately followed by its `C4 2E` string-table label.
+/// A **named, positioned VI object** assembled from adjacent heap records: a
+/// `C4 2D` bounds record immediately followed by either a `C4 22` caption or a
+/// `C4 2E` string-table label.
 ///
-/// Heuristic but corpus-validated (99.8% of label tables sit immediately after a
-/// bounds record). Partial: represents only labeled objects, not the full graph.
+/// Heuristic but corpus-validated: 99.8% of label tables and 99.4% of captions
+/// sit immediately after a bounds record. Partial: represents only named/labeled
+/// objects (not unlabeled nodes/wires), and is not the full block-diagram graph.
 class ViObject {
   const ViObject({
     required this.sectionTag,
     required this.bounds,
-    required this.labels,
     required this.boundsOffset,
-    required this.labelOffset,
+    required this.nameOffset,
+    this.caption,
+    this.labels = const <String>[],
   });
 
   /// The section the object lives in (`BDEx` = block diagram, `FPHb` = front panel).
@@ -111,22 +114,28 @@ class ViObject {
   /// The object's bounding rectangle (position + size).
   final HeapRect bounds;
 
-  /// The object's label table strings (e.g. enum items, caption).
+  /// The object's single caption (from a `C4 22` record), or null if it was named
+  /// by a label table instead.
+  final String? caption;
+
+  /// The object's label-table strings (from a `C4 2E` record; e.g. enum items),
+  /// or empty if it was named by a caption instead.
   final List<String> labels;
 
   /// Byte offset of the bounds (`C4 2D`) record within the decompressed section.
   final int boundsOffset;
 
-  /// Byte offset of the label run within the decompressed section.
-  final int labelOffset;
+  /// Byte offset of the naming record (caption or label run) within the section.
+  final int nameOffset;
 
-  /// The object's primary label (first table entry), or null if none.
-  String? get name => labels.isEmpty ? null : labels.first;
+  /// The object's primary name — its [caption], else the first label, else null.
+  String? get name => caption ?? (labels.isEmpty ? null : labels.first);
 }
 
-/// Assembles [ViObject]s by pairing each framed `C4 2E` label table with the
-/// `C4 2D` bounds record immediately preceding it (within [maxRecordGap] `C4`
-/// records, same section). Total.
+/// Assembles [ViObject]s by pairing each `C4 22` caption or framed `C4 2E` label
+/// table with the `C4 2D` bounds record immediately preceding it (within
+/// [maxRecordGap] `C4` records, same section). One bounds pairs with one name.
+/// Total.
 List<ViObject> assembleObjects(List<HeapRecord> records, List<HeapStringTable> stringTables,
     {int maxRecordGap = 3}) {
   // Framed tables keyed by (section, payload offset). A framed C4 2E record's
@@ -147,20 +156,33 @@ List<ViObject> assembleObjects(List<HeapRecord> records, List<HeapStringTable> s
       lastBounds = null;
       lastBoundsIdx = -1;
     }
+    final inRange = lastBounds != null && idx - lastBoundsIdx <= maxRecordGap;
     if (r.opcode == 0x2d && r.bounds != null) {
       lastBounds = r;
       lastBoundsIdx = idx;
-    } else if (r.opcode == 0x2e) {
+    } else if (r.opcode == 0x22 && inRange) {
+      final cap = r.text;
+      if (cap != null) {
+        out.add(ViObject(
+          sectionTag: r.sectionTag,
+          bounds: lastBounds.bounds!,
+          caption: cap,
+          boundsOffset: lastBounds.offset,
+          nameOffset: r.offset,
+        ));
+        lastBounds = null; // consume
+      }
+    } else if (r.opcode == 0x2e && inRange) {
       final t = framed['${r.sectionTag}@${r.offset + 3}'];
-      if (t != null && lastBounds != null && idx - lastBoundsIdx <= maxRecordGap) {
+      if (t != null) {
         out.add(ViObject(
           sectionTag: r.sectionTag,
           bounds: lastBounds.bounds!,
           labels: t.strings,
           boundsOffset: lastBounds.offset,
-          labelOffset: r.offset,
+          nameOffset: r.offset,
         ));
-        lastBounds = null; // consume — one bounds pairs with one label
+        lastBounds = null; // consume
       }
     }
     idx++;
