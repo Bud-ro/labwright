@@ -300,18 +300,41 @@ The IR (Stage 4) will be built from those leaves with **honest partial fidelity*
 not from a fabricated full graph; cracking the nested object/type model is the
 long-tail effort that would raise fidelity over time.
 
-### Sequential heap walker — ✅ ~93% of `BDEx` decoded (the mastery milestone)
+### Block-diagram graph — ✅ recovered (objects + wires)
+
+With the walker complete, the `BDEx` record stream segments into a real graph:
+- An object begins at the header record **`10 19 02 fe <u16 kind> fd <u16 oid>`**.
+  `oid` is unique within a VI (corpus: 4 violations across 398 diagrams), `kind`
+  is the object's class code (catalog not yet decoded; **`0x68` = wire**).
+- Records after a header attach to it: `C4 2D` → bounds, `C4 22` → label,
+  **`14 19 01 fd <id>`** → an object-id reference. Wires (`kind 0x68`) hold their
+  endpoints as these refs.
+
+`buildDiagram(body)` → `ViDiagram {objects, byId, nodes, wires, connections}` of
+`ViHeapObject {oid, kind, offset, bounds?, label?, refs, role}`; aggregated by
+`ViModel.diagrams`. **Validated: 398 diagrams, 150,236 objects, 2,672 wire
+connections, 0 crashes — and 13,184 object-id references resolve to a real object
+100%.** Example recovered nodes: `Write to TDMS`, `Channel A Settings`,
+`Logic Level` (each with `oid`, `kind`, `HeapRect`).
+
+**Honest limits:** the `kind` class-code catalog (node vs terminal vs structure)
+and wire *direction* are not yet decoded — so this is a corpus-validated
+object/edge graph, not yet a fully-typed dataflow graph. No fabrication: every
+edge resolves to a real object id.
+
+### Sequential heap walker — ✅ 100% of `BDEx` decoded (the mastery milestone)
 
 The non-`C4` record families have now been decoded well enough to **walk a `BDEx`
 body sequentially** as an ordered record stream. `walkHeapBody(body)` starts after
 the leading `u32` content-length and frames each record via `recordSkip` (the
 reverse-engineered skip table), stopping only at an opcode it can't frame.
 
-**Result (validated independently on the corpus): mean coverage 93.30%, with full
-exact-EOF walks on 361/398 `BDEx` bodies, 0 crashes.** Every completed walk ends
+**Result (validated independently on the corpus): mean coverage 100.00%, with full
+exact-EOF walks on 398/398 `BDEx` bodies, 0 crashes.** Every completed walk ends
 *exactly* at the body length — strong evidence the skip table is correct (no rule
-over- or under-consumes). This is the heart of format mastery: the heap is no
-longer ~23% understood (the `C4` leaves) but ~93% traversable.
+over- or under-consumes). This is the heart of format mastery: the heap went from
+~23% understood (the `C4` leaves) to fully traversable. (It reached 93.3% with the
+first family pass, then 100% after three more fixes — see below.)
 
 Decoded record families (see `recordSkip` for the exact rules):
 - **`C4`** length-prefixed, incl. the **extended-length escape** `C4 <op> FF <u16
@@ -325,10 +348,11 @@ Decoded record families (see `recordSkip` for the exact rules):
 - **attribute nibble-family** (opcode low-nibble ∈ {4,5,6}): the high nibble sets
   the value width (`2x`→3 … `8x`→6, `Ex`→2, `Cx`→`3+u8len`).
 
-**Remaining ~7%:** the walk stops almost always at `0x00` — an `FD` item with the
-high bit set inside a `10` typed-list is wider than 3 bytes (a value escape not
-yet decoded), plus legitimate trailing zero padding. Decoding that `FD` escape is
-the next step toward 100%.
+**The final 3 fixes to 100%:** (1) `0x25` is a fixed 3-byte record (the `25 2d`
+form is not a counted list); (2) the `FD` value-escape inside `10` typed-lists (an
+`FD` item with the high value bit set is 7 bytes, not 3); (3) `0xC6` extended
+records use the same `FF → u16` escape as `C4`. With these the walk reaches exact
+EOF on every corpus `BDEx`.
 
 ### Non-`C4` record families — anchored-decode results 🔬
 

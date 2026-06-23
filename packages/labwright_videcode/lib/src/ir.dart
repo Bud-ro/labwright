@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'decode.dart';
+import 'graph.dart';
 import 'heap.dart';
 import 'meta.dart';
 
@@ -27,6 +28,7 @@ class ViModel {
     required this.components,
     required this.stringTables,
     required this.heapRecords,
+    this.diagrams = const <ViDiagram>[],
   });
 
   /// LabVIEW version the VI was saved in (e.g. `10.0`), or null if unrecoverable.
@@ -47,6 +49,12 @@ class ViModel {
   /// The length-prefixed `C4` leaf records of the heaps (the reliably-framed
   /// objects: string tables, `C4 2D`/`1F` value records, …).
   final List<HeapRecord> heapRecords;
+
+  /// The recovered block-diagram graph(s) — one per walkable `BDEx` section:
+  /// objects (nodes/terminals/wires) with bounds, labels, and wire connections.
+  /// **Partial/honest**: object kinds are raw class codes and wire direction is
+  /// undecoded, but the object/edge structure is corpus-validated.
+  final List<ViDiagram> diagrams;
 
   /// The bounding rectangles of the VI's objects, decoded from the `C4 2D`
   /// records (position/size of controls, nodes, decorations). Partial but real
@@ -245,5 +253,9 @@ ViModel buildViModelFromDecoded(Iterable<DecodedSection> decoded) {
     components: componentsFromDecoded(list),
     stringTables: heapStringTablesFromDecoded(list),
     heapRecords: heapC4RecordsFromDecoded(list),
+    diagrams: [
+      for (final d in list)
+        if (d.tag == 'BDEx' && d.bytes.length >= 6) buildDiagram(d.bytes, sectionTag: d.tag),
+    ],
   );
 }
