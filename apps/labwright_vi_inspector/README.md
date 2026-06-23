@@ -4,10 +4,12 @@ A Flutter **VI viewer/importer**: open a LabVIEW `.vi` / `.ctl` file and see wha
 it *is and does* — file type (VI vs control), creator, RSRC format version,
 capability flags (front panel / block diagram / connector pane / sub-VI links),
 and the full resource-block inventory — via the clean-room `labwright_viparse`
-reader. Point it at VIs from anywhere; `parseVi` is fuzz-proven *total* (any bytes
-→ a summary or a clean error) and the app adds a defense-in-depth catch, so a
-file from the wild never crashes it — at worst you get a friendly "not a VI"
-message.
+reader. It also decodes (via `labwright_videcode`) the **LabVIEW version + VI
+title** and a **searchable list of the human-readable strings** embedded in the
+heaps (control labels, help text, value lists). Point it at VIs from anywhere;
+the parse/decode path is fuzz-proven *total* (any bytes → a summary or a clean
+error) and the app adds a defense-in-depth catch, so a file from the wild never
+crashes it — at worst you get a friendly "not a VI" message.
 
 ```
 +-- Labwright · VI Inspector ---------------------------------------+

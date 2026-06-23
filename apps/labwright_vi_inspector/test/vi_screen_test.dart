@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_vi_inspector/src/vi_screen.dart';
+import 'package:labwright_videcode/labwright_videcode.dart';
+import 'package:labwright_viparse/labwright_viparse.dart';
 
 void main() {
   testWidgets('starts empty, loads the demo VI, and shows its details', (tester) async {
@@ -20,6 +22,39 @@ void main() {
     expect(find.text('Block diagram (logic)'), findsOneWidget); // capability chip
     expect(find.text('BDHb'), findsOneWidget); // inventory chip
     expect(find.textContaining('Read-only viewer'), findsOneWidget); // honesty card
+  });
+
+  testWidgets('shows decoded version/title and a searchable string list', (tester) async {
+    tester.view.physicalSize = const Size(1000, 2000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(MaterialApp(
+      home: ViInspectorScreen(
+        initial: ViSummary(
+          fileType: 'LVIN',
+          creator: 'LBVW',
+          formatVersion: 3,
+          blocks: const ['BDHb', 'vers'],
+          name: 'My VI.vi',
+        ),
+        initialSource: 'test',
+        initialVersion: const ViVersionInfo(version: '10.0', title: 'My Example'),
+        initialStrings: const ['Conversion time', 'error out', 'Range Volts'],
+      ),
+    ));
+
+    expect(find.text('LabVIEW version'), findsOneWidget);
+    expect(find.text('10.0'), findsOneWidget);
+    expect(find.text('My Example'), findsOneWidget);
+    expect(find.textContaining('Embedded strings (3)'), findsOneWidget);
+    expect(find.text('Conversion time'), findsOneWidget);
+
+    // Filtering the string list.
+    await tester.enterText(find.byKey(const Key('string-search')), 'error');
+    await tester.pump();
+    expect(find.text('error out'), findsOneWidget);
+    expect(find.text('Conversion time'), findsNothing);
   });
 
   testWidgets('a non-existent path shows a clean error, not a crash', (tester) async {

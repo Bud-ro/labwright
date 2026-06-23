@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:labwright_videcode/labwright_videcode.dart';
 import 'package:labwright_viparse/labwright_viparse.dart';
 
 import 'vi_demo.dart';
@@ -13,13 +14,25 @@ import 'vi_demo.dart';
 /// clean-room `labwright_viparse` reader. A read-only viewer (block-diagram
 /// logic decode, and therefore editing, is future work).
 class ViInspectorScreen extends StatefulWidget {
-  const ViInspectorScreen({super.key, this.initial, this.initialSource});
+  const ViInspectorScreen({
+    super.key,
+    this.initial,
+    this.initialSource,
+    this.initialVersion,
+    this.initialStrings,
+  });
 
   /// Optional summary to show on first build (used by tests).
   final ViSummary? initial;
 
   /// Label describing where [initial] came from.
   final String? initialSource;
+
+  /// Optional decoded version/title to show on first build (tests).
+  final ViVersionInfo? initialVersion;
+
+  /// Optional embedded strings to show on first build (tests).
+  final List<String>? initialStrings;
 
   @override
   State<ViInspectorScreen> createState() => _ViInspectorScreenState();
@@ -31,12 +44,16 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
   String? _error;
   String _source = '';
   bool _dragging = false;
+  ViVersionInfo? _version;
+  List<String> _strings = const [];
 
   @override
   void initState() {
     super.initState();
     _summary = widget.initial;
     _source = widget.initialSource ?? '';
+    _version = widget.initialVersion;
+    _strings = widget.initialStrings ?? const [];
   }
 
   @override
@@ -45,11 +62,22 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
     super.dispose();
   }
 
-  void _show(ViLoad load, String source) {
+  /// Parse + decode a VI from its bytes, then show it. Decoding is total, so the
+  /// UI never crashes on a file from the wild.
+  void _loadBytes(Uint8List bytes, String source) {
+    final load = summarize(bytes);
+    ViVersionInfo? version;
+    var strings = const <String>[];
+    if (load.isOk) {
+      version = decodeVersion(bytes);
+      strings = extractHeapStrings(bytes);
+    }
     setState(() {
       _summary = load.summary;
       _error = load.error;
       _source = source;
+      _version = version;
+      _strings = strings;
     });
   }
 
@@ -81,7 +109,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
       });
       return;
     }
-    _show(summarize(bytes), path);
+    _loadBytes(bytes, path);
   }
 
   /// Opens the OS file-open dialog and inspects the chosen file.
@@ -135,7 +163,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                 const SizedBox(width: 8),
                 OutlinedButton.icon(
                   key: const Key('demo'),
-                  onPressed: () => _show(summarize(demoViBytes()), 'demo VI (synthetic)'),
+                  onPressed: () => _loadBytes(demoViBytes(), 'demo VI (synthetic)'),
                   icon: const Icon(Icons.science_outlined),
                   label: const Text('Load demo VI'),
                 ),
@@ -164,7 +192,12 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                       ? _ErrorCard(_error!)
                       : _summary == null
                           ? _Empty(dragging: _dragging)
-                          : _SummaryView(summary: _summary!, source: _source),
+                          : _SummaryView(
+                              summary: _summary!,
+                              source: _source,
+                              version: _version,
+                              strings: _strings,
+                            ),
                 ),
               ),
             ),
@@ -213,26 +246,55 @@ class _ErrorCard extends StatelessWidget {
       );
 }
 
-class _SummaryView extends StatelessWidget {
-  const _SummaryView({required this.summary, required this.source});
+class _SummaryView extends StatefulWidget {
+  const _SummaryView({
+    required this.summary,
+    required this.source,
+    required this.version,
+    required this.strings,
+  });
   final ViSummary summary;
   final String source;
+  final ViVersionInfo? version;
+  final List<String> strings;
 
-  String get _kind => switch (summary.fileType) {
+  @override
+  State<_SummaryView> createState() => _SummaryViewState();
+}
+
+class _SummaryViewState extends State<_SummaryView> {
+  final _filterCtrl = TextEditingController();
+  String _filter = '';
+
+  @override
+  void dispose() {
+    _filterCtrl.dispose();
+    super.dispose();
+  }
+
+  String get _kind => switch (widget.summary.fileType) {
         'LVIN' => 'VI',
         'LVCC' => 'Control / typedef',
-        _ => summary.fileType,
+        _ => widget.summary.fileType,
       };
 
   @override
   Widget build(BuildContext context) {
+    final summary = widget.summary;
+    final version = widget.version;
+    final hasDecoded = version != null && (version.version != null || version.title != null);
+    final q = _filter.trim().toLowerCase();
+    final filtered = q.isEmpty
+        ? widget.strings
+        : [for (final s in widget.strings) if (s.toLowerCase().contains(q)) s];
+
     return ListView(
       children: [
         Text(summary.name ?? '(unnamed)', style: Theme.of(context).textTheme.headlineSmall),
         const SizedBox(height: 4),
         Text(summary.describe(), style: const TextStyle(color: Colors.grey)),
         const SizedBox(height: 4),
-        Text('source: $source', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+        Text('source: ${widget.source}', style: const TextStyle(color: Colors.grey, fontSize: 12)),
         const SizedBox(height: 16),
 
         _Section('Identity', [
@@ -243,6 +305,14 @@ class _SummaryView extends StatelessWidget {
           _kv('Resource blocks', '${summary.blocks.length}'),
         ]),
         const SizedBox(height: 16),
+
+        if (hasDecoded) ...[
+          _Section('Decoded', [
+            if (version.version != null) _kv('LabVIEW version', version.version!),
+            if (version.title != null) _kv('Title', version.title!),
+          ]),
+          const SizedBox(height: 16),
+        ],
 
         const Text('Capabilities', style: TextStyle(fontWeight: FontWeight.bold)),
         const SizedBox(height: 8),
@@ -263,8 +333,38 @@ class _SummaryView extends StatelessWidget {
               child: Chip(label: Text(b), visualDensity: VisualDensity.compact),
             ),
         ]),
-        const SizedBox(height: 20),
 
+        if (widget.strings.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Text('Embedded strings (${widget.strings.length})', style: const TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 4),
+          const Text(
+            'Labels, help text and value lists found in the heaps (best-effort).',
+            style: TextStyle(color: Colors.grey, fontSize: 12),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            key: const Key('string-search'),
+            controller: _filterCtrl,
+            onChanged: (v) => setState(() => _filter = v),
+            decoration: const InputDecoration(
+              labelText: 'Filter strings',
+              prefixIcon: Icon(Icons.search),
+              border: OutlineInputBorder(),
+              isDense: true,
+            ),
+          ),
+          const SizedBox(height: 8),
+          for (final s in filtered.take(1000))
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 1),
+              child: Text(s, style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
+            ),
+          if (filtered.length > 1000) Text('… and ${filtered.length - 1000} more'),
+          if (filtered.isEmpty) const Text('(no match)', style: TextStyle(color: Colors.grey)),
+        ],
+
+        const SizedBox(height: 20),
         Card(
           color: Theme.of(context).colorScheme.surfaceContainerHighest,
           child: const Padding(
@@ -275,10 +375,10 @@ class _SummaryView extends StatelessWidget {
                 Text('Read-only viewer', style: TextStyle(fontWeight: FontWeight.bold)),
                 SizedBox(height: 6),
                 Text(
-                  'This inspects the RSRC container — what the VI is and does. Recovering '
-                  'the block-diagram logic from the BDHb heap (the step needed to view or '
-                  'migrate the actual graph, and the prerequisite for any editing) is '
-                  'deferred until a corpus of real, non-trivial VI samples is available.',
+                  'Shows the RSRC container, decoded version/title, and the human-readable '
+                  'strings embedded in the heaps. Recovering the full block-diagram graph '
+                  '(the BDEx/BDHb heap is LabVIEW opcode-serialized) — the step needed to '
+                  'view or auto-translate the actual logic — is the in-progress next stage.',
                 ),
               ],
             ),
