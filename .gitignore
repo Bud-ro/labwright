@@ -1,0 +1,23 @@
+# Dart
+.dart_tool/
+.packages
+pubspec.lock
+doc/api/
+
+# Zig
+zig-out/
+.zig-cache/
+
+# Native build artifacts
+*.o
+*.obj
+*.so
+*.dylib
+*.dll
+*.a
+*.lib
+
+# Sandbox / editor mount artifacts (not part of the repo)
+.claude/
+.mcp.json
+.DS_Store

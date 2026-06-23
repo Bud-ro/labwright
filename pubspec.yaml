@@ -1,0 +1,14 @@
+# Labwright pub workspace root.
+# Native pub workspaces (Dart >=3.6) keep every labwright_* package on one shared
+# resolution; no melos needed. Add new packages to the `workspace:` list as milestones land.
+name: labwright
+publish_to: none
+
+environment:
+  sdk: ^3.11.0
+
+workspace:
+  - packages/labwright_core
+
+dev_dependencies:
+  lints: ^5.0.0
