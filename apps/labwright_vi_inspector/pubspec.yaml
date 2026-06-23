@@ -1,0 +1,27 @@
+name: labwright_vi_inspector
+description: >-
+  Example Labwright VI viewer — import a LabVIEW .vi/.ctl file and inspect what
+  it is and does (type, version, resource-block inventory, capability flags) via
+  the clean-room labwright_viparse reader. Standalone Flutter app, kept out of the
+  Dart pub workspace (its flutter SDK dep is incompatible with plain dart tooling).
+publish_to: none
+version: 0.0.1
+
+environment:
+  sdk: ^3.11.0
+  flutter: ">=3.41.0"
+
+dependencies:
+  desktop_drop: ^0.7.1
+  file_picker: ^11.0.2
+  flutter:
+    sdk: flutter
+  labwright_viparse:
+    path: ../../packages/labwright_viparse
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true

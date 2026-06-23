@@ -1,0 +1,13 @@
+# Standalone Flutter app — not part of the root Dart pub workspace, so it carries
+# its own analysis config. Mirrors the repo's strictness without external deps.
+analyzer:
+  language:
+    strict-casts: true
+    strict-raw-types: true
+
+linter:
+  rules:
+    - prefer_const_constructors
+    - prefer_final_locals
+    - unnecessary_parenthesis
+    - avoid_redundant_argument_values
