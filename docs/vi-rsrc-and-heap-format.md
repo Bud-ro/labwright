@@ -243,11 +243,35 @@ fabricate a graph**; we extract what is reliably framed (version, title,
 strings, component sizes) and treat opcode-table recovery as a future,
 incremental effort (cross-referencing many VIs and known node patterns).
 
+## Stage 4 IR seed — `ViModel` (partial fidelity)
+
+`buildViModel(viBytes) → ViModel` is the single read-only entry point and the
+**plug-in point for a future VI→Dart auto-translator** (Stage 5): the translator
+consumes a `ViModel`, not raw bytes, so every new heap-decoding result enriches
+translation by enriching this model. It aggregates the corpus-validated layers:
+
+```
+ViModel { version, title, components[], stringTables[], heapRecords[], labels }
+```
+
+Fidelity is **deliberately partial and honest**: because the nested object tree
+(~77% of `BDEx`) is undecoded, `ViModel` contains **no node/wire graph** — only
+what is provable today (block sizes, version/title, grouped labels, `C4` leaf
+records). Typed nodes/wires/terminals are added here as the heap opcode model is
+confirmed, never fabricated. (Validated: 409 corpus VIs, 0 crashes; 409 yield a
+version, 405 labels, 409 `C4` records.)
+
 ## What the layers expose today
 
 - `labwright_viparse`: container summary (`parseVi`) + raw sections (`readViSections`).
-- `labwright_videcode`: `decodeSections`/`inflateSection` (decompressed bytes),
-  `decodeVersion` (version+title), `heapStringTables` (grouped, located string
-  tables) / `extractHeapStrings` (their flattened view), `blockComponents`
-  (per-block sizes). Heap-graph parsing is the next stage, pending the opcode
-  table.
+- `labwright_videcode`:
+  - `decodeSections`/`inflateSection` (decompressed bytes),
+  - `decodeVersion` (version+title), `blockComponents` (per-block sizes),
+  - `heapStringTables` (grouped, located string tables) / `extractHeapStrings`
+    (their flattened view),
+  - `heapC4Records` / `heapOpcodeHistogram` (the `C4` length-prefixed record
+    stream),
+  - `buildViModel` → `ViModel` (the Stage 4 IR seed aggregating the above).
+
+  Decoding the nested non-`C4` object tree into a node/wire graph is the next
+  stage; `ViModel` is the structure that graph will land in.

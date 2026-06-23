@@ -8,4 +8,5 @@ library;
 
 export 'src/decode.dart';
 export 'src/heap.dart';
+export 'src/ir.dart';
 export 'src/meta.dart';
