@@ -300,22 +300,29 @@ The IR (Stage 4) will be built from those leaves with **honest partial fidelity*
 not from a fabricated full graph; cracking the nested object/type model is the
 long-tail effort that would raise fidelity over time.
 
-### Nesting tree + absolute coordinates — ✅ validated (integration pending)
+### Nesting tree + absolute coordinates — ⚠️ partial; per-object integration BLOCKED
 
-The heap is a **balanced typed-group tree**: an object opens with a high-nibble-1
-opcode carrying `10 xx 02 fe <u16 kind> fd <u16 oid>` and closes with the matching
-high-nibble-0 opcode (`08/09/0a/0b xx`, same tag byte `xx`). Walking with a
-tag-matched stack yields the **parent/child tree directly** — no parent field
-needed. Validated independently: **single root in 398/398** `BDEx` bodies (root
-kind always `0x7e`), one parent per object.
+The heap *appears* to be a balanced typed-group tree: an object opens with a
+high-nibble-1 opcode `10 xx 02 fe <u16 kind> fd <u16 oid>` and a tag-matched stack
+of high-nibble-0 closes (`08/09/0a/0b xx`) yields **single root in 398/398** at
+the top level (root kind `0x7e`). The recursive origin transform `abs_origin(child)
+= abs_origin(parent) + (child localTop,localLeft)` then makes terminals fall
+inside their node (vs 0% with raw bounds).
 
-This solves the **object-local coordinate** problem: `abs_origin(child) =
-abs_origin(parent) + (child.localTop, child.localLeft)` (wrapper objects with no
-bounds pass the origin through). After the transform, a node's terminals fall
-inside the node ~100% (vs 0% with raw bounds; the broad child-in-parent rate is
-75%, the residual being icon/viewport decorations that legitimately draw outside).
-→ This is the keystone for a future faithful layout. *Validated; integration into
-`graph.dart` (parentOid + absolute bounds) is the next focused step.*
+**But integration is blocked by a close-disambiguation problem (measured).** The
+close opcode `08 19` is **ambiguous** — it is *both* a group-close *and* a common
+2-byte data record. Because most objects open with tag `0x19`, a data `08 19`
+inside an object prematurely pops it. Concretely: under the tag-matched-stack tree,
+**0% of `14 19 01 fd` wire references attach to their `0x68` wire object** (vs the
+flat model's correct attachment — 641 wires-with-≥2-refs in a 120-VI sample). So
+precise per-object parent / `absBounds` is **NOT reliably recoverable** until
+`08 19` (and the other `08/09/0a/0b` close-vs-data cases) are disambiguated.
+
+Therefore the **flat model remains authoritative** for objects + wires (it
+attaches refs correctly); `ViHeapObject` does **not** carry parent/absolute
+coordinates, and a faithful absolute layout stays blocked on the close ambiguity.
+(Honest correction of an earlier over-optimistic note: the top-level single-root
+holds, but it does not imply a clean per-object tree.)
 
 ### `CONP` / `CPC2` — VI interface — partial 🔬
 
