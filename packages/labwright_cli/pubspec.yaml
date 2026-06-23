@@ -1,0 +1,24 @@
+name: labwright_cli
+description: >-
+  One entrypoint for the Labwright NI toolkit: inspect/convert/summarize TDMS,
+  inspect LabVIEW VIs, and gate requirement traceability — dispatched to the
+  underlying packages.
+version: 0.0.1
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+executables:
+  labwright: labwright
+
+dependencies:
+  labwright_runner: ^0.0.1
+  labwright_tdms: ^0.0.1
+  labwright_traceability: ^0.0.1
+  labwright_viparse: ^0.0.1
+
+dev_dependencies:
+  test: ^1.25.0
+  lints: ^5.0.0
