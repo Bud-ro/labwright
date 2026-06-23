@@ -159,6 +159,17 @@ aggregated by `ViModel.objectBounds`. (Validated: 409 corpus VIs, 197,753 rects,
 99% valid & sane, 0 crashes.) This is the first *semantic* heap payload decoded —
 the seed of a read-only layout/graph view.
 
+### `C4 1F` = origin-anchored size rectangle — confirmed ✅
+
+The #2 record, `C4 1F` (always `len == 8`), uses the **same 4× `s16`
+`top,left,bottom,right` layout** but is **origin-anchored**: across the corpus
+(37,233 records) `top == left == 0` in 99% and **100%** are valid rectangles —
+e.g. `(0, 0, 12, 12)`, `(0, 0, 20, 20)`. So it encodes a **size/extent**
+(height×width), not a position. This confirms the 4× `s16` rectangle is a reusable
+LabVIEW heap primitive shared across opcodes. → `HeapRecord.sizeRect` (kept
+separate from `bounds` so positional layout isn't polluted by these sizes);
+`HeapRect.fromPayload` is the shared decoder.
+
 ### `C4` records are length-prefixed — confirmed ✅ (the walker seed)
 
 Every `C4` record has the shape:

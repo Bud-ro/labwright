@@ -31,6 +31,17 @@ void main() {
     expect(r.width, 21);
   });
 
+  test('C4 1F record decodes to an origin-anchored size rectangle', () {
+    // (0,0,12,12) size; bounds must be null (only 2D), sizeRect set.
+    final heap = <int>[0xc4, 0x1f, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0c, 0x00, 0x0c];
+    final rec = heapC4RecordsFromDecoded([bdex(heap)]).single;
+    expect(rec.bounds, isNull);
+    final s = rec.sizeRect!;
+    expect([s.top, s.left, s.bottom, s.right], [0, 0, 12, 12]);
+    expect(s.width, 12);
+    expect(s.height, 12);
+  });
+
   test('non-C4-2D records have null bounds', () {
     final heap = <int>[
       0xc4, 0x1f, 0x08, 0, 0, 0, 0, 0, 0, 0, 0, // C4 1F, not bounds
