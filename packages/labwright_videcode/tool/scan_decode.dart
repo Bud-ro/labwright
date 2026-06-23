@@ -18,11 +18,13 @@ void main(List<String> args) {
     ..sort((a, b) => a.path.compareTo(b.path));
 
   var ok = 0, crashed = 0, sections = 0, inflated = 0, decBytes = 0;
+  var withVersion = 0, withTitle = 0, withStrings = 0;
   final bdSizes = <int>[];
   final crashes = <String>[];
   for (final f in files) {
     try {
-      final secs = decodeSections(f.readAsBytesSync());
+      final bytes = f.readAsBytesSync();
+      final secs = decodeSections(bytes);
       ok++;
       sections += secs.length;
       for (final s in secs) {
@@ -32,6 +34,10 @@ void main(List<String> args) {
           if (s.tag == 'BDEx') bdSizes.add(s.length);
         }
       }
+      final v = decodeVersion(bytes);
+      if (v.version != null) withVersion++;
+      if (v.title != null) withTitle++;
+      if (extractHeapStrings(bytes).isNotEmpty) withStrings++;
     } catch (e) {
       crashed++;
       if (crashes.length < 20) crashes.add('${f.path}: ${e.runtimeType}: $e');
@@ -44,7 +50,11 @@ void main(List<String> args) {
     ..writeln('CRASHED          : $crashed')
     ..writeln('total sections   : $sections')
     ..writeln('  inflated       : $inflated')
-    ..writeln('  decompressed MB: ${(decBytes / (1024 * 1024)).toStringAsFixed(1)}');
+    ..writeln('  decompressed MB: ${(decBytes / (1024 * 1024)).toStringAsFixed(1)}')
+    ..writeln('--- metadata (Stage 2) ---')
+    ..writeln('with LabVIEW version: $withVersion/$ok')
+    ..writeln('with VIDS title     : $withTitle/$ok')
+    ..writeln('with heap strings   : $withStrings/$ok');
   if (bdSizes.isNotEmpty) {
     bdSizes.sort();
     stdout.writeln('BDEx decompressed: n=${bdSizes.length} min=${bdSizes.first} '

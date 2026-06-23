@@ -7,3 +7,4 @@
 library;
 
 export 'src/decode.dart';
+export 'src/meta.dart';
