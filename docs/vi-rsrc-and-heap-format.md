@@ -380,18 +380,17 @@ printf conv char), `C4 2E` → enumRing, `C4 A4`→path, `C4 C4`→CLN node. Cor
 the diagram; CLN/path live in `DTHP`).
 
 **Honest limits (documented negatives):**
+- **Dataflow wires are not recoverable as oid edges.** Signal wires are stored as
+  *geometry* (a `C4 5F` bounding box, no oid endpoints), so node→node dataflow
+  edges cannot be resolved from ids. (The `14 19 01 fd` refs are child-membership,
+  not wire endpoints — see the nesting section's correction.)
 - **functionNode vs subViNode** and **control vs indicator** terminal are *not*
   separable from `BDEx` alone (the subVI symbol lives in a separate name resource;
   both surface as one `kind`).
-- **Wire direction**: recoverable only for 2-endpoint, single-frame wires
-  (leftmost≈source, ~85%); multi-endpoint direction is **not** recoverable → not
-  shipped.
-- **Coordinate frames are object-local**: each container re-origins its children,
-  so object bounds are **not** in one diagram coordinate space (terminal→node
-  spatial containment fails, 0%). A faithful layout needs the (undecoded)
-  coordinate-transform tree. Bounds are exposed as-is, not as absolute positions.
 - bool/string/array/cluster have no payload type signal (frame-`kind` heuristics
-  only) — not inferred. No fabrication: every wire edge resolves to a real oid.
+  only) — not inferred.
+- *(Resolved, was a limit:)* object-local coordinate frames — now composed into
+  **absolute coordinates** via the nesting tree (`absBounds`); see above.
 
 ### Sequential heap walker — ✅ 100% of `BDEx` decoded (the mastery milestone)
 
