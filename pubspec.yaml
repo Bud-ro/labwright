@@ -14,6 +14,7 @@ workspace:
   - packages/labwright_traceability
   - packages/labwright_daq
   - packages/labwright_fuzz
+  - packages/labwright_runner
 
 dev_dependencies:
   lints: ^5.0.0
