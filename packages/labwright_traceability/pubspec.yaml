@@ -1,0 +1,21 @@
+name: labwright_traceability
+description: >-
+  Links Labwright tests to numbered/hashed JSON requirements: builds a trace
+  matrix, flags hash drift and references to unknown requirements, and reports
+  coverage so CI can fail the build.
+version: 0.0.1
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+executables:
+  trace: trace
+
+dependencies:
+  labwright_core: ^0.0.1
+
+dev_dependencies:
+  test: ^1.25.0
+  lints: ^5.0.0
