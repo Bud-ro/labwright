@@ -317,10 +317,33 @@ connections, 0 crashes — and 13,184 object-id references resolve to a real obj
 100%.** Example recovered nodes: `Write to TDMS`, `Channel A Settings`,
 `Logic Level` (each with `oid`, `kind`, `HeapRect`).
 
-**Honest limits:** the `kind` class-code catalog (node vs terminal vs structure)
-and wire *direction* are not yet decoded — so this is a corpus-validated
-object/edge graph, not yet a fully-typed dataflow graph. No fabrication: every
-edge resolves to a real object id.
+**Object class catalog — ✅ classified (99%).** The header `kind` code is now
+mapped to a structural category (`classifyObject` / `ViObjectKind`): `0x68`=wire,
+`0x0c`=node terminal-cluster (carries `C4 1F` terminals), `0x12`=node body,
+`0x53/52/09`=structure/diagram-frame, `0x50/51/57/4f/5b`(wire-referenced) &
+`0x0a/0b/0d/e0`=terminals, `0x8f/e7/d2`=decoration. Corpus: terminal 60,712,
+structure 41,119, wire 22,626, terminalCluster 19,191, node 4,425, decoration
+635, **unknown only ~1%** (1,528 / 150,236).
+
+**Object data-type kind — ✅ payload-grounded (`ViTypeKind`).** From attached `C4`
+records (`inferTypeKind`): `C4 74` numeric format → numericInt/numericFloat (by
+printf conv char), `C4 2E` → enumRing, `C4 A4`→path, `C4 C4`→CLN node. Corpus
+(BDEx): enumRing 3,476, numericFloat 295, numericInt 61 (numerics are sparse on
+the diagram; CLN/path live in `DTHP`).
+
+**Honest limits (documented negatives):**
+- **functionNode vs subViNode** and **control vs indicator** terminal are *not*
+  separable from `BDEx` alone (the subVI symbol lives in a separate name resource;
+  both surface as one `kind`).
+- **Wire direction**: recoverable only for 2-endpoint, single-frame wires
+  (leftmost≈source, ~85%); multi-endpoint direction is **not** recoverable → not
+  shipped.
+- **Coordinate frames are object-local**: each container re-origins its children,
+  so object bounds are **not** in one diagram coordinate space (terminal→node
+  spatial containment fails, 0%). A faithful layout needs the (undecoded)
+  coordinate-transform tree. Bounds are exposed as-is, not as absolute positions.
+- bool/string/array/cluster have no payload type signal (frame-`kind` heuristics
+  only) — not inferred. No fabrication: every wire edge resolves to a real oid.
 
 ### Sequential heap walker — ✅ 100% of `BDEx` decoded (the mastery milestone)
 

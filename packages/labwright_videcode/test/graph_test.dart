@@ -60,6 +60,30 @@ void main() {
     expect(d.connections, isEmpty);
   });
 
+  test('classifies object kinds and infers type from attached C4 records', () {
+    // C4 74 numeric format, and a C4 2E enum item list.
+    List<int> fmt74(String s) => [0xc4, 0x74, s.length, ...s.codeUnits];
+    List<int> enum2e(List<String> items) {
+      final body = <int>[for (final it in items) ...[it.length, ...it.codeUnits]];
+      return [0xc4, 0x2e, body.length, ...body];
+    }
+
+    final records = <int>[
+      ...obj(0x50, 10), ...bounds(0, 0, 17, 80), ...fmt74('%#_6g'), // numeric float terminal
+      ...obj(0x50, 11), ...bounds(0, 0, 17, 80), ...fmt74('%04d'), // numeric int terminal
+      ...obj(0x0d, 12), ...bounds(0, 0, 17, 80), ...enum2e(['Low', 'High']), // enum
+      ...obj(0x68, 20), ...ref(10), ...ref(11), // wire referencing 10 & 11
+    ];
+    final body = Uint8List.fromList([0, 0, 0, records.length, ...records]);
+    final d = buildDiagram(body);
+    expect(d.byId[10]!.typeKind, ViTypeKind.numericFloat);
+    expect(d.byId[11]!.typeKind, ViTypeKind.numericInt);
+    expect(d.byId[12]!.typeKind, ViTypeKind.enumRing);
+    expect(d.byId[20]!.category, ViObjectKind.wire);
+    // 10/11 are wire-referenced 0x50 -> terminal
+    expect(d.byId[10]!.category, ViObjectKind.terminal);
+  });
+
   test('ViModel.diagrams is populated from BDEx and buildDiagram is total', () {
     // totality over arbitrary bytes
     final junk = Uint8List.fromList([for (var i = 0; i < 300; i++) (i * 17 + 3) & 0xff]);
