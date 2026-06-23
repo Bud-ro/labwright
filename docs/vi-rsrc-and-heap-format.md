@@ -139,10 +139,39 @@ Evidence — `C4 <op>` 2-grams are enriched far above chance in `BDEx` heaps
 The dominant ones have **regular fixed-shape payloads**, consistent with being a
 single record type each: `C4 2D` is followed by `08 00` in 25,441 cases (then a
 small signed byte: `08 ff`, `08 01`, `08 fe`, …), and `C4 1F` likewise by `08 00`
-(10,588×); consecutive records sit at recurring strides (41/43/142 bytes). This is
-strong evidence they are real opcodes with structured operands — but their
-**semantics are not yet decoded**, so they are *not* parsed or modeled (only
-`C4 2E` is). Documented here as the map for the next grind, not as fact.
+(10,588×). Their **semantics are not yet decoded** (only `C4 2E` is), but the
+*framing* is — see next.
+
+### `C4` records are length-prefixed — confirmed ✅ (the walker seed)
+
+Every `C4` record has the shape:
+
+```
+C4  <op>  <u8 len>  <len payload bytes>
+```
+
+The byte at `offset+2` is a **payload length**, so a record can be framed and
+skipped (`skip = 3 + len`) **without knowing its meaning**. Corpus evidence:
+- The length byte is fixed per fixed-size opcode: `C4 2D` → `len == 0x08` in
+  **104,714/104,714** (100%; an 11-byte record); `C4 5F`, `C4 D6`, `C4 4C` → `0x08`
+  in 100%; `C4 1F` → `0x08` in 98%. (`C4 2E`'s length varies because it is the
+  variable-size string table.)
+- Skipping `3 + len` from a `C4 2D` lands exactly on the next record's opcode byte
+  (`0x10`/`0x84`/`0x25`/`0x44`) in **99.97%** of cases — i.e. the length prefix is
+  correct, essentially no garbage.
+
+This is the first **generic record framing** for the heap. `labwright_videcode`
+ships it as `heapC4Records` → `List<HeapRecord {sectionTag, offset, opcode,
+payload}>` (and `heapOpcodeHistogram`). The walker frames each `C4` record by its
+length and skips its payload; non-`C4` records — whose length rules are *not* yet
+decoded — are stepped over one byte at a time. (Validated: 409 corpus VIs, 293,461
+`C4` records framed, 0 crashes; total over arbitrary bytes.)
+
+**Still open (honest limits):** this is not yet a *complete* sequential walker —
+until the non-`C4` opcode lengths (`10 xx`, `84 xx`, `14 19 01 fd`, `64 cb`,
+`02 fe`, …) are decoded, a `0xC4` occurring inside a non-`C4` record's payload can
+frame a spurious record (the scan resynchronizes after). Decoding those non-`C4`
+record lengths is the path to a full walker → the node/wire graph.
 
 **Preamble probes — partial / negative results (do not over-claim):**
 - `C4 19` (2,750×) sits next to multi-line text (help/descriptions) but is **not**
