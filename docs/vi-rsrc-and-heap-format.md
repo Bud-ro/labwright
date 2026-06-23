@@ -122,7 +122,35 @@ What `C4 2E <len>` does **not** yet tell us: which *kind* of object owns the tab
 preamble (below), still undecoded. But exact boundaries + the confirmed opcode are
 a real opcode-table entry and the seed of the heap parser.
 
+### The `C4` opcode family — structural recon 🔬 (candidates, mostly undecoded)
+
+`0xC4` is a **heap opcode-introducer**: the byte after it selects the opcode.
+Evidence — `C4 <op>` 2-grams are enriched far above chance in `BDEx` heaps
+(349 VIs, 166,716 `0xC4` bytes):
+
+| opcode  | count   | in VIs | enrichment vs random | status |
+|---------|---------|--------|----------------------|--------|
+| `C4 2D` | 104,714 | 338    | ~650×                | dominant record, undecoded |
+| `C4 1F` |  38,371 | 338    | ~240×                | undecoded |
+| `C4 22` |  12,216 | 338    | ~76×                 | undecoded |
+| `C4 19` |   2,750 | 325    | ~17×                 | text-related, undecoded (see negative below) |
+| `C4 2E` |   2,514 | 218    | ~16×                 | **string table — CONFIRMED** (above) |
+
+The dominant ones have **regular fixed-shape payloads**, consistent with being a
+single record type each: `C4 2D` is followed by `08 00` in 25,441 cases (then a
+small signed byte: `08 ff`, `08 01`, `08 fe`, …), and `C4 1F` likewise by `08 00`
+(10,588×); consecutive records sit at recurring strides (41/43/142 bytes). This is
+strong evidence they are real opcodes with structured operands — but their
+**semantics are not yet decoded**, so they are *not* parsed or modeled (only
+`C4 2E` is). Documented here as the map for the next grind, not as fact.
+
 **Preamble probes — partial / negative results (do not over-claim):**
+- `C4 19` (2,750×) sits next to multi-line text (help/descriptions) but is **not**
+  a simple length-prefixed text field: the text blob that follows has no `u8`/`u16`
+  /`u32` length immediately before it in **2,503/2,503** sampled cases. Multi-line
+  text contains newlines (`0x0A`), so the Pascal-table scanner fragments it — these
+  appear only as low-quality `framed == false` runs. A clean text-field framing is
+  **not yet decoded**; we do not ship a guessed one.
 - The string *count* is **not** stored adjacent to the table (the length field is
   in *bytes*, not entries). A `u8`/`u16` equal to the run's string count appears at
   *no* offset in an 8-byte window before the run: 0/694 runs (0/158 long runs).
