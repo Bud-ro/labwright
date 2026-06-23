@@ -1,6 +1,12 @@
 include: package:lints/recommended.yaml
 
 analyzer:
+  # The Flutter apps under apps/ are standalone packages (their own pubspec +
+  # flutter SDK dep), NOT members of this dart pub workspace. The workspace's
+  # plain `dart analyze` can't resolve `package:flutter/...`, so exclude them
+  # here; each app is analyzed by `flutter analyze` instead.
+  exclude:
+    - apps/**
   language:
     strict-casts: true
     strict-inference: true
