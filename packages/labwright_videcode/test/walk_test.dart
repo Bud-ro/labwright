@@ -20,6 +20,12 @@ void main() {
     expect(recordSkip(b([0x86, 0x20, 0, 0, 0, 0]), 0), 6); // attribute nibble 8x
     expect(recordSkip(b([0xe4, 0x21]), 0), 2); // attribute nibble Ex
     expect(recordSkip(b([0x99, 0, 0]), 0), isNull); // unknown
+    // 0x25 is a fixed 3-byte record (the `25 2d` form is NOT a counted list).
+    expect(recordSkip(b([0x25, 0x2d, 0x03, 0x08, 0x19]), 0), 3);
+    // FD value-escape inside a typed list: item `fd 80 00 <u32>` is 7 bytes.
+    expect(recordSkip(b([0x10, 0x19, 0x01, 0xfd, 0x80, 0x00, 0x00, 0x01, 0x36, 0xde]), 0), 10);
+    // 0xC6 extended-length record (C4-style FF -> u16 escape).
+    expect(recordSkip(b([0xc6, 0x5a, 0xff, 0x00, 0x04, 1, 2, 3, 4]), 0), 9);
   });
 
   test('walkHeapBody walks a well-formed body to exact EOF', () {

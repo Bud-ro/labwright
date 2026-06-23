@@ -539,9 +539,13 @@ int? recordSkip(Uint8List h, int i) {
     case 0x02:
       return (i + 2 <= n && h[i + 1] == 0xfe) ? 7 : null;
     case 0x25:
-      if (i + 2 > n) return null;
-      if (h[i + 1] == 0x2d) return (i + 3 <= n) ? 3 + 2 * h[i + 2] : null;
-      return 3;
+      return 3; // fixed 3-byte record (the `25 2d` form is NOT a counted list)
+    case 0xc6:
+      // Extended-length blob/string record, same escape form as C4. (Non-escape
+      // C6 is unobserved; it falls through to the attribute nibble-family.)
+      if (i + 3 <= n && h[i + 2] == 0xff) {
+        return (i + 5 <= n) ? 5 + ((h[i + 3] << 8) | h[i + 4]) : null;
+      }
   }
   final lo = op & 0x0f;
   if (lo == 4 || lo == 5 || lo == 6) {
@@ -566,11 +570,26 @@ int? recordSkip(Uint8List h, int i) {
 bool _isTypeTag(int t) => t == 0xfb || t == 0xfe || t == 0xfd;
 
 int? _typedList(Uint8List h, int i) {
-  if (i + 4 > h.length) return null;
+  final n = h.length;
+  if (i + 4 > n) return null;
   final count = h[i + 2];
   final tag = h[i + 3];
-  if (tag == 0xfb) return 4 + 2 * count;
-  if (tag == 0xfe || tag == 0xfd) return 3 + 3 * count;
+  if (tag == 0xfb) return 4 + 2 * count; // `op subop count FB <count 2-byte items>`
+  if (tag == 0xfe || tag == 0xfd) {
+    // `op subop count <count items>`; each item is normally 3 bytes
+    // (`<tag><hi><lo>`), but an `FD` item whose high value bit is set is a
+    // 7-byte escape (`fd 80 00 <u32 value>`).
+    var q = i + 3;
+    for (var k = 0; k < count; k++) {
+      if (q >= n) return null;
+      if (h[q] == 0xfd && q + 1 < n && (h[q + 1] & 0x80) != 0) {
+        q += 7;
+      } else {
+        q += 3;
+      }
+    }
+    return q - i;
+  }
   return null;
 }
 
