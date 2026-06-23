@@ -203,6 +203,16 @@ right ≥ left`), but with **negative coordinates and degenerate points** (e.g.
 (offset? sub-region? connector extent?) is **not yet determined**. Documented, but
 deliberately **not modeled** (no accessor) to avoid assigning a false meaning.
 
+### Opcode catalog — `HeapOpcode` (one source of truth)
+
+All reverse-engineered opcodes live in one documented place: the `HeapOpcode`
+enhanced enum in `labwright_videcode/lib/src/heap.dart`. Each value records the
+record's meaning, payload layout, corpus evidence, and decoding status
+(**decoded** / **structural** / **unknown**); raw bytes map via `HeapRecord.kind`
+/ `HeapOpcode.fromByte`. Current catalog: `bounds` (2D), `size` (1F),
+`stringTable` (2E), `caption` (22), `description` (19), `rect5f` (5F, structural).
+New opcodes are added there as they are confirmed.
+
 ### `C4` records are length-prefixed — confirmed ✅ (the walker seed)
 
 Every `C4` record has the shape:

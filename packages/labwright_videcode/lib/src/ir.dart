@@ -170,10 +170,10 @@ List<ViObject> assembleObjects(List<HeapRecord> records, List<HeapStringTable> s
       lastBoundsIdx = -1;
     }
     final inRange = lastBounds != null && idx - lastBoundsIdx <= maxRecordGap;
-    if (r.opcode == 0x2d && r.bounds != null) {
+    if (r.kind == HeapOpcode.bounds && r.bounds != null) {
       lastBounds = r;
       lastBoundsIdx = idx;
-    } else if (r.opcode == 0x22 && inRange) {
+    } else if (r.kind == HeapOpcode.caption && inRange) {
       final cap = r.text;
       if (cap != null) {
         out.add(ViObject(
@@ -185,7 +185,7 @@ List<ViObject> assembleObjects(List<HeapRecord> records, List<HeapStringTable> s
         ));
         lastBounds = null; // consume
       }
-    } else if (r.opcode == 0x2e && inRange) {
+    } else if (r.kind == HeapOpcode.stringTable && inRange) {
       final t = framed['${r.sectionTag}@${r.offset + 3}'];
       if (t != null) {
         out.add(ViObject(

@@ -14,6 +14,27 @@ DecodedSection bdex(List<int> bytes) => DecodedSection(
     );
 
 void main() {
+  test('HeapOpcode catalog maps bytes to kinds and back', () {
+    expect(HeapOpcode.fromByte(0x2d), HeapOpcode.bounds);
+    expect(HeapOpcode.fromByte(0x1f), HeapOpcode.size);
+    expect(HeapOpcode.fromByte(0x2e), HeapOpcode.stringTable);
+    expect(HeapOpcode.fromByte(0x22), HeapOpcode.caption);
+    expect(HeapOpcode.fromByte(0x19), HeapOpcode.description);
+    expect(HeapOpcode.fromByte(0x5f), HeapOpcode.rect5f);
+    expect(HeapOpcode.fromByte(0xAB), HeapOpcode.unknown); // uncatalogued
+    expect(HeapOpcode.bounds.isDecoded, isTrue);
+    expect(HeapOpcode.rect5f.isDecoded, isFalse);
+    expect(HeapOpcode.unknown.isDecoded, isFalse);
+    // every catalogued opcode has a unique byte
+    final bytes = HeapOpcode.values.where((o) => o != HeapOpcode.unknown).map((o) => o.byte).toList();
+    expect(bytes.toSet().length, bytes.length);
+  });
+
+  test('HeapRecord.kind reflects the opcode byte', () {
+    final heap = <int>[0xc4, 0x2d, 0x02, 0, 0];
+    expect(heapC4RecordsFromDecoded([bdex(heap)]).single.kind, HeapOpcode.bounds);
+  });
+
   test('frames C4 length-prefixed records and skips payloads', () {
     final strTable = <int>[...pascal('Hi'), ...pascal('Yo')]; // 6 bytes
     final heap = <int>[

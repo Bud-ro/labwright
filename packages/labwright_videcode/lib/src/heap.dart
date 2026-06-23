@@ -2,6 +2,84 @@ import 'dart:typed_data';
 
 import 'decode.dart';
 
+/// The byte that introduces a length-prefixed heap record (`C4 op len payload`).
+/// See [HeapOpcode] for the opcode catalog.
+const int kHeapRecordPrefix = 0xc4;
+
+/// The catalog of known LabVIEW heap-record **opcodes** — the byte after
+/// [kHeapRecordPrefix] in a `C4 <op> <u8 len> <payload>` record.
+///
+/// This enhanced enum is the single source of truth for every opcode we have
+/// reverse-engineered from the corpus. Each value documents the record's meaning,
+/// its payload layout, the corpus evidence, and its decoding status. The raw byte
+/// in a [HeapRecord] is mapped here via [HeapRecord.kind] / [HeapOpcode.fromByte];
+/// any byte not catalogued maps to [HeapOpcode.unknown].
+///
+/// Status legend:
+/// - **decoded** — payload semantics confirmed and exposed by a typed accessor.
+/// - **structural** — record framing/shape known, but the semantic role is not
+///   yet determined, so it is intentionally not interpreted.
+/// - **unknown** — not catalogued.
+///
+/// See `docs/vi-rsrc-and-heap-format.md` for the full evidence and probe history.
+enum HeapOpcode {
+  /// `0x2D` — **object bounds rectangle** (decoded). Payload is 8 bytes = four
+  /// big-endian `s16` fields `top, left, bottom, right`, in pixels: the position
+  /// and size of a control / node / decoration. Corpus: 99% are valid rectangles
+  /// with sane dimensions. Decoded by [HeapRecord.bounds].
+  bounds(0x2d),
+
+  /// `0x1F` — **origin-anchored size rectangle** (decoded). Same 8-byte 4× `s16`
+  /// layout as [bounds] but `top == left == 0`, so it encodes a height×width
+  /// extent rather than a position. Corpus: 100% valid, origin-anchored. Decoded
+  /// by [HeapRecord.sizeRect].
+  size(0x1f),
+
+  /// `0x2E` — **string table** (decoded). The only variable-length confirmed
+  /// opcode: the payload is `len` bytes of packed `[u8 strlen][chars]` Pascal
+  /// strings (a `u16` length is used when the table exceeds 255 bytes). Holds a
+  /// group of related labels (enum/ring items, captions). Decoded by
+  /// [HeapStringTable] / the string-table parser.
+  stringTable(0x2e),
+
+  /// `0x22` — **caption** (decoded). A single control / parameter name; the
+  /// payload *is* the text, sized by the record's own length byte (no inner
+  /// prefix). Corpus: 97% printable. Decoded by [HeapRecord.text].
+  caption(0x22),
+
+  /// `0x19` — **description / help text** (decoded, heuristic). HTML-ish
+  /// (`<B>…</B>`), multi-line tooltip/help text stored as length-prefixed text
+  /// segments. The inner multi-segment framing is not fully decoded, so the text
+  /// is recovered heuristically by [HeapRecord.descriptionText].
+  description(0x19),
+
+  /// `0x5F` — **rectangle, role undetermined** (structural). Decodes as a 4× `s16`
+  /// rectangle (97% valid) but allows negative coordinates and degenerate points,
+  /// so its semantic role (offset? sub-region? connector extent?) is unknown. Not
+  /// interpreted, to avoid assigning a false meaning.
+  rect5f(0x5f),
+
+  /// A heap opcode that is not (yet) catalogued. Its [byte] is -1; use
+  /// [HeapRecord.opcode] for the actual byte value.
+  unknown(-1);
+
+  const HeapOpcode(this.byte);
+
+  /// The opcode byte (the value after [kHeapRecordPrefix]); -1 for [unknown].
+  final int byte;
+
+  /// Whether this opcode's payload semantics are decoded (vs. structural/unknown).
+  bool get isDecoded => this != unknown && this != rect5f;
+
+  /// Maps a raw opcode byte to its [HeapOpcode], or [unknown] if not catalogued.
+  static HeapOpcode fromByte(int b) {
+    for (final op in values) {
+      if (op != unknown && op.byte == b) return op;
+    }
+    return unknown;
+  }
+}
+
 /// A length-prefixed **`C4` opcode record** in a decompressed VI heap.
 ///
 /// The heap is a stream of opcode-serialized objects. Records introduced by the
@@ -31,58 +109,45 @@ class HeapRecord {
   final int offset;
 
   /// The opcode selector byte (the byte after `0xC4`), e.g. `0x2D`, `0x2E`, `0x1F`.
+  /// Prefer [kind] for matching against the known-opcode catalog.
   final int opcode;
 
   /// The raw payload bytes (`<len>` bytes after the length byte).
   final Uint8List payload;
 
+  /// This record's catalogued [HeapOpcode] (or [HeapOpcode.unknown]).
+  HeapOpcode get kind => HeapOpcode.fromByte(opcode);
+
   /// Total bytes this record occupies: `0xC4` + opcode + length byte + payload.
   int get byteLength => 3 + payload.length;
 
-  /// If this is a **`C4 2D` object-bounds record** (opcode `0x2D`, 8-byte
-  /// payload), the object's bounding rectangle — four big-endian `s16` fields
-  /// `top, left, bottom, right`, in pixels; otherwise null.
-  ///
-  /// Confirmed across the corpus: 99% of `C4 2D` records are valid rectangles
-  /// (`bottom ≥ top ∧ right ≥ left`, derived height/width in `[0, 2000)` px) —
-  /// these are the position/size of diagram & front-panel objects.
-  HeapRect? get bounds => opcode == 0x2d ? HeapRect.fromPayload(payload) : null;
+  /// If this is a [HeapOpcode.bounds] record, the object's bounding rectangle —
+  /// four big-endian `s16` fields `top, left, bottom, right`, in pixels; else null.
+  /// (Position/size of a control/node/decoration.)
+  HeapRect? get bounds => kind == HeapOpcode.bounds ? HeapRect.fromPayload(payload) : null;
 
-  /// If this is a **`C4 1F` size record** (opcode `0x1F`, 8-byte payload), the
-  /// object's origin-anchored size/extent rectangle (same 4× `s16` layout, but
-  /// `top == left == 0`, so it encodes a height×width); otherwise null.
-  ///
-  /// Confirmed across the corpus: 100% of `C4 1F` records are valid rectangles
-  /// and origin-anchored (e.g. `(0, 0, 12, 12)`, `(0, 0, 20, 20)`). Kept distinct
-  /// from [bounds] so positional layout data is not polluted by these sizes.
-  HeapRect? get sizeRect => opcode == 0x1f ? HeapRect.fromPayload(payload) : null;
+  /// If this is a [HeapOpcode.size] record, the origin-anchored size/extent
+  /// rectangle (same 4× `s16` layout, `top == left == 0`); else null. Kept
+  /// distinct from [bounds] so positional layout data is not polluted by sizes.
+  HeapRect? get sizeRect => kind == HeapOpcode.size ? HeapRect.fromPayload(payload) : null;
 
-  /// If this is a **`C4 22` caption record** (opcode `0x22`), the payload decoded
-  /// as text — a single control caption / name / label; otherwise null. Unlike
-  /// the `C4 2E` string *table*, this is one string whose length is the record's
-  /// own length byte (no inner prefix). Returns null when the payload is empty or
-  /// not fully printable ASCII (drops the ~3% binary captions).
-  ///
-  /// Confirmed across the corpus: 97% of `C4 22` payloads are printable text
-  /// (e.g. `Conversion time`, `Amplitude (mV)`, `error out`).
+  /// If this is a [HeapOpcode.caption] record, the payload decoded as text — a
+  /// single control caption / name; else null. The whole payload is the string
+  /// (no inner prefix). Null when empty or not fully printable ASCII.
   String? get text {
-    if (opcode != 0x22 || payload.isEmpty) return null;
+    if (kind != HeapOpcode.caption || payload.isEmpty) return null;
     for (final b in payload) {
       if (b < 32 || b >= 127) return null;
     }
     return String.fromCharCodes(payload);
   }
 
-  /// If this is a **`C4 19` description record** (opcode `0x19`), the embedded
-  /// help/tooltip text — often HTML-ish (`<B>…</B>`) and multi-line — extracted as
-  /// its printable text runs joined by spaces; null if none.
-  ///
-  /// **Heuristic**: `C4 19`'s inner framing is a not-yet-decoded count-prefixed
-  /// set of strings, so this recovers the *readable text* rather than the exact
-  /// field structure. Confirmed across the corpus to hold VI documentation text
-  /// (e.g. `<B>source</B> describes the origin of the error…`). Total.
+  /// If this is a [HeapOpcode.description] record, the embedded help/tooltip text
+  /// (often HTML-ish, multi-line), recovered from its length-prefixed text
+  /// segments; null if none. **Heuristic** — the inner multi-segment framing is
+  /// not fully decoded, so this recovers readable text, not exact fields. Total.
   String? get descriptionText {
-    if (opcode != 0x19) return null;
+    if (kind != HeapOpcode.description) return null;
     bool isText(int start, int len) {
       for (var j = start; j < start + len; j++) {
         final c = payload[j];
@@ -166,7 +231,7 @@ List<HeapRecord> heapC4RecordsFromDecoded(Iterable<DecodedSection> decoded) {
     final n = h.length;
     var i = 0;
     while (i < n) {
-      if (h[i] == 0xc4 && i + 3 <= n) {
+      if (h[i] == kHeapRecordPrefix && i + 3 <= n) {
         final op = h[i + 1];
         final len = h[i + 2];
         if (i + 3 + len <= n) {

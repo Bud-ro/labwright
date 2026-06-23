@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:labwright_viparse/labwright_viparse.dart';
 
 import 'decode.dart';
+import 'heap.dart';
 
 /// The LabVIEW version a VI was saved in, plus its embedded title/description.
 class ViVersionInfo {
@@ -234,7 +235,9 @@ class _FramedTable {
 /// (for tables >255 bytes). Total/bounds-safe.
 _FramedTable? _tryFramedTable(Uint8List h, int i) {
   final n = h.length;
-  if (i + 2 > n || h[i] != 0xc4 || h[i + 1] != 0x2e) return null;
+  if (i + 2 > n || h[i] != kHeapRecordPrefix || h[i + 1] != HeapOpcode.stringTable.byte) {
+    return null;
+  }
   // u8 length
   if (i + 3 <= n) {
     final l = h[i + 2];
