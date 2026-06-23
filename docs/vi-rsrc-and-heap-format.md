@@ -74,7 +74,21 @@ heap. Observed invariants (consistent across the corpus):
 **Blocker:** decoding the stream into a node/wire/terminal graph requires the
 per-opcode payload-length table (LabVIEW's heap object semantics). Without it the
 cursor can't be advanced generically, so the records other than the obvious
-repeats can't be reliably framed. This is the same wall `pylabview` hit — even
+repeats can't be reliably framed.
+
+**Empirically confirmed (corpus probes):**
+- The stream is **not** a self-describing TLV. Walking it as `[u16 type][u16 len]
+  [len payload]` overruns the buffer almost immediately (consumed 115,856 of
+  78,579 bytes in only 18 "records") — i.e. bytes 2–3 are not a length.
+- The visible `14 19 01 fd <u16>` record is **not** dominant: ~110 occurrences,
+  ~0.8% of the body (longest aligned run 24). Framing it alone covers almost
+  nothing, and because lengths are type-specific, a "frame-known / skip-unknown"
+  walker desyncs at the first unknown opcode.
+- Bytes following `0xfd` vary widely (no single record-start marker).
+
+So opcode lengths are **type-specific**: a reliable walk needs the opcode table,
+which only emerges from correlating many VIs against known node patterns. We
+therefore do not ship a heap walker (it would desync and mislead). This is the same wall `pylabview` hit — even
 after years it does not recover executable logic. We therefore **do not
 fabricate a graph**; we extract what is reliably framed (version, title,
 strings, component sizes) and treat opcode-table recovery as a future,

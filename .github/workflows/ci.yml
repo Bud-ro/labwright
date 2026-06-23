@@ -31,3 +31,24 @@ jobs:
               ( cd "$p" && dart test ) || exit 1
             fi
           done
+
+  flutter:
+    name: flutter apps
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      # Each app is a standalone Flutter package; analyze + test it headlessly.
+      - name: analyze + test apps
+        shell: bash
+        run: |
+          for app in apps/*/; do
+            if [ -f "$app/pubspec.yaml" ]; then
+              echo "== $app =="
+              ( cd "$app" && flutter pub get && flutter analyze && flutter test ) || exit 1
+            fi
+          done
