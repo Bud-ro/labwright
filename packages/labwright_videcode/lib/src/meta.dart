@@ -92,6 +92,30 @@ List<BlockComponent> componentsFromDecoded(Iterable<DecodedSection> decoded) {
   return out;
 }
 
+/// A **string table** in a VI heap: one contiguous run of Pascal strings.
+///
+/// LabVIEW packs the strings that belong to a single owning object — an enum/ring
+/// control's item labels, a control's caption + parts, a help string set — as a
+/// back-to-back `[u8 len][chars]` run. The *grouping* is real structure: these
+/// strings share an owner, so keeping them together (rather than flattening to a
+/// bag of strings) is genuine graph-relevant progress. [offset] is the run's byte
+/// position within its **decompressed** section, so future opcode work can
+/// correlate a table with the object preamble that precedes it (see the format
+/// doc — those preamble bytes recur byte-identically across VIs but their field
+/// semantics are not yet decoded, so we deliberately do not interpret them here).
+class HeapStringTable {
+  const HeapStringTable({required this.sectionTag, required this.offset, required this.strings});
+
+  /// The 4-char tag of the section this table lives in (e.g. `BDEx`, `FPHb`).
+  final String sectionTag;
+
+  /// Byte offset of the run's start within the decompressed section bytes.
+  final int offset;
+
+  /// The useful (wordy, deduped, order-preserving) labels in this table.
+  final List<String> strings;
+}
+
 /// Best-effort human-readable strings embedded in a VI's heaps (control labels,
 /// help/tooltip text, value lists). **Heuristic**, not authoritative: the heap
 /// is an opcode-serialized object tree, so this scans for length-prefixed
@@ -100,40 +124,67 @@ List<BlockComponent> componentsFromDecoded(Iterable<DecodedSection> decoded) {
 List<String> extractHeapStrings(Uint8List viBytes, {int minLength = 4}) =>
     heapStringsFromDecoded(decodeSections(viBytes), minLength: minLength);
 
-/// [extractHeapStrings] over already-decoded sections.
+/// The located, grouped [HeapStringTable]s in a VI's heaps — the structured
+/// primitive [extractHeapStrings] flattens. Order-preserving and total.
+List<HeapStringTable> heapStringTables(Uint8List viBytes, {int minLength = 4, int minRun = 2}) =>
+    heapStringTablesFromDecoded(decodeSections(viBytes), minLength: minLength, minRun: minRun);
+
+/// [heapStringTables] over already-decoded sections.
 ///
 /// Strings live in the heap as **contiguous Pascal-string tables** (`[u8 len]
-/// [chars]` packed back-to-back, no per-string opcode tag). So we only emit
-/// strings that belong to a **run** of at least [minRun] consecutive valid
-/// Pascal strings — this rejects the coincidental single length-byte matches
-/// that a naive whole-heap scan produces. Single-pass and total.
-List<String> heapStringsFromDecoded(Iterable<DecodedSection> decoded, {int minLength = 4, int minRun = 2}) {
-  final seen = <String>{};
-  final out = <String>[];
+/// [chars]` packed back-to-back, no per-string opcode tag). We only emit a table
+/// for a **run** of at least [minRun] consecutive valid Pascal strings — this
+/// rejects the coincidental single length-byte matches that a naive whole-heap
+/// scan produces. Within a table the strings are filtered to wordy ones of
+/// length ≥ [minLength] and deduped (preserving order); a table with no useful
+/// strings is dropped. Single-pass and total.
+List<HeapStringTable> heapStringTablesFromDecoded(Iterable<DecodedSection> decoded,
+    {int minLength = 4, int minRun = 2}) {
+  final out = <HeapStringTable>[];
   for (final d in decoded) {
     final h = d.bytes;
-    final run = <String>[];
-    void flush() {
-      if (run.length >= minRun) {
-        for (final s in run) {
-          if (s.length >= minLength && _looksWordy(s) && seen.add(s)) out.add(s);
-        }
-      }
-      run.clear();
-    }
-
     var i = 0;
     while (i < h.length) {
       final len = h[i]; // u8 length (max 255)
       if (len >= 1 && i + 1 + len <= h.length && _allPrintable(h, i + 1, len)) {
-        run.add(String.fromCharCodes(h.sublist(i + 1, i + 1 + len)));
-        i += 1 + len;
+        final runStart = i;
+        final raw = <String>[];
+        while (i < h.length) {
+          final l = h[i];
+          if (l >= 1 && i + 1 + l <= h.length && _allPrintable(h, i + 1, l)) {
+            raw.add(String.fromCharCodes(h.sublist(i + 1, i + 1 + l)));
+            i += 1 + l;
+          } else {
+            break;
+          }
+        }
+        if (raw.length >= minRun) {
+          final seen = <String>{};
+          final keep = <String>[];
+          for (final s in raw) {
+            if (s.length >= minLength && _looksWordy(s) && seen.add(s)) keep.add(s);
+          }
+          if (keep.isNotEmpty) {
+            out.add(HeapStringTable(sectionTag: d.tag, offset: runStart, strings: keep));
+          }
+        }
       } else {
-        flush();
         i++;
       }
     }
-    flush();
+  }
+  return out;
+}
+
+/// [extractHeapStrings] over already-decoded sections — the flat, globally
+/// deduped view of [heapStringTablesFromDecoded]. Total.
+List<String> heapStringsFromDecoded(Iterable<DecodedSection> decoded, {int minLength = 4, int minRun = 2}) {
+  final seen = <String>{};
+  final out = <String>[];
+  for (final t in heapStringTablesFromDecoded(decoded, minLength: minLength, minRun: minRun)) {
+    for (final s in t.strings) {
+      if (seen.add(s)) out.add(s);
+    }
   }
   return out;
 }

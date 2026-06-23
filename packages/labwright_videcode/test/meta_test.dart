@@ -54,6 +54,50 @@ void main() {
     expect(strings, isNot(contains('Lonely'))); // isolated (run length 1) dropped
   });
 
+  test('heapStringTablesFromDecoded groups runs and records section + offset', () {
+    final lead = <int>[0xff, 0xfe, 0x00]; // 3 bytes of non-string preamble
+    final heap = <int>[
+      ...lead,
+      ...pascal('Range Volts'), // run A starts at offset 3
+      ...pascal('error out'),
+      0x00, 0x00, // break
+      ...pascal('Channel'), // run B
+      ...pascal('Sample Rate'),
+    ];
+    final decoded = DecodedSection(
+      section: ViSection(tag: 'BDEx', index: 0, dataOffset: 0, bytes: Uint8List.fromList(heap)),
+      bytes: Uint8List.fromList(heap),
+      wasCompressed: false,
+    );
+    final tables = heapStringTablesFromDecoded([decoded]);
+    expect(tables.length, 2);
+    expect(tables.first.sectionTag, 'BDEx');
+    expect(tables.first.offset, lead.length); // run A starts right after preamble
+    expect(tables.first.strings, <String>['Range Volts', 'error out']);
+    expect(tables[1].strings, <String>['Channel', 'Sample Rate']);
+    // Flat view is exactly the tables flattened + globally deduped.
+    expect(heapStringsFromDecoded([decoded]),
+        <String>['Range Volts', 'error out', 'Channel', 'Sample Rate']);
+  });
+
+  test('heapStringTables is total over arbitrary bytes', () {
+    final rng = Random(11);
+    for (var i = 0; i < 2000; i++) {
+      final n = rng.nextInt(200);
+      final b = Uint8List.fromList([for (var j = 0; j < n; j++) rng.nextInt(256)]);
+      try {
+        for (final t in heapStringTables(b)) {
+          expect(t.offset, inInclusiveRange(0, b.length));
+          expect(t.strings, isNotEmpty);
+        }
+      } on ViFormatException {
+        // acceptable
+      } catch (e) {
+        fail('leaked ${e.runtimeType}: $e');
+      }
+    }
+  });
+
   test('componentsFromDecoded summarizes per-block sizes, largest first', () {
     DecodedSection d(String tag, int rawLen, int decLen, bool comp) => DecodedSection(
           section: ViSection(tag: tag, index: 0, dataOffset: 0, bytes: Uint8List(rawLen)),

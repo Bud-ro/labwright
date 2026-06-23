@@ -78,6 +78,32 @@ heap. Observed invariants (consistent across the corpus):
   and reads full u8 lengths (≤255). This is the first confirmed heap-object
   framing; growing the opcode map from here is the path toward the graph.
 
+### String tables (the run as a grouped object) — confirmed ✅
+
+Each run is a **string table** belonging to a single owning object (e.g. an
+enum/ring control's item labels). The grouping is real structure — these labels
+share an owner — so `heapStringTables` exposes them as a typed
+`HeapStringTable {sectionTag, offset, strings}` (offset = run start within the
+decompressed section). `extractHeapStrings` is just the flattened, deduped view.
+Demonstrated on the corpus: a single table recovers a waveform selector's full
+item list — `Sine, Square, Triangle, Ramp Up, Ramp Down, Sinc, Gaussian, Half
+Sine, White Noise, PRBS, Arbitrary` — as one group. (Validated: 409 corpus VIs,
+9054 tables, 0 crashes.)
+
+**Run-header probes — negative results (do not assume a count):**
+- The string count is **not** stored adjacent to the table. A `u8`/`u16` equal to
+  the run's string count appears at *no* offset within an 8-byte window before the
+  run start: 0/694 runs (and 0/158 long runs ≥4) match. So a table is located by
+  its content (the run), not by a length prefix we can read directly.
+- Tables *are* preceded by a **byte-identical preamble** that recurs across VIs —
+  e.g. every 7-string table is preceded by `…08 19 08 25 09 2d c4 2e 2a`. This is
+  strong evidence each table belongs to a fixed object kind, but the preamble's
+  field semantics are **not yet decoded**, so `HeapStringTable` records the offset
+  (to correlate later) without interpreting those bytes.
+- The `14 19 01 fd <u16>` record's `u16` is **not** a 0-based index (0 VIs show a
+  0,1,2,… sequence); values cluster like assigned object IDs. Unconfirmed without
+  a cross-reference target, so it is **not** modeled.
+
 **Blocker:** decoding the stream into a node/wire/terminal graph requires the
 per-opcode payload-length table (LabVIEW's heap object semantics). Without it the
 cursor can't be advanced generically, so the records other than the obvious
@@ -105,6 +131,7 @@ incremental effort (cross-referencing many VIs and known node patterns).
 
 - `labwright_viparse`: container summary (`parseVi`) + raw sections (`readViSections`).
 - `labwright_videcode`: `decodeSections`/`inflateSection` (decompressed bytes),
-  `decodeVersion` (version+title), `extractHeapStrings` (best-effort labels),
-  `blockComponents` (per-block sizes). Heap-graph parsing is the next stage,
-  pending the opcode table.
+  `decodeVersion` (version+title), `heapStringTables` (grouped, located string
+  tables) / `extractHeapStrings` (their flattened view), `blockComponents`
+  (per-block sizes). Heap-graph parsing is the next stage, pending the opcode
+  table.
