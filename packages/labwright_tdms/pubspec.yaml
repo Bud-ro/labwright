@@ -1,0 +1,20 @@
+name: labwright_tdms
+description: >-
+  Read/write NI's TDMS binary format (lead-in / metadata / raw-data segments).
+  Pure Dart, byte-oriented, so it round-trips in tests without disk or NI tooling.
+version: 0.0.1
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+executables:
+  tdms-inspect: inspect
+  tdms2csv: tdms2csv
+  tdms-summary: summary
+  csv2tdms: csv2tdms
+
+dev_dependencies:
+  test: ^1.25.0
+  lints: ^5.0.0
