@@ -102,11 +102,12 @@ List<BlockComponent> componentsFromDecoded(Iterable<DecodedSection> decoded) {
 /// position within its **decompressed** section.
 ///
 /// [framed] distinguishes confidence:
-/// - `true` — the table was delimited by the confirmed **`0x2E <len>` opcode**
-///   (`0x2E`, then a `u8` byte-length, or a `u16` when >255, then exactly that
-///   many bytes of packed Pascal strings). This is a structurally exact boundary,
-///   not a guess — across the corpus the opcode's length field matches the table
-///   size with zero exceptions (see the format doc).
+/// - `true` — the table was delimited by the confirmed **`C4 2E <len>` opcode**
+///   (the 2-byte `C4 2E`, then a `u8` byte-length, or a `u16` when >255, then
+///   exactly that many bytes of packed Pascal strings). This is a structurally
+///   exact boundary, not a guess — across the corpus `0xC4` precedes `0x2E` in
+///   100% of tables and the length field matches the table size with zero
+///   exceptions (see the format doc).
 /// - `false` — the table was located by the heuristic run-scan fallback (a run of
 ///   ≥2 consecutive valid Pascal strings). Used for tables not introduced by
 ///   `0x2E` (e.g. long help-text tables, which use a different, not-yet-decoded
@@ -150,7 +151,7 @@ List<HeapStringTable> heapStringTables(Uint8List viBytes, {int minLength = 4, in
 ///
 /// Strings live in the heap as **contiguous Pascal-string tables** (`[u8 len]
 /// [chars]` packed back-to-back, no per-string opcode tag). Most are introduced
-/// by the confirmed **`0x2E <len>` opcode** — those are parsed structurally
+/// by the confirmed **`C4 2E <len>` opcode** — those are parsed structurally
 /// (exact boundary, [HeapStringTable.framed] == true). Bytes not covered by a
 /// framed table fall back to a **heuristic run-scan**: a run of at least [minRun]
 /// consecutive valid Pascal strings (rejecting coincidental single length-byte
@@ -225,27 +226,29 @@ class _FramedTable {
   final int consumed; // total bytes consumed (opcode + len + region)
 }
 
-/// If [h] at [i] is a `0x2E <len> <region>` string table — where `<region>` is
+/// If [h] at [i] is a `C4 2E <len> <region>` string table — where `<region>` is
 /// exactly `<len>` bytes of packed `[u8 len][printable]` Pascal strings (≥2 of
-/// them) — returns it; otherwise null. Tries a `u8` length, then a `u16` length
+/// them) — returns it; otherwise null. The opcode is the **2-byte `C4 2E`**
+/// (`0xC4` precedes `0x2E` in 100% of corpus tables — requiring it rejects stray
+/// `0x2E` bytes inside string content). Tries a `u8` length, then a `u16` length
 /// (for tables >255 bytes). Total/bounds-safe.
 _FramedTable? _tryFramedTable(Uint8List h, int i) {
   final n = h.length;
-  if (i >= n || h[i] != 0x2e) return null;
+  if (i + 2 > n || h[i] != 0xc4 || h[i + 1] != 0x2e) return null;
   // u8 length
-  if (i + 2 <= n) {
-    final l = h[i + 1];
-    if (l >= 2 && i + 2 + l <= n) {
-      final strs = _packedPascals(h, i + 2, l);
-      if (strs != null && strs.length >= 2) return _FramedTable(strs, 2, 2 + l);
-    }
-  }
-  // u16 length (big tables)
   if (i + 3 <= n) {
-    final l = (h[i + 1] << 8) | h[i + 2];
+    final l = h[i + 2];
     if (l >= 2 && i + 3 + l <= n) {
       final strs = _packedPascals(h, i + 3, l);
       if (strs != null && strs.length >= 2) return _FramedTable(strs, 3, 3 + l);
+    }
+  }
+  // u16 length (big tables)
+  if (i + 4 <= n) {
+    final l = (h[i + 2] << 8) | h[i + 3];
+    if (l >= 2 && i + 4 + l <= n) {
+      final strs = _packedPascals(h, i + 4, l);
+      if (strs != null && strs.length >= 2) return _FramedTable(strs, 4, 4 + l);
     }
   }
   return null;

@@ -80,11 +80,11 @@ void main() {
         <String>['Range Volts', 'error out', 'Channel', 'Sample Rate']);
   });
 
-  test('heapStringTablesFromDecoded frames a 0x2E <len> opcode table exactly', () {
+  test('heapStringTablesFromDecoded frames a C4 2E <len> opcode table exactly', () {
     final body = <int>[...pascal('Sine'), ...pascal('Square'), ...pascal('Ramp Up')];
     final heap = <int>[
       0xaa, 0xbb, // leading noise
-      0x2e, body.length, ...body, // 0x2E <u8 len> <packed pascals>
+      0xc4, 0x2e, body.length, ...body, // C4 2E <u8 len> <packed pascals>
       0x00, // break
     ];
     final decoded = DecodedSection(
@@ -95,11 +95,25 @@ void main() {
     final tables = heapStringTablesFromDecoded([decoded]);
     expect(tables.length, 1);
     expect(tables.first.framed, isTrue);
-    expect(tables.first.offset, 4); // after 0xaa 0xbb 0x2e <len>
+    expect(tables.first.offset, 5); // after 0xaa 0xbb 0xc4 0x2e <len>
     expect(tables.first.strings, <String>['Sine', 'Square', 'Ramp Up']);
   });
 
-  test('heapStringTablesFromDecoded frames a 0x2E <u16 len> big table', () {
+  test('a bare 0x2E without the C4 prefix is NOT framed (rejects stray dots)', () {
+    // '.'==0x2E inside content must not be mistaken for the table opcode.
+    final body = <int>[...pascal('Sine'), ...pascal('Square')];
+    final heap = <int>[0x2e, body.length, ...body];
+    final decoded = DecodedSection(
+      section: ViSection(tag: 'BDEx', index: 0, dataOffset: 0, bytes: Uint8List.fromList(heap)),
+      bytes: Uint8List.fromList(heap),
+      wasCompressed: false,
+    );
+    final tables = heapStringTablesFromDecoded([decoded]);
+    // The strings are still recovered, but only via the heuristic fallback.
+    expect(tables.every((t) => !t.framed), isTrue);
+  });
+
+  test('heapStringTablesFromDecoded frames a C4 2E <u16 len> big table', () {
     // >255 bytes -> u16 length. Build ~30 strings.
     final entries = <int>[];
     final expected = <String>[];
@@ -110,7 +124,7 @@ void main() {
     }
     expect(entries.length > 255, isTrue);
     final heap = <int>[
-      0x2e, (entries.length >> 8) & 0xff, entries.length & 0xff, ...entries,
+      0xc4, 0x2e, (entries.length >> 8) & 0xff, entries.length & 0xff, ...entries,
     ];
     final decoded = DecodedSection(
       section: ViSection(tag: 'BDEx', index: 0, dataOffset: 0, bytes: Uint8List.fromList(heap)),
@@ -120,7 +134,7 @@ void main() {
     final tables = heapStringTablesFromDecoded([decoded]);
     expect(tables.length, 1);
     expect(tables.first.framed, isTrue);
-    expect(tables.first.offset, 3); // after 0x2e + u16 len
+    expect(tables.first.offset, 4); // after C4 2E + u16 len
     expect(tables.first.strings, expected);
   });
 

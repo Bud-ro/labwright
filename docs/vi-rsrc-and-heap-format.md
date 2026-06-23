@@ -90,42 +90,48 @@ full item list — `Sine, Square, Triangle, Ramp Up, Ramp Down, Sinc, Gaussian,
 Half Sine, White Noise, PRBS, Arbitrary` — as one group. (Validated: 409 corpus
 VIs, 0 crashes.)
 
-### `0x2E` string-table opcode — confirmed ✅ (first true opcode)
+### `C4 2E` string-table opcode — confirmed ✅ (first true opcode)
 
-Most string tables are introduced by a single opcode, framed exactly:
+Most string tables are introduced by a single 2-byte opcode, framed exactly:
 
 ```
-0x2E  <len>  <len bytes of packed [u8 strlen][chars] Pascal strings>
-        len = u8  when the table is ≤255 bytes
-        len = u16 (big-endian) when the table is >255 bytes
+C4 2E  <len>  <len bytes of packed [u8 strlen][chars] Pascal strings>
+         len = u8  when the table is ≤255 bytes
+         len = u16 (big-endian) when the table is >255 bytes
 ```
 
-This is **structural**, not a content heuristic — and it is exception-free across
-the corpus. Restricting to clean single tables, `byte[start-1]` (the byte right
-before the first string) equals the table's total byte length in **919/919**
-cases, and in **every** one of those `byte[start-2] == 0x2E` (0 counter-examples);
-the 10 tables >255 bytes all carry a matching `u16` length. Parsing structurally
-from the opcode (read `0x2E`, read `len`, consume exactly `len` bytes as packed
-Pascal strings) yields clean enum/ring item lists, e.g. a gain selector
-`2500mV, 1225mV, 625mV, 313mV, 156mV, 78mV, 39mV`. Corpus-wide: **2908
-opcode-framed tables across 263 VIs, 0 crashes.** These tables carry
+This is **structural**, not a content heuristic — and exception-free across the
+corpus:
+- `0xC4` precedes `0x2E` in **2318/2318** framed tables (100%) — so the opcode is
+  the 2-byte `C4 2E`, and requiring `C4` rejects stray `0x2E` (`'.'`) bytes inside
+  string content.
+- Restricting to clean single tables, `byte[start-1]` (right before the first
+  string) equals the table's total byte length in **919/919** cases, each preceded
+  by `2E` (0 counter-examples); the tables >255 bytes all carry a matching `u16`.
+
+Parsing structurally from the opcode (match `C4 2E`, read `len`, consume exactly
+`len` bytes as packed Pascal strings) yields clean enum/ring item lists, e.g. a
+gain selector `2500mV, 1225mV, 625mV, 313mV, 156mV, 78mV, 39mV`. Corpus-wide:
+**2908 opcode-framed tables across 263 VIs, 0 crashes** (identical with and
+without the `C4` requirement — pure precision gain, no regression). These carry
 `HeapStringTable.framed == true` (exact boundary); tables found only by the
 heuristic run-scan fallback carry `framed == false`.
 
-What `0x2E <len>` does **not** yet tell us: which *kind* of object owns the table
+What `C4 2E <len>` does **not** yet tell us: which *kind* of object owns the table
 (enum vs ring vs caption set) and the object's id — those live in the preceding
-preamble (below), still undecoded. But exact table boundaries + the confirmed
-opcode are a real opcode-table entry and the seed of the heap parser.
+preamble (below), still undecoded. But exact boundaries + the confirmed opcode are
+a real opcode-table entry and the seed of the heap parser.
 
-**Run-header / preamble probes — negative results (do not assume these):**
+**Preamble probes — partial / negative results (do not over-claim):**
 - The string *count* is **not** stored adjacent to the table (the length field is
   in *bytes*, not entries). A `u8`/`u16` equal to the run's string count appears at
   *no* offset in an 8-byte window before the run: 0/694 runs (0/158 long runs).
-- Tables are preceded by a **byte-identical preamble** that recurs across VIs —
-  e.g. 7-string tables by `…08 19 08 25 09 2d c4 2e 2a` (the trailing `2e <b>` is
-  exactly the opcode + length above). The bytes *before* `2e` (`…25 09 2d c4`)
-  recur but their field semantics are **not yet decoded**; `HeapStringTable`
-  records the offset to correlate later rather than interpreting them.
+- The bytes *before* `C4` fall into ≥2 recurring families — `…09 2d c4` (dominant)
+  and `…24 90 0X c4` (with `X` = 1–9) — strong evidence of distinct owning-object
+  framings. But they do **not** cleanly predict the table's content kind (enum vs
+  sentence): e.g. `25 09 2d c4` covers both short-label and mixed tables. So the
+  owning-object *type code* is **not yet decoded**; `HeapStringTable` records the
+  offset to correlate later rather than guessing a kind.
 - The `14 19 01 fd <u16>` record's `u16` is **not** a 0-based index (0 VIs show a
   0,1,2,… sequence); values cluster like assigned object IDs. Unconfirmed without
   a cross-reference target, so it is **not** modeled.
