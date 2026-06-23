@@ -222,14 +222,25 @@ Current catalog:
 | `22` | caption | string | decoded | `text` (control name) |
 | `27` | plotName | string | decoded | `text` (e.g. `Plot 0`) |
 | `74` | formatString | string | decoded | `text` (e.g. `%020b`) |
+| `20` | itemLabel | string | decoded | `text` (e.g. `Line 0`, `<None>`) |
+| `C4` | symbolName | string | decoded | `text` (C-function, e.g. `ps2000aRunStreaming`) |
+| `A4` | path | path | decoded | `path` (`PTH0` DLL path, e.g. `ps5000.dll`) |
 | `19` | description | helpText | decoded* | `descriptionText` (heuristic) |
+| `4A` | typeBounds | rectangle | decoded | `rect` (DTHP type/terminal bounds) |
+| `44` `64` `24` | container* | container | structural | `children` (nested `C4` records) |
 | `5F` `4C` `D6` `62` `26` | rect* | rectangle | structural | `rect` (role TBD) |
 
-The `rect*` opcodes are all confirmed 4× `s16` rectangles (≈100% valid) whose
-semantic *role* is not yet determined, so they expose only the generic `rect`
-accessor — never a false meaning. New opcodes are added here as confirmed.
-(Validated: 0 crashes; plotName 927, formatString 816, the rect opcodes ~300–820
-each decode cleanly across the corpus.)
+The `rect*` opcodes are confirmed 4× `s16` rectangles (≈100% valid) whose
+semantic *role* is undetermined → generic `rect` only. The `container*` opcodes
+wrap nested `C4` children (bounds + sizes + captions) → `children` recurses the
+walker into the payload. New opcodes are added here as confirmed. (Validated: 0
+crashes; symbolName 616 across 326 VIs, path 351 across 321 VIs, containers 1,339
+with 3,138 children — e.g. a VI's decoded SDK calls `psospaSigGenTrigger…` from
+`psospa.dll`.)
+
+`ViModel` surfaces the high-value semantic layers: `symbolNames` (the
+Call-Library C functions a VI invokes) and `paths` (the DLLs it links) — i.e.
+*what hardware/library calls this VI makes*.
 
 ### `C4` records are length-prefixed — confirmed ✅ (the walker seed)
 
@@ -288,6 +299,54 @@ string tables (labels), and the `C4 2D`/`1F` value records — plus their order.
 The IR (Stage 4) will be built from those leaves with **honest partial fidelity**,
 not from a fabricated full graph; cracking the nested object/type model is the
 long-tail effort that would raise fidelity over time.
+
+### Non-`C4` record families — anchored-decode results 🔬 (ready to integrate)
+
+Using confirmed `C4` record boundaries as **anchors** (the byte right after a
+framed `C4` record is a guaranteed record start), the two dominant non-`C4`
+families were decoded — validated by skipping the computed size and confirming it
+lands on a valid next record:
+
+- **`0x84` = fixed 6-byte record** (`84 <subop> <flag> <r> <g> <b>`), payload is an
+  **RGB color triplet** for most subops (canonical LabVIEW palette values
+  recovered). Skip = **6, unconditional**. Anchored validation: **91,963/91,963
+  (100%)** land on a valid next record. ~16.9% of `BDEx` bytes.
+- **`0x10` = typed-list record** (`10 <subop> <u8 count> <typetag> <count items>`):
+  typetag `fb` → 2-byte items (size `4 + 2·count`); the `8d`-form `fe` → items
+  `02 58 <24|44> 1f …` (flag `24`→5 / `44`→6 bytes). **100,626/100,641 (99.99%)**
+  of post-`C4` `0x10` anchors resolve with **0 mismatches**. ~6.5% of `BDEx`.
+
+Combined with `C4` (≈24%), these cover ~47% of a `BDEx` body. **Not yet wired into
+a sequential walker** because the body's *first* record is a `10 18 …` `fe`-form
+variant not in the validated subset (a from-offset-0 walk stalls there); these
+skip rules are confirmed and queued for integration once the leading form +
+neighbor families (`08`/`09`/`11`/`14`/`64 cb`) are decoded.
+
+### Front panel (`FPHb`) + type heap (`DTHP`) — map 🔬
+
+- **`FPHb` (front panel)** is **uncompressed** and uses **no `C4` records** — a
+  different encoding. In this (sub-VI-heavy) corpus most panels are empty: a shared
+  1246-byte template (324 files) = "empty FP"; a 12-byte compact pane form
+  `[u16 w0=12][u16 count=1][s16×4 rect]`; and a full form
+  `[u32][u32 typeFlags][u32][s16×4 rect]…[Pascal name]` (only ~3 corpus VIs have
+  real content). **`FPSE`** carries the per-control record (name + bounds).
+  Confirming multi-control panel framing needs a richer corpus (top-level VIs).
+- **`DTHP` (type heap) DOES use the `C4` record format** — and holds the
+  per-control **type data**: type bounds (`C4 4A`), Call-Library symbol names
+  (`C4 C4`), DLL paths (`C4 A4`), and type-descriptor token streams (the
+  `08/09/10/11/14/C5` opcodes — a distinct, still-undecoded DTHP grammar). This is
+  where front-panel control *types* live and reuse our existing `C4` decoder.
+
+### Negatives / artifacts (do not model)
+
+`C4`-prefixed opcodes `08 09 10 11 14 C5` are DTHP type-descriptor **token
+streams** (nested grammar, no flat field) — left raw. `0x23` is an 8-byte flag
+pair (2× `u32`), **not** a rectangle. `0x71`/`0x50`/`0x00`/`0x72` are scan
+artifacts / section-local opaque data and are **not** surfaced as records.
+
+*(The non-`C4`, `FPHb`/`DTHP`, and remaining-`C4`-opcode results above were
+produced by parallel disjoint reverse-engineering agents and cross-checked against
+the corpus.)*
 
 **Preamble probes — partial / negative results (do not over-claim):**
 - `C4 19` (2,750×) sits next to multi-line text (help/descriptions) but is **not**

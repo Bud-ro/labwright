@@ -28,41 +28,82 @@ enum HeapOpcode {
   /// big-endian `s16` fields `top, left, bottom, right`, in pixels: the position
   /// and size of a control / node / decoration. Corpus: 99% are valid rectangles
   /// with sane dimensions. Decoded by [HeapRecord.bounds].
-  bounds(0x2d, HeapShape.rectangle),
+  bounds(0x2d, HeapShape.rectangle, isDecoded: true),
 
   /// `0x1F` — **origin-anchored size rectangle** (decoded). Same 8-byte 4× `s16`
   /// layout as [bounds] but `top == left == 0`, so it encodes a height×width
   /// extent rather than a position. Corpus: 100% valid, origin-anchored. Decoded
   /// by [HeapRecord.sizeRect].
-  size(0x1f, HeapShape.rectangle),
+  size(0x1f, HeapShape.rectangle, isDecoded: true),
 
   /// `0x2E` — **string table** (decoded). The only variable-length confirmed
   /// opcode: the payload is `len` bytes of packed `[u8 strlen][chars]` Pascal
   /// strings (a `u16` length is used when the table exceeds 255 bytes). Holds a
   /// group of related labels (enum/ring items, captions). Decoded by
   /// [HeapStringTable] / the string-table parser.
-  stringTable(0x2e, HeapShape.stringTable),
+  stringTable(0x2e, HeapShape.stringTable, isDecoded: true),
 
   /// `0x22` — **caption** (decoded). A single control / parameter name; the
   /// payload *is* the text, sized by the record's own length byte. Corpus: 97%
   /// printable. Decoded by [HeapRecord.text].
-  caption(0x22, HeapShape.string),
+  caption(0x22, HeapShape.string, isDecoded: true),
 
   /// `0x27` — **plot / legend name** (decoded). A single string naming a plot or
   /// series, e.g. `Plot 0`, `Plot 1`. Same single-string payload as [caption]
   /// (100% printable across the corpus). Decoded by [HeapRecord.text].
-  plotName(0x27, HeapShape.string),
+  plotName(0x27, HeapShape.string, isDecoded: true),
 
   /// `0x74` — **numeric format string** (decoded). A single string holding a
   /// display format specifier, e.g. `%020b`, `%016b`, `%#_6g`. Single-string
   /// payload (96% printable). Decoded by [HeapRecord.text].
-  formatString(0x74, HeapShape.string),
+  formatString(0x74, HeapShape.string, isDecoded: true),
+
+  /// `0x20` — **item / label string** (decoded). A single identifier or
+  /// enum/ring item label, e.g. `Line 0`..`Line 7`, `stringLength`, `<None>`.
+  /// Single-string payload (100% printable across the corpus). Decoded by
+  /// [HeapRecord.text].
+  itemLabel(0x20, HeapShape.string, isDecoded: true),
+
+  /// `0xC4` — **symbol / C-function name** (decoded). A single string holding a
+  /// Call-Library function or decorated C entry-point name, e.g.
+  /// `ps2000aRunStreaming`, `_ps5000SetEts@20`. Lives mostly in the `DTHP` type
+  /// heap (93% printable). Decoded by [HeapRecord.text]. (The opcode byte here is
+  /// `0xC4`, distinct from the record-prefix [kHeapRecordPrefix].)
+  symbolName(0xc4, HeapShape.string, isDecoded: true),
 
   /// `0x19` — **description / help text** (decoded, heuristic). HTML-ish
   /// (`<B>…</B>`), multi-line tooltip/help text stored as length-prefixed text
   /// segments. The inner multi-segment framing is not fully decoded, so the text
   /// is recovered heuristically by [HeapRecord.descriptionText].
-  description(0x19, HeapShape.helpText),
+  description(0x19, HeapShape.helpText, isDecoded: true),
+
+  /// `0xA4` — **filesystem path** (decoded). A LabVIEW `PTH0` path record:
+  /// `'PTH0' <u32 len> <u16 type> <u16 nComponents>` then packed Pascal-string
+  /// components — a DLL / library reference (e.g. `ps5000.dll`,
+  /// `Program Files\Pico Technology\…`). Mostly in `DTHP` (100% start with
+  /// `PTH0`). Decoded by [HeapRecord.path].
+  path(0xa4, HeapShape.path, isDecoded: true),
+
+  /// `0x4A` — **type / terminal bounds rectangle** (decoded). 8-byte 4× `s16`
+  /// rectangle (100% valid), in the `DTHP` type heap — the bounds of a terminal /
+  /// type element. Decoded by the generic [HeapRecord.rect].
+  typeBounds(0x4a, HeapShape.rectangle, isDecoded: true),
+
+  /// `0x44` — **composite container** (structural). A wrapper whose payload holds
+  /// complete nested `C4` children (bounds `2D` + origin/size `1F` + caption `22`,
+  /// interleaved with non-`C4` style/color tuples) — a control/decoration
+  /// cluster. Children via [HeapRecord.children].
+  container44(0x44, HeapShape.container),
+
+  /// `0x64` — **composite container** (structural). Like [container44] but richer
+  /// (bounds + captions + format strings + nested type tokens). Children via
+  /// [HeapRecord.children].
+  container64(0x64, HeapShape.container),
+
+  /// `0x24` — **composite container** (structural). A bounds-rect-dominant cluster
+  /// with captions; payload holds nested `C4` children. Children via
+  /// [HeapRecord.children].
+  container24(0x24, HeapShape.container),
 
   /// `0x5F` — **rectangle, role undetermined** (structural). Decodes as a 4× `s16`
   /// rectangle (97% valid) but allows negative coordinates and degenerate points,
@@ -94,7 +135,7 @@ enum HeapOpcode {
   /// [HeapRecord.opcode] for the actual byte value.
   unknown(-1, HeapShape.none);
 
-  const HeapOpcode(this.byte, this.shape);
+  const HeapOpcode(this.byte, this.shape, {this.isDecoded = false});
 
   /// The opcode byte (the value after [kHeapRecordPrefix]); -1 for [unknown].
   final int byte;
@@ -105,10 +146,7 @@ enum HeapOpcode {
 
   /// Whether this opcode has a confirmed *semantic* meaning (a meaning-specific
   /// accessor), vs. merely a known shape (structural) or unknown.
-  bool get isDecoded => switch (this) {
-        bounds || size || stringTable || caption || plotName || formatString || description => true,
-        rect5f || rect4c || rectD6 || rect62 || rect26 || unknown => false,
-      };
+  final bool isDecoded;
 
   /// Maps a raw opcode byte to its [HeapOpcode], or [unknown] if not catalogued.
   static HeapOpcode fromByte(int b) {
@@ -133,6 +171,12 @@ enum HeapShape {
 
   /// Length-prefixed help/description text segments (the `C4 19` form).
   helpText,
+
+  /// A `PTH0` filesystem-path record (the `C4 A4` form).
+  path,
+
+  /// A composite record whose payload holds nested `C4` children.
+  container,
 
   /// No known shape (uncatalogued opcode).
   none,
@@ -235,6 +279,68 @@ class HeapRecord {
     }
     return runs.isEmpty ? null : runs.join('\n');
   }
+
+  /// If this is a [HeapOpcode.path] record, the filesystem path it encodes — the
+  /// `PTH0` record's packed Pascal-string components joined with `/`; null if not
+  /// a valid `PTH0`. (A DLL / library reference.) Total/bounds-safe.
+  String? get path {
+    if (kind != HeapOpcode.path) return null;
+    final p = payload;
+    if (p.length < 12 || p[0] != 0x50 || p[1] != 0x54 || p[2] != 0x48 || p[3] != 0x30) {
+      return null; // not 'PTH0'
+    }
+    final nComp = (p[10] << 8) | p[11];
+    final parts = <String>[];
+    var i = 12;
+    for (var c = 0; c < nComp && i < p.length; c++) {
+      final len = p[i];
+      if (i + 1 + len > p.length) break;
+      var ok = true;
+      for (var j = i + 1; j < i + 1 + len; j++) {
+        if (p[j] < 32 || p[j] >= 127) {
+          ok = false;
+          break;
+        }
+      }
+      if (!ok) break;
+      parts.add(String.fromCharCodes(p.sublist(i + 1, i + 1 + len)));
+      i += 1 + len;
+    }
+    return parts.isEmpty ? null : parts.join('/');
+  }
+
+  /// If this is a [HeapShape.container] record (e.g. a `C4 44` cluster), the
+  /// nested `C4` child records inside its payload (offsets relative to this
+  /// record's payload); otherwise empty. Total.
+  List<HeapRecord> get children =>
+      kind.shape == HeapShape.container ? scanC4Records(payload, sectionTag) : const <HeapRecord>[];
+}
+
+/// Frames the `C4 <op> <u8 len> <payload>` records in [h] (a decompressed heap or
+/// a container payload), tagging each with [sectionTag]. Non-`C4` bytes are
+/// stepped over one at a time. Total/bounds-safe.
+List<HeapRecord> scanC4Records(Uint8List h, String sectionTag) {
+  final out = <HeapRecord>[];
+  final n = h.length;
+  var i = 0;
+  while (i < n) {
+    if (h[i] == kHeapRecordPrefix && i + 3 <= n) {
+      final op = h[i + 1];
+      final len = h[i + 2];
+      if (i + 3 + len <= n) {
+        out.add(HeapRecord(
+          sectionTag: sectionTag,
+          offset: i,
+          opcode: op,
+          payload: Uint8List.sublistView(h, i + 3, i + 3 + len),
+        ));
+        i += 3 + len;
+        continue;
+      }
+    }
+    i++;
+  }
+  return out;
 }
 
 /// A bounding rectangle in LabVIEW's field order (`top, left, bottom, right`),
@@ -291,26 +397,7 @@ List<HeapRecord> heapC4Records(Uint8List viBytes) => heapC4RecordsFromDecoded(de
 List<HeapRecord> heapC4RecordsFromDecoded(Iterable<DecodedSection> decoded) {
   final out = <HeapRecord>[];
   for (final d in decoded) {
-    final h = d.bytes;
-    final n = h.length;
-    var i = 0;
-    while (i < n) {
-      if (h[i] == kHeapRecordPrefix && i + 3 <= n) {
-        final op = h[i + 1];
-        final len = h[i + 2];
-        if (i + 3 + len <= n) {
-          out.add(HeapRecord(
-            sectionTag: d.tag,
-            offset: i,
-            opcode: op,
-            payload: Uint8List.sublistView(h, i + 3, i + 3 + len),
-          ));
-          i += 3 + len;
-          continue;
-        }
-      }
-      i++;
-    }
+    out.addAll(scanC4Records(d.bytes, d.tag));
   }
   return out;
 }

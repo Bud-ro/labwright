@@ -78,6 +78,32 @@ class ViModel {
     return out;
   }
 
+  /// External **symbol / C-function names** the VI references (from `C4 C4`
+  /// records in the type heap), e.g. `ps2000aRunStreaming` — the Call-Library
+  /// functions this VI invokes. Deduped, order-preserving.
+  List<String> get symbolNames {
+    final seen = <String>{};
+    final out = <String>[];
+    for (final r in heapRecords) {
+      if (r.kind != HeapOpcode.symbolName) continue;
+      final s = r.text;
+      if (s != null && seen.add(s)) out.add(s);
+    }
+    return out;
+  }
+
+  /// External **library/DLL paths** the VI references (from `C4 A4` `PTH0`
+  /// records), e.g. `ps5000.dll`. Deduped, order-preserving.
+  List<String> get paths {
+    final seen = <String>{};
+    final out = <String>[];
+    for (final r in heapRecords) {
+      final p = r.path;
+      if (p != null && seen.add(p)) out.add(p);
+    }
+    return out;
+  }
+
   /// The VI's **description / help text** blocks, extracted from `C4 19` records
   /// (control tooltips, often HTML-ish). Heuristic text recovery; deduped,
   /// order-preserving.
