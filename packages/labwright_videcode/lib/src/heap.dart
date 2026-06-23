@@ -38,6 +38,46 @@ class HeapRecord {
 
   /// Total bytes this record occupies: `0xC4` + opcode + length byte + payload.
   int get byteLength => 3 + payload.length;
+
+  /// If this is a **`C4 2D` object-bounds record** (opcode `0x2D`, 8-byte
+  /// payload), the object's bounding rectangle — four big-endian `s16` fields
+  /// `top, left, bottom, right`, in pixels; otherwise null.
+  ///
+  /// Confirmed across the corpus: 99% of `C4 2D` records are valid rectangles
+  /// (`bottom ≥ top ∧ right ≥ left`, derived height/width in `[0, 2000)` px) —
+  /// these are the position/size of diagram & front-panel objects.
+  HeapRect? get bounds {
+    if (opcode != 0x2d || payload.length != 8) return null;
+    int s16(int i) {
+      final v = (payload[i] << 8) | payload[i + 1];
+      return v >= 0x8000 ? v - 0x10000 : v;
+    }
+
+    return HeapRect(top: s16(0), left: s16(2), bottom: s16(4), right: s16(6));
+  }
+}
+
+/// A bounding rectangle in LabVIEW's field order (`top, left, bottom, right`),
+/// in pixels. The position/size of a VI object (control, node, decoration).
+class HeapRect {
+  const HeapRect({required this.top, required this.left, required this.bottom, required this.right});
+
+  final int top;
+  final int left;
+  final int bottom;
+  final int right;
+
+  /// Height in pixels (`bottom - top`).
+  int get height => bottom - top;
+
+  /// Width in pixels (`right - left`).
+  int get width => right - left;
+
+  /// Whether this is a well-formed rectangle (`bottom ≥ top ∧ right ≥ left`).
+  bool get isValid => bottom >= top && right >= left;
+
+  @override
+  String toString() => 'HeapRect(t:$top l:$left b:$bottom r:$right ${width}x$height)';
 }
 
 /// Scan-based inventory of the **`C4` length-prefixed records** in a VI's heaps.

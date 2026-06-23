@@ -142,6 +142,23 @@ small signed byte: `08 ff`, `08 01`, `08 fe`, …), and `C4 1F` likewise by `08 
 (10,588×). Their **semantics are not yet decoded** (only `C4 2E` is), but the
 *framing* is — see next.
 
+### `C4 2D` = object bounds rectangle — confirmed ✅ (first decoded payload)
+
+The dominant heap record, `C4 2D` (always `len == 8`), carries an object's
+**bounding rectangle**: four big-endian **signed 16-bit** fields in LabVIEW's
+order — `top, left, bottom, right` (pixels). Corpus evidence (103,403 `C4 2D`
+records): **99%** satisfy `bottom ≥ top ∧ right ≥ left` and have derived
+height/width in `[0, 2000)` px; the 8 payload bytes read exactly as 4× `s16`
+(each high byte is `0` / `0xFF` / `0xFE`, i.e. small signed magnitudes), and
+samples are unmistakably rectangles (e.g. `(53, 581, 91, 696)` → a 115×38
+control; nested edge-sharing rects for containers). This is the **position and
+size of every control / node / decoration** — real spatial structure.
+
+→ `HeapRecord.bounds` → `HeapRect {top,left,bottom,right, width,height,isValid}`;
+aggregated by `ViModel.objectBounds`. (Validated: 409 corpus VIs, 197,753 rects,
+99% valid & sane, 0 crashes.) This is the first *semantic* heap payload decoded —
+the seed of a read-only layout/graph view.
+
 ### `C4` records are length-prefixed — confirmed ✅ (the walker seed)
 
 Every `C4` record has the shape:

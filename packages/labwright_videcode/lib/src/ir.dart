@@ -48,6 +48,14 @@ class ViModel {
   /// objects: string tables, `C4 2D`/`1F` value records, …).
   final List<HeapRecord> heapRecords;
 
+  /// The bounding rectangles of the VI's objects, decoded from the `C4 2D`
+  /// records (position/size of controls, nodes, decorations). Partial but real
+  /// spatial structure — the seed of a read-only layout/graph view.
+  List<HeapRect> get objectBounds => [
+        for (final r in heapRecords)
+          if (r.bounds != null) r.bounds!,
+      ];
+
   /// All distinct, deduped label strings across [stringTables], order-preserving.
   /// Convenience for "what does this VI contain".
   List<String> get labels {
