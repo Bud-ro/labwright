@@ -170,6 +170,18 @@ LabVIEW heap primitive shared across opcodes. → `HeapRecord.sizeRect` (kept
 separate from `bounds` so positional layout isn't polluted by these sizes);
 `HeapRect.fromPayload` is the shared decoder.
 
+### `C4 22` = caption / control-name string — confirmed ✅
+
+The #3 record, `C4 22`, holds a **single caption string** directly: the payload is
+the text, sized by the record's own length byte (no inner prefix — unlike the
+`C4 2E` string *table*). Corpus evidence (12,079 records): **97%** are fully
+printable ASCII, and the content is unmistakably control/parameter names —
+`Conversion time`, `Amplitude (mV)`, `Trigger Source`, `Wave Type`,
+`error out`. → `HeapRecord.text`; aggregated by `ViModel.captions`. (Validated:
+409 corpus VIs, 16,331 captions across 380 VIs, 0 crashes; the ~3% non-printable
+payloads return null.) These are the named inputs/outputs/controls of the VI — a
+high-value layer for "what does this VI do".
+
 ### `C4` records are length-prefixed — confirmed ✅ (the walker seed)
 
 Every `C4` record has the shape:

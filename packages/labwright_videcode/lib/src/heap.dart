@@ -56,6 +56,22 @@ class HeapRecord {
   /// and origin-anchored (e.g. `(0, 0, 12, 12)`, `(0, 0, 20, 20)`). Kept distinct
   /// from [bounds] so positional layout data is not polluted by these sizes.
   HeapRect? get sizeRect => opcode == 0x1f ? HeapRect.fromPayload(payload) : null;
+
+  /// If this is a **`C4 22` caption record** (opcode `0x22`), the payload decoded
+  /// as text — a single control caption / name / label; otherwise null. Unlike
+  /// the `C4 2E` string *table*, this is one string whose length is the record's
+  /// own length byte (no inner prefix). Returns null when the payload is empty or
+  /// not fully printable ASCII (drops the ~3% binary captions).
+  ///
+  /// Confirmed across the corpus: 97% of `C4 22` payloads are printable text
+  /// (e.g. `Conversion time`, `Amplitude (mV)`, `error out`).
+  String? get text {
+    if (opcode != 0x22 || payload.isEmpty) return null;
+    for (final b in payload) {
+      if (b < 32 || b >= 127) return null;
+    }
+    return String.fromCharCodes(payload);
+  }
 }
 
 /// A bounding rectangle in LabVIEW's field order (`top, left, bottom, right`),

@@ -64,6 +64,19 @@ class ViModel {
   /// this is not yet the full block-diagram graph.
   List<ViObject> get objects => assembleObjects(heapRecords, stringTables);
 
+  /// Single-string **captions** (control names/labels) decoded from `C4 22`
+  /// records — distinct from [labels] (which come from `C4 2E` string *tables*).
+  /// Deduped, order-preserving.
+  List<String> get captions {
+    final seen = <String>{};
+    final out = <String>[];
+    for (final r in heapRecords) {
+      final s = r.text;
+      if (s != null && seen.add(s)) out.add(s);
+    }
+    return out;
+  }
+
   /// All distinct, deduped label strings across [stringTables], order-preserving.
   /// Convenience for "what does this VI contain".
   List<String> get labels {
