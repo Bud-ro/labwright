@@ -300,44 +300,36 @@ The IR (Stage 4) will be built from those leaves with **honest partial fidelity*
 not from a fabricated full graph; cracking the nested object/type model is the
 long-tail effort that would raise fidelity over time.
 
-### Nesting tree + absolute coordinates — ⚠️ partial; per-object integration BLOCKED
+### Nesting tree + absolute coordinates — ✅ solved (the keystone)
 
-The heap *appears* to be a balanced typed-group tree: an object opens with a
-high-nibble-1 opcode `10 xx 02 fe <u16 kind> fd <u16 oid>` and a tag-matched stack
-of high-nibble-0 closes (`08/09/0a/0b xx`) yields **single root in 398/398** at
-the top level (root kind `0x7e`). The recursive origin transform `abs_origin(child)
-= abs_origin(parent) + (child localTop,localLeft)` then makes terminals fall
-inside their node (vs 0% with raw bounds).
+The heap is a **balanced typed-group tree**, and the rule that makes it balance
+(the earlier blocker) is: a **group opens** at a high-nibble-1 opcode
+`10/11/12/13 <tag>` *only when the byte after the count is a type tag*
+(`FB`/`FE`/`FD`) — this includes object headers (`10 19 02 fe …`) **and** typed
+lists (`10 55 01 fb …`); a 2-byte record like `11 10` (non-tag) is *not* a group.
+A **group closes** at any high-nibble-0 opcode (`08/09/0a/0b`), **popped
+positionally** (the close need not tag-match — some classes close with a different
+tag). With this rule the `BDEx` body balances to depth 0 at EOF in **398/398**
+bodies, single root in **398/398** (root kind `0x7e`).
 
-**But integration is blocked by a close-disambiguation problem (measured).** The
-close opcode `08 19` is **ambiguous** — it is *both* a group-close *and* a common
-2-byte data record. Because most objects open with tag `0x19`, a data `08 19`
-inside an object prematurely pops it. Concretely: under the tag-matched-stack tree,
-**0% of `14 19 01 fd` wire references attach to their `0x68` wire object** (vs the
-flat model's correct attachment — 641 wires-with-≥2-refs in a 120-VI sample). So
-precise per-object parent / `absBounds` is **NOT reliably recoverable** until
-`08 19` (and the other `08/09/0a/0b` close-vs-data cases) are disambiguated.
+The object tree is read off this stack (parent = nearest enclosing object header).
+Absolute coordinates compose down the object-ancestor chain: `abs_origin(child) =
+abs_origin(parent) + (child localTop, localLeft)`. → `buildDiagram` now sets
+`ViHeapObject.parentOid` + `absBounds` + `ViDiagram.roots`/`children(oid)`.
+Validated: 398 diagrams, 163,227 objects, **99.7% parented**, 132k with absolute
+bounds, single-root 100%, 0 crashes. Terminal-center-inside-parent ≈100% for the
+node layer (73% across *all* terminal classes — structure-frame terminals use a
+different, already-absolute bounds convention).
 
-Therefore the **flat model remains authoritative** for objects + wires (it
-attaches refs correctly); `ViHeapObject` does **not** carry parent/absolute
-coordinates, and a faithful absolute layout stays blocked on the close ambiguity.
-(Honest correction of an earlier over-optimistic note: the top-level single-root
-holds, but it does not imply a clean per-object tree.)
-
-**Second route also blocked (measured).** The alternative — build nesting from the
-explicit child-reflist `10 55 01 fb <N>` + N×`14 19 01 fd <oid>` (which a parallel
-agent reported as a clean 74%-coverage forest) — does **not** reproduce in the
-authoritative flat object model: there `10 55 01 fb` lists are the **wire-endpoint
-lists**, not spatial child lists, so treating them as containment gives only **8%
-of objects a parent and 7% child-in-parent** containment. The agent's clean forest
-relied on the any-tag tree *and* on separating the **overloaded `0x68` class**
-(used for *both* wires and frame containers) — neither of which is resolved.
-
-**Net:** per-object nesting + absolute coordinates is a genuine open problem
-gated on (a) the `08 19` close-vs-data disambiguation and (b) splitting the `0x68`
-wire/frame overload. Two routes tried and validated-as-insufficient. The format is
-otherwise mastered; this (and `FPSE` I/O binding, exact numeric type widths) is the
-hard residue that likely needs ground truth or substantially deeper decoding.
+**Important correction (this supersedes an earlier claim).** The previously-shipped
+"`0x68` = wire, 2,672 wire connections, 100% edge resolution" was an **artifact of
+the flat scan**: in the correct tree, `0x68` holds **zero** `14 19 01 fd` refs and
+is a **terminal**, not a wire. Those `14 19 01 fd` references are **child-membership
+lists** owned by **structure/diagram containers** (`0x53`: 13,163 refs, `0x4c`:
+4,425) — i.e. "which oids live in this frame", not signal endpoints. Actual
+**dataflow wires are stored as geometry** (a `C4 5F` bounding box, no oid
+endpoints), so node→node dataflow edges are **not** recoverable from oids — an
+honest negative that replaces the earlier over-claim.
 
 ### `CONP` / `CPC2` — VI interface — partial 🔬
 
@@ -362,30 +354,24 @@ grouping for multi-frame case/sequence is not encoded. Family split: `0x53` =
 loop family, `0x52` = case/sequence family (via the `64 cb` subtype nibble);
 human labels (While vs For, Case vs Sequence) not pinned without ground truth.
 
-### Block-diagram graph — ✅ recovered (objects + wires)
+### Block-diagram graph — ✅ recovered (objects + nesting tree)
 
-With the walker complete, the `BDEx` record stream segments into a real graph:
-- An object begins at the header record **`10 19 02 fe <u16 kind> fd <u16 oid>`**.
-  `oid` is unique within a VI (corpus: 4 violations across 398 diagrams), `kind`
-  is the object's class code (catalog not yet decoded; **`0x68` = wire**).
-- Records after a header attach to it: `C4 2D` → bounds, `C4 22` → label,
-  **`14 19 01 fd <id>`** → an object-id reference. Wires (`kind 0x68`) hold their
-  endpoints as these refs.
+`buildDiagram(body)` segments the `BDEx` record stream into a nesting tree of
+`ViHeapObject {oid, kind, offset, bounds?, absBounds?, parentOid?, label?, refs,
+termCount, category, typeKind}`, exposed via `ViDiagram {objects, byId, roots,
+children(oid), nodes}` and `ViModel.diagrams`. Objects begin at
+`10/11/12 <tag> 02 fe <u16 kind> fd <u16 oid>` (`oid` unique per VI); records
+attach to the innermost object: `C4 2D` → bounds/absBounds, `C4 22` → label,
+`14 19 01 fd <id>` → a child-membership ref. (See the "Nesting tree" section above
+for the validated bracket rule + the correction that `0x68` is a terminal and the
+`14 19 01 fd` refs are child-membership, not wire endpoints.)
 
-`buildDiagram(body)` → `ViDiagram {objects, byId, nodes, wires, connections}` of
-`ViHeapObject {oid, kind, offset, bounds?, label?, refs, role}`; aggregated by
-`ViModel.diagrams`. **Validated: 398 diagrams, 150,236 objects, 2,672 wire
-connections, 0 crashes — and 13,184 object-id references resolve to a real object
-100%.** Example recovered nodes: `Write to TDMS`, `Channel A Settings`,
-`Logic Level` (each with `oid`, `kind`, `HeapRect`).
-
-**Object class catalog — ✅ classified (99%).** The header `kind` code is now
-mapped to a structural category (`classifyObject` / `ViObjectKind`): `0x68`=wire,
-`0x0c`=node terminal-cluster (carries `C4 1F` terminals), `0x12`=node body,
-`0x53/52/09`=structure/diagram-frame, `0x50/51/57/4f/5b`(wire-referenced) &
-`0x0a/0b/0d/e0`=terminals, `0x8f/e7/d2`=decoration. Corpus: terminal 60,712,
-structure 41,119, wire 22,626, terminalCluster 19,191, node 4,425, decoration
-635, **unknown only ~1%** (1,528 / 150,236).
+**Object class catalog — ✅ classified (~97%).** The header `kind` maps to a
+structural category (`classifyObject` / `ViObjectKind`): `0x0c`=node
+terminal-cluster, `0x12`=node body, `0x53/52/09/7e/4c/11c`=structure/diagram
+container, `0x68`+`0x50/51/57/4f/5b`+`0x0a/0b/0d/e0`=terminal, `0x8f/e7/d2`=
+decoration. Corpus (correct tree, 163,227 objects): terminal 87,550, structure
+47,118, terminalCluster 19,326, node 4,425, decoration 630, **unknown ~2.6%**.
 
 **Object data-type kind — ✅ payload-grounded (`ViTypeKind`).** From attached `C4`
 records (`inferTypeKind`): `C4 74` numeric format → numericInt/numericFloat (by
