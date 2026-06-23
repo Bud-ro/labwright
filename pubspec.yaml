@@ -16,6 +16,7 @@ workspace:
   - packages/labwright_fuzz
   - packages/labwright_runner
   - packages/labwright_cli
+  - tests/labwright_example
 
 dev_dependencies:
   lints: ^5.0.0

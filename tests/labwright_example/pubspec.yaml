@@ -1,0 +1,23 @@
+name: labwright_example
+description: >-
+  A worked end-to-end Labwright test (a simulated PSU board) showing how QA
+  authors tests: phases, a DAQ peripheral, measurements with limits, and
+  requirement references — runnable via the runner.
+version: 0.0.1
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  labwright_core: ^0.0.1
+  labwright_daq: ^0.0.1
+  labwright_runner: ^0.0.1
+  labwright_traceability: ^0.0.1
+
+dev_dependencies:
+  labwright_cli: ^0.0.1
+  labwright_tdms: ^0.0.1
+  test: ^1.25.0
+  lints: ^5.0.0

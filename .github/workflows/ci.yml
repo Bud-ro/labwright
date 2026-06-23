@@ -5,8 +5,8 @@ on:
   pull_request:
 
 jobs:
-  build:
-    name: build (${{ matrix.os }})
+  dart:
+    name: dart (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
@@ -19,12 +19,15 @@ jobs:
         with:
           sdk: stable
 
-      # One workspace resolution, then analyze + test each package.
+      # One workspace resolution, analyze the whole tree, then test each package.
       - run: dart pub get
       - run: dart analyze --fatal-infos
-      - run: dart test
-        working-directory: packages/labwright_core
-      - run: dart test
-        working-directory: packages/labwright_tdms
-      - run: dart test
-        working-directory: packages/labwright_viparse
+      - name: test all packages
+        shell: bash
+        run: |
+          for p in packages/* tests/labwright_example; do
+            if [ -d "$p/test" ]; then
+              echo "== $p =="
+              ( cd "$p" && dart test ) || exit 1
+            fi
+          done
