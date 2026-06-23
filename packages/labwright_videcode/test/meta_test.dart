@@ -28,13 +28,19 @@ void main() {
     expect(info.version, isNull);
   });
 
-  test('heapStringsFromDecoded pulls wordy labels, dedups, drops numeric noise', () {
+  test('heapStringsFromDecoded extracts contiguous string runs, drops isolated + noise', () {
+    // A contiguous Pascal-string table (a run), then noise, then an isolated
+    // coincidental string (run length 1, must be dropped).
     final heap = <int>[
       ...pascal('Conversion time'),
-      0x02, 0x00, 0x01, // noise that is not a valid printable run
       ...pascal('error out'),
-      ...pascal('error out'), // duplicate
-      ...pascal('1234'), // numeric -> filtered by wordiness
+      ...pascal('error out'), // duplicate within the run
+      ...pascal('Range Volts'),
+      ...pascal('1234'), // in-run but numeric -> dropped by wordiness
+      0xff, 0xfe, 0x00, // breaks the run
+      0x99, // junk length byte
+      ...pascal('Lonely'), // single string, not part of a >=2 run -> dropped
+      0x00, 0x00,
     ];
     final decoded = DecodedSection(
       section: ViSection(tag: 'BDEx', index: 0, dataOffset: 0, bytes: Uint8List.fromList(heap)),
@@ -42,10 +48,10 @@ void main() {
       wasCompressed: false,
     );
     final strings = heapStringsFromDecoded([decoded]);
-    expect(strings, contains('Conversion time'));
-    expect(strings, contains('error out'));
+    expect(strings, containsAll(<String>['Conversion time', 'error out', 'Range Volts']));
     expect(strings.where((s) => s == 'error out').length, 1); // deduped
     expect(strings, isNot(contains('1234'))); // numeric noise dropped
+    expect(strings, isNot(contains('Lonely'))); // isolated (run length 1) dropped
   });
 
   test('componentsFromDecoded summarizes per-block sizes, largest first', () {

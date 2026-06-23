@@ -101,15 +101,48 @@ List<String> extractHeapStrings(Uint8List viBytes, {int minLength = 4}) =>
     heapStringsFromDecoded(decodeSections(viBytes), minLength: minLength);
 
 /// [extractHeapStrings] over already-decoded sections.
-List<String> heapStringsFromDecoded(Iterable<DecodedSection> decoded, {int minLength = 4}) {
+///
+/// Strings live in the heap as **contiguous Pascal-string tables** (`[u8 len]
+/// [chars]` packed back-to-back, no per-string opcode tag). So we only emit
+/// strings that belong to a **run** of at least [minRun] consecutive valid
+/// Pascal strings — this rejects the coincidental single length-byte matches
+/// that a naive whole-heap scan produces. Single-pass and total.
+List<String> heapStringsFromDecoded(Iterable<DecodedSection> decoded, {int minLength = 4, int minRun = 2}) {
   final seen = <String>{};
   final out = <String>[];
   for (final d in decoded) {
-    for (final s in _pascalStrings(d.bytes, minLength: minLength)) {
-      if (_looksWordy(s) && seen.add(s)) out.add(s);
+    final h = d.bytes;
+    final run = <String>[];
+    void flush() {
+      if (run.length >= minRun) {
+        for (final s in run) {
+          if (s.length >= minLength && _looksWordy(s) && seen.add(s)) out.add(s);
+        }
+      }
+      run.clear();
     }
+
+    var i = 0;
+    while (i < h.length) {
+      final len = h[i]; // u8 length (max 255)
+      if (len >= 1 && i + 1 + len <= h.length && _allPrintable(h, i + 1, len)) {
+        run.add(String.fromCharCodes(h.sublist(i + 1, i + 1 + len)));
+        i += 1 + len;
+      } else {
+        flush();
+        i++;
+      }
+    }
+    flush();
   }
   return out;
+}
+
+bool _allPrintable(Uint8List h, int start, int len) {
+  for (var j = start; j < start + len; j++) {
+    if (h[j] < 32 || h[j] >= 127) return false;
+  }
+  return true;
 }
 
 /// Extracts `[u8 len][len printable bytes]` runs from [h]. Total.

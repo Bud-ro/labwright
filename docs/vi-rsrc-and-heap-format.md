@@ -69,7 +69,14 @@ heap. Observed invariants (consistent across the corpus):
 - `0xfd` recurs as a record/field marker; 2-byte values (`02 fe`, `10 f5`,
   `64 cb`, `10 55`, `14 19`, …) look like type/opcode codes.
 - Human-readable strings (control labels, help text, value lists) are embedded
-  as length-prefixed runs — reliably extractable (`extractHeapStrings`).
+  as **contiguous Pascal-string tables**: `[u8 len][chars]` entries packed
+  back-to-back, with **no per-string opcode tag** (the byte before a string is
+  just the previous entry's last char). Confirmed by corpus analysis (the
+  "byte-before-length" distribution is dominated by ASCII letters, not a marker).
+  → `extractHeapStrings` therefore extracts only strings that belong to a **run**
+  of ≥2 consecutive valid Pascal strings (rejecting coincidental single matches)
+  and reads full u8 lengths (≤255). This is the first confirmed heap-object
+  framing; growing the opcode map from here is the path toward the graph.
 
 **Blocker:** decoding the stream into a node/wire/terminal graph requires the
 per-opcode payload-length table (LabVIEW's heap object semantics). Without it the
