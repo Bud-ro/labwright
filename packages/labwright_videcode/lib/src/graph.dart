@@ -171,7 +171,19 @@ enum ClassConfidence {
 /// heaps (`FPHb`) — there object instances are ≈99% catalogued. **Block-diagram**
 /// (`BDHb`) coverage is far lower (≈24% of BD object instances), with high-volume
 /// BD-internal kinds `0x15`/`0x33`/`0x17`/`0x30` not yet named. (The corpus uses
-/// `BDHb`/`FPHb`, not `BDEx`.) Each entry documents its role, coarse [category]
+/// `BDHb`/`FPHb`, not `BDEx`.)
+///
+/// SECTION-DEPENDENCE (honesty): a class code can mean different things on the
+/// block diagram vs the front panel, so some names below describe the role where
+/// the class was validated and are *not literal in the other section*. Probed
+/// dual-role cases: `0x53` is a BD while/for loop but an FP control-container
+/// (21993 FP instances), and `0x12` is a BD node but a non-drawable FP content
+/// group holding the placed controls (42299 FP instances; see those entries).
+/// Several BD-named structure classes (`0x4c` diagram-frame, `0x52`
+/// case/sequence, `0x64` cluster/array shell, `0xc7`, `0xac`) likewise also
+/// occur on the FP, where their precise role is **not separately RE-validated** —
+/// treat their names as the BD role, not a confirmed FP claim.
+/// Each entry documents its role, coarse [category]
 /// ([ViObjectKind]), evidence, and a [confidence] label. A control's *data type*
 /// (numeric/enum/string/…) is read from its descendant `C4` records into
 /// [ViHeapObject.typeKind]; the class additionally names the control *form*.
@@ -222,9 +234,14 @@ enum HeapObjectClass {
   contentViewport(0x11c, 'Content viewport', ViObjectKind.structure, ClassConfidence.confirmed),
 
   // --- Nodes ---
-  /// `0x12` — a **function / subVI node** body (no bounds; holds the node's
-  /// structures + terminals). Function-vs-subVI is not separable from `BDEx`.
-  node(0x12, 'Function/subVI node', ViObjectKind.node, ClassConfidence.confirmed),
+  /// `0x12` — section-dependent (no bounds in either; never drawn): on the **block
+  /// diagram** a **function / subVI node** body holding the node's structures +
+  /// terminals (function-vs-subVI not separable); on the **front panel** a
+  /// **content group** that holds the placed controls. Corpus: 42299 FP instances,
+  /// 0 drawn, 41514 parented directly to the panel frame `0x4c`, with control/
+  /// structure children (0x53/0x51/0x4f/0x64/0x50) — i.e. a panel container, not a
+  /// subVI call. The label names the BD role; on the FP read it as "content group".
+  node(0x12, 'Function node (BD) / content group (FP)', ViObjectKind.node, ClassConfidence.confirmed),
 
   // --- Control / indicator terminal containers (top-level on the diagram) ---
   /// `0x50` — a **numeric** control/indicator terminal (defining signal: a
