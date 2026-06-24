@@ -172,9 +172,10 @@ enum ClassConfidence {
 /// (`BDHb`) coverage splits two ways: (1) the high-volume **non-drawable** internal
 /// records `0x15`/`0x33`/`0x17`/`0x30` (0 bounds — invisible, no render cost) are
 /// unnamed but never shown; (2) of the **drawable** BD objects ~99.6% are now
-/// catalogued (nodes/structures/leaves/labels), leaving a ~0.4% visible long tail
-/// (mostly caption-less kinds like `0xe5`/`0x150`/`0x170`) that classifies
-/// `unknown` and draws a faint placeholder. Naming (1) changes
+/// catalogued by code, and a structural node-fallback (drawable + node-container
+/// `0x1b` parent + only `0x15` children -> node) classifies most of the rest, so
+/// only ~0.2% of visible BD objects render as a faint `unknown` placeholder.
+/// Naming (1) changes
 /// nothing visible; the visible gap is (2). (The `BDEx`/`FPEx`
 /// extended sections DO exist and are loaded — 3792/3000 of them — but in this
 /// corpus they carry **no decodable object tree** (0 objects), so the object
@@ -922,6 +923,25 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
   for (final o in objects) {
     if (o.parentOid != null) (nodeKids[o.parentOid!] ??= <ViHeapObject>[]).add(o);
   }
+
+  // Structural node fallback: the BD node tail is dozens of low-frequency kinds
+  // that all share one signature — a drawable object parented to the node
+  // container `0x1b` whose only children are the structural `0x15` records (the
+  // exact profile catalogued one-by-one as 0x2f/0x63/0x153/…). Rather than
+  // enumerate every kind, classify any still-`unknown` object matching it as a
+  // node so it renders as a node box instead of a faint unknown placeholder.
+  // Corpus: catches ~1436 objects across ~15 caption-less kinds; 0x1b is
+  // specifically the node container, so false positives are negligible.
+  for (final o in objects) {
+    if (o.category != ViObjectKind.unknown) continue;
+    final b = o.absBounds;
+    if (b == null || b.width <= 0 || b.height <= 0) continue;
+    if (o.parentOid == null || byOidItems[o.parentOid]?.kind != 0x1b) continue;
+    final cs = nodeKids[o.oid];
+    if (cs == null || cs.isEmpty || cs.any((c) => c.kind != 0x15)) continue;
+    o.category = ViObjectKind.node;
+  }
+
   for (final o in objects) {
     if (o.category != ViObjectKind.node || o.label != null) continue;
     for (final c in nodeKids[o.oid] ?? const <ViHeapObject>[]) {

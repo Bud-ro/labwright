@@ -337,6 +337,22 @@ void main() {
     expect(d.byId[1]!.helpText, 'own help'); // first-wins: the control's own help is preserved
   });
 
+  test('structural node fallback: an unknown drawable kind under 0x1b with only 0x15 children -> node', () {
+    final records = <int>[
+      ...open(0x7e, 1), ...bounds(0, 0, 400, 400),
+      ...open(0x1b, 2, tag: 0x1a), // node container
+      ...open(0x150, 3, tag: 0x1b), ...bounds(10, 10, 42, 42), // an UNCATALOGUED drawable kind
+      ...open(0x15, 4, tag: 0x1c), // its only child is a structural 0x15 record
+      ...close(0x1c),
+      ...close(0x1b),
+      ...close(0x1a),
+      ...close(),
+    ];
+    final d = buildDiagram(Uint8List.fromList([0, 0, 0, records.length, ...records]));
+    expect(d.byId[3]!.objectClass, HeapObjectClass.unknown); // not in the catalog by code
+    expect(d.byId[3]!.category, ViObjectKind.node); // ...but the structural signature classifies it as a node
+  });
+
   test('a BD node inherits its name from its child 0xa caption (for details/tooltip)', () {
     final records = <int>[
       ...open(0x7e, 1), ...bounds(0, 0, 400, 400),
