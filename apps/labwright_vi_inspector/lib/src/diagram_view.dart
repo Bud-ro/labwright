@@ -288,13 +288,14 @@ const _controlKinds = {0x50, 0x4f, 0x57, 0x5b, 0x51};
 /// - content viewports (`0x11c`) — used only as the re-anchor frame, the
 ///   enclosing cluster/structure is drawn instead;
 /// - hidden no-bounds terminals (`0x68`);
-/// - the display/increment/terminal parts internal to a control
-///   (`0xe0`/`0x0b`/`0x0c` with a control-kind ancestor) — the control is drawn
-///   as a single unit, not its internals.
+/// - the display/increment/terminal/item-list parts internal to a control
+///   (`0xe0`/`0x0b`/`0x0c`/`0x0d` with a control-kind ancestor) — the control is
+///   drawn as a single unit, not its internals (`0x0d`'s enum items are already
+///   propagated up to the control, so suppressing it loses nothing).
 bool _isScaffolding(ViHeapObject o, Map<int, ViHeapObject> byId) {
   if (o.kind == 0x09 || o.kind == 0x11c) return true;
   if (o.kind == 0x68 && o.bounds == null) return true;
-  if (o.kind == 0xe0 || o.kind == 0x0b || o.kind == 0x0c) {
+  if (o.kind == 0xe0 || o.kind == 0x0b || o.kind == 0x0c || o.kind == 0x0d) {
     var p = o.parentOid;
     var d = 0;
     while (p != null && d < 64) {

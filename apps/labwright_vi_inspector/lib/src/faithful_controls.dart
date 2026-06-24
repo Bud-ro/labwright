@@ -57,7 +57,10 @@ Widget _faithfulFor(ViHeapObject o) {
     case HeapObjectClass.enumRingControl:
       return _ControlWidget(form: _Form.enumRing, items: o.items);
     case HeapObjectClass.booleanOrClusterControl:
-      return _ControlWidget(form: o.typeKind == ViTypeKind.enumRing ? _Form.enumRing : _Form.boolean, items: o.items);
+      // Gate on the items that actually reach the control (ring items propagate
+      // up from the 0x0d child); typeKind never propagates to a 0x4f, so the old
+      // typeKind check could never fire a dropdown.
+      return _ControlWidget(form: o.items.isNotEmpty ? _Form.enumRing : _Form.boolean, items: o.items);
     case HeapObjectClass.stringOrArrayControl:
       return const _ControlWidget(form: _Form.string);
     case HeapObjectClass.pathControl:
