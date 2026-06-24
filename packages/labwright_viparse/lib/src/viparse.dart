@@ -110,11 +110,11 @@ const List<int> _magic = [0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a]; // "RSRC\r\n"
 /// truncated header/block-list) throws [ViFormatException], while an individual
 /// ill-formed section descriptor is skipped — so the result is a best-effort
 /// (possibly partial) list, never a crash. Each section descriptor is a 20-byte
-/// record; this extractor currently returns only the VI's own data sections
-/// (`@16` word `0xFFFFFFFF`) and skips the LIBN/VINS sections (`@16` word `0`,
-/// i.e. owning-library names and embedded sub-VIs).
-// TODO(labwright): recover LIBN/VINS sections too — they carry valid
-// `[u32 len][payload]` data (LIBN: library names; VINS: nested RSRC VIs).
+/// record; this extractor returns the VI's own data sections (`@16` word
+/// `0xFFFFFFFF`). The LIBN/VINS sections (`@16` word `0` — owning-library names
+/// and embedded sub-VIs) are returned separately by [readEmbeddedSections], so
+/// this list (and the section-edit path built on it) stays a clean 1:1 view of
+/// the primary sections.
 ///
 /// **Descriptor-table base.** A block-list entry's third word (`descRel`) is the
 /// offset to that block's 20-byte section descriptors **relative to the block
@@ -128,7 +128,25 @@ const List<int> _magic = [0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a]; // "RSRC\r\n"
 /// the old (info-relative) base — i.e. 0 blocks regress. (Using `infoOffset`
 /// directly placed the first descriptors *inside* the block-list region and
 /// returned the wrong bytes for nearly every block.)
-List<ViSection> readViSections(Uint8List bytes) {
+List<ViSection> readViSections(Uint8List bytes) => _readSections(bytes, wantWord16: 0xFFFFFFFF);
+
+/// Extracts the **secondary** sections a VI embeds: the `LIBN` owning-library
+/// names and the `VINS` embedded sub-VIs, whose descriptor `@16` word is `0`
+/// (vs `0xFFFFFFFF` for the VI's own data sections — see [ViSectionDescriptor]).
+/// These are real, data-bearing sections that [readViSections] deliberately
+/// leaves out so its list stays a clean 1:1 view for the section-edit path.
+///
+/// Corpus-validated (7583 VIs): every `VINS` section's bytes are a complete
+/// nested `RSRC…LVIN` VI (begins with the `RSRC` magic), every `LIBN` section's
+/// bytes are a printable library name, and no such section's data range overlaps
+/// any primary section. Total/bounds-safe exactly like [readViSections].
+List<ViSection> readEmbeddedSections(Uint8List bytes) => _readSections(bytes, wantWord16: 0);
+
+/// Shared RSRC section walker. Returns the sections whose descriptor `@16` word
+/// equals [wantWord16] — `0xFFFFFFFF` for the VI's own data sections
+/// ([readViSections]) or `0` for the embedded LIBN/VINS sections
+/// ([readEmbeddedSections]). See [readViSections] for the descriptor-table base.
+List<ViSection> _readSections(Uint8List bytes, {required int wantWord16}) {
   final d = ByteData.sublistView(bytes);
 
   int u32(int p) {
@@ -153,7 +171,6 @@ List<ViSection> readViSections(Uint8List bytes) {
   final count = u32(countPos);
   if (count > 100000) throw ViFormatException('implausible block count $count');
 
-  const commonWord16 = 0xFFFFFFFF;
   const descSize = 20;
   // Section descriptors are addressed relative to the block-list header
   // (`countPos + 8`), not to the info section — see the doc comment above.
@@ -169,7 +186,7 @@ List<ViSection> readViSections(Uint8List bytes) {
     for (var s = 0; s < sectionCount; s++) {
       final dpos = descBase + descRel + s * descSize;
       if (dpos < 0 || dpos + descSize > bytes.length) break;
-      if (d.getUint32(dpos + 16) != commonWord16) continue; // LIBN/VINS section (skipped for now)
+      if (d.getUint32(dpos + 16) != wantWord16) continue;
       final secRel = d.getUint32(dpos + 4);
       final pos = dataOffset + secRel;
       if (pos < 0 || pos + 4 > bytes.length) continue;

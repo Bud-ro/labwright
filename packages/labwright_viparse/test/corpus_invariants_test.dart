@@ -13,8 +13,8 @@ import 'package:test/test.dart';
 /// section's bytes). Every tag that section-extraction produces must appear in
 /// the inventory; a violation means the two RSRC readers have desynced (one sees
 /// a block the other doesn't). The reverse is NOT required — the inventory is a
-/// superset (some declared blocks, e.g. `LIBN`, carry no extractable section).
-/// Corpus-validated: holds for 100% of 7583 files. Skipped if corpus absent.
+/// superset (a few declared blocks may carry no extractable section in a given
+/// file). Corpus-validated: holds for 100% of 7583 files. Skipped if corpus absent.
 void main() {
   final dir = Directory('/tmp/claude-1000/vi_samples');
   if (!dir.existsSync()) {
@@ -57,6 +57,64 @@ void main() {
               'the two RSRC readers desynced in ${f.path}');
     }
     expect(files, greaterThan(0));
+  });
+
+  // LIBN/VINS RECOVERY: readEmbeddedSections extracts the @16==0 sections that
+  // readViSections leaves out. A VINS section is a complete embedded sub-VI — its
+  // bytes begin with the RSRC container magic. A LIBN section is an owning-library
+  // name — printable text. (readViSections itself must NOT surface these — checked
+  // by the CROSS-CONSISTENCY/edit tests staying green.)
+  test('SECTION: readEmbeddedSections recovers VINS (embedded VIs) and LIBN (library names)', () {
+    var vinsCount = 0, libnCount = 0;
+    var vinsNotRsrc = 0, libnNotPrintable = 0;
+    final vinsExamples = <String>[];
+    final libnExamples = <String>[];
+    for (final f in all) {
+      final Uint8List bytes;
+      try {
+        bytes = Uint8List.fromList(f.readAsBytesSync());
+      } catch (_) {
+        continue;
+      }
+      final List<ViSection> secs;
+      try {
+        secs = readEmbeddedSections(bytes);
+      } catch (_) {
+        continue;
+      }
+      for (final s in secs) {
+        if (s.tag == 'VINS') {
+          vinsCount++;
+          // an embedded VI: bytes start with the RSRC magic "RSRC".
+          final isRsrc = s.bytes.length >= 4 &&
+              s.bytes[0] == 0x52 &&
+              s.bytes[1] == 0x53 &&
+              s.bytes[2] == 0x52 &&
+              s.bytes[3] == 0x43;
+          if (!isRsrc) {
+            vinsNotRsrc++;
+          } else if (vinsExamples.length < 3) {
+            vinsExamples.add('${f.path.split('/').last}: VINS#${s.index} ${s.bytes.length}B');
+          }
+        } else if (s.tag == 'LIBN') {
+          libnCount++;
+          // a library name: the payload contains a printable run (e.g. ".lvlib").
+          final printable = s.bytes.where((b) => b >= 0x20 && b < 0x7f).length;
+          if (printable < (s.bytes.length * 0.5).floor()) {
+            libnNotPrintable++;
+          } else if (libnExamples.length < 3) {
+            final txt = String.fromCharCodes(s.bytes.where((b) => b >= 0x20 && b < 0x7f));
+            libnExamples.add('${f.path.split('/').last}: "$txt"');
+          }
+        }
+      }
+    }
+    // The corpus contains both kinds; recovery must surface them.
+    expect(vinsCount, greaterThan(0), reason: 'no VINS sections recovered');
+    expect(libnCount, greaterThan(0), reason: 'no LIBN sections recovered');
+    // Every recovered VINS is a real nested RSRC; LIBN payloads are text.
+    expect(vinsNotRsrc, 0, reason: 'VINS sections without RSRC magic: $vinsNotRsrc');
+    expect(libnNotPrintable, 0, reason: 'LIBN sections without printable text: $libnNotPrintable');
   });
 
   // EXPORT→IMPORT IDEMPOTENCY: parsing a container into the lossless [ViContainer]

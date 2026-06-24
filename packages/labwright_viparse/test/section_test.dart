@@ -8,7 +8,8 @@ import 'package:test/test.dart';
 /// real layout `readViSections` expects: a 32-byte header, a length-prefixed
 /// data area, and an info area whose block list points at 20-byte section
 /// descriptors whose `@16` word is `0xFFFFFFFF` (the VI's own data sections).
-Uint8List buildRsrc(List<({String tag, List<List<int>> sections})> blocks) {
+Uint8List buildRsrc(List<({String tag, List<List<int>> sections})> blocks,
+    {Set<String> embeddedTags = const {}}) {
   void be16(BytesBuilder b, int v) => b.add((ByteData(2)..setUint16(0, v)).buffer.asUint8List());
   void be32(BytesBuilder b, int v) => b.add((ByteData(4)..setUint32(0, v)).buffer.asUint8List());
 
@@ -65,7 +66,9 @@ Uint8List buildRsrc(List<({String tag, List<List<int>> sections})> blocks) {
       be32(info, secOff['$bi.$si']!); // data offset
       be32(info, 0);
       be32(info, 0);
-      be32(info, 0xFFFFFFFF); // word16 (own data section)
+      // word16: 0xFFFFFFFF for the VI's own data sections; 0 for embedded
+      // (LIBN/VINS) sections so they route to readEmbeddedSections.
+      be32(info, embeddedTags.contains(blocks[bi].tag) ? 0 : 0xFFFFFFFF);
     }
   }
 
@@ -97,6 +100,29 @@ void main() {
     // the BDHb section is reachable by tag
     final bd = secs.firstWhere((s) => s.tag == 'BDHb');
     expect(bd.bytes.length, 5);
+  });
+
+  test('readEmbeddedSections returns LIBN/VINS (word16==0); readViSections excludes them', () {
+    final rsrc = buildRsrc([
+      (tag: 'vers', sections: [
+        [1, 2, 3, 4],
+      ]),
+      (tag: 'LIBN', sections: [
+        'My.lvlib'.codeUnits,
+      ]),
+      (tag: 'VINS', sections: [
+        [0x52, 0x53, 0x52, 0x43, 0xde, 0xad], // "RSRC" magic + a couple bytes
+      ]),
+    ], embeddedTags: {'LIBN', 'VINS'});
+
+    // primary reader sees only the VI's own data section
+    expect(readViSections(rsrc).map((s) => s.tag), ['vers']);
+
+    // embedded reader sees exactly the LIBN + VINS sections, with exact bytes
+    final emb = readEmbeddedSections(rsrc);
+    expect(emb.map((s) => '${s.tag}#${s.index}'), ['LIBN#0', 'VINS#0']);
+    expect(String.fromCharCodes(emb[0].bytes), 'My.lvlib');
+    expect(emb[1].bytes.sublist(0, 4), [0x52, 0x53, 0x52, 0x43]); // VINS payload is a nested RSRC
   });
 
   test('returns bytes as-stored (no inflation at this layer)', () {
