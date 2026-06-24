@@ -97,7 +97,8 @@ class ViHeader {
 /// The fixed prefix of the info area, `[0, blockListRel)` — the next exporter
 /// region modeled field-by-field. The RSRC format repeats the 32-byte file header
 /// at the start of the info area; after it come two reserved words and the
-/// `blockListRel` pointer (`u32 @0x2c`, constant `0x34` across the corpus) to
+/// `blockListRel` pointer (`u32 @0x2c`; `0x34` in every VI sampled so far, though
+/// the parser assumes nothing and accepts any in-range value) to
 /// where the block list begins. [serialize] reconstructs the prefix byte-exact.
 class ViInfoSubheader {
   ViInfoSubheader({
@@ -110,8 +111,11 @@ class ViInfoSubheader {
   /// `[0:32]` — a duplicate of the file's [ViHeader] (the RSRC dual-header).
   final ViHeader headerCopy;
 
-  /// `[32:44]` — reserved/unclassified words (all-zero in the corpus).
-  // TODO(labwright): identify these 12 bytes; observed zero but unconfirmed.
+  /// `[32:44]` — words between the dup header and `blockListRel`; meaning not yet
+  /// recovered. Observed zero in sampled VIs, but this is NOT asserted across the
+  /// corpus (the round-trip test copies these bytes verbatim, so it is content-
+  /// agnostic). Kept raw and re-emitted exactly.
+  // TODO(labwright): identify these 12 bytes.
   final Uint8List reservedA;
 
   /// `u32 @0x2c` — offset (info-area-relative) where the block list begins.
@@ -411,15 +415,21 @@ class ViInfoArea {
     final descBase = subheader.blockListRel + 8; // countPos + 8
 
     // Find the descriptor records' address span by walking the block list.
+    // `sectionCountMinus1` comes straight from a u32, so cap the iteration by the
+    // records that can physically fit in the info area — otherwise a hostile
+    // count (e.g. 0xFFFFFFFF) would spin ~4e9 times. And BREAK on the first
+    // out-of-range record (like readViSections) rather than continue, so a bad
+    // descRel can't grind the whole (capped) range.
+    final maxRecords = infoArea.length ~/ 20;
     var minStart = infoArea.length, maxEnd = 0;
     var inBounds = true;
     for (final e in blockList.entries) {
       final n = e.sectionCountMinus1 + 1;
-      for (var s = 0; s < n; s++) {
+      for (var s = 0; s < n && s <= maxRecords; s++) {
         final dpos = descBase + e.descRel + s * 20;
         if (dpos < 0 || dpos + 20 > infoArea.length) {
           inBounds = false;
-          continue;
+          break;
         }
         if (dpos < minStart) minStart = dpos;
         if (dpos + 20 > maxEnd) maxEnd = dpos + 20;
@@ -571,8 +581,14 @@ class ViContainer {
 /// every VI. The only bytes still held raw are (a) clearly-TODO'd unknown words
 /// inside the typed structs, and (b) each section's compressed heap payload
 /// ([ViSectionData.payload]) — whose *contents* are modeled separately in
-/// `labwright_videcode`. Editing a model field then [serialize]ing produces a
-/// valid, coherent `.vi`.
+/// `labwright_videcode`.
+///
+/// NOTE: [serialize] does NOT recompute cross-region offsets — it re-emits the
+/// fields as-is. So a section-length change must go through [ViExport.editSection]
+/// (which fixes the header `dataSize`/`infoOffset` and shifts later descriptor
+/// `secRel`s); mutating [dataSegments]/[ViSectionData.payload] directly and then
+/// serializing would emit an internally-inconsistent file. // TODO(labwright):
+/// add a ViVi-level edit that recomputes those offsets so direct edits are safe.
 class ViVi {
   ViVi({required this.header, required this.dataSegments, required this.infoArea});
 

@@ -109,7 +109,7 @@ Widget _faithfulFor(ViHeapObject o) {
     case HeapObjectClass.caseOrSequence:
     case HeapObjectClass.clusterShell:
     case HeapObjectClass.bdStructureFrame:
-      return _StructureFrame(kind: _structureKind(o));
+      return _StructureFrame(kind: structureBadge(o));
     case HeapObjectClass.controlLabel:
     case HeapObjectClass.bdSelectorLabel: // case selector text (True/False/case name)
       return _LabelText(o.label);
@@ -139,7 +139,7 @@ Widget _faithfulFor(ViHeapObject o) {
         final n = nodeDisplayLabel(o);
         return _NodeBox(label: n.text, isHint: n.isHint);
       }
-      if (o.category == ViObjectKind.structure) return _StructureFrame(kind: _structureKind(o));
+      if (o.category == ViObjectKind.structure) return _StructureFrame(kind: structureBadge(o));
       if (o.category == ViObjectKind.terminal) return const _ControlWidget(form: _Form.generic);
       // Bounded but unclassified: draw a faint placeholder (honest — matches the
       // wireframe's gray box) instead of vanishing, so faithful != silently-dropped.
@@ -151,9 +151,6 @@ const _kBorder = Color(0xFF7A7A7A);
 const _kField = Color(0xFFFAFAFA);
 const _kInk = Color(0xFF1A1A1A);
 
-/// A short human kind for a structure object — what kind of control-flow box it
-/// is (While/For loop, Case/Sequence, …) — from its classified [HeapObjectClass],
-/// so the frame can name itself instead of being an anonymous outline.
 /// The text to show on a node box: its recovered name when present (e.g. a subVI
 /// filename), otherwise an honest class HINT derived from its classification
 /// (`primitive`, `growable`, `Call Library node`) so the box isn't blank.
@@ -167,20 +164,14 @@ const _kInk = Color(0xFF1A1A1A);
   return (text: paren != null ? paren.group(1)! : cls, isHint: true);
 }
 
-String _structureKind(ViHeapObject o) {
-  switch (o.objectClass) {
-    case HeapObjectClass.loop:
-      return 'Loop';
-    case HeapObjectClass.caseOrSequence:
-      return 'Case / Sequence';
-    case HeapObjectClass.clusterShell:
-      return 'Cluster';
-    case HeapObjectClass.bdStructureFrame:
-      return 'Diagram';
-    default:
-      return 'Structure';
-  }
-}
+/// The badge text for a structure object — taken from the videcode CLASS CATALOG
+/// ([HeapObjectClass.label]) rather than a hand-maintained table, so the inspector
+/// can't drift from / contradict the catalog's honest, hedged names (e.g. 0x53 =
+/// "Loop (BD) / container (FP)", 0x2c = "Case structure", 0x20 = "For loop").
+/// Falls back to "Structure" only when the class is uncatalogued. Public for
+/// testing + shared with the wireframe annotation.
+String structureBadge(ViHeapObject o) =>
+    o.objectClass == HeapObjectClass.unknown ? 'Structure' : o.objectClass.label;
 
 class _StructureFrame extends StatelessWidget {
   const _StructureFrame({this.kind});

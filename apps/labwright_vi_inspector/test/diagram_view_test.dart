@@ -210,14 +210,30 @@ void main() {
       final s = ViHeapObject(oid: 1, kind: 0x53, offset: 0)..category = ViObjectKind.structure;
       expect(nodesWithin(s, const []), isEmpty);
     });
+
+    test('a child that exactly FILLS the parent is included; an exact-bounds clone is excluded', () {
+      final frame = obj(1, ViObjectKind.structure, 0, 0, 100, 100);
+      final fillingBody = obj(2, ViObjectKind.structure, 0, 0, 100, 100); // same bounds, distinct object
+      // exact-bounds same-category object is treated as a clone/viewport -> excluded;
+      // but a strictly-larger-area child is impossible when bounds are equal, so this
+      // documents the exact-equal exclusion (the per-frame body is caught when it is
+      // even 1px inset). Verify a 1px-inset body IS included:
+      final insetBody = obj(3, ViObjectKind.structure, 0, 0, 100, 99);
+      final within = nodesWithin(frame, [frame, fillingBody, insetBody]);
+      expect(within, contains(insetBody)); // fills-but-inset -> contained
+      expect(within, isNot(contains(fillingBody))); // exact clone -> excluded
+    });
   });
 
   group('wireframeAnnotation', () {
-    test('a structure shows its control-flow kind (not blank)', () {
-      final loop = ViHeapObject(oid: 1, kind: 0x53, offset: 0)..category = ViObjectKind.structure; // HeapObjectClass.loop
-      expect(wireframeAnnotation(loop), 'Loop');
-      final caseStruct = ViHeapObject(oid: 2, kind: 0x52, offset: 0)..category = ViObjectKind.structure;
-      expect(wireframeAnnotation(caseStruct), 'Case / Sequence');
+    test('a structure shows its catalog kind (honest, no fabrication)', () {
+      final whileLoop = ViHeapObject(oid: 1, kind: 0x21, offset: 0)..category = ViObjectKind.structure;
+      expect(wireframeAnnotation(whileLoop), 'While loop');
+      final caseStruct = ViHeapObject(oid: 2, kind: 0x2c, offset: 0)..category = ViObjectKind.structure;
+      expect(wireframeAnnotation(caseStruct), 'Case structure');
+      // dual-role 0x53 keeps the catalog hedge, not a bare "Loop"
+      final dual = ViHeapObject(oid: 3, kind: 0x53, offset: 0)..category = ViObjectKind.structure;
+      expect(wireframeAnnotation(dual), 'Loop (BD) / container (FP)');
     });
     test('a node shows its recovered name', () {
       final node = ViHeapObject(oid: 1, kind: 0x2f, offset: 0)

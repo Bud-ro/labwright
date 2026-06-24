@@ -346,19 +346,12 @@ Color _objectColor(ViHeapObject o) =>
     o.category == ViObjectKind.terminal && o.typeKind != ViTypeKind.unknown ? _typeColor(o.typeKind) : _kindColor(o.category);
 
 /// The label drawn on a wireframe object. Structures (never text-labeled) show
-/// their control-flow KIND (Loop / Case / …) so the wireframe reads as logic too,
-/// at parity with the faithful view; other objects show their recovered name and
+/// their catalog kind via [structureBadge] (so the wireframe reads as logic too,
+/// honestly tracking the class catalog — e.g. "For loop", "Case structure",
+/// "Loop (BD) / container (FP)"); other objects show their recovered name and
 /// (for terminals) data type. Pure + public for unit testing the canvas text.
 String? wireframeAnnotation(ViHeapObject o) {
-  if (o.category == ViObjectKind.structure) {
-    return switch (o.objectClass) {
-      HeapObjectClass.loop => 'Loop',
-      HeapObjectClass.caseOrSequence => 'Case / Sequence',
-      HeapObjectClass.clusterShell => 'Cluster',
-      HeapObjectClass.bdStructureFrame => 'Diagram',
-      _ => 'Structure',
-    };
-  }
+  if (o.category == ViObjectKind.structure) return structureBadge(o);
   final label = o.label;
   final type = o.typeKind == ViTypeKind.unknown ? null : o.typeKind.name;
   if (label != null && type != null) return '$label · $type';
@@ -426,20 +419,18 @@ Set<ViHeapObject> membersOf(ViHeapObject? o, Map<int, ViHeapObject> byId) {
 Set<ViHeapObject> nodesWithin(ViHeapObject structure, Iterable<ViHeapObject> objects) {
   final s = structure.absBounds;
   if (s == null) return const {};
-  final sArea = s.width * s.height;
   final out = <ViHeapObject>{};
   for (final o in objects) {
     if (identical(o, structure)) continue;
     if (o.category != ViObjectKind.node && o.category != ViObjectKind.structure) continue;
     final b = o.absBounds;
     if (b == null) continue;
-    if (b.left >= s.left &&
-        b.top >= s.top &&
-        b.right <= s.right &&
-        b.bottom <= s.bottom &&
-        b.width * b.height < sArea) {
-      out.add(o);
-    }
+    if (b.left < s.left || b.top < s.top || b.right > s.right || b.bottom > s.bottom) continue;
+    // Exclude only an exact bounds clone (a viewport/self-overlap), NOT a child
+    // that legitimately FILLS its parent (e.g. a sequence subframe filling a
+    // Flat Sequence frame) — that's the per-frame body holding the logic.
+    if (b.left == s.left && b.top == s.top && b.right == s.right && b.bottom == s.bottom) continue;
+    out.add(o);
   }
   return out;
 }
