@@ -19,11 +19,15 @@ void main() {
     expect(tier([0x84, 0x28, 0xff, 0x12, 0x34, 0x56]), HeapDecodeTier.semantic); // backgroundColor (confirmed)
   });
 
-  test('valueKindKnown: a kindOnly attribute and the 0xE7 opaque container', () {
+  test('valueKindKnown: kindOnly attr, 0xE7 container, and known-shape C4 (rect/container)', () {
     // 0x45 0xe7 = fpControlAttr (kindOnly) in u16 form -> value-kind-known.
     expect(tier([0x45, 0xe7, 0x02, 0x08]), HeapDecodeTier.valueKindKnown);
     // C5 E7 <len> opaque container -> value-kind-known (NOT semantic — contents undecoded).
     expect(tier([0xc5, 0xe7, 0x06, 0x03, 0, 0, 0, 0, 0]), HeapDecodeTier.valueKindKnown);
+    // C4 5F = rect5f: a decoded rectangle SHAPE but role undetermined (not isDecoded).
+    expect(tier([0xc4, 0x5f, 0x08, 0, 0, 0, 0, 0, 10, 0, 20]), HeapDecodeTier.valueKindKnown);
+    // C4 44 = container44: known container shape, contents not decoded.
+    expect(tier([0xc4, 0x44, 0x00]), HeapDecodeTier.valueKindKnown);
   });
 
   test('framed: the 0x53 literal ref, an undecoded C4, a bare 0x04 token, an unknown opcode', () {

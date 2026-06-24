@@ -1373,7 +1373,12 @@ HeapDecodeTier heapDecodeTier(Uint8List body, int offset, int lead, String secti
   if (lead == 0x14 && decodeHeapRef(body, offset) != null) return HeapDecodeTier.semantic; // typed ref
   if (lead == kHeapRecordPrefix) {
     final rec = c4FrameAt(body, offset, sectionTag);
-    return (rec != null && rec.kind.isDecoded) ? HeapDecodeTier.semantic : HeapDecodeTier.framed;
+    if (rec == null) return HeapDecodeTier.framed;
+    if (rec.kind.isDecoded) return HeapDecodeTier.semantic;
+    // A known payload SHAPE (a rectangle, or a container of nested records) but no
+    // meaning-specific accessor — its value-kind is known, even if the role isn't
+    // (value-kind-known, not just framed; consistent with the 0xE7 container).
+    return rec.kind.shape == HeapShape.none ? HeapDecodeTier.framed : HeapDecodeTier.valueKindKnown;
   }
   final a = decodeHeapAttr(body, offset);
   if (a != null) {
