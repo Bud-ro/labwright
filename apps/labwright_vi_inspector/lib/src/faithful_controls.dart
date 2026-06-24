@@ -116,10 +116,23 @@ class _LabelText extends StatelessWidget {
   final String? label;
   @override
   Widget build(BuildContext context) => Container(
-        color: const Color(0xCCFFF6C8), // pale LabVIEW label backdrop
-        padding: const EdgeInsets.symmetric(horizontal: 2),
+        // Transparent like a real LabVIEW label (no clashing filled box); a soft
+        // white halo keeps the dark text legible over any control beneath it.
         alignment: Alignment.centerLeft,
-        child: Text(label ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10, color: _kInk)),
+        padding: const EdgeInsets.symmetric(horizontal: 2),
+        child: Text(
+          label ?? '',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontSize: 10,
+            color: _kInk,
+            shadows: [
+              Shadow(color: Color(0xCCFFFFFF), blurRadius: 1.5),
+              Shadow(color: Color(0x88FFFFFF), blurRadius: 2.5),
+            ],
+          ),
+        ),
       );
 }
 
