@@ -144,6 +144,30 @@ void main() {
         reason: 'FP render-typed fraction dropped to ${(frac * 100).toStringAsFixed(2)}% (floor 99%).');
   });
 
+  // 7. NAMING-RECOVERY RATCHET — distinct from the render ratchets (typed widget):
+  // this guards that subVI-CALL node kinds recover their called-VI *name* (the
+  // `.vi`/`.lvclass` filename) via 0xa-caption propagation. That name is the call
+  // graph — losing it would silently gut "understanding" while every render ratchet
+  // still passed. Floor 0.99 (currently ~0.9965), upward-only.
+  test('NAMING RATCHET: subVI-call nodes recover their called-VI name (>= floor)', () {
+    const subviKinds = {0x31, 0x32, 0xc5, 0x104, 0x103};
+    var total = 0, named = 0;
+    for (final f in all) {
+      try {
+        for (final o in buildViModel(f.readAsBytesSync()).blockDiagrams.expand((d) => d.objects)) {
+          if (!subviKinds.contains(o.kind)) continue;
+          total++;
+          if (o.label != null && o.label!.trim().isNotEmpty) named++;
+        }
+      } catch (_) {}
+    }
+    expect(total, greaterThan(0));
+    final frac = named / total;
+    expect(frac, greaterThanOrEqualTo(0.99),
+        reason: 'subVI-call name recovery dropped to ${(frac * 100).toStringAsFixed(2)}% (floor 99%) — '
+            'the 0xa-caption propagation likely regressed.');
+  });
+
   // 4. MUTATION-FUZZ ROBUSTNESS — flip bytes inside genuine VIs and push them
   // through the FULL pipeline (decodeSections -> inflate -> heap walk -> build).
   // This is deeper than the truncation fuzz (parseVi only) and the random-bytes
