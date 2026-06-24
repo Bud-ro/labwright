@@ -201,7 +201,7 @@ enum HeapObjectClass {
   /// the panel pane holding the placed controls. Corpus: 7568 FP instances (one per
   /// VI, 7567 drawn), every one parented to `0x7e`, children are the `0x12` content
   /// groups + a `0x11c` viewport — i.e. the FP root pane, not a "diagram" frame.
-  diagramFrame(0x4c, 'Root frame (BD diagram / FP panel)', ViObjectKind.structure, ClassConfidence.confirmed),
+  diagramFrame(0x4c, 'Root frame (BD) / panel pane (FP)', ViObjectKind.structure, ClassConfidence.confirmed),
 
   /// `0x7F` — a root-level **diagram property / scroll-state** record (no bounds).
   diagramProps(0x7f, 'Diagram properties', ViObjectKind.structure, ClassConfidence.inferred),

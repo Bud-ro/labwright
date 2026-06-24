@@ -162,6 +162,20 @@ void main() {
     expect(classifyObject(kind: 0x50, termCount: 2), ViObjectKind.terminalCluster);
   });
 
+  test('section-dependent classes keep their honest dual-role (BD)/(FP) labels', () {
+    // Guards the section-label honesty work: these classes were corpus-probed to
+    // mean different things on the block diagram vs the front panel, so their
+    // labels MUST name both roles. Stops a silent revert to a section-blind name
+    // (e.g. 0x53 back to a bare "Loop (while/for)" that mislabels ~22k FP objects).
+    for (final code in [0x53, 0x12, 0x4c, 0x52]) {
+      final label = HeapObjectClass.fromCode(code).label;
+      expect(label, contains('(BD)'), reason: '0x${code.toRadixString(16)} lost its BD-role tag');
+      expect(label, contains('(FP)'), reason: '0x${code.toRadixString(16)} lost its FP-role tag');
+    }
+    // 0x53 specifically must no longer assert a bare while/for loop section-blind.
+    expect(HeapObjectClass.fromCode(0x53).label, isNot('Loop (while/for)'));
+  });
+
   test('enum/ring items are parsed and propagated up to the enclosing control', () {
     final records = <int>[
       ...open(0x7e, 1), ...bounds(0, 0, 400, 400),
