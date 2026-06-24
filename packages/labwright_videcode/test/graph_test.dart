@@ -94,6 +94,8 @@ void main() {
       ...open(0x50, 4), ...bounds(-300, 9, -256, 105), // group min top
       ...open(0xa, 6), ...bounds(0, 11, 17, 107), ...caption('Start'), // label rides along
       ...close(),
+      ...open(0x4f, 8), ...bounds(5, 10, 17, 30), // control nested in a control: rides along, NOT re-anchored
+      ...close(),
       ...close(),
       ...open(0x50, 5), ...bounds(-262, 9, -218, 105), // +38 below #4
       ...close(),
@@ -116,6 +118,9 @@ void main() {
     }
     // The control's label subtree moved with it (no longer detached).
     expect(d.byId[6]!.absBounds!.top, 210);
+    // A control nested INSIDE another control rides along with its parent's
+    // shift (relative to #4), rather than being re-anchored to the viewport.
+    expect([d.byId[8]!.absBounds!.top, d.byId[8]!.absBounds!.left], [215, 65]);
     // A direct on-diagram terminal (not under a 0x11c) is left untouched.
     expect([d.byId[7]!.absBounds!.top, d.byId[7]!.absBounds!.left], [300, 300]);
   });

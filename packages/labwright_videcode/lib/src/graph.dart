@@ -307,11 +307,18 @@ void _reanchorScrolledControls(List<ViHeapObject> objects) {
     if (o.parentOid != null) (kids[o.parentOid!] ??= <ViHeapObject>[]).add(o);
   }
 
-  int? nearestViewport(ViHeapObject o) {
+  // The viewport to re-anchor [o] to — its nearest `0x11c` ancestor — but only
+  // if no *other control* sits between them. A control nested inside another
+  // control (e.g. a sub-element of a path/cluster control) is positioned
+  // relative to that parent control, not the viewport, so it must ride along
+  // with the parent's subtree shift rather than be re-anchored independently
+  // (otherwise it lands far outside, using the wrong origin).
+  int? reanchorViewport(ViHeapObject o) {
     var p = o.parentOid;
     while (p != null) {
       final po = byOid[p];
       if (po == null) return null;
+      if (_controlKinds.contains(po.kind)) return null; // nested in another control
       if (po.kind == 0x11c) return po.oid;
       p = po.parentOid;
     }
@@ -322,7 +329,7 @@ void _reanchorScrolledControls(List<ViHeapObject> objects) {
   final groups = <int, List<ViHeapObject>>{};
   for (final o in objects) {
     if (!_controlKinds.contains(o.kind) || o.bounds == null || o.absBounds == null) continue;
-    final v = nearestViewport(o);
+    final v = reanchorViewport(o);
     if (v != null) (groups[v] ??= <ViHeapObject>[]).add(o);
   }
 
