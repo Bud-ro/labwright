@@ -202,16 +202,17 @@ class _ViDiagramViewState extends State<ViDiagramView> {
     );
   }
 
-  Widget _toolbar(int n, Map<ViObjectKind, int> counts) => Row(
+  // A Wrap (not a Row): the fixed-width SegmentedButton + Fit button can't shrink
+  // below their intrinsic size, so on a narrow pane they flow onto a second line
+  // instead of overflowing (the user reported overflows here).
+  Widget _toolbar(int n, Map<ViObjectKind, int> counts) => Wrap(
+        spacing: 12,
+        runSpacing: 4,
+        crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           Text('$n objects', style: const TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Wrap(spacing: 12, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
-              for (final e in counts.entries)
-                _LegendChip(color: _kindColor(e.key), label: '${e.key.name} ${e.value}'),
-            ]),
-          ),
+          for (final e in counts.entries)
+            _LegendChip(color: _kindColor(e.key), label: '${e.key.name} ${e.value}'),
           SegmentedButton<DiagramRenderMode>(
             style: const ButtonStyle(visualDensity: VisualDensity.compact),
             segments: const [
@@ -227,7 +228,6 @@ class _ViDiagramViewState extends State<ViDiagramView> {
               }
             }),
           ),
-          const SizedBox(width: 8),
           IconButton(
             tooltip: 'Fit to view',
             onPressed: _fit,

@@ -186,4 +186,19 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: Scaffold(body: ViDiagramView(diagrams: null))));
     expect(find.textContaining('No decodable layout'), findsOneWidget);
   });
+
+  testWidgets('toolbar does not overflow on a narrow viewport (user-reported)', (tester) async {
+    // 600px is narrower than the toolbar's fixed controls + legend; the Wrap must
+    // flow them onto a second line rather than overflow (RenderFlex exception).
+    tester.view.physicalSize = const Size(600, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: ViDiagramView(diagrams: _modelWithDiagram().blockDiagrams))));
+    await tester.pump();
+
+    expect(tester.takeException(), isNull); // no overflow
+    expect(find.textContaining('objects'), findsOneWidget); // controls still render
+    expect(find.text('Wireframe'), findsOneWidget);
+  });
 }

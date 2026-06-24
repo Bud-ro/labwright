@@ -52,25 +52,27 @@ class _GeneratedDartViewState extends State<GeneratedDartView> {
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Row(
-            children: [
-              SegmentedButton<_Mode>(
-                segments: const [
-                  ButtonSegment(value: _Mode.dart, icon: Icon(Icons.code, size: 16), label: Text('Generated Dart')),
-                  ButtonSegment(value: _Mode.json, icon: Icon(Icons.data_object, size: 16), label: Text('JSON IR')),
-                ],
-                selected: {_mode},
-                onSelectionChanged: (s) => setState(() => _mode = s.first),
-              ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Text(
+          // The mode toggle alone is wider than a narrow pane; a horizontal
+          // scroll view lets the controls scroll instead of overflowing.
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                SegmentedButton<_Mode>(
+                  segments: const [
+                    ButtonSegment(value: _Mode.dart, icon: Icon(Icons.code, size: 16), label: Text('Generated Dart')),
+                    ButtonSegment(value: _Mode.json, icon: Icon(Icons.data_object, size: 16), label: Text('JSON IR')),
+                  ],
+                  selected: {_mode},
+                  onSelectionChanged: (s) => setState(() => _mode = s.first),
+                ),
+                const SizedBox(width: 12),
+                const Text(
                   'Read-only · structural outline, dataflow wiring is not recovered',
                   style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
-                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
         Expanded(

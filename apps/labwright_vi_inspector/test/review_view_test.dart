@@ -48,8 +48,9 @@ void main() {
   });
 
   testWidgets('review view stacks vertically on a narrow viewport', (tester) async {
-    // 716 < 720 (the stack threshold) but wide enough for ViDiagramView's toolbar
-    tester.view.physicalSize = const Size(716, 1000);
+    // genuinely narrow: < 720 stacks, and the (now wrapping) diagram toolbar no
+    // longer overflows here — a regression guard for the D.10 toolbar fix too.
+    tester.view.physicalSize = const Size(500, 1000);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
 
