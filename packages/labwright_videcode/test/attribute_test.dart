@@ -212,6 +212,18 @@ void main() {
       expect(decodeHeapAttr(bad, 0), isNull);
     });
 
+    test('0x6C FF blob rejects mostly-binary payloads (no garbage-as-string)', () {
+      // C6 6C FF <len=10> <u32 strlen=6> <6 binary bytes> — <90% printable -> null.
+      final bin = Uint8List.fromList([0xc6, 0x6c, 0xff, 0x00, 0x0a, 0x00, 0x00, 0x00, 0x06, 0x01, 0x02, 0x03, 0x04, 0x05, 0x41]);
+      expect(decodeHeapAttr(bin, 0), isNull);
+    });
+
+    test('0x6C <u8len> rejects the big-slack 1-char false positive', () {
+      // len=64, strLen=1, slack=59 — a structured/binary record, not a string.
+      final fake = Uint8List.fromList([0xc6, 0x6c, 64, 0x00, 0x00, 0x00, 0x01, 0x23, ...List.filled(59, 0)]);
+      expect(decodeHeapAttr(fake, 0), isNull);
+    });
+
     test('0x6C help-description blob (C6 6C FF) decodes to text', () {
       final blob = Uint8List.fromList([
         0xc6, 0x6c, 0xff, 0x00, 0x0a, // C6 6C FF len=10
