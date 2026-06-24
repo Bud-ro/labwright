@@ -171,8 +171,8 @@ enum ClassConfidence {
 /// heaps (`FPHb`) — there object instances are ≈99% catalogued. **Block-diagram**
 /// (`BDHb`) coverage splits two ways: (1) the high-volume **non-drawable** internal
 /// records `0x15`/`0x33`/`0x17`/`0x30` (0 bounds — invisible, no render cost) are
-/// unnamed but never shown; (2) of the **drawable** BD objects ~97% are now
-/// catalogued (nodes/structures/leaves/labels), leaving a ~2.7% visible long tail
+/// unnamed but never shown; (2) of the **drawable** BD objects ~98.7% are now
+/// catalogued (nodes/structures/leaves/labels), leaving a ~1.3% visible long tail
 /// that classifies `unknown` and draws a faint placeholder. Naming (1) changes
 /// nothing visible; the visible gap is (2). (The `BDEx`/`FPEx`
 /// extended sections DO exist and are loaded — 3792/3000 of them — but in this
@@ -407,6 +407,13 @@ enum HeapObjectClass {
   /// parent `0x1b`; labelled ones read `Unbundle`. Renders as a node box.
   bdNode36(0x36, 'Node (primitive)', ViObjectKind.node, ClassConfidence.inferred),
 
+  /// `0x153` — a **built-in primitive node** (icon, no recoverable name). Corpus:
+  /// 1466 BD (0 FP), 100% exactly **32×32** (the default node-icon footprint),
+  /// 100% parented to the node container `0x1b`, children only structural `0x15`
+  /// records — byte-for-byte the `0x2f` primitive profile, but with no `0xa`
+  /// caption, so the specific primitive is unrecoverable: [ClassConfidence.kindOnly].
+  bdNode153(0x153, 'Node (primitive)', ViObjectKind.node, ClassConfidence.kindOnly),
+
   /// `0x16` — a **free-standing block-diagram terminal/constant leaf**. Corpus:
   /// 41830 BD instances, 0 FP, uniform **32×16** (41091/41830), each nested under a
   /// zero-area node body `0x1d` (grandparent the node container `0x1b`);
@@ -415,6 +422,12 @@ enum HeapObjectClass {
   /// the time and sits ~112px (edge) / ~154px (center) from the nearest node — so it
   /// is a small free-standing leaf (a terminal or constant; not separable here).
   bdLeaf(0x16, 'Terminal/constant (BD)', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  /// `0x4E` — a small **block-diagram constant/terminal**. Corpus: 947 BD (0 FP),
+  /// median **18×16**, parented to a `0x13` group, with exactly one `0x68` connector
+  /// child; the labelled ones read as constants (`Carriage Return Constant`,
+  /// `Empty String Constant`, `delimiter (Tab)`). Renders as a generic terminal.
+  bdConstant4e(0x4e, 'Constant/terminal (BD)', ViObjectKind.terminal, ClassConfidence.inferred),
 
   // --- Control / indicator terminal containers (top-level on the diagram) ---
   /// `0x50` — a **numeric** control/indicator terminal (defining signal: a
@@ -431,6 +444,12 @@ enum HeapObjectClass {
 
   /// `0x51` — a **string / array / refnum** control terminal.
   stringOrArrayControl(0x51, 'String/array control', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  /// `0x55` — a **control/indicator terminal** (section-consistent, in both heaps:
+  /// 2234 BD + 4365 FP). Defining signal: exactly one `0x68` connector child (100%)
+  /// + a `0xa` name caption (`Payload`, `Incoming Message`, `SessionMailbox`),
+  /// parented to a control container (`0x13`/`0x11c`/`0x52`). Renders as a terminal.
+  controlTerminal55(0x55, 'Control terminal', ViObjectKind.terminal, ClassConfidence.inferred),
 
   /// `0x5B` — a **path** control terminal (nests a browse-button `0x4F`).
   pathControl(0x5b, 'Path control', ViObjectKind.terminal, ClassConfidence.inferred),

@@ -198,7 +198,7 @@ class _LeafBox extends StatelessWidget {
 
 /// A bounded but unclassified object — a faint dashed-look outline so it stays
 /// visible (matching the wireframe's honest gray box) rather than being silently
-/// dropped from the faithful render. ~2.7% of visible BD objects are this tail.
+/// dropped from the faithful render. ~1.3% of visible BD objects are this tail.
 class _UnknownBox extends StatelessWidget {
   const _UnknownBox();
   @override
