@@ -127,4 +127,37 @@ void main() {
         reason: 'semantically-decoded regressed to ${(semanticPct * 100).toStringAsFixed(1)}% '
             '(baseline ${(floor('semanticallyDecoded') * 100).toStringAsFixed(1)}%). Re-run tool/coverage.dart only if this is a real improvement.');
   });
+
+  // Pin the full-corpus block-diagram object count for each catalogued BD kind, so
+  // a doc "Corpus: N" figure (or a decode change) can't silently rot. This is the
+  // guard that was missing when review9's SAMPLE counts slipped into the catalog
+  // docs 3-6x too low. ±20% band tolerates a corpus refetch / minor decode shift
+  // but catches the multiples-off failure mode. Update the pin AND the matching
+  // catalog doc together when the corpus or decode legitimately changes.
+  test('catalogued BD object kinds hold their full-corpus counts (anti-rot)', () {
+    const expected = <int, int>{
+      0x2f: 44395, 0x31: 31995, 0x63: 13737, 0x8c: 6620, 0x3a: 3479, 0xd6: 2209,
+      0x32: 2075, 0xc5: 1518, 0x104: 2155, 0x44: 3228, 0x3e: 1961, 0x34: 1665, 0xa9: 2416,
+      0x2c: 14563, 0x20: 4892, 0x21: 1654, 0x16: 41830, 0x95: 16118, 0x177: 17043,
+    };
+    final counts = {for (final k in expected.keys) k: 0};
+    for (final root in ['/tmp/claude-1000/vi_samples', '/tmp/claude-1000/vi_diverse']) {
+      final d = Directory(root);
+      if (!d.existsSync()) continue;
+      for (final f in d.listSync(recursive: true).whereType<File>()) {
+        if (!f.path.toLowerCase().endsWith('.vi')) continue;
+        try {
+          final vi = buildViModel(f.readAsBytesSync());
+          for (final o in vi.blockDiagrams.expand((x) => x.objects)) {
+            if (counts.containsKey(o.kind)) counts[o.kind] = counts[o.kind]! + 1;
+          }
+        } catch (_) {}
+      }
+    }
+    expected.forEach((kind, exp) {
+      expect(counts[kind]!, inInclusiveRange((exp * 0.8).floor(), (exp * 1.2).ceil()),
+          reason: 'BD kind 0x${kind.toRadixString(16)} count ${counts[kind]} is >20% off the pinned $exp '
+              '— update the catalog doc + this pin if the corpus/decode legitimately changed.');
+    });
+  });
 }

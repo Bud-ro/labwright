@@ -169,8 +169,12 @@ enum ClassConfidence {
 ///
 /// HONEST COVERAGE: this catalog was effectively validated on **front-panel**
 /// heaps (`FPHb`) — there object instances are ≈99% catalogued. **Block-diagram**
-/// (`BDHb`) coverage is far lower (≈24% of BD object instances), with high-volume
-/// BD-internal kinds `0x15`/`0x33`/`0x17`/`0x30` not yet named. (The `BDEx`/`FPEx`
+/// (`BDHb`) coverage splits two ways: (1) the high-volume **non-drawable** internal
+/// records `0x15`/`0x33`/`0x17`/`0x30` (0 bounds — invisible, no render cost) are
+/// unnamed but never shown; (2) of the **drawable** BD objects ~97% are now
+/// catalogued (nodes/structures/leaves/labels), leaving a ~2.7% visible long tail
+/// that classifies `unknown` and draws a faint placeholder. Naming (1) changes
+/// nothing visible; the visible gap is (2). (The `BDEx`/`FPEx`
 /// extended sections DO exist and are loaded — 3792/3000 of them — but in this
 /// corpus they carry **no decodable object tree** (0 objects), so the object
 /// heaps that matter are `BDHb`/`FPHb`; see ir.dart.)
