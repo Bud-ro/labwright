@@ -4,5 +4,10 @@
 <dict>
 	<key>com.apple.security.app-sandbox</key>
 	<true/>
+	<!-- Open VIs the user picks (file_picker) or drags in (desktop_drop), and
+	     write exported VIs back — read now, export/edit soon. Without this the
+	     sandboxed release build cannot read user-selected files. -->
+	<key>com.apple.security.files.user-selected.read-write</key>
+	<true/>
 </dict>
 </plist>
