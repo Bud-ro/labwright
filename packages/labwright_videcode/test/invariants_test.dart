@@ -165,4 +165,27 @@ void main() {
       }
     }
   });
+
+  // 5. CATALOG INTEGRITY — clean-room honesty guard: every named HeapObjectClass
+  // entry must have real corpus evidence (occur >= 1 time). Catches a future
+  // fabricated / copy-pasted-wrong / corpus-drifted-away catalog entry — a class
+  // we "name" but that no VI actually contains. Confirmed at probe time: 0 of the
+  // current entries are corpus-absent.
+  test('CATALOG INTEGRITY: every catalogued object-class kind occurs in the corpus', () {
+    final seen = <int>{};
+    for (final f in all) {
+      try {
+        final m = buildViModel(f.readAsBytesSync());
+        for (final o in [...m.blockDiagrams, ...m.frontPanelDiagrams].expand((d) => d.objects)) {
+          seen.add(o.kind);
+        }
+      } catch (_) {}
+    }
+    for (final c in HeapObjectClass.values) {
+      if (c == HeapObjectClass.unknown) continue;
+      expect(seen.contains(c.code), isTrue,
+          reason: 'catalogued kind 0x${c.code.toRadixString(16)} (${c.name}) has NO corpus evidence — '
+              'fabricated/dead entry, or the corpus drifted. Re-probe before keeping it.');
+    }
+  });
 }
