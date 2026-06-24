@@ -341,6 +341,56 @@ enum HeapAttribute {
   /// of the rect/glyph sub-element. Confirmed by its strict sequence.
   elementOrdinal(0xdc, HeapAttrKind.ordinal, 'elementOrdinal', AttrConfidence.confirmed),
 
+  /// `0x9F` — **front-panel packed flags** (`u16`, 123 distinct values like
+  /// 33616/560/16944 — bitfield-shaped), scoped to front-panel controls (kind
+  /// 0x17) in the chain `…15 → E7 → 9F`. A packed property bitfield. (~147k recs.)
+  fpPackedFlags(0x9f, HeapAttrKind.numeric, 'fpPackedFlags', AttrConfidence.kindOnly),
+
+  /// `0x15` — **front-panel attr-chain selector** (`u8` with bit-flag values
+  /// 1/0x11/0x21/0x31), always preceded by op `09` and followed by the `0xE7`
+  /// group: it opens a front-panel control's attribute chain. (~147k recs.)
+  fpChainSelector(0x15, HeapAttrKind.flag, 'fpChainSelector', AttrConfidence.inferred),
+
+  /// `0x61` — **element link / index** (`u16`), emitted just after the
+  /// [elementIndex] (`0x3A`) on nodes/diagram objects: a per-element link or
+  /// secondary index. (~35k recs.)
+  elementLink(0x61, HeapAttrKind.ordinal, 'elementLink', AttrConfidence.inferred),
+
+  /// `0x06` — **row / cell field** (`u8`) on tables/decorations (kinds
+  /// 0x0a/0x15/0x30), emitted before the [elementIndex]. (~76k recs.)
+  rowField(0x06, HeapAttrKind.ordinal, 'rowField', AttrConfidence.kindOnly),
+
+  /// `0x86` — **graph/cursor field** (`u8`) scoped to graph & cursor objects
+  /// (kind 0x68), following the [elementIndex]. (~67k recs.)
+  graphCursorField(0x86, HeapAttrKind.numeric, 'graphCursorField', AttrConfidence.kindOnly),
+
+  /// `0x72` — **plot-style field** (`u8`) emitted immediately after the
+  /// `0x28` background colour on front-panel plots. (~14k recs.)
+  plotStyleField(0x72, HeapAttrKind.numeric, 'plotStyleField', AttrConfidence.kindOnly),
+
+  /// `0x7B` — **graph-cursor sub-field** (`u8`) on graph objects (kind 0x68),
+  /// following the `0xF8`/`0x5A` fields. (~13k recs.)
+  cursorField(0x7b, HeapAttrKind.numeric, 'cursorField', AttrConfidence.kindOnly),
+
+  /// `0x8A` — **rect-follow field** (`u8`) emitted right after the [terminalRect]
+  /// (`0x29`) on kind-0x62 objects. (~7k recs.)
+  rectFollowField(0x8a, HeapAttrKind.numeric, 'rectFollowField', AttrConfidence.kindOnly),
+
+  /// `0x48` — **cell-index field** (`u8`/`u16`) on decorations/tables (kind 0x0a).
+  cellIndexField(0x48, HeapAttrKind.ordinal, 'cellIndexField', AttrConfidence.kindOnly),
+
+  /// `0x23` — **caption-style field** (`u8`, with a `0x84`-form colour variant)
+  /// emitted after the `0x22` caption on FP controls (kinds 0x17/0x68). Distinct
+  /// from the `C4 23` opcode. (~14k recs.)
+  captionStyleField(0x23, HeapAttrKind.text, 'captionStyleField', AttrConfidence.kindOnly),
+
+  /// `0xEA` / `0xE9` / `0xDE` — a **grow / resize cluster** (the adjacent triple
+  /// `EA → E9 → DE`, `u8`/`u16`) that always co-occurs on resizable structures
+  /// (kind 0x30): likely grow-handle / array-dimension fields.
+  growClusterA(0xea, HeapAttrKind.numeric, 'growClusterA', AttrConfidence.kindOnly),
+  growClusterB(0xe9, HeapAttrKind.numeric, 'growClusterB', AttrConfidence.kindOnly),
+  growClusterC(0xde, HeapAttrKind.numeric, 'growClusterC', AttrConfidence.kindOnly),
+
   /// `0xCB` — **packed value / large numeric** (`u24` values stepping
   /// `0x10000`..`0x700000`): a packed numeric, not a colour despite the width.
   packedValue(0xcb, HeapAttrKind.numeric, 'packedValue', AttrConfidence.kindOnly),
