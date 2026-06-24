@@ -213,14 +213,17 @@ class _ViDiagramViewState extends State<ViDiagramView> {
     setState(() => _selected = hit);
   }
 
-  /// The drawable objects [o] declares as members (childRef ∪ memberRef from the
-  /// 0x14 ref graph), resolved via [_byId] — the heap's declared membership,
-  /// which the positional nesting tree does not capture. Empty when none.
+  /// The **drawn** objects [o] declares as members (childRef ∪ memberRef from the
+  /// 0x14 ref graph), resolved via [_byId] and filtered to objects actually on the
+  /// canvas (has bounds, not scaffolding-suppressed) so a highlight never floats
+  /// over empty canvas. In practice members resolve to a drawn object mostly for
+  /// loops/structures — most other carriers' refs point at non-drawn internal
+  /// records — so the amber typically appears only when a structure is selected.
   Set<ViHeapObject> _membersOf(ViHeapObject? o) {
     if (o == null) return const {};
     return {
       for (final oid in o.memberOids)
-        if (_byId[oid] case final m? when m.absBounds != null && !identical(m, o)) m,
+        if (_byId[oid] case final m? when m.absBounds != null && !identical(m, o) && !_isScaffolding(m, _byId)) m,
     };
   }
 
