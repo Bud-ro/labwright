@@ -55,14 +55,15 @@ enum ViTypeKind {
 /// `10/11/12 <tag> 02 fe <u16 kind> fd <u16 oid>` and the tree is delimited by
 /// high-nibble-1 group opens (`10/11/12/13 <tag>` where the byte after the count
 /// is a type tag `FB`/`FE`/`FD`) and high-nibble-0 closes (`08/09/0a/0b`, popped
-/// positionally). `oid` is unique within a VI. Records attach to the innermost
+/// positionally). `oid` is usually unique within a VI (a few corpus VIs repeat one); [byId] keeps last-wins. Records attach to the innermost
 /// object: `C4 2D` → [bounds]/[absBounds], `C4 22` → [label],
 /// `14 19 01 fd <id>` → [refs] (child-membership ids, found on structure/diagram
 /// container objects).
 class ViHeapObject {
   ViHeapObject({required this.oid, required this.kind, required this.offset});
 
-  /// The object's unique id (the `oid` field of its header).
+  /// The object's id (the `oid` field). Usually unique within a VI, but a few
+  /// corpus VIs repeat an oid; id-keyed maps ([ViDiagram.byId]) keep last-wins.
   final int oid;
 
   /// The object's class code (the `kind` field of its header). `0x68` = terminal;
@@ -133,7 +134,8 @@ enum ClassConfidence {
 /// `<kind>` u16 in an object header `10 19 02 fe <kind> fd <oid>`.
 ///
 /// This is the single place that names every object class we have decoded from
-/// the corpus (163,227 objects across 398 BDEx sections — 100% covered). Each
+/// the corpus (163,227 objects across 398 BDEx sections — ≈100% covered; a rare
+/// stray `0x56` is catalogued below). Each
 /// entry documents its role, its coarse [category] ([ViObjectKind]), the corpus
 /// evidence, and a [confidence] label (clean-room honesty). A control's *data
 /// type* (numeric/enum/string/…) is read from its descendant `C4` records into
@@ -263,6 +265,10 @@ enum HeapObjectClass {
   /// `0xC8` — rare; appears as a parent of `0x0C`/`0x0B`.
   rareC8(0xc8, 'Undetermined (0xC8)', ViObjectKind.unknown, ClassConfidence.kindOnly),
 
+  /// `0x56` — a rare control terminal (child profile = label + chrome +
+  /// connector, like the other control terminals).
+  controlRare56(0x56, 'Control (rare 0x56)', ViObjectKind.terminal, ClassConfidence.kindOnly),
+
   /// A class code that is not (yet) catalogued. Its [code] is -1; use
   /// [ViHeapObject.kind] for the actual value.
   unknown(-1, 'Unknown class', ViObjectKind.unknown, ClassConfidence.kindOnly);
@@ -294,7 +300,7 @@ enum HeapObjectClass {
 /// (corpus-validated; see the [HeapObjectClass] catalog). The data-driven
 /// terminal-cluster signal (`C4 1F` terminals) takes precedence over the class's
 /// catalog [HeapObjectClass.category].
-ViObjectKind classifyObject({required int kind, required bool hasBounds, required int termCount}) {
+ViObjectKind classifyObject({required int kind, required int termCount}) {
   if (kind == 0x0c || termCount >= 1) return ViObjectKind.terminalCluster;
   return HeapObjectClass.fromCode(kind).category;
 }
@@ -453,7 +459,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDEx'}) {
   }
 
   for (final o in objects) {
-    o.category = classifyObject(kind: o.kind, hasBounds: o.bounds != null, termCount: o.termCount);
+    o.category = classifyObject(kind: o.kind, termCount: o.termCount);
     o.typeKind = inferTypeKind(c4ops[o] ?? const <int>{}, fmt[o]);
   }
 
@@ -482,18 +488,22 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDEx'}) {
 }
 
 /// Parses a `C4 2E` string-table payload into its ordered enum/ring item labels
-/// (packed Pascal strings `[u8 len][chars]…`). Unlike the heuristic heap-string
-/// extractor, this keeps every item in order, including short ones (`On`, `Up`).
+/// (packed Pascal strings `[u8 len][chars]…`), keeping every item in order
+/// including short ones (`On`, `Up`). For an enum the item position IS its
+/// ordinal, so this is ordinal-safe: if any entry is malformed (length overruns)
+/// or non-printable, the whole table is rejected (returns `[]`) rather than
+/// silently dropping one entry and shifting every later ordinal.
 List<String> _parseEnumItems(List<int> payload) {
   final out = <String>[];
   var i = 0;
   while (i < payload.length) {
     final len = payload[i++];
     if (len == 0) continue;
-    if (i + len > payload.length) break;
+    if (i + len > payload.length) return const []; // malformed → untrustworthy table
     final s = String.fromCharCodes(payload.sublist(i, i + len));
     i += len;
-    if (s.codeUnits.every((c) => c >= 0x20 && c < 0x7f)) out.add(s);
+    if (!s.codeUnits.every((c) => c >= 0x20 && c < 0x7f)) return const []; // ordinal-unsafe
+    out.add(s);
   }
   return out;
 }
@@ -536,8 +546,13 @@ void _reanchorScrolledControls(List<ViHeapObject> objects) {
     while (p != null) {
       final po = byOid[p];
       if (po == null) return null;
-      if (_controlKinds.contains(po.kind)) return null; // nested in another control
-      if (po.kind == 0x11c) return po.oid;
+      if (po.kind == 0x11c) return po.oid; // reached the viewport → re-anchor
+      // A control, or ANY other positioned/bounded container (e.g. a 0x52
+      // case/sequence or 0x64 cluster shell), between this control and the
+      // viewport means the control's bounds are in THAT container's frame, not
+      // the viewport's. Re-anchoring with the viewport group's min-corner would
+      // mix frames and fling it outside — ride along with its parent instead.
+      if (_controlKinds.contains(po.kind) || po.bounds != null) return null;
       p = po.parentOid;
     }
     return null;

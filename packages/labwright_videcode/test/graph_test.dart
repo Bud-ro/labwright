@@ -136,11 +136,11 @@ void main() {
     expect(HeapObjectClass.fromCode(0xabcd), HeapObjectClass.unknown);
     // named classes resolve through ViHeapObject + drive classifyObject's category.
     expect(HeapObjectClass.fromCode(0x50).label, 'Numeric control');
-    expect(classifyObject(kind: 0x68, hasBounds: false, termCount: 0), ViObjectKind.terminal);
-    expect(classifyObject(kind: 0x12, hasBounds: false, termCount: 0), ViObjectKind.node);
-    expect(classifyObject(kind: 0x53, hasBounds: true, termCount: 0), ViObjectKind.structure);
+    expect(classifyObject(kind: 0x68, termCount: 0), ViObjectKind.terminal);
+    expect(classifyObject(kind: 0x12, termCount: 0), ViObjectKind.node);
+    expect(classifyObject(kind: 0x53, termCount: 0), ViObjectKind.structure);
     // the C4-1F terminal signal still wins over the catalog category.
-    expect(classifyObject(kind: 0x50, hasBounds: true, termCount: 2), ViObjectKind.terminalCluster);
+    expect(classifyObject(kind: 0x50, termCount: 2), ViObjectKind.terminalCluster);
   });
 
   test('buildDiagram is total over arbitrary bytes', () {
