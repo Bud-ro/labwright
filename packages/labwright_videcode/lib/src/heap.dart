@@ -1077,6 +1077,87 @@ HeapPropertyValue? decodeHeapPropertyToken(Uint8List body, int offset) {
   return HeapPropertyValue(token: token, value: value, length: len);
 }
 
+/// Catalog of the **`0x14` typed-reference family** — the 6-byte
+/// `14 <subop> 01 fd <u16 oid>` records that form the heap's object graph. Each
+/// is a typed link from the current object to another object (by id); the
+/// [subop] selects the *relationship*.
+///
+/// Corpus-validated: across the diverse corpus the `u16` resolves to an object id
+/// declared in the same heap at **91–100%** for every subop — **except `0x53`**,
+/// which resolves at 0% and is a literal `u16`, not a reference (see [literal]).
+/// The dominant links are [childRef] (`14 19`, the structure child-membership ref
+/// also gathered by the `10 55` reflist) and [memberRef] (`14 4f`). Resolve a
+/// record with [decodeHeapRef].
+enum HeapRefKind {
+  /// `14 19` — **structure/container child-membership** reference (the members of
+  /// a loop / case structure / cluster). The highest-volume link.
+  childRef(0x19, 'childRef', AttrConfidence.confirmed),
+
+  /// `14 4f` — **member** reference: an object-list owner enumerating its child /
+  /// member objects (resolves ~91%). The dominant non-child link.
+  memberRef(0x4f, 'memberRef', AttrConfidence.confirmed),
+
+  /// `14 1f` — **owner / back-reference** (resolves 100%).
+  ownerRef(0x1f, 'ownerRef', AttrConfidence.confirmed),
+
+  /// `14 50` — **sibling / peer** object reference (resolves 100%).
+  siblingRef(0x50, 'siblingRef', AttrConfidence.confirmed),
+
+  /// A typed object reference whose subop is not individually named but which
+  /// resolves to an object id at ~100% (e.g. `14 34`, `14 aa`, `14 f7`). [subop]
+  /// is -1 (this is the catch-all returned by [fromSubop]).
+  objectRef(-1, 'objectRef', AttrConfidence.inferred),
+
+  /// `14 53` — a literal `u16` value, **NOT** an object reference (0% oid-resolve
+  /// across the corpus). [decodeHeapRef] returns null for it.
+  literal(0x53, 'literal', AttrConfidence.confirmed);
+
+  const HeapRefKind(this.subop, this.refName, this.confidence);
+
+  /// The sub-opcode that selects the relationship; -1 for the [objectRef] catch-all.
+  final int subop;
+
+  /// The human-assigned relationship name.
+  final String refName;
+
+  /// How well-grounded [refName] is.
+  final AttrConfidence confidence;
+
+  static final Map<int, HeapRefKind> _bySubop = {
+    for (final r in values)
+      if (r != objectRef) r.subop: r,
+  };
+
+  /// The relationship for a `0x14` subop: a named kind, [literal] for `0x53`, or
+  /// the generic [objectRef] for any other (still a resolving typed reference).
+  static HeapRefKind fromSubop(int subop) => _bySubop[subop] ?? objectRef;
+}
+
+/// A decoded `0x14` typed reference: its [kind] and the [targetOid] it links to.
+class HeapRef {
+  const HeapRef({required this.kind, required this.targetOid, required this.length});
+
+  /// The relationship type.
+  final HeapRefKind kind;
+
+  /// The referenced object's id.
+  final int targetOid;
+
+  /// Total bytes the record occupies (always 6).
+  final int length;
+}
+
+/// Decodes the `14 <subop> 01 fd <u16 oid>` typed reference at [offset], or null
+/// if the bytes there are not such a record — or are the `14 53` [literal], which
+/// is a value, not a reference. Mirrors [recordSkip]'s framing of the `0x14` family.
+HeapRef? decodeHeapRef(Uint8List body, int offset) {
+  if (offset + 6 > body.length) return null;
+  if (body[offset] != 0x14 || body[offset + 2] != 0x01 || body[offset + 3] != 0xfd) return null;
+  final kind = HeapRefKind.fromSubop(body[offset + 1]);
+  if (kind == HeapRefKind.literal) return null;
+  return HeapRef(kind: kind, targetOid: (body[offset + 4] << 8) | body[offset + 5], length: 6);
+}
+
 /// The byte length of the heap record at [i] in [h], or null if [i] is not a
 /// recognized record start (the walk stops there). This is the **heap record
 /// skip table** — the reverse-engineered framing of every record family known so

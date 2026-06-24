@@ -348,9 +348,12 @@ _SpanInfo _classify(Uint8List b, HeapSpan s, String tag) {
   if (lead == 0x08 || lead == 0x09 || lead == 0x0a || lead == 0x0b) {
     return make(_cGroup, 'Group close', 'Closes the innermost open group (popped positionally).');
   }
-  // Child-membership reference: 14 19 01 fd <oid>
-  if (lead == 0x14 && o + 6 <= b.length && b[o + 1] == 0x19 && b[o + 2] == 0x01 && b[o + 3] == 0xfd) {
-    return make(_cRef, 'Child reference → #${_u16(b, o + 4)}', 'A structure/container child-membership reference (not a wire).');
+  // Typed object reference: 14 <subop> 01 fd <oid> (the heap's object graph).
+  final ref = decodeHeapRef(b, o);
+  if (ref != null) {
+    final conf = ref.kind.confidence == AttrConfidence.confirmed ? '' : ' (${ref.kind.confidence.name})';
+    return make(_cRef, '${ref.kind.refName} → #${ref.targetOid}',
+        'A typed object reference (${ref.kind.refName}$conf) — a link in the object graph, not a wire.');
   }
   // C4 length-prefixed record
   if (lead == kHeapRecordPrefix) {

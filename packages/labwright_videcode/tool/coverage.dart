@@ -42,7 +42,7 @@ bool _isSemantic(Uint8List b, int o, int lead, String tag) {
   if (lead == 0x10 || lead == 0x11 || lead == 0x12 || lead == 0x13) {
     if (o + 4 <= b.length && (b[o + 3] == 0xfb || b[o + 3] == 0xfe || b[o + 3] == 0xfd)) return true; // group open
   }
-  if (lead == 0x14 && o + 4 <= b.length && b[o + 1] == 0x19 && b[o + 2] == 0x01 && b[o + 3] == 0xfd) return true; // ref
+  if (lead == 0x14 && decodeHeapRef(b, o) != null) return true; // typed object reference (any subop but the 0x53 literal)
   // C4 records: decoded when the opcode has confirmed semantics.
   if (lead == kHeapRecordPrefix) {
     final rec = c4FrameAt(b, o, tag);

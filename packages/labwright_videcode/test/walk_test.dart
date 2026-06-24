@@ -86,6 +86,27 @@ void main() {
     expect(isTypeDescriptorToken(0x10), isFalse);
   });
 
+  test('HeapRefKind: subop maps to relationship; 0x53 is a literal, not a ref', () {
+    expect(HeapRefKind.fromSubop(0x19), HeapRefKind.childRef);
+    expect(HeapRefKind.fromSubop(0x4f), HeapRefKind.memberRef);
+    expect(HeapRefKind.fromSubop(0x1f), HeapRefKind.ownerRef);
+    expect(HeapRefKind.fromSubop(0x50), HeapRefKind.siblingRef);
+    expect(HeapRefKind.fromSubop(0x34), HeapRefKind.objectRef); // resolving but unnamed → generic
+    expect(HeapRefKind.fromSubop(0x53), HeapRefKind.literal);
+  });
+
+  test('decodeHeapRef decodes typed refs and rejects the 0x53 literal', () {
+    Uint8List b(List<int> x) => Uint8List.fromList(x);
+    final m = decodeHeapRef(b([0x14, 0x4f, 0x01, 0xfd, 0x00, 0x2a]), 0)!;
+    expect(m.kind, HeapRefKind.memberRef);
+    expect(m.targetOid, 0x2a);
+    expect(m.length, 6);
+    // 14 53 frames as a record but is a literal value, not a reference.
+    expect(decodeHeapRef(b([0x14, 0x53, 0x01, 0xfd, 0x00, 0x09]), 0), isNull);
+    // not a 14-family record at all.
+    expect(decodeHeapRef(b([0x10, 0x19, 0x02, 0xfe, 0, 0]), 0), isNull);
+  });
+
   test('walkHeapBody and recordSkip are total over arbitrary bytes', () {
     for (var seed = 0; seed < 1500; seed++) {
       final len = (seed * 7) % 200;
