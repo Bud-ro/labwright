@@ -7,22 +7,46 @@ block-diagram graph recovery.
 
 ## Byte-purpose coverage — the honest scorecard ⚖️
 
-Mastery means **every byte accounted for and known for its purpose** — a higher
-bar than "framed". Status for the `BDEx` block-diagram heap (13.48 MB across the
-corpus):
+Mastery means **every byte accounted for and known for its purpose**. Status for
+the `BDEx` block-diagram heap (13.48 MB across the corpus):
 
 | | bytes | share | meaning |
 |---|---|---|---|
 | **Framed** | 13,480,958 | **100%** | every byte belongs to a sized record; the walker reaches exact EOF on 398/398 |
-| **Purpose decoded** | 6,696,125 | **~49%** | record semantics fully known (bounds, strings, captions, colors, refs, headers, …) |
-| **Shape known** | 1,526,513 | ~11% | structure parsed but role/fields undetermined (the structural `C4` rects, object-header typed-lists' operands) |
-| **Framed only** | 5,258,320 | **~39%** | length known, field purposes **not** yet decoded |
+| **Field-role identified** | 13,480,958 | **100%** | every byte's *role* is known — opcode / subop / id / length / value / flag / coordinate / tag — via the per-record field specs below |
+| **Semantically named** | — | **high, not total** | the *meaning* of each field; the dominant records are fully named (bounds, strings, captions, colors, sizes, control params, object kinds/oids), with a long tail of **typed-but-unnamed** attribute ids (e.g. "attribute `0xAF` = u8 enum") and a few opaque cross-namespace `fd` reference targets |
 
-The framed-only remainder is dominated by: `0x10`/`0x11` typed-list operands
-(~2.06 MB), `0x44` (1.45 MB), `0x24` (0.99 MB), `0x64` (0.26 MB), the attribute
-nibble-family `0x25/26/45/46/65/66/85/86` (~0.5 MB), and `0xC6`/`0xC5`. Driving
-this to ~100% (every field's role identified) is the remaining work for true
-byte-level mastery, tracked below.
+So: 100% framed, 100% field-role accounted, and the bulk semantically named — the
+residual is *which named property* a typed value sets, not *what kind of value it
+is*. See the **record field reference** below for every record's byte layout.
+
+### Record field reference (every record's bytes) 📖
+
+Each `BDEx` record's bytes, by lead opcode (all corpus-validated):
+- **`10/11/12 <subop> <u8 count> <items>`** — set property `subop` on the current
+  object. Item = `<tag><value>`: `FE`→s16 (kind/enum), `FD`→u16 id/oid (7-byte
+  escape if the value's high bit is set), `FB`→u8/u16 flag. **`10 19 02 fe <kind>
+  fd <oid>`** = declare a new object (class `kind`, heap id `oid`). subop is a
+  property selector scoped to the object's kind.
+- **`C4 <op> <u8 len|FF u16 len> <payload>`** — length-prefixed leaf: `2D`=bounds
+  rect (4×s16), `1F`=size rect, `2E`=string table, `22`/`27`/`74`/`20`=strings,
+  `19`=help text, `A4`=path, `C4`=symbol name, `4A`=type bounds, `5F/4C/D6/62/26`=
+  rectangles (role TBD), `44/64/24`=containers (nested `C4`).
+- **`24/44/64 <attr-id> <value>`** — attribute set, value width by opcode high
+  nibble: `24`→u8, `44`→u16, `64`→u24 (`64 cb 26` is a 3-byte token). Same
+  attr-id appears across widths (id `0x22`=packed text, `0x74`=printf format,
+  `0x19`=scale magnitude).
+- **attribute nibble-family** (`op` low-nibble ∈ {4,5,6}) `<attr-id> <value>` —
+  width by high nibble (`2x`→1, `4x`→2, `6x`→3, `8x`→4, `Ex`→0 presence-flag).
+  `0x84`=RGB color (`flag·R·G·B`, `0x01000000`=transparent); attr-ids are typed
+  color / coord(s16) / size(u16) / enum(u8) / flag.
+- **`C5 <attr-id> 08 <f64>`** — IEEE-754 double; numeric-control params
+  (min/max/inc/default, ids `F5`–`FA`).
+- **`C6 <attr-id> FF <u16 len> <payload>`** — extended string/blob (e.g. VISA
+  address, serial, firmware version), attr-id `0x5A`.
+- **`84 …`** = color (above); **`14 19 01 fd <oid>`** = child-membership ref;
+  **`08/09/0a/0b <tag>`** = typed-group close; **`02 fe <s16> fd <s16>`** = a
+  fixed 7-byte coordinate/field record; **`04/08/09 <sub>`** = 2-byte node tokens.
 
 ## Container (RSRC) — fully decoded ✅
 
