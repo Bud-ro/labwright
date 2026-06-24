@@ -898,21 +898,25 @@ class HeapRecord {
   /// not fully decoded, so this recovers readable text, not exact fields. Total.
   String? get descriptionText {
     if (kind != HeapOpcode.description) return null;
-    bool isText(int start, int len) {
-      for (var j = start; j < start + len; j++) {
-        final c = payload[j];
-        if (c >= 32 && c < 127) continue;
-        if (c == 9 || c == 10 || c == 13) continue; // tab/newline/CR
-        return false;
+    bool isTextByte(int c) => (c >= 32 && c < 127) || c == 9 || c == 10 || c == 13;
+
+    // The dominant C4 19 form is RAW text from byte 0 (no length prefix) — e.g.
+    // "The <B>error</B>…". When the whole payload is mostly printable, return it
+    // verbatim (the earlier "read payload[0] as a u8 length" logic dropped the
+    // leading char and fragmented on tags — corpus-confirmed wrong on ~80%).
+    if (payload.isNotEmpty) {
+      final printable = payload.where(isTextByte).length;
+      if (printable / payload.length >= 0.9) {
+        return String.fromCharCodes(payload.where((c) => c >= 32 && c < 127 || c == 10 || c == 13 || c == 9)).trim();
       }
-      return true;
     }
 
+    // Fallback for non-printable payloads: recover length-prefixed text segments.
     final runs = <String>[];
     var i = 0;
     while (i < payload.length) {
       final len = payload[i]; // u8 length prefix
-      if (len >= 6 && i + 1 + len <= payload.length && isText(i + 1, len)) {
+      if (len >= 6 && i + 1 + len <= payload.length && payload.sublist(i + 1, i + 1 + len).every(isTextByte)) {
         runs.add(String.fromCharCodes(payload.sublist(i + 1, i + 1 + len)));
         i += 1 + len;
       } else {

@@ -11,12 +11,12 @@ DecodedSection bdex(List<int> bytes) => DecodedSection(
     );
 
 void main() {
-  test('C4 19 record extracts embedded description text (drops control prefix)', () {
-    final text = '<B>source</B> describes the error'.codeUnits;
-    final payload = <int>[0x01, text.length, ...text]; // 01 <len> prefix, then text
-    final heap = <int>[0xc4, 0x19, payload.length, ...payload];
+  test('C4 19 record returns its RAW description text (no length prefix — the corpus form)', () {
+    // The real corpus C4 19 payload is raw text from byte 0 (verified by review).
+    final text = 'The <B>error</B> describes the source'.codeUnits;
+    final heap = <int>[0xc4, 0x19, text.length, ...text];
     final rec = heapC4RecordsFromDecoded([bdex(heap)]).single;
-    expect(rec.descriptionText, '<B>source</B> describes the error');
+    expect(rec.descriptionText, 'The <B>error</B> describes the source'); // leading 'T' preserved
   });
 
   test('non-C4-19 records have null descriptionText', () {
@@ -24,8 +24,8 @@ void main() {
     expect(heapC4RecordsFromDecoded([bdex(heap)]).single.descriptionText, isNull);
   });
 
-  test('ViModel.descriptions collects and dedupes help text', () {
-    List<int> desc(String s) => [0xc4, 0x19, s.length + 2, 0x01, s.length, ...s.codeUnits];
+  test('ViModel.descriptions collects and dedupes raw help text', () {
+    List<int> desc(String s) => [0xc4, 0x19, s.length, ...s.codeUnits]; // raw text payload
     final heap = <int>[
       ...desc('Cursors are draggable'),
       ...desc('Cursors are draggable'), // dup

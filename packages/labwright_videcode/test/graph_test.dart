@@ -250,6 +250,27 @@ void main() {
     expect(formatControlRange(1.0, -1.0), isNull); // inverted finite pair -> nothing
   });
 
+  test('buildDiagram terminates on a parentOid cycle (reanchorViewport guard)', () {
+    // Duplicate oids cross-link the parent chain (byOid last-wins): a control's
+    // ancestor walk 1->2->1 would loop forever in reanchorViewport without a guard.
+    final records = <int>[
+      ...open(0x7e, 100), ...bounds(0, 0, 400, 400),
+      ...open(0xaa, 1, tag: 0x1a), // non-control, no bounds
+      ...open(0xaa, 2, tag: 0x1b),
+      ...open(0xaa, 1, tag: 0x1c), // dup oid 1 -> byOid[1]=this (parentOid 2)
+      ...open(0x50, 5, tag: 0x1d), ...bounds(10, 10, 30, 30), // control, parentOid 1
+      ...close(0x1d),
+      ...close(0x1c),
+      ...close(0x1b),
+      ...close(0x1a),
+      ...close(),
+    ];
+    final body = Uint8List.fromList([0, 0, 0, records.length, ...records]);
+    final sw = Stopwatch()..start();
+    expect(() => buildDiagram(body), returnsNormally);
+    expect(sw.elapsedMilliseconds, lessThan(2000), reason: 'must not hang on a parentOid cycle');
+  });
+
   test('buildDiagram is total over arbitrary bytes', () {
     final junk = Uint8List.fromList([for (var i = 0; i < 400; i++) (i * 17 + 3) & 0xff]);
     expect(() {

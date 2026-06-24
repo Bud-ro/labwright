@@ -646,7 +646,12 @@ void _reanchorScrolledControls(List<ViHeapObject> objects) {
   // (otherwise it lands far outside, using the wrong origin).
   int? reanchorViewport(ViHeapObject o) {
     var p = o.parentOid;
+    // Guard against a parentOid cycle (oids can repeat; byOid is last-wins, so two
+    // objects can cross-link) — without this the walk loops forever on adversarial
+    // input, like the shiftSubtree guard below.
+    final seen = <int>{};
     while (p != null) {
+      if (!seen.add(p)) return null;
       final po = byOid[p];
       if (po == null) return null;
       if (po.kind == 0x11c) return po.oid; // reached the viewport → re-anchor
