@@ -403,22 +403,41 @@ class _SummaryViewState extends State<_SummaryView> {
 
         const Text('Resource-block inventory', style: TextStyle(fontWeight: FontWeight.bold)),
         const SizedBox(height: 4),
-        const Text('Click a block to inspect its bytes + parsed records (hex view).',
-            style: TextStyle(color: Colors.grey, fontSize: 12)),
+        Text(
+          widget.sections.isEmpty
+              ? 'No section bytes recovered for this file.'
+              : 'Click a highlighted block to inspect its bytes + parsed records (hex view).',
+          style: const TextStyle(color: Colors.grey, fontSize: 12),
+        ),
         const SizedBox(height: 8),
         Wrap(spacing: 8, runSpacing: 8, children: [
           for (final b in summary.blocks)
-            Tooltip(
-              message: kBlockGlossary[b] ?? 'resource block',
-              child: _hasSection(b)
-                  ? ActionChip(
-                      label: Text(b),
-                      avatar: const Icon(Icons.data_object, size: 16),
-                      visualDensity: VisualDensity.compact,
-                      onPressed: () => _openHex(context, b),
-                    )
-                  : Chip(label: Text(b), visualDensity: VisualDensity.compact),
-            ),
+            if (_hasSection(b))
+              Tooltip(
+                message: kBlockGlossary[b] ?? 'resource block',
+                child: ActionChip(
+                  label: Text(b),
+                  avatar: const Icon(Icons.data_object, size: 16),
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () => _openHex(context, b),
+                ),
+              )
+            else
+              Tooltip(
+                // Honest: these blocks are listed in the file's block table but
+                // readViSections can't yet locate their section bytes (their
+                // descriptor uses a layout the sentinel heuristic misses), so
+                // there is nothing to show in the hex view.
+                message: '${kBlockGlossary[b] ?? 'resource block'}\n(bytes not recoverable yet — descriptor layout not decoded)',
+                child: Opacity(
+                  opacity: 0.4,
+                  child: Chip(
+                    label: Text(b),
+                    avatar: const Icon(Icons.block, size: 14),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+              ),
         ]),
 
         if (widget.components.isNotEmpty) ...[
