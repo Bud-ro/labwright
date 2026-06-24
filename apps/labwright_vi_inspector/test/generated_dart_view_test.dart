@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -48,12 +49,25 @@ void main() {
     expect(find.textContaining('Helper.vi', findRichText: true), findsWidgets);
   });
 
-  testWidgets('toggles to the JSON IR view', (tester) async {
+  testWidgets('JSON IR view shows valid, decodable JSON with the schema version and oids', (tester) async {
     await _pump(tester, GeneratedDartView(model: _bdModel(), viName: 'MyVi.vi'));
     await tester.tap(find.text('JSON IR'));
     await tester.pumpAndSettle();
-    // the JSON carries the schema version key
-    expect(find.textContaining('"irVersion"', findRichText: true), findsWidgets);
+    // pull the actual displayed text and assert it is genuinely valid JSON
+    final shown = tester.widget<SelectableText>(find.byType(SelectableText)).data!;
+    final decoded = jsonDecode(shown) as Map<String, Object?>;
+    expect(decoded['irVersion'], viIrVersion);
+    final objs = ((decoded['blockDiagrams'] as List).first as Map)['objects'] as List;
+    final oids = objs.map((o) => (o as Map)['oid']).toSet();
+    expect(oids, containsAll(<int>[2, 3])); // the while-loop + subVI node from _bdModel
+  });
+
+  testWidgets('function name falls back to "vi" when the VI name is null or only ".vi"', (tester) async {
+    await _pump(tester, GeneratedDartView(model: _bdModel())); // viName null -> 'vi'
+    expect(find.textContaining('void vi(', findRichText: true), findsWidgets);
+
+    await _pump(tester, GeneratedDartView(model: _bdModel(), viName: '.vi'));
+    expect(find.textContaining('void vi(', findRichText: true), findsWidgets);
   });
 
   testWidgets('handles a null model gracefully', (tester) async {

@@ -33,7 +33,8 @@ class _GeneratedDartViewState extends State<GeneratedDartView> {
     final n = widget.viName?.trim();
     if (n == null || n.isEmpty) return 'vi';
     final base = n.split(RegExp(r'[\\/]')).last;
-    return base.toLowerCase().endsWith('.vi') ? base.substring(0, base.length - 3) : base;
+    final stripped = base.toLowerCase().endsWith('.vi') ? base.substring(0, base.length - 3) : base;
+    return stripped.isEmpty ? 'vi' : stripped; // a name of just ".vi" -> generic
   }
 
   @override
