@@ -341,13 +341,34 @@ class _SummaryViewState extends State<_SummaryView> {
         ? widget.strings
         : [for (final s in widget.strings) if (s.toLowerCase().contains(q)) s];
 
+    final icon = decodeViIcon(widget.sections);
+
     return ListView(
       children: [
-        Text(summary.name ?? '(unnamed)', style: Theme.of(context).textTheme.headlineSmall),
-        const SizedBox(height: 4),
-        Text(summary.describe(), style: const TextStyle(color: Colors.grey)),
-        const SizedBox(height: 4),
-        Text('source: ${widget.source}', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (icon != null) ...[
+              DecoratedBox(
+                decoration: BoxDecoration(border: Border.all(color: const Color(0x33000000))),
+                child: ViIconImage(icon: icon, size: 48),
+              ),
+              const SizedBox(width: 12),
+            ],
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(summary.name ?? '(unnamed)', style: Theme.of(context).textTheme.headlineSmall),
+                  const SizedBox(height: 4),
+                  Text(summary.describe(), style: const TextStyle(color: Colors.grey)),
+                  const SizedBox(height: 4),
+                  Text('source: ${widget.source}', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                ],
+              ),
+            ),
+          ],
+        ),
         const SizedBox(height: 16),
 
         _Section('Identity', [

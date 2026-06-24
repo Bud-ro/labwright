@@ -32,7 +32,7 @@ class _BlockHexViewState extends State<BlockHexView> {
   void initState() {
     super.initState();
     final b = widget.section.bytes;
-    _preview = iconPreview(widget.section.tag, b);
+    _preview = iconPreview(b);
     final isHeap = widget.section.wasCompressed || _looksLikeHeap(b);
     _records = isHeap ? _parseHeap(b, widget.section.tag) : const [];
     _byteToRecord = List<int>.filled(b.length, -1);
@@ -435,30 +435,30 @@ class _ColorPreview extends StatelessWidget {
       ]);
 }
 
-/// A typed whole-section display for icon resource blocks. The 1-bit `ICON`
-/// (32×32, 128 bytes) is rendered exactly (black/white, no palette). The colour
-/// variants (`icl4`/`icl8`) are flagged honestly — faithful rendering needs the
-/// exact Macintosh CLUT, which is not embedded yet, so their bytes are shown in
-/// the hex pane meanwhile. Returns null for non-icon sections.
-Widget? iconPreview(String tag, Uint8List bytes) {
-  const rawSize = {'ICON': 128, 'ICN#': 256, 'icl4': 512, 'icl8': 1024};
-  const depthOf = {'ICON': 1, 'ICN#': 1, 'icl4': 4, 'icl8': 8};
-  final raw = rawSize[tag];
-  if (raw == null) return null;
-  final depth = depthOf[tag]!;
-  // 1-bit icons store 32×32×1 = 128 bytes uncompressed; render those exactly.
-  if (depth == 1 && bytes.length >= 128) {
-    return _IconView(
-      caption: '32×32 · 1-bit icon',
-      child: CustomPaint(size: const Size(192, 192), painter: _Icon1Bit(bytes)),
-    );
-  }
-  // Otherwise it is either RLE-compressed (LabVIEW stores icons packed) or a
-  // colour icon needing the Mac CLUT — neither decoded yet. Identify it honestly.
+/// A typed whole-section display for the VI icon. The recognizable icon is a
+/// plain 24-bit RGB bitmap embedded (uncompressed) in a LabVIEW "picture" stream
+/// — it can appear under several tags (`PICC`/`DSIM`/`FPHb`/…), *not* the
+/// `ICON`/`icl4`/`icl8` resource blocks (those hold unrelated metadata). So this
+/// keys on the bitmap signature in the bytes, not the tag. Returns null when the
+/// section carries no embedded RGB bitmap.
+Widget? iconPreview(Uint8List bytes) {
+  final icon = extractRgbIcon(bytes);
+  if (icon == null) return null;
   return _IconView(
-    caption: '$depth-bit LabVIEW icon · ${bytes.length} B',
-    child: _IconPending(depth: depth, compressed: bytes.length < raw),
+    caption: '${icon.width}×${icon.height} · 24-bit RGB icon',
+    child: ViIconImage(icon: icon),
   );
+}
+
+/// Renders a decoded [ViIcon] (24-bit RGB bitmap) at [size]×[size], nearest-
+/// neighbour scaled so the small icon stays crisp.
+class ViIconImage extends StatelessWidget {
+  const ViIconImage({super.key, required this.icon, this.size = 160});
+  final ViIcon icon;
+  final double size;
+  @override
+  Widget build(BuildContext context) =>
+      SizedBox(width: size, height: size, child: CustomPaint(painter: _RgbIconPainter(icon)));
 }
 
 class _IconView extends StatelessWidget {
@@ -479,56 +479,25 @@ class _IconView extends StatelessWidget {
       );
 }
 
-class _Icon1Bit extends CustomPainter {
-  _Icon1Bit(this.bytes);
-  final Uint8List bytes;
+class _RgbIconPainter extends CustomPainter {
+  _RgbIconPainter(this.icon);
+  final ViIcon icon;
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.drawRect(Offset.zero & size, Paint()..color = Colors.white);
-    final px = size.width / 32;
-    final black = Paint()..color = Colors.black;
-    for (var row = 0; row < 32; row++) {
-      for (var col = 0; col < 32; col++) {
-        final bit = (bytes[row * 4 + (col >> 3)] >> (7 - (col & 7))) & 1;
-        if (bit == 1) canvas.drawRect(Rect.fromLTWH(col * px, row * px, px + 0.5, px + 0.5), black);
+    final pw = size.width / icon.width, ph = size.height / icon.height;
+    final p = Paint();
+    var k = 0;
+    for (var y = 0; y < icon.height; y++) {
+      for (var x = 0; x < icon.width; x++) {
+        p.color = Color.fromARGB(255, icon.rgb[k], icon.rgb[k + 1], icon.rgb[k + 2]);
+        k += 3;
+        canvas.drawRect(Rect.fromLTWH(x * pw, y * ph, pw + 0.5, ph + 0.5), p);
       }
     }
   }
 
   @override
-  bool shouldRepaint(covariant _Icon1Bit oldDelegate) => false;
-}
-
-class _IconPending extends StatelessWidget {
-  const _IconPending({required this.depth, required this.compressed});
-  final int depth;
-  final bool compressed;
-  @override
-  Widget build(BuildContext context) {
-    final msg = compressed
-        ? 'LabVIEW stores this icon\nRLE-compressed — image\ndecoding is a planned\nfollow-up.\n\nRaw bytes shown at left.'
-        : '$depth-bit colour icon.\nColour rendering needs the\nMacintosh $depth-bit palette\n(not embedded yet).\n\nRaw bytes shown at left.';
-    return SizedBox(
-      width: 192,
-      height: 192,
-      child: ColoredBox(
-        color: const Color(0xFF2A2A2A),
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.image_outlined, color: Colors.grey, size: 28),
-                const SizedBox(height: 8),
-                Text(msg, textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  bool shouldRepaint(covariant _RgbIconPainter oldDelegate) => false;
 }
 
 class _StringPreview extends StatelessWidget {
