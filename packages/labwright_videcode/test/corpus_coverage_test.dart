@@ -42,6 +42,37 @@ void main() {
     }
   });
 
+  // The diverse corpus exercises the heap walker/decoders on the most
+  // heterogeneous bytes — guard TOTALITY there too (the most likely place a
+  // walk-desync or unguarded index would throw). Deterministic first-200 slice.
+  test('a vi_diverse slice parses/decodes/walks without throwing (totality)', () {
+    final dd = Directory('/tmp/claude-1000/vi_diverse');
+    if (!dd.existsSync()) return; // diverse set not fetched — skip silently
+    final diverse = (dd
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((f) => f.path.toLowerCase().endsWith('.vi'))
+        .toList()
+      ..sort((a, b) => a.path.compareTo(b.path)))
+        .take(200)
+        .toList();
+    for (final f in diverse) {
+      final bytes = f.readAsBytesSync();
+      expect(() {
+        parseVi(bytes);
+        for (final s in decodeSections(bytes)) {
+          if (!_heapTags.contains(s.tag) || s.bytes.length < 6) continue;
+          final w = walkHeapBody(s.bytes);
+          for (final span in w.spans) {
+            // every framed span must be in-bounds and classifiable
+            expect(span.offset + span.length, lessThanOrEqualTo(s.bytes.length));
+            heapDecodeTier(s.bytes, span.offset, span.lead, s.tag);
+          }
+        }
+      }, returnsNormally, reason: f.path);
+    }
+  });
+
   test('"% deliberately parsed" AND "% semantically decoded" hold at or above baseline', () {
     var framed = 0, body = 0, semantic = 0;
     for (final f in sample) {
