@@ -259,6 +259,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                                           strings: _strings,
                                           components: _components,
                                           sections: _sections,
+                                          model: _model,
                                         ),
                                         // Each layout view is keyed by model identity so loading a
                                         // new VI builds fresh state (resets selection + re-fits).
@@ -346,6 +347,7 @@ class _SummaryView extends StatefulWidget {
     required this.strings,
     required this.components,
     required this.sections,
+    this.model,
   });
   final ViSummary summary;
   final String source;
@@ -353,6 +355,9 @@ class _SummaryView extends StatefulWidget {
   final List<String> strings;
   final List<BlockComponent> components;
   final List<DecodedSection> sections;
+
+  /// The decoded model, used to surface recovered subVI deps + data-type summary.
+  final ViModel? model;
 
   @override
   State<_SummaryView> createState() => _SummaryViewState();
@@ -412,6 +417,38 @@ class _SummaryViewState extends State<_SummaryView> {
             if (version.version != null) _kv('LabVIEW version', version.version!),
             if (version.title != null) _kv('Title', version.title!),
           ]),
+          const SizedBox(height: 16),
+        ],
+
+        // Recovered subVI dependencies (from the LIbd linker block).
+        if (widget.model?.subViNames.isNotEmpty ?? false) ...[
+          Text('SubVIs called (${widget.model!.subViNames.length})', style: const TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 4),
+          Text(
+            widget.model!.subViNames.take(40).join(', ') +
+                (widget.model!.subViNames.length > 40 ? ', … (+${widget.model!.subViNames.length - 40} more)' : ''),
+            style: const TextStyle(fontSize: 12),
+          ),
+          const SizedBox(height: 16),
+        ],
+
+        // Recovered data-type inventory (VCTP type pool).
+        if (widget.model != null && widget.model!.types.isNotEmpty) ...[
+          Builder(builder: (context) {
+            final m = widget.model!;
+            final hist = typeKindHistogram(m.types);
+            final named = namedTypes(m.types).length;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Data types (${m.types.length}${named > 0 ? ', $named named' : ''})',
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 4),
+                Text(hist.entries.map((e) => '${e.key}:${e.value}').join('  '),
+                    style: const TextStyle(fontSize: 12, color: Colors.grey)),
+              ],
+            );
+          }),
           const SizedBox(height: 16),
         ],
 
