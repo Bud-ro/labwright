@@ -2,6 +2,8 @@
 library;
 
 import 'dart:io';
+import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:labwright_videcode/labwright_videcode.dart';
 import 'package:test/test.dart';
@@ -119,5 +121,48 @@ void main() {
     // commit legitimately improves it (mirrors the coverage baseline discipline).
     expect(frac, greaterThanOrEqualTo(0.99),
         reason: 'BD render-typed fraction dropped to ${(frac * 100).toStringAsFixed(2)}% (floor 99%).');
+  });
+
+  // 4. MUTATION-FUZZ ROBUSTNESS — flip bytes inside genuine VIs and push them
+  // through the FULL pipeline (decodeSections -> inflate -> heap walk -> build).
+  // This is deeper than the truncation fuzz (parseVi only) and the random-bytes
+  // buildDiagram test: it exercises the walker on plausibly-corrupt, real-RSRC,
+  // inflated payloads. Contract: each build must COMPLETE (return or throw
+  // cleanly — never hang/OOM), and WHEN it returns, the output must still satisfy
+  // the bounds-sanity invariant (corruption must not leak wild coordinates into
+  // the render). Deterministic RNG so a failure reproduces.
+  test('MUTATION-FUZZ: byte-flipped VIs decode without hanging and never emit wild bounds', () {
+    final rng = Random(0xC0FFEE);
+    for (final f in all.take(40)) {
+      final orig = f.readAsBytesSync();
+      if (orig.length < 64) continue;
+      for (var iter = 0; iter < 8; iter++) {
+        final m = Uint8List.fromList(orig);
+        final flips = 1 + rng.nextInt(3);
+        for (var k = 0; k < flips; k++) {
+          m[rng.nextInt(m.length)] ^= 1 << rng.nextInt(8);
+        }
+        ViModel? built;
+        // Completing this expect at all means no hang/OOM (a hang trips the test
+        // runner timeout); a clean throw on corrupt input is allowed.
+        expect(() {
+          try {
+            built = buildViModel(m);
+          } catch (_) {
+            built = null;
+          }
+        }, returnsNormally);
+        if (built case final mm?) {
+          for (final o in [...mm.blockDiagrams, ...mm.frontPanelDiagrams].expand((d) => d.objects)) {
+            final r = o.absBounds;
+            if (r == null) continue;
+            for (final c in [r.left, r.top, r.right, r.bottom]) {
+              expect(c, inInclusiveRange(-200000, 200000),
+                  reason: 'corruption leaked a wild coordinate $c (seed VI ${f.path}, iter $iter)');
+            }
+          }
+        }
+      }
+    }
   });
 }
