@@ -192,9 +192,14 @@ enum HeapObjectClass {
   /// `0x101` — a root **auxiliary** record; purpose undetermined.
   rootAux(0x101, 'Root auxiliary', ViObjectKind.unknown, ClassConfidence.kindOnly),
 
-  /// `0x53` — a **loop** structure (while/for; not separable from `BDEx`). Owns
-  /// the child-membership reflist; has exactly one `0x11c` subdiagram viewport.
-  loop(0x53, 'Loop (while/for)', ViObjectKind.structure, ClassConfidence.confirmed),
+  /// `0x53` — a **viewport-owning structure**, section-dependent: on the **block
+  /// diagram** a while/for **loop**; on the **front panel** a **control container**
+  /// (cluster / tab / subpanel). Always owns exactly one `0x11c` content viewport +
+  /// the child-membership reflist — so the label can't assert "loop" section-blind.
+  /// Corpus: 5745 BD instances (100% own a `0x11c`); 21993 FP instances (100% own a
+  /// `0x11c` whose contents are placed control terminals 0x50/0x4f/0x51/0x57 — i.e.
+  /// a container of controls, not a loop). The while-vs-for split is not separable.
+  loop(0x53, 'Loop (BD) / container (FP)', ViObjectKind.structure, ClassConfidence.confirmed),
 
   /// `0x52` — a **case / sequence** structure (per-frame contents inline).
   caseOrSequence(0x52, 'Case/sequence', ViObjectKind.structure, ClassConfidence.inferred),
@@ -351,7 +356,9 @@ String _fmtNum(double v) =>
 /// A human-readable range string for a control's decoded [min]/[max], or null
 /// when there is nothing meaningful to show. Honest: uses only **finite** bounds
 /// (a `±∞` sentinel = "no bound" and an absent bound are both omitted), drops an
-/// inverted finite pair, and renders a one-sided bound as `≥ x` / `≤ x`.
+/// inverted *or degenerate* finite pair (`lo >= hi`, so `5 … 5` / `0 … -0.0`
+/// read as noise rather than a real range), and renders a one-sided bound as
+/// `≥ x` / `≤ x`.
 String? formatControlRange(double? min, double? max) {
   // A NaN in EITHER slot means the pair is uninitialized/untrustworthy (corpus:
   // a NaN max paired with a 0/-0.0 min was ~60% of "ranges" — decode noise, not a
@@ -360,9 +367,20 @@ String? formatControlRange(double? min, double? max) {
   final lo = (min != null && min.isFinite) ? min : null;
   final hi = (max != null && max.isFinite) ? max : null;
   if (lo == null && hi == null) return null;
-  if (lo != null && hi != null) return lo > hi ? null : '${_fmtNum(lo)} … ${_fmtNum(hi)}';
+  if (lo != null && hi != null) return lo >= hi ? null : '${_fmtNum(lo)} … ${_fmtNum(hi)}';
   return lo != null ? '≥ ${_fmtNum(lo)}' : '≤ ${_fmtNum(hi!)}';
 }
+
+/// Strips LabVIEW help **markup tags** (`<B>`/`<I>`/`<U>` and their closers, etc.)
+/// from decoded [descriptionText] for *display only* — the raw decode stays
+/// verbatim, this is presentation. ~90% of corpus help text is wrapped in these
+/// tags (e.g. `<B>error out</B> contains…`), which would otherwise show literally
+/// in the details card / tooltip. Conservative: only matches tags whose body is
+/// letters/digits (so a math expression like `a < 5 > 0` is left untouched), and
+/// preserves newlines. Returns the trimmed result.
+String stripHelpMarkup(String s) => s.replaceAll(_helpMarkupTag, '').trim();
+
+final RegExp _helpMarkupTag = RegExp(r'<\s*/?\s*[A-Za-z][A-Za-z0-9]*\s*>');
 
 /// Classifies a heap object into a [ViObjectKind] from its class code and signals
 /// (corpus-validated; see the [HeapObjectClass] catalog). The data-driven
@@ -582,7 +600,11 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
   // Propagate help text up to the nearest DRAWABLE ancestor: help usually lives on
   // a non-drawable tip-strip (0xc1) / description child that carries no bounds, but
   // the details card / faithful tooltip can only show it on a drawn object. Corpus:
-  // 97% of help-bearing objects have a drawable ancestor (controls/structures).
+  // 97% of help-bearing objects have a drawable ancestor. ~25% of landings are on a
+  // non-control drawable (predominantly a 0x53 structure) — intentional: structures
+  // own help too, and the walk takes the *nearest* drawable, so it never bypasses a
+  // drawable control to reach an enclosing structure. First-wins (`??=`) never
+  // overwrites an ancestor that already carries its own help.
   for (final o in objects) {
     final h = o.helpText;
     if (h == null || h.isEmpty || o.absBounds != null) continue;
@@ -641,7 +663,7 @@ List<String> _parseEnumItems(List<int> payload) {
 ///
 /// Control terminals **not** under a `0x11c` (direct on-diagram terminals) are
 /// already in correct absolute coordinates and are left untouched. Corpus-
-/// validated across 398 BDEx sections: control↔control overlap 6.5% → 0.35%,
+/// validated across 398 BDHb sections: control↔control overlap 6.5% → 0.35%,
 /// re-anchored-control-center-inside-its-viewport 12% → 99%.
 void _reanchorScrolledControls(List<ViHeapObject> objects) {
   final byOid = {for (final o in objects) o.oid: o};

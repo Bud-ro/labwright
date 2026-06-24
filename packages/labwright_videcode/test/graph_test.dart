@@ -248,6 +248,50 @@ void main() {
     expect(d.byId[2]!.helpText, 'hover help'); // ...propagated up to the drawn control
   });
 
+  test('help propagation skips a non-drawable intermediate to reach the nearest drawable', () {
+    List<int> c6blob(int id, String s) =>
+        [0xc6, id, 0xff, (4 + s.length) >> 8, (4 + s.length) & 0xff, 0, 0, 0, s.length, ...s.codeUnits];
+    final records = <int>[
+      ...open(0x7e, 1), ...bounds(0, 0, 400, 400),
+      ...open(0x50, 2, tag: 0x1a), ...bounds(10, 10, 30, 100), // drawable control
+      ...open(0x0c, 3, tag: 0x1b), // a non-drawable intermediate (terminal cluster, NO bounds)
+      ...open(0xc1, 4, tag: 0x1c), // tip-strip under the intermediate, carries the help
+      ...c6blob(0x6c, 'deep help'),
+      ...close(0x1c), ...close(0x1b), ...close(0x1a), ...close(),
+    ];
+    final d = buildDiagram(Uint8List.fromList([0, 0, 0, records.length, ...records]));
+    expect(d.byId[3]!.absBounds, isNull); // the intermediate is genuinely not drawn (gets skipped)
+    expect(d.byId[3]!.helpText, isNull); // ...and is NOT where the help lands
+    expect(d.byId[2]!.helpText, 'deep help'); // help reaches the nearest DRAWABLE ancestor
+  });
+
+  test('help propagation lands on a 0x53 structure when that is the nearest drawable ancestor', () {
+    List<int> c6blob(int id, String s) =>
+        [0xc6, id, 0xff, (4 + s.length) >> 8, (4 + s.length) & 0xff, 0, 0, 0, s.length, ...s.codeUnits];
+    final records = <int>[
+      ...open(0x53, 1), ...bounds(0, 0, 200, 200), // a drawable structure (intentional target)
+      ...open(0xc1, 2, tag: 0x1a), // tip-strip child, no bounds
+      ...c6blob(0x6c, 'structure help'),
+      ...close(0x1a), ...close(),
+    ];
+    final d = buildDiagram(Uint8List.fromList([0, 0, 0, records.length, ...records]));
+    expect(d.byId[1]!.helpText, 'structure help'); // structures legitimately own help too
+  });
+
+  test('help propagation never overwrites an ancestor that already carries its own help (??=)', () {
+    List<int> c6blob(int id, String s) =>
+        [0xc6, id, 0xff, (4 + s.length) >> 8, (4 + s.length) & 0xff, 0, 0, 0, s.length, ...s.codeUnits];
+    final records = <int>[
+      ...open(0x50, 1), ...bounds(10, 10, 30, 100), // drawable control with its OWN help
+      ...c6blob(0x6c, 'own help'),
+      ...open(0xc1, 2, tag: 0x1a), // a child tip-strip with DIFFERENT help
+      ...c6blob(0x6c, 'child help'),
+      ...close(0x1a), ...close(),
+    ];
+    final d = buildDiagram(Uint8List.fromList([0, 0, 0, records.length, ...records]));
+    expect(d.byId[1]!.helpText, 'own help'); // first-wins: the control's own help is preserved
+  });
+
   test('a 0x6C <u8len> library token does NOT become helpText (only the FF blob does)', () {
     // C6 6C <u8 len> <u32 strlen><ascii> — a library/format token, NOT help text.
     List<int> u8tok(String s) => [0xc6, 0x6c, 4 + s.length, 0, 0, 0, s.length, ...s.codeUnits];
@@ -268,8 +312,19 @@ void main() {
     expect(formatControlRange(double.negativeInfinity, double.infinity), isNull); // both ±∞ -> nothing
     expect(formatControlRange(null, null), isNull);
     expect(formatControlRange(1.0, -1.0), isNull); // inverted finite pair -> nothing
+    expect(formatControlRange(5.0, 5.0), isNull); // degenerate equal pair -> noise, not a range
+    expect(formatControlRange(0.0, -0.0), isNull); // 0 vs -0.0 (lo >= hi) -> nothing
     expect(formatControlRange(0.0, double.nan), isNull); // NaN max -> untrustworthy pair
     expect(formatControlRange(double.nan, 10.0), isNull);
+  });
+
+  test('stripHelpMarkup removes LabVIEW markup tags for display but keeps real text', () {
+    expect(stripHelpMarkup('<B>error out</B> contains error information.'),
+        'error out contains error information.');
+    expect(stripHelpMarkup('<B>code</B> is 0.'), 'code is 0.');
+    expect(stripHelpMarkup('line one\n<I>line</I> two'), 'line one\nline two'); // newlines kept
+    expect(stripHelpMarkup('plain help, no tags'), 'plain help, no tags');
+    expect(stripHelpMarkup('threshold a < 5 > 0 holds'), 'threshold a < 5 > 0 holds'); // math not eaten
   });
 
   test('buildDiagram terminates on a parentOid cycle (reanchorViewport guard)', () {

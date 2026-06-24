@@ -304,7 +304,7 @@ enum AttrConfidence {
 /// `_rectPayloadIds` / `_containerPayloadIds`). `C6 <id> FF` is a length-prefixed blob.
 ///
 /// This is the single place that names every attribute id we have decoded from
-/// the corpus (1.23M attribute records across 398 BDEx sections). Each entry
+/// the corpus (1.23M attribute records across 398 BDHb object-heap sections). Each entry
 /// documents its [kind], assigned name, [confidence], and the corpus evidence.
 /// An id not catalogued maps to [HeapAttribute.unknown]; resolve a raw id with
 /// [HeapAttribute.fromId] and decode a record with [decodeHeapAttr].
