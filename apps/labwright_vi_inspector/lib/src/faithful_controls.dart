@@ -85,6 +85,8 @@ Widget _faithfulFor(ViHeapObject o) {
       return const _ControlWidget(form: _Form.string);
     case HeapObjectClass.pathControl:
       return const _ControlWidget(form: _Form.path);
+    case HeapObjectClass.bdNodeTerminal:
+      return const _TerminalPin();
     case HeapObjectClass.graphIndicator:
       return const _GraphPlaceholder();
     default:
@@ -155,6 +157,20 @@ class _LabelText extends StatelessWidget {
               Shadow(color: Color(0x88FFFFFF), blurRadius: 2.5),
             ],
           ),
+        ),
+      );
+}
+
+/// A block-diagram node I/O terminal — a small connection pin on a node border.
+/// Kept deliberately subtle (a thin outlined stub) so ~42k of them per corpus
+/// read as wiring points, not control boxes that swamp the node icons.
+class _TerminalPin extends StatelessWidget {
+  const _TerminalPin();
+  @override
+  Widget build(BuildContext context) => Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFFB9C7D6),
+          border: Border.all(color: const Color(0xFF5B6B7A), width: 0.5),
         ),
       );
 }

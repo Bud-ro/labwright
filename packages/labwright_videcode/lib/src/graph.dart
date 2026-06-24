@@ -285,6 +285,14 @@ enum HeapObjectClass {
   /// caption/help. Renders as a node box.
   bdNamedNode(0x31, 'Node (named)', ViObjectKind.node, ClassConfidence.inferred),
 
+  /// `0x16` — a **block-diagram node terminal** (an I/O connection point on a
+  /// node). Corpus: 41830 BD instances, 0 FP, uniform **32×16**, each nested under
+  /// a zero-area node body `0x1d` (grandparent the node container `0x1b`), carrying
+  /// one `0xa` label child; `termCount == 0` and no decoded data type. The small
+  /// fixed footprint on a node body identifies it as a terminal/pin; rendered as a
+  /// subtle pin rather than a full control to avoid cluttering the node icon.
+  bdNodeTerminal(0x16, 'Node terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
   // --- Control / indicator terminal containers (top-level on the diagram) ---
   /// `0x50` — a **numeric** control/indicator terminal (defining signal: a
   /// `0xE0` numeric-display child + `C4 74` printf format).
