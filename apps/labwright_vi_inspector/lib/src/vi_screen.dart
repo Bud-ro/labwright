@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:labwright_videcode/labwright_videcode.dart';
 import 'package:labwright_viparse/labwright_viparse.dart';
 
+import 'diagram_view.dart';
 import 'vi_demo.dart';
 
 /// Imports a LabVIEW `.vi`/`.ctl` file and shows what it is and does — type,
@@ -21,6 +22,7 @@ class ViInspectorScreen extends StatefulWidget {
     this.initialVersion,
     this.initialStrings,
     this.initialComponents,
+    this.initialModel,
   });
 
   /// Optional summary to show on first build (used by tests).
@@ -38,6 +40,9 @@ class ViInspectorScreen extends StatefulWidget {
   /// Optional per-block components to show on first build (tests).
   final List<BlockComponent>? initialComponents;
 
+  /// Optional decoded model (for the Diagram tab) to show on first build (tests).
+  final ViModel? initialModel;
+
   @override
   State<ViInspectorScreen> createState() => _ViInspectorScreenState();
 }
@@ -51,6 +56,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
   ViVersionInfo? _version;
   List<String> _strings = const [];
   List<BlockComponent> _components = const [];
+  ViModel? _model;
 
   @override
   void initState() {
@@ -60,6 +66,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
     _version = widget.initialVersion;
     _strings = widget.initialStrings ?? const [];
     _components = widget.initialComponents ?? const [];
+    _model = widget.initialModel;
   }
 
   @override
@@ -75,10 +82,12 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
     ViVersionInfo? version;
     var strings = const <String>[];
     var components = const <BlockComponent>[];
+    ViModel? model;
     if (load.isOk) {
       version = decodeVersion(bytes);
       strings = extractHeapStrings(bytes);
       components = blockComponents(bytes);
+      model = buildViModel(bytes);
     }
     setState(() {
       _summary = load.summary;
@@ -87,6 +96,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
       _version = version;
       _strings = strings;
       _components = components;
+      _model = model;
     });
   }
 
@@ -201,12 +211,31 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                       ? _ErrorCard(_error!)
                       : _summary == null
                           ? _Empty(dragging: _dragging)
-                          : _SummaryView(
-                              summary: _summary!,
-                              source: _source,
-                              version: _version,
-                              strings: _strings,
-                              components: _components,
+                          : DefaultTabController(
+                              length: 2,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  const TabBar(
+                                    tabs: [Tab(text: 'Inspect'), Tab(text: 'Diagram')],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Expanded(
+                                    child: TabBarView(
+                                      children: [
+                                        _SummaryView(
+                                          summary: _summary!,
+                                          source: _source,
+                                          version: _version,
+                                          strings: _strings,
+                                          components: _components,
+                                        ),
+                                        ViDiagramView(model: _model),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                 ),
               ),
@@ -400,10 +429,12 @@ class _SummaryViewState extends State<_SummaryView> {
                 Text('Read-only viewer', style: TextStyle(fontWeight: FontWeight.bold)),
                 SizedBox(height: 6),
                 Text(
-                  'Shows the RSRC container, decoded version/title, and the human-readable '
-                  'strings embedded in the heaps. Recovering the full block-diagram graph '
-                  '(the BDEx/BDHb heap is LabVIEW opcode-serialized) — the step needed to '
-                  'view or auto-translate the actual logic — is the in-progress next stage.',
+                  'Shows the RSRC container, decoded version/title, embedded strings, and — '
+                  'in the Diagram tab — the recovered block-diagram object layout (each '
+                  'object at its absolute position, colored by kind, with its label and data '
+                  'type). Decoded clean-room from the heap; honest by construction — signal '
+                  'wires are not drawn (no recoverable endpoints), and function-vs-subVI is '
+                  'not distinguishable from the block diagram alone.',
                 ),
               ],
             ),
