@@ -7,7 +7,7 @@
     "decodeOk": 60,
     "heaps": 120,
     "deliberatelyParsed": 0.9417,
-    "semanticallyDecoded": 0.8063,
+    "semanticallyDecoded": 0.807,
     "valueKindKnown": 0.1243,
     "fullyParsedHeaps": 0.9833
   }

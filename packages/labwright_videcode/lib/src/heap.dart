@@ -485,6 +485,14 @@ enum HeapAttribute {
   /// (98.8% sane; the `+inf` sentinel = "no max"). Pairs with [foregroundColor].
   foregroundColorB(0x21, HeapAttrKind.color, 'lineColorOrControlMax', AttrConfidence.inferred),
 
+  /// `0x2A` — **plot / trace colour** (RGB; 100% opaque flag, hued — white/red/
+  /// blue/green, ~21% grey), scoped to plot objects (kind 0x27). A genuine colour.
+  plotColor(0x2a, HeapAttrKind.color, 'plotColor', AttrConfidence.inferred),
+
+  /// `0x2B` — **fill / area colour** (RGB; 100% colour-flag sentinel, ~95% grey
+  /// plus a transparent minority), on graph/area objects (kind 0x68).
+  areaFillColor(0x2b, HeapAttrKind.color, 'areaFillColor', AttrConfidence.inferred),
+
   /// `0xD0` — **colour** (RGB; diverse hues). Direction not pinned.
   miscColor(0xd0, HeapAttrKind.color, 'miscColor', AttrConfidence.inferred),
 
