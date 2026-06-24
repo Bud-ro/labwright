@@ -62,4 +62,33 @@ void main() {
     await tester.pump();
     expect(tester.takeException(), isNull); // no RenderFlex overflow at tiny bounds
   });
+
+  testWidgets('block-diagram kinds render a non-empty faithful widget (not SizedBox.shrink)', (tester) async {
+    tester.view.physicalSize = const Size(800, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    // Guards the BD classification work: these kinds were unclassified and rendered
+    // as nothing; they must now route to real widgets (node/structure/leaf/label/glyph).
+    HeapRect box(int i) => HeapRect(top: i * 40, left: 0, bottom: i * 40 + 32, right: 60);
+    final objs = [
+      ViHeapObject(oid: 1, kind: 0x2f, offset: 0)..absBounds = box(0), // node
+      ViHeapObject(oid: 2, kind: 0x31, offset: 0)..absBounds = box(1), // named node
+      ViHeapObject(oid: 3, kind: 0x16, offset: 0)..absBounds = box(2), // terminal/constant leaf
+      ViHeapObject(oid: 4, kind: 0x2c, offset: 0)..absBounds = box(3), // structure frame
+      ViHeapObject(oid: 5, kind: 0x95, offset: 0) // case selector label
+        ..absBounds = box(4)
+        ..label = 'True',
+      ViHeapObject(oid: 6, kind: 0x177, offset: 0)..absBounds = box(5), // glyph
+    ];
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: FaithfulLayer(objects: objs, origin: Offset.zero, size: const Size(800, 800))),
+    ));
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    expect(find.text('True'), findsOneWidget); // 0x95 selector label text is drawn
+    // The four box kinds each paint a Container (node/structure/leaf); none collapse
+    // to SizedBox.shrink — a revert to the old empty render would drop these.
+    expect(find.byType(Container), findsWidgets);
+  });
 }

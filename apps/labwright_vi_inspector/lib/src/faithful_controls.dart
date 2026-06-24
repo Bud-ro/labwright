@@ -68,9 +68,13 @@ Widget _faithfulFor(ViHeapObject o) {
     case HeapObjectClass.loop:
     case HeapObjectClass.caseOrSequence:
     case HeapObjectClass.clusterShell:
-      return _StructureFrame(isCase: o.objectClass == HeapObjectClass.caseOrSequence);
+    case HeapObjectClass.bdStructureFrame:
+      return const _StructureFrame();
     case HeapObjectClass.controlLabel:
+    case HeapObjectClass.bdSelectorLabel: // case selector text (True/False/case name)
       return _LabelText(o.label);
+    case HeapObjectClass.bdGlyph:
+      return const _Glyph();
     case HeapObjectClass.numericControl:
     case HeapObjectClass.numericControlVariant:
       return const _ControlWidget(form: _Form.numeric);
@@ -85,14 +89,14 @@ Widget _faithfulFor(ViHeapObject o) {
       return const _ControlWidget(form: _Form.string);
     case HeapObjectClass.pathControl:
       return const _ControlWidget(form: _Form.path);
-    case HeapObjectClass.bdNodeTerminal:
-      return const _TerminalPin();
+    case HeapObjectClass.bdLeaf:
+      return const _LeafBox();
     case HeapObjectClass.graphIndicator:
       return const _GraphPlaceholder();
     default:
       // Fall back by coarse category.
       if (o.category == ViObjectKind.node) return _NodeBox(o.label);
-      if (o.category == ViObjectKind.structure) return const _StructureFrame(isCase: false);
+      if (o.category == ViObjectKind.structure) return const _StructureFrame();
       if (o.category == ViObjectKind.terminal) return const _ControlWidget(form: _Form.generic);
       return const SizedBox.shrink();
   }
@@ -103,16 +107,16 @@ const _kField = Color(0xFFFAFAFA);
 const _kInk = Color(0xFF1A1A1A);
 
 class _StructureFrame extends StatelessWidget {
-  const _StructureFrame({required this.isCase});
-  final bool isCase;
+  const _StructureFrame();
   @override
+  // Outline-only (no fill) so nesting reads via overlap like the wireframe, and
+  // deeply-nested frames don't accumulate a muddy tint (structures contain other
+  // structures ~79% of the time). The brown border is the LabVIEW structure look.
   Widget build(BuildContext context) => Container(
         decoration: BoxDecoration(
-          color: const Color(0x14000000),
           border: Border.all(color: const Color(0xFF8C6B3F), width: 3),
           borderRadius: BorderRadius.circular(4),
         ),
-        // a thin inner highlight for the LabVIEW structure look
         child: Container(
           margin: const EdgeInsets.all(1),
           decoration: BoxDecoration(border: Border.all(color: const Color(0x33FFFFFF))),
@@ -161,16 +165,32 @@ class _LabelText extends StatelessWidget {
       );
 }
 
-/// A block-diagram node I/O terminal — a small connection pin on a node border.
-/// Kept deliberately subtle (a thin outlined stub) so ~42k of them per corpus
-/// read as wiring points, not control boxes that swamp the node icons.
-class _TerminalPin extends StatelessWidget {
-  const _TerminalPin();
+/// A free-standing block-diagram leaf (0x16) — a small terminal/constant box at
+/// its real 32×16 bounds (corpus: it sits a median 216px from any node, so it is
+/// NOT an on-node pin). Light fill + thin border so it reads as a small diagram
+/// element without dominating; the terminal-vs-constant role is not recoverable.
+class _LeafBox extends StatelessWidget {
+  const _LeafBox();
   @override
   Widget build(BuildContext context) => Container(
         decoration: BoxDecoration(
-          color: const Color(0xFFB9C7D6),
+          color: const Color(0x225B6B7A),
           border: Border.all(color: const Color(0xFF5B6B7A), width: 0.5),
+          borderRadius: BorderRadius.circular(1),
+        ),
+      );
+}
+
+/// A small fixed node glyph (0x177, 12×12) — drawn as a faint centred dot rather
+/// than a filled box, so ~6k of them mark their spot without adding visual weight.
+class _Glyph extends StatelessWidget {
+  const _Glyph();
+  @override
+  Widget build(BuildContext context) => const Center(
+        child: SizedBox(
+          width: 4,
+          height: 4,
+          child: DecoratedBox(decoration: BoxDecoration(color: Color(0x99000000), shape: BoxShape.circle)),
         ),
       );
 }

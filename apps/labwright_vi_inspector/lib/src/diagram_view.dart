@@ -60,6 +60,8 @@ class _ViDiagramViewState extends State<ViDiagramView> {
           for (final o in _diagram.objects)
             if (o.absBounds != null &&
                 o.absBounds!.isValid &&
+                o.absBounds!.width > 0 && // zero-area objects (e.g. 0x1d node bodies) are not drawn
+                o.absBounds!.height > 0 &&
                 o.absBounds!.width < 8000 &&
                 o.absBounds!.height < 8000 &&
                 !_isScaffolding(o, _byId))
