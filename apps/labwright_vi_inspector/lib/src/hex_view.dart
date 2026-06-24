@@ -362,7 +362,7 @@ _SpanInfo _classify(Uint8List b, HeapSpan s, String tag) {
       final op = rec.opcode;
       final opc = rec.kind;
       final hexop = 'C4 ${op.toRadixString(16).padLeft(2, '0')}';
-      final r = rec.bounds ?? rec.sizeRect;
+      final r = rec.rect; // any rectangle-shape opcode (0x2d/0x1f/0x4a/0x5f/…), not just bounds/size
       if (r != null) {
         return make(_cRect, '$hexop · ${opc.name}',
             'Rectangle (4× s16): top ${r.top}, left ${r.left}, bottom ${r.bottom}, right ${r.right}  (${r.width}×${r.height}).',
