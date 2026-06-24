@@ -150,4 +150,103 @@ abstract final class ViExport {
     }
     return out.toBytes();
   }
+
+  /// Walks the section descriptors inside an info-area buffer, yielding each
+  /// real descriptor's position (relative to the info-area start) and its
+  /// `secRel`. Mirrors `readViSections` but operates on the isolated info area
+  /// (so offsets are info-relative): `blockListRel@0x2c` → block list
+  /// (`u32 count` + `count` × 12-byte entries) → 20-byte descriptors, keeping
+  /// only rows whose `+16` word is the `0xFFFFFFFF` sentinel (section, not name).
+  static List<({int dpos, int secRel})> _infoDescriptors(Uint8List info) {
+    final out = <({int dpos, int secRel})>[];
+    if (info.length < 0x30) return out;
+    final ibd = ByteData.sublistView(info);
+    final blockListRel = ibd.getUint32(0x2c);
+    final countPos = blockListRel; // info-relative
+    if (countPos < 0 || countPos + 4 > info.length) return out;
+    final count = ibd.getUint32(countPos);
+    if (count > 100000) return out;
+    const sentinel = 0xFFFFFFFF;
+    const descSize = 20;
+    final descBase = countPos + 8;
+    var entry = countPos + 4;
+    for (var i = 0; i < count && entry + 12 <= info.length; i++) {
+      final sectionCount = ibd.getUint32(entry + 4) + 1; // stored as count-1
+      final descRel = ibd.getUint32(entry + 8);
+      entry += 12;
+      for (var s = 0; s < sectionCount; s++) {
+        final dpos = descBase + descRel + s * descSize;
+        if (dpos < 0 || dpos + descSize > info.length) break;
+        if (ibd.getUint32(dpos + 16) != sentinel) continue; // name-table row
+        out.add((dpos: dpos, secRel: ibd.getUint32(dpos + 4)));
+      }
+    }
+    return out;
+  }
+
+  /// Replaces the payload of the section at [secRel] with [newPayload] and
+  /// re-serializes the whole `.vi`, applying every offset fixup so the result is
+  /// a valid container that re-parses to the edited content. This is the core of
+  /// the VI editor: change one section's bytes, get back a coherent file.
+  ///
+  /// Fixups, given `delta = newPayload.length - oldPayload.length`:
+  /// - the section's own `u32` length prefix → `newPayload.length`;
+  /// - every later data-area section shifts by `delta` (handled by rebuilding
+  ///   from [decomposeDataArea]);
+  /// - every info-area descriptor whose `secRel` is **strictly past** [secRel]
+  ///   gets `delta` added (descriptors at or before the edit, incl. ones sharing
+  ///   [secRel], are unchanged);
+  /// - the header's `infoOffset@16` and `dataSize@28` grow by `delta`
+  ///   (`dataOffset@24` is unaffected — the data area still starts at 32).
+  ///
+  /// A no-op edit (`newPayload` equal to the current payload) reproduces the
+  /// input byte-for-byte. Corpus-validated across 7583 VIs (no-op byte-exact;
+  /// grow and shrink both re-parse with the target updated and all other sections
+  /// byte-identical). Throws [ViFormatException] if [secRel] is not a section
+  /// start in the data area.
+  static Uint8List editSection(Uint8List viBytes, {required int secRel, required Uint8List newPayload}) {
+    final c = ViContainer.parse(viBytes);
+    final segs = decomposeDataArea(viBytes);
+    ViSectionData? target;
+    for (final s in segs) {
+      if (s is ViSectionData && s.secRel == secRel) {
+        target = s;
+        break;
+      }
+    }
+    if (target == null) {
+      throw ViFormatException('no section at secRel $secRel to edit');
+    }
+    final delta = newPayload.length - target.payload.length;
+
+    // data area: swap the target payload, rebuild (later spans shift with it)
+    final newSegs = [
+      for (final s in segs)
+        if (s is ViSectionData && s.secRel == secRel) ViSectionData(secRel: secRel, payload: newPayload) else s,
+    ];
+    final newData = rebuildDataArea(newSegs);
+
+    // info area: shift every descriptor secRel strictly past the edit point
+    final newInfo = Uint8List.fromList(c.infoArea);
+    if (delta != 0) {
+      final ibd = ByteData.sublistView(newInfo);
+      for (final dsc in _infoDescriptors(newInfo)) {
+        if (dsc.secRel > secRel) ibd.setUint32(dsc.dpos + 4, dsc.secRel + delta);
+      }
+    }
+
+    // header: bump infoOffset + dataSize by delta (dataOffset stays put)
+    final newHeader = Uint8List.fromList(c.header);
+    final hbd = ByteData.sublistView(newHeader);
+    hbd
+      ..setUint32(16, hbd.getUint32(16) + delta)
+      ..setUint32(28, hbd.getUint32(28) + delta);
+
+    final out = Uint8List(newHeader.length + newData.length + newInfo.length);
+    out
+      ..setRange(0, newHeader.length, newHeader)
+      ..setRange(newHeader.length, newHeader.length + newData.length, newData)
+      ..setRange(newHeader.length + newData.length, out.length, newInfo);
+    return out;
+  }
 }

@@ -64,4 +64,16 @@ void main() {
       expect(out, orderedEquals([0, 0, 0, 5, 7, 7, 7, 7, 7]));
     });
   });
+
+  group('ViExport.editSection', () {
+    test('throws when no section starts at the given secRel', () {
+      // a synthetic container has no info-area descriptors, so no editable
+      // section is located — editSection must reject rather than corrupt.
+      final bytes = _container([1, 2, 3, 4], const []);
+      expect(
+        () => ViExport.editSection(bytes, secRel: 0, newPayload: Uint8List.fromList([9])),
+        throwsA(isA<ViFormatException>()),
+      );
+    });
+  });
 }
