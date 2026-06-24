@@ -199,6 +199,19 @@ void main() {
       expect(txt.rgb, isNull);
     });
 
+    test('0x6C <u8len> u32-strlen form decodes a library/format name (validity-gated)', () {
+      // C6 6C <len=10> <u32 strlen=6> "Robot!"
+      final rec = Uint8List.fromList([0xc6, 0x6c, 0x0a, 0x00, 0x00, 0x00, 0x06, ...'Robot!'.codeUnits]);
+      final a = decodeHeapAttr(rec, 0)!;
+      expect(a.attribute, HeapAttribute.helpDescription);
+      expect(a.kind, HeapAttrKind.stringBlob);
+      expect(a.asString, 'Robot!');
+      expect(a.length, 13);
+      // A non-validating payload (strlen overruns len) is NOT fabricated — null.
+      final bad = Uint8List.fromList([0xc6, 0x6c, 0x06, 0x00, 0x00, 0x00, 0x40, 0x41, 0x42]);
+      expect(decodeHeapAttr(bad, 0), isNull);
+    });
+
     test('0x6C help-description blob (C6 6C FF) decodes to text', () {
       final blob = Uint8List.fromList([
         0xc6, 0x6c, 0xff, 0x00, 0x0a, // C6 6C FF len=10

@@ -371,13 +371,13 @@ enum HeapAttribute {
   /// names ("Label", "Visible", "Width"). Not scoped to one object kind.
   propertyName(0x31, HeapAttrKind.stringBlob, 'propertyName', AttrConfidence.confirmed),
 
-  /// `0x6C` — **help / description text** in the `C6 6C FF` blob form (~91%
-  /// printable ASCII after the decoder filters non-printable bytes; usually a
-  /// VI/control description like "This VI is called before others…", occasionally
-  /// another short string such as a version number). NOTE: the *dominant* 0x6c
-  /// form is actually `C6 6C <u8 len>` carrying a `<u32 strlen><ascii>` string
-  /// (~96% of records — CLF/library names like "ps2000aRunStreaming"); that form
-  /// is NOT yet decoded here (only the FF blob is). The `C6 6C 08` form is ambiguous.
+  /// `0x6C` — a **string** id with two decoded forms (both → [HeapAttrKind.stringBlob]):
+  /// the `C6 6C FF` blob is help/description text (~91% printable; VI/control
+  /// descriptions, occasionally a version number), and the `C6 6C <u8 len>` form
+  /// carries a `<u32 strlen><ascii>` string — CLF/library and format names like
+  /// "ps2000aRunStreaming", "%f" (see [_u32StringIds]). Only ~53% of the `<u8len>`
+  /// records validate as a clean string, so [decodeHeapAttr] per-record-validates
+  /// and frames the rest. The `C6 6C 08` form is ambiguous and left framed.
   helpDescription(0x6c, HeapAttrKind.stringBlob, 'helpDescription', AttrConfidence.inferred),
 
   /// `0x63` / `0x64` — a **paired pixel rectangle block** carried as
@@ -656,6 +656,14 @@ const Set<int> _f64PayloadIds = {0xf5, 0xf6, 0xf7, 0xf8, 0xf9, 0xfa, 0x20, 0x21,
 /// 100% printable. See [HeapAttribute.propertyName].
 const Set<int> _inlineStringIds = {0x31};
 
+/// Attribute ids whose `C6 <id> <u8 len>` (len ∉ {0x08, 0xFF}) form carries a
+/// `<u32 strlen><ascii>` string — the short-length sibling of the `C6 …FF` blob.
+/// `0x6C` uses it for CLF/library and format names ("ps2000aRunStreaming", "%f").
+/// Only ~53% of `0x6c <u8len>` records match cleanly, so [decodeHeapAttr]
+/// per-record-validates (strlen fits + fully printable) and leaves the rest framed
+/// — never fabricating a string.
+const Set<int> _u32StringIds = {0x6c};
+
 /// Attribute ids whose `C5 <id> <len>` payload is an **opaque length-prefixed
 /// container** (NOT a scalar f64): `0xE7` — the front-panel control attribute
 /// blob, 100% in the `25 15 → C5 E7 → 44 9F` chain, 99% scoped to FP controls.
@@ -726,6 +734,24 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
       s = String.fromCharCodes(body.sublist(from, to).where((c) => c >= 0x20 && c < 0x7f));
     }
     return HeapAttr(attribute: HeapAttribute.fromId(id), id: id, width: HeapAttrWidth.blob, value: s, length: 5 + len);
+  }
+
+  // C6 <id> <u8 len> <u32 strlen><ascii> — the short-length string form (sibling
+  // of the FF blob), e.g. 0x6c CLF/library names. Per-record validated so it never
+  // fabricates: only decodes when strlen fits and the bytes are fully printable.
+  if (op == 0xc6 && offset + 3 <= body.length && _u32StringIds.contains(body[offset + 1])) {
+    final id = body[offset + 1];
+    final len = body[offset + 2];
+    if (len != 0xff && len != 0x08 && len >= 5 && offset + 3 + len <= body.length) {
+      final p = offset + 3;
+      final strLen = (body[p] << 24) | (body[p + 1] << 16) | (body[p + 2] << 8) | body[p + 3];
+      if (strLen >= 1 && strLen + 4 <= len) {
+        final raw = body.sublist(p + 4, p + 4 + strLen);
+        if (raw.every((c) => c >= 0x20 && c < 0x7f)) {
+          return HeapAttr(attribute: HeapAttribute.fromId(id), id: id, width: HeapAttrWidth.blob, value: String.fromCharCodes(raw), length: 3 + len);
+        }
+      }
+    }
   }
 
   // The `64 cb 26` form is a fixed 3-byte record, NOT a `0x64` u24 attribute —
