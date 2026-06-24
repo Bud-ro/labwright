@@ -7,6 +7,12 @@ import 'faithful_controls.dart';
 /// click-to-inspect) or a **faithful** render (real-looking interactive controls).
 enum DiagramRenderMode { wireframe, faithful }
 
+/// Faithful mode mounts one live (stateful) Flutter control per object, so it is
+/// capped: diagrams with more drawable objects than this fall back to the cheap
+/// single-CustomPaint wireframe (a few corpus VIs reach several thousand objects,
+/// which would otherwise mount thousands of controllers/render objects at once).
+const int kFaithfulMaxObjects = 1500;
+
 /// A read-only **layout view** of a decoded VI block diagram, rendered to a
 /// faithful, LabVIEW-like canvas: every recovered object drawn at its absolute
 /// coordinates, with nesting-aware z-order, type-faithful terminal colors,
@@ -35,6 +41,8 @@ class ViDiagramView extends StatefulWidget {
 class _ViDiagramViewState extends State<ViDiagramView> {
   final _tc = TransformationController();
   ViHeapObject? _selected;
+  // The selected object's drawn members, resolved once per selection (not in build).
+  Set<ViHeapObject> _members = const {};
   Size? _lastViewport;
   Rect? _lastContent;
   bool _fitted = false;
@@ -122,18 +130,25 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                         minScale: 0.02,
                         maxScale: 16,
                         boundaryMargin: const EdgeInsets.all(2000),
-                        child: _mode == DiagramRenderMode.faithful
+                        // Faithful mounts one live (stateful) widget per object, so
+                        // it is capped: above kFaithfulMaxObjects it would mount
+                        // thousands of controllers/render objects at once (jank/OOM)
+                        // — fall back to the cheap single-CustomPaint wireframe.
+                        child: (_mode == DiagramRenderMode.faithful && ordered.length <= kFaithfulMaxObjects)
                             ? FaithfulLayer(objects: ordered, origin: content.topLeft, size: content.size)
                             : GestureDetector(
                                 behavior: HitTestBehavior.opaque,
                                 onTapDown: (d) => _selectAt(d.localPosition, ordered, content),
                                 child: CustomPaint(
+                                  // Static object+label layer — repaints only when the
+                                  // diagram changes, never on a selection tap.
                                   size: Size(content.width, content.height),
-                                  painter: _DiagramPainter(
-                                    objects: ordered,
+                                  painter: _DiagramPainter(objects: ordered, origin: content.topLeft),
+                                  // Cheap highlight overlay — repaints on tap.
+                                  foregroundPainter: _OverlayPainter(
                                     origin: content.topLeft,
                                     selected: _selected,
-                                    members: _membersOf(_selected),
+                                    members: _members,
                                   ),
                                 ),
                               ),
@@ -147,7 +162,28 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                   left: 8,
                   right: 8,
                   bottom: 8,
-                  child: _DetailsCard(object: _selected!, onClose: () => setState(() => _selected = null)),
+                  child: _DetailsCard(object: _selected!, onClose: () => setState(() {
+                        _selected = null;
+                        _members = const {};
+                      })),
+                ),
+              if (_mode == DiagramRenderMode.faithful && _ordered.length > kFaithfulMaxObjects)
+                Positioned(
+                  left: 8,
+                  right: 8,
+                  top: 8,
+                  child: Material(
+                    color: const Color(0xFFFFF3CD),
+                    borderRadius: BorderRadius.circular(4),
+                    child: Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Text(
+                        'Faithful mode is disabled for large diagrams '
+                        '(${_ordered.length} objects > $kFaithfulMaxObjects) — showing wireframe.',
+                        style: const TextStyle(fontSize: 12, color: Color(0xFF7A5B00)),
+                      ),
+                    ),
+                  ),
                 ),
             ],
           ),
@@ -183,7 +219,10 @@ class _ViDiagramViewState extends State<ViDiagramView> {
             selected: {_mode},
             onSelectionChanged: (s) => setState(() {
               _mode = s.first;
-              if (_mode == DiagramRenderMode.faithful) _selected = null;
+              if (_mode == DiagramRenderMode.faithful) {
+                _selected = null;
+                _members = const {};
+              }
             }),
           ),
           const SizedBox(width: 8),
@@ -210,22 +249,13 @@ class _ViDiagramViewState extends State<ViDiagramView> {
         }
       }
     }
-    setState(() => _selected = hit);
+    setState(() {
+      _selected = hit;
+      _members = _membersOf(hit);
+    });
   }
 
-  /// The **drawn** objects [o] declares as members (childRef ∪ memberRef from the
-  /// 0x14 ref graph), resolved via [_byId] and filtered to objects actually on the
-  /// canvas (has bounds, not scaffolding-suppressed) so a highlight never floats
-  /// over empty canvas. In practice members resolve to a drawn object mostly for
-  /// loops/structures — most other carriers' refs point at non-drawn internal
-  /// records — so the amber typically appears only when a structure is selected.
-  Set<ViHeapObject> _membersOf(ViHeapObject? o) {
-    if (o == null) return const {};
-    return {
-      for (final oid in o.memberOids)
-        if (_byId[oid] case final m? when m.absBounds != null && !identical(m, o) && !_isScaffolding(m, _byId)) m,
-    };
-  }
+  Set<ViHeapObject> _membersOf(ViHeapObject? o) => membersOf(o, _byId);
 
   void _fit() {
     final vp = _lastViewport;
@@ -338,16 +368,29 @@ bool _isScaffolding(ViHeapObject o, Map<int, ViHeapObject> byId) {
   return false;
 }
 
+/// The **static** diagram layer: grid, objects, and labels. Depends only on the
+/// (memoized, stable) object list + origin, so a selection tap never repaints it
+/// — the cheap [_OverlayPainter] handles highlights instead.
+/// The **drawn** objects [o] declares as members (childRef ∪ memberRef from the
+/// 0x14 ref graph), resolved via [byId] and filtered to objects actually on the
+/// canvas (has bounds, not scaffolding-suppressed, not [o] itself) so a highlight
+/// never floats over empty canvas. In practice members resolve to a drawn object
+/// mostly for loops/structures — most other carriers' refs point at non-drawn
+/// internal records — so the amber typically appears only for a selected structure.
+/// Public for testing.
+Set<ViHeapObject> membersOf(ViHeapObject? o, Map<int, ViHeapObject> byId) {
+  if (o == null) return const {};
+  return {
+    for (final oid in o.memberOids)
+      if (byId[oid] case final m? when m.absBounds != null && !identical(m, o) && !_isScaffolding(m, byId)) m,
+  };
+}
+
 class _DiagramPainter extends CustomPainter {
-  _DiagramPainter({required this.objects, required this.origin, required this.selected, this.members = const {}});
+  _DiagramPainter({required this.objects, required this.origin});
 
   final List<ViHeapObject> objects;
   final Offset origin;
-  final ViHeapObject? selected;
-
-  /// The selected object's declared members (childRef ∪ memberRef) — highlighted
-  /// in amber to show the heap's declared membership graph (not positional).
-  final Set<ViHeapObject> members;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -412,25 +455,6 @@ class _DiagramPainter extends CustomPainter {
       )..layout(maxWidth: rect.width - 5);
       tp.paint(canvas, rect.topLeft + const Offset(3, 1));
     }
-    // 5. declared-member highlight (amber) — the selected object's childRef/
-    // memberRef targets, i.e. the heap's declared membership graph.
-    if (members.isNotEmpty) {
-      final mp = Paint()
-        ..color = const Color(0xFFEF6C00)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2;
-      for (final m in members) {
-        if (m.absBounds != null) canvas.drawRect(rectOf(m).inflate(1.5), mp);
-      }
-    }
-    // 6. selection highlight.
-    final sel = selected;
-    if (sel != null && sel.absBounds != null) {
-      canvas.drawRect(rectOf(sel).inflate(2.5), Paint()
-        ..color = const Color(0xFF1565C0)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.5);
-    }
   }
 
   void _drawDotGrid(Canvas canvas, Size size) {
@@ -456,8 +480,49 @@ class _DiagramPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _DiagramPainter old) =>
       // objects is the memoized stable list (same instance across rebuilds), so
-      // identity is enough — an incidental rebuild (hover, toolbar) won't repaint.
-      !identical(old.objects, objects) || old.origin != origin || !identical(old.selected, selected) ||
+      // identity is enough — a selection tap repaints only the cheap overlay.
+      !identical(old.objects, objects) || old.origin != origin;
+}
+
+/// The **overlay** layer: just the selection + declared-member highlight strokes.
+/// A few `drawRect`s, so a selection tap repaints this (not the static object
+/// layer). Shares the object→canvas mapping with [_DiagramPainter].
+class _OverlayPainter extends CustomPainter {
+  _OverlayPainter({required this.origin, required this.selected, required this.members});
+
+  final Offset origin;
+  final ViHeapObject? selected;
+  final Set<ViHeapObject> members;
+
+  Rect _rectOf(ViHeapObject o) {
+    final r = o.absBounds!;
+    return Rect.fromLTRB(r.left - origin.dx, r.top - origin.dy, r.right - origin.dx, r.bottom - origin.dy);
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // declared-member highlight (amber) — the selected object's childRef/memberRef.
+    if (members.isNotEmpty) {
+      final mp = Paint()
+        ..color = const Color(0xFFEF6C00)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2;
+      for (final m in members) {
+        if (m.absBounds != null) canvas.drawRect(_rectOf(m).inflate(1.5), mp);
+      }
+    }
+    final sel = selected;
+    if (sel != null && sel.absBounds != null) {
+      canvas.drawRect(_rectOf(sel).inflate(2.5), Paint()
+        ..color = const Color(0xFF1565C0)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.5);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _OverlayPainter old) =>
+      old.origin != origin || !identical(old.selected, selected) ||
       old.members.length != members.length || !old.members.containsAll(members);
 }
 

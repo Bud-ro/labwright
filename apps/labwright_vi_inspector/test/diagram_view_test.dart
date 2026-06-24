@@ -112,6 +112,49 @@ void main() {
     expect(find.text('OFF'), findsOneWidget);
   });
 
+  test('membersOf resolves declared members to DRAWN objects only', () {
+    // A structure (0x53) declaring: childRef->9 (drawn 0x50), memberRef->10
+    // (scaffolding 0x09), childRef->11 (undeclared). Only #9 should resolve.
+    final records = <int>[
+      ...open(0x7e, 1), ...bounds(0, 0, 400, 400),
+      ...open(0x53, 2, tag: 0x1a), ...bounds(10, 10, 200, 200),
+      0x14, 0x19, 0x01, 0xfd, 0x00, 0x09, // childRef -> 9 (drawn)
+      0x14, 0x4f, 0x01, 0xfd, 0x00, 0x0a, // memberRef -> 10 (scaffolding)
+      0x14, 0x19, 0x01, 0xfd, 0x00, 0x0b, // childRef -> 11 (never declared)
+      ...open(0x50, 9, tag: 0x1b), ...bounds(20, 20, 37, 100), ...close(0x1b), // a drawn control
+      ...open(0x09, 10, tag: 0x1c), ...bounds(40, 40, 57, 100), ...close(0x1c), // scaffolding (0x09)
+      ...close(0x1a),
+      ...close(),
+    ];
+    final body = Uint8List.fromList([0, 0, 0, records.length, ...records]);
+    final d = buildDiagram(body);
+    final structure = d.byId[2];
+    final members = membersOf(structure, d.byId);
+    expect(members.map((m) => m.oid).toSet(), {9}); // 10 scaffolding-suppressed, 11 missing
+    expect(membersOf(null, d.byId), isEmpty);
+  });
+
+  testWidgets('tapping a structure with members does not crash and highlights', (tester) async {
+    tester.view.physicalSize = const Size(1000, 1000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final records = <int>[
+      ...open(0x7e, 1), ...bounds(0, 0, 400, 400),
+      ...open(0x53, 2, tag: 0x1a), ...bounds(10, 10, 200, 200),
+      0x14, 0x19, 0x01, 0xfd, 0x00, 0x09,
+      ...open(0x50, 9, tag: 0x1b), ...bounds(20, 20, 60, 120), ...close(0x1b),
+      ...close(0x1a),
+      ...close(),
+    ];
+    final model = _modelFromRecords([0, 0, 0, records.length, ...records]);
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: ViDiagramView(diagrams: model.blockDiagrams))));
+    await tester.pump();
+    await tester.tapAt(const Offset(120, 120)); // inside the structure, outside the control
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('empty model shows an honest placeholder, not a crash', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: Scaffold(body: ViDiagramView(diagrams: null))));
     expect(find.textContaining('No decodable layout'), findsOneWidget);
