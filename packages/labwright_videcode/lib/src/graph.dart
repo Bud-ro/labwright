@@ -171,8 +171,8 @@ enum ClassConfidence {
 /// heaps (`FPHb`) — there object instances are ≈99% catalogued. **Block-diagram**
 /// (`BDHb`) coverage splits two ways: (1) the high-volume **non-drawable** internal
 /// records `0x15`/`0x33`/`0x17`/`0x30` (0 bounds — invisible, no render cost) are
-/// unnamed but never shown; (2) of the **drawable** BD objects ~98.7% are now
-/// catalogued (nodes/structures/leaves/labels), leaving a ~1.3% visible long tail
+/// unnamed but never shown; (2) of the **drawable** BD objects ~99.3% are now
+/// catalogued (nodes/structures/leaves/labels), leaving a ~0.7% visible long tail
 /// that classifies `unknown` and draws a faint placeholder. Naming (1) changes
 /// nothing visible; the visible gap is (2). (The `BDEx`/`FPEx`
 /// extended sections DO exist and are loaded — 3792/3000 of them — but in this
@@ -275,6 +275,16 @@ enum HeapObjectClass {
   /// median 233×138, parent `0x1b`; `0xa` caption reads `In Place Element
   /// Structure`. Renders as a structure frame.
   bdInPlaceStructure(0x14d, 'In Place Element structure', ViObjectKind.structure, ClassConfidence.inferred),
+
+  /// `0xCA` — a **Flat Sequence structure** frame. Corpus: 560 BD (0 FP), median
+  /// 223×217, parent the node container `0x1b`; `0xa` caption reads `Flat Sequence
+  /// Structure`. Renders as a structure frame.
+  bdFlatSequence(0xca, 'Flat Sequence structure', ViObjectKind.structure, ClassConfidence.inferred),
+
+  /// `0x29` — a **Stacked Sequence structure** frame. Corpus: 423 BD (0 FP), median
+  /// 105×97, parent `0x1b`; `0xa` caption reads `Stacked Sequence Structure`.
+  /// Renders as a structure frame.
+  bdStackedSequence(0x29, 'Stacked Sequence structure', ViObjectKind.structure, ClassConfidence.inferred),
 
   /// `0x95` — a **case/sequence selector label row** on a structure frame's top
   /// edge (the `True`/`False`/case-name strip). Corpus: **16118 BD** instances
@@ -414,6 +424,27 @@ enum HeapObjectClass {
   /// caption, so the specific primitive is unrecoverable: [ClassConfidence.kindOnly].
   bdNode153(0x153, 'Node (primitive)', ViObjectKind.node, ClassConfidence.kindOnly),
 
+  /// `0x6A` — a **Call Library Function Node** (calls into a native DLL/.so).
+  /// Corpus: 878 BD (0 FP), median 40×59, parent `0x1b`; 764/878 carry an `0xa`
+  /// caption that is a library entry point (`ps3000.dll:_ps3000_open_unit@0`,
+  /// `setMaxMinAppAndDriverBuffers`). Renders as a node box.
+  bdCallLibrary(0x6a, 'Call Library node', ViObjectKind.node, ClassConfidence.inferred),
+
+  /// `0xBD` — a **built-in primitive node**. Corpus: 623 BD (0 FP), median 32×33,
+  /// parent `0x1b`; labelled ones read `Delete From Array`. Renders as a node box.
+  bdNodeBd(0xbd, 'Node (primitive)', ViObjectKind.node, ClassConfidence.inferred),
+
+  /// `0x114` — a **built-in primitive node**. Corpus: 425 BD (0 FP), median 32×27,
+  /// parent `0x1b`; labelled ones read `Initialize Array` / `Overflow array`.
+  /// Renders as a node box.
+  bdNode114(0x114, 'Node (primitive)', ViObjectKind.node, ClassConfidence.inferred),
+
+  /// `0xB6` — a **VI-reference / property-style node** (object kind, distinct from
+  /// the `0xb6` method-name attribute id). Corpus: 503 BD (0 FP), median 58×21,
+  /// parent `0x1b`; 469/503 carry an `0xa` caption (`This VI`, `Server in`).
+  /// Renders as a node box.
+  bdNodeB6(0xb6, 'Node', ViObjectKind.node, ClassConfidence.inferred),
+
   /// `0x16` — a **free-standing block-diagram terminal/constant leaf**. Corpus:
   /// 41830 BD instances, 0 FP, uniform **32×16** (41091/41830), each nested under a
   /// zero-area node body `0x1d` (grandparent the node container `0x1b`);
@@ -450,6 +481,17 @@ enum HeapObjectClass {
   /// + a `0xa` name caption (`Payload`, `Incoming Message`, `SessionMailbox`),
   /// parented to a control container (`0x13`/`0x11c`/`0x52`). Renders as a terminal.
   controlTerminal55(0x55, 'Control terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  /// `0x10C` — a **control/indicator terminal** (section-consistent, FP-dominant:
+  /// 797 BD + 7650 FP), median 48×48; 723/797 BD carry an `0xa` data-name caption
+  /// (`Connection.WS in`, `CONNACK in`), parented to a control container
+  /// (`0x13`/`0x11c`/`0x52`). Renders as a terminal.
+  controlTerminal10c(0x10c, 'Control terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  /// `0xC2` — a small **constant/terminal** (both heaps: 643 BD + 968 FP), median
+  /// 15×19, parented to a control container (`0x11c`/`0x13`); labelled ones read as
+  /// short data names (`variant`, `storage`, `cache`). Renders as a terminal.
+  constantC2(0xc2, 'Constant/terminal', ViObjectKind.terminal, ClassConfidence.inferred),
 
   /// `0x5B` — a **path** control terminal (nests a browse-button `0x4F`).
   pathControl(0x5b, 'Path control', ViObjectKind.terminal, ClassConfidence.inferred),
