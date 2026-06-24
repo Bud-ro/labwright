@@ -165,6 +165,7 @@ void main() {
     expect(classifyObject(kind: 0x2c, termCount: 0), ViObjectKind.structure); // BD structure frame
     expect(classifyObject(kind: 0x95, termCount: 0), ViObjectKind.terminal); // case selector label
     expect(classifyObject(kind: 0x177, termCount: 0), ViObjectKind.decoration); // node glyph
+    expect(classifyObject(kind: 0x63, termCount: 0), ViObjectKind.node); // growable node
     // the C4-1F terminal signal still wins over the catalog category.
     expect(classifyObject(kind: 0x50, termCount: 2), ViObjectKind.terminalCluster);
   });

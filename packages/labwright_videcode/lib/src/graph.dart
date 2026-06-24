@@ -309,6 +309,14 @@ enum HeapObjectClass {
   /// caption/help. Renders as a node box.
   bdNamedNode(0x31, 'Node (named)', ViObjectKind.node, ClassConfidence.inferred),
 
+  /// `0x63` — a **growable/resizable block-diagram node** (e.g. Bundle/Unbundle
+  /// By Name, Property Node). Corpus: 13737 BD instances (0 FP), wide-short and
+  /// variable (median 100×18, p90 151×65), parented to the node container `0x1b`,
+  /// holding the structural `0x15` records; the labelled ones (`0xa` child) carry
+  /// function names like `Unbundle By Name` / `Bundle By Name` — confirming a node.
+  /// Renders as a node box.
+  bdGrowableNode(0x63, 'Node (growable)', ViObjectKind.node, ClassConfidence.inferred),
+
   /// `0x16` — a **free-standing block-diagram terminal/constant leaf**. Corpus:
   /// 41830 BD instances, 0 FP, uniform **32×16**, each nested under a zero-area node
   /// body `0x1d` (grandparent the node container `0x1b`); `termCount == 0`, no
