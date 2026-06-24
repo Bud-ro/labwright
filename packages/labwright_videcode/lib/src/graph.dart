@@ -145,6 +145,10 @@ class ViHeapObject {
   /// null. The VI/control's documentation string.
   String? helpText;
 
+  /// Decoded property/element names attached to this object (`0x31` inline
+  /// strings, deduped) — e.g. "Scale", "FP.State" on a property node. May be empty.
+  List<String> propertyNames = const [];
+
   /// The named, documented class catalog entry for this object's [kind]
   /// (or [HeapObjectClass.unknown] if the code is not catalogued).
   HeapObjectClass get objectClass => HeapObjectClass.fromCode(kind);
@@ -341,8 +345,9 @@ enum HeapObjectClass {
 const kControlTerminalCodes = {0x50, 0x4f, 0x57, 0x5b, 0x51};
 
 /// Attribute ids `buildDiagram` surfaces onto [ViHeapObject] (a fast id pre-filter
-/// before the heavier `decodeHeapAttr`): 0x20/0x21 = control range, 0x6c = help text.
-const _objAttrIds = {0x20, 0x21, 0x6c};
+/// before the heavier `decodeHeapAttr`): 0x20/0x21 = control range, 0x6c = help
+/// text, 0x31 = property/element names.
+const _objAttrIds = {0x20, 0x21, 0x6c, 0x31};
 
 String _fmtNum(double v) =>
     v == v.roundToDouble() && v.abs() < 1e15 ? v.toInt().toString() : v.toString();
@@ -544,6 +549,14 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDEx'}) {
         if (a.attribute == HeapAttribute.helpDescription && o + 2 < n && body[o + 2] == 0xff) {
           final s = a.asString;
           if (s != null && s.isNotEmpty) cur.helpText ??= s;
+        }
+        // Property/element names (0x31 inline strings) — collect distinct, capped.
+        if (a.attribute == HeapAttribute.propertyName) {
+          final s = a.asString;
+          if (s != null && s.isNotEmpty) {
+            if (cur.propertyNames.isEmpty) cur.propertyNames = <String>[];
+            if (cur.propertyNames.length < 12 && !cur.propertyNames.contains(s)) cur.propertyNames.add(s);
+          }
         }
       }
     }

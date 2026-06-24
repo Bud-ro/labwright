@@ -229,6 +229,17 @@ void main() {
     expect(deco.controlMax, isNull);
   });
 
+  test('property/element names (0x31) are collected onto the object (distinct)', () {
+    List<int> name(String s) => [0xc6, 0x31, s.length, ...s.codeUnits]; // C6 31 <len> <ascii>
+    final records = <int>[
+      ...open(0x110, 1), ...bounds(0, 0, 17, 80), // a property node
+      ...name('Scale'), ...name('Maximum'), ...name('Scale'), // duplicate Scale
+      ...close(),
+    ];
+    final o = buildDiagram(Uint8List.fromList([0, 0, 0, records.length, ...records])).byId[1]!;
+    expect(o.propertyNames, ['Scale', 'Maximum']); // deduped, order-preserving
+  });
+
   test('formatControlRange renders honestly (finite-only, inverted/±∞ suppressed)', () {
     expect(formatControlRange(-5.0, 10.0), '-5 … 10');
     expect(formatControlRange(0.0, 2.5), '0 … 2.5');

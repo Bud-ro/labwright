@@ -585,6 +585,8 @@ class _DetailsCard extends StatelessWidget {
                     _detail('range', range),
                   if (object.helpText != null && object.helpText!.trim().isNotEmpty)
                     _detail('help', object.helpText!.trim()),
+                  if (object.propertyNames.isNotEmpty)
+                    _detail('names', object.propertyNames.take(10).join(', ')),
                 ],
               ),
             ),
