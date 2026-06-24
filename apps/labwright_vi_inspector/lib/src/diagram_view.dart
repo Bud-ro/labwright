@@ -51,9 +51,15 @@ class _ViDiagramViewState extends State<ViDiagramView> {
       );
     }
 
+    final byId = diagram.byId;
     final drawable = [
       for (final o in diagram.objects)
-        if (o.absBounds != null && o.absBounds!.isValid && o.absBounds!.width < 8000 && o.absBounds!.height < 8000) o,
+        if (o.absBounds != null &&
+            o.absBounds!.isValid &&
+            o.absBounds!.width < 8000 &&
+            o.absBounds!.height < 8000 &&
+            !_isScaffolding(o, byId))
+          o,
     ];
     if (drawable.isEmpty) {
       return const Center(child: Text('Diagram has no positioned objects.', style: TextStyle(color: Colors.grey)));
@@ -67,7 +73,6 @@ class _ViDiagramViewState extends State<ViDiagramView> {
       counts[o.category] = (counts[o.category] ?? 0) + 1;
     }
     // depth (for z-order: containers first) and a stable paint order.
-    final byId = diagram.byId;
     final ordered = [...drawable]..sort((a, b) => _depth(a, byId).compareTo(_depth(b, byId)));
 
     return Column(
@@ -250,6 +255,36 @@ Color _kindColor(ViObjectKind k) => switch (k) {
 
 Color _objectColor(ViHeapObject o) =>
     o.category == ViObjectKind.terminal && o.typeKind != ViTypeKind.unknown ? _typeColor(o.typeKind) : _kindColor(o.category);
+
+/// Control-terminal classes — their internal sub-terminals are scaffolding.
+const _controlKinds = {0x50, 0x4f, 0x57, 0x5b, 0x51};
+
+/// Whether [o] is pure LabVIEW chrome that a faithful layout view should not
+/// draw (corpus-validated; suppresses ~76% of raw heap objects, leaving real
+/// structures, nodes, controls, decorations and caption bars):
+/// - resize/scroll handles (`0x09`);
+/// - content viewports (`0x11c`) — used only as the re-anchor frame, the
+///   enclosing cluster/structure is drawn instead;
+/// - hidden no-bounds terminals (`0x68`);
+/// - the display/increment/terminal parts internal to a control
+///   (`0xe0`/`0x0b`/`0x0c` with a control-kind ancestor) — the control is drawn
+///   as a single unit, not its internals.
+bool _isScaffolding(ViHeapObject o, Map<int, ViHeapObject> byId) {
+  if (o.kind == 0x09 || o.kind == 0x11c) return true;
+  if (o.kind == 0x68 && o.bounds == null) return true;
+  if (o.kind == 0xe0 || o.kind == 0x0b || o.kind == 0x0c) {
+    var p = o.parentOid;
+    var d = 0;
+    while (p != null && d < 64) {
+      final po = byId[p];
+      if (po == null) break;
+      if (_controlKinds.contains(po.kind)) return true;
+      p = po.parentOid;
+      d++;
+    }
+  }
+  return false;
+}
 
 class _DiagramPainter extends CustomPainter {
   _DiagramPainter({required this.objects, required this.origin, required this.selected});

@@ -81,6 +81,45 @@ void main() {
     expect(d.byId[5]!.typeKind, ViTypeKind.enumRing);
   });
 
+  test('scrolled-cluster control terminals are re-anchored to their viewport', () {
+    // A cluster (0x53) at (200,50) holds a content viewport (0x11c) at local
+    // (10,5) -> abs (210,55). Its control terminals (0x50) live in the viewport's
+    // scrolled content frame with large-negative tops, so naive ancestor
+    // composition floats them ~300px above the cluster. After re-anchoring they
+    // should form a clean column inside the viewport.
+    final records = <int>[
+      ...open(0x7e, 1), ...bounds(0, 0, 500, 500),
+      ...open(0x53, 2), ...bounds(200, 50, 400, 200),
+      ...open(0x11c, 3), ...bounds(10, 5, 160, 130), // viewport abs (210,55)
+      ...open(0x50, 4), ...bounds(-300, 9, -256, 105), // group min top
+      ...open(0xa, 6), ...bounds(0, 11, 17, 107), ...caption('Start'), // label rides along
+      ...close(),
+      ...close(),
+      ...open(0x50, 5), ...bounds(-262, 9, -218, 105), // +38 below #4
+      ...close(),
+      ...close(), // close viewport
+      ...close(), // close cluster
+      ...open(0x50, 7), ...bounds(300, 300, 320, 350), // direct terminal, NOT under a viewport
+      ...close(),
+      ...close(), // close root
+    ];
+    final d = buildDiagram(Uint8List.fromList([0, 0, 0, records.length, ...records]));
+    final vp = d.byId[3]!.absBounds!;
+    final c4 = d.byId[4]!.absBounds!, c5 = d.byId[5]!.absBounds!;
+
+    // #4 re-anchored to the viewport origin; #5 sits 38px below it; both inside.
+    expect([c4.top, c4.left], [210, 55]);
+    expect(c5.top, 248);
+    for (final c in [c4, c5]) {
+      final cy = (c.top + c.bottom) ~/ 2;
+      expect(cy >= vp.top && cy <= vp.bottom, isTrue, reason: 'control center inside viewport');
+    }
+    // The control's label subtree moved with it (no longer detached).
+    expect(d.byId[6]!.absBounds!.top, 210);
+    // A direct on-diagram terminal (not under a 0x11c) is left untouched.
+    expect([d.byId[7]!.absBounds!.top, d.byId[7]!.absBounds!.left], [300, 300]);
+  });
+
   test('buildDiagram is total over arbitrary bytes', () {
     final junk = Uint8List.fromList([for (var i = 0; i < 400; i++) (i * 17 + 3) & 0xff]);
     expect(() {
