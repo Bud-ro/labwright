@@ -101,10 +101,21 @@ class ViHeapObject {
 
   /// Child-membership object-id references from `14 19 01 fd <id>` records (the
   /// `10 55 01 fb` reflist) — the oids a structure/container holds, **not** wire
-  /// endpoints. DECODED BUT NOT YET CONSUMED by the diagram/faithful views (which
-  /// use [parentOid]); see [HeapRefKind] for the wider ref family (memberRef etc.)
-  /// that is decoded by `decodeHeapRef` but not collected here.
+  /// endpoints. The childRef subset of [typedRefs] (kept for compatibility).
   final List<int> refs = <int>[];
+
+  /// The full **`0x14` typed object-reference graph** for this object, keyed by
+  /// relationship ([HeapRefKind]) and decoded by `decodeHeapRef` — the heap's
+  /// *declared* membership/links, distinct from the positional [parentOid] tree.
+  final Map<HeapRefKind, List<int>> typedRefs = <HeapRefKind, List<int>>{};
+
+  /// The oids this object **declares as members** (childRef ∪ memberRef) — used
+  /// by the diagram to highlight a structure's members (which the positional
+  /// nesting tree does not capture; the two diverge ~72%). May be empty.
+  Iterable<int> get memberOids => <int>{
+        ...?typedRefs[HeapRefKind.childRef],
+        ...?typedRefs[HeapRefKind.memberRef],
+      };
 
   /// Number of `C4 1F` terminal records attached.
   int termCount = 0;
@@ -471,8 +482,14 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDEx'}) {
       } else if (rec.opcode == 0x2e) {
         if (cur.items.isEmpty) cur.items = _parseEnumItems(rec.payload);
       }
-    } else if (lead == 0x14 && o + 6 <= n && body[o + 1] == 0x19 && body[o + 2] == 0x01 && body[o + 3] == 0xfd) {
-      cur.refs.add((body[o + 4] << 8) | body[o + 5]);
+    } else if (lead == 0x14) {
+      // Typed object reference (the heap's declared object graph). Single-source
+      // via decodeHeapRef (handles every subop + rejects the 0x53 literal).
+      final r = decodeHeapRef(body, o);
+      if (r != null) {
+        (cur.typedRefs[r.kind] ??= <int>[]).add(r.targetOid);
+        if (r.kind == HeapRefKind.childRef) cur.refs.add(r.targetOid);
+      }
     }
   }
 

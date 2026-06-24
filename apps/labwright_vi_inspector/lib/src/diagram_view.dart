@@ -129,7 +129,12 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                                 onTapDown: (d) => _selectAt(d.localPosition, ordered, content),
                                 child: CustomPaint(
                                   size: Size(content.width, content.height),
-                                  painter: _DiagramPainter(objects: ordered, origin: content.topLeft, selected: _selected),
+                                  painter: _DiagramPainter(
+                                    objects: ordered,
+                                    origin: content.topLeft,
+                                    selected: _selected,
+                                    members: _membersOf(_selected),
+                                  ),
                                 ),
                               ),
                       ),
@@ -206,6 +211,17 @@ class _ViDiagramViewState extends State<ViDiagramView> {
       }
     }
     setState(() => _selected = hit);
+  }
+
+  /// The drawable objects [o] declares as members (childRef ∪ memberRef from the
+  /// 0x14 ref graph), resolved via [_byId] — the heap's declared membership,
+  /// which the positional nesting tree does not capture. Empty when none.
+  Set<ViHeapObject> _membersOf(ViHeapObject? o) {
+    if (o == null) return const {};
+    return {
+      for (final oid in o.memberOids)
+        if (_byId[oid] case final m? when m.absBounds != null && !identical(m, o)) m,
+    };
   }
 
   void _fit() {
@@ -320,11 +336,15 @@ bool _isScaffolding(ViHeapObject o, Map<int, ViHeapObject> byId) {
 }
 
 class _DiagramPainter extends CustomPainter {
-  _DiagramPainter({required this.objects, required this.origin, required this.selected});
+  _DiagramPainter({required this.objects, required this.origin, required this.selected, this.members = const {}});
 
   final List<ViHeapObject> objects;
   final Offset origin;
   final ViHeapObject? selected;
+
+  /// The selected object's declared members (childRef ∪ memberRef) — highlighted
+  /// in amber to show the heap's declared membership graph (not positional).
+  final Set<ViHeapObject> members;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -389,7 +409,18 @@ class _DiagramPainter extends CustomPainter {
       )..layout(maxWidth: rect.width - 5);
       tp.paint(canvas, rect.topLeft + const Offset(3, 1));
     }
-    // 5. selection highlight.
+    // 5. declared-member highlight (amber) — the selected object's childRef/
+    // memberRef targets, i.e. the heap's declared membership graph.
+    if (members.isNotEmpty) {
+      final mp = Paint()
+        ..color = const Color(0xFFEF6C00)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2;
+      for (final m in members) {
+        if (m.absBounds != null) canvas.drawRect(rectOf(m).inflate(1.5), mp);
+      }
+    }
+    // 6. selection highlight.
     final sel = selected;
     if (sel != null && sel.absBounds != null) {
       canvas.drawRect(rectOf(sel).inflate(2.5), Paint()
@@ -423,7 +454,8 @@ class _DiagramPainter extends CustomPainter {
   bool shouldRepaint(covariant _DiagramPainter old) =>
       // objects is the memoized stable list (same instance across rebuilds), so
       // identity is enough — an incidental rebuild (hover, toolbar) won't repaint.
-      !identical(old.objects, objects) || old.origin != origin || !identical(old.selected, selected);
+      !identical(old.objects, objects) || old.origin != origin || !identical(old.selected, selected) ||
+      old.members.length != members.length || !old.members.containsAll(members);
 }
 
 class _DetailsCard extends StatelessWidget {

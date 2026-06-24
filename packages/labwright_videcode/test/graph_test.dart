@@ -65,6 +65,25 @@ void main() {
     expect(s.refs, [9, 10]);
   });
 
+  test('the full 0x14 typed-ref family is collected (childRef + memberRef) into the object graph', () {
+    final records = <int>[
+      ...open(0x53, 1), ...bounds(0, 0, 100, 100),
+      0x14, 0x19, 0x01, 0xfd, 0x00, 0x09, // childRef -> 9
+      0x14, 0x4f, 0x01, 0xfd, 0x00, 0x0b, // memberRef -> 11
+      0x14, 0x50, 0x01, 0xfd, 0x00, 0x0c, // siblingRef -> 12
+      0x14, 0x53, 0x01, 0xfd, 0x00, 0x07, // 0x53 LITERAL — not a ref, must be ignored
+      ...close(),
+    ];
+    final s = buildDiagram(Uint8List.fromList([0, 0, 0, records.length, ...records])).byId[1]!;
+    expect(s.refs, [9]); // childRef subset (backward-compatible)
+    expect(s.typedRefs[HeapRefKind.childRef], [9]);
+    expect(s.typedRefs[HeapRefKind.memberRef], [11]);
+    expect(s.typedRefs[HeapRefKind.siblingRef], [12]);
+    expect(s.typedRefs.containsKey(HeapRefKind.literal), isFalse); // 0x53 literal not collected
+    // memberOids = childRef ∪ memberRef (used by the diagram to highlight members).
+    expect(s.memberOids.toSet(), {9, 11});
+  });
+
   test('classifies kinds and infers type from attached C4 records', () {
     final records = <int>[
       ...open(0x68, 1), ...bounds(0, 0, 17, 17), ...close(), // terminal
