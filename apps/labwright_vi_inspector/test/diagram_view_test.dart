@@ -187,6 +187,31 @@ void main() {
     expect(find.textContaining('No decodable layout'), findsOneWidget);
   });
 
+  group('nodesWithin', () {
+    ViHeapObject obj(int oid, ViObjectKind cat, int t, int l, int b, int r) =>
+        ViHeapObject(oid: oid, kind: 0x2f, offset: 0)
+          ..category = cat
+          ..absBounds = HeapRect(top: t, left: l, bottom: b, right: r);
+
+    test('returns logic nodes spatially inside the structure, excluding outsiders/terminals', () {
+      final loop = obj(1, ViObjectKind.structure, 0, 0, 200, 200);
+      final inside = obj(2, ViObjectKind.node, 20, 20, 60, 100); // a subVI inside
+      final innerLoop = obj(3, ViObjectKind.structure, 30, 30, 90, 150); // nested structure inside
+      final outside = obj(4, ViObjectKind.node, 300, 300, 340, 400); // node outside
+      final termInside = obj(5, ViObjectKind.terminal, 25, 25, 35, 45); // terminal inside (not logic)
+      final within = nodesWithin(loop, [loop, inside, innerLoop, outside, termInside]);
+      expect(within, containsAll([inside, innerLoop]));
+      expect(within, isNot(contains(outside)));
+      expect(within, isNot(contains(termInside))); // terminals are not "logic" contents
+      expect(within, isNot(contains(loop))); // never itself
+    });
+
+    test('a structure with no bounds yields nothing', () {
+      final s = ViHeapObject(oid: 1, kind: 0x53, offset: 0)..category = ViObjectKind.structure;
+      expect(nodesWithin(s, const []), isEmpty);
+    });
+  });
+
   group('wireframeAnnotation', () {
     test('a structure shows its control-flow kind (not blank)', () {
       final loop = ViHeapObject(oid: 1, kind: 0x53, offset: 0)..category = ViObjectKind.structure; // HeapObjectClass.loop

@@ -257,7 +257,12 @@ class _ViDiagramViewState extends State<ViDiagramView> {
     });
   }
 
-  Set<ViHeapObject> _membersOf(ViHeapObject? o) => membersOf(o, _byId);
+  // Selecting a structure highlights the LOGIC NODES spatially inside it (so
+  // "this loop/case contains these subVIs" is visible); other objects fall back
+  // to the declared-ref highlight. (memberOids is not node containment — see the
+  // D.3 finding — so positional containment is the honest signal here.)
+  Set<ViHeapObject> _membersOf(ViHeapObject? o) =>
+      o != null && o.category == ViObjectKind.structure ? nodesWithin(o, _drawable) : membersOf(o, _byId);
 
   void _fit() {
     final vp = _lastViewport;
@@ -410,6 +415,33 @@ Set<ViHeapObject> membersOf(ViHeapObject? o, Map<int, ViHeapObject> byId) {
     for (final oid in o.memberOids)
       if (byId[oid] case final m? when m.absBounds != null && !identical(m, o) && !_isScaffolding(m, byId)) m,
   };
+}
+
+/// The **logic nodes/structures spatially inside** [structure] — the honest
+/// "what this loop/case contains" signal (LabVIEW does not store an explicit
+/// member list for the diagram, so containment is positional). Returns drawable
+/// node/structure objects whose absolute bounds fall within [structure]'s bounds
+/// (excluding itself and same-size overlaps); terminals/decorations are omitted
+/// so the highlight reads as the contained logic. Public for testing.
+Set<ViHeapObject> nodesWithin(ViHeapObject structure, Iterable<ViHeapObject> objects) {
+  final s = structure.absBounds;
+  if (s == null) return const {};
+  final sArea = s.width * s.height;
+  final out = <ViHeapObject>{};
+  for (final o in objects) {
+    if (identical(o, structure)) continue;
+    if (o.category != ViObjectKind.node && o.category != ViObjectKind.structure) continue;
+    final b = o.absBounds;
+    if (b == null) continue;
+    if (b.left >= s.left &&
+        b.top >= s.top &&
+        b.right <= s.right &&
+        b.bottom <= s.bottom &&
+        b.width * b.height < sArea) {
+      out.add(o);
+    }
+  }
+  return out;
 }
 
 class _DiagramPainter extends CustomPainter {
