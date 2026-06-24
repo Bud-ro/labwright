@@ -23,6 +23,10 @@ const int _maxNestingDepth = 96;
 /// ellipsis). Descriptions are usually a line or two but can be long help text.
 const int _descCap = 200;
 
+/// Max named typedefs listed in the scaffold header before truncating (with a
+/// "+N more" note). VIs can define dozens; the header stays readable.
+const int _namedTypeCap = 40;
+
 /// Generates an **honest structural Dart scaffold** from a decoded [ViModel] —
 /// the first VI→IR→Dart codegen step. It is deliberately NOT executable logic:
 /// LabVIEW stores wires as pure geometry with no recoverable node→node
@@ -75,6 +79,16 @@ String generateDartScaffold(ViModel model, {String name = 'vi'}) {
     final hist = typeKindHistogram(model.types);
     final summary = hist.entries.map((e) => '${e.key}:${e.value}').join(', ');
     b.writeln('// Data types (VCTP, ${model.types.length}): ${_oneLine(summary)}');
+  }
+  final named = namedTypes(model.types);
+  if (named.isNotEmpty) {
+    b.writeln('// Named types (typedefs / labelled data items):');
+    for (final t in named.take(_namedTypeCap)) {
+      b.writeln('//   ${t.kind.name} ${_oneLine(t.name!)}');
+    }
+    if (named.length > _namedTypeCap) {
+      b.writeln('//   (+${named.length - _namedTypeCap} more not shown)');
+    }
   }
   // Candidate parameters: the VI's recovered control/label captions. These are
   // the NAMES of the VI's controls/indicators — the raw material of its function

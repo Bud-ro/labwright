@@ -125,4 +125,34 @@ void main() {
     expect(totalUnknown, lessThan(totalTypes * 0.6),
         reason: 'too many uncatalogued type codes: $totalUnknown/$totalTypes');
   });
+
+  test('VCTP named typedefs are recovered and look like real identifiers', () {
+    var files = 0, vIsWithNames = 0, totalNames = 0;
+    final badNames = <String>[];
+    for (final f in all) {
+      final ViModel model;
+      try {
+        model = buildViModel(Uint8List.fromList(f.readAsBytesSync()));
+      } catch (_) {
+        continue;
+      }
+      files++;
+      final named = namedTypes(model.types);
+      if (named.isNotEmpty) vIsWithNames++;
+      totalNames += named.length;
+      for (final t in named) {
+        final n = t.name!;
+        // recovered names must be non-empty, printable, and contain a letter
+        if (n.isEmpty || n.runes.any((c) => c < 0x20 || c >= 0x7f) || !RegExp(r'[A-Za-z]').hasMatch(n)) {
+          if (badNames.length < 8) badNames.add('"$n" in ${f.path.split('/').last}');
+        }
+      }
+    }
+    expect(files, greaterThan(0));
+    expect(totalNames, greaterThan(0));
+    expect(badNames, isEmpty, reason: 'malformed recovered type names: $badNames');
+    // ratchet: named typedefs are common (probe ~most VIs); floor at 40% of VIs.
+    expect(vIsWithNames, greaterThan((files * 0.40).floor()),
+        reason: 'named-type recovery dropped: only $vIsWithNames/$files VIs yielded names');
+  });
 }

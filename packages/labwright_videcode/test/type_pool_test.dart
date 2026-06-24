@@ -53,6 +53,39 @@ void main() {
     expect(types.map((t) => t.kind).toList(), [ViDataType.boolean, ViDataType.i32]);
   });
 
+  test('recovers a trailing Pascal name from a descriptor', () {
+    // count=1; descriptor: [u16 len][flags 0x40][code 0x50 cluster][u8 nameLen=4]["nine"]
+    const name = 'nine';
+    final descBody = <int>[0x40, 0x50, name.length, ...name.codeUnits]; // after the len word
+    final descLen = 2 + descBody.length;
+    final b = <int>[0, 0, 0, 1, (descLen >> 8) & 0xff, descLen & 0xff, ...descBody];
+    final types = decodeTypePool(Uint8List.fromList(b));
+    expect(types.single.kind, ViDataType.cluster);
+    expect(types.single.name, 'nine');
+  });
+
+  test('a descriptor with no trailing name has a null name', () {
+    final types = decodeTypePool(_pool([0x21])); // descLen=4, no name bytes
+    expect(types.single.name, isNull);
+  });
+
+  test('namedTypes returns only the named entries, in order', () {
+    // build two descriptors: first named "aa", second unnamed
+    final named = <int>[0x40, 0x50, 2, 0x61, 0x61]; // cluster "aa"
+    final namedLen = 2 + named.length;
+    final unnamed = <int>[0x40, 0x21]; // bool, no name
+    final unnamedLen = 2 + unnamed.length;
+    final b = <int>[
+      0, 0, 0, 2,
+      (namedLen >> 8) & 0xff, namedLen & 0xff, ...named,
+      (unnamedLen >> 8) & 0xff, unnamedLen & 0xff, ...unnamed,
+    ];
+    final types = decodeTypePool(Uint8List.fromList(b));
+    final names = namedTypes(types);
+    expect(names, hasLength(1));
+    expect(names.single.name, 'aa');
+  });
+
   test('typeKindHistogram counts kinds, most-frequent first', () {
     final types = decodeTypePool(_pool([0x50, 0x50, 0x30, 0x50, 0x21]));
     final h = typeKindHistogram(types);
