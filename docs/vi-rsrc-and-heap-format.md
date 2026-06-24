@@ -327,9 +327,11 @@ the flat scan**: in the correct tree, `0x68` holds **zero** `14 19 01 fd` refs a
 is a **terminal**, not a wire. Those `14 19 01 fd` references are **child-membership
 lists** owned by **structure/diagram containers** (`0x53`: 13,163 refs, `0x4c`:
 4,425) — i.e. "which oids live in this frame", not signal endpoints. Actual
-**dataflow wires are stored as geometry** (a `C4 5F` bounding box, no oid
-endpoints), so node→node dataflow edges are **not** recoverable from oids — an
-honest negative that replaces the earlier over-claim.
+**dataflow wires are not stored with oid endpoints**, so node→node dataflow edges
+are **not** recoverable from ids — an honest negative that replaces the earlier
+over-claim. (The wire-segment record itself is unidentified: a quick probe ruled
+out `C4 5F` — it is 89% 2-D rects, not 1-D line segments — so a prior "wires are
+`C4 5F` bboxes" guess does not hold.)
 
 ### `CONP` / `CPC2` — VI interface — partial 🔬
 
@@ -381,7 +383,8 @@ the diagram; CLN/path live in `DTHP`).
 
 **Honest limits (documented negatives):**
 - **Dataflow wires are not recoverable as oid edges.** Signal wires are stored as
-  *geometry* (a `C4 5F` bounding box, no oid endpoints), so node→node dataflow
+  *geometry* (no oid endpoints; the wire-segment record is unidentified — `C4 5F`
+  was probed and ruled out, being 89% 2-D rects), so node→node dataflow
   edges cannot be resolved from ids. (The `14 19 01 fd` refs are child-membership,
   not wire endpoints — see the nesting section's correction.)
 - **functionNode vs subViNode** and **control vs indicator** terminal are *not*
