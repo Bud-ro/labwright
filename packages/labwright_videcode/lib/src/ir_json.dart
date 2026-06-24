@@ -9,7 +9,8 @@ import 'ir.dart';
 /// consumes: a future translator reads this JSON rather than re-decoding bytes,
 /// and a review UI renders it alongside generated Dart. Bump on any
 /// shape-breaking change to the emitted maps.
-const int viIrVersion = 1;
+/// v2 added `subViNames` (the LIbd subVI dependency list) to the top level.
+const int viIrVersion = 2;
 
 /// Serializes a recovered [ViDiagram] to a JSON-encodable map: its section tag
 /// plus a **flat list of objects** carrying the positional nesting via
@@ -80,6 +81,7 @@ Map<String, Object?> viModelToJson(ViModel m) => {
       if (m.description != null) 'description': m.description,
       if (m.symbolNames.isNotEmpty) 'symbolNames': m.symbolNames,
       if (m.paths.isNotEmpty) 'libraryPaths': m.paths,
+      if (m.subViNames.isNotEmpty) 'subViNames': m.subViNames,
       'blockDiagrams': [for (final d in m.blockDiagrams) viDiagramToJson(d)],
       'frontPanelDiagrams': [for (final d in m.frontPanelDiagrams) viDiagramToJson(d)],
     };

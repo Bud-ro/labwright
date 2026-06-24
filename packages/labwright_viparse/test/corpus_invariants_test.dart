@@ -241,4 +241,54 @@ void main() {
     expect(growOk, equals(grown), reason: 'grow edit broke ${grown - growOk}: $fails');
     expect(shrinkOk, equals(shrunk), reason: 'shrink edit broke ${shrunk - shrinkOk}: $fails');
   });
+
+  // SUBVI NAME RECOVERY: readSubViNames extracts the called-subVI names from the
+  // LIbd linker block. Properties: every recovered name ends in `.vi`, has no
+  // path separators (basename only), is deduped, and excludes the VI's own name.
+  // Recovery is non-trivial across the corpus (subVIs are common) — a ratchet
+  // guards against a regression that silently stops finding them. Corpus probe:
+  // ~82% of VIs yield names; we assert a conservative floor.
+  test('SUBVI: readSubViNames yields clean, deduped, self-excluding .vi names', () {
+    var files = 0, withNames = 0, totalNames = 0;
+    final fails = <String>[];
+    for (final f in all) {
+      final Uint8List bytes;
+      try {
+        bytes = Uint8List.fromList(f.readAsBytesSync());
+      } catch (_) {
+        continue;
+      }
+      files++;
+      final names = readSubViNames(bytes);
+      if (names.isEmpty) continue;
+      String? self;
+      try {
+        self = parseVi(bytes).name?.toLowerCase();
+      } catch (_) {
+        self = null;
+      }
+      final seen = <String>{};
+      for (final n in names) {
+        if (!n.toLowerCase().endsWith('.vi')) {
+          if (fails.length < 8) fails.add('NOT .vi: "$n" in ${f.path.split('/').last}');
+        }
+        if (n.contains('/') || n.contains(r'\')) {
+          if (fails.length < 8) fails.add('HAS PATH SEP: "$n" in ${f.path.split('/').last}');
+        }
+        if (!seen.add(n.toLowerCase())) {
+          if (fails.length < 8) fails.add('DUPLICATE: "$n" in ${f.path.split('/').last}');
+        }
+        if (self != null && n.toLowerCase() == self) {
+          if (fails.length < 8) fails.add('SELF INCLUDED: "$n" in ${f.path.split('/').last}');
+        }
+      }
+      if (names.isNotEmpty) withNames++;
+      totalNames += names.length;
+    }
+    expect(files, greaterThan(0));
+    expect(fails, isEmpty, reason: 'subVI-name recovery cleanliness failures: $fails');
+    // ratchet: recovery must stay broadly effective (corpus ~82%); floor at 60%.
+    expect(withNames, greaterThan((files * 0.60).floor()),
+        reason: 'subVI-name recovery dropped: only $withNames/$files VIs yielded names ($totalNames total)');
+  });
 }

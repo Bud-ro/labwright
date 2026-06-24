@@ -48,6 +48,12 @@ String generateDartScaffold(ViModel model, {String name = 'vi'}) {
       b.writeln('//   - ${_oneLine(p)}');
     }
   }
+  if (model.subViNames.isNotEmpty) {
+    b.writeln('// SubVIs called (from LIbd; which node calls which is not recoverable):');
+    for (final s in model.subViNames) {
+      b.writeln('//   - ${_oneLine(s)}');
+    }
+  }
   // Candidate parameters: the VI's recovered control/label captions. These are
   // the NAMES of the VI's controls/indicators — the raw material of its function
   // signature — but the block diagram alone does not say which are inputs vs

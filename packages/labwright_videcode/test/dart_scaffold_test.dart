@@ -121,6 +121,32 @@ void main() {
     expect(withCaptions, greaterThan(0));
     expect(fails, isEmpty, reason: 'caption surfacing failures: $fails');
   });
+
+  test('scaffold lists every recovered subVI name in its header', () {
+    var files = 0, withSubVis = 0;
+    final fails = <String>[];
+    for (final f in all) {
+      final ViModel model;
+      try {
+        model = buildViModel(Uint8List.fromList(f.readAsBytesSync()));
+      } catch (_) {
+        continue;
+      }
+      files++;
+      if (model.subViNames.isEmpty) continue;
+      withSubVis++;
+      final out = generateDartScaffold(model);
+      for (final s in model.subViNames) {
+        if (!out.contains(_oneLineForTest(s))) {
+          if (fails.length < 8) fails.add('SUBVI "$s" missing in ${f.path.split('/').last}');
+          break;
+        }
+      }
+    }
+    expect(files, greaterThan(0));
+    expect(withSubVis, greaterThan(0), reason: 'no VI exposed subVI names — recovery regressed');
+    expect(fails, isEmpty, reason: 'scaffold dropped subVI name(s): $fails');
+  });
 }
 
 /// Mirrors the scaffold's one-line caption normalization so the test compares the

@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import 'package:labwright_viparse/labwright_viparse.dart' show readSubViNames;
+
 import 'decode.dart';
 import 'graph.dart';
 import 'heap.dart';
@@ -32,6 +34,7 @@ class ViModel {
     required this.heapRecords,
     this.blockDiagrams = const <ViDiagram>[],
     this.frontPanelDiagrams = const <ViDiagram>[],
+    this.subViNames = const <String>[],
   });
 
   /// LabVIEW version the VI was saved in (e.g. `10.0`), or null if unrecoverable.
@@ -70,6 +73,14 @@ class ViModel {
   /// panel layout rather than the diagram. (Which heap actually carries content
   /// varies per VI/save-format — see `corpus/`.)
   final List<ViDiagram> frontPanelDiagrams;
+
+  /// The names of the **subVIs this VI calls**, recovered from the block-diagram
+  /// linker block (`LIbd`) by `readSubViNames` — deduped, order-preserving, the
+  /// VI's own name excluded. Honest VI-level dependency info: it lists *which*
+  /// subVIs are called, not which node calls which (that linkage isn't
+  /// recoverable from the diagram). Empty when none are stored (or when built
+  /// via [buildViModelFromDecoded], which has no raw container bytes).
+  final List<String> subViNames;
 
   /// All recovered diagrams (block + front panel). Back-compat convenience.
   List<ViDiagram> get diagrams => [...blockDiagrams, ...frontPanelDiagrams];
@@ -259,13 +270,17 @@ List<ViObject> assembleObjects(List<HeapRecord> records, List<HeapStringTable> s
 /// Builds the [ViModel] for a `.vi` — the single entry point for the read-only
 /// understanding of a VI. Total: returns a model or throws [ViFormatException]
 /// for a malformed container (never a `RangeError`).
-ViModel buildViModel(Uint8List viBytes) => buildViModelFromDecoded(decodeSections(viBytes));
+ViModel buildViModel(Uint8List viBytes) =>
+    buildViModelFromDecoded(decodeSections(viBytes), subViNames: readSubViNames(viBytes));
 
-/// [buildViModel] over already-decoded sections.
-ViModel buildViModelFromDecoded(Iterable<DecodedSection> decoded) {
+/// [buildViModel] over already-decoded sections. [subViNames] (the `LIbd`
+/// dependency list) is only available from the raw container, so callers on the
+/// decoded path pass it explicitly or accept an empty list.
+ViModel buildViModelFromDecoded(Iterable<DecodedSection> decoded, {List<String> subViNames = const <String>[]}) {
   final list = decoded is List<DecodedSection> ? decoded : decoded.toList();
   final ver = versionFromSections(list.map((d) => d.section));
   return ViModel(
+    subViNames: subViNames,
     version: ver.version,
     title: ver.title,
     description: cpc2Description(list.map((d) => d.section)),
