@@ -371,10 +371,13 @@ enum HeapAttribute {
   /// names ("Label", "Visible", "Width"). Not scoped to one object kind.
   propertyName(0x31, HeapAttrKind.stringBlob, 'propertyName', AttrConfidence.confirmed),
 
-  /// `0x6C` — **help / description text** in the `C6 6C FF` blob form
-  /// (confirmed ASCII: VI/control descriptions like "This VI is called before
-  /// others…", "Robot Main implements the framework and scheduler…"). The
-  /// separate `C6 6C 08` 8-byte form is ambiguous and left framed.
+  /// `0x6C` — **help / description text** in the `C6 6C FF` blob form (~91%
+  /// printable ASCII after the decoder filters non-printable bytes; usually a
+  /// VI/control description like "This VI is called before others…", occasionally
+  /// another short string such as a version number). NOTE: the *dominant* 0x6c
+  /// form is actually `C6 6C <u8 len>` carrying a `<u32 strlen><ascii>` string
+  /// (~96% of records — CLF/library names like "ps2000aRunStreaming"); that form
+  /// is NOT yet decoded here (only the FF blob is). The `C6 6C 08` form is ambiguous.
   helpDescription(0x6c, HeapAttrKind.stringBlob, 'helpDescription', AttrConfidence.inferred),
 
   /// `0x63` / `0x64` — a **paired pixel rectangle block** carried as
