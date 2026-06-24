@@ -40,6 +40,35 @@ class _ViDiagramViewState extends State<ViDiagramView> {
   bool _fitted = false;
   DiagramRenderMode _mode = DiagramRenderMode.wireframe;
 
+  // Layout is derived ONCE per widget (ViDiagramView is keyed by model identity,
+  // so widget.diagrams is immutable for this State's life). Computing it lazily
+  // here — rather than in build() — keeps a selection tap (setState) from
+  // re-filtering/re-sorting/re-measuring the whole diagram each time.
+  late final ViDiagram? _diagram = _largestDiagram(widget.diagrams);
+  late final Map<int, ViHeapObject> _byId = _diagram?.byId ?? const {};
+  late final List<ViHeapObject> _drawable = _diagram == null
+      ? const []
+      : [
+          for (final o in _diagram.objects)
+            if (o.absBounds != null &&
+                o.absBounds!.isValid &&
+                o.absBounds!.width < 8000 &&
+                o.absBounds!.height < 8000 &&
+                !_isScaffolding(o, _byId))
+              o,
+        ];
+  late final List<ViHeapObject> _ordered = [..._drawable]..sort((a, b) => _depth(a, _byId).compareTo(_depth(b, _byId)));
+  late final Rect _content = _drawable.isEmpty ? Rect.zero : _contentRect(_drawable);
+  late final Map<ViObjectKind, int> _counts = _computeCounts();
+
+  Map<ViObjectKind, int> _computeCounts() {
+    final m = <ViObjectKind, int>{};
+    for (final o in _drawable) {
+      m[o.category] = (m[o.category] ?? 0) + 1;
+    }
+    return m;
+  }
+
   @override
   void dispose() {
     _tc.dispose();
@@ -48,8 +77,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
 
   @override
   Widget build(BuildContext context) {
-    final diagram = _largestDiagram(widget.diagrams);
-    if (diagram == null) {
+    if (_diagram == null) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -57,35 +85,18 @@ class _ViDiagramViewState extends State<ViDiagramView> {
         ),
       );
     }
-
-    final byId = diagram.byId;
-    final drawable = [
-      for (final o in diagram.objects)
-        if (o.absBounds != null &&
-            o.absBounds!.isValid &&
-            o.absBounds!.width < 8000 &&
-            o.absBounds!.height < 8000 &&
-            !_isScaffolding(o, byId))
-          o,
-    ];
-    if (drawable.isEmpty) {
+    if (_drawable.isEmpty) {
       return const Center(child: Text('Diagram has no positioned objects.', style: TextStyle(color: Colors.grey)));
     }
 
-    final content = _contentRect(drawable);
+    final content = _content;
     _lastContent = content;
-
-    final counts = <ViObjectKind, int>{};
-    for (final o in drawable) {
-      counts[o.category] = (counts[o.category] ?? 0) + 1;
-    }
-    // depth (for z-order: containers first) and a stable paint order.
-    final ordered = [...drawable]..sort((a, b) => _depth(a, byId).compareTo(_depth(b, byId)));
+    final ordered = _ordered;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _toolbar(drawable.length, counts),
+        _toolbar(_drawable.length, _counts),
         const SizedBox(height: 6),
         Expanded(
           // Stack so the details card is an OVERLAY — it never changes the
@@ -389,7 +400,10 @@ class _DiagramPainter extends CustomPainter {
   }
 
   void _drawDotGrid(Canvas canvas, Size size) {
-    const step = 12.0;
+    // Coarsen the step on very large canvases so the dot count (and per-paint
+    // cost) stays bounded — a 3000×2000 diagram at step 12 would be ~40k draws.
+    final cells = (size.width / 12) * (size.height / 12);
+    final step = cells > 20000 ? 12.0 * (cells / 20000) : 12.0;
     final dot = Paint()..color = const Color(0x22000000);
     for (var x = 0.0; x < size.width; x += step) {
       for (var y = 0.0; y < size.height; y += step) {
@@ -407,7 +421,9 @@ class _DiagramPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _DiagramPainter old) =>
-      old.objects != objects || old.origin != origin || !identical(old.selected, selected);
+      // objects is the memoized stable list (same instance across rebuilds), so
+      // identity is enough — an incidental rebuild (hover, toolbar) won't repaint.
+      !identical(old.objects, objects) || old.origin != origin || !identical(old.selected, selected);
 }
 
 class _DetailsCard extends StatelessWidget {
