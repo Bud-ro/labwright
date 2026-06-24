@@ -29,6 +29,13 @@ enum _Mode { dart, json }
 class _GeneratedDartViewState extends State<GeneratedDartView> {
   _Mode _mode = _Mode.dart;
 
+  // Monospace font size — adjustable because the default is hard to read on 4K.
+  static const double _minFont = 9;
+  static const double _maxFont = 28;
+  double _fontSize = 13;
+  void _bumpFont(double delta) =>
+      setState(() => _fontSize = (_fontSize + delta).clamp(_minFont, _maxFont));
+
   String _functionName() {
     final n = widget.viName?.trim();
     if (n == null || n.isEmpty) return 'vi';
@@ -67,6 +74,20 @@ class _GeneratedDartViewState extends State<GeneratedDartView> {
                   onSelectionChanged: (s) => setState(() => _mode = s.first),
                 ),
                 const SizedBox(width: 12),
+                IconButton(
+                  tooltip: 'Smaller text',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: _fontSize <= _minFont ? null : () => _bumpFont(-1),
+                  icon: const Icon(Icons.text_decrease, size: 18),
+                ),
+                Text('${_fontSize.round()}', style: const TextStyle(fontSize: 12)),
+                IconButton(
+                  tooltip: 'Larger text',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: _fontSize >= _maxFont ? null : () => _bumpFont(1),
+                  icon: const Icon(Icons.text_increase, size: 18),
+                ),
+                const SizedBox(width: 12),
                 const Text(
                   'Read-only · structural outline, dataflow wiring is not recovered',
                   style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
@@ -82,7 +103,7 @@ class _GeneratedDartViewState extends State<GeneratedDartView> {
               padding: const EdgeInsets.all(8),
               child: SelectableText(
                 text,
-                style: const TextStyle(fontFamily: 'monospace', fontSize: 12, height: 1.4),
+                style: TextStyle(fontFamily: 'monospace', fontSize: _fontSize, height: 1.4),
               ),
             ),
           ),

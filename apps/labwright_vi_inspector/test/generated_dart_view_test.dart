@@ -70,6 +70,19 @@ void main() {
     expect(find.textContaining('void vi(', findRichText: true), findsWidgets);
   });
 
+  testWidgets('font size can be increased and decreased', (tester) async {
+    await _pump(tester, GeneratedDartView(model: _bdModel(), viName: 'MyVi.vi'));
+
+    double fontOf() => tester.widget<SelectableText>(find.byType(SelectableText)).style!.fontSize!;
+    final initial = fontOf();
+    await tester.tap(find.byTooltip('Larger text'));
+    await tester.pump();
+    expect(fontOf(), greaterThan(initial));
+    await tester.tap(find.byTooltip('Smaller text'));
+    await tester.pump();
+    expect(fontOf(), initial);
+  });
+
   testWidgets('handles a null model gracefully', (tester) async {
     await _pump(tester, const GeneratedDartView(model: null));
     expect(find.textContaining('No model recovered'), findsOneWidget);
