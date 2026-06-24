@@ -159,6 +159,27 @@ void main() {
     expect(d.byId[2]!.items, ['Low', 'Med', 'High']);
   });
 
+  test('enum item parsing rejects the WHOLE table on overrun or non-printable bytes', () {
+    // Raw C4 2E with a deliberately corrupt pascal-string payload.
+    List<int> rawEnum(List<int> payload) => [0xc4, 0x2e, payload.length, ...payload];
+    List<int> build(List<int> enumRec) {
+      final records = <int>[
+        ...open(0x7e, 1), ...bounds(0, 0, 100, 100),
+        ...open(0x0d, 2, tag: 0x1b), ...bounds(0, 0, 17, 80), ...enumRec,
+        ...close(0x1b),
+        ...close(),
+      ];
+      return [0, 0, 0, records.length, ...records];
+    }
+
+    // First item claims length 10 but only 3 bytes follow -> overrun -> reject all.
+    final overrun = buildDiagram(Uint8List.fromList(build(rawEnum([0x0a, 0x41, 0x42, 0x43]))));
+    expect(overrun.byId[2]!.items, isEmpty);
+    // An embedded non-printable byte (0x00) in an item -> reject the whole table.
+    final nonPrintable = buildDiagram(Uint8List.fromList(build(rawEnum([0x03, 0x41, 0x00, 0x43]))));
+    expect(nonPrintable.byId[2]!.items, isEmpty);
+  });
+
   test('buildDiagram is total over arbitrary bytes', () {
     final junk = Uint8List.fromList([for (var i = 0; i < 400; i++) (i * 17 + 3) & 0xff]);
     expect(() {

@@ -23,6 +23,13 @@ void main() {
     expect(recs[1].text, 'ps2000aRunStreaming');
   });
 
+  test('methodName (0xB6) decodes as text', () {
+    final rec = heapC4RecordsFromDecoded([bdex(c4(0xb6, 'FP.Open'.codeUnits))]).single;
+    expect(rec.kind, HeapOpcode.methodName);
+    expect(rec.kind.isDecoded, isTrue);
+    expect(rec.text, 'FP.Open');
+  });
+
   test('typeBounds (0x4A) decodes via the generic rect accessor', () {
     final rec = heapC4RecordsFromDecoded([
       bdex(c4(0x4a, [0x00, 0x10, 0x00, 0x20, 0x00, 0x30, 0x00, 0x40]))

@@ -85,16 +85,25 @@ class ViHeapObject {
   /// parent node/viewport ~99–100%.
   HeapRect? absBounds;
 
-  /// The `oid` of this object's parent object in the nesting tree, or null for the
-  /// diagram root.
+  /// The `oid` of this object's parent in the **byte-stream nesting tree** (the
+  /// object open at the time this one opened), or null for the diagram root.
+  ///
+  /// NOTE: this is *positional* nesting (serialization order), NOT LabVIEW's
+  /// declared structure/cluster membership. The heap also declares an explicit
+  /// membership graph via the `0x14` typed-ref family ([refs] / [HeapRefKind]),
+  /// and the two diverge substantially (~72% of `14 19` childRefs are not a
+  /// descendant in this tree; `14 4f` memberRefs are orthogonal to it). The
+  /// diagram/faithful layers currently group by this positional tree.
   int? parentOid;
 
   /// The object's label/caption (from a `C4 22` record), or null.
   String? label;
 
-  /// Child-membership object-id references (from `14 19 01 fd <id>` records, the
-  /// `10 55 01 fb` reflist) — populated on structure/diagram container objects;
-  /// these are the oids the container holds, **not** wire endpoints.
+  /// Child-membership object-id references from `14 19 01 fd <id>` records (the
+  /// `10 55 01 fb` reflist) — the oids a structure/container holds, **not** wire
+  /// endpoints. DECODED BUT NOT YET CONSUMED by the diagram/faithful views (which
+  /// use [parentOid]); see [HeapRefKind] for the wider ref family (memberRef etc.)
+  /// that is decoded by `decodeHeapRef` but not collected here.
   final List<int> refs = <int>[];
 
   /// Number of `C4 1F` terminal records attached.
