@@ -340,6 +340,26 @@ Color _kindColor(ViObjectKind k) => switch (k) {
 Color _objectColor(ViHeapObject o) =>
     o.category == ViObjectKind.terminal && o.typeKind != ViTypeKind.unknown ? _typeColor(o.typeKind) : _kindColor(o.category);
 
+/// The label drawn on a wireframe object. Structures (never text-labeled) show
+/// their control-flow KIND (Loop / Case / …) so the wireframe reads as logic too,
+/// at parity with the faithful view; other objects show their recovered name and
+/// (for terminals) data type. Pure + public for unit testing the canvas text.
+String? wireframeAnnotation(ViHeapObject o) {
+  if (o.category == ViObjectKind.structure) {
+    return switch (o.objectClass) {
+      HeapObjectClass.loop => 'Loop',
+      HeapObjectClass.caseOrSequence => 'Case / Sequence',
+      HeapObjectClass.clusterShell => 'Cluster',
+      HeapObjectClass.bdStructureFrame => 'Diagram',
+      _ => 'Structure',
+    };
+  }
+  final label = o.label;
+  final type = o.typeKind == ViTypeKind.unknown ? null : o.typeKind.name;
+  if (label != null && type != null) return '$label · $type';
+  return label ?? type;
+}
+
 /// Control-terminal classes — their internal sub-terminals are scaffolding.
 
 /// Whether [o] is pure LabVIEW chrome that a faithful layout view should not
@@ -441,7 +461,7 @@ class _DiagramPainter extends CustomPainter {
     }
     // 4. labels on top of everything, so text is never buried.
     for (final o in objects) {
-      final text = _annotation(o);
+      final text = wireframeAnnotation(o);
       if (text == null) continue;
       final rect = rectOf(o);
       if (rect.width < 26 || rect.height < 11) continue;
@@ -474,13 +494,6 @@ class _DiagramPainter extends CustomPainter {
         canvas.drawCircle(Offset(x, y), 0.6, dot);
       }
     }
-  }
-
-  String? _annotation(ViHeapObject o) {
-    final label = o.label;
-    final type = o.typeKind == ViTypeKind.unknown ? null : o.typeKind.name;
-    if (label != null && type != null) return '$label · $type';
-    return label ?? type;
   }
 
   @override

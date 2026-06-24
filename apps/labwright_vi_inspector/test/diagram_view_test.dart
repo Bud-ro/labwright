@@ -187,6 +187,28 @@ void main() {
     expect(find.textContaining('No decodable layout'), findsOneWidget);
   });
 
+  group('wireframeAnnotation', () {
+    test('a structure shows its control-flow kind (not blank)', () {
+      final loop = ViHeapObject(oid: 1, kind: 0x53, offset: 0)..category = ViObjectKind.structure; // HeapObjectClass.loop
+      expect(wireframeAnnotation(loop), 'Loop');
+      final caseStruct = ViHeapObject(oid: 2, kind: 0x52, offset: 0)..category = ViObjectKind.structure;
+      expect(wireframeAnnotation(caseStruct), 'Case / Sequence');
+    });
+    test('a node shows its recovered name', () {
+      final node = ViHeapObject(oid: 1, kind: 0x2f, offset: 0)
+        ..category = ViObjectKind.node
+        ..label = 'PicoScope2000aOpen.vi';
+      expect(wireframeAnnotation(node), 'PicoScope2000aOpen.vi');
+    });
+    test('a labeled terminal shows name and type', () {
+      final t = ViHeapObject(oid: 1, kind: 0x50, offset: 0)
+        ..category = ViObjectKind.terminal
+        ..label = 'count'
+        ..typeKind = ViTypeKind.numericInt;
+      expect(wireframeAnnotation(t), 'count · numericInt');
+    });
+  });
+
   testWidgets('toolbar does not overflow on a narrow viewport (user-reported)', (tester) async {
     // 600px is narrower than the toolbar's fixed controls + legend; the Wrap must
     // flow them onto a second line rather than overflow (RenderFlex exception).
