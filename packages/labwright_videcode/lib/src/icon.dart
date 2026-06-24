@@ -2,14 +2,19 @@ import 'dart:typed_data';
 
 import 'decode.dart';
 
-/// A decoded VI icon: a small uncompressed 24-bit RGB bitmap.
+/// An embedded uncompressed 24-bit RGB picture extracted from a VI.
 ///
-/// LabVIEW stores the recognizable VI icon as a plain RGB888 bitmap (no palette,
-/// no compression) embedded inside a "picture" stream that can live under several
-/// section tags (`PICC`, `DSIM`, `FPHb`, `FPSE`, `LIbd`, …) — *not* in the
-/// classic `ICON`/`icl4`/`icl8` resource blocks (those hold unrelated LabVIEW
-/// metadata: hashes, help text, tables). Corpus-validated: 310/349 VIs yield a
-/// 20×20×24 icon that reconstructs to exactly `w*h*3` pixel bytes.
+/// LabVIEW embeds RGB888 bitmaps (no palette, no compression) inside "picture"
+/// streams that can live under several section tags (`PICC`, `DSIM`, `FPHb`,
+/// `FPSE`, `LIbd`, …). [extractRgbIcon] recovers one such bitmap by signature.
+///
+/// HONESTY: on the PicoScope sample corpus the *first* such bitmap is **not** a
+/// per-VI identity icon — there are only two distinct 20×20 images across all
+/// files (a generic checkmark and an X glyph), byte-identical across unrelated
+/// VIs. So this is best understood as "an embedded RGB glyph", not the VI's
+/// unique icon. (The classic `ICON`/`icl4`/`icl8` blocks are *not* these
+/// bitmaps either — they hold unrelated metadata: hashes/help-text/tables.)
+/// The real per-VI custom icon, if any, is not reliably recovered yet.
 class ViIcon {
   const ViIcon({required this.width, required this.height, required this.rgb});
 

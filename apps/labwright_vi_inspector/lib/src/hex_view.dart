@@ -445,7 +445,7 @@ Widget? iconPreview(Uint8List bytes) {
   final icon = extractRgbIcon(bytes);
   if (icon == null) return null;
   return _IconView(
-    caption: '${icon.width}×${icon.height} · 24-bit RGB icon',
+    caption: '${icon.width}×${icon.height} · embedded 24-bit RGB picture',
     child: ViIconImage(icon: icon),
   );
 }

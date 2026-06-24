@@ -328,14 +328,6 @@ class _SummaryView extends StatefulWidget {
 class _SummaryViewState extends State<_SummaryView> {
   final _filterCtrl = TextEditingController();
   String _filter = '';
-  // Decoded once per section list (rather than on every filter keystroke).
-  late ViIcon? _icon = decodeViIcon(widget.sections);
-
-  @override
-  void didUpdateWidget(_SummaryView old) {
-    super.didUpdateWidget(old);
-    if (!identical(old.sections, widget.sections)) _icon = decodeViIcon(widget.sections);
-  }
 
   @override
   void dispose() {
@@ -359,34 +351,18 @@ class _SummaryViewState extends State<_SummaryView> {
         ? widget.strings
         : [for (final s in widget.strings) if (s.toLowerCase().contains(q)) s];
 
-    final icon = _icon;
-
     return ListView(
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (icon != null) ...[
-              DecoratedBox(
-                decoration: BoxDecoration(border: Border.all(color: const Color(0x33000000))),
-                child: ViIconImage(icon: icon, size: 48),
-              ),
-              const SizedBox(width: 12),
-            ],
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(summary.name ?? '(unnamed)', style: Theme.of(context).textTheme.headlineSmall),
-                  const SizedBox(height: 4),
-                  Text(summary.describe(), style: const TextStyle(color: Colors.grey)),
-                  const SizedBox(height: 4),
-                  Text('source: ${widget.source}', style: const TextStyle(color: Colors.grey, fontSize: 12)),
-                ],
-              ),
-            ),
-          ],
-        ),
+        // NOTE: the embedded 20x20 RGB picture is NOT shown here as a per-VI
+        // identity icon — on the corpus it is a generic LabVIEW glyph
+        // (checkmark/X) shared across files, so presenting it next to the name
+        // would imply identity it doesn't carry. It remains viewable, in context,
+        // as a typed display in the hex viewer for the block that holds it.
+        Text(summary.name ?? '(unnamed)', style: Theme.of(context).textTheme.headlineSmall),
+        const SizedBox(height: 4),
+        Text(summary.describe(), style: const TextStyle(color: Colors.grey)),
+        const SizedBox(height: 4),
+        Text('source: ${widget.source}', style: const TextStyle(color: Colors.grey, fontSize: 12)),
         const SizedBox(height: 16),
 
         _Section('Identity', [
