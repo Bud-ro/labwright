@@ -44,8 +44,11 @@ Uint8List buildRsrc(List<({String tag, List<List<int>> sections})> blocks) {
   be32(info, 0x34); // 0x2c: blockListRel
   be32(info, 0); // 0x30: filler
   be32(info, blocks.length); // 0x34: block count
-  // descriptor offsets (relative to info), packed after the entry list
-  var off = 0x38 + blocks.length * 12;
+  // Descriptor offsets are stored relative to the block-list header base
+  // (`countPos + 8` = info+0x3c), matching how real .vi files address the
+  // section-descriptor table. The descriptors are packed after the entry list.
+  const descBase = 0x3c; // = countPos(0x34) + 8
+  var off = (0x38 + blocks.length * 12) - descBase;
   final n2 = <int>[];
   for (final b in blocks) {
     n2.add(off);
