@@ -81,7 +81,7 @@ Widget _faithfulFor(ViHeapObject o) {
     case HeapObjectClass.caseOrSequence:
     case HeapObjectClass.clusterShell:
     case HeapObjectClass.bdStructureFrame:
-      return const _StructureFrame();
+      return _StructureFrame(kind: _structureKind(o));
     case HeapObjectClass.controlLabel:
     case HeapObjectClass.bdSelectorLabel: // case selector text (True/False/case name)
       return _LabelText(o.label);
@@ -107,8 +107,8 @@ Widget _faithfulFor(ViHeapObject o) {
       return const _GraphPlaceholder();
     default:
       // Fall back by coarse category.
-      if (o.category == ViObjectKind.node) return const _NodeBox();
-      if (o.category == ViObjectKind.structure) return const _StructureFrame();
+      if (o.category == ViObjectKind.node) return _NodeBox(label: o.label?.trim());
+      if (o.category == ViObjectKind.structure) return _StructureFrame(kind: _structureKind(o));
       if (o.category == ViObjectKind.terminal) return const _ControlWidget(form: _Form.generic);
       // Bounded but unclassified: draw a faint placeholder (honest — matches the
       // wireframe's gray box) instead of vanishing, so faithful != silently-dropped.
@@ -120,38 +120,94 @@ const _kBorder = Color(0xFF7A7A7A);
 const _kField = Color(0xFFFAFAFA);
 const _kInk = Color(0xFF1A1A1A);
 
+/// A short human kind for a structure object — what kind of control-flow box it
+/// is (While/For loop, Case/Sequence, …) — from its classified [HeapObjectClass],
+/// so the frame can name itself instead of being an anonymous outline.
+String _structureKind(ViHeapObject o) {
+  switch (o.objectClass) {
+    case HeapObjectClass.loop:
+      return 'Loop';
+    case HeapObjectClass.caseOrSequence:
+      return 'Case / Sequence';
+    case HeapObjectClass.clusterShell:
+      return 'Cluster';
+    case HeapObjectClass.bdStructureFrame:
+      return 'Diagram';
+    default:
+      return 'Structure';
+  }
+}
+
 class _StructureFrame extends StatelessWidget {
-  const _StructureFrame();
+  const _StructureFrame({this.kind});
+  final String? kind;
   @override
   // Outline-only (no fill) so nesting reads via overlap like the wireframe, and
   // deeply-nested frames don't accumulate a muddy tint (structures contain other
   // structures ~79% of the time). The brown border is the LabVIEW structure look.
-  Widget build(BuildContext context) => Container(
-        decoration: BoxDecoration(
-          border: Border.all(color: const Color(0xFF8C6B3F), width: 3),
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: Container(
-          margin: const EdgeInsets.all(1),
-          decoration: BoxDecoration(border: Border.all(color: const Color(0x33FFFFFF))),
-        ),
+  // A small corner badge names the structure's kind so loops/cases are legible as
+  // control flow rather than anonymous boxes.
+  Widget build(BuildContext context) => Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                border: Border.all(color: const Color(0xFF8C6B3F), width: 3),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Container(
+                margin: const EdgeInsets.all(1),
+                decoration: BoxDecoration(border: Border.all(color: const Color(0x33FFFFFF))),
+              ),
+            ),
+          ),
+          if (kind != null)
+            Positioned(
+              left: 0,
+              top: 0,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                color: const Color(0xCC8C6B3F),
+                child: Text(
+                  kind!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+        ],
       );
 }
 
 class _NodeBox extends StatelessWidget {
-  const _NodeBox();
+  const _NodeBox({this.label});
+  final String? label;
   // The node icon is not yet decoded, so the box is a translucent placeholder (the
-  // translucency lets overlapping sibling nodes — ~37% of cases — show through
-  // instead of fully occluding). The node's NAME is NOT drawn here: it lives on a
-  // child 0xa label rendered as a floating label where LabVIEW places it (above the
-  // icon), and is also surfaced in the details card via the propagated node.label.
+  // translucency lets overlapping sibling nodes — ~37% of cases — show through).
+  // The node's recovered name (a subVI filename ~99% of the time, e.g.
+  // `PicoScope2000aOpen.vi`) is drawn IN the box so the diagram reads as "which
+  // subVIs are called" rather than anonymous boxes.
   @override
   Widget build(BuildContext context) => Container(
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: 1),
+        clipBehavior: Clip.hardEdge,
         decoration: BoxDecoration(
           color: const Color(0xCCEFD98A),
           border: Border.all(color: const Color(0xFF8A7320)),
           borderRadius: BorderRadius.circular(2),
         ),
+        child: (label == null || label!.isEmpty)
+            ? null
+            : Text(
+                label!,
+                textAlign: TextAlign.center,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 8, color: _kInk, height: 1.05, fontWeight: FontWeight.w600),
+              ),
       );
 }
 

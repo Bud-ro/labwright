@@ -99,4 +99,35 @@ void main() {
     // to SizedBox.shrink — a revert to the old empty render would drop these.
     expect(find.byType(Container), findsWidgets);
   });
+
+  testWidgets('a subVI node renders its recovered name on the box', (tester) async {
+    tester.view.physicalSize = const Size(800, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final node = ViHeapObject(oid: 1, kind: 0x2f, offset: 0)
+      ..category = ViObjectKind.node
+      ..absBounds = const HeapRect(top: 10, left: 10, bottom: 60, right: 160)
+      ..label = 'PicoScope2000aOpen.vi';
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: FaithfulLayer(objects: [node], origin: Offset.zero, size: const Size(400, 400))),
+    ));
+    await tester.pump();
+    expect(find.text('PicoScope2000aOpen.vi'), findsOneWidget);
+  });
+
+  testWidgets('a structure frame shows its kind badge (control flow is legible)', (tester) async {
+    tester.view.physicalSize = const Size(800, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final loop = ViHeapObject(oid: 1, kind: 0x53, offset: 0) // HeapObjectClass.loop
+      ..category = ViObjectKind.structure
+      ..absBounds = const HeapRect(top: 0, left: 0, bottom: 200, right: 200);
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: FaithfulLayer(objects: [loop], origin: Offset.zero, size: const Size(400, 400))),
+    ));
+    await tester.pump();
+    expect(find.text('Loop'), findsOneWidget);
+  });
 }
