@@ -210,4 +210,24 @@ void main() {
       }
     }, returnsNormally);
   });
+
+  test('buildDiagram terminates on a duplicate-oid control under a viewport (no infinite loop)', () {
+    // A control terminal (0x50) nested directly under another object sharing its
+    // oid, inside a 0x11c viewport — makes the re-anchor `kids[oid]` list contain
+    // itself. Before the visited-guard this looped forever in shiftSubtree.
+    final records = <int>[
+      ...open(0x7e, 100), ...bounds(0, 0, 500, 500),
+      ...open(0x11c, 1, tag: 0x1a), ...bounds(10, 10, 200, 200), // viewport
+      ...open(0x50, 7, tag: 0x1b), ...bounds(-300, 5, -283, 90), // control, large-negative top
+      ...open(0x50, 7, tag: 0x1c), ...bounds(0, 5, 17, 90), // SAME oid 7, nested
+      ...close(0x1c),
+      ...close(0x1b),
+      ...close(0x1a),
+      ...close(),
+    ];
+    final body = Uint8List.fromList([0, 0, 0, records.length, ...records]);
+    final sw = Stopwatch()..start();
+    expect(() => buildDiagram(body), returnsNormally);
+    expect(sw.elapsedMilliseconds, lessThan(2000), reason: 'should not hang');
+  });
 }

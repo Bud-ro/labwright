@@ -604,8 +604,13 @@ void _reanchorScrolledControls(List<ViHeapObject> objects) {
   void shiftSubtree(ViHeapObject root, int dTop, int dLeft) {
     if (dTop == 0 && dLeft == 0) return;
     final work = <ViHeapObject>[root];
+    // `kids` is keyed by parentOid, and oids can repeat across objects (a control
+    // nested under an object sharing its oid makes kids[oid] contain itself). Guard
+    // by object identity so a self-referential/cyclic list can't loop forever.
+    final seen = <ViHeapObject>{};
     while (work.isNotEmpty) {
       final o = work.removeLast();
+      if (!seen.add(o)) continue;
       final a = o.absBounds;
       if (a != null) {
         o.absBounds = HeapRect(top: a.top + dTop, left: a.left + dLeft, bottom: a.bottom + dTop, right: a.right + dLeft);
