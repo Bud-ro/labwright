@@ -170,6 +170,27 @@ void main() {
     });
   });
 
+  group('ViNameTable', () {
+    test('peels the trailing Pascal VI name and serializes byte-exact', () {
+      const name = 'Foo.vi';
+      final tail = Uint8List.fromList([
+        0x00, 0x01, 0x02, 0x03, // header (raw)
+        name.length, ...name.codeUnits, // [len][name] at EOF
+      ]);
+      final nt = ViNameTable.parse(tail);
+      expect(nt.trailingName, 'Foo.vi');
+      expect(nt.header, orderedEquals([0x00, 0x01, 0x02, 0x03]));
+      expect(nt.serialize(), orderedEquals(tail));
+    });
+
+    test('no clean trailing name -> all header, null name, still byte-exact', () {
+      final tail = Uint8List.fromList([0x05, 0xFF, 0xFE, 0x00]); // not a valid trailing pascal string
+      final nt = ViNameTable.parse(tail);
+      expect(nt.trailingName, isNull);
+      expect(nt.serialize(), orderedEquals(tail));
+    });
+  });
+
   group('ViInfoArea + ViContainer.serialize', () {
     test('ViInfoArea composes subheader + block list + raw rest byte-exact', () {
       // synthetic info area: 0x34 subheader, block list (count=1, one entry), tail

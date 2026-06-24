@@ -281,6 +281,65 @@ class ViSectionDescriptor {
   }
 }
 
+/// The info area's name-table tail: a not-yet-decoded [header] followed by the
+/// **trailing Pascal VI name** at EOF (e.g. `PicoScope5000ExampleStreaming.vi`).
+/// The trailing name is recovered as a typed field; the header stays raw with a
+/// TODO. [serialize] reconstructs the tail byte-exact.
+class ViNameTable {
+  ViNameTable({required this.header, required this.trailingNameRecord});
+
+  /// Leading bytes of the tail (name-table header / index) — not yet decoded.
+  // TODO(labwright): identify this name-table header structure.
+  final Uint8List header;
+
+  /// The `[u8 len][name bytes]` Pascal record at EOF, or empty if no clean
+  /// trailing name is present.
+  final Uint8List trailingNameRecord;
+
+  /// The VI name decoded from [trailingNameRecord], or null.
+  String? get trailingName =>
+      trailingNameRecord.isEmpty ? null : String.fromCharCodes(trailingNameRecord.sublist(1));
+
+  /// Splits a name-table [tail] into header + trailing Pascal name. Scans
+  /// largest-first for a `u8 len` + `len` printable bytes ending exactly at EOF
+  /// (the trailing VI name); everything before it is the header.
+  factory ViNameTable.parse(Uint8List tail) {
+    final start = _trailingPascalStart(tail);
+    if (start == null) {
+      return ViNameTable(header: Uint8List.fromList(tail), trailingNameRecord: Uint8List(0));
+    }
+    return ViNameTable(
+      header: Uint8List.fromList(tail.sublist(0, start)),
+      trailingNameRecord: Uint8List.fromList(tail.sublist(start)),
+    );
+  }
+
+  /// Index of the `len` byte of the trailing Pascal string (printable, ending at
+  /// EOF), or null if none. Largest match wins so the full name is preferred.
+  static int? _trailingPascalStart(Uint8List b) {
+    final maxLen = b.length - 1 < 255 ? b.length - 1 : 255;
+    for (var len = maxLen; len >= 1; len--) {
+      final lenPos = b.length - 1 - len;
+      if (lenPos < 0) continue;
+      if (b[lenPos] != len) continue;
+      var ok = true;
+      for (var i = lenPos + 1; i < b.length; i++) {
+        if (b[i] < 0x20 || b[i] >= 0x7f) {
+          ok = false;
+          break;
+        }
+      }
+      if (ok) return lenPos;
+    }
+    return null;
+  }
+
+  Uint8List serialize() => (BytesBuilder()
+        ..add(header)
+        ..add(trailingNameRecord))
+      .toBytes();
+}
+
 /// The info area composed as typed regions: the [subheader] (dup header +
 /// `blockListRel`), the [blockList] (resource-block directory), a 20-byte
 /// [preGap], the [descriptors] table (contiguous 20-byte records), and the
@@ -313,16 +372,15 @@ class ViInfoArea {
   /// descriptors interleaved with name-table rows). Empty in the fallback case.
   final List<ViSectionDescriptor> descriptors;
 
-  /// The remaining bytes — the name table + trailing Pascal VI name (and, in the
-  /// fallback case, everything after the block list).
-  // TODO(labwright): peel the name table + trailing name into typed structs.
-  final Uint8List nameTable;
+  /// The name-table tail (header + trailing VI name), typed. In the raw-fallback
+  /// case this holds everything after the block list.
+  final ViNameTable nameTable;
 
   /// Back-compat view: all bytes after the block list, as raw.
   Uint8List get rest => (BytesBuilder()
         ..add(preGap)
         ..add(_descriptorBytes())
-        ..add(nameTable))
+        ..add(nameTable.serialize()))
       .toBytes();
 
   Uint8List _descriptorBytes() {
@@ -364,7 +422,7 @@ class ViInfoArea {
         blockList: blockList,
         preGap: Uint8List.fromList(infoArea.sublist(restStart, restStart + 20)),
         descriptors: [for (var i = 0; i < total; i++) ViSectionDescriptor.parse(infoArea, minStart + i * 20)],
-        nameTable: Uint8List.fromList(infoArea.sublist(maxEnd)),
+        nameTable: ViNameTable.parse(Uint8List.fromList(infoArea.sublist(maxEnd))),
       );
     }
     // Fallback: keep the whole remainder raw so serialize() stays byte-exact.
@@ -373,7 +431,7 @@ class ViInfoArea {
       blockList: blockList,
       preGap: Uint8List(0),
       descriptors: const [],
-      nameTable: Uint8List.fromList(infoArea.sublist(restStart)),
+      nameTable: ViNameTable.parse(Uint8List.fromList(infoArea.sublist(restStart))),
     );
   }
 
@@ -383,7 +441,7 @@ class ViInfoArea {
       ..add(blockList.serialize())
       ..add(preGap)
       ..add(_descriptorBytes())
-      ..add(nameTable);
+      ..add(nameTable.serialize());
     return out.toBytes();
   }
 }

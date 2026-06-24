@@ -354,6 +354,42 @@ void main() {
     expect(peeled, greaterThan((files * 0.90).floor()), reason: 'descriptor table not peeled: only $peeled/$files');
   });
 
+  // NAME TABLE: the typed name table recovers the trailing VI name for ~all VIs,
+  // and it matches parseVi's independently-read trailing name.
+  test('INFO-AREA: name table recovers the trailing VI name for ~all VIs', () {
+    var files = 0, withName = 0;
+    final mismatches = <String>[];
+    for (final f in all) {
+      final Uint8List bytes;
+      try {
+        bytes = Uint8List.fromList(f.readAsBytesSync());
+      } catch (_) {
+        continue;
+      }
+      final ViInfoArea ia;
+      String? summaryName;
+      try {
+        ia = ViContainer.parse(bytes).parsedInfoArea;
+        summaryName = parseVi(bytes).name;
+      } catch (_) {
+        continue;
+      }
+      files++;
+      final nt = ia.nameTable.trailingName;
+      if (nt != null) {
+        withName++;
+        // the typed name table's trailing name should agree with parseVi's
+        if (summaryName != null && summaryName != nt) {
+          if (mismatches.length < 6) mismatches.add('${f.path.split('/').last}: "$nt" != "$summaryName"');
+        }
+      }
+    }
+    expect(files, greaterThan(0));
+    expect(mismatches, isEmpty, reason: 'trailing-name disagreement: $mismatches');
+    // ratchet: a trailing VI name is present for the large majority; floor 85%.
+    expect(withName, greaterThan((files * 0.85).floor()), reason: 'trailing name recovery dropped: $withName/$files');
+  });
+
   // SECTION-LEVEL IDEMPOTENCY: one layer finer than the whole-file round-trip.
   // [ViExport.decomposeDataArea] models the data area as ordered, length-prefixed
   // sections (located via the info-area descriptors) interleaved with padding
