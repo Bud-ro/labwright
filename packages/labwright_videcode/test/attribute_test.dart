@@ -101,6 +101,36 @@ void main() {
     });
   });
 
+  group('rectangle-payload ids (C5 …08 is a rect, not an f64)', () {
+    test('0x29 decodes its len-08 payload as a 4× s16 rectangle', () {
+      // C5 29 08 <top=8, left=0, bottom=16, right=8>
+      final rec = Uint8List.fromList([0xc5, 0x29, 0x08, 0x00, 0x08, 0x00, 0x00, 0x00, 0x10, 0x00, 0x08]);
+      final a = decodeHeapAttr(rec, 0)!;
+      expect(a.attribute, HeapAttribute.terminalRect);
+      expect(a.width, HeapAttrWidth.rect);
+      expect(a.kind, HeapAttrKind.rectangle);
+      expect(a.asDouble, isNull); // NOT decoded as a garbage f64
+      final r = a.asRect!;
+      expect([r.top, r.left, r.bottom, r.right], [8, 0, 16, 8]);
+      expect(a.length, 11);
+    });
+
+    test('0x29 in the 84-form is still a colour (resolved by width)', () {
+      final a = decodeHeapAttr(Uint8List.fromList([0x84, 0x29, 0xff, 0x00, 0x00, 0x0c]), 0)!;
+      expect(a.attribute, HeapAttribute.terminalRect);
+      expect(a.width, HeapAttrWidth.rgb);
+      expect(a.kind, HeapAttrKind.color);
+      expect(a.rgb, 0x00000c);
+    });
+
+    test('a genuine f64 id (0xF5) is unaffected by the rect carve-out', () {
+      final a = decodeHeapAttr(f64Rec(0xf5, -1.0), 0)!;
+      expect(a.width, HeapAttrWidth.f64);
+      expect(a.asRect, isNull);
+      expect(a.asDouble, -1.0);
+    });
+  });
+
   group('dual-use resolution by width', () {
     test('0xF8 is size as u16, coarse increment as f64', () {
       final asSize = decodeHeapAttr(Uint8List.fromList([0x44, 0xf8, 0x00, 0xff]), 0)!;

@@ -391,6 +391,13 @@ _SpanInfo _classify(Uint8List b, HeapSpan s, String tag) {
         return make(_cAttr, '$hexlead · $name', 'Numeric-control parameter (f64) = ${attr.asDouble}.');
       case HeapAttrKind.stringBlob:
         return make(_cString, '$hexlead · $name', 'String/blob:', display: _StringPreview(attr.asString ?? ''));
+      case HeapAttrKind.rectangle:
+        final r = attr.asRect;
+        return r == null
+            ? make(_cAttr, '$hexlead · $name', 'Rectangle (4× s16).')
+            : make(_cRect, '$hexlead · $name',
+                'Rectangle (4× s16): top ${r.top}, left ${r.left}, bottom ${r.bottom}, right ${r.right}  (${r.width}×${r.height}).',
+                display: _RectPreview(r));
       default:
         return make(_cAttr, '$hexlead · $name',
             '${_kindLabel(attr.kind)} = ${attr.asInt} (${attr.width.name}).');

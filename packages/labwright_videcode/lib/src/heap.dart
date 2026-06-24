@@ -224,6 +224,11 @@ enum HeapAttrKind {
   /// e.g. a VISA resource name, serial, or firmware version.
   stringBlob,
 
+  /// A 4× `s16` pixel rectangle carried in a length-prefixed `Cx <id> 08`
+  /// payload — NOT every `Cx …08` is an `f64`; the `08` is a payload-length byte
+  /// and a few ids (e.g. `0x29`) store a rectangle there. See [HeapAttribute.terminalRect].
+  rectangle,
+
   /// Not catalogued.
   unknown,
 }
@@ -250,6 +255,10 @@ enum HeapAttrWidth {
 
   /// `C6 <id> FF <u16 len>` — a length-prefixed string/blob.
   blob,
+
+  /// `C5/C6 <id> 08` whose 8-byte payload is a 4× `s16` rectangle rather than an
+  /// `f64` (the `08` is a length byte, not an f64 marker). See [HeapAttrKind.rectangle].
+  rect,
 }
 
 /// How well-grounded an [HeapAttribute]'s assigned **name** is. This is a
@@ -316,6 +325,21 @@ enum HeapAttribute {
   /// extent via the nibble form, or the coarse step of a numeric control via
   /// `C5`. [HeapAttr.kind] resolves it by width.
   sizeOrIncrement(0xf8, HeapAttrKind.size, 'sizeOrCoarseIncrement', AttrConfidence.inferred),
+
+  /// `0x29` — **per-object pixel rectangle** carried as `C5/C6 29 08 <4× s16>`
+  /// (NOT an f64 — see [decodeHeapAttr]). Corpus-confirmed *shape*: 100% valid
+  /// rectangles (219,845/219,892), dims clustering on small glyph/terminal cells
+  /// (8×8, 8×16, 9×9); the f64 reading is decisively garbage (0% sane doubles,
+  /// 379k denormals). Exactly 0/1 per object → a single inner/terminal rect. The
+  /// single highest-volume residual record (~2.4M bytes). The `84 29` form is a
+  /// distinct opaque accent colour (resolved by width via [HeapAttr.kind]). The
+  /// *role* (terminal vs hotpoint vs inner-content rect) is inferred from size.
+  terminalRect(0x29, HeapAttrKind.rectangle, 'terminalRect', AttrConfidence.inferred),
+
+  /// `0xDC` — **sub-element ordinal** (`u8`, strictly sequential 1..46), emitted
+  /// immediately after the [terminalRect] (`0x29`) on diagram objects: the index
+  /// of the rect/glyph sub-element. Confirmed by its strict sequence.
+  elementOrdinal(0xdc, HeapAttrKind.ordinal, 'elementOrdinal', AttrConfidence.confirmed),
 
   /// `0xCB` — **packed value / large numeric** (`u24` values stepping
   /// `0x10000`..`0x700000`): a packed numeric, not a colour despite the width.
@@ -445,7 +469,8 @@ class HeapAttr {
   final HeapAttrWidth width;
 
   /// The typed value: `int` (numeric/coord/size/enum/flag, or packed RGB for
-  /// colours), `double` (f64 control params), or `String` (C6 blobs).
+  /// colours), `double` (f64 control params), `String` (C6 blobs), or [HeapRect]
+  /// (rectangle-payload ids like `0x29`).
   final Object value;
 
   /// The total byte length of the record (so a walker can advance by it).
@@ -457,6 +482,8 @@ class HeapAttr {
   HeapAttrKind get kind {
     if (width == HeapAttrWidth.f64) return HeapAttrKind.controlParam;
     if (width == HeapAttrWidth.blob) return HeapAttrKind.stringBlob;
+    if (width == HeapAttrWidth.rect) return HeapAttrKind.rectangle;
+    if (width == HeapAttrWidth.rgb) return HeapAttrKind.color; // `8x`/`84` form is always a colour
     return attribute.kind;
   }
 
@@ -469,6 +496,9 @@ class HeapAttr {
   /// The value as a `String`, or null if it is not a blob.
   String? get asString => value is String ? value as String : null;
 
+  /// The value as a [HeapRect], or null if it is not a rectangle-payload id.
+  HeapRect? get asRect => value is HeapRect ? value as HeapRect : null;
+
   /// For a [HeapAttrKind.color] value, the 24-bit `0xRRGGBB` (drops the flag).
   int? get rgb => kind == HeapAttrKind.color && value is int ? (value as int) & 0xffffff : null;
 
@@ -476,20 +506,32 @@ class HeapAttr {
   bool get isTransparent => kind == HeapAttrKind.color && value is int && ((value as int) >>> 24) == 0x01 && ((value as int) & 0xffffff) == 0;
 }
 
+/// Attribute ids whose `C5/C6 <id> 08` 8-byte payload is a 4× `s16` rectangle
+/// rather than an `f64` (see [HeapAttribute.terminalRect]). Only `0x29` is in the
+/// set for now — corpus-validated at 100% rectangle / 0% sane-f64.
+const Set<int> _rectPayloadIds = {0x29};
+
 /// Decodes an attribute-style record at [offset] in a heap [body], or returns
 /// null if the byte there does not introduce a known attribute form. Handles the
-/// `2x/4x/6x/8x/Ex` nibble family, `C5` (f64 control param), and `C6` (string
-/// blob). The id is looked up in the [HeapAttribute] catalog.
+/// `2x/4x/6x/8x/Ex` nibble family, `C5`/`C6 …08` (an `f64` control param, or a
+/// rectangle for [_rectPayloadIds]), and `C6 …FF` (string blob). The id is looked
+/// up in the [HeapAttribute] catalog.
 HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
   if (offset + 2 > body.length) return null;
   final op = body[offset];
 
-  // C5/C6 <id> 08 <f64> — numeric-control parameter (the C6-08 form is the
-  // common on-disk shape the walker frames; the C6-FF blob below is the rarer
-  // escape form). Decoding both keeps decodeHeapAttr in agreement with
-  // recordSkip, which frames both as 11-byte records.
+  // C5/C6 <id> 08 <8-byte payload>. The `08` is a payload-LENGTH byte (the same
+  // `Cx <id> <u8 len>` framing recordSkip uses), so the 8 bytes are *not*
+  // universally an f64: for [_rectPayloadIds] they are a 4× s16 rectangle (the
+  // f64 reading there is garbage — corpus-confirmed). Decode by id.
   if ((op == 0xc5 || op == 0xc6) && offset + 11 <= body.length && body[offset + 2] == 0x08) {
     final id = body[offset + 1];
+    if (_rectPayloadIds.contains(id)) {
+      final rect = HeapRect.fromPayload(body.sublist(offset + 3, offset + 11));
+      if (rect != null) {
+        return HeapAttr(attribute: HeapAttribute.fromId(id), id: id, width: HeapAttrWidth.rect, value: rect, length: 11);
+      }
+    }
     final v = ByteData.sublistView(body, offset + 3, offset + 11).getFloat64(0);
     return HeapAttr(attribute: HeapAttribute.fromId(id), id: id, width: HeapAttrWidth.f64, value: v, length: 11);
   }
