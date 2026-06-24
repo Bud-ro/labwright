@@ -76,38 +76,52 @@ class _ViDiagramViewState extends State<ViDiagramView> {
         _toolbar(drawable.length, counts),
         const SizedBox(height: 6),
         Expanded(
-          child: LayoutBuilder(builder: (context, constraints) {
-            final viewport = Size(constraints.maxWidth, constraints.maxHeight);
-            if (viewport != _lastViewport) {
-              _lastViewport = viewport;
-              _fitted = false;
-            }
-            if (!_fitted) {
-              WidgetsBinding.instance.addPostFrameCallback((_) => _fit());
-            }
-            return ClipRect(
-              child: ColoredBox(
-                color: const Color(0xFFE9E9E9), // LabVIEW-like BD canvas
-                child: InteractiveViewer(
-                  transformationController: _tc,
-                  constrained: false,
-                  minScale: 0.02,
-                  maxScale: 16,
-                  boundaryMargin: const EdgeInsets.all(2000),
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTapDown: (d) => _selectAt(d.localPosition, ordered, content),
-                    child: CustomPaint(
-                      size: Size(content.width, content.height),
-                      painter: _DiagramPainter(objects: ordered, origin: content.topLeft, selected: _selected),
+          // Stack so the details card is an OVERLAY — it never changes the
+          // viewport size, so selecting an object can't trigger a re-fit/reset.
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: LayoutBuilder(builder: (context, constraints) {
+                  final viewport = Size(constraints.maxWidth, constraints.maxHeight);
+                  if (viewport != _lastViewport) {
+                    _lastViewport = viewport;
+                    _fitted = false;
+                  }
+                  if (!_fitted) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) => _fit());
+                  }
+                  return ClipRect(
+                    child: ColoredBox(
+                      color: const Color(0xFFE9E9E9), // LabVIEW-like BD canvas
+                      child: InteractiveViewer(
+                        transformationController: _tc,
+                        constrained: false,
+                        minScale: 0.02,
+                        maxScale: 16,
+                        boundaryMargin: const EdgeInsets.all(2000),
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTapDown: (d) => _selectAt(d.localPosition, ordered, content),
+                          child: CustomPaint(
+                            size: Size(content.width, content.height),
+                            painter: _DiagramPainter(objects: ordered, origin: content.topLeft, selected: _selected),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
+                  );
+                }),
               ),
-            );
-          }),
+              if (_selected != null)
+                Positioned(
+                  left: 8,
+                  right: 8,
+                  bottom: 8,
+                  child: _DetailsCard(object: _selected!, onClose: () => setState(() => _selected = null)),
+                ),
+            ],
+          ),
         ),
-        if (_selected != null) _DetailsCard(object: _selected!, onClose: () => setState(() => _selected = null)),
         const Padding(
           padding: EdgeInsets.only(top: 6),
           child: Text(
@@ -246,60 +260,74 @@ class _DiagramPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final bg = Offset.zero & size;
-    canvas.drawRect(bg, Paint()..color = const Color(0xFFE9E9E9));
+    canvas.drawRect(Offset.zero & size, Paint()..color = const Color(0xFFE9E9E9));
     _drawDotGrid(canvas, size);
 
-    for (final o in objects) {
+    Rect rectOf(ViHeapObject o) {
       final r = o.absBounds!;
-      final rect = Rect.fromLTRB(r.left - origin.dx, r.top - origin.dy, r.right - origin.dx, r.bottom - origin.dy);
-      final color = _objectColor(o);
-      final isSel = identical(o, selected);
+      return Rect.fromLTRB(r.left - origin.dx, r.top - origin.dy, r.right - origin.dx, r.bottom - origin.dy);
+    }
 
-      switch (o.category) {
-        case ViObjectKind.structure:
-          final rr = RRect.fromRectAndRadius(rect, const Radius.circular(6));
-          canvas.drawRRect(rr, Paint()..color = const Color(0x14000000));
-          canvas.drawRRect(rr, Paint()
-            ..color = color
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 2);
-        case ViObjectKind.decoration:
-          canvas.drawRect(rect, Paint()..color = color.withValues(alpha: 0.18));
-        default:
-          final rr = RRect.fromRectAndRadius(rect, const Radius.circular(3));
-          canvas.drawRRect(rr, Paint()..color = color.withValues(alpha: 0.92));
-          canvas.drawRRect(rr, Paint()
-            ..color = Colors.black.withValues(alpha: 0.45)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1);
-      }
+    final structures = objects.where((o) => o.category == ViObjectKind.structure).toList();
+    final decorations = objects.where((o) => o.category == ViObjectKind.decoration).toList();
+    // nodes/terminals/clusters, largest-first so small ones end up on top.
+    final solids = objects
+        .where((o) => o.category != ViObjectKind.structure && o.category != ViObjectKind.decoration)
+        .toList()
+      ..sort((a, b) => (b.absBounds!.width * b.absBounds!.height).compareTo(a.absBounds!.width * a.absBounds!.height));
 
-      if (isSel) {
-        canvas.drawRect(rect.inflate(2), Paint()
-          ..color = const Color(0xFF1565C0)
+    // 1. decorations — faint, behind.
+    for (final o in decorations) {
+      canvas.drawRect(rectOf(o), Paint()..color = _kindColor(o.category).withValues(alpha: 0.10));
+    }
+    // 2. structure frames — OUTLINE only (no muddy fill); nesting reads via overlap.
+    for (final o in structures) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(rectOf(o), const Radius.circular(5)),
+        Paint()
+          ..color = _kindColor(ViObjectKind.structure).withValues(alpha: 0.85)
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 2);
-      }
-
+          ..strokeWidth = 1.5,
+      );
+    }
+    // 3. solids — small on top.
+    for (final o in solids) {
+      final rr = RRect.fromRectAndRadius(rectOf(o), const Radius.circular(2.5));
+      canvas.drawRRect(rr, Paint()..color = _objectColor(o).withValues(alpha: 0.92));
+      canvas.drawRRect(rr, Paint()
+        ..color = Colors.black.withValues(alpha: 0.5)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.8);
+    }
+    // 4. labels on top of everything, so text is never buried.
+    for (final o in objects) {
       final text = _annotation(o);
-      if (text != null && rect.width >= 26 && rect.height >= 11) {
-        final onFill = o.category != ViObjectKind.structure && o.category != ViObjectKind.decoration;
-        final tp = TextPainter(
-          text: TextSpan(
-            text: text,
-            style: TextStyle(
-              color: onFill ? Colors.black87 : Colors.black54,
-              fontSize: 10,
-              fontWeight: FontWeight.w500,
-            ),
+      if (text == null) continue;
+      final rect = rectOf(o);
+      if (rect.width < 26 || rect.height < 11) continue;
+      final onFrame = o.category == ViObjectKind.structure;
+      final tp = TextPainter(
+        text: TextSpan(
+          text: text,
+          style: TextStyle(
+            color: onFrame ? const Color(0xCC4A2E00) : Colors.black.withValues(alpha: 0.85),
+            fontSize: 10,
+            fontWeight: FontWeight.w500,
           ),
-          maxLines: 1,
-          ellipsis: '…',
-          textDirection: TextDirection.ltr,
-        )..layout(maxWidth: rect.width - 6);
-        tp.paint(canvas, rect.topLeft + const Offset(3, 1));
-      }
+        ),
+        maxLines: 1,
+        ellipsis: '…',
+        textDirection: TextDirection.ltr,
+      )..layout(maxWidth: rect.width - 5);
+      tp.paint(canvas, rect.topLeft + const Offset(3, 1));
+    }
+    // 5. selection highlight.
+    final sel = selected;
+    if (sel != null && sel.absBounds != null) {
+      canvas.drawRect(rectOf(sel).inflate(2.5), Paint()
+        ..color = const Color(0xFF1565C0)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.5);
     }
   }
 
