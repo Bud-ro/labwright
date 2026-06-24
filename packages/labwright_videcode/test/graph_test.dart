@@ -229,18 +229,7 @@ void main() {
     expect(deco.controlMax, isNull);
   });
 
-  test('property/element names (0x31) are collected onto the object (distinct)', () {
-    List<int> name(String s) => [0xc6, 0x31, s.length, ...s.codeUnits]; // C6 31 <len> <ascii>
-    final records = <int>[
-      ...open(0x110, 1), ...bounds(0, 0, 17, 80), // a property node
-      ...name('Scale'), ...name('Maximum'), ...name('Scale'), // duplicate Scale
-      ...close(),
-    ];
-    final o = buildDiagram(Uint8List.fromList([0, 0, 0, records.length, ...records])).byId[1]!;
-    expect(o.propertyNames, ['Scale', 'Maximum']); // deduped, order-preserving
-  });
-
-  test('formatControlRange renders honestly (finite-only, inverted/±∞ suppressed)', () {
+  test('formatControlRange renders honestly (finite-only, inverted/±∞/NaN suppressed)', () {
     expect(formatControlRange(-5.0, 10.0), '-5 … 10');
     expect(formatControlRange(0.0, 2.5), '0 … 2.5');
     expect(formatControlRange(5.0, double.infinity), '≥ 5'); // +∞ max -> one-sided
@@ -248,6 +237,8 @@ void main() {
     expect(formatControlRange(double.negativeInfinity, double.infinity), isNull); // both ±∞ -> nothing
     expect(formatControlRange(null, null), isNull);
     expect(formatControlRange(1.0, -1.0), isNull); // inverted finite pair -> nothing
+    expect(formatControlRange(0.0, double.nan), isNull); // NaN max -> untrustworthy pair
+    expect(formatControlRange(double.nan, 10.0), isNull);
   });
 
   test('buildDiagram terminates on a parentOid cycle (reanchorViewport guard)', () {

@@ -145,10 +145,6 @@ class ViHeapObject {
   /// null. The VI/control's documentation string.
   String? helpText;
 
-  /// Decoded property/element names attached to this object (`0x31` inline
-  /// strings, deduped) — e.g. "Scale", "FP.State" on a property node. May be empty.
-  List<String> propertyNames = const [];
-
   /// The named, documented class catalog entry for this object's [kind]
   /// (or [HeapObjectClass.unknown] if the code is not catalogued).
   HeapObjectClass get objectClass => HeapObjectClass.fromCode(kind);
@@ -346,8 +342,8 @@ const kControlTerminalCodes = {0x50, 0x4f, 0x57, 0x5b, 0x51};
 
 /// Attribute ids `buildDiagram` surfaces onto [ViHeapObject] (a fast id pre-filter
 /// before the heavier `decodeHeapAttr`): 0x20/0x21 = control range, 0x6c = help
-/// text, 0x31 = property/element names.
-const _objAttrIds = {0x20, 0x21, 0x6c, 0x31};
+/// text. (0x31 names were dropped — they sit on non-drawable structural objects.)
+const _objAttrIds = {0x20, 0x21, 0x6c};
 
 String _fmtNum(double v) =>
     v == v.roundToDouble() && v.abs() < 1e15 ? v.toInt().toString() : v.toString();
@@ -357,6 +353,10 @@ String _fmtNum(double v) =>
 /// (a `±∞` sentinel = "no bound" and an absent bound are both omitted), drops an
 /// inverted finite pair, and renders a one-sided bound as `≥ x` / `≤ x`.
 String? formatControlRange(double? min, double? max) {
+  // A NaN in EITHER slot means the pair is uninitialized/untrustworthy (corpus:
+  // a NaN max paired with a 0/-0.0 min was ~60% of "ranges" — decode noise, not a
+  // real bound). Suppress the whole range, not just the NaN half.
+  if ((min?.isNaN ?? false) || (max?.isNaN ?? false)) return null;
   final lo = (min != null && min.isFinite) ? min : null;
   final hi = (max != null && max.isFinite) ? max : null;
   if (lo == null && hi == null) return null;
@@ -549,14 +549,6 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDEx'}) {
         if (a.attribute == HeapAttribute.helpDescription && o + 2 < n && body[o + 2] == 0xff) {
           final s = a.asString;
           if (s != null && s.isNotEmpty) cur.helpText ??= s;
-        }
-        // Property/element names (0x31 inline strings) — collect distinct, capped.
-        if (a.attribute == HeapAttribute.propertyName) {
-          final s = a.asString;
-          if (s != null && s.isNotEmpty) {
-            if (cur.propertyNames.isEmpty) cur.propertyNames = <String>[];
-            if (cur.propertyNames.length < 12 && !cur.propertyNames.contains(s)) cur.propertyNames.add(s);
-          }
         }
       }
     }
