@@ -229,8 +229,8 @@ void main() {
 
   // TYPED SECTION-DESCRIPTOR SERIALIZE: every 20-byte descriptor record (located
   // via the block list's descRel) must reconstruct its raw bytes byte-for-byte —
-  // proves the 20-byte field decomposition (secRel + sentinel + raw words)
-  // accounts for the whole record. Covers section descriptors and name rows alike.
+  // proves the 20-byte field decomposition (secRel + word16 + raw words)
+  // accounts for the whole record. Covers every section, incl. LIBN/VINS.
   test('IDEMPOTENCY: ViSectionDescriptor.serialize() == raw 20 bytes for every descriptor', () {
     var files = 0, descriptors = 0;
     final fails = <String>[];
@@ -354,14 +354,15 @@ void main() {
     expect(peeled, greaterThan((files * 0.90).floor()), reason: 'descriptor table not peeled: only $peeled/$files');
   });
 
-  // DESCRIPTOR @16 IS BINARY: every descriptor record is either a section
-  // descriptor (@16 == 0xFFFFFFFF) or a name-table row (@16 == 0) — no third
-  // value occurs across the corpus. And every section's nameRef is a small index
-  // (full-corpus global max 360), confirming it is an index, not a byte offset.
-  test('INFO-AREA: descriptor @16 is binary (section sentinel | row 0); nameRef is index-like', () {
+  // DESCRIPTOR @16 IS BINARY: across the corpus every section descriptor's @16
+  // word is exactly 0xFFFFFFFF (the VI's own data sections) or exactly 0 (the
+  // LIBN/VINS sections — both real, data-bearing). No third value occurs. And
+  // every section's nameRef is a small index (full-corpus global max 360),
+  // confirming it is an index, not a byte offset.
+  test('INFO-AREA: descriptor @16 is binary (0xFFFFFFFF | 0); nameRef is index-like', () {
     var files = 0;
     var maxNameRef = 0;
-    final badSentinels = <String>[];
+    final badWords = <String>[];
     for (final f in all) {
       final Uint8List bytes;
       try {
@@ -378,17 +379,17 @@ void main() {
       if (ia.descriptors.isEmpty) continue;
       files++;
       for (final d in ia.descriptors) {
-        // @16 must be exactly the section sentinel or exactly 0 (a name row).
-        if (d.sentinel != ViSectionDescriptor.sectionSentinel && d.sentinel != 0) {
-          if (badSentinels.length < 6) {
-            badSentinels.add('${f.path.split('/').last}: @16=0x${d.sentinel.toRadixString(16)}');
+        // @16 must be exactly 0xFFFFFFFF (own data section) or exactly 0 (LIBN/VINS).
+        if (d.word16 != ViSectionDescriptor.commonWord16 && d.word16 != 0) {
+          if (badWords.length < 6) {
+            badWords.add('${f.path.split('/').last}: @16=0x${d.word16.toRadixString(16)}');
           }
         }
-        if (d.isSection && d.nameRef > maxNameRef) maxNameRef = d.nameRef;
+        if (d.nameRef > maxNameRef) maxNameRef = d.nameRef;
       }
     }
     expect(files, greaterThan(0));
-    expect(badSentinels, isEmpty, reason: 'descriptor @16 not binary: $badSentinels');
+    expect(badWords, isEmpty, reason: 'descriptor @16 not binary: $badWords');
     // index-like (not an offset): a generous ceiling well above the probed max
     // of 360, but far below the byte-offset range a real offset would span.
     expect(maxNameRef, lessThan(100000), reason: 'nameRef looks like an offset, not an index: max $maxNameRef');

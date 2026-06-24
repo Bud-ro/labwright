@@ -231,19 +231,19 @@ class ViBlockList {
   }
 }
 
-/// One 20-byte info-area descriptor record. The info area holds a contiguous run
-/// of these after the block list; a record is a **section descriptor** when its
-/// `@16` word is the `0xFFFFFFFF` sentinel (carrying a data-area `secRel`),
-/// otherwise it is a name-table row (a different use of the same 20-byte slot).
-/// Every byte is captured (the two unclassified words as raw fields with TODOs)
-/// so [serialize] reconstructs the record byte-exact.
+/// One 20-byte info-area section descriptor. The info area holds a contiguous run
+/// of these after the block list; corpus-proven, **every** record is a real
+/// section referenced by a block-list entry (no "name-table rows" exist — all
+/// 281,313 records across 7583 VIs are referenced, and each carries a valid
+/// data-area `[u32 len][payload]`). Every byte is captured (the unclassified
+/// words as raw fields with TODOs) so [serialize] reconstructs it byte-exact.
 class ViSectionDescriptor {
   ViSectionDescriptor({
     required this.word0,
     required this.secRel,
     required this.word8,
     required this.nameRef,
-    required this.sentinel,
+    required this.word16,
   });
 
   /// `u32 @0` — zero in the vast majority of section descriptors; carries a
@@ -269,21 +269,24 @@ class ViSectionDescriptor {
   // list (no section parses as one). Likely embedded in the heap/type metadata.
   final int nameRef;
 
-  /// `u32 @16` — discriminates the two uses of this 20-byte slot. Across the full
-  /// corpus it is exactly binary: `0xFFFFFFFF` marks a real section descriptor;
-  /// `0` marks a name-table row (every one of the 4770 corpus rows carries `0`
-  /// here — no other value occurs).
-  final int sentinel;
+  /// `u32 @16` — a per-section word, exactly binary across the full corpus:
+  /// `0xFFFFFFFF` for ~98.3% of sections, and `0` for exactly the **LIBN** (4730)
+  /// and **VINS** (40) block sections — both of which are real, data-bearing
+  /// sections (LIBN payloads are owning-library names like `MQTT Server.lvlib…`;
+  /// VINS payloads are entire embedded sub-VIs — a nested `RSRC…LVIN` file). So
+  /// `0` here does NOT mean "not a section"; it co-occurs with those two blocks.
+  // TODO(labwright): decode @16's meaning (a kind/flag distinguishing embedded
+  // LIBN/VINS sections from the VI's own data sections?).
+  final int word16;
 
-  static const int sectionSentinel = 0xFFFFFFFF;
+  /// The `@16` value carried by the VI's own data sections (~98.3% of sections);
+  /// LIBN/VINS sections carry `0` instead. Not a section-vs-nonsection flag.
+  static const int commonWord16 = 0xFFFFFFFF;
 
-  /// Whether this record is a section descriptor (vs a name-table row).
-  bool get isSection => sentinel == sectionSentinel;
-
-  /// Whether this section carries a name (a non-zero [nameRef] index). Always
-  /// false for name-table rows. The name itself is not yet resolvable — see
-  /// [nameRef] — but a caller can already tell named sections from anonymous ones.
-  bool get isNamed => isSection && nameRef != 0;
+  /// Whether this section carries a name (a non-zero [nameRef] index). The name
+  /// itself is not yet resolvable — see [nameRef] — but a caller can already tell
+  /// named sections from anonymous ones.
+  bool get isNamed => nameRef != 0;
 
   /// Parses the 20-byte record (five big-endian `u32`s) at [at] within [info].
   factory ViSectionDescriptor.parse(Uint8List info, int at) {
@@ -294,7 +297,7 @@ class ViSectionDescriptor {
       secRel: d.getUint32(at + 4),
       word8: d.getUint32(at + 8),
       nameRef: d.getUint32(at + 12),
-      sentinel: d.getUint32(at + 16),
+      word16: d.getUint32(at + 16),
     );
   }
 
@@ -306,7 +309,7 @@ class ViSectionDescriptor {
       ..setUint32(4, secRel)
       ..setUint32(8, word8)
       ..setUint32(12, nameRef)
-      ..setUint32(16, sentinel);
+      ..setUint32(16, word16);
     return out;
   }
 }
@@ -398,8 +401,8 @@ class ViInfoArea {
   // TODO(labwright): identify these 20 bytes (a leading/self descriptor slot?).
   final Uint8List preGap;
 
-  /// The contiguous 20-byte descriptor records in address order (section
-  /// descriptors interleaved with name-table rows). Empty in the fallback case.
+  /// The contiguous 20-byte section descriptor records in address order (every
+  /// one is a real block-referenced section). Empty in the fallback case.
   final List<ViSectionDescriptor> descriptors;
 
   /// The name-table tail (header + trailing VI name), typed. In the raw-fallback
@@ -739,7 +742,9 @@ abstract final class ViExport {
   /// `secRel`. Mirrors `readViSections` but operates on the isolated info area
   /// (so offsets are info-relative): `blockListRel@0x2c` → block list
   /// (`u32 count` + `count` × 12-byte entries) → 20-byte descriptors, keeping
-  /// only rows whose `+16` word is the `0xFFFFFFFF` sentinel (section, not name).
+  /// only the VI's own data sections (`+16` word `0xFFFFFFFF`) and skipping the
+  /// LIBN/VINS sections (`+16` word `0`) — their bytes are still preserved raw as
+  /// data-area gaps, so the byte-exact round-trip is unaffected.
   static List<({int dpos, int secRel})> _infoDescriptors(Uint8List info) {
     final out = <({int dpos, int secRel})>[];
     if (info.length < 0x30) return out;
@@ -749,7 +754,7 @@ abstract final class ViExport {
     if (countPos < 0 || countPos + 4 > info.length) return out;
     final count = ibd.getUint32(countPos);
     if (count > 100000) return out;
-    const sentinel = 0xFFFFFFFF;
+    const commonWord16 = 0xFFFFFFFF;
     const descSize = 20;
     final descBase = countPos + 8;
     var entry = countPos + 4;
@@ -760,7 +765,7 @@ abstract final class ViExport {
       for (var s = 0; s < sectionCount; s++) {
         final dpos = descBase + descRel + s * descSize;
         if (dpos < 0 || dpos + descSize > info.length) break;
-        if (ibd.getUint32(dpos + 16) != sentinel) continue; // name-table row
+        if (ibd.getUint32(dpos + 16) != commonWord16) continue; // LIBN/VINS section
         out.add((dpos: dpos, secRel: ibd.getUint32(dpos + 4)));
       }
     }

@@ -109,9 +109,12 @@ const List<int> _magic = [0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a]; // "RSRC\r\n"
 /// Total and bounds-safe like [parseVi]: a malformed *container* (bad magic,
 /// truncated header/block-list) throws [ViFormatException], while an individual
 /// ill-formed section descriptor is skipped — so the result is a best-effort
-/// (possibly partial) list, never a crash. Each real section descriptor is a
-/// 20-byte record terminated by the `0xFFFFFFFF` sentinel, which distinguishes
-/// it from the interleaved name-table records.
+/// (possibly partial) list, never a crash. Each section descriptor is a 20-byte
+/// record; this extractor currently returns only the VI's own data sections
+/// (`@16` word `0xFFFFFFFF`) and skips the LIBN/VINS sections (`@16` word `0`,
+/// i.e. owning-library names and embedded sub-VIs).
+// TODO(labwright): recover LIBN/VINS sections too — they carry valid
+// `[u32 len][payload]` data (LIBN: library names; VINS: nested RSRC VIs).
 ///
 /// **Descriptor-table base.** A block-list entry's third word (`descRel`) is the
 /// offset to that block's 20-byte section descriptors **relative to the block
@@ -150,7 +153,7 @@ List<ViSection> readViSections(Uint8List bytes) {
   final count = u32(countPos);
   if (count > 100000) throw ViFormatException('implausible block count $count');
 
-  const sentinel = 0xFFFFFFFF;
+  const commonWord16 = 0xFFFFFFFF;
   const descSize = 20;
   // Section descriptors are addressed relative to the block-list header
   // (`countPos + 8`), not to the info section — see the doc comment above.
@@ -166,7 +169,7 @@ List<ViSection> readViSections(Uint8List bytes) {
     for (var s = 0; s < sectionCount; s++) {
       final dpos = descBase + descRel + s * descSize;
       if (dpos < 0 || dpos + descSize > bytes.length) break;
-      if (d.getUint32(dpos + 16) != sentinel) continue; // name-table row, not a section
+      if (d.getUint32(dpos + 16) != commonWord16) continue; // LIBN/VINS section (skipped for now)
       final secRel = d.getUint32(dpos + 4);
       final pos = dataOffset + secRel;
       if (pos < 0 || pos + 4 > bytes.length) continue;

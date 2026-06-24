@@ -486,10 +486,11 @@ class _SummaryViewState extends State<_SummaryView> {
             else
               Tooltip(
                 // Honest: these blocks are listed in the file's block table but
-                // readViSections can't yet locate their section bytes (their
-                // descriptor uses a layout the sentinel heuristic misses), so
-                // there is nothing to show in the hex view.
-                message: '${kBlockGlossary[b] ?? 'resource block'}\n(bytes not yet shown — descriptor layout not decoded)',
+                // readViSections doesn't yet extract their section bytes (e.g.
+                // LIBN library names / VINS embedded sub-VIs, whose descriptor
+                // @16 word is 0 rather than 0xFFFFFFFF), so there is nothing to
+                // show in the hex view yet.
+                message: '${kBlockGlossary[b] ?? 'resource block'}\n(bytes not yet extracted for this block)',
                 child: Opacity(
                   opacity: 0.4,
                   child: Chip(

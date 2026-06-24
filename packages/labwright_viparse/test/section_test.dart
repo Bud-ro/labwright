@@ -7,7 +7,7 @@ import 'package:test/test.dart';
 /// Builds a valid RSRC container with the given blocks/sections, matching the
 /// real layout `readViSections` expects: a 32-byte header, a length-prefixed
 /// data area, and an info area whose block list points at 20-byte section
-/// descriptors terminated by the 0xFFFFFFFF sentinel.
+/// descriptors whose `@16` word is `0xFFFFFFFF` (the VI's own data sections).
 Uint8List buildRsrc(List<({String tag, List<List<int>> sections})> blocks) {
   void be16(BytesBuilder b, int v) => b.add((ByteData(2)..setUint16(0, v)).buffer.asUint8List());
   void be32(BytesBuilder b, int v) => b.add((ByteData(4)..setUint32(0, v)).buffer.asUint8List());
@@ -65,7 +65,7 @@ Uint8List buildRsrc(List<({String tag, List<List<int>> sections})> blocks) {
       be32(info, secOff['$bi.$si']!); // data offset
       be32(info, 0);
       be32(info, 0);
-      be32(info, 0xFFFFFFFF); // sentinel
+      be32(info, 0xFFFFFFFF); // word16 (own data section)
     }
   }
 
