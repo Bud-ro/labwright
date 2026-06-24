@@ -199,6 +199,30 @@ void main() {
     expect(nonPrintable.byId[2]!.items, isEmpty);
   });
 
+  test('numeric-control range (0xF5/0xF7) and help text (0x6C) are collected onto the object', () {
+    List<int> f64rec(int id, double v) {
+      final d = ByteData(8)..setFloat64(0, v);
+      return [0xc5, id, 0x08, ...d.buffer.asUint8List()];
+    }
+
+    List<int> c6blob(int id, String s) {
+      final len = 4 + s.length;
+      return [0xc6, id, 0xff, len >> 8, len & 0xff, 0, 0, 0, s.length, ...s.codeUnits];
+    }
+
+    final records = <int>[
+      ...open(0x50, 1), ...bounds(0, 0, 17, 80), // a numeric control
+      ...f64rec(0xf5, -5.0), // control min
+      ...f64rec(0xf7, 10.0), // control max
+      ...c6blob(0x6c, 'a tooltip'), // help text
+      ...close(),
+    ];
+    final o = buildDiagram(Uint8List.fromList([0, 0, 0, records.length, ...records])).byId[1]!;
+    expect(o.controlMin, -5.0);
+    expect(o.controlMax, 10.0);
+    expect(o.helpText, 'a tooltip');
+  });
+
   test('buildDiagram is total over arbitrary bytes', () {
     final junk = Uint8List.fromList([for (var i = 0; i < 400; i++) (i * 17 + 3) & 0xff]);
     expect(() {

@@ -131,6 +131,18 @@ class ViHeapObject {
   /// propagated up to its enclosing control. Empty for non-enum objects.
   List<String> items = const [];
 
+  /// Decoded numeric-control **range minimum** (`0xF5` confirmed, or the `0x20`
+  /// f64 form) — null if none. May be `-infinity` (the "no minimum" sentinel).
+  double? controlMin;
+
+  /// Decoded numeric-control **range maximum** (`0xF7`, or the `0x21` f64 form) —
+  /// null if none. May be `+infinity` (the "no maximum" sentinel).
+  double? controlMax;
+
+  /// Decoded help / description text for this object (`0x6C` blob / `C4 19`), or
+  /// null. The VI/control's documentation string.
+  String? helpText;
+
   /// The named, documented class catalog entry for this object's [kind]
   /// (or [HeapObjectClass.unknown] if the code is not catalogued).
   HeapObjectClass get objectClass => HeapObjectClass.fromCode(kind);
@@ -482,6 +494,8 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDEx'}) {
         fmt[cur] ??= rec.payload;
       } else if (rec.opcode == 0x2e) {
         if (cur.items.isEmpty) cur.items = _parseEnumItems(rec.payload);
+      } else if (rec.opcode == 0x19) {
+        cur.helpText ??= rec.descriptionText;
       }
     } else if (lead == 0x14) {
       // Typed object reference (the heap's declared object graph). Single-source
@@ -490,6 +504,21 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDEx'}) {
       if (r != null) {
         (cur.typedRefs[r.kind] ??= <int>[]).add(r.targetOid);
         if (r.kind == HeapRefKind.childRef) cur.refs.add(r.targetOid);
+      }
+    } else {
+      // Decoded scalar/string attributes worth surfacing on the object: the
+      // numeric-control range (0xF5/0xF7, or the 0x20/0x21 f64 form) and help text.
+      final a = decodeHeapAttr(body, o);
+      if (a != null) {
+        final d = a.asDouble;
+        if (d != null && (a.attribute == HeapAttribute.controlMin || a.attribute == HeapAttribute.foregroundColor)) {
+          cur.controlMin ??= d;
+        }
+        if (d != null && (a.attribute == HeapAttribute.controlMax || a.attribute == HeapAttribute.foregroundColorB)) {
+          cur.controlMax ??= d;
+        }
+        final s = a.asString;
+        if (s != null && s.isNotEmpty && a.attribute == HeapAttribute.helpDescription) cur.helpText ??= s;
       }
     }
   }

@@ -526,6 +526,31 @@ class _OverlayPainter extends CustomPainter {
       old.members.length != members.length || !old.members.containsAll(members);
 }
 
+/// A "label: value" detail row for the selected-object card (decoded semantics).
+Widget _detail(String label, String value) => Padding(
+      padding: const EdgeInsets.only(top: 3),
+      child: RichText(
+        maxLines: 3,
+        overflow: TextOverflow.ellipsis,
+        text: TextSpan(
+          style: const TextStyle(fontSize: 12, color: Color(0xFF333333)),
+          children: [
+            TextSpan(text: '$label: ', style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF1565C0))),
+            TextSpan(text: value),
+          ],
+        ),
+      ),
+    );
+
+/// Formats a decoded control bound honestly: null→"?", ±∞ sentinel→[inf], an
+/// integral double→its int form, else the raw double.
+String _fmtBound(double? v, String inf) {
+  if (v == null) return '?';
+  if (v.isNaN) return 'NaN';
+  if (v.isInfinite) return inf;
+  return v == v.roundToDouble() && v.abs() < 1e15 ? v.toInt().toString() : v.toString();
+}
+
 class _DetailsCard extends StatelessWidget {
   const _DetailsCard({required this.object, required this.onClose});
   final ViHeapObject object;
@@ -562,6 +587,13 @@ class _DetailsCard extends StatelessWidget {
                     '${object.parentOid != null ? ' · parent ${object.parentOid}' : ''}',
                     style: const TextStyle(color: Colors.grey, fontSize: 12),
                   ),
+                  // Decoded semantics (only shown when actually recovered — honest).
+                  if (object.items.isNotEmpty)
+                    _detail('values', object.items.take(8).join(', ') + (object.items.length > 8 ? ', …' : '')),
+                  if (object.controlMin != null || object.controlMax != null)
+                    _detail('range', '${_fmtBound(object.controlMin, '−∞')} … ${_fmtBound(object.controlMax, '+∞')}'),
+                  if (object.helpText != null && object.helpText!.trim().isNotEmpty)
+                    _detail('help', object.helpText!.trim()),
                 ],
               ),
             ),
