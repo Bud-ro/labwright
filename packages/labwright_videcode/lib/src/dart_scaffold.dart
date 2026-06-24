@@ -11,6 +11,13 @@ const String scaffoldMarker = 'structural scaffold, no dataflow recovered';
 /// hundreds of captions; the header stays readable without hiding the count.
 const int _captionCap = 50;
 
+/// Max nesting depth the scaffold walk recurses before stopping (with a
+/// truncation note). Real diagrams nest a few dozen levels; a corrupt/hostile
+/// heap could encode thousands, so this bounds the recursion to keep generation
+/// total (no `StackOverflowError`). Anything cut off here is still listed by the
+/// trailing "outside the nesting tree" coverage pass, so nothing is dropped.
+const int _maxNestingDepth = 96;
+
 /// Generates an **honest structural Dart scaffold** from a decoded [ViModel] —
 /// the first VI→IR→Dart codegen step. It is deliberately NOT executable logic:
 /// LabVIEW stores wires as pure geometry with no recoverable node→node
@@ -100,6 +107,12 @@ void _emitDiagram(StringBuffer b, ViDiagram d) {
 
   void walk(ViHeapObject o, int depth) {
     if (!seen.add(o.oid)) return; // visit each object once (cycle/repeat guard)
+    if (depth > _maxNestingDepth) {
+      // Stop recursing on pathological nesting; un-emitted structures/nodes are
+      // still covered by the trailing leftover pass (they stay out of `emitted`).
+      b.writeln('${'  ' * (depth + 1)}// (nesting truncated at depth $_maxNestingDepth)');
+      return;
+    }
     final pad = '  ' * (depth + 1);
     final children = kids[o.oid] ?? const <ViHeapObject>[];
     switch (o.category) {

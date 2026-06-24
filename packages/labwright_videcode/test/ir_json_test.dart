@@ -46,7 +46,16 @@ void main() {
       files++;
       final name = f.path.split('/').last;
       final a = jsonEncode(viModelToJson(model));
-      final b = jsonEncode(viModelToJson(model));
+      // Build a SECOND model from an independent re-parse of the same bytes and
+      // compare — this actually exercises determinism (object/dedup-list order
+      // stability across parses), unlike encoding one model twice.
+      final ViModel model2;
+      try {
+        model2 = buildViModel(Uint8List.fromList(f.readAsBytesSync()));
+      } catch (_) {
+        continue;
+      }
+      final b = jsonEncode(viModelToJson(model2));
       if (a != b) {
         if (fails.length < 8) fails.add('NONDET $name');
         continue;

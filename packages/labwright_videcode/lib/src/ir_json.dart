@@ -23,6 +23,12 @@ const int viIrVersion = 2;
 /// range sentinels (±infinity = "no bound") are dropped rather than emitted as
 /// invalid JSON numbers. Deterministic: object order follows the diagram's
 /// pre-order [ViDiagram.objects].
+///
+/// Honesty note on the two id fields: `parentOid` is the containment tree (the
+/// nesting is rebuilt from it). `memberOids` is the heap's *declared*
+/// childRef/memberRef reflist — NOT containment and NOT wire endpoints; it is
+/// orthogonal to `parentOid` and diverges from it ~72% of the time, so a
+/// consumer must not read it as the child list.
 Map<String, Object?> viDiagramToJson(ViDiagram d) => {
       'sectionTag': d.sectionTag,
       'objects': [for (final o in d.objects) _objectToJson(o)],

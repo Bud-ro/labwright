@@ -288,8 +288,9 @@ List<String> readSubViNames(Uint8List bytes) {
   // EOF name; use both (basename, lowercased) so self is reliably dropped.
   final self = <String>{};
   final livi = sectionBytes('LIvi');
-  if (livi != null && _pascalViNames(livi).isNotEmpty) {
-    self.add(_pascalViNames(livi).first.split(RegExp(r'[\\/]')).last.toLowerCase());
+  final liviNames = livi == null ? const <String>[] : _pascalViNames(livi);
+  if (liviNames.isNotEmpty) {
+    self.add(liviNames.first.split(RegExp(r'[\\/]')).last.toLowerCase());
   }
   final trailing = _trailingName(bytes);
   if (trailing != null && trailing.toLowerCase().endsWith('.vi')) {
