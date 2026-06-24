@@ -17,6 +17,8 @@ void main() {
     expect(tier([0x14, 0x19, 0x01, 0xfd, 0x00, 0x09]), HeapDecodeTier.semantic); // childRef
     expect(tier([0xc4, 0x2d, 0x08, 0, 0, 0, 0, 0, 10, 0, 20]), HeapDecodeTier.semantic); // C4 bounds (isDecoded)
     expect(tier([0x84, 0x28, 0xff, 0x12, 0x34, 0x56]), HeapDecodeTier.semantic); // backgroundColor (confirmed)
+    expect(tier([0x84, 0x2a, 0xff, 0xff, 0x42, 0x42]), HeapDecodeTier.semantic); // plotColor (inferred)
+    expect(tier([0x84, 0x2b, 0xff, 0xbc, 0xbc, 0xbc]), HeapDecodeTier.semantic); // areaFillColor (inferred)
   });
 
   test('valueKindKnown: kindOnly attr, 0xE7 container, and known-shape C4 (rect/container)', () {
