@@ -65,11 +65,17 @@ void main() {
 
   test('decodeHeapPropertyToken decodes tagged-list values and bare selectors', () {
     Uint8List b(List<int> x) => Uint8List.fromList(x);
-    // 10 19 selfRoleClass: tagged FE sub-list, first item value 0x0258.
+    // 10 19 selfRoleClass: the genuine single-item (count==1) property token.
     final role = decodeHeapPropertyToken(b([0x10, 0x19, 0x01, 0xfe, 0x02, 0x58]), 0);
     expect(role!.token, HeapPropertyToken.selfRoleClass);
     expect(role.value, 0x0258);
     expect(role.length, 6);
+    // The 10 19 02 fe <kind> fd <oid> OBJECT HEADER is NOT a property token.
+    expect(decodeHeapPropertyToken(b([0x10, 0x19, 0x02, 0xfe, 0x00, 0x50, 0xfd, 0x00, 0x2a]), 0), isNull);
+    // FD 7-byte escape `fd 80 00 <u32>`: value is the u32, not the 0x8000 bytes.
+    final esc = decodeHeapPropertyToken(b([0x10, 0x19, 0x01, 0xfd, 0x80, 0x00, 0x00, 0x01, 0x36, 0xde]), 0);
+    expect(esc!.value, 0x000136de);
+    expect(esc.length, 10);
     // 10 e1 controlStyleCount: tagged FB u16 sub-list, value 7.
     final style = decodeHeapPropertyToken(b([0x10, 0xe1, 0x01, 0xfb, 0x00, 0x07]), 0);
     expect(style!.token, HeapPropertyToken.controlStyleCount);

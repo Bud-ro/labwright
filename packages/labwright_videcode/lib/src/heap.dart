@@ -946,7 +946,10 @@ class HeapWalk {
 enum PropTokenForm {
   /// `<op> <subop> <count> <FB/FE/FD> <items>` — a tagged sub-list. The first
   /// item carries the value: tag `FE` → `s16`, `FB` → `u16`, `FD` → an object id.
-  /// This is the bulk of the family (the `count` is almost always 1).
+  /// The `count` is 1 or 2 (≈50/50 across the corpus; the dominant `10 19` token
+  /// is ≈79% count==2). [decodeHeapPropertyToken] returns only the **first**
+  /// item's value; a frequently-present second item (often an `fd` object id) is
+  /// not surfaced.
   taggedList,
 
   /// A bare 2-byte `<op> <subop>` selector — a fixed property *slot* on the
@@ -975,12 +978,15 @@ enum PropTokenForm {
 /// labels on a single scoped kind. No LabVIEW source was used. Resolve a pair
 /// with [lookup]; map a record at an offset with [decodeHeapPropertyToken].
 enum HeapPropertyToken {
-  /// `10 19` — **object self-role / feature-class echo** (`FE`→s16). The value is
-  /// ~constant per object kind (0x258 on control sub-parts, 0x320 on terminal
-  /// clusters, 0x1F4 on diagram props): a type-class descriptor, not free data.
-  /// Co-occurs with the `C4 2D` bounds + `C4 1F` terminal signature. The single
-  /// highest-volume pair (185k object-scoped instances); value↔kind is 1:1.
-  selfRoleClass(0x10, 0x19, PropTokenForm.taggedList, 'selfRoleClass', AttrConfidence.confirmed),
+  /// `10 19` (non-header form) — a small `FE`→s16 property token. NOTE: the
+  /// dominant `10 19` shape in the corpus is the **object header**
+  /// `10 19 02 fe <kind> fd <oid>` (≈79% of `10 19` records, count==2), which is
+  /// NOT this token — [decodeHeapPropertyToken] excludes the object-header shape
+  /// so it is not mis-read here. What remains (e.g. the `10 19 01 fe <s16>`
+  /// single-item form) is a genuine property token, but its meaning is not pinned
+  /// (the earlier "≈0x258 / value↔kind 1:1" claim conflated it with the header
+  /// and is false — the header's first u16 is a diverse class code, not 0x258).
+  selfRoleClass(0x10, 0x19, PropTokenForm.taggedList, 'selfRoleClass', AttrConfidence.kindOnly),
 
   /// `10 8d` — **text / appearance feature flag** (`FE`→s16, always 0x258) on
   /// label-bearing parts (chrome, label, numeric display). Co-occurs with the
@@ -1006,8 +1012,8 @@ enum HeapPropertyToken {
   /// loop/diagram frame=4/6): a per-control-class style/part code.
   controlStyleCount(0x10, 0xe1, PropTokenForm.taggedList, 'controlStyleCount', AttrConfidence.inferred),
 
-  /// `11 18` — **tip-strip enabled flag** (`FB`→u16, always 1), scoped entirely to
-  /// tip-strip objects; co-occurs only with `C4 19` help text.
+  /// `11 18` — **tip-strip flag** (`FB`→u16, observed values {1, 2}), scoped
+  /// entirely to tip-strip objects; co-occurs only with `C4 19` help text.
   tipStripEnabled(0x11, 0x18, PropTokenForm.taggedList, 'tipStripEnabled', AttrConfidence.inferred),
 
   /// `10 25` — **text-table / item-list marker** (`FB`→u16, value 1) on labels,
@@ -1110,8 +1116,20 @@ class HeapPropertyValue {
 /// Decodes the [HeapPropertyToken] record at [offset] in [body], or null if the
 /// bytes there are not a catalogued `(op, subop)` token. Mirrors [recordSkip]'s
 /// framing of the hi-nibble 0/1 family.
+///
+/// Returns null for the **object-header** shape `10/11/12 02 fe <kind> fd <oid>`
+/// even though its `(op, subop)` may be catalogued (e.g. `10 19`): that is an
+/// object declaration, not a property — decode it as a header (the (kind, oid)
+/// pair), not via this primitive. (Callers that classify object headers first
+/// were already correct; this keeps the primitive honest standalone.)
 HeapPropertyValue? decodeHeapPropertyToken(Uint8List body, int offset) {
   if (offset + 2 > body.length) return null;
+  // Object header, not a property token — see doc above.
+  if (offset + 9 <= body.length &&
+      (body[offset] == 0x10 || body[offset] == 0x11 || body[offset] == 0x12) &&
+      body[offset + 2] == 0x02 && body[offset + 3] == 0xfe && body[offset + 6] == 0xfd) {
+    return null;
+  }
   final op = body[offset], subop = body[offset + 1];
   final token = HeapPropertyToken.lookup(op, subop);
   if (token == null) return null;
@@ -1126,6 +1144,11 @@ HeapPropertyValue? decodeHeapPropertyToken(Uint8List body, int offset) {
   int? value;
   if (tag == 0xfb && offset + 6 <= body.length) {
     value = (body[offset + 4] << 8) | body[offset + 5]; // u16 item
+  } else if (tag == 0xfd && offset + 5 <= body.length && (body[offset + 4] & 0x80) != 0) {
+    // 7-byte FD escape `fd 80 00 <u32 value>`: the u32 follows `80 00`.
+    value = offset + 10 <= body.length
+        ? (body[offset + 6] << 24) | (body[offset + 7] << 16) | (body[offset + 8] << 8) | body[offset + 9]
+        : null;
   } else if ((tag == 0xfe || tag == 0xfd) && offset + 6 <= body.length) {
     // 3-byte item `<tag><hi><lo>`: the trailing 2 bytes are the s16/oid value.
     value = (body[offset + 4] << 8) | body[offset + 5];
