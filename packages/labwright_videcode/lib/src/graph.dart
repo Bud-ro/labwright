@@ -406,12 +406,20 @@ String? formatControlRange(double? min, double? max) {
 /// from decoded [descriptionText] for *display only* — the raw decode stays
 /// verbatim, this is presentation. ~90% of corpus help text is wrapped in these
 /// tags (e.g. `<B>error out</B> contains…`), which would otherwise show literally
-/// in the details card / tooltip. Conservative: only matches tags whose body is
-/// letters/digits (so a math expression like `a < 5 > 0` is left untouched), and
-/// preserves newlines. Returns the trimmed result.
-String stripHelpMarkup(String s) => s.replaceAll(_helpMarkupTag, '').trim();
+/// in the details card / tooltip. The regex also matches a bare angle-bracket
+/// *token* like `<register>` (its body is letters), so removing an inline tag can
+/// leave a run of spaces, and a help string that IS just such a token would strip
+/// to nothing — so we collapse interior space runs (newlines preserved) and FALL
+/// BACK to the raw text when stripping empties a non-empty input (the token was
+/// real data, not markup). A math expression like `a < 5 > 0` is left untouched
+/// (digit/space bodies don't match). Returns the trimmed result.
+String stripHelpMarkup(String s) {
+  final out = s.replaceAll(_helpMarkupTag, '').replaceAll(_interiorSpaces, ' ').trim();
+  return out.isEmpty ? s.trim() : out;
+}
 
 final RegExp _helpMarkupTag = RegExp(r'<\s*/?\s*[A-Za-z][A-Za-z0-9]*\s*>');
+final RegExp _interiorSpaces = RegExp(r'[ \t]{2,}');
 
 /// Classifies a heap object into a [ViObjectKind] from its class code and signals
 /// (corpus-validated; see the [HeapObjectClass] catalog). The data-driven

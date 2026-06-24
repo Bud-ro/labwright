@@ -339,6 +339,12 @@ void main() {
     expect(stripHelpMarkup('line one\n<I>line</I> two'), 'line one\nline two'); // newlines kept
     expect(stripHelpMarkup('plain help, no tags'), 'plain help, no tags');
     expect(stripHelpMarkup('threshold a < 5 > 0 holds'), 'threshold a < 5 > 0 holds'); // math not eaten
+    // A help string that IS a bare angle-bracket token is real data, not markup:
+    // stripping must NOT collapse it to empty (else the UI shows nothing).
+    expect(stripHelpMarkup('<register>'), '<register>');
+    expect(stripHelpMarkup('<default>'), '<default>');
+    // Removing an inline tag must not leave a double space (corpus boilerplate).
+    expect(stripHelpMarkup('See <B>error in</B>  for details'), 'See error in for details');
   });
 
   test('buildDiagram terminates on a parentOid cycle (reanchorViewport guard)', () {
