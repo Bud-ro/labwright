@@ -47,11 +47,14 @@ class FaithfulLayer extends StatelessWidget {
 /// and/or numeric range — honest (only shown when actually decoded), and on the
 /// tooltip so it never overflows a tiny control box.
 Widget _withHelp(ViHeapObject o, Widget child) {
-  final msg = _tooltipFor(o);
+  final msg = controlTooltip(o);
   return msg == null ? child : Tooltip(message: msg, waitDuration: const Duration(milliseconds: 400), child: child);
 }
 
-String? _tooltipFor(ViHeapObject o) {
+/// The faithful-control hover tooltip for [o] — its decoded help text and/or
+/// numeric range (`help\nrange: lo … hi`), or null when neither is present.
+/// Pure + public for unit testing (the tap-to-select path is widget-test-hostile).
+String? controlTooltip(ViHeapObject o) {
   final parts = <String>[];
   final h = o.helpText?.trim();
   if (h != null && h.isNotEmpty) parts.add(h);
