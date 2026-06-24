@@ -270,6 +270,21 @@ enum HeapObjectClass {
   /// [ViObjectKind.node] — an undrawn grouping bucket; it is never rendered.)
   node(0x12, 'Content group (FP)', ViObjectKind.node, ClassConfidence.confirmed),
 
+  /// `0x2F` — a **block-diagram node** (function / primitive). Corpus: 44395 BD
+  /// instances, 0 FP, all visible at a uniform **32×32** icon footprint (LabVIEW's
+  /// default node-icon size), parented to the node container `0x1b`, holding the
+  /// structural `0x15` records (and an occasional `0xa` label). The 32×32 icon
+  /// signature + node-container parent identify it as a node; the specific
+  /// primitive is not recovered, so it renders as a generic node box.
+  bdNode(0x2f, 'Node', ViObjectKind.node, ClassConfidence.inferred),
+
+  /// `0x31` — a **named/documented block-diagram node** (e.g. a subVI call).
+  /// Corpus: 31995 BD instances, 0 FP, uniform **32×32**, parented to `0x1b`, each
+  /// carrying exactly one `0xa` label child (+ `0xc1` tip-strips on 713) over the
+  /// structural `0x15` records — i.e. a node that, unlike the bare `0x2f`, owns a
+  /// caption/help. Renders as a node box.
+  bdNamedNode(0x31, 'Node (named)', ViObjectKind.node, ClassConfidence.inferred),
+
   // --- Control / indicator terminal containers (top-level on the diagram) ---
   /// `0x50` — a **numeric** control/indicator terminal (defining signal: a
   /// `0xE0` numeric-display child + `C4 74` printf format).
