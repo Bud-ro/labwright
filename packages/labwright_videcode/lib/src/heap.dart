@@ -300,8 +300,8 @@ enum AttrConfidence {
 /// but not the exact LabVIEW property name; `kindOnly` names are pure value-kind
 /// labels. See `docs/vi-rsrc-and-heap-format.md` for the full evidence.
 enum HeapAttribute {
-  /// `0x1F` — **relative coordinate / offset** (`s16`, observed 100% negative as
-  /// `u16` → a relative position). The single highest-volume attribute.
+  /// `0x1F` — **relative coordinate / offset** (`s16`, ≈99.96% high-bit-set as
+  /// `u16` → a relative/negative position). The single highest-volume attribute.
   relativeOffset(0x1f, HeapAttrKind.coordinate, 'relativeOffset', AttrConfidence.inferred),
 
   /// `0x00` / `0x01` — **absolute coordinate X / Y** (`s16`, small with
@@ -438,8 +438,10 @@ enum HeapAttribute {
   /// `0xD0` — **colour** (RGB; diverse hues). Direction not pinned.
   miscColor(0xd0, HeapAttrKind.color, 'miscColor', AttrConfidence.inferred),
 
-  /// `0xB7` — **fixed style colour** (RGB, constant `(1,0,1)` across the corpus).
-  styleColor(0xb7, HeapAttrKind.color, 'styleColor', AttrConfidence.confirmed),
+  /// `0xB7` — **style colour** (RGB; predominantly `(1,0,1)` ≈78% of records but
+  /// genuinely varies — 3,600+ distinct values across the corpus). Direction/role
+  /// not pinned, so not `confirmed`.
+  styleColor(0xb7, HeapAttrKind.color, 'styleColor', AttrConfidence.inferred),
 
   /// `0x22` — **label colour / text-attribute field** (mixed `u8`/RGB with text
   /// style flags). Distinct from the `C4 22` caption opcode.
@@ -456,7 +458,8 @@ enum HeapAttribute {
   /// the `C4 44` container opcode.
   countOrSentinel(0x44, HeapAttrKind.enumValue, 'countOrSentinel', AttrConfidence.kindOnly),
 
-  /// `0x59` — **reserved / always-zero flag** (`u8`, all 0 across the corpus).
+  /// `0x59` — **reserved / near-always-zero flag** (`u8`; ~99.9% zero across the
+  /// corpus, with rare non-zero outliers).
   reservedFlag(0x59, HeapAttrKind.flag, 'reservedFlag', AttrConfidence.inferred),
 
   /// `0x5A` — **flag (u8) OR instrument-identity string (C6)** — *dual-use*: a
@@ -464,12 +467,14 @@ enum HeapAttribute {
   /// via `C6`. [HeapAttr.kind] resolves it by width.
   flagOrIdentity(0x5a, HeapAttrKind.flag, 'flagOrIdentityString', AttrConfidence.confirmed),
 
-  /// `0xF5` — numeric-control **range minimum** (`f64`; `f5 ≤ f7` in 125/125
-  /// groups).
-  controlMin(0xf5, HeapAttrKind.controlParam, 'controlMin', AttrConfidence.confirmed),
+  /// `0xF5` — numeric-control **range minimum** (`f64`). The `f5 ≤ f7` ordering
+  /// holds 100% on the picotech sample but only ≈90% across the diverse corpus,
+  /// so the min/max direction is inferred, not pinned.
+  controlMin(0xf5, HeapAttrKind.controlParam, 'controlMin', AttrConfidence.inferred),
 
-  /// `0xF7` — numeric-control **range maximum** (`f64`; pairs with [controlMin]).
-  controlMax(0xf7, HeapAttrKind.controlParam, 'controlMax', AttrConfidence.confirmed),
+  /// `0xF7` — numeric-control **range maximum** (`f64`; pairs with [controlMin] —
+  /// see its note on the ≈90%-corpus ordering).
+  controlMax(0xf7, HeapAttrKind.controlParam, 'controlMax', AttrConfidence.inferred),
 
   /// `0xF9` — numeric-control **fine increment** (`f64`; `f9 ≤ f8` in 257/257
   /// groups).
@@ -631,6 +636,14 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
       s = String.fromCharCodes(body.sublist(from, to).where((c) => c >= 0x20 && c < 0x7f));
     }
     return HeapAttr(attribute: HeapAttribute.fromId(id), id: id, width: HeapAttrWidth.blob, value: s, length: 5 + len);
+  }
+
+  // The `64 cb 26` form is a fixed 3-byte record, NOT a `0x64` u24 attribute —
+  // recordSkip special-cases it, so mirror that here (else a walk-then-decode
+  // consumer gets a fabricated u24 whose 3rd byte is the next record, and a
+  // length that desyncs the walk). The dominant corpus decode/skip disagreement.
+  if (op == 0x64 && offset + 3 <= body.length && body[offset + 1] == 0xcb && body[offset + 2] == 0x26) {
+    return null;
   }
 
   // Nibble family: low nibble in {4,5,6}, high nibble selects the width.

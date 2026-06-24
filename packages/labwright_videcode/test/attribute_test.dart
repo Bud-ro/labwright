@@ -201,4 +201,15 @@ void main() {
     expect(decodeHeapAttr(Uint8List.fromList([0xc4, 0x2d, 0x08]), 0), isNull);
     expect(decodeHeapAttr(Uint8List.fromList([0x10, 0x19]), 0), isNull);
   });
+
+  test('decodeHeapAttr agrees with recordSkip on the 64 cb 26 form (returns null)', () {
+    // recordSkip frames `64 cb 26` as a fixed 3-byte record, not a 0x64 u24
+    // attribute; decodeHeapAttr must not fabricate a u24 here (would desync a walk).
+    final rec = Uint8List.fromList([0x64, 0xcb, 0x26, 0x84, 0x20]);
+    expect(recordSkip(rec, 0), 3);
+    expect(decodeHeapAttr(rec, 0), isNull);
+    // a normal 0x64 u24 attribute (id != cb-26 form) still decodes.
+    final u24 = decodeHeapAttr(Uint8List.fromList([0x64, 0xcb, 0x10, 0x00, 0x00]), 0)!;
+    expect(u24.width, HeapAttrWidth.u24);
+  });
 }
