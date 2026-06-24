@@ -98,7 +98,9 @@ Widget _faithfulFor(ViHeapObject o) {
       if (o.category == ViObjectKind.node) return _NodeBox(o.label);
       if (o.category == ViObjectKind.structure) return const _StructureFrame();
       if (o.category == ViObjectKind.terminal) return const _ControlWidget(form: _Form.generic);
-      return const SizedBox.shrink();
+      // Bounded but unclassified: draw a faint placeholder (honest — matches the
+      // wireframe's gray box) instead of vanishing, so faithful != silently-dropped.
+      return const _UnknownBox();
   }
 }
 
@@ -177,6 +179,20 @@ class _LeafBox extends StatelessWidget {
           color: const Color(0x225B6B7A),
           border: Border.all(color: const Color(0xFF5B6B7A), width: 0.5),
           borderRadius: BorderRadius.circular(1),
+        ),
+      );
+}
+
+/// A bounded but unclassified object — a faint dashed-look outline so it stays
+/// visible (matching the wireframe's honest gray box) rather than being silently
+/// dropped from the faithful render. ~2.7% of visible BD objects are this tail.
+class _UnknownBox extends StatelessWidget {
+  const _UnknownBox();
+  @override
+  Widget build(BuildContext context) => Container(
+        decoration: BoxDecoration(
+          color: const Color(0x11000000),
+          border: Border.all(color: const Color(0x55808080)),
         ),
       );
 }
