@@ -115,6 +115,14 @@ void main() {
       expect(r.text, 'primitive'); // extracted from "Node (primitive)"
       expect(r.isHint, isTrue);
     });
+    test('a qualifier-paren class keeps its full label (no misleading fragment)', () {
+      // 0x12 = "Content group (FP)": the parens are a section qualifier, not a kind,
+      // so the hint must be the full label, never "FP".
+      final n = ViHeapObject(oid: 1, kind: 0x12, offset: 0)..category = ViObjectKind.node;
+      final r = nodeDisplayLabel(n);
+      expect(r.text, isNot('FP'));
+      expect(r.text, n.objectClass.label); // full catalog label
+    });
   });
 
   testWidgets('an unlabeled primitive node shows its class hint (not a blank box)', (tester) async {

@@ -159,9 +159,13 @@ const _kInk = Color(0xFF1A1A1A);
 ({String text, bool isHint}) nodeDisplayLabel(ViHeapObject o) {
   final l = o.label?.trim();
   if (l != null && l.isNotEmpty) return (text: l, isHint: false);
-  final cls = o.objectClass.label; // e.g. "Node (primitive)", "Call Library node"
-  final paren = RegExp(r'\(([^)]+)\)').firstMatch(cls);
-  return (text: paren != null ? paren.group(1)! : cls, isHint: true);
+  final cls = o.objectClass.label;
+  // Shorten only the "Node (kind)" wrapper (-> "primitive"/"growable"/"subVI
+  // call"); for any other label (e.g. "Call Library node", "Content group (FP)"
+  // where the parens are a qualifier, not a kind) keep the full catalog label so
+  // we never surface a misleading fragment like "FP".
+  final m = RegExp(r'^Node \((.+)\)$').firstMatch(cls);
+  return (text: m != null ? m.group(1)! : cls, isHint: true);
 }
 
 /// The badge text for a structure object — taken from the videcode CLASS CATALOG

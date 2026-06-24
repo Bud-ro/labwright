@@ -651,6 +651,14 @@ class ViSectionData extends ViDataSegment {
 /// descriptors) plus the gaps between them tile the data area exactly, so
 /// `rebuildDataArea(decomposeDataArea(bytes)) == ViContainer.parse(bytes).dataArea`
 /// byte-for-byte for 100% of VIs — the section-level idempotency contract.
+bool _listEquals(List<int> a, List<int> b) {
+  if (a.length != b.length) return false;
+  for (var i = 0; i < a.length; i++) {
+    if (a[i] != b[i]) return false;
+  }
+  return true;
+}
+
 abstract final class ViExport {
   /// Decomposes the data area of [viBytes] into ordered sections + gaps. Section
   /// positions come from the info-area descriptors ([readViSections]); the span
@@ -758,6 +766,14 @@ abstract final class ViExport {
   static Uint8List editSection(Uint8List viBytes, {required int secRel, required Uint8List newPayload}) {
     final c = ViContainer.parse(viBytes);
     final segs = decomposeDataArea(viBytes);
+    // Refuse to edit a data area that doesn't cleanly decompose: if decompose had
+    // to skip an overlapping/out-of-range/truncated section, the segment model is
+    // incomplete and the descriptor-secRel fixups below would silently desync from
+    // the bytes. Only an already-malformed VI fails this; well-formed files (the
+    // whole corpus) round-trip exactly, so editing stays coherent or refuses.
+    if (!_listEquals(rebuildDataArea(segs), c.dataArea)) {
+      throw ViFormatException('data area does not cleanly decompose; refusing to edit');
+    }
     ViSectionData? target;
     for (final s in segs) {
       if (s is ViSectionData && s.secRel == secRel) {
