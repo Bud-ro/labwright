@@ -30,6 +30,26 @@ void main() {
     expect(tier([0xc4, 0x44, 0x00]), HeapDecodeTier.valueKindKnown);
   });
 
+  test('semantic: newest decoded forms (0x31 string, 0x6c help blob, 0x20/0x21/0x22 f64, colour)', () {
+    // 0x31 inline property-name string.
+    expect(tier([0xc6, 0x31, 0x05, ...'Scale'.codeUnits]), HeapDecodeTier.semantic);
+    // 0x6c help-text blob (C6 6C FF <u16 len> <u32 strlen> ascii).
+    expect(tier([0xc6, 0x6c, 0xff, 0x00, 0x0a, 0x00, 0x00, 0x00, 0x06, ...'Robot!'.codeUnits]), HeapDecodeTier.semantic);
+    // 0x20/0x21/0x22 in the C5 …08 f64 form = control min/max/default.
+    expect(tier([0xc5, 0x20, 0x08, 0xbf, 0xf0, 0, 0, 0, 0, 0, 0]), HeapDecodeTier.semantic);
+    expect(tier([0xc5, 0x22, 0x08, 0, 0, 0, 0, 0, 0, 0, 0]), HeapDecodeTier.semantic);
+    // 0x20 in the rgb (84) colour form is still semantic.
+    expect(tier([0x84, 0x20, 0xff, 0x10, 0x10, 0x10]), HeapDecodeTier.semantic);
+  });
+
+  test('valueKindKnown: a colour-named id in a NON-colour width is not credited as a colour', () {
+    // 0x20/0x21 as u16 (44/45/46) carry packed ints, not colours -> value-kind-known.
+    expect(tier([0x45, 0x20, 0x02, 0x00]), HeapDecodeTier.valueKindKnown);
+    expect(tier([0x44, 0x21, 0x12, 0x34]), HeapDecodeTier.valueKindKnown);
+    // and as u8 (24/25/26).
+    expect(tier([0x24, 0x20, 0x05]), HeapDecodeTier.valueKindKnown);
+  });
+
   test('framed: the 0x53 literal ref, an undecoded C4, a bare 0x04 token, an unknown opcode', () {
     expect(tier([0x14, 0x53, 0x01, 0xfd, 0x00, 0x07]), HeapDecodeTier.framed); // 14 53 literal (not a ref)
     expect(tier([0xc4, 0x99, 0x00]), HeapDecodeTier.framed); // C4 with an uncatalogued opcode

@@ -362,11 +362,13 @@ enum HeapAttribute {
   /// of the rect/glyph sub-element. Confirmed by its strict sequence.
   elementOrdinal(0xdc, HeapAttrKind.ordinal, 'elementOrdinal', AttrConfidence.confirmed),
 
-  /// `0x31` — **property / element name** string, carried inline as
+  /// `0x31` — **element / member / property name** string, carried inline as
   /// `C6 31 <len> <raw ASCII>` (the whole payload is the text — see
-  /// [_inlineStringIds]). Corpus-confirmed 100% printable: control sub-element and
-  /// property-node names like "Scale", "Maximum", "Minimum", "History Data",
-  /// "FP.State", "Data Access:VISA resource name". Scoped to property nodes.
+  /// [_inlineStringIds]). Corpus-confirmed 100% printable. Used broadly across the
+  /// block-diagram heap: structural/aggregate-member names ("AllObjs[]", "Panes[]",
+  /// "Decorations[]", "Nodes[]", "Diagram", "OwningVI"), property-node names
+  /// ("Scale", "FP.State", "Data Access:VISA resource name"), and generic field
+  /// names ("Label", "Visible", "Width"). Not scoped to one object kind.
   propertyName(0x31, HeapAttrKind.stringBlob, 'propertyName', AttrConfidence.confirmed),
 
   /// `0x6C` — **help / description text** in the `C6 6C FF` blob form
@@ -486,9 +488,12 @@ enum HeapAttribute {
   /// not pinned, so not `confirmed`.
   styleColor(0xb7, HeapAttrKind.color, 'styleColor', AttrConfidence.inferred),
 
-  /// `0x22` — **label colour / text-attribute field** (mixed `u8`/RGB with text
-  /// style flags). Distinct from the `C4 22` caption opcode.
-  textStyle(0x22, HeapAttrKind.text, 'textStyle', AttrConfidence.inferred),
+  /// `0x22` — **dual-use**: a label-colour / text-attribute field in the
+  /// `u8`/RGB/nibble form, OR a numeric-control **default value** `f64` in the
+  /// `C5/C6 …08` form (99.2% sane doubles, dominant 0.0 — the third leg of the
+  /// 0x20→0x21→0x22 (min,max,default) triple). [HeapAttr.kind] resolves by width.
+  /// Distinct from the `C4 22` caption opcode.
+  textStyle(0x22, HeapAttrKind.text, 'textStyleOrControlDefault', AttrConfidence.inferred),
 
   /// `0x74` — **printf-format style / colour** (RGB with style byte `0x25`, or a
   /// `u16`). Distinct from the `C4 74` format-string opcode.
@@ -1423,7 +1428,16 @@ HeapDecodeTier heapDecodeTier(Uint8List body, int offset, int lead, String secti
     // its payload re-walks as a clean record sub-stream.
     if (a.width == HeapAttrWidth.container) return HeapDecodeTier.valueKindKnown;
     if (a.attribute == HeapAttribute.unknown) return HeapDecodeTier.framed;
-    return a.attribute.confidence == AttrConfidence.kindOnly ? HeapDecodeTier.valueKindKnown : HeapDecodeTier.semantic;
+    if (a.attribute.confidence == AttrConfidence.kindOnly) return HeapDecodeTier.valueKindKnown;
+    // A colour-named id only carries a colour in the `rgb` (84/8x) form — or, for
+    // dual-use ids (0x20/0x21), an f64 control min/max in the `…08` form. In any
+    // OTHER width the value provably is NOT a colour, so don't credit its colour
+    // meaning as decoded: value-kind-known, not semantic.
+    if (a.attribute.kind == HeapAttrKind.color &&
+        a.width != HeapAttrWidth.rgb && a.width != HeapAttrWidth.f64) {
+      return HeapDecodeTier.valueKindKnown;
+    }
+    return HeapDecodeTier.semantic;
   }
   final pv = decodeHeapPropertyToken(body, offset);
   if (pv != null) {

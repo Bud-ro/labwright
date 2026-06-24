@@ -188,6 +188,17 @@ void main() {
       expect(col.kind, HeapAttrKind.color);
     });
 
+    test('0x22 in the C5/C6 …08 form is an f64 control default (dual-use with text)', () {
+      final def = decodeHeapAttr(f64Rec(0x22, 0.0), 0)!;
+      expect(def.attribute, HeapAttribute.textStyle);
+      expect(def.kind, HeapAttrKind.controlParam);
+      expect(def.asDouble, 0.0);
+      // the 84-form of 0x22 is still a text/style field, NOT a colour.
+      final txt = decodeHeapAttr(Uint8List.fromList([0x84, 0x22, 0x50, 0x61, 0x6e, 0x65]), 0)!;
+      expect(txt.kind, HeapAttrKind.text);
+      expect(txt.rgb, isNull);
+    });
+
     test('0x6C help-description blob (C6 6C FF) decodes to text', () {
       final blob = Uint8List.fromList([
         0xc6, 0x6c, 0xff, 0x00, 0x0a, // C6 6C FF len=10
