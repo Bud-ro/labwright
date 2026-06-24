@@ -199,28 +199,44 @@ void main() {
     expect(nonPrintable.byId[2]!.items, isEmpty);
   });
 
-  test('numeric-control range (0xF5/0xF7) and help text (0x6C) are collected onto the object', () {
+  test('control range (0x20/0x21) + help (0x6C FF) collected ONLY on controls, not decorations', () {
     List<int> f64rec(int id, double v) {
       final d = ByteData(8)..setFloat64(0, v);
       return [0xc5, id, 0x08, ...d.buffer.asUint8List()];
     }
-
     List<int> c6blob(int id, String s) {
       final len = 4 + s.length;
       return [0xc6, id, 0xff, len >> 8, len & 0xff, 0, 0, 0, s.length, ...s.codeUnits];
     }
 
     final records = <int>[
-      ...open(0x50, 1), ...bounds(0, 0, 17, 80), // a numeric control
-      ...f64rec(0xf5, -5.0), // control min
-      ...f64rec(0xf7, 10.0), // control max
-      ...c6blob(0x6c, 'a tooltip'), // help text
+      ...open(0x7e, 1), ...bounds(0, 0, 400, 400),
+      ...open(0x50, 2, tag: 0x1a), ...bounds(0, 0, 17, 80), // a numeric control
+      ...f64rec(0x20, -5.0), ...f64rec(0x21, 10.0), // range via the 0x20/0x21 f64 form
+      ...c6blob(0x6c, 'a tooltip'), // help text (FF blob)
+      ...close(0x1a),
+      ...open(0x8f, 3, tag: 0x1b), ...bounds(0, 0, 10, 10), // a decoration
+      ...f64rec(0x20, 1.0), ...f64rec(0x21, -1.0), // inverted; must NOT attach to a non-control
+      ...close(0x1b),
       ...close(),
     ];
-    final o = buildDiagram(Uint8List.fromList([0, 0, 0, records.length, ...records])).byId[1]!;
-    expect(o.controlMin, -5.0);
-    expect(o.controlMax, 10.0);
-    expect(o.helpText, 'a tooltip');
+    final d = buildDiagram(Uint8List.fromList([0, 0, 0, records.length, ...records]));
+    final ctl = d.byId[2]!, deco = d.byId[3]!;
+    expect(ctl.controlMin, -5.0);
+    expect(ctl.controlMax, 10.0);
+    expect(ctl.helpText, 'a tooltip');
+    expect(deco.controlMin, isNull); // 0x8f decoration: range not attached
+    expect(deco.controlMax, isNull);
+  });
+
+  test('formatControlRange renders honestly (finite-only, inverted/±∞ suppressed)', () {
+    expect(formatControlRange(-5.0, 10.0), '-5 … 10');
+    expect(formatControlRange(0.0, 2.5), '0 … 2.5');
+    expect(formatControlRange(5.0, double.infinity), '≥ 5'); // +∞ max -> one-sided
+    expect(formatControlRange(double.negativeInfinity, 10.0), '≤ 10');
+    expect(formatControlRange(double.negativeInfinity, double.infinity), isNull); // both ±∞ -> nothing
+    expect(formatControlRange(null, null), isNull);
+    expect(formatControlRange(1.0, -1.0), isNull); // inverted finite pair -> nothing
   });
 
   test('buildDiagram is total over arbitrary bytes', () {

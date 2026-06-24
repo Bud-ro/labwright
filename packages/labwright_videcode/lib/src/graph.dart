@@ -131,12 +131,14 @@ class ViHeapObject {
   /// propagated up to its enclosing control. Empty for non-enum objects.
   List<String> items = const [];
 
-  /// Decoded numeric-control **range minimum** (`0xF5` confirmed, or the `0x20`
-  /// f64 form) — null if none. May be `-infinity` (the "no minimum" sentinel).
+  /// Decoded numeric-control **range minimum** (from the `0x20` f64 form on a
+  /// control terminal) — null if none; may be `-infinity` (the "no minimum"
+  /// sentinel). Use [formatControlRange] to render honestly.
   double? controlMin;
 
-  /// Decoded numeric-control **range maximum** (`0xF7`, or the `0x21` f64 form) —
-  /// null if none. May be `+infinity` (the "no maximum" sentinel).
+  /// Decoded numeric-control **range maximum** (from the `0x21` f64 form on a
+  /// control terminal) — null if none; may be `+infinity` (the "no maximum"
+  /// sentinel). Use [formatControlRange] to render honestly.
   double? controlMax;
 
   /// Decoded help / description text for this object (`0x6C` blob / `C4 19`), or
@@ -338,6 +340,25 @@ enum HeapObjectClass {
 /// footprint). Single source of truth — see [HeapObjectClass.isControlTerminal].
 const kControlTerminalCodes = {0x50, 0x4f, 0x57, 0x5b, 0x51};
 
+/// Attribute ids `buildDiagram` surfaces onto [ViHeapObject] (a fast id pre-filter
+/// before the heavier `decodeHeapAttr`): 0x20/0x21 = control range, 0x6c = help text.
+const _objAttrIds = {0x20, 0x21, 0x6c};
+
+String _fmtNum(double v) =>
+    v == v.roundToDouble() && v.abs() < 1e15 ? v.toInt().toString() : v.toString();
+
+/// A human-readable range string for a control's decoded [min]/[max], or null
+/// when there is nothing meaningful to show. Honest: uses only **finite** bounds
+/// (a `±∞` sentinel = "no bound" and an absent bound are both omitted), drops an
+/// inverted finite pair, and renders a one-sided bound as `≥ x` / `≤ x`.
+String? formatControlRange(double? min, double? max) {
+  final lo = (min != null && min.isFinite) ? min : null;
+  final hi = (max != null && max.isFinite) ? max : null;
+  if (lo == null && hi == null) return null;
+  if (lo != null && hi != null) return lo > hi ? null : '${_fmtNum(lo)} … ${_fmtNum(hi)}';
+  return lo != null ? '≥ ${_fmtNum(lo)}' : '≤ ${_fmtNum(hi!)}';
+}
+
 /// Classifies a heap object into a [ViObjectKind] from its class code and signals
 /// (corpus-validated; see the [HeapObjectClass] catalog). The data-driven
 /// terminal-cluster signal (`C4 1F` terminals) takes precedence over the class's
@@ -505,20 +526,25 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDEx'}) {
         (cur.typedRefs[r.kind] ??= <int>[]).add(r.targetOid);
         if (r.kind == HeapRefKind.childRef) cur.refs.add(r.targetOid);
       }
-    } else {
-      // Decoded scalar/string attributes worth surfacing on the object: the
-      // numeric-control range (0xF5/0xF7, or the 0x20/0x21 f64 form) and help text.
+    } else if (o + 1 < n && _objAttrIds.contains(body[o + 1])) {
+      // Fast-reject by id (most else-spans carry none) before the heavier
+      // decodeHeapAttr, then surface a few decoded attributes on the object.
       final a = decodeHeapAttr(body, o);
       if (a != null) {
         final d = a.asDouble;
-        if (d != null && (a.attribute == HeapAttribute.controlMin || a.attribute == HeapAttribute.foregroundColor)) {
-          cur.controlMin ??= d;
+        // Numeric-control range: ONLY the 0x20/0x21 f64 form, and ONLY on control
+        // terminals. (0xF5/0xF7 land on decorations with inverted values, so they
+        // are not used for the object-level range.)
+        if (d != null && kControlTerminalCodes.contains(cur.kind)) {
+          if (a.attribute == HeapAttribute.foregroundColor) cur.controlMin ??= d;
+          if (a.attribute == HeapAttribute.foregroundColorB) cur.controlMax ??= d;
         }
-        if (d != null && (a.attribute == HeapAttribute.controlMax || a.attribute == HeapAttribute.foregroundColorB)) {
-          cur.controlMax ??= d;
+        // Help text ONLY from the genuine C6 6C FF blob (the <u8len> form carries
+        // library/format tokens, not help — see HeapAttribute.helpDescription).
+        if (a.attribute == HeapAttribute.helpDescription && o + 2 < n && body[o + 2] == 0xff) {
+          final s = a.asString;
+          if (s != null && s.isNotEmpty) cur.helpText ??= s;
         }
-        final s = a.asString;
-        if (s != null && s.isNotEmpty && a.attribute == HeapAttribute.helpDescription) cur.helpText ??= s;
       }
     }
   }

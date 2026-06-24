@@ -542,15 +542,6 @@ Widget _detail(String label, String value) => Padding(
       ),
     );
 
-/// Formats a decoded control bound honestly: null→"?", ±∞ sentinel→[inf], an
-/// integral double→its int form, else the raw double.
-String _fmtBound(double? v, String inf) {
-  if (v == null) return '?';
-  if (v.isNaN) return 'NaN';
-  if (v.isInfinite) return inf;
-  return v == v.roundToDouble() && v.abs() < 1e15 ? v.toInt().toString() : v.toString();
-}
-
 class _DetailsCard extends StatelessWidget {
   const _DetailsCard({required this.object, required this.onClose});
   final ViHeapObject object;
@@ -590,8 +581,8 @@ class _DetailsCard extends StatelessWidget {
                   // Decoded semantics (only shown when actually recovered — honest).
                   if (object.items.isNotEmpty)
                     _detail('values', object.items.take(8).join(', ') + (object.items.length > 8 ? ', …' : '')),
-                  if (object.controlMin != null || object.controlMax != null)
-                    _detail('range', '${_fmtBound(object.controlMin, '−∞')} … ${_fmtBound(object.controlMax, '+∞')}'),
+                  if (formatControlRange(object.controlMin, object.controlMax) case final range?)
+                    _detail('range', range),
                   if (object.helpText != null && object.helpText!.trim().isNotEmpty)
                     _detail('help', object.helpText!.trim()),
                 ],

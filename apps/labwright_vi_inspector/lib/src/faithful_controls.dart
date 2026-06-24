@@ -55,17 +55,9 @@ String? _tooltipFor(ViHeapObject o) {
   final parts = <String>[];
   final h = o.helpText?.trim();
   if (h != null && h.isNotEmpty) parts.add(h);
-  if (o.controlMin != null || o.controlMax != null) {
-    parts.add('range: ${_fmtBound(o.controlMin, '−∞')} … ${_fmtBound(o.controlMax, '+∞')}');
-  }
+  final range = formatControlRange(o.controlMin, o.controlMax);
+  if (range != null) parts.add('range: $range');
   return parts.isEmpty ? null : parts.join('\n');
-}
-
-String _fmtBound(double? v, String inf) {
-  if (v == null) return '?';
-  if (v.isNaN) return 'NaN';
-  if (v.isInfinite) return inf;
-  return v == v.roundToDouble() && v.abs() < 1e15 ? v.toInt().toString() : v.toString();
 }
 
 Widget _faithfulFor(ViHeapObject o) {
@@ -271,7 +263,7 @@ class _ControlWidgetState extends State<_ControlWidget> {
               position: RelativeRect.fromLTRB(pos.dx, pos.dy + box.size.height, pos.dx + 1, pos.dy),
               items: [for (var i = 0; i < _enumItems.length; i++) PopupMenuItem(value: i, child: Text(_enumItems[i]))],
             );
-            if (sel != null) setState(() => _enum = sel);
+            if (sel != null && mounted) setState(() => _enum = sel);
           },
           child: Container(
             decoration: _box.copyWith(color: const Color(0xFFEFEFEF)),
