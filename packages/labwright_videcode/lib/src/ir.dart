@@ -272,13 +272,17 @@ ViModel buildViModelFromDecoded(Iterable<DecodedSection> decoded) {
     components: componentsFromDecoded(list),
     stringTables: heapStringTablesFromDecoded(list),
     heapRecords: heapC4RecordsFromDecoded(list),
+    // Which heap holds the object tree varies by LabVIEW save-format/version:
+    // newer corpus VIs use BDHb/FPHb, others put it in the "extended" BDEx/FPEx.
+    // Build from all candidates per kind; the view shows the richest, so a VI is
+    // never empty just because its content is in a different heap of the pair.
     blockDiagrams: [
       for (final d in list)
-        if ((d.tag == 'BDHb' || d.tag == 'BDHP') && d.bytes.length >= 6) buildDiagram(d.bytes, sectionTag: d.tag),
+        if (const {'BDHb', 'BDHP', 'BDEx'}.contains(d.tag) && d.bytes.length >= 6) buildDiagram(d.bytes, sectionTag: d.tag),
     ],
     frontPanelDiagrams: [
       for (final d in list)
-        if ((d.tag == 'FPHb' || d.tag == 'FPHP') && d.bytes.length >= 6) buildDiagram(d.bytes, sectionTag: d.tag),
+        if (const {'FPHb', 'FPHP', 'FPEx'}.contains(d.tag) && d.bytes.length >= 6) buildDiagram(d.bytes, sectionTag: d.tag),
     ],
   );
 }
