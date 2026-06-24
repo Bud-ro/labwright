@@ -15,12 +15,13 @@ import 'meta.dart';
 /// consumes a [ViModel] rather than re-parsing bytes, so new heap-decoding work
 /// flows into translation by enriching this model.
 ///
-/// Fidelity is deliberately **partial and honest**. The heap's nested object tree
-/// (~77% of a `BDEx` body — see `docs/vi-rsrc-and-heap-format.md`) is not yet
-/// decoded, so this model intentionally does **not** contain a node/wire graph.
-/// It exposes what is provable today; richer structure (typed nodes, wires,
-/// terminals) is added here as more of the heap opcode model is confirmed —
-/// never fabricated.
+/// Fidelity is deliberately **partial and honest**. The heap's nested object
+/// tree IS now recovered into [diagrams] (objects with bounds, labels, class
+/// codes and parent/child nesting — see `buildDiagram`). What is *not*
+/// recoverable is the dataflow **wire graph**: LabVIEW stores wires as geometry
+/// with no node→node endpoints, so this model has no edges and never fabricates
+/// them; function-vs-subVI is likewise not distinguishable from the block
+/// diagram alone.
 class ViModel {
   const ViModel({
     required this.version,
@@ -54,10 +55,12 @@ class ViModel {
   /// objects: string tables, `C4 2D`/`1F` value records, …).
   final List<HeapRecord> heapRecords;
 
-  /// The recovered block-diagram graph(s) — one per walkable `BDEx` section:
-  /// objects (nodes/terminals/wires) with bounds, labels, and wire connections.
-  /// **Partial/honest**: object kinds are raw class codes and wire direction is
-  /// undecoded, but the object/edge structure is corpus-validated.
+  /// The recovered block-diagram object tree(s) — one per walkable `BDEx`
+  /// section: objects (structures / nodes / control terminals / labels) with
+  /// bounds, labels, classified [HeapObjectClass], and parent/child nesting
+  /// (`parentOid` + child-membership refs). **Honest limit**: there are NO
+  /// dataflow wires/edges — LabVIEW stores wires as geometry with no recoverable
+  /// node→node endpoints — so [ViDiagram] exposes nesting, not a wire graph.
   final List<ViDiagram> diagrams;
 
   /// The bounding rectangles of the VI's objects, decoded from the `C4 2D`

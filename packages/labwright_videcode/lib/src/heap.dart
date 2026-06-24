@@ -287,20 +287,22 @@ enum AttrConfidence {
 enum HeapAttribute {
   /// `0x1F` — **relative coordinate / offset** (`s16`, observed 100% negative as
   /// `u16` → a relative position). The single highest-volume attribute.
-  relativeOffset(0x1f, HeapAttrKind.coordinate, 'relativeOffset', AttrConfidence.confirmed),
+  relativeOffset(0x1f, HeapAttrKind.coordinate, 'relativeOffset', AttrConfidence.inferred),
 
   /// `0x00` / `0x01` — **absolute coordinate X / Y** (`s16`, small with
   /// negatives).
-  coordX(0x00, HeapAttrKind.coordinate, 'coordX', AttrConfidence.confirmed),
-  coordY(0x01, HeapAttrKind.coordinate, 'coordY', AttrConfidence.confirmed),
+  coordX(0x00, HeapAttrKind.coordinate, 'coordX', AttrConfidence.inferred),
+  coordY(0x01, HeapAttrKind.coordinate, 'coordY', AttrConfidence.inferred),
 
-  /// `0xDF` — **object type / class** (`u8`, 39 distinct values 0..118): the
-  /// broad object-class enum.
-  objectClass(0xdf, HeapAttrKind.enumValue, 'objectClass', AttrConfidence.confirmed),
+  /// `0xDF` — **object type / class** (`u8`, 39 distinct values 0..118): a broad
+  /// object-class *attribute*. NOTE: this is a distinct `u8` value space — it is
+  /// NOT the same as the `u16` `HeapObjectClass` header `<kind>` code; the two do
+  /// not index into each other.
+  objectClass(0xdf, HeapAttrKind.enumValue, 'objectClass', AttrConfidence.kindOnly),
 
   /// `0xAF` — **object sub-kind** (`u8`, only ~9 distinct values): a small
   /// secondary kind enum.
-  objectSubKind(0xaf, HeapAttrKind.enumValue, 'objectSubKind', AttrConfidence.confirmed),
+  objectSubKind(0xaf, HeapAttrKind.enumValue, 'objectSubKind', AttrConfidence.kindOnly),
 
   /// `0x3A` — **element index / ordinal** (`u8`/`u16`, strictly sequential
   /// 1..n).
@@ -308,12 +310,12 @@ enum HeapAttribute {
 
   /// `0x89` — **size / extent** (`u16`; values cluster on pixel sizes like 240,
   /// 4096, 12288): a width or height.
-  sizeExtent(0x89, HeapAttrKind.size, 'sizeExtent', AttrConfidence.confirmed),
+  sizeExtent(0x89, HeapAttrKind.size, 'sizeExtent', AttrConfidence.inferred),
 
   /// `0xF8` — **size (u16) OR coarse increment (f64)** — *dual-use*: a `u16`
   /// extent via the nibble form, or the coarse step of a numeric control via
   /// `C5`. [HeapAttr.kind] resolves it by width.
-  sizeOrIncrement(0xf8, HeapAttrKind.size, 'sizeOrCoarseIncrement', AttrConfidence.confirmed),
+  sizeOrIncrement(0xf8, HeapAttrKind.size, 'sizeOrCoarseIncrement', AttrConfidence.inferred),
 
   /// `0xCB` — **packed value / large numeric** (`u24` values stepping
   /// `0x10000`..`0x700000`): a packed numeric, not a colour despite the width.
@@ -855,7 +857,7 @@ class HeapWalk {
 /// - `08`/`09`/`04` — fixed 2 bytes.
 /// - `24` → 3 bytes; `44` → 4 bytes; `64` → 5 bytes (the `64 cb 26` form → 3).
 /// - `02` (with `FE`) — fixed 7 bytes.
-/// - `25` — node (`25 2d` → `3 + 2*count`, `25 3a` → 3) or attribute (3).
+/// - `25` — a fixed **3-byte** record (the `25 2d` form is NOT a counted list).
 /// - attribute nibble-family (opcode low nibble in {4,5,6}): the high nibble sets
 ///   the value width — `2x`→3, `4x`→4, `6x`→5, `8x`→6, `Ex`→2, `Cx`→`3 + u8len`.
 int? recordSkip(Uint8List h, int i) {
