@@ -32,8 +32,8 @@ enum HeapOpcode {
 
   /// `0x1F` — **origin-anchored size rectangle** (decoded). Same 8-byte 4× `s16`
   /// layout as [bounds] but `top == left == 0`, so it encodes a height×width
-  /// extent rather than a position. Corpus: 100% valid, origin-anchored. Decoded
-  /// by [HeapRecord.sizeRect].
+  /// extent rather than a position. Corpus: ~99% are 8-byte (≈99.6% origin-anchored
+  /// when 8-byte). Decoded by [HeapRecord.sizeRect].
   size(0x1f, HeapShape.rectangle, isDecoded: true),
 
   /// `0x2E` — **string table** (decoded). The only variable-length confirmed
@@ -90,25 +90,26 @@ enum HeapOpcode {
   /// `PTH0`). Decoded by [HeapRecord.path].
   path(0xa4, HeapShape.path, isDecoded: true),
 
-  /// `0x4A` — **type / terminal bounds rectangle** (decoded). 8-byte 4× `s16`
-  /// rectangle (100% valid), in the `DTHP` type heap — the bounds of a terminal /
-  /// type element. Decoded by the generic [HeapRecord.rect].
+  /// `0x4A` — **type / terminal bounds rectangle** (decoded). ~99% are an 8-byte
+  /// 4× `s16` rectangle (100% valid when 8-byte), in the `DTHP` type heap — the
+  /// bounds of a terminal / type element. Decoded by the generic [HeapRecord.rect].
   typeBounds(0x4a, HeapShape.rectangle, isDecoded: true),
 
-  /// `0x44` — **composite container** (structural). A wrapper whose payload holds
-  /// complete nested `C4` children (bounds `2D` + origin/size `1F` + caption `22`,
-  /// interleaved with non-`C4` style/color tuples) — a control/decoration
-  /// cluster. Children via [HeapRecord.children].
+  /// `0x44` — **composite container** (structural). ~74% of records hold nested
+  /// `C4` children (bounds `2D` + origin/size `1F` + caption `22`, interleaved
+  /// with non-`C4` style/color tuples) — a control/decoration cluster; the rest
+  /// carry non-`C4` payloads (the container role is inferred, not universal).
+  /// Children via [HeapRecord.children].
   container44(0x44, HeapShape.container),
 
   /// `0x64` — **composite container** (structural). Like [container44] but richer
-  /// (bounds + captions + format strings + nested type tokens). Children via
-  /// [HeapRecord.children].
+  /// (~96% hold nested `C4`: bounds + captions + format strings + type tokens).
+  /// Children via [HeapRecord.children].
   container64(0x64, HeapShape.container),
 
   /// `0x24` — **composite container** (structural). A bounds-rect-dominant cluster
-  /// with captions; payload holds nested `C4` children. Children via
-  /// [HeapRecord.children].
+  /// with captions; ~72% hold nested `C4` children (the rest carry non-`C4`
+  /// payloads). Children via [HeapRecord.children].
   container24(0x24, HeapShape.container),
 
   /// `0x5F` — **rectangle, role undetermined** (structural). Decodes as a 4× `s16`
@@ -132,9 +133,9 @@ enum HeapOpcode {
   /// not yet determined. Readable via [HeapRecord.rect].
   rect62(0x62, HeapShape.rectangle),
 
-  /// `0x26` — **rectangle, role undetermined** (structural). 8-byte 4× `s16`
-  /// rectangle (100% valid). Role not yet determined. Readable via
-  /// [HeapRecord.rect].
+  /// `0x26` — **rectangle, role undetermined** (structural). ~74% are an 8-byte
+  /// 4× `s16` rectangle (100% valid when 8-byte); the rest are larger
+  /// variable-length payloads of unknown shape. Readable via [HeapRecord.rect].
   rect26(0x26, HeapShape.rectangle),
 
   /// A heap opcode that is not (yet) catalogued. Its [byte] is -1; use
@@ -295,8 +296,12 @@ enum AttrConfidence {
 
 /// The catalog of known LabVIEW heap **attribute ids** — the `<id>` byte in an
 /// attribute record `<op> <id> <value>`, where the opcode sets the value width
-/// (`0x24`→u8, `0x44`→u16, `0x64`→u24, the `2x/4x/6x/8x/Ex` nibble family,
-/// `0xC5`→f64, `0xC6`→blob) and the *id* selects which property is being set.
+/// (`0x24`→u8, `0x44`→u16, `0x64`→u24, the `2x/4x/6x/8x/Ex` nibble family) and
+/// the *id* selects which property is being set. NOTE: `C5/C6 <id> 08` is NOT
+/// universally an `f64` — the `08` is a payload-LENGTH byte; the payload is an
+/// `f64` only for the control-param family, a rectangle for some ids, or an
+/// opaque container for others (see [decodeHeapAttr] / `_f64PayloadIds` /
+/// `_rectPayloadIds` / `_containerPayloadIds`). `C6 <id> FF` is a length-prefixed blob.
 ///
 /// This is the single place that names every attribute id we have decoded from
 /// the corpus (1.23M attribute records across 398 BDEx sections). Each entry
@@ -566,8 +571,10 @@ class HeapAttr {
   final int length;
 
   /// The *effective* value kind, resolving dual-use attributes by [width]:
-  /// an `f64` payload is always a [HeapAttrKind.controlParam] and a `blob` is
-  /// always a [HeapAttrKind.stringBlob]; otherwise the catalog [kind].
+  /// `f64`→[HeapAttrKind.controlParam], `blob`→[HeapAttrKind.stringBlob],
+  /// `rect`→[HeapAttrKind.rectangle], `container`→[HeapAttrKind.container], and
+  /// `rgb`→[HeapAttrKind.color] for colour/rect-dual ids (else the catalog kind);
+  /// every other width returns the catalog [kind].
   HeapAttrKind get kind {
     if (width == HeapAttrWidth.f64) return HeapAttrKind.controlParam;
     if (width == HeapAttrWidth.blob) return HeapAttrKind.stringBlob;
@@ -783,10 +790,10 @@ class HeapRecord {
   /// distinct from [bounds] so positional layout data is not polluted by sizes.
   HeapRect? get sizeRect => kind == HeapOpcode.size ? HeapRect.fromPayload(payload) : null;
 
-  /// If this is a single-string opcode ([HeapShape.string]: caption, plot name,
-  /// or format string), the payload decoded as text — the whole payload is the
-  /// string (no inner prefix); else null. Null when empty or not fully printable
-  /// ASCII.
+  /// If this is any single-string opcode ([HeapShape.string]: caption, plot name,
+  /// format string, item label, symbol/C-function name, or VI-Server method name),
+  /// the payload decoded as text — the whole payload is the string (no inner
+  /// prefix); else null. Null when empty or not fully printable ASCII.
   String? get text {
     if (kind.shape != HeapShape.string || payload.isEmpty) return null;
     for (final b in payload) {
@@ -1024,7 +1031,8 @@ class HeapWalk {
 /// The serialized form of a [HeapPropertyToken] in the byte stream.
 enum PropTokenForm {
   /// `<op> <subop> <count> <FB/FE/FD> <items>` — a tagged sub-list. The first
-  /// item carries the value: tag `FE` → `s16`, `FB` → `u16`, `FD` → an object id.
+  /// item carries the value, returned as a raw `u16` (`FE`/`FB`) or an object id
+  /// (`FD`) — not sign-extended; all observed `FE` values are small positive.
   /// The `count` is 1 or 2 (≈50/50 across the corpus; the dominant `10 19` token
   /// is ≈79% count==2). [decodeHeapPropertyToken] returns only the **first**
   /// item's value; a frequently-present second item (often an `fd` object id) is
@@ -1185,8 +1193,8 @@ class HeapPropertyValue {
   /// The catalogued token.
   final HeapPropertyToken token;
 
-  /// The first item's value for a tagged sub-list (`s16`/`u16`/object id), or null
-  /// for a bare [PropTokenForm.selector].
+  /// The first item's value for a tagged sub-list — a raw `u16` or object id (not
+  /// sign-extended) — or null for a bare [PropTokenForm.selector] or a count==0 list.
   final int? value;
 
   /// Total bytes the record occupies (as framed by [recordSkip]).
@@ -1317,6 +1325,9 @@ class HeapRef {
 /// is a value, not a reference. Mirrors [recordSkip]'s framing of the `0x14` family.
 HeapRef? decodeHeapRef(Uint8List body, int offset) {
   if (offset + 6 > body.length) return null;
+  // Only the `fd` tag is a typed object reference. recordSkip also frames the
+  // `14 sub 01 fe` form (a literal s16, like the 0x53 case), which is
+  // INTENTIONALLY not decoded as a reference here — do not "fix" it to emit oids.
   if (body[offset] != 0x14 || body[offset + 2] != 0x01 || body[offset + 3] != 0xfd) return null;
   final kind = HeapRefKind.fromSubop(body[offset + 1]);
   if (kind == HeapRefKind.literal) return null;
@@ -1351,7 +1362,11 @@ HeapDecodeTier heapDecodeTier(Uint8List body, int offset, int lead, String secti
       offset + 9 <= body.length && body[offset + 2] == 0x02 && body[offset + 3] == 0xfe && body[offset + 6] == 0xfd) {
     return HeapDecodeTier.semantic;
   }
-  if (lead == 0x08 || lead == 0x09 || lead == 0x0a || lead == 0x0b) return HeapDecodeTier.semantic; // close
+  // Group-close brackets (pop the innermost open group) — structural meaning, the
+  // bracket-tree counterpart of the group-open below. (~9% of semantic bytes; the
+  // close interpretation is inferred from the open/close family pairing, not
+  // independently pinned per record.)
+  if (lead == 0x08 || lead == 0x09 || lead == 0x0a || lead == 0x0b) return HeapDecodeTier.semantic;
   if (lead == 0x10 || lead == 0x11 || lead == 0x12 || lead == 0x13) {
     if (offset + 4 <= body.length && _isTypeTag(body[offset + 3])) return HeapDecodeTier.semantic; // group open
   }

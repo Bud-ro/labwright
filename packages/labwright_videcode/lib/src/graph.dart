@@ -150,15 +150,16 @@ enum ClassConfidence {
   kindOnly,
 }
 
-/// The catalog of known LabVIEW block-diagram **object class codes** — the
-/// `<kind>` u16 in an object header `10 19 02 fe <kind> fd <oid>`.
+/// The catalog of known LabVIEW heap **object class codes** — the `<kind>` u16
+/// in an object header `10 19 02 fe <kind> fd <oid>`.
 ///
-/// This is the single place that names every object class we have decoded from
-/// the corpus (163,227 objects across 398 BDEx sections — ≈100% covered; a rare
-/// stray `0x56` is catalogued below). Each
-/// entry documents its role, its coarse [category] ([ViObjectKind]), the corpus
-/// evidence, and a [confidence] label (clean-room honesty). A control's *data
-/// type* (numeric/enum/string/…) is read from its descendant `C4` records into
+/// HONEST COVERAGE: this catalog was effectively validated on **front-panel**
+/// heaps (`FPHb`) — there object instances are ≈99% catalogued. **Block-diagram**
+/// (`BDHb`) coverage is far lower (≈24% of BD object instances), with high-volume
+/// BD-internal kinds `0x15`/`0x33`/`0x17`/`0x30` not yet named. (The corpus uses
+/// `BDHb`/`FPHb`, not `BDEx`.) Each entry documents its role, coarse [category]
+/// ([ViObjectKind]), evidence, and a [confidence] label. A control's *data type*
+/// (numeric/enum/string/…) is read from its descendant `C4` records into
 /// [ViHeapObject.typeKind]; the class additionally names the control *form*.
 /// Resolve a raw code with [HeapObjectClass.fromCode]; the per-object catalog
 /// entry is [ViHeapObject.objectClass].
