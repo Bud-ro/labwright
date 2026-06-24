@@ -116,6 +116,29 @@ void main() {
     expect(find.text('PicoScope2000aOpen.vi'), findsOneWidget);
   });
 
+  testWidgets('noise objects are dimmed while logic objects stay full strength', (tester) async {
+    tester.view.physicalSize = const Size(800, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final node = ViHeapObject(oid: 1, kind: 0x2f, offset: 0)
+      ..category = ViObjectKind.node
+      ..absBounds = const HeapRect(top: 0, left: 0, bottom: 40, right: 120)
+      ..label = 'MySubVI.vi';
+    final decoration = ViHeapObject(oid: 2, kind: 0x88, offset: 0)
+      ..category = ViObjectKind.decoration
+      ..absBounds = const HeapRect(top: 60, left: 0, bottom: 100, right: 120);
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: FaithfulLayer(objects: [node, decoration], origin: Offset.zero, size: const Size(400, 400))),
+    ));
+    await tester.pump();
+
+    // the decoration is dimmed (wrapped in an Opacity < 1); the named node is not
+    final opacities = tester.widgetList<Opacity>(find.byType(Opacity)).map((w) => w.opacity).toList();
+    expect(opacities.any((o) => o < 1.0), isTrue, reason: 'decoration should be dimmed');
+    expect(find.text('MySubVI.vi'), findsOneWidget); // logic stays legible
+  });
+
   testWidgets('a structure frame shows its kind badge (control flow is legible)', (tester) async {
     tester.view.physicalSize = const Size(800, 800);
     tester.view.devicePixelRatio = 1.0;

@@ -35,12 +35,40 @@ class FaithfulLayer extends StatelessWidget {
                 top: o.absBounds!.top - origin.dy,
                 width: o.absBounds!.width.toDouble().clamp(1, 8000),
                 height: o.absBounds!.height.toDouble().clamp(1, 8000),
-                child: ClipRect(child: _withHelp(o, _faithfulFor(o))),
+                child: _emphasize(o, ClipRect(child: _withHelp(o, _faithfulFor(o)))),
               ),
         ],
       ),
     );
   }
+}
+
+/// Visual-hierarchy weight for [o] in the diagram: the logic-bearing objects
+/// (structures, nodes, labeled controls) stay full strength while the unlabeled
+/// "noise" (decorations, unclassified boxes, bare terminals) is dimmed so the
+/// meaningful elements stand out. Honest: nothing is hidden — the wireframe view
+/// remains the full-strength honest render, and these are still drawn + tappable.
+double _emphasis(ViHeapObject o) {
+  final labeled = o.label?.trim().isNotEmpty ?? false;
+  switch (o.category) {
+    case ViObjectKind.structure:
+    case ViObjectKind.node:
+      return 1;
+    case ViObjectKind.decoration:
+      return 0.3;
+    case ViObjectKind.unknown:
+      return 0.4;
+    case ViObjectKind.terminal:
+    case ViObjectKind.terminalCluster:
+      return (labeled || o.items.isNotEmpty) ? 1 : 0.6; // bare terminals = wire stubs/constants
+  }
+}
+
+/// Applies [_emphasis] as opacity. Opacity 1.0 short-circuits (no save layer), so
+/// only the dimmed noise objects pay any cost.
+Widget _emphasize(ViHeapObject o, Widget child) {
+  final e = _emphasis(o);
+  return e >= 1 ? child : Opacity(opacity: e, child: child);
 }
 
 /// Wraps a faithful control in a hover [Tooltip] surfacing its decoded help text
