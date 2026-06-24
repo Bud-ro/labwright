@@ -24,12 +24,14 @@ class _BlockHexViewState extends State<BlockHexView> {
   final _hexScroll = ScrollController();
   late final List<_SpanInfo> _records;
   late final List<int> _byteToRecord; // byte offset -> record index (or -1)
+  Widget? _preview; // typed whole-section display (e.g. an icon image)
   int _selected = -1;
 
   @override
   void initState() {
     super.initState();
     final b = widget.section.bytes;
+    _preview = iconPreview(widget.section.tag, b);
     final isHeap = widget.section.wasCompressed || _looksLikeHeap(b);
     _records = isHeap ? _parseHeap(b, widget.section.tag) : const [];
     _byteToRecord = List<int>.filled(b.length, -1);
@@ -87,14 +89,20 @@ class _BlockHexViewState extends State<BlockHexView> {
                 flex: 3,
                 child: Container(
                   color: const Color(0xFF1E1E1E),
-                  child: Scrollbar(
-                    controller: _hexScroll,
-                    thumbVisibility: true,
-                    child: ListView.builder(
-                      controller: _hexScroll,
-                      itemCount: rows,
-                      itemExtent: _kRowHeight,
-                      itemBuilder: (context, row) => _hexRow(b, row),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: SizedBox(
+                      width: _rowWidth,
+                      child: Scrollbar(
+                        controller: _hexScroll,
+                        thumbVisibility: true,
+                        child: ListView.builder(
+                          controller: _hexScroll,
+                          itemCount: rows,
+                          itemExtent: _kRowHeight,
+                          itemBuilder: (context, row) => _hexRow(b, row),
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -104,15 +112,16 @@ class _BlockHexViewState extends State<BlockHexView> {
               Expanded(
                 flex: 2,
                 child: _records.isEmpty
-                    ? const Center(
+                    ? Center(
                         child: Padding(
-                          padding: EdgeInsets.all(16),
-                          child: Text(
-                            'This section is not a record-framed heap, so only the raw '
-                            'hex is shown.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(color: Colors.grey),
-                          ),
+                          padding: const EdgeInsets.all(16),
+                          child: _preview ??
+                              const Text(
+                                'This section is not a record-framed heap, so only the '
+                                'raw hex is shown.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(color: Colors.grey),
+                              ),
                         ),
                       )
                     : Column(
@@ -135,48 +144,63 @@ class _BlockHexViewState extends State<BlockHexView> {
     );
   }
 
+  // Fixed-width columns so the hex/ASCII grids align regardless of the platform
+  // font (a "monospace" family alone does not guarantee equal glyph advance),
+  // and so a tap maps to an exact byte.
+  static const _offW = 66.0; // offset column
+  static const _cellW = 21.0; // per-hex-byte cell
+  static const _asciiW = 9.0; // per-ascii-char cell
+  static const _gap = 14.0; // hex→ascii gap
+  static const _rowWidth = _offW + 16 * _cellW + _gap + 16 * _asciiW;
+
   Widget _hexRow(List<int> b, int row) {
     final base = row * 16;
-    final hex = <TextSpan>[];
-    final ascii = <TextSpan>[];
-    for (var i = 0; i < 16; i++) {
-      final o = base + i;
-      if (o >= b.length) {
-        hex.add(const TextSpan(text: '   '));
-        continue;
-      }
-      final ri = _byteToRecord[o];
-      final color = ri < 0 ? const Color(0xFF6E6E6E) : _records[ri].color;
-      final sel = ri >= 0 && ri == _selected;
-      final style = TextStyle(
-        color: sel ? Colors.black : color,
-        background: sel ? (Paint()..color = color) : null,
-        fontFamily: 'monospace',
-        fontSize: 12.5,
-        height: 1.3,
-      );
-      hex.add(TextSpan(text: '${b[o].toRadixString(16).padLeft(2, '0')} ', style: style));
-      final c = b[o];
-      ascii.add(TextSpan(text: c >= 0x20 && c < 0x7f ? String.fromCharCode(c) : '·', style: style));
-    }
-    return InkWell(
-      onTap: () {
-        final ri = _byteToRecord[base.clamp(0, b.length - 1)];
-        if (ri >= 0) _select(ri);
+    const hexStart = _offW;
+    const asciiStart = _offW + 16 * _cellW + _gap;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapDown: (d) {
+        final dx = d.localPosition.dx;
+        int? off;
+        if (dx >= hexStart && dx < hexStart + 16 * _cellW) {
+          off = base + ((dx - hexStart) ~/ _cellW);
+        } else if (dx >= asciiStart && dx < asciiStart + 16 * _asciiW) {
+          off = base + ((dx - asciiStart) ~/ _asciiW);
+        }
+        if (off != null && off >= 0 && off < b.length) {
+          final ri = _byteToRecord[off];
+          if (ri >= 0) _select(ri);
+        }
       },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        child: Row(
-          children: [
-            Text(base.toRadixString(16).padLeft(6, '0'),
+      child: Row(
+        children: [
+          SizedBox(
+            width: _offW,
+            child: Text('  ${base.toRadixString(16).padLeft(6, '0')}',
                 style: const TextStyle(color: Color(0xFF888888), fontFamily: 'monospace', fontSize: 12.5)),
-            const SizedBox(width: 12),
-            Expanded(child: Text.rich(TextSpan(children: hex), softWrap: false, overflow: TextOverflow.clip)),
-            const SizedBox(width: 8),
-            Text.rich(TextSpan(children: ascii), softWrap: false, overflow: TextOverflow.clip),
-          ],
-        ),
+          ),
+          for (var i = 0; i < 16; i++) _cell(b, base + i, hex: true),
+          const SizedBox(width: _gap),
+          for (var i = 0; i < 16; i++) _cell(b, base + i, hex: false),
+        ],
       ),
+    );
+  }
+
+  Widget _cell(List<int> b, int o, {required bool hex}) {
+    if (o >= b.length) return SizedBox(width: hex ? _cellW : _asciiW);
+    final ri = _byteToRecord[o];
+    final color = ri < 0 ? const Color(0xFF6E6E6E) : _records[ri].color;
+    final sel = ri >= 0 && ri == _selected;
+    final c = b[o];
+    final text = hex ? b[o].toRadixString(16).padLeft(2, '0') : (c >= 0x20 && c < 0x7f ? String.fromCharCode(c) : '·');
+    return Container(
+      width: hex ? _cellW : _asciiW,
+      alignment: Alignment.center,
+      color: sel ? color.withValues(alpha: 0.30) : null,
+      child: Text(text,
+          maxLines: 1,
+          style: TextStyle(color: sel ? Colors.white : color, fontFamily: 'monospace', fontSize: 12.5, height: 1.35)),
     );
   }
 
@@ -390,6 +414,102 @@ class _ColorPreview extends StatelessWidget {
         const SizedBox(width: 8),
         Text('#${rgb.toRadixString(16).padLeft(6, '0')}', style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
       ]);
+}
+
+/// A typed whole-section display for icon resource blocks. The 1-bit `ICON`
+/// (32×32, 128 bytes) is rendered exactly (black/white, no palette). The colour
+/// variants (`icl4`/`icl8`) are flagged honestly — faithful rendering needs the
+/// exact Macintosh CLUT, which is not embedded yet, so their bytes are shown in
+/// the hex pane meanwhile. Returns null for non-icon sections.
+Widget? iconPreview(String tag, Uint8List bytes) {
+  const rawSize = {'ICON': 128, 'ICN#': 256, 'icl4': 512, 'icl8': 1024};
+  const depthOf = {'ICON': 1, 'ICN#': 1, 'icl4': 4, 'icl8': 8};
+  final raw = rawSize[tag];
+  if (raw == null) return null;
+  final depth = depthOf[tag]!;
+  // 1-bit icons store 32×32×1 = 128 bytes uncompressed; render those exactly.
+  if (depth == 1 && bytes.length >= 128) {
+    return _IconView(
+      caption: '32×32 · 1-bit icon',
+      child: CustomPaint(size: const Size(192, 192), painter: _Icon1Bit(bytes)),
+    );
+  }
+  // Otherwise it is either RLE-compressed (LabVIEW stores icons packed) or a
+  // colour icon needing the Mac CLUT — neither decoded yet. Identify it honestly.
+  return _IconView(
+    caption: '$depth-bit LabVIEW icon · ${bytes.length} B',
+    child: _IconPending(depth: depth, compressed: bytes.length < raw),
+  );
+}
+
+class _IconView extends StatelessWidget {
+  const _IconView({required this.caption, required this.child});
+  final String caption;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          DecoratedBox(
+            decoration: BoxDecoration(border: Border.all(color: const Color(0x33FFFFFF))),
+            child: child,
+          ),
+          const SizedBox(height: 8),
+          Text(caption, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+        ],
+      );
+}
+
+class _Icon1Bit extends CustomPainter {
+  _Icon1Bit(this.bytes);
+  final Uint8List bytes;
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawRect(Offset.zero & size, Paint()..color = Colors.white);
+    final px = size.width / 32;
+    final black = Paint()..color = Colors.black;
+    for (var row = 0; row < 32; row++) {
+      for (var col = 0; col < 32; col++) {
+        final bit = (bytes[row * 4 + (col >> 3)] >> (7 - (col & 7))) & 1;
+        if (bit == 1) canvas.drawRect(Rect.fromLTWH(col * px, row * px, px + 0.5, px + 0.5), black);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _Icon1Bit oldDelegate) => false;
+}
+
+class _IconPending extends StatelessWidget {
+  const _IconPending({required this.depth, required this.compressed});
+  final int depth;
+  final bool compressed;
+  @override
+  Widget build(BuildContext context) {
+    final msg = compressed
+        ? 'LabVIEW stores this icon\nRLE-compressed — image\ndecoding is a planned\nfollow-up.\n\nRaw bytes shown at left.'
+        : '$depth-bit colour icon.\nColour rendering needs the\nMacintosh $depth-bit palette\n(not embedded yet).\n\nRaw bytes shown at left.';
+    return SizedBox(
+      width: 192,
+      height: 192,
+      child: ColoredBox(
+        color: const Color(0xFF2A2A2A),
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.image_outlined, color: Colors.grey, size: 28),
+                const SizedBox(height: 8),
+                Text(msg, textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _StringPreview extends StatelessWidget {
