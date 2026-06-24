@@ -170,6 +170,44 @@ void main() {
     });
   });
 
+  group('ViInfoArea + ViContainer.serialize', () {
+    test('ViInfoArea composes subheader + block list + raw rest byte-exact', () {
+      // synthetic info area: 0x34 subheader, block list (count=1, one entry), tail
+      final info = Uint8List(0x34 + 4 + 12 + 5);
+      info.setRange(0, 6, const [0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a]);
+      final d = ByteData.sublistView(info);
+      d.setUint16(6, 3);
+      info.setRange(8, 12, 'LVIN'.codeUnits);
+      info.setRange(12, 16, 'LBVW'.codeUnits);
+      d.setUint32(0x2c, 0x34); // blockListRel
+      d.setUint32(0x34, 1); // count
+      info.setRange(0x38, 0x3c, 'BDHb'.codeUnits); // entry tag
+      info.setRange(0x34 + 4 + 12, info.length, const [0xDE, 0xAD, 0xBE, 0xEF, 0x01]); // tail
+      final ia = ViInfoArea.parse(info);
+      expect(ia.blockList.count, 1);
+      expect(ia.rest, orderedEquals([0xDE, 0xAD, 0xBE, 0xEF, 0x01]));
+      expect(ia.serialize(), orderedEquals(info));
+    });
+
+    test('ViContainer.serialize() reproduces the original bytes (== toBytes)', () {
+      final bytes = _container([1, 2, 3, 4], [
+        // a minimal but well-formed info area so ViInfoArea.parse succeeds
+        for (var i = 0; i < 0x34; i++) 0,
+        0, 0, 0, 0, // block list count = 0
+        7, 7, // tail
+      ]);
+      // fix the header magic/blockListRel the synthetic info area needs
+      final info = bytes.sublist(36); // dataOffset=32 + data(4)=36
+      final id = ByteData.sublistView(info);
+      info.setRange(0, 6, const [0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a]);
+      id.setUint32(0x2c, 0x34);
+      bytes.setRange(36, bytes.length, info);
+      final c = ViContainer.parse(bytes);
+      expect(c.serialize(), orderedEquals(c.toBytes()));
+      expect(c.serialize(), orderedEquals(bytes));
+    });
+  });
+
   group('ViExport.rebuildDataArea', () {
     test('serializes sections as [u32 len][payload] and gaps verbatim', () {
       final out = ViExport.rebuildDataArea([

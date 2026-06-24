@@ -281,6 +281,42 @@ class ViSectionDescriptor {
   }
 }
 
+/// The info area composed as typed regions: the [subheader] (dup header +
+/// `blockListRel`), the [blockList] (resource-block directory), and the as-yet
+/// raw [rest] (the descriptor table + name table + trailing name). [serialize]
+/// reconstructs the whole info area byte-exact. As later ticks peel the
+/// descriptor table and name table out of [rest], `rest` shrinks toward empty.
+class ViInfoArea {
+  ViInfoArea({required this.subheader, required this.blockList, required this.rest});
+
+  final ViInfoSubheader subheader;
+  final ViBlockList blockList;
+
+  /// Bytes from the end of the block list to EOF — not yet modeled.
+  // TODO(labwright): peel the 20-byte descriptor table, then the name table +
+  // trailing Pascal name, out of this raw tail into typed structs.
+  final Uint8List rest;
+
+  factory ViInfoArea.parse(Uint8List infoArea) {
+    final subheader = ViInfoSubheader.parse(infoArea);
+    final blockList = ViBlockList.parse(infoArea, subheader.blockListRel);
+    final restStart = subheader.blockListRel + blockList.byteLength;
+    return ViInfoArea(
+      subheader: subheader,
+      blockList: blockList,
+      rest: Uint8List.fromList(infoArea.sublist(restStart)),
+    );
+  }
+
+  Uint8List serialize() {
+    final out = BytesBuilder()
+      ..add(subheader.serialize())
+      ..add(blockList.serialize())
+      ..add(rest);
+    return out.toBytes();
+  }
+}
+
 /// A **lossless** decomposition of an RSRC (`.vi`) container into its three
 /// contiguous regions, plus a byte-exact serializer. This is the foundation for
 /// the VI exporter/editor and the export→import idempotency test: parsing then
@@ -326,6 +362,24 @@ class ViContainer {
 
   /// The typed view of the info area's block list (the resource-block directory).
   ViBlockList get parsedBlockList => ViBlockList.parse(infoArea, ViInfoSubheader.parse(infoArea).blockListRel);
+
+  /// The info area composed as typed regions (subheader + block list + raw tail).
+  ViInfoArea get parsedInfoArea => ViInfoArea.parse(infoArea);
+
+  /// Re-emits the whole file from the **typed** model — `ViHeader.serialize()` +
+  /// the (still-raw) data area + `ViInfoArea.serialize()`. Byte-identical to the
+  /// input (and to [toBytes]) for an unmodified container; the proof that the
+  /// typed regions compose losslessly as they replace the raw spans.
+  Uint8List serialize() {
+    final h = parsedHeader.serialize();
+    final info = parsedInfoArea.serialize();
+    final out = Uint8List(h.length + dataArea.length + info.length);
+    out
+      ..setRange(0, h.length, h)
+      ..setRange(h.length, h.length + dataArea.length, dataArea)
+      ..setRange(h.length + dataArea.length, out.length, info);
+    return out;
+  }
 
   static const List<int> _magic = [0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a]; // "RSRC\r\n"
 

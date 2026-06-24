@@ -275,6 +275,46 @@ void main() {
     expect(fails, isEmpty, reason: 'descriptor round-trip not byte-exact: $fails');
   });
 
+  // TYPED WHOLE-FILE SERIALIZE: the composed typed model (ViHeader + ViInfoArea
+  // {typed subheader + block list + raw tail}, plus the raw data area) must
+  // reproduce the ORIGINAL file bytes for every VI — proof the typed regions
+  // compose losslessly as they replace the raw spans.
+  test('IDEMPOTENCY: ViContainer.serialize() == original bytes for every VI', () {
+    var files = 0, exact = 0;
+    final diffs = <String>[];
+    for (final f in all) {
+      final Uint8List bytes;
+      try {
+        bytes = Uint8List.fromList(f.readAsBytesSync());
+      } catch (_) {
+        continue;
+      }
+      final Uint8List out;
+      try {
+        out = ViContainer.parse(bytes).serialize();
+      } catch (_) {
+        continue;
+      }
+      files++;
+      var same = out.length == bytes.length;
+      if (same) {
+        for (var i = 0; i < bytes.length; i++) {
+          if (out[i] != bytes[i]) {
+            same = false;
+            break;
+          }
+        }
+      }
+      if (same) {
+        exact++;
+      } else if (diffs.length < 6) {
+        diffs.add('len ${bytes.length}->${out.length} ${f.path.split('/').last}');
+      }
+    }
+    expect(files, greaterThan(0));
+    expect(exact, equals(files), reason: 'typed serialize() not byte-exact for ${files - exact} file(s): $diffs');
+  });
+
   // SECTION-LEVEL IDEMPOTENCY: one layer finer than the whole-file round-trip.
   // [ViExport.decomposeDataArea] models the data area as ordered, length-prefixed
   // sections (located via the info-area descriptors) interleaved with padding
