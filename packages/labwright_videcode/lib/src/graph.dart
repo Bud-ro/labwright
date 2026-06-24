@@ -265,6 +265,17 @@ enum HeapObjectClass {
   /// reads `While Loop` (or a named state machine). Renders as a structure frame.
   bdWhileLoop(0x21, 'While loop', ViObjectKind.structure, ClassConfidence.inferred),
 
+  /// `0xCD` — a **Diagram/Conditional Disable structure** frame. Corpus: 1186 BD
+  /// (0 FP), median 258×144, parent the node container `0x1b`; `0xa` caption reads
+  /// `Diagram Disable Structure` / `Conditional Disable Structure`. Renders as a
+  /// structure frame.
+  bdDisableStructure(0xcd, 'Disable structure', ViObjectKind.structure, ClassConfidence.inferred),
+
+  /// `0x14D` — an **In Place Element Structure** frame. Corpus: 896 BD (0 FP),
+  /// median 233×138, parent `0x1b`; `0xa` caption reads `In Place Element
+  /// Structure`. Renders as a structure frame.
+  bdInPlaceStructure(0x14d, 'In Place Element structure', ViObjectKind.structure, ClassConfidence.inferred),
+
   /// `0x95` — a **case/sequence selector label row** on a structure frame's top
   /// edge (the `True`/`False`/case-name strip). Corpus: **16118 BD** instances
   /// (**83 FP** — not BD-only), median 53×19, ~14352 parented to the `0x2c` case
@@ -378,6 +389,23 @@ enum HeapObjectClass {
   /// subVI). Corpus: 2416 BD (0 FP), median 82×70, parent `0x1b`; `0xa` captions
   /// vary (`Invoke Node`, `… Units`). Renders as a node box.
   bdNodeA9(0xa9, 'Node', ViObjectKind.node, ClassConfidence.inferred),
+
+  /// `0x93` — a **built-in primitive node**. Corpus: 1479 BD (0 FP), median 32×29,
+  /// parent `0x1b`; labelled ones read `Format Into String`. Renders as a node box.
+  bdNode93(0x93, 'Node (primitive)', ViObjectKind.node, ClassConfidence.inferred),
+
+  /// `0x172` — a **built-in primitive node**. Corpus: 1409 BD (0 FP), median 32×18,
+  /// parent `0x1b`; labelled ones read `Merge Errors`. Renders as a node box.
+  bdNode172(0x172, 'Node (primitive)', ViObjectKind.node, ClassConfidence.inferred),
+
+  /// `0x6C` — a **built-in primitive node** (object kind, distinct from the `0x6c`
+  /// help attribute id). Corpus: 1020 BD (0 FP), median 24×17, parent `0x1b`;
+  /// labelled ones read `Compound Arithmetic`. Renders as a node box.
+  bdNode6c(0x6c, 'Node (primitive)', ViObjectKind.node, ClassConfidence.inferred),
+
+  /// `0x36` — a **built-in primitive node**. Corpus: 1002 BD (0 FP), median 32×17,
+  /// parent `0x1b`; labelled ones read `Unbundle`. Renders as a node box.
+  bdNode36(0x36, 'Node (primitive)', ViObjectKind.node, ClassConfidence.inferred),
 
   /// `0x16` — a **free-standing block-diagram terminal/constant leaf**. Corpus:
   /// 41830 BD instances, 0 FP, uniform **32×16** (41091/41830), each nested under a

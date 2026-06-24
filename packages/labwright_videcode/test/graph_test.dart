@@ -166,11 +166,11 @@ void main() {
     expect(classifyObject(kind: 0x95, termCount: 0), ViObjectKind.terminal); // case selector label
     expect(classifyObject(kind: 0x177, termCount: 0), ViObjectKind.decoration); // node glyph
     expect(classifyObject(kind: 0x63, termCount: 0), ViObjectKind.node); // growable node
-    for (final k in [0x8c, 0x3a, 0xd6, 0x32, 0xc5, 0x104, 0x44, 0x3e, 0x34, 0xa9]) {
+    for (final k in [0x8c, 0x3a, 0xd6, 0x32, 0xc5, 0x104, 0x44, 0x3e, 0x34, 0xa9, 0x93, 0x172, 0x6c, 0x36]) {
       expect(classifyObject(kind: k, termCount: 0), ViObjectKind.node); // BD nodes (function-name labelled)
     }
-    for (final k in [0x20, 0x21]) {
-      expect(classifyObject(kind: k, termCount: 0), ViObjectKind.structure); // For/While loop frames
+    for (final k in [0x20, 0x21, 0xcd, 0x14d]) {
+      expect(classifyObject(kind: k, termCount: 0), ViObjectKind.structure); // loop/case/disable/in-place frames
     }
     // the C4-1F terminal signal still wins over the catalog category.
     expect(classifyObject(kind: 0x50, termCount: 2), ViObjectKind.terminalCluster);
