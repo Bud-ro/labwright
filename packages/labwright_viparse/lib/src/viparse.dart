@@ -144,7 +144,7 @@ List<ViSection> readEmbeddedSections(Uint8List bytes) => _readSections(bytes, wa
 
 /// One embedded sub-VI recovered from a `VINS` section — a complete nested VI.
 class ViEmbeddedVi {
-  ViEmbeddedVi({required this.name, required this.sizeBytes});
+  ViEmbeddedVi({required this.name, required this.sizeBytes, this.bytes});
 
   /// The nested VI's recovered name (its trailing VI name via [parseVi]), or
   /// `null` if none was cleanly recovered. Best-effort, like any [parseVi] name.
@@ -152,6 +152,11 @@ class ViEmbeddedVi {
 
   /// The embedded VI's size in bytes (the nested `RSRC…LVIN` payload length).
   final int sizeBytes;
+
+  /// The nested VI's raw bytes (a complete `RSRC…LVIN` container) — feed these
+  /// straight back to [parseVi]/the inspector to open the embedded VI. May be
+  /// null when an [ViEmbeddedVi] is constructed without them (e.g. in tests).
+  final Uint8List? bytes;
 }
 
 /// The owning-library names a VI declares via its `LIBN` sections. The LIBN
@@ -205,7 +210,7 @@ List<ViEmbeddedVi> readEmbeddedVis(Uint8List bytes) {
     } catch (_) {
       name = null;
     }
-    out.add(ViEmbeddedVi(name: name, sizeBytes: s.bytes.length));
+    out.add(ViEmbeddedVi(name: name, sizeBytes: s.bytes.length, bytes: Uint8List.fromList(s.bytes)));
   }
   return out;
 }

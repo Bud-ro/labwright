@@ -282,6 +282,11 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                                           model: _model,
                                           libraryNames: _libraryNames,
                                           embeddedVis: _embeddedVis,
+                                          onOpenEmbedded: (vi) {
+                                            final b = vi.bytes;
+                                            if (b == null) return;
+                                            _loadBytes(b, 'embedded: ${vi.name ?? 'sub-VI'}');
+                                          },
                                         ),
                                         // Each layout view is keyed by model identity so loading a
                                         // new VI builds fresh state (resets selection + re-fits).
@@ -372,6 +377,7 @@ class _SummaryView extends StatefulWidget {
     this.model,
     this.libraryNames = const [],
     this.embeddedVis = const [],
+    this.onOpenEmbedded,
   });
   final ViSummary summary;
   final String source;
@@ -388,6 +394,9 @@ class _SummaryView extends StatefulWidget {
 
   /// Embedded sub-VIs (from VINS sections) — each a complete nested VI.
   final List<ViEmbeddedVi> embeddedVis;
+
+  /// Invoked when the user taps an embedded sub-VI to open it in the inspector.
+  final void Function(ViEmbeddedVi)? onOpenEmbedded;
 
   @override
   State<_SummaryView> createState() => _SummaryViewState();
@@ -491,31 +500,45 @@ class _SummaryViewState extends State<_SummaryView> {
         ],
 
         // Embedded sub-VIs (from VINS sections — each a complete nested VI).
+        // Tap a row to open that nested VI in the inspector (it IS a full VI).
         if (widget.embeddedVis.isNotEmpty) ...[
-          Builder(builder: (context) {
-            // Show the clean recovered names (those that look like VI names);
-            // the count is honest about the total even when some names are not
-            // cleanly recovered from the nested VI.
-            final names = [
-              for (final v in widget.embeddedVis)
-                if (v.name != null && v.name!.toLowerCase().endsWith('.vi')) v.name!,
-            ];
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Embedded VIs (${widget.embeddedVis.length})',
-                    style: const TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 4),
-                Text(
-                  names.isEmpty
-                      ? 'nested VIs present; names not cleanly recovered'
-                      : names.take(40).join(', ') +
-                          (names.length > 40 ? ', … (+${names.length - 40} more)' : ''),
-                  style: const TextStyle(fontSize: 12),
+          Text('Embedded VIs (${widget.embeddedVis.length})',
+              style: const TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 4),
+          const Text('Tap to open a nested VI.', style: TextStyle(color: Colors.grey, fontSize: 12)),
+          const SizedBox(height: 4),
+          for (final vi in widget.embeddedVis.take(60))
+            Builder(builder: (context) {
+              // Honest label: a cleanly-recovered .vi name, else a neutral fallback.
+              final clean = vi.name != null && vi.name!.toLowerCase().endsWith('.vi');
+              final label = clean ? vi.name! : '(name not recovered)';
+              final openable = vi.bytes != null && widget.onOpenEmbedded != null;
+              return InkWell(
+                onTap: openable ? () => widget.onOpenEmbedded!(vi) : null,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      Icon(openable ? Icons.open_in_new : Icons.insert_drive_file,
+                          size: 14, color: openable ? Theme.of(context).colorScheme.primary : Colors.grey),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(label,
+                            style: TextStyle(
+                                fontSize: 12,
+                                color: clean ? null : Colors.grey,
+                                decoration: openable ? TextDecoration.underline : null)),
+                      ),
+                      Text(_fmtSize(vi.sizeBytes),
+                          style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                    ],
+                  ),
                 ),
-              ],
-            );
-          }),
+              );
+            }),
+          if (widget.embeddedVis.length > 60)
+            Text('… (+${widget.embeddedVis.length - 60} more)',
+                style: const TextStyle(fontSize: 12, color: Colors.grey)),
           const SizedBox(height: 16),
         ],
 

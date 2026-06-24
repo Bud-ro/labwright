@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:labwright_vi_inspector/src/vi_demo.dart';
 import 'package:labwright_vi_inspector/src/vi_screen.dart';
 import 'package:labwright_videcode/labwright_videcode.dart';
 import 'package:labwright_viparse/labwright_viparse.dart';
@@ -94,6 +95,40 @@ void main() {
     expect(find.text('Embedded VIs (3)'), findsOneWidget);
     expect(find.textContaining('abc12345-0000.vi'), findsOneWidget);
     expect(find.textContaining('UMLEditor Main .vi'), findsOneWidget);
+  });
+
+  testWidgets('tapping an embedded sub-VI opens it in the inspector', (tester) async {
+    tester.view.physicalSize = const Size(1000, 2000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    // a real, parseable nested VI as the embedded payload
+    final nested = demoViBytes(name: 'NestedDemo.vi');
+    await tester.pumpWidget(MaterialApp(
+      home: ViInspectorScreen(
+        initial: ViSummary(
+          fileType: 'LVIN',
+          creator: 'LBVW',
+          formatVersion: 3,
+          blocks: const ['VINS'],
+          name: 'Outer.vi',
+        ),
+        initialSource: 'test',
+        initialEmbeddedVis: [
+          ViEmbeddedVi(name: 'inner.vi', sizeBytes: nested.length, bytes: nested),
+        ],
+      ),
+    ));
+
+    expect(find.text('Embedded VIs (1)'), findsOneWidget);
+    expect(find.text('inner.vi'), findsOneWidget);
+
+    await tester.tap(find.text('inner.vi'));
+    await tester.pump();
+
+    // the nested VI is now loaded: source label updated + its recovered name shows
+    expect(find.textContaining('embedded: inner.vi'), findsOneWidget);
+    expect(find.text('NestedDemo.vi'), findsWidgets);
   });
 
   testWidgets('a non-existent path shows a clean error, not a crash', (tester) async {
