@@ -332,6 +332,15 @@ _SpanInfo _classify(Uint8List b, HeapSpan s, String tag) {
     return make(_cObject, 'Object · ${cls.label}',
         'Declares object #$oid of class 0x${kind.toRadixString(16)} — ${cls.label}$conf.');
   }
+  // Named property token (the decoded hi-nibble 0/1 family) — show its meaning.
+  final prop = decodeHeapPropertyToken(b, o);
+  if (prop != null) {
+    final t = prop.token;
+    final conf = t.confidence == AttrConfidence.confirmed ? '' : ' (${t.confidence.name})';
+    final hexpair = '${lead.toRadixString(16).padLeft(2, '0')} ${b[o + 1].toRadixString(16).padLeft(2, '0')}';
+    final val = prop.value == null ? '' : ' = ${prop.value}';
+    return make(_cAttr, '$hexpair · ${t.tokenName}', 'Object property$val$conf.');
+  }
   // Group open / close (bracket tree)
   if (lead == 0x10 || lead == 0x11 || lead == 0x12 || lead == 0x13) {
     return make(_cGroup, 'Group open', 'Opens a typed-list / object group (bracket-tree node).');
@@ -386,6 +395,10 @@ _SpanInfo _classify(Uint8List b, HeapSpan s, String tag) {
         return make(_cAttr, '$hexlead · $name',
             '${_kindLabel(attr.kind)} = ${attr.asInt} (${attr.width.name}).');
     }
+  }
+  if (isTypeDescriptorToken(lead)) {
+    return make(_cOther, '04 ${b[o + 1].toRadixString(16).padLeft(2, '0')} · type-descriptor token',
+        'A type-descriptor grammar fragment (structural), not an object property.');
   }
   return make(_cOther, 'lead 0x${lead.toRadixString(16)}', 'Framed record ($len bytes); role not individually decoded.');
 }

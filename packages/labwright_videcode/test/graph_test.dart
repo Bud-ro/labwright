@@ -143,6 +143,22 @@ void main() {
     expect(classifyObject(kind: 0x50, termCount: 2), ViObjectKind.terminalCluster);
   });
 
+  test('enum/ring items are parsed and propagated up to the enclosing control', () {
+    final records = <int>[
+      ...open(0x7e, 1), ...bounds(0, 0, 400, 400),
+      ...open(0x57, 2, tag: 0x1a), ...bounds(10, 10, 30, 110), // enum control
+      ...open(0x0d, 3, tag: 0x1b), ...bounds(12, 12, 28, 100), ...enum2e(['Low', 'Med', 'High']), // item list
+      ...close(0x1b),
+      ...close(0x1a),
+      ...close(),
+    ];
+    final d = buildDiagram(Uint8List.fromList([0, 0, 0, records.length, ...records]));
+    // items decoded on the 0x0d item-list object...
+    expect(d.byId[3]!.items, ['Low', 'Med', 'High']);
+    // ...and propagated up to its enclosing 0x57 control (used by faithful mode).
+    expect(d.byId[2]!.items, ['Low', 'Med', 'High']);
+  });
+
   test('buildDiagram is total over arbitrary bytes', () {
     final junk = Uint8List.fromList([for (var i = 0; i < 400; i++) (i * 17 + 3) & 0xff]);
     expect(() {

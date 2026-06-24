@@ -51,7 +51,12 @@ bool _isSemantic(Uint8List b, int o, int lead, String tag) {
   // Attribute records: decoded when the id is named in the catalog.
   final a = decodeHeapAttr(b, o);
   if (a != null) return a.attribute != HeapAttribute.unknown;
-  return false; // framed-only (e.g. the hi<=1 property tokens — length known, meaning not)
+  // Named property tokens (the catalogued hi<=1 family) and the 0x04
+  // type-descriptor grammar (role known = structural). Tagged sub-lists with a
+  // 10/11/12/13 lead are already counted above as group-opens; this adds the
+  // bare selectors and the 0x04 fragments.
+  if (decodeHeapPropertyToken(b, o) != null || isTypeDescriptorToken(lead)) return true;
+  return false; // framed-only (meaning still undecoded)
 }
 
 _Stat _measure(List<File> files) {

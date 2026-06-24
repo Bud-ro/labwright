@@ -52,6 +52,40 @@ void main() {
     expect(w.spans.single.lead, 0x84);
   });
 
+  test('HeapPropertyToken catalog: unique keys, round-trip via lookup', () {
+    final seen = <int>{};
+    for (final t in HeapPropertyToken.values) {
+      expect(seen.add((t.op << 8) | t.subop), isTrue,
+          reason: 'duplicate (op,subop) for ${t.tokenName}');
+      expect(HeapPropertyToken.lookup(t.op, t.subop), t);
+      expect(t.tokenName, isNotEmpty);
+    }
+    expect(HeapPropertyToken.lookup(0xff, 0xff), isNull);
+  });
+
+  test('decodeHeapPropertyToken decodes tagged-list values and bare selectors', () {
+    Uint8List b(List<int> x) => Uint8List.fromList(x);
+    // 10 19 selfRoleClass: tagged FE sub-list, first item value 0x0258.
+    final role = decodeHeapPropertyToken(b([0x10, 0x19, 0x01, 0xfe, 0x02, 0x58]), 0);
+    expect(role!.token, HeapPropertyToken.selfRoleClass);
+    expect(role.value, 0x0258);
+    expect(role.length, 6);
+    // 10 e1 controlStyleCount: tagged FB u16 sub-list, value 7.
+    final style = decodeHeapPropertyToken(b([0x10, 0xe1, 0x01, 0xfb, 0x00, 0x07]), 0);
+    expect(style!.token, HeapPropertyToken.controlStyleCount);
+    expect(style.value, 7);
+    // 11 10 viewportSlot1: bare 2-byte selector, no inline value.
+    final slot = decodeHeapPropertyToken(b([0x11, 0x10, 0x44, 0x89]), 0);
+    expect(slot!.token, HeapPropertyToken.viewportSlot1);
+    expect(slot.value, isNull);
+    expect(slot.length, 2);
+    // An uncatalogued (op,subop) is not a property token.
+    expect(decodeHeapPropertyToken(b([0x10, 0x77, 0x01, 0xfe, 0, 0]), 0), isNull);
+    // 0x04 fragments are type-descriptor grammar, not properties.
+    expect(isTypeDescriptorToken(0x04), isTrue);
+    expect(isTypeDescriptorToken(0x10), isFalse);
+  });
+
   test('walkHeapBody and recordSkip are total over arbitrary bytes', () {
     for (var seed = 0; seed < 1500; seed++) {
       final len = (seed * 7) % 200;

@@ -844,6 +844,197 @@ class HeapWalk {
   bool get complete => stoppedAtOffset == null;
 }
 
+/// The serialized form of a [HeapPropertyToken] in the byte stream.
+enum PropTokenForm {
+  /// `<op> <subop> <count> <FB/FE/FD> <items>` — a tagged sub-list. The first
+  /// item carries the value: tag `FE` → `s16`, `FB` → `u16`, `FD` → an object id.
+  /// This is the bulk of the family (the `count` is almost always 1).
+  taggedList,
+
+  /// A bare 2-byte `<op> <subop>` selector — a fixed property *slot* on the
+  /// current object that carries no inline value (the value, if any, lives in
+  /// neighbouring attribute records).
+  selector,
+}
+
+/// Catalog of the **hi-nibble 0/1 property tokens** — the `<op> <subop>` records
+/// (`op >> 4 ∈ {0,1}`, plus the `0x12` case-structure triples) that decorate an
+/// open heap object with a named property. These are framed by [recordSkip] /
+/// [_typedList]; this enum gives the decoded *meaning* of the high-volume pairs.
+///
+/// Derived purely by clean-room statistical analysis over 2,630 EOF-balanced
+/// heap walks (8,360 corpus VIs), restricted to object-scoped tokens. The
+/// decisive finding: each `(op, subop)` pair carries exactly one item-tag (the
+/// subop selects the property *and* its value class), the value is near-constant
+/// per object kind for the role-marker pairs, and `op==0x04` two-byte tokens are
+/// **not** properties at all but type-descriptor-grammar fragments (see
+/// [isTypeDescriptorToken]). See `docs/vi-rsrc-and-heap-format.md`.
+///
+/// HONESTY ([AttrConfidence]): `confirmed` pairs are pinned by a decisive signal
+/// (a value↔kind bijection, a known reflist opener, or 100%-invariant framing
+/// neighbours); `inferred` names give the defensible direction from value+kind
+/// correlation and co-occurring `C4` records; `kindOnly` names are value-kind
+/// labels on a single scoped kind. No LabVIEW source was used. Resolve a pair
+/// with [lookup]; map a record at an offset with [decodeHeapPropertyToken].
+enum HeapPropertyToken {
+  /// `10 19` — **object self-role / feature-class echo** (`FE`→s16). The value is
+  /// ~constant per object kind (0x258 on control sub-parts, 0x320 on terminal
+  /// clusters, 0x1F4 on diagram props): a type-class descriptor, not free data.
+  /// Co-occurs with the `C4 2D` bounds + `C4 1F` terminal signature. The single
+  /// highest-volume pair (185k object-scoped instances); value↔kind is 1:1.
+  selfRoleClass(0x10, 0x19, PropTokenForm.taggedList, 'selfRoleClass', AttrConfidence.confirmed),
+
+  /// `10 8d` — **text / appearance feature flag** (`FE`→s16, always 0x258) on
+  /// label-bearing parts (chrome, label, numeric display). Co-occurs with the
+  /// `C4 22` caption.
+  textAppearanceFlag(0x10, 0x8d, PropTokenForm.taggedList, 'textAppearanceFlag', AttrConfidence.inferred),
+
+  /// `10 22` — **terminal-cluster role marker** (`FE`→s16, always 0x258), scoped
+  /// almost entirely to terminal clusters; co-occurs exactly with `C4 2D` +
+  /// `C4 1F` (the terminal signature).
+  terminalClusterRole(0x10, 0x22, PropTokenForm.taggedList, 'terminalClusterRole', AttrConfidence.inferred),
+
+  /// `11 2d` — **text-element presence flag** (`FE`→s16, always 1) on labels,
+  /// numeric displays and enum item-lists; co-occurs with `C4 2D` + `C4 22`.
+  textElementPresent(0x11, 0x2d, PropTokenForm.taggedList, 'textElementPresent', AttrConfidence.inferred),
+
+  /// `11 1f` — **sub-part / member-shape count** (`FB`→u16, small: 2/4/5),
+  /// varying by control type. Tested **NOT** a child-membership count (0% match
+  /// to actual child-object counts) — it is an intrinsic shape parameter.
+  subPartShapeCount(0x11, 0x1f, PropTokenForm.taggedList, 'subPartShapeCount', AttrConfidence.inferred),
+
+  /// `10 e1` — **control style / sub-element count** (`FB`→u16) whose value tracks
+  /// the control class (numeric=7, boolean cluster=4, string array=6, enum ring=6,
+  /// loop/diagram frame=4/6): a per-control-class style/part code.
+  controlStyleCount(0x10, 0xe1, PropTokenForm.taggedList, 'controlStyleCount', AttrConfidence.inferred),
+
+  /// `11 18` — **tip-strip enabled flag** (`FB`→u16, always 1), scoped entirely to
+  /// tip-strip objects; co-occurs only with `C4 19` help text.
+  tipStripEnabled(0x11, 0x18, PropTokenForm.taggedList, 'tipStripEnabled', AttrConfidence.inferred),
+
+  /// `10 25` — **text-table / item-list marker** (`FB`→u16, value 1) on labels,
+  /// enum item-lists and numeric displays; co-occurs with `C4 2D` + `C4 22` +
+  /// the `C4 2E` string table.
+  textTableMarker(0x10, 0x25, PropTokenForm.taggedList, 'textTableMarker', AttrConfidence.inferred),
+
+  /// `10 55` — **structure child reflist opener** (`FB`→u16): the header of the
+  /// child-membership reference list on loops/case structures/diagram frames (the
+  /// `10 55 01 fb <count>` form, each member a `14 19 01 fd <oid>` ref).
+  structureChildReflist(0x10, 0x55, PropTokenForm.taggedList, 'structureChildReflist', AttrConfidence.confirmed),
+
+  /// `11 4e` — **diagram-frame style / zoom parameter** (`FB`→u16: 2/3/4) on
+  /// content viewports and diagram frames.
+  diagramFrameStyle(0x11, 0x4e, PropTokenForm.taggedList, 'diagramFrameStyle', AttrConfidence.kindOnly),
+
+  /// `11 eb` — **enum / ring property** (`FB`→u16, mostly 0), scoped to enum-ring
+  /// controls.
+  enumRingProperty(0x11, 0xeb, PropTokenForm.taggedList, 'enumRingProperty', AttrConfidence.inferred),
+
+  /// `11 ea` — **enum / ring count / style** (`FB`→u16, varies), scoped to
+  /// enum-ring controls.
+  enumRingCount(0x11, 0xea, PropTokenForm.taggedList, 'enumRingCount', AttrConfidence.inferred),
+
+  /// `10 49` — **diagram property** (`FB`→u16, value 12=0x0C dominant), scoped
+  /// entirely to diagram-properties objects.
+  diagramProperty(0x10, 0x49, PropTokenForm.taggedList, 'diagramProperty', AttrConfidence.kindOnly),
+
+  /// `12 15` — **case/sequence frame parameter A** (`FB`→u16), scoped to
+  /// case/sequence structures (one of a 3-tuple with [caseSeqParamB]/[caseSeqParamC]).
+  caseSeqParamA(0x12, 0x15, PropTokenForm.taggedList, 'caseSeqParamA', AttrConfidence.inferred),
+
+  /// `12 16` — **case/sequence frame parameter B** (`FB`→u16). See [caseSeqParamA].
+  caseSeqParamB(0x12, 0x16, PropTokenForm.taggedList, 'caseSeqParamB', AttrConfidence.inferred),
+
+  /// `12 17` — **case/sequence frame parameter C** (`FB`→u16). See [caseSeqParamA].
+  caseSeqParamC(0x12, 0x17, PropTokenForm.taggedList, 'caseSeqParamC', AttrConfidence.inferred),
+
+  /// `12 05` — **decoration property** (`FB`→u16, value 0), scoped to decorations.
+  decorationProperty(0x12, 0x05, PropTokenForm.taggedList, 'decorationProperty', AttrConfidence.kindOnly),
+
+  /// `11 10` — **viewport property slot 1** (bare selector). Pinned by a
+  /// 100%-invariant context — it always sits between a `64`(u24 attr) and a
+  /// `44`(u16 attr) inside content-viewport objects: a fixed scrollbar/viewport
+  /// property slot.
+  viewportSlot1(0x11, 0x10, PropTokenForm.selector, 'viewportSlot1', AttrConfidence.confirmed),
+
+  /// `11 14` — **viewport property slot 2** (bare selector), same `64`/`44`
+  /// framing as [viewportSlot1] inside content viewports.
+  viewportSlot2(0x11, 0x14, PropTokenForm.selector, 'viewportSlot2', AttrConfidence.inferred);
+
+  const HeapPropertyToken(this.op, this.subop, this.form, this.tokenName, this.confidence);
+
+  /// The leading opcode byte (`op >> 4 ∈ {0,1}`, or `0x12` for the case triple).
+  final int op;
+
+  /// The sub-opcode that selects the property (and its value class).
+  final int subop;
+
+  /// How the value is carried in the byte stream.
+  final PropTokenForm form;
+
+  /// The human-assigned name. See [confidence] for how grounded it is.
+  final String tokenName;
+
+  /// How well-grounded [tokenName] is (clean-room honesty).
+  final AttrConfidence confidence;
+
+  static final Map<int, HeapPropertyToken> _byKey = {
+    for (final t in values) (t.op << 8) | t.subop: t,
+  };
+
+  /// The catalogued token for an `(op, subop)` pair, or null if uncatalogued.
+  static HeapPropertyToken? lookup(int op, int subop) => _byKey[(op << 8) | subop];
+}
+
+/// Whether a two-byte `<op> <subop>` token is an `op == 0x04` **type-descriptor
+/// grammar fragment** rather than an object property. These chain as a
+/// `04 SS 00 00` / `04 TT 00 00` stream (the DTHP type-descriptor token grammar)
+/// and appear on graph/path objects; their *role* is known (structural) even
+/// though no per-token property name applies. Distinct from [HeapPropertyToken].
+bool isTypeDescriptorToken(int op) => op == 0x04;
+
+/// A decoded property token at an offset: the catalogued [token] and, for a
+/// [PropTokenForm.taggedList], the first item's [value] (the property value).
+class HeapPropertyValue {
+  const HeapPropertyValue({required this.token, required this.value, required this.length});
+
+  /// The catalogued token.
+  final HeapPropertyToken token;
+
+  /// The first item's value for a tagged sub-list (`s16`/`u16`/object id), or null
+  /// for a bare [PropTokenForm.selector].
+  final int? value;
+
+  /// Total bytes the record occupies (as framed by [recordSkip]).
+  final int length;
+}
+
+/// Decodes the [HeapPropertyToken] record at [offset] in [body], or null if the
+/// bytes there are not a catalogued `(op, subop)` token. Mirrors [recordSkip]'s
+/// framing of the hi-nibble 0/1 family.
+HeapPropertyValue? decodeHeapPropertyToken(Uint8List body, int offset) {
+  if (offset + 2 > body.length) return null;
+  final op = body[offset], subop = body[offset + 1];
+  final token = HeapPropertyToken.lookup(op, subop);
+  if (token == null) return null;
+  if (token.form == PropTokenForm.selector) {
+    return HeapPropertyValue(token: token, value: null, length: 2);
+  }
+  // Tagged sub-list `<op> <subop> <count> <tag> <items>`; decode the first item.
+  if (offset + 4 > body.length || !_isTypeTag(body[offset + 3])) return null;
+  final len = _typedList(body, offset);
+  if (len == null) return null;
+  final tag = body[offset + 3];
+  int? value;
+  if (tag == 0xfb && offset + 6 <= body.length) {
+    value = (body[offset + 4] << 8) | body[offset + 5]; // u16 item
+  } else if ((tag == 0xfe || tag == 0xfd) && offset + 6 <= body.length) {
+    // 3-byte item `<tag><hi><lo>`: the trailing 2 bytes are the s16/oid value.
+    value = (body[offset + 4] << 8) | body[offset + 5];
+  }
+  return HeapPropertyValue(token: token, value: value, length: len);
+}
+
 /// The byte length of the heap record at [i] in [h], or null if [i] is not a
 /// recognized record start (the walk stops there). This is the **heap record
 /// skip table** — the reverse-engineered framing of every record family known so
@@ -933,7 +1124,9 @@ int? recordSkip(Uint8List h, int i) {
   // (FB/FE/FD) follows the count, else a 2-byte property/field token on the
   // current object. Framing the rest of the family (05/06/15/16/… and the
   // 0x19/0x01/0x00 leads) lifts corpus coverage from ~41% to ~99% — corpus-
-  // validated that it advances cleanly to recognized records (no desync).
+  // validated that it advances cleanly to recognized records (no desync). The
+  // decoded *meanings* of the high-volume pairs are catalogued in
+  // [HeapPropertyToken] (resolve a record with [decodeHeapPropertyToken]).
   final hi = op >> 4;
   if (hi == 0 || hi == 1) {
     return (i + 4 <= n && _isTypeTag(h[i + 3])) ? _typedList(h, i) : 2;
