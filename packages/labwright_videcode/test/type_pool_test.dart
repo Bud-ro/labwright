@@ -86,6 +86,37 @@ void main() {
     expect(names.single.name, 'aa');
   });
 
+  test('decodes a cluster descriptor into resolved member fields', () {
+    // pool of 3 types: [0]=bool, [1]=i32 named "handle", [2]=cluster{0,1}
+    // type0: descLen=4 [00 04][40 21]
+    // type1: i32 named "handle": [40 03][nameLen=6]"handle" -> body 2+1+6=9, descLen=11
+    // type2: cluster, 2 members idx 0,1: [40 50][u16 nm=2][u16 0][u16 1] -> body 2+2+2+2=8, descLen=10
+    const t1Name = 'handle';
+    final type0 = <int>[0x00, 0x04, 0x40, 0x21];
+    final type1 = <int>[0x00, 0x0b, 0x40, 0x03, t1Name.length, ...t1Name.codeUnits];
+    final type2 = <int>[0x00, 0x0a, 0x40, 0x50, 0x00, 0x02, 0x00, 0x00, 0x00, 0x01];
+    final b = Uint8List.fromList([0, 0, 0, 3, ...type0, ...type1, ...type2]);
+
+    final types = decodeTypePool(b);
+    expect(types, hasLength(3));
+    final cluster = types[2];
+    expect(cluster.kind, ViDataType.cluster);
+    expect(cluster.members, [0, 1]);
+
+    final fields = clusterFields(cluster, types);
+    expect(fields.map((f) => f.kind).toList(), [ViDataType.boolean, ViDataType.i32]);
+    expect(fields[1].name, 'handle'); // member 1 resolves to the named i32
+  });
+
+  test('a malformed cluster member list yields no members (no throw)', () {
+    // cluster claiming 999 members in a tiny descriptor -> rejected
+    final type2 = <int>[0x00, 0x06, 0x40, 0x50, 0x03, 0xe7]; // nm=999, descLen=6
+    final b = Uint8List.fromList([0, 0, 0, 1, ...type2]);
+    final types = decodeTypePool(b);
+    expect(types.single.kind, ViDataType.cluster);
+    expect(types.single.members, isEmpty);
+  });
+
   test('typeKindHistogram counts kinds, most-frequent first', () {
     final types = decodeTypePool(_pool([0x50, 0x50, 0x30, 0x50, 0x21]));
     final h = typeKindHistogram(types);

@@ -155,4 +155,38 @@ void main() {
     expect(vIsWithNames, greaterThan((files * 0.40).floor()),
         reason: 'named-type recovery dropped: only $vIsWithNames/$files VIs yielded names');
   });
+
+  test('cluster member structures resolve into valid fields', () {
+    var files = 0, clusters = 0, clustersWithMembers = 0, totalFields = 0;
+    final fails = <String>[];
+    for (final f in all) {
+      final ViModel model;
+      try {
+        model = buildViModel(Uint8List.fromList(f.readAsBytesSync()));
+      } catch (_) {
+        continue;
+      }
+      files++;
+      for (final t in model.types) {
+        if (t.kind != ViDataType.cluster) continue;
+        clusters++;
+        if (t.members.isEmpty) continue;
+        clustersWithMembers++;
+        // every declared member index must be in range
+        for (final i in t.members) {
+          if (i < 0 || i >= model.types.length) {
+            if (fails.length < 8) fails.add('OOB member $i in ${f.path.split('/').last}');
+          }
+        }
+        totalFields += clusterFields(t, model.types).length;
+      }
+    }
+    expect(files, greaterThan(0));
+    expect(clusters, greaterThan(0));
+    expect(fails, isEmpty, reason: 'cluster members out of range: $fails');
+    expect(totalFields, greaterThan(0));
+    // ratchet: most clusters expose a parseable member list (probe ~99.9%).
+    expect(clustersWithMembers, greaterThan((clusters * 0.80).floor()),
+        reason: 'cluster member recovery dropped: $clustersWithMembers/$clusters');
+  });
 }

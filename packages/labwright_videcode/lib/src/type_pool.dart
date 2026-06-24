@@ -39,10 +39,15 @@ const Map<int, ViDataType> _typeCodes = {
 /// the recovered [name] (a typedef/control name like `Serial Number`) when the
 /// descriptor carries one, else null.
 class ViType {
-  const ViType({required this.index, required this.code, required this.kind, this.name});
+  const ViType({required this.index, required this.code, required this.kind, this.name, this.members = const []});
   final int index;
   final int code;
   final ViDataType kind;
+
+  /// For a [ViDataType.cluster], the VCTP indices of its member types in order
+  /// (resolve against the pool with [clusterFields]) — the struct's fields.
+  /// Empty for non-clusters or when the member list can't be parsed.
+  final List<int> members;
 
   /// The descriptor's embedded name (typedef / labelled control), or null. These
   /// are real identifiers (`Trigger Threshold (volts)`, `error out`) — the VI's
@@ -79,11 +84,39 @@ List<ViType> decodeTypePool(Uint8List body) {
       code: code,
       kind: _typeCodes[code] ?? ViDataType.unknown,
       name: _trailingName(body, off + 4, off + descLen),
+      members: code == 0x50 ? _clusterMembers(body, off, descLen, count) : const [],
     ));
     off += descLen;
   }
   return out;
 }
+
+/// Parses a cluster descriptor's member list: `[u16 numMembers][u16 typeIndex]*`
+/// at body offset `off+4` (right after the length word + flags + code), each
+/// index pointing into the same pool. Returns the member indices, or `const []`
+/// if the layout doesn't validate (count fits the descriptor, every index in
+/// range) — corpus-validated to parse for 99.9% of clusters.
+List<int> _clusterMembers(Uint8List b, int off, int descLen, int poolCount) {
+  if (off + 6 > b.length) return const [];
+  final nm = (b[off + 4] << 8) | b[off + 5];
+  if (nm <= 0 || nm > 512) return const [];
+  if (6 + nm * 2 > descLen) return const []; // members must fit before the name
+  final out = <int>[];
+  for (var m = 0; m < nm; m++) {
+    final p = off + 6 + m * 2;
+    final idx = (b[p] << 8) | b[p + 1];
+    if (idx >= poolCount) return const []; // out-of-range -> not the layout we think
+    out.add(idx);
+  }
+  return out;
+}
+
+/// Resolves a cluster [c]'s [ViType.members] indices against the full pool
+/// [types] into ordered `(kind, name)` fields. Out-of-range indices are skipped.
+List<({ViDataType kind, String? name})> clusterFields(ViType c, List<ViType> types) => [
+      for (final i in c.members)
+        if (i >= 0 && i < types.length) (kind: types[i].kind, name: types[i].name),
+    ];
 
 /// Recovers a type descriptor's embedded name: LabVIEW stores it as a Pascal
 /// string (`u8 len` + bytes) at the **end** of the descriptor. Scans for a valid

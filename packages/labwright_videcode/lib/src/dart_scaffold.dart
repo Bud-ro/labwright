@@ -27,6 +27,10 @@ const int _descCap = 200;
 /// "+N more" note). VIs can define dozens; the header stays readable.
 const int _namedTypeCap = 40;
 
+/// Max recovered cluster structures listed in the scaffold header before
+/// truncating (with a "+N more" note).
+const int _structCap = 20;
+
 /// Generates an **honest structural Dart scaffold** from a decoded [ViModel] —
 /// the first VI→IR→Dart codegen step. It is deliberately NOT executable logic:
 /// LabVIEW stores wires as pure geometry with no recoverable node→node
@@ -88,6 +92,25 @@ String generateDartScaffold(ViModel model, {String name = 'vi'}) {
     }
     if (named.length > _namedTypeCap) {
       b.writeln('//   (+${named.length - _namedTypeCap} more not shown)');
+    }
+  }
+  // Recovered cluster structures (named clusters with resolved member fields) —
+  // honest field KINDS (+ a member's typedef name where it has one); shown as a
+  // comment, not real Dart, since field names are only partially recoverable.
+  final structs = [
+    for (final t in model.types)
+      if (t.kind == ViDataType.cluster && t.name != null && t.members.isNotEmpty) t,
+  ];
+  if (structs.isNotEmpty) {
+    b.writeln('// Recovered cluster structures:');
+    for (final t in structs.take(_structCap)) {
+      final fields = clusterFields(t, model.types)
+          .map((f) => f.name != null ? '${f.kind.name} ${_oneLine(f.name!)}' : f.kind.name)
+          .join('; ');
+      b.writeln('//   ${_oneLine(t.name!)} { $fields }');
+    }
+    if (structs.length > _structCap) {
+      b.writeln('//   (+${structs.length - _structCap} more not shown)');
     }
   }
   // Candidate parameters: the VI's recovered control/label captions. These are

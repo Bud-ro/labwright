@@ -11,8 +11,9 @@ import 'type_pool.dart';
 /// and a review UI renders it alongside generated Dart. Bump on any
 /// shape-breaking change to the emitted maps.
 /// v2 added `subViNames` (the LIbd subVI dependency list); v3 added the type-pool
-/// summary (`typeCount` + `typeHistogram`) from VCTP; v4 added `namedTypes`.
-const int viIrVersion = 4;
+/// summary (`typeCount` + `typeHistogram`) from VCTP; v4 added `namedTypes`;
+/// v5 added cluster `members` to named-type entries.
+const int viIrVersion = 5;
 
 /// Serializes a recovered [ViDiagram] to a JSON-encodable map: its section tag
 /// plus a **flat list of objects** carrying the positional nesting via
@@ -98,7 +99,16 @@ Map<String, Object?> viModelToJson(ViModel m) => {
       if (namedTypes(m.types).isNotEmpty)
         'namedTypes': [
           for (final t in namedTypes(m.types).take(200))
-            {'index': t.index, 'kind': t.kind.name, 'name': t.name},
+            {
+              'index': t.index,
+              'kind': t.kind.name,
+              'name': t.name,
+              // for a named cluster, its resolved member fields (the struct)
+              if (t.members.isNotEmpty)
+                'members': [
+                  for (final f in clusterFields(t, m.types)) {'kind': f.kind.name, if (f.name != null) 'name': f.name},
+                ],
+            },
         ],
       'blockDiagrams': [for (final d in m.blockDiagrams) viDiagramToJson(d)],
       'frontPanelDiagrams': [for (final d in m.frontPanelDiagrams) viDiagramToJson(d)],
