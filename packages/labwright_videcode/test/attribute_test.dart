@@ -168,6 +168,39 @@ void main() {
     });
   });
 
+  group('C5/C6 …08 + inline-string family (review3 follow-up)', () {
+    test('0x31 inline string: C6 31 <len> <raw ASCII> decodes to the text', () {
+      final rec = Uint8List.fromList([0xc6, 0x31, 0x05, ...'Scale'.codeUnits]);
+      final a = decodeHeapAttr(rec, 0)!;
+      expect(a.attribute, HeapAttribute.propertyName);
+      expect(a.kind, HeapAttrKind.stringBlob);
+      expect(a.asString, 'Scale');
+      expect(a.length, 8);
+    });
+
+    test('0x20/0x21 in the C5/C6 …08 form are f64 control range min/max', () {
+      final mn = decodeHeapAttr(f64Rec(0x20, -1.0), 0)!;
+      expect(mn.attribute, HeapAttribute.foregroundColor);
+      expect(mn.kind, HeapAttrKind.controlParam);
+      expect(mn.asDouble, -1.0);
+      // ...but the 84/nibble form of 0x20 is still a colour.
+      final col = decodeHeapAttr(Uint8List.fromList([0x84, 0x20, 0xff, 0x10, 0x10, 0x10]), 0)!;
+      expect(col.kind, HeapAttrKind.color);
+    });
+
+    test('0x6C help-description blob (C6 6C FF) decodes to text', () {
+      final blob = Uint8List.fromList([
+        0xc6, 0x6c, 0xff, 0x00, 0x0a, // C6 6C FF len=10
+        0x00, 0x00, 0x00, 0x06, // u32 strlen=6
+        ...'Robot!'.codeUnits,
+      ]);
+      final a = decodeHeapAttr(blob, 0)!;
+      expect(a.attribute, HeapAttribute.helpDescription);
+      expect(a.kind, HeapAttrKind.stringBlob);
+      expect(a.asString, 'Robot!');
+    });
+  });
+
   group('rgb-width kind resolution is honest', () {
     test('catalogued colour ids resolve to colour', () {
       final a = decodeHeapAttr(Uint8List.fromList([0x84, 0x28, 0xff, 0x12, 0x34, 0x56]), 0)!;

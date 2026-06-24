@@ -362,6 +362,19 @@ enum HeapAttribute {
   /// of the rect/glyph sub-element. Confirmed by its strict sequence.
   elementOrdinal(0xdc, HeapAttrKind.ordinal, 'elementOrdinal', AttrConfidence.confirmed),
 
+  /// `0x31` — **property / element name** string, carried inline as
+  /// `C6 31 <len> <raw ASCII>` (the whole payload is the text — see
+  /// [_inlineStringIds]). Corpus-confirmed 100% printable: control sub-element and
+  /// property-node names like "Scale", "Maximum", "Minimum", "History Data",
+  /// "FP.State", "Data Access:VISA resource name". Scoped to property nodes.
+  propertyName(0x31, HeapAttrKind.stringBlob, 'propertyName', AttrConfidence.confirmed),
+
+  /// `0x6C` — **help / description text** in the `C6 6C FF` blob form
+  /// (confirmed ASCII: VI/control descriptions like "This VI is called before
+  /// others…", "Robot Main implements the framework and scheduler…"). The
+  /// separate `C6 6C 08` 8-byte form is ambiguous and left framed.
+  helpDescription(0x6c, HeapAttrKind.stringBlob, 'helpDescription', AttrConfidence.inferred),
+
   /// `0x63` / `0x64` — a **paired pixel rectangle block** carried as
   /// `C5/C6 63|64 08 <4× s16>` (NOT f64). Corpus-confirmed shape: 100% valid
   /// rectangles, 0% sane f64; the two appear together (identical paired rects:
@@ -453,12 +466,17 @@ enum HeapAttribute {
   /// `0x6F` — **fill / area colour** (RGB; greys + ~29% transparent).
   fillColor(0x6f, HeapAttrKind.color, 'fillColor', AttrConfidence.confirmed),
 
-  /// `0x20` — **foreground colour** (RGB; greys/black, rarely transparent →
-  /// foreground). Pairs with [foregroundColorB].
-  foregroundColor(0x20, HeapAttrKind.color, 'foregroundColor', AttrConfidence.inferred),
+  /// `0x20` — **dual-use**: a **foreground colour** in the `84`/nibble RGB form
+  /// (greys/black, rarely transparent), OR a numeric-control **range minimum**
+  /// `f64` in the `C5/C6 …08` form (100% sane; the `-inf` sentinel = "no min").
+  /// [HeapAttr.kind] resolves by width. Forms the 0x20→0x21→0x22 (min,max,default)
+  /// triple on numeric controls.
+  foregroundColor(0x20, HeapAttrKind.color, 'foregroundColorOrControlMin', AttrConfidence.inferred),
 
-  /// `0x21` — **foreground / line colour** (RGB; greys/reds, rarely transparent).
-  foregroundColorB(0x21, HeapAttrKind.color, 'lineColor', AttrConfidence.inferred),
+  /// `0x21` — **dual-use**: a **line/foreground colour** (RGB) in the `84`/nibble
+  /// form, OR a numeric-control **range maximum** `f64` in the `C5/C6 …08` form
+  /// (98.8% sane; the `+inf` sentinel = "no max"). Pairs with [foregroundColor].
+  foregroundColorB(0x21, HeapAttrKind.color, 'lineColorOrControlMax', AttrConfidence.inferred),
 
   /// `0xD0` — **colour** (RGB; diverse hues). Direction not pinned.
   miscColor(0xd0, HeapAttrKind.color, 'miscColor', AttrConfidence.inferred),
@@ -622,7 +640,13 @@ const Set<int> _rectPayloadIds = {0x29, 0x63, 0x64};
 /// family plus `0x22`. Every OTHER id at `…08` is NOT assumed to be an f64 —
 /// blindly reading e.g. `0xE7` (a container) as a double yields garbage, so
 /// uncatalogued `…08` records are left framed-but-undecoded (return null).
-const Set<int> _f64PayloadIds = {0xf5, 0xf6, 0xf7, 0xf8, 0xf9, 0xfa, 0x22};
+const Set<int> _f64PayloadIds = {0xf5, 0xf6, 0xf7, 0xf8, 0xf9, 0xfa, 0x20, 0x21, 0x22};
+
+/// Attribute ids whose `C6 <id> <len> <payload>` is a raw inline ASCII string
+/// (the whole payload is the text — no `FF`/`u32-strlen` wrapper), e.g. `0x31`
+/// property/element names ("Scale", "Maximum", "FP.State"). Corpus-validated at
+/// 100% printable. See [HeapAttribute.propertyName].
+const Set<int> _inlineStringIds = {0x31};
 
 /// Attribute ids whose `C5 <id> <len>` payload is an **opaque length-prefixed
 /// container** (NOT a scalar f64): `0xE7` — the front-panel control attribute
@@ -640,6 +664,17 @@ const Set<int> _containerPayloadIds = {0xe7};
 HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
   if (offset + 2 > body.length) return null;
   final op = body[offset];
+
+  // C6 <id> <len> <raw ASCII> — an inline string (whole payload is the text, no
+  // FF/u32-strlen wrapper), e.g. 0x31 property/element names. Decoded for any len.
+  if (op == 0xc6 && offset + 3 <= body.length && _inlineStringIds.contains(body[offset + 1]) && body[offset + 2] != 0xff) {
+    final id = body[offset + 1];
+    final len = body[offset + 2];
+    if (offset + 3 + len <= body.length) {
+      final s = String.fromCharCodes(body.sublist(offset + 3, offset + 3 + len).where((c) => c >= 0x20 && c < 0x7f));
+      return HeapAttr(attribute: HeapAttribute.fromId(id), id: id, width: HeapAttrWidth.blob, value: s, length: 3 + len);
+    }
+  }
 
   // C5 <id> <len> container ids (e.g. 0xE7): an opaque length-prefixed payload
   // (not a scalar f64). Expose payload[0] (a count-like leading byte).
