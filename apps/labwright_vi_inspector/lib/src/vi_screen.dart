@@ -147,6 +147,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
       type: FileType.custom,
       allowedExtensions: const ['vi', 'ctl', 'llb'],
     );
+    if (!mounted) return; // the dialog await may outlive this State
     final files = result?.files ?? const [];
     if (files.isNotEmpty && files.first.path != null) _loadPath(files.first.path!);
   }
@@ -240,7 +241,10 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                                           components: _components,
                                           sections: _sections,
                                         ),
-                                        ViDiagramView(model: _model),
+                                        // Key by model identity so loading a new VI builds a
+                                        // fresh state (resets selection + re-fits) instead of
+                                        // showing the previous file's pan/zoom and stale selection.
+                                        ViDiagramView(key: ValueKey(_model), model: _model),
                                       ],
                                     ),
                                   ),
@@ -565,7 +569,15 @@ class _HexDialogState extends State<_HexDialog> {
           ),
         ),
         const Divider(height: 1),
-        Expanded(child: Padding(padding: const EdgeInsets.all(8), child: BlockHexView(section: section))),
+        // Key per section so switching the dropdown rebuilds a fresh state — the
+        // parse (records/byte-map/preview) is recomputed for the selected section
+        // instead of crashing on the previous section's byte-map.
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: BlockHexView(key: ValueKey('${section.tag}:${section.index}'), section: section),
+          ),
+        ),
       ],
     );
   }
