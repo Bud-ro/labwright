@@ -142,6 +142,7 @@ void main() {
       0x93: 1479, 0x172: 1409, 0x6c: 1020, 0x36: 1002, 0xcd: 1186, 0x14d: 896,
       0x55: 2234, 0x153: 1466, 0x4e: 947,
       0x6a: 878, 0xbd: 623, 0x114: 425, 0xb6: 503, 0xca: 560, 0x29: 423, 0x10c: 797, 0xc2: 643,
+      0xd5: 390, 0x121: 843, 0xb9: 372, 0x48: 304, 0xeb: 224, 0x103: 217, 0x14a: 367,
     };
     final counts = {for (final k in expected.keys) k: 0};
     for (final root in ['/tmp/claude-1000/vi_samples', '/tmp/claude-1000/vi_diverse']) {

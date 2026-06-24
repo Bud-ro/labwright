@@ -166,14 +166,15 @@ void main() {
     expect(classifyObject(kind: 0x95, termCount: 0), ViObjectKind.terminal); // case selector label
     expect(classifyObject(kind: 0x177, termCount: 0), ViObjectKind.decoration); // node glyph
     expect(classifyObject(kind: 0x63, termCount: 0), ViObjectKind.node); // growable node
-    for (final k in [0x8c, 0x3a, 0xd6, 0x32, 0xc5, 0x104, 0x44, 0x3e, 0x34, 0xa9, 0x93, 0x172, 0x6c, 0x36, 0x153, 0x6a, 0xbd, 0x114, 0xb6]) {
+    for (final k in [0x8c, 0x3a, 0xd6, 0x32, 0xc5, 0x104, 0x44, 0x3e, 0x34, 0xa9, 0x93, 0x172, 0x6c, 0x36, 0x153,
+      0x6a, 0xbd, 0x114, 0xb6, 0xb9, 0x48, 0xeb, 0x103, 0x14a]) {
       expect(classifyObject(kind: k, termCount: 0), ViObjectKind.node); // BD nodes (caption- or icon-confirmed)
     }
     for (final k in [0x55, 0x4e, 0x10c, 0xc2]) {
       expect(classifyObject(kind: k, termCount: 0), ViObjectKind.terminal); // control terminal / constant
     }
-    for (final k in [0xca, 0x29]) {
-      expect(classifyObject(kind: k, termCount: 0), ViObjectKind.structure); // Flat/Stacked Sequence frames
+    for (final k in [0xca, 0x29, 0xd5, 0x121]) {
+      expect(classifyObject(kind: k, termCount: 0), ViObjectKind.structure); // sequence/event/frame structures
     }
     for (final k in [0x20, 0x21, 0xcd, 0x14d]) {
       expect(classifyObject(kind: k, termCount: 0), ViObjectKind.structure); // loop/case/disable/in-place frames

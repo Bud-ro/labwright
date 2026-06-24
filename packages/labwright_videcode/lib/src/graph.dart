@@ -171,9 +171,10 @@ enum ClassConfidence {
 /// heaps (`FPHb`) — there object instances are ≈99% catalogued. **Block-diagram**
 /// (`BDHb`) coverage splits two ways: (1) the high-volume **non-drawable** internal
 /// records `0x15`/`0x33`/`0x17`/`0x30` (0 bounds — invisible, no render cost) are
-/// unnamed but never shown; (2) of the **drawable** BD objects ~99.3% are now
-/// catalogued (nodes/structures/leaves/labels), leaving a ~0.7% visible long tail
-/// that classifies `unknown` and draws a faint placeholder. Naming (1) changes
+/// unnamed but never shown; (2) of the **drawable** BD objects ~99.6% are now
+/// catalogued (nodes/structures/leaves/labels), leaving a ~0.4% visible long tail
+/// (mostly caption-less kinds like `0xe5`/`0x150`/`0x170`) that classifies
+/// `unknown` and draws a faint placeholder. Naming (1) changes
 /// nothing visible; the visible gap is (2). (The `BDEx`/`FPEx`
 /// extended sections DO exist and are loaded — 3792/3000 of them — but in this
 /// corpus they carry **no decodable object tree** (0 objects), so the object
@@ -285,6 +286,16 @@ enum HeapObjectClass {
   /// 105×97, parent `0x1b`; `0xa` caption reads `Stacked Sequence Structure`.
   /// Renders as a structure frame.
   bdStackedSequence(0x29, 'Stacked Sequence structure', ViObjectKind.structure, ClassConfidence.inferred),
+
+  /// `0xD5` — an **Event structure** frame. Corpus: 390 BD (0 FP), large (median
+  /// 504×325), parent the node container `0x1b`; `0xa` caption reads `Event
+  /// Structure`. Renders as a structure frame.
+  bdEventStructure(0xd5, 'Event structure', ViObjectKind.structure, ClassConfidence.inferred),
+
+  /// `0x121` — a **sequence subframe** (one frame of a Flat Sequence). Corpus: 843
+  /// BD (0 FP), large (median 203×241), 835/843 parented to the Flat Sequence frame
+  /// `0xca` — no caption (the frame body), but the parent + size identify it.
+  bdSequenceFrame(0x121, 'Sequence frame', ViObjectKind.structure, ClassConfidence.inferred),
 
   /// `0x95` — a **case/sequence selector label row** on a structure frame's top
   /// edge (the `True`/`False`/case-name strip). Corpus: **16118 BD** instances
@@ -444,6 +455,27 @@ enum HeapObjectClass {
   /// parent `0x1b`; 469/503 carry an `0xa` caption (`This VI`, `Server in`).
   /// Renders as a node box.
   bdNodeB6(0xb6, 'Node', ViObjectKind.node, ClassConfidence.inferred),
+
+  /// `0xB9` — a **built-in primitive node** (Replace Array Subset). Corpus: 372 BD
+  /// (0 FP), 32×33, parent `0x1b`. Renders as a node box.
+  bdNodeB9(0xb9, 'Node (primitive)', ViObjectKind.node, ClassConfidence.inferred),
+
+  /// `0x48` — a **built-in primitive node** (Array Subset). Corpus: 304 BD (0 FP),
+  /// 32×35, parent `0x1b`. Renders as a node box.
+  bdNode48(0x48, 'Node (primitive)', ViObjectKind.node, ClassConfidence.inferred),
+
+  /// `0xEB` — a **block-diagram node** (Register For Events). Corpus: 224 BD (0 FP),
+  /// median 100×38, parent `0x1b`. Renders as a node box.
+  bdNodeEb(0xeb, 'Node', ViObjectKind.node, ClassConfidence.inferred),
+
+  /// `0x103` — a **subVI call node**. Corpus: 217 BD (0 FP), median 36×48, parent
+  /// `0x1b`; 217/217 carry a `.vi`/`.lvclass` filename caption (`process.vi`).
+  /// Renders as a node box.
+  bdNode103(0x103, 'Node (subVI call)', ViObjectKind.node, ClassConfidence.inferred),
+
+  /// `0x14A` — a **block-diagram node** (seen as a Feedback Node). Corpus: 367 BD
+  /// (0 FP), 32×24, parent `0x1b`; captions include `Feedback Node`. Node box.
+  bdNode14a(0x14a, 'Node', ViObjectKind.node, ClassConfidence.inferred),
 
   /// `0x16` — a **free-standing block-diagram terminal/constant leaf**. Corpus:
   /// 41830 BD instances, 0 FP, uniform **32×16** (41091/41830), each nested under a
