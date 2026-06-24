@@ -11,6 +11,7 @@ import 'diagram_view.dart';
 import 'generated_dart_view.dart';
 import 'hex_view.dart';
 import 'review_view.dart';
+import 'types_view.dart';
 import 'vi_demo.dart';
 
 /// Imports a LabVIEW `.vi`/`.ctl` file and shows what it is and does — type,
@@ -232,7 +233,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                       : _summary == null
                           ? _Empty(dragging: _dragging)
                           : DefaultTabController(
-                              length: 5,
+                              length: 6,
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
@@ -243,6 +244,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                                       Tab(text: 'Front Panel'),
                                       Tab(text: 'Block Diagram'),
                                       Tab(text: 'Generated Dart'),
+                                      Tab(text: 'Types'),
                                       Tab(text: 'Review'),
                                     ],
                                   ),
@@ -276,6 +278,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                                           model: _model,
                                           viName: _summary?.name,
                                         ),
+                                        ViTypesView(key: ValueKey('types:$_model'), model: _model),
                                         ViReviewView(
                                           key: ValueKey('review:$_model'),
                                           model: _model,
