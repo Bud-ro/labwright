@@ -170,8 +170,10 @@ enum ClassConfidence {
 /// HONEST COVERAGE: this catalog was effectively validated on **front-panel**
 /// heaps (`FPHb`) — there object instances are ≈99% catalogued. **Block-diagram**
 /// (`BDHb`) coverage is far lower (≈24% of BD object instances), with high-volume
-/// BD-internal kinds `0x15`/`0x33`/`0x17`/`0x30` not yet named. (The corpus uses
-/// `BDHb`/`FPHb`, not `BDEx`.)
+/// BD-internal kinds `0x15`/`0x33`/`0x17`/`0x30` not yet named. (The `BDEx`/`FPEx`
+/// extended sections DO exist and are loaded — 3792/3000 of them — but in this
+/// corpus they carry **no decodable object tree** (0 objects), so the object
+/// heaps that matter are `BDHb`/`FPHb`; see ir.dart.)
 ///
 /// SECTION-DEPENDENCE (honesty): a class code can mean different things on the
 /// block diagram vs the front panel, so some names below describe the role where
@@ -193,7 +195,8 @@ enum ClassConfidence {
 /// entry is [ViHeapObject.objectClass].
 enum HeapObjectClass {
   // --- Diagram structure / containers ---
-  /// `0x7E` — the single block-diagram **root** (parentOid == null in 398/398).
+  /// `0x7E` — the single **heap root** of a diagram (in both the BD and FP heaps);
+  /// parentOid == null in all 15136 roots across the corpus.
   diagramRoot(0x7e, 'Diagram root', ViObjectKind.structure, ClassConfidence.confirmed),
 
   /// `0x4C` — the single top-level **root frame** under the heap root `0x7e`,
@@ -214,9 +217,10 @@ enum HeapObjectClass {
   /// diagram** a while/for **loop**; on the **front panel** a **control container**
   /// (cluster / tab / subpanel). Always owns exactly one `0x11c` content viewport +
   /// the child-membership reflist — so the label can't assert "loop" section-blind.
-  /// Corpus: 5745 BD instances (100% own a `0x11c`); 21993 FP instances (100% own a
-  /// `0x11c` whose contents are placed control terminals 0x50/0x4f/0x51/0x57 — i.e.
-  /// a container of controls, not a loop). The while-vs-for split is not separable.
+  /// Corpus: 5745 BD instances (100% own a `0x11c`); 21993 FP instances (all own a
+  /// `0x11c`; in 94% its direct contents are placed control terminals
+  /// 0x50/0x4f/0x51/0x57 — a container of controls, not a loop). The while-vs-for
+  /// split is not separable.
   loop(0x53, 'Loop (BD) / container (FP)', ViObjectKind.structure, ClassConfidence.confirmed),
 
   /// `0x52` — a **container** holding placed controls. Section-CONSISTENT (like
@@ -233,8 +237,8 @@ enum HeapObjectClass {
   clusterShell(0x64, 'Cluster/array shell', ViObjectKind.structure, ClassConfidence.inferred),
 
   /// `0xC7` — a rare nested **container** parenting `0x12` bodies (BD nodes / FP
-  /// content groups). Corpus: FP-only here (102 instances, all drawn, nested under
-  /// `0xc3`); 0 BD. The "subdiagram" name is the BD reading.
+  /// content groups). Corpus: FP-only here (102 instances, all drawn, 99/102 nested
+  /// under `0xc3`); 0 BD. The "subdiagram" name is the BD reading.
   subdiagramContainer(0xc7, 'Subdiagram container', ViObjectKind.structure, ClassConfidence.inferred),
 
   /// `0xEF` — a rare structure carrying refs + a `0x11c` viewport.
@@ -704,8 +708,8 @@ List<String> _parseEnumItems(List<int> payload) {
 /// by the same delta so it stays intact.
 ///
 /// Control terminals **not** under a `0x11c` (direct on-diagram terminals) are
-/// already in correct absolute coordinates and are left untouched. Corpus-
-/// validated across 398 BDHb sections: control↔control overlap 6.5% → 0.35%,
+/// already in correct absolute coordinates and are left untouched. Validated on a
+/// 398-section sample: control↔control overlap 6.5% → 0.35%,
 /// re-anchored-control-center-inside-its-viewport 12% → 99%.
 void _reanchorScrolledControls(List<ViHeapObject> objects) {
   final byOid = {for (final o in objects) o.oid: o};

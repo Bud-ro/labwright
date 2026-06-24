@@ -44,23 +44,26 @@ enum HeapOpcode {
   stringTable(0x2e, HeapShape.stringTable, isDecoded: true),
 
   /// `0x22` — **caption** (decoded). A single control / parameter name; the
-  /// payload *is* the text, sized by the record's own length byte. Corpus: 97%
-  /// printable. Decoded by [HeapRecord.text].
+  /// payload *is* the text, sized by the record's own length byte. Corpus: 97% of
+  /// bytes printable (≈92% of records fully printable; [HeapRecord.text] returns
+  /// null on the rest). Decoded by [HeapRecord.text].
   caption(0x22, HeapShape.string, isDecoded: true),
 
   /// `0x27` — **plot / legend name** (decoded). A single string naming a plot or
   /// series, e.g. `Plot 0`, `Plot 1`. Same single-string payload as [caption]
-  /// (100% printable across the corpus). Decoded by [HeapRecord.text].
+  /// (≈99% of records fully printable). Decoded by [HeapRecord.text].
   plotName(0x27, HeapShape.string, isDecoded: true),
 
   /// `0x74` — **numeric format string** (decoded). A single string holding a
   /// display format specifier, e.g. `%020b`, `%016b`, `%#_6g`. Single-string
-  /// payload (96% printable). Decoded by [HeapRecord.text].
+  /// payload, 96% of bytes printable (≈79% of records fully printable — format
+  /// specifiers carry control bytes; [HeapRecord.text] returns null on the rest).
+  /// Decoded by [HeapRecord.text].
   formatString(0x74, HeapShape.string, isDecoded: true),
 
   /// `0x20` — **item / label string** (decoded). A single identifier or
   /// enum/ring item label, e.g. `Line 0`..`Line 7`, `stringLength`, `<None>`.
-  /// Single-string payload (100% printable across the corpus). Decoded by
+  /// Single-string payload (≈99% of records fully printable). Decoded by
   /// [HeapRecord.text].
   itemLabel(0x20, HeapShape.string, isDecoded: true),
 
@@ -304,7 +307,8 @@ enum AttrConfidence {
 /// `_rectPayloadIds` / `_containerPayloadIds`). `C6 <id> FF` is a length-prefixed blob.
 ///
 /// This is the single place that names every attribute id we have decoded from
-/// the corpus (1.23M attribute records across 398 BDHb object-heap sections). Each entry
+/// the corpus (1.23M attribute records across a 398-BDHb-section measurement
+/// snapshot — a dated aggregate, not a live count of the current tree). Each entry
 /// documents its [kind], assigned name, [confidence], and the corpus evidence.
 /// An id not catalogued maps to [HeapAttribute.unknown]; resolve a raw id with
 /// [HeapAttribute.fromId] and decode a record with [decodeHeapAttr].
@@ -1148,7 +1152,8 @@ enum PropTokenForm {
 /// [_typedList]; this enum gives the decoded *meaning* of the high-volume pairs.
 ///
 /// Derived purely by clean-room statistical analysis over 2,630 EOF-balanced
-/// heap walks (8,360 corpus VIs), restricted to object-scoped tokens. The
+/// heap walks (measured on a dated 8,360-VI snapshot, not a live count),
+/// restricted to object-scoped tokens. The
 /// decisive finding: each `(op, subop)` pair carries exactly one item-tag (the
 /// subop selects the property *and* its value class), the value is near-constant
 /// per object kind for the role-marker pairs, and `op==0x04` two-byte tokens are
