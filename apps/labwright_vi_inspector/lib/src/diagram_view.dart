@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:labwright_videcode/labwright_videcode.dart';
 
+import 'faithful_controls.dart';
+
+/// How the diagram is drawn: a debug **wireframe** (colored boxes + labels,
+/// click-to-inspect) or a **faithful** render (real-looking interactive controls).
+enum DiagramRenderMode { wireframe, faithful }
+
 /// A read-only **layout view** of a decoded VI block diagram, rendered to a
 /// faithful, LabVIEW-like canvas: every recovered object drawn at its absolute
 /// coordinates, with nesting-aware z-order, type-faithful terminal colors,
@@ -27,6 +33,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
   Size? _lastViewport;
   Rect? _lastContent;
   bool _fitted = false;
+  DiagramRenderMode _mode = DiagramRenderMode.wireframe;
 
   @override
   void dispose() {
@@ -104,20 +111,22 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                         minScale: 0.02,
                         maxScale: 16,
                         boundaryMargin: const EdgeInsets.all(2000),
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTapDown: (d) => _selectAt(d.localPosition, ordered, content),
-                          child: CustomPaint(
-                            size: Size(content.width, content.height),
-                            painter: _DiagramPainter(objects: ordered, origin: content.topLeft, selected: _selected),
-                          ),
-                        ),
+                        child: _mode == DiagramRenderMode.faithful
+                            ? FaithfulLayer(objects: ordered, origin: content.topLeft, size: content.size)
+                            : GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTapDown: (d) => _selectAt(d.localPosition, ordered, content),
+                                child: CustomPaint(
+                                  size: Size(content.width, content.height),
+                                  painter: _DiagramPainter(objects: ordered, origin: content.topLeft, selected: _selected),
+                                ),
+                              ),
                       ),
                     ),
                   );
                 }),
               ),
-              if (_selected != null)
+              if (_mode == DiagramRenderMode.wireframe && _selected != null)
                 Positioned(
                   left: 8,
                   right: 8,
@@ -149,6 +158,19 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                 _LegendChip(color: _kindColor(e.key), label: '${e.key.name} ${e.value}'),
             ]),
           ),
+          SegmentedButton<DiagramRenderMode>(
+            style: const ButtonStyle(visualDensity: VisualDensity.compact),
+            segments: const [
+              ButtonSegment(value: DiagramRenderMode.wireframe, icon: Icon(Icons.grid_4x4, size: 16), label: Text('Wireframe')),
+              ButtonSegment(value: DiagramRenderMode.faithful, icon: Icon(Icons.widgets_outlined, size: 16), label: Text('Faithful')),
+            ],
+            selected: {_mode},
+            onSelectionChanged: (s) => setState(() {
+              _mode = s.first;
+              if (_mode == DiagramRenderMode.faithful) _selected = null;
+            }),
+          ),
+          const SizedBox(width: 8),
           IconButton(
             tooltip: 'Fit to view',
             onPressed: _fit,

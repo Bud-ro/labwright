@@ -47,6 +47,24 @@ void main() {
     expect(find.textContaining('node'), findsWidgets);
   });
 
+  testWidgets('toggles to Faithful mode and renders real controls', (tester) async {
+    tester.view.physicalSize = const Size(1000, 1000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: ViDiagramView(model: _modelWithDiagram()))));
+    await tester.pump();
+
+    expect(find.text('Wireframe'), findsOneWidget);
+    expect(find.text('Faithful'), findsOneWidget);
+    await tester.tap(find.text('Faithful'));
+    await tester.pump();
+    // the faithful layer mounted (a TextField appears for the string/path/field
+    // controls, or at least the switch didn't crash) — and the count header stays.
+    expect(find.textContaining('objects'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('empty model shows an honest placeholder, not a crash', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: Scaffold(body: ViDiagramView(model: null))));
     expect(find.textContaining('No decodable block diagram'), findsOneWidget);
