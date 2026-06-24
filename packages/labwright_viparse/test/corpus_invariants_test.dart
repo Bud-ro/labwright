@@ -186,6 +186,47 @@ void main() {
     expect(exact, equals(files), reason: 'info-subheader round-trip not byte-exact for ${files - exact} file(s): $diffs');
   });
 
+  // TYPED BLOCK-LIST SERIALIZE: the modeled block list (count + 12-byte entries)
+  // must reconstruct its raw bytes byte-for-byte for every VI.
+  test('IDEMPOTENCY: ViBlockList.serialize() == raw block-list region for every VI', () {
+    var files = 0, exact = 0;
+    final diffs = <String>[];
+    for (final f in all) {
+      final Uint8List bytes;
+      try {
+        bytes = Uint8List.fromList(f.readAsBytesSync());
+      } catch (_) {
+        continue;
+      }
+      final Uint8List info, out;
+      final int blr;
+      try {
+        info = ViContainer.parse(bytes).infoArea;
+        blr = ViInfoSubheader.parse(info).blockListRel;
+        out = ViBlockList.parse(info, blr).serialize();
+      } catch (_) {
+        continue;
+      }
+      files++;
+      var same = blr + out.length <= info.length;
+      if (same) {
+        for (var i = 0; i < out.length; i++) {
+          if (out[i] != info[blr + i]) {
+            same = false;
+            break;
+          }
+        }
+      }
+      if (same) {
+        exact++;
+      } else if (diffs.length < 6) {
+        diffs.add(f.path.split('/').last);
+      }
+    }
+    expect(files, greaterThan(0));
+    expect(exact, equals(files), reason: 'block-list round-trip not byte-exact for ${files - exact} file(s): $diffs');
+  });
+
   // SECTION-LEVEL IDEMPOTENCY: one layer finer than the whole-file round-trip.
   // [ViExport.decomposeDataArea] models the data area as ordered, length-prefixed
   // sections (located via the info-area descriptors) interleaved with padding

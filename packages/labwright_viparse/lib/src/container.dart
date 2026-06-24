@@ -152,6 +152,81 @@ class ViInfoSubheader {
   }
 }
 
+/// One 12-byte block-list entry: a resource-block [tag] and the section(s) it
+/// owns. Big-endian `{tag[4], u32 sectionCount-1, u32 descRel}`.
+class ViBlockListEntry {
+  ViBlockListEntry({required this.tagBytes, required this.sectionCountMinus1, required this.descRel});
+
+  /// `[0:4]` the block tag bytes (e.g. `LVSR`, `BDHb`, `CONP`). Raw for exact
+  /// round-trip; see [tag].
+  final Uint8List tagBytes;
+
+  /// `u32 @4` — the number of sections this block owns, minus one (LabVIEW's
+  /// count-1 convention).
+  final int sectionCountMinus1;
+
+  /// `u32 @8` — offset of this block's first section descriptor, relative to the
+  /// block-list count word + 8 (`countPos + 8`).
+  final int descRel;
+
+  String get tag => String.fromCharCodes(tagBytes);
+
+  factory ViBlockListEntry.parse(Uint8List info, int at) {
+    final d = ByteData.sublistView(info);
+    return ViBlockListEntry(
+      tagBytes: Uint8List.fromList(info.sublist(at, at + 4)),
+      sectionCountMinus1: d.getUint32(at + 4),
+      descRel: d.getUint32(at + 8),
+    );
+  }
+
+  void writeInto(ByteData d, Uint8List out, int at) {
+    out.setRange(at, at + 4, tagBytes);
+    d
+      ..setUint32(at + 4, sectionCountMinus1)
+      ..setUint32(at + 8, descRel);
+  }
+}
+
+/// The info area's **block list**: a `u32 count` followed by `count` contiguous
+/// 12-byte [ViBlockListEntry]s, beginning at `blockListRel`. The directory of
+/// every resource block in the VI. [serialize] reconstructs the
+/// `[blockListRel, blockListRel + 4 + count*12)` region byte-exact.
+class ViBlockList {
+  ViBlockList({required this.entries});
+
+  final List<ViBlockListEntry> entries;
+
+  int get count => entries.length;
+
+  /// Total serialized byte length (the `u32 count` + the entry array).
+  int get byteLength => 4 + entries.length * 12;
+
+  /// Parses the block list at [blockListRel] within [infoArea].
+  factory ViBlockList.parse(Uint8List infoArea, int blockListRel) {
+    if (blockListRel + 4 > infoArea.length) throw ViFormatException('block list out of range');
+    final d = ByteData.sublistView(infoArea);
+    final count = d.getUint32(blockListRel);
+    if (count < 0 || count > 100000) throw ViFormatException('implausible block count $count');
+    final end = blockListRel + 4 + count * 12;
+    if (end > infoArea.length) throw ViFormatException('block list entries out of range');
+    return ViBlockList(entries: [
+      for (var i = 0; i < count; i++) ViBlockListEntry.parse(infoArea, blockListRel + 4 + i * 12),
+    ]);
+  }
+
+  /// Re-emits `[u32 count][entries…]`, byte-identical to the parsed region.
+  Uint8List serialize() {
+    final out = Uint8List(byteLength);
+    final d = ByteData.sublistView(out);
+    d.setUint32(0, entries.length);
+    for (var i = 0; i < entries.length; i++) {
+      entries[i].writeInto(d, out, 4 + i * 12);
+    }
+    return out;
+  }
+}
+
 /// A **lossless** decomposition of an RSRC (`.vi`) container into its three
 /// contiguous regions, plus a byte-exact serializer. This is the foundation for
 /// the VI exporter/editor and the export→import idempotency test: parsing then
@@ -194,6 +269,9 @@ class ViContainer {
   /// The typed view of the info area's fixed subheader prefix (the dup header +
   /// `blockListRel`). Another region modeled toward a fully-typed exporter.
   ViInfoSubheader get parsedInfoSubheader => ViInfoSubheader.parse(infoArea);
+
+  /// The typed view of the info area's block list (the resource-block directory).
+  ViBlockList get parsedBlockList => ViBlockList.parse(infoArea, ViInfoSubheader.parse(infoArea).blockListRel);
 
   static const List<int> _magic = [0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a]; // "RSRC\r\n"
 

@@ -111,6 +111,42 @@ void main() {
     });
   });
 
+  group('ViBlockList', () {
+    test('parses count + 12-byte entries and serializes byte-exact', () {
+      // count=2, entries: {LVSR, scm1=0, descRel=0x10}, {BDHb, scm1=1, descRel=0x40}
+      final b = BytesBuilder();
+      final cnt = ByteData(4)..setUint32(0, 2);
+      b.add(cnt.buffer.asUint8List());
+      void entry(String tag, int scm1, int descRel) {
+        b.add(Uint8List.fromList(tag.codeUnits));
+        final e = ByteData(8)
+          ..setUint32(0, scm1)
+          ..setUint32(4, descRel);
+        b.add(e.buffer.asUint8List());
+      }
+      entry('LVSR', 0, 0x10);
+      entry('BDHb', 1, 0x40);
+      final region = b.toBytes();
+      // put it at offset 0x34 inside a synthetic info area
+      final info = Uint8List(0x34 + region.length)..setRange(0x34, 0x34 + region.length, region);
+
+      final bl = ViBlockList.parse(info, 0x34);
+      expect(bl.count, 2);
+      expect(bl.entries[0].tag, 'LVSR');
+      expect(bl.entries[0].descRel, 0x10);
+      expect(bl.entries[1].tag, 'BDHb');
+      expect(bl.entries[1].sectionCountMinus1, 1);
+      expect(bl.byteLength, region.length);
+      expect(bl.serialize(), orderedEquals(region));
+    });
+
+    test('rejects an implausible count', () {
+      final info = Uint8List(0x40);
+      ByteData.sublistView(info).setUint32(0x34, 999999); // > 100000
+      expect(() => ViBlockList.parse(info, 0x34), throwsA(isA<ViFormatException>()));
+    });
+  });
+
   group('ViExport.rebuildDataArea', () {
     test('serializes sections as [u32 len][payload] and gaps verbatim', () {
       final out = ViExport.rebuildDataArea([
