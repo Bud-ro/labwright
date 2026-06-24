@@ -4,7 +4,7 @@
   "vis": {
     "PS5000E/PicoScopeospaExampleAWG.vi": {
       "fp": 562,
-      "bd": 28,
+      "bd": 418,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -43,7 +43,7 @@
     },
     "PS5000E/PicoScopeospaExampleAdvancedTrigger.vi": {
       "fp": 2478,
-      "bd": 32,
+      "bd": 1599,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -81,7 +81,7 @@
     },
     "PS5000E/PicoScopeospaExampleBlock.vi": {
       "fp": 1284,
-      "bd": 32,
+      "bd": 1364,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -119,7 +119,7 @@
     },
     "PS5000E/PicoScopeospaExampleRapidBlockBulkOverlapped.vi": {
       "fp": 1404,
-      "bd": 45,
+      "bd": 1640,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -157,7 +157,7 @@
     },
     "PS5000E/PicoScopeospaExampleStreamingQueue.vi": {
       "fp": 1405,
-      "bd": 125,
+      "bd": 2769,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -197,7 +197,7 @@
     },
     "PS5000E/PicoScopepsospaLib/PicoScopeospaAWG.vi": {
       "fp": 434,
-      "bd": 37,
+      "bd": 1211,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -237,7 +237,7 @@
     },
     "PS5000E/PicoScopepsospaLib/PicoScopeospaAdvancedTriggerDigital.vi": {
       "fp": 250,
-      "bd": 146,
+      "bd": 764,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -277,7 +277,7 @@
     },
     "PS5000E/PicoScopepsospaLib/PicoScopeospaAdvancedTriggerPWQ.vi": {
       "fp": 570,
-      "bd": 39,
+      "bd": 1753,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -317,7 +317,7 @@
     },
     "PS5000E/PicoScopepsospaLib/PicoScopeospaAdvancedTriggerSettings.vi": {
       "fp": 1536,
-      "bd": 39,
+      "bd": 289,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -357,7 +357,7 @@
     },
     "PS5000E/PicoScopepsospaLib/PicoScopeospaClose.vi": {
       "fp": 101,
-      "bd": 24,
+      "bd": 93,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -396,7 +396,7 @@
     },
     "PS5000E/PicoScopepsospaLib/PicoScopeospaGetStreamingLatestValues.vi": {
       "fp": 844,
-      "bd": 103,
+      "bd": 728,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -434,7 +434,7 @@
     },
     "PS5000E/PicoScopepsospaLib/PicoScopeospaGetTimebase.vi": {
       "fp": 220,
-      "bd": 42,
+      "bd": 331,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -472,7 +472,7 @@
     },
     "PS5000E/PicoScopepsospaLib/PicoScopeospaGetTriggerInfo.vi": {
       "fp": 288,
-      "bd": 39,
+      "bd": 1097,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -511,7 +511,7 @@
     },
     "PS5000E/PicoScopepsospaLib/PicoScopeospaGetValues.vi": {
       "fp": 165,
-      "bd": 34,
+      "bd": 177,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -549,7 +549,7 @@
     },
     "PS5000E/PicoScopepsospaLib/PicoScopeospaGetValuesBulk.vi": {
       "fp": 206,
-      "bd": 34,
+      "bd": 208,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -587,7 +587,7 @@
     },
     "PS5000E/PicoScopepsospaLib/PicoScopeospaGetValuesOverlapped.vi": {
       "fp": 212,
-      "bd": 34,
+      "bd": 226,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -625,7 +625,7 @@
     },
     "PS5000E/PicoScopepsospaLib/PicoScopeospaIsReady.vi": {
       "fp": 109,
-      "bd": 36,
+      "bd": 139,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -663,7 +663,7 @@
     },
     "PS5000E/PicoScopepsospaLib/PicoScopeospaNearestSampleIntervalStateless.vi": {
       "fp": 300,
-      "bd": 73,
+      "bd": 337,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -701,7 +701,7 @@
     },
     "PS5000E/PicoScopepsospaLib/PicoScopeospaNextBuffer.vi": {
       "fp": 499,
-      "bd": 226,
+      "bd": 654,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -739,7 +739,7 @@
     },
     "PS5000E/PicoScopepsospaLib/PicoScopeospaOpen.vi": {
       "fp": 479,
-      "bd": 28,
+      "bd": 749,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -778,7 +778,7 @@
     },
     "PS5000E/PicoScopepsospaLib/PicoScopeospaPowerDetails.vi": {
       "fp": 446,
-      "bd": 20,
+      "bd": 1215,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -816,7 +816,7 @@
     },
     "PS5000E/PicoScopepsospaLib/PicoScopeospaProcessStreamingDataTriggerInfo.vi": {
       "fp": 241,
-      "bd": 20,
+      "bd": 589,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -855,7 +855,7 @@
     },
     "PS5000E/PicoScopepsospaLib/PicoScopeospaProcessStreamingTriggerInfo.vi": {
       "fp": 325,
-      "bd": 25,
+      "bd": 1131,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -894,7 +894,7 @@
     },
     "PS5000E/PicoScopepsospaLib/PicoScopeospaRunBlock.vi": {
       "fp": 158,
-      "bd": 34,
+      "bd": 189,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -932,7 +932,7 @@
     },
     "PS5000E/PicoScopepsospaLib/PicoScopeospaSetDataBuffers.vi": {
       "fp": 484,
-      "bd": 190,
+      "bd": 583,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -970,7 +970,7 @@
     },
     "PS5000E/PicoScopepsospaLib/PicoScopeospaSetRapidSegments.vi": {
       "fp": 136,
-      "bd": 24,
+      "bd": 230,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -1046,7 +1046,7 @@
     },
     "PS5000E/PicoScopepsospaLib/PicoScopeospaSetupStreaming.vi": {
       "fp": 772,
-      "bd": 70,
+      "bd": 1434,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -1084,7 +1084,7 @@
     },
     "PS5000E/PicoScopepsospaLib/PicoScopeospaStop.vi": {
       "fp": 101,
-      "bd": 24,
+      "bd": 93,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -1123,7 +1123,7 @@
     },
     "PS5000E/PicoScopepsospaLib/PicoScopeospaUnitInfo.vi": {
       "fp": 245,
-      "bd": 9,
+      "bd": 552,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -1161,7 +1161,7 @@
     },
     "picohrdl/PicoLogHRDLExampleStreaming.vi": {
       "fp": 950,
-      "bd": 11,
+      "bd": 820,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -1199,7 +1199,7 @@
     },
     "picohrdl/PicoLogHRDLGetSingleAsyncExample.vi": {
       "fp": 332,
-      "bd": 64,
+      "bd": 637,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -1237,7 +1237,7 @@
     },
     "picohrdl/PicoLogHRDLGetSingleExample.vi": {
       "fp": 238,
-      "bd": 28,
+      "bd": 298,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -1349,7 +1349,7 @@
     },
     "picohrdl/PicohrdlLib/PicohrdlChannelSetting.vi": {
       "fp": 788,
-      "bd": 83,
+      "bd": 1063,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -1387,7 +1387,7 @@
     },
     "picohrdl/PicohrdlLib/PicohrdlClose.vi": {
       "fp": 101,
-      "bd": 26,
+      "bd": 87,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -1425,7 +1425,7 @@
     },
     "picohrdl/PicohrdlLib/PicohrdlCollectSingleValueAsync.vi": {
       "fp": 151,
-      "bd": 27,
+      "bd": 98,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -1463,7 +1463,7 @@
     },
     "picohrdl/PicohrdlLib/PicohrdlGetMinMaxAdcCounts.vi": {
       "fp": 127,
-      "bd": 38,
+      "bd": 136,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -1501,7 +1501,7 @@
     },
     "picohrdl/PicohrdlLib/PicohrdlGetSingleValue.vi": {
       "fp": 155,
-      "bd": 26,
+      "bd": 112,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -1539,7 +1539,7 @@
     },
     "picohrdl/PicohrdlLib/PicohrdlGetSingleValueAsync.vi": {
       "fp": 119,
-      "bd": 24,
+      "bd": 97,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -1577,7 +1577,7 @@
     },
     "picohrdl/PicohrdlLib/PicohrdlGetValues.vi": {
       "fp": 185,
-      "bd": 33,
+      "bd": 242,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -1615,7 +1615,7 @@
     },
     "picohrdl/PicohrdlLib/PicohrdlOpenUnit.vi": {
       "fp": 110,
-      "bd": 28,
+      "bd": 214,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -1653,7 +1653,7 @@
     },
     "picohrdl/PicohrdlLib/PicohrdlReady.vi": {
       "fp": 109,
-      "bd": 38,
+      "bd": 111,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -1691,7 +1691,7 @@
     },
     "picohrdl/PicohrdlLib/PicohrdlSetDigitalIOChannel.vi": {
       "fp": 119,
-      "bd": 26,
+      "bd": 100,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -1728,7 +1728,7 @@
     },
     "picohrdl/PicohrdlLib/PicohrdlSetMainsFrequency.vi": {
       "fp": 108,
-      "bd": 26,
+      "bd": 73,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -1766,7 +1766,7 @@
     },
     "picohrdl/PicohrdlLib/PicohrdlStreamingRun.vi": {
       "fp": 144,
-      "bd": 26,
+      "bd": 251,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -1804,7 +1804,7 @@
     },
     "picohrdl/PicohrdlLib/PicohrdlUnitInfo.vi": {
       "fp": 219,
-      "bd": 49,
+      "bd": 133,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -1842,7 +1842,7 @@
     },
     "picohrdl/PicohrdlLib/PicohrdlUnitInfoSingle.vi": {
       "fp": 136,
-      "bd": 27,
+      "bd": 170,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -1880,7 +1880,7 @@
     },
     "picohrdl/PicohrdlLib/Picohrdlerrorhandler.vi": {
       "fp": 136,
-      "bd": 128,
+      "bd": 508,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -1917,7 +1917,7 @@
     },
     "pl1000/PicoLog1000ExampleBlock.vi": {
       "fp": 447,
-      "bd": 1017,
+      "bd": 1399,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -1956,7 +1956,7 @@
     },
     "pl1000/PicoLog1000ExampleStreaming.vi": {
       "fp": 504,
-      "bd": 42,
+      "bd": 1880,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -1996,7 +1996,7 @@
     },
     "pl1000/PicoLog1000Lib/ADC to Volts.vi": {
       "fp": 65,
-      "bd": 51,
+      "bd": 61,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -2034,7 +2034,7 @@
     },
     "pl1000/PicoLog1000Lib/pl1000CloseUnit.vi": {
       "fp": 99,
-      "bd": 24,
+      "bd": 92,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -2071,7 +2071,7 @@
     },
     "pl1000/PicoLog1000Lib/pl1000GetSingle.vi": {
       "fp": 115,
-      "bd": 24,
+      "bd": 113,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -2109,7 +2109,7 @@
     },
     "pl1000/PicoLog1000Lib/pl1000GetValues.vi": {
       "fp": 175,
-      "bd": 29,
+      "bd": 168,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -2147,7 +2147,7 @@
     },
     "pl1000/PicoLog1000Lib/pl1000MaxValue.vi": {
       "fp": 107,
-      "bd": 24,
+      "bd": 106,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -2185,7 +2185,7 @@
     },
     "pl1000/PicoLog1000Lib/pl1000Open.vi": {
       "fp": 175,
-      "bd": 28,
+      "bd": 241,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -2222,7 +2222,7 @@
     },
     "pl1000/PicoLog1000Lib/pl1000OpenUnit.vi": {
       "fp": 91,
-      "bd": 57,
+      "bd": 179,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -2259,7 +2259,7 @@
     },
     "pl1000/PicoLog1000Lib/pl1000Ready.vi": {
       "fp": 105,
-      "bd": 24,
+      "bd": 114,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -2297,7 +2297,7 @@
     },
     "pl1000/PicoLog1000Lib/pl1000Run.vi": {
       "fp": 116,
-      "bd": 24,
+      "bd": 103,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -2335,7 +2335,7 @@
     },
     "pl1000/PicoLog1000Lib/pl1000SetDo.vi": {
       "fp": 113,
-      "bd": 24,
+      "bd": 115,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -2372,7 +2372,7 @@
     },
     "pl1000/PicoLog1000Lib/pl1000SetInterval.vi": {
       "fp": 154,
-      "bd": 28,
+      "bd": 125,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -2410,7 +2410,7 @@
     },
     "pl1000/PicoLog1000Lib/pl1000SetPulseWidth.vi": {
       "fp": 115,
-      "bd": 24,
+      "bd": 103,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -2448,7 +2448,7 @@
     },
     "pl1000/PicoLog1000Lib/pl1000SetTrigger.vi": {
       "fp": 177,
-      "bd": 81,
+      "bd": 232,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -2486,7 +2486,7 @@
     },
     "pl1000/PicoLog1000Lib/pl1000Stop.vi": {
       "fp": 99,
-      "bd": 24,
+      "bd": 91,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -2524,7 +2524,7 @@
     },
     "pl1000/PicoLog1000Lib/pl1000UnitInfo.vi": {
       "fp": 175,
-      "bd": 19,
+      "bd": 261,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -2561,7 +2561,7 @@
     },
     "plcm3/PicoLogCM3Example.vi": {
       "fp": 453,
-      "bd": 66,
+      "bd": 1225,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -2599,7 +2599,7 @@
     },
     "plcm3/plcm3Lib/plcm3ChannelSetting.vi": {
       "fp": 149,
-      "bd": 10,
+      "bd": 254,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -2636,7 +2636,7 @@
     },
     "plcm3/plcm3Lib/plcm3CloseUnit.vi": {
       "fp": 101,
-      "bd": 24,
+      "bd": 92,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -2675,7 +2675,7 @@
     },
     "plcm3/plcm3Lib/plcm3GetValue.vi": {
       "fp": 159,
-      "bd": 42,
+      "bd": 448,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -2713,7 +2713,7 @@
     },
     "plcm3/plcm3Lib/plcm3OpenUnit.vi": {
       "fp": 278,
-      "bd": 34,
+      "bd": 758,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -2752,7 +2752,7 @@
     },
     "plcm3/plcm3Lib/plcm3UnitInfo.vi": {
       "fp": 227,
-      "bd": 52,
+      "bd": 269,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -2790,7 +2790,7 @@
     },
     "ps2000/PicoScope2000ExampleAWG.vi": {
       "fp": 246,
-      "bd": 20,
+      "bd": 135,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -2827,7 +2827,7 @@
     },
     "ps2000/PicoScope2000ExampleBlock.vi": {
       "fp": 601,
-      "bd": 41,
+      "bd": 1168,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -2865,7 +2865,7 @@
     },
     "ps2000/PicoScope2000ExampleBlockAdvancedTrigger.vi": {
       "fp": 765,
-      "bd": 41,
+      "bd": 1275,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -2903,7 +2903,7 @@
     },
     "ps2000/PicoScope2000ExampleFastStreaming.vi": {
       "fp": 651,
-      "bd": 24,
+      "bd": 1045,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -2941,7 +2941,7 @@
     },
     "ps2000/PicoScope2000ExampleStreaming.vi": {
       "fp": 820,
-      "bd": 59,
+      "bd": 1963,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -3007,7 +3007,7 @@
     },
     "ps2000/PicoScope2000Lib/PicoScope2000AWG.vi": {
       "fp": 326,
-      "bd": 39,
+      "bd": 571,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -3047,7 +3047,7 @@
     },
     "ps2000/PicoScope2000Lib/PicoScope2000AdvancedTriggerSettings.vi": {
       "fp": 557,
-      "bd": 37,
+      "bd": 1337,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -3087,7 +3087,7 @@
     },
     "ps2000/PicoScope2000Lib/PicoScope2000ClearFastStreaming.vi": {
       "fp": 99,
-      "bd": 18,
+      "bd": 31,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -3126,7 +3126,7 @@
     },
     "ps2000/PicoScope2000Lib/PicoScope2000Close.vi": {
       "fp": 108,
-      "bd": 26,
+      "bd": 68,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -3165,7 +3165,7 @@
     },
     "ps2000/PicoScope2000Lib/PicoScope2000Errorhandler.vi": {
       "fp": 200,
-      "bd": 72,
+      "bd": 610,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -3238,7 +3238,7 @@
     },
     "ps2000/PicoScope2000Lib/PicoScope2000GetStreamingValues.vi": {
       "fp": 182,
-      "bd": 37,
+      "bd": 339,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -3277,7 +3277,7 @@
     },
     "ps2000/PicoScope2000Lib/PicoScope2000GetTimebase2.vi": {
       "fp": 218,
-      "bd": 44,
+      "bd": 332,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -3314,7 +3314,7 @@
     },
     "ps2000/PicoScope2000Lib/PicoScope2000GetValues.vi": {
       "fp": 372,
-      "bd": 50,
+      "bd": 300,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -3352,7 +3352,7 @@
     },
     "ps2000/PicoScope2000Lib/PicoScope2000IsReady.vi": {
       "fp": 108,
-      "bd": 50,
+      "bd": 133,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -3390,7 +3390,7 @@
     },
     "ps2000/PicoScope2000Lib/PicoScope2000NearestSampleInterval.vi": {
       "fp": 209,
-      "bd": 55,
+      "bd": 463,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -3428,7 +3428,7 @@
     },
     "ps2000/PicoScope2000Lib/PicoScope2000Open.vi": {
       "fp": 138,
-      "bd": 37,
+      "bd": 214,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -3467,7 +3467,7 @@
     },
     "ps2000/PicoScope2000Lib/PicoScope2000RunBlock.vi": {
       "fp": 204,
-      "bd": 36,
+      "bd": 183,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -3505,7 +3505,7 @@
     },
     "ps2000/PicoScope2000Lib/PicoScope2000Settings.vi": {
       "fp": 368,
-      "bd": 65,
+      "bd": 806,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -3544,7 +3544,7 @@
     },
     "ps2000/PicoScope2000Lib/PicoScope2000SetupStreaming.vi": {
       "fp": 370,
-      "bd": 77,
+      "bd": 638,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -3583,7 +3583,7 @@
     },
     "ps2000/PicoScope2000Lib/PicoScope2000StartStreaming.vi": {
       "fp": 233,
-      "bd": 37,
+      "bd": 226,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -3622,7 +3622,7 @@
     },
     "ps2000/PicoScope2000Lib/PicoScope2000Stop.vi": {
       "fp": 99,
-      "bd": 26,
+      "bd": 66,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -3661,7 +3661,7 @@
     },
     "ps2000/PicoScope2000Lib/PicoScope2000UnitInfo.vi": {
       "fp": 156,
-      "bd": 38,
+      "bd": 142,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -3698,7 +3698,7 @@
     },
     "ps2000/PicoScope2000Lib/PicoScope2000UnitInfoSingle.vi": {
       "fp": 132,
-      "bd": 14,
+      "bd": 170,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -3735,7 +3735,7 @@
     },
     "ps2000/PicoScope2000Lib/PicoScope2000WrapSetEnabledChannels.vi": {
       "fp": 240,
-      "bd": 34,
+      "bd": 171,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -3772,7 +3772,7 @@
     },
     "ps2000a/PicoScope2000aExampleAWG.vi": {
       "fp": 363,
-      "bd": 28,
+      "bd": 378,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -3810,7 +3810,7 @@
     },
     "ps2000a/PicoScope2000aExampleBlockAdvancedTrigger.vi": {
       "fp": 1032,
-      "bd": 45,
+      "bd": 1402,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -3849,7 +3849,7 @@
     },
     "ps2000a/PicoScope2000aExampleBlockMSO.vi": {
       "fp": 805,
-      "bd": 45,
+      "bd": 1352,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -3888,7 +3888,7 @@
     },
     "ps2000a/PicoScope2000aExampleEts.vi": {
       "fp": 706,
-      "bd": 45,
+      "bd": 1190,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -3926,7 +3926,7 @@
     },
     "ps2000a/PicoScope2000aExampleRapidBlockBulkOverlapped.vi": {
       "fp": 884,
-      "bd": 45,
+      "bd": 1426,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -3964,7 +3964,7 @@
     },
     "ps2000a/PicoScope2000aExampleStreamingMSO.vi": {
       "fp": 794,
-      "bd": 46,
+      "bd": 1705,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -4003,7 +4003,7 @@
     },
     "ps2000a/PicoScope2000aLib/PicoScope2000aAWG.vi": {
       "fp": 504,
-      "bd": 43,
+      "bd": 1155,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -4043,7 +4043,7 @@
     },
     "ps2000a/PicoScope2000aLib/PicoScope2000aAdvancedTriggerSettings.vi": {
       "fp": 794,
-      "bd": 39,
+      "bd": 2469,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -4083,7 +4083,7 @@
     },
     "ps2000a/PicoScope2000aLib/PicoScope2000aClose.vi": {
       "fp": 101,
-      "bd": 24,
+      "bd": 92,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -4122,7 +4122,7 @@
     },
     "ps2000a/PicoScope2000aLib/PicoScope2000aGetStreamingValues.vi": {
       "fp": 160,
-      "bd": 41,
+      "bd": 331,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -4161,7 +4161,7 @@
     },
     "ps2000a/PicoScope2000aLib/PicoScope2000aGetTimebase2.vi": {
       "fp": 220,
-      "bd": 46,
+      "bd": 349,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -4198,7 +4198,7 @@
     },
     "ps2000a/PicoScope2000aLib/PicoScope2000aGetValues.vi": {
       "fp": 197,
-      "bd": 34,
+      "bd": 206,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -4236,7 +4236,7 @@
     },
     "ps2000a/PicoScope2000aLib/PicoScope2000aGetValuesOverlappedBulk.vi": {
       "fp": 212,
-      "bd": 34,
+      "bd": 268,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -4274,7 +4274,7 @@
     },
     "ps2000a/PicoScope2000aLib/PicoScope2000aIsReady.vi": {
       "fp": 109,
-      "bd": 36,
+      "bd": 148,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -4312,7 +4312,7 @@
     },
     "ps2000a/PicoScope2000aLib/PicoScope2000aNearestSampleInterval.vi": {
       "fp": 209,
-      "bd": 201,
+      "bd": 554,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -4350,7 +4350,7 @@
     },
     "ps2000a/PicoScope2000aLib/PicoScope2000aOpen.vi": {
       "fp": 255,
-      "bd": 28,
+      "bd": 805,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -4389,7 +4389,7 @@
     },
     "ps2000a/PicoScope2000aLib/PicoScope2000aRunBlock.vi": {
       "fp": 158,
-      "bd": 34,
+      "bd": 408,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -4427,7 +4427,7 @@
     },
     "ps2000a/PicoScope2000aLib/PicoScope2000aSetDataBuffers.vi": {
       "fp": 451,
-      "bd": 175,
+      "bd": 466,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -4465,7 +4465,7 @@
     },
     "ps2000a/PicoScope2000aLib/PicoScope2000aSetEts.vi": {
       "fp": 135,
-      "bd": 34,
+      "bd": 153,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -4503,7 +4503,7 @@
     },
     "ps2000a/PicoScope2000aLib/PicoScope2000aSetEtsTimeBuffer.vi": {
       "fp": 133,
-      "bd": 38,
+      "bd": 338,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -4541,7 +4541,7 @@
     },
     "ps2000a/PicoScope2000aLib/PicoScope2000aSetRapidSegments.vi": {
       "fp": 139,
-      "bd": 24,
+      "bd": 248,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -4579,7 +4579,7 @@
     },
     "ps2000a/PicoScope2000aLib/PicoScope2000aSettings.vi": {
       "fp": 538,
-      "bd": 43,
+      "bd": 1275,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -4618,7 +4618,7 @@
     },
     "ps2000a/PicoScope2000aLib/PicoScope2000aSetupStreaming.vi": {
       "fp": 418,
-      "bd": 28,
+      "bd": 1236,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -4657,7 +4657,7 @@
     },
     "ps2000a/PicoScope2000aLib/PicoScope2000aStop.vi": {
       "fp": 101,
-      "bd": 24,
+      "bd": 92,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -4696,7 +4696,7 @@
     },
     "ps2000a/PicoScope2000aLib/PicoScope2000aUnitInfo.vi": {
       "fp": 208,
-      "bd": 14,
+      "bd": 279,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -4733,7 +4733,7 @@
     },
     "ps2000a/PicoScope2000aLib/PicoScope2000aWrapSettings.vi": {
       "fp": 229,
-      "bd": 28,
+      "bd": 383,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -4770,7 +4770,7 @@
     },
     "ps3000/32-bit-examples/PicoScope3000ExampleBlock.vi": {
       "fp": 379,
-      "bd": 18,
+      "bd": 518,
       "blocks": [
         "BDHb",
         "BDPW",
@@ -4804,7 +4804,7 @@
     },
     "ps3000/32-bit-examples/PicoScope3000FastStreaming.vi": {
       "fp": 291,
-      "bd": 31,
+      "bd": 283,
       "blocks": [
         "BDHb",
         "BDPW",
@@ -4838,7 +4838,7 @@
     },
     "ps3000E/PicoScopeospaExampleAWG.vi": {
       "fp": 562,
-      "bd": 28,
+      "bd": 418,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -4877,7 +4877,7 @@
     },
     "ps3000E/PicoScopeospaExampleAdvancedTrigger.vi": {
       "fp": 2478,
-      "bd": 32,
+      "bd": 1599,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -4915,7 +4915,7 @@
     },
     "ps3000E/PicoScopeospaExampleBlock.vi": {
       "fp": 1284,
-      "bd": 32,
+      "bd": 1364,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -4953,7 +4953,7 @@
     },
     "ps3000E/PicoScopeospaExampleRapidBlockBulkOverlapped.vi": {
       "fp": 1404,
-      "bd": 45,
+      "bd": 1640,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -4991,7 +4991,7 @@
     },
     "ps3000E/PicoScopeospaExampleStreamingQueue.vi": {
       "fp": 1405,
-      "bd": 125,
+      "bd": 2769,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -5031,7 +5031,7 @@
     },
     "ps3000E/PicoScopepsospaLib/PicoScopeospaAWG.vi": {
       "fp": 434,
-      "bd": 37,
+      "bd": 1211,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -5071,7 +5071,7 @@
     },
     "ps3000E/PicoScopepsospaLib/PicoScopeospaAdvancedTriggerDigital.vi": {
       "fp": 250,
-      "bd": 146,
+      "bd": 764,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -5111,7 +5111,7 @@
     },
     "ps3000E/PicoScopepsospaLib/PicoScopeospaAdvancedTriggerPWQ.vi": {
       "fp": 570,
-      "bd": 39,
+      "bd": 1753,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -5151,7 +5151,7 @@
     },
     "ps3000E/PicoScopepsospaLib/PicoScopeospaAdvancedTriggerSettings.vi": {
       "fp": 1536,
-      "bd": 39,
+      "bd": 289,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -5191,7 +5191,7 @@
     },
     "ps3000E/PicoScopepsospaLib/PicoScopeospaClose.vi": {
       "fp": 101,
-      "bd": 24,
+      "bd": 93,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -5230,7 +5230,7 @@
     },
     "ps3000E/PicoScopepsospaLib/PicoScopeospaGetStreamingLatestValues.vi": {
       "fp": 844,
-      "bd": 103,
+      "bd": 728,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -5268,7 +5268,7 @@
     },
     "ps3000E/PicoScopepsospaLib/PicoScopeospaGetTimebase.vi": {
       "fp": 220,
-      "bd": 42,
+      "bd": 331,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -5306,7 +5306,7 @@
     },
     "ps3000E/PicoScopepsospaLib/PicoScopeospaGetTriggerInfo.vi": {
       "fp": 288,
-      "bd": 39,
+      "bd": 1097,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -5345,7 +5345,7 @@
     },
     "ps3000E/PicoScopepsospaLib/PicoScopeospaGetValues.vi": {
       "fp": 165,
-      "bd": 34,
+      "bd": 177,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -5383,7 +5383,7 @@
     },
     "ps3000E/PicoScopepsospaLib/PicoScopeospaGetValuesBulk.vi": {
       "fp": 206,
-      "bd": 34,
+      "bd": 208,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -5421,7 +5421,7 @@
     },
     "ps3000E/PicoScopepsospaLib/PicoScopeospaGetValuesOverlapped.vi": {
       "fp": 212,
-      "bd": 34,
+      "bd": 226,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -5459,7 +5459,7 @@
     },
     "ps3000E/PicoScopepsospaLib/PicoScopeospaIsReady.vi": {
       "fp": 109,
-      "bd": 36,
+      "bd": 139,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -5497,7 +5497,7 @@
     },
     "ps3000E/PicoScopepsospaLib/PicoScopeospaNearestSampleIntervalStateless.vi": {
       "fp": 300,
-      "bd": 73,
+      "bd": 337,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -5535,7 +5535,7 @@
     },
     "ps3000E/PicoScopepsospaLib/PicoScopeospaNextBuffer.vi": {
       "fp": 499,
-      "bd": 226,
+      "bd": 654,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -5573,7 +5573,7 @@
     },
     "ps3000E/PicoScopepsospaLib/PicoScopeospaOpen.vi": {
       "fp": 479,
-      "bd": 28,
+      "bd": 749,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -5612,7 +5612,7 @@
     },
     "ps3000E/PicoScopepsospaLib/PicoScopeospaPowerDetails.vi": {
       "fp": 446,
-      "bd": 20,
+      "bd": 1215,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -5650,7 +5650,7 @@
     },
     "ps3000E/PicoScopepsospaLib/PicoScopeospaProcessStreamingDataTriggerInfo.vi": {
       "fp": 241,
-      "bd": 20,
+      "bd": 589,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -5689,7 +5689,7 @@
     },
     "ps3000E/PicoScopepsospaLib/PicoScopeospaProcessStreamingTriggerInfo.vi": {
       "fp": 325,
-      "bd": 25,
+      "bd": 1131,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -5728,7 +5728,7 @@
     },
     "ps3000E/PicoScopepsospaLib/PicoScopeospaRunBlock.vi": {
       "fp": 158,
-      "bd": 34,
+      "bd": 189,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -5766,7 +5766,7 @@
     },
     "ps3000E/PicoScopepsospaLib/PicoScopeospaSetDataBuffers.vi": {
       "fp": 484,
-      "bd": 190,
+      "bd": 583,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -5804,7 +5804,7 @@
     },
     "ps3000E/PicoScopepsospaLib/PicoScopeospaSetRapidSegments.vi": {
       "fp": 136,
-      "bd": 24,
+      "bd": 230,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -5880,7 +5880,7 @@
     },
     "ps3000E/PicoScopepsospaLib/PicoScopeospaSetupStreaming.vi": {
       "fp": 772,
-      "bd": 70,
+      "bd": 1434,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -5918,7 +5918,7 @@
     },
     "ps3000E/PicoScopepsospaLib/PicoScopeospaStop.vi": {
       "fp": 101,
-      "bd": 24,
+      "bd": 93,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -5957,7 +5957,7 @@
     },
     "ps3000E/PicoScopepsospaLib/PicoScopeospaUnitInfo.vi": {
       "fp": 245,
-      "bd": 9,
+      "bd": 552,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -5995,7 +5995,7 @@
     },
     "ps3000a/PicoScope3000aExampleAWG.vi": {
       "fp": 416,
-      "bd": 28,
+      "bd": 396,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -6033,7 +6033,7 @@
     },
     "ps3000a/PicoScope3000aExampleBlockAdvancedTrig.vi": {
       "fp": 1159,
-      "bd": 45,
+      "bd": 1432,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -6071,7 +6071,7 @@
     },
     "ps3000a/PicoScope3000aExampleBlockMSO.vi": {
       "fp": 811,
-      "bd": 45,
+      "bd": 1376,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -6109,7 +6109,7 @@
     },
     "ps3000a/PicoScope3000aExampleBlockMSO_MultipleDevices.vi": {
       "fp": 696,
-      "bd": 14,
+      "bd": 1751,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -6147,7 +6147,7 @@
     },
     "ps3000a/PicoScope3000aExampleEts.vi": {
       "fp": 678,
-      "bd": 45,
+      "bd": 1199,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -6185,7 +6185,7 @@
     },
     "ps3000a/PicoScope3000aExampleRapidBlockBulkOverlapped.vi": {
       "fp": 882,
-      "bd": 45,
+      "bd": 1436,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -6223,7 +6223,7 @@
     },
     "ps3000a/PicoScope3000aExampleStreamingAdvancedTrig.vi": {
       "fp": 1118,
-      "bd": 53,
+      "bd": 1796,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -6262,7 +6262,7 @@
     },
     "ps3000a/PicoScope3000aExampleStreamingMSO.vi": {
       "fp": 907,
-      "bd": 53,
+      "bd": 1739,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -6301,7 +6301,7 @@
     },
     "ps3000a/PicoScope3000aLib/PicoScope3000aAWG.vi": {
       "fp": 491,
-      "bd": 43,
+      "bd": 1150,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -6342,7 +6342,7 @@
     },
     "ps3000a/PicoScope3000aLib/PicoScope3000aAdvancedTriggerSettings.vi": {
       "fp": 794,
-      "bd": 44,
+      "bd": 2356,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -6382,7 +6382,7 @@
     },
     "ps3000a/PicoScope3000aLib/PicoScope3000aAdvancedTriggerSettingsV2.vi": {
       "fp": 799,
-      "bd": 39,
+      "bd": 2274,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -6422,7 +6422,7 @@
     },
     "ps3000a/PicoScope3000aLib/PicoScope3000aClose.vi": {
       "fp": 101,
-      "bd": 24,
+      "bd": 92,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -6462,7 +6462,7 @@
     },
     "ps3000a/PicoScope3000aLib/PicoScope3000aGetMaxEtsValues.vi": {
       "fp": 118,
-      "bd": 34,
+      "bd": 150,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -6500,7 +6500,7 @@
     },
     "ps3000a/PicoScope3000aLib/PicoScope3000aGetStreamingValues.vi": {
       "fp": 151,
-      "bd": 37,
+      "bd": 299,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -6540,7 +6540,7 @@
     },
     "ps3000a/PicoScope3000aLib/PicoScope3000aGetTimebase2.vi": {
       "fp": 220,
-      "bd": 42,
+      "bd": 349,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -6577,7 +6577,7 @@
     },
     "ps3000a/PicoScope3000aLib/PicoScope3000aGetValues.vi": {
       "fp": 197,
-      "bd": 34,
+      "bd": 212,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -6615,7 +6615,7 @@
     },
     "ps3000a/PicoScope3000aLib/PicoScope3000aGetValuesOverlappedBulk.vi": {
       "fp": 212,
-      "bd": 34,
+      "bd": 267,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -6653,7 +6653,7 @@
     },
     "ps3000a/PicoScope3000aLib/PicoScope3000aIsReady.vi": {
       "fp": 109,
-      "bd": 36,
+      "bd": 139,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -6691,7 +6691,7 @@
     },
     "ps3000a/PicoScope3000aLib/PicoScope3000aNearestSampleInterval.vi": {
       "fp": 209,
-      "bd": 203,
+      "bd": 558,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -6729,7 +6729,7 @@
     },
     "ps3000a/PicoScope3000aLib/PicoScope3000aOpen.vi": {
       "fp": 262,
-      "bd": 24,
+      "bd": 854,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -6769,7 +6769,7 @@
     },
     "ps3000a/PicoScope3000aLib/PicoScope3000aPowerSource.vi": {
       "fp": 156,
-      "bd": 24,
+      "bd": 350,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -6806,7 +6806,7 @@
     },
     "ps3000a/PicoScope3000aLib/PicoScope3000aRunBlock.vi": {
       "fp": 158,
-      "bd": 34,
+      "bd": 408,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -6844,7 +6844,7 @@
     },
     "ps3000a/PicoScope3000aLib/PicoScope3000aSetDataBuffers.vi": {
       "fp": 437,
-      "bd": 177,
+      "bd": 468,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -6882,7 +6882,7 @@
     },
     "ps3000a/PicoScope3000aLib/PicoScope3000aSetEts.vi": {
       "fp": 135,
-      "bd": 34,
+      "bd": 153,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -6920,7 +6920,7 @@
     },
     "ps3000a/PicoScope3000aLib/PicoScope3000aSetEtsTimeBuffer.vi": {
       "fp": 133,
-      "bd": 38,
+      "bd": 332,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -6958,7 +6958,7 @@
     },
     "ps3000a/PicoScope3000aLib/PicoScope3000aSetRapidSegments.vi": {
       "fp": 139,
-      "bd": 24,
+      "bd": 230,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -6996,7 +6996,7 @@
     },
     "ps3000a/PicoScope3000aLib/PicoScope3000aSettings.vi": {
       "fp": 553,
-      "bd": 39,
+      "bd": 1803,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -7036,7 +7036,7 @@
     },
     "ps3000a/PicoScope3000aLib/PicoScope3000aSetupStreaming.vi": {
       "fp": 413,
-      "bd": 28,
+      "bd": 1326,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -7075,7 +7075,7 @@
     },
     "ps3000a/PicoScope3000aLib/PicoScope3000aStop.vi": {
       "fp": 101,
-      "bd": 24,
+      "bd": 92,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -7114,7 +7114,7 @@
     },
     "ps3000a/PicoScope3000aLib/PicoScope3000aUnitInfo.vi": {
       "fp": 185,
-      "bd": 48,
+      "bd": 186,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -7151,7 +7151,7 @@
     },
     "ps3000a/PicoScope3000aLib/PicoScope3000aWrap.vi": {
       "fp": 224,
-      "bd": 28,
+      "bd": 501,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -7188,7 +7188,7 @@
     },
     "ps4000/PicoScope4000ExampleAWG.vi": {
       "fp": 349,
-      "bd": 28,
+      "bd": 373,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -7228,7 +7228,7 @@
     },
     "ps4000/PicoScope4000ExampleAdvancedTrigger.vi": {
       "fp": 1013,
-      "bd": 45,
+      "bd": 1277,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -7269,7 +7269,7 @@
     },
     "ps4000/PicoScope4000ExampleBlock.vi": {
       "fp": 624,
-      "bd": 45,
+      "bd": 1221,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -7310,7 +7310,7 @@
     },
     "ps4000/PicoScope4000ExampleRapidBlock.vi": {
       "fp": 828,
-      "bd": 45,
+      "bd": 1300,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -7351,7 +7351,7 @@
     },
     "ps4000/PicoScope4000ExampleRapidBlockBulk.vi": {
       "fp": 712,
-      "bd": 45,
+      "bd": 1219,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -7392,7 +7392,7 @@
     },
     "ps4000/PicoScope4000ExampleStreaming.vi": {
       "fp": 681,
-      "bd": 53,
+      "bd": 1705,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -7431,7 +7431,7 @@
     },
     "ps4000/PicoScope4000Lib/PicoScope4000AWG.vi": {
       "fp": 452,
-      "bd": 42,
+      "bd": 1065,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -7471,7 +7471,7 @@
     },
     "ps4000/PicoScope4000Lib/PicoScope4000AdvancedTriggerSettings.vi": {
       "fp": 696,
-      "bd": 47,
+      "bd": 710,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -7511,7 +7511,7 @@
     },
     "ps4000/PicoScope4000Lib/PicoScope4000Close.vi": {
       "fp": 90,
-      "bd": 28,
+      "bd": 76,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -7550,7 +7550,7 @@
     },
     "ps4000/PicoScope4000Lib/PicoScope4000GetBlock.vi": {
       "fp": 587,
-      "bd": 41,
+      "bd": 2696,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -7589,7 +7589,7 @@
     },
     "ps4000/PicoScope4000Lib/PicoScope4000GetStreamingValues.vi": {
       "fp": 158,
-      "bd": 62,
+      "bd": 299,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -7628,7 +7628,7 @@
     },
     "ps4000/PicoScope4000Lib/PicoScope4000GetTimebase2.vi": {
       "fp": 227,
-      "bd": 68,
+      "bd": 340,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -7666,7 +7666,7 @@
     },
     "ps4000/PicoScope4000Lib/PicoScope4000GetValues.vi": {
       "fp": 196,
-      "bd": 66,
+      "bd": 204,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -7704,7 +7704,7 @@
     },
     "ps4000/PicoScope4000Lib/PicoScope4000GetValuesOverlapped.vi": {
       "fp": 196,
-      "bd": 70,
+      "bd": 198,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -7742,7 +7742,7 @@
     },
     "ps4000/PicoScope4000Lib/PicoScope4000IsReady.vi": {
       "fp": 108,
-      "bd": 33,
+      "bd": 125,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -7780,7 +7780,7 @@
     },
     "ps4000/PicoScope4000Lib/PicoScope4000Open.vi": {
       "fp": 212,
-      "bd": 24,
+      "bd": 591,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -7819,7 +7819,7 @@
     },
     "ps4000/PicoScope4000Lib/PicoScope4000RunBlock.vi": {
       "fp": 166,
-      "bd": 80,
+      "bd": 385,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -7857,7 +7857,7 @@
     },
     "ps4000/PicoScope4000Lib/PicoScope4000SetDataBufferBulk.vi": {
       "fp": 345,
-      "bd": 117,
+      "bd": 367,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -7895,7 +7895,7 @@
     },
     "ps4000/PicoScope4000Lib/PicoScope4000SetDataBufferWithMode.vi": {
       "fp": 345,
-      "bd": 105,
+      "bd": 356,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -7933,7 +7933,7 @@
     },
     "ps4000/PicoScope4000Lib/PicoScope4000SetDataBuffers.vi": {
       "fp": 345,
-      "bd": 105,
+      "bd": 356,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -7971,7 +7971,7 @@
     },
     "ps4000/PicoScope4000Lib/PicoScope4000SetDataBuffersSingle.vi": {
       "fp": 354,
-      "bd": 13,
+      "bd": 334,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -8009,7 +8009,7 @@
     },
     "ps4000/PicoScope4000Lib/PicoScope4000SetRapidSegments.vi": {
       "fp": 137,
-      "bd": 67,
+      "bd": 229,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -8047,7 +8047,7 @@
     },
     "ps4000/PicoScope4000Lib/PicoScope4000Settings.vi": {
       "fp": 420,
-      "bd": 48,
+      "bd": 1222,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -8086,7 +8086,7 @@
     },
     "ps4000/PicoScope4000Lib/PicoScope4000SetupStreaming.vi": {
       "fp": 314,
-      "bd": 39,
+      "bd": 947,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -8125,7 +8125,7 @@
     },
     "ps4000/PicoScope4000Lib/PicoScope4000Stop.vi": {
       "fp": 99,
-      "bd": 28,
+      "bd": 78,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -8164,7 +8164,7 @@
     },
     "ps4000/PicoScope4000Lib/PicoScope4000UnitInfo.vi": {
       "fp": 195,
-      "bd": 52,
+      "bd": 215,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -8201,7 +8201,7 @@
     },
     "ps4000/PicoScope4000Lib/PicoScope4000WrapSettings.vi": {
       "fp": 179,
-      "bd": 28,
+      "bd": 162,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -8238,7 +8238,7 @@
     },
     "ps4000/PicoScope4000Lib/PicoScope4000aGetValuesOverlappedBulk.vi": {
       "fp": 211,
-      "bd": 47,
+      "bd": 201,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -8276,7 +8276,7 @@
     },
     "ps4000a/PicoScope4000aExampleAWG.vi": {
       "fp": 456,
-      "bd": 26,
+      "bd": 380,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -8313,7 +8313,7 @@
     },
     "ps4000a/PicoScope4000aExampleAdvancedTrigger.vi": {
       "fp": 1502,
-      "bd": 43,
+      "bd": 1538,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -8351,7 +8351,7 @@
     },
     "ps4000a/PicoScope4000aExampleBlock.vi": {
       "fp": 710,
-      "bd": 43,
+      "bd": 1454,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -8390,7 +8390,7 @@
     },
     "ps4000a/PicoScope4000aExampleBlockMultiUnit.vi": {
       "fp": 683,
-      "bd": 42,
+      "bd": 1756,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -8429,7 +8429,7 @@
     },
     "ps4000a/PicoScope4000aExampleBlock_PicoConnect.vi": {
       "fp": 746,
-      "bd": 26,
+      "bd": 1335,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -8467,7 +8467,7 @@
     },
     "ps4000a/PicoScope4000aExampleRapidBlockBulkOverlapped.vi": {
       "fp": 781,
-      "bd": 43,
+      "bd": 1527,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -8506,7 +8506,7 @@
     },
     "ps4000a/PicoScope4000aExampleStreaming.vi": {
       "fp": 797,
-      "bd": 155,
+      "bd": 2904,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -8545,7 +8545,7 @@
     },
     "ps4000a/PicoScope4000aLib/PicoScope4000aAWG.vi": {
       "fp": 400,
-      "bd": 93,
+      "bd": 1043,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -8585,7 +8585,7 @@
     },
     "ps4000a/PicoScope4000aLib/PicoScope4000aAdvancedTriggerSettings.vi": {
       "fp": 1058,
-      "bd": 39,
+      "bd": 1371,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -8625,7 +8625,7 @@
     },
     "ps4000a/PicoScope4000aLib/PicoScope4000aClose.vi": {
       "fp": 99,
-      "bd": 24,
+      "bd": 91,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -8664,7 +8664,7 @@
     },
     "ps4000a/PicoScope4000aLib/PicoScope4000aGetAnalogueOffset.vi": {
       "fp": 135,
-      "bd": 24,
+      "bd": 133,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -8702,7 +8702,7 @@
     },
     "ps4000a/PicoScope4000aLib/PicoScope4000aGetStreamingValues.vi": {
       "fp": 158,
-      "bd": 37,
+      "bd": 337,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -8741,7 +8741,7 @@
     },
     "ps4000a/PicoScope4000aLib/PicoScope4000aGetTimebase2.vi": {
       "fp": 218,
-      "bd": 42,
+      "bd": 336,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -8779,7 +8779,7 @@
     },
     "ps4000a/PicoScope4000aLib/PicoScope4000aGetValues.vi": {
       "fp": 196,
-      "bd": 34,
+      "bd": 211,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -8817,7 +8817,7 @@
     },
     "ps4000a/PicoScope4000aLib/PicoScope4000aGetValuesOverlapped.vi": {
       "fp": 196,
-      "bd": 34,
+      "bd": 211,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -8855,7 +8855,7 @@
     },
     "ps4000a/PicoScope4000aLib/PicoScope4000aGetValuesOverlappedBulk.vi": {
       "fp": 211,
-      "bd": 34,
+      "bd": 261,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -8893,7 +8893,7 @@
     },
     "ps4000a/PicoScope4000aLib/PicoScope4000aIsReady.vi": {
       "fp": 108,
-      "bd": 36,
+      "bd": 147,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -8931,7 +8931,7 @@
     },
     "ps4000a/PicoScope4000aLib/PicoScope4000aNearestSampleInterval.vi": {
       "fp": 217,
-      "bd": 295,
+      "bd": 645,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -8969,7 +8969,7 @@
     },
     "ps4000a/PicoScope4000aLib/PicoScope4000aOpen.vi": {
       "fp": 293,
-      "bd": 11,
+      "bd": 969,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -9008,7 +9008,7 @@
     },
     "ps4000a/PicoScope4000aLib/PicoScope4000aPowerSource.vi": {
       "fp": 154,
-      "bd": 24,
+      "bd": 343,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -9045,7 +9045,7 @@
     },
     "ps4000a/PicoScope4000aLib/PicoScope4000aProbeInteraction.vi": {
       "fp": 697,
-      "bd": 49,
+      "bd": 1578,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -9082,7 +9082,7 @@
     },
     "ps4000a/PicoScope4000aLib/PicoScope4000aProbeSettings.vi": {
       "fp": 944,
-      "bd": 36,
+      "bd": 713,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -9119,7 +9119,7 @@
     },
     "ps4000a/PicoScope4000aLib/PicoScope4000aRunBlock.vi": {
       "fp": 158,
-      "bd": 34,
+      "bd": 384,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -9157,7 +9157,7 @@
     },
     "ps4000a/PicoScope4000aLib/PicoScope4000aSetDataBuffers.vi": {
       "fp": 347,
-      "bd": 102,
+      "bd": 437,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -9195,7 +9195,7 @@
     },
     "ps4000a/PicoScope4000aLib/PicoScope4000aSetRapidSegments.vi": {
       "fp": 139,
-      "bd": 24,
+      "bd": 248,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -9233,7 +9233,7 @@
     },
     "ps4000a/PicoScope4000aLib/PicoScope4000aSettings.vi": {
       "fp": 709,
-      "bd": 40,
+      "bd": 2466,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -9272,7 +9272,7 @@
     },
     "ps4000a/PicoScope4000aLib/PicoScope4000aSetupStreaming.vi": {
       "fp": 313,
-      "bd": 28,
+      "bd": 1077,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -9311,7 +9311,7 @@
     },
     "ps4000a/PicoScope4000aLib/PicoScope4000aStop.vi": {
       "fp": 101,
-      "bd": 24,
+      "bd": 92,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -9350,7 +9350,7 @@
     },
     "ps4000a/PicoScope4000aLib/PicoScope4000aUnitInfo.vi": {
       "fp": 217,
-      "bd": 9,
+      "bd": 287,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -9387,7 +9387,7 @@
     },
     "ps4000a/PicoScope4000aLib/PicoScope4000aWrapSettings.vi": {
       "fp": 223,
-      "bd": 36,
+      "bd": 275,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -9424,7 +9424,7 @@
     },
     "ps5000/32-bit-examples/PicoScope5000ExampleBlock.vi": {
       "fp": 282,
-      "bd": 6,
+      "bd": 127,
       "blocks": [
         "BDHb",
         "BDPW",
@@ -9458,7 +9458,7 @@
     },
     "ps5000/32-bit-examples/PicoScope5000ExampleETSBlock.vi": {
       "fp": 327,
-      "bd": 6,
+      "bd": 211,
       "blocks": [
         "BDHb",
         "BDPW",
@@ -9492,7 +9492,7 @@
     },
     "ps5000/32-bit-examples/PicoScope5000ExampleRapidBlock.vi": {
       "fp": 308,
-      "bd": 6,
+      "bd": 221,
       "blocks": [
         "BDHb",
         "BDPW",
@@ -9526,7 +9526,7 @@
     },
     "ps5000/32-bit-examples/PicoScope5000ExampleStreaming.vi": {
       "fp": 222,
-      "bd": 6,
+      "bd": 235,
       "blocks": [
         "BDHb",
         "BDPW",
@@ -9560,7 +9560,7 @@
     },
     "ps5000/64-bit-examples/PicoScope5000ExampleBlock.vi": {
       "fp": 282,
-      "bd": 6,
+      "bd": 127,
       "blocks": [
         "BDHb",
         "BDPW",
@@ -9593,7 +9593,7 @@
     },
     "ps5000/64-bit-examples/PicoScope5000ExampleETSBlock.vi": {
       "fp": 327,
-      "bd": 6,
+      "bd": 211,
       "blocks": [
         "BDHb",
         "BDPW",
@@ -9626,7 +9626,7 @@
     },
     "ps5000/64-bit-examples/PicoScope5000ExampleRapidBlock.vi": {
       "fp": 308,
-      "bd": 6,
+      "bd": 221,
       "blocks": [
         "BDHb",
         "BDPW",
@@ -9659,7 +9659,7 @@
     },
     "ps5000/64-bit-examples/PicoScope5000ExampleStreaming.vi": {
       "fp": 222,
-      "bd": 6,
+      "bd": 235,
       "blocks": [
         "BDHb",
         "BDPW",
@@ -9692,7 +9692,7 @@
     },
     "ps5000a/PicoScope5000aExampleAWG.vi": {
       "fp": 403,
-      "bd": 28,
+      "bd": 425,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -9730,7 +9730,7 @@
     },
     "ps5000a/PicoScope5000aExampleAdvancedTriggerV2.vi": {
       "fp": 1060,
-      "bd": 45,
+      "bd": 1422,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -9769,7 +9769,7 @@
     },
     "ps5000a/PicoScope5000aExampleBlockMSO.vi": {
       "fp": 863,
-      "bd": 45,
+      "bd": 1412,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -9807,7 +9807,7 @@
     },
     "ps5000a/PicoScope5000aExampleETS.vi": {
       "fp": 661,
-      "bd": 45,
+      "bd": 1141,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -9846,7 +9846,7 @@
     },
     "ps5000a/PicoScope5000aExampleRapidBlockBulkOverlapped.vi": {
       "fp": 943,
-      "bd": 54,
+      "bd": 1570,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -9884,7 +9884,7 @@
     },
     "ps5000a/PicoScope5000aExampleStreamingMSO.vi": {
       "fp": 813,
-      "bd": 53,
+      "bd": 1765,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -9923,7 +9923,7 @@
     },
     "ps5000a/PicoScope5000aLib/PicoScope5000aAWG.vi": {
       "fp": 400,
-      "bd": 41,
+      "bd": 1057,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -9963,7 +9963,7 @@
     },
     "ps5000a/PicoScope5000aLib/PicoScope5000aAdvancedTriggerSettings.vi": {
       "fp": 794,
-      "bd": 44,
+      "bd": 2228,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -10003,7 +10003,7 @@
     },
     "ps5000a/PicoScope5000aLib/PicoScope5000aAdvancedTriggerSettingsV2.vi": {
       "fp": 860,
-      "bd": 39,
+      "bd": 2845,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -10043,7 +10043,7 @@
     },
     "ps5000a/PicoScope5000aLib/PicoScope5000aClose.vi": {
       "fp": 101,
-      "bd": 24,
+      "bd": 92,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -10082,7 +10082,7 @@
     },
     "ps5000a/PicoScope5000aLib/PicoScope5000aGetStreamingValues.vi": {
       "fp": 160,
-      "bd": 37,
+      "bd": 333,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -10121,7 +10121,7 @@
     },
     "ps5000a/PicoScope5000aLib/PicoScope5000aGetTimebase2.vi": {
       "fp": 220,
-      "bd": 47,
+      "bd": 337,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -10158,7 +10158,7 @@
     },
     "ps5000a/PicoScope5000aLib/PicoScope5000aGetTriggerInfo.vi": {
       "fp": 271,
-      "bd": 27,
+      "bd": 1061,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -10197,7 +10197,7 @@
     },
     "ps5000a/PicoScope5000aLib/PicoScope5000aGetValues.vi": {
       "fp": 197,
-      "bd": 34,
+      "bd": 206,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -10235,7 +10235,7 @@
     },
     "ps5000a/PicoScope5000aLib/PicoScope5000aGetValuesOverlapped.vi": {
       "fp": 197,
-      "bd": 34,
+      "bd": 206,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -10273,7 +10273,7 @@
     },
     "ps5000a/PicoScope5000aLib/PicoScope5000aGetValuesOverlappedBulk.vi": {
       "fp": 212,
-      "bd": 34,
+      "bd": 262,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -10311,7 +10311,7 @@
     },
     "ps5000a/PicoScope5000aLib/PicoScope5000aIsReady.vi": {
       "fp": 109,
-      "bd": 36,
+      "bd": 148,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -10349,7 +10349,7 @@
     },
     "ps5000a/PicoScope5000aLib/PicoScope5000aNearestSampleInterval.vi": {
       "fp": 209,
-      "bd": 198,
+      "bd": 543,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -10387,7 +10387,7 @@
     },
     "ps5000a/PicoScope5000aLib/PicoScope5000aOpen.vi": {
       "fp": 279,
-      "bd": 11,
+      "bd": 846,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -10426,7 +10426,7 @@
     },
     "ps5000a/PicoScope5000aLib/PicoScope5000aPowerSource.vi": {
       "fp": 156,
-      "bd": 24,
+      "bd": 349,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -10463,7 +10463,7 @@
     },
     "ps5000a/PicoScope5000aLib/PicoScope5000aRunBlock.vi": {
       "fp": 158,
-      "bd": 34,
+      "bd": 390,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -10501,7 +10501,7 @@
     },
     "ps5000a/PicoScope5000aLib/PicoScope5000aSetDataBuffers.vi": {
       "fp": 437,
-      "bd": 172,
+      "bd": 464,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -10539,7 +10539,7 @@
     },
     "ps5000a/PicoScope5000aLib/PicoScope5000aSetEts.vi": {
       "fp": 135,
-      "bd": 34,
+      "bd": 153,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -10577,7 +10577,7 @@
     },
     "ps5000a/PicoScope5000aLib/PicoScope5000aSetEtsTimeBuffer.vi": {
       "fp": 133,
-      "bd": 38,
+      "bd": 332,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -10615,7 +10615,7 @@
     },
     "ps5000a/PicoScope5000aLib/PicoScope5000aSetRapidSegments.vi": {
       "fp": 139,
-      "bd": 24,
+      "bd": 236,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -10653,7 +10653,7 @@
     },
     "ps5000a/PicoScope5000aLib/PicoScope5000aSettings.vi": {
       "fp": 552,
-      "bd": 43,
+      "bd": 1788,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -10692,7 +10692,7 @@
     },
     "ps5000a/PicoScope5000aLib/PicoScope5000aSetupStreaming.vi": {
       "fp": 404,
-      "bd": 29,
+      "bd": 1087,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -10731,7 +10731,7 @@
     },
     "ps5000a/PicoScope5000aLib/PicoScope5000aStartStreaming.vi": {
       "fp": 596,
-      "bd": 255,
+      "bd": 2284,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -10770,7 +10770,7 @@
     },
     "ps5000a/PicoScope5000aLib/PicoScope5000aStop.vi": {
       "fp": 101,
-      "bd": 24,
+      "bd": 92,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -10809,7 +10809,7 @@
     },
     "ps5000a/PicoScope5000aLib/PicoScope5000aUnitInfo.vi": {
       "fp": 199,
-      "bd": 49,
+      "bd": 189,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -10847,7 +10847,7 @@
     },
     "ps5000a/PicoScope5000aLib/PicoScope5000aWrapSettings.vi": {
       "fp": 215,
-      "bd": 24,
+      "bd": 634,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -10884,7 +10884,7 @@
     },
     "ps6000/PicoScope6000ExampleAWG.vi": {
       "fp": 512,
-      "bd": 28,
+      "bd": 379,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -10921,7 +10921,7 @@
     },
     "ps6000/PicoScope6000ExampleBlock.vi": {
       "fp": 672,
-      "bd": 45,
+      "bd": 1224,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -10959,7 +10959,7 @@
     },
     "ps6000/PicoScope6000ExampleBlockAdvancedTrigger.vi": {
       "fp": 833,
-      "bd": 45,
+      "bd": 1272,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -10997,7 +10997,7 @@
     },
     "ps6000/PicoScope6000ExampleBlockMultiUnit.vi": {
       "fp": 678,
-      "bd": 53,
+      "bd": 1772,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -11035,7 +11035,7 @@
     },
     "ps6000/PicoScope6000ExampleRapidBlock.vi": {
       "fp": 590,
-      "bd": 45,
+      "bd": 1226,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -11073,7 +11073,7 @@
     },
     "ps6000/PicoScope6000ExampleRapidBlockBulkOverlapped.vi": {
       "fp": 634,
-      "bd": 45,
+      "bd": 1261,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -11111,7 +11111,7 @@
     },
     "ps6000/PicoScope6000ExampleStreaming.vi": {
       "fp": 766,
-      "bd": 45,
+      "bd": 1579,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -11151,7 +11151,7 @@
     },
     "ps6000/PicoScope6000Lib/PicoScope6000AWG.vi": {
       "fp": 428,
-      "bd": 41,
+      "bd": 583,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -11191,7 +11191,7 @@
     },
     "ps6000/PicoScope6000Lib/PicoScope6000AdvancedTriggerSettings.vi": {
       "fp": 651,
-      "bd": 39,
+      "bd": 2065,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -11231,7 +11231,7 @@
     },
     "ps6000/PicoScope6000Lib/PicoScope6000ClearStreming.vi": {
       "fp": 99,
-      "bd": 18,
+      "bd": 58,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -11271,7 +11271,7 @@
     },
     "ps6000/PicoScope6000Lib/PicoScope6000Close.vi": {
       "fp": 99,
-      "bd": 24,
+      "bd": 91,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -11311,7 +11311,7 @@
     },
     "ps6000/PicoScope6000Lib/PicoScope6000GetStreamingValues.vi": {
       "fp": 158,
-      "bd": 41,
+      "bd": 390,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -11351,7 +11351,7 @@
     },
     "ps6000/PicoScope6000Lib/PicoScope6000GetTimebase2.vi": {
       "fp": 218,
-      "bd": 46,
+      "bd": 342,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -11388,7 +11388,7 @@
     },
     "ps6000/PicoScope6000Lib/PicoScope6000GetTriggerInfo.vi": {
       "fp": 280,
-      "bd": 20,
+      "bd": 1055,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -11427,7 +11427,7 @@
     },
     "ps6000/PicoScope6000Lib/PicoScope6000GetValues.vi": {
       "fp": 196,
-      "bd": 34,
+      "bd": 211,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -11465,7 +11465,7 @@
     },
     "ps6000/PicoScope6000Lib/PicoScope6000GetValuesBulk.vi": {
       "fp": 211,
-      "bd": 32,
+      "bd": 228,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -11503,7 +11503,7 @@
     },
     "ps6000/PicoScope6000Lib/PicoScope6000GetValuesOverlapped.vi": {
       "fp": 211,
-      "bd": 19,
+      "bd": 245,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -11541,7 +11541,7 @@
     },
     "ps6000/PicoScope6000Lib/PicoScope6000GetValuesOverlappedBulk.vi": {
       "fp": 211,
-      "bd": 19,
+      "bd": 255,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -11579,7 +11579,7 @@
     },
     "ps6000/PicoScope6000Lib/PicoScope6000IsReady.vi": {
       "fp": 108,
-      "bd": 40,
+      "bd": 130,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -11617,7 +11617,7 @@
     },
     "ps6000/PicoScope6000Lib/PicoScope6000Open.vi": {
       "fp": 212,
-      "bd": 28,
+      "bd": 468,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -11657,7 +11657,7 @@
     },
     "ps6000/PicoScope6000Lib/PicoScope6000RunBlock.vi": {
       "fp": 157,
-      "bd": 48,
+      "bd": 407,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -11695,7 +11695,7 @@
     },
     "ps6000/PicoScope6000Lib/PicoScope6000SetDataBufferBulk.vi": {
       "fp": 421,
-      "bd": 176,
+      "bd": 423,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -11733,7 +11733,7 @@
     },
     "ps6000/PicoScope6000Lib/PicoScope6000SetDataBuffers.vi": {
       "fp": 421,
-      "bd": 182,
+      "bd": 450,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -11771,7 +11771,7 @@
     },
     "ps6000/PicoScope6000Lib/PicoScope6000SetDataBuffersSingle.vi": {
       "fp": 354,
-      "bd": 13,
+      "bd": 338,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -11809,7 +11809,7 @@
     },
     "ps6000/PicoScope6000Lib/PicoScope6000SetRapidSegments.vi": {
       "fp": 134,
-      "bd": 57,
+      "bd": 208,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -11847,7 +11847,7 @@
     },
     "ps6000/PicoScope6000Lib/PicoScope6000Settings.vi": {
       "fp": 467,
-      "bd": 138,
+      "bd": 1618,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -11886,7 +11886,7 @@
     },
     "ps6000/PicoScope6000Lib/PicoScope6000SetupStreaming.vi": {
       "fp": 384,
-      "bd": 24,
+      "bd": 1103,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -11925,7 +11925,7 @@
     },
     "ps6000/PicoScope6000Lib/PicoScope6000Stop.vi": {
       "fp": 99,
-      "bd": 24,
+      "bd": 91,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -11965,7 +11965,7 @@
     },
     "ps6000/PicoScope6000Lib/PicoScope6000UnitInfo.vi": {
       "fp": 175,
-      "bd": 40,
+      "bd": 233,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -12002,7 +12002,7 @@
     },
     "ps6000/PicoScope6000Lib/PicoScope6000WrapSettings.vi": {
       "fp": 199,
-      "bd": 26,
+      "bd": 68,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -12039,7 +12039,7 @@
     },
     "ps6000a/PicoScope6000aExampleAWG.vi": {
       "fp": 562,
-      "bd": 28,
+      "bd": 412,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -12078,7 +12078,7 @@
     },
     "ps6000a/PicoScope6000aExampleAdvancedTrigger.vi": {
       "fp": 2451,
-      "bd": 32,
+      "bd": 1591,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -12116,7 +12116,7 @@
     },
     "ps6000a/PicoScope6000aExampleBlock.vi": {
       "fp": 1272,
-      "bd": 32,
+      "bd": 1540,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -12154,7 +12154,7 @@
     },
     "ps6000a/PicoScope6000aExampleRapidBlockBulkOverlapped.vi": {
       "fp": 1393,
-      "bd": 45,
+      "bd": 1640,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -12192,7 +12192,7 @@
     },
     "ps6000a/PicoScope6000aExampleStreaming.vi": {
       "fp": 1214,
-      "bd": 48,
+      "bd": 1283,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -12231,7 +12231,7 @@
     },
     "ps6000a/PicoScope6000aExampleStreamingQueue.vi": {
       "fp": 1393,
-      "bd": 176,
+      "bd": 3435,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -12271,7 +12271,7 @@
     },
     "ps6000a/PicoScope6000aLib/PicoScope6000aAWG.vi": {
       "fp": 434,
-      "bd": 37,
+      "bd": 1235,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -12311,7 +12311,7 @@
     },
     "ps6000a/PicoScope6000aLib/PicoScope6000aAdvancedTriggerDigital.vi": {
       "fp": 250,
-      "bd": 146,
+      "bd": 764,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -12351,7 +12351,7 @@
     },
     "ps6000a/PicoScope6000aLib/PicoScope6000aAdvancedTriggerPWQ.vi": {
       "fp": 570,
-      "bd": 35,
+      "bd": 1809,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -12391,7 +12391,7 @@
     },
     "ps6000a/PicoScope6000aLib/PicoScope6000aAdvancedTriggerSettings.vi": {
       "fp": 1527,
-      "bd": 35,
+      "bd": 248,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -12431,7 +12431,7 @@
     },
     "ps6000a/PicoScope6000aLib/PicoScope6000aClose.vi": {
       "fp": 101,
-      "bd": 24,
+      "bd": 93,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -12470,7 +12470,7 @@
     },
     "ps6000a/PicoScope6000aLib/PicoScope6000aGetStreamingLatestValues.vi": {
       "fp": 844,
-      "bd": 103,
+      "bd": 728,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -12508,7 +12508,7 @@
     },
     "ps6000a/PicoScope6000aLib/PicoScope6000aGetStreamingValues.vi": {
       "fp": 896,
-      "bd": 110,
+      "bd": 1438,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -12546,7 +12546,7 @@
     },
     "ps6000a/PicoScope6000aLib/PicoScope6000aGetTimebase2.vi": {
       "fp": 217,
-      "bd": 42,
+      "bd": 331,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -12584,7 +12584,7 @@
     },
     "ps6000a/PicoScope6000aLib/PicoScope6000aGetTriggerInfo.vi": {
       "fp": 288,
-      "bd": 39,
+      "bd": 1097,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -12623,7 +12623,7 @@
     },
     "ps6000a/PicoScope6000aLib/PicoScope6000aGetValues.vi": {
       "fp": 162,
-      "bd": 34,
+      "bd": 177,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -12661,7 +12661,7 @@
     },
     "ps6000a/PicoScope6000aLib/PicoScope6000aGetValuesOverlapped.vi": {
       "fp": 206,
-      "bd": 34,
+      "bd": 226,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -12699,7 +12699,7 @@
     },
     "ps6000a/PicoScope6000aLib/PicoScope6000aIsReady.vi": {
       "fp": 109,
-      "bd": 36,
+      "bd": 139,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -12737,7 +12737,7 @@
     },
     "ps6000a/PicoScope6000aLib/PicoScope6000aNearestSampleIntervalStateless.vi": {
       "fp": 300,
-      "bd": 73,
+      "bd": 333,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -12775,7 +12775,7 @@
     },
     "ps6000a/PicoScope6000aLib/PicoScope6000aNextBuffer.vi": {
       "fp": 500,
-      "bd": 226,
+      "bd": 653,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -12813,7 +12813,7 @@
     },
     "ps6000a/PicoScope6000aLib/PicoScope6000aOpen.vi": {
       "fp": 290,
-      "bd": 24,
+      "bd": 686,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -12852,7 +12852,7 @@
     },
     "ps6000a/PicoScope6000aLib/PicoScope6000aProcessStreamingDataTriggerInfo.vi": {
       "fp": 241,
-      "bd": 20,
+      "bd": 589,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -12891,7 +12891,7 @@
     },
     "ps6000a/PicoScope6000aLib/PicoScope6000aProcessStreamingTriggerInfo.vi": {
       "fp": 325,
-      "bd": 25,
+      "bd": 1131,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -12930,7 +12930,7 @@
     },
     "ps6000a/PicoScope6000aLib/PicoScope6000aRunBlock.vi": {
       "fp": 158,
-      "bd": 34,
+      "bd": 357,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -12968,7 +12968,7 @@
     },
     "ps6000a/PicoScope6000aLib/PicoScope6000aSetDataBuffers.vi": {
       "fp": 484,
-      "bd": 190,
+      "bd": 583,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -13006,7 +13006,7 @@
     },
     "ps6000a/PicoScope6000aLib/PicoScope6000aSetRapidSegments.vi": {
       "fp": 136,
-      "bd": 24,
+      "bd": 230,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -13082,7 +13082,7 @@
     },
     "ps6000a/PicoScope6000aLib/PicoScope6000aSetupStreaming.vi": {
       "fp": 773,
-      "bd": 70,
+      "bd": 1434,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -13120,7 +13120,7 @@
     },
     "ps6000a/PicoScope6000aLib/PicoScope6000aStop.vi": {
       "fp": 101,
-      "bd": 24,
+      "bd": 93,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -13159,7 +13159,7 @@
     },
     "ps6000a/PicoScope6000aLib/PicoScope6000aUnitInfo.vi": {
       "fp": 227,
-      "bd": 9,
+      "bd": 293,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -13197,7 +13197,7 @@
     },
     "ps6000a/PicoScope6000aLib/PicoScope6000aaGetValuesBulk.vi": {
       "fp": 205,
-      "bd": 32,
+      "bd": 194,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -13235,7 +13235,7 @@
     },
     "psospa/PicoScopeospaExampleAWG.vi": {
       "fp": 562,
-      "bd": 28,
+      "bd": 418,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -13274,7 +13274,7 @@
     },
     "psospa/PicoScopeospaExampleAdvancedTrigger.vi": {
       "fp": 2478,
-      "bd": 32,
+      "bd": 1599,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -13312,7 +13312,7 @@
     },
     "psospa/PicoScopeospaExampleBlock.vi": {
       "fp": 1284,
-      "bd": 32,
+      "bd": 1364,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -13350,7 +13350,7 @@
     },
     "psospa/PicoScopeospaExampleRapidBlockBulkOverlapped.vi": {
       "fp": 1404,
-      "bd": 45,
+      "bd": 1640,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -13388,7 +13388,7 @@
     },
     "psospa/PicoScopeospaExampleStreamingQueue.vi": {
       "fp": 1405,
-      "bd": 125,
+      "bd": 2769,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -13428,7 +13428,7 @@
     },
     "psospa/PicoScopepsospaLib/PicoScopeospaAWG.vi": {
       "fp": 434,
-      "bd": 37,
+      "bd": 1211,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -13468,7 +13468,7 @@
     },
     "psospa/PicoScopepsospaLib/PicoScopeospaAdvancedTriggerDigital.vi": {
       "fp": 250,
-      "bd": 146,
+      "bd": 764,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -13508,7 +13508,7 @@
     },
     "psospa/PicoScopepsospaLib/PicoScopeospaAdvancedTriggerPWQ.vi": {
       "fp": 570,
-      "bd": 39,
+      "bd": 1753,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -13548,7 +13548,7 @@
     },
     "psospa/PicoScopepsospaLib/PicoScopeospaAdvancedTriggerSettings.vi": {
       "fp": 1536,
-      "bd": 39,
+      "bd": 289,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -13588,7 +13588,7 @@
     },
     "psospa/PicoScopepsospaLib/PicoScopeospaClose.vi": {
       "fp": 101,
-      "bd": 24,
+      "bd": 93,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -13627,7 +13627,7 @@
     },
     "psospa/PicoScopepsospaLib/PicoScopeospaGetStreamingLatestValues.vi": {
       "fp": 844,
-      "bd": 103,
+      "bd": 728,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -13665,7 +13665,7 @@
     },
     "psospa/PicoScopepsospaLib/PicoScopeospaGetTimebase.vi": {
       "fp": 220,
-      "bd": 42,
+      "bd": 331,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -13703,7 +13703,7 @@
     },
     "psospa/PicoScopepsospaLib/PicoScopeospaGetTriggerInfo.vi": {
       "fp": 288,
-      "bd": 39,
+      "bd": 1097,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -13742,7 +13742,7 @@
     },
     "psospa/PicoScopepsospaLib/PicoScopeospaGetValues.vi": {
       "fp": 165,
-      "bd": 34,
+      "bd": 177,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -13780,7 +13780,7 @@
     },
     "psospa/PicoScopepsospaLib/PicoScopeospaGetValuesBulk.vi": {
       "fp": 206,
-      "bd": 34,
+      "bd": 208,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -13818,7 +13818,7 @@
     },
     "psospa/PicoScopepsospaLib/PicoScopeospaGetValuesOverlapped.vi": {
       "fp": 212,
-      "bd": 34,
+      "bd": 226,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -13856,7 +13856,7 @@
     },
     "psospa/PicoScopepsospaLib/PicoScopeospaIsReady.vi": {
       "fp": 109,
-      "bd": 36,
+      "bd": 139,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -13894,7 +13894,7 @@
     },
     "psospa/PicoScopepsospaLib/PicoScopeospaNearestSampleIntervalStateless.vi": {
       "fp": 300,
-      "bd": 73,
+      "bd": 337,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -13932,7 +13932,7 @@
     },
     "psospa/PicoScopepsospaLib/PicoScopeospaNextBuffer.vi": {
       "fp": 499,
-      "bd": 226,
+      "bd": 654,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -13970,7 +13970,7 @@
     },
     "psospa/PicoScopepsospaLib/PicoScopeospaOpen.vi": {
       "fp": 479,
-      "bd": 28,
+      "bd": 749,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -14009,7 +14009,7 @@
     },
     "psospa/PicoScopepsospaLib/PicoScopeospaPowerDetails.vi": {
       "fp": 446,
-      "bd": 20,
+      "bd": 1215,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -14047,7 +14047,7 @@
     },
     "psospa/PicoScopepsospaLib/PicoScopeospaProcessStreamingDataTriggerInfo.vi": {
       "fp": 241,
-      "bd": 20,
+      "bd": 589,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -14086,7 +14086,7 @@
     },
     "psospa/PicoScopepsospaLib/PicoScopeospaProcessStreamingTriggerInfo.vi": {
       "fp": 325,
-      "bd": 25,
+      "bd": 1131,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -14125,7 +14125,7 @@
     },
     "psospa/PicoScopepsospaLib/PicoScopeospaRunBlock.vi": {
       "fp": 158,
-      "bd": 34,
+      "bd": 189,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -14163,7 +14163,7 @@
     },
     "psospa/PicoScopepsospaLib/PicoScopeospaSetDataBuffers.vi": {
       "fp": 484,
-      "bd": 190,
+      "bd": 583,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -14201,7 +14201,7 @@
     },
     "psospa/PicoScopepsospaLib/PicoScopeospaSetRapidSegments.vi": {
       "fp": 136,
-      "bd": 24,
+      "bd": 230,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -14277,7 +14277,7 @@
     },
     "psospa/PicoScopepsospaLib/PicoScopeospaSetupStreaming.vi": {
       "fp": 772,
-      "bd": 70,
+      "bd": 1434,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -14315,7 +14315,7 @@
     },
     "psospa/PicoScopepsospaLib/PicoScopeospaStop.vi": {
       "fp": 101,
-      "bd": 24,
+      "bd": 93,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -14354,7 +14354,7 @@
     },
     "psospa/PicoScopepsospaLib/PicoScopeospaUnitInfo.vi": {
       "fp": 245,
-      "bd": 9,
+      "bd": 552,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -14392,7 +14392,7 @@
     },
     "usbdrdaq/USBDrDAQExampleBlock.vi": {
       "fp": 235,
-      "bd": 68,
+      "bd": 214,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -14428,7 +14428,7 @@
     },
     "usbdrdaq/USBDrDAQExampleStreaming.vi": {
       "fp": 1745,
-      "bd": 14,
+      "bd": 730,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -14464,7 +14464,7 @@
     },
     "usbdrdaq/USBDrDAQLib/USBDrDAQChannelScaling.vi": {
       "fp": 166,
-      "bd": 30,
+      "bd": 343,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -14503,7 +14503,7 @@
     },
     "usbdrdaq/USBDrDAQLib/USBDrDAQClose.vi": {
       "fp": 20,
-      "bd": 19,
+      "bd": 23,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -14541,7 +14541,7 @@
     },
     "usbdrdaq/USBDrDAQLib/USBDrDAQGPIO.vi": {
       "fp": 387,
-      "bd": 141,
+      "bd": 1841,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -14580,7 +14580,7 @@
     },
     "usbdrdaq/USBDrDAQLib/USBDrDAQGetBlock.vi": {
       "fp": 167,
-      "bd": 29,
+      "bd": 303,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -14619,7 +14619,7 @@
     },
     "usbdrdaq/USBDrDAQLib/USBDrDAQGetStreamingData.vi": {
       "fp": 168,
-      "bd": 31,
+      "bd": 156,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -14658,7 +14658,7 @@
     },
     "usbdrdaq/USBDrDAQLib/USBDrDAQLEDControl.vi": {
       "fp": 134,
-      "bd": 18,
+      "bd": 186,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -14697,7 +14697,7 @@
     },
     "usbdrdaq/USBDrDAQLib/USBDrDAQOpen.vi": {
       "fp": 90,
-      "bd": 8,
+      "bd": 64,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -14736,7 +14736,7 @@
     },
     "usbdrdaq/USBDrDAQLib/USBDrDAQSettings.vi": {
       "fp": 232,
-      "bd": 62,
+      "bd": 220,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -14775,7 +14775,7 @@
     },
     "usbdrdaq/USBDrDAQLib/USBDrDAQSigGen.vi": {
       "fp": 194,
-      "bd": 29,
+      "bd": 275,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -14814,7 +14814,7 @@
     },
     "usbdrdaq/USBDrDAQLib/USBDrDAQStartStreaming.vi": {
       "fp": 108,
-      "bd": 19,
+      "bd": 210,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -14853,7 +14853,7 @@
     },
     "usbpt104/USBPT104Example.vi": {
       "fp": 622,
-      "bd": 44,
+      "bd": 1255,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -14892,7 +14892,7 @@
     },
     "usbpt104/usbpt104Lib/usbpt104ChannelSetting.vi": {
       "fp": 194,
-      "bd": 10,
+      "bd": 280,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -14929,7 +14929,7 @@
     },
     "usbpt104/usbpt104Lib/usbpt104Close.vi": {
       "fp": 101,
-      "bd": 24,
+      "bd": 92,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -14968,7 +14968,7 @@
     },
     "usbpt104/usbpt104Lib/usbpt104GetValue.vi": {
       "fp": 192,
-      "bd": 42,
+      "bd": 647,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -15005,7 +15005,7 @@
     },
     "usbpt104/usbpt104Lib/usbpt104Open.vi": {
       "fp": 278,
-      "bd": 34,
+      "bd": 884,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -15044,7 +15044,7 @@
     },
     "usbpt104/usbpt104Lib/usbpt104UnitInfo.vi": {
       "fp": 219,
-      "bd": 49,
+      "bd": 261,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -15082,7 +15082,7 @@
     },
     "usbtc08/USBTC08Example2UnitSelect.vi": {
       "fp": 512,
-      "bd": 26,
+      "bd": 955,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -15119,7 +15119,7 @@
     },
     "usbtc08/USBTC08ExampleMultiUnitSelect.vi": {
       "fp": 527,
-      "bd": 113,
+      "bd": 2697,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -15156,7 +15156,7 @@
     },
     "usbtc08/USBTC08GetSingleExample.vi": {
       "fp": 452,
-      "bd": 28,
+      "bd": 400,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -15195,7 +15195,7 @@
     },
     "usbtc08/USBTC08Lib/GetReadings.vi": {
       "fp": 240,
-      "bd": 52,
+      "bd": 1045,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -15231,7 +15231,7 @@
     },
     "usbtc08/USBTC08Lib/SelectUnit.vi": {
       "fp": 60,
-      "bd": 40,
+      "bd": 151,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -15266,7 +15266,7 @@
     },
     "usbtc08/USBTC08Lib/USBTC08ChannelSetting.vi": {
       "fp": 247,
-      "bd": 10,
+      "bd": 414,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -15303,7 +15303,7 @@
     },
     "usbtc08/USBTC08Lib/USBTC08Close.vi": {
       "fp": 101,
-      "bd": 28,
+      "bd": 163,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -15340,7 +15340,7 @@
     },
     "usbtc08/USBTC08Lib/USBTC08GetInfo.vi": {
       "fp": 187,
-      "bd": 48,
+      "bd": 237,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -15377,7 +15377,7 @@
     },
     "usbtc08/USBTC08Lib/USBTC08GetSingle.vi": {
       "fp": 143,
-      "bd": 32,
+      "bd": 126,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -15414,7 +15414,7 @@
     },
     "usbtc08/USBTC08Lib/USBTC08OpenUnit.vi": {
       "fp": 102,
-      "bd": 15,
+      "bd": 172,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -15451,7 +15451,7 @@
     },
     "usbtc08/USBTC08Lib/USBTC08SetMainsFrequency.vi": {
       "fp": 106,
-      "bd": 28,
+      "bd": 74,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -15488,7 +15488,7 @@
     },
     "usbtc08/USBTC08Lib/USBTC08StreamingGetTemp.vi": {
       "fp": 204,
-      "bd": 12,
+      "bd": 470,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -15524,7 +15524,7 @@
     },
     "usbtc08/USBTC08Lib/USBTC08StreamingRun.vi": {
       "fp": 108,
-      "bd": 28,
+      "bd": 134,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -15561,7 +15561,7 @@
     },
     "usbtc08/USBTC08Lib/USBTC08errorhandler.vi": {
       "fp": 140,
-      "bd": 117,
+      "bd": 334,
       "blocks": [
         "BDEx",
         "BDHb",
@@ -15598,7 +15598,7 @@
     },
     "usbtc08/USBTC08StreamingExample.vi": {
       "fp": 460,
-      "bd": 28,
+      "bd": 941,
       "blocks": [
         "BDEx",
         "BDHb",
