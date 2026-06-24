@@ -42,4 +42,26 @@ void main() {
       expect(c.header.length + c.dataArea.length + c.infoArea.length, bytes.length);
     });
   });
+
+  group('ViExport.rebuildDataArea', () {
+    test('serializes sections as [u32 len][payload] and gaps verbatim', () {
+      final out = ViExport.rebuildDataArea([
+        ViSectionData(secRel: 0, payload: Uint8List.fromList([1, 2, 3])),
+        ViGap(Uint8List.fromList([0, 0])),
+        ViSectionData(secRel: 9, payload: Uint8List.fromList([9])),
+      ]);
+      expect(out, orderedEquals([
+        0, 0, 0, 3, 1, 2, 3, // section: len=3 + payload
+        0, 0, //                 gap
+        0, 0, 0, 1, 9, //        section: len=1 + payload
+      ]));
+    });
+
+    test('editing a payload recomputes its length prefix', () {
+      final out = ViExport.rebuildDataArea([
+        ViSectionData(secRel: 0, payload: Uint8List.fromList([7, 7, 7, 7, 7])), // grew to 5
+      ]);
+      expect(out, orderedEquals([0, 0, 0, 5, 7, 7, 7, 7, 7]));
+    });
+  });
 }

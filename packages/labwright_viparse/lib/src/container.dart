@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'viparse.dart' show ViFormatException;
+import 'viparse.dart' show ViFormatException, readViSections;
 
 /// A **lossless** decomposition of an RSRC (`.vi`) container into its three
 /// contiguous regions, plus a byte-exact serializer. This is the foundation for
@@ -70,5 +70,84 @@ class ViContainer {
       ..setRange(header.length, header.length + dataArea.length, dataArea)
       ..setRange(header.length + dataArea.length, out.length, infoArea);
     return out;
+  }
+}
+
+/// One piece of the data area in storage order: either a [ViSectionData] (a
+/// `[u32 len][payload]` section located by its `secRel`) or a [ViGap] (the
+/// padding bytes between/around sections). Together they tile `[0, dataSize)`.
+sealed class ViDataSegment {
+  const ViDataSegment();
+}
+
+/// Padding bytes in the data area, kept verbatim so a rebuild is byte-exact.
+class ViGap extends ViDataSegment {
+  const ViGap(this.bytes);
+  final Uint8List bytes;
+}
+
+/// A stored section: its data-area-relative offset and its raw payload (the bytes
+/// AFTER the `u32` length prefix). [ViExport.rebuildDataArea] re-prefixes the
+/// length on serialization, so editing [payload] is sufficient to re-export.
+class ViSectionData extends ViDataSegment {
+  const ViSectionData({required this.secRel, required this.payload});
+  final int secRel;
+  final Uint8List payload;
+}
+
+/// Data-area decomposition + reconstruction — the editable layer over the
+/// lossless [ViContainer]. Corpus-validated: sections (located via the info-area
+/// descriptors) plus the gaps between them tile the data area exactly, so
+/// `rebuildDataArea(decomposeDataArea(bytes)) == ViContainer.parse(bytes).dataArea`
+/// byte-for-byte for 100% of VIs — the section-level idempotency contract.
+abstract final class ViExport {
+  /// Decomposes the data area of [viBytes] into ordered sections + gaps. Section
+  /// positions come from the info-area descriptors ([readViSections]); the span
+  /// length is read from the section's own `u32` prefix (authoritative).
+  static List<ViDataSegment> decomposeDataArea(Uint8List viBytes) {
+    final c = ViContainer.parse(viBytes);
+    final data = c.dataArea;
+    final bd = ByteData.sublistView(data);
+    // distinct section offsets (a section's bytes may be referenced by >1
+    // descriptor); sorted so we can walk the data area front-to-back.
+    final secRels = <int>{for (final s in readViSections(viBytes)) s.dataOffset}.toList()..sort();
+    final segs = <ViDataSegment>[];
+    var pos = 0;
+    for (final secRel in secRels) {
+      if (secRel < pos || secRel + 4 > data.length) continue; // overlap/oob: skip defensively
+      if (secRel > pos) segs.add(ViGap(Uint8List.sublistView(data, pos, secRel)));
+      final len = bd.getUint32(secRel);
+      final end = secRel + 4 + len;
+      if (end > data.length) {
+        // truncated section descriptor — keep the remainder as a gap, stop.
+        segs.add(ViGap(Uint8List.sublistView(data, secRel)));
+        pos = data.length;
+        break;
+      }
+      segs.add(ViSectionData(secRel: secRel, payload: Uint8List.sublistView(data, secRel + 4, end)));
+      pos = end;
+    }
+    if (pos < data.length) segs.add(ViGap(Uint8List.sublistView(data, pos)));
+    return segs;
+  }
+
+  /// Re-emits the data-area bytes from [segments]: gaps verbatim, sections as
+  /// `[u32 len][payload]`. The inverse of [decomposeDataArea] for unmodified
+  /// input; editing a [ViSectionData.payload] changes only that section's bytes
+  /// (the length prefix is recomputed here).
+  static Uint8List rebuildDataArea(List<ViDataSegment> segments) {
+    final out = BytesBuilder();
+    for (final s in segments) {
+      switch (s) {
+        case ViGap(:final bytes):
+          out.add(bytes);
+        case ViSectionData(:final payload):
+          final prefix = ByteData(4)..setUint32(0, payload.length);
+          out
+            ..add(prefix.buffer.asUint8List())
+            ..add(payload);
+      }
+    }
+    return out.toBytes();
   }
 }

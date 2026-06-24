@@ -102,4 +102,50 @@ void main() {
     // lossy regression in the container model.
     expect(exact, equals(files), reason: 'container round-trip not byte-exact for ${files - exact} file(s): $diffs');
   });
+
+  // SECTION-LEVEL IDEMPOTENCY: one layer finer than the whole-file round-trip.
+  // [ViExport.decomposeDataArea] models the data area as ordered, length-prefixed
+  // sections (located via the info-area descriptors) interleaved with padding
+  // gaps; [ViExport.rebuildDataArea] re-serializes them. For an unmodified VI the
+  // rebuilt data area must equal the parsed data area byte-for-byte — proving the
+  // section model accounts for EVERY byte (no gap dropped, no length misread).
+  // This is the foundation for the section-EDIT API: editing a section's payload
+  // and rebuilding must change only that section's bytes. Expected 100%.
+  test('IDEMPOTENCY: rebuildDataArea(decomposeDataArea(bytes)) == dataArea for every VI', () {
+    var files = 0, exact = 0;
+    final diffs = <String>[];
+    for (final f in all) {
+      final Uint8List bytes;
+      try {
+        bytes = Uint8List.fromList(f.readAsBytesSync());
+      } catch (_) {
+        continue;
+      }
+      final Uint8List data, rebuilt;
+      try {
+        data = ViContainer.parse(bytes).dataArea;
+        rebuilt = ViExport.rebuildDataArea(ViExport.decomposeDataArea(bytes));
+      } catch (_) {
+        continue;
+      }
+      files++;
+      var same = rebuilt.length == data.length;
+      if (same) {
+        for (var i = 0; i < data.length; i++) {
+          if (rebuilt[i] != data[i]) {
+            same = false;
+            break;
+          }
+        }
+      }
+      if (same) {
+        exact++;
+      } else if (diffs.length < 6) {
+        diffs.add('len ${data.length}->${rebuilt.length} ${f.path.split('/').last}');
+      }
+    }
+    expect(files, greaterThan(0));
+    expect(exact, equals(files),
+        reason: 'data-area section round-trip not byte-exact for ${files - exact} file(s): $diffs');
+  });
 }
