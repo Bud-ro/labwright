@@ -251,6 +251,23 @@ void main() {
       expect(vi.header.dataOffset, 32);
       expect(vi.infoArea.blockList.count, 0);
     });
+
+    test('withSectionEdited rejects a secRel that is not a section start', () {
+      final bytes = _container([1, 2, 3, 4], [
+        for (var i = 0; i < 0x34; i++) 0,
+        0, 0, 0, 0, // block list count = 0 (no sections)
+        7, 7,
+      ]);
+      final info = bytes.sublist(36);
+      info.setRange(0, 6, const [0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a]);
+      ByteData.sublistView(info).setUint32(0x2c, 0x34);
+      bytes.setRange(36, bytes.length, info);
+      final vi = ViVi.parse(bytes);
+      expect(
+        () => vi.withSectionEdited(secRel: 0, newPayload: Uint8List.fromList([9])),
+        throwsA(isA<ViFormatException>()),
+      );
+    });
   });
 
   group('ViExport.rebuildDataArea', () {

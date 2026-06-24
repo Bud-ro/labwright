@@ -611,6 +611,17 @@ class ViVi {
   /// The data-area sections (length-prefixed payloads), in storage order.
   Iterable<ViSectionData> get sections => dataSegments.whereType<ViSectionData>();
 
+  /// Returns a NEW, coherent [ViVi] with the section at [secRel] replaced by
+  /// [newPayload] — the **safe** way to edit. It routes through the corpus-tested
+  /// [ViExport.editSection], which applies every offset fixup (the section's
+  /// length prefix, later sections' bytes + descriptor `secRel`s, and the header
+  /// `dataSize`/`infoOffset`), so the result re-parses and re-serializes exactly.
+  /// (Mutating [dataSegments]/[ViSectionData.payload] in place and re-serializing
+  /// does NOT recompute those offsets and would desync — always use this.)
+  /// Throws [ViFormatException] if [secRel] is not a section start.
+  ViVi withSectionEdited({required int secRel, required Uint8List newPayload}) =>
+      ViVi.parse(ViExport.editSection(serialize(), secRel: secRel, newPayload: newPayload));
+
   Uint8List serialize() {
     final h = header.serialize();
     final data = ViExport.rebuildDataArea(dataSegments);

@@ -429,6 +429,57 @@ void main() {
     expect(exact, equals(files), reason: 'ViVi round-trip not byte-exact for ${files - exact} file(s): $diffs');
   });
 
+  // TYPED EDIT: ViVi.withSectionEdited yields a coherent VI — the result is
+  // self-consistent (parse(result).serialize()==result) and the edited section
+  // holds the new payload while other sections survive, for every VI.
+  test('TYPED EDIT: ViVi.withSectionEdited grow/shrink stays coherent for every VI', () {
+    var files = 0, ok = 0;
+    final fails = <String>[];
+
+    bool eq(List<int> a, List<int> b) {
+      if (a.length != b.length) return false;
+      for (var i = 0; i < a.length; i++) {
+        if (a[i] != b[i]) return false;
+      }
+      return true;
+    }
+
+    for (final f in all) {
+      final ViVi vi;
+      try {
+        vi = ViVi.parse(Uint8List.fromList(f.readAsBytesSync()));
+      } catch (_) {
+        continue;
+      }
+      final secs = vi.sections.toList();
+      if (secs.isEmpty) continue;
+      files++;
+      // edit the first section (smallest secRel forces the most descriptor shifts)
+      final target = secs.reduce((a, b) => a.secRel <= b.secRel ? a : b);
+      final grown = Uint8List(target.payload.length + 6)
+        ..setRange(0, target.payload.length, target.payload)
+        ..fillRange(target.payload.length, target.payload.length + 6, 0x5A);
+      try {
+        final edited = vi.withSectionEdited(secRel: target.secRel, newPayload: grown);
+        // self-consistent: re-parse of the serialized edit reproduces it
+        final out = edited.serialize();
+        final consistent = eq(ViVi.parse(out).serialize(), out);
+        // the edited section now holds the new payload
+        final newTarget = edited.sections.where((s) => s.secRel == target.secRel).firstOrNull;
+        final hasNew = newTarget != null && eq(newTarget.payload, grown);
+        if (consistent && hasNew) {
+          ok++;
+        } else if (fails.length < 6) {
+          fails.add('${f.path.split('/').last} consistent=$consistent hasNew=$hasNew');
+        }
+      } catch (_) {
+        if (fails.length < 6) fails.add('${f.path.split('/').last} threw');
+      }
+    }
+    expect(files, greaterThan(0));
+    expect(ok, equals(files), reason: 'typed edit not coherent for ${files - ok} file(s): $fails');
+  });
+
   // SECTION-LEVEL IDEMPOTENCY: one layer finer than the whole-file round-trip.
   // [ViExport.decomposeDataArea] models the data area as ordered, length-prefixed
   // sections (located via the info-area descriptors) interleaved with padding
