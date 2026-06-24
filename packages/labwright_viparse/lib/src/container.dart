@@ -258,19 +258,32 @@ class ViSectionDescriptor {
   /// here). // TODO(labwright): identify this word.
   final int word8;
 
-  /// `u32 @12` — a **name-table reference** for the section (0 when the section
-  /// is unnamed; non-zero for ~25% of sections). // TODO(labwright): resolve the
-  /// exact name-table addressing this references.
+  /// `u32 @12` — a **1-based index into a VI-wide name table** for the section
+  /// (`0` ⇒ unnamed; non-zero for ~25% of sections). Probed over all 7583 corpus
+  /// VIs: values are small (global max 360) and equal names share an index, so
+  /// this is an *index*, not an inline byte offset. It is also NOT an index into
+  /// the descriptor array — it exceeds the descriptor/section count in ~12% of
+  /// named sections — so the name table is a separate structure.
+  // TODO(labwright): locate the name table's bytes. Ruled out: the post-descriptor
+  // region (too small) and any section payload as a plain `[u32 count][pascal…]`
+  // list (no section parses as one). Likely embedded in the heap/type metadata.
   final int nameRef;
 
-  /// `u32 @16` — `0xFFFFFFFF` marks a real section descriptor; any other value
-  /// marks a name-table row (which reuses the 20-byte slot for other purposes).
+  /// `u32 @16` — discriminates the two uses of this 20-byte slot. Across the full
+  /// corpus it is exactly binary: `0xFFFFFFFF` marks a real section descriptor;
+  /// `0` marks a name-table row (every one of the 4770 corpus rows carries `0`
+  /// here — no other value occurs).
   final int sentinel;
 
   static const int sectionSentinel = 0xFFFFFFFF;
 
   /// Whether this record is a section descriptor (vs a name-table row).
   bool get isSection => sentinel == sectionSentinel;
+
+  /// Whether this section carries a name (a non-zero [nameRef] index). Always
+  /// false for name-table rows. The name itself is not yet resolvable — see
+  /// [nameRef] — but a caller can already tell named sections from anonymous ones.
+  bool get isNamed => isSection && nameRef != 0;
 
   /// Parses the 20-byte record (five big-endian `u32`s) at [at] within [info].
   factory ViSectionDescriptor.parse(Uint8List info, int at) {

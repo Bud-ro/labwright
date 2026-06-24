@@ -163,6 +163,7 @@ void main() {
       expect(sd.nameRef, 0x55);
       expect(sd.sentinel, 0xFFFFFFFF);
       expect(sd.isSection, isTrue);
+      expect(sd.isNamed, isTrue); // nameRef 0x55 != 0
       expect(sd.serialize(), orderedEquals(rec.sublist(4, 24)));
       expect(d.getUint16(0), 0); // padding before the descriptor untouched
     });
@@ -171,6 +172,25 @@ void main() {
       final rec = Uint8List(20);
       ByteData.sublistView(rec).setUint32(16, 0); // not the sentinel
       expect(ViSectionDescriptor.parse(rec, 0).isSection, isFalse);
+    });
+
+    test('isNamed reflects the nameRef index (0 = unnamed; rows never named)', () {
+      // a section descriptor with nameRef 0 is unnamed
+      final unnamed = Uint8List(20);
+      ByteData.sublistView(unnamed).setUint32(16, 0xFFFFFFFF); // sentinel only
+      expect(ViSectionDescriptor.parse(unnamed, 0).isNamed, isFalse);
+      // a named section descriptor
+      final named = Uint8List(20);
+      ByteData.sublistView(named)
+        ..setUint32(12, 7) // nameRef = index 7
+        ..setUint32(16, 0xFFFFFFFF);
+      expect(ViSectionDescriptor.parse(named, 0).isNamed, isTrue);
+      // a name-table row is never "named" even if its @12 word is non-zero
+      final row = Uint8List(20);
+      ByteData.sublistView(row).setUint32(12, 9); // @16 stays 0 -> a row
+      final r = ViSectionDescriptor.parse(row, 0);
+      expect(r.isSection, isFalse);
+      expect(r.isNamed, isFalse);
     });
   });
 

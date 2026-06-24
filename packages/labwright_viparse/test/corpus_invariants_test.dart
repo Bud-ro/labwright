@@ -354,6 +354,46 @@ void main() {
     expect(peeled, greaterThan((files * 0.90).floor()), reason: 'descriptor table not peeled: only $peeled/$files');
   });
 
+  // DESCRIPTOR @16 IS BINARY: every descriptor record is either a section
+  // descriptor (@16 == 0xFFFFFFFF) or a name-table row (@16 == 0) — no third
+  // value occurs across the corpus. And every section's nameRef is a small index
+  // (full-corpus global max 360), confirming it is an index, not a byte offset.
+  test('INFO-AREA: descriptor @16 is binary (section sentinel | row 0); nameRef is index-like', () {
+    var files = 0;
+    var maxNameRef = 0;
+    final badSentinels = <String>[];
+    for (final f in all) {
+      final Uint8List bytes;
+      try {
+        bytes = Uint8List.fromList(f.readAsBytesSync());
+      } catch (_) {
+        continue;
+      }
+      final ViInfoArea ia;
+      try {
+        ia = ViContainer.parse(bytes).parsedInfoArea;
+      } catch (_) {
+        continue;
+      }
+      if (ia.descriptors.isEmpty) continue;
+      files++;
+      for (final d in ia.descriptors) {
+        // @16 must be exactly the section sentinel or exactly 0 (a name row).
+        if (d.sentinel != ViSectionDescriptor.sectionSentinel && d.sentinel != 0) {
+          if (badSentinels.length < 6) {
+            badSentinels.add('${f.path.split('/').last}: @16=0x${d.sentinel.toRadixString(16)}');
+          }
+        }
+        if (d.isSection && d.nameRef > maxNameRef) maxNameRef = d.nameRef;
+      }
+    }
+    expect(files, greaterThan(0));
+    expect(badSentinels, isEmpty, reason: 'descriptor @16 not binary: $badSentinels');
+    // index-like (not an offset): a generous ceiling well above the probed max
+    // of 360, but far below the byte-offset range a real offset would span.
+    expect(maxNameRef, lessThan(100000), reason: 'nameRef looks like an offset, not an index: max $maxNameRef');
+  });
+
   // NAME TABLE: the typed name table recovers the trailing VI name for ~all VIs,
   // and it matches parseVi's independently-read trailing name.
   test('INFO-AREA: name table recovers the trailing VI name for ~all VIs', () {
