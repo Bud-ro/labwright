@@ -18,6 +18,10 @@ const int _captionCap = 50;
 /// trailing "outside the nesting tree" coverage pass, so nothing is dropped.
 const int _maxNestingDepth = 96;
 
+/// Max characters of the VI's description shown in the header (truncated with an
+/// ellipsis). Descriptions are usually a line or two but can be long help text.
+const int _descCap = 200;
+
 /// Generates an **honest structural Dart scaffold** from a decoded [ViModel] —
 /// the first VI→IR→Dart codegen step. It is deliberately NOT executable logic:
 /// LabVIEW stores wires as pure geometry with no recoverable node→node
@@ -43,6 +47,11 @@ String generateDartScaffold(ViModel model, {String name = 'vi'}) {
     ..writeln('// LabVIEW wires are geometry with no recoverable endpoints, so this is a')
     ..writeln('// STRUCTURAL OUTLINE of the block diagram, not executable logic. Fill in.');
   if (model.version != null) b.writeln('// Saved in LabVIEW ${model.version}.');
+  final desc = model.description?.trim();
+  if (desc != null && desc.isNotEmpty) {
+    final one = _oneLine(desc);
+    b.writeln('// Description: ${one.length > _descCap ? '${one.substring(0, _descCap)}…' : one}');
+  }
   if (model.symbolNames.isNotEmpty) {
     b.writeln('// Call-Library functions referenced:');
     for (final s in model.symbolNames) {

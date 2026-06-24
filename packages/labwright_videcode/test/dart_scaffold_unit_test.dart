@@ -13,14 +13,19 @@ ViHeapObject _obj(int oid, ViObjectKind cat, {int? parent, String? label}) {
   return o;
 }
 
-ViModel _model(List<ViHeapObject> objs) =>
-    ViModel(version: null, title: null, components: const [], stringTables: const [], heapRecords: const [],
-        blockDiagrams: [ViDiagram(sectionTag: 'BDHb', objects: objs)]);
+ViModel _model(List<ViHeapObject> objs, {String? description}) =>
+    ViModel(version: null, title: null, description: description, components: const [], stringTables: const [],
+        heapRecords: const [], blockDiagrams: [ViDiagram(sectionTag: 'BDHb', objects: objs)]);
 
 void main() {
   test('always carries the honest no-dataflow marker', () {
     final out = generateDartScaffold(_model([_obj(1, ViObjectKind.node)]));
     expect(out, contains(scaffoldMarker));
+  });
+
+  test('the VI description is surfaced in the header (one-lined)', () {
+    final out = generateDartScaffold(_model([_obj(1, ViObjectKind.node)], description: 'Reads a\nPicoScope channel.'));
+    expect(out, contains('// Description: Reads a PicoScope channel.'));
   });
 
   test('orphan (parent missing) is still emitted via the re-root path', () {
