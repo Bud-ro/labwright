@@ -347,6 +347,14 @@ enum HeapAttribute {
   /// of the rect/glyph sub-element. Confirmed by its strict sequence.
   elementOrdinal(0xdc, HeapAttrKind.ordinal, 'elementOrdinal', AttrConfidence.confirmed),
 
+  /// `0x63` / `0x64` — a **paired pixel rectangle block** carried as
+  /// `C5/C6 63|64 08 <4× s16>` (NOT f64). Corpus-confirmed shape: 100% valid
+  /// rectangles, 0% sane f64; the two appear together (identical paired rects:
+  /// e.g. 75×75, 768×432) followed by a colour attribute — a bounds/size rect
+  /// pair plus fill on an object. Role (which is bounds vs size) not pinned.
+  rectFieldA(0x63, HeapAttrKind.rectangle, 'rectFieldA', AttrConfidence.inferred),
+  rectFieldB(0x64, HeapAttrKind.rectangle, 'rectFieldB', AttrConfidence.inferred),
+
   /// `0x9F` — **front-panel packed flags** (`u16`, 123 distinct values like
   /// 33616/560/16944 — bitfield-shaped), scoped to front-panel controls (kind
   /// 0x17) in the chain `…15 → E7 → 9F`. A packed property bitfield. (~147k recs.)
@@ -539,7 +547,16 @@ class HeapAttr {
     if (width == HeapAttrWidth.f64) return HeapAttrKind.controlParam;
     if (width == HeapAttrWidth.blob) return HeapAttrKind.stringBlob;
     if (width == HeapAttrWidth.rect) return HeapAttrKind.rectangle;
-    if (width == HeapAttrWidth.rgb) return HeapAttrKind.color; // `8x`/`84` form is always a colour
+    if (width == HeapAttrWidth.rgb) {
+      // The `8x`/`84` form is an RGB tuple for colour ids and for rect-dual ids
+      // (e.g. 0x29, whose other form is a rect — its `84` form is an accent
+      // colour). But many catalogued ids appear in the 4-byte form carrying
+      // packed ASCII/integers, NOT colour (textStyle="Pane", formatStyle="%.0f",
+      // packedValue, ordinals) — those must keep their catalogued kind.
+      return (attribute.kind == HeapAttrKind.color || attribute.kind == HeapAttrKind.rectangle)
+          ? HeapAttrKind.color
+          : attribute.kind;
+    }
     return attribute.kind;
   }
 
@@ -563,23 +580,29 @@ class HeapAttr {
 }
 
 /// Attribute ids whose `C5/C6 <id> 08` 8-byte payload is a 4× `s16` rectangle
-/// rather than an `f64` (see [HeapAttribute.terminalRect]). Only `0x29` is in the
-/// set for now — corpus-validated at 100% rectangle / 0% sane-f64.
-const Set<int> _rectPayloadIds = {0x29};
+/// rather than an `f64` (see [HeapAttribute.terminalRect]). Corpus-validated at
+/// 100% rectangle / 0% sane-f64: `0x29`, and the `0x63`/`0x64` paired-rect block.
+const Set<int> _rectPayloadIds = {0x29, 0x63, 0x64};
+
+/// Attribute ids whose `C5/C6 <id> 08` 8-byte payload is a genuine IEEE-754
+/// `f64` (corpus-validated ≈99–100% sane doubles): the numeric-control parameter
+/// family plus `0x22`. Every OTHER id at `…08` is NOT assumed to be an f64 —
+/// blindly reading e.g. `0xE7` (a container) as a double yields garbage, so
+/// uncatalogued `…08` records are left framed-but-undecoded (return null).
+const Set<int> _f64PayloadIds = {0xf5, 0xf6, 0xf7, 0xf8, 0xf9, 0xfa, 0x22};
 
 /// Decodes an attribute-style record at [offset] in a heap [body], or returns
 /// null if the byte there does not introduce a known attribute form. Handles the
-/// `2x/4x/6x/8x/Ex` nibble family, `C5`/`C6 …08` (an `f64` control param, or a
-/// rectangle for [_rectPayloadIds]), and `C6 …FF` (string blob). The id is looked
-/// up in the [HeapAttribute] catalog.
+/// `2x/4x/6x/8x/Ex` nibble family, `C5`/`C6 …08` (a rectangle for
+/// [_rectPayloadIds], an `f64` for [_f64PayloadIds], else undecoded), and
+/// `C6 …FF` (string blob). The id is looked up in the [HeapAttribute] catalog.
 HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
   if (offset + 2 > body.length) return null;
   final op = body[offset];
 
   // C5/C6 <id> 08 <8-byte payload>. The `08` is a payload-LENGTH byte (the same
   // `Cx <id> <u8 len>` framing recordSkip uses), so the 8 bytes are *not*
-  // universally an f64: for [_rectPayloadIds] they are a 4× s16 rectangle (the
-  // f64 reading there is garbage — corpus-confirmed). Decode by id.
+  // universally an f64 — their type depends on the id (corpus-confirmed).
   if ((op == 0xc5 || op == 0xc6) && offset + 11 <= body.length && body[offset + 2] == 0x08) {
     final id = body[offset + 1];
     if (_rectPayloadIds.contains(id)) {
@@ -588,8 +611,11 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
         return HeapAttr(attribute: HeapAttribute.fromId(id), id: id, width: HeapAttrWidth.rect, value: rect, length: 11);
       }
     }
-    final v = ByteData.sublistView(body, offset + 3, offset + 11).getFloat64(0);
-    return HeapAttr(attribute: HeapAttribute.fromId(id), id: id, width: HeapAttrWidth.f64, value: v, length: 11);
+    if (_f64PayloadIds.contains(id)) {
+      final v = ByteData.sublistView(body, offset + 3, offset + 11).getFloat64(0);
+      return HeapAttr(attribute: HeapAttribute.fromId(id), id: id, width: HeapAttrWidth.f64, value: v, length: 11);
+    }
+    return null; // uncatalogued …08 payload — framed by recordSkip, meaning undecoded
   }
 
   // C6 <id> FF <u16 len> <u32 strlen><ascii…> — string/blob.

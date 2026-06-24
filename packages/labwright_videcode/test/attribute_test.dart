@@ -129,6 +129,43 @@ void main() {
       expect(a.asRect, isNull);
       expect(a.asDouble, -1.0);
     });
+
+    test('0x63/0x64 paired-rect block decodes as rectangles, not garbage f64', () {
+      final a = decodeHeapAttr(Uint8List.fromList([0xc5, 0x63, 0x08, 0, 0, 0, 0, 0, 75, 0, 75]), 0)!;
+      expect(a.attribute, HeapAttribute.rectFieldA);
+      expect(a.kind, HeapAttrKind.rectangle);
+      expect(a.asRect!.height, 75);
+      expect(a.asDouble, isNull);
+      final b = decodeHeapAttr(Uint8List.fromList([0xc5, 0x64, 0x08, 0, 0, 0, 0, 0, 75, 0, 75]), 0)!;
+      expect(b.attribute, HeapAttribute.rectFieldB);
+      expect(b.kind, HeapAttrKind.rectangle);
+    });
+
+    test('an uncatalogued …08 id (0xE7) is NOT read as a garbage f64', () {
+      // C5 E7 08 <8 bytes> — a container, not a double; must stay undecoded.
+      final rec = Uint8List.fromList([0xc5, 0xe7, 0x08, 0x00, 0x10, 0x00, 0x20, 0x00, 0x30, 0x00, 0x40]);
+      expect(decodeHeapAttr(rec, 0), isNull);
+    });
+  });
+
+  group('rgb-width kind resolution is honest', () {
+    test('catalogued colour ids resolve to colour', () {
+      final a = decodeHeapAttr(Uint8List.fromList([0x84, 0x28, 0xff, 0x12, 0x34, 0x56]), 0)!;
+      expect(a.kind, HeapAttrKind.color);
+      expect(a.rgb, 0x123456);
+    });
+
+    test('non-colour ids in the 84/8x form keep their catalogued kind (not fake colour)', () {
+      // 0x22 textStyle carries packed ASCII in the 4-byte form — must NOT be a colour.
+      final text = decodeHeapAttr(Uint8List.fromList([0x84, 0x22, 0x50, 0x61, 0x6e, 0x65]), 0)!; // "Pane"
+      expect(text.attribute, HeapAttribute.textStyle);
+      expect(text.kind, HeapAttrKind.text);
+      expect(text.rgb, isNull);
+      // 0x74 formatStyle likewise.
+      final fmt = decodeHeapAttr(Uint8List.fromList([0x84, 0x74, 0x25, 0x2e, 0x30, 0x66]), 0)!; // "%.0f"
+      expect(fmt.kind, HeapAttrKind.text);
+      expect(fmt.rgb, isNull);
+    });
   });
 
   group('dual-use resolution by width', () {
