@@ -112,6 +112,33 @@ void main() {
     expect(find.text('OFF'), findsOneWidget);
   });
 
+  testWidgets('Faithful mode wraps a control carrying decoded help text in a Tooltip', (tester) async {
+    tester.view.physicalSize = const Size(1000, 1000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    List<int> c6blob(int id, String s) {
+      final len = 4 + s.length;
+      return [0xc6, id, 0xff, len >> 8, len & 0xff, 0, 0, 0, s.length, ...s.codeUnits];
+    }
+    final records = <int>[
+      ...open(0x7e, 1), ...bounds(0, 0, 400, 400),
+      ...open(0x50, 2, tag: 0x1a), ...bounds(20, 20, 60, 200), ...c6blob(0x6c, 'help here'),
+      ...close(0x1a),
+      ...close(),
+    ];
+    final model = _modelFromRecords([0, 0, 0, records.length, ...records]);
+    expect(model.diagrams.expand((d) => d.objects).firstWhere((o) => o.oid == 2).helpText, 'help here');
+
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: ViDiagramView(diagrams: model.blockDiagrams))));
+    await tester.pump();
+    await tester.tap(find.text('Faithful'));
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    // The control with decoded help text is wrapped in a Tooltip carrying it.
+    expect(find.byTooltip('help here'), findsOneWidget);
+  });
+
   test('membersOf resolves declared members to DRAWN objects only', () {
     // A structure (0x53) declaring: childRef->9 (drawn 0x50), memberRef->10
     // (scaffolding 0x09), childRef->11 (undeclared). Only #9 should resolve.

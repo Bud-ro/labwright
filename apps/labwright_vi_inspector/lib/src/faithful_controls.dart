@@ -35,12 +35,37 @@ class FaithfulLayer extends StatelessWidget {
                 top: o.absBounds!.top - origin.dy,
                 width: o.absBounds!.width.toDouble().clamp(1, 8000),
                 height: o.absBounds!.height.toDouble().clamp(1, 8000),
-                child: ClipRect(child: _faithfulFor(o)),
+                child: ClipRect(child: _withHelp(o, _faithfulFor(o))),
               ),
         ],
       ),
     );
   }
+}
+
+/// Wraps a faithful control in a hover [Tooltip] surfacing its decoded help text
+/// and/or numeric range — honest (only shown when actually decoded), and on the
+/// tooltip so it never overflows a tiny control box.
+Widget _withHelp(ViHeapObject o, Widget child) {
+  final msg = _tooltipFor(o);
+  return msg == null ? child : Tooltip(message: msg, waitDuration: const Duration(milliseconds: 400), child: child);
+}
+
+String? _tooltipFor(ViHeapObject o) {
+  final parts = <String>[];
+  final h = o.helpText?.trim();
+  if (h != null && h.isNotEmpty) parts.add(h);
+  if (o.controlMin != null || o.controlMax != null) {
+    parts.add('range: ${_fmtBound(o.controlMin, '−∞')} … ${_fmtBound(o.controlMax, '+∞')}');
+  }
+  return parts.isEmpty ? null : parts.join('\n');
+}
+
+String _fmtBound(double? v, String inf) {
+  if (v == null) return '?';
+  if (v.isNaN) return 'NaN';
+  if (v.isInfinite) return inf;
+  return v == v.roundToDouble() && v.abs() < 1e15 ? v.toInt().toString() : v.toString();
 }
 
 Widget _faithfulFor(ViHeapObject o) {
