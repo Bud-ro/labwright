@@ -36,5 +36,19 @@ the test. (CI skips the test when the corpus isn't fetched.)
 
 The tool also prints the overall figure across all fetched sources. Earlier
 "~100%" figures were measured on a single heap (`BDEx`) in one corpus and did
-not generalize; the corpus-wide number is the honest one, and it is the frontier
-to drive up by teaching `recordSkip` more record families.
+not generalize; the corpus-wide number is the honest one.
+
+### Two metrics: framed vs decoded
+
+Framing is now near-complete, so the tool reports a second, deeper figure:
+
+- **% deliberately parsed** (framing) — bytes inside a record the walker frames.
+- **% semantically decoded** (meaning) — bytes inside a record we assign a typed
+  *meaning* to (object class+oid, bracket structure, child ref, a decoded `C4`
+  opcode, or a *named* `HeapAttribute`), as opposed to records we frame but don't
+  yet interpret (e.g. the `hi≤1` property tokens — length known, meaning not).
+
+`semanticallyDecoded` is the frontier now: it is necessarily ≤ framing, and the
+gap is the set of record families whose meaning is still undecoded. Drive it up
+by decoding those families (then refresh `baseline.json`). Both figures are
+machine-written to [`baseline.json`](baseline.json).

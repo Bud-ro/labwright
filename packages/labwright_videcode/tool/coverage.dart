@@ -23,8 +23,35 @@ const _heapTags = {'BDHb', 'BDHP', 'FPHb', 'FPHP', 'DTHP'};
 
 class _Stat {
   int vis = 0, parseOk = 0, decOk = 0, objVIs = 0, framed = 0, body = 0, heaps = 0, fullHeaps = 0;
+  int semantic = 0; // bytes in records we assign a typed MEANING to (not just framed)
   double get deliberatelyParsed => body == 0 ? 0 : framed / body;
+  double get semanticallyDecoded => body == 0 ? 0 : semantic / body;
   double get fullyParsedHeaps => heaps == 0 ? 0 : fullHeaps / heaps;
+}
+
+/// Whether the record at [o] is *semantically decoded* — we extract a typed
+/// meaning — vs merely framed (boundary known, meaning not). This is the deeper
+/// frontier the "deliberately parsed" framing metric doesn't capture.
+bool _isSemantic(Uint8List b, int o, int lead, String tag) {
+  // Object header (class + oid), group open/close (bracket tree), child ref.
+  if ((lead == 0x10 || lead == 0x11 || lead == 0x12) &&
+      o + 9 <= b.length && b[o + 2] == 0x02 && b[o + 3] == 0xfe && b[o + 6] == 0xfd) {
+    return true;
+  }
+  if (lead == 0x08 || lead == 0x09 || lead == 0x0a || lead == 0x0b) return true; // close
+  if (lead == 0x10 || lead == 0x11 || lead == 0x12 || lead == 0x13) {
+    if (o + 4 <= b.length && (b[o + 3] == 0xfb || b[o + 3] == 0xfe || b[o + 3] == 0xfd)) return true; // group open
+  }
+  if (lead == 0x14 && o + 4 <= b.length && b[o + 1] == 0x19 && b[o + 2] == 0x01 && b[o + 3] == 0xfd) return true; // ref
+  // C4 records: decoded when the opcode has confirmed semantics.
+  if (lead == kHeapRecordPrefix) {
+    final rec = c4FrameAt(b, o, tag);
+    return rec != null && rec.kind.isDecoded;
+  }
+  // Attribute records: decoded when the id is named in the catalog.
+  final a = decodeHeapAttr(b, o);
+  if (a != null) return a.attribute != HeapAttribute.unknown;
+  return false; // framed-only (e.g. the hi<=1 property tokens — length known, meaning not)
 }
 
 _Stat _measure(List<File> files) {
@@ -54,6 +81,9 @@ _Stat _measure(List<File> files) {
       s.body += w.bodyBytes;
       s.heaps++;
       if (w.complete) s.fullHeaps++;
+      for (final span in w.spans) {
+        if (_isSemantic(sec.bytes, span.offset, span.lead, sec.tag)) s.semantic += span.length;
+      }
       try {
         objs += buildDiagram(sec.bytes, sectionTag: sec.tag).objects.length;
       } catch (_) {}
@@ -87,7 +117,7 @@ void main(List<String> args) {
   }
 
   final overall = _Stat();
-  stdout.writeln('source            VIs parseOK decOK objVIs  heaps  delib%  fullHeaps%');
+  stdout.writeln('source            VIs parseOK decOK objVIs  heaps  delib% semantic% fullHeaps%');
   for (final src in bySource.keys.toList()..sort()) {
     final files = (bySource[src]!..sort((a, b) => a.path.compareTo(b.path))).take(cap).toList();
     final s = _measure(files);
@@ -97,17 +127,19 @@ void main(List<String> args) {
       ..decOk += s.decOk
       ..objVIs += s.objVIs
       ..framed += s.framed
+      ..semantic += s.semantic
       ..body += s.body
       ..heaps += s.heaps
       ..fullHeaps += s.fullHeaps;
     stdout.writeln('${src.padRight(16)} ${s.vis.toString().padLeft(4)} ${s.parseOk.toString().padLeft(6)} '
         '${s.decOk.toString().padLeft(5)} ${s.objVIs.toString().padLeft(6)} ${s.heaps.toString().padLeft(6)} '
-        '${(s.deliberatelyParsed * 100).toStringAsFixed(1).padLeft(6)} ${(s.fullyParsedHeaps * 100).toStringAsFixed(1).padLeft(9)}');
+        '${(s.deliberatelyParsed * 100).toStringAsFixed(1).padLeft(6)} ${(s.semanticallyDecoded * 100).toStringAsFixed(1).padLeft(8)} ${(s.fullyParsedHeaps * 100).toStringAsFixed(1).padLeft(9)}');
   }
   stdout.writeln('-' * 72);
   stdout.writeln('TOTAL ${overall.vis} VIs · parse ${(100 * overall.parseOk / overall.vis).toStringAsFixed(1)}% · '
       'decode ${(100 * overall.decOk / overall.vis).toStringAsFixed(1)}% · objVIs ${overall.objVIs} · '
       'deliberately-parsed ${(overall.deliberatelyParsed * 100).toStringAsFixed(1)}% · '
+      'semantically-decoded ${(overall.semanticallyDecoded * 100).toStringAsFixed(1)}% · '
       'fully-parsed heaps ${(overall.fullyParsedHeaps * 100).toStringAsFixed(1)}%');
 
   // Mechanically record the deterministic picotech-first-60 figure as the test's
@@ -117,13 +149,14 @@ void main(List<String> args) {
     final s = _measure(_vis(pico, 60));
     final baseline = {
       'generatedBy': 'packages/labwright_videcode/tool/coverage.dart',
-      'metric': 'deliberatelyParsed = framed heap bytes / total heap bytes (BDHb/BDHP/FPHb/FPHP/DTHP)',
+      'metric': 'deliberatelyParsed = framed bytes / total; semanticallyDecoded = typed-meaning bytes / total. Heaps BDHb/BDHP/FPHb/FPHP/DTHP.',
       'picotechFirst60': {
         'vis': s.vis,
         'parseOk': s.parseOk,
         'decodeOk': s.decOk,
         'heaps': s.heaps,
         'deliberatelyParsed': double.parse(s.deliberatelyParsed.toStringAsFixed(4)),
+        'semanticallyDecoded': double.parse(s.semanticallyDecoded.toStringAsFixed(4)),
         'fullyParsedHeaps': double.parse(s.fullyParsedHeaps.toStringAsFixed(4)),
       },
     };
