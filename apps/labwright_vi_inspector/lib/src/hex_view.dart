@@ -26,6 +26,7 @@ class _BlockHexViewState extends State<BlockHexView> {
   late final List<_SpanInfo> _records;
   late final List<int> _byteToRecord; // byte offset -> record index (or -1)
   Widget? _preview; // typed whole-section display (e.g. an icon image)
+  HeapWalk? _walk; // the record walk (for coverage / stop-point reporting)
   int _selected = -1;
 
   @override
@@ -34,7 +35,17 @@ class _BlockHexViewState extends State<BlockHexView> {
     final b = widget.section.bytes;
     _preview = iconPreview(b);
     final isHeap = widget.section.wasCompressed || _looksLikeHeap(b);
-    _records = isHeap ? _parseHeap(b, widget.section.tag) : const [];
+    if (isHeap) {
+      try {
+        final w = walkHeapBody(b);
+        _walk = w;
+        _records = [for (final s in w.spans) _classify(b, s, widget.section.tag)];
+      } catch (_) {
+        _records = const [];
+      }
+    } else {
+      _records = const [];
+    }
     _byteToRecord = List<int>.filled(b.length, -1);
     for (var i = 0; i < _records.length; i++) {
       final r = _records[i];
@@ -85,8 +96,9 @@ class _BlockHexViewState extends State<BlockHexView> {
               const SizedBox(width: 10),
               Text(
                 '${_fmt(b.length)} ${widget.section.wasCompressed ? '(inflated)' : ''} · '
-                '${_records.isEmpty ? 'raw bytes (no record framing)' : '${_records.length} records'}',
-                style: const TextStyle(color: Colors.grey, fontSize: 12),
+                '${_records.isEmpty ? 'raw bytes (no record framing)' : '${_records.length} records'}'
+                '${_walk != null && !_walk!.complete ? ' · walk stopped at 0x${_walk!.stoppedAtOffset!.toRadixString(16)} (lead 0x${_walk!.stoppedLead!.toRadixString(16)}), ${(_walk!.coverage * 100).toStringAsFixed(0)}% framed' : ''}',
+                style: TextStyle(color: _walk != null && !_walk!.complete ? Colors.orange : Colors.grey, fontSize: 12),
               ),
             ],
           ),
@@ -297,23 +309,6 @@ class _SpanInfo {
 }
 
 int _u16(List<int> b, int p) => (b[p] << 8) | b[p + 1];
-
-/// Walks the heap body and classifies each record into a [_SpanInfo] using the
-/// videcode catalogs — the same decode the rest of the app trusts.
-List<_SpanInfo> _parseHeap(List<int> bytes, String tag) {
-  final b = bytes is Uint8List ? bytes : Uint8List.fromList(bytes);
-  final out = <_SpanInfo>[];
-  final HeapWalk walk;
-  try {
-    walk = walkHeapBody(b);
-  } catch (_) {
-    return const [];
-  }
-  for (final s in walk.spans) {
-    out.add(_classify(b, s, tag));
-  }
-  return out;
-}
 
 const _cObject = Color(0xFF9E7BE0);
 const _cGroup = Color(0xFF8A8A8A);
