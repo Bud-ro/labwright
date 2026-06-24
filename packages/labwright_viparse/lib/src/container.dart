@@ -234,22 +234,33 @@ class ViBlockList {
 /// Every byte is captured (the two unclassified words as raw fields with TODOs)
 /// so [serialize] reconstructs the record byte-exact.
 class ViSectionDescriptor {
-  ViSectionDescriptor({required this.head, required this.secRel, required this.mid, required this.sentinel});
+  ViSectionDescriptor({
+    required this.word0,
+    required this.secRel,
+    required this.word8,
+    required this.nameRef,
+    required this.sentinel,
+  });
 
-  /// `[0:4]` — leading word (block/section linkage; not yet decoded).
-  // TODO(labwright): identify these 4 bytes.
-  final Uint8List head;
+  /// `u32 @0` — zero in the vast majority of section descriptors; carries a
+  /// value in a few VIs. // TODO(labwright): identify (likely flags/linkage).
+  final int word0;
 
   /// `u32 @4` — for a section descriptor, the data-area-relative offset
-  /// (`secRel`) of the section's bytes. (Reused field for name rows.)
+  /// (`secRel`) of the section's `[u32 len][payload]` bytes.
   final int secRel;
 
-  /// `[8:16]` — two unclassified words.
-  // TODO(labwright): identify these 8 bytes.
-  final Uint8List mid;
+  /// `u32 @8` — usually zero but NOT always (some VIs, e.g. LV 7x, store a value
+  /// here). // TODO(labwright): identify this word.
+  final int word8;
+
+  /// `u32 @12` — a **name-table reference** for the section (0 when the section
+  /// is unnamed; non-zero for ~25% of sections). // TODO(labwright): resolve the
+  /// exact name-table addressing this references.
+  final int nameRef;
 
   /// `u32 @16` — `0xFFFFFFFF` marks a real section descriptor; any other value
-  /// marks a name-table row.
+  /// marks a name-table row (which reuses the 20-byte slot for other purposes).
   final int sentinel;
 
   static const int sectionSentinel = 0xFFFFFFFF;
@@ -257,26 +268,28 @@ class ViSectionDescriptor {
   /// Whether this record is a section descriptor (vs a name-table row).
   bool get isSection => sentinel == sectionSentinel;
 
-  /// Parses the 20-byte record starting at [at] within [info].
+  /// Parses the 20-byte record (five big-endian `u32`s) at [at] within [info].
   factory ViSectionDescriptor.parse(Uint8List info, int at) {
     if (at < 0 || at + 20 > info.length) throw ViFormatException('descriptor out of range at $at');
     final d = ByteData.sublistView(info);
     return ViSectionDescriptor(
-      head: Uint8List.fromList(info.sublist(at, at + 4)),
+      word0: d.getUint32(at),
       secRel: d.getUint32(at + 4),
-      mid: Uint8List.fromList(info.sublist(at + 8, at + 16)),
+      word8: d.getUint32(at + 8),
+      nameRef: d.getUint32(at + 12),
       sentinel: d.getUint32(at + 16),
     );
   }
 
-  /// Re-emits the 20 bytes, byte-identical to the parsed record.
+  /// Re-emits the 20 bytes (five `u32`s), byte-identical to the parsed record.
   Uint8List serialize() {
     final out = Uint8List(20);
-    final d = ByteData.sublistView(out);
-    out.setRange(0, 4, head);
-    d.setUint32(4, secRel);
-    out.setRange(8, 16, mid);
-    d.setUint32(16, sentinel);
+    ByteData.sublistView(out)
+      ..setUint32(0, word0)
+      ..setUint32(4, secRel)
+      ..setUint32(8, word8)
+      ..setUint32(12, nameRef)
+      ..setUint32(16, sentinel);
     return out;
   }
 }

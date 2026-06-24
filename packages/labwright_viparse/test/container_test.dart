@@ -148,19 +148,23 @@ void main() {
   });
 
   group('ViSectionDescriptor', () {
-    test('parses a 20-byte descriptor into typed fields and serializes byte-exact', () {
+    test('parses a 20-byte descriptor into five u32 words and serializes byte-exact', () {
       final rec = Uint8List(24); // descriptor at offset 4
-      final d = ByteData.sublistView(rec);
-      rec.setRange(4, 8, const [0xAA, 0xBB, 0xCC, 0xDD]); // head
-      d.setUint32(8, 0x1234); // secRel @+4
-      rec.setRange(12, 20, const [1, 2, 3, 4, 5, 6, 7, 8]); // mid
-      d.setUint32(20, 0xFFFFFFFF); // sentinel @+16
+      final d = ByteData.sublistView(rec)
+        ..setUint32(4, 0xAABBCCDD) // word0 @0
+        ..setUint32(8, 0x1234) // secRel @4
+        ..setUint32(12, 0) // word8 @8
+        ..setUint32(16, 0x55) // nameRef @12
+        ..setUint32(20, 0xFFFFFFFF); // sentinel @16
       final sd = ViSectionDescriptor.parse(rec, 4);
+      expect(sd.word0, 0xAABBCCDD);
       expect(sd.secRel, 0x1234);
+      expect(sd.word8, 0);
+      expect(sd.nameRef, 0x55);
       expect(sd.sentinel, 0xFFFFFFFF);
       expect(sd.isSection, isTrue);
-      expect(sd.head, orderedEquals([0xAA, 0xBB, 0xCC, 0xDD]));
       expect(sd.serialize(), orderedEquals(rec.sublist(4, 24)));
+      expect(d.getUint16(0), 0); // padding before the descriptor untouched
     });
 
     test('a non-sentinel record is a name-table row, not a section', () {
