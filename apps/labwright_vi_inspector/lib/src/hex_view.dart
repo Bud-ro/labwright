@@ -401,6 +401,9 @@ _SpanInfo _classify(Uint8List b, HeapSpan s, String tag) {
             : make(_cRect, '$hexlead · $name',
                 'Rectangle (4× s16): top ${r.top}, left ${r.left}, bottom ${r.bottom}, right ${r.right}  (${r.width}×${r.height}).',
                 display: _RectPreview(r));
+      case HeapAttrKind.container:
+        return make(_cContainer, '$hexlead · $name',
+            'A nested-record container (~${attr.asInt} inner elements; e.g. a front-panel attribute chain).');
       default:
         return make(_cAttr, '$hexlead · $name',
             '${_kindLabel(attr.kind)} = ${attr.asInt} (${attr.width.name}).');

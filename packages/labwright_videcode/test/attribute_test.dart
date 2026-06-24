@@ -141,10 +141,30 @@ void main() {
       expect(b.kind, HeapAttrKind.rectangle);
     });
 
-    test('an uncatalogued …08 id (0xE7) is NOT read as a garbage f64', () {
-      // C5 E7 08 <8 bytes> — a container, not a double; must stay undecoded.
-      final rec = Uint8List.fromList([0xc5, 0xe7, 0x08, 0x00, 0x10, 0x00, 0x20, 0x00, 0x30, 0x00, 0x40]);
-      expect(decodeHeapAttr(rec, 0), isNull);
+    test('0xE7 is a nested-record CONTAINER (C5 E7 <len>), not a garbage f64', () {
+      // C5 E7 08 <8 bytes>: container, value = payload[0] (inner element count), len 3+8.
+      final rec = Uint8List.fromList([0xc5, 0xe7, 0x08, 0x04, 0x10, 0x00, 0x20, 0x00, 0x30, 0x00, 0x40]);
+      final a = decodeHeapAttr(rec, 0)!;
+      expect(a.attribute, HeapAttribute.fpControlAttr);
+      expect(a.width, HeapAttrWidth.container);
+      expect(a.kind, HeapAttrKind.container);
+      expect(a.asDouble, isNull); // NOT a garbage f64
+      expect(a.asInt, 0x04); // payload[0] element-count header
+      expect(a.length, 11);
+      // A variable-length form (len 6) is also a container.
+      final r6 = decodeHeapAttr(Uint8List.fromList([0xc5, 0xe7, 0x06, 0x03, 0, 0, 0, 0, 0]), 0)!;
+      expect(r6.width, HeapAttrWidth.container);
+      expect(r6.length, 9);
+    });
+
+    test('the 45 E7 / 85 E7 scalar forms of 0xE7 stay value-kind-known (not container, not faked)', () {
+      final u16 = decodeHeapAttr(Uint8List.fromList([0x45, 0xe7, 0x02, 0x08]), 0)!;
+      expect(u16.attribute, HeapAttribute.fpControlAttr);
+      expect(u16.width, HeapAttrWidth.u16);
+      expect(u16.kind, isNot(HeapAttrKind.container)); // a scalar form isn't a container
+      final rgb = decodeHeapAttr(Uint8List.fromList([0x85, 0xe7, 0x01, 0x00, 0x01, 0x00]), 0)!;
+      expect(rgb.width, HeapAttrWidth.rgb);
+      expect(rgb.rgb, isNull); // not a fake colour
     });
   });
 

@@ -235,6 +235,11 @@ enum HeapAttrKind {
   /// and a few ids (e.g. `0x29`) store a rectangle there. See [HeapAttribute.terminalRect].
   rectangle,
 
+  /// A length-prefixed `C5 <id> <len>` **container**: the payload is a nested
+  /// record sub-stream (e.g. the `0xE7` front-panel control attribute chain).
+  /// [HeapAttr.value] is its inner element-count header. See [HeapAttrWidth.container].
+  container,
+
   /// Not catalogued.
   unknown,
 }
@@ -265,6 +270,10 @@ enum HeapAttrWidth {
   /// `C5/C6 <id> 08` whose 8-byte payload is a 4× `s16` rectangle rather than an
   /// `f64` (the `08` is a length byte, not an f64 marker). See [HeapAttrKind.rectangle].
   rect,
+
+  /// `C5 <id> <len>` whose payload is a nested record sub-stream (a container,
+  /// e.g. `0xE7`). See [HeapAttrKind.container].
+  container,
 }
 
 /// How well-grounded an [HeapAttribute]'s assigned **name** is. This is a
@@ -354,6 +363,15 @@ enum HeapAttribute {
   /// pair plus fill on an object. Role (which is bounds vs size) not pinned.
   rectFieldA(0x63, HeapAttrKind.rectangle, 'rectFieldA', AttrConfidence.inferred),
   rectFieldB(0x64, HeapAttrKind.rectangle, 'rectFieldB', AttrConfidence.inferred),
+
+  /// `0xE7` — **front-panel control attribute chain**, a multi-form id. Its
+  /// dominant form is the `C5 E7 <len>` **container** whose payload is a nested
+  /// record sub-stream (the property bag opened by `25 15` and closed by the
+  /// `44 9F` packed-flags word — the `15 → E7 → 9F` chain holds 100%, 99% scoped
+  /// to FP controls). It also appears as scalar `45 E7` (u16) and `85 E7`
+  /// (rgb-width) forms whose per-value meaning is undecoded — hence [kindOnly];
+  /// the container *role* is structural and counts as decoded via its width.
+  fpControlAttr(0xe7, HeapAttrKind.numeric, 'fpControlAttr', AttrConfidence.kindOnly),
 
   /// `0x9F` — **front-panel packed flags** (`u16`, 123 distinct values like
   /// 33616/560/16944 — bitfield-shaped), scoped to front-panel controls (kind
@@ -552,6 +570,7 @@ class HeapAttr {
     if (width == HeapAttrWidth.f64) return HeapAttrKind.controlParam;
     if (width == HeapAttrWidth.blob) return HeapAttrKind.stringBlob;
     if (width == HeapAttrWidth.rect) return HeapAttrKind.rectangle;
+    if (width == HeapAttrWidth.container) return HeapAttrKind.container;
     if (width == HeapAttrWidth.rgb) {
       // The `8x`/`84` form is an RGB tuple for colour ids and for rect-dual ids
       // (e.g. 0x29, whose other form is a rect — its `84` form is an accent
@@ -596,14 +615,32 @@ const Set<int> _rectPayloadIds = {0x29, 0x63, 0x64};
 /// uncatalogued `…08` records are left framed-but-undecoded (return null).
 const Set<int> _f64PayloadIds = {0xf5, 0xf6, 0xf7, 0xf8, 0xf9, 0xfa, 0x22};
 
+/// Attribute ids whose `C5 <id> <len>` payload is a **nested record container**
+/// (a sub-stream in the same heap grammar), NOT a scalar. Corpus-validated:
+/// `0xE7` — the front-panel control attribute chain, 100% in the
+/// `25 15 → C5 E7 → 44 9F` chain, 99% scoped to FP-control objects (kind 0x17),
+/// payload[0] ≈ len/2 (an inner element-count header). See [HeapAttribute.fpControlAttr].
+const Set<int> _containerPayloadIds = {0xe7};
+
 /// Decodes an attribute-style record at [offset] in a heap [body], or returns
 /// null if the byte there does not introduce a known attribute form. Handles the
-/// `2x/4x/6x/8x/Ex` nibble family, `C5`/`C6 …08` (a rectangle for
-/// [_rectPayloadIds], an `f64` for [_f64PayloadIds], else undecoded), and
-/// `C6 …FF` (string blob). The id is looked up in the [HeapAttribute] catalog.
+/// `2x/4x/6x/8x/Ex` nibble family, `C5 <id> <len>` containers ([_containerPayloadIds]),
+/// `C5`/`C6 …08` (a rectangle for [_rectPayloadIds], an `f64` for [_f64PayloadIds],
+/// else undecoded), and `C6 …FF` (string blob). Id looked up in [HeapAttribute].
 HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
   if (offset + 2 > body.length) return null;
   final op = body[offset];
+
+  // C5 <id> <len> container ids (e.g. 0xE7): the payload is a nested record
+  // sub-stream, not a scalar. Expose payload[0] (the inner element-count header).
+  if (op == 0xc5 && offset + 3 <= body.length && _containerPayloadIds.contains(body[offset + 1])) {
+    final id = body[offset + 1];
+    final len = body[offset + 2];
+    if (offset + 3 + len <= body.length) {
+      final count = len > 0 ? body[offset + 3] : 0;
+      return HeapAttr(attribute: HeapAttribute.fromId(id), id: id, width: HeapAttrWidth.container, value: count, length: 3 + len);
+    }
+  }
 
   // C5/C6 <id> 08 <8-byte payload>. The `08` is a payload-LENGTH byte (the same
   // `Cx <id> <u8 len>` framing recordSkip uses), so the 8 bytes are *not*
@@ -1315,6 +1352,8 @@ HeapDecodeTier heapDecodeTier(Uint8List body, int offset, int lead, String secti
   }
   final a = decodeHeapAttr(body, offset);
   if (a != null) {
+    // A framed container is structural meaning (we know it holds N nested records).
+    if (a.width == HeapAttrWidth.container) return HeapDecodeTier.semantic;
     if (a.attribute == HeapAttribute.unknown) return HeapDecodeTier.framed;
     return a.attribute.confidence == AttrConfidence.kindOnly ? HeapDecodeTier.valueKindKnown : HeapDecodeTier.semantic;
   }
