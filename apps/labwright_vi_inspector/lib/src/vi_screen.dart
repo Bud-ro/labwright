@@ -8,6 +8,7 @@ import 'package:labwright_videcode/labwright_videcode.dart';
 import 'package:labwright_viparse/labwright_viparse.dart';
 
 import 'diagram_view.dart';
+import 'generated_dart_view.dart';
 import 'hex_view.dart';
 import 'vi_demo.dart';
 
@@ -94,7 +95,9 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
       // section keeps the UI total.
       try {
         sections = decodeSections(bytes);
-        model = buildViModelFromDecoded(sections);
+        // subViNames come from the raw LIbd block (not the decoded heaps), so
+        // pass them in — otherwise the Generated-Dart view loses the subVI list.
+        model = buildViModelFromDecoded(sections, subViNames: readSubViNames(bytes));
         strings = heapStringsFromDecoded(sections);
         components = model.components;
         version = decodeVersion(bytes); // cheap: reads descriptors, no heap inflation
@@ -228,12 +231,18 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                       : _summary == null
                           ? _Empty(dragging: _dragging)
                           : DefaultTabController(
-                              length: 3,
+                              length: 4,
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
                                   const TabBar(
-                                    tabs: [Tab(text: 'Inspect'), Tab(text: 'Front Panel'), Tab(text: 'Block Diagram')],
+                                    isScrollable: true,
+                                    tabs: [
+                                      Tab(text: 'Inspect'),
+                                      Tab(text: 'Front Panel'),
+                                      Tab(text: 'Block Diagram'),
+                                      Tab(text: 'Generated Dart'),
+                                    ],
                                   ),
                                   const SizedBox(height: 8),
                                   Expanded(
@@ -259,6 +268,11 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                                           key: ValueKey('bd:$_model'),
                                           diagrams: _model?.blockDiagrams,
                                           emptyHint: 'No block-diagram objects recovered in this file.',
+                                        ),
+                                        GeneratedDartView(
+                                          key: ValueKey('dart:$_model'),
+                                          model: _model,
+                                          viName: _summary?.name,
                                         ),
                                       ],
                                     ),
