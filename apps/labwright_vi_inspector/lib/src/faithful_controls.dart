@@ -95,7 +95,7 @@ Widget _faithfulFor(ViHeapObject o) {
       return const _GraphPlaceholder();
     default:
       // Fall back by coarse category.
-      if (o.category == ViObjectKind.node) return _NodeBox(o.label);
+      if (o.category == ViObjectKind.node) return const _NodeBox();
       if (o.category == ViObjectKind.structure) return const _StructureFrame();
       if (o.category == ViObjectKind.terminal) return const _ControlWidget(form: _Form.generic);
       // Bounded but unclassified: draw a faint placeholder (honest — matches the
@@ -127,18 +127,19 @@ class _StructureFrame extends StatelessWidget {
 }
 
 class _NodeBox extends StatelessWidget {
-  const _NodeBox(this.label);
-  final String? label;
+  const _NodeBox();
+  // The node icon is unrecoverable, so the box is a translucent placeholder (the
+  // translucency lets overlapping sibling nodes — ~37% of cases — show through
+  // instead of fully occluding). The node's NAME is NOT drawn here: it lives on a
+  // child 0xa label rendered as a floating label where LabVIEW places it (above the
+  // icon), and is also surfaced in the details card via the propagated node.label.
   @override
   Widget build(BuildContext context) => Container(
         decoration: BoxDecoration(
-          color: const Color(0xFFEFD98A),
+          color: const Color(0xCCEFD98A),
           border: Border.all(color: const Color(0xFF8A7320)),
           borderRadius: BorderRadius.circular(2),
         ),
-        alignment: Alignment.center,
-        padding: const EdgeInsets.all(2),
-        child: label == null ? null : Text(label!, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 9, color: _kInk)),
       );
 }
 

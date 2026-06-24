@@ -330,6 +330,21 @@ void main() {
     expect(d.byId[1]!.helpText, 'own help'); // first-wins: the control's own help is preserved
   });
 
+  test('a BD node inherits its name from its child 0xa caption (for details/tooltip)', () {
+    final records = <int>[
+      ...open(0x7e, 1), ...bounds(0, 0, 400, 400),
+      ...open(0x2f, 2, tag: 0x1a), ...bounds(10, 10, 42, 42), // a node (0x2f), no own caption
+      ...open(0xa, 3, tag: 0x1b), // its label child
+      ...caption('Build Array'), // C4 22 -> the 0xa child's label
+      ...close(0x1b),
+      ...close(0x1a),
+      ...close(),
+    ];
+    final d = buildDiagram(Uint8List.fromList([0, 0, 0, records.length, ...records]));
+    expect(d.byId[3]!.label, 'Build Array'); // the child 0xa carries the caption
+    expect(d.byId[2]!.label, 'Build Array'); // ...propagated up to the node so it can be named
+  });
+
   test('a 0x6C <u8len> library token does NOT become helpText (only the FF blob does)', () {
     // C6 6C <u8 len> <u32 strlen><ascii> — a library/format token, NOT help text.
     List<int> u8tok(String s) => [0xc6, 0x6c, 4 + s.length, 0, 0, 0, s.length, ...s.codeUnits];

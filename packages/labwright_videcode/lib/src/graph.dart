@@ -787,6 +787,27 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
     }
   }
 
+  // Give each BD node its name: the function/subVI caption lives on a child `0xa`
+  // label (e.g. "PicoScope2000aOpen.vi", "Build Array"), not on the node object
+  // itself (node.label is null). Copy it up so the details card / tooltip name the
+  // selected node. The faithful render keeps the node box as an icon placeholder
+  // and still draws that 0xa child as a floating label where LabVIEW places it, so
+  // this does not double-print on the canvas — it only enriches selection/inspect.
+  final nodeKids = <int, List<ViHeapObject>>{};
+  for (final o in objects) {
+    if (o.parentOid != null) (nodeKids[o.parentOid!] ??= <ViHeapObject>[]).add(o);
+  }
+  for (final o in objects) {
+    if (o.category != ViObjectKind.node || o.label != null) continue;
+    for (final c in nodeKids[o.oid] ?? const <ViHeapObject>[]) {
+      final cap = c.kind == 0x0a ? c.label?.trim() : null;
+      if (cap != null && cap.isNotEmpty) {
+        o.label = cap;
+        break;
+      }
+    }
+  }
+
   _reanchorScrolledControls(objects);
   return ViDiagram(sectionTag: sectionTag, objects: objects);
 }
