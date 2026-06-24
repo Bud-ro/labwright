@@ -6,4 +6,5 @@
 /// block-diagram logic itself is future work.
 library;
 
+export 'src/container.dart';
 export 'src/viparse.dart';

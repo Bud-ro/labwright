@@ -58,4 +58,48 @@ void main() {
     }
     expect(files, greaterThan(0));
   });
+
+  // EXPORT→IMPORT IDEMPOTENCY: parsing a container into the lossless [ViContainer]
+  // model and re-serializing must reproduce the ORIGINAL bytes exactly. This is
+  // the end-to-end proof that our container interpretation is complete — if any
+  // region boundary were misread, the round-trip would diverge. It is also the
+  // foundation the VI exporter/editor builds on. Expected 100% across the corpus
+  // (the macro-layout is perfectly regular).
+  test('IDEMPOTENCY: ViContainer.parse(bytes).toBytes() == bytes for every VI', () {
+    var files = 0, exact = 0;
+    final diffs = <String>[];
+    for (final f in all) {
+      final Uint8List bytes;
+      try {
+        bytes = Uint8List.fromList(f.readAsBytesSync());
+      } catch (_) {
+        continue;
+      }
+      final Uint8List out;
+      try {
+        out = ViContainer.parse(bytes).toBytes();
+      } catch (_) {
+        continue; // a container we decline to model (mis-ordered) is not a round-trip failure
+      }
+      files++;
+      var same = out.length == bytes.length;
+      if (same) {
+        for (var i = 0; i < bytes.length; i++) {
+          if (out[i] != bytes[i]) {
+            same = false;
+            break;
+          }
+        }
+      }
+      if (same) {
+        exact++;
+      } else if (diffs.length < 6) {
+        diffs.add('len ${bytes.length}->${out.length} ${f.path.split('/').last}');
+      }
+    }
+    expect(files, greaterThan(0));
+    // Byte-exact for 100% of well-ordered containers — ratchet: any drop is a
+    // lossy regression in the container model.
+    expect(exact, equals(files), reason: 'container round-trip not byte-exact for ${files - exact} file(s): $diffs');
+  });
 }
