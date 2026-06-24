@@ -548,6 +548,53 @@ class ViContainer {
   }
 }
 
+/// The whole `.vi` file as a **fully-typed model** — the capstone of the
+/// exporter re-architecture. A VI is its [header], an ordered list of data-area
+/// [dataSegments] (length-prefixed sections + padding gaps), and its typed
+/// [infoArea]. [serialize] reassembles the exact original bytes:
+/// `header.serialize() ++ rebuildDataArea(dataSegments) ++ infoArea.serialize()`.
+///
+/// Corpus-validated: `ViVi.parse(bytes).serialize() == bytes` byte-for-byte for
+/// every VI. The only bytes still held raw are (a) clearly-TODO'd unknown words
+/// inside the typed structs, and (b) each section's compressed heap payload
+/// ([ViSectionData.payload]) — whose *contents* are modeled separately in
+/// `labwright_videcode`. Editing a model field then [serialize]ing produces a
+/// valid, coherent `.vi`.
+class ViVi {
+  ViVi({required this.header, required this.dataSegments, required this.infoArea});
+
+  final ViHeader header;
+  final List<ViDataSegment> dataSegments;
+  final ViInfoArea infoArea;
+
+  factory ViVi.parse(Uint8List bytes) {
+    final container = ViContainer.parse(bytes);
+    return ViVi(
+      header: ViHeader.parse(container.header),
+      dataSegments: ViExport.decomposeDataArea(bytes),
+      infoArea: ViInfoArea.parse(container.infoArea),
+    );
+  }
+
+  /// The recovered VI name (from the info-area name table), or null.
+  String? get name => infoArea.nameTable.trailingName;
+
+  /// The data-area sections (length-prefixed payloads), in storage order.
+  Iterable<ViSectionData> get sections => dataSegments.whereType<ViSectionData>();
+
+  Uint8List serialize() {
+    final h = header.serialize();
+    final data = ViExport.rebuildDataArea(dataSegments);
+    final info = infoArea.serialize();
+    final out = Uint8List(h.length + data.length + info.length);
+    out
+      ..setRange(0, h.length, h)
+      ..setRange(h.length, h.length + data.length, data)
+      ..setRange(h.length + data.length, out.length, info);
+    return out;
+  }
+}
+
 /// One piece of the data area in storage order: either a [ViSectionData] (a
 /// `[u32 len][payload]` section located by its `secRel`) or a [ViGap] (the
 /// padding bytes between/around sections). Together they tile `[0, dataSize)`.

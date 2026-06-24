@@ -390,6 +390,45 @@ void main() {
     expect(withName, greaterThan((files * 0.85).floor()), reason: 'trailing name recovery dropped: $withName/$files');
   });
 
+  // CAPSTONE: the fully-typed ViVi model (header + data segments + typed info
+  // area) round-trips to the ORIGINAL file bytes for every VI — the end-to-end
+  // proof of "import -> typed model -> serialize -> byte-identical".
+  test('IDEMPOTENCY: ViVi.parse(bytes).serialize() == bytes for every VI', () {
+    var files = 0, exact = 0;
+    final diffs = <String>[];
+    for (final f in all) {
+      final Uint8List bytes;
+      try {
+        bytes = Uint8List.fromList(f.readAsBytesSync());
+      } catch (_) {
+        continue;
+      }
+      final Uint8List out;
+      try {
+        out = ViVi.parse(bytes).serialize();
+      } catch (_) {
+        continue;
+      }
+      files++;
+      var same = out.length == bytes.length;
+      if (same) {
+        for (var i = 0; i < bytes.length; i++) {
+          if (out[i] != bytes[i]) {
+            same = false;
+            break;
+          }
+        }
+      }
+      if (same) {
+        exact++;
+      } else if (diffs.length < 6) {
+        diffs.add('len ${bytes.length}->${out.length} ${f.path.split('/').last}');
+      }
+    }
+    expect(files, greaterThan(0));
+    expect(exact, equals(files), reason: 'ViVi round-trip not byte-exact for ${files - exact} file(s): $diffs');
+  });
+
   // SECTION-LEVEL IDEMPOTENCY: one layer finer than the whole-file round-trip.
   // [ViExport.decomposeDataArea] models the data area as ordered, length-prefixed
   // sections (located via the info-area descriptors) interleaved with padding

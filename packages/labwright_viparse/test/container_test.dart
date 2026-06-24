@@ -229,6 +229,26 @@ void main() {
     });
   });
 
+  group('ViVi (capstone typed model)', () {
+    test('parse -> serialize reproduces a synthetic VI byte-exact', () {
+      final bytes = _container([1, 2, 3, 4], [
+        for (var i = 0; i < 0x34; i++) 0,
+        0, 0, 0, 0, // block list count = 0
+        7, 7, // name-table tail
+      ]);
+      final info = bytes.sublist(36); // header(32) + data(4)
+      info.setRange(0, 6, const [0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a]);
+      ByteData.sublistView(info).setUint32(0x2c, 0x34); // blockListRel
+      bytes.setRange(36, bytes.length, info);
+
+      final vi = ViVi.parse(bytes);
+      expect(vi.serialize(), orderedEquals(bytes));
+      // the typed sub-models are reachable
+      expect(vi.header.dataOffset, 32);
+      expect(vi.infoArea.blockList.count, 0);
+    });
+  });
+
   group('ViExport.rebuildDataArea', () {
     test('serializes sections as [u32 len][payload] and gaps verbatim', () {
       final out = ViExport.rebuildDataArea([
