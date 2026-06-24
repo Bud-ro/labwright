@@ -484,8 +484,11 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
   if (offset + 2 > body.length) return null;
   final op = body[offset];
 
-  // C5 <id> 08 <f64> — numeric-control parameter.
-  if (op == 0xc5 && offset + 11 <= body.length && body[offset + 2] == 0x08) {
+  // C5/C6 <id> 08 <f64> — numeric-control parameter (the C6-08 form is the
+  // common on-disk shape the walker frames; the C6-FF blob below is the rarer
+  // escape form). Decoding both keeps decodeHeapAttr in agreement with
+  // recordSkip, which frames both as 11-byte records.
+  if ((op == 0xc5 || op == 0xc6) && offset + 11 <= body.length && body[offset + 2] == 0x08) {
     final id = body[offset + 1];
     final v = ByteData.sublistView(body, offset + 3, offset + 11).getFloat64(0);
     return HeapAttr(attribute: HeapAttribute.fromId(id), id: id, width: HeapAttrWidth.f64, value: v, length: 11);
@@ -842,10 +845,11 @@ class HeapWalk {
 }
 
 /// The byte length of the heap record at [i] in [h], or null if [i] is not a
-/// recognized record start (the walk stops there). This is the **BDEx record
+/// recognized record start (the walk stops there). This is the **heap record
 /// skip table** — the reverse-engineered framing of every record family known so
-/// far, validated by sequential walking (≈93% mean body coverage; full,
-/// exact-EOF walks on the majority of corpus VIs). Total/bounds-safe.
+/// far. Coverage across the diverse corpus is measured mechanically (the
+/// "% deliberately parsed" metric — see corpus/ and tool/coverage.dart), not
+/// hand-asserted here; it is the frontier this table extends. Total/bounds-safe.
 ///
 /// Record families (lead byte → framing):
 /// - `C4` — length-prefixed: `3 + u8len`, or `5 + u16len` for the `FF` escape.
@@ -877,10 +881,12 @@ int? recordSkip(Uint8List h, int i) {
       return 6;
     case 0x10:
     case 0x12:
-      return _typedList(h, i);
     case 0x11:
-      return (i + 4 <= n && _isTypeTag(h[i + 3])) ? _typedList(h, i) : 2;
     case 0x0a:
+      // A typed-list/group when followed by a type tag (FB/FE/FD); otherwise a
+      // 2-byte data record. 0x10/0x12 previously hard-stopped the walk on a
+      // non-tag byte (unlike 0x11/0x0a) — giving them the same 2-byte resync
+      // keeps the walk going and raises coverage.
       return (i + 4 <= n && _isTypeTag(h[i + 3])) ? _typedList(h, i) : 2;
     case 0x14:
       return (i + 4 <= n && h[i + 2] == 1 && (h[i + 3] == 0xfd || h[i + 3] == 0xfe)) ? 6 : null;
