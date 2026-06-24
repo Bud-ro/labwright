@@ -182,6 +182,362 @@ enum HeapShape {
   none,
 }
 
+/// The **value kind** an [HeapAttribute] carries — what the attribute's bytes
+/// *mean*, independent of how wide they are stored. The storage width comes from
+/// the carrying opcode (see [HeapAttrWidth]); a few attributes are *dual-use*
+/// across widths (e.g. [HeapAttribute.sizeOrIncrement] is a `u16` size or an
+/// `f64` increment) — for those, [HeapAttr.kind] resolves the kind from the
+/// width at decode time.
+enum HeapAttrKind {
+  /// A 24-bit RGB colour (carried as `84 <id> <flag><R><G><B>`; flag `0x01` with
+  /// `R=G=B=0` is the *transparent* sentinel).
+  color,
+
+  /// A signed pixel coordinate / relative offset (`s16`).
+  coordinate,
+
+  /// An unsigned pixel extent — a width or height (`u16`).
+  size,
+
+  /// A small enumerated selector (object class / sub-kind / mode), `u8`.
+  enumValue,
+
+  /// A boolean-ish flag (`u8`, usually 0/1; the `Ex` nibble form carries it in
+  /// zero bytes).
+  flag,
+
+  /// A sequential element index / ordinal (`u8`/`u16`).
+  ordinal,
+
+  /// A general numeric value — scale, packed pair, or large id — whose finer
+  /// meaning is not pinned (kept honest rather than over-named).
+  numeric,
+
+  /// A floating-point numeric-control parameter (range min/max, increment,
+  /// scale), carried as `C5 <id> 08 <f64>`. See [HeapAttribute.controlMin] etc.
+  controlParam,
+
+  /// Inline display text / style field.
+  text,
+
+  /// A length-prefixed string/blob (`C6 <id> FF <u16 len> <u32 strlen><ascii>`),
+  /// e.g. a VISA resource name, serial, or firmware version.
+  stringBlob,
+
+  /// Not catalogued.
+  unknown,
+}
+
+/// How wide an [HeapAttr]'s value is stored — derived from the carrying opcode.
+enum HeapAttrWidth {
+  /// `2x` nibble form / `0x24` — one byte.
+  u8,
+
+  /// `4x` nibble form / `0x44` — two bytes, big-endian.
+  u16,
+
+  /// `6x` nibble form / `0x64` — three bytes, big-endian.
+  u24,
+
+  /// `8x` nibble form — four bytes (used by `0x84` as `flag.R.G.B`).
+  rgb,
+
+  /// `Ex` nibble form — zero value bytes (a bare flag).
+  flag,
+
+  /// `C5 <id> 08` — eight-byte big-endian IEEE-754 double.
+  f64,
+
+  /// `C6 <id> FF <u16 len>` — a length-prefixed string/blob.
+  blob,
+}
+
+/// How well-grounded an [HeapAttribute]'s assigned **name** is. This is a
+/// clean-room reverse-engineering effort (no LabVIEW source), so names are
+/// inferred from value distributions and must be labelled honestly.
+enum AttrConfidence {
+  /// Pinned by a decisive Rosetta — RGB triples, the transparent sentinel, a
+  /// monotone min≤max ordering, a strictly-sequential index, or decoded ASCII.
+  confirmed,
+
+  /// Direction/role inferred from value patterns and host context, but the exact
+  /// LabVIEW property name is not provable.
+  inferred,
+
+  /// Only the value *kind*/width is defensible; the name is a kind label.
+  kindOnly,
+}
+
+/// The catalog of known LabVIEW heap **attribute ids** — the `<id>` byte in an
+/// attribute record `<op> <id> <value>`, where the opcode sets the value width
+/// (`0x24`→u8, `0x44`→u16, `0x64`→u24, the `2x/4x/6x/8x/Ex` nibble family,
+/// `0xC5`→f64, `0xC6`→blob) and the *id* selects which property is being set.
+///
+/// This is the single place that names every attribute id we have decoded from
+/// the corpus (1.23M attribute records across 398 BDEx sections). Each entry
+/// documents its [kind], assigned name, [confidence], and the corpus evidence.
+/// An id not catalogued maps to [HeapAttribute.unknown]; resolve a raw id with
+/// [HeapAttribute.fromId] and decode a record with [decodeHeapAttr].
+///
+/// HONESTY: this is clean-room RE. `confirmed` names are pinned by a Rosetta
+/// (RGB, transparent sentinel, monotone ordering, ASCII); `inferred` names give
+/// the defensible direction (e.g. foreground vs background by transparent-rate)
+/// but not the exact LabVIEW property name; `kindOnly` names are pure value-kind
+/// labels. See `docs/vi-rsrc-and-heap-format.md` for the full evidence.
+enum HeapAttribute {
+  /// `0x1F` — **relative coordinate / offset** (`s16`, observed 100% negative as
+  /// `u16` → a relative position). The single highest-volume attribute.
+  relativeOffset(0x1f, HeapAttrKind.coordinate, 'relativeOffset', AttrConfidence.confirmed),
+
+  /// `0x00` / `0x01` — **absolute coordinate X / Y** (`s16`, small with
+  /// negatives).
+  coordX(0x00, HeapAttrKind.coordinate, 'coordX', AttrConfidence.confirmed),
+  coordY(0x01, HeapAttrKind.coordinate, 'coordY', AttrConfidence.confirmed),
+
+  /// `0xDF` — **object type / class** (`u8`, 39 distinct values 0..118): the
+  /// broad object-class enum.
+  objectClass(0xdf, HeapAttrKind.enumValue, 'objectClass', AttrConfidence.confirmed),
+
+  /// `0xAF` — **object sub-kind** (`u8`, only ~9 distinct values): a small
+  /// secondary kind enum.
+  objectSubKind(0xaf, HeapAttrKind.enumValue, 'objectSubKind', AttrConfidence.confirmed),
+
+  /// `0x3A` — **element index / ordinal** (`u8`/`u16`, strictly sequential
+  /// 1..n).
+  elementIndex(0x3a, HeapAttrKind.ordinal, 'elementIndex', AttrConfidence.confirmed),
+
+  /// `0x89` — **size / extent** (`u16`; values cluster on pixel sizes like 240,
+  /// 4096, 12288): a width or height.
+  sizeExtent(0x89, HeapAttrKind.size, 'sizeExtent', AttrConfidence.confirmed),
+
+  /// `0xF8` — **size (u16) OR coarse increment (f64)** — *dual-use*: a `u16`
+  /// extent via the nibble form, or the coarse step of a numeric control via
+  /// `C5`. [HeapAttr.kind] resolves it by width.
+  sizeOrIncrement(0xf8, HeapAttrKind.size, 'sizeOrCoarseIncrement', AttrConfidence.confirmed),
+
+  /// `0xCB` — **packed value / large numeric** (`u24` values stepping
+  /// `0x10000`..`0x700000`): a packed numeric, not a colour despite the width.
+  packedValue(0xcb, HeapAttrKind.numeric, 'packedValue', AttrConfidence.kindOnly),
+
+  /// `0x19` — **scale factor / multiplier** (mixed widths). Same id family as the
+  /// `C4 19` description opcode but here a numeric attribute.
+  scaleFactor(0x19, HeapAttrKind.numeric, 'scaleFactor', AttrConfidence.inferred),
+
+  /// `0x5E` — **large numeric / packed coordinate-pair** (`u32`, ~0.85M..3.9M).
+  packedPair(0x5e, HeapAttrKind.numeric, 'packedPairOrId', AttrConfidence.inferred),
+
+  /// `0xDA` — **packed flag / version** (`u24`, dominated by `0x000101`).
+  packedFlags(0xda, HeapAttrKind.numeric, 'packedFlags', AttrConfidence.kindOnly),
+
+  /// `0x28` — **background / fill colour** (RGB; ~38% transparent → a fill).
+  backgroundColor(0x28, HeapAttrKind.color, 'backgroundColor', AttrConfidence.confirmed),
+
+  /// `0x24` — **content / area colour** (RGB; ~72% transparent → a frame fill).
+  contentColor(0x24, HeapAttrKind.color, 'contentColor', AttrConfidence.confirmed),
+
+  /// `0x6F` — **fill / area colour** (RGB; greys + ~29% transparent).
+  fillColor(0x6f, HeapAttrKind.color, 'fillColor', AttrConfidence.confirmed),
+
+  /// `0x20` — **foreground colour** (RGB; greys/black, rarely transparent →
+  /// foreground). Pairs with [foregroundColorB].
+  foregroundColor(0x20, HeapAttrKind.color, 'foregroundColor', AttrConfidence.inferred),
+
+  /// `0x21` — **foreground / line colour** (RGB; greys/reds, rarely transparent).
+  foregroundColorB(0x21, HeapAttrKind.color, 'lineColor', AttrConfidence.inferred),
+
+  /// `0xD0` — **colour** (RGB; diverse hues). Direction not pinned.
+  miscColor(0xd0, HeapAttrKind.color, 'miscColor', AttrConfidence.inferred),
+
+  /// `0xB7` — **fixed style colour** (RGB, constant `(1,0,1)` across the corpus).
+  styleColor(0xb7, HeapAttrKind.color, 'styleColor', AttrConfidence.confirmed),
+
+  /// `0x22` — **label colour / text-attribute field** (mixed `u8`/RGB with text
+  /// style flags). Distinct from the `C4 22` caption opcode.
+  textStyle(0x22, HeapAttrKind.text, 'textStyle', AttrConfidence.inferred),
+
+  /// `0x74` — **printf-format style / colour** (RGB with style byte `0x25`, or a
+  /// `u16`). Distinct from the `C4 74` format-string opcode.
+  formatStyle(0x74, HeapAttrKind.text, 'formatStyle', AttrConfidence.inferred),
+
+  /// `0x58` — **mode / style enum** (`u8`, 1..15, one value dominant).
+  modeFlag(0x58, HeapAttrKind.enumValue, 'modeFlag', AttrConfidence.kindOnly),
+
+  /// `0x44` — **enum / count** (`u8`, `255` sentinel + small ints). Distinct from
+  /// the `C4 44` container opcode.
+  countOrSentinel(0x44, HeapAttrKind.enumValue, 'countOrSentinel', AttrConfidence.kindOnly),
+
+  /// `0x59` — **reserved / always-zero flag** (`u8`, all 0 across the corpus).
+  reservedFlag(0x59, HeapAttrKind.flag, 'reservedFlag', AttrConfidence.inferred),
+
+  /// `0x5A` — **flag (u8) OR instrument-identity string (C6)** — *dual-use*: a
+  /// `u8` flag via the nibble form, or a VISA resource / serial / firmware string
+  /// via `C6`. [HeapAttr.kind] resolves it by width.
+  flagOrIdentity(0x5a, HeapAttrKind.flag, 'flagOrIdentityString', AttrConfidence.confirmed),
+
+  /// `0xF5` — numeric-control **range minimum** (`f64`; `f5 ≤ f7` in 125/125
+  /// groups).
+  controlMin(0xf5, HeapAttrKind.controlParam, 'controlMin', AttrConfidence.confirmed),
+
+  /// `0xF7` — numeric-control **range maximum** (`f64`; pairs with [controlMin]).
+  controlMax(0xf7, HeapAttrKind.controlParam, 'controlMax', AttrConfidence.confirmed),
+
+  /// `0xF9` — numeric-control **fine increment** (`f64`; `f9 ≤ f8` in 257/257
+  /// groups).
+  controlFineIncrement(0xf9, HeapAttrKind.controlParam, 'controlFineIncrement', AttrConfidence.confirmed),
+
+  /// `0xF6` — numeric-control **scale / full-scale** (`f64`; always > 0, never
+  /// inside `[min,max]` → not a default).
+  controlScale(0xf6, HeapAttrKind.controlParam, 'controlScale', AttrConfidence.inferred),
+
+  /// `0xFA` — numeric-control **unit multiplier** (`f64`, constant `1.0` in
+  /// 257/257 groups).
+  controlUnit(0xfa, HeapAttrKind.controlParam, 'controlUnit', AttrConfidence.confirmed),
+
+  /// An attribute id that is not (yet) catalogued. Its [id] is -1.
+  unknown(-1, HeapAttrKind.unknown, 'unknown', AttrConfidence.kindOnly);
+
+  const HeapAttribute(this.id, this.kind, this.attrName, this.confidence);
+
+  /// The attribute id byte (the `<id>` after the opcode); -1 for [unknown].
+  final int id;
+
+  /// The intrinsic value kind for this attribute's *primary* (integer/RGB) form.
+  /// Dual-use attributes resolve their effective kind via [HeapAttr.kind].
+  final HeapAttrKind kind;
+
+  /// The human-assigned name. See [confidence] for how grounded it is.
+  final String attrName;
+
+  /// How well-grounded [attrName] is (clean-room honesty).
+  final AttrConfidence confidence;
+
+  /// Maps a raw attribute id to its [HeapAttribute], or [unknown] if not
+  /// catalogued. Note ids `0xF8`/`0x5A` are dual-use (see [HeapAttr.kind]).
+  static HeapAttribute fromId(int id) {
+    for (final a in values) {
+      if (a != unknown && a.id == id) return a;
+    }
+    return unknown;
+  }
+}
+
+/// A single decoded attribute record (`<op> <id> <value>`): the catalog
+/// [attribute], the storage [width], and the typed [value]
+/// (`int` | `double` | `String`). Produced by [decodeHeapAttr].
+class HeapAttr {
+  const HeapAttr({
+    required this.attribute,
+    required this.id,
+    required this.width,
+    required this.value,
+    required this.length,
+  });
+
+  /// The catalog entry (or [HeapAttribute.unknown] for an uncatalogued id).
+  final HeapAttribute attribute;
+
+  /// The raw attribute id byte (valid even when [attribute] is unknown).
+  final int id;
+
+  /// How the value was stored.
+  final HeapAttrWidth width;
+
+  /// The typed value: `int` (numeric/coord/size/enum/flag, or packed RGB for
+  /// colours), `double` (f64 control params), or `String` (C6 blobs).
+  final Object value;
+
+  /// The total byte length of the record (so a walker can advance by it).
+  final int length;
+
+  /// The *effective* value kind, resolving dual-use attributes by [width]:
+  /// an `f64` payload is always a [HeapAttrKind.controlParam] and a `blob` is
+  /// always a [HeapAttrKind.stringBlob]; otherwise the catalog [kind].
+  HeapAttrKind get kind {
+    if (width == HeapAttrWidth.f64) return HeapAttrKind.controlParam;
+    if (width == HeapAttrWidth.blob) return HeapAttrKind.stringBlob;
+    return attribute.kind;
+  }
+
+  /// The value as an `int`, or null if it is not integer-stored.
+  int? get asInt => value is int ? value as int : null;
+
+  /// The value as a `double`, or null if it is not an `f64` control param.
+  double? get asDouble => value is double ? value as double : null;
+
+  /// The value as a `String`, or null if it is not a blob.
+  String? get asString => value is String ? value as String : null;
+
+  /// For a [HeapAttrKind.color] value, the 24-bit `0xRRGGBB` (drops the flag).
+  int? get rgb => kind == HeapAttrKind.color && value is int ? (value as int) & 0xffffff : null;
+
+  /// For a colour, whether it is the transparent sentinel (flag `0x01`, RGB 0).
+  bool get isTransparent => kind == HeapAttrKind.color && value is int && ((value as int) >>> 24) == 0x01 && ((value as int) & 0xffffff) == 0;
+}
+
+/// Decodes an attribute-style record at [offset] in a heap [body], or returns
+/// null if the byte there does not introduce a known attribute form. Handles the
+/// `2x/4x/6x/8x/Ex` nibble family, `C5` (f64 control param), and `C6` (string
+/// blob). The id is looked up in the [HeapAttribute] catalog.
+HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
+  if (offset + 2 > body.length) return null;
+  final op = body[offset];
+
+  // C5 <id> 08 <f64> — numeric-control parameter.
+  if (op == 0xc5 && offset + 11 <= body.length && body[offset + 2] == 0x08) {
+    final id = body[offset + 1];
+    final v = ByteData.sublistView(body, offset + 3, offset + 11).getFloat64(0);
+    return HeapAttr(attribute: HeapAttribute.fromId(id), id: id, width: HeapAttrWidth.f64, value: v, length: 11);
+  }
+
+  // C6 <id> FF <u16 len> <u32 strlen><ascii…> — string/blob.
+  if (op == 0xc6 && offset + 5 <= body.length && body[offset + 2] == 0xff) {
+    final id = body[offset + 1];
+    final len = (body[offset + 3] << 8) | body[offset + 4];
+    final end = offset + 5 + len;
+    if (end > body.length) return null;
+    var s = '';
+    if (len >= 4) {
+      final strLen = ByteData.sublistView(body, offset + 5, offset + 9).getUint32(0);
+      final from = offset + 9, to = (from + strLen) <= end ? from + strLen : end;
+      s = String.fromCharCodes(body.sublist(from, to).where((c) => c >= 0x20 && c < 0x7f));
+    }
+    return HeapAttr(attribute: HeapAttribute.fromId(id), id: id, width: HeapAttrWidth.blob, value: s, length: 5 + len);
+  }
+
+  // Nibble family: low nibble in {4,5,6}, high nibble selects the width.
+  final lo = op & 0xf, hi = op >> 4;
+  if (lo == 4 || lo == 5 || lo == 6) {
+    const widthBytes = {0x2: 1, 0x4: 2, 0x6: 3, 0x8: 4, 0xe: 0};
+    final w = widthBytes[hi];
+    if (w == null) return null;
+    final id = body[offset + 1];
+    final valEnd = offset + 2 + w;
+    if (valEnd > body.length) return null;
+    HeapAttrWidth width;
+    Object value;
+    switch (hi) {
+      case 0x2:
+        width = HeapAttrWidth.u8;
+        value = body[offset + 2];
+      case 0x4:
+        width = HeapAttrWidth.u16;
+        value = (body[offset + 2] << 8) | body[offset + 3];
+      case 0x6:
+        width = HeapAttrWidth.u24;
+        value = (body[offset + 2] << 16) | (body[offset + 3] << 8) | body[offset + 4];
+      case 0x8:
+        width = HeapAttrWidth.rgb;
+        value = (body[offset + 2] << 24) | (body[offset + 3] << 16) | (body[offset + 4] << 8) | body[offset + 5];
+      default: // 0xE — bare flag, no value bytes.
+        width = HeapAttrWidth.flag;
+        value = 1;
+    }
+    return HeapAttr(attribute: HeapAttribute.fromId(id), id: id, width: width, value: value, length: 2 + w);
+  }
+
+  return null;
+}
+
 /// A length-prefixed **`C4` opcode record** in a decompressed VI heap.
 ///
 /// The heap is a stream of opcode-serialized objects. Records introduced by the

@@ -14,11 +14,14 @@ the `BDEx` block-diagram heap (13.48 MB across the corpus):
 |---|---|---|---|
 | **Framed** | 13,480,958 | **100%** | every byte belongs to a sized record; the walker reaches exact EOF on 398/398 |
 | **Field-role identified** | 13,480,958 | **100%** | every byte's *role* is known — opcode / subop / id / length / value / flag / coordinate / tag — via the per-record field specs below |
-| **Semantically named** | — | **high, not total** | the *meaning* of each field; the dominant records are fully named (bounds, strings, captions, colors, sizes, control params, object kinds/oids), with a long tail of **typed-but-unnamed** attribute ids (e.g. "attribute `0xAF` = u8 enum") and a few opaque cross-namespace `fd` reference targets |
+| **Semantically named** | — | **high, not total** | the *meaning* of each field. The dominant records are fully named (bounds, strings, captions, colors, sizes, control params, object kinds/oids). Attribute ids covering **~99% of attribute records by volume** are now named in the [`HeapAttribute`](../packages/labwright_videcode/lib/src/heap.dart) catalog (e.g. `0x28`=background colour, `0xF5`=control min, `0x3A`=element index), each labelled `confirmed`/`inferred`/`kindOnly` for honesty. The residual: a long tail of rare attribute ids and a few opaque cross-namespace `fd` reference targets |
 
-So: 100% framed, 100% field-role accounted, and the bulk semantically named — the
-residual is *which named property* a typed value sets, not *what kind of value it
-is*. See the **record field reference** below for every record's byte layout.
+So: 100% framed, 100% field-role accounted, and the bulk semantically named via the
+`HeapAttribute` / `HeapOpcode` enum catalogs — the residual is *which named property*
+a rare typed value sets, not *what kind of value it is*. Because this is clean-room
+RE (no LabVIEW source), inferred names carry an explicit [`AttrConfidence`] label
+rather than false certainty. See the **record field reference** below for layout, and
+the `HeapAttribute` enum for the per-id name/kind/confidence catalog.
 
 ### Record field reference (every record's bytes) 📖
 
