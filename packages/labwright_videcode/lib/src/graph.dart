@@ -176,13 +176,13 @@ enum ClassConfidence {
 /// SECTION-DEPENDENCE (honesty): a class code can mean different things on the
 /// block diagram vs the front panel, so some names below describe the role where
 /// the class was validated and are *not literal in the other section*. Probed
-/// dual-role cases: `0x53` is a BD while/for loop but an FP control-container
-/// (21993 FP instances), and `0x12` is a BD node but a non-drawable FP content
-/// group holding the placed controls (42299 FP instances; see those entries).
-/// Several BD-named structure classes (`0x4c` diagram-frame, `0x52`
-/// case/sequence, `0x64` cluster/array shell, `0xc7`, `0xac`) likewise also
-/// occur on the FP, where their precise role is **not separately RE-validated** —
-/// treat their names as the BD role, not a confirmed FP claim.
+/// dual-role cases (BD role / FP role): `0x53` BD while/for loop / FP control-
+/// container (21993 FP), `0x12` BD node / non-drawable FP content group holding
+/// controls (42299 FP), and `0x4c` BD diagram-frame / FP root panel pane (7568 FP,
+/// under root `0x7e`). `0x64` cluster/array shell was checked and is **section-
+/// consistent** (holds member controls on both BD 6705 and FP 9499 — no relabel
+/// needed). Still NOT separately RE-validated on the FP: `0x52` case/sequence,
+/// `0xc7`, `0xac` — treat those names as the BD role, not a confirmed FP claim.
 /// Each entry documents its role, coarse [category]
 /// ([ViObjectKind]), evidence, and a [confidence] label. A control's *data type*
 /// (numeric/enum/string/…) is read from its descendant `C4` records into
@@ -194,9 +194,13 @@ enum HeapObjectClass {
   /// `0x7E` — the single block-diagram **root** (parentOid == null in 398/398).
   diagramRoot(0x7e, 'Diagram root', ViObjectKind.structure, ClassConfidence.confirmed),
 
-  /// `0x4C` — the top-level **diagram frame** holding all nodes; owns the
-  /// `14 19 01 fd` child-membership reflist.
-  diagramFrame(0x4c, 'Diagram frame', ViObjectKind.structure, ClassConfidence.confirmed),
+  /// `0x4C` — the single top-level **root frame** under the heap root `0x7e`,
+  /// owning the `14 19 01 fd` child-membership reflist. Section-dependent: on the
+  /// **block diagram** the diagram frame holding all nodes; on the **front panel**
+  /// the panel pane holding the placed controls. Corpus: 7568 FP instances (one per
+  /// VI, 7567 drawn), every one parented to `0x7e`, children are the `0x12` content
+  /// groups + a `0x11c` viewport — i.e. the FP root pane, not a "diagram" frame.
+  diagramFrame(0x4c, 'Root frame (BD diagram / FP panel)', ViObjectKind.structure, ClassConfidence.confirmed),
 
   /// `0x7F` — a root-level **diagram property / scroll-state** record (no bounds).
   diagramProps(0x7f, 'Diagram properties', ViObjectKind.structure, ClassConfidence.inferred),
