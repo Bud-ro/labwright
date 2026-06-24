@@ -485,12 +485,15 @@ enum HeapAttribute {
   /// (98.8% sane; the `+inf` sentinel = "no max"). Pairs with [foregroundColor].
   foregroundColorB(0x21, HeapAttrKind.color, 'lineColorOrControlMax', AttrConfidence.inferred),
 
-  /// `0x2A` — **plot / trace colour** (RGB; 100% opaque flag, hued — white/red/
-  /// blue/green, ~21% grey), scoped to plot objects (kind 0x27). A genuine colour.
+  /// `0x2A` — **plot / graph colour** (RGB). A genuine LabVIEW plot palette
+  /// (#ff4242/#0eff00/#0041dc…) appears in a minority; the bulk is a near-monochannel
+  /// form whose exact role is unclear (only ~1.3% pure grey, ~86% flag=0). Most
+  /// common enclosing class 0x27 (~29%, not exclusive). Role inferred, not pinned.
   plotColor(0x2a, HeapAttrKind.color, 'plotColor', AttrConfidence.inferred),
 
-  /// `0x2B` — **fill / area colour** (RGB; 100% colour-flag sentinel, ~95% grey
-  /// plus a transparent minority), on graph/area objects (kind 0x68).
+  /// `0x2B` — **fill / area colour** (RGB; 100% colour-flag sentinel, ~89% grey
+  /// with an opaque hued minority e.g. #ff0013 — NO transparent values observed),
+  /// ~93% scoped to graph/area objects (kind 0x68).
   areaFillColor(0x2b, HeapAttrKind.color, 'areaFillColor', AttrConfidence.inferred),
 
   /// `0xD0` — **colour** (RGB; diverse hues). Direction not pinned.
@@ -1505,7 +1508,11 @@ HeapDecodeTier heapDecodeTier(Uint8List body, int offset, int lead, String secti
 /// skip table** — the reverse-engineered framing of every record family known so
 /// far. Coverage across the diverse corpus is measured mechanically (the
 /// "% deliberately parsed" metric — see corpus/ and tool/coverage.dart), not
-/// hand-asserted here; it is the frontier this table extends. Total/bounds-safe.
+/// hand-asserted here; it is the frontier this table extends. Total (never throws).
+///
+/// CONTRACT: the returned length is the record's NOMINAL size and may exceed the
+/// remaining buffer for a truncated record — callers MUST validate `i + len <=
+/// length` before reading (as [walkHeapBody] does, stopping the walk there).
 ///
 /// Record families (lead byte → framing):
 /// - `C4` — length-prefixed: `3 + u8len`, or `5 + u16len` for the `FF` escape.

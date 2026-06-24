@@ -229,6 +229,18 @@ void main() {
     expect(deco.controlMax, isNull);
   });
 
+  test('a 0x6C <u8len> library token does NOT become helpText (only the FF blob does)', () {
+    // C6 6C <u8 len> <u32 strlen><ascii> — a library/format token, NOT help text.
+    List<int> u8tok(String s) => [0xc6, 0x6c, 4 + s.length, 0, 0, 0, s.length, ...s.codeUnits];
+    final records = <int>[
+      ...open(0x50, 1), ...bounds(0, 0, 17, 80),
+      ...u8tok('ps2000aRunStreaming'), // decodes to a string, but is NOT help
+      ...close(),
+    ];
+    final o = buildDiagram(Uint8List.fromList([0, 0, 0, records.length, ...records])).byId[1]!;
+    expect(o.helpText, isNull); // the <u8len> token must not be surfaced as help
+  });
+
   test('formatControlRange renders honestly (finite-only, inverted/±∞/NaN suppressed)', () {
     expect(formatControlRange(-5.0, 10.0), '-5 … 10');
     expect(formatControlRange(0.0, 2.5), '0 … 2.5');

@@ -15,11 +15,14 @@ title), `cpc2Description` (VI description), and grouped/located heap strings —
 control labels, captions, help text, plot/format strings, plus the embedded
 **library paths** and **Call-Library C-function names** a VI invokes.
 
-**Stage 3 — the heap is decoded.** The block-diagram heap (`BDEx`) is LabVIEW's
-opcode-serialized object format; it is now reverse-engineered (clean-room, from the
-public sample corpus only) to a high degree:
+**Stage 3 — the heap is decoded.** The block-diagram (`BDHb`) and front-panel
+(`FPHb`) heaps are LabVIEW's opcode-serialized object format; they are now
+reverse-engineered (clean-room, from the public sample corpus only) to a high
+degree (the pipeline measures `BDHb`/`BDHP`/`FPHb`/`FPHP`/`DTHP` — not `BDEx`,
+which is a separate save-form the decoder does not target):
 - a confirmed opcode catalog (`HeapOpcode`) + a record **walker** (`recordSkip` /
-  `walkHeapBody`) that covers **100%** of every corpus `BDEx` body;
+  `walkHeapBody`) framing **~99.5%** of every corpus heap body (see the 3-tier
+  coverage metric in `corpus/`);
 - `buildDiagram` → a **`ViDiagram`** graph of objects with a **nesting tree**
   (`parentOid`, `roots`/`children`) and **absolute coordinates** (`absBounds`),
   each object **classified** (`ViObjectKind`: node / terminal / structure /
@@ -30,7 +33,7 @@ public sample corpus only) to a high degree:
 Everything is **honest and total**: validated across the corpus (0 crashes), and
 the genuine limits are documented, not faked — e.g. signal **wires are geometry
 only** (no recoverable node→node edges), and `function`-vs-`subVI` is not
-separable from `BDEx` alone. See `docs/vi-rsrc-and-heap-format.md` for the full
+separable from the heap alone. See `docs/vi-rsrc-and-heap-format.md` for the full
 reverse-engineering record.
 
 Part of the Labwright monorepo · BSD-3-Clause.

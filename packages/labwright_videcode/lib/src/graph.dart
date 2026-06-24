@@ -409,7 +409,7 @@ ViTypeKind inferTypeKind(Set<int> c4ops, List<int>? formatPayload) {
 class ViDiagram {
   ViDiagram({required this.sectionTag, required this.objects});
 
-  /// The section this diagram came from (`BDEx` = block diagram).
+  /// The section this diagram came from (`BDHb` = block diagram, `FPHb` = front panel).
   final String sectionTag;
 
   /// All recovered objects, in heap (pre-order) order.
@@ -439,7 +439,7 @@ bool _isTypeTag(int b) => b == 0xfb || b == 0xfe || b == 0xfd;
 /// parented by the enclosing object; `C4 2D`/`C4 22`/`14 19 01 fd` records attach
 /// to the innermost object; absolute coordinates compose down the object-ancestor
 /// chain. Total/bounds-safe.
-ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDEx'}) {
+ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
   final objects = <ViHeapObject>[];
   final c4ops = <ViHeapObject, Set<int>>{};
   final fmt = <ViHeapObject, List<int>>{};

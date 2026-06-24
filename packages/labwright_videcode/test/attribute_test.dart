@@ -244,6 +244,17 @@ void main() {
       expect(a.rgb, 0x123456);
     });
 
+    test('plotColor 0x2a and areaFillColor 0x2b decode as colours', () {
+      final plot = decodeHeapAttr(Uint8List.fromList([0x84, 0x2a, 0xff, 0xff, 0x42, 0x42]), 0)!;
+      expect(plot.attribute, HeapAttribute.plotColor);
+      expect(plot.kind, HeapAttrKind.color);
+      expect(plot.rgb, 0xff4242);
+      expect(plot.isTransparent, isFalse);
+      final fill = decodeHeapAttr(Uint8List.fromList([0x84, 0x2b, 0x01, 0x00, 0x00, 0x00]), 0)!;
+      expect(fill.attribute, HeapAttribute.areaFillColor);
+      expect(fill.isTransparent, isTrue); // flag 0x01, rgb 0
+    });
+
     test('non-colour ids in the 84/8x form keep their catalogued kind (not fake colour)', () {
       // 0x22 textStyle carries packed ASCII in the 4-byte form — must NOT be a colour.
       final text = decodeHeapAttr(Uint8List.fromList([0x84, 0x22, 0x50, 0x61, 0x6e, 0x65]), 0)!; // "Pane"
