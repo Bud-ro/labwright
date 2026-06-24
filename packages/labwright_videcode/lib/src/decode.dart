@@ -41,7 +41,9 @@ DecodedSection inflateSection(ViSection s) {
   if (_looksCompressed(b)) {
     final declared = ByteData.sublistView(b).getUint32(0);
     try {
-      final out = const ZLibDecoder().decodeBytes(b.sublist(4));
+      // sublistView (zero-copy) rather than sublist — avoids duplicating the
+      // whole compressed heap just to skip the 4-byte size prefix.
+      final out = const ZLibDecoder().decodeBytes(Uint8List.sublistView(b, 4));
       if (out.length == declared) {
         return DecodedSection(section: s, bytes: out, wasCompressed: true);
       }

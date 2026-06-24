@@ -87,14 +87,20 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
     ViModel? model;
     var sections = const <DecodedSection>[];
     if (load.isOk) {
-      version = decodeVersion(bytes);
-      strings = extractHeapStrings(bytes);
-      components = blockComponents(bytes);
-      model = buildViModel(bytes);
+      // Decode the heaps ONCE and derive everything from that single inflate
+      // pass (previously version/strings/components/model/sections each re-ran
+      // decodeSections → ~4 redundant zlib inflations of the heaviest heaps).
+      // Wrapped so a container that parses for the summary but throws on a
+      // section keeps the UI total.
       try {
         sections = decodeSections(bytes);
+        model = buildViModelFromDecoded(sections);
+        strings = heapStringsFromDecoded(sections);
+        components = model.components;
+        version = decodeVersion(bytes); // cheap: reads descriptors, no heap inflation
       } catch (_) {
         sections = const [];
+        model = null;
       }
     }
     setState(() {
@@ -322,6 +328,14 @@ class _SummaryView extends StatefulWidget {
 class _SummaryViewState extends State<_SummaryView> {
   final _filterCtrl = TextEditingController();
   String _filter = '';
+  // Decoded once per section list (rather than on every filter keystroke).
+  late ViIcon? _icon = decodeViIcon(widget.sections);
+
+  @override
+  void didUpdateWidget(_SummaryView old) {
+    super.didUpdateWidget(old);
+    if (!identical(old.sections, widget.sections)) _icon = decodeViIcon(widget.sections);
+  }
 
   @override
   void dispose() {
@@ -345,7 +359,7 @@ class _SummaryViewState extends State<_SummaryView> {
         ? widget.strings
         : [for (final s in widget.strings) if (s.toLowerCase().contains(q)) s];
 
-    final icon = decodeViIcon(widget.sections);
+    final icon = _icon;
 
     return ListView(
       children: [
