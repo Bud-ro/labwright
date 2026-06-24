@@ -22,6 +22,7 @@ class BlockHexView extends StatefulWidget {
 
 class _BlockHexViewState extends State<BlockHexView> {
   final _hexScroll = ScrollController();
+  final _recScroll = ScrollController();
   late final List<_SpanInfo> _records;
   late final List<int> _byteToRecord; // byte offset -> record index (or -1)
   Widget? _preview; // typed whole-section display (e.g. an icon image)
@@ -46,15 +47,25 @@ class _BlockHexViewState extends State<BlockHexView> {
   @override
   void dispose() {
     _hexScroll.dispose();
+    _recScroll.dispose();
     super.dispose();
   }
 
-  void _select(int i) {
+  /// Selects record [i]. Always scrolls the hex dump to the record's bytes; when
+  /// the selection originated from a hex-byte tap ([fromHex]) it also scrolls the
+  /// records list to bring that record into view (and vice-versa is implicit:
+  /// tapping a record row scrolls the hex to its bytes).
+  void _select(int i, {bool fromHex = false}) {
     setState(() => _selected = i);
-    if (i >= 0 && i < _records.length) {
+    if (i < 0 || i >= _records.length) return;
+    if (_hexScroll.hasClients) {
       final row = _records[i].offset ~/ 16;
-      final target = (row * _kRowHeight).clamp(0.0, _hexScroll.position.maxScrollExtent);
-      _hexScroll.animateTo(target, duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
+      _hexScroll.animateTo((row * _kRowHeight).clamp(0.0, _hexScroll.position.maxScrollExtent),
+          duration: const Duration(milliseconds: 180), curve: Curves.easeOut);
+    }
+    if (fromHex && _recScroll.hasClients) {
+      _recScroll.animateTo((i * _kRecHeight - 80).clamp(0.0, _recScroll.position.maxScrollExtent),
+          duration: const Duration(milliseconds: 180), curve: Curves.easeOut);
     }
   }
 
@@ -128,9 +139,15 @@ class _BlockHexViewState extends State<BlockHexView> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           Expanded(
-                            child: ListView.builder(
-                              itemCount: _records.length,
-                              itemBuilder: (context, i) => _recordRow(i),
+                            child: Scrollbar(
+                              controller: _recScroll,
+                              thumbVisibility: true,
+                              child: ListView.builder(
+                                controller: _recScroll,
+                                itemCount: _records.length,
+                                itemExtent: _kRecHeight,
+                                itemBuilder: (context, i) => _recordRow(i),
+                              ),
                             ),
                           ),
                           if (_selected >= 0) _detail(_records[_selected]),
@@ -169,7 +186,7 @@ class _BlockHexViewState extends State<BlockHexView> {
         }
         if (off != null && off >= 0 && off < b.length) {
           final ri = _byteToRecord[off];
-          if (ri >= 0) _select(ri);
+          if (ri >= 0) _select(ri, fromHex: true);
         }
       },
       child: Row(
@@ -207,7 +224,8 @@ class _BlockHexViewState extends State<BlockHexView> {
   Widget _recordRow(int i) {
     final r = _records[i];
     final selected = i == _selected;
-    return InkWell(
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: () => _select(i),
       child: Container(
         color: selected ? r.color.withValues(alpha: 0.18) : null,
@@ -254,6 +272,7 @@ class _BlockHexViewState extends State<BlockHexView> {
 }
 
 const double _kRowHeight = 20;
+const double _kRecHeight = 30; // records-list row height (fixed → smooth scroll + scroll-to-index)
 
 /// One parsed record for display.
 class _SpanInfo {
