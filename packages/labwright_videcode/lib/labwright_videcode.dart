@@ -17,4 +17,5 @@ export 'src/graph.dart';
 export 'src/heap.dart';
 export 'src/icon.dart';
 export 'src/ir.dart';
+export 'src/ir_json.dart';
 export 'src/meta.dart';
