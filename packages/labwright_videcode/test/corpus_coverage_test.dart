@@ -164,4 +164,38 @@ void main() {
               '— update the catalog doc + this pin if the corpus/decode legitimately changed.');
     });
   });
+
+  // Pin the STRUCTURAL NODE-FALLBACK output (category==node while objectClass is
+  // uncatalogued) so the headline render improvement can't silently regress to 0
+  // if the 0x1b-container code or the gate conditions drift — those objects would
+  // quietly revert to faint unknown boxes with nothing else failing. Also cap the
+  // total still-unknown drawable tail so a NEW uncatalogued bucket surfaces loudly.
+  test('structural node-fallback keeps classifying the BD node tail (anti-regression)', () {
+    var fallbackNodes = 0, drawableUnknown = 0;
+    for (final root in ['/tmp/claude-1000/vi_samples', '/tmp/claude-1000/vi_diverse']) {
+      final dd = Directory(root);
+      if (!dd.existsSync()) continue;
+      for (final f in dd.listSync(recursive: true).whereType<File>()) {
+        if (!f.path.toLowerCase().endsWith('.vi')) continue;
+        try {
+          final vi = buildViModel(f.readAsBytesSync());
+          for (final o in vi.blockDiagrams.expand((x) => x.objects)) {
+            final b = o.absBounds;
+            if (b == null || b.width <= 1 || b.height <= 1) continue;
+            if (o.category == ViObjectKind.node && o.objectClass == HeapObjectClass.unknown) fallbackNodes++;
+            if (o.category == ViObjectKind.unknown) drawableUnknown++;
+          }
+        } catch (_) {}
+      }
+    }
+    // Fallback caught ~1937 across ~22 caption-less/uncatalogued node kinds.
+    expect(fallbackNodes, inInclusiveRange(1500, 2400),
+        reason: 'node-fallback output ($fallbackNodes) drifted — the gate (parent 0x1b + 0x15 child '
+            '+ no 0x68 + size cap) may have broken; the tail would revert to unknown boxes.');
+    // Ceiling: still-unknown drawable BD objects (~1037 area>1px). A big jump means
+    // a new uncatalogued drawable bucket appeared — investigate/classify it.
+    expect(drawableUnknown, lessThan(1600),
+        reason: 'still-unknown drawable BD objects ($drawableUnknown) exceeded the ceiling — '
+            'a new uncatalogued kind likely appeared; probe and classify it.');
+  });
 }

@@ -171,11 +171,11 @@ enum ClassConfidence {
 /// heaps (`FPHb`) — there object instances are ≈99% catalogued. **Block-diagram**
 /// (`BDHb`) coverage splits two ways: (1) the high-volume **non-drawable** internal
 /// records `0x15`/`0x33`/`0x17`/`0x30` (0 bounds — invisible, no render cost) are
-/// unnamed but never shown; (2) of the **drawable** BD objects ~99.6% are now
-/// catalogued by code, and a structural node-fallback (drawable + node-container
-/// `0x1b` parent + only `0x15` children -> node) classifies most of the rest, so
-/// only ~0.2% of visible BD objects render as a faint `unknown` placeholder.
-/// Naming (1) changes
+/// unnamed but never shown; (2) of the render-accurate **drawable** BD objects
+/// (~539k, post-scaffolding) ~99.4% are catalogued by code, and a structural
+/// node-fallback (drawable + node-container `0x1b` parent + a `0x15` child + no
+/// `0x68` connector + under a size cap -> node) classifies most of the rest, so
+/// only ~0.19% render as a faint `unknown` placeholder. Naming (1) changes
 /// nothing visible; the visible gap is (2). (The `BDEx`/`FPEx`
 /// extended sections DO exist and are loaded — 3792/3000 of them — but in this
 /// corpus they carry **no decodable object tree** (0 objects), so the object
@@ -926,19 +926,25 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
 
   // Structural node fallback: the BD node tail is dozens of low-frequency kinds
   // that all share one signature — a drawable object parented to the node
-  // container `0x1b` whose only children are the structural `0x15` records (the
-  // exact profile catalogued one-by-one as 0x2f/0x63/0x153/…). Rather than
-  // enumerate every kind, classify any still-`unknown` object matching it as a
-  // node so it renders as a node box instead of a faint unknown placeholder.
-  // Corpus: catches ~1436 objects across ~15 caption-less kinds; 0x1b is
-  // specifically the node container, so false positives are negligible.
+  // container `0x1b`, holding the structural `0x15` records, with NO `0x68`
+  // connector child (that would make it a terminal). It may also carry a `0xa`
+  // caption / `0x10b`/`0xbc`/`0x1b` sub-records (e.g. subVI calls `…​.vi`, formula
+  // nodes `x*4+6`). Rather than enumerate every kind (0x2f/0x63/0x124/0xc0/…),
+  // classify any still-`unknown` object matching it as a node so it renders as a
+  // node box (and the `0xa` caption then propagates to its name). Corpus: ~1953
+  // objects across ~22 kinds. A size cap keeps a rare large still-unknown object
+  // (a possible structure body) as a faint placeholder rather than a big node box.
   for (final o in objects) {
     if (o.category != ViObjectKind.unknown) continue;
     final b = o.absBounds;
     if (b == null || b.width <= 0 || b.height <= 0) continue;
+    if (b.width * b.height >= 20000) continue; // structure-sized -> leave as unknown
     if (o.parentOid == null || byOidItems[o.parentOid]?.kind != 0x1b) continue;
     final cs = nodeKids[o.oid];
-    if (cs == null || cs.isEmpty || cs.any((c) => c.kind != 0x15)) continue;
+    if (cs == null) continue;
+    final hasStructural = cs.any((c) => c.kind == 0x15);
+    final hasConnector = cs.any((c) => c.kind == 0x68);
+    if (!hasStructural || hasConnector) continue; // need node records; a 0x68 = terminal
     o.category = ViObjectKind.node;
   }
 

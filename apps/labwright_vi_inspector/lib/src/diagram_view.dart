@@ -571,7 +571,22 @@ class _DetailsCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(object.label ?? cls.label, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  // Title: the object's own name, else its class label; but when the
+                  // class is uncatalogued yet the structural fallback assigned a
+                  // category (e.g. a node-box on canvas), name it by category so the
+                  // title isn't a bare "unknown" that contradicts the drawn shape.
+                  Text(
+                    object.label ??
+                        (cls != HeapObjectClass.unknown
+                            ? cls.label
+                            : switch (object.category) {
+                                ViObjectKind.node => 'Node',
+                                ViObjectKind.structure => 'Structure',
+                                ViObjectKind.terminal => 'Terminal',
+                                _ => cls.label,
+                              }),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
                   const SizedBox(height: 2),
                   Text(
                     '${cls.label}$conf · class 0x${object.kind.toRadixString(16)} · oid ${object.oid}'
