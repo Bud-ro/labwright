@@ -5,6 +5,25 @@ NI-LabVIEW example corpus), not from LabVIEW itself. These document what
 `labwright_viparse` + `labwright_videcode` decode today and what blocks full
 block-diagram graph recovery.
 
+## Byte-purpose coverage — the honest scorecard ⚖️
+
+Mastery means **every byte accounted for and known for its purpose** — a higher
+bar than "framed". Status for the `BDEx` block-diagram heap (13.48 MB across the
+corpus):
+
+| | bytes | share | meaning |
+|---|---|---|---|
+| **Framed** | 13,480,958 | **100%** | every byte belongs to a sized record; the walker reaches exact EOF on 398/398 |
+| **Purpose decoded** | 6,696,125 | **~49%** | record semantics fully known (bounds, strings, captions, colors, refs, headers, …) |
+| **Shape known** | 1,526,513 | ~11% | structure parsed but role/fields undetermined (the structural `C4` rects, object-header typed-lists' operands) |
+| **Framed only** | 5,258,320 | **~39%** | length known, field purposes **not** yet decoded |
+
+The framed-only remainder is dominated by: `0x10`/`0x11` typed-list operands
+(~2.06 MB), `0x44` (1.45 MB), `0x24` (0.99 MB), `0x64` (0.26 MB), the attribute
+nibble-family `0x25/26/45/46/65/66/85/86` (~0.5 MB), and `0xC6`/`0xC5`. Driving
+this to ~100% (every field's role identified) is the remaining work for true
+byte-level mastery, tracked below.
+
 ## Container (RSRC) — fully decoded ✅
 
 A `.vi`/`.ctl`/`.llb` is an RSRC container, big-endian:
