@@ -71,6 +71,12 @@ enum HeapOpcode {
   /// `0xC4`, distinct from the record-prefix [kHeapRecordPrefix].)
   symbolName(0xc4, HeapShape.string, isDecoded: true),
 
+  /// `0xB6` — **VI-Server method / invoke-node name** (decoded). A single string
+  /// naming a property/invoke-node method, e.g. `FP.Open`, `FP.Close`, `FP.Center`,
+  /// `Mass Compile`, `Reinit To Default`, `ClearCompObjCache`. 100% printable
+  /// across the corpus (scoped to kinds 0xaa/0x0a). Decoded by [HeapRecord.text].
+  methodName(0xb6, HeapShape.string, isDecoded: true),
+
   /// `0x19` — **description / help text** (decoded, heuristic). HTML-ish
   /// (`<B>…</B>`), multi-line tooltip/help text stored as length-prefixed text
   /// segments. The inner multi-segment framing is not fully decoded, so the text
