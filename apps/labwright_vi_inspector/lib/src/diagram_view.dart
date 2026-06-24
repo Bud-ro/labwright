@@ -164,7 +164,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                   left: 8,
                   right: 8,
                   bottom: 8,
-                  child: _DetailsCard(object: _selected!, onClose: () => setState(() {
+                  child: _DetailsCard(object: _selected!, members: _members, onClose: () => setState(() {
                         _selected = null;
                         _members = const {};
                       })),
@@ -594,9 +594,18 @@ Widget _detail(String label, String value) => Padding(
     );
 
 class _DetailsCard extends StatelessWidget {
-  const _DetailsCard({required this.object, required this.onClose});
+  const _DetailsCard({required this.object, required this.onClose, this.members = const {}});
   final ViHeapObject object;
   final VoidCallback onClose;
+
+  /// The logic objects this one contains (for a selected structure) — listed so
+  /// the user can read "this loop/case contains these subVIs" textually.
+  final Set<ViHeapObject> members;
+
+  static String _contentLabel(ViHeapObject o) {
+    final l = o.label?.trim();
+    return (l != null && l.isNotEmpty) ? l : o.objectClass.label;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -651,6 +660,13 @@ class _DetailsCard extends StatelessWidget {
                     _detail('range', range),
                   if (object.helpText != null && stripHelpMarkup(object.helpText!).isNotEmpty)
                     _detail('help', stripHelpMarkup(object.helpText!)),
+                  // For a structure, the logic it contains (spatially) — so the
+                  // loop/case reads as "contains these subVIs/nodes".
+                  if (members.isNotEmpty)
+                    _detail(
+                      'contains',
+                      members.map(_contentLabel).take(10).join(', ') + (members.length > 10 ? ', …' : ''),
+                    ),
                 ],
               ),
             ),
