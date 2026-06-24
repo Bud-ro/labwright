@@ -1263,6 +1263,56 @@ HeapRef? decodeHeapRef(Uint8List body, int offset) {
   return HeapRef(kind: kind, targetOid: (body[offset + 4] << 8) | body[offset + 5], length: 6);
 }
 
+/// How fully a heap record is understood — the basis of the honest three-tier
+/// coverage metric (see `tool/coverage.dart` + `corpus/README.md`).
+enum HeapDecodeTier {
+  /// We know what the record **means**: an object header (`kind`+`oid`), a
+  /// bracket-tree group open/close, a typed object reference, a decoded `C4`
+  /// opcode, or a *named* attribute/property-token of confirmed/inferred
+  /// confidence.
+  semantic,
+
+  /// The value's **kind/width** is known but its meaning is not — a `kindOnly`
+  /// catalog entry (a value-kind label, not a decoded role).
+  valueKindKnown,
+
+  /// Only the record **boundary** is known (it was framed); its content is not
+  /// interpreted at all.
+  framed,
+}
+
+/// Classifies the record at [offset] in a heap [body] (whose lead byte is [lead],
+/// living in section [sectionTag]) into a [HeapDecodeTier]. The single source of
+/// truth shared by the coverage tool and its regression test so they cannot
+/// drift. Assumes [offset] is a record start as produced by [walkHeapBody].
+HeapDecodeTier heapDecodeTier(Uint8List body, int offset, int lead, String sectionTag) {
+  // Object header (class + oid), group open/close (bracket tree) — structural meaning.
+  if ((lead == 0x10 || lead == 0x11 || lead == 0x12) &&
+      offset + 9 <= body.length && body[offset + 2] == 0x02 && body[offset + 3] == 0xfe && body[offset + 6] == 0xfd) {
+    return HeapDecodeTier.semantic;
+  }
+  if (lead == 0x08 || lead == 0x09 || lead == 0x0a || lead == 0x0b) return HeapDecodeTier.semantic; // close
+  if (lead == 0x10 || lead == 0x11 || lead == 0x12 || lead == 0x13) {
+    if (offset + 4 <= body.length && _isTypeTag(body[offset + 3])) return HeapDecodeTier.semantic; // group open
+  }
+  if (lead == 0x14 && decodeHeapRef(body, offset) != null) return HeapDecodeTier.semantic; // typed ref
+  if (lead == kHeapRecordPrefix) {
+    final rec = c4FrameAt(body, offset, sectionTag);
+    return (rec != null && rec.kind.isDecoded) ? HeapDecodeTier.semantic : HeapDecodeTier.framed;
+  }
+  final a = decodeHeapAttr(body, offset);
+  if (a != null) {
+    if (a.attribute == HeapAttribute.unknown) return HeapDecodeTier.framed;
+    return a.attribute.confidence == AttrConfidence.kindOnly ? HeapDecodeTier.valueKindKnown : HeapDecodeTier.semantic;
+  }
+  if (isTypeDescriptorToken(lead)) return HeapDecodeTier.semantic; // 0x04 type-descriptor grammar (structural)
+  final pv = decodeHeapPropertyToken(body, offset);
+  if (pv != null) {
+    return pv.token.confidence == AttrConfidence.kindOnly ? HeapDecodeTier.valueKindKnown : HeapDecodeTier.semantic;
+  }
+  return HeapDecodeTier.framed;
+}
+
 /// The byte length of the heap record at [i] in [h], or null if [i] is not a
 /// recognized record start (the walk stops there). This is the **heap record
 /// skip table** — the reverse-engineered framing of every record family known so

@@ -38,17 +38,25 @@ The tool also prints the overall figure across all fetched sources. Earlier
 "~100%" figures were measured on a single heap (`BDEx`) in one corpus and did
 not generalize; the corpus-wide number is the honest one.
 
-### Two metrics: framed vs decoded
+### Three tiers: framed vs value-kind-known vs decoded
 
-Framing is now near-complete, so the tool reports a second, deeper figure:
+Framing is near-complete, so the tool reports two deeper figures. Every framed
+record falls in exactly one tier (see `HeapDecodeTier` / `heapDecodeTier` in
+`heap.dart` — the single source of truth shared by the tool and its test):
 
 - **% deliberately parsed** (framing) — bytes inside a record the walker frames.
-- **% semantically decoded** (meaning) — bytes inside a record we assign a typed
-  *meaning* to (object class+oid, bracket structure, child ref, a decoded `C4`
-  opcode, or a *named* `HeapAttribute`), as opposed to records we frame but don't
-  yet interpret (e.g. the `hi≤1` property tokens — length known, meaning not).
+- **% semantically decoded** (meaning) — bytes in a record we assign a typed
+  *meaning* to: an object header (class+oid), bracket structure (group
+  open/close), a typed object reference, a decoded `C4` opcode, or a *named*
+  attribute/property-token of **confirmed/inferred** confidence.
+- **% value-kind known** — bytes where the value's *kind/width* is known but its
+  meaning is not: a `kindOnly`-confidence catalog entry (a value-kind label, not
+  a decoded role). These are honestly **not** "decoded" — counting them as
+  semantic would inflate the headline, so they get their own tier.
 
-`semanticallyDecoded` is the frontier now: it is necessarily ≤ framing, and the
-gap is the set of record families whose meaning is still undecoded. Drive it up
-by decoding those families (then refresh `baseline.json`). Both figures are
-machine-written to [`baseline.json`](baseline.json).
+`semanticallyDecoded + valueKindKnown = % classified` (≤ framing).
+`semanticallyDecoded` is the real frontier: drive it up by turning `kindOnly`
+entries into confirmed/inferred ones (with evidence) or decoding new families,
+then refresh `baseline.json`. All figures are machine-written to
+[`baseline.json`](baseline.json), and `corpus_coverage_test.dart` ratchets BOTH
+`deliberatelyParsed` and `semanticallyDecoded` so neither can silently regress.

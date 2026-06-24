@@ -42,26 +42,39 @@ void main() {
     }
   });
 
-  test('"% deliberately parsed" holds at or above the machine-written baseline', () {
-    var framed = 0, body = 0;
+  test('"% deliberately parsed" AND "% semantically decoded" hold at or above baseline', () {
+    var framed = 0, body = 0, semantic = 0;
     for (final f in sample) {
       for (final s in decodeSections(f.readAsBytesSync())) {
         if (!_heapTags.contains(s.tag) || s.bytes.length < 6) continue;
         final w = walkHeapBody(s.bytes);
         framed += w.coveredBytes;
         body += w.bodyBytes;
+        for (final span in w.spans) {
+          if (heapDecodeTier(s.bytes, span.offset, span.lead, s.tag) == HeapDecodeTier.semantic) {
+            semantic += span.length;
+          }
+        }
       }
     }
     expect(body, greaterThan(0));
-    final current = framed / body;
 
     final baselineFile = File('../../corpus/baseline.json');
-    final floor = baselineFile.existsSync()
-        ? ((jsonDecode(baselineFile.readAsStringSync()) as Map)['picotechFirst60']
-            as Map)['deliberatelyParsed'] as num
-        : 0.0;
-    expect(current, greaterThanOrEqualTo(floor - 0.001),
-        reason: 'deliberately-parsed regressed to ${(current * 100).toStringAsFixed(1)}% '
-            '(baseline ${(floor * 100).toStringAsFixed(1)}%). Re-run tool/coverage.dart only if this is a real improvement.');
+    final base = baselineFile.existsSync()
+        ? (jsonDecode(baselineFile.readAsStringSync()) as Map)['picotechFirst60'] as Map
+        : const <String, Object?>{};
+    num floor(String k) => (base[k] as num?) ?? 0.0;
+
+    final framedPct = framed / body;
+    expect(framedPct, greaterThanOrEqualTo(floor('deliberatelyParsed') - 0.001),
+        reason: 'deliberately-parsed regressed to ${(framedPct * 100).toStringAsFixed(1)}% '
+            '(baseline ${(floor('deliberatelyParsed') * 100).toStringAsFixed(1)}%). Re-run tool/coverage.dart only if this is a real improvement.');
+
+    // The semantic frontier is the surface the new decoders move; guard it too so
+    // a dropped attribute id / ref subop / isDecoded flag fails the test.
+    final semanticPct = semantic / body;
+    expect(semanticPct, greaterThanOrEqualTo(floor('semanticallyDecoded') - 0.001),
+        reason: 'semantically-decoded regressed to ${(semanticPct * 100).toStringAsFixed(1)}% '
+            '(baseline ${(floor('semanticallyDecoded') * 100).toStringAsFixed(1)}%). Re-run tool/coverage.dart only if this is a real improvement.');
   });
 }

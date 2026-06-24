@@ -1,13 +1,14 @@
 {
   "generatedBy": "packages/labwright_videcode/tool/coverage.dart",
-  "metric": "deliberatelyParsed = framed bytes / total; semanticallyDecoded = typed-meaning bytes / total. Heaps BDHb/BDHP/FPHb/FPHP/DTHP.",
+  "metric": "deliberatelyParsed = framed bytes / total; semanticallyDecoded = typed-MEANING bytes / total (excludes kindOnly value-kind labels); valueKindKnown = kind-known-but-meaning-unknown bytes / total. Heaps BDHb/BDHP/FPHb/FPHP/DTHP.",
   "picotechFirst60": {
     "vis": 60,
     "parseOk": 60,
     "decodeOk": 60,
     "heaps": 120,
     "deliberatelyParsed": 0.9417,
-    "semanticallyDecoded": 0.918,
+    "semanticallyDecoded": 0.82,
+    "valueKindKnown": 0.098,
     "fullyParsedHeaps": 0.9833
   }
 }
