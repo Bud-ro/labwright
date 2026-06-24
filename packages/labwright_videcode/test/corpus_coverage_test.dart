@@ -56,6 +56,9 @@ void main() {
       ..sort((a, b) => a.path.compareTo(b.path)))
         .take(200)
         .toList();
+    // Also count the newest decodes so a silently-dropped id/path fails loudly
+    // (they're a tiny byte-fraction, below the semantic-floor tolerance).
+    var propertyNames = 0, helpStrings = 0, controlF64 = 0;
     for (final f in diverse) {
       final bytes = f.readAsBytesSync();
       expect(() {
@@ -67,10 +70,26 @@ void main() {
             // every framed span must be in-bounds and classifiable
             expect(span.offset + span.length, lessThanOrEqualTo(s.bytes.length));
             heapDecodeTier(s.bytes, span.offset, span.lead, s.tag);
+            final a = decodeHeapAttr(s.bytes, span.offset);
+            if (a == null) continue;
+            if (a.attribute == HeapAttribute.propertyName) {
+              propertyNames++;
+            }
+            if (a.attribute == HeapAttribute.helpDescription && a.asString != null && a.asString!.isNotEmpty) {
+              helpStrings++;
+            }
+            if ((a.attribute == HeapAttribute.foregroundColor || a.attribute == HeapAttribute.foregroundColorB) &&
+                a.width == HeapAttrWidth.f64) {
+              controlF64++;
+            }
           }
         }
       }, returnsNormally, reason: f.path);
     }
+    // These ids exist in the diverse corpus; >0 guards against a dropped decoder.
+    expect(propertyNames, greaterThan(0), reason: 'propertyName (0x31) decode dropped');
+    expect(helpStrings, greaterThan(0), reason: 'helpDescription (0x6c) string decode dropped');
+    expect(controlF64, greaterThan(0), reason: '0x20/0x21 control-min/max f64 decode dropped');
   });
 
   test('"% deliberately parsed" AND "% semantically decoded" hold at or above baseline', () {
