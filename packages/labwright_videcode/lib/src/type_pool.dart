@@ -46,6 +46,7 @@ class ViType {
     this.name,
     this.members = const [],
     this.elementIndex,
+    this.enumItems = const [],
   });
   final int index;
   final int code;
@@ -65,6 +66,12 @@ class ViType {
   /// For a [ViDataType.array], the VCTP index of its element type (resolve
   /// against the pool), or null for non-arrays / unparseable descriptors.
   final int? elementIndex;
+
+  /// For an enum/ring type ([ViDataType.enumU8]/[enumU16]/[enumU32]), the ordered
+  /// item labels (`Channel A`, `Channel B`, …), or empty when unparseable. These
+  /// are the type-pool source; FP control objects carry their own copy via
+  /// `ViHeapObject.items`.
+  final List<String> enumItems;
 }
 
 /// Decodes the **VI Consolidated Type Pool** from an already-decompressed `VCTP`
@@ -97,6 +104,7 @@ List<ViType> decodeTypePool(Uint8List body) {
       name: _trailingName(body, off + 4, off + descLen),
       members: code == 0x50 ? _clusterMembers(body, off, descLen, count) : const [],
       elementIndex: code == 0x40 ? _arrayElement(body, off, descLen, count) : null,
+      enumItems: (code == 0x15 || code == 0x16 || code == 0x17) ? _enumItems(body, off, descLen) : const [],
     ));
     off += descLen;
   }
@@ -136,6 +144,30 @@ int? _arrayElement(Uint8List b, int off, int descLen, int poolCount) {
   final idx = (b[ep] << 8) | b[ep + 1];
   if (idx >= poolCount) return null;
   return idx;
+}
+
+/// Parses an enum/ring descriptor's item labels: `[u16 numItems]` then
+/// `numItems` × `[u8 len][label]` Pascal strings, after flags+code. Returns the
+/// labels, or `const []` if the list doesn't validate (1–256 items, printable,
+/// fits the descriptor) — corpus-validated to parse for ~96% of enums.
+List<String> _enumItems(Uint8List b, int off, int descLen) {
+  if (off + 6 > b.length) return const [];
+  final numItems = (b[off + 4] << 8) | b[off + 5];
+  if (numItems < 1 || numItems > 256) return const [];
+  final out = <String>[];
+  var p = off + 6;
+  final endPos = off + descLen;
+  for (var k = 0; k < numItems; k++) {
+    if (p >= endPos) return const [];
+    final len = b[p];
+    if (len < 1 || p + 1 + len > endPos) return const [];
+    for (var j = p + 1; j < p + 1 + len; j++) {
+      if (b[j] < 0x20 || b[j] >= 0x7f) return const [];
+    }
+    out.add(String.fromCharCodes(b.sublist(p + 1, p + 1 + len)));
+    p += 1 + len;
+  }
+  return out;
 }
 
 /// Resolves a cluster [c]'s [ViType.members] indices against the full pool

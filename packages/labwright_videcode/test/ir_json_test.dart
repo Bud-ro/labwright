@@ -218,4 +218,35 @@ void main() {
     expect(arraysWithElem, greaterThan((arrays * 0.80).floor()),
         reason: 'array element recovery dropped: $arraysWithElem/$arrays');
   });
+
+  test('enum item labels are recovered and printable', () {
+    var files = 0, enums = 0, enumsWithItems = 0;
+    final fails = <String>[];
+    for (final f in all) {
+      final ViModel model;
+      try {
+        model = buildViModel(Uint8List.fromList(f.readAsBytesSync()));
+      } catch (_) {
+        continue;
+      }
+      files++;
+      for (final t in model.types) {
+        if (t.kind != ViDataType.enumU8 && t.kind != ViDataType.enumU16 && t.kind != ViDataType.enumU32) continue;
+        enums++;
+        if (t.enumItems.isEmpty) continue;
+        enumsWithItems++;
+        for (final it in t.enumItems) {
+          if (it.isEmpty || it.runes.any((c) => c < 0x20 || c >= 0x7f)) {
+            if (fails.length < 8) fails.add('"$it" in ${f.path.split('/').last}');
+          }
+        }
+      }
+    }
+    expect(files, greaterThan(0));
+    expect(enums, greaterThan(0));
+    expect(fails, isEmpty, reason: 'malformed enum items: $fails');
+    // ratchet: most enums expose a parseable item list (probe ~96%).
+    expect(enumsWithItems, greaterThan((enums * 0.80).floor()),
+        reason: 'enum item recovery dropped: $enumsWithItems/$enums');
+  });
 }

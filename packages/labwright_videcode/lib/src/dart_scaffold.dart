@@ -31,6 +31,9 @@ const int _namedTypeCap = 40;
 /// truncating (with a "+N more" note).
 const int _structCap = 20;
 
+/// Max enum item labels shown inline for a named enum (with a "…" if more).
+const int _enumItemCap = 16;
+
 /// Generates an **honest structural Dart scaffold** from a decoded [ViModel] —
 /// the first VI→IR→Dart codegen step. It is deliberately NOT executable logic:
 /// LabVIEW stores wires as pure geometry with no recoverable node→node
@@ -88,7 +91,13 @@ String generateDartScaffold(ViModel model, {String name = 'vi'}) {
   if (named.isNotEmpty) {
     b.writeln('// Named types (typedefs / labelled data items):');
     for (final t in named.take(_namedTypeCap)) {
-      b.writeln('//   ${typeLabel(t, model.types)} ${_oneLine(t.name!)}');
+      if (t.enumItems.isNotEmpty) {
+        final items = t.enumItems.take(_enumItemCap).map(_oneLine).join(', ');
+        final more = t.enumItems.length > _enumItemCap ? ', …' : '';
+        b.writeln('//   enum ${_oneLine(t.name!)} { $items$more }');
+      } else {
+        b.writeln('//   ${typeLabel(t, model.types)} ${_oneLine(t.name!)}');
+      }
     }
     if (named.length > _namedTypeCap) {
       b.writeln('//   (+${named.length - _namedTypeCap} more not shown)');

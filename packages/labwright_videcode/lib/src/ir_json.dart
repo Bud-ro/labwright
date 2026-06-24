@@ -12,8 +12,8 @@ import 'type_pool.dart';
 /// shape-breaking change to the emitted maps.
 /// v2 added `subViNames` (the LIbd subVI dependency list); v3 added the type-pool
 /// summary (`typeCount` + `typeHistogram`) from VCTP; v4 added `namedTypes`;
-/// v5 added cluster `members` to named-type entries.
-const int viIrVersion = 5;
+/// v5 added cluster `members` to named-type entries; v6 added enum `items`.
+const int viIrVersion = 6;
 
 /// Serializes a recovered [ViDiagram] to a JSON-encodable map: its section tag
 /// plus a **flat list of objects** carrying the positional nesting via
@@ -108,6 +108,7 @@ Map<String, Object?> viModelToJson(ViModel m) => {
                 'members': [
                   for (final f in clusterFields(t, m.types)) {'kind': typeLabel(f, m.types), if (f.name != null) 'name': f.name},
                 ],
+              if (t.enumItems.isNotEmpty) 'items': t.enumItems,
             },
         ],
       'blockDiagrams': [for (final d in m.blockDiagrams) viDiagramToJson(d)],

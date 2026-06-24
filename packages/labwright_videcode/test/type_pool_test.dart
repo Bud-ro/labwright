@@ -124,6 +124,29 @@ void main() {
     expect(typeLabel(types[0], types), 'dbl'); // non-array unchanged
   });
 
+  test('decodes enum item labels from an enum descriptor', () {
+    // enum (0x16) with 2 items "Rising","Falling": body after len =
+    // flags,code(2) + numItems(2) + [len+"Rising"](7) + [len+"Falling"](8) = 19; descLen=21
+    final items = <int>[
+      0x00, 0x02, // numItems=2
+      6, ...'Rising'.codeUnits,
+      7, ...'Falling'.codeUnits,
+    ];
+    final desc = <int>[0x40, 0x16, ...items];
+    final descLen = 2 + desc.length;
+    final b = Uint8List.fromList([0, 0, 0, 1, (descLen >> 8) & 0xff, descLen & 0xff, ...desc]);
+    final types = decodeTypePool(b);
+    expect(types.single.kind, ViDataType.enumU16);
+    expect(types.single.enumItems, ['Rising', 'Falling']);
+  });
+
+  test('a non-printable enum item list yields no items (no throw)', () {
+    final desc = <int>[0x40, 0x16, 0x00, 0x01, 3, 0x01, 0x02, 0x03]; // 1 item, non-printable
+    final descLen = 2 + desc.length;
+    final b = Uint8List.fromList([0, 0, 0, 1, (descLen >> 8) & 0xff, descLen & 0xff, ...desc]);
+    expect(decodeTypePool(b).single.enumItems, isEmpty);
+  });
+
   test('a malformed cluster member list yields no members (no throw)', () {
     // cluster claiming 999 members in a tiny descriptor -> rejected
     final type2 = <int>[0x00, 0x06, 0x40, 0x50, 0x03, 0xe7]; // nm=999, descLen=6
