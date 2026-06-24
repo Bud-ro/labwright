@@ -25,7 +25,7 @@ ViModel _modelWithDiagram() {
   ];
   final body = Uint8List.fromList([0, 0, 0, records.length, ...records]);
   final sec = DecodedSection(
-    section: ViSection(tag: 'BDEx', index: 0, dataOffset: 0, bytes: body),
+    section: ViSection(tag: 'BDHb', index: 0, dataOffset: 0, bytes: body),
     bytes: body,
     wasCompressed: false,
   );
@@ -38,7 +38,7 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
-    await tester.pumpWidget(MaterialApp(home: Scaffold(body: ViDiagramView(model: _modelWithDiagram()))));
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: ViDiagramView(diagrams: _modelWithDiagram().blockDiagrams))));
     await tester.pump();
 
     expect(find.textContaining('objects'), findsOneWidget); // count header
@@ -52,7 +52,7 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
-    await tester.pumpWidget(MaterialApp(home: Scaffold(body: ViDiagramView(model: _modelWithDiagram()))));
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: ViDiagramView(diagrams: _modelWithDiagram().blockDiagrams))));
     await tester.pump();
 
     expect(find.text('Wireframe'), findsOneWidget);
@@ -66,7 +66,7 @@ void main() {
   });
 
   testWidgets('empty model shows an honest placeholder, not a crash', (tester) async {
-    await tester.pumpWidget(const MaterialApp(home: Scaffold(body: ViDiagramView(model: null))));
-    expect(find.textContaining('No decodable block diagram'), findsOneWidget);
+    await tester.pumpWidget(const MaterialApp(home: Scaffold(body: ViDiagramView(diagrams: null))));
+    expect(find.textContaining('No decodable layout'), findsOneWidget);
   });
 }

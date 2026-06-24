@@ -30,7 +30,8 @@ class ViModel {
     required this.components,
     required this.stringTables,
     required this.heapRecords,
-    this.diagrams = const <ViDiagram>[],
+    this.blockDiagrams = const <ViDiagram>[],
+    this.frontPanelDiagrams = const <ViDiagram>[],
   });
 
   /// LabVIEW version the VI was saved in (e.g. `10.0`), or null if unrecoverable.
@@ -55,13 +56,23 @@ class ViModel {
   /// objects: string tables, `C4 2D`/`1F` value records, …).
   final List<HeapRecord> heapRecords;
 
-  /// The recovered block-diagram object tree(s) — one per walkable `BDEx`
-  /// section: objects (structures / nodes / control terminals / labels) with
-  /// bounds, labels, classified [HeapObjectClass], and parent/child nesting
-  /// (`parentOid` + child-membership refs). **Honest limit**: there are NO
-  /// dataflow wires/edges — LabVIEW stores wires as geometry with no recoverable
-  /// node→node endpoints — so [ViDiagram] exposes nesting, not a wire graph.
-  final List<ViDiagram> diagrams;
+  /// The recovered **block-diagram** object tree(s) — from the `BDHb`/`BDHP`
+  /// block-diagram heaps: objects (structures / nodes / control terminals /
+  /// labels) with bounds, labels, classified [HeapObjectClass], and parent/child
+  /// nesting (`parentOid` + child-membership refs). **Honest limit**: there are
+  /// NO dataflow wires/edges — LabVIEW stores wires as geometry with no
+  /// recoverable node→node endpoints — so [ViDiagram] exposes nesting only.
+  final List<ViDiagram> blockDiagrams;
+
+  /// The recovered **front-panel** object tree(s) — from the `FPHb`/`FPHP`
+  /// front-panel heaps: the panel's controls/indicators/decorations with bounds
+  /// and labels. Same heap-tree format as [blockDiagrams]; semantically the
+  /// panel layout rather than the diagram. (Which heap actually carries content
+  /// varies per VI/save-format — see `corpus/`.)
+  final List<ViDiagram> frontPanelDiagrams;
+
+  /// All recovered diagrams (block + front panel). Back-compat convenience.
+  List<ViDiagram> get diagrams => [...blockDiagrams, ...frontPanelDiagrams];
 
   /// The bounding rectangles of the VI's objects, decoded from the `C4 2D`
   /// records (position/size of controls, nodes, decorations). Partial but real
@@ -261,9 +272,13 @@ ViModel buildViModelFromDecoded(Iterable<DecodedSection> decoded) {
     components: componentsFromDecoded(list),
     stringTables: heapStringTablesFromDecoded(list),
     heapRecords: heapC4RecordsFromDecoded(list),
-    diagrams: [
+    blockDiagrams: [
       for (final d in list)
-        if (d.tag == 'BDEx' && d.bytes.length >= 6) buildDiagram(d.bytes, sectionTag: d.tag),
+        if ((d.tag == 'BDHb' || d.tag == 'BDHP') && d.bytes.length >= 6) buildDiagram(d.bytes, sectionTag: d.tag),
+    ],
+    frontPanelDiagrams: [
+      for (final d in list)
+        if ((d.tag == 'FPHb' || d.tag == 'FPHP') && d.bytes.length >= 6) buildDiagram(d.bytes, sectionTag: d.tag),
     ],
   );
 }

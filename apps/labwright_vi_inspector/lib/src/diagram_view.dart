@@ -13,15 +13,20 @@ enum DiagramRenderMode { wireframe, faithful }
 /// structure frames, labels, click-to-inspect, pan/zoom and auto-fit.
 ///
 /// Backed entirely by the clean-room `labwright_videcode` decode
-/// (`buildViModel` → `ViModel.diagrams`). Honest by construction: only objects
+/// (`buildViModel` → `blockDiagrams`/`frontPanelDiagrams`). Honest by construction: only objects
 /// with recovered absolute bounds are drawn, and **signal wires are not shown** —
 /// LabVIEW does not persist wire geometry (it re-routes wires at draw time), so
 /// drawing them would be fabrication. This is a faithful object/position view,
 /// not a re-render of LabVIEW's canvas.
 class ViDiagramView extends StatefulWidget {
-  const ViDiagramView({super.key, required this.model});
+  const ViDiagramView({super.key, required this.diagrams, this.emptyHint = 'No decodable layout in this file.'});
 
-  final ViModel? model;
+  /// The diagrams to render (block-diagram or front-panel heap trees); the
+  /// richest is shown. Pass `model.blockDiagrams` or `model.frontPanelDiagrams`.
+  final List<ViDiagram>? diagrams;
+
+  /// Shown when no diagram has positioned objects.
+  final String emptyHint;
 
   @override
   State<ViDiagramView> createState() => _ViDiagramViewState();
@@ -43,17 +48,12 @@ class _ViDiagramViewState extends State<ViDiagramView> {
 
   @override
   Widget build(BuildContext context) {
-    final diagram = _largestDiagram(widget.model);
+    final diagram = _largestDiagram(widget.diagrams);
     if (diagram == null) {
-      return const Center(
+      return Center(
         child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Text(
-            'No decodable block diagram in this file.\n'
-            'Load a real .vi with a BDEx block to see its object layout.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey),
-          ),
+          padding: const EdgeInsets.all(24),
+          child: Text(widget.emptyHint, textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey)),
         ),
       );
     }
@@ -241,11 +241,11 @@ class _ViDiagramViewState extends State<ViDiagramView> {
     return d;
   }
 
-  static ViDiagram? _largestDiagram(ViModel? model) {
-    if (model == null || model.diagrams.isEmpty) return null;
+  static ViDiagram? _largestDiagram(List<ViDiagram>? diagrams) {
+    if (diagrams == null || diagrams.isEmpty) return null;
     ViDiagram? best;
     var bestN = -1;
-    for (final d in model.diagrams) {
+    for (final d in diagrams) {
       final n = d.objects.where((o) => o.absBounds != null).length;
       if (n > bestN) {
         bestN = n;

@@ -228,12 +228,12 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                       : _summary == null
                           ? _Empty(dragging: _dragging)
                           : DefaultTabController(
-                              length: 2,
+                              length: 3,
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
                                   const TabBar(
-                                    tabs: [Tab(text: 'Inspect'), Tab(text: 'Diagram')],
+                                    tabs: [Tab(text: 'Inspect'), Tab(text: 'Front Panel'), Tab(text: 'Block Diagram')],
                                   ),
                                   const SizedBox(height: 8),
                                   Expanded(
@@ -247,10 +247,19 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                                           components: _components,
                                           sections: _sections,
                                         ),
-                                        // Key by model identity so loading a new VI builds a
-                                        // fresh state (resets selection + re-fits) instead of
-                                        // showing the previous file's pan/zoom and stale selection.
-                                        ViDiagramView(key: ValueKey(_model), model: _model),
+                                        // Each layout view is keyed by model identity so loading a
+                                        // new VI builds fresh state (resets selection + re-fits).
+                                        // Front panel ← FPHb/FPHP, block diagram ← BDHb/BDHP.
+                                        ViDiagramView(
+                                          key: ValueKey('fp:$_model'),
+                                          diagrams: _model?.frontPanelDiagrams,
+                                          emptyHint: 'No front-panel objects recovered in this file.',
+                                        ),
+                                        ViDiagramView(
+                                          key: ValueKey('bd:$_model'),
+                                          diagrams: _model?.blockDiagrams,
+                                          emptyHint: 'No block-diagram objects recovered in this file.',
+                                        ),
                                       ],
                                     ),
                                   ),
