@@ -241,6 +241,15 @@ enum HeapObjectClass {
   /// `0x64` — a **cluster / array shell** on a node.
   clusterShell(0x64, 'Cluster/array shell', ViObjectKind.structure, ClassConfidence.inferred),
 
+  /// `0x2C` — a large **block-diagram structure / subdiagram frame** that holds
+  /// nodes. Corpus: 14563 BD instances (0 FP), big boxes (median **314×198**,
+  /// p90 899×473), parented to the node container `0x1b`, and themselves holding
+  /// node containers `0x1b` (37126), the structural `0x15` records, and a `0x95`
+  /// selector/label row (14352). The large footprint + node-container children
+  /// identify it as a structure frame (a loop/case/sequence subdiagram); the exact
+  /// structure kind is not separable, so it renders as a generic structure frame.
+  bdStructureFrame(0x2c, 'Structure frame', ViObjectKind.structure, ClassConfidence.inferred),
+
   /// `0xC7` — a rare nested **container** parenting `0x12` bodies (BD nodes / FP
   /// content groups). Corpus: FP-only here (102 instances, all drawn, 99/102 nested
   /// under `0xc3`); 0 BD. The "subdiagram" name is the BD reading.

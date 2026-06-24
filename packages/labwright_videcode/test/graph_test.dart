@@ -162,6 +162,7 @@ void main() {
     expect(classifyObject(kind: 0x2f, termCount: 0), ViObjectKind.node);
     expect(classifyObject(kind: 0x31, termCount: 0), ViObjectKind.node);
     expect(classifyObject(kind: 0x16, termCount: 0), ViObjectKind.terminal); // node terminal/pin
+    expect(classifyObject(kind: 0x2c, termCount: 0), ViObjectKind.structure); // BD structure frame
     // the C4-1F terminal signal still wins over the catalog category.
     expect(classifyObject(kind: 0x50, termCount: 2), ViObjectKind.terminalCluster);
   });
