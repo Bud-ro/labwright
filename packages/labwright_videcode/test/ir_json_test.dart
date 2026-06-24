@@ -101,4 +101,28 @@ void main() {
     expect(diagrams, greaterThan(0));
     expect(fails, isEmpty, reason: 'IR JSON dropped drawable object(s): $fails');
   });
+
+  test('VCTP type pool recovers a type inventory for the vast majority of VIs', () {
+    var files = 0, withTypes = 0, totalTypes = 0, totalUnknown = 0;
+    for (final f in all) {
+      final ViModel model;
+      try {
+        model = buildViModel(Uint8List.fromList(f.readAsBytesSync()));
+      } catch (_) {
+        continue;
+      }
+      files++;
+      if (model.types.isNotEmpty) withTypes++;
+      totalTypes += model.types.length;
+      totalUnknown += model.types.where((t) => t.kind == ViDataType.unknown).length;
+    }
+    expect(files, greaterThan(0));
+    expect(totalTypes, greaterThan(0));
+    // ratchet: VCTP is present + parseable for ~99.6% of VIs — floor at 90%.
+    expect(withTypes, greaterThan((files * 0.90).floor()),
+        reason: 'type-pool recovery dropped: only $withTypes/$files VIs yielded types');
+    // sanity: the catalogue covers a real majority of descriptors (not all-unknown).
+    expect(totalUnknown, lessThan(totalTypes * 0.6),
+        reason: 'too many uncatalogued type codes: $totalUnknown/$totalTypes');
+  });
 }

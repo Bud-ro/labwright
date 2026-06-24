@@ -1,6 +1,7 @@
 import 'graph.dart';
 import 'heap.dart';
 import 'ir.dart';
+import 'type_pool.dart';
 
 /// Schema version of the JSON IR emitted by [viModelToJson] / [viDiagramToJson].
 ///
@@ -9,8 +10,9 @@ import 'ir.dart';
 /// consumes: a future translator reads this JSON rather than re-decoding bytes,
 /// and a review UI renders it alongside generated Dart. Bump on any
 /// shape-breaking change to the emitted maps.
-/// v2 added `subViNames` (the LIbd subVI dependency list) to the top level.
-const int viIrVersion = 2;
+/// v2 added `subViNames` (the LIbd subVI dependency list); v3 added the type-pool
+/// summary (`typeCount` + `typeHistogram`) from VCTP.
+const int viIrVersion = 3;
 
 /// Serializes a recovered [ViDiagram] to a JSON-encodable map: its section tag
 /// plus a **flat list of objects** carrying the positional nesting via
@@ -88,6 +90,10 @@ Map<String, Object?> viModelToJson(ViModel m) => {
       if (m.symbolNames.isNotEmpty) 'symbolNames': m.symbolNames,
       if (m.paths.isNotEmpty) 'libraryPaths': m.paths,
       if (m.subViNames.isNotEmpty) 'subViNames': m.subViNames,
+      // VCTP type pool: a compact inventory (count + kind histogram). The full
+      // ordered descriptor list lives on ViModel.types; the JSON keeps a summary.
+      if (m.types.isNotEmpty) 'typeCount': m.types.length,
+      if (m.types.isNotEmpty) 'typeHistogram': typeKindHistogram(m.types),
       'blockDiagrams': [for (final d in m.blockDiagrams) viDiagramToJson(d)],
       'frontPanelDiagrams': [for (final d in m.frontPanelDiagrams) viDiagramToJson(d)],
     };

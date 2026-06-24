@@ -6,6 +6,7 @@ import 'decode.dart';
 import 'graph.dart';
 import 'heap.dart';
 import 'meta.dart';
+import 'type_pool.dart';
 
 /// A read-only, **partial-fidelity** model of a decoded VI — the Stage 4 IR seed.
 ///
@@ -35,6 +36,7 @@ class ViModel {
     this.blockDiagrams = const <ViDiagram>[],
     this.frontPanelDiagrams = const <ViDiagram>[],
     this.subViNames = const <String>[],
+    this.types = const <ViType>[],
   });
 
   /// LabVIEW version the VI was saved in (e.g. `10.0`), or null if unrecoverable.
@@ -81,6 +83,13 @@ class ViModel {
   /// recoverable from the diagram). Empty when none are stored (or when built
   /// via [buildViModelFromDecoded], which has no raw container bytes).
   final List<String> subViNames;
+
+  /// The VI's **data-type pool** (`VCTP`) — the ordered list of type descriptors
+  /// the VI defines, recovered as kind + raw code by `decodeTypePool`. An honest
+  /// type *inventory*: kinds are catalogued where well-attested ([ViDataType]),
+  /// raw codes preserved otherwise; deeper structure (element types, names) is
+  /// not yet decoded. Empty when the pool is absent/unparseable.
+  final List<ViType> types;
 
   /// All recovered diagrams (block + front panel). Back-compat convenience.
   List<ViDiagram> get diagrams => [...blockDiagrams, ...frontPanelDiagrams];
@@ -281,6 +290,7 @@ ViModel buildViModelFromDecoded(Iterable<DecodedSection> decoded, {List<String> 
   final ver = versionFromSections(list.map((d) => d.section));
   return ViModel(
     subViNames: subViNames,
+    types: typePoolFromDecoded(list),
     version: ver.version,
     title: ver.title,
     description: cpc2Description(list.map((d) => d.section)),

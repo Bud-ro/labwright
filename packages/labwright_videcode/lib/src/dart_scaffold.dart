@@ -1,5 +1,6 @@
 import 'graph.dart';
 import 'ir.dart';
+import 'type_pool.dart';
 
 /// Marker line embedded in every [generateDartScaffold] output — the honest
 /// disclaimer that this is a structural outline, not recovered logic. Tests and
@@ -69,6 +70,11 @@ String generateDartScaffold(ViModel model, {String name = 'vi'}) {
     for (final s in model.subViNames) {
       b.writeln('//   - ${_oneLine(s)}');
     }
+  }
+  if (model.types.isNotEmpty) {
+    final hist = typeKindHistogram(model.types);
+    final summary = hist.entries.map((e) => '${e.key}:${e.value}').join(', ');
+    b.writeln('// Data types (VCTP, ${model.types.length}): ${_oneLine(summary)}');
   }
   // Candidate parameters: the VI's recovered control/label captions. These are
   // the NAMES of the VI's controls/indicators — the raw material of its function

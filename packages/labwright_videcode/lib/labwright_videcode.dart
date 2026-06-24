@@ -20,3 +20,4 @@ export 'src/icon.dart';
 export 'src/ir.dart';
 export 'src/ir_json.dart';
 export 'src/meta.dart';
+export 'src/type_pool.dart';
