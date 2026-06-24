@@ -355,6 +355,10 @@ Color _objectColor(ViHeapObject o) =>
 ///   propagated up to the control, so suppressing it loses nothing).
 bool _isScaffolding(ViHeapObject o, Map<int, ViHeapObject> byId) {
   if (o.kind == 0x09 || o.kind == 0x11c) return true;
+  // 0xe5 is a subVI-node internal display sub-part (corpus: 947, all under a 0xc5
+  // node, child profile 0x9/0xb/0xd/0x68 = chrome) — it overlaps its parent node
+  // and otherwise paints a stray unknown rectangle on top of it. Suppress.
+  if (o.kind == 0xe5) return true;
   if (o.kind == 0x68 && o.bounds == null) return true;
   if (o.kind == 0xe0 || o.kind == 0x0b || o.kind == 0x0c || o.kind == 0x0d) {
     var p = o.parentOid;
