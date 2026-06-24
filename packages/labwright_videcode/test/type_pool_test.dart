@@ -147,6 +147,40 @@ void main() {
     expect(decodeTypePool(b).single.enumItems, isEmpty);
   });
 
+  test('a 2-D array resolves its element index past the dim-size stride', () {
+    // pool: [0]=dbl, [1]=2-D array of [0]
+    // type1 body: flags,code(2) + numDims=2(2) + dimSize0(4) + dimSize1(4) + elemIdx(2) = 14; descLen=16
+    final type0 = <int>[0x00, 0x04, 0x40, 0x0a];
+    final type1 = <int>[
+      0x00, 0x10, 0x40, 0x40, // descLen=16, flags, code=array
+      0x00, 0x02, // numDims=2
+      0x00, 0x00, 0x00, 0x03, // dim0 size
+      0x00, 0x00, 0x00, 0x04, // dim1 size
+      0x00, 0x00, // elemIdx=0
+    ];
+    final b = Uint8List.fromList([0, 0, 0, 2, ...type0, ...type1]);
+    final types = decodeTypePool(b);
+    expect(types[1].kind, ViDataType.array);
+    expect(types[1].elementIndex, 0); // not mis-read from a dim-size byte
+    expect(typeLabel(types[1], types), 'array<dbl>');
+  });
+
+  test('a binary array tail is NOT mis-read as a trailing name', () {
+    // array whose dim size bytes spell printable ASCII ("ABCD") must not yield a
+    // name — name scanning is confined to after the element index.
+    final type0 = <int>[0x00, 0x04, 0x40, 0x0a]; // dbl
+    final type1 = <int>[
+      0x00, 0x0c, 0x40, 0x40, // descLen=12, flags, array
+      0x00, 0x01, // numDims=1
+      0x41, 0x42, 0x43, 0x44, // dim size = "ABCD" (printable, but binary)
+      0x00, 0x00, // elemIdx=0
+    ];
+    final b = Uint8List.fromList([0, 0, 0, 2, ...type0, ...type1]);
+    final types = decodeTypePool(b);
+    expect(types[1].elementIndex, 0);
+    expect(types[1].name, isNull); // the "ABCD" dim bytes are not a name
+  });
+
   test('a malformed cluster member list yields no members (no throw)', () {
     // cluster claiming 999 members in a tiny descriptor -> rejected
     final type2 = <int>[0x00, 0x06, 0x40, 0x50, 0x03, 0xe7]; // nm=999, descLen=6

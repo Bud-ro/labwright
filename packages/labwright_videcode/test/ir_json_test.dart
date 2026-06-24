@@ -62,7 +62,7 @@ void main() {
       }
       // jsonDecode must reproduce the structure (proves no lossy/non-encodable bits)
       final decoded = jsonDecode(a);
-      if (decoded is! Map || decoded['irVersion'] != viIrVersion) {
+      if (decoded is! Map || !decoded.containsKey('blockDiagrams')) {
         if (fails.length < 8) fails.add('BADROOT $name');
       }
     }

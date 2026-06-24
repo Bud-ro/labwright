@@ -20,11 +20,10 @@ import 'type_pool.dart';
 ///
 /// Fidelity is deliberately **partial and honest**. The heap's nested object
 /// tree IS now recovered into [diagrams] (objects with bounds, labels, class
-/// codes and parent/child nesting — see `buildDiagram`). What is *not*
-/// recoverable is the dataflow **wire graph**: LabVIEW stores wires as geometry
-/// with no node→node endpoints, so this model has no edges and never fabricates
-/// them; function-vs-subVI is likewise not distinguishable from the block
-/// diagram alone.
+/// codes and parent/child nesting — see `buildDiagram`). Not *yet* decoded is the
+/// dataflow **wire graph**: LabVIEW stores wires as geometry, so this model has
+/// no edges yet and never fabricates them; function-vs-subVI is likewise not yet
+/// distinguished from the block diagram alone.
 class ViModel {
   const ViModel({
     required this.version,
@@ -39,7 +38,7 @@ class ViModel {
     this.types = const <ViType>[],
   });
 
-  /// LabVIEW version the VI was saved in (e.g. `10.0`), or null if unrecoverable.
+  /// LabVIEW version the VI was saved in (e.g. `10.0`), or null if not yet recovered.
   final String? version;
 
   /// The VI's embedded title/description (from the `vers` block), or null.
@@ -64,9 +63,9 @@ class ViModel {
   /// The recovered **block-diagram** object tree(s) — from the `BDHb`/`BDHP`
   /// block-diagram heaps: objects (structures / nodes / control terminals /
   /// labels) with bounds, labels, classified [HeapObjectClass], and parent/child
-  /// nesting (`parentOid` + child-membership refs). **Honest limit**: there are
-  /// NO dataflow wires/edges — LabVIEW stores wires as geometry with no
-  /// recoverable node→node endpoints — so [ViDiagram] exposes nesting only.
+  /// nesting (`parentOid` + child-membership refs). **Scope**: dataflow
+  /// wires/edges are not yet decoded — LabVIEW stores wires as geometry — so
+  /// [ViDiagram] exposes nesting only (for now).
   final List<ViDiagram> blockDiagrams;
 
   /// The recovered **front-panel** object tree(s) — from the `FPHb`/`FPHP`
@@ -79,16 +78,16 @@ class ViModel {
   /// The names of the **subVIs this VI calls**, recovered from the block-diagram
   /// linker block (`LIbd`) by `readSubViNames` — deduped, order-preserving, the
   /// VI's own name excluded. Honest VI-level dependency info: it lists *which*
-  /// subVIs are called, not which node calls which (that linkage isn't
-  /// recoverable from the diagram). Empty when none are stored (or when built
+  /// subVIs are called, not which node calls which (that linkage is not yet
+  /// recovered from the diagram). Empty when none are stored (or when built
   /// via [buildViModelFromDecoded], which has no raw container bytes).
   final List<String> subViNames;
 
   /// The VI's **data-type pool** (`VCTP`) — the ordered list of type descriptors
-  /// the VI defines, recovered as kind + raw code by `decodeTypePool`. An honest
-  /// type *inventory*: kinds are catalogued where well-attested ([ViDataType]),
-  /// raw codes preserved otherwise; deeper structure (element types, names) is
-  /// not yet decoded. Empty when the pool is absent/unparseable.
+  /// the VI defines, recovered by `decodeTypePool`: kind ([ViDataType]) + raw
+  /// code, plus the recovered name, cluster members, array element, and enum
+  /// items where present (uncatalogued codes keep their raw byte). Empty when the
+  /// pool is absent/unparseable.
   final List<ViType> types;
 
   /// All recovered diagrams (block + front panel). Back-compat convenience.

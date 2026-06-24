@@ -49,14 +49,13 @@ void main() {
     expect(find.textContaining('Helper.vi', findRichText: true), findsWidgets);
   });
 
-  testWidgets('JSON IR view shows valid, decodable JSON with the schema version and oids', (tester) async {
+  testWidgets('JSON IR view shows valid, decodable JSON with the diagram oids', (tester) async {
     await _pump(tester, GeneratedDartView(model: _bdModel(), viName: 'MyVi.vi'));
     await tester.tap(find.text('JSON IR'));
     await tester.pumpAndSettle();
     // pull the actual displayed text and assert it is genuinely valid JSON
     final shown = tester.widget<SelectableText>(find.byType(SelectableText)).data!;
     final decoded = jsonDecode(shown) as Map<String, Object?>;
-    expect(decoded['irVersion'], viIrVersion);
     final objs = ((decoded['blockDiagrams'] as List).first as Map)['objects'] as List;
     final oids = objs.map((o) => (o as Map)['oid']).toSet();
     expect(oids, containsAll(<int>[2, 3])); // the while-loop + subVI node from _bdModel

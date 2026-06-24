@@ -3,9 +3,9 @@ import 'ir.dart';
 import 'type_pool.dart';
 
 /// Marker line embedded in every [generateDartScaffold] output — the honest
-/// disclaimer that this is a structural outline, not recovered logic. Tests and
-/// tools can detect generated scaffolds by this string.
-const String scaffoldMarker = 'structural scaffold, no dataflow recovered';
+/// disclaimer that this is a structural outline; the dataflow is not yet
+/// recovered. Tests and tools can detect generated scaffolds by this string.
+const String scaffoldMarker = 'structural scaffold, dataflow not yet recovered';
 
 /// Max control/label captions listed as candidate parameters before truncating
 /// (with an explicit "+N more" note — never a silent cap). A few VIs carry
@@ -35,10 +35,11 @@ const int _structCap = 20;
 const int _enumItemCap = 16;
 
 /// Generates an **honest structural Dart scaffold** from a decoded [ViModel] —
-/// the first VI→IR→Dart codegen step. It is deliberately NOT executable logic:
-/// LabVIEW stores wires as pure geometry with no recoverable node→node
-/// endpoints, so dataflow cannot be reconstructed from the block diagram alone.
-/// What it CAN do, and does, is lay out the VI's recovered *structure*:
+/// the first VI→IR→Dart codegen step. It is deliberately NOT executable logic
+/// yet: LabVIEW stores wires as geometry, so node→node dataflow is not yet
+/// decoded from the block diagram.
+/// What it does today is lay out the VI's recovered *structure* (dataflow wiring
+/// is future work, not yet decoded):
 ///
 /// - a function stub named [name] (the IR carries no reliable VI name);
 /// - the Call-Library function symbols + library paths the VI references, listed
@@ -56,8 +57,8 @@ String generateDartScaffold(ViModel model, {String name = 'vi'}) {
   final b = StringBuffer()
     ..writeln('// AUTO-GENERATED structural scaffold (labwright_videcode VI->IR->Dart).')
     ..writeln('// $scaffoldMarker —')
-    ..writeln('// LabVIEW wires are geometry with no recoverable endpoints, so this is a')
-    ..writeln('// STRUCTURAL OUTLINE of the block diagram, not executable logic. Fill in.');
+    ..writeln('// LabVIEW wires are stored as geometry, so node->node dataflow is not yet')
+    ..writeln('// decoded; this is a STRUCTURAL OUTLINE of the block diagram. Fill in.');
   if (model.version != null) b.writeln('// Saved in LabVIEW ${model.version}.');
   final desc = model.description?.trim();
   if (desc != null && desc.isNotEmpty) {
@@ -77,7 +78,7 @@ String generateDartScaffold(ViModel model, {String name = 'vi'}) {
     }
   }
   if (model.subViNames.isNotEmpty) {
-    b.writeln('// SubVIs called (from LIbd; which node calls which is not recoverable):');
+    b.writeln('// SubVIs called (from LIbd; which node calls which is not yet recovered):');
     for (final s in model.subViNames) {
       b.writeln('//   - ${_oneLine(s)}');
     }
@@ -129,7 +130,7 @@ String generateDartScaffold(ViModel model, {String name = 'vi'}) {
   final captions = model.captions;
   if (captions.isNotEmpty) {
     b.writeln('// Candidate parameters (control/label captions — direction & type');
-    b.writeln('// are NOT recoverable from the diagram, so these are names only):');
+    b.writeln('// are not yet recovered from the diagram, so these are names only):');
     for (final c in captions.take(_captionCap)) {
       b.writeln('//   ${_oneLine(c)}');
     }

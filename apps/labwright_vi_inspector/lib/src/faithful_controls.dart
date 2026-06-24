@@ -140,7 +140,7 @@ class _StructureFrame extends StatelessWidget {
 
 class _NodeBox extends StatelessWidget {
   const _NodeBox();
-  // The node icon is unrecoverable, so the box is a translucent placeholder (the
+  // The node icon is not yet decoded, so the box is a translucent placeholder (the
   // translucency lets overlapping sibling nodes — ~37% of cases — show through
   // instead of fully occluding). The node's NAME is NOT drawn here: it lives on a
   // child 0xa label rendered as a floating label where LabVIEW places it (above the
@@ -183,7 +183,7 @@ class _LabelText extends StatelessWidget {
 /// A free-standing block-diagram leaf (0x16) — a small terminal/constant box at
 /// its real 32×16 bounds (corpus: it sits a median 216px from any node, so it is
 /// NOT an on-node pin). Light fill + thin border so it reads as a small diagram
-/// element without dominating; the terminal-vs-constant role is not recoverable.
+/// element without dominating; the terminal-vs-constant role is not yet recovered.
 class _LeafBox extends StatelessWidget {
   const _LeafBox();
   @override

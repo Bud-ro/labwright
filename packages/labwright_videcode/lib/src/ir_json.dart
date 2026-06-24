@@ -3,18 +3,6 @@ import 'heap.dart';
 import 'ir.dart';
 import 'type_pool.dart';
 
-/// Schema version of the JSON IR emitted by [viModelToJson] / [viDiagramToJson].
-///
-/// This is the **stable, serializable export** of the read-only [ViModel] —
-/// the "structured, versioned IR graph (JSON)" the migration plan (VI→IR→Dart)
-/// consumes: a future translator reads this JSON rather than re-decoding bytes,
-/// and a review UI renders it alongside generated Dart. Bump on any
-/// shape-breaking change to the emitted maps.
-/// v2 added `subViNames` (the LIbd subVI dependency list); v3 added the type-pool
-/// summary (`typeCount` + `typeHistogram`) from VCTP; v4 added `namedTypes`;
-/// v5 added cluster `members` to named-type entries; v6 added enum `items`.
-const int viIrVersion = 6;
-
 /// Serializes a recovered [ViDiagram] to a JSON-encodable map: its section tag
 /// plus a **flat list of objects** carrying the positional nesting via
 /// `parentOid`. Flat-with-parent (not a nested `children` tree) is deliberate —
@@ -79,12 +67,11 @@ Map<String, Object?> _rectToJson(HeapRect r) => {
 /// translator must bind), and the recovered block-diagram + front-panel object
 /// trees ([viDiagramToJson]).
 ///
-/// Honest limits carried from [ViModel]: there are **no dataflow wires/edges**
-/// (LabVIEW stores wires as geometry with no recoverable endpoints), so the IR
-/// is a typed, nested object graph — not yet a dataflow graph. Deterministic and
+/// Scope note carried from [ViModel]: dataflow wires/edges are **not yet
+/// decoded** (LabVIEW stores wires as geometry), so the IR is currently a typed,
+/// nested object graph rather than a dataflow graph. Deterministic and
 /// `jsonEncode`-safe (no non-finite numbers, no cycles).
 Map<String, Object?> viModelToJson(ViModel m) => {
-      'irVersion': viIrVersion,
       if (m.version != null) 'labviewVersion': m.version,
       if (m.title != null) 'title': m.title,
       if (m.description != null) 'description': m.description,

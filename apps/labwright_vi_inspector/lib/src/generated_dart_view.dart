@@ -7,7 +7,7 @@ import 'package:labwright_videcode/labwright_videcode.dart';
 /// honest structural Dart scaffold ([generateDartScaffold]) and, toggled, the
 /// JSON IR ([viModelToJson]). This is the review surface the migration plan
 /// calls for — it shows what we can recover (structures, node/subVI stubs, the
-/// call surface) while being explicit that dataflow wiring is not recovered.
+/// call surface) while being explicit that dataflow wiring is not yet recovered.
 ///
 /// Purely a renderer over an already-built [ViModel]; no parsing or editing.
 class GeneratedDartView extends StatefulWidget {
@@ -89,7 +89,7 @@ class _GeneratedDartViewState extends State<GeneratedDartView> {
                 ),
                 const SizedBox(width: 12),
                 const Text(
-                  'Read-only · structural outline, dataflow wiring is not recovered',
+                  'Read-only · structural outline, dataflow wiring not yet recovered',
                   style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
                 ),
               ],

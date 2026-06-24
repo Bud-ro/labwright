@@ -347,7 +347,7 @@ enum HeapObjectClass {
   /// to the node container `0x1b`, holding the structural `0x15` records. Only ~717
   /// carry an `0xa` caption, and those read as built-in primitives (`To Lower Case`,
   /// `Search 1D Array`, `Select`) — vs the subVI-named `0x31`. The specific
-  /// primitive icon is not recovered, so it renders as a generic node box.
+  /// primitive icon is not yet decoded, so it renders as a generic node box.
   bdNode(0x2f, 'Node (primitive)', ViObjectKind.node, ClassConfidence.inferred),
 
   /// `0x31` — a **subVI call node**. Corpus: 31995 BD instances, 0 FP, uniform
@@ -429,11 +429,11 @@ enum HeapObjectClass {
   /// parent `0x1b`; labelled ones read `Unbundle`. Renders as a node box.
   bdNode36(0x36, 'Node (primitive)', ViObjectKind.node, ClassConfidence.inferred),
 
-  /// `0x153` — a **built-in primitive node** (icon, no recoverable name). Corpus:
+  /// `0x153` — a **built-in primitive node** (icon, name not yet recovered). Corpus:
   /// 1466 BD (0 FP), 100% exactly **32×32** (the default node-icon footprint),
   /// 100% parented to the node container `0x1b`, children only structural `0x15`
   /// records — byte-for-byte the `0x2f` primitive profile, but with no `0xa`
-  /// caption, so the specific primitive is unrecoverable: [ClassConfidence.kindOnly].
+  /// caption, so the specific primitive is not yet recovered: [ClassConfidence.kindOnly].
   bdNode153(0x153, 'Node (primitive)', ViObjectKind.node, ClassConfidence.kindOnly),
 
   /// `0x6A` — a **Call Library Function Node** (calls into a native DLL/.so).

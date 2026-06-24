@@ -5,10 +5,10 @@ import 'package:test/test.dart';
 
 // Deterministic (no-corpus) unit tests for viModelToJson, built from direct
 // constructors so the emitted key SET and the non-finite drop are pinned exactly
-// — guarding the viIrVersion contract and the jsonEncode-safety claim.
+// — guarding the IR shape and the jsonEncode-safety claim.
 
 void main() {
-  test('GOLDEN: emitted top-level + node key sets are pinned (bump viIrVersion if this changes)', () {
+  test('GOLDEN: emitted top-level + node key sets are pinned (update if the IR shape changes)', () {
     // a fully-populated node so every conditional key is present at once
     final node = ViHeapObject(oid: 7, kind: 0x12, offset: 0)
       ..category = ViObjectKind.node
@@ -39,8 +39,8 @@ void main() {
     // libraryPaths (no heap records), so those two are absent here.
     expect(
       json.keys.toSet(),
-      {'irVersion', 'labviewVersion', 'title', 'description', 'subViNames', 'blockDiagrams', 'frontPanelDiagrams'},
-      reason: 'top-level key set changed — bump viIrVersion if this is a shape change',
+      {'labviewVersion', 'title', 'description', 'subViNames', 'blockDiagrams', 'frontPanelDiagrams'},
+      reason: 'top-level key set changed (IR shape) — update this golden expectation',
     );
 
     final emittedNode = ((json['blockDiagrams'] as List).first as Map)['objects'] as List;
@@ -51,12 +51,11 @@ void main() {
         'oid', 'kindCode', 'class', 'objectKind', 'typeKind', 'parentOid', 'label',
         'bounds', 'absBounds', 'items', 'termCount', 'memberOids', 'controlMin', 'controlMax', 'helpText',
       },
-      reason: 'node key set changed — bump viIrVersion if this is a shape change',
+      reason: 'node key set changed (IR shape) — update this golden expectation',
     );
     // class is a nested map with its three documented keys
     expect(((emittedNode.first as Map)['class'] as Map).keys.cast<String>().toSet(),
         {'label', 'category', 'confidence'});
-    expect(json['irVersion'], viIrVersion);
   });
 
   test('non-finite control range sentinels are dropped and the IR stays jsonEncode-safe', () {

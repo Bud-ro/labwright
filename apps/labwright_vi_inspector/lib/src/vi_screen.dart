@@ -452,7 +452,7 @@ class _SummaryViewState extends State<_SummaryView> {
                 // readViSections can't yet locate their section bytes (their
                 // descriptor uses a layout the sentinel heuristic misses), so
                 // there is nothing to show in the hex view.
-                message: '${kBlockGlossary[b] ?? 'resource block'}\n(bytes not recoverable yet — descriptor layout not decoded)',
+                message: '${kBlockGlossary[b] ?? 'resource block'}\n(bytes not yet shown — descriptor layout not decoded)',
                 child: Opacity(
                   opacity: 0.4,
                   child: Chip(
@@ -522,8 +522,8 @@ class _SummaryViewState extends State<_SummaryView> {
                   'in the Diagram tab — the recovered block-diagram object layout (each '
                   'object at its absolute position, colored by kind, with its label and data '
                   'type). Decoded clean-room from the heap; honest by construction — signal '
-                  'wires are not drawn (no recoverable endpoints), and function-vs-subVI is '
-                  'not distinguishable from the block diagram alone.',
+                  'wires are not drawn yet (geometry decoded, endpoints not yet), and '
+                  'function-vs-subVI is not yet distinguished from the block diagram alone.',
                 ),
               ],
             ),

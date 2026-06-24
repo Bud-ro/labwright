@@ -97,14 +97,21 @@ List<ViType> decodeTypePool(Uint8List body) {
     final descLen = (body[off] << 8) | body[off + 1];
     if (descLen < 4 || off + descLen > body.length) break;
     final code = body[off + 3]; // low byte of the type word (after the flags byte)
+    final members = code == 0x50 ? _clusterMembers(body, off, descLen, count) : const <int>[];
+    final elementIndex = code == 0x40 ? _arrayElement(body, off, descLen, count) : null;
+    final enumItems = (code == 0x15 || code == 0x16 || code == 0x17) ? _enumItems(body, off, descLen) : const <String>[];
+    // Only scan for a trailing name AFTER this type's known binary payload, so a
+    // cluster's member indices / array's dim sizes / enum item bytes can't be
+    // mis-read as a coincidental "name".
+    final nameStart = _nameRegionStart(body, off, code, members, elementIndex, enumItems);
     out.add(ViType(
       index: i,
       code: code,
       kind: _typeCodes[code] ?? ViDataType.unknown,
-      name: _trailingName(body, off + 4, off + descLen),
-      members: code == 0x50 ? _clusterMembers(body, off, descLen, count) : const [],
-      elementIndex: code == 0x40 ? _arrayElement(body, off, descLen, count) : null,
-      enumItems: (code == 0x15 || code == 0x16 || code == 0x17) ? _enumItems(body, off, descLen) : const [],
+      name: _trailingName(body, nameStart, off + descLen),
+      members: members,
+      elementIndex: elementIndex,
+      enumItems: enumItems,
     ));
     off += descLen;
   }
@@ -195,24 +202,52 @@ String typeLabel(ViType t, List<ViType> types) {
 String? _trailingName(Uint8List b, int start, int end) {
   for (final e in [end, end - 1]) {
     if (e <= start) continue;
-    for (var len = 1; len <= 63; len++) {
+    // require >=2 bytes: a single printable char is too weak to be a real name.
+    for (var len = 2; len <= 63; len++) {
       final lenPos = e - len - 1;
       if (lenPos < start) break;
       if (b[lenPos] != len) continue;
       var ok = true;
-      var hasLetter = false;
+      var letters = 0;
       for (var i = lenPos + 1; i < e; i++) {
         final c = b[i];
         if (c < 0x20 || c >= 0x7f) {
           ok = false;
           break;
         }
-        if ((c >= 0x41 && c <= 0x5a) || (c >= 0x61 && c <= 0x7a)) hasLetter = true;
+        if ((c >= 0x41 && c <= 0x5a) || (c >= 0x61 && c <= 0x7a)) letters++;
       }
-      if (ok && hasLetter) return String.fromCharCodes(b.sublist(lenPos + 1, e));
+      // require at least 2 letters (or letter-majority for short names) so a
+      // coincidental "[len][punct][letter]" binary tail is rejected.
+      if (ok && (letters >= 2 || letters * 2 >= len)) {
+        return String.fromCharCodes(b.sublist(lenPos + 1, e));
+      }
     }
   }
   return null;
+}
+
+/// The byte offset where a descriptor's optional trailing name may begin — i.e.
+/// just past the type's known binary payload (cluster member indices, array
+/// dimension sizes + element index, enum item strings). For other types the name
+/// (if any) follows the flags+code word. Confining [_trailingName] to this region
+/// stops binary payload bytes from being mis-read as a name.
+int _nameRegionStart(Uint8List b, int off, int code, List<int> members, int? elementIndex, List<String> enumItems) {
+  if (code == 0x50 && members.isNotEmpty) {
+    return off + 6 + members.length * 2; // numMembers word + member indices
+  }
+  if (code == 0x40 && elementIndex != null && off + 6 <= b.length) {
+    final numDims = (b[off + 4] << 8) | b[off + 5];
+    return off + 6 + numDims * 4 + 2; // numDims word + dim sizes + element index
+  }
+  if (enumItems.isNotEmpty) {
+    var p = off + 6; // numItems word
+    for (final it in enumItems) {
+      p += 1 + it.length;
+    }
+    return p;
+  }
+  return off + 4; // after flags + code
 }
 
 /// [decodeTypePool] over a set of decoded sections — finds the `VCTP` section and

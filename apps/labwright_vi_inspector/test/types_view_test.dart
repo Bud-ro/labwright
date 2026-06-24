@@ -33,6 +33,18 @@ void main() {
     expect(text, contains('i32 code;'));
   });
 
+  testWidgets('font size can be increased and decreased', (tester) async {
+    await _pump(tester, ViTypesView(model: _modelWithTypes()));
+    double fontOf() => tester.widget<SelectableText>(find.byType(SelectableText)).style!.fontSize!;
+    final initial = fontOf();
+    await tester.tap(find.byTooltip('Larger text'));
+    await tester.pump();
+    expect(fontOf(), greaterThan(initial));
+    await tester.tap(find.byTooltip('Smaller text'));
+    await tester.pump();
+    expect(fontOf(), initial);
+  });
+
   testWidgets('shows an honest empty state when there are no types', (tester) async {
     await _pump(tester, const ViTypesView(model: null));
     expect(find.textContaining('No data types recovered'), findsOneWidget);
