@@ -583,8 +583,8 @@ class _DetailsCard extends StatelessWidget {
                     _detail('values', object.items.take(8).join(', ') + (object.items.length > 8 ? ', …' : '')),
                   if (formatControlRange(object.controlMin, object.controlMax) case final range?)
                     _detail('range', range),
-                  if (object.helpText != null && object.helpText!.trim().isNotEmpty)
-                    _detail('help', object.helpText!.trim()),
+                  if (object.helpText != null && stripHelpMarkup(object.helpText!).isNotEmpty)
+                    _detail('help', stripHelpMarkup(object.helpText!)),
                 ],
               ),
             ),

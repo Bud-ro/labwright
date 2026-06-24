@@ -56,7 +56,7 @@ Widget _withHelp(ViHeapObject o, Widget child) {
 /// Pure + public for unit testing (the tap-to-select path is widget-test-hostile).
 String? controlTooltip(ViHeapObject o) {
   final parts = <String>[];
-  final h = o.helpText?.trim();
+  final h = o.helpText == null ? null : stripHelpMarkup(o.helpText!);
   if (h != null && h.isNotEmpty) parts.add(h);
   final range = formatControlRange(o.controlMin, o.controlMax);
   if (range != null) parts.add('range: $range');
