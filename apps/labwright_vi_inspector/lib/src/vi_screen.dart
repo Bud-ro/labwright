@@ -8,6 +8,7 @@ import 'package:labwright_videcode/labwright_videcode.dart';
 import 'package:labwright_viparse/labwright_viparse.dart';
 
 import 'diagram_view.dart';
+import 'hex_view.dart';
 import 'vi_demo.dart';
 
 /// Imports a LabVIEW `.vi`/`.ctl` file and shows what it is and does — type,
@@ -57,6 +58,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
   List<String> _strings = const [];
   List<BlockComponent> _components = const [];
   ViModel? _model;
+  List<DecodedSection> _sections = const [];
 
   @override
   void initState() {
@@ -83,11 +85,17 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
     var strings = const <String>[];
     var components = const <BlockComponent>[];
     ViModel? model;
+    var sections = const <DecodedSection>[];
     if (load.isOk) {
       version = decodeVersion(bytes);
       strings = extractHeapStrings(bytes);
       components = blockComponents(bytes);
       model = buildViModel(bytes);
+      try {
+        sections = decodeSections(bytes);
+      } catch (_) {
+        sections = const [];
+      }
     }
     setState(() {
       _summary = load.summary;
@@ -97,6 +105,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
       _strings = strings;
       _components = components;
       _model = model;
+      _sections = sections;
     });
   }
 
@@ -229,6 +238,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                                           version: _version,
                                           strings: _strings,
                                           components: _components,
+                                          sections: _sections,
                                         ),
                                         ViDiagramView(model: _model),
                                       ],
@@ -292,12 +302,14 @@ class _SummaryView extends StatefulWidget {
     required this.version,
     required this.strings,
     required this.components,
+    required this.sections,
   });
   final ViSummary summary;
   final String source;
   final ViVersionInfo? version;
   final List<String> strings;
   final List<BlockComponent> components;
+  final List<DecodedSection> sections;
 
   @override
   State<_SummaryView> createState() => _SummaryViewState();
@@ -366,12 +378,22 @@ class _SummaryViewState extends State<_SummaryView> {
         const SizedBox(height: 16),
 
         const Text('Resource-block inventory', style: TextStyle(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 4),
+        const Text('Click a block to inspect its bytes + parsed records (hex view).',
+            style: TextStyle(color: Colors.grey, fontSize: 12)),
         const SizedBox(height: 8),
         Wrap(spacing: 8, runSpacing: 8, children: [
           for (final b in summary.blocks)
             Tooltip(
               message: kBlockGlossary[b] ?? 'resource block',
-              child: Chip(label: Text(b), visualDensity: VisualDensity.compact),
+              child: _hasSection(b)
+                  ? ActionChip(
+                      label: Text(b),
+                      avatar: const Icon(Icons.data_object, size: 16),
+                      visualDensity: VisualDensity.compact,
+                      onPressed: () => _openHex(context, b),
+                    )
+                  : Chip(label: Text(b), visualDensity: VisualDensity.compact),
             ),
         ]),
 
@@ -444,6 +466,21 @@ class _SummaryViewState extends State<_SummaryView> {
     );
   }
 
+  bool _hasSection(String tag) => widget.sections.any((s) => s.tag == tag);
+
+  void _openHex(BuildContext context, String tag) {
+    final matches = [for (final s in widget.sections) if (s.tag == tag) s]
+      ..sort((a, b) => b.length.compareTo(a.length));
+    if (matches.isEmpty) return;
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        insetPadding: const EdgeInsets.all(24),
+        child: SizedBox(width: 1120, height: 740, child: _HexDialog(tag: tag, sections: matches)),
+      ),
+    );
+  }
+
   static Widget _kv(String k, String v) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 3),
         child: Row(
@@ -463,6 +500,54 @@ class _SummaryViewState extends State<_SummaryView> {
         label: Text(label),
         backgroundColor: on ? Colors.green.withValues(alpha: 0.12) : null,
       );
+}
+
+class _HexDialog extends StatefulWidget {
+  const _HexDialog({required this.tag, required this.sections});
+  final String tag;
+  final List<DecodedSection> sections;
+
+  @override
+  State<_HexDialog> createState() => _HexDialogState();
+}
+
+class _HexDialogState extends State<_HexDialog> {
+  int _idx = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final section = widget.sections[_idx];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
+          child: Row(
+            children: [
+              Icon(Icons.data_object, size: 18, color: Theme.of(context).colorScheme.primary),
+              const SizedBox(width: 8),
+              Text('${widget.tag} — byte inspector', style: const TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(width: 16),
+              if (widget.sections.length > 1)
+                DropdownButton<int>(
+                  value: _idx,
+                  isDense: true,
+                  onChanged: (v) => setState(() => _idx = v ?? 0),
+                  items: [
+                    for (var i = 0; i < widget.sections.length; i++)
+                      DropdownMenuItem(value: i, child: Text('section ${widget.sections[i].index} (${widget.sections[i].length} B)')),
+                  ],
+                ),
+              const Spacer(),
+              IconButton(onPressed: () => Navigator.of(context).pop(), icon: const Icon(Icons.close)),
+            ],
+          ),
+        ),
+        const Divider(height: 1),
+        Expanded(child: Padding(padding: const EdgeInsets.all(8), child: BlockHexView(section: section))),
+      ],
+    );
+  }
 }
 
 class _Section extends StatelessWidget {
