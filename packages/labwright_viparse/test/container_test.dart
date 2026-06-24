@@ -43,6 +43,48 @@ void main() {
     });
   });
 
+  group('ViHeader', () {
+    test('parse -> serialize is byte-exact and decodes every field', () {
+      final bytes = _container([1, 2, 3, 4, 5], [9, 8, 7]); // dataOffset=32, infoOffset=37, dataSize=5
+      final h = ViHeader.parse(bytes);
+      expect(h.formatVersion, 0); // _container leaves @6 zero
+      expect(h.dataOffset, 32);
+      expect(h.infoOffset, 37);
+      expect(h.dataSize, 5);
+      // the header serializes back to the original first 32 bytes
+      expect(h.serialize(), orderedEquals(bytes.sublist(0, 32)));
+    });
+
+    test('a realistic header round-trips each field exactly', () {
+      // mirror a real RSRC header (LVIN/LBVW, formatVersion 3, symmetric offsets)
+      final h = Uint8List(32);
+      h.setRange(0, 6, const [0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a]);
+      final d = ByteData.sublistView(h);
+      d.setUint16(6, 3);
+      h.setRange(8, 12, 'LVIN'.codeUnits);
+      h.setRange(12, 16, 'LBVW'.codeUnits);
+      d
+        ..setUint32(16, 19968) // infoOffset
+        ..setUint32(20, 2097) // infoSize
+        ..setUint32(24, 32) // dataOffset
+        ..setUint32(28, 19936); // dataSize
+      final parsed = ViHeader.parse(h);
+      expect(parsed.formatVersion, 3);
+      expect(parsed.fileType, 'LVIN');
+      expect(parsed.creator, 'LBVW');
+      expect(parsed.infoOffset, 19968);
+      expect(parsed.infoSize, 2097);
+      expect(parsed.dataOffset, 32);
+      expect(parsed.dataSize, 19936);
+      expect(parsed.serialize(), orderedEquals(h));
+    });
+
+    test('rejects a non-RSRC / too-short header', () {
+      expect(() => ViHeader.parse(Uint8List(10)), throwsA(isA<ViFormatException>()));
+      expect(() => ViHeader.parse(Uint8List(32)), throwsA(isA<ViFormatException>())); // bad magic
+    });
+  });
+
   group('ViExport.rebuildDataArea', () {
     test('serializes sections as [u32 len][payload] and gaps verbatim', () {
       final out = ViExport.rebuildDataArea([

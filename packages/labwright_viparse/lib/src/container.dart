@@ -2,6 +2,98 @@ import 'dart:typed_data';
 
 import 'viparse.dart' show ViFormatException, readViSections;
 
+/// The 32-byte RSRC (`.vi`) file header, modeled field-by-field — the first
+/// fully-typed piece of the exporter: every one of the 32 bytes maps to a named
+/// field, so [serialize] reconstructs the header byte-for-byte (no opaque span).
+///
+/// Layout (big-endian), corpus-validated across 7583 VIs as a symmetric
+/// `(offset, size)` pair per region:
+///   `[0:6]` magic `RSRC\r\n` · `u16 formatVersion @6` (always 3) ·
+///   `[8:12]` fileType tag (`LVIN` VI / `LVCC` control) · `[12:16]` creator tag
+///   (`LBVW`) · `u32 infoOffset @16` · `u32 infoSize @20` · `u32 dataOffset @24`
+///   (always 32) · `u32 dataSize @28`. With `dataOffset + dataSize == infoOffset`
+///   and `infoOffset + infoSize == fileLength`.
+class ViHeader {
+  ViHeader({
+    required this.magic,
+    required this.formatVersion,
+    required this.fileTypeBytes,
+    required this.creatorBytes,
+    required this.infoOffset,
+    required this.infoSize,
+    required this.dataOffset,
+    required this.dataSize,
+  });
+
+  /// `RSRC\r\n` — kept as raw bytes so serialization is exact even if a future
+  /// file deviates.
+  final Uint8List magic;
+
+  /// `u16 @6` — the RSRC format version (3 in every observed file).
+  final int formatVersion;
+
+  /// `[8:12]` file-type tag bytes (`LVIN` = VI, `LVCC` = control). Raw 4 bytes for
+  /// exact round-trip; see [fileType] for the string.
+  final Uint8List fileTypeBytes;
+
+  /// `[12:16]` creator tag bytes (`LBVW`). Raw 4 bytes; see [creator].
+  final Uint8List creatorBytes;
+
+  /// `u32 @16` — start of the info area.
+  final int infoOffset;
+
+  /// `u32 @20` — size of the info area (`infoOffset + infoSize == fileLength`).
+  final int infoSize;
+
+  /// `u32 @24` — start of the data area (always 32, right after this header).
+  final int dataOffset;
+
+  /// `u32 @28` — size of the data area (`dataOffset + dataSize == infoOffset`).
+  final int dataSize;
+
+  String get fileType => String.fromCharCodes(fileTypeBytes);
+  String get creator => String.fromCharCodes(creatorBytes);
+
+  static const List<int> _magic = [0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a]; // "RSRC\r\n"
+
+  /// Parses the first 32 bytes of [bytes] into a [ViHeader]. Throws
+  /// [ViFormatException] on a too-short or non-RSRC buffer.
+  factory ViHeader.parse(Uint8List bytes) {
+    if (bytes.length < 32) throw ViFormatException('too small for an RSRC header');
+    for (var i = 0; i < _magic.length; i++) {
+      if (bytes[i] != _magic[i]) throw ViFormatException('not an RSRC/.vi file (bad magic)');
+    }
+    final d = ByteData.sublistView(bytes);
+    return ViHeader(
+      magic: Uint8List.fromList(bytes.sublist(0, 6)),
+      formatVersion: d.getUint16(6),
+      fileTypeBytes: Uint8List.fromList(bytes.sublist(8, 12)),
+      creatorBytes: Uint8List.fromList(bytes.sublist(12, 16)),
+      infoOffset: d.getUint32(16),
+      infoSize: d.getUint32(20),
+      dataOffset: d.getUint32(24),
+      dataSize: d.getUint32(28),
+    );
+  }
+
+  /// Re-emits the 32 header bytes. Byte-identical to the input for a parsed,
+  /// unmodified header — the per-field serialize() contract.
+  Uint8List serialize() {
+    final out = Uint8List(32);
+    final d = ByteData.sublistView(out);
+    out.setRange(0, 6, magic);
+    d.setUint16(6, formatVersion);
+    out.setRange(8, 12, fileTypeBytes);
+    out.setRange(12, 16, creatorBytes);
+    d
+      ..setUint32(16, infoOffset)
+      ..setUint32(20, infoSize)
+      ..setUint32(24, dataOffset)
+      ..setUint32(28, dataSize);
+    return out;
+  }
+}
+
 /// A **lossless** decomposition of an RSRC (`.vi`) container into its three
 /// contiguous regions, plus a byte-exact serializer. This is the foundation for
 /// the VI exporter/editor and the export→import idempotency test: parsing then
@@ -34,6 +126,12 @@ class ViContainer {
   /// `[infoOffset, end)` — the info area: the block-info list, 20-byte section
   /// descriptors, the name table, and the trailing VI name, exactly as stored.
   final Uint8List infoArea;
+
+  /// The fully-typed view of the 32-byte [header] (the first exporter region
+  /// modeled field-by-field). `parsedHeader.serialize()` reproduces [header]
+  /// byte-for-byte; over time the raw [dataArea]/[infoArea] spans become typed
+  /// structs the same way until nothing opaque remains.
+  ViHeader get parsedHeader => ViHeader.parse(header);
 
   static const List<int> _magic = [0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a]; // "RSRC\r\n"
 

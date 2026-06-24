@@ -103,6 +103,46 @@ void main() {
     expect(exact, equals(files), reason: 'container round-trip not byte-exact for ${files - exact} file(s): $diffs');
   });
 
+  // TYPED-HEADER SERIALIZE: the field-by-field ViHeader must reconstruct the raw
+  // 32-byte header byte-for-byte for every VI — the first step of the
+  // "model every byte in typed structs" exporter (no opaque header span).
+  test('IDEMPOTENCY: ViHeader.parse(header).serialize() == header for every VI', () {
+    var files = 0, exact = 0;
+    final diffs = <String>[];
+    for (final f in all) {
+      final Uint8List bytes;
+      try {
+        bytes = Uint8List.fromList(f.readAsBytesSync());
+      } catch (_) {
+        continue;
+      }
+      final Uint8List header, out;
+      try {
+        header = ViContainer.parse(bytes).header;
+        out = ViHeader.parse(header).serialize();
+      } catch (_) {
+        continue;
+      }
+      files++;
+      var same = out.length == header.length && header.length >= 32;
+      if (same) {
+        for (var i = 0; i < 32; i++) {
+          if (out[i] != header[i]) {
+            same = false;
+            break;
+          }
+        }
+      }
+      if (same) {
+        exact++;
+      } else if (diffs.length < 6) {
+        diffs.add(f.path.split('/').last);
+      }
+    }
+    expect(files, greaterThan(0));
+    expect(exact, equals(files), reason: 'ViHeader round-trip not byte-exact for ${files - exact} file(s): $diffs');
+  });
+
   // SECTION-LEVEL IDEMPOTENCY: one layer finer than the whole-file round-trip.
   // [ViExport.decomposeDataArea] models the data area as ordered, length-prefixed
   // sections (located via the info-area descriptors) interleaved with padding
