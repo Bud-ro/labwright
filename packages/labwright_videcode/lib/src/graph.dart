@@ -579,6 +579,26 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
     }
   }
 
+  // Propagate help text up to the nearest DRAWABLE ancestor: help usually lives on
+  // a non-drawable tip-strip (0xc1) / description child that carries no bounds, but
+  // the details card / faithful tooltip can only show it on a drawn object. Corpus:
+  // 97% of help-bearing objects have a drawable ancestor (controls/structures).
+  for (final o in objects) {
+    final h = o.helpText;
+    if (h == null || h.isEmpty || o.absBounds != null) continue;
+    var p = o.parentOid;
+    final seen = <int>{};
+    while (p != null && seen.add(p)) {
+      final po = byOidItems[p];
+      if (po == null) break;
+      if (po.absBounds != null) {
+        po.helpText ??= h;
+        break;
+      }
+      p = po.parentOid;
+    }
+  }
+
   _reanchorScrolledControls(objects);
   return ViDiagram(sectionTag: sectionTag, objects: objects);
 }

@@ -229,6 +229,25 @@ void main() {
     expect(deco.controlMax, isNull);
   });
 
+  test('help text propagates up from a non-drawable child to its nearest drawable control', () {
+    List<int> c6blob(int id, String s) {
+      final len = 4 + s.length;
+      return [0xc6, id, 0xff, len >> 8, len & 0xff, 0, 0, 0, s.length, ...s.codeUnits];
+    }
+    final records = <int>[
+      ...open(0x7e, 1), ...bounds(0, 0, 400, 400),
+      ...open(0x50, 2, tag: 0x1a), ...bounds(10, 10, 30, 100), // a drawable control
+      ...open(0xc1, 3, tag: 0x1b), // a tip-strip child, NO bounds (not drawable)
+      ...c6blob(0x6c, 'hover help'),
+      ...close(0x1b),
+      ...close(0x1a),
+      ...close(),
+    ];
+    final d = buildDiagram(Uint8List.fromList([0, 0, 0, records.length, ...records]));
+    expect(d.byId[3]!.absBounds, isNull); // the tip-strip carries the help but isn't drawn
+    expect(d.byId[2]!.helpText, 'hover help'); // ...propagated up to the drawn control
+  });
+
   test('a 0x6C <u8len> library token does NOT become helpText (only the FF blob does)', () {
     // C6 6C <u8 len> <u32 strlen><ascii> — a library/format token, NOT help text.
     List<int> u8tok(String s) => [0xc6, 0x6c, 4 + s.length, 0, 0, 0, s.length, ...s.codeUnits];
