@@ -91,4 +91,41 @@ void main() {
     expect(checked, greaterThan(0));
     expect(fails, isEmpty, reason: 'scaffold dropped logic element(s): $fails');
   });
+
+  test('scaffold surfaces candidate parameters (captions) without silent truncation', () {
+    var files = 0, withCaptions = 0;
+    final fails = <String>[];
+    for (final f in all) {
+      final ViModel model;
+      try {
+        model = buildViModel(Uint8List.fromList(f.readAsBytesSync()));
+      } catch (_) {
+        continue;
+      }
+      files++;
+      final caps = model.captions;
+      if (caps.isEmpty) continue;
+      withCaptions++;
+      final out = generateDartScaffold(model);
+      // the first caption (always within the cap) must appear in the header
+      if (!out.contains(_oneLineForTest(caps.first))) {
+        if (fails.length < 8) fails.add('CAPTION MISSING in ${f.path.split('/').last}');
+        continue;
+      }
+      // when truncated, the count of hidden captions must be disclosed, not silent
+      if (caps.length > 50 && !out.contains('(+${caps.length - 50} more not shown)')) {
+        if (fails.length < 8) fails.add('SILENT CAP in ${f.path.split('/').last}');
+      }
+    }
+    expect(files, greaterThan(0));
+    expect(withCaptions, greaterThan(0));
+    expect(fails, isEmpty, reason: 'caption surfacing failures: $fails');
+  });
 }
+
+/// Mirrors the scaffold's one-line caption normalization so the test compares the
+/// same form that is emitted (newlines/control chars collapsed, `*/` neutralized).
+String _oneLineForTest(String s) => s
+    .replaceAll(RegExp(r'[\x00-\x1f]+'), ' ')
+    .replaceAll('*/', '* /')
+    .trim();

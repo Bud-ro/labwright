@@ -6,6 +6,11 @@ import 'ir.dart';
 /// tools can detect generated scaffolds by this string.
 const String scaffoldMarker = 'structural scaffold, no dataflow recovered';
 
+/// Max control/label captions listed as candidate parameters before truncating
+/// (with an explicit "+N more" note — never a silent cap). A few VIs carry
+/// hundreds of captions; the header stays readable without hiding the count.
+const int _captionCap = 50;
+
 /// Generates an **honest structural Dart scaffold** from a decoded [ViModel] —
 /// the first VI→IR→Dart codegen step. It is deliberately NOT executable logic:
 /// LabVIEW stores wires as pure geometry with no recoverable node→node
@@ -41,6 +46,21 @@ String generateDartScaffold(ViModel model, {String name = 'vi'}) {
     b.writeln('// Libraries referenced:');
     for (final p in model.paths) {
       b.writeln('//   - ${_oneLine(p)}');
+    }
+  }
+  // Candidate parameters: the VI's recovered control/label captions. These are
+  // the NAMES of the VI's controls/indicators — the raw material of its function
+  // signature — but the block diagram alone does not say which are inputs vs
+  // outputs, nor their types, so they are listed (not turned into typed params).
+  final captions = model.captions;
+  if (captions.isNotEmpty) {
+    b.writeln('// Candidate parameters (control/label captions — direction & type');
+    b.writeln('// are NOT recoverable from the diagram, so these are names only):');
+    for (final c in captions.take(_captionCap)) {
+      b.writeln('//   ${_oneLine(c)}');
+    }
+    if (captions.length > _captionCap) {
+      b.writeln('//   (+${captions.length - _captionCap} more not shown)');
     }
   }
   b
