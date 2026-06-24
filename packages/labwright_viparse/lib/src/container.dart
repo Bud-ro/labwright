@@ -373,9 +373,79 @@ class ViNameTable {
       .toBytes();
 }
 
+/// The 20-byte record between the block list and the first section descriptor —
+/// **not** a gap. Corpus-probed (7583 VIs) as five big-endian `u32`s:
+///   * [marker] `@0` — a 4-char tag, `FTAB` (7261) or `VITS` (322). See [markerTag].
+///   * [word1] `@4` — `0` in every corpus VI.
+///   * [word2] `@8` — a varying info-area offset/size (always `< infoArea.length`).
+///   * [word3] `@12` — `0` in every corpus VI.
+///   * [flags] `@16` — exactly `0xFFFFFFFF` **iff** the VI carries embedded
+///     `LIBN`/`VINS` sections, else `0` (perfect correlation, 0 counterexamples;
+///     see [hasEmbeddedSections] and `readEmbeddedSections`).
+/// Every byte is a typed field so [serialize] reconstructs it byte-exact.
+// TODO(labwright): decode [marker]'s FTAB/VITS meaning and [word2]'s exact role.
+class ViInfoPreGap {
+  ViInfoPreGap({
+    required this.marker,
+    required this.word1,
+    required this.word2,
+    required this.word3,
+    required this.flags,
+  });
+
+  /// `u32 @0` — a 4-char marker tag (`FTAB` or `VITS`). // TODO(labwright): meaning.
+  final int marker;
+
+  /// `u32 @4` — `0` across the corpus. // TODO(labwright): identify.
+  final int word1;
+
+  /// `u32 @8` — a varying info-area offset/size (`< infoArea.length`). // TODO.
+  final int word2;
+
+  /// `u32 @12` — `0` across the corpus. // TODO(labwright): identify.
+  final int word3;
+
+  /// `u32 @16` — `0xFFFFFFFF` iff the VI has embedded `LIBN`/`VINS` sections, else `0`.
+  final int flags;
+
+  /// [marker] rendered as its 4 ASCII bytes (e.g. `FTAB`, `VITS`).
+  String get markerTag {
+    final b = [(marker >> 24) & 0xff, (marker >> 16) & 0xff, (marker >> 8) & 0xff, marker & 0xff];
+    return String.fromCharCodes([for (final c in b) (c >= 0x20 && c < 0x7f) ? c : 0x2e]);
+  }
+
+  /// Whether [flags] marks this VI as carrying embedded LIBN/VINS sections.
+  bool get hasEmbeddedSections => flags == 0xFFFFFFFF;
+
+  /// Parses the 20-byte record (five big-endian `u32`s) at the start of [b].
+  factory ViInfoPreGap.parse(Uint8List b) {
+    if (b.length < 20) throw ViFormatException('preGap record too short (${b.length})');
+    final d = ByteData.sublistView(b);
+    return ViInfoPreGap(
+      marker: d.getUint32(0),
+      word1: d.getUint32(4),
+      word2: d.getUint32(8),
+      word3: d.getUint32(12),
+      flags: d.getUint32(16),
+    );
+  }
+
+  /// Re-emits the 20 bytes (five `u32`s), byte-identical to the parsed record.
+  Uint8List serialize() {
+    final out = Uint8List(20);
+    ByteData.sublistView(out)
+      ..setUint32(0, marker)
+      ..setUint32(4, word1)
+      ..setUint32(8, word2)
+      ..setUint32(12, word3)
+      ..setUint32(16, flags);
+    return out;
+  }
+}
+
 /// The info area composed as typed regions: the [subheader] (dup header +
-/// `blockListRel`), the [blockList] (resource-block directory), a 20-byte
-/// [preGap], the [descriptors] table (contiguous 20-byte records), and the
+/// `blockListRel`), the [blockList] (resource-block directory), the 20-byte
+/// [preGap] record, the [descriptors] table (contiguous 20-byte records), and the
 /// as-yet raw [nameTable] tail (name table + trailing Pascal VI name).
 /// [serialize] reconstructs the whole info area byte-exact.
 ///
@@ -396,10 +466,9 @@ class ViInfoArea {
   final ViInfoSubheader subheader;
   final ViBlockList blockList;
 
-  /// The 20-byte slot between the block list and the first descriptor record
-  /// (empty in the raw-fallback case).
-  // TODO(labwright): identify these 20 bytes (a leading/self descriptor slot?).
-  final Uint8List preGap;
+  /// The 20-byte [ViInfoPreGap] record between the block list and the first
+  /// descriptor (`null` in the raw-fallback case).
+  final ViInfoPreGap? preGap;
 
   /// The contiguous 20-byte section descriptor records in address order (every
   /// one is a real block-referenced section). Empty in the fallback case.
@@ -411,7 +480,7 @@ class ViInfoArea {
 
   /// Back-compat view: all bytes after the block list, as raw.
   Uint8List get rest => (BytesBuilder()
-        ..add(preGap)
+        ..add(preGap?.serialize() ?? Uint8List(0))
         ..add(_descriptorBytes())
         ..add(nameTable.serialize()))
       .toBytes();
@@ -459,7 +528,7 @@ class ViInfoArea {
       return ViInfoArea(
         subheader: subheader,
         blockList: blockList,
-        preGap: Uint8List.fromList(infoArea.sublist(restStart, restStart + 20)),
+        preGap: ViInfoPreGap.parse(Uint8List.fromList(infoArea.sublist(restStart, restStart + 20))),
         descriptors: [for (var i = 0; i < total; i++) ViSectionDescriptor.parse(infoArea, minStart + i * 20)],
         nameTable: ViNameTable.parse(Uint8List.fromList(infoArea.sublist(maxEnd))),
       );
@@ -468,7 +537,7 @@ class ViInfoArea {
     return ViInfoArea(
       subheader: subheader,
       blockList: blockList,
-      preGap: Uint8List(0),
+      preGap: null,
       descriptors: const [],
       nameTable: ViNameTable.parse(Uint8List.fromList(infoArea.sublist(restStart))),
     );
@@ -478,7 +547,7 @@ class ViInfoArea {
     final out = BytesBuilder()
       ..add(subheader.serialize())
       ..add(blockList.serialize())
-      ..add(preGap)
+      ..add(preGap?.serialize() ?? Uint8List(0))
       ..add(_descriptorBytes())
       ..add(nameTable.serialize());
     return out.toBytes();

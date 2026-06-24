@@ -398,18 +398,62 @@ void main() {
       files++;
       if (ia.descriptors.isEmpty) continue;
       peeled++;
-      // descriptor count == total block descriptors (sum of sectionCount per block),
-      // BUT records can exceed referenced descriptors when name rows fill the span;
-      // assert it's at least the block total and the preGap is the 20-byte slot.
+      // descriptor count == total block descriptors (sum of sectionCount per block);
+      // assert it's at least the block total and the 20-byte preGap record is typed.
       final total = bl.entries.fold<int>(0, (a, e) => a + e.sectionCountMinus1 + 1);
-      if (ia.descriptors.length < total || ia.preGap.length != 20) {
-        if (mismatches.length < 6) mismatches.add('${f.path.split('/').last}: ${ia.descriptors.length} < $total or preGap ${ia.preGap.length}');
+      if (ia.descriptors.length < total || ia.preGap == null) {
+        if (mismatches.length < 6) mismatches.add('${f.path.split('/').last}: ${ia.descriptors.length} < $total or preGap null');
       }
     }
     expect(files, greaterThan(0));
     expect(mismatches, isEmpty, reason: 'descriptor peel mismatch: $mismatches');
     // ratchet: peeled for the large majority (probe: 100%); floor at 90%.
     expect(peeled, greaterThan((files * 0.90).floor()), reason: 'descriptor table not peeled: only $peeled/$files');
+  });
+
+  // PREGAP RECORD: the 20-byte slot before the first descriptor is a structured
+  // record (ViInfoPreGap), not padding. Across the corpus: marker is FTAB or
+  // VITS; word1/word3 are 0; flags is exactly 0xFFFFFFFF iff the VI has embedded
+  // (LIBN/VINS) sections, else 0 — a perfect correlation with readEmbeddedSections.
+  test('INFO-AREA: preGap is a typed FTAB/VITS record; flags == has-embedded-sections', () {
+    var files = 0;
+    final badMarker = <String>[];
+    final badZero = <String>[];
+    final flagMismatch = <String>[];
+    for (final f in all) {
+      final Uint8List bytes;
+      try {
+        bytes = Uint8List.fromList(f.readAsBytesSync());
+      } catch (_) {
+        continue;
+      }
+      final ViInfoPreGap? pg;
+      final bool hasEmbedded;
+      try {
+        pg = ViContainer.parse(bytes).parsedInfoArea.preGap;
+        hasEmbedded = readEmbeddedSections(bytes).isNotEmpty;
+      } catch (_) {
+        continue;
+      }
+      if (pg == null) continue;
+      files++;
+      if (pg.markerTag != 'FTAB' && pg.markerTag != 'VITS') {
+        if (badMarker.length < 6) badMarker.add('${f.path.split('/').last}: ${pg.markerTag}');
+      }
+      if (pg.word1 != 0 || pg.word3 != 0) {
+        if (badZero.length < 6) badZero.add('${f.path.split('/').last}: w1=${pg.word1} w3=${pg.word3}');
+      }
+      // flags must be exactly 0xFFFFFFFF (has embedded) or 0 (none), matching reality.
+      if (pg.hasEmbeddedSections != hasEmbedded || (pg.flags != 0xFFFFFFFF && pg.flags != 0)) {
+        if (flagMismatch.length < 6) {
+          flagMismatch.add('${f.path.split('/').last}: flags=0x${pg.flags.toRadixString(16)} embedded=$hasEmbedded');
+        }
+      }
+    }
+    expect(files, greaterThan(0));
+    expect(badMarker, isEmpty, reason: 'preGap marker not FTAB/VITS: $badMarker');
+    expect(badZero, isEmpty, reason: 'preGap word1/word3 not zero: $badZero');
+    expect(flagMismatch, isEmpty, reason: 'preGap flags != has-embedded-sections: $flagMismatch');
   });
 
   // DESCRIPTOR @16 IS BINARY: across the corpus every section descriptor's @16

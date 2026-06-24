@@ -191,6 +191,37 @@ void main() {
     });
   });
 
+  group('ViInfoPreGap', () {
+    test('parses the FTAB/VITS marker + flags and serializes byte-exact', () {
+      final rec = Uint8List(20);
+      ByteData.sublistView(rec)
+        ..setUint32(0, 0x46544142) // "FTAB"
+        ..setUint32(4, 0)
+        ..setUint32(8, 1992)
+        ..setUint32(12, 0)
+        ..setUint32(16, 0xFFFFFFFF); // flags: has embedded sections
+      final pg = ViInfoPreGap.parse(rec);
+      expect(pg.markerTag, 'FTAB');
+      expect(pg.word1, 0);
+      expect(pg.word2, 1992);
+      expect(pg.word3, 0);
+      expect(pg.flags, 0xFFFFFFFF);
+      expect(pg.hasEmbeddedSections, isTrue);
+      expect(pg.serialize(), orderedEquals(rec));
+    });
+
+    test('VITS marker + flags 0 means no embedded sections', () {
+      final rec = Uint8List(20);
+      ByteData.sublistView(rec)
+        ..setUint32(0, 0x56495453) // "VITS"
+        ..setUint32(16, 0);
+      final pg = ViInfoPreGap.parse(rec);
+      expect(pg.markerTag, 'VITS');
+      expect(pg.hasEmbeddedSections, isFalse);
+      expect(pg.serialize(), orderedEquals(rec));
+    });
+  });
+
   group('ViNameTable', () {
     test('peels the trailing Pascal VI name and serializes byte-exact', () {
       const name = 'Foo.vi';
