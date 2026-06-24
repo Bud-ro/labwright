@@ -1,0 +1,4 @@
+tags:
+  corpus:
+    # Tests that require the fetched VI corpus (corpus/fetch.sh). They self-skip
+    # when the corpus is absent, so CI stays green without it.
