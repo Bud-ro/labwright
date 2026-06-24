@@ -27,6 +27,8 @@ class ViInspectorScreen extends StatefulWidget {
     this.initialStrings,
     this.initialComponents,
     this.initialModel,
+    this.initialLibraryNames,
+    this.initialEmbeddedVis,
   });
 
   /// Optional summary to show on first build (used by tests).
@@ -47,6 +49,12 @@ class ViInspectorScreen extends StatefulWidget {
   /// Optional decoded model (for the Diagram tab) to show on first build (tests).
   final ViModel? initialModel;
 
+  /// Optional owning-library names (from LIBN) to show on first build (tests).
+  final List<String>? initialLibraryNames;
+
+  /// Optional embedded sub-VIs (from VINS) to show on first build (tests).
+  final List<ViEmbeddedVi>? initialEmbeddedVis;
+
   @override
   State<ViInspectorScreen> createState() => _ViInspectorScreenState();
 }
@@ -62,6 +70,8 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
   List<BlockComponent> _components = const [];
   ViModel? _model;
   List<DecodedSection> _sections = const [];
+  List<String> _libraryNames = const [];
+  List<ViEmbeddedVi> _embeddedVis = const [];
 
   @override
   void initState() {
@@ -72,6 +82,8 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
     _strings = widget.initialStrings ?? const [];
     _components = widget.initialComponents ?? const [];
     _model = widget.initialModel;
+    _libraryNames = widget.initialLibraryNames ?? const [];
+    _embeddedVis = widget.initialEmbeddedVis ?? const [];
   }
 
   @override
@@ -89,6 +101,8 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
     var components = const <BlockComponent>[];
     ViModel? model;
     var sections = const <DecodedSection>[];
+    var libraryNames = const <String>[];
+    var embeddedVis = const <ViEmbeddedVi>[];
     if (load.isOk) {
       // Decode the heaps ONCE and derive everything from that single inflate
       // pass (previously version/strings/components/model/sections each re-ran
@@ -103,6 +117,10 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
         strings = heapStringsFromDecoded(sections);
         components = model.components;
         version = decodeVersion(bytes); // cheap: reads descriptors, no heap inflation
+        // Embedded secondary sections (owning library names + embedded sub-VIs)
+        // live in the @16==0 LIBN/VINS sections, separate from the heaps.
+        libraryNames = readOwningLibraryNames(bytes);
+        embeddedVis = readEmbeddedVis(bytes);
       } catch (_) {
         sections = const [];
         model = null;
@@ -117,6 +135,8 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
       _components = components;
       _model = model;
       _sections = sections;
+      _libraryNames = libraryNames;
+      _embeddedVis = embeddedVis;
     });
   }
 
@@ -260,6 +280,8 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                                           components: _components,
                                           sections: _sections,
                                           model: _model,
+                                          libraryNames: _libraryNames,
+                                          embeddedVis: _embeddedVis,
                                         ),
                                         // Each layout view is keyed by model identity so loading a
                                         // new VI builds fresh state (resets selection + re-fits).
@@ -348,6 +370,8 @@ class _SummaryView extends StatefulWidget {
     required this.components,
     required this.sections,
     this.model,
+    this.libraryNames = const [],
+    this.embeddedVis = const [],
   });
   final ViSummary summary;
   final String source;
@@ -358,6 +382,12 @@ class _SummaryView extends StatefulWidget {
 
   /// The decoded model, used to surface recovered subVI deps + data-type summary.
   final ViModel? model;
+
+  /// Owning-library names (from LIBN sections), e.g. `MQTT Server.lvlib`.
+  final List<String> libraryNames;
+
+  /// Embedded sub-VIs (from VINS sections) — each a complete nested VI.
+  final List<ViEmbeddedVi> embeddedVis;
 
   @override
   State<_SummaryView> createState() => _SummaryViewState();
@@ -446,6 +476,43 @@ class _SummaryViewState extends State<_SummaryView> {
                 const SizedBox(height: 4),
                 Text(hist.entries.map((e) => '${e.key}:${e.value}').join('  '),
                     style: const TextStyle(fontSize: 12, color: Colors.grey)),
+              ],
+            );
+          }),
+          const SizedBox(height: 16),
+        ],
+
+        // Owning library (from LIBN sections).
+        if (widget.libraryNames.isNotEmpty) ...[
+          const Text('Owning library', style: TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 4),
+          Text(widget.libraryNames.join(', '), style: const TextStyle(fontSize: 12)),
+          const SizedBox(height: 16),
+        ],
+
+        // Embedded sub-VIs (from VINS sections — each a complete nested VI).
+        if (widget.embeddedVis.isNotEmpty) ...[
+          Builder(builder: (context) {
+            // Show the clean recovered names (those that look like VI names);
+            // the count is honest about the total even when some names are not
+            // cleanly recovered from the nested VI.
+            final names = [
+              for (final v in widget.embeddedVis)
+                if (v.name != null && v.name!.toLowerCase().endsWith('.vi')) v.name!,
+            ];
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Embedded VIs (${widget.embeddedVis.length})',
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 4),
+                Text(
+                  names.isEmpty
+                      ? 'nested VIs present; names not cleanly recovered'
+                      : names.take(40).join(', ') +
+                          (names.length > 40 ? ', … (+${names.length - 40} more)' : ''),
+                  style: const TextStyle(fontSize: 12),
+                ),
               ],
             );
           }),

@@ -142,6 +142,74 @@ List<ViSection> readViSections(Uint8List bytes) => _readSections(bytes, wantWord
 /// any primary section. Total/bounds-safe exactly like [readViSections].
 List<ViSection> readEmbeddedSections(Uint8List bytes) => _readSections(bytes, wantWord16: 0);
 
+/// One embedded sub-VI recovered from a `VINS` section — a complete nested VI.
+class ViEmbeddedVi {
+  ViEmbeddedVi({required this.name, required this.sizeBytes});
+
+  /// The nested VI's recovered name (its trailing VI name via [parseVi]), or
+  /// `null` if none was cleanly recovered. Best-effort, like any [parseVi] name.
+  final String? name;
+
+  /// The embedded VI's size in bytes (the nested `RSRC…LVIN` payload length).
+  final int sizeBytes;
+}
+
+/// The owning-library names a VI declares via its `LIBN` sections. The LIBN
+/// payload is `[u32][u8 len][name]…`; the library name is the Pascal string at
+/// offset 4 (e.g. `MQTT Server.lvlib`). Returns one entry per LIBN section that
+/// yields a clean printable name (deduped, order-preserving). Never throws.
+List<String> readOwningLibraryNames(Uint8List bytes) {
+  final out = <String>[];
+  final List<ViSection> emb;
+  try {
+    emb = readEmbeddedSections(bytes);
+  } catch (_) {
+    return out;
+  }
+  for (final s in emb) {
+    if (s.tag != 'LIBN') continue;
+    final b = s.bytes;
+    if (b.length < 5) continue;
+    final len = b[4]; // Pascal length at offset 4 (after the leading u32)
+    if (len == 0 || 5 + len > b.length) continue;
+    var ok = true;
+    for (var i = 5; i < 5 + len; i++) {
+      if (b[i] < 0x20 || b[i] >= 0x7f) {
+        ok = false;
+        break;
+      }
+    }
+    if (!ok) continue;
+    final name = String.fromCharCodes(b.sublist(5, 5 + len));
+    if (!out.contains(name)) out.add(name);
+  }
+  return out;
+}
+
+/// The embedded sub-VIs a VI carries in its `VINS` sections, each parsed for its
+/// name + size. The bytes of each are a complete nested `RSRC…LVIN` VI, so they
+/// are fed to [parseVi] for a best-effort name. Never throws.
+List<ViEmbeddedVi> readEmbeddedVis(Uint8List bytes) {
+  final out = <ViEmbeddedVi>[];
+  final List<ViSection> emb;
+  try {
+    emb = readEmbeddedSections(bytes);
+  } catch (_) {
+    return out;
+  }
+  for (final s in emb) {
+    if (s.tag != 'VINS') continue;
+    String? name;
+    try {
+      name = parseVi(s.bytes).name;
+    } catch (_) {
+      name = null;
+    }
+    out.add(ViEmbeddedVi(name: name, sizeBytes: s.bytes.length));
+  }
+  return out;
+}
+
 /// Shared RSRC section walker. Returns the sections whose descriptor `@16` word
 /// equals [wantWord16] — `0xFFFFFFFF` for the VI's own data sections
 /// ([readViSections]) or `0` for the embedded LIBN/VINS sections

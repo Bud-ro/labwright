@@ -64,6 +64,38 @@ void main() {
     expect(find.text('Conversion time'), findsNothing);
   });
 
+  testWidgets('surfaces owning library (LIBN) and embedded sub-VIs (VINS)', (tester) async {
+    tester.view.physicalSize = const Size(1000, 2000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(MaterialApp(
+      home: ViInspectorScreen(
+        initial: ViSummary(
+          fileType: 'LVIN',
+          creator: 'LBVW',
+          formatVersion: 3,
+          blocks: const ['LIBN', 'VINS'],
+          name: 'Library Member.vi',
+        ),
+        initialSource: 'test',
+        initialLibraryNames: const ['MQTT Server.lvlib'],
+        initialEmbeddedVis: [
+          ViEmbeddedVi(name: 'abc12345-0000.vi', sizeBytes: 10170),
+          ViEmbeddedVi(name: 'UMLEditor Main .vi', sizeBytes: 25638),
+          ViEmbeddedVi(name: null, sizeBytes: 1234), // name not cleanly recovered
+        ],
+      ),
+    ));
+
+    expect(find.text('Owning library'), findsOneWidget);
+    expect(find.text('MQTT Server.lvlib'), findsOneWidget);
+    // count reflects all 3 embedded VIs; the listing shows the clean .vi names
+    expect(find.text('Embedded VIs (3)'), findsOneWidget);
+    expect(find.textContaining('abc12345-0000.vi'), findsOneWidget);
+    expect(find.textContaining('UMLEditor Main .vi'), findsOneWidget);
+  });
+
   testWidgets('a non-existent path shows a clean error, not a crash', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: ViInspectorScreen()));
 
