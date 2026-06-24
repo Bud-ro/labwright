@@ -241,27 +241,38 @@ enum HeapObjectClass {
   /// `0x64` — a **cluster / array shell** on a node.
   clusterShell(0x64, 'Cluster/array shell', ViObjectKind.structure, ClassConfidence.inferred),
 
-  /// `0x2C` — a large **block-diagram structure / subdiagram frame** that holds
-  /// nodes. Corpus: 14563 BD instances (0 FP), big boxes (median **~304×215**,
-  /// p90 ~909×558), parented to the node container `0x1b`, and themselves holding
-  /// node containers `0x1b` (37126), the structural `0x15` records, and a `0x95`
-  /// selector/label row (14352). The large footprint + node-container children
-  /// identify it as a structure frame (a loop/case/sequence subdiagram); the exact
-  /// structure kind is not separable, so it renders as a generic structure frame.
-  bdStructureFrame(0x2c, 'Structure frame', ViObjectKind.structure, ClassConfidence.inferred),
+  /// `0x2C` — a **Case structure** frame. Corpus: 14563 BD instances (0 FP), big
+  /// boxes (median **290×188**, p90 884×462), parented to the node container `0x1b`,
+  /// holding node containers `0x1b`, the structural `0x15` records, and the `0x95`
+  /// case-selector row. The kind IS recoverable: its `0xa` caption reads literally
+  /// `Case Structure` (590 labelled instances) and its children are case selectors;
+  /// it owns no `0x11c` viewport but contains a `0x53` per-frame body. Renders as a
+  /// structure frame.
+  bdStructureFrame(0x2c, 'Case structure', ViObjectKind.structure, ClassConfidence.inferred),
+
+  /// `0x20` — a **For Loop** structure frame. Corpus: 4892 BD instances (0 FP),
+  /// median 224×148 (p90 755×427), parented to the node container `0x1b`; its `0xa`
+  /// caption reads literally `For Loop` / `For Each Element: …`. Renders as a
+  /// structure frame.
+  bdForLoop(0x20, 'For loop', ViObjectKind.structure, ClassConfidence.inferred),
+
+  /// `0x21` — a **While Loop** structure frame. Corpus: 1654 BD instances (0 FP),
+  /// large (median 614×386, p90 1317×734), parented to `0x1b`; its `0xa` caption
+  /// reads `While Loop` (or a named state machine). Renders as a structure frame.
+  bdWhileLoop(0x21, 'While loop', ViObjectKind.structure, ClassConfidence.inferred),
 
   /// `0x95` — a **case/sequence selector label row** on a structure frame's top
-  /// edge (e.g. the `True`/`False`/case-name strip). Corpus: 2589 drawn BD
-  /// instances, ~36–86×17, 2171/2589 parented to the structure frame `0x2c`, and
-  /// 2517/2589 carry a decoded label — 1038 the bare `True`/`False`, the rest case
-  /// strings (`Teleop Enabled`, …). Catalogued so the faithful layer can draw the
-  /// selector text (it was previously invisible). The label is the recoverable part.
+  /// edge (the `True`/`False`/case-name strip). Corpus: **16118 BD** instances
+  /// (**83 FP** — not BD-only), median 53×19, ~14352 parented to the `0x2c` case
+  /// frame, ~15280 carry a decoded label (~42% trim to the bare `True`/`False`, the
+  /// rest case strings). NOTE the raw label often has surrounding spaces (` True `).
+  /// Renders the selector text via [_LabelText]; the label is the recoverable part.
   bdSelectorLabel(0x95, 'Case selector label', ViObjectKind.terminal, ClassConfidence.inferred),
 
-  /// `0x177` — a small fixed **node glyph / decoration** (12×12). Corpus: 6450
-  /// drawn BD instances, 5765 at exactly 12×12, 100% parented to the node container
-  /// `0x1b`, no label, no children — a fixed on-diagram glyph (e.g. a coercion
-  /// dot / small constant marker). Role not separable, so [ClassConfidence.kindOnly];
+  /// `0x177` — a small fixed **node glyph / decoration** (12×12). Corpus: **17043 BD**
+  /// instances (0 FP), ~92% (15659) at exactly 12×12, 100% parented to the node
+  /// container `0x1b`, no label, no children — a fixed on-diagram glyph (e.g. a
+  /// coercion dot / small marker). Role not separable, so [ClassConfidence.kindOnly];
   /// catalogued so it draws a faint marker instead of vanishing.
   bdGlyph(0x177, 'Node glyph', ViObjectKind.decoration, ClassConfidence.kindOnly),
 
@@ -294,52 +305,83 @@ enum HeapObjectClass {
   /// [ViObjectKind.node] — an undrawn grouping bucket; it is never rendered.)
   node(0x12, 'Content group (FP)', ViObjectKind.node, ClassConfidence.confirmed),
 
-  /// `0x2F` — a **block-diagram node** (function / primitive). Corpus: 44395 BD
-  /// instances, 0 FP, all visible at a uniform **32×32** icon footprint (LabVIEW's
-  /// default node-icon size), parented to the node container `0x1b`, holding the
-  /// structural `0x15` records (and an occasional `0xa` label). The 32×32 icon
-  /// signature + node-container parent identify it as a node; the specific
-  /// primitive is not recovered, so it renders as a generic node box.
-  bdNode(0x2f, 'Node', ViObjectKind.node, ClassConfidence.inferred),
+  /// `0x2F` — a **built-in primitive node**. Corpus: 44395 BD instances, 0 FP, a
+  /// uniform **32×32** icon footprint (LabVIEW's default node-icon size), parented
+  /// to the node container `0x1b`, holding the structural `0x15` records. Only ~717
+  /// carry an `0xa` caption, and those read as built-in primitives (`To Lower Case`,
+  /// `Search 1D Array`, `Select`) — vs the subVI-named `0x31`. The specific
+  /// primitive icon is not recovered, so it renders as a generic node box.
+  bdNode(0x2f, 'Node (primitive)', ViObjectKind.node, ClassConfidence.inferred),
 
-  /// `0x31` — a **named/documented block-diagram node** (e.g. a subVI call).
-  /// Corpus: 31995 BD instances, 0 FP, uniform **32×32**, parented to `0x1b`, each
-  /// carrying exactly one `0xa` label child (+ `0xc1` tip-strips on 713) over the
-  /// structural `0x15` records — i.e. a node that, unlike the bare `0x2f`, owns a
-  /// caption/help. Renders as a node box.
-  bdNamedNode(0x31, 'Node (named)', ViObjectKind.node, ClassConfidence.inferred),
+  /// `0x31` — a **subVI call node**. Corpus: 31995 BD instances, 0 FP, uniform
+  /// **32×32**, parented to `0x1b`, with 31873/31995 carrying an `0xa` caption that
+  /// is a VI filename (`PicoScope2000aOpen.vi`, `Application Directory.vi`, …) —
+  /// definitively a subVI call (vs the primitive `0x2f`). Renders as a node box; the
+  /// called-VI name is on its `0xa` caption.
+  bdNamedNode(0x31, 'Node (subVI call)', ViObjectKind.node, ClassConfidence.inferred),
 
   /// `0x63` — a **growable/resizable block-diagram node** (e.g. Bundle/Unbundle
-  /// By Name, Property Node). Corpus: 13737 BD instances (0 FP), wide-short and
-  /// variable (median 100×18, p90 151×65), parented to the node container `0x1b`,
-  /// holding the structural `0x15` records; the labelled ones (`0xa` child) carry
-  /// function names like `Unbundle By Name` / `Bundle By Name` — confirming a node.
-  /// Renders as a node box.
+  /// By Name). Corpus: 13737 BD instances (0 FP), wide-short and variable (median
+  /// **89×20**, p90 158×61), parented to the node container `0x1b`, holding the
+  /// structural `0x15` records; labelled ones carry function names like
+  /// `Unbundle By Name` — confirming a node. Renders as a node box.
   bdGrowableNode(0x63, 'Node (growable)', ViObjectKind.node, ClassConfidence.inferred),
 
-  /// `0x8C` — a **block-diagram node** (subVI / expandable node). Corpus: 6620 BD
-  /// (0 FP), median 66×38, parent the node container `0x1b`, structural `0x15`
-  /// children; the `0xa` labels carry subVI names (`Meter (mV)`, `Channel D
-  /// Settings`, …) — confirming a node. Renders as a node box.
+  /// `0x8C` — a **subVI / expandable node**. Corpus: 6620 BD (0 FP), median
+  /// **68×36**, parent the node container `0x1b`, structural `0x15` children; the
+  /// `0xa` labels carry subVI names (`Meter (mV)`, `Channel D Settings`, …) —
+  /// confirming a node. Renders as a node box.
   bdNode8c(0x8c, 'Node', ViObjectKind.node, ClassConfidence.inferred),
 
-  /// `0x3A` — a **block-diagram primitive node**. Corpus: 3479 BD (0 FP), 32 wide
-  /// (height 9–33), parent `0x1b`, structural `0x15` children; the `0xa` labels are
-  /// primitive names (`Build Array`, …) — confirming a node. Renders as a node box.
-  bdNode3a(0x3a, 'Node', ViObjectKind.node, ClassConfidence.inferred),
+  /// `0x3A` — a **built-in primitive node**. Corpus: 3479 BD (0 FP), median
+  /// **32×17** (height to 33), parent `0x1b`, structural `0x15` children; labelled
+  /// ones read primitive names (`Build Array`, …) — confirming a node.
+  bdNode3a(0x3a, 'Node (primitive)', ViObjectKind.node, ClassConfidence.inferred),
 
-  /// `0xD6` — a **block-diagram node** (e.g. an Event Data Node). Corpus: 2209 BD
-  /// (0 FP), median 56×20, parent `0x1b`, structural `0x15` children; the `0xa`
-  /// labels read `Event Data Node` — confirming a node. Renders as a node box.
+  /// `0xD6` — a **block-diagram node** (seen as an Event Data Node). Corpus: 2209 BD
+  /// (0 FP), median **56×20** (height to ~103), parent `0x1b`, structural `0x15`
+  /// children; the rare `0xa` caption reads `Event Data Node`. Renders as a node box.
   bdNoded6(0xd6, 'Node', ViObjectKind.node, ClassConfidence.inferred),
 
+  /// `0x32` — a **subVI call node** (wide). Corpus: 2075 BD (0 FP), median 87×19,
+  /// parent `0x1b`; 2066/2075 carry an `0xa` VI-filename caption (`Robot Main.vi`,
+  /// `PicoScope2000aSettings.vi`). Renders as a node box.
+  bdNode32(0x32, 'Node (subVI call)', ViObjectKind.node, ClassConfidence.inferred),
+
+  /// `0xC5` — a **subVI call node** (icon). Corpus: 1518 BD (0 FP), uniform 32×32,
+  /// parent `0x1b`; 1518/1518 carry an `0xa` VI-filename caption (`Analog to
+  /// Digital.vi`). Renders as a node box.
+  bdNodeC5(0xc5, 'Node (subVI call)', ViObjectKind.node, ClassConfidence.inferred),
+
+  /// `0x104` — a **subVI call node** (icon). Corpus: 2155 BD (0 FP), uniform 32×32,
+  /// parent `0x1b`; 2155/2155 carry an `0xa` VI-filename caption (`Prepare
+  /// Response.vi`, `getFlags.vi`). Renders as a node box.
+  bdNode104(0x104, 'Node (subVI call)', ViObjectKind.node, ClassConfidence.inferred),
+
+  /// `0x44` — a **built-in primitive node**. Corpus: 3228 BD (0 FP), ~32×27, parent
+  /// `0x1b`; labelled ones read `Index Array`. Renders as a node box.
+  bdNode44(0x44, 'Node (primitive)', ViObjectKind.node, ClassConfidence.inferred),
+
+  /// `0x3E` — a **built-in primitive node**. Corpus: 1961 BD (0 FP), ~32×17, parent
+  /// `0x1b`; labelled ones read `Concatenate Strings`. Renders as a node box.
+  bdNode3e(0x3e, 'Node (primitive)', ViObjectKind.node, ClassConfidence.inferred),
+
+  /// `0x34` — a **built-in primitive node**. Corpus: 1665 BD (0 FP), ~32×25, parent
+  /// `0x1b`; labelled ones read `Bundle`. Renders as a node box.
+  bdNode34(0x34, 'Node (primitive)', ViObjectKind.node, ClassConfidence.inferred),
+
+  /// `0xA9` — a **block-diagram node** (Invoke Node / Sub Panel / unit-conversion
+  /// subVI). Corpus: 2416 BD (0 FP), median 82×70, parent `0x1b`; `0xa` captions
+  /// vary (`Invoke Node`, `… Units`). Renders as a node box.
+  bdNodeA9(0xa9, 'Node', ViObjectKind.node, ClassConfidence.inferred),
+
   /// `0x16` — a **free-standing block-diagram terminal/constant leaf**. Corpus:
-  /// 41830 BD instances, 0 FP, uniform **32×16**, each nested under a zero-area node
-  /// body `0x1d` (grandparent the node container `0x1b`); `termCount == 0`, no
-  /// decoded data type, and the `0xa` label slot is empty (4004/4004 sampled). It
-  /// is NOT an on-node pin — corpus geometry: it overlaps a sibling node only 1.2%
-  /// of the time and sits a median 216px from the nearest node — so it is a small
-  /// free-standing leaf (a terminal or constant; the two are not separable here).
+  /// 41830 BD instances, 0 FP, uniform **32×16** (41091/41830), each nested under a
+  /// zero-area node body `0x1d` (grandparent the node container `0x1b`);
+  /// `termCount == 0`, no decoded data type, and the `0xa` label slot is empty. It
+  /// is NOT an on-node pin — corpus geometry: it overlaps a sibling node only ~2% of
+  /// the time and sits ~112px (edge) / ~154px (center) from the nearest node — so it
+  /// is a small free-standing leaf (a terminal or constant; not separable here).
   bdLeaf(0x16, 'Terminal/constant (BD)', ViObjectKind.terminal, ClassConfidence.inferred),
 
   // --- Control / indicator terminal containers (top-level on the diagram) ---
