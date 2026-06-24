@@ -12,6 +12,7 @@
 /// Honest/total throughout; documented limits (e.g. geometry-only signal wires).
 library;
 
+export 'src/dart_scaffold.dart';
 export 'src/decode.dart';
 export 'src/graph.dart';
 export 'src/heap.dart';
