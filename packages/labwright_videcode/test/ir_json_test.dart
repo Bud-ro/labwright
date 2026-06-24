@@ -189,4 +189,33 @@ void main() {
     expect(clustersWithMembers, greaterThan((clusters * 0.80).floor()),
         reason: 'cluster member recovery dropped: $clustersWithMembers/$clusters');
   });
+
+  test('array element types resolve into valid in-range indices', () {
+    var files = 0, arrays = 0, arraysWithElem = 0;
+    final fails = <String>[];
+    for (final f in all) {
+      final ViModel model;
+      try {
+        model = buildViModel(Uint8List.fromList(f.readAsBytesSync()));
+      } catch (_) {
+        continue;
+      }
+      files++;
+      for (final t in model.types) {
+        if (t.kind != ViDataType.array) continue;
+        arrays++;
+        if (t.elementIndex == null) continue;
+        arraysWithElem++;
+        if (t.elementIndex! < 0 || t.elementIndex! >= model.types.length) {
+          if (fails.length < 8) fails.add('OOB elem ${t.elementIndex} in ${f.path.split('/').last}');
+        }
+      }
+    }
+    expect(files, greaterThan(0));
+    expect(arrays, greaterThan(0));
+    expect(fails, isEmpty, reason: 'array element index out of range: $fails');
+    // ratchet: most arrays expose a parseable element type.
+    expect(arraysWithElem, greaterThan((arrays * 0.80).floor()),
+        reason: 'array element recovery dropped: $arraysWithElem/$arrays');
+  });
 }

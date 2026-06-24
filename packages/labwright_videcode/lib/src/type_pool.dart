@@ -39,7 +39,14 @@ const Map<int, ViDataType> _typeCodes = {
 /// the recovered [name] (a typedef/control name like `Serial Number`) when the
 /// descriptor carries one, else null.
 class ViType {
-  const ViType({required this.index, required this.code, required this.kind, this.name, this.members = const []});
+  const ViType({
+    required this.index,
+    required this.code,
+    required this.kind,
+    this.name,
+    this.members = const [],
+    this.elementIndex,
+  });
   final int index;
   final int code;
   final ViDataType kind;
@@ -54,6 +61,10 @@ class ViType {
   /// typed data dictionary. Heuristically recovered (see [decodeTypePool]); only
   /// populated when a clean trailing Pascal string is present.
   final String? name;
+
+  /// For a [ViDataType.array], the VCTP index of its element type (resolve
+  /// against the pool), or null for non-arrays / unparseable descriptors.
+  final int? elementIndex;
 }
 
 /// Decodes the **VI Consolidated Type Pool** from an already-decompressed `VCTP`
@@ -85,6 +96,7 @@ List<ViType> decodeTypePool(Uint8List body) {
       kind: _typeCodes[code] ?? ViDataType.unknown,
       name: _trailingName(body, off + 4, off + descLen),
       members: code == 0x50 ? _clusterMembers(body, off, descLen, count) : const [],
+      elementIndex: code == 0x40 ? _arrayElement(body, off, descLen, count) : null,
     ));
     off += descLen;
   }
@@ -111,12 +123,36 @@ List<int> _clusterMembers(Uint8List b, int off, int descLen, int poolCount) {
   return out;
 }
 
+/// Parses an array descriptor's element type index: layout is
+/// `[u16 numDims][u32 dimSize]*numDims[u16 elementTypeIndex]` after flags+code.
+/// Returns the element index (into the pool) or null if it doesn't validate
+/// (1–8 dims, the index fits the descriptor and is in range) — corpus-derived.
+int? _arrayElement(Uint8List b, int off, int descLen, int poolCount) {
+  if (off + 6 > b.length) return null;
+  final numDims = (b[off + 4] << 8) | b[off + 5];
+  if (numDims < 1 || numDims > 8) return null;
+  final ep = off + 6 + numDims * 4; // after the per-dimension u32 sizes
+  if (ep + 2 > off + descLen) return null;
+  final idx = (b[ep] << 8) | b[ep + 1];
+  if (idx >= poolCount) return null;
+  return idx;
+}
+
 /// Resolves a cluster [c]'s [ViType.members] indices against the full pool
-/// [types] into ordered `(kind, name)` fields. Out-of-range indices are skipped.
-List<({ViDataType kind, String? name})> clusterFields(ViType c, List<ViType> types) => [
+/// [types] into the ordered member [ViType]s. Out-of-range indices are skipped.
+List<ViType> clusterFields(ViType c, List<ViType> types) => [
       for (final i in c.members)
-        if (i >= 0 && i < types.length) (kind: types[i].kind, name: types[i].name),
+        if (i >= 0 && i < types.length) types[i],
     ];
+
+/// A short human label for a type, resolving one level of array nesting:
+/// `array<dbl>`, `array<cluster>`, else the bare kind name (`i32`, `cluster`).
+String typeLabel(ViType t, List<ViType> types) {
+  if (t.kind == ViDataType.array && t.elementIndex != null && t.elementIndex! < types.length) {
+    return 'array<${types[t.elementIndex!].kind.name}>';
+  }
+  return t.kind.name;
+}
 
 /// Recovers a type descriptor's embedded name: LabVIEW stores it as a Pascal
 /// string (`u8 len` + bytes) at the **end** of the descriptor. Scans for a valid

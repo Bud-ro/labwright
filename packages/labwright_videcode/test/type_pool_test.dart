@@ -108,6 +108,22 @@ void main() {
     expect(fields[1].name, 'handle'); // member 1 resolves to the named i32
   });
 
+  test('decodes an array descriptor element type and labels it array<elem>', () {
+    // pool: [0]=dbl, [1]=1-D array of [0]
+    // type0: dbl: descLen=4 [00 04][40 0a]
+    // type1: array: [40 40][u16 numDims=1][u32 dimSize=ffffffff][u16 elemIdx=0]
+    //   body after len = flags,code(2) + numDims(2) + dimSize(4) + elemIdx(2) = 10; descLen=12
+    final type0 = <int>[0x00, 0x04, 0x40, 0x0a];
+    final type1 = <int>[0x00, 0x0c, 0x40, 0x40, 0x00, 0x01, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00];
+    final b = Uint8List.fromList([0, 0, 0, 2, ...type0, ...type1]);
+
+    final types = decodeTypePool(b);
+    expect(types[1].kind, ViDataType.array);
+    expect(types[1].elementIndex, 0);
+    expect(typeLabel(types[1], types), 'array<dbl>');
+    expect(typeLabel(types[0], types), 'dbl'); // non-array unchanged
+  });
+
   test('a malformed cluster member list yields no members (no throw)', () {
     // cluster claiming 999 members in a tiny descriptor -> rejected
     final type2 = <int>[0x00, 0x06, 0x40, 0x50, 0x03, 0xe7]; // nm=999, descLen=6

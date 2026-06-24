@@ -88,7 +88,7 @@ String generateDartScaffold(ViModel model, {String name = 'vi'}) {
   if (named.isNotEmpty) {
     b.writeln('// Named types (typedefs / labelled data items):');
     for (final t in named.take(_namedTypeCap)) {
-      b.writeln('//   ${t.kind.name} ${_oneLine(t.name!)}');
+      b.writeln('//   ${typeLabel(t, model.types)} ${_oneLine(t.name!)}');
     }
     if (named.length > _namedTypeCap) {
       b.writeln('//   (+${named.length - _namedTypeCap} more not shown)');
@@ -105,7 +105,7 @@ String generateDartScaffold(ViModel model, {String name = 'vi'}) {
     b.writeln('// Recovered cluster structures:');
     for (final t in structs.take(_structCap)) {
       final fields = clusterFields(t, model.types)
-          .map((f) => f.name != null ? '${f.kind.name} ${_oneLine(f.name!)}' : f.kind.name)
+          .map((f) => f.name != null ? '${typeLabel(f, model.types)} ${_oneLine(f.name!)}' : typeLabel(f, model.types))
           .join('; ');
       b.writeln('//   ${_oneLine(t.name!)} { $fields }');
     }

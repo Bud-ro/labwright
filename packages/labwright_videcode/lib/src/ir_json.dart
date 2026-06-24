@@ -101,12 +101,12 @@ Map<String, Object?> viModelToJson(ViModel m) => {
           for (final t in namedTypes(m.types).take(200))
             {
               'index': t.index,
-              'kind': t.kind.name,
+              'kind': typeLabel(t, m.types), // resolves array<elem>
               'name': t.name,
               // for a named cluster, its resolved member fields (the struct)
               if (t.members.isNotEmpty)
                 'members': [
-                  for (final f in clusterFields(t, m.types)) {'kind': f.kind.name, if (f.name != null) 'name': f.name},
+                  for (final f in clusterFields(t, m.types)) {'kind': typeLabel(f, m.types), if (f.name != null) 'name': f.name},
                 ],
             },
         ],
