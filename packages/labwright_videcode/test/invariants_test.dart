@@ -123,6 +123,27 @@ void main() {
         reason: 'BD render-typed fraction dropped to ${(frac * 100).toStringAsFixed(2)}% (floor 99%).');
   });
 
+  test('RENDER RATCHET: visible FRONT-PANEL objects classify to a typed widget (>= floor)', () {
+    var visible = 0, typed = 0;
+    for (final f in all) {
+      try {
+        final m = buildViModel(f.readAsBytesSync());
+        for (final o in m.frontPanelDiagrams.expand((d) => d.objects)) {
+          final r = o.absBounds;
+          if (r == null || r.width <= 1 || r.height <= 1) continue;
+          visible++;
+          if (o.category != ViObjectKind.unknown) typed++;
+        }
+      } catch (_) {}
+    }
+    expect(visible, greaterThan(0));
+    final frac = typed / visible;
+    // Current: ~0.9991. Floor 0.99, upward-only — the front-panel taxonomy is the
+    // most mature, so this guards against a regression dropping FP coverage.
+    expect(frac, greaterThanOrEqualTo(0.99),
+        reason: 'FP render-typed fraction dropped to ${(frac * 100).toStringAsFixed(2)}% (floor 99%).');
+  });
+
   // 4. MUTATION-FUZZ ROBUSTNESS — flip bytes inside genuine VIs and push them
   // through the FULL pipeline (decodeSections -> inflate -> heap walk -> build).
   // This is deeper than the truncation fuzz (parseVi only) and the random-bytes
