@@ -168,6 +168,49 @@ void main() {
             'the 0xa-caption propagation likely regressed.');
   });
 
+  // 8. LAYOUT-CONTAINMENT RATCHET — geometric correctness of coordinate
+  // composition: a drawn BD node whose ancestor chain includes a drawn structure
+  // frame should have its CENTER inside that frame (nodes live in their loop/case
+  // body). A drop signals a coordinate-composition / re-anchor regression that the
+  // typed-widget render ratchets would NOT catch (a node can be the right widget
+  // but in the wrong place). Floor 0.98 (currently ~0.9936), upward-only.
+  test('LAYOUT RATCHET: BD nodes sit inside their enclosing structure frame (>= floor)', () {
+    bool inside(HeapRect o, int cx, int cy) => cx >= o.left && cx <= o.right && cy >= o.top && cy <= o.bottom;
+    var pairs = 0, contained = 0;
+    for (final f in all) {
+      try {
+        for (final diag in buildViModel(f.readAsBytesSync()).blockDiagrams) {
+          final byOid = {for (final o in diag.objects) o.oid: o};
+          for (final o in diag.objects) {
+            if (o.category != ViObjectKind.node) continue;
+            final b = o.absBounds;
+            if (b == null || !b.isValid || b.width <= 1 || b.height <= 1) continue;
+            HeapRect? frame;
+            var p = o.parentOid;
+            final seen = <int>{o.oid};
+            while (p != null && seen.add(p)) {
+              final po = byOid[p];
+              if (po == null) break;
+              if (po.category == ViObjectKind.structure && (po.absBounds?.isValid ?? false)) {
+                frame = po.absBounds;
+                break;
+              }
+              p = po.parentOid;
+            }
+            if (frame == null) continue;
+            pairs++;
+            if (inside(frame, b.left + b.width ~/ 2, b.top + b.height ~/ 2)) contained++;
+          }
+        }
+      } catch (_) {}
+    }
+    expect(pairs, greaterThan(0));
+    final frac = contained / pairs;
+    expect(frac, greaterThanOrEqualTo(0.98),
+        reason: 'node-in-structure containment dropped to ${(frac * 100).toStringAsFixed(2)}% (floor 98%) — '
+            'coordinate composition / re-anchor likely regressed.');
+  });
+
   // 4. MUTATION-FUZZ ROBUSTNESS — flip bytes inside genuine VIs and push them
   // through the FULL pipeline (decodeSections -> inflate -> heap walk -> build).
   // This is deeper than the truncation fuzz (parseVi only) and the random-bytes
