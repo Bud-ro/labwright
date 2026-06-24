@@ -227,6 +227,54 @@ void main() {
     expect(exact, equals(files), reason: 'block-list round-trip not byte-exact for ${files - exact} file(s): $diffs');
   });
 
+  // TYPED SECTION-DESCRIPTOR SERIALIZE: every 20-byte descriptor record (located
+  // via the block list's descRel) must reconstruct its raw bytes byte-for-byte —
+  // proves the 20-byte field decomposition (secRel + sentinel + raw words)
+  // accounts for the whole record. Covers section descriptors and name rows alike.
+  test('IDEMPOTENCY: ViSectionDescriptor.serialize() == raw 20 bytes for every descriptor', () {
+    var files = 0, descriptors = 0;
+    final fails = <String>[];
+    for (final f in all) {
+      final Uint8List bytes;
+      try {
+        bytes = Uint8List.fromList(f.readAsBytesSync());
+      } catch (_) {
+        continue;
+      }
+      final Uint8List info;
+      final ViBlockList bl;
+      final int descBase;
+      try {
+        info = ViContainer.parse(bytes).infoArea;
+        final blr = ViInfoSubheader.parse(info).blockListRel;
+        bl = ViBlockList.parse(info, blr);
+        descBase = blr + 8; // countPos + 8, per readViSections
+      } catch (_) {
+        continue;
+      }
+      files++;
+      for (final e in bl.entries) {
+        final n = e.sectionCountMinus1 + 1;
+        for (var s = 0; s < n; s++) {
+          final dpos = descBase + e.descRel + s * 20;
+          if (dpos < 0 || dpos + 20 > info.length) continue;
+          descriptors++;
+          final sd = ViSectionDescriptor.parse(info, dpos);
+          final out = sd.serialize();
+          for (var i = 0; i < 20; i++) {
+            if (out[i] != info[dpos + i]) {
+              if (fails.length < 6) fails.add('${f.path.split('/').last}@$dpos');
+              break;
+            }
+          }
+        }
+      }
+    }
+    expect(files, greaterThan(0));
+    expect(descriptors, greaterThan(0));
+    expect(fails, isEmpty, reason: 'descriptor round-trip not byte-exact: $fails');
+  });
+
   // SECTION-LEVEL IDEMPOTENCY: one layer finer than the whole-file round-trip.
   // [ViExport.decomposeDataArea] models the data area as ordered, length-prefixed
   // sections (located via the info-area descriptors) interleaved with padding

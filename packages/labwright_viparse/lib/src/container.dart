@@ -227,6 +227,60 @@ class ViBlockList {
   }
 }
 
+/// One 20-byte info-area descriptor record. The info area holds a contiguous run
+/// of these after the block list; a record is a **section descriptor** when its
+/// `@16` word is the `0xFFFFFFFF` sentinel (carrying a data-area `secRel`),
+/// otherwise it is a name-table row (a different use of the same 20-byte slot).
+/// Every byte is captured (the two unclassified words as raw fields with TODOs)
+/// so [serialize] reconstructs the record byte-exact.
+class ViSectionDescriptor {
+  ViSectionDescriptor({required this.head, required this.secRel, required this.mid, required this.sentinel});
+
+  /// `[0:4]` — leading word (block/section linkage; not yet decoded).
+  // TODO(labwright): identify these 4 bytes.
+  final Uint8List head;
+
+  /// `u32 @4` — for a section descriptor, the data-area-relative offset
+  /// (`secRel`) of the section's bytes. (Reused field for name rows.)
+  final int secRel;
+
+  /// `[8:16]` — two unclassified words.
+  // TODO(labwright): identify these 8 bytes.
+  final Uint8List mid;
+
+  /// `u32 @16` — `0xFFFFFFFF` marks a real section descriptor; any other value
+  /// marks a name-table row.
+  final int sentinel;
+
+  static const int sectionSentinel = 0xFFFFFFFF;
+
+  /// Whether this record is a section descriptor (vs a name-table row).
+  bool get isSection => sentinel == sectionSentinel;
+
+  /// Parses the 20-byte record starting at [at] within [info].
+  factory ViSectionDescriptor.parse(Uint8List info, int at) {
+    if (at < 0 || at + 20 > info.length) throw ViFormatException('descriptor out of range at $at');
+    final d = ByteData.sublistView(info);
+    return ViSectionDescriptor(
+      head: Uint8List.fromList(info.sublist(at, at + 4)),
+      secRel: d.getUint32(at + 4),
+      mid: Uint8List.fromList(info.sublist(at + 8, at + 16)),
+      sentinel: d.getUint32(at + 16),
+    );
+  }
+
+  /// Re-emits the 20 bytes, byte-identical to the parsed record.
+  Uint8List serialize() {
+    final out = Uint8List(20);
+    final d = ByteData.sublistView(out);
+    out.setRange(0, 4, head);
+    d.setUint32(4, secRel);
+    out.setRange(8, 16, mid);
+    d.setUint32(16, sentinel);
+    return out;
+  }
+}
+
 /// A **lossless** decomposition of an RSRC (`.vi`) container into its three
 /// contiguous regions, plus a byte-exact serializer. This is the foundation for
 /// the VI exporter/editor and the export→import idempotency test: parsing then

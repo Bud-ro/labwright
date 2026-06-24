@@ -147,6 +147,29 @@ void main() {
     });
   });
 
+  group('ViSectionDescriptor', () {
+    test('parses a 20-byte descriptor into typed fields and serializes byte-exact', () {
+      final rec = Uint8List(24); // descriptor at offset 4
+      final d = ByteData.sublistView(rec);
+      rec.setRange(4, 8, const [0xAA, 0xBB, 0xCC, 0xDD]); // head
+      d.setUint32(8, 0x1234); // secRel @+4
+      rec.setRange(12, 20, const [1, 2, 3, 4, 5, 6, 7, 8]); // mid
+      d.setUint32(20, 0xFFFFFFFF); // sentinel @+16
+      final sd = ViSectionDescriptor.parse(rec, 4);
+      expect(sd.secRel, 0x1234);
+      expect(sd.sentinel, 0xFFFFFFFF);
+      expect(sd.isSection, isTrue);
+      expect(sd.head, orderedEquals([0xAA, 0xBB, 0xCC, 0xDD]));
+      expect(sd.serialize(), orderedEquals(rec.sublist(4, 24)));
+    });
+
+    test('a non-sentinel record is a name-table row, not a section', () {
+      final rec = Uint8List(20);
+      ByteData.sublistView(rec).setUint32(16, 0); // not the sentinel
+      expect(ViSectionDescriptor.parse(rec, 0).isSection, isFalse);
+    });
+  });
+
   group('ViExport.rebuildDataArea', () {
     test('serializes sections as [u32 len][payload] and gaps verbatim', () {
       final out = ViExport.rebuildDataArea([
