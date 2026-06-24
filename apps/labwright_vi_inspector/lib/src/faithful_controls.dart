@@ -55,9 +55,9 @@ Widget _faithfulFor(ViHeapObject o) {
     case HeapObjectClass.numericControlVariant:
       return const _ControlWidget(form: _Form.numeric);
     case HeapObjectClass.enumRingControl:
-      return const _ControlWidget(form: _Form.enumRing);
+      return _ControlWidget(form: _Form.enumRing, items: o.items);
     case HeapObjectClass.booleanOrClusterControl:
-      return _ControlWidget(form: o.typeKind == ViTypeKind.enumRing ? _Form.enumRing : _Form.boolean);
+      return _ControlWidget(form: o.typeKind == ViTypeKind.enumRing ? _Form.enumRing : _Form.boolean, items: o.items);
     case HeapObjectClass.stringOrArrayControl:
       return const _ControlWidget(form: _Form.string);
     case HeapObjectClass.pathControl:
@@ -173,8 +173,9 @@ enum _Form { numeric, enumRing, boolean, string, path, generic }
 
 /// A single interactive (but unwired) control rendered to fit its object bounds.
 class _ControlWidget extends StatefulWidget {
-  const _ControlWidget({required this.form});
+  const _ControlWidget({required this.form, this.items = const []});
   final _Form form;
+  final List<String> items;
   @override
   State<_ControlWidget> createState() => _ControlWidgetState();
 }
@@ -184,7 +185,8 @@ class _ControlWidgetState extends State<_ControlWidget> {
   bool _bool = false;
   int _enum = 0;
   late final TextEditingController _text = TextEditingController();
-  static const _enumItems = ['Item 0', 'Item 1', 'Item 2'];
+  // Real decoded items when available; a neutral placeholder otherwise.
+  List<String> get _enumItems => widget.items.isNotEmpty ? widget.items : const ['—'];
 
   @override
   void dispose() {

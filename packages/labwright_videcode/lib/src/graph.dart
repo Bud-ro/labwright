@@ -105,6 +105,11 @@ class ViHeapObject {
   /// Inferred data-type kind from attached `C4` records. See [ViTypeKind].
   ViTypeKind typeKind = ViTypeKind.unknown;
 
+  /// Enum/ring item labels (from a `C4 2E` string table) — the selectable
+  /// values of an enum/ring control. Populated on the item-list object and
+  /// propagated up to its enclosing control. Empty for non-enum objects.
+  List<String> items = const [];
+
   /// The named, documented class catalog entry for this object's [kind]
   /// (or [HeapObjectClass.unknown] if the code is not catalogued).
   HeapObjectClass get objectClass => HeapObjectClass.fromCode(kind);
@@ -439,6 +444,8 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDEx'}) {
         cur.termCount++;
       } else if (rec.opcode == 0x74) {
         fmt[cur] ??= rec.payload;
+      } else if (rec.opcode == 0x2e) {
+        if (cur.items.isEmpty) cur.items = _parseEnumItems(rec.payload);
       }
     } else if (lead == 0x14 && o + 6 <= n && body[o + 1] == 0x19 && body[o + 2] == 0x01 && body[o + 3] == 0xfd) {
       cur.refs.add((body[o + 4] << 8) | body[o + 5]);
@@ -450,8 +457,45 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDEx'}) {
     o.typeKind = inferTypeKind(c4ops[o] ?? const <int>{}, fmt[o]);
   }
 
+  // Propagate enum item-lists up to their enclosing control: the `C4 2E` items
+  // live on the `0x0d` item-list child, but the faithful render needs them on
+  // the enum/ring control object itself.
+  final byOidItems = {for (final o in objects) o.oid: o};
+  for (final o in objects) {
+    if (o.items.isEmpty) continue;
+    var p = o.parentOid;
+    var depth = 0;
+    while (p != null && depth < 12) {
+      final po = byOidItems[p];
+      if (po == null) break;
+      if (_controlKinds.contains(po.kind)) {
+        if (po.items.isEmpty) po.items = o.items;
+        break;
+      }
+      p = po.parentOid;
+      depth++;
+    }
+  }
+
   _reanchorScrolledControls(objects);
   return ViDiagram(sectionTag: sectionTag, objects: objects);
+}
+
+/// Parses a `C4 2E` string-table payload into its ordered enum/ring item labels
+/// (packed Pascal strings `[u8 len][chars]…`). Unlike the heuristic heap-string
+/// extractor, this keeps every item in order, including short ones (`On`, `Up`).
+List<String> _parseEnumItems(List<int> payload) {
+  final out = <String>[];
+  var i = 0;
+  while (i < payload.length) {
+    final len = payload[i++];
+    if (len == 0) continue;
+    if (i + len > payload.length) break;
+    final s = String.fromCharCodes(payload.sublist(i, i + len));
+    i += len;
+    if (s.codeUnits.every((c) => c >= 0x20 && c < 0x7f)) out.add(s);
+  }
+  return out;
 }
 
 /// Control-terminal classes (front-panel control/indicator terminals).
