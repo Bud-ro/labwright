@@ -85,6 +85,32 @@ void main() {
     });
   });
 
+  group('ViInfoSubheader', () {
+    test('parses the dup header + blockListRel and serializes byte-exact', () {
+      // build a 0x34-byte subheader: dup RSRC header, reserved, blockListRel=0x34
+      final info = Uint8List(0x40);
+      info.setRange(0, 6, const [0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a]);
+      final d = ByteData.sublistView(info);
+      d.setUint16(6, 3);
+      info.setRange(8, 12, 'LVIN'.codeUnits);
+      info.setRange(12, 16, 'LBVW'.codeUnits);
+      d.setUint32(0x2c, 0x34); // blockListRel
+      final sh = ViInfoSubheader.parse(info);
+      expect(sh.blockListRel, 0x34);
+      expect(sh.headerCopy.fileType, 'LVIN');
+      expect(sh.reservedA, hasLength(0x2c - 32));
+      expect(sh.reservedB, hasLength(0x34 - 0x30));
+      // serialize reproduces exactly the [0, blockListRel) prefix
+      expect(sh.serialize(), orderedEquals(info.sublist(0, 0x34)));
+    });
+
+    test('rejects an implausible blockListRel', () {
+      final info = Uint8List(0x40);
+      ByteData.sublistView(info).setUint32(0x2c, 0x99999); // > length
+      expect(() => ViInfoSubheader.parse(info), throwsA(isA<ViFormatException>()));
+    });
+  });
+
   group('ViExport.rebuildDataArea', () {
     test('serializes sections as [u32 len][payload] and gaps verbatim', () {
       final out = ViExport.rebuildDataArea([

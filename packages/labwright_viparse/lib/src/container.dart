@@ -94,6 +94,64 @@ class ViHeader {
   }
 }
 
+/// The fixed prefix of the info area, `[0, blockListRel)` — the next exporter
+/// region modeled field-by-field. The RSRC format repeats the 32-byte file header
+/// at the start of the info area; after it come two reserved words and the
+/// `blockListRel` pointer (`u32 @0x2c`, constant `0x34` across the corpus) to
+/// where the block list begins. [serialize] reconstructs the prefix byte-exact.
+class ViInfoSubheader {
+  ViInfoSubheader({
+    required this.headerCopy,
+    required this.reservedA,
+    required this.blockListRel,
+    required this.reservedB,
+  });
+
+  /// `[0:32]` — a duplicate of the file's [ViHeader] (the RSRC dual-header).
+  final ViHeader headerCopy;
+
+  /// `[32:44]` — reserved/unclassified words (all-zero in the corpus).
+  // TODO(labwright): identify these 12 bytes; observed zero but unconfirmed.
+  final Uint8List reservedA;
+
+  /// `u32 @0x2c` — offset (info-area-relative) where the block list begins.
+  final int blockListRel;
+
+  /// `[0x30, blockListRel)` — trailing reserved word(s) before the block list.
+  // TODO(labwright): identify these bytes (4 in the corpus, blockListRel=0x34).
+  final Uint8List reservedB;
+
+  /// Parses the subheader from the start of an [infoArea]. Throws
+  /// [ViFormatException] if the area is too short or `blockListRel` is implausible.
+  factory ViInfoSubheader.parse(Uint8List infoArea) {
+    if (infoArea.length < 0x30) throw ViFormatException('info area too small for a subheader');
+    final d = ByteData.sublistView(infoArea);
+    final blockListRel = d.getUint32(0x2c);
+    if (blockListRel < 0x30 || blockListRel > infoArea.length) {
+      throw ViFormatException('implausible blockListRel $blockListRel');
+    }
+    return ViInfoSubheader(
+      headerCopy: ViHeader.parse(Uint8List.sublistView(infoArea, 0, 32)),
+      reservedA: Uint8List.fromList(infoArea.sublist(32, 0x2c)),
+      blockListRel: blockListRel,
+      reservedB: Uint8List.fromList(infoArea.sublist(0x30, blockListRel)),
+    );
+  }
+
+  /// Re-emits the `[0, blockListRel)` prefix, byte-identical to the input for a
+  /// parsed, unmodified subheader.
+  Uint8List serialize() {
+    final out = BytesBuilder()
+      ..add(headerCopy.serialize())
+      ..add(reservedA);
+    final blr = ByteData(4)..setUint32(0, blockListRel);
+    out
+      ..add(blr.buffer.asUint8List())
+      ..add(reservedB);
+    return out.toBytes();
+  }
+}
+
 /// A **lossless** decomposition of an RSRC (`.vi`) container into its three
 /// contiguous regions, plus a byte-exact serializer. This is the foundation for
 /// the VI exporter/editor and the export→import idempotency test: parsing then
@@ -132,6 +190,10 @@ class ViContainer {
   /// byte-for-byte; over time the raw [dataArea]/[infoArea] spans become typed
   /// structs the same way until nothing opaque remains.
   ViHeader get parsedHeader => ViHeader.parse(header);
+
+  /// The typed view of the info area's fixed subheader prefix (the dup header +
+  /// `blockListRel`). Another region modeled toward a fully-typed exporter.
+  ViInfoSubheader get parsedInfoSubheader => ViInfoSubheader.parse(infoArea);
 
   static const List<int> _magic = [0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a]; // "RSRC\r\n"
 

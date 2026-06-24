@@ -143,6 +143,49 @@ void main() {
     expect(exact, equals(files), reason: 'ViHeader round-trip not byte-exact for ${files - exact} file(s): $diffs');
   });
 
+  // TYPED INFO-SUBHEADER SERIALIZE: the modeled info-area prefix (dup header +
+  // reserved words + blockListRel) must reconstruct the raw [0, blockListRel)
+  // bytes byte-for-byte for every VI — the next region of the typed exporter.
+  test('IDEMPOTENCY: ViInfoSubheader.serialize() == info-area prefix for every VI', () {
+    var files = 0, exact = 0;
+    final diffs = <String>[];
+    for (final f in all) {
+      final Uint8List bytes;
+      try {
+        bytes = Uint8List.fromList(f.readAsBytesSync());
+      } catch (_) {
+        continue;
+      }
+      final Uint8List info, out;
+      final int blr;
+      try {
+        info = ViContainer.parse(bytes).infoArea;
+        final sh = ViInfoSubheader.parse(info);
+        blr = sh.blockListRel;
+        out = sh.serialize();
+      } catch (_) {
+        continue;
+      }
+      files++;
+      var same = out.length == blr;
+      if (same) {
+        for (var i = 0; i < blr; i++) {
+          if (out[i] != info[i]) {
+            same = false;
+            break;
+          }
+        }
+      }
+      if (same) {
+        exact++;
+      } else if (diffs.length < 6) {
+        diffs.add(f.path.split('/').last);
+      }
+    }
+    expect(files, greaterThan(0));
+    expect(exact, equals(files), reason: 'info-subheader round-trip not byte-exact for ${files - exact} file(s): $diffs');
+  });
+
   // SECTION-LEVEL IDEMPOTENCY: one layer finer than the whole-file round-trip.
   // [ViExport.decomposeDataArea] models the data area as ordered, length-prefixed
   // sections (located via the info-area descriptors) interleaved with padding
