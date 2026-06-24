@@ -236,47 +236,56 @@ class _ControlWidgetState extends State<_ControlWidget> {
   Widget build(BuildContext context) {
     switch (widget.form) {
       case _Form.numeric:
-        return Container(
-          decoration: _box,
-          padding: const EdgeInsets.only(left: 4),
-          child: Row(children: [
-            Expanded(child: Text(_num.toStringAsFixed(0), style: const TextStyle(fontSize: 11, color: _kInk), overflow: TextOverflow.clip)),
-            // SizedBox bounds the width; OverflowBox lets the spinner keep its
-            // natural height in very short terminals (clipped by FaithfulLayer's
-            // ClipRect) without a RenderFlex overflow assertion.
-            SizedBox(
-              width: 14,
-              child: OverflowBox(
-                maxHeight: double.infinity,
-                child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  _spin(Icons.arrow_drop_up, () => setState(() => _num += 1)),
-                  _spin(Icons.arrow_drop_down, () => setState(() => _num -= 1)),
-                ]),
-              ),
-            ),
-          ]),
-        );
-      case _Form.enumRing:
-        return InkWell(
-          onTap: () async {
-            final box = context.findRenderObject()! as RenderBox;
-            final pos = box.localToGlobal(Offset.zero);
-            final sel = await showMenu<int>(
-              context: context,
-              position: RelativeRect.fromLTRB(pos.dx, pos.dy + box.size.height, pos.dx + 1, pos.dy),
-              items: [for (var i = 0; i < _enumItems.length; i++) PopupMenuItem(value: i, child: Text(_enumItems[i]))],
-            );
-            if (sel != null && mounted) setState(() => _enum = sel);
-          },
-          child: Container(
-            decoration: _box.copyWith(color: const Color(0xFFEFEFEF)),
+        // The spinner is a fixed-width adornment; drop it when the control box is
+        // too narrow to hold it, so a tiny numeric never overflows its Row.
+        return LayoutBuilder(builder: (context, c) {
+          final showSpin = c.maxWidth >= 22;
+          return Container(
+            decoration: _box,
             padding: const EdgeInsets.only(left: 4),
             child: Row(children: [
-              Expanded(child: Text(_enumItems[_enum], style: const TextStyle(fontSize: 11, color: _kInk), overflow: TextOverflow.ellipsis)),
-              const Icon(Icons.arrow_drop_down, size: 16, color: _kInk),
+              Expanded(child: Text(_num.toStringAsFixed(0), style: const TextStyle(fontSize: 11, color: _kInk), overflow: TextOverflow.clip)),
+              // SizedBox bounds the width; OverflowBox lets the spinner keep its
+              // natural height in very short terminals (clipped by FaithfulLayer's
+              // ClipRect) without a RenderFlex overflow assertion.
+              if (showSpin)
+                SizedBox(
+                  width: 14,
+                  child: OverflowBox(
+                    maxHeight: double.infinity,
+                    child: Column(mainAxisSize: MainAxisSize.min, children: [
+                      _spin(Icons.arrow_drop_up, () => setState(() => _num += 1)),
+                      _spin(Icons.arrow_drop_down, () => setState(() => _num -= 1)),
+                    ]),
+                  ),
+                ),
             ]),
-          ),
-        );
+          );
+        });
+      case _Form.enumRing:
+        return LayoutBuilder(builder: (context, c) {
+          final showCaret = c.maxWidth >= 24;
+          return InkWell(
+            onTap: () async {
+              final box = context.findRenderObject()! as RenderBox;
+              final pos = box.localToGlobal(Offset.zero);
+              final sel = await showMenu<int>(
+                context: context,
+                position: RelativeRect.fromLTRB(pos.dx, pos.dy + box.size.height, pos.dx + 1, pos.dy),
+                items: [for (var i = 0; i < _enumItems.length; i++) PopupMenuItem(value: i, child: Text(_enumItems[i]))],
+              );
+              if (sel != null && mounted) setState(() => _enum = sel);
+            },
+            child: Container(
+              decoration: _box.copyWith(color: const Color(0xFFEFEFEF)),
+              padding: const EdgeInsets.only(left: 4),
+              child: Row(children: [
+                Expanded(child: Text(_enumItems[_enum], style: const TextStyle(fontSize: 11, color: _kInk), overflow: TextOverflow.ellipsis)),
+                if (showCaret) const Icon(Icons.arrow_drop_down, size: 16, color: _kInk),
+              ]),
+            ),
+          );
+        });
       case _Form.boolean:
         return InkWell(
           onTap: () => setState(() => _bool = !_bool),
@@ -293,13 +302,18 @@ class _ControlWidgetState extends State<_ControlWidget> {
       case _Form.string:
         return _field(hint: 'abc');
       case _Form.path:
-        return Container(
-          decoration: _box,
-          child: Row(children: [
-            const Padding(padding: EdgeInsets.symmetric(horizontal: 3), child: Icon(Icons.folder_open, size: 13, color: Color(0xFF7A6A20))),
-            Expanded(child: _field(hint: 'path', bare: true)),
-          ]),
-        );
+        // Drop the leading folder icon when the box is too narrow for it.
+        return LayoutBuilder(builder: (context, c) {
+          final showIcon = c.maxWidth >= 26;
+          return Container(
+            decoration: _box,
+            child: Row(children: [
+              if (showIcon)
+                const Padding(padding: EdgeInsets.symmetric(horizontal: 3), child: Icon(Icons.folder_open, size: 13, color: Color(0xFF7A6A20))),
+              Expanded(child: _field(hint: 'path', bare: true)),
+            ]),
+          );
+        });
       case _Form.generic:
         return Container(decoration: _box.copyWith(color: const Color(0xFFE3ECF5)));
     }

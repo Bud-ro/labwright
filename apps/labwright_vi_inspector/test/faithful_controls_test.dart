@@ -39,4 +39,27 @@ void main() {
     await tester.pump();
     expect(find.byTooltip('range: -1 … 1'), findsOneWidget); // tooltip exists without hovering
   });
+
+  testWidgets('faithful controls do not overflow at tiny real-world bounds', (tester) async {
+    tester.view.physicalSize = const Size(400, 400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    // Real VIs place controls at small pixel bounds; a folder icon / spinner that
+    // is wider than the control box used to overflow its Row (RenderFlex stripes).
+    HeapRect tiny(int i) => HeapRect(top: i * 8, left: 0, bottom: i * 8 + 6, right: 8); // 8×6 px
+    final objs = [
+      ViHeapObject(oid: 1, kind: 0x50, offset: 0)..absBounds = tiny(0), // numeric (spinner)
+      ViHeapObject(oid: 2, kind: 0x5b, offset: 0)..absBounds = tiny(1), // path (folder icon)
+      ViHeapObject(oid: 3, kind: 0x57, offset: 0) // enum/ring (dropdown caret)
+        ..absBounds = tiny(2)
+        ..items = ['Alpha', 'Beta'],
+      ViHeapObject(oid: 4, kind: 0x51, offset: 0)..absBounds = tiny(3), // string field
+    ];
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: FaithfulLayer(objects: objs, origin: Offset.zero, size: const Size(400, 400))),
+    ));
+    await tester.pump();
+    expect(tester.takeException(), isNull); // no RenderFlex overflow at tiny bounds
+  });
 }
