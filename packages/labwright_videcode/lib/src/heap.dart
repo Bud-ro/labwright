@@ -148,13 +148,13 @@ enum HeapOpcode {
   /// accessor), vs. merely a known shape (structural) or unknown.
   final bool isDecoded;
 
+  static final Map<int, HeapOpcode> _byByte = {
+    for (final op in values)
+      if (op != unknown) op.byte: op,
+  };
+
   /// Maps a raw opcode byte to its [HeapOpcode], or [unknown] if not catalogued.
-  static HeapOpcode fromByte(int b) {
-    for (final op in values) {
-      if (op != unknown && op.byte == b) return op;
-    }
-    return unknown;
-  }
+  static HeapOpcode fromByte(int b) => _byByte[b] ?? unknown;
 }
 
 /// The shape of a heap record's payload — what kind of value it holds, used to
@@ -413,14 +413,14 @@ enum HeapAttribute {
   /// How well-grounded [attrName] is (clean-room honesty).
   final AttrConfidence confidence;
 
+  static final Map<int, HeapAttribute> _byId = {
+    for (final a in values)
+      if (a != unknown) a.id: a,
+  };
+
   /// Maps a raw attribute id to its [HeapAttribute], or [unknown] if not
   /// catalogued. Note ids `0xF8`/`0x5A` are dual-use (see [HeapAttr.kind]).
-  static HeapAttribute fromId(int id) {
-    for (final a in values) {
-      if (a != unknown && a.id == id) return a;
-    }
-    return unknown;
-  }
+  static HeapAttribute fromId(int id) => _byId[id] ?? unknown;
 }
 
 /// A single decoded attribute record (`<op> <id> <value>`): the catalog

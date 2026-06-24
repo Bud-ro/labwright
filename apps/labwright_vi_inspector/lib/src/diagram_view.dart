@@ -279,7 +279,6 @@ Color _objectColor(ViHeapObject o) =>
     o.category == ViObjectKind.terminal && o.typeKind != ViTypeKind.unknown ? _typeColor(o.typeKind) : _kindColor(o.category);
 
 /// Control-terminal classes — their internal sub-terminals are scaffolding.
-const _controlKinds = {0x50, 0x4f, 0x57, 0x5b, 0x51};
 
 /// Whether [o] is pure LabVIEW chrome that a faithful layout view should not
 /// draw (corpus-validated; suppresses ~76% of raw heap objects, leaving real
@@ -301,7 +300,7 @@ bool _isScaffolding(ViHeapObject o, Map<int, ViHeapObject> byId) {
     while (p != null && d < 64) {
       final po = byId[p];
       if (po == null) break;
-      if (_controlKinds.contains(po.kind)) return true;
+      if (kControlTerminalCodes.contains(po.kind)) return true;
       p = po.parentOid;
       d++;
     }

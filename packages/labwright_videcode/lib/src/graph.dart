@@ -287,14 +287,23 @@ enum HeapObjectClass {
   /// How well-grounded [label] is (clean-room honesty).
   final ClassConfidence confidence;
 
+  static final Map<int, HeapObjectClass> _byCode = {
+    for (final c in values)
+      if (c != unknown) c.code: c,
+  };
+
   /// Maps a raw class code to its [HeapObjectClass], or [unknown].
-  static HeapObjectClass fromCode(int code) {
-    for (final c in values) {
-      if (c != unknown && c.code == code) return c;
-    }
-    return unknown;
-  }
+  static HeapObjectClass fromCode(int code) => _byCode[code] ?? unknown;
+
+  /// Whether this class is a front-panel-control/indicator **terminal** form
+  /// (numeric/enum/boolean-cluster/string-array/path). The canonical set, so
+  /// call sites don't hardcode the codes.
+  bool get isControlTerminal => kControlTerminalCodes.contains(code);
 }
+
+/// The control/indicator terminal class codes (front-panel controls' diagram
+/// footprint). Single source of truth — see [HeapObjectClass.isControlTerminal].
+const kControlTerminalCodes = {0x50, 0x4f, 0x57, 0x5b, 0x51};
 
 /// Classifies a heap object into a [ViObjectKind] from its class code and signals
 /// (corpus-validated; see the [HeapObjectClass] catalog). The data-driven
@@ -474,7 +483,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDEx'}) {
     while (p != null && depth < 12) {
       final po = byOidItems[p];
       if (po == null) break;
-      if (_controlKinds.contains(po.kind)) {
+      if (kControlTerminalCodes.contains(po.kind)) {
         if (po.items.isEmpty) po.items = o.items;
         break;
       }
@@ -509,7 +518,6 @@ List<String> _parseEnumItems(List<int> payload) {
 }
 
 /// Control-terminal classes (front-panel control/indicator terminals).
-const _controlKinds = {0x50, 0x4f, 0x57, 0x5b, 0x51};
 
 /// Re-anchors **scrolled-cluster control terminals** to their content viewport.
 ///
@@ -552,7 +560,7 @@ void _reanchorScrolledControls(List<ViHeapObject> objects) {
       // viewport means the control's bounds are in THAT container's frame, not
       // the viewport's. Re-anchoring with the viewport group's min-corner would
       // mix frames and fling it outside — ride along with its parent instead.
-      if (_controlKinds.contains(po.kind) || po.bounds != null) return null;
+      if (kControlTerminalCodes.contains(po.kind) || po.bounds != null) return null;
       p = po.parentOid;
     }
     return null;
@@ -561,7 +569,7 @@ void _reanchorScrolledControls(List<ViHeapObject> objects) {
   // Group re-anchorable controls by the viewport that owns them.
   final groups = <int, List<ViHeapObject>>{};
   for (final o in objects) {
-    if (!_controlKinds.contains(o.kind) || o.bounds == null || o.absBounds == null) continue;
+    if (!kControlTerminalCodes.contains(o.kind) || o.bounds == null || o.absBounds == null) continue;
     final v = reanchorViewport(o);
     if (v != null) (groups[v] ??= <ViHeapObject>[]).add(o);
   }
