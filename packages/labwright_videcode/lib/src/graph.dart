@@ -317,6 +317,22 @@ enum HeapObjectClass {
   /// Renders as a node box.
   bdGrowableNode(0x63, 'Node (growable)', ViObjectKind.node, ClassConfidence.inferred),
 
+  /// `0x8C` — a **block-diagram node** (subVI / expandable node). Corpus: 6620 BD
+  /// (0 FP), median 66×38, parent the node container `0x1b`, structural `0x15`
+  /// children; the `0xa` labels carry subVI names (`Meter (mV)`, `Channel D
+  /// Settings`, …) — confirming a node. Renders as a node box.
+  bdNode8c(0x8c, 'Node', ViObjectKind.node, ClassConfidence.inferred),
+
+  /// `0x3A` — a **block-diagram primitive node**. Corpus: 3479 BD (0 FP), 32 wide
+  /// (height 9–33), parent `0x1b`, structural `0x15` children; the `0xa` labels are
+  /// primitive names (`Build Array`, …) — confirming a node. Renders as a node box.
+  bdNode3a(0x3a, 'Node', ViObjectKind.node, ClassConfidence.inferred),
+
+  /// `0xD6` — a **block-diagram node** (e.g. an Event Data Node). Corpus: 2209 BD
+  /// (0 FP), median 56×20, parent `0x1b`, structural `0x15` children; the `0xa`
+  /// labels read `Event Data Node` — confirming a node. Renders as a node box.
+  bdNoded6(0xd6, 'Node', ViObjectKind.node, ClassConfidence.inferred),
+
   /// `0x16` — a **free-standing block-diagram terminal/constant leaf**. Corpus:
   /// 41830 BD instances, 0 FP, uniform **32×16**, each nested under a zero-area node
   /// body `0x1d` (grandparent the node container `0x1b`); `termCount == 0`, no
