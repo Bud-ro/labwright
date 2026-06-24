@@ -282,29 +282,98 @@ class ViSectionDescriptor {
 }
 
 /// The info area composed as typed regions: the [subheader] (dup header +
-/// `blockListRel`), the [blockList] (resource-block directory), and the as-yet
-/// raw [rest] (the descriptor table + name table + trailing name). [serialize]
-/// reconstructs the whole info area byte-exact. As later ticks peel the
-/// descriptor table and name table out of [rest], `rest` shrinks toward empty.
+/// `blockListRel`), the [blockList] (resource-block directory), a 20-byte
+/// [preGap], the [descriptors] table (contiguous 20-byte records), and the
+/// as-yet raw [nameTable] tail (name table + trailing Pascal VI name).
+/// [serialize] reconstructs the whole info area byte-exact.
+///
+/// Corpus-validated: after the block list comes a fixed 20-byte slot, then a
+/// gapless run of `(descMax-descMin)/20` descriptor records, then the name
+/// table — true for 100% of 7583 VIs. If a (hypothetical) file doesn't fit that
+/// shape, [ViInfoArea.parse] falls back to keeping the whole remainder in
+/// [nameTable] (descriptors empty) so serialization stays byte-exact regardless.
 class ViInfoArea {
-  ViInfoArea({required this.subheader, required this.blockList, required this.rest});
+  ViInfoArea({
+    required this.subheader,
+    required this.blockList,
+    required this.preGap,
+    required this.descriptors,
+    required this.nameTable,
+  });
 
   final ViInfoSubheader subheader;
   final ViBlockList blockList;
 
-  /// Bytes from the end of the block list to EOF — not yet modeled.
-  // TODO(labwright): peel the 20-byte descriptor table, then the name table +
-  // trailing Pascal name, out of this raw tail into typed structs.
-  final Uint8List rest;
+  /// The 20-byte slot between the block list and the first descriptor record
+  /// (empty in the raw-fallback case).
+  // TODO(labwright): identify these 20 bytes (a leading/self descriptor slot?).
+  final Uint8List preGap;
+
+  /// The contiguous 20-byte descriptor records in address order (section
+  /// descriptors interleaved with name-table rows). Empty in the fallback case.
+  final List<ViSectionDescriptor> descriptors;
+
+  /// The remaining bytes — the name table + trailing Pascal VI name (and, in the
+  /// fallback case, everything after the block list).
+  // TODO(labwright): peel the name table + trailing name into typed structs.
+  final Uint8List nameTable;
+
+  /// Back-compat view: all bytes after the block list, as raw.
+  Uint8List get rest => (BytesBuilder()
+        ..add(preGap)
+        ..add(_descriptorBytes())
+        ..add(nameTable))
+      .toBytes();
+
+  Uint8List _descriptorBytes() {
+    final b = BytesBuilder();
+    for (final d in descriptors) {
+      b.add(d.serialize());
+    }
+    return b.toBytes();
+  }
 
   factory ViInfoArea.parse(Uint8List infoArea) {
     final subheader = ViInfoSubheader.parse(infoArea);
     final blockList = ViBlockList.parse(infoArea, subheader.blockListRel);
     final restStart = subheader.blockListRel + blockList.byteLength;
+    final descBase = subheader.blockListRel + 8; // countPos + 8
+
+    // Find the descriptor records' address span by walking the block list.
+    var minStart = infoArea.length, maxEnd = 0;
+    var inBounds = true;
+    for (final e in blockList.entries) {
+      final n = e.sectionCountMinus1 + 1;
+      for (var s = 0; s < n; s++) {
+        final dpos = descBase + e.descRel + s * 20;
+        if (dpos < 0 || dpos + 20 > infoArea.length) {
+          inBounds = false;
+          continue;
+        }
+        if (dpos < minStart) minStart = dpos;
+        if (dpos + 20 > maxEnd) maxEnd = dpos + 20;
+      }
+    }
+
+    // Clean shape: a 20-byte preGap, then a gapless run of 20-byte records.
+    final clean = inBounds && maxEnd > minStart && minStart == restStart + 20 && (maxEnd - minStart) % 20 == 0;
+    if (clean) {
+      final total = (maxEnd - minStart) ~/ 20;
+      return ViInfoArea(
+        subheader: subheader,
+        blockList: blockList,
+        preGap: Uint8List.fromList(infoArea.sublist(restStart, restStart + 20)),
+        descriptors: [for (var i = 0; i < total; i++) ViSectionDescriptor.parse(infoArea, minStart + i * 20)],
+        nameTable: Uint8List.fromList(infoArea.sublist(maxEnd)),
+      );
+    }
+    // Fallback: keep the whole remainder raw so serialize() stays byte-exact.
     return ViInfoArea(
       subheader: subheader,
       blockList: blockList,
-      rest: Uint8List.fromList(infoArea.sublist(restStart)),
+      preGap: Uint8List(0),
+      descriptors: const [],
+      nameTable: Uint8List.fromList(infoArea.sublist(restStart)),
     );
   }
 
@@ -312,7 +381,9 @@ class ViInfoArea {
     final out = BytesBuilder()
       ..add(subheader.serialize())
       ..add(blockList.serialize())
-      ..add(rest);
+      ..add(preGap)
+      ..add(_descriptorBytes())
+      ..add(nameTable);
     return out.toBytes();
   }
 }

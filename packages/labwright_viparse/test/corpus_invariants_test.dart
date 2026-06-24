@@ -315,6 +315,45 @@ void main() {
     expect(exact, equals(files), reason: 'typed serialize() not byte-exact for ${files - exact} file(s): $diffs');
   });
 
+  // DESCRIPTOR TABLE PEELED: ViInfoArea now models the 20-byte descriptor records
+  // as a typed list; assert the table is actually peeled (non-empty) for the
+  // vast majority of VIs and that the count matches the block list's total.
+  test('INFO-AREA: descriptor table is peeled into typed records for ~all VIs', () {
+    var files = 0, peeled = 0;
+    final mismatches = <String>[];
+    for (final f in all) {
+      final Uint8List bytes;
+      try {
+        bytes = Uint8List.fromList(f.readAsBytesSync());
+      } catch (_) {
+        continue;
+      }
+      final ViInfoArea ia;
+      final ViBlockList bl;
+      try {
+        final c = ViContainer.parse(bytes);
+        ia = c.parsedInfoArea;
+        bl = c.parsedBlockList;
+      } catch (_) {
+        continue;
+      }
+      files++;
+      if (ia.descriptors.isEmpty) continue;
+      peeled++;
+      // descriptor count == total block descriptors (sum of sectionCount per block),
+      // BUT records can exceed referenced descriptors when name rows fill the span;
+      // assert it's at least the block total and the preGap is the 20-byte slot.
+      final total = bl.entries.fold<int>(0, (a, e) => a + e.sectionCountMinus1 + 1);
+      if (ia.descriptors.length < total || ia.preGap.length != 20) {
+        if (mismatches.length < 6) mismatches.add('${f.path.split('/').last}: ${ia.descriptors.length} < $total or preGap ${ia.preGap.length}');
+      }
+    }
+    expect(files, greaterThan(0));
+    expect(mismatches, isEmpty, reason: 'descriptor peel mismatch: $mismatches');
+    // ratchet: peeled for the large majority (probe: 100%); floor at 90%.
+    expect(peeled, greaterThan((files * 0.90).floor()), reason: 'descriptor table not peeled: only $peeled/$files');
+  });
+
   // SECTION-LEVEL IDEMPOTENCY: one layer finer than the whole-file round-trip.
   // [ViExport.decomposeDataArea] models the data area as ordered, length-prefixed
   // sections (located via the info-area descriptors) interleaved with padding
