@@ -242,13 +242,28 @@ enum HeapObjectClass {
   clusterShell(0x64, 'Cluster/array shell', ViObjectKind.structure, ClassConfidence.inferred),
 
   /// `0x2C` — a large **block-diagram structure / subdiagram frame** that holds
-  /// nodes. Corpus: 14563 BD instances (0 FP), big boxes (median **314×198**,
-  /// p90 899×473), parented to the node container `0x1b`, and themselves holding
+  /// nodes. Corpus: 14563 BD instances (0 FP), big boxes (median **~304×215**,
+  /// p90 ~909×558), parented to the node container `0x1b`, and themselves holding
   /// node containers `0x1b` (37126), the structural `0x15` records, and a `0x95`
   /// selector/label row (14352). The large footprint + node-container children
   /// identify it as a structure frame (a loop/case/sequence subdiagram); the exact
   /// structure kind is not separable, so it renders as a generic structure frame.
   bdStructureFrame(0x2c, 'Structure frame', ViObjectKind.structure, ClassConfidence.inferred),
+
+  /// `0x95` — a **case/sequence selector label row** on a structure frame's top
+  /// edge (e.g. the `True`/`False`/case-name strip). Corpus: 2589 drawn BD
+  /// instances, ~36–86×17, 2171/2589 parented to the structure frame `0x2c`, and
+  /// 2517/2589 carry a decoded label — 1038 the bare `True`/`False`, the rest case
+  /// strings (`Teleop Enabled`, …). Catalogued so the faithful layer can draw the
+  /// selector text (it was previously invisible). The label is the recoverable part.
+  bdSelectorLabel(0x95, 'Case selector label', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  /// `0x177` — a small fixed **node glyph / decoration** (12×12). Corpus: 6450
+  /// drawn BD instances, 5765 at exactly 12×12, 100% parented to the node container
+  /// `0x1b`, no label, no children — a fixed on-diagram glyph (e.g. a coercion
+  /// dot / small constant marker). Role not separable, so [ClassConfidence.kindOnly];
+  /// catalogued so it draws a faint marker instead of vanishing.
+  bdGlyph(0x177, 'Node glyph', ViObjectKind.decoration, ClassConfidence.kindOnly),
 
   /// `0xC7` — a rare nested **container** parenting `0x12` bodies (BD nodes / FP
   /// content groups). Corpus: FP-only here (102 instances, all drawn, 99/102 nested
@@ -294,13 +309,14 @@ enum HeapObjectClass {
   /// caption/help. Renders as a node box.
   bdNamedNode(0x31, 'Node (named)', ViObjectKind.node, ClassConfidence.inferred),
 
-  /// `0x16` — a **block-diagram node terminal** (an I/O connection point on a
-  /// node). Corpus: 41830 BD instances, 0 FP, uniform **32×16**, each nested under
-  /// a zero-area node body `0x1d` (grandparent the node container `0x1b`), carrying
-  /// one `0xa` label child; `termCount == 0` and no decoded data type. The small
-  /// fixed footprint on a node body identifies it as a terminal/pin; rendered as a
-  /// subtle pin rather than a full control to avoid cluttering the node icon.
-  bdNodeTerminal(0x16, 'Node terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+  /// `0x16` — a **free-standing block-diagram terminal/constant leaf**. Corpus:
+  /// 41830 BD instances, 0 FP, uniform **32×16**, each nested under a zero-area node
+  /// body `0x1d` (grandparent the node container `0x1b`); `termCount == 0`, no
+  /// decoded data type, and the `0xa` label slot is empty (4004/4004 sampled). It
+  /// is NOT an on-node pin — corpus geometry: it overlaps a sibling node only 1.2%
+  /// of the time and sits a median 216px from the nearest node — so it is a small
+  /// free-standing leaf (a terminal or constant; the two are not separable here).
+  bdLeaf(0x16, 'Terminal/constant (BD)', ViObjectKind.terminal, ClassConfidence.inferred),
 
   // --- Control / indicator terminal containers (top-level on the diagram) ---
   /// `0x50` — a **numeric** control/indicator terminal (defining signal: a
