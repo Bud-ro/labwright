@@ -314,16 +314,28 @@ class ViSectionDescriptor {
   }
 }
 
-/// The info area's name-table tail: a not-yet-decoded [header] followed by the
+/// The info area's name-table tail: a small fixed [header] followed by the
 /// **trailing Pascal VI name** at EOF (e.g. `PicoScope5000ExampleStreaming.vi`).
-/// The trailing name is recovered as a typed field; the header stays raw with a
-/// TODO. [serialize] reconstructs the tail byte-exact.
+/// The trailing name is recovered as a typed field. [serialize] reconstructs the
+/// tail byte-exact.
+///
+/// Corpus-probed (7583 VIs): [header] is exactly **12 bytes** in all but one VI —
+/// `[u32 @0 = 0][u32 @4 = a varying value][u32 @8 = 0]` (the only non-zero field
+/// is [headerValue]). Its size does NOT scale with the section `nameRef` indices
+/// (it stays 12 bytes even when the max index is 128), so this header is NOT the
+/// name table that `nameRef` points into — that table is still unlocated.
 class ViNameTable {
   ViNameTable({required this.header, required this.trailingNameRecord});
 
-  /// Leading bytes of the tail (name-table header / index) — not yet decoded.
-  // TODO(labwright): identify this name-table header structure.
+  /// Leading bytes of the tail before the trailing VI name. Canonically 12 bytes:
+  /// `[u32 0][u32 headerValue][u32 0]`; a rare larger form exists, so this stays
+  /// a raw span. See [headerValue].
+  // TODO(labwright): identify [headerValue]'s meaning (offset/size/signature?).
   final Uint8List header;
+
+  /// The lone non-zero word of the canonical 12-byte [header] (`u32 @4`), or null
+  /// when [header] is not the canonical 12-byte form. Meaning not yet decoded.
+  int? get headerValue => header.length == 12 ? ByteData.sublistView(header).getUint32(4) : null;
 
   /// The `[u8 len][name bytes]` Pascal record at EOF, or empty if no clean
   /// trailing name is present.

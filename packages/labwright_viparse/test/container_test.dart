@@ -241,6 +241,27 @@ void main() {
       expect(nt.trailingName, isNull);
       expect(nt.serialize(), orderedEquals(tail));
     });
+
+    test('headerValue reads the lone u32@4 of the canonical 12-byte header', () {
+      const name = 'X.vi';
+      // 12-byte header: [u32 0][u32 0x4d40][u32 0] then the trailing pascal name.
+      final tail = Uint8List.fromList([
+        0, 0, 0, 0, // @0 = 0
+        0, 0, 0x4d, 0x40, // @4 = 0x4d40
+        0, 0, 0, 0, // @8 = 0
+        name.length, ...name.codeUnits,
+      ]);
+      final nt = ViNameTable.parse(tail);
+      expect(nt.header.length, 12);
+      expect(nt.headerValue, 0x4d40);
+      expect(nt.trailingName, 'X.vi');
+      expect(nt.serialize(), orderedEquals(tail));
+    });
+
+    test('headerValue is null when the header is not the canonical 12 bytes', () {
+      final nt = ViNameTable.parse(Uint8List.fromList([0x00, 0x01, 0x02, 0x03, 0x03, 0x66, 0x6f, 0x6f]));
+      expect(nt.headerValue, isNull);
+    });
   });
 
   group('ViInfoArea + ViContainer.serialize', () {

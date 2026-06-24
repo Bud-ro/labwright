@@ -456,6 +456,47 @@ void main() {
     expect(flagMismatch, isEmpty, reason: 'preGap flags != has-embedded-sections: $flagMismatch');
   });
 
+  // NAME-TABLE HEADER: the bytes before the trailing VI name are a small fixed
+  // 12-byte header ([u32 0][u32 headerValue][u32 0]) in the vast majority of VIs,
+  // and its size does NOT scale with the section nameRef indices — confirming it
+  // is NOT the name table nameRef points into.
+  test('INFO-AREA: name-table header is a fixed 12-byte struct, unrelated to nameRef', () {
+    var files = 0, twelve = 0, scalesWithRef = 0;
+    for (final f in all) {
+      final Uint8List bytes;
+      try {
+        bytes = Uint8List.fromList(f.readAsBytesSync());
+      } catch (_) {
+        continue;
+      }
+      final ViInfoArea ia;
+      try {
+        ia = ViContainer.parse(bytes).parsedInfoArea;
+      } catch (_) {
+        continue;
+      }
+      if (ia.descriptors.isEmpty) continue;
+      files++;
+      final hdr = ia.nameTable.header;
+      if (hdr.length == 12) {
+        twelve++;
+        // canonical shape: words @0 and @8 are zero; @4 is the lone value.
+        final d = ByteData.sublistView(hdr);
+        if (d.getUint32(0) == 0 && d.getUint32(8) == 0) {
+          expect(ia.nameTable.headerValue, d.getUint32(4));
+        }
+      }
+      final maxRef = ia.descriptors.where((x) => x.isNamed).fold<int>(0, (a, x) => a > x.nameRef ? a : x.nameRef);
+      // if the header were a per-name table it would have to be at least ~maxRef
+      // bytes; it is not (stays 12) — count any case that would contradict that.
+      if (maxRef > 12 && hdr.length >= maxRef) scalesWithRef++;
+    }
+    expect(files, greaterThan(0));
+    // overwhelmingly the fixed 12-byte header (probe: 7582/7583).
+    expect(twelve, greaterThan((files * 0.99).floor()), reason: 'name-table header not ~always 12 bytes: $twelve/$files');
+    expect(scalesWithRef, 0, reason: 'name-table header size scaled with nameRef in $scalesWithRef files (would be the name table)');
+  });
+
   // DESCRIPTOR @16 IS BINARY: across the corpus every section descriptor's @16
   // word is exactly 0xFFFFFFFF (the VI's own data sections) or exactly 0 (the
   // LIBN/VINS sections — both real, data-bearing). No third value occurs. And
