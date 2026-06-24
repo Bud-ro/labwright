@@ -52,7 +52,11 @@ Widget _withHelp(ViHeapObject o, Widget child) {
 }
 
 /// The faithful-control hover tooltip for [o] — its decoded help text and/or
-/// numeric range (`help\nrange: lo … hi`), or null when neither is present.
+/// numeric range (`help\nrange: lo … hi`). When neither is present, falls back to
+/// the object's identity so a hovered node/structure isn't a silent mystery box:
+/// its name (the propagated node caption, e.g. `Build Array`) or, failing that,
+/// its class label (`Node (primitive)`, `Case structure`). Returns null only for
+/// an anonymous non-node/structure with nothing to say.
 /// Pure + public for unit testing (the tap-to-select path is widget-test-hostile).
 String? controlTooltip(ViHeapObject o) {
   final parts = <String>[];
@@ -60,7 +64,15 @@ String? controlTooltip(ViHeapObject o) {
   if (h != null && h.isNotEmpty) parts.add(h);
   final range = formatControlRange(o.controlMin, o.controlMax);
   if (range != null) parts.add('range: $range');
-  return parts.isEmpty ? null : parts.join('\n');
+  if (parts.isNotEmpty) return parts.join('\n');
+  final name = o.label?.trim();
+  if (name != null && name.isNotEmpty) return name;
+  final cls = o.objectClass;
+  if (cls != HeapObjectClass.unknown &&
+      (o.category == ViObjectKind.node || o.category == ViObjectKind.structure)) {
+    return cls.label;
+  }
+  return null;
 }
 
 Widget _faithfulFor(ViHeapObject o) {

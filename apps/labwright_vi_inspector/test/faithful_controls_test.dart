@@ -20,6 +20,14 @@ void main() {
       expect(controlTooltip(_obj(min: 0, max: double.nan)), isNull); // untrustworthy range, no help
       expect(controlTooltip(_obj(help: '   ')), isNull); // whitespace-only help
     });
+    test('node falls back to its name, then its class label', () {
+      final named = ViHeapObject(oid: 1, kind: 0x2f, offset: 0) // a BD node
+        ..category = ViObjectKind.node
+        ..label = 'Build Array';
+      expect(controlTooltip(named), 'Build Array'); // propagated node name
+      final nameless = ViHeapObject(oid: 2, kind: 0x2f, offset: 0)..category = ViObjectKind.node;
+      expect(controlTooltip(nameless), 'Node (primitive)'); // class label when no name
+    });
   });
 
   testWidgets('faithful control with a decoded range is wrapped in a range Tooltip', (tester) async {
