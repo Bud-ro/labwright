@@ -104,20 +104,194 @@ class ViHeapObject {
 
   /// Inferred data-type kind from attached `C4` records. See [ViTypeKind].
   ViTypeKind typeKind = ViTypeKind.unknown;
+
+  /// The named, documented class catalog entry for this object's [kind]
+  /// (or [HeapObjectClass.unknown] if the code is not catalogued).
+  HeapObjectClass get objectClass => HeapObjectClass.fromCode(kind);
+}
+
+/// How well-grounded a [HeapObjectClass]'s assigned name is. Clean-room RE, so
+/// names are labelled honestly (see [HeapAttribute]'s `AttrConfidence`).
+enum ClassConfidence {
+  /// Pinned by a decisive structural correlation (a defining child/record, a
+  /// 100%-consistent role across the corpus).
+  confirmed,
+
+  /// Role inferred from child profile / labels, but not provable without LabVIEW.
+  inferred,
+
+  /// Only the tree position is known; the purpose is a guess.
+  kindOnly,
+}
+
+/// The catalog of known LabVIEW block-diagram **object class codes** — the
+/// `<kind>` u16 in an object header `10 19 02 fe <kind> fd <oid>`.
+///
+/// This is the single place that names every object class we have decoded from
+/// the corpus (163,227 objects across 398 BDEx sections — 100% covered). Each
+/// entry documents its role, its coarse [category] ([ViObjectKind]), the corpus
+/// evidence, and a [confidence] label (clean-room honesty). A control's *data
+/// type* (numeric/enum/string/…) is read from its descendant `C4` records into
+/// [ViHeapObject.typeKind]; the class additionally names the control *form*.
+/// Resolve a raw code with [HeapObjectClass.fromCode]; the per-object catalog
+/// entry is [ViHeapObject.objectClass].
+enum HeapObjectClass {
+  // --- Diagram structure / containers ---
+  /// `0x7E` — the single block-diagram **root** (parentOid == null in 398/398).
+  diagramRoot(0x7e, 'Diagram root', ViObjectKind.structure, ClassConfidence.confirmed),
+
+  /// `0x4C` — the top-level **diagram frame** holding all nodes; owns the
+  /// `14 19 01 fd` child-membership reflist.
+  diagramFrame(0x4c, 'Diagram frame', ViObjectKind.structure, ClassConfidence.confirmed),
+
+  /// `0x7F` — a root-level **diagram property / scroll-state** record (no bounds).
+  diagramProps(0x7f, 'Diagram properties', ViObjectKind.structure, ClassConfidence.inferred),
+
+  /// `0x101` — a root **auxiliary** record; purpose undetermined.
+  rootAux(0x101, 'Root auxiliary', ViObjectKind.unknown, ClassConfidence.kindOnly),
+
+  /// `0x53` — a **loop** structure (while/for; not separable from `BDEx`). Owns
+  /// the child-membership reflist; has exactly one `0x11c` subdiagram viewport.
+  loop(0x53, 'Loop (while/for)', ViObjectKind.structure, ClassConfidence.confirmed),
+
+  /// `0x52` — a **case / sequence** structure (per-frame contents inline).
+  caseOrSequence(0x52, 'Case/sequence', ViObjectKind.structure, ClassConfidence.inferred),
+
+  /// `0x64` — a **cluster / array shell** on a node.
+  clusterShell(0x64, 'Cluster/array shell', ViObjectKind.structure, ClassConfidence.inferred),
+
+  /// `0xC7` — a rare nested **subdiagram container** (parents node bodies).
+  subdiagramContainer(0xc7, 'Subdiagram container', ViObjectKind.structure, ClassConfidence.inferred),
+
+  /// `0xEF` — a rare structure carrying refs + a `0x11c` viewport.
+  rareStructure(0xef, 'Structure (rare)', ViObjectKind.structure, ClassConfidence.kindOnly),
+
+  /// `0xAC` — a rare **node group** (parents `0x12` node bodies).
+  nodeGroup(0xac, 'Node group', ViObjectKind.structure, ClassConfidence.kindOnly),
+
+  /// `0x11C` — a **content viewport**: the scroll container holding a loop's /
+  /// diagram's placed controls. Used as the control re-anchor frame; suppressed
+  /// from the faithful render.
+  contentViewport(0x11c, 'Content viewport', ViObjectKind.structure, ClassConfidence.confirmed),
+
+  // --- Nodes ---
+  /// `0x12` — a **function / subVI node** body (no bounds; holds the node's
+  /// structures + terminals). Function-vs-subVI is not separable from `BDEx`.
+  node(0x12, 'Function/subVI node', ViObjectKind.node, ClassConfidence.confirmed),
+
+  // --- Control / indicator terminal containers (top-level on the diagram) ---
+  /// `0x50` — a **numeric** control/indicator terminal (defining signal: a
+  /// `0xE0` numeric-display child + `C4 74` printf format).
+  numericControl(0x50, 'Numeric control', ViObjectKind.terminal, ClassConfidence.confirmed),
+
+  /// `0x57` — an **enum / ring** control terminal (`C4 2E` item table + `0xE0`
+  /// child).
+  enumRingControl(0x57, 'Enum/ring control', ViObjectKind.terminal, ClassConfidence.confirmed),
+
+  /// `0x4F` — a **boolean / cluster** control terminal (overloaded: 1 cluster
+  /// child ≈ boolean, ≥2 ≈ cluster; occasionally a ring).
+  booleanOrClusterControl(0x4f, 'Boolean/cluster control', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  /// `0x51` — a **string / array / refnum** control terminal.
+  stringOrArrayControl(0x51, 'String/array control', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  /// `0x5B` — a **path** control terminal (nests a browse-button `0x4F`).
+  pathControl(0x5b, 'Path control', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  /// `0x5E` — a **graph / chart / waveform** indicator (`C4 27` plot names +
+  /// legends/scales/cursors).
+  graphIndicator(0x5e, 'Graph/chart indicator', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  /// `0xDF` — a rare **numeric** control variant (same child profile as `0x50`).
+  numericControlVariant(0xdf, 'Numeric control (variant)', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  /// `0x59` — a rare control variant.
+  controlVariant(0x59, 'Control (variant)', ViObjectKind.terminal, ClassConfidence.kindOnly),
+
+  // --- Internal control sub-parts (nested only) ---
+  /// `0x0C` — a node/control **terminal cluster**: carries the `C4 1F` terminals
+  /// (100% do).
+  nodeTerminalCluster(0x0c, 'Terminal cluster', ViObjectKind.terminalCluster, ClassConfidence.confirmed),
+
+  /// `0x0A` — a **control label** sub-part: bears the visible `C4 22` caption.
+  controlLabel(0x0a, 'Label', ViObjectKind.terminal, ClassConfidence.confirmed),
+
+  /// `0x68` — a **connector / wire terminal** (97% have no bounds; the rest are
+  /// zero-area points). The control's/node's connection point.
+  connectorTerminal(0x68, 'Connector terminal', ViObjectKind.terminal, ClassConfidence.confirmed),
+
+  /// `0x0B` — an internal control **sub-part** (increment / boolean glyph /
+  /// array index).
+  controlSubPart(0x0b, 'Control sub-part', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  /// `0xE0` — a **numeric digital-display** sub-part (only under `0x50`/`0x57`).
+  numericDisplay(0xe0, 'Numeric display', ViObjectKind.terminal, ClassConfidence.confirmed),
+
+  /// `0x0D` — the **enum/ring item-label list** (`C4 2E` string table).
+  enumItemList(0x0d, 'Enum item list', ViObjectKind.terminal, ClassConfidence.confirmed),
+
+  /// `0xC1` — a **tip-strip / help-text** sub-part (`C4 19` only).
+  tipStrip(0xc1, 'Tip strip', ViObjectKind.terminal, ClassConfidence.confirmed),
+
+  // --- Decorations / chrome ---
+  /// `0x09` — **control chrome / resize handle**: a bounded, child-less,
+  /// never-labelled leaf — the visual frame/handle of a control or structure.
+  /// Suppressed from the faithful render.
+  controlChrome(0x09, 'Resize handle/chrome', ViObjectKind.decoration, ClassConfidence.inferred),
+
+  /// `0x8F` — a free **decoration** (free label / scale).
+  freeDecoration(0x8f, 'Decoration', ViObjectKind.decoration, ClassConfidence.inferred),
+
+  /// `0xE7` — a **graph legend / cursor** decoration.
+  graphLegend(0xe7, 'Graph legend', ViObjectKind.decoration, ClassConfidence.inferred),
+
+  /// `0xD2` — a legend **inner part**.
+  legendSubPart(0xd2, 'Legend sub-part', ViObjectKind.decoration, ClassConfidence.inferred),
+
+  // --- Rare / undetermined ---
+  /// `0x58` — rare; appears only as a parent of `0x0C`.
+  rare58(0x58, 'Undetermined (0x58)', ViObjectKind.unknown, ClassConfidence.kindOnly),
+
+  /// `0xC3` — a rare structure (parents `0xC7`/`0x57`).
+  rareStructureC3(0xc3, 'Structure (rare 0xC3)', ViObjectKind.structure, ClassConfidence.kindOnly),
+
+  /// `0xC8` — rare; appears as a parent of `0x0C`/`0x0B`.
+  rareC8(0xc8, 'Undetermined (0xC8)', ViObjectKind.unknown, ClassConfidence.kindOnly),
+
+  /// A class code that is not (yet) catalogued. Its [code] is -1; use
+  /// [ViHeapObject.kind] for the actual value.
+  unknown(-1, 'Unknown class', ViObjectKind.unknown, ClassConfidence.kindOnly);
+
+  const HeapObjectClass(this.code, this.label, this.category, this.confidence);
+
+  /// The class-code byte (the `<kind>` field); -1 for [unknown].
+  final int code;
+
+  /// A human-readable name for UI display.
+  final String label;
+
+  /// The coarse structural category this class maps to.
+  final ViObjectKind category;
+
+  /// How well-grounded [label] is (clean-room honesty).
+  final ClassConfidence confidence;
+
+  /// Maps a raw class code to its [HeapObjectClass], or [unknown].
+  static HeapObjectClass fromCode(int code) {
+    for (final c in values) {
+      if (c != unknown && c.code == code) return c;
+    }
+    return unknown;
+  }
 }
 
 /// Classifies a heap object into a [ViObjectKind] from its class code and signals
-/// (corpus-validated; see `docs/vi-rsrc-and-heap-format.md`).
+/// (corpus-validated; see the [HeapObjectClass] catalog). The data-driven
+/// terminal-cluster signal (`C4 1F` terminals) takes precedence over the class's
+/// catalog [HeapObjectClass.category].
 ViObjectKind classifyObject({required int kind, required bool hasBounds, required int termCount}) {
   if (kind == 0x0c || termCount >= 1) return ViObjectKind.terminalCluster;
-  if (kind == 0x12) return ViObjectKind.node;
-  const structures = {0x53, 0x52, 0x09, 0x7e, 0x4c, 0x11c};
-  if (structures.contains(kind)) return ViObjectKind.structure;
-  const terminals = {0x68, 0x50, 0x51, 0x57, 0x4f, 0x5b, 0xdf, 0x0a, 0x0b, 0x0d, 0xe0};
-  if (terminals.contains(kind)) return ViObjectKind.terminal;
-  const decorations = {0x8f, 0xe7, 0xd2, 0xc7, 0xc8};
-  if (decorations.contains(kind)) return ViObjectKind.decoration;
-  return ViObjectKind.unknown;
+  return HeapObjectClass.fromCode(kind).category;
 }
 
 /// The printf conversion char of a `C4 74` numeric format-string payload, or null.

@@ -396,6 +396,8 @@ class _DetailsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final r = object.absBounds;
+    final cls = object.objectClass;
+    final conf = cls.confidence == ClassConfidence.confirmed ? '' : ' (${cls.confidence.name})';
     return Card(
       margin: const EdgeInsets.only(top: 6),
       child: Padding(
@@ -413,10 +415,10 @@ class _DetailsCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(object.label ?? '(unnamed)', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  Text(object.label ?? cls.label, style: const TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 2),
                   Text(
-                    'kind ${object.category.name} · class 0x${object.kind.toRadixString(16)} · oid ${object.oid}'
+                    '${cls.label}$conf · class 0x${object.kind.toRadixString(16)} · oid ${object.oid}'
                     '${object.typeKind != ViTypeKind.unknown ? ' · type ${object.typeKind.name}' : ''}'
                     '${r != null ? ' · ${r.width}×${r.height} @(${r.left},${r.top})' : ''}'
                     '${object.parentOid != null ? ' · parent ${object.parentOid}' : ''}',

@@ -125,6 +125,24 @@ void main() {
     expect([d.byId[7]!.absBounds!.top, d.byId[7]!.absBounds!.left], [300, 300]);
   });
 
+  test('HeapObjectClass catalog: unique codes, round-trip, category agreement', () {
+    final seen = <int>{};
+    for (final c in HeapObjectClass.values) {
+      if (c == HeapObjectClass.unknown) continue;
+      expect(seen.add(c.code), isTrue, reason: 'duplicate code 0x${c.code.toRadixString(16)}');
+      expect(HeapObjectClass.fromCode(c.code), c);
+      expect(c.label, isNotEmpty);
+    }
+    expect(HeapObjectClass.fromCode(0xabcd), HeapObjectClass.unknown);
+    // named classes resolve through ViHeapObject + drive classifyObject's category.
+    expect(HeapObjectClass.fromCode(0x50).label, 'Numeric control');
+    expect(classifyObject(kind: 0x68, hasBounds: false, termCount: 0), ViObjectKind.terminal);
+    expect(classifyObject(kind: 0x12, hasBounds: false, termCount: 0), ViObjectKind.node);
+    expect(classifyObject(kind: 0x53, hasBounds: true, termCount: 0), ViObjectKind.structure);
+    // the C4-1F terminal signal still wins over the catalog category.
+    expect(classifyObject(kind: 0x50, hasBounds: true, termCount: 2), ViObjectKind.terminalCluster);
+  });
+
   test('buildDiagram is total over arbitrary bytes', () {
     final junk = Uint8List.fromList([for (var i = 0; i < 400; i++) (i * 17 + 3) & 0xff]);
     expect(() {
