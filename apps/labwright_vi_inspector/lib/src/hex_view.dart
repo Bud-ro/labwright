@@ -403,15 +403,15 @@ _SpanInfo _classify(Uint8List b, HeapSpan s, String tag) {
                 display: _RectPreview(r));
       case HeapAttrKind.container:
         return make(_cContainer, '$hexlead · $name',
-            'A nested-record container (~${attr.asInt} inner elements; e.g. a front-panel attribute chain).');
+            'An opaque length-prefixed container (count-like lead byte ${attr.asInt}; e.g. a front-panel attribute blob).');
       default:
         return make(_cAttr, '$hexlead · $name',
             '${_kindLabel(attr.kind)} = ${attr.asInt} (${attr.width.name}).');
     }
   }
   if (isTypeDescriptorToken(lead)) {
-    return make(_cOther, '04 ${b[o + 1].toRadixString(16).padLeft(2, '0')} · type-descriptor token',
-        'A type-descriptor grammar fragment (structural), not an object property.');
+    return make(_cOther, '04 ${b[o + 1].toRadixString(16).padLeft(2, '0')} · 04-token',
+        'A bare 04 <subop> token (framed; role undecoded).');
   }
   return make(_cOther, 'lead 0x${lead.toRadixString(16)}', 'Framed record ($len bytes); role not individually decoded.');
 }

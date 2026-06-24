@@ -149,7 +149,7 @@ void main() {
       expect(a.width, HeapAttrWidth.container);
       expect(a.kind, HeapAttrKind.container);
       expect(a.asDouble, isNull); // NOT a garbage f64
-      expect(a.asInt, 0x04); // payload[0] element-count header
+      expect(a.asInt, 0x04); // payload[0] — a count-like leading byte (not a reliable element count)
       expect(a.length, 11);
       // A variable-length form (len 6) is also a container.
       final r6 = decodeHeapAttr(Uint8List.fromList([0xc5, 0xe7, 0x06, 0x03, 0, 0, 0, 0, 0]), 0)!;
