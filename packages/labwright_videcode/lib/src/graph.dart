@@ -178,12 +178,13 @@ enum ClassConfidence {
 /// the class was validated and are *not literal in the other section*. Probed
 /// dual-role cases (BD role / FP role), all corpus-probed: `0x53` BD while/for
 /// loop / FP control-container (21993 FP), `0x12` BD node / non-drawable FP content
-/// group (42299 FP), `0x4c` BD diagram-frame / FP root panel pane (7568 FP),
-/// `0x52` BD case/sequence / FP multi-page container (6429 FP), and the rare
-/// `0xc7`/`0xac` nested containers (FP-only here, 102/60). `0x64` cluster/array
-/// shell was checked and is **section-consistent** (holds member controls on both
-/// BD 6705 and FP 9499 — no relabel). All flagged structure classes are now
-/// characterized; names tagged `(BD) / (FP)` are not literal in the other section.
+/// group (42299 FP), `0x4c` BD diagram-frame / FP root panel pane (7568 FP), and
+/// the rare `0xc7`/`0xac` nested containers (FP-only here, 102/60). Section-
+/// CONSISTENT (same role both sections, no split): `0x64` cluster/array shell
+/// (BD 6705 / FP 9499) and `0x52` container-of-controls (BD 5190 / FP 6429, owns
+/// no `0x11c` viewport either side — so its old "case/sequence" name was dropped).
+/// All flagged structure classes are now characterized; names tagged `(BD) / (FP)`
+/// are not literal in the other section.
 /// Each entry documents its role, coarse [category]
 /// ([ViObjectKind]), evidence, and a [confidence] label. A control's *data type*
 /// (numeric/enum/string/…) is read from its descendant `C4` records into
@@ -218,13 +219,15 @@ enum HeapObjectClass {
   /// a container of controls, not a loop). The while-vs-for split is not separable.
   loop(0x53, 'Loop (BD) / container (FP)', ViObjectKind.structure, ClassConfidence.confirmed),
 
-  /// `0x52` — a multi-frame **container** structure, section-dependent: on the
-  /// **block diagram** a case / sequence (per-frame contents inline); on the
-  /// **front panel** a drawn container holding placed controls (the FP analog of a
-  /// case structure, e.g. a tab/multi-page control). Corpus: 6429 FP instances (all
-  /// drawn, children are controls 0x50/0x51/0x64/0x53) + 5190 BD — so on the FP the
-  /// "case/sequence" name isn't literal; read it as "container".
-  caseOrSequence(0x52, 'Case/sequence (BD) / container (FP)', ViObjectKind.structure, ClassConfidence.inferred),
+  /// `0x52` — a **container** holding placed controls. Section-CONSISTENT (like
+  /// `0x64`, not split): the BD and FP child profiles are equivalent — corpus
+  /// 5190 BD + 6429 FP instances, all drawn, holding a control terminal
+  /// (0x50/0x51/0x64/0x53) in 100% of both. It owns a `0x11c` subdiagram viewport
+  /// in 0/5190 BD instances, so the structural signature of a real case/sequence
+  /// (per-frame subdiagrams, like the `0x53` loop's viewport) is ABSENT — the
+  /// earlier "case/sequence" reading was unsupported, so the name stays a neutral
+  /// "container" in both sections.
+  caseOrSequence(0x52, 'Container (placed controls)', ViObjectKind.structure, ClassConfidence.inferred),
 
   /// `0x64` — a **cluster / array shell** on a node.
   clusterShell(0x64, 'Cluster/array shell', ViObjectKind.structure, ClassConfidence.inferred),

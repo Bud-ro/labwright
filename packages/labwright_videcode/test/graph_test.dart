@@ -167,13 +167,18 @@ void main() {
     // mean different things on the block diagram vs the front panel, so their
     // labels MUST name both roles. Stops a silent revert to a section-blind name
     // (e.g. 0x53 back to a bare "Loop (while/for)" that mislabels ~22k FP objects).
-    for (final code in [0x53, 0x12, 0x4c, 0x52]) {
+    for (final code in [0x53, 0x12, 0x4c]) {
       final label = HeapObjectClass.fromCode(code).label;
       expect(label, contains('(BD)'), reason: '0x${code.toRadixString(16)} lost its BD-role tag');
       expect(label, contains('(FP)'), reason: '0x${code.toRadixString(16)} lost its FP-role tag');
     }
     // 0x53 specifically must no longer assert a bare while/for loop section-blind.
     expect(HeapObjectClass.fromCode(0x53).label, isNot('Loop (while/for)'));
+    // 0x52 was a probed over-correction: it owns no 0x11c viewport on either side
+    // (same flat-container profile as 0x64), so it is section-CONSISTENT, NOT a
+    // (BD)/(FP) split, and must not re-assert the unsupported "case/sequence".
+    expect(HeapObjectClass.fromCode(0x52).label, isNot(contains('case')));
+    expect(HeapObjectClass.fromCode(0x52).label, isNot(contains('Case')));
   });
 
   test('enum/ring items are parsed and propagated up to the enclosing control', () {
