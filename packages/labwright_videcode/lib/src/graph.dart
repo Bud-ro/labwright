@@ -178,15 +178,18 @@ enum ClassConfidence {
 /// SECTION-DEPENDENCE (honesty): a class code can mean different things on the
 /// block diagram vs the front panel, so some names below describe the role where
 /// the class was validated and are *not literal in the other section*. Probed
-/// dual-role cases (BD role / FP role), all corpus-probed: `0x53` BD while/for
-/// loop / FP control-container (21993 FP), `0x12` BD node / non-drawable FP content
-/// group (42299 FP), `0x4c` BD diagram-frame / FP root panel pane (7568 FP), and
-/// the rare `0xc7`/`0xac` nested containers (FP-only here, 102/60). Section-
-/// CONSISTENT (same role both sections, no split): `0x64` cluster/array shell
+/// Genuinely DUAL-ROLE (observed in both heaps, corpus-probed): only `0x53` — a
+/// BD while/for loop (5745 BD, each owns a `0x11c` viewport) vs an FP control-
+/// container (21993 FP); its label carries both `(BD)`/`(FP)`.
+/// FP-ONLY here (the legacy BD name is a misattribution — these appear 0 times in
+/// the 3.86M decoded BD objects, which are dominated by the unnamed
+/// 0x15/0x33/0x17/0x30 kinds — so the labels name the observed FP role): `0x12`
+/// content group (42299), `0x4c` panel root frame (7568), and the rare
+/// `0xc7`/`0xac` (102/60).
+/// Section-CONSISTENT (same role both heaps, no split): `0x64` cluster/array shell
 /// (BD 6705 / FP 9499) and `0x52` container-of-controls (BD 5190 / FP 6429, owns
-/// no `0x11c` viewport either side — so its old "case/sequence" name was dropped).
-/// All flagged structure classes are now characterized; names tagged `(BD) / (FP)`
-/// are not literal in the other section.
+/// no `0x11c` viewport either side — its old "case/sequence" name was dropped).
+/// A label tagged `(BD)`/`(FP)` is not literal in the other section.
 /// Each entry documents its role, coarse [category]
 /// ([ViObjectKind]), evidence, and a [confidence] label. A control's *data type*
 /// (numeric/enum/string/…) is read from its descendant `C4` records into
@@ -199,13 +202,15 @@ enum HeapObjectClass {
   /// parentOid == null in all 15136 roots across the corpus.
   diagramRoot(0x7e, 'Diagram root', ViObjectKind.structure, ClassConfidence.confirmed),
 
-  /// `0x4C` — the single top-level **root frame** under the heap root `0x7e`,
-  /// owning the `14 19 01 fd` child-membership reflist. Section-dependent: on the
-  /// **block diagram** the diagram frame holding all nodes; on the **front panel**
-  /// the panel pane holding the placed controls. Corpus: 7568 FP instances (one per
-  /// VI, 7567 drawn), every one parented to `0x7e`, children are the `0x12` content
-  /// groups + a `0x11c` viewport — i.e. the FP root pane, not a "diagram" frame.
-  diagramFrame(0x4c, 'Root frame (BD) / panel pane (FP)', ViObjectKind.structure, ClassConfidence.confirmed),
+  /// `0x4C` — the **front-panel root frame** under the heap root `0x7e`, owning the
+  /// `14 19 01 fd` child-membership reflist; the panel pane holding the placed
+  /// controls. Corpus: 7568 FP instances (one per VI, 7567 drawn), every one
+  /// parented to `0x7e`, children are the `0x12` content groups + a `0x11c`
+  /// viewport. FP-only here: it appears 0 times in the 3.86M decoded **BD** objects
+  /// (those are dominated by the unnamed 0x15/0x33/0x17/0x30 kinds), so the legacy
+  /// "diagram frame" BD reading is unsupported in this corpus — labelled for the
+  /// role actually observed.
+  diagramFrame(0x4c, 'Panel root frame (FP)', ViObjectKind.structure, ClassConfidence.confirmed),
 
   /// `0x7F` — a root-level **diagram property / scroll-state** record (no bounds).
   diagramProps(0x7f, 'Diagram properties', ViObjectKind.structure, ClassConfidence.inferred),
@@ -255,14 +260,15 @@ enum HeapObjectClass {
   contentViewport(0x11c, 'Content viewport', ViObjectKind.structure, ClassConfidence.confirmed),
 
   // --- Nodes ---
-  /// `0x12` — section-dependent (no bounds in either; never drawn): on the **block
-  /// diagram** a **function / subVI node** body holding the node's structures +
-  /// terminals (function-vs-subVI not separable); on the **front panel** a
-  /// **content group** that holds the placed controls. Corpus: 42299 FP instances,
-  /// 0 drawn, 41514 parented directly to the panel frame `0x4c`, with control/
-  /// structure children (0x53/0x51/0x4f/0x64/0x50) — i.e. a panel container, not a
-  /// subVI call. The label names the BD role; on the FP read it as "content group".
-  node(0x12, 'Function node (BD) / content group (FP)', ViObjectKind.node, ClassConfidence.confirmed),
+  /// `0x12` — a **front-panel content group** (no bounds; never drawn) that holds
+  /// the placed controls. Corpus: 42299 FP instances, 0 drawn, 41514 parented
+  /// directly to the panel frame `0x4c`, with control/structure children
+  /// (0x53/0x51/0x4f/0x64/0x50) — a panel container. FP-only here: it appears 0
+  /// times in the 3.86M decoded **BD** objects (which are dominated by the unnamed
+  /// 0x15/0x33/0x17/0x30 kinds — the real BD nodes), so the legacy "function/subVI
+  /// node" BD reading is unsupported in this corpus and was dropped. (Category kept
+  /// [ViObjectKind.node] — an undrawn grouping bucket; it is never rendered.)
+  node(0x12, 'Content group (FP)', ViObjectKind.node, ClassConfidence.confirmed),
 
   // --- Control / indicator terminal containers (top-level on the diagram) ---
   /// `0x50` — a **numeric** control/indicator terminal (defining signal: a

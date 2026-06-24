@@ -162,23 +162,28 @@ void main() {
     expect(classifyObject(kind: 0x50, termCount: 2), ViObjectKind.terminalCluster);
   });
 
-  test('section-dependent classes keep their honest dual-role (BD)/(FP) labels', () {
-    // Guards the section-label honesty work: these classes were corpus-probed to
-    // mean different things on the block diagram vs the front panel, so their
-    // labels MUST name both roles. Stops a silent revert to a section-blind name
-    // (e.g. 0x53 back to a bare "Loop (while/for)" that mislabels ~22k FP objects).
-    for (final code in [0x53, 0x12, 0x4c]) {
+  test('section-dependent class labels stay honest about what was observed', () {
+    // Guards the section-label honesty work against silent reverts.
+    // 0x53 is the ONLY genuinely dual-role class (5745 BD loops that own a 0x11c
+    // viewport + 21993 FP containers), so its label MUST name both roles and must
+    // not revert to a section-blind "Loop (while/for)" that mislabels ~22k FP objs.
+    final loop = HeapObjectClass.fromCode(0x53).label;
+    expect(loop, contains('(BD)'));
+    expect(loop, contains('(FP)'));
+    expect(loop, isNot('Loop (while/for)'));
+    // 0x12 and 0x4c appear 0 times in the decoded BD object trees, so their legacy
+    // BD names ("function node" / "diagram frame") are misattributions — the labels
+    // must name the observed FP role only and must NOT re-assert a (BD) role.
+    for (final code in [0x12, 0x4c]) {
       final label = HeapObjectClass.fromCode(code).label;
-      expect(label, contains('(BD)'), reason: '0x${code.toRadixString(16)} lost its BD-role tag');
       expect(label, contains('(FP)'), reason: '0x${code.toRadixString(16)} lost its FP-role tag');
+      expect(label, isNot(contains('(BD)')), reason: '0x${code.toRadixString(16)} re-asserts an unobserved BD role');
     }
-    // 0x53 specifically must no longer assert a bare while/for loop section-blind.
-    expect(HeapObjectClass.fromCode(0x53).label, isNot('Loop (while/for)'));
-    // 0x52 was a probed over-correction: it owns no 0x11c viewport on either side
-    // (same flat-container profile as 0x64), so it is section-CONSISTENT, NOT a
-    // (BD)/(FP) split, and must not re-assert the unsupported "case/sequence".
-    expect(HeapObjectClass.fromCode(0x52).label, isNot(contains('case')));
-    expect(HeapObjectClass.fromCode(0x52).label, isNot(contains('Case')));
+    // 0x52 owns no 0x11c viewport on either side (same flat-container profile as
+    // 0x64) -> section-CONSISTENT, not a split, and must not re-assert case/sequence.
+    final c52 = HeapObjectClass.fromCode(0x52).label;
+    expect(c52, isNot(contains('case')));
+    expect(c52, isNot(contains('Case')));
   });
 
   test('enum/ring items are parsed and propagated up to the enclosing control', () {
