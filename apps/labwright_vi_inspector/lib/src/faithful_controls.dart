@@ -135,7 +135,10 @@ Widget _faithfulFor(ViHeapObject o) {
       return const _GraphPlaceholder();
     default:
       // Fall back by coarse category.
-      if (o.category == ViObjectKind.node) return _NodeBox(label: o.label?.trim());
+      if (o.category == ViObjectKind.node) {
+        final n = nodeDisplayLabel(o);
+        return _NodeBox(label: n.text, isHint: n.isHint);
+      }
       if (o.category == ViObjectKind.structure) return _StructureFrame(kind: _structureKind(o));
       if (o.category == ViObjectKind.terminal) return const _ControlWidget(form: _Form.generic);
       // Bounded but unclassified: draw a faint placeholder (honest — matches the
@@ -151,6 +154,19 @@ const _kInk = Color(0xFF1A1A1A);
 /// A short human kind for a structure object — what kind of control-flow box it
 /// is (While/For loop, Case/Sequence, …) — from its classified [HeapObjectClass],
 /// so the frame can name itself instead of being an anonymous outline.
+/// The text to show on a node box: its recovered name when present (e.g. a subVI
+/// filename), otherwise an honest class HINT derived from its classification
+/// (`primitive`, `growable`, `Call Library node`) so the box isn't blank.
+/// `isHint` is true for the class-derived fallback so it can be styled apart from
+/// a real name. Pure + public for testing.
+({String text, bool isHint}) nodeDisplayLabel(ViHeapObject o) {
+  final l = o.label?.trim();
+  if (l != null && l.isNotEmpty) return (text: l, isHint: false);
+  final cls = o.objectClass.label; // e.g. "Node (primitive)", "Call Library node"
+  final paren = RegExp(r'\(([^)]+)\)').firstMatch(cls);
+  return (text: paren != null ? paren.group(1)! : cls, isHint: true);
+}
+
 String _structureKind(ViHeapObject o) {
   switch (o.objectClass) {
     case HeapObjectClass.loop:
@@ -210,13 +226,18 @@ class _StructureFrame extends StatelessWidget {
 }
 
 class _NodeBox extends StatelessWidget {
-  const _NodeBox({this.label});
+  const _NodeBox({this.label, this.isHint = false});
   final String? label;
+
+  /// True when [label] is a class hint (e.g. `primitive`) rather than a recovered
+  /// name — rendered italic + dimmer so it reads as "kind" not a real name.
+  final bool isHint;
+
   // The node icon is not yet decoded, so the box is a translucent placeholder (the
   // translucency lets overlapping sibling nodes — ~37% of cases — show through).
-  // The node's recovered name (a subVI filename ~99% of the time, e.g.
-  // `PicoScope2000aOpen.vi`) is drawn IN the box so the diagram reads as "which
-  // subVIs are called" rather than anonymous boxes.
+  // The node's recovered name (a subVI filename, e.g. `PicoScope2000aOpen.vi`) is
+  // drawn IN the box; when there's no name, an honest class hint (primitive /
+  // growable / Call Library) is shown italic so the box isn't a blank mystery.
   @override
   Widget build(BuildContext context) => Container(
         alignment: Alignment.center,
@@ -234,7 +255,13 @@ class _NodeBox extends StatelessWidget {
                 textAlign: TextAlign.center,
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 8, color: _kInk, height: 1.05, fontWeight: FontWeight.w600),
+                style: TextStyle(
+                  fontSize: 8,
+                  color: isHint ? const Color(0x99000000) : _kInk,
+                  height: 1.05,
+                  fontWeight: isHint ? FontWeight.normal : FontWeight.w600,
+                  fontStyle: isHint ? FontStyle.italic : FontStyle.normal,
+                ),
               ),
       );
 }

@@ -100,6 +100,37 @@ void main() {
     expect(find.byType(Container), findsWidgets);
   });
 
+  group('nodeDisplayLabel', () {
+    test('a named node returns its name (not a hint)', () {
+      final n = ViHeapObject(oid: 1, kind: 0x12, offset: 0)
+        ..category = ViObjectKind.node
+        ..label = 'MySubVI.vi';
+      final r = nodeDisplayLabel(n);
+      expect(r.text, 'MySubVI.vi');
+      expect(r.isHint, isFalse);
+    });
+    test('an unlabeled primitive returns a class hint', () {
+      final n = ViHeapObject(oid: 1, kind: 0x2f, offset: 0)..category = ViObjectKind.node; // Node (primitive)
+      final r = nodeDisplayLabel(n);
+      expect(r.text, 'primitive'); // extracted from "Node (primitive)"
+      expect(r.isHint, isTrue);
+    });
+  });
+
+  testWidgets('an unlabeled primitive node shows its class hint (not a blank box)', (tester) async {
+    tester.view.physicalSize = const Size(800, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    final prim = ViHeapObject(oid: 1, kind: 0x2f, offset: 0)
+      ..category = ViObjectKind.node
+      ..absBounds = const HeapRect(top: 0, left: 0, bottom: 40, right: 120);
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: FaithfulLayer(objects: [prim], origin: Offset.zero, size: const Size(400, 400))),
+    ));
+    await tester.pump();
+    expect(find.text('primitive'), findsOneWidget);
+  });
+
   testWidgets('a subVI node renders its recovered name on the box', (tester) async {
     tester.view.physicalSize = const Size(800, 800);
     tester.view.devicePixelRatio = 1.0;
