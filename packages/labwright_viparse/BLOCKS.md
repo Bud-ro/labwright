@@ -40,20 +40,33 @@ load-bearing predicate that gates the C4 heap record-walk.
 | HLPP | Help path | helpPath | confirmed | `decodeHelpPath` | PTH0 path (128/128); `decodeHelpPath` also parses DLLP/RTMP PTH0s |
 | LVSR | LabVIEW save record | settings | confirmed | `decodeSaveRecord` | version word @0 (==vers 99.95%) + BD password hash @96 (==BDPW) |
 | vers | Version record | settings | confirmed | `decodeVersionWord` | `[BCD major][minor<<4\|patch][stage][build]` + ASCII version/title |
-| FTAB | Font table | nameTable | confirmed | `decodeFontTable` | `ver@0=1, count@6, u32 nameOffset@8` → packed Pascal font names |
+| FTAB | Font table | nameTable | confirmed | `decodeFontTable` | `ver@0=1, count@6, u32 nameOffset@8`; metric region (12..nameOffset) is `count*16-4` B = count 12-B metric records interleaved with count-1 u32s (322/322); then packed Pascal font names |
 | HIST | Revision history | history | confirmed | `decodeHistory` | 40-byte record: version@0=2, flags@4, entryCount@8, reserved@12/28/32 |
 | NUID / SUID / BNID | UID tables | identifier | confirmed | `decodeIdTable` | `[u32 count][count u32 ids]`, len==4+4·count (100%); id values opaque |
 | VINS | Embedded sub-VIs | embeddedVi | confirmed | `readEmbeddedVis` | nested RSRC VIs |
 
+## Byte-layout known, framed per-byte in the inspector
+
+These have no standalone viparse *decoder*, but their on-disk byte layout is
+corpus-verified and the inspector's hex view frames every byte (the per-block
+"% framed" readout). Percentages are corpus shares (vi_diverse, ~7k VIs),
+re-verified by an adversarial review:
+
+- **TITL** — VI window title as a Pascal string `[u8 len][ASCII]`; `1+len == sectionLen` in 897/897 nonempty sections (100%).
+- **CPST / CPSP** — string-label tables `[u32 count][count × [u8 len][ASCII]]` (boolean / comparison / report labels, e.g. `True`, `Equal (Value)`); parse end-aligned in 56/56 and 53/53 sections; empty slots are len-0 strings.
+- **FPTD** — a u16 type index in the 2-byte form (3119/3123 = 99.9%); likely a VCTP index but that mapping is **not** corpus-verified for FPTD, so it is not resolved. The 4 larger forms (290–378 B) have no confident layout.
+- **FPSE / BDSE** — section-marker words, one u32 per 4 bytes (4 B in 7155/7173 = 99.75%; a rare 8-byte form carries two). Value role (size/offset/flags) not yet decoded.
+- **MUID** — a single u32 (7173/7173 = 100%); opaque unique-id value.
+
 ## Identified but undecoded / opaque-value blocks
 
-- **typeInfo/data:** FPTD (likely 2-byte index), VICD (compiled i386 code, opaque), DFDS (type-directed, deferred), DSIM (near-constant data image), DSTM.
+- **typeInfo/data:** VICD (compiled i386 code, opaque), DFDS (type-directed, deferred), DSIM (near-constant data image), DSTM.
 - **icon/image:** PICC (12-byte icon record; the colour RGB icon is via `extractRgbIcon`), PICT (Mac PICT), WEMF (Windows EMF).
 - **link/help:** LIvi/LIfp/LIbd/LIds (link info; embed ASCII `LVIN`/`FPHP`/`BDHP`/`VIDS`), LPIN, DLLP (PTH0), HLPU/HLPX/HLPW.
-- **text:** TITL (Pascal title), STR, CPST/CPSP (boolean-label `True/False` tables).
+- **text:** STR.
 - **security:** BDPW (MD5-style password hash; `d41d8cd9…` = empty password).
 - **name tables:** VITS.
-- **identifiers/signatures** (size+role known, value opaque): MUID (u32), RTSG/OBSG (per-VI 16-byte sigs), CCSG/SCSR (near-constant shared sigs), GCPR (13-byte const), GCDI, OMId/RSID (rare).
-- **section markers / small records:** FPSE/BDSE (u32 section markers), FPEx/BDEx (small near-const), VPDP/DLDR/GCPR (fixed-size byte-constant), CCST, BKMK (bookmarks), CNST (u32-pair table), CPD2 (u16), CPMp, FPTS/BDTS, FPHP/BDHP (rare legacy), `PRT ` (note the trailing space), TRec, BFAL, IPSR, CPTM, GTMI, HBIN, HBUF, COUT (12-byte per-VI), RTMP.
+- **identifiers/signatures** (size+role known, value opaque): RTSG/OBSG (per-VI 16-byte sigs), CCSG/SCSR (near-constant shared sigs), GCPR (13-byte const), GCDI, OMId/RSID (rare).
+- **section markers / small records:** FPEx/BDEx (small near-const), VPDP/DLDR/GCPR (fixed-size byte-constant), CCST, BKMK (bookmarks), CNST (u32-pair table), CPD2 (u16), CPMp, FPTS/BDTS, FPHP/BDHP (rare legacy), `PRT ` (note the trailing space), TRec, BFAL, IPSR, CPTM, GTMI, HBIN, HBUF, COUT (12-byte per-VI), RTMP.
 
 See each tag's `note` in `block_catalog.dart` for the precise corpus evidence.
