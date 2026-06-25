@@ -416,7 +416,13 @@ class ViNameTable {
 
 /// The 20-byte record between the block list and the first section descriptor —
 /// **not** a gap. Corpus-probed (7583 VIs) as five big-endian `u32`s:
-///   * [marker] `@0` — a 4-char tag, `FTAB` (7261) or `VITS` (322). See [markerTag].
+///   * [marker] `@0` — a 4-char tag, `FTAB` (7261) or `VITS` (322). It names the
+///     ALTERNATE of the `FTAB`/`VITS` block pair: corpus-probed, the marker tag is
+///     NEVER one of the VI's own blocks (100%), and the VI carries the *opposite*
+///     tag as a block (a `VITS` marker ⇒ an `FTAB` block & no `VITS` block; an
+///     `FTAB` marker ⇒ a `VITS` block, ~99%). Likely a font/type-table FORMAT or
+///     version distinction. NOT an (uncounted) block-list entry — [word2] does not
+///     resolve to a real section descriptor. See [markerTag].
 ///   * [word1] `@4` — `0` in every corpus VI.
 ///   * [word2] `@8` — a varying info-area offset/size (always `< infoArea.length`).
 ///   * [word3] `@12` — `0` in every corpus VI.
@@ -424,7 +430,8 @@ class ViNameTable {
 ///     `LIBN`/`VINS` sections, else `0` (perfect correlation, 0 counterexamples;
 ///     see [hasEmbeddedSections] and `readEmbeddedSections`).
 /// Every byte is a typed field so [serialize] reconstructs it byte-exact.
-// TODO(labwright): decode [marker]'s FTAB/VITS meaning and [word2]'s exact role.
+// TODO(labwright): decode WHY the marker is the alternate FTAB/VITS tag (font/type
+// table format/version?) and [word2]'s exact role.
 class ViInfoPreGap {
   ViInfoPreGap({
     required this.marker,
@@ -434,7 +441,8 @@ class ViInfoPreGap {
     required this.flags,
   });
 
-  /// `u32 @0` — a 4-char marker tag (`FTAB` or `VITS`). // TODO(labwright): meaning.
+  /// `u32 @0` — a 4-char marker tag (`FTAB` or `VITS`), naming the alternate of the
+  /// FTAB/VITS block pair the VI carries (see the class doc). // TODO(labwright): why.
   final int marker;
 
   /// `u32 @4` — `0` across the corpus. // TODO(labwright): identify.

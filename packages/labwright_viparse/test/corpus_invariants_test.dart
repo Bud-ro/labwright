@@ -465,6 +465,45 @@ void main() {
     expect(flagMismatch, isEmpty, reason: 'preGap flags != has-embedded-sections: $flagMismatch');
   });
 
+  // PREGAP MARKER names the ALTERNATE of the FTAB/VITS block pair: the marker tag
+  // is never one of the VI's own blocks, and the opposite tag IS present.
+  test('INFO-AREA: preGap marker is the alternate FTAB/VITS block tag (anti-correlated)', () {
+    var checked = 0, markerInInventory = 0, oppositePresent = 0;
+    final bad = <String>[];
+    for (final f in all) {
+      final Uint8List bytes;
+      try {
+        bytes = Uint8List.fromList(f.readAsBytesSync());
+      } catch (_) {
+        continue;
+      }
+      final String marker;
+      final Set<String> blocks;
+      try {
+        final pg = ViContainer.parse(bytes).parsedInfoArea.preGap;
+        if (pg == null) continue;
+        marker = pg.markerTag;
+        blocks = parseVi(bytes).blocks.toSet();
+      } catch (_) {
+        continue;
+      }
+      if (marker != 'FTAB' && marker != 'VITS') continue;
+      checked++;
+      final other = marker == 'FTAB' ? 'VITS' : 'FTAB';
+      if (blocks.contains(marker)) {
+        markerInInventory++;
+        if (bad.length < 6) bad.add('${f.path.split('/').last}: marker $marker also a block');
+      }
+      if (blocks.contains(other)) oppositePresent++;
+    }
+    expect(checked, greaterThan(0));
+    // the marker tag is NEVER the VI's own block (probe: 100%).
+    expect(markerInInventory, 0, reason: 'preGap marker tag appeared as a block: $bad');
+    // and the VI carries the opposite tag as a block (probe: ~99%).
+    expect(oppositePresent, greaterThan((checked * 0.95).floor()),
+        reason: 'opposite FTAB/VITS block missing: only $oppositePresent/$checked');
+  });
+
   // SUBHEADER RESERVED WORDS: reservedA is the constant [0,0,0x20], and reservedB
   // is the info-area-relative offset of the trailing VI-name record (so the VI
   // name is reachable directly from the subheader, not only by scanning EOF).
