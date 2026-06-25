@@ -2,5 +2,13 @@ tags:
   corpus:
     # Tests that require the fetched VI corpus (tool/fetch_corpus.dart → the
     # gitignored <repoRoot>/vi-corpus/). They self-skip when the corpus is absent,
-    # so CI stays green without it. The full corpus suite is memory-heavy (iterates
-    # ~7.5k VIs, decompressing multi-MB heaps) — run it with `-j 1` to avoid OOM.
+    # so CI stays green without it.
+    #
+    # The full corpus suite is memory-heavy: ~7.5k VIs, some decompressing to
+    # multi-MB heaps. The OOM failure mode is the test runner spawning many suite
+    # isolates that EACH iterate the whole corpus (N concurrent full passes, each
+    # holding big heaps). The fix is NOT `-j 1` (far too slow over 7.5k files) — it
+    # is bounded-concurrency iteration inside a SINGLE Dart VM with a memory cap
+    # (a reusable worker pool that streams files, peak memory ≈ poolSize × per-VI
+    # working set). See tool/corpus_run.dart (the shared corpus harness) — corpus
+    # tests should drive the corpus through it rather than via parallel suites.
