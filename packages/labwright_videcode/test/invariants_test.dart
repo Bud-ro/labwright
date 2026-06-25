@@ -772,4 +772,39 @@ void main() {
     expect(lvsrTot, greaterThan(0));
     expect(lvsrEq / lvsrTot, greaterThan(0.999), reason: 'vers word major != LVSR major in too many ($lvsrEq/$lvsrTot; corpus 100%)');
   });
+
+  // 17. SIGNATURE BLOCKS — RTSG/OBSG/CCSG are 16-byte signatures, SCSR 20-byte,
+  // MUID a 4-byte id. The catalogued distinction is per-VI-varied (RTSG/OBSG) vs
+  // near-constant (CCSG/SCSR = shared toolchain signatures); assert the exact
+  // sizes plus that distinction so the honest characterisation can't silently rot.
+  test('signature blocks: fixed sizes + the varied-vs-constant split holds', () {
+    final wantLen = <String, int>{'RTSG': 16, 'OBSG': 16, 'CCSG': 16, 'SCSR': 20, 'MUID': 4};
+    final counts = {for (final k in wantLen.keys) k: 0};
+    final sized = {for (final k in wantLen.keys) k: 0};
+    final bodies = {for (final k in wantLen.keys) k: <String>{}};
+    for (final f in all) {
+      final List<ViSection> secs;
+      try {
+        secs = readViSections(f.readAsBytesSync());
+      } catch (_) {
+        continue;
+      }
+      for (final s in secs) {
+        final want = wantLen[s.tag];
+        if (want == null) continue;
+        counts[s.tag] = counts[s.tag]! + 1;
+        if (s.bytes.length == want) sized[s.tag] = sized[s.tag]! + 1;
+        bodies[s.tag]!.add(s.bytes.map((x) => x.toRadixString(16)).join());
+      }
+    }
+    for (final k in wantLen.keys) {
+      expect(counts[k]!, greaterThan(0), reason: '$k absent from corpus');
+      expect(sized[k]! / counts[k]!, greaterThan(0.99), reason: '$k not its fixed size in ${sized[k]}/${counts[k]}');
+    }
+    // RTSG/OBSG are per-VI varied; CCSG/SCSR are near-constant (few distinct).
+    expect(bodies['RTSG']!.length / counts['RTSG']!, greaterThan(0.5), reason: 'RTSG should be per-VI varied');
+    expect(bodies['OBSG']!.length / counts['OBSG']!, greaterThan(0.5), reason: 'OBSG should be per-VI varied');
+    expect(bodies['CCSG']!.length, lessThan(50), reason: 'CCSG should be near-constant (shared signature)');
+    expect(bodies['SCSR']!.length, lessThan(50), reason: 'SCSR should be near-constant');
+  });
 }

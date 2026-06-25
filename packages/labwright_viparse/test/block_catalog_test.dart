@@ -30,6 +30,19 @@ void main() {
       }
     });
 
+    test('signature blocks are catalogued as identifiers with verified confidence', () {
+      for (final t in ['RTSG', 'OBSG', 'CCSG', 'SCSR']) {
+        expect(blockInfo(t).category, ViBlockCategory.identifier, reason: t);
+        expect(blockInfo(t).confidence, BlockConfidence.confirmed, reason: t);
+      }
+      expect(blockInfo('MUID').category, ViBlockCategory.identifier);
+      expect(blockInfo('MUID').confidence, BlockConfidence.likely);
+      // the variable-length id tables stay tentative (framing undecoded).
+      for (final t in ['NUID', 'SUID', 'BNID']) {
+        expect(blockInfo(t).confidence, BlockConfidence.tentative, reason: t);
+      }
+    });
+
     test('an uncatalogued tag resolves to an honest unknown, never throws', () {
       final info = blockInfo('ZZZZ');
       expect(info.category, ViBlockCategory.unknown);
