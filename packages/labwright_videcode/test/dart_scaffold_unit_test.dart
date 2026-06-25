@@ -77,6 +77,19 @@ void main() {
     }
   });
 
+  test('children emit in POSITIONAL order (visual top->left), not heap order', () {
+    // Two nodes under a structure, in REVERSE visual order in the heap list:
+    // X is lower on the diagram (top 100), Y higher (top 10). Positional order
+    // must emit Y before X regardless of heap order.
+    final s = _obj(1, ViObjectKind.structure);
+    final x = _obj(2, ViObjectKind.node, parent: 1, label: 'lower')..absBounds = const HeapRect(top: 100, left: 0, bottom: 120, right: 40);
+    final y = _obj(3, ViObjectKind.node, parent: 1, label: 'upper')..absBounds = const HeapRect(top: 10, left: 0, bottom: 30, right: 40);
+    final out = generateDartScaffold(_model([s, x, y])); // heap order S, X, Y
+    expect(out, contains('POSITIONAL order')); // honest disclaimer present
+    expect(out.indexOf('[oid 3]'), lessThan(out.indexOf('[oid 2]')),
+        reason: 'upper node (oid 3, top 10) must emit before lower node (oid 2, top 100)');
+  });
+
   test('connector-pane terminals are emitted from the CONP->VCTP cluster members', () {
     const dbl = ViType(index: 0, code: 0x0a, kind: ViDataType.dbl, name: 'Threshold');
     const cluster = ViType(index: 1, code: 0x50, kind: ViDataType.cluster, name: 'error out', members: [0]);

@@ -58,7 +58,9 @@ String generateDartScaffold(ViModel model, {String name = 'vi'}) {
     ..writeln('// AUTO-GENERATED structural scaffold (labwright_videcode VI->IR->Dart).')
     ..writeln('// $scaffoldMarker —')
     ..writeln('// LabVIEW wires are stored as geometry, so node->node dataflow is not yet')
-    ..writeln('// decoded; this is a STRUCTURAL OUTLINE of the block diagram. Fill in.');
+    ..writeln('// decoded; this is a STRUCTURAL OUTLINE of the block diagram. Fill in.')
+    ..writeln('// Nodes are listed in POSITIONAL order (visual top->left), which is NOT')
+    ..writeln('// execution/dataflow order (that is not recovered).');
   if (model.version != null) b.writeln('// Saved in LabVIEW ${model.version}.');
   final desc = model.description?.trim();
   if (desc != null && desc.isNotEmpty) {
@@ -177,6 +179,13 @@ void _emitDiagram(StringBuffer b, ViDiagram d) {
   for (final o in d.objects) {
     if (o.parentOid != null) (kids[o.parentOid!] ??= <ViHeapObject>[]).add(o);
   }
+  // Emit each parent's children in POSITIONAL order (visual top→left), so the
+  // outline reads like the diagram's layout instead of raw heap order. This is a
+  // VISUAL heuristic only — it is NOT execution/dataflow order (wires aren't
+  // recovered). Stable: equal/absent bounds keep heap order, null-bounds last.
+  for (final k in kids.keys) {
+    kids[k] = _positional(kids[k]!);
+  }
   final present = {for (final o in d.objects) o.oid};
   final seen = <int>{};
   final emitted = <int>{};
@@ -216,7 +225,7 @@ void _emitDiagram(StringBuffer b, ViDiagram d) {
     }
   }
 
-  for (final r in d.roots) {
+  for (final r in _positional(d.roots.toList())) {
     walk(r, 0);
   }
   // objects whose parent is absent (orphans) are still roots of their own subtree
@@ -235,6 +244,28 @@ void _emitDiagram(StringBuffer b, ViDiagram d) {
       b.writeln('  // $tag${_nodeName(o)}  [oid ${o.oid}]');
     }
   }
+}
+
+/// Orders objects by their on-diagram position (top, then left) — a VISUAL
+/// reading order, NOT execution order. Objects with no/invalid bounds sort last;
+/// ties (and bounds-less objects) keep their original heap order (stable).
+List<ViHeapObject> _positional(List<ViHeapObject> objs) {
+  final indexed = [for (var i = 0; i < objs.length; i++) (o: objs[i], i: i)];
+  indexed.sort((a, b) {
+    final ab = a.o.absBounds;
+    final bb = b.o.absBounds;
+    final av = ab != null && ab.isValid;
+    final bv = bb != null && bb.isValid;
+    if (av != bv) return av ? -1 : 1; // bounds-less last
+    if (av && bv) {
+      final t = ab.top.compareTo(bb.top);
+      if (t != 0) return t;
+      final l = ab.left.compareTo(bb.left);
+      if (l != 0) return l;
+    }
+    return a.i.compareTo(b.i); // stable tiebreak = heap order
+  });
+  return [for (final e in indexed) e.o];
 }
 
 String _nodeName(ViHeapObject o) {
