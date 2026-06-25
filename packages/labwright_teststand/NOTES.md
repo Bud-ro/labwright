@@ -53,6 +53,50 @@ model and the viewer/export against a known-good structure, then map the **binar
 before tackling the proprietary binary, and gives a cross-check (the same example
 may exist in both encodings).
 
+## M1 — XML decode (done): the PropertyObject schema
+
+A TestStand XML file is one big **PropertyObject tree**. Every node is one
+property, serialized as an XML element:
+
+- **name** = the `name=` attribute when present (array elements, and the
+  `_NAME_IN_ATTRIBUTE_` placeholder tag used when the name isn't a legal XML
+  tag), otherwise the element tag itself.
+- **classname** = the value-kind: `Bool`, `Str`, `Number`, `Obj`, `Objs` (object
+  array), `Nums`, `ExprValue`, `ArrayDimensions`, …
+- **typename` / `xsi:type** = the TestStand type (e.g. a step's `Statement`,
+  `MessagePopup`, `SequenceCall`; a custom data type).
+- content is exactly one of: a leaf `<value>` (entity-decoded scalar), an array
+  (`<value lbound ubound>` wrapping N `<value>` element wrappers), or
+  `<subprops>` (named child properties).
+
+File skeleton and the sequence/step path (confirmed on the corpus):
+
+```
+<teststandfileheader type='SequenceFile' fileversion='…' productname='TestStand'>
+  <typelist> <typedef> <TypeRoot classname='…'> … </typedef> … </typelist>
+  <Data> <subprops>
+    <Seq classname='Objs'>            # array of sequences
+      … <Sequence name='MainSequence'> <subprops>
+          <Setup   classname='Objs'>  # array of steps
+          <Main    classname='Objs'>
+          <Cleanup classname='Objs'>
+          <Locals> <Parameters> …
+        </subprops> </Sequence> …
+  </subprops> </Data>
+</teststandfileheader>
+```
+
+A **step** is an array element `<Step typename='Statement' name='Pass'>`: its
+display **name** is the `name=` attribute, its **type** is `typename`/`xsi:type`.
+The step's config (preconditions, looping, pass/fail actions, …) lives under the
+step's `TS` sub-container; step-type-specific data under `TS > SData`.
+
+Reader: `parseSeqFile(bytes)` → `SeqFile` (header, `types`, `data`) with a typed
+lens `SeqFile.sequences` → `Sequence` → `setup/main/cleanup` → `Step{name, type}`.
+The full `SeqProperty` tree is retained for total visibility. Owned XML reader
+(`xml_lite.dart`), no third-party dependency. Corpus: **20/20 XML files parse,
+24 sequences / 121 steps recovered**; binary files refused (not mis-parsed).
+
 ## Honest gaps (do NOT model yet)
 
 - **Binary record grammar** past the header — not yet recovered.
