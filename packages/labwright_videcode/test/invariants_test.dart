@@ -102,6 +102,38 @@ void main() {
     expect(checked, greaterThan(0));
   });
 
+  test('STRUCTURAL INVARIANT: front-panel coords may be negative (parked off-panel) and survive', () {
+    // Controls parked off the top-left of the panel origin (e.g. error in/out
+    // clusters in many example VIs) carry genuine NEGATIVE signed-s16 coordinates.
+    // They are faithful, not a decode bug (~13.6% of corpus FP objects), and must
+    // NOT be clamped to the origin — a clamp would silently relocate parked
+    // controls. Assert that negatives reach the model unaltered.
+    var negObjs = 0, filesWithNeg = 0, bounded = 0;
+    for (final f in all) {
+      final ViModel m;
+      try {
+        m = buildViModel(f.readAsBytesSync());
+      } catch (_) {
+        continue;
+      }
+      var fileHasNeg = false;
+      for (final o in m.frontPanelDiagrams.expand((d) => d.objects)) {
+        final r = o.absBounds;
+        if (r == null) continue;
+        bounded++;
+        if (r.top < 0 || r.left < 0) {
+          negObjs++;
+          fileHasNeg = true;
+        }
+      }
+      if (fileHasNeg) filesWithNeg++;
+    }
+    expect(bounded, greaterThan(0));
+    // negative panel coords are common and preserved (probe: ~13.6% of objects).
+    expect(negObjs, greaterThan(0), reason: 'no negative FP coords survived — parked controls may be clamped');
+    expect(filesWithNeg, greaterThan(0));
+  });
+
   test('RENDER RATCHET: visible block-diagram objects classify to a typed widget (>= floor)', () {
     var visible = 0, typed = 0;
     for (final f in all) {
