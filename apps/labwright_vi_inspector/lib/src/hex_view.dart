@@ -633,6 +633,36 @@ class _BlockHexViewState extends State<BlockHexView> {
         }
       case 'MUID':
         span(0, 4, _cObject, 'MUID (u32)', 'Module/object unique id (opaque value).', preview: '${_u32(b, 0)}');
+      case 'CPST':
+      case 'CPSP':
+        // String-label table: [u32 count][count × [u8 len][ASCII]]. Corpus shows
+        // boolean / comparison / report labels (e.g. "True", "Equal (Value)").
+        // Empty slots are len-0 Pascal strings. Confirmed across the corpus.
+        if (b.length >= 4) {
+          final count = _u32(b, 0);
+          span(0, 4, _cHeader, 'String count (u32)',
+              '$count Pascal-string label entries follow ([u8 len][ASCII]).', preview: '$count');
+          var p = 4;
+          for (var i = 0; i < count && p < b.length; i++) {
+            final n = b[p];
+            span(p, 1, _cObject, 'entry[$i] length (u8)', 'Length of the label string that follows.', preview: '$n');
+            if (n > 0 && p + 1 + n <= b.length) {
+              span(p + 1, n, _cRect, 'entry[$i] (ASCII)', 'A boolean/comparison/report label.',
+                  preview: String.fromCharCodes(b.sublist(p + 1, p + 1 + n)));
+            }
+            p += 1 + n;
+          }
+        }
+      case 'FPTD':
+        // Overwhelmingly a 2-byte u16 (3119/3123). Likely a VCTP type index, but
+        // unlike CONP that mapping is NOT corpus-verified for FPTD — so it is
+        // labeled a type index without resolving/claiming the pool entry. The
+        // rare larger forms are left raw (no confident layout) → gap-filled.
+        if (b.length == 2) {
+          span(0, 2, _cObject, 'Type index (u16)',
+              'Front-panel terminal type descriptor; likely indexes the VCTP pool (not corpus-verified for FPTD).',
+              preview: '${_u16(b, 0)}');
+        }
       case 'TITL':
         if (b.isNotEmpty) {
           final n = b[0];

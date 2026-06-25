@@ -238,6 +238,34 @@ void main() {
     expect(find.textContaining('Undecoded'), findsNothing);
   });
 
+  testWidgets('CPST/CPSP string-label tables are framed (count + Pascal entries)', (tester) async {
+    tester.view.physicalSize = const Size(1400, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    // [u32 count=2]["True"]["False"] — the boolean-label form seen in the corpus.
+    final cpsp = _raw('CPSP', [0, 0, 0, 2, 4, ...'True'.codeUnits, 5, ...'False'.codeUnits]);
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: BlockHexView(section: cpsp))));
+    await tester.pump();
+    expect(find.textContaining('String count'), findsOneWidget);
+    expect(find.textContaining('entry[0]'), findsWidgets);
+    expect(find.textContaining('True'), findsWidgets);
+    expect(find.textContaining('False'), findsWidgets);
+    // [count][len][text]… covers every byte → 100% framed, nothing Undecoded.
+    expect(find.textContaining('100% framed'), findsOneWidget);
+    expect(find.textContaining('Undecoded'), findsNothing);
+  });
+
+  testWidgets('an FPTD block is framed as a u16 type index (100%)', (tester) async {
+    tester.view.physicalSize = const Size(1400, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    final fptd = _raw('FPTD', [0x01, 0x52]);
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: BlockHexView(section: fptd))));
+    await tester.pump();
+    expect(find.textContaining('Type index (u16)'), findsOneWidget);
+    expect(find.textContaining('100% framed'), findsOneWidget);
+  });
+
   testWidgets('a decoded HLPP block shows its recovered help path', (tester) async {
     tester.view.physicalSize = const Size(1000, 1400);
     tester.view.devicePixelRatio = 1.0;
