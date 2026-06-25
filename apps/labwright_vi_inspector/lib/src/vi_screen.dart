@@ -607,6 +607,16 @@ class _SummaryViewState extends State<_SummaryView> {
             ),
         ],
 
+        if (widget.components.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          const Text('Block inventory (by category)', style: TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 4),
+          const Text('Every resource block, identified via the clean-room catalog (name · confidence · size).',
+              style: TextStyle(color: Colors.grey, fontSize: 12)),
+          const SizedBox(height: 8),
+          ..._blockInventory(),
+        ],
+
         if (widget.strings.isNotEmpty) ...[
           const SizedBox(height: 16),
           Text('Embedded strings (${widget.strings.length})', style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -664,6 +674,31 @@ class _SummaryViewState extends State<_SummaryView> {
   }
 
   bool _hasSection(String tag) => widget.sections.any((s) => s.tag == tag);
+
+  /// A one-glance map of every block in the VI, grouped by the catalog category,
+  /// showing the human name + clean-room confidence + decompressed size. Purely
+  /// catalog-driven (blockInfo) — no fabrication.
+  List<Widget> _blockInventory() {
+    final byCat = <ViBlockCategory, List<BlockComponent>>{};
+    for (final c in widget.components) {
+      (byCat[blockInfo(c.tag).category] ??= []).add(c);
+    }
+    final cats = byCat.keys.toList()..sort((a, b) => a.name.compareTo(b.name));
+    final rows = <Widget>[];
+    for (final cat in cats) {
+      rows.add(Padding(
+        padding: const EdgeInsets.only(top: 6, bottom: 2),
+        child: Text(cat.name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: Color(0xFF4C8C4C))),
+      ));
+      final items = byCat[cat]!..sort((a, b) => a.tag.compareTo(b.tag));
+      for (final c in items) {
+        final info = blockInfo(c.tag);
+        final label = c.sectionCount > 1 ? '${c.tag} ×${c.sectionCount}' : c.tag;
+        rows.add(_kv('$label  ${info.name}', '${info.confidence.name} · ${_fmtSize(c.decompressedBytes)}'));
+      }
+    }
+    return rows;
+  }
 
   void _openHex(BuildContext context, String tag) {
     final matches = [for (final s in widget.sections) if (s.tag == tag) s]

@@ -55,8 +55,13 @@ void main() {
     expect(find.textContaining('Embedded strings (3)'), findsOneWidget);
     expect(find.text('Conversion time'), findsOneWidget);
     expect(find.text('Components (by decompressed size)'), findsOneWidget);
-    expect(find.text('BDEx'), findsOneWidget); // only in components (not in inventory blocks)
-    expect(find.textContaining('76.2 KB'), findsOneWidget); // 78000 bytes formatted
+    expect(find.text('BDEx'), findsOneWidget); // exact 'BDEx' is the components row only
+    expect(find.textContaining('76.2 KB'), findsWidgets); // 78000 bytes (components + inventory)
+
+    // Block inventory: catalog-driven identity per block, grouped by category.
+    expect(find.text('Block inventory (by category)'), findsOneWidget);
+    expect(find.text('recordHeap'), findsOneWidget); // category header (FPHb)
+    expect(find.textContaining('Front-panel heap'), findsOneWidget); // FPHb name + confidence row
 
     // Filtering the string list.
     await tester.enterText(find.byKey(const Key('string-search')), 'error');
