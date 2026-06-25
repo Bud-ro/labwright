@@ -23,7 +23,17 @@ const _seqXml = '''<?xml version="1.0" encoding="UTF-8"?>
                 <Setup classname='Objs'><value lbound='[0]' ubound='[]'/></Setup>
                 <Main classname='Objs'>
                   <value lbound='[0]' ubound='[2]'>
-                    <value><Step typename='Statement' xsi:type='Statement' name='Pass &amp; go'/></value>
+                    <value><Step typename='Statement' xsi:type='Statement' name='Pass &amp; go'>
+                      <subprops>
+                        <TS classname='Obj'><subprops>
+                          <PreCond classname='ExprValue'><value>Locals.X == 1</value></PreCond>
+                          <LoopType classname='Str'><value>FixedNumLoops</value></LoopType>
+                          <PassAct classname='Str'><value>GotoStep</value></PassAct>
+                          <FailAct classname='Str'><value>Next</value></FailAct>
+                          <PostExpr classname='ExprValue'><value/></PostExpr>
+                        </subprops></TS>
+                      </subprops>
+                    </Step></value>
                     <value><Step typename='MessagePopup' name='Show "hi"'/></value>
                   </value>
                 </Main>
@@ -71,6 +81,21 @@ void main() {
       expect(seq.main.map((s) => s.name), ['Pass & go', 'Show "hi"']);
       expect(seq.main.map((s) => s.type), ['Statement', 'MessagePopup']);
       expect(seq.steps, hasLength(2)); // setup(0) + main(2) + cleanup(0)
+    });
+
+    test('decodes step settings from the TS sub-container', () {
+      final s0 = f.sequences.single.main[0].settings;
+      expect(s0.precondition, 'Locals.X == 1');
+      expect(s0.loopType, 'FixedNumLoops');
+      expect(s0.isLooping, isTrue);
+      expect(s0.passAction, 'GotoStep');
+      expect(s0.failAction, 'Next');
+      expect(s0.postExpression, isNull); // empty <value/> → not set, not ""
+      // A step without a TS container reports everything as unset, no throw.
+      final s1 = f.sequences.single.main[1].settings;
+      expect(s1.precondition, isNull);
+      expect(s1.loopType, isNull);
+      expect(s1.isLooping, isFalse);
     });
 
     test('keeps full property visibility (scalars + attributes)', () {

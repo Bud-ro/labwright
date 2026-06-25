@@ -71,8 +71,53 @@ class Step {
   /// `SequenceCall`, `MessagePopup`. null if untyped.
   String? get type => raw.typeName;
 
+  /// The step's run-time settings (preconditions, looping, pass/fail actions),
+  /// read from its `TS` (TestStand system) sub-container.
+  StepSettings get settings => StepSettings(raw.prop('TS'));
+
   @override
   String toString() => 'Step($name : ${type ?? '?'})';
+}
+
+/// The step settings the Sequence Editor surfaces — flow control and the
+/// pre/post expressions — read from a step's `TS` sub-container. Every getter is
+/// null when the underlying property is absent or empty (no fabricated default),
+/// so "not set" is honestly distinguishable from a real value.
+class StepSettings {
+  StepSettings(this._ts);
+
+  /// The `TS` property object, or null if the step has none.
+  final SeqProperty? _ts;
+
+  String? _scalar(String key) {
+    final s = _ts?.prop(key)?.scalar;
+    return (s == null || s.isEmpty) ? null : s;
+  }
+
+  /// The precondition expression (`PreCond`); null when the step runs
+  /// unconditionally.
+  String? get precondition => _scalar('PreCond');
+
+  /// The looping mode (`LoopType`), e.g. `NoLooping`, `FixedNumLoops`,
+  /// `WhileBreak`, `PassFailCount`. null if unspecified.
+  String? get loopType => _scalar('LoopType');
+
+  /// The loop-continuation condition expression (`LoopWhile`), if any.
+  String? get loopWhile => _scalar('LoopWhile');
+
+  /// True when the step loops (any `LoopType` other than `NoLooping`).
+  bool get isLooping => loopType != null && loopType != 'NoLooping';
+
+  /// The on-pass flow action (`PassAct`), e.g. `Next`, `GotoStep`. null if unset.
+  String? get passAction => _scalar('PassAct');
+
+  /// The on-fail flow action (`FailAct`). null if unset.
+  String? get failAction => _scalar('FailAct');
+
+  /// Pre-/post-/status expressions evaluated around the step, if any.
+  String? get preExpression => _scalar('PreExpr');
+  String? get postExpression => _scalar('PostExpr');
+  String? get statusExpression => _scalar('StatusExpr');
 }
 
 /// Parses TestStand sequence-file [bytes] into a [SeqFile].

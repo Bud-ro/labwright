@@ -28,7 +28,7 @@ void main() {
   test('corpus has .seq files', () => expect(seqs, isNotEmpty));
 
   test('every XML .seq parses; binary .seq is classified, not mis-parsed', () {
-    var xml = 0, binary = 0, other = 0, totalSeqs = 0, totalSteps = 0;
+    var xml = 0, binary = 0, other = 0, totalSeqs = 0, totalSteps = 0, withAction = 0;
     final failures = <String>[];
     for (final f in seqs) {
       final bytes = f.readAsBytesSync();
@@ -38,7 +38,12 @@ void main() {
           try {
             final sf = parseSeqFile(bytes);
             totalSeqs += sf.sequences.length;
-            totalSteps += sf.sequences.fold(0, (a, s) => a + s.steps.length);
+            for (final s in sf.sequences) {
+              for (final step in s.steps) {
+                totalSteps++;
+                if (step.settings.passAction != null) withAction++;
+              }
+            }
           } catch (e) {
             failures.add('${f.path}: $e');
           }
@@ -52,13 +57,14 @@ void main() {
       }
     }
     printOnFailure('xml=$xml binary=$binary other=$other '
-        'sequences=$totalSeqs steps=$totalSteps');
+        'sequences=$totalSeqs steps=$totalSteps withAction=$withAction');
     expect(failures, isEmpty, reason: failures.take(5).join('\n'));
     expect(xml, greaterThan(0));
     expect(totalSeqs, greaterThan(0), reason: 'XML lens recovered no sequences');
     expect(totalSteps, greaterThan(0), reason: 'XML lens recovered no steps');
+    expect(withAction, greaterThan(0), reason: 'no step settings (PassAct) recovered');
     // ignore: avoid_print
     print('teststand corpus: $xml XML / $binary binary / $other other · '
-        '$totalSeqs sequences · $totalSteps steps recovered');
+        '$totalSeqs sequences · $totalSteps steps · $withAction with pass/fail actions');
   });
 }
