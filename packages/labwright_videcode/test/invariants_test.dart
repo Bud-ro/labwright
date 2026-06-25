@@ -708,4 +708,32 @@ void main() {
         reason: 'FTAB recovered-names != fontCount in too many ($consistent/$total) — framing drift.');
     expect(printable / total, greaterThan(0.95), reason: 'FTAB names not printable in too many ($printable/$total)');
   });
+
+  // 15. LEGACY ICON BITMAPS — icl8/icl4/ICON are exact 32x32 bitmaps at 8/4/1 bpp
+  // (1024/512/128 B), each decoding to 1024 pixels. Corrects a stale belief that
+  // ICON was a name table / icl8 a stub: assert exact sizes + full 1024-pixel
+  // decode across the corpus (probe: 100%).
+  test('icl8/icl4/ICON are exact 32x32 bitmaps decoding to 1024 pixels', () {
+    final wantBytes = <String, int>{'icl8': 1024, 'icl4': 512, 'ICON': 128};
+    var tot = 0, sized = 0, decoded = 0;
+    for (final f in all) {
+      final List<ViSection> secs;
+      try {
+        secs = readViSections(f.readAsBytesSync());
+      } catch (_) {
+        continue;
+      }
+      for (final s in secs) {
+        final want = wantBytes[s.tag];
+        if (want == null) continue;
+        tot++;
+        if (s.bytes.length == want) sized++;
+        final dec = decodeLegacyIcon(s.bytes, legacyIconBpp(s.tag)!);
+        if (dec != null && dec.pixels.length == 1024) decoded++;
+      }
+    }
+    expect(tot, greaterThan(0));
+    expect(sized / tot, greaterThan(0.99), reason: 'legacy icon not its exact size in $sized/$tot');
+    expect(decoded / tot, greaterThan(0.99), reason: 'legacy icon did not decode to 1024 px in $decoded/$tot');
+  });
 }

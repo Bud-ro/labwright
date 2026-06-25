@@ -154,10 +154,10 @@ const Map<String, ViBlockInfo> _catalog = {
   'CPMp': ViBlockInfo('CPMp', 'Connector pane map', _cp, _tt, 'Format not yet decoded.'),
 
   // --- Icons ---
-  'icl8': ViBlockInfo('icl8', 'Icon, 8-bit', _ic, _lk, '1024 B = 32x32 @ 8bpp.'),
-  'icl4': ViBlockInfo('icl4', 'Icon, 4-bit', _ic, _lk, '512 B = 32x32 @ 4bpp.'),
-  'ICON': ViBlockInfo('ICON', 'Icon, 1-bit', _ic, _lk, '128 B = 32x32 @ 1bpp mask.'),
-  'PICC': ViBlockInfo('PICC', 'Icon picture record', _ic, _tt, 'Icon-related; small fixed record.'),
+  'icl8': ViBlockInfo('icl8', 'Icon, 8-bit', _ic, _cf, 'Legacy 32x32 @ 8bpp palette bitmap (1024 B, 7583/7583). See decodeLegacyIcon.'),
+  'icl4': ViBlockInfo('icl4', 'Icon, 4-bit', _ic, _cf, 'Legacy 32x32 @ 4bpp palette bitmap (512 B). See decodeLegacyIcon.'),
+  'ICON': ViBlockInfo('ICON', 'Icon, 1-bit', _ic, _cf, 'Legacy 32x32 @ 1bpp mono bitmap (128 B, 7534). Real bitmap, NOT a name table. See decodeLegacyIcon.'),
+  'PICC': ViBlockInfo('PICC', 'Icon picture record', _ic, _tt, '12-byte icon record (not a bitmap); the colour RGB icon lives under PICC/DSIM/FPHb via extractRgbIcon.'),
   'PICT': ViBlockInfo('PICT', 'Mac PICT image', _im, _lk, 'QuickDraw PICT.'),
 
   // --- Images ---
