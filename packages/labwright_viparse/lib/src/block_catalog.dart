@@ -144,7 +144,7 @@ const Map<String, ViBlockInfo> _catalog = {
   'VICD': ViBlockInfo('VICD', 'VI compiled code', _cc, _cf, 'Machine-code image (e.g. i386); compressed; opaque.'),
 
   // --- Data space ---
-  'DFDS': ViBlockInfo('DFDS', 'Default data space', _ds, _lk, 'Compressed serialized default control/indicator values, type-directed by VCTP. No self-describing header (decompressed body starts with zeros) — decoding needs the VCTP type-size walk; not yet parsed.'),
+  'DFDS': ViBlockInfo('DFDS', 'Default data space', _ds, _lk, 'Compressed serialized default control/indicator values, type-directed by VCTP. Probed + ruled out a simple framing: no count header (first u32==0 only 30%), no length law vs the VCTP pool count (len==H+stride*poolCount <0.5%). Decoding needs a full VCTP type-size walk (future work); not parsed.'),
   'DSIM': ViBlockInfo('DSIM', 'Data-space image', _ds, _lk, 'Uncompressed data-space image, near-constant (1% varied; dominant ~224/218 B, ~2 per VI); content format not yet decoded.'),
   'DSTM': ViBlockInfo('DSTM', 'Data-space (TM)', _ds, _tt, 'Format not yet decoded.'),
 
