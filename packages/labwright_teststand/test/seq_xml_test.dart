@@ -54,6 +54,11 @@ const _seqXml = '''<?xml version="1.0" encoding="UTF-8"?>
                 </Main>
                 <Cleanup classname='Objs'><value lbound='[0]' ubound='[]'/></Cleanup>
                 <Comment classname='Str'><value>a comment</value></Comment>
+                <Locals classname='Obj'><subprops>
+                  <Count classname='Num'><value>3</value></Count>
+                  <Label classname='Str'><value>hi</value></Label>
+                  <ResultList classname='Objs'><value lbound='[0]' ubound='[]'/></ResultList>
+                </subprops></Locals>
               </subprops>
             </Sequence>
           </value>
@@ -127,6 +132,20 @@ void main() {
       expect(s1.precondition, isNull);
       expect(s1.loopType, isNull);
       expect(s1.isLooping, isFalse);
+    });
+
+    test('decodes sequence locals and (empty) parameters', () {
+      final seq = f.sequences.single;
+      expect(seq.locals.map((v) => v.name), ['Count', 'Label', 'ResultList']);
+      final count = seq.locals[0];
+      expect(count.type, 'Num');
+      expect(count.value, '3');
+      expect(seq.locals[1].value, 'hi');
+      final list = seq.locals[2];
+      expect(list.type, 'Objs');
+      expect(list.value, isNull); // array container, no scalar default
+      expect(list.isContainer, isTrue);
+      expect(seq.parameters, isEmpty); // this sequence takes none
     });
 
     test('keeps full property visibility (scalars + attributes)', () {

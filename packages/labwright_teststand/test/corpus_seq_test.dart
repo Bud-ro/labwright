@@ -28,7 +28,7 @@ void main() {
   test('corpus has .seq files', () => expect(seqs, isNotEmpty));
 
   test('every XML .seq parses; binary .seq is classified, not mis-parsed', () {
-    var xml = 0, binary = 0, other = 0, totalSeqs = 0, totalSteps = 0, withAction = 0, withModule = 0;
+    var xml = 0, binary = 0, other = 0, totalSeqs = 0, totalSteps = 0, withAction = 0, withModule = 0, totalLocals = 0;
     final failures = <String>[];
     for (final f in seqs) {
       final bytes = f.readAsBytesSync();
@@ -39,6 +39,7 @@ void main() {
             final sf = parseSeqFile(bytes);
             totalSeqs += sf.sequences.length;
             for (final s in sf.sequences) {
+              totalLocals += s.locals.length;
               for (final step in s.steps) {
                 totalSteps++;
                 if (step.settings.passAction != null) withAction++;
@@ -68,9 +69,10 @@ void main() {
     expect(totalSteps, greaterThan(0), reason: 'XML lens recovered no steps');
     expect(withAction, greaterThan(0), reason: 'no step settings (PassAct) recovered');
     expect(withModule, greaterThan(0), reason: 'no module-adapter bindings recovered');
+    expect(totalLocals, greaterThan(0), reason: 'no sequence locals recovered');
     // ignore: avoid_print
     print('teststand corpus: $xml XML / $binary binary / $other other · '
         '$totalSeqs sequences · $totalSteps steps · $withAction with pass/fail actions · '
-        '$withModule with module bindings');
+        '$withModule with module bindings · $totalLocals locals');
   });
 }

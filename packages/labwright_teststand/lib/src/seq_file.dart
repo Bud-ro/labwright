@@ -53,8 +53,44 @@ class Sequence {
   List<Step> _group(String name) =>
       [for (final s in raw.prop(name)?.array ?? const <SeqProperty>[]) Step(s)];
 
+  /// The sequence's local variables (`Locals`), in declaration order.
+  List<SeqVariable> get locals => _vars('Locals');
+
+  /// The sequence's parameters (`Parameters`), in declaration order. Empty when
+  /// the sequence takes none.
+  List<SeqVariable> get parameters => _vars('Parameters');
+
+  List<SeqVariable> _vars(String group) =>
+      [for (final p in raw.prop(group)?.subProps ?? const <SeqProperty>[]) SeqVariable(p)];
+
   @override
   String toString() => 'Sequence($name, ${steps.length} steps)';
+}
+
+/// A sequence variable — a local or a parameter. Locals/Parameters are property
+/// containers whose sub-properties are the variables, so a variable is just a
+/// property with a name, a type, and an optional default value.
+class SeqVariable {
+  SeqVariable(this.raw);
+
+  /// The underlying property object — full access to the variable's details.
+  final SeqProperty raw;
+
+  String get name => raw.name;
+
+  /// The custom type name (`typename`) if any, else the built-in value-kind
+  /// (`classname`: `Num`, `Str`, `Boolean`, `Obj`, `Objs`, …). null if neither.
+  String? get type => raw.typeName ?? raw.className;
+
+  /// The scalar default value, or null for container/array variables and empty
+  /// values.
+  String? get value => (raw.scalar == null || raw.scalar!.isEmpty) ? null : raw.scalar;
+
+  /// True for an array/object container variable (no scalar value).
+  bool get isContainer => raw.isArray || raw.subProps.isNotEmpty;
+
+  @override
+  String toString() => 'SeqVariable($name : ${type ?? '?'}${value != null ? ' = $value' : ''})';
 }
 
 /// A single step within a sequence group.

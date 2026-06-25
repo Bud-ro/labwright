@@ -114,6 +114,11 @@ refused (not mis-parsed).
   → `Step.module` (`StepModule` + `SeqAdapter` enum). Corpus: 51/121 steps carry
   a recognized binding (the rest are flow-control or NI-measurement-plug-in steps
   whose binding lives outside SData — not yet modeled).
+- **Variables**: a sequence's `Locals` and `Parameters` are `Obj` containers
+  whose sub-properties are the variables (name = tag, kind = `classname`,
+  default = scalar). → `Sequence.locals` / `Sequence.parameters` (`SeqVariable`
+  {name, type, value}). Corpus: 28 locals; `Parameters` are empty in this corpus
+  (so parameter pass-by direction is **not yet observed/recovered**).
 
 ## Honest gaps (do NOT model yet)
 
