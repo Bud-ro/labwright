@@ -287,7 +287,10 @@ void main() {
     expect(find.byWidgetPredicate((w) => deco(w)?.color == const Color(0xFFE3ECF5)), findsNothing);
   });
 
-  testWidgets('a graph indicator shows its recovered plot names as a legend', (tester) async {
+  testWidgets('a graph exposes recovered plot names via tooltip, not a painted legend', (tester) async {
+    // The file already carries the real plot legend as its own positioned
+    // decoration object; we must NOT paint a second one at an invented spot.
+    // Recovered names are surfaced only as a tooltip (an inspector affordance).
     tester.view.physicalSize = const Size(800, 800);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -300,8 +303,12 @@ void main() {
       home: Scaffold(body: FaithfulLayer(objects: [graph], origin: Offset.zero, size: const Size(400, 400))),
     ));
     await tester.pump();
-    expect(find.text('Plot 0'), findsOneWidget);
-    expect(find.text('Plot 1'), findsOneWidget);
+    // No painted legend text on the canvas...
+    expect(find.text('Plot 0'), findsNothing);
+    // ...but the names are recoverable via the tooltip.
+    final tip = tester.widget<Tooltip>(find.byType(Tooltip));
+    expect(tip.message, contains('Plot 0'));
+    expect(tip.message, contains('Plot 1'));
   });
 
   group('structureFrameTitle', () {
