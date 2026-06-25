@@ -103,6 +103,13 @@ void main() {
   });
 
   test('readEmbeddedSections returns LIBN/VINS (word16==0); readViSections excludes them', () {
+    // a REAL nested VI as the VINS payload (a complete RSRC...LVIN container),
+    // so the test exercises the genuine embedded-VI shape, not just RSRC magic.
+    final nested = buildRsrc([
+      (tag: 'vers', sections: [
+        [9, 9],
+      ]),
+    ]);
     final rsrc = buildRsrc([
       (tag: 'vers', sections: [
         [1, 2, 3, 4],
@@ -110,9 +117,7 @@ void main() {
       (tag: 'LIBN', sections: [
         'My.lvlib'.codeUnits,
       ]),
-      (tag: 'VINS', sections: [
-        [0x52, 0x53, 0x52, 0x43, 0xde, 0xad], // "RSRC" magic + a couple bytes
-      ]),
+      (tag: 'VINS', sections: [nested]),
     ], embeddedTags: {'LIBN', 'VINS'});
 
     // primary reader sees only the VI's own data section
@@ -122,7 +127,11 @@ void main() {
     final emb = readEmbeddedSections(rsrc);
     expect(emb.map((s) => '${s.tag}#${s.index}'), ['LIBN#0', 'VINS#0']);
     expect(String.fromCharCodes(emb[0].bytes), 'My.lvlib');
-    expect(emb[1].bytes.sublist(0, 4), [0x52, 0x53, 0x52, 0x43]); // VINS payload is a nested RSRC
+    // the VINS payload is a complete nested VI: RSRC magic @0, LVIN file-type @8,
+    // and it re-parses as its own container.
+    expect(emb[1].bytes.sublist(0, 4), [0x52, 0x53, 0x52, 0x43]);
+    expect(String.fromCharCodes(emb[1].bytes.sublist(8, 12)), 'LVIN');
+    expect(ViContainer.parse(emb[1].bytes).parsedHeader.fileType, 'LVIN');
   });
 
   test('returns bytes as-stored (no inflation at this layer)', () {

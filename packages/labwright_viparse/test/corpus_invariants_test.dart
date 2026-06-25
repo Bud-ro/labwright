@@ -85,16 +85,25 @@ void main() {
       for (final s in secs) {
         if (s.tag == 'VINS') {
           vinsCount++;
-          // an embedded VI: bytes start with the RSRC magic "RSRC".
-          final isRsrc = s.bytes.length >= 4 &&
+          // an embedded VI: a complete nested RSRC...LVIN container — verify the
+          // RSRC magic @0 AND the LVIN file-type tag @8, and that it re-parses.
+          final isRsrc = s.bytes.length >= 12 &&
               s.bytes[0] == 0x52 &&
               s.bytes[1] == 0x53 &&
               s.bytes[2] == 0x52 &&
-              s.bytes[3] == 0x43;
-          if (!isRsrc) {
+              s.bytes[3] == 0x43 &&
+              String.fromCharCodes(s.bytes.sublist(8, 12)) == 'LVIN';
+          var reparses = false;
+          if (isRsrc) {
+            try {
+              ViContainer.parse(s.bytes); // the nested VI is itself a valid container
+              reparses = true;
+            } catch (_) {}
+          }
+          if (!isRsrc || !reparses) {
             vinsNotRsrc++;
           } else if (vinsExamples.length < 3) {
-            vinsExamples.add('${f.path.split('/').last}: VINS#${s.index} ${s.bytes.length}B');
+            vinsExamples.add('${f.path.split('/').last}: VINS#${s.index} ${s.bytes.length}B ${parseVi(s.bytes).name}');
           }
         } else if (s.tag == 'LIBN') {
           libnCount++;
@@ -112,8 +121,8 @@ void main() {
     // The corpus contains both kinds; recovery must surface them.
     expect(vinsCount, greaterThan(0), reason: 'no VINS sections recovered');
     expect(libnCount, greaterThan(0), reason: 'no LIBN sections recovered');
-    // Every recovered VINS is a real nested RSRC; LIBN payloads are text.
-    expect(vinsNotRsrc, 0, reason: 'VINS sections without RSRC magic: $vinsNotRsrc');
+    // Every recovered VINS is a real, re-parseable nested RSRC...LVIN VI; LIBN payloads are text.
+    expect(vinsNotRsrc, 0, reason: 'VINS sections not a re-parseable RSRC...LVIN VI: $vinsNotRsrc');
     expect(libnNotPrintable, 0, reason: 'LIBN sections without printable text: $libnNotPrintable');
   });
 
@@ -476,7 +485,10 @@ void main() {
       }
       files++;
       final sub = c.parsedInfoSubheader;
-      if (sub.reservedA.length >= 12) {
+      // reservedA is exactly 12 bytes == [0,0,0x20] across the corpus.
+      if (sub.reservedA.length != 12) {
+        badA++;
+      } else {
         final d = ByteData.sublistView(sub.reservedA);
         if (d.getUint32(0) != 0 || d.getUint32(4) != 0 || d.getUint32(8) != 0x20) badA++;
       }
@@ -489,9 +501,12 @@ void main() {
     }
     expect(files, greaterThan(0));
     expect(badA, 0, reason: 'reservedA not [0,0,0x20] in $badA files');
-    // reservedB points at the trailing VI name in the overwhelming majority (probe: 7582/7583).
-    expect(nameOffMatch, greaterThan((nameOffChecked * 0.99).floor()),
-        reason: 'reservedB != trailing-name offset: only $nameOffMatch/$nameOffChecked');
+    // reservedB is the authoritative VI-name locator: it points at the trailing
+    // name record in EVERY VI that has one (now that non-ASCII names are recovered
+    // verbatim — D.44). Exact match, and the sample is large.
+    expect(nameOffChecked, greaterThan(1000), reason: 'too few name records checked: $nameOffChecked');
+    expect(nameOffMatch, nameOffChecked,
+        reason: 'reservedB != trailing-name offset: $nameOffMatch/$nameOffChecked');
   });
 
   // NAME-TABLE HEADER: the bytes before the trailing VI name are a small fixed
@@ -499,7 +514,8 @@ void main() {
   // and its size does NOT scale with the section nameRef indices — confirming it
   // is NOT the name table nameRef points into.
   test('INFO-AREA: name-table header is a fixed 12-byte struct, unrelated to nameRef', () {
-    var files = 0, twelve = 0, scalesWithRef = 0;
+    var files = 0, twelve = 0;
+    var highRefFiles = 0, highRefHeader12 = 0, maxHeaderAtHighRef = 0, maxRefSeen = 0;
     for (final f in all) {
       final Uint8List bytes;
       try {
@@ -525,14 +541,24 @@ void main() {
         }
       }
       final maxRef = ia.descriptors.where((x) => x.isNamed).fold<int>(0, (a, x) => a > x.nameRef ? a : x.nameRef);
-      // if the header were a per-name table it would have to be at least ~maxRef
-      // bytes; it is not (stays 12) — count any case that would contradict that.
-      if (maxRef > 12 && hdr.length >= maxRef) scalesWithRef++;
+      if (maxRef > maxRefSeen) maxRefSeen = maxRef;
+      // DISPROOF that the header IS the nameRef table: where nameRef indexes are
+      // large (>100), the header must NOT grow to hold them — it stays ~12 bytes,
+      // i.e. far smaller than maxRef. (Were it the table, length would track maxRef.)
+      if (maxRef > 100) {
+        highRefFiles++;
+        if (hdr.length == 12) highRefHeader12++;
+        if (hdr.length > maxHeaderAtHighRef) maxHeaderAtHighRef = hdr.length;
+      }
     }
     expect(files, greaterThan(0));
-    // overwhelmingly the fixed 12-byte header (probe: 7582/7583).
-    expect(twelve, greaterThan((files * 0.99).floor()), reason: 'name-table header not ~always 12 bytes: $twelve/$files');
-    expect(scalesWithRef, 0, reason: 'name-table header size scaled with nameRef in $scalesWithRef files (would be the name table)');
+    // the header is the fixed 12 bytes in EVERY VI (D.44 fixed the lone non-ASCII
+    // false positive that previously inflated one header to 44 bytes).
+    expect(twelve, files, reason: 'name-table header not always 12 bytes: $twelve/$files');
+    // and the corpus exercises large nameRef indices, where the header stays tiny.
+    expect(highRefFiles, greaterThan(0), reason: 'no high-nameRef files to disprove with (maxRef seen: $maxRefSeen)');
+    expect(highRefHeader12, highRefFiles,
+        reason: 'header grew with nameRef ($highRefHeader12/$highRefFiles stayed 12; max header at high ref: $maxHeaderAtHighRef, maxRef: $maxRefSeen)');
   });
 
   // DESCRIPTOR @16 IS BINARY: across the corpus every section descriptor's @16
@@ -542,7 +568,7 @@ void main() {
   // confirming it is an index, not a byte offset.
   test('INFO-AREA: descriptor @16 is binary (0xFFFFFFFF | 0); nameRef is index-like', () {
     var files = 0;
-    var maxNameRef = 0;
+    var maxNameRef = 0, maxInfoLen = 0;
     final badWords = <String>[];
     for (final f in all) {
       final Uint8List bytes;
@@ -551,14 +577,17 @@ void main() {
       } catch (_) {
         continue;
       }
+      final ViContainer c;
       final ViInfoArea ia;
       try {
-        ia = ViContainer.parse(bytes).parsedInfoArea;
+        c = ViContainer.parse(bytes);
+        ia = c.parsedInfoArea;
       } catch (_) {
         continue;
       }
       if (ia.descriptors.isEmpty) continue;
       files++;
+      if (c.infoArea.length > maxInfoLen) maxInfoLen = c.infoArea.length;
       for (final d in ia.descriptors) {
         // @16 must be exactly 0xFFFFFFFF (own data section) or exactly 0 (LIBN/VINS).
         if (d.word16 != ViSectionDescriptor.commonWord16 && d.word16 != 0) {
@@ -571,9 +600,13 @@ void main() {
     }
     expect(files, greaterThan(0));
     expect(badWords, isEmpty, reason: 'descriptor @16 not binary: $badWords');
-    // index-like (not an offset): a generous ceiling well above the probed max
-    // of 360, but far below the byte-offset range a real offset would span.
-    expect(maxNameRef, lessThan(100000), reason: 'nameRef looks like an offset, not an index: max $maxNameRef');
+    // index-like, NOT a byte offset: a real offset into the name region would
+    // scale with the info-area size (which reaches several KB across the corpus),
+    // so it would exceed this small ceiling in larger files. nameRef stays tiny
+    // (probed global max 360) regardless of info size — it is decoupled from bytes.
+    expect(maxInfoLen, greaterThan(4000), reason: 'corpus lacks large info areas to discriminate (max $maxInfoLen)');
+    expect(maxNameRef, lessThan(1000),
+        reason: 'nameRef looks like a byte offset, not an index: max $maxNameRef vs info up to $maxInfoLen');
   });
 
   // NAME TABLE: the typed name table recovers the trailing VI name for ~all VIs,

@@ -335,8 +335,26 @@ ViSummary parseVi(Uint8List bytes) {
     creator: creator,
     formatVersion: formatVersion,
     blocks: blocks,
-    name: _trailingName(bytes),
+    name: _viName(bytes, infoOffset),
   );
+}
+
+/// The VI name, located authoritatively via the subheader's `reservedB`
+/// (`u32 @ infoOffset+0x30`) — the info-relative offset of the trailing
+/// `[u8 len][name]` record. Taken verbatim (so Latin-1/Unicode names decode and
+/// are not dropped), with the printable-only [_trailingName] scan as a fallback.
+String? _viName(Uint8List b, int infoOffset) {
+  if (infoOffset + 0x34 <= b.length) {
+    final rel = ByteData.sublistView(b).getUint32(infoOffset + 0x30);
+    final at = infoOffset + rel;
+    if (at >= 0 && at < b.length) {
+      final len = b[at];
+      if (len > 0 && at + 1 + len == b.length) {
+        return String.fromCharCodes(b.sublist(at + 1));
+      }
+    }
+  }
+  return _trailingName(b);
 }
 
 bool _printableTag(String s) {

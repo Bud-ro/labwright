@@ -124,8 +124,9 @@ class ViInfoSubheader {
   /// `[0x30, blockListRel)` — a `u32` (4 bytes; `blockListRel` is `0x34`
   /// throughout the corpus). Corpus-probed: this is the **info-area-relative
   /// offset of the trailing VI-name record** (`[u8 len][name]` at EOF) — it
-  /// equals that offset in 7582/7583 VIs. See [viNameOffset]. Kept raw to stay
-  /// byte-exact for any non-canonical `blockListRel`.
+  /// equals that offset in all 7583 VIs (it is the authoritative VI-name locator;
+  /// see [viNameOffset], used by [ViNameTable.parse]). Kept raw to stay byte-exact
+  /// for any non-canonical `blockListRel`.
   final Uint8List reservedB;
 
   /// The constant marker word of [reservedA] (`u32 @8`, i.e. info `@0x28`); `0x20`
@@ -332,7 +333,7 @@ class ViSectionDescriptor {
 /// The trailing name is recovered as a typed field. [serialize] reconstructs the
 /// tail byte-exact.
 ///
-/// Corpus-probed (7583 VIs): [header] is exactly **12 bytes** in all but one VI —
+/// Corpus-probed (7583 VIs): [header] is exactly **12 bytes** in every VI —
 /// `[u32 @0 = 0][u32 @4 = a varying value][u32 @8 = 0]` (the only non-zero field
 /// is [headerValue]). Its size does NOT scale with the section `nameRef` indices
 /// (it stays 12 bytes even when the max index is 128), so this header is NOT the
@@ -341,8 +342,8 @@ class ViNameTable {
   ViNameTable({required this.header, required this.trailingNameRecord});
 
   /// Leading bytes of the tail before the trailing VI name. Canonically 12 bytes:
-  /// `[u32 0][u32 headerValue][u32 0]`; a rare larger form exists, so this stays
-  /// a raw span. See [headerValue].
+  /// `[u32 0][u32 headerValue][u32 0]`. Kept as a raw span (no larger form is
+  /// known once the name is located via `viNameOffset`). See [headerValue].
   // TODO(labwright): identify [headerValue]'s meaning (offset/size/signature?).
   final Uint8List header;
 
@@ -354,14 +355,29 @@ class ViNameTable {
   /// trailing name is present.
   final Uint8List trailingNameRecord;
 
-  /// The VI name decoded from [trailingNameRecord], or null.
+  /// The VI name decoded from [trailingNameRecord] (Latin-1: each byte is a code
+  /// point, so accented/Unicode names like `HÜll°` decode correctly), or null.
   String? get trailingName =>
       trailingNameRecord.isEmpty ? null : String.fromCharCodes(trailingNameRecord.sublist(1));
 
-  /// Splits a name-table [tail] into header + trailing Pascal name. Scans
-  /// largest-first for a `u8 len` + `len` printable bytes ending exactly at EOF
-  /// (the trailing VI name); everything before it is the header.
-  factory ViNameTable.parse(Uint8List tail) {
+  /// Splits a name-table [tail] into header + trailing Pascal VI name.
+  ///
+  /// When [nameStart] is given (the authoritative within-tail offset of the name
+  /// record, from the subheader's `viNameOffset`/`reservedB`), the record at that
+  /// offset is taken **verbatim** if it is a `[u8 len]` ending exactly at EOF —
+  /// no printable filter, so names with Latin-1/Unicode bytes are recovered, not
+  /// dropped. Otherwise it falls back to scanning largest-first for a `u8 len` +
+  /// `len` printable bytes ending at EOF (everything before is the header).
+  factory ViNameTable.parse(Uint8List tail, {int? nameStart}) {
+    if (nameStart != null && nameStart >= 0 && nameStart < tail.length) {
+      final len = tail[nameStart];
+      if (len > 0 && nameStart + 1 + len == tail.length) {
+        return ViNameTable(
+          header: Uint8List.fromList(tail.sublist(0, nameStart)),
+          trailingNameRecord: Uint8List.fromList(tail.sublist(nameStart)),
+        );
+      }
+    }
     final start = _trailingPascalStart(tail);
     if (start == null) {
       return ViNameTable(header: Uint8List.fromList(tail), trailingNameRecord: Uint8List(0));
@@ -555,7 +571,11 @@ class ViInfoArea {
         blockList: blockList,
         preGap: ViInfoPreGap.parse(Uint8List.fromList(infoArea.sublist(restStart, restStart + 20))),
         descriptors: [for (var i = 0; i < total; i++) ViSectionDescriptor.parse(infoArea, minStart + i * 20)],
-        nameTable: ViNameTable.parse(Uint8List.fromList(infoArea.sublist(maxEnd))),
+        // The subheader's reservedB (viNameOffset) authoritatively locates the
+        // trailing VI-name record — pass it (tail-relative) so non-ASCII names
+        // are recovered verbatim rather than dropped by the printable-only scan.
+        nameTable: ViNameTable.parse(Uint8List.fromList(infoArea.sublist(maxEnd)),
+            nameStart: subheader.viNameOffset == null ? null : subheader.viNameOffset! - maxEnd),
       );
     }
     // Fallback: keep the whole remainder raw so serialize() stays byte-exact.
