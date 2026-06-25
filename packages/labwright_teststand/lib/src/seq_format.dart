@@ -1,0 +1,152 @@
+import 'dart:typed_data';
+
+/// The on-disk encoding of a TestStand file (`.seq`, type palette, etc.).
+///
+/// TestStand 4.0+ can save a sequence file in three encodings — **binary, XML,
+/// INI** — for the *same* logical content (sequences + types + globals). This
+/// catalog is the single documented source of truth for telling them apart; each
+/// value records how it is recognized and the confidence of that rule (clean-room
+/// RE from real files — see `packages/labwright_teststand/NOTES.md`).
+enum SeqFormat {
+  /// XML text: an optional UTF-8 BOM (`EF BB BF`) then `<?xml …?>`, whose root is
+  /// `<teststandfileheader type='…' fileversion='…' productname='TestStand'>`.
+  /// Text, self-describing, directly parseable. **Confirmed** (M0: NI example
+  /// sequences, fileversion 920/962).
+  xml,
+
+  /// NI's proprietary flat binary container. Magic = ASCII **`TOF1`** at offset 0
+  /// (NOT Microsoft OLE2/CFBF — that earlier guess is ruled out). The file-type
+  /// token (e.g. `SequenceFile`) is a NUL-terminated ASCII string at offset 0x0A.
+  /// **Confirmed** (M0: real-world + TS2017/2019 example sequences). The record
+  /// grammar after the header is not yet decoded.
+  binary,
+
+  /// Legacy INI text (TestStand 3.x and earlier; NI has deprecated saving in it).
+  /// **Inferred** — recognized heuristically (INI sections + a TestStand marker);
+  /// not yet verified against a real sample in the corpus, so treat as low
+  /// confidence until one is added.
+  ini,
+
+  /// Not recognized as any known TestStand encoding.
+  unknown;
+
+  /// True for the two text encodings (viewable without the TestStand engine).
+  bool get isText => this == xml || this == ini;
+}
+
+/// ASCII `TOF1` — the binary container magic, at offset 0.
+const _tof1 = [0x54, 0x4f, 0x46, 0x31];
+const _utf8Bom = [0xef, 0xbb, 0xbf];
+
+/// Classifies [bytes] as a TestStand file encoding from its header alone — total
+/// over arbitrary input (never throws; returns [SeqFormat.unknown] when unsure).
+SeqFormat detectSeqFormat(Uint8List bytes) {
+  if (_startsWith(bytes, _tof1)) return SeqFormat.binary;
+
+  var i = _startsWith(bytes, _utf8Bom) ? 3 : 0;
+  while (i < bytes.length && _isAsciiWs(bytes[i])) {
+    i++;
+  }
+  if (i < bytes.length && bytes[i] == 0x3c) {
+    // '<' — XML/markup. Confirm it's a TestStand file, not arbitrary XML.
+    final head = _asciiPeek(bytes, i, 4096).toLowerCase();
+    if (head.startsWith('<?xml') || head.contains('<teststandfileheader')) {
+      return SeqFormat.xml;
+    }
+  }
+  if (i < bytes.length && bytes[i] == 0x5b) {
+    // '[' — possible INI section. Require a TestStand marker to avoid false hits.
+    final head = _asciiPeek(bytes, i, 4096);
+    if (head.contains('TestStand') || head.toLowerCase().contains('teststand')) {
+      return SeqFormat.ini;
+    }
+  }
+  return SeqFormat.unknown;
+}
+
+/// What [detectSeqHeader] recovers from a file header. Fields are null when the
+/// encoding doesn't carry them or they aren't yet decoded — never fabricated.
+class SeqFileHeader {
+  const SeqFileHeader({
+    required this.format,
+    this.fileType,
+    this.productName,
+    this.fileVersion,
+  });
+
+  final SeqFormat format;
+
+  /// The declared file kind, e.g. `SequenceFile`, `TypePaletteFile`. For [xml]
+  /// it's the `type` attribute; for [binary] the NUL-terminated token at 0x0A.
+  final String? fileType;
+
+  /// The producing product, e.g. `TestStand` (XML `productname`).
+  final String? productName;
+
+  /// The format/engine version stamp, e.g. `920`, `962` (XML `fileversion`).
+  final String? fileVersion;
+
+  @override
+  String toString() => 'SeqFileHeader($format, type=$fileType, '
+      'product=$productName, version=$fileVersion)';
+}
+
+final _attr = <String, RegExp>{
+  'type': RegExp("type=['\"]([^'\"]*)['\"]"),
+  'fileversion': RegExp("fileversion=['\"]([^'\"]*)['\"]"),
+  'productname': RegExp("productname=['\"]([^'\"]*)['\"]"),
+};
+
+/// Reads the header of [bytes] — total over arbitrary input.
+SeqFileHeader detectSeqHeader(Uint8List bytes) {
+  final fmt = detectSeqFormat(bytes);
+  switch (fmt) {
+    case SeqFormat.xml:
+    case SeqFormat.ini:
+      final head = _asciiPeek(bytes, 0, 8192);
+      return SeqFileHeader(
+        format: fmt,
+        fileType: _attr['type']!.firstMatch(head)?.group(1),
+        productName: _attr['productname']!.firstMatch(head)?.group(1),
+        fileVersion: _attr['fileversion']!.firstMatch(head)?.group(1),
+      );
+    case SeqFormat.binary:
+      // The file-type token is a NUL-terminated ASCII string at offset 0x0A.
+      return SeqFileHeader(format: fmt, fileType: _cString(bytes, 0x0a));
+    case SeqFormat.unknown:
+      return const SeqFileHeader(format: SeqFormat.unknown);
+  }
+}
+
+bool _startsWith(Uint8List b, List<int> sig) {
+  if (b.length < sig.length) return false;
+  for (var i = 0; i < sig.length; i++) {
+    if (b[i] != sig[i]) return false;
+  }
+  return true;
+}
+
+bool _isAsciiWs(int c) => c == 0x20 || c == 0x09 || c == 0x0a || c == 0x0d;
+
+/// Decodes up to [len] bytes from [start] as ASCII for header sniffing (bytes
+/// ≥ 0x80 become '.'), stopping at the buffer end.
+String _asciiPeek(Uint8List b, int start, int len) {
+  final end = (start + len) < b.length ? (start + len) : b.length;
+  final sb = StringBuffer();
+  for (var i = start; i < end; i++) {
+    final c = b[i];
+    sb.writeCharCode(c < 0x80 ? c : 0x2e);
+  }
+  return sb.toString();
+}
+
+/// Reads a NUL-terminated printable-ASCII string at [start]; null if none.
+String? _cString(Uint8List b, int start) {
+  if (start >= b.length) return null;
+  final sb = StringBuffer();
+  for (var i = start; i < b.length && b[i] != 0; i++) {
+    if (b[i] < 0x20 || b[i] > 0x7e) return sb.isEmpty ? null : sb.toString();
+    sb.writeCharCode(b[i]);
+  }
+  return sb.isEmpty ? null : sb.toString();
+}

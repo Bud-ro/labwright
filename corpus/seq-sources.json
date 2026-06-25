@@ -1,0 +1,60 @@
+{
+  "_comment": "Pinned, reproducible TestStand corpus catalog (mirrors sources.json for the VI corpus). The .seq/config files are NOT committed (clean-room + licensing); fetch them with `dart run packages/labwright_teststand/tool/fetch_seq_corpus.dart` into the gitignored seq-corpus/ at the repo root. Each source is pinned to a commit. `encoding` records the on-disk format observed during M0 reconnaissance (xml | binary-TOF1 | mixed); see packages/labwright_teststand/NOTES.md.",
+  "extensions": [".seq", ".ini", ".cfg", ".tsw", ".tpj"],
+  "sources": [
+    {
+      "repo": "ni/grpc-teststand-api",
+      "commit": "bffa744c44dfcd45847898da813104855f2401c4",
+      "encoding": "xml",
+      "note": "NI canonical example sequences (LoadError/LoopForever/RunTimeError/StepResults/Test/TraceExecution); XML, fileversion 920."
+    },
+    {
+      "repo": "ni/measurement-plugin-python",
+      "commit": "145feccdee6e7163f6527af3c4d4d79f23857ad4",
+      "encoding": "xml",
+      "note": "Modern measurement-plug-in example sequences; XML, fileversion 962."
+    },
+    {
+      "repo": "ni/measurement-plugin-labview",
+      "commit": "8229e64d0375c5b22bab7a5a74f1311af7698146",
+      "encoding": "xml",
+      "note": "LabVIEW measurement-plug-in example sequences (DMM/SCOPE/FGEN/VISA/...); XML."
+    },
+    {
+      "repo": "NIVeriStandAdd-Ons/VeriStand-steps-for-TestStand",
+      "commit": "5e2d8d85ef39d059eae043ba559d653e0c4f0523",
+      "encoding": "mixed",
+      "note": "Parent/child subsequences, references, async-task examples + test sequences."
+    },
+    {
+      "repo": "joshuaprewitt/teststand-executor",
+      "commit": "690241b668927d685f2ddf4bacc95a06059f64ec",
+      "encoding": "binary-TOF1",
+      "note": "Full NI shipped examples (Computer Motherboard Tests, Power Test) for TS2017/TS2019; binary TOF1."
+    },
+    {
+      "repo": "425J/SeqEditQuickDrop",
+      "commit": "94cdf5f7cc0b7b87d9cab369d0461f48e50aba53",
+      "encoding": "mixed",
+      "note": "Sequence-editor QuickDrop add-on: installer/front-end-callbacks/quickdrop sequences."
+    },
+    {
+      "repo": "bienieck/TestStandPlugins_Presentation",
+      "commit": "28862d3ed18bd0dfa83893257e9dfea51a3e230f",
+      "encoding": "binary-TOF1",
+      "note": "Result-processor plug-in sequence; binary TOF1, TS2019."
+    },
+    {
+      "repo": "KMurphs/teststand-user-interfaces",
+      "commit": "3566c35ee134da142bf69b0a9227387c117b26a4",
+      "encoding": "mixed",
+      "note": "Sample test sequence driving a custom UI."
+    },
+    {
+      "repo": "caizikun/Teststand_Git",
+      "commit": "9b7088c95cd2c2c34fe187ca1247f0278d47ce6a",
+      "encoding": "binary-TOF1",
+      "note": "Real-world (non-NI) project: 50+ binary TOF1 subsequences (frequency/voltage/current/power), good diversity beyond NI examples."
+    }
+  ]
+}

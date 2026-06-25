@@ -12,6 +12,7 @@ workspace:
   - packages/labwright_tdms
   - packages/labwright_viparse
   - packages/labwright_videcode
+  - packages/labwright_teststand
   - packages/labwright_traceability
   - packages/labwright_daq
   - packages/labwright_fuzz

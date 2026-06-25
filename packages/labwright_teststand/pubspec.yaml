@@ -1,0 +1,12 @@
+name: labwright_teststand
+description: Clean-room reader for NI TestStand sequence (.seq) and related files.
+publish_to: none
+version: 0.0.1
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dev_dependencies:
+  lints: ^5.0.0
+  test: ^1.25.0

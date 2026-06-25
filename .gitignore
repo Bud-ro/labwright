@@ -26,3 +26,7 @@ zig-out/
 # Reproduce with `dart run packages/labwright_videcode/tool/fetch_corpus.dart`.
 # Kept at the repo root (not /tmp) for visibility into what tests/probes consume.
 /vi-corpus/
+
+# Fetched TestStand corpus — same clean-room + licensing reason as vi-corpus.
+# Reproduce with `dart run packages/labwright_teststand/tool/fetch_seq_corpus.dart`.
+/seq-corpus/
