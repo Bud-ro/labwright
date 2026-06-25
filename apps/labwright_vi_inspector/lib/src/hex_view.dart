@@ -39,7 +39,22 @@ class _BlockHexViewState extends State<BlockHexView> {
       try {
         final w = walkHeapBody(b);
         _walk = w;
-        _records = [for (final s in w.spans) _classify(b, s, widget.section.tag)];
+        _records = [
+          // The heap stream opens with a u32 big-endian content-length header
+          // (= record-stream bytes that follow = decompressed size − 4). The walk
+          // proper begins at offset 4; annotate the header so no byte is unlabeled.
+          if (b.length >= 4)
+            _SpanInfo(
+              offset: 0,
+              length: 4,
+              lead: b[0],
+              color: _cHeader,
+              title: 'Heap content length (u32)',
+              detail: 'Big-endian u32 = ${_u32(b, 0)} bytes: the size of the record stream that '
+                  'follows (= decompressed heap size − 4). The bracket-tree walk begins at offset 4.',
+            ),
+          for (final s in w.spans) _classify(b, s, widget.section.tag),
+        ];
       } catch (_) {
         _records = const [];
       }
@@ -309,7 +324,9 @@ class _SpanInfo {
 }
 
 int _u16(List<int> b, int p) => (b[p] << 8) | b[p + 1];
+int _u32(List<int> b, int p) => (b[p] << 24) | (b[p + 1] << 16) | (b[p + 2] << 8) | b[p + 3];
 
+const _cHeader = Color(0xFFD08BB0);
 const _cObject = Color(0xFF9E7BE0);
 const _cGroup = Color(0xFF8A8A8A);
 const _cRect = Color(0xFF5C9BD6);

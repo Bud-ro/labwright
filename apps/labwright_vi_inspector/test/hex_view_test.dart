@@ -39,6 +39,19 @@ void main() {
     expect(find.text('Hi'), findsOneWidget);
   });
 
+  testWidgets('hex view labels the heap content-length header (no unexplained leading bytes)', (tester) async {
+    final records = <int>[0x08, 0x19]; // a minimal group-close record stream
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: BlockHexView(section: _section(records)))));
+    await tester.pump();
+
+    // the 4-byte u32 length prefix is now annotated (previously unexplained)
+    expect(find.textContaining('Heap content length'), findsOneWidget);
+    await tester.tap(find.textContaining('Heap content length').first);
+    await tester.pump();
+    // detail explains it is the record-stream size (here == records.length == 2)
+    expect(find.textContaining('= 2 bytes'), findsOneWidget);
+  });
+
   testWidgets('hex view surfaces the newest decoded forms (property name, help text, control min)', (tester) async {
     final records = <int>[
       0x10, 0x19, 0x02, 0xfe, 0x00, 0x50, 0xfd, 0x00, 0x01, // object header
