@@ -46,6 +46,8 @@ void main() {
 
     // the 4-byte u32 length prefix is now annotated (previously unexplained)
     expect(find.textContaining('Heap content length'), findsOneWidget);
+    // the size shows INLINE in the row (a preview, like a colour swatch) — no click needed
+    expect(find.text('2 B'), findsOneWidget);
     await tester.tap(find.textContaining('Heap content length').first);
     await tester.pump();
     // detail explains it is the record-stream size (here == records.length == 2)

@@ -52,6 +52,7 @@ class _BlockHexViewState extends State<BlockHexView> {
               title: 'Heap content length (u32)',
               detail: 'Big-endian u32 = ${_u32(b, 0)} bytes: the size of the record stream that '
                   'follows (= decompressed heap size − 4). The bracket-tree walk begins at offset 4.',
+              inlinePreview: '${_u32(b, 0)} B',
             ),
           for (final s in w.spans) _classify(b, s, widget.section.tag),
         ];
@@ -266,6 +267,12 @@ class _BlockHexViewState extends State<BlockHexView> {
                   style: const TextStyle(color: Colors.grey, fontFamily: 'monospace', fontSize: 11)),
             ),
             Expanded(child: Text(r.title, style: const TextStyle(fontSize: 12.5), overflow: TextOverflow.ellipsis)),
+            if (r.inlinePreview != null)
+              Padding(
+                padding: const EdgeInsets.only(left: 6),
+                child: Text(r.inlinePreview!,
+                    style: const TextStyle(fontSize: 11.5, color: Colors.grey, fontFamily: 'monospace')),
+              ),
             if (r.swatch != null)
               Container(width: 14, height: 14, decoration: BoxDecoration(color: r.swatch, borderRadius: BorderRadius.circular(2), border: Border.all(color: Colors.black26))),
           ],
@@ -312,6 +319,7 @@ class _SpanInfo {
     required this.detail,
     this.swatch,
     this.display,
+    this.inlinePreview,
   });
   final int offset;
   final int length;
@@ -321,6 +329,11 @@ class _SpanInfo {
   final String detail;
   final Color? swatch;
   final Widget? display;
+
+  /// A short value shown inline in the record row (right-aligned) — a "preview"
+  /// of the decoded value (e.g. a size/count) so it is legible without selecting
+  /// the row, mirroring the colour swatch for colour records.
+  final String? inlinePreview;
 }
 
 int _u16(List<int> b, int p) => (b[p] << 8) | b[p + 1];
@@ -338,8 +351,17 @@ const _cOther = Color(0xFFB0B0B0);
 
 _SpanInfo _classify(Uint8List b, HeapSpan s, String tag) {
   final o = s.offset, lead = s.lead, len = s.length;
-  _SpanInfo make(Color c, String title, String detail, {Color? swatch, Widget? display}) =>
-      _SpanInfo(offset: o, length: len, lead: lead, color: c, title: title, detail: detail, swatch: swatch, display: display);
+  _SpanInfo make(Color c, String title, String detail, {Color? swatch, Widget? display, String? inlinePreview}) =>
+      _SpanInfo(
+          offset: o,
+          length: len,
+          lead: lead,
+          color: c,
+          title: title,
+          detail: detail,
+          swatch: swatch,
+          display: display,
+          inlinePreview: inlinePreview);
 
   // Object header: 10/11/12 02 fe <kind> fd <oid>
   if ((lead == 0x10 || lead == 0x11 || lead == 0x12) && o + 9 <= b.length && b[o + 2] == 0x02 && b[o + 3] == 0xfe && b[o + 6] == 0xfd) {
@@ -358,24 +380,32 @@ _SpanInfo _classify(Uint8List b, HeapSpan s, String tag) {
     final val = prop.value == null ? '' : ' = ${prop.value}';
     return make(_cAttr, '$hexpair · ${t.tokenName}', 'Object property$val$conf.');
   }
-  // Group open / close (bracket tree). The 2nd byte is the group's TAG: a close
-  // carries the SAME tag as its matching open (98.4% across the corpus), and its
-  // lead encodes the same group family as the open minus 0x08
-  // (0x08←0x10, 0x09←0x11, 0x0a←0x12). The walk otherwise pops the innermost open
-  // positionally; a handful of closes (~0.02%) have no tracked open (implicit).
+  // Group open / close (bracket tree). What MAKES a group: a record
+  // <10|11|12|13> <subop> <count> <type-tag> where the byte at +3 is a type tag
+  // (fb/fe/fd) — that type tag is the discriminator (a 0x10/0x11 WITHOUT it is a
+  // property token, not a group). The matching close is the open's lead − 0x08
+  // (0x08←0x10, 0x09←0x11, 0x0a←0x12) carrying the same subop tag — STRUCTURAL,
+  // not coincidence: corpus-measured 99.99% on the lead and 99.8% on the tag, with
+  // the tree ~99.93% balanced (the rest pop the innermost open positionally).
   String _hx(int v) => '0x${v.toRadixString(16).padLeft(2, '0')}';
   if (lead == 0x10 || lead == 0x11 || lead == 0x12 || lead == 0x13) {
-    final tag = o + 1 < b.length ? b[o + 1] : -1;
-    return make(_cGroup, 'Group open · tag ${_hx(tag)}',
-        'Opens a typed-list / object group (bracket-tree node), tag ${_hx(tag)}. Its matching '
-        'close (lead ${_hx(lead - 0x08)}) carries the same tag.');
+    final hasTypeTag = o + 3 < b.length && (b[o + 3] == 0xfb || b[o + 3] == 0xfe || b[o + 3] == 0xfd);
+    if (hasTypeTag) {
+      final tag = o + 1 < b.length ? b[o + 1] : -1;
+      return make(_cGroup, 'Group open · tag ${_hx(tag)}',
+          'Opens a bracket-tree group: ${_hx(lead)} subop count ${_hx(b[o + 3])}(type tag). The '
+          'type tag at +3 (fb/fe/fd) is what makes this a GROUP rather than a property token. Its '
+          'matching close is lead ${_hx(lead - 0x08)} (open − 0x08) carrying the same tag ${_hx(tag)} '
+          '— structural (corpus: 99.99% lead, 99.8% tag).');
+    }
+    // No type tag at +3 → this is not a group open; fall through to generic classification.
   }
   if (lead == 0x08 || lead == 0x09 || lead == 0x0a || lead == 0x0b) {
     final tag = o + 1 < b.length ? b[o + 1] : -1;
     return make(_cGroup, 'Group close · tag ${_hx(tag)}',
-        'Closes the group opened with the same tag ${_hx(tag)} (matching open lead '
-        '${_hx(lead + 0x08)}; ~98% tag-paired across the corpus, else the innermost open is '
-        'popped positionally).');
+        'Closes the group whose open lead is ${_hx(lead + 0x08)} (open − 0x08) and which carries '
+        'the same tag ${_hx(tag)}. The pairing is structural (corpus: 99.99% lead, 99.8% tag); '
+        'otherwise the innermost open is popped positionally (~0.07% of closes have no tracked open).');
   }
   // Typed object reference: 14 <subop> 01 fd <oid> (the heap's object graph).
   final ref = decodeHeapRef(b, o);
