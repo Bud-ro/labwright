@@ -276,13 +276,17 @@ class ViSectionDescriptor {
 
   /// `u32 @12` — a **1-based index into a VI-wide name table** for the section
   /// (`0` ⇒ unnamed; non-zero for ~25% of sections). Probed over all 7583 corpus
-  /// VIs: values are small (global max 360) and equal names share an index, so
-  /// this is an *index*, not an inline byte offset. It is also NOT an index into
-  /// the descriptor array — it exceeds the descriptor/section count in ~12% of
-  /// named sections — so the name table is a separate structure.
-  // TODO(labwright): locate the name table's bytes. Ruled out: the post-descriptor
-  // region (too small) and any section payload as a plain `[u32 count][pascal…]`
-  // list (no section parses as one). Likely embedded in the heap/type metadata.
+  /// VIs: values are small (global max 360), and distinct sections SHARE an index
+  /// (e.g. a type record and its data-space twin both reference the same name), so
+  /// this is a *shared index*, not an inline byte offset. It is NOT an index into
+  /// the descriptor array (it exceeds the descriptor/section count in ~12% of named
+  /// sections), so the name table is a separate structure.
+  // TODO(labwright): locate the name table's bytes. RULED OUT: the post-descriptor
+  // region (too small); any section payload as a flat `[u32 count][pascal…]` list
+  // (a full-section scan finds no contiguous pascal pool anywhere); and the VCTP
+  // type-name list by index (TRec-format VIs recover no VCTP names, and named-type
+  // count >= maxNameRef in only ~5% of VIs). Likely embedded/interleaved in the
+  // heap object graph or link-info, not a flat table.
   final int nameRef;
 
   /// `u32 @16` — a per-section word, exactly binary across the full corpus:
