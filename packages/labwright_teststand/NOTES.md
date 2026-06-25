@@ -125,6 +125,11 @@ refused (not mis-parsed).
   `corpus/seq/REPORT.md`. Current: **11.3% (1581/14016 nodes)** — the rest (deep
   `TS` step config, `Result`/`Measurement` subtrees) is still raw `SeqProperty`,
   the frontier to grow. The analog of the VI "% semantically decoded".
+- **Viewer (M4)**: `dumpSeqFile(SeqFile)` (`seq_dump.dart`) renders a
+  sequence-editor-like text view — header, each sequence's params/locals, then
+  Setup/Main/Cleanup steps as `name [type] -> adapter: target (flow; loop; if)`.
+  `tool/dump.dart [path]` prints it (auto-picks a corpus file). Honest: shows
+  `(none)` / omits null fields, never fabricates.
 
 ## Honest gaps (do NOT model yet)
 

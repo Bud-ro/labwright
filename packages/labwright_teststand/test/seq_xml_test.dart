@@ -148,6 +148,22 @@ void main() {
       expect(seq.parameters, isEmpty); // this sequence takes none
     });
 
+    test('dumpSeqFile renders a faithful text view', () {
+      final out = dumpSeqFile(f);
+      expect(out, contains('SequenceFile'));
+      expect(out, contains('Sequence: MainSequence'));
+      // step names
+      expect(out, contains('Pass & go [Statement]'));
+      expect(out, contains('Call Sleep [Action]'));
+      // module targets
+      expect(out, contains(r'labView: My Computer\Foo.vi'));
+      expect(out, contains('cModule: kernel32.dll:Sleep'));
+      // settings + locals
+      expect(out, contains('loop FixedNumLoops'));
+      expect(out, contains('if Locals.X == 1'));
+      expect(out, contains('Count : Num = 3'));
+    });
+
     test('measures model coverage (modeled subset of total nodes)', () {
       final c = measureCoverage(f);
       expect(c.total, greaterThan(0));
