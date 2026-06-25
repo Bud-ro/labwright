@@ -573,13 +573,31 @@ class _BlockHexViewState extends State<BlockHexView> {
       case 'LVSR':
         span(0, 4, _cObject, 'Version word (u32)', 'BCD major · minor<<4|patch · stage · build (== vers word). See decodeSaveRecord.',
             preview: '0x${_u32(b, 0).toRadixString(16)}');
+        // The remaining u32 words are low-cardinality LVSR config/flags fields
+        // (one value dominates 90-99% of the corpus, or a bitmask). Framed as
+        // config/flags words showing their actual value; exact bit meaning is
+        // not claimed (left as not-yet-decoded).
+        for (final r in const [
+          [4, 52],
+          [68, 80],
+          [112, 120],
+          [136, 144],
+        ]) {
+          for (var o = r[0]; o + 4 <= r[1] && o + 4 <= b.length; o += 4) {
+            span(o, 4, _cGroup, 'Config/flags word (u32) @$o',
+                'A low-cardinality LVSR config/flags word; exact bit meaning not yet decoded.',
+                preview: '0x${_u32(b, o).toRadixString(16)}');
+          }
+        }
         span(52, 16, _cObject, 'Per-VI value A (16B)',
             'A 16-byte value that varies per VI (≈6920 distinct across the corpus); role not yet decoded.');
         span(80, 16, _cObject, 'Per-VI value B (16B)',
             'A second 16-byte per-VI value (≈6920 distinct across the corpus); role not yet decoded.');
         span(96, 16, _cRect, 'BD password hash (16B)', 'Block-diagram password hash; mirrors the BDPW block. Empty-password default = d41d8cd9…');
+        span(120, 16, _cObject, 'Per-VI value C (16B)',
+            'A third 16-byte per-VI value (≈6854 distinct across the corpus); role not yet decoded.');
         span(144, 16, _cRect, 'Secondary hash (16B)', 'A second hash/checksum slot (role not fully decoded).');
-        // bytes 4..52, 68..80, 112..144, 160.. are flag/enum words not yet field-decoded -> _fillGaps marks them.
+        // With these, the 160-byte and 136-byte LVSR forms (~97% of the corpus) frame fully.
       case 'CONP':
       case 'CPC2':
         if (b.length == 2) {

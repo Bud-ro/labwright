@@ -145,7 +145,7 @@ void main() {
     expect(find.textContaining('Undecoded'), findsWidgets);
   });
 
-  testWidgets('an LVSR block is annotated per byte (version word + hashes + undecoded gaps)', (tester) async {
+  testWidgets('an LVSR block frames every byte (version + config words + per-VI values + hashes)', (tester) async {
     tester.view.physicalSize = const Size(1000, 1400);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -153,12 +153,16 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: BlockHexView(section: lvsr))));
     await tester.pump();
     expect(find.textContaining('Version word'), findsOneWidget);
+    expect(find.textContaining('Config/flags word'), findsWidgets);
     expect(find.textContaining('Per-VI value A'), findsOneWidget);
     expect(find.textContaining('Per-VI value B'), findsOneWidget);
+    expect(find.textContaining('Per-VI value C'), findsOneWidget);
     expect(find.textContaining('BD password hash'), findsOneWidget);
     expect(find.textContaining('Secondary hash'), findsOneWidget);
-    // the flag/id bytes between known fields are honestly marked, not hidden
-    expect(find.textContaining('Undecoded'), findsWidgets);
+    // the standard 160-byte LVSR form now frames every byte (purpose-labeled,
+    // even where deep semantics stay 'not yet decoded') → no Undecoded gaps.
+    expect(find.textContaining('Undecoded'), findsNothing);
+    expect(find.textContaining('100% framed'), findsOneWidget);
   });
 
   testWidgets('an id-table block is annotated per byte (count + each entry)', (tester) async {
@@ -187,14 +191,14 @@ void main() {
     expect(find.textContaining('100% framed'), findsOneWidget);
   });
 
-  testWidgets('the header reports a partial % for a block with undecoded gaps (LVSR)', (tester) async {
+  testWidgets('the header reports a partial % for a block with undecoded gaps (vers)', (tester) async {
     tester.view.physicalSize = const Size(1400, 1400);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
-    // LVSR: only the version word + two 16-byte hash slots are named; the flag/id
-    // bytes are honestly Undecoded → coverage is below 100% and never claims 100.
-    final lvsr = _raw('LVSR', [for (var i = 0; i < 160; i++) 0]..[0] = 0x08..[1] = 0x50);
-    await tester.pumpWidget(MaterialApp(home: Scaffold(body: BlockHexView(section: lvsr))));
+    // vers: the 4-byte version word is framed; the trailing Pascal version string
+    // is honestly Undecoded → coverage is below 100% and never claims 100.
+    final vers = _raw('vers', [0x08, 0x50, 0x80, 0x02, 0x03, ...'8.5'.codeUnits]);
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: BlockHexView(section: vers))));
     await tester.pump();
     expect(find.textContaining('% framed'), findsOneWidget);
     expect(find.textContaining('100% framed'), findsNothing);
