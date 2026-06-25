@@ -482,4 +482,37 @@ void main() {
         reason: 'connector-pane index out of VCTP range in too many VIs ($inRange/$total) — '
             'the index base/encoding may have drifted.');
   });
+
+  // 9. TM80 SHORT-FORM COVERAGE — the decoded TM80 short form (length == 4 +
+  // 2*count, with `count` entries) accounts for a majority of TM80 sections;
+  // assert the coverage and the self-consistency (entries.length == count) so a
+  // decode regression or a coverage drop is caught. (Corpus: 5367/7593 ≈ 70.7%
+  // short-form — VIs typically have ~2 TM80 sections and the other is the larger
+  // not-yet-decoded layout; entry SEMANTICS remain undecoded — not asserted.)
+  test('TM80: the short-form layout covers most type maps and is self-consistent', () {
+    var total = 0, shortForm = 0;
+    for (final f in all) {
+      final List<DecodedSection> dsecs;
+      try {
+        dsecs = decodeSections(f.readAsBytesSync());
+      } catch (_) {
+        continue;
+      }
+      for (final d in dsecs) {
+        if (d.tag != 'TM80') continue;
+        final m = decodeTypeMap(d.bytes);
+        if (m == null) continue;
+        total++;
+        if (m.isShortForm) {
+          shortForm++;
+          // structural self-consistency.
+          expect(m.entries.length, m.count);
+          expect(m.rawLength, 4 + 2 * m.count);
+        }
+      }
+    }
+    expect(total, greaterThan(0));
+    expect(shortForm / total, greaterThan(0.65),
+        reason: 'TM80 short-form coverage dropped to $shortForm/$total (<65%; corpus ≈70.7%).');
+  });
 }
