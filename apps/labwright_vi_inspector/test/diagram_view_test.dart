@@ -284,6 +284,10 @@ void main() {
       expect(o.structuresByKind.containsKey('Diagram root'), isFalse); // excluded
       expect(o.labeledNodes, ['Acquire.vi']); // hint-only primitive carries no caption
       expect(o.nodeCount, 2);
+      // class-confidence histogram covers exactly the listed objects: 3 control-
+      // flow structures (diagram root excluded) + 2 nodes = 5, drawn from the real
+      // catalog ClassConfidence (not invented).
+      expect(o.confidence.values.fold<int>(0, (a, b) => a + b), 5);
     });
 
     test('emits NO wire/edge/dataflow linkage — the no-fabricated-wires honesty contract', () {
@@ -329,6 +333,9 @@ void main() {
     expect(find.text('Control flow:'), findsOneWidget);
     expect(find.text('While loop ×1'), findsOneWidget);
     expect(find.textContaining('Diagram-labeled nodes (1): Acquire.vi'), findsOneWidget);
+    // per-object class-confidence overlay (honest: classification, not dataflow)
+    expect(find.text('Class confidence:'), findsOneWidget);
+    expect(find.textContaining('not dataflow'), findsOneWidget);
     // The no-fabricated-wires honesty contract is enforced at the data layer by
     // the 'computeBdOutline emits NO wire/edge/dataflow linkage' unit test above.
     // (A blunt rendered-text 'wire' guard would wrongly flag the view's HONEST

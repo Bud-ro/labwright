@@ -385,7 +385,7 @@ String? wireframeAnnotation(ViHeapObject o) {
 /// the total node count. Conveys the diagram's control-flow shape at a glance
 /// without claiming any dataflow edges (LabVIEW stores wires as geometry, with no
 /// recoverable node→node endpoints). Pure + public so it is unit-testable.
-({Map<String, int> structuresByKind, List<String> labeledNodes, int nodeCount}) computeBdOutline(
+({Map<String, int> structuresByKind, List<String> labeledNodes, int nodeCount, Map<ClassConfidence, int> confidence}) computeBdOutline(
     Iterable<ViHeapObject> objects) {
   // The diagram canvas/root frames are structures but not control flow — exclude
   // them so the outline reads as actual loops/cases/sequences/containers.
@@ -398,18 +398,24 @@ String? wireframeAnnotation(ViHeapObject o) {
   final byKind = <String, int>{};
   final labeledNodes = <String>[];
   var nodeCount = 0;
+  // How solid each object's CLASS is (catalog ClassConfidence) — a translation-
+  // review aid, NOT a dataflow/execution claim. Tallied over the same control-flow
+  // structures + nodes the outline lists.
+  final confidence = <ClassConfidence, int>{};
   for (final o in objects) {
     if (o.category == ViObjectKind.structure) {
       if (notControlFlow.contains(o.objectClass)) continue;
       final k = structureBadge(o);
       byKind[k] = (byKind[k] ?? 0) + 1;
+      confidence[o.objectClass.confidence] = (confidence[o.objectClass.confidence] ?? 0) + 1;
     } else if (o.category == ViObjectKind.node) {
       nodeCount++;
+      confidence[o.objectClass.confidence] = (confidence[o.objectClass.confidence] ?? 0) + 1;
       final dl = nodeDisplayLabel(o); // (text, isHint) — a caption, not a proven call
       if (!dl.isHint && !labeledNodes.contains(dl.text)) labeledNodes.add(dl.text);
     }
   }
-  return (structuresByKind: byKind, labeledNodes: labeledNodes, nodeCount: nodeCount);
+  return (structuresByKind: byKind, labeledNodes: labeledNodes, nodeCount: nodeCount, confidence: confidence);
 }
 
 /// Control-terminal classes — their internal sub-terminals are scaffolding.
@@ -728,7 +734,7 @@ class _DetailsCard extends StatelessWidget {
 /// nothing when the diagram has no structures or named calls.
 class _BdOutline extends StatelessWidget {
   const _BdOutline({required this.outline, this.linkedSubVis = const []});
-  final ({Map<String, int> structuresByKind, List<String> labeledNodes, int nodeCount}) outline;
+  final ({Map<String, int> structuresByKind, List<String> labeledNodes, int nodeCount, Map<ClassConfidence, int> confidence}) outline;
 
   /// The VI's sub-VI dependency names from the LIbd linker block — recoverable
   /// for ~82% of VIs; a linker dependency list, not a per-node call mapping.
@@ -740,7 +746,9 @@ class _BdOutline extends StatelessWidget {
     final structs = outline.structuresByKind.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     final labeledNodes = outline.labeledNodes;
-    if (structs.isEmpty && labeledNodes.isEmpty && linkedSubVis.isEmpty) return const SizedBox.shrink();
+    if (structs.isEmpty && labeledNodes.isEmpty && linkedSubVis.isEmpty && outline.confidence.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     const muted = TextStyle(fontSize: 12, color: Colors.grey);
     Widget capped(String prefix, List<String> items) => Text(
@@ -771,6 +779,22 @@ class _BdOutline extends StatelessWidget {
               padding: const EdgeInsets.only(top: 2),
               child: capped('Diagram-labeled nodes (${labeledNodes.length})', labeledNodes),
             ),
+          // Per-object CLASS-confidence breakdown (catalog ClassConfidence) — a
+          // translation-review aid showing how solid each classification is, NOT
+          // a dataflow/execution-order claim (wires are not recovered).
+          if (outline.confidence.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Wrap(spacing: 10, runSpacing: 2, crossAxisAlignment: WrapCrossAlignment.center, children: [
+                const Text('Class confidence:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                Text('${outline.confidence[ClassConfidence.confirmed] ?? 0} confirmed', style: muted),
+                Text('${outline.confidence[ClassConfidence.inferred] ?? 0} inferred', style: muted),
+                Text('${outline.confidence[ClassConfidence.kindOnly] ?? 0} guessed', style: muted),
+              ]),
+            ),
+            const Text('(how solid each object’s classification is — not dataflow / execution order)',
+                style: TextStyle(fontSize: 11, color: Colors.grey, fontStyle: FontStyle.italic)),
+          ],
         ],
       ),
     );
