@@ -147,6 +147,7 @@ class _BlockHexViewState extends State<BlockHexView> {
   Widget build(BuildContext context) {
     final b = widget.section.bytes;
     final rows = (b.length + 15) ~/ 16;
+    final fieldCov = _fieldCoverage();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -161,10 +162,15 @@ class _BlockHexViewState extends State<BlockHexView> {
                 child: Text(
                   '${_fmt(b.length)} ${widget.section.wasCompressed ? '(inflated)' : ''} · '
                   '${_records.isEmpty ? 'raw bytes (no record framing)' : '${_records.length} records'}'
-                  '${_walk != null && !_walk!.complete ? ' · walk stopped at 0x${_walk!.stoppedAtOffset!.toRadixString(16)} (lead 0x${_walk!.stoppedLead!.toRadixString(16)}), ${(_walk!.coverage * 100).toStringAsFixed(0)}% framed' : ''}',
+                  '${_walk != null && !_walk!.complete ? ' · walk stopped at 0x${_walk!.stoppedAtOffset!.toRadixString(16)} (lead 0x${_walk!.stoppedLead!.toRadixString(16)}), ${(_walk!.coverage * 100).toStringAsFixed(0)}% framed' : ''}'
+                  '${fieldCov != null ? ' · ${(fieldCov * 100).toStringAsFixed(0)}% framed' : ''}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: _walk != null && !_walk!.complete ? Colors.orange : Colors.grey, fontSize: 12),
+                  style: TextStyle(
+                      color: (_walk != null && !_walk!.complete) || (fieldCov != null && fieldCov < 1.0)
+                          ? Colors.orange
+                          : Colors.grey,
+                      fontSize: 12),
                 ),
               ),
               _copyMenu(context, b),
@@ -340,6 +346,22 @@ class _BlockHexViewState extends State<BlockHexView> {
         ],
       ),
     );
+  }
+
+  /// Byte-coverage of a NON-heap block: the fraction of bytes covered by named
+  /// field spans (excluding the explicit "Undecoded" gap spans). Null for heaps
+  /// (they report the record-walk coverage) and for raw/unannotated blocks.
+  /// Drives the honest "% framed" progress readout toward the every-byte goal.
+  double? _fieldCoverage() {
+    if (_walk != null || _records.isEmpty) return null;
+    final total = widget.section.bytes.length;
+    if (total == 0) return null;
+    var framed = 0;
+    for (final r in _records) {
+      if (r.color == _cUnframed) continue; // skip the "Undecoded (a..b)" gaps
+      framed += r.length;
+    }
+    return framed / total;
   }
 
   /// Decoded fields for a non-heap block whose format we parse — label/value

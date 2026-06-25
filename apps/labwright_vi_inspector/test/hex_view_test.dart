@@ -174,6 +174,30 @@ void main() {
     expect(find.textContaining('Undecoded'), findsNothing);
   });
 
+  testWidgets('the header reports per-block byte coverage: 100% for a fully-framed id table', (tester) async {
+    tester.view.physicalSize = const Size(1400, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    // NUID fully covered by [count][entries] spans → 100% framed in the header.
+    final nuid = _raw('NUID', [0, 0, 0, 2, 0, 0, 0, 0x11, 0, 0, 0, 0x22]);
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: BlockHexView(section: nuid))));
+    await tester.pump();
+    expect(find.textContaining('100% framed'), findsOneWidget);
+  });
+
+  testWidgets('the header reports a partial % for a block with undecoded gaps (LVSR)', (tester) async {
+    tester.view.physicalSize = const Size(1400, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    // LVSR: only the version word + two 16-byte hash slots are named; the flag/id
+    // bytes are honestly Undecoded → coverage is below 100% and never claims 100.
+    final lvsr = _raw('LVSR', [for (var i = 0; i < 160; i++) 0]..[0] = 0x08..[1] = 0x50);
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: BlockHexView(section: lvsr))));
+    await tester.pump();
+    expect(find.textContaining('% framed'), findsOneWidget);
+    expect(find.textContaining('100% framed'), findsNothing);
+  });
+
   testWidgets('a decoded HLPP block shows its recovered help path', (tester) async {
     tester.view.physicalSize = const Size(1000, 1400);
     tester.view.devicePixelRatio = 1.0;
