@@ -174,5 +174,3 @@ Project honesty rule (CLAUDE.md): mark undecoded byte ranges explicitly, say
   variant-c heaps (`FPHc`/`BDHc`) at stop leads `0x2d`/`0x4a`.
 - Live coverage + regression floor: `tool/coverage.dart` → `corpus/baseline.json`
   + gitignored `vi-corpus/REPORT.md`; per-VI feature presence: `corpus/snapshot.json`.
-</content>
-</invoke>

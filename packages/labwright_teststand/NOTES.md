@@ -66,4 +66,3 @@ may exist in both encodings).
 
 Project honesty rule (CLAUDE.md): mark undecoded ranges explicitly; say "not yet
 recovered", never "unrecoverable".
-</content>
