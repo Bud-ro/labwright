@@ -94,12 +94,12 @@ class ViHeader {
   }
 }
 
-/// The fixed prefix of the info area, `[0, blockListRel)` — the next exporter
-/// region modeled field-by-field. The RSRC format repeats the 32-byte file header
-/// at the start of the info area; after it come two reserved words and the
-/// `blockListRel` pointer (`u32 @0x2c`; `0x34` in every VI sampled so far, though
-/// the parser assumes nothing and accepts any in-range value) to
-/// where the block list begins. [serialize] reconstructs the prefix byte-exact.
+/// The fixed prefix of the info area, `[0, blockListRel)` — modeled field-by-field.
+/// The RSRC format repeats the 32-byte file header at the start of the info area;
+/// after it come [reservedA] (`[0,0,0x20]`), the `blockListRel` pointer
+/// (`u32 @0x2c`; `0x34` in every corpus VI, though the parser accepts any in-range
+/// value), and [reservedB] (the info-relative offset of the trailing VI name).
+/// [serialize] reconstructs the prefix byte-exact.
 class ViInfoSubheader {
   ViInfoSubheader({
     required this.headerCopy,
@@ -111,19 +111,32 @@ class ViInfoSubheader {
   /// `[0:32]` — a duplicate of the file's [ViHeader] (the RSRC dual-header).
   final ViHeader headerCopy;
 
-  /// `[32:44]` — words between the dup header and `blockListRel`; meaning not yet
-  /// recovered. Observed zero in sampled VIs, but this is NOT asserted across the
-  /// corpus (the round-trip test copies these bytes verbatim, so it is content-
-  /// agnostic). Kept raw and re-emitted exactly.
-  // TODO(labwright): identify these 12 bytes.
+  /// `[32:44]` — three `u32`s between the dup header and `blockListRel`.
+  /// Corpus-probed (7583 VIs): `[u32 0][u32 0][u32 0x20]` — the first two are
+  /// always zero and the third is the constant `0x20` (=32). See [reservedAMarker].
+  /// Kept raw (re-emitted exactly); the constant is not asserted in [parse].
+  // TODO(labwright): identify the `0x20` marker's meaning (a fixed size/version?).
   final Uint8List reservedA;
 
   /// `u32 @0x2c` — offset (info-area-relative) where the block list begins.
   final int blockListRel;
 
-  /// `[0x30, blockListRel)` — trailing reserved word(s) before the block list.
-  // TODO(labwright): identify these bytes (4 in the corpus, blockListRel=0x34).
+  /// `[0x30, blockListRel)` — a `u32` (4 bytes; `blockListRel` is `0x34`
+  /// throughout the corpus). Corpus-probed: this is the **info-area-relative
+  /// offset of the trailing VI-name record** (`[u8 len][name]` at EOF) — it
+  /// equals that offset in 7582/7583 VIs. See [viNameOffset]. Kept raw to stay
+  /// byte-exact for any non-canonical `blockListRel`.
   final Uint8List reservedB;
+
+  /// The constant marker word of [reservedA] (`u32 @8`, i.e. info `@0x28`); `0x20`
+  /// across the corpus. Null if [reservedA] is not the canonical 12 bytes.
+  int? get reservedAMarker =>
+      reservedA.length >= 12 ? ByteData.sublistView(reservedA).getUint32(8) : null;
+
+  /// The info-area-relative offset of the trailing VI-name record, read from
+  /// [reservedB] (`u32 @0x30`). Null if [reservedB] is not the canonical 4 bytes.
+  int? get viNameOffset =>
+      reservedB.length == 4 ? ByteData.sublistView(reservedB).getUint32(0) : null;
 
   /// Parses the subheader from the start of an [infoArea]. Throws
   /// [ViFormatException] if the area is too short or `blockListRel` is implausible.

@@ -456,6 +456,44 @@ void main() {
     expect(flagMismatch, isEmpty, reason: 'preGap flags != has-embedded-sections: $flagMismatch');
   });
 
+  // SUBHEADER RESERVED WORDS: reservedA is the constant [0,0,0x20], and reservedB
+  // is the info-area-relative offset of the trailing VI-name record (so the VI
+  // name is reachable directly from the subheader, not only by scanning EOF).
+  test('INFO-AREA: subheader reservedA == [0,0,0x20]; reservedB == trailing-name offset', () {
+    var files = 0, badA = 0, nameOffMatch = 0, nameOffChecked = 0;
+    for (final f in all) {
+      final Uint8List bytes;
+      try {
+        bytes = Uint8List.fromList(f.readAsBytesSync());
+      } catch (_) {
+        continue;
+      }
+      final ViContainer c;
+      try {
+        c = ViContainer.parse(bytes);
+      } catch (_) {
+        continue;
+      }
+      files++;
+      final sub = c.parsedInfoSubheader;
+      if (sub.reservedA.length >= 12) {
+        final d = ByteData.sublistView(sub.reservedA);
+        if (d.getUint32(0) != 0 || d.getUint32(4) != 0 || d.getUint32(8) != 0x20) badA++;
+      }
+      final off = sub.viNameOffset;
+      final rec = c.parsedInfoArea.nameTable.trailingNameRecord;
+      if (off != null && rec.isNotEmpty) {
+        nameOffChecked++;
+        if (off == c.infoArea.length - rec.length) nameOffMatch++;
+      }
+    }
+    expect(files, greaterThan(0));
+    expect(badA, 0, reason: 'reservedA not [0,0,0x20] in $badA files');
+    // reservedB points at the trailing VI name in the overwhelming majority (probe: 7582/7583).
+    expect(nameOffMatch, greaterThan((nameOffChecked * 0.99).floor()),
+        reason: 'reservedB != trailing-name offset: only $nameOffMatch/$nameOffChecked');
+  });
+
   // NAME-TABLE HEADER: the bytes before the trailing VI name are a small fixed
   // 12-byte header ([u32 0][u32 headerValue][u32 0]) in the vast majority of VIs,
   // and its size does NOT scale with the section nameRef indices — confirming it

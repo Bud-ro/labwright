@@ -104,6 +104,21 @@ void main() {
       expect(sh.serialize(), orderedEquals(info.sublist(0, 0x34)));
     });
 
+    test('reservedAMarker reads 0x20 and viNameOffset reads the reservedB u32', () {
+      final info = Uint8List(0x40);
+      info.setRange(0, 6, const [0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a]);
+      ByteData.sublistView(info)
+        ..setUint16(6, 3)
+        ..setUint32(0x28, 0x20) // reservedA word2 marker
+        ..setUint32(0x2c, 0x34) // blockListRel
+        ..setUint32(0x30, 0x0810); // reservedB = trailing-name offset
+      info.setRange(8, 12, 'LVIN'.codeUnits);
+      info.setRange(12, 16, 'LBVW'.codeUnits);
+      final sh = ViInfoSubheader.parse(info);
+      expect(sh.reservedAMarker, 0x20);
+      expect(sh.viNameOffset, 0x0810);
+    });
+
     test('rejects an implausible blockListRel', () {
       final info = Uint8List(0x40);
       ByteData.sublistView(info).setUint32(0x2c, 0x99999); // > length
