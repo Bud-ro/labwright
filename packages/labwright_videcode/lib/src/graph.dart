@@ -132,8 +132,9 @@ class ViHeapObject {
   List<String> items = const [];
 
   /// Plot/curve names of a graph/chart indicator (`C4 27` strings, e.g.
-  /// `Plot 0`, `Line 0`), in heap order. Corpus: these records attach to the
-  /// `0x5E` graph object (1013/1013). Empty for non-graph objects.
+  /// `Plot 0`, `Line 0`), in heap order. Corpus (7583 VIs): every object that
+  /// carries these records is a `0x5E` graph — 253/253 objects, 100% (1208
+  /// records across 169 VIs). Empty for non-graph objects.
   List<String> plotNames = const [];
 
   /// Decoded numeric-control **range minimum** (from the `0x20` f64 form on a
