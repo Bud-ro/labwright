@@ -573,9 +573,13 @@ class _BlockHexViewState extends State<BlockHexView> {
       case 'LVSR':
         span(0, 4, _cObject, 'Version word (u32)', 'BCD major · minor<<4|patch · stage · build (== vers word). See decodeSaveRecord.',
             preview: '0x${_u32(b, 0).toRadixString(16)}');
+        span(52, 16, _cObject, 'Per-VI value A (16B)',
+            'A 16-byte value that varies per VI (≈6920 distinct across the corpus); role not yet decoded.');
+        span(80, 16, _cObject, 'Per-VI value B (16B)',
+            'A second 16-byte per-VI value (≈6920 distinct across the corpus); role not yet decoded.');
         span(96, 16, _cRect, 'BD password hash (16B)', 'Block-diagram password hash; mirrors the BDPW block. Empty-password default = d41d8cd9…');
         span(144, 16, _cRect, 'Secondary hash (16B)', 'A second hash/checksum slot (role not fully decoded).');
-        // bytes 4..96, 112..144, 160.. are flags/ids not yet field-decoded -> _fillGaps marks them.
+        // bytes 4..52, 68..80, 112..144, 160.. are flag/enum words not yet field-decoded -> _fillGaps marks them.
       case 'CONP':
       case 'CPC2':
         if (b.length == 2) {
@@ -597,6 +601,10 @@ class _BlockHexViewState extends State<BlockHexView> {
         // the rare >=28-byte inline form is left undecoded (gap-filled).
       case 'FTAB':
         span(0, 2, _cObject, 'Version (u16)', 'Font-table version (1 in the corpus).', preview: '${_u16(b, 0)}');
+        if (b.length >= 6) {
+          span(2, 4, _cGroup, 'Header constant (00 02 00 03)',
+              'Fixed format sub-version words (u16 2, u16 3); 00 02 00 03 in all 322 corpus FTABs.');
+        }
         if (b.length >= 8) span(6, 2, _cHeader, 'Font count (u16)', 'Number of packed name entries.', preview: '${_u16(b, 6)}');
         if (b.length >= 12) {
           final nameOff = _u32(b, 8);
@@ -622,7 +630,7 @@ class _BlockHexViewState extends State<BlockHexView> {
           }
           if (nameOff < b.length) span(nameOff, b.length - nameOff, _cRect, 'Font names (Pascal strings)', 'Packed [u8 len][name] font face names. See decodeFontTable.');
         }
-        // bytes 2..6 (sub-version words) remain undecoded -> gap-filled.
+        // header (0..12), the per-font metric region, and names are all framed now.
       case 'BDPW':
         span(0, 16, _cRect, 'Password hash (16B)', 'Block-diagram password hash; sample is MD5("") d41d8cd9…');
         // remaining bytes (salt/secondary) not yet decoded -> gap-filled.

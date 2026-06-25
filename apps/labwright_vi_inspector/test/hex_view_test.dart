@@ -153,6 +153,8 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: BlockHexView(section: lvsr))));
     await tester.pump();
     expect(find.textContaining('Version word'), findsOneWidget);
+    expect(find.textContaining('Per-VI value A'), findsOneWidget);
+    expect(find.textContaining('Per-VI value B'), findsOneWidget);
     expect(find.textContaining('BD password hash'), findsOneWidget);
     expect(find.textContaining('Secondary hash'), findsOneWidget);
     // the flag/id bytes between known fields are honestly marked, not hidden
@@ -245,7 +247,7 @@ void main() {
     // count=2 → metric region is count*16-4 = 28 bytes: [12B metric][u32][12B metric].
     final ftab = _raw('FTAB', [
       0, 1, // ver
-      0, 0, 0, 0, // sub-version words (still undecoded)
+      0, 2, 0, 3, // header constant (corpus: 00 02 00 03)
       0, 2, // count = 2
       0, 0, 0, 40, // nameOffset = 40
       ...List.filled(12, 0x0f), // metric[0]
@@ -255,14 +257,14 @@ void main() {
     ]);
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: BlockHexView(section: ftab))));
     await tester.pump();
+    expect(find.textContaining('Header constant'), findsOneWidget);
     expect(find.textContaining('Font[0] metric record'), findsOneWidget);
     expect(find.textContaining('Font[1] metric record'), findsOneWidget);
     expect(find.textContaining('Font[0] u32 field'), findsOneWidget);
     expect(find.textContaining('Font names'), findsOneWidget);
-    // the metric region is now framed; only the 2..6 sub-version words remain
-    // honestly undecoded, so coverage is high but not yet claimed as 100%.
-    expect(find.textContaining('% framed'), findsOneWidget);
-    expect(find.textContaining('100% framed'), findsNothing);
+    // header + metric region + names now cover every byte → 100% framed.
+    expect(find.textContaining('100% framed'), findsOneWidget);
+    expect(find.textContaining('Undecoded'), findsNothing);
   });
 
   testWidgets('CPST/CPSP string-label tables are framed (count + Pascal entries)', (tester) async {
