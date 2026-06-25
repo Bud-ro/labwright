@@ -84,8 +84,12 @@ class _BlockHexViewState extends State<BlockHexView> {
           // If the walk stopped on an un-framable record, account for the
           // remaining bytes explicitly (so NO byte is silently unlabeled): a
           // single "unframed tail" span. Honest — the bytes are preserved; their
-          // record family is just not yet decoded (the coverage frontier; ~0.2%
-          // of corpus heaps). Complete walks (99.8%) need no tail.
+          // record family is just not yet decoded (the coverage frontier).
+          // Measured over the corpus (14,346 heap sections): 99.64% walk to
+          // completion; the ~0.36% that stop do so on diverse lead bytes (no
+          // single dominant opcode — consistent with an upstream record-size
+          // desync) and can leave a large tail, so aggregate heap byte-coverage
+          // is ~93%. A complete walk needs no tail.
           if (w.stoppedAtOffset != null && w.stoppedAtOffset! < b.length)
             _SpanInfo(
               offset: w.stoppedAtOffset!,
