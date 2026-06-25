@@ -231,6 +231,41 @@ void main() {
     expect(find.text('While loop'), findsOneWidget);
   });
 
+  testWidgets('a single-item 0x4f renders as a LABELED BOOLEAN, not a 1-option dropdown', (tester) async {
+    tester.view.physicalSize = const Size(800, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    // 0x4f with one 0x0d string = the boolean's caption (e.g. STOP / Channel A),
+    // NOT an enum choice — it must render as a labeled boolean, no dropdown caret.
+    final boolCtl = ViHeapObject(oid: 1, kind: 0x4f, offset: 0) // booleanOrClusterControl
+      ..category = ViObjectKind.terminal
+      ..items = ['STOP']
+      ..absBounds = const HeapRect(top: 0, left: 0, bottom: 30, right: 120);
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: FaithfulLayer(objects: [boolCtl], origin: Offset.zero, size: const Size(400, 400))),
+    ));
+    await tester.pump();
+    expect(find.text('STOP'), findsOneWidget); // caption shown on the boolean
+    expect(find.byIcon(Icons.arrow_drop_down), findsNothing); // not a ring/dropdown
+  });
+
+  testWidgets('a 0x4f with >= 2 items still renders as a ring/dropdown', (tester) async {
+    tester.view.physicalSize = const Size(800, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final ring = ViHeapObject(oid: 1, kind: 0x4f, offset: 0)
+      ..category = ViObjectKind.terminal
+      ..items = ['Level', 'Window']
+      ..absBounds = const HeapRect(top: 0, left: 0, bottom: 30, right: 120);
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: FaithfulLayer(objects: [ring], origin: Offset.zero, size: const Size(400, 400))),
+    ));
+    await tester.pump();
+    expect(find.byIcon(Icons.arrow_drop_down), findsOneWidget); // >= 2 items -> dropdown
+  });
+
   group('structureFrameTitle', () {
     ViHeapObject cluster({String? label}) => ViHeapObject(oid: 1, kind: 0x64, offset: 0) // clusterShell
       ..category = ViObjectKind.structure

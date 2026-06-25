@@ -147,10 +147,13 @@ Widget _faithfulFor(ViHeapObject o, {bool isFrontPanel = false}) {
     case HeapObjectClass.enumRingControl:
       return _ControlWidget(form: _Form.enumRing, items: o.items);
     case HeapObjectClass.booleanOrClusterControl:
-      // Gate on the items that actually reach the control (ring items propagate
-      // up from the 0x0d child); typeKind never propagates to a 0x4f, so the old
-      // typeKind check could never fire a dropdown.
-      return _ControlWidget(form: o.items.isNotEmpty ? _Form.enumRing : _Form.boolean, items: o.items);
+      // A 0x4f's 0x0d child carries strings: a genuine ring/enum has >= 2 choices
+      // and renders as a dropdown; a SINGLE string is the boolean's own caption
+      // (e.g. "STOP", "Channel A", "Enable") — that is a BOOLEAN, not a one-option
+      // dropdown, so render a labeled boolean. (typeKind never propagates to 0x4f.)
+      return o.items.length >= 2
+          ? _ControlWidget(form: _Form.enumRing, items: o.items)
+          : _ControlWidget(form: _Form.boolean, label: o.items.isNotEmpty ? o.items.first : o.label);
     case HeapObjectClass.stringOrArrayControl:
       return const _ControlWidget(form: _Form.string);
     case HeapObjectClass.pathControl:
@@ -408,9 +411,13 @@ enum _Form { numeric, enumRing, boolean, string, path, generic }
 
 /// A single interactive (but unwired) control rendered to fit its object bounds.
 class _ControlWidget extends StatefulWidget {
-  const _ControlWidget({required this.form, this.items = const []});
+  const _ControlWidget({required this.form, this.items = const [], this.label});
   final _Form form;
   final List<String> items;
+
+  /// For a boolean: the control's caption (its single 0x0d string), shown on the
+  /// button so a labeled boolean ("STOP", "Channel A") reads as itself. Null → ON/OFF.
+  final String? label;
   @override
   State<_ControlWidget> createState() => _ControlWidgetState();
 }
@@ -495,7 +502,13 @@ class _ControlWidgetState extends State<_ControlWidget> {
               borderRadius: BorderRadius.circular(3),
             ),
             alignment: Alignment.center,
-            child: Text(_bool ? 'ON' : 'OFF', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white)),
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              (widget.label != null && widget.label!.trim().isNotEmpty) ? widget.label!.trim() : (_bool ? 'ON' : 'OFF'),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white),
+            ),
           ),
         );
       case _Form.string:
