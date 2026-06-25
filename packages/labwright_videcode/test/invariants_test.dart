@@ -601,4 +601,34 @@ void main() {
     expect(ver2 / total, greaterThan(0.99), reason: 'HIST @0 != 2 in too many ($ver2/$total)');
     expect(reservedZero / total, greaterThan(0.99), reason: 'HIST reserved words non-zero in too many ($reservedZero/$total)');
   });
+
+  // 13. FTAB FONT TABLE — version==1 and the name-table framing is self-
+  // consistent: reading fontCount Pascal strings recovers exactly that many
+  // printable names. Asserting recovered==count is the killer self-consistency
+  // check (corpus: every FTAB resolves cleanly).
+  test('FTAB: version 1 and the font-name table is self-consistent', () {
+    var total = 0, ver1 = 0, consistent = 0, printable = 0;
+    for (final f in all) {
+      final List<ViSection> secs;
+      try {
+        secs = readViSections(f.readAsBytesSync());
+      } catch (_) {
+        continue;
+      }
+      for (final s in secs) {
+        if (s.tag != 'FTAB') continue;
+        final t = decodeFontTable(s.bytes);
+        if (t == null) continue;
+        total++;
+        if (t.version == 1) ver1++;
+        if (t.names.length == t.fontCount) consistent++;
+        if (t.names.every((n) => n.runes.every((c) => c == 9 || (c >= 0x20 && c < 0x7f)))) printable++;
+      }
+    }
+    expect(total, greaterThan(0));
+    expect(ver1 / total, greaterThan(0.99), reason: 'FTAB version != 1 in too many ($ver1/$total)');
+    expect(consistent / total, greaterThan(0.95),
+        reason: 'FTAB recovered-names != fontCount in too many ($consistent/$total) — framing drift.');
+    expect(printable / total, greaterThan(0.95), reason: 'FTAB names not printable in too many ($printable/$total)');
+  });
 }

@@ -195,7 +195,7 @@ const Map<String, ViBlockInfo> _catalog = {
   'VINS': ViBlockInfo('VINS', 'Embedded sub-VIs', _ev, _cf, 'Nested RSRC VIs; recovered by readEmbeddedVis.'),
 
   // --- Name tables ---
-  'FTAB': ViBlockInfo('FTAB', 'Font/name table', _nt, _lk, 'Font table.'),
+  'FTAB': ViBlockInfo('FTAB', 'Font table', _nt, _cf, 'u16 ver@0=1, u16 fontCount@6, u32 nameOffset@8 -> packed Pascal font-name strings. See decodeFontTable.'),
   'VITS': ViBlockInfo('VITS', 'VI tag store / name tail', _nt, _tt, 'Trailing name/tag store.'),
 
   // --- History ---
