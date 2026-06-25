@@ -178,6 +178,31 @@ void main() {
     expect(find.text('MySubVI.vi'), findsOneWidget); // logic stays legible
   });
 
+  testWidgets('front panel renders everything at full strength (no de-emphasis dimming)', (tester) async {
+    tester.view.physicalSize = const Size(800, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    // the same noise objects that get dimmed on the BD must NOT be dimmed on the FP
+    // (a panel is a solid UI, not a logic graph).
+    final decoration = ViHeapObject(oid: 1, kind: 0x88, offset: 0)
+      ..category = ViObjectKind.decoration
+      ..absBounds = const HeapRect(top: 0, left: 0, bottom: 40, right: 120);
+    final unknown = ViHeapObject(oid: 2, kind: 0x999, offset: 0)
+      ..category = ViObjectKind.unknown
+      ..absBounds = const HeapRect(top: 60, left: 0, bottom: 100, right: 120);
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: FaithfulLayer(
+            objects: [decoration, unknown], origin: Offset.zero, size: const Size(400, 400), isFrontPanel: true),
+      ),
+    ));
+    await tester.pump();
+
+    final opacities = tester.widgetList<Opacity>(find.byType(Opacity)).map((w) => w.opacity).toList();
+    expect(opacities.any((o) => o < 1.0), isFalse, reason: 'FP objects must not be dimmed');
+  });
+
   test('structureBadge tracks the class catalog (honest, no fabrication)', () {
     ViHeapObject st(int kind) => ViHeapObject(oid: 1, kind: kind, offset: 0)..category = ViObjectKind.structure;
     // dedicated, confidently-classified structures surface their real kind

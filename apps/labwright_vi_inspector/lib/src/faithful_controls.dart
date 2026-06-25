@@ -47,7 +47,8 @@ class FaithfulLayer extends StatelessWidget {
                 top: o.absBounds!.top - origin.dy,
                 width: o.absBounds!.width.toDouble().clamp(1, 8000),
                 height: o.absBounds!.height.toDouble().clamp(1, 8000),
-                child: _emphasize(o, ClipRect(child: _withHelp(o, _faithfulFor(o, isFrontPanel: isFrontPanel)))),
+                child: _emphasize(o, ClipRect(child: _withHelp(o, _faithfulFor(o, isFrontPanel: isFrontPanel))),
+                    isFrontPanel: isFrontPanel),
               ),
         ],
       ),
@@ -65,12 +66,15 @@ String? structureFrameTitle(ViHeapObject o, {required bool isFrontPanel}) {
   return (own != null && own.isNotEmpty) ? own : null;
 }
 
-/// Visual-hierarchy weight for [o] in the diagram: the logic-bearing objects
-/// (structures, nodes, labeled controls) stay full strength while the unlabeled
-/// "noise" (decorations, unclassified boxes, bare terminals) is dimmed so the
-/// meaningful elements stand out. Honest: nothing is hidden — the wireframe view
-/// remains the full-strength honest render, and these are still drawn + tappable.
-double _emphasis(ViHeapObject o) {
+/// Visual-hierarchy weight for [o] in the diagram: on the **block diagram** the
+/// logic-bearing objects (structures, nodes, labeled controls) stay full strength
+/// while unlabeled "noise" (decorations, unclassified boxes, bare terminals) is
+/// dimmed so the logic stands out. On the **front panel** this de-emphasis is
+/// wrong — a panel is a solid UI, not a logic graph — so everything renders at
+/// full strength. Honest either way: nothing is hidden, all objects stay drawn +
+/// tappable, and the wireframe view remains the full-strength honest render.
+double _emphasis(ViHeapObject o, {bool isFrontPanel = false}) {
+  if (isFrontPanel) return 1; // the FP is a faithful solid panel — no dimming
   final labeled = o.label?.trim().isNotEmpty ?? false;
   switch (o.category) {
     case ViObjectKind.structure:
@@ -87,9 +91,9 @@ double _emphasis(ViHeapObject o) {
 }
 
 /// Applies [_emphasis] as opacity. Opacity 1.0 short-circuits (no save layer), so
-/// only the dimmed noise objects pay any cost.
-Widget _emphasize(ViHeapObject o, Widget child) {
-  final e = _emphasis(o);
+/// only the dimmed noise objects pay any cost (none on the front panel).
+Widget _emphasize(ViHeapObject o, Widget child, {bool isFrontPanel = false}) {
+  final e = _emphasis(o, isFrontPanel: isFrontPanel);
   return e >= 1 ? child : Opacity(opacity: e, child: child);
 }
 
