@@ -144,7 +144,7 @@ const Map<String, ViBlockInfo> _catalog = {
   'VICD': ViBlockInfo('VICD', 'VI compiled code', _cc, _cf, 'Machine-code image (e.g. i386); compressed; opaque.'),
 
   // --- Data space ---
-  'DFDS': ViBlockInfo('DFDS', 'Default data space', _ds, _lk, 'Default control/indicator values; compressed.'),
+  'DFDS': ViBlockInfo('DFDS', 'Default data space', _ds, _lk, 'Compressed serialized default control/indicator values, type-directed by VCTP. No self-describing header (decompressed body starts with zeros) — decoding needs the VCTP type-size walk; not yet parsed.'),
   'DSIM': ViBlockInfo('DSIM', 'Data-space image', _ds, _tt, 'Large uncompressed image; format not yet decoded.'),
   'DSTM': ViBlockInfo('DSTM', 'Data-space (TM)', _ds, _tt, 'Format not yet decoded.'),
 
@@ -173,7 +173,7 @@ const Map<String, ViBlockInfo> _catalog = {
   'DLLP': ViBlockInfo('DLLP', 'DLL/library path', _li, _tt, 'Format not yet decoded.'),
 
   // --- Text ---
-  'STRG': ViBlockInfo('STRG', 'String table', _tx, _lk, 'Human-readable strings.'),
+  'STRG': ViBlockInfo('STRG', 'VI description text', _tx, _cf, '[u32 len][UTF-8 text] (100% of corpus); the VI description. See decodeStringBlock.'),
   'STR': ViBlockInfo('STR', 'String', _tx, _tt, 'Format not yet decoded.'),
   'TITL': ViBlockInfo('TITL', 'VI title', _tx, _cf, 'Pascal-string title.'),
   'HLPT': ViBlockInfo('HLPT', 'Help tag/text', _tx, _lk, 'Context help text.'),

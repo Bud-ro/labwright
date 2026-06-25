@@ -515,4 +515,36 @@ void main() {
     expect(shortForm / total, greaterThan(0.65),
         reason: 'TM80 short-form coverage dropped to $shortForm/$total (<65%; corpus ≈70.7%).');
   });
+
+  // 10. STRG TEXT BLOCK — the VI description block is [u32 len][UTF-8 text] with
+  // len == sectionLength-4 and a printable body. Corpus: 100% (2980/2980). Assert
+  // the length law + printability so a decode regression is caught.
+  test('STRG: every description block is [u32 len][printable text]', () {
+    var total = 0, ok = 0;
+    for (final f in all) {
+      final List<DecodedSection> dsecs;
+      try {
+        dsecs = decodeSections(f.readAsBytesSync());
+      } catch (_) {
+        continue;
+      }
+      for (final d in dsecs) {
+        if (d.tag != 'STRG' || d.bytes.length < 4) continue;
+        total++;
+        final len = (d.bytes[0] << 24) | (d.bytes[1] << 16) | (d.bytes[2] << 8) | d.bytes[3];
+        final text = decodeStringBlock(d.bytes);
+        if (len == d.bytes.length - 4 && text != null) {
+          // body is overwhelmingly printable text
+          var printable = 0;
+          for (final cu in text.runes) {
+            if (cu == 9 || cu == 10 || cu == 13 || (cu >= 0x20 && cu != 0xfffd)) printable++;
+          }
+          if (text.isEmpty || printable / text.runes.length > 0.9) ok++;
+        }
+      }
+    }
+    expect(total, greaterThan(0));
+    expect(ok / total, greaterThan(0.99),
+        reason: 'STRG length-law/printability held for only $ok/$total (<99%).');
+  });
 }

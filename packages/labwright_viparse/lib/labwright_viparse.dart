@@ -10,5 +10,6 @@ export 'src/block_catalog.dart';
 export 'src/connector_pane.dart';
 export 'src/container.dart';
 export 'src/save_record.dart';
+export 'src/string_block.dart';
 export 'src/type_map.dart';
 export 'src/viparse.dart';
