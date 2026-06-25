@@ -266,6 +266,27 @@ void main() {
     expect(find.byIcon(Icons.arrow_drop_down), findsOneWidget); // >= 2 items -> dropdown
   });
 
+  testWidgets('a control sub-part (0x0b) renders as faint scaffolding, not a control box', (tester) async {
+    tester.view.physicalSize = const Size(800, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    // 0x0b is an internal part (numeric spinner arrows / boolean glyph) of its
+    // parent control — it must not masquerade as a standalone control-blue box.
+    final sub = ViHeapObject(oid: 1, kind: 0x0b, offset: 0)
+      ..category = ViObjectKind.terminal
+      ..absBounds = const HeapRect(top: 0, left: 0, bottom: 17, right: 6);
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: FaithfulLayer(objects: [sub], origin: Offset.zero, size: const Size(400, 400))),
+    ));
+    await tester.pump();
+
+    BoxDecoration? deco(Widget w) => w is Container && w.decoration is BoxDecoration ? w.decoration as BoxDecoration : null;
+    // faint scaffolding (translucent), NOT the generic control-blue fill 0xFFE3ECF5
+    expect(find.byWidgetPredicate((w) => deco(w)?.color == const Color(0x11000000)), findsOneWidget);
+    expect(find.byWidgetPredicate((w) => deco(w)?.color == const Color(0xFFE3ECF5)), findsNothing);
+  });
+
   group('structureFrameTitle', () {
     ViHeapObject cluster({String? label}) => ViHeapObject(oid: 1, kind: 0x64, offset: 0) // clusterShell
       ..category = ViObjectKind.structure

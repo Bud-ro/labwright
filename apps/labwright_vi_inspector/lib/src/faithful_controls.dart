@@ -162,6 +162,12 @@ Widget _faithfulFor(ViHeapObject o, {bool isFrontPanel = false}) {
       return const _LeafBox();
     case HeapObjectClass.graphIndicator:
       return const _GraphPlaceholder();
+    case HeapObjectClass.controlSubPart:
+      // 0x0b: an INTERNAL part of its parent control (a numeric's spinner arrows,
+      // a boolean's glyph) — the parent control already renders the functional
+      // widget, so draw this as faint scaffolding, not a standalone control box
+      // (which would read as a mystery extra control).
+      return const _UnknownBox();
     default:
       // Fall back by coarse category.
       if (o.category == ViObjectKind.node) {
