@@ -6,6 +6,7 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:labwright_videcode/labwright_videcode.dart';
+import 'package:labwright_viparse/labwright_viparse.dart';
 import 'package:test/test.dart';
 
 /// NEW test *types* that go beyond example-based + count-pin coverage:
@@ -341,5 +342,57 @@ void main() {
           reason: 'catalogued kind 0x${c.code.toRadixString(16)} (${c.name}) has NO corpus evidence — '
               'fabricated/dead entry, or the corpus drifted. Re-probe before keeping it.');
     }
+  });
+
+  // 6. BLOCK-CATALOG ↔ CORPUS — the block catalog's recordHeap classification must
+  // match the *decompressed* structure: a real C4 heap opens with a u32
+  // content-length == len-4 followed by a group-open/C4 lead. This guards the
+  // load-bearing gate (only true heaps get the record-walk) so other compressed
+  // blocks (VCTP/VICD/DFDS/TM80…) can never be mis-read as heaps with a bogus
+  // content length + fat "unframed tail". Forward direction must be 100%.
+  test('BLOCK CATALOG: every catalogued record-heap section really is a C4 heap (and only those)', () {
+    bool heapLead(int x) => x == 0xc4 || (x >= 0x08 && x <= 0x13);
+    bool structuralHeap(List<int> b) {
+      if (b.length < 8) return false;
+      final declared = (b[0] << 24) | (b[1] << 16) | (b[2] << 8) | b[3];
+      return declared == b.length - 4 && heapLead(b[4]);
+    }
+
+    final headTags = <String>{};
+    var catHeapSections = 0, catHeapStructural = 0;
+    var structuralSections = 0, structuralCatalogued = 0;
+    for (final f in all.take(900)) {
+      final List<DecodedSection> secs;
+      try {
+        secs = decodeSections(f.readAsBytesSync());
+      } catch (_) {
+        continue;
+      }
+      for (final s in secs) {
+        final isCatHeap = isRecordHeapTag(s.tag);
+        final isStruct = structuralHeap(s.bytes);
+        if (isCatHeap) {
+          headTags.add(s.tag);
+          catHeapSections++;
+          if (isStruct) catHeapStructural++;
+        }
+        if (isStruct) {
+          structuralSections++;
+          if (isCatHeap) structuralCatalogued++;
+        }
+      }
+    }
+    // FORWARD (load-bearing): every catalogued heap section is structurally a heap.
+    expect(catHeapSections, greaterThan(0));
+    expect(catHeapStructural, catHeapSections,
+        reason: 'a catalogued record-heap section was NOT a structural C4 heap — the recordHeap set is wrong.');
+    // The catalog's four heap tags actually occur in the corpus.
+    expect(headTags, containsAll(<String>{'FPHb', 'BDHb'}));
+    // REVERSE (coverage): structurally-heap sections are almost all catalogued
+    // heaps — a missed heap tag would crater this. (STRG etc. give <2% coincidences.)
+    expect(structuralSections, greaterThan(0));
+    expect(structuralCatalogued / structuralSections, greaterThan(0.97),
+        reason: 'structural heaps not catalogued as recordHeap: only $structuralCatalogued/$structuralSections — '
+            'a real heap tag may be missing from the catalog.');
   });
 }

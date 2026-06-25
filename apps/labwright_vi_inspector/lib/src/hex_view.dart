@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:labwright_videcode/labwright_videcode.dart';
+import 'package:labwright_viparse/labwright_viparse.dart';
 
 /// A read-only **hex + parser** view of one decoded resource-block section —
 /// HxD/Wireshark style. The section's bytes are shown as a hex dump on the left,
@@ -34,7 +35,12 @@ class _BlockHexViewState extends State<BlockHexView> {
     super.initState();
     final b = widget.section.bytes;
     _preview = iconPreview(b);
-    final isHeap = widget.section.wasCompressed || _looksLikeHeap(b);
+    // Only the corpus-confirmed C4 record heaps (FPHb/BDHb/FPHc/BDHc) get the
+    // bracket-walk. Gating on the block tag — not a byte heuristic — stops other
+    // compressed blocks (VCTP type pool, VICD code, DFDS data, …) and short
+    // look-alikes (e.g. TM80) from being mis-read as heaps with a bogus
+    // content-length and a fat "unframed tail".
+    final isHeap = isRecordHeapTag(widget.section.tag);
     if (isHeap) {
       try {
         final w = walkHeapBody(b);
@@ -172,11 +178,16 @@ class _BlockHexViewState extends State<BlockHexView> {
                         child: Padding(
                           padding: const EdgeInsets.all(16),
                           child: _preview ??
-                              const Text(
-                                'This section is not a record-framed heap, so only the '
-                                'raw hex is shown.',
+                              Text(
+                                () {
+                                  final info = blockInfo(widget.section.tag);
+                                  return '${info.name} (${widget.section.tag})\n'
+                                      '${info.note}\n\n'
+                                      'Not a record heap — raw hex shown. Decoding this '
+                                      "block's format is the open frontier.";
+                                }(),
                                 textAlign: TextAlign.center,
-                                style: TextStyle(color: Colors.grey),
+                                style: const TextStyle(color: Colors.grey),
                               ),
                         ),
                       )
@@ -319,7 +330,6 @@ class _BlockHexViewState extends State<BlockHexView> {
   }
 
   static String _fmt(int n) => n >= 1024 ? '${(n / 1024).toStringAsFixed(1)} KB' : '$n B';
-  static bool _looksLikeHeap(List<int> b) => b.length > 8 && (b[4] == 0xc4 || b[4] == 0x10 || b[4] == 0x11 || b[4] == 0x12);
 }
 
 const double _kRowHeight = 20;

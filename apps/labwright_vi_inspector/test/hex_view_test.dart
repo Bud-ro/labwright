@@ -9,7 +9,9 @@ import 'package:labwright_viparse/labwright_viparse.dart';
 DecodedSection _section(List<int> records) {
   final body = Uint8List.fromList([0, 0, 0, records.length, ...records]);
   return DecodedSection(
-    section: ViSection(tag: 'BDEx', index: 0, dataOffset: 0, bytes: body),
+    // BDHb is a real C4 record-heap tag — the heap record-walk is gated on the
+    // block tag now, so the heap-path tests must use a genuine heap tag.
+    section: ViSection(tag: 'BDHb', index: 0, dataOffset: 0, bytes: body),
     bytes: body,
     wasCompressed: true,
   );
@@ -111,7 +113,7 @@ void main() {
     expect(find.textContaining('Numeric-control parameter'), findsOneWidget);
   });
 
-  testWidgets('non-heap section shows raw bytes without crashing', (tester) async {
+  testWidgets('non-heap section shows raw hex + its catalog identity, no crash', (tester) async {
     final raw = DecodedSection(
       section: ViSection(tag: 'LVSR', index: 0, dataOffset: 0, bytes: Uint8List.fromList(List.filled(40, 0x41))),
       bytes: Uint8List.fromList(List.filled(40, 0x41)),
@@ -119,6 +121,25 @@ void main() {
     );
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: BlockHexView(section: raw))));
     await tester.pump();
-    expect(find.textContaining('raw bytes'), findsOneWidget);
+    expect(find.textContaining('raw hex'), findsOneWidget);
+    expect(find.textContaining('LabVIEW save record'), findsOneWidget); // catalog name
+  });
+
+  testWidgets('a compressed NON-heap block (VCTP) is not mis-walked as a heap', (tester) async {
+    // Regression: VCTP/TM80/VICD are compressed (or short look-alikes) but are NOT
+    // C4 heaps. The old heuristic read their first u32 as a "heap content length"
+    // and dumped the rest as a fat "unframed tail". Gating on the tag fixes it.
+    // Craft bytes the old heuristic WOULD have flagged: b[4] == 0xc4.
+    final body = Uint8List.fromList([0x00, 0x00, 0x00, 0xee, 0xc4, 0x01, 0x02, 0x03, 0x04, 0x05]);
+    final vctp = DecodedSection(
+      section: ViSection(tag: 'VCTP', index: 0, dataOffset: 0, bytes: body),
+      bytes: body,
+      wasCompressed: true,
+    );
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: BlockHexView(section: vctp))));
+    await tester.pump();
+    expect(find.textContaining('Heap content length'), findsNothing);
+    expect(find.textContaining('Unframed tail'), findsNothing);
+    expect(find.textContaining('VI type pool'), findsOneWidget); // named honestly instead
   });
 }
