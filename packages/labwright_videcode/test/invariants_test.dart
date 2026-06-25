@@ -452,4 +452,34 @@ void main() {
     // stage byte was 0x80 across the entire corpus at probe time.
     expect(stageNon80, 0, reason: 'an LVSR stage byte != 0x80 appeared ($stageNon80) — re-probe the stage claim.');
   });
+
+  // 8. CONNECTOR PANE ↔ VCTP — the 2-byte CONP/CPC2 value is a 1-based index into
+  // the VI's type pool. Cross-checking that it resolves in-range against the
+  // independently-decoded VCTP is what makes the "it's a VCTP index" claim honest
+  // (probe: 7550/7550 = 100% for CONP). A future off-by-one or layout drift trips
+  // this. Floor 0.99.
+  test('CONP/CPC2: the 2-byte connector-pane index resolves in-range against VCTP', () {
+    var total = 0, inRange = 0;
+    for (final f in all) {
+      final bytes = f.readAsBytesSync();
+      final List<ViSection> secs;
+      final List<DecodedSection> dsecs;
+      try {
+        secs = readViSections(bytes);
+        dsecs = decodeSections(bytes);
+      } catch (_) {
+        continue;
+      }
+      final pane = connectorPaneFromSections(secs);
+      if (pane == null || pane.typeIndex == null) continue; // skip inline form
+      final pool = typePoolFromDecoded(dsecs);
+      if (pool.isEmpty) continue;
+      total++;
+      if (pane.typeIndex! >= 1 && pane.typeIndex! <= pool.length) inRange++;
+    }
+    expect(total, greaterThan(0));
+    expect(inRange / total, greaterThan(0.99),
+        reason: 'connector-pane index out of VCTP range in too many VIs ($inRange/$total) — '
+            'the index base/encoding may have drifted.');
+  });
 }

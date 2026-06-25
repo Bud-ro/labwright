@@ -149,8 +149,8 @@ const Map<String, ViBlockInfo> _catalog = {
   'DSTM': ViBlockInfo('DSTM', 'Data-space (TM)', _ds, _tt, 'Format not yet decoded.'),
 
   // --- Connector pane ---
-  'CONP': ViBlockInfo('CONP', 'Connector pane', _cp, _lk, 'Terminal pattern / conpane.'),
-  'CPC2': ViBlockInfo('CPC2', 'Connector pane (v2)', _cp, _lk, 'Same leading layout as CONP.'),
+  'CONP': ViBlockInfo('CONP', 'Connector pane', _cp, _cf, 'u16 VCTP index of the conpane type descriptor (100% in-range); see decodeConnectorPane.'),
+  'CPC2': ViBlockInfo('CPC2', 'Connector pane (compiled)', _cp, _cf, 'Second u16 VCTP index, distinct from CONP (byte-equal only 56/7533).'),
   'CPMp': ViBlockInfo('CPMp', 'Connector pane map', _cp, _tt, 'Format not yet decoded.'),
 
   // --- Icons ---
