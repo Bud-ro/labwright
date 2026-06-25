@@ -54,6 +54,23 @@ void main() {
     expect(find.textContaining('= 2 bytes'), findsOneWidget);
   });
 
+  testWidgets('hex view accounts for an unframed tail when the walk stops (no silent bytes)', (tester) async {
+    tester.view.physicalSize = const Size(1000, 2000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    // 08 19 frames (group close), then 0x9f is an un-framable lead → the walk
+    // stops and the remaining bytes must be explicitly accounted, not left blank.
+    final records = <int>[0x08, 0x19, 0x9f, 0x27];
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: BlockHexView(section: _section(records)))));
+    await tester.pump();
+
+    expect(find.textContaining('Unframed tail'), findsOneWidget);
+    expect(find.text('2 B'), findsWidgets); // the 2 remaining bytes accounted inline
+    await tester.tap(find.textContaining('Unframed tail').first);
+    await tester.pump();
+    expect(find.textContaining('not yet decoded'), findsOneWidget); // honest framing
+  });
+
   testWidgets('hex view shows the group close tag in the title', (tester) async {
     final records = <int>[0x08, 0x2a]; // a group-close record, tag 0x2a
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: BlockHexView(section: _section(records)))));

@@ -55,6 +55,23 @@ class _BlockHexViewState extends State<BlockHexView> {
               inlinePreview: '${_u32(b, 0)} B',
             ),
           for (final s in w.spans) _classify(b, s, widget.section.tag),
+          // If the walk stopped on an un-framable record, account for the
+          // remaining bytes explicitly (so NO byte is silently unlabeled): a
+          // single "unframed tail" span. Honest — the bytes are preserved; their
+          // record family is just not yet decoded (the coverage frontier; ~0.2%
+          // of corpus heaps). Complete walks (99.8%) need no tail.
+          if (w.stoppedAtOffset != null && w.stoppedAtOffset! < b.length)
+            _SpanInfo(
+              offset: w.stoppedAtOffset!,
+              length: b.length - w.stoppedAtOffset!,
+              lead: w.stoppedLead ?? b[w.stoppedAtOffset!],
+              color: _cUnframed,
+              title: 'Unframed tail (lead 0x${(w.stoppedLead ?? 0).toRadixString(16)})',
+              detail: 'The record walk stopped here: this lead byte\'s record family is not yet '
+                  'decoded, so the remaining ${b.length - w.stoppedAtOffset!} bytes are not '
+                  'individually framed. They are preserved — decoding this family is the open frontier.',
+              inlinePreview: '${b.length - w.stoppedAtOffset!} B',
+            ),
         ];
       } catch (_) {
         _records = const [];
@@ -340,6 +357,7 @@ int _u16(List<int> b, int p) => (b[p] << 8) | b[p + 1];
 int _u32(List<int> b, int p) => (b[p] << 24) | (b[p + 1] << 16) | (b[p + 2] << 8) | b[p + 3];
 
 const _cHeader = Color(0xFFD08BB0);
+const _cUnframed = Color(0xFFE57373); // the un-framable tail (decode frontier)
 const _cObject = Color(0xFF9E7BE0);
 const _cGroup = Color(0xFF8A8A8A);
 const _cRect = Color(0xFF5C9BD6);
