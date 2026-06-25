@@ -198,6 +198,46 @@ void main() {
     expect(find.textContaining('100% framed'), findsNothing);
   });
 
+  testWidgets('FPSE/BDSE section-marker blocks are framed as a u32 (100%)', (tester) async {
+    tester.view.physicalSize = const Size(1400, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    // Corpus: predominantly a single u32 value (e.g. 0x77).
+    final fpse = _raw('FPSE', [0, 0, 0, 0x77]);
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: BlockHexView(section: fpse))));
+    await tester.pump();
+    expect(find.textContaining('FPSE marker'), findsOneWidget);
+    expect(find.textContaining('100% framed'), findsOneWidget);
+    expect(find.textContaining('Undecoded'), findsNothing);
+  });
+
+  testWidgets('a MUID block is framed as a single u32 (100%)', (tester) async {
+    tester.view.physicalSize = const Size(1400, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    final muid = _raw('MUID', [0, 0, 0x0b, 0x6c]);
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: BlockHexView(section: muid))));
+    await tester.pump();
+    expect(find.textContaining('MUID (u32)'), findsOneWidget);
+    expect(find.textContaining('100% framed'), findsOneWidget);
+  });
+
+  testWidgets('a TITL block is annotated as a Pascal string (len + ASCII title)', (tester) async {
+    tester.view.physicalSize = const Size(1400, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    // [u8 len=11]["Batch Tests"] — len byte matches the text length exactly.
+    final titl = _raw('TITL', [11, ...'Batch Tests'.codeUnits]);
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: BlockHexView(section: titl))));
+    await tester.pump();
+    expect(find.textContaining('Title length'), findsOneWidget);
+    expect(find.textContaining('Title (ASCII)'), findsOneWidget);
+    expect(find.textContaining('Batch Tests'), findsWidgets);
+    // [len][text] covers every byte → 100% framed, nothing left Undecoded.
+    expect(find.textContaining('100% framed'), findsOneWidget);
+    expect(find.textContaining('Undecoded'), findsNothing);
+  });
+
   testWidgets('a decoded HLPP block shows its recovered help path', (tester) async {
     tester.view.physicalSize = const Size(1000, 1400);
     tester.view.devicePixelRatio = 1.0;

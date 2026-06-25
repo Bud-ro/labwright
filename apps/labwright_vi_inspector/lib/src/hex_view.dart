@@ -621,6 +621,27 @@ class _BlockHexViewState extends State<BlockHexView> {
       case 'SCSR':
         span(0, 4, _cHeader, 'Header (u32)', 'Leading word 0x01000000 BE (version-ish).', preview: '0x${_u32(b, 0).toRadixString(16)}');
         span(4, 16, _cObject, '16-byte signature', 'Source signature (near-constant; opaque value).', preview: 'sig');
+      case 'FPSE':
+      case 'BDSE':
+        // Section marker: one u32 per 4 bytes. Corpus is overwhelmingly a single
+        // u32 (4 B); a rare 8-byte form carries two. The value's exact meaning
+        // (size/offset/flags) is not yet decoded — labeled honestly as a marker.
+        for (var p = 0; p + 4 <= b.length; p += 4) {
+          span(p, 4, _cObject, '$tag marker (u32)',
+              '${tag == 'FPSE' ? 'Front-panel' : 'Block-diagram'} section marker word (value role not yet decoded).',
+              preview: '${_u32(b, p)}');
+        }
+      case 'MUID':
+        span(0, 4, _cObject, 'MUID (u32)', 'Module/object unique id (opaque value).', preview: '${_u32(b, 0)}');
+      case 'TITL':
+        if (b.isNotEmpty) {
+          final n = b[0];
+          span(0, 1, _cHeader, 'Title length (u8)', 'Pascal-string length of the VI title that follows.', preview: '$n');
+          if (1 + n <= b.length) {
+            final text = String.fromCharCodes(b.sublist(1, 1 + n));
+            span(1, n, _cRect, 'Title (ASCII)', 'The VI window title (Pascal string).', preview: text);
+          }
+        }
       default:
         return const [];
     }
