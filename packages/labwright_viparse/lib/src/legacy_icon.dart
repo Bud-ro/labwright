@@ -4,7 +4,7 @@
 /// `icl8` = 1024 B @ **8 bpp** (palette-indexed, 7583/7583), `icl4` = 512 B @
 /// **4 bpp**, `ICON` = 128 B @ **1 bpp** (monochrome, 7534). Each holds exactly
 /// 32×32 = 1024 pixels (1 byte / 2 nibbles / 8 bits per byte). They are real,
-/// varied icon data (ICON has 3632 distinct bodies) — NOT a stub or a name table
+/// varied icon data (ICON has 5242 distinct bodies) — NOT a stub or a name table
 /// (the earlier "repurposed" reading was disproved by re-probe; `40 21` shows up
 /// in only 0.8% of ICON, coincidentally).
 ///

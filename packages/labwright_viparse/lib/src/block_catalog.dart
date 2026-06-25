@@ -211,7 +211,7 @@ const Map<String, ViBlockInfo> _catalog = {
   'RTSG': ViBlockInfo('RTSG', 'Run-time signature', _id, _cf, '16-byte signature, varied per VI (85%); opaque value, role=identity.'),
   'OBSG': ViBlockInfo('OBSG', 'Object signature', _id, _cf, '16-byte signature, varied per VI (99%); opaque value, role=identity.'),
   'CCSG': ViBlockInfo('CCSG', 'Compiled-code signature', _id, _cf, '16-byte signature, near-CONSTANT (4 distinct/528) — shared toolchain signature, not per-VI.'),
-  'SCSR': ViBlockInfo('SCSR', 'Source signature', _id, _cf, '20-byte [u32 ver=1][16-byte sig], near-constant (5 distinct/2630).'),
+  'SCSR': ViBlockInfo('SCSR', 'Source signature', _id, _cf, '20-byte: leading byte 0x01 (u32@0 = 0x01000000 BE) + 16-byte sig, near-constant (5 distinct/2630).'),
   'GCPR': ViBlockInfo('GCPR', 'Generated-code property', _id, _cf, 'Fixed 13-byte record, constant (all-zero) across the corpus.'),
   'GCDI': ViBlockInfo('GCDI', 'Generated-code debug info', _id, _tt, 'Compressed; mostly 9 B decompressed; format not yet decoded.'),
 
