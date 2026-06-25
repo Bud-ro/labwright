@@ -547,4 +547,30 @@ void main() {
     expect(ok / total, greaterThan(0.99),
         reason: 'STRG length-law/printability held for only $ok/$total (<99%).');
   });
+
+  // 11. DTHP FRAMING — the data-type heap is the 4-byte [u16][u16] header in the
+  // overwhelming majority; a rare extended form carries named items. Assert the
+  // 4-byte dominance (corpus 99.6%) and that decode is total. (Header-field
+  // meaning is undecoded — not asserted.)
+  test('DTHP: the 4-byte header form dominates and decode is total', () {
+    var total = 0, fourByte = 0, decoded = 0;
+    for (final f in all) {
+      final List<ViSection> secs;
+      try {
+        secs = readViSections(f.readAsBytesSync());
+      } catch (_) {
+        continue;
+      }
+      for (final s in secs) {
+        if (s.tag != 'DTHP' || s.bytes.length < 4) continue;
+        total++;
+        if (s.bytes.length == 4) fourByte++;
+        if (decodeDataTypeHeap(s.bytes) != null) decoded++;
+      }
+    }
+    expect(total, greaterThan(0));
+    expect(decoded, total, reason: 'decodeDataTypeHeap returned null for a >=4-byte DTHP');
+    expect(fourByte / total, greaterThan(0.97),
+        reason: 'DTHP 4-byte dominance dropped to $fourByte/$total (<97%; corpus ≈99.6%).');
+  });
 }

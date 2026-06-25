@@ -137,7 +137,7 @@ const Map<String, ViBlockInfo> _catalog = {
   // --- Type info ---
   'VCTP': ViBlockInfo('VCTP', 'VI type pool', _ti, _cf, 'Type-descriptor table [count][records]; compressed; not a heap.'),
   'TM80': ViBlockInfo('TM80', 'Type map (LV 8.0+)', _ti, _lk, 'Compressed. Short form (~71%) = [u16 count][u16 field1][count u16 entries]; entry semantics not yet decoded. See decodeTypeMap.'),
-  'DTHP': ViBlockInfo('DTHP', 'Data-type heap table', _ti, _tt, 'Format not yet decoded.'),
+  'DTHP': ViBlockInfo('DTHP', 'Data-type heap table', _ti, _lk, '4-byte [u16][u16] header (99.6%); rare extended form carries 40xx-tagged data-item names. See decodeDataTypeHeap.'),
   'FPTD': ViBlockInfo('FPTD', 'Front-panel type descriptors', _ti, _tt, 'Format not yet decoded.'),
 
   // --- Compiled code ---
