@@ -9,7 +9,7 @@ public Pico NI-LabVIEW example corpus), never from LabVIEW itself.
 ("% framed", "% semantically decoded", per-source breakdown) are *not* written
 here by hand — they drift. They are produced by
 `packages/labwright_videcode/tool/coverage.dart` (prints a table, writes
-`corpus/baseline.json`, and a gitignored `vi-corpus/REPORT.md` scorecard) and
+`corpus/baseline.json`, and a gitignored `corpus/vi/REPORT.md` scorecard) and
 guarded by the corpus ratchet tests. If you want a current number, run the tool.
 
 Two layers do the work: `labwright_viparse` (RSRC container + raw sections) and
@@ -173,4 +173,4 @@ Project honesty rule (CLAUDE.md): mark undecoded byte ranges explicitly, say
 - Remaining framing tail: embedded image blobs after `0xc6` records and the
   variant-c heaps (`FPHc`/`BDHc`) at stop leads `0x2d`/`0x4a`.
 - Live coverage + regression floor: `tool/coverage.dart` → `corpus/baseline.json`
-  + gitignored `vi-corpus/REPORT.md`; per-VI feature presence: `corpus/snapshot.json`.
+  + gitignored `corpus/vi/REPORT.md`; per-VI feature presence: `corpus/snapshot.json`.

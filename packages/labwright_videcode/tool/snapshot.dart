@@ -19,13 +19,13 @@ String _defaultSampleDir() {
   var d = Directory.current;
   for (var i = 0; i < 8; i++) {
     if (File('${d.path}/corpus/sources.json').existsSync()) {
-      return '${d.path}/vi-corpus/picotech_picosdk-ni-labview-examples';
+      return '${d.path}/corpus/vi/picotech_picosdk-ni-labview-examples';
     }
     final p = d.parent;
     if (p.path == d.path) break;
     d = p;
   }
-  return 'vi-corpus/picotech_picosdk-ni-labview-examples';
+  return 'corpus/vi/picotech_picosdk-ni-labview-examples';
 }
 
 void main(List<String> args) {

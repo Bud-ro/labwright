@@ -10,7 +10,7 @@ import 'dart:io';
 /// Usage:
 ///   dart run tool/fetch_corpus.dart [destRoot]
 ///
-/// `destRoot` defaults to `<repoRoot>/vi-corpus/` — a gitignored folder at the
+/// `destRoot` defaults to `<repoRoot>/corpus/vi/` — a gitignored folder at the
 /// repo root, kept there (not in /tmp) for visibility into what the corpus tests
 /// + coverage tool consume (see corpus/README.md and test/corpus_dirs.dart). Each
 /// repo extracts to `<destRoot>/<owner>_<name>/`; already-populated dirs are
@@ -24,7 +24,7 @@ Future<void> main(List<String> args) async {
   }
   // Repo root = the dir holding corpus/sources.json (i.e. <repoRoot>/corpus/sources.json).
   final repoRoot = sources.parent.parent.path;
-  final dest = args.isNotEmpty ? args.first : '$repoRoot/vi-corpus';
+  final dest = args.isNotEmpty ? args.first : '$repoRoot/corpus/vi';
   final list = (jsonDecode(sources.readAsStringSync())['sources'] as List).cast<Map<String, dynamic>>();
 
   Directory(dest).createSync(recursive: true);

@@ -9,7 +9,7 @@ overfit to a single mono-culture.
   branch, **pinned commit hash**, VI count, and category.
 - **[`../packages/labwright_videcode/tool/fetch_corpus.dart`](../packages/labwright_videcode/tool/fetch_corpus.dart)**
   — fetches every source at its pinned commit into the gitignored
-  **`<repoRoot>/vi-corpus/`** folder (override with an arg). Requires an
+  **`<repoRoot>/corpus/vi/`** folder (override with an arg). Requires an
   authenticated `gh`. Run with
   `dart run packages/labwright_videcode/tool/fetch_corpus.dart`. The `.vi` files
   are **not committed** (clean-room + licensing); re-fetch with this script. Kept
@@ -27,11 +27,11 @@ not a claim that every value is decoded — hence "deliberately parsed", not
 "understood".
 
 ```
-dart run tool/coverage.dart [corpusRoot=<repoRoot>/vi-corpus] [perSourceCap=120]
+dart run tool/coverage.dart [corpusRoot=<repoRoot>/corpus/vi] [perSourceCap=120]
 ```
 
 The tool also writes a human-readable scorecard to the gitignored
-`vi-corpus/REPORT.md` on every run (per-source + total), so the format "report
+`corpus/vi/REPORT.md` on every run (per-source + total), so the format "report
 card" is regenerated from the live decoders rather than hand-maintained in prose.
 Durable structural facts live in `apps/labwright_vi_inspector/NOTES.md`.
 
@@ -77,7 +77,7 @@ A parallel catalog for the TestStand reader (`packages/labwright_teststand`):
   community + real-world), each with its observed `encoding` (XML / binary-TOF1 /
   mixed).
 - **[`../packages/labwright_teststand/tool/fetch_seq_corpus.dart`](../packages/labwright_teststand/tool/fetch_seq_corpus.dart)**
-  — fetches them into the gitignored **`<repoRoot>/seq-corpus/`**. Run with
+  — fetches them into the gitignored **`<repoRoot>/corpus/seq/`**. Run with
   `dart run packages/labwright_teststand/tool/fetch_seq_corpus.dart`.
 
 RE findings live in `packages/labwright_teststand/NOTES.md`.

@@ -25,8 +25,8 @@ zig-out/
 # Fetched VI corpus — clean-room + licensing, so the .vi files are NOT committed.
 # Reproduce with `dart run packages/labwright_videcode/tool/fetch_corpus.dart`.
 # Kept at the repo root (not /tmp) for visibility into what tests/probes consume.
-/vi-corpus/
+/corpus/vi/
 
-# Fetched TestStand corpus — same clean-room + licensing reason as vi-corpus.
+# Fetched TestStand corpus — same clean-room + licensing reason as corpus/vi.
 # Reproduce with `dart run packages/labwright_teststand/tool/fetch_seq_corpus.dart`.
-/seq-corpus/
+/corpus/seq/

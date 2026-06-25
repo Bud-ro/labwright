@@ -28,4 +28,4 @@ pinned, reproducible corpus:
 dart run packages/labwright_teststand/tool/fetch_seq_corpus.dart
 ```
 
-→ the gitignored `seq-corpus/` at the repo root (catalog: `corpus/seq-sources.json`).
+→ the gitignored `corpus/seq/` at the repo root (catalog: `corpus/seq-sources.json`).

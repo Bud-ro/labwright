@@ -18,7 +18,7 @@ import 'package:labwright_viparse/labwright_viparse.dart';
 /// deterministic picotech-sample figure to `corpus/baseline.json`, which
 /// `corpus_coverage_test.dart` reads as a regression floor.
 ///
-/// Run: `dart run tool/coverage.dart [corpusRoot=<repoRoot>/vi-corpus] [perSourceCap=120]`
+/// Run: `dart run tool/coverage.dart [corpusRoot=<repoRoot>/corpus/vi] [perSourceCap=120]`
 const _heapTags = {'BDHb', 'BDHP', 'FPHb', 'FPHP', 'DTHP'};
 
 /// The gitignored corpus root checked out by tool/fetch_corpus.dart, found by
@@ -26,12 +26,12 @@ const _heapTags = {'BDHb', 'BDHP', 'FPHb', 'FPHP', 'DTHP'};
 String _defaultCorpusRoot() {
   var d = Directory.current;
   for (var i = 0; i < 8; i++) {
-    if (File('${d.path}/corpus/sources.json').existsSync()) return '${d.path}/vi-corpus';
+    if (File('${d.path}/corpus/sources.json').existsSync()) return '${d.path}/corpus/vi';
     final p = d.parent;
     if (p.path == d.path) break;
     d = p;
   }
-  return 'vi-corpus';
+  return 'corpus/vi';
 }
 
 class _Stat {

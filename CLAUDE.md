@@ -40,14 +40,14 @@ into the core) and corpus-driven.
 
 - The `.vi` and `.seq` corpus are **not committed** (clean-room + licensing). Fetch it with
   `dart run packages/labwright_videcode/tool/fetch_corpus.dart` → the gitignored
-  **`vi-corpus/`** at the repo root (≈7.5k VIs from 20 pinned repos).
+  **`corpus/vi/`** at the repo root (≈7.5k VIs from 20 pinned repos).
 - **Processing the corpus must use single-VM bounded-concurrency with a memory
   cap** — a reusable worker pool that streams files so peak memory ≈ poolSize ×
   per-VI working set. Do **NOT** use `dart test -j 1` (too slow over 7.5k files)
   and do **NOT** let the runner spawn many suite isolates that each iterate the
   whole corpus (that OOMs). A shared `tool/corpus_run.dart` harness is the
   intended home for this; corpus tests/probes should drive the corpus through it.
-- Corpus tests are tagged `@Tags(['corpus'])` and **self-skip** when `vi-corpus/`
+- Corpus tests are tagged `@Tags(['corpus'])` and **self-skip** when `corpus/vi/`
   is absent, so CI/the default unit run stays green without it.
 
 ## Conventions (binding)
@@ -76,7 +76,7 @@ into the core) and corpus-driven.
 ## Testing
 
 - Per package: `dart analyze <pkg>` + `dart test <pkg>` (Flutter apps use
-  `flutter test`). Corpus-tagged tests need `vi-corpus/` (see above).
+  `flutter test`). Corpus-tagged tests need `corpus/vi/` (see above).
 - Coverage/structure regressions are guarded by ratchet tests + machine-written
   baselines (`corpus/baseline.json`, `corpus/snapshot.json`) — re-run the tool to
   record a genuine improvement; never hand-edit a baseline down.

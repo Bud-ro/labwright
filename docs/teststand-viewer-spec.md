@@ -79,7 +79,7 @@ Mirror the VI corpus approach: a pinned, reproducible set of **real `.seq`
 files** (NI example sequences ship with TestStand; open-source TestStand repos on
 GitHub; the maintainer may supply representative in-house sequences — sanitized).
 Add a `teststand` source catalog + a fetcher (reuse the `fetch_corpus.dart`
-pattern) writing to a gitignored `seq-corpus/`. Drive corpus processing through
+pattern) writing to a gitignored `corpus/seq/`. Drive corpus processing through
 the **single-VM bounded-concurrency** harness (CLAUDE.md), not `-j 1`.
 
 ## Milestones
