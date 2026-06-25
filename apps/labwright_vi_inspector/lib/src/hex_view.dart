@@ -103,7 +103,11 @@ class _BlockHexViewState extends State<BlockHexView> {
         _records = const [];
       }
     } else {
-      _records = const [];
+      // Non-heap block: annotate per-byte from the block's known field layout so
+      // every byte is clickable to its purpose (with explicit "undecoded" spans
+      // for any bytes we can't yet name — honest, total coverage). Empty when the
+      // block has no field decoder, in which case the raw-hex panel is shown.
+      _records = _fieldSpans(widget.section.tag, b);
     }
     _byteToRecord = List<int>.filled(b.length, -1);
     for (var i = 0; i < _records.length; i++) {
@@ -499,6 +503,85 @@ class _BlockHexViewState extends State<BlockHexView> {
         Text(info.note, style: const TextStyle(fontSize: 11, color: Colors.grey, fontStyle: FontStyle.italic)),
       ],
     );
+  }
+
+  /// Per-byte field spans for a non-heap block whose layout we know, so the hex
+  /// dump is clickable byte-by-byte (mirroring the heap record-walk). Returns []
+  /// for blocks without a field layout (the raw-hex panel is shown instead).
+  /// Whatever spans are produced, [_fillGaps] adds explicit "undecoded" spans so
+  /// EVERY byte is accounted for — coverage is total and the gaps stay visible.
+  List<_SpanInfo> _fieldSpans(String tag, List<int> b) {
+    final out = <_SpanInfo>[];
+    void span(int off, int len, Color c, String title, String detail, {String? preview}) {
+      if (len <= 0 || off < 0 || off + len > b.length) return;
+      out.add(_SpanInfo(offset: off, length: len, lead: b[off], color: c, title: title, detail: detail, inlinePreview: preview));
+    }
+
+    switch (tag) {
+      case 'vers':
+        final vw = b is Uint8List ? decodeVersionWord(b) : decodeVersionWord(Uint8List.fromList(b));
+        span(0, 4, _cObject, 'Version word (u32)',
+            'BCD major · minor<<4|patch · stage · build. The same word heads LVSR. See decodeVersionWord.',
+            preview: vw == null ? '0x${_u32(b, 0).toRadixString(16)}' : 'v${vw.version}');
+        // bytes 4.. are the Pascal version string + VIDS title — left as undecoded
+        // here (decodeVersion reads them as strings, not byte-framed yet).
+      case 'STRG':
+      case 'HLPT':
+        span(0, 4, _cHeader, 'Text length (u32)', 'Byte length of the UTF-8 text that follows (== sectionLen-4).',
+            preview: '${_u32(b, 0)} B');
+        span(4, b.length - 4, _cRect, 'Text (UTF-8)', 'The VI description / context-help text.');
+      case 'NUID':
+      case 'SUID':
+      case 'BNID':
+        if (b.length >= 4) {
+          final count = _u32(b, 0);
+          span(0, 4, _cHeader, 'Entry count (u32)', '$count u32 id entries follow ([u32 count][count u32]).',
+              preview: '$count');
+          for (var i = 0; i < count && 4 + 4 * i + 4 <= b.length; i++) {
+            span(4 + 4 * i, 4, _cObject, 'id[$i] (u32)', 'An opaque UID/handle value (role not yet decoded).',
+                preview: '0x${_u32(b, 4 + 4 * i).toRadixString(16)}');
+          }
+        }
+      case 'HIST':
+        const names = ['format version', 'flags', 'entry count', 'reserved', 'word4', 'stamp A', 'stamp B', 'reserved', 'reserved', 'word9'];
+        for (var w = 0; w < 10 && w * 4 + 4 <= b.length; w++) {
+          span(w * 4, 4, _cObject, 'HIST @${w * 4}: ${names[w]} (u32)', 'Revision-history record word. See decodeHistory.',
+              preview: '${_u32(b, w * 4)}');
+        }
+      default:
+        return const [];
+    }
+    return _fillGaps(out, b.length);
+  }
+
+  /// Inserts explicit "undecoded" spans for any byte ranges [fields] leaves
+  /// uncovered (and a trailing tail), so the hex view accounts for every byte.
+  List<_SpanInfo> _fillGaps(List<_SpanInfo> fields, int len) {
+    if (fields.isEmpty) return fields;
+    fields.sort((a, b) => a.offset.compareTo(b.offset));
+    final out = <_SpanInfo>[];
+    var cursor = 0;
+    void gap(int from, int to) {
+      if (to > from) {
+        out.add(_SpanInfo(
+          offset: from,
+          length: to - from,
+          lead: 0,
+          color: _cUnframed,
+          title: 'Undecoded ($from..${to - 1})',
+          detail: 'These ${to - from} bytes are not yet field-decoded for this block — preserved, not hidden.',
+          inlinePreview: '${to - from} B',
+        ));
+      }
+    }
+
+    for (final f in fields) {
+      gap(cursor, f.offset);
+      out.add(f);
+      if (f.offset + f.length > cursor) cursor = f.offset + f.length;
+    }
+    gap(cursor, len);
+    return out;
   }
 
   static String _fmt(int n) => n >= 1024 ? '${(n / 1024).toStringAsFixed(1)} KB' : '$n B';

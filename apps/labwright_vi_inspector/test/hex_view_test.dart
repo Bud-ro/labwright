@@ -130,7 +130,7 @@ void main() {
         wasCompressed: false,
       );
 
-  testWidgets('a decoded vers block shows a Parsed panel with the version', (tester) async {
+  testWidgets('a vers block is annotated per-byte: version-word span + undecoded tail', (tester) async {
     tester.view.physicalSize = const Size(1000, 1400);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -138,8 +138,26 @@ void main() {
     final vers = _raw('vers', [0x08, 0x50, 0x80, 0x02, 0x03, ...'8.5'.codeUnits]);
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: BlockHexView(section: vers))));
     await tester.pump();
-    expect(find.textContaining('Parsed'), findsOneWidget);
-    expect(find.text('8.5'), findsWidgets); // decoded version surfaced
+    // the first 4 bytes are a clickable "Version word" field showing the version;
+    expect(find.textContaining('Version word'), findsOneWidget);
+    expect(find.textContaining('8.5'), findsWidgets); // decoded version in the preview
+    // ...and the remaining (string) bytes are honestly marked undecoded — total coverage.
+    expect(find.textContaining('Undecoded'), findsWidgets);
+  });
+
+  testWidgets('an id-table block is annotated per byte (count + each entry)', (tester) async {
+    tester.view.physicalSize = const Size(1000, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    // NUID = [u32 count=2][u32 id0][u32 id1] — every byte should be a field.
+    final nuid = _raw('NUID', [0, 0, 0, 2, 0, 0, 0, 0x11, 0, 0, 0, 0x22]);
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: BlockHexView(section: nuid))));
+    await tester.pump();
+    expect(find.textContaining('Entry count'), findsOneWidget);
+    expect(find.textContaining('id[0]'), findsOneWidget);
+    expect(find.textContaining('id[1]'), findsOneWidget);
+    // fully framed: no "Undecoded" gap for this exact [count][entries] layout
+    expect(find.textContaining('Undecoded'), findsNothing);
   });
 
   testWidgets('a decoded HLPP block shows its recovered help path', (tester) async {
