@@ -395,6 +395,35 @@ class _BlockHexViewState extends State<BlockHexView> {
 
   Widget _nonHeapPanel() {
     final info = blockInfo(widget.section.tag);
+    // Legacy icon bitmaps (icl8/icl4/ICON) render as a real 32x32 preview.
+    final bpp = legacyIconBpp(widget.section.tag);
+    if (bpp != null) {
+      final icon = decodeLegacyIcon(widget.section.bytes, bpp);
+      if (icon != null) {
+        return ListView(
+          padding: const EdgeInsets.all(12),
+          children: [
+            Text('Parsed · ${info.name}', style: const TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 2),
+            Text('${widget.section.tag} · 32×32 @ ${bpp}bpp', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+            const Divider(height: 14),
+            Center(
+              child: CustomPaint(
+                size: const Size(128, 128),
+                painter: _LegacyIconPainter(icon),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              bpp == 1
+                  ? '1-bit mask: black = set pixel.'
+                  : 'Shown as palette indices (shaded by index) — the true LabVIEW colour palette is not yet mapped.',
+              style: const TextStyle(fontSize: 11, color: Colors.grey, fontStyle: FontStyle.italic),
+            ),
+          ],
+        );
+      }
+    }
     final fields = _parsedBlockSummary();
     if (_preview != null) return Center(child: Padding(padding: const EdgeInsets.all(16), child: _preview));
     if (fields.isEmpty) {
@@ -760,4 +789,40 @@ class _StringPreview extends StatelessWidget {
         decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.25), borderRadius: BorderRadius.circular(4)),
         child: SelectableText(text, style: const TextStyle(fontFamily: 'monospace', fontSize: 12.5)),
       );
+}
+
+/// Paints a 32×32 [ViLegacyIcon] scaled to fill the given size. 1-bit pixels are
+/// drawn black/white (mask); 4/8-bit pixels are shaded by their palette index
+/// (grayscale) — an honest stand-in, since the true LabVIEW palette is not mapped.
+class _LegacyIconPainter extends CustomPainter {
+  _LegacyIconPainter(this.icon);
+  final ViLegacyIcon icon;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const dim = 32;
+    final cw = size.width / dim;
+    final ch = size.height / dim;
+    final maxIdx = (1 << icon.bpp) - 1; // 1, 15, or 255
+    final p = Paint();
+    for (var y = 0; y < dim; y++) {
+      for (var x = 0; x < dim; x++) {
+        final v = icon.pixels[y * dim + x];
+        if (icon.bpp == 1) {
+          p.color = v == 0 ? Colors.white : Colors.black;
+        } else {
+          final g = maxIdx == 0 ? 0 : (255 * v ~/ maxIdx).clamp(0, 255);
+          p.color = Color.fromARGB(255, g, g, g);
+        }
+        canvas.drawRect(Rect.fromLTWH(x * cw, y * ch, cw + 0.5, ch + 0.5), p);
+      }
+    }
+    // a faint border so a mostly-white icon is still visible
+    canvas.drawRect(Offset.zero & size, Paint()
+      ..style = PaintingStyle.stroke
+      ..color = const Color(0xFF888888));
+  }
+
+  @override
+  bool shouldRepaint(_LegacyIconPainter old) => !identical(old.icon, icon);
 }

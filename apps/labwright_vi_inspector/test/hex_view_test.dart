@@ -158,6 +158,20 @@ void main() {
     expect(find.text('doc'), findsOneWidget);
   });
 
+  testWidgets('an ICON block renders a 32x32 legacy-icon preview', (tester) async {
+    tester.view.physicalSize = const Size(1000, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    // ICON = 128 B = 32x32 @ 1bpp. A non-trivial pattern so it's a real bitmap.
+    final bytes = List<int>.generate(128, (i) => i.isEven ? 0xA5 : 0x5A);
+    final icon = _raw('ICON', bytes);
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: BlockHexView(section: icon))));
+    await tester.pump();
+    expect(find.textContaining('32×32 @ 1bpp'), findsOneWidget);
+    // the preview CustomPaint is present (there may be others, e.g. the hex dump).
+    expect(find.byType(CustomPaint), findsWidgets);
+  });
+
   testWidgets('copy menu puts the block bytes on the clipboard as hex', (tester) async {
     final log = <MethodCall>[];
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
