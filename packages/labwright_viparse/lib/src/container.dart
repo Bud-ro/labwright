@@ -350,7 +350,12 @@ class ViNameTable {
   final Uint8List header;
 
   /// The lone non-zero word of the canonical 12-byte [header] (`u32 @4`), or null
-  /// when [header] is not the canonical 12-byte form. Meaning not yet decoded.
+  /// when [header] is not the canonical 12-byte form. Corpus-probed: it is a
+  /// **data-area-range value** — always `< dataSize` and typically ~120–160 below
+  /// it (pointing near the end of the data area). Meaning not yet decoded; RULED
+  /// OUT: it is not the trailing-name length/offset, the descriptor count, the
+  /// info/data/file size, nor any section's `secRel`.
+  // TODO(labwright): decode what near-end-of-data-area position/value this is.
   int? get headerValue => header.length == 12 ? ByteData.sublistView(header).getUint32(4) : null;
 
   /// The `[u8 len][name bytes]` Pascal record at EOF, or empty if no clean

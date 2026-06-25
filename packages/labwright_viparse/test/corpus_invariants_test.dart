@@ -600,6 +600,37 @@ void main() {
         reason: 'header grew with nameRef ($highRefHeader12/$highRefFiles stayed 12; max header at high ref: $maxHeaderAtHighRef, maxRef: $maxRefSeen)');
   });
 
+  // NAME-TABLE headerValue is a data-area-range value (always < dataSize); its
+  // exact meaning is TBD but the bound is locked so a misread surfaces.
+  test('INFO-AREA: name-table headerValue is a data-area offset (< dataSize)', () {
+    var checked = 0;
+    final bad = <String>[];
+    for (final f in all) {
+      final Uint8List bytes;
+      try {
+        bytes = Uint8List.fromList(f.readAsBytesSync());
+      } catch (_) {
+        continue;
+      }
+      final int? hv;
+      final int dataSize;
+      try {
+        final c = ViContainer.parse(bytes);
+        hv = c.parsedInfoArea.nameTable.headerValue;
+        dataSize = c.parsedHeader.dataSize;
+      } catch (_) {
+        continue;
+      }
+      if (hv == null) continue;
+      checked++;
+      if (hv >= dataSize) {
+        if (bad.length < 6) bad.add('${f.path.split('/').last}: headerValue=$hv >= dataSize=$dataSize');
+      }
+    }
+    expect(checked, greaterThan(0));
+    expect(bad, isEmpty, reason: 'headerValue not < dataSize: $bad');
+  });
+
   // DESCRIPTOR @16 IS BINARY: across the corpus every section descriptor's @16
   // word is exactly 0xFFFFFFFF (the VI's own data sections) or exactly 0 (the
   // LIBN/VINS sections — both real, data-bearing). No third value occurs. And
