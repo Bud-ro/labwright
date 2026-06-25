@@ -264,4 +264,47 @@ void main() {
     expect(find.textContaining('objects'), findsOneWidget); // controls still render
     expect(find.text('Wireframe'), findsOneWidget);
   });
+
+  group('computeBdOutline', () {
+    ViHeapObject struct(int kind) => ViHeapObject(oid: kind, kind: kind, offset: 0)..category = ViObjectKind.structure;
+    test('groups structures by catalog kind and lists named calls (no fabrication)', () {
+      final objs = [
+        struct(0x21), // While loop
+        struct(0x21), // While loop (×2)
+        struct(0x2c), // Case structure
+        struct(0x7e), // Diagram root -> excluded (not control flow)
+        ViHeapObject(oid: 10, kind: 0x12, offset: 0) // a named subVI/function node
+          ..category = ViObjectKind.node
+          ..label = 'Acquire.vi',
+        ViHeapObject(oid: 11, kind: 0x2f, offset: 0)..category = ViObjectKind.node, // unlabeled primitive -> hint
+      ];
+      final o = computeBdOutline(objs);
+      expect(o.structuresByKind['While loop'], 2);
+      expect(o.structuresByKind['Case structure'], 1);
+      expect(o.structuresByKind.containsKey('Diagram root'), isFalse); // excluded
+      expect(o.calls, ['Acquire.vi']); // the hint-only primitive is not a "call"
+      expect(o.nodeCount, 2);
+    });
+  });
+
+  testWidgets('block-diagram view shows a control-flow outline (structures + calls)', (tester) async {
+    tester.view.physicalSize = const Size(1000, 1000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final model = _modelFromRecords(<int>[
+      ...open(0x7e, 1), ...bounds(0, 0, 400, 400), // root (excluded from outline)
+      ...open(0x21, 2, tag: 0x1a), ...bounds(10, 10, 200, 200), // While loop
+      ...close(0x1a),
+      ...open(0x12, 3, tag: 0x1b), ...bounds(20, 220, 50, 360), ...caption('Acquire.vi'), // named node
+      ...close(0x1b),
+      ...close(),
+    ]);
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: ViDiagramView(diagrams: model.blockDiagrams))));
+    await tester.pump();
+
+    expect(find.text('Control flow:'), findsOneWidget);
+    expect(find.text('While loop ×1'), findsOneWidget);
+    expect(find.textContaining('Calls (1): Acquire.vi'), findsOneWidget);
+  });
 }

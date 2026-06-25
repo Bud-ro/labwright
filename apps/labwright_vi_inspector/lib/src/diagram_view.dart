@@ -107,6 +107,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _toolbar(_drawable.length, _counts),
+        _BdOutline(outline: computeBdOutline(_drawable)),
         const SizedBox(height: 6),
         Expanded(
           // Stack so the details card is an OVERLAY — it never changes the
@@ -356,6 +357,39 @@ String? wireframeAnnotation(ViHeapObject o) {
   final type = o.typeKind == ViTypeKind.unknown ? null : o.typeKind.name;
   if (label != null && type != null) return '$label · $type';
   return label ?? type;
+}
+
+/// An honest, wire-free **control-flow outline** of a block diagram: the
+/// structures grouped by catalog kind (e.g. `While loop`, `Case structure`), the
+/// distinct named subVI/function calls, and the total node count. Conveys the
+/// diagram's control-flow shape at a glance without claiming any dataflow edges
+/// (LabVIEW stores wires as geometry, with no recoverable node→node endpoints).
+/// Pure + public so it is unit-testable independently of the canvas.
+({Map<String, int> structuresByKind, List<String> calls, int nodeCount}) computeBdOutline(
+    Iterable<ViHeapObject> objects) {
+  // The diagram canvas/root frames are structures but not control flow — exclude
+  // them so the outline reads as actual loops/cases/sequences/containers.
+  const notControlFlow = {
+    HeapObjectClass.diagramRoot,
+    HeapObjectClass.diagramProps,
+    HeapObjectClass.diagramFrame,
+    HeapObjectClass.rootAux,
+  };
+  final byKind = <String, int>{};
+  final calls = <String>[];
+  var nodeCount = 0;
+  for (final o in objects) {
+    if (o.category == ViObjectKind.structure) {
+      if (notControlFlow.contains(o.objectClass)) continue;
+      final k = structureBadge(o);
+      byKind[k] = (byKind[k] ?? 0) + 1;
+    } else if (o.category == ViObjectKind.node) {
+      nodeCount++;
+      final dl = nodeDisplayLabel(o); // (text, isHint)
+      if (!dl.isHint && !calls.contains(dl.text)) calls.add(dl.text);
+    }
+  }
+  return (structuresByKind: byKind, calls: calls, nodeCount: nodeCount);
 }
 
 /// Control-terminal classes — their internal sub-terminals are scaffolding.
@@ -664,6 +698,47 @@ class _DetailsCard extends StatelessWidget {
             IconButton(visualDensity: VisualDensity.compact, onPressed: onClose, icon: const Icon(Icons.close, size: 18)),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// A compact, honest control-flow outline strip under the diagram toolbar:
+/// structures grouped by catalog kind + the named subVI/function calls. Renders
+/// nothing when the diagram has no structures or named calls.
+class _BdOutline extends StatelessWidget {
+  const _BdOutline({required this.outline});
+  final ({Map<String, int> structuresByKind, List<String> calls, int nodeCount}) outline;
+
+  @override
+  Widget build(BuildContext context) {
+    final structs = outline.structuresByKind.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final calls = outline.calls;
+    if (structs.isEmpty && calls.isEmpty) return const SizedBox.shrink();
+
+    const muted = TextStyle(fontSize: 12, color: Colors.grey);
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (structs.isNotEmpty)
+            Wrap(spacing: 10, runSpacing: 2, crossAxisAlignment: WrapCrossAlignment.center, children: [
+              const Text('Control flow:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+              for (final e in structs) Text('${e.key} ×${e.value}', style: muted),
+            ]),
+          if (calls.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                'Calls (${calls.length}): ' +
+                    calls.take(20).join(', ') +
+                    (calls.length > 20 ? ', … (+${calls.length - 20})' : ''),
+                style: muted,
+              ),
+            ),
+        ],
       ),
     );
   }
