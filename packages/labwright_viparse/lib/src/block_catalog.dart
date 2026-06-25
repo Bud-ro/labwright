@@ -185,7 +185,7 @@ const Map<String, ViBlockInfo> _catalog = {
   'HLPW': ViBlockInfo('HLPW', 'Help (W)', _hp, _tt, 'Help-related; format not yet decoded.'),
 
   // --- Settings / version ---
-  'LVSR': ViBlockInfo('LVSR', 'LabVIEW save record', _st, _lk, 'VI settings/flags; 160 B; shares the vers-style 08 50 80 02 head.'),
+  'LVSR': ViBlockInfo('LVSR', 'LabVIEW save record', _st, _cf, 'VI settings/flags (160/144/136 B). Decoded: version word @0 (BCD, == vers 99.95%) + BD password hash @96 (== BDPW). See decodeSaveRecord.'),
   'vers': ViBlockInfo('vers', 'Version record', _st, _cf, 'LabVIEW version that saved the VI.'),
 
   // --- Security ---

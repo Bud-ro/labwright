@@ -395,4 +395,61 @@ void main() {
         reason: 'structural heaps not catalogued as recordHeap: only $structuralCatalogued/$structuralSections — '
             'a real heap tag may be missing from the catalog.');
   });
+
+  // 7. LVSR SAVE-RECORD ↔ CORPUS — the decoded LVSR version word must match the
+  // independent `vers` string, and its @96 password-hash slot must mirror the
+  // BDPW block. These cross-source agreements are what make the field claims
+  // honest (not a lucky single-VI reading). Floors set just below the probed
+  // rates (version 7579/7583, password 5707/5710 ≈ 99.9%).
+  test('LVSR: decoded version matches vers, and the @96 hash mirrors BDPW', () {
+    var verTotal = 0, verMatch = 0, pwTotal = 0, pwMatch = 0, stageNon80 = 0, lvsrSeen = 0;
+    for (final f in all) {
+      final bytes = f.readAsBytesSync();
+      final List<ViSection> secs;
+      try {
+        secs = readViSections(bytes);
+      } catch (_) {
+        continue;
+      }
+      final rec = saveRecordFromSections(secs);
+      if (rec == null) continue;
+      lvsrSeen++;
+      if (rec.stage != 0x80) stageNon80++;
+      // version cross-check against the independent vers string.
+      final vstr = decodeVersion(bytes).version;
+      if (vstr != null) {
+        final m = RegExp(r'^(\d{1,2})').firstMatch(vstr);
+        if (m != null) {
+          verTotal++;
+          if (rec.versionMajor == int.parse(m.group(1)!)) verMatch++;
+        }
+      }
+      // @96 hash mirrors BDPW.
+      final h = rec.blockDiagramPasswordHash;
+      if (h != null) {
+        for (final s in secs) {
+          if (s.tag != 'BDPW' || s.bytes.length < 16) continue;
+          pwTotal++;
+          var same = true;
+          for (var i = 0; i < 16; i++) {
+            if (h[i] != s.bytes[i]) {
+              same = false;
+              break;
+            }
+          }
+          if (same) pwMatch++;
+          break;
+        }
+      }
+    }
+    expect(lvsrSeen, greaterThan(0));
+    expect(verTotal, greaterThan(0));
+    expect(verMatch / verTotal, greaterThan(0.99),
+        reason: 'LVSR version major disagreed with vers in too many VIs ($verMatch/$verTotal).');
+    expect(pwTotal, greaterThan(0));
+    expect(pwMatch / pwTotal, greaterThan(0.99),
+        reason: 'LVSR @96 hash did not mirror BDPW in too many VIs ($pwMatch/$pwTotal).');
+    // stage byte was 0x80 across the entire corpus at probe time.
+    expect(stageNon80, 0, reason: 'an LVSR stage byte != 0x80 appeared ($stageNon80) — re-probe the stage claim.');
+  });
 }
