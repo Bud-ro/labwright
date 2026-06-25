@@ -573,4 +573,32 @@ void main() {
     expect(fourByte / total, greaterThan(0.97),
         reason: 'DTHP 4-byte dominance dropped to $fourByte/$total (<97%; corpus ≈99.6%).');
   });
+
+  // 12. HIST RECORD — the revision-history block is a fixed 40-byte record:
+  // version@0==2 and the reserved words (@12/@28/@32) are zero across the corpus.
+  // Assert the fixed size + these constants so a decode/layout regression trips.
+  test('HIST: fixed 40-byte record, version 2, reserved words zero', () {
+    var total = 0, sized = 0, ver2 = 0, reservedZero = 0;
+    for (final f in all) {
+      final List<ViSection> secs;
+      try {
+        secs = readViSections(f.readAsBytesSync());
+      } catch (_) {
+        continue;
+      }
+      for (final s in secs) {
+        if (s.tag != 'HIST') continue;
+        total++;
+        if (s.bytes.length == 40) sized++;
+        final h = decodeHistory(s.bytes);
+        if (h == null) continue;
+        if (h.formatVersion == 2) ver2++;
+        if (h.reservedAreZero) reservedZero++;
+      }
+    }
+    expect(total, greaterThan(0));
+    expect(sized / total, greaterThan(0.99), reason: 'HIST not 40 bytes in $sized/$total');
+    expect(ver2 / total, greaterThan(0.99), reason: 'HIST @0 != 2 in too many ($ver2/$total)');
+    expect(reservedZero / total, greaterThan(0.99), reason: 'HIST reserved words non-zero in too many ($reservedZero/$total)');
+  });
 }

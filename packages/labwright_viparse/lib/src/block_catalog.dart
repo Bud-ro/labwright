@@ -199,7 +199,7 @@ const Map<String, ViBlockInfo> _catalog = {
   'VITS': ViBlockInfo('VITS', 'VI tag store / name tail', _nt, _tt, 'Trailing name/tag store.'),
 
   // --- History ---
-  'HIST': ViBlockInfo('HIST', 'Edit history', _hi, _lk, 'Revision history record.'),
+  'HIST': ViBlockInfo('HIST', 'Revision history', _hi, _cf, '40-byte record: version@0=2, flags@4, entryCount@8, reserved@12/28/32=0. See decodeHistory.'),
 
   // --- Identifiers / signatures (small fixed blobs; roles undetermined) ---
   'MUID': ViBlockInfo('MUID', 'Modified UID', _id, _tt, '4-byte id.'),
