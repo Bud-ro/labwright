@@ -223,6 +223,20 @@ void main() {
     expect(d.byId[2]!.items, ['Low', 'Med', 'High']);
   });
 
+  test('graph plot names (C4 27) attach to the 0x5E graph object', () {
+    List<int> plot(String s) => [0xc4, 0x27, s.length, ...s.codeUnits];
+    final records = <int>[
+      ...open(0x7e, 1), ...bounds(0, 0, 400, 400),
+      ...open(0x5e, 2, tag: 0x1a), ...bounds(10, 10, 200, 300), // graph indicator
+      ...plot('Plot 0'), ...plot('Plot 1'),
+      ...close(0x1a),
+      ...close(),
+    ];
+    final d = buildDiagram(Uint8List.fromList([0, 0, 0, records.length, ...records]));
+    expect(d.byId[2]!.plotNames, ['Plot 0', 'Plot 1']); // recovered, in heap order
+    expect(d.byId[1]!.plotNames, isEmpty); // not on the root
+  });
+
   test('enum item parsing rejects the WHOLE table on overrun or non-printable bytes', () {
     // Raw C4 2E with a deliberately corrupt pascal-string payload.
     List<int> rawEnum(List<int> payload) => [0xc4, 0x2e, payload.length, ...payload];

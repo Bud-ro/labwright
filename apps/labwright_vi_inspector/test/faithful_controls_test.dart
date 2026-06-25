@@ -287,6 +287,23 @@ void main() {
     expect(find.byWidgetPredicate((w) => deco(w)?.color == const Color(0xFFE3ECF5)), findsNothing);
   });
 
+  testWidgets('a graph indicator shows its recovered plot names as a legend', (tester) async {
+    tester.view.physicalSize = const Size(800, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final graph = ViHeapObject(oid: 1, kind: 0x5e, offset: 0) // graphIndicator
+      ..category = ViObjectKind.terminal
+      ..plotNames = ['Plot 0', 'Plot 1']
+      ..absBounds = const HeapRect(top: 0, left: 0, bottom: 200, right: 300);
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: FaithfulLayer(objects: [graph], origin: Offset.zero, size: const Size(400, 400))),
+    ));
+    await tester.pump();
+    expect(find.text('Plot 0'), findsOneWidget);
+    expect(find.text('Plot 1'), findsOneWidget);
+  });
+
   group('structureFrameTitle', () {
     ViHeapObject cluster({String? label}) => ViHeapObject(oid: 1, kind: 0x64, offset: 0) // clusterShell
       ..category = ViObjectKind.structure

@@ -161,7 +161,7 @@ Widget _faithfulFor(ViHeapObject o, {bool isFrontPanel = false}) {
     case HeapObjectClass.bdLeaf:
       return const _LeafBox();
     case HeapObjectClass.graphIndicator:
-      return const _GraphPlaceholder();
+      return _GraphPlaceholder(plotNames: o.plotNames);
     case HeapObjectClass.controlSubPart:
       // 0x0b: an INTERNAL part of its parent control (a numeric's spinner arrows,
       // a boolean's glyph) — the parent control already renders the functional
@@ -368,11 +368,42 @@ class _Glyph extends StatelessWidget {
 }
 
 class _GraphPlaceholder extends StatelessWidget {
-  const _GraphPlaceholder();
+  const _GraphPlaceholder({this.plotNames = const []});
+
+  /// Recovered plot/curve names (`C4 27`) shown as a small legend so the graph
+  /// reads as itself (e.g. "Plot 0", "Analog Channels"). Empty → no legend.
+  final List<String> plotNames;
+
   @override
   Widget build(BuildContext context) => Container(
         decoration: BoxDecoration(color: const Color(0xFF0F1A0F), border: Border.all(color: _kBorder)),
-        child: CustomPaint(painter: _GraphPainter()),
+        child: Stack(
+          children: [
+            Positioned.fill(child: CustomPaint(painter: _GraphPainter())),
+            if (plotNames.isNotEmpty)
+              Positioned(
+                top: 2,
+                right: 2,
+                child: ClipRect(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                    color: const Color(0x99000000),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        for (final p in plotNames.take(8))
+                          Text(p,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 8, color: Color(0xFFCFE8CF))),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
       );
 }
 

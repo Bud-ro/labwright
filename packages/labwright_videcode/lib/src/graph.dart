@@ -131,6 +131,11 @@ class ViHeapObject {
   /// propagated up to its enclosing control. Empty for non-enum objects.
   List<String> items = const [];
 
+  /// Plot/curve names of a graph/chart indicator (`C4 27` strings, e.g.
+  /// `Plot 0`, `Line 0`), in heap order. Corpus: these records attach to the
+  /// `0x5E` graph object (1013/1013). Empty for non-graph objects.
+  List<String> plotNames = const [];
+
   /// Decoded numeric-control **range minimum** (from the `0x20` f64 form on a
   /// control terminal) — null if none; may be `-infinity` (the "no minimum"
   /// sentinel). Use [formatControlRange] to render honestly.
@@ -832,6 +837,10 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
         if (cur.items.isEmpty) cur.items = _parseEnumItems(rec.payload);
       } else if (rec.opcode == 0x19) {
         cur.helpText ??= rec.descriptionText;
+      } else if (rec.opcode == 0x27) {
+        // Graph/chart plot name ("Plot 0"/"Line 0") — attaches to the 0x5E graph.
+        final t = rec.text ?? rec.path ?? rec.descriptionText;
+        if (t != null && t.isNotEmpty) cur.plotNames = [...cur.plotNames, t];
       }
     } else if (lead == 0x14) {
       // Typed object reference (the heap's declared object graph). Single-source
