@@ -42,6 +42,17 @@ void main() {
       expect(prot.isBlockDiagramPasswordProtected, isTrue);
     });
 
+    test('reads the @144 secondary hash from its own offset', () {
+      // a distinct hash144 must land in secondaryHash (not @96), proving the
+      // offset is right and the slot is independent of the @96 password hash.
+      final hash144 = List<int>.generate(16, (i) => 100 + i);
+      final r = decodeSaveRecord(_lvsr160(hash144: hash144))!;
+      expect(r.secondaryHash, hash144);
+      expect(r.blockDiagramPasswordHash, emptyPasswordHash); // @96 untouched
+      // the slot is read-only.
+      expect(() => r.secondaryHash!.add(0), throwsUnsupportedError);
+    });
+
     test('hash slots are gated on length', () {
       // 112 bytes: reaches @96 but not @144.
       final b112 = Uint8List(112)..[0] = 0x12;

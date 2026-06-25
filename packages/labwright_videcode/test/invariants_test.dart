@@ -453,12 +453,14 @@ void main() {
     expect(stageNon80, 0, reason: 'an LVSR stage byte != 0x80 appeared ($stageNon80) — re-probe the stage claim.');
   });
 
-  // 8. CONNECTOR PANE ↔ VCTP — the 2-byte CONP/CPC2 value is a 1-based index into
-  // the VI's type pool. Cross-checking that it resolves in-range against the
-  // independently-decoded VCTP is what makes the "it's a VCTP index" claim honest
-  // (probe: 7550/7550 = 100% for CONP). A future off-by-one or layout drift trips
-  // this. Floor 0.99.
-  test('CONP/CPC2: the 2-byte connector-pane index resolves in-range against VCTP', () {
+  // 8. CONNECTOR PANE ↔ VCTP — the 2-byte CONP value is a 1-based index into the
+  // VI's type pool; cross-checking it resolves in-range against the
+  // independently-decoded VCTP is what makes the "CONP is a VCTP index" claim
+  // honest (corpus: 7550/7550 = 100%). NOTE: this is CONP-specific — CPC2's same
+  // slot resolves in-range only ~84% and is NOT claimed as an index, so the test
+  // reads the CONP section directly (not connectorPaneFromSections, which would
+  // also accept a CPC2 fallback). A future off-by-one / layout drift trips this.
+  test('CONP: the 2-byte connector-pane index resolves in-range against VCTP (CONP only)', () {
     var total = 0, inRange = 0;
     for (final f in all) {
       final bytes = f.readAsBytesSync();
@@ -470,16 +472,21 @@ void main() {
       } catch (_) {
         continue;
       }
-      final pane = connectorPaneFromSections(secs);
-      if (pane == null || pane.typeIndex == null) continue; // skip inline form
+      ViSection? conp;
+      for (final s in secs) {
+        if (s.tag == 'CONP') conp = s;
+      }
+      if (conp == null || conp.bytes.length != 2) continue;
+      final pane = decodeConnectorPane(conp.bytes);
+      if (pane?.typeIndex == null) continue;
       final pool = typePoolFromDecoded(dsecs);
       if (pool.isEmpty) continue;
       total++;
-      if (pane.typeIndex! >= 1 && pane.typeIndex! <= pool.length) inRange++;
+      if (pane!.typeIndex! >= 1 && pane.typeIndex! <= pool.length) inRange++;
     }
     expect(total, greaterThan(0));
-    expect(inRange / total, greaterThan(0.99),
-        reason: 'connector-pane index out of VCTP range in too many VIs ($inRange/$total) — '
+    expect(inRange / total, greaterThan(0.999),
+        reason: 'CONP index out of VCTP range in too many VIs ($inRange/$total; corpus 100%) — '
             'the index base/encoding may have drifted.');
   });
 
@@ -505,9 +512,10 @@ void main() {
         total++;
         if (m.isShortForm) {
           shortForm++;
-          // structural self-consistency.
+          // self-consistency with teeth: a loop-bound regression would make the
+          // entry list length disagree with the declared count. (rawLength ==
+          // 4+2*count is the branch gate itself, so it is not re-asserted.)
           expect(m.entries.length, m.count);
-          expect(m.rawLength, 4 + 2 * m.count);
         }
       }
     }
@@ -571,7 +579,41 @@ void main() {
     expect(total, greaterThan(0));
     expect(decoded, total, reason: 'decodeDataTypeHeap returned null for a >=4-byte DTHP');
     expect(fourByte / total, greaterThan(0.97),
-        reason: 'DTHP 4-byte dominance dropped to $fourByte/$total (<97%; corpus ≈99.6%).');
+        reason: 'DTHP 4-byte dominance dropped to $fourByte/$total (<97%; corpus ≈99.45%).');
+  });
+
+  // 11b. DTHP EXTENDED NAME RECOVERY — the rare extended form (length>4) is
+  // decoded by the most fragile, heuristic path (the tolerant 40xx _scanNames
+  // anchor-scan). Guard it: every extended DTHP must recover >=1 name and every
+  // recovered name must be printable. A regression in the scan (off-by-one on
+  // the len byte, dropped 0x40 anchor) would silently empty/garble names and no
+  // other test would notice. Corpus: 33/33 extended sections recover names.
+  test('DTHP: every extended-form block recovers >=1 printable named item', () {
+    var ext = 0, named = 0, printable = 0;
+    for (final f in all) {
+      final List<ViSection> secs;
+      try {
+        secs = readViSections(f.readAsBytesSync());
+      } catch (_) {
+        continue;
+      }
+      for (final s in secs) {
+        if (s.tag != 'DTHP' || s.bytes.length <= 4) continue;
+        final h = decodeDataTypeHeap(s.bytes);
+        if (h == null || !h.isExtended) continue;
+        ext++;
+        if (h.names.isNotEmpty) named++;
+        // match _scanNames' accepted set: tab/newline/CR + printable ASCII.
+        if (h.names.isNotEmpty &&
+            h.names.every((n) => n.runes.every(
+                (c) => c == 9 || c == 10 || c == 13 || (c >= 0x20 && c < 0x7f)))) {
+          printable++;
+        }
+      }
+    }
+    expect(ext, greaterThan(0), reason: 'no extended DTHP found — corpus changed?');
+    expect(named, ext, reason: 'an extended DTHP recovered no names ($named/$ext) — _scanNames regressed');
+    expect(printable, ext, reason: 'an extended DTHP recovered a non-printable name ($printable/$ext)');
   });
 
   // 12. HIST RECORD — the revision-history block is a fixed 40-byte record:

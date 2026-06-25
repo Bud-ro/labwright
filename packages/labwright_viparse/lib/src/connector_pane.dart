@@ -1,20 +1,25 @@
 /// Decoder for the `CONP` / `CPC2` blocks — the VI's **connector pane** (its
 /// terminal interface).
 ///
-/// Corpus finding (7568 VIs): `CONP` is **2 bytes** in 7550 of them, and that
-/// big-endian u16 is a **valid 1-based index into the `VCTP` type pool** in
-/// 7550/7550 (100%) — i.e. CONP names the VI's connector-pane *type descriptor*
-/// by its position in the pool (resolve it with the type-pool decoder to get the
-/// pane's terminal pattern + per-terminal types + name). `CPC2` has the same
-/// 2-byte shape and is almost never byte-equal to `CONP` (56/7533), so it is a
-/// *separate* index (a second/compiled conpane reference), not a duplicate.
+/// Corpus finding: `CONP` is **2 bytes** in 7550 VIs, and that big-endian u16 is
+/// a **valid 1-based index into the `VCTP` type pool** in 7550/7550 (100%) — i.e.
+/// CONP names the VI's connector-pane *type descriptor* by its position in the
+/// pool (resolve it with the type-pool decoder to get the pane's terminal pattern
+/// + per-terminal types + name).
+///
+/// `CPC2` has the same 2-byte shape but is **NOT** a reliable VCTP index: its
+/// u16 resolves in-range only 6309/7503 (84%), so its meaning is NOT confirmed —
+/// it is a related-but-distinct compiled conpane reference, treated here as a
+/// raw value (it is byte-equal to `CONP` in only 55/7503 VIs that carry both, so
+/// it is genuinely separate, not a duplicate).
 ///
 /// A rare older form is longer (≥28 B) and carries the descriptor inline (note
 /// the `00 f0` function-type code); that inline layout is not yet decoded — we
 /// flag it rather than guess.
 ///
-/// Clean-room, corpus-grounded; index-validity is CONFIRMED, the
-/// "this is the conpane type" reading is LIKELY.
+/// Clean-room, corpus-grounded; the CONP index-validity is CONFIRMED, the
+/// "this is the conpane type" reading is LIKELY, the CPC2 index reading is NOT
+/// confirmed.
 library;
 
 import 'dart:typed_data';
@@ -29,16 +34,19 @@ class ViConnectorPane {
   /// The block length in bytes (2 for the common index form).
   final int rawLength;
 
-  /// The 1-based `VCTP` index of the connector-pane type descriptor, for the
-  /// common 2-byte form. Resolve against the type pool to get the terminals.
-  /// CONFIRMED in-range (100% of corpus 2-byte CONP). Null for the inline form.
+  /// The 2-byte big-endian value of the block. For a **CONP** block this is a
+  /// 1-based `VCTP` index of the connector-pane type descriptor — CONFIRMED
+  /// in-range (100% of corpus 2-byte CONP); resolve against the type pool to get
+  /// the terminals. For a **CPC2** block the same slot is in-range only ~84%, so
+  /// a CPC2-sourced value is NOT a confirmed index. Null for the inline form.
   final int? typeIndex;
 
   /// True for the rare older ≥28-byte layout that stores the descriptor inline
   /// instead of as a pool index. Its internal structure is not yet decoded.
   final bool isInline;
 
-  /// Confidence that [typeIndex] is a valid `VCTP` index (corpus: 100%).
+  /// Confidence that a **CONP** [typeIndex] is a valid `VCTP` index (corpus: 100%).
+  /// (Does NOT apply to CPC2, which resolves in-range only ~84%.)
   static const BlockConfidence indexConfidence = BlockConfidence.confirmed;
 
   /// Confidence that the indexed descriptor is the connector pane specifically.
@@ -55,7 +63,9 @@ ViConnectorPane? decodeConnectorPane(Uint8List b) {
   return ViConnectorPane(rawLength: b.length, isInline: true);
 }
 
-/// Finds and decodes the `CONP` (preferred) or `CPC2` connector-pane block.
+/// Finds and decodes the connector pane, **preferring `CONP`** (whose 2-byte
+/// index is the corpus-confirmed VCTP index); falls back to `CPC2` only when
+/// `CONP` is absent (its index is not confirmed — see the class doc).
 /// (`CONP`/`CPC2` are uncompressed, so raw [ViSection] bytes suffice.)
 ViConnectorPane? connectorPaneFromSections(Iterable<ViSection> sections) {
   ViSection? conp, cpc2;

@@ -137,7 +137,7 @@ const Map<String, ViBlockInfo> _catalog = {
   // --- Type info ---
   'VCTP': ViBlockInfo('VCTP', 'VI type pool', _ti, _cf, 'Type-descriptor table [count][records]; compressed; not a heap.'),
   'TM80': ViBlockInfo('TM80', 'Type map (LV 8.0+)', _ti, _lk, 'Compressed. Short form (~71%) = [u16 count][u16 field1][count u16 entries]; entry semantics not yet decoded. See decodeTypeMap.'),
-  'DTHP': ViBlockInfo('DTHP', 'Data-type heap table', _ti, _lk, '4-byte [u16][u16] header (99.6%); rare extended form carries 40xx-tagged data-item names. See decodeDataTypeHeap.'),
+  'DTHP': ViBlockInfo('DTHP', 'Data-type heap table', _ti, _lk, '4-byte [u16][u16] header (7541/7583 = 99.45%); rare extended form carries 40xx-tagged data-item names. See decodeDataTypeHeap.'),
   'FPTD': ViBlockInfo('FPTD', 'Front-panel type descriptors', _ti, _tt, 'Format not yet decoded.'),
 
   // --- Compiled code ---
@@ -150,7 +150,7 @@ const Map<String, ViBlockInfo> _catalog = {
 
   // --- Connector pane ---
   'CONP': ViBlockInfo('CONP', 'Connector pane', _cp, _cf, 'u16 VCTP index of the conpane type descriptor (100% in-range); see decodeConnectorPane.'),
-  'CPC2': ViBlockInfo('CPC2', 'Connector pane (compiled)', _cp, _cf, 'Second u16 VCTP index, distinct from CONP (byte-equal only 56/7533).'),
+  'CPC2': ViBlockInfo('CPC2', 'Connector pane (compiled)', _cp, _lk, 'Distinct 2-byte conpane reference (byte-equal to CONP only 55/7503); resolves as a VCTP index just ~84%, so its index reading is NOT confirmed.'),
   'CPMp': ViBlockInfo('CPMp', 'Connector pane map', _cp, _tt, 'Format not yet decoded.'),
 
   // --- Icons ---

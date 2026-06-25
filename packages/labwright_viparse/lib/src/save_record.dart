@@ -1,6 +1,7 @@
 /// Decoder for the `LVSR` block — the **LabVIEW Save Record**, a fixed-size
-/// settings/flags blob written once per VI. Length is era-dependent (corpus:
-/// 160 B modern, 136 B / 144 B older); the version word is universal, the
+/// settings/flags blob written once per VI. Length is era-dependent
+/// (predominantly 160 B modern, then 136 B / 144 B older; a handful of records
+/// use other lengths — 120/137/116/96 B). The version word is universal; the
 /// password/hash slots are part of the 160-byte layout.
 ///
 /// Clean-room, corpus-grounded. Every asserted field is labelled with a
@@ -48,7 +49,7 @@ class ViSaveRecord {
     this.secondaryHash,
   });
 
-  /// The LVSR section length in bytes (160/144/136 across the corpus).
+  /// The LVSR section length in bytes (predominantly 160/144/136; a few others).
   final int rawLength;
 
   /// The raw `@0` version u32 (big-endian).

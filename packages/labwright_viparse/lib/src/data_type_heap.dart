@@ -1,10 +1,11 @@
 /// Decoder for the `DTHP` block — the **data-type heap** table.
 ///
-/// Corpus finding (7574 sections): 99.6% (7541) are exactly **4 bytes** — a
-/// `[u16 field0][u16 field1]` header (e.g. `0x0017,0x0004`). The two values are
+/// Corpus finding (7583 sections): 99.45% (7541/7583) are exactly **4 bytes** —
+/// a `[u16 field0][u16 field1]` header (e.g. `0x0017,0x0004`). The two values are
 /// small and do NOT equal the `VCTP` pool count, so their meaning is left
-/// undecoded. A rare extended form (~10 VIs, up to ~1.8 KB) follows the header
-/// with `40xx`-tagged named-item records — the VI's data-item / terminal names
+/// undecoded. (9 sections are 2 bytes — too short for the header, decode→null.)
+/// A rare extended form (33 sections, up to ~1.8 KB) follows the header with
+/// `40xx`-tagged named-item records — the VI's data-item / terminal names
 /// (`Auto Stop`, `Mode`, `preTriggerSamples`), the same `40 21`-style naming
 /// seen in the `ICON` terminal-name table.
 ///
@@ -44,7 +45,7 @@ class ViDataTypeHeap {
   /// Empty for the common header-only form.
   final List<String> names;
 
-  /// Confidence in the 4-byte header *framing* (corpus: 99.6%).
+  /// Confidence in the 4-byte header *framing* (corpus: 99.45%).
   static const BlockConfidence framingConfidence = BlockConfidence.confirmed;
 
   /// Confidence in the header field *meanings* and the extended-record framing.
