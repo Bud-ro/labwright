@@ -71,6 +71,20 @@ Map<String, Object?> _rectToJson(HeapRect r) => {
 /// decoded** (LabVIEW stores wires as geometry), so the IR is currently a typed,
 /// nested object graph rather than a dataflow graph. Deterministic and
 /// `jsonEncode`-safe (no non-finite numbers, no cycles).
+/// The connector-pane terminals (kind + recovered name) resolved from the VI's
+/// VCTP type pool, or null when no in-range conpane index is present. A cluster's
+/// members are the terminals; otherwise the conpane type is a single terminal.
+/// Direction (in/out) is not recovered, so it is not emitted.
+List<Map<String, Object?>>? _conpaneTerminals(ViModel m) {
+  final i = m.connectorPaneTypeIndex;
+  if (i == null || i < 1 || i > m.types.length) return null;
+  final cp = m.types[i - 1];
+  final terms = cp.kind == ViDataType.cluster ? clusterFields(cp, m.types) : <ViType>[cp];
+  return [
+    for (final t in terms) {'kind': typeLabel(t, m.types), if (t.name != null) 'name': t.name},
+  ];
+}
+
 Map<String, Object?> viModelToJson(ViModel m) => {
       if (m.version != null) 'labviewVersion': m.version,
       if (m.title != null) 'title': m.title,
@@ -78,6 +92,10 @@ Map<String, Object?> viModelToJson(ViModel m) => {
       if (m.symbolNames.isNotEmpty) 'symbolNames': m.symbolNames,
       if (m.paths.isNotEmpty) 'libraryPaths': m.paths,
       if (m.subViNames.isNotEmpty) 'subViNames': m.subViNames,
+      // Connector pane (the VI's interface): the VCTP index + resolved terminal
+      // types/names. Input/output direction is NOT recovered from the diagram.
+      if (m.connectorPaneTypeIndex != null) 'connectorPaneTypeIndex': m.connectorPaneTypeIndex,
+      if (_conpaneTerminals(m) != null) 'connectorPaneTerminals': _conpaneTerminals(m),
       // VCTP type pool: a compact inventory (count + kind histogram). The full
       // ordered descriptor list lives on ViModel.types; the JSON keeps a summary.
       if (m.types.isNotEmpty) 'typeCount': m.types.length,

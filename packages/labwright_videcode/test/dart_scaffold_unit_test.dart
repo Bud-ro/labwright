@@ -78,8 +78,8 @@ void main() {
   });
 
   test('connector-pane terminals are emitted from the CONP->VCTP cluster members', () {
-    final dbl = ViType(index: 0, code: 0x0a, kind: ViDataType.dbl, name: 'Threshold');
-    final cluster = ViType(index: 1, code: 0x50, kind: ViDataType.cluster, name: 'error out', members: const [0]);
+    const dbl = ViType(index: 0, code: 0x0a, kind: ViDataType.dbl, name: 'Threshold');
+    const cluster = ViType(index: 1, code: 0x50, kind: ViDataType.cluster, name: 'error out', members: [0]);
     final model = ViModel(
       version: null,
       title: null,

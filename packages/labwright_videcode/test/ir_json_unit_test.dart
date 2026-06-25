@@ -82,4 +82,25 @@ void main() {
     // jsonEncode would THROW on Infinity/NaN — this proves they never reach JSON
     expect(() => jsonEncode(json), returnsNormally);
   });
+
+  test('connector pane: index + resolved terminals are emitted in the IR JSON', () {
+    const dbl = ViType(index: 0, code: 0x0a, kind: ViDataType.dbl, name: 'Threshold');
+    const cluster = ViType(index: 1, code: 0x50, kind: ViDataType.cluster, name: 'error out', members: [0]);
+    const model = ViModel(
+      version: null,
+      title: null,
+      components: [],
+      stringTables: [],
+      heapRecords: [],
+      types: [dbl, cluster],
+      connectorPaneTypeIndex: 2, // 1-based -> the cluster
+    );
+    final json = viModelToJson(model);
+    expect(json['connectorPaneTypeIndex'], 2);
+    final terms = json['connectorPaneTerminals'] as List;
+    expect(terms, hasLength(1)); // the cluster's one member
+    expect((terms.first as Map)['kind'], 'dbl');
+    expect((terms.first as Map)['name'], 'Threshold');
+    expect(() => jsonEncode(json), returnsNormally);
+  });
 }
