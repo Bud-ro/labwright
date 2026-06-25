@@ -134,6 +134,40 @@ void main() {
     expect(filesWithNeg, greaterThan(0));
   });
 
+  test('STRUCTURAL INVARIANT: drawn FP objects are distinctly placed (overlap is layout, not a collapse)', () {
+    // FP controls overlap heavily — but that is faithful (a control sits inside its
+    // container; chrome/scrollbars overlap content; dense panels). It is NOT a
+    // decode collapse: drawn objects carry DISTINCT bounds (probe: 76.6% of drawn
+    // objects have a unique rect). A decode bug collapsing objects to one rect would
+    // crater this ratio, so assert it stays well above a floor.
+    var drawn = 0, distinct = 0;
+    for (final f in all) {
+      final ViModel m;
+      try {
+        m = buildViModel(f.readAsBytesSync());
+      } catch (_) {
+        continue;
+      }
+      for (final d in m.frontPanelDiagrams) {
+        final keys = <String>{};
+        var n = 0;
+        for (final o in d.objects) {
+          final r = o.absBounds;
+          if (r == null || !r.isValid || r.width <= 1 || r.height <= 1) continue;
+          n++;
+          keys.add('${r.top},${r.left},${r.bottom},${r.right}');
+        }
+        if (n < 8) continue; // tiny diagrams aren't a meaningful ratio
+        drawn += n;
+        distinct += keys.length;
+      }
+    }
+    expect(drawn, greaterThan(0));
+    // aggregate unique-rect fraction (probe: ~76.6%); floor well below that.
+    expect(distinct / drawn, greaterThan(0.55),
+        reason: 'drawn FP objects collapsed to shared rects: only $distinct/$drawn distinct');
+  });
+
   test('RENDER RATCHET: visible block-diagram objects classify to a typed widget (>= floor)', () {
     var visible = 0, typed = 0;
     for (final f in all) {
