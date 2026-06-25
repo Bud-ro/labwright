@@ -138,14 +138,14 @@ const Map<String, ViBlockInfo> _catalog = {
   'VCTP': ViBlockInfo('VCTP', 'VI type pool', _ti, _cf, 'Type-descriptor table [count][records]; compressed; not a heap.'),
   'TM80': ViBlockInfo('TM80', 'Type map (LV 8.0+)', _ti, _lk, 'Compressed. Short form (~71%) = [u16 count][u16 field1][count u16 entries]; entry semantics not yet decoded. See decodeTypeMap.'),
   'DTHP': ViBlockInfo('DTHP', 'Data-type heap table', _ti, _lk, '4-byte [u16][u16] header (7541/7583 = 99.45%); rare extended form carries 40xx-tagged data-item names. See decodeDataTypeHeap.'),
-  'FPTD': ViBlockInfo('FPTD', 'Front-panel type descriptors', _ti, _tt, 'Format not yet decoded.'),
+  'FPTD': ViBlockInfo('FPTD', 'Front-panel type descriptors', _ti, _lk, 'Usually 2 bytes (u16, 3499/3531); occasionally a larger table. Likely a type-descriptor index/count.'),
 
   // --- Compiled code ---
   'VICD': ViBlockInfo('VICD', 'VI compiled code', _cc, _cf, 'Machine-code image (e.g. i386); compressed; opaque.'),
 
   // --- Data space ---
   'DFDS': ViBlockInfo('DFDS', 'Default data space', _ds, _lk, 'Compressed serialized default control/indicator values, type-directed by VCTP. No self-describing header (decompressed body starts with zeros) — decoding needs the VCTP type-size walk; not yet parsed.'),
-  'DSIM': ViBlockInfo('DSIM', 'Data-space image', _ds, _tt, 'Large uncompressed image; format not yet decoded.'),
+  'DSIM': ViBlockInfo('DSIM', 'Data-space image', _ds, _lk, 'Uncompressed data-space image, near-constant (1% varied; dominant ~224/218 B, ~2 per VI); content format not yet decoded.'),
   'DSTM': ViBlockInfo('DSTM', 'Data-space (TM)', _ds, _tt, 'Format not yet decoded.'),
 
   // --- Connector pane ---
@@ -170,7 +170,7 @@ const Map<String, ViBlockInfo> _catalog = {
   'LIbd': ViBlockInfo('LIbd', 'Link info: block diagram', _li, _cf, 'Embeds ASCII "BDHP".'),
   'LIds': ViBlockInfo('LIds', 'Link info: data space', _li, _cf, 'Embeds ASCII "VIDS".'),
   'LPIN': ViBlockInfo('LPIN', 'Linked-instance info', _li, _tt, 'Format not yet decoded.'),
-  'DLLP': ViBlockInfo('DLLP', 'DLL/library path', _li, _tt, 'Format not yet decoded.'),
+  'DLLP': ViBlockInfo('DLLP', 'DLL/library path', _hp, _lk, 'PTH0 path (begins "PTH0"); decodeHelpPath parses it. Rare (n=1 in corpus).'),
 
   // --- Text ---
   'STRG': ViBlockInfo('STRG', 'VI description text', _tx, _cf, '[u32 len][UTF-8 text] (100% of corpus); the VI description. See decodeStringBlock.'),
@@ -212,36 +212,36 @@ const Map<String, ViBlockInfo> _catalog = {
   'OBSG': ViBlockInfo('OBSG', 'Object signature', _id, _cf, '16-byte signature, varied per VI (99%); opaque value, role=identity.'),
   'CCSG': ViBlockInfo('CCSG', 'Compiled-code signature', _id, _cf, '16-byte signature, near-CONSTANT (4 distinct/528) — shared toolchain signature, not per-VI.'),
   'SCSR': ViBlockInfo('SCSR', 'Source signature', _id, _cf, '20-byte [u32 ver=1][16-byte sig], near-constant (5 distinct/2630).'),
-  'GCPR': ViBlockInfo('GCPR', 'Generated-code property', _id, _tt, 'Format not yet decoded.'),
-  'GCDI': ViBlockInfo('GCDI', 'Generated-code debug info', _id, _tt, 'Compressed; format not yet decoded.'),
+  'GCPR': ViBlockInfo('GCPR', 'Generated-code property', _id, _cf, 'Fixed 13-byte record, constant (all-zero) across the corpus.'),
+  'GCDI': ViBlockInfo('GCDI', 'Generated-code debug info', _id, _tt, 'Compressed; mostly 9 B decompressed; format not yet decoded.'),
 
   // --- FP/BD section markers + extended records (small; roles undetermined) ---
-  'FPSE': ViBlockInfo('FPSE', 'Front-panel section entry', _un, _tt, 'Small offset/size record.'),
-  'BDSE': ViBlockInfo('BDSE', 'Block-diagram section entry', _un, _tt, 'Small offset/size record.'),
-  'FPEx': ViBlockInfo('FPEx', 'Front-panel extended', _un, _tt, 'Format not yet decoded.'),
-  'BDEx': ViBlockInfo('BDEx', 'Block-diagram extended', _un, _tt, 'Format not yet decoded.'),
+  'FPSE': ViBlockInfo('FPSE', 'Front-panel section entry', _un, _lk, '4-byte u32 (FP section offset/size marker; 7535/7582), rarely 8 B.'),
+  'BDSE': ViBlockInfo('BDSE', 'Block-diagram section entry', _un, _lk, '4-byte u32 (BD section offset/size marker; 7535/7582), rarely 8 B.'),
+  'FPEx': ViBlockInfo('FPEx', 'Front-panel extended', _un, _lk, 'Small near-constant record (4/12/16 B, ~0% varied); flags/extended state.'),
+  'BDEx': ViBlockInfo('BDEx', 'Block-diagram extended', _un, _lk, 'Small near-constant record (4/8/12 B, ~1% varied); flags/extended state.'),
   'FPTS': ViBlockInfo('FPTS', 'Front-panel TS', _un, _tt, 'Format not yet decoded.'),
   'BDTS': ViBlockInfo('BDTS', 'Block-diagram TS', _un, _tt, 'Format not yet decoded.'),
   'FPHP': ViBlockInfo('FPHP', 'Front-panel heap (legacy?)', _un, _tt, 'Rare; not a confirmed C4 heap in corpus.'),
   'BDHP': ViBlockInfo('BDHP', 'Block-diagram heap (legacy?)', _un, _tt, 'Rare; not a confirmed C4 heap in corpus.'),
 
   // --- Other recognized-but-undecoded tags ---
-  'VPDP': ViBlockInfo('VPDP', 'VI property data', _un, _tt, 'Format not yet decoded.'),
-  'PRT': ViBlockInfo('PRT', 'Print settings', _un, _tt, 'Format not yet decoded.'),
-  'DLDR': ViBlockInfo('DLDR', 'Default-data loader', _un, _tt, 'Format not yet decoded.'),
+  'VPDP': ViBlockInfo('VPDP', 'VI property data', _un, _cf, 'Fixed 4-byte record, constant (all-zero) across the corpus.'),
+  'PRT ': ViBlockInfo('PRT ', 'Print settings', _un, _tt, 'Tag is "PRT " (trailing space). Format not yet decoded.'),
+  'DLDR': ViBlockInfo('DLDR', 'Default-data loader', _un, _cf, 'Fixed 28-byte record, constant across the corpus.'),
   'TRec': ViBlockInfo('TRec', 'Type record', _un, _tt, 'Format not yet decoded.'),
-  'CCST': ViBlockInfo('CCST', 'Compiled-code state', _un, _tt, 'Format not yet decoded.'),
+  'CCST': ViBlockInfo('CCST', 'Compiled-code state', _un, _lk, 'Usually a 4-byte all-zero record (2583/2617); occasionally larger.'),
   'BFAL': ViBlockInfo('BFAL', 'BF align table', _un, _tt, 'Format not yet decoded.'),
-  'BKMK': ViBlockInfo('BKMK', 'Bookmarks', _un, _tt, 'Bookmark list.'),
-  'CNST': ViBlockInfo('CNST', 'Constants', _un, _tt, 'Format not yet decoded.'),
+  'BKMK': ViBlockInfo('BKMK', 'Bookmarks', _un, _lk, 'Bookmark list; an 8-byte empty record when there are none (743/988), larger with bookmark text.'),
+  'CNST': ViBlockInfo('CNST', 'Constants', _un, _tt, 'Per-VI table of u32 pairs (8/16/24… B, multiples of 8); meaning not yet decoded.'),
   'IPSR': ViBlockInfo('IPSR', 'IP source record', _un, _tt, 'Format not yet decoded.'),
-  'CPST': ViBlockInfo('CPST', 'Connector-pane state', _un, _tt, 'Format not yet decoded.'),
-  'CPSP': ViBlockInfo('CPSP', 'Connector-pane spec', _un, _tt, 'Format not yet decoded.'),
-  'CPD2': ViBlockInfo('CPD2', 'Connector-pane data v2', _un, _tt, 'Format not yet decoded.'),
+  'CPST': ViBlockInfo('CPST', 'Boolean-text table', _tx, _lk, '[u32 len] + Pascal strings of boolean labels (e.g. "True/False:"). Decodable via the string framing.'),
+  'CPSP': ViBlockInfo('CPSP', 'Boolean-text table (spec)', _tx, _lk, '[u32 len] + Pascal strings of boolean labels ("True","False").'),
+  'CPD2': ViBlockInfo('CPD2', 'Connector-pane data v2', _cp, _lk, 'Fixed 2-byte u16.'),
   'CPTM': ViBlockInfo('CPTM', 'Connector-pane TM', _un, _tt, 'Format not yet decoded.'),
   'GTMI': ViBlockInfo('GTMI', 'Get-TM info', _un, _tt, 'Format not yet decoded.'),
   'HBIN': ViBlockInfo('HBIN', 'Heap bin', _un, _tt, 'Format not yet decoded.'),
   'HBUF': ViBlockInfo('HBUF', 'Heap buffer', _un, _tt, 'Format not yet decoded.'),
-  'COUT': ViBlockInfo('COUT', 'Compiled output', _un, _tt, 'Format not yet decoded.'),
-  'RTMP': ViBlockInfo('RTMP', 'Run-time map', _un, _tt, 'Format not yet decoded.'),
+  'COUT': ViBlockInfo('COUT', 'Compiled output', _un, _lk, 'Fixed 12-byte per-VI value (opaque; likely a hash/id). Rare (n=7).'),
+  'RTMP': ViBlockInfo('RTMP', 'Run-time map / path', _un, _tt, 'Rare (n=2); one instance is a PTH0 path. Format not yet decoded.'),
 };

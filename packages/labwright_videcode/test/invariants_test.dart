@@ -807,4 +807,35 @@ void main() {
     expect(bodies['CCSG']!.length, lessThan(50), reason: 'CCSG should be near-constant (shared signature)');
     expect(bodies['SCSR']!.length, lessThan(50), reason: 'SCSR should be near-constant');
   });
+
+  // 18. CONSTANT FIXED-SIZE BLOCKS — the tail sweep found several blocks that are
+  // a fixed size AND byte-constant across the whole corpus (VPDP 4B, DLDR 28B,
+  // GCPR 13B). Pin both facts so a future change that makes one variable (a real
+  // decode opportunity) or mis-sized is caught.
+  test('VPDP/DLDR/GCPR are fixed-size, byte-constant records', () {
+    final wantLen = <String, int>{'VPDP': 4, 'DLDR': 28, 'GCPR': 13};
+    final counts = {for (final k in wantLen.keys) k: 0};
+    final sized = {for (final k in wantLen.keys) k: 0};
+    final bodies = {for (final k in wantLen.keys) k: <String>{}};
+    for (final f in all) {
+      final List<ViSection> secs;
+      try {
+        secs = readViSections(f.readAsBytesSync());
+      } catch (_) {
+        continue;
+      }
+      for (final s in secs) {
+        final want = wantLen[s.tag];
+        if (want == null) continue;
+        counts[s.tag] = counts[s.tag]! + 1;
+        if (s.bytes.length == want) sized[s.tag] = sized[s.tag]! + 1;
+        bodies[s.tag]!.add(s.bytes.map((x) => x.toRadixString(16)).join());
+      }
+    }
+    for (final k in wantLen.keys) {
+      expect(counts[k]!, greaterThan(0), reason: '$k absent');
+      expect(sized[k]! / counts[k]!, greaterThan(0.99), reason: '$k not its fixed size (${sized[k]}/${counts[k]})');
+      expect(bodies[k]!.length, lessThan(5), reason: '$k is no longer byte-constant (${bodies[k]!.length} distinct) — may be decodable now');
+    }
+  });
 }

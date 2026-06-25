@@ -43,6 +43,21 @@ void main() {
       }
     });
 
+    test('tail-sweep characterizations: confirmed-constant and the PRT key fix', () {
+      for (final t in ['VPDP', 'DLDR', 'GCPR']) {
+        expect(blockInfo(t).confidence, BlockConfidence.confirmed, reason: t);
+        expect(blockInfo(t).note, contains('constant'), reason: t);
+      }
+      // PRT is a 4-char tag with a trailing space.
+      expect(blockInfo('PRT ').name, 'Print settings');
+      expect(blockInfo('PRT').category, ViBlockCategory.unknown); // 3-char is not the tag
+      // CPST/CPSP are boolean-text tables.
+      expect(blockInfo('CPST').category, ViBlockCategory.text);
+      expect(blockInfo('CPSP').category, ViBlockCategory.text);
+      // DLLP is a PTH0 path.
+      expect(blockInfo('DLLP').category, ViBlockCategory.helpPath);
+    });
+
     test('an uncatalogued tag resolves to an honest unknown, never throws', () {
       final info = blockInfo('ZZZZ');
       expect(info.category, ViBlockCategory.unknown);
