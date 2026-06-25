@@ -601,9 +601,28 @@ class _BlockHexViewState extends State<BlockHexView> {
         if (b.length >= 12) {
           final nameOff = _u32(b, 8);
           span(8, 4, _cHeader, 'Name-table offset (u32)', 'Byte offset of the packed Pascal font-name strings.', preview: '$nameOff');
+          // Per-font metric records between the header (12) and the name table:
+          // each font has a 12-byte metric record, with a u32 between adjacent
+          // fonts (count-1 of them). Corpus-confirmed: the region is exactly
+          // count*16 - 4 bytes across all 322 FTABs. Inner metric fields and the
+          // u32 value are not yet decoded — framed as opaque, not guessed.
+          final count = _u16(b, 6);
+          if (nameOff >= 12 && nameOff <= b.length && count > 0) {
+            var p = 12;
+            for (var i = 0; i < count && p + 12 <= nameOff; i++) {
+              span(p, 12, _cObject, 'Font[$i] metric record (12B)',
+                  'Per-font size/style metrics; inner fields not yet decoded.');
+              p += 12;
+              if (i < count - 1 && p + 4 <= nameOff) {
+                span(p, 4, _cGroup, 'Font[$i] u32 field',
+                    'A 4-byte value between font records (role not yet decoded).', preview: '${_u32(b, p)}');
+                p += 4;
+              }
+            }
+          }
           if (nameOff < b.length) span(nameOff, b.length - nameOff, _cRect, 'Font names (Pascal strings)', 'Packed [u8 len][name] font face names. See decodeFontTable.');
         }
-        // bytes 2..6 (sub-version words) and 12..nameOffset (per-font metric records) -> gap-filled.
+        // bytes 2..6 (sub-version words) remain undecoded -> gap-filled.
       case 'BDPW':
         span(0, 16, _cRect, 'Password hash (16B)', 'Block-diagram password hash; sample is MD5("") d41d8cd9…');
         // remaining bytes (salt/secondary) not yet decoded -> gap-filled.

@@ -238,6 +238,33 @@ void main() {
     expect(find.textContaining('Undecoded'), findsNothing);
   });
 
+  testWidgets('FTAB per-font metric records are framed (12B metric + u32 between fonts)', (tester) async {
+    tester.view.physicalSize = const Size(1400, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    // count=2 → metric region is count*16-4 = 28 bytes: [12B metric][u32][12B metric].
+    final ftab = _raw('FTAB', [
+      0, 1, // ver
+      0, 0, 0, 0, // sub-version words (still undecoded)
+      0, 2, // count = 2
+      0, 0, 0, 40, // nameOffset = 40
+      ...List.filled(12, 0x0f), // metric[0]
+      0, 0, 0, 5, // u32 between fonts
+      ...List.filled(12, 0x0f), // metric[1]
+      3, ...'Foo'.codeUnits, // name table
+    ]);
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: BlockHexView(section: ftab))));
+    await tester.pump();
+    expect(find.textContaining('Font[0] metric record'), findsOneWidget);
+    expect(find.textContaining('Font[1] metric record'), findsOneWidget);
+    expect(find.textContaining('Font[0] u32 field'), findsOneWidget);
+    expect(find.textContaining('Font names'), findsOneWidget);
+    // the metric region is now framed; only the 2..6 sub-version words remain
+    // honestly undecoded, so coverage is high but not yet claimed as 100%.
+    expect(find.textContaining('% framed'), findsOneWidget);
+    expect(find.textContaining('100% framed'), findsNothing);
+  });
+
   testWidgets('CPST/CPSP string-label tables are framed (count + Pascal entries)', (tester) async {
     tester.view.physicalSize = const Size(1400, 1400);
     tester.view.devicePixelRatio = 1.0;
