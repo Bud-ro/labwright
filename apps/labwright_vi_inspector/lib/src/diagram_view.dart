@@ -25,7 +25,12 @@ const int kFaithfulMaxObjects = 1500;
 /// drawing them would be fabrication. This is a faithful object/position view,
 /// not a re-render of LabVIEW's canvas.
 class ViDiagramView extends StatefulWidget {
-  const ViDiagramView({super.key, required this.diagrams, this.emptyHint = 'No decodable layout in this file.'});
+  const ViDiagramView({
+    super.key,
+    required this.diagrams,
+    this.emptyHint = 'No decodable layout in this file.',
+    this.subViNames = const [],
+  });
 
   /// The diagrams to render (block-diagram or front-panel heap trees); the
   /// richest is shown. Pass `model.blockDiagrams` or `model.frontPanelDiagrams`.
@@ -33,6 +38,12 @@ class ViDiagramView extends StatefulWidget {
 
   /// Shown when no diagram has positioned objects.
   final String emptyHint;
+
+  /// The VI's authoritative sub-VI dependency names (from the LIbd linker block,
+  /// `model.subViNames`). Shown in the control-flow outline as the complete set
+  /// of called VIs — independent of whether individual BD node bodies are labeled.
+  /// Pass only for the block diagram (empty for the front panel).
+  final List<String> subViNames;
 
   @override
   State<ViDiagramView> createState() => _ViDiagramViewState();
@@ -107,7 +118,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _toolbar(_drawable.length, _counts),
-        _BdOutline(outline: computeBdOutline(_drawable)),
+        _BdOutline(outline: computeBdOutline(_drawable), linkedSubVis: widget.subViNames),
         const SizedBox(height: 6),
         Expanded(
           // Stack so the details card is an OVERLAY — it never changes the
@@ -707,17 +718,27 @@ class _DetailsCard extends StatelessWidget {
 /// structures grouped by catalog kind + the named subVI/function calls. Renders
 /// nothing when the diagram has no structures or named calls.
 class _BdOutline extends StatelessWidget {
-  const _BdOutline({required this.outline});
+  const _BdOutline({required this.outline, this.linkedSubVis = const []});
   final ({Map<String, int> structuresByKind, List<String> calls, int nodeCount}) outline;
+
+  /// The VI's authoritative sub-VI dependency names (from the LIbd linker block) —
+  /// the complete set of called VIs, shown separately from the heap-derived [calls].
+  final List<String> linkedSubVis;
 
   @override
   Widget build(BuildContext context) {
     final structs = outline.structuresByKind.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     final calls = outline.calls;
-    if (structs.isEmpty && calls.isEmpty) return const SizedBox.shrink();
+    if (structs.isEmpty && calls.isEmpty && linkedSubVis.isEmpty) return const SizedBox.shrink();
 
     const muted = TextStyle(fontSize: 12, color: Colors.grey);
+    Widget capped(String prefix, List<String> items) => Text(
+          '$prefix: ' +
+              items.take(20).join(', ') +
+              (items.length > 20 ? ', … (+${items.length - 20})' : ''),
+          style: muted,
+        );
     return Padding(
       padding: const EdgeInsets.only(top: 4),
       child: Column(
@@ -728,15 +749,17 @@ class _BdOutline extends StatelessWidget {
               const Text('Control flow:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
               for (final e in structs) Text('${e.key} ×${e.value}', style: muted),
             ]),
+          // Authoritative dependency list (LIbd) — complete even when BD node
+          // bodies are unlabeled. Distinct from the heap-derived diagram labels.
+          if (linkedSubVis.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: capped('Linked subVIs (${linkedSubVis.length})', linkedSubVis),
+            ),
           if (calls.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 2),
-              child: Text(
-                'Calls (${calls.length}): ' +
-                    calls.take(20).join(', ') +
-                    (calls.length > 20 ? ', … (+${calls.length - 20})' : ''),
-                style: muted,
-              ),
+              child: capped('Diagram-labeled nodes (${calls.length})', calls),
             ),
         ],
       ),

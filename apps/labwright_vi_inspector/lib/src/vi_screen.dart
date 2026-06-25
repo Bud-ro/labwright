@@ -300,6 +300,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                                           key: ValueKey('bd:$_model'),
                                           diagrams: _model?.blockDiagrams,
                                           emptyHint: 'No block-diagram objects recovered in this file.',
+                                          subViNames: _model?.subViNames ?? const [],
                                         ),
                                         GeneratedDartView(
                                           key: ValueKey('dart:$_model'),

@@ -305,6 +305,28 @@ void main() {
 
     expect(find.text('Control flow:'), findsOneWidget);
     expect(find.text('While loop ×1'), findsOneWidget);
-    expect(find.textContaining('Calls (1): Acquire.vi'), findsOneWidget);
+    expect(find.textContaining('Diagram-labeled nodes (1): Acquire.vi'), findsOneWidget);
+  });
+
+  testWidgets('block-diagram outline lists the authoritative linked subVIs (LIbd)', (tester) async {
+    tester.view.physicalSize = const Size(1000, 1000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final model = _modelFromRecords(<int>[
+      ...open(0x7e, 1), ...bounds(0, 0, 400, 400),
+      ...open(0x2f, 2, tag: 0x1a), ...bounds(10, 10, 50, 120), // an UNLABELED primitive node
+      ...close(0x1a),
+      ...close(),
+    ]);
+    // the linker (LIbd) names the real dependencies even though the node is unlabeled
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: ViDiagramView(diagrams: model.blockDiagrams, subViNames: const ['Open.vi', 'Close.vi']),
+      ),
+    ));
+    await tester.pump();
+
+    expect(find.textContaining('Linked subVIs (2): Open.vi, Close.vi'), findsOneWidget);
   });
 }
