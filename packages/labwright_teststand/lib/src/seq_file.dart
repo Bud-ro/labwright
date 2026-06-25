@@ -75,8 +75,121 @@ class Step {
   /// read from its `TS` (TestStand system) sub-container.
   StepSettings get settings => StepSettings(raw.prop('TS'));
 
+  /// The code module the step invokes (its module-adapter binding), read from
+  /// `TS > SData`. [StepModule.adapter] is [SeqAdapter.none] when the step has no
+  /// SData.
+  StepModule get module => StepModule.fromSData(raw.at(['TS', 'SData']));
+
   @override
   String toString() => 'Step($name : ${type ?? '?'})';
+}
+
+/// The module-adapter kinds observed in the corpus — the bridge from a step to
+/// the code it runs. Only kinds seen in real files are modeled (honesty); others
+/// (e.g. .NET, HTBasic) surface as [unknown] until a sample is decoded.
+enum SeqAdapter {
+  /// LabVIEW VI adapter (`ViCall`/`VICall`) — calls a `.vi`.
+  labView,
+
+  /// C/CVI / DLL adapter (`Call`/`ExternalCall`) — calls a function in a DLL or
+  /// a source module.
+  cModule,
+
+  /// Python adapter (`PythonCall`/`CPythonCall`). Recognized; its target fields
+  /// are not yet decoded.
+  python,
+
+  /// Sequence Call (`SeqName`/`SFPath`) — calls another sequence.
+  sequenceCall,
+
+  /// The step carries no `SData` (e.g. a flow-control step, or an adapter whose
+  /// binding lives elsewhere such as the NI measurement plug-in).
+  none,
+
+  /// `SData` is present but its adapter record is not yet recognized.
+  unknown;
+}
+
+/// A step's code-module binding: which adapter and what it targets. Fields are
+/// null when absent/empty or not yet decoded — never fabricated.
+class StepModule {
+  StepModule({
+    required this.adapter,
+    this.target,
+    this.viPath,
+    this.libPath,
+    this.function,
+    this.sequenceName,
+    this.sequenceFile,
+    this.raw,
+  });
+
+  final SeqAdapter adapter;
+
+  /// A best-effort human-readable target (VI path, `dll:function`, sequence
+  /// name), or null when not yet recovered.
+  final String? target;
+
+  /// LabVIEW VI path ([SeqAdapter.labView]).
+  final String? viPath;
+
+  /// DLL/source path and function name ([SeqAdapter.cModule]).
+  final String? libPath;
+  final String? function;
+
+  /// Called sequence name and file ([SeqAdapter.sequenceCall]).
+  final String? sequenceName;
+  final String? sequenceFile;
+
+  /// The raw `SData` property for full access; null when the step had none.
+  final SeqProperty? raw;
+
+  static String? _e(String? s) => (s == null || s.isEmpty) ? null : s;
+
+  factory StepModule.fromSData(SeqProperty? sdata) {
+    if (sdata == null) return StepModule(adapter: SeqAdapter.none);
+
+    final vi = sdata.prop('ViCall');
+    if (vi != null) {
+      final p = _e(vi.prop('VIPath')?.scalar);
+      return StepModule(adapter: SeqAdapter.labView, viPath: p, target: p, raw: sdata);
+    }
+
+    final call = sdata.prop('Call');
+    if (call != null) {
+      final lib = _e(call.prop('LibPath')?.scalar);
+      final fn = _e(call.prop('Func')?.scalar);
+      final target = lib == null ? fn : (fn == null ? lib : '$lib:$fn');
+      return StepModule(
+        adapter: SeqAdapter.cModule,
+        libPath: lib,
+        function: fn,
+        target: target,
+        raw: sdata,
+      );
+    }
+
+    if (sdata.prop('PythonCall') != null) {
+      return StepModule(adapter: SeqAdapter.python, raw: sdata);
+    }
+
+    if (sdata.prop('SeqName') != null || sdata.prop('SFPath') != null) {
+      final sn = _e(sdata.prop('SeqName')?.scalar);
+      final sf = _e(sdata.prop('SFPath')?.scalar);
+      return StepModule(
+        adapter: SeqAdapter.sequenceCall,
+        sequenceName: sn,
+        sequenceFile: sf,
+        target: sn ?? sf,
+        raw: sdata,
+      );
+    }
+
+    return StepModule(adapter: SeqAdapter.unknown, raw: sdata);
+  }
+
+  @override
+  String toString() => 'StepModule(${adapter.name}${target != null ? ': $target' : ''})';
 }
 
 /// The step settings the Sequence Editor surfaces — flow control and the

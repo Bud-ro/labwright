@@ -31,10 +31,25 @@ const _seqXml = '''<?xml version="1.0" encoding="UTF-8"?>
                           <PassAct classname='Str'><value>GotoStep</value></PassAct>
                           <FailAct classname='Str'><value>Next</value></FailAct>
                           <PostExpr classname='ExprValue'><value/></PostExpr>
+                          <SData classname='Obj'><subprops>
+                            <ViCall classname='VICall'><subprops>
+                              <VIPath classname='PathValue'><value>My Computer\\Foo.vi</value></VIPath>
+                            </subprops></ViCall>
+                          </subprops></SData>
                         </subprops></TS>
                       </subprops>
                     </Step></value>
                     <value><Step typename='MessagePopup' name='Show "hi"'/></value>
+                    <value><Step typename='Action' name='Call Sleep'>
+                      <subprops><TS classname='Obj'><subprops>
+                        <SData classname='Obj'><subprops>
+                          <Call classname='ExternalCall'><subprops>
+                            <LibPath classname='Str'><value>kernel32.dll</value></LibPath>
+                            <Func classname='Str'><value>Sleep</value></Func>
+                          </subprops></Call>
+                        </subprops></SData>
+                      </subprops></TS></subprops>
+                    </Step></value>
                   </value>
                 </Main>
                 <Cleanup classname='Objs'><value lbound='[0]' ubound='[]'/></Cleanup>
@@ -78,9 +93,25 @@ void main() {
       final seq = f.sequences.single;
       expect(seq.setup, isEmpty);
       expect(seq.cleanup, isEmpty);
-      expect(seq.main.map((s) => s.name), ['Pass & go', 'Show "hi"']);
-      expect(seq.main.map((s) => s.type), ['Statement', 'MessagePopup']);
-      expect(seq.steps, hasLength(2)); // setup(0) + main(2) + cleanup(0)
+      expect(seq.main.map((s) => s.name), ['Pass & go', 'Show "hi"', 'Call Sleep']);
+      expect(seq.main.map((s) => s.type), ['Statement', 'MessagePopup', 'Action']);
+      expect(seq.steps, hasLength(3)); // setup(0) + main(3) + cleanup(0)
+    });
+
+    test('decodes the module-adapter binding per step', () {
+      final main = f.sequences.single.main;
+      // LabVIEW VI adapter (ViCall → VIPath)
+      expect(main[0].module.adapter, SeqAdapter.labView);
+      expect(main[0].module.viPath, r'My Computer\Foo.vi');
+      expect(main[0].module.target, r'My Computer\Foo.vi');
+      // No SData → no adapter, honestly.
+      expect(main[1].module.adapter, SeqAdapter.none);
+      expect(main[1].module.target, isNull);
+      // C/DLL adapter (Call → LibPath/Func)
+      expect(main[2].module.adapter, SeqAdapter.cModule);
+      expect(main[2].module.libPath, 'kernel32.dll');
+      expect(main[2].module.function, 'Sleep');
+      expect(main[2].module.target, 'kernel32.dll:Sleep');
     });
 
     test('decodes step settings from the TS sub-container', () {

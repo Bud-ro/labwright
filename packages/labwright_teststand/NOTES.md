@@ -98,6 +98,23 @@ with `package:xml`; the `SeqProperty` model + typed lens are owned. Corpus:
 **20/20 XML files parse, 24 sequences / 121 steps recovered**; binary files
 refused (not mis-parsed).
 
+## M2/M3 — step settings & module-adapter binding (done)
+
+- **Step settings** live as scalars under `Step > TS > subprops`: `PreCond`
+  (precondition), `LoopType`/`LoopWhile` (looping), `PassAct`/`FailAct` (flow
+  actions), `PreExpr`/`PostExpr`/`StatusExpr`. → `Step.settings` (`StepSettings`),
+  empty/absent → null. Corpus: all 121 steps expose pass/fail actions.
+- **Module-adapter binding** lives under `Step > TS > SData`; the adapter is
+  identified by the SData child record:
+  - `ViCall` (`VICall`) → LabVIEW VI; target = `VIPath`.
+  - `Call` (`ExternalCall`) → C/DLL; target = `LibPath` + `Func` (e.g.
+    `kernel32.dll:Sleep`).
+  - `PythonCall` (`CPythonCall`) → Python (recognized; target fields not yet decoded).
+  - `SeqName`/`SFPath` → Sequence Call (calls another sequence).
+  → `Step.module` (`StepModule` + `SeqAdapter` enum). Corpus: 51/121 steps carry
+  a recognized binding (the rest are flow-control or NI-measurement-plug-in steps
+  whose binding lives outside SData — not yet modeled).
+
 ## Honest gaps (do NOT model yet)
 
 - **Binary record grammar** past the header — not yet recovered.
