@@ -838,4 +838,26 @@ void main() {
       expect(bodies[k]!.length, lessThan(5), reason: '$k is no longer byte-constant (${bodies[k]!.length} distinct) — may be decodable now');
     }
   });
+
+  // 19. ID TABLES — NUID/SUID/BNID are [u32 count][count u32], i.e. length ==
+  // 4 + 4*count, and decode to exactly `count` entries. Corpus: 100%.
+  test('NUID/SUID/BNID are [u32 count][count u32] id tables', () {
+    var tot = 0, framed = 0;
+    for (final f in all) {
+      final List<ViSection> secs;
+      try {
+        secs = readViSections(f.readAsBytesSync());
+      } catch (_) {
+        continue;
+      }
+      for (final s in secs) {
+        if (!{'NUID', 'SUID', 'BNID'}.contains(s.tag) || s.bytes.length < 4) continue;
+        tot++;
+        final t = decodeIdTable(s.bytes);
+        if (t != null && s.bytes.length == 4 + 4 * t.count && t.entries.length == t.count) framed++;
+      }
+    }
+    expect(tot, greaterThan(0));
+    expect(framed / tot, greaterThan(0.99), reason: 'id-table framing held for only $framed/$tot (<99%)');
+  });
 }

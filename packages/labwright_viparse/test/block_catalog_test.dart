@@ -37,9 +37,9 @@ void main() {
       }
       expect(blockInfo('MUID').category, ViBlockCategory.identifier);
       expect(blockInfo('MUID').confidence, BlockConfidence.likely);
-      // the variable-length id tables stay tentative (framing undecoded).
+      // the id tables are now confirmed framing ([u32 count][count u32]).
       for (final t in ['NUID', 'SUID', 'BNID']) {
-        expect(blockInfo(t).confidence, BlockConfidence.tentative, reason: t);
+        expect(blockInfo(t).confidence, BlockConfidence.confirmed, reason: t);
       }
     });
 

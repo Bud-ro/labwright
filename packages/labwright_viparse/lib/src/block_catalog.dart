@@ -203,9 +203,9 @@ const Map<String, ViBlockInfo> _catalog = {
 
   // --- Identifiers / signatures (small fixed blobs; roles undetermined) ---
   'MUID': ViBlockInfo('MUID', 'Modified UID', _id, _lk, '4-byte u32 id, varied per VI (opaque value).'),
-  'NUID': ViBlockInfo('NUID', 'New UID table', _id, _tt, 'Variable-length per-VI id table; framing not yet decoded.'),
-  'SUID': ViBlockInfo('SUID', 'Saved UID table', _id, _tt, 'Variable-length per-VI id table; framing not yet decoded.'),
-  'BNID': ViBlockInfo('BNID', 'Block-name id table', _id, _tt, 'Variable-length per-VI id table; framing not yet decoded.'),
+  'NUID': ViBlockInfo('NUID', 'New UID table', _id, _cf, '[u32 count][count u32 ids], len==4+4*count (100%). See decodeIdTable. Id values opaque.'),
+  'SUID': ViBlockInfo('SUID', 'Saved UID table', _id, _cf, '[u32 count][count u32 ids], len==4+4*count (100%). See decodeIdTable. Id values opaque.'),
+  'BNID': ViBlockInfo('BNID', 'Block-name id table', _id, _cf, '[u32 count][count u32 ids], len==4+4*count (100%). See decodeIdTable. Id values opaque.'),
   'OMId': ViBlockInfo('OMId', 'Object-map id', _id, _tt, 'Rare (n=1 in corpus); not characterized.'),
   'RSID': ViBlockInfo('RSID', 'Resource id', _id, _tt, 'Rare (n=1 in corpus); not characterized.'),
   'RTSG': ViBlockInfo('RTSG', 'Run-time signature', _id, _cf, '16-byte signature, varied per VI (85%); opaque value, role=identity.'),
