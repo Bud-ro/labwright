@@ -39,9 +39,11 @@ class ViDiagramView extends StatefulWidget {
   /// Shown when no diagram has positioned objects.
   final String emptyHint;
 
-  /// The VI's authoritative sub-VI dependency names (from the LIbd linker block,
-  /// `model.subViNames`). Shown in the control-flow outline as the complete set
-  /// of called VIs — independent of whether individual BD node bodies are labeled.
+  /// The VI's sub-VI dependency names from the LIbd linker block
+  /// (`model.subViNames`) — the names LabVIEW records as block-diagram
+  /// dependencies (recoverable for ~82% of VIs; the rest call no subVIs or none
+  /// with a stored name). This is a dependency list from the linker, NOT a
+  /// per-node call mapping, but it does not depend on individual BD node labels.
   /// Pass only for the block diagram (empty for the front panel).
   final List<String> subViNames;
 
@@ -372,11 +374,12 @@ String? wireframeAnnotation(ViHeapObject o) {
 
 /// An honest, wire-free **control-flow outline** of a block diagram: the
 /// structures grouped by catalog kind (e.g. `While loop`, `Case structure`), the
-/// distinct named subVI/function calls, and the total node count. Conveys the
-/// diagram's control-flow shape at a glance without claiming any dataflow edges
-/// (LabVIEW stores wires as geometry, with no recoverable node→node endpoints).
-/// Pure + public so it is unit-testable independently of the canvas.
-({Map<String, int> structuresByKind, List<String> calls, int nodeCount}) computeBdOutline(
+/// distinct **labeled-node captions** (a node's `C4 22` caption — for a subVI
+/// usually its name, but NOT a proven call; many node kinds carry captions), and
+/// the total node count. Conveys the diagram's control-flow shape at a glance
+/// without claiming any dataflow edges (LabVIEW stores wires as geometry, with no
+/// recoverable node→node endpoints). Pure + public so it is unit-testable.
+({Map<String, int> structuresByKind, List<String> labeledNodes, int nodeCount}) computeBdOutline(
     Iterable<ViHeapObject> objects) {
   // The diagram canvas/root frames are structures but not control flow — exclude
   // them so the outline reads as actual loops/cases/sequences/containers.
@@ -387,7 +390,7 @@ String? wireframeAnnotation(ViHeapObject o) {
     HeapObjectClass.rootAux,
   };
   final byKind = <String, int>{};
-  final calls = <String>[];
+  final labeledNodes = <String>[];
   var nodeCount = 0;
   for (final o in objects) {
     if (o.category == ViObjectKind.structure) {
@@ -396,11 +399,11 @@ String? wireframeAnnotation(ViHeapObject o) {
       byKind[k] = (byKind[k] ?? 0) + 1;
     } else if (o.category == ViObjectKind.node) {
       nodeCount++;
-      final dl = nodeDisplayLabel(o); // (text, isHint)
-      if (!dl.isHint && !calls.contains(dl.text)) calls.add(dl.text);
+      final dl = nodeDisplayLabel(o); // (text, isHint) — a caption, not a proven call
+      if (!dl.isHint && !labeledNodes.contains(dl.text)) labeledNodes.add(dl.text);
     }
   }
-  return (structuresByKind: byKind, calls: calls, nodeCount: nodeCount);
+  return (structuresByKind: byKind, labeledNodes: labeledNodes, nodeCount: nodeCount);
 }
 
 /// Control-terminal classes — their internal sub-terminals are scaffolding.
@@ -719,18 +722,19 @@ class _DetailsCard extends StatelessWidget {
 /// nothing when the diagram has no structures or named calls.
 class _BdOutline extends StatelessWidget {
   const _BdOutline({required this.outline, this.linkedSubVis = const []});
-  final ({Map<String, int> structuresByKind, List<String> calls, int nodeCount}) outline;
+  final ({Map<String, int> structuresByKind, List<String> labeledNodes, int nodeCount}) outline;
 
-  /// The VI's authoritative sub-VI dependency names (from the LIbd linker block) —
-  /// the complete set of called VIs, shown separately from the heap-derived [calls].
+  /// The VI's sub-VI dependency names from the LIbd linker block — recoverable
+  /// for ~82% of VIs; a linker dependency list, not a per-node call mapping.
+  /// Shown separately from the heap-derived diagram-labeled nodes.
   final List<String> linkedSubVis;
 
   @override
   Widget build(BuildContext context) {
     final structs = outline.structuresByKind.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
-    final calls = outline.calls;
-    if (structs.isEmpty && calls.isEmpty && linkedSubVis.isEmpty) return const SizedBox.shrink();
+    final labeledNodes = outline.labeledNodes;
+    if (structs.isEmpty && labeledNodes.isEmpty && linkedSubVis.isEmpty) return const SizedBox.shrink();
 
     const muted = TextStyle(fontSize: 12, color: Colors.grey);
     Widget capped(String prefix, List<String> items) => Text(
@@ -749,17 +753,17 @@ class _BdOutline extends StatelessWidget {
               const Text('Control flow:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
               for (final e in structs) Text('${e.key} ×${e.value}', style: muted),
             ]),
-          // Authoritative dependency list (LIbd) — complete even when BD node
-          // bodies are unlabeled. Distinct from the heap-derived diagram labels.
+          // LIbd linker dependency list — present even when BD node bodies are
+          // unlabeled. Distinct from the heap-derived diagram-labeled captions.
           if (linkedSubVis.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 2),
               child: capped('Linked subVIs (${linkedSubVis.length})', linkedSubVis),
             ),
-          if (calls.isNotEmpty)
+          if (labeledNodes.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 2),
-              child: capped('Diagram-labeled nodes (${calls.length})', calls),
+              child: capped('Diagram-labeled nodes (${labeledNodes.length})', labeledNodes),
             ),
         ],
       ),

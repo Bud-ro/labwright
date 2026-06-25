@@ -267,13 +267,13 @@ void main() {
 
   group('computeBdOutline', () {
     ViHeapObject struct(int kind) => ViHeapObject(oid: kind, kind: kind, offset: 0)..category = ViObjectKind.structure;
-    test('groups structures by catalog kind and lists named calls (no fabrication)', () {
+    test('groups structures by catalog kind and lists labeled-node captions (no fabrication)', () {
       final objs = [
         struct(0x21), // While loop
         struct(0x21), // While loop (×2)
         struct(0x2c), // Case structure
         struct(0x7e), // Diagram root -> excluded (not control flow)
-        ViHeapObject(oid: 10, kind: 0x12, offset: 0) // a named subVI/function node
+        ViHeapObject(oid: 10, kind: 0x12, offset: 0) // a node carrying a caption
           ..category = ViObjectKind.node
           ..label = 'Acquire.vi',
         ViHeapObject(oid: 11, kind: 0x2f, offset: 0)..category = ViObjectKind.node, // unlabeled primitive -> hint
@@ -282,8 +282,31 @@ void main() {
       expect(o.structuresByKind['While loop'], 2);
       expect(o.structuresByKind['Case structure'], 1);
       expect(o.structuresByKind.containsKey('Diagram root'), isFalse); // excluded
-      expect(o.calls, ['Acquire.vi']); // the hint-only primitive is not a "call"
+      expect(o.labeledNodes, ['Acquire.vi']); // hint-only primitive carries no caption
       expect(o.nodeCount, 2);
+    });
+
+    test('emits NO wire/edge/dataflow linkage — the no-fabricated-wires honesty contract', () {
+      // Whatever the outline contains, it must never express a node->node edge or
+      // any wire/dataflow connection (LabVIEW wires are unrecoverable geometry).
+      final objs = [
+        struct(0x21),
+        struct(0x2c),
+        ViHeapObject(oid: 10, kind: 0x12, offset: 0)
+          ..category = ViObjectKind.node
+          ..label = 'Acquire.vi',
+        ViHeapObject(oid: 11, kind: 0x12, offset: 0)
+          ..category = ViObjectKind.node
+          ..label = 'Write.vi',
+      ];
+      final o = computeBdOutline(objs);
+      final text = [
+        ...o.structuresByKind.keys,
+        ...o.labeledNodes,
+      ].join(' ').toLowerCase();
+      for (final banned in ['wire', 'edge', 'dataflow', 'connect', '->', '→', 'flows to', 'wires to']) {
+        expect(text.contains(banned), isFalse, reason: 'outline must not imply a $banned linkage');
+      }
     });
   });
 
@@ -306,9 +329,13 @@ void main() {
     expect(find.text('Control flow:'), findsOneWidget);
     expect(find.text('While loop ×1'), findsOneWidget);
     expect(find.textContaining('Diagram-labeled nodes (1): Acquire.vi'), findsOneWidget);
+    // The no-fabricated-wires honesty contract is enforced at the data layer by
+    // the 'computeBdOutline emits NO wire/edge/dataflow linkage' unit test above.
+    // (A blunt rendered-text 'wire' guard would wrongly flag the view's HONEST
+    // disclaimer that signal wires are NOT drawn — which we want to keep.)
   });
 
-  testWidgets('block-diagram outline lists the authoritative linked subVIs (LIbd)', (tester) async {
+  testWidgets('block-diagram outline lists the linked subVIs from the LIbd linker block', (tester) async {
     tester.view.physicalSize = const Size(1000, 1000);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
