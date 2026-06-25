@@ -130,11 +130,12 @@ String generateDartScaffold(ViModel model, {String name = 'vi'}) {
   // members ARE the terminals; otherwise it is a single terminal. Direction
   // (input vs output) is NOT recovered from the diagram, so we don't claim it.
   final cpIdx = model.connectorPaneTypeIndex;
+  final cpTerms = <ViType>[];
   if (cpIdx != null && cpIdx >= 1 && cpIdx <= model.types.length) {
     final cp = model.types[cpIdx - 1];
-    final terms = cp.kind == ViDataType.cluster ? clusterFields(cp, model.types) : <ViType>[cp];
+    cpTerms.addAll(cp.kind == ViDataType.cluster ? clusterFields(cp, model.types) : <ViType>[cp]);
     b.writeln("// Connector-pane terminals (the VI's interface; in/out direction not recovered):");
-    for (final t in terms) {
+    for (final t in cpTerms) {
       final nm = t.name != null && t.name!.isNotEmpty ? ' ${_oneLine(t.name!)}' : '';
       b.writeln('//   ${typeLabel(t, model.types)}$nm');
     }
@@ -153,6 +154,21 @@ String generateDartScaffold(ViModel model, {String name = 'vi'}) {
     if (captions.length > _captionCap) {
       b.writeln('//   (+${captions.length - _captionCap} more not shown)');
     }
+  }
+  // A suggested (commented) signature from the conpane terminals — all terminals
+  // listed positionally; in/out direction is NOT recovered, so they are not split
+  // into params vs returns, and the real stub stays `void`.
+  if (cpTerms.isNotEmpty) {
+    final sig = [
+      for (final t in cpTerms)
+        t.name != null && t.name!.isNotEmpty
+            ? '${typeLabel(t, model.types)} ${_ident(_oneLine(t.name!))}'
+            : typeLabel(t, model.types),
+    ].join(', ');
+    b
+      ..writeln()
+      ..writeln('// suggested signature (conpane terminals, positional — in/out not recovered):')
+      ..writeln('//   ${_ident(name)}($sig)');
   }
   b
     ..writeln()

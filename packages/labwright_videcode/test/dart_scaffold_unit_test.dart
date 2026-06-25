@@ -112,10 +112,14 @@ void main() {
       connectorPaneTypeIndex: 2, // 1-based -> the cluster
       blockDiagrams: [ViDiagram(sectionTag: 'BDHb', objects: [_obj(1, ViObjectKind.node)])],
     );
-    final out = generateDartScaffold(model);
+    final out = generateDartScaffold(model, name: 'myVi');
     expect(out, contains('Connector-pane terminals'));
     expect(out, contains('dbl Threshold')); // cluster member surfaced as a terminal
     // honest: never claims input/output direction
     expect(out, contains('in/out direction not recovered'));
+    // a commented suggested signature from the conpane terminals
+    expect(out, contains('suggested signature'));
+    expect(out, contains('myVi(dbl Threshold)'));
+    expect(out, contains('in/out not recovered')); // signature disclaimer
   });
 }
