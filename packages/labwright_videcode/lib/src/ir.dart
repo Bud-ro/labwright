@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'package:labwright_viparse/labwright_viparse.dart' show readSubViNames;
+import 'package:labwright_viparse/labwright_viparse.dart' show connectorPaneFromSections, readSubViNames;
 
 import 'decode.dart';
 import 'graph.dart';
@@ -36,6 +36,7 @@ class ViModel {
     this.frontPanelDiagrams = const <ViDiagram>[],
     this.subViNames = const <String>[],
     this.types = const <ViType>[],
+    this.connectorPaneTypeIndex,
   });
 
   /// LabVIEW version the VI was saved in (e.g. `10.0`), or null if not yet recovered.
@@ -89,6 +90,12 @@ class ViModel {
   /// items where present (uncatalogued codes keep their raw byte). Empty when the
   /// pool is absent/unparseable.
   final List<ViType> types;
+
+  /// 1-based `VCTP` index of the VI's connector-pane type (from the `CONP`
+  /// block), or null when absent. Resolve against [types] for the VI's interface
+  /// terminals (a cluster's members are the terminals; in/out direction is not
+  /// recovered). Corpus-confirmed in-range for CONP (see decodeConnectorPane).
+  final int? connectorPaneTypeIndex;
 
   /// All recovered diagrams (block + front panel). Back-compat convenience.
   List<ViDiagram> get diagrams => [...blockDiagrams, ...frontPanelDiagrams];
@@ -290,6 +297,7 @@ ViModel buildViModelFromDecoded(Iterable<DecodedSection> decoded, {List<String> 
   return ViModel(
     subViNames: subViNames,
     types: typePoolFromDecoded(list),
+    connectorPaneTypeIndex: connectorPaneFromSections(list.map((d) => d.section))?.typeIndex,
     version: ver.version,
     title: ver.title,
     description: cpc2Description(list.map((d) => d.section)),

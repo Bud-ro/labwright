@@ -76,4 +76,24 @@ void main() {
           reason: 'non-comment line leaked: "$line"');
     }
   });
+
+  test('connector-pane terminals are emitted from the CONP->VCTP cluster members', () {
+    final dbl = ViType(index: 0, code: 0x0a, kind: ViDataType.dbl, name: 'Threshold');
+    final cluster = ViType(index: 1, code: 0x50, kind: ViDataType.cluster, name: 'error out', members: const [0]);
+    final model = ViModel(
+      version: null,
+      title: null,
+      components: const [],
+      stringTables: const [],
+      heapRecords: const [],
+      types: [dbl, cluster],
+      connectorPaneTypeIndex: 2, // 1-based -> the cluster
+      blockDiagrams: [ViDiagram(sectionTag: 'BDHb', objects: [_obj(1, ViObjectKind.node)])],
+    );
+    final out = generateDartScaffold(model);
+    expect(out, contains('Connector-pane terminals'));
+    expect(out, contains('dbl Threshold')); // cluster member surfaced as a terminal
+    // honest: never claims input/output direction
+    expect(out, contains('in/out direction not recovered'));
+  });
 }

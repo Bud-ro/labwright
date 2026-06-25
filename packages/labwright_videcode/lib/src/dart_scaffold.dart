@@ -123,6 +123,20 @@ String generateDartScaffold(ViModel model, {String name = 'vi'}) {
       b.writeln('//   (+${structs.length - _structCap} more not shown)');
     }
   }
+  // Connector pane — the VI's actual interface terminals (from CONP -> VCTP).
+  // More reliable than caption-guessing: when the conpane type is a cluster its
+  // members ARE the terminals; otherwise it is a single terminal. Direction
+  // (input vs output) is NOT recovered from the diagram, so we don't claim it.
+  final cpIdx = model.connectorPaneTypeIndex;
+  if (cpIdx != null && cpIdx >= 1 && cpIdx <= model.types.length) {
+    final cp = model.types[cpIdx - 1];
+    final terms = cp.kind == ViDataType.cluster ? clusterFields(cp, model.types) : <ViType>[cp];
+    b.writeln("// Connector-pane terminals (the VI's interface; in/out direction not recovered):");
+    for (final t in terms) {
+      final nm = t.name != null && t.name!.isNotEmpty ? ' ${_oneLine(t.name!)}' : '';
+      b.writeln('//   ${typeLabel(t, model.types)}$nm');
+    }
+  }
   // Candidate parameters: the VI's recovered control/label captions. These are
   // the NAMES of the VI's controls/indicators — the raw material of its function
   // signature — but the block diagram alone does not say which are inputs vs
