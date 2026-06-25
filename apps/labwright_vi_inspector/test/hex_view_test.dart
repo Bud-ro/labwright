@@ -158,6 +158,24 @@ void main() {
     expect(find.text('doc'), findsOneWidget);
   });
 
+  testWidgets('a VCTP block lists the recovered type pool', (tester) async {
+    tester.view.physicalSize = const Size(1000, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    // VCTP = [u32 count][ (u16 descLen)(flags)(code) ... ]; two scalar types:
+    // a dbl (code 0x0a) and a boolean (code 0x21), each a 4-byte descriptor.
+    final vctp = _raw('VCTP', [
+      0, 0, 0, 2, // count = 2
+      0, 4, 0, 0x0a, // #0 dbl
+      0, 4, 0, 0x21, // #1 boolean
+    ]);
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: BlockHexView(section: vctp))));
+    await tester.pump();
+    expect(find.text('2 types'), findsOneWidget);
+    expect(find.textContaining('dbl'), findsWidgets);
+    expect(find.textContaining('boolean'), findsWidgets);
+  });
+
   testWidgets('an ICON block renders a 32x32 legacy-icon preview', (tester) async {
     tester.view.physicalSize = const Size(1000, 1400);
     tester.view.devicePixelRatio = 1.0;

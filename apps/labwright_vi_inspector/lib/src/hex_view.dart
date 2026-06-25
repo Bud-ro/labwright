@@ -395,6 +395,38 @@ class _BlockHexViewState extends State<BlockHexView> {
 
   Widget _nonHeapPanel() {
     final info = blockInfo(widget.section.tag);
+    // VCTP — the VI's type pool. Its decompressed bytes decode to the type list.
+    if (widget.section.tag == 'VCTP') {
+      final types = decodeTypePool(widget.section.bytes);
+      if (types.isNotEmpty) {
+        const cap = 200;
+        final shown = types.length > cap ? types.take(cap).toList() : types;
+        return ListView(
+          padding: const EdgeInsets.all(12),
+          children: [
+            Text('Parsed · ${info.name}', style: const TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 2),
+            Text('${types.length} types', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+            const Divider(height: 14),
+            for (final t in shown)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 2),
+                child: Text.rich(TextSpan(children: [
+                  TextSpan(text: '#${t.index} ', style: const TextStyle(fontFamily: 'monospace', fontSize: 12, color: Colors.grey)),
+                  TextSpan(text: typeLabel(t, types), style: const TextStyle(fontSize: 12.5)),
+                  if (t.name != null && t.name!.isNotEmpty)
+                    TextSpan(text: "  '${t.name}'", style: const TextStyle(fontSize: 12.5, color: Color(0xFF4C8C4C))),
+                ])),
+              ),
+            if (types.length > cap)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text('+${types.length - cap} more (not shown)', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+              ),
+          ],
+        );
+      }
+    }
     // Legacy icon bitmaps (icl8/icl4/ICON) render as a real 32x32 preview.
     final bpp = legacyIconBpp(widget.section.tag);
     if (bpp != null) {
