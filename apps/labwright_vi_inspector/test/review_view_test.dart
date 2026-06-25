@@ -47,6 +47,19 @@ void main() {
     expect(find.textContaining(scaffoldMarker, findRichText: true), findsWidgets);
   });
 
+  testWidgets('review view shows an honest recovery summary from real counts', (tester) async {
+    tester.view.physicalSize = const Size(1600, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: ViReviewView(model: _bdModel(), viName: 'MyVi.vi'))));
+
+    expect(find.textContaining('Recovered:'), findsOneWidget);
+    expect(find.textContaining('BD objects'), findsOneWidget);
+    // honest disclaimer that dataflow is not recovered
+    expect(find.textContaining('dataflow / wires are not recovered'), findsOneWidget);
+  });
+
   testWidgets('review view stacks vertically on a narrow viewport', (tester) async {
     // genuinely narrow: < 720 stacks, and the (now wrapping) diagram toolbar no
     // longer overflows here — a regression guard for the D.10 toolbar fix too.

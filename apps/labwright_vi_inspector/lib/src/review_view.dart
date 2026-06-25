@@ -25,7 +25,7 @@ class ViReviewView extends StatelessWidget {
     );
     final dart = GeneratedDartView(model: model, viName: viName);
 
-    return LayoutBuilder(
+    final sideBySide = LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth < 720) {
           return Column(
@@ -45,6 +45,56 @@ class ViReviewView extends StatelessWidget {
           ],
         );
       },
+    );
+
+    final m = model;
+    if (m == null) return sideBySide;
+    return Column(
+      children: [
+        _RecoverySummary(m),
+        const Divider(height: 1),
+        Expanded(child: sideBySide),
+      ],
+    );
+  }
+}
+
+/// An honest "what we recovered vs what's still unknown" strip for the Review
+/// tab, derived entirely from real model counts — never fabricated, and explicit
+/// that only STRUCTURE is recovered (dataflow/wires are not).
+class _RecoverySummary extends StatelessWidget {
+  const _RecoverySummary(this.model);
+  final ViModel model;
+
+  @override
+  Widget build(BuildContext context) {
+    final objs = [for (final d in model.blockDiagrams) ...d.objects];
+    final classified = objs.where((o) => o.category != ViObjectKind.unknown).length;
+    final unknown = objs.length - classified;
+    final structures = objs.where((o) => o.category == ViObjectKind.structure).length;
+    final nodes = objs.where((o) => o.category == ViObjectKind.node).length;
+    final parts = <String>[
+      '${objs.length} BD objects',
+      '$classified classified / $unknown unknown',
+      '$structures structures',
+      '$nodes nodes',
+      '${model.subViNames.length} subVI calls',
+      '${model.types.length} types',
+    ];
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Recovered: ${parts.join('  ·  ')}',
+              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 2),
+          const Text('Structure only — node→node dataflow / wires are not recovered, so the Dart is a scaffold.',
+              style: TextStyle(fontSize: 11, color: Colors.grey)),
+        ],
+      ),
     );
   }
 }
