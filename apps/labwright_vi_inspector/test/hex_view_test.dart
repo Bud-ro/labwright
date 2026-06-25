@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -114,16 +112,50 @@ void main() {
     expect(find.textContaining('Numeric-control parameter'), findsOneWidget);
   });
 
-  testWidgets('non-heap section shows raw hex + its catalog identity, no crash', (tester) async {
+  testWidgets('an undecoded non-heap block shows raw hex + its catalog identity', (tester) async {
+    // TRec has no decoder -> the honest raw-hex note, not a parsed panel.
     final raw = DecodedSection(
-      section: ViSection(tag: 'LVSR', index: 0, dataOffset: 0, bytes: Uint8List.fromList(List.filled(40, 0x41))),
+      section: ViSection(tag: 'TRec', index: 0, dataOffset: 0, bytes: Uint8List.fromList(List.filled(40, 0x41))),
       bytes: Uint8List.fromList(List.filled(40, 0x41)),
       wasCompressed: false,
     );
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: BlockHexView(section: raw))));
     await tester.pump();
     expect(find.textContaining('raw hex'), findsOneWidget);
-    expect(find.textContaining('LabVIEW save record'), findsOneWidget); // catalog name
+  });
+
+  DecodedSection _raw(String tag, List<int> bytes) => DecodedSection(
+        section: ViSection(tag: tag, index: 0, dataOffset: 0, bytes: Uint8List.fromList(bytes)),
+        bytes: Uint8List.fromList(bytes),
+        wasCompressed: false,
+      );
+
+  testWidgets('a decoded vers block shows a Parsed panel with the version', (tester) async {
+    tester.view.physicalSize = const Size(1000, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    // vers: binary version word 08 50 80 02 -> "8.5" + a Pascal version string.
+    final vers = _raw('vers', [0x08, 0x50, 0x80, 0x02, 0x03, ...'8.5'.codeUnits]);
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: BlockHexView(section: vers))));
+    await tester.pump();
+    expect(find.textContaining('Parsed'), findsOneWidget);
+    expect(find.text('8.5'), findsWidgets); // decoded version surfaced
+  });
+
+  testWidgets('a decoded HLPP block shows its recovered help path', (tester) async {
+    tester.view.physicalSize = const Size(1000, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    final hlpp = _raw('HLPP', [
+      ...'PTH0'.codeUnits, // magic
+      0, 0, 0, 0x0c, // inner len
+      0, 0, // type
+      0, 1, // count
+      3, ...'doc'.codeUnits, // one component
+    ]);
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: BlockHexView(section: hlpp))));
+    await tester.pump();
+    expect(find.text('doc'), findsOneWidget);
   });
 
   testWidgets('copy menu puts the block bytes on the clipboard as hex', (tester) async {

@@ -32,6 +32,22 @@ class _BlockHexViewState extends State<BlockHexView> {
   @override
   void initState() {
     super.initState();
+    _buildModel();
+  }
+
+  @override
+  void didUpdateWidget(BlockHexView old) {
+    super.didUpdateWidget(old);
+    // The Inspect tab swaps the selected block in-place (same State), so rebuild
+    // the record/byte map when the section changes — otherwise a stale
+    // _byteToRecord (sized for the old block) range-errors the hex dump.
+    if (!identical(old.section, widget.section)) {
+      _selected = -1;
+      _buildModel();
+    }
+  }
+
+  void _buildModel() {
     final b = widget.section.bytes;
     _preview = iconPreview(b);
     // Only the corpus-confirmed C4 record heaps (FPHb/BDHb/FPHc/BDHc) get the
@@ -178,23 +194,7 @@ class _BlockHexViewState extends State<BlockHexView> {
               Expanded(
                 flex: 2,
                 child: _records.isEmpty
-                    ? Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: _preview ??
-                              Text(
-                                () {
-                                  final info = blockInfo(widget.section.tag);
-                                  return '${info.name} (${widget.section.tag})\n'
-                                      '${info.note}\n\n'
-                                      'Not a record heap — raw hex shown. Decoding this '
-                                      "block's format is the open frontier.";
-                                }(),
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(color: Colors.grey),
-                              ),
-                        ),
-                      )
+                    ? _nonHeapPanel()
                     : Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
@@ -330,6 +330,100 @@ class _BlockHexViewState extends State<BlockHexView> {
           if (r.display != null) ...[const SizedBox(height: 10), r.display!],
         ],
       ),
+    );
+  }
+
+  /// Decoded fields for a non-heap block whose format we parse — label/value
+  /// pairs straight from the viparse decoders (never fabricated; only what a
+  /// decoder actually returns). Empty when the block has no decoder.
+  List<MapEntry<String, String>> _parsedBlockSummary() {
+    final b = widget.section.bytes;
+    switch (widget.section.tag) {
+      case 'vers':
+        final v = decodeVersionWord(b);
+        return v == null
+            ? const []
+            : [
+                MapEntry('Version', v.version),
+                MapEntry('Stage', '0x${v.stage.toRadixString(16)}${v.stage == 0x80 ? ' (release)' : ''}'),
+                MapEntry('Build', '${v.build}'),
+              ];
+      case 'LVSR':
+        final r = decodeSaveRecord(b);
+        return r == null
+            ? const []
+            : [
+                MapEntry('LabVIEW version', r.version),
+                MapEntry('BD password-protected', r.isBlockDiagramPasswordProtected ? 'yes' : 'no'),
+              ];
+      case 'CONP':
+      case 'CPC2':
+        final c = decodeConnectorPane(b);
+        if (c == null) return const [];
+        return c.isInline
+            ? [const MapEntry('Form', 'inline (not yet decoded)')]
+            : [MapEntry('VCTP type index', '${c.typeIndex}')];
+      case 'HLPP':
+        final p = decodeHelpPath(b);
+        return (p == null || !p.isPth0 || p.path.isEmpty) ? const [] : [MapEntry('Help path', p.path)];
+      case 'STRG':
+      case 'HLPT':
+        final t = decodeStringBlock(b);
+        if (t == null || t.isEmpty) return const [];
+        return [MapEntry('Text', t.length > 240 ? '${t.substring(0, 240)}…' : t)];
+      case 'HIST':
+        final h = decodeHistory(b);
+        return h == null
+            ? const []
+            : [MapEntry('Format version', '${h.formatVersion}'), MapEntry('Revision entries', '${h.entryCount}')];
+      case 'FTAB':
+        final ft = decodeFontTable(b);
+        if (ft == null) return const [];
+        return [
+          MapEntry('Fonts', '${ft.fontCount}'),
+          if (ft.names.isNotEmpty) MapEntry('Names', ft.names.join(', ')),
+        ];
+      case 'NUID':
+      case 'SUID':
+      case 'BNID':
+        final it = decodeIdTable(b);
+        return it == null ? const [] : [MapEntry('Id count', '${it.count}')];
+      default:
+        return const [];
+    }
+  }
+
+  Widget _nonHeapPanel() {
+    final info = blockInfo(widget.section.tag);
+    final fields = _parsedBlockSummary();
+    if (_preview != null) return Center(child: Padding(padding: const EdgeInsets.all(16), child: _preview));
+    if (fields.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Text(
+            '${info.name} (${widget.section.tag})\n${info.note}\n\n'
+            "Not a record heap — raw hex shown. Decoding this block's format is the open frontier.",
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.grey),
+          ),
+        ),
+      );
+    }
+    return ListView(
+      padding: const EdgeInsets.all(12),
+      children: [
+        Text('Parsed · ${info.name}', style: const TextStyle(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 2),
+        Text('${widget.section.tag} — ${info.confidence.name}', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+        const Divider(height: 14),
+        for (final f in fields) ...[
+          Text(f.key, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+          SelectableText(f.value, style: const TextStyle(fontSize: 13)),
+          const SizedBox(height: 8),
+        ],
+        Text(info.note, style: const TextStyle(fontSize: 11, color: Colors.grey, fontStyle: FontStyle.italic)),
+      ],
     );
   }
 
