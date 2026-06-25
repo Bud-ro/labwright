@@ -1,4 +1,6 @@
 tags:
   corpus:
-    # Tests that require the fetched VI corpus (corpus/fetch.sh). They self-skip
-    # when the corpus is absent, so CI stays green without it.
+    # Tests that require the fetched VI corpus (tool/fetch_corpus.dart → the
+    # gitignored <repoRoot>/vi-corpus/). They self-skip when the corpus is absent,
+    # so CI stays green without it. The full corpus suite is memory-heavy (iterates
+    # ~7.5k VIs, decompressing multi-MB heaps) — run it with `-j 1` to avoid OOM.

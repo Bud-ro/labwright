@@ -10,22 +10,21 @@ import 'dart:io';
 /// Usage:
 ///   dart run tool/fetch_corpus.dart [destRoot]
 ///
-/// `destRoot` defaults to `/tmp/claude-1000/vi_diverse` — the path the corpus
-/// tests + coverage tool read (corpus_coverage_test.dart / corpus_invariants_test.dart).
-/// (Note: `sources.json` carries a separate `fetchRoot`; the default here matches
-/// what the test suite actually consumes.) Each repo extracts to
-/// `<destRoot>/<owner>_<name>/`; already-populated dirs are skipped, so re-running
-/// only fetches what's missing.
+/// `destRoot` defaults to `<repoRoot>/vi-corpus/` — a gitignored folder at the
+/// repo root, kept there (not in /tmp) for visibility into what the corpus tests
+/// + coverage tool consume (see corpus/README.md and test/corpus_dirs.dart). Each
+/// repo extracts to `<destRoot>/<owner>_<name>/`; already-populated dirs are
+/// skipped, so re-running only fetches what's missing.
 Future<void> main(List<String> args) async {
-  const defaultDest = '/tmp/claude-1000/vi_diverse';
-  final dest = args.isNotEmpty ? args.first : defaultDest;
-
   final sources = _findSourcesJson();
   if (sources == null) {
     stderr.writeln('error: could not locate corpus/sources.json (run from within the repo)');
     exitCode = 1;
     return;
   }
+  // Repo root = the dir holding corpus/sources.json (i.e. <repoRoot>/corpus/sources.json).
+  final repoRoot = sources.parent.parent.path;
+  final dest = args.isNotEmpty ? args.first : '$repoRoot/vi-corpus';
   final list = (jsonDecode(sources.readAsStringSync())['sources'] as List).cast<Map<String, dynamic>>();
 
   Directory(dest).createSync(recursive: true);

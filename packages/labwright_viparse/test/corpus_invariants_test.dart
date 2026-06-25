@@ -7,6 +7,8 @@ import 'dart:typed_data';
 import 'package:labwright_viparse/labwright_viparse.dart';
 import 'package:test/test.dart';
 
+import 'corpus_dirs.dart';
+
 /// NEW test type at the RSRC-container layer: a CROSS-CONSISTENCY invariant
 /// between viparse's two independent code paths — [parseVi] (which builds the
 /// block *inventory* `.blocks`) and [readViSections] (which extracts each
@@ -16,7 +18,7 @@ import 'package:test/test.dart';
 /// superset (a few declared blocks may carry no extractable section in a given
 /// file). Corpus-validated: holds for 100% of 7583 files. Skipped if corpus absent.
 void main() {
-  final dir = Directory('/tmp/claude-1000/vi_samples');
+  final dir = corpusSampleDir;
   if (!dir.existsSync()) {
     test('viparse corpus invariants (skipped: corpus not fetched)', () {}, skip: true);
     return;
@@ -32,7 +34,7 @@ void main() {
       ..sort((a, b) => a.path.compareTo(b.path));
   }
 
-  final all = [...vis('/tmp/claude-1000/vi_samples'), ...vis('/tmp/claude-1000/vi_diverse')];
+  final all = [...vis(corpusSampleDir.path), ...vis(corpusDiverseDir.path)];
 
   test('CROSS-CONSISTENCY: every extracted section tag is in parseVi\'s block inventory', () {
     var files = 0;

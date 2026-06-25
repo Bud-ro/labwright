@@ -8,6 +8,8 @@ import 'dart:typed_data';
 import 'package:labwright_videcode/labwright_videcode.dart';
 import 'package:test/test.dart';
 
+import 'corpus_dirs.dart';
+
 /// Tests for the JSON IR export ([viModelToJson]) — the serializable VI→IR→Dart
 /// artifact. Three properties across the corpus:
 ///   (1) DETERMINISM — encoding the same VI twice yields byte-identical JSON;
@@ -27,7 +29,7 @@ void main() {
       ..sort((a, b) => a.path.compareTo(b.path));
   }
 
-  final all = [...vis('/tmp/claude-1000/vi_samples'), ...vis('/tmp/claude-1000/vi_diverse')];
+  final all = [...vis(corpusSampleDir.path), ...vis(corpusDiverseDir.path)];
   if (all.isEmpty) {
     test('IR JSON corpus tests (skipped: corpus not fetched)', () {}, skip: true);
     return;

@@ -21,3 +21,8 @@ zig-out/
 .claude/
 .mcp.json
 .DS_Store
+
+# Fetched VI corpus — clean-room + licensing, so the .vi files are NOT committed.
+# Reproduce with `dart run packages/labwright_videcode/tool/fetch_corpus.dart`.
+# Kept at the repo root (not /tmp) for visibility into what tests/probes consume.
+/vi-corpus/

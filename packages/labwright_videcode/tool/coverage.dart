@@ -18,8 +18,21 @@ import 'package:labwright_viparse/labwright_viparse.dart';
 /// deterministic picotech-sample figure to `corpus/baseline.json`, which
 /// `corpus_coverage_test.dart` reads as a regression floor.
 ///
-/// Run: `dart run tool/coverage.dart [corpusRoot=/tmp/claude-1000] [perSourceCap=120]`
+/// Run: `dart run tool/coverage.dart [corpusRoot=<repoRoot>/vi-corpus] [perSourceCap=120]`
 const _heapTags = {'BDHb', 'BDHP', 'FPHb', 'FPHP', 'DTHP'};
+
+/// The gitignored corpus root checked out by tool/fetch_corpus.dart, found by
+/// walking up to the repo root (marked by corpus/sources.json).
+String _defaultCorpusRoot() {
+  var d = Directory.current;
+  for (var i = 0; i < 8; i++) {
+    if (File('${d.path}/corpus/sources.json').existsSync()) return '${d.path}/vi-corpus';
+    final p = d.parent;
+    if (p.path == d.path) break;
+    d = p;
+  }
+  return 'vi-corpus';
+}
 
 class _Stat {
   int vis = 0, parseOk = 0, decOk = 0, objVIs = 0, framed = 0, body = 0, heaps = 0, fullHeaps = 0;
@@ -88,16 +101,19 @@ List<File> _vis(Directory dir, int cap) => (dir
     .toList();
 
 void main(List<String> args) {
-  final root = args.isNotEmpty ? args[0] : '/tmp/claude-1000';
+  final root = args.isNotEmpty ? args[0] : _defaultCorpusRoot();
   final cap = args.length > 1 ? int.parse(args[1]) : 120;
+  // Flat layout: each immediate subdir of the corpus root is one pinned source
+  // (`<owner>_<name>/`); group VIs by that source dir.
   final bySource = <String, List<File>>{};
-  for (final d in ['vi_samples', 'vi_diverse']) {
-    final dir = Directory('$root/$d');
-    if (!dir.existsSync()) continue;
-    for (final f in dir.listSync(recursive: true).whereType<File>()) {
-      if (!f.path.toLowerCase().endsWith('.vi')) continue;
-      final rel = f.path.substring(dir.path.length + 1);
-      (bySource[d == 'vi_samples' ? 'picotech' : rel.split('/').first] ??= <File>[]).add(f);
+  final rootDir = Directory(root);
+  if (rootDir.existsSync()) {
+    for (final src in rootDir.listSync().whereType<Directory>()) {
+      final name = src.path.split('/').last;
+      for (final f in src.listSync(recursive: true).whereType<File>()) {
+        if (!f.path.toLowerCase().endsWith('.vi')) continue;
+        (bySource[name] ??= <File>[]).add(f);
+      }
     }
   }
 
@@ -132,7 +148,7 @@ void main(List<String> args) {
 
   // Mechanically record the deterministic picotech-first-60 figure as the test's
   // regression floor — never hand-typed.
-  final pico = Directory('$root/vi_samples');
+  final pico = Directory('$root/picotech_picosdk-ni-labview-examples');
   if (pico.existsSync()) {
     final s = _measure(_vis(pico, 60));
     final baseline = {

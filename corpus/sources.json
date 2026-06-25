@@ -1,6 +1,6 @@
 {
-  "description": "Pinned catalog of open-source LabVIEW .vi sources used as a diverse test corpus for the clean-room Labwright VI reader. Deliberately spans vendors, frameworks, domains and eras to avoid mono-culture overfitting. The .vi files themselves are NOT committed (clean-room + licensing); fetch them with corpus/fetch.sh, which pins each repo to the commit below. Coverage is measured by tool/coverage.dart (see corpus/README.md).",
-  "fetchRoot": "/tmp/claude-1000/vi_corpus",
+  "description": "Pinned catalog of open-source LabVIEW .vi sources used as a diverse test corpus for the clean-room Labwright VI reader. Deliberately spans vendors, frameworks, domains and eras to avoid mono-culture overfitting. The .vi files themselves are NOT committed (clean-room + licensing); fetch them with `dart run packages/labwright_videcode/tool/fetch_corpus.dart`, which pins each repo to the commit below and extracts into the gitignored <repoRoot>/vi-corpus/ folder. Coverage is measured by tool/coverage.dart (see corpus/README.md).",
+  "fetchRoot": "vi-corpus",
   "sources": [
     {"repo": "picotech/picosdk-ni-labview-examples", "branch": "master", "commit": "dceb711c8a7878d64ef5993dc5706644ef397ad0", "viCount": 349, "category": "vendor-examples", "note": "PicoScope instrument driver examples (NI style)"},
     {"repo": "ni/grpc-labview", "branch": "master", "commit": "2f07f0318a4f26bd4a6423b387f0343813f73f29", "viCount": 857, "category": "ni-official", "note": "National Instruments gRPC support (modern)"},

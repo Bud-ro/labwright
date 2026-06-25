@@ -7,6 +7,8 @@ import 'dart:typed_data';
 import 'package:labwright_videcode/labwright_videcode.dart';
 import 'package:test/test.dart';
 
+import 'corpus_dirs.dart';
+
 /// Tests for the honest IR->Dart structural scaffold ([generateDartScaffold]).
 /// Across the corpus:
 ///   (1) DETERMINISM — same VI yields an identical scaffold string;
@@ -27,7 +29,7 @@ void main() {
       ..sort((a, b) => a.path.compareTo(b.path));
   }
 
-  final all = [...vis('/tmp/claude-1000/vi_samples'), ...vis('/tmp/claude-1000/vi_diverse')];
+  final all = [...vis(corpusSampleDir.path), ...vis(corpusDiverseDir.path)];
   if (all.isEmpty) {
     test('Dart scaffold corpus tests (skipped: corpus not fetched)', () {}, skip: true);
     return;

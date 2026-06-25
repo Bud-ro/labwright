@@ -14,8 +14,22 @@ import 'package:labwright_viparse/labwright_viparse.dart';
 /// "from something to nothing". Gaining features is fine (re-run to record it).
 ///
 /// Run: `dart run tool/snapshot.dart [corpusDir]`  (writes corpus/snapshot.json)
+/// Default corpusDir = the gitignored picotech sample fetched by tool/fetch_corpus.dart.
+String _defaultSampleDir() {
+  var d = Directory.current;
+  for (var i = 0; i < 8; i++) {
+    if (File('${d.path}/corpus/sources.json').existsSync()) {
+      return '${d.path}/vi-corpus/picotech_picosdk-ni-labview-examples';
+    }
+    final p = d.parent;
+    if (p.path == d.path) break;
+    d = p;
+  }
+  return 'vi-corpus/picotech_picosdk-ni-labview-examples';
+}
+
 void main(List<String> args) {
-  final dir = Directory(args.isNotEmpty ? args[0] : '/tmp/claude-1000/vi_samples');
+  final dir = Directory(args.isNotEmpty ? args[0] : _defaultSampleDir());
   if (!dir.existsSync()) {
     stderr.writeln('corpus dir not found: ${dir.path}');
     exit(1);

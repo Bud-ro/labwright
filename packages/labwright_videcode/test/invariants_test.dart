@@ -9,6 +9,8 @@ import 'package:labwright_videcode/labwright_videcode.dart';
 import 'package:labwright_viparse/labwright_viparse.dart';
 import 'package:test/test.dart';
 
+import 'corpus_dirs.dart';
+
 /// NEW test *types* that go beyond example-based + count-pin coverage:
 ///
 /// 1. DETERMINISM — `buildViModel` is a pure function of its bytes; building the
@@ -50,12 +52,12 @@ String _sig(ViModel m) {
 }
 
 void main() {
-  final sample = _vis('/tmp/claude-1000/vi_samples', 0);
+  final sample = _vis(corpusSampleDir.path, 0);
   if (sample.isEmpty) {
     test('invariants (skipped: corpus not fetched)', () {}, skip: true);
     return;
   }
-  final diverse = _vis('/tmp/claude-1000/vi_diverse', 0);
+  final diverse = _vis(corpusDiverseDir.path, 0);
   final all = [...sample, ...diverse];
 
   test('DETERMINISM: building the same VI twice yields an identical object graph', () {

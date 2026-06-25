@@ -8,6 +8,8 @@ import 'package:labwright_videcode/labwright_videcode.dart';
 import 'package:labwright_viparse/labwright_viparse.dart';
 import 'package:test/test.dart';
 
+import 'corpus_dirs.dart';
+
 /// Mechanical regression guard over the pinned diverse corpus (corpus/README.md).
 ///
 /// Skipped automatically when the corpus is not fetched (so it never breaks CI);
@@ -19,9 +21,9 @@ import 'package:test/test.dart';
 const _heapTags = {'BDHb', 'BDHP', 'FPHb', 'FPHP', 'DTHP'};
 
 void main() {
-  final dir = Directory('/tmp/claude-1000/vi_samples');
+  final dir = corpusSampleDir;
   if (!dir.existsSync()) {
-    test('corpus deliberately-parsed (skipped: corpus not fetched — run corpus/fetch.sh)', () {}, skip: true);
+    test('corpus deliberately-parsed (skipped: corpus not fetched — run tool/fetch_corpus.dart)', () {}, skip: true);
     return;
   }
 
@@ -46,7 +48,7 @@ void main() {
   // heterogeneous bytes — guard TOTALITY there too (the most likely place a
   // walk-desync or unguarded index would throw). Deterministic first-200 slice.
   test('a vi_diverse slice parses/decodes/walks without throwing (totality)', () {
-    final dd = Directory('/tmp/claude-1000/vi_diverse');
+    final dd = corpusDiverseDir;
     if (!dd.existsSync()) return; // diverse set not fetched — skip silently
     final diverse = (dd
         .listSync(recursive: true)
@@ -145,7 +147,7 @@ void main() {
       0xd5: 390, 0x121: 843, 0xb9: 372, 0x48: 304, 0xeb: 224, 0x103: 217, 0x14a: 367,
     };
     final counts = {for (final k in expected.keys) k: 0};
-    for (final root in ['/tmp/claude-1000/vi_samples', '/tmp/claude-1000/vi_diverse']) {
+    for (final root in [corpusSampleDir.path, corpusDiverseDir.path]) {
       final d = Directory(root);
       if (!d.existsSync()) continue;
       for (final f in d.listSync(recursive: true).whereType<File>()) {
@@ -172,7 +174,7 @@ void main() {
   // total still-unknown drawable tail so a NEW uncatalogued bucket surfaces loudly.
   test('structural node-fallback keeps classifying the BD node tail (anti-regression)', () {
     var fallbackNodes = 0, drawableUnknown = 0;
-    for (final root in ['/tmp/claude-1000/vi_samples', '/tmp/claude-1000/vi_diverse']) {
+    for (final root in [corpusSampleDir.path, corpusDiverseDir.path]) {
       final dd = Directory(root);
       if (!dd.existsSync()) continue;
       for (final f in dd.listSync(recursive: true).whereType<File>()) {

@@ -8,6 +8,8 @@ import 'package:labwright_videcode/labwright_videcode.dart';
 import 'package:labwright_viparse/labwright_viparse.dart';
 import 'package:test/test.dart';
 
+import 'corpus_dirs.dart';
+
 /// Per-VI feature-presence regression guard (see tool/snapshot.dart).
 ///
 /// Reads corpus/snapshot.json (machine-written) and re-derives each VI's
@@ -17,7 +19,7 @@ import 'package:test/test.dart';
 /// the tool to record the higher numbers. Skips when the corpus or snapshot is
 /// absent (CI-safe). This is what catches "a VI went from something to nothing".
 void main() {
-  final dir = Directory('/tmp/claude-1000/vi_samples');
+  final dir = corpusSampleDir;
   final snapFile = File('../../corpus/snapshot.json');
   if (!dir.existsSync() || !snapFile.existsSync()) {
     test('corpus feature snapshot (skipped: corpus/snapshot not present)', () {}, skip: true);

@@ -7,10 +7,13 @@ overfit to a single mono-culture.
 
 - **[`sources.json`](sources.json)** — the catalog: each source's GitHub repo,
   branch, **pinned commit hash**, VI count, and category.
-- **[`fetch.sh`](fetch.sh)** — fetches every source at its pinned commit into
-  `/tmp/claude-1000/vi_corpus` (override with an arg). Requires authenticated
-  `gh` + `python3`. The `.vi` files are **not committed** (clean-room +
-  licensing); re-fetch them with this script.
+- **[`../packages/labwright_videcode/tool/fetch_corpus.dart`](../packages/labwright_videcode/tool/fetch_corpus.dart)**
+  — fetches every source at its pinned commit into the gitignored
+  **`<repoRoot>/vi-corpus/`** folder (override with an arg). Requires an
+  authenticated `gh`. Run with
+  `dart run packages/labwright_videcode/tool/fetch_corpus.dart`. The `.vi` files
+  are **not committed** (clean-room + licensing); re-fetch with this script. Kept
+  at the repo root (not `/tmp`) for visibility into what the tests consume.
 
 ## The "% deliberately parsed" metric
 
@@ -24,7 +27,7 @@ not a claim that every value is decoded — hence "deliberately parsed", not
 "understood".
 
 ```
-dart run tool/coverage.dart [corpusRoot=/tmp/claude-1000] [perSourceCap=120]
+dart run tool/coverage.dart [corpusRoot=<repoRoot>/vi-corpus] [perSourceCap=120]
 ```
 
 The figure is **never hand-maintained**: the tool computes it and writes the
