@@ -30,6 +30,11 @@ not a claim that every value is decoded — hence "deliberately parsed", not
 dart run tool/coverage.dart [corpusRoot=<repoRoot>/vi-corpus] [perSourceCap=120]
 ```
 
+The tool also writes a human-readable scorecard to the gitignored
+`vi-corpus/REPORT.md` on every run (per-source + total), so the format "report
+card" is regenerated from the live decoders rather than hand-maintained in prose.
+Durable structural facts live in `apps/labwright_vi_inspector/NOTES.md`.
+
 The figure is **never hand-maintained**: the tool computes it and writes the
 deterministic picotech-first-60 number to **[`baseline.json`](baseline.json)**.
 `packages/labwright_videcode/test/corpus_coverage_test.dart` reads that file and
@@ -63,3 +68,16 @@ entries into confirmed/inferred ones (with evidence) or decoding new families,
 then refresh `baseline.json`. All figures are machine-written to
 [`baseline.json`](baseline.json), and `corpus_coverage_test.dart` ratchets BOTH
 `deliberatelyParsed` and `semanticallyDecoded` so neither can silently regress.
+
+## TestStand `.seq` corpus
+
+A parallel catalog for the TestStand reader (`packages/labwright_teststand`):
+
+- **[`seq-sources.json`](seq-sources.json)** — 9 pinned sources (NI examples +
+  community + real-world), each with its observed `encoding` (XML / binary-TOF1 /
+  mixed).
+- **[`../packages/labwright_teststand/tool/fetch_seq_corpus.dart`](../packages/labwright_teststand/tool/fetch_seq_corpus.dart)**
+  — fetches them into the gitignored **`<repoRoot>/seq-corpus/`**. Run with
+  `dart run packages/labwright_teststand/tool/fetch_seq_corpus.dart`.
+
+RE findings live in `packages/labwright_teststand/NOTES.md`.
