@@ -1,6 +1,5 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:labwright_videcode/labwright_videcode.dart';
 import 'package:labwright_viparse/labwright_viparse.dart';
 
@@ -133,12 +132,17 @@ class _BlockHexViewState extends State<BlockHexView> {
               Text('${widget.section.tag}',
                   style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'monospace')),
               const SizedBox(width: 10),
-              Text(
-                '${_fmt(b.length)} ${widget.section.wasCompressed ? '(inflated)' : ''} · '
-                '${_records.isEmpty ? 'raw bytes (no record framing)' : '${_records.length} records'}'
-                '${_walk != null && !_walk!.complete ? ' · walk stopped at 0x${_walk!.stoppedAtOffset!.toRadixString(16)} (lead 0x${_walk!.stoppedLead!.toRadixString(16)}), ${(_walk!.coverage * 100).toStringAsFixed(0)}% framed' : ''}',
-                style: TextStyle(color: _walk != null && !_walk!.complete ? Colors.orange : Colors.grey, fontSize: 12),
+              Expanded(
+                child: Text(
+                  '${_fmt(b.length)} ${widget.section.wasCompressed ? '(inflated)' : ''} · '
+                  '${_records.isEmpty ? 'raw bytes (no record framing)' : '${_records.length} records'}'
+                  '${_walk != null && !_walk!.complete ? ' · walk stopped at 0x${_walk!.stoppedAtOffset!.toRadixString(16)} (lead 0x${_walk!.stoppedLead!.toRadixString(16)}), ${(_walk!.coverage * 100).toStringAsFixed(0)}% framed' : ''}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: _walk != null && !_walk!.complete ? Colors.orange : Colors.grey, fontSize: 12),
+                ),
               ),
+              _copyMenu(context, b),
             ],
           ),
         ),
@@ -330,6 +334,50 @@ class _BlockHexViewState extends State<BlockHexView> {
   }
 
   static String _fmt(int n) => n >= 1024 ? '${(n / 1024).toStringAsFixed(1)} KB' : '$n B';
+
+  /// Lower-case hex of [bytes]; [spaced] inserts a space between bytes for reading
+  /// (continuous form pastes straight into a hasher — e.g. to check a BDPW hash).
+  static String _hex(List<int> bytes, {bool spaced = false}) {
+    final sb = StringBuffer();
+    for (var i = 0; i < bytes.length; i++) {
+      if (spaced && i > 0) sb.write(' ');
+      sb.write(bytes[i].toRadixString(16).padLeft(2, '0'));
+    }
+    return sb.toString();
+  }
+
+  void _copy(BuildContext context, String text, String what) {
+    Clipboard.setData(ClipboardData(text: text));
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      SnackBar(content: Text('Copied $what'), duration: const Duration(seconds: 2)),
+    );
+  }
+
+  /// A copy control for the block's bytes: continuous hex (default), spaced hex,
+  /// and — when a record is selected — just that record's bytes.
+  Widget _copyMenu(BuildContext context, Uint8List b) {
+    final sel = (_selected >= 0 && _selected < _records.length) ? _records[_selected] : null;
+    final tag = widget.section.tag;
+    return PopupMenuButton<int>(
+      tooltip: 'Copy bytes',
+      icon: const Icon(Icons.copy, size: 16),
+      onSelected: (v) {
+        if (v == 0) {
+          _copy(context, _hex(b), '$tag · ${b.length} B (hex)');
+        } else if (v == 1) {
+          _copy(context, _hex(b, spaced: true), '$tag · ${b.length} B (spaced hex)');
+        } else if (v == 2 && sel != null) {
+          final end = (sel.offset + sel.length).clamp(0, b.length);
+          _copy(context, _hex(b.sublist(sel.offset, end)), 'record · ${end - sel.offset} B (hex)');
+        }
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem(value: 0, child: Text('Copy $tag as hex')),
+        const PopupMenuItem(value: 1, child: Text('Copy as hex (spaced)')),
+        if (sel != null) PopupMenuItem(value: 2, child: Text('Copy selected record (${sel.length} B)')),
+      ],
+    );
+  }
 }
 
 const double _kRowHeight = 20;

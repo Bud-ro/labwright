@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_videcode/labwright_videcode.dart';
 import 'package:labwright_vi_inspector/src/hex_view.dart';
@@ -123,6 +124,31 @@ void main() {
     await tester.pump();
     expect(find.textContaining('raw hex'), findsOneWidget);
     expect(find.textContaining('LabVIEW save record'), findsOneWidget); // catalog name
+  });
+
+  testWidgets('copy menu puts the block bytes on the clipboard as hex', (tester) async {
+    final log = <MethodCall>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.setData') log.add(call);
+      return null;
+    });
+    addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, null));
+
+    final bdpw = DecodedSection(
+      section: ViSection(tag: 'BDPW', index: 0, dataOffset: 0, bytes: Uint8List.fromList([0xd4, 0x1d, 0x8c, 0xd9])),
+      bytes: Uint8List.fromList([0xd4, 0x1d, 0x8c, 0xd9]),
+      wasCompressed: false,
+    );
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: BlockHexView(section: bdpw))));
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.copy));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Copy BDPW as hex'));
+    await tester.pump();
+
+    expect(log, hasLength(1));
+    expect((log.single.arguments as Map)['text'], 'd41d8cd9');
   });
 
   testWidgets('a compressed NON-heap block (VCTP) is not mis-walked as a heap', (tester) async {
