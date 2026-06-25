@@ -186,7 +186,7 @@ const Map<String, ViBlockInfo> _catalog = {
 
   // --- Settings / version ---
   'LVSR': ViBlockInfo('LVSR', 'LabVIEW save record', _st, _cf, 'VI settings/flags (160/144/136 B). Decoded: version word @0 (BCD, == vers 99.95%) + BD password hash @96 (== BDPW). See decodeSaveRecord.'),
-  'vers': ViBlockInfo('vers', 'Version record', _st, _cf, 'LabVIEW version that saved the VI.'),
+  'vers': ViBlockInfo('vers', 'Version record', _st, _cf, 'Binary version word [BCD major][minor<<4|patch][stage][build] + ASCII version/title. See decodeVersionWord.'),
 
   // --- Security ---
   'BDPW': ViBlockInfo('BDPW', 'Block-diagram password', _se, _cf, 'Password hash; sample is MD5("") d41d8cd9…'),

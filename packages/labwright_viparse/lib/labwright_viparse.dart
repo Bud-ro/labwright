@@ -17,4 +17,5 @@ export 'src/legacy_icon.dart';
 export 'src/save_record.dart';
 export 'src/string_block.dart';
 export 'src/type_map.dart';
+export 'src/version_word.dart';
 export 'src/viparse.dart';

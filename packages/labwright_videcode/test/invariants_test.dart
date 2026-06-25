@@ -736,4 +736,40 @@ void main() {
     expect(sized / tot, greaterThan(0.99), reason: 'legacy icon not its exact size in $sized/$tot');
     expect(decoded / tot, greaterThan(0.99), reason: 'legacy icon did not decode to 1024 px in $decoded/$tot');
   });
+
+  // 16. VERSION WORD — the vers binary version word (BCD major) must agree with
+  // the independently-decoded vers ASCII string AND with the LVSR version word.
+  // This triple agreement is what confirms the [BCD major][minor<<4|patch] layout
+  // (corpus: vers==string 7579/7583, vers==LVSR 7583/7583 = 100%).
+  test('vers binary version word matches the ASCII string and the LVSR word', () {
+    var strTot = 0, strEq = 0, lvsrTot = 0, lvsrEq = 0;
+    for (final f in all) {
+      final bytes = f.readAsBytesSync();
+      final List<ViSection> secs;
+      try {
+        secs = readViSections(bytes);
+      } catch (_) {
+        continue;
+      }
+      final vw = versionWordFromSections(secs);
+      if (vw == null) continue;
+      final vstr = decodeVersion(bytes).version;
+      if (vstr != null) {
+        final m = RegExp(r'^(\d{1,2})').firstMatch(vstr);
+        if (m != null) {
+          strTot++;
+          if (vw.major == int.parse(m.group(1)!)) strEq++;
+        }
+      }
+      final rec = saveRecordFromSections(secs);
+      if (rec != null) {
+        lvsrTot++;
+        if (rec.versionMajor == vw.major) lvsrEq++;
+      }
+    }
+    expect(strTot, greaterThan(0));
+    expect(strEq / strTot, greaterThan(0.99), reason: 'vers word major != ASCII major in too many ($strEq/$strTot)');
+    expect(lvsrTot, greaterThan(0));
+    expect(lvsrEq / lvsrTot, greaterThan(0.999), reason: 'vers word major != LVSR major in too many ($lvsrEq/$lvsrTot; corpus 100%)');
+  });
 }
