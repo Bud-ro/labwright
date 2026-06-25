@@ -605,6 +605,44 @@ void main() {
   // LIBN/VINS sections — both real, data-bearing). No third value occurs. And
   // every section's nameRef is a small index (full-corpus global max 360),
   // confirming it is an index, not a byte offset.
+  // DESCRIPTOR word0/word8: word0 (@0) is a reserved word — 0 in every descriptor.
+  // word8 (@8) is 0 in modern VIs and nonzero only in the legacy LV <=7.x format
+  // (the lone LV7 corpus VI), so files carrying a nonzero word8 are a rare minority.
+  test('INFO-AREA: descriptor word0 is always 0; word8 nonzero is legacy-only (rare)', () {
+    var files = 0, badWord0 = 0, filesWithWord8 = 0;
+    final w0ex = <String>[];
+    for (final f in all) {
+      final Uint8List bytes;
+      try {
+        bytes = Uint8List.fromList(f.readAsBytesSync());
+      } catch (_) {
+        continue;
+      }
+      final ViInfoArea ia;
+      try {
+        ia = ViContainer.parse(bytes).parsedInfoArea;
+      } catch (_) {
+        continue;
+      }
+      if (ia.descriptors.isEmpty) continue;
+      files++;
+      var fileW8 = false;
+      for (final d in ia.descriptors) {
+        if (d.word0 != 0) {
+          badWord0++;
+          if (w0ex.length < 6) w0ex.add('${f.path.split('/').last}: word0=0x${d.word0.toRadixString(16)}');
+        }
+        if (d.word8 != 0) fileW8 = true;
+      }
+      if (fileW8) filesWithWord8++;
+    }
+    expect(files, greaterThan(0));
+    expect(badWord0, 0, reason: 'word0 not always 0: $w0ex');
+    // word8 nonzero only in legacy VIs — a tiny minority (probe: 1/7583).
+    expect(filesWithWord8, lessThan((files * 0.02).ceil()),
+        reason: 'word8 nonzero in too many files ($filesWithWord8/$files) — not legacy-only');
+  });
+
   test('INFO-AREA: descriptor @16 is binary (0xFFFFFFFF | 0); nameRef is index-like', () {
     var files = 0;
     var maxNameRef = 0, maxInfoLen = 0;

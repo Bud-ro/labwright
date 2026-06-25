@@ -260,16 +260,18 @@ class ViSectionDescriptor {
     required this.word16,
   });
 
-  /// `u32 @0` — zero in the vast majority of section descriptors; carries a
-  /// value in a few VIs. // TODO(labwright): identify (likely flags/linkage).
+  /// `u32 @0` — **`0` in every one of the 281,313 corpus descriptors** (a
+  /// reserved/unused leading word). // TODO(labwright): confirm it is always reserved.
   final int word0;
 
   /// `u32 @4` — for a section descriptor, the data-area-relative offset
   /// (`secRel`) of the section's `[u32 len][payload]` bytes.
   final int secRel;
 
-  /// `u32 @8` — usually zero but NOT always (some VIs, e.g. LV 7x, store a value
-  /// here). // TODO(labwright): identify this word.
+  /// `u32 @8` — `0` in every modern VI (LabVIEW 8+); nonzero ONLY in the legacy
+  /// LV ≤7.x format (the lone LV7 corpus VI, 151 descriptors). So this is an
+  /// old-format field, zero today. // TODO(labwright): decode the LV7-era meaning
+  /// (only one sample; values share a low `0x4E01`).
   final int word8;
 
   /// `u32 @12` — a **1-based index into a VI-wide name table** for the section
