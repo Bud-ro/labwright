@@ -12,9 +12,14 @@ import 'package:labwright_viparse/labwright_viparse.dart';
 /// numbers). Honest by construction: bytes the walker can't frame are shown as
 /// an uncovered gap, never hidden.
 class BlockHexView extends StatefulWidget {
-  const BlockHexView({super.key, required this.section});
+  const BlockHexView({super.key, required this.section, this.siblings = const []});
 
   final DecodedSection section;
+
+  /// The other decoded sections of the same VI — lets a block resolve a
+  /// cross-reference (e.g. CONP's u16 index into the VCTP type pool). Optional;
+  /// empty when the block is viewed in isolation.
+  final List<DecodedSection> siblings;
 
   @override
   State<BlockHexView> createState() => _BlockHexViewState();
@@ -360,9 +365,17 @@ class _BlockHexViewState extends State<BlockHexView> {
       case 'CPC2':
         final c = decodeConnectorPane(b);
         if (c == null) return const [];
-        return c.isInline
-            ? [const MapEntry('Form', 'inline (not yet decoded)')]
-            : [MapEntry('VCTP type index', '${c.typeIndex}')];
+        if (c.isInline) return [const MapEntry('Form', 'inline (not yet decoded)')];
+        final out = [MapEntry('VCTP type index', '${c.typeIndex}')];
+        // Resolve the index against the sibling VCTP type pool, when available.
+        final pool = widget.siblings.isEmpty ? const <ViType>[] : typePoolFromDecoded(widget.siblings);
+        final idx = c.typeIndex;
+        if (idx != null && idx >= 1 && idx <= pool.length) {
+          final t = pool[idx - 1];
+          final name = t.name != null && t.name!.isNotEmpty ? " '${t.name}'" : '';
+          out.add(MapEntry('Conpane type', '${typeLabel(t, pool)}$name'));
+        }
+        return out;
       case 'HLPP':
         final p = decodeHelpPath(b);
         return (p == null || !p.isPth0 || p.path.isEmpty) ? const [] : [MapEntry('Help path', p.path)];

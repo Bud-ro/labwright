@@ -158,6 +158,21 @@ void main() {
     expect(find.text('doc'), findsOneWidget);
   });
 
+  testWidgets('a CONP block resolves its index against the sibling VCTP type pool', (tester) async {
+    tester.view.physicalSize = const Size(1000, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    // sibling VCTP with one type (#0 boolean); CONP -> 1-based index 1.
+    final vctp = _raw('VCTP', [0, 0, 0, 1, 0, 4, 0, 0x21]);
+    final conp = _raw('CONP', [0, 1]); // u16 index = 1
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: BlockHexView(section: conp, siblings: [vctp])),
+    ));
+    await tester.pump();
+    expect(find.textContaining('VCTP type index'), findsOneWidget);
+    expect(find.textContaining('boolean'), findsWidgets); // resolved conpane type
+  });
+
   testWidgets('a VCTP block lists the recovered type pool', (tester) async {
     tester.view.physicalSize = const Size(1000, 1400);
     tester.view.devicePixelRatio = 1.0;

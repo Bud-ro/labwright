@@ -673,7 +673,7 @@ class _SummaryViewState extends State<_SummaryView> {
       context: context,
       builder: (ctx) => Dialog(
         insetPadding: const EdgeInsets.all(24),
-        child: SizedBox(width: 1120, height: 740, child: _HexDialog(tag: tag, sections: matches)),
+        child: SizedBox(width: 1120, height: 740, child: _HexDialog(tag: tag, sections: matches, allSections: widget.sections)),
       ),
     );
   }
@@ -700,9 +700,12 @@ class _SummaryViewState extends State<_SummaryView> {
 }
 
 class _HexDialog extends StatefulWidget {
-  const _HexDialog({required this.tag, required this.sections});
+  const _HexDialog({required this.tag, required this.sections, this.allSections = const []});
   final String tag;
   final List<DecodedSection> sections;
+
+  /// All decoded sections of the VI (for cross-block resolution, e.g. CONP→VCTP).
+  final List<DecodedSection> allSections;
 
   @override
   State<_HexDialog> createState() => _HexDialogState();
@@ -747,7 +750,7 @@ class _HexDialogState extends State<_HexDialog> {
         Expanded(
           child: Padding(
             padding: const EdgeInsets.all(8),
-            child: BlockHexView(key: ValueKey('${section.tag}:${section.index}'), section: section),
+            child: BlockHexView(key: ValueKey('${section.tag}:${section.index}'), section: section, siblings: widget.allSections),
           ),
         ),
       ],
