@@ -205,4 +205,40 @@ void main() {
     await tester.pump();
     expect(find.text('While loop'), findsOneWidget);
   });
+
+  group('structureFrameTitle', () {
+    ViHeapObject cluster({String? label}) => ViHeapObject(oid: 1, kind: 0x64, offset: 0) // clusterShell
+      ..category = ViObjectKind.structure
+      ..label = label;
+    test('block diagram: shows the catalog kind badge', () {
+      expect(structureFrameTitle(cluster(), isFrontPanel: false), 'Cluster/array shell');
+      expect(structureFrameTitle(cluster(label: 'Channel B Settings'), isFrontPanel: false), 'Cluster/array shell');
+    });
+    test('front panel: shows the own caption, never the class-kind badge', () {
+      // a captioned FP container shows ITS caption, not "Cluster/array shell"
+      expect(structureFrameTitle(cluster(label: 'Channel B Settings'), isFrontPanel: true), 'Channel B Settings');
+      // an uncaptioned FP container shows nothing (so it can't obscure a sibling label)
+      expect(structureFrameTitle(cluster(), isFrontPanel: true), isNull);
+      expect(structureFrameTitle(cluster(label: '   '), isFrontPanel: true), isNull);
+    });
+  });
+
+  testWidgets('FP container does not stamp its class-kind badge over the caption', (tester) async {
+    tester.view.physicalSize = const Size(800, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final clusterBox = ViHeapObject(oid: 1, kind: 0x64, offset: 0) // Cluster/array shell
+      ..category = ViObjectKind.structure
+      ..label = 'Channel B Settings'
+      ..absBounds = const HeapRect(top: 0, left: 0, bottom: 200, right: 200);
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: FaithfulLayer(objects: [clusterBox], origin: Offset.zero, size: const Size(400, 400), isFrontPanel: true),
+      ),
+    ));
+    await tester.pump();
+    expect(find.text('Cluster/array shell'), findsNothing); // badge suppressed on FP
+    expect(find.text('Channel B Settings'), findsOneWidget); // caption shown instead
+  });
 }

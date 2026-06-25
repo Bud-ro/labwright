@@ -30,6 +30,7 @@ class ViDiagramView extends StatefulWidget {
     required this.diagrams,
     this.emptyHint = 'No decodable layout in this file.',
     this.subViNames = const [],
+    this.isFrontPanel = false,
   });
 
   /// The diagrams to render (block-diagram or front-panel heap trees); the
@@ -46,6 +47,11 @@ class ViDiagramView extends StatefulWidget {
   /// per-node call mapping, but it does not depend on individual BD node labels.
   /// Pass only for the block diagram (empty for the front panel).
   final List<String> subViNames;
+
+  /// True when rendering the front panel. On the FP, structure containers
+  /// (clusters/arrays/panes) show their caption instead of a class-kind badge so
+  /// the badge never obscures the control's label; the BD keeps kind badges.
+  final bool isFrontPanel;
 
   @override
   State<ViDiagramView> createState() => _ViDiagramViewState();
@@ -151,7 +157,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                         // thousands of controllers/render objects at once (jank/OOM)
                         // — fall back to the cheap single-CustomPaint wireframe.
                         child: (_mode == DiagramRenderMode.faithful && ordered.length <= kFaithfulMaxObjects)
-                            ? FaithfulLayer(objects: ordered, origin: content.topLeft, size: content.size)
+                            ? FaithfulLayer(objects: ordered, origin: content.topLeft, size: content.size, isFrontPanel: widget.isFrontPanel)
                             : GestureDetector(
                                 behavior: HitTestBehavior.opaque,
                                 onTapDown: (d) => _selectAt(d.localPosition, ordered, content),

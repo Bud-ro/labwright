@@ -295,6 +295,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                                           key: ValueKey('fp:$_model'),
                                           diagrams: _model?.frontPanelDiagrams,
                                           emptyHint: 'No front-panel objects recovered in this file.',
+                                          isFrontPanel: true,
                                         ),
                                         ViDiagramView(
                                           key: ValueKey('bd:$_model'),

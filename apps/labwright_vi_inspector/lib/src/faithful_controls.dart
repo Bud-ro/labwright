@@ -10,7 +10,13 @@ import 'package:labwright_videcode/labwright_videcode.dart';
 /// a running VI. Layout uses each object's real pixel bounds; the surrounding
 /// `InteractiveViewer` provides pan/zoom.
 class FaithfulLayer extends StatelessWidget {
-  const FaithfulLayer({super.key, required this.objects, required this.origin, required this.size});
+  const FaithfulLayer({
+    super.key,
+    required this.objects,
+    required this.origin,
+    required this.size,
+    this.isFrontPanel = false,
+  });
 
   /// Drawable objects in paint order (containers first, so controls land on top).
   final List<ViHeapObject> objects;
@@ -20,6 +26,12 @@ class FaithfulLayer extends StatelessWidget {
 
   /// The content size.
   final Size size;
+
+  /// Whether this is the front panel. On the FP, structures are visual containers
+  /// (clusters/arrays/panes) — their class-kind badge is noise and collides with
+  /// the control's caption, so we show the caption instead. On the block diagram,
+  /// structures are control flow (loops/cases) so the kind badge is kept.
+  final bool isFrontPanel;
 
   @override
   Widget build(BuildContext context) {
@@ -35,12 +47,22 @@ class FaithfulLayer extends StatelessWidget {
                 top: o.absBounds!.top - origin.dy,
                 width: o.absBounds!.width.toDouble().clamp(1, 8000),
                 height: o.absBounds!.height.toDouble().clamp(1, 8000),
-                child: _emphasize(o, ClipRect(child: _withHelp(o, _faithfulFor(o)))),
+                child: _emphasize(o, ClipRect(child: _withHelp(o, _faithfulFor(o, isFrontPanel: isFrontPanel)))),
               ),
         ],
       ),
     );
   }
+}
+
+/// The title shown on a structure frame. On the block diagram this is the catalog
+/// kind ("While loop", "Case structure") so control flow reads; on the front panel
+/// — where the structure is just a container — it is the structure's own caption
+/// if it has one, else nothing (so it never obscures a separate caption object).
+String? structureFrameTitle(ViHeapObject o, {required bool isFrontPanel}) {
+  if (!isFrontPanel) return structureBadge(o);
+  final own = o.label?.trim();
+  return (own != null && own.isNotEmpty) ? own : null;
 }
 
 /// Visual-hierarchy weight for [o] in the diagram: the logic-bearing objects
@@ -103,13 +125,13 @@ String? controlTooltip(ViHeapObject o) {
   return null;
 }
 
-Widget _faithfulFor(ViHeapObject o) {
+Widget _faithfulFor(ViHeapObject o, {bool isFrontPanel = false}) {
   switch (o.objectClass) {
     case HeapObjectClass.loop:
     case HeapObjectClass.caseOrSequence:
     case HeapObjectClass.clusterShell:
     case HeapObjectClass.bdStructureFrame:
-      return _StructureFrame(kind: structureBadge(o));
+      return _StructureFrame(kind: structureFrameTitle(o, isFrontPanel: isFrontPanel));
     case HeapObjectClass.controlLabel:
     case HeapObjectClass.bdSelectorLabel: // case selector text (True/False/case name)
       return _LabelText(o.label);
@@ -139,7 +161,9 @@ Widget _faithfulFor(ViHeapObject o) {
         final n = nodeDisplayLabel(o);
         return _NodeBox(label: n.text, isHint: n.isHint);
       }
-      if (o.category == ViObjectKind.structure) return _StructureFrame(kind: structureBadge(o));
+      if (o.category == ViObjectKind.structure) {
+        return _StructureFrame(kind: structureFrameTitle(o, isFrontPanel: isFrontPanel));
+      }
       if (o.category == ViObjectKind.terminal) return const _ControlWidget(form: _Form.generic);
       // Bounded but unclassified: draw a faint placeholder (honest — matches the
       // wireframe's gray box) instead of vanishing, so faithful != silently-dropped.
