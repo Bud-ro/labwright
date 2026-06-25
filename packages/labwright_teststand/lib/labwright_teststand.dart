@@ -10,6 +10,7 @@
 /// `docs/teststand-viewer-spec.md` and the package `NOTES.md`.
 library;
 
+export 'src/seq_coverage.dart';
 export 'src/seq_file.dart';
 export 'src/seq_format.dart';
 export 'src/seq_property.dart';

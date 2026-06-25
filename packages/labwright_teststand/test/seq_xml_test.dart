@@ -148,6 +148,17 @@ void main() {
       expect(seq.parameters, isEmpty); // this sequence takes none
     });
 
+    test('measures model coverage (modeled subset of total nodes)', () {
+      final c = measureCoverage(f);
+      expect(c.total, greaterThan(0));
+      expect(c.modeled, greaterThan(0));
+      expect(c.modeled, lessThanOrEqualTo(c.total));
+      expect(c.ratio, inInclusiveRange(0, 1));
+      // The lens surfaces the sequence, its groups, steps, settings, module
+      // fields and locals — so coverage is a meaningful fraction, not ~0.
+      expect(c.ratio, greaterThan(0.1));
+    });
+
     test('keeps full property visibility (scalars + attributes)', () {
       final seq = f.sequences.single.raw;
       expect(seq.prop('Comment')!.scalar, 'a comment');

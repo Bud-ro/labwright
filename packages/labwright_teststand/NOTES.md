@@ -119,6 +119,12 @@ refused (not mis-parsed).
   default = scalar). → `Sequence.locals` / `Sequence.parameters` (`SeqVariable`
   {name, type, value}). Corpus: 28 locals; `Parameters` are empty in this corpus
   (so parameter pass-by direction is **not yet observed/recovered**).
+- **Coverage metric**: `measureCoverage(SeqFile)` → `SeqCoverage{total, modeled}`
+  counts what fraction of `Data`-tree property nodes the typed lens surfaces.
+  `tool/coverage.dart` runs it over `corpus/seq` and writes a gitignored
+  `corpus/seq/REPORT.md`. Current: **11.3% (1581/14016 nodes)** — the rest (deep
+  `TS` step config, `Result`/`Measurement` subtrees) is still raw `SeqProperty`,
+  the frontier to grow. The analog of the VI "% semantically decoded".
 
 ## Honest gaps (do NOT model yet)
 
