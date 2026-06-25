@@ -52,6 +52,18 @@ void main() {
     expect(find.textContaining('= 2 bytes'), findsOneWidget);
   });
 
+  testWidgets('hex view shows the group close tag in the title', (tester) async {
+    final records = <int>[0x08, 0x2a]; // a group-close record, tag 0x2a
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: BlockHexView(section: _section(records)))));
+    await tester.pump();
+
+    expect(find.textContaining('Group close · tag 0x2a'), findsOneWidget);
+    await tester.tap(find.textContaining('Group close · tag 0x2a').first);
+    await tester.pump();
+    // detail explains the matching-open tag pairing
+    expect(find.textContaining('same tag'), findsOneWidget);
+  });
+
   testWidgets('hex view surfaces the newest decoded forms (property name, help text, control min)', (tester) async {
     final records = <int>[
       0x10, 0x19, 0x02, 0xfe, 0x00, 0x50, 0xfd, 0x00, 0x01, // object header

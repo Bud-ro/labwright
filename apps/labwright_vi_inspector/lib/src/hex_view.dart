@@ -358,12 +358,24 @@ _SpanInfo _classify(Uint8List b, HeapSpan s, String tag) {
     final val = prop.value == null ? '' : ' = ${prop.value}';
     return make(_cAttr, '$hexpair · ${t.tokenName}', 'Object property$val$conf.');
   }
-  // Group open / close (bracket tree)
+  // Group open / close (bracket tree). The 2nd byte is the group's TAG: a close
+  // carries the SAME tag as its matching open (98.4% across the corpus), and its
+  // lead encodes the same group family as the open minus 0x08
+  // (0x08←0x10, 0x09←0x11, 0x0a←0x12). The walk otherwise pops the innermost open
+  // positionally; a handful of closes (~0.02%) have no tracked open (implicit).
+  String _hx(int v) => '0x${v.toRadixString(16).padLeft(2, '0')}';
   if (lead == 0x10 || lead == 0x11 || lead == 0x12 || lead == 0x13) {
-    return make(_cGroup, 'Group open', 'Opens a typed-list / object group (bracket-tree node).');
+    final tag = o + 1 < b.length ? b[o + 1] : -1;
+    return make(_cGroup, 'Group open · tag ${_hx(tag)}',
+        'Opens a typed-list / object group (bracket-tree node), tag ${_hx(tag)}. Its matching '
+        'close (lead ${_hx(lead - 0x08)}) carries the same tag.');
   }
   if (lead == 0x08 || lead == 0x09 || lead == 0x0a || lead == 0x0b) {
-    return make(_cGroup, 'Group close', 'Closes the innermost open group (popped positionally).');
+    final tag = o + 1 < b.length ? b[o + 1] : -1;
+    return make(_cGroup, 'Group close · tag ${_hx(tag)}',
+        'Closes the group opened with the same tag ${_hx(tag)} (matching open lead '
+        '${_hx(lead + 0x08)}; ~98% tag-paired across the corpus, else the innermost open is '
+        'popped positionally).');
   }
   // Typed object reference: 14 <subop> 01 fd <oid> (the heap's object graph).
   final ref = decodeHeapRef(b, o);
