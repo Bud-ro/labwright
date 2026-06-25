@@ -1,4 +1,4 @@
-import 'xml_lite.dart';
+import 'package:xml/xml.dart';
 
 /// One node in a TestStand **PropertyObject** tree — the universal unit of a
 /// `.seq` file. Sequences, steps, variables, parameters and types are all
@@ -28,7 +28,8 @@ class SeqProperty {
   /// `EditSubstep`, or a custom data type. null if untyped.
   final String? typeName;
 
-  /// Every XML attribute on the element, in document order — full visibility.
+  /// Every XML attribute on the element (qualified name → value), in document
+  /// order — full visibility.
   final Map<String, String> attributes;
 
   /// Leaf scalar text (the `<value>` content), entity-decoded. null when the
@@ -70,44 +71,60 @@ class SeqProperty {
       '${isArray ? '[${array!.length}]' : scalar != null ? 'scalar' : '{${subProps.length}}'})';
 }
 
+/// First direct child element of [e] whose local name is [name], or null.
+XmlElement? childElement(XmlElement e, String name) {
+  for (final c in e.childElements) {
+    if (c.name.local == name) return c;
+  }
+  return null;
+}
+
+/// Direct child elements of [e] whose local name is [name].
+Iterable<XmlElement> childElementsNamed(XmlElement e, String name) =>
+    e.childElements.where((c) => c.name.local == name);
+
 /// Builds a [SeqProperty] tree from a parsed XML element (total over the
 /// TestStand XML shape).
-SeqProperty buildProperty(XmlLiteElement e) {
-  final name = e.name == '_NAME_IN_ATTRIBUTE_'
-      ? (e.attributes['name'] ?? '')
-      : (e.attributes['name'] ?? e.name);
+SeqProperty buildProperty(XmlElement e) {
+  final attrs = <String, String>{
+    for (final a in e.attributes) a.name.qualified: a.value,
+  };
+  final tag = e.name.local;
+  final name = tag == '_NAME_IN_ATTRIBUTE_'
+      ? (attrs['name'] ?? '')
+      : (attrs['name'] ?? tag);
 
   final subProps = <SeqProperty>[];
-  final subpropsEl = e.child('subprops');
+  final subpropsEl = childElement(e, 'subprops');
   if (subpropsEl != null) {
-    for (final c in subpropsEl.children) {
+    for (final c in subpropsEl.childElements) {
       subProps.add(buildProperty(c));
     }
   }
 
   String? scalar;
   List<SeqProperty>? array;
-  final valueEl = e.child('value');
+  final valueEl = childElement(e, 'value');
   if (valueEl != null) {
-    final isArray = valueEl.attributes.containsKey('lbound') ||
-        valueEl.attributes.containsKey('ubound');
+    final isArray = valueEl.getAttribute('lbound') != null ||
+        valueEl.getAttribute('ubound') != null;
     if (isArray) {
       array = [
-        for (final w in valueEl.childrenNamed('value'))
-          w.children.isNotEmpty
-              ? buildProperty(w.children.first)
-              : SeqProperty(name: '', scalar: w.text),
+        for (final w in childElementsNamed(valueEl, 'value'))
+          w.childElements.isNotEmpty
+              ? buildProperty(w.childElements.first)
+              : SeqProperty(name: '', scalar: w.innerText),
       ];
     } else {
-      scalar = valueEl.text;
+      scalar = valueEl.innerText;
     }
   }
 
   return SeqProperty(
     name: name,
-    className: e.attributes['classname'],
-    typeName: e.attributes['typename'] ?? e.attributes['xsi:type'],
-    attributes: e.attributes,
+    className: attrs['classname'],
+    typeName: attrs['typename'] ?? attrs['xsi:type'],
+    attributes: attrs,
     scalar: scalar,
     array: array,
     subProps: subProps,

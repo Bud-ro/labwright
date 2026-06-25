@@ -42,38 +42,6 @@ Uint8List _bytes(String s, {bool bom = true}) =>
     Uint8List.fromList([if (bom) ...[0xef, 0xbb, 0xbf], ...utf8.encode(s)]);
 
 void main() {
-  group('xml_lite', () {
-    test('parses elements, attributes (both quote styles), self-closing, text', () {
-      final root = parseXml('''<?xml version="1.0"?>
-        <root a="1" b='two'>
-          <leaf/>
-          <kid>hello</kid>
-        </root>''');
-      expect(root.name, 'root');
-      expect(root.attributes['a'], '1');
-      expect(root.attributes['b'], 'two');
-      expect(root.child('leaf')!.children, isEmpty);
-      expect(root.child('kid')!.text, 'hello');
-    });
-
-    test('decodes entities in text and attributes', () {
-      final root = parseXml("<r t='a &lt; b &amp; c &#65;'><value>x &gt; y &quot;z&quot;</value></r>");
-      expect(root.attributes['t'], 'a < b & c A');
-      expect(root.child('value')!.text, 'x > y "z"');
-    });
-
-    test('rejects unsupported constructs instead of mis-reading', () {
-      expect(() => parseXml('<!-- c --><r/>'), throwsFormatException);
-      expect(() => parseXml('<r><![CDATA[x]]></r>'), throwsFormatException);
-      expect(() => parseXml('<a></b>'), throwsFormatException);
-    });
-
-    test('stripBom removes a leading BOM only', () {
-      expect(stripBom('﻿hi'), 'hi');
-      expect(stripBom('hi'), 'hi');
-    });
-  });
-
   group('parseSeqFile (XML)', () {
     late SeqFile f;
     setUp(() => f = parseSeqFile(_bytes(_seqXml)));

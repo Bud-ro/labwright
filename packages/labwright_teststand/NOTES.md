@@ -93,9 +93,10 @@ step's `TS` sub-container; step-type-specific data under `TS > SData`.
 
 Reader: `parseSeqFile(bytes)` → `SeqFile` (header, `types`, `data`) with a typed
 lens `SeqFile.sequences` → `Sequence` → `setup/main/cleanup` → `Step{name, type}`.
-The full `SeqProperty` tree is retained for total visibility. Owned XML reader
-(`xml_lite.dart`), no third-party dependency. Corpus: **20/20 XML files parse,
-24 sequences / 121 steps recovered**; binary files refused (not mis-parsed).
+The full `SeqProperty` tree is retained for total visibility. XML is tokenized
+with `package:xml`; the `SeqProperty` model + typed lens are owned. Corpus:
+**20/20 XML files parse, 24 sequences / 121 steps recovered**; binary files
+refused (not mis-parsed).
 
 ## Honest gaps (do NOT model yet)
 

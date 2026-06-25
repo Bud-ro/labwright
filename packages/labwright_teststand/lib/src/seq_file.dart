@@ -1,9 +1,10 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:xml/xml.dart';
+
 import 'seq_format.dart';
 import 'seq_property.dart';
-import 'xml_lite.dart';
 
 /// A parsed TestStand sequence file: the header, the type list, and the root
 /// `Data` property object, with a typed lens over the sequences and their steps.
@@ -93,19 +94,20 @@ SeqFile parseSeqFile(Uint8List bytes) {
 }
 
 SeqFile _parseXml(Uint8List bytes) {
-  final root = parseXml(stripBom(utf8.decode(bytes)));
-  if (root.name != 'teststandfileheader') {
-    throw FormatException('unexpected root element <${root.name}>');
+  final root = XmlDocument.parse(_stripBom(utf8.decode(bytes))).rootElement;
+  if (root.name.local != 'teststandfileheader') {
+    throw FormatException('unexpected root element <${root.name.local}>');
   }
   final types = <SeqProperty>[];
-  final typelist = root.child('typelist');
+  final typelist = childElement(root, 'typelist');
   if (typelist != null) {
-    for (final typedef in typelist.childrenNamed('typedef')) {
+    for (final typedef in childElementsNamed(typelist, 'typedef')) {
       // A typedef wraps exactly one type root element.
-      if (typedef.children.isNotEmpty) types.add(buildProperty(typedef.children.first));
+      final kids = typedef.childElements;
+      if (kids.isNotEmpty) types.add(buildProperty(kids.first));
     }
   }
-  final dataEl = root.child('Data');
+  final dataEl = childElement(root, 'Data');
   if (dataEl == null) throw const FormatException('missing <Data> element');
   return SeqFile(
     header: detectSeqHeader(bytes),
@@ -113,3 +115,7 @@ SeqFile _parseXml(Uint8List bytes) {
     data: buildProperty(dataEl),
   );
 }
+
+/// Removes a leading UTF-8 BOM (`U+FEFF`) so the XML parser sees a clean prolog.
+String _stripBom(String s) =>
+    s.isNotEmpty && s.codeUnitAt(0) == 0xFEFF ? s.substring(1) : s;
