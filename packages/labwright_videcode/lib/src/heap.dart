@@ -1557,7 +1557,13 @@ int? recordSkip(Uint8List h, int i) {
       // keeps the walk going and raises coverage.
       return (i + 4 <= n && _isTypeTag(h[i + 3])) ? _typedList(h, i) : 2;
     case 0x14:
-      return (i + 4 <= n && h[i + 2] == 1 && (h[i + 3] == 0xfd || h[i + 3] == 0xfe)) ? 6 : null;
+      // `14 <subop> 01 <fd|fe> <item>`: defer to _typedList so an FD item whose
+      // value high-bit is set is read as the 6-byte escape (`80 00 <u32>`) → a
+      // 10-byte record, not a hardcoded 6. The fixed-6 form under-read that
+      // escape by 4 bytes and desynced the rest of the heap (the dominant
+      // record-size desync behind the incomplete-walk tails). Non-escape items
+      // still return 6, so complete walks are unchanged.
+      return (i + 4 <= n && h[i + 2] == 1 && (h[i + 3] == 0xfd || h[i + 3] == 0xfe)) ? _typedList(h, i) : null;
     case 0x08:
     case 0x09:
     case 0x04:

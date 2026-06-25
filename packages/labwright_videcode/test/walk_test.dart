@@ -11,7 +11,10 @@ void main() {
     expect(recordSkip(b([0x84, 1, 2, 3, 4, 5]), 0), 6); // color
     expect(recordSkip(b([0x10, 0x18, 0x02, 0xfe, 0, 0, 0, 0, 0]), 0), 9); // typed list fe, count 2
     expect(recordSkip(b([0x10, 0xe1, 0x01, 0xfb, 0, 0]), 0), 6); // typed list fb, count 1
-    expect(recordSkip(b([0x14, 0x19, 0x01, 0xfd, 0, 0]), 0), 6); // 14 family
+    expect(recordSkip(b([0x14, 0x19, 0x01, 0xfd, 0, 0]), 0), 6); // 14 family, plain FD item
+    // 0x14 family with an FD value-escape: item `fd 80 00 <u32>` makes it a
+    // 10-byte record, not a hardcoded 6 (the heap record-size desync fix).
+    expect(recordSkip(b([0x14, 0x19, 0x01, 0xfd, 0x80, 0x00, 0x00, 0x00, 0x84, 0x6f]), 0), 10);
     expect(recordSkip(b([0x08, 0x55]), 0), 2);
     expect(recordSkip(b([0x24, 0, 0]), 0), 3);
     expect(recordSkip(b([0x44, 0, 0, 0]), 0), 4);
