@@ -145,6 +145,20 @@ void main() {
     expect(find.textContaining('Undecoded'), findsWidgets);
   });
 
+  testWidgets('an LVSR block is annotated per byte (version word + hashes + undecoded gaps)', (tester) async {
+    tester.view.physicalSize = const Size(1000, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    final lvsr = _raw('LVSR', [for (var i = 0; i < 160; i++) 0]..[0] = 0x08..[1] = 0x50..[2] = 0x80);
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: BlockHexView(section: lvsr))));
+    await tester.pump();
+    expect(find.textContaining('Version word'), findsOneWidget);
+    expect(find.textContaining('BD password hash'), findsOneWidget);
+    expect(find.textContaining('Secondary hash'), findsOneWidget);
+    // the flag/id bytes between known fields are honestly marked, not hidden
+    expect(find.textContaining('Undecoded'), findsWidgets);
+  });
+
   testWidgets('an id-table block is annotated per byte (count + each entry)', (tester) async {
     tester.view.physicalSize = const Size(1000, 1400);
     tester.view.devicePixelRatio = 1.0;

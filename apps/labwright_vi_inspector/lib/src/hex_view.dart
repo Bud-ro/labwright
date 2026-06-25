@@ -548,6 +548,57 @@ class _BlockHexViewState extends State<BlockHexView> {
           span(w * 4, 4, _cObject, 'HIST @${w * 4}: ${names[w]} (u32)', 'Revision-history record word. See decodeHistory.',
               preview: '${_u32(b, w * 4)}');
         }
+      case 'LVSR':
+        span(0, 4, _cObject, 'Version word (u32)', 'BCD major · minor<<4|patch · stage · build (== vers word). See decodeSaveRecord.',
+            preview: '0x${_u32(b, 0).toRadixString(16)}');
+        span(96, 16, _cRect, 'BD password hash (16B)', 'Block-diagram password hash; mirrors the BDPW block. Empty-password default = d41d8cd9…');
+        span(144, 16, _cRect, 'Secondary hash (16B)', 'A second hash/checksum slot (role not fully decoded).');
+        // bytes 4..96, 112..144, 160.. are flags/ids not yet field-decoded -> _fillGaps marks them.
+      case 'CONP':
+      case 'CPC2':
+        if (b.length == 2) {
+          final idx = _u16(b, 0);
+          // Resolve the index against the sibling VCTP pool so the conpane type
+          // shows here too (not lost when CONP routes to the per-byte view).
+          var resolved = '';
+          if (widget.siblings.isNotEmpty) {
+            final pool = typePoolFromDecoded(widget.siblings);
+            if (idx >= 1 && idx <= pool.length) {
+              final t = pool[idx - 1];
+              resolved = ' → ${typeLabel(t, pool)}${t.name != null && t.name!.isNotEmpty ? " '${t.name}'" : ''}';
+            }
+          }
+          span(0, 2, _cObject, 'VCTP type index (u16)',
+              '${tag == 'CONP' ? 'Index of the connector-pane type in the VCTP pool (CONP: 100% in-range).' : 'A second conpane reference (CPC2: resolves as a VCTP index only ~84%).'}$resolved',
+              preview: '$idx$resolved');
+        }
+        // the rare >=28-byte inline form is left undecoded (gap-filled).
+      case 'FTAB':
+        span(0, 2, _cObject, 'Version (u16)', 'Font-table version (1 in the corpus).', preview: '${_u16(b, 0)}');
+        if (b.length >= 8) span(6, 2, _cHeader, 'Font count (u16)', 'Number of packed name entries.', preview: '${_u16(b, 6)}');
+        if (b.length >= 12) {
+          final nameOff = _u32(b, 8);
+          span(8, 4, _cHeader, 'Name-table offset (u32)', 'Byte offset of the packed Pascal font-name strings.', preview: '$nameOff');
+          if (nameOff < b.length) span(nameOff, b.length - nameOff, _cRect, 'Font names (Pascal strings)', 'Packed [u8 len][name] font face names. See decodeFontTable.');
+        }
+        // bytes 2..6 (sub-version words) and 12..nameOffset (per-font metric records) -> gap-filled.
+      case 'BDPW':
+        span(0, 16, _cRect, 'Password hash (16B)', 'Block-diagram password hash; sample is MD5("") d41d8cd9…');
+        // remaining bytes (salt/secondary) not yet decoded -> gap-filled.
+      case 'GCPR':
+        span(0, b.length, _cGroup, 'Generated-code property (${b.length}B)', 'Fixed-size record, byte-constant (all-zero) across the corpus.');
+      case 'VPDP':
+        span(0, b.length, _cGroup, 'VI property data (${b.length}B)', 'Fixed 4-byte record, byte-constant (all-zero) across the corpus.');
+      case 'DLDR':
+        span(0, b.length, _cGroup, 'Default-data loader (${b.length}B)', 'Fixed 28-byte record, byte-constant across the corpus.');
+      case 'RTSG':
+      case 'OBSG':
+      case 'CCSG':
+        span(0, 16, _cObject, '16-byte signature', tag == 'CCSG' ? 'Near-constant shared toolchain signature (opaque value).' : 'Per-VI signature (identity; opaque value).',
+            preview: 'sig');
+      case 'SCSR':
+        span(0, 4, _cHeader, 'Header (u32)', 'Leading word 0x01000000 BE (version-ish).', preview: '0x${_u32(b, 0).toRadixString(16)}');
+        span(4, 16, _cObject, '16-byte signature', 'Source signature (near-constant; opaque value).', preview: 'sig');
       default:
         return const [];
     }
