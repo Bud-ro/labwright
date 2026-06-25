@@ -77,6 +77,15 @@ void main() {
     }
   });
 
+  test('a subVI-call node (name ends .vi) emits "calls"; other nodes stay "TODO:"', () {
+    final call = _obj(1, ViObjectKind.node, label: 'Foo.vi');
+    final prim = _obj(2, ViObjectKind.node); // unlabeled primitive -> class hint -> TODO
+    final out = generateDartScaffold(_model([call, prim]));
+    expect(out, contains('// calls Foo.vi'));
+    expect(out, isNot(contains('// TODO: Foo.vi'))); // the subVI call is not a generic TODO
+    expect(out, contains('TODO:')); // the primitive is still a TODO stub
+  });
+
   test('children emit in POSITIONAL order (visual top->left), not heap order', () {
     // Two nodes under a structure, in REVERSE visual order in the heap list:
     // X is lower on the diagram (top 100), Y higher (top 10). Positional order

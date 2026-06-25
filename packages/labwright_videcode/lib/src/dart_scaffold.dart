@@ -209,7 +209,7 @@ void _emitDiagram(StringBuffer b, ViDiagram d) {
         }
         b.writeln('$pad// }');
       case ViObjectKind.node:
-        b.writeln('$pad// TODO: ${_nodeName(o)}  [oid ${o.oid}]');
+        b.writeln('$pad// ${_nodeStub(o)}  [oid ${o.oid}]');
         emitted.add(o.oid);
         for (final c in children) {
           walk(c, depth + 1);
@@ -240,8 +240,8 @@ void _emitDiagram(StringBuffer b, ViDiagram d) {
   if (leftover.isNotEmpty) {
     b.writeln('  // (objects outside the nesting tree:)');
     for (final o in leftover) {
-      final tag = o.category == ViObjectKind.structure ? '' : 'TODO: ';
-      b.writeln('  // $tag${_nodeName(o)}  [oid ${o.oid}]');
+      final body = o.category == ViObjectKind.structure ? _nodeName(o) : _nodeStub(o);
+      b.writeln('  // $body  [oid ${o.oid}]');
     }
   }
 }
@@ -266,6 +266,17 @@ List<ViHeapObject> _positional(List<ViHeapObject> objs) {
     return a.i.compareTo(b.i); // stable tiebreak = heap order
   });
   return [for (final e in indexed) e.o];
+}
+
+/// The stub line body for a node: a subVI-call node carries the called-VI
+/// filename in its 0xa caption (recovered ~99.6%), so emit it as `calls <name>`;
+/// every other node stays a generic `TODO: <name/hint>`. This names WHAT is
+/// called, never which wires connect calls (dataflow is not recovered).
+String _nodeStub(ViHeapObject o) {
+  final name = _nodeName(o);
+  final lower = name.toLowerCase();
+  final isCall = lower.endsWith('.vi') || lower.endsWith('.lvclass') || lower.endsWith('.lvlib');
+  return isCall ? 'calls $name' : 'TODO: $name';
 }
 
 String _nodeName(ViHeapObject o) {
