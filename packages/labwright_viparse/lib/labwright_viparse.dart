@@ -11,6 +11,7 @@ export 'src/connector_pane.dart';
 export 'src/container.dart';
 export 'src/data_type_heap.dart';
 export 'src/font_table.dart';
+export 'src/help_path.dart';
 export 'src/history.dart';
 export 'src/save_record.dart';
 export 'src/string_block.dart';

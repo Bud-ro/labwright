@@ -176,10 +176,10 @@ const Map<String, ViBlockInfo> _catalog = {
   'STRG': ViBlockInfo('STRG', 'VI description text', _tx, _cf, '[u32 len][UTF-8 text] (100% of corpus); the VI description. See decodeStringBlock.'),
   'STR': ViBlockInfo('STR', 'String', _tx, _tt, 'Format not yet decoded.'),
   'TITL': ViBlockInfo('TITL', 'VI title', _tx, _cf, 'Pascal-string title.'),
-  'HLPT': ViBlockInfo('HLPT', 'Help tag/text', _tx, _lk, 'Context help text.'),
+  'HLPT': ViBlockInfo('HLPT', 'Help tag/text', _tx, _cf, 'Same [u32 len][UTF-8] layout as STRG (200/200); markdown-ish context help. See helpTextFromSections.'),
 
   // --- Help path ---
-  'HLPP': ViBlockInfo('HLPP', 'Help path', _hp, _cf, 'Begins with the PTH0 path magic.'),
+  'HLPP': ViBlockInfo('HLPP', 'Help path', _hp, _cf, 'PTH0 path: "PTH0"+i32 len+i16 type+i16 count+Pascal components (128/128). See decodeHelpPath.'),
   'HLPU': ViBlockInfo('HLPU', 'Help URL/path', _hp, _tt, 'Help-related; format not yet decoded.'),
   'HLPX': ViBlockInfo('HLPX', 'Help (X)', _hp, _tt, 'Help-related; format not yet decoded.'),
   'HLPW': ViBlockInfo('HLPW', 'Help (W)', _hp, _tt, 'Help-related; format not yet decoded.'),

@@ -644,6 +644,41 @@ void main() {
     expect(reservedZero / total, greaterThan(0.99), reason: 'HIST reserved words non-zero in too many ($reservedZero/$total)');
   });
 
+  // 14. HELP BLOCKS — HLPP is a PTH0 path (magic + self-consistent component
+  // parse to a clean path); HLPT shares the STRG [u32 len][text] layout. Assert
+  // both for ≥99% (corpus: HLPP 128/128 PTH0, HLPT 200/200 length-law).
+  test('HLPP is a parseable PTH0 path; HLPT is [u32 len][printable text]', () {
+    var hlppTot = 0, hlppOk = 0, hlptTot = 0, hlptOk = 0;
+    for (final f in all) {
+      final List<ViSection> secs;
+      try {
+        secs = readViSections(f.readAsBytesSync());
+      } catch (_) {
+        continue;
+      }
+      for (final s in secs) {
+        if (s.tag == 'HLPP') {
+          hlppTot++;
+          final p = decodeHelpPath(s.bytes);
+          // PTH0 magic present, at least one component, and a non-empty path.
+          if (p != null && p.isPth0 && p.components.isNotEmpty && p.path.isNotEmpty) hlppOk++;
+        }
+        if (s.tag == 'HLPT' && s.bytes.length >= 4) {
+          hlptTot++;
+          final len = (s.bytes[0] << 24) | (s.bytes[1] << 16) | (s.bytes[2] << 8) | s.bytes[3];
+          final t = decodeStringBlock(s.bytes);
+          final printable = t != null &&
+              (t.isEmpty || t.runes.where((c) => c == 9 || c == 10 || c == 13 || (c >= 0x20 && c < 0x7f)).length / t.runes.length > 0.9);
+          if (len == s.bytes.length - 4 && printable) hlptOk++;
+        }
+      }
+    }
+    expect(hlppTot, greaterThan(0));
+    expect(hlppOk / hlppTot, greaterThan(0.99), reason: 'HLPP PTH0 parse failed in too many ($hlppOk/$hlppTot)');
+    expect(hlptTot, greaterThan(0));
+    expect(hlptOk / hlptTot, greaterThan(0.99), reason: 'HLPT length-law/printability failed in too many ($hlptOk/$hlptTot)');
+  });
+
   // 13. FTAB FONT TABLE — version==1 and the name-table framing is self-
   // consistent: reading fontCount Pascal strings recovers exactly that many
   // printable names. Asserting recovered==count is the killer self-consistency

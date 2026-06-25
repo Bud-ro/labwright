@@ -29,3 +29,15 @@ String? stringBlockFromSections(Iterable<ViSection> sections) {
   }
   return null;
 }
+
+/// Finds the `HLPT` (help tag/text) section and decodes its text. `HLPT` uses the
+/// SAME `[u32 len][UTF-8 text]` layout as `STRG` — corpus-confirmed (200/200:
+/// len == sectionLen-4, printable body) — so it reuses [decodeStringBlock]. The
+/// text is the markdown-ish context help (e.g. `### Format Timestamp.vi`). Null
+/// if absent.
+String? helpTextFromSections(Iterable<ViSection> sections) {
+  for (final s in sections) {
+    if (s.tag == 'HLPT') return decodeStringBlock(s.bytes);
+  }
+  return null;
+}
