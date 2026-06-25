@@ -267,9 +267,14 @@ class _NodeBox extends StatelessWidget {
 
   // The node icon is not yet decoded, so the box is a translucent placeholder (the
   // translucency lets overlapping sibling nodes — ~37% of cases — show through).
-  // The node's recovered name (a subVI filename, e.g. `PicoScope2000aOpen.vi`) is
-  // drawn IN the box; when there's no name, an honest class hint (primitive /
-  // growable / Call Library) is shown italic so the box isn't a blank mystery.
+  // A RECOVERED name (a subVI filename, e.g. `PicoScope2000aOpen.vi`) is NOT drawn
+  // in the box: it already renders on the canvas as the node's own floating `0xa`
+  // label, at the position LabVIEW gave it (the name is copied onto the node only
+  // to enrich selection/inspect). Drawing it here too would double-print the name
+  // (~42.3k corpus nodes). So a real name stays an icon placeholder — its name is
+  // still discoverable on hover via the shared `_withHelp` tooltip (controlTooltip
+  // falls back to the name). Only a class HINT (for an unlabeled primitive, which
+  // has no floating label) is drawn italic so the box isn't a blank mystery.
   @override
   Widget build(BuildContext context) => Container(
         alignment: Alignment.center,
@@ -280,21 +285,20 @@ class _NodeBox extends StatelessWidget {
           border: Border.all(color: const Color(0xFF8A7320)),
           borderRadius: BorderRadius.circular(2),
         ),
-        child: (label == null || label!.isEmpty)
-            ? null
-            : Text(
+        child: (isHint && label != null && label!.isNotEmpty)
+            ? Text(
                 label!,
                 textAlign: TextAlign.center,
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 8,
-                  color: isHint ? const Color(0x99000000) : _kInk,
+                  color: Color(0x99000000),
                   height: 1.05,
-                  fontWeight: isHint ? FontWeight.normal : FontWeight.w600,
-                  fontStyle: isHint ? FontStyle.italic : FontStyle.normal,
+                  fontStyle: FontStyle.italic,
                 ),
-              ),
+              )
+            : null,
       );
 }
 

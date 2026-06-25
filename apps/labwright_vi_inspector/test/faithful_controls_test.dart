@@ -139,7 +139,10 @@ void main() {
     expect(find.text('primitive'), findsOneWidget);
   });
 
-  testWidgets('a subVI node renders its recovered name on the box', (tester) async {
+  testWidgets('a subVI node is an icon placeholder; name via tooltip, not double-printed', (tester) async {
+    // The recovered name already renders on the canvas as the node's own floating
+    // 0xa label, so the box must NOT re-print it (that would double-print). The
+    // name stays reachable via tooltip on the icon placeholder.
     tester.view.physicalSize = const Size(800, 800);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -152,7 +155,13 @@ void main() {
       home: Scaffold(body: FaithfulLayer(objects: [node], origin: Offset.zero, size: const Size(400, 400))),
     ));
     await tester.pump();
-    expect(find.text('PicoScope2000aOpen.vi'), findsOneWidget);
+    // No in-box name text...
+    expect(find.text('PicoScope2000aOpen.vi'), findsNothing);
+    // ...but the name is reachable via the tooltip on the placeholder.
+    expect(
+      find.byWidgetPredicate((w) => w is Tooltip && w.message == 'PicoScope2000aOpen.vi'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('noise objects are dimmed while logic objects stay full strength', (tester) async {
@@ -175,7 +184,12 @@ void main() {
     // the decoration is dimmed (wrapped in an Opacity < 1); the named node is not
     final opacities = tester.widgetList<Opacity>(find.byType(Opacity)).map((w) => w.opacity).toList();
     expect(opacities.any((o) => o < 1.0), isTrue, reason: 'decoration should be dimmed');
-    expect(find.text('MySubVI.vi'), findsOneWidget); // logic stays legible
+    // logic node stays present and legible (its name is reachable via tooltip; the
+    // name itself renders on-canvas as the node's own floating 0xa label, not in-box)
+    expect(
+      find.byWidgetPredicate((w) => w is Tooltip && w.message == 'MySubVI.vi'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('front panel renders everything at full strength (no de-emphasis dimming)', (tester) async {
