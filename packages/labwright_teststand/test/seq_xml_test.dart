@@ -826,6 +826,41 @@ void main() {
     });
   });
 
+  group('looping step in the logic export', () {
+    // The base fixture's first step loops (LoopType=FixedNumLoops); give it a
+    // loop-while so the annotation carries its termination condition.
+    const loopXml = '''<?xml version="1.0" encoding="UTF-8"?>
+<teststandfileheader type='SequenceFile' fileversion='920' productname='TestStand'>
+  <typelist/>
+  <Data classname='Obj'><subprops>
+    <Seq classname='Objs'><value lbound='[0]' ubound='[1]'><value>
+      <Sequence name='MainSequence' classname='Obj'><subprops>
+        <Main classname='Objs'><value lbound='[0]' ubound='[2]'>
+          <value><Step typename='Action' name='Spin'><subprops>
+            <TS classname='Obj'><subprops>
+              <LoopType classname='Str'><value>FixedNumLoops</value></LoopType>
+              <LoopWhile classname='ExprValue'><value>RunState.LoopIndex &lt; 10</value></LoopWhile>
+            </subprops></TS>
+          </subprops></Step></value>
+          <value><Step typename='Action' name='Once'/></value>
+        </value></Main>
+      </subprops></Sequence>
+    </value></value></Seq>
+  </subprops></Data>
+</teststandfileheader>''';
+
+    test('annotates a looping step with its type + while condition', () {
+      final out = exportSequenceLogic(parseSeqFile(_bytes(loopXml)));
+      expect(out, contains('[loop FixedNumLoops while RunState.LoopIndex < 10]'));
+    });
+
+    test('a non-looping step gets no loop annotation', () {
+      final out = exportSequenceLogic(parseSeqFile(_bytes(loopXml)));
+      final onceLine = out.split('\n').firstWhere((l) => l.contains('Once'));
+      expect(onceLine, isNot(contains('[loop')));
+    });
+  });
+
   group('pass/fail jump in the logic export', () {
     test('annotates a non-default fail jump with its target', () {
       final out = exportSequenceLogic(parseSeqFile(_bytes(_seqJumpXml)));

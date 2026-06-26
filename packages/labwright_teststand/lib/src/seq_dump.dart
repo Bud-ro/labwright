@@ -102,9 +102,23 @@ String _logicStepLine(Step step, SeqFile file) {
   if (pre != null) b.write('  [if $pre]');
   final lim = step.limits;
   if (lim != null) b.write('  [${lim.summary}]');
+  final loop = _loopAnnotation(step.settings);
+  if (loop != null) b.write('  $loop');
   final jump = _jumpAnnotation(step.settings, file);
   if (jump != null) b.write('  $jump');
   return b.toString();
+}
+
+/// A concise rendering of a non-flow step's own looping (the step repeats itself
+/// under its `LoopType`), e.g. `[loop FixedNumLoops while RunState.LoopIndex < 10]`,
+/// or null when the step does not loop (`NoLooping`/absent — the common case).
+/// The loop-while expression (the termination condition) is included when set;
+/// the init/increment/status expressions stay in the fuller per-step dump.
+String? _loopAnnotation(StepSettings set) {
+  if (!set.isLooping) return null;
+  final type = set.loopType ?? 'loop';
+  final whileExpr = set.loopWhile;
+  return whileExpr != null ? '[loop $type while $whileExpr]' : '[loop $type]';
 }
 
 /// A concise rendering of a step's non-default pass/fail jump (a `Goto`/non-`Next`

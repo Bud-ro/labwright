@@ -1172,6 +1172,15 @@ pass:Goto) across 8 files**, every one annotated in the export (the other 1615
 pass / 1570 fail actions are `Next`). The step's own precondition is already
 shown inline as `[if …]`. NI_Flow_* steps carry no own pass/fail action.
 
+**Looping-step annotation (2026-06).** A non-flow step can itself loop (the step
+repeats under its `LoopType`); `_loopAnnotation` appends e.g.
+`[loop FixedNumLoops while RunState.LoopIndex < 10]` — the loop type plus the
+loop-while termination condition when set (init/increment/status stay in the
+fuller per-step dump). Corpus: **65 looping non-flow steps across 8 files**
+(PassFailCount 30, Custom 20, FixedNumLoops 15), each annotated; the other 1308
+non-flow steps don't loop. So a non-flow logic line now reads
+`name → target [if precond] [limits] [loop … while …] [on fail → <target>]`.
+
 **App surfacing (inspector).** The structured outline (`sequence_outline.dart` →
 `sequences_view.dart`) now reflects control flow: each `StepOutline` carries a
 `flowHeader` (the construct header) + a `flowDepth` (nesting level, computed by

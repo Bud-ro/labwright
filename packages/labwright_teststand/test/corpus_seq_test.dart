@@ -393,6 +393,41 @@ void main() {
         reason: 'every file with a jump must annotate it in the logic export');
   });
 
+  test('logic export annotates looping non-flow steps across the corpus', () {
+    var loopSteps = 0, filesWithLoop = 0, exportsWithLoop = 0;
+    for (final f in seqs) {
+      if (f.lengthSync() > 300 * 1024) continue;
+      final bytes = f.readAsBytesSync();
+      final fmt = detectSeqFormat(bytes);
+      if (fmt != SeqFormat.xml && fmt != SeqFormat.ini) continue;
+      final SeqFile sf;
+      try {
+        sf = parseSeqFile(bytes);
+      } catch (_) {
+        continue;
+      }
+      var fileHas = false;
+      for (final q in sf.sequences) {
+        for (final s in q.steps) {
+          if (s.flowControl == null && s.settings.isLooping) {
+            loopSteps++;
+            fileHas = true;
+          }
+        }
+      }
+      if (fileHas) {
+        filesWithLoop++;
+        if (exportSequenceLogic(sf).contains('[loop ')) exportsWithLoop++;
+      }
+    }
+    // ignore: avoid_print
+    print('loops: $loopSteps looping non-flow steps in $filesWithLoop files; '
+        '$exportsWithLoop exports annotate them');
+    expect(loopSteps, greaterThan(0), reason: 'no looping steps in corpus');
+    expect(exportsWithLoop, filesWithLoop,
+        reason: 'every file with a looping step must annotate it in the export');
+  });
+
   test('recovers <typelist> type definitions across XML corpus', () {
     var files = 0, totalTypes = 0, withFields = 0, totalFields = 0;
     final baseClasses = <String>{};
