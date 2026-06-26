@@ -184,6 +184,24 @@ SeqCoverage measureCoverage(SeqFile f) {
     }
   }
 
+  // File-level Semiconductor-Test-System resource set (the pin map +
+  // specifications/levels/timing/pattern file lists the lens surfaces).
+  final mp = f.measurementPlugIns;
+  if (mp != null) {
+    mark(mp.raw);
+    for (final k in [
+      'PinMapPath', 'EnableMonitoring', 'SpecificationsFilePaths',
+      'LevelsFilePaths', 'TimingFilePaths', 'PatternFilePaths',
+    ]) {
+      final node = mp.raw.prop(k);
+      mark(node);
+      // The file-path lists are arrays of plain strings the lens reads out.
+      for (final e in node?.array ?? const <SeqProperty>[]) {
+        mark(e);
+      }
+    }
+  }
+
   var total = 0;
   void count(SeqProperty p) {
     total++;

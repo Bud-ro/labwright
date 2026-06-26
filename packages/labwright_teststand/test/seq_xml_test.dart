@@ -752,6 +752,31 @@ void main() {
     });
   });
 
+  group('measurement plug-in resource set', () {
+    test('recovers the pin map and STS file lists', () {
+      final mp = parseSeqFile(_bytes(_seqPluginsXml)).measurementPlugIns!;
+      expect(mp.pinMapPath, 'PinMap.pinmap');
+      expect(mp.monitoringEnabled, isTrue);
+      expect(mp.specificationFiles, ['Specifications.specs']);
+      expect(mp.levelsFiles, ['PinLevels.digilevels']);
+      expect(mp.timingFiles, ['Timing.digitiming']);
+      expect(mp.patternFiles, ['Pattern.digipat']);
+      expect(mp.isNotEmpty, isTrue);
+    });
+
+    test('a file without the block reports null (no fabrication)', () {
+      expect(parseSeqFile(_bytes(_seqXml)).measurementPlugIns, isNull);
+    });
+
+    test('the dump lists the plug-in files', () {
+      final dump = dumpSeqFile(parseSeqFile(_bytes(_seqPluginsXml)));
+      expect(dump, contains('Measurement plug-ins:'));
+      expect(dump, contains('pin map: PinMap.pinmap'));
+      expect(dump, contains('specifications: Specifications.specs'));
+      expect(dump, contains('patterns: Pattern.digipat'));
+    });
+  });
+
   group('parseSeqFile rejects non-XML honestly', () {
     test('binary TOF1 is unsupported (not silently mis-parsed)', () {
       final bin = Uint8List.fromList([...ascii.encode('TOF1'), 0, 0, 0, 0, 0, 0, ...ascii.encode('SequenceFile'), 0]);
@@ -763,6 +788,26 @@ void main() {
     });
   });
 }
+
+/// A file declaring a Semiconductor-Test-System resource set under
+/// `FileGlobalDefaults > MeasurementPlugIns` — the real corpus shape.
+const _seqPluginsXml = '''<?xml version="1.0" encoding="UTF-8"?>
+<teststandfileheader type='SequenceFile' fileversion='920' productname='TestStand'>
+  <typelist/>
+  <Data classname='Obj'><subprops>
+    <Seq classname='Objs'><value lbound='[0]' ubound='[]'/></Seq>
+    <FileGlobalDefaults classname='Obj'><subprops>
+      <MeasurementPlugIns classname='Obj'><subprops>
+        <EnableMonitoring classname='Bool'><value>true</value></EnableMonitoring>
+        <PinMapPath classname='PathValue'><value>PinMap.pinmap</value></PinMapPath>
+        <SpecificationsFilePaths classname='Strs'><value lbound='[0]' ubound='[1]'><value>Specifications.specs</value></value></SpecificationsFilePaths>
+        <LevelsFilePaths classname='Strs'><value lbound='[0]' ubound='[1]'><value>PinLevels.digilevels</value></value></LevelsFilePaths>
+        <TimingFilePaths classname='Strs'><value lbound='[0]' ubound='[1]'><value>Timing.digitiming</value></value></TimingFilePaths>
+        <PatternFilePaths classname='Strs'><value lbound='[0]' ubound='[1]'><value>Pattern.digipat</value></value></PatternFilePaths>
+      </subprops></MeasurementPlugIns>
+    </subprops></FileGlobalDefaults>
+  </subprops></Data>
+</teststandfileheader>''';
 
 /// A Python (CPythonModule) step whose `SData.PythonCall` names the module,
 /// function and interpreter — the real shape probed from the corpus.

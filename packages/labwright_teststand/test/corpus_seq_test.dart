@@ -169,6 +169,38 @@ void main() {
     );
   });
 
+  test('recovers measurement plug-in resource sets across XML corpus', () {
+    var withBlock = 0, withPinMap = 0, withAnyFiles = 0;
+    final pinMaps = <String>{};
+    for (final f in seqs) {
+      if (f.lengthSync() > 300 * 1024) continue; // huge files: skip (OOM guard)
+      final bytes = f.readAsBytesSync();
+      if (detectSeqFormat(bytes) != SeqFormat.xml) continue;
+      final mp = parseSeqFile(bytes).measurementPlugIns;
+      if (mp == null) continue;
+      withBlock++;
+      if (mp.pinMapPath != null) {
+        withPinMap++;
+        pinMaps.add(mp.pinMapPath!);
+      }
+      if (mp.specificationFiles.isNotEmpty ||
+          mp.levelsFiles.isNotEmpty ||
+          mp.timingFiles.isNotEmpty ||
+          mp.patternFiles.isNotEmpty) {
+        withAnyFiles++;
+      }
+    }
+    // ignore: avoid_print
+    print(
+      'measurement plug-ins: $withBlock files with the block · $withPinMap with a '
+      'pin map · $withAnyFiles with STS file lists · ${pinMaps.length} distinct pin maps',
+    );
+    // Corpus evidence (probed): ~11 files declare the block; at least one carries
+    // a pin map + the full specifications/levels/timing/pattern file set.
+    expect(withBlock, greaterThanOrEqualTo(5));
+    expect(withPinMap, greaterThanOrEqualTo(1));
+  });
+
   test('recovers Python call descriptors across XML corpus', () {
     var pySteps = 0, withFn = 0, withModule = 0, withVersion = 0, withVenv = 0;
     final fns = <String>{};

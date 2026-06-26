@@ -25,8 +25,28 @@ String dumpSeqFile(SeqFile f) {
       }
     }
   }
+  _dumpPlugins(b, f);
   _dumpTypes(b, f);
   return b.toString();
+}
+
+/// Lists the Semiconductor-Test-System resource set the file declares (pin map +
+/// specifications/levels/timing/pattern files) — the external files the sequence
+/// depends on. Omitted when the file declares none.
+void _dumpPlugins(StringBuffer b, SeqFile f) {
+  final mp = f.measurementPlugIns;
+  if (mp == null || !mp.isNotEmpty) return;
+  b.writeln();
+  b.writeln('Measurement plug-ins:');
+  if (mp.pinMapPath != null) b.writeln('  pin map: ${mp.pinMapPath}');
+  void list(String label, List<String> paths) {
+    if (paths.isNotEmpty) b.writeln('  $label: ${paths.join(', ')}');
+  }
+
+  list('specifications', mp.specificationFiles);
+  list('levels', mp.levelsFiles);
+  list('timing', mp.timingFiles);
+  list('patterns', mp.patternFiles);
 }
 
 /// Lists the `<typelist>` type definitions and their declared fields. This is

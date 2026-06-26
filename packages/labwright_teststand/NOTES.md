@@ -146,7 +146,7 @@ refused (not mis-parsed).
 - **Coverage metric**: `measureCoverage(SeqFile)` → `SeqCoverage{total, modeled}`
   counts what fraction of `Data`-tree property nodes the typed lens surfaces.
   `tool/coverage.dart` runs it over the **XML** `.seq` files in `corpus/seq` and
-  writes a gitignored `corpus/seq/REPORT.md`. Current: **49.3% (9339/18932
+  writes a gitignored `corpus/seq/REPORT.md`. Current: **49.5% (9372/18932
   nodes)** over 26 XML files (incl. `Step.id`=`TS.Id`, and the boolean step flags
   `StepFCSeqF`/`IgnoreRTE`/`ResultOption` → `StepSettings.failureCausesSequence-
   Failure`/`ignoresRunTimeErrors`/`recordsResult`, plus the **Additional Results
@@ -857,6 +857,40 @@ function + module + interpreter version, 23 distinct functions.** Coverage
 `OperationType`/`OperationScope`/`InterpreterSessionScope`/
 `DefaultParamCategoryForArray` codes and the adapter-config bools. Remaining big
 SData target: the FCModule `Call.Parms` C descriptor (only 2 steps — low reach).
+
+**Measurement plug-in resource set — recovered & surfaced (2026-06, DONE;
++0.2pt).** A file-level lens: `SeqFile.measurementPlugIns` reads
+`Data > FileGlobalDefaults > MeasurementPlugIns` into a [MeasurementPlugIns] with
+the **pin map** (`PinMapPath`) and the STS file lists `specificationFiles`/
+`levelsFiles`/`timingFiles`/`patternFiles` (each a `*FilePaths` `Strs` array) plus
+`monitoringEnabled`. These are the external test-program files a sequence depends
+on — all clean paths, self-evident. Dump prints a `Measurement plug-ins:` section
+(also visible in the app's Dump tab). Corpus: **11 files declare the block, 1
+carries the full pin-map + specs/levels/timing/pattern set** (most are a bare
+`EnableMonitoring` default). Coverage **49.3% → 49.5%** (9372/18932).
+
+**CEILING RE-PROBED after ViCall/Python/plug-ins (2026-06) — frontier largely
+reached.** Re-ran the exact-marking classifier (21 ≤300KB XML, now 53.4% on that
+subset, 5272 unmodeled). The remainder is now **dominated by off-limits content**,
+not clean data:
+- **SData/ViCall ~37%** — per-connector-param numeric type codes
+  (`Type`/`NumType`/`ArrayType`/`ClusterType`/`ReferenceType`/`WireRequirement`)
+  + empty containers (`ArrayClusterEls`, per-param `AdditionalResult`/`Condition`)
+  + ViCall `Override*`/`Node*` call-level fields (mostly empty/flags). Unconfirmable.
+- **TS ~31%** — the per-step TS-option cluster (numeric codes + editor-permission
+  bools), unconfirmable → off-limits.
+- **`AdditionalResults` `Flags`/`CheckedState`** (110 each = `8192`/`1`) — numeric
+  codes, not yet decoded.
+- **`Measurement.MessageType`** (147) — empty in every case.
+- **file/seq-level "other"** — empty/default scaffolding (`Requirements→Links`,
+  `RTS`, `FileGlobalDefaults` empties), opaque constants (`Priority`,
+  `FailureAction`, `Type`), entry-point editor metadata (`EP*`), and per-step
+  font/display config (`FontColor`/`Bold`/…).
+The clean, self-evident remnants are now small: the file `Version` (mostly
+`0.0.0.0`) and the FCModule `Call.Parms` C descriptor (2 steps). **Honest take:
+the high-value XML recovery frontier is essentially exhausted; further coverage
+gains would require decoding NI's numeric type/option codes (no corpus-internal
+evidence → would be fabrication), so they stay raw.**
 
 **Step-id resolution `ID#:` → step name (2026-06, DONE).** Each step's `TS.Id` is
 a unique id in `ID#:<uid>` form (e.g. `ID#:HWpAiIXA8BG5VlB7nf4f8B`). Flow-action

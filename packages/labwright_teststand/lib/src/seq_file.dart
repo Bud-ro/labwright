@@ -25,6 +25,15 @@ class SeqFile {
   /// base class, and declared fields. The raw roots remain available as [types].
   List<SeqType> get typeDefs => [for (final t in types) SeqType(t)];
 
+  /// The Semiconductor-Test-System measurement plug-in resource set this file
+  /// declares (`Data > FileGlobalDefaults > MeasurementPlugIns`) — the pin map
+  /// and specifications/levels/timing/pattern files the test program depends on.
+  /// null when the file declares no such block. See [MeasurementPlugIns].
+  MeasurementPlugIns? get measurementPlugIns {
+    final mp = data.prop('FileGlobalDefaults')?.prop('MeasurementPlugIns');
+    return mp == null ? null : MeasurementPlugIns(mp);
+  }
+
   /// The root `Data` property object holding the file's contents.
   final SeqProperty data;
 
@@ -958,6 +967,56 @@ class SeqType {
         for (final c in [...raw.subProps, ...?raw.array])
           (name: c.name, type: c.className),
       ];
+}
+
+/// The Semiconductor-Test-System (STS) measurement plug-in resource set a
+/// sequence file declares under `FileGlobalDefaults > MeasurementPlugIns` — the
+/// external test-program files the sequence depends on: the **pin map** and the
+/// **specifications / levels / timing / pattern** file lists. All clean file
+/// paths (self-evident); `EnableMonitoring` is a plain flag. Surfacing these
+/// answers "what external resources does this sequence need".
+class MeasurementPlugIns {
+  MeasurementPlugIns(this.raw);
+
+  /// The raw `MeasurementPlugIns` property object — full access to its details.
+  final SeqProperty raw;
+
+  /// The pin-map file the test program loads (`PinMapPath`), e.g.
+  /// `PinMap.pinmap`; null when the file declares none.
+  String? get pinMapPath => _nz(raw.prop('PinMapPath')?.scalar);
+
+  /// Whether result monitoring is enabled (`EnableMonitoring`). false when absent.
+  bool get monitoringEnabled => raw.prop('EnableMonitoring')?.scalar == 'true';
+
+  /// Specification files (`SpecificationsFilePaths`), in order; empty when none.
+  List<String> get specificationFiles => _paths('SpecificationsFilePaths');
+
+  /// Pin-levels files (`LevelsFilePaths`), in order; empty when none.
+  List<String> get levelsFiles => _paths('LevelsFilePaths');
+
+  /// Timing files (`TimingFilePaths`), in order; empty when none.
+  List<String> get timingFiles => _paths('TimingFilePaths');
+
+  /// Pattern files (`PatternFilePaths`), in order; empty when none.
+  List<String> get patternFiles => _paths('PatternFilePaths');
+
+  List<String> _paths(String key) {
+    final p = raw.prop(key);
+    if (p == null) return const [];
+    return [
+      for (final e in p.array ?? const <SeqProperty>[])
+        if (_nz(e.scalar) != null) e.scalar!,
+    ];
+  }
+
+  /// True when the file actually declares any STS resource (a pin map or any
+  /// file list) — i.e. the block carries more than a bare monitoring flag.
+  bool get isNotEmpty =>
+      pinMapPath != null ||
+      specificationFiles.isNotEmpty ||
+      levelsFiles.isNotEmpty ||
+      timingFiles.isNotEmpty ||
+      patternFiles.isNotEmpty;
 }
 
 /// Parses TestStand sequence-file [bytes] into a [SeqFile].
