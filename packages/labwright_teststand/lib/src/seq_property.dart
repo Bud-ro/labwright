@@ -54,6 +54,20 @@ class SeqProperty {
   /// [attributes] under `%INSTOVRD`; only its presence is interpreted so far.)
   bool get isInstanceOverride => attributes.containsKey('%INSTOVRD');
 
+  /// The property's type-level **PropertyFlags** bitmask, recovered verbatim from
+  /// the legacy INI `%FLG: <member>` directive — null when the source recorded no
+  /// flags for this property (e.g. XML-sourced trees, or inherited-only members).
+  ///
+  /// This mask is ~constant per property *name* across the corpus, so it encodes
+  /// the property's fixed options (its type), not instance data — e.g. `SData`
+  /// reads `0x200000`, `Status`/`ReportText`/`Result` read `0x400000`. Individual
+  /// bit meanings are **not yet decoded**; the raw mask is exposed for analysis,
+  /// never with fabricated semantics. Kept verbatim in [attributes] under `%FLG`.
+  int? get propertyFlags {
+    final raw = attributes['%FLG'];
+    return raw == null ? null : int.tryParse(raw.trim());
+  }
+
   /// First sub-property named [name], or null.
   SeqProperty? prop(String name) {
     for (final p in subProps) {

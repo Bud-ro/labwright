@@ -361,10 +361,10 @@ class _IniBuilder {
   /// built [SeqProperty] (see [SeqProperty.isInstanceOverride]).
   static const instOverrideAttr = '%INSTOVRD';
 
-  /// The attributes for a member with override flags [flags] (the raw value of a
-  /// `%INSTOVRD: <member>` directive), or an empty map when not overridden.
-  Map<String, String> _ovrAttrs(String? flags) =>
-      flags == null ? const {} : {instOverrideAttr: flags};
+  /// The attribute key under which a property's type-level **PropertyFlags**
+  /// bitmask is stored on a built [SeqProperty] (see [SeqProperty.propertyFlags]).
+  /// Sourced from the `%FLG: <member>` directive on the owning object's section.
+  static const flagsAttr = '%FLG';
 
   /// The attribute key under which an object's free-text comment is stored on a
   /// built [SeqProperty] (the editor's per-step/per-object note). Sourced from
@@ -390,6 +390,21 @@ class _IniBuilder {
     // `%INSTOVRD = <flags>` marks the whole object. The flags are a bitmask we
     // don't fully decode yet; presence is the signal. Preserved as an attribute.
     String? ovrOf(String m) => val?.directives['$instOverrideAttr: $m'];
+    // Type-level PropertyFlags. `%FLG: <member> = <bitmask>` records the member's
+    // fixed property options (it is ~constant per property name across the corpus,
+    // so it encodes the property's type, not instance data). We keep the bitmask
+    // verbatim; individual bit meanings are not yet decoded. Found on the owning
+    // object's value or DEF section.
+    String? flgOf(String m) =>
+        val?.directives['$flagsAttr: $m'] ?? def?.directives['$flagsAttr: $m'];
+    Map<String, String> memberAttrs(String m) {
+      final ovr = ovrOf(m), flg = flgOf(m);
+      if (ovr == null && flg == null) return const {};
+      return {
+        if (ovr != null) instOverrideAttr: ovr,
+        if (flg != null) flagsAttr: flg,
+      };
+    }
     // Type inheritance. A typed object (e.g. a step of type "Action") declares
     // its member *types* in its `[DEF, <Type>]`; the instance stores only the
     // members/values it overrides. So the type def supplies (a) member type
@@ -447,11 +462,11 @@ class _IniBuilder {
             ),
         ];
         subs.add(SeqProperty(
-            name: m, className: cls, array: arr, attributes: _ovrAttrs(ovrOf(m))));
+            name: m, className: cls, array: arr, attributes: memberAttrs(m)));
       } else if (_isContainer(instPath)) {
         // The instance has this container: build it (and let it inherit its own
         // type's defaults via the typeName we pass down).
-        subs.add(build(instPath, m, cls, tn, visiting, _ovrAttrs(ovrOf(m))));
+        subs.add(build(instPath, m, cls, tn, visiting, memberAttrs(m)));
       } else if (typePath != null && _isContainer(typePath)) {
         // Inherited-only container: take the type's default subtree (cached). The
         // instance is silent here, so it carries no override marker.
@@ -464,7 +479,7 @@ class _IniBuilder {
           typeName: tn,
           scalar: _unquote(val?.members[m]) ??
               (typeRoot == null ? null : _unquote(_vals[typeRoot]?.members[m])),
-          attributes: _ovrAttrs(ovrOf(m)),
+          attributes: memberAttrs(m),
         ));
       }
     }

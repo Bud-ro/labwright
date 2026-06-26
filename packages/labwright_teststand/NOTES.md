@@ -805,6 +805,41 @@ values — line that up against the binary record stream (name-index/`field`/`co
 triplets) to finally decode the binary record's field/count/value encoding.
 *(Binary record tree not yet decoded — not unrecoverable.)*
 
+## PropertyFlags (`%FLG`) — type-level options, recovered raw; bits partly mapped
+
+Each property in the INI form carries a `%FLG: <member> = <bitmask>` directive on
+its owning object's section (value **and** DEF sections). Differential analysis
+over the full corpus shows the mask is **~constant per property *name***: of 62
+property names with ≥20 samples, all hold a single dominant mask ≥90% of the time
+(most 100%, e.g. `SData` 1601/1601, `ReportText` 909/909, the EP*/Show* family
+441/441). A value that is fixed by *name* and independent of the instance is the
+property's **type-level PropertyFlags** (its stored options), not instance data.
+
+Recovered and surfaced verbatim as `SeqProperty.propertyFlags` (raw `int?`,
+threaded from `%FLG: <member>` exactly like `%INSTOVRD`); XML-sourced trees and
+inherited-only members read `null`. **Bit *functions* are not yet decoded** (they
+need NI's `PropFlags` enum); only the per-bit *membership* below is corpus-fact.
+
+Bit → property-name membership (dominant mask, ≥90%/n≥20 properties):
+- **bit22 `0x400000`** — near-universal (39 names): `Setup` `Main` `Cleanup`
+  `Locals` `Priority` `Status` `Error` `ReportText` `Result` `Parameters`
+  `RecordResults` `Links` the whole `EP*`/`Show*` family … ⇒ a general "stored"
+  flag. **NOT** "report column" (it is set on structural members too).
+- **bit21 `0x200000`** (5): `ActualArgs` `ArrayClusterProto` `ComplexParts`
+  `SData` `UserData` — all object/aggregate sub-data holders.
+- **bit3 `0x8`** (10): `BatchSync` `FailureAction` `LoadOpt` `UnloadOpt`
+  `ModelFile` `ModelOption` `Version` `RTS` `RecordResults` `SFGlobalsScope` —
+  model/execution-option members.
+- **bit17 `0x20000`** (3): `CanEditCode` `CanEditModulePrototype`
+  `CanSpecifyModule` — module-edit capability members.
+- **bit2 `0x4`**, **bit18 `0x40000`**, **bit26 `0x4000000`**, **bit0 `0x1`** —
+  smaller/mixed clusters, function not yet decoded.
+
+Hypotheses **disproven** on the corpus (recorded to prevent regressions):
+- bit22 ≠ "report column" — set on `Setup`/`Main`/`Cleanup`/`Locals` too.
+- bit21 ≠ "is a container" — `Locals`/`Result`/`Parameters` are containers but
+  carry bit22, not bit21.
+
 ## Status & honest gaps
 
 **INI decode — COMPLETE (58/58).** `parseSeqFile` builds a `SeqFile` from every
@@ -829,8 +864,11 @@ no per-step data to recover here.
 - **Binary record grammar** past the header — not yet recovered (needs a
   byte-identical INI↔binary twin, absent from the corpus, or NI docs).
 - **Flag/enum bitmasks** whose *values* are stored but whose *meaning* needs NI's
-  enums: the `%INSTOVRD` property-flags bitmask; the step `ResultOption` 1/0 flag;
-  the XML `typecategory` numeric code. Recorded verbatim, not interpreted.
+  enums: the type-level `%FLG` PropertyFlags (now recovered as
+  `SeqProperty.propertyFlags` + bit *membership* mapped — see the PropertyFlags
+  section above — but bit *functions* still undecoded); the `%INSTOVRD`
+  instance-override bitmask; the step `ResultOption` 1/0 flag; the XML
+  `typecategory` numeric code. Recorded verbatim, not interpreted.
 - **Config / station files** — `corpus/seq-sources.json` captures
   `.ini/.cfg/.tsw/.tpj` when present, but the open-source corpus is
   sequence-heavy; type-palette and station-config samples are sparse. (CN-IOT's

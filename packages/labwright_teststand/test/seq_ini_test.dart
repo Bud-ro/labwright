@@ -340,6 +340,71 @@ Mode = "Skip"
     expect(ts.prop('Mode')?.isInstanceOverride, isFalse);
   });
 
+  // `%FLG: <member> = <bitmask>` records a member's type-level PropertyFlags. It
+  // is ~constant per property name across the corpus, so it encodes the property's
+  // fixed options (its type), not instance data. The reader keeps the mask verbatim
+  // and exposes it via SeqProperty.propertyFlags; bit meanings are not yet decoded.
+  const flagsIni = '''
+[__Header__]
+ProductName = "TestStand"
+Version = 354
+Type = "SequenceFile"
+
+[DEF, %OBJROOT]
+SF = SequenceFileData
+[DEF, SF]
+Seq = Objs
+%NAME = "Data"
+[DEF, SF.Seq]
+%[0] = Sequence
+[DEF, SF.Seq[0]]
+Main = Objs
+%NAME = "MainSequence"
+[DEF, SF.Seq[0].Main]
+%[0] = Step
+%TYPE: %[0] = "Action"
+[DEF, SF.Seq[0].Main[0]]
+TS = Obj
+%NAME = "flagStep"
+[DEF, SF.Seq[0].Main[0].TS]
+SData = Obj
+Mode = String
+%FLG: SData = 2097152
+%FLG: Mode = 4
+[SF.Seq[0].Main[0].TS]
+Mode = "Skip"
+[SF.Seq[0].Main[0]]
+%FLG: TS = 4194304
+''';
+
+  test('recovers type-level PropertyFlags via %FLG (raw bitmask)', () {
+    final sf = parseSeqFile(Uint8List.fromList(latin1.encode(flagsIni)));
+    final step = sf.sequences.single.main.single;
+    final ts = step.raw.prop('TS')!;
+    // The step's `%FLG: TS` (a value-section directive) flows onto the TS object.
+    expect(ts.propertyFlags, 0x400000);
+    expect(ts.attributes['%FLG'], '4194304');
+    // The TS def's `%FLG: SData` / `%FLG: Mode` flow onto those members.
+    expect(ts.prop('SData')?.propertyFlags, 0x200000);
+    expect(ts.prop('Mode')?.propertyFlags, 0x4);
+  });
+
+  test('propertyFlags is null when no %FLG was recorded; parses defensively', () {
+    final sf = parseSeqFile(Uint8List.fromList(latin1.encode(overrideIni)));
+    final ts = sf.sequences.single.main.single.raw.prop('TS')!;
+    // overrideIni records %INSTOVRD but no %FLG for TS.
+    expect(ts.propertyFlags, isNull);
+    expect(SeqProperty(name: 'x').propertyFlags, isNull);
+    // A malformed mask parses to null rather than throwing.
+    expect(
+        SeqProperty(name: 'x', attributes: const {'%FLG': 'oops'}).propertyFlags,
+        isNull);
+    expect(
+        SeqProperty(name: 'x', attributes: const {'%FLG': '4194304'})
+            .propertyFlags,
+        0x400000);
+  });
+
   // TestStand loops are expression-driven: a looping step carries
   // LoopInitialize / LoopWhile / LoopIncrement / LoopStatus under its TS.
   const loopIni = '''
