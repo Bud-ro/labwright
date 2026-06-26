@@ -382,8 +382,16 @@ class StepSettings {
   /// `WhileBreak`, `PassFailCount`. null if unspecified.
   String? get loopType => _scalar('LoopType');
 
-  /// The loop-continuation condition expression (`LoopWhile`), if any.
+  /// The loop expressions a looping step runs. TestStand loops are
+  /// expression-driven: [loopInitialize] sets up the loop (`LoopInitialize`,
+  /// e.g. `RunState.LoopIndex = 0`), [loopWhile] is the continue condition
+  /// (`LoopWhile`), [loopIncrement] advances each pass (`LoopIncrement`), and
+  /// [loopStatus] computes the loop's overall status (`LoopStatus`). Each is null
+  /// when absent — non-looping steps have none.
+  String? get loopInitialize => _scalar('LoopInitialize');
   String? get loopWhile => _scalar('LoopWhile');
+  String? get loopIncrement => _scalar('LoopIncrement');
+  String? get loopStatus => _scalar('LoopStatus');
 
   /// True when the step loops (any `LoopType` other than `NoLooping`).
   bool get isLooping => loopType != null && loopType != 'NoLooping';

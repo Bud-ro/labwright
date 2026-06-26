@@ -339,4 +339,53 @@ Mode = "Skip"
     // A member with no override marker stays a plain inherited/default value.
     expect(ts.prop('Mode')?.isInstanceOverride, isFalse);
   });
+
+  // TestStand loops are expression-driven: a looping step carries
+  // LoopInitialize / LoopWhile / LoopIncrement / LoopStatus under its TS.
+  const loopIni = '''
+[__Header__]
+ProductName = "TestStand"
+Version = 354
+Type = "SequenceFile"
+
+[DEF, %OBJROOT]
+SF = SequenceFileData
+[DEF, SF]
+Seq = Objs
+%NAME = "Data"
+[DEF, SF.Seq]
+%[0] = Sequence
+[DEF, SF.Seq[0]]
+Main = Objs
+%NAME = "MainSequence"
+[DEF, SF.Seq[0].Main]
+%[0] = Step
+%TYPE: %[0] = "Action"
+[DEF, SF.Seq[0].Main[0]]
+TS = Obj
+%NAME = "loopStep"
+[DEF, SF.Seq[0].Main[0].TS]
+LoopType = String
+LoopInitialize = String
+LoopWhile = String
+LoopIncrement = String
+LoopStatus = String
+[SF.Seq[0].Main[0].TS]
+LoopType = "FixedNumLoops"
+LoopInitialize = "RunState.LoopIndex = 0"
+LoopWhile = "RunState.LoopIndex < 10"
+LoopIncrement = "RunState.LoopIndex += 1"
+LoopStatus = "RunState.LoopNumPassed >= 1"
+''';
+
+  test('recovers the loop expressions of a looping step', () {
+    final sf = parseSeqFile(Uint8List.fromList(latin1.encode(loopIni)));
+    final set = sf.sequences.single.main.single.settings;
+    expect(set.isLooping, isTrue);
+    expect(set.loopType, 'FixedNumLoops');
+    expect(set.loopInitialize, 'RunState.LoopIndex = 0');
+    expect(set.loopWhile, 'RunState.LoopIndex < 10');
+    expect(set.loopIncrement, 'RunState.LoopIndex += 1');
+    expect(set.loopStatus, 'RunState.LoopNumPassed >= 1');
+  });
 }

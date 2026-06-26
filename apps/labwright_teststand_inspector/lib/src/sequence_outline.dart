@@ -195,7 +195,11 @@ class StepOutline {
       if (s.preExpression != null) ('Pre-expression', s.preExpression!),
       if (s.postExpression != null) ('Post-expression', s.postExpression!),
       if (s.statusExpression != null) ('Status', s.statusExpression!),
+      // The loop block (init → while → increment → status) for a looping step.
+      if (s.loopInitialize != null) ('Loop init', s.loopInitialize!),
       if (s.loopWhile != null) ('Loop while', s.loopWhile!),
+      if (s.loopIncrement != null) ('Loop increment', s.loopIncrement!),
+      if (s.loopStatus != null) ('Loop status', s.loopStatus!),
     ];
 
     return StepOutline(
