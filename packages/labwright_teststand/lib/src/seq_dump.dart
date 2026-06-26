@@ -51,6 +51,15 @@ String _varSuffix(SeqVariable v) {
   return b.toString();
 }
 
+/// Renders one module call argument as `name[ dir][←expr]` — e.g.
+/// `LoginName in←FileGlobals.UserToAutoLogin`, `Return Value out`.
+String _dumpCallParam(CallParameter p) {
+  final b = StringBuffer(p.name);
+  if (p.direction != null) b.write(' ${p.direction}');
+  if (p.boundExpression != null) b.write('←${p.boundExpression}');
+  return b.toString();
+}
+
 String _dumpStep(Step step, SeqFile file) {
   final parts = StringBuffer('${step.name} [${step.type ?? '?'}]');
 
@@ -65,6 +74,10 @@ String _dumpStep(Step step, SeqFile file) {
       parts.write(file.resolveCall(step) != null
           ? ' (in this file)'
           : ' (external${m.sequenceFile != null ? ': ${m.sequenceFile}' : ''})');
+    }
+    final args = m.callParameters;
+    if (args.isNotEmpty) {
+      parts.write('  {args: ${args.map(_dumpCallParam).join('; ')}}');
     }
   }
 

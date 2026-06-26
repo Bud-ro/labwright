@@ -778,4 +778,67 @@ FailActTarget = "\\"<Cleanup>\\""
     expect(set.failActionTarget, '<Cleanup>');
     expect(set.flowSummary, 'Goto→<End>/Goto→<Cleanup>');
   });
+
+  // A code-module call (here an Automation/ActiveX step) binds named arguments
+  // under SData.Call.Parameters: each carries a Name, the ArgVal expression
+  // supplying its value, a DisplayType, and a Direction (1=in, 2=out). Mirrors
+  // the real corpus (e.g. ni_nitsm-python FrontEndCallbacks "Get User To Login").
+  test('recovers a module call\'s bound arguments (name, expr, direction)', () {
+    const ini = '''
+[__Header__]
+ProductName = "TestStand"
+Version = 354
+Type = "SequenceFile"
+
+[DEF, %OBJROOT]
+SF = SequenceFileData
+[DEF, SF]
+Seq = Objs
+%NAME = "Data"
+[DEF, SF.Seq]
+%[0] = Sequence
+[DEF, SF.Seq[0]]
+Main = Objs
+%NAME = "MainSequence"
+[DEF, SF.Seq[0].Main]
+%[0] = Step
+%TYPE: %[0] = "Action"
+[DEF, SF.Seq[0].Main[0]]
+TS = Obj
+%NAME = "Get User"
+[DEF, SF.Seq[0].Main[0].TS]
+SData = Obj
+[DEF, SF.Seq[0].Main[0].TS.SData]
+Call = Obj
+[DEF, SF.Seq[0].Main[0].TS.SData.Call]
+Parameters = Objs
+[DEF, SF.Seq[0].Main[0].TS.SData.Call.Parameters]
+%[0] = Obj
+%[1] = Obj
+[SF.Seq[0].Main[0].TS.SData.Call.Parameters[0]]
+Name = "Return Value"
+ArgVal = "Locals.userToLogin"
+DisplayType = "User (Object Reference)"
+Direction = 2
+[SF.Seq[0].Main[0].TS.SData.Call.Parameters[1]]
+Name = "LoginName"
+ArgVal = "FileGlobals.UserToAutoLogin"
+DisplayType = "String"
+Direction = 1
+''';
+    final step =
+        parseSeqFile(Uint8List.fromList(latin1.encode(ini))).sequences.single.main.single;
+    final args = step.module.callParameters;
+    expect(args.length, 2);
+
+    expect(args[0].name, 'Return Value');
+    expect(args[0].boundExpression, 'Locals.userToLogin');
+    expect(args[0].displayType, 'User (Object Reference)');
+    expect(args[0].directionCode, '2');
+    expect(args[0].direction, 'out');
+
+    expect(args[1].name, 'LoginName');
+    expect(args[1].boundExpression, 'FileGlobals.UserToAutoLogin');
+    expect(args[1].direction, 'in');
+  });
 }

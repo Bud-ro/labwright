@@ -123,8 +123,22 @@ refused (not mis-parsed).
 - **Variables**: a sequence's `Locals` and `Parameters` are `Obj` containers
   whose sub-properties are the variables (name = tag, kind = `classname`,
   default = scalar). → `Sequence.locals` / `Sequence.parameters` (`SeqVariable`
-  {name, type, value}). Corpus: 28 locals; `Parameters` are empty in this corpus
-  (so parameter pass-by direction is **not yet observed/recovered**).
+  {name, type, value}). Corpus: 28 locals; sequence-level `Parameters` are empty
+  across the whole corpus (no `Seq[N].Parameters[M]` member exists in any of the
+  58 INI files, matching the XML) — so a *sequence's own* declared parameter list
+  carries nothing to surface here.
+- **Module call arguments**: a step's code-module call binds its arguments under
+  `SData.Call.Parameters` — each a `Name`, an `ArgVal` expression supplying the
+  value (e.g. `FileGlobals.UserToAutoLogin`), a `DisplayType` (`String`,
+  `User (Object Reference)`), and a `Direction` code. → `StepModule.callParameters`
+  (`CallParameter` {name, boundExpression, displayType, directionCode, direction}).
+  `direction` maps the standard TestStand codes (`1`=in, `2`=out, `3`=in/out;
+  consistent across the corpus — a `Return Value` reads `2`, inputs read `1`);
+  an unrecognized code stays raw in `directionCode` rather than guessed. The dump
+  appends `{args: name dir←expr; …}`. Corpus: 44 call-parameter entries (e.g.
+  ni_nitsm-python `FrontEndCallbacks` "Get User To Login"). So argument pass-by
+  *direction* **is** recovered here, at the call site — distinct from the empty
+  sequence-level parameter list above.
 - **Coverage metric**: `measureCoverage(SeqFile)` → `SeqCoverage{total, modeled}`
   counts what fraction of `Data`-tree property nodes the typed lens surfaces.
   `tool/coverage.dart` runs it over `corpus/seq` and writes a gitignored

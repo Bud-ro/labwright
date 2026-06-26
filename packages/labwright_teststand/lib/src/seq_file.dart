@@ -367,6 +367,18 @@ class StepModule {
   /// The raw `SData` property for full access; null when the step had none.
   final SeqProperty? raw;
 
+  /// The arguments this step's code-module call binds, in declaration order —
+  /// the editor's "Module > Parameters" rows. Recovered from
+  /// `SData.Call.Parameters` (the ActiveX/C-module adapter argument list).
+  /// Empty when the call passes none, or when an adapter stores its arguments
+  /// elsewhere (not yet decoded for other adapters).
+  List<CallParameter> get callParameters {
+    final params = raw?.prop('Call')?.prop('Parameters');
+    if (params == null) return const [];
+    final kids = params.array ?? params.subProps;
+    return [for (final p in kids) CallParameter(p)];
+  }
+
   static String? _e(String? s) => (s == null || s.isEmpty) ? null : s;
 
   factory StepModule.fromSData(SeqProperty? sdata) {
@@ -426,6 +438,50 @@ class StepModule {
 
   @override
   String toString() => 'StepModule(${adapter.name}${target != null ? ': $target' : ''})';
+}
+
+/// A single argument a step's code-module call binds — one "Module >
+/// Parameters" row in the Sequence Editor: a parameter [name], the
+/// [boundExpression] supplying its value, the declared [displayType], and the
+/// [direction] (in/out). Read from a `Call.Parameters[n]` property object.
+class CallParameter {
+  CallParameter(this.raw);
+
+  /// The underlying parameter property object — full access to its details.
+  final SeqProperty raw;
+
+  /// The parameter's name (`Name`), e.g. `LoginName`, `Return Value`.
+  String get name => _nz(raw.prop('Name')?.scalar) ?? raw.name;
+
+  /// The expression bound to the parameter (`ArgVal`) — what the call passes,
+  /// e.g. `Locals.userToLogin`, `FileGlobals.UserToAutoLogin` — or null when
+  /// the call leaves it unbound.
+  String? get boundExpression => _nz(raw.prop('ArgVal')?.scalar);
+
+  /// The human-readable parameter type the editor shows (`DisplayType`), e.g.
+  /// `String`, `User (Object Reference)`; null when absent.
+  String? get displayType => _nz(raw.prop('DisplayType')?.scalar);
+
+  /// The raw `Direction` code exactly as stored (`1`, `2`, `3`, …), or null
+  /// when absent. Exposed alongside [direction] so an unrecognized code is left
+  /// readable rather than dropped.
+  String? get directionCode => _nz(raw.prop('Direction')?.scalar);
+
+  /// A readable parameter direction — `in` (`1`), `out` (`2`), `in/out` (`3`) —
+  /// mapped from [directionCode] using the standard TestStand parameter
+  /// directions (consistent across the corpus: a `Return Value` reads `2`,
+  /// supplied inputs read `1`). null for an absent or unrecognized code, which
+  /// stays available raw in [directionCode] rather than being guessed.
+  String? get direction => switch (directionCode) {
+        '1' => 'in',
+        '2' => 'out',
+        '3' => 'in/out',
+        _ => null,
+      };
+
+  @override
+  String toString() =>
+      'CallParameter($name${boundExpression != null ? ' ← $boundExpression' : ''})';
 }
 
 /// The step settings the Sequence Editor surfaces — flow control and the
