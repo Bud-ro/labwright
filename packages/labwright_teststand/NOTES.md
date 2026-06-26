@@ -156,13 +156,22 @@ binary `fileType` (0x0A) and `productName` (0x40). The numeric `fileversion`
 (the XML `920`/`962` analog) is **not yet located** in the binary header — the
 bytes at 0x3C (`05 03 …`) are a candidate but unconfirmed.
 
-The **record body** after the header is **not yet recovered**: it's a binary
-serialization of the same PropertyObject model as the XML form. `binaryStrings()`
-is a recon primitive that surfaces the embedded printable runs (with offsets) to
-work out the framing. `parseSeqFile` still **refuses** binary (UnsupportedError)
-rather than guess. These offsets are confirmed only on the TS2014 corpus — treat
-the slot layout as version-specific until other versions are sampled. *(Not yet
-recovered, not "unrecoverable".)*
+**Body = a single zlib stream** (verified: all 83 files inflate). After the
+header/preamble there is one zlib stream (CMF `78 9c`, at offset 0x518 in the
+TS2014 corpus) whose inflated bytes hold the **same PropertyObject model** as the
+XML form — the names `SequenceFileData`, `Data`, `Sequence`, `MainSequence`,
+`Parameters`, `Locals`, `Step`, `StepType`, `Action`, and real variable names
+(e.g. `Ref_Seri_No`) appear in the clear inside it. This is the direct analog of
+the VI heap's zlib sections. → `inflateBinaryBody(bytes)` locates + inflates it
+(83/83 OK); `binaryStrings()` surfaces the printable runs.
+
+The inflated body is a **binary record stream** (little-endian u32 fields +
+embedded length/strings) — **not yet parsed** into the typed model. So
+`parseSeqFile` still **refuses** binary (UnsupportedError); the next milestone is
+the inflated-record grammar (then it maps onto the shared SeqProperty model and
+the whole typed lens + dump + coverage come along for free). Offsets confirmed on
+the TS2014 corpus only — treat as version-specific until other versions are
+sampled. *(Not yet recovered, not "unrecoverable".)*
 
 ## Honest gaps (do NOT model yet)
 

@@ -28,7 +28,7 @@ void main() {
   test('corpus has .seq files', () => expect(seqs, isNotEmpty));
 
   test('every XML .seq parses; binary .seq is classified, not mis-parsed', () {
-    var xml = 0, binary = 0, other = 0, totalSeqs = 0, totalSteps = 0, withAction = 0, withModule = 0, totalLocals = 0, withLimits = 0;
+    var xml = 0, binary = 0, other = 0, totalSeqs = 0, totalSteps = 0, withAction = 0, withModule = 0, totalLocals = 0, withLimits = 0, withBinaryBody = 0;
     final failures = <String>[];
     for (final f in seqs) {
       final bytes = f.readAsBytesSync();
@@ -61,6 +61,13 @@ void main() {
           final bh = detectSeqHeader(bytes);
           expect(bh.fileType, 'SequenceFile');
           expect(bh.productName, 'TestStand');
+          // The zlib body inflates and holds the same PropertyObject model.
+          final body = inflateBinaryBody(bytes);
+          expect(body, isNotNull, reason: '${f.path}: no inflatable body');
+          if (body != null) {
+            withBinaryBody++;
+            expect(String.fromCharCodes(body), contains('Sequence'));
+          }
         case SeqFormat.ini:
         case SeqFormat.unknown:
           other++;
@@ -79,6 +86,7 @@ void main() {
     // ignore: avoid_print
     print('teststand corpus: $xml XML / $binary binary / $other other · '
         '$totalSeqs sequences · $totalSteps steps · $withAction with pass/fail actions · '
-        '$withModule with module bindings · $totalLocals locals · $withLimits limit tests');
+        '$withModule with module bindings · $totalLocals locals · $withLimits limit tests · '
+        '$withBinaryBody binary bodies inflated');
   });
 }
