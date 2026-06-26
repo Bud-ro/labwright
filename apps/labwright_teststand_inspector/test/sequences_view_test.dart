@@ -128,5 +128,35 @@ void main() {
       );
       expect(find.text('Runs once at startup'), findsOneWidget);
     });
+
+    testWidgets('very long recovered text wraps without overflow',
+        (tester) async {
+      final long = 'X${' word' * 200}'; // ~1000 chars, no hard breaks
+      await pump(
+        tester,
+        SeqOutline([
+          SequenceOutline(
+            name: 'Seq',
+            parameters: const [],
+            locals: const [],
+            groups: [
+              StepGroupOutline('Main', [
+                StepOutline(
+                  name: 'Step',
+                  type: 'Action',
+                  comment: long,
+                  expressions: [('Status', long)],
+                  notes: const [],
+                ),
+              ]),
+            ],
+            comment: long,
+          ),
+        ]),
+      );
+      // A RenderFlex/text overflow surfaces as a thrown exception during layout;
+      // assert none occurred (the comment/expression rows must wrap, not clip).
+      expect(tester.takeException(), isNull);
+    });
   });
 }

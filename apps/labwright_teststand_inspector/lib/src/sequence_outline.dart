@@ -308,7 +308,8 @@ class LimitsOutline {
 }
 
 /// True if [s] matches [query] (case-insensitive, query already lower-cased) by
-/// name, type, adapter, target, limits summary, or any note.
+/// name, type, adapter, target, limits summary, run mode, free-text comment, or
+/// any note/expression.
 bool stepMatches(StepOutline s, String query) {
   if (query.isEmpty) return true;
   bool hit(String? x) => x != null && x.toLowerCase().contains(query);
@@ -317,7 +318,8 @@ bool stepMatches(StepOutline s, String query) {
       hit(s.adapter) ||
       hit(s.target) ||
       hit(s.limits) ||
-      hit(s.runMode)) {
+      hit(s.runMode) ||
+      hit(s.comment)) {
     return true;
   }
   for (final n in s.notes) {

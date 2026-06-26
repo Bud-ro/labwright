@@ -322,6 +322,19 @@ void main() {
     expect(stepMatches(step, 'skip'), isTrue);
   });
 
+  test('a step free-text comment is searchable via stepMatches', () {
+    final step = StepOutline(
+      name: 'Lock',
+      type: 'Action',
+      comment: 'Lock the calibration fixture',
+      notes: const [],
+    );
+    // Query is pre-lowercased by the caller; match on comment substrings.
+    expect(stepMatches(step, 'calibration'), isTrue);
+    expect(stepMatches(step, 'fixture'), isTrue);
+    expect(stepMatches(step, 'nope'), isFalse);
+  });
+
   test('StepOutline.of surfaces a step status expression', () {
     final doc = SeqDocument.parse(_xmlWithStatusExpr()) as XmlSeqDocument;
     final step = SeqOutline.of(doc.file).sequences.single.groups.single.steps.single;
