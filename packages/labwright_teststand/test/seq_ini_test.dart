@@ -1073,4 +1073,48 @@ Units = "V"
       expect(p.direction, isNull);
     });
   });
+
+  // Sequence-level Parameters are empty across the whole corpus, so the populated
+  // `Sequence.parameters` path and the dump's `Parameters:` section are otherwise
+  // untested. A synthetic sequence that declares both a parameter and a local
+  // exercises both — and confirms the dump renders the two sections distinctly.
+  test('a sequence with both parameters and locals is surfaced + dumped', () {
+    const ini = '''
+[__Header__]
+ProductName = "TestStand"
+Version = 354
+Type = "SequenceFile"
+
+[DEF, %OBJROOT]
+SF = SequenceFileData
+[DEF, SF]
+Seq = Objs
+%NAME = "Data"
+[DEF, SF.Seq]
+%[0] = Sequence
+[DEF, SF.Seq[0]]
+Parameters = Obj
+Locals = Obj
+%NAME = "MainSequence"
+[DEF, SF.Seq[0].Parameters]
+Voltage = Num
+[SF.Seq[0].Parameters]
+Voltage = "5"
+[DEF, SF.Seq[0].Locals]
+Count = Num
+[SF.Seq[0].Locals]
+Count = "3"
+''';
+    final sf = parseSeqFile(Uint8List.fromList(latin1.encode(ini)));
+    final seq = sf.sequences.single;
+    expect(seq.parameters.map((v) => v.name), ['Voltage']);
+    expect(seq.parameters.single.value, '5');
+    expect(seq.locals.map((v) => v.name), ['Count']);
+
+    final out = dumpSeqFile(sf);
+    expect(out, contains('Parameters:'));
+    expect(out, contains('• Voltage : Num = 5'));
+    expect(out, contains('Locals:'));
+    expect(out, contains('• Count : Num = 3'));
+  });
 }
