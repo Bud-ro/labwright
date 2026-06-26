@@ -107,6 +107,7 @@ class StepOutline {
     this.limits,
     this.limitsDetail,
     this.units,
+    this.dataSource,
     this.runMode,
     this.comment,
     this.expressions = const [],
@@ -153,6 +154,13 @@ class StepOutline {
   /// `V`, `mA`), or `null` when the step records none. Pairs with [limitsDetail]
   /// for a numeric limit test; shown as a "Units" row there, or its own chip.
   final String? units;
+
+  /// The step's data-source expression (`DataSource`) — the pass/fail criterion
+  /// for a `PassFailTest` (e.g. `Step.Result.PassFail`) or the measured value
+  /// otherwise — or `null` when the step has none. For a limit test this is
+  /// already shown in [limitsDetail]'s "Data source" row, so the UI only renders
+  /// it standalone when [limitsDetail] is null.
+  final String? dataSource;
 
   /// The step's TestStand expressions that are set (label → expression), in
   /// editor order: precondition, pre/post/status expressions, loop-while. Empty
@@ -250,6 +258,7 @@ class StepOutline {
       limits: step.limits?.summary,
       limitsDetail: step.limits != null ? LimitsOutline.of(step.limits!) : null,
       units: step.resultUnits,
+      dataSource: step.dataSource,
       runMode: runMode,
       comment: step.comment,
       expressions: expressions,
@@ -267,6 +276,11 @@ class StepOutline {
       b.write('  {limits $limits${units != null ? ' $units' : ''}}');
     } else if (units != null) {
       b.write('  {units $units}');
+    }
+    // Data source standalone only for non-limit steps (limit steps carry it in
+    // limitsDetail), matching the dump.
+    if (limitsDetail == null && dataSource != null) {
+      b.write('  {data-source $dataSource}');
     }
     if (runMode != null) b.write('  {mode $runMode}');
     if (comment != null) b.write('  // $comment');
@@ -390,6 +404,7 @@ bool stepMatches(StepOutline s, String query) {
       hit(s.target) ||
       hit(s.limits) ||
       hit(s.units) ||
+      hit(s.dataSource) ||
       hit(s.runMode) ||
       hit(s.comment)) {
     return true;

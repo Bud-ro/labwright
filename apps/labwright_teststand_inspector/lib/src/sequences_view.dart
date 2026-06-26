@@ -284,6 +284,11 @@ class _SequencesViewState extends State<SequencesView> {
     if (s.units != null && s.limitsDetail == null) {
       chips.add(_chip(context, 'units ${s.units}', Colors.indigo));
     }
+    // The data-source criterion for a non-limit step (e.g. a PassFailTest's
+    // pass/fail expression); limit steps show it in their limits table instead.
+    if (s.dataSource != null && s.limitsDetail == null) {
+      chips.add(_chip(context, 'data-source ${s.dataSource}', Colors.indigo));
+    }
     for (final note in s.notes) {
       chips.add(_chip(context, note, Colors.blueGrey));
     }

@@ -161,6 +161,20 @@ void main() {
       expect(find.text('units V'), findsOneWidget);
     });
 
+    testWidgets('shows a PassFailTest data-source criterion as a chip',
+        (tester) async {
+      await pump(
+        tester,
+        outlineWith(StepOutline(
+          name: 'Motor running',
+          type: 'PassFailTest',
+          dataSource: 'Step.Result.PassFail',
+          notes: const [],
+        )),
+      );
+      expect(find.text('data-source Step.Result.PassFail'), findsOneWidget);
+    });
+
     testWidgets('renders a step free-text comment', (tester) async {
       await pump(
         tester,
