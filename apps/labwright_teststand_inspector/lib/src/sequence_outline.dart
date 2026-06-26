@@ -106,6 +106,7 @@ class StepOutline {
     this.externalCall,
     this.limits,
     this.limitsDetail,
+    this.units,
     this.runMode,
     this.comment,
     this.expressions = const [],
@@ -147,6 +148,11 @@ class StepOutline {
   /// The individual limit fields for a richer display, or `null` if the step has
   /// no limits.
   final LimitsOutline? limitsDetail;
+
+  /// The measurement units the step's result records in (`Result.Units`, e.g.
+  /// `V`, `mA`), or `null` when the step records none. Pairs with [limitsDetail]
+  /// for a numeric limit test; shown as a "Units" row there, or its own chip.
+  final String? units;
 
   /// The step's TestStand expressions that are set (label → expression), in
   /// editor order: precondition, pre/post/status expressions, loop-while. Empty
@@ -243,6 +249,7 @@ class StepOutline {
       externalCall: externalCall,
       limits: step.limits?.summary,
       limitsDetail: step.limits != null ? LimitsOutline.of(step.limits!) : null,
+      units: step.resultUnits,
       runMode: runMode,
       comment: step.comment,
       expressions: expressions,
@@ -256,7 +263,11 @@ class StepOutline {
   String get summary {
     final b = StringBuffer('$name [$type]');
     if (adapter != null) b.write(' -> $adapter: $target');
-    if (limits != null) b.write('  {limits $limits}');
+    if (limits != null) {
+      b.write('  {limits $limits${units != null ? ' $units' : ''}}');
+    } else if (units != null) {
+      b.write('  {units $units}');
+    }
     if (runMode != null) b.write('  {mode $runMode}');
     if (comment != null) b.write('  // $comment');
     if (notes.isNotEmpty) b.write('  (${notes.join('; ')})');
@@ -378,6 +389,7 @@ bool stepMatches(StepOutline s, String query) {
       hit(s.adapter) ||
       hit(s.target) ||
       hit(s.limits) ||
+      hit(s.units) ||
       hit(s.runMode) ||
       hit(s.comment)) {
     return true;

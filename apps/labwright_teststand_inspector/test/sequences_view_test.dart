@@ -129,6 +129,38 @@ void main() {
       expect(find.text('Locals.userToLogin'), findsOneWidget);
     });
 
+    testWidgets('shows recorded units as a row in the limits table',
+        (tester) async {
+      await pump(
+        tester,
+        outlineWith(StepOutline(
+          name: 'Check V',
+          type: 'NumericLimitTest',
+          limits: 'GELE [9, 11]',
+          limitsDetail: LimitsOutline(comparison: 'GELE', low: '9', high: '11'),
+          units: 'mA',
+          notes: const [],
+        )),
+      );
+      expect(find.text('Limits'), findsOneWidget);
+      expect(find.text('Units'), findsOneWidget); // the row label
+      expect(find.text('mA'), findsOneWidget); // the value
+    });
+
+    testWidgets('shows recorded units as a chip when the step has no limits',
+        (tester) async {
+      await pump(
+        tester,
+        outlineWith(StepOutline(
+          name: 'Measure',
+          type: 'Action',
+          units: 'V',
+          notes: const [],
+        )),
+      );
+      expect(find.text('units V'), findsOneWidget);
+    });
+
     testWidgets('renders a step free-text comment', (tester) async {
       await pump(
         tester,

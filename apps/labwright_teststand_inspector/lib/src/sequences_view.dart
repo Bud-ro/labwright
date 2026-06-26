@@ -271,10 +271,18 @@ class _SequencesViewState extends State<SequencesView> {
           Colors.orange));
     }
     // Limits get a richer inline mini-table below; only fall back to a summary
-    // chip if there are no structured fields to show.
-    final limitRows = s.limitsDetail?.rows ?? const [];
+    // chip if there are no structured fields to show. The recorded measurement
+    // unit joins the table as a "Units" row when the step has limits, else it
+    // shows as its own chip.
+    final limitRows = [
+      ...?s.limitsDetail?.rows,
+      if (s.units != null && s.limitsDetail != null) ('Units', s.units!),
+    ];
     if (s.limits != null && limitRows.isEmpty) {
       chips.add(_chip(context, 'limits ${s.limits}', Colors.indigo));
+    }
+    if (s.units != null && s.limitsDetail == null) {
+      chips.add(_chip(context, 'units ${s.units}', Colors.indigo));
     }
     for (final note in s.notes) {
       chips.add(_chip(context, note, Colors.blueGrey));
