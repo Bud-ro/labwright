@@ -527,6 +527,9 @@ Items = Objs
     expect(items.isContainer, isTrue);
     expect(items.containerCount, 3); // a, b, c
     expect(items.value, isNull); // arrays carry no scalar
+    // The dump renders an array variable with a `[N]` size suffix (the object/
+    // cluster form `{N fields}` is covered elsewhere; this is the array branch).
+    expect(dumpSeqFile(sf), contains('• Items : Objs [3]'));
   });
 
   // A step whose on-fail action jumps to a target (`FailAct = "Goto"`,
