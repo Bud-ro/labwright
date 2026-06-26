@@ -68,6 +68,19 @@ class SeqProperty {
     return raw == null ? null : int.tryParse(raw.trim());
   }
 
+  /// The bitmask on this property's **instance-override record** (`%INSTOVRD`),
+  /// or null when the property is not an instance override. This is the base
+  /// [propertyFlags] **plus** override-only bits: differential analysis over the
+  /// corpus shows **bit16 (`0x10000`) is set only in override records** (14133 of
+  /// 19859 member overrides) and in **0 of 58310** base type-level masks (`%FLG` +
+  /// `%INSTFLG`) — so it is an override-set bit, not a type flag. (It skews to
+  /// leaf *value* overrides — `StatusExpr`, `ResultAct`, `LoopWhile` — over
+  /// container/metadata ones; the precise trigger is not yet fully decoded.)
+  int? get instanceOverrideFlags {
+    final raw = attributes['%INSTOVRD'];
+    return raw == null ? null : int.tryParse(raw.trim());
+  }
+
   /// First sub-property named [name], or null.
   SeqProperty? prop(String name) {
     for (final p in subProps) {

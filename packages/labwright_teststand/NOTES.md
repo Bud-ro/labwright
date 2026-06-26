@@ -840,6 +840,25 @@ Hypotheses **disproven** on the corpus (recorded to prevent regressions):
 - bit21 ≠ "is a container" — `Locals`/`Result`/`Parameters` are containers but
   carry bit22, not bit21.
 
+### `%FLG` vs `%INSTFLG` vs `%INSTOVRD` — the override delta (bit16 decoded)
+
+Three flag directives co-exist; differential analysis pins their relationship:
+- `%FLG: <m>` — the member's **type-level** PropertyFlags (39400 samples).
+- `%INSTFLG: <m>` — the instance's **effective** flags (18910); ≈ `%FLG` (the base).
+- `%INSTOVRD: <m>` — the flags on an **instance-override** record (19859 member-
+  scoped + 343 bare). It is the base flags **OR-ed** with override-only bits, e.g.
+  `SData` base `0x200000` → override `0x6D0019` (= `0x200000 | 0x4D0019`).
+
+**Decoded: bit16 (`0x10000`) is an override-set bit, never a type flag.** It is set
+in **14133 / 19859** member-scoped `%INSTOVRD` masks but in **0 / 18910** `%INSTFLG`
+and **0 / 39400** `%FLG` masks (0 / 58310 base total, and 0 / 343 bare overrides) —
+so the engine sets it when a member is instance-overridden, it is not part of the
+property's stored type flags. It skews to leaf **value** overrides (`ResultAct`,
+`StatusExpr`, `LoopWhile`, `Flags`, `Links`) over container/metadata members (`TS`,
+`Substeps`, `Common`, `DescriptionFormat`); the exact value-vs-structural trigger
+that leaves the other 29% clear is **not yet fully decoded**. Surfaced typed as
+`SeqProperty.instanceOverrideFlags`.
+
 ## Status & honest gaps
 
 **INI decode — COMPLETE (58/58).** `parseSeqFile` builds a `SeqFile` from every

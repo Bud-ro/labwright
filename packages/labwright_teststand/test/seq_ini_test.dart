@@ -338,6 +338,16 @@ Mode = "Skip"
     expect(ts.attributes['%INSTOVRD'], '5046297');
     // A member with no override marker stays a plain inherited/default value.
     expect(ts.prop('Mode')?.isInstanceOverride, isFalse);
+    // The override mask is also exposed typed; null for non-overrides.
+    expect(ts.instanceOverrideFlags, 5046297);
+    expect(ts.prop('Mode')?.instanceOverrideFlags, isNull);
+    // bit16 (0x10000) is the corpus-confirmed override-only bit — set here.
+    expect((ts.instanceOverrideFlags! >> 16) & 1, 1);
+    expect(SeqProperty(name: 'x').instanceOverrideFlags, isNull);
+    expect(
+        SeqProperty(name: 'x', attributes: const {'%INSTOVRD': 'bad'})
+            .instanceOverrideFlags,
+        isNull);
   });
 
   // `%FLG: <member> = <bitmask>` records a member's type-level PropertyFlags. It
