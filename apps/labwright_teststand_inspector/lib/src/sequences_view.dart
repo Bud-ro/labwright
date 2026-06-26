@@ -181,7 +181,10 @@ class _SequencesViewState extends State<SequencesView> {
           s.externalCall!.isEmpty ? 'external' : 'external: ${s.externalCall}',
           Colors.orange));
     }
-    if (s.limits != null) {
+    // Limits get a richer inline mini-table below; only fall back to a summary
+    // chip if there are no structured fields to show.
+    final limitRows = s.limitsDetail?.rows ?? const [];
+    if (s.limits != null && limitRows.isEmpty) {
       chips.add(_chip(context, 'limits ${s.limits}', Colors.indigo));
     }
     for (final note in s.notes) {
@@ -211,6 +214,52 @@ class _SequencesViewState extends State<SequencesView> {
               padding: const EdgeInsets.only(top: 4),
               child: Wrap(spacing: 6, runSpacing: 4, children: chips),
             ),
+          if (limitRows.isNotEmpty) _limitsTable(context, limitRows),
+        ],
+      ),
+    );
+  }
+
+  Widget _limitsTable(BuildContext context, List<(String, String)> rows) {
+    final theme = Theme.of(context);
+    return Container(
+      margin: const EdgeInsets.only(top: 6, left: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.indigo.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Limits',
+              style: theme.textTheme.labelSmall
+                  ?.copyWith(color: Colors.indigo)),
+          const SizedBox(height: 2),
+          Table(
+            columnWidths: const {
+              0: IntrinsicColumnWidth(),
+              1: FlexColumnWidth(),
+            },
+            defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+            children: [
+              for (final (label, value) in rows)
+                TableRow(children: [
+                  Padding(
+                    padding: const EdgeInsets.only(right: 16, top: 1, bottom: 1),
+                    child: Text(label,
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: theme.hintColor)),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 1),
+                    child: Text(value,
+                        style: const TextStyle(
+                            fontFamily: 'monospace', fontSize: 12)),
+                  ),
+                ]),
+            ],
+          ),
         ],
       ),
     );

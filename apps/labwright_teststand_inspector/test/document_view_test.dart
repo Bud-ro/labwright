@@ -21,6 +21,26 @@ Uint8List _xml() => Uint8List.fromList([
           "</teststandfileheader>"),
     ]);
 
+Uint8List _xmlWithLimits() => Uint8List.fromList([
+      0xef, 0xbb, 0xbf,
+      ...utf8.encode("<?xml version='1.0'?>\n"
+          "<teststandfileheader type='SequenceFile' fileversion='920' productname='TestStand'>"
+          "<typelist/><Data classname='Obj'><subprops>"
+          "<Seq classname='Objs'><value lbound='[0]' ubound='[1]'><value>"
+          "<Sequence name='MainSequence' classname='Obj'><subprops>"
+          "<Main classname='Objs'><value lbound='[0]' ubound='[1]'><value>"
+          "<Step typename='NumericLimitTest' name='Check V'><subprops>"
+          "<Comp><value>GELE</value></Comp>"
+          "<Limits classname='Obj'><subprops>"
+          "<Low><value>9</value></Low><High><value>11</value></High>"
+          "</subprops></Limits>"
+          "<DataSource><value>Locals.V</value></DataSource>"
+          "</subprops></Step>"
+          "</value></value></Main>"
+          "</subprops></Sequence></value></value></Seq></subprops></Data>"
+          "</teststandfileheader>"),
+    ]);
+
 Uint8List _binary() {
   final pool = <int>[];
   for (final n in [
@@ -68,6 +88,27 @@ void main() {
     expect(step.type, 'Statement');
     expect(step.isInFileCall, isFalse);
     expect(step.summary, contains('S1 [Statement]'));
+  });
+
+  test('StepOutline.of populates structured limits, omitting absent fields', () {
+    final doc = SeqDocument.parse(_xmlWithLimits()) as XmlSeqDocument;
+    final outline = SeqOutline.of(doc.file);
+    final step = outline.sequences.single.groups.single.steps.single;
+
+    expect(step.name, 'Check V');
+    expect(step.limits, isNotNull); // summary string still present
+    final d = step.limitsDetail;
+    expect(d, isNotNull);
+    expect(d!.comparison, 'GELE');
+    expect(d.low, '9');
+    expect(d.high, '11');
+    expect(d.dataSource, 'Locals.V');
+    // Absent fields stay null (not invented) and are dropped from rows.
+    expect(d.nominal, isNull);
+    expect(d.thresholdType, isNull);
+    final rowLabels = d.rows.map((r) => r.$1);
+    expect(rowLabels, containsAll(['Comparison', 'Low', 'High', 'Data source']));
+    expect(rowLabels, isNot(contains('Nominal')));
   });
 
   test('filterSequences keeps matches; empty query is identity', () {

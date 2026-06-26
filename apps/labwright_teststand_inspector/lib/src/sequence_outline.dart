@@ -88,6 +88,7 @@ class StepOutline {
     this.callTargetIndex,
     this.externalCall,
     this.limits,
+    this.limitsDetail,
     required this.notes,
   });
 
@@ -109,7 +110,12 @@ class StepOutline {
   final String? externalCall;
 
   /// Limits summary (e.g. `GELE [9, 11]`), or `null` if the step has none.
+  /// Kept for the one-line label and search; [limitsDetail] holds the fields.
   final String? limits;
+
+  /// The individual limit fields for a richer display, or `null` if the step has
+  /// no limits.
+  final LimitsOutline? limitsDetail;
 
   /// Mode / flow / loop / precondition notes (only non-default ones).
   final List<String> notes;
@@ -155,6 +161,8 @@ class StepOutline {
       callTargetIndex: callTargetIndex,
       externalCall: externalCall,
       limits: step.limits?.summary,
+      limitsDetail:
+          step.limits != null ? LimitsOutline.of(step.limits!) : null,
       notes: notes,
     );
   }
@@ -168,6 +176,46 @@ class StepOutline {
     if (notes.isNotEmpty) b.write('  (${notes.join('; ')})');
     return b.toString();
   }
+}
+
+/// A step's limits broken into individual fields for a richer display. Mirrors
+/// the package's [StepLimits]; every field is optional and is omitted (left
+/// null) when the step doesn't carry it — never invented.
+class LimitsOutline {
+  LimitsOutline({
+    this.comparison,
+    this.low,
+    this.high,
+    this.nominal,
+    this.thresholdType,
+    this.dataSource,
+  });
+
+  final String? comparison;
+  final String? low;
+  final String? high;
+  final String? nominal;
+  final String? thresholdType;
+  final String? dataSource;
+
+  factory LimitsOutline.of(StepLimits l) => LimitsOutline(
+        comparison: l.comparison,
+        low: l.low,
+        high: l.high,
+        nominal: l.nominal,
+        thresholdType: l.thresholdType,
+        dataSource: l.dataSource,
+      );
+
+  /// Present fields as label→value rows, in display order, omitting nulls.
+  List<(String, String)> get rows => [
+        if (comparison != null) ('Comparison', comparison!),
+        if (low != null) ('Low', low!),
+        if (high != null) ('High', high!),
+        if (nominal != null) ('Nominal', nominal!),
+        if (thresholdType != null) ('Threshold', thresholdType!),
+        if (dataSource != null) ('Data source', dataSource!),
+      ];
 }
 
 /// True if [s] matches [query] (case-insensitive, query already lower-cased) by
