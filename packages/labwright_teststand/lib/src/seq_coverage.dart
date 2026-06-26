@@ -25,7 +25,7 @@ class SeqCoverage {
 
 /// The `TS` step-setting keys that [StepSettings] reads.
 const _settingKeys = [
-  'PreCond', 'LoopType', 'LoopWhile', 'PassAct', 'FailAct',
+  'Mode', 'LoadOpt', 'PreCond', 'LoopType', 'LoopWhile', 'PassAct', 'FailAct',
   'PreExpr', 'PostExpr', 'StatusExpr',
 ];
 

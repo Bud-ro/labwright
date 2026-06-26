@@ -100,10 +100,11 @@ refused (not mis-parsed).
 
 ## M2/M3 — step settings & module-adapter binding (done)
 
-- **Step settings** live as scalars under `Step > TS > subprops`: `PreCond`
+- **Step settings** live as scalars under `Step > TS > subprops`: `Mode`
+  (run mode: Normal/Skip/Pass/Fail), `LoadOpt` (module load timing), `PreCond`
   (precondition), `LoopType`/`LoopWhile` (looping), `PassAct`/`FailAct` (flow
   actions), `PreExpr`/`PostExpr`/`StatusExpr`. → `Step.settings` (`StepSettings`),
-  empty/absent → null. Corpus: all 121 steps expose pass/fail actions.
+  empty/absent → null. Corpus: all 121 steps expose pass/fail actions + mode.
 - **Module-adapter binding** lives under `Step > TS > SData`; the adapter is
   identified by the SData child record:
   - `ViCall` (`VICall`) → LabVIEW VI; target = `VIPath`.
@@ -127,7 +128,7 @@ refused (not mis-parsed).
 - **Coverage metric**: `measureCoverage(SeqFile)` → `SeqCoverage{total, modeled}`
   counts what fraction of `Data`-tree property nodes the typed lens surfaces.
   `tool/coverage.dart` runs it over `corpus/seq` and writes a gitignored
-  `corpus/seq/REPORT.md`. Current: **11.8% (1653/14016 nodes)** — the rest (deep
+  `corpus/seq/REPORT.md`. Current: **13.5% (1895/14016 nodes)** — the rest (deep
   `TS` step config, `Result`/`Measurement` subtrees) is still raw `SeqProperty`,
   the frontier to grow. The analog of the VI "% semantically decoded".
 - **Test limits**: a limit-test step (`NumericLimitTest`, …) carries the

@@ -28,7 +28,7 @@ void main() {
   test('corpus has .seq files', () => expect(seqs, isNotEmpty));
 
   test('every XML .seq parses; binary .seq is classified, not mis-parsed', () {
-    var xml = 0, binary = 0, other = 0, totalSeqs = 0, totalSteps = 0, withAction = 0, withModule = 0, totalLocals = 0, withLimits = 0, withBinaryBody = 0, resolvedCalls = 0;
+    var xml = 0, binary = 0, other = 0, totalSeqs = 0, totalSteps = 0, withAction = 0, withModule = 0, totalLocals = 0, withLimits = 0, withBinaryBody = 0, resolvedCalls = 0, withMode = 0;
     final failures = <String>[];
     for (final f in seqs) {
       final bytes = f.readAsBytesSync();
@@ -43,6 +43,7 @@ void main() {
               for (final step in s.steps) {
                 totalSteps++;
                 if (step.settings.passAction != null) withAction++;
+                if (step.settings.mode != null) withMode++;
                 if (step.module.adapter != SeqAdapter.none &&
                     step.module.adapter != SeqAdapter.unknown) {
                   withModule++;
@@ -68,7 +69,6 @@ void main() {
           if (body != null) {
             withBinaryBody++;
             expect(String.fromCharCodes(body), contains('Sequence'));
-            // The NUL-terminated name pool surfaces the model's property names.
             // The body name pool surfaces the model's property names.
             final names = binaryBodyStrings(bytes).map((s) => s.text).toSet();
             expect(names, containsAll(['Sequence', 'Step', 'Locals']),
@@ -89,6 +89,7 @@ void main() {
     expect(totalSeqs, greaterThan(0), reason: 'XML lens recovered no sequences');
     expect(totalSteps, greaterThan(0), reason: 'XML lens recovered no steps');
     expect(withAction, greaterThan(0), reason: 'no step settings (PassAct) recovered');
+    expect(withMode, greaterThan(0), reason: 'no step run-modes recovered');
     expect(withModule, greaterThan(0), reason: 'no module-adapter bindings recovered');
     expect(totalLocals, greaterThan(0), reason: 'no sequence locals recovered');
     expect(withLimits, greaterThan(0), reason: 'no test limits recovered');

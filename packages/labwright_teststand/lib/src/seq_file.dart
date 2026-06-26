@@ -325,6 +325,16 @@ class StepSettings {
     return (s == null || s.isEmpty) ? null : s;
   }
 
+  /// The run mode (`Mode`): `Normal`, `Skip`, `Pass`, `Fail`, … — how the step
+  /// executes (Skip/force-pass/force-fail are editor-visible overrides).
+  String? get mode => _scalar('Mode');
+
+  /// True unless the step is forced to a non-normal run mode.
+  bool get isNormalMode => mode == null || mode == 'Normal';
+
+  /// The module load timing (`LoadOpt`), e.g. `PreloadWhenExecuted`, `DynamicLoad`.
+  String? get loadOption => _scalar('LoadOpt');
+
   /// The precondition expression (`PreCond`); null when the step runs
   /// unconditionally.
   String? get precondition => _scalar('PreCond');

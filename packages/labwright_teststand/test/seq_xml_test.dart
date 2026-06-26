@@ -26,6 +26,8 @@ const _seqXml = '''<?xml version="1.0" encoding="UTF-8"?>
                     <value><Step typename='Statement' xsi:type='Statement' name='Pass &amp; go'>
                       <subprops>
                         <TS classname='Obj'><subprops>
+                          <Mode classname='Str'><value>Skip</value></Mode>
+                          <LoadOpt classname='Str'><value>PreloadWhenExecuted</value></LoadOpt>
                           <PreCond classname='ExprValue'><value>Locals.X == 1</value></PreCond>
                           <LoopType classname='Str'><value>FixedNumLoops</value></LoopType>
                           <PassAct classname='Str'><value>GotoStep</value></PassAct>
@@ -173,11 +175,16 @@ void main() {
       expect(s0.passAction, 'GotoStep');
       expect(s0.failAction, 'Next');
       expect(s0.postExpression, isNull); // empty <value/> → not set, not ""
+      expect(s0.mode, 'Skip');
+      expect(s0.isNormalMode, isFalse);
+      expect(s0.loadOption, 'PreloadWhenExecuted');
       // A step without a TS container reports everything as unset, no throw.
       final s1 = f.sequences.single.main[1].settings;
       expect(s1.precondition, isNull);
       expect(s1.loopType, isNull);
       expect(s1.isLooping, isFalse);
+      expect(s1.mode, isNull);
+      expect(s1.isNormalMode, isTrue);
     });
 
     test('decodes sequence locals and (empty) parameters', () {
@@ -206,6 +213,7 @@ void main() {
       expect(out, contains('cModule: kernel32.dll:Sleep'));
       expect(out, contains('limits GELE [9, 11]'));
       // settings + locals
+      expect(out, contains('mode Skip'));
       expect(out, contains('loop FixedNumLoops'));
       expect(out, contains('if Locals.X == 1'));
       expect(out, contains('Count : Num = 3'));
