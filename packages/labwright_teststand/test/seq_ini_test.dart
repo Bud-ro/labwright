@@ -932,4 +932,73 @@ DataSource = "Step.Result.PassFail"
     expect(step.dataSource, 'Step.Result.PassFail');
     expect(dumpSeqFile(sf), contains('{data-source Step.Result.PassFail}'));
   });
+
+  // Edge cases for the recently-added result accessors: a step with no Result /
+  // no DataSource / no call yields null/empty (never a fabricated value), an
+  // empty `Result.Units` reads as null (not ''), and an unrecognized call-arg
+  // `Direction` code passes through raw while [CallParameter.direction] stays
+  // null rather than guessing.
+  test('result accessors return null/empty on absent or empty members', () {
+    const ini = '''
+[__Header__]
+ProductName = "TestStand"
+Version = 354
+Type = "SequenceFile"
+
+[DEF, %OBJROOT]
+SF = SequenceFileData
+[DEF, SF]
+Seq = Objs
+%NAME = "Data"
+[DEF, SF.Seq]
+%[0] = Sequence
+[DEF, SF.Seq[0]]
+Main = Objs
+%NAME = "MainSequence"
+[DEF, SF.Seq[0].Main]
+%[0] = Step
+%TYPE: %[0] = "Action"
+%[1] = Step
+%TYPE: %[1] = "Action"
+[DEF, SF.Seq[0].Main[0]]
+%NAME = "Bare"
+[DEF, SF.Seq[0].Main[1]]
+Result = Obj
+%NAME = "Empty bits"
+[DEF, SF.Seq[0].Main[1].Result]
+Units = String
+[DEF, SF.Seq[0].Main[1].TS]
+SData = Obj
+[DEF, SF.Seq[0].Main[1].TS.SData]
+Call = Obj
+[DEF, SF.Seq[0].Main[1].TS.SData.Call]
+Parameters = Objs
+[DEF, SF.Seq[0].Main[1].TS.SData.Call.Parameters]
+%[0] = Obj
+[SF.Seq[0].Main[1].Result]
+Units = ""
+[SF.Seq[0].Main[1].TS.SData.Call.Parameters[0]]
+Name = "flag"
+Direction = 0
+''';
+    final main = parseSeqFile(Uint8List.fromList(latin1.encode(ini)))
+        .sequences
+        .single
+        .main;
+
+    // Bare step: nothing recorded.
+    final bare = main[0];
+    expect(bare.resultUnits, isNull);
+    expect(bare.dataSource, isNull);
+    expect(bare.module.callParameters, isEmpty);
+
+    // Empty-bits step: present-but-empty members read as null/raw, not fabricated.
+    final step = main[1];
+    expect(step.resultUnits, isNull); // empty Units string -> null, not ''
+    final args = step.module.callParameters;
+    expect(args.length, 1);
+    expect(args.single.boundExpression, isNull); // no ArgVal
+    expect(args.single.directionCode, '0'); // raw code preserved
+    expect(args.single.direction, isNull); // unknown code -> not guessed
+  });
 }
