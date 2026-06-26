@@ -93,5 +93,19 @@ void main() {
 
   test('binaryExpressions/binaryModulePaths empty on non-binary input', () {
     expect(binaryExpressions(Uint8List(0)), isEmpty);
+    expect(binaryQuotedLiterals(Uint8List(0)), isEmpty);
+  });
+
+  test('isBinaryQuotedLiteral recognises constant value literals', () {
+    // Positives: whole-entry quoted constants.
+    expect(isBinaryQuotedLiteral('"6105A"'), isTrue);
+    expect(isBinaryQuotedLiteral('"Unnamed Entry Point"'), isTrue);
+    expect(isBinaryQuotedLiteral('""'), isTrue); // empty string literal
+    // Negatives: unquoted, half-quoted, and quoted-but-actually-expressions.
+    expect(isBinaryQuotedLiteral('6105A'), isFalse);
+    expect(isBinaryQuotedLiteral('"open'), isFalse);
+    expect(isBinaryQuotedLiteral('"a" == "b"'), isFalse); // expression, not literal
+    // Disjoint from the expression recovery.
+    expect(isBinaryExpression('"a" == "b"'), isTrue);
   });
 }

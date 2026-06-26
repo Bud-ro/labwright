@@ -761,7 +761,8 @@ void main() {
             a.objectNames.length == binaryObjectNames(bytes).length &&
             a.modulePaths.length == binaryModulePaths(bytes).length &&
             a.stepReferences.length == binaryStepReferences(bytes).length &&
-            a.expressions.length == binaryExpressions(bytes).length;
+            a.expressions.length == binaryExpressions(bytes).length &&
+            a.quotedLiterals.length == binaryQuotedLiterals(bytes).length;
         if (!ok) failures.add('${f.path}: analyzeBinary != helpers');
       }
       expect(failures, isEmpty, reason: failures.take(5).join('\n'));
@@ -805,8 +806,9 @@ void main() {
     expect(withNames, rooted, reason: 'a rooted file exposed no object names');
   });
 
-  test('binary files expose module call-targets, step refs, expressions', () {
-    var binary = 0, withPath = 0, withId = 0, withExpr = 0, totalPaths = 0;
+  test('binary files expose call-targets, step refs, expressions, literals', () {
+    var binary = 0, withPath = 0, withId = 0, withExpr = 0, withLit = 0;
+    var totalPaths = 0;
     final bad = <String>[];
     for (final f in seqs) {
       final bytes = f.readAsBytesSync();
@@ -824,25 +826,36 @@ void main() {
           bad.add('${f.path}: expr overlaps path/id $e');
         }
       }
+      // Literals must be disjoint from expressions / paths / ID#: refs.
+      for (final l in binaryQuotedLiterals(bytes)) {
+        if (!isBinaryQuotedLiteral(l)) bad.add('${f.path}: lit $l');
+        if (isBinaryExpression(l) ||
+            isBinaryModulePath(l) ||
+            l.startsWith('ID#:')) {
+          bad.add('${f.path}: literal overlaps expr/path/id $l');
+        }
+      }
       if (paths.isNotEmpty) {
         withPath++;
         totalPaths += paths.length;
       }
       if (binaryStepReferences(bytes).isNotEmpty) withId++;
       if (binaryExpressions(bytes).isNotEmpty) withExpr++;
+      if (binaryQuotedLiterals(bytes).isNotEmpty) withLit++;
     }
     // ignore: avoid_print
     print(
-      'binary recovered: $withPath/$binary files expose ≥1 module path '
-      '($totalPaths total) · $withId/$binary expose ≥1 ID#: step ref · '
-      '$withExpr/$binary expose ≥1 expression',
+      'binary recovered: $withPath/$binary files ≥1 module path '
+      '($totalPaths total) · $withId/$binary ≥1 ID#: ref · '
+      '$withExpr/$binary ≥1 expression · $withLit/$binary ≥1 literal',
     );
     expect(bad, isEmpty, reason: bad.take(5).join('\n'));
     expect(binary, greaterThanOrEqualTo(80));
-    // Corpus floors (190/288 paths, 285/288 ids, 285/288 exprs) — safe margins.
+    // Corpus floors (190 paths, 285 ids, 285 exprs, 288 literals) — safe margins.
     expect(withPath, greaterThanOrEqualTo(binary ~/ 2));
     expect(withId, greaterThanOrEqualTo((binary * 9) ~/ 10));
     expect(withExpr, greaterThanOrEqualTo((binary * 9) ~/ 10));
+    expect(withLit, greaterThanOrEqualTo((binary * 9) ~/ 10));
   });
 
   // REMOVED — 'leadingWords[1] selects the record-prefix layout'. This asserted

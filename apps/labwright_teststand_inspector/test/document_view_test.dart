@@ -106,6 +106,7 @@ Uint8List _binary() {
     r'My Computer\Lib\Read.vi',
     'Locals.x == 1',
     'ID#:abc123XYZ',
+    '"6105A"',
   ]) {
     pool
       ..addAll(ascii.encode(n))
@@ -613,6 +614,8 @@ void main() {
     expect(text, contains('Locals.x == 1'));
     expect(text, contains('step references'));
     expect(text, contains('ID#:abc123XYZ'));
+    expect(text, contains('quoted literals (values)'));
+    expect(text, contains('"6105A"'));
     // Honest framing: it must not claim the tree/values are decoded.
     expect(text, contains('record tree not yet decoded'));
     expect(text, contains('record links not yet decoded'));
@@ -625,6 +628,7 @@ void main() {
     expect(int.parse(map['Module call-targets']!), greaterThanOrEqualTo(1));
     expect(int.parse(map['Step references']!), greaterThanOrEqualTo(1));
     expect(int.parse(map['Expressions']!), greaterThanOrEqualTo(1));
+    expect(int.parse(map['Quoted literals']!), greaterThanOrEqualTo(1));
   });
 
   test('writeCapped lists up to the cap, then an honest "and N more"', () {

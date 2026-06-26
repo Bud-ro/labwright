@@ -403,6 +403,28 @@ bool isBinaryExpression(String s) {
 List<String> binaryExpressions(Uint8List seqBytes) =>
     _poolWhere(seqBytes, isBinaryExpression);
 
+/// Whether [s] is a **quoted string literal** — a whole entry wrapped in double
+/// quotes (`"6105A"`, `"Unnamed Entry Point"`, `"%ModuleDescription"`), i.e. a
+/// constant value rather than an [isBinaryExpression] (a quoted entry that also
+/// contains operators — `"a" == "b"` — is an expression, not a literal, and is
+/// excluded here so the recoveries stay disjoint).
+bool isBinaryQuotedLiteral(String s) =>
+    s.length >= 2 &&
+    s.startsWith('"') &&
+    s.endsWith('"') &&
+    !isBinaryExpression(s);
+
+/// The **quoted string literals** a binary TOF1 file carries — constant values
+/// its steps/expressions reference (instrument resource strings, expected values,
+/// captions, …; see [isBinaryQuotedLiteral]), distinct and in name-pool order.
+///
+/// Recovered straight from the string pool; *which* literal a given step uses
+/// needs the **not yet decoded** record grammar. Corpus-observed: 288/288 binary
+/// files expose ≥1 (2883 distinct total). Returns `[]` when [seqBytes] is not an
+/// inflatable binary file.
+List<String> binaryQuotedLiterals(Uint8List seqBytes) =>
+    _poolWhere(seqBytes, isBinaryQuotedLiteral);
+
 /// [binaryNameTable] core over already-computed [segments] (no re-inflate).
 BinaryStringSegment? _nameTableFromSegments(
   List<BinaryStringSegment> segments,
@@ -591,6 +613,7 @@ class BinaryAnalysis {
     this.modulePaths = const [],
     this.stepReferences = const [],
     this.expressions = const [],
+    this.quotedLiterals = const [],
   });
 
   /// Size of the inflated body in bytes.
@@ -620,6 +643,9 @@ class BinaryAnalysis {
 
   /// Expression strings — the file's test logic (== [binaryExpressions]).
   final List<String> expressions;
+
+  /// Quoted string literals — constant values (== [binaryQuotedLiterals]).
+  final List<String> quotedLiterals;
 }
 
 /// Inflates the binary TOF1 body **once** and runs the whole recon layer over it,
@@ -642,5 +668,6 @@ BinaryAnalysis? analyzeBinary(Uint8List seqBytes) {
     modulePaths: _poolWhereFrom(segments, isBinaryModulePath),
     stepReferences: _poolWhereFrom(segments, _isStepRef),
     expressions: _poolWhereFrom(segments, isBinaryExpression),
+    quotedLiterals: _poolWhereFrom(segments, isBinaryQuotedLiteral),
   );
 }

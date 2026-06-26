@@ -39,6 +39,7 @@ sealed class SeqDocument {
           modulePaths: a?.modulePaths ?? const [],
           stepReferences: a?.stepReferences ?? const [],
           expressions: a?.expressions ?? const [],
+          quotedLiterals: a?.quotedLiterals ?? const [],
         );
       case SeqFormat.ini:
         // The legacy INI form maps onto the same typed model as XML — decode it
@@ -98,6 +99,7 @@ class BinarySeqDocument extends SeqDocument {
     this.modulePaths = const [],
     this.stepReferences = const [],
     this.expressions = const [],
+    this.quotedLiterals = const [],
   });
 
   @override
@@ -134,6 +136,10 @@ class BinarySeqDocument extends SeqDocument {
   /// **Expression** strings — the file's test logic (recovered; per-step
   /// attachment **not yet decoded**).
   final List<String> expressions;
+
+  /// **Quoted string literals** — constant values (recovered; per-step
+  /// attachment **not yet decoded**).
+  final List<String> quotedLiterals;
 }
 
 /// A file that is not a recognized/decodable TestStand sequence.

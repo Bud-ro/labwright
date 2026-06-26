@@ -15,6 +15,7 @@ String documentText(SeqDocument doc) {
         :final modulePaths,
         :final stepReferences,
         :final expressions,
+        :final quotedLiterals,
       ):
       final b = StringBuffer()
         ..writeln('$header')
@@ -36,6 +37,7 @@ String documentText(SeqDocument doc) {
       section('module call-targets', modulePaths);
       section('step references', stepReferences);
       section('expressions (test logic)', expressions);
+      section('quoted literals (values)', quotedLiterals);
       b
         ..writeln()
         ..writeln('largest string table:');
@@ -111,6 +113,8 @@ List<(String, String)> binaryHeaderRows(BinarySeqDocument doc) {
       ('Step references', '${doc.stepReferences.length}'),
     if (doc.expressions.isNotEmpty)
       ('Expressions', '${doc.expressions.length}'),
+    if (doc.quotedLiterals.isNotEmpty)
+      ('Quoted literals', '${doc.quotedLiterals.length}'),
   ];
 }
 

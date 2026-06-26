@@ -896,6 +896,10 @@ string pool, honestly, without the record grammar:
   `ResStr(`, …). Disjoint from module paths / `ID#:` refs by construction. Corpus:
   **285/288 files expose ≥1 (15910 distinct total)** — *which* expressions a file
   evaluates, not yet *attached to a specific step/field* (record grammar).
+- **Quoted literals** (`binaryQuotedLiterals` + `isBinaryQuotedLiteral`) — constant
+  values (instrument resource strings, expected values, captions). Whole-entry
+  `"..."`, excluding quoted entries that are really expressions, so it stays
+  disjoint from the four above. Corpus: **288/288 files, 2883 distinct**.
 
 **Genuine gaps (need external inputs — do NOT guess):**
 - **Binary record grammar** past the header — not yet recovered (needs a
