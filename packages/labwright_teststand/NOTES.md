@@ -387,9 +387,29 @@ list** (≈half its hits on non-names would be spurious).
   matching leaf-property references, not container headers.
 
 So the triplet is **corroborated structure but not a decoder**, and `field`/
-`count` are **not yet decoded**. Next leads: find the true record *start* (so the
-scan isn't free-floating), or treat `field` as a type/flags composite rather than
-a size.
+`count` are **not yet decoded**.
+
+- **`field` low byte is not a clean type code either.** Real triplets' field low
+  byte is more concentrated than control (top-5 covers 88% vs 68%) and enriched
+  in `{0x34, 0x70, 0x74}` — all multiples of 4, hinting `field` is u32-aligned —
+  but `0x14` dominates *both* real (35%) and control (39%), so the low byte does
+  not separate real records from noise. No usable type set.
+
+**Decode status — statistical byte-RE has plateaued.** The structure is mapped
+(header → name-pool indices → byte-packed records → string pool) and the
+object-record *triplet* is corroborated, but `field`/`count` semantics and the
+true per-record boundary resist purely statistical recovery on this corpus: the
+signals are real yet too weak/confounded (best real-vs-control gaps ~46pp on
+*existence*, but ~0 on *size-chaining* and on *type-byte*). The honest unblock is
+a new input, not more histograms:
+1. a **byte-identical XML↔binary Rosetta** (the 3 example twins are a *different
+   revision*, so values don't line up) — e.g. save one `.seq` in both formats
+   from a TestStand install, or
+2. **controlled minimal files** (one property at a time) to isolate each field, or
+3. **NI's `PropertyObject` serialization docs** if obtainable.
+Until one of those lands, the binary reader stays at: format/header/layout
+decoded, **name pool + object names recovered** (surfaced in the inspector),
+record tree **not yet decoded**.
 
 The **record grammar** that delimits one record from the next and pairs each name
 index with its typed value is **not yet fully decoded**. So `parseSeqFile` still
