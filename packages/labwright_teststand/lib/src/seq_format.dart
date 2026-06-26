@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import 'seq_ini.dart';
+
 /// The on-disk encoding of a TestStand file (`.seq`, type palette, etc.).
 ///
 /// TestStand 4.0+ can save a sequence file in three encodings — **binary, XML,
@@ -164,7 +166,6 @@ SeqFileHeader detectSeqHeader(Uint8List bytes) {
   final fmt = detectSeqFormat(bytes);
   switch (fmt) {
     case SeqFormat.xml:
-    case SeqFormat.ini:
       final head = _asciiPeek(bytes, 0, 8192);
       return SeqFileHeader(
         format: fmt,
@@ -172,6 +173,10 @@ SeqFileHeader detectSeqHeader(Uint8List bytes) {
         productName: _attr['productname']!.firstMatch(head)?.group(1),
         fileVersion: _attr['fileversion']!.firstMatch(head)?.group(1),
       );
+    case SeqFormat.ini:
+      // INI uses `Key = "value"` lines, not XML attributes — parse the
+      // `[__Header__]` block (Type/ProductName/Version) via the INI reader.
+      return parseIniHeader(_asciiPeek(bytes, 0, 8192));
     case SeqFormat.binary:
       // Fixed header slots, catalogued in [TofHeaderField]. We recover the two
       // safest (type + product); the numeric fileversion is not yet located in

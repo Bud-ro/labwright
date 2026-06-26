@@ -1,0 +1,171 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'seq_format.dart';
+
+/// Reader for the **legacy INI** `.seq` encoding (TestStand 3.x–era; some newer
+/// installs still emit it). It is a *plaintext* serialization of the **same
+/// PropertyObject model** the binary `TOF1` and the XML forms encode, which makes
+/// it a readable Rosetta for the binary record tree (see NOTES.md).
+///
+/// Grammar (confirmed across the 58 INI files in the corpus, versions
+/// 143/354/797/894/920):
+///
+/// ```
+/// [__Header__]                 ← file header: ProductName/ProductVersion/Version/Type/Path/...
+/// ProductName = "TestStand"
+/// Version = 354
+/// Type = "SequenceFile"
+///
+/// [DEF, %OBJROOT]              ← type/member DECLARATIONS for the object at a path
+/// SF = SequenceFileData            member = TypeName
+/// [DEF, SF]
+/// Seq = Objs
+/// %NAME = "Data"                   directive: this object's display name
+///
+/// [SF]                         ← VALUE instance for the object at a path
+/// %HI: Seq = [0]                   directive: array high-index / bounds
+/// %FLG: Seq = 4194304              directive: property flags
+/// Version = "0.0.0.0"              member = value
+/// [DEF, SF.Seq]
+/// %[0] = Sequence                  array-element type declaration
+/// [DEF, SF.Seq[0]]
+/// %NAME = "MainSequence"
+/// ```
+///
+/// Paths nest like the binary name pool (`SF` → `SF.Seq` → `SF.Seq[0]`), where
+/// `SF` is the `%OBJROOT` alias for `SequenceFileData`. This first slice parses
+/// the header and the section structure (value vs. DEF, path, members, and the
+/// `%`-directives). Assembling the full [SeqProperty] tree from these sections is
+/// the next slice — **not yet decoded**, not unrecoverable.
+
+/// One `[...]` block of an INI `.seq`: either a value instance (`[path]`) or a
+/// type definition (`[DEF, path]`).
+class IniSection {
+  IniSection({
+    required this.isDef,
+    required this.path,
+    required this.members,
+    required this.directives,
+  });
+
+  /// True for a `[DEF, path]` section (member→type declarations); false for a
+  /// `[path]` value instance (member→value).
+  final bool isDef;
+
+  /// The object path, e.g. `SF`, `SF.Seq[0]`, or the root alias `%OBJROOT`.
+  final String path;
+
+  /// Plain `member = value` (value section) or `member = TypeName` (DEF section)
+  /// lines, excluding the `%`-directives. Insertion order preserved.
+  final Map<String, String> members;
+
+  /// The `%`-directives, keyed by their full left-hand side, e.g.
+  /// `%NAME`, `%FLG: Seq`, `%HI: Main`, `%TYPE: %[0]`, `%[0]`.
+  final Map<String, String> directives;
+
+  /// This object's display name (`%NAME = "..."`), unquoted, or null.
+  String? get name => _unquote(directives['%NAME']);
+
+  @override
+  String toString() =>
+      'IniSection(${isDef ? 'DEF ' : ''}$path, ${members.length} members, '
+      '${directives.length} directives)';
+}
+
+/// A parsed legacy INI `.seq`: its header plus every section in document order.
+class IniSeqFile {
+  IniSeqFile({
+    required this.header,
+    required this.sections,
+    required this.headerFields,
+  });
+
+  /// Header recovered from `[__Header__]` (format [SeqFormat.ini]).
+  final SeqFileHeader header;
+
+  /// All `[...]` / `[DEF, ...]` sections in order (header section excluded).
+  final List<IniSection> sections;
+
+  /// The raw `[__Header__]` key→value map (quoted values left as-is).
+  final Map<String, String> headerFields;
+}
+
+/// Parses [bytes] of a legacy INI `.seq`. INI files are single-byte (SBCS), so
+/// the bytes are decoded as Latin-1 to avoid choking on non-ASCII in comments.
+IniSeqFile parseIniSeqBytes(Uint8List bytes) => parseIniSeq(latin1.decode(bytes, allowInvalid: true));
+
+/// Parses the text of a legacy INI `.seq` into its header and sections.
+IniSeqFile parseIniSeq(String text) {
+  final headerFields = <String, String>{};
+  final sections = <IniSection>[];
+
+  bool inHeader = false;
+  IniSection? current;
+
+  for (final rawLine in const LineSplitter().convert(text)) {
+    final line = rawLine.trimRight();
+    if (line.isEmpty) continue;
+    if (line.startsWith('[') && line.endsWith(']')) {
+      final inner = line.substring(1, line.length - 1).trim();
+      if (inner == '__Header__') {
+        inHeader = true;
+        current = null;
+        continue;
+      }
+      inHeader = false;
+      final isDef = inner.startsWith('DEF,');
+      final path = isDef ? inner.substring(4).trim() : inner;
+      current = IniSection(
+        isDef: isDef,
+        path: path,
+        members: <String, String>{},
+        directives: <String, String>{},
+      );
+      sections.add(current);
+      continue;
+    }
+    // A `key = value` line (the only non-section line shape). Split on the first
+    // ` = ` so values may themselves contain '='.
+    final eq = line.indexOf(' = ');
+    if (eq < 0) continue; // not yet decoded line shape — skip rather than guess
+    final key = line.substring(0, eq).trim();
+    final value = line.substring(eq + 3);
+    if (inHeader) {
+      headerFields[key] = value;
+    } else if (current != null) {
+      if (key.startsWith('%')) {
+        current.directives[key] = value;
+      } else {
+        current.members[key] = value;
+      }
+    }
+  }
+  return IniSeqFile(
+    header: _headerFrom(headerFields),
+    sections: sections,
+    headerFields: headerFields,
+  );
+}
+
+/// Builds a [SeqFileHeader] from a parsed `[__Header__]` map. `Type` →
+/// [SeqFileHeader.fileType], `ProductName` → product, `Version` → fileVersion.
+SeqFileHeader parseIniHeader(String text) => parseIniSeq(text).header;
+
+SeqFileHeader _headerFrom(Map<String, String> h) => SeqFileHeader(
+      format: SeqFormat.ini,
+      fileType: _unquote(h['Type']),
+      productName: _unquote(h['ProductName']),
+      fileVersion: h['Version'], // a bare integer like 354 (no quotes)
+    );
+
+/// Strips one layer of surrounding double quotes, if present. Returns null for a
+/// null input.
+String? _unquote(String? s) {
+  if (s == null) return null;
+  final t = s.trim();
+  if (t.length >= 2 && t.startsWith('"') && t.endsWith('"')) {
+    return t.substring(1, t.length - 1);
+  }
+  return t;
+}

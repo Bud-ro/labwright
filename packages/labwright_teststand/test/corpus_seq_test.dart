@@ -145,6 +145,44 @@ void main() {
     );
   });
 
+  test('every INI .seq parses into a header + sections (Rosetta form)', () {
+    var ini = 0, parsed = 0, sfRoot = 0, dataNamed = 0, seqType = 0;
+    final failures = <String>[];
+    for (final f in seqs) {
+      final bytes = f.readAsBytesSync();
+      if (detectSeqFormat(bytes) != SeqFormat.ini) continue;
+      ini++;
+      try {
+        final doc = parseIniSeqBytes(bytes);
+        parsed++;
+        // Header recovers the file kind + product (was null before the INI reader).
+        if (doc.header.fileType == 'SequenceFile') seqType++;
+        // The %OBJROOT alias to SequenceFileData is the firm structural anchor.
+        if (doc.sections.any(
+          (s) => s.isDef && s.members['SF'] == 'SequenceFileData',
+        )) {
+          sfRoot++;
+        }
+        // The root data object is named "Data".
+        if (doc.sections.any((s) => s.name == 'Data')) dataNamed++;
+      } catch (e) {
+        failures.add('${f.path}: $e');
+      }
+    }
+    // ignore: avoid_print
+    print(
+      'INI corpus: $parsed/$ini parsed · $seqType SequenceFile header · '
+      '$sfRoot define SF=SequenceFileData · $dataNamed name an object "Data"',
+    );
+    expect(failures, isEmpty, reason: failures.take(5).join('\n'));
+    expect(ini, greaterThan(0), reason: 'no INI files in corpus');
+    expect(parsed, ini, reason: 'some INI file failed to parse');
+    // Firm invariants verified across all 58 INI files in the corpus.
+    expect(seqType, ini, reason: 'an INI header lacks Type=SequenceFile');
+    expect(sfRoot, ini, reason: 'an INI lacks the SF=SequenceFileData root');
+    expect(dataNamed, ini, reason: 'an INI names no object "Data"');
+  });
+
   test('every binary TOF1 body frames into a record region + string table', () {
     var binary = 0, framed = 0, withSentinels = 0, totalStrings = 0;
     // Leading-word recon. word[2] is a constant 1 across the corpus; word[1]

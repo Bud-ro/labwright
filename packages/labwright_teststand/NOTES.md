@@ -15,7 +15,7 @@ All three were/are offered by NI; which one a file uses is a save-time choice.
 |---|---|---|---|
 | **XML** | optional UTF-8 BOM `EF BB BF`, then `<?xml …?>`, root `<teststandfileheader …>` | ✅ M0 | text; the common form in open-source NI examples |
 | **binary** | ASCII magic **`TOF1`** at offset 0 | ✅ M0 | NI proprietary flat container; default for size/speed |
-| **INI** | INI sections + a TestStand marker | 🔬 inferred | legacy (TS 3.x); NI deprecating; no sample in corpus yet |
+| **INI** | INI sections + a TestStand marker | ✅ header + section structure decoded | 58 real samples in corpus (TS 3.x–2019); `seq_ini.dart`; SeqProperty tree TODO |
 
 ### XML form (decoded enough to parse next)
 
@@ -446,10 +446,38 @@ coverage come along for free. Offsets confirmed on the TS2014 corpus only — tr
 as version-specific until other versions are sampled. *(Not yet recovered, not
 "unrecoverable".)*
 
+## INI form — plaintext Rosetta for the PropertyObject model
+
+The legacy INI encoding (`SeqFormat.ini`; 58 real samples in the corpus, versions
+143/354/797/894/920) is a **human-readable serialization of the same
+PropertyObject model** the binary `TOF1` and XML forms encode. `seq_ini.dart`
+decodes it (header + sections); confirmed across all 58:
+
+- `[__Header__]` → `Type`/`ProductName`/`Version` (recovered into `SeqFileHeader`;
+  this also fixed `detectSeqHeader`, which previously returned nulls for INI).
+- `[DEF, <path>]` sections declare each object's **members and their types**
+  (`SF = SequenceFileData`, `Seq = Objs`, `%[0] = Sequence`, …) and its `%NAME`.
+- `[<path>]` sections carry the **values** (`member = value`) plus directives
+  `%FLG:` (flags), `%HI:` (array bounds), `%NAME`, `%INSTOVRD:`/`%INSTFLG:`
+  (typed-instance overrides), `%TYPE:`, `%COMMENT:`, `%TIMESTAMP:`.
+- Paths nest exactly like the **binary name pool**: `SF` (=`SequenceFileData`,
+  the `%OBJROOT` alias) → `SF.Seq` (an `Objs` array) → `SF.Seq[0]` (a `Sequence`,
+  `%NAME="MainSequence"`) → `Parameters`/`Locals`/`Main`/`Setup`/`Cleanup`.
+
+**Why this matters for the binary tree (the prize):** the INI path/name/type
+structure is the *ground-truth shape* the binary records index. The binary
+scaffold we recovered (`SequenceFileData, Data, Objs, Seq, [0], MainSequence, …`)
+is exactly this tree. Next slices: (1) assemble the INI sections into the shared
+[SeqProperty] tree and route it through `SeqFile` so the typed lens/dump/app work
+on INI files for free; (2) use the INI member→type→value layout per object to
+predict the binary record's `field`/`count`/value encoding and finally decode the
+binary record tree. *(Not yet decoded — not unrecoverable.)*
+
 ## Honest gaps (do NOT model yet)
 
 - **Binary record grammar** past the header — not yet recovered.
-- **INI form** — not yet verified against a real sample (heuristic detection only).
+- **INI → SeqProperty tree** — sections are parsed; assembling the nested typed
+  tree (DEF resolution, arrays, instance overrides) is the next slice, not done.
 - **Config / station files** — `corpus/seq-sources.json` captures `.ini/.cfg/.tsw/.tpj`
   when present, but the open-source corpus is sequence-heavy; type-palette and
   station-config samples are sparse. (CN-IOT's `.ini` files are *localization
