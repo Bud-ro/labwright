@@ -487,6 +487,19 @@ High = "11"
     expect(locals[0].comment, isNull); // Count has none
   });
 
+  test('dumpSeqFile includes recovered comments and container sizes', () {
+    final cf = parseSeqFile(Uint8List.fromList(latin1.encode(commentIni)));
+    final out = dumpSeqFile(cf);
+    expect(out, contains('// Runs once at startup')); // sequence comment
+    expect(out, contains('lockStep')); // step present
+    expect(out, contains('// Lock sequence')); // step comment
+
+    final of = parseSeqFile(Uint8List.fromList(latin1.encode(objLocalIni)));
+    final out2 = dumpSeqFile(of);
+    expect(out2, contains('Limits : Obj {2 fields}')); // container size
+    expect(out2, contains('// DUT pass band')); // variable comment
+  });
+
   // NI splits a value past a line-length cap across continuation lines named
   // `KEY Line0001`, `KEY Line0002`, … — each a separately-quoted fragment. The
   // reader rejoins them, in order, into the single base key with no separator.

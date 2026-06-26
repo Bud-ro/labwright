@@ -633,6 +633,18 @@ lands via the generic `%COMMENT` carry); the app appends it to the variable row 
 completes the free-text-comment recovery story: steps (667), sequences (102), and
 variables (37). XML variables in the corpus carry none.
 
+**Text dump completeness (2026-06, DONE).** `dumpSeqFile` (the editor-like text
+view behind the app's Dump tab) now surfaces the recovered detail it had been
+omitting: sequence/step/variable free-text comments (as ` // comment`) and variable
+container sizes (` [N]` array / ` {N fields}` object), matching the structured view.
+*(XML carries no comments — see below — so this only adds content for INI files.)*
+
+**XML stores no comments (2026-06, verified).** Confirmed the comment getters'
+null-for-XML behaviour is correct, not a gap: the token "comment" does **not appear
+anywhere** in any of the 26 XML `.seq` files (case-insensitive raw-text scan). XML
+simply does not serialize the editor's free-text notes, so `Step/Sequence/
+SeqVariable.comment` are legitimately null for XML — nothing to wire up.
+
 **INI parser drops no data lines (2026-06, verified + guarded).** Audited every
 non-blank, non-section line across all 58 INI files against the parser's only skip
 path (`eq < 0`, a line lacking ` = `): **0 lines skipped** — every in-section line

@@ -13,6 +13,7 @@ String dumpSeqFile(SeqFile f) {
   for (final seq in f.sequences) {
     b.writeln();
     b.writeln('Sequence: ${seq.name}');
+    if (seq.comment != null) b.writeln('  // ${seq.comment}');
     _dumpVars(b, 'Parameters', seq.parameters);
     _dumpVars(b, 'Locals', seq.locals);
     for (final group in StepGroup.values) {
@@ -31,9 +32,23 @@ void _dumpVars(StringBuffer b, String label, List<SeqVariable> vars) {
   if (vars.isEmpty) return;
   b.writeln('  $label:');
   for (final v in vars) {
-    final val = v.value != null ? ' = ${v.value}' : '';
-    b.writeln('    • ${v.name} : ${v.type ?? '(untyped)'}$val');
+    b.writeln('    • ${v.name} : ${v.type ?? '(untyped)'}${_varSuffix(v)}');
   }
+}
+
+/// The trailing detail for a variable: ` = value` for a scalar, else a container
+/// size (` [N]` array / ` {N fields}` object), plus ` // comment` when present.
+String _varSuffix(SeqVariable v) {
+  final b = StringBuffer();
+  if (v.value != null) {
+    b.write(' = ${v.value}');
+  } else if (v.containerCount != null) {
+    b.write(v.isArray
+        ? ' [${v.containerCount}]'
+        : ' {${v.containerCount} ${v.containerCount == 1 ? 'field' : 'fields'}}');
+  }
+  if (v.comment != null) b.write('  // ${v.comment}');
+  return b.toString();
 }
 
 String _dumpStep(Step step, SeqFile file) {
@@ -65,6 +80,8 @@ String _dumpStep(Step step, SeqFile file) {
   if (s.isLooping) notes.add('loop ${s.loopType}');
   if (s.precondition != null) notes.add('if ${s.precondition}');
   if (notes.isNotEmpty) parts.write('  (${notes.join('; ')})');
+
+  if (step.comment != null) parts.write('  // ${step.comment}');
 
   return parts.toString();
 }
