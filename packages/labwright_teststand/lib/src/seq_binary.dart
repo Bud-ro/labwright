@@ -31,3 +31,19 @@ Uint8List? inflateBinaryBody(Uint8List bytes) {
   }
   return null;
 }
+
+/// Recovers the string/name pool from a binary TOF1 `.seq` — the inflated body's
+/// NUL-terminated ASCII runs (property names, expressions, paths), each with its
+/// offset into the inflated body.
+///
+/// Verified across the corpus: the inflated body packs the PropertyObject names
+/// as NUL-terminated strings (a 0x00 sits before and after each run), so the key
+/// model names (`Sequence`, `Step`, `Locals`, `Parameters`, `StepType`, …) are
+/// recovered cleanly. This surfaces *what is in* a binary file even though the
+/// record tree that links the names is **not yet parsed**. Returns `[]` when
+/// [seqBytes] is not an inflatable binary file.
+List<BinaryString> binaryBodyStrings(Uint8List seqBytes, {int minLength = 2}) {
+  final body = inflateBinaryBody(seqBytes);
+  if (body == null) return const [];
+  return binaryStrings(body, minLength: minLength);
+}

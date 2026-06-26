@@ -67,6 +67,10 @@ void main() {
           if (body != null) {
             withBinaryBody++;
             expect(String.fromCharCodes(body), contains('Sequence'));
+            // The NUL-terminated name pool surfaces the model's property names.
+            final names = binaryBodyStrings(bytes).map((s) => s.text).toSet();
+            expect(names, containsAll(['Sequence', 'Step', 'Locals']),
+                reason: '${f.path}: body name pool missing model names');
           }
         case SeqFormat.ini:
         case SeqFormat.unknown:

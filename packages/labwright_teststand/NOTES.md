@@ -165,13 +165,22 @@ XML form — the names `SequenceFileData`, `Data`, `Sequence`, `MainSequence`,
 the VI heap's zlib sections. → `inflateBinaryBody(bytes)` locates + inflates it
 (83/83 OK); `binaryStrings()` surfaces the printable runs.
 
-The inflated body is a **binary record stream** (little-endian u32 fields +
-embedded length/strings) — **not yet parsed** into the typed model. So
-`parseSeqFile` still **refuses** binary (UnsupportedError); the next milestone is
-the inflated-record grammar (then it maps onto the shared SeqProperty model and
-the whole typed lens + dump + coverage come along for free). Offsets confirmed on
-the TS2014 corpus only — treat as version-specific until other versions are
-sampled. *(Not yet recovered, not "unrecoverable".)*
+The inflated body is a **binary record stream**: it starts with little-endian
+u32 fields (counts/ids, e.g. a leading `1c 00 00 00 76 00 00 00 …`) and contains
+a **NUL-terminated name pool** — property names packed back-to-back, each
+followed by `0x00` (verified: a NUL sits before/after every printable run). The
+key model names are recovered cleanly: `Sequence`/`Step`/`Locals`/`Parameters`/
+`StepType`/`SequenceFileData` in **83/83** files (`MainSequence` 79/83 — some
+rename their main sequence). → `binaryBodyStrings(seqBytes)` returns those
+strings with offsets; `tool/dump.dart` shows them for a binary file.
+
+The **record tree** that links names to values is **not yet parsed** (the u32
+record framing around the pool is still being worked out). So `parseSeqFile` still
+**refuses** binary (UnsupportedError); the next milestone is that record grammar —
+then it maps onto the shared SeqProperty model and the whole typed lens + dump +
+coverage come along for free. Offsets confirmed on the TS2014 corpus only — treat
+as version-specific until other versions are sampled. *(Not yet recovered, not
+"unrecoverable".)*
 
 ## Honest gaps (do NOT model yet)
 

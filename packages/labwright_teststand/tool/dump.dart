@@ -18,7 +18,16 @@ void main(List<String> args) {
   try {
     stdout.write(dumpSeqFile(parseSeqFile(bytes)));
   } on UnsupportedError catch (e) {
+    // Binary TOF1: the typed tree isn't decoded yet, but show the header and a
+    // recon view of the recovered string/name pool.
     stdout.writeln('${detectSeqHeader(bytes)}\n(${e.message})');
+    final names = binaryBodyStrings(bytes);
+    if (names.isNotEmpty) {
+      stdout.writeln('binary body: ${names.length} strings recovered, e.g.:');
+      for (final s in names.take(30)) {
+        stdout.writeln('    @0x${s.offset.toRadixString(16)}  ${s.text}');
+      }
+    }
   }
 }
 
