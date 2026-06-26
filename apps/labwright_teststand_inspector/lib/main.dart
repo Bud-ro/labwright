@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:labwright_teststand/labwright_teststand.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'src/binary_view.dart';
 import 'src/document_view.dart';
@@ -51,10 +52,34 @@ class _InspectorPageState extends State<InspectorPage> {
   final _sequencesSearchFocus = FocusNode();
   final _propertiesSearchFocus = FocusNode();
 
+  static const _recentPrefsKey = 'recentFiles';
+  SharedPreferences? _prefs;
+
   @override
   void initState() {
     super.initState();
+    _loadRecent();
     if (widget.initialPath != null) _loadPath(widget.initialPath!);
+  }
+
+  Future<void> _loadRecent() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getStringList(_recentPrefsKey) ?? const [];
+    // Drop entries whose file no longer exists — don't list dead paths.
+    final alive = saved.where((p) => File(p).existsSync()).toList();
+    if (!mounted) return;
+    setState(() {
+      _prefs = prefs;
+      // Merge: keep anything already added during async load, then saved.
+      for (final p in alive.reversed) {
+        if (!_recent.contains(p)) _recent = addRecent(_recent, p);
+      }
+    });
+    if (alive.length != saved.length) _saveRecent();
+  }
+
+  void _saveRecent() {
+    _prefs?.setStringList(_recentPrefsKey, _recent);
   }
 
   @override
@@ -90,6 +115,7 @@ class _InspectorPageState extends State<InspectorPage> {
       // Remember real filesystem paths so the entry is re-openable.
       if (remember && File(path).existsSync()) {
         _recent = addRecent(_recent, path);
+        _saveRecent();
       }
     });
   }

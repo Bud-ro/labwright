@@ -19,6 +19,7 @@ dependencies:
     sdk: flutter
   labwright_teststand:
     path: ../../packages/labwright_teststand
+  shared_preferences: ^2.3.2
 
 dev_dependencies:
   flutter_test:
