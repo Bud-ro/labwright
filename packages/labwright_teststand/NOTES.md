@@ -128,21 +128,25 @@ refused (not mis-parsed).
   58 INI files, matching the XML) — so a *sequence's own* declared parameter list
   carries nothing to surface here.
 - **Module call arguments**: a step's code-module call binds its arguments under
-  `SData.Call.Parameters` — each a `Name`, an `ArgVal` expression supplying the
-  value (e.g. `FileGlobals.UserToAutoLogin`), a `DisplayType` (`String`,
-  `User (Object Reference)`), and a `Direction` code. → `StepModule.callParameters`
-  (`CallParameter` {name, boundExpression, displayType, directionCode, direction}).
-  `direction` maps the standard TestStand codes (`1`=in, `2`=out, `3`=in/out;
-  consistent across the corpus — a `Return Value` reads `2`, inputs read `1`);
-  an unrecognized code stays raw in `directionCode` rather than guessed. The dump
-  appends `{args: name dir←expr; …}`. Corpus: 44 call-parameter entries (e.g.
-  ni_nitsm-python `FrontEndCallbacks` "Get User To Login"). So argument pass-by
-  *direction* **is** recovered here, at the call site — distinct from the empty
-  sequence-level parameter list above.
+  the adapter's `Parameters` list — `SData.Call.Parameters` (ActiveX/C adapter)
+  or `SData.PythonCall.Parameters` (Python adapter). Each is a `Name`, a bound
+  value expression (the C adapter's `ArgVal` *or* the Python adapter's
+  `ArgumentValue`, e.g. `FileGlobals.UserToAutoLogin`, `ThisContext`), and — C
+  adapter only — a `DisplayType` (`String`, `User (Object Reference)`) and a
+  `Direction` code. → `StepModule.callParameters` (`CallParameter` {name,
+  boundExpression, displayType, directionCode, direction}); `boundExpression`
+  reads `ArgVal ?? ArgumentValue`. `direction` maps the standard TestStand codes
+  (`1`=in, `2`=out, `3`=in/out; a `Return Value` reads `2`, inputs read `1`);
+  an unrecognized code stays raw in `directionCode` rather than guessed (Python
+  params carry no `Direction`). The dump appends `{args: name dir←expr; …}`.
+  Corpus: 44 C-adapter call-parameter entries (ini, e.g. ni_nitsm-python
+  `FrontEndCallbacks`) + **31 Python steps / 53 params (22 with a bound value)**
+  in the XML corpus. So argument pass-by *direction* **is** recovered at the C
+  call site — distinct from the empty sequence-level parameter list above.
 - **Coverage metric**: `measureCoverage(SeqFile)` → `SeqCoverage{total, modeled}`
   counts what fraction of `Data`-tree property nodes the typed lens surfaces.
   `tool/coverage.dart` runs it over the **XML** `.seq` files in `corpus/seq` and
-  writes a gitignored `corpus/seq/REPORT.md`. Current: **33.0% (6244/18932
+  writes a gitignored `corpus/seq/REPORT.md`. Current: **34.0% (6445/18932
   nodes)** over 26 XML files (incl. `Step.id`=`TS.Id`, and the boolean step flags
   `StepFCSeqF`/`IgnoreRTE`/`ResultOption` → `StepSettings.failureCausesSequence-
   Failure`/`ignoresRunTimeErrors`/`recordsResult`, plus the **Additional Results

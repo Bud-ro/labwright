@@ -76,12 +76,14 @@ SeqCoverage measureCoverage(SeqFile f) {
       mark(sdata?.prop('Call')?.prop('Func'));
       mark(sdata?.prop('SeqName'));
       mark(sdata?.prop('SFPath'));
-      // Module call arguments: the `Call.Parameters` container and the fields
-      // each `CallParameter` surfaces.
+      // Module call arguments: the adapter's `Parameters` container (C-module
+      // `Call` or Python `PythonCall`) and the fields each `CallParameter`
+      // surfaces. `ArgVal`/`ArgumentValue` are the two bound-value keys.
       mark(sdata?.prop('Call')?.prop('Parameters'));
+      mark(sdata?.prop('PythonCall')?.prop('Parameters'));
       for (final p in step.module.callParameters) {
         mark(p.raw);
-        for (final k in ['Name', 'ArgVal', 'DisplayType', 'Direction']) {
+        for (final k in ['Name', 'ArgVal', 'ArgumentValue', 'DisplayType', 'Direction']) {
           mark(p.raw.prop(k));
         }
       }

@@ -205,6 +205,38 @@ void main() {
     );
   });
 
+  test('recovers Python-adapter call parameters across XML corpus', () {
+    var pySteps = 0, params = 0, named = 0, bound = 0;
+    for (final f in seqs) {
+      if (f.lengthSync() > 300 * 1024) continue;
+      final bytes = f.readAsBytesSync();
+      if (detectSeqFormat(bytes) != SeqFormat.xml) continue;
+      final sf = parseSeqFile(bytes);
+      for (final s in sf.sequences) {
+        for (final step in s.steps) {
+          if (step.module.adapter != SeqAdapter.python) continue;
+          final args = step.module.callParameters;
+          if (args.isEmpty) continue;
+          pySteps++;
+          for (final a in args) {
+            params++;
+            if (a.name.isNotEmpty) named++;
+            if (a.boundExpression != null) bound++;
+          }
+        }
+      }
+    }
+    // ignore: avoid_print
+    print(
+      'python call params: $pySteps steps · $params params · '
+      '$named named · $bound with a bound value',
+    );
+    // Corpus evidence (probed): 31 Python steps, 53 params, all named, 22 bound.
+    expect(params, greaterThanOrEqualTo(45));
+    expect(named, params, reason: 'a Python param lost its Name');
+    expect(bound, greaterThan(0), reason: 'no Python param bound value recovered');
+  });
+
   test('recovers measurement-step typed parameters across XML corpus', () {
     var filesWithParams = 0, params = 0, withType = 0, withDirection = 0;
     final types = <String>{};

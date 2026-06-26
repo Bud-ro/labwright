@@ -489,12 +489,16 @@ class StepModule {
   final SeqProperty? raw;
 
   /// The arguments this step's code-module call binds, in declaration order —
-  /// the editor's "Module > Parameters" rows. Recovered from
-  /// `SData.Call.Parameters` (the ActiveX/C-module adapter argument list).
-  /// Empty when the call passes none, or when an adapter stores its arguments
-  /// elsewhere (not yet decoded for other adapters).
+  /// the editor's "Module > Parameters" rows. Recovered from the adapter's
+  /// `Parameters` list: `SData.Call.Parameters` (the ActiveX/C-module adapter)
+  /// or `SData.PythonCall.Parameters` (the Python adapter). The two store a
+  /// parameter's bound value under different keys (`ArgVal` vs `ArgumentValue`);
+  /// [CallParameter] reads either. Empty when the call passes none, or when an
+  /// adapter stores its arguments elsewhere (not yet decoded for other adapters).
   List<CallParameter> get callParameters {
-    final params = raw?.prop('Call')?.prop('Parameters');
+    final params =
+        raw?.prop('Call')?.prop('Parameters') ??
+        raw?.prop('PythonCall')?.prop('Parameters');
     if (params == null) return const [];
     final kids = params.array ?? params.subProps;
     return [for (final p in kids) CallParameter(p)];
@@ -574,10 +578,13 @@ class CallParameter {
   /// The parameter's name (`Name`), e.g. `LoginName`, `Return Value`.
   String get name => _nz(raw.prop('Name')?.scalar) ?? raw.name;
 
-  /// The expression bound to the parameter (`ArgVal`) — what the call passes,
-  /// e.g. `Locals.userToLogin`, `FileGlobals.UserToAutoLogin` — or null when
-  /// the call leaves it unbound.
-  String? get boundExpression => _nz(raw.prop('ArgVal')?.scalar);
+  /// The expression bound to the parameter — what the call passes, e.g.
+  /// `Locals.userToLogin`, `ThisContext`,
+  /// `FileGlobals.MeasurementPlugIns.PinMapPath` — or null when the call leaves
+  /// it unbound. Stored as `ArgVal` by the ActiveX/C adapter and as
+  /// `ArgumentValue` by the Python adapter; either is read.
+  String? get boundExpression =>
+      _nz(raw.prop('ArgVal')?.scalar) ?? _nz(raw.prop('ArgumentValue')?.scalar);
 
   /// The human-readable parameter type the editor shows (`DisplayType`), e.g.
   /// `String`, `User (Object Reference)`; null when absent.

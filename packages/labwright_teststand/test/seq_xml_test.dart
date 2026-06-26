@@ -177,6 +177,40 @@ const _seqMeasXml = '''<?xml version="1.0" encoding="UTF-8"?>
   </subprops></Data>
 </teststandfileheader>''';
 
+/// A Python-adapter step whose call binds parameters under
+/// `SData.PythonCall.Parameters` — the Python form stores the bound value as
+/// `ArgumentValue` (not the C adapter's `ArgVal`) and carries no Direction.
+const _seqPyCallXml = '''<?xml version="1.0" encoding="UTF-8"?>
+<teststandfileheader type='SequenceFile' fileversion='920' productname='TestStand'>
+  <typelist/>
+  <Data classname='Obj'><subprops>
+    <Seq classname='Objs'><value lbound='[0]' ubound='[1]'><value>
+      <Sequence name='MainSequence' classname='Obj'><subprops>
+        <Main classname='Objs'><value lbound='[0]' ubound='[1]'>
+          <value><Step typename='Action' name='Run measurement'><subprops>
+            <TS classname='Obj'><subprops><SData classname='Obj'><subprops>
+              <PythonCall classname='Obj'><subprops>
+                <Parameters classname='Objs'><value lbound='[0]' ubound='[2]'>
+                  <value><_NAME_IN_ATTRIBUTE_ name='' classname='Obj'><subprops>
+                    <Name classname='Str'><value>sequence_context</value></Name>
+                    <Type classname='Num'><value>7</value></Type>
+                    <ArgumentValue classname='ExprValue'><value>ThisContext</value></ArgumentValue>
+                  </subprops></_NAME_IN_ATTRIBUTE_></value>
+                  <value><_NAME_IN_ATTRIBUTE_ name='' classname='Obj'><subprops>
+                    <Name classname='Str'><value>Return Value</value></Name>
+                    <Type classname='Num'><value>7</value></Type>
+                    <ArgumentValue classname='ExprValue'><value/></ArgumentValue>
+                  </subprops></_NAME_IN_ATTRIBUTE_></value>
+                </value></Parameters>
+              </subprops></PythonCall>
+            </subprops></SData></subprops></TS>
+          </subprops></Step></value>
+        </value></Main>
+      </subprops></Sequence>
+    </value></value></Seq>
+  </subprops></Data>
+</teststandfileheader>''';
+
 Uint8List _bytes(String s, {bool bom = true}) =>
     Uint8List.fromList([if (bom) ...[0xef, 0xbb, 0xbf], ...utf8.encode(s)]);
 
@@ -430,6 +464,32 @@ void main() {
       final cov = measureCoverage(parseSeqFile(_bytes(_seqMeasXml)));
       // Container + Parameters + 2 params + 5 marked fields each (some absent).
       expect(cov.modeled, greaterThan(8));
+    });
+  });
+
+  group('Python adapter call parameters', () {
+    late StepModule m;
+    setUp(() {
+      m = parseSeqFile(_bytes(_seqPyCallXml)).sequences.single.main.single.module;
+    });
+
+    test('recognizes the Python adapter', () {
+      expect(m.adapter, SeqAdapter.python);
+    });
+
+    test('recovers Python call params (Name + ArgumentValue bound value)', () {
+      final args = m.callParameters;
+      expect(args.map((a) => a.name), ['sequence_context', 'Return Value']);
+      // ArgumentValue is read as the bound expression (not ArgVal).
+      expect(args[0].boundExpression, 'ThisContext');
+      // An empty ArgumentValue reads as unbound; Python params carry no direction.
+      expect(args[1].boundExpression, isNull);
+      expect(args[0].direction, isNull);
+    });
+
+    test('the dump shows the Python call args', () {
+      final out = dumpSeqFile(parseSeqFile(_bytes(_seqPyCallXml)));
+      expect(out, contains('sequence_context←ThisContext'));
     });
   });
 
