@@ -883,6 +883,27 @@ void main() {
     });
   });
 
+  group('per-sequence summary header in the logic export', () {
+    test('summarizes step/param/local counts with correct pluralization', () {
+      final seq = parseSeqFile(_bytes(_seqXml)).sequences.single;
+      final out = exportSequenceLogic(parseSeqFile(_bytes(_seqXml)));
+      final header = out.split('\n').first;
+      expect(header, startsWith('sequence MainSequence:'));
+      // Counts come straight from the lens (no fabrication).
+      expect(header, contains('${seq.steps.length} steps'));
+      expect(header, contains('${seq.locals.length} locals'));
+      // This fixture declares no parameters → omitted, not "0 params".
+      expect(header, isNot(contains('param')));
+    });
+
+    test('a single-step sequence uses the singular form', () {
+      // _seqCallXml has exactly one step and no params/locals.
+      final out = exportSequenceLogic(parseSeqFile(_bytes(_seqCallXml)));
+      expect(out.split('\n').first, contains('// 1 step'));
+      expect(out.split('\n').first, isNot(contains('1 steps')));
+    });
+  });
+
   group('SequenceCall cross-file reference in the logic export', () {
     test('an external call shows the target sequence and its file', () {
       final out = exportSequenceLogic(parseSeqFile(_bytes(_seqExtCallXml)));

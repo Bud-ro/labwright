@@ -1172,6 +1172,12 @@ pass:Goto) across 8 files**, every one annotated in the export (the other 1615
 pass / 1570 fail actions are `Next`). The step's own precondition is already
 shown inline as `[if …]`. NI_Flow_* steps carry no own pass/fail action.
 
+**Per-sequence summary header (2026-06).** Each `sequence <name>:` line in
+`exportSequenceLogic` carries a `// N steps, P params, L locals` summary
+(`_seqSummary`) — step count always, params/locals only when non-zero, correctly
+singular/plural. Straight from the lens (`Sequence.steps/parameters/locals`), no
+fabrication; gives a quick shape-of-sequence read at the top of each block.
+
 **External SequenceCall cross-reference (2026-06).** A `SequenceCall` whose
 target sequence isn't in this file (`SeqFile.resolveCall` returns null and the
 step has a `SFPath`) now renders `→ <seq> in <file>` in the logic line, making

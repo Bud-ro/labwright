@@ -45,7 +45,7 @@ String dumpSeqFile(SeqFile f) {
 String exportSequenceLogic(SeqFile f) {
   final b = StringBuffer();
   for (final seq in f.sequences) {
-    b.writeln('sequence ${seq.name}:');
+    b.writeln('sequence ${seq.name}:${_seqSummary(seq)}');
     for (final group in StepGroup.values) {
       final steps = seq.stepsIn(group);
       if (steps.isEmpty) continue;
@@ -55,6 +55,22 @@ String exportSequenceLogic(SeqFile f) {
     b.writeln();
   }
   return b.toString();
+}
+
+/// A `  // N steps, P params, L locals` summary for a sequence header (counts
+/// only what's non-zero beyond the step count, which is always shown). Empty
+/// string when the sequence has no steps/params/locals (nothing to summarize).
+String _seqSummary(Sequence seq) {
+  final steps = seq.steps.length;
+  final params = seq.parameters.length;
+  final locals = seq.locals.length;
+  if (steps == 0 && params == 0 && locals == 0) return '';
+  final parts = [
+    '$steps ${steps == 1 ? 'step' : 'steps'}',
+    if (params > 0) '$params ${params == 1 ? 'param' : 'params'}',
+    if (locals > 0) '$locals ${locals == 1 ? 'local' : 'locals'}',
+  ];
+  return '  // ${parts.join(', ')}';
 }
 
 /// Emits [steps] as indented logic, opening/closing blocks on `NI_Flow_*` steps.
