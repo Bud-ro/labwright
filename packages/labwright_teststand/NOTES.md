@@ -766,6 +766,23 @@ carry `typecategory` but its value is a bare numeric code (`3`×505, `1`×93,
 not surfaced (no guessing). *(INI adapter distribution re-verified unchanged:
 none 3478 · sequenceCall 1624 · labView 443 · cModule 119.)*
 
+**`<typelist>` typedef structure — recovered & surfaced (2026-06, DONE).**
+Coverage-neutral *format* recovery (the metric counts the `Data` tree only). Each
+`<typedef>` wraps one type root; previously the lens exposed only a bare
+`f.types.length` count. Probed the full corpus: **475 typedefs across 21 ≤300KB
+XML files** — every typedef carries a `name` + base class (the root `classname`),
+and **370 of them declare ≥1 field** (3649 fields total, 25 distinct base
+classes). Most are NI's *internal* type system (`NI_PropertyObjectType`,
+`NI_CustomResult`, `CommonResults`, `StepTypeMenu`, step-type defs, `Error`,
+`Expression`), alongside user/cluster types. Added `SeqType` (`name`, `baseClass`,
+`fields` = ordered `(name, type-token)` pairs) and `SeqFile.typeDefs`; the text
+dump now prints a `Types (N):` section listing each type's base class and fields.
+This surfaces **recovered names/structure only** — the *semantics* of a field's
+NI-internal attributes (`ValueType`/`IsObject`/`Representation`/`CanBeSubstepType`
+…) are NI-internal machinery and are **not yet decoded**, so no meaning is
+claimed. (`f.types` stays the raw `List<SeqProperty>`; `typeDefs` is the typed
+1:1 view over it.)
+
 **Step-id resolution `ID#:` → step name (2026-06, DONE).** Each step's `TS.Id` is
 a unique id in `ID#:<uid>` form (e.g. `ID#:HWpAiIXA8BG5VlB7nf4f8B`). Flow-action
 targets that reference a step do so by that id. The custom-condition targets

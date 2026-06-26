@@ -21,6 +21,10 @@ class SeqFile {
   /// The `<typelist>` entries (each a type's root property object).
   final List<SeqProperty> types;
 
+  /// The `<typelist>` entries as typed [SeqType] wrappers — each type's name,
+  /// base class, and declared fields. The raw roots remain available as [types].
+  List<SeqType> get typeDefs => [for (final t in types) SeqType(t)];
+
   /// The root `Data` property object holding the file's contents.
   final SeqProperty data;
 
@@ -846,6 +850,37 @@ class StepSettings {
   /// paired with [usesMutex]; null when no mutex is configured (empty in the
   /// current corpus, since no step uses one).
   String? get mutexName => _scalar('MutexNameOrRef');
+}
+
+/// A `<typelist>` type definition: a named type and the fields it declares.
+///
+/// This is **recovered structure only** — the type's [name], its base class
+/// ([baseClass], the root's `classname`), and the ordered list of declared
+/// [fields] (each a name + its own `classname` type token). TestStand's
+/// `<typelist>` is NI's internal type system (mostly built-in machinery such as
+/// `NI_PropertyObjectType`, `CommonResults`, step-type definitions, alongside
+/// any user/cluster types); the *semantics* of an individual field's internal
+/// attributes are NI-internal and not claimed here. Surfacing names/structure
+/// makes the typedef table — previously hidden behind a bare count — visible.
+class SeqType {
+  SeqType(this.raw);
+
+  /// The type root property object (one entry from [SeqFile.types]).
+  final SeqProperty raw;
+
+  /// The type's name (e.g. `NI_CustomResult`, `CommonResults`, a step type).
+  String get name => raw.name;
+
+  /// The type's base class — the root's `classname` token (null when absent).
+  String? get baseClass => raw.className;
+
+  /// The directly-declared fields, in document order. Each is a `(name, type)`
+  /// pair where `type` is the field's own `classname` token (may be null).
+  /// Empty for a leaf/scalar type that declares no sub-fields.
+  List<({String name, String? type})> get fields => [
+        for (final c in [...raw.subProps, ...?raw.array])
+          (name: c.name, type: c.className),
+      ];
 }
 
 /// Parses TestStand sequence-file [bytes] into a [SeqFile].

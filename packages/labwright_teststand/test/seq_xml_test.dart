@@ -671,6 +671,34 @@ void main() {
     });
   });
 
+  group('type-list typedef recovery', () {
+    test('recovers a typedef name, base class and declared fields', () {
+      final f = parseSeqFile(_bytes(_seqTypeDefXml));
+      expect(f.typeDefs, hasLength(1));
+      final t = f.typeDefs.single;
+      expect(t.name, 'MeasCluster');
+      expect(t.baseClass, 'Obj');
+      expect(t.fields.map((x) => x.name), ['Voltage', 'Label']);
+      expect(t.fields.map((x) => x.type), ['Number', 'String']);
+    });
+
+    test('a scalar typedef recovers an empty field list (no fabrication)', () {
+      // The base fixture's Expression typedef declares no sub-fields.
+      final t = parseSeqFile(_bytes(_seqXml)).typeDefs.single;
+      expect(t.name, 'Expression');
+      expect(t.baseClass, 'ExprValue');
+      expect(t.fields, isEmpty);
+    });
+
+    test('the dump lists the Types section with fields', () {
+      final dump = dumpSeqFile(parseSeqFile(_bytes(_seqTypeDefXml)));
+      expect(dump, contains('Types (1):'));
+      expect(dump, contains('MeasCluster : Obj'));
+      expect(dump, contains('.Voltage [Number]'));
+      expect(dump, contains('.Label [String]'));
+    });
+  });
+
   group('parseSeqFile rejects non-XML honestly', () {
     test('binary TOF1 is unsupported (not silently mis-parsed)', () {
       final bin = Uint8List.fromList([...ascii.encode('TOF1'), 0, 0, 0, 0, 0, 0, ...ascii.encode('SequenceFile'), 0]);
@@ -682,3 +710,23 @@ void main() {
     });
   });
 }
+
+/// A type list whose typedef declares two named fields, each with a type token.
+const _seqTypeDefXml = '''<?xml version="1.0" encoding="UTF-8"?>
+<teststandfileheader type='SequenceFile' fileversion='920' productname='TestStand' productversion='2019'>
+  <typelist>
+    <typedef>
+      <MeasCluster classname='Obj'>
+        <subprops>
+          <Voltage classname='Number'><value/></Voltage>
+          <Label classname='String'><value/></Label>
+        </subprops>
+      </MeasCluster>
+    </typedef>
+  </typelist>
+  <Data classname='Obj'>
+    <subprops>
+      <Seq classname='Objs'><value lbound='[0]' ubound='[]'/></Seq>
+    </subprops>
+  </Data>
+</teststandfileheader>''';

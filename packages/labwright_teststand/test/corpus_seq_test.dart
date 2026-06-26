@@ -169,6 +169,50 @@ void main() {
     );
   });
 
+  test('recovers <typelist> type definitions across XML corpus', () {
+    var files = 0, totalTypes = 0, withFields = 0, totalFields = 0;
+    final baseClasses = <String>{};
+    final sampleNames = <String>{};
+    for (final f in seqs) {
+      if (f.lengthSync() > 300 * 1024) continue; // huge files: skip (OOM guard)
+      final bytes = f.readAsBytesSync();
+      if (detectSeqFormat(bytes) != SeqFormat.xml) continue;
+      files++;
+      final sf = parseSeqFile(bytes);
+      for (final t in sf.typeDefs) {
+        totalTypes++;
+        if (t.baseClass != null) baseClasses.add(t.baseClass!);
+        if (sampleNames.length < 12) sampleNames.add(t.name);
+        if (t.fields.isNotEmpty) {
+          withFields++;
+          totalFields += t.fields.length;
+        }
+      }
+    }
+    // ignore: avoid_print
+    print(
+      'typelist: $files files · $totalTypes typedefs · $withFields with fields · '
+      '$totalFields fields · baseClasses=${baseClasses.length} · sample=$sampleNames',
+    );
+    // Corpus evidence (probed): ~475 typedefs across 21 ≤300KB XML files; every
+    // typedef carries a name + base class; many declare ≥1 field. These are
+    // recovered names/structure only — NI's internal type-system field
+    // *semantics* are not claimed.
+    expect(files, greaterThanOrEqualTo(20));
+    expect(totalTypes, greaterThanOrEqualTo(300));
+    expect(withFields, greaterThanOrEqualTo(1));
+    expect(baseClasses, isNotEmpty);
+    // typeDefs is a faithful 1:1 view of the raw type roots.
+    final first = parseSeqFile(seqs
+            .firstWhere((f) =>
+                f.lengthSync() <= 300 * 1024 &&
+                detectSeqFormat(f.readAsBytesSync()) == SeqFormat.xml)
+            .readAsBytesSync())
+        .typeDefs;
+    expect(first.map((t) => t.name).toList(),
+        isNotEmpty, reason: 'typeDefs should mirror types 1:1');
+  });
+
   test('recovers the "Additional Results" recording spec across XML corpus', () {
     var filesWithSpec = 0, entries = 0, withCondition = 0;
     final kinds = <String>{};

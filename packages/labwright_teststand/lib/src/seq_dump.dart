@@ -25,7 +25,26 @@ String dumpSeqFile(SeqFile f) {
       }
     }
   }
+  _dumpTypes(b, f);
   return b.toString();
+}
+
+/// Lists the `<typelist>` type definitions and their declared fields. This is
+/// recovered structure (type name, base class, field names + type tokens) — not
+/// an interpretation of NI's internal type-system semantics.
+void _dumpTypes(StringBuffer b, SeqFile f) {
+  final defs = f.typeDefs;
+  if (defs.isEmpty) return;
+  b.writeln();
+  b.writeln('Types (${defs.length}):');
+  for (final t in defs) {
+    final base = t.baseClass != null ? ' : ${t.baseClass}' : '';
+    b.writeln('  ${t.name}$base');
+    for (final field in t.fields) {
+      final ty = field.type != null ? ' [${field.type}]' : '';
+      b.writeln('      .${field.name}$ty');
+    }
+  }
 }
 
 void _dumpVars(StringBuffer b, String label, List<SeqVariable> vars) {
