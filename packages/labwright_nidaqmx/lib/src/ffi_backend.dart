@@ -15,6 +15,7 @@ import 'package:ffi/ffi.dart';
 import 'daqmx_api.dart';
 import 'daqmx_constants.dart';
 import 'ffi.dart';
+import 'logging.dart';
 
 /// [DaqmxApi] implemented over the local NI-DAQmx C library via FFI.
 class FfiDaqmxBackend implements DaqmxApi {
@@ -28,12 +29,19 @@ class FfiDaqmxBackend implements DaqmxApi {
 
   /// Resolve (and cache) the DAQmx entry points, loading the library on first touch.
   /// Throws [DaqmxUnavailable] if the runtime is absent or the platform unsupported.
-  NidaqmxBindings get _bindings => _cached ??= NidaqmxBindings(loadNidaqmx(path: libraryPath));
+  NidaqmxBindings get _bindings => _cached ??= () {
+        DaqLoggers.ffi.fine('loading NI-DAQmx runtime (${libraryPath ?? 'platform default'})');
+        return NidaqmxBindings(loadNidaqmx(path: libraryPath));
+      }();
 
   /// Throws [DaqmxException] (enriched with [errorInfo]) when [status] < 0; positive
   /// warnings are returned for the caller to handle.
   int _check(int status, String op) {
-    if (status < 0) throw DaqmxException(status, _errorInfoSync(), operation: op);
+    if (status < 0) {
+      final info = _errorInfoSync();
+      DaqLoggers.ffi.warning('$op -> status $status: $info');
+      throw DaqmxException(status, info, operation: op);
+    }
     return status;
   }
 
@@ -76,6 +84,7 @@ class FfiDaqmxBackend implements DaqmxApi {
           final value = arena<Double>();
           _check(_bindings.readAnalogScalarF64(task.value, timeout, value, nullptr),
               'DAQmxReadAnalogScalarF64');
+          DaqLoggers.io.fine('readVoltage($physicalChannel) -> ${value.value}');
           return value.value;
         } finally {
           _bindings.clearTask(task.value);
@@ -101,6 +110,7 @@ class FfiDaqmxBackend implements DaqmxApi {
           );
           _check(_bindings.writeAnalogScalarF64(task.value, DaqmxVal.boolTrue, timeout, volts, nullptr),
               'DAQmxWriteAnalogScalarF64');
+          DaqLoggers.io.fine('writeVoltage($physicalChannel, $volts)');
         } finally {
           _bindings.clearTask(task.value);
         }

@@ -19,3 +19,4 @@ export 'src/daqmx_constants.dart';
 export 'src/ffi.dart' show NidaqmxBindings, TaskHandle;
 export 'src/ffi_backend.dart' show FfiDaqmxBackend;
 export 'src/grpc_backend.dart' show GrpcDaqmxBackend;
+export 'src/logging.dart' show DaqLoggers;

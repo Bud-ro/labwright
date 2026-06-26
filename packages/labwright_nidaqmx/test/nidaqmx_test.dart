@@ -1,10 +1,11 @@
 // Runtime-free tests: these do NOT require NI-DAQmx, a gRPC server, or any hardware,
-// so they pass in CI and on dev boxes. End-to-end behavior against a real runtime /
-// server is validated separately (see README).
+// so they pass in CI and on dev boxes. The gRPC wire path is covered separately in
+// grpc_backend_test.dart against an in-process fake server.
 
 import 'dart:io' show Platform;
 
 import 'package:labwright_nidaqmx/labwright_nidaqmx.dart';
+import 'package:logging/logging.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -59,16 +60,25 @@ void main() {
     }, testOn: '!browser');
   });
 
-  group('Daqmx.remote() — gRPC backend', () {
+  group('Daqmx.remote() — gRPC backend construction', () {
     test('yields a gRPC backend with NI\'s default port, without connecting', () {
       final daq = Daqmx.remote(host: 'localhost');
       expect(daq, isA<GrpcDaqmxBackend>());
       expect((daq as GrpcDaqmxBackend).port, 31763);
     });
+  });
 
-    test('data-path methods are honestly pending (UnimplementedError, not a fake)', () {
-      final daq = Daqmx.remote(host: 'localhost');
-      expect(daq.deviceNames(), throwsA(isA<UnimplementedError>()));
+  group('logging namespaces', () {
+    test('all DaqLoggers descend from the package root', () {
+      expect(DaqLoggers.root.fullName, 'labwright.nidaqmx');
+      for (final l in [DaqLoggers.ffi, DaqLoggers.grpc, DaqLoggers.task, DaqLoggers.io]) {
+        expect(l.fullName, startsWith('labwright.nidaqmx.'));
+      }
+    });
+
+    test('the package never installs handlers or sets levels (host owns config)', () {
+      // A library that configures logging fights its host. We only create loggers.
+      expect(DaqLoggers.root.level, Logger.root.level);
     });
   });
 }
