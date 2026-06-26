@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:xml/xml.dart';
 
 import 'seq_format.dart';
+import 'seq_ini.dart';
 import 'seq_property.dart';
 
 /// A parsed TestStand sequence file: the header, the type list, and the root
@@ -393,6 +394,9 @@ SeqFile parseSeqFile(Uint8List bytes) {
     case SeqFormat.binary:
       throw UnsupportedError('binary TOF1 .seq decoding is not yet implemented (M2)');
     case SeqFormat.ini:
+      // The legacy INI form maps onto the same PropertyObject model — build a
+      // SeqFile via the INI reader so the typed lens works on it too.
+      return parseIniSeqFile(bytes);
     case SeqFormat.unknown:
       throw FormatException('not a recognized XML TestStand sequence file ($fmt)');
   }

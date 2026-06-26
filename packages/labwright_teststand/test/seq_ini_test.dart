@@ -29,6 +29,13 @@ Version = "0.0.0.0"
 [DEF, SF.Seq[0]]
 Main = Objs
 %NAME = "MainSequence"
+
+[DEF, SF.Seq[0].Main]
+%[0] = Step
+%TYPE: %[0] = "Action"
+
+[DEF, SF.Seq[0].Main[0]]
+%NAME = "myStep"
 ''';
 
 void main() {
@@ -102,6 +109,22 @@ void main() {
       final version = tree.subProps.firstWhere((p) => p.name == 'Version');
       expect(version.scalar, '0.0.0.0');
       expect(version.isLeaf, isTrue);
+    });
+  });
+
+  group('parseSeqFile on INI (typed lens)', () {
+    final sf = parseSeqFile(Uint8List.fromList(latin1.encode(_ini)));
+
+    test('builds a SeqFile whose lens recovers the sequence + step', () {
+      expect(sf.header.fileType, 'SequenceFile');
+      expect(sf.sequences, hasLength(1));
+      final seq = sf.sequences.single;
+      expect(seq.name, 'MainSequence');
+      expect(seq.main, hasLength(1));
+      final step = seq.main.single;
+      expect(step.name, 'myStep');
+      // The step type comes from the array DEF's %TYPE: %[0].
+      expect(step.type, 'Action');
     });
   });
 }

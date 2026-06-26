@@ -15,7 +15,7 @@ All three were/are offered by NI; which one a file uses is a save-time choice.
 |---|---|---|---|
 | **XML** | optional UTF-8 BOM `EF BB BF`, then `<?xml …?>`, root `<teststandfileheader …>` | ✅ M0 | text; the common form in open-source NI examples |
 | **binary** | ASCII magic **`TOF1`** at offset 0 | ✅ M0 | NI proprietary flat container; default for size/speed |
-| **INI** | INI sections + a TestStand marker | ✅ header + section structure + SeqProperty tree decoded | 58 real samples; `seq_ini.dart`; tree builds 56/58 (2 lack `%OBJROOT`); SeqFile lens wiring TODO |
+| **INI** | INI sections + a TestStand marker | ✅ header + tree + **typed lens** (parseSeqFile→SeqFile) | 58 samples; `seq_ini.dart`; 56/58 → 441 seq / 5515 steps / 2123 module bindings via the shared lens; app rendering + %TYPES resolution TODO |
 
 ### XML form (decoded enough to parse next)
 
@@ -475,21 +475,30 @@ declared member type → `className`, value → `scalar`. A real file reconstruc
 `Data → Seq[N sequences] → MainSequence → Parameters/Locals/Main[steps]/Setup/
 Cleanup/RTS/Requirements`, matching the XML/binary shape exactly.
 
-Next slices: (1) route `iniDataTree` through `SeqFile` so the typed lens/dump/app
-render INI files for free; (2) **use this concrete per-object member→type→value
-layout as the oracle for the binary**: for a given object the INI tells us the
-exact ordered members, their types, and values — line that up against the binary
-record stream (name-index/`field`/`count` triplets) to finally decode the binary
-record's field/count/value encoding. *(Binary record tree not yet decoded — not
-unrecoverable.)*
+`parseSeqFile` now builds a `SeqFile` from INI too (`parseIniSeqFile`), so the
+**existing typed lens works on INI for free**: across the corpus's 56 buildable
+INI files it recovers **441 sequences, 5515 steps (all typed), 1643 locals, and
+2123 module-adapter bindings** — same `Sequence`/`Step`/`StepGroup`/`SeqAdapter`
+lens as XML. (A container-discovery pass surfaces objects like a step's `SData`
+that are implied only by a deeper section, not listed as a member.)
+
+Next slices: (1) wire the app's `SeqDocument`/dump to render INI (library is
+ready; the app still shows INI as Unknown); resolve `[%TYPES]` so type-inherited
+defaults (settings/adapter not overridden at the instance) fill in. (2) **use
+this concrete per-object member→type→value layout as the oracle for the binary**:
+for a given object the INI tells us the exact ordered members, their types, and
+values — line that up against the binary record stream (name-index/`field`/`count`
+triplets) to finally decode the binary record's field/count/value encoding.
+*(Binary record tree not yet decoded — not unrecoverable.)*
 
 ## Honest gaps (do NOT model yet)
 
 - **Binary record grammar** past the header — not yet recovered.
-- **INI → SeqProperty tree** — `iniDataTree` builds the nested object/array tree
-  (56/58); still TODO: the 2 files lacking a `%OBJROOT` root, `%TYPES`
-  type-reference resolution, instance overrides (`%INSTOVRD`), and wiring the tree
-  through `SeqFile` so the typed lens/dump/app render INI files.
+- **INI typed lens** — `parseSeqFile` builds a `SeqFile` from INI (56/58) and the
+  shared lens recovers sequences/steps/locals/module bindings. Still TODO: the 2
+  files lacking a `%OBJROOT` root, `[%TYPES]` resolution (so type-inherited step
+  settings/adapter defaults fill in), instance overrides (`%INSTOVRD`), assembling
+  `SeqFile.types`, and rendering INI in the inspector app (still shows Unknown).
 - **Config / station files** — `corpus/seq-sources.json` captures `.ini/.cfg/.tsw/.tpj`
   when present, but the open-source corpus is sequence-heavy; type-palette and
   station-config samples are sparse. (CN-IOT's `.ini` files are *localization

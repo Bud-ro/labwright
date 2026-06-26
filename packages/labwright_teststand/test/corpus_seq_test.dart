@@ -226,6 +226,45 @@ void main() {
     expect(namedSeqs, withSeqArray, reason: 'a Seq array exposes no named sequence');
   });
 
+  test('INI files parse through parseSeqFile into the typed lens', () {
+    var ini = 0, built = 0, threw = 0;
+    var totSeq = 0, totSteps = 0, totLocals = 0, withModule = 0, withType = 0;
+    for (final f in seqs) {
+      final bytes = f.readAsBytesSync();
+      if (detectSeqFormat(bytes) != SeqFormat.ini) continue;
+      ini++;
+      try {
+        final sf = parseSeqFile(bytes);
+        built++;
+        totSeq += sf.sequences.length;
+        for (final s in sf.sequences) {
+          totLocals += s.locals.length;
+          for (final st in s.steps) {
+            totSteps++;
+            if (st.type != null) withType++;
+            if (st.module.adapter != SeqAdapter.none) withModule++;
+          }
+        }
+      } on FormatException {
+        threw++; // the 2 files without a %OBJROOT data root — known TODO
+      }
+    }
+    // ignore: avoid_print
+    print(
+      'INI lens: $built/$ini parsed via parseSeqFile ($threw threw) · '
+      '$totSeq sequences · $totSteps steps · $totLocals locals · '
+      '$withType typed steps · $withModule module bindings',
+    );
+    expect(ini, greaterThan(0));
+    expect(built, greaterThanOrEqualTo(ini - 2), reason: 'too few INI SeqFiles');
+    // The shared lens recovers real structure from INI, same as XML.
+    expect(totSeq, greaterThan(0), reason: 'no INI sequences via the lens');
+    expect(totSteps, greaterThan(0), reason: 'no INI steps via the lens');
+    expect(totLocals, greaterThan(0), reason: 'no INI locals via the lens');
+    expect(withType, greaterThan(0), reason: 'no INI step types via the lens');
+    expect(withModule, greaterThan(0), reason: 'no INI module bindings via the lens');
+  });
+
   test('every binary TOF1 body frames into a record region + string table', () {
     var binary = 0, framed = 0, withSentinels = 0, totalStrings = 0;
     // Leading-word recon. word[2] is a constant 1 across the corpus; word[1]

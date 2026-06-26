@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'seq_file.dart';
 import 'seq_format.dart';
 import 'seq_property.dart';
 
@@ -209,7 +210,35 @@ SeqProperty? iniDataTree(IniSeqFile doc) {
       allPaths.contains(childPath) ||
       allPaths.any((p) => p.startsWith('$childPath.') || p.startsWith('$childPath['));
 
-  SeqProperty build(String path, String displayName, String? declaredType) {
+  // Immediate child member names of [path] discovered from the path set — catches
+  // container members (e.g. a step's `SData`) that are implied only by a deeper
+  // section and aren't listed in the object's own DEF/value members.
+  List<String> discoveredChildren(String path) {
+    final prefix = '$path.';
+    final seen = <String>{};
+    final order = <String>[];
+    for (final p in allPaths) {
+      if (!p.startsWith(prefix)) continue;
+      final rest = p.substring(prefix.length);
+      var end = rest.length;
+      for (var i = 0; i < rest.length; i++) {
+        if (rest[i] == '.' || rest[i] == '[') {
+          end = i;
+          break;
+        }
+      }
+      final seg = rest.substring(0, end);
+      if (seg.isNotEmpty && seen.add(seg)) order.add(seg);
+    }
+    return order;
+  }
+
+  SeqProperty build(
+    String path,
+    String displayName,
+    String? declaredType, [
+    String? declaredTypeName,
+  ]) {
     final def = defs[path];
     final val = vals[path];
     final name = _unquote(val?.directives['%NAME']) ??
@@ -218,11 +247,15 @@ SeqProperty? iniDataTree(IniSeqFile doc) {
     // Member order: the DEF declaration first (authoritative + typed), then any
     // value-only members not declared there.
     final memberTypes = def?.members ?? const <String, String>{};
-    final memberOrder = <String>[
-      ...memberTypes.keys,
-      for (final m in (val?.members.keys ?? const <String>[]))
-        if (!memberTypes.containsKey(m)) m,
-    ];
+    final memberOrder = <String>[...memberTypes.keys];
+    final seen = memberTypes.keys.toSet();
+    for (final m in (val?.members.keys ?? const <String>[])) {
+      if (seen.add(m)) memberOrder.add(m);
+    }
+    // Container members implied only by deeper sections (e.g. a step's SData).
+    for (final m in discoveredChildren(path)) {
+      if (seen.add(m)) memberOrder.add(m);
+    }
 
     final subs = <SeqProperty>[];
     for (final m in memberOrder) {
@@ -230,9 +263,18 @@ SeqProperty? iniDataTree(IniSeqFile doc) {
       final childPath = '$path.$m';
       final elems = elementIndices(childPath);
       if (elems.isNotEmpty) {
-        // An array member: build each element object in index order.
+        // An array member: build each element object in index order. The element
+        // class (%[i]) and TestStand type (%TYPE: %[i]) are declared in the
+        // array's own DEF section (e.g. `%[0] = Step`, `%TYPE: %[0] = "Action"`).
+        final arrDef = defs[childPath];
         final arr = [
-          for (final i in elems) build('$childPath[$i]', '[$i]', null),
+          for (final i in elems)
+            build(
+              '$childPath[$i]',
+              '[$i]',
+              arrDef?.directives['%[$i]'],
+              _unquote(arrDef?.directives['%TYPE: %[$i]']),
+            ),
         ];
         subs.add(SeqProperty(name: m, className: type, array: arr));
       } else if (isContainer(childPath)) {
@@ -249,11 +291,28 @@ SeqProperty? iniDataTree(IniSeqFile doc) {
     return SeqProperty(
       name: name,
       className: declaredType,
+      typeName: declaredTypeName,
       subProps: subs,
     );
   }
 
   return build(rootPath!, 'Data', 'SequenceFileData');
+}
+
+/// Parses a legacy INI `.seq` into a [SeqFile] so the shared typed lens
+/// ([SeqFile.sequences] / [Sequence] / [Step]) works on it. The data tree comes
+/// from [iniDataTree]; the type list is not yet assembled from the `[%TYPES]`
+/// sections (TODO — empty for now). Throws [FormatException] if the data root
+/// cannot be reconstructed (e.g. the 2 corpus files lacking `%OBJROOT`).
+SeqFile parseIniSeqFile(Uint8List bytes) {
+  final doc = parseIniSeqBytes(bytes);
+  final data = iniDataTree(doc);
+  if (data == null) {
+    throw const FormatException(
+      'INI .seq has no reconstructable %OBJROOT data root (not yet decoded)',
+    );
+  }
+  return SeqFile(header: doc.header, types: const [], data: data);
 }
 
 /// Strips one layer of surrounding double quotes, if present. Returns null for a
