@@ -50,7 +50,7 @@ String exportSequenceLogic(SeqFile f) {
       final steps = seq.stepsIn(group);
       if (steps.isEmpty) continue;
       b.writeln('  ${group.key}:');
-      _emitLogic(b, steps, baseIndent: 2);
+      _emitLogic(b, steps, f, baseIndent: 2);
     }
     b.writeln();
   }
@@ -60,13 +60,14 @@ String exportSequenceLogic(SeqFile f) {
 /// Emits [steps] as indented logic, opening/closing blocks on `NI_Flow_*` steps.
 /// [baseIndent] is the starting indent depth (in 2-space units). Indent never
 /// drops below [baseIndent], so a malformed/unbalanced block can't underflow.
-void _emitLogic(StringBuffer b, List<Step> steps, {required int baseIndent}) {
+void _emitLogic(StringBuffer b, List<Step> steps, SeqFile file,
+    {required int baseIndent}) {
   var depth = baseIndent;
   String ind(int d) => '  ' * d;
   for (final step in steps) {
     final fc = step.flowControl;
     if (fc == null) {
-      b.writeln('${ind(depth)}${_logicStepLine(step)}');
+      b.writeln('${ind(depth)}${_logicStepLine(step, file)}');
       continue;
     }
     if (fc.kind.closesBlock) {
@@ -89,8 +90,9 @@ void _emitLogic(StringBuffer b, List<Step> steps, {required int baseIndent}) {
 
 /// A concise one-line logic rendering of a non-flow step: its name, the module
 /// target it calls, and the most decision-relevant annotations (precondition,
-/// limits) — kept short so the nested structure stays readable.
-String _logicStepLine(Step step) {
+/// limits, and a non-default pass/fail jump) — kept short so the nested
+/// structure stays readable.
+String _logicStepLine(Step step, SeqFile file) {
   final b = StringBuffer(step.name);
   final m = step.module;
   if (m.adapter != SeqAdapter.none && m.target != null) {
@@ -100,7 +102,28 @@ String _logicStepLine(Step step) {
   if (pre != null) b.write('  [if $pre]');
   final lim = step.limits;
   if (lim != null) b.write('  [${lim.summary}]');
+  final jump = _jumpAnnotation(step.settings, file);
+  if (jump != null) b.write('  $jump');
   return b.toString();
+}
+
+/// A concise rendering of a step's non-default pass/fail jump (a `Goto`/non-`Next`
+/// action and its target), e.g. `[on fail → Cleanup]`, or null when both sides
+/// fall through (`Next`) — the common case. An `ID#:` target is resolved to the
+/// destination step's name; a bookmark like `<Cleanup>` is shown verbatim.
+String? _jumpAnnotation(StepSettings set, SeqFile file) {
+  String resolve(String t) =>
+      t.startsWith('ID#:') ? (file.stepNameForId(t) ?? t) : t;
+  String? side(String label, String? act, String? target) {
+    if (act == null || act == 'Next') return null; // falls through
+    return target != null ? 'on $label → ${resolve(target)}' : 'on $label: $act';
+  }
+
+  final parts = [
+    side('pass', set.passAction, set.passActionTarget),
+    side('fail', set.failAction, set.failActionTarget),
+  ].whereType<String>();
+  return parts.isEmpty ? null : '[${parts.join(', ')}]';
 }
 
 /// Lists the Semiconductor-Test-System resource set the file declares (pin map +

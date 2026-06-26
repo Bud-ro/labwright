@@ -353,6 +353,46 @@ void main() {
     expect(seqsWithFlow, greaterThan(0));
   });
 
+  test('logic export annotates pass/fail jumps across the corpus', () {
+    var jumpSteps = 0, filesWithJump = 0, exportsWithJump = 0;
+    for (final f in seqs) {
+      if (f.lengthSync() > 300 * 1024) continue;
+      final bytes = f.readAsBytesSync();
+      final fmt = detectSeqFormat(bytes);
+      if (fmt != SeqFormat.xml && fmt != SeqFormat.ini) continue;
+      final SeqFile sf;
+      try {
+        sf = parseSeqFile(bytes);
+      } catch (_) {
+        continue;
+      }
+      var fileHas = false;
+      for (final q in sf.sequences) {
+        for (final s in q.steps) {
+          final set = s.settings;
+          if ((set.passAction != null && set.passAction != 'Next') ||
+              (set.failAction != null && set.failAction != 'Next')) {
+            jumpSteps++;
+            fileHas = true;
+          }
+        }
+      }
+      if (fileHas) {
+        filesWithJump++;
+        // The export must actually surface the jump for these files.
+        if (exportSequenceLogic(sf).contains(RegExp(r'\[on (pass|fail)'))) {
+          exportsWithJump++;
+        }
+      }
+    }
+    // ignore: avoid_print
+    print('jumps: $jumpSteps non-default pass/fail actions in $filesWithJump '
+        'files; $exportsWithJump exports annotate them');
+    expect(jumpSteps, greaterThan(0), reason: 'no pass/fail jumps in corpus');
+    expect(exportsWithJump, filesWithJump,
+        reason: 'every file with a jump must annotate it in the logic export');
+  });
+
   test('recovers <typelist> type definitions across XML corpus', () {
     var files = 0, totalTypes = 0, withFields = 0, totalFields = 0;
     final baseClasses = <String>{};

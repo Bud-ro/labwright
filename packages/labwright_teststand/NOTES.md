@@ -1160,7 +1160,17 @@ assumed): `If`/`ElseIf`/`While` → `ConditionExpr`; `For` → `InitializationEx
 (+ optional `OffsetExpr`). Each renders as real logic, e.g.
 `if (Locals.X > 0) {`, `for each (Locals.Item in Locals.Items) {`,
 `while (StationGlobals.DebugPanelActive) {`. Non-flow steps render as
-`name → call-target  [if precond]  [limits]`.
+`name → call-target  [if precond]  [limits]  [on fail → <target>]`.
+
+**Pass/fail jump annotation (2026-06).** `_logicStepLine` now appends a step's
+non-default pass/fail jump (`_jumpAnnotation`): a `Goto`/non-`Next` PassAct/FailAct
+with its target, e.g. `[on fail → <Cleanup>]`. An `ID#:` target resolves to the
+destination step's name (via `SeqFile.stepNameForId`); a bookmark like
+`<Cleanup>` shows verbatim. Fall-through (`Next`/`Next`) steps — the overwhelming
+majority — get nothing. Corpus: **47 non-default actions (46 fail:Goto, 1
+pass:Goto) across 8 files**, every one annotated in the export (the other 1615
+pass / 1570 fail actions are `Next`). The step's own precondition is already
+shown inline as `[if …]`. NI_Flow_* steps carry no own pass/fail action.
 
 **App surfacing (inspector).** The structured outline (`sequence_outline.dart` →
 `sequences_view.dart`) now reflects control flow: each `StepOutline` carries a

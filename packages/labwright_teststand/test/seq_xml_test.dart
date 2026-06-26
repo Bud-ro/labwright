@@ -826,6 +826,23 @@ void main() {
     });
   });
 
+  group('pass/fail jump in the logic export', () {
+    test('annotates a non-default fail jump with its target', () {
+      final out = exportSequenceLogic(parseSeqFile(_bytes(_seqJumpXml)));
+      expect(out, contains('Check V'));
+      expect(out, contains('[on fail → <Cleanup>]'));
+    });
+
+    test('a fall-through (Next/Next) step gets no jump annotation', () {
+      final out = exportSequenceLogic(parseSeqFile(_bytes(_seqJumpXml)));
+      // The plain step renders without any "on fail"/"on pass" note.
+      final plainLine =
+          out.split('\n').firstWhere((l) => l.contains('Plain'));
+      expect(plainLine, isNot(contains('on fail')));
+      expect(plainLine, isNot(contains('on pass')));
+    });
+  });
+
   group('parseSeqFile rejects non-XML honestly', () {
     test('binary TOF1 is unsupported (not silently mis-parsed)', () {
       final bin = Uint8List.fromList([...ascii.encode('TOF1'), 0, 0, 0, 0, 0, 0, ...ascii.encode('SequenceFile'), 0]);
@@ -923,6 +940,31 @@ const _seqViCallXml = '''<?xml version="1.0" encoding="UTF-8"?>
             </subprops></SData>
             </subprops></TS>
           </subprops></Step></value>
+        </value></Main>
+      </subprops></Sequence>
+    </value></value></Seq>
+  </subprops></Data>
+</teststandfileheader>''';
+
+/// A sequence with a test step that jumps to the `<Cleanup>` bookmark on
+/// failure (`FailAct=Goto` + `FailActTarget`) — the recovered pass/fail jump the
+/// logic export annotates as `[on fail → <Cleanup>]`. A second step falls
+/// through (Next/Next) and gets no jump annotation.
+const _seqJumpXml = '''<?xml version="1.0" encoding="UTF-8"?>
+<teststandfileheader type='SequenceFile' fileversion='920' productname='TestStand'>
+  <typelist/>
+  <Data classname='Obj'><subprops>
+    <Seq classname='Objs'><value lbound='[0]' ubound='[1]'><value>
+      <Sequence name='MainSequence' classname='Obj'><subprops>
+        <Main classname='Objs'><value lbound='[0]' ubound='[2]'>
+          <value><Step typename='NumericLimitTest' name='Check V'><subprops>
+            <TS classname='Obj'><subprops>
+              <PassAct classname='Str'><value>Next</value></PassAct>
+              <FailAct classname='Str'><value>Goto</value></FailAct>
+              <FailActTarget classname='ExprValue'><value>"&lt;Cleanup&gt;"</value></FailActTarget>
+            </subprops></TS>
+          </subprops></Step></value>
+          <value><Step typename='Action' name='Plain'/></value>
         </value></Main>
       </subprops></Sequence>
     </value></value></Seq>
