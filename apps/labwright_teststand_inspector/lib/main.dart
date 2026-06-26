@@ -145,6 +145,7 @@ class _InspectorPageState extends State<InspectorPage> {
     final outline = file != null ? SeqOutline.of(file) : null;
     final tree = file != null ? propertyTree(file) : null;
     final coverage = file != null ? coverageLabel(measureCoverage(file)) : null;
+    final typeCount = file?.types.length;
     return DefaultTabController(
       length: file != null ? 3 : 1,
       // Builder so the shortcut can read the active tab via DefaultTabController.
@@ -187,7 +188,7 @@ class _InspectorPageState extends State<InspectorPage> {
                   final file = d.files.isNotEmpty ? d.files.first : null;
                   if (file != null) _loadPath(file.path);
                 },
-                child: _body(doc, outline, tree, coverage),
+                child: _body(doc, outline, tree, coverage, typeCount),
               ),
             ),
           ),
@@ -220,8 +221,8 @@ class _InspectorPageState extends State<InspectorPage> {
     );
   }
 
-  Widget _body(
-      SeqDocument? doc, SeqOutline? outline, PropertyNode? tree, String? coverage) {
+  Widget _body(SeqDocument? doc, SeqOutline? outline, PropertyNode? tree,
+      String? coverage, int? typeCount) {
     if (_error != null) {
       return Center(
           child: Text('Error: $_error', style: const TextStyle(color: Colors.red)));
@@ -288,7 +289,9 @@ class _InspectorPageState extends State<InspectorPage> {
                 _dumpTab(doc),
               if (outline != null)
                 SequencesView(
-                    outline: outline, searchFocusNode: _sequencesSearchFocus),
+                    outline: outline,
+                    searchFocusNode: _sequencesSearchFocus,
+                    typeCount: typeCount),
               if (tree != null)
                 PropertiesView(
                     root: tree, searchFocusNode: _propertiesSearchFocus),

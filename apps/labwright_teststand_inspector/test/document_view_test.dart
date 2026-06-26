@@ -131,6 +131,17 @@ void main() {
     expect(rowLabels, isNot(contains('Nominal')));
   });
 
+  test('outlineSummary/totalSteps count sequences and steps (pluralized)', () {
+    final doc = SeqDocument.parse(_xml()) as XmlSeqDocument;
+    final outline = SeqOutline.of(doc.file);
+
+    expect(outline.totalSteps, 1);
+    // Fixture has 1 sequence / 1 step → singular forms.
+    expect(outlineSummary(outline), '1 sequence · 1 step');
+    // With a type count appended.
+    expect(outlineSummary(outline, typeCount: 5), '1 sequence · 1 step · 5 types');
+  });
+
   test('StepOutline.targetDisplay shows basename + full-path tooltip', () {
     ({String label, String tooltip})? disp(String? target) => StepOutline(
           name: 'x',

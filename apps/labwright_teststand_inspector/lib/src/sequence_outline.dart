@@ -20,6 +20,9 @@ class SeqOutline {
         for (final seq in file.sequences) SequenceOutline.of(seq, file),
       ]);
 
+  /// Total steps across all sequences and groups.
+  int get totalSteps => sequences.fold(0, (n, s) => n + s.stepCount);
+
   /// Index of the sequence named [name], or `null` if absent — used to jump to
   /// the target of an in-file SequenceCall.
   int? indexOf(String name) {
@@ -188,6 +191,20 @@ class StepOutline {
     if (notes.isNotEmpty) b.write('  (${notes.join('; ')})');
     return b.toString();
   }
+}
+
+/// `n label` with the label pluralized (`label + 's'`) unless `n == 1`.
+String _count(int n, String label) => '$n $label${n == 1 ? '' : 's'}';
+
+/// A one-line summary of an outline, e.g. `3 sequences · 42 steps`; when
+/// [typeCount] is given (from the file's type list), appends `· K types`. Pure.
+String outlineSummary(SeqOutline outline, {int? typeCount}) {
+  final parts = [
+    _count(outline.sequences.length, 'sequence'),
+    _count(outline.totalSteps, 'step'),
+    if (typeCount != null) _count(typeCount, 'type'),
+  ];
+  return parts.join(' · ');
 }
 
 /// A step's limits broken into individual fields for a richer display. Mirrors
