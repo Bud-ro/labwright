@@ -93,13 +93,14 @@ class _InspectorPageState extends State<InspectorPage> {
     super.dispose();
   }
 
-  /// Focuses the search field of the tab at [tabIndex] (Dump has none → no-op).
-  /// Indices match the TabBar order: 0 Dump, 1 Sequences, 2 Properties, 3 Types
-  /// (the latter three present only for a structured file with types).
+  /// Focuses the search field of the tab at [tabIndex] (Dump/Logic have none →
+  /// no-op). Indices match the TabBar order: 0 Dump, 1 Logic, 2 Sequences,
+  /// 3 Properties, 4 Types (Logic..Types present only for a structured file;
+  /// Types only when it defines a type palette).
   void _focusSearch(int tabIndex) {
-    if (tabIndex == 1) _sequencesSearchFocus.requestFocus();
-    if (tabIndex == 2) _propertiesSearchFocus.requestFocus();
-    if (tabIndex == 3) _typesSearchFocus.requestFocus();
+    if (tabIndex == 2) _sequencesSearchFocus.requestFocus();
+    if (tabIndex == 3) _propertiesSearchFocus.requestFocus();
+    if (tabIndex == 4) _typesSearchFocus.requestFocus();
   }
 
   void _loadBytes(String path, Uint8List bytes, {bool remember = true}) {
@@ -151,7 +152,7 @@ class _InspectorPageState extends State<InspectorPage> {
     // The Types tab appears only when the file actually defines a type palette.
     final hasTypes = types.isNotEmpty;
     return DefaultTabController(
-      length: file != null ? (hasTypes ? 4 : 3) : 1,
+      length: file != null ? (hasTypes ? 5 : 4) : 1,
       // Builder so the shortcut can read the active tab via DefaultTabController.
       child: Builder(
         builder: (context) {
@@ -190,6 +191,7 @@ class _InspectorPageState extends State<InspectorPage> {
                   bottom: TabBar(
                     tabs: [
                       const Tab(text: 'Dump'),
+                      if (file != null) const Tab(text: 'Logic'),
                       if (file != null) const Tab(text: 'Sequences'),
                       if (file != null) const Tab(text: 'Properties'),
                       if (hasTypes) const Tab(text: 'Types'),
@@ -253,6 +255,8 @@ class _InspectorPageState extends State<InspectorPage> {
         ),
       );
     }
+    // The parsed file (structured XML/INI) backs the Logic tab; null for binary.
+    final file = doc is StructuredSeqDocument ? doc.file : null;
     if (doc == null) {
       return Center(
         child: Column(
@@ -321,6 +325,7 @@ class _InspectorPageState extends State<InspectorPage> {
                 BinaryView(doc: doc)
               else
                 _dumpTab(doc),
+              if (file != null) _logicTab(file),
               if (outline != null)
                 SequencesView(
                   outline: outline,
@@ -345,8 +350,18 @@ class _InspectorPageState extends State<InspectorPage> {
   }
 
   /// The Dump tab: the scrollable monospace text plus a copy-to-clipboard button.
-  Widget _dumpTab(SeqDocument doc) {
-    final text = documentText(doc);
+  Widget _dumpTab(SeqDocument doc) => _monoTextTab(documentText(doc), 'dump');
+
+  /// The Logic tab: the structured sequence-logic export (nested control flow as
+  /// readable pseudocode) for a parsed file, as monospace text with a copy
+  /// button. Distinct from the full Dump — just the recovered control flow.
+  Widget _logicTab(SeqFile file) =>
+      _monoTextTab(exportSequenceLogic(file), 'logic');
+
+  /// A scrollable, selectable monospace text view with a copy-to-clipboard
+  /// button — shared by the Dump and Logic tabs. [label] names the content in
+  /// the copy tooltip / confirmation (e.g. `dump`, `logic`).
+  Widget _monoTextTab(String text, String label) {
     return Stack(
       children: [
         Positioned.fill(
@@ -368,14 +383,14 @@ class _InspectorPageState extends State<InspectorPage> {
             shape: const CircleBorder(),
             child: IconButton(
               icon: const Icon(Icons.copy, size: 18),
-              tooltip: 'Copy dump to clipboard',
+              tooltip: 'Copy $label to clipboard',
               onPressed: () async {
                 await Clipboard.setData(ClipboardData(text: text));
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Copied dump to clipboard'),
-                    duration: Duration(seconds: 1),
+                  SnackBar(
+                    content: Text('Copied $label to clipboard'),
+                    duration: const Duration(seconds: 1),
                   ),
                 );
               },

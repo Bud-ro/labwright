@@ -1187,7 +1187,12 @@ non-flow steps don't loop. So a non-flow logic line now reads
 the same balanced open/close walk as `_emitLogic`), so the sequence tree indents
 its blocks and shows a teal flow-construct chip (`if (…)`, `for each (…)`,
 `end`, …). The header is searchable. The dump view already carried the
-`=== Sequence logic ===` section.
+`=== Sequence logic ===` section. A **dedicated read-only "Logic" tab**
+(`main.dart`, 2026-06) renders `exportSequenceLogic(file)` on its own as
+selectable monospace pseudocode (with copy-to-clipboard) for any parsed file —
+the full recovered control flow at a glance, distinct from the structured
+outline and the raw Dump. Tab order: Dump · Logic · Sequences · Properties ·
+Types (Logic..Types only for a parsed file). Binary files have no Logic tab.
 
 Corpus evidence (XML+INI ≤300KB, `recovers structured flow-control logic`):
 **141 openers / 141 ends (balanced), 42/42 flow-bearing sequences nest cleanly**;
