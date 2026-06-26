@@ -71,6 +71,18 @@ void main() {
     expect(mainSeq.attributes['name'], 'MainSequence');
   });
 
+  test('coverageLabel formats the modeled/total ratio', () {
+    final doc = SeqDocument.parse(_xml()) as XmlSeqDocument;
+    final c = measureCoverage(doc.file);
+    final label = coverageLabel(c);
+    expect(label, startsWith('model coverage '));
+    expect(label, contains('${c.modeled}/${c.total}'));
+    expect(label, matches(RegExp(r'\d+\.\d%')));
+    // The fixture's typed lens recovers something but not everything.
+    expect(c.modeled, greaterThan(0));
+    expect(c.modeled, lessThanOrEqualTo(c.total));
+  });
+
   test('documentText/Title handle unrecognized bytes without throwing', () {
     final doc = SeqDocument.parse(Uint8List.fromList([1, 2, 3, 4]));
     expect(doc, isA<UnknownSeqDocument>());

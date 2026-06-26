@@ -87,6 +87,7 @@ class _InspectorPageState extends State<InspectorPage> {
     final file = doc is XmlSeqDocument ? doc.file : null;
     final outline = file != null ? SeqOutline.of(file) : null;
     final tree = file != null ? propertyTree(file) : null;
+    final coverage = file != null ? coverageLabel(measureCoverage(file)) : null;
     return DefaultTabController(
       length: file != null ? 3 : 1,
       child: Scaffold(
@@ -112,13 +113,14 @@ class _InspectorPageState extends State<InspectorPage> {
             final file = d.files.isNotEmpty ? d.files.first : null;
             if (file != null) _loadPath(file.path);
           },
-          child: _body(doc, outline, tree),
+          child: _body(doc, outline, tree, coverage),
         ),
       ),
     );
   }
 
-  Widget _body(SeqDocument? doc, SeqOutline? outline, PropertyNode? tree) {
+  Widget _body(
+      SeqDocument? doc, SeqOutline? outline, PropertyNode? tree, String? coverage) {
     if (_error != null) {
       return Center(
           child: Text('Error: $_error', style: const TextStyle(color: Colors.red)));
@@ -133,8 +135,22 @@ class _InspectorPageState extends State<InspectorPage> {
       children: [
         if (_path != null)
           Padding(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.fromLTRB(8, 8, 8, 2),
             child: Text(_path!, style: Theme.of(context).textTheme.bodySmall),
+          ),
+        if (coverage != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
+            child: Row(
+              children: [
+                Icon(Icons.donut_small,
+                    size: 14, color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 4),
+                Text(coverage,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.primary)),
+              ],
+            ),
           ),
         const Divider(height: 1),
         Expanded(

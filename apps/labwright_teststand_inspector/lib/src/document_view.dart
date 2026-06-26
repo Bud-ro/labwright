@@ -34,3 +34,10 @@ String documentTitle(SeqDocument doc) {
   };
   return '${h.fileType ?? 'TestStand'} · ${h.format.name} · $kind';
 }
+
+/// A one-line label for model coverage, e.g. `model coverage 13.5% (1895/14016)`
+/// — how much of the raw PropertyObject tree the typed lens accounts for. Pure.
+String coverageLabel(SeqCoverage c) {
+  final pct = (c.ratio * 100).toStringAsFixed(1);
+  return 'model coverage $pct% (${c.modeled}/${c.total})';
+}
