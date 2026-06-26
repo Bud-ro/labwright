@@ -6,6 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:labwright_teststand/labwright_teststand.dart';
 
+import 'src/binary_view.dart';
 import 'src/document_view.dart';
 import 'src/property_outline.dart';
 import 'src/properties_view.dart';
@@ -156,13 +157,16 @@ class _InspectorPageState extends State<InspectorPage> {
         Expanded(
           child: TabBarView(
             children: [
-              SingleChildScrollView(
-                padding: const EdgeInsets.all(12),
-                child: SelectableText(
-                  documentText(doc),
-                  style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+              if (doc is BinarySeqDocument)
+                BinaryView(doc: doc)
+              else
+                SingleChildScrollView(
+                  padding: const EdgeInsets.all(12),
+                  child: SelectableText(
+                    documentText(doc),
+                    style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+                  ),
                 ),
-              ),
               if (outline != null) SequencesView(outline: outline),
               if (tree != null) PropertiesView(root: tree),
             ],

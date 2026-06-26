@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -19,6 +20,24 @@ Uint8List _xml() => Uint8List.fromList([
           "</subprops></Sequence></value></value></Seq></subprops></Data>"
           "</teststandfileheader>"),
     ]);
+
+Uint8List _binary() {
+  final pool = <int>[];
+  for (final n in [
+    'PaddingNameSoTheInflatedBodyExceedsTheSixtyFourByteGuardHere',
+    'SequenceFileData', 'MainSequence', 'Step', 'Locals', 'Parameters'
+  ]) {
+    pool..addAll(ascii.encode(n))..add(0);
+  }
+  final header = Uint8List(0x108);
+  header.setAll(0, ascii.encode('TOF1'));
+  header.setAll(0x0a, ascii.encode('SequenceFile'));
+  header.setAll(0x40, ascii.encode('TestStand'));
+  final b = BytesBuilder()
+    ..add(header)
+    ..add(zlib.encode(pool));
+  return Uint8List.fromList(b.toBytes());
+}
 
 void main() {
   test('documentText/Title render an XML document', () {
@@ -81,6 +100,19 @@ void main() {
     // The fixture's typed lens recovers something but not everything.
     expect(c.modeled, greaterThan(0));
     expect(c.modeled, lessThanOrEqualTo(c.total));
+  });
+
+  test('binaryHeaderRows surfaces recon facts for a TOF1 file', () {
+    final doc = SeqDocument.parse(_binary());
+    expect(doc, isA<BinarySeqDocument>());
+    final rows = binaryHeaderRows(doc as BinarySeqDocument);
+    final map = {for (final (k, v) in rows) k: v};
+
+    expect(map['Encoding'], 'binary');
+    expect(map['File type'], 'SequenceFile');
+    expect(map['Product'], 'TestStand');
+    expect(map['Inflated body'], endsWith('bytes'));
+    expect(int.parse(map['Strings recovered']!), greaterThan(0));
   });
 
   test('documentText/Title handle unrecognized bytes without throwing', () {

@@ -35,6 +35,25 @@ String documentTitle(SeqDocument doc) {
   return '${h.fileType ?? 'TestStand'} · ${h.format.name} · $kind';
 }
 
+/// Header/recon facts for a binary `TOF1` document, as label→value rows for a
+/// small table. Pure. Only includes what the reader actually recovered (no
+/// build/compatible version is stored on the header yet, so it isn't shown).
+List<(String, String)> binaryHeaderRows(BinarySeqDocument doc) {
+  final h = doc.header;
+  return [
+    ('Encoding', h.format.name),
+    ('File type', h.fileType ?? '(not recovered)'),
+    ('Product', h.productName ?? '(not recovered)'),
+    if (h.fileVersion != null) ('File version', h.fileVersion!),
+    (
+      'Inflated body',
+      doc.inflatedSize > 0 ? '${doc.inflatedSize} bytes' : '(not inflated)'
+    ),
+    ('Strings recovered', '${doc.strings.length}'),
+    ('Largest string table', '${doc.stringTable.length}'),
+  ];
+}
+
 /// A one-line label for model coverage, e.g. `model coverage 13.5% (1895/14016)`
 /// — how much of the raw PropertyObject tree the typed lens accounts for. Pure.
 String coverageLabel(SeqCoverage c) {
