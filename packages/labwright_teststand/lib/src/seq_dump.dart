@@ -15,14 +15,10 @@ String dumpSeqFile(SeqFile f) {
     b.writeln('Sequence: ${seq.name}');
     _dumpVars(b, 'Parameters', seq.parameters);
     _dumpVars(b, 'Locals', seq.locals);
-    for (final group in ['Setup', 'Main', 'Cleanup']) {
-      final steps = switch (group) {
-        'Setup' => seq.setup,
-        'Cleanup' => seq.cleanup,
-        _ => seq.main,
-      };
+    for (final group in StepGroup.values) {
+      final steps = seq.stepsIn(group);
       if (steps.isEmpty) continue;
-      b.writeln('  $group:');
+      b.writeln('  ${group.key}:');
       for (final step in steps) {
         b.writeln('    - ${_dumpStep(step, f)}');
       }

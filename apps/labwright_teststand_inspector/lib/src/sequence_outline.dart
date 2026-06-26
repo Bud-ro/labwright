@@ -64,15 +64,12 @@ class SequenceOutline {
 
   factory SequenceOutline.of(Sequence seq, SeqFile file) {
     final groups = <StepGroupOutline>[];
-    for (final entry in <(String, List<Step>)>[
-      ('Setup', seq.setup),
-      ('Main', seq.main),
-      ('Cleanup', seq.cleanup),
-    ]) {
-      if (entry.$2.isEmpty) continue;
+    for (final group in StepGroup.values) {
+      final steps = seq.stepsIn(group);
+      if (steps.isEmpty) continue;
       groups.add(
-        StepGroupOutline(entry.$1, [
-          for (final s in entry.$2) StepOutline.of(s, file),
+        StepGroupOutline(group.key, [
+          for (final s in steps) StepOutline.of(s, file),
         ]),
       );
     }

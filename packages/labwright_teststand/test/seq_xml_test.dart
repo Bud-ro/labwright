@@ -252,6 +252,25 @@ void main() {
     });
   });
 
+  group('StepGroup', () {
+    test('keys are the .seq property names, in execution order', () {
+      expect(StepGroup.values.map((g) => g.key), ['Setup', 'Main', 'Cleanup']);
+    });
+
+    test('stepsIn matches the named getters', () {
+      final seq = parseSeqFile(_bytes(_seqXml)).sequences.single;
+      List<String> names(List<Step> s) => [for (final x in s) x.name];
+      expect(names(seq.stepsIn(StepGroup.setup)), names(seq.setup));
+      expect(names(seq.stepsIn(StepGroup.main)), names(seq.main));
+      expect(names(seq.stepsIn(StepGroup.cleanup)), names(seq.cleanup));
+      // steps is the three groups concatenated in execution order.
+      expect(
+        names(seq.steps),
+        [...names(seq.setup), ...names(seq.main), ...names(seq.cleanup)],
+      );
+    });
+  });
+
   group('parseSeqFile rejects non-XML honestly', () {
     test('binary TOF1 is unsupported (not silently mis-parsed)', () {
       final bin = Uint8List.fromList([...ascii.encode('TOF1'), 0, 0, 0, 0, 0, 0, ...ascii.encode('SequenceFile'), 0]);

@@ -51,6 +51,22 @@ class SeqFile {
       '${types.length} types, ${sequences.length} sequences)';
 }
 
+/// The three ordered step groups a sequence runs, in execution order. The single
+/// source of truth for the group names: [key] is the TestStand property name
+/// under which a group's steps live in the `.seq` model (matched by
+/// [Sequence.stepsIn] / [Sequence.setup] etc.), so callers iterate
+/// `StepGroup.values` rather than hard-coding `'Setup'`/`'Main'`/`'Cleanup'`.
+enum StepGroup {
+  setup('Setup'),
+  main('Main'),
+  cleanup('Cleanup');
+
+  const StepGroup(this.key);
+
+  /// The property name holding this group's step array.
+  final String key;
+}
+
 /// A single sequence: a name and its three ordered step groups.
 class Sequence {
   Sequence(this.raw);
@@ -60,12 +76,15 @@ class Sequence {
 
   String get name => raw.name;
 
-  List<Step> get setup => _group('Setup');
-  List<Step> get main => _group('Main');
-  List<Step> get cleanup => _group('Cleanup');
+  /// The steps in [group] (its array property), in declaration order.
+  List<Step> stepsIn(StepGroup group) => _group(group.key);
+
+  List<Step> get setup => stepsIn(StepGroup.setup);
+  List<Step> get main => stepsIn(StepGroup.main);
+  List<Step> get cleanup => stepsIn(StepGroup.cleanup);
 
   /// All steps in editor order (Setup, then Main, then Cleanup).
-  List<Step> get steps => [...setup, ...main, ...cleanup];
+  List<Step> get steps => [for (final g in StepGroup.values) ...stepsIn(g)];
 
   List<Step> _group(String name) =>
       [for (final s in raw.prop(name)?.array ?? const <SeqProperty>[]) Step(s)];
