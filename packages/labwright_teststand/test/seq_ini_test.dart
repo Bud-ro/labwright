@@ -1280,9 +1280,17 @@ ${tsKeys.map((k) => '$k = "v"').join('\n')}
     final base = modeledFor(['Mode']);
     // Each newly-tracked setting the lens reads adds exactly one modeled node.
     for (final k in [
-      'UnloadOpt', 'LoopInitialize', 'LoopIncrement', 'LoopStatus', 'Icon'
+      'Id', 'UnloadOpt', 'LoopInitialize', 'LoopIncrement', 'LoopStatus', 'Icon'
     ]) {
       expect(modeledFor(['Mode', k]), base + 1, reason: '$k not counted');
     }
+  });
+
+  test('Step.id recovers the step unique id (TS.Id)', () {
+    final f = parseSeqFile(Uint8List.fromList(latin1.encode(covIni(['Id']))));
+    expect(f.sequences.single.main.single.id, 'v');
+    // A step with no TS.Id reads null.
+    final g = parseSeqFile(Uint8List.fromList(latin1.encode(covIni(['Mode']))));
+    expect(g.sequences.single.main.single.id, isNull);
   });
 }

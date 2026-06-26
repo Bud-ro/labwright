@@ -234,6 +234,13 @@ class Step {
   /// no [StepLimits].
   String? get dataSource => _nz(raw.prop('DataSource')?.scalar);
 
+  /// The step's unique id (`TS.Id`, e.g. `ID#:1m8fotxw7RGuNrjdh1OqZD`) — the
+  /// stable handle other steps' flow-action targets reference (see
+  /// [SeqFile.stepNameById], which resolves such a reference back to this step's
+  /// name). null when the step records none. Opaque by design; its value is the
+  /// link identity, not human-meaningful text.
+  String? get id => _nz(raw.prop('TS')?.prop('Id')?.scalar);
+
   @override
   String toString() => 'Step($name : ${type ?? '?'})';
 }

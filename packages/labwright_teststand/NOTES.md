@@ -142,8 +142,9 @@ refused (not mis-parsed).
 - **Coverage metric**: `measureCoverage(SeqFile)` → `SeqCoverage{total, modeled}`
   counts what fraction of `Data`-tree property nodes the typed lens surfaces.
   `tool/coverage.dart` runs it over the **XML** `.seq` files in `corpus/seq` and
-  writes a gitignored `corpus/seq/REPORT.md`. Current: **22.5% (4255/18932
-  nodes)** over 26 XML files — the rest (`Result`/`Measurement` subtrees,
+  writes a gitignored `corpus/seq/REPORT.md`. Current: **23.6% (4469/18932
+  nodes)** over 26 XML files (incl. the step's unique id `TS.Id`, surfaced as
+  `Step.id`) — the rest (`Result`/`Measurement` subtrees,
   precondition trees `Condition`/`CheckedState`, type-definition nodes `Type`/
   `Flags`/`NumType`, override/flag metadata) is still raw `SeqProperty`, the
   frontier to grow. `measureCoverage` credits the call-argument
