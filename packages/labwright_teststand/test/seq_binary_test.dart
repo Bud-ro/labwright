@@ -42,6 +42,7 @@ void main() {
     body.addAll(ascii.encode('xy')); // 2-char noise, below the pool minLength
     body.add(0x00);
     body.addAll([0xFF, 0xFF, 0xFF, 0xFF]);
+    body.add(0x00); // sentinel NUL-separated from the pool (as in real files)
     for (final name in ['SequenceFileData', 'Data', 'Objs', 'Sequence',
         'MainSequence', 'Parameters', 'Locals', 'Step']) {
       body.addAll(ascii.encode(name));

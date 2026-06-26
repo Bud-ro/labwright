@@ -63,7 +63,14 @@ enum Ascii {
   tilde(0x7e),
 
   /// First non-ASCII code (0x20..0x7f are printable; this is the exclusive top).
-  nonAscii(0x80);
+  nonAscii(0x80),
+
+  /// Lowest Latin-1 high-range printable (`0xa0`, no-break space); `0x7f..0x9f`
+  /// (C1 controls / undefined in Latin-1) are not printable.
+  latin1Start(0xa0),
+
+  /// Highest Latin-1 printable (`0xff`, `ÿ`).
+  latin1End(0xff);
 
   const Ascii(this.code);
   final int code;
@@ -220,7 +227,18 @@ String _asciiPeek(Uint8List b, int start, int len) {
 /// One printable-ASCII run found in a binary file: its byte [offset] and [text].
 typedef BinaryString = ({int offset, String text});
 
-/// Extracts the printable-ASCII runs (length ≥ [minLength]) from binary [bytes].
+/// Whether [c] is a printable text byte for binary string scanning: ASCII
+/// `0x20..0x7e` **plus** the Latin-1 high range `0xa0..0xff`. NI stores names,
+/// module paths and expressions in the system code page (Latin-1 in the corpus),
+/// so non-ASCII letters (e.g. `ü`, `ı`, `ö`) are real text — including them keeps
+/// runs like `…\4_Aktif_Güç.vi` intact instead of fragmenting them at the accent.
+/// The `0x7f..0x9f` gap (C1 controls / undefined in Latin-1) stays a separator.
+bool isBinaryPrintable(int c) =>
+    (c >= Ascii.space.code && c <= Ascii.tilde.code) ||
+    (c >= Ascii.latin1Start.code && c <= Ascii.latin1End.code);
+
+/// Extracts the printable runs (length ≥ [minLength]) from binary [bytes] — see
+/// [isBinaryPrintable] for the byte set (ASCII + Latin-1 high range).
 ///
 /// A reconnaissance primitive for the not-yet-decoded binary `TOF1` container —
 /// it surfaces the embedded strings (header fields, names, expressions) **with
@@ -237,7 +255,7 @@ List<BinaryString> binaryStrings(Uint8List bytes, {int minLength = 4}) {
 
   for (var i = 0; i < bytes.length; i++) {
     final c = bytes[i];
-    if (c >= Ascii.space.code && c <= Ascii.tilde.code) {
+    if (isBinaryPrintable(c)) {
       if (sb.isEmpty) start = i;
       sb.writeCharCode(c);
     } else {

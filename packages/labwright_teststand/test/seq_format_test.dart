@@ -82,12 +82,17 @@ void main() {
   });
 
   group('binaryStrings', () {
-    test('extracts printable runs with offsets, total over arbitrary bytes', () {
+    test('extracts printable runs with offsets, incl. Latin-1 high bytes', () {
       final b = Uint8List.fromList([
-        0x00, ...ascii.encode('Hello'), 0x00, 0x01, ...ascii.encode('World'), 0xff,
+        0x00, ...ascii.encode('Hello'), 0x00, 0x01, ...ascii.encode('World'), 0x00,
+        // Latin-1 letters (0xa0..0xff) stay inside the run (ü, ç)...
+        ...latin1.encode('Aktif_Güç'), 0x00,
+        // ...but a C1-gap byte (0x7f..0x9f) still separates runs.
+        ...ascii.encode('left'), 0x85, ...ascii.encode('right'),
       ]);
       final runs = binaryStrings(b);
-      expect(runs.map((r) => r.text), ['Hello', 'World']);
+      expect(runs.map((r) => r.text),
+          ['Hello', 'World', 'Aktif_Güç', 'left', 'right']);
       expect(runs.first.offset, 1);
       expect(binaryStrings(Uint8List(0)), isEmpty); // no throw on empty
     });

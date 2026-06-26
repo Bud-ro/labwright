@@ -808,7 +808,7 @@ void main() {
 
   test('binary files expose call-targets, step refs, expressions, literals', () {
     var binary = 0, withPath = 0, withId = 0, withExpr = 0, withLit = 0;
-    var totalPaths = 0;
+    var totalPaths = 0, nonAsciiPaths = 0;
     final bad = <String>[];
     for (final f in seqs) {
       final bytes = f.readAsBytesSync();
@@ -838,6 +838,9 @@ void main() {
       if (paths.isNotEmpty) {
         withPath++;
         totalPaths += paths.length;
+        // Latin-1 recovery: paths with accented chars (ü, ç, …) stay intact.
+        nonAsciiPaths +=
+            paths.where((p) => p.codeUnits.any((u) => u >= 0x80)).length;
       }
       if (binaryStepReferences(bytes).isNotEmpty) withId++;
       if (binaryExpressions(bytes).isNotEmpty) withExpr++;
@@ -846,11 +849,13 @@ void main() {
     // ignore: avoid_print
     print(
       'binary recovered: $withPath/$binary files ≥1 module path '
-      '($totalPaths total) · $withId/$binary ≥1 ID#: ref · '
-      '$withExpr/$binary ≥1 expression · $withLit/$binary ≥1 literal',
+      '($totalPaths total, $nonAsciiPaths non-ASCII) · $withId/$binary ≥1 ID#: '
+      'ref · $withExpr/$binary ≥1 expression · $withLit/$binary ≥1 literal',
     );
     expect(bad, isEmpty, reason: bad.take(5).join('\n'));
     expect(binary, greaterThanOrEqualTo(80));
+    // Latin-1 scanning recovers accented paths intact (would be 0 if ASCII-only).
+    expect(nonAsciiPaths, greaterThan(0));
     // Corpus floors (190 paths, 285 ids, 285 exprs, 288 literals) — safe margins.
     expect(withPath, greaterThanOrEqualTo(binary ~/ 2));
     expect(withId, greaterThanOrEqualTo((binary * 9) ~/ 10));

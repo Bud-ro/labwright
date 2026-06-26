@@ -886,8 +886,11 @@ string pool, honestly, without the record grammar:
 - **Module call-targets** (`binaryModulePaths` + the `isBinaryModulePath`
   predicate) — the LabVIEW VIs / DLLs / sub-sequences / libraries a binary `.seq`
   invokes (path-separated, `.vi`/`.dll`/`.seq`/`.llb` suffix). Corpus: **190/288
-  files expose ≥1 (1496 total)**; the rest make no external calls or carry paths
-  fragmented by non-ASCII run splits. *What* is called, not yet *from which step*.
+  files expose ≥1 (1599 total, 113 with accented chars)**; the rest make no
+  external calls. *What* is called, not yet *from which step*. (The string scanner
+  is Latin-1-aware — `isBinaryPrintable` includes `0xa0..0xff` — so accented paths
+  like `…\4_Aktif_Güç.vi` stay intact instead of fragmenting at the accent; this
+  added +103 complete paths over ASCII-only with no garbage.)
 - **`ID#:` step references** (`binaryStepReferences`) — the same unique step-ID
   tokens the text encodings resolve to links. Corpus: **285/288 files expose ≥1**.
 - **Expressions** (`binaryExpressions` + the `isBinaryExpression` predicate) — the
