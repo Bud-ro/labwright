@@ -241,8 +241,60 @@ class Step {
   /// link identity, not human-meaningful text.
   String? get id => _nz(raw.prop('TS')?.prop('Id')?.scalar);
 
+  /// The step's "Additional Results" recording spec — the extra values it logs
+  /// to the report. Collected from every `AdditionalResults` container in the
+  /// step's subtree (these attach to module-call parameters, e.g. a Python or
+  /// C/CVI call's `Input`/`Output` directions). Each [AdditionalResult] names a
+  /// recorded slot and carries its gating `Condition` expression; the
+  /// `Flags`/`CheckedState` siblings are left raw (meaning not yet decoded).
+  List<AdditionalResult> get additionalResults {
+    final out = <AdditionalResult>[];
+    void walk(SeqProperty p) {
+      if (p.name == 'AdditionalResults') {
+        for (final e in [...p.subProps, ...?p.array]) {
+          out.add(AdditionalResult(e));
+        }
+        return; // entries don't nest further AdditionalResults containers
+      }
+      for (final c in [...p.subProps, ...?p.array]) {
+        walk(c);
+      }
+    }
+
+    walk(raw);
+    return out;
+  }
+
   @override
   String toString() => 'Step($name : ${type ?? '?'})';
+}
+
+/// One entry in a step's "Additional Results" recording spec (see
+/// [Step.additionalResults]): a value the step logs to the report. The entry's
+/// [name] identifies the recorded slot — for a module-call parameter result it
+/// is the parameter direction (`Input`/`Output`); its `classname` (e.g.
+/// `PythonParameterResult`, `CommonCParameterResult`) says which adapter it came
+/// from. [condition] is the gating expression under which the value is recorded
+/// (an `ExprValue`; null/empty means always recorded — the only case seen in the
+/// corpus so far). The sibling `Flags`/`CheckedState` numbers are not yet decoded
+/// and are deliberately not surfaced here.
+class AdditionalResult {
+  AdditionalResult(this.raw);
+
+  /// The underlying entry property — full access including the not-yet-decoded
+  /// `Flags`/`CheckedState`.
+  final SeqProperty raw;
+
+  /// The recorded slot's name, e.g. `Input` / `Output`.
+  String get name => raw.name;
+
+  /// The entry's class (`PythonParameterResult`, `CommonCParameterResult`, …),
+  /// or null when absent.
+  String? get kind => _nz(raw.attributes['classname']);
+
+  /// The gating `Condition` expression (an `ExprValue`); null when the entry has
+  /// no condition or an empty one (record unconditionally).
+  String? get condition => _nz(raw.prop('Condition')?.scalar);
 }
 
 String? _nz(String? s) => (s == null || s.isEmpty) ? null : s;

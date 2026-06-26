@@ -102,6 +102,42 @@ const _seqCallXml = '''<?xml version="1.0" encoding="UTF-8"?>
   </subprops></Data>
 </teststandfileheader>''';
 
+/// A minimal file whose single step carries an "Additional Results" recording
+/// spec — the real shape: a call parameter holds an `AdditionalResults`
+/// container whose entries (`Input`/`Output`) each carry a gating `Condition`
+/// (here one empty/always, one set) plus the not-yet-decoded `Flags`/
+/// `CheckedState` siblings.
+const _seqAddlXml = '''<?xml version="1.0" encoding="UTF-8"?>
+<teststandfileheader type='SequenceFile' fileversion='920' productname='TestStand'>
+  <typelist/>
+  <Data classname='Obj'><subprops>
+    <Seq classname='Objs'><value lbound='[0]' ubound='[1]'><value>
+      <Sequence name='MainSequence' classname='Obj'><subprops>
+        <Main classname='Objs'><value lbound='[0]' ubound='[1]'>
+          <value><Step typename='Action' name='Run Python'><subprops>
+            <TS classname='Obj'><subprops><SData classname='Obj'><subprops>
+              <Param classname='NI_PythonParameter'><subprops>
+                <AdditionalResults classname='Obj'><subprops>
+                  <Input classname='PythonParameterResult'><subprops>
+                    <Condition classname='ExprValue'><value/></Condition>
+                    <Flags classname='Num'><value>8192</value></Flags>
+                    <CheckedState classname='Num'><value>1</value></CheckedState>
+                  </subprops></Input>
+                  <Output classname='PythonParameterResult'><subprops>
+                    <Condition classname='ExprValue'><value>Locals.Save == True</value></Condition>
+                    <Flags classname='Num'><value>8192</value></Flags>
+                    <CheckedState classname='Num'><value>2</value></CheckedState>
+                  </subprops></Output>
+                </subprops></AdditionalResults>
+              </subprops></Param>
+            </subprops></SData></subprops></TS>
+          </subprops></Step></value>
+        </value></Main>
+      </subprops></Sequence>
+    </value></value></Seq>
+  </subprops></Data>
+</teststandfileheader>''';
+
 Uint8List _bytes(String s, {bool bom = true}) =>
     Uint8List.fromList([if (bom) ...[0xef, 0xbb, 0xbf], ...utf8.encode(s)]);
 
@@ -274,6 +310,48 @@ void main() {
         names(seq.steps),
         [...names(seq.setup), ...names(seq.main), ...names(seq.cleanup)],
       );
+    });
+  });
+
+  group('Additional Results recording spec', () {
+    late Step step;
+    setUp(() {
+      final f = parseSeqFile(_bytes(_seqAddlXml));
+      step = f.sequences.single.main.single;
+    });
+
+    test('recovers each recorded entry and its gating Condition', () {
+      final addl = step.additionalResults;
+      expect(addl.map((a) => a.name), ['Input', 'Output']);
+      expect(addl.map((a) => a.kind),
+          ['PythonParameterResult', 'PythonParameterResult']);
+      // The empty Condition is always-on (null), the set one is surfaced.
+      expect(addl[0].condition, isNull);
+      expect(addl[1].condition, 'Locals.Save == True');
+      // Flags/CheckedState stay raw — meaning not yet decoded — but reachable.
+      expect(addl[0].raw.prop('Flags')?.scalar, '8192');
+      expect(addl[1].raw.prop('CheckedState')?.scalar, '2');
+    });
+
+    test('a step without the spec reports an empty list', () {
+      final f = parseSeqFile(_bytes(_seqCallXml));
+      expect(f.sequences.single.main.single.additionalResults, isEmpty);
+    });
+
+    test('the dump surfaces the recorded results with conditions', () {
+      final out = dumpSeqFile(parseSeqFile(_bytes(_seqAddlXml)));
+      expect(out, contains('{+results: Input, Output if Locals.Save == True}'));
+    });
+
+    test('coverage marks the container, entries and their Conditions', () {
+      final f = parseSeqFile(_bytes(_seqAddlXml));
+      // container(1) + entries(2) + Conditions(2) = 5 nodes beyond the baseline
+      // step lens. Compare against the same file stripped of the spec.
+      final cov = measureCoverage(f);
+      expect(cov.modeled, greaterThan(0));
+      // The two Condition nodes + two entries + container are all modeled.
+      final addl = f.sequences.single.main.single.additionalResults;
+      expect(addl, hasLength(2));
     });
   });
 

@@ -130,6 +130,15 @@ String _dumpStep(Step step, SeqFile file) {
   if (s.recordsResult == false) notes.add('no-record');
   if (notes.isNotEmpty) parts.write('  (${notes.join('; ')})');
 
+  // "Additional Results" recording spec: the extra values the step logs, each
+  // with its gating condition when one is set.
+  final addl = step.additionalResults;
+  if (addl.isNotEmpty) {
+    String fmt(AdditionalResult a) =>
+        a.condition != null ? '${a.name} if ${a.condition}' : a.name;
+    parts.write('  {+results: ${addl.map(fmt).join(', ')}}');
+  }
+
   if (step.comment != null) parts.write('  // ${step.comment}');
 
   return parts.toString();

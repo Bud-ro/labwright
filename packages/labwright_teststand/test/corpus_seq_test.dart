@@ -169,6 +169,42 @@ void main() {
     );
   });
 
+  test('recovers the "Additional Results" recording spec across XML corpus', () {
+    var filesWithSpec = 0, entries = 0, withCondition = 0;
+    final kinds = <String>{};
+    for (final f in seqs) {
+      if (f.lengthSync() > 300 * 1024) continue; // huge files: skip (OOM guard)
+      final bytes = f.readAsBytesSync();
+      if (detectSeqFormat(bytes) != SeqFormat.xml) continue;
+      final sf = parseSeqFile(bytes);
+      var any = false;
+      for (final s in sf.sequences) {
+        for (final step in s.steps) {
+          for (final a in step.additionalResults) {
+            any = true;
+            entries++;
+            if (a.kind != null) kinds.add(a.kind!);
+            if (a.condition != null) withCondition++;
+          }
+        }
+      }
+      if (any) filesWithSpec++;
+    }
+    // ignore: avoid_print
+    print(
+      'additional-results: $filesWithSpec files · $entries entries · '
+      '$withCondition with a gating condition · kinds=$kinds',
+    );
+    // Corpus evidence (probed): 14 files, 110 entries, all PythonParameterResult
+    // / CommonCParameterResult, and (so far) every Condition empty/always-on.
+    expect(filesWithSpec, greaterThanOrEqualTo(10));
+    expect(entries, greaterThanOrEqualTo(100));
+    expect(
+      kinds,
+      everyElement(anyOf(contains('ParameterResult'), isNotEmpty)),
+    );
+  });
+
   test('every INI .seq parses into a header + sections (Rosetta form)', () {
     var ini = 0, parsed = 0, sfRoot = 0, dataNamed = 0, seqType = 0;
     final failures = <String>[];

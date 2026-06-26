@@ -142,15 +142,14 @@ refused (not mis-parsed).
 - **Coverage metric**: `measureCoverage(SeqFile)` → `SeqCoverage{total, modeled}`
   counts what fraction of `Data`-tree property nodes the typed lens surfaces.
   `tool/coverage.dart` runs it over the **XML** `.seq` files in `corpus/seq` and
-  writes a gitignored `corpus/seq/REPORT.md`. Current: **25.9% (4900/18932
+  writes a gitignored `corpus/seq/REPORT.md`. Current: **27.7% (5250/18932
   nodes)** over 26 XML files (incl. `Step.id`=`TS.Id`, and the boolean step flags
   `StepFCSeqF`/`IgnoreRTE`/`ResultOption` → `StepSettings.failureCausesSequence-
-  Failure`/`ignoresRunTimeErrors`/`recordsResult`) — the rest (`Result`/
-  `Measurement` subtrees; the custom-result column specs `AdditionalResult`/
-  `Input`/`Output` carrying `Condition`/`CheckedState` — NOT step preconditions,
-  which are the `PreCond` scalar; cluster-field type descriptors `Type`/`NumType`
-  scattered in value subtrees; flag metadata) is still raw `SeqProperty`, the
-  frontier to grow. `measureCoverage` credits the call-argument
+  Failure`/`ignoresRunTimeErrors`/`recordsResult`, plus the **Additional Results
+  recording spec** below) — the rest (`Result`/`Measurement` subtrees; the
+  cluster-field type descriptors `Type`/`NumType` scattered in value subtrees;
+  the `Flags`/`CheckedState` metadata on result entries) is still raw
+  `SeqProperty`, the frontier to grow. `measureCoverage` credits the call-argument
   (`Call.Parameters`) and recorded-`Result.Units` nodes the lens surfaces, and
   the full set of `TS` step-settings `StepSettings` reads — run mode, module
   load/**unload**, the four **loop expressions**, pre/post/status expressions,
@@ -175,6 +174,20 @@ refused (not mis-parsed).
   has no `Comp`/`Limits` → no `StepLimits`, so its criterion was dropped. →
   `Step.dataSource` (general); the dump shows `{data-source …}` for non-limit
   steps. Corpus: 113 steps set `DataSource` without limits (94 `PassFailTest`).
+- **Additional Results recording spec**: a step's `AdditionalResults` container
+  (classname `Obj`) holds the extra values it logs to the report. It attaches to
+  a module-call parameter; each entry is named for the recorded slot — the
+  parameter direction `Input`/`Output` (classname `PythonParameterResult` /
+  `CommonCParameterResult`) — and carries `{Condition (ExprValue), Flags (Num),
+  CheckedState (Num)}`. → `Step.additionalResults` (`AdditionalResult`): walks the
+  step subtree for every container, exposing each entry's `name`, `kind`
+  (classname), and `condition` (the gating `ExprValue`; null = always-on). The
+  dump folds it into a `{+results: Input, Output if <cond>}` chip. **Honest scope:
+  `Condition` only** — `Flags` (always `8192` here) and `CheckedState` (`1`/`2`)
+  are left raw, meaning *not yet decoded*. Corpus (probed full): **14 XML files,
+  55 containers, 110 entries**, all `*ParameterResult`, and every `Condition`
+  empty/always-on so far. Coverage marks container+entries+`Condition` (+350
+  nodes → the 25.9 %→27.7 % bump).
 - **Viewer (M4)**: `dumpSeqFile(SeqFile)` (`seq_dump.dart`) renders a
   sequence-editor-like text view — header, each sequence's params/locals, then
   Setup/Main/Cleanup steps as `name [type] -> adapter: target (flow; loop; if)`.

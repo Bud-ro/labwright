@@ -98,6 +98,25 @@ SeqCoverage measureCoverage(SeqFile f) {
       final result = step.raw.prop('Result');
       mark(result);
       mark(result?.prop('Units'));
+      // "Additional Results" recording spec: the `AdditionalResults` container,
+      // each recorded entry, and each entry's gating `Condition` expression
+      // (Step.additionalResults). Flags/CheckedState are left raw — their
+      // meaning is not yet decoded.
+      void markAddl(SeqProperty p) {
+        if (p.name == 'AdditionalResults') {
+          mark(p);
+          for (final e in [...p.subProps, ...?p.array]) {
+            mark(e);
+            mark(e.prop('Condition'));
+          }
+          return;
+        }
+        for (final c in [...p.subProps, ...?p.array]) {
+          markAddl(c);
+        }
+      }
+
+      markAddl(step.raw);
     }
   }
 
