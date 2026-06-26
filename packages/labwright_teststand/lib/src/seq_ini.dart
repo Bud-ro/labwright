@@ -523,13 +523,48 @@ SeqFile parseIniSeqFile(Uint8List bytes) {
   return SeqFile(header: doc.header, types: iniTypes(doc), data: data);
 }
 
-/// Strips one layer of surrounding double quotes, if present. Returns null for a
-/// null input.
+/// Strips one layer of surrounding double quotes, if present, and decodes the
+/// C-style escapes TestStand writes *inside* a quoted value (see [_unescapeIni]).
+/// Returns null for a null input.
 String? _unquote(String? s) {
   if (s == null) return null;
   final t = s.trim();
   if (t.length >= 2 && t.startsWith('"') && t.endsWith('"')) {
-    return t.substring(1, t.length - 1);
+    return _unescapeIni(t.substring(1, t.length - 1));
   }
   return t;
+}
+
+/// Decodes the C-style escapes TestStand writes inside a *quoted* INI value:
+/// `\\`→`\`, `\"`→`"`, `\n`→newline, `\t`→tab, `\r`→CR. NI always doubles a
+/// literal backslash (`\\`) — verified across the corpus, where the only escape
+/// targets seen are `" n t r \` — so a lone `\n` unambiguously means a newline,
+/// not a path separator. This brings INI string scalars in line with the XML
+/// form (which uses XML entities) so both decode to the same logical text — e.g.
+/// the expression `Locals.M != \"S001\"` reads as `Locals.M != "S001"`.
+/// Processed left-to-right, consuming each pair; an unrecognized `\x` (none seen
+/// in the corpus) is kept verbatim, defensively. Only called on quoted values,
+/// so unquoted bare tokens (numbers, enums) are never touched.
+String _unescapeIni(String s) {
+  if (!s.contains(r'\')) return s; // fast path — most values carry no escapes
+  final b = StringBuffer();
+  for (var i = 0; i < s.length; i++) {
+    if (s[i] == r'\' && i + 1 < s.length) {
+      final decoded = switch (s[i + 1]) {
+        r'\' => r'\',
+        '"' => '"',
+        'n' => '\n',
+        't' => '\t',
+        'r' => '\r',
+        _ => null,
+      };
+      if (decoded != null) {
+        b.write(decoded);
+        i++; // consume the escaped char
+        continue;
+      }
+    }
+    b.write(s[i]);
+  }
+  return b.toString();
 }

@@ -1346,4 +1346,63 @@ $key = "$value"
     // Absent flag reads null.
     expect(settingsWith('Mode', 'Normal').recordsResult, isNull);
   });
+
+  group('quoted-value escape decoding', () {
+    // A step whose precondition (an expression with embedded quotes, a doubled
+    // backslash path, and a newline) is stored with TestStand's C-style escapes.
+    String preIni(String escaped) => '''
+[__Header__]
+ProductName = "TestStand"
+Version = 354
+Type = "SequenceFile"
+
+[DEF, %OBJROOT]
+SF = SequenceFileData
+[DEF, SF]
+Seq = Objs
+%NAME = "Data"
+[DEF, SF.Seq]
+%[0] = Sequence
+[DEF, SF.Seq[0]]
+Main = Objs
+%NAME = "MainSequence"
+[DEF, SF.Seq[0].Main]
+%[0] = Step
+%TYPE: %[0] = "Action"
+[DEF, SF.Seq[0].Main[0]]
+TS = Obj
+%NAME = "s"
+[DEF, SF.Seq[0].Main[0].TS]
+PreCond = ExprValue
+[SF.Seq[0].Main[0].TS]
+PreCond = "$escaped"
+''';
+
+    StepSettings parse(String escaped) =>
+        parseSeqFile(Uint8List.fromList(latin1.encode(preIni(escaped))))
+            .sequences
+            .single
+            .main
+            .single
+            .settings;
+
+    test(r'decodes \" to a literal double quote', () {
+      // INI text: Locals.M != \"S001\"
+      expect(parse(r'Locals.M != \"S001\"').precondition, 'Locals.M != "S001"');
+    });
+
+    test(r'decodes a doubled backslash \\ to one, and \n to a newline', () {
+      // INI text: line1\nC:\\dir  ->  "line1" <newline> "C:\dir"
+      expect(parse(r'line1\nC:\\dir').precondition, 'line1\nC:\\dir');
+    });
+
+    test('leaves a value with no escapes untouched', () {
+      expect(parse('Locals.X > 0').precondition, 'Locals.X > 0');
+    });
+
+    test('keeps an unrecognized escape verbatim (defensive)', () {
+      // \q is not a known escape; the backslash is preserved.
+      expect(parse(r'a\qb').precondition, r'a\qb');
+    });
+  });
 }

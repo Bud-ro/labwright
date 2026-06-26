@@ -621,6 +621,17 @@ decodes it (header + sections); confirmed across all 58:
 - `[<path>]` sections carry the **values** (`member = value`) plus directives
   `%FLG:` (flags), `%HI:` (array bounds), `%NAME`, `%INSTOVRD:`/`%INSTFLG:`
   (typed-instance overrides), `%TYPE:`, `%COMMENT:`, `%TIMESTAMP:`.
+- **Quoted string values are C-style escaped** (`_unescapeIni`, applied in
+  `_unquote` 2026-06): NI writes `\\`→`\`, `\"`→`"`, `\n`→newline, `\t`/`\r`
+  inside quoted values. Corpus-verified the only escape targets are `" n t r \`
+  (3702 quoted values w/ a backslash: `\"`×10474, `\\`×1232, `\n`×1113, `\r`×14,
+  `\t`×1) — and NI **always doubles** a literal backslash, so a lone `\n` is
+  unambiguously a newline, not a path separator → decoding is reversible/safe.
+  This makes INI string scalars match the XML form (XML entities) so both decode
+  to the same logical text: e.g. a condition `Locals.M != \"S001\"` now reads as
+  `Locals.M != "S001"` in the lens/dump/logic-export/app, not the raw escaped
+  form. Only quoted values are decoded; bare tokens (numbers/enums) and the raw
+  `IniSection.members` map are untouched. Unknown `\x` kept verbatim (defensive).
 - Paths nest exactly like the **binary name pool**: `SF` (=`SequenceFileData`,
   the `%OBJROOT` alias) → `SF.Seq` (an `Objs` array) → `SF.Seq[0]` (a `Sequence`,
   `%NAME="MainSequence"`) → `Parameters`/`Locals`/`Main`/`Setup`/`Cleanup`.
