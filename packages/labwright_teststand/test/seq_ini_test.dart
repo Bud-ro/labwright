@@ -673,5 +673,67 @@ DescriptionFormat Line0002 = "uleDescription\\")"
         expect(s.directives.keys.any((k) => k.contains(' Line')), isFalse);
       }
     });
+
+    test('reassembles a value whose content contains " = "', () {
+      // The line splitter cuts on the FIRST " = " (so the key is the LHS); a
+      // value with its own " = " (a TestStand expression) must survive intact
+      // across the fragment join.
+      const ini = '''
+[__Header__]
+Type = "SequenceFile"
+
+[Obj]
+Expr Line0001 = "Locals.x "
+Expr Line0002 = "= Locals.y + 1"
+''';
+      final s = parseIniSeq(ini).sections.single;
+      expect(s.members.keys, ['Expr']);
+      expect(s.members['Expr'], '"Locals.x = Locals.y + 1"');
+    });
+  });
+
+  test('flowSummary shows both a pass and a fail jump target', () {
+    const ini = '''
+[__Header__]
+ProductName = "TestStand"
+Version = 354
+Type = "SequenceFile"
+
+[DEF, %OBJROOT]
+SF = SequenceFileData
+[DEF, SF]
+Seq = Objs
+%NAME = "Data"
+[DEF, SF.Seq]
+%[0] = Sequence
+[DEF, SF.Seq[0]]
+Main = Objs
+%NAME = "MainSequence"
+[DEF, SF.Seq[0].Main]
+%[0] = Step
+%TYPE: %[0] = "Action"
+[DEF, SF.Seq[0].Main[0]]
+TS = Obj
+%NAME = "branch"
+[DEF, SF.Seq[0].Main[0].TS]
+PassAct = String
+FailAct = String
+PassActTarget = String
+FailActTarget = String
+[SF.Seq[0].Main[0].TS]
+PassAct = "Goto"
+FailAct = "Goto"
+PassActTarget = "\\"<End>\\""
+FailActTarget = "\\"<Cleanup>\\""
+''';
+    final set = parseSeqFile(Uint8List.fromList(latin1.encode(ini)))
+        .sequences
+        .single
+        .main
+        .single
+        .settings;
+    expect(set.passActionTarget, '<End>');
+    expect(set.failActionTarget, '<Cleanup>');
+    expect(set.flowSummary, 'Goto→<End>/Goto→<Cleanup>');
   });
 }
