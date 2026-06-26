@@ -126,5 +126,76 @@ void main() {
       // The step type comes from the array DEF's %TYPE: %[0].
       expect(step.type, 'Action');
     });
+
+    test('the step has no instance-level settings/module to surface yet', () {
+      // _ini declares no [DEF, Action], so there is nothing to inherit — the
+      // run mode and module adapter are honestly absent (instance-only model).
+      final step = sf.sequences.single.main.single;
+      expect(step.settings.mode, isNull);
+      expect(step.module.adapter, SeqAdapter.none);
+    });
+  });
+
+  // A step instance usually stores only its overrides; its run-mode, looping and
+  // module-adapter defaults live in the step's TYPE definition ([DEF, <Type>]).
+  // This fixture exercises that: `myStep` (type Action) declares only %NAME, and
+  // inherits TS.Mode/TS.LoopType and the VI-adapter binding from [DEF, Action].
+  const inheritIni = '''
+[__Header__]
+ProductName = "TestStand"
+Version = 354
+Type = "SequenceFile"
+
+[DEF, %OBJROOT]
+SF = SequenceFileData
+[DEF, SF]
+Seq = Objs
+%NAME = "Data"
+[DEF, SF.Seq]
+%[0] = Sequence
+[DEF, SF.Seq[0]]
+Main = Objs
+%NAME = "MainSequence"
+[DEF, SF.Seq[0].Main]
+%[0] = Step
+%TYPE: %[0] = "Action"
+[DEF, SF.Seq[0].Main[0]]
+%NAME = "myStep"
+
+[DEF, Action]
+TS = "TYPE, TEInf"
+[DEF, Action.TS]
+Mode = String
+LoopType = String
+SData = "TYPE, FlexGStepAdditions"
+[Action.TS]
+Mode = "Normal"
+LoopType = "NoLooping"
+[DEF, Action.TS.SData]
+ViCall = Obj
+[DEF, Action.TS.SData.ViCall]
+VIPath = String
+[Action.TS.SData.ViCall]
+VIPath = "measure.vi"
+''';
+
+  group('INI type inheritance (instance inherits from its [DEF, <Type>])', () {
+    final sf = parseSeqFile(Uint8List.fromList(latin1.encode(inheritIni)));
+    final step = sf.sequences.single.main.single;
+
+    test('the instance keeps its identity', () {
+      expect(step.name, 'myStep');
+      expect(step.type, 'Action');
+    });
+
+    test('inherits run-mode + looping defaults from the type', () {
+      expect(step.settings.mode, 'Normal');
+      expect(step.settings.loopType, 'NoLooping');
+    });
+
+    test('inherits the module-adapter binding from the type', () {
+      expect(step.module.adapter, SeqAdapter.labView);
+      expect(step.module.viPath, 'measure.vi');
+    });
   });
 }

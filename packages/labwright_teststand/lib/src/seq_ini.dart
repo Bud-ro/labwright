@@ -261,61 +261,110 @@ class _IniBuilder {
     return order;
   }
 
+  // Cache of inherited member subtrees keyed by their type-default path, so a
+  // type's defaults (e.g. Action.TS) are built once, not per instance.
+  final Map<String, SeqProperty> _inheritCache = {};
+
+  /// Splits a member's declared type string into (className, typeName). A
+  /// `"TYPE, X"` reference is a typed object of type X (className null, typeName
+  /// X); anything else is a plain value-kind (className = it, typeName null).
+  (String?, String?) _memberType(String? raw) {
+    final t = _unquote(raw);
+    if (t == null) return (null, null);
+    if (t.startsWith('TYPE, ')) return (null, t.substring(6).trim());
+    return (t, null);
+  }
+
   SeqProperty build(
     String path,
     String displayName,
     String? declaredType, [
     String? declaredTypeName,
+    Set<String>? visiting,
   ]) {
+    visiting ??= <String>{};
     final def = _defs[path];
     final val = _vals[path];
     final name = _unquote(val?.directives['%NAME']) ??
         _unquote(def?.directives['%NAME']) ??
         displayName;
-    // Member order: the DEF declaration first (authoritative + typed), then any
-    // value-only members not declared there.
-    final memberTypes = def?.members ?? const <String, String>{};
-    final memberOrder = <String>[...memberTypes.keys];
-    final seen = memberTypes.keys.toSet();
+    // Type inheritance. A typed object (e.g. a step of type "Action") declares
+    // its member *types* in its `[DEF, <Type>]`; the instance stores only the
+    // members/values it overrides. So the type def supplies (a) member type
+    // declarations the instance omits — even for members the instance only
+    // implies via a deeper section, like a step's `TS` whose type lives in the
+    // step type def — and (b) whole members the instance never mentions, whose
+    // values come from the type's own default subtree. Bounded against type
+    // cycles by [visiting]; inherited default subtrees are cached.
+    final typeRoot = (declaredTypeName != null &&
+            declaredTypeName != path &&
+            _defs.containsKey(declaredTypeName))
+        ? declaredTypeName
+        : null;
+    final inheritGuard = typeRoot != null && visiting.add(typeRoot);
+    final typeDefMembers = (typeRoot != null && inheritGuard)
+        ? _defs[typeRoot]!.members
+        : const <String, String>{};
+    // The member's declared type: instance declaration wins over the type def's.
+    String? memberTypeOf(String m) => def?.members[m] ?? typeDefMembers[m];
+
+    // Member order: instance DEF declarations first (authoritative + typed),
+    // then value-only members, then members implied by deeper sections, and
+    // finally members the object inherits from its type but never mentions.
+    final memberOrder = <String>[...(def?.members.keys ?? const <String>[])];
+    final seen = memberOrder.toSet();
     for (final m in (val?.members.keys ?? const <String>[])) {
       if (seen.add(m)) memberOrder.add(m);
     }
-    // Container members implied only by deeper sections (e.g. a step's SData).
     for (final m in _discoveredChildren(path)) {
+      if (seen.add(m)) memberOrder.add(m);
+    }
+    for (final m in typeDefMembers.keys) {
       if (seen.add(m)) memberOrder.add(m);
     }
 
     final subs = <SeqProperty>[];
     for (final m in memberOrder) {
-      final type = memberTypes[m];
-      final childPath = '$path.$m';
-      final elems = _elementIndices(childPath);
+      final (cls, tn) = _memberType(memberTypeOf(m));
+      final instPath = '$path.$m';
+      final typePath = typeRoot == null ? null : '$typeRoot.$m';
+      final elems = _elementIndices(instPath);
       if (elems.isNotEmpty) {
         // An array member: build each element object in index order. The element
         // class (%[i]) and TestStand type (%TYPE: %[i]) are declared in the
         // array's own DEF section (e.g. `%[0] = Step`, `%TYPE: %[0] = "Action"`).
-        final arrDef = _defs[childPath];
+        final arrDef = _defs[instPath];
         final arr = [
           for (final i in elems)
             build(
-              '$childPath[$i]',
+              '$instPath[$i]',
               '[$i]',
               arrDef?.directives['%[$i]'],
               _unquote(arrDef?.directives['%TYPE: %[$i]']),
+              visiting,
             ),
         ];
-        subs.add(SeqProperty(name: m, className: type, array: arr));
-      } else if (_isContainer(childPath)) {
-        subs.add(build(childPath, m, type));
+        subs.add(SeqProperty(name: m, className: cls, array: arr));
+      } else if (_isContainer(instPath)) {
+        // The instance has this container: build it (and let it inherit its own
+        // type's defaults via the typeName we pass down).
+        subs.add(build(instPath, m, cls, tn, visiting));
+      } else if (typePath != null && _isContainer(typePath)) {
+        // Inherited-only container: take the type's default subtree (cached).
+        subs.add(_inheritCache[typePath] ??= build(typePath, m, cls, tn, visiting));
       } else {
-        // Scalar leaf: declared type as className, value (if any) as scalar.
+        // Scalar leaf: instance value wins, else the type default value.
         subs.add(SeqProperty(
           name: m,
-          className: type,
-          scalar: _unquote(val?.members[m]),
+          className: cls,
+          typeName: tn,
+          scalar: _unquote(val?.members[m]) ??
+              (typeRoot == null ? null : _unquote(_vals[typeRoot]?.members[m])),
         ));
       }
     }
+    if (inheritGuard) visiting.remove(typeRoot);
+
     return SeqProperty(
       name: name,
       className: declaredType,

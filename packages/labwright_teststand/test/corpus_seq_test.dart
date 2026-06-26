@@ -230,6 +230,10 @@ void main() {
     var ini = 0, built = 0, threw = 0;
     var totSeq = 0, totSteps = 0, totLocals = 0, withModule = 0, withType = 0;
     var totTypes = 0;
+    // Settings/looping defaults live in a step's TYPE definition; the instance
+    // stores only overrides. These count steps whose effective run-mode/looping
+    // the lens recovers (type-inherited where the instance is silent).
+    var withMode = 0, withLoop = 0;
     for (final f in seqs) {
       final bytes = f.readAsBytesSync();
       if (detectSeqFormat(bytes) != SeqFormat.ini) continue;
@@ -245,6 +249,8 @@ void main() {
             totSteps++;
             if (st.type != null) withType++;
             if (st.module.adapter != SeqAdapter.none) withModule++;
+            if (st.settings.mode != null) withMode++;
+            if (st.settings.loopType != null) withLoop++;
           }
         }
       } on FormatException {
@@ -255,7 +261,8 @@ void main() {
     print(
       'INI lens: $built/$ini parsed via parseSeqFile ($threw threw) · '
       '$totSeq sequences · $totSteps steps · $totLocals locals · '
-      '$withType typed steps · $withModule module bindings · $totTypes types',
+      '$withType typed steps · $withModule module bindings · $totTypes types · '
+      '$withMode with run-mode · $withLoop with looping',
     );
     expect(ini, greaterThan(0));
     expect(built, greaterThanOrEqualTo(ini - 2), reason: 'too few INI SeqFiles');
@@ -266,6 +273,10 @@ void main() {
     expect(totLocals, greaterThan(0), reason: 'no INI locals via the lens');
     expect(withType, greaterThan(0), reason: 'no INI step types via the lens');
     expect(withModule, greaterThan(0), reason: 'no INI module bindings via the lens');
+    // Type inheritance: most steps don't override run-mode/looping, so these are
+    // only non-zero once the lens reads the defaults from the step's type def.
+    expect(withMode, greaterThan(0), reason: 'no type-inherited run-mode recovered');
+    expect(withLoop, greaterThan(0), reason: 'no type-inherited looping recovered');
   });
 
   test('every binary TOF1 body frames into a record region + string table', () {
