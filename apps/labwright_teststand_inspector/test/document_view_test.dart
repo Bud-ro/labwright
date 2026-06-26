@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_teststand/labwright_teststand.dart';
 import 'package:labwright_teststand_inspector/src/document_view.dart';
 import 'package:labwright_teststand_inspector/src/property_outline.dart';
+import 'package:labwright_teststand_inspector/src/recent_files.dart';
 import 'package:labwright_teststand_inspector/src/sequence_outline.dart';
 
 Uint8List _xml() => Uint8List.fromList([
@@ -88,6 +89,25 @@ void main() {
     expect(step.type, 'Statement');
     expect(step.isInFileCall, isFalse);
     expect(step.summary, contains('S1 [Statement]'));
+  });
+
+  test('addRecent moves to front, dedups, caps, and is non-mutating', () {
+    expect(addRecent(const [], 'a'), ['a']);
+
+    // New entry goes to the front.
+    expect(addRecent(const ['a', 'b'], 'c'), ['c', 'a', 'b']);
+
+    // Re-adding an existing entry moves it to the front (dedup, no growth).
+    expect(addRecent(const ['a', 'b', 'c'], 'c'), ['c', 'a', 'b']);
+
+    // Cap is respected (oldest dropped).
+    expect(addRecent(const ['a', 'b', 'c'], 'd', cap: 3), ['d', 'a', 'b']);
+
+    // Input is not mutated.
+    final input = ['a', 'b'];
+    final out = addRecent(input, 'x');
+    expect(input, ['a', 'b']);
+    expect(out, ['x', 'a', 'b']);
   });
 
   test('StepOutline.of populates structured limits, omitting absent fields', () {

@@ -1,15 +1,16 @@
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:labwright_teststand/labwright_teststand.dart';
 
 import 'src/binary_view.dart';
 import 'src/document_view.dart';
 import 'src/property_outline.dart';
 import 'src/properties_view.dart';
+import 'src/recent_files.dart';
 import 'src/sequence_outline.dart';
 import 'src/sequences_view.dart';
 
@@ -44,6 +45,7 @@ class _InspectorPageState extends State<InspectorPage> {
   SeqDocument? _doc;
   String? _path;
   String? _error;
+  List<String> _recent = const [];
 
   @override
   void initState() {
@@ -51,7 +53,13 @@ class _InspectorPageState extends State<InspectorPage> {
     if (widget.initialPath != null) _loadPath(widget.initialPath!);
   }
 
-  void _loadBytes(String path, Uint8List bytes) {
+  /// The last path segment of [path] (handles both / and \ separators).
+  static String _basename(String path) {
+    final i = path.lastIndexOf(RegExp(r'[/\\]'));
+    return i >= 0 ? path.substring(i + 1) : path;
+  }
+
+  void _loadBytes(String path, Uint8List bytes, {bool remember = true}) {
     setState(() {
       _path = path;
       _error = null;
@@ -60,6 +68,10 @@ class _InspectorPageState extends State<InspectorPage> {
       } catch (e) {
         _doc = null;
         _error = '$e';
+      }
+      // Remember real filesystem paths so the entry is re-openable.
+      if (remember && File(path).existsSync()) {
+        _recent = addRecent(_recent, path);
       }
     });
   }
@@ -89,34 +101,69 @@ class _InspectorPageState extends State<InspectorPage> {
     final outline = file != null ? SeqOutline.of(file) : null;
     final tree = file != null ? propertyTree(file) : null;
     final coverage = file != null ? coverageLabel(measureCoverage(file)) : null;
-    return DefaultTabController(
-      length: file != null ? 3 : 1,
-      child: Scaffold(
-        appBar: AppBar(
-          title:
-              Text(doc != null ? documentTitle(doc) : 'Labwright TestStand Inspector'),
-          actions: [
-            IconButton(
-                onPressed: _pick,
-                icon: const Icon(Icons.folder_open),
-                tooltip: 'Open .seq'),
-          ],
-          bottom: TabBar(
-            tabs: [
-              const Tab(text: 'Dump'),
-              if (file != null) const Tab(text: 'Sequences'),
-              if (file != null) const Tab(text: 'Properties'),
-            ],
+    return CallbackShortcuts(
+      bindings: {
+        // Ctrl+O (Linux/Windows) and Cmd+O (macOS) → open a file.
+        const SingleActivator(LogicalKeyboardKey.keyO, control: true): _pick,
+        const SingleActivator(LogicalKeyboardKey.keyO, meta: true): _pick,
+      },
+      child: Focus(
+        autofocus: true,
+        child: DefaultTabController(
+          length: file != null ? 3 : 1,
+          child: Scaffold(
+            appBar: AppBar(
+              title: Text(
+                  doc != null ? documentTitle(doc) : 'Labwright TestStand Inspector'),
+              actions: [
+                if (_recent.isNotEmpty) _recentMenu(),
+                IconButton(
+                    onPressed: _pick,
+                    icon: const Icon(Icons.folder_open),
+                    tooltip: 'Open .seq (Ctrl/Cmd+O)'),
+              ],
+              bottom: TabBar(
+                tabs: [
+                  const Tab(text: 'Dump'),
+                  if (file != null) const Tab(text: 'Sequences'),
+                  if (file != null) const Tab(text: 'Properties'),
+                ],
+              ),
+            ),
+            body: DropTarget(
+              onDragDone: (d) {
+                final file = d.files.isNotEmpty ? d.files.first : null;
+                if (file != null) _loadPath(file.path);
+              },
+              child: _body(doc, outline, tree, coverage),
+            ),
           ),
         ),
-        body: DropTarget(
-          onDragDone: (d) {
-            final file = d.files.isNotEmpty ? d.files.first : null;
-            if (file != null) _loadPath(file.path);
-          },
-          child: _body(doc, outline, tree, coverage),
-        ),
       ),
+    );
+  }
+
+  Widget _recentMenu() {
+    return PopupMenuButton<String>(
+      icon: const Icon(Icons.history),
+      tooltip: 'Recent files',
+      onSelected: _loadPath,
+      itemBuilder: (context) => [
+        for (final path in _recent)
+          PopupMenuItem<String>(
+            value: path,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(_basename(path)),
+                Text(path,
+                    style: Theme.of(context).textTheme.bodySmall,
+                    overflow: TextOverflow.ellipsis),
+              ],
+            ),
+          ),
+      ],
     );
   }
 
@@ -127,8 +174,33 @@ class _InspectorPageState extends State<InspectorPage> {
           child: Text('Error: $_error', style: const TextStyle(color: Colors.red)));
     }
     if (doc == null) {
-      return const Center(
-        child: Text('Open a TestStand .seq file (button above) or drag one here.'),
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Open a TestStand .seq file (Ctrl/Cmd+O) or drag one here.'),
+            if (_recent.isNotEmpty) ...[
+              const SizedBox(height: 24),
+              Text('Recent', style: Theme.of(context).textTheme.titleSmall),
+              const SizedBox(height: 4),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 520),
+                child: Column(
+                  children: [
+                    for (final path in _recent)
+                      ListTile(
+                        dense: true,
+                        leading: const Icon(Icons.description_outlined),
+                        title: Text(_basename(path)),
+                        subtitle: Text(path, overflow: TextOverflow.ellipsis),
+                        onTap: () => _loadPath(path),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
       );
     }
     return Column(
