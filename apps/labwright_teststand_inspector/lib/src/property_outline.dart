@@ -79,3 +79,48 @@ class PropertyNode {
 
 /// Root node for the whole file's PropertyObject tree.
 PropertyNode propertyTree(SeqFile file) => PropertyNode.of(file.data);
+
+/// True if [node] itself matches [query] (case-insensitive) — by name,
+/// className, typeName, scalar value, or any attribute key/value. The query is
+/// assumed already lower-cased by the caller.
+bool matchesQuery(PropertyNode node, String query) {
+  if (query.isEmpty) return true;
+  bool hit(String? s) => s != null && s.toLowerCase().contains(query);
+  if (hit(node.name) || hit(node.className) || hit(node.typeName) ||
+      hit(node.value)) {
+    return true;
+  }
+  for (final e in node.attributes.entries) {
+    if (hit(e.key) || hit(e.value)) return true;
+  }
+  return false;
+}
+
+/// Returns a pruned copy of [node] keeping only nodes that match [query] or have
+/// a descendant that matches — so matches stay reachable through their
+/// ancestors. An empty/blank query returns [node] unchanged. Returns `null`
+/// when neither [node] nor any descendant matches. Pure.
+PropertyNode? filterTree(PropertyNode node, String query) {
+  final q = query.trim().toLowerCase();
+  if (q.isEmpty) return node;
+  final keptChildren = <PropertyNode>[];
+  for (final c in node.children) {
+    final f = filterTree(c, q);
+    if (f != null) keptChildren.add(f);
+  }
+  final selfMatches = matchesQuery(node, q);
+  if (!selfMatches && keptChildren.isEmpty) return null;
+  // If this node matches but no child does, keep its full subtree so the user
+  // can still drill into the match; otherwise keep only the matching branches.
+  final children =
+      keptChildren.isEmpty ? node.children : keptChildren;
+  return PropertyNode(
+    name: node.name,
+    className: node.className,
+    typeName: node.typeName,
+    value: node.value,
+    attributes: node.attributes,
+    isArray: node.isArray,
+    children: children,
+  );
+}

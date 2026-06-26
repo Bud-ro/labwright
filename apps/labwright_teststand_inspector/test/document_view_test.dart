@@ -90,6 +90,30 @@ void main() {
     expect(mainSeq.attributes['name'], 'MainSequence');
   });
 
+  test('filterTree keeps matches with ancestors; empty query is identity', () {
+    final doc = SeqDocument.parse(_xml()) as XmlSeqDocument;
+    final root = propertyTree(doc.file);
+
+    // Empty query returns the tree unchanged (same instance).
+    expect(filterTree(root, ''), same(root));
+    expect(filterTree(root, '   '), same(root));
+
+    // A query hitting the deep Step (name 'S1') keeps the ancestor chain.
+    final f = filterTree(root, 'S1');
+    expect(f, isNotNull);
+    expect(f!.name, 'Data');
+    final seq = f.children.firstWhere((c) => c.name == 'Seq');
+    final mainSeq = seq.children.single; // MainSequence kept as an ancestor
+    expect(mainSeq.name, 'MainSequence');
+    // The matching leaf is reachable somewhere under MainSequence.
+    bool hasStep(PropertyNode n) =>
+        n.name == 'S1' || n.children.any(hasStep);
+    expect(hasStep(mainSeq), isTrue);
+
+    // A query matching nothing prunes the whole tree to null.
+    expect(filterTree(root, 'zzz-no-such-token'), isNull);
+  });
+
   test('coverageLabel formats the modeled/total ratio', () {
     final doc = SeqDocument.parse(_xml()) as XmlSeqDocument;
     final c = measureCoverage(doc.file);
