@@ -7,6 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:labwright_teststand/labwright_teststand.dart';
 
 import 'src/document_view.dart';
+import 'src/sequence_outline.dart';
+import 'src/sequences_view.dart';
 
 void main(List<String> args) {
   // Allow `flutter run -- path/to/file.seq` to open a file at launch.
@@ -78,26 +80,42 @@ class _InspectorPageState extends State<InspectorPage> {
   @override
   Widget build(BuildContext context) {
     final doc = _doc;
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(doc != null ? documentTitle(doc) : 'Labwright TestStand Inspector'),
-        actions: [
-          IconButton(onPressed: _pick, icon: const Icon(Icons.folder_open), tooltip: 'Open .seq'),
-        ],
-      ),
-      body: DropTarget(
-        onDragDone: (d) {
-          final file = d.files.isNotEmpty ? d.files.first : null;
-          if (file != null) _loadPath(file.path);
-        },
-        child: _body(doc),
+    // The Sequences tab only applies to XML files we parsed into a SeqFile.
+    final outline = doc is XmlSeqDocument ? SeqOutline.of(doc.file) : null;
+    return DefaultTabController(
+      length: outline != null ? 2 : 1,
+      child: Scaffold(
+        appBar: AppBar(
+          title:
+              Text(doc != null ? documentTitle(doc) : 'Labwright TestStand Inspector'),
+          actions: [
+            IconButton(
+                onPressed: _pick,
+                icon: const Icon(Icons.folder_open),
+                tooltip: 'Open .seq'),
+          ],
+          bottom: TabBar(
+            tabs: [
+              const Tab(text: 'Dump'),
+              if (outline != null) const Tab(text: 'Sequences'),
+            ],
+          ),
+        ),
+        body: DropTarget(
+          onDragDone: (d) {
+            final file = d.files.isNotEmpty ? d.files.first : null;
+            if (file != null) _loadPath(file.path);
+          },
+          child: _body(doc, outline),
+        ),
       ),
     );
   }
 
-  Widget _body(SeqDocument? doc) {
+  Widget _body(SeqDocument? doc, SeqOutline? outline) {
     if (_error != null) {
-      return Center(child: Text('Error: $_error', style: const TextStyle(color: Colors.red)));
+      return Center(
+          child: Text('Error: $_error', style: const TextStyle(color: Colors.red)));
     }
     if (doc == null) {
       return const Center(
@@ -114,12 +132,17 @@ class _InspectorPageState extends State<InspectorPage> {
           ),
         const Divider(height: 1),
         Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(12),
-            child: SelectableText(
-              documentText(doc),
-              style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
-            ),
+          child: TabBarView(
+            children: [
+              SingleChildScrollView(
+                padding: const EdgeInsets.all(12),
+                child: SelectableText(
+                  documentText(doc),
+                  style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+                ),
+              ),
+              if (outline != null) SequencesView(outline: outline),
+            ],
           ),
         ),
       ],

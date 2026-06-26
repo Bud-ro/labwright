@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_teststand/labwright_teststand.dart';
 import 'package:labwright_teststand_inspector/src/document_view.dart';
+import 'package:labwright_teststand_inspector/src/sequence_outline.dart';
 
 Uint8List _xml() => Uint8List.fromList([
       0xef, 0xbb, 0xbf,
@@ -27,6 +28,26 @@ void main() {
     final text = documentText(doc);
     expect(text, contains('MainSequence'));
     expect(text, contains('S1'));
+  });
+
+  test('SeqOutline.of shapes sequences → groups → steps', () {
+    final doc = SeqDocument.parse(_xml()) as XmlSeqDocument;
+    final outline = SeqOutline.of(doc.file);
+
+    expect(outline.sequences, hasLength(1));
+    expect(outline.indexOf('MainSequence'), 0);
+    expect(outline.indexOf('NoSuchSequence'), isNull);
+
+    final seq = outline.sequences.single;
+    expect(seq.name, 'MainSequence');
+    expect(seq.stepCount, 1);
+    expect(seq.groups.map((g) => g.name), ['Main']);
+
+    final step = seq.groups.single.steps.single;
+    expect(step.name, 'S1');
+    expect(step.type, 'Statement');
+    expect(step.isInFileCall, isFalse);
+    expect(step.summary, contains('S1 [Statement]'));
   });
 
   test('documentText/Title handle unrecognized bytes without throwing', () {
