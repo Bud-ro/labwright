@@ -312,6 +312,24 @@ void main() {
     expect(text, contains('record tree not yet decoded'));
   });
 
+  test('writeCapped lists up to the cap, then an honest "and N more"', () {
+    // Under the cap: every item listed, no summary line.
+    final small = StringBuffer();
+    writeCapped(small, ['a', 'b', 'c'], (s) => s);
+    expect(small.toString(), '  a\n  b\n  c\n');
+    expect(small.toString(), isNot(contains('more')));
+
+    // Over the cap: exactly maxListedEntries listed + a truthful remainder line.
+    final big = StringBuffer();
+    final items = [for (var i = 0; i < maxListedEntries + 7; i++) 'n$i'];
+    writeCapped(big, items, (s) => s);
+    final lines = big.toString().trimRight().split('\n');
+    expect(lines, hasLength(maxListedEntries + 1));
+    expect(lines.first, '  n0');
+    expect(lines[maxListedEntries - 1], '  n${maxListedEntries - 1}');
+    expect(lines.last, '  … and 7 more');
+  });
+
   test('documentText/Title handle unrecognized bytes without throwing', () {
     final doc = SeqDocument.parse(Uint8List.fromList([1, 2, 3, 4]));
     expect(doc, isA<UnknownSeqDocument>());

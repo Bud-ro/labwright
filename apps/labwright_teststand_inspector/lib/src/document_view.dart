@@ -27,21 +27,33 @@ String documentText(SeqDocument doc) {
           ..writeln()
           ..writeln('recovered property names '
               '(${objectNames.length}; record links not yet decoded):');
-        for (final n in objectNames.take(200)) {
-          b.writeln('  $n');
-        }
+        writeCapped(b, objectNames, (n) => n);
       }
       b
         ..writeln()
         ..writeln('largest string table:');
-      for (final s in stringTable.take(200)) {
-        b.writeln('  ${s.text}');
-      }
+      writeCapped(b, stringTable, (s) => s.text);
       return b.toString();
     case UnknownSeqDocument(:final header, :final error):
       return 'Not a recognized TestStand sequence.\n$header'
           '${error != null ? '\n\n$error' : ''}';
   }
+}
+
+/// Max entries listed for a long recovered-name / string table in the recon
+/// view before the remainder is summarized — keeps the output readable without
+/// silently hiding the true count.
+const maxListedEntries = 200;
+
+/// Appends up to [maxListedEntries] of [items] (rendered via [line], indented)
+/// to [b]; if there were more, appends an honest `… and N more` line rather than
+/// truncating silently.
+void writeCapped<T>(StringBuffer b, List<T> items, String Function(T) line) {
+  for (final item in items.take(maxListedEntries)) {
+    b.writeln('  ${line(item)}');
+  }
+  final hidden = items.length - maxListedEntries;
+  if (hidden > 0) b.writeln('  … and $hidden more');
 }
 
 /// The recovered property/object names from a binary name table, past the fixed
