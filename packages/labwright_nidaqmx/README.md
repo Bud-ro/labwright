@@ -11,11 +11,9 @@ The factory picks the transport; your code never changes:
 ```dart
 import 'package:labwright_nidaqmx/labwright_nidaqmx.dart';
 
-// Windows/Linux: in-process FFI straight into NI-DAQmx.
-final daq = Daqmx.local();
-
-// macOS (or any client): gRPC to a host running the NI gRPC Device Server.
-final daq = Daqmx.remote(host: '192.168.1.50');
+// Pick the transport for your platform/deployment — the rest is identical:
+final daq = Daqmx.local();                       // Windows/Linux: in-process FFI
+// final daq = Daqmx.remote(host: '192.168.1.50'); // any client (required on macOS)
 
 print(await daq.deviceNames());                 // e.g. [cDAQ1, cDAQ1Mod1]
 print(await daq.readVoltage('cDAQ1Mod1/ai0'));  // one AI sample
@@ -35,13 +33,25 @@ compatibility docs.
 
 **macOS has no local path.** NI ships no modern NI-DAQmx for macOS (only the dead
 NI-DAQmx *Base*, ≤ macOS 10.14, Intel-only). So `Daqmx.local()` throws
-`UnimplementedError` on macOS, directing you to run the NI gRPC Device Server on a
+`UnsupportedError` on macOS, directing you to run the NI gRPC Device Server on a
 Windows/Linux host and connect with `Daqmx.remote(...)`. Windows/Linux *may* host the
 server too, but there's no need — `local()` calls the driver directly under the hood.
 
 The transport is the only thing that differs. `DaqmxApi`, `DaqmxException`
 (NI's status + extended error text) and `DaqmxUnavailable` (transport unreachable)
 are shared, so callers handle both backends identically.
+
+### Securing the gRPC transport
+
+`Daqmx.remote()` defaults to an **insecure (cleartext)** channel — fine on a trusted,
+isolated lab segment, but anyone on-path can read or inject DAQ commands, so the
+backend logs a warning when it connects insecurely. This transport controls physical
+hardware: secure it for anything else.
+
+- `Daqmx.remote(host: ..., secure: true)` — TLS validated against system root CAs.
+- `Daqmx.remote(host: ..., credentials: ...)` — supply a `ChannelCredentials` for a
+  self-signed / private CA or client certificate (mTLS), which is the usual NI setup.
+- `callTimeout:` (default 30 s) bounds every RPC so a hung server can't hang you.
 
 ## Logging
 
@@ -72,7 +82,9 @@ void main() {
 }
 ```
 
-Want just one area? Flip on hierarchical levels and dial a single logger:
+Want just one area? Keep the global sink from the setup above, flip on hierarchical
+levels, and dial a single logger (set `Logger.root.level` no stricter than the level
+you want to see):
 
 ```dart
 hierarchicalLoggingEnabled = true;               // global flag
@@ -98,9 +110,11 @@ on them in production.
 
 The gRPC stubs are generated from **scoped, wire-compatible subsets** of NI's
 MIT-licensed protos (see [`proto/PROVENANCE.md`](proto/PROVENANCE.md) for sources,
-commits, and license). Only the analog-I/O RPC subset is vendored; package/service/
-method/message/field-numbers match NI's exactly, so the client interoperates with a
-real server. Regenerate after editing the protos:
+commits, and license). Only the analog-I/O + task-lifecycle + error-string RPC subset
+is vendored; package/service/method/message/field-numbers match NI's exactly, so the
+client is **designed to** interoperate with a real server — though that has only been
+exercised against the in-process fake so far (see Status). Regenerate after editing
+the protos:
 
 ```sh
 dart pub global activate protoc_plugin   # provides protoc-gen-dart

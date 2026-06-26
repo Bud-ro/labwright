@@ -4,7 +4,7 @@
 // this package implements is included here.
 //
 // Package (`nidaqmx_grpc`), service (`NiDAQmx`), method names, message names and
-// field NUMBERS are identical to NI's, so the generated client interoperates with a
+// field NUMBERS are identical to NI's, so the generated client is designed to interoperate with a
 // real NI gRPC Device Server. Fields NI defines but this package does not need are
 // omitted; per proto3 they simply aren't sent / are ignored.
 syntax = "proto3";

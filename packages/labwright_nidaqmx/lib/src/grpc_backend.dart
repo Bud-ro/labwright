@@ -25,17 +25,20 @@ class GrpcDaqmxBackend implements DaqmxApi {
     required this.host,
     this.port = defaultPort,
     this.secure = false,
+    this.credentials,
+    this.callTimeout = const Duration(seconds: 30),
   });
 
   /// Wrap a caller-supplied [ClientChannel] (e.g. one with custom credentials,
   /// interceptors, or pointed at an in-process test server). [host]/[port] are kept
-  /// only for diagnostics; the channel is used as-is and owned by the caller unless
-  /// [close] is invoked.
+  /// only for diagnostics; the channel is used as-is. [close] still shuts it down.
   GrpcDaqmxBackend.fromChannel(
     ClientChannel channel, {
     this.host = '(injected)',
     this.port = defaultPort,
+    this.callTimeout = const Duration(seconds: 30),
   })  : secure = false,
+        credentials = null,
         _channel = channel;
 
   /// NI gRPC Device Server's default listen port.
@@ -47,29 +50,53 @@ class GrpcDaqmxBackend implements DaqmxApi {
   /// Server port (defaults to [defaultPort]).
   final int port;
 
-  /// Whether to use TLS. The server supports an insecure mode for trusted LANs and
-  /// a certificate-secured mode; pick per deployment.
+  /// Whether to use TLS when [credentials] is not supplied. `secure: true` uses
+  /// `ChannelCredentials.secure()` (system root CAs only) — for self-signed / private
+  /// CA / mTLS deployments (typical for NI servers), pass [credentials] instead.
   final bool secure;
+
+  /// Explicit channel credentials. When non-null this wins over [secure] and is the
+  /// way to supply a custom CA, client certificate (mTLS), or authority override.
+  final ChannelCredentials? credentials;
+
+  /// Per-RPC transport deadline. Bounds *every* call so a hung or half-open server
+  /// surfaces as [DaqmxUnavailable] instead of hanging the caller forever. This is the
+  /// gRPC transport deadline, distinct from the DAQmx per-read/write `timeout`.
+  final Duration callTimeout;
 
   ClientChannel? _channel;
   NiDAQmxClient? _daqmx;
   SessionUtilitiesClient? _utilities;
+  bool _closed = false;
+  int _warnedInsecure = 0;
 
-  ClientChannel get _chan => _channel ??= ClientChannel(
-        host,
-        port: port,
-        options: ChannelOptions(
-          credentials:
-              secure ? const ChannelCredentials.secure() : const ChannelCredentials.insecure(),
-        ),
-      );
+  ClientChannel get _chan => _channel ??= () {
+        final creds = credentials ??
+            (secure ? const ChannelCredentials.secure() : const ChannelCredentials.insecure());
+        if (credentials == null && !secure && _warnedInsecure++ == 0) {
+          DaqLoggers.grpc.warning(
+              'connecting to $host:$port over an INSECURE (cleartext) channel; '
+              'anyone on-path can read or inject DAQ commands. Use secure: true or '
+              'pass credentials for anything beyond a trusted, isolated network.');
+        }
+        DaqLoggers.grpc.fine('opening channel to $host:$port');
+        return ClientChannel(host, port: port, options: ChannelOptions(credentials: creds));
+      }();
 
   NiDAQmxClient get _ni => _daqmx ??= NiDAQmxClient(_chan);
   SessionUtilitiesClient get _util => _utilities ??= SessionUtilitiesClient(_chan);
 
-  /// Translate a transport-level gRPC failure into [DaqmxUnavailable] (the server is
-  /// unreachable / errored) so callers handle it like the FFI "no runtime" case.
+  CallOptions get _opts => CallOptions(timeout: callTimeout);
+
+  void _ensureOpen() {
+    if (_closed) throw StateError('GrpcDaqmxBackend used after close().');
+  }
+
+  /// Translate a transport-level gRPC failure (unreachable, hung past [callTimeout],
+  /// errored) into [DaqmxUnavailable] so callers handle it like the FFI "no runtime"
+  /// case. DAQmx-status failures ([DaqmxException]) pass straight through.
   Future<T> _transport<T>(String op, Future<T> Function() body) async {
+    _ensureOpen();
     try {
       return await body();
     } on GrpcError catch (e) {
@@ -80,13 +107,17 @@ class GrpcDaqmxBackend implements DaqmxApi {
   }
 
   /// Throw [DaqmxException] (enriched with the server's error string) when a DAQmx
-  /// call comes back with a negative status; pass non-negative status through.
+  /// call comes back with a negative status; log positive warnings and pass through.
   Future<int> _check(int status, String op) async {
-    if (status >= 0) return status;
+    if (status > 0) {
+      DaqLoggers.grpc.warning('$op -> warning status $status');
+      return status;
+    }
+    if (status == 0) return 0;
     String text;
     try {
-      final r = await _ni.getErrorString(pb.GetErrorStringRequest(errorCode: status));
-      text = r.errorString.isEmpty ? 'DAQmx status $status' : r.errorString;
+      final r = await _ni.getErrorString(pb.GetErrorStringRequest(errorCode: status), options: _opts);
+      text = r.errorString.isEmpty ? 'DAQmx status $status' : _clip(r.errorString);
     } on GrpcError {
       text = 'DAQmx status $status (error text unavailable)';
     }
@@ -94,9 +125,13 @@ class GrpcDaqmxBackend implements DaqmxApi {
     throw DaqmxException(status, text, operation: op);
   }
 
+  /// Cap untrusted server-supplied error text so a hostile/buggy server can't flood
+  /// logs or exception messages.
+  static String _clip(String s) => s.length <= 1024 ? s : '${s.substring(0, 1024)}…';
+
   @override
   Future<List<String>> deviceNames() => _transport('EnumerateDevices', () async {
-        final resp = await _util.enumerateDevices(sess.EnumerateDevicesRequest());
+        final resp = await _util.enumerateDevices(sess.EnumerateDevicesRequest(), options: _opts);
         final names = resp.devices.map((d) => d.name).where((n) => n.isNotEmpty).toList();
         DaqLoggers.grpc.fine('EnumerateDevices -> $names');
         return names;
@@ -111,22 +146,25 @@ class GrpcDaqmxBackend implements DaqmxApi {
     double timeout = 10,
   }) =>
       _transport('readVoltage', () async {
-        final task = await _createTask('lw-ai');
+        final task = await _createTask();
         try {
           await _check(
-            (await _ni.createAIVoltageChan(pb.CreateAIVoltageChanRequest(
-              task: task,
-              physicalChannel: physicalChannel,
-              terminalConfigRaw: terminalConfig,
-              minVal: min,
-              maxVal: max,
-              unitsRaw: DaqmxVal.volts,
-            )))
+            (await _ni.createAIVoltageChan(
+                    pb.CreateAIVoltageChanRequest(
+                      task: task,
+                      physicalChannel: physicalChannel,
+                      terminalConfigRaw: terminalConfig,
+                      minVal: min,
+                      maxVal: max,
+                      unitsRaw: DaqmxVal.volts,
+                    ),
+                    options: _opts))
                 .status,
             'DAQmxCreateAIVoltageChan',
           );
           final r = await _ni.readAnalogScalarF64(
-              pb.ReadAnalogScalarF64Request(task: task, timeout: timeout));
+              pb.ReadAnalogScalarF64Request(task: task, timeout: timeout),
+              options: _opts);
           await _check(r.status, 'DAQmxReadAnalogScalarF64');
           DaqLoggers.io.fine('readVoltage($physicalChannel) -> ${r.value}');
           return r.value;
@@ -144,26 +182,30 @@ class GrpcDaqmxBackend implements DaqmxApi {
     double timeout = 10,
   }) =>
       _transport('writeVoltage', () async {
-        final task = await _createTask('lw-ao');
+        final task = await _createTask();
         try {
           await _check(
-            (await _ni.createAOVoltageChan(pb.CreateAOVoltageChanRequest(
-              task: task,
-              physicalChannel: physicalChannel,
-              minVal: min,
-              maxVal: max,
-              unitsRaw: DaqmxVal.volts,
-            )))
+            (await _ni.createAOVoltageChan(
+                    pb.CreateAOVoltageChanRequest(
+                      task: task,
+                      physicalChannel: physicalChannel,
+                      minVal: min,
+                      maxVal: max,
+                      unitsRaw: DaqmxVal.volts,
+                    ),
+                    options: _opts))
                 .status,
             'DAQmxCreateAOVoltageChan',
           );
           await _check(
-            (await _ni.writeAnalogScalarF64(pb.WriteAnalogScalarF64Request(
-              task: task,
-              autoStart: true,
-              timeout: timeout,
-              value: volts,
-            )))
+            (await _ni.writeAnalogScalarF64(
+                    pb.WriteAnalogScalarF64Request(
+                      task: task,
+                      autoStart: true,
+                      timeout: timeout,
+                      value: volts,
+                    ),
+                    options: _opts))
                 .status,
             'DAQmxWriteAnalogScalarF64',
           );
@@ -173,26 +215,33 @@ class GrpcDaqmxBackend implements DaqmxApi {
         }
       });
 
-  /// NI's extended error text for the most recent failure is delivered inline on each
-  /// [DaqmxException]; there is no separate server-side "last error" channel, so this
-  /// resolves the text for status 0 (success) — i.e. an empty string when all is well.
+  /// Best-effort: the NI gRPC service exposes no `GetExtendedErrorInfo` RPC and no
+  /// per-connection "last error" channel, so — unlike the FFI backend — this cannot
+  /// report the most recent failure after the fact. Error text is delivered inline on
+  /// each [DaqmxException] instead (via GetErrorString). Returns '' when healthy.
   @override
   Future<String> errorInfo() => _transport('GetErrorString', () async {
-        final r = await _ni.getErrorString(pb.GetErrorStringRequest(errorCode: 0));
+        final r = await _ni.getErrorString(pb.GetErrorStringRequest(errorCode: 0), options: _opts);
         return r.errorString;
       });
 
-  Future<sess.Session> _createTask(String name) async {
-    final r = await _ni.createTask(pb.CreateTaskRequest(sessionName: name));
+  /// Create a task with an empty session name so the server assigns a unique one —
+  /// no client-side name collisions even under concurrency.
+  Future<sess.Session> _createTask() async {
+    final r = await _ni.createTask(pb.CreateTaskRequest(sessionName: ''), options: _opts);
     await _check(r.status, 'DAQmxCreateTask');
-    DaqLoggers.task.fine('CreateTask("$name") -> "${r.task.name}"');
+    DaqLoggers.task.fine('CreateTask -> "${r.task.name}"');
     return r.task;
   }
 
   Future<void> _clearTask(sess.Session task) async {
     try {
-      await _ni.clearTask(pb.ClearTaskRequest(task: task));
-      DaqLoggers.task.fine('ClearTask("${task.name}")');
+      final r = await _ni.clearTask(pb.ClearTaskRequest(task: task), options: _opts);
+      if (r.status < 0) {
+        DaqLoggers.task.warning('ClearTask("${task.name}") -> status ${r.status}');
+      } else {
+        DaqLoggers.task.fine('ClearTask("${task.name}")');
+      }
     } on GrpcError catch (e) {
       // Best-effort cleanup: a clear failure must not mask the original outcome.
       DaqLoggers.task.warning('ClearTask("${task.name}") failed: ${e.codeName}');
@@ -201,6 +250,7 @@ class GrpcDaqmxBackend implements DaqmxApi {
 
   @override
   Future<void> close() async {
+    _closed = true;
     final ch = _channel;
     _channel = null;
     _daqmx = null;

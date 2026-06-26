@@ -5,7 +5,7 @@
 ///
 ///   - `Daqmx.local()`  — in-process **FFI** into NI-DAQmx (Windows/Linux). Pure
 ///                        `dart:ffi`; no method channels, no helper process. Throws
-///                        [UnimplementedError] on macOS (no NI macOS runtime).
+///                        [UnsupportedError] on macOS (no NI macOS runtime).
 ///   - `Daqmx.remote()` — pure-Dart **gRPC** client for the NI gRPC Device Server,
 ///                        for any platform and required on macOS.
 ///

@@ -6,7 +6,8 @@
 //     (github.com/ni/grpc-device)
 //
 // Package, service, method, message and field NUMBERS match NI's exactly, so the
-// generated client is wire-compatible with a real NI gRPC Device Server. Only the
+// generated client is designed to be wire-compatible with a real NI gRPC Device Server
+// (verified against an in-process fake to date, not a live NI server). Only the
 // messages this package uses are included; absent fields default per proto3 rules.
 syntax = "proto3";
 

@@ -53,10 +53,17 @@ void main() {
       await daq.close();
     }, testOn: '!browser');
 
-    test('a bogus explicit library path fails on use, not on construction', () async {
+    test('a bogus explicit library path fails on use as DaqmxUnavailable', () async {
       if (Platform.isMacOS) return;
       final daq = Daqmx.local(libraryPath: '/nonexistent/libnidaqmx.so');
-      await expectLater(daq.deviceNames(), throwsA(anything));
+      await expectLater(daq.deviceNames(), throwsA(isA<DaqmxUnavailable>()));
+    }, testOn: '!browser');
+
+    test('using the FFI backend after close() throws StateError', () async {
+      if (Platform.isMacOS) return;
+      final daq = Daqmx.local();
+      await daq.close();
+      await expectLater(daq.deviceNames(), throwsA(isA<StateError>()));
     }, testOn: '!browser');
   });
 
@@ -65,6 +72,12 @@ void main() {
       final daq = Daqmx.remote(host: 'localhost');
       expect(daq, isA<GrpcDaqmxBackend>());
       expect((daq as GrpcDaqmxBackend).port, 31763);
+      expect(daq.secure, isFalse);
+    });
+
+    test('secure: true is carried onto the backend', () {
+      final daq = Daqmx.remote(host: 'localhost', secure: true) as GrpcDaqmxBackend;
+      expect(daq.secure, isTrue);
     });
   });
 

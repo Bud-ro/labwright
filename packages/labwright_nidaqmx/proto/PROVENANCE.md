@@ -5,7 +5,9 @@ transcribed from National Instruments' open-source gRPC interface definitions. T
 are not the full upstream files — only the messages, enums, services, and RPCs that
 `labwright_nidaqmx`'s gRPC backend uses are included. Package names, service names,
 method names, message names, and field **numbers** are preserved exactly, so the
-generated Dart client is wire-compatible with a real NI gRPC Device Server.
+generated Dart client is *designed to be* wire-compatible with a real NI gRPC Device
+Server. (To date this is verified against an in-process fake that speaks the real
+protocol, not yet against NI's actual server — see the package README "Status".)
 
 ## Upstream sources
 
@@ -23,17 +25,12 @@ unknown fields are ignored, so the subset interoperates with the full server.
 
 ## License
 
-Both upstream repositories are MIT-licensed:
-
-> Copyright (c) 2022, National Instruments Corp.
->
-> Permission is hereby granted, free of charge, to any person obtaining a copy of
-> this software and associated documentation files (the "Software"), to deal in the
-> Software without restriction... (full text: the MIT License).
-
-The MIT License permits this use (including modification and redistribution) provided
-the copyright notice and permission notice are retained — hence this file. These are
-NI's published gRPC **interface** definitions; transcribing them is normal interop,
+Both upstream repositories are MIT-licensed, © 2022 National Instruments Corp. The
+complete license — copyright notice, permission grant, and warranty disclaimer — is
+reproduced verbatim alongside these protos in [`NI-LICENSE`](NI-LICENSE), as the MIT
+terms require for redistributed/derivative material. The MIT License permits this use
+(including modification and redistribution) provided that notice is retained. These
+are NI's published gRPC **interface** definitions; transcribing them is normal interop,
 not reverse engineering.
 
 ## Regenerating

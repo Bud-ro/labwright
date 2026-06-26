@@ -60,7 +60,11 @@ abstract interface class DaqmxApi {
     double timeout = 10,
   });
 
-  /// NI's most recent extended error text for this transport.
+  /// Best-effort access to NI's most recent extended error text. Transport-specific:
+  /// the FFI backend returns `DAQmxGetExtendedErrorInfo` (the genuine last-error text);
+  /// the gRPC backend has no server-side last-error channel and returns `''` when
+  /// healthy. Either way, the authoritative error text for a failed call is carried on
+  /// the [DaqmxException] that call throws — prefer that over polling [errorInfo].
   Future<String> errorInfo();
 
   /// Release the transport (free FFI handles / shut the gRPC channel). Idempotent.
