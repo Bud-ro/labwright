@@ -254,6 +254,25 @@ names round-trip but only ~3/6 of the long step names match verbatim (the binary
 twins look like a slightly different revision, or store long names differently),
 so align with care — they're a lead, not yet a clean type-code oracle.
 
+**Value model — strings are a NUL-delimited pool referenced by index, NOT
+length-prefixed.** Across all 83 files (48 174 runs of len ≥ 4):
+
+- **0/48174** strings are u32-length-prefixed (the u32 before a run equals its
+  length, or length+1, *zero* times; u16 only 0.1%). **Length-prefix framing is
+  refuted.**
+- **93.2%** of runs are immediately preceded by a `0x00` (the pool is
+  NUL-delimited; the rest abut padding).
+- **99.8%** of runs live in the *string region* (only 113/48174 fall in the
+  record region) — confirming the split: the record region is structure + inline
+  scalars + pool-index references, while string *values* are NUL-delimited pool
+  entries the records point at by index.
+
+So the per-field model is `{name-index, type, value}` where a string value is a
+pool index, not inline bytes. The aligned-prefix words `word[4]`/`word[6]` are
+**not** simple counts of the known metrics (`word[6]==nameTableLen` in only
+18/63; not segment/string/sentinel count) — still undecoded. The scalar
+(number/boolean) and the type-tag encodings are the next targets.
+
 **Record framing — first decode (the records index the name pool).** Reading the
 record region as LE u32s (`binaryRecordWords`) shows it opens
 `[leadingWords[0], leadingWords[1], 1, …]` and the small words that follow are
