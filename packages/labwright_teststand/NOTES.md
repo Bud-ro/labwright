@@ -142,11 +142,16 @@ refused (not mis-parsed).
 - **Coverage metric**: `measureCoverage(SeqFile)` → `SeqCoverage{total, modeled}`
   counts what fraction of `Data`-tree property nodes the typed lens surfaces.
   `tool/coverage.dart` runs it over the **XML** `.seq` files in `corpus/seq` and
-  writes a gitignored `corpus/seq/REPORT.md`. Current: **15.5% (2930/18932
-  nodes)** over 26 XML files — the rest (deep `TS` step config, `Result`/
-  `Measurement` subtrees, override/flag metadata) is still raw `SeqProperty`, the
+  writes a gitignored `corpus/seq/REPORT.md`. Current: **22.5% (4255/18932
+  nodes)** over 26 XML files — the rest (`Result`/`Measurement` subtrees,
+  precondition trees `Condition`/`CheckedState`, type-definition nodes `Type`/
+  `Flags`/`NumType`, override/flag metadata) is still raw `SeqProperty`, the
   frontier to grow. `measureCoverage` credits the call-argument
-  (`Call.Parameters`) and recorded-`Result.Units` nodes the lens now surfaces.
+  (`Call.Parameters`) and recorded-`Result.Units` nodes the lens surfaces, and
+  the full set of `TS` step-settings `StepSettings` reads — run mode, module
+  load/**unload**, the four **loop expressions**, pre/post/status expressions,
+  pass/fail actions **and their jump targets**, and the step icon (previously the
+  metric undercounted these even though the lens already surfaced them).
   The analog of the VI "% semantically decoded".
 - **Test limits**: a limit-test step (`NumericLimitTest`, …) carries the
   pass/fail criteria as `Comp` (operator, e.g. `GELE` = low ≤ x ≤ high) +

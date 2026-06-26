@@ -23,10 +23,16 @@ class SeqCoverage {
       SeqCoverage(total: total + o.total, modeled: modeled + o.modeled);
 }
 
-/// The `TS` step-setting keys that [StepSettings] reads.
+/// The `TS` step-setting keys that [StepSettings] surfaces (kept in sync with the
+/// getters there — run mode, module load/unload, precondition, the four loop
+/// expressions, pre/post/status expressions, pass/fail actions and their jump
+/// targets, and the step icon). Each is a direct `TS` child the lens reads.
 const _settingKeys = [
-  'Mode', 'LoadOpt', 'PreCond', 'LoopType', 'LoopWhile', 'PassAct', 'FailAct',
+  'Mode', 'LoadOpt', 'UnloadOpt', 'PreCond', 'Icon',
+  'LoopType', 'LoopWhile', 'LoopInitialize', 'LoopIncrement', 'LoopStatus',
   'PreExpr', 'PostExpr', 'StatusExpr',
+  'PassAct', 'FailAct',
+  'PassActTarget', 'FailActTarget', 'CustTrueActTarget', 'CustFalseActTarget',
 ];
 
 /// Measures [SeqCoverage] for [f] (the `Data` tree only; the type list is

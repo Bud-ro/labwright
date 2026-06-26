@@ -1240,4 +1240,49 @@ Count = "3"
     expect(out, contains('Locals:'));
     expect(out, contains('• Count : Num = 3'));
   });
+
+  // measureCoverage must count every TS step-setting the lens surfaces. Build a
+  // step whose TS carries the loop/unload settings and confirm each extra key
+  // raises `modeled` by one (differential — robust to the absolute node count).
+  String covIni(List<String> tsKeys) => '''
+[__Header__]
+ProductName = "TestStand"
+Version = 354
+Type = "SequenceFile"
+
+[DEF, %OBJROOT]
+SF = SequenceFileData
+[DEF, SF]
+Seq = Objs
+%NAME = "Data"
+[DEF, SF.Seq]
+%[0] = Sequence
+[DEF, SF.Seq[0]]
+Main = Objs
+%NAME = "MainSequence"
+[DEF, SF.Seq[0].Main]
+%[0] = Step
+%TYPE: %[0] = "Action"
+[DEF, SF.Seq[0].Main[0]]
+TS = Obj
+%NAME = "s"
+[DEF, SF.Seq[0].Main[0].TS]
+${tsKeys.map((k) => '$k = String').join('\n')}
+[SF.Seq[0].Main[0].TS]
+${tsKeys.map((k) => '$k = "v"').join('\n')}
+''';
+
+  int modeledFor(List<String> tsKeys) => measureCoverage(
+        parseSeqFile(Uint8List.fromList(latin1.encode(covIni(tsKeys)))),
+      ).modeled;
+
+  test('measureCoverage counts the loop/unload TS step-settings', () {
+    final base = modeledFor(['Mode']);
+    // Each newly-tracked setting the lens reads adds exactly one modeled node.
+    for (final k in [
+      'UnloadOpt', 'LoopInitialize', 'LoopIncrement', 'LoopStatus', 'Icon'
+    ]) {
+      expect(modeledFor(['Mode', k]), base + 1, reason: '$k not counted');
+    }
+  });
 }
