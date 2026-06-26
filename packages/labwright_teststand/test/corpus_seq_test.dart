@@ -757,7 +757,11 @@ void main() {
             a.stringTable.length == binaryStringTable(bytes).length &&
             a.layout?.recordRegionLength ==
                 analyzeBinaryBody(bytes)?.recordRegionLength &&
-            a.nameTable.length == (binaryNameTable(bytes)?.entries.length ?? 0);
+            a.nameTable.length == (binaryNameTable(bytes)?.entries.length ?? 0) &&
+            a.objectNames.length == binaryObjectNames(bytes).length &&
+            a.modulePaths.length == binaryModulePaths(bytes).length &&
+            a.stepReferences.length == binaryStepReferences(bytes).length &&
+            a.expressions.length == binaryExpressions(bytes).length;
         if (!ok) failures.add('${f.path}: analyzeBinary != helpers');
       }
       expect(failures, isEmpty, reason: failures.take(5).join('\n'));

@@ -11,24 +11,31 @@ String documentText(SeqDocument doc) {
         :final header,
         :final inflatedSize,
         :final stringTable,
-        :final nameTable,
+        :final objectNames,
+        :final modulePaths,
+        :final stepReferences,
+        :final expressions,
       ):
       final b = StringBuffer()
         ..writeln('$header')
         ..writeln('binary TOF1 — record tree not yet decoded (recon view)')
         ..writeln('inflated body: $inflatedSize bytes · '
             '${stringTable.length} strings in the largest table');
-      // Recovered property/object names (the ordered name pool past the fixed
-      // container scaffold). Honest: these are recovered NAMES only — their
-      // hierarchy and values are not yet decoded.
-      final objectNames = _objectNames(nameTable);
-      if (objectNames.isNotEmpty) {
+      // Recovered datums from the string pool. Honest: these are the NAMES /
+      // call-targets / step refs / expressions a file carries — *which* it uses,
+      // not yet *attached to a specific step* (the record grammar is undecoded).
+      void section(String title, List<String> items) {
+        if (items.isEmpty) return;
         b
           ..writeln()
-          ..writeln('recovered property names '
-              '(${objectNames.length}; record links not yet decoded):');
-        writeCapped(b, objectNames, (n) => n);
+          ..writeln('$title (${items.length}; record links not yet decoded):');
+        writeCapped(b, items, (n) => n);
       }
+
+      section('recovered property/object names', objectNames);
+      section('module call-targets', modulePaths);
+      section('step references', stepReferences);
+      section('expressions (test logic)', expressions);
       b
         ..writeln()
         ..writeln('largest string table:');
@@ -54,19 +61,6 @@ void writeCapped<T>(StringBuffer b, List<T> items, String Function(T) line) {
   }
   final hidden = items.length - maxListedEntries;
   if (hidden > 0) b.writeln('  … and $hidden more');
-}
-
-/// The recovered property/object names from a binary name table, past the fixed
-/// container [binaryNameScaffold] prefix (the file's own sequences/objects).
-List<String> _objectNames(List<BinaryString> nameTable) {
-  final names = [for (final e in nameTable) e.text];
-  var start = 0;
-  while (start < names.length &&
-      start < binaryNameScaffold.length &&
-      names[start] == binaryNameScaffold[start]) {
-    start++;
-  }
-  return names.sublist(start);
 }
 
 /// A one-line title for a document (for the app bar / file label).
@@ -108,6 +102,15 @@ List<(String, String)> binaryHeaderRows(BinarySeqDocument doc) {
       if (l.leadingWords.isNotEmpty)
         ('Record header words', l.leadingWords.join(', ')),
     ],
+    // Recovered string-pool datums (record links not yet decoded).
+    if (doc.objectNames.isNotEmpty)
+      ('Object names', '${doc.objectNames.length}'),
+    if (doc.modulePaths.isNotEmpty)
+      ('Module call-targets', '${doc.modulePaths.length}'),
+    if (doc.stepReferences.isNotEmpty)
+      ('Step references', '${doc.stepReferences.length}'),
+    if (doc.expressions.isNotEmpty)
+      ('Expressions', '${doc.expressions.length}'),
   ];
 }
 

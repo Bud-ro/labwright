@@ -329,14 +329,26 @@ bool isBinaryModulePath(String s) =>
 /// (median 5); the rest either make no external calls or carry paths fragmented by
 /// non-ASCII bytes in the run splitter. Returns `[]` when [seqBytes] is not an
 /// inflatable binary file.
-List<String> binaryModulePaths(Uint8List seqBytes) {
+List<String> binaryModulePaths(Uint8List seqBytes) =>
+    _poolWhere(seqBytes, isBinaryModulePath);
+
+/// Distinct pool entries (in order) matching [keep], over a fresh inflate.
+List<String> _poolWhere(Uint8List seqBytes, bool Function(String) keep) {
   final body = inflateBinaryBody(seqBytes);
   if (body == null) return const [];
+  return _poolWhereFrom(_segmentsFromBody(body), keep);
+}
+
+/// [_poolWhere] core over already-computed [segments] (no inflate).
+List<String> _poolWhereFrom(
+  List<BinaryStringSegment> segments,
+  bool Function(String) keep,
+) {
   final seen = <String>{};
   final out = <String>[];
-  for (final seg in _segmentsFromBody(body)) {
+  for (final seg in segments) {
     for (final e in seg.entries) {
-      if (isBinaryModulePath(e.text) && seen.add(e.text)) out.add(e.text);
+      if (keep(e.text) && seen.add(e.text)) out.add(e.text);
     }
   }
   return out;
@@ -349,18 +361,10 @@ List<String> binaryModulePaths(Uint8List seqBytes) {
 /// resolving each to its target step needs the **not yet decoded** record grammar.
 /// Corpus-observed: 285/288 binary files expose ≥1. Returns `[]` when [seqBytes]
 /// is not an inflatable binary file.
-List<String> binaryStepReferences(Uint8List seqBytes) {
-  final body = inflateBinaryBody(seqBytes);
-  if (body == null) return const [];
-  final seen = <String>{};
-  final out = <String>[];
-  for (final seg in _segmentsFromBody(body)) {
-    for (final e in seg.entries) {
-      if (e.text.startsWith('ID#:') && seen.add(e.text)) out.add(e.text);
-    }
-  }
-  return out;
-}
+List<String> binaryStepReferences(Uint8List seqBytes) =>
+    _poolWhere(seqBytes, _isStepRef);
+
+bool _isStepRef(String s) => s.startsWith('ID#:');
 
 /// Member access on a TestStand expression **root** (`Locals.x`, `Step.Result…`,
 /// `RunState.LoopIndex`, `StationGlobals.…`, …) — the surest expression marker.
@@ -396,18 +400,8 @@ bool isBinaryExpression(String s) {
 /// honest *set* of expressions a file evaluates, not a per-step mapping.
 /// Corpus-observed: 285/288 binary files expose ≥1 (15910 distinct total). Returns
 /// `[]` when [seqBytes] is not an inflatable binary file.
-List<String> binaryExpressions(Uint8List seqBytes) {
-  final body = inflateBinaryBody(seqBytes);
-  if (body == null) return const [];
-  final seen = <String>{};
-  final out = <String>[];
-  for (final seg in _segmentsFromBody(body)) {
-    for (final e in seg.entries) {
-      if (isBinaryExpression(e.text) && seen.add(e.text)) out.add(e.text);
-    }
-  }
-  return out;
-}
+List<String> binaryExpressions(Uint8List seqBytes) =>
+    _poolWhere(seqBytes, isBinaryExpression);
 
 /// [binaryNameTable] core over already-computed [segments] (no re-inflate).
 BinaryStringSegment? _nameTableFromSegments(
@@ -593,6 +587,10 @@ class BinaryAnalysis {
     required this.stringTable,
     required this.layout,
     required this.nameTable,
+    this.objectNames = const [],
+    this.modulePaths = const [],
+    this.stepReferences = const [],
+    this.expressions = const [],
   });
 
   /// Size of the inflated body in bytes.
@@ -610,6 +608,18 @@ class BinaryAnalysis {
   /// The content-identified property-name table's entries (== the entries of
   /// [binaryNameTable]), or empty when none was found.
   final List<BinaryString> nameTable;
+
+  /// The file's own object names beyond the scaffold (== [binaryObjectNames]).
+  final List<String> objectNames;
+
+  /// Module call-target paths the file references (== [binaryModulePaths]).
+  final List<String> modulePaths;
+
+  /// `ID#:` step references the file carries (== [binaryStepReferences]).
+  final List<String> stepReferences;
+
+  /// Expression strings — the file's test logic (== [binaryExpressions]).
+  final List<String> expressions;
 }
 
 /// Inflates the binary TOF1 body **once** and runs the whole recon layer over it,
@@ -619,13 +629,18 @@ class BinaryAnalysis {
 BinaryAnalysis? analyzeBinary(Uint8List seqBytes) {
   final body = inflateBinaryBody(seqBytes);
   if (body == null) return null;
+  final segments = _segmentsFromBody(body);
+  final nameTable = _nameTableFromSegments(segments)?.entries ?? const [];
   return BinaryAnalysis(
     inflatedSize: body.length,
     // minLength 2 mirrors binaryBodyStrings' default.
     strings: binaryStrings(body, minLength: 2),
     stringTable: _stringTableFromBody(body),
     layout: _layoutFromBody(body),
-    nameTable:
-        _nameTableFromSegments(_segmentsFromBody(body))?.entries ?? const [],
+    nameTable: nameTable,
+    objectNames: _objectNamesFrom([for (final e in nameTable) e.text]),
+    modulePaths: _poolWhereFrom(segments, isBinaryModulePath),
+    stepReferences: _poolWhereFrom(segments, _isStepRef),
+    expressions: _poolWhereFrom(segments, isBinaryExpression),
   );
 }

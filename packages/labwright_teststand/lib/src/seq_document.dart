@@ -35,6 +35,10 @@ sealed class SeqDocument {
           stringTable: a?.stringTable ?? const [],
           layout: a?.layout,
           nameTable: a?.nameTable ?? const [],
+          objectNames: a?.objectNames ?? const [],
+          modulePaths: a?.modulePaths ?? const [],
+          stepReferences: a?.stepReferences ?? const [],
+          expressions: a?.expressions ?? const [],
         );
       case SeqFormat.ini:
         // The legacy INI form maps onto the same typed model as XML — decode it
@@ -90,6 +94,10 @@ class BinarySeqDocument extends SeqDocument {
     required this.stringTable,
     this.layout,
     this.nameTable = const [],
+    this.objectNames = const [],
+    this.modulePaths = const [],
+    this.stepReferences = const [],
+    this.expressions = const [],
   });
 
   @override
@@ -112,6 +120,20 @@ class BinarySeqDocument extends SeqDocument {
   /// carrying the PropertyObject model tokens), or empty when none was found.
   /// Which other segments are value/expression tables is **not yet decoded**.
   final List<BinaryString> nameTable;
+
+  /// The file's own **object names** beyond the fixed scaffold (recovered).
+  final List<String> objectNames;
+
+  /// **Module call-targets** the file invokes — VIs/DLLs/sub-sequences (recovered
+  /// from the string pool; the record link to each step is **not yet decoded**).
+  final List<String> modulePaths;
+
+  /// `ID#:` **step references** the file carries (recovered; link not yet decoded).
+  final List<String> stepReferences;
+
+  /// **Expression** strings — the file's test logic (recovered; per-step
+  /// attachment **not yet decoded**).
+  final List<String> expressions;
 }
 
 /// A file that is not a recognized/decodable TestStand sequence.

@@ -103,6 +103,9 @@ Uint8List _binary() {
     'Step',
     'Locals',
     'Parameters',
+    r'My Computer\Lib\Read.vi',
+    'Locals.x == 1',
+    'ID#:abc123XYZ',
   ]) {
     pool
       ..addAll(ascii.encode(n))
@@ -595,16 +598,33 @@ void main() {
     );
   });
 
-  test('documentText lists recovered property names for a TOF1 file', () {
+  test('documentText surfaces all recovered datums for a TOF1 file', () {
     final doc = SeqDocument.parse(_binary());
     final text = documentText(doc);
-    expect(text, contains('recovered property names'));
+    expect(text, contains('recovered property/object names'));
     // The fixture pool's model names are surfaced as recovered names.
     for (final n in ['MainSequence', 'Step', 'Locals', 'Parameters']) {
       expect(text, contains(n), reason: 'missing recovered name $n');
     }
+    // The new recovered categories are each surfaced with their content.
+    expect(text, contains('module call-targets'));
+    expect(text, contains(r'My Computer\Lib\Read.vi'));
+    expect(text, contains('expressions (test logic)'));
+    expect(text, contains('Locals.x == 1'));
+    expect(text, contains('step references'));
+    expect(text, contains('ID#:abc123XYZ'));
     // Honest framing: it must not claim the tree/values are decoded.
     expect(text, contains('record tree not yet decoded'));
+    expect(text, contains('record links not yet decoded'));
+  });
+
+  test('binaryHeaderRows surfaces recovered-datum counts', () {
+    final doc = SeqDocument.parse(_binary()) as BinarySeqDocument;
+    final map = {for (final (k, v) in binaryHeaderRows(doc)) k: v};
+    expect(int.parse(map['Object names']!), greaterThan(0));
+    expect(int.parse(map['Module call-targets']!), greaterThanOrEqualTo(1));
+    expect(int.parse(map['Step references']!), greaterThanOrEqualTo(1));
+    expect(int.parse(map['Expressions']!), greaterThanOrEqualTo(1));
   });
 
   test('writeCapped lists up to the cap, then an honest "and N more"', () {
