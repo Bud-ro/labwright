@@ -140,8 +140,10 @@ String _dumpStep(Step step, SeqFile file) {
       final b = StringBuffer(p.name);
       if (p.direction != null) b.write(' ${p.direction!.toLowerCase()}');
       if (p.dataType != null) b.write(' ${p.dataType}');
+      if (p.typeSpecialization != null) b.write(' (${p.typeSpecialization})');
       if (p.isArray) b.write('[]');
       if (p.value != null) b.write(' = ${p.value}');
+      if (p.logged == false) b.write(' [not logged]');
       return b.toString();
     }
 

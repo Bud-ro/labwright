@@ -146,7 +146,7 @@ refused (not mis-parsed).
 - **Coverage metric**: `measureCoverage(SeqFile)` → `SeqCoverage{total, modeled}`
   counts what fraction of `Data`-tree property nodes the typed lens surfaces.
   `tool/coverage.dart` runs it over the **XML** `.seq` files in `corpus/seq` and
-  writes a gitignored `corpus/seq/REPORT.md`. Current: **36.3% (6868/18932
+  writes a gitignored `corpus/seq/REPORT.md`. Current: **38.8% (7345/18932
   nodes)** over 26 XML files (incl. `Step.id`=`TS.Id`, and the boolean step flags
   `StepFCSeqF`/`IgnoreRTE`/`ResultOption` → `StepSettings.failureCausesSequence-
   Failure`/`ignoresRunTimeErrors`/`recordsResult`, plus the **Additional Results
@@ -200,8 +200,15 @@ refused (not mis-parsed).
   `Dimension` (`0` scalar / ≥1 array), `ArgumentValue` (the bound expression,
   e.g. `6`), plus raw `ID`/`Log`/`TypeSpecialization`/`MessageType`/
   `EnumDefinition`. → `Step.measurementParameters` (`MeasurementParameter`:
-  `name`/`dataType`/`direction`/`value`/`isArray`); the dump folds it into a
-  `{params: voltage_level in TypeDouble = 6; readings out TypeDouble[]}` chip.
+  `name`/`dataType`/`direction`/`value`/`isArray`/`typeSpecialization`/`logged`);
+  the dump folds it into a `{params: voltage_level in TypeDouble = 6; pin_map out
+  TypeString (IOResource)[] [not logged]}` chip. `typeSpecialization` (`Type-
+  Specialization`) refines the type — `IOResource`/`Path`/`Pin`/`Enum`, null for
+  the common `None` — and `logged` (`Log`) is the per-param report-logging flag.
+  Corpus: of 147 params, **34 are specialized** (IOResource 19 / Enum 10 / Path 4
+  / Pin 1) and **7 are not logged** (`Log=false`); the numeric `ID`, `MessageType`,
+  and `EnumDefinition` contents (the enum's allowed values, populated for all 10
+  `TypeEnum` params) are not yet surfaced.
   Distinct from `StepModule.callParameters` (the ActiveX/C + Python adapter
   argument lists). Corpus (probed full): **17 XML files, 147 typed params**, all
   carry `Type` + `Direction`. Coverage marks container+`Parameters`+each param+

@@ -271,7 +271,9 @@ void main() {
 
   test('recovers measurement-step typed parameters across XML corpus', () {
     var filesWithParams = 0, params = 0, withType = 0, withDirection = 0;
+    var specialized = 0, notLogged = 0;
     final types = <String>{};
+    final specs = <String>{};
     for (final f in seqs) {
       if (f.lengthSync() > 300 * 1024) continue;
       final bytes = f.readAsBytesSync();
@@ -288,6 +290,11 @@ void main() {
               types.add(p.dataType!);
             }
             if (p.direction != null) withDirection++;
+            if (p.typeSpecialization != null) {
+              specialized++;
+              specs.add(p.typeSpecialization!);
+            }
+            if (p.logged == false) notLogged++;
           }
         }
       }
@@ -296,14 +303,20 @@ void main() {
     // ignore: avoid_print
     print(
       'measurement params: $filesWithParams files · $params params · '
-      '$withType typed · $withDirection with direction · types=$types',
+      '$withType typed · $withDirection with direction · '
+      '$specialized specialized $specs · $notLogged not-logged · types=$types',
     );
     // Corpus evidence (probed): 147 typed params, types incl. TypeDouble/
     // TypeString/TypeEnum/TypeInt32/TypeBool/TypeUint32/TypeUint64; In/Out dirs.
+    // TypeSpecialization refinements: IOResource(19)/Enum(10)/Path(4)/Pin(1);
+    // Log varies (7 false of 147).
     expect(params, greaterThanOrEqualTo(120));
     expect(withType, params, reason: 'a measurement param lost its Type');
     expect(types, contains('TypeDouble'));
     expect(withDirection, greaterThan(0));
+    expect(specialized, greaterThan(0), reason: 'no TypeSpecialization recovered');
+    expect(specs, contains('IOResource'));
+    expect(notLogged, greaterThan(0), reason: 'Log flag never varies');
   });
 
   test('every INI .seq parses into a header + sections (Rosetta form)', () {

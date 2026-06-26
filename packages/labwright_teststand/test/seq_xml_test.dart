@@ -157,15 +157,18 @@ const _seqMeasXml = '''<?xml version="1.0" encoding="UTF-8"?>
                   <Direction classname='Str'><value>In</value></Direction>
                   <Dimension classname='Num'><value>0</value></Dimension>
                   <ArgumentValue classname='ExprValue'><value>6</value></ArgumentValue>
+                  <TypeSpecialization classname='Str'><value>None</value></TypeSpecialization>
                   <Log classname='Bool'><value>true</value></Log>
                   <ID classname='Num'><value>1</value></ID>
                 </subprops></_NAME_IN_ATTRIBUTE_></value>
                 <value><_NAME_IN_ATTRIBUTE_ name='' classname='Obj'><subprops>
-                  <Name classname='Str'><value>readings</value></Name>
-                  <Type classname='Str'><value>TypeDouble</value></Type>
+                  <Name classname='Str'><value>pin_map</value></Name>
+                  <Type classname='Str'><value>TypeString</value></Type>
                   <Direction classname='Str'><value>Out</value></Direction>
                   <Dimension classname='Num'><value>1</value></Dimension>
                   <ArgumentValue classname='ExprValue'><value/></ArgumentValue>
+                  <TypeSpecialization classname='Str'><value>IOResource</value></TypeSpecialization>
+                  <Log classname='Bool'><value>false</value></Log>
                   <ID classname='Num'><value>2</value></ID>
                 </subprops></_NAME_IN_ATTRIBUTE_></value>
               </value></Parameters>
@@ -465,10 +468,19 @@ void main() {
       expect(p[0].isArray, isFalse);
       expect(p[0].value, '6');
       // The output is an array (Dimension 1) with no bound value.
-      expect(p[1].name, 'readings');
+      expect(p[1].name, 'pin_map');
       expect(p[1].direction, 'Out');
       expect(p[1].isArray, isTrue);
       expect(p[1].value, isNull);
+    });
+
+    test('recovers TypeSpecialization (refinement) and the Log flag', () {
+      final p = step.measurementParameters;
+      // `None` reads as no specialization; a real refinement is surfaced.
+      expect(p[0].typeSpecialization, isNull);
+      expect(p[0].logged, isTrue);
+      expect(p[1].typeSpecialization, 'IOResource');
+      expect(p[1].logged, isFalse);
     });
 
     test('a non-measurement step reports no measurement parameters', () {
@@ -476,10 +488,11 @@ void main() {
       expect(s.measurementParameters, isEmpty);
     });
 
-    test('the dump surfaces measurement params with type and direction', () {
+    test('the dump surfaces measurement params with type, refinement, logging', () {
       final out = dumpSeqFile(parseSeqFile(_bytes(_seqMeasXml)));
       expect(out, contains('voltage_level in TypeDouble = 6'));
-      expect(out, contains('readings out TypeDouble[]'));
+      // The refinement and the not-logged marker ride along.
+      expect(out, contains('pin_map out TypeString (IOResource)[] [not logged]'));
     });
 
     test('coverage credits the measurement-parameter cluster', () {

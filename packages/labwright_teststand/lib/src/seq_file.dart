@@ -341,6 +341,24 @@ class MeasurementParameter {
     final d = int.tryParse(raw.prop('Dimension')?.scalar ?? '');
     return d != null && d > 0;
   }
+
+  /// A refinement of [dataType] (`TypeSpecialization`) — `IOResource`, `Path`,
+  /// `Pin`, or `Enum`: e.g. a `TypeString` parameter that is actually an
+  /// instrument I/O resource, a file path, or a pin reference. null for an
+  /// unspecialized parameter (`None`, the common case).
+  String? get typeSpecialization {
+    final s = _nz(raw.prop('TypeSpecialization')?.scalar);
+    return (s == null || s == 'None') ? null : s;
+  }
+
+  /// Whether this parameter's value is recorded to the report (`Log`). True for
+  /// most parameters; false for those explicitly excluded from logging. null
+  /// when the parameter records no `Log` flag.
+  bool? get logged => switch (raw.prop('Log')?.scalar) {
+        'true' || '1' => true,
+        'false' || '0' => false,
+        _ => null,
+      };
 }
 
 String? _nz(String? s) => (s == null || s.isEmpty) ? null : s;

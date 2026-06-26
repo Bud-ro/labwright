@@ -131,7 +131,10 @@ SeqCoverage measureCoverage(SeqFile f) {
       mark(mparams);
       for (final p in step.measurementParameters) {
         mark(p.raw);
-        for (final k in ['Name', 'Type', 'Direction', 'Dimension', 'ArgumentValue']) {
+        for (final k in [
+          'Name', 'Type', 'Direction', 'Dimension', 'ArgumentValue',
+          'TypeSpecialization', 'Log', 'ID',
+        ]) {
           mark(p.raw.prop(k));
         }
       }
