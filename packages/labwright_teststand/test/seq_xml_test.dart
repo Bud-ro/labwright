@@ -150,7 +150,7 @@ const _seqMeasXml = '''<?xml version="1.0" encoding="UTF-8"?>
         <Main classname='Objs'><value lbound='[0]' ubound='[1]'>
           <value><Step typename='NI_Measurement' name='Measure V'><subprops>
             <Measurement classname='Obj'><subprops>
-              <Parameters classname='Objs'><value lbound='[0]' ubound='[2]'>
+              <Parameters classname='Objs'><value lbound='[0]' ubound='[3]'>
                 <value><_NAME_IN_ATTRIBUTE_ name='' classname='Obj'><subprops>
                   <Name classname='Str'><value>voltage_level</value></Name>
                   <Type classname='Str'><value>TypeDouble</value></Type>
@@ -170,6 +170,20 @@ const _seqMeasXml = '''<?xml version="1.0" encoding="UTF-8"?>
                   <TypeSpecialization classname='Str'><value>IOResource</value></TypeSpecialization>
                   <Log classname='Bool'><value>false</value></Log>
                   <ID classname='Num'><value>2</value></ID>
+                </subprops></_NAME_IN_ATTRIBUTE_></value>
+                <value><_NAME_IN_ATTRIBUTE_ name='' classname='Obj'><subprops>
+                  <Name classname='Str'><value>measurement_type</value></Name>
+                  <Type classname='Str'><value>TypeEnum</value></Type>
+                  <Direction classname='Str'><value>In</value></Direction>
+                  <Dimension classname='Num'><value>0</value></Dimension>
+                  <ArgumentValue classname='ExprValue'><value/></ArgumentValue>
+                  <TypeSpecialization classname='Str'><value>Enum</value></TypeSpecialization>
+                  <EnumDefinition classname='Objs'><value lbound='[0]' ubound='[3]'>
+                    <value><NONE classname='Num'><value>0</value></NONE></value>
+                    <value><DC_VOLTS classname='Num'><value>1</value></DC_VOLTS></value>
+                    <value><AC_VOLTS classname='Num'><value>2</value></AC_VOLTS></value>
+                  </value></EnumDefinition>
+                  <ID classname='Num'><value>3</value></ID>
                 </subprops></_NAME_IN_ATTRIBUTE_></value>
               </value></Parameters>
             </subprops></Measurement>
@@ -461,7 +475,7 @@ void main() {
 
     test('recovers each typed parameter (name/type/direction/dim/value)', () {
       final p = step.measurementParameters;
-      expect(p, hasLength(2));
+      expect(p, hasLength(3));
       expect(p[0].name, 'voltage_level');
       expect(p[0].dataType, 'TypeDouble');
       expect(p[0].direction, 'In');
@@ -483,6 +497,17 @@ void main() {
       expect(p[1].logged, isFalse);
     });
 
+    test('recovers the enum allowed-value list for a TypeEnum param', () {
+      final p = step.measurementParameters;
+      expect(p[2].name, 'measurement_type');
+      expect(p[2].dataType, 'TypeEnum');
+      final ev = p[2].enumValues;
+      expect(ev.map((e) => e.name), ['NONE', 'DC_VOLTS', 'AC_VOLTS']);
+      expect(ev.map((e) => e.value), ['0', '1', '2']);
+      // A non-enum param exposes no enum values.
+      expect(p[0].enumValues, isEmpty);
+    });
+
     test('a non-measurement step reports no measurement parameters', () {
       final s = parseSeqFile(_bytes(_seqCallXml)).sequences.single.main.single;
       expect(s.measurementParameters, isEmpty);
@@ -493,6 +518,8 @@ void main() {
       expect(out, contains('voltage_level in TypeDouble = 6'));
       // The refinement and the not-logged marker ride along.
       expect(out, contains('pin_map out TypeString (IOResource)[] [not logged]'));
+      // The enum's allowed values are folded in.
+      expect(out, contains('{NONE=0, DC_VOLTS=1, AC_VOLTS=2}'));
     });
 
     test('coverage credits the measurement-parameter cluster', () {

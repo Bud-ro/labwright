@@ -146,7 +146,7 @@ refused (not mis-parsed).
 - **Coverage metric**: `measureCoverage(SeqFile)` → `SeqCoverage{total, modeled}`
   counts what fraction of `Data`-tree property nodes the typed lens surfaces.
   `tool/coverage.dart` runs it over the **XML** `.seq` files in `corpus/seq` and
-  writes a gitignored `corpus/seq/REPORT.md`. Current: **38.8% (7345/18932
+  writes a gitignored `corpus/seq/REPORT.md`. Current: **40.0% (7578/18932
   nodes)** over 26 XML files (incl. `Step.id`=`TS.Id`, and the boolean step flags
   `StepFCSeqF`/`IgnoreRTE`/`ResultOption` → `StepSettings.failureCausesSequence-
   Failure`/`ignoresRunTimeErrors`/`recordsResult`, plus the **Additional Results
@@ -206,9 +206,12 @@ refused (not mis-parsed).
   Specialization`) refines the type — `IOResource`/`Path`/`Pin`/`Enum`, null for
   the common `None` — and `logged` (`Log`) is the per-param report-logging flag.
   Corpus: of 147 params, **34 are specialized** (IOResource 19 / Enum 10 / Path 4
-  / Pin 1) and **7 are not logged** (`Log=false`); the numeric `ID`, `MessageType`,
-  and `EnumDefinition` contents (the enum's allowed values, populated for all 10
-  `TypeEnum` params) are not yet surfaced.
+  / Pin 1) and **7 are not logged** (`Log=false`). For a `TypeEnum` param,
+  `enumValues` recovers the enum's allowed values from `EnumDefinition` — each
+  element is a named constant whose scalar is its integer code (`NONE=0`,
+  `DC_VOLTS=1`, …); the dump folds the first few into a `{NONE=0, DC_VOLTS=1, …}`
+  chip. Corpus: **all 10 `TypeEnum` params populated, 74 values total**. The
+  numeric `ID` and empty `MessageType` siblings are left raw.
   Distinct from `StepModule.callParameters` (the ActiveX/C + Python adapter
   argument lists). Corpus (probed full): **17 XML files, 147 typed params**, all
   carry `Type` + `Direction`. Coverage marks container+`Parameters`+each param+

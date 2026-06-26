@@ -359,6 +359,15 @@ class MeasurementParameter {
         'false' || '0' => false,
         _ => null,
       };
+
+  /// For a [dataType] of `TypeEnum`, the enum's allowed values as `(name, value)`
+  /// pairs — each `EnumDefinition` element is a named constant (e.g. `DC_VOLTS`)
+  /// whose scalar is its integer code (e.g. `1`). Empty for a non-enum parameter
+  /// (or an enum whose definition is absent).
+  List<({String name, String? value})> get enumValues {
+    final elems = raw.prop('EnumDefinition')?.array ?? const <SeqProperty>[];
+    return [for (final e in elems) (name: e.name, value: _nz(e.scalar))];
+  }
 }
 
 String? _nz(String? s) => (s == null || s.isEmpty) ? null : s;

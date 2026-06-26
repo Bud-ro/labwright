@@ -137,6 +137,13 @@ SeqCoverage measureCoverage(SeqFile f) {
         ]) {
           mark(p.raw.prop(k));
         }
+        // Enum allowed-value list: the EnumDefinition container and each named
+        // constant element (name = constant, scalar = its code).
+        final ed = p.raw.prop('EnumDefinition');
+        mark(ed);
+        for (final e in ed?.array ?? const <SeqProperty>[]) {
+          mark(e);
+        }
       }
     }
   }

@@ -143,6 +143,13 @@ String _dumpStep(Step step, SeqFile file) {
       if (p.typeSpecialization != null) b.write(' (${p.typeSpecialization})');
       if (p.isArray) b.write('[]');
       if (p.value != null) b.write(' = ${p.value}');
+      // The enum's allowed values for a TypeEnum param (capped for readability).
+      final ev = p.enumValues;
+      if (ev.isNotEmpty) {
+        final shown = ev.take(6).map((e) => '${e.name}=${e.value ?? '?'}');
+        final more = ev.length > 6 ? ', …(${ev.length})' : '';
+        b.write(' {${shown.join(', ')}$more}');
+      }
       if (p.logged == false) b.write(' [not logged]');
       return b.toString();
     }

@@ -271,7 +271,7 @@ void main() {
 
   test('recovers measurement-step typed parameters across XML corpus', () {
     var filesWithParams = 0, params = 0, withType = 0, withDirection = 0;
-    var specialized = 0, notLogged = 0;
+    var specialized = 0, notLogged = 0, enumParams = 0, enumValues = 0;
     final types = <String>{};
     final specs = <String>{};
     for (final f in seqs) {
@@ -295,6 +295,10 @@ void main() {
               specs.add(p.typeSpecialization!);
             }
             if (p.logged == false) notLogged++;
+            if (p.dataType == 'TypeEnum') {
+              enumParams++;
+              enumValues += p.enumValues.length;
+            }
           }
         }
       }
@@ -304,7 +308,8 @@ void main() {
     print(
       'measurement params: $filesWithParams files · $params params · '
       '$withType typed · $withDirection with direction · '
-      '$specialized specialized $specs · $notLogged not-logged · types=$types',
+      '$specialized specialized $specs · $notLogged not-logged · '
+      '$enumParams enum params / $enumValues values · types=$types',
     );
     // Corpus evidence (probed): 147 typed params, types incl. TypeDouble/
     // TypeString/TypeEnum/TypeInt32/TypeBool/TypeUint32/TypeUint64; In/Out dirs.
@@ -317,6 +322,11 @@ void main() {
     expect(specialized, greaterThan(0), reason: 'no TypeSpecialization recovered');
     expect(specs, contains('IOResource'));
     expect(notLogged, greaterThan(0), reason: 'Log flag never varies');
+    // Every TypeEnum param carries a non-empty allowed-value list (10 params,
+    // 74 values across the corpus).
+    expect(enumParams, greaterThan(0), reason: 'no TypeEnum params found');
+    expect(enumValues, greaterThanOrEqualTo(enumParams),
+        reason: 'an enum param lost its allowed-value list');
   });
 
   test('every INI .seq parses into a header + sections (Rosetta form)', () {
