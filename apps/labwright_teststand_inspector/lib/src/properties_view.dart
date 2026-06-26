@@ -144,6 +144,15 @@ class _PropertyTile extends StatelessWidget {
         style: monoStyle.copyWith(color: theme.hintColor),
       ));
     }
+    // A subtle marker for an explicit instance override (the raw %INSTOVRD flags
+    // still appear among the attribute chips below).
+    if (node.isInstanceOverride) {
+      spans.add(TextSpan(
+        text: '  ⋄ overridden',
+        style: monoStyle.copyWith(
+            color: theme.colorScheme.tertiary, fontWeight: FontWeight.w600),
+      ));
+    }
     if (node.isLeaf && node.value != null) {
       spans.add(TextSpan(
         text: '  = ${node.value}',

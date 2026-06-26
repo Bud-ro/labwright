@@ -316,6 +316,18 @@ void main() {
     expect(mainSeq.attributes['name'], 'MainSequence');
   });
 
+  test('PropertyNode surfaces %INSTOVRD as isInstanceOverride', () {
+    final overridden = PropertyNode.of(
+      SeqProperty(name: 'TS', attributes: const {'%INSTOVRD': '5046297'}),
+    );
+    expect(overridden.isInstanceOverride, isTrue);
+    // The raw flags stay visible in the attributes map (nothing hidden).
+    expect(overridden.attributes['%INSTOVRD'], '5046297');
+
+    final plain = PropertyNode.of(SeqProperty(name: 'Mode', scalar: 'Normal'));
+    expect(plain.isInstanceOverride, isFalse);
+  });
+
   test('filterTree keeps matches with ancestors; empty query is identity', () {
     final doc = SeqDocument.parse(_xml()) as XmlSeqDocument;
     final root = propertyTree(doc.file);
