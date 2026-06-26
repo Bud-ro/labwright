@@ -166,6 +166,21 @@ String _dumpStep(Step step, SeqFile file) {
     parts.write('  {+results: ${addl.map(fmt).join(', ')}}');
   }
 
+  // A recorded run outcome (`Result`), shown only when it carries non-default
+  // values (a sequence file's un-run steps hold only defaults → nothing shown).
+  final res = step.result;
+  if (res != null && res.hasRecordedOutcome) {
+    final r = <String>[];
+    if (res.status != null) r.add('status ${res.status}');
+    if (res.errorOccurred == true) {
+      final code = res.errorCode;
+      final msg = res.errorMessage;
+      r.add('error${code != null ? ' $code' : ''}${msg != null ? ' "$msg"' : ''}');
+    }
+    if (res.reportText != null) r.add('report "${res.reportText}"');
+    if (r.isNotEmpty) parts.write('  {result: ${r.join('; ')}}');
+  }
+
   if (step.comment != null) parts.write('  // ${step.comment}');
 
   return parts.toString();

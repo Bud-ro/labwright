@@ -225,6 +225,15 @@ class Step {
   /// (a sibling of `TS`), not under `Limits`.
   String? get resultUnits => _nz(raw.prop('Result')?.prop('Units')?.scalar);
 
+  /// The step's recorded-result slot (`Result`) — its per-step outcome record
+  /// (status, report text, error info), or null when the step has none. See
+  /// [StepResult]; the measured-value unit is exposed separately as
+  /// [resultUnits].
+  StepResult? get result {
+    final r = raw.prop('Result');
+    return r == null ? null : StepResult(r);
+  }
+
   /// The step's data-source expression (`DataSource`) — what the step measures
   /// or evaluates: the measured value for a numeric limit test (e.g.
   /// `Locals.A.High_Value`), or the pass/fail criterion for a `PassFailTest`
@@ -368,6 +377,49 @@ class MeasurementParameter {
     final elems = raw.prop('EnumDefinition')?.array ?? const <SeqProperty>[];
     return [for (final e in elems) (name: e.name, value: _nz(e.scalar))];
   }
+}
+
+/// A step's recorded-result slot (`Result`) — the per-step outcome record. In a
+/// sequence *file* (an un-run step) these carry their compile-time defaults:
+/// [status]/[reportText] empty, [errorOccurred] false, [errorCode] `0`. The lens
+/// surfaces them for completeness; real values appear once a run is recorded.
+/// (The measured value's unit is exposed separately as [Step.resultUnits], and a
+/// limit test's numeric result rides [StepLimits].)
+class StepResult {
+  StepResult(this.raw);
+
+  /// The underlying `Result` property object — full access to every field.
+  final SeqProperty raw;
+
+  /// The recorded run status (`Status`), e.g. `Passed`/`Failed`/`Done`; null
+  /// when unset (an un-run step in a file).
+  String? get status => _nz(raw.prop('Status')?.scalar);
+
+  /// The report text the step contributed (`ReportText`); null when unset.
+  String? get reportText => _nz(raw.prop('ReportText')?.scalar);
+
+  SeqProperty? get _error => raw.prop('Error');
+
+  /// The recorded error code (`Error.Code`); null when unset. `0` is the
+  /// no-error default.
+  String? get errorCode => _nz(_error?.prop('Code')?.scalar);
+
+  /// The recorded error message (`Error.Msg`); null when unset/empty.
+  String? get errorMessage => _nz(_error?.prop('Msg')?.scalar);
+
+  /// Whether an error was recorded (`Error.Occurred`); null when the step has no
+  /// `Error` slot. `false` is the default.
+  bool? get errorOccurred => switch (_error?.prop('Occurred')?.scalar) {
+        'true' || '1' => true,
+        'false' || '0' => false,
+        _ => null,
+      };
+
+  /// Whether this result holds any non-default value — true once a real run is
+  /// recorded (status/report text set, or an error occurred). false for the
+  /// compile-time default state seen in a sequence file.
+  bool get hasRecordedOutcome =>
+      status != null || reportText != null || errorOccurred == true;
 }
 
 String? _nz(String? s) => (s == null || s.isEmpty) ? null : s;

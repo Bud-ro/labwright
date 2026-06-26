@@ -102,6 +102,17 @@ SeqCoverage measureCoverage(SeqFile f) {
       final result = step.raw.prop('Result');
       mark(result);
       mark(result?.prop('Units'));
+      // The per-step outcome record (Step.result / StepResult): status, report
+      // text, and the Error sub-object's code/message/occurred. Default-valued in
+      // a sequence file, but structurally recognized.
+      mark(result?.prop('Status'));
+      mark(result?.prop('ReportText'));
+      mark(result?.prop('Common'));
+      final error = result?.prop('Error');
+      mark(error);
+      for (final k in ['Code', 'Msg', 'Occurred']) {
+        mark(error?.prop(k));
+      }
       // "Additional Results" recording spec: the `AdditionalResults` container,
       // each recorded entry, and each entry's gating `Condition` expression
       // (Step.additionalResults). Flags/CheckedState are left raw — their

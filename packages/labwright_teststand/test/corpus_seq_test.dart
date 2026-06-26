@@ -205,6 +205,37 @@ void main() {
     );
   });
 
+  test('recovers the step Result outcome record across XML corpus', () {
+    var withResult = 0, withError = 0, recorded = 0;
+    for (final f in seqs) {
+      if (f.lengthSync() > 300 * 1024) continue;
+      final bytes = f.readAsBytesSync();
+      if (detectSeqFormat(bytes) != SeqFormat.xml) continue;
+      final sf = parseSeqFile(bytes);
+      for (final s in sf.sequences) {
+        for (final step in s.steps) {
+          final r = step.result;
+          if (r == null) continue;
+          withResult++;
+          if (r.errorOccurred != null) withError++;
+          if (r.hasRecordedOutcome) recorded++;
+        }
+      }
+    }
+    // ignore: avoid_print
+    print(
+      'step results: $withResult with Result · $withError with Error · '
+      '$recorded with a recorded (non-default) outcome',
+    );
+    // Corpus evidence (probed): 87 steps carry a Result slot, all with an Error
+    // sub-object, and ALL hold compile-time defaults (Status/ReportText empty,
+    // Error.Occurred false, Code 0) — no run is recorded in a sequence file.
+    expect(withResult, greaterThan(0), reason: 'no step Result slots recovered');
+    expect(withError, withResult, reason: 'a Result lost its Error sub-object');
+    expect(recorded, 0,
+        reason: 'a sequence file unexpectedly carries a recorded run outcome');
+  });
+
   test('recovers custom-condition flow fields across XML corpus', () {
     var withTrueAct = 0, withFalseAct = 0, withCustExpr = 0;
     final trueActs = <String>{};

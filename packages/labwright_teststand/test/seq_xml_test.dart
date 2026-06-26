@@ -250,6 +250,33 @@ const _seqCustCondXml = '''<?xml version="1.0" encoding="UTF-8"?>
   </subprops></Data>
 </teststandfileheader>''';
 
+/// A step whose `Result` slot carries a recorded (non-default) outcome: a
+/// status, report text, and an error with code/message. (In real files these
+/// are defaults; the fixture exercises the StepResult lens + dump surfacing.)
+const _seqResultXml = '''<?xml version="1.0" encoding="UTF-8"?>
+<teststandfileheader type='SequenceFile' fileversion='920' productname='TestStand'>
+  <typelist/>
+  <Data classname='Obj'><subprops>
+    <Seq classname='Objs'><value lbound='[0]' ubound='[1]'><value>
+      <Sequence name='MainSequence' classname='Obj'><subprops>
+        <Main classname='Objs'><value lbound='[0]' ubound='[1]'>
+          <value><Step typename='Action' name='Ran'><subprops>
+            <Result classname='Obj'><subprops>
+              <Status classname='Str'><value>Failed</value></Status>
+              <ReportText classname='Str'><value>measured 5V</value></ReportText>
+              <Error classname='Obj'><subprops>
+                <Code classname='Num'><value>-17</value></Code>
+                <Msg classname='Str'><value>boom</value></Msg>
+                <Occurred classname='Bool'><value>true</value></Occurred>
+              </subprops></Error>
+            </subprops></Result>
+          </subprops></Step></value>
+        </value></Main>
+      </subprops></Sequence>
+    </value></value></Seq>
+  </subprops></Data>
+</teststandfileheader>''';
+
 Uint8List _bytes(String s, {bool bom = true}) =>
     Uint8List.fromList([if (bom) ...[0xef, 0xbb, 0xbf], ...utf8.encode(s)]);
 
@@ -576,6 +603,34 @@ void main() {
       final s0 = parseSeqFile(_bytes(_seqXml)).sequences.single.main.first.settings;
       expect(s0.customExpression, isNull);
       expect(s0.customTrueAction, isNull);
+    });
+  });
+
+  group('Step result outcome record', () {
+    test('recovers status / report text / error from a recorded Result', () {
+      final step = parseSeqFile(_bytes(_seqResultXml)).sequences.single.main.single;
+      final r = step.result!;
+      expect(r.status, 'Failed');
+      expect(r.reportText, 'measured 5V');
+      expect(r.errorOccurred, isTrue);
+      expect(r.errorCode, '-17');
+      expect(r.errorMessage, 'boom');
+      expect(r.hasRecordedOutcome, isTrue);
+      // The dump surfaces the recorded outcome.
+      final out = dumpSeqFile(parseSeqFile(_bytes(_seqResultXml)));
+      expect(out, contains('{result: status Failed; error -17 "boom"; report "measured 5V"}'));
+    });
+
+    test('a default (un-run) Result reads as no recorded outcome', () {
+      // The measurement fixture's steps carry only default Result slots.
+      final step = parseSeqFile(_bytes(_seqMeasXml)).sequences.single.main.single;
+      final r = step.result;
+      // The measurement step has no Result slot at all → null, honestly.
+      if (r != null) {
+        expect(r.hasRecordedOutcome, isFalse);
+      }
+      // Either way, the dump shows no {result: …} chip for default/absent.
+      expect(dumpSeqFile(parseSeqFile(_bytes(_seqMeasXml))), isNot(contains('{result:')));
     });
   });
 

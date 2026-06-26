@@ -146,7 +146,7 @@ refused (not mis-parsed).
 - **Coverage metric**: `measureCoverage(SeqFile)` → `SeqCoverage{total, modeled}`
   counts what fraction of `Data`-tree property nodes the typed lens surfaces.
   `tool/coverage.dart` runs it over the **XML** `.seq` files in `corpus/seq` and
-  writes a gitignored `corpus/seq/REPORT.md`. Current: **40.0% (7578/18932
+  writes a gitignored `corpus/seq/REPORT.md`. Current: **45.1% (8544/18932
   nodes)** over 26 XML files (incl. `Step.id`=`TS.Id`, and the boolean step flags
   `StepFCSeqF`/`IgnoreRTE`/`ResultOption` → `StepSettings.failureCausesSequence-
   Failure`/`ignoresRunTimeErrors`/`recordsResult`, plus the **Additional Results
@@ -171,6 +171,20 @@ refused (not mis-parsed).
   the limits chip (`{limits GELE [9, 11] mA}`). (Earlier notes said units weren't
   stored — they are, just under `Result`, not `Limits`.) Corpus: 125 `Units`
   values across the INI files.
+- **Result outcome record**: the step's `Result` slot (sibling of `TS`) carries
+  its per-step outcome: `Status` (`Passed`/`Failed`/…), `ReportText`, and an
+  `Error` sub-object `{Code, Msg, Occurred}` (plus `Common`, and the `Units` /
+  numeric value already handled above). → `Step.result` (`StepResult`:
+  `status`/`reportText`/`errorCode`/`errorMessage`/`errorOccurred`,
+  `hasRecordedOutcome`). **Honest framing**: in a sequence *file* these are
+  compile-time defaults for an un-run step — corpus-probed, **87/87 steps hold
+  empty `Status`/`ReportText`, `Error.Occurred=false`, `Code=0`** (0 recorded
+  outcomes). The lens recognizes the structure (self-evident names) and the dump
+  shows a `{result: status …; error …; report …}` chip *only* when
+  `hasRecordedOutcome` is true (so a file shows nothing misleading). Real values
+  appear once a run/report is recorded. Coverage marks `Result`+`Status`+
+  `ReportText`+`Common`+`Error`+`Code`/`Msg`/`Occurred` (+966 nodes → the
+  40.0 %→45.1 % bump — the Result slot is on nearly every step).
 - **Data source**: a step's `DataSource` expression is what it measures /
   evaluates — the measured value for a numeric limit test (`Locals.A.High_Value`)
   or the pass/fail criterion for a `PassFailTest` (`Step.Result.PassFail`).
