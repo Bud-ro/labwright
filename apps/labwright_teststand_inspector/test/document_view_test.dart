@@ -181,10 +181,12 @@ Uint8List _xmlWithMeasParams() => Uint8List.fromList([
     "</subprops></_NAME_IN_ATTRIBUTE_></value>"
     "<value><_NAME_IN_ATTRIBUTE_ name='' classname='Obj'><subprops>"
     "<Name classname='Str'><value>readings</value></Name>"
-    "<Type classname='Str'><value>TypeDouble</value></Type>"
+    "<Type classname='Str'><value>TypeString</value></Type>"
     "<Direction classname='Str'><value>Out</value></Direction>"
     "<Dimension classname='Num'><value>1</value></Dimension>"
     "<ArgumentValue classname='ExprValue'><value/></ArgumentValue>"
+    "<TypeSpecialization classname='Str'><value>IOResource</value></TypeSpecialization>"
+    "<Log classname='Bool'><value>false</value></Log>"
     "</subprops></_NAME_IN_ATTRIBUTE_></value>"
     "</value></Parameters>"
     "</subprops></Measurement>"
@@ -501,12 +503,16 @@ void main() {
     expect(p[0].isArray, isFalse);
     expect(p[0].cell, 'TypeDouble = 6');
     expect(p[0].line, 'voltage_level in TypeDouble = 6');
-    // The array output renders with `[]` and no bound value.
+    // The array output carries a type specialization and is not logged.
     expect(p[1].isArray, isTrue);
-    expect(p[1].cell, 'TypeDouble[]');
-    // Searchable (by name, type, and bound value) and in the one-line summary.
+    expect(p[1].typeSpecialization, 'IOResource');
+    expect(p[1].logged, isFalse);
+    expect(p[1].cell, 'TypeString (IOResource)[] · not logged');
+    expect(p[1].line, 'readings out TypeString (IOResource)[] [not logged]');
+    // Searchable (by name, type, specialization) and in the one-line summary.
     expect(stepMatches(step, 'voltage_level'), isTrue);
     expect(stepMatches(step, 'typedouble'), isTrue);
+    expect(stepMatches(step, 'ioresource'), isTrue);
     expect(step.summary, contains('voltage_level in TypeDouble = 6'));
   });
 

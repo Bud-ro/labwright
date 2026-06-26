@@ -377,6 +377,8 @@ class MeasurementParamOutline {
     this.direction,
     this.value,
     this.isArray = false,
+    this.typeSpecialization,
+    this.logged,
   });
 
   final String name;
@@ -385,6 +387,14 @@ class MeasurementParamOutline {
   final String? value;
   final bool isArray;
 
+  /// A refinement of [dataType] (`IOResource`/`Path`/`Pin`/`Enum`), or null for
+  /// an unspecialized parameter.
+  final String? typeSpecialization;
+
+  /// Whether the parameter is recorded to the report; null when unknown. Only a
+  /// `false` is noteworthy (logging is the default).
+  final bool? logged;
+
   factory MeasurementParamOutline.of(MeasurementParameter p) =>
       MeasurementParamOutline(
         name: p.name,
@@ -392,6 +402,8 @@ class MeasurementParamOutline {
         direction: p.direction,
         value: p.value,
         isArray: p.isArray,
+        typeSpecialization: p.typeSpecialization,
+        logged: p.logged,
       );
 
   /// Left-column label: the parameter name, tagged with its direction when known
@@ -399,12 +411,18 @@ class MeasurementParamOutline {
   String get label =>
       direction != null ? '$name (${direction!.toLowerCase()})' : name;
 
-  /// Right-column value: the data type (with `[]` for an array), then the bound
-  /// expression when set; `(unbound)` when neither is present.
+  /// Right-column value: the data type (with its `(specialization)` and `[]` for
+  /// an array), the bound expression when set, then a `not logged` marker;
+  /// `(unbound)` when nothing is present.
   String get cell {
     final b = StringBuffer();
-    if (dataType != null) b.write('$dataType${isArray ? '[]' : ''}');
+    if (dataType != null) {
+      b.write(dataType);
+      if (typeSpecialization != null) b.write(' ($typeSpecialization)');
+      if (isArray) b.write('[]');
+    }
     if (value != null) b.write('${b.isEmpty ? '' : ' '}= $value');
+    if (logged == false) b.write('${b.isEmpty ? '' : ' '}· not logged');
     return b.isEmpty ? '(unbound)' : b.toString();
   }
 
@@ -413,8 +431,13 @@ class MeasurementParamOutline {
   String get line {
     final b = StringBuffer(name);
     if (direction != null) b.write(' ${direction!.toLowerCase()}');
-    if (dataType != null) b.write(' $dataType${isArray ? '[]' : ''}');
+    if (dataType != null) {
+      b.write(' $dataType');
+      if (typeSpecialization != null) b.write(' ($typeSpecialization)');
+      if (isArray) b.write('[]');
+    }
     if (value != null) b.write(' = $value');
+    if (logged == false) b.write(' [not logged]');
     return b.toString();
   }
 }
