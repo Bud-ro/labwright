@@ -57,6 +57,8 @@ List<(String, String)> binaryHeaderRows(BinarySeqDocument doc) {
       ('String region @', '${l.stringRegionOffset}'),
       ('Record sentinels', '${l.sentinelCount}'),
       ('Strings in region', '${l.stringCount}'),
+      if (l.leadingWords.isNotEmpty)
+        ('Record header words', l.leadingWords.join(', ')),
     ],
   ];
 }

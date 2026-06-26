@@ -60,6 +60,7 @@ class BinaryBodyLayout {
     required this.recordRegionLength,
     required this.stringCount,
     required this.sentinelCount,
+    required this.leadingWords,
   });
 
   /// Total inflated-body size in bytes.
@@ -80,10 +81,17 @@ class BinaryBodyLayout {
   /// the record-delimiter sentinels (recon).
   final int sentinelCount;
 
+  /// The first few little-endian u32 words at the start of the record region
+  /// (descriptive, grammar not yet decoded). Corpus-observed invariants across
+  /// all 83 binary files: `leadingWords[2] == 1` (a constant marker) and
+  /// `leadingWords[1] ∈ {16, 118}` (0x10 / 0x76 — a small fixed set, meaning not
+  /// yet decoded); `leadingWords[0]` varies and is **not** a simple count.
+  final List<int> leadingWords;
+
   @override
   String toString() => 'BinaryBodyLayout(inflated=$inflatedSize, '
       'recordRegion=$recordRegionLength, strings=$stringCount, '
-      'sentinels=$sentinelCount)';
+      'sentinels=$sentinelCount, lead=$leadingWords)';
 }
 
 /// Frames the inflated body of a binary TOF1 `.seq` into a [BinaryBodyLayout]:
@@ -108,7 +116,17 @@ BinaryBodyLayout? analyzeBinaryBody(Uint8List seqBytes) {
     recordRegionLength: boundary,
     stringCount: stringCount,
     sentinelCount: _countSentinels(body, boundary),
+    leadingWords: _leadingWords(body, 3),
   );
+}
+
+/// Reads up to [count] little-endian u32 words from the start of [body].
+List<int> _leadingWords(Uint8List body, int count) {
+  final out = <int>[];
+  for (var i = 0; i + 3 < body.length && out.length < count; i += 4) {
+    out.add(body[i] | body[i + 1] << 8 | body[i + 2] << 16 | body[i + 3] << 24);
+  }
+  return out;
 }
 
 /// The offset where the first chain of ≥[chainMin] NUL-adjacent runs begins —

@@ -187,6 +187,17 @@ Records reference strings **by index**, not by byte offset (verified: name
 offsets are not referenced as u32). → `binaryStringTable(seqBytes)` returns the
 largest contiguous table (names *or* values, depending on the file).
 
+`analyzeBinaryBody(seqBytes)` → `BinaryBodyLayout` frames the inflated body into
+the record region + string region and reports `recordRegionLength`,
+`stringCount`, `sentinelCount`, and the first few `leadingWords` (LE u32).
+**Corpus-verified across all 83 binary files:** every body frames (non-empty
+record region before a ≥5-entry table; 83/83 carry ff-sentinels; 50319 strings
+total). Leading-word recon (83/83): the **3rd u32 is a constant `1`**, and the
+**2nd u32 ∈ {16, 118}** (`0x10` / `0x76`, meaning not yet decoded — a kind/version
+tag candidate). The **1st u32 varies** (18 distinct values, mode 27×44) and is
+**not** a simple count (it equals neither stringCount nor sentinelCount in any
+file). *(Not yet decoded, not "unrecoverable".)*
+
 The **record tree** that links names to values is **not yet parsed** (the u32
 record framing is still being worked out). So `parseSeqFile` still **refuses**
 binary (UnsupportedError); the next milestone is that record grammar — then it

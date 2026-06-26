@@ -103,6 +103,9 @@ void main() {
 
   test('every binary TOF1 body frames into a record region + string table', () {
     var binary = 0, framed = 0, withSentinels = 0, totalStrings = 0;
+    // Leading-word invariants (recon).
+    var word2Is1 = 0, word1InSet = 0;
+    final word1Values = <int>{};
     final failures = <String>[];
     for (final f in seqs) {
       final bytes = f.readAsBytesSync();
@@ -123,11 +126,23 @@ void main() {
           layout.stringCount < 5) {
         failures.add('${f.path}: $layout');
       }
+      final w = layout.leadingWords;
+      if (w.length >= 3 && w[2] == 1) word2Is1++;
+      if (w.length >= 2 && (w[1] == 16 || w[1] == 118)) {
+        word1InSet++;
+        word1Values.add(w[1]);
+      }
     }
     // ignore: avoid_print
     print('binary framing: $framed/$binary framed · '
-        '$withSentinels with ff-sentinels · $totalStrings strings total');
+        '$withSentinels with ff-sentinels · $totalStrings strings total · '
+        'word2==1 $word2Is1/$binary · word1∈{16,118} $word1InSet/$binary '
+        '(values $word1Values)');
     expect(framed, binary, reason: 'some binary bodies did not frame');
     expect(failures, isEmpty, reason: failures.join('\n'));
+    // Decoded record-header invariants (recon): the 3rd leading u32 is a
+    // constant 1, and the 2nd is one of two values, across the whole corpus.
+    expect(word2Is1, binary, reason: 'leadingWords[2] != 1 in some files');
+    expect(word1InSet, binary, reason: 'leadingWords[1] not in {16,118}');
   });
 }
