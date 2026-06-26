@@ -613,6 +613,28 @@ format template, not a per-step description, and the per-step `Description` memb
 is empty for all but 1 corpus step — so step comment, not description, is the
 meaningful human text here.)*
 
+**Sequence free-text comments `%COMMENT` (2026-06, DONE).** Sequences carry the
+same `%COMMENT` note as steps — often substantial prose on callbacks/entry points
+(e.g. *"This entry point is executed only once, when … is started. Put here the
+code for general system initialization…"*). Since the INI builder now carries
+`%COMMENT` onto every object generically, the data already lands on the sequence
+`SeqProperty`; this slice exposes it on the shared lens as `Sequence.comment` and
+the app shows it as a dim italic line at the top of the expanded sequence (and
+includes it in the sequence filter). Recovered across the corpus: **102 of 449 INI
+sequences**; XML sequences in the corpus carry none (their only attribute is
+`name`), so `Sequence.comment` is null for them.
+
+**Type base/parent — NOT cleanly stored (2026-06, probed, no slice).** Checked
+whether a type def records a derivation/base-type pointer. INI `[DEF,<Type>]`
+sections carry `%ROOT_TYPE` on **all 2242** type defs but its value is the boolean
+`True` (an "is a root/named type" flag, not a parent name); the `Type` member is
+sparse (`Num`/`Str`/a single `NI_PropertyObjectType` ref) and not a base link. XML
+typedefs expose `isroottypedef`/`typecategory`/`typeflags` — again flags, not a
+named parent. So a "type extends Base" relationship is **not recoverable** from
+these fields as stored in this corpus; not pursued (would be guessing). *(Type
+inheritance from instance→type IS modelled — see "Type inheritance" above — that's
+a different relationship than type→base-type.)*
+
 **XML↔INI lens parity — audited, at parity (2026-06).** Ran the shared typed lens
 over all **26/26** XML `.seq`: 33 sequences · 214 steps (**all typed**) · adapters
 recognized=124 / none=90 / **unknown=0** (python 33, cModule 69, labView 15,

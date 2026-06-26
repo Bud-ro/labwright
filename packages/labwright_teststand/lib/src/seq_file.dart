@@ -77,6 +77,14 @@ class Sequence {
 
   String get name => raw.name;
 
+  /// The sequence's free-text comment — the editor's per-sequence note (e.g. a
+  /// callback's "This entry point is executed only once…" description) — or null
+  /// when it has none. Recovered from the sequence object's `%COMMENT`; long
+  /// comments are reassembled from continuation fragments. (Carried as a
+  /// `%COMMENT` attribute by the INI reader; XML sequences in the corpus store
+  /// none, so this is null for them.)
+  String? get comment => _nz(raw.attributes['%COMMENT']);
+
   /// The steps in [group] (its array property), in declaration order.
   List<Step> stepsIn(StepGroup group) => _group(group.key);
 

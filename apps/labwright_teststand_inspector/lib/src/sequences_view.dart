@@ -164,6 +164,20 @@ class _SequencesViewState extends State<SequencesView> {
                           '${seq.locals.isNotEmpty ? ' · ${seq.locals.length} locals' : ''}'),
                       childrenPadding: const EdgeInsets.only(left: 16, bottom: 8),
                       children: [
+                        if (seq.comment != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2, bottom: 6),
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                seq.comment!,
+                                style: TextStyle(
+                                  fontStyle: FontStyle.italic,
+                                  color: Theme.of(context).hintColor,
+                                ),
+                              ),
+                            ),
+                          ),
                         _vars(context, 'Parameters', seq.parameters),
                         _vars(context, 'Locals', seq.locals),
                         for (final g in seq.groups) _group(context, g),

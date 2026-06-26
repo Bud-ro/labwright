@@ -307,6 +307,8 @@ void main() {
     var overrides = 0, filesWithOverride = 0;
     // Steps carrying a recovered free-text `%COMMENT` (the editor's per-step note).
     var withComment = 0;
+    // Sequences carrying a recovered free-text `%COMMENT` (per-sequence note).
+    var withSeqComment = 0;
     for (final f in seqs) {
       final bytes = f.readAsBytesSync();
       if (detectSeqFormat(bytes) != SeqFormat.ini) continue;
@@ -321,6 +323,7 @@ void main() {
         totSeq += sf.sequences.length;
         for (final s in sf.sequences) {
           totLocals += s.locals.length;
+          if (s.comment != null) withSeqComment++;
           for (final st in s.steps) {
             totSteps++;
             if (st.type != null) withType++;
@@ -348,7 +351,7 @@ void main() {
       '$withType typed steps · $totTypes types · '
       '$recognized recognized adapters / $noneAdapter none / $unknownAdapter unknown · '
       '$withMode with run-mode · $withLoop with looping · '
-      '$withComment with comment · '
+      '$withComment steps + $withSeqComment seqs with comment · '
       '$overrides instance-overrides in $filesWithOverride files',
     );
     expect(ini, greaterThan(0));
@@ -372,8 +375,9 @@ void main() {
     expect(withLoop, greaterThan(0), reason: 'no type-inherited looping recovered');
     // Explicit `%INSTOVRD` instance-override markers are recovered as attributes.
     expect(overrides, greaterThan(0), reason: 'no %INSTOVRD overrides recovered');
-    // Free-text step comments (`%COMMENT`) are recovered onto steps via the lens.
+    // Free-text comments (`%COMMENT`) are recovered onto steps and sequences.
     expect(withComment, greaterThan(0), reason: 'no step comments recovered');
+    expect(withSeqComment, greaterThan(0), reason: 'no sequence comments recovered');
   });
 
   test('every binary TOF1 body frames into a record region + string table', () {

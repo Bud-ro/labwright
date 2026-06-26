@@ -50,11 +50,16 @@ class SequenceOutline {
     required this.parameters,
     required this.locals,
     required this.groups,
+    this.comment,
   });
 
   final String name;
   final List<VarOutline> parameters;
   final List<VarOutline> locals;
+
+  /// The sequence's free-text comment (the editor's per-sequence note), or
+  /// `null` when it has none. Recovered from `%COMMENT`.
+  final String? comment;
 
   /// Setup/Main/Cleanup, omitting empty groups (matches the dump view).
   final List<StepGroupOutline> groups;
@@ -78,6 +83,7 @@ class SequenceOutline {
       parameters: [for (final v in seq.parameters) VarOutline.of(v)],
       locals: [for (final v in seq.locals) VarOutline.of(v)],
       groups: groups,
+      comment: seq.comment,
     );
   }
 }
@@ -337,7 +343,8 @@ SeqOutline filterSequences(SeqOutline outline, String query) {
   if (q.isEmpty) return outline;
   final kept = <SequenceOutline>[];
   for (final seq in outline.sequences) {
-    if (seq.name.toLowerCase().contains(q)) {
+    if (seq.name.toLowerCase().contains(q) ||
+        (seq.comment?.toLowerCase().contains(q) ?? false)) {
       kept.add(seq); // whole-sequence match → keep everything
       continue;
     }
@@ -356,6 +363,7 @@ SeqOutline filterSequences(SeqOutline outline, String query) {
           parameters: varHit ? seq.parameters : const [],
           locals: varHit ? seq.locals : const [],
           groups: groups,
+          comment: seq.comment,
         ),
       );
     }

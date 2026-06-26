@@ -408,6 +408,8 @@ Seq = Objs
 [DEF, SF.Seq[0]]
 Main = Objs
 %NAME = "MainSequence"
+[SF.Seq[0]]
+%COMMENT = "Runs once at startup"
 [DEF, SF.Seq[0].Main]
 %[0] = Step
 %[1] = Step
@@ -428,6 +430,11 @@ Main = Objs
     expect(steps[0].comment, 'Lock sequence');
     // A step without a %COMMENT has no comment (not an empty string).
     expect(steps[1].comment, isNull);
+  });
+
+  test('recovers a sequence free-text comment via Sequence.comment', () {
+    final sf = parseSeqFile(Uint8List.fromList(latin1.encode(commentIni)));
+    expect(sf.sequences.single.comment, 'Runs once at startup');
   });
 
   // NI splits a value past a line-length cap across continuation lines named

@@ -108,5 +108,25 @@ void main() {
       );
       expect(find.text('Lock sequence'), findsOneWidget);
     });
+
+    testWidgets('renders a sequence free-text comment', (tester) async {
+      await pump(
+        tester,
+        SeqOutline([
+          SequenceOutline(
+            name: 'Startup',
+            parameters: const [],
+            locals: const [],
+            groups: [
+              StepGroupOutline('Main', [
+                StepOutline(name: 's', type: 'Action', notes: const []),
+              ]),
+            ],
+            comment: 'Runs once at startup',
+          ),
+        ]),
+      );
+      expect(find.text('Runs once at startup'), findsOneWidget);
+    });
   });
 }
