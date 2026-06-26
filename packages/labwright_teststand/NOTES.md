@@ -5,6 +5,43 @@ binary/text files** (the pinned corpus in `corpus/seq-sources.json`), not from
 TestStand itself. Mirrors `apps/labwright_vi_inspector/NOTES.md` for the VI side.
 Structure lives here; live metrics belong in tooling (not yet built for seq).
 
+## STATE OF RECOVERY (authoritative status — read this first)
+
+One `.seq` holds the same model in **three encodings**; recovery differs by form:
+
+- **XML — COMPLETE.** `parseSeqFile`→`SeqFile`; the typed lens surfaces every
+  clean corpus-confirmed field. Model coverage **49.5%** (9373/18932 `Data`-tree
+  nodes over 26 files); the unmodeled remainder is off-limits NI numeric
+  type/option codes + empty default scaffolding (modeling them would be
+  fabrication — see the off-limits list in "Status & honest gaps"), not missing
+  instance data. This is the honest ceiling, not a frontier.
+- **INI — COMPLETE via the same lens.** 58/58 parse; coverage **33.3%**
+  (52276/157107 over 39 files ≤300KB). Lower % than XML only because each INI
+  step inlines its full step-TYPE definition (XML centralizes these in
+  `<typelist>`); no per-step instance data is missing. Quoted values are
+  C-style-unescaped to match the XML form.
+- **BINARY (`TOF1`) — recon mature, record grammar BLOCKED.** Header, zlib body,
+  string pool, name table, and per-file recovered datums (object names, module
+  call-targets, step refs, expressions, literals) are decoded; the variable-length
+  **record grammar** that ties a name to its parsed step tree is **not yet
+  recovered**. Full-corpus statistical attack is exhausted (chance-level) — it
+  needs a NEW INPUT (a byte-identical XML↔binary "Rosetta" twin, controlled
+  minimal files, or NI's PropertyObject serialization docs), not more probing.
+  `parseSeqFile` honestly refuses binary rather than mis-parse it.
+
+**Deliverables (PLAN's TestStand goals — substantially met for XML+INI):**
+expose hidden data ✓, render close to the original ✓ (the inspector's Sequences
+outline with flow nesting), **export the sequence logic ✓** —
+`exportSequenceLogic(SeqFile)` renders each sequence as readable nested
+pseudocode (flow blocks + conditions, per-step preconditions/limits/loops/jumps/
+in-&-external call targets, per-sequence summary header), surfaced both as the
+dump's `=== Sequence logic ===` section and a dedicated read-only **Logic tab**
+in the app.
+
+**Recommendation:** until a new binary input arrives, further DECODE progress is
+blocked; keep investing in export/render polish + parity (and the VI-reader
+cross-link), not in re-probing the binary record stream.
+
 ## M0 reconnaissance — what a `.seq` actually is (confirmed on the corpus)
 
 A TestStand 4.0+ sequence file holds the same logical content — sequences, the
