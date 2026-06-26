@@ -171,8 +171,16 @@ class _SequencesViewState extends State<SequencesView> {
 
   Widget _step(BuildContext context, StepOutline s) {
     final chips = <Widget>[];
-    if (s.adapter != null) {
-      chips.add(_chip(context, '${s.adapter}: ${s.target}', Colors.teal));
+    final td = s.targetDisplay;
+    if (s.adapter != null && td != null) {
+      final color = _adapterColor(s.adapter!);
+      final chip = _chip(context, '${s.adapter}: ${td.label}', color);
+      // Tooltip surfaces the full path when the label is just the basename.
+      chips.add(td.label != td.tooltip
+          ? Tooltip(message: td.tooltip, child: chip)
+          : chip);
+    } else if (s.adapter != null) {
+      chips.add(_chip(context, s.adapter!, _adapterColor(s.adapter!)));
     }
     if (s.isInFileCall) {
       chips.add(ActionChip(
@@ -269,6 +277,15 @@ class _SequencesViewState extends State<SequencesView> {
       ),
     );
   }
+
+  /// A distinct chip color per module adapter (matches SeqAdapter.name).
+  Color _adapterColor(String adapter) => switch (adapter) {
+        'labView' => Colors.teal,
+        'sequenceCall' => Colors.deepPurple,
+        'cModule' => Colors.brown,
+        'python' => Colors.green,
+        _ => Colors.blueGrey,
+      };
 
   Widget _chip(BuildContext context, String label, Color color) {
     return Container(

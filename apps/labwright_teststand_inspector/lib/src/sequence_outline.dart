@@ -122,6 +122,18 @@ class StepOutline {
 
   bool get isInFileCall => callTargetIndex != null;
 
+  /// How to display the module target: the basename as a prominent [label] when
+  /// the target looks like a file path (contains `/` or `\`), otherwise the
+  /// target verbatim; [tooltip] is always the full target. Returns null when the
+  /// step has no module target. Pure.
+  ({String label, String tooltip})? get targetDisplay {
+    final t = target;
+    if (t == null) return null;
+    final i = t.lastIndexOf(RegExp(r'[/\\]'));
+    final label = i >= 0 ? t.substring(i + 1) : t;
+    return (label: label.isEmpty ? t : label, tooltip: t);
+  }
+
   factory StepOutline.of(Step step, SeqFile file) {
     final m = step.module;
     String? adapter;

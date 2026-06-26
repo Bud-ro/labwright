@@ -131,6 +131,23 @@ void main() {
     expect(rowLabels, isNot(contains('Nominal')));
   });
 
+  test('StepOutline.targetDisplay shows basename + full-path tooltip', () {
+    ({String label, String tooltip})? disp(String? target) => StepOutline(
+          name: 'x',
+          type: 'y',
+          adapter: target == null ? null : 'labView',
+          target: target,
+          notes: const [],
+        ).targetDisplay;
+
+    expect(disp(r'C:\a\b\Foo.vi'), (label: 'Foo.vi', tooltip: r'C:\a\b\Foo.vi'));
+    expect(disp('/x/y/Bar.vi'), (label: 'Bar.vi', tooltip: '/x/y/Bar.vi'));
+    // A bare (non-path) target is shown verbatim.
+    expect(disp('MySequence'), (label: 'MySequence', tooltip: 'MySequence'));
+    // No target → no display.
+    expect(disp(null), isNull);
+  });
+
   test('filterSequences keeps matches; empty query is identity', () {
     final doc = SeqDocument.parse(_xml()) as XmlSeqDocument;
     final outline = SeqOutline.of(doc.file);
