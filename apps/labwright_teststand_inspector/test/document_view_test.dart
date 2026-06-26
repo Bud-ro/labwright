@@ -456,6 +456,25 @@ void main() {
     expect(filterSequences(outline, 'zzz-nope').sequences, isEmpty);
   });
 
+  test('filterSequences matches a variable by its free-text comment', () {
+    final outline = SeqOutline([
+      SequenceOutline(
+        name: 'Seq',
+        parameters: const [],
+        locals: [
+          VarOutline(name: 'Off', type: 'Num', comment: 'bitmask of lamps'),
+        ],
+        groups: const [],
+      ),
+    ]);
+    // The comment text alone (query pre-lowercased) keeps the sequence.
+    final byComment = filterSequences(outline, 'bitmask');
+    expect(byComment.sequences, hasLength(1));
+    expect(byComment.sequences.single.locals.single.name, 'Off');
+    // A non-matching query drops it.
+    expect(filterSequences(outline, 'zzz-nope').sequences, isEmpty);
+  });
+
   test('propertyTree shapes the raw PropertyObject tree', () {
     final doc = SeqDocument.parse(_xml()) as XmlSeqDocument;
     final root = propertyTree(doc.file);

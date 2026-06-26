@@ -129,6 +129,28 @@ void main() {
       expect(find.text('Runs once at startup'), findsOneWidget);
     });
 
+    testWidgets('shows a collapsed sequence comment as a subtitle preview',
+        (tester) async {
+      SequenceOutline seq(String name, String? comment) => SequenceOutline(
+            name: name,
+            parameters: const [],
+            locals: const [],
+            groups: [
+              StepGroupOutline('Main', [
+                StepOutline(name: '$name-s', type: 'Action', notes: const []),
+              ]),
+            ],
+            comment: comment,
+          );
+      // Two sequences: only the first is expanded by default, so the second's
+      // comment is visible solely via its collapsed subtitle preview.
+      await pump(
+        tester,
+        SeqOutline([seq('First', null), seq('Second', 'Cleans up the DUT')]),
+      );
+      expect(find.text('Cleans up the DUT'), findsOneWidget);
+    });
+
     testWidgets('very long recovered text wraps without overflow',
         (tester) async {
       final long = 'X${' word' * 200}'; // ~1000 chars, no hard breaks

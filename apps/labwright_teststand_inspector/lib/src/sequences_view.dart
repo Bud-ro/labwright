@@ -156,12 +156,31 @@ class _SequencesViewState extends State<SequencesView> {
                     return ExpansionTile(
                       key: _keys[orig],
                       initiallyExpanded: filtering || _expanded[orig],
-                      onExpansionChanged: (v) => _expanded[orig] = v,
+                      onExpansionChanged: (v) =>
+                          setState(() => _expanded[orig] = v),
                       title: Text(seq.name,
                           style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text('${seq.stepCount} steps'
-                          '${seq.parameters.isNotEmpty ? ' · ${seq.parameters.length} params' : ''}'
-                          '${seq.locals.isNotEmpty ? ' · ${seq.locals.length} locals' : ''}'),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('${seq.stepCount} steps'
+                              '${seq.parameters.isNotEmpty ? ' · ${seq.parameters.length} params' : ''}'
+                              '${seq.locals.isNotEmpty ? ' · ${seq.locals.length} locals' : ''}'),
+                          // A one-line preview of the comment so its purpose is
+                          // visible without expanding; hidden once expanded (the
+                          // full text shows in the body then) to avoid duplication.
+                          if (seq.comment != null && !(filtering || _expanded[orig]))
+                            Text(
+                              seq.comment!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontStyle: FontStyle.italic,
+                                color: Theme.of(context).hintColor,
+                              ),
+                            ),
+                        ],
+                      ),
                       childrenPadding: const EdgeInsets.only(left: 16, bottom: 8),
                       children: [
                         if (seq.comment != null)

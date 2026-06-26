@@ -337,7 +337,8 @@ bool stepMatches(StepOutline s, String query) {
 bool _varMatches(VarOutline v, String query) =>
     v.name.toLowerCase().contains(query) ||
     (v.type?.toLowerCase().contains(query) ?? false) ||
-    (v.value?.toLowerCase().contains(query) ?? false);
+    (v.value?.toLowerCase().contains(query) ?? false) ||
+    (v.comment?.toLowerCase().contains(query) ?? false);
 
 /// Returns a display-filtered copy of [outline]: keeps a sequence if its name
 /// matches, any variable matches, or any step matches; within a kept sequence,
