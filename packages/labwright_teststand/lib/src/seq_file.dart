@@ -144,6 +144,13 @@ class Step {
   /// `SequenceCall`, `MessagePopup`. null if untyped.
   String? get type => raw.typeName;
 
+  /// The step's free-text comment — the editor's per-step note (e.g.
+  /// `"Lock sequence"`), or null when the step has none. Recovered from the
+  /// step's `%COMMENT`; long comments are reassembled from their continuation
+  /// fragments. (Carried as a `%COMMENT` attribute by the INI reader; XML steps
+  /// in the corpus store none, so this is null for them.)
+  String? get comment => _nz(raw.attributes['%COMMENT']);
+
   /// The step's run-time settings (preconditions, looping, pass/fail actions),
   /// read from its `TS` (TestStand system) sub-container.
   StepSettings get settings => StepSettings(raw.prop('TS'));

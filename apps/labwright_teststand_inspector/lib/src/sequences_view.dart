@@ -265,6 +265,17 @@ class _SequencesViewState extends State<SequencesView> {
               ],
             ),
           ),
+          if (s.comment != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                s.comment!,
+                style: TextStyle(
+                  fontStyle: FontStyle.italic,
+                  color: Theme.of(context).hintColor,
+                ),
+              ),
+            ),
           if (chips.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 4),

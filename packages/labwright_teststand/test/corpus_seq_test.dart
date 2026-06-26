@@ -305,6 +305,8 @@ void main() {
     var withMode = 0, withLoop = 0;
     // Explicit `%INSTOVRD` instance-override markers recovered across the tree.
     var overrides = 0, filesWithOverride = 0;
+    // Steps carrying a recovered free-text `%COMMENT` (the editor's per-step note).
+    var withComment = 0;
     for (final f in seqs) {
       final bytes = f.readAsBytesSync();
       if (detectSeqFormat(bytes) != SeqFormat.ini) continue;
@@ -332,6 +334,7 @@ void main() {
             }
             if (st.settings.mode != null) withMode++;
             if (st.settings.loopType != null) withLoop++;
+            if (st.comment != null) withComment++;
           }
         }
       } on FormatException {
@@ -345,6 +348,7 @@ void main() {
       '$withType typed steps · $totTypes types · '
       '$recognized recognized adapters / $noneAdapter none / $unknownAdapter unknown · '
       '$withMode with run-mode · $withLoop with looping · '
+      '$withComment with comment · '
       '$overrides instance-overrides in $filesWithOverride files',
     );
     expect(ini, greaterThan(0));
@@ -368,6 +372,8 @@ void main() {
     expect(withLoop, greaterThan(0), reason: 'no type-inherited looping recovered');
     // Explicit `%INSTOVRD` instance-override markers are recovered as attributes.
     expect(overrides, greaterThan(0), reason: 'no %INSTOVRD overrides recovered');
+    // Free-text step comments (`%COMMENT`) are recovered onto steps via the lens.
+    expect(withComment, greaterThan(0), reason: 'no step comments recovered');
   });
 
   test('every binary TOF1 body frames into a record region + string table', () {

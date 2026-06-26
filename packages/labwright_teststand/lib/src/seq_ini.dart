@@ -361,6 +361,11 @@ class _IniBuilder {
   Map<String, String> _ovrAttrs(String? flags) =>
       flags == null ? const {} : {instOverrideAttr: flags};
 
+  /// The attribute key under which an object's free-text comment is stored on a
+  /// built [SeqProperty] (the editor's per-step/per-object note). Sourced from
+  /// the `%COMMENT` directive; stored unquoted.
+  static const commentAttr = '%COMMENT';
+
   SeqProperty build(
     String path,
     String displayName,
@@ -466,6 +471,12 @@ class _IniBuilder {
     final bareOvr =
         val?.directives[instOverrideAttr] ?? def?.directives[instOverrideAttr];
     if (bareOvr != null) attrs[instOverrideAttr] = bareOvr;
+    // Free-text comment (`%COMMENT`): the editor's per-object note. Long comments
+    // arrive pre-joined from continuation fragments. Stored unquoted; absent or
+    // empty comments carry no attribute.
+    final comment =
+        _unquote(val?.directives[commentAttr] ?? def?.directives[commentAttr]);
+    if (comment != null && comment.isNotEmpty) attrs[commentAttr] = comment;
 
     return SeqProperty(
       name: name,

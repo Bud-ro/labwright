@@ -95,5 +95,18 @@ void main() {
         findsOneWidget,
       );
     });
+
+    testWidgets('renders a step free-text comment', (tester) async {
+      await pump(
+        tester,
+        outlineWith(StepOutline(
+          name: 'Lock',
+          type: 'Action',
+          comment: 'Lock sequence',
+          notes: const [],
+        )),
+      );
+      expect(find.text('Lock sequence'), findsOneWidget);
+    });
   });
 }

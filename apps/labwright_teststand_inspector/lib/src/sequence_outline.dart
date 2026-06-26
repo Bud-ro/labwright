@@ -101,12 +101,17 @@ class StepOutline {
     this.limits,
     this.limitsDetail,
     this.runMode,
+    this.comment,
     this.expressions = const [],
     required this.notes,
   });
 
   final String name;
   final String type;
+
+  /// The step's free-text comment — the editor's per-step note — or `null` when
+  /// the step has none. Recovered from `%COMMENT`.
+  final String? comment;
 
   /// The step's run mode when it is *not* the normal `Normal` (e.g. `Skip`,
   /// `Pass`, `Fail`) — a forced override that changes execution, so it gets its
@@ -212,6 +217,7 @@ class StepOutline {
       limits: step.limits?.summary,
       limitsDetail: step.limits != null ? LimitsOutline.of(step.limits!) : null,
       runMode: runMode,
+      comment: step.comment,
       expressions: expressions,
       notes: notes,
     );
@@ -224,6 +230,7 @@ class StepOutline {
     if (adapter != null) b.write(' -> $adapter: $target');
     if (limits != null) b.write('  {limits $limits}');
     if (runMode != null) b.write('  {mode $runMode}');
+    if (comment != null) b.write('  // $comment');
     if (notes.isNotEmpty) b.write('  (${notes.join('; ')})');
     for (final (label, value) in expressions) {
       b.write('  {$label: $value}');

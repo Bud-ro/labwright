@@ -598,6 +598,21 @@ group never coexisted with a bare base key (clean replacement). Top base keys: `
 `ValueToLog`. Applies to both members and `%`-directives (e.g. `%COMMENT`, `%NAME`).
 Single-line values never match the suffix and are untouched.
 
+**Step free-text comments `%COMMENT` (2026-06, DONE).** A step's editor note is
+stored as a `%COMMENT` directive on the step instance section (genuine prose, e.g.
+`"Lock sequence"`, login explanations) — previously parsed but dropped during the
+INI build (only `%NAME`/`%INSTOVRD` were carried). The reader now carries it,
+unquoted, onto the built `SeqProperty` as a `%COMMENT` attribute, and the shared
+lens exposes it as `Step.comment`. Recovered across the corpus: **667 of 5664 INI
+steps** carry a non-empty comment (long ones arrive pre-joined by the continuation
+fix above). XML steps in the corpus store **none** (no comment attribute/subprop),
+so `Step.comment` is null for them — the getter is on the shared `Step` and returns
+whatever each encoding holds. The app step view now shows the comment as a dim
+italic line under the step name. *(Note: `DescriptionFormat` is a step-**type**
+format template, not a per-step description, and the per-step `Description` member
+is empty for all but 1 corpus step — so step comment, not description, is the
+meaningful human text here.)*
+
 **XML↔INI lens parity — audited, at parity (2026-06).** Ran the shared typed lens
 over all **26/26** XML `.seq`: 33 sequences · 214 steps (**all typed**) · adapters
 recognized=124 / none=90 / **unknown=0** (python 33, cModule 69, labView 15,

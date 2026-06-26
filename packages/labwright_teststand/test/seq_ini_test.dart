@@ -389,6 +389,47 @@ LoopStatus = "RunState.LoopNumPassed >= 1"
     expect(set.loopStatus, 'RunState.LoopNumPassed >= 1');
   });
 
+  // A step's free-text comment is stored as a `%COMMENT` directive on the step
+  // instance section; the reader carries it onto the step as a `%COMMENT`
+  // attribute and the shared lens exposes it as Step.comment.
+  const commentIni = '''
+[__Header__]
+ProductName = "TestStand"
+Version = 354
+Type = "SequenceFile"
+
+[DEF, %OBJROOT]
+SF = SequenceFileData
+[DEF, SF]
+Seq = Objs
+%NAME = "Data"
+[DEF, SF.Seq]
+%[0] = Sequence
+[DEF, SF.Seq[0]]
+Main = Objs
+%NAME = "MainSequence"
+[DEF, SF.Seq[0].Main]
+%[0] = Step
+%[1] = Step
+%TYPE: %[0] = "Action"
+%TYPE: %[1] = "Action"
+[DEF, SF.Seq[0].Main[0]]
+%NAME = "lockStep"
+[SF.Seq[0].Main[0]]
+%COMMENT = "Lock sequence"
+[DEF, SF.Seq[0].Main[1]]
+%NAME = "plainStep"
+''';
+
+  test('recovers a step free-text comment via Step.comment', () {
+    final sf = parseSeqFile(Uint8List.fromList(latin1.encode(commentIni)));
+    final steps = sf.sequences.single.main;
+    expect(steps.map((s) => s.name), ['lockStep', 'plainStep']);
+    expect(steps[0].comment, 'Lock sequence');
+    // A step without a %COMMENT has no comment (not an empty string).
+    expect(steps[1].comment, isNull);
+  });
+
   // NI splits a value past a line-length cap across continuation lines named
   // `KEY Line0001`, `KEY Line0002`, … — each a separately-quoted fragment. The
   // reader rejoins them, in order, into the single base key with no separator.
