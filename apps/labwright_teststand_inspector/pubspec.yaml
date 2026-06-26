@@ -1,0 +1,32 @@
+name: labwright_teststand_inspector
+description: >-
+  Labwright TestStand inspector — open a NI TestStand .seq file and inspect it:
+  sequences, steps (type, module binding, flow, limits), variables, the raw
+  PropertyObject tree, and model coverage, via the clean-room labwright_teststand
+  reader. Standalone Flutter desktop app, kept out of the Dart pub workspace (its
+  Flutter SDK dep is incompatible with plain dart tooling).
+publish_to: none
+version: 0.0.1
+
+environment:
+  sdk: ^3.11.0
+  flutter: ">=3.41.0"
+
+dependencies:
+  desktop_drop: ^0.7.1
+  file_picker: ^11.0.2
+  flutter:
+    sdk: flutter
+  labwright_teststand:
+    path: ../../packages/labwright_teststand
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+dependency_overrides:
+  labwright_teststand:
+    path: ../../packages/labwright_teststand
+
+flutter:
+  uses-material-design: true
