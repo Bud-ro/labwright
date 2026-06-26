@@ -100,4 +100,34 @@ void main() {
         '$withModule with module bindings · $totalLocals locals · $withLimits limit tests · '
         '$withBinaryBody binary bodies inflated · $resolvedCalls intra-file calls');
   });
+
+  test('every binary TOF1 body frames into a record region + string table', () {
+    var binary = 0, framed = 0, withSentinels = 0, totalStrings = 0;
+    final failures = <String>[];
+    for (final f in seqs) {
+      final bytes = f.readAsBytesSync();
+      if (detectSeqFormat(bytes) != SeqFormat.binary) continue;
+      binary++;
+      final layout = analyzeBinaryBody(bytes);
+      if (layout == null) {
+        failures.add('${f.path}: no layout');
+        continue;
+      }
+      framed++;
+      totalStrings += layout.stringCount;
+      if (layout.sentinelCount > 0) withSentinels++;
+      // The record region is non-empty and strictly precedes the string region,
+      // which itself holds a real packed table.
+      if (layout.recordRegionLength <= 0 ||
+          layout.recordRegionLength >= layout.inflatedSize ||
+          layout.stringCount < 5) {
+        failures.add('${f.path}: $layout');
+      }
+    }
+    // ignore: avoid_print
+    print('binary framing: $framed/$binary framed · '
+        '$withSentinels with ff-sentinels · $totalStrings strings total');
+    expect(framed, binary, reason: 'some binary bodies did not frame');
+    expect(failures, isEmpty, reason: failures.join('\n'));
+  });
 }

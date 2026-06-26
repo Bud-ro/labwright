@@ -48,6 +48,104 @@ List<BinaryString> binaryBodyStrings(Uint8List seqBytes, {int minLength = 2}) {
   return binaryStrings(body, minLength: minLength);
 }
 
+/// A recon framing of a binary TOF1 inflated body into its two regions: a
+/// leading **record region** (little-endian u32 fields with `ff ff ff ff`
+/// sentinels) followed by the **string region** (packed NUL-terminated tables
+/// the records reference by index). Every field here is *honestly derivable*
+/// from the bytes; the record grammar that links the two regions is **not yet
+/// decoded**.
+class BinaryBodyLayout {
+  const BinaryBodyLayout({
+    required this.inflatedSize,
+    required this.recordRegionLength,
+    required this.stringCount,
+    required this.sentinelCount,
+  });
+
+  /// Total inflated-body size in bytes.
+  final int inflatedSize;
+
+  /// Bytes before the string region — i.e. the length of the leading record
+  /// region. This boundary is the start of the first packed string table (a
+  /// recon heuristic, not yet a byte-exact record-grammar boundary).
+  final int recordRegionLength;
+
+  /// Where the string region begins (== [recordRegionLength]).
+  int get stringRegionOffset => recordRegionLength;
+
+  /// Number of NUL-terminated printable runs in the string region.
+  final int stringCount;
+
+  /// Count of `ff ff ff ff` words (on 4-byte steps) within the record region —
+  /// the record-delimiter sentinels (recon).
+  final int sentinelCount;
+
+  @override
+  String toString() => 'BinaryBodyLayout(inflated=$inflatedSize, '
+      'recordRegion=$recordRegionLength, strings=$stringCount, '
+      'sentinels=$sentinelCount)';
+}
+
+/// Frames the inflated body of a binary TOF1 `.seq` into a [BinaryBodyLayout]:
+/// the leading record region and the trailing string region, with recon counts.
+/// Returns null when [seqBytes] is not an inflatable binary file or no packed
+/// string table is found.
+///
+/// Verified across the whole binary corpus: every file splits into a non-empty
+/// record region followed by a string table of ≥5 entries. This is the framing
+/// step toward decoding the record grammar — which is **not yet decoded**, so
+/// this exposes *where* the records and strings live and *how many*, not their
+/// meaning.
+BinaryBodyLayout? analyzeBinaryBody(Uint8List seqBytes) {
+  final body = inflateBinaryBody(seqBytes);
+  if (body == null) return null;
+  final runs = binaryStrings(body, minLength: 3);
+  final boundary = _firstTableOffset(runs);
+  if (boundary == null) return null;
+  final stringCount = runs.where((r) => r.offset >= boundary).length;
+  return BinaryBodyLayout(
+    inflatedSize: body.length,
+    recordRegionLength: boundary,
+    stringCount: stringCount,
+    sentinelCount: _countSentinels(body, boundary),
+  );
+}
+
+/// The offset where the first chain of ≥[chainMin] NUL-adjacent runs begins —
+/// the start of the string region. Null if no such chain exists.
+int? _firstTableOffset(List<BinaryString> runs, {int chainMin = 5}) {
+  var chainStart = -1;
+  var len = 0;
+  for (var i = 0; i < runs.length; i++) {
+    if (i > 0) {
+      final prev = runs[i - 1];
+      final adjacent = runs[i].offset == prev.offset + prev.text.length + 1;
+      if (adjacent) {
+        len++;
+        continue;
+      }
+      if (len >= chainMin) return chainStart;
+    }
+    chainStart = runs[i].offset;
+    len = 1;
+  }
+  return len >= chainMin ? chainStart : null;
+}
+
+/// Counts `ff ff ff ff` words on 4-byte steps in `bytes[0, end)`.
+int _countSentinels(Uint8List bytes, int end) {
+  var n = 0;
+  for (var i = 0; i + 3 < end; i += 4) {
+    if (bytes[i] == 0xff &&
+        bytes[i + 1] == 0xff &&
+        bytes[i + 2] == 0xff &&
+        bytes[i + 3] == 0xff) {
+      n++;
+    }
+  }
+  return n;
+}
+
 /// The largest contiguous **string table** in a binary TOF1 body: the longest
 /// run of NUL-terminated strings packed back-to-back (each start == the previous
 /// end + 1 NUL). The body holds such packed tables (a property-name/type table
