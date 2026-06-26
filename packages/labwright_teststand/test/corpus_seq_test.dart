@@ -467,6 +467,47 @@ void main() {
         reason: 'every file with an external call must mark it in the export');
   });
 
+  test('logic export renders typed parameter signatures across the corpus', () {
+    var seqsWithParams = 0, params = 0, typed = 0, filesWithParams = 0,
+        exportsSigned = 0;
+    for (final f in seqs) {
+      if (f.lengthSync() > 300 * 1024) continue;
+      final bytes = f.readAsBytesSync();
+      final fmt = detectSeqFormat(bytes);
+      if (fmt != SeqFormat.xml && fmt != SeqFormat.ini) continue;
+      final SeqFile sf;
+      try {
+        sf = parseSeqFile(bytes);
+      } catch (_) {
+        continue;
+      }
+      var fileHas = false;
+      for (final q in sf.sequences) {
+        if (q.parameters.isEmpty) continue;
+        seqsWithParams++;
+        fileHas = true;
+        for (final p in q.parameters) {
+          params++;
+          if (p.type != null) typed++;
+        }
+      }
+      if (fileHas) {
+        filesWithParams++;
+        // A sequence with parameters must render a non-empty `(...)` signature.
+        if (exportSequenceLogic(sf).contains(RegExp(r'^sequence .+\([^)]', multiLine: true))) {
+          exportsSigned++;
+        }
+      }
+    }
+    // ignore: avoid_print
+    print('signatures: $seqsWithParams seqs with params ($params params, '
+        '$typed typed) in $filesWithParams files; $exportsSigned exports signed');
+    expect(params, greaterThan(0), reason: 'no parameterized sequences in corpus');
+    expect(typed, params, reason: 'every recovered parameter carries a type');
+    expect(exportsSigned, filesWithParams,
+        reason: 'every file with params must render a signature in the export');
+  });
+
   test('recovers <typelist> type definitions across XML corpus', () {
     var files = 0, totalTypes = 0, withFields = 0, totalFields = 0;
     final baseClasses = <String>{};

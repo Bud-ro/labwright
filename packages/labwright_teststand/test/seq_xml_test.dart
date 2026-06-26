@@ -902,6 +902,23 @@ void main() {
       expect(out.split('\n').first, contains('// 1 step'));
       expect(out.split('\n').first, isNot(contains('1 steps')));
     });
+
+    test('renders typed parameters as a function-style signature', () {
+      final header =
+          exportSequenceLogic(parseSeqFile(_bytes(_seqParamsXml))).split('\n').first;
+      expect(header,
+          startsWith('sequence MainSequence(TestSocketName: Str, Voltage: Num = 5):'));
+      // Params are in the signature, not duplicated in the count comment.
+      expect(header, isNot(contains('param')));
+      expect(header, contains('// 1 step'));
+    });
+
+    test('a parameterless sequence has no empty parens', () {
+      final header =
+          exportSequenceLogic(parseSeqFile(_bytes(_seqXml))).split('\n').first;
+      expect(header, startsWith('sequence MainSequence:'));
+      expect(header, isNot(contains('()')));
+    });
   });
 
   group('SequenceCall cross-file reference in the logic export', () {
@@ -1058,6 +1075,26 @@ const _seqJumpXml = '''<?xml version="1.0" encoding="UTF-8"?>
           </subprops></Step></value>
           <value><Step typename='Action' name='Plain'/></value>
         </value></Main>
+      </subprops></Sequence>
+    </value></value></Seq>
+  </subprops></Data>
+</teststandfileheader>''';
+
+/// A sequence that declares two typed parameters (one with a default value) —
+/// the logic export renders them as a function-style signature.
+const _seqParamsXml = '''<?xml version="1.0" encoding="UTF-8"?>
+<teststandfileheader type='SequenceFile' fileversion='920' productname='TestStand'>
+  <typelist/>
+  <Data classname='Obj'><subprops>
+    <Seq classname='Objs'><value lbound='[0]' ubound='[1]'><value>
+      <Sequence name='MainSequence' classname='Obj'><subprops>
+        <Main classname='Objs'><value lbound='[0]' ubound='[1]'>
+          <value><Step typename='Action' name='Work'/></value>
+        </value></Main>
+        <Parameters classname='Obj'><subprops>
+          <TestSocketName classname='Str'><value/></TestSocketName>
+          <Voltage classname='Num'><value>5</value></Voltage>
+        </subprops></Parameters>
       </subprops></Sequence>
     </value></value></Seq>
   </subprops></Data>

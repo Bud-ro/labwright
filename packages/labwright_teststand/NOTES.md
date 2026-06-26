@@ -33,8 +33,9 @@ One `.seq` holds the same model in **three encodings**; recovery differs by form
 expose hidden data ✓, render close to the original ✓ (the inspector's Sequences
 outline with flow nesting), **export the sequence logic ✓** —
 `exportSequenceLogic(SeqFile)` renders each sequence as readable nested
-pseudocode (flow blocks + conditions, per-step preconditions/limits/loops/jumps/
-in-&-external call targets, per-sequence summary header), surfaced both as the
+pseudocode (function-style per-sequence signature header + flow blocks +
+conditions, per-step preconditions/limits/loops/jumps/in-&-external call
+targets), surfaced both as the
 dump's `=== Sequence logic ===` section and a dedicated read-only **Logic tab**
 in the app.
 
@@ -1209,11 +1210,15 @@ pass:Goto) across 8 files**, every one annotated in the export (the other 1615
 pass / 1570 fail actions are `Next`). The step's own precondition is already
 shown inline as `[if …]`. NI_Flow_* steps carry no own pass/fail action.
 
-**Per-sequence summary header (2026-06).** Each `sequence <name>:` line in
-`exportSequenceLogic` carries a `// N steps, P params, L locals` summary
-(`_seqSummary`) — step count always, params/locals only when non-zero, correctly
-singular/plural. Straight from the lens (`Sequence.steps/parameters/locals`), no
-fabrication; gives a quick shape-of-sequence read at the top of each block.
+**Per-sequence header — signature + summary (2026-06).** Each sequence header in
+`exportSequenceLogic` reads like a function declaration:
+`sequence <name>(<param>: <Type> = <default>, …):  // N steps, L locals`.
+`_paramSignature` renders the declared parameters (name + type + optional default)
+— corpus: **109/220 sequences parameterized, 280 params, 100% typed**; empty
+parens omitted for parameterless sequences. `_seqSummary` adds the step count
+(always) and local count (when non-zero), correctly pluralized; the param count
+moved into the signature so it isn't duplicated. All from the lens
+(`Sequence.parameters/steps/locals` → `SeqVariable`), no fabrication.
 
 **External SequenceCall cross-reference (2026-06).** A `SequenceCall` whose
 target sequence isn't in this file (`SeqFile.resolveCall` returns null and the

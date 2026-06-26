@@ -45,7 +45,7 @@ String dumpSeqFile(SeqFile f) {
 String exportSequenceLogic(SeqFile f) {
   final b = StringBuffer();
   for (final seq in f.sequences) {
-    b.writeln('sequence ${seq.name}:${_seqSummary(seq)}');
+    b.writeln('sequence ${seq.name}${_paramSignature(seq)}:${_seqSummary(seq)}');
     for (final group in StepGroup.values) {
       final steps = seq.stepsIn(group);
       if (steps.isEmpty) continue;
@@ -57,17 +57,32 @@ String exportSequenceLogic(SeqFile f) {
   return b.toString();
 }
 
-/// A `  // N steps, P params, L locals` summary for a sequence header (counts
-/// only what's non-zero beyond the step count, which is always shown). Empty
-/// string when the sequence has no steps/params/locals (nothing to summarize).
+/// The sequence's parameter list as a function-style signature, e.g.
+/// `(TestSocketName: Str, Voltage: Num = 5)` — each parameter's name, its type,
+/// and a default value when the sequence declares one. Empty string when the
+/// sequence takes no parameters. All recovered from the lens
+/// ([Sequence.parameters] → [SeqVariable]); corpus shows every parameter typed.
+String _paramSignature(Sequence seq) {
+  final params = seq.parameters;
+  if (params.isEmpty) return '';
+  String one(SeqVariable p) {
+    final ty = p.type != null ? ': ${p.type}' : '';
+    final val = p.value != null ? ' = ${p.value}' : '';
+    return '${p.name}$ty$val';
+  }
+
+  return '(${params.map(one).join(', ')})';
+}
+
+/// A `  // N steps, L locals` summary for a sequence header (the step count is
+/// always shown; locals only when non-zero — parameters appear in the signature,
+/// see [_paramSignature]). Empty string when there are no steps or locals.
 String _seqSummary(Sequence seq) {
   final steps = seq.steps.length;
-  final params = seq.parameters.length;
   final locals = seq.locals.length;
-  if (steps == 0 && params == 0 && locals == 0) return '';
+  if (steps == 0 && locals == 0) return '';
   final parts = [
     '$steps ${steps == 1 ? 'step' : 'steps'}',
-    if (params > 0) '$params ${params == 1 ? 'param' : 'params'}',
     if (locals > 0) '$locals ${locals == 1 ? 'local' : 'locals'}',
   ];
   return '  // ${parts.join(', ')}';
