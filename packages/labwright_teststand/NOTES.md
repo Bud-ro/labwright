@@ -145,6 +145,33 @@ refused (not mis-parsed).
 
 ## Binary TOF1 — reconnaissance (header decoded; body not yet)
 
+> **2026-06 corpus expansion — several "83/83" body claims below are now SUPERSEDED.**
+> The corpus grew from **103 → 372 `.seq`** (288 binary / 58 INI / 26 XML) across
+> ~28 source repos and TS revisions 575→1022 (was an NI-example-heavy ~10-repo
+> set). The wider, real-world sample **falsified** conclusions that were overfit to
+> the original 83 binary files — a healthy correction, exactly what the bigger
+> corpus is for:
+> - **REFUTED — "2nd u32 ∈ {16, 118}" / "layout selector".** Real-world files show
+>   `leadingWords[1] ∈ {2, 16, 18, 118, 276, …}`, not a two-valued selector. The
+>   `0x10`/`0x76` table below was an artifact of the NI-example subset.
+> - **REFUTED — "the fixed 5-entry scaffold `[SequenceFileData,Data,Objs,Seq,[0]]`
+>   (82/82)".** Other root shapes occur, e.g. `[SequenceFileData,Data,Attributes,
+>   Obj,TestStand]`; and on some files long comment strings leak into the
+>   name-table extraction, so the heuristic is imperfect. What still holds is the
+>   weaker prefix `[SequenceFileData, Data, …]`.
+> - **WEAKENED — object-record triplet.** Real-name qualifying rate fell from
+>   97.8% → ~85.7% on the broader corpus (control ~52% still well below, so the
+>   signal is real but smaller than first measured).
+> - **UPGRADED — INI form.** Previously "not yet verified against a real sample";
+>   the corpus now carries **58 real INI `.seq`** (`[__Header__]` + `ProductName =
+>   "TestStand"`, versions 143/797/894/920…). INI is a *plaintext* serialization of
+>   the **same PropertyObject model** the binary encodes — a readable Rosetta that
+>   should directly inform the binary record tree. `detectSeqFormat` already
+>   classifies all 58 as `SeqFormat.ini`; all 26 XML still parse with 0 failures.
+>
+> The corpus-tagged tests are being re-derived against the 372-file corpus; treat
+> specific counts below as historical until that lands.
+
 Verified across **all 83** binary files in the corpus (TS2014). Fixed header
 slots from offset 0:
 
