@@ -776,28 +776,34 @@ values — line that up against the binary record stream (name-index/`field`/`co
 triplets) to finally decode the binary record's field/count/value encoding.
 *(Binary record tree not yet decoded — not unrecoverable.)*
 
-## Honest gaps (do NOT model yet)
+## Status & honest gaps
 
-- **Binary record grammar** past the header — not yet recovered.
-- **INI typed lens + app** — `parseSeqFile` builds a `SeqFile` from INI (56/58),
-  the shared lens recovers sequences/steps/locals/module bindings, and the
-  inspector renders INI via `IniSeqDocument` (a `StructuredSeqDocument`) — the
-  app now shows **84 files structured (26 XML + 58 INI)** — all INI parse after
-  the `%OBJECTS` alias fix. `SeqFile.types` is populated for INI from `[%TYPES]`
-  (`iniTypes`). Type-inherited step settings (run-mode/looping) and adapter
-  defaults that an instance doesn't override are filled in from the step's
-  `[DEF, <Type>]` (instance-wins; see "Type inheritance" above). Empty inherited
-  `SData` classifies as `SeqAdapter.none` (no-module steps), so `unknown` is 0
-  across the corpus. Explicit `%INSTOVRD` instance-override markers are now
-  recovered as `SeqProperty` attributes (`isInstanceOverride`; 13072 across the
-  corpus). Still TODO: any future non-empty unrecognized `SData` adapter shape,
-  decoding the `%INSTOVRD` flags bitmask, and surfacing overrides in the app.
-- **Config / station files** — `corpus/seq-sources.json` captures `.ini/.cfg/.tsw/.tpj`
-  when present, but the open-source corpus is sequence-heavy; type-palette and
-  station-config samples are sparse. (CN-IOT's `.ini` files are *localization
-  string packs*, not structural config — excluded.)
-- **Module-adapter bindings** (which VI/DLL/.NET/expression a step calls, + param
-  mapping) — the link to the VI reader; deferred to M3.
+**INI decode — COMPLETE (58/58).** `parseSeqFile` builds a `SeqFile` from every
+INI file (58/58 built, 0 threw), the shared lens recovers
+sequences/steps/locals/parameters/module-bindings, and the inspector renders INI
+via `IniSeqDocument` — the app shows **84 files structured (26 XML + 58 INI)**.
+`SeqFile.types` is populated from `[%TYPES]`. Recovered and surfaced (see the
+per-feature DONE notes above): type inheritance (run-mode/looping/adapter
+defaults, instance-wins); empty-SData → `SeqAdapter.none` (`unknown` == 0);
+`%INSTOVRD` override markers (13072, shown via the app's ⋄ marker); free-text
+comments on steps/sequences/variables (667/102/37, searchable); variable container
+sizes; multi-line `LineNNNN` continuations (19820 reassembled); flow-action jump
+targets + `flowSummary`; `ID#:` step-reference resolution; step editor icon (59
+XML); module load/unload timing (63 INI). XML is at lens parity (26/26).
+
+**Genuine gaps (need external inputs — do NOT guess):**
+- **Binary record grammar** past the header — not yet recovered (needs a
+  byte-identical INI↔binary twin, absent from the corpus, or NI docs).
+- **Flag/enum bitmasks** whose *values* are stored but whose *meaning* needs NI's
+  enums: the `%INSTOVRD` property-flags bitmask; the step `ResultOption` 1/0 flag;
+  the XML `typecategory` numeric code. Recorded verbatim, not interpreted.
+- **Config / station files** — `corpus/seq-sources.json` captures
+  `.ini/.cfg/.tsw/.tpj` when present, but the open-source corpus is
+  sequence-heavy; type-palette and station-config samples are sparse. (CN-IOT's
+  `.ini` files are *localization string packs*, not structural config — excluded.)
+- **VI-reader cross-link** — a step's adapter *binding* is decoded (which VI/DLL/
+  sequence path it calls); resolving that path to the actual parsed VI in the VI
+  reader (+ parameter mapping) is the deferred cross-tool link.
 
 Project honesty rule (CLAUDE.md): mark undecoded ranges explicitly; say "not yet
 recovered", never "unrecoverable".

@@ -36,10 +36,11 @@ import 'seq_property.dart';
 /// ```
 ///
 /// Paths nest like the binary name pool (`SF` → `SF.Seq` → `SF.Seq[0]`), where
-/// `SF` is the `%OBJROOT` alias for `SequenceFileData`. This first slice parses
-/// the header and the section structure (value vs. DEF, path, members, and the
-/// `%`-directives). Assembling the full [SeqProperty] tree from these sections is
-/// the next slice — **not yet decoded**, not unrecoverable.
+/// `SF` is the `%OBJROOT` alias for `SequenceFileData`. [parseIniSeq] parses the
+/// header and section structure (value vs. DEF, path, members, `%`-directives);
+/// [iniDataTree] then assembles the full [SeqProperty] tree from those sections
+/// (type inheritance, arrays, instance overrides, comments) — **fully decoded**
+/// across the corpus (58/58), feeding the same typed lens as the XML form.
 
 /// One `[...]` block of an INI `.seq`: either a value instance (`[path]`) or a
 /// type definition (`[DEF, path]`).
@@ -130,7 +131,9 @@ IniSeqFile parseIniSeq(String text) {
     // A `key = value` line (the only non-section line shape). Split on the first
     // ` = ` so values may themselves contain '='.
     final eq = line.indexOf(' = ');
-    if (eq < 0) continue; // not yet decoded line shape — skip rather than guess
+    // No ` = `: not a key=value line. None occur in any corpus INI inside a
+    // section (verified + guarded by a corpus test); skip defensively.
+    if (eq < 0) continue;
     final key = line.substring(0, eq).trim();
     final value = line.substring(eq + 3);
     if (inHeader) {
@@ -237,9 +240,11 @@ SeqFileHeader _headerFrom(Map<String, String> h) => SeqFileHeader(
 /// `SF.Seq[0].Main[0]` become nested objects/arrays. Each object's members and
 /// their declared types come from its `[DEF, path]` section; values from the
 /// `[path]` section; `%NAME` becomes the node name; `Objs`/array members expand
-/// to [SeqProperty.array] from the `member[i]` element paths. Type-reference
-/// resolution against `[%TYPES]` and instance overrides (`%INSTOVRD`) are not yet
-/// modelled — TODO, not unrecoverable.
+/// to [SeqProperty.array] from the `member[i]` element paths. Type inheritance
+/// (defaults pulled from a typed object's `[DEF, <Type>]`, instance-wins) and
+/// instance overrides (`%INSTOVRD`) and comments (`%COMMENT`) are modelled — see
+/// [_IniBuilder]. The `%INSTOVRD` flags *bitmask* is kept verbatim (its bit
+/// meanings need NI's PropFlags enum), not yet interpreted.
 SeqProperty? iniDataTree(IniSeqFile doc) {
   final b = _IniBuilder(doc);
   final rootPath = b.dataRootPath();
