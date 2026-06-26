@@ -10,45 +10,59 @@ import 'package:labwright_teststand_inspector/src/recent_files.dart';
 import 'package:labwright_teststand_inspector/src/sequence_outline.dart';
 
 Uint8List _xml() => Uint8List.fromList([
-      0xef, 0xbb, 0xbf,
-      ...utf8.encode("<?xml version='1.0'?>\n"
-          "<teststandfileheader type='SequenceFile' fileversion='920' productname='TestStand'>"
-          "<typelist/><Data classname='Obj'><subprops>"
-          "<Seq classname='Objs'><value lbound='[0]' ubound='[1]'><value>"
-          "<Sequence name='MainSequence' classname='Obj'><subprops>"
-          "<Main classname='Objs'><value lbound='[0]' ubound='[1]'>"
-          "<value><Step typename='Statement' name='S1'/></value></value></Main>"
-          "</subprops></Sequence></value></value></Seq></subprops></Data>"
-          "</teststandfileheader>"),
-    ]);
+  0xef,
+  0xbb,
+  0xbf,
+  ...utf8.encode(
+    "<?xml version='1.0'?>\n"
+    "<teststandfileheader type='SequenceFile' fileversion='920' productname='TestStand'>"
+    "<typelist/><Data classname='Obj'><subprops>"
+    "<Seq classname='Objs'><value lbound='[0]' ubound='[1]'><value>"
+    "<Sequence name='MainSequence' classname='Obj'><subprops>"
+    "<Main classname='Objs'><value lbound='[0]' ubound='[1]'>"
+    "<value><Step typename='Statement' name='S1'/></value></value></Main>"
+    "</subprops></Sequence></value></value></Seq></subprops></Data>"
+    "</teststandfileheader>",
+  ),
+]);
 
 Uint8List _xmlWithLimits() => Uint8List.fromList([
-      0xef, 0xbb, 0xbf,
-      ...utf8.encode("<?xml version='1.0'?>\n"
-          "<teststandfileheader type='SequenceFile' fileversion='920' productname='TestStand'>"
-          "<typelist/><Data classname='Obj'><subprops>"
-          "<Seq classname='Objs'><value lbound='[0]' ubound='[1]'><value>"
-          "<Sequence name='MainSequence' classname='Obj'><subprops>"
-          "<Main classname='Objs'><value lbound='[0]' ubound='[1]'><value>"
-          "<Step typename='NumericLimitTest' name='Check V'><subprops>"
-          "<Comp><value>GELE</value></Comp>"
-          "<Limits classname='Obj'><subprops>"
-          "<Low><value>9</value></Low><High><value>11</value></High>"
-          "</subprops></Limits>"
-          "<DataSource><value>Locals.V</value></DataSource>"
-          "</subprops></Step>"
-          "</value></value></Main>"
-          "</subprops></Sequence></value></value></Seq></subprops></Data>"
-          "</teststandfileheader>"),
-    ]);
+  0xef,
+  0xbb,
+  0xbf,
+  ...utf8.encode(
+    "<?xml version='1.0'?>\n"
+    "<teststandfileheader type='SequenceFile' fileversion='920' productname='TestStand'>"
+    "<typelist/><Data classname='Obj'><subprops>"
+    "<Seq classname='Objs'><value lbound='[0]' ubound='[1]'><value>"
+    "<Sequence name='MainSequence' classname='Obj'><subprops>"
+    "<Main classname='Objs'><value lbound='[0]' ubound='[1]'><value>"
+    "<Step typename='NumericLimitTest' name='Check V'><subprops>"
+    "<Comp><value>GELE</value></Comp>"
+    "<Limits classname='Obj'><subprops>"
+    "<Low><value>9</value></Low><High><value>11</value></High>"
+    "</subprops></Limits>"
+    "<DataSource><value>Locals.V</value></DataSource>"
+    "</subprops></Step>"
+    "</value></value></Main>"
+    "</subprops></Sequence></value></value></Seq></subprops></Data>"
+    "</teststandfileheader>",
+  ),
+]);
 
 Uint8List _binary() {
   final pool = <int>[];
   for (final n in [
     'PaddingNameSoTheInflatedBodyExceedsTheSixtyFourByteGuardHere',
-    'SequenceFileData', 'MainSequence', 'Step', 'Locals', 'Parameters'
+    'SequenceFileData',
+    'MainSequence',
+    'Step',
+    'Locals',
+    'Parameters',
   ]) {
-    pool..addAll(ascii.encode(n))..add(0);
+    pool
+      ..addAll(ascii.encode(n))
+      ..add(0);
   }
   final header = Uint8List(0x108);
   header.setAll(0, ascii.encode('TOF1'));
@@ -110,26 +124,32 @@ void main() {
     expect(out, ['x', 'a', 'b']);
   });
 
-  test('StepOutline.of populates structured limits, omitting absent fields', () {
-    final doc = SeqDocument.parse(_xmlWithLimits()) as XmlSeqDocument;
-    final outline = SeqOutline.of(doc.file);
-    final step = outline.sequences.single.groups.single.steps.single;
+  test(
+    'StepOutline.of populates structured limits, omitting absent fields',
+    () {
+      final doc = SeqDocument.parse(_xmlWithLimits()) as XmlSeqDocument;
+      final outline = SeqOutline.of(doc.file);
+      final step = outline.sequences.single.groups.single.steps.single;
 
-    expect(step.name, 'Check V');
-    expect(step.limits, isNotNull); // summary string still present
-    final d = step.limitsDetail;
-    expect(d, isNotNull);
-    expect(d!.comparison, 'GELE');
-    expect(d.low, '9');
-    expect(d.high, '11');
-    expect(d.dataSource, 'Locals.V');
-    // Absent fields stay null (not invented) and are dropped from rows.
-    expect(d.nominal, isNull);
-    expect(d.thresholdType, isNull);
-    final rowLabels = d.rows.map((r) => r.$1);
-    expect(rowLabels, containsAll(['Comparison', 'Low', 'High', 'Data source']));
-    expect(rowLabels, isNot(contains('Nominal')));
-  });
+      expect(step.name, 'Check V');
+      expect(step.limits, isNotNull); // summary string still present
+      final d = step.limitsDetail;
+      expect(d, isNotNull);
+      expect(d!.comparison, 'GELE');
+      expect(d.low, '9');
+      expect(d.high, '11');
+      expect(d.dataSource, 'Locals.V');
+      // Absent fields stay null (not invented) and are dropped from rows.
+      expect(d.nominal, isNull);
+      expect(d.thresholdType, isNull);
+      final rowLabels = d.rows.map((r) => r.$1);
+      expect(
+        rowLabels,
+        containsAll(['Comparison', 'Low', 'High', 'Data source']),
+      );
+      expect(rowLabels, isNot(contains('Nominal')));
+    },
+  );
 
   test('outlineSummary/totalSteps count sequences and steps (pluralized)', () {
     final doc = SeqDocument.parse(_xml()) as XmlSeqDocument;
@@ -139,19 +159,36 @@ void main() {
     // Fixture has 1 sequence / 1 step → singular forms.
     expect(outlineSummary(outline), '1 sequence · 1 step');
     // With a type count appended.
-    expect(outlineSummary(outline, typeCount: 5), '1 sequence · 1 step · 5 types');
+    expect(
+      outlineSummary(outline, typeCount: 5),
+      '1 sequence · 1 step · 5 types',
+    );
+  });
+
+  test('pathBasename handles / and \\ separators and edge cases', () {
+    expect(pathBasename(r'C:\a\b\Foo.vi'), 'Foo.vi');
+    expect(pathBasename('/x/y/Bar.seq'), 'Bar.seq');
+    expect(pathBasename('bare'), 'bare');
+    expect(pathBasename(''), '');
+    // Mixed separators: the last separator of either kind wins.
+    expect(pathBasename(r'/x\y/z\End.seq'), 'End.seq');
+    // Trailing separator → empty (callers add their own fallback).
+    expect(pathBasename('/x/y/'), '');
   });
 
   test('StepOutline.targetDisplay shows basename + full-path tooltip', () {
     ({String label, String tooltip})? disp(String? target) => StepOutline(
-          name: 'x',
-          type: 'y',
-          adapter: target == null ? null : 'labView',
-          target: target,
-          notes: const [],
-        ).targetDisplay;
+      name: 'x',
+      type: 'y',
+      adapter: target == null ? null : 'labView',
+      target: target,
+      notes: const [],
+    ).targetDisplay;
 
-    expect(disp(r'C:\a\b\Foo.vi'), (label: 'Foo.vi', tooltip: r'C:\a\b\Foo.vi'));
+    expect(disp(r'C:\a\b\Foo.vi'), (
+      label: 'Foo.vi',
+      tooltip: r'C:\a\b\Foo.vi',
+    ));
     expect(disp('/x/y/Bar.vi'), (label: 'Bar.vi', tooltip: '/x/y/Bar.vi'));
     // A bare (non-path) target is shown verbatim.
     expect(disp('MySequence'), (label: 'MySequence', tooltip: 'MySequence'));
@@ -172,7 +209,10 @@ void main() {
     expect(byStep.sequences, hasLength(1));
     final seq = byStep.sequences.single;
     expect(seq.name, 'MainSequence');
-    expect(seq.groups.expand((g) => g.steps).map((s) => s.name), contains('S1'));
+    expect(
+      seq.groups.expand((g) => g.steps).map((s) => s.name),
+      contains('S1'),
+    );
 
     // A query matching the sequence name keeps the whole sequence.
     final byName = filterSequences(outline, 'mainseq');
@@ -218,8 +258,7 @@ void main() {
     final mainSeq = seq.children.single; // MainSequence kept as an ancestor
     expect(mainSeq.name, 'MainSequence');
     // The matching leaf is reachable somewhere under MainSequence.
-    bool hasStep(PropertyNode n) =>
-        n.name == 'S1' || n.children.any(hasStep);
+    bool hasStep(PropertyNode n) => n.name == 'S1' || n.children.any(hasStep);
     expect(hasStep(mainSeq), isTrue);
 
     // A query matching nothing prunes the whole tree to null.

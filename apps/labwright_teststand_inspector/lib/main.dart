@@ -96,12 +96,6 @@ class _InspectorPageState extends State<InspectorPage> {
     if (tabIndex == 2) _propertiesSearchFocus.requestFocus();
   }
 
-  /// The last path segment of [path] (handles both / and \ separators).
-  static String _basename(String path) {
-    final i = path.lastIndexOf(RegExp(r'[/\\]'));
-    return i >= 0 ? path.substring(i + 1) : path;
-  }
-
   void _loadBytes(String path, Uint8List bytes, {bool remember = true}) {
     setState(() {
       _path = path;
@@ -132,7 +126,8 @@ class _InspectorPageState extends State<InspectorPage> {
     final res = await FilePicker.pickFiles(withData: true);
     final f = res?.files.single;
     if (f == null) return;
-    final bytes = f.bytes ?? (f.path != null ? File(f.path!).readAsBytesSync() : null);
+    final bytes =
+        f.bytes ?? (f.path != null ? File(f.path!).readAsBytesSync() : null);
     if (bytes != null) _loadBytes(f.path ?? f.name, bytes);
   }
 
@@ -149,51 +144,60 @@ class _InspectorPageState extends State<InspectorPage> {
     return DefaultTabController(
       length: file != null ? 3 : 1,
       // Builder so the shortcut can read the active tab via DefaultTabController.
-      child: Builder(builder: (context) {
-        return CallbackShortcuts(
-          bindings: {
-            // Ctrl+O / Cmd+O → open a file.
-            const SingleActivator(LogicalKeyboardKey.keyO, control: true): _pick,
-            const SingleActivator(LogicalKeyboardKey.keyO, meta: true): _pick,
-            // Ctrl+F / Cmd+F → focus the active tab's search field.
-            const SingleActivator(LogicalKeyboardKey.keyF, control: true): () =>
-                _focusSearch(DefaultTabController.of(context).index),
-            const SingleActivator(LogicalKeyboardKey.keyF, meta: true): () =>
-                _focusSearch(DefaultTabController.of(context).index),
-          },
-          child: Focus(
-            autofocus: true,
-            child: Scaffold(
-              appBar: AppBar(
-                title: Text(doc != null
-                    ? documentTitle(doc)
-                    : 'Labwright TestStand Inspector'),
-                actions: [
-                  if (_recent.isNotEmpty) _recentMenu(),
-                  IconButton(
+      child: Builder(
+        builder: (context) {
+          return CallbackShortcuts(
+            bindings: {
+              // Ctrl+O / Cmd+O → open a file.
+              const SingleActivator(LogicalKeyboardKey.keyO, control: true):
+                  _pick,
+              const SingleActivator(LogicalKeyboardKey.keyO, meta: true): _pick,
+              // Ctrl+F / Cmd+F → focus the active tab's search field.
+              const SingleActivator(
+                LogicalKeyboardKey.keyF,
+                control: true,
+              ): () =>
+                  _focusSearch(DefaultTabController.of(context).index),
+              const SingleActivator(LogicalKeyboardKey.keyF, meta: true): () =>
+                  _focusSearch(DefaultTabController.of(context).index),
+            },
+            child: Focus(
+              autofocus: true,
+              child: Scaffold(
+                appBar: AppBar(
+                  title: Text(
+                    doc != null
+                        ? documentTitle(doc)
+                        : 'Labwright TestStand Inspector',
+                  ),
+                  actions: [
+                    if (_recent.isNotEmpty) _recentMenu(),
+                    IconButton(
                       onPressed: _pick,
                       icon: const Icon(Icons.folder_open),
-                      tooltip: 'Open .seq (Ctrl/Cmd+O)'),
-                ],
-                bottom: TabBar(
-                  tabs: [
-                    const Tab(text: 'Dump'),
-                    if (file != null) const Tab(text: 'Sequences'),
-                    if (file != null) const Tab(text: 'Properties'),
+                      tooltip: 'Open .seq (Ctrl/Cmd+O)',
+                    ),
                   ],
+                  bottom: TabBar(
+                    tabs: [
+                      const Tab(text: 'Dump'),
+                      if (file != null) const Tab(text: 'Sequences'),
+                      if (file != null) const Tab(text: 'Properties'),
+                    ],
+                  ),
+                ),
+                body: DropTarget(
+                  onDragDone: (d) {
+                    final file = d.files.isNotEmpty ? d.files.first : null;
+                    if (file != null) _loadPath(file.path);
+                  },
+                  child: _body(doc, outline, tree, coverage, typeCount),
                 ),
               ),
-              body: DropTarget(
-                onDragDone: (d) {
-                  final file = d.files.isNotEmpty ? d.files.first : null;
-                  if (file != null) _loadPath(file.path);
-                },
-                child: _body(doc, outline, tree, coverage, typeCount),
-              ),
             ),
-          ),
-        );
-      }),
+          );
+        },
+      ),
     );
   }
 
@@ -210,10 +214,12 @@ class _InspectorPageState extends State<InspectorPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(_basename(path)),
-                Text(path,
-                    style: Theme.of(context).textTheme.bodySmall,
-                    overflow: TextOverflow.ellipsis),
+                Text(pathBasename(path)),
+                Text(
+                  path,
+                  style: Theme.of(context).textTheme.bodySmall,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ],
             ),
           ),
@@ -221,18 +227,29 @@ class _InspectorPageState extends State<InspectorPage> {
     );
   }
 
-  Widget _body(SeqDocument? doc, SeqOutline? outline, PropertyNode? tree,
-      String? coverage, int? typeCount) {
+  Widget _body(
+    SeqDocument? doc,
+    SeqOutline? outline,
+    PropertyNode? tree,
+    String? coverage,
+    int? typeCount,
+  ) {
     if (_error != null) {
       return Center(
-          child: Text('Error: $_error', style: const TextStyle(color: Colors.red)));
+        child: Text(
+          'Error: $_error',
+          style: const TextStyle(color: Colors.red),
+        ),
+      );
     }
     if (doc == null) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Open a TestStand .seq file (Ctrl/Cmd+O) or drag one here.'),
+            const Text(
+              'Open a TestStand .seq file (Ctrl/Cmd+O) or drag one here.',
+            ),
             if (_recent.isNotEmpty) ...[
               const SizedBox(height: 24),
               Text('Recent', style: Theme.of(context).textTheme.titleSmall),
@@ -245,7 +262,7 @@ class _InspectorPageState extends State<InspectorPage> {
                       ListTile(
                         dense: true,
                         leading: const Icon(Icons.description_outlined),
-                        title: Text(_basename(path)),
+                        title: Text(pathBasename(path)),
                         subtitle: Text(path, overflow: TextOverflow.ellipsis),
                         onTap: () => _loadPath(path),
                       ),
@@ -270,12 +287,18 @@ class _InspectorPageState extends State<InspectorPage> {
             padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
             child: Row(
               children: [
-                Icon(Icons.donut_small,
-                    size: 14, color: Theme.of(context).colorScheme.primary),
+                Icon(
+                  Icons.donut_small,
+                  size: 14,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
                 const SizedBox(width: 4),
-                Text(coverage,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.primary)),
+                Text(
+                  coverage,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
               ],
             ),
           ),
@@ -289,12 +312,15 @@ class _InspectorPageState extends State<InspectorPage> {
                 _dumpTab(doc),
               if (outline != null)
                 SequencesView(
-                    outline: outline,
-                    searchFocusNode: _sequencesSearchFocus,
-                    typeCount: typeCount),
+                  outline: outline,
+                  searchFocusNode: _sequencesSearchFocus,
+                  typeCount: typeCount,
+                ),
               if (tree != null)
                 PropertiesView(
-                    root: tree, searchFocusNode: _propertiesSearchFocus),
+                  root: tree,
+                  searchFocusNode: _propertiesSearchFocus,
+                ),
             ],
           ),
         ),
@@ -320,7 +346,9 @@ class _InspectorPageState extends State<InspectorPage> {
           top: 4,
           right: 4,
           child: Material(
-            color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.85),
+            color: Theme.of(
+              context,
+            ).colorScheme.surface.withValues(alpha: 0.85),
             shape: const CircleBorder(),
             child: IconButton(
               icon: const Icon(Icons.copy, size: 18),
@@ -330,8 +358,9 @@ class _InspectorPageState extends State<InspectorPage> {
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                      content: Text('Copied dump to clipboard'),
-                      duration: Duration(seconds: 1)),
+                    content: Text('Copied dump to clipboard'),
+                    duration: Duration(seconds: 1),
+                  ),
                 );
               },
             ),

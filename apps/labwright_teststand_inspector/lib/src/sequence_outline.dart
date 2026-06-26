@@ -1,5 +1,15 @@
 import 'package:labwright_teststand/labwright_teststand.dart';
 
+/// The last path segment of [path], handling both `/` and `\` separators. The
+/// single source of truth for basename extraction across the app (file labels in
+/// `main.dart`, module-target display in [StepOutline.targetDisplay]). Returns
+/// the empty string when [path] ends in a separator; callers that need a
+/// non-empty fallback handle that themselves.
+String pathBasename(String path) {
+  final i = path.lastIndexOf(RegExp(r'[/\\]'));
+  return i >= 0 ? path.substring(i + 1) : path;
+}
+
 /// A Flutter-free structured outline of a [SeqFile] — the data behind the
 /// Sequences tab's tree. Kept widget-free so the shaping logic (which fields to
 /// surface, how to label a step, what a SequenceCall resolves to) is
@@ -17,8 +27,8 @@ class SeqOutline {
 
   /// Builds the outline for [file]. Pure.
   factory SeqOutline.of(SeqFile file) => SeqOutline([
-        for (final seq in file.sequences) SequenceOutline.of(seq, file),
-      ]);
+    for (final seq in file.sequences) SequenceOutline.of(seq, file),
+  ]);
 
   /// Total steps across all sequences and groups.
   int get totalSteps => sequences.fold(0, (n, s) => n + s.stepCount);
@@ -60,10 +70,11 @@ class SequenceOutline {
       ('Cleanup', seq.cleanup),
     ]) {
       if (entry.$2.isEmpty) continue;
-      groups.add(StepGroupOutline(
-        entry.$1,
-        [for (final s in entry.$2) StepOutline.of(s, file)],
-      ));
+      groups.add(
+        StepGroupOutline(entry.$1, [
+          for (final s in entry.$2) StepOutline.of(s, file),
+        ]),
+      );
     }
     return SequenceOutline(
       name: seq.name,
@@ -132,8 +143,7 @@ class StepOutline {
   ({String label, String tooltip})? get targetDisplay {
     final t = target;
     if (t == null) return null;
-    final i = t.lastIndexOf(RegExp(r'[/\\]'));
-    final label = i >= 0 ? t.substring(i + 1) : t;
+    final label = pathBasename(t);
     return (label: label.isEmpty ? t : label, tooltip: t);
   }
 
@@ -176,8 +186,7 @@ class StepOutline {
       callTargetIndex: callTargetIndex,
       externalCall: externalCall,
       limits: step.limits?.summary,
-      limitsDetail:
-          step.limits != null ? LimitsOutline.of(step.limits!) : null,
+      limitsDetail: step.limits != null ? LimitsOutline.of(step.limits!) : null,
       notes: notes,
     );
   }
@@ -228,23 +237,23 @@ class LimitsOutline {
   final String? dataSource;
 
   factory LimitsOutline.of(StepLimits l) => LimitsOutline(
-        comparison: l.comparison,
-        low: l.low,
-        high: l.high,
-        nominal: l.nominal,
-        thresholdType: l.thresholdType,
-        dataSource: l.dataSource,
-      );
+    comparison: l.comparison,
+    low: l.low,
+    high: l.high,
+    nominal: l.nominal,
+    thresholdType: l.thresholdType,
+    dataSource: l.dataSource,
+  );
 
   /// Present fields as label→value rows, in display order, omitting nulls.
   List<(String, String)> get rows => [
-        if (comparison != null) ('Comparison', comparison!),
-        if (low != null) ('Low', low!),
-        if (high != null) ('High', high!),
-        if (nominal != null) ('Nominal', nominal!),
-        if (thresholdType != null) ('Threshold', thresholdType!),
-        if (dataSource != null) ('Data source', dataSource!),
-      ];
+    if (comparison != null) ('Comparison', comparison!),
+    if (low != null) ('Low', low!),
+    if (high != null) ('High', high!),
+    if (nominal != null) ('Nominal', nominal!),
+    if (thresholdType != null) ('Threshold', thresholdType!),
+    if (dataSource != null) ('Data source', dataSource!),
+  ];
 }
 
 /// True if [s] matches [query] (case-insensitive, query already lower-cased) by
@@ -252,7 +261,10 @@ class LimitsOutline {
 bool stepMatches(StepOutline s, String query) {
   if (query.isEmpty) return true;
   bool hit(String? x) => x != null && x.toLowerCase().contains(query);
-  if (hit(s.name) || hit(s.type) || hit(s.adapter) || hit(s.target) ||
+  if (hit(s.name) ||
+      hit(s.type) ||
+      hit(s.adapter) ||
+      hit(s.target) ||
       hit(s.limits)) {
     return true;
   }
@@ -285,7 +297,8 @@ SeqOutline filterSequences(SeqOutline outline, String query) {
       kept.add(seq); // whole-sequence match → keep everything
       continue;
     }
-    final varHit = seq.parameters.any((v) => _varMatches(v, q)) ||
+    final varHit =
+        seq.parameters.any((v) => _varMatches(v, q)) ||
         seq.locals.any((v) => _varMatches(v, q));
     final groups = <StepGroupOutline>[];
     for (final g in seq.groups) {
@@ -293,12 +306,14 @@ SeqOutline filterSequences(SeqOutline outline, String query) {
       if (steps.isNotEmpty) groups.add(StepGroupOutline(g.name, steps));
     }
     if (groups.isNotEmpty || varHit) {
-      kept.add(SequenceOutline(
-        name: seq.name,
-        parameters: varHit ? seq.parameters : const [],
-        locals: varHit ? seq.locals : const [],
-        groups: groups,
-      ));
+      kept.add(
+        SequenceOutline(
+          name: seq.name,
+          parameters: varHit ? seq.parameters : const [],
+          locals: varHit ? seq.locals : const [],
+          groups: groups,
+        ),
+      );
     }
   }
   return SeqOutline(kept);
