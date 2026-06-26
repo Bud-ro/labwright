@@ -25,13 +25,16 @@ sealed class SeqDocument {
           return UnknownSeqDocument(detectSeqHeader(bytes), error: '$e');
         }
       case SeqFormat.binary:
+        // One inflate of the zlib body feeds every recon field (the individual
+        // helpers would each re-inflate).
+        final a = analyzeBinary(bytes);
         return BinarySeqDocument(
           header: detectSeqHeader(bytes),
-          inflatedSize: inflateBinaryBody(bytes)?.length ?? 0,
-          strings: binaryBodyStrings(bytes),
-          stringTable: binaryStringTable(bytes),
-          layout: analyzeBinaryBody(bytes),
-          nameTable: binaryNameTable(bytes)?.entries ?? const [],
+          inflatedSize: a?.inflatedSize ?? 0,
+          strings: a?.strings ?? const [],
+          stringTable: a?.stringTable ?? const [],
+          layout: a?.layout,
+          nameTable: a?.nameTable ?? const [],
         );
       case SeqFormat.ini:
       case SeqFormat.unknown:

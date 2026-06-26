@@ -332,6 +332,39 @@ void main() {
     );
   });
 
+  test(
+    'analyzeBinary matches the individual helpers (single-inflate path)',
+    () {
+      var binary = 0, checked = 0;
+      final failures = <String>[];
+      for (final f in seqs) {
+        final bytes = f.readAsBytesSync();
+        if (detectSeqFormat(bytes) != SeqFormat.binary) continue;
+        binary++;
+        final a = analyzeBinary(bytes);
+        if (a == null) {
+          failures.add('${f.path}: analyzeBinary null');
+          continue;
+        }
+        checked++;
+        final ok =
+            a.inflatedSize == (inflateBinaryBody(bytes)?.length ?? 0) &&
+            a.strings.length == binaryBodyStrings(bytes).length &&
+            a.stringTable.length == binaryStringTable(bytes).length &&
+            a.layout?.recordRegionLength ==
+                analyzeBinaryBody(bytes)?.recordRegionLength &&
+            a.nameTable.length == (binaryNameTable(bytes)?.entries.length ?? 0);
+        if (!ok) failures.add('${f.path}: analyzeBinary != helpers');
+      }
+      expect(failures, isEmpty, reason: failures.take(5).join('\n'));
+      expect(
+        checked,
+        binary,
+        reason: 'analyzeBinary failed on some binary file',
+      );
+    },
+  );
+
   test('leadingWords[1] selects the record-prefix layout', () {
     var checked = 0, layoutOk = 0;
     final failures = <String>[];

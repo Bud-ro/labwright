@@ -206,6 +206,11 @@ class BinaryBodyLayout {
 BinaryBodyLayout? analyzeBinaryBody(Uint8List seqBytes) {
   final body = inflateBinaryBody(seqBytes);
   if (body == null) return null;
+  return _layoutFromBody(body);
+}
+
+/// [analyzeBinaryBody] core over an already-inflated [body] (no re-inflate).
+BinaryBodyLayout? _layoutFromBody(Uint8List body) {
   final runs = binaryStrings(body, minLength: _minRunLength);
   final boundary = _firstTableOffset(runs);
   if (boundary == null) return null;
@@ -239,6 +244,14 @@ List<BinaryStringSegment> binaryStringSegments(
 }) {
   final body = inflateBinaryBody(seqBytes);
   if (body == null) return const [];
+  return _segmentsFromBody(body, minChain: minChain);
+}
+
+/// [binaryStringSegments] core over an already-inflated [body] (no re-inflate).
+List<BinaryStringSegment> _segmentsFromBody(
+  Uint8List body, {
+  int minChain = _minSegmentChain,
+}) {
   final runs = binaryStrings(body, minLength: _minRunLength);
   final boundary = _firstTableOffset(runs);
   if (boundary == null) return const [];
@@ -262,9 +275,18 @@ List<BinaryStringSegment> binaryStringSegments(
 /// Returns null when [seqBytes] is not an inflatable binary file or no segment
 /// carries model names.
 BinaryStringSegment? binaryNameTable(Uint8List seqBytes) {
+  final body = inflateBinaryBody(seqBytes);
+  if (body == null) return null;
+  return _nameTableFromSegments(_segmentsFromBody(body));
+}
+
+/// [binaryNameTable] core over already-computed [segments] (no re-inflate).
+BinaryStringSegment? _nameTableFromSegments(
+  List<BinaryStringSegment> segments,
+) {
   BinaryStringSegment? best;
   var bestHits = 0;
-  for (final seg in binaryStringSegments(seqBytes)) {
+  for (final seg in segments) {
     final texts = {for (final e in seg.entries) e.text};
     final hits = _modelNameTokens.where(texts.contains).length;
     if (hits > bestHits) {
@@ -290,9 +312,14 @@ BinaryStringSegment? binaryNameTable(Uint8List seqBytes) {
 List<int> binaryRecordWords(Uint8List seqBytes) {
   final body = inflateBinaryBody(seqBytes);
   if (body == null) return const [];
-  final layout = analyzeBinaryBody(seqBytes);
+  final layout = _layoutFromBody(body);
   if (layout == null) return const [];
-  final rr = layout.recordRegionLength;
+  return _recordWordsFromBody(body, layout.recordRegionLength);
+}
+
+/// [binaryRecordWords] core over an already-inflated [body] (no re-inflate).
+List<int> _recordWordsFromBody(Uint8List body, int recordRegionLength) {
+  final rr = recordRegionLength;
   final out = <int>[];
   for (
     var i = 0;
@@ -398,6 +425,14 @@ List<BinaryString> binaryStringTable(
 }) {
   final body = inflateBinaryBody(seqBytes);
   if (body == null) return const [];
+  return _stringTableFromBody(body, minLength: minLength);
+}
+
+/// [binaryStringTable] core over an already-inflated [body] (no re-inflate).
+List<BinaryString> _stringTableFromBody(
+  Uint8List body, {
+  int minLength = _minRunLength,
+}) {
   final runs = binaryStrings(body, minLength: minLength);
   // Longest chain of runs separated by exactly one byte (the NUL terminator).
   List<BinaryString> best = const [];
@@ -415,4 +450,53 @@ List<BinaryString> binaryStringTable(
   }
   if (chain.length > best.length) best = chain;
   return best.length >= _minTableEntries ? best : const [];
+}
+
+/// Everything the recon layer extracts from a binary TOF1 file, computed with a
+/// **single** inflate of the body. The individual public helpers
+/// ([binaryBodyStrings], [binaryStringTable], [analyzeBinaryBody],
+/// [binaryNameTable]) each re-inflate; prefer this when you need several results
+/// at once (e.g. building a document) so the zlib body is decompressed only once.
+class BinaryAnalysis {
+  const BinaryAnalysis({
+    required this.inflatedSize,
+    required this.strings,
+    required this.stringTable,
+    required this.layout,
+    required this.nameTable,
+  });
+
+  /// Size of the inflated body in bytes.
+  final int inflatedSize;
+
+  /// All printable runs in the body (== [binaryBodyStrings]).
+  final List<BinaryString> strings;
+
+  /// The largest contiguous packed table (== [binaryStringTable]).
+  final List<BinaryString> stringTable;
+
+  /// The framed body layout (== [analyzeBinaryBody]), or null if it didn't frame.
+  final BinaryBodyLayout? layout;
+
+  /// The content-identified property-name table's entries (== the entries of
+  /// [binaryNameTable]), or empty when none was found.
+  final List<BinaryString> nameTable;
+}
+
+/// Inflates the binary TOF1 body **once** and runs the whole recon layer over it,
+/// returning a [BinaryAnalysis]. Byte-for-byte equivalent to calling the
+/// individual helpers, but decompresses the zlib stream a single time instead of
+/// five-plus. Returns null when [seqBytes] is not an inflatable binary file.
+BinaryAnalysis? analyzeBinary(Uint8List seqBytes) {
+  final body = inflateBinaryBody(seqBytes);
+  if (body == null) return null;
+  return BinaryAnalysis(
+    inflatedSize: body.length,
+    // minLength 2 mirrors binaryBodyStrings' default.
+    strings: binaryStrings(body, minLength: 2),
+    stringTable: _stringTableFromBody(body),
+    layout: _layoutFromBody(body),
+    nameTable:
+        _nameTableFromSegments(_segmentsFromBody(body))?.entries ?? const [],
+  );
 }
