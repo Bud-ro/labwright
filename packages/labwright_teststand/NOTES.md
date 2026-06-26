@@ -482,6 +482,21 @@ INI files it recovers **441 sequences, 5515 steps (all typed), 1643 locals, and
 lens as XML. (A container-discovery pass surfaces objects like a step's `SData`
 that are implied only by a deeper section, not listed as a member.)
 
+**INI-as-oracle attack on the binary `count` (2026-06, REFUTED).** With INI fully
+decoded we can ask the binary directly: for each object *name* the INI gives the
+true member count (median across the corpus: `Data`=11, `MainSequence`=9,
+`Parameters`/`Locals`=2, `RTS`=15…). Resolving each binary object-record triplet
+`[name-index][field][count]` back to its pool name and comparing: the binary
+`count` is **median 1 for every object name** (Data/MainSequence/Parameters/Locals
+all 1), so **`count` is NOT the member/child count** — cleanly refuted via the
+cross-encoding oracle (corroborates the earlier `count==1 in 91%` hint). `field`
+is also not a clean per-name type code (e.g. `Data.field` top value 16 is only
+~40%). The real blocker is **locating the authoritative per-object definition
+record** (a name-index recurs once per *reference*, and the first boundary-prefixed
+triplet isn't the definition) — not the field/count semantics. The INI tree
+remains the oracle once record *boundaries* are found. *(Not yet decoded — not
+unrecoverable.)*
+
 Next slices: (1) wire the app's `SeqDocument`/dump to render INI (library is
 ready; the app still shows INI as Unknown); resolve `[%TYPES]` so type-inherited
 defaults (settings/adapter not overridden at the instance) fill in. (2) **use
@@ -497,10 +512,11 @@ triplets) to finally decode the binary record's field/count/value encoding.
 - **INI typed lens + app** — `parseSeqFile` builds a `SeqFile` from INI (56/58),
   the shared lens recovers sequences/steps/locals/module bindings, and the
   inspector renders INI via `IniSeqDocument` (a `StructuredSeqDocument`) — the
-  app now shows 82 files structured (26 XML + 56 INI). Still TODO: the 2 files
-  lacking a `%OBJROOT` root (degrade to Unknown), `[%TYPES]` resolution (so
-  type-inherited step settings/adapter defaults fill in), instance overrides
-  (`%INSTOVRD`), and assembling `SeqFile.types`.
+  app now shows 82 files structured (26 XML + 56 INI). `SeqFile.types` is now
+  populated for INI from `[%TYPES]` (`iniTypes`; 2206 types across 56 files).
+  Still TODO: the 2 files lacking a `%OBJROOT` root (degrade to Unknown), using
+  `[%TYPES]` to fill in **type-inherited** step settings/adapter defaults that an
+  instance doesn't override, and instance overrides (`%INSTOVRD`).
 - **Config / station files** — `corpus/seq-sources.json` captures `.ini/.cfg/.tsw/.tpj`
   when present, but the open-source corpus is sequence-heavy; type-palette and
   station-config samples are sparse. (CN-IOT's `.ini` files are *localization

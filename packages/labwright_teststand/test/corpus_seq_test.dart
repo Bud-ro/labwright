@@ -229,6 +229,7 @@ void main() {
   test('INI files parse through parseSeqFile into the typed lens', () {
     var ini = 0, built = 0, threw = 0;
     var totSeq = 0, totSteps = 0, totLocals = 0, withModule = 0, withType = 0;
+    var totTypes = 0;
     for (final f in seqs) {
       final bytes = f.readAsBytesSync();
       if (detectSeqFormat(bytes) != SeqFormat.ini) continue;
@@ -236,6 +237,7 @@ void main() {
       try {
         final sf = parseSeqFile(bytes);
         built++;
+        totTypes += sf.types.length;
         totSeq += sf.sequences.length;
         for (final s in sf.sequences) {
           totLocals += s.locals.length;
@@ -253,11 +255,12 @@ void main() {
     print(
       'INI lens: $built/$ini parsed via parseSeqFile ($threw threw) · '
       '$totSeq sequences · $totSteps steps · $totLocals locals · '
-      '$withType typed steps · $withModule module bindings',
+      '$withType typed steps · $withModule module bindings · $totTypes types',
     );
     expect(ini, greaterThan(0));
     expect(built, greaterThanOrEqualTo(ini - 2), reason: 'too few INI SeqFiles');
     // The shared lens recovers real structure from INI, same as XML.
+    expect(totTypes, greaterThan(0), reason: 'no INI types via [%TYPES]');
     expect(totSeq, greaterThan(0), reason: 'no INI sequences via the lens');
     expect(totSteps, greaterThan(0), reason: 'no INI steps via the lens');
     expect(totLocals, greaterThan(0), reason: 'no INI locals via the lens');

@@ -173,51 +173,79 @@ SeqFileHeader _headerFrom(Map<String, String> h) => SeqFileHeader(
 /// resolution against `[%TYPES]` and instance overrides (`%INSTOVRD`) are not yet
 /// modelled — TODO, not unrecoverable.
 SeqProperty? iniDataTree(IniSeqFile doc) {
-  // Merge DEF + value sections by path into one record per object path.
-  final defs = <String, IniSection>{};
-  final vals = <String, IniSection>{};
-  for (final s in doc.sections) {
-    (s.isDef ? defs : vals)[s.path] = s;
+  final b = _IniBuilder(doc);
+  final rootPath = b.dataRootPath();
+  return rootPath == null ? null : b.build(rootPath, 'Data', 'SequenceFileData');
+}
+
+/// Reconstructs the type list (`[%TYPES]`) of a parsed INI `.seq` into
+/// [SeqProperty] objects — the INI analogue of XML's `<typelist>`. Each entry of
+/// the `[%TYPES]` section names a top-level type defined by its own
+/// `[DEF, <Type>]`/`[<Type>]` sections. Returns an empty list if absent.
+List<SeqProperty> iniTypes(IniSeqFile doc) {
+  final b = _IniBuilder(doc);
+  final typeList = doc.sections
+      .where((s) => !s.isDef && s.path == '%TYPES')
+      .firstOrNull;
+  if (typeList == null) return const [];
+  return [
+    for (final t in typeList.members.keys)
+      if (b.hasPath(t)) b.build(t, t, _unquote(typeList.members[t])),
+  ];
+}
+
+/// Builds [SeqProperty] objects from an INI `.seq`'s path-addressed sections.
+class _IniBuilder {
+  _IniBuilder(IniSeqFile doc) {
+    for (final s in doc.sections) {
+      (s.isDef ? _defs : _vals)[s.path] = s;
+    }
+    _allPaths = {..._defs.keys, ..._vals.keys};
   }
-  // The data root is the %OBJROOT alias declaring type SequenceFileData (e.g.
-  // `SF = SequenceFileData`).
-  final objRoot = defs['%OBJROOT'];
-  if (objRoot == null) return null;
-  String? rootPath;
-  objRoot.members.forEach((alias, type) {
-    rootPath ??= type == 'SequenceFileData' ? alias : null;
-  });
-  if (rootPath == null) return null;
 
-  final allPaths = {...defs.keys, ...vals.keys};
+  final Map<String, IniSection> _defs = {};
+  final Map<String, IniSection> _vals = {};
+  late final Set<String> _allPaths;
 
-  // Distinct array indices present under a child path C (keys "C[0]", "C[1]"…).
-  List<int> elementIndices(String c) {
+  bool hasPath(String path) => _allPaths.contains(path);
+
+  /// The data root: the `%OBJROOT` alias declaring type `SequenceFileData`
+  /// (e.g. `SF = SequenceFileData`), or null when absent.
+  String? dataRootPath() {
+    final objRoot = _defs['%OBJROOT'];
+    if (objRoot == null) return null;
+    for (final e in objRoot.members.entries) {
+      if (e.value == 'SequenceFileData') return e.key;
+    }
+    return null;
+  }
+
+  /// Distinct array indices present under a child path C (keys "C[0]", "C[1]"…).
+  List<int> _elementIndices(String c) {
     final prefix = '$c[';
     final idx = <int>{};
-    for (final p in allPaths) {
+    for (final p in _allPaths) {
       if (!p.startsWith(prefix)) continue;
       final close = p.indexOf(']', prefix.length);
       if (close < 0) continue;
       final n = int.tryParse(p.substring(prefix.length, close));
       if (n != null) idx.add(n);
     }
-    final list = idx.toList()..sort();
-    return list;
+    return idx.toList()..sort();
   }
 
-  bool isContainer(String childPath) =>
-      allPaths.contains(childPath) ||
-      allPaths.any((p) => p.startsWith('$childPath.') || p.startsWith('$childPath['));
+  bool _isContainer(String childPath) =>
+      _allPaths.contains(childPath) ||
+      _allPaths.any((p) => p.startsWith('$childPath.') || p.startsWith('$childPath['));
 
-  // Immediate child member names of [path] discovered from the path set — catches
-  // container members (e.g. a step's `SData`) that are implied only by a deeper
-  // section and aren't listed in the object's own DEF/value members.
-  List<String> discoveredChildren(String path) {
+  /// Immediate child member names of [path] discovered from the path set —
+  /// catches container members (e.g. a step's `SData`) implied only by a deeper
+  /// section and not listed in the object's own DEF/value members.
+  List<String> _discoveredChildren(String path) {
     final prefix = '$path.';
     final seen = <String>{};
     final order = <String>[];
-    for (final p in allPaths) {
+    for (final p in _allPaths) {
       if (!p.startsWith(prefix)) continue;
       final rest = p.substring(prefix.length);
       var end = rest.length;
@@ -239,8 +267,8 @@ SeqProperty? iniDataTree(IniSeqFile doc) {
     String? declaredType, [
     String? declaredTypeName,
   ]) {
-    final def = defs[path];
-    final val = vals[path];
+    final def = _defs[path];
+    final val = _vals[path];
     final name = _unquote(val?.directives['%NAME']) ??
         _unquote(def?.directives['%NAME']) ??
         displayName;
@@ -253,7 +281,7 @@ SeqProperty? iniDataTree(IniSeqFile doc) {
       if (seen.add(m)) memberOrder.add(m);
     }
     // Container members implied only by deeper sections (e.g. a step's SData).
-    for (final m in discoveredChildren(path)) {
+    for (final m in _discoveredChildren(path)) {
       if (seen.add(m)) memberOrder.add(m);
     }
 
@@ -261,12 +289,12 @@ SeqProperty? iniDataTree(IniSeqFile doc) {
     for (final m in memberOrder) {
       final type = memberTypes[m];
       final childPath = '$path.$m';
-      final elems = elementIndices(childPath);
+      final elems = _elementIndices(childPath);
       if (elems.isNotEmpty) {
         // An array member: build each element object in index order. The element
         // class (%[i]) and TestStand type (%TYPE: %[i]) are declared in the
         // array's own DEF section (e.g. `%[0] = Step`, `%TYPE: %[0] = "Action"`).
-        final arrDef = defs[childPath];
+        final arrDef = _defs[childPath];
         final arr = [
           for (final i in elems)
             build(
@@ -277,7 +305,7 @@ SeqProperty? iniDataTree(IniSeqFile doc) {
             ),
         ];
         subs.add(SeqProperty(name: m, className: type, array: arr));
-      } else if (isContainer(childPath)) {
+      } else if (_isContainer(childPath)) {
         subs.add(build(childPath, m, type));
       } else {
         // Scalar leaf: declared type as className, value (if any) as scalar.
@@ -295,15 +323,12 @@ SeqProperty? iniDataTree(IniSeqFile doc) {
       subProps: subs,
     );
   }
-
-  return build(rootPath!, 'Data', 'SequenceFileData');
 }
 
 /// Parses a legacy INI `.seq` into a [SeqFile] so the shared typed lens
 /// ([SeqFile.sequences] / [Sequence] / [Step]) works on it. The data tree comes
-/// from [iniDataTree]; the type list is not yet assembled from the `[%TYPES]`
-/// sections (TODO — empty for now). Throws [FormatException] if the data root
-/// cannot be reconstructed (e.g. the 2 corpus files lacking `%OBJROOT`).
+/// from [iniDataTree] and the type list from [iniTypes]. Throws [FormatException]
+/// if the data root cannot be reconstructed (e.g. a file lacking `%OBJROOT`).
 SeqFile parseIniSeqFile(Uint8List bytes) {
   final doc = parseIniSeqBytes(bytes);
   final data = iniDataTree(doc);
@@ -312,7 +337,7 @@ SeqFile parseIniSeqFile(Uint8List bytes) {
       'INI .seq has no reconstructable %OBJROOT data root (not yet decoded)',
     );
   }
-  return SeqFile(header: doc.header, types: const [], data: data);
+  return SeqFile(header: doc.header, types: iniTypes(doc), data: data);
 }
 
 /// Strips one layer of surrounding double quotes, if present. Returns null for a
