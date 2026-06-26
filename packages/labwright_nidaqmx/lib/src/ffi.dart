@@ -5,35 +5,28 @@
 // signatures below are transcribed from NI's published C reference.
 //
 // Deliberately the same shape as the clean-room `labwright_qdaq` bindings (qdaq
-// conforms to this exact ABI), so the two backends are interchangeable behind the
-// `labwright_daq` HAL. macOS is NOT supported by NI-DAQmx — see [loadNidaqmx].
+// conforms to this exact ABI), so the binding shape is reusable. macOS is NOT
+// supported by NI-DAQmx — use the gRPC backend there; see [loadNidaqmx].
 
 import 'dart:ffi';
 
 import 'package:ffi/ffi.dart';
 
+import 'daqmx_api.dart';
+
 /// Opaque DAQmx task handle (`TaskHandle` in the C API).
 typedef TaskHandle = Pointer<Void>;
 
-/// Thrown when the NI-DAQmx runtime cannot be loaded (absent, or an unsupported
-/// platform such as macOS). Distinct from [NidaqmxException], which signals a
-/// DAQmx call returning an error status.
-class NidaqmxUnavailable implements Exception {
-  NidaqmxUnavailable(this.message);
-  final String message;
-  @override
-  String toString() => 'NidaqmxUnavailable: $message';
-}
-
 /// Opens the NI-DAQmx shared library for the host platform, or throws
-/// [NidaqmxUnavailable] with guidance. macOS is rejected explicitly: NI ships no
-/// modern DAQmx for macOS (only the long-dead NI-DAQmx Base ≤ macOS 10.14), which
-/// is exactly why the clean-room `qdaq` backend exists for that platform.
+/// [DaqmxUnavailable] with guidance. macOS is rejected explicitly: NI ships no
+/// modern DAQmx for macOS (only the long-dead NI-DAQmx Base ≤ macOS 10.14), so on
+/// macOS the only path is the gRPC backend talking to a Windows/Linux host server.
 DynamicLibrary loadNidaqmx({String? path}) {
   if (path != null) return DynamicLibrary.open(path);
   if (Abi.current() == Abi.macosArm64 || Abi.current() == Abi.macosX64) {
-    throw NidaqmxUnavailable(
-        'NI-DAQmx is not available on macOS; use the qdaq backend (native/qdaq) there.');
+    throw DaqmxUnavailable(
+        'NI-DAQmx has no local runtime on macOS; connect to an NI gRPC Device Server '
+        'instead (Daqmx.remote(host: ...)).');
   }
   final candidates = Abi.current() == Abi.windowsX64 || Abi.current() == Abi.windowsArm64
       ? const ['nicaiu.dll']
@@ -46,7 +39,7 @@ DynamicLibrary loadNidaqmx({String? path}) {
       last = e;
     }
   }
-  throw NidaqmxUnavailable(
+  throw DaqmxUnavailable(
       'Could not load the NI-DAQmx runtime (tried: ${candidates.join(', ')}). '
       'Install NI-DAQmx (free) on Windows/Linux. Last error: $last');
 }

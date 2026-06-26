@@ -1,11 +1,21 @@
-/// Pure-Dart FFI wrapper over NI's own NI-DAQmx driver (Windows/Linux).
+/// Cross-platform, pure-Dart access to NI's **NI-DAQmx** driver behind one API.
 ///
-/// This is the "trusted backend": on platforms NI supports, it calls NI-DAQmx
-/// directly rather than reverse-engineering the USB protocol. It is interchangeable
-/// (behind the `labwright_daq` HAL) with the clean-room `qdaq` backend, which
-/// remains the path for macOS — where NI ships no DAQmx — and for the simulator.
+/// Program against [DaqmxApi]; obtain one from the `Daqmx` factory and the transport
+/// is chosen for you:
 ///
-/// See README.md for the platform matrix and validation status.
+///   - `Daqmx.local()`  — in-process **FFI** into NI-DAQmx (Windows/Linux). Pure
+///                        `dart:ffi`; no method channels, no helper process. Throws
+///                        [UnimplementedError] on macOS (no NI macOS runtime).
+///   - `Daqmx.remote()` — pure-Dart **gRPC** client for the NI gRPC Device Server,
+///                        for any platform and required on macOS.
+///
+/// Same API, two implementations. See README.md for the platform matrix, the gRPC
+/// codegen plan, and validation status.
 library;
 
-export 'src/nidaqmx.dart';
+export 'src/daqmx.dart' show Daqmx;
+export 'src/daqmx_api.dart';
+export 'src/daqmx_constants.dart';
+export 'src/ffi.dart' show NidaqmxBindings, TaskHandle;
+export 'src/ffi_backend.dart' show FfiDaqmxBackend;
+export 'src/grpc_backend.dart' show GrpcDaqmxBackend;

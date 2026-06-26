@@ -1,63 +1,92 @@
 # labwright_nidaqmx
 
-A **pure-Dart FFI wrapper** over NI's own **NI-DAQmx** driver. This is the
-*trusted* DAQ backend: where NI supports the platform, it calls NI-DAQmx directly
-instead of reverse-engineering the device protocol.
+Cross-platform, **pure-Dart** access to NI's own **NI-DAQmx** driver behind a single
+API. This is the *trusted* DAQ backend: where NI supports the platform it calls
+NI-DAQmx directly (no reverse engineering); where NI does not (macOS), it talks to an
+NI gRPC Device Server over the network.
 
-It is designed to be **interchangeable** with the clean-room `qdaq` backend behind
-the `labwright_daq` HAL — pick the backend per platform/need:
+Program against one interface — `DaqmxApi` — and obtain it from the `Daqmx` factory.
+The factory picks the transport; your code never changes:
 
-| Platform | Recommended backend | Why |
-|----------|---------------------|-----|
-| Windows  | `labwright_nidaqmx` (this) | NI-DAQmx fully supported; trusted, no RE |
-| Linux    | `labwright_nidaqmx` (this) | NI-DAQmx supported via NI Linux Device Drivers¹ |
-| macOS    | `qdaq` (clean-room)  | **NI ships no DAQmx for macOS** — only the dead NI-DAQmx *Base* (≤ macOS 10.14) |
-| CI / dev | `qdaq` (sim)         | No hardware/driver needed |
+```dart
+import 'package:labwright_nidaqmx/labwright_nidaqmx.dart';
+
+// Windows/Linux: in-process FFI straight into NI-DAQmx.
+final daq = Daqmx.local();
+
+// macOS (or any client): gRPC to a host running the NI gRPC Device Server.
+final daq = Daqmx.remote(host: '192.168.1.50');
+
+print(await daq.deviceNames());                 // e.g. [cDAQ1, cDAQ1Mod1]
+print(await daq.readVoltage('cDAQ1Mod1/ai0'));  // one AI sample
+await daq.writeVoltage('cDAQ1Mod2/ao0', 2.5);
+await daq.close();
+```
+
+## One API, two implementations
+
+| Transport | `Daqmx` entry point | How it works | Platforms |
+|-----------|---------------------|--------------|-----------|
+| **FFI** (local) | `Daqmx.local()` | Pure `dart:ffi` into `nicaiu.dll` / `libnidaqmx.so` — no method channels, no helper process | Windows, Linux¹ |
+| **gRPC** (remote) | `Daqmx.remote(host:)` | Pure-Dart gRPC client for the [NI gRPC Device Server](https://github.com/ni/grpc-device) | All platforms; **required on macOS** |
 
 ¹ NI flags incompatibility with default IOMMU settings on Linux kernel 6.8+; see NI's
 compatibility docs.
 
-This synergy is intentional: `qdaq` was built **DAQmx-conforming** (same `DAQmx*`
-symbols and `DAQmx_Val_*` constants), so this wrapper reuses the exact binding shape,
-just pointed at `nicaiu.dll` (Windows) / `libnidaqmx.so` (Linux).
+**macOS has no local path.** NI ships no modern NI-DAQmx for macOS (only the dead
+NI-DAQmx *Base*, ≤ macOS 10.14, Intel-only). So `Daqmx.local()` throws
+`UnimplementedError` on macOS, directing you to run the NI gRPC Device Server on a
+Windows/Linux host and connect with `Daqmx.remote(...)`. Windows/Linux *may* host the
+server too, but there's no need — `local()` calls the driver directly under the hood.
 
-## Status — foundation, validated to compile/analyze; NOT yet run against a runtime
+The transport is the only thing that differs. `DaqmxApi`, `DaqmxException`
+(NI's extended error text + status), and `DaqmxUnavailable` (transport unreachable)
+are shared, so callers handle both backends identically.
 
-What's here and analyze-clean:
+## Status
 
-- `loadNidaqmx()` — platform-aware loader (`nicaiu.dll` / `libnidaqmx.so`); throws
-  `NidaqmxUnavailable` on macOS or when the runtime is absent.
-- `NidaqmxBindings` — hand-written `dart:ffi` bindings to the public NI-DAQmx C API
-  (task lifecycle, AI/AO voltage channels, sample-clock timing, scalar + buffered
-  reads, scalar write, `GetExtendedErrorInfo`, `GetSysDevNames`).
-- `Nidaqmx` facade — `open()`, `deviceNames()`, `readVoltage()`, `writeVoltage()`,
-  `errorInfo()`, with a checked-call wrapper that raises `NidaqmxException` carrying
-  NI's extended error text (same 0/<0/>0 status convention as `qdaq`).
+| Piece | State |
+|-------|-------|
+| Unified `DaqmxApi` + `Daqmx` factory + transport gating | done, analyze-clean, unit-tested |
+| **FFI backend** (`FfiDaqmxBackend`) — load, deviceNames, AI/AO scalar read/write, error info | code complete; **not yet run against a live NI-DAQmx runtime** |
+| **gRPC backend** (`GrpcDaqmxBackend`) — connection params + API conformance | scaffold; data-path methods throw `UnimplementedError` (see below) |
 
-**Honesty:** these calls have NOT been exercised against a live NI-DAQmx runtime
-yet — this environment is WSL2 (NI-DAQmx's kernel modules don't build there) with no
-NI runtime installed. The signatures are transcribed from NI's published C reference
-and the wrapper compiles + `dart analyze` is clean, but **end-to-end behavior is
-unverified until run on a Windows/Linux box with NI-DAQmx installed.** Validate with:
+**Honesty:** the FFI calls are transcribed from NI's published C reference and the
+package compiles + `dart analyze` is clean, but they have **not** been exercised
+against a live NI-DAQmx runtime yet — this dev environment is WSL2, where NI-DAQmx's
+kernel modules don't build. Validate on a Windows/Linux box with NI-DAQmx installed.
+The gRPC data path is **not implemented** yet — it throws `UnimplementedError` rather
+than fake a connection.
 
-```dart
-final ni = Nidaqmx.open();
-print(ni.deviceNames());                 // e.g. [cDAQ1, cDAQ1Mod1]
-print(ni.readVoltage('cDAQ1Mod1/ai0'));  // one AI sample
-```
+## gRPC backend — remaining work
+
+`GrpcDaqmxBackend` carries the connection (`host`, `port` default **31763**, `secure`)
+and conforms to `DaqmxApi`, but the wire calls are pending. To finish it:
+
+1. **Vendor the protos.** NI's `grpc-device` repo is MIT-licensed; copy its
+   `nidaqmx.proto` and `session.proto` (plus their imports) into `third_party/`.
+2. **Generate Dart stubs** with `protoc` + `protoc_gen_dart` (`dart pub global activate
+   protoc_plugin`).
+3. **Add deps** `grpc` + `protobuf` and implement the methods over a `ClientChannel`,
+   following the server's session model (create session → create AI/AO task →
+   read/write → clear).
+4. **Validate** against a running NI gRPC Device Server (a Windows/Linux host with
+   NI-DAQmx + hardware) before claiming it works.
+
+Deferred until it can be validated end-to-end — shipping an unverified gRPC client
+would overclaim.
 
 ## Next steps
 
-- `NidaqmxDaq implements DaqDevice` — the HAL adapter (analogIn/analogOut, then
-  digital/counter/streaming) so callers swap backends transparently. Deferred until
-  it can be validated against a real runtime (shipping an untested HAL adapter would
-  overclaim).
-- A backend selector in `labwright_daq` (or the app) choosing nidaqmx vs qdaq vs sim
-  by platform/availability.
-- Buffered/continuous acquisition via `DAQmxReadAnalogF64` (binding already present).
+- Implement + validate the gRPC backend (above).
+- Validate the FFI backend against a real runtime, then widen the API: buffered /
+  continuous acquisition (`DAQmxReadAnalogF64`, binding already present), digital I/O,
+  counters.
+- A `DaqDevice` adapter so `labwright_daq`'s HAL can drive either transport.
 
 ## Clean-room note
 
-This package **wraps** NI's driver through its **public C API** — normal interop,
-the supported way to use NI-DAQmx. It does not reimplement or copy NI code; the
-clean-room rule applies to `qdaq`, which is a separate, independent implementation.
+This package **wraps** NI's driver through its **public C API** (FFI) and NI's own
+**open-source gRPC server** — normal, supported interop. It does not reimplement or
+copy NI code. The clean-room rule applies to the separate, frozen `qdaq` effort
+(reverse-engineering the device protocol), which is deferred.
