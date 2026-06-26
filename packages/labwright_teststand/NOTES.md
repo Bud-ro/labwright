@@ -867,7 +867,21 @@ the **pin map** (`PinMapPath`) and the STS file lists `specificationFiles`/
 on — all clean paths, self-evident. Dump prints a `Measurement plug-ins:` section
 (also visible in the app's Dump tab). Corpus: **11 files declare the block, 1
 carries the full pin-map + specs/levels/timing/pattern set** (most are a bare
-`EnableMonitoring` default). Coverage **49.3% → 49.5%** (9372/18932).
+`EnableMonitoring` default). Coverage **49.3% → 49.5%** (9372/18932). Also
+surfaced structurally in the app: a green "Measurement plug-ins" header card at
+the top of the Sequences tab (`SeqOutline.plugins` / `MeasurementPluginsOutline`),
+not just the Dump tab.
+
+**FCModule `Call.Parms` — probed, NOT modeled (no real data, 2026-06).** The last
+SData module remnant. Probed across the corpus: **2 steps, 2 params, both the
+function `Return Value` with an empty `ArgVal`** — only `Name` ("Return Value")
+and a `StrSize` constant (`1024`) are non-empty; everything else
+(`Type`/`NumType`/`ObjType`/`ResultAct`/`Flags`) is a numeric code. There is no
+meaningful bound-argument data to recover here, so modeling it would add a lens +
+dump + app surface for ~zero signal. Deliberately **left unmodeled** (honest: no
+fabrication of a feature where the corpus carries none). Completes the honest
+finding that the XML module-call recovery is done (ViCall + Python carry the real
+data; C-module calls in this corpus pass no inputs).
 
 **CEILING RE-PROBED after ViCall/Python/plug-ins (2026-06) — frontier largely
 reached.** Re-ran the exact-marking classifier (21 ≤300KB XML, now 53.4% on that

@@ -21,14 +21,25 @@ String pathBasename(String path) {
 
 /// The whole outline: the sequences in a file, in document order.
 class SeqOutline {
-  SeqOutline(this.sequences);
+  SeqOutline(this.sequences, {this.plugins});
 
   final List<SequenceOutline> sequences;
 
+  /// The file's Semiconductor-Test-System resource set (pin map + spec/levels/
+  /// timing/pattern files), or `null` when the file declares none. File-level —
+  /// not part of any sequence; shown as a header card.
+  final MeasurementPluginsOutline? plugins;
+
   /// Builds the outline for [file]. Pure.
-  factory SeqOutline.of(SeqFile file) => SeqOutline([
-    for (final seq in file.sequences) SequenceOutline.of(seq, file),
-  ]);
+  factory SeqOutline.of(SeqFile file) {
+    final mp = file.measurementPlugIns;
+    return SeqOutline(
+      [for (final seq in file.sequences) SequenceOutline.of(seq, file)],
+      plugins: mp != null && mp.isNotEmpty
+          ? MeasurementPluginsOutline.of(mp)
+          : null,
+    );
+  }
 
   /// Total steps across all sequences and groups.
   int get totalSteps => sequences.fold(0, (n, s) => n + s.stepCount);
@@ -41,6 +52,47 @@ class SeqOutline {
     }
     return null;
   }
+}
+
+/// The file's Semiconductor-Test-System resource set for display — mirrors the
+/// package's [MeasurementPlugIns]: the pin map and the specifications/levels/
+/// timing/pattern file lists the test program depends on. Each field is omitted
+/// (empty/null) when absent — never invented.
+class MeasurementPluginsOutline {
+  MeasurementPluginsOutline({
+    this.pinMap,
+    this.specifications = const [],
+    this.levels = const [],
+    this.timing = const [],
+    this.patterns = const [],
+    this.monitoringEnabled = false,
+  });
+
+  final String? pinMap;
+  final List<String> specifications;
+  final List<String> levels;
+  final List<String> timing;
+  final List<String> patterns;
+  final bool monitoringEnabled;
+
+  factory MeasurementPluginsOutline.of(MeasurementPlugIns mp) =>
+      MeasurementPluginsOutline(
+        pinMap: mp.pinMapPath,
+        specifications: mp.specificationFiles,
+        levels: mp.levelsFiles,
+        timing: mp.timingFiles,
+        patterns: mp.patternFiles,
+        monitoringEnabled: mp.monitoringEnabled,
+      );
+
+  /// Present resources as label→value rows, in display order, omitting empties.
+  List<(String, String)> get rows => [
+        if (pinMap != null) ('Pin map', pinMap!),
+        if (specifications.isNotEmpty) ('Specifications', specifications.join(', ')),
+        if (levels.isNotEmpty) ('Levels', levels.join(', ')),
+        if (timing.isNotEmpty) ('Timing', timing.join(', ')),
+        if (patterns.isNotEmpty) ('Patterns', patterns.join(', ')),
+      ];
 }
 
 /// One sequence: its name, variables, and non-empty step groups.

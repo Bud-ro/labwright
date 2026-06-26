@@ -117,6 +117,8 @@ class _SequencesViewState extends State<SequencesView> {
             ),
           ),
         ),
+        if (widget.outline.plugins != null)
+          _pluginsCard(context, widget.outline.plugins!),
         Padding(
           padding: const EdgeInsets.fromLTRB(8, 6, 8, 4),
           child: TextField(
@@ -496,6 +498,58 @@ class _SequencesViewState extends State<SequencesView> {
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 1),
                     child: Text(p.cell, style: monoStyle),
+                  ),
+                ]),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// A file-level card listing the Semiconductor-Test-System resources the
+  /// sequence depends on (pin map + spec/levels/timing/pattern files) — the
+  /// structured view of `SeqFile.measurementPlugIns` (also in the Dump tab).
+  Widget _pluginsCard(BuildContext context, MeasurementPluginsOutline mp) {
+    final theme = Theme.of(context);
+    const color = Colors.green;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(cornerRadius),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.folder_special_outlined, size: 14, color: color),
+              const SizedBox(width: 4),
+              Text('Measurement plug-ins',
+                  style: theme.textTheme.labelSmall?.copyWith(color: color)),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Table(
+            columnWidths: const {
+              0: IntrinsicColumnWidth(),
+              1: FlexColumnWidth(),
+            },
+            defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+            children: [
+              for (final (label, value) in mp.rows)
+                TableRow(children: [
+                  Padding(
+                    padding: const EdgeInsets.only(right: 16, top: 1, bottom: 1),
+                    child: Text(label,
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: theme.hintColor)),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 1),
+                    child: Text(value, style: monoStyle),
                   ),
                 ]),
             ],

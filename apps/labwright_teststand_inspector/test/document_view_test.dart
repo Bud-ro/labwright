@@ -282,6 +282,32 @@ Uint8List _xmlWithPyCall() => Uint8List.fromList([
   ),
 ]);
 
+/// A file declaring a Semiconductor-Test-System resource set under
+/// FileGlobalDefaults > MeasurementPlugIns.
+Uint8List _xmlWithPlugins() => Uint8List.fromList([
+  0xef,
+  0xbb,
+  0xbf,
+  ...utf8.encode(
+    "<?xml version='1.0'?>\n"
+    "<teststandfileheader type='SequenceFile' fileversion='920' productname='TestStand'>"
+    "<typelist/><Data classname='Obj'><subprops>"
+    "<Seq classname='Objs'><value lbound='[0]' ubound='[1]'><value>"
+    "<Sequence name='MainSequence' classname='Obj'><subprops>"
+    "<Main classname='Objs'><value lbound='[0]' ubound='[]'/></Main>"
+    "</subprops></Sequence></value></value></Seq>"
+    "<FileGlobalDefaults classname='Obj'><subprops>"
+    "<MeasurementPlugIns classname='Obj'><subprops>"
+    "<PinMapPath classname='PathValue'><value>PinMap.pinmap</value></PinMapPath>"
+    "<SpecificationsFilePaths classname='Strs'><value lbound='[0]' ubound='[1]'><value>Specifications.specs</value></value></SpecificationsFilePaths>"
+    "<PatternFilePaths classname='Strs'><value lbound='[0]' ubound='[1]'><value>Pattern.digipat</value></value></PatternFilePaths>"
+    "</subprops></MeasurementPlugIns>"
+    "</subprops></FileGlobalDefaults>"
+    "</subprops></Data>"
+    "</teststandfileheader>",
+  ),
+]);
+
 /// A step exercising the previously app-missing facets: a custom condition,
 /// a mutex, and a recorded (non-default) Result outcome.
 Uint8List _xmlStepExtras() => Uint8List.fromList([
@@ -670,6 +696,22 @@ void main() {
     // Searchable by the called function and the module file.
     expect(stepMatches(step, 'create_instrument_sessions'), isTrue);
     expect(stepMatches(step, 'test.py'), isTrue);
+  });
+
+  test('SeqOutline.of surfaces the measurement plug-in resource set', () {
+    final doc = SeqDocument.parse(_xmlWithPlugins()) as XmlSeqDocument;
+    final mp = SeqOutline.of(doc.file).plugins!;
+    expect(mp.pinMap, 'PinMap.pinmap');
+    expect(mp.specifications, ['Specifications.specs']);
+    expect(mp.patterns, ['Pattern.digipat']);
+    expect(mp.rows, contains(('Pin map', 'PinMap.pinmap')));
+    expect(mp.rows, contains(('Specifications', 'Specifications.specs')));
+    expect(mp.rows, contains(('Patterns', 'Pattern.digipat')));
+  });
+
+  test('SeqOutline.of has null plugins when the file declares none', () {
+    final doc = SeqDocument.parse(_xmlWithLimits()) as XmlSeqDocument;
+    expect(SeqOutline.of(doc.file).plugins, isNull);
   });
 
   test('StepOutline.of surfaces custom condition, mutex, and result outcome', () {
