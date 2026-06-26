@@ -791,6 +791,11 @@ sizes; multi-line `LineNNNN` continuations (19820 reassembled); flow-action jump
 targets + `flowSummary`; `ID#:` step-reference resolution; step editor icon (59
 XML); module load/unload timing (63 INI). XML is at lens parity (26/26).
 
+**Empty/placeholder members (probed, nothing to surface):** a step's `Substeps`
+container is present on all 5663 INI steps but is **always empty** in the corpus
+(0 with child content) — a structural placeholder (edit-time pre/post substeps),
+no per-step data to recover here.
+
 **Genuine gaps (need external inputs — do NOT guess):**
 - **Binary record grammar** past the header — not yet recovered (needs a
   byte-identical INI↔binary twin, absent from the corpus, or NI docs).

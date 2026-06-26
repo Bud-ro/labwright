@@ -487,6 +487,48 @@ High = "11"
     expect(locals[0].comment, isNull); // Count has none
   });
 
+  // An array local with actual elements: containerCount counts them (the corpus
+  // arrays are mostly empty defaults, so this exercises the populated path).
+  const arrayLocalIni = '''
+[__Header__]
+ProductName = "TestStand"
+Version = 354
+Type = "SequenceFile"
+
+[DEF, %OBJROOT]
+SF = SequenceFileData
+[DEF, SF]
+Seq = Objs
+%NAME = "Data"
+[DEF, SF.Seq]
+%[0] = Sequence
+[DEF, SF.Seq[0]]
+Locals = Obj
+%NAME = "MainSequence"
+[DEF, SF.Seq[0].Locals]
+Items = Objs
+[DEF, SF.Seq[0].Locals.Items]
+%[0] = Obj
+%[1] = Obj
+%[2] = Obj
+[DEF, SF.Seq[0].Locals.Items[0]]
+%NAME = "a"
+[DEF, SF.Seq[0].Locals.Items[1]]
+%NAME = "b"
+[DEF, SF.Seq[0].Locals.Items[2]]
+%NAME = "c"
+''';
+
+  test('counts elements of a populated array variable', () {
+    final sf = parseSeqFile(Uint8List.fromList(latin1.encode(arrayLocalIni)));
+    final items = sf.sequences.single.locals.single;
+    expect(items.name, 'Items');
+    expect(items.isArray, isTrue);
+    expect(items.isContainer, isTrue);
+    expect(items.containerCount, 3); // a, b, c
+    expect(items.value, isNull); // arrays carry no scalar
+  });
+
   // A step whose on-fail action jumps to a target (`FailAct = "Goto"`,
   // `FailActTarget = "\"<Cleanup>\""`) — the target is a TestStand string-literal
   // expression; the lens unwraps it for display.
