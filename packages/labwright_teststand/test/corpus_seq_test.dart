@@ -130,31 +130,21 @@ void main() {
       'sequences=$totalSeqs steps=$totalSteps withAction=$withAction',
     );
     expect(failures, isEmpty, reason: failures.take(5).join('\n'));
-    expect(xml, greaterThan(0));
-    expect(
-      totalSeqs,
-      greaterThan(0),
-      reason: 'XML lens recovered no sequences',
-    );
-    expect(totalSteps, greaterThan(0), reason: 'XML lens recovered no steps');
-    expect(
-      withAction,
-      greaterThan(0),
-      reason: 'no step settings (PassAct) recovered',
-    );
+    // Exact counts over the pinned corpus (deterministic). The file partition
+    // (xml+binary+other) and the XML lens outputs are fixed; a drift here flags a
+    // corpus change or a silent decode regression with the delta.
+    expect(xml, 26, reason: 'XML file count drifted');
+    expect(binary, 288, reason: 'binary file count drifted');
+    expect(other, 58, reason: 'other (INI) file count drifted');
+    expect(totalSeqs, 33, reason: 'XML sequence count drifted');
+    expect(totalSteps, 214, reason: 'XML step count drifted');
+    expect(withAction, 141, reason: 'XML pass/fail-action count drifted');
     expect(withMode, greaterThan(0), reason: 'no step run-modes recovered');
-    expect(
-      withModule,
-      greaterThan(0),
-      reason: 'no module-adapter bindings recovered',
-    );
-    expect(totalLocals, greaterThan(0), reason: 'no sequence locals recovered');
-    expect(withLimits, greaterThan(0), reason: 'no test limits recovered');
-    expect(
-      resolvedCalls,
-      greaterThan(0),
-      reason: 'no intra-file sequence calls resolved',
-    );
+    expect(withModule, 124, reason: 'XML module-binding count drifted');
+    expect(totalLocals, 101, reason: 'XML locals count drifted');
+    expect(withLimits, 10, reason: 'XML limit-test count drifted');
+    expect(resolvedCalls, 7, reason: 'XML intra-file call count drifted');
+    expect(withBinaryBody, 288, reason: 'binary-body inflate count drifted');
     // XML↔INI lens parity: every XML step is typed, and every step that carries a
     // module adapter is recognized (no `unknown`) — same bar the INI lens meets.
     expect(typedSteps, totalSteps, reason: 'an XML step lost its type in the lens');
@@ -274,10 +264,12 @@ void main() {
     // ignore: avoid_print
     print('INI continuations: $reassembled fragments collapsed across '
         '${baseKeys.length} base keys in $ini INI files; $residual residual');
-    expect(ini, greaterThan(0), reason: 'no INI files in corpus');
+    expect(ini, 58, reason: 'no INI files in corpus');
     expect(residual, 0, reason: 'a ` LineNNNN` fragment survived reassembly');
-    expect(reassembled, greaterThan(0),
-        reason: 'no continuation fragments found — fixture/corpus drift');
+    // Exact over the pinned corpus (deterministic): 19820 fragments across 28
+    // base keys. Catches a regression in continuation detection precisely.
+    expect(reassembled, 19820, reason: 'continuation-fragment count drifted');
+    expect(baseKeys.length, 28, reason: 'continuation base-key count drifted');
   });
 
   test('INI sections assemble into the shared SeqProperty tree', () {
@@ -419,42 +411,38 @@ void main() {
       '$resolvedIdTargets resolved ID#: targets · '
       '$overrides instance-overrides in $filesWithOverride files',
     );
-    expect(ini, greaterThan(0));
     expect(threw, 0, reason: 'an INI file failed to parse into a SeqFile');
     expect(built, ini, reason: 'not every INI file built a SeqFile');
-    // The shared lens recovers real structure from INI, same as XML.
-    expect(totTypes, greaterThan(0), reason: 'no INI types via [%TYPES]');
-    expect(totSeq, greaterThan(0), reason: 'no INI sequences via the lens');
-    expect(totSteps, greaterThan(0), reason: 'no INI steps via the lens');
-    expect(totLocals, greaterThan(0), reason: 'no INI locals via the lens');
-    expect(withType, greaterThan(0), reason: 'no INI step types via the lens');
-    expect(recognized, greaterThan(0), reason: 'no INI module bindings via the lens');
-    // Every step with an SData adapter is recognized: the only un-bound steps are
-    // honest `none` (empty/no SData), never an unparsed `unknown`. Holds across
-    // the full corpus today; tightening guards against a silent regression.
+    // Exact decode-output counts over the *pinned* corpus (deterministic —
+    // verified identical across repeated runs). These catch a silent regression
+    // precisely: a refactor that quietly drops comments/targets/overrides, or a
+    // corpus change, fails here with the delta rather than passing a loose `>0`.
+    expect(ini, 58, reason: 'INI file count drifted');
+    expect(totSeq, 449, reason: 'INI sequence count drifted');
+    expect(totSteps, 5664, reason: 'INI step count drifted');
+    expect(totLocals, 1662, reason: 'INI locals count drifted');
+    expect(totTypes, 2242, reason: 'INI [%TYPES] count drifted');
+    // Adapter classification partitions every step: recognized + none + unknown
+    // == totSteps, with unknown pinned at 0 (no unparsed SData shape).
     expect(unknownAdapter, 0, reason: 'an INI step has an unrecognized SData adapter');
-    expect(noneAdapter, greaterThan(0), reason: 'no no-module steps classified');
-    // Type inheritance: most steps don't override run-mode/looping, so these are
-    // only non-zero once the lens reads the defaults from the step's type def.
+    expect(recognized, 2186, reason: 'INI recognized-adapter count drifted');
+    expect(noneAdapter, 3478, reason: 'INI none-adapter count drifted');
+    expect(recognized + noneAdapter + unknownAdapter, totSteps,
+        reason: 'adapter classification must partition all steps');
+    // Type inheritance is what makes run-mode/looping/type non-zero (the instance
+    // is usually silent); kept loose since they track type-def handling, not a
+    // fixed feature count.
+    expect(withType, greaterThan(0), reason: 'no INI step types via the lens');
     expect(withMode, greaterThan(0), reason: 'no type-inherited run-mode recovered');
     expect(withLoop, greaterThan(0), reason: 'no type-inherited looping recovered');
-    // Explicit `%INSTOVRD` instance-override markers are recovered as attributes.
-    expect(overrides, greaterThan(0), reason: 'no %INSTOVRD overrides recovered');
-    // Free-text comments (`%COMMENT`) are recovered onto steps and sequences.
-    expect(withComment, greaterThan(0), reason: 'no step comments recovered');
-    expect(withSeqComment, greaterThan(0), reason: 'no sequence comments recovered');
-    // Object/cluster variables expose their field count via the lens.
-    expect(objVarsWithFields, greaterThan(0),
-        reason: 'no object-variable field counts recovered');
-    // Free-text comments are recovered onto variables (locals/parameters) too.
-    expect(varsWithComment, greaterThan(0),
-        reason: 'no variable comments recovered');
-    // Flow-action jump targets (Goto -> <Cleanup>/step ref) are recovered.
-    expect(withFlowTarget, greaterThan(0),
-        reason: 'no step flow-action targets recovered');
-    // `ID#:` custom-condition targets resolve to a destination step name.
-    expect(resolvedIdTargets, greaterThan(0),
-        reason: 'no ID#: step references resolved');
+    // Recovered-feature counts (exact, pinned corpus).
+    expect(overrides, 13072, reason: '%INSTOVRD override count drifted');
+    expect(withComment, 667, reason: 'step-comment count drifted');
+    expect(withSeqComment, 102, reason: 'sequence-comment count drifted');
+    expect(varsWithComment, 37, reason: 'variable-comment count drifted');
+    expect(objVarsWithFields, 95, reason: 'object-variable field count drifted');
+    expect(withFlowTarget, 58, reason: 'flow-target count drifted');
+    expect(resolvedIdTargets, 12, reason: 'resolved ID#: target count drifted');
   });
 
   test('every binary TOF1 body frames into a record region + string table', () {

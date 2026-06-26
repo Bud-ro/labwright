@@ -672,6 +672,17 @@ anywhere** in any of the 26 XML `.seq` files (case-insensitive raw-text scan). X
 simply does not serialize the editor's free-text notes, so `Step/Sequence/
 SeqVariable.comment` are legitimately null for XML — nothing to wire up.
 
+**Exact-count regression guards (2026-06).** The corpus decode outputs are
+deterministic (verified identical across repeated runs), so the most valuable
+corpus assertions are pinned to exact counts rather than loose `>0` — XML: 26
+files / 33 seqs / 214 steps / 124 module bindings / 10 limit tests / 7 intra-file
+calls / 288 binary bodies; INI: 58 files / 449 seqs / 5664 steps / 1662 locals /
+2242 types / 2186 recognized + 3478 none adapters / 13072 overrides / comments
+667+102+37 / 95 object-var fields / 58 flow targets / 12 resolved ID#: targets /
+19820 continuation fragments across 28 base keys. A silent decode regression (or a
+corpus change) now fails with the delta. Inheritance-driven counts (typed/run-mode/
+looping) stay loose since they track type-def handling, not a fixed feature count.
+
 **INI parser drops no data lines (2026-06, verified + guarded).** Audited every
 non-blank, non-section line across all 58 INI files against the parser's only skip
 path (`eq < 0`, a line lacking ` = `): **0 lines skipped** — every in-section line
