@@ -100,11 +100,18 @@ class StepOutline {
     this.externalCall,
     this.limits,
     this.limitsDetail,
+    this.runMode,
     required this.notes,
   });
 
   final String name;
   final String type;
+
+  /// The step's run mode when it is *not* the normal `Normal` (e.g. `Skip`,
+  /// `Pass`, `Fail`) — a forced override that changes execution, so it gets its
+  /// own prominent badge. `null` when the step runs normally (the common case;
+  /// not noteworthy). The default itself is recovered via type inheritance.
+  final String? runMode;
 
   /// Module adapter name (e.g. `labView`, `sequenceCall`), or `null` for none.
   final String? adapter;
@@ -167,8 +174,8 @@ class StepOutline {
     }
 
     final s = step.settings;
+    final runMode = s.isNormalMode ? null : s.mode;
     final notes = <String>[];
-    if (!s.isNormalMode) notes.add('mode ${s.mode}');
     if (s.passAction != null || s.failAction != null) {
       notes.add('flow ${s.passAction ?? '?'}/${s.failAction ?? '?'}');
     }
@@ -184,6 +191,7 @@ class StepOutline {
       externalCall: externalCall,
       limits: step.limits?.summary,
       limitsDetail: step.limits != null ? LimitsOutline.of(step.limits!) : null,
+      runMode: runMode,
       notes: notes,
     );
   }
@@ -194,6 +202,7 @@ class StepOutline {
     final b = StringBuffer('$name [$type]');
     if (adapter != null) b.write(' -> $adapter: $target');
     if (limits != null) b.write('  {limits $limits}');
+    if (runMode != null) b.write('  {mode $runMode}');
     if (notes.isNotEmpty) b.write('  (${notes.join('; ')})');
     return b.toString();
   }
@@ -262,7 +271,8 @@ bool stepMatches(StepOutline s, String query) {
       hit(s.type) ||
       hit(s.adapter) ||
       hit(s.target) ||
-      hit(s.limits)) {
+      hit(s.limits) ||
+      hit(s.runMode)) {
     return true;
   }
   for (final n in s.notes) {

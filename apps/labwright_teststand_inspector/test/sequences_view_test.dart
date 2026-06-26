@@ -1,5 +1,7 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_teststand/labwright_teststand.dart';
+import 'package:labwright_teststand_inspector/src/sequence_outline.dart';
 import 'package:labwright_teststand_inspector/src/sequences_view.dart';
 
 void main() {
@@ -30,6 +32,52 @@ void main() {
           adapterColors[SeqAdapter.labView.name]);
       expect(adapterColor(SeqAdapter.none.name), adapterFallbackColor);
       expect(adapterColor('not-an-adapter'), adapterFallbackColor);
+    });
+  });
+
+  group('SequencesView step rendering', () {
+    SeqOutline outlineWith(StepOutline step) => SeqOutline([
+          SequenceOutline(
+            name: 'MainSequence',
+            parameters: const [],
+            locals: const [],
+            groups: [StepGroupOutline('Main', [step])],
+          ),
+        ]);
+
+    Future<void> pump(WidgetTester tester, SeqOutline outline) =>
+        tester.pumpWidget(MaterialApp(
+          home: Scaffold(body: SequencesView(outline: outline)),
+        ));
+
+    testWidgets('renders a forced run-mode badge for a Skip step',
+        (tester) async {
+      await pump(
+        tester,
+        outlineWith(StepOutline(
+          name: 'Skipped',
+          type: 'Statement',
+          runMode: 'Skip',
+          notes: const [],
+        )),
+      );
+      // The first sequence is expanded by default, so the Main group + step
+      // render (the step name itself is a RichText, hence the group anchor).
+      expect(find.text('Main'), findsOneWidget);
+      expect(find.text('mode: Skip'), findsOneWidget);
+    });
+
+    testWidgets('a Normal step shows no run-mode badge', (tester) async {
+      await pump(
+        tester,
+        outlineWith(StepOutline(
+          name: 'Plain',
+          type: 'Statement',
+          notes: const [],
+        )),
+      );
+      expect(find.text('Main'), findsOneWidget);
+      expect(find.textContaining('mode:'), findsNothing);
     });
   });
 }

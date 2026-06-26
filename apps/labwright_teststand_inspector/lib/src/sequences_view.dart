@@ -209,6 +209,11 @@ class _SequencesViewState extends State<SequencesView> {
 
   Widget _step(BuildContext context, StepOutline s) {
     final chips = <Widget>[];
+    // A forced run mode (Skip/Pass/Fail) changes whether/how the step runs, so it
+    // leads with its own warning-colored badge. Normal steps show nothing here.
+    if (s.runMode != null) {
+      chips.add(_chip(context, 'mode: ${s.runMode}', Colors.deepOrange));
+    }
     final td = s.targetDisplay;
     if (s.adapter != null && td != null) {
       final color = adapterColor(s.adapter!);

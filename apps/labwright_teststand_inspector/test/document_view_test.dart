@@ -50,6 +50,28 @@ Uint8List _xmlWithLimits() => Uint8List.fromList([
   ),
 ]);
 
+Uint8List _xmlWithSkip() => Uint8List.fromList([
+  0xef,
+  0xbb,
+  0xbf,
+  ...utf8.encode(
+    "<?xml version='1.0'?>\n"
+    "<teststandfileheader type='SequenceFile' fileversion='920' productname='TestStand'>"
+    "<typelist/><Data classname='Obj'><subprops>"
+    "<Seq classname='Objs'><value lbound='[0]' ubound='[1]'><value>"
+    "<Sequence name='MainSequence' classname='Obj'><subprops>"
+    "<Main classname='Objs'><value lbound='[0]' ubound='[1]'><value>"
+    "<Step typename='Statement' name='Skipped'><subprops>"
+    "<TS classname='Obj'><subprops>"
+    "<Mode><value>Skip</value></Mode>"
+    "</subprops></TS>"
+    "</subprops></Step>"
+    "</value></value></Main>"
+    "</subprops></Sequence></value></value></Seq></subprops></Data>"
+    "</teststandfileheader>",
+  ),
+]);
+
 Uint8List _binary() {
   final pool = <int>[];
   for (final n in [
@@ -185,6 +207,23 @@ void main() {
       expect(rowLabels, isNot(contains('Nominal')));
     },
   );
+
+  test('StepOutline.of surfaces a forced run mode (Skip) as runMode', () {
+    final doc = SeqDocument.parse(_xmlWithSkip()) as XmlSeqDocument;
+    final step = SeqOutline.of(doc.file).sequences.single.groups.single.steps.single;
+    expect(step.name, 'Skipped');
+    expect(step.runMode, 'Skip');
+    // It is also reflected in the one-line summary and is searchable.
+    expect(step.summary, contains('{mode Skip}'));
+    expect(stepMatches(step, 'skip'), isTrue);
+  });
+
+  test('a Normal-mode step has no runMode (default is not noteworthy)', () {
+    final doc = SeqDocument.parse(_xml()) as XmlSeqDocument;
+    final step = SeqOutline.of(doc.file).sequences.single.groups.single.steps.single;
+    expect(step.runMode, isNull);
+    expect(step.summary, isNot(contains('mode')));
+  });
 
   test('outlineSummary/totalSteps count sequences and steps (pluralized)', () {
     final doc = SeqDocument.parse(_xml()) as XmlSeqDocument;
