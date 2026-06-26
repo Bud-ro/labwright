@@ -97,6 +97,12 @@ String _logicStepLine(Step step, SeqFile file) {
   final m = step.module;
   if (m.adapter != SeqAdapter.none && m.target != null) {
     b.write(' → ${m.target}');
+    // For a SequenceCall into another file (not resolvable in this file), show
+    // the file so the cross-reference is explicit, e.g. `→ Foo in Other.seq`.
+    if (m.adapter == SeqAdapter.sequenceCall && file.resolveCall(step) == null) {
+      final sf = m.sequenceFile;
+      if (sf != null && sf.isNotEmpty) b.write(' in $sf');
+    }
   }
   final pre = step.settings.precondition;
   if (pre != null) b.write('  [if $pre]');

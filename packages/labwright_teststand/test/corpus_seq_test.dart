@@ -428,6 +428,45 @@ void main() {
         reason: 'every file with a looping step must annotate it in the export');
   });
 
+  test('logic export marks external SequenceCalls with their file', () {
+    var external = 0, filesWithExternal = 0, exportsMarked = 0;
+    for (final f in seqs) {
+      if (f.lengthSync() > 300 * 1024) continue;
+      final bytes = f.readAsBytesSync();
+      final fmt = detectSeqFormat(bytes);
+      if (fmt != SeqFormat.xml && fmt != SeqFormat.ini) continue;
+      final SeqFile sf;
+      try {
+        sf = parseSeqFile(bytes);
+      } catch (_) {
+        continue;
+      }
+      var fileHas = false;
+      for (final q in sf.sequences) {
+        for (final s in q.steps) {
+          if (s.module.adapter == SeqAdapter.sequenceCall &&
+              sf.resolveCall(s) == null &&
+              (s.module.sequenceFile ?? '').isNotEmpty) {
+            external++;
+            fileHas = true;
+          }
+        }
+      }
+      if (fileHas) {
+        filesWithExternal++;
+        if (exportSequenceLogic(sf).contains(RegExp(r' in \S+\.seq'))) {
+          exportsMarked++;
+        }
+      }
+    }
+    // ignore: avoid_print
+    print('external seq-calls: $external in $filesWithExternal files; '
+        '$exportsMarked exports mark them with a file');
+    expect(external, greaterThan(0), reason: 'no external seq-calls in corpus');
+    expect(exportsMarked, filesWithExternal,
+        reason: 'every file with an external call must mark it in the export');
+  });
+
   test('recovers <typelist> type definitions across XML corpus', () {
     var files = 0, totalTypes = 0, withFields = 0, totalFields = 0;
     final baseClasses = <String>{};

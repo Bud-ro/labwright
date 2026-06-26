@@ -1172,6 +1172,14 @@ pass:Goto) across 8 files**, every one annotated in the export (the other 1615
 pass / 1570 fail actions are `Next`). The step's own precondition is already
 shown inline as `[if …]`. NI_Flow_* steps carry no own pass/fail action.
 
+**External SequenceCall cross-reference (2026-06).** A `SequenceCall` whose
+target sequence isn't in this file (`SeqFile.resolveCall` returns null and the
+step has a `SFPath`) now renders `→ <seq> in <file>` in the logic line, making
+the cross-file dependency explicit. Corpus: **330 external calls across 17
+files** (vs 138 in-file self/intra-file calls, which show just `→ <seq>`), every
+external one marked. In-file calls stay unmarked (the app's outline already shows
+a "go to sequence" jump for those).
+
 **Looping-step annotation (2026-06).** A non-flow step can itself loop (the step
 repeats under its `LoopType`); `_loopAnnotation` appends e.g.
 `[loop FixedNumLoops while RunState.LoopIndex < 10]` — the loop type plus the

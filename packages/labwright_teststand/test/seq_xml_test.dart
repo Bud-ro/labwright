@@ -102,6 +102,28 @@ const _seqCallXml = '''<?xml version="1.0" encoding="UTF-8"?>
   </subprops></Data>
 </teststandfileheader>''';
 
+/// A sequence whose single step calls a sequence in *another* file (an external
+/// SequenceCall: `SeqName` + `SFPath`, no `UseCurFile`) — the logic export marks
+/// it `→ <seq> in <file>`.
+const _seqExtCallXml = '''<?xml version="1.0" encoding="UTF-8"?>
+<teststandfileheader type='SequenceFile' fileversion='920' productname='TestStand'>
+  <typelist/>
+  <Data classname='Obj'><subprops>
+    <Seq classname='Objs'><value lbound='[0]' ubound='[1]'><value>
+      <Sequence name='MainSequence' classname='Obj'><subprops>
+        <Main classname='Objs'><value lbound='[0]' ubound='[1]'>
+          <value><Step typename='SequenceCall' name='Call Other'><subprops>
+            <TS classname='Obj'><subprops><SData classname='Obj'><subprops>
+              <SeqName classname='Str'><value>Helper</value></SeqName>
+              <SFPath classname='Str'><value>Other.seq</value></SFPath>
+            </subprops></SData></subprops></TS>
+          </subprops></Step></value>
+        </value></Main>
+      </subprops></Sequence>
+    </value></value></Seq>
+  </subprops></Data>
+</teststandfileheader>''';
+
 /// A minimal file whose single step carries an "Additional Results" recording
 /// spec — the real shape: a call parameter holds an `AdditionalResults`
 /// container whose entries (`Input`/`Output`) each carry a gating `Condition`
@@ -858,6 +880,20 @@ void main() {
       final out = exportSequenceLogic(parseSeqFile(_bytes(loopXml)));
       final onceLine = out.split('\n').firstWhere((l) => l.contains('Once'));
       expect(onceLine, isNot(contains('[loop')));
+    });
+  });
+
+  group('SequenceCall cross-file reference in the logic export', () {
+    test('an external call shows the target sequence and its file', () {
+      final out = exportSequenceLogic(parseSeqFile(_bytes(_seqExtCallXml)));
+      expect(out, contains('Call Other → Helper in Other.seq'));
+    });
+
+    test('an in-file (self) call shows the target without a file', () {
+      final out = exportSequenceLogic(parseSeqFile(_bytes(_seqCallXml)));
+      expect(out, contains('Call Self → MainSequence'));
+      final line = out.split('\n').firstWhere((l) => l.contains('Call Self'));
+      expect(line, isNot(contains(' in ')));
     });
   });
 
