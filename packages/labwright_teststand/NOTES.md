@@ -355,11 +355,26 @@ byte-packed, as established). The first clean occurrence of each:
 6/6 named objects fit `[idx][field][count]`. Since Parameters/Locals/ResultList
 are all **Containers** yet their `field` differs (272/52/16), `field` is most
 likely a **byte-size of the property's serialized blob**, not a type code; `count`
-is the child/element count (note `Obj` → 3, the array element wrapper). This is
-the first plausible object-record shape and the best current lead — but it is a
-**hypothesis from one file**: each name index also has many *coincidental* u32
-hits in the byte-packed data, so cross-file verification (and disambiguating the
-genuine triplet from noise) is the next step before it can be asserted or coded.
+is the child/element count (note `Obj` → 3, the array element wrapper).
+
+**Corpus-corroborated, but NOT cleanly extractable (real ≫ control).** A
+negative-control test over all 83 files compares the triplet match rate for real
+name indices (`idx` 5..nameLen-1) vs *fake* control indices just above `nameLen`
+(values that are not names), using the same `[idx][field∈1..1e5][count∈1..1e3]`
+filter with a `00000000`/`ffffffff` boundary before:
+
+- **real name indices: 97.8%** (1062/1086) have a qualifying triplet;
+- **control indices: 52.0%** (565/1086).
+
+The ~46-point gap (asserted: real > 0.9 and real − control > 0.25) confirms the
+triplet is a **genuine structural signal**, not an artifact — so the record shape
+is real and holds across both layouts and all repos. BUT the 52% control rate
+means a naive `[idx][field][count]` scan is **too noisy to *extract* the object
+list** (≈half its hits on non-names would be spurious). A clean extractor needs a
+tighter constraint — most promising: validate `field` as a byte-size by checking
+the next record/object begins ~`field` bytes later, or find the true record
+start so the scan isn't free-floating. Until then this stays **corroborated
+structure, not a decoder**.
 
 The **record grammar** that delimits one record from the next and pairs each name
 index with its typed value is **not yet fully decoded**. So `parseSeqFile` still

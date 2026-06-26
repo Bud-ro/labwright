@@ -332,6 +332,80 @@ void main() {
     );
   });
 
+  // The object-record triplet [u32 name-index][u32 field][u32 count] (with a
+  // 00000000 / ffffffff boundary before) — a corroborated structural signal, but
+  // a noisy one (see the real-vs-control assertion below).
+  int u32(List<int> b, int i) =>
+      b[i] | b[i + 1] << 8 | b[i + 2] << 16 | b[i + 3] << 24;
+  bool tripletExists(List<int> body, int rr, int idx) {
+    for (var i = 0; i + 12 <= rr; i++) {
+      if (u32(body, i) != idx) continue;
+      final field = u32(body, i + 4);
+      final count = u32(body, i + 8);
+      if (field < 1 || field > 100000) continue;
+      if (count < 1 || count > 1000) continue;
+      final preOk =
+          i < 4 ||
+          (body[i - 1] == 0 &&
+              body[i - 2] == 0 &&
+              body[i - 3] == 0 &&
+              body[i - 4] == 0) ||
+          (body[i - 1] == 0xff &&
+              body[i - 2] == 0xff &&
+              body[i - 3] == 0xff &&
+              body[i - 4] == 0xff);
+      if (preOk) return true;
+    }
+    return false;
+  }
+
+  test('object-record triplet is a real signal (real names >> control)', () {
+    var realTot = 0, realHit = 0, fakeTot = 0, fakeHit = 0;
+    for (final f in seqs) {
+      final bytes = f.readAsBytesSync();
+      if (detectSeqFormat(bytes) != SeqFormat.binary) continue;
+      final body = inflateBinaryBody(bytes);
+      final layout = analyzeBinaryBody(bytes);
+      final name = binaryNameTable(bytes);
+      if (body == null || layout == null || name == null) continue;
+      final nameLen = name.entries.length;
+      if (nameLen <= 5) continue;
+      final rr = layout.recordRegionLength.clamp(0, body.length);
+      final span = nameLen - 5;
+      for (var idx = 5; idx < nameLen; idx++) {
+        realTot++;
+        if (tripletExists(body, rr, idx)) realHit++;
+      }
+      // negative control: same count of indices just ABOVE nameLen (not names).
+      for (var k = 0; k < span; k++) {
+        fakeTot++;
+        if (tripletExists(body, rr, nameLen + 1 + k)) fakeHit++;
+      }
+    }
+    final realRate = realHit / realTot;
+    final fakeRate = fakeHit / fakeTot;
+    // ignore: avoid_print
+    print(
+      'object-record triplet: real names ${(realRate * 100).toStringAsFixed(1)}% '
+      '($realHit/$realTot) vs control ${(fakeRate * 100).toStringAsFixed(1)}% '
+      '($fakeHit/$fakeTot)',
+    );
+    expect(realTot, greaterThan(0));
+    // The triplet is a genuine signal: real name indices match far more often
+    // than control indices. (Not clean enough to *extract* objects — the control
+    // rate is ~50% — but well above chance, corroborating the record shape.)
+    expect(
+      realRate,
+      greaterThan(0.9),
+      reason: 'real-name triplet rate too low',
+    );
+    expect(
+      realRate - fakeRate,
+      greaterThan(0.25),
+      reason: 'triplet not distinguishable from control',
+    );
+  });
+
   test(
     'analyzeBinary matches the individual helpers (single-inflate path)',
     () {
