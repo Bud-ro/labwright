@@ -58,7 +58,9 @@ void main() {
         withLimits = 0,
         withBinaryBody = 0,
         resolvedCalls = 0,
-        withMode = 0;
+        withMode = 0,
+        typedSteps = 0,
+        unknownAdapters = 0;
     final failures = <String>[];
     for (final f in seqs) {
       final bytes = f.readAsBytesSync();
@@ -72,8 +74,10 @@ void main() {
               totalLocals += s.locals.length;
               for (final step in s.steps) {
                 totalSteps++;
+                if (step.type != null) typedSteps++;
                 if (step.settings.passAction != null) withAction++;
                 if (step.settings.mode != null) withMode++;
+                if (step.module.adapter == SeqAdapter.unknown) unknownAdapters++;
                 if (step.module.adapter != SeqAdapter.none &&
                     step.module.adapter != SeqAdapter.unknown) {
                   withModule++;
@@ -150,11 +154,20 @@ void main() {
       greaterThan(0),
       reason: 'no intra-file sequence calls resolved',
     );
+    // XML↔INI lens parity: every XML step is typed, and every step that carries a
+    // module adapter is recognized (no `unknown`) — same bar the INI lens meets.
+    expect(typedSteps, totalSteps, reason: 'an XML step lost its type in the lens');
+    expect(
+      unknownAdapters,
+      0,
+      reason: 'an XML step has an unrecognized module adapter',
+    );
     // ignore: avoid_print
     print(
       'teststand corpus: $xml XML / $binary binary / $other other · '
-      '$totalSeqs sequences · $totalSteps steps · $withAction with pass/fail actions · '
-      '$withModule with module bindings · $totalLocals locals · $withLimits limit tests · '
+      '$totalSeqs sequences · $totalSteps steps ($typedSteps typed) · '
+      '$withAction with pass/fail actions · $withModule with module bindings '
+      '($unknownAdapters unknown) · $totalLocals locals · $withLimits limit tests · '
       '$withBinaryBody binary bodies inflated · $resolvedCalls intra-file calls',
     );
   });

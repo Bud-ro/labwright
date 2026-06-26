@@ -572,8 +572,26 @@ a `%INSTOVRD` attribute on the built `SeqProperty` and exposes
 **13072** override markers total. (In the corpus these sit overwhelmingly on type
 objects, i.e. custom step/data types overriding their base type — e.g. in one file
 all 234 were in type/global sections, 0 in step-instance sections — so this is
-primarily a type-derivation signal today.) TODO: decode the flags bitmask; surface
-an "(overridden)" marker in the app.
+primarily a type-derivation signal today.) The app's property tree now shows a
+subtle "⋄ overridden" marker on these nodes (`PropertyNode.isInstanceOverride`).
+
+The flags are a TestStand **property-flags bitmask, not yet decoded** — deriving
+bit meanings from values alone would be guessing (needs NI's PropFlags enum). The
+corpus value distribution is concentrated: `5046297` (6883×), `5177369` (2648×),
+`5046296` (2564×), `4718616` (1880×), `4194304`=`0x400000` (1789×, also a common
+standalone value), … ~18 distinct values. Recorded for a future decode if NI docs
+surface; **not** interpreted yet.
+
+**XML↔INI lens parity — audited, at parity (2026-06).** Ran the shared typed lens
+over all **26/26** XML `.seq`: 33 sequences · 214 steps (**all typed**) · adapters
+recognized=124 / none=90 / **unknown=0** (python 33, cModule 69, labView 15,
+sequenceCall 7) · 141 steps with run-mode+looping · 10 limit tests · 101 locals ·
+602 types. So XML recovers the same dimensions as INI with no `unknown` adapters —
+**no lens gap**. The two apparent differences are genuine, not bugs: `params=0`
+(these example MainSequences define no parameters — their `Parameters` is an empty
+`Obj`) and `overrides=0` (`%INSTOVRD` is an INI-only inheritance directive; XML
+serializes every value inline). The XML corpus test now asserts all-steps-typed
+and `unknown==0` as a parity regression guard.
 
 **Corpus repo-search is now low-yield (2026-06).** A validated batch (4 `gh search
 repos` queries → 20 deduped candidates, fork-filtered, tree+signature checked)
