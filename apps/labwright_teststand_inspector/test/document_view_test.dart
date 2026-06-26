@@ -208,6 +208,80 @@ Uint8List _xmlWithMeasParams() => Uint8List.fromList([
   ),
 ]);
 
+/// A LabVIEW (FGModule) step whose `SData.ViCall` carries the VI descriptor and
+/// a `Parms` connector pane.
+Uint8List _xmlWithViCall() => Uint8List.fromList([
+  0xef,
+  0xbb,
+  0xbf,
+  ...utf8.encode(
+    "<?xml version='1.0'?>\n"
+    "<teststandfileheader type='SequenceFile' fileversion='920' productname='TestStand'>"
+    "<typelist/><Data classname='Obj'><subprops>"
+    "<Seq classname='Objs'><value lbound='[0]' ubound='[1]'><value>"
+    "<Sequence name='MainSequence' classname='Obj'><subprops>"
+    "<Main classname='Objs'><value lbound='[0]' ubound='[1]'><value>"
+    "<Step typename='Action' name='Init DCPower'><subprops>"
+    "<TS classname='Obj'><subprops>"
+    "<SData classname='FGModule'><subprops>"
+    "<ViCall classname='VICall'><subprops>"
+    "<VIPath classname='PathValue'><value>My Computer\\NIDCPower.vi</value></VIPath>"
+    "<Namespace classname='Str'><value>NIDCPower.lvlib</value></Namespace>"
+    "<ProjectPath classname='PathValue'><value>NIDCPower.lvproj</value></ProjectPath>"
+    "<Parms classname='Objs'><value lbound='[0]' ubound='[2]'>"
+    "<value><_NAME_IN_ATTRIBUTE_ name='' classname='Obj'><subprops>"
+    "<Label classname='Str'><value>sequence context</value></Label>"
+    "<DisplayType classname='Str'><value>Object Reference</value></DisplayType>"
+    "<ArgVal classname='ExprValue'><value>ThisContext</value></ArgVal>"
+    "<ConnectorNumber classname='Num'><value>11</value></ConnectorNumber>"
+    "</subprops></_NAME_IN_ATTRIBUTE_></value>"
+    "<value><_NAME_IN_ATTRIBUTE_ name='' classname='Obj'><subprops>"
+    "<Label classname='Str'><value>error out</value></Label>"
+    "<DisplayType classname='Str'><value>Container</value></DisplayType>"
+    "<ArgVal classname='ExprValue'><value>Step.Result.Error</value></ArgVal>"
+    "<ConnectorNumber classname='Num'><value>0</value></ConnectorNumber>"
+    "</subprops></_NAME_IN_ATTRIBUTE_></value>"
+    "</value></Parms>"
+    "</subprops></ViCall>"
+    "</subprops></SData>"
+    "</subprops></TS>"
+    "</subprops></Step>"
+    "</value></value></Main>"
+    "</subprops></Sequence></value></value></Seq></subprops></Data>"
+    "</teststandfileheader>",
+  ),
+]);
+
+/// A Python (CPythonModule) step whose `SData.PythonCall` names the module and
+/// function.
+Uint8List _xmlWithPyCall() => Uint8List.fromList([
+  0xef,
+  0xbb,
+  0xbf,
+  ...utf8.encode(
+    "<?xml version='1.0'?>\n"
+    "<teststandfileheader type='SequenceFile' fileversion='920' productname='TestStand'>"
+    "<typelist/><Data classname='Obj'><subprops>"
+    "<Seq classname='Objs'><value lbound='[0]' ubound='[1]'><value>"
+    "<Sequence name='MainSequence' classname='Obj'><subprops>"
+    "<Main classname='Objs'><value lbound='[0]' ubound='[1]'><value>"
+    "<Step typename='Action' name='Create sessions'><subprops>"
+    "<TS classname='Obj'><subprops>"
+    "<SData classname='CPythonModule'><subprops>"
+    "<PythonCall classname='CPythonCall'><subprops>"
+    "<PythonVersion classname='Str'><value>3.9</value></PythonVersion>"
+    "<ModulePath classname='PathValue'><value>..\\smu\\test.py</value></ModulePath>"
+    "<FunctionOrAttributeName classname='Str'><value>create_instrument_sessions</value></FunctionOrAttributeName>"
+    "</subprops></PythonCall>"
+    "</subprops></SData>"
+    "</subprops></TS>"
+    "</subprops></Step>"
+    "</value></value></Main>"
+    "</subprops></Sequence></value></value></Seq></subprops></Data>"
+    "</teststandfileheader>",
+  ),
+]);
+
 /// A step exercising the previously app-missing facets: a custom condition,
 /// a mutex, and a recorded (non-default) Result outcome.
 Uint8List _xmlStepExtras() => Uint8List.fromList([
@@ -565,6 +639,37 @@ void main() {
     expect(stepMatches(step, 'ioresource'), isTrue);
     expect(stepMatches(step, 'dc_volts'), isTrue);
     expect(step.summary, contains('voltage_level in TypeDouble = 6'));
+  });
+
+  test('StepOutline.of surfaces the LabVIEW VI-call descriptor + connector pane', () {
+    final doc = SeqDocument.parse(_xmlWithViCall()) as XmlSeqDocument;
+    final step = SeqOutline.of(doc.file).sequences.single.groups.single.steps.single;
+    expect(step.adapter, 'labView');
+    // Library/project ride as a searchable note (parity with the dump {vi:} chip).
+    expect(step.notes, contains('vi: lib NIDCPower.lvlib, proj NIDCPower.lvproj'));
+    final c = step.connectorParams;
+    expect(c, hasLength(2));
+    expect(c[0].label, '#11 sequence context');
+    expect(c[0].cell, 'Object Reference ←ThisContext');
+    expect(c[0].line, '#11 sequence context (Object Reference)←ThisContext');
+    expect(c[1].label, '#0 error out');
+    expect(c[1].cell, 'Container ←Step.Result.Error');
+    // Searchable by connector content + library, and present in summary.
+    expect(stepMatches(step, 'object reference'), isTrue);
+    expect(stepMatches(step, 'nidcpower.lvlib'), isTrue);
+    expect(step.summary,
+        contains('#11 sequence context (Object Reference)←ThisContext'));
+  });
+
+  test('StepOutline.of surfaces the Python call descriptor', () {
+    final doc = SeqDocument.parse(_xmlWithPyCall()) as XmlSeqDocument;
+    final step = SeqOutline.of(doc.file).sequences.single.groups.single.steps.single;
+    expect(step.adapter, 'python');
+    expect(step.target, 'create_instrument_sessions');
+    expect(step.notes, contains(r'python: mod ..\smu\test.py, py 3.9'));
+    // Searchable by the called function and the module file.
+    expect(stepMatches(step, 'create_instrument_sessions'), isTrue);
+    expect(stepMatches(step, 'test.py'), isTrue);
   });
 
   test('StepOutline.of surfaces custom condition, mutex, and result outcome', () {

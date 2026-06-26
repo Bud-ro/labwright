@@ -113,6 +113,7 @@ class StepOutline {
     this.expressions = const [],
     this.callArgs = const [],
     this.measurementParams = const [],
+    this.connectorParams = const [],
     required this.notes,
   });
 
@@ -179,6 +180,12 @@ class StepOutline {
   /// Shown as their own mini-table, distinct from [callArgs].
   final List<MeasurementParamOutline> measurementParams;
 
+  /// The LabVIEW VI-call connector-pane parameters (`ViCall.Parms`) — connector
+  /// terminal, label, display type, bound expression. Empty for non-LabVIEW
+  /// steps. Shown as their own mini-table; the VI library/project ride in
+  /// [notes] (parity with the dump's `{vi:}`/`{conn:}` chips).
+  final List<ConnectorParamOutline> connectorParams;
+
   /// Mode / flow / loop notes (only non-default ones).
   final List<String> notes;
 
@@ -230,6 +237,23 @@ class StepOutline {
     }
     if (s.customFalseTarget != null) {
       notes.add('cust-false→${resolveTarget(s.customFalseTarget!)}');
+    }
+    // LabVIEW VI-call library/project (parity with the dump's {vi:} chip); the
+    // connector pane rides in [connectorParams] below.
+    if (m.adapter == SeqAdapter.labView) {
+      final lv = <String>[];
+      if (m.viNamespace != null) lv.add('lib ${m.viNamespace}');
+      if (m.viProjectPath != null) lv.add('proj ${m.viProjectPath}');
+      if (lv.isNotEmpty) notes.add('vi: ${lv.join(', ')}');
+    }
+    // Python call module/class/interpreter (parity with the dump's {python:}
+    // chip); the called function is already the module target.
+    if (m.adapter == SeqAdapter.python) {
+      final py = <String>[];
+      if (m.pythonModulePath != null) py.add('mod ${m.pythonModulePath}');
+      if (m.pythonClassName != null) py.add('class ${m.pythonClassName}');
+      if (m.pythonVersion != null) py.add('py ${m.pythonVersion}');
+      if (py.isNotEmpty) notes.add('python: ${py.join(', ')}');
     }
     // Module load/unload timing, only when non-default.
     if (s.loadOption != null && s.loadOption != 'PreloadWhenExecuted') {
@@ -307,6 +331,9 @@ class StepOutline {
         for (final p in step.measurementParameters)
           MeasurementParamOutline.of(p),
       ],
+      connectorParams: [
+        for (final p in m.viParameters) ConnectorParamOutline.of(p),
+      ],
       notes: notes,
     );
   }
@@ -338,6 +365,61 @@ class StepOutline {
     if (measurementParams.isNotEmpty) {
       b.write('  {params: ${measurementParams.map((p) => p.line).join('; ')}}');
     }
+    if (connectorParams.isNotEmpty) {
+      b.write('  {conn: ${connectorParams.map((p) => p.line).join('; ')}}');
+    }
+    return b.toString();
+  }
+}
+
+/// One LabVIEW VI-call connector parameter for display — mirrors the package's
+/// [CallParameter] read from `ViCall.Parms`, and the dump's `_dumpViParam`: a
+/// connector-pane terminal [connectorNumber], the param [name] (its `Label`),
+/// the human-readable [displayType], and the [boundExpression] wired to it. Each
+/// field is omitted (left null) when absent — never invented. Distinct from
+/// [CallArgOutline] (which carries a direction, not a connector index).
+class ConnectorParamOutline {
+  ConnectorParamOutline({
+    required this.name,
+    this.connectorNumber,
+    this.displayType,
+    this.boundExpression,
+  });
+
+  final String name;
+  final int? connectorNumber;
+  final String? displayType;
+  final String? boundExpression;
+
+  factory ConnectorParamOutline.of(CallParameter p) => ConnectorParamOutline(
+        name: p.name,
+        connectorNumber: p.connectorNumber,
+        displayType: p.displayType,
+        boundExpression: p.boundExpression,
+      );
+
+  /// Left-column label: the connector terminal index (when known) and the param
+  /// name, e.g. `#11 sequence context`.
+  String get label =>
+      connectorNumber != null ? '#$connectorNumber $name' : name;
+
+  /// Right-column value: the display type then the wired expression, e.g.
+  /// `Object Reference ←ThisContext`; `(unwired)` when neither is present.
+  String get cell {
+    final b = StringBuffer();
+    if (displayType != null) b.write(displayType);
+    if (boundExpression != null) b.write('${b.isEmpty ? '' : ' '}←$boundExpression');
+    return b.isEmpty ? '(unwired)' : b.toString();
+  }
+
+  /// Compact one-line form for the text summary / search, mirroring the dump's
+  /// `_dumpViParam`: `#11 sequence context (Object Reference)←ThisContext`.
+  String get line {
+    final b = StringBuffer();
+    if (connectorNumber != null) b.write('#$connectorNumber ');
+    b.write(name);
+    if (displayType != null) b.write(' ($displayType)');
+    if (boundExpression != null) b.write('←$boundExpression');
     return b.toString();
   }
 }
@@ -570,6 +652,9 @@ bool stepMatches(StepOutline s, String query) {
     }
   }
   for (final p in s.measurementParams) {
+    if (p.line.toLowerCase().contains(query)) return true;
+  }
+  for (final p in s.connectorParams) {
     if (p.line.toLowerCase().contains(query)) return true;
   }
   return false;
