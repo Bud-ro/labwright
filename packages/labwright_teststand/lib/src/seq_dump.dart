@@ -131,6 +131,10 @@ String _dumpStep(Step step, SeqFile file) {
   if (s.ignoresRunTimeErrors == true) notes.add('ignore-RTE');
   if (s.failureCausesSequenceFailure == false) notes.add('no-seq-fail');
   if (s.recordsResult == false) notes.add('no-record');
+  // Step mutex synchronization, only when the step actually locks one.
+  if (s.usesMutex == true) {
+    notes.add('mutex${s.mutexName != null ? ' ${s.mutexName}' : ''}');
+  }
   if (notes.isNotEmpty) parts.write('  (${notes.join('; ')})');
 
   // Measurement-step formal parameters: name [direction] [type][\[\]] [= value].

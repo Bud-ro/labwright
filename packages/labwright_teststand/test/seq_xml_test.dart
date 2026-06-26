@@ -277,6 +277,26 @@ const _seqResultXml = '''<?xml version="1.0" encoding="UTF-8"?>
   </subprops></Data>
 </teststandfileheader>''';
 
+/// A step configured to acquire a named mutex for synchronization.
+const _seqMutexXml = '''<?xml version="1.0" encoding="UTF-8"?>
+<teststandfileheader type='SequenceFile' fileversion='920' productname='TestStand'>
+  <typelist/>
+  <Data classname='Obj'><subprops>
+    <Seq classname='Objs'><value lbound='[0]' ubound='[1]'><value>
+      <Sequence name='MainSequence' classname='Obj'><subprops>
+        <Main classname='Objs'><value lbound='[0]' ubound='[1]'>
+          <value><Step typename='Action' name='Locked'><subprops>
+            <TS classname='Obj'><subprops>
+              <UseMutex classname='Bool'><value>true</value></UseMutex>
+              <MutexNameOrRef classname='ExprValue'><value>"InstrumentLock"</value></MutexNameOrRef>
+            </subprops></TS>
+          </subprops></Step></value>
+        </value></Main>
+      </subprops></Sequence>
+    </value></value></Seq>
+  </subprops></Data>
+</teststandfileheader>''';
+
 Uint8List _bytes(String s, {bool bom = true}) =>
     Uint8List.fromList([if (bom) ...[0xef, 0xbb, 0xbf], ...utf8.encode(s)]);
 
@@ -631,6 +651,23 @@ void main() {
       }
       // Either way, the dump shows no {result: …} chip for default/absent.
       expect(dumpSeqFile(parseSeqFile(_bytes(_seqMeasXml))), isNot(contains('{result:')));
+    });
+  });
+
+  group('Step mutex synchronization', () {
+    test('recovers UseMutex + MutexNameOrRef and surfaces it in the dump', () {
+      final s = parseSeqFile(_bytes(_seqMutexXml)).sequences.single.main.single.settings;
+      expect(s.usesMutex, isTrue);
+      expect(s.mutexName, '"InstrumentLock"');
+      expect(dumpSeqFile(parseSeqFile(_bytes(_seqMutexXml))),
+          contains('mutex "InstrumentLock"'));
+    });
+
+    test('a step without a mutex reports false/null and no dump note', () {
+      final s = parseSeqFile(_bytes(_seqXml)).sequences.single.main.first.settings;
+      // The base fixture's step has no UseMutex member → null, honestly.
+      expect(s.usesMutex, anyOf(isNull, isFalse));
+      expect(dumpSeqFile(parseSeqFile(_bytes(_seqXml))), isNot(contains('mutex')));
     });
   });
 

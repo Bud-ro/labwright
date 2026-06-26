@@ -37,6 +37,7 @@ const _settingKeys = [
   'PassActTarget', 'FailActTarget', 'CustTrueActTarget', 'CustFalseActTarget',
   'CustExpr', 'CustTrueAct', 'CustFalseAct',
   'StepFCSeqF', 'IgnoreRTE', 'ResultOption',
+  'UseMutex', 'MutexNameOrRef',
 ];
 
 /// Measures [SeqCoverage] for [f] (the `Data` tree only; the type list is

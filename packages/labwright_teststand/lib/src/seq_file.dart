@@ -835,6 +835,17 @@ class StepSettings {
   String? get preExpression => _scalar('PreExpr');
   String? get postExpression => _scalar('PostExpr');
   String? get statusExpression => _scalar('StatusExpr');
+
+  /// Whether the step acquires a mutex for synchronization (`UseMutex`) — the
+  /// editor's "Synchronization > use a mutex" setting that serializes a shared
+  /// resource across threads/executions. null when unset; `false` is the default
+  /// (no mutex), the only value in the current corpus.
+  bool? get usesMutex => _bool('UseMutex');
+
+  /// The mutex name or reference expression the step locks (`MutexNameOrRef`),
+  /// paired with [usesMutex]; null when no mutex is configured (empty in the
+  /// current corpus, since no step uses one).
+  String? get mutexName => _scalar('MutexNameOrRef');
 }
 
 /// Parses TestStand sequence-file [bytes] into a [SeqFile].

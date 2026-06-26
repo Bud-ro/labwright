@@ -146,7 +146,7 @@ refused (not mis-parsed).
 - **Coverage metric**: `measureCoverage(SeqFile)` → `SeqCoverage{total, modeled}`
   counts what fraction of `Data`-tree property nodes the typed lens surfaces.
   `tool/coverage.dart` runs it over the **XML** `.seq` files in `corpus/seq` and
-  writes a gitignored `corpus/seq/REPORT.md`. Current: **45.1% (8544/18932
+  writes a gitignored `corpus/seq/REPORT.md`. Current: **46.6% (8826/18932
   nodes)** over 26 XML files (incl. `Step.id`=`TS.Id`, and the boolean step flags
   `StepFCSeqF`/`IgnoreRTE`/`ResultOption` → `StepSettings.failureCausesSequence-
   Failure`/`ignoresRunTimeErrors`/`recordsResult`, plus the **Additional Results
@@ -185,6 +185,18 @@ refused (not mis-parsed).
   appear once a run/report is recorded. Coverage marks `Result`+`Status`+
   `ReportText`+`Common`+`Error`+`Code`/`Msg`/`Occurred` (+966 nodes → the
   40.0 %→45.1 % bump — the Result slot is on nearly every step).
+- **Step mutex synchronization**: a step can serialize a shared resource with a
+  mutex — `TS.UseMutex` (Bool) + `TS.MutexNameOrRef` (the mutex name/reference
+  expression). → `StepSettings.usesMutex` / `mutexName`; the dump adds a
+  `mutex <name>` note only when the step actually locks one. **Honest framing**:
+  corpus-probed **87/87 steps have `UseMutex=false` and an empty `MutexNameOrRef`**
+  (no step uses one) — a standard per-step setting at its default, self-evident
+  name, execution-affecting (same class as the custom-condition trio). Coverage
+  marks the two `TS` keys (+282 nodes → the 45.1 %→46.6 % bump). The remaining
+  per-step `TS` options (OperationOrder/ConnectionLifetime/BatchSyncOpt/Switch*/
+  RouteGroup*/MulticonnectMode/CanEdit*/… — numeric codes & editor-permission
+  bools) are left raw: their value semantics aren't corpus-confirmable, so
+  modeling them would be fabrication. `Result.Common` is an empty container.
 - **Data source**: a step's `DataSource` expression is what it measures /
   evaluates — the measured value for a numeric limit test (`Locals.A.High_Value`)
   or the pass/fail criterion for a `PassFailTest` (`Step.Result.PassFail`).
