@@ -1001,4 +1001,44 @@ Direction = 0
     expect(args.single.directionCode, '0'); // raw code preserved
     expect(args.single.direction, isNull); // unknown code -> not guessed
   });
+
+  // A step can record units without being a limit test (e.g. a plain Action that
+  // logs a measured value). The dump shows these as a standalone `{units X}`
+  // note rather than folding them into a limits chip.
+  test('dump shows standalone {units} for a non-limit step', () {
+    const ini = '''
+[__Header__]
+ProductName = "TestStand"
+Version = 354
+Type = "SequenceFile"
+
+[DEF, %OBJROOT]
+SF = SequenceFileData
+[DEF, SF]
+Seq = Objs
+%NAME = "Data"
+[DEF, SF.Seq]
+%[0] = Sequence
+[DEF, SF.Seq[0]]
+Main = Objs
+%NAME = "MainSequence"
+[DEF, SF.Seq[0].Main]
+%[0] = Step
+%TYPE: %[0] = "Action"
+[DEF, SF.Seq[0].Main[0]]
+Result = Obj
+%NAME = "Measure rail"
+[DEF, SF.Seq[0].Main[0].Result]
+Units = String
+[SF.Seq[0].Main[0].Result]
+Units = "V"
+''';
+    final sf = parseSeqFile(Uint8List.fromList(latin1.encode(ini)));
+    final step = sf.sequences.single.main.single;
+    expect(step.limits, isNull); // not a limit test
+    expect(step.resultUnits, 'V');
+    final out = dumpSeqFile(sf);
+    expect(out, contains('{units V}'));
+    expect(out, isNot(contains('{limits'))); // not folded into a limits chip
+  });
 }
