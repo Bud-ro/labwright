@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_teststand/labwright_teststand.dart';
 import 'package:labwright_teststand_inspector/src/document_view.dart';
+import 'package:labwright_teststand_inspector/src/property_outline.dart';
 import 'package:labwright_teststand_inspector/src/sequence_outline.dart';
 
 Uint8List _xml() => Uint8List.fromList([
@@ -48,6 +49,26 @@ void main() {
     expect(step.type, 'Statement');
     expect(step.isInFileCall, isFalse);
     expect(step.summary, contains('S1 [Statement]'));
+  });
+
+  test('propertyTree shapes the raw PropertyObject tree', () {
+    final doc = SeqDocument.parse(_xml()) as XmlSeqDocument;
+    final root = propertyTree(doc.file);
+
+    // Root is the Data object; class Obj; has children (not a leaf).
+    expect(root.name, 'Data');
+    expect(root.className, 'Obj');
+    expect(root.isLeaf, isFalse);
+    expect(root.typeLabel, contains('Obj'));
+
+    // Walk Data → Seq (Objs array) → its single element is the Sequence object
+    // itself (name taken from the name= attribute).
+    final seqContainer = root.children.firstWhere((c) => c.name == 'Seq');
+    expect(seqContainer.isArray, isTrue);
+    expect(seqContainer.typeLabel, contains('Objs['));
+    final mainSeq = seqContainer.children.single;
+    expect(mainSeq.name, 'MainSequence');
+    expect(mainSeq.attributes['name'], 'MainSequence');
   });
 
   test('documentText/Title handle unrecognized bytes without throwing', () {

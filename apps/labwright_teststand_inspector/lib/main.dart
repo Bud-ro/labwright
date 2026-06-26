@@ -7,6 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:labwright_teststand/labwright_teststand.dart';
 
 import 'src/document_view.dart';
+import 'src/property_outline.dart';
+import 'src/properties_view.dart';
 import 'src/sequence_outline.dart';
 import 'src/sequences_view.dart';
 
@@ -80,10 +82,13 @@ class _InspectorPageState extends State<InspectorPage> {
   @override
   Widget build(BuildContext context) {
     final doc = _doc;
-    // The Sequences tab only applies to XML files we parsed into a SeqFile.
-    final outline = doc is XmlSeqDocument ? SeqOutline.of(doc.file) : null;
+    // The Sequences/Properties tabs only apply to XML files we parsed into a
+    // SeqFile.
+    final file = doc is XmlSeqDocument ? doc.file : null;
+    final outline = file != null ? SeqOutline.of(file) : null;
+    final tree = file != null ? propertyTree(file) : null;
     return DefaultTabController(
-      length: outline != null ? 2 : 1,
+      length: file != null ? 3 : 1,
       child: Scaffold(
         appBar: AppBar(
           title:
@@ -97,7 +102,8 @@ class _InspectorPageState extends State<InspectorPage> {
           bottom: TabBar(
             tabs: [
               const Tab(text: 'Dump'),
-              if (outline != null) const Tab(text: 'Sequences'),
+              if (file != null) const Tab(text: 'Sequences'),
+              if (file != null) const Tab(text: 'Properties'),
             ],
           ),
         ),
@@ -106,13 +112,13 @@ class _InspectorPageState extends State<InspectorPage> {
             final file = d.files.isNotEmpty ? d.files.first : null;
             if (file != null) _loadPath(file.path);
           },
-          child: _body(doc, outline),
+          child: _body(doc, outline, tree),
         ),
       ),
     );
   }
 
-  Widget _body(SeqDocument? doc, SeqOutline? outline) {
+  Widget _body(SeqDocument? doc, SeqOutline? outline, PropertyNode? tree) {
     if (_error != null) {
       return Center(
           child: Text('Error: $_error', style: const TextStyle(color: Colors.red)));
@@ -142,6 +148,7 @@ class _InspectorPageState extends State<InspectorPage> {
                 ),
               ),
               if (outline != null) SequencesView(outline: outline),
+              if (tree != null) PropertiesView(root: tree),
             ],
           ),
         ),
