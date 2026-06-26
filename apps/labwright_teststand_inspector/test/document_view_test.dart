@@ -253,6 +253,12 @@ void main() {
     expect(map.containsKey('Record region'), isTrue);
     expect(map.containsKey('Record sentinels'), isTrue);
     expect(int.parse(map['Strings in region']!), greaterThanOrEqualTo(5));
+    // The content-identified property-name table is surfaced.
+    expect(map['Property-name table'], endsWith('entries'));
+    expect(
+      int.parse(map['Property-name table']!.split(' ').first),
+      greaterThan(0),
+    );
   });
 
   test('documentText/Title handle unrecognized bytes without throwing', () {

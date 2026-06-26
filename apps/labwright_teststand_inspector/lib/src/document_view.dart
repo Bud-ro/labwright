@@ -58,6 +58,8 @@ List<(String, String)> binaryHeaderRows(BinarySeqDocument doc) {
       ('Record sentinels', '${l.sentinelCount}'),
       ('Strings in region', '${l.stringCount}'),
       ('String tables', '${l.segmentCount}'),
+      if (doc.nameTable.isNotEmpty)
+        ('Property-name table', '${doc.nameTable.length} entries'),
       if (l.leadingWords.isNotEmpty)
         ('Record header words', l.leadingWords.join(', ')),
     ],

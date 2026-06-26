@@ -31,6 +31,7 @@ sealed class SeqDocument {
           strings: binaryBodyStrings(bytes),
           stringTable: binaryStringTable(bytes),
           layout: analyzeBinaryBody(bytes),
+          nameTable: binaryNameTable(bytes)?.entries ?? const [],
         );
       case SeqFormat.ini:
       case SeqFormat.unknown:
@@ -58,6 +59,7 @@ class BinarySeqDocument extends SeqDocument {
     required this.strings,
     required this.stringTable,
     this.layout,
+    this.nameTable = const [],
   });
 
   @override
@@ -75,6 +77,11 @@ class BinarySeqDocument extends SeqDocument {
   /// The framed body layout (record region + string region), or null when the
   /// body did not frame. The record grammar itself is **not yet decoded**.
   final BinaryBodyLayout? layout;
+
+  /// The content-identified **property-name table** (the packed string segment
+  /// carrying the PropertyObject model tokens), or empty when none was found.
+  /// Which other segments are value/expression tables is **not yet decoded**.
+  final List<BinaryString> nameTable;
 }
 
 /// A file that is not a recognized/decodable TestStand sequence.
