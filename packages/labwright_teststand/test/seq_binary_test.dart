@@ -74,4 +74,24 @@ void main() {
     expect(isBinaryModulePath('Excel_Read.vi'), isFalse); // no separator
     expect(isBinaryModulePath(r'notes\readme.txt'), isFalse);
   });
+
+  test('isBinaryExpression recognises TestStand logic strings', () {
+    // Positives: root member access, operators, ternary, known functions.
+    expect(isBinaryExpression('Locals.Voltage == 5'), isTrue);
+    expect(isBinaryExpression('RunState.LoopIndex += 1'), isTrue);
+    expect(isBinaryExpression('Step.Result.Error.Occurred'), isTrue);
+    expect(isBinaryExpression('Abs(Locals.FD1) <= 0.1'), isTrue);
+    expect(isBinaryExpression(r'ResStr("NI_STEPTYPES", "ACTION_DEF_STEP_NAME")'),
+        isTrue);
+    expect(isBinaryExpression('(x == 0) ? "a" : "b"'), isTrue);
+    // Negatives: plain names, literals, step refs, module paths.
+    expect(isBinaryExpression('Status'), isFalse);
+    expect(isBinaryExpression('Measurement 0'), isFalse);
+    expect(isBinaryExpression('ID#:abc.Step.x'), isFalse); // ID# excluded first
+    expect(isBinaryExpression(r'My Computer\Excel\Read.vi'), isFalse);
+  });
+
+  test('binaryExpressions/binaryModulePaths empty on non-binary input', () {
+    expect(binaryExpressions(Uint8List(0)), isEmpty);
+  });
 }

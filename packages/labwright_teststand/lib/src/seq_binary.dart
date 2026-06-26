@@ -362,6 +362,53 @@ List<String> binaryStepReferences(Uint8List seqBytes) {
   return out;
 }
 
+/// Member access on a TestStand expression **root** (`Locals.x`, `Step.Result…`,
+/// `RunState.LoopIndex`, `StationGlobals.…`, …) — the surest expression marker.
+final _exprRootRe = RegExp(
+    r'\b(Locals|Parameters|Step|RunState|FileGlobals|StationGlobals|Seq|ThisContext)\.');
+
+/// A comparison / logical / ternary operator (the test-logic operators).
+final _exprOpRe = RegExp(r'(==|!=|<=|>=|&&|\|\||\?.*:)');
+
+/// A known TestStand expression **function call** (`Abs(`, `Str(`, `ResStr(`, …).
+final _exprFnRe = RegExp(
+    r'\b(Abs|Str|Val|Round|Mid|Len|Left|Right|ResStr|LocalizeExpression|Mod)\s*\(');
+
+/// Whether [s] looks like a TestStand **expression** — the strings that carry a
+/// sequence's actual logic: limit/condition comparisons, `RunState`/`Locals`/
+/// `Step` member access, ternaries, and known expression-function calls. Module
+/// paths ([isBinaryModulePath]) and `ID#:` step references are excluded so this
+/// stays disjoint from those recoveries.
+bool isBinaryExpression(String s) {
+  if (s.startsWith('ID#:') || isBinaryModulePath(s)) return false;
+  return _exprRootRe.hasMatch(s) ||
+      _exprOpRe.hasMatch(s) ||
+      _exprFnRe.hasMatch(s);
+}
+
+/// The **expression strings** a binary TOF1 file carries — its test logic
+/// (conditions, limit/numeric expressions, name/description format expressions,
+/// loop and result expressions; see [isBinaryExpression]), distinct and in
+/// name-pool order.
+///
+/// Recovered straight from the string pool: the **not yet decoded** record grammar
+/// is what would attach each expression to its specific step/field, so this is the
+/// honest *set* of expressions a file evaluates, not a per-step mapping.
+/// Corpus-observed: 285/288 binary files expose ≥1 (15910 distinct total). Returns
+/// `[]` when [seqBytes] is not an inflatable binary file.
+List<String> binaryExpressions(Uint8List seqBytes) {
+  final body = inflateBinaryBody(seqBytes);
+  if (body == null) return const [];
+  final seen = <String>{};
+  final out = <String>[];
+  for (final seg in _segmentsFromBody(body)) {
+    for (final e in seg.entries) {
+      if (isBinaryExpression(e.text) && seen.add(e.text)) out.add(e.text);
+    }
+  }
+  return out;
+}
+
 /// [binaryNameTable] core over already-computed [segments] (no re-inflate).
 BinaryStringSegment? _nameTableFromSegments(
   List<BinaryStringSegment> segments,

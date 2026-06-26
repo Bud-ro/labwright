@@ -801,9 +801,9 @@ void main() {
     expect(withNames, rooted, reason: 'a rooted file exposed no object names');
   });
 
-  test('binary files expose module call-targets and step references', () {
-    var binary = 0, withPath = 0, withId = 0, totalPaths = 0;
-    final badPath = <String>[];
+  test('binary files expose module call-targets, step refs, expressions', () {
+    var binary = 0, withPath = 0, withId = 0, withExpr = 0, totalPaths = 0;
+    final bad = <String>[];
     for (final f in seqs) {
       final bytes = f.readAsBytesSync();
       if (detectSeqFormat(bytes) != SeqFormat.binary) continue;
@@ -811,24 +811,34 @@ void main() {
       final paths = binaryModulePaths(bytes);
       // Every returned path must satisfy the predicate (no false positives).
       for (final p in paths) {
-        if (!isBinaryModulePath(p)) badPath.add('${f.path}: $p');
+        if (!isBinaryModulePath(p)) bad.add('${f.path}: path $p');
+      }
+      // Expressions must be disjoint from module paths / ID#: refs.
+      for (final e in binaryExpressions(bytes)) {
+        if (!isBinaryExpression(e)) bad.add('${f.path}: expr $e');
+        if (isBinaryModulePath(e) || e.startsWith('ID#:')) {
+          bad.add('${f.path}: expr overlaps path/id $e');
+        }
       }
       if (paths.isNotEmpty) {
         withPath++;
         totalPaths += paths.length;
       }
       if (binaryStepReferences(bytes).isNotEmpty) withId++;
+      if (binaryExpressions(bytes).isNotEmpty) withExpr++;
     }
     // ignore: avoid_print
     print(
       'binary recovered: $withPath/$binary files expose ≥1 module path '
-      '($totalPaths total) · $withId/$binary expose ≥1 ID#: step ref',
+      '($totalPaths total) · $withId/$binary expose ≥1 ID#: step ref · '
+      '$withExpr/$binary expose ≥1 expression',
     );
-    expect(badPath, isEmpty, reason: badPath.take(5).join('\n'));
+    expect(bad, isEmpty, reason: bad.take(5).join('\n'));
     expect(binary, greaterThanOrEqualTo(80));
-    // Corpus-observed floors (190/288 paths, 285/288 ids) — keep a safe margin.
+    // Corpus floors (190/288 paths, 285/288 ids, 285/288 exprs) — safe margins.
     expect(withPath, greaterThanOrEqualTo(binary ~/ 2));
     expect(withId, greaterThanOrEqualTo((binary * 9) ~/ 10));
+    expect(withExpr, greaterThanOrEqualTo((binary * 9) ~/ 10));
   });
 
   // REMOVED — 'leadingWords[1] selects the record-prefix layout'. This asserted

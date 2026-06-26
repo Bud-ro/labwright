@@ -890,6 +890,12 @@ string pool, honestly, without the record grammar:
   fragmented by non-ASCII run splits. *What* is called, not yet *from which step*.
 - **`ID#:` step references** (`binaryStepReferences`) — the same unique step-ID
   tokens the text encodings resolve to links. Corpus: **285/288 files expose ≥1**.
+- **Expressions** (`binaryExpressions` + the `isBinaryExpression` predicate) — the
+  sequence's actual *logic*: limit/condition comparisons, `RunState`/`Locals`/
+  `Step` member access, ternaries, and known expression functions (`Abs(`,
+  `ResStr(`, …). Disjoint from module paths / `ID#:` refs by construction. Corpus:
+  **285/288 files expose ≥1 (15910 distinct total)** — *which* expressions a file
+  evaluates, not yet *attached to a specific step/field* (record grammar).
 
 **Genuine gaps (need external inputs — do NOT guess):**
 - **Binary record grammar** past the header — not yet recovered (needs a
