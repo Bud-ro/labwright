@@ -15,7 +15,7 @@ All three were/are offered by NI; which one a file uses is a save-time choice.
 |---|---|---|---|
 | **XML** | optional UTF-8 BOM `EF BB BF`, then `<?xml …?>`, root `<teststandfileheader …>` | ✅ M0 | text; the common form in open-source NI examples |
 | **binary** | ASCII magic **`TOF1`** at offset 0 | ✅ M0 | NI proprietary flat container; default for size/speed |
-| **INI** | INI sections + a TestStand marker | ✅ header + tree + **typed lens** (parseSeqFile→SeqFile) | 58 samples; `seq_ini.dart`; 56/58 → 441 seq / 5515 steps / type-inherited run-mode+looping for all 5515 / 2052 recognized module bindings via the shared lens |
+| **INI** | INI sections + a TestStand marker | ✅ header + tree + **typed lens** (parseSeqFile→SeqFile) | 58 samples; `seq_ini.dart`; **58/58** → 449 seq / 5664 steps / type-inherited run-mode+looping for every step / recognized module bindings via the shared lens (%OBJROOT + older %OBJECTS root aliases) |
 
 ### XML form (decoded enough to parse next)
 
@@ -497,14 +497,22 @@ declared member type → `className`, value → `scalar`. A real file reconstruc
 Cleanup/RTS/Requirements`, matching the XML/binary shape exactly.
 
 `parseSeqFile` now builds a `SeqFile` from INI too (`parseIniSeqFile`), so the
-**existing typed lens works on INI for free**: across the corpus's 56 buildable
-INI files it recovers **441 sequences, 5515 steps (all typed), 1643 locals**, and
-— after type inheritance (below) — **run-mode + looping for all 5515 steps** and
-**2052 recognized module-adapter bindings** (labView/cModule/sequenceCall; the
-remaining steps surface `SeqAdapter.unknown` from an inherited `SData` shape not
-yet decoded) — same `Sequence`/`Step`/`StepGroup`/`SeqAdapter` lens as XML. (A
-container-discovery pass surfaces objects like a step's `SData` that are implied
-only by a deeper section, not listed as a member.)
+**existing typed lens works on INI for free**: across **all 58/58** corpus INI
+files it recovers **449 sequences, 5664 steps (all typed), locals**, and — after
+type inheritance (below) — **run-mode + looping for every step** and the
+recognized module-adapter bindings (labView/cModule/sequenceCall; no-module steps
+are honest `SeqAdapter.none`) — same `Sequence`/`Step`/`StepGroup`/`SeqAdapter`
+lens as XML. (A container-discovery pass surfaces objects like a step's `SData`
+that are implied only by a deeper section, not listed as a member.)
+
+**Root-objects alias `%OBJECTS` (older versions) — 56/58 → 58/58 (2026-06, DONE).**
+The 2 INI files that briefly failed (`FormatException: no reconstructable data
+root`) are **older TestStand** (versions 127 and 143): they declare their
+top-level objects under `[DEF, %OBJECTS]` instead of the newer `[DEF, %OBJROOT]`,
+but the sequence-file root is still `SF = SequenceFileData`. `dataRootPath` now
+tries both aliases (in order), so both files parse — KernelTestSequence v143 (1
+seq / 61 steps) and flexc_parameter_tests v127 (7 seq / 88 steps). The corpus
+tests assert **every** INI file builds a tree and a `SeqFile` (no `threw`).
 
 **INI-as-oracle attack on the binary `count` (2026-06, REFUTED).** With INI fully
 decoded we can ask the binary directly: for each object *name* the INI gives the
@@ -544,13 +552,19 @@ empty `SData`** (`nullSData=0, emptySData=3463`), every one a no-module step typ
 `Statement` (966), `NI_Flow_End` (686), `Label` (476), `NI_Flow_If` (351),
 `NI_Flow_Else`/`For`/`While`/`Case`/`ForEach`, `NI_Wait` (101), `NI_Lock` (50), …
 So `StepModule.fromSData` now treats an empty `SData` (not just a null one) as
-`none`. Adapter distribution across all 5515 INI steps: **sequenceCall 1613 · none
-3463 · labView 382 · cModule 57 · unknown 0**. `unknown` is now reserved for an
-`SData` *with* members we can't parse (none exist in the corpus today); the corpus
-test asserts `unknown == 0` to catch a future regression.
+`none`. `unknown` is reserved for an `SData` *with* members we can't parse, and
+the corpus test asserts `unknown == 0` to catch a future regression.
 
-Next slices: (1) decode a *non-empty* unrecognized `SData` shape if/when the
-corpus grows one (.NET/HTBasic/NI plug-in). (2) **use this concrete per-object
+**Older direct-`ViPath` LabVIEW adapter (2026-06, DONE).** When the 2 older-version
+files (127/143) started parsing (the `%OBJECTS` fix below), their VI steps surfaced
+61 `unknown` SData of the shape `{ViPath, PassInBuf, PassInvocInfo}` — the LabVIEW
+adapter as it was stored before the `ViCall` sub-object existed (the VI path is a
+*direct* `SData.ViPath` member). `fromSData` now recognizes that too. Current
+adapter distribution across all **5664** INI steps: **sequenceCall 1624 · none
+3478 · labView 443 · cModule 119 · unknown 0**.
+
+Next slices: (1) decode any further non-empty unrecognized `SData` shape if/when
+the corpus grows one (.NET/HTBasic/NI plug-in). (2) **use this concrete per-object
 member→type→value layout as the oracle for the binary**:
 for a given object the INI tells us the exact ordered members, their types, and
 values — line that up against the binary record stream (name-index/`field`/`count`
@@ -563,15 +577,14 @@ triplets) to finally decode the binary record's field/count/value encoding.
 - **INI typed lens + app** — `parseSeqFile` builds a `SeqFile` from INI (56/58),
   the shared lens recovers sequences/steps/locals/module bindings, and the
   inspector renders INI via `IniSeqDocument` (a `StructuredSeqDocument`) — the
-  app now shows 82 files structured (26 XML + 56 INI). `SeqFile.types` is now
-  populated for INI from `[%TYPES]` (`iniTypes`; 2206 types across 56 files).
-  Type-inherited step settings (run-mode/looping) and adapter defaults that an
-  instance doesn't override are now filled in from the step's `[DEF, <Type>]`
-  (instance-wins; see "Type inheritance" above). Empty inherited `SData` now
-  classifies as `SeqAdapter.none` (no-module steps), so `unknown` is 0 across the
-  corpus. Still TODO: the 2 files lacking a `%OBJROOT` root (degrade to Unknown),
-  any future non-empty unrecognized `SData` adapter shape, and explicit instance
-  overrides (`%INSTOVRD`).
+  app now shows **84 files structured (26 XML + 58 INI)** — all INI parse after
+  the `%OBJECTS` alias fix. `SeqFile.types` is populated for INI from `[%TYPES]`
+  (`iniTypes`). Type-inherited step settings (run-mode/looping) and adapter
+  defaults that an instance doesn't override are filled in from the step's
+  `[DEF, <Type>]` (instance-wins; see "Type inheritance" above). Empty inherited
+  `SData` classifies as `SeqAdapter.none` (no-module steps), so `unknown` is 0
+  across the corpus. Still TODO: any future non-empty unrecognized `SData` adapter
+  shape, and explicit instance overrides (`%INSTOVRD`).
 - **Config / station files** — `corpus/seq-sources.json` captures `.ini/.cfg/.tsw/.tpj`
   when present, but the open-source corpus is sequence-heavy; type-palette and
   station-config samples are sparse. (CN-IOT's `.ini` files are *localization

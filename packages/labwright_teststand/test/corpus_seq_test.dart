@@ -192,7 +192,7 @@ void main() {
       ini++;
       try {
         final tree = iniDataTree(parseIniSeqBytes(bytes));
-        if (tree == null) continue; // 2 files lack [DEF, %OBJROOT] — TODO
+        if (tree == null) continue; // no reconstructable root (none in corpus today)
         built++;
         if (tree.name == 'Data') dataRoot++;
         // The Data object carries a Seq array of sequences.
@@ -217,10 +217,10 @@ void main() {
     );
     expect(failures, isEmpty, reason: failures.take(5).join('\n'));
     expect(ini, greaterThan(0));
-    // The tree builds for the vast majority (the 2 without a %OBJROOT root are a
-    // known TODO); every built tree roots at the "Data" object and carries a
-    // named Seq array.
-    expect(built, greaterThanOrEqualTo(ini - 2), reason: 'too few INI trees built');
+    // Every INI file builds a tree: the root-objects alias is resolved for both
+    // newer (%OBJROOT) and older (%OBJECTS, versions 127/143) files. Each built
+    // tree roots at the "Data" object and carries a named Seq array.
+    expect(built, ini, reason: 'an INI file built no data tree');
     expect(dataRoot, built, reason: 'a built INI tree is not rooted at "Data"');
     expect(withSeqArray, built, reason: 'a built INI tree has no Seq array');
     expect(namedSeqs, withSeqArray, reason: 'a Seq array exposes no named sequence');
@@ -266,7 +266,7 @@ void main() {
           }
         }
       } on FormatException {
-        threw++; // the 2 files without a %OBJROOT data root — known TODO
+        threw++; // no reconstructable data root (none in the corpus today)
       }
     }
     // ignore: avoid_print
@@ -278,7 +278,8 @@ void main() {
       '$withMode with run-mode · $withLoop with looping',
     );
     expect(ini, greaterThan(0));
-    expect(built, greaterThanOrEqualTo(ini - 2), reason: 'too few INI SeqFiles');
+    expect(threw, 0, reason: 'an INI file failed to parse into a SeqFile');
+    expect(built, ini, reason: 'not every INI file built a SeqFile');
     // The shared lens recovers real structure from INI, same as XML.
     expect(totTypes, greaterThan(0), reason: 'no INI types via [%TYPES]');
     expect(totSeq, greaterThan(0), reason: 'no INI sequences via the lens');

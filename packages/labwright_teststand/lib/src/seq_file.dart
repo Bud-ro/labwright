@@ -303,6 +303,15 @@ class StepModule {
       return StepModule(adapter: SeqAdapter.labView, viPath: p, target: p, raw: sdata);
     }
 
+    // Older TestStand (e.g. versions 127/143) stores the LabVIEW adapter's path
+    // as a direct `ViPath` member of SData (alongside `PassInBuf`/`PassInvocInfo`),
+    // rather than nested under a `ViCall` sub-object.
+    final directVi = _e(sdata.prop('ViPath')?.scalar);
+    if (directVi != null) {
+      return StepModule(
+          adapter: SeqAdapter.labView, viPath: directVi, target: directVi, raw: sdata);
+    }
+
     final call = sdata.prop('Call');
     if (call != null) {
       final lib = _e(call.prop('LibPath')?.scalar);

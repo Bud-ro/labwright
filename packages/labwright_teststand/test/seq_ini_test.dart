@@ -244,4 +244,54 @@ Mode = "Normal"
     expect(step.settings.mode, 'Normal');
     expect(step.module.adapter, SeqAdapter.none);
   });
+
+  // Older TestStand INI (e.g. versions 127/143) declares its top-level objects
+  // under [DEF, %OBJECTS] instead of the newer [DEF, %OBJROOT]; the data root is
+  // still `SF = SequenceFileData`. The reader resolves both aliases.
+  const objectsAliasIni = '''
+[__Header__]
+ProductName = "TestStand"
+Version = 143
+Type = "SequenceFile"
+
+[DEF, %OBJECTS]
+SF = SequenceFileData
+Path = PathValue
+[DEF, SF]
+Seq = Objs
+%NAME = "Data"
+[DEF, SF.Seq]
+%[0] = Sequence
+[DEF, SF.Seq[0]]
+Main = Objs
+%NAME = "MainSequence"
+[DEF, SF.Seq[0].Main]
+%[0] = Step
+%TYPE: %[0] = "Action"
+[DEF, SF.Seq[0].Main[0]]
+%NAME = "legacyStep"
+[DEF, SF.Seq[0].Main[0].TS]
+SData = Obj
+[DEF, SF.Seq[0].Main[0].TS.SData]
+ViPath = PathValue
+[SF.Seq[0].Main[0].TS.SData]
+ViPath = "legacy.vi"
+''';
+
+  test('resolves the older %OBJECTS root alias (not just %OBJROOT)', () {
+    final sf = parseSeqFile(Uint8List.fromList(latin1.encode(objectsAliasIni)));
+    expect(sf.header.fileType, 'SequenceFile');
+    final seq = sf.sequences.single;
+    expect(seq.name, 'MainSequence');
+    expect(seq.main.single.name, 'legacyStep');
+    expect(seq.main.single.type, 'Action');
+  });
+
+  test('recognizes the older direct-ViPath LabVIEW adapter (no ViCall wrapper)',
+      () {
+    final sf = parseSeqFile(Uint8List.fromList(latin1.encode(objectsAliasIni)));
+    final module = sf.sequences.single.main.single.module;
+    expect(module.adapter, SeqAdapter.labView);
+    expect(module.viPath, 'legacy.vi');
+  });
 }

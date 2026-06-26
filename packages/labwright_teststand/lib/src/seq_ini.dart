@@ -209,13 +209,22 @@ class _IniBuilder {
 
   bool hasPath(String path) => _allPaths.contains(path);
 
-  /// The data root: the `%OBJROOT` alias declaring type `SequenceFileData`
-  /// (e.g. `SF = SequenceFileData`), or null when absent.
+  /// The root-objects alias sections, in priority order. Newer files declare
+  /// top-level objects under `[DEF, %OBJROOT]`; older ones (e.g. versions 127/143)
+  /// use `[DEF, %OBJECTS]`. Both list `member = TypeName`, including the
+  /// sequence-file root (`SF = SequenceFileData`).
+  static const _rootAliases = ['%OBJROOT', '%OBJECTS'];
+
+  /// The data root: the alias member declaring type `SequenceFileData` (e.g.
+  /// `SF = SequenceFileData`) in the first root-objects section that has one, or
+  /// null when absent.
   String? dataRootPath() {
-    final objRoot = _defs['%OBJROOT'];
-    if (objRoot == null) return null;
-    for (final e in objRoot.members.entries) {
-      if (e.value == 'SequenceFileData') return e.key;
+    for (final alias in _rootAliases) {
+      final root = _defs[alias];
+      if (root == null) continue;
+      for (final e in root.members.entries) {
+        if (e.value == 'SequenceFileData') return e.key;
+      }
     }
     return null;
   }
