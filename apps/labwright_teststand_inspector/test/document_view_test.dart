@@ -335,6 +335,36 @@ void main() {
     expect(stepMatches(step, 'nope'), isFalse);
   });
 
+  test('units, data source, and call args are searchable + in the summary', () {
+    final step = StepOutline(
+      name: 'Get User',
+      type: 'Action',
+      units: 'mA',
+      dataSource: 'Step.Result.PassFail',
+      callArgs: [
+        CallArgOutline(
+          name: 'LoginName',
+          direction: 'in',
+          boundExpression: 'FileGlobals.UserToAutoLogin',
+          displayType: 'String',
+        ),
+      ],
+      notes: const [],
+    );
+    // Each surfaced field is reachable via search (query pre-lowercased).
+    expect(stepMatches(step, 'ma'), isTrue); // units
+    expect(stepMatches(step, 'step.result.passfail'), isTrue); // data source
+    expect(stepMatches(step, 'loginname'), isTrue); // call-arg name
+    expect(stepMatches(step, 'usertoautologin'), isTrue); // call-arg expression
+    expect(stepMatches(step, 'string'), isTrue); // call-arg display type
+    expect(stepMatches(step, 'absent'), isFalse);
+    // And each appears in the one-line summary.
+    final s = step.summary;
+    expect(s, contains('{units mA}'));
+    expect(s, contains('{data-source Step.Result.PassFail}'));
+    expect(s, contains('{args: LoginName in←FileGlobals.UserToAutoLogin}'));
+  });
+
   test('StepOutline.of surfaces a step status expression', () {
     final doc = SeqDocument.parse(_xmlWithStatusExpr()) as XmlSeqDocument;
     final step = SeqOutline.of(doc.file).sequences.single.groups.single.steps.single;
