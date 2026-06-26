@@ -80,6 +80,26 @@ const _seqXml = '''<?xml version="1.0" encoding="UTF-8"?>
   </Data>
 </teststandfileheader>''';
 
+/// A minimal file with one sequence that calls itself (intra-file SequenceCall).
+const _seqCallXml = '''<?xml version="1.0" encoding="UTF-8"?>
+<teststandfileheader type='SequenceFile' fileversion='920' productname='TestStand'>
+  <typelist/>
+  <Data classname='Obj'><subprops>
+    <Seq classname='Objs'><value lbound='[0]' ubound='[1]'><value>
+      <Sequence name='MainSequence' classname='Obj'><subprops>
+        <Main classname='Objs'><value lbound='[0]' ubound='[1]'>
+          <value><Step typename='SequenceCall' name='Call Self'><subprops>
+            <TS classname='Obj'><subprops><SData classname='Obj'><subprops>
+              <SeqName classname='Str'><value>MainSequence</value></SeqName>
+              <UseCurFile classname='Bool'><value>true</value></UseCurFile>
+            </subprops></SData></subprops></TS>
+          </subprops></Step></value>
+        </value></Main>
+      </subprops></Sequence>
+    </value></value></Seq>
+  </subprops></Data>
+</teststandfileheader>''';
+
 Uint8List _bytes(String s, {bool bom = true}) =>
     Uint8List.fromList([if (bom) ...[0xef, 0xbb, 0xbf], ...utf8.encode(s)]);
 
@@ -189,6 +209,18 @@ void main() {
       expect(out, contains('loop FixedNumLoops'));
       expect(out, contains('if Locals.X == 1'));
       expect(out, contains('Count : Num = 3'));
+    });
+
+    test('resolves intra-file SequenceCall targets', () {
+      final cf = parseSeqFile(_bytes(_seqCallXml));
+      final call = cf.sequences.single.main.single;
+      expect(call.module.adapter, SeqAdapter.sequenceCall);
+      expect(call.module.sequenceName, 'MainSequence');
+      // Resolves to the sequence in this file.
+      expect(cf.resolveCall(call)?.name, 'MainSequence');
+      expect(cf.sequence('Nope'), isNull);
+      // The dump shows the resolution.
+      expect(dumpSeqFile(cf), contains('sequenceCall: MainSequence (in this file)'));
     });
 
     test('measures model coverage (modeled subset of total nodes)', () {

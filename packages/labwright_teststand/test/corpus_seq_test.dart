@@ -28,7 +28,7 @@ void main() {
   test('corpus has .seq files', () => expect(seqs, isNotEmpty));
 
   test('every XML .seq parses; binary .seq is classified, not mis-parsed', () {
-    var xml = 0, binary = 0, other = 0, totalSeqs = 0, totalSteps = 0, withAction = 0, withModule = 0, totalLocals = 0, withLimits = 0, withBinaryBody = 0;
+    var xml = 0, binary = 0, other = 0, totalSeqs = 0, totalSteps = 0, withAction = 0, withModule = 0, totalLocals = 0, withLimits = 0, withBinaryBody = 0, resolvedCalls = 0;
     final failures = <String>[];
     for (final f in seqs) {
       final bytes = f.readAsBytesSync();
@@ -48,6 +48,7 @@ void main() {
                   withModule++;
                 }
                 if (step.limits != null) withLimits++;
+                if (sf.resolveCall(step) != null) resolvedCalls++;
               }
             }
           } catch (e) {
@@ -91,10 +92,11 @@ void main() {
     expect(withModule, greaterThan(0), reason: 'no module-adapter bindings recovered');
     expect(totalLocals, greaterThan(0), reason: 'no sequence locals recovered');
     expect(withLimits, greaterThan(0), reason: 'no test limits recovered');
+    expect(resolvedCalls, greaterThan(0), reason: 'no intra-file sequence calls resolved');
     // ignore: avoid_print
     print('teststand corpus: $xml XML / $binary binary / $other other · '
         '$totalSeqs sequences · $totalSteps steps · $withAction with pass/fail actions · '
         '$withModule with module bindings · $totalLocals locals · $withLimits limit tests · '
-        '$withBinaryBody binary bodies inflated');
+        '$withBinaryBody binary bodies inflated · $resolvedCalls intra-file calls');
   });
 }

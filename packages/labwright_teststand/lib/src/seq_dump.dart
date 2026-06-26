@@ -24,7 +24,7 @@ String dumpSeqFile(SeqFile f) {
       if (steps.isEmpty) continue;
       b.writeln('  $group:');
       for (final step in steps) {
-        b.writeln('    - ${_dumpStep(step)}');
+        b.writeln('    - ${_dumpStep(step, f)}');
       }
     }
   }
@@ -40,7 +40,7 @@ void _dumpVars(StringBuffer b, String label, List<SeqVariable> vars) {
   }
 }
 
-String _dumpStep(Step step) {
+String _dumpStep(Step step, SeqFile file) {
   final parts = StringBuffer('${step.name} [${step.type ?? '?'}]');
 
   final m = step.module;
@@ -50,6 +50,11 @@ String _dumpStep(Step step) {
       _ => m.target ?? '(none)',
     };
     parts.write(' -> ${m.adapter.name}: $target');
+    if (m.adapter == SeqAdapter.sequenceCall) {
+      parts.write(file.resolveCall(step) != null
+          ? ' (in this file)'
+          : ' (external${m.sequenceFile != null ? ': ${m.sequenceFile}' : ''})');
+    }
   }
 
   final limits = step.limits;

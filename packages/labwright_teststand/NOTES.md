@@ -114,6 +114,11 @@ refused (not mis-parsed).
   → `Step.module` (`StepModule` + `SeqAdapter` enum). Corpus: 51/121 steps carry
   a recognized binding (the rest are flow-control or NI-measurement-plug-in steps
   whose binding lives outside SData — not yet modeled).
+- **Call graph**: a SequenceCall step's `SeqName` (+ `SFPath`, `UseCurFile`)
+  names the called sequence. `SeqFile.sequence(name)` looks one up;
+  `SeqFile.resolveCall(step)` returns the called sequence when it lives in the
+  same file (else it's an external call → `module.sequenceFile`). The dump marks
+  `(in this file)` / `(external)`. Corpus: 4 intra-file calls resolved.
 - **Variables**: a sequence's `Locals` and `Parameters` are `Obj` containers
   whose sub-properties are the variables (name = tag, kind = `classname`,
   default = scalar). → `Sequence.locals` / `Sequence.parameters` (`SeqVariable`

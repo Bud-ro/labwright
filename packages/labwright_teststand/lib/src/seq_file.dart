@@ -28,6 +28,23 @@ class SeqFile {
   List<Sequence> get sequences =>
       [for (final s in data.prop('Seq')?.array ?? const <SeqProperty>[]) Sequence(s)];
 
+  /// The sequence named [name] in this file, or null.
+  Sequence? sequence(String name) {
+    for (final s in sequences) {
+      if (s.name == name) return s;
+    }
+    return null;
+  }
+
+  /// For a SequenceCall [step], the called sequence **within this file**, or null
+  /// when the step isn't a sequence call or the target lives in another file
+  /// (an external call — see [Step.module] `sequenceFile`).
+  Sequence? resolveCall(Step step) {
+    final m = step.module;
+    if (m.adapter != SeqAdapter.sequenceCall || m.sequenceName == null) return null;
+    return sequence(m.sequenceName!);
+  }
+
   @override
   String toString() =>
       'SeqFile(${header.fileType}, v${header.fileVersion}, '
