@@ -198,6 +198,14 @@ tag candidate). The **1st u32 varies** (18 distinct values, mode 27×44) and is
 **not** a simple count (it equals neither stringCount nor sentinelCount in any
 file). *(Not yet decoded, not "unrecoverable".)*
 
+The string region is **not one table** — it splits into many packed tables
+(`binaryStringSegments`, maximal NUL-adjacent run chains). Corpus-verified:
+**≥6 segments in 83/83** (range 6–37, mode ~30–31). The early segment sizes look
+stable across files (samples start `[~12, ~30, ~37, 57, …]`); a **57-entry
+segment appears in 81/83** — a strong candidate for a fixed built-in name/type
+table, *not yet confirmed* across all files or labelled. (TODO: identify which
+segment is the property-NAME table vs value/expression tables.)
+
 The **record tree** that links names to values is **not yet parsed** (the u32
 record framing is still being worked out). So `parseSeqFile` still **refuses**
 binary (UnsupportedError); the next milestone is that record grammar — then it

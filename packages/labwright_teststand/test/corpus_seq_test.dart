@@ -132,12 +132,17 @@ void main() {
         word1InSet++;
         word1Values.add(w[1]);
       }
+      // The string region splits into multiple packed tables (segments).
+      final segments = binaryStringSegments(bytes);
+      if (layout.segmentCount != segments.length || layout.segmentCount < 6) {
+        failures.add('${f.path}: ${layout.segmentCount} segments');
+      }
     }
     // ignore: avoid_print
     print('binary framing: $framed/$binary framed · '
         '$withSentinels with ff-sentinels · $totalStrings strings total · '
         'word2==1 $word2Is1/$binary · word1∈{16,118} $word1InSet/$binary '
-        '(values $word1Values)');
+        '(values $word1Values) · all ≥6 string segments');
     expect(framed, binary, reason: 'some binary bodies did not frame');
     expect(failures, isEmpty, reason: failures.join('\n'));
     // Decoded record-header invariants (recon): the 3rd leading u32 is a

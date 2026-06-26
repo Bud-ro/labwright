@@ -60,6 +60,7 @@ class BinaryBodyLayout {
     required this.recordRegionLength,
     required this.stringCount,
     required this.sentinelCount,
+    required this.segmentCount,
     required this.leadingWords,
   });
 
@@ -81,6 +82,10 @@ class BinaryBodyLayout {
   /// the record-delimiter sentinels (recon).
   final int sentinelCount;
 
+  /// Number of distinct packed string tables (maximal NUL-adjacent run chains)
+  /// in the string region. Corpus-observed: ≥6 in all 83 binary files.
+  final int segmentCount;
+
   /// The first few little-endian u32 words at the start of the record region
   /// (descriptive, grammar not yet decoded). Corpus-observed invariants across
   /// all 83 binary files: `leadingWords[2] == 1` (a constant marker) and
@@ -91,7 +96,7 @@ class BinaryBodyLayout {
   @override
   String toString() => 'BinaryBodyLayout(inflated=$inflatedSize, '
       'recordRegion=$recordRegionLength, strings=$stringCount, '
-      'sentinels=$sentinelCount, lead=$leadingWords)';
+      'segments=$segmentCount, sentinels=$sentinelCount, lead=$leadingWords)';
 }
 
 /// Frames the inflated body of a binary TOF1 `.seq` into a [BinaryBodyLayout]:
@@ -116,8 +121,56 @@ BinaryBodyLayout? analyzeBinaryBody(Uint8List seqBytes) {
     recordRegionLength: boundary,
     stringCount: stringCount,
     sentinelCount: _countSentinels(body, boundary),
+    segmentCount: _segmentsFrom(runs, boundary).length,
     leadingWords: _leadingWords(body, 3),
   );
+}
+
+/// A packed string table in a binary TOF1 body: a maximal chain of
+/// NUL-terminated runs (each starting one byte after the previous one's NUL),
+/// with the offset of its first entry. Which table is which (property names vs
+/// value/expression tables) is **not yet decoded**.
+typedef BinaryStringSegment = ({int offset, List<BinaryString> entries});
+
+/// Splits the string region of a binary TOF1 body into its packed tables — every
+/// maximal NUL-adjacent run chain of ≥[minChain] entries, in order. Returns `[]`
+/// when [seqBytes] is not an inflatable binary file or has no string region.
+///
+/// Where [binaryStringTable] returns only the single largest table, this returns
+/// them all (corpus-observed: ≥6 segments in all 83 binary files). The record
+/// grammar that references these by index is **not yet decoded**.
+List<BinaryStringSegment> binaryStringSegments(Uint8List seqBytes,
+    {int minChain = 2}) {
+  final body = inflateBinaryBody(seqBytes);
+  if (body == null) return const [];
+  final runs = binaryStrings(body, minLength: 3);
+  final boundary = _firstTableOffset(runs);
+  if (boundary == null) return const [];
+  return [
+    for (final chain in _segmentsFrom(runs, boundary, minChain: minChain))
+      (offset: chain.first.offset, entries: chain),
+  ];
+}
+
+/// Maximal chains of NUL-adjacent runs at/after [from], each of ≥[minChain].
+List<List<BinaryString>> _segmentsFrom(List<BinaryString> runs, int from,
+    {int minChain = 2}) {
+  final segs = <List<BinaryString>>[];
+  var chain = <BinaryString>[];
+  for (final r in runs) {
+    if (r.offset < from) continue;
+    if (chain.isNotEmpty) {
+      final prev = chain.last;
+      final adjacent = r.offset == prev.offset + prev.text.length + 1;
+      if (!adjacent) {
+        if (chain.length >= minChain) segs.add(chain);
+        chain = <BinaryString>[];
+      }
+    }
+    chain.add(r);
+  }
+  if (chain.length >= minChain) segs.add(chain);
+  return segs;
 }
 
 /// Reads up to [count] little-endian u32 words from the start of [body].
