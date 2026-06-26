@@ -271,6 +271,38 @@ class _SequencesViewState extends State<SequencesView> {
               child: Wrap(spacing: 6, runSpacing: 4, children: chips),
             ),
           if (limitRows.isNotEmpty) _limitsTable(context, limitRows),
+          if (s.expressions.isNotEmpty) _expressions(context, s.expressions),
+        ],
+      ),
+    );
+  }
+
+  /// The step's set expressions (precondition / pre / post / status / loop-while)
+  /// as dim monospace `label: expression` rows — they can be long, so they get
+  /// their own lines rather than chips.
+  Widget _expressions(BuildContext context, List<(String, String)> rows) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, left: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final (label, value) in rows)
+            Padding(
+              padding: const EdgeInsets.only(top: 1),
+              child: RichText(
+                text: TextSpan(
+                  style: monoStyle.copyWith(color: theme.hintColor),
+                  children: [
+                    TextSpan(text: '$label: '),
+                    TextSpan(
+                      text: value,
+                      style: monoStyle.copyWith(color: theme.colorScheme.secondary),
+                    ),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
     );

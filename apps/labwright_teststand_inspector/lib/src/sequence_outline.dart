@@ -101,6 +101,7 @@ class StepOutline {
     this.limits,
     this.limitsDetail,
     this.runMode,
+    this.expressions = const [],
     required this.notes,
   });
 
@@ -135,7 +136,13 @@ class StepOutline {
   /// no limits.
   final LimitsOutline? limitsDetail;
 
-  /// Mode / flow / loop / precondition notes (only non-default ones).
+  /// The step's TestStand expressions that are set (label → expression), in
+  /// editor order: precondition, pre/post/status expressions, loop-while. Empty
+  /// when the step uses none. These are the custom logic the editor surfaces but
+  /// are too long for a chip, so the UI shows them as their own rows.
+  final List<(String, String)> expressions;
+
+  /// Mode / flow / loop notes (only non-default ones).
   final List<String> notes;
 
   bool get isInFileCall => callTargetIndex != null;
@@ -180,7 +187,16 @@ class StepOutline {
       notes.add('flow ${s.passAction ?? '?'}/${s.failAction ?? '?'}');
     }
     if (s.isLooping) notes.add('loop ${s.loopType}');
-    if (s.precondition != null) notes.add('if ${s.precondition}');
+
+    // The step's set expressions, in editor order. Shown as their own rows (they
+    // can be long); precondition lives here too (was a note before).
+    final expressions = <(String, String)>[
+      if (s.precondition != null) ('Precondition', s.precondition!),
+      if (s.preExpression != null) ('Pre-expression', s.preExpression!),
+      if (s.postExpression != null) ('Post-expression', s.postExpression!),
+      if (s.statusExpression != null) ('Status', s.statusExpression!),
+      if (s.loopWhile != null) ('Loop while', s.loopWhile!),
+    ];
 
     return StepOutline(
       name: step.name,
@@ -192,6 +208,7 @@ class StepOutline {
       limits: step.limits?.summary,
       limitsDetail: step.limits != null ? LimitsOutline.of(step.limits!) : null,
       runMode: runMode,
+      expressions: expressions,
       notes: notes,
     );
   }
@@ -204,6 +221,9 @@ class StepOutline {
     if (limits != null) b.write('  {limits $limits}');
     if (runMode != null) b.write('  {mode $runMode}');
     if (notes.isNotEmpty) b.write('  (${notes.join('; ')})');
+    for (final (label, value) in expressions) {
+      b.write('  {$label: $value}');
+    }
     return b.toString();
   }
 }
@@ -277,6 +297,12 @@ bool stepMatches(StepOutline s, String query) {
   }
   for (final n in s.notes) {
     if (n.toLowerCase().contains(query)) return true;
+  }
+  for (final (label, value) in s.expressions) {
+    if (label.toLowerCase().contains(query) ||
+        value.toLowerCase().contains(query)) {
+      return true;
+    }
   }
   return false;
 }

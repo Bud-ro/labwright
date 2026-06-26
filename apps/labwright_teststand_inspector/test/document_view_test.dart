@@ -72,6 +72,28 @@ Uint8List _xmlWithSkip() => Uint8List.fromList([
   ),
 ]);
 
+Uint8List _xmlWithStatusExpr() => Uint8List.fromList([
+  0xef,
+  0xbb,
+  0xbf,
+  ...utf8.encode(
+    "<?xml version='1.0'?>\n"
+    "<teststandfileheader type='SequenceFile' fileversion='920' productname='TestStand'>"
+    "<typelist/><Data classname='Obj'><subprops>"
+    "<Seq classname='Objs'><value lbound='[0]' ubound='[1]'><value>"
+    "<Sequence name='MainSequence' classname='Obj'><subprops>"
+    "<Main classname='Objs'><value lbound='[0]' ubound='[1]'><value>"
+    "<Step typename='Statement' name='Decide'><subprops>"
+    "<TS classname='Obj'><subprops>"
+    "<StatusExpr><value>Locals.x == 1</value></StatusExpr>"
+    "</subprops></TS>"
+    "</subprops></Step>"
+    "</value></value></Main>"
+    "</subprops></Sequence></value></value></Seq></subprops></Data>"
+    "</teststandfileheader>",
+  ),
+]);
+
 Uint8List _binary() {
   final pool = <int>[];
   for (final n in [
@@ -216,6 +238,16 @@ void main() {
     // It is also reflected in the one-line summary and is searchable.
     expect(step.summary, contains('{mode Skip}'));
     expect(stepMatches(step, 'skip'), isTrue);
+  });
+
+  test('StepOutline.of surfaces a step status expression', () {
+    final doc = SeqDocument.parse(_xmlWithStatusExpr()) as XmlSeqDocument;
+    final step = SeqOutline.of(doc.file).sequences.single.groups.single.steps.single;
+    expect(step.name, 'Decide');
+    expect(step.expressions, contains(('Status', 'Locals.x == 1')));
+    // It is searchable and reflected in the one-line summary.
+    expect(stepMatches(step, 'locals.x'), isTrue);
+    expect(step.summary, contains('Status: Locals.x == 1'));
   });
 
   test('a Normal-mode step has no runMode (default is not noteworthy)', () {

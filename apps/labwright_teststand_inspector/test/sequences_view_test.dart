@@ -79,5 +79,21 @@ void main() {
       expect(find.text('Main'), findsOneWidget);
       expect(find.textContaining('mode:'), findsNothing);
     });
+
+    testWidgets('renders a step status expression row', (tester) async {
+      await pump(
+        tester,
+        outlineWith(StepOutline(
+          name: 'Decide',
+          type: 'Statement',
+          expressions: const [('Status', 'Locals.x == 1')],
+          notes: const [],
+        )),
+      );
+      expect(
+        find.textContaining('Locals.x == 1', findRichText: true),
+        findsOneWidget,
+      );
+    });
   });
 }
