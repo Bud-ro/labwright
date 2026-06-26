@@ -68,7 +68,7 @@ class _PropertiesViewState extends State<PropertiesView> {
                   key: ValueKey(_query),
                   padding: const EdgeInsets.all(8),
                   children: [
-                    _PropertyTile(
+                    PropertyTile(
                       node: filtered,
                       depth: 0,
                       // Root expanded by default; when filtering, expand all so
@@ -84,8 +84,8 @@ class _PropertiesViewState extends State<PropertiesView> {
   }
 }
 
-class _PropertyTile extends StatelessWidget {
-  const _PropertyTile({
+class PropertyTile extends StatelessWidget {
+  const PropertyTile({
     required this.node,
     required this.depth,
     this.initiallyExpanded = false,
@@ -124,7 +124,7 @@ class _PropertyTile extends StatelessWidget {
         subtitle: subtitle,
         children: [
           for (final child in node.children)
-            _PropertyTile(
+            PropertyTile(
                 node: child, depth: depth + 1, forceExpanded: forceExpanded),
         ],
       ),

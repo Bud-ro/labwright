@@ -14,6 +14,7 @@ import 'src/properties_view.dart';
 import 'src/recent_files.dart';
 import 'src/sequence_outline.dart';
 import 'src/sequences_view.dart';
+import 'src/types_view.dart';
 import 'src/ui.dart';
 
 void main(List<String> args) {
@@ -52,6 +53,7 @@ class _InspectorPageState extends State<InspectorPage> {
   // down into the respective view's TextField.
   final _sequencesSearchFocus = FocusNode();
   final _propertiesSearchFocus = FocusNode();
+  final _typesSearchFocus = FocusNode();
 
   static const _recentPrefsKey = 'recentFiles';
   SharedPreferences? _prefs;
@@ -87,14 +89,17 @@ class _InspectorPageState extends State<InspectorPage> {
   void dispose() {
     _sequencesSearchFocus.dispose();
     _propertiesSearchFocus.dispose();
+    _typesSearchFocus.dispose();
     super.dispose();
   }
 
   /// Focuses the search field of the tab at [tabIndex] (Dump has none → no-op).
-  /// Indices match the TabBar order: 0 Dump, 1 Sequences, 2 Properties.
+  /// Indices match the TabBar order: 0 Dump, 1 Sequences, 2 Properties, 3 Types
+  /// (the latter three present only for a structured file with types).
   void _focusSearch(int tabIndex) {
     if (tabIndex == 1) _sequencesSearchFocus.requestFocus();
     if (tabIndex == 2) _propertiesSearchFocus.requestFocus();
+    if (tabIndex == 3) _typesSearchFocus.requestFocus();
   }
 
   void _loadBytes(String path, Uint8List bytes, {bool remember = true}) {
@@ -141,9 +146,12 @@ class _InspectorPageState extends State<InspectorPage> {
     final outline = file != null ? SeqOutline.of(file) : null;
     final tree = file != null ? propertyTree(file) : null;
     final coverage = file != null ? coverageLabel(measureCoverage(file)) : null;
+    final types = file?.types ?? const <SeqProperty>[];
     final typeCount = file?.types.length;
+    // The Types tab appears only when the file actually defines a type palette.
+    final hasTypes = types.isNotEmpty;
     return DefaultTabController(
-      length: file != null ? 3 : 1,
+      length: file != null ? (hasTypes ? 4 : 3) : 1,
       // Builder so the shortcut can read the active tab via DefaultTabController.
       child: Builder(
         builder: (context) {
@@ -184,6 +192,7 @@ class _InspectorPageState extends State<InspectorPage> {
                       const Tab(text: 'Dump'),
                       if (file != null) const Tab(text: 'Sequences'),
                       if (file != null) const Tab(text: 'Properties'),
+                      if (hasTypes) const Tab(text: 'Types'),
                     ],
                   ),
                 ),
@@ -192,7 +201,7 @@ class _InspectorPageState extends State<InspectorPage> {
                     final file = d.files.isNotEmpty ? d.files.first : null;
                     if (file != null) _loadPath(file.path);
                   },
-                  child: _body(doc, outline, tree, coverage, typeCount),
+                  child: _body(doc, outline, tree, coverage, typeCount, types),
                 ),
               ),
             ),
@@ -234,6 +243,7 @@ class _InspectorPageState extends State<InspectorPage> {
     PropertyNode? tree,
     String? coverage,
     int? typeCount,
+    List<SeqProperty> types,
   ) {
     if (_error != null) {
       return Center(
@@ -321,6 +331,11 @@ class _InspectorPageState extends State<InspectorPage> {
                 PropertiesView(
                   root: tree,
                   searchFocusNode: _propertiesSearchFocus,
+                ),
+              if (types.isNotEmpty)
+                TypesView(
+                  types: types,
+                  searchFocusNode: _typesSearchFocus,
                 ),
             ],
           ),
