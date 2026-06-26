@@ -48,7 +48,7 @@ void main(List<String> args) {
     ..writeln('|---|--:|--:|--:|--:|--:|--:|');
   stdout.writeln('source                              xml  seqs steps  modeled  total  model%');
   for (final src in bySource.keys.toList()..sort()) {
-    final s = _measure(bySource[src]!);
+    final s = _measure(bySource[src]!, SeqFormat.xml);
     overall
       ..files += s.files
       ..seqs += s.seqs
@@ -66,6 +66,18 @@ void main(List<String> args) {
       'model coverage ${(overall.cov.ratio * 100).toStringAsFixed(1)}% '
       '(${overall.cov.modeled}/${overall.cov.total} property nodes)');
 
+  // The legacy INI encoding maps onto the same SeqProperty model, so the same
+  // lens + coverage metric apply. Measured separately (it is a different, older
+  // format): its raw tree is larger because each step INLINES its step-type
+  // definition (DescriptionFormat/DefaultNameFormat/CodeTemplates/Group/…), which
+  // the XML form keeps centralized in <typelist> — so the % is lower without any
+  // missing per-step instance data. INI files >300KB are skipped (OOM guard).
+  final iniFiles = [for (final fs in bySource.values) ...fs];
+  final ini = _measure(iniFiles, SeqFormat.ini);
+  stdout.writeln('INI   ${ini.files} INI .seq · ${ini.seqs} sequences · ${ini.steps} steps · '
+      'model coverage ${(ini.cov.ratio * 100).toStringAsFixed(1)}% '
+      '(${ini.cov.modeled}/${ini.cov.total} property nodes)');
+
   final report = StringBuffer()
     ..writeln('# TestStand XML model — coverage report card')
     ..writeln()
@@ -78,19 +90,28 @@ void main(List<String> args) {
     ..writeln()
     ..writeln(md.toString().trimRight())
     ..writeln()
-    ..writeln('**TOTAL** ${overall.files} XML .seq · ${overall.seqs} sequences · '
+    ..writeln('**TOTAL (XML)** ${overall.files} XML .seq · ${overall.seqs} sequences · '
         '${overall.steps} steps · model coverage '
         '${(overall.cov.ratio * 100).toStringAsFixed(1)}% '
-        '(${overall.cov.modeled}/${overall.cov.total} property nodes).');
+        '(${overall.cov.modeled}/${overall.cov.total} property nodes).')
+    ..writeln()
+    ..writeln('**TOTAL (INI, legacy)** ${ini.files} INI .seq · ${ini.seqs} sequences · '
+        '${ini.steps} steps · model coverage '
+        '${(ini.cov.ratio * 100).toStringAsFixed(1)}% '
+        '(${ini.cov.modeled}/${ini.cov.total} property nodes). Lower than XML '
+        'because each step inlines its step-type definition (kept in `<typelist>` '
+        'for XML); no per-step instance data is missing. Files >300KB skipped.');
   File('$root/REPORT.md').writeAsStringSync('$report\n');
   stdout.writeln('wrote $root/REPORT.md');
 }
 
-_Stat _measure(List<File> files) {
+_Stat _measure(List<File> files, SeqFormat fmt) {
   final s = _Stat();
   for (final f in files..sort((a, b) => a.path.compareTo(b.path))) {
+    // INI files can be very large; skip >300KB to avoid the parser OOMing.
+    if (fmt == SeqFormat.ini && f.lengthSync() > 300 * 1024) continue;
     final bytes = f.readAsBytesSync();
-    if (detectSeqFormat(bytes) != SeqFormat.xml) continue;
+    if (detectSeqFormat(bytes) != fmt) continue;
     final SeqFile sf;
     try {
       sf = parseSeqFile(bytes);

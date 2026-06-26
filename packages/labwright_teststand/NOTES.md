@@ -145,7 +145,8 @@ refused (not mis-parsed).
   call site — distinct from the empty sequence-level parameter list above.
 - **Coverage metric**: `measureCoverage(SeqFile)` → `SeqCoverage{total, modeled}`
   counts what fraction of `Data`-tree property nodes the typed lens surfaces.
-  `tool/coverage.dart` runs it over the **XML** `.seq` files in `corpus/seq` and
+  `tool/coverage.dart` runs it over **both** the XML and the legacy **INI** `.seq`
+  files in `corpus/seq` (reported separately) and
   writes a gitignored `corpus/seq/REPORT.md`. Current: **49.5% (9372/18932
   nodes)** over 26 XML files (incl. `Step.id`=`TS.Id`, and the boolean step flags
   `StepFCSeqF`/`IgnoreRTE`/`ResultOption` → `StepSettings.failureCausesSequence-
@@ -560,6 +561,27 @@ So the triplet is **corroborated structure but not a decoder**, and `field`/
   **records are large byte-packed structs, not a flat index array** (else the
   valid ratio would be ~100%, not 40%). Reconfirms the plateau below: more
   statistical scanning does not unblock the grammar.
+
+**INI (legacy 3rd encoding) — covered by the shared lens; now measured (2026-06).**
+Probed the 39 INI `.seq` files ≤300KB (**187 sequences, 1476 steps** — a much
+larger step corpus than the 26 XML files' 214 steps; all parse cleanly, 0
+failures). The typed lens populates the same per-step INSTANCE data it does for
+XML: modules (labView 128 / sequenceCall 461 / cModule 105 / none 782), limits,
+flow, expressions, additional-results (435 steps). `params`/`py`/`plugins` = 0 as
+expected — INI predates the measurement-plug-in and Python adapters. Coverage on
+INI is **33.1% (51999/157107)** — lower than XML's 49.5% **not** because instance
+data is missing, but because each INI step **inlines its full step-TYPE
+definition** (`DescriptionFormat`/`DefaultNameFormat`/`ItemName`/`CodeTemplates`/
+`Group`/`Menu`/`Substeps`/`CanBeSubstepType…`, exactly once per step) which the
+XML form keeps centralized in `<typelist>` (already modeled via [SeqType]). The
+rest of the INI unmodeled tree is the SAME off-limits content as XML — the
+TS-option cluster (`CanEdit*`/`LoopOpt`/`WindowActivation`/`BatchSyncOpt`/
+`Switch*`/`RouteGroup*`, ~1387–1475× each) and empty scaffolding
+(`AdditionalResultsHints`/`Requirements`→`Links`/`Category`). `tool/coverage.dart`
+now reports INI alongside XML. **Conclusion: no INI-only per-step instance data is
+unmodeled; the gap is inlined type boilerplate + off-limits codes** (modeling the
+inlined type defs would just duplicate the `<typelist>` recovery as per-step
+boilerplate — declined).
 
 **Decode status — statistical byte-RE has plateaued.** The structure is mapped
 (header → name-pool indices → byte-packed records → string pool) and the

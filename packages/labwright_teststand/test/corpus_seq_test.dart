@@ -549,6 +549,42 @@ void main() {
     expect(dataNamed, ini, reason: 'an INI names no object "Data"');
   });
 
+  test('the typed lens + coverage metric apply to INI (shared model)', () {
+    var ini = 0, steps = 0, withModule = 0, withAddl = 0;
+    var covTotal = 0, covModeled = 0;
+    for (final f in seqs) {
+      if (f.lengthSync() > 300 * 1024) continue; // OOM guard (matches the tool)
+      final bytes = f.readAsBytesSync();
+      if (detectSeqFormat(bytes) != SeqFormat.ini) continue;
+      ini++;
+      final sf = parseSeqFile(bytes);
+      final c = measureCoverage(sf);
+      covTotal += c.total;
+      covModeled += c.modeled;
+      for (final seq in sf.sequences) {
+        for (final step in seq.steps) {
+          steps++;
+          if (step.module.adapter != SeqAdapter.none) withModule++;
+          if (step.additionalResults.isNotEmpty) withAddl++;
+        }
+      }
+    }
+    // ignore: avoid_print
+    print(
+      'INI lens: $ini files · $steps steps · $withModule with a module adapter · '
+      '$withAddl with additional-results · coverage '
+      '${(covModeled / covTotal * 100).toStringAsFixed(1)}% ($covModeled/$covTotal)',
+    );
+    // The same SeqProperty model + lens drive INI: a large step corpus, real
+    // module/additional-results recovery, and a sane (non-zero, sub-XML) coverage
+    // — lower because INI inlines step-type defs that XML keeps in <typelist>.
+    expect(ini, greaterThanOrEqualTo(30));
+    expect(steps, greaterThanOrEqualTo(1000));
+    expect(withModule, greaterThanOrEqualTo(500));
+    expect(covModeled, greaterThan(0));
+    expect(covModeled, lessThan(covTotal));
+  });
+
   test('INI parser drops no in-section data lines (every line is key = value)',
       () {
     // Honesty/robustness guard: inside a section, parseIniSeq skips any line
