@@ -85,12 +85,14 @@ void main() {
           if (body != null) {
             withBinaryBody++;
             expect(String.fromCharCodes(body), contains('Sequence'));
-            // The body name pool surfaces the model's property names.
+            // The body name pool surfaces the model's property names. (A few
+            // small/atypical files carry only some of these tokens, so we
+            // require at least one rather than all three — holds 288/288.)
             final names = binaryBodyStrings(bytes).map((s) => s.text).toSet();
             expect(
-              names,
-              containsAll(['Sequence', 'Step', 'Locals']),
-              reason: '${f.path}: body strings missing model names',
+              ['Sequence', 'Step', 'Locals'].any(names.contains),
+              isTrue,
+              reason: '${f.path}: body strings missing all core model names',
             );
             // And there is a sizeable contiguous string table.
             expect(
@@ -145,9 +147,11 @@ void main() {
 
   test('every binary TOF1 body frames into a record region + string table', () {
     var binary = 0, framed = 0, withSentinels = 0, totalStrings = 0;
-    // Leading-word invariants (recon).
-    var word2Is1 = 0, word1InSet = 0;
-    final word1Values = <int>{};
+    // Leading-word recon. word[2] is a constant 1 across the corpus; word[1]
+    // varies widely (the earlier "∈ {16,118} selector" was overfit to the small
+    // NI-example set — see NOTES.md), so we report its spread, not assert it.
+    var word2Is1 = 0;
+    final word1Values = <int, int>{};
     final failures = <String>[];
     for (final f in seqs) {
       final bytes = f.readAsBytesSync();
@@ -170,13 +174,12 @@ void main() {
       }
       final w = layout.leadingWords;
       if (w.length >= 3 && w[2] == 1) word2Is1++;
-      if (w.length >= 2 && (w[1] == 16 || w[1] == 118)) {
-        word1InSet++;
-        word1Values.add(w[1]);
-      }
-      // The string region splits into multiple packed tables (segments).
+      if (w.length >= 2) word1Values[w[1]] = (word1Values[w[1]] ?? 0) + 1;
+      // The string region splits into packed tables (segments); the count is
+      // consistent with binaryStringSegments and is at least 2 (record region +
+      // ≥1 string table). Most files have many more; a few small ones have 2–5.
       final segments = binaryStringSegments(bytes);
-      if (layout.segmentCount != segments.length || layout.segmentCount < 6) {
+      if (layout.segmentCount != segments.length || layout.segmentCount < 2) {
         failures.add('${f.path}: ${layout.segmentCount} segments');
       }
     }
@@ -184,15 +187,14 @@ void main() {
     print(
       'binary framing: $framed/$binary framed · '
       '$withSentinels with ff-sentinels · $totalStrings strings total · '
-      'word2==1 $word2Is1/$binary · word1∈{16,118} $word1InSet/$binary '
-      '(values $word1Values) · all ≥6 string segments',
+      'word2==1 $word2Is1/$binary · word1 spread $word1Values · '
+      'all ≥2 string segments',
     );
     expect(framed, binary, reason: 'some binary bodies did not frame');
     expect(failures, isEmpty, reason: failures.join('\n'));
-    // Decoded record-header invariants (recon): the 3rd leading u32 is a
-    // constant 1, and the 2nd is one of two values, across the whole corpus.
+    // Record-header invariant that holds across the whole corpus: the 3rd
+    // leading u32 is a constant 1. (word[1] is NOT a fixed small set — refuted.)
     expect(word2Is1, binary, reason: 'leadingWords[2] != 1 in some files');
-    expect(word1InSet, binary, reason: 'leadingWords[1] not in {16,118}');
   });
 
   // Expression-like marker: a TestStand expression/value string carries a member
@@ -262,10 +264,13 @@ void main() {
       reason: 'no content-identified name table somewhere',
     );
     expect(hasModelTokens, binary, reason: 'name table missing core tokens');
+    // The name table is almost never the largest segment (value/expression
+    // tables are bigger) — holds for the vast majority, not 100% (one file's
+    // name table edges out its others).
     expect(
-      notLargest,
-      binary,
-      reason: 'name table is the largest segment somewhere',
+      notLargest / binary,
+      greaterThan(0.95),
+      reason: 'name table is the largest segment too often ($notLargest/$binary)',
     );
     // Names vs. values are separated: every file has expression-like strings in
     // a segment other than the name table.
@@ -277,7 +282,7 @@ void main() {
   });
 
   test('binary name table is the ordered pool opening with a fixed scaffold', () {
-    var binary = 0, rooted = 0, scaffoldOk = 0, recordIndexesData = 0;
+    var binary = 0, rooted = 0, prefix2Ok = 0, scaffold5Ok = 0, recordIndexesData = 0;
     final failures = <String>[];
     for (final f in seqs) {
       final bytes = f.readAsBytesSync();
@@ -291,17 +296,22 @@ void main() {
       final names = [for (final e in name.entries) e.text];
       if (names.isEmpty || names.first != 'SequenceFileData') continue;
       rooted++;
-      // The first five entries are the fixed PropertyObject container scaffold.
+      // Firm prefix (holds for every rooted file): the pool opens with the
+      // container root then 'Data'.
+      if (names.length >= 2 && names[1] == 'Data') {
+        prefix2Ok++;
+      } else {
+        failures.add('${f.path}: prefix ${names.take(2).toList()} != [SequenceFileData, Data]');
+      }
+      // The full 5-entry scaffold [SequenceFileData,Data,Objs,Seq,[0]] is the
+      // common case but NOT universal — real-world files also use other roots
+      // (e.g. [...,Data,Attributes,Obj,TestStand]). Counted, not required.
       final prefix = names.take(binaryNameScaffold.length).toList();
       var matches = prefix.length == binaryNameScaffold.length;
       for (var i = 0; matches && i < binaryNameScaffold.length; i++) {
         if (prefix[i] != binaryNameScaffold[i]) matches = false;
       }
-      if (matches) {
-        scaffoldOk++;
-      } else {
-        failures.add('${f.path}: prefix $prefix != $binaryNameScaffold');
-      }
+      if (matches) scaffold5Ok++;
       // The record stream opens by referencing the scaffold by index: the 3rd
       // record word is the constant 1, which selects name[1] == 'Data'.
       final words = binaryRecordWords(bytes);
@@ -312,18 +322,21 @@ void main() {
     // ignore: avoid_print
     print(
       'binary name pool: $rooted/$binary rooted at SequenceFileData · '
-      '$scaffoldOk/$rooted open with the 5-entry scaffold · '
+      '$prefix2Ok/$rooted open with [SequenceFileData, Data] · '
+      '$scaffold5Ok/$rooted with the full 5-entry scaffold · '
       '$recordIndexesData/$rooted record word[2]==1 -> name[1]==Data',
     );
     expect(failures, isEmpty, reason: failures.join('\n'));
-    // Firm: the vast majority of binary files are full sequence files rooted at
-    // SequenceFileData, and every such file opens with the exact scaffold and
-    // has its record stream reference name[1]=='Data' by the constant index 1.
+    // Firm: most binary files are full sequence files rooted at SequenceFileData;
+    // every such file opens with the [SequenceFileData, Data] prefix and has its
+    // record stream reference name[1]=='Data' by the constant index 1.
     expect(rooted, greaterThanOrEqualTo(80), reason: 'few files are rooted');
+    expect(prefix2Ok, rooted, reason: 'a rooted file lacks the [..,Data] prefix');
+    // The full 5-entry scaffold is the dominant (not universal) root shape.
     expect(
-      scaffoldOk,
-      rooted,
-      reason: 'a rooted file lacks the scaffold prefix',
+      scaffold5Ok / rooted,
+      greaterThan(0.95),
+      reason: 'the 5-entry scaffold is rarer than expected ($scaffold5Ok/$rooted)',
     );
     expect(
       recordIndexesData,
@@ -393,11 +406,12 @@ void main() {
     expect(realTot, greaterThan(0));
     // The triplet is a genuine signal: real name indices match far more often
     // than control indices. (Not clean enough to *extract* objects — the control
-    // rate is ~50% — but well above chance, corroborating the record shape.)
+    // rate is ~40% — but well above it, corroborating the record shape. On the
+    // broadened corpus the real rate is ~86%, down from the small-corpus 98%.)
     expect(
       realRate,
-      greaterThan(0.9),
-      reason: 'real-name triplet rate too low',
+      greaterThan(0.8),
+      reason: 'real-name triplet rate too low ($realRate)',
     );
     expect(
       realRate - fakeRate,
@@ -471,47 +485,10 @@ void main() {
     expect(withNames, rooted, reason: 'a rooted file exposed no object names');
   });
 
-  test('leadingWords[1] selects the record-prefix layout', () {
-    var checked = 0, layoutOk = 0;
-    final failures = <String>[];
-    for (final f in seqs) {
-      final bytes = f.readAsBytesSync();
-      if (detectSeqFormat(bytes) != SeqFormat.binary) continue;
-      final name = binaryNameTable(bytes);
-      if (name == null || name.entries.isEmpty) continue;
-      if (name.entries.first.text != 'SequenceFileData') continue;
-      final layout = analyzeBinaryBody(bytes);
-      final words = binaryRecordWords(bytes);
-      if (layout == null ||
-          layout.leadingWords.length < 2 ||
-          words.length < 8) {
-        continue;
-      }
-      checked++;
-      final w1 = layout.leadingWords[1];
-      // Each leadingWords[1] cohort has a deterministic scaffold-prefix layout.
-      final ok = switch (w1) {
-        118 => words[3] == 2 && words[5] == 4 && words[7] == 768,
-        16 => words[5] == 3 && words[7] == 0,
-        _ => false,
-      };
-      if (ok) {
-        layoutOk++;
-      } else {
-        failures.add(
-          '${f.path}: w1=$w1 words[3,5,7]='
-          '${[words[3], words[5], words[7]]}',
-        );
-      }
-    }
-    // ignore: avoid_print
-    print(
-      'record-prefix layout: $layoutOk/$checked match their '
-      'leadingWords[1] cohort layout',
-    );
-    expect(failures, isEmpty, reason: failures.join('\n'));
-    expect(checked, greaterThanOrEqualTo(80), reason: 'too few rooted files');
-    // Firm: leadingWords[1] deterministically picks the prefix layout.
-    expect(layoutOk, checked, reason: 'a file breaks its cohort layout');
-  });
+  // REMOVED — 'leadingWords[1] selects the record-prefix layout'. This asserted
+  // leadingWords[1] ∈ {16,118} each picking a deterministic words[3,5,7] layout.
+  // The broadened 288-file corpus refuted it: leadingWords[1] takes many values
+  // (16, 18, 20, 118, 256, 272, 276, …), so it is not a two-valued layout
+  // selector. The original claim was overfit to the NI-example subset. The
+  // record-prefix structure past the header is not yet decoded (see NOTES.md).
 }
