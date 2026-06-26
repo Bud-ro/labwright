@@ -15,6 +15,7 @@ class BinaryView extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final rows = binaryHeaderRows(doc);
+    final sections = binaryRecoverySections(doc);
     // Prefer the largest contiguous table; fall back to all recovered strings.
     final strings = doc.stringTable.isNotEmpty ? doc.stringTable : doc.strings;
 
@@ -50,30 +51,52 @@ class BinaryView extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 10),
-              Text('Recovered strings (${strings.length})',
-                  style: theme.textTheme.titleSmall),
             ],
           ),
         ),
         const Divider(height: 1),
         Expanded(
-          child: strings.isEmpty
-              ? const Center(child: Text('No strings recovered.'))
-              : ListView.builder(
-                  itemCount: strings.length,
-                  itemBuilder: (context, i) {
-                    final s = strings[i];
-                    return ListTile(
-                      dense: true,
-                      visualDensity: VisualDensity.compact,
-                      leading: Text('0x${s.offset.toRadixString(16)}',
-                          style: monoStyle.copyWith(
-                              fontSize: 11, color: theme.hintColor)),
-                      title: SelectableText(s.text, style: monoStyle),
-                    );
-                  },
+          child: ListView(
+            children: [
+              // Categorized recovered datums (collapsible) — what the file calls,
+              // references, evaluates, and the constant values it carries. The
+              // record links that attach each to a step are not yet decoded.
+              for (final s in sections)
+                ExpansionTile(
+                  dense: true,
+                  title: Text('${s.title} (${s.items.length})',
+                      style: theme.textTheme.titleSmall),
+                  children: [
+                    for (final item in s.items)
+                      ListTile(
+                        dense: true,
+                        visualDensity: VisualDensity.compact,
+                        title: SelectableText(item, style: monoStyle),
+                      ),
+                  ],
                 ),
+              ExpansionTile(
+                dense: true,
+                title: Text('All recovered strings (${strings.length})',
+                    style: theme.textTheme.titleSmall),
+                children: [
+                  if (strings.isEmpty)
+                    const ListTile(
+                        dense: true, title: Text('No strings recovered.'))
+                  else
+                    for (final s in strings)
+                      ListTile(
+                        dense: true,
+                        visualDensity: VisualDensity.compact,
+                        leading: Text('0x${s.offset.toRadixString(16)}',
+                            style: monoStyle.copyWith(
+                                fontSize: 11, color: theme.hintColor)),
+                        title: SelectableText(s.text, style: monoStyle),
+                      ),
+                ],
+              ),
+            ],
+          ),
         ),
       ],
     );

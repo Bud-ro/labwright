@@ -631,6 +631,28 @@ void main() {
     expect(int.parse(map['Quoted literals']!), greaterThanOrEqualTo(1));
   });
 
+  test('binaryRecoverySections groups non-empty recovered datums', () {
+    final doc = SeqDocument.parse(_binary()) as BinarySeqDocument;
+    final sections = binaryRecoverySections(doc);
+    final titles = [for (final s in sections) s.title];
+    // The fixture exercises every category, so all five are present and ordered.
+    expect(titles, [
+      'Object names',
+      'Module call-targets',
+      'Step references',
+      'Expressions (test logic)',
+      'Quoted literals (values)',
+    ]);
+    // Every listed section is non-empty (empties are dropped) with real content.
+    for (final s in sections) {
+      expect(s.items, isNotEmpty);
+    }
+    final byTitle = {for (final s in sections) s.title: s.items};
+    expect(byTitle['Module call-targets'], contains(r'My Computer\Lib\Read.vi'));
+    expect(byTitle['Expressions (test logic)'], contains('Locals.x == 1'));
+    expect(byTitle['Quoted literals (values)'], contains('"6105A"'));
+  });
+
   test('writeCapped lists up to the cap, then an honest "and N more"', () {
     // Under the cap: every item listed, no summary line.
     final small = StringBuffer();

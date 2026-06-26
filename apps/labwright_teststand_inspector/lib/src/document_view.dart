@@ -76,6 +76,21 @@ String documentTitle(SeqDocument doc) {
   return '${h.fileType ?? 'TestStand'} · ${h.format.name} · $kind';
 }
 
+/// The recovered-datum categories of a binary `TOF1` document as
+/// (title, items) groups, omitting empty ones — for collapsible UI sections.
+/// Pure. Each title states the count; the items are the recovered strings.
+List<({String title, List<String> items})> binaryRecoverySections(
+  BinarySeqDocument doc,
+) {
+  return [
+    (title: 'Object names', items: doc.objectNames),
+    (title: 'Module call-targets', items: doc.modulePaths),
+    (title: 'Step references', items: doc.stepReferences),
+    (title: 'Expressions (test logic)', items: doc.expressions),
+    (title: 'Quoted literals (values)', items: doc.quotedLiterals),
+  ].where((s) => s.items.isNotEmpty).toList();
+}
+
 /// Header/recon facts for a binary `TOF1` document, as label→value rows for a
 /// small table. Pure. Only includes what the reader actually recovered (no
 /// build/compatible version is stored on the header yet, so it isn't shown).

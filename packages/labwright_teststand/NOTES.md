@@ -901,11 +901,21 @@ string pool, honestly, without the record grammar:
   `"..."`, excluding quoted entries that are really expressions, so it stays
   disjoint from the four above. Corpus: **288/288 files, 2883 distinct**.
 
+**Binary record region — probed, structural wins exhausted (needs external input).**
+Full-corpus probing of `binaryRecordWords` (233 rooted files) established what the
+record stream's leading words are: `w[2]` is always name-pool index 1 (`"Data"`,
+the root object) — 233/233, 0 counterexamples (the first record→name anchor; also
+noted on `binaryRecordWords`). `w[1]` is a layout/version selector taking several
+values (118×179, 16×38, 20×12, plus 18/272/276) — not a 2-way split. `w[0]` is
+**not** a simple count (≠ name-pool size / object count / record-word count /
+segment count). Beyond `w[2]`, constant positions are layout-specific, not
+universal. The variable-length record grammar that ties a name to its record/value
+needs a byte-identical INI↔binary twin (absent) or NI docs — not more probing.
+
 **Genuine gaps (need external inputs — do NOT guess):**
-- **Binary record grammar** past the header — not yet recovered (needs a
-  byte-identical INI↔binary twin, absent from the corpus, or NI docs). The string
-  *content* (names, module paths, step refs, expressions, literals) is recoverable
-  (above); the *records* that tie strings to a parsed step tree are not yet decoded.
+- **Binary record grammar** past the header — not yet recovered (see above). The
+  string *content* (names, module paths, step refs, expressions, literals) is
+  recoverable; the *records* that tie strings to a parsed step tree are not.
 - **Flag/enum bitmasks** whose *values* are stored but whose *meaning* needs NI's
   enums: the type-level `%FLG` PropertyFlags (now recovered as
   `SeqProperty.propertyFlags` + bit *membership* mapped — see the PropertyFlags
