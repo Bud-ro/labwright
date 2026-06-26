@@ -600,6 +600,27 @@ class StepSettings {
 
   String? _flowTarget(String key) => _nz(_unwrapExprString(_scalar(key)));
 
+  /// Parses a TS boolean step-setting: stored either as `true`/`false` or `1`/`0`.
+  /// null when the key is absent or unrecognized.
+  bool? _bool(String key) => switch (_scalar(key)) {
+        'true' || '1' => true,
+        'false' || '0' => false,
+        _ => null,
+      };
+
+  /// Whether this step's failure fails the whole sequence (`StepFCSeqF` — "step
+  /// failure causes sequence failure"). null when the step records no value.
+  bool? get failureCausesSequenceFailure => _bool('StepFCSeqF');
+
+  /// Whether the step ignores run-time errors (`IgnoreRTE`) instead of letting
+  /// them abort execution. null when unset.
+  bool? get ignoresRunTimeErrors => _bool('IgnoreRTE');
+
+  /// Whether the step records its result into the report/`ResultList`
+  /// (`ResultOption`, stored `1`/`0`). null when unset. (The flag is the step's
+  /// "record results" toggle; `1` is the enabled/record state in the corpus.)
+  bool? get recordsResult => _bool('ResultOption');
+
   /// A compact flow-action summary `pass[→target]/fail[→target]` (e.g.
   /// `Next/Goto→<Cleanup>`), or null when neither action is set. The `→target`
   /// suffix is added only for a non-`Next` action that carries a jump target.

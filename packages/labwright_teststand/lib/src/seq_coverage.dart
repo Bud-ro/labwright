@@ -26,13 +26,15 @@ class SeqCoverage {
 /// The `TS` step-setting keys the lens surfaces (kept in sync with [StepSettings]
 /// and [Step] — the step's unique id, run mode, module load/unload, precondition,
 /// the four loop expressions, pre/post/status expressions, pass/fail actions and
-/// their jump targets, and the step icon). Each is a direct `TS` child.
+/// their jump targets, the step icon, and the boolean flags step-fail-causes-
+/// sequence-fail / ignore-run-time-errors / record-result). Each is a `TS` child.
 const _settingKeys = [
   'Id', 'Mode', 'LoadOpt', 'UnloadOpt', 'PreCond', 'Icon',
   'LoopType', 'LoopWhile', 'LoopInitialize', 'LoopIncrement', 'LoopStatus',
   'PreExpr', 'PostExpr', 'StatusExpr',
   'PassAct', 'FailAct',
   'PassActTarget', 'FailActTarget', 'CustTrueActTarget', 'CustFalseActTarget',
+  'StepFCSeqF', 'IgnoreRTE', 'ResultOption',
 ];
 
 /// Measures [SeqCoverage] for [f] (the `Data` tree only; the type list is

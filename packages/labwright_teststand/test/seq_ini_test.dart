@@ -1280,7 +1280,8 @@ ${tsKeys.map((k) => '$k = "v"').join('\n')}
     final base = modeledFor(['Mode']);
     // Each newly-tracked setting the lens reads adds exactly one modeled node.
     for (final k in [
-      'Id', 'UnloadOpt', 'LoopInitialize', 'LoopIncrement', 'LoopStatus', 'Icon'
+      'Id', 'UnloadOpt', 'LoopInitialize', 'LoopIncrement', 'LoopStatus', 'Icon',
+      'StepFCSeqF', 'IgnoreRTE', 'ResultOption',
     ]) {
       expect(modeledFor(['Mode', k]), base + 1, reason: '$k not counted');
     }
@@ -1292,5 +1293,51 @@ ${tsKeys.map((k) => '$k = "v"').join('\n')}
     // A step with no TS.Id reads null.
     final g = parseSeqFile(Uint8List.fromList(latin1.encode(covIni(['Mode']))));
     expect(g.sequences.single.main.single.id, isNull);
+  });
+
+  // The boolean TS step-settings parse both 'true'/'false' and '1'/'0' forms.
+  String boolIni(String key, String value) => '''
+[__Header__]
+ProductName = "TestStand"
+Version = 354
+Type = "SequenceFile"
+
+[DEF, %OBJROOT]
+SF = SequenceFileData
+[DEF, SF]
+Seq = Objs
+%NAME = "Data"
+[DEF, SF.Seq]
+%[0] = Sequence
+[DEF, SF.Seq[0]]
+Main = Objs
+%NAME = "MainSequence"
+[DEF, SF.Seq[0].Main]
+%[0] = Step
+%TYPE: %[0] = "Action"
+[DEF, SF.Seq[0].Main[0]]
+TS = Obj
+%NAME = "s"
+[DEF, SF.Seq[0].Main[0].TS]
+$key = String
+[SF.Seq[0].Main[0].TS]
+$key = "$value"
+''';
+
+  test('StepSettings recovers boolean step flags (true/false and 1/0)', () {
+    StepSettings settingsWith(String key, String value) =>
+        parseSeqFile(Uint8List.fromList(latin1.encode(boolIni(key, value))))
+            .sequences
+            .single
+            .main
+            .single
+            .settings;
+    expect(settingsWith('StepFCSeqF', 'true').failureCausesSequenceFailure, isTrue);
+    expect(settingsWith('StepFCSeqF', 'false').failureCausesSequenceFailure, isFalse);
+    expect(settingsWith('IgnoreRTE', 'true').ignoresRunTimeErrors, isTrue);
+    expect(settingsWith('ResultOption', '1').recordsResult, isTrue);
+    expect(settingsWith('ResultOption', '0').recordsResult, isFalse);
+    // Absent flag reads null.
+    expect(settingsWith('Mode', 'Normal').recordsResult, isNull);
   });
 }
