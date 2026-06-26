@@ -249,6 +249,10 @@ void main() {
     expect(map['Product'], 'TestStand');
     expect(map['Inflated body'], endsWith('bytes'));
     expect(int.parse(map['Strings recovered']!), greaterThan(0));
+    // The framed-body layout rows are surfaced when the body frames.
+    expect(map.containsKey('Record region'), isTrue);
+    expect(map.containsKey('Record sentinels'), isTrue);
+    expect(int.parse(map['Strings in region']!), greaterThanOrEqualTo(5));
   });
 
   test('documentText/Title handle unrecognized bytes without throwing', () {

@@ -51,6 +51,13 @@ List<(String, String)> binaryHeaderRows(BinarySeqDocument doc) {
     ),
     ('Strings recovered', '${doc.strings.length}'),
     ('Largest string table', '${doc.stringTable.length}'),
+    // The framed body layout (record region + string region), when it framed.
+    if (doc.layout case final l?) ...[
+      ('Record region', '${l.recordRegionLength} bytes'),
+      ('String region @', '${l.stringRegionOffset}'),
+      ('Record sentinels', '${l.sentinelCount}'),
+      ('Strings in region', '${l.stringCount}'),
+    ],
   ];
 }
 

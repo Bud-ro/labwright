@@ -52,6 +52,11 @@ void main() {
     final bin = doc as BinarySeqDocument;
     expect(bin.inflatedSize, greaterThan(0));
     expect(bin.strings.map((s) => s.text), contains('MainSequence'));
+    // The packed-name pool frames as a string region (the synthetic fixture has
+    // no leading u32 record region, so recordRegionLength is 0 here; real corpus
+    // files exercise a non-empty record region in corpus_seq_test).
+    expect(bin.layout, isNotNull);
+    expect(bin.layout!.stringCount, greaterThanOrEqualTo(5));
   });
 
   test('parse → UnknownSeqDocument for arbitrary bytes (no throw)', () {

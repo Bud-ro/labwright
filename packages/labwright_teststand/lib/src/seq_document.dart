@@ -30,6 +30,7 @@ sealed class SeqDocument {
           inflatedSize: inflateBinaryBody(bytes)?.length ?? 0,
           strings: binaryBodyStrings(bytes),
           stringTable: binaryStringTable(bytes),
+          layout: analyzeBinaryBody(bytes),
         );
       case SeqFormat.ini:
       case SeqFormat.unknown:
@@ -56,6 +57,7 @@ class BinarySeqDocument extends SeqDocument {
     required this.inflatedSize,
     required this.strings,
     required this.stringTable,
+    this.layout,
   });
 
   @override
@@ -69,6 +71,10 @@ class BinarySeqDocument extends SeqDocument {
 
   /// The largest contiguous NUL-packed string table in the body (recon).
   final List<BinaryString> stringTable;
+
+  /// The framed body layout (record region + string region), or null when the
+  /// body did not frame. The record grammar itself is **not yet decoded**.
+  final BinaryBodyLayout? layout;
 }
 
 /// A file that is not a recognized/decodable TestStand sequence.
