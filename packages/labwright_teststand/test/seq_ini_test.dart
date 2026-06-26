@@ -1041,4 +1041,36 @@ Units = "V"
     expect(out, contains('{units V}'));
     expect(out, isNot(contains('{limits'))); // not folded into a limits chip
   });
+
+  // CallParameter.direction maps the standard TestStand codes. The corpus only
+  // exercises 1 (in) and 2 (out); `3` (in/out) is a defensive mapping with no
+  // corpus example, so pin it (and the unknown-code passthrough) directly from a
+  // synthetic property rather than an INI fixture.
+  group('CallParameter.direction code mapping', () {
+    CallParameter withDirection(String? code) => CallParameter(SeqProperty(
+          name: 'arg',
+          subProps: [
+            SeqProperty(name: 'Name', scalar: 'arg'),
+            if (code != null) SeqProperty(name: 'Direction', scalar: code),
+          ],
+        ));
+
+    test('1/2/3 map to in/out/in-out', () {
+      expect(withDirection('1').direction, 'in');
+      expect(withDirection('2').direction, 'out');
+      expect(withDirection('3').direction, 'in/out');
+    });
+
+    test('unknown code passes through raw, direction stays null', () {
+      final p = withDirection('5');
+      expect(p.directionCode, '5');
+      expect(p.direction, isNull);
+    });
+
+    test('absent Direction yields null code and null direction', () {
+      final p = withDirection(null);
+      expect(p.directionCode, isNull);
+      expect(p.direction, isNull);
+    });
+  });
 }
