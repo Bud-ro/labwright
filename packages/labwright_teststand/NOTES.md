@@ -337,6 +337,30 @@ byte-packed records. `BinaryBodyLayout.sentinelCount` is therefore a descriptive
 *not* marked by a fixed delimiter — the grammar is length/type-driven and must be
 walked field-by-field from the root container.
 
+**Object-record shape — strong HYPOTHESIS (worked example, not yet corpus-proven).**
+A byte-granularity scan of the simplest file (`QuickDrop.seq`, 12 names) finds
+every named object referenced as a recurring **triplet** `[u32 name-index]
+[u32 field][u32 count]`, occurring at *all* byte alignments (so the records are
+byte-packed, as established). The first clean occurrence of each:
+
+| object (name-idx) | field | count |
+|-------------------|-------|-------|
+| Sequence (6)      | 0x14  | 1     |
+| Start (7)         | 0x14  | 1     |
+| Obj (8)           | 0x47  | 3     |
+| Parameters (9)    | 0x110 | 1     |
+| Locals (10)       | 0x34  | 1     |
+| ResultList (11)   | 0x10  | 1     |
+
+6/6 named objects fit `[idx][field][count]`. Since Parameters/Locals/ResultList
+are all **Containers** yet their `field` differs (272/52/16), `field` is most
+likely a **byte-size of the property's serialized blob**, not a type code; `count`
+is the child/element count (note `Obj` → 3, the array element wrapper). This is
+the first plausible object-record shape and the best current lead — but it is a
+**hypothesis from one file**: each name index also has many *coincidental* u32
+hits in the byte-packed data, so cross-file verification (and disambiguating the
+genuine triplet from noise) is the next step before it can be asserted or coded.
+
 The **record grammar** that delimits one record from the next and pairs each name
 index with its typed value is **not yet fully decoded**. So `parseSeqFile` still
 **refuses** binary (UnsupportedError); the next milestone is that grammar — then
