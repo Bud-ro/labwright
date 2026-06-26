@@ -699,6 +699,36 @@ void main() {
     });
   });
 
+  group('LabVIEW VI-call recovery', () {
+    late StepModule m;
+    setUp(() {
+      m = parseSeqFile(_bytes(_seqViCallXml)).sequences.single.main.single.module;
+    });
+
+    test('recovers the VI-call descriptor', () {
+      expect(m.adapter, SeqAdapter.labView);
+      expect(m.viPath, r'My Computer\NIDCPower.vi');
+      expect(m.viNamespace, 'NIDCPower.lvlib');
+      expect(m.viProjectPath, 'NIDCPower.lvproj');
+    });
+
+    test('recovers the connector-pane parameters in order', () {
+      final p = m.viParameters;
+      expect(p.map((x) => x.name), ['sequence context', 'error out']);
+      expect(p.map((x) => x.displayType), ['Object Reference', 'Container']);
+      expect(p.map((x) => x.connectorNumber), [11, 0]);
+      expect(p.first.boundExpression, 'ThisContext');
+      expect(p[1].boundExpression, 'Step.Result.Error');
+    });
+
+    test('the dump shows the library and connector pane', () {
+      final dump = dumpSeqFile(parseSeqFile(_bytes(_seqViCallXml)));
+      expect(dump, contains('{vi: lib NIDCPower.lvlib, proj NIDCPower.lvproj}'));
+      expect(dump, contains('#11 sequence context (Object Reference)←ThisContext'));
+      expect(dump, contains('#0 error out (Container)←Step.Result.Error'));
+    });
+  });
+
   group('parseSeqFile rejects non-XML honestly', () {
     test('binary TOF1 is unsupported (not silently mis-parsed)', () {
       final bin = Uint8List.fromList([...ascii.encode('TOF1'), 0, 0, 0, 0, 0, 0, ...ascii.encode('SequenceFile'), 0]);
@@ -710,6 +740,48 @@ void main() {
     });
   });
 }
+
+/// A LabVIEW (FGModule) step whose `SData.ViCall` carries the VI descriptor and
+/// a `Parms` connector pane — the real shape probed from the corpus.
+const _seqViCallXml = '''<?xml version="1.0" encoding="UTF-8"?>
+<teststandfileheader type='SequenceFile' fileversion='920' productname='TestStand'>
+  <typelist/>
+  <Data classname='Obj'><subprops>
+    <Seq classname='Objs'><value lbound='[0]' ubound='[1]'><value>
+      <Sequence name='MainSequence' classname='Obj'><subprops>
+        <Main classname='Objs'><value lbound='[0]' ubound='[1]'>
+          <value><Step typename='Action' name='Init DCPower'><subprops>
+            <TS classname='Obj'><subprops>
+            <SData classname='FGModule'><subprops>
+              <ViCall classname='VICall'><subprops>
+                <VIPath classname='PathValue'><value>My Computer\\NIDCPower.vi</value></VIPath>
+                <Namespace classname='Str'><value>NIDCPower.lvlib</value></Namespace>
+                <ProjectPath classname='PathValue'><value>NIDCPower.lvproj</value></ProjectPath>
+                <Parms classname='Objs'><value lbound='[0]' ubound='[2]'>
+                  <value><_NAME_IN_ATTRIBUTE_ name='' classname='Obj'><subprops>
+                    <Label classname='Str'><value>sequence context</value></Label>
+                    <DisplayType classname='Str'><value>Object Reference</value></DisplayType>
+                    <ArgVal classname='ExprValue'><value>ThisContext</value></ArgVal>
+                    <Direction classname='Num'><value>0</value></Direction>
+                    <ConnectorNumber classname='Num'><value>11</value></ConnectorNumber>
+                  </subprops></_NAME_IN_ATTRIBUTE_></value>
+                  <value><_NAME_IN_ATTRIBUTE_ name='' classname='Obj'><subprops>
+                    <Label classname='Str'><value>error out</value></Label>
+                    <DisplayType classname='Str'><value>Container</value></DisplayType>
+                    <ArgVal classname='ExprValue'><value>Step.Result.Error</value></ArgVal>
+                    <Direction classname='Num'><value>0</value></Direction>
+                    <ConnectorNumber classname='Num'><value>0</value></ConnectorNumber>
+                  </subprops></_NAME_IN_ATTRIBUTE_></value>
+                </value></Parms>
+              </subprops></ViCall>
+            </subprops></SData>
+            </subprops></TS>
+          </subprops></Step></value>
+        </value></Main>
+      </subprops></Sequence>
+    </value></value></Seq>
+  </subprops></Data>
+</teststandfileheader>''';
 
 /// A type list whose typedef declares two named fields, each with a type token.
 const _seqTypeDefXml = '''<?xml version="1.0" encoding="UTF-8"?>

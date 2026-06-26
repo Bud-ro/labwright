@@ -146,7 +146,7 @@ refused (not mis-parsed).
 - **Coverage metric**: `measureCoverage(SeqFile)` → `SeqCoverage{total, modeled}`
   counts what fraction of `Data`-tree property nodes the typed lens surfaces.
   `tool/coverage.dart` runs it over the **XML** `.seq` files in `corpus/seq` and
-  writes a gitignored `corpus/seq/REPORT.md`. Current: **46.6% (8826/18932
+  writes a gitignored `corpus/seq/REPORT.md`. Current: **48.5% (9174/18932
   nodes)** over 26 XML files (incl. `Step.id`=`TS.Id`, and the boolean step flags
   `StepFCSeqF`/`IgnoreRTE`/`ResultOption` → `StepSettings.failureCausesSequence-
   Failure`/`ignoresRunTimeErrors`/`recordsResult`, plus the **Additional Results
@@ -811,6 +811,33 @@ by the per-step TS-option cluster." That is **wrong** — the module (`SData`)
 subtree is the largest gap (52.5%), the TS-option cluster is second (25.9%). The
 honest highest-value frontier is the module call-data subtree, not the TS
 options (which remain unconfirmable and off-limits to modeling).
+
+**LabVIEW VI-call descriptor + connector pane — recovered & surfaced (2026-06,
+DONE; +1.9pt coverage).** Acting on the ceiling accounting above, attacked the
+biggest unmodeled bucket: the per-step `SData` module subtree. Probed it across
+the corpus — node concentration is **FGModule (LabVIEW ViCall) 2210 nodes/10
+steps** ≫ CPythonModule 1238/31 ≫ FCModule 70/2. The LabVIEW `ViCall` record is
+richly self-describing, so modeled the parts that need **no** interpretation:
+- **Call descriptor** on `StepModule`: `viNamespace` (`ViCall.Namespace`, the
+  owning `.lvlib`/`.lvclass`, e.g. `NIDCPowerSourceDCVoltage.lvlib`),
+  `viProjectPath` (`.lvproj`), `viCallName`, `viDescription`, `showsFrontPanel`
+  (`ShowFrnPnl`). (`viPath` was already recovered.)
+- **Connector pane**: `StepModule.viParameters` reads `ViCall.Parms` — each a
+  [CallParameter] exposing `name` (now also reads `Label`, the VI-param name),
+  `displayType` (`DisplayType`, a **human-readable** type like `Object
+  Reference`/`Container` — no code-guessing), `boundExpression` (`ArgVal`, the
+  wired expression, e.g. `ThisContext`, `Step.Result.Error`), and
+  `connectorNumber` (`ConnectorNumber`, the connector-pane terminal index).
+Dump shows `{vi: lib …, proj …}` + `{conn: #11 sequence context (Object
+Reference)←ThisContext; …}`. Corpus: **10 VI-call steps, 25 connector params,
+every one with a DisplayType and a connector index, 15 bound, 10 with a library
+namespace.** Coverage **46.6% → 48.5%** (9174/18932). Left raw (not yet decoded):
+the numeric `Type`/`NumType`/`ArrayType`/`ClusterType`/`ReferenceType` codes and
+`Direction` (ViCall `Parms` use a `0`-based encoding distinct from the
+`Parameters` `1/2/3`; `direction` returns null, `directionCode` stays raw). Next
+SData targets: the CPythonModule call descriptor (`FunctionOrAttributeName`,
+`PythonVersion`, `ModulePath`, `ClassName` — all self-evident) and the FCModule
+`Call.Parms` C descriptor.
 
 **Step-id resolution `ID#:` → step name (2026-06, DONE).** Each step's `TS.Id` is
 a unique id in `ID#:<uid>` form (e.g. `ID#:HWpAiIXA8BG5VlB7nf4f8B`). Flow-action

@@ -587,6 +587,42 @@ class StepModule {
     return [for (final p in kids) CallParameter(p)];
   }
 
+  SeqProperty? get _viCall => raw?.prop('ViCall');
+
+  /// The LabVIEW library namespace that owns the called VI (`ViCall.Namespace`),
+  /// e.g. `NIDCPowerSourceDCVoltage.lvlib` — the `.lvlib`/`.lvclass` the VI lives
+  /// in. null for a non-LabVIEW step or when not set.
+  String? get viNamespace => _nz(_viCall?.prop('Namespace')?.scalar);
+
+  /// The LabVIEW project the VI call resolves through (`ViCall.ProjectPath`),
+  /// e.g. `NIDCPowerSourceDCVoltage.lvproj`. null when absent.
+  String? get viProjectPath => _nz(_viCall?.prop('ProjectPath')?.scalar);
+
+  /// An explicit call-name override the editor shows for the VI call
+  /// (`ViCall.CallName`); null when the VI's own name is used.
+  String? get viCallName => _nz(_viCall?.prop('CallName')?.scalar);
+
+  /// The called VI's documented description (`ViCall.VIDescription`); null when
+  /// the VI carries none.
+  String? get viDescription => _nz(_viCall?.prop('VIDescription')?.scalar);
+
+  /// Whether the call is configured to show the VI's front panel at run time
+  /// (`ViCall.ShowFrnPnl`). false when absent.
+  bool get showsFrontPanel => _viCall?.prop('ShowFrnPnl')?.scalar == 'true';
+
+  /// The LabVIEW VI call's connector-pane parameters (`ViCall.Parms`), in
+  /// declaration order — the terminals wired to the subVI. Each [CallParameter]
+  /// exposes its label, display type, bound expression and connector index. The
+  /// numeric type codes (`Type`/`NumType`/`ArrayType`/`ClusterType`) are left
+  /// raw on [CallParameter.raw] (not yet decoded). Empty for a non-LabVIEW step
+  /// or a VI call that wires nothing.
+  List<CallParameter> get viParameters {
+    final parms = _viCall?.prop('Parms');
+    if (parms == null) return const [];
+    final kids = parms.array ?? parms.subProps;
+    return [for (final p in kids) CallParameter(p)];
+  }
+
   static String? _e(String? s) => (s == null || s.isEmpty) ? null : s;
 
   factory StepModule.fromSData(SeqProperty? sdata) {
@@ -658,8 +694,20 @@ class CallParameter {
   /// The underlying parameter property object — full access to its details.
   final SeqProperty raw;
 
-  /// The parameter's name (`Name`), e.g. `LoginName`, `Return Value`.
-  String get name => _nz(raw.prop('Name')?.scalar) ?? raw.name;
+  /// The parameter's name, e.g. `LoginName`, `Return Value`, `sequence context`.
+  /// The ActiveX/C `Parameters` and Python `Parameters` adapters store it as
+  /// `Name`; the LabVIEW VI-call connector list (`ViCall.Parms`) stores it as
+  /// `Label`. Either is read, falling back to the element name.
+  String get name =>
+      _nz(raw.prop('Name')?.scalar) ?? _nz(raw.prop('Label')?.scalar) ?? raw.name;
+
+  /// The connector-pane terminal index this parameter wires to
+  /// (`ConnectorNumber`), for a LabVIEW VI call (`ViCall.Parms`); null when
+  /// absent (the non-LabVIEW adapters don't store a connector index).
+  int? get connectorNumber {
+    final s = _nz(raw.prop('ConnectorNumber')?.scalar);
+    return s == null ? null : int.tryParse(s);
+  }
 
   /// The expression bound to the parameter — what the call passes, e.g.
   /// `Locals.userToLogin`, `ThisContext`,

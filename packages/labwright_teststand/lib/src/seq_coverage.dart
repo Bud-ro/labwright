@@ -74,7 +74,22 @@ SeqCoverage measureCoverage(SeqFile f) {
       for (final rec in ['ViCall', 'Call', 'PythonCall']) {
         mark(sdata?.prop(rec));
       }
-      mark(sdata?.prop('ViCall')?.prop('VIPath'));
+      final viCall = sdata?.prop('ViCall');
+      mark(viCall?.prop('VIPath'));
+      // The LabVIEW VI-call descriptor the lens surfaces (which VI/library is
+      // called and how) plus its connector-pane parameters.
+      for (final k in [
+        'Namespace', 'ProjectPath', 'CallName', 'VIDescription', 'ShowFrnPnl',
+      ]) {
+        mark(viCall?.prop(k));
+      }
+      mark(viCall?.prop('Parms'));
+      for (final p in step.module.viParameters) {
+        mark(p.raw);
+        for (final k in ['Label', 'DisplayType', 'ArgVal', 'Direction', 'ConnectorNumber']) {
+          mark(p.raw.prop(k));
+        }
+      }
       mark(sdata?.prop('Call')?.prop('LibPath'));
       mark(sdata?.prop('Call')?.prop('Func'));
       mark(sdata?.prop('SeqName'));

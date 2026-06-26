@@ -79,6 +79,18 @@ String _dumpCallParam(CallParameter p) {
   return b.toString();
 }
 
+/// Renders one LabVIEW VI-call connector parameter as
+/// `[#conn ]label[ (DisplayType)][←expr]` — e.g.
+/// `#11 sequence context (Object Reference)←ThisContext`.
+String _dumpViParam(CallParameter p) {
+  final b = StringBuffer();
+  if (p.connectorNumber != null) b.write('#${p.connectorNumber} ');
+  b.write(p.name);
+  if (p.displayType != null) b.write(' (${p.displayType})');
+  if (p.boundExpression != null) b.write('←${p.boundExpression}');
+  return b.toString();
+}
+
 String _dumpStep(Step step, SeqFile file) {
   final parts = StringBuffer('${step.name} [${step.type ?? '?'}]');
 
@@ -97,6 +109,18 @@ String _dumpStep(Step step, SeqFile file) {
     final args = m.callParameters;
     if (args.isNotEmpty) {
       parts.write('  {args: ${args.map(_dumpCallParam).join('; ')}}');
+    }
+    // LabVIEW VI call: the library/project that owns the VI and its connector
+    // pane (the terminals wired to the subVI), when recovered.
+    if (m.adapter == SeqAdapter.labView) {
+      final lv = <String>[];
+      if (m.viNamespace != null) lv.add('lib ${m.viNamespace}');
+      if (m.viProjectPath != null) lv.add('proj ${m.viProjectPath}');
+      if (lv.isNotEmpty) parts.write('  {vi: ${lv.join(', ')}}');
+      final vps = m.viParameters;
+      if (vps.isNotEmpty) {
+        parts.write('  {conn: ${vps.map(_dumpViParam).join('; ')}}');
+      }
     }
   }
 

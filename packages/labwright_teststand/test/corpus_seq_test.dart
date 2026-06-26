@@ -169,6 +169,45 @@ void main() {
     );
   });
 
+  test('recovers LabVIEW VI-call connector params across XML corpus', () {
+    var viSteps = 0, params = 0, withDisplayType = 0, withConnector = 0,
+        withNamespace = 0, withBound = 0;
+    for (final f in seqs) {
+      if (f.lengthSync() > 300 * 1024) continue; // huge files: skip (OOM guard)
+      final bytes = f.readAsBytesSync();
+      if (detectSeqFormat(bytes) != SeqFormat.xml) continue;
+      final sf = parseSeqFile(bytes);
+      for (final s in sf.sequences) {
+        for (final step in s.steps) {
+          final m = step.module;
+          if (m.adapter != SeqAdapter.labView) continue;
+          final ps = m.viParameters;
+          if (ps.isEmpty) continue;
+          viSteps++;
+          if (m.viNamespace != null) withNamespace++;
+          for (final p in ps) {
+            params++;
+            if (p.displayType != null) withDisplayType++;
+            if (p.connectorNumber != null) withConnector++;
+            if (p.boundExpression != null) withBound++;
+          }
+        }
+      }
+    }
+    // ignore: avoid_print
+    print(
+      'VI-call: $viSteps steps · $params connector params · '
+      '$withDisplayType with display-type · $withConnector with connector# · '
+      '$withBound bound · $withNamespace steps with a library namespace',
+    );
+    // Corpus evidence (probed): 10 VI-call steps, 25 connector params, every one
+    // carrying a human-readable DisplayType and a connector index.
+    expect(viSteps, greaterThanOrEqualTo(5));
+    expect(params, greaterThanOrEqualTo(20));
+    expect(withDisplayType, equals(params), reason: 'every VI param has a DisplayType');
+    expect(withConnector, equals(params), reason: 'every VI param has a connector#');
+  });
+
   test('recovers <typelist> type definitions across XML corpus', () {
     var files = 0, totalTypes = 0, withFields = 0, totalFields = 0;
     final baseClasses = <String>{};
