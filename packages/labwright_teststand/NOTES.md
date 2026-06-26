@@ -180,8 +180,9 @@ key model names are recovered cleanly: `Sequence`/`Step`/`Locals`/`Parameters`/
 rename their main sequence). → `binaryBodyStrings(seqBytes)` returns those
 strings with offsets; `tool/dump.dart` shows them for a binary file.
 
-Body layout (recon): a leading **record region** (little-endian u32 fields with
-`ff ff ff ff` sentinels) precedes one or more **packed string tables** (the name/
+Body layout (recon): a leading **record region** (little-endian u32 fields plus
+byte-packed values, peppered with `ff ff ff ff` all-ones *values* — NOT record
+delimiters, see below) precedes one or more **packed string tables** (the name/
 type table and value/expression tables, each NUL-terminated runs back-to-back).
 Records reference strings **by index**, not by byte offset (verified: name
 offsets are not referenced as u32). → `binaryStringTable(seqBytes)` returns the
@@ -320,10 +321,21 @@ aligned scaffold prefix, not the body.
 The earlier `0x6115` "marker" lead is **refuted**: it occurs in only **3/83**
 files (59 times total, always followed by `0x00`, preceded by varying bytes) — it
 is file-specific data (a checksum/GUID), *not* a structural record marker. The
-dominant record bytes are zero-padding (`00 00 00 00`), the `ff ff ff ff`
-sentinels, and the small `0x01/0x02/0x04` values above. The per-field
-type/length encoding is **not yet decoded** — the next lead is to cross-reference
-a file present in both XML and binary form to align names with typed values.
+dominant record bytes are zero-padding (`00 00 00 00`), `ff ff ff ff` all-ones
+values, and the small `0x01/0x02/0x04` values above. The per-field type/length
+encoding is **not yet decoded**.
+
+**`ff ff ff ff` is NOT a record/object delimiter (refuted).** A byte-granularity
+scan of all 83 files (83 062 maximal `ff ff ff ff` runs) shows: they occur at
+**all four byte phases ~uniformly** (21089/20519/21351/20103 for offset%4) — so
+they are *not* u32-aligned markers; they **outnumber the named objects by
+14–310×** (median 43×; `sentinelCount == nameTableLen` in 0/83); and the u32
+*after* a run is a valid name index only **44.7%** of the time. They are best
+explained as `0xffffffff` all-ones *values* (−1 / "not set" defaults) inside the
+byte-packed records. `BinaryBodyLayout.sentinelCount` is therefore a descriptive
+`ff ff ff ff`-dword count, **not** a record boundary. So record boundaries are
+*not* marked by a fixed delimiter — the grammar is length/type-driven and must be
+walked field-by-field from the root container.
 
 The **record grammar** that delimits one record from the next and pairs each name
 index with its typed value is **not yet fully decoded**. So `parseSeqFile` still

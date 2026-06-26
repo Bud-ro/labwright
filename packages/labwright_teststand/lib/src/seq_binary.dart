@@ -31,7 +31,10 @@ enum ZlibFlag {
 /// against tiny false-positive streams.
 const _minInflatedBytes = 64;
 
-/// Record-delimiter sentinel: a u32 of four [_sentinelByte]s (`ff ff ff ff`).
+/// `0xff` — the byte [_countSentinels] scans for as a `ff ff ff ff` dword. NOTE:
+/// despite the legacy "sentinel" name, these are **not** record delimiters
+/// (refuted across the corpus — see [BinaryBodyLayout.sentinelCount]); they are
+/// `0xffffffff` all-ones *values* in the byte-packed records.
 const _sentinelByte = 0xff;
 
 /// Bytes per little-endian u32 word in the record region.
@@ -154,8 +157,13 @@ class BinaryBodyLayout {
   /// Number of NUL-terminated printable runs in the string region.
   final int stringCount;
 
-  /// Count of `ff ff ff ff` words (on 4-byte steps) within the record region —
-  /// the record-delimiter sentinels (recon).
+  /// Count of `ff ff ff ff` dwords (on 4-byte steps) within the record region.
+  /// **Not a record delimiter** — refuted across the corpus: byte-granularity
+  /// `ff ff ff ff` runs occur at all four byte phases ~uniformly (so they are not
+  /// u32-aligned markers), they outnumber the named objects by ~14–310× (median
+  /// 43×), and the u32 after a run is a valid name index only ~45% of the time.
+  /// They are best explained as `0xffffffff` all-ones *values* (−1 / "not set"
+  /// defaults) embedded in the byte-packed records. Kept as a descriptive count.
   final int sentinelCount;
 
   /// Number of distinct packed string tables (maximal NUL-adjacent run chains)
