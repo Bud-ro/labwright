@@ -306,6 +306,62 @@ List<String> _objectNamesFrom(List<String> names) {
   return names.sublist(start);
 }
 
+/// Module call-target extensions a step's adapter binding points at — the same
+/// LabVIEW/DLL/sequence/library targets the INI/XML lens recovers, here matched
+/// in the binary string pool by suffix.
+final _modulePathRe = RegExp(r'\.(vi|dll|seq|llb)$', caseSensitive: false);
+
+/// Whether [s] looks like a **module call-target path** — a path-separated string
+/// ending in a known adapter target extension (`.vi`/`.dll`/`.seq`/`.llb`), e.g.
+/// `My Computer\ExcelReadWrite\Excel_Read.vi` or `SubSequences\AC_Gerilim.seq`.
+/// A bare suffix (`.vi`) or a separator-less token is rejected.
+bool isBinaryModulePath(String s) =>
+    s.contains('\\') && _modulePathRe.hasMatch(s);
+
+/// The **module call-target paths** a binary TOF1 file references — the LabVIEW
+/// VIs / DLLs / sub-sequences / libraries its steps invoke (see
+/// [isBinaryModulePath]), distinct and in name-pool order.
+///
+/// These are genuinely **recovered call targets** read straight from the string
+/// pool: even though the record grammar that ties a path to its step is **not yet
+/// decoded**, the targets themselves are honest data — *what* the sequence calls,
+/// if not yet *from which step*. Corpus-observed: 190/288 binary files expose ≥1
+/// (median 5); the rest either make no external calls or carry paths fragmented by
+/// non-ASCII bytes in the run splitter. Returns `[]` when [seqBytes] is not an
+/// inflatable binary file.
+List<String> binaryModulePaths(Uint8List seqBytes) {
+  final body = inflateBinaryBody(seqBytes);
+  if (body == null) return const [];
+  final seen = <String>{};
+  final out = <String>[];
+  for (final seg in _segmentsFromBody(body)) {
+    for (final e in seg.entries) {
+      if (isBinaryModulePath(e.text) && seen.add(e.text)) out.add(e.text);
+    }
+  }
+  return out;
+}
+
+/// The `ID#:` **step references** a binary TOF1 file carries — the unique step-ID
+/// tokens the INI/XML lens resolves to step links. Distinct, in pool order.
+///
+/// Recovered verbatim (the same `ID#:<base64-ish>` form the text encodings use);
+/// resolving each to its target step needs the **not yet decoded** record grammar.
+/// Corpus-observed: 285/288 binary files expose ≥1. Returns `[]` when [seqBytes]
+/// is not an inflatable binary file.
+List<String> binaryStepReferences(Uint8List seqBytes) {
+  final body = inflateBinaryBody(seqBytes);
+  if (body == null) return const [];
+  final seen = <String>{};
+  final out = <String>[];
+  for (final seg in _segmentsFromBody(body)) {
+    for (final e in seg.entries) {
+      if (e.text.startsWith('ID#:') && seen.add(e.text)) out.add(e.text);
+    }
+  }
+  return out;
+}
+
 /// [binaryNameTable] core over already-computed [segments] (no re-inflate).
 BinaryStringSegment? _nameTableFromSegments(
   List<BinaryStringSegment> segments,

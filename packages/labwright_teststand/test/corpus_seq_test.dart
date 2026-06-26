@@ -801,6 +801,36 @@ void main() {
     expect(withNames, rooted, reason: 'a rooted file exposed no object names');
   });
 
+  test('binary files expose module call-targets and step references', () {
+    var binary = 0, withPath = 0, withId = 0, totalPaths = 0;
+    final badPath = <String>[];
+    for (final f in seqs) {
+      final bytes = f.readAsBytesSync();
+      if (detectSeqFormat(bytes) != SeqFormat.binary) continue;
+      binary++;
+      final paths = binaryModulePaths(bytes);
+      // Every returned path must satisfy the predicate (no false positives).
+      for (final p in paths) {
+        if (!isBinaryModulePath(p)) badPath.add('${f.path}: $p');
+      }
+      if (paths.isNotEmpty) {
+        withPath++;
+        totalPaths += paths.length;
+      }
+      if (binaryStepReferences(bytes).isNotEmpty) withId++;
+    }
+    // ignore: avoid_print
+    print(
+      'binary recovered: $withPath/$binary files expose ≥1 module path '
+      '($totalPaths total) · $withId/$binary expose ≥1 ID#: step ref',
+    );
+    expect(badPath, isEmpty, reason: badPath.take(5).join('\n'));
+    expect(binary, greaterThanOrEqualTo(80));
+    // Corpus-observed floors (190/288 paths, 285/288 ids) — keep a safe margin.
+    expect(withPath, greaterThanOrEqualTo(binary ~/ 2));
+    expect(withId, greaterThanOrEqualTo((binary * 9) ~/ 10));
+  });
+
   // REMOVED — 'leadingWords[1] selects the record-prefix layout'. This asserted
   // leadingWords[1] ∈ {16,118} each picking a deterministic words[3,5,7] layout.
   // The broadened 288-file corpus refuted it: leadingWords[1] takes many values

@@ -58,5 +58,20 @@ void main() {
     expect(inflateBinaryBody(Uint8List(0)), isNull);
     expect(binaryBodyStrings(Uint8List(0)), isEmpty);
     expect(binaryStringTable(Uint8List(0)), isEmpty);
+    expect(binaryModulePaths(Uint8List(0)), isEmpty);
+    expect(binaryStepReferences(Uint8List(0)), isEmpty);
+  });
+
+  test('isBinaryModulePath recognises adapter call targets', () {
+    // Positives: path-separated, known adapter extension.
+    expect(isBinaryModulePath(r'My Computer\ExcelReadWrite\Excel_Read.vi'), isTrue);
+    expect(isBinaryModulePath(r'SubSequences\2-Gerilim\AC_Gerilim.seq'), isTrue);
+    expect(isBinaryModulePath(r'lib\native\driver.DLL'), isTrue); // case-insensitive
+    expect(isBinaryModulePath(r'old\vis.llb'), isTrue);
+    // Negatives: bare suffix, no separator, plain token, wrong extension.
+    expect(isBinaryModulePath('.vi'), isFalse);
+    expect(isBinaryModulePath('Status'), isFalse);
+    expect(isBinaryModulePath('Excel_Read.vi'), isFalse); // no separator
+    expect(isBinaryModulePath(r'notes\readme.txt'), isFalse);
   });
 }

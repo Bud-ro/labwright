@@ -879,9 +879,23 @@ container is present on all 5663 INI steps but is **always empty** in the corpus
 (0 with child content) — a structural placeholder (edit-time pre/post substeps),
 no per-step data to recover here.
 
+**Binary string-region recovery (record grammar still undecoded, but data is
+recoverable).** Beyond the property-name table (`binaryNameTable` /
+`binaryObjectNames`), two high-value datums are now read straight from the packed
+string pool, honestly, without the record grammar:
+- **Module call-targets** (`binaryModulePaths` + the `isBinaryModulePath`
+  predicate) — the LabVIEW VIs / DLLs / sub-sequences / libraries a binary `.seq`
+  invokes (path-separated, `.vi`/`.dll`/`.seq`/`.llb` suffix). Corpus: **190/288
+  files expose ≥1 (1496 total)**; the rest make no external calls or carry paths
+  fragmented by non-ASCII run splits. *What* is called, not yet *from which step*.
+- **`ID#:` step references** (`binaryStepReferences`) — the same unique step-ID
+  tokens the text encodings resolve to links. Corpus: **285/288 files expose ≥1**.
+
 **Genuine gaps (need external inputs — do NOT guess):**
 - **Binary record grammar** past the header — not yet recovered (needs a
-  byte-identical INI↔binary twin, absent from the corpus, or NI docs).
+  byte-identical INI↔binary twin, absent from the corpus, or NI docs). The string
+  *content* (names, module paths, step refs, expressions, literals) is recoverable
+  (above); the *records* that tie strings to a parsed step tree are not yet decoded.
 - **Flag/enum bitmasks** whose *values* are stored but whose *meaning* needs NI's
   enums: the type-level `%FLG` PropertyFlags (now recovered as
   `SeqProperty.propertyFlags` + bit *membership* mapped — see the PropertyFlags
