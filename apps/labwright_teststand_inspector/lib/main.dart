@@ -285,13 +285,7 @@ class _InspectorPageState extends State<InspectorPage> {
               if (doc is BinarySeqDocument)
                 BinaryView(doc: doc)
               else
-                SingleChildScrollView(
-                  padding: const EdgeInsets.all(12),
-                  child: SelectableText(
-                    documentText(doc),
-                    style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
-                  ),
-                ),
+                _dumpTab(doc),
               if (outline != null)
                 SequencesView(
                     outline: outline, searchFocusNode: _sequencesSearchFocus),
@@ -299,6 +293,45 @@ class _InspectorPageState extends State<InspectorPage> {
                 PropertiesView(
                     root: tree, searchFocusNode: _propertiesSearchFocus),
             ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// The Dump tab: the scrollable monospace text plus a copy-to-clipboard button.
+  Widget _dumpTab(SeqDocument doc) {
+    final text = documentText(doc);
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+            child: SelectableText(
+              text,
+              style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+            ),
+          ),
+        ),
+        Positioned(
+          top: 4,
+          right: 4,
+          child: Material(
+            color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.85),
+            shape: const CircleBorder(),
+            child: IconButton(
+              icon: const Icon(Icons.copy, size: 18),
+              tooltip: 'Copy dump to clipboard',
+              onPressed: () async {
+                await Clipboard.setData(ClipboardData(text: text));
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                      content: Text('Copied dump to clipboard'),
+                      duration: Duration(seconds: 1)),
+                );
+              },
+            ),
           ),
         ),
       ],
