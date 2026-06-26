@@ -14,21 +14,37 @@ import 'corpus_dirs.dart';
 /// silently mis-parsed). Self-skips when the corpus is absent.
 void main() {
   if (!corpusSeqDir.existsSync()) {
-    test('teststand corpus', () {}, skip: 'corpus absent — run tool/fetch_seq_corpus.dart');
+    test(
+      'teststand corpus',
+      () {},
+      skip: 'corpus absent — run tool/fetch_seq_corpus.dart',
+    );
     return;
   }
 
-  final seqs = corpusSeqDir
-      .listSync(recursive: true)
-      .whereType<File>()
-      .where((f) => f.path.toLowerCase().endsWith('.seq'))
-      .toList()
-    ..sort((a, b) => a.path.compareTo(b.path));
+  final seqs =
+      corpusSeqDir
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((f) => f.path.toLowerCase().endsWith('.seq'))
+          .toList()
+        ..sort((a, b) => a.path.compareTo(b.path));
 
   test('corpus has .seq files', () => expect(seqs, isNotEmpty));
 
   test('every XML .seq parses; binary .seq is classified, not mis-parsed', () {
-    var xml = 0, binary = 0, other = 0, totalSeqs = 0, totalSteps = 0, withAction = 0, withModule = 0, totalLocals = 0, withLimits = 0, withBinaryBody = 0, resolvedCalls = 0, withMode = 0;
+    var xml = 0,
+        binary = 0,
+        other = 0,
+        totalSeqs = 0,
+        totalSteps = 0,
+        withAction = 0,
+        withModule = 0,
+        totalLocals = 0,
+        withLimits = 0,
+        withBinaryBody = 0,
+        resolvedCalls = 0,
+        withMode = 0;
     final failures = <String>[];
     for (final f in seqs) {
       final bytes = f.readAsBytesSync();
@@ -71,34 +87,60 @@ void main() {
             expect(String.fromCharCodes(body), contains('Sequence'));
             // The body name pool surfaces the model's property names.
             final names = binaryBodyStrings(bytes).map((s) => s.text).toSet();
-            expect(names, containsAll(['Sequence', 'Step', 'Locals']),
-                reason: '${f.path}: body strings missing model names');
+            expect(
+              names,
+              containsAll(['Sequence', 'Step', 'Locals']),
+              reason: '${f.path}: body strings missing model names',
+            );
             // And there is a sizeable contiguous string table.
-            expect(binaryStringTable(bytes).length, greaterThanOrEqualTo(5),
-                reason: '${f.path}: no contiguous string table');
+            expect(
+              binaryStringTable(bytes).length,
+              greaterThanOrEqualTo(5),
+              reason: '${f.path}: no contiguous string table',
+            );
           }
         case SeqFormat.ini:
         case SeqFormat.unknown:
           other++;
       }
     }
-    printOnFailure('xml=$xml binary=$binary other=$other '
-        'sequences=$totalSeqs steps=$totalSteps withAction=$withAction');
+    printOnFailure(
+      'xml=$xml binary=$binary other=$other '
+      'sequences=$totalSeqs steps=$totalSteps withAction=$withAction',
+    );
     expect(failures, isEmpty, reason: failures.take(5).join('\n'));
     expect(xml, greaterThan(0));
-    expect(totalSeqs, greaterThan(0), reason: 'XML lens recovered no sequences');
+    expect(
+      totalSeqs,
+      greaterThan(0),
+      reason: 'XML lens recovered no sequences',
+    );
     expect(totalSteps, greaterThan(0), reason: 'XML lens recovered no steps');
-    expect(withAction, greaterThan(0), reason: 'no step settings (PassAct) recovered');
+    expect(
+      withAction,
+      greaterThan(0),
+      reason: 'no step settings (PassAct) recovered',
+    );
     expect(withMode, greaterThan(0), reason: 'no step run-modes recovered');
-    expect(withModule, greaterThan(0), reason: 'no module-adapter bindings recovered');
+    expect(
+      withModule,
+      greaterThan(0),
+      reason: 'no module-adapter bindings recovered',
+    );
     expect(totalLocals, greaterThan(0), reason: 'no sequence locals recovered');
     expect(withLimits, greaterThan(0), reason: 'no test limits recovered');
-    expect(resolvedCalls, greaterThan(0), reason: 'no intra-file sequence calls resolved');
+    expect(
+      resolvedCalls,
+      greaterThan(0),
+      reason: 'no intra-file sequence calls resolved',
+    );
     // ignore: avoid_print
-    print('teststand corpus: $xml XML / $binary binary / $other other · '
-        '$totalSeqs sequences · $totalSteps steps · $withAction with pass/fail actions · '
-        '$withModule with module bindings · $totalLocals locals · $withLimits limit tests · '
-        '$withBinaryBody binary bodies inflated · $resolvedCalls intra-file calls');
+    print(
+      'teststand corpus: $xml XML / $binary binary / $other other · '
+      '$totalSeqs sequences · $totalSteps steps · $withAction with pass/fail actions · '
+      '$withModule with module bindings · $totalLocals locals · $withLimits limit tests · '
+      '$withBinaryBody binary bodies inflated · $resolvedCalls intra-file calls',
+    );
   });
 
   test('every binary TOF1 body frames into a record region + string table', () {
@@ -139,15 +181,71 @@ void main() {
       }
     }
     // ignore: avoid_print
-    print('binary framing: $framed/$binary framed · '
-        '$withSentinels with ff-sentinels · $totalStrings strings total · '
-        'word2==1 $word2Is1/$binary · word1∈{16,118} $word1InSet/$binary '
-        '(values $word1Values) · all ≥6 string segments');
+    print(
+      'binary framing: $framed/$binary framed · '
+      '$withSentinels with ff-sentinels · $totalStrings strings total · '
+      'word2==1 $word2Is1/$binary · word1∈{16,118} $word1InSet/$binary '
+      '(values $word1Values) · all ≥6 string segments',
+    );
     expect(framed, binary, reason: 'some binary bodies did not frame');
     expect(failures, isEmpty, reason: failures.join('\n'));
     // Decoded record-header invariants (recon): the 3rd leading u32 is a
     // constant 1, and the 2nd is one of two values, across the whole corpus.
     expect(word2Is1, binary, reason: 'leadingWords[2] != 1 in some files');
     expect(word1InSet, binary, reason: 'leadingWords[1] not in {16,118}');
+  });
+
+  test('binary string region has a content-identified property-name table', () {
+    var binary = 0,
+        nameFound = 0,
+        hasModelTokens = 0,
+        notLargest = 0,
+        isFirst = 0;
+    final failures = <String>[];
+    for (final f in seqs) {
+      final bytes = f.readAsBytesSync();
+      if (detectSeqFormat(bytes) != SeqFormat.binary) continue;
+      binary++;
+      final segs = binaryStringSegments(bytes);
+      final name = binaryNameTable(bytes);
+      if (name == null) {
+        failures.add('${f.path}: no name table');
+        continue;
+      }
+      nameFound++;
+      final texts = {for (final e in name.entries) e.text};
+      if (texts.contains('Step') ||
+          texts.contains('Sequence') ||
+          texts.contains('Locals')) {
+        hasModelTokens++;
+      } else {
+        failures.add('${f.path}: name table lacks core model tokens');
+      }
+      // The name table is never the largest — value/expression tables are bigger.
+      if (segs.any((s) => s.entries.length > name.entries.length)) notLargest++;
+      // Strong (not universal) tendency: the name table is the first segment.
+      if (segs.isNotEmpty && name.offset == segs.first.offset) isFirst++;
+    }
+    // ignore: avoid_print
+    print(
+      'binary name table: $nameFound/$binary found · '
+      '$hasModelTokens/$binary carry core tokens · '
+      '$notLargest/$binary smaller than another segment · '
+      '$isFirst/$binary are the first segment',
+    );
+    expect(failures, isEmpty, reason: failures.join('\n'));
+    // Firm corpus invariants: a content-identified name table always exists,
+    // always carries the core tokens, and is never the largest segment.
+    expect(
+      nameFound,
+      binary,
+      reason: 'no content-identified name table somewhere',
+    );
+    expect(hasModelTokens, binary, reason: 'name table missing core tokens');
+    expect(
+      notLargest,
+      binary,
+      reason: 'name table is the largest segment somewhere',
+    );
   });
 }

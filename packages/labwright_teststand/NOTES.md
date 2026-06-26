@@ -203,8 +203,19 @@ The string region is **not one table** — it splits into many packed tables
 **≥6 segments in 83/83** (range 6–37, mode ~30–31). The early segment sizes look
 stable across files (samples start `[~12, ~30, ~37, 57, …]`); a **57-entry
 segment appears in 81/83** — a strong candidate for a fixed built-in name/type
-table, *not yet confirmed* across all files or labelled. (TODO: identify which
-segment is the property-NAME table vs value/expression tables.)
+table, *not yet confirmed* across all files or labelled.
+
+One segment **is** identifiable by content: the **property-NAME table**. Picking
+the segment that matches the most known PropertyObject model tokens (`Sequence`,
+`Step`, `Locals`, `Parameters`, `StepType`, …) yields a clean discriminator —
+`binaryNameTable`. Corpus-verified across all 83 binary files: such a name table
+**always exists (83/83)**, **always carries the core tokens (83/83)**, and is
+**never the largest segment (83/83** — the value/expression tables are bigger).
+It is the **first segment in 82/83** (a strong tendency, *not* relied on — the
+single outlier, `UKTAG_SimpleResultProcessor.seq`, scatters names across early
+segments with the densest hit at index 4, so selection is by content, not
+position). The other segments (value tables, expression tables) are **not yet
+individually labelled** — that needs the record grammar.
 
 The **record tree** that links names to values is **not yet parsed** (the u32
 record framing is still being worked out). So `parseSeqFile` still **refuses**

@@ -49,6 +49,22 @@ const _minTableEntries = 5;
 /// Default minimum runs in a chain for [binaryStringSegments].
 const _minSegmentChain = 2;
 
+/// PropertyObject model NAME/type tokens NI's engine writes into every sequence
+/// file — one documented catalog used to pick the **property-name table** out of
+/// the packed string segments by content (it carries the most of these, where the
+/// value/expression tables carry few or none). Not exhaustive; enough to identify
+/// the name table reliably (matches in all 83 corpus binaries). The record
+/// grammar that would label the tables directly is **not yet decoded**.
+const _modelNameTokens = {
+  'Sequence',
+  'MainSequence',
+  'SequenceFile',
+  'Step',
+  'StepType',
+  'Locals',
+  'Parameters',
+};
+
 /// How many leading record-region u32 words [analyzeBinaryBody] captures.
 const _leadingWordCount = 3;
 
@@ -203,6 +219,33 @@ List<BinaryStringSegment> binaryStringSegments(
     for (final chain in _segmentsFrom(runs, boundary, minChain: minChain))
       (offset: chain.first.offset, entries: chain),
   ];
+}
+
+/// Identifies the **property-name table** among a binary TOF1 body's packed
+/// string segments — the segment carrying the PropertyObject NAME/type tokens
+/// (`Sequence`, `Step`, `Locals`, …), as distinct from the value/expression
+/// tables. Picked by *content* (the segment matching the most [_modelNameTokens],
+/// earliest on a tie), which is the honest discriminator while the record grammar
+/// that would label the tables is **not yet decoded**.
+///
+/// Corpus-observed across all 83 binary files: such a name table always exists
+/// (83/83), always contains the core tokens, and is never the largest segment —
+/// the value/expression tables are bigger. It is the *first* segment in 82/83
+/// files (a strong tendency, not relied on here — selection is by content).
+/// Returns null when [seqBytes] is not an inflatable binary file or no segment
+/// carries model names.
+BinaryStringSegment? binaryNameTable(Uint8List seqBytes) {
+  BinaryStringSegment? best;
+  var bestHits = 0;
+  for (final seg in binaryStringSegments(seqBytes)) {
+    final texts = {for (final e in seg.entries) e.text};
+    final hits = _modelNameTokens.where(texts.contains).length;
+    if (hits > bestHits) {
+      bestHits = hits;
+      best = seg;
+    }
+  }
+  return best;
 }
 
 /// Maximal chains of NUL-adjacent runs at/after [from], each of ≥[minChain].
