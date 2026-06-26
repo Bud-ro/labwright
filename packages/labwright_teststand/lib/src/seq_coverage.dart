@@ -117,6 +117,20 @@ SeqCoverage measureCoverage(SeqFile f) {
       }
 
       markAddl(step.raw);
+      // Measurement-step formal parameters: the `Measurement.Parameters` list,
+      // each typed parameter, and the self-describing fields the lens surfaces
+      // (Step.measurementParameters). ID/Log/TypeSpecialization/MessageType/
+      // EnumDefinition are left raw.
+      final meas = step.raw.prop('Measurement');
+      mark(meas);
+      final mparams = meas?.prop('Parameters');
+      mark(mparams);
+      for (final p in step.measurementParameters) {
+        mark(p.raw);
+        for (final k in ['Name', 'Type', 'Direction', 'Dimension', 'ArgumentValue']) {
+          mark(p.raw.prop(k));
+        }
+      }
     }
   }
 

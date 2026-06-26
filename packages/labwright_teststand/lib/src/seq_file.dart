@@ -241,6 +241,18 @@ class Step {
   /// link identity, not human-meaningful text.
   String? get id => _nz(raw.prop('TS')?.prop('Id')?.scalar);
 
+  /// The typed formal parameters of a **measurement step** — the NI measurement
+  /// adapter's `Measurement.Parameters` list (each a [MeasurementParameter]):
+  /// the named, typed inputs/outputs the measurement routine takes (e.g.
+  /// `voltage_level : TypeDouble In = 6`). Empty for non-measurement steps. This
+  /// is distinct from [StepModule.callParameters] (the ActiveX/C and Python
+  /// adapter argument lists), which a measurement step does not use.
+  List<MeasurementParameter> get measurementParameters {
+    final params = raw.prop('Measurement')?.prop('Parameters');
+    final kids = params?.array ?? params?.subProps ?? const <SeqProperty>[];
+    return [for (final p in kids) MeasurementParameter(p)];
+  }
+
   /// The step's "Additional Results" recording spec — the extra values it logs
   /// to the report. Collected from every `AdditionalResults` container in the
   /// step's subtree (these attach to module-call parameters, e.g. a Python or
@@ -295,6 +307,40 @@ class AdditionalResult {
   /// The gating `Condition` expression (an `ExprValue`); null when the entry has
   /// no condition or an empty one (record unconditionally).
   String? get condition => _nz(raw.prop('Condition')?.scalar);
+}
+
+/// One formal parameter of a **measurement step** (an NI measurement adapter's
+/// `Measurement.Parameters` entry) — a named, typed input/output the step's
+/// measurement routine takes. Every field is self-describing in the corpus:
+/// [name] (`voltage_level`), [dataType] (the TestStand type token `TypeDouble` /
+/// `TypeString` / `TypeEnum` / `TypeInt32` / `TypeBool` / `TypeUint32` /
+/// `TypeUint64`), [direction] (`In` / `Out`), [isArray] from `Dimension`
+/// (`0` = scalar, ≥1 = array), and [value] the bound `ArgumentValue` expression
+/// (null when unbound). The sibling `ID` / `Log` / `TypeSpecialization` /
+/// `MessageType` / `EnumDefinition` are left raw (not surfaced with meaning).
+class MeasurementParameter {
+  MeasurementParameter(this.raw);
+
+  /// The underlying parameter property object — full access to every field.
+  final SeqProperty raw;
+
+  /// The parameter name (`Name`), e.g. `voltage_level`.
+  String get name => _nz(raw.prop('Name')?.scalar) ?? raw.name;
+
+  /// The TestStand data-type token (`Type`), e.g. `TypeDouble`; null if absent.
+  String? get dataType => _nz(raw.prop('Type')?.scalar);
+
+  /// The parameter direction (`Direction`) — `In` / `Out`; null if absent.
+  String? get direction => _nz(raw.prop('Direction')?.scalar);
+
+  /// The bound value expression (`ArgumentValue`, e.g. `6`), or null when unbound.
+  String? get value => _nz(raw.prop('ArgumentValue')?.scalar);
+
+  /// Whether the parameter is an array — `Dimension` ≥ 1 (0 = scalar).
+  bool get isArray {
+    final d = int.tryParse(raw.prop('Dimension')?.scalar ?? '');
+    return d != null && d > 0;
+  }
 }
 
 String? _nz(String? s) => (s == null || s.isEmpty) ? null : s;

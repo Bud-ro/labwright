@@ -142,7 +142,7 @@ refused (not mis-parsed).
 - **Coverage metric**: `measureCoverage(SeqFile)` → `SeqCoverage{total, modeled}`
   counts what fraction of `Data`-tree property nodes the typed lens surfaces.
   `tool/coverage.dart` runs it over the **XML** `.seq` files in `corpus/seq` and
-  writes a gitignored `corpus/seq/REPORT.md`. Current: **27.7% (5250/18932
+  writes a gitignored `corpus/seq/REPORT.md`. Current: **33.0% (6244/18932
   nodes)** over 26 XML files (incl. `Step.id`=`TS.Id`, and the boolean step flags
   `StepFCSeqF`/`IgnoreRTE`/`ResultOption` → `StepSettings.failureCausesSequence-
   Failure`/`ignoresRunTimeErrors`/`recordsResult`, plus the **Additional Results
@@ -188,6 +188,21 @@ refused (not mis-parsed).
   55 containers, 110 entries**, all `*ParameterResult`, and every `Condition`
   empty/always-on so far. Coverage marks container+entries+`Condition` (+350
   nodes → the 25.9 %→27.7 % bump).
+- **Measurement-step parameters**: an NI measurement step carries its formal,
+  typed parameters under `Measurement > Parameters` (an `Objs` array, sibling of
+  `TS`/`Result`). Each entry is fully self-describing: `Name` (`voltage_level`),
+  `Type` (the TestStand type token `TypeDouble`/`TypeString`/`TypeEnum`/
+  `TypeInt32`/`TypeBool`/`TypeUint32`/`TypeUint64`), `Direction` (`In`/`Out`),
+  `Dimension` (`0` scalar / ≥1 array), `ArgumentValue` (the bound expression,
+  e.g. `6`), plus raw `ID`/`Log`/`TypeSpecialization`/`MessageType`/
+  `EnumDefinition`. → `Step.measurementParameters` (`MeasurementParameter`:
+  `name`/`dataType`/`direction`/`value`/`isArray`); the dump folds it into a
+  `{params: voltage_level in TypeDouble = 6; readings out TypeDouble[]}` chip.
+  Distinct from `StepModule.callParameters` (the ActiveX/C + Python adapter
+  argument lists). Corpus (probed full): **17 XML files, 147 typed params**, all
+  carry `Type` + `Direction`. Coverage marks container+`Parameters`+each param+
+  `Name`/`Type`/`Direction`/`Dimension`/`ArgumentValue` (+994 nodes → the
+  27.7 %→33.0 % bump). The biggest single XML cluster recovered to date.
 - **Viewer (M4)**: `dumpSeqFile(SeqFile)` (`seq_dump.dart`) renders a
   sequence-editor-like text view — header, each sequence's params/locals, then
   Setup/Main/Cleanup steps as `name [type] -> adapter: target (flow; loop; if)`.

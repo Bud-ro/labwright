@@ -138,6 +138,45 @@ const _seqAddlXml = '''<?xml version="1.0" encoding="UTF-8"?>
   </subprops></Data>
 </teststandfileheader>''';
 
+/// A minimal file whose single step is a measurement step carrying a
+/// `Measurement.Parameters` list — the real shape: each typed parameter has
+/// Name / Type / Direction / Dimension / ArgumentValue (plus raw siblings).
+const _seqMeasXml = '''<?xml version="1.0" encoding="UTF-8"?>
+<teststandfileheader type='SequenceFile' fileversion='920' productname='TestStand'>
+  <typelist/>
+  <Data classname='Obj'><subprops>
+    <Seq classname='Objs'><value lbound='[0]' ubound='[1]'><value>
+      <Sequence name='MainSequence' classname='Obj'><subprops>
+        <Main classname='Objs'><value lbound='[0]' ubound='[1]'>
+          <value><Step typename='NI_Measurement' name='Measure V'><subprops>
+            <Measurement classname='Obj'><subprops>
+              <Parameters classname='Objs'><value lbound='[0]' ubound='[2]'>
+                <value><_NAME_IN_ATTRIBUTE_ name='' classname='Obj'><subprops>
+                  <Name classname='Str'><value>voltage_level</value></Name>
+                  <Type classname='Str'><value>TypeDouble</value></Type>
+                  <Direction classname='Str'><value>In</value></Direction>
+                  <Dimension classname='Num'><value>0</value></Dimension>
+                  <ArgumentValue classname='ExprValue'><value>6</value></ArgumentValue>
+                  <Log classname='Bool'><value>true</value></Log>
+                  <ID classname='Num'><value>1</value></ID>
+                </subprops></_NAME_IN_ATTRIBUTE_></value>
+                <value><_NAME_IN_ATTRIBUTE_ name='' classname='Obj'><subprops>
+                  <Name classname='Str'><value>readings</value></Name>
+                  <Type classname='Str'><value>TypeDouble</value></Type>
+                  <Direction classname='Str'><value>Out</value></Direction>
+                  <Dimension classname='Num'><value>1</value></Dimension>
+                  <ArgumentValue classname='ExprValue'><value/></ArgumentValue>
+                  <ID classname='Num'><value>2</value></ID>
+                </subprops></_NAME_IN_ATTRIBUTE_></value>
+              </value></Parameters>
+            </subprops></Measurement>
+          </subprops></Step></value>
+        </value></Main>
+      </subprops></Sequence>
+    </value></value></Seq>
+  </subprops></Data>
+</teststandfileheader>''';
+
 Uint8List _bytes(String s, {bool bom = true}) =>
     Uint8List.fromList([if (bom) ...[0xef, 0xbb, 0xbf], ...utf8.encode(s)]);
 
@@ -352,6 +391,45 @@ void main() {
       // The two Condition nodes + two entries + container are all modeled.
       final addl = f.sequences.single.main.single.additionalResults;
       expect(addl, hasLength(2));
+    });
+  });
+
+  group('Measurement step parameters', () {
+    late Step step;
+    setUp(() {
+      step = parseSeqFile(_bytes(_seqMeasXml)).sequences.single.main.single;
+    });
+
+    test('recovers each typed parameter (name/type/direction/dim/value)', () {
+      final p = step.measurementParameters;
+      expect(p, hasLength(2));
+      expect(p[0].name, 'voltage_level');
+      expect(p[0].dataType, 'TypeDouble');
+      expect(p[0].direction, 'In');
+      expect(p[0].isArray, isFalse);
+      expect(p[0].value, '6');
+      // The output is an array (Dimension 1) with no bound value.
+      expect(p[1].name, 'readings');
+      expect(p[1].direction, 'Out');
+      expect(p[1].isArray, isTrue);
+      expect(p[1].value, isNull);
+    });
+
+    test('a non-measurement step reports no measurement parameters', () {
+      final s = parseSeqFile(_bytes(_seqCallXml)).sequences.single.main.single;
+      expect(s.measurementParameters, isEmpty);
+    });
+
+    test('the dump surfaces measurement params with type and direction', () {
+      final out = dumpSeqFile(parseSeqFile(_bytes(_seqMeasXml)));
+      expect(out, contains('voltage_level in TypeDouble = 6'));
+      expect(out, contains('readings out TypeDouble[]'));
+    });
+
+    test('coverage credits the measurement-parameter cluster', () {
+      final cov = measureCoverage(parseSeqFile(_bytes(_seqMeasXml)));
+      // Container + Parameters + 2 params + 5 marked fields each (some absent).
+      expect(cov.modeled, greaterThan(8));
     });
   });
 

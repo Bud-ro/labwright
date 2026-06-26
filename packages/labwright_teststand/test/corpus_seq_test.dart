@@ -205,6 +205,43 @@ void main() {
     );
   });
 
+  test('recovers measurement-step typed parameters across XML corpus', () {
+    var filesWithParams = 0, params = 0, withType = 0, withDirection = 0;
+    final types = <String>{};
+    for (final f in seqs) {
+      if (f.lengthSync() > 300 * 1024) continue;
+      final bytes = f.readAsBytesSync();
+      if (detectSeqFormat(bytes) != SeqFormat.xml) continue;
+      final sf = parseSeqFile(bytes);
+      var any = false;
+      for (final s in sf.sequences) {
+        for (final step in s.steps) {
+          for (final p in step.measurementParameters) {
+            any = true;
+            params++;
+            if (p.dataType != null) {
+              withType++;
+              types.add(p.dataType!);
+            }
+            if (p.direction != null) withDirection++;
+          }
+        }
+      }
+      if (any) filesWithParams++;
+    }
+    // ignore: avoid_print
+    print(
+      'measurement params: $filesWithParams files · $params params · '
+      '$withType typed · $withDirection with direction · types=$types',
+    );
+    // Corpus evidence (probed): 147 typed params, types incl. TypeDouble/
+    // TypeString/TypeEnum/TypeInt32/TypeBool/TypeUint32/TypeUint64; In/Out dirs.
+    expect(params, greaterThanOrEqualTo(120));
+    expect(withType, params, reason: 'a measurement param lost its Type');
+    expect(types, contains('TypeDouble'));
+    expect(withDirection, greaterThan(0));
+  });
+
   test('every INI .seq parses into a header + sections (Rosetta form)', () {
     var ini = 0, parsed = 0, sfRoot = 0, dataNamed = 0, seqType = 0;
     final failures = <String>[];

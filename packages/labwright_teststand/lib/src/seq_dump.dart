@@ -130,6 +130,21 @@ String _dumpStep(Step step, SeqFile file) {
   if (s.recordsResult == false) notes.add('no-record');
   if (notes.isNotEmpty) parts.write('  (${notes.join('; ')})');
 
+  // Measurement-step formal parameters: name [direction] [type][\[\]] [= value].
+  final mp = step.measurementParameters;
+  if (mp.isNotEmpty) {
+    String fmt(MeasurementParameter p) {
+      final b = StringBuffer(p.name);
+      if (p.direction != null) b.write(' ${p.direction!.toLowerCase()}');
+      if (p.dataType != null) b.write(' ${p.dataType}');
+      if (p.isArray) b.write('[]');
+      if (p.value != null) b.write(' = ${p.value}');
+      return b.toString();
+    }
+
+    parts.write('  {params: ${mp.map(fmt).join('; ')}}');
+  }
+
   // "Additional Results" recording spec: the extra values the step logs, each
   // with its gating condition when one is set.
   final addl = step.additionalResults;
