@@ -39,6 +39,7 @@ static double g_write_value, g_write_timeout;
 static int32_t g_write_autostart;
 static double g_rate;
 static int32_t g_sample_mode;
+static uint32_t g_input_buffer;
 static const double kMagicScalar = 4.2; // distinguishable scalar-read magic
 
 static const char* kDevNames = "FakeDev1, FakeDev1Mod1";
@@ -55,6 +56,7 @@ double fake_last_write_timeout(void) { return g_write_timeout; }
 int32_t fake_last_write_autostart(void) { return g_write_autostart; }
 double fake_last_rate(void) { return g_rate; }
 int32_t fake_last_sample_mode(void) { return g_sample_mode; }
+uint32_t fake_last_input_buffer(void) { return g_input_buffer; }
 
 // --- DAQmx surface ---
 int32_t DAQmxCreateTask(const char* name, TaskHandle* taskOut) {
@@ -95,6 +97,12 @@ int32_t DAQmxCfgSampClkTiming(TaskHandle task, const char* src, double rate, int
   FakeTask* t = (FakeTask*)task;
   if (t) { t->rate = rate; t->sampleMode = sampleMode; t->sampsPerChan = sampsPerChan; }
   g_rate = rate; g_sample_mode = sampleMode;
+  return 0;
+}
+
+int32_t DAQmxCfgInputBuffer(TaskHandle task, uint32_t numSampsPerChan) {
+  (void)task;
+  g_input_buffer = numSampsPerChan;
   return 0;
 }
 

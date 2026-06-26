@@ -112,6 +112,7 @@ void main() {
           .toList(); // take(3) cancels the subscription -> worker tears down
       expect(got, hasLength(3));
       expect(probe.lastSampleMode, DaqmxVal.contSamps);
+      expect(probe.lastInputBuffer, greaterThanOrEqualTo(100000)); // DMA headroom for high rate
       await daq.close();
     });
   });

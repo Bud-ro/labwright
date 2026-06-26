@@ -53,6 +53,7 @@ typedef _CreateAoVoltageC =
     Int32 Function(TaskHandle, Pointer<Utf8>, Pointer<Utf8>, Double, Double, Int32, Pointer<Utf8>);
 typedef _CfgSampClkTimingC =
     Int32 Function(TaskHandle, Pointer<Utf8>, Double, Int32, Int32, Uint64);
+typedef _CfgInputBufferC = Int32 Function(TaskHandle, Uint32);
 typedef _ReadAnalogF64C = Int32 Function(
     TaskHandle, Int32, Double, Uint32, Pointer<Double>, Uint32, Pointer<Int32>, Pointer<Uint32>);
 // Binary (raw ADC-code) block reads. Identical shape to ReadAnalogF64 but with the
@@ -85,6 +86,8 @@ class NidaqmxBindings {
             lib.lookupFunction<_CreateAoVoltageC, _CreateAoVoltageDart>('DAQmxCreateAOVoltageChan'),
         cfgSampClkTiming =
             lib.lookupFunction<_CfgSampClkTimingC, _CfgSampClkTimingDart>('DAQmxCfgSampClkTiming'),
+        cfgInputBuffer =
+            lib.lookupFunction<_CfgInputBufferC, _CfgInputBufferDart>('DAQmxCfgInputBuffer'),
         readAnalogF64 = lib.lookupFunction<_ReadAnalogF64C, _ReadAnalogF64Dart>('DAQmxReadAnalogF64'),
         readBinaryI16 = lib.lookupFunction<_ReadBinaryI16C, _ReadBinaryI16Dart>('DAQmxReadBinaryI16'),
         readBinaryI32 = lib.lookupFunction<_ReadBinaryI32C, _ReadBinaryI32Dart>('DAQmxReadBinaryI32'),
@@ -107,6 +110,7 @@ class NidaqmxBindings {
   final int Function(TaskHandle, Pointer<Utf8>, Pointer<Utf8>, double, double, int, Pointer<Utf8>)
       createAOVoltageChan;
   final int Function(TaskHandle, Pointer<Utf8>, double, int, int, int) cfgSampClkTiming;
+  final int Function(TaskHandle, int) cfgInputBuffer;
   final int Function(
           TaskHandle, int, double, int, Pointer<Double>, int, Pointer<Int32>, Pointer<Uint32>)
       readAnalogF64;
@@ -136,6 +140,7 @@ typedef _CreateAiVoltageDart =
 typedef _CreateAoVoltageDart =
     int Function(TaskHandle, Pointer<Utf8>, Pointer<Utf8>, double, double, int, Pointer<Utf8>);
 typedef _CfgSampClkTimingDart = int Function(TaskHandle, Pointer<Utf8>, double, int, int, int);
+typedef _CfgInputBufferDart = int Function(TaskHandle, int);
 typedef _ReadAnalogF64Dart = int Function(
     TaskHandle, int, double, int, Pointer<Double>, int, Pointer<Int32>, Pointer<Uint32>);
 typedef _ReadBinaryI16Dart = int Function(

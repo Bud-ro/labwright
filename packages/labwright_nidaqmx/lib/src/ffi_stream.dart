@@ -213,6 +213,16 @@ Future<void> _streamWorker(_StreamRequest req) async {
       return fail(s, 'DAQmxCfgSampClkTiming', errFor(s, 'DAQmxCfgSampClkTiming') ?? 'timing failed');
     }
 
+    // For continuous high-rate acquisition, give the driver DMA headroom well beyond a
+    // single chunk so it doesn't overrun between our reads. (Finite uses the default.)
+    if (continuous) {
+      final bufSamps = req.samplesPerChunk * 8 < 100000 ? 100000 : req.samplesPerChunk * 8;
+      s = b.cfgInputBuffer(task, bufSamps);
+      if (s < 0) {
+        return fail(s, 'DAQmxCfgInputBuffer', errFor(s, 'DAQmxCfgInputBuffer') ?? 'buffer failed');
+      }
+    }
+
     s = b.startTask(task);
     if (s < 0) return fail(s, 'DAQmxStartTask', errFor(s, 'DAQmxStartTask') ?? 'start failed');
 
