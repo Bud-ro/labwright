@@ -462,6 +462,12 @@ LoopStatus = "RunState.LoopNumPassed >= 1"
     expect(set.loopWhile, 'RunState.LoopIndex < 10');
     expect(set.loopIncrement, 'RunState.LoopIndex += 1');
     expect(set.loopStatus, 'RunState.LoopNumPassed >= 1');
+    // The dump surfaces the loop's actual logic (while/init/incr expressions).
+    final out = dumpSeqFile(sf);
+    expect(out, contains('loop FixedNumLoops ['));
+    expect(out, contains('while RunState.LoopIndex < 10'));
+    expect(out, contains('init RunState.LoopIndex = 0'));
+    expect(out, contains('incr RunState.LoopIndex += 1'));
   });
 
   // A step's free-text comment is stored as a `%COMMENT` directive on the step

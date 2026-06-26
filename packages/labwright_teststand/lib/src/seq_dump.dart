@@ -115,8 +115,19 @@ String _dumpStep(Step step, SeqFile file) {
   if (s.customFalseTarget != null) {
     notes.add('cust-false→${resolveTarget(s.customFalseTarget!)}');
   }
-  if (s.isLooping) notes.add('loop ${s.loopType}');
+  if (s.isLooping) {
+    // The loop's actual logic: continue condition, init, and increment exprs.
+    final lp = <String>[];
+    if (s.loopWhile != null) lp.add('while ${s.loopWhile}');
+    if (s.loopInitialize != null) lp.add('init ${s.loopInitialize}');
+    if (s.loopIncrement != null) lp.add('incr ${s.loopIncrement}');
+    notes.add('loop ${s.loopType}${lp.isEmpty ? '' : ' [${lp.join('; ')}]'}');
+  }
   if (s.precondition != null) notes.add('if ${s.precondition}');
+  // Notable non-default execution flags.
+  if (s.ignoresRunTimeErrors == true) notes.add('ignore-RTE');
+  if (s.failureCausesSequenceFailure == false) notes.add('no-seq-fail');
+  if (s.recordsResult == false) notes.add('no-record');
   if (notes.isNotEmpty) parts.write('  (${notes.join('; ')})');
 
   if (step.comment != null) parts.write('  // ${step.comment}');
