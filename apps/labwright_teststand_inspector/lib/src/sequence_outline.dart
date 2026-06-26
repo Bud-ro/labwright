@@ -379,6 +379,7 @@ class MeasurementParamOutline {
     this.isArray = false,
     this.typeSpecialization,
     this.logged,
+    this.enumValues = const [],
   });
 
   final String name;
@@ -395,6 +396,10 @@ class MeasurementParamOutline {
   /// `false` is noteworthy (logging is the default).
   final bool? logged;
 
+  /// For a `TypeEnum` parameter, the enum's allowed values as `name=value`
+  /// strings (e.g. `NONE=0`); empty for non-enum parameters.
+  final List<String> enumValues;
+
   factory MeasurementParamOutline.of(MeasurementParameter p) =>
       MeasurementParamOutline(
         name: p.name,
@@ -404,7 +409,17 @@ class MeasurementParamOutline {
         isArray: p.isArray,
         typeSpecialization: p.typeSpecialization,
         logged: p.logged,
+        enumValues: [for (final e in p.enumValues) '${e.name}=${e.value ?? '?'}'],
       );
+
+  /// The enum value list capped for compact display, e.g. `NONE=0, DC_VOLTS=1,
+  /// …(16)`; empty string when the parameter is not an enum.
+  String get _enumChip {
+    if (enumValues.isEmpty) return '';
+    final shown = enumValues.take(6).join(', ');
+    final more = enumValues.length > 6 ? ', …(${enumValues.length})' : '';
+    return '{$shown$more}';
+  }
 
   /// Left-column label: the parameter name, tagged with its direction when known
   /// (e.g. `voltage_level (in)`).
@@ -422,6 +437,7 @@ class MeasurementParamOutline {
       if (isArray) b.write('[]');
     }
     if (value != null) b.write('${b.isEmpty ? '' : ' '}= $value');
+    if (enumValues.isNotEmpty) b.write('${b.isEmpty ? '' : ' '}$_enumChip');
     if (logged == false) b.write('${b.isEmpty ? '' : ' '}· not logged');
     return b.isEmpty ? '(unbound)' : b.toString();
   }
@@ -437,6 +453,9 @@ class MeasurementParamOutline {
       if (isArray) b.write('[]');
     }
     if (value != null) b.write(' = $value');
+    // All enum values in the search/summary line (not capped, so every constant
+    // is searchable).
+    if (enumValues.isNotEmpty) b.write(' {${enumValues.join(', ')}}');
     if (logged == false) b.write(' [not logged]');
     return b.toString();
   }

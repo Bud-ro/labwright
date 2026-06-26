@@ -171,7 +171,7 @@ Uint8List _xmlWithMeasParams() => Uint8List.fromList([
     "<Main classname='Objs'><value lbound='[0]' ubound='[1]'><value>"
     "<Step typename='NI_Measurement' name='Measure V'><subprops>"
     "<Measurement classname='Obj'><subprops>"
-    "<Parameters classname='Objs'><value lbound='[0]' ubound='[2]'>"
+    "<Parameters classname='Objs'><value lbound='[0]' ubound='[3]'>"
     "<value><_NAME_IN_ATTRIBUTE_ name='' classname='Obj'><subprops>"
     "<Name classname='Str'><value>voltage_level</value></Name>"
     "<Type classname='Str'><value>TypeDouble</value></Type>"
@@ -187,6 +187,17 @@ Uint8List _xmlWithMeasParams() => Uint8List.fromList([
     "<ArgumentValue classname='ExprValue'><value/></ArgumentValue>"
     "<TypeSpecialization classname='Str'><value>IOResource</value></TypeSpecialization>"
     "<Log classname='Bool'><value>false</value></Log>"
+    "</subprops></_NAME_IN_ATTRIBUTE_></value>"
+    "<value><_NAME_IN_ATTRIBUTE_ name='' classname='Obj'><subprops>"
+    "<Name classname='Str'><value>measurement_type</value></Name>"
+    "<Type classname='Str'><value>TypeEnum</value></Type>"
+    "<Direction classname='Str'><value>In</value></Direction>"
+    "<Dimension classname='Num'><value>0</value></Dimension>"
+    "<ArgumentValue classname='ExprValue'><value/></ArgumentValue>"
+    "<EnumDefinition classname='Objs'><value lbound='[0]' ubound='[2]'>"
+    "<value><NONE classname='Num'><value>0</value></NONE></value>"
+    "<value><DC_VOLTS classname='Num'><value>1</value></DC_VOLTS></value>"
+    "</value></EnumDefinition>"
     "</subprops></_NAME_IN_ATTRIBUTE_></value>"
     "</value></Parameters>"
     "</subprops></Measurement>"
@@ -496,7 +507,7 @@ void main() {
     final doc = SeqDocument.parse(_xmlWithMeasParams()) as XmlSeqDocument;
     final step = SeqOutline.of(doc.file).sequences.single.groups.single.steps.single;
     final p = step.measurementParams;
-    expect(p, hasLength(2));
+    expect(p, hasLength(3));
     expect(p[0].name, 'voltage_level');
     expect(p[0].dataType, 'TypeDouble');
     expect(p[0].direction, 'In');
@@ -509,10 +520,16 @@ void main() {
     expect(p[1].logged, isFalse);
     expect(p[1].cell, 'TypeString (IOResource)[] · not logged');
     expect(p[1].line, 'readings out TypeString (IOResource)[] [not logged]');
-    // Searchable (by name, type, specialization) and in the one-line summary.
+    // The enum param renders its allowed values in the cell and search line.
+    expect(p[2].name, 'measurement_type');
+    expect(p[2].enumValues, ['NONE=0', 'DC_VOLTS=1']);
+    expect(p[2].cell, 'TypeEnum {NONE=0, DC_VOLTS=1}');
+    expect(p[2].line, contains('{NONE=0, DC_VOLTS=1}'));
+    // Searchable (by name, type, specialization, enum constant) and in summary.
     expect(stepMatches(step, 'voltage_level'), isTrue);
     expect(stepMatches(step, 'typedouble'), isTrue);
     expect(stepMatches(step, 'ioresource'), isTrue);
+    expect(stepMatches(step, 'dc_volts'), isTrue);
     expect(step.summary, contains('voltage_level in TypeDouble = 6'));
   });
 
