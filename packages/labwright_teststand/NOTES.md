@@ -156,6 +156,13 @@ refused (not mis-parsed).
   the limits chip (`{limits GELE [9, 11] mA}`). (Earlier notes said units weren't
   stored — they are, just under `Result`, not `Limits`.) Corpus: 125 `Units`
   values across the INI files.
+- **Data source**: a step's `DataSource` expression is what it measures /
+  evaluates — the measured value for a numeric limit test (`Locals.A.High_Value`)
+  or the pass/fail criterion for a `PassFailTest` (`Step.Result.PassFail`).
+  `StepLimits.dataSource` already carried it for limit tests, but a `PassFailTest`
+  has no `Comp`/`Limits` → no `StepLimits`, so its criterion was dropped. →
+  `Step.dataSource` (general); the dump shows `{data-source …}` for non-limit
+  steps. Corpus: 113 steps set `DataSource` without limits (94 `PassFailTest`).
 - **Viewer (M4)**: `dumpSeqFile(SeqFile)` (`seq_dump.dart`) renders a
   sequence-editor-like text view — header, each sequence's params/locals, then
   Setup/Main/Cleanup steps as `name [type] -> adapter: target (flow; loop; if)`.

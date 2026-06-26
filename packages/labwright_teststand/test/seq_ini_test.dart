@@ -893,4 +893,43 @@ Units = "mA"
     // The dump folds the unit into the limits chip.
     expect(dumpSeqFile(sf), contains('{limits GELE [9, 11] mA}'));
   });
+
+  // A PassFailTest evaluates a boolean criterion via its `DataSource` expression
+  // but carries no numeric `Comp`/`Limits`, so it has no StepLimits — yet the
+  // criterion is real and editor-visible. Step.dataSource recovers it generally,
+  // and the dump shows it as a `{data-source …}` note. Mirrors the corpus, where
+  // 113 such steps (mostly PassFailTest) set DataSource without limits.
+  test('recovers a PassFailTest data-source criterion (no limits)', () {
+    const ini = '''
+[__Header__]
+ProductName = "TestStand"
+Version = 354
+Type = "SequenceFile"
+
+[DEF, %OBJROOT]
+SF = SequenceFileData
+[DEF, SF]
+Seq = Objs
+%NAME = "Data"
+[DEF, SF.Seq]
+%[0] = Sequence
+[DEF, SF.Seq[0]]
+Main = Objs
+%NAME = "MainSequence"
+[DEF, SF.Seq[0].Main]
+%[0] = Step
+%TYPE: %[0] = "PassFailTest"
+[DEF, SF.Seq[0].Main[0]]
+DataSource = String
+%NAME = "Motor running"
+[SF.Seq[0].Main[0]]
+DataSource = "Step.Result.PassFail"
+''';
+    final sf = parseSeqFile(Uint8List.fromList(latin1.encode(ini)));
+    final step = sf.sequences.single.main.single;
+    expect(step.type, 'PassFailTest');
+    expect(step.limits, isNull); // no Comp/Limits
+    expect(step.dataSource, 'Step.Result.PassFail');
+    expect(dumpSeqFile(sf), contains('{data-source Step.Result.PassFail}'));
+  });
 }

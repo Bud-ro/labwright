@@ -225,6 +225,15 @@ class Step {
   /// (a sibling of `TS`), not under `Limits`.
   String? get resultUnits => _nz(raw.prop('Result')?.prop('Units')?.scalar);
 
+  /// The step's data-source expression (`DataSource`) — what the step measures
+  /// or evaluates: the measured value for a numeric limit test (e.g.
+  /// `Locals.A.High_Value`), or the pass/fail criterion for a `PassFailTest`
+  /// (e.g. `Step.Result.PassFail`). null when the step has none. This is the same
+  /// value as [StepLimits.dataSource] for a limit test, but is exposed here too
+  /// so it's recovered for non-limit steps (e.g. `PassFailTest`), where there is
+  /// no [StepLimits].
+  String? get dataSource => _nz(raw.prop('DataSource')?.scalar);
+
   @override
   String toString() => 'Step($name : ${type ?? '?'})';
 }

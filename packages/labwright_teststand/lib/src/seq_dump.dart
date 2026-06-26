@@ -88,6 +88,12 @@ String _dumpStep(Step step, SeqFile file) {
   } else if (units != null) {
     parts.write('  {units $units}');
   }
+  // The data-source expression (measured value / pass-fail criterion). Shown for
+  // non-limit steps (e.g. PassFailTest); for a limit test it already rides along
+  // the limits chip's structured detail, so it isn't repeated here.
+  if (limits == null && step.dataSource != null) {
+    parts.write('  {data-source ${step.dataSource}}');
+  }
 
   final s = step.settings;
   if (s.icon != null) parts.write('  {icon ${s.icon}}');
