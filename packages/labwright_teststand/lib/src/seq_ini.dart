@@ -143,11 +143,79 @@ IniSeqFile parseIniSeq(String text) {
       }
     }
   }
+  for (final s in sections) {
+    _reassembleContinuations(s.members);
+    _reassembleContinuations(s.directives);
+  }
   return IniSeqFile(
     header: _headerFrom(headerFields),
     sections: sections,
     headerFields: headerFields,
   );
+}
+
+/// Matches a continuation key: a base key plus a 4-digit ` LineNNNN` suffix.
+final _continuationKey = RegExp(r'^(.+) Line(\d+)$');
+
+/// Reassembles split long values in [map] (a section's members or directives).
+///
+/// NI splits a value past a line-length cap across continuation lines named
+/// `KEY Line0001`, `KEY Line0002`, … — the base key with a ` LineNNNN` suffix —
+/// each holding a separately-quoted fragment of the whole. This rejoins them, in
+/// numeric order, into the single base key `KEY` whose value is the fragments'
+/// inner text concatenated with no separator and rewrapped in one pair of quotes.
+/// Verified across the full corpus (19818 fragments, all quoted, all contiguous
+/// from 0001, never coexisting with a bare base key). Single-line values, which
+/// never match the suffix, are left untouched.
+void _reassembleContinuations(Map<String, String> map) {
+  Map<String, List<(int, String)>>? groups;
+  for (final key in map.keys) {
+    final m = _continuationKey.firstMatch(key);
+    if (m == null) continue;
+    (groups ??= {})
+        .putIfAbsent(m.group(1)!, () => [])
+        .add((int.parse(m.group(2)!), map[key]!));
+  }
+  if (groups == null) return;
+  // Rebuild preserving insertion order: emit the joined base value where the
+  // group's first fragment sat; drop the remaining fragment keys.
+  final rebuilt = <String, String>{};
+  final emitted = <String>{};
+  for (final entry in map.entries) {
+    final m = _continuationKey.firstMatch(entry.key);
+    if (m == null) {
+      rebuilt[entry.key] = entry.value;
+      continue;
+    }
+    final base = m.group(1)!;
+    if (emitted.add(base)) {
+      final frags = groups[base]!..sort((a, b) => a.$1.compareTo(b.$1));
+      rebuilt[base] = _joinFragments(frags.map((f) => f.$2));
+    }
+  }
+  map
+    ..clear()
+    ..addAll(rebuilt);
+}
+
+/// Joins quoted continuation [fragments] into one value: strips each fragment's
+/// surrounding quotes, concatenates the inner text in order, and rewraps in a
+/// single pair of quotes. A fragment lacking surrounding quotes is concatenated
+/// verbatim (unobserved in the corpus, handled defensively); the joined value
+/// stays quoted as long as any fragment was.
+String _joinFragments(Iterable<String> fragments) {
+  final buf = StringBuffer();
+  var anyQuoted = false;
+  for (final f in fragments) {
+    final t = f.trim();
+    if (t.length >= 2 && t.startsWith('"') && t.endsWith('"')) {
+      anyQuoted = true;
+      buf.write(t.substring(1, t.length - 1));
+    } else {
+      buf.write(f);
+    }
+  }
+  return anyQuoted ? '"$buf"' : buf.toString();
 }
 
 /// Builds a [SeqFileHeader] from a parsed `[__Header__]` map. `Type` →

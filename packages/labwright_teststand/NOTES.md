@@ -582,6 +582,22 @@ corpus value distribution is concentrated: `5046297` (6883×), `5177369` (2648×
 standalone value), … ~18 distinct values. Recorded for a future decode if NI docs
 surface; **not** interpreted yet.
 
+**Multi-line value continuation `KEY LineNNNN` (2026-06, DONE).** Values past a
+line-length cap are serialized across continuation lines whose key is the base
+member/directive name plus a 4-digit ` LineNNNN` suffix (`Line0001`, `Line0002`,
+…), each holding a *separately-quoted* fragment. Before this fix the parser stored
+each fragment as its own spurious member, so long values (step descriptions, VI
+paths, expressions, comments) were truncated to their first ~uncapped chunk. The
+reader now rejoins fragments, in numeric order, into the single base key — inner
+text concatenated with **no separator** and rewrapped in one pair of quotes
+(`"…Descrip"` + `"tion…"` → `"…Description…"`). Verified across the full corpus:
+**19820 fragments collapsed across 28 base keys in all 58 INI files, 0 residual**;
+every fragment was quoted, every group contiguous from `0001`, and a fragment
+group never coexisted with a bare base key (clean replacement). Top base keys: `VI`
+(14593), `PostExpr`, `StatusExpr`, `DescriptionFormat`, `%COMMENT`, `CodeTemplates`,
+`ValueToLog`. Applies to both members and `%`-directives (e.g. `%COMMENT`, `%NAME`).
+Single-line values never match the suffix and are untouched.
+
 **XML↔INI lens parity — audited, at parity (2026-06).** Ran the shared typed lens
 over all **26/26** XML `.seq`: 33 sequences · 214 steps (**all typed**) · adapters
 recognized=124 / none=90 / **unknown=0** (python 33, cModule 69, labView 15,

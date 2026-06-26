@@ -1,6 +1,7 @@
 @Tags(['corpus'])
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:labwright_teststand/labwright_teststand.dart';
@@ -208,6 +209,42 @@ void main() {
     expect(seqType, ini, reason: 'an INI header lacks Type=SequenceFile');
     expect(sfRoot, ini, reason: 'an INI lacks the SF=SequenceFileData root');
     expect(dataNamed, ini, reason: 'an INI names no object "Data"');
+  });
+
+  test('INI multi-line values are reassembled (no residual ` LineNNNN` keys)',
+      () {
+    var ini = 0, reassembled = 0, residual = 0;
+    final baseKeys = <String>{};
+    for (final f in seqs) {
+      final bytes = f.readAsBytesSync();
+      if (detectSeqFormat(bytes) != SeqFormat.ini) continue;
+      ini++;
+      final doc = parseIniSeqBytes(bytes);
+      // After parsing, no section may still carry a raw ` LineNNNN` fragment key.
+      final residualRe = RegExp(r' Line\d+$');
+      for (final s in doc.sections) {
+        for (final k in [...s.members.keys, ...s.directives.keys]) {
+          if (residualRe.hasMatch(k)) residual++;
+        }
+      }
+    }
+    // Re-detect against raw text so the count reflects what was collapsed.
+    final contRe = RegExp(r'^(.+) Line(\d+)\s*=', multiLine: true);
+    for (final f in seqs) {
+      final bytes = f.readAsBytesSync();
+      if (detectSeqFormat(bytes) != SeqFormat.ini) continue;
+      for (final m in contRe.allMatches(latin1.decode(bytes, allowInvalid: true))) {
+        reassembled++;
+        baseKeys.add(m.group(1)!.trim());
+      }
+    }
+    // ignore: avoid_print
+    print('INI continuations: $reassembled fragments collapsed across '
+        '${baseKeys.length} base keys in $ini INI files; $residual residual');
+    expect(ini, greaterThan(0), reason: 'no INI files in corpus');
+    expect(residual, 0, reason: 'a ` LineNNNN` fragment survived reassembly');
+    expect(reassembled, greaterThan(0),
+        reason: 'no continuation fragments found — fixture/corpus drift');
   });
 
   test('INI sections assemble into the shared SeqProperty tree', () {

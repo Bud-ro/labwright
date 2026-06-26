@@ -388,4 +388,51 @@ LoopStatus = "RunState.LoopNumPassed >= 1"
     expect(set.loopIncrement, 'RunState.LoopIndex += 1');
     expect(set.loopStatus, 'RunState.LoopNumPassed >= 1');
   });
+
+  // NI splits a value past a line-length cap across continuation lines named
+  // `KEY Line0001`, `KEY Line0002`, … — each a separately-quoted fragment. The
+  // reader rejoins them, in order, into the single base key with no separator.
+  group('multi-line value continuation', () {
+    const splitIni = '''
+[__Header__]
+ProductName = "TestStand"
+Version = 354
+Type = "SequenceFile"
+
+[SomeObj]
+Plain = "untouched"
+DescriptionFormat Line0001 = "ResStr(\\"NI\\", \\"NAME\\") + ((\\"%Mod\\" == \\"\\") ? \\"\\" : \\",  %Mod"
+DescriptionFormat Line0002 = "uleDescription\\")"
+%COMMENT Line0001 = "first half "
+%COMMENT Line0002 = "second half"
+''';
+
+    test('reassembles a split member into the single base key', () {
+      final f = parseIniSeq(splitIni);
+      final s = f.sections.single;
+      // The spurious ` LineNNNN` members are gone; one reassembled base remains
+      // at the position of the first fragment, single-line members untouched.
+      expect(s.members.keys, ['Plain', 'DescriptionFormat']);
+      expect(s.members['Plain'], '"untouched"');
+      expect(
+        s.members['DescriptionFormat'],
+        '"ResStr(\\"NI\\", \\"NAME\\") + ((\\"%Mod\\" == \\"\\") ? \\"\\" : \\",  %ModuleDescription\\")"',
+      );
+    });
+
+    test('reassembles a split directive (e.g. %COMMENT)', () {
+      final f = parseIniSeq(splitIni);
+      final s = f.sections.single;
+      expect(s.directives.keys, ['%COMMENT']);
+      expect(s.directives['%COMMENT'], '"first half second half"');
+    });
+
+    test('leaves single-line values untouched (no residual fragments)', () {
+      final f = parseIniSeq(_ini);
+      for (final s in f.sections) {
+        expect(s.members.keys.any((k) => k.contains(' Line')), isFalse);
+        expect(s.directives.keys.any((k) => k.contains(' Line')), isFalse);
+      }
+    });
+  });
 }
