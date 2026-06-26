@@ -125,9 +125,7 @@ class SequenceOutline {
       final steps = seq.stepsIn(group);
       if (steps.isEmpty) continue;
       groups.add(
-        StepGroupOutline(group.key, [
-          for (final s in steps) StepOutline.of(s, file),
-        ]),
+        StepGroupOutline(group.key, _withFlowDepth(steps, file)),
       );
     }
     return SequenceOutline(
@@ -138,6 +136,32 @@ class SequenceOutline {
       comment: seq.comment,
     );
   }
+}
+
+/// Builds [StepOutline]s for [steps], assigning each its control-flow nesting
+/// [StepOutline.flowDepth] by balancing the `NI_Flow_*` openers/ends — the same
+/// model the package's `exportSequenceLogic` uses: an opener (if/while/for/…)
+/// indents its body; a matching `NI_Flow_End` dedents; else/else-if render at the
+/// opener's level. Depth never drops below 0, so an unbalanced block can't
+/// underflow. Pure.
+List<StepOutline> _withFlowDepth(List<Step> steps, SeqFile file) {
+  final out = <StepOutline>[];
+  var depth = 0;
+  for (final step in steps) {
+    final fc = step.flowControl;
+    if (fc != null && fc.kind.closesBlock) {
+      if (depth > 0) depth--;
+      out.add(StepOutline.of(step, file, flowDepth: depth));
+    } else if (fc != null && fc.kind.isContinuation) {
+      out.add(StepOutline.of(step, file, flowDepth: depth > 0 ? depth - 1 : 0));
+    } else if (fc != null && fc.kind.opensBlock) {
+      out.add(StepOutline.of(step, file, flowDepth: depth));
+      depth++;
+    } else {
+      out.add(StepOutline.of(step, file, flowDepth: depth));
+    }
+  }
+  return out;
 }
 
 /// A named group of steps (Setup / Main / Cleanup).
@@ -166,11 +190,24 @@ class StepOutline {
     this.callArgs = const [],
     this.measurementParams = const [],
     this.connectorParams = const [],
+    this.flowHeader,
+    this.flowDepth = 0,
     required this.notes,
   });
 
   final String name;
   final String type;
+
+  /// For an `NI_Flow_*` step, the construct's readable header — `if (cond)`,
+  /// `for each (x in xs)`, `while (cond)`, `else`, `end`, `break`, … — recovered
+  /// via [Step.flowControl]. `null` for ordinary (non-flow) steps. Lets the UI
+  /// render the control-flow construct instead of a bare step name.
+  final String? flowHeader;
+
+  /// The step's control-flow nesting depth (0 at a group's top level), computed
+  /// by balancing the `NI_Flow_*` openers/ends across the group. Drives the
+  /// indentation of the structured view so the nested logic reads like code.
+  final int flowDepth;
 
   /// The step's free-text comment — the editor's per-step note — or `null` when
   /// the step has none. Recovered from `%COMMENT`.
@@ -254,7 +291,7 @@ class StepOutline {
     return (label: label.isEmpty ? t : label, tooltip: t);
   }
 
-  factory StepOutline.of(Step step, SeqFile file) {
+  factory StepOutline.of(Step step, SeqFile file, {int flowDepth = 0}) {
     final m = step.module;
     String? adapter;
     String? target;
@@ -386,6 +423,8 @@ class StepOutline {
       connectorParams: [
         for (final p in m.viParameters) ConnectorParamOutline.of(p),
       ],
+      flowHeader: step.flowControl?.header,
+      flowDepth: flowDepth,
       notes: notes,
     );
   }
@@ -394,6 +433,7 @@ class StepOutline {
   /// in-file/external tag, which the UI renders as a tappable chip).
   String get summary {
     final b = StringBuffer('$name [$type]');
+    if (flowHeader != null) b.write('  {flow: $flowHeader}');
     if (adapter != null) b.write(' -> $adapter: $target');
     if (limits != null) {
       b.write('  {limits $limits${units != null ? ' $units' : ''}}');
@@ -684,6 +724,7 @@ bool stepMatches(StepOutline s, String query) {
       hit(s.units) ||
       hit(s.dataSource) ||
       hit(s.runMode) ||
+      hit(s.flowHeader) ||
       hit(s.comment)) {
     return true;
   }

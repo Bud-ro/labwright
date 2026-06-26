@@ -1151,6 +1151,14 @@ assumed): `If`/`ElseIf`/`While` → `ConditionExpr`; `For` → `InitializationEx
 `while (StationGlobals.DebugPanelActive) {`. Non-flow steps render as
 `name → call-target  [if precond]  [limits]`.
 
+**App surfacing (inspector).** The structured outline (`sequence_outline.dart` →
+`sequences_view.dart`) now reflects control flow: each `StepOutline` carries a
+`flowHeader` (the construct header) + a `flowDepth` (nesting level, computed by
+the same balanced open/close walk as `_emitLogic`), so the sequence tree indents
+its blocks and shows a teal flow-construct chip (`if (…)`, `for each (…)`,
+`end`, …). The header is searchable. The dump view already carried the
+`=== Sequence logic ===` section.
+
 Corpus evidence (XML+INI ≤300KB, `recovers structured flow-control logic`):
 **141 openers / 141 ends (balanced), 42/42 flow-bearing sequences nest cleanly**;
 82 if/while + 12 for → **94/94 conditions populated**; 12/12 for init+incr;

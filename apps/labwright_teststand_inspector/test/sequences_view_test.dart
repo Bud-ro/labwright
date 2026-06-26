@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_teststand/labwright_teststand.dart';
@@ -258,6 +260,66 @@ void main() {
       // A RenderFlex/text overflow surfaces as a thrown exception during layout;
       // assert none occurred (the comment/expression rows must wrap, not clip).
       expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('flow-control nesting in the outline', () {
+    SeqFile parse(String xml) => parseSeqFile(Uint8List.fromList([
+          0xef, 0xbb, 0xbf, // BOM
+          ...xml.codeUnits,
+        ]));
+
+    // if { action } end ; for each { action } end — balanced blocks.
+    final file = parse('''<?xml version="1.0" encoding="UTF-8"?>
+<teststandfileheader type='SequenceFile' fileversion='920' productname='TestStand'>
+  <typelist/>
+  <Data classname='Obj'><subprops>
+    <Seq classname='Objs'><value lbound='[0]' ubound='[1]'><value>
+      <Sequence name='MainSequence' classname='Obj'><subprops>
+        <Main classname='Objs'><value lbound='[0]' ubound='[6]'>
+          <value><Step typename='NI_Flow_If' name='If'><subprops>
+            <ConditionExpr classname='ExprValue'><value>Locals.X &gt; 0</value></ConditionExpr>
+          </subprops></Step></value>
+          <value><Step typename='Action' name='Do Work'/></value>
+          <value><Step typename='NI_Flow_End' name='End'/></value>
+          <value><Step typename='NI_Flow_ForEach' name='For Each'><subprops>
+            <ArrayExpr classname='ExprValue'><value>Locals.Items</value></ArrayExpr>
+            <ArrayElementExpr classname='ExprValue'><value>Locals.Item</value></ArrayElementExpr>
+          </subprops></Step></value>
+          <value><Step typename='Action' name='Process'/></value>
+          <value><Step typename='NI_Flow_End' name='End'/></value>
+        </value></Main>
+      </subprops></Sequence>
+    </value></value></Seq>
+  </subprops></Data>
+</teststandfileheader>''');
+
+    test('flowHeader + flowDepth are computed for NI_Flow_* steps', () {
+      final steps = SeqOutline.of(file).sequences.single.groups.single.steps;
+      expect(steps.map((s) => s.flowHeader), [
+        'if (Locals.X > 0)',
+        null, // inner action
+        'end',
+        'for each (Locals.Item in Locals.Items)',
+        null, // inner action
+        'end',
+      ]);
+      // The body of each block indents one level; the opener/end sit at level 0.
+      expect(steps.map((s) => s.flowDepth), [0, 1, 0, 0, 1, 0]);
+    });
+
+    test('the flow header is searchable', () {
+      final steps = SeqOutline.of(file).sequences.single.groups.single.steps;
+      expect(stepMatches(steps.first, 'for each'), isFalse);
+      expect(stepMatches(steps.first, 'if (locals'), isTrue);
+    });
+
+    testWidgets('renders the flow-control header chip', (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(body: SequencesView(outline: SeqOutline.of(file))),
+      ));
+      expect(find.text('if (Locals.X > 0)'), findsOneWidget);
+      expect(find.text('for each (Locals.Item in Locals.Items)'), findsOneWidget);
     });
   });
 }

@@ -294,9 +294,14 @@ class _SequencesViewState extends State<SequencesView> {
     for (final note in s.notes) {
       chips.add(_chip(context, note, Colors.blueGrey));
     }
+    // A flow-control construct (if/while/for/end/…) leads with its readable
+    // header as a prominent chip; the step nests by [StepOutline.flowDepth].
+    if (s.flowHeader != null) {
+      chips.insert(0, _chip(context, s.flowHeader!, Colors.teal));
+    }
 
     return Padding(
-      padding: const EdgeInsets.only(left: 8, top: 4, bottom: 4),
+      padding: EdgeInsets.only(left: 8 + s.flowDepth * 16.0, top: 4, bottom: 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
