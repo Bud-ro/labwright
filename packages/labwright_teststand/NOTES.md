@@ -256,10 +256,23 @@ exception is the `UKTAG` partial plugin file with no file-data root); **82/82**
 of those open with the exact 5-entry scaffold, and **82/82** have record
 `word[2] == 1` pointing at `name[1] == 'Data'`. Past index 4 the entries are the
 file's own sequences/objects (66/82 extend to `…Sequence, MainSequence`). The
-indices are **interleaved with binary field values** and the records are
-**variable-length** (value payloads shift u32 alignment) — so the record region
-is *not* a flat u32 index array. A recurring `0x6115…` dword appears mid-record
-(a type/value marker candidate, *not yet decoded*).
+indices are **interleaved with binary field values**.
+
+**The records are byte-packed variable-length** (not a u32-aligned array). A
+record-region byte histogram across all 83 files shows the common small values
+(`0x02`, `0x04`, `0x01`) occur at *all four* u32 byte phases with near-equal
+frequency (e.g. `0x02`: 217k / 205k / 205k / 204k across phases 0–3) — they would
+cluster at one phase if the region were u32-aligned. So the grammar must be
+parsed field-by-field; `binaryRecordWords` (the u32 view) is only useful for the
+aligned scaffold prefix, not the body.
+
+The earlier `0x6115` "marker" lead is **refuted**: it occurs in only **3/83**
+files (59 times total, always followed by `0x00`, preceded by varying bytes) — it
+is file-specific data (a checksum/GUID), *not* a structural record marker. The
+dominant record bytes are zero-padding (`00 00 00 00`), the `ff ff ff ff`
+sentinels, and the small `0x01/0x02/0x04` values above. The per-field
+type/length encoding is **not yet decoded** — the next lead is to cross-reference
+a file present in both XML and binary form to align names with typed values.
 
 The **record grammar** that delimits one record from the next and pairs each name
 index with its typed value is **not yet fully decoded**. So `parseSeqFile` still
