@@ -198,6 +198,23 @@ class Step {
 
 String? _nz(String? s) => (s == null || s.isEmpty) ? null : s;
 
+/// Unwraps a TestStand string-literal expression for display: strips one layer of
+/// surrounding quotes, whether backslash-escaped (`\"…\"`, as the INI form stores
+/// a quoted target after its own outer quotes are removed) or plain (`"…"`).
+/// Returns the input unchanged when it is not a wrapped string literal, and null
+/// for null. Used for flow-action targets like `\"<Cleanup>\"` → `<Cleanup>`.
+String? _unwrapExprString(String? s) {
+  if (s == null) return null;
+  final t = s.trim();
+  if (t.length >= 4 && t.startsWith(r'\"') && t.endsWith(r'\"')) {
+    return t.substring(2, t.length - 2);
+  }
+  if (t.length >= 2 && t.startsWith('"') && t.endsWith('"')) {
+    return t.substring(1, t.length - 1);
+  }
+  return t;
+}
+
 /// A limit-test step's pass/fail criteria: the comparison operator and the
 /// numeric limits, read from the step's `Comp` + `Limits` + `DataSource`
 /// properties. Fields are null when absent/empty or not yet decoded (e.g. units,
@@ -431,11 +448,37 @@ class StepSettings {
   /// True when the step loops (any `LoopType` other than `NoLooping`).
   bool get isLooping => loopType != null && loopType != 'NoLooping';
 
-  /// The on-pass flow action (`PassAct`), e.g. `Next`, `GotoStep`. null if unset.
+  /// The on-pass flow action (`PassAct`), e.g. `Next`, `Goto`. null if unset.
   String? get passAction => _scalar('PassAct');
 
   /// The on-fail flow action (`FailAct`). null if unset.
   String? get failAction => _scalar('FailAct');
+
+  /// The pass-action jump target (`PassActTarget`), e.g. the bookmark
+  /// `<Cleanup>` or a step reference `ID#:…`, for a non-`Next` [passAction];
+  /// null when the action just falls through. The stored value is a TestStand
+  /// expression (a quoted string literal); the surrounding quotes are unwrapped
+  /// for display.
+  String? get passActionTarget => _flowTarget('PassActTarget');
+
+  /// The fail-action jump target (`FailActTarget`); see [passActionTarget].
+  String? get failActionTarget => _flowTarget('FailActTarget');
+
+  String? _flowTarget(String key) => _nz(_unwrapExprString(_scalar(key)));
+
+  /// A compact flow-action summary `pass[→target]/fail[→target]` (e.g.
+  /// `Next/Goto→<Cleanup>`), or null when neither action is set. The `→target`
+  /// suffix is added only for a non-`Next` action that carries a jump target.
+  String? get flowSummary {
+    if (passAction == null && failAction == null) return null;
+    String side(String? act, String? target) {
+      final a = act ?? '?';
+      return (a != 'Next' && target != null) ? '$a→$target' : a;
+    }
+
+    return '${side(passAction, passActionTarget)}/'
+        '${side(failAction, failActionTarget)}';
+  }
 
   /// Pre-/post-/status expressions evaluated around the step, if any.
   String? get preExpression => _scalar('PreExpr');

@@ -74,9 +74,7 @@ String _dumpStep(Step step, SeqFile file) {
   final s = step.settings;
   final notes = <String>[];
   if (!s.isNormalMode) notes.add('mode ${s.mode}');
-  if (s.passAction != null || s.failAction != null) {
-    notes.add('flow ${s.passAction ?? '?'}/${s.failAction ?? '?'}');
-  }
+  if (s.flowSummary != null) notes.add('flow ${s.flowSummary}');
   if (s.isLooping) notes.add('loop ${s.loopType}');
   if (s.precondition != null) notes.add('if ${s.precondition}');
   if (notes.isNotEmpty) parts.write('  (${notes.join('; ')})');

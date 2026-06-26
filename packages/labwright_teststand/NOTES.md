@@ -633,6 +633,20 @@ lands via the generic `%COMMENT` carry); the app appends it to the variable row 
 completes the free-text-comment recovery story: steps (667), sequences (102), and
 variables (37). XML variables in the corpus carry none.
 
+**Step flow-action jump targets (2026-06, DONE).** A step's on-pass/on-fail flow
+action can jump rather than fall through (`PassAct`/`FailAct = "Goto"`); the
+destination is stored in `PassActTarget`/`FailActTarget` as a TestStand
+string-literal expression — e.g. the special bookmark `\"<Cleanup>\"` or a step
+reference `\"ID#:…\"`. The shared lens now exposes `StepSettings.passActionTarget`
+/`failActionTarget` (surrounding/escaped quotes unwrapped → `<Cleanup>`) and a
+composable `StepSettings.flowSummary` (`Next/Goto→<Cleanup>`) used by both the app
+step view and the text dump. Recovered across the corpus: **58 of 5664 INI steps**
+carry a flow target (PassAct/FailAct = Next on the rest). Action values seen: `Next`
+(majority), `Goto` (57). Targets are mostly `<Cleanup>` (jump to cleanup) with some
+`ID#:…` step references; resolving an `ID#:` target to the destination step's name
+(via the step `Id` member) is a possible future enhancement — shown verbatim for
+now (honest, not yet name-resolved).
+
 **Text dump completeness (2026-06, DONE).** `dumpSeqFile` (the editor-like text
 view behind the app's Dump tab) now surfaces the recovered detail it had been
 omitting: sequence/step/variable free-text comments (as ` // comment`) and variable

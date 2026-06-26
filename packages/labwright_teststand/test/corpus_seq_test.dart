@@ -346,6 +346,8 @@ void main() {
     var objVarsWithFields = 0;
     // Variables (locals/params) carrying a recovered free-text `%COMMENT`.
     var varsWithComment = 0;
+    // Steps whose pass/fail flow action jumps to a recovered target (e.g. Goto).
+    var withFlowTarget = 0;
     for (final f in seqs) {
       final bytes = f.readAsBytesSync();
       if (detectSeqFormat(bytes) != SeqFormat.ini) continue;
@@ -381,6 +383,10 @@ void main() {
             if (st.settings.mode != null) withMode++;
             if (st.settings.loopType != null) withLoop++;
             if (st.comment != null) withComment++;
+            if (st.settings.passActionTarget != null ||
+                st.settings.failActionTarget != null) {
+              withFlowTarget++;
+            }
           }
         }
       } on FormatException {
@@ -397,6 +403,7 @@ void main() {
       '$withComment steps + $withSeqComment seqs with comment · '
       '$objVarsWithFields object vars with fields · '
       '$varsWithComment vars with comment · '
+      '$withFlowTarget steps with flow target · '
       '$overrides instance-overrides in $filesWithOverride files',
     );
     expect(ini, greaterThan(0));
@@ -429,6 +436,9 @@ void main() {
     // Free-text comments are recovered onto variables (locals/parameters) too.
     expect(varsWithComment, greaterThan(0),
         reason: 'no variable comments recovered');
+    // Flow-action jump targets (Goto -> <Cleanup>/step ref) are recovered.
+    expect(withFlowTarget, greaterThan(0),
+        reason: 'no step flow-action targets recovered');
   });
 
   test('every binary TOF1 body frames into a record region + string table', () {

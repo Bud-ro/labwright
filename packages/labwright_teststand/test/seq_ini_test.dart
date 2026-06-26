@@ -487,6 +487,51 @@ High = "11"
     expect(locals[0].comment, isNull); // Count has none
   });
 
+  // A step whose on-fail action jumps to a target (`FailAct = "Goto"`,
+  // `FailActTarget = "\"<Cleanup>\""`) — the target is a TestStand string-literal
+  // expression; the lens unwraps it for display.
+  const flowIni = '''
+[__Header__]
+ProductName = "TestStand"
+Version = 354
+Type = "SequenceFile"
+
+[DEF, %OBJROOT]
+SF = SequenceFileData
+[DEF, SF]
+Seq = Objs
+%NAME = "Data"
+[DEF, SF.Seq]
+%[0] = Sequence
+[DEF, SF.Seq[0]]
+Main = Objs
+%NAME = "MainSequence"
+[DEF, SF.Seq[0].Main]
+%[0] = Step
+%TYPE: %[0] = "Action"
+[DEF, SF.Seq[0].Main[0]]
+TS = Obj
+%NAME = "gotoStep"
+[DEF, SF.Seq[0].Main[0].TS]
+PassAct = String
+FailAct = String
+FailActTarget = String
+[SF.Seq[0].Main[0].TS]
+PassAct = "Next"
+FailAct = "Goto"
+FailActTarget = "\\"<Cleanup>\\""
+''';
+
+  test('recovers a step flow-action jump target (Goto -> <Cleanup>)', () {
+    final sf = parseSeqFile(Uint8List.fromList(latin1.encode(flowIni)));
+    final set = sf.sequences.single.main.single.settings;
+    expect(set.passAction, 'Next');
+    expect(set.failAction, 'Goto');
+    expect(set.passActionTarget, isNull); // Next falls through, no target
+    expect(set.failActionTarget, '<Cleanup>'); // unwrapped from \"<Cleanup>\"
+    expect(set.flowSummary, 'Next/Goto→<Cleanup>');
+  });
+
   test('dumpSeqFile includes recovered comments and container sizes', () {
     final cf = parseSeqFile(Uint8List.fromList(latin1.encode(commentIni)));
     final out = dumpSeqFile(cf);
@@ -498,6 +543,9 @@ High = "11"
     final out2 = dumpSeqFile(of);
     expect(out2, contains('Limits : Obj {2 fields}')); // container size
     expect(out2, contains('// DUT pass band')); // variable comment
+
+    final ff = parseSeqFile(Uint8List.fromList(latin1.encode(flowIni)));
+    expect(dumpSeqFile(ff), contains('flow Next/Goto→<Cleanup>')); // flow target
   });
 
   // NI splits a value past a line-length cap across continuation lines named

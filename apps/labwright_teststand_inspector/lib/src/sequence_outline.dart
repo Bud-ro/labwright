@@ -194,9 +194,7 @@ class StepOutline {
     final s = step.settings;
     final runMode = s.isNormalMode ? null : s.mode;
     final notes = <String>[];
-    if (s.passAction != null || s.failAction != null) {
-      notes.add('flow ${s.passAction ?? '?'}/${s.failAction ?? '?'}');
-    }
+    if (s.flowSummary != null) notes.add('flow ${s.flowSummary}');
     if (s.isLooping) notes.add('loop ${s.loopType}');
 
     // The step's set expressions, in editor order. Shown as their own rows (they

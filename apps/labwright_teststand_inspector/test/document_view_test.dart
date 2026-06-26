@@ -164,6 +164,44 @@ void main() {
     expect(outline.sequences.single.name, 'MainSequence');
   });
 
+  test('outline note shows a flow-action jump target', () {
+    final ini = ascii.encode([
+      '[__Header__]',
+      'ProductName = "TestStand"',
+      'Version = 354',
+      'Type = "SequenceFile"',
+      '[DEF, %OBJROOT]',
+      'SF = SequenceFileData',
+      '[DEF, SF]',
+      'Seq = Objs',
+      '%NAME = "Data"',
+      '[DEF, SF.Seq]',
+      '%[0] = Sequence',
+      '[DEF, SF.Seq[0]]',
+      'Main = Objs',
+      '%NAME = "MainSequence"',
+      '[DEF, SF.Seq[0].Main]',
+      '%[0] = Step',
+      '%TYPE: %[0] = "Action"',
+      '[DEF, SF.Seq[0].Main[0]]',
+      'TS = Obj',
+      '%NAME = "gotoStep"',
+      '[DEF, SF.Seq[0].Main[0].TS]',
+      'PassAct = String',
+      'FailAct = String',
+      'FailActTarget = String',
+      '[SF.Seq[0].Main[0].TS]',
+      'PassAct = "Next"',
+      'FailAct = "Goto"',
+      'FailActTarget = "\\"<Cleanup>\\""',
+      '',
+    ].join('\n'));
+    final doc = SeqDocument.parse(Uint8List.fromList(ini)) as IniSeqDocument;
+    final outline = SeqOutline.of(doc.file);
+    final step = outline.sequences.single.groups.single.steps.single;
+    expect(step.notes, contains('flow Next/Goto→<Cleanup>'));
+  });
+
   test('SeqOutline.of shapes sequences → groups → steps', () {
     final doc = SeqDocument.parse(_xml()) as XmlSeqDocument;
     final outline = SeqOutline.of(doc.file);
