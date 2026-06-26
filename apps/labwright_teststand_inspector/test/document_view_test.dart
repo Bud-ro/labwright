@@ -208,6 +208,40 @@ Uint8List _xmlWithMeasParams() => Uint8List.fromList([
   ),
 ]);
 
+/// A step exercising the previously app-missing facets: a custom condition,
+/// a mutex, and a recorded (non-default) Result outcome.
+Uint8List _xmlStepExtras() => Uint8List.fromList([
+  0xef,
+  0xbb,
+  0xbf,
+  ...utf8.encode(
+    "<?xml version='1.0'?>\n"
+    "<teststandfileheader type='SequenceFile' fileversion='920' productname='TestStand'>"
+    "<typelist/><Data classname='Obj'><subprops>"
+    "<Seq classname='Objs'><value lbound='[0]' ubound='[1]'><value>"
+    "<Sequence name='MainSequence' classname='Obj'><subprops>"
+    "<Main classname='Objs'><value lbound='[0]' ubound='[1]'><value>"
+    "<Step typename='Action' name='Extras'><subprops>"
+    "<TS classname='Obj'><subprops>"
+    "<CustExpr classname='ExprValue'><value>Locals.go == True</value></CustExpr>"
+    "<UseMutex classname='Bool'><value>true</value></UseMutex>"
+    "<MutexNameOrRef classname='ExprValue'><value>\"Bus\"</value></MutexNameOrRef>"
+    "</subprops></TS>"
+    "<Result classname='Obj'><subprops>"
+    "<Status classname='Str'><value>Passed</value></Status>"
+    "<Error classname='Obj'><subprops>"
+    "<Code classname='Num'><value>0</value></Code>"
+    "<Msg classname='Str'><value/></Msg>"
+    "<Occurred classname='Bool'><value>false</value></Occurred>"
+    "</subprops></Error>"
+    "</subprops></Result>"
+    "</subprops></Step>"
+    "</value></value></Main>"
+    "</subprops></Sequence></value></value></Seq></subprops></Data>"
+    "</teststandfileheader>",
+  ),
+]);
+
 Uint8List _binary() {
   final pool = <int>[];
   for (final n in [
@@ -531,6 +565,20 @@ void main() {
     expect(stepMatches(step, 'ioresource'), isTrue);
     expect(stepMatches(step, 'dc_volts'), isTrue);
     expect(step.summary, contains('voltage_level in TypeDouble = 6'));
+  });
+
+  test('StepOutline.of surfaces custom condition, mutex, and result outcome', () {
+    final doc = SeqDocument.parse(_xmlStepExtras()) as XmlSeqDocument;
+    final step = SeqOutline.of(doc.file).sequences.single.groups.single.steps.single;
+    // Custom condition is an expression row; mutex + result are notes.
+    expect(step.expressions, contains(('Custom condition', 'Locals.go == True')));
+    expect(step.notes, contains('mutex "Bus"'));
+    expect(step.notes, contains('result status Passed'));
+    // All three are searchable and the summary carries them.
+    expect(stepMatches(step, 'locals.go'), isTrue);
+    expect(stepMatches(step, 'mutex'), isTrue);
+    expect(stepMatches(step, 'passed'), isTrue);
+    expect(step.summary, contains('mutex "Bus"'));
   });
 
   test('StepOutline.of surfaces a step status expression', () {

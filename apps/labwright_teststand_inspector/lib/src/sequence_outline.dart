@@ -252,11 +252,32 @@ class StepOutline {
           a.condition != null ? '${a.name} if ${a.condition}' : a.name;
       notes.add('+results: ${addl.map(fmt).join(', ')}');
     }
+    // Step mutex synchronization, only when the step actually locks one (parity
+    // with the dump's `mutex` note; default-off in the corpus).
+    if (s.usesMutex == true) {
+      notes.add('mutex${s.mutexName != null ? ' ${s.mutexName}' : ''}');
+    }
+    // A recorded run outcome (Result), shown only when non-default (a sequence
+    // file's un-run steps hold only defaults → nothing shown). Parity with the
+    // dump's {result:…} chip.
+    final res = step.result;
+    if (res != null && res.hasRecordedOutcome) {
+      final r = <String>[];
+      if (res.status != null) r.add('status ${res.status}');
+      if (res.errorOccurred == true) {
+        final code = res.errorCode;
+        r.add('error${code != null ? ' $code' : ''}');
+      }
+      if (res.reportText != null) r.add('report "${res.reportText}"');
+      if (r.isNotEmpty) notes.add('result ${r.join('; ')}');
+    }
 
     // The step's set expressions, in editor order. Shown as their own rows (they
     // can be long); precondition lives here too (was a note before).
     final expressions = <(String, String)>[
       if (s.precondition != null) ('Precondition', s.precondition!),
+      // The custom-condition expression (the step's own true/false branch test).
+      if (s.customExpression != null) ('Custom condition', s.customExpression!),
       if (s.preExpression != null) ('Pre-expression', s.preExpression!),
       if (s.postExpression != null) ('Post-expression', s.postExpression!),
       if (s.statusExpression != null) ('Status', s.statusExpression!),
