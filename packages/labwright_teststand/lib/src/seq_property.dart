@@ -47,6 +47,13 @@ class SeqProperty {
   bool get isArray => array != null;
   bool get isLeaf => array == null && subProps.isEmpty;
 
+  /// Whether this property is an explicit **instance override** — i.e. the file
+  /// marked it (via a legacy INI `%INSTOVRD` directive) as set on this object
+  /// rather than inherited from its base type. False for properties that simply
+  /// take their type's default. (The override's flags bitmask is kept verbatim in
+  /// [attributes] under `%INSTOVRD`; only its presence is interpreted so far.)
+  bool get isInstanceOverride => attributes.containsKey('%INSTOVRD');
+
   /// First sub-property named [name], or null.
   SeqProperty? prop(String name) {
     for (final p in subProps) {

@@ -294,4 +294,49 @@ ViPath = "legacy.vi"
     expect(module.adapter, SeqAdapter.labView);
     expect(module.viPath, 'legacy.vi');
   });
+
+  // `%INSTOVRD: <member> = <flags>` marks a member the object overrides relative
+  // to its base type; a bare `%INSTOVRD` marks the whole object. The reader keeps
+  // the flags verbatim and exposes presence via SeqProperty.isInstanceOverride.
+  const overrideIni = '''
+[__Header__]
+ProductName = "TestStand"
+Version = 354
+Type = "SequenceFile"
+
+[DEF, %OBJROOT]
+SF = SequenceFileData
+[DEF, SF]
+Seq = Objs
+%NAME = "Data"
+[DEF, SF.Seq]
+%[0] = Sequence
+[DEF, SF.Seq[0]]
+Main = Objs
+%NAME = "MainSequence"
+[DEF, SF.Seq[0].Main]
+%[0] = Step
+%TYPE: %[0] = "Action"
+[DEF, SF.Seq[0].Main[0]]
+TS = Obj
+%NAME = "ovrStep"
+[DEF, SF.Seq[0].Main[0].TS]
+Mode = String
+[SF.Seq[0].Main[0].TS]
+Mode = "Skip"
+[SF.Seq[0].Main[0]]
+%INSTOVRD: TS = 5046297
+''';
+
+  test('marks instance-overridden members via %INSTOVRD', () {
+    final sf = parseSeqFile(Uint8List.fromList(latin1.encode(overrideIni)));
+    final step = sf.sequences.single.main.single;
+    final ts = step.raw.prop('TS');
+    expect(ts, isNotNull);
+    // TS is flagged overridden by the step's `%INSTOVRD: TS`; its flags are kept.
+    expect(ts!.isInstanceOverride, isTrue);
+    expect(ts.attributes['%INSTOVRD'], '5046297');
+    // A member with no override marker stays a plain inherited/default value.
+    expect(ts.prop('Mode')?.isInstanceOverride, isFalse);
+  });
 }

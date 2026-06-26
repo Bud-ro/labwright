@@ -563,6 +563,28 @@ adapter as it was stored before the `ViCall` sub-object existed (the VI path is 
 adapter distribution across all **5664** INI steps: **sequenceCall 1624 · none
 3478 · labView 443 · cModule 119 · unknown 0**.
 
+**Instance overrides `%INSTOVRD` (2026-06, DONE — first slice).** A value section's
+`%INSTOVRD: <member> = <flags>` marks a member the object overrides relative to its
+base type; a bare `%INSTOVRD = <flags>` marks the whole object. The flags are a
+bitmask not yet decoded; presence is the signal. The reader keeps the raw flags as
+a `%INSTOVRD` attribute on the built `SeqProperty` and exposes
+`SeqProperty.isInstanceOverride`. Recovered across **all 58/58** INI files —
+**13072** override markers total. (In the corpus these sit overwhelmingly on type
+objects, i.e. custom step/data types overriding their base type — e.g. in one file
+all 234 were in type/global sections, 0 in step-instance sections — so this is
+primarily a type-derivation signal today.) TODO: decode the flags bitmask; surface
+an "(overridden)" marker in the app.
+
+**Corpus repo-search is now low-yield (2026-06).** A validated batch (4 `gh search
+repos` queries → 20 deduped candidates, fork-filtered, tree+signature checked)
+found **no new authentic sources**: the only two with `.seq` were
+`liyan295/grpc-teststand-api` (identical 6 ExampleFiles → a content-dup of the
+already-listed `ni/grpc-teststand-api`) and `kellyrael/VibeCodedTestStand` (root tag
+`<TSSequenceFile>`, **not** NI's `<teststandfileheader>` — almost certainly
+AI-generated, not authentic NI TestStand; not added). With 36 pinned sources the
+gh-discoverable space is largely mined; bigger growth needs a different channel
+(org-scoped crawls, dataset dumps) or accepting the binary-heavy long tail.
+
 Next slices: (1) decode any further non-empty unrecognized `SData` shape if/when
 the corpus grows one (.NET/HTBasic/NI plug-in). (2) **use this concrete per-object
 member→type→value layout as the oracle for the binary**:
@@ -583,8 +605,10 @@ triplets) to finally decode the binary record's field/count/value encoding.
   defaults that an instance doesn't override are filled in from the step's
   `[DEF, <Type>]` (instance-wins; see "Type inheritance" above). Empty inherited
   `SData` classifies as `SeqAdapter.none` (no-module steps), so `unknown` is 0
-  across the corpus. Still TODO: any future non-empty unrecognized `SData` adapter
-  shape, and explicit instance overrides (`%INSTOVRD`).
+  across the corpus. Explicit `%INSTOVRD` instance-override markers are now
+  recovered as `SeqProperty` attributes (`isInstanceOverride`; 13072 across the
+  corpus). Still TODO: any future non-empty unrecognized `SData` adapter shape,
+  decoding the `%INSTOVRD` flags bitmask, and surfacing overrides in the app.
 - **Config / station files** — `corpus/seq-sources.json` captures `.ini/.cfg/.tsw/.tpj`
   when present, but the open-source corpus is sequence-heavy; type-palette and
   station-config samples are sparse. (CN-IOT's `.ini` files are *localization

@@ -8,6 +8,20 @@ import 'package:test/test.dart';
 
 import 'corpus_dirs.dart';
 
+/// Counts the instance-override markers (`%INSTOVRD`) recovered anywhere in a
+/// property tree — see [SeqProperty.isInstanceOverride].
+int _countOverrides(SeqProperty p, [int depth = 0]) {
+  if (depth > 50) return 0;
+  var n = p.isInstanceOverride ? 1 : 0;
+  for (final c in p.subProps) {
+    n += _countOverrides(c, depth + 1);
+  }
+  for (final c in p.array ?? const <SeqProperty>[]) {
+    n += _countOverrides(c, depth + 1);
+  }
+  return n;
+}
+
 /// Validates the M1 XML reader against the real fetched corpus: every XML `.seq`
 /// must parse without throwing, and the typed lens must recover sequences and
 /// steps. Binary `TOF1` files must be honestly classified and refused (not
@@ -239,6 +253,8 @@ void main() {
     // stores only overrides. These count steps whose effective run-mode/looping
     // the lens recovers (type-inherited where the instance is silent).
     var withMode = 0, withLoop = 0;
+    // Explicit `%INSTOVRD` instance-override markers recovered across the tree.
+    var overrides = 0, filesWithOverride = 0;
     for (final f in seqs) {
       final bytes = f.readAsBytesSync();
       if (detectSeqFormat(bytes) != SeqFormat.ini) continue;
@@ -246,6 +262,9 @@ void main() {
       try {
         final sf = parseSeqFile(bytes);
         built++;
+        final ovr = _countOverrides(sf.data);
+        overrides += ovr;
+        if (ovr > 0) filesWithOverride++;
         totTypes += sf.types.length;
         totSeq += sf.sequences.length;
         for (final s in sf.sequences) {
@@ -275,7 +294,8 @@ void main() {
       '$totSeq sequences · $totSteps steps · $totLocals locals · '
       '$withType typed steps · $totTypes types · '
       '$recognized recognized adapters / $noneAdapter none / $unknownAdapter unknown · '
-      '$withMode with run-mode · $withLoop with looping',
+      '$withMode with run-mode · $withLoop with looping · '
+      '$overrides instance-overrides in $filesWithOverride files',
     );
     expect(ini, greaterThan(0));
     expect(threw, 0, reason: 'an INI file failed to parse into a SeqFile');
@@ -296,6 +316,8 @@ void main() {
     // only non-zero once the lens reads the defaults from the step's type def.
     expect(withMode, greaterThan(0), reason: 'no type-inherited run-mode recovered');
     expect(withLoop, greaterThan(0), reason: 'no type-inherited looping recovered');
+    // Explicit `%INSTOVRD` instance-override markers are recovered as attributes.
+    expect(overrides, greaterThan(0), reason: 'no %INSTOVRD overrides recovered');
   });
 
   test('every binary TOF1 body frames into a record region + string table', () {

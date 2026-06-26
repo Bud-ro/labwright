@@ -284,12 +284,22 @@ class _IniBuilder {
     return (t, null);
   }
 
+  /// The attribute key under which an instance-override marker is stored on a
+  /// built [SeqProperty] (see [SeqProperty.isInstanceOverride]).
+  static const instOverrideAttr = '%INSTOVRD';
+
+  /// The attributes for a member with override flags [flags] (the raw value of a
+  /// `%INSTOVRD: <member>` directive), or an empty map when not overridden.
+  Map<String, String> _ovrAttrs(String? flags) =>
+      flags == null ? const {} : {instOverrideAttr: flags};
+
   SeqProperty build(
     String path,
     String displayName,
     String? declaredType, [
     String? declaredTypeName,
     Set<String>? visiting,
+    Map<String, String> ownAttributes = const {},
   ]) {
     visiting ??= <String>{};
     final def = _defs[path];
@@ -297,6 +307,11 @@ class _IniBuilder {
     final name = _unquote(val?.directives['%NAME']) ??
         _unquote(def?.directives['%NAME']) ??
         displayName;
+    // Instance overrides. `%INSTOVRD: <member> = <flags>` in a value section marks
+    // a member this object overrides relative to its base type; a bare
+    // `%INSTOVRD = <flags>` marks the whole object. The flags are a bitmask we
+    // don't fully decode yet; presence is the signal. Preserved as an attribute.
+    String? ovrOf(String m) => val?.directives['$instOverrideAttr: $m'];
     // Type inheritance. A typed object (e.g. a step of type "Action") declares
     // its member *types* in its `[DEF, <Type>]`; the instance stores only the
     // members/values it overrides. So the type def supplies (a) member type
@@ -353,13 +368,15 @@ class _IniBuilder {
               visiting,
             ),
         ];
-        subs.add(SeqProperty(name: m, className: cls, array: arr));
+        subs.add(SeqProperty(
+            name: m, className: cls, array: arr, attributes: _ovrAttrs(ovrOf(m))));
       } else if (_isContainer(instPath)) {
         // The instance has this container: build it (and let it inherit its own
         // type's defaults via the typeName we pass down).
-        subs.add(build(instPath, m, cls, tn, visiting));
+        subs.add(build(instPath, m, cls, tn, visiting, _ovrAttrs(ovrOf(m))));
       } else if (typePath != null && _isContainer(typePath)) {
-        // Inherited-only container: take the type's default subtree (cached).
+        // Inherited-only container: take the type's default subtree (cached). The
+        // instance is silent here, so it carries no override marker.
         subs.add(_inheritCache[typePath] ??= build(typePath, m, cls, tn, visiting));
       } else {
         // Scalar leaf: instance value wins, else the type default value.
@@ -369,15 +386,24 @@ class _IniBuilder {
           typeName: tn,
           scalar: _unquote(val?.members[m]) ??
               (typeRoot == null ? null : _unquote(_vals[typeRoot]?.members[m])),
+          attributes: _ovrAttrs(ovrOf(m)),
         ));
       }
     }
     if (inheritGuard) visiting.remove(typeRoot);
 
+    // The object's own attributes: any passed-in override marker (from its
+    // parent's `%INSTOVRD: <thisMember>`) plus a bare `%INSTOVRD` on its section.
+    final attrs = <String, String>{...ownAttributes};
+    final bareOvr =
+        val?.directives[instOverrideAttr] ?? def?.directives[instOverrideAttr];
+    if (bareOvr != null) attrs[instOverrideAttr] = bareOvr;
+
     return SeqProperty(
       name: name,
       className: declaredType,
       typeName: declaredTypeName,
+      attributes: attrs,
       subProps: subs,
     );
   }
