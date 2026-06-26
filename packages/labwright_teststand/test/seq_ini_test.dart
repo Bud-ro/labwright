@@ -517,11 +517,15 @@ PassAct = String
 FailAct = String
 FailActTarget = String
 Icon = String
+LoadOpt = String
+UnloadOpt = String
 [SF.Seq[0].Main[0].TS]
 PassAct = "Next"
 FailAct = "Goto"
 FailActTarget = "\\"<Cleanup>\\""
 Icon = "FlowControl\\NI_While.ico"
+LoadOpt = "DynamicLoad"
+UnloadOpt = "UnloadAfterStepExecution"
 ''';
 
   test('recovers a step flow-action jump target (Goto -> <Cleanup>)', () {
@@ -532,6 +536,17 @@ Icon = "FlowControl\\NI_While.ico"
     expect(set.passActionTarget, isNull); // Next falls through, no target
     expect(set.failActionTarget, '<Cleanup>'); // unwrapped from \"<Cleanup>\"
     expect(set.flowSummary, 'Next/Goto→<Cleanup>');
+  });
+
+  test('recovers non-default module load/unload timing', () {
+    final sf = parseSeqFile(Uint8List.fromList(latin1.encode(flowIni)));
+    final set = sf.sequences.single.main.single.settings;
+    expect(set.loadOption, 'DynamicLoad');
+    expect(set.unloadOption, 'UnloadAfterStepExecution');
+    // The dump surfaces both (they differ from the common defaults).
+    final out = dumpSeqFile(sf);
+    expect(out, contains('load DynamicLoad'));
+    expect(out, contains('unload UnloadAfterStepExecution'));
   });
 
   test('recovers the step editor icon basename (folder + .ico stripped)', () {

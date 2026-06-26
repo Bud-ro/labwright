@@ -450,8 +450,14 @@ class StepSettings {
   /// True unless the step is forced to a non-normal run mode.
   bool get isNormalMode => mode == null || mode == 'Normal';
 
-  /// The module load timing (`LoadOpt`), e.g. `PreloadWhenExecuted`, `DynamicLoad`.
+  /// The module load timing (`LoadOpt`), e.g. `PreloadWhenExecuted` (the common
+  /// default), `DynamicLoad`.
   String? get loadOption => _scalar('LoadOpt');
+
+  /// The module unload timing (`UnloadOpt`), e.g. `UnloadWithFile` (the common
+  /// default), `UnloadAfterStepExecution`, `UnloadAfterSequenceExecution`. The
+  /// symmetric counterpart to [loadOption].
+  String? get unloadOption => _scalar('UnloadOpt');
 
   /// The step's editor icon (`TS.Icon`), as a readable basename without its
   /// folder or `.ico` extension (e.g. `NI_While`, `Measurement`, `MsgBox`), or

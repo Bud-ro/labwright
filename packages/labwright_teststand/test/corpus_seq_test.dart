@@ -348,6 +348,8 @@ void main() {
     var withFlowTarget = 0;
     // `ID#:` custom-condition targets that resolve to a destination step name.
     var resolvedIdTargets = 0;
+    // Steps with non-default module load/unload timing.
+    var withModuleTiming = 0;
     for (final f in seqs) {
       final bytes = f.readAsBytesSync();
       if (detectSeqFormat(bytes) != SeqFormat.ini) continue;
@@ -397,6 +399,11 @@ void main() {
                 resolvedIdTargets++;
               }
             }
+            final lo = st.settings.loadOption, uo = st.settings.unloadOption;
+            if ((lo != null && lo != 'PreloadWhenExecuted') ||
+                (uo != null && uo != 'UnloadWithFile')) {
+              withModuleTiming++;
+            }
           }
         }
       } on FormatException {
@@ -415,6 +422,7 @@ void main() {
       '$varsWithComment vars with comment · '
       '$withFlowTarget steps with flow target · '
       '$resolvedIdTargets resolved ID#: targets · '
+      '$withModuleTiming steps non-default load/unload · '
       '$overrides instance-overrides in $filesWithOverride files',
     );
     expect(threw, 0, reason: 'an INI file failed to parse into a SeqFile');
@@ -449,6 +457,8 @@ void main() {
     expect(objVarsWithFields, 95, reason: 'object-variable field count drifted');
     expect(withFlowTarget, 58, reason: 'flow-target count drifted');
     expect(resolvedIdTargets, 12, reason: 'resolved ID#: target count drifted');
+    expect(withModuleTiming, 63,
+        reason: 'non-default module load/unload count drifted');
   });
 
   test('every binary TOF1 body frames into a record region + string table', () {

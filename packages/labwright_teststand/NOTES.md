@@ -633,6 +633,17 @@ lands via the generic `%COMMENT` carry); the app appends it to the variable row 
 completes the free-text-comment recovery story: steps (667), sequences (102), and
 variables (37). XML variables in the corpus carry none.
 
+**Module load/unload timing (2026-06, DONE).** A step's code-module lifecycle is
+stored in `TS.LoadOpt` / `TS.UnloadOpt` — readable enums: load `PreloadWhenExecuted`
+(default) / `DynamicLoad`; unload `UnloadWithFile` (default) /
+`UnloadAfterStepExecution` / `UnloadAfterSequenceExecution`. `loadOption` existed
+on the lens but was shown nowhere; added the symmetric `StepSettings.unloadOption`
+and surfaced both as `load …`/`unload …` notes in the app step view and the text
+dump **only when non-default**. Recovered: **63 INI steps** carry non-default
+load/unload timing. *(TS.Adapter — the human adapter label like "G Std Prototype
+Adapter"/"DLL Flexible Prototype Adapter", 149 steps — is readable but redundant
+with the SData-derived [StepModule.adapter]; not surfaced separately.)*
+
 **Step editor icon `TS.Icon` (2026-06, DONE).** A step's editor glyph is stored as
 an icon resource path in `TS.Icon` (e.g. `FlowControl\NI_While.ico`,
 `Measurement\Measurement.ico`, `MsgBox.ico`). Exposed on the shared lens as

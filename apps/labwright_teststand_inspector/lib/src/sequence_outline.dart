@@ -205,6 +205,13 @@ class StepOutline {
     if (s.customFalseTarget != null) {
       notes.add('cust-false→${resolveTarget(s.customFalseTarget!)}');
     }
+    // Module load/unload timing, only when non-default.
+    if (s.loadOption != null && s.loadOption != 'PreloadWhenExecuted') {
+      notes.add('load ${s.loadOption}');
+    }
+    if (s.unloadOption != null && s.unloadOption != 'UnloadWithFile') {
+      notes.add('unload ${s.unloadOption}');
+    }
     if (s.isLooping) notes.add('loop ${s.loopType}');
 
     // The step's set expressions, in editor order. Shown as their own rows (they

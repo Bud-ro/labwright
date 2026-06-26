@@ -76,6 +76,13 @@ String _dumpStep(Step step, SeqFile file) {
   final notes = <String>[];
   if (!s.isNormalMode) notes.add('mode ${s.mode}');
   if (s.flowSummary != null) notes.add('flow ${s.flowSummary}');
+  // Module load/unload timing, only when it differs from the common default.
+  if (s.loadOption != null && s.loadOption != 'PreloadWhenExecuted') {
+    notes.add('load ${s.loadOption}');
+  }
+  if (s.unloadOption != null && s.unloadOption != 'UnloadWithFile') {
+    notes.add('unload ${s.unloadOption}');
+  }
   String resolveTarget(String t) =>
       t.startsWith('ID#:') ? (file.stepNameForId(t) ?? t) : t;
   if (s.customTrueTarget != null) {
