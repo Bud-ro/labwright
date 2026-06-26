@@ -240,11 +240,17 @@ enum SeqAdapter {
   /// Sequence Call (`SeqName`/`SFPath`) — calls another sequence.
   sequenceCall,
 
-  /// The step carries no `SData` (e.g. a flow-control step, or an adapter whose
-  /// binding lives elsewhere such as the NI measurement plug-in).
+  /// The step carries no code module — either no `SData` at all, or an empty
+  /// `SData` container (e.g. a flow-control step like `NI_Flow_If`/`NI_Flow_End`,
+  /// a `Statement`, `Label`, `NI_Wait`/`NI_Lock`). Across the INI corpus every
+  /// empty-`SData` step is one of these no-module types, so an empty `SData`
+  /// (often inherited as a bare default from the step's type) means "no adapter",
+  /// not "an adapter we failed to read".
   none,
 
-  /// `SData` is present but its adapter record is not yet recognized.
+  /// `SData` is present with members, but its adapter record is not yet
+  /// recognized (e.g. .NET/HTBasic/an NI plug-in shape not yet decoded). No such
+  /// step exists in the current corpus — reserved for shapes we have not seen.
   unknown;
 }
 
@@ -285,7 +291,11 @@ class StepModule {
   static String? _e(String? s) => (s == null || s.isEmpty) ? null : s;
 
   factory StepModule.fromSData(SeqProperty? sdata) {
-    if (sdata == null) return StepModule(adapter: SeqAdapter.none);
+    // No SData, or an empty SData container (commonly an inherited bare default
+    // on a flow-control/no-module step), means there is no code-module binding.
+    if (sdata == null || sdata.subProps.isEmpty) {
+      return StepModule(adapter: SeqAdapter.none);
+    }
 
     final vi = sdata.prop('ViCall');
     if (vi != null) {

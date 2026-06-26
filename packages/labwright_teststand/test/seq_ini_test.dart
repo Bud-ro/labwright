@@ -198,4 +198,50 @@ VIPath = "measure.vi"
       expect(step.module.viPath, 'measure.vi');
     });
   });
+
+  // Flow-control / no-module step types inherit a *bare* (empty) SData container
+  // from their type. An empty SData carries no binding, so it must classify as
+  // SeqAdapter.none — not `unknown` (which is reserved for SData shapes we can't
+  // yet parse). This mirrors the full corpus, where every empty-SData step is a
+  // no-module type (Statement, NI_Flow_*, Label, NI_Wait, …).
+  const emptySDataIni = '''
+[__Header__]
+ProductName = "TestStand"
+Version = 354
+Type = "SequenceFile"
+
+[DEF, %OBJROOT]
+SF = SequenceFileData
+[DEF, SF]
+Seq = Objs
+%NAME = "Data"
+[DEF, SF.Seq]
+%[0] = Sequence
+[DEF, SF.Seq[0]]
+Main = Objs
+%NAME = "MainSequence"
+[DEF, SF.Seq[0].Main]
+%[0] = Step
+%TYPE: %[0] = "NI_Flow_End"
+[DEF, SF.Seq[0].Main[0]]
+%NAME = "End"
+
+[DEF, NI_Flow_End]
+TS = "TYPE, TEInf"
+[DEF, NI_Flow_End.TS]
+Mode = String
+SData = "TYPE, FlexGStepAdditions"
+[NI_Flow_End.TS]
+Mode = "Normal"
+[DEF, NI_Flow_End.TS.SData]
+''';
+
+  test('an empty inherited SData classifies as SeqAdapter.none (not unknown)', () {
+    final sf = parseSeqFile(Uint8List.fromList(latin1.encode(emptySDataIni)));
+    final step = sf.sequences.single.main.single;
+    expect(step.type, 'NI_Flow_End');
+    // Settings still inherit (run mode), but there is no code module.
+    expect(step.settings.mode, 'Normal');
+    expect(step.module.adapter, SeqAdapter.none);
+  });
 }

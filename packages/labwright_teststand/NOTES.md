@@ -531,17 +531,27 @@ when the instance is silent, takes the value from the type's own default subtree
 **instance-wins**, bounded against type cycles by a `visiting` guard, with
 inherited default subtrees cached. Measured on the full corpus (56 buildable INI):
 run-mode recovered for **5515/5515** steps (was 210 — the 210 instance `Skip`
-overrides plus 5305 type-default `Normal`), looping for **5515/5515** (was 38),
-module bindings **5515/5515** (was 2123; the newly-surfaced ones are mostly
-`SeqAdapter.unknown` — the inherited `SData` shape isn't yet recognized, an honest
-"not yet decoded" frontier, not a false binding). Sequence/step counts unchanged
-(441/5515 — no structural regression). Values are only ever *copied* from a type
-definition present in the same file; nothing is fabricated.
+overrides plus 5305 type-default `Normal`), looping for **5515/5515** (was 38).
+Sequence/step counts unchanged (441/5515 — no structural regression). Values are
+only ever *copied* from a type definition present in the same file; nothing is
+fabricated.
 
-Next slices: (1) decode the inherited-default `SData` shapes that currently read
-as `SeqAdapter.unknown` (3463 steps), to tell "no adapter" apart from an adapter
-we don't yet parse. (2) **use this concrete per-object member→type→value layout as
-the oracle for the binary**:
+**Empty inherited `SData` ⇒ `SeqAdapter.none` (2026-06, DONE).** Type inheritance
+gives every step a `TS.SData` container; for flow-control/no-module step types
+that inherited `SData` is **empty**. A full-corpus probe confirmed this exactly:
+of the 3463 steps that briefly read as `SeqAdapter.unknown`, **all 3463 had an
+empty `SData`** (`nullSData=0, emptySData=3463`), every one a no-module step type —
+`Statement` (966), `NI_Flow_End` (686), `Label` (476), `NI_Flow_If` (351),
+`NI_Flow_Else`/`For`/`While`/`Case`/`ForEach`, `NI_Wait` (101), `NI_Lock` (50), …
+So `StepModule.fromSData` now treats an empty `SData` (not just a null one) as
+`none`. Adapter distribution across all 5515 INI steps: **sequenceCall 1613 · none
+3463 · labView 382 · cModule 57 · unknown 0**. `unknown` is now reserved for an
+`SData` *with* members we can't parse (none exist in the corpus today); the corpus
+test asserts `unknown == 0` to catch a future regression.
+
+Next slices: (1) decode a *non-empty* unrecognized `SData` shape if/when the
+corpus grows one (.NET/HTBasic/NI plug-in). (2) **use this concrete per-object
+member→type→value layout as the oracle for the binary**:
 for a given object the INI tells us the exact ordered members, their types, and
 values — line that up against the binary record stream (name-index/`field`/`count`
 triplets) to finally decode the binary record's field/count/value encoding.
@@ -557,9 +567,11 @@ triplets) to finally decode the binary record's field/count/value encoding.
   populated for INI from `[%TYPES]` (`iniTypes`; 2206 types across 56 files).
   Type-inherited step settings (run-mode/looping) and adapter defaults that an
   instance doesn't override are now filled in from the step's `[DEF, <Type>]`
-  (instance-wins; see "Type inheritance" above). Still TODO: the 2 files lacking
-  a `%OBJROOT` root (degrade to Unknown), decoding the inherited `SData` shapes
-  that read as `SeqAdapter.unknown`, and explicit instance overrides (`%INSTOVRD`).
+  (instance-wins; see "Type inheritance" above). Empty inherited `SData` now
+  classifies as `SeqAdapter.none` (no-module steps), so `unknown` is 0 across the
+  corpus. Still TODO: the 2 files lacking a `%OBJROOT` root (degrade to Unknown),
+  any future non-empty unrecognized `SData` adapter shape, and explicit instance
+  overrides (`%INSTOVRD`).
 - **Config / station files** — `corpus/seq-sources.json` captures `.ini/.cfg/.tsw/.tpj`
   when present, but the open-source corpus is sequence-heavy; type-palette and
   station-config samples are sparse. (CN-IOT's `.ini` files are *localization

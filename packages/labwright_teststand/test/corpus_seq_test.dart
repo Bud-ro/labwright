@@ -228,8 +228,13 @@ void main() {
 
   test('INI files parse through parseSeqFile into the typed lens', () {
     var ini = 0, built = 0, threw = 0;
-    var totSeq = 0, totSteps = 0, totLocals = 0, withModule = 0, withType = 0;
+    var totSeq = 0, totSteps = 0, totLocals = 0, withType = 0;
     var totTypes = 0;
+    // Module-adapter classification. A recognized adapter (labView/cModule/
+    // sequenceCall/python) has a real binding; `none` is a no-module step (no
+    // SData, or an empty SData often inherited as a bare default); `unknown` is
+    // an SData with members we don't yet parse.
+    var recognized = 0, noneAdapter = 0, unknownAdapter = 0;
     // Settings/looping defaults live in a step's TYPE definition; the instance
     // stores only overrides. These count steps whose effective run-mode/looping
     // the lens recovers (type-inherited where the instance is silent).
@@ -248,7 +253,14 @@ void main() {
           for (final st in s.steps) {
             totSteps++;
             if (st.type != null) withType++;
-            if (st.module.adapter != SeqAdapter.none) withModule++;
+            switch (st.module.adapter) {
+              case SeqAdapter.none:
+                noneAdapter++;
+              case SeqAdapter.unknown:
+                unknownAdapter++;
+              default:
+                recognized++;
+            }
             if (st.settings.mode != null) withMode++;
             if (st.settings.loopType != null) withLoop++;
           }
@@ -261,7 +273,8 @@ void main() {
     print(
       'INI lens: $built/$ini parsed via parseSeqFile ($threw threw) · '
       '$totSeq sequences · $totSteps steps · $totLocals locals · '
-      '$withType typed steps · $withModule module bindings · $totTypes types · '
+      '$withType typed steps · $totTypes types · '
+      '$recognized recognized adapters / $noneAdapter none / $unknownAdapter unknown · '
       '$withMode with run-mode · $withLoop with looping',
     );
     expect(ini, greaterThan(0));
@@ -272,7 +285,12 @@ void main() {
     expect(totSteps, greaterThan(0), reason: 'no INI steps via the lens');
     expect(totLocals, greaterThan(0), reason: 'no INI locals via the lens');
     expect(withType, greaterThan(0), reason: 'no INI step types via the lens');
-    expect(withModule, greaterThan(0), reason: 'no INI module bindings via the lens');
+    expect(recognized, greaterThan(0), reason: 'no INI module bindings via the lens');
+    // Every step with an SData adapter is recognized: the only un-bound steps are
+    // honest `none` (empty/no SData), never an unparsed `unknown`. Holds across
+    // the full corpus today; tightening guards against a silent regression.
+    expect(unknownAdapter, 0, reason: 'an INI step has an unrecognized SData adapter');
+    expect(noneAdapter, greaterThan(0), reason: 'no no-module steps classified');
     // Type inheritance: most steps don't override run-mode/looping, so these are
     // only non-zero once the lens reads the defaults from the step's type def.
     expect(withMode, greaterThan(0), reason: 'no type-inherited run-mode recovered');
