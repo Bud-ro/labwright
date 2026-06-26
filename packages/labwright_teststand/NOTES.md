@@ -395,6 +395,27 @@ filter with a `00000000`/`ffffffff` boundary before:
 
 The ~46-point gap (asserted: real > 0.9 and real − control > 0.25) confirms the
 triplet is a **genuine structural signal**, not an artifact — so the record shape
+**Record LOCATION / ORDER attack (2026-06, mostly REFUTED; one positive).**
+After the oracle refuted `count`, the blocker became *locating* each object's
+definition record. Probed on all 288 binary files:
+- **REFUTED — record order == name-pool order.** The first-occurrence order of
+  the boundary-prefixed triplet name-indices is strictly monotonic (== pool
+  order) in only **16% (46/288)** of files — not a usable alignment. (Scanning
+  *all* u32s instead of just triplets gives 0% — pure noise from small ints.)
+- **REFUTED — `00000000`/`ffffffff` u32s delimit object records.** Their count is
+  ~**247× the name count** (median) — far too frequent to be per-object
+  delimiters; they are intra-value padding/alignment.
+- **POSITIVE — near one triplet per name.** In **87.8% (253/288)** of files
+  (almost) every pool name appears as a boundary-prefixed triplet (distinct
+  triplet-names / nameLen median **1.00**) — i.e. the triplet IS a roughly
+  complete per-name record set; it's just not in pool order (likely tree-traversal
+  order, which the pool order doesn't preserve).
+- **Unblock unchanged:** aligning triplets to the tree needs a byte-identical
+  INI↔binary twin (the corpus has none — its XML/binary twins are different
+  revisions), or the NI serialization layout. The INI oracle gives the expected
+  tree; only the binary record *boundaries/order* remain. *(Not yet decoded — not
+  unrecoverable.)*
+
 is real and holds across both layouts and all repos. BUT the 52% control rate
 means a naive `[idx][field][count]` scan is **too noisy to *extract* the object
 list** (≈half its hits on non-names would be spurious).
