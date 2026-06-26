@@ -68,6 +68,15 @@ SeqCoverage measureCoverage(SeqFile f) {
       mark(sdata?.prop('Call')?.prop('Func'));
       mark(sdata?.prop('SeqName'));
       mark(sdata?.prop('SFPath'));
+      // Module call arguments: the `Call.Parameters` container and the fields
+      // each `CallParameter` surfaces.
+      mark(sdata?.prop('Call')?.prop('Parameters'));
+      for (final p in step.module.callParameters) {
+        mark(p.raw);
+        for (final k in ['Name', 'ArgVal', 'DisplayType', 'Direction']) {
+          mark(p.raw.prop(k));
+        }
+      }
       // Limit-test criteria.
       mark(step.raw.prop('Comp'));
       mark(step.raw.prop('DataSource'));
@@ -76,6 +85,11 @@ SeqCoverage measureCoverage(SeqFile f) {
       for (final k in ['Low', 'High', 'Nominal', 'ThresholdType']) {
         mark(lim?.prop(k));
       }
+      // Recorded result: the `Result` sub-object the lens navigates and the
+      // `Units` leaf it reads (Step.resultUnits).
+      final result = step.raw.prop('Result');
+      mark(result);
+      mark(result?.prop('Units'));
     }
   }
 

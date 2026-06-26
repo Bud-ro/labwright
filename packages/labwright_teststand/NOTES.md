@@ -141,10 +141,13 @@ refused (not mis-parsed).
   sequence-level parameter list above.
 - **Coverage metric**: `measureCoverage(SeqFile)` → `SeqCoverage{total, modeled}`
   counts what fraction of `Data`-tree property nodes the typed lens surfaces.
-  `tool/coverage.dart` runs it over `corpus/seq` and writes a gitignored
-  `corpus/seq/REPORT.md`. Current: **13.5% (1895/14016 nodes)** — the rest (deep
-  `TS` step config, `Result`/`Measurement` subtrees) is still raw `SeqProperty`,
-  the frontier to grow. The analog of the VI "% semantically decoded".
+  `tool/coverage.dart` runs it over the **XML** `.seq` files in `corpus/seq` and
+  writes a gitignored `corpus/seq/REPORT.md`. Current: **15.5% (2930/18932
+  nodes)** over 26 XML files — the rest (deep `TS` step config, `Result`/
+  `Measurement` subtrees, override/flag metadata) is still raw `SeqProperty`, the
+  frontier to grow. `measureCoverage` credits the call-argument
+  (`Call.Parameters`) and recorded-`Result.Units` nodes the lens now surfaces.
+  The analog of the VI "% semantically decoded".
 - **Test limits**: a limit-test step (`NumericLimitTest`, …) carries the
   pass/fail criteria as `Comp` (operator, e.g. `GELE` = low ≤ x ≤ high) +
   `Limits` (`Low`/`High`/`Nominal`/`ThresholdType`, e.g. `PERCENTAGE`) +
