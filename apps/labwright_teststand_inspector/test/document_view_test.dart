@@ -118,6 +118,44 @@ Uint8List _xmlWithFlags() => Uint8List.fromList([
   ),
 ]);
 
+/// A step carrying an "Additional Results" recording spec: a call parameter with
+/// an `AdditionalResults` container whose `Input`/`Output` entries each hold a
+/// gating `Condition` (one empty/always, one set) plus raw `Flags`/`CheckedState`.
+Uint8List _xmlWithAddlResults() => Uint8List.fromList([
+  0xef,
+  0xbb,
+  0xbf,
+  ...utf8.encode(
+    "<?xml version='1.0'?>\n"
+    "<teststandfileheader type='SequenceFile' fileversion='920' productname='TestStand'>"
+    "<typelist/><Data classname='Obj'><subprops>"
+    "<Seq classname='Objs'><value lbound='[0]' ubound='[1]'><value>"
+    "<Sequence name='MainSequence' classname='Obj'><subprops>"
+    "<Main classname='Objs'><value lbound='[0]' ubound='[1]'><value>"
+    "<Step typename='Action' name='Run Python'><subprops>"
+    "<TS classname='Obj'><subprops><SData classname='Obj'><subprops>"
+    "<Param classname='NI_PythonParameter'><subprops>"
+    "<AdditionalResults classname='Obj'><subprops>"
+    "<Input classname='PythonParameterResult'><subprops>"
+    "<Condition classname='ExprValue'><value/></Condition>"
+    "<Flags classname='Num'><value>8192</value></Flags>"
+    "<CheckedState classname='Num'><value>1</value></CheckedState>"
+    "</subprops></Input>"
+    "<Output classname='PythonParameterResult'><subprops>"
+    "<Condition classname='ExprValue'><value>Locals.Save == True</value></Condition>"
+    "<Flags classname='Num'><value>8192</value></Flags>"
+    "<CheckedState classname='Num'><value>2</value></CheckedState>"
+    "</subprops></Output>"
+    "</subprops></AdditionalResults>"
+    "</subprops></Param>"
+    "</subprops></SData></subprops></TS>"
+    "</subprops></Step>"
+    "</value></value></Main>"
+    "</subprops></Sequence></value></value></Seq></subprops></Data>"
+    "</teststandfileheader>",
+  ),
+]);
+
 Uint8List _binary() {
   final pool = <int>[];
   for (final n in [
@@ -400,6 +438,17 @@ void main() {
     // Searchable and present in the one-line summary.
     expect(stepMatches(step, 'no-record'), isTrue);
     expect(step.summary, contains('no-seq-fail'));
+  });
+
+  test('StepOutline.of surfaces the Additional Results spec as a note', () {
+    final doc = SeqDocument.parse(_xmlWithAddlResults()) as XmlSeqDocument;
+    final step = SeqOutline.of(doc.file).sequences.single.groups.single.steps.single;
+    // The recorded slots, with the set condition surfaced and the empty one not.
+    expect(step.notes, contains('+results: Input, Output if Locals.Save == True'));
+    // Searchable (by slot name and by gating expression) and in the summary.
+    expect(stepMatches(step, 'output'), isTrue);
+    expect(stepMatches(step, 'locals.save'), isTrue);
+    expect(step.summary, contains('+results: Input'));
   });
 
   test('StepOutline.of surfaces a step status expression', () {

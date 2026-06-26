@@ -237,6 +237,15 @@ class StepOutline {
     if (s.ignoresRunTimeErrors == true) notes.add('ignore-RTE');
     if (s.failureCausesSequenceFailure == false) notes.add('no-seq-fail');
     if (s.recordsResult == false) notes.add('no-record');
+    // "Additional Results" recording spec: the extra values the step logs to the
+    // report, each with its gating condition when set (parity with the dump's
+    // {+results} chip). Flags/CheckedState are not yet decoded, so omitted.
+    final addl = step.additionalResults;
+    if (addl.isNotEmpty) {
+      String fmt(AdditionalResult a) =>
+          a.condition != null ? '${a.name} if ${a.condition}' : a.name;
+      notes.add('+results: ${addl.map(fmt).join(', ')}');
+    }
 
     // The step's set expressions, in editor order. Shown as their own rows (they
     // can be long); precondition lives here too (was a note before).
