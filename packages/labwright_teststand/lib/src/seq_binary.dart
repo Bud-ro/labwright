@@ -155,8 +155,12 @@ class BinaryBodyLayout {
   /// all 83 binary files: `leadingWords[2] == 1` (a constant marker) and
   /// `leadingWords[1] ∈ {16, 118}` (0x10 / 0x76 — a small fixed set); and
   /// `leadingWords[0]` varies and is **not** a simple count.
-  // TODO: decode the meaning of leadingWords[1] (0x10 / 0x76 — likely a
-  // kind/version tag) and leadingWords[0] — not yet determined.
+  // TODO: decode leadingWords[1] (0x10 / 0x76). Ruled OUT across the corpus: it
+  // is NOT the engine/save version (both cohorts span header versions 14/19/21),
+  // NOT the fileType (all SequenceFile), NOT process-model presence, and NOT the
+  // source tool (the same repos produce both values). It only weakly tracks
+  // structural size (the 0x10 cohort has fewer string segments). Still not
+  // determined. leadingWords[0] also not yet determined.
   final List<int> leadingWords;
 
   @override

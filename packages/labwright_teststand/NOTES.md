@@ -214,8 +214,30 @@ the segment that matches the most known PropertyObject model tokens (`Sequence`,
 It is the **first segment in 82/83** (a strong tendency, *not* relied on — the
 single outlier, `UKTAG_SimpleResultProcessor.seq`, scatters names across early
 segments with the densest hit at index 4, so selection is by content, not
-position). The other segments (value tables, expression tables) are **not yet
-individually labelled** — that needs the record grammar.
+position).
+
+The **value/expression tables** (the non-name segments) are **not yet
+individually labelled**, and the obvious heuristics were *refuted* across the
+corpus:
+
+- "The largest segment is the expression table" is **false** — only **2/83**
+  largest segments are >50% expression-like (mean ≈0.32); expressions are spread
+  across many segments, not concentrated in one.
+- What *does* hold (83/83): **expressions live outside the name table** — every
+  file has ≥1 non-name segment containing expression-like strings (`Locals.` /
+  `Step.` / quoted literals / operators), and the name table itself is
+  near-pure identifiers (0 expression-like entries in **82/83**, the lone
+  exception being the same `UKTAG` outlier). So names vs. values *are* separated;
+  there just isn't a single "expression table" to point at yet — that needs the
+  record grammar.
+
+`leadingWords[1] ∈ {16, 118}` (`0x10` / `0x76`) — **decode attempts ruled out**:
+it is **not** the engine/save version (both cohorts span header versions
+14.0/19.0/21.0), **not** the fileType (all `SequenceFile`), **not** process-model
+presence (1/20 vs 1/63), and **not** the source tool (the same repos —
+NIVeriStand, joshuaprewitt — produce *both* values). It only weakly tracks
+structural size: the `0x10` cohort (20 files) has fewer string segments (6–15)
+than the `0x76` cohort (63 files, median 28). Still *not yet decoded*.
 
 The **record tree** that links names to values is **not yet parsed** (the u32
 record framing is still being worked out). So `parseSeqFile` still **refuses**

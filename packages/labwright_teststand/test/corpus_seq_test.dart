@@ -195,12 +195,23 @@ void main() {
     expect(word1InSet, binary, reason: 'leadingWords[1] not in {16,118}');
   });
 
+  // Expression-like marker: a TestStand expression/value string carries a member
+  // access (Locals./Step./Foo.Bar), a call/quote, or an operator with operands.
+  bool isExprLike(String s) =>
+      (s.contains('.') && RegExp(r'[A-Za-z]\.[A-Za-z]').hasMatch(s)) ||
+      s.contains('(') ||
+      s.contains(')') ||
+      s.contains('"') ||
+      (RegExp(r'[+\-*/=<>!]').hasMatch(s) &&
+          RegExp(r'[A-Za-z0-9]').hasMatch(s));
+
   test('binary string region has a content-identified property-name table', () {
     var binary = 0,
         nameFound = 0,
         hasModelTokens = 0,
         notLargest = 0,
-        isFirst = 0;
+        isFirst = 0,
+        valuesOutsideName = 0;
     final failures = <String>[];
     for (final f in seqs) {
       final bytes = f.readAsBytesSync();
@@ -225,13 +236,22 @@ void main() {
       if (segs.any((s) => s.entries.length > name.entries.length)) notLargest++;
       // Strong (not universal) tendency: the name table is the first segment.
       if (segs.isNotEmpty && name.offset == segs.first.offset) isFirst++;
+      // Expressions live OUTSIDE the name table: some other segment carries them.
+      // (The largest segment is NOT reliably the expression table — refuted.)
+      if (segs.any(
+        (s) =>
+            s.offset != name.offset && s.entries.any((e) => isExprLike(e.text)),
+      )) {
+        valuesOutsideName++;
+      }
     }
     // ignore: avoid_print
     print(
       'binary name table: $nameFound/$binary found · '
       '$hasModelTokens/$binary carry core tokens · '
       '$notLargest/$binary smaller than another segment · '
-      '$isFirst/$binary are the first segment',
+      '$isFirst/$binary are the first segment · '
+      '$valuesOutsideName/$binary have expressions outside the name table',
     );
     expect(failures, isEmpty, reason: failures.join('\n'));
     // Firm corpus invariants: a content-identified name table always exists,
@@ -246,6 +266,13 @@ void main() {
       notLargest,
       binary,
       reason: 'name table is the largest segment somewhere',
+    );
+    // Names vs. values are separated: every file has expression-like strings in
+    // a segment other than the name table.
+    expect(
+      valuesOutsideName,
+      binary,
+      reason: 'a file has no expressions outside its name table',
     );
   });
 }
