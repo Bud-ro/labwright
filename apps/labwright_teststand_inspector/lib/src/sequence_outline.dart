@@ -373,14 +373,43 @@ SeqOutline filterSequences(SeqOutline outline, String query) {
 
 /// A parameter or local variable row.
 class VarOutline {
-  VarOutline({required this.name, this.type, this.value});
+  VarOutline({
+    required this.name,
+    this.type,
+    this.value,
+    this.isArray = false,
+    this.containerCount,
+  });
   final String name;
   final String? type;
   final String? value;
 
-  factory VarOutline.of(SeqVariable v) =>
-      VarOutline(name: v.name, type: v.type, value: v.value);
+  /// Whether the variable is an array container (vs. an object/cluster). Only
+  /// meaningful when [containerCount] is non-null.
+  final bool isArray;
 
-  String get label =>
-      '$name : ${type ?? '(untyped)'}${value != null ? ' = $value' : ''}';
+  /// Array element count / object field count, or `null` for a scalar variable.
+  final int? containerCount;
+
+  factory VarOutline.of(SeqVariable v) => VarOutline(
+        name: v.name,
+        type: v.type,
+        value: v.value,
+        isArray: v.isArray,
+        containerCount: v.containerCount,
+      );
+
+  /// `name : type`, then either ` = value` for a scalar or a container-size
+  /// suffix (` [N]` for an array, ` {N fields}` for an object/cluster).
+  String get label {
+    final b = StringBuffer('$name : ${type ?? '(untyped)'}');
+    if (value != null) {
+      b.write(' = $value');
+    } else if (containerCount != null) {
+      b.write(isArray
+          ? ' [$containerCount]'
+          : ' {$containerCount ${containerCount == 1 ? 'field' : 'fields'}}');
+    }
+    return b.toString();
+  }
 }

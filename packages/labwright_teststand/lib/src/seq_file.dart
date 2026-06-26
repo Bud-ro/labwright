@@ -134,6 +134,20 @@ class SeqVariable {
   /// True for an array/object container variable (no scalar value).
   bool get isContainer => raw.isArray || raw.subProps.isNotEmpty;
 
+  /// True when this container is an array (vs. an object/cluster). Only
+  /// meaningful when [isContainer].
+  bool get isArray => raw.isArray;
+
+  /// The container's size: the number of array elements for an array, or the
+  /// number of fields (sub-properties) for an object/cluster. null for a scalar
+  /// variable. An array recovered with no stored elements is `0` (e.g. an empty
+  /// default `ResultList`), distinct from a scalar's null.
+  int? get containerCount {
+    if (raw.isArray) return raw.array?.length ?? 0;
+    if (raw.subProps.isNotEmpty) return raw.subProps.length;
+    return null;
+  }
+
   @override
   String toString() => 'SeqVariable($name : ${type ?? '?'}${value != null ? ' = $value' : ''})';
 }

@@ -302,6 +302,29 @@ void main() {
     expect(disp(null), isNull);
   });
 
+  test('VarOutline.label shows scalar value or container size', () {
+    // Scalar with a default value.
+    expect(VarOutline(name: 'Count', type: 'Num', value: '3').label,
+        'Count : Num = 3');
+    // Array container → element count in brackets.
+    expect(
+      VarOutline(name: 'List', type: 'Objs', isArray: true, containerCount: 0)
+          .label,
+      'List : Objs [0]',
+    );
+    // Object/cluster container → field count (singular vs plural).
+    expect(
+      VarOutline(name: 'Limits', type: 'Obj', containerCount: 2).label,
+      'Limits : Obj {2 fields}',
+    );
+    expect(
+      VarOutline(name: 'One', type: 'Obj', containerCount: 1).label,
+      'One : Obj {1 field}',
+    );
+    // Bare scalar with neither value nor container info.
+    expect(VarOutline(name: 'X', type: 'Str').label, 'X : Str');
+  });
+
   test('filterSequences keeps matches; empty query is identity', () {
     final doc = SeqDocument.parse(_xml()) as XmlSeqDocument;
     final outline = SeqOutline.of(doc.file);

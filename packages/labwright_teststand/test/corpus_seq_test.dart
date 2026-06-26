@@ -309,6 +309,8 @@ void main() {
     var withComment = 0;
     // Sequences carrying a recovered free-text `%COMMENT` (per-sequence note).
     var withSeqComment = 0;
+    // Object/cluster variables (locals/params) whose field count the lens reports.
+    var objVarsWithFields = 0;
     for (final f in seqs) {
       final bytes = f.readAsBytesSync();
       if (detectSeqFormat(bytes) != SeqFormat.ini) continue;
@@ -324,6 +326,11 @@ void main() {
         for (final s in sf.sequences) {
           totLocals += s.locals.length;
           if (s.comment != null) withSeqComment++;
+          for (final v in [...s.locals, ...s.parameters]) {
+            if (!v.isArray && v.containerCount != null && v.containerCount! > 0) {
+              objVarsWithFields++;
+            }
+          }
           for (final st in s.steps) {
             totSteps++;
             if (st.type != null) withType++;
@@ -352,6 +359,7 @@ void main() {
       '$recognized recognized adapters / $noneAdapter none / $unknownAdapter unknown · '
       '$withMode with run-mode · $withLoop with looping · '
       '$withComment steps + $withSeqComment seqs with comment · '
+      '$objVarsWithFields object vars with fields · '
       '$overrides instance-overrides in $filesWithOverride files',
     );
     expect(ini, greaterThan(0));
@@ -378,6 +386,9 @@ void main() {
     // Free-text comments (`%COMMENT`) are recovered onto steps and sequences.
     expect(withComment, greaterThan(0), reason: 'no step comments recovered');
     expect(withSeqComment, greaterThan(0), reason: 'no sequence comments recovered');
+    // Object/cluster variables expose their field count via the lens.
+    expect(objVarsWithFields, greaterThan(0),
+        reason: 'no object-variable field counts recovered');
   });
 
   test('every binary TOF1 body frames into a record region + string table', () {

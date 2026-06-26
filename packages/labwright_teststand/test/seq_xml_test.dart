@@ -198,6 +198,12 @@ void main() {
       expect(list.type, 'Objs');
       expect(list.value, isNull); // array container, no scalar default
       expect(list.isContainer, isTrue);
+      // An array container reports its element count (0 for an empty default)
+      // and identifies as an array; a scalar reports no container count.
+      expect(list.isArray, isTrue);
+      expect(list.containerCount, 0);
+      expect(count.isArray, isFalse);
+      expect(count.containerCount, isNull);
       expect(seq.parameters, isEmpty); // this sequence takes none
     });
 

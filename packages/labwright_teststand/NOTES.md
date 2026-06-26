@@ -624,6 +624,25 @@ includes it in the sequence filter). Recovered across the corpus: **102 of 449 I
 sequences**; XML sequences in the corpus carry none (their only attribute is
 `name`), so `Sequence.comment` is null for them.
 
+**Variable container sizes (2026-06, DONE).** Locals/parameters that are
+objects/clusters or arrays now report their size via the shared lens
+(`SeqVariable.isArray` + `SeqVariable.containerCount`): the field count for an
+object/cluster, the element count for an array (0 for an empty default array,
+distinct from a scalar's null). The app's variable rows show it as ` {N fields}`
+for objects and ` [N]` for arrays, alongside the existing `name : type[= value]`.
+Recovered across the corpus: **95 INI object/cluster variables expose a non-zero
+field count** (e.g. `Limits_DUT : Obj {15 fields}`); arrays are mostly empty
+defaults (only ~8 carry stored elements), shown honestly as `[0]`.
+
+**Step `ResultOption` / parameter direction — probed, not surfaced (2026-06).**
+`TS.ResultOption` is present on 5609 steps but its value is a bare `1` (5033×) /
+`0` (576×) — a binary flag whose semantics aren't readable without NI docs (likely
+record-results on/off, but not asserted; no guessing). Parameter **direction**
+(in/out/inout) is **not stored as a readable member** — probed `Direction`/
+`ParamDirection`/`Dir`/`IOType` on all 751 params: zero hits; only the value-kind
+className is present (already shown via the lens `type`). Both recorded, neither
+surfaced rather than guessing a bitmask.
+
 **Type base/parent — NOT cleanly stored (2026-06, probed, no slice).** Checked
 whether a type def records a derivation/base-type pointer. INI `[DEF,<Type>]`
 sections carry `%ROOT_TYPE` on **all 2242** type defs but its value is the boolean

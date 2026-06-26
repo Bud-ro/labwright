@@ -437,6 +437,48 @@ Main = Objs
     expect(sf.sequences.single.comment, 'Runs once at startup');
   });
 
+  // An object/cluster local reports its field count; a scalar reports none.
+  const objLocalIni = '''
+[__Header__]
+ProductName = "TestStand"
+Version = 354
+Type = "SequenceFile"
+
+[DEF, %OBJROOT]
+SF = SequenceFileData
+[DEF, SF]
+Seq = Objs
+%NAME = "Data"
+[DEF, SF.Seq]
+%[0] = Sequence
+[DEF, SF.Seq[0]]
+Locals = Obj
+%NAME = "MainSequence"
+[DEF, SF.Seq[0].Locals]
+Count = Num
+Limits = Obj
+[SF.Seq[0].Locals]
+Count = "3"
+[DEF, SF.Seq[0].Locals.Limits]
+Low = Num
+High = Num
+[SF.Seq[0].Locals.Limits]
+Low = "9"
+High = "11"
+''';
+
+  test('reports container field/element counts on variables', () {
+    final sf = parseSeqFile(Uint8List.fromList(latin1.encode(objLocalIni)));
+    final locals = sf.sequences.single.locals;
+    expect(locals.map((v) => v.name), ['Count', 'Limits']);
+    expect(locals[0].isContainer, isFalse);
+    expect(locals[0].containerCount, isNull);
+    final limits = locals[1];
+    expect(limits.isContainer, isTrue);
+    expect(limits.isArray, isFalse);
+    expect(limits.containerCount, 2); // Low + High
+  });
+
   // NI splits a value past a line-length cap across continuation lines named
   // `KEY Line0001`, `KEY Line0002`, … — each a separately-quoted fragment. The
   // reader rejoins them, in order, into the single base key with no separator.
