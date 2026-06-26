@@ -34,7 +34,7 @@ class BinaryView extends StatelessWidget {
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: theme.colorScheme.tertiaryContainer.withValues(alpha: 0.5),
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(cornerRadius),
                 ),
                 child: Row(
                   children: [
