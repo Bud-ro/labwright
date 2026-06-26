@@ -47,3 +47,35 @@ List<BinaryString> binaryBodyStrings(Uint8List seqBytes, {int minLength = 2}) {
   if (body == null) return const [];
   return binaryStrings(body, minLength: minLength);
 }
+
+/// The largest contiguous **string table** in a binary TOF1 body: the longest
+/// run of NUL-terminated strings packed back-to-back (each start == the previous
+/// end + 1 NUL). The body holds such packed tables (a property-name/type table
+/// and value/expression tables) that the records reference **by index** (name
+/// byte-offsets are *not* referenced as u32 — verified). Which table this returns
+/// (names vs values) depends on the file; the record grammar that links them is
+/// **not yet decoded**, so this is a recon view, not a labeled name pool.
+///
+/// Returns the ordered strings (offsets into the inflated body), or `[]` when not
+/// an inflatable binary file or no table ≥5 entries is found.
+List<BinaryString> binaryStringTable(Uint8List seqBytes, {int minLength = 3}) {
+  final body = inflateBinaryBody(seqBytes);
+  if (body == null) return const [];
+  final runs = binaryStrings(body, minLength: minLength);
+  // Longest chain of runs separated by exactly one byte (the NUL terminator).
+  List<BinaryString> best = const [];
+  var chain = <BinaryString>[];
+  for (final r in runs) {
+    if (chain.isNotEmpty) {
+      final prev = chain.last;
+      final adjacent = r.offset == prev.offset + prev.text.length + 1;
+      if (!adjacent) {
+        if (chain.length > best.length) best = chain;
+        chain = <BinaryString>[];
+      }
+    }
+    chain.add(r);
+  }
+  if (chain.length > best.length) best = chain;
+  return best.length >= 5 ? best : const [];
+}

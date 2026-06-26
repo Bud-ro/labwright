@@ -35,10 +35,28 @@ void main() {
     expect(names, containsAll(['SequenceFileData', 'MainSequence', 'Step', 'Locals']));
   });
 
+  test('binaryStringTable isolates the contiguous NUL-packed name table', () {
+    final body = <int>[];
+    // Record-region noise first (short isolated ASCII + binary), then the pool.
+    body.addAll([0xAA, 0xBB, 0xCC, 0x01, 0x00, 0x00, 0x00]);
+    body.addAll(ascii.encode('xy')); // 2-char noise, below the pool minLength
+    body.add(0x00);
+    body.addAll([0xFF, 0xFF, 0xFF, 0xFF]);
+    for (final name in ['SequenceFileData', 'Data', 'Objs', 'Sequence',
+        'MainSequence', 'Parameters', 'Locals', 'Step']) {
+      body.addAll(ascii.encode(name));
+      body.add(0);
+    }
+    final pool = binaryStringTable(_tof1(body)).map((s) => s.text).toList();
+    expect(pool, containsAll(['SequenceFileData', 'Sequence', 'MainSequence', 'Step', 'Locals']));
+    expect(pool, isNot(contains('xy'))); // record-region noise excluded
+  });
+
   test('returns null/empty for non-binary / arbitrary input (no throw)', () {
     expect(inflateBinaryBody(Uint8List.fromList(ascii.encode('<?xml?>'))), isNull);
     expect(inflateBinaryBody(Uint8List.fromList([0x54, 0x4f, 0x46, 0x31, 1, 2, 3])), isNull);
     expect(inflateBinaryBody(Uint8List(0)), isNull);
     expect(binaryBodyStrings(Uint8List(0)), isEmpty);
+    expect(binaryStringTable(Uint8List(0)), isEmpty);
   });
 }

@@ -68,9 +68,13 @@ void main() {
             withBinaryBody++;
             expect(String.fromCharCodes(body), contains('Sequence'));
             // The NUL-terminated name pool surfaces the model's property names.
+            // The body name pool surfaces the model's property names.
             final names = binaryBodyStrings(bytes).map((s) => s.text).toSet();
             expect(names, containsAll(['Sequence', 'Step', 'Locals']),
-                reason: '${f.path}: body name pool missing model names');
+                reason: '${f.path}: body strings missing model names');
+            // And there is a sizeable contiguous string table.
+            expect(binaryStringTable(bytes).length, greaterThanOrEqualTo(5),
+                reason: '${f.path}: no contiguous string table');
           }
         case SeqFormat.ini:
         case SeqFormat.unknown:

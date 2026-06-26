@@ -174,12 +174,19 @@ key model names are recovered cleanly: `Sequence`/`Step`/`Locals`/`Parameters`/
 rename their main sequence). → `binaryBodyStrings(seqBytes)` returns those
 strings with offsets; `tool/dump.dart` shows them for a binary file.
 
+Body layout (recon): a leading **record region** (little-endian u32 fields with
+`ff ff ff ff` sentinels) precedes one or more **packed string tables** (the name/
+type table and value/expression tables, each NUL-terminated runs back-to-back).
+Records reference strings **by index**, not by byte offset (verified: name
+offsets are not referenced as u32). → `binaryStringTable(seqBytes)` returns the
+largest contiguous table (names *or* values, depending on the file).
+
 The **record tree** that links names to values is **not yet parsed** (the u32
-record framing around the pool is still being worked out). So `parseSeqFile` still
-**refuses** binary (UnsupportedError); the next milestone is that record grammar —
-then it maps onto the shared SeqProperty model and the whole typed lens + dump +
-coverage come along for free. Offsets confirmed on the TS2014 corpus only — treat
-as version-specific until other versions are sampled. *(Not yet recovered, not
+record framing is still being worked out). So `parseSeqFile` still **refuses**
+binary (UnsupportedError); the next milestone is that record grammar — then it
+maps onto the shared SeqProperty model and the whole typed lens + dump + coverage
+come along for free. Offsets confirmed on the TS2014 corpus only — treat as
+version-specific until other versions are sampled. *(Not yet recovered, not
 "unrecoverable".)*
 
 ## Honest gaps (do NOT model yet)
