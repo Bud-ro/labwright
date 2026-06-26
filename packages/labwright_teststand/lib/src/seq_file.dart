@@ -623,6 +623,30 @@ class StepModule {
     return [for (final p in kids) CallParameter(p)];
   }
 
+  SeqProperty? get _pyCall => raw?.prop('PythonCall');
+
+  /// The Python function or attribute this step invokes
+  /// (`PythonCall.FunctionOrAttributeName`), e.g. `create_instrument_sessions`.
+  /// null for a non-Python step or when not set.
+  String? get pythonFunction => _nz(_pyCall?.prop('FunctionOrAttributeName')?.scalar);
+
+  /// The Python module file the call loads (`PythonCall.ModulePath`), e.g.
+  /// `..\measurements\source_measure_dc_voltage_fal\test.py`. null when absent.
+  String? get pythonModulePath => _nz(_pyCall?.prop('ModulePath')?.scalar);
+
+  /// The Python class that owns [pythonFunction] (`PythonCall.ClassName`), when
+  /// the call targets a class method; null for a module-level function.
+  String? get pythonClassName => _nz(_pyCall?.prop('ClassName')?.scalar);
+
+  /// The Python version the adapter runs the module under
+  /// (`PythonCall.PythonVersion`), e.g. `3.9`. null when absent.
+  String? get pythonVersion => _nz(_pyCall?.prop('PythonVersion')?.scalar);
+
+  /// The virtual-environment the call resolves its interpreter from
+  /// (`PythonCall.PythonVirtualEnvironmentPath`); null when none is configured.
+  String? get pythonVenvPath =>
+      _nz(_pyCall?.prop('PythonVirtualEnvironmentPath')?.scalar);
+
   static String? _e(String? s) => (s == null || s.isEmpty) ? null : s;
 
   factory StepModule.fromSData(SeqProperty? sdata) {
@@ -661,8 +685,13 @@ class StepModule {
       );
     }
 
-    if (sdata.prop('PythonCall') != null) {
-      return StepModule(adapter: SeqAdapter.python, raw: sdata);
+    final py = sdata.prop('PythonCall');
+    if (py != null) {
+      final fn = _e(py.prop('FunctionOrAttributeName')?.scalar);
+      final cls = _e(py.prop('ClassName')?.scalar);
+      // The callee, qualified by its class when the call targets a method.
+      final callee = fn == null ? null : (cls != null ? '$cls.$fn' : fn);
+      return StepModule(adapter: SeqAdapter.python, target: callee, raw: sdata);
     }
 
     if (sdata.prop('SeqName') != null || sdata.prop('SFPath') != null) {

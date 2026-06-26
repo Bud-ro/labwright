@@ -146,7 +146,7 @@ refused (not mis-parsed).
 - **Coverage metric**: `measureCoverage(SeqFile)` → `SeqCoverage{total, modeled}`
   counts what fraction of `Data`-tree property nodes the typed lens surfaces.
   `tool/coverage.dart` runs it over the **XML** `.seq` files in `corpus/seq` and
-  writes a gitignored `corpus/seq/REPORT.md`. Current: **48.5% (9174/18932
+  writes a gitignored `corpus/seq/REPORT.md`. Current: **49.3% (9339/18932
   nodes)** over 26 XML files (incl. `Step.id`=`TS.Id`, and the boolean step flags
   `StepFCSeqF`/`IgnoreRTE`/`ResultOption` → `StepSettings.failureCausesSequence-
   Failure`/`ignoresRunTimeErrors`/`recordsResult`, plus the **Additional Results
@@ -838,6 +838,25 @@ the numeric `Type`/`NumType`/`ArrayType`/`ClusterType`/`ReferenceType` codes and
 SData targets: the CPythonModule call descriptor (`FunctionOrAttributeName`,
 `PythonVersion`, `ModulePath`, `ClassName` — all self-evident) and the FCModule
 `Call.Parms` C descriptor.
+
+**Python (CPythonModule) call descriptor — recovered & surfaced (2026-06, DONE;
++0.8pt coverage).** Continued the SData frontier into the second-biggest bucket
+(CPythonModule, 1238 nodes/31 steps). Probed `SData.PythonCall` (classname
+`CPythonCall`) across the corpus — every one of the 31 steps carries clean,
+self-evident fields, so modeled on `StepModule`: `pythonFunction`
+(`FunctionOrAttributeName`, the called fn, e.g. `create_instrument_sessions`),
+`pythonModulePath` (`ModulePath`, the `.py` file), `pythonClassName`
+(`ClassName`, null when the call is module-level — empty across this corpus),
+`pythonVersion` (`PythonVersion`, e.g. `3.9`), `pythonVenvPath`
+(`PythonVirtualEnvironmentPath`). `StepModule.fromSData` now sets the Python
+`target` to the (class-qualified) callee instead of leaving it
+`(target not yet recovered)`. Dump: `-> python: create_instrument_sessions
+{python: mod …\test.py, py 3.9}`. Corpus: **31 Python steps, all naming a
+function + module + interpreter version, 23 distinct functions.** Coverage
+**48.5% → 49.3%** (9339/18932). Left raw (not yet decoded): the numeric
+`OperationType`/`OperationScope`/`InterpreterSessionScope`/
+`DefaultParamCategoryForArray` codes and the adapter-config bools. Remaining big
+SData target: the FCModule `Call.Parms` C descriptor (only 2 steps — low reach).
 
 **Step-id resolution `ID#:` → step name (2026-06, DONE).** Each step's `TS.Id` is
 a unique id in `ID#:<uid>` form (e.g. `ID#:HWpAiIXA8BG5VlB7nf4f8B`). Flow-action

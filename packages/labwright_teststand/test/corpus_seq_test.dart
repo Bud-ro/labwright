@@ -169,6 +169,42 @@ void main() {
     );
   });
 
+  test('recovers Python call descriptors across XML corpus', () {
+    var pySteps = 0, withFn = 0, withModule = 0, withVersion = 0, withVenv = 0;
+    final fns = <String>{};
+    for (final f in seqs) {
+      if (f.lengthSync() > 300 * 1024) continue; // huge files: skip (OOM guard)
+      final bytes = f.readAsBytesSync();
+      if (detectSeqFormat(bytes) != SeqFormat.xml) continue;
+      final sf = parseSeqFile(bytes);
+      for (final s in sf.sequences) {
+        for (final step in s.steps) {
+          final m = step.module;
+          if (m.adapter != SeqAdapter.python) continue;
+          pySteps++;
+          if (m.pythonFunction != null) {
+            withFn++;
+            fns.add(m.pythonFunction!);
+          }
+          if (m.pythonModulePath != null) withModule++;
+          if (m.pythonVersion != null) withVersion++;
+          if (m.pythonVenvPath != null) withVenv++;
+        }
+      }
+    }
+    // ignore: avoid_print
+    print(
+      'python: $pySteps steps · $withFn with function · $withModule with module · '
+      '$withVersion with version · $withVenv with venv · ${fns.length} distinct fns',
+    );
+    // Corpus evidence (probed): 31 Python steps, every one naming a function,
+    // module path and interpreter version.
+    expect(pySteps, greaterThanOrEqualTo(20));
+    expect(withFn, equals(pySteps), reason: 'every Python step names a function');
+    expect(withModule, equals(pySteps), reason: 'every Python step has a module path');
+    expect(withVersion, equals(pySteps), reason: 'every Python step has a version');
+  });
+
   test('recovers LabVIEW VI-call connector params across XML corpus', () {
     var viSteps = 0, params = 0, withDisplayType = 0, withConnector = 0,
         withNamespace = 0, withBound = 0;

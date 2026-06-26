@@ -94,6 +94,15 @@ SeqCoverage measureCoverage(SeqFile f) {
       mark(sdata?.prop('Call')?.prop('Func'));
       mark(sdata?.prop('SeqName'));
       mark(sdata?.prop('SFPath'));
+      // The Python call descriptor the lens surfaces (which module/function is
+      // called, under which interpreter). Numeric Operation*/Scope codes raw.
+      final pyCall = sdata?.prop('PythonCall');
+      for (final k in [
+        'FunctionOrAttributeName', 'ModulePath', 'ClassName',
+        'PythonVersion', 'PythonVirtualEnvironmentPath',
+      ]) {
+        mark(pyCall?.prop(k));
+      }
       // Module call arguments: the adapter's `Parameters` container (C-module
       // `Call` or Python `PythonCall`) and the fields each `CallParameter`
       // surfaces. `ArgVal`/`ArgumentValue` are the two bound-value keys.

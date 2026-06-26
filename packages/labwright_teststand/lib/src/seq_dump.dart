@@ -122,6 +122,14 @@ String _dumpStep(Step step, SeqFile file) {
         parts.write('  {conn: ${vps.map(_dumpViParam).join('; ')}}');
       }
     }
+    // Python call: the module file, owning class, and interpreter version.
+    if (m.adapter == SeqAdapter.python) {
+      final py = <String>[];
+      if (m.pythonModulePath != null) py.add('mod ${m.pythonModulePath}');
+      if (m.pythonClassName != null) py.add('class ${m.pythonClassName}');
+      if (m.pythonVersion != null) py.add('py ${m.pythonVersion}');
+      if (py.isNotEmpty) parts.write('  {python: ${py.join(', ')}}');
+    }
   }
 
   final limits = step.limits;

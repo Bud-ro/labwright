@@ -729,6 +729,29 @@ void main() {
     });
   });
 
+  group('Python call descriptor recovery', () {
+    late StepModule m;
+    setUp(() {
+      m = parseSeqFile(_bytes(_seqPyXml)).sequences.single.main.single.module;
+    });
+
+    test('recovers the called module/function and interpreter', () {
+      expect(m.adapter, SeqAdapter.python);
+      expect(m.pythonFunction, 'create_instrument_sessions');
+      expect(m.pythonModulePath, r'..\measurements\smu\test.py');
+      expect(m.pythonVersion, '3.9');
+      expect(m.pythonVenvPath, r'..\measurements\smu\.venv');
+      expect(m.pythonClassName, isNull); // empty in this fixture → null, not ''
+      expect(m.target, 'create_instrument_sessions');
+    });
+
+    test('the dump shows the python target and module chip', () {
+      final dump = dumpSeqFile(parseSeqFile(_bytes(_seqPyXml)));
+      expect(dump, contains('-> python: create_instrument_sessions'));
+      expect(dump, contains(r'{python: mod ..\measurements\smu\test.py, py 3.9}'));
+    });
+  });
+
   group('parseSeqFile rejects non-XML honestly', () {
     test('binary TOF1 is unsupported (not silently mis-parsed)', () {
       final bin = Uint8List.fromList([...ascii.encode('TOF1'), 0, 0, 0, 0, 0, 0, ...ascii.encode('SequenceFile'), 0]);
@@ -740,6 +763,35 @@ void main() {
     });
   });
 }
+
+/// A Python (CPythonModule) step whose `SData.PythonCall` names the module,
+/// function and interpreter — the real shape probed from the corpus.
+const _seqPyXml = '''<?xml version="1.0" encoding="UTF-8"?>
+<teststandfileheader type='SequenceFile' fileversion='920' productname='TestStand'>
+  <typelist/>
+  <Data classname='Obj'><subprops>
+    <Seq classname='Objs'><value lbound='[0]' ubound='[1]'><value>
+      <Sequence name='MainSequence' classname='Obj'><subprops>
+        <Main classname='Objs'><value lbound='[0]' ubound='[1]'>
+          <value><Step typename='Action' name='Create sessions'><subprops>
+            <TS classname='Obj'><subprops>
+            <SData classname='CPythonModule'><subprops>
+              <PythonCall classname='CPythonCall'><subprops>
+                <PythonVersion classname='Str'><value>3.9</value></PythonVersion>
+                <PythonVirtualEnvironmentPath classname='Str'><value>..\\measurements\\smu\\.venv</value></PythonVirtualEnvironmentPath>
+                <ModulePath classname='PathValue'><value>..\\measurements\\smu\\test.py</value></ModulePath>
+                <ClassName classname='Str'><value/></ClassName>
+                <FunctionOrAttributeName classname='Str'><value>create_instrument_sessions</value></FunctionOrAttributeName>
+                <OperationType classname='Num'><value>1</value></OperationType>
+              </subprops></PythonCall>
+            </subprops></SData>
+            </subprops></TS>
+          </subprops></Step></value>
+        </value></Main>
+      </subprops></Sequence>
+    </value></value></Seq>
+  </subprops></Data>
+</teststandfileheader>''';
 
 /// A LabVIEW (FGModule) step whose `SData.ViCall` carries the VI descriptor and
 /// a `Parms` connector pane — the real shape probed from the corpus.
