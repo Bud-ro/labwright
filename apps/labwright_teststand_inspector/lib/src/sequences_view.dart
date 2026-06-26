@@ -5,8 +5,12 @@ import 'sequence_outline.dart';
 /// The Sequences tab: a tree of sequences → Setup/Main/Cleanup groups → steps.
 /// In-file SequenceCall steps are tappable and jump to the called sequence.
 class SequencesView extends StatefulWidget {
-  const SequencesView({super.key, required this.outline});
+  const SequencesView({super.key, required this.outline, this.searchFocusNode});
   final SeqOutline outline;
+
+  /// Optional focus node for the search field (so a parent shortcut can focus
+  /// it, e.g. Ctrl/Cmd+F).
+  final FocusNode? searchFocusNode;
 
   @override
   State<SequencesView> createState() => _SequencesViewState();
@@ -78,6 +82,7 @@ class _SequencesViewState extends State<SequencesView> {
           padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
           child: TextField(
             controller: _searchController,
+            focusNode: widget.searchFocusNode,
             decoration: InputDecoration(
               isDense: true,
               prefixIcon: const Icon(Icons.search, size: 18),

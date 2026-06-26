@@ -46,11 +46,29 @@ class _InspectorPageState extends State<InspectorPage> {
   String? _path;
   String? _error;
   List<String> _recent = const [];
+  // Owned here so Ctrl/Cmd+F can focus the active tab's search field; passed
+  // down into the respective view's TextField.
+  final _sequencesSearchFocus = FocusNode();
+  final _propertiesSearchFocus = FocusNode();
 
   @override
   void initState() {
     super.initState();
     if (widget.initialPath != null) _loadPath(widget.initialPath!);
+  }
+
+  @override
+  void dispose() {
+    _sequencesSearchFocus.dispose();
+    _propertiesSearchFocus.dispose();
+    super.dispose();
+  }
+
+  /// Focuses the search field of the tab at [tabIndex] (Dump has none → no-op).
+  /// Indices match the TabBar order: 0 Dump, 1 Sequences, 2 Properties.
+  void _focusSearch(int tabIndex) {
+    if (tabIndex == 1) _sequencesSearchFocus.requestFocus();
+    if (tabIndex == 2) _propertiesSearchFocus.requestFocus();
   }
 
   /// The last path segment of [path] (handles both / and \ separators).
@@ -101,45 +119,54 @@ class _InspectorPageState extends State<InspectorPage> {
     final outline = file != null ? SeqOutline.of(file) : null;
     final tree = file != null ? propertyTree(file) : null;
     final coverage = file != null ? coverageLabel(measureCoverage(file)) : null;
-    return CallbackShortcuts(
-      bindings: {
-        // Ctrl+O (Linux/Windows) and Cmd+O (macOS) → open a file.
-        const SingleActivator(LogicalKeyboardKey.keyO, control: true): _pick,
-        const SingleActivator(LogicalKeyboardKey.keyO, meta: true): _pick,
-      },
-      child: Focus(
-        autofocus: true,
-        child: DefaultTabController(
-          length: file != null ? 3 : 1,
-          child: Scaffold(
-            appBar: AppBar(
-              title: Text(
-                  doc != null ? documentTitle(doc) : 'Labwright TestStand Inspector'),
-              actions: [
-                if (_recent.isNotEmpty) _recentMenu(),
-                IconButton(
-                    onPressed: _pick,
-                    icon: const Icon(Icons.folder_open),
-                    tooltip: 'Open .seq (Ctrl/Cmd+O)'),
-              ],
-              bottom: TabBar(
-                tabs: [
-                  const Tab(text: 'Dump'),
-                  if (file != null) const Tab(text: 'Sequences'),
-                  if (file != null) const Tab(text: 'Properties'),
+    return DefaultTabController(
+      length: file != null ? 3 : 1,
+      // Builder so the shortcut can read the active tab via DefaultTabController.
+      child: Builder(builder: (context) {
+        return CallbackShortcuts(
+          bindings: {
+            // Ctrl+O / Cmd+O → open a file.
+            const SingleActivator(LogicalKeyboardKey.keyO, control: true): _pick,
+            const SingleActivator(LogicalKeyboardKey.keyO, meta: true): _pick,
+            // Ctrl+F / Cmd+F → focus the active tab's search field.
+            const SingleActivator(LogicalKeyboardKey.keyF, control: true): () =>
+                _focusSearch(DefaultTabController.of(context).index),
+            const SingleActivator(LogicalKeyboardKey.keyF, meta: true): () =>
+                _focusSearch(DefaultTabController.of(context).index),
+          },
+          child: Focus(
+            autofocus: true,
+            child: Scaffold(
+              appBar: AppBar(
+                title: Text(doc != null
+                    ? documentTitle(doc)
+                    : 'Labwright TestStand Inspector'),
+                actions: [
+                  if (_recent.isNotEmpty) _recentMenu(),
+                  IconButton(
+                      onPressed: _pick,
+                      icon: const Icon(Icons.folder_open),
+                      tooltip: 'Open .seq (Ctrl/Cmd+O)'),
                 ],
+                bottom: TabBar(
+                  tabs: [
+                    const Tab(text: 'Dump'),
+                    if (file != null) const Tab(text: 'Sequences'),
+                    if (file != null) const Tab(text: 'Properties'),
+                  ],
+                ),
+              ),
+              body: DropTarget(
+                onDragDone: (d) {
+                  final file = d.files.isNotEmpty ? d.files.first : null;
+                  if (file != null) _loadPath(file.path);
+                },
+                child: _body(doc, outline, tree, coverage),
               ),
             ),
-            body: DropTarget(
-              onDragDone: (d) {
-                final file = d.files.isNotEmpty ? d.files.first : null;
-                if (file != null) _loadPath(file.path);
-              },
-              child: _body(doc, outline, tree, coverage),
-            ),
           ),
-        ),
-      ),
+        );
+      }),
     );
   }
 
@@ -239,8 +266,12 @@ class _InspectorPageState extends State<InspectorPage> {
                     style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
                   ),
                 ),
-              if (outline != null) SequencesView(outline: outline),
-              if (tree != null) PropertiesView(root: tree),
+              if (outline != null)
+                SequencesView(
+                    outline: outline, searchFocusNode: _sequencesSearchFocus),
+              if (tree != null)
+                PropertiesView(
+                    root: tree, searchFocusNode: _propertiesSearchFocus),
             ],
           ),
         ),

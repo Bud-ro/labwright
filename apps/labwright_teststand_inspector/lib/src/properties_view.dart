@@ -7,8 +7,12 @@ import 'property_outline.dart';
 /// or attributes while keeping matching nodes' ancestors. Each node shows its
 /// name, type/kind, attributes, and — for leaves — the scalar value.
 class PropertiesView extends StatefulWidget {
-  const PropertiesView({super.key, required this.root});
+  const PropertiesView({super.key, required this.root, this.searchFocusNode});
   final PropertyNode root;
+
+  /// Optional focus node for the search field (so a parent shortcut can focus
+  /// it, e.g. Ctrl/Cmd+F).
+  final FocusNode? searchFocusNode;
 
   @override
   State<PropertiesView> createState() => _PropertiesViewState();
@@ -35,6 +39,7 @@ class _PropertiesViewState extends State<PropertiesView> {
           padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
           child: TextField(
             controller: _controller,
+            focusNode: widget.searchFocusNode,
             decoration: InputDecoration(
               isDense: true,
               prefixIcon: const Icon(Icons.search, size: 18),
