@@ -1,0 +1,20 @@
+name: labwright_nidaqmx
+description: >-
+  Pure-Dart FFI wrapper over NI's NI-DAQmx driver (nicaiu.dll / libnidaqmx.so).
+  The trusted DAQ backend on Windows and Linux; interchangeable with the
+  clean-room qdaq backend (which covers macOS, where NI ships no DAQmx, plus sim).
+version: 0.0.1
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  labwright_core: ^0.0.1
+  labwright_daq: ^0.0.1
+  ffi: ^2.1.0
+
+dev_dependencies:
+  test: ^1.25.0
+  lints: ^5.0.0
