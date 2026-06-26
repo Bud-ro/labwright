@@ -57,6 +57,10 @@ void main() {
           binary++;
           // Decoding isn't implemented yet — it must refuse, not fabricate.
           expect(() => parseSeqFile(bytes), throwsA(isA<UnsupportedError>()));
+          // The binary header (file-type + product) IS recoverable.
+          final bh = detectSeqHeader(bytes);
+          expect(bh.fileType, 'SequenceFile');
+          expect(bh.productName, 'TestStand');
         case SeqFormat.ini:
         case SeqFormat.unknown:
           other++;

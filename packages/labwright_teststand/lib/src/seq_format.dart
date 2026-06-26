@@ -111,8 +111,16 @@ SeqFileHeader detectSeqHeader(Uint8List bytes) {
         fileVersion: _attr['fileversion']!.firstMatch(head)?.group(1),
       );
     case SeqFormat.binary:
-      // The file-type token is a NUL-terminated ASCII string at offset 0x0A.
-      return SeqFileHeader(format: fmt, fileType: _cString(bytes, 0x0a));
+      // Fixed header slots (verified across the whole binary corpus, TS2014):
+      // file-type token at 0x0A, then 50-byte (0x32) NUL-padded ASCII slots —
+      // productname at 0x40, productversion 0x72, compatibleversion 0xA4,
+      // buildversion 0xD6. We recover the two safest (type + product); the
+      // numeric fileversion is not yet located in the binary header.
+      return SeqFileHeader(
+        format: fmt,
+        fileType: _cString(bytes, 0x0a),
+        productName: _cString(bytes, 0x40),
+      );
     case SeqFormat.unknown:
       return const SeqFileHeader(format: SeqFormat.unknown);
   }
@@ -138,6 +146,37 @@ String _asciiPeek(Uint8List b, int start, int len) {
     sb.writeCharCode(c < 0x80 ? c : 0x2e);
   }
   return sb.toString();
+}
+
+/// One printable-ASCII run found in a binary file: its byte [offset] and [text].
+typedef BinaryString = ({int offset, String text});
+
+/// Extracts the printable-ASCII runs (length ≥ [minLength]) from binary [bytes].
+///
+/// A reconnaissance primitive for the not-yet-decoded binary `TOF1` container —
+/// it surfaces the embedded strings (header fields, names, expressions) **with
+/// their offsets** so the record framing can be worked out, without making any
+/// structural claim. Total over arbitrary input.
+List<BinaryString> binaryStrings(Uint8List bytes, {int minLength = 4}) {
+  final out = <BinaryString>[];
+  final sb = StringBuffer();
+  var start = 0;
+  void flush() {
+    if (sb.length >= minLength) out.add((offset: start, text: sb.toString()));
+    sb.clear();
+  }
+
+  for (var i = 0; i < bytes.length; i++) {
+    final c = bytes[i];
+    if (c >= 0x20 && c < 0x7f) {
+      if (sb.isEmpty) start = i;
+      sb.writeCharCode(c);
+    } else {
+      flush();
+    }
+  }
+  flush();
+  return out;
 }
 
 /// Reads a NUL-terminated printable-ASCII string at [start]; null if none.

@@ -66,8 +66,30 @@ void main() {
       final h = detectSeqHeader(_binary('SequenceFile'));
       expect(h.format, SeqFormat.binary);
       expect(h.fileType, 'SequenceFile');
-      // Version/product not yet decoded from the binary container — not fabricated.
+      // Numeric fileversion not yet located in the binary container — not fabricated.
       expect(h.fileVersion, isNull);
+    });
+
+    test('binary header productName from the 0x40 slot', () {
+      final b = Uint8List(0x60);
+      b.setAll(0, ascii.encode('TOF1'));
+      b.setAll(0x0a, ascii.encode('SequenceFile'));
+      b.setAll(0x40, ascii.encode('TestStand'));
+      final h = detectSeqHeader(b);
+      expect(h.fileType, 'SequenceFile');
+      expect(h.productName, 'TestStand');
+    });
+  });
+
+  group('binaryStrings', () {
+    test('extracts printable runs with offsets, total over arbitrary bytes', () {
+      final b = Uint8List.fromList([
+        0x00, ...ascii.encode('Hello'), 0x00, 0x01, ...ascii.encode('World'), 0xff,
+      ]);
+      final runs = binaryStrings(b);
+      expect(runs.map((r) => r.text), ['Hello', 'World']);
+      expect(runs.first.offset, 1);
+      expect(binaryStrings(Uint8List(0)), isEmpty); // no throw on empty
     });
 
     test('type-palette file kind via binary token', () {

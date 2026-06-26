@@ -137,6 +137,33 @@ refused (not mis-parsed).
   `tool/dump.dart [path]` prints it (auto-picks a corpus file). Honest: shows
   `(none)` / omits null fields, never fabricates.
 
+## Binary TOF1 — reconnaissance (header decoded; body not yet)
+
+Verified across **all 83** binary files in the corpus (TS2014). Fixed header
+slots from offset 0:
+
+```
+0x00  "TOF1"                         magic
+0x0A  "SequenceFile"                 file-type token (NUL-terminated)
+0x40  "TestStand"                    productname   ┐ 50-byte (0x32) NUL-padded
+0x72  "2014 SP1 (14.0.1.103)"        productversion │ ASCII slots, fixed stride
+0xA4  "14.0.0.0"                     compatibleversion
+0xD6  "14.0.0.274"                   buildversion   ┘
+```
+
+(`TestStand` is at offset 64 in 83/83 files.) `detectSeqHeader` now recovers the
+binary `fileType` (0x0A) and `productName` (0x40). The numeric `fileversion`
+(the XML `920`/`962` analog) is **not yet located** in the binary header — the
+bytes at 0x3C (`05 03 …`) are a candidate but unconfirmed.
+
+The **record body** after the header is **not yet recovered**: it's a binary
+serialization of the same PropertyObject model as the XML form. `binaryStrings()`
+is a recon primitive that surfaces the embedded printable runs (with offsets) to
+work out the framing. `parseSeqFile` still **refuses** binary (UnsupportedError)
+rather than guess. These offsets are confirmed only on the TS2014 corpus — treat
+the slot layout as version-specific until other versions are sampled. *(Not yet
+recovered, not "unrecoverable".)*
+
 ## Honest gaps (do NOT model yet)
 
 - **Binary record grammar** past the header — not yet recovered.
