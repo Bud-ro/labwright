@@ -783,6 +783,35 @@ NI-internal attributes (`ValueType`/`IsObject`/`Representation`/`CanBeSubstepTyp
 claimed. (`f.types` stays the raw `List<SeqProperty>`; `typeDefs` is the typed
 1:1 view over it.)
 
+**Coverage-ceiling composition — honest accounting (2026-06, CORRECTS A PRIOR
+CLAIM).** Replicated `measureCoverage`'s exact marking to build the modeled
+identity set, then classified **every** unmodeled `Data`-tree node (over the 21
+≤300KB XML files: 11311 nodes, 50.2% modeled, **5637 unmodeled** — note this is
+the ≤300KB subset; the headline 46.6% is over all 26 XML). The remainder breaks
+down as:
+- **module (`SData`) subtree descriptors — 2957 nodes = 52.5%** (the *largest*
+  bucket): the per-step adapter/module-call data below what the lens already
+  pulls (paths, funcs, `Parameters`/call-args). This is the parameter-type-system
+  machinery inside a module call — the genuine remaining frontier, possibly
+  partly recoverable, **not yet decoded**.
+- **per-step `TS` option cluster — 1462 nodes = 25.9%**: the flat option leaves
+  (`OperationOrder`/`ConnectionLifetime`/`BatchSyncOpt`/`Switch*`/`RouteGroup*`/
+  `MulticonnectMode`/`WaitForDebounce`/`VirtualDeviceName`/`WindowActivation`/
+  `LoopOpt`/`PrecondIntExe`/`CanEdit*`/`CanSpecifyModule`) — numeric codes +
+  editor-permission bools; semantics unconfirmable → modeling = fabrication.
+- **other — 1218 nodes = 21.6%**: dominated by **empty/default scaffolding** —
+  `Requirements→Links [Strs]` (empty array, no links stored in this corpus),
+  `MessageType` (empty in all 147), `CustomResults`/`AdditionalResultsHints`
+  (empty Objs), plus opaque constants (`Priority` = the single value
+  `2953567917` across all 21) and per-sequence entry-point editor metadata
+  (`EP*`, e.g. `EPNameExpr="Unnamed Entry Point"`).
+
+**Correction:** earlier notes/mandate said the unmodeled remainder is "dominated
+by the per-step TS-option cluster." That is **wrong** — the module (`SData`)
+subtree is the largest gap (52.5%), the TS-option cluster is second (25.9%). The
+honest highest-value frontier is the module call-data subtree, not the TS
+options (which remain unconfirmable and off-limits to modeling).
+
 **Step-id resolution `ID#:` → step name (2026-06, DONE).** Each step's `TS.Id` is
 a unique id in `ID#:<uid>` form (e.g. `ID#:HWpAiIXA8BG5VlB7nf4f8B`). Flow-action
 targets that reference a step do so by that id. The custom-condition targets
