@@ -122,9 +122,15 @@ refused (not mis-parsed).
 - **Coverage metric**: `measureCoverage(SeqFile)` → `SeqCoverage{total, modeled}`
   counts what fraction of `Data`-tree property nodes the typed lens surfaces.
   `tool/coverage.dart` runs it over `corpus/seq` and writes a gitignored
-  `corpus/seq/REPORT.md`. Current: **11.3% (1581/14016 nodes)** — the rest (deep
+  `corpus/seq/REPORT.md`. Current: **11.8% (1653/14016 nodes)** — the rest (deep
   `TS` step config, `Result`/`Measurement` subtrees) is still raw `SeqProperty`,
   the frontier to grow. The analog of the VI "% semantically decoded".
+- **Test limits**: a limit-test step (`NumericLimitTest`, …) carries the
+  pass/fail criteria as `Comp` (operator, e.g. `GELE` = low ≤ x ≤ high) +
+  `Limits` (`Low`/`High`/`Nominal`/`ThresholdType`, e.g. `PERCENTAGE`) +
+  `DataSource` (measured-value expression). → `Step.limits` (`StepLimits`), null
+  when the step isn't a limit test; units are not stored here (not fabricated).
+  Corpus: 10 limit tests.
 - **Viewer (M4)**: `dumpSeqFile(SeqFile)` (`seq_dump.dart`) renders a
   sequence-editor-like text view — header, each sequence's params/locals, then
   Setup/Main/Cleanup steps as `name [type] -> adapter: target (flow; loop; if)`.

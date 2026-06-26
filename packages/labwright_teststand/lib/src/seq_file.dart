@@ -116,8 +116,73 @@ class Step {
   /// SData.
   StepModule get module => StepModule.fromSData(raw.at(['TS', 'SData']));
 
+  /// The test limits (pass/fail criteria) for a limit-test step, or null when
+  /// this step is not a limit test (no `Comp`/`Limits`).
+  StepLimits? get limits => StepLimits.fromStep(raw);
+
   @override
   String toString() => 'Step($name : ${type ?? '?'})';
+}
+
+String? _nz(String? s) => (s == null || s.isEmpty) ? null : s;
+
+/// A limit-test step's pass/fail criteria: the comparison operator and the
+/// numeric limits, read from the step's `Comp` + `Limits` + `DataSource`
+/// properties. Fields are null when absent/empty or not yet decoded (e.g. units,
+/// which TestStand does not store here). Comparison codes seen: `GELE`
+/// (low ≤ x ≤ high); others include `EQ`/`NE`/`LT`/`LE`/`GT`/`GE`/`GTLT`/`LTGT`.
+class StepLimits {
+  StepLimits({
+    this.comparison,
+    this.low,
+    this.high,
+    this.nominal,
+    this.thresholdType,
+    this.dataSource,
+    this.raw,
+  });
+
+  /// The comparison operator (`Comp`), e.g. `GELE`.
+  final String? comparison;
+
+  /// Lower / upper / nominal limit values (`Limits.Low/High/Nominal`).
+  final String? low;
+  final String? high;
+  final String? nominal;
+
+  /// How limits are interpreted (`Limits.ThresholdType`), e.g. `PERCENTAGE`.
+  final String? thresholdType;
+
+  /// The measured value expression being tested (`DataSource`).
+  final String? dataSource;
+
+  /// The raw `Limits` property for full access; null if the step had none.
+  final SeqProperty? raw;
+
+  /// Whether the step carries any limit information.
+  static StepLimits? fromStep(SeqProperty step) {
+    final comp = _nz(step.prop('Comp')?.scalar);
+    final lim = step.prop('Limits');
+    if (comp == null && lim == null) return null;
+    return StepLimits(
+      comparison: comp,
+      low: _nz(lim?.prop('Low')?.scalar),
+      high: _nz(lim?.prop('High')?.scalar),
+      nominal: _nz(lim?.prop('Nominal')?.scalar),
+      thresholdType: _nz(lim?.prop('ThresholdType')?.scalar),
+      dataSource: _nz(step.prop('DataSource')?.scalar),
+      raw: lim,
+    );
+  }
+
+  /// A short readable summary, e.g. `GELE [9, 11]`.
+  String get summary {
+    final range = '[${low ?? '?'}, ${high ?? '?'}]';
+    return '${comparison ?? '?'} $range';
+  }
+
+  @override
+  String toString() => 'StepLimits($summary)';
 }
 
 /// The module-adapter kinds observed in the corpus — the bridge from a step to

@@ -40,6 +40,18 @@ const _seqXml = '''<?xml version="1.0" encoding="UTF-8"?>
                       </subprops>
                     </Step></value>
                     <value><Step typename='MessagePopup' name='Show "hi"'/></value>
+                    <value><Step typename='NumericLimitTest' name='Check V'>
+                      <subprops>
+                        <Comp classname='Str'><value>GELE</value></Comp>
+                        <DataSource classname='Str'><value>Step.Result.Numeric</value></DataSource>
+                        <Limits classname='Obj'><subprops>
+                          <Low classname='Num'><value>9</value></Low>
+                          <High classname='Num'><value>11</value></High>
+                          <Nominal classname='Num'><value>10</value></Nominal>
+                          <ThresholdType classname='Str'><value>PERCENTAGE</value></ThresholdType>
+                        </subprops></Limits>
+                      </subprops>
+                    </Step></value>
                     <value><Step typename='Action' name='Call Sleep'>
                       <subprops><TS classname='Obj'><subprops>
                         <SData classname='Obj'><subprops>
@@ -98,9 +110,9 @@ void main() {
       final seq = f.sequences.single;
       expect(seq.setup, isEmpty);
       expect(seq.cleanup, isEmpty);
-      expect(seq.main.map((s) => s.name), ['Pass & go', 'Show "hi"', 'Call Sleep']);
-      expect(seq.main.map((s) => s.type), ['Statement', 'MessagePopup', 'Action']);
-      expect(seq.steps, hasLength(3)); // setup(0) + main(3) + cleanup(0)
+      expect(seq.main.map((s) => s.name), ['Pass & go', 'Show "hi"', 'Check V', 'Call Sleep']);
+      expect(seq.main.map((s) => s.type), ['Statement', 'MessagePopup', 'NumericLimitTest', 'Action']);
+      expect(seq.steps, hasLength(4)); // setup(0) + main(4) + cleanup(0)
     });
 
     test('decodes the module-adapter binding per step', () {
@@ -113,10 +125,24 @@ void main() {
       expect(main[1].module.adapter, SeqAdapter.none);
       expect(main[1].module.target, isNull);
       // C/DLL adapter (Call → LibPath/Func)
-      expect(main[2].module.adapter, SeqAdapter.cModule);
-      expect(main[2].module.libPath, 'kernel32.dll');
-      expect(main[2].module.function, 'Sleep');
-      expect(main[2].module.target, 'kernel32.dll:Sleep');
+      expect(main[3].module.adapter, SeqAdapter.cModule);
+      expect(main[3].module.libPath, 'kernel32.dll');
+      expect(main[3].module.function, 'Sleep');
+      expect(main[3].module.target, 'kernel32.dll:Sleep');
+    });
+
+    test('decodes limit-test pass/fail criteria', () {
+      final main = f.sequences.single.main;
+      final lim = main[2].limits!; // the NumericLimitTest step
+      expect(lim.comparison, 'GELE');
+      expect(lim.low, '9');
+      expect(lim.high, '11');
+      expect(lim.nominal, '10');
+      expect(lim.thresholdType, 'PERCENTAGE');
+      expect(lim.dataSource, 'Step.Result.Numeric');
+      expect(lim.summary, 'GELE [9, 11]');
+      // A non-limit step reports no limits, honestly.
+      expect(main[0].limits, isNull);
     });
 
     test('decodes step settings from the TS sub-container', () {
@@ -158,6 +184,7 @@ void main() {
       // module targets
       expect(out, contains(r'labView: My Computer\Foo.vi'));
       expect(out, contains('cModule: kernel32.dll:Sleep'));
+      expect(out, contains('limits GELE [9, 11]'));
       // settings + locals
       expect(out, contains('loop FixedNumLoops'));
       expect(out, contains('if Locals.X == 1'));

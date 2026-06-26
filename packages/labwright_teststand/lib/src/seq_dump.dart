@@ -52,6 +52,9 @@ String _dumpStep(Step step) {
     parts.write(' -> ${m.adapter.name}: $target');
   }
 
+  final limits = step.limits;
+  if (limits != null) parts.write('  {limits ${limits.summary}}');
+
   final s = step.settings;
   final notes = <String>[];
   if (s.passAction != null || s.failAction != null) {

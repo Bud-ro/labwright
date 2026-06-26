@@ -68,6 +68,14 @@ SeqCoverage measureCoverage(SeqFile f) {
       mark(sdata?.prop('Call')?.prop('Func'));
       mark(sdata?.prop('SeqName'));
       mark(sdata?.prop('SFPath'));
+      // Limit-test criteria.
+      mark(step.raw.prop('Comp'));
+      mark(step.raw.prop('DataSource'));
+      final lim = step.raw.prop('Limits');
+      mark(lim);
+      for (final k in ['Low', 'High', 'Nominal', 'ThresholdType']) {
+        mark(lim?.prop(k));
+      }
     }
   }
 
