@@ -82,7 +82,12 @@ String _dumpStep(Step step, SeqFile file) {
   }
 
   final limits = step.limits;
-  if (limits != null) parts.write('  {limits ${limits.summary}}');
+  final units = step.resultUnits;
+  if (limits != null) {
+    parts.write('  {limits ${limits.summary}${units != null ? ' $units' : ''}}');
+  } else if (units != null) {
+    parts.write('  {units $units}');
+  }
 
   final s = step.settings;
   if (s.icon != null) parts.write('  {icon ${s.icon}}');

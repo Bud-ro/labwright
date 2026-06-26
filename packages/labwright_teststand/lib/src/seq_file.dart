@@ -219,6 +219,12 @@ class Step {
   /// this step is not a limit test (no `Comp`/`Limits`).
   StepLimits? get limits => StepLimits.fromStep(raw);
 
+  /// The measurement units the step's result records in (`Result.Units`) — e.g.
+  /// `V`, `mA`, `nS` — the unit paired with a numeric limit test's value, or
+  /// null when the step records none. Stored on the step's `Result` sub-object
+  /// (a sibling of `TS`), not under `Limits`.
+  String? get resultUnits => _nz(raw.prop('Result')?.prop('Units')?.scalar);
+
   @override
   String toString() => 'Step($name : ${type ?? '?'})';
 }
@@ -244,8 +250,9 @@ String? _unwrapExprString(String? s) {
 
 /// A limit-test step's pass/fail criteria: the comparison operator and the
 /// numeric limits, read from the step's `Comp` + `Limits` + `DataSource`
-/// properties. Fields are null when absent/empty or not yet decoded (e.g. units,
-/// which TestStand does not store here). Comparison codes seen: `GELE`
+/// properties. Fields are null when absent/empty. The measurement **units** are
+/// recorded separately, on the step's `Result` sub-object — see
+/// [Step.resultUnits] — not under `Limits`. Comparison codes seen: `GELE`
 /// (low ≤ x ≤ high); others include `EQ`/`NE`/`LT`/`LE`/`GT`/`GE`/`GTLT`/`LTGT`.
 class StepLimits {
   StepLimits({

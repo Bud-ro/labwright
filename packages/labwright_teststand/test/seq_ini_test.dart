@@ -841,4 +841,56 @@ Direction = 1
     expect(args[1].boundExpression, 'FileGlobals.UserToAutoLogin');
     expect(args[1].direction, 'in');
   });
+
+  // A numeric limit-test step records its measurement unit on a `Result`
+  // sub-object (a sibling of `TS`), not under `Limits` — e.g. a current check
+  // reads `mA`. Mirrors the real corpus (noffz FCT "Numeric Limit Test 1").
+  test('recovers a step\'s recorded measurement units (Result.Units)', () {
+    const ini = '''
+[__Header__]
+ProductName = "TestStand"
+Version = 354
+Type = "SequenceFile"
+
+[DEF, %OBJROOT]
+SF = SequenceFileData
+[DEF, SF]
+Seq = Objs
+%NAME = "Data"
+[DEF, SF.Seq]
+%[0] = Sequence
+[DEF, SF.Seq[0]]
+Main = Objs
+%NAME = "MainSequence"
+[DEF, SF.Seq[0].Main]
+%[0] = Step
+%TYPE: %[0] = "NumericLimitTest"
+[DEF, SF.Seq[0].Main[0]]
+Comp = String
+DataSource = String
+Limits = Obj
+Result = Obj
+%NAME = "Check Current"
+[DEF, SF.Seq[0].Main[0].Limits]
+Low = Number
+High = Number
+[DEF, SF.Seq[0].Main[0].Result]
+Units = String
+[SF.Seq[0].Main[0]]
+Comp = "GELE"
+DataSource = "Step.Result.Numeric"
+[SF.Seq[0].Main[0].Limits]
+Low = 9
+High = 11
+[SF.Seq[0].Main[0].Result]
+Units = "mA"
+''';
+    final sf = parseSeqFile(Uint8List.fromList(latin1.encode(ini)));
+    final step = sf.sequences.single.main.single;
+    expect(step.type, 'NumericLimitTest');
+    expect(step.resultUnits, 'mA');
+    expect(step.limits?.summary, 'GELE [9, 11]');
+    // The dump folds the unit into the limits chip.
+    expect(dumpSeqFile(sf), contains('{limits GELE [9, 11] mA}'));
+  });
 }

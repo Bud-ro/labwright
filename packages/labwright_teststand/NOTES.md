@@ -149,8 +149,13 @@ refused (not mis-parsed).
   pass/fail criteria as `Comp` (operator, e.g. `GELE` = low ≤ x ≤ high) +
   `Limits` (`Low`/`High`/`Nominal`/`ThresholdType`, e.g. `PERCENTAGE`) +
   `DataSource` (measured-value expression). → `Step.limits` (`StepLimits`), null
-  when the step isn't a limit test; units are not stored here (not fabricated).
-  Corpus: 10 limit tests.
+  when the step isn't a limit test. Corpus: 10 limit tests.
+- **Recorded units**: the measurement unit lives on the step's `Result`
+  sub-object (a sibling of `TS`, instance-level): `Result.Units` — real strings
+  like `V`, `A`, `mA`, `uS`, `nS`. → `Step.resultUnits`; the dump folds it into
+  the limits chip (`{limits GELE [9, 11] mA}`). (Earlier notes said units weren't
+  stored — they are, just under `Result`, not `Limits`.) Corpus: 125 `Units`
+  values across the INI files.
 - **Viewer (M4)**: `dumpSeqFile(SeqFile)` (`seq_dump.dart`) renders a
   sequence-editor-like text view — header, each sequence's params/locals, then
   Setup/Main/Cleanup steps as `name [type] -> adapter: target (flow; loop; if)`.
