@@ -95,6 +95,36 @@ class NiDAQmxClient extends $grpc.Client {
     return $createUnaryCall(_$getErrorString, request, options: options);
   }
 
+  $grpc.ResponseFuture<$0.CfgSampClkTimingResponse> cfgSampClkTiming(
+    $0.CfgSampClkTimingRequest request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$cfgSampClkTiming, request, options: options);
+  }
+
+  /// Buffered streaming: a Begin*Read returns a Moniker, then DataMoniker.StreamRead
+  /// pushes the samples. (Subset of NI's full set of Begin*Read variants.)
+  $grpc.ResponseFuture<$0.BeginReadAnalogF64Response> beginReadAnalogF64(
+    $0.BeginReadAnalogF64Request request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$beginReadAnalogF64, request, options: options);
+  }
+
+  $grpc.ResponseFuture<$0.BeginReadBinaryI16Response> beginReadBinaryI16(
+    $0.BeginReadBinaryI16Request request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$beginReadBinaryI16, request, options: options);
+  }
+
+  $grpc.ResponseFuture<$0.BeginReadBinaryI32Response> beginReadBinaryI32(
+    $0.BeginReadBinaryI32Request request, {
+    $grpc.CallOptions? options,
+  }) {
+    return $createUnaryCall(_$beginReadBinaryI32, request, options: options);
+  }
+
   // method descriptors
 
   static final _$createTask =
@@ -142,6 +172,26 @@ class NiDAQmxClient extends $grpc.Client {
           '/nidaqmx_grpc.NiDAQmx/GetErrorString',
           ($0.GetErrorStringRequest value) => value.writeToBuffer(),
           $0.GetErrorStringResponse.fromBuffer);
+  static final _$cfgSampClkTiming = $grpc.ClientMethod<
+          $0.CfgSampClkTimingRequest, $0.CfgSampClkTimingResponse>(
+      '/nidaqmx_grpc.NiDAQmx/CfgSampClkTiming',
+      ($0.CfgSampClkTimingRequest value) => value.writeToBuffer(),
+      $0.CfgSampClkTimingResponse.fromBuffer);
+  static final _$beginReadAnalogF64 = $grpc.ClientMethod<
+          $0.BeginReadAnalogF64Request, $0.BeginReadAnalogF64Response>(
+      '/nidaqmx_grpc.NiDAQmx/BeginReadAnalogF64',
+      ($0.BeginReadAnalogF64Request value) => value.writeToBuffer(),
+      $0.BeginReadAnalogF64Response.fromBuffer);
+  static final _$beginReadBinaryI16 = $grpc.ClientMethod<
+          $0.BeginReadBinaryI16Request, $0.BeginReadBinaryI16Response>(
+      '/nidaqmx_grpc.NiDAQmx/BeginReadBinaryI16',
+      ($0.BeginReadBinaryI16Request value) => value.writeToBuffer(),
+      $0.BeginReadBinaryI16Response.fromBuffer);
+  static final _$beginReadBinaryI32 = $grpc.ClientMethod<
+          $0.BeginReadBinaryI32Request, $0.BeginReadBinaryI32Response>(
+      '/nidaqmx_grpc.NiDAQmx/BeginReadBinaryI32',
+      ($0.BeginReadBinaryI32Request value) => value.writeToBuffer(),
+      $0.BeginReadBinaryI32Response.fromBuffer);
 }
 
 @$pb.GrpcServiceName('nidaqmx_grpc.NiDAQmx')
@@ -222,6 +272,42 @@ abstract class NiDAQmxServiceBase extends $grpc.Service {
         ($core.List<$core.int> value) =>
             $0.GetErrorStringRequest.fromBuffer(value),
         ($0.GetErrorStringResponse value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.CfgSampClkTimingRequest,
+            $0.CfgSampClkTimingResponse>(
+        'CfgSampClkTiming',
+        cfgSampClkTiming_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) =>
+            $0.CfgSampClkTimingRequest.fromBuffer(value),
+        ($0.CfgSampClkTimingResponse value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.BeginReadAnalogF64Request,
+            $0.BeginReadAnalogF64Response>(
+        'BeginReadAnalogF64',
+        beginReadAnalogF64_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) =>
+            $0.BeginReadAnalogF64Request.fromBuffer(value),
+        ($0.BeginReadAnalogF64Response value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.BeginReadBinaryI16Request,
+            $0.BeginReadBinaryI16Response>(
+        'BeginReadBinaryI16',
+        beginReadBinaryI16_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) =>
+            $0.BeginReadBinaryI16Request.fromBuffer(value),
+        ($0.BeginReadBinaryI16Response value) => value.writeToBuffer()));
+    $addMethod($grpc.ServiceMethod<$0.BeginReadBinaryI32Request,
+            $0.BeginReadBinaryI32Response>(
+        'BeginReadBinaryI32',
+        beginReadBinaryI32_Pre,
+        false,
+        false,
+        ($core.List<$core.int> value) =>
+            $0.BeginReadBinaryI32Request.fromBuffer(value),
+        ($0.BeginReadBinaryI32Response value) => value.writeToBuffer()));
   }
 
   $async.Future<$0.CreateTaskResponse> createTask_Pre($grpc.ServiceCall $call,
@@ -300,4 +386,40 @@ abstract class NiDAQmxServiceBase extends $grpc.Service {
 
   $async.Future<$0.GetErrorStringResponse> getErrorString(
       $grpc.ServiceCall call, $0.GetErrorStringRequest request);
+
+  $async.Future<$0.CfgSampClkTimingResponse> cfgSampClkTiming_Pre(
+      $grpc.ServiceCall $call,
+      $async.Future<$0.CfgSampClkTimingRequest> $request) async {
+    return cfgSampClkTiming($call, await $request);
+  }
+
+  $async.Future<$0.CfgSampClkTimingResponse> cfgSampClkTiming(
+      $grpc.ServiceCall call, $0.CfgSampClkTimingRequest request);
+
+  $async.Future<$0.BeginReadAnalogF64Response> beginReadAnalogF64_Pre(
+      $grpc.ServiceCall $call,
+      $async.Future<$0.BeginReadAnalogF64Request> $request) async {
+    return beginReadAnalogF64($call, await $request);
+  }
+
+  $async.Future<$0.BeginReadAnalogF64Response> beginReadAnalogF64(
+      $grpc.ServiceCall call, $0.BeginReadAnalogF64Request request);
+
+  $async.Future<$0.BeginReadBinaryI16Response> beginReadBinaryI16_Pre(
+      $grpc.ServiceCall $call,
+      $async.Future<$0.BeginReadBinaryI16Request> $request) async {
+    return beginReadBinaryI16($call, await $request);
+  }
+
+  $async.Future<$0.BeginReadBinaryI16Response> beginReadBinaryI16(
+      $grpc.ServiceCall call, $0.BeginReadBinaryI16Request request);
+
+  $async.Future<$0.BeginReadBinaryI32Response> beginReadBinaryI32_Pre(
+      $grpc.ServiceCall $call,
+      $async.Future<$0.BeginReadBinaryI32Request> $request) async {
+    return beginReadBinaryI32($call, await $request);
+  }
+
+  $async.Future<$0.BeginReadBinaryI32Response> beginReadBinaryI32(
+      $grpc.ServiceCall call, $0.BeginReadBinaryI32Request request);
 }

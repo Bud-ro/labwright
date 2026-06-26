@@ -14,6 +14,9 @@ cd "$(dirname "$0")/.."
 out="lib/src/generated"
 mkdir -p "$out"
 
-protoc -Iproto --dart_out="grpc:$out" proto/session.proto proto/nidaqmx.proto
+# data_moniker.proto imports google/protobuf/any.proto (a well-known type); protoc
+# resolves it from its bundled include dir automatically.
+protoc -Iproto --dart_out="grpc:$out" \
+  proto/session.proto proto/data_moniker.proto proto/nidaqmx.proto
 
 echo "Generated Dart stubs -> $out"

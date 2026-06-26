@@ -20,5 +20,5 @@ export 'src/ffi.dart' show NidaqmxBindings, TaskHandle;
 export 'src/ffi_backend.dart' show FfiDaqmxBackend;
 export 'src/grpc_backend.dart' show GrpcDaqmxBackend;
 export 'src/logging.dart' show DaqLoggers;
-export 'src/streaming.dart' show DaqSampleFormat, DaqmxStreams;
+export 'src/streaming.dart' show DaqSampleFormat, DaqmxStreams, SidebandStrategy;
 export 'src/tdms_sink.dart' show recordStreamToTdms, tdsTypeFor;

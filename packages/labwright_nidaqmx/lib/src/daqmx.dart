@@ -17,6 +17,7 @@ import 'package:grpc/grpc.dart' show ChannelCredentials;
 import 'daqmx_api.dart';
 import 'ffi_backend.dart';
 import 'grpc_backend.dart';
+import 'streaming.dart' show SidebandStrategy;
 
 /// Factory for [DaqmxApi] transports. Not instantiable — use the static methods.
 abstract final class Daqmx {
@@ -51,7 +52,14 @@ abstract final class Daqmx {
     bool secure = false,
     ChannelCredentials? credentials,
     Duration callTimeout = const Duration(seconds: 30),
+    SidebandStrategy sideband = SidebandStrategy.inBandGrpc,
   }) =>
       GrpcDaqmxBackend(
-          host: host, port: port, secure: secure, credentials: credentials, callTimeout: callTimeout);
+        host: host,
+        port: port,
+        secure: secure,
+        credentials: credentials,
+        callTimeout: callTimeout,
+        sideband: sideband,
+      );
 }

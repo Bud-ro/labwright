@@ -452,3 +452,296 @@ final $typed_data.Uint8List getErrorStringResponseDescriptor =
     $convert.base64Decode(
         'ChZHZXRFcnJvclN0cmluZ1Jlc3BvbnNlEhYKBnN0YXR1cxgBIAEoBVIGc3RhdHVzEiEKDGVycm'
         '9yX3N0cmluZxgCIAEoCVILZXJyb3JTdHJpbmc=');
+
+@$core.Deprecated('Use cfgSampClkTimingRequestDescriptor instead')
+const CfgSampClkTimingRequest$json = {
+  '1': 'CfgSampClkTimingRequest',
+  '2': [
+    {
+      '1': 'task',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.nidevice_grpc.Session',
+      '10': 'task'
+    },
+    {'1': 'source', '3': 2, '4': 1, '5': 9, '10': 'source'},
+    {'1': 'rate', '3': 3, '4': 1, '5': 1, '10': 'rate'},
+    {'1': 'active_edge_raw', '3': 5, '4': 1, '5': 5, '10': 'activeEdgeRaw'},
+    {'1': 'sample_mode_raw', '3': 7, '4': 1, '5': 5, '10': 'sampleModeRaw'},
+    {'1': 'samps_per_chan', '3': 8, '4': 1, '5': 4, '10': 'sampsPerChan'},
+  ],
+};
+
+/// Descriptor for `CfgSampClkTimingRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List cfgSampClkTimingRequestDescriptor = $convert.base64Decode(
+    'ChdDZmdTYW1wQ2xrVGltaW5nUmVxdWVzdBIqCgR0YXNrGAEgASgLMhYubmlkZXZpY2VfZ3JwYy'
+    '5TZXNzaW9uUgR0YXNrEhYKBnNvdXJjZRgCIAEoCVIGc291cmNlEhIKBHJhdGUYAyABKAFSBHJh'
+    'dGUSJgoPYWN0aXZlX2VkZ2VfcmF3GAUgASgFUg1hY3RpdmVFZGdlUmF3EiYKD3NhbXBsZV9tb2'
+    'RlX3JhdxgHIAEoBVINc2FtcGxlTW9kZVJhdxIkCg5zYW1wc19wZXJfY2hhbhgIIAEoBFIMc2Ft'
+    'cHNQZXJDaGFu');
+
+@$core.Deprecated('Use cfgSampClkTimingResponseDescriptor instead')
+const CfgSampClkTimingResponse$json = {
+  '1': 'CfgSampClkTimingResponse',
+  '2': [
+    {'1': 'status', '3': 1, '4': 1, '5': 5, '10': 'status'},
+  ],
+};
+
+/// Descriptor for `CfgSampClkTimingResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List cfgSampClkTimingResponseDescriptor =
+    $convert.base64Decode(
+        'ChhDZmdTYW1wQ2xrVGltaW5nUmVzcG9uc2USFgoGc3RhdHVzGAEgASgFUgZzdGF0dXM=');
+
+@$core.Deprecated('Use beginReadAnalogF64RequestDescriptor instead')
+const BeginReadAnalogF64Request$json = {
+  '1': 'BeginReadAnalogF64Request',
+  '2': [
+    {
+      '1': 'task',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.nidevice_grpc.Session',
+      '10': 'task'
+    },
+    {
+      '1': 'num_samps_per_chan',
+      '3': 2,
+      '4': 1,
+      '5': 5,
+      '10': 'numSampsPerChan'
+    },
+    {'1': 'timeout', '3': 3, '4': 1, '5': 1, '10': 'timeout'},
+    {'1': 'fill_mode_raw', '3': 5, '4': 1, '5': 5, '10': 'fillModeRaw'},
+    {
+      '1': 'array_size_in_samps',
+      '3': 6,
+      '4': 1,
+      '5': 13,
+      '10': 'arraySizeInSamps'
+    },
+  ],
+};
+
+/// Descriptor for `BeginReadAnalogF64Request`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List beginReadAnalogF64RequestDescriptor = $convert.base64Decode(
+    'ChlCZWdpblJlYWRBbmFsb2dGNjRSZXF1ZXN0EioKBHRhc2sYASABKAsyFi5uaWRldmljZV9ncn'
+    'BjLlNlc3Npb25SBHRhc2sSKwoSbnVtX3NhbXBzX3Blcl9jaGFuGAIgASgFUg9udW1TYW1wc1Bl'
+    'ckNoYW4SGAoHdGltZW91dBgDIAEoAVIHdGltZW91dBIiCg1maWxsX21vZGVfcmF3GAUgASgFUg'
+    'tmaWxsTW9kZVJhdxItChNhcnJheV9zaXplX2luX3NhbXBzGAYgASgNUhBhcnJheVNpemVJblNh'
+    'bXBz');
+
+@$core.Deprecated('Use beginReadAnalogF64ResponseDescriptor instead')
+const BeginReadAnalogF64Response$json = {
+  '1': 'BeginReadAnalogF64Response',
+  '2': [
+    {'1': 'status', '3': 1, '4': 1, '5': 5, '10': 'status'},
+    {
+      '1': 'moniker',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.ni.data_monikers.Moniker',
+      '10': 'moniker'
+    },
+  ],
+};
+
+/// Descriptor for `BeginReadAnalogF64Response`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List beginReadAnalogF64ResponseDescriptor =
+    $convert.base64Decode(
+        'ChpCZWdpblJlYWRBbmFsb2dGNjRSZXNwb25zZRIWCgZzdGF0dXMYASABKAVSBnN0YXR1cxIzCg'
+        'dtb25pa2VyGAIgASgLMhkubmkuZGF0YV9tb25pa2Vycy5Nb25pa2VyUgdtb25pa2Vy');
+
+@$core.Deprecated('Use beginReadBinaryI16RequestDescriptor instead')
+const BeginReadBinaryI16Request$json = {
+  '1': 'BeginReadBinaryI16Request',
+  '2': [
+    {
+      '1': 'task',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.nidevice_grpc.Session',
+      '10': 'task'
+    },
+    {
+      '1': 'num_samps_per_chan',
+      '3': 2,
+      '4': 1,
+      '5': 5,
+      '10': 'numSampsPerChan'
+    },
+    {'1': 'timeout', '3': 3, '4': 1, '5': 1, '10': 'timeout'},
+    {'1': 'fill_mode_raw', '3': 5, '4': 1, '5': 5, '10': 'fillModeRaw'},
+    {
+      '1': 'array_size_in_samps',
+      '3': 6,
+      '4': 1,
+      '5': 13,
+      '10': 'arraySizeInSamps'
+    },
+  ],
+};
+
+/// Descriptor for `BeginReadBinaryI16Request`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List beginReadBinaryI16RequestDescriptor = $convert.base64Decode(
+    'ChlCZWdpblJlYWRCaW5hcnlJMTZSZXF1ZXN0EioKBHRhc2sYASABKAsyFi5uaWRldmljZV9ncn'
+    'BjLlNlc3Npb25SBHRhc2sSKwoSbnVtX3NhbXBzX3Blcl9jaGFuGAIgASgFUg9udW1TYW1wc1Bl'
+    'ckNoYW4SGAoHdGltZW91dBgDIAEoAVIHdGltZW91dBIiCg1maWxsX21vZGVfcmF3GAUgASgFUg'
+    'tmaWxsTW9kZVJhdxItChNhcnJheV9zaXplX2luX3NhbXBzGAYgASgNUhBhcnJheVNpemVJblNh'
+    'bXBz');
+
+@$core.Deprecated('Use beginReadBinaryI16ResponseDescriptor instead')
+const BeginReadBinaryI16Response$json = {
+  '1': 'BeginReadBinaryI16Response',
+  '2': [
+    {'1': 'status', '3': 1, '4': 1, '5': 5, '10': 'status'},
+    {
+      '1': 'moniker',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.ni.data_monikers.Moniker',
+      '10': 'moniker'
+    },
+  ],
+};
+
+/// Descriptor for `BeginReadBinaryI16Response`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List beginReadBinaryI16ResponseDescriptor =
+    $convert.base64Decode(
+        'ChpCZWdpblJlYWRCaW5hcnlJMTZSZXNwb25zZRIWCgZzdGF0dXMYASABKAVSBnN0YXR1cxIzCg'
+        'dtb25pa2VyGAIgASgLMhkubmkuZGF0YV9tb25pa2Vycy5Nb25pa2VyUgdtb25pa2Vy');
+
+@$core.Deprecated('Use beginReadBinaryI32RequestDescriptor instead')
+const BeginReadBinaryI32Request$json = {
+  '1': 'BeginReadBinaryI32Request',
+  '2': [
+    {
+      '1': 'task',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.nidevice_grpc.Session',
+      '10': 'task'
+    },
+    {
+      '1': 'num_samps_per_chan',
+      '3': 2,
+      '4': 1,
+      '5': 5,
+      '10': 'numSampsPerChan'
+    },
+    {'1': 'timeout', '3': 3, '4': 1, '5': 1, '10': 'timeout'},
+    {'1': 'fill_mode_raw', '3': 5, '4': 1, '5': 5, '10': 'fillModeRaw'},
+    {
+      '1': 'array_size_in_samps',
+      '3': 6,
+      '4': 1,
+      '5': 13,
+      '10': 'arraySizeInSamps'
+    },
+  ],
+};
+
+/// Descriptor for `BeginReadBinaryI32Request`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List beginReadBinaryI32RequestDescriptor = $convert.base64Decode(
+    'ChlCZWdpblJlYWRCaW5hcnlJMzJSZXF1ZXN0EioKBHRhc2sYASABKAsyFi5uaWRldmljZV9ncn'
+    'BjLlNlc3Npb25SBHRhc2sSKwoSbnVtX3NhbXBzX3Blcl9jaGFuGAIgASgFUg9udW1TYW1wc1Bl'
+    'ckNoYW4SGAoHdGltZW91dBgDIAEoAVIHdGltZW91dBIiCg1maWxsX21vZGVfcmF3GAUgASgFUg'
+    'tmaWxsTW9kZVJhdxItChNhcnJheV9zaXplX2luX3NhbXBzGAYgASgNUhBhcnJheVNpemVJblNh'
+    'bXBz');
+
+@$core.Deprecated('Use beginReadBinaryI32ResponseDescriptor instead')
+const BeginReadBinaryI32Response$json = {
+  '1': 'BeginReadBinaryI32Response',
+  '2': [
+    {'1': 'status', '3': 1, '4': 1, '5': 5, '10': 'status'},
+    {
+      '1': 'moniker',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.ni.data_monikers.Moniker',
+      '10': 'moniker'
+    },
+  ],
+};
+
+/// Descriptor for `BeginReadBinaryI32Response`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List beginReadBinaryI32ResponseDescriptor =
+    $convert.base64Decode(
+        'ChpCZWdpblJlYWRCaW5hcnlJMzJSZXNwb25zZRIWCgZzdGF0dXMYASABKAVSBnN0YXR1cxIzCg'
+        'dtb25pa2VyGAIgASgLMhkubmkuZGF0YV9tb25pa2Vycy5Nb25pa2VyUgdtb25pa2Vy');
+
+@$core.Deprecated('Use monikerReadAnalogF64ResponseDescriptor instead')
+const MonikerReadAnalogF64Response$json = {
+  '1': 'MonikerReadAnalogF64Response',
+  '2': [
+    {'1': 'status', '3': 1, '4': 1, '5': 5, '10': 'status'},
+    {'1': 'read_array', '3': 2, '4': 3, '5': 1, '10': 'readArray'},
+    {
+      '1': 'samps_per_chan_read',
+      '3': 3,
+      '4': 1,
+      '5': 5,
+      '10': 'sampsPerChanRead'
+    },
+  ],
+};
+
+/// Descriptor for `MonikerReadAnalogF64Response`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List monikerReadAnalogF64ResponseDescriptor =
+    $convert.base64Decode(
+        'ChxNb25pa2VyUmVhZEFuYWxvZ0Y2NFJlc3BvbnNlEhYKBnN0YXR1cxgBIAEoBVIGc3RhdHVzEh'
+        '0KCnJlYWRfYXJyYXkYAiADKAFSCXJlYWRBcnJheRItChNzYW1wc19wZXJfY2hhbl9yZWFkGAMg'
+        'ASgFUhBzYW1wc1BlckNoYW5SZWFk');
+
+@$core.Deprecated('Use monikerReadBinaryI16ResponseDescriptor instead')
+const MonikerReadBinaryI16Response$json = {
+  '1': 'MonikerReadBinaryI16Response',
+  '2': [
+    {'1': 'status', '3': 1, '4': 1, '5': 5, '10': 'status'},
+    {'1': 'read_array', '3': 2, '4': 3, '5': 5, '10': 'readArray'},
+    {
+      '1': 'samps_per_chan_read',
+      '3': 3,
+      '4': 1,
+      '5': 5,
+      '10': 'sampsPerChanRead'
+    },
+  ],
+};
+
+/// Descriptor for `MonikerReadBinaryI16Response`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List monikerReadBinaryI16ResponseDescriptor =
+    $convert.base64Decode(
+        'ChxNb25pa2VyUmVhZEJpbmFyeUkxNlJlc3BvbnNlEhYKBnN0YXR1cxgBIAEoBVIGc3RhdHVzEh'
+        '0KCnJlYWRfYXJyYXkYAiADKAVSCXJlYWRBcnJheRItChNzYW1wc19wZXJfY2hhbl9yZWFkGAMg'
+        'ASgFUhBzYW1wc1BlckNoYW5SZWFk');
+
+@$core.Deprecated('Use monikerReadBinaryI32ResponseDescriptor instead')
+const MonikerReadBinaryI32Response$json = {
+  '1': 'MonikerReadBinaryI32Response',
+  '2': [
+    {'1': 'status', '3': 1, '4': 1, '5': 5, '10': 'status'},
+    {'1': 'read_array', '3': 2, '4': 3, '5': 5, '10': 'readArray'},
+    {
+      '1': 'samps_per_chan_read',
+      '3': 3,
+      '4': 1,
+      '5': 5,
+      '10': 'sampsPerChanRead'
+    },
+  ],
+};
+
+/// Descriptor for `MonikerReadBinaryI32Response`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List monikerReadBinaryI32ResponseDescriptor =
+    $convert.base64Decode(
+        'ChxNb25pa2VyUmVhZEJpbmFyeUkzMlJlc3BvbnNlEhYKBnN0YXR1cxgBIAEoBVIGc3RhdHVzEh'
+        '0KCnJlYWRfYXJyYXkYAiADKAVSCXJlYWRBcnJheRItChNzYW1wc19wZXJfY2hhbl9yZWFkGAMg'
+        'ASgFUhBzYW1wc1BlckNoYW5SZWFk');

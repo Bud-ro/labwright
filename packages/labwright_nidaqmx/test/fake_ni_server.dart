@@ -8,10 +8,12 @@
 import 'dart:async';
 import 'dart:io' show InternetAddress;
 
+import 'package:fixnum/fixnum.dart' show Int64;
 import 'package:grpc/grpc.dart';
-
+import 'package:labwright_nidaqmx/src/generated/data_moniker.pbgrpc.dart';
 import 'package:labwright_nidaqmx/src/generated/nidaqmx.pbgrpc.dart';
 import 'package:labwright_nidaqmx/src/generated/session.pbgrpc.dart';
+import 'package:protobuf/well_known_types/google/protobuf/any.pb.dart';
 
 final _never = Completer<void>().future;
 
@@ -141,6 +143,36 @@ class FakeDaqmxService extends NiDAQmxServiceBase {
   }
 
   @override
+  Future<CfgSampClkTimingResponse> cfgSampClkTiming(
+      ServiceCall call, CfgSampClkTimingRequest request) async {
+    lastStreamRate = request.rate;
+    lastStreamModeRaw = request.sampleModeRaw;
+    return CfgSampClkTimingResponse(status: 0);
+  }
+
+  // Begin*Read return a moniker that encodes the format + chunk so the fake
+  // DataMoniker service knows what ramp to stream.
+  @override
+  Future<BeginReadAnalogF64Response> beginReadAnalogF64(
+          ServiceCall call, BeginReadAnalogF64Request request) async =>
+      BeginReadAnalogF64Response(status: 0, moniker: _moniker('f64', request.numSampsPerChan));
+
+  @override
+  Future<BeginReadBinaryI16Response> beginReadBinaryI16(
+          ServiceCall call, BeginReadBinaryI16Request request) async =>
+      BeginReadBinaryI16Response(status: 0, moniker: _moniker('i16', request.numSampsPerChan));
+
+  @override
+  Future<BeginReadBinaryI32Response> beginReadBinaryI32(
+          ServiceCall call, BeginReadBinaryI32Request request) async =>
+      BeginReadBinaryI32Response(status: 0, moniker: _moniker('i32', request.numSampsPerChan));
+
+  double? lastStreamRate;
+  int? lastStreamModeRaw;
+  Moniker _moniker(String fmt, int chunk) =>
+      Moniker(dataSource: fmt, dataInstance: Int64(chunk));
+
+  @override
   Future<GetErrorStringResponse> getErrorString(
       ServiceCall call, GetErrorStringRequest request) async {
     if (throwOnGetErrorString) throw const GrpcError.unavailable('error-string lookup down');
@@ -171,6 +203,46 @@ class FakeUtilitiesService extends SessionUtilitiesServiceBase {
   }
 }
 
+/// Fake `DataMoniker` service: streams a continuous ramp for the moniker minted by a
+/// Begin*Read, packing the matching MonikerRead*Response into each frame's Any.
+class FakeMonikerService extends DataMonikerServiceBase {
+  @override
+  Stream<MonikerReadResponse> streamRead(ServiceCall call, MonikerList request) async* {
+    final m = request.readMonikers.first;
+    final fmt = m.dataSource;
+    final chunk = m.dataInstance.toInt();
+    var base = 0;
+    while (true) {
+      yield MonikerReadResponse(data: MonikerValues(values: [_frame(fmt, base, chunk)]));
+      base += chunk;
+      await Future<void>.delayed(const Duration(milliseconds: 1)); // lets cancel propagate
+    }
+  }
+
+  Any _frame(String fmt, int base, int chunk) {
+    switch (fmt) {
+      case 'f64':
+        return Any.pack(MonikerReadAnalogF64Response(
+            status: 0,
+            readArray: [for (var i = 0; i < chunk; i++) (base + i).toDouble()],
+            sampsPerChanRead: chunk));
+      case 'i16':
+        return Any.pack(MonikerReadBinaryI16Response(
+            status: 0, readArray: [for (var i = 0; i < chunk; i++) base + i], sampsPerChanRead: chunk));
+      case 'i32':
+        return Any.pack(MonikerReadBinaryI32Response(
+            status: 0, readArray: [for (var i = 0; i < chunk; i++) base + i], sampsPerChanRead: chunk));
+      default:
+        throw StateError('unknown moniker format "$fmt"');
+    }
+  }
+
+  @override
+  Future<BeginMonikerSidebandStreamResponse> beginSidebandStream(
+          ServiceCall call, BeginMonikerSidebandStreamRequest request) async =>
+      BeginMonikerSidebandStreamResponse(strategy: request.strategy, connectionUrl: '');
+}
+
 /// A running fake server bound to an ephemeral loopback port.
 class FakeNiServer {
   FakeNiServer._(this._server, this.daqmx, this.utilities);
@@ -188,7 +260,7 @@ class FakeNiServer {
   }) async {
     final d = daqmx ?? FakeDaqmxService();
     final u = utilities ?? FakeUtilitiesService();
-    final server = Server.create(services: [d, u]);
+    final server = Server.create(services: [d, u, FakeMonikerService()]);
     await server.serve(address: InternetAddress.loopbackIPv4, port: 0);
     return FakeNiServer._(server, d, u);
   }

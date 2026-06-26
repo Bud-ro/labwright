@@ -2,6 +2,8 @@
 // Server over a real loopback channel — they exercise the actual wire path and the
 // CreateTask -> ConfigureChannel -> Read/Write -> ClearTask session model.
 
+import 'dart:typed_data';
+
 import 'package:grpc/grpc.dart';
 import 'package:labwright_nidaqmx/labwright_nidaqmx.dart';
 import 'package:test/test.dart';
@@ -237,6 +239,47 @@ void main() {
       final results = await Future.wait([daq.readVoltage('ai0'), daq.readVoltage('ai1')]);
       expect(results, containsAll([1.0, 2.0]));
       expect(fake.createTaskCount, 2); // a distinct task per concurrent call
+    });
+  });
+
+  group('moniker streaming (in-band gRPC)', () {
+    test('finite f64 stream: Begin -> StreamRead -> unpack Any -> ramp', () async {
+      await startWith();
+      final chunks = await daq
+          .readVoltageStream('cDAQ1Mod1/ai0', rateHz: 1000, samplesPerChunk: 50, totalSamples: 200)
+          .toList();
+      final all = chunks.expand((c) => c).toList();
+      expect(all.length, 200);
+      expect(all, List.generate(200, (i) => i.toDouble()));
+      expect(server.daqmx.lastStreamRate, 1000); // rate set from Dart reached CfgSampClkTiming
+      expect(server.daqmx.lastStreamModeRaw, DaqmxVal.finiteSamps);
+    });
+
+    test('raw i16 stream yields Int16List chunks over the wire', () async {
+      await startWith();
+      final chunks = await daq
+          .readRawI16Stream('cDAQ1Mod1/ai0', rateHz: 2000, samplesPerChunk: 64, totalSamples: 256)
+          .toList();
+      expect(chunks, everyElement(isA<Int16List>()));
+      expect(chunks.expand((c) => c).toList(), List.generate(256, (i) => i));
+    });
+
+    test('continuous stream stops cleanly when the subscription is cancelled', () async {
+      await startWith();
+      final got = await daq
+          .readStream('cDAQ1Mod1/ai0', rateHz: 100000, samplesPerChunk: 10, format: DaqSampleFormat.rawI16)
+          .take(3)
+          .toList(); // take(3) cancels -> server stream torn down, task cleared
+      expect(got, hasLength(3));
+      expect((got.first as Int16List).toList(), List.generate(10, (i) => i));
+    });
+
+    test('a non-gRPC sideband strategy throws UnsupportedError', () {
+      final remote = Daqmx.remote(host: '127.0.0.1', port: 1, sideband: SidebandStrategy.sockets);
+      expect(
+        () => remote.readStream('ai0', rateHz: 1000),
+        throwsA(isA<UnsupportedError>()),
+      );
     });
   });
 }

@@ -35,6 +35,25 @@ enum DaqSampleFormat {
   final int bytesPerSample;
 }
 
+/// Transport for remote (gRPC) streaming. [inBandGrpc] streams samples over the gRPC
+/// connection itself via `DataMoniker.StreamRead` — works anywhere, moderate rate.
+/// The rest are NI's higher-throughput sideband transports negotiated by
+/// `BeginSidebandStream`; they require native support and are not implemented here yet
+/// (see README "Streaming"). Selected on `Daqmx.remote(..., sideband: ...)`.
+enum SidebandStrategy {
+  /// Samples ride the gRPC stream (`DataMoniker.StreamRead`). Implemented.
+  inBandGrpc,
+
+  /// Shared memory (same machine only). Native — not implemented.
+  sharedMemory,
+
+  /// Raw sockets over the network. Native — not implemented.
+  sockets,
+
+  /// RDMA (InfiniBand/RoCE NICs) for high-rate network streaming. Native — not implemented.
+  rdma,
+}
+
 /// Typed convenience wrappers over [DaqmxApi.readStream] (the general primitive). Each
 /// requests a format and yields the precise typed list, so callers avoid casting.
 extension DaqmxStreams on DaqmxApi {

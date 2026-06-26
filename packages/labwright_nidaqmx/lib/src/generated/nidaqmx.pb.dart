@@ -12,8 +12,10 @@
 
 import 'dart:core' as $core;
 
+import 'package:fixnum/fixnum.dart' as $fixnum;
 import 'package:protobuf/protobuf.dart' as $pb;
 
+import 'data_moniker.pb.dart' as $2;
 import 'nidaqmx.pbenum.dart';
 import 'session.pb.dart' as $1;
 
@@ -1404,6 +1406,946 @@ class GetErrorStringResponse extends $pb.GeneratedMessage {
   $core.bool hasErrorString() => $_has(1);
   @$pb.TagNumber(2)
   void clearErrorString() => $_clearField(2);
+}
+
+/// Sample-clock timing. We send the `_raw` int32 variants (the oneof enum variants at
+/// field 4/6 are omitted from this subset; field numbers are preserved).
+class CfgSampClkTimingRequest extends $pb.GeneratedMessage {
+  factory CfgSampClkTimingRequest({
+    $1.Session? task,
+    $core.String? source,
+    $core.double? rate,
+    $core.int? activeEdgeRaw,
+    $core.int? sampleModeRaw,
+    $fixnum.Int64? sampsPerChan,
+  }) {
+    final result = create();
+    if (task != null) result.task = task;
+    if (source != null) result.source = source;
+    if (rate != null) result.rate = rate;
+    if (activeEdgeRaw != null) result.activeEdgeRaw = activeEdgeRaw;
+    if (sampleModeRaw != null) result.sampleModeRaw = sampleModeRaw;
+    if (sampsPerChan != null) result.sampsPerChan = sampsPerChan;
+    return result;
+  }
+
+  CfgSampClkTimingRequest._();
+
+  factory CfgSampClkTimingRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory CfgSampClkTimingRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'CfgSampClkTimingRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'),
+      createEmptyInstance: create)
+    ..aOM<$1.Session>(1, _omitFieldNames ? '' : 'task',
+        subBuilder: $1.Session.create)
+    ..aOS(2, _omitFieldNames ? '' : 'source')
+    ..aD(3, _omitFieldNames ? '' : 'rate')
+    ..aI(5, _omitFieldNames ? '' : 'activeEdgeRaw')
+    ..aI(7, _omitFieldNames ? '' : 'sampleModeRaw')
+    ..a<$fixnum.Int64>(
+        8, _omitFieldNames ? '' : 'sampsPerChan', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CfgSampClkTimingRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CfgSampClkTimingRequest copyWith(
+          void Function(CfgSampClkTimingRequest) updates) =>
+      super.copyWith((message) => updates(message as CfgSampClkTimingRequest))
+          as CfgSampClkTimingRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static CfgSampClkTimingRequest create() => CfgSampClkTimingRequest._();
+  @$core.override
+  CfgSampClkTimingRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static CfgSampClkTimingRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<CfgSampClkTimingRequest>(create);
+  static CfgSampClkTimingRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $1.Session get task => $_getN(0);
+  @$pb.TagNumber(1)
+  set task($1.Session value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasTask() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearTask() => $_clearField(1);
+  @$pb.TagNumber(1)
+  $1.Session ensureTask() => $_ensure(0);
+
+  @$pb.TagNumber(2)
+  $core.String get source => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set source($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasSource() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearSource() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.double get rate => $_getN(2);
+  @$pb.TagNumber(3)
+  set rate($core.double value) => $_setDouble(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasRate() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearRate() => $_clearField(3);
+
+  @$pb.TagNumber(5)
+  $core.int get activeEdgeRaw => $_getIZ(3);
+  @$pb.TagNumber(5)
+  set activeEdgeRaw($core.int value) => $_setSignedInt32(3, value);
+  @$pb.TagNumber(5)
+  $core.bool hasActiveEdgeRaw() => $_has(3);
+  @$pb.TagNumber(5)
+  void clearActiveEdgeRaw() => $_clearField(5);
+
+  @$pb.TagNumber(7)
+  $core.int get sampleModeRaw => $_getIZ(4);
+  @$pb.TagNumber(7)
+  set sampleModeRaw($core.int value) => $_setSignedInt32(4, value);
+  @$pb.TagNumber(7)
+  $core.bool hasSampleModeRaw() => $_has(4);
+  @$pb.TagNumber(7)
+  void clearSampleModeRaw() => $_clearField(7);
+
+  @$pb.TagNumber(8)
+  $fixnum.Int64 get sampsPerChan => $_getI64(5);
+  @$pb.TagNumber(8)
+  set sampsPerChan($fixnum.Int64 value) => $_setInt64(5, value);
+  @$pb.TagNumber(8)
+  $core.bool hasSampsPerChan() => $_has(5);
+  @$pb.TagNumber(8)
+  void clearSampsPerChan() => $_clearField(8);
+}
+
+class CfgSampClkTimingResponse extends $pb.GeneratedMessage {
+  factory CfgSampClkTimingResponse({
+    $core.int? status,
+  }) {
+    final result = create();
+    if (status != null) result.status = status;
+    return result;
+  }
+
+  CfgSampClkTimingResponse._();
+
+  factory CfgSampClkTimingResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory CfgSampClkTimingResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'CfgSampClkTimingResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'),
+      createEmptyInstance: create)
+    ..aI(1, _omitFieldNames ? '' : 'status')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CfgSampClkTimingResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CfgSampClkTimingResponse copyWith(
+          void Function(CfgSampClkTimingResponse) updates) =>
+      super.copyWith((message) => updates(message as CfgSampClkTimingResponse))
+          as CfgSampClkTimingResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static CfgSampClkTimingResponse create() => CfgSampClkTimingResponse._();
+  @$core.override
+  CfgSampClkTimingResponse createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static CfgSampClkTimingResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<CfgSampClkTimingResponse>(create);
+  static CfgSampClkTimingResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.int get status => $_getIZ(0);
+  @$pb.TagNumber(1)
+  set status($core.int value) => $_setSignedInt32(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasStatus() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearStatus() => $_clearField(1);
+}
+
+/// Begin*Read requests share the read shape; we send fill_mode_raw (enum variant at
+/// field 4 omitted). Each returns a Moniker to stream from.
+class BeginReadAnalogF64Request extends $pb.GeneratedMessage {
+  factory BeginReadAnalogF64Request({
+    $1.Session? task,
+    $core.int? numSampsPerChan,
+    $core.double? timeout,
+    $core.int? fillModeRaw,
+    $core.int? arraySizeInSamps,
+  }) {
+    final result = create();
+    if (task != null) result.task = task;
+    if (numSampsPerChan != null) result.numSampsPerChan = numSampsPerChan;
+    if (timeout != null) result.timeout = timeout;
+    if (fillModeRaw != null) result.fillModeRaw = fillModeRaw;
+    if (arraySizeInSamps != null) result.arraySizeInSamps = arraySizeInSamps;
+    return result;
+  }
+
+  BeginReadAnalogF64Request._();
+
+  factory BeginReadAnalogF64Request.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory BeginReadAnalogF64Request.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'BeginReadAnalogF64Request',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'),
+      createEmptyInstance: create)
+    ..aOM<$1.Session>(1, _omitFieldNames ? '' : 'task',
+        subBuilder: $1.Session.create)
+    ..aI(2, _omitFieldNames ? '' : 'numSampsPerChan')
+    ..aD(3, _omitFieldNames ? '' : 'timeout')
+    ..aI(5, _omitFieldNames ? '' : 'fillModeRaw')
+    ..aI(6, _omitFieldNames ? '' : 'arraySizeInSamps',
+        fieldType: $pb.PbFieldType.OU3)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  BeginReadAnalogF64Request clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  BeginReadAnalogF64Request copyWith(
+          void Function(BeginReadAnalogF64Request) updates) =>
+      super.copyWith((message) => updates(message as BeginReadAnalogF64Request))
+          as BeginReadAnalogF64Request;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static BeginReadAnalogF64Request create() => BeginReadAnalogF64Request._();
+  @$core.override
+  BeginReadAnalogF64Request createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static BeginReadAnalogF64Request getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<BeginReadAnalogF64Request>(create);
+  static BeginReadAnalogF64Request? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $1.Session get task => $_getN(0);
+  @$pb.TagNumber(1)
+  set task($1.Session value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasTask() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearTask() => $_clearField(1);
+  @$pb.TagNumber(1)
+  $1.Session ensureTask() => $_ensure(0);
+
+  @$pb.TagNumber(2)
+  $core.int get numSampsPerChan => $_getIZ(1);
+  @$pb.TagNumber(2)
+  set numSampsPerChan($core.int value) => $_setSignedInt32(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasNumSampsPerChan() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearNumSampsPerChan() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.double get timeout => $_getN(2);
+  @$pb.TagNumber(3)
+  set timeout($core.double value) => $_setDouble(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasTimeout() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearTimeout() => $_clearField(3);
+
+  @$pb.TagNumber(5)
+  $core.int get fillModeRaw => $_getIZ(3);
+  @$pb.TagNumber(5)
+  set fillModeRaw($core.int value) => $_setSignedInt32(3, value);
+  @$pb.TagNumber(5)
+  $core.bool hasFillModeRaw() => $_has(3);
+  @$pb.TagNumber(5)
+  void clearFillModeRaw() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.int get arraySizeInSamps => $_getIZ(4);
+  @$pb.TagNumber(6)
+  set arraySizeInSamps($core.int value) => $_setUnsignedInt32(4, value);
+  @$pb.TagNumber(6)
+  $core.bool hasArraySizeInSamps() => $_has(4);
+  @$pb.TagNumber(6)
+  void clearArraySizeInSamps() => $_clearField(6);
+}
+
+class BeginReadAnalogF64Response extends $pb.GeneratedMessage {
+  factory BeginReadAnalogF64Response({
+    $core.int? status,
+    $2.Moniker? moniker,
+  }) {
+    final result = create();
+    if (status != null) result.status = status;
+    if (moniker != null) result.moniker = moniker;
+    return result;
+  }
+
+  BeginReadAnalogF64Response._();
+
+  factory BeginReadAnalogF64Response.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory BeginReadAnalogF64Response.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'BeginReadAnalogF64Response',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'),
+      createEmptyInstance: create)
+    ..aI(1, _omitFieldNames ? '' : 'status')
+    ..aOM<$2.Moniker>(2, _omitFieldNames ? '' : 'moniker',
+        subBuilder: $2.Moniker.create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  BeginReadAnalogF64Response clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  BeginReadAnalogF64Response copyWith(
+          void Function(BeginReadAnalogF64Response) updates) =>
+      super.copyWith(
+              (message) => updates(message as BeginReadAnalogF64Response))
+          as BeginReadAnalogF64Response;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static BeginReadAnalogF64Response create() => BeginReadAnalogF64Response._();
+  @$core.override
+  BeginReadAnalogF64Response createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static BeginReadAnalogF64Response getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<BeginReadAnalogF64Response>(create);
+  static BeginReadAnalogF64Response? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.int get status => $_getIZ(0);
+  @$pb.TagNumber(1)
+  set status($core.int value) => $_setSignedInt32(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasStatus() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearStatus() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $2.Moniker get moniker => $_getN(1);
+  @$pb.TagNumber(2)
+  set moniker($2.Moniker value) => $_setField(2, value);
+  @$pb.TagNumber(2)
+  $core.bool hasMoniker() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearMoniker() => $_clearField(2);
+  @$pb.TagNumber(2)
+  $2.Moniker ensureMoniker() => $_ensure(1);
+}
+
+class BeginReadBinaryI16Request extends $pb.GeneratedMessage {
+  factory BeginReadBinaryI16Request({
+    $1.Session? task,
+    $core.int? numSampsPerChan,
+    $core.double? timeout,
+    $core.int? fillModeRaw,
+    $core.int? arraySizeInSamps,
+  }) {
+    final result = create();
+    if (task != null) result.task = task;
+    if (numSampsPerChan != null) result.numSampsPerChan = numSampsPerChan;
+    if (timeout != null) result.timeout = timeout;
+    if (fillModeRaw != null) result.fillModeRaw = fillModeRaw;
+    if (arraySizeInSamps != null) result.arraySizeInSamps = arraySizeInSamps;
+    return result;
+  }
+
+  BeginReadBinaryI16Request._();
+
+  factory BeginReadBinaryI16Request.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory BeginReadBinaryI16Request.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'BeginReadBinaryI16Request',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'),
+      createEmptyInstance: create)
+    ..aOM<$1.Session>(1, _omitFieldNames ? '' : 'task',
+        subBuilder: $1.Session.create)
+    ..aI(2, _omitFieldNames ? '' : 'numSampsPerChan')
+    ..aD(3, _omitFieldNames ? '' : 'timeout')
+    ..aI(5, _omitFieldNames ? '' : 'fillModeRaw')
+    ..aI(6, _omitFieldNames ? '' : 'arraySizeInSamps',
+        fieldType: $pb.PbFieldType.OU3)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  BeginReadBinaryI16Request clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  BeginReadBinaryI16Request copyWith(
+          void Function(BeginReadBinaryI16Request) updates) =>
+      super.copyWith((message) => updates(message as BeginReadBinaryI16Request))
+          as BeginReadBinaryI16Request;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static BeginReadBinaryI16Request create() => BeginReadBinaryI16Request._();
+  @$core.override
+  BeginReadBinaryI16Request createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static BeginReadBinaryI16Request getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<BeginReadBinaryI16Request>(create);
+  static BeginReadBinaryI16Request? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $1.Session get task => $_getN(0);
+  @$pb.TagNumber(1)
+  set task($1.Session value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasTask() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearTask() => $_clearField(1);
+  @$pb.TagNumber(1)
+  $1.Session ensureTask() => $_ensure(0);
+
+  @$pb.TagNumber(2)
+  $core.int get numSampsPerChan => $_getIZ(1);
+  @$pb.TagNumber(2)
+  set numSampsPerChan($core.int value) => $_setSignedInt32(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasNumSampsPerChan() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearNumSampsPerChan() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.double get timeout => $_getN(2);
+  @$pb.TagNumber(3)
+  set timeout($core.double value) => $_setDouble(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasTimeout() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearTimeout() => $_clearField(3);
+
+  @$pb.TagNumber(5)
+  $core.int get fillModeRaw => $_getIZ(3);
+  @$pb.TagNumber(5)
+  set fillModeRaw($core.int value) => $_setSignedInt32(3, value);
+  @$pb.TagNumber(5)
+  $core.bool hasFillModeRaw() => $_has(3);
+  @$pb.TagNumber(5)
+  void clearFillModeRaw() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.int get arraySizeInSamps => $_getIZ(4);
+  @$pb.TagNumber(6)
+  set arraySizeInSamps($core.int value) => $_setUnsignedInt32(4, value);
+  @$pb.TagNumber(6)
+  $core.bool hasArraySizeInSamps() => $_has(4);
+  @$pb.TagNumber(6)
+  void clearArraySizeInSamps() => $_clearField(6);
+}
+
+class BeginReadBinaryI16Response extends $pb.GeneratedMessage {
+  factory BeginReadBinaryI16Response({
+    $core.int? status,
+    $2.Moniker? moniker,
+  }) {
+    final result = create();
+    if (status != null) result.status = status;
+    if (moniker != null) result.moniker = moniker;
+    return result;
+  }
+
+  BeginReadBinaryI16Response._();
+
+  factory BeginReadBinaryI16Response.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory BeginReadBinaryI16Response.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'BeginReadBinaryI16Response',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'),
+      createEmptyInstance: create)
+    ..aI(1, _omitFieldNames ? '' : 'status')
+    ..aOM<$2.Moniker>(2, _omitFieldNames ? '' : 'moniker',
+        subBuilder: $2.Moniker.create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  BeginReadBinaryI16Response clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  BeginReadBinaryI16Response copyWith(
+          void Function(BeginReadBinaryI16Response) updates) =>
+      super.copyWith(
+              (message) => updates(message as BeginReadBinaryI16Response))
+          as BeginReadBinaryI16Response;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static BeginReadBinaryI16Response create() => BeginReadBinaryI16Response._();
+  @$core.override
+  BeginReadBinaryI16Response createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static BeginReadBinaryI16Response getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<BeginReadBinaryI16Response>(create);
+  static BeginReadBinaryI16Response? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.int get status => $_getIZ(0);
+  @$pb.TagNumber(1)
+  set status($core.int value) => $_setSignedInt32(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasStatus() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearStatus() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $2.Moniker get moniker => $_getN(1);
+  @$pb.TagNumber(2)
+  set moniker($2.Moniker value) => $_setField(2, value);
+  @$pb.TagNumber(2)
+  $core.bool hasMoniker() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearMoniker() => $_clearField(2);
+  @$pb.TagNumber(2)
+  $2.Moniker ensureMoniker() => $_ensure(1);
+}
+
+class BeginReadBinaryI32Request extends $pb.GeneratedMessage {
+  factory BeginReadBinaryI32Request({
+    $1.Session? task,
+    $core.int? numSampsPerChan,
+    $core.double? timeout,
+    $core.int? fillModeRaw,
+    $core.int? arraySizeInSamps,
+  }) {
+    final result = create();
+    if (task != null) result.task = task;
+    if (numSampsPerChan != null) result.numSampsPerChan = numSampsPerChan;
+    if (timeout != null) result.timeout = timeout;
+    if (fillModeRaw != null) result.fillModeRaw = fillModeRaw;
+    if (arraySizeInSamps != null) result.arraySizeInSamps = arraySizeInSamps;
+    return result;
+  }
+
+  BeginReadBinaryI32Request._();
+
+  factory BeginReadBinaryI32Request.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory BeginReadBinaryI32Request.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'BeginReadBinaryI32Request',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'),
+      createEmptyInstance: create)
+    ..aOM<$1.Session>(1, _omitFieldNames ? '' : 'task',
+        subBuilder: $1.Session.create)
+    ..aI(2, _omitFieldNames ? '' : 'numSampsPerChan')
+    ..aD(3, _omitFieldNames ? '' : 'timeout')
+    ..aI(5, _omitFieldNames ? '' : 'fillModeRaw')
+    ..aI(6, _omitFieldNames ? '' : 'arraySizeInSamps',
+        fieldType: $pb.PbFieldType.OU3)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  BeginReadBinaryI32Request clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  BeginReadBinaryI32Request copyWith(
+          void Function(BeginReadBinaryI32Request) updates) =>
+      super.copyWith((message) => updates(message as BeginReadBinaryI32Request))
+          as BeginReadBinaryI32Request;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static BeginReadBinaryI32Request create() => BeginReadBinaryI32Request._();
+  @$core.override
+  BeginReadBinaryI32Request createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static BeginReadBinaryI32Request getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<BeginReadBinaryI32Request>(create);
+  static BeginReadBinaryI32Request? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $1.Session get task => $_getN(0);
+  @$pb.TagNumber(1)
+  set task($1.Session value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasTask() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearTask() => $_clearField(1);
+  @$pb.TagNumber(1)
+  $1.Session ensureTask() => $_ensure(0);
+
+  @$pb.TagNumber(2)
+  $core.int get numSampsPerChan => $_getIZ(1);
+  @$pb.TagNumber(2)
+  set numSampsPerChan($core.int value) => $_setSignedInt32(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasNumSampsPerChan() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearNumSampsPerChan() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.double get timeout => $_getN(2);
+  @$pb.TagNumber(3)
+  set timeout($core.double value) => $_setDouble(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasTimeout() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearTimeout() => $_clearField(3);
+
+  @$pb.TagNumber(5)
+  $core.int get fillModeRaw => $_getIZ(3);
+  @$pb.TagNumber(5)
+  set fillModeRaw($core.int value) => $_setSignedInt32(3, value);
+  @$pb.TagNumber(5)
+  $core.bool hasFillModeRaw() => $_has(3);
+  @$pb.TagNumber(5)
+  void clearFillModeRaw() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.int get arraySizeInSamps => $_getIZ(4);
+  @$pb.TagNumber(6)
+  set arraySizeInSamps($core.int value) => $_setUnsignedInt32(4, value);
+  @$pb.TagNumber(6)
+  $core.bool hasArraySizeInSamps() => $_has(4);
+  @$pb.TagNumber(6)
+  void clearArraySizeInSamps() => $_clearField(6);
+}
+
+class BeginReadBinaryI32Response extends $pb.GeneratedMessage {
+  factory BeginReadBinaryI32Response({
+    $core.int? status,
+    $2.Moniker? moniker,
+  }) {
+    final result = create();
+    if (status != null) result.status = status;
+    if (moniker != null) result.moniker = moniker;
+    return result;
+  }
+
+  BeginReadBinaryI32Response._();
+
+  factory BeginReadBinaryI32Response.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory BeginReadBinaryI32Response.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'BeginReadBinaryI32Response',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'),
+      createEmptyInstance: create)
+    ..aI(1, _omitFieldNames ? '' : 'status')
+    ..aOM<$2.Moniker>(2, _omitFieldNames ? '' : 'moniker',
+        subBuilder: $2.Moniker.create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  BeginReadBinaryI32Response clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  BeginReadBinaryI32Response copyWith(
+          void Function(BeginReadBinaryI32Response) updates) =>
+      super.copyWith(
+              (message) => updates(message as BeginReadBinaryI32Response))
+          as BeginReadBinaryI32Response;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static BeginReadBinaryI32Response create() => BeginReadBinaryI32Response._();
+  @$core.override
+  BeginReadBinaryI32Response createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static BeginReadBinaryI32Response getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<BeginReadBinaryI32Response>(create);
+  static BeginReadBinaryI32Response? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.int get status => $_getIZ(0);
+  @$pb.TagNumber(1)
+  set status($core.int value) => $_setSignedInt32(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasStatus() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearStatus() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $2.Moniker get moniker => $_getN(1);
+  @$pb.TagNumber(2)
+  set moniker($2.Moniker value) => $_setField(2, value);
+  @$pb.TagNumber(2)
+  $core.bool hasMoniker() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearMoniker() => $_clearField(2);
+  @$pb.TagNumber(2)
+  $2.Moniker ensureMoniker() => $_ensure(1);
+}
+
+/// Per-frame payloads carried in MonikerReadResponse's Any values. (protobuf has no
+/// int16, so raw 16-bit codes arrive as int32 and are narrowed client-side.)
+class MonikerReadAnalogF64Response extends $pb.GeneratedMessage {
+  factory MonikerReadAnalogF64Response({
+    $core.int? status,
+    $core.Iterable<$core.double>? readArray,
+    $core.int? sampsPerChanRead,
+  }) {
+    final result = create();
+    if (status != null) result.status = status;
+    if (readArray != null) result.readArray.addAll(readArray);
+    if (sampsPerChanRead != null) result.sampsPerChanRead = sampsPerChanRead;
+    return result;
+  }
+
+  MonikerReadAnalogF64Response._();
+
+  factory MonikerReadAnalogF64Response.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory MonikerReadAnalogF64Response.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'MonikerReadAnalogF64Response',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'),
+      createEmptyInstance: create)
+    ..aI(1, _omitFieldNames ? '' : 'status')
+    ..p<$core.double>(2, _omitFieldNames ? '' : 'readArray', $pb.PbFieldType.KD)
+    ..aI(3, _omitFieldNames ? '' : 'sampsPerChanRead')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  MonikerReadAnalogF64Response clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  MonikerReadAnalogF64Response copyWith(
+          void Function(MonikerReadAnalogF64Response) updates) =>
+      super.copyWith(
+              (message) => updates(message as MonikerReadAnalogF64Response))
+          as MonikerReadAnalogF64Response;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static MonikerReadAnalogF64Response create() =>
+      MonikerReadAnalogF64Response._();
+  @$core.override
+  MonikerReadAnalogF64Response createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static MonikerReadAnalogF64Response getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<MonikerReadAnalogF64Response>(create);
+  static MonikerReadAnalogF64Response? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.int get status => $_getIZ(0);
+  @$pb.TagNumber(1)
+  set status($core.int value) => $_setSignedInt32(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasStatus() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearStatus() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $pb.PbList<$core.double> get readArray => $_getList(1);
+
+  @$pb.TagNumber(3)
+  $core.int get sampsPerChanRead => $_getIZ(2);
+  @$pb.TagNumber(3)
+  set sampsPerChanRead($core.int value) => $_setSignedInt32(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasSampsPerChanRead() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearSampsPerChanRead() => $_clearField(3);
+}
+
+class MonikerReadBinaryI16Response extends $pb.GeneratedMessage {
+  factory MonikerReadBinaryI16Response({
+    $core.int? status,
+    $core.Iterable<$core.int>? readArray,
+    $core.int? sampsPerChanRead,
+  }) {
+    final result = create();
+    if (status != null) result.status = status;
+    if (readArray != null) result.readArray.addAll(readArray);
+    if (sampsPerChanRead != null) result.sampsPerChanRead = sampsPerChanRead;
+    return result;
+  }
+
+  MonikerReadBinaryI16Response._();
+
+  factory MonikerReadBinaryI16Response.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory MonikerReadBinaryI16Response.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'MonikerReadBinaryI16Response',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'),
+      createEmptyInstance: create)
+    ..aI(1, _omitFieldNames ? '' : 'status')
+    ..p<$core.int>(2, _omitFieldNames ? '' : 'readArray', $pb.PbFieldType.K3)
+    ..aI(3, _omitFieldNames ? '' : 'sampsPerChanRead')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  MonikerReadBinaryI16Response clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  MonikerReadBinaryI16Response copyWith(
+          void Function(MonikerReadBinaryI16Response) updates) =>
+      super.copyWith(
+              (message) => updates(message as MonikerReadBinaryI16Response))
+          as MonikerReadBinaryI16Response;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static MonikerReadBinaryI16Response create() =>
+      MonikerReadBinaryI16Response._();
+  @$core.override
+  MonikerReadBinaryI16Response createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static MonikerReadBinaryI16Response getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<MonikerReadBinaryI16Response>(create);
+  static MonikerReadBinaryI16Response? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.int get status => $_getIZ(0);
+  @$pb.TagNumber(1)
+  set status($core.int value) => $_setSignedInt32(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasStatus() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearStatus() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $pb.PbList<$core.int> get readArray => $_getList(1);
+
+  @$pb.TagNumber(3)
+  $core.int get sampsPerChanRead => $_getIZ(2);
+  @$pb.TagNumber(3)
+  set sampsPerChanRead($core.int value) => $_setSignedInt32(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasSampsPerChanRead() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearSampsPerChanRead() => $_clearField(3);
+}
+
+class MonikerReadBinaryI32Response extends $pb.GeneratedMessage {
+  factory MonikerReadBinaryI32Response({
+    $core.int? status,
+    $core.Iterable<$core.int>? readArray,
+    $core.int? sampsPerChanRead,
+  }) {
+    final result = create();
+    if (status != null) result.status = status;
+    if (readArray != null) result.readArray.addAll(readArray);
+    if (sampsPerChanRead != null) result.sampsPerChanRead = sampsPerChanRead;
+    return result;
+  }
+
+  MonikerReadBinaryI32Response._();
+
+  factory MonikerReadBinaryI32Response.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory MonikerReadBinaryI32Response.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'MonikerReadBinaryI32Response',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'),
+      createEmptyInstance: create)
+    ..aI(1, _omitFieldNames ? '' : 'status')
+    ..p<$core.int>(2, _omitFieldNames ? '' : 'readArray', $pb.PbFieldType.K3)
+    ..aI(3, _omitFieldNames ? '' : 'sampsPerChanRead')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  MonikerReadBinaryI32Response clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  MonikerReadBinaryI32Response copyWith(
+          void Function(MonikerReadBinaryI32Response) updates) =>
+      super.copyWith(
+              (message) => updates(message as MonikerReadBinaryI32Response))
+          as MonikerReadBinaryI32Response;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static MonikerReadBinaryI32Response create() =>
+      MonikerReadBinaryI32Response._();
+  @$core.override
+  MonikerReadBinaryI32Response createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static MonikerReadBinaryI32Response getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<MonikerReadBinaryI32Response>(create);
+  static MonikerReadBinaryI32Response? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.int get status => $_getIZ(0);
+  @$pb.TagNumber(1)
+  set status($core.int value) => $_setSignedInt32(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasStatus() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearStatus() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $pb.PbList<$core.int> get readArray => $_getList(1);
+
+  @$pb.TagNumber(3)
+  $core.int get sampsPerChanRead => $_getIZ(2);
+  @$pb.TagNumber(3)
+  set sampsPerChanRead($core.int value) => $_setSignedInt32(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasSampsPerChanRead() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearSampsPerChanRead() => $_clearField(3);
 }
 
 const $core.bool _omitFieldNames =

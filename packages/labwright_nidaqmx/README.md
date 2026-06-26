@@ -120,12 +120,36 @@ the raw integer formats move the device's native ADC codes with no per-sample sc
 format: DaqSampleFormat.rawI16)` yields the matching typed list; `readVoltageStream` /
 `readRawI16Stream` / `readRawI32Stream` are typed convenience wrappers.
 
-**The FFI backend runs the blocking read loop on a dedicated isolate**, so streaming
-never stalls your event loop; the Dart stream's pause/resume/cancel drive the worker
-(and tear the task down on cancel). **gRPC streaming is not implemented** — doing it at
-rate needs NI's data-moniker / sideband RPCs; for now high-speed streaming is the local
-FFI path (`Daqmx.local()`), and `GrpcDaqmxBackend.readStream` throws `UnsupportedError`.
-For *very* high rates, the read loop itself should move fully native (a future step).
+**Local (FFI)** runs the blocking read loop on a dedicated isolate, so streaming never
+stalls your event loop; the stream's pause/resume/cancel drive the worker (and tear the
+task down on cancel). Continuous mode sizes the DMA input buffer for headroom
+(`DAQmxCfgInputBuffer`) so high rates don't overrun between reads. This is the
+high-throughput path — direct DMA buffer → typed list, no serialization.
+
+**Remote (gRPC)** streams over NI's **data-moniker** protocol: `Daqmx.remote(...).readStream(...)`
+sets up the task, calls a `Begin*Read` (which returns a `Moniker`), then opens one
+`DataMoniker.StreamRead` and decodes each frame's `Any` into samples — one persistent
+stream, no per-block call overhead. The transport is selectable:
+
+```dart
+final daq = Daqmx.remote(host: '192.168.1.50');                       // SidebandStrategy.inBandGrpc (default)
+final daq = Daqmx.remote(host: '...', sideband: SidebandStrategy.sockets); // throws (native)
+```
+
+- **`inBandGrpc`** (default) — samples ride the gRPC stream. Implemented + tested; works
+  over any network at moderate rates.
+- **`sharedMemory` / `sockets` / `rdma`** — NI's higher-throughput sidebands negotiated
+  via `BeginSidebandStream`. These need a native transport (shared memory and RDMA
+  especially) and NI-server validation, so they currently throw `UnsupportedError`.
+  Sockets is the next implementable tier; RDMA (InfiniBand/RoCE) is the genuinely
+  high-rate-over-network option. For the absolute highest rates, the read path moves
+  fully native — the tier beyond this.
+
+> Honesty: the moniker path is implemented to match NI's published reference example
+> and is exercised against the in-process fake; it has not been run against a live NI
+> gRPC Device Server. gRPC finite acquisition delivers in whole-chunk granularity
+> (each moniker frame is `samplesPerChunk` samples), unlike the FFI path which trims the
+> final chunk to `totalSamples`.
 
 ### Recording to TDMS
 
@@ -145,9 +169,9 @@ await File('capture.tdms').writeAsBytes(bytes); // opens as a waveform in DIAdem
 | Piece | State |
 |-------|-------|
 | Unified `DaqmxApi` + `Daqmx` factory + transport gating | done, analyze-clean, unit-tested |
-| **gRPC backend** (`GrpcDaqmxBackend`) | scalar I/O implemented over `package:grpc`; covered end-to-end against an in-process fake NI server (deviceNames, read/write session model, error mapping, transport/deadline). Streaming: not implemented (moniker path). |
-| **FFI backend** (`FfiDaqmxBackend`) — scalar AI/AO + buffered streaming | implemented; the full ABI (scalar + all stream formats + the isolate read-loop + error path + sample-rate config) is exercised through a compiled C shim, so it's ~ready for a real DLL — but **not yet run against a live NI-DAQmx runtime** |
-| **Streaming** (`readStream` + typed wrappers) + **TDMS** (`recordStreamToTdms`) | implemented on the FFI backend (isolate); round-trips into TDMS in tests |
+| **gRPC backend** (`GrpcDaqmxBackend`) | scalar I/O + **moniker streaming** (in-band) over `package:grpc`; covered end-to-end against an in-process fake NI server (session model, error/transport/deadline mapping, `Begin*Read → StreamRead → Any` decode). Sideband transports (sockets/shm/RDMA): negotiated but native — throw. |
+| **FFI backend** (`FfiDaqmxBackend`) — scalar AI/AO + buffered streaming | implemented; the full ABI (scalar + all stream formats + the isolate read-loop + input-buffer headroom + error path + sample-rate config) is exercised through a compiled C shim, so it's ~ready for a real DLL — but **not yet run against a live NI-DAQmx runtime** |
+| **Streaming** (`readStream` + typed wrappers) + **TDMS** (`recordStreamToTdms`) | FFI (isolate) + gRPC (moniker); round-trips into TDMS in tests |
 
 **Honesty:** the gRPC wire path is exercised against a *fake* server, and the FFI path
 against a *C shim* — both speak the real ABI/protocol but are not NI's actual

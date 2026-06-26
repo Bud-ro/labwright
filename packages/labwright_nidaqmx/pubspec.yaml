@@ -17,6 +17,7 @@ dependencies:
   ffi: ^2.1.0
   grpc: ^5.0.0
   protobuf: ^6.0.0
+  fixnum: ^1.1.0
   logging: ^1.2.0
 
 dev_dependencies:
