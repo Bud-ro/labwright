@@ -233,6 +233,10 @@ class StepOutline {
       notes.add('unload ${s.unloadOption}');
     }
     if (s.isLooping) notes.add('loop ${s.loopType}');
+    // Notable non-default execution flags (same set the text dump surfaces).
+    if (s.ignoresRunTimeErrors == true) notes.add('ignore-RTE');
+    if (s.failureCausesSequenceFailure == false) notes.add('no-seq-fail');
+    if (s.recordsResult == false) notes.add('no-record');
 
     // The step's set expressions, in editor order. Shown as their own rows (they
     // can be long); precondition lives here too (was a note before).

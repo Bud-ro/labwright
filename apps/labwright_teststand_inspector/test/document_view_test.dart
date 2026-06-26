@@ -94,6 +94,30 @@ Uint8List _xmlWithStatusExpr() => Uint8List.fromList([
   ),
 ]);
 
+Uint8List _xmlWithFlags() => Uint8List.fromList([
+  0xef,
+  0xbb,
+  0xbf,
+  ...utf8.encode(
+    "<?xml version='1.0'?>\n"
+    "<teststandfileheader type='SequenceFile' fileversion='920' productname='TestStand'>"
+    "<typelist/><Data classname='Obj'><subprops>"
+    "<Seq classname='Objs'><value lbound='[0]' ubound='[1]'><value>"
+    "<Sequence name='MainSequence' classname='Obj'><subprops>"
+    "<Main classname='Objs'><value lbound='[0]' ubound='[1]'><value>"
+    "<Step typename='Action' name='Flagged'><subprops>"
+    "<TS classname='Obj'><subprops>"
+    "<IgnoreRTE><value>true</value></IgnoreRTE>"
+    "<StepFCSeqF><value>false</value></StepFCSeqF>"
+    "<ResultOption><value>0</value></ResultOption>"
+    "</subprops></TS>"
+    "</subprops></Step>"
+    "</value></value></Main>"
+    "</subprops></Sequence></value></value></Seq></subprops></Data>"
+    "</teststandfileheader>",
+  ),
+]);
+
 Uint8List _binary() {
   final pool = <int>[];
   for (final n in [
@@ -367,6 +391,15 @@ void main() {
     expect(s, contains('{units mA}'));
     expect(s, contains('{data-source Step.Result.PassFail}'));
     expect(s, contains('{args: LoginName in←FileGlobals.UserToAutoLogin}'));
+  });
+
+  test('StepOutline.of surfaces notable step flags as searchable notes', () {
+    final doc = SeqDocument.parse(_xmlWithFlags()) as XmlSeqDocument;
+    final step = SeqOutline.of(doc.file).sequences.single.groups.single.steps.single;
+    expect(step.notes, containsAll(['ignore-RTE', 'no-seq-fail', 'no-record']));
+    // Searchable and present in the one-line summary.
+    expect(stepMatches(step, 'no-record'), isTrue);
+    expect(step.summary, contains('no-seq-fail'));
   });
 
   test('StepOutline.of surfaces a step status expression', () {
