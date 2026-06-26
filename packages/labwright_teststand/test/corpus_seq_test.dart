@@ -205,6 +205,38 @@ void main() {
     );
   });
 
+  test('recovers custom-condition flow fields across XML corpus', () {
+    var withTrueAct = 0, withFalseAct = 0, withCustExpr = 0;
+    final trueActs = <String>{};
+    for (final f in seqs) {
+      if (f.lengthSync() > 300 * 1024) continue;
+      final bytes = f.readAsBytesSync();
+      if (detectSeqFormat(bytes) != SeqFormat.xml) continue;
+      final sf = parseSeqFile(bytes);
+      for (final s in sf.sequences) {
+        for (final step in s.steps) {
+          final st = step.settings;
+          if (st.customTrueAction != null) {
+            withTrueAct++;
+            trueActs.add(st.customTrueAction!);
+          }
+          if (st.customFalseAction != null) withFalseAct++;
+          if (st.customExpression != null) withCustExpr++;
+        }
+      }
+    }
+    // ignore: avoid_print
+    print(
+      'custom-condition: $withTrueAct trueAct · $withFalseAct falseAct · '
+      '$withCustExpr custExpr · trueActs=$trueActs',
+    );
+    // Corpus evidence (probed): the custom-condition flow fields are present on
+    // measurement/flow steps (CustTrueAct/CustFalseAct carry the default `Next`);
+    // CustExpr is empty throughout this corpus (no step uses a custom condition).
+    expect(withTrueAct, greaterThan(0), reason: 'no CustTrueAct recovered');
+    expect(withFalseAct, greaterThan(0), reason: 'no CustFalseAct recovered');
+  });
+
   test('recovers Python-adapter call parameters across XML corpus', () {
     var pySteps = 0, params = 0, named = 0, bound = 0;
     for (final f in seqs) {

@@ -146,7 +146,7 @@ refused (not mis-parsed).
 - **Coverage metric**: `measureCoverage(SeqFile)` → `SeqCoverage{total, modeled}`
   counts what fraction of `Data`-tree property nodes the typed lens surfaces.
   `tool/coverage.dart` runs it over the **XML** `.seq` files in `corpus/seq` and
-  writes a gitignored `corpus/seq/REPORT.md`. Current: **34.0% (6445/18932
+  writes a gitignored `corpus/seq/REPORT.md`. Current: **36.3% (6868/18932
   nodes)** over 26 XML files (incl. `Step.id`=`TS.Id`, and the boolean step flags
   `StepFCSeqF`/`IgnoreRTE`/`ResultOption` → `StepSettings.failureCausesSequence-
   Failure`/`ignoresRunTimeErrors`/`recordsResult`, plus the **Additional Results
@@ -756,6 +756,21 @@ carry a flow target (PassAct/FailAct = Next on the rest). Action values seen: `N
 `ID#:…` step references; resolving an `ID#:` target to the destination step's name
 (via the step `Id` member) is a possible future enhancement — shown verbatim for
 now (honest, not yet name-resolved).
+
+**Custom-condition flow fields (2026-06, DONE).** Beside the pass/fail flow
+actions, each step carries the *custom-condition* trio: `CustExpr` (the
+expression evaluated to choose a branch — the custom-condition counterpart to
+`PreCond`), and `CustTrueAct`/`CustFalseAct` (the per-branch actions, same
+vocabulary as `PassAct`: `Next`, `GotoStep`, …). Their jump targets were already
+modeled (`CustTrueActTarget`/`CustFalseActTarget` → `customTrueTarget`/
+`customFalseTarget`); this completes the feature with `StepSettings.custom-
+Expression`/`customTrueAction`/`customFalseAction`. The dump shows `cust-cond
+<expr>` before the branch targets. Corpus: **87 steps carry `CustTrueAct`/
+`CustFalseAct`** (all the default `Next`) and **0 set a non-empty `CustExpr`** —
+the corpus uses preconditions, not custom conditions, so these are standard flow
+fields sitting at their defaults (the same class as the mostly-`Next`
+`PassAct`/`FailAct`). Coverage marks the three `TS` keys (+423 nodes → the
+34.0 %→36.3 % bump).
 
 **Text dump completeness (2026-06, DONE).** `dumpSeqFile` (the editor-like text
 view behind the app's Dump tab) now surfaces the recovered detail it had been

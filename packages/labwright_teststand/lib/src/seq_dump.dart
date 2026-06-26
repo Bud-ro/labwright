@@ -109,6 +109,9 @@ String _dumpStep(Step step, SeqFile file) {
   }
   String resolveTarget(String t) =>
       t.startsWith('ID#:') ? (file.stepNameForId(t) ?? t) : t;
+  // The custom-condition expression (the step's own true/false branch test),
+  // shown before its branch targets.
+  if (s.customExpression != null) notes.add('cust-cond ${s.customExpression}');
   if (s.customTrueTarget != null) {
     notes.add('cust-true→${resolveTarget(s.customTrueTarget!)}');
   }

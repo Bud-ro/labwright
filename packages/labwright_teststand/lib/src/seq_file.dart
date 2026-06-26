@@ -703,6 +703,18 @@ class StepSettings {
   String? get customTrueTarget => _flowTarget('CustTrueActTarget');
   String? get customFalseTarget => _flowTarget('CustFalseActTarget');
 
+  /// The custom-condition expression (`CustExpr`) a step evaluates to choose
+  /// between its true/false branches — the counterpart to [precondition] for a
+  /// step with a *custom* condition. null when the step uses no custom condition.
+  String? get customExpression => _scalar('CustExpr');
+
+  /// The action taken when [customExpression] is true / false (`CustTrueAct` /
+  /// `CustFalseAct`), e.g. `Next`, `GotoStep` — the same action vocabulary as
+  /// [passAction]/[failAction]. Their jump targets are [customTrueTarget] /
+  /// [customFalseTarget]. null when unset.
+  String? get customTrueAction => _scalar('CustTrueAct');
+  String? get customFalseAction => _scalar('CustFalseAct');
+
   String? _flowTarget(String key) => _nz(_unwrapExprString(_scalar(key)));
 
   /// Parses a TS boolean step-setting: stored either as `true`/`false` or `1`/`0`.

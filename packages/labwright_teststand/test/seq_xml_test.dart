@@ -211,6 +211,28 @@ const _seqPyCallXml = '''<?xml version="1.0" encoding="UTF-8"?>
   </subprops></Data>
 </teststandfileheader>''';
 
+/// A step using a custom condition: `CustExpr` chooses the branch, `CustTrueAct`
+/// / `CustFalseAct` are the per-branch actions (same vocabulary as PassAct).
+const _seqCustCondXml = '''<?xml version="1.0" encoding="UTF-8"?>
+<teststandfileheader type='SequenceFile' fileversion='920' productname='TestStand'>
+  <typelist/>
+  <Data classname='Obj'><subprops>
+    <Seq classname='Objs'><value lbound='[0]' ubound='[1]'><value>
+      <Sequence name='MainSequence' classname='Obj'><subprops>
+        <Main classname='Objs'><value lbound='[0]' ubound='[1]'>
+          <value><Step typename='Action' name='Branch'><subprops>
+            <TS classname='Obj'><subprops>
+              <CustExpr classname='ExprValue'><value>Locals.x &gt; 0</value></CustExpr>
+              <CustTrueAct classname='Str'><value>GotoStep</value></CustTrueAct>
+              <CustFalseAct classname='Str'><value>Next</value></CustFalseAct>
+            </subprops></TS>
+          </subprops></Step></value>
+        </value></Main>
+      </subprops></Sequence>
+    </value></value></Seq>
+  </subprops></Data>
+</teststandfileheader>''';
+
 Uint8List _bytes(String s, {bool bom = true}) =>
     Uint8List.fromList([if (bom) ...[0xef, 0xbb, 0xbf], ...utf8.encode(s)]);
 
@@ -490,6 +512,30 @@ void main() {
     test('the dump shows the Python call args', () {
       final out = dumpSeqFile(parseSeqFile(_bytes(_seqPyCallXml)));
       expect(out, contains('sequence_context←ThisContext'));
+    });
+  });
+
+  group('Custom-condition flow control', () {
+    late StepSettings s;
+    setUp(() {
+      s = parseSeqFile(_bytes(_seqCustCondXml)).sequences.single.main.single.settings;
+    });
+
+    test('recovers the custom expression and its true/false actions', () {
+      expect(s.customExpression, 'Locals.x > 0');
+      expect(s.customTrueAction, 'GotoStep');
+      expect(s.customFalseAction, 'Next');
+    });
+
+    test('the dump surfaces the custom condition', () {
+      final out = dumpSeqFile(parseSeqFile(_bytes(_seqCustCondXml)));
+      expect(out, contains('cust-cond Locals.x > 0'));
+    });
+
+    test('a step without a custom condition reports nulls', () {
+      final s0 = parseSeqFile(_bytes(_seqXml)).sequences.single.main.first.settings;
+      expect(s0.customExpression, isNull);
+      expect(s0.customTrueAction, isNull);
     });
   });
 
