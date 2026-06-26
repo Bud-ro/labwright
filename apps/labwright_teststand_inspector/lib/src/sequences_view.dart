@@ -315,6 +315,7 @@ class _SequencesViewState extends State<SequencesView> {
               child: Wrap(spacing: 6, runSpacing: 4, children: chips),
             ),
           if (limitRows.isNotEmpty) _limitsTable(context, limitRows),
+          if (s.callArgs.isNotEmpty) _argsTable(context, s.callArgs),
           if (s.expressions.isNotEmpty) _expressions(context, s.expressions),
         ],
       ),
@@ -347,6 +348,51 @@ class _SequencesViewState extends State<SequencesView> {
                 ),
               ),
             ),
+        ],
+      ),
+    );
+  }
+
+  /// The module call's bound arguments as a `name (dir) → expr` mini-table,
+  /// mirroring [_limitsTable] — the editor's "Module > Parameters" view.
+  Widget _argsTable(BuildContext context, List<CallArgOutline> args) {
+    final theme = Theme.of(context);
+    const color = Colors.deepPurple;
+    return Container(
+      margin: const EdgeInsets.only(top: 6, left: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(cornerRadius),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Arguments',
+              style: theme.textTheme.labelSmall?.copyWith(color: color)),
+          const SizedBox(height: 2),
+          Table(
+            columnWidths: const {
+              0: IntrinsicColumnWidth(),
+              1: FlexColumnWidth(),
+            },
+            defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+            children: [
+              for (final a in args)
+                TableRow(children: [
+                  Padding(
+                    padding: const EdgeInsets.only(right: 16, top: 1, bottom: 1),
+                    child: Text(a.label,
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: theme.hintColor)),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 1),
+                    child: Text(a.value, style: monoStyle),
+                  ),
+                ]),
+            ],
+          ),
         ],
       ),
     );

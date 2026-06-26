@@ -109,6 +109,7 @@ class StepOutline {
     this.runMode,
     this.comment,
     this.expressions = const [],
+    this.callArgs = const [],
     required this.notes,
   });
 
@@ -152,6 +153,11 @@ class StepOutline {
   /// when the step uses none. These are the custom logic the editor surfaces but
   /// are too long for a chip, so the UI shows them as their own rows.
   final List<(String, String)> expressions;
+
+  /// The arguments the step's code-module call binds (name, direction, bound
+  /// expression, type) — the editor's "Module > Parameters" rows. Empty when the
+  /// call passes none. Shown as their own mini-table, like [limitsDetail].
+  final List<CallArgOutline> callArgs;
 
   /// Mode / flow / loop notes (only non-default ones).
   final List<String> notes;
@@ -240,6 +246,7 @@ class StepOutline {
       runMode: runMode,
       comment: step.comment,
       expressions: expressions,
+      callArgs: [for (final p in m.callParameters) CallArgOutline.of(p)],
       notes: notes,
     );
   }
@@ -256,6 +263,52 @@ class StepOutline {
     for (final (label, value) in expressions) {
       b.write('  {$label: $value}');
     }
+    if (callArgs.isNotEmpty) {
+      b.write('  {args: ${callArgs.map((a) => a.line).join('; ')}}');
+    }
+    return b.toString();
+  }
+}
+
+/// One module-call argument for display — mirrors the package's [CallParameter]:
+/// a parameter [name], the [boundExpression] that supplies its value, its
+/// [direction] (`in`/`out`/`in/out`, null when the code is absent/unrecognized),
+/// and its [displayType]. Each field is omitted (left null) when absent — never
+/// invented.
+class CallArgOutline {
+  CallArgOutline({
+    required this.name,
+    this.direction,
+    this.boundExpression,
+    this.displayType,
+  });
+
+  final String name;
+  final String? direction;
+  final String? boundExpression;
+  final String? displayType;
+
+  factory CallArgOutline.of(CallParameter p) => CallArgOutline(
+        name: p.name,
+        direction: p.direction,
+        boundExpression: p.boundExpression,
+        displayType: p.displayType,
+      );
+
+  /// Left-column label: the parameter name, tagged with its direction when known
+  /// (e.g. `LoginName (in)`).
+  String get label => direction != null ? '$name ($direction)' : name;
+
+  /// Right-column value: the bound expression, falling back to the declared type
+  /// when the call leaves the parameter unbound, else `(unbound)`.
+  String get value => boundExpression ?? displayType ?? '(unbound)';
+
+  /// Compact one-line form for the text summary / search, e.g.
+  /// `LoginName in←FileGlobals.UserToAutoLogin`.
+  String get line {
+    final b = StringBuffer(name);
+    if (direction != null) b.write(' $direction');
+    if (boundExpression != null) b.write('←$boundExpression');
     return b.toString();
   }
 }
@@ -335,6 +388,13 @@ bool stepMatches(StepOutline s, String query) {
   for (final (label, value) in s.expressions) {
     if (label.toLowerCase().contains(query) ||
         value.toLowerCase().contains(query)) {
+      return true;
+    }
+  }
+  for (final a in s.callArgs) {
+    if (a.name.toLowerCase().contains(query) ||
+        (a.boundExpression?.toLowerCase().contains(query) ?? false) ||
+        (a.displayType?.toLowerCase().contains(query) ?? false)) {
       return true;
     }
   }

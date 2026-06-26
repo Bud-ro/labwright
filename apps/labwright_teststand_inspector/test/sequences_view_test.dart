@@ -96,6 +96,39 @@ void main() {
       );
     });
 
+    testWidgets('renders a module call arguments mini-table', (tester) async {
+      await pump(
+        tester,
+        outlineWith(StepOutline(
+          name: 'Get User',
+          type: 'Action',
+          adapter: SeqAdapter.cModule.name,
+          target: 'Engine.GetUser',
+          callArgs: [
+            CallArgOutline(
+              name: 'LoginName',
+              direction: 'in',
+              boundExpression: 'FileGlobals.UserToAutoLogin',
+              displayType: 'String',
+            ),
+            CallArgOutline(
+              name: 'Return Value',
+              direction: 'out',
+              boundExpression: 'Locals.userToLogin',
+              displayType: 'User (Object Reference)',
+            ),
+          ],
+          notes: const [],
+        )),
+      );
+      expect(find.text('Arguments'), findsOneWidget);
+      // Direction-tagged labels and the bound expressions both render.
+      expect(find.text('LoginName (in)'), findsOneWidget);
+      expect(find.text('Return Value (out)'), findsOneWidget);
+      expect(find.text('FileGlobals.UserToAutoLogin'), findsOneWidget);
+      expect(find.text('Locals.userToLogin'), findsOneWidget);
+    });
+
     testWidgets('renders a step free-text comment', (tester) async {
       await pump(
         tester,
