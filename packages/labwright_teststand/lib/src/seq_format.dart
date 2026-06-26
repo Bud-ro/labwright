@@ -38,6 +38,66 @@ enum SeqFormat {
 const _tof1 = [0x54, 0x4f, 0x46, 0x31];
 const _utf8Bom = [0xef, 0xbb, 0xbf];
 
+/// ASCII byte codes used in format sniffing and string scanning — one documented
+/// catalog instead of scattered hex literals. (Code points of the same kind.)
+enum Ascii {
+  tab(0x09),
+  lineFeed(0x0a),
+  carriageReturn(0x0d),
+
+  /// Space — also the lowest printable code.
+  space(0x20),
+
+  /// `.` — substituted for non-ASCII bytes when peeking text.
+  dot(0x2e),
+
+  /// `<` — XML/markup start.
+  lessThan(0x3c),
+
+  /// `[` — INI section start.
+  leftBracket(0x5b),
+
+  /// `~` — highest printable code (inclusive).
+  tilde(0x7e),
+
+  /// First non-ASCII code (0x20..0x7f are printable; this is the exclusive top).
+  nonAscii(0x80);
+
+  const Ascii(this.code);
+  final int code;
+}
+
+/// Byte offsets of the fixed fields in a binary `TOF1` header (verified across
+/// the binary corpus, TS2014 layout). Each field is a NUL-terminated ASCII run;
+/// the product fields sit in 50-byte ([slotSize]) NUL-padded slots. One
+/// documented catalog replaces scattered offset literals.
+enum TofHeaderField {
+  /// The file-type token, e.g. `SequenceFile`. Decoded.
+  fileType(0x0a),
+
+  /// The product name, e.g. `TestStand`. Decoded.
+  productName(0x40),
+
+  // TODO: the following three offsets are candidates from the TS2014 layout but
+  // are not yet decoded/verified — do not rely on them until confirmed.
+  /// Product-version slot. Not yet decoded/verified.
+  productVersion(0x72),
+
+  /// Compatible-version slot. Not yet decoded/verified.
+  compatibleVersion(0xa4),
+
+  /// Build-version slot. Not yet decoded/verified.
+  buildVersion(0xd6);
+
+  const TofHeaderField(this.offset);
+
+  /// Byte offset of the field from the start of the file.
+  final int offset;
+
+  /// Size in bytes of a product-field NUL-padded slot (0x32 = 50).
+  static const int slotSize = 0x32;
+}
+
 /// Classifies [bytes] as a TestStand file encoding from its header alone — total
 /// over arbitrary input (never throws; returns [SeqFormat.unknown] when unsure).
 SeqFormat detectSeqFormat(Uint8List bytes) {
@@ -47,17 +107,18 @@ SeqFormat detectSeqFormat(Uint8List bytes) {
   while (i < bytes.length && _isAsciiWs(bytes[i])) {
     i++;
   }
-  if (i < bytes.length && bytes[i] == 0x3c) {
+  if (i < bytes.length && bytes[i] == Ascii.lessThan.code) {
     // '<' — XML/markup. Confirm it's a TestStand file, not arbitrary XML.
     final head = _asciiPeek(bytes, i, 4096).toLowerCase();
     if (head.startsWith('<?xml') || head.contains('<teststandfileheader')) {
       return SeqFormat.xml;
     }
   }
-  if (i < bytes.length && bytes[i] == 0x5b) {
+  if (i < bytes.length && bytes[i] == Ascii.leftBracket.code) {
     // '[' — possible INI section. Require a TestStand marker to avoid false hits.
     final head = _asciiPeek(bytes, i, 4096);
-    if (head.contains('TestStand') || head.toLowerCase().contains('teststand')) {
+    if (head.contains('TestStand') ||
+        head.toLowerCase().contains('teststand')) {
       return SeqFormat.ini;
     }
   }
@@ -87,7 +148,8 @@ class SeqFileHeader {
   final String? fileVersion;
 
   @override
-  String toString() => 'SeqFileHeader($format, type=$fileType, '
+  String toString() =>
+      'SeqFileHeader($format, type=$fileType, '
       'product=$productName, version=$fileVersion)';
 }
 
@@ -111,15 +173,13 @@ SeqFileHeader detectSeqHeader(Uint8List bytes) {
         fileVersion: _attr['fileversion']!.firstMatch(head)?.group(1),
       );
     case SeqFormat.binary:
-      // Fixed header slots (verified across the whole binary corpus, TS2014):
-      // file-type token at 0x0A, then 50-byte (0x32) NUL-padded ASCII slots —
-      // productname at 0x40, productversion 0x72, compatibleversion 0xA4,
-      // buildversion 0xD6. We recover the two safest (type + product); the
-      // numeric fileversion is not yet located in the binary header.
+      // Fixed header slots, catalogued in [TofHeaderField]. We recover the two
+      // safest (type + product); the numeric fileversion is not yet located in
+      // the binary header.
       return SeqFileHeader(
         format: fmt,
-        fileType: _cString(bytes, 0x0a),
-        productName: _cString(bytes, 0x40),
+        fileType: _cString(bytes, TofHeaderField.fileType.offset),
+        productName: _cString(bytes, TofHeaderField.productName.offset),
       );
     case SeqFormat.unknown:
       return const SeqFileHeader(format: SeqFormat.unknown);
@@ -134,7 +194,11 @@ bool _startsWith(Uint8List b, List<int> sig) {
   return true;
 }
 
-bool _isAsciiWs(int c) => c == 0x20 || c == 0x09 || c == 0x0a || c == 0x0d;
+bool _isAsciiWs(int c) =>
+    c == Ascii.space.code ||
+    c == Ascii.tab.code ||
+    c == Ascii.lineFeed.code ||
+    c == Ascii.carriageReturn.code;
 
 /// Decodes up to [len] bytes from [start] as ASCII for header sniffing (bytes
 /// ≥ 0x80 become '.'), stopping at the buffer end.
@@ -143,7 +207,7 @@ String _asciiPeek(Uint8List b, int start, int len) {
   final sb = StringBuffer();
   for (var i = start; i < end; i++) {
     final c = b[i];
-    sb.writeCharCode(c < 0x80 ? c : 0x2e);
+    sb.writeCharCode(c < Ascii.nonAscii.code ? c : Ascii.dot.code);
   }
   return sb.toString();
 }
@@ -168,7 +232,7 @@ List<BinaryString> binaryStrings(Uint8List bytes, {int minLength = 4}) {
 
   for (var i = 0; i < bytes.length; i++) {
     final c = bytes[i];
-    if (c >= 0x20 && c < 0x7f) {
+    if (c >= Ascii.space.code && c <= Ascii.tilde.code) {
       if (sb.isEmpty) start = i;
       sb.writeCharCode(c);
     } else {
@@ -184,7 +248,9 @@ String? _cString(Uint8List b, int start) {
   if (start >= b.length) return null;
   final sb = StringBuffer();
   for (var i = start; i < b.length && b[i] != 0; i++) {
-    if (b[i] < 0x20 || b[i] > 0x7e) return sb.isEmpty ? null : sb.toString();
+    if (b[i] < Ascii.space.code || b[i] > Ascii.tilde.code) {
+      return sb.isEmpty ? null : sb.toString();
+    }
     sb.writeCharCode(b[i]);
   }
   return sb.isEmpty ? null : sb.toString();
