@@ -5,7 +5,7 @@ import 'package:labwright_teststand/labwright_teststand.dart';
 /// render an honest recon view; unknown files render the header + error.
 String documentText(SeqDocument doc) {
   switch (doc) {
-    case XmlSeqDocument(:final file):
+    case StructuredSeqDocument(:final file):
       return dumpSeqFile(file);
     case BinarySeqDocument(
         :final header,
@@ -73,7 +73,7 @@ List<String> _objectNames(List<BinaryString> nameTable) {
 String documentTitle(SeqDocument doc) {
   final h = doc.header;
   final kind = switch (doc) {
-    XmlSeqDocument(:final file) => '${file.sequences.length} sequences',
+    StructuredSeqDocument(:final file) => '${file.sequences.length} sequences',
     BinarySeqDocument() => 'binary (recon)',
     UnknownSeqDocument() => 'unrecognized',
   };

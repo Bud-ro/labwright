@@ -37,20 +37,47 @@ sealed class SeqDocument {
           nameTable: a?.nameTable ?? const [],
         );
       case SeqFormat.ini:
+        // The legacy INI form maps onto the same typed model as XML — decode it
+        // through the shared lens, degrading to a recon doc if it can't (e.g. the
+        // rare file without a reconstructable %OBJROOT root).
+        try {
+          return IniSeqDocument(parseSeqFile(bytes));
+        } catch (e) {
+          return UnknownSeqDocument(detectSeqHeader(bytes), error: '$e');
+        }
       case SeqFormat.unknown:
         return UnknownSeqDocument(detectSeqHeader(bytes));
     }
   }
 }
 
-/// A fully-decoded XML sequence file.
-class XmlSeqDocument extends SeqDocument {
-  const XmlSeqDocument(this.file);
+/// A fully-decoded, [SeqFile]-backed document — the text encodings (XML and the
+/// legacy INI) that map onto the typed PropertyObject model. UIs can switch on
+/// this base to render the Dump/Sequences/Properties views regardless of which.
+sealed class StructuredSeqDocument extends SeqDocument {
+  const StructuredSeqDocument();
 
-  final SeqFile file;
+  /// The decoded sequence file (typed lens, dump, property tree).
+  SeqFile get file;
 
   @override
   SeqFileHeader get header => file.header;
+}
+
+/// A fully-decoded XML sequence file.
+class XmlSeqDocument extends StructuredSeqDocument {
+  const XmlSeqDocument(this.file);
+
+  @override
+  final SeqFile file;
+}
+
+/// A fully-decoded legacy INI sequence file (same typed model as XML).
+class IniSeqDocument extends StructuredSeqDocument {
+  const IniSeqDocument(this.file);
+
+  @override
+  final SeqFile file;
 }
 
 /// A binary `TOF1` file: header decoded, body inflated, strings recovered, but

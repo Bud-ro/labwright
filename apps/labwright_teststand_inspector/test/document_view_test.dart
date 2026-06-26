@@ -85,6 +85,41 @@ void main() {
     expect(text, contains('S1'));
   });
 
+  test('documentText/Title render a legacy INI document', () {
+    final ini = ascii.encode([
+      '[__Header__]',
+      'ProductName = "TestStand"',
+      'Version = 354',
+      'Type = "SequenceFile"',
+      '[DEF, %OBJROOT]',
+      'SF = SequenceFileData',
+      '[DEF, SF]',
+      'Seq = Objs',
+      '%NAME = "Data"',
+      '[DEF, SF.Seq]',
+      '%[0] = Sequence',
+      '[DEF, SF.Seq[0]]',
+      'Main = Objs',
+      '%NAME = "MainSequence"',
+      '[DEF, SF.Seq[0].Main]',
+      '%[0] = Step',
+      '%TYPE: %[0] = "Action"',
+      '[DEF, SF.Seq[0].Main[0]]',
+      '%NAME = "iniStep"',
+      '',
+    ].join('\n'));
+    final doc = SeqDocument.parse(Uint8List.fromList(ini));
+    expect(doc, isA<IniSeqDocument>());
+    expect(documentTitle(doc), contains('1 sequences'));
+    expect(documentTitle(doc), contains('ini'));
+    final text = documentText(doc);
+    expect(text, contains('MainSequence'));
+    expect(text, contains('iniStep'));
+    // The structured outline shapes the INI doc just like XML.
+    final outline = SeqOutline.of((doc as IniSeqDocument).file);
+    expect(outline.sequences.single.name, 'MainSequence');
+  });
+
   test('SeqOutline.of shapes sequences → groups → steps', () {
     final doc = SeqDocument.parse(_xml()) as XmlSeqDocument;
     final outline = SeqOutline.of(doc.file);

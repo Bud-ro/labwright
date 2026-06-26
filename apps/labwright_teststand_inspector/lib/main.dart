@@ -137,7 +137,7 @@ class _InspectorPageState extends State<InspectorPage> {
     final doc = _doc;
     // The Sequences/Properties tabs only apply to XML files we parsed into a
     // SeqFile.
-    final file = doc is XmlSeqDocument ? doc.file : null;
+    final file = doc is StructuredSeqDocument ? doc.file : null;
     final outline = file != null ? SeqOutline.of(file) : null;
     final tree = file != null ? propertyTree(file) : null;
     final coverage = file != null ? coverageLabel(measureCoverage(file)) : null;

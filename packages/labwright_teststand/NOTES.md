@@ -494,11 +494,13 @@ triplets) to finally decode the binary record's field/count/value encoding.
 ## Honest gaps (do NOT model yet)
 
 - **Binary record grammar** past the header — not yet recovered.
-- **INI typed lens** — `parseSeqFile` builds a `SeqFile` from INI (56/58) and the
-  shared lens recovers sequences/steps/locals/module bindings. Still TODO: the 2
-  files lacking a `%OBJROOT` root, `[%TYPES]` resolution (so type-inherited step
-  settings/adapter defaults fill in), instance overrides (`%INSTOVRD`), assembling
-  `SeqFile.types`, and rendering INI in the inspector app (still shows Unknown).
+- **INI typed lens + app** — `parseSeqFile` builds a `SeqFile` from INI (56/58),
+  the shared lens recovers sequences/steps/locals/module bindings, and the
+  inspector renders INI via `IniSeqDocument` (a `StructuredSeqDocument`) — the
+  app now shows 82 files structured (26 XML + 56 INI). Still TODO: the 2 files
+  lacking a `%OBJROOT` root (degrade to Unknown), `[%TYPES]` resolution (so
+  type-inherited step settings/adapter defaults fill in), instance overrides
+  (`%INSTOVRD`), and assembling `SeqFile.types`.
 - **Config / station files** — `corpus/seq-sources.json` captures `.ini/.cfg/.tsw/.tpj`
   when present, but the open-source corpus is sequence-heavy; type-palette and
   station-config samples are sparse. (CN-IOT's `.ini` files are *localization

@@ -45,16 +45,22 @@ void main() {
 
   test('every .seq parses into a sane document and renders through the app helpers',
       () {
-    var xml = 0, binary = 0, other = 0;
+    var structured = 0, binary = 0, other = 0;
     final failures = <String>[];
     for (final f in seqs) {
       final bytes = f.readAsBytesSync();
       try {
         final doc = SeqDocument.parse(bytes);
         switch (doc) {
-          case XmlSeqDocument(:final file):
-            xml++;
-            expect(doc.header.format, SeqFormat.xml, reason: f.path);
+          case StructuredSeqDocument(:final file):
+            structured++;
+            // XML and INI both decode into the typed model.
+            expect(
+              doc.header.format == SeqFormat.xml ||
+                  doc.header.format == SeqFormat.ini,
+              isTrue,
+              reason: f.path,
+            );
             // Every view helper the app calls must run and produce output.
             expect(documentText(doc), isNotEmpty, reason: f.path);
             expect(documentTitle(doc), isNotEmpty, reason: f.path);
@@ -77,7 +83,8 @@ void main() {
     }
     // ignore: avoid_print
     print('corpus smoke: ${seqs.length} files — '
-        '$xml xml, $binary binary, $other other; ${failures.length} failures');
+        '$structured structured (xml+ini), $binary binary, $other other; '
+        '${failures.length} failures');
     expect(failures, isEmpty, reason: failures.join('\n'));
   });
 }
