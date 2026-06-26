@@ -163,16 +163,19 @@ class BinaryBodyLayout {
   final int segmentCount;
 
   /// The first few little-endian u32 words at the start of the record region
-  /// (descriptive, grammar not yet decoded). Corpus-observed invariants across
-  /// all 83 binary files: `leadingWords[2] == 1` (a constant marker) and
-  /// `leadingWords[1] ∈ {16, 118}` (0x10 / 0x76 — a small fixed set); and
-  /// `leadingWords[0]` varies and is **not** a simple count.
-  // TODO: decode leadingWords[1] (0x10 / 0x76). Ruled OUT across the corpus: it
-  // is NOT the engine/save version (both cohorts span header versions 14/19/21),
-  // NOT the fileType (all SequenceFile), NOT process-model presence, and NOT the
-  // source tool (the same repos produce both values). It only weakly tracks
-  // structural size (the 0x10 cohort has fewer string segments). Still not
-  // determined. leadingWords[0] also not yet determined.
+  /// (descriptive). Corpus-observed invariants across all 83 binary files:
+  /// `leadingWords[2] == 1` (a constant marker) and `leadingWords[1] ∈ {16, 118}`
+  /// (0x10 / 0x76); and `leadingWords[0]` varies and is **not** a simple count.
+  ///
+  /// `leadingWords[1]` is a **record-prefix layout selector** — it deterministi-
+  /// cally picks one of two serialization layouts for the scaffold prefix (82/82
+  /// rooted files): with `0x76` the prefix runs `…1=Data, 2=Objs, _, 4=[0], _, _,
+  /// 768`; with `0x10` it runs `…1=Data, _, _, 3=Seq, _, 0`. It is NOT the
+  /// engine/save version (both cohorts span header versions 14/19/21), NOT the
+  /// fileType (all SequenceFile), and NOT the source tool (the same repos produce
+  /// both). The 0x76 layout also carries more string segments.
+  // TODO: the *reason* a file uses one layout vs the other (e.g. a structure
+  // sub-variant) and the meaning of leadingWords[0] are not yet determined.
   final List<int> leadingWords;
 
   @override

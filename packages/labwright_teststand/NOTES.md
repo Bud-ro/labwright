@@ -231,13 +231,28 @@ corpus:
   there just isn't a single "expression table" to point at yet — that needs the
   record grammar.
 
-`leadingWords[1] ∈ {16, 118}` (`0x10` / `0x76`) — **decode attempts ruled out**:
-it is **not** the engine/save version (both cohorts span header versions
+`leadingWords[1] ∈ {16, 118}` (`0x10` / `0x76`) — **partially decoded: it selects
+the record-prefix layout.** It deterministically picks one of two serialization
+layouts for the aligned scaffold prefix (82/82 rooted files):
+
+| `leadingWords[1]` | n  | `word[3]` | `word[5]` | `word[7]` |
+|-------------------|----|-----------|-----------|-----------|
+| `0x76` (118)      | 63 | `2`=Objs  | `4`=`[0]` | `768`     |
+| `0x10` (16)       | 19 | (varies)  | `3`=Seq   | `0`       |
+
+It is **not** the engine/save version (both cohorts span header versions
 14.0/19.0/21.0), **not** the fileType (all `SequenceFile`), **not** process-model
-presence (1/20 vs 1/63), and **not** the source tool (the same repos —
-NIVeriStand, joshuaprewitt — produce *both* values). It only weakly tracks
-structural size: the `0x10` cohort (20 files) has fewer string segments (6–15)
-than the `0x76` cohort (63 files, median 28). Still *not yet decoded*.
+presence, and **not** the source tool (the same repos produce *both*). The `0x76`
+layout also carries more string segments (median 28 vs the `0x10` cohort's 6–15).
+*Still open:* **why** a file uses one layout vs the other (a structure
+sub-variant?), and the meaning of `leadingWords[0]`.
+
+**XML/binary twins (a decode asset).** Three NI example files exist in *both*
+encodings — `nidmmmeasurement_example`, `niscopeacquirewaveform_example`,
+`nifgenstandardfunction_example`. They are a partial Rosetta: the file/sequence
+names round-trip but only ~3/6 of the long step names match verbatim (the binary
+twins look like a slightly different revision, or store long names differently),
+so align with care — they're a lead, not yet a clean type-code oracle.
 
 **Record framing — first decode (the records index the name pool).** Reading the
 record region as LE u32s (`binaryRecordWords`) shows it opens

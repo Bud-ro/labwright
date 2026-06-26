@@ -331,4 +331,48 @@ void main() {
       reason: 'record word[2] does not index name[1]==Data',
     );
   });
+
+  test('leadingWords[1] selects the record-prefix layout', () {
+    var checked = 0, layoutOk = 0;
+    final failures = <String>[];
+    for (final f in seqs) {
+      final bytes = f.readAsBytesSync();
+      if (detectSeqFormat(bytes) != SeqFormat.binary) continue;
+      final name = binaryNameTable(bytes);
+      if (name == null || name.entries.isEmpty) continue;
+      if (name.entries.first.text != 'SequenceFileData') continue;
+      final layout = analyzeBinaryBody(bytes);
+      final words = binaryRecordWords(bytes);
+      if (layout == null ||
+          layout.leadingWords.length < 2 ||
+          words.length < 8) {
+        continue;
+      }
+      checked++;
+      final w1 = layout.leadingWords[1];
+      // Each leadingWords[1] cohort has a deterministic scaffold-prefix layout.
+      final ok = switch (w1) {
+        118 => words[3] == 2 && words[5] == 4 && words[7] == 768,
+        16 => words[5] == 3 && words[7] == 0,
+        _ => false,
+      };
+      if (ok) {
+        layoutOk++;
+      } else {
+        failures.add(
+          '${f.path}: w1=$w1 words[3,5,7]='
+          '${[words[3], words[5], words[7]]}',
+        );
+      }
+    }
+    // ignore: avoid_print
+    print(
+      'record-prefix layout: $layoutOk/$checked match their '
+      'leadingWords[1] cohort layout',
+    );
+    expect(failures, isEmpty, reason: failures.join('\n'));
+    expect(checked, greaterThanOrEqualTo(80), reason: 'too few rooted files');
+    // Firm: leadingWords[1] deterministically picks the prefix layout.
+    expect(layoutOk, checked, reason: 'a file breaks its cohort layout');
+  });
 }
