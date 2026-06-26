@@ -239,12 +239,34 @@ NIVeriStand, joshuaprewitt — produce *both* values). It only weakly tracks
 structural size: the `0x10` cohort (20 files) has fewer string segments (6–15)
 than the `0x76` cohort (63 files, median 28). Still *not yet decoded*.
 
-The **record tree** that links names to values is **not yet parsed** (the u32
-record framing is still being worked out). So `parseSeqFile` still **refuses**
-binary (UnsupportedError); the next milestone is that record grammar — then it
-maps onto the shared SeqProperty model and the whole typed lens + dump + coverage
-come along for free. Offsets confirmed on the TS2014 corpus only — treat as
-version-specific until other versions are sampled. *(Not yet recovered, not
+**Record framing — first decode (the records index the name pool).** Reading the
+record region as LE u32s (`binaryRecordWords`) shows it opens
+`[leadingWords[0], leadingWords[1], 1, …]` and the small words that follow are
+**0-based indices into the name table** (which is therefore an *ordered string
+pool*, not just a bag of names). Concretely, the constant 3rd word `1` selects
+`name[1]`, and the name table opens with a fixed PropertyObject **container
+scaffold** (`binaryNameScaffold`):
+
+```
+name[0]=SequenceFileData  name[1]=Data  name[2]=Objs  name[3]=Seq  name[4]=[0]
+```
+
+Corpus-verified: **82/83** files are rooted at `SequenceFileData` (the lone
+exception is the `UKTAG` partial plugin file with no file-data root); **82/82**
+of those open with the exact 5-entry scaffold, and **82/82** have record
+`word[2] == 1` pointing at `name[1] == 'Data'`. Past index 4 the entries are the
+file's own sequences/objects (66/82 extend to `…Sequence, MainSequence`). The
+indices are **interleaved with binary field values** and the records are
+**variable-length** (value payloads shift u32 alignment) — so the record region
+is *not* a flat u32 index array. A recurring `0x6115…` dword appears mid-record
+(a type/value marker candidate, *not yet decoded*).
+
+The **record grammar** that delimits one record from the next and pairs each name
+index with its typed value is **not yet fully decoded**. So `parseSeqFile` still
+**refuses** binary (UnsupportedError); the next milestone is that grammar — then
+it maps onto the shared SeqProperty model and the whole typed lens + dump +
+coverage come along for free. Offsets confirmed on the TS2014 corpus only — treat
+as version-specific until other versions are sampled. *(Not yet recovered, not
 "unrecoverable".)*
 
 ## Honest gaps (do NOT model yet)

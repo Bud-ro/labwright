@@ -65,6 +65,18 @@ const _modelNameTokens = {
   'Parameters',
 };
 
+/// The fixed PropertyObject **container scaffold** that opens a binary TOF1 name
+/// table. The name table is the file's *ordered* string pool — the record region
+/// references its entries by 0-based index — and for a standard sequence file it
+/// always begins with these five entries: the root `SequenceFileData` object and
+/// its `Data`/`Objs` array structure, then the first array element (`Seq`/`[0]`).
+/// Corpus-verified: every binary file whose name table is rooted at
+/// `SequenceFileData` (82/83 — the lone exception is a partial plugin file with
+/// no file-data root) opens with exactly this prefix. Entries past index 4 are
+/// the file's own sequences/objects and vary. The record grammar that consumes
+/// these indices is still being decoded.
+const binaryNameScaffold = ['SequenceFileData', 'Data', 'Objs', 'Seq', '[0]'];
+
 /// How many leading record-region u32 words [analyzeBinaryBody] captures.
 const _leadingWordCount = 3;
 
@@ -250,6 +262,35 @@ BinaryStringSegment? binaryNameTable(Uint8List seqBytes) {
     }
   }
   return best;
+}
+
+/// The record region of a binary TOF1 body as little-endian u32 words — the raw
+/// record stream that precedes the string region.
+///
+/// The records reference [binaryNameTable] entries **by 0-based index**: a fresh
+/// inflated body opens `[leadingWords[0], leadingWords[1], 1, …]` and the small
+/// words that follow index the name pool (e.g. the constant `1` selects
+/// `name[1] == 'Data'`, then `name[2] == 'Objs'`, … — the [binaryNameScaffold]
+/// path). Indices are interleaved with binary field values, and the records are
+/// **variable-length** (value payloads shift u32 alignment), so this is a decode
+/// aid, **not** a flat index array — the full record grammar is **not yet
+/// decoded**. Returns `[]` when [seqBytes] is not an inflatable binary file or
+/// the body does not frame.
+List<int> binaryRecordWords(Uint8List seqBytes) {
+  final body = inflateBinaryBody(seqBytes);
+  if (body == null) return const [];
+  final layout = analyzeBinaryBody(seqBytes);
+  if (layout == null) return const [];
+  final rr = layout.recordRegionLength;
+  final out = <int>[];
+  for (
+    var i = 0;
+    i + _u32Bytes <= rr && i + _u32Bytes <= body.length;
+    i += _u32Bytes
+  ) {
+    out.add(body[i] | body[i + 1] << 8 | body[i + 2] << 16 | body[i + 3] << 24);
+  }
+  return out;
 }
 
 /// Maximal chains of NUL-adjacent runs at/after [from], each of ≥[minChain].

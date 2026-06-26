@@ -275,4 +275,60 @@ void main() {
       reason: 'a file has no expressions outside its name table',
     );
   });
+
+  test('binary name table is the ordered pool opening with a fixed scaffold', () {
+    var binary = 0, rooted = 0, scaffoldOk = 0, recordIndexesData = 0;
+    final failures = <String>[];
+    for (final f in seqs) {
+      final bytes = f.readAsBytesSync();
+      if (detectSeqFormat(bytes) != SeqFormat.binary) continue;
+      binary++;
+      final name = binaryNameTable(bytes);
+      if (name == null) {
+        failures.add('${f.path}: no name table');
+        continue;
+      }
+      final names = [for (final e in name.entries) e.text];
+      if (names.isEmpty || names.first != 'SequenceFileData') continue;
+      rooted++;
+      // The first five entries are the fixed PropertyObject container scaffold.
+      final prefix = names.take(binaryNameScaffold.length).toList();
+      var matches = prefix.length == binaryNameScaffold.length;
+      for (var i = 0; matches && i < binaryNameScaffold.length; i++) {
+        if (prefix[i] != binaryNameScaffold[i]) matches = false;
+      }
+      if (matches) {
+        scaffoldOk++;
+      } else {
+        failures.add('${f.path}: prefix $prefix != $binaryNameScaffold');
+      }
+      // The record stream opens by referencing the scaffold by index: the 3rd
+      // record word is the constant 1, which selects name[1] == 'Data'.
+      final words = binaryRecordWords(bytes);
+      if (words.length >= 3 && words[2] == 1 && names[1] == 'Data') {
+        recordIndexesData++;
+      }
+    }
+    // ignore: avoid_print
+    print(
+      'binary name pool: $rooted/$binary rooted at SequenceFileData · '
+      '$scaffoldOk/$rooted open with the 5-entry scaffold · '
+      '$recordIndexesData/$rooted record word[2]==1 -> name[1]==Data',
+    );
+    expect(failures, isEmpty, reason: failures.join('\n'));
+    // Firm: the vast majority of binary files are full sequence files rooted at
+    // SequenceFileData, and every such file opens with the exact scaffold and
+    // has its record stream reference name[1]=='Data' by the constant index 1.
+    expect(rooted, greaterThanOrEqualTo(80), reason: 'few files are rooted');
+    expect(
+      scaffoldOk,
+      rooted,
+      reason: 'a rooted file lacks the scaffold prefix',
+    );
+    expect(
+      recordIndexesData,
+      rooted,
+      reason: 'record word[2] does not index name[1]==Data',
+    );
+  });
 }
