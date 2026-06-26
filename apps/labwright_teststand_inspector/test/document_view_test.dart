@@ -156,6 +156,45 @@ Uint8List _xmlWithAddlResults() => Uint8List.fromList([
   ),
 ]);
 
+/// A measurement step with a `Measurement.Parameters` list (one scalar In, one
+/// array Out) — the real shape, each element wrapped in `_NAME_IN_ATTRIBUTE_`.
+Uint8List _xmlWithMeasParams() => Uint8List.fromList([
+  0xef,
+  0xbb,
+  0xbf,
+  ...utf8.encode(
+    "<?xml version='1.0'?>\n"
+    "<teststandfileheader type='SequenceFile' fileversion='920' productname='TestStand'>"
+    "<typelist/><Data classname='Obj'><subprops>"
+    "<Seq classname='Objs'><value lbound='[0]' ubound='[1]'><value>"
+    "<Sequence name='MainSequence' classname='Obj'><subprops>"
+    "<Main classname='Objs'><value lbound='[0]' ubound='[1]'><value>"
+    "<Step typename='NI_Measurement' name='Measure V'><subprops>"
+    "<Measurement classname='Obj'><subprops>"
+    "<Parameters classname='Objs'><value lbound='[0]' ubound='[2]'>"
+    "<value><_NAME_IN_ATTRIBUTE_ name='' classname='Obj'><subprops>"
+    "<Name classname='Str'><value>voltage_level</value></Name>"
+    "<Type classname='Str'><value>TypeDouble</value></Type>"
+    "<Direction classname='Str'><value>In</value></Direction>"
+    "<Dimension classname='Num'><value>0</value></Dimension>"
+    "<ArgumentValue classname='ExprValue'><value>6</value></ArgumentValue>"
+    "</subprops></_NAME_IN_ATTRIBUTE_></value>"
+    "<value><_NAME_IN_ATTRIBUTE_ name='' classname='Obj'><subprops>"
+    "<Name classname='Str'><value>readings</value></Name>"
+    "<Type classname='Str'><value>TypeDouble</value></Type>"
+    "<Direction classname='Str'><value>Out</value></Direction>"
+    "<Dimension classname='Num'><value>1</value></Dimension>"
+    "<ArgumentValue classname='ExprValue'><value/></ArgumentValue>"
+    "</subprops></_NAME_IN_ATTRIBUTE_></value>"
+    "</value></Parameters>"
+    "</subprops></Measurement>"
+    "</subprops></Step>"
+    "</value></value></Main>"
+    "</subprops></Sequence></value></value></Seq></subprops></Data>"
+    "</teststandfileheader>",
+  ),
+]);
+
 Uint8List _binary() {
   final pool = <int>[];
   for (final n in [
@@ -449,6 +488,26 @@ void main() {
     expect(stepMatches(step, 'output'), isTrue);
     expect(stepMatches(step, 'locals.save'), isTrue);
     expect(step.summary, contains('+results: Input'));
+  });
+
+  test('StepOutline.of surfaces measurement parameters with type/direction', () {
+    final doc = SeqDocument.parse(_xmlWithMeasParams()) as XmlSeqDocument;
+    final step = SeqOutline.of(doc.file).sequences.single.groups.single.steps.single;
+    final p = step.measurementParams;
+    expect(p, hasLength(2));
+    expect(p[0].name, 'voltage_level');
+    expect(p[0].dataType, 'TypeDouble');
+    expect(p[0].direction, 'In');
+    expect(p[0].isArray, isFalse);
+    expect(p[0].cell, 'TypeDouble = 6');
+    expect(p[0].line, 'voltage_level in TypeDouble = 6');
+    // The array output renders with `[]` and no bound value.
+    expect(p[1].isArray, isTrue);
+    expect(p[1].cell, 'TypeDouble[]');
+    // Searchable (by name, type, and bound value) and in the one-line summary.
+    expect(stepMatches(step, 'voltage_level'), isTrue);
+    expect(stepMatches(step, 'typedouble'), isTrue);
+    expect(step.summary, contains('voltage_level in TypeDouble = 6'));
   });
 
   test('StepOutline.of surfaces a step status expression', () {

@@ -329,6 +329,8 @@ class _SequencesViewState extends State<SequencesView> {
             ),
           if (limitRows.isNotEmpty) _limitsTable(context, limitRows),
           if (s.callArgs.isNotEmpty) _argsTable(context, s.callArgs),
+          if (s.measurementParams.isNotEmpty)
+            _paramsTable(context, s.measurementParams),
           if (s.expressions.isNotEmpty) _expressions(context, s.expressions),
         ],
       ),
@@ -402,6 +404,51 @@ class _SequencesViewState extends State<SequencesView> {
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 1),
                     child: Text(a.value, style: monoStyle),
+                  ),
+                ]),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// A measurement step's typed parameters as a `name (dir) → type = value`
+  /// mini-table, mirroring [_argsTable] — the editor's measurement "Parameters".
+  Widget _paramsTable(BuildContext context, List<MeasurementParamOutline> ps) {
+    final theme = Theme.of(context);
+    const color = Colors.teal;
+    return Container(
+      margin: const EdgeInsets.only(top: 6, left: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(cornerRadius),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Parameters',
+              style: theme.textTheme.labelSmall?.copyWith(color: color)),
+          const SizedBox(height: 2),
+          Table(
+            columnWidths: const {
+              0: IntrinsicColumnWidth(),
+              1: FlexColumnWidth(),
+            },
+            defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+            children: [
+              for (final p in ps)
+                TableRow(children: [
+                  Padding(
+                    padding: const EdgeInsets.only(right: 16, top: 1, bottom: 1),
+                    child: Text(p.label,
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: theme.hintColor)),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 1),
+                    child: Text(p.cell, style: monoStyle),
                   ),
                 ]),
             ],

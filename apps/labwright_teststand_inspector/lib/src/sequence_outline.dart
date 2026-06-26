@@ -112,6 +112,7 @@ class StepOutline {
     this.comment,
     this.expressions = const [],
     this.callArgs = const [],
+    this.measurementParams = const [],
     required this.notes,
   });
 
@@ -172,6 +173,11 @@ class StepOutline {
   /// expression, type) — the editor's "Module > Parameters" rows. Empty when the
   /// call passes none. Shown as their own mini-table, like [limitsDetail].
   final List<CallArgOutline> callArgs;
+
+  /// The typed formal parameters of a measurement step (`Measurement.Parameters`)
+  /// — name, data type, direction, bound value. Empty for non-measurement steps.
+  /// Shown as their own mini-table, distinct from [callArgs].
+  final List<MeasurementParamOutline> measurementParams;
 
   /// Mode / flow / loop notes (only non-default ones).
   final List<String> notes;
@@ -276,6 +282,10 @@ class StepOutline {
       comment: step.comment,
       expressions: expressions,
       callArgs: [for (final p in m.callParameters) CallArgOutline.of(p)],
+      measurementParams: [
+        for (final p in step.measurementParameters)
+          MeasurementParamOutline.of(p),
+      ],
       notes: notes,
     );
   }
@@ -303,6 +313,9 @@ class StepOutline {
     }
     if (callArgs.isNotEmpty) {
       b.write('  {args: ${callArgs.map((a) => a.line).join('; ')}}');
+    }
+    if (measurementParams.isNotEmpty) {
+      b.write('  {params: ${measurementParams.map((p) => p.line).join('; ')}}');
     }
     return b.toString();
   }
@@ -347,6 +360,61 @@ class CallArgOutline {
     final b = StringBuffer(name);
     if (direction != null) b.write(' $direction');
     if (boundExpression != null) b.write('←$boundExpression');
+    return b.toString();
+  }
+}
+
+/// One measurement-step formal parameter for display — mirrors the package's
+/// [MeasurementParameter]: a parameter [name], its [dataType] (`TypeDouble`,
+/// `TypeString`, …), [direction] (`In`/`Out`), bound [value] expression, and
+/// whether it [isArray]. Each field is omitted (left null) when absent — never
+/// invented. Distinct from [CallArgOutline] (the ActiveX/C + Python adapter
+/// argument list); a measurement step uses these instead.
+class MeasurementParamOutline {
+  MeasurementParamOutline({
+    required this.name,
+    this.dataType,
+    this.direction,
+    this.value,
+    this.isArray = false,
+  });
+
+  final String name;
+  final String? dataType;
+  final String? direction;
+  final String? value;
+  final bool isArray;
+
+  factory MeasurementParamOutline.of(MeasurementParameter p) =>
+      MeasurementParamOutline(
+        name: p.name,
+        dataType: p.dataType,
+        direction: p.direction,
+        value: p.value,
+        isArray: p.isArray,
+      );
+
+  /// Left-column label: the parameter name, tagged with its direction when known
+  /// (e.g. `voltage_level (in)`).
+  String get label =>
+      direction != null ? '$name (${direction!.toLowerCase()})' : name;
+
+  /// Right-column value: the data type (with `[]` for an array), then the bound
+  /// expression when set; `(unbound)` when neither is present.
+  String get cell {
+    final b = StringBuffer();
+    if (dataType != null) b.write('$dataType${isArray ? '[]' : ''}');
+    if (value != null) b.write('${b.isEmpty ? '' : ' '}= $value');
+    return b.isEmpty ? '(unbound)' : b.toString();
+  }
+
+  /// Compact one-line form for the text summary / search, e.g.
+  /// `voltage_level in TypeDouble = 6`.
+  String get line {
+    final b = StringBuffer(name);
+    if (direction != null) b.write(' ${direction!.toLowerCase()}');
+    if (dataType != null) b.write(' $dataType${isArray ? '[]' : ''}');
+    if (value != null) b.write(' = $value');
     return b.toString();
   }
 }
@@ -437,6 +505,9 @@ bool stepMatches(StepOutline s, String query) {
         (a.displayType?.toLowerCase().contains(query) ?? false)) {
       return true;
     }
+  }
+  for (final p in s.measurementParams) {
+    if (p.line.toLowerCase().contains(query)) return true;
   }
   return false;
 }
