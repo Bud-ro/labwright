@@ -91,20 +91,71 @@ hierarchicalLoggingEnabled = true;               // global flag
 DaqLoggers.grpc.level = Level.FINE;              // gRPC chatter only
 ```
 
+## Streaming
+
+Scalar `readVoltage` is one sample per call. For real acquisition use `readStream` —
+buffered, hardware-clocked, set the **sample rate from Dart**:
+
+```dart
+final daq = Daqmx.local();
+
+// Raw 16-bit codes (the practical high-speed format) at 50 kS/s, in 1000-sample
+// chunks, until you stop:
+final sub = daq.readRawI16Stream('cDAQ1Mod1/ai0', rateHz: 50000, samplesPerChunk: 1000)
+    .listen((Int16List chunk) => process(chunk));
+// ... later:
+await sub.cancel();   // stops + clears the task
+
+// Or a finite capture that completes on its own:
+await for (final Float64List chunk
+    in daq.readVoltageStream('cDAQ1Mod1/ai0', rateHz: 1000, totalSamples: 10000)) {
+  process(chunk);
+}
+```
+
+**Format = throughput.** `volts` (f64) is pre-scaled and convenient but 8 bytes/sample;
+the raw integer formats move the device's native ADC codes with no per-sample scaling —
+`rawI16` is half the bytes (the usual choice for sustained high speed), `rawI32` for
+24-/32-bit devices and counters, plus `rawU16`/`rawU32`. The core `readStream(...,
+format: DaqSampleFormat.rawI16)` yields the matching typed list; `readVoltageStream` /
+`readRawI16Stream` / `readRawI32Stream` are typed convenience wrappers.
+
+**The FFI backend runs the blocking read loop on a dedicated isolate**, so streaming
+never stalls your event loop; the Dart stream's pause/resume/cancel drive the worker
+(and tear the task down on cancel). **gRPC streaming is not implemented** — doing it at
+rate needs NI's data-moniker / sideband RPCs; for now high-speed streaming is the local
+FFI path (`Daqmx.local()`), and `GrpcDaqmxBackend.readStream` throws `UnsupportedError`.
+For *very* high rates, the read loop itself should move fully native (a future step).
+
+### Recording to TDMS
+
+`recordStreamToTdms` writes a stream straight into NI's TDMS format (one segment per
+chunk), storing raw formats as their compact `TdsType` (i16 stays i16 on disk):
+
+```dart
+final bytes = await recordStreamToTdms(
+  daq.readRawI16Stream('cDAQ1Mod1/ai0', rateHz: 50000, totalSamples: 1000000),
+  format: DaqSampleFormat.rawI16, group: 'AI', channel: 'ai0', rateHz: 50000,
+);
+await File('capture.tdms').writeAsBytes(bytes); // opens as a waveform in DIAdem/LabVIEW
+```
+
 ## Status
 
 | Piece | State |
 |-------|-------|
 | Unified `DaqmxApi` + `Daqmx` factory + transport gating | done, analyze-clean, unit-tested |
-| **gRPC backend** (`GrpcDaqmxBackend`) | implemented over `package:grpc`; covered end-to-end against an in-process fake NI server (deviceNames, read/write session model, error mapping, transport-failure mapping) |
-| **FFI backend** (`FfiDaqmxBackend`) — load, deviceNames, AI/AO scalar read/write, error info | code complete; **not yet run against a live NI-DAQmx runtime** |
+| **gRPC backend** (`GrpcDaqmxBackend`) | scalar I/O implemented over `package:grpc`; covered end-to-end against an in-process fake NI server (deviceNames, read/write session model, error mapping, transport/deadline). Streaming: not implemented (moniker path). |
+| **FFI backend** (`FfiDaqmxBackend`) — scalar AI/AO + buffered streaming | implemented; the full ABI (scalar + all stream formats + the isolate read-loop + error path + sample-rate config) is exercised through a compiled C shim, so it's ~ready for a real DLL — but **not yet run against a live NI-DAQmx runtime** |
+| **Streaming** (`readStream` + typed wrappers) + **TDMS** (`recordStreamToTdms`) | implemented on the FFI backend (isolate); round-trips into TDMS in tests |
 
-**Honesty:** the gRPC wire path is exercised against a *fake* server that speaks the
-real protocol, not yet against NI's actual server + hardware. The FFI calls are
-transcribed from NI's published C reference and `dart analyze` is clean, but they have
-**not** been run against a live NI-DAQmx runtime (this dev environment is WSL2, where
-NI-DAQmx's kernel modules don't build). Validate both on real hardware before relying
-on them in production.
+**Honesty:** the gRPC wire path is exercised against a *fake* server, and the FFI path
+against a *C shim* — both speak the real ABI/protocol but are not NI's actual
+server/driver + hardware. The signatures are transcribed from NI's published C
+reference and `dart analyze` is clean, but nothing here has been run against a live
+NI-DAQmx runtime (this dev box is WSL2, where NI-DAQmx's kernel modules don't build).
+The shim gets the FFI surface ~90% of the way to a real DLL; validate on real hardware
+(or NI-DAQmx *simulated devices*) before relying on it in production.
 
 ## gRPC wire definitions
 

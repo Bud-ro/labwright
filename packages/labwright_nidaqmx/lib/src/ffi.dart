@@ -55,6 +55,17 @@ typedef _CfgSampClkTimingC =
     Int32 Function(TaskHandle, Pointer<Utf8>, Double, Int32, Int32, Uint64);
 typedef _ReadAnalogF64C = Int32 Function(
     TaskHandle, Int32, Double, Uint32, Pointer<Double>, Uint32, Pointer<Int32>, Pointer<Uint32>);
+// Binary (raw ADC-code) block reads. Identical shape to ReadAnalogF64 but with the
+// device's native element width — the practical high-speed formats (half/quarter the
+// bytes of f64, no per-sample scaling).
+typedef _ReadBinaryI16C = Int32 Function(
+    TaskHandle, Int32, Double, Uint32, Pointer<Int16>, Uint32, Pointer<Int32>, Pointer<Uint32>);
+typedef _ReadBinaryI32C = Int32 Function(
+    TaskHandle, Int32, Double, Uint32, Pointer<Int32>, Uint32, Pointer<Int32>, Pointer<Uint32>);
+typedef _ReadBinaryU16C = Int32 Function(
+    TaskHandle, Int32, Double, Uint32, Pointer<Uint16>, Uint32, Pointer<Int32>, Pointer<Uint32>);
+typedef _ReadBinaryU32C = Int32 Function(
+    TaskHandle, Int32, Double, Uint32, Pointer<Uint32>, Uint32, Pointer<Int32>, Pointer<Uint32>);
 typedef _ReadAnalogScalarF64C = Int32 Function(TaskHandle, Double, Pointer<Double>, Pointer<Uint32>);
 typedef _WriteAnalogScalarF64C = Int32 Function(TaskHandle, Uint32, Double, Double, Pointer<Uint32>);
 typedef _GetStringC = Int32 Function(Pointer<Utf8>, Uint32);
@@ -75,6 +86,10 @@ class NidaqmxBindings {
         cfgSampClkTiming =
             lib.lookupFunction<_CfgSampClkTimingC, _CfgSampClkTimingDart>('DAQmxCfgSampClkTiming'),
         readAnalogF64 = lib.lookupFunction<_ReadAnalogF64C, _ReadAnalogF64Dart>('DAQmxReadAnalogF64'),
+        readBinaryI16 = lib.lookupFunction<_ReadBinaryI16C, _ReadBinaryI16Dart>('DAQmxReadBinaryI16'),
+        readBinaryI32 = lib.lookupFunction<_ReadBinaryI32C, _ReadBinaryI32Dart>('DAQmxReadBinaryI32'),
+        readBinaryU16 = lib.lookupFunction<_ReadBinaryU16C, _ReadBinaryU16Dart>('DAQmxReadBinaryU16'),
+        readBinaryU32 = lib.lookupFunction<_ReadBinaryU32C, _ReadBinaryU32Dart>('DAQmxReadBinaryU32'),
         readAnalogScalarF64 = lib
             .lookupFunction<_ReadAnalogScalarF64C, _ReadAnalogScalarF64Dart>('DAQmxReadAnalogScalarF64'),
         writeAnalogScalarF64 = lib
@@ -95,6 +110,18 @@ class NidaqmxBindings {
   final int Function(
           TaskHandle, int, double, int, Pointer<Double>, int, Pointer<Int32>, Pointer<Uint32>)
       readAnalogF64;
+  final int Function(
+          TaskHandle, int, double, int, Pointer<Int16>, int, Pointer<Int32>, Pointer<Uint32>)
+      readBinaryI16;
+  final int Function(
+          TaskHandle, int, double, int, Pointer<Int32>, int, Pointer<Int32>, Pointer<Uint32>)
+      readBinaryI32;
+  final int Function(
+          TaskHandle, int, double, int, Pointer<Uint16>, int, Pointer<Int32>, Pointer<Uint32>)
+      readBinaryU16;
+  final int Function(
+          TaskHandle, int, double, int, Pointer<Uint32>, int, Pointer<Int32>, Pointer<Uint32>)
+      readBinaryU32;
   final int Function(TaskHandle, double, Pointer<Double>, Pointer<Uint32>) readAnalogScalarF64;
   final int Function(TaskHandle, int, double, double, Pointer<Uint32>) writeAnalogScalarF64;
   final int Function(Pointer<Utf8>, int) getExtendedErrorInfo;
@@ -111,6 +138,14 @@ typedef _CreateAoVoltageDart =
 typedef _CfgSampClkTimingDart = int Function(TaskHandle, Pointer<Utf8>, double, int, int, int);
 typedef _ReadAnalogF64Dart = int Function(
     TaskHandle, int, double, int, Pointer<Double>, int, Pointer<Int32>, Pointer<Uint32>);
+typedef _ReadBinaryI16Dart = int Function(
+    TaskHandle, int, double, int, Pointer<Int16>, int, Pointer<Int32>, Pointer<Uint32>);
+typedef _ReadBinaryI32Dart = int Function(
+    TaskHandle, int, double, int, Pointer<Int32>, int, Pointer<Int32>, Pointer<Uint32>);
+typedef _ReadBinaryU16Dart = int Function(
+    TaskHandle, int, double, int, Pointer<Uint16>, int, Pointer<Int32>, Pointer<Uint32>);
+typedef _ReadBinaryU32Dart = int Function(
+    TaskHandle, int, double, int, Pointer<Uint32>, int, Pointer<Int32>, Pointer<Uint32>);
 typedef _ReadAnalogScalarF64Dart = int Function(TaskHandle, double, Pointer<Double>, Pointer<Uint32>);
 typedef _WriteAnalogScalarF64Dart = int Function(TaskHandle, int, double, double, Pointer<Uint32>);
 typedef _GetStringDart = int Function(Pointer<Utf8>, int);

@@ -9,6 +9,8 @@
 // the portable API, following the server's session model:
 //   CreateTask -> Create{AI,AO}VoltageChan -> Read/WriteAnalogScalarF64 -> ClearTask.
 
+import 'dart:typed_data';
+
 import 'package:grpc/grpc.dart';
 
 import 'daqmx_api.dart';
@@ -18,6 +20,7 @@ import 'generated/nidaqmx.pbgrpc.dart' show NiDAQmxClient;
 import 'generated/session.pb.dart' as sess;
 import 'generated/session.pbgrpc.dart' show SessionUtilitiesClient;
 import 'logging.dart';
+import 'streaming.dart';
 
 /// [DaqmxApi] over the NI gRPC Device Server. Construct via `Daqmx.remote(...)`.
 class GrpcDaqmxBackend implements DaqmxApi {
@@ -224,6 +227,29 @@ class GrpcDaqmxBackend implements DaqmxApi {
         final r = await _ni.getErrorString(pb.GetErrorStringRequest(errorCode: 0), options: _opts);
         return r.errorString;
       });
+
+  @override
+  Stream<TypedData> readStream(
+    String physicalChannel, {
+    required double rateHz,
+    int samplesPerChunk = 1000,
+    int? totalSamples,
+    DaqSampleFormat format = DaqSampleFormat.volts,
+    double min = -10,
+    double max = 10,
+    int terminalConfig = DaqmxVal.cfgDefault,
+  }) {
+    // Buffered streaming over gRPC is not wired yet. Doing it well means NI's
+    // data-moniker path (DataMoniker.StreamReadWrite / BeginSidebandStream) to avoid
+    // per-call protobuf+HTTP/2 overhead at sample rate — not yet vendored. For now,
+    // high-rate streaming is the local FFI/native path (Daqmx.local()).
+    throw UnsupportedError(
+      'GrpcDaqmxBackend.readStream is not implemented. High-speed streaming uses the '
+      'local FFI backend (Daqmx.local()); remote gRPC streaming needs NI\'s data-'
+      'moniker/sideband RPCs (see README "Streaming"). Use scalar readVoltage over gRPC '
+      'for low-rate remote sampling.',
+    );
+  }
 
   /// Create a task with an empty session name so the server assigns a unique one —
   /// no client-side name collisions even under concurrency.

@@ -7,7 +7,10 @@
 // FFI backend's synchronous calls wrap trivially in a `Future`. One async surface is
 // what lets the two implementations stay truly interchangeable.
 
+import 'dart:typed_data';
+
 import 'daqmx_constants.dart';
+import 'streaming.dart';
 
 /// A DAQmx operation returned an error status. Carries NI's own extended error text
 /// (the offending channel/value, etc.). Thrown by either backend so callers handle
@@ -66,6 +69,27 @@ abstract interface class DaqmxApi {
   /// healthy. Either way, the authoritative error text for a failed call is carried on
   /// the [DaqmxException] that call throws — prefer that over polling [errorInfo].
   Future<String> errorInfo();
+
+  /// Buffered, hardware-clocked acquisition from [physicalChannel] at [rateHz]. Yields
+  /// chunks of up to [samplesPerChunk] samples in [format]'s native typed list
+  /// (`Float64List` for [DaqSampleFormat.volts], `Int16List` for
+  /// [DaqSampleFormat.rawI16], …). Continuous until the subscription is cancelled,
+  /// unless [totalSamples] is set (finite acquisition that then completes).
+  ///
+  /// The hardware sample clock paces delivery; cancelling the subscription stops and
+  /// clears the task. The FFI backend runs the blocking read loop on a dedicated
+  /// isolate so it never stalls the caller's event loop; see [DaqmxStreams] for typed
+  /// convenience wrappers (`readVoltageStream`, `readRawI16Stream`, …).
+  Stream<TypedData> readStream(
+    String physicalChannel, {
+    required double rateHz,
+    int samplesPerChunk = 1000,
+    int? totalSamples,
+    DaqSampleFormat format = DaqSampleFormat.volts,
+    double min = -10,
+    double max = 10,
+    int terminalConfig = DaqmxVal.cfgDefault,
+  });
 
   /// Release the transport (free FFI handles / shut the gRPC channel). Idempotent.
   Future<void> close();

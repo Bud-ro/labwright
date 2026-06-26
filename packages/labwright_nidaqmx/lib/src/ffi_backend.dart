@@ -15,13 +15,16 @@
 // backend, being genuinely async, does not block.
 
 import 'dart:ffi';
+import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
 
 import 'daqmx_api.dart';
 import 'daqmx_constants.dart';
 import 'ffi.dart';
+import 'ffi_stream.dart';
 import 'logging.dart';
+import 'streaming.dart';
 
 /// [DaqmxApi] implemented over the local NI-DAQmx C library via FFI.
 class FfiDaqmxBackend implements DaqmxApi {
@@ -161,6 +164,33 @@ class FfiDaqmxBackend implements DaqmxApi {
         DaqLoggers.task.fine('ClearTask (ao)');
       }
     });
+  }
+
+  @override
+  Stream<TypedData> readStream(
+    String physicalChannel, {
+    required double rateHz,
+    int samplesPerChunk = 1000,
+    int? totalSamples,
+    DaqSampleFormat format = DaqSampleFormat.volts,
+    double min = -10,
+    double max = 10,
+    int terminalConfig = DaqmxVal.cfgDefault,
+  }) {
+    _ensureOpen();
+    DaqLoggers.io.fine('readStream($physicalChannel, ${rateHz}Hz, $format, '
+        '${totalSamples == null ? 'continuous' : '$totalSamples samps'})');
+    return ffiReadStream(
+      libraryPath: libraryPath,
+      channel: physicalChannel,
+      rateHz: rateHz,
+      samplesPerChunk: samplesPerChunk,
+      totalSamples: totalSamples,
+      format: format,
+      min: min,
+      max: max,
+      terminalConfig: terminalConfig,
+    );
   }
 
   /// The resolved entry points — an escape hatch for operations the portable API
