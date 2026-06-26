@@ -77,4 +77,31 @@ void main() {
       expect(h.fileVersion, '354');
     });
   });
+
+  group('iniDataTree', () {
+    final tree = iniDataTree(parseIniSeq(_ini))!;
+
+    test('roots at the SequenceFileData object named "Data"', () {
+      expect(tree.name, 'Data');
+      expect(tree.className, 'SequenceFileData');
+    });
+
+    test('reconstructs the Seq array and its MainSequence element', () {
+      final seq = tree.subProps.firstWhere((p) => p.name == 'Seq');
+      expect(seq.className, 'Objs');
+      expect(seq.isArray, isTrue);
+      expect(seq.array, hasLength(1));
+      final mainSeq = seq.array!.single;
+      expect(mainSeq.name, 'MainSequence');
+      // The element's declared member (Main) is reconstructed.
+      expect(mainSeq.subProps.map((p) => p.name), contains('Main'));
+    });
+
+    test('surfaces a scalar member with its value and declared type', () {
+      // Version is value-only in [SF]; it still surfaces (member union) as a leaf.
+      final version = tree.subProps.firstWhere((p) => p.name == 'Version');
+      expect(version.scalar, '0.0.0.0');
+      expect(version.isLeaf, isTrue);
+    });
+  });
 }

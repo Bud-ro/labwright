@@ -183,6 +183,49 @@ void main() {
     expect(dataNamed, ini, reason: 'an INI names no object "Data"');
   });
 
+  test('INI sections assemble into the shared SeqProperty tree', () {
+    var ini = 0, built = 0, dataRoot = 0, withSeqArray = 0, namedSeqs = 0;
+    final failures = <String>[];
+    for (final f in seqs) {
+      final bytes = f.readAsBytesSync();
+      if (detectSeqFormat(bytes) != SeqFormat.ini) continue;
+      ini++;
+      try {
+        final tree = iniDataTree(parseIniSeqBytes(bytes));
+        if (tree == null) continue; // 2 files lack [DEF, %OBJROOT] — TODO
+        built++;
+        if (tree.name == 'Data') dataRoot++;
+        // The Data object carries a Seq array of sequences.
+        final seq = tree.subProps
+            .where((p) => p.name == 'Seq' && p.isArray)
+            .firstOrNull;
+        if (seq != null && seq.array!.isNotEmpty) {
+          withSeqArray++;
+          // Sequence elements carry names (MainSequence or custom).
+          if (seq.array!.any((s) => s.name.isNotEmpty && s.name != '[0]')) {
+            namedSeqs++;
+          }
+        }
+      } catch (e) {
+        failures.add('${f.path}: $e');
+      }
+    }
+    // ignore: avoid_print
+    print(
+      'INI tree: $built/$ini built · $dataRoot named "Data" · '
+      '$withSeqArray have a non-empty Seq array · $namedSeqs name their sequences',
+    );
+    expect(failures, isEmpty, reason: failures.take(5).join('\n'));
+    expect(ini, greaterThan(0));
+    // The tree builds for the vast majority (the 2 without a %OBJROOT root are a
+    // known TODO); every built tree roots at the "Data" object and carries a
+    // named Seq array.
+    expect(built, greaterThanOrEqualTo(ini - 2), reason: 'too few INI trees built');
+    expect(dataRoot, built, reason: 'a built INI tree is not rooted at "Data"');
+    expect(withSeqArray, built, reason: 'a built INI tree has no Seq array');
+    expect(namedSeqs, withSeqArray, reason: 'a Seq array exposes no named sequence');
+  });
+
   test('every binary TOF1 body frames into a record region + string table', () {
     var binary = 0, framed = 0, withSentinels = 0, totalStrings = 0;
     // Leading-word recon. word[2] is a constant 1 across the corpus; word[1]

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'seq_format.dart';
+import 'seq_property.dart';
 
 /// Reader for the **legacy INI** `.seq` encoding (TestStand 3.x–era; some newer
 /// installs still emit it). It is a *plaintext* serialization of the **same
@@ -158,6 +159,102 @@ SeqFileHeader _headerFrom(Map<String, String> h) => SeqFileHeader(
       productName: _unquote(h['ProductName']),
       fileVersion: h['Version'], // a bare integer like 354 (no quotes)
     );
+
+/// Reconstructs the data [SeqProperty] tree from a parsed INI `.seq`, rooted at
+/// the `%OBJROOT` alias that maps to `SequenceFileData` (the file's `Data`
+/// object). Returns null if no such root is found.
+///
+/// This is the bridge onto the shared PropertyObject model: paths like
+/// `SF.Seq[0].Main[0]` become nested objects/arrays. Each object's members and
+/// their declared types come from its `[DEF, path]` section; values from the
+/// `[path]` section; `%NAME` becomes the node name; `Objs`/array members expand
+/// to [SeqProperty.array] from the `member[i]` element paths. Type-reference
+/// resolution against `[%TYPES]` and instance overrides (`%INSTOVRD`) are not yet
+/// modelled — TODO, not unrecoverable.
+SeqProperty? iniDataTree(IniSeqFile doc) {
+  // Merge DEF + value sections by path into one record per object path.
+  final defs = <String, IniSection>{};
+  final vals = <String, IniSection>{};
+  for (final s in doc.sections) {
+    (s.isDef ? defs : vals)[s.path] = s;
+  }
+  // The data root is the %OBJROOT alias declaring type SequenceFileData (e.g.
+  // `SF = SequenceFileData`).
+  final objRoot = defs['%OBJROOT'];
+  if (objRoot == null) return null;
+  String? rootPath;
+  objRoot.members.forEach((alias, type) {
+    rootPath ??= type == 'SequenceFileData' ? alias : null;
+  });
+  if (rootPath == null) return null;
+
+  final allPaths = {...defs.keys, ...vals.keys};
+
+  // Distinct array indices present under a child path C (keys "C[0]", "C[1]"…).
+  List<int> elementIndices(String c) {
+    final prefix = '$c[';
+    final idx = <int>{};
+    for (final p in allPaths) {
+      if (!p.startsWith(prefix)) continue;
+      final close = p.indexOf(']', prefix.length);
+      if (close < 0) continue;
+      final n = int.tryParse(p.substring(prefix.length, close));
+      if (n != null) idx.add(n);
+    }
+    final list = idx.toList()..sort();
+    return list;
+  }
+
+  bool isContainer(String childPath) =>
+      allPaths.contains(childPath) ||
+      allPaths.any((p) => p.startsWith('$childPath.') || p.startsWith('$childPath['));
+
+  SeqProperty build(String path, String displayName, String? declaredType) {
+    final def = defs[path];
+    final val = vals[path];
+    final name = _unquote(val?.directives['%NAME']) ??
+        _unquote(def?.directives['%NAME']) ??
+        displayName;
+    // Member order: the DEF declaration first (authoritative + typed), then any
+    // value-only members not declared there.
+    final memberTypes = def?.members ?? const <String, String>{};
+    final memberOrder = <String>[
+      ...memberTypes.keys,
+      for (final m in (val?.members.keys ?? const <String>[]))
+        if (!memberTypes.containsKey(m)) m,
+    ];
+
+    final subs = <SeqProperty>[];
+    for (final m in memberOrder) {
+      final type = memberTypes[m];
+      final childPath = '$path.$m';
+      final elems = elementIndices(childPath);
+      if (elems.isNotEmpty) {
+        // An array member: build each element object in index order.
+        final arr = [
+          for (final i in elems) build('$childPath[$i]', '[$i]', null),
+        ];
+        subs.add(SeqProperty(name: m, className: type, array: arr));
+      } else if (isContainer(childPath)) {
+        subs.add(build(childPath, m, type));
+      } else {
+        // Scalar leaf: declared type as className, value (if any) as scalar.
+        subs.add(SeqProperty(
+          name: m,
+          className: type,
+          scalar: _unquote(val?.members[m]),
+        ));
+      }
+    }
+    return SeqProperty(
+      name: name,
+      className: declaredType,
+      subProps: subs,
+    );
+  }
+
+  return build(rootPath!, 'Data', 'SequenceFileData');
+}
 
 /// Strips one layer of surrounding double quotes, if present. Returns null for a
 /// null input.
