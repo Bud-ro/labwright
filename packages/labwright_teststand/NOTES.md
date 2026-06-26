@@ -370,11 +370,26 @@ The ~46-point gap (asserted: real > 0.9 and real − control > 0.25) confirms th
 triplet is a **genuine structural signal**, not an artifact — so the record shape
 is real and holds across both layouts and all repos. BUT the 52% control rate
 means a naive `[idx][field][count]` scan is **too noisy to *extract* the object
-list** (≈half its hits on non-names would be spurious). A clean extractor needs a
-tighter constraint — most promising: validate `field` as a byte-size by checking
-the next record/object begins ~`field` bytes later, or find the true record
-start so the scan isn't free-floating. Until then this stays **corroborated
-structure, not a decoder**.
+list** (≈half its hits on non-names would be spurious).
+
+*Disambiguation attempts (both refuted), so `field`/`count` semantics stay open:*
+
+- **`field` is NOT a forward byte-size.** If `field` were the blob size, the next
+  record/boundary would sit at `i+field` (tried `i+field`, `+4`, `+8`, `+12`).
+  Real triplets chain 84.5% but **control chains 88.1%** — no separation (the
+  region is dense with `0000`/`ffffffff` boundaries and coincidental starts), so
+  this does not distinguish real from noise. The QuickDrop "field=size" reading
+  was a small-sample coincidence.
+- **`count` is NOT a child count.** Across 1062 real triplets `count == 1` in
+  **91%** (969); `field` is usually small (16–255, 89%), not a large size. A
+  container like `Locals`/`Parameters` would need count ≥ its child count, so the
+  dominant `count==1` argues against that reading — the detector is mostly
+  matching leaf-property references, not container headers.
+
+So the triplet is **corroborated structure but not a decoder**, and `field`/
+`count` are **not yet decoded**. Next leads: find the true record *start* (so the
+scan isn't free-floating), or treat `field` as a type/flags composite rather than
+a size.
 
 The **record grammar** that delimits one record from the next and pairs each name
 index with its typed value is **not yet fully decoded**. So `parseSeqFile` still
