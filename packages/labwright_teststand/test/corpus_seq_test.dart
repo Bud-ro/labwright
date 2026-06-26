@@ -439,6 +439,38 @@ void main() {
     },
   );
 
+  test('binaryObjectNames recovers names past the scaffold', () {
+    var binary = 0, rooted = 0, withNames = 0;
+    final failures = <String>[];
+    for (final f in seqs) {
+      final bytes = f.readAsBytesSync();
+      if (detectSeqFormat(bytes) != SeqFormat.binary) continue;
+      binary++;
+      final table = binaryNameTable(bytes);
+      final rootedHere =
+          table != null &&
+          table.entries.isNotEmpty &&
+          table.entries.first.text == 'SequenceFileData';
+      if (!rootedHere) continue;
+      rooted++;
+      final names = binaryObjectNames(bytes);
+      // Scaffold prefix is dropped: the list no longer starts with the root.
+      if (names.isNotEmpty && names.first != 'SequenceFileData') withNames++;
+      if (names.isNotEmpty && names.first == 'SequenceFileData') {
+        failures.add('${f.path}: scaffold prefix not dropped ($names)');
+      }
+    }
+    // ignore: avoid_print
+    print(
+      'binaryObjectNames: $withNames/$rooted rooted files expose ≥1 '
+      'recovered object name (of $binary binary)',
+    );
+    expect(failures, isEmpty, reason: failures.take(5).join('\n'));
+    expect(rooted, greaterThanOrEqualTo(80));
+    // Every rooted file defines at least one object beyond the scaffold.
+    expect(withNames, rooted, reason: 'a rooted file exposed no object names');
+  });
+
   test('leadingWords[1] selects the record-prefix layout', () {
     var checked = 0, layoutOk = 0;
     final failures = <String>[];

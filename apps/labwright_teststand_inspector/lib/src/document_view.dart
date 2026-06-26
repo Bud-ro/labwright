@@ -7,13 +7,33 @@ String documentText(SeqDocument doc) {
   switch (doc) {
     case XmlSeqDocument(:final file):
       return dumpSeqFile(file);
-    case BinarySeqDocument(:final header, :final inflatedSize, :final stringTable):
+    case BinarySeqDocument(
+        :final header,
+        :final inflatedSize,
+        :final stringTable,
+        :final nameTable,
+      ):
       final b = StringBuffer()
         ..writeln('$header')
         ..writeln('binary TOF1 — record tree not yet decoded (recon view)')
         ..writeln('inflated body: $inflatedSize bytes · '
-            '${stringTable.length} strings in the largest table')
-        ..writeln();
+            '${stringTable.length} strings in the largest table');
+      // Recovered property/object names (the ordered name pool past the fixed
+      // container scaffold). Honest: these are recovered NAMES only — their
+      // hierarchy and values are not yet decoded.
+      final objectNames = _objectNames(nameTable);
+      if (objectNames.isNotEmpty) {
+        b
+          ..writeln()
+          ..writeln('recovered property names '
+              '(${objectNames.length}; record links not yet decoded):');
+        for (final n in objectNames.take(200)) {
+          b.writeln('  $n');
+        }
+      }
+      b
+        ..writeln()
+        ..writeln('largest string table:');
       for (final s in stringTable.take(200)) {
         b.writeln('  ${s.text}');
       }
@@ -22,6 +42,19 @@ String documentText(SeqDocument doc) {
       return 'Not a recognized TestStand sequence.\n$header'
           '${error != null ? '\n\n$error' : ''}';
   }
+}
+
+/// The recovered property/object names from a binary name table, past the fixed
+/// container [binaryNameScaffold] prefix (the file's own sequences/objects).
+List<String> _objectNames(List<BinaryString> nameTable) {
+  final names = [for (final e in nameTable) e.text];
+  var start = 0;
+  while (start < names.length &&
+      start < binaryNameScaffold.length &&
+      names[start] == binaryNameScaffold[start]) {
+    start++;
+  }
+  return names.sublist(start);
 }
 
 /// A one-line title for a document (for the app bar / file label).

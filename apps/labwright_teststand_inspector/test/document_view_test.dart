@@ -261,6 +261,18 @@ void main() {
     );
   });
 
+  test('documentText lists recovered property names for a TOF1 file', () {
+    final doc = SeqDocument.parse(_binary());
+    final text = documentText(doc);
+    expect(text, contains('recovered property names'));
+    // The fixture pool's model names are surfaced as recovered names.
+    for (final n in ['MainSequence', 'Step', 'Locals', 'Parameters']) {
+      expect(text, contains(n), reason: 'missing recovered name $n');
+    }
+    // Honest framing: it must not claim the tree/values are decoded.
+    expect(text, contains('record tree not yet decoded'));
+  });
+
   test('documentText/Title handle unrecognized bytes without throwing', () {
     final doc = SeqDocument.parse(Uint8List.fromList([1, 2, 3, 4]));
     expect(doc, isA<UnknownSeqDocument>());

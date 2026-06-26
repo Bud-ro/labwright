@@ -280,6 +280,32 @@ BinaryStringSegment? binaryNameTable(Uint8List seqBytes) {
   return _nameTableFromSegments(_segmentsFromBody(body));
 }
 
+/// The property/object **names a binary TOF1 file defines**, beyond the fixed
+/// container [binaryNameScaffold] — i.e. the file's own sequences, steps, locals,
+/// and other named objects, in name-pool order.
+///
+/// These are genuinely **recovered names** (the ordered name pool the records
+/// index); the record links that give them hierarchy and values are **not yet
+/// decoded**, so this is a flat, honest name list — not a parsed tree. Drops the
+/// leading scaffold prefix when present (rooted files), else returns the whole
+/// pool. Returns `[]` when [seqBytes] is not an inflatable binary file.
+List<String> binaryObjectNames(Uint8List seqBytes) {
+  final table = binaryNameTable(seqBytes);
+  if (table == null) return const [];
+  return _objectNamesFrom([for (final e in table.entries) e.text]);
+}
+
+/// Drops the leading [binaryNameScaffold] prefix from an ordered name list.
+List<String> _objectNamesFrom(List<String> names) {
+  var start = 0;
+  while (start < names.length &&
+      start < binaryNameScaffold.length &&
+      names[start] == binaryNameScaffold[start]) {
+    start++;
+  }
+  return names.sublist(start);
+}
+
 /// [binaryNameTable] core over already-computed [segments] (no re-inflate).
 BinaryStringSegment? _nameTableFromSegments(
   List<BinaryStringSegment> segments,
