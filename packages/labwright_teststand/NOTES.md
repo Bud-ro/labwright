@@ -549,6 +549,18 @@ So the triplet is **corroborated structure but not a decoder**, and `field`/
   but `0x14` dominates *both* real (35%) and control (39%), so the low byte does
   not separate real records from noise. No usable type set.
 
+- **Full-corpus flat-index reconfirmation (2026-06, all 288 files).** Re-tested
+  the "record region is an array of name-table indices" hypothesis at full scale
+  (prior run/order analyses were on the 83-file ≤-size subset): of **7.52M record
+  u32 words, 39.5% are valid name indices** (`< nameLen`) and record words touch
+  **91.6% of name-table entries** — but both figures are **chance-level**, not
+  signal: name tables are tiny (13–23 entries) so most small u32s are `< nameLen`
+  coincidentally, and with ~15–20k record words per ~20 names nearly every index
+  0..N appears somewhere. Record regions are ~15–20k words for only ~20 names →
+  **records are large byte-packed structs, not a flat index array** (else the
+  valid ratio would be ~100%, not 40%). Reconfirms the plateau below: more
+  statistical scanning does not unblock the grammar.
+
 **Decode status — statistical byte-RE has plateaued.** The structure is mapped
 (header → name-pool indices → byte-packed records → string pool) and the
 object-record *triplet* is corroborated, but `field`/`count` semantics and the
