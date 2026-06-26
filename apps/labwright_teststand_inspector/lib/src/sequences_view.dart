@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:labwright_teststand/labwright_teststand.dart';
 
 import 'sequence_outline.dart';
+import 'ui.dart';
 
 /// Chip color per module adapter, keyed by [SeqAdapter.name] so the keys stay in
 /// lockstep with the enum — a new code-bearing adapter that lacks a color is
@@ -186,8 +187,7 @@ class _SequencesViewState extends State<SequencesView> {
           for (final v in vars)
             Padding(
               padding: const EdgeInsets.only(left: 12, top: 2),
-              child: Text('• ${v.label}',
-                  style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
+              child: Text('• ${v.label}', style: monoStyle),
             ),
         ],
       ),
@@ -304,9 +304,7 @@ class _SequencesViewState extends State<SequencesView> {
                   ),
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 1),
-                    child: Text(value,
-                        style: const TextStyle(
-                            fontFamily: 'monospace', fontSize: 12)),
+                    child: Text(value, style: monoStyle),
                   ),
                 ]),
             ],
@@ -323,9 +321,7 @@ class _SequencesViewState extends State<SequencesView> {
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(6),
       ),
-      child: Text(label,
-          style: TextStyle(
-              fontFamily: 'monospace', fontSize: 12, color: color)),
+      child: Text(label, style: monoStyle.copyWith(color: color)),
     );
   }
 }

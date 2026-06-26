@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'property_outline.dart';
+import 'ui.dart';
 
 /// The Properties tab: a lazy, expandable tree over the raw PropertyObject
 /// model ([PropertyNode]), with a search box that filters by name, type, value,
@@ -135,19 +136,18 @@ class _PropertyTile extends StatelessWidget {
       TextSpan(
           text: node.label,
           style: const TextStyle(
-              fontFamily: 'monospace', fontWeight: FontWeight.w600)),
+              fontFamily: monoFamily, fontWeight: FontWeight.w600)),
     ];
     if (node.typeLabel.isNotEmpty) {
       spans.add(TextSpan(
         text: '  ${node.typeLabel}',
-        style: TextStyle(
-            fontFamily: 'monospace', fontSize: 12, color: theme.hintColor),
+        style: monoStyle.copyWith(color: theme.hintColor),
       ));
     }
     if (node.isLeaf && node.value != null) {
       spans.add(TextSpan(
         text: '  = ${node.value}',
-        style: TextStyle(fontFamily: 'monospace', color: theme.colorScheme.primary),
+        style: TextStyle(fontFamily: monoFamily, color: theme.colorScheme.primary),
       ));
     }
     return RichText(text: TextSpan(style: theme.textTheme.bodyMedium, children: spans));
@@ -175,7 +175,7 @@ class _PropertyTile extends StatelessWidget {
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Text(a,
-                  style: const TextStyle(fontFamily: 'monospace', fontSize: 11)),
+                  style: const TextStyle(fontFamily: monoFamily, fontSize: 11)),
             ),
         ],
       ),

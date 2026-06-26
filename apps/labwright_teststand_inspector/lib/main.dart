@@ -14,6 +14,7 @@ import 'src/properties_view.dart';
 import 'src/recent_files.dart';
 import 'src/sequence_outline.dart';
 import 'src/sequences_view.dart';
+import 'src/ui.dart';
 
 void main(List<String> args) {
   // Allow `flutter run -- path/to/file.seq` to open a file at launch.
@@ -338,7 +339,7 @@ class _InspectorPageState extends State<InspectorPage> {
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
             child: SelectableText(
               text,
-              style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+              style: const TextStyle(fontFamily: monoFamily, fontSize: 13),
             ),
           ),
         ),

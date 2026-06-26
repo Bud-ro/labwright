@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:labwright_teststand/labwright_teststand.dart';
 
 import 'document_view.dart';
+import 'ui.dart';
 
 /// Recon view for a binary `TOF1` document: a header/facts table, an explicit
 /// honest note that the record tree isn't decoded yet, and the recovered string
@@ -67,13 +68,9 @@ class BinaryView extends StatelessWidget {
                       dense: true,
                       visualDensity: VisualDensity.compact,
                       leading: Text('0x${s.offset.toRadixString(16)}',
-                          style: TextStyle(
-                              fontFamily: 'monospace',
-                              fontSize: 11,
-                              color: theme.hintColor)),
-                      title: SelectableText(s.text,
-                          style: const TextStyle(
-                              fontFamily: 'monospace', fontSize: 12)),
+                          style: monoStyle.copyWith(
+                              fontSize: 11, color: theme.hintColor)),
+                      title: SelectableText(s.text, style: monoStyle),
                     );
                   },
                 ),
@@ -97,8 +94,7 @@ class BinaryView extends StatelessWidget {
             ),
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Text(value,
-                  style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
+              child: Text(value, style: monoStyle),
             ),
           ]),
       ],
