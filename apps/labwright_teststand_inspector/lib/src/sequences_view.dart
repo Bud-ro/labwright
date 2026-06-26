@@ -1,6 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:labwright_teststand/labwright_teststand.dart';
 
 import 'sequence_outline.dart';
+
+/// Chip color per module adapter, keyed by [SeqAdapter.name] so the keys stay in
+/// lockstep with the enum — a new code-bearing adapter that lacks a color is
+/// caught by the unit test rather than silently rendering as the fallback. The
+/// flow-control adapters ([SeqAdapter.none]/[SeqAdapter.unknown]) are
+/// intentionally absent and render with [adapterFallbackColor].
+final Map<String, Color> adapterColors = {
+  SeqAdapter.labView.name: Colors.teal,
+  SeqAdapter.sequenceCall.name: Colors.deepPurple,
+  SeqAdapter.cModule.name: Colors.brown,
+  SeqAdapter.python.name: Colors.green,
+};
+
+/// Chip color for adapters with no assigned color (see [adapterColors]).
+const adapterFallbackColor = Colors.blueGrey;
+
+/// The chip color for an adapter name, falling back to [adapterFallbackColor].
+Color adapterColor(String adapter) =>
+    adapterColors[adapter] ?? adapterFallbackColor;
 
 /// The Sequences tab: a tree of sequences → Setup/Main/Cleanup groups → steps.
 /// In-file SequenceCall steps are tappable and jump to the called sequence.
@@ -191,14 +211,14 @@ class _SequencesViewState extends State<SequencesView> {
     final chips = <Widget>[];
     final td = s.targetDisplay;
     if (s.adapter != null && td != null) {
-      final color = _adapterColor(s.adapter!);
+      final color = adapterColor(s.adapter!);
       final chip = _chip(context, '${s.adapter}: ${td.label}', color);
       // Tooltip surfaces the full path when the label is just the basename.
       chips.add(td.label != td.tooltip
           ? Tooltip(message: td.tooltip, child: chip)
           : chip);
     } else if (s.adapter != null) {
-      chips.add(_chip(context, s.adapter!, _adapterColor(s.adapter!)));
+      chips.add(_chip(context, s.adapter!, adapterColor(s.adapter!)));
     }
     if (s.isInFileCall) {
       chips.add(ActionChip(
@@ -295,15 +315,6 @@ class _SequencesViewState extends State<SequencesView> {
       ),
     );
   }
-
-  /// A distinct chip color per module adapter (matches SeqAdapter.name).
-  Color _adapterColor(String adapter) => switch (adapter) {
-        'labView' => Colors.teal,
-        'sequenceCall' => Colors.deepPurple,
-        'cModule' => Colors.brown,
-        'python' => Colors.green,
-        _ => Colors.blueGrey,
-      };
 
   Widget _chip(BuildContext context, String label, Color color) {
     return Container(
