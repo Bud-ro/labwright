@@ -127,6 +127,12 @@ class SeqVariable {
   /// (`classname`: `Num`, `Str`, `Boolean`, `Obj`, `Objs`, …). null if neither.
   String? get type => raw.typeName ?? raw.className;
 
+  /// The variable's free-text comment — the editor's note describing what it
+  /// holds (e.g. `"InfoTableRC: [row][col]"`) — or null when it has none.
+  /// Recovered from the variable's `%COMMENT`. (Carried as a `%COMMENT` attribute
+  /// by the INI reader; XML variables in the corpus store none.)
+  String? get comment => _nz(raw.attributes['%COMMENT']);
+
   /// The scalar default value, or null for container/array variables and empty
   /// values.
   String? get value => (raw.scalar == null || raw.scalar!.isEmpty) ? null : raw.scalar;

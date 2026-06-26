@@ -624,6 +624,22 @@ includes it in the sequence filter). Recovered across the corpus: **102 of 449 I
 sequences**; XML sequences in the corpus carry none (their only attribute is
 `name`), so `Sequence.comment` is null for them.
 
+**Variable free-text comments `%COMMENT` (2026-06, DONE).** Locals/parameters can
+carry the same `%COMMENT` note as steps/sequences, describing what the variable
+holds (e.g. *"InfoTableRC: [row][col]"*, *"Off: AND together values for multiple
+lights"*). Exposed on the shared lens as `SeqVariable.comment` (the data already
+lands via the generic `%COMMENT` carry); the app appends it to the variable row as
+` // comment`. Recovered across the corpus: **37 of 2514 variables**. This
+completes the free-text-comment recovery story: steps (667), sequences (102), and
+variables (37). XML variables in the corpus carry none.
+
+**INI parser drops no data lines (2026-06, verified + guarded).** Audited every
+non-blank, non-section line across all 58 INI files against the parser's only skip
+path (`eq < 0`, a line lacking ` = `): **0 lines skipped** — every in-section line
+is a real `key = value`, so no data is silently dropped. Locked in as a corpus
+regression guard so a future file introducing a new line shape is caught, not
+quietly lost.
+
 **Variable container sizes (2026-06, DONE).** Locals/parameters that are
 objects/clusters or arrays now report their size via the shared lens
 (`SeqVariable.isArray` + `SeqVariable.containerCount`): the field count for an

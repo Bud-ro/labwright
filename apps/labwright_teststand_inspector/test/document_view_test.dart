@@ -323,6 +323,16 @@ void main() {
     );
     // Bare scalar with neither value nor container info.
     expect(VarOutline(name: 'X', type: 'Str').label, 'X : Str');
+    // A free-text comment is appended after value/container info.
+    expect(
+      VarOutline(name: 'Off', type: 'Num', value: '4', comment: 'bitmask').label,
+      'Off : Num = 4  // bitmask',
+    );
+    expect(
+      VarOutline(name: 'T', type: 'Obj', containerCount: 2, comment: 'pass band')
+          .label,
+      'T : Obj {2 fields}  // pass band',
+    );
   });
 
   test('filterSequences keeps matches; empty query is identity', () {

@@ -211,6 +211,39 @@ void main() {
     expect(dataNamed, ini, reason: 'an INI names no object "Data"');
   });
 
+  test('INI parser drops no in-section data lines (every line is key = value)',
+      () {
+    // Honesty/robustness guard: inside a section, parseIniSeq skips any line
+    // lacking ` = ` (`eq < 0`). Across the corpus that count must stay 0 — every
+    // non-blank, non-section line is a real `key = value`, so no data is silently
+    // dropped. If a future file introduces a new line shape, this catches it.
+    var ini = 0, skipped = 0;
+    final samples = <String>[];
+    for (final f in seqs) {
+      final bytes = f.readAsBytesSync();
+      if (detectSeqFormat(bytes) != SeqFormat.ini) continue;
+      ini++;
+      final text = latin1.decode(bytes, allowInvalid: true);
+      var inSection = false;
+      for (final raw in const LineSplitter().convert(text)) {
+        final line = raw.trimRight();
+        if (line.isEmpty) continue;
+        if (line.startsWith('[') && line.endsWith(']')) {
+          inSection = true;
+          continue;
+        }
+        if (!inSection || line.contains(' = ')) continue;
+        skipped++;
+        if (samples.length < 5) samples.add(line);
+      }
+    }
+    // ignore: avoid_print
+    print('INI line audit: $ini files, $skipped in-section lines without " = "');
+    expect(ini, greaterThan(0));
+    expect(skipped, 0,
+        reason: 'INI parser silently skips data line(s): ${samples.join(' | ')}');
+  });
+
   test('INI multi-line values are reassembled (no residual ` LineNNNN` keys)',
       () {
     var ini = 0, reassembled = 0, residual = 0;
@@ -311,6 +344,8 @@ void main() {
     var withSeqComment = 0;
     // Object/cluster variables (locals/params) whose field count the lens reports.
     var objVarsWithFields = 0;
+    // Variables (locals/params) carrying a recovered free-text `%COMMENT`.
+    var varsWithComment = 0;
     for (final f in seqs) {
       final bytes = f.readAsBytesSync();
       if (detectSeqFormat(bytes) != SeqFormat.ini) continue;
@@ -330,6 +365,7 @@ void main() {
             if (!v.isArray && v.containerCount != null && v.containerCount! > 0) {
               objVarsWithFields++;
             }
+            if (v.comment != null) varsWithComment++;
           }
           for (final st in s.steps) {
             totSteps++;
@@ -360,6 +396,7 @@ void main() {
       '$withMode with run-mode · $withLoop with looping · '
       '$withComment steps + $withSeqComment seqs with comment · '
       '$objVarsWithFields object vars with fields · '
+      '$varsWithComment vars with comment · '
       '$overrides instance-overrides in $filesWithOverride files',
     );
     expect(ini, greaterThan(0));
@@ -389,6 +426,9 @@ void main() {
     // Object/cluster variables expose their field count via the lens.
     expect(objVarsWithFields, greaterThan(0),
         reason: 'no object-variable field counts recovered');
+    // Free-text comments are recovered onto variables (locals/parameters) too.
+    expect(varsWithComment, greaterThan(0),
+        reason: 'no variable comments recovered');
   });
 
   test('every binary TOF1 body frames into a record region + string table', () {

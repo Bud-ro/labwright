@@ -379,6 +379,7 @@ class VarOutline {
     this.value,
     this.isArray = false,
     this.containerCount,
+    this.comment,
   });
   final String name;
   final String? type;
@@ -391,16 +392,21 @@ class VarOutline {
   /// Array element count / object field count, or `null` for a scalar variable.
   final int? containerCount;
 
+  /// The variable's free-text comment (editor note), or `null` when it has none.
+  final String? comment;
+
   factory VarOutline.of(SeqVariable v) => VarOutline(
         name: v.name,
         type: v.type,
         value: v.value,
         isArray: v.isArray,
         containerCount: v.containerCount,
+        comment: v.comment,
       );
 
   /// `name : type`, then either ` = value` for a scalar or a container-size
-  /// suffix (` [N]` for an array, ` {N fields}` for an object/cluster).
+  /// suffix (` [N]` for an array, ` {N fields}` for an object/cluster), and a
+  /// trailing ` // comment` when the variable carries one.
   String get label {
     final b = StringBuffer('$name : ${type ?? '(untyped)'}');
     if (value != null) {
@@ -410,6 +416,7 @@ class VarOutline {
           ? ' [$containerCount]'
           : ' {$containerCount ${containerCount == 1 ? 'field' : 'fields'}}');
     }
+    if (comment != null) b.write('  // $comment');
     return b.toString();
   }
 }

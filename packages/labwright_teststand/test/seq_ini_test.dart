@@ -465,6 +465,7 @@ High = Num
 [SF.Seq[0].Locals.Limits]
 Low = "9"
 High = "11"
+%COMMENT = "DUT pass band"
 ''';
 
   test('reports container field/element counts on variables', () {
@@ -477,6 +478,13 @@ High = "11"
     expect(limits.isContainer, isTrue);
     expect(limits.isArray, isFalse);
     expect(limits.containerCount, 2); // Low + High
+  });
+
+  test('recovers a variable free-text comment via SeqVariable.comment', () {
+    final sf = parseSeqFile(Uint8List.fromList(latin1.encode(objLocalIni)));
+    final locals = sf.sequences.single.locals;
+    expect(locals[1].comment, 'DUT pass band'); // on the Limits container
+    expect(locals[0].comment, isNull); // Count has none
   });
 
   // NI splits a value past a line-length cap across continuation lines named
