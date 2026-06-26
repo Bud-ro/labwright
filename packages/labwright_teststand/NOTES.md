@@ -633,6 +633,22 @@ lands via the generic `%COMMENT` carry); the app appends it to the variable row 
 completes the free-text-comment recovery story: steps (667), sequences (102), and
 variables (37). XML variables in the corpus carry none.
 
+**Step editor icon `TS.Icon` (2026-06, DONE).** A step's editor glyph is stored as
+an icon resource path in `TS.Icon` (e.g. `FlowControl\NI_While.ico`,
+`Measurement\Measurement.ico`, `MsgBox.ico`). Exposed on the shared lens as
+`StepSettings.icon` — a readable basename with the folder and `.ico` stripped
+(`NI_While`, `Measurement`, `MsgBox`), null for the default blank (`ni_blank`).
+The text dump shows it as `{icon <name>}`. This is an **XML-only** signal in the
+corpus: **59** XML steps carry a named icon (top: Measurement 20, ni_UpdateMapping
+19, Statement 8, ni_hourglass 5, SeqAdp 4, MsgBox/NI_While/NI_End 1 each); **every
+INI step uses `ni_blank`** (0 named), so `StepSettings.icon` is null for INI here.
+
+**XML `typecategory` — opaque enum (2026-06, probed, not surfaced).** XML typedefs
+carry `typecategory` but its value is a bare numeric code (`3`×505, `1`×93,
+`2`×4), not a readable name; without NI docs the codes can't be named. Recorded,
+not surfaced (no guessing). *(INI adapter distribution re-verified unchanged:
+none 3478 · sequenceCall 1624 · labView 443 · cModule 119.)*
+
 **Step-id resolution `ID#:` → step name (2026-06, DONE).** Each step's `TS.Id` is
 a unique id in `ID#:<uid>` form (e.g. `ID#:HWpAiIXA8BG5VlB7nf4f8B`). Flow-action
 targets that reference a step do so by that id. The custom-condition targets

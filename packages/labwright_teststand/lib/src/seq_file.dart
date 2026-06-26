@@ -453,6 +453,21 @@ class StepSettings {
   /// The module load timing (`LoadOpt`), e.g. `PreloadWhenExecuted`, `DynamicLoad`.
   String? get loadOption => _scalar('LoadOpt');
 
+  /// The step's editor icon (`TS.Icon`), as a readable basename without its
+  /// folder or `.ico` extension (e.g. `NI_While`, `Measurement`, `MsgBox`), or
+  /// null when the step uses the default blank icon (`ni_blank`) or has none.
+  /// This is the glyph TestStand shows beside the step in the editor.
+  String? get icon {
+    var name = _scalar('Icon');
+    if (name == null) return null;
+    final slash = name.lastIndexOf(RegExp(r'[\\/]'));
+    if (slash >= 0) name = name.substring(slash + 1);
+    if (name.toLowerCase().endsWith('.ico')) {
+      name = name.substring(0, name.length - 4);
+    }
+    return (name.isEmpty || name.toLowerCase() == 'ni_blank') ? null : name;
+  }
+
   /// The precondition expression (`PreCond`); null when the step runs
   /// unconditionally.
   String? get precondition => _scalar('PreCond');

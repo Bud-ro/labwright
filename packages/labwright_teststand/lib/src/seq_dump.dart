@@ -72,6 +72,7 @@ String _dumpStep(Step step, SeqFile file) {
   if (limits != null) parts.write('  {limits ${limits.summary}}');
 
   final s = step.settings;
+  if (s.icon != null) parts.write('  {icon ${s.icon}}');
   final notes = <String>[];
   if (!s.isNormalMode) notes.add('mode ${s.mode}');
   if (s.flowSummary != null) notes.add('flow ${s.flowSummary}');

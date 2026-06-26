@@ -516,10 +516,12 @@ TS = Obj
 PassAct = String
 FailAct = String
 FailActTarget = String
+Icon = String
 [SF.Seq[0].Main[0].TS]
 PassAct = "Next"
 FailAct = "Goto"
 FailActTarget = "\\"<Cleanup>\\""
+Icon = "FlowControl\\NI_While.ico"
 ''';
 
   test('recovers a step flow-action jump target (Goto -> <Cleanup>)', () {
@@ -530,6 +532,17 @@ FailActTarget = "\\"<Cleanup>\\""
     expect(set.passActionTarget, isNull); // Next falls through, no target
     expect(set.failActionTarget, '<Cleanup>'); // unwrapped from \"<Cleanup>\"
     expect(set.flowSummary, 'Next/Goto→<Cleanup>');
+  });
+
+  test('recovers the step editor icon basename (folder + .ico stripped)', () {
+    final sf = parseSeqFile(Uint8List.fromList(latin1.encode(flowIni)));
+    // `FlowControl\NI_While.ico` -> `NI_While`.
+    expect(sf.sequences.single.main.single.settings.icon, 'NI_While');
+    // A step with no Icon member has no icon.
+    final plain = parseSeqFile(Uint8List.fromList(latin1.encode(commentIni)));
+    expect(plain.sequences.single.main.first.settings.icon, isNull);
+    // The dump surfaces it.
+    expect(dumpSeqFile(sf), contains('{icon NI_While}'));
   });
 
   // A step with a custom-condition jump to another step by id reference
