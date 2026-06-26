@@ -147,7 +147,7 @@ refused (not mis-parsed).
   counts what fraction of `Data`-tree property nodes the typed lens surfaces.
   `tool/coverage.dart` runs it over **both** the XML and the legacy **INI** `.seq`
   files in `corpus/seq` (reported separately) and
-  writes a gitignored `corpus/seq/REPORT.md`. Current: **49.5% (9372/18932
+  writes a gitignored `corpus/seq/REPORT.md`. Current: **49.5% (9373/18932
   nodes)** over 26 XML files (incl. `Step.id`=`TS.Id`, and the boolean step flags
   `StepFCSeqF`/`IgnoreRTE`/`ResultOption` → `StepSettings.failureCausesSequence-
   Failure`/`ignoresRunTimeErrors`/`recordsResult`, plus the **Additional Results
@@ -569,7 +569,7 @@ failures). The typed lens populates the same per-step INSTANCE data it does for
 XML: modules (labView 128 / sequenceCall 461 / cModule 105 / none 782), limits,
 flow, expressions, additional-results (435 steps). `params`/`py`/`plugins` = 0 as
 expected — INI predates the measurement-plug-in and Python adapters. Coverage on
-INI is **33.1% (51999/157107)** — lower than XML's 49.5% **not** because instance
+INI is **33.3% (52276/157107)** — lower than XML's 49.5% **not** because instance
 data is missing, but because each INI step **inlines its full step-TYPE
 definition** (`DescriptionFormat`/`DefaultNameFormat`/`ItemName`/`CodeTemplates`/
 `Group`/`Menu`/`Substeps`/`CanBeSubstepType…`, exactly once per step) which the
@@ -1124,6 +1124,41 @@ property's stored type flags. It skews to leaf **value** overrides (`ResultAct`,
 `Substeps`, `Common`, `DescriptionFormat`); the exact value-vs-structural trigger
 that leaves the other 29% clear is **not yet fully decoded**. Surfaced typed as
 `SeqProperty.instanceOverrideFlags`.
+
+## Structured sequence-logic export — flow-control nesting recovered (2026-06, DONE)
+
+The PLAN's stated TestStand goal is to "export the sequence **logic**". The flat
+per-step dump didn't convey control flow, so `exportSequenceLogic(SeqFile)`
+(`seq_dump.dart`, also wired into `dumpSeqFile` as a `=== Sequence logic ===`
+section) now renders each sequence as **nested, readable pseudocode** — built
+entirely from already-recovered fields, no new decode.
+
+The `NI_Flow_*` step types form **balanced structured blocks**: each opener
+(`NI_Flow_If`/`While`/`DoWhile`/`For`/`ForEach`) is closed by a matching
+`NI_Flow_End`; `NI_Flow_Else`/`ElseIf` are mid-block continuations; `Break`/
+`Continue` are statements. Modeled as `FlowControl` + the `FlowKind` enum (each
+kind owns `opensBlock`/`closesBlock`/`isContinuation`) with `Step.flowControl`.
+Nesting is derived purely by counting open/close (the numeric `Offset`/`Block*`
+bookkeeping is unpopulated/not needed); `_emitLogic` clamps depth so a malformed
+block can't underflow.
+
+**Field locations — corpus-verified, all flat DIRECT children of the step** (NOT
+under a child object named after the construct, which an earlier draft wrongly
+assumed): `If`/`ElseIf`/`While` → `ConditionExpr`; `For` → `InitializationExpr`/
+`ConditionExpr`/`IncrementExpr`; `ForEach` → `ArrayExpr`/`ArrayElementExpr`
+(+ optional `OffsetExpr`). Each renders as real logic, e.g.
+`if (Locals.X > 0) {`, `for each (Locals.Item in Locals.Items) {`,
+`while (StationGlobals.DebugPanelActive) {`. Non-flow steps render as
+`name → call-target  [if precond]  [limits]`.
+
+Corpus evidence (XML+INI ≤300KB, `recovers structured flow-control logic`):
+**141 openers / 141 ends (balanced), 42/42 flow-bearing sequences nest cleanly**;
+82 if/while + 12 for → **94/94 conditions populated**; 12/12 for init+incr;
+**53/53 for-each array+element bindings**. 100% population where applicable — the
+sequence's actual control logic, recovered. Coverage credits these fields
+(`seq_coverage.dart`): XML 49.3%→**49.5%** (only 1 conditional opener in the XML
+corpus), INI 33.1%→**33.3%** (+277 nodes, 315 flow steps). Off-limits numeric
+`Block*`/`Offset` codes left raw.
 
 ## Status & honest gaps
 

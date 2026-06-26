@@ -114,6 +114,20 @@ SeqCoverage measureCoverage(SeqFile f) {
           mark(p.raw.prop(k));
         }
       }
+      // Flow-control constructs (NI_Flow_*): the structured-logic expression
+      // fields the lens surfaces (FlowControl / exportSequenceLogic). These are
+      // flat direct children of the step — the branch/loop condition, the `for`
+      // init/increment, and the `for each` array + element bindings. Verified
+      // 100% populated where applicable across the corpus. The numeric
+      // Block*/Offset bookkeeping is left raw (not yet decoded).
+      if (step.flowControl != null) {
+        for (final k in [
+          'ConditionExpr', 'InitializationExpr', 'IncrementExpr',
+          'ArrayExpr', 'ArrayElementExpr', 'OffsetExpr',
+        ]) {
+          mark(step.raw.prop(k));
+        }
+      }
       // Limit-test criteria.
       mark(step.raw.prop('Comp'));
       mark(step.raw.prop('DataSource'));

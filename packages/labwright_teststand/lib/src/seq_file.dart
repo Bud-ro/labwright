@@ -228,6 +228,12 @@ class Step {
   /// SData.
   StepModule get module => StepModule.fromSData(raw.at(['TS', 'SData']));
 
+  /// The structured control-flow construct this step is, when it is one of the
+  /// `NI_Flow_*` step types (If/ElseIf/Else/While/For/ForEach/End/Break/Continue)
+  /// — with the recovered condition / loop expressions. null for an ordinary
+  /// (non-flow) step. See [FlowControl]; drives the nested logic export.
+  FlowControl? get flowControl => FlowControl.fromStep(this);
+
   /// The test limits (pass/fail criteria) for a limit-test step, or null when
   /// this step is not a limit test (no `Comp`/`Limits`).
   StepLimits? get limits => StepLimits.fromStep(raw);
@@ -301,6 +307,123 @@ class Step {
 
   @override
   String toString() => 'Step($name : ${type ?? '?'})';
+}
+
+/// The kind of an `NI_Flow_*` control-flow step — what structured construct it
+/// represents in the sequence's logic.
+enum FlowKind {
+  ifBlock('if'),
+  elseIf('else if'),
+  elseBlock('else'),
+  whileLoop('while'),
+  doWhile('do-while'),
+  forLoop('for'),
+  forEach('for each'),
+  end('end'),
+  breakStmt('break'),
+  continueStmt('continue');
+
+  const FlowKind(this.label);
+
+  /// A short readable keyword (`if`, `for each`, `end`, …).
+  final String label;
+
+  /// Whether this construct opens a nested block (its body is the following
+  /// steps until the matching [end]).
+  bool get opensBlock =>
+      this == ifBlock ||
+      this == whileLoop ||
+      this == doWhile ||
+      this == forLoop ||
+      this == forEach;
+
+  /// Whether this construct closes a block (`NI_Flow_End`).
+  bool get closesBlock => this == end;
+
+  /// Whether this is a mid-block continuation (`else`/`else if`) — it dedents to
+  /// the opener's level then re-indents, without its own [end].
+  bool get isContinuation => this == elseIf || this == elseBlock;
+}
+
+/// The recovered control-flow construct of an `NI_Flow_*` step: its [kind] and
+/// the condition / loop expressions TestStand stores for it. Corpus-confirmed
+/// field locations (100% populated where applicable):
+/// `If`/`Else If`/`While` → `ConditionExpr`; `For` →
+/// `InitializationExpr`/`ConditionExpr`/`IncrementExpr`; `For Each` →
+/// `ArrayExpr`/`ArrayElementExpr`/`OffsetExpr`. These are clean expression
+/// strings — the sequence's actual control logic — drawn straight from the step.
+class FlowControl {
+  FlowControl._(this.kind, this._node);
+
+  /// The control-flow kind.
+  final FlowKind kind;
+
+  /// The step's property tree — the construct's expression fields
+  /// (`ConditionExpr`, `InitializationExpr`, …) live as direct children here.
+  final SeqProperty? _node;
+
+  /// Builds the [FlowControl] for [step], or null when it is not an `NI_Flow_*`
+  /// step. The construct's expression fields are flat direct children of the
+  /// step (`ConditionExpr` for if/else-if/while; `InitializationExpr`/
+  /// `ConditionExpr`/`IncrementExpr` for for; `ArrayExpr`/`ArrayElementExpr` for
+  /// for-each) — verified across the corpus (100% populated where applicable).
+  static FlowControl? fromStep(Step step) {
+    final kind = switch (step.type) {
+      'NI_Flow_If' => FlowKind.ifBlock,
+      'NI_Flow_ElseIf' => FlowKind.elseIf,
+      'NI_Flow_Else' => FlowKind.elseBlock,
+      'NI_Flow_While' => FlowKind.whileLoop,
+      'NI_Flow_DoWhile' => FlowKind.doWhile,
+      'NI_Flow_For' => FlowKind.forLoop,
+      'NI_Flow_ForEach' => FlowKind.forEach,
+      'NI_Flow_End' => FlowKind.end,
+      'NI_Flow_Break' || 'NI_Flow_Break_Custom' => FlowKind.breakStmt,
+      'NI_Flow_Continue' => FlowKind.continueStmt,
+      _ => null,
+    };
+    if (kind == null) return null;
+    return FlowControl._(kind, step.raw);
+  }
+
+  /// The branch/loop condition (`ConditionExpr`) — for `if`/`else if`/`while`/
+  /// `do-while`; null otherwise.
+  String? get condition => _nz(_node?.prop('ConditionExpr')?.scalar);
+
+  /// The `for` loop's initialization expression (`InitializationExpr`).
+  String? get initialization => _nz(_node?.prop('InitializationExpr')?.scalar);
+
+  /// The `for` loop's increment expression (`IncrementExpr`).
+  String? get increment => _nz(_node?.prop('IncrementExpr')?.scalar);
+
+  /// The `for each` array expression (`ArrayExpr`) — the collection iterated.
+  String? get arrayExpr => _nz(_node?.prop('ArrayExpr')?.scalar);
+
+  /// The `for each` element expression (`ArrayElementExpr`) — the loop variable.
+  String? get arrayElement => _nz(_node?.prop('ArrayElementExpr')?.scalar);
+
+  /// A readable one-line header for the construct, e.g. `if (Locals.x > 0)`,
+  /// `for (Locals.i = 0; Locals.i < N; Locals.i += 1)`,
+  /// `for each (Locals.e in RunState.…)`, `while (True)`, `end`.
+  String get header => switch (kind) {
+    FlowKind.ifBlock => 'if (${condition ?? ''})',
+    FlowKind.elseIf => 'else if (${condition ?? ''})',
+    FlowKind.elseBlock => 'else',
+    FlowKind.whileLoop => 'while (${condition ?? ''})',
+    FlowKind.doWhile => 'do-while (${condition ?? ''})',
+    FlowKind.forLoop => 'for (${[
+        initialization,
+        condition,
+        increment,
+      ].whereType<String>().join('; ')})',
+    FlowKind.forEach =>
+      'for each (${arrayElement ?? '?'} in ${arrayExpr ?? '?'})',
+    FlowKind.end => 'end',
+    FlowKind.breakStmt => 'break',
+    FlowKind.continueStmt => 'continue',
+  };
+
+  @override
+  String toString() => 'FlowControl(${kind.name})';
 }
 
 /// One entry in a step's "Additional Results" recording spec (see

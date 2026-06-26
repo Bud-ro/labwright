@@ -777,6 +777,55 @@ void main() {
     });
   });
 
+  group('flow-control structured-logic export', () {
+    late SeqFile f;
+    setUp(() => f = parseSeqFile(_bytes(_seqFlowXml)));
+
+    test('recognizes NI_Flow_* steps as FlowControl constructs', () {
+      final steps = f.sequences.single.main;
+      final kinds = steps.map((s) => s.flowControl?.kind).toList();
+      expect(kinds, [
+        FlowKind.ifBlock,
+        null, // the inner action
+        FlowKind.end,
+        FlowKind.forEach,
+        null, // the inner action
+        FlowKind.end,
+      ]);
+    });
+
+    test('recovers the branch/loop condition expressions (flat fields)', () {
+      final steps = f.sequences.single.main;
+      expect(steps[0].flowControl!.condition, 'Locals.X > 0');
+      expect(steps[0].flowControl!.header, 'if (Locals.X > 0)');
+      final each = steps[3].flowControl!;
+      expect(each.arrayExpr, 'Locals.Items');
+      expect(each.arrayElement, 'Locals.Item');
+      expect(each.header, 'for each (Locals.Item in Locals.Items)');
+    });
+
+    test('exportSequenceLogic nests the blocks with matching braces', () {
+      final out = exportSequenceLogic(f);
+      expect(out, contains('if (Locals.X > 0) {'));
+      expect(out, contains('for each (Locals.Item in Locals.Items) {'));
+      // The inner action sits one level deeper than its opener.
+      expect(out, contains('\n      Do Work'));
+      // Balanced: two openers → two closing braces in Main.
+      expect('}'.allMatches(out).length, 2);
+    });
+
+    test('a non-flow step has no FlowControl (no fabrication)', () {
+      final s = parseSeqFile(_bytes(_seqXml)).sequences.single.main.first;
+      expect(s.flowControl, isNull);
+    });
+
+    test('the dump carries a Sequence logic section', () {
+      final dump = dumpSeqFile(f);
+      expect(dump, contains('=== Sequence logic ==='));
+      expect(dump, contains('if (Locals.X > 0) {'));
+    });
+  });
+
   group('parseSeqFile rejects non-XML honestly', () {
     test('binary TOF1 is unsupported (not silently mis-parsed)', () {
       final bin = Uint8List.fromList([...ascii.encode('TOF1'), 0, 0, 0, 0, 0, 0, ...ascii.encode('SequenceFile'), 0]);
@@ -874,6 +923,35 @@ const _seqViCallXml = '''<?xml version="1.0" encoding="UTF-8"?>
             </subprops></SData>
             </subprops></TS>
           </subprops></Step></value>
+        </value></Main>
+      </subprops></Sequence>
+    </value></value></Seq>
+  </subprops></Data>
+</teststandfileheader>''';
+
+/// A sequence whose Main holds two structured flow-control blocks — an `if`
+/// guarding one action, and a `for each` looping one action — each opened by an
+/// `NI_Flow_*` step and closed by a matching `NI_Flow_End`. The branch/loop
+/// expressions are flat direct children of the step (`ConditionExpr`,
+/// `ArrayExpr`, `ArrayElementExpr`), as in the corpus.
+const _seqFlowXml = '''<?xml version="1.0" encoding="UTF-8"?>
+<teststandfileheader type='SequenceFile' fileversion='920' productname='TestStand'>
+  <typelist/>
+  <Data classname='Obj'><subprops>
+    <Seq classname='Objs'><value lbound='[0]' ubound='[1]'><value>
+      <Sequence name='MainSequence' classname='Obj'><subprops>
+        <Main classname='Objs'><value lbound='[0]' ubound='[6]'>
+          <value><Step typename='NI_Flow_If' name='If'><subprops>
+            <ConditionExpr classname='ExprValue'><value>Locals.X &gt; 0</value></ConditionExpr>
+          </subprops></Step></value>
+          <value><Step typename='Action' name='Do Work'/></value>
+          <value><Step typename='NI_Flow_End' name='End'/></value>
+          <value><Step typename='NI_Flow_ForEach' name='For Each'><subprops>
+            <ArrayExpr classname='ExprValue'><value>Locals.Items</value></ArrayExpr>
+            <ArrayElementExpr classname='ExprValue'><value>Locals.Item</value></ArrayElementExpr>
+          </subprops></Step></value>
+          <value><Step typename='Action' name='Process Item'/></value>
+          <value><Step typename='NI_Flow_End' name='End'/></value>
         </value></Main>
       </subprops></Sequence>
     </value></value></Seq>

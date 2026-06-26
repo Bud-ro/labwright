@@ -276,6 +276,83 @@ void main() {
     expect(withConnector, equals(params), reason: 'every VI param has a connector#');
   });
 
+  test('recovers structured flow-control logic across the corpus', () {
+    var openers = 0, ends = 0, conds = 0, forInit = 0, forIncr = 0,
+        eachArr = 0, eachElem = 0, ifWhile = 0, forLoops = 0, eachLoops = 0;
+    var seqsWithFlow = 0, balancedSeqs = 0, totalFlowSeqs = 0;
+    for (final f in seqs) {
+      if (f.lengthSync() > 300 * 1024) continue; // huge files: skip (OOM guard)
+      final bytes = f.readAsBytesSync();
+      final fmt = detectSeqFormat(bytes);
+      if (fmt != SeqFormat.xml && fmt != SeqFormat.ini) continue;
+      final SeqFile sf;
+      try {
+        sf = parseSeqFile(bytes);
+      } catch (_) {
+        continue;
+      }
+      for (final q in sf.sequences) {
+        var depth = 0, minDepth = 0, localFlow = 0;
+        for (final step in q.steps) {
+          final fc = step.flowControl;
+          if (fc == null) continue;
+          localFlow++;
+          if (fc.kind.opensBlock) {
+            openers++;
+            depth++;
+          } else if (fc.kind == FlowKind.end) {
+            ends++;
+            depth--;
+            if (depth < minDepth) minDepth = depth;
+          }
+          switch (fc.kind) {
+            case FlowKind.ifBlock:
+            case FlowKind.elseIf:
+            case FlowKind.whileLoop:
+              ifWhile++;
+              if (fc.condition != null) conds++;
+            case FlowKind.forLoop:
+              forLoops++;
+              if (fc.initialization != null) forInit++;
+              if (fc.condition != null) conds++;
+              if (fc.increment != null) forIncr++;
+            case FlowKind.forEach:
+              eachLoops++;
+              if (fc.arrayExpr != null) eachArr++;
+              if (fc.arrayElement != null) eachElem++;
+            default:
+              break;
+          }
+        }
+        if (localFlow > 0) {
+          totalFlowSeqs++;
+          seqsWithFlow++;
+          // A well-formed sequence: blocks balance (depth returns to 0) and
+          // never close more than they opened (minDepth >= 0).
+          if (depth == 0 && minDepth == 0) balancedSeqs++;
+        }
+      }
+    }
+    // ignore: avoid_print
+    print(
+      'flow-control: $openers openers / $ends ends · $ifWhile if/while ($conds cond) · '
+      '$forLoops for ($forInit init,$forIncr incr) · '
+      '$eachLoops foreach ($eachArr arr,$eachElem elem) · '
+      '$balancedSeqs/$totalFlowSeqs sequences balanced',
+    );
+    expect(openers, greaterThan(0), reason: 'no flow-control steps found');
+    expect(ends, openers, reason: 'every opener must have a matching NI_Flow_End');
+    expect(balancedSeqs, totalFlowSeqs,
+        reason: 'every flow-bearing sequence nests cleanly (balanced blocks)');
+    // 100% population of the recovered expression fields (corpus-verified):
+    expect(conds, ifWhile + forLoops, reason: 'every if/while/for has a condition');
+    expect(forInit, forLoops, reason: 'every for has an initialization');
+    expect(forIncr, forLoops, reason: 'every for has an increment');
+    expect(eachArr, eachLoops, reason: 'every for-each has an array expression');
+    expect(eachElem, eachLoops, reason: 'every for-each has an element binding');
+    expect(seqsWithFlow, greaterThan(0));
+  });
+
   test('recovers <typelist> type definitions across XML corpus', () {
     var files = 0, totalTypes = 0, withFields = 0, totalFields = 0;
     final baseClasses = <String>{};

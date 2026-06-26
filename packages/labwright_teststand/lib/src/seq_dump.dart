@@ -27,6 +27,79 @@ String dumpSeqFile(SeqFile f) {
   }
   _dumpPlugins(b, f);
   _dumpTypes(b, f);
+  b.writeln();
+  b.writeln('=== Sequence logic ===');
+  b.write(exportSequenceLogic(f));
+  return b.toString();
+}
+
+/// Renders each sequence's steps as readable, **nested** control-flow pseudocode
+/// — the structured logic view, complementary to the flat per-step listing above.
+///
+/// The `NI_Flow_*` step types form structured blocks: If/ElseIf/Else, While,
+/// For, ForEach open a block closed by a matching `NI_Flow_End` (corpus-verified
+/// balanced), and each carries its real condition / loop expressions (see
+/// [FlowControl]). Ordinary steps render at the current indent with their call
+/// target + key gating expression / limits. Built entirely from already-recovered
+/// fields — no new decode.
+String exportSequenceLogic(SeqFile f) {
+  final b = StringBuffer();
+  for (final seq in f.sequences) {
+    b.writeln('sequence ${seq.name}:');
+    for (final group in StepGroup.values) {
+      final steps = seq.stepsIn(group);
+      if (steps.isEmpty) continue;
+      b.writeln('  ${group.key}:');
+      _emitLogic(b, steps, baseIndent: 2);
+    }
+    b.writeln();
+  }
+  return b.toString();
+}
+
+/// Emits [steps] as indented logic, opening/closing blocks on `NI_Flow_*` steps.
+/// [baseIndent] is the starting indent depth (in 2-space units). Indent never
+/// drops below [baseIndent], so a malformed/unbalanced block can't underflow.
+void _emitLogic(StringBuffer b, List<Step> steps, {required int baseIndent}) {
+  var depth = baseIndent;
+  String ind(int d) => '  ' * d;
+  for (final step in steps) {
+    final fc = step.flowControl;
+    if (fc == null) {
+      b.writeln('${ind(depth)}${_logicStepLine(step)}');
+      continue;
+    }
+    if (fc.kind.closesBlock) {
+      if (depth > baseIndent) depth--;
+      b.writeln('${ind(depth)}}');
+    } else if (fc.kind.isContinuation) {
+      // `} else if (…) {` — dedent to the opener level, then re-open.
+      final d = depth > baseIndent ? depth - 1 : baseIndent;
+      b.writeln('${ind(d)}} ${fc.header} {');
+      depth = d + 1;
+    } else if (fc.kind.opensBlock) {
+      b.writeln('${ind(depth)}${fc.header} {');
+      depth++;
+    } else {
+      // break / continue — a statement at the current level.
+      b.writeln('${ind(depth)}${fc.header}');
+    }
+  }
+}
+
+/// A concise one-line logic rendering of a non-flow step: its name, the module
+/// target it calls, and the most decision-relevant annotations (precondition,
+/// limits) — kept short so the nested structure stays readable.
+String _logicStepLine(Step step) {
+  final b = StringBuffer(step.name);
+  final m = step.module;
+  if (m.adapter != SeqAdapter.none && m.target != null) {
+    b.write(' → ${m.target}');
+  }
+  final pre = step.settings.precondition;
+  if (pre != null) b.write('  [if $pre]');
+  final lim = step.limits;
+  if (lim != null) b.write('  [${lim.summary}]');
   return b.toString();
 }
 
