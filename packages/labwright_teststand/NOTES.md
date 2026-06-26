@@ -270,8 +270,25 @@ length-prefixed.** Across all 83 files (48 174 runs of len ≥ 4):
 So the per-field model is `{name-index, type, value}` where a string value is a
 pool index, not inline bytes. The aligned-prefix words `word[4]`/`word[6]` are
 **not** simple counts of the known metrics (`word[6]==nameTableLen` in only
-18/63; not segment/string/sentinel count) — still undecoded. The scalar
-(number/boolean) and the type-tag encodings are the next targets.
+18/63; not segment/string/sentinel count) — still undecoded.
+
+**Scalar/type-tag decode — two angles tried, both inconclusive (still open).**
+
+- *Naive IEEE-754 scan is unusable:* scanning the record region byte-by-byte for
+  integer-valued doubles yields ~565/file (47 807 total) but these are
+  **zero-padding artifacts** — a small integer like `2.0` is just seven `0x00`
+  bytes followed by one `0x40` exponent byte, which the zero-heavy record region
+  produces by coincidence (the byte before a "double" is `0x00` 82% of the time).
+  No type tag isolates this way.
+- *Twins are NOT a numeric oracle:* the distinctive **non-integer** numbers in
+  each twin's XML (7/7/6 values) are **absent** as little-endian doubles in the
+  binary twin (0 found in all three). Combined with the partial name round-trip,
+  this confirms the binary twins are a **different revision** of the example —
+  useful for the name-pool structure, useless for value cross-referencing.
+
+Next approach for scalars: locate a binary whose XML twin *truly* matches
+(byte-identical names + values), or decode the type tag structurally from a known
+container's first scalar field rather than by value search.
 
 **Record framing — first decode (the records index the name pool).** Reading the
 record region as LE u32s (`binaryRecordWords`) shows it opens
