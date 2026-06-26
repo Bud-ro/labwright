@@ -348,6 +348,8 @@ void main() {
     var varsWithComment = 0;
     // Steps whose pass/fail flow action jumps to a recovered target (e.g. Goto).
     var withFlowTarget = 0;
+    // `ID#:` custom-condition targets that resolve to a destination step name.
+    var resolvedIdTargets = 0;
     for (final f in seqs) {
       final bytes = f.readAsBytesSync();
       if (detectSeqFormat(bytes) != SeqFormat.ini) continue;
@@ -387,6 +389,16 @@ void main() {
                 st.settings.failActionTarget != null) {
               withFlowTarget++;
             }
+            for (final t in [
+              st.settings.customTrueTarget,
+              st.settings.customFalseTarget,
+            ]) {
+              if (t != null &&
+                  t.startsWith('ID#:') &&
+                  sf.stepNameForId(t) != null) {
+                resolvedIdTargets++;
+              }
+            }
           }
         }
       } on FormatException {
@@ -404,6 +416,7 @@ void main() {
       '$objVarsWithFields object vars with fields · '
       '$varsWithComment vars with comment · '
       '$withFlowTarget steps with flow target · '
+      '$resolvedIdTargets resolved ID#: targets · '
       '$overrides instance-overrides in $filesWithOverride files',
     );
     expect(ini, greaterThan(0));
@@ -439,6 +452,9 @@ void main() {
     // Flow-action jump targets (Goto -> <Cleanup>/step ref) are recovered.
     expect(withFlowTarget, greaterThan(0),
         reason: 'no step flow-action targets recovered');
+    // `ID#:` custom-condition targets resolve to a destination step name.
+    expect(resolvedIdTargets, greaterThan(0),
+        reason: 'no ID#: step references resolved');
   });
 
   test('every binary TOF1 body frames into a record region + string table', () {

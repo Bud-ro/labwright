@@ -37,6 +37,33 @@ class SeqFile {
     return null;
   }
 
+  /// Maps each step's unique id (`TS.Id`, e.g. `ID#:HWpAiIXA…`) to its display
+  /// name, across every sequence in the file. Built once and cached. Lets an
+  /// `ID#:` reference (a flow-action target like `CustFalseActTarget`) be shown as
+  /// the destination step's name instead of an opaque id.
+  late final Map<String, String> _stepNamesById = _buildStepIdIndex();
+
+  Map<String, String> _buildStepIdIndex() {
+    final m = <String, String>{};
+    for (final seq in sequences) {
+      for (final step in seq.steps) {
+        final id = step.raw.prop('TS')?.prop('Id')?.scalar;
+        if (id != null && id.isNotEmpty) m[id] = step.name;
+      }
+    }
+    return m;
+  }
+
+  /// Resolves a step reference [idRef] (a `TS.Id` value, with or without the
+  /// `ID#:` prefix) to the destination step's name, or null when no step in the
+  /// file has that id. Used to make `ID#:`-form flow-action targets readable.
+  String? stepNameForId(String idRef) {
+    final hit = _stepNamesById[idRef];
+    if (hit != null) return hit;
+    // Tolerate a bare uid (no `ID#:` prefix) against `ID#:`-prefixed ids.
+    return idRef.startsWith('ID#:') ? null : _stepNamesById['ID#:$idRef'];
+  }
+
   /// For a SequenceCall [step], the called sequence **within this file**, or null
   /// when the step isn't a sequence call or the target lives in another file
   /// (an external call — see [Step.module] `sequenceFile`).
@@ -463,6 +490,13 @@ class StepSettings {
 
   /// The fail-action jump target (`FailActTarget`); see [passActionTarget].
   String? get failActionTarget => _flowTarget('FailActTarget');
+
+  /// The custom-condition jump targets (`CustTrueActTarget` /
+  /// `CustFalseActTarget`) of a step with a custom pass/fail condition, or null
+  /// when unset. Stored like the other targets — a bookmark (`<Cleanup>`) or a
+  /// step reference (`ID#:…`), the latter resolvable via [SeqFile.stepNameForId].
+  String? get customTrueTarget => _flowTarget('CustTrueActTarget');
+  String? get customFalseTarget => _flowTarget('CustFalseActTarget');
 
   String? _flowTarget(String key) => _nz(_unwrapExprString(_scalar(key)));
 

@@ -532,6 +532,58 @@ FailActTarget = "\\"<Cleanup>\\""
     expect(set.flowSummary, 'Next/Goto→<Cleanup>');
   });
 
+  // A step with a custom-condition jump to another step by id reference
+  // (`CustFalseActTarget = "\"ID#:STEP2\""`); the destination step carries that
+  // id in its `TS.Id`, so the reference resolves to the step's name.
+  const idRefIni = '''
+[__Header__]
+ProductName = "TestStand"
+Version = 354
+Type = "SequenceFile"
+
+[DEF, %OBJROOT]
+SF = SequenceFileData
+[DEF, SF]
+Seq = Objs
+%NAME = "Data"
+[DEF, SF.Seq]
+%[0] = Sequence
+[DEF, SF.Seq[0]]
+Main = Objs
+%NAME = "MainSequence"
+[DEF, SF.Seq[0].Main]
+%[0] = Step
+%[1] = Step
+%TYPE: %[0] = "Action"
+%TYPE: %[1] = "Action"
+[DEF, SF.Seq[0].Main[0]]
+TS = Obj
+%NAME = "condStep"
+[DEF, SF.Seq[0].Main[0].TS]
+CustFalseActTarget = String
+[SF.Seq[0].Main[0].TS]
+CustFalseActTarget = "\\"ID#:STEP2\\""
+[DEF, SF.Seq[0].Main[1]]
+TS = Obj
+%NAME = "targetStep"
+[DEF, SF.Seq[0].Main[1].TS]
+Id = String
+[SF.Seq[0].Main[1].TS]
+Id = "ID#:STEP2"
+''';
+
+  test('resolves an ID#: step reference to the destination step name', () {
+    final sf = parseSeqFile(Uint8List.fromList(latin1.encode(idRefIni)));
+    final cond = sf.sequences.single.main.first;
+    expect(cond.settings.customFalseTarget, 'ID#:STEP2'); // unwrapped reference
+    // The file resolves the id (with or without the ID#: prefix) to the name.
+    expect(sf.stepNameForId('ID#:STEP2'), 'targetStep');
+    expect(sf.stepNameForId('STEP2'), 'targetStep');
+    expect(sf.stepNameForId('ID#:NOPE'), isNull);
+    // The dump shows the resolved destination, not the raw id.
+    expect(dumpSeqFile(sf), contains('cust-false→targetStep'));
+  });
+
   test('dumpSeqFile includes recovered comments and container sizes', () {
     final cf = parseSeqFile(Uint8List.fromList(latin1.encode(commentIni)));
     final out = dumpSeqFile(cf);

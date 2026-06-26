@@ -195,6 +195,16 @@ class StepOutline {
     final runMode = s.isNormalMode ? null : s.mode;
     final notes = <String>[];
     if (s.flowSummary != null) notes.add('flow ${s.flowSummary}');
+    // Custom-condition jump targets, with `ID#:` step references resolved to the
+    // destination step's name (bookmarks like <Cleanup> shown verbatim).
+    String resolveTarget(String t) =>
+        t.startsWith('ID#:') ? (file.stepNameForId(t) ?? t) : t;
+    if (s.customTrueTarget != null) {
+      notes.add('cust-true→${resolveTarget(s.customTrueTarget!)}');
+    }
+    if (s.customFalseTarget != null) {
+      notes.add('cust-false→${resolveTarget(s.customFalseTarget!)}');
+    }
     if (s.isLooping) notes.add('loop ${s.loopType}');
 
     // The step's set expressions, in editor order. Shown as their own rows (they

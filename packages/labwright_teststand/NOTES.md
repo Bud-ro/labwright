@@ -633,6 +633,19 @@ lands via the generic `%COMMENT` carry); the app appends it to the variable row 
 completes the free-text-comment recovery story: steps (667), sequences (102), and
 variables (37). XML variables in the corpus carry none.
 
+**Step-id resolution `ID#:` → step name (2026-06, DONE).** Each step's `TS.Id` is
+a unique id in `ID#:<uid>` form (e.g. `ID#:HWpAiIXA8BG5VlB7nf4f8B`). Flow-action
+targets that reference a step do so by that id. The custom-condition targets
+(`CustTrueActTarget`/`CustFalseActTarget`) hold **12** such `ID#:` references across
+the corpus — and **all 12 resolve** (same file, in fact same sequence) to a step's
+`TS.Id`. Added `SeqFile.stepNameForId(idRef)` (a cached `TS.Id`→name index,
+tolerant of the `ID#:` prefix) plus `StepSettings.customTrueTarget`/
+`customFalseTarget`; the app step view and text dump now show
+`cust-false→<stepName>` instead of the opaque uid (bookmarks like `<Cleanup>` left
+verbatim). The pass/fail flow targets themselves are all `<…>` bookmarks (0 `ID#:`),
+so resolution only changes the custom-condition targets today — but the resolver is
+general (any `ID#:` step reference can now be named).
+
 **Step flow-action jump targets (2026-06, DONE).** A step's on-pass/on-fail flow
 action can jump rather than fall through (`PassAct`/`FailAct = "Goto"`); the
 destination is stored in `PassActTarget`/`FailActTarget` as a TestStand

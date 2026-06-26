@@ -202,6 +202,50 @@ void main() {
     expect(step.notes, contains('flow Next/Goto→<Cleanup>'));
   });
 
+  test('outline note resolves an ID#: custom-condition target to a step name',
+      () {
+    final ini = ascii.encode([
+      '[__Header__]',
+      'ProductName = "TestStand"',
+      'Version = 354',
+      'Type = "SequenceFile"',
+      '[DEF, %OBJROOT]',
+      'SF = SequenceFileData',
+      '[DEF, SF]',
+      'Seq = Objs',
+      '%NAME = "Data"',
+      '[DEF, SF.Seq]',
+      '%[0] = Sequence',
+      '[DEF, SF.Seq[0]]',
+      'Main = Objs',
+      '%NAME = "MainSequence"',
+      '[DEF, SF.Seq[0].Main]',
+      '%[0] = Step',
+      '%[1] = Step',
+      '%TYPE: %[0] = "Action"',
+      '%TYPE: %[1] = "Action"',
+      '[DEF, SF.Seq[0].Main[0]]',
+      'TS = Obj',
+      '%NAME = "condStep"',
+      '[DEF, SF.Seq[0].Main[0].TS]',
+      'CustFalseActTarget = String',
+      '[SF.Seq[0].Main[0].TS]',
+      'CustFalseActTarget = "\\"ID#:STEP2\\""',
+      '[DEF, SF.Seq[0].Main[1]]',
+      'TS = Obj',
+      '%NAME = "targetStep"',
+      '[DEF, SF.Seq[0].Main[1].TS]',
+      'Id = String',
+      '[SF.Seq[0].Main[1].TS]',
+      'Id = "ID#:STEP2"',
+      '',
+    ].join('\n'));
+    final doc = SeqDocument.parse(Uint8List.fromList(ini)) as IniSeqDocument;
+    final outline = SeqOutline.of(doc.file);
+    final cond = outline.sequences.single.groups.single.steps.first;
+    expect(cond.notes, contains('cust-false→targetStep'));
+  });
+
   test('SeqOutline.of shapes sequences → groups → steps', () {
     final doc = SeqDocument.parse(_xml()) as XmlSeqDocument;
     final outline = SeqOutline.of(doc.file);

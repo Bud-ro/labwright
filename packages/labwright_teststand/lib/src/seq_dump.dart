@@ -75,6 +75,14 @@ String _dumpStep(Step step, SeqFile file) {
   final notes = <String>[];
   if (!s.isNormalMode) notes.add('mode ${s.mode}');
   if (s.flowSummary != null) notes.add('flow ${s.flowSummary}');
+  String resolveTarget(String t) =>
+      t.startsWith('ID#:') ? (file.stepNameForId(t) ?? t) : t;
+  if (s.customTrueTarget != null) {
+    notes.add('cust-true→${resolveTarget(s.customTrueTarget!)}');
+  }
+  if (s.customFalseTarget != null) {
+    notes.add('cust-false→${resolveTarget(s.customFalseTarget!)}');
+  }
   if (s.isLooping) notes.add('loop ${s.loopType}');
   if (s.precondition != null) notes.add('if ${s.precondition}');
   if (notes.isNotEmpty) parts.write('  (${notes.join('; ')})');
