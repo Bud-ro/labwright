@@ -170,6 +170,63 @@ class StepOutline {
   }
 }
 
+/// True if [s] matches [query] (case-insensitive, query already lower-cased) by
+/// name, type, adapter, target, limits summary, or any note.
+bool stepMatches(StepOutline s, String query) {
+  if (query.isEmpty) return true;
+  bool hit(String? x) => x != null && x.toLowerCase().contains(query);
+  if (hit(s.name) || hit(s.type) || hit(s.adapter) || hit(s.target) ||
+      hit(s.limits)) {
+    return true;
+  }
+  for (final n in s.notes) {
+    if (n.toLowerCase().contains(query)) return true;
+  }
+  return false;
+}
+
+bool _varMatches(VarOutline v, String query) =>
+    v.name.toLowerCase().contains(query) ||
+    (v.type?.toLowerCase().contains(query) ?? false) ||
+    (v.value?.toLowerCase().contains(query) ?? false);
+
+/// Returns a display-filtered copy of [outline]: keeps a sequence if its name
+/// matches, any variable matches, or any step matches; within a kept sequence,
+/// keeps only matching steps — UNLESS the sequence name itself matches, in which
+/// case the whole sequence is kept. An empty/blank query returns [outline]
+/// unchanged (same instance). Pure.
+///
+/// Step objects are reused as-is, so each [StepOutline.callTargetIndex] still
+/// refers to the ORIGINAL `outline.sequences` — callers that resolve jumps must
+/// keep the full outline, not this filtered view.
+SeqOutline filterSequences(SeqOutline outline, String query) {
+  final q = query.trim().toLowerCase();
+  if (q.isEmpty) return outline;
+  final kept = <SequenceOutline>[];
+  for (final seq in outline.sequences) {
+    if (seq.name.toLowerCase().contains(q)) {
+      kept.add(seq); // whole-sequence match → keep everything
+      continue;
+    }
+    final varHit = seq.parameters.any((v) => _varMatches(v, q)) ||
+        seq.locals.any((v) => _varMatches(v, q));
+    final groups = <StepGroupOutline>[];
+    for (final g in seq.groups) {
+      final steps = g.steps.where((s) => stepMatches(s, q)).toList();
+      if (steps.isNotEmpty) groups.add(StepGroupOutline(g.name, steps));
+    }
+    if (groups.isNotEmpty || varHit) {
+      kept.add(SequenceOutline(
+        name: seq.name,
+        parameters: varHit ? seq.parameters : const [],
+        locals: varHit ? seq.locals : const [],
+        groups: groups,
+      ));
+    }
+  }
+  return SeqOutline(kept);
+}
+
 /// A parameter or local variable row.
 class VarOutline {
   VarOutline({required this.name, this.type, this.value});

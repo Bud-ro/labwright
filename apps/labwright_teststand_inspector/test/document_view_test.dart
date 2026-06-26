@@ -70,6 +70,29 @@ void main() {
     expect(step.summary, contains('S1 [Statement]'));
   });
 
+  test('filterSequences keeps matches; empty query is identity', () {
+    final doc = SeqDocument.parse(_xml()) as XmlSeqDocument;
+    final outline = SeqOutline.of(doc.file);
+
+    // Empty/blank query returns the same instance.
+    expect(filterSequences(outline, ''), same(outline));
+    expect(filterSequences(outline, '   '), same(outline));
+
+    // A query matching the step 'S1' keeps its sequence (with the step).
+    final byStep = filterSequences(outline, 's1');
+    expect(byStep.sequences, hasLength(1));
+    final seq = byStep.sequences.single;
+    expect(seq.name, 'MainSequence');
+    expect(seq.groups.expand((g) => g.steps).map((s) => s.name), contains('S1'));
+
+    // A query matching the sequence name keeps the whole sequence.
+    final byName = filterSequences(outline, 'mainseq');
+    expect(byName.sequences.single.name, 'MainSequence');
+
+    // A non-matching query yields no sequences.
+    expect(filterSequences(outline, 'zzz-nope').sequences, isEmpty);
+  });
+
   test('propertyTree shapes the raw PropertyObject tree', () {
     final doc = SeqDocument.parse(_xml()) as XmlSeqDocument;
     final root = propertyTree(doc.file);

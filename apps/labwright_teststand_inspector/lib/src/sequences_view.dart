@@ -14,6 +14,10 @@ class SequencesView extends StatefulWidget {
 
 class _SequencesViewState extends State<SequencesView> {
   final _scroll = ScrollController();
+  final _searchController = TextEditingController();
+  String _query = '';
+  // Keys/expansion are indexed by ORIGINAL outline position so jump targets stay
+  // valid regardless of what the filter currently shows.
   late List<GlobalKey> _keys;
   late List<bool> _expanded;
 
@@ -37,7 +41,13 @@ class _SequencesViewState extends State<SequencesView> {
   }
 
   void _jumpTo(int index) {
-    setState(() => _expanded[index] = true);
+    setState(() {
+      // Clear any active filter so the target is shown in its full context and
+      // display position == original index again.
+      _query = '';
+      _searchController.clear();
+      _expanded[index] = true;
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final ctx = _keys[index].currentContext;
       if (ctx != null) {
@@ -50,37 +60,75 @@ class _SequencesViewState extends State<SequencesView> {
   @override
   void dispose() {
     _scroll.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final seqs = widget.outline.sequences;
-    if (seqs.isEmpty) {
+    if (widget.outline.sequences.isEmpty) {
       return const Center(child: Text('No sequences in this file.'));
     }
-    return ListView.builder(
-      controller: _scroll,
-      itemCount: seqs.length,
-      itemBuilder: (context, i) {
-        final seq = seqs[i];
-        return ExpansionTile(
-          key: _keys[i],
-          initiallyExpanded: _expanded[i],
-          onExpansionChanged: (v) => _expanded[i] = v,
-          title: Text(seq.name,
-              style: const TextStyle(fontWeight: FontWeight.bold)),
-          subtitle: Text('${seq.stepCount} steps'
-              '${seq.parameters.isNotEmpty ? ' · ${seq.parameters.length} params' : ''}'
-              '${seq.locals.isNotEmpty ? ' · ${seq.locals.length} locals' : ''}'),
-          childrenPadding: const EdgeInsets.only(left: 16, bottom: 8),
-          children: [
-            _vars(context, 'Parameters', seq.parameters),
-            _vars(context, 'Locals', seq.locals),
-            for (final g in seq.groups) _group(context, g),
-          ].whereType<Widget>().toList(),
-        );
-      },
+    final filtering = _query.trim().isNotEmpty;
+    final shown = filterSequences(widget.outline, _query).sequences;
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
+          child: TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              isDense: true,
+              prefixIcon: const Icon(Icons.search, size: 18),
+              hintText: 'Filter sequences (name, step, type, target, limits)…',
+              border: const OutlineInputBorder(),
+              suffixIcon: filtering
+                  ? IconButton(
+                      icon: const Icon(Icons.clear, size: 18),
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() => _query = '');
+                      },
+                    )
+                  : null,
+            ),
+            onChanged: (v) => setState(() => _query = v),
+          ),
+        ),
+        Expanded(
+          child: shown.isEmpty
+              ? const Center(child: Text('No matching sequences.'))
+              : ListView.builder(
+                  controller: _scroll,
+                  // Rebuild on query change so ExpansionTiles pick up the
+                  // force-expanded state while filtering.
+                  key: ValueKey(_query),
+                  itemCount: shown.length,
+                  itemBuilder: (context, i) {
+                    final seq = shown[i];
+                    // Map back to the original index for keys + expansion state.
+                    final orig = widget.outline.indexOf(seq.name) ?? i;
+                    return ExpansionTile(
+                      key: _keys[orig],
+                      initiallyExpanded: filtering || _expanded[orig],
+                      onExpansionChanged: (v) => _expanded[orig] = v,
+                      title: Text(seq.name,
+                          style: const TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: Text('${seq.stepCount} steps'
+                          '${seq.parameters.isNotEmpty ? ' · ${seq.parameters.length} params' : ''}'
+                          '${seq.locals.isNotEmpty ? ' · ${seq.locals.length} locals' : ''}'),
+                      childrenPadding: const EdgeInsets.only(left: 16, bottom: 8),
+                      children: [
+                        _vars(context, 'Parameters', seq.parameters),
+                        _vars(context, 'Locals', seq.locals),
+                        for (final g in seq.groups) _group(context, g),
+                      ].whereType<Widget>().toList(),
+                    );
+                  },
+                ),
+        ),
+      ],
     );
   }
 
