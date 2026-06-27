@@ -7,17 +7,17 @@ overfit to a single mono-culture.
 
 - **[`sources.json`](sources.json)** — the catalog: each source's GitHub repo,
   branch, **pinned commit hash**, VI count, and category.
-- **[`../packages/labwright_videcode/tool/fetch_corpus.dart`](../packages/labwright_videcode/tool/fetch_corpus.dart)**
+- **[`../packages/labwright_vi_parse/tool/fetch_corpus.dart`](../packages/labwright_vi_parse/tool/fetch_corpus.dart)**
   — fetches every source at its pinned commit into the gitignored
   **`<repoRoot>/corpus/vi/`** folder (override with an arg). Requires an
   authenticated `gh`. Run with
-  `dart run packages/labwright_videcode/tool/fetch_corpus.dart`. The `.vi` files
+  `dart run packages/labwright_vi_parse/tool/fetch_corpus.dart`. The `.vi` files
   are **not committed** (clean-room + licensing); re-fetch with this script. Kept
   at the repo root (not `/tmp`) for visibility into what the tests consume.
 
 ## The "% deliberately parsed" metric
 
-`packages/labwright_videcode/tool/coverage.dart` walks the corpus and reports
+`packages/labwright_vi_parse/tool/coverage.dart` walks the corpus and reports
 container-parse success, section-decode success, and the headline **% deliberately
 parsed** — the fraction of object/type-heap (`BDHb`/`BDHP`/`FPHb`/`FPHP`/`DTHP`)
 body bytes that fall inside a record the walker **deliberately frames** (a
@@ -37,7 +37,7 @@ Durable structural facts live in `apps/labwright_vi_inspector/NOTES.md`.
 
 The figure is **never hand-maintained**: the tool computes it and writes the
 deterministic picotech-first-60 number to **[`baseline.json`](baseline.json)**.
-`packages/labwright_videcode/test/corpus_coverage_test.dart` reads that file and
+`packages/labwright_vi_parse/test/corpus_coverage_test.dart` reads that file and
 asserts the current run is at or above it, so the metric can only **ratchet
 upward** — re-run the tool to record a genuine improvement; a regression fails
 the test. (CI skips the test when the corpus isn't fetched.)

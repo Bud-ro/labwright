@@ -3,8 +3,8 @@
 A Flutter **VI viewer/importer**: open a LabVIEW `.vi` / `.ctl` file and see what
 it *is and does* — file type (VI vs control), creator, RSRC format version,
 capability flags (front panel / block diagram / connector pane / sub-VI links),
-and the full resource-block inventory — via the clean-room `labwright_viparse`
-reader. It also decodes (via `labwright_videcode`) the **LabVIEW version + VI
+and the full resource-block inventory — via the clean-room `labwright_vi_parse`
+reader. It also decodes (via `labwright_vi_parse`) the **LabVIEW version + VI
 title** and a **searchable list of the human-readable strings** embedded in the
 heaps (control labels, help text, value lists), plus a **components** view of each
 block's decompressed size (how heavy the block diagram / front panel / type data
@@ -52,7 +52,7 @@ This is a **read-only viewer**, not an editor. It reads the RSRC *container*
 *logic* from the `BDHb` heap — the step needed to render the actual graph or
 migrate it to Dart, and the prerequisite for any editing — is deliberately
 deferred until a corpus of real, non-trivial VI samples is available (see the
-repo ADRs). Standalone Flutter app (path-depends on `labwright_viparse`; kept out
+repo ADRs). Standalone Flutter app (path-depends on `labwright_vi_parse`; kept out
 of the Dart pub workspace since its `flutter` SDK dep is incompatible with plain
 `dart` tooling).
 

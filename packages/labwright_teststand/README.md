@@ -1,19 +1,23 @@
 # labwright_teststand
 
 Clean-room reader for NI **TestStand** sequence (`.seq`) and related files —
-the TestStand counterpart to the LabVIEW VI reader (`labwright_viparse` /
-`labwright_videcode`). Goal: maximum visibility into the hidden structure, a
-faithful sequence-editor-like view, and export of the sequence *logic* as Dart.
-See `docs/teststand-viewer-spec.md` for the full spec and `NOTES.md` for the
-reverse-engineering notes.
+the TestStand counterpart to the LabVIEW VI reader (`labwright_vi_parse`).
+Goal: maximum visibility into the hidden structure, a faithful
+sequence-editor-like view, and export of the sequence *logic* as Dart.
+See `NOTES.md` for the reverse-engineering notes.
 
-**Status: M1 — XML decode.** A `.seq` is one of three encodings of the same
-logical content — **XML**, **binary (`TOF1`)**, or legacy **INI**. Decoded so far:
+**Status: XML + INI decoded; binary `TOF1` recon.** A `.seq` is one of three
+encodings of the same logical content — **XML**, legacy **INI**, or
+**binary (`TOF1`)**. Decoded so far:
 
 - the file-header encoding sniffer ([`detectSeqFormat`]/[`detectSeqHeader`]);
 - the **XML** encoding into a faithful PropertyObject tree, with a typed lens
-  over sequences and their steps. The binary `TOF1` form maps onto the same model
-  and is the next milestone (it is refused, not guessed).
+  over sequences and their steps; the legacy **INI** form maps onto the same
+  typed model through a shared lens;
+- the **binary (`TOF1`)** form so far as a *recon* view — header, inflated body,
+  recovered strings, named scalar values, and a named-record census — its full
+  record tree is **not yet decoded**, so `parseSeqFile` honestly refuses binary
+  rather than guessing.
 
 ```dart
 import 'package:labwright_teststand/labwright_teststand.dart';
@@ -27,7 +31,7 @@ for (final seq in f.sequences) {
 }
 ```
 
-Validated on the corpus: 20/20 XML files parse, 24 sequences / 121 steps recovered.
+Validated on the corpus: 26/26 XML files parse, 33 sequences / 214 steps recovered.
 
 ## Corpus
 
