@@ -353,6 +353,25 @@ refused (not mis-parsed).
 >   boundaries must be found another way (the per-record header shape, not a magic
 >   word).
 
+> **2026-06 — SECOND reference mechanism CONFIRMED: record fields cite strings by
+> string-region-relative byte offset.** Testing record-stream integers as offsets
+> from the string-region start (`= recordRegionLength`), two resolve to **exact
+> string starts** (NUL-preceded, NUL-terminated, byte-identical across all three
+> siblings — not mid-string coincidences):
+> - **`79` → "ResultList"** — and `79 == offset(ResultList) − stringRegionStart`,
+>   so this is the exact member name (also reachable as scaffold name-index 10).
+> - **`102` → "Main"** — semantically the `MainSequence` "Main" step-group name.
+> ⟹ the binary uses (at least) **two reference modes**: small **indices** for the
+> fixed scaffold/container names (Data=1, Objs=2, [0]=4 — finding above), **and
+> string-region-relative byte offsets** for member/value names. This is a real
+> grammar unlock: a record's member name can be recovered by following its
+> string-region offset. (Distinguishing which record fields are index-refs vs
+> offset-refs vs type codes is the next step.)
+> - *Refuted (narrower):* the specific `⟨Objs⟩0⟨Objs⟩⟨n⟩` motif's `n` (70, 174) is
+>   **not** itself a string offset — both land mid-string (`70`→"…s", `174`→a
+>   GUID-interior). So that motif's `n` is a type/other code, not the member-name
+>   reference; the name-offset reference sits in a different record field.
+
 > **2026-06 — container does NOT encode child-count in a fixed preceding word;
 > but a `⟨Objs⟩ 0 ⟨Objs⟩ ⟨n⟩` motif precedes small `[0]`-runs.** Grouping
 > consecutive `⟨[0]⟩⟨0x0b⟩` element headers into runs (byte-adjacency, gap ≤ 72)
