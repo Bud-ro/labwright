@@ -197,4 +197,39 @@ void main() {
     expect(binaryNamedScalarRecords(
         Uint8List.fromList(ascii.encode('<?xml?>'))), isEmpty);
   });
+
+  test('dumpBinaryRecon reports recovered data + honest not-yet-decoded note', () {
+    final bd = ByteData(8);
+    List<int> f64le(double v) {
+      bd.setFloat64(0, v, Endian.little);
+      return [for (var i = 0; i < 8; i++) bd.getUint8(i)];
+    }
+    List<int> u32le(int v) =>
+        [v & 0xff, v >> 8 & 0xff, v >> 16 & 0xff, v >> 24 & 0xff];
+
+    // A Parameters-headed scalar record (rel 8) + a NUL-packed pool (see the
+    // binaryNamedScalarRecords test for the framing rationale).
+    final pool = <int>[];
+    for (final name in ['PadName', 'Parameters', 'Locals', 'ResultList',
+        'StepEntry', 'SeqEntry']) {
+      pool..addAll(ascii.encode(name))..add(0);
+    }
+    final rec = <int>[
+      ...u32le(0), ...u32le(0), ...u32le(8), ...u32le(99), // tag,name,type
+      ...f64le(42.0),
+      ...u32le(0), ...u32le(0), ...u32le(0), ...u32le(0), ...u32le(0),
+      ...u32le(0),
+    ];
+
+    final text = dumpBinaryRecon(_tof1([...rec, ...pool]));
+    expect(text, contains('=== Layout ==='));
+    expect(text, contains('=== Named scalar values (1) ==='));
+    expect(text, contains('Parameters = 42.0  (raw type 99, not modeled)'));
+    // Honest about the still-undecoded record links.
+    expect(text, contains('record links not yet decoded'));
+
+    // Non-binary input is handled without throwing.
+    expect(dumpBinaryRecon(Uint8List.fromList(ascii.encode('<?xml?>'))),
+        '(not a binary TOF1 file)');
+  });
 }

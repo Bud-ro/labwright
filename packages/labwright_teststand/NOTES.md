@@ -449,6 +449,21 @@ refused (not mis-parsed).
 > 17/21/17 named records — confirming superset). Corpus equivalence test extended; app
 > test asserts both sections + count rows. package **172** / app **65** green.
 >
+> *SHIPPED `dumpBinaryRecon()` — a text recon report for binary files.* The non-GUI
+> analogue of `dumpSeqFile` (which only handles parsed XML/INI): a pure
+> `String dumpBinaryRecon(Uint8List)` in seq_dump.dart, built from a single
+> `analyzeBinary`. Emits `=== … ===` blocks — a header + Layout summary (record region /
+> string region @ / sentinels / strings / tables / leading words) then sections for
+> object names, module call-targets, step references, expressions, quoted literals,
+> inline numeric values, and named scalar values (`Name = value  (raw type N, not
+> modeled)`), each capped at 40 with an honest "… and N more". Closes with the explicit
+> honesty line *"record links not yet decoded: …the variable-length record grammar tying
+> each to its step tree is not yet recovered"*; returns `(not a binary TOF1 file)` for
+> non-binary input. Verified on the 3 Rosetta binaries (NIDmm 2961 chars: 6 object names,
+> 2 module targets, 7 step refs, 18 expressions, 7 inline numbers, 17 named scalars).
+> +1 package test (synthetic `_tof1` with a Parameters scalar record). package **173**
+> green.
+>
 > *Step recovery REFUTED via name-offset; a structural/user-content boundary.*
 > Parsed the twin's 4 step names per file (e.g. "Update pin map", "Create and
 > register NI-DMM Sessions", "Perform a measurement using an NI DMM", "Destroy and

@@ -1,4 +1,8 @@
+import 'dart:typed_data';
+
+import 'seq_binary.dart';
 import 'seq_file.dart';
+import 'seq_format.dart';
 
 /// Renders a [SeqFile] as a faithful, sequence-editor-like text view — the M4
 /// "viewer" in text form. Pure (returns a String); honest (shows
@@ -406,4 +410,83 @@ String _dumpStep(Step step, SeqFile file) {
   if (step.comment != null) parts.write('  // ${step.comment}');
 
   return parts.toString();
+}
+
+/// Renders a binary `TOF1` `.seq` as a TEXT **reconnaissance report** — the
+/// binary analogue of [dumpSeqFile] for files that don't yet parse into a
+/// [SeqFile] (the record grammar isn't fully decoded, so [parseSeqFile] refuses
+/// binary). Pure; **honest** — it surfaces only recovered data and explicitly
+/// marks that the record links tying values to their step tree are not yet
+/// recovered.
+///
+/// Built from a **single** [analyzeBinary] inflate. Returns
+/// `(not a binary TOF1 file)` when [seqBytes] is not a binary file.
+String dumpBinaryRecon(Uint8List seqBytes) {
+  if (detectSeqFormat(seqBytes) != SeqFormat.binary) {
+    return '(not a binary TOF1 file)';
+  }
+  final h = detectSeqHeader(seqBytes);
+  final b = StringBuffer();
+  b.writeln('${h.fileType ?? 'TestStand file'} '
+      '(${h.productName ?? '?'} v${h.fileVersion ?? '?'}, ${h.format.name})');
+
+  final a = analyzeBinary(seqBytes);
+  if (a == null) {
+    b.writeln('(binary body did not inflate/frame — recon unavailable)');
+    return b.toString();
+  }
+  b.writeln('inflated body ${a.inflatedSize} bytes · ${a.strings.length} '
+      'strings · ${a.nameTable.length} name-table entries');
+
+  b.writeln();
+  b.writeln('=== Layout ===');
+  if (a.layout case final l?) {
+    b.writeln('  record region: ${l.recordRegionLength} bytes');
+    b.writeln('  string region @ ${l.stringRegionOffset}');
+    b.writeln('  record sentinels: ${l.sentinelCount}');
+    b.writeln('  strings in region: ${l.stringCount} · tables: '
+        '${l.segmentCount}');
+    if (l.leadingWords.isNotEmpty) {
+      b.writeln('  leading record words: ${l.leadingWords.join(', ')}');
+    }
+  } else {
+    b.writeln('  (body did not frame into record/string regions)');
+  }
+
+  _reconSection(b, 'Object names', a.objectNames);
+  _reconSection(b, 'Module call-targets', a.modulePaths);
+  _reconSection(b, 'Step references', a.stepReferences);
+  _reconSection(b, 'Expressions (test logic)', a.expressions);
+  _reconSection(b, 'Quoted literals (values)', a.quotedLiterals);
+  _reconSection(b, 'Inline numeric values',
+      [for (final v in a.scalarDoubles) '$v']);
+  // Each scalar is tied to its offset-referenced property name; the NI type
+  // code is carried verbatim and deliberately not interpreted.
+  _reconSection(b, 'Named scalar values', [
+    for (final s in a.namedScalars)
+      '${s.name} = ${s.value}  (raw type ${s.rawTypeCode}, not modeled)',
+  ]);
+
+  b.writeln();
+  b.writeln('(record links not yet decoded: the above are recovered values; the '
+      'variable-length record grammar tying each to its step tree is not yet '
+      'recovered)');
+  return b.toString();
+}
+
+/// Emits a `=== title (n) ===` block listing [items] (capped at [cap], with an
+/// honest "… and N more" when truncated). No-op when [items] is empty.
+void _reconSection(
+  StringBuffer b,
+  String title,
+  List<String> items, {
+  int cap = 40,
+}) {
+  if (items.isEmpty) return;
+  b.writeln();
+  b.writeln('=== $title (${items.length}) ===');
+  for (final it in items.take(cap)) {
+    b.writeln('  $it');
+  }
+  if (items.length > cap) b.writeln('  … and ${items.length - cap} more');
 }
