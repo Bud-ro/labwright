@@ -139,4 +139,62 @@ void main() {
   test('binaryScalarDoubles empty on non-binary input', () {
     expect(binaryScalarDoubles(Uint8List(0)), isEmpty);
   });
+
+  test('binaryNamedScalarRecords pairs a named-property header with its f64', () {
+    final bd = ByteData(8);
+    List<int> f64le(double v) {
+      bd.setFloat64(0, v, Endian.little);
+      return [for (var i = 0; i < 8; i++) bd.getUint8(i)];
+    }
+
+    List<int> u32le(int v) =>
+        [v & 0xff, v >> 8 & 0xff, v >> 16 & 0xff, v >> 24 & 0xff];
+
+    // String region (record region length R == its start). A padding name first
+    // so "Parameters" lands at a non-zero string-region-relative offset (8), the
+    // value its name-offset word must carry.
+    final pool = <int>[];
+    final relOf = <String, int>{};
+    for (final name in ['PadName', 'Parameters', 'Locals', 'ResultList',
+        'StepEntry', 'SeqEntry']) {
+      relOf[name] = pool.length; // rel offset within the string region
+      pool..addAll(ascii.encode(name))..add(0);
+    }
+    expect(relOf['Parameters'], 8);
+
+    // Record region: ⟨tag=0⟩⟨name-offset=8⟩⟨type=99⟩⟨f64 42.0⟩ then zero filler.
+    // 12 words → R = 48 bytes, so the pool (and rr) begin at byte 48 and the
+    // name-offset 8 resolves to (48+8)-48 = rel 8 = "Parameters". Zero-word filler
+    // (not 0xFF) so the record region forms no printable run that would drag the
+    // record/string boundary, and zero words can't pass the clean-f64 gate (0.0 is
+    // rejected) so they emit no spurious records.
+    final rec = <int>[
+      ...u32le(0), // [0]
+      ...u32le(0), // [1] tag
+      ...u32le(relOf['Parameters']!), // [2] name-offset -> Parameters
+      ...u32le(99), // [3] raw type code (not modeled)
+      ...f64le(42.0), // [4..5] inline double
+      ...u32le(0), // [6]
+      ...u32le(0), // [7]
+      ...u32le(0), // [8]
+      ...u32le(0), // [9]
+      ...u32le(0), // [10]
+      ...u32le(0), // [11]
+    ];
+    expect(rec.length, 48); // R == pool start == recordRegionLength
+
+    final recs = binaryNamedScalarRecords(_tof1([...rec, ...pool]));
+    expect(recs, hasLength(1));
+    final r = recs.single;
+    expect(r.name, 'Parameters');
+    expect(r.rawTag, 0);
+    expect(r.rawTypeCode, 99); // carried verbatim, not interpreted
+    expect(r.value, 42.0);
+  });
+
+  test('binaryNamedScalarRecords empty on non-binary input', () {
+    expect(binaryNamedScalarRecords(Uint8List(0)), isEmpty);
+    expect(binaryNamedScalarRecords(
+        Uint8List.fromList(ascii.encode('<?xml?>'))), isEmpty);
+  });
 }

@@ -520,6 +520,119 @@ List<double> binaryScalarDoubles(Uint8List seqBytes) {
   return out;
 }
 
+/// One inline scalar `double` recovered from a **named-property record** in the
+/// binary TOF1 record region — the value plus the structural context that ties it
+/// to a property-name reference.
+///
+/// A numeric named property is stored as the record header
+/// `⟨tag⟩ ⟨name-offset⟩ ⟨type-code⟩ ⟨f64⟩` (confirmed on the Rosetta near-twins):
+/// the `name-offset` word is the string-region-relative byte offset of the
+/// property name (so it resolves to [name] via the name table), and an 8-byte
+/// little-endian IEEE-754 `double` follows the type word. Across the minimal
+/// binaries every emitted record resolves to the `Parameters` container with
+/// [rawTag] `0`, carrying the step-TYPE's numeric defaults/limits in record order.
+///
+/// [rawTag] and [rawTypeCode] are the **raw NI tag / type words, carried verbatim
+/// and NOT modeled** — mapping them to NI's type/class enumeration would be
+/// fabrication. They are exposed so callers can group or disambiguate records
+/// without us inventing semantics for the codes.
+class BinaryNamedScalar {
+  const BinaryNamedScalar({
+    required this.name,
+    required this.rawTag,
+    required this.rawTypeCode,
+    required this.value,
+    required this.wordIndex,
+  });
+
+  /// The offset-referenced property name this record is filed under (e.g.
+  /// `Parameters`), resolved from the name table by the record's name-offset word.
+  final String name;
+
+  /// The raw leading `tag` word of the record header — **not modeled** (verbatim).
+  final int rawTag;
+
+  /// The raw `type-code` word following the name reference — **not modeled**
+  /// (verbatim); an NI type/option code we deliberately do not interpret.
+  final int rawTypeCode;
+
+  /// The recovered inline IEEE-754 `double` value.
+  final double value;
+
+  /// The record-region u32 word index of the name-offset word (record order).
+  final int wordIndex;
+
+  @override
+  String toString() =>
+      'BinaryNamedScalar($name tag=$rawTag type=$rawTypeCode value=$value)';
+}
+
+/// Maps each string-region-relative byte offset to the name that begins there —
+/// the inverse of a record's name-offset reference. Built from [binaryStrings]
+/// (runs in the string region, keyed by `offset - recordRegionLength`).
+Map<int, String> _stringRegionNamesByRel(Uint8List body, int rr) {
+  final out = <int, String>{};
+  for (final s in binaryStrings(body, minLength: 2)) {
+    if (s.offset >= rr) out[s.offset - rr] = s.text;
+  }
+  return out;
+}
+
+/// The **named-property scalar records** a binary TOF1 file embeds — each inline
+/// `double` that sits in a decoded named-property record, paired with the property
+/// name it is filed under and the raw (unmodeled) tag/type words of its header.
+///
+/// Scans the record region for the header shape `⟨tag⟩ ⟨name-offset⟩ ⟨type-code⟩
+/// ⟨f64⟩`: a word that resolves (as a string-region-relative offset) to a real
+/// name-table entry, immediately followed by a type word and a **clean** inline
+/// double (low 32 bits zero, finite, non-zero, magnitude within
+/// [[_minScalarMagnitude], [_maxScalarMagnitude]] — the same filter as
+/// [binaryScalarDoubles]). The clean-f64 requirement plus the exact name-offset
+/// match suppresses coincidental hits: on the Rosetta near-twins every emitted
+/// record resolves to the `Parameters` container (tag `0`) with no false positives.
+///
+/// This is the structurally-attributed subset of [binaryScalarDoubles]: it ties
+/// each such value to a property-name reference and surfaces the raw type code,
+/// **without** modeling what the NI type codes mean (see [BinaryNamedScalar]).
+/// Records are returned in record order; duplicate values are kept (distinct
+/// record slots). Returns `[]` when [seqBytes] is not an inflatable binary file
+/// or the body does not frame.
+List<BinaryNamedScalar> binaryNamedScalarRecords(Uint8List seqBytes) {
+  final body = inflateBinaryBody(seqBytes);
+  if (body == null) return const [];
+  final layout = _layoutFromBody(body);
+  if (layout == null) return const [];
+  final rr = layout.recordRegionLength;
+  final relToName = _stringRegionNamesByRel(body, rr);
+  if (relToName.isEmpty) return const [];
+
+  final bd = ByteData.sublistView(body);
+  final out = <BinaryNamedScalar>[];
+  // word w = name-offset; w-1 = tag; w+1 = type; w+2..w+3 = the f64.
+  final wordCount = rr ~/ _u32Bytes;
+  for (var w = 1; w + 3 < wordCount; w++) {
+    final name = relToName[bd.getUint32(w * _u32Bytes, Endian.little)];
+    if (name == null) continue;
+    final fp = (w + 2) * _u32Bytes;
+    if (fp + 8 > rr) continue;
+    // Clean-f64 gate (mirrors binaryScalarDoubles): low word zero, finite,
+    // non-zero, magnitude in range.
+    if (bd.getUint32(fp, Endian.little) != 0) continue;
+    final v = bd.getFloat64(fp, Endian.little);
+    if (!v.isFinite || v == 0) continue;
+    final a = v.abs();
+    if (a < _minScalarMagnitude || a > _maxScalarMagnitude) continue;
+    out.add(BinaryNamedScalar(
+      name: name,
+      rawTag: bd.getUint32((w - 1) * _u32Bytes, Endian.little),
+      rawTypeCode: bd.getUint32((w + 1) * _u32Bytes, Endian.little),
+      value: v,
+      wordIndex: w,
+    ));
+  }
+  return out;
+}
+
 /// Maximal chains of NUL-adjacent runs at/after [from], each of ≥[minChain].
 List<List<BinaryString>> _segmentsFrom(
   List<BinaryString> runs,

@@ -410,6 +410,23 @@ refused (not mis-parsed).
 > next pushes pivot to **consolidating/shipping what IS decoded** (tested named-scalar
 > record surfacing, richer binary recon) rather than re-probing offsets.
 >
+> *SHIPPED `binaryNamedScalarRecords()` — the named-property scalar records.* First
+> consolidation push after the value-linkage plateau: a tested helper that surfaces each
+> inline scalar `double` sitting in a decoded named-property record, paired with the
+> property name it is filed under + the raw (unmodeled) tag/type words. Scans the record
+> region for the confirmed header shape `⟨tag⟩⟨name-offset⟩⟨type-code⟩⟨f64⟩`: a word
+> resolving (as a string-region-relative offset) to a real name-table entry, immediately
+> followed by a type word and a **clean** inline double (same low-word-0/finite/range gate
+> as `binaryScalarDoubles`). Verified on all 3 Rosetta binaries: **17 / 21 / 17** records,
+> **every one** resolving to `Parameters` tag=0 with **zero coincidental name pollution**
+> (the clean-f64 gate + exact name-offset match suppress false hits); values match the
+> confirmed scalar set ({-1,1,2,4,6,8192}; NIFgen adds 3,8). `rawTag`/`rawTypeCode` carry
+> the NI tag/type words **verbatim, NOT modeled** (the type codes vary per slot: 62,64,78,
+> 94,171,…; mapping them to NI's enum would be fabrication). It is the
+> **structurally-attributed subset** of `binaryScalarDoubles` (ties each value to a
+> property-name reference). +2 unit tests via the `_tof1` helper; package suite **172**
+> green.
+>
 > *Step recovery REFUTED via name-offset; a structural/user-content boundary.*
 > Parsed the twin's 4 step names per file (e.g. "Update pin map", "Create and
 > register NI-DMM Sessions", "Perform a measurement using an NI DMM", "Destroy and
