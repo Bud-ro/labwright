@@ -564,6 +564,21 @@ refused (not mis-parsed).
 > position +12 also re-confirms the helper's `⟨tag⟩⟨name-offset⟩⟨type⟩⟨f64⟩` doc.) No code
 > change (probe tick; helper already correct).
 >
+> *Trailing words W5/W6/W7 are NOT a stable record field — reliable scalar core is 5
+> words.* Tabulated (value, type, W5, W6, W7) for every clean-f64 record across all 3
+> files. The dominant trailing is `W5=0 W6=2 W7=0`, but with many exceptions
+> (`8192.0→63,0,2`; `2.0/type64→0,128,0`; `1.0/type94→5046296,0,66`). **Decisive
+> refutation:** `val=1.0 type=64` carries **W7 = 3584/3584/5632** for NIDmm/NIFgen/NIScope
+> — *same value, same type, different W7 across files* ⟹ W7 is **not** a function of
+> (value,type); it reads into following content / a file-specific word, not a fixed
+> trailing field. ⟹ the **reliably-decoded scalar record is the 5-word core**
+> `⟨tag⟩⟨name-offset⟩⟨type⟩⟨f64-lo⟩⟨f64-hi⟩`; the earlier "8-word" size is a **dense-packing
+> artifact**, not a universal record with 3 stable trailing fields. This **bounds** the
+> record decode honestly and **confirms `binaryScalarDoubles`/`binaryNamedScalarRecords`
+> read only the reliable 5-word core** (they never touch W5/W6/W7). Splitting arbitrary
+> records still needs the record-boundary grammar (the f64-core is reliable regardless).
+> No code change (probe tick).
+>
 > *Step recovery REFUTED via name-offset; a structural/user-content boundary.*
 > Parsed the twin's 4 step names per file (e.g. "Update pin map", "Create and
 > register NI-DMM Sessions", "Perform a measurement using an NI DMM", "Destroy and
