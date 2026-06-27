@@ -20,18 +20,26 @@ One `.seq` holds the same model in **three encodings**; recovery differs by form
   step inlines its full step-TYPE definition (XML centralizes these in
   `<typelist>`); no per-step instance data is missing. Quoted values are
   C-style-unescaped to match the XML form.
-- **BINARY (`TOF1`) — recon mature, record grammar decode now UNBLOCKED (inputs
-  obtained 2026-06).** Header, zlib body, string pool, name table, and per-file
-  recovered datums (object names, module call-targets, step refs, expressions,
-  literals) are decoded; the variable-length **record grammar** that ties a name
-  to its parsed step tree is **not yet recovered** — but the missing input has now
-  been located: **Rosetta near-twins + controlled-minimal binary files** fetched
-  from NI's own public repos (see "Rosetta pairs" below; `tool/fetch_rosetta_
-  pairs.sh`). These are tiny 4-step binaries (~7.5KB) whose logical structure is
-  known from an XML twin of the same NI example measurement — the differential
-  leverage the full-corpus statistical attack lacked. `parseSeqFile` still
-  refuses binary until the grammar is actually decoded (honest); the next decode
-  push works these pairs, not the 905KB monsters.
+- **BINARY (`TOF1`) — recon mature; record grammar PARTIALLY decoded via the Rosetta
+  near-twins (active 2026-06).** Decoded & shipped: header, zlib body, string pool,
+  **name table**, per-file datums (object names, module call-targets, step refs,
+  expressions, literals); the **named-property record HEADER** `⟨tag⟩⟨name-offset⟩⟨type⟩`
+  where names are cited by **string-region byte offset** [5fc9e9e,7f68c40]; the **scalar
+  record's reliable 5-word core** `⟨tag⟩⟨name-offset⟩⟨type⟩⟨f64-lo⟩⟨f64-hi⟩` — recovered
+  numeric values surfaced via `binaryScalarDoubles`/`binaryNamedScalarRecords` and the
+  consistency-gated `binaryNamedRecords` header census [c3866c6,9e0161c,6bee76b], all
+  shown in the text `dumpBinaryRecon` [ebd70c9] and the inspector GUI [9412e92,b8f6599,
+  d937639]; the record stream's **template-fixed prefix** that diverges at the
+  instrument-specific boundary [afe89d5,c55848a,8227938]. **Still NOT decoded:** the
+  **value-string linkage** (an opaque per-object save-time handle, not any body/table byte
+  offset — refuted across all bases [225d95f]: an honest **plateau**); the general
+  **record-boundary grammar** for splitting arbitrary variable-length records (only the
+  reliable 5-word scalar core + cross-file diff localize boundaries; record sizes carry no
+  inline length [afe89d5]); the scalar record's variable trailing words and the 2nd 8-word
+  shape's internals [8227938,c55848a]. ⟹ `parseSeqFile` **still refuses binary** (honest)
+  — we recover values + the property skeleton, not yet the full step tree. Inputs:
+  **Rosetta near-twins** (`tool/fetch_rosetta_pairs.sh`, tiny 4-step ~7.5KB binaries with
+  known XML twins — the differential leverage the full-corpus statistical attack lacked).
 
 **Deliverables (PLAN's TestStand goals — substantially met for XML+INI):**
 expose hidden data ✓, render close to the original ✓ (the inspector's Sequences
