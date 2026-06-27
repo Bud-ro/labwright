@@ -372,6 +372,12 @@ refused (not mis-parsed).
 >   next refinement.
 > Next: locate per-step *instance* values / limits and tie a recovered double to a
 > specific step's field via the twin.
+>
+> *Shipped:* `binaryScalarDoubles(seqBytes)` in `seq_binary.dart` codifies this —
+> scans the record region, decodes clean inline f64 (low-word-0 filter), returns the
+> distinct recovered values; tested (synthesized TOF1 + recovers the NIDmm set). The
+> corpus ratchet test excludes `corpus/seq/rosetta/` (separately-fetched decode aid)
+> so its pinned counts stay stable.
 
 > **2026-06 — named-member records are TYPE-DEPENDENT (the array header does NOT
 > generalize); Parameters records embed IEEE-754 doubles.** Dumping Parameters

@@ -476,6 +476,50 @@ List<int> _recordWordsFromBody(Uint8List body, int recordRegionLength) {
   return out;
 }
 
+/// Lower bound on a recovered double's magnitude (smaller is treated as noise).
+const _minScalarMagnitude = 1e-9;
+
+/// Upper bound on a recovered double's magnitude (larger is treated as noise).
+const _maxScalarMagnitude = 1e12;
+
+/// The **inline scalar `double` values** a binary TOF1 file embeds in its record
+/// region — genuinely recovered numeric data (e.g. step-TYPE parameter defaults /
+/// numeric limits).
+///
+/// A named numeric property stores an 8-byte little-endian IEEE-754 `double` two
+/// u32 words after its name reference — the record shape
+/// `⟨tag⟩ ⟨name-offset⟩ ⟨type-code⟩ ⟨f64⟩` (verified on the Rosetta near-twins:
+/// the same value set is byte-identical across the NIDmm/NIScope minimal
+/// binaries). This recovers the *values*; tying each to its exact leaf property
+/// needs the **not yet fully decoded** record grammar, so this is the honest value
+/// *set* — distinct, in record order.
+///
+/// To suppress coincidental bit patterns it accepts only **clean** doubles: the
+/// low 32 bits must be zero (a round value, as every observed default is), finite,
+/// non-zero, and `|v|` within [[_minScalarMagnitude], [_maxScalarMagnitude]].
+/// Returns `[]` when [seqBytes] is not an inflatable binary file or doesn't frame.
+List<double> binaryScalarDoubles(Uint8List seqBytes) {
+  final body = inflateBinaryBody(seqBytes);
+  if (body == null) return const [];
+  final layout = _layoutFromBody(body);
+  if (layout == null) return const [];
+  final rr = layout.recordRegionLength;
+  final bd = ByteData.sublistView(body);
+  final seen = <double>{};
+  final out = <double>[];
+  for (var i = 0; i + 8 <= rr && i + 8 <= body.length; i += _u32Bytes) {
+    // Low u32 word must be zero — only round doubles, killing coincidental
+    // patterns (a real default like 1.0/8192.0 has a zero low mantissa word).
+    if ((body[i] | body[i + 1] | body[i + 2] | body[i + 3]) != 0) continue;
+    final v = bd.getFloat64(i, Endian.little);
+    if (!v.isFinite || v == 0) continue;
+    final a = v.abs();
+    if (a < _minScalarMagnitude || a > _maxScalarMagnitude) continue;
+    if (seen.add(v)) out.add(v);
+  }
+  return out;
+}
+
 /// Maximal chains of NUL-adjacent runs at/after [from], each of ≥[minChain].
 List<List<BinaryString>> _segmentsFrom(
   List<BinaryString> runs,

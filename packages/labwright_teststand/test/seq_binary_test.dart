@@ -109,4 +109,34 @@ void main() {
     // Disjoint from the expression recovery.
     expect(isBinaryExpression('"a" == "b"'), isTrue);
   });
+
+  test('binaryScalarDoubles recovers clean inline IEEE-754 doubles', () {
+    // Record region: a marker word, then three little-endian f64s — two "clean"
+    // (low 32 bits zero: 8192.0 and 1.0) and one whose low word is non-zero
+    // (3.14159...) which must be rejected as not-a-round-default. Then a
+    // NUL-packed name pool to frame the record/string boundary.
+    final bd = ByteData(8);
+    List<int> f64le(double v) {
+      bd.setFloat64(0, v, Endian.little);
+      return [for (var i = 0; i < 8; i++) bd.getUint8(i)];
+    }
+    final rec = <int>[
+      0x1c, 0x00, 0x00, 0x00, // a leading marker word (non-double)
+      ...f64le(8192.0), // clean: low word 0
+      ...f64le(1.0), // clean: low word 0
+      ...f64le(3.14159265358979), // dirty: low word non-zero -> rejected
+    ];
+    final pool = <int>[];
+    for (final name in ['SequenceFileData', 'MainSequence', 'StepGroupMain',
+        'LocalsVarOne', 'ResultListItem', 'ParametersBlock']) {
+      pool..addAll(ascii.encode(name))..add(0);
+    }
+    final got = binaryScalarDoubles(_tof1([...rec, ...pool]));
+    expect(got, containsAll(<double>[8192.0, 1.0]));
+    expect(got, isNot(contains(3.14159265358979))); // low-word-0 filter rejects it
+  });
+
+  test('binaryScalarDoubles empty on non-binary input', () {
+    expect(binaryScalarDoubles(Uint8List(0)), isEmpty);
+  });
 }

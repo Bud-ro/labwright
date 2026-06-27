@@ -42,6 +42,11 @@ void main() {
           .listSync(recursive: true)
           .whereType<File>()
           .where((f) => f.path.toLowerCase().endsWith('.seq'))
+          // The `rosetta/` subdir is a separately-fetched decode aid (binary↔XML
+          // near-twins via tool/fetch_rosetta_pairs.sh), not part of the pinned
+          // count invariant — exclude it so these exact counts stay stable
+          // whether or not the Rosetta pairs were fetched.
+          .where((f) => !f.path.replaceAll(r'\', '/').contains('/rosetta/'))
           .toList()
         ..sort((a, b) => a.path.compareTo(b.path));
 
