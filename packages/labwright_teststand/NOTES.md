@@ -353,6 +353,26 @@ refused (not mis-parsed).
 >   boundaries must be found another way (the per-record header shape, not a magic
 >   word).
 
+> **2026-06 — ResultList array-property record fully pinned: 5-word/20-byte fixed
+> header `⟨2⟩ ⟨name-offset⟩ ⟨[0]=4⟩ ⟨0x0b⟩ ⟨0⟩` + payload; unifies the `[0]/0x0b`
+> token as the inline array-element descriptor.** Dumping the ResultList record
+> (selected by the confirmed `⟨2⟩⟨79⟩⟨4⟩` header) from the tag onward, 32/32
+> occurrences, byte-identical across all 3 files:
+> - **w0..w4 are single-valued (the fixed header):** `2`, `79=ResultList`, `4`,
+>   `0x0b`, `0`. w5 is the first variable column.
+> - **Unification:** w2..w3 = **`⟨4=[0]⟩⟨0x0b⟩`** — the *same* token pinned earlier
+>   as the `[0]` array-element record. So that token is the **array-element-type
+>   descriptor inlined immediately after an array property's name**: an array
+>   property is `⟨tag⟩ ⟨name-offset⟩ ⟨[0]⟩ ⟨0x0b⟩ ⟨0⟩ …`. *Corrects* the prior
+>   "post-name word = opaque code" reading: the `4` after `ResultList` is the `[0]`
+>   name-index that starts the element descriptor, not a standalone type code.
+> - **Value/child slot = w5:** `0` in **24/32** (empty array), a flag-word
+>   (`0x48001800`, …) when populated — and 24/32 empty matches `ResultList` being
+>   typically empty in the twin. (Payload code values past w5 are NI type/flag
+>   codes — OFF-LIMITS; only the layout + the empty/populated distinction asserted.)
+> Next: confirm the same 5-word array-property header on another array (Parameters/
+> Locals) and locate the array's element-count or end.
+
 > **2026-06 — the word AFTER the name-offset is a type/class CODE, NOT a
 > value/child pointer; header refined to `⟨tag⟩ ⟨name-offset⟩ ⟨code⟩ …`.**
 > Classifying the post-name-offset word over each member's occurrences (3 files):
