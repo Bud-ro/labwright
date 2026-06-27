@@ -353,6 +353,25 @@ refused (not mis-parsed).
 >   boundaries must be found another way (the per-record header shape, not a magic
 >   word).
 
+> **2026-06 — named-member records are TYPE-DEPENDENT (the array header does NOT
+> generalize); Parameters records embed IEEE-754 doubles.** Dumping Parameters
+> (relOffset 61) and Locals (72) records like ResultList (3 files):
+> - **Refuted:** Parameters (**0/145**) and Locals (**0/41**) do **not** carry the
+>   inline `⟨4⟩⟨0x0b⟩` element descriptor. So ResultList's 5-word array header is
+>   **array-property-specific**, not a universal named-member layout.
+> - **Parameters record** = `⟨tag=0⟩ ⟨name-offset=61⟩ ⟨type-code⟩ …` and **embeds
+>   8-byte little-endian IEEE-754 doubles**: w3:w4 = `0`:`0x3ff00000` (×33 = **1.0**)
+>   and `0`:`0x40000000` (×11 = **2.0**) — inline scalar default values (genuine
+>   recoverable value data, distinct from OFF-LIMITS type codes; these come from the
+>   step-TYPE default-valued numeric params, the twin's own Parameters being empty).
+> - **Locals record** = a third shape: preceded by a `0x00XX0000` flags word (not a
+>   clean `0` tag), dense with `0xXX0000`-form packed words; stride ~7 words
+>   (`"Locals"` reappears at w7).
+> ⟹ a named property's record layout depends on its **value type** (array vs scalar
+> vs container) — there is no single universal body; the `⟨tag⟩⟨name-offset⟩` header
+> is shared, the body that follows is type-specific. Next: pin the scalar-double
+> property body (where exactly the 8-byte value sits relative to the name-offset).
+
 > **2026-06 — ResultList array-property record fully pinned: 5-word/20-byte fixed
 > header `⟨2⟩ ⟨name-offset⟩ ⟨[0]=4⟩ ⟨0x0b⟩ ⟨0⟩` + payload; unifies the `[0]/0x0b`
 > token as the inline array-element descriptor.** Dumping the ResultList record
