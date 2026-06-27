@@ -385,6 +385,22 @@ refused (not mis-parsed).
 > across NIDmm/NIFgen/NIScope), never a distinct leaf. (NIFgen carries extra
 > defaults `3.0, 8.0` — its standard-function step type differs from DMM/Scope.)
 >
+> *Refuted (string values use a DIFFERENT linkage than names):* the
+> `(name → string-value)` recovery via "two string-region offsets in one record"
+> fails for value strings. Byte-granular check on NIDmm: name-table strings ARE
+> offset-referenced (`Main` rel 44 → 6 refs, `ResultList` rel 79 → 32 refs), but
+> value/expression-table strings are **not referenced at all** —
+> `NI_MeasurementParameter` (rel 3514), the `…TestStandMeasurementClient.dll`
+> module path (rel 2997), `"Measurement Type"` (rel 3811), `"Acquire Measurement"`
+> (rel 3647) each get **0 refs** as string-region-relative *and* 0 as absolute body
+> offset. ⟹ the body holds (≥)two string tables with **different linkage**: the
+> **NAME table** is referenced by string-region-relative byte offset (confirmed),
+> the **VALUE/expression table** is linked by a yet-undecoded mechanism (a separate
+> per-table index, not a body offset). So a property's string *value* is **not**
+> recoverable by the offset scheme; the recon *set* helpers (`binaryExpressions`,
+> `binaryModulePaths`, `binaryQuotedLiterals`) remain the honest granularity for
+> value strings until the value-table index is decoded.
+>
 > *Resolved (scalars are POSITIONAL):* scanning the **nearest** preceding
 > name-offset for every clean f64 (back up to 12 words) still yields the `Parameters`
 > container @−2w (17/19, 20/22) — there is **no closer leaf-parameter name** between
