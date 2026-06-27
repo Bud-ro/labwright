@@ -353,6 +353,24 @@ refused (not mis-parsed).
 >   boundaries must be found another way (the per-record header shape, not a magic
 >   word).
 
+> **2026-06 — the word AFTER the name-offset is a type/class CODE, NOT a
+> value/child pointer; header refined to `⟨tag⟩ ⟨name-offset⟩ ⟨code⟩ …`.**
+> Classifying the post-name-offset word over each member's occurrences (3 files):
+> - **`ResultList` → always `4`** (32/32, constant small int).
+> - **`Parameters` → repeated small ints** (78×22, 339×19, 62×8, 234, …); only
+>   4–7/145 coincidentally resolve to a clean string, so it is **not** a string
+>   reference.
+> - **`Locals` → packed `0x00XX0000` words** (0xc0000, 0xee0000, 0x800000, …) —
+>   flag/type words, not offsets/counts.
+> - **Refuted:** the post-name word is **not** a value/child pointer — a unique
+>   per-instance child pointer could not repeat 22–32×, and it is not a clean
+>   string-region offset (Parameters) nor a small count (Locals' high-bit words).
+> - **Confirmed (structure):** it is a **property-type-dependent code field** that
+>   immediately follows the name-offset, so the named-property record is
+>   **`⟨tag⟩ ⟨name-offset⟩ ⟨code⟩ …`**; the value/children sit *after* this code,
+>   not in it. (Code values are NI type/class codes — OFF-LIMITS to interpret.)
+> Next: scan past the code word for the value/child reference (or the record's end).
+
 > **2026-06 — named-property record header shape pinned: `⟨tag⟩ ⟨name-offset⟩ …`
 > with a fixed per-property tag (and this proves the refs are genuine).** Scanning
 > the record region for each member-name's string offset and histogramming the
