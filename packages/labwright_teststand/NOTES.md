@@ -548,6 +548,22 @@ refused (not mis-parsed).
 > length; the boundary is currently localizable only by the cross-file diff. No code change
 > (probe tick).
 >
+> *8-WORD SCALAR PARAMETER RECORD layout decoded (+ a 2nd 8-word shape; validates the
+> f64 gate).* Dumped every 8-word-stride Parameters record positionally (record starts at
+> the tag word). The **scalar-f64** shape (8 words / 32 bytes):
+> `⟨W0 tag=0⟩⟨W1 name-offset=61⟩⟨W2 type:raw⟩⟨W3 f64-low⟩⟨W4 f64-high⟩⟨W5⟩⟨W6⟩⟨W7⟩` — the
+> inline double occupies **W3+W4 = record byte +12** (right after tag/name/type), e.g. the
+> 8192.0 default = `0, 61, 62, 0, 1086324736, 63, 0, 2` (W5/W6/W7 = 63/0/2 vary per
+> record, **not yet decoded**). This is byte-identical at the template-prefix positions
+> (w248, w1419) across all 3 files. **BUT the 8-word stride is NOT uniformly scalar-f64**:
+> a **2nd shape** occupies the same stride — `⟨0⟩⟨61⟩⟨type 255,256,257,258,259,260⟩⟨W3=2⟩
+> ⟨W4=1,2,3,4,5,6⟩⟨0⟩⟨0⟩⟨W7=2050⟩` (NIScope @w5116…5156): an **incrementing type + counter**
+> run, likely array/enum element records, where **W3≠0**. ⟹ the **low-word-0 f64 gate** in
+> `binaryNamedScalarRecords` correctly **rejects shape B** and keeps only true scalars —
+> this differential **validates the shipped helper's gate** on a real confounder. (f64
+> position +12 also re-confirms the helper's `⟨tag⟩⟨name-offset⟩⟨type⟩⟨f64⟩` doc.) No code
+> change (probe tick; helper already correct).
+>
 > *Step recovery REFUTED via name-offset; a structural/user-content boundary.*
 > Parsed the twin's 4 step names per file (e.g. "Update pin map", "Create and
 > register NI-DMM Sessions", "Perform a measurement using an NI DMM", "Destroy and
