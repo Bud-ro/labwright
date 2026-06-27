@@ -353,6 +353,26 @@ refused (not mis-parsed).
 >   boundaries must be found another way (the per-record header shape, not a magic
 >   word).
 
+> **2026-06 — named-property record header shape pinned: `⟨tag⟩ ⟨name-offset⟩ …`
+> with a fixed per-property tag (and this proves the refs are genuine).** Scanning
+> the record region for each member-name's string offset and histogramming the
+> word immediately before/after (3 files):
+> - **`ResultList`** (relOffset 79): the surrounding words are **byte-exact in
+>   32/32 occurrences, all three files** — `⟨2⟩ ⟨79=ResultList⟩ ⟨4⟩`. Tag-before = 2
+>   (100%), word-after = 4 (100%).
+> - **`Parameters`** (relOffset 61): tag-before = **`0` in 145/145 (100%)**, all
+>   three files (word-after varies — the property's value/children).
+> - **`Locals`** (relOffset 72): tag-before is a `0x0018xxxx`-family word in 40/41
+>   (less clean — its one populated local puts value data adjacent).
+> ⟹ two results: (1) the **named-property record header is `⟨tag⟩ ⟨name-offset⟩ …`**,
+>   the tag a fixed per-property constant (differs by property: 0, 2, …) sitting
+>   immediately before the offset; (2) this **resolves the prior chance caveat** —
+>   a 100%-fixed preceding word (Parameters→0 ×145, ResultList→2 ×32) is impossible
+>   for coincidental offset hits, so the high-multiplicity member-name offsets ARE
+>   genuine references. (The tag values are NI type/class codes — OFF-LIMITS to
+>   interpret; only the fixed-position structure is asserted.) Next: read the
+>   word(s) AFTER the name-offset as the property's value/child pointer.
+
 > **2026-06 — string-offset reference mode is REAL & PREVALENT, but the
 > discriminator is multiplicity, not the raw exact-start test.** Mapping every
 > record `u32` against the set of exact string-start offsets (rel. to
