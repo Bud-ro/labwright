@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_vi_inspector/src/faithful_controls.dart';
-import 'package:labwright_videcode/labwright_videcode.dart';
+import 'package:labwright_vi_parse/labwright_vi_parse.dart';
 
 ViHeapObject _obj({String? help, double? min, double? max}) =>
     ViHeapObject(oid: 1, kind: 0x50, offset: 0)

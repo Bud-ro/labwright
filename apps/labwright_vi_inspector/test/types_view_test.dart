@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_vi_inspector/src/types_view.dart';
-import 'package:labwright_videcode/labwright_videcode.dart';
+import 'package:labwright_vi_parse/labwright_vi_parse.dart';
 
 ViModel _modelWithTypes() {
   final types = <ViType>[

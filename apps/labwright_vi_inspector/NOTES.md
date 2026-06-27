@@ -8,12 +8,12 @@ public Pico NI-LabVIEW example corpus), never from LabVIEW itself.
 **Read this for structure; read the tool for numbers.** Live coverage figures
 ("% framed", "% semantically decoded", per-source breakdown) are *not* written
 here by hand — they drift. They are produced by
-`packages/labwright_videcode/tool/coverage.dart` (prints a table, writes
+`packages/labwright_vi_parse/tool/coverage.dart` (prints a table, writes
 `corpus/baseline.json`, and a gitignored `corpus/vi/REPORT.md` scorecard) and
 guarded by the corpus ratchet tests. If you want a current number, run the tool.
 
-Two layers do the work: `labwright_viparse` (RSRC container + raw sections) and
-`labwright_videcode` (section inflate, heap walk, object graph, IR seed).
+Two layers do the work: `labwright_vi_parse` (RSRC container + raw sections) and
+`labwright_vi_parse` (section inflate, heap walk, object graph, IR seed).
 
 ---
 
@@ -50,12 +50,12 @@ u32 index, u32 dataOffset, u32, u32, u32 = 0xFFFFFFFF   (sentinel)
 The trailing `0xFFFFFFFF` distinguishes a real section descriptor from the
 interleaved name-table rows (which carry `tag→offset` pairs). A section's bytes
 live at `dataArea + dataOffset` as `[u32 length][bytes]`.
-→ `labwright_viparse.readViSections`.
+→ `labwright_vi_parse.readViSections`.
 
 ## Section compression — decoded
 
 Heap sections are stored as `[u32 decompressedSize][zlib stream]` (CMF byte
-`0x78`). `labwright_videcode.inflateSection` inflates them; uncompressed sections
+`0x78`). `labwright_vi_parse.inflateSection` inflates them; uncompressed sections
 pass through. Notable blocks: `BDHb`/`BDEx` (block-diagram heap), `FPHb` (front
 panel), `DTHP`/`VCTP` (data types), `vers` (version+title), `CONP` (connector
 pane), `LIvi`/`LIfp`/`LIbd` (sub-VI links), `icl8`/`ICON`/`PICC`/`DSIM` (icon).
@@ -103,7 +103,7 @@ rules); `buildDiagram(body)` segments that stream into the object tree.
 
 The opcode catalog with per-id name/kind/confidence lives in one place — the
 `HeapOpcode` / `HeapAttribute` / `HeapObjectClass` enhanced enums in
-`packages/labwright_videcode/lib/src/heap.dart`. Inferred names carry an explicit
+`packages/labwright_vi_parse/lib/src/heap.dart`. Inferred names carry an explicit
 `AttrConfidence` (`confirmed`/`inferred`/`kindOnly`) — never false certainty.
 
 ### Nesting tree rule (the keystone)

@@ -9,8 +9,7 @@ environment:
 
 workspace:
   - packages/labwright_tdms
-  - packages/labwright_viparse
-  - packages/labwright_videcode
+  - packages/labwright_vi_parse
   - packages/labwright_teststand
 
 dev_dependencies:

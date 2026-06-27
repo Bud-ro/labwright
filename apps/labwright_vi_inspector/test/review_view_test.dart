@@ -5,8 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_vi_inspector/src/diagram_view.dart';
 import 'package:labwright_vi_inspector/src/generated_dart_view.dart';
 import 'package:labwright_vi_inspector/src/review_view.dart';
-import 'package:labwright_videcode/labwright_videcode.dart';
-import 'package:labwright_viparse/labwright_viparse.dart';
+import 'package:labwright_vi_parse/labwright_vi_parse.dart';
+import 'package:labwright_vi_parse/labwright_vi_parse.dart';
 
 List<int> open(int kind, int oid, {int tag = 0x19}) =>
     [0x10, tag, 0x02, 0xfe, kind >> 8, kind & 0xff, 0xfd, oid >> 8, oid & 0xff];

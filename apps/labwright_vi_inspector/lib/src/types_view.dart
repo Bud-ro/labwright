@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:labwright_videcode/labwright_videcode.dart';
+import 'package:labwright_vi_parse/labwright_vi_parse.dart';
 
 /// Read-only view of the VI's recovered **data-type dictionary** (the VCTP type
 /// pool): named typedefs rendered structurally — enums with their item values,

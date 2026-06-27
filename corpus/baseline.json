@@ -1,5 +1,5 @@
 {
-  "generatedBy": "packages/labwright_videcode/tool/coverage.dart",
+  "generatedBy": "packages/labwright_vi_parse/tool/coverage.dart",
   "metric": "deliberatelyParsed = framed bytes / total; semanticallyDecoded = typed-MEANING bytes / total (excludes kindOnly value-kind labels); valueKindKnown = kind-known-but-meaning-unknown bytes / total. Heaps BDHb/BDHP/FPHb/FPHP/DTHP.",
   "picotechFirst60": {
     "vis": 60,

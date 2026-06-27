@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:labwright_videcode/labwright_videcode.dart';
-import 'package:labwright_viparse/labwright_viparse.dart';
+import 'package:labwright_vi_parse/labwright_vi_parse.dart';
+import 'package:labwright_vi_parse/labwright_vi_parse.dart';
 
 /// A read-only **hex + parser** view of one decoded resource-block section —
 /// HxD/Wireshark style. The section's bytes are shown as a hex dump on the left,

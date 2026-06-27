@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:labwright_videcode/labwright_videcode.dart';
+import 'package:labwright_vi_parse/labwright_vi_parse.dart';
 import 'package:labwright_vi_inspector/src/hex_view.dart';
-import 'package:labwright_viparse/labwright_viparse.dart';
+import 'package:labwright_vi_parse/labwright_vi_parse.dart';
 
 DecodedSection _section(List<int> records) {
   final body = Uint8List.fromList([0, 0, 0, records.length, ...records]);

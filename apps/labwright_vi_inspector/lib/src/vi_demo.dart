@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'package:labwright_viparse/labwright_viparse.dart';
+import 'package:labwright_vi_parse/labwright_vi_parse.dart';
 
 /// Builds a minimal but valid LabVIEW **RSRC** byte buffer so the inspector can
 /// be demoed without a real `.vi` on hand. Mirrors the structure `parseVi`

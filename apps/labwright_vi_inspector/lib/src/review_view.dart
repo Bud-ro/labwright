@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:labwright_videcode/labwright_videcode.dart';
+import 'package:labwright_vi_parse/labwright_vi_parse.dart';
 
 import 'diagram_view.dart';
 import 'generated_dart_view.dart';

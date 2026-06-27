@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:labwright_videcode/labwright_videcode.dart';
+import 'package:labwright_vi_parse/labwright_vi_parse.dart';
 
 /// Read-only view of the VI→IR→Dart pipeline output for the loaded VI: the
 /// honest structural Dart scaffold ([generateDartScaffold]) and, toggled, the

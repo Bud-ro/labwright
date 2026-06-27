@@ -1,0 +1,21 @@
+name: labwright_vi_parse
+description: >-
+  Clean-room, LabVIEW-less reader for LabVIEW .vi/.ctl/.llb files. Parses the RSRC
+  container (header + resource-block inventory → a VI summary) and decodes the
+  compressed heap into a read-only block-diagram graph / IR. Pure Dart, web-safe.
+version: 0.0.1
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+executables:
+  vi-inspect: inspect
+
+dependencies:
+  archive: ^4.0.9
+
+dev_dependencies:
+  test: ^1.25.0
+  lints: ^5.0.0

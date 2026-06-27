@@ -3,7 +3,7 @@ import 'dart:io';
 
 /// Fetches the pinned TestStand corpus cataloged in `corpus/seq-sources.json`.
 ///
-/// Sibling of the VI corpus fetcher (`labwright_videcode/tool/fetch_corpus.dart`)
+/// Sibling of the VI corpus fetcher (`labwright_vi_parse/tool/fetch_corpus.dart`)
 /// — same approach: the `.seq`/config files are NOT committed (clean-room +
 /// licensing), so this pulls each source repo at its pinned commit, making the
 /// corpus reproducible. Requires `gh` (authenticated) and `tar`.

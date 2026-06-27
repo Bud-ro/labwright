@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:labwright_videcode/labwright_videcode.dart';
+import 'package:labwright_vi_parse/labwright_vi_parse.dart';
 
 import 'faithful_controls.dart';
 
@@ -18,7 +18,7 @@ const int kFaithfulMaxObjects = 1500;
 /// coordinates, with nesting-aware z-order, type-faithful terminal colors,
 /// structure frames, labels, click-to-inspect, pan/zoom and auto-fit.
 ///
-/// Backed entirely by the clean-room `labwright_videcode` decode
+/// Backed entirely by the clean-room `labwright_vi_parse` decode
 /// (`buildViModel` → `blockDiagrams`/`frontPanelDiagrams`). Honest by construction: only objects
 /// with recovered absolute bounds are drawn, and **signal wires are not shown** —
 /// LabVIEW does not persist wire geometry (it re-routes wires at draw time), so

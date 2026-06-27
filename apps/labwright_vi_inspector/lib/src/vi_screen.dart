@@ -4,8 +4,8 @@ import 'dart:typed_data';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:labwright_videcode/labwright_videcode.dart';
-import 'package:labwright_viparse/labwright_viparse.dart';
+import 'package:labwright_vi_parse/labwright_vi_parse.dart';
+import 'package:labwright_vi_parse/labwright_vi_parse.dart';
 
 import 'diagram_view.dart';
 import 'generated_dart_view.dart';
@@ -16,7 +16,7 @@ import 'vi_demo.dart';
 
 /// Imports a LabVIEW `.vi`/`.ctl` file and shows what it is and does — type,
 /// version, capability flags, and the resource-block inventory — via the
-/// clean-room `labwright_viparse` reader. A read-only viewer (block-diagram
+/// clean-room `labwright_vi_parse` reader. A read-only viewer (block-diagram
 /// logic decode, and therefore editing, is future work).
 class ViInspectorScreen extends StatefulWidget {
   const ViInspectorScreen({

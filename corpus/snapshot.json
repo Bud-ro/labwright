@@ -1,5 +1,5 @@
 {
-  "generatedBy": "packages/labwright_videcode/tool/snapshot.dart",
+  "generatedBy": "packages/labwright_vi_parse/tool/snapshot.dart",
   "note": "Per-VI feature presence (fp=front-panel objects, bd=block-diagram objects, blocks=resource tags). Regression guard only allows these to grow.",
   "vis": {
     "PS5000E/PicoScopeospaExampleAWG.vi": {

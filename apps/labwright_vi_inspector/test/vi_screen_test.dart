@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_vi_inspector/src/vi_demo.dart';
 import 'package:labwright_vi_inspector/src/vi_screen.dart';
-import 'package:labwright_videcode/labwright_videcode.dart';
-import 'package:labwright_viparse/labwright_viparse.dart';
+import 'package:labwright_vi_parse/labwright_vi_parse.dart';
+import 'package:labwright_vi_parse/labwright_vi_parse.dart';
 
 void main() {
   testWidgets('starts empty, loads the demo VI, and shows its details', (tester) async {

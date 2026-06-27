@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:labwright_videcode/labwright_videcode.dart';
+import 'package:labwright_vi_parse/labwright_vi_parse.dart';
 
 /// The **Faithful** render layer: draws each recovered block-diagram object as a
 /// real, type-appropriate Flutter control positioned at its absolute coordinates

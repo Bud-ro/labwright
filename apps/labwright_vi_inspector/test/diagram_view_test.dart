@@ -3,8 +3,8 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_vi_inspector/src/diagram_view.dart';
-import 'package:labwright_videcode/labwright_videcode.dart';
-import 'package:labwright_viparse/labwright_viparse.dart';
+import 'package:labwright_vi_parse/labwright_vi_parse.dart';
+import 'package:labwright_vi_parse/labwright_vi_parse.dart';
 
 // Heap record helpers (mirror the videcode bracket model).
 List<int> open(int kind, int oid, {int tag = 0x19}) =>
