@@ -464,6 +464,25 @@ refused (not mis-parsed).
 > +1 package test (synthetic `_tof1` with a Parameters scalar record). package **173**
 > green.
 >
+> *SHIPPED `binaryNamedRecords()` — the consistently-tagged named-record header census.*
+> The structural skeleton beyond the scalar slots: for every record word resolving (as a
+> string-region-relative offset) to a name-like string, group by name and keep only those
+> referenced **≥2×** with a **single consistent preceding tag** (offset 0 = root
+> `SequenceFileData` excluded — every zero word would match it; value strings — quoted
+> literals/expressions/module-paths/`ID#:` — excluded since they're confirmed NOT
+> offset-referenced, so any match is coincidence). **The per-name tag consistency IS the
+> evidence** a chance collision can't fake. Result on the 3 Rosetta binaries: a clean,
+> cross-file-stable set of REAL TestStand identifiers — `Parameters` ×35/32/22 (tag 0),
+> `[0]` ×16/16/20 (tag 0), `ResultList` ×10/9/10 (tag 2), `NI_DotNetParameterResult` ×3,
+> `DescriptionFormat` ×2/2/5, NIScope adds `ArrayClusterEls` ×8 — with the inconsistent
+> noise (`Locals`, `Seq`, `Data`, `MainSequence`, version strings, the spurious empty
+> `""`) correctly dropped. `rawTag` carried verbatim, NOT modeled; the per-record TYPE
+> isn't summarized (it varies per member). Threaded through `BinaryAnalysis.namedRecords`
+> (single-inflate; corpus equivalence test extended) and surfaced as a **"Named-record
+> headers"** section in `dumpBinaryRecon`. +2 package tests (consistent kept / inconsistent
+> dropped). package **175** green, analyze clean. (Records→step-tree link still not
+> decoded — this is a header census, not a parse.)
+>
 > *Step recovery REFUTED via name-offset; a structural/user-content boundary.*
 > Parsed the twin's 4 step names per file (e.g. "Update pin map", "Create and
 > register NI-DMM Sessions", "Perform a measurement using an NI DMM", "Destroy and

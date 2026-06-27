@@ -453,6 +453,10 @@ String dumpBinaryRecon(Uint8List seqBytes) {
     b.writeln('  (body did not frame into record/string regions)');
   }
 
+  _reconSection(b, 'Named-record headers', [
+    for (final r in a.namedRecords)
+      '${r.name} ×${r.count}  (raw tag ${r.rawTag}, not modeled)',
+  ]);
   _reconSection(b, 'Object names', a.objectNames);
   _reconSection(b, 'Module call-targets', a.modulePaths);
   _reconSection(b, 'Step references', a.stepReferences);

@@ -232,4 +232,40 @@ void main() {
     expect(dumpBinaryRecon(Uint8List.fromList(ascii.encode('<?xml?>'))),
         '(not a binary TOF1 file)');
   });
+
+  test('binaryNamedRecords keeps consistently-tagged names, drops the rest', () {
+    List<int> u32le(int v) =>
+        [v & 0xff, v >> 8 & 0xff, v >> 16 & 0xff, v >> 24 & 0xff];
+
+    // Pool: "Parameters" at rel 8, "Locals" at rel 19 (PadName at rel 0 is
+    // excluded by the non-zero-offset rule).
+    final pool = <int>[];
+    for (final name in ['PadName', 'Parameters', 'Locals', 'ResultList',
+        'StepX', 'SeqX']) {
+      pool..addAll(ascii.encode(name))..add(0);
+    }
+
+    // 16 words → record region = 64 bytes, so the pool/rr begin at 64 and a
+    // name-offset of 8 resolves to rel 8 = "Parameters".
+    // Parameters (rel 8) referenced twice with the SAME tag 5 -> qualifies.
+    // Locals (rel 19) referenced twice with DIFFERENT tags 3,4 -> dropped.
+    final rec = <int>[
+      ...u32le(0), ...u32le(5), ...u32le(8), ...u32le(0), // [2] Parameters tag5
+      ...u32le(5), ...u32le(8), ...u32le(0), ...u32le(3), // [5] Parameters tag5
+      ...u32le(19), ...u32le(0), ...u32le(4), ...u32le(19), // Locals tag3 / tag4
+      ...u32le(0), ...u32le(0), ...u32le(0), ...u32le(0),
+    ];
+
+    final recs = binaryNamedRecords(_tof1([...rec, ...pool]));
+    expect(recs, hasLength(1));
+    expect(recs.single.name, 'Parameters');
+    expect(recs.single.count, 2);
+    expect(recs.single.rawTag, 5); // consistent tag, carried verbatim
+    // Locals had two different preceding tags -> not a consistent header.
+    expect(recs.map((r) => r.name), isNot(contains('Locals')));
+  });
+
+  test('binaryNamedRecords empty on non-binary input', () {
+    expect(binaryNamedRecords(Uint8List(0)), isEmpty);
+  });
 }

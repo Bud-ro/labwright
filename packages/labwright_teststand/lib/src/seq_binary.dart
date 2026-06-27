@@ -645,6 +645,109 @@ List<BinaryNamedScalar> _namedScalarsFromBody(Uint8List body, int rr) {
   return out;
 }
 
+/// A **consistently-referenced named-property record header** in a binary TOF1
+/// record region: a name the records cite (by its string-region-relative offset)
+/// always with the *same* leading [rawTag] word, across [count] occurrences.
+///
+/// The per-name tag **consistency is the evidence** that these are real record
+/// headers rather than coincidental offset matches: a chance collision would not
+/// repeatedly carry the identical preceding word. (Confirmed members surface this
+/// way — `Parameters` tag 0, `ResultList` tag 2.) [rawTag] is the **raw NI tag
+/// word, carried verbatim and NOT modeled**. The per-record **type** word is not
+/// summarized here because it varies per member (e.g. `Parameters` holds many
+/// distinct type codes); use [binaryNamedScalarRecords] for the typed scalar slots.
+class BinaryNamedRecord {
+  const BinaryNamedRecord({
+    required this.name,
+    required this.count,
+    required this.rawTag,
+  });
+
+  /// The offset-referenced property/container name (e.g. `Parameters`,
+  /// `ResultList`), resolved from the name table.
+  final String name;
+
+  /// How many times the record region references [name] as a header (all with
+  /// [rawTag]).
+  final int count;
+
+  /// The consistent leading `tag` word of the record header — **not modeled**.
+  final int rawTag;
+
+  @override
+  String toString() =>
+      'BinaryNamedRecord($name x$count, tag=$rawTag)';
+}
+
+/// The **consistently-referenced named-property record headers** of a binary
+/// TOF1 file — the structural skeleton beyond the scalar slots
+/// ([binaryNamedScalarRecords]): which property/container names the records cite
+/// (by string-region-relative offset) and how often, gated to suppress
+/// coincidental offset matches (see [BinaryNamedRecord]).
+///
+/// Gate: a name qualifies when it is non-empty, referenced at a **non-zero**
+/// string-region offset (offset 0 is the root `SequenceFileData`, which every
+/// zero record word would spuriously match), referenced **≥2** times, and **every**
+/// such reference carries the **same** preceding `tag` word. On the Rosetta
+/// near-twins this admits exactly the real TestStand identifiers (`Parameters`,
+/// `ResultList`, `[0]`, `DescriptionFormat`, `NI_DotNetParameterResult`, …) and
+/// drops the inconsistently-tagged noise (e.g. `Locals`, `Seq`). Returned by
+/// descending [BinaryNamedRecord.count]. The record grammar linking these to the
+/// step tree is **not yet decoded** — this is a header census, not a parse.
+/// Returns `[]` when [seqBytes] is not an inflatable binary file or doesn't frame.
+/// Whether [s] looks like a property/container **name** rather than a recovered
+/// **value** string. Value strings (quoted literals, expressions, module paths,
+/// `ID#:` step refs) are confirmed **not** offset-referenced, so a record word
+/// matching one's offset is coincidence — excluded from [binaryNamedRecords].
+bool _isNameLike(String s) =>
+    !isBinaryQuotedLiteral(s) &&
+    !isBinaryExpression(s) &&
+    !isBinaryModulePath(s) &&
+    !_isStepRef(s);
+
+List<BinaryNamedRecord> binaryNamedRecords(Uint8List seqBytes) {
+  final body = inflateBinaryBody(seqBytes);
+  if (body == null) return const [];
+  final layout = _layoutFromBody(body);
+  if (layout == null) return const [];
+  return _namedRecordsFromBody(body, layout.recordRegionLength);
+}
+
+/// [binaryNamedRecords] core over an already-inflated [body] (no re-inflate),
+/// given the record-region length [rr] — for the single-inflate [analyzeBinary].
+List<BinaryNamedRecord> _namedRecordsFromBody(Uint8List body, int rr) {
+  final relToName = _stringRegionNamesByRel(body, rr);
+  if (relToName.isEmpty) return const [];
+
+  final bd = ByteData.sublistView(body);
+  // name -> (count, set of distinct tags seen).
+  final counts = <String, int>{};
+  final tags = <String, Set<int>>{};
+  final wordCount = rr ~/ _u32Bytes;
+  for (var w = 1; w + 1 < wordCount; w++) {
+    final off = bd.getUint32(w * _u32Bytes, Endian.little);
+    if (off == 0) continue; // rel 0 == root SequenceFileData — spurious matches.
+    final name = relToName[off];
+    if (name == null || name.isEmpty || !_isNameLike(name)) continue;
+    counts.update(name, (v) => v + 1, ifAbsent: () => 1);
+    (tags[name] ??= <int>{}).add(bd.getUint32((w - 1) * _u32Bytes, Endian.little));
+  }
+
+  final out = <BinaryNamedRecord>[];
+  for (final e in counts.entries) {
+    final tagSet = tags[e.key]!;
+    // Gate: referenced >=2 times, always with the SAME preceding tag.
+    if (e.value < 2 || tagSet.length != 1) continue;
+    out.add(BinaryNamedRecord(
+      name: e.key,
+      count: e.value,
+      rawTag: tagSet.single,
+    ));
+  }
+  out.sort((a, b) => b.count.compareTo(a.count));
+  return out;
+}
+
 /// Maximal chains of NUL-adjacent runs at/after [from], each of ≥[minChain].
 List<List<BinaryString>> _segmentsFrom(
   List<BinaryString> runs,
@@ -785,6 +888,7 @@ class BinaryAnalysis {
     this.quotedLiterals = const [],
     this.namedScalars = const [],
     this.scalarDoubles = const [],
+    this.namedRecords = const [],
   });
 
   /// Size of the inflated body in bytes.
@@ -826,6 +930,11 @@ class BinaryAnalysis {
   /// All distinct inline scalar `double` values (== [binaryScalarDoubles]) — the
   /// superset of [namedScalars]' values (those not in a decoded named record too).
   final List<double> scalarDoubles;
+
+  /// Consistently-referenced named-property record headers (== [binaryNamedRecords])
+  /// — the structural skeleton: which property/container names the records cite and
+  /// how often, with the raw (unmodeled) consistent tag.
+  final List<BinaryNamedRecord> namedRecords;
 }
 
 /// Inflates the binary TOF1 body **once** and runs the whole recon layer over it,
@@ -856,5 +965,8 @@ BinaryAnalysis? analyzeBinary(Uint8List seqBytes) {
     scalarDoubles: layout == null
         ? const []
         : _scalarDoublesFromBody(body, layout.recordRegionLength),
+    namedRecords: layout == null
+        ? const []
+        : _namedRecordsFromBody(body, layout.recordRegionLength),
   );
 }
