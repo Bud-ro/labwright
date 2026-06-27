@@ -327,6 +327,32 @@ refused (not mis-parsed).
 >   twin (perfect Rosetta), NI's `SequenceFileConverter.exe` converts a `.seq`
 >   between binary/INI/XML in place — needs Windows+TestStand, a future option.
 
+> **2026-06 — record→name linkage CONFIRMED on the minimal Rosetta binaries.**
+> Working the tiny NIDmm/NIFgen/NIScope labview binaries (4 steps, ~7.5KB,
+> 11-entry name pool) against their XML twins:
+> - **CONFIRMED — the record region references name-pool entries by integer
+>   index.** Scanning the record region as u32 LE and counting values that fall in
+>   `[1, poolSize)`: **every** non-root structural name is referenced — NIDmm &
+>   NIFgen **10/10**, NIScope **9/10** (only the empty `ResultList` absent) — with
+>   structurally-sensible frequencies: `Objs` 187–205× (array container, the most
+>   nested), `[0]` 77–82× (array element key), `Data` 70–80×, `MainSequence`/`Obj`/
+>   `Parameters` mid, leaf `Locals`/`ResultList` 1–2×. Not chance (a flat
+>   small-int distribution wouldn't cover the pool with this shape). And the
+>   object-record *headers* cite indices in tree order — consecutive records lead
+>   with `3 → 5 → 6` = `Seq → Sequence → MainSequence`, exactly the known path
+>   `Data > Seq > [0] > Sequence(MainSequence)`. This generalizes the earlier
+>   single anchor (`recordWords[2] == 1 → name[1] == "Data"`) to the whole stream.
+>   *Caveat (next step):* small integers are ambiguous — some counted "refs" may be
+>   incidental small-int data (counts/flags ≤ pool size). Pinning the exact record
+>   fields that ARE name references (vs incidental) is the next decode step;
+>   `parseSeqFile` still refuses binary until that lands.
+> - **REFUTED (as universal) — `0x6259ECD3` (1650060499) is NOT the object-record
+>   marker.** It recurs 7×/file in all three labview sibling binaries but **0×** in
+>   six other corpus binaries (TestStand_Main_v3, the Aktif_Güç family) — so it is
+>   a file-family / TS-version constant, not a general delimiter. Object-record
+>   boundaries must be found another way (the per-record header shape, not a magic
+>   word).
+
 > **2026-06 corpus expansion — several "83/83" body claims below are now SUPERSEDED.**
 > The corpus grew from **103 → 372 `.seq`** (288 binary / 58 INI / 26 XML) across
 > ~28 source repos and TS revisions 575→1022 (was an NI-example-heavy ~10-repo
