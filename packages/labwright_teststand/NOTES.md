@@ -391,10 +391,24 @@ refused (not mis-parsed).
 > length prefix / back-pointer** beside value strings — the value table is
 > structurally **identical to the name table** (both are NUL-packed string pools).
 > The two differ *only* in how records reference them, not in internal layout. ⟹ the
-> value→property linkage lives entirely in the **record region**. One base remains
-> **untested**: a **value-table-relative** offset (offset from the value-table start,
-> not the string-region start) — prior tick tested string-region-relative & absolute,
-> not this. That is the next concrete test before declaring value linkage a plateau.
+> value→property linkage lives entirely in the **record region**.
+>
+> *Value-table-relative offset REFUTED — value linkage is NOT a body/table byte offset
+> (honest plateau on value strings).* Tested the last untested base: for every
+> distinctive value string (the `NationalInstruments.MeasurementLink.TestStandMeasurement
+> Client.dll` path, "Acquire Measurement", "Measurement Type", "Update pin map") computed
+> offset = strAbs − valueTableStart and counted byte-granular occurrences in the record
+> region — across **u32-LE, u32-BE, and u16**, and re-confirmed string-region-relative
+> and absolute too. **Result: 0 hits on every string, every base, every width, all 3
+> files.** The probe's counter is sound (validated same run: name-offsets 79/61/72 →
+> 32/145/41 hits, exactly the confirmed ResultList/Parameters/Locals counts). ⟹ value
+> strings are **not referenced by any byte offset** into the body (not string-region-rel,
+> not value-table-rel, not absolute) in any width/endianness. Combined with the earlier
+> refutations (entry-index inconclusive — single-use; no per-entry header), the
+> value→property link is an **opaque per-object handle/index assigned at save time**, not
+> a recoverable body offset. This is the honest **plateau on value-string linkage**;
+> next pushes pivot to **consolidating/shipping what IS decoded** (tested named-scalar
+> record surfacing, richer binary recon) rather than re-probing offsets.
 >
 > *Step recovery REFUTED via name-offset; a structural/user-content boundary.*
 > Parsed the twin's 4 step names per file (e.g. "Update pin map", "Create and
