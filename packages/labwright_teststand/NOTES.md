@@ -511,6 +511,22 @@ refused (not mis-parsed).
 > measurement-plugin template), unlike the type-varying counts — an observation, not yet
 > modeled. No code change (verification tick).
 >
+> *`ID#:` step GUIDs are TEMPLATE-assigned, not per-file-random — and not a step
+> enumerator.* Toward the record-boundary frontier (separating type-def from instance
+> records), checked the binary's `ID#:` GUIDs against the twin steps. Twin: **4 steps**
+> across **3 groups** — Setup `[Update pin map, Create and register … Sessions]`, Main
+> `[Perform/Generate/Acquire …]`, Cleanup `[Destroy and unregister …]`. Binary: **7**
+> `ID#:` GUIDs (≠ 4). Cross-file: **3 GUIDs are byte-identical across ALL 3 instruments**
+> (`j5wyx+k17RGnWgDgQ7lGAD`, `MS2zjF1W7BGpWXoj8F8wtC`, `O2wIzH+P7hGvWQAVXQFaAA`);
+> NIDmm/NIFgen share **6 of 7** (differ by exactly one — the instrument-specific Main
+> step); NIScope shares only the 3 universal ones. ⟹ TestStand `ID#:` GUIDs in these
+> example files are **fixed by the measurement-plugin template** (boilerplate steps reuse
+> identical GUIDs across instruments), **not** freshly randomized per save. And since
+> **7 ≠ 4**, `ID#:` count is **NOT a step-instance enumerator** — IDs tag steps *and*
+> other Id-bearing objects (substeps / sequence / result objects), so the instance↔type-def
+> split can't be read off the ID count. The boundary still needs an actual byte
+> delimiter/length in the record region (next lead). No code change (probe tick).
+>
 > *Step recovery REFUTED via name-offset; a structural/user-content boundary.*
 > Parsed the twin's 4 step names per file (e.g. "Update pin map", "Create and
 > register NI-DMM Sessions", "Perform a measurement using an NI DMM", "Destroy and
