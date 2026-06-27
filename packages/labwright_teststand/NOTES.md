@@ -353,6 +353,26 @@ refused (not mis-parsed).
 >   boundaries must be found another way (the per-record header shape, not a magic
 >   word).
 
+> **2026-06 — FIRST scalar VALUE-DATA recovery from the binary record stream.**
+> Scanning the record region for clean inline doubles (low 32 bits == 0 to kill
+> coincidence; finite; sane magnitude) and decoding f64 LE:
+> - **Recovered values: `1.0, 2.0, 4.0, 6.0, 8192.0, −1.0, −2.0`** (7 distinct),
+>   **byte-identical set across NIDmm & NIScope** (they share the measurement
+>   step-type definitions, so the same numeric defaults appear).
+> - **Layout confirmed:** the 8-byte LE IEEE-754 double sits exactly **2 words
+>   after a name-offset** — record = `⟨tag⟩ ⟨name-offset⟩ ⟨type-code⟩ ⟨f64-lo⟩
+>   ⟨f64-hi⟩` (the double = words 3–4; attribution finds the name-offset @−2w from
+>   the f64's low word, matching the prior `w3:w4` double placement). The
+>   name-offset is predominantly `Parameters`.
+> - **Honest scope:** these are **step-TYPE parameter default values** (the twin's
+>   own sequence carries 0 params), not per-step instance overrides — but they are
+>   genuine recovered numeric data, the first concrete *values* pulled from the
+>   binary record stream (previously only names/strings were recovered). Decoding
+>   each value's exact leaf property (vs the enclosing Parameters container) is the
+>   next refinement.
+> Next: locate per-step *instance* values / limits and tie a recovered double to a
+> specific step's field via the twin.
+
 > **2026-06 — named-member records are TYPE-DEPENDENT (the array header does NOT
 > generalize); Parameters records embed IEEE-754 doubles.** Dumping Parameters
 > (relOffset 61) and Locals (72) records like ResultList (3 files):
