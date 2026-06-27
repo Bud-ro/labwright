@@ -385,6 +385,25 @@ refused (not mis-parsed).
 > across NIDmm/NIFgen/NIScope), never a distinct leaf. (NIFgen carries extra
 > defaults `3.0, 8.0` — its standard-function step type differs from DMM/Scope.)
 >
+> *Step recovery REFUTED via name-offset; a structural/user-content boundary.*
+> Parsed the twin's 4 step names per file (e.g. "Update pin map", "Create and
+> register NI-DMM Sessions", "Perform a measurement using an NI DMM", "Destroy and
+> unregister NI-DMM sessions"). In the binary: **only "Update pin map"** appears as a
+> literal string (value table, rel ~4600, **0 offset-references**); the **other 3
+> step names are absent** as NUL-bounded literals — they are **generated/localized**
+> (the binary carries `DefaultNameFormat`/`ResStr(...)` name-format expressions, not
+> the resolved display names the twin XML shows). ⟹ step names are **not recoverable
+> via the name-offset mechanism**.
+> **Boundary (meta):** the decoded offset mechanism cleanly recovers the
+> **structural property-name skeleton** (the container names Parameters / Locals /
+> ResultList / Step / Seq …, offset-referenced) plus inline scalar doubles — but
+> **user-facing content** (step display names, expressions, string values) lives in
+> the **value table** whose linkage is undecoded (this is now the 3rd consecutive
+> value-table blocker: not byte-offset, not table-index, and step names are
+> additionally name-format-generated). NOT a dead end — next angles: the value
+> table's *internal* structure (does each entry carry a header / back-pointer to its
+> owning record?), or a byte-identical twin via NI SequenceFileConverter.exe.
+>
 > *Inconclusive (value-table ENTRY-INDEX not confirmed either):* tested whether
 > value/expression strings are referenced by entry index into their packed table
 > (global index, or value-table-local index). Distinctive value strings show only
