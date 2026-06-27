@@ -527,6 +527,27 @@ refused (not mis-parsed).
 > split can't be read off the ID count. The boundary still needs an actual byte
 > delimiter/length in the record region (next lead). No code change (probe tick).
 >
+> *RECORD STREAM has a TEMPLATE-FIXED PREFIX with a precise divergence point
+> (differential, all 3 files).* Located every confirmed header by anchor — ResultList
+> `⟨2⟩⟨79⟩⟨4⟩⟨0x0b⟩⟨0⟩` and Parameters `⟨0⟩⟨61⟩⟨type⟩` — and compared their word
+> positions across instruments. **The leading headers occupy IDENTICAL word positions in
+> all 3 files**: ResultList at words **709, 1144, 1929, 2753, 3011, 3494, 4053, 4920**
+> (first **8** identical; inter-header word-gaps `435,785,824,258,483,559,867` identical),
+> diverging only at the 9th (gap 1270/534/1596 for NIDmm/NIFgen/NIScope). Parameters
+> likewise identical for the first **11** headers (gaps `8,128,1035,8,1141,735,281,745,5,7`
+> identical), diverging at the 11th (769/1516/1664). ⟹ the record region is **byte-position
+> identical across instruments for a leading boilerplate prefix** (the shared template
+> steps — pin-map update + session create, identical across plugins) and **diverges at a
+> precise, observable point** = the template→instrument-specific boundary. This is the
+> instance/type-def split localized by cross-file diff (couldn't be read off the ID count).
+> *Also confirmed:* dense scalar **Parameter records pack at a FIXED 8-word / 32-byte
+> stride** (the run of gap-8 headers), each `⟨0⟩⟨61⟩⟨type⟩⟨0⟩⟨f64-hi⟩…` with the inline
+> double (e.g. `…62,0,1086324736` = type 62, high word of 8192.0). *Honest caveat:* the
+> non-dense gaps are **irregular** (435,785,824,…) — **no fixed record stride and no inline
+> length field** found in the header, so arbitrary variable records still can't be split by
+> length; the boundary is currently localizable only by the cross-file diff. No code change
+> (probe tick).
+>
 > *Step recovery REFUTED via name-offset; a structural/user-content boundary.*
 > Parsed the twin's 4 step names per file (e.g. "Update pin map", "Create and
 > register NI-DMM Sessions", "Perform a measurement using an NI DMM", "Destroy and
