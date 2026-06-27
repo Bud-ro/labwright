@@ -353,6 +353,26 @@ refused (not mis-parsed).
 >   boundaries must be found another way (the per-record header shape, not a magic
 >   word).
 
+> **2026-06 — successor-word distribution disambiguates genuine name-index
+> citations from incidental small ints.** For each value `v ∈ [1..10]` appearing
+> as a `u32 LE` at *any* byte offset in the (post-scaffold) record region, tabulate
+> the immediately-following `u32` over the three minimal binaries:
+> - **`[0]` (index 4) → constant code-word `11` (0x0b)** in ~72% of occurrences,
+>   with a **file-stable count: 234 / 234 / 244** (NIDmm / NIFgen / NIScope). This
+>   `⟨4⟩⟨0x0b⟩` pair is the first concretely-pinned **record token** — a genuine
+>   array-element-key (`[0]`) citation followed by a fixed code-word. (234 ≡ 234
+>   matches the NIDmm/NIFgen shared-template finding; ~244 for NIScope.)
+> - **`Objs` (index 2) → `0`** dominates (~67–70%; 536/802, 527/783, 598/856),
+>   with stable secondary successors `70`×33 and `79`×32 in all three.
+> - By contrast **`Data` (1)** and **`Obj` (7)** *scatter* — ≥23 distinct
+>   successors, top-share ≤0.36; many successors are large structured values
+>   (`0x02000000`, `0x80000000`), i.e. most of their `u32` occurrences are
+>   incidental field bytes, not clean name citations.
+> ⟹ **successor concentration is a reliable name-ref discriminator**, and the
+> high-concentration values (2, 4) are real recurring record tokens. The code-words
+> themselves (`0x0b`, `70`, `79`, …) are NI type/class codes — OFF-LIMITS to model;
+> only the structural pairing is asserted here.
+
 > **2026-06 — leading record frame is a FIXED container scaffold; records are
 > byte-granular / variable-length.** Comparing the three minimal binaries'
 > *inflated record regions* directly:
