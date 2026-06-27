@@ -20,14 +20,18 @@ One `.seq` holds the same model in **three encodings**; recovery differs by form
   step inlines its full step-TYPE definition (XML centralizes these in
   `<typelist>`); no per-step instance data is missing. Quoted values are
   C-style-unescaped to match the XML form.
-- **BINARY (`TOF1`) — recon mature, record grammar BLOCKED.** Header, zlib body,
-  string pool, name table, and per-file recovered datums (object names, module
-  call-targets, step refs, expressions, literals) are decoded; the variable-length
-  **record grammar** that ties a name to its parsed step tree is **not yet
-  recovered**. Full-corpus statistical attack is exhausted (chance-level) — it
-  needs a NEW INPUT (a byte-identical XML↔binary "Rosetta" twin, controlled
-  minimal files, or NI's PropertyObject serialization docs), not more probing.
-  `parseSeqFile` honestly refuses binary rather than mis-parse it.
+- **BINARY (`TOF1`) — recon mature, record grammar decode now UNBLOCKED (inputs
+  obtained 2026-06).** Header, zlib body, string pool, name table, and per-file
+  recovered datums (object names, module call-targets, step refs, expressions,
+  literals) are decoded; the variable-length **record grammar** that ties a name
+  to its parsed step tree is **not yet recovered** — but the missing input has now
+  been located: **Rosetta near-twins + controlled-minimal binary files** fetched
+  from NI's own public repos (see "Rosetta pairs" below; `tool/fetch_rosetta_
+  pairs.sh`). These are tiny 4-step binaries (~7.5KB) whose logical structure is
+  known from an XML twin of the same NI example measurement — the differential
+  leverage the full-corpus statistical attack lacked. `parseSeqFile` still
+  refuses binary until the grammar is actually decoded (honest); the next decode
+  push works these pairs, not the 905KB monsters.
 
 **Deliverables (PLAN's TestStand goals — substantially met for XML+INI):**
 expose hidden data ✓, render close to the original ✓ (the inspector's Sequences
@@ -289,6 +293,39 @@ refused (not mis-parsed).
   `(none)` / omits null fields, never fabricates.
 
 ## Binary TOF1 — reconnaissance (header decoded; body not yet)
+
+> **2026-06 — Rosetta pairs + controlled-minimal binaries OBTAINED (decode unblocked).**
+> The record-grammar attack was blocked for lack of a binary file whose content we
+> already understand. That input now exists, fetched from NI's *own* public
+> measurement-plugin example repos by `tool/fetch_rosetta_pairs.sh` into the
+> gitignored `corpus/seq/rosetta/`:
+> - **`ni/measurement-plugin-labview`** commits its NI example measurements in
+>   MIXED encodings — `NIDmmMeasurement` / `NIFgenStandardFunction` /
+>   `NIScopeAcquireWaveform` as **BINARY (TOF1)**; `NIDCPowerSourceDCVoltage` /
+>   `NIDigitalSPI` / VISA / Keysight as **XML**. Same author, TS version, and
+>   authoring conventions → the XML examples are a structural template for the
+>   binary ones.
+> - **`ni/measurement-plugin-python`** commits the *same* example measurements
+>   (`NIDmmMeasurement`, …) as **XML**. So each labview BINARY example has an XML
+>   twin of the same NI measurement.
+> - **Confirmed pairing (NIDmm):** the XML twin is a 4-step sequence (update pin
+>   map → register sessions → measure → cleanup); the binary twin recovers the
+>   same skeleton — module paths `NIDmmMeasurement.lvlib\…\Initialize and Register
+>   Sessions.vi` / `Unregister and Close Sessions.vi`, literal
+>   `NIDmmMeasurement.pinmap`, and a **fully recovered name table**
+>   `[SequenceFileData, Data, Objs, Seq, [0], Sequence, MainSequence, Obj,
+>   Parameters, Locals, ResultList]` matching the XML structure. The two differ
+>   only by adapter (Python-plugin call vs LabVIEW-plugin call) — a near-twin, not
+>   byte-identical, but the PropertyObject scaffolding is shared.
+> - **Why this is the unlock:** the binaries are **tiny (4 steps, ~7.5KB)** —
+>   controlled-minimal inputs, vs the 905KB monsters in the wider corpus — and we
+>   independently know their logical tree from the XML twin. That gives the
+>   differential constraints (known names + known structure ↔ raw record bytes)
+>   the full-corpus statistical attack lacked. NEXT decode push: align the binary
+>   record stream of `NIDmm_labview_BIN.seq` against the known tree to work out how
+>   a record references a name-pool entry and its value. For a *byte-identical*
+>   twin (perfect Rosetta), NI's `SequenceFileConverter.exe` converts a `.seq`
+>   between binary/INI/XML in place — needs Windows+TestStand, a future option.
 
 > **2026-06 corpus expansion — several "83/83" body claims below are now SUPERSEDED.**
 > The corpus grew from **103 → 372 `.seq`** (288 binary / 58 INI / 26 XML) across
