@@ -25,7 +25,7 @@ jobs:
       - name: test all packages
         shell: bash
         run: |
-          for p in packages/* tests/labwright_example; do
+          for p in packages/* example/e2e; do
             if [ -d "$p/test" ]; then
               echo "== $p =="
               ( cd "$p" && dart test ) || exit 1

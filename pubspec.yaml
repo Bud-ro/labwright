@@ -8,17 +8,10 @@ environment:
   sdk: ^3.11.0
 
 workspace:
-  - packages/labwright_core
   - packages/labwright_tdms
   - packages/labwright_viparse
   - packages/labwright_videcode
   - packages/labwright_teststand
-  - packages/labwright_traceability
-  - packages/labwright_daq
-  - packages/labwright_fuzz
-  - packages/labwright_runner
-  - packages/labwright_cli
-  - tests/labwright_example
 
 dev_dependencies:
   lints: ^5.0.0
