@@ -1,0 +1,20 @@
+name: e2e_test
+description: >-
+  Example of authoring hardware end-to-end tests as ordinary Dart tests: the
+  e2e_test authoring API (device-under-test, instrument plugs, named phases,
+  limit-checked measurements, and TDMS run records). A simulated PSU board lets
+  the suite run in CI with no hardware.
+publish_to: none
+version: 0.0.1
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  labwright_tdms:
+    path: ../../packages/labwright_tdms
+  test: ^1.25.0
+
+dev_dependencies:
+  lints: ^5.0.0
