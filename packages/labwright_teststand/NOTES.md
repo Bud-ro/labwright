@@ -43,9 +43,9 @@ targets), surfaced both as the
 dump's `=== Sequence logic ===` section and a dedicated read-only **Logic tab**
 in the app.
 
-**Recommendation:** until a new binary input arrives, further DECODE progress is
-blocked; keep investing in export/render polish + parity (and the VI-reader
-cross-link), not in re-probing the binary record stream.
+**Recommendation:** the binary record-grammar decode is now ACTIVE on the Rosetta
+near-twins (see the dated blocks at the top of this file) — differential
+inference against the known XML tree, one confirmed record-grammar fact per pass.
 
 ## M0 reconnaissance — what a `.seq` actually is (confirmed on the corpus)
 
@@ -352,6 +352,34 @@ refused (not mis-parsed).
 >   a file-family / TS-version constant, not a general delimiter. Object-record
 >   boundaries must be found another way (the per-record header shape, not a magic
 >   word).
+
+> **2026-06 — leading record frame is a FIXED container scaffold; records are
+> byte-granular / variable-length.** Comparing the three minimal binaries'
+> *inflated record regions* directly:
+> - **The record region opens with a fixed 17-word (68-byte) frame that is
+>   three-way byte-identical** across NIDmm/NIFgen/NIScope:
+>   `[28, 16, ⟨1=Data⟩, 21, 22, ⟨3=Seq⟩, 0x6259ECD3, 0, 23, 18, 19, 0x02000004,
+>   0, 0xFFFFFFFF, 0, 0, 0]`. So the first name reference sits at a **fixed
+>   position** — word[2], immediately after the 2-word `[28, 16]` opener
+>   (these are `leadingWords[0..1]`) — and cites name-index **1 = Data**; word[5]
+>   cites **3 = Seq**. The `0x6259ECD3` family-constant occupies word[6] of this
+>   frame (consistent with it being scaffold boilerplate, not a delimiter — see
+>   the refutation below).
+> - **The first per-file-specific field is at byte 69 — NOT u32-aligned**
+>   (`u32 LE` = 1 for NIDmm/NIFgen, 3 for NIScope). An off-by-non-multiple-of-4
+>   divergence point **confirms the record stream is byte-granular and
+>   variable-length** — name-index fields can land at any byte offset, so a flat
+>   `recordWords` u32 scan is a recon aid, not the grammar.
+> - **NIDmm and NIFgen are byte-identical for 12403 bytes** of the inflated record
+>   region (≈44%); they diverge only in later content/module paths. NIScope
+>   diverges at byte 69. ⟹ a large fixed scaffold/boilerplate prefix precedes the
+>   per-file differentiating content — the decode should target the *post-scaffold*
+>   region, anchored by the byte-69 divergence.
+> - *Not yet confirmed (next pass):* the per-record shape appears to be
+>   `⟨name-index⟩ ⟨code-word⟩ …` (e.g. idx 4→0x0b, idx 5/3→0x14, idx 6→0x74),
+>   but those code words are NI numeric type/class codes (OFF-LIMITS to model);
+>   confirming which fields are name-refs vs incidental small ints via the
+>   code-word successor distribution is the next step.
 
 > **2026-06 corpus expansion — several "83/83" body claims below are now SUPERSEDED.**
 > The corpus grew from **103 → 372 `.seq`** (288 binary / 58 INI / 26 XML) across
