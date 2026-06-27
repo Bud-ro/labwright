@@ -602,7 +602,13 @@ List<BinaryNamedScalar> binaryNamedScalarRecords(Uint8List seqBytes) {
   if (body == null) return const [];
   final layout = _layoutFromBody(body);
   if (layout == null) return const [];
-  final rr = layout.recordRegionLength;
+  return _namedScalarsFromBody(body, layout.recordRegionLength);
+}
+
+/// [binaryNamedScalarRecords] core over an already-inflated [body] (no
+/// re-inflate), given the record-region length [rr] — for the single-inflate
+/// [analyzeBinary] path.
+List<BinaryNamedScalar> _namedScalarsFromBody(Uint8List body, int rr) {
   final relToName = _stringRegionNamesByRel(body, rr);
   if (relToName.isEmpty) return const [];
 
@@ -771,6 +777,7 @@ class BinaryAnalysis {
     this.stepReferences = const [],
     this.expressions = const [],
     this.quotedLiterals = const [],
+    this.namedScalars = const [],
   });
 
   /// Size of the inflated body in bytes.
@@ -803,6 +810,11 @@ class BinaryAnalysis {
 
   /// Quoted string literals — constant values (== [binaryQuotedLiterals]).
   final List<String> quotedLiterals;
+
+  /// Named-property scalar records (== [binaryNamedScalarRecords]) — inline
+  /// doubles tied to their offset-referenced property name, with raw (unmodeled)
+  /// tag/type words.
+  final List<BinaryNamedScalar> namedScalars;
 }
 
 /// Inflates the binary TOF1 body **once** and runs the whole recon layer over it,
@@ -814,17 +826,21 @@ BinaryAnalysis? analyzeBinary(Uint8List seqBytes) {
   if (body == null) return null;
   final segments = _segmentsFromBody(body);
   final nameTable = _nameTableFromSegments(segments)?.entries ?? const [];
+  final layout = _layoutFromBody(body);
   return BinaryAnalysis(
     inflatedSize: body.length,
     // minLength 2 mirrors binaryBodyStrings' default.
     strings: binaryStrings(body, minLength: 2),
     stringTable: _stringTableFromBody(body),
-    layout: _layoutFromBody(body),
+    layout: layout,
     nameTable: nameTable,
     objectNames: _objectNamesFrom([for (final e in nameTable) e.text]),
     modulePaths: _poolWhereFrom(segments, isBinaryModulePath),
     stepReferences: _poolWhereFrom(segments, _isStepRef),
     expressions: _poolWhereFrom(segments, isBinaryExpression),
     quotedLiterals: _poolWhereFrom(segments, isBinaryQuotedLiteral),
+    namedScalars: layout == null
+        ? const []
+        : _namedScalarsFromBody(body, layout.recordRegionLength),
   );
 }

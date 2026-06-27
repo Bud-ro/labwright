@@ -88,6 +88,16 @@ List<({String title, List<String> items})> binaryRecoverySections(
     (title: 'Step references', items: doc.stepReferences),
     (title: 'Expressions (test logic)', items: doc.expressions),
     (title: 'Quoted literals (values)', items: doc.quotedLiterals),
+    // Inline scalar values tied to their offset-referenced property name. The
+    // NI type code is carried verbatim ("raw type N, not modeled") — we do not
+    // interpret NI's type/class enumeration.
+    (
+      title: 'Named scalar values',
+      items: [
+        for (final s in doc.namedScalars)
+          '${s.name} = ${s.value}  (raw type ${s.rawTypeCode}, not modeled)',
+      ],
+    ),
   ].where((s) => s.items.isNotEmpty).toList();
 }
 

@@ -427,6 +427,17 @@ refused (not mis-parsed).
 > property-name reference). +2 unit tests via the `_tof1` helper; package suite **172**
 > green.
 >
+> *SURFACED named scalars in the user-visible recon (inspector app).* Threaded
+> `namedScalars` through the single-inflate path: `BinaryAnalysis.namedScalars`
+> (computed once in `analyzeBinary`, no re-inflate) → `BinarySeqDocument.namedScalars` →
+> a new **"Named scalar values"** section in the inspector's binary recovery view
+> (`binaryRecoverySections`), each item rendered `Name = value  (raw type N, not
+> modeled)`. Verified end-to-end on all 3 Rosetta binaries: analyzeBinary == direct
+> helper == parsed document (17/21/17). The corpus equivalence test now also asserts
+> `analyzeBinary.namedScalars == binaryNamedScalarRecords` across the whole binary
+> corpus; +1 app test for the section + formatting. package **172** / app **65** green,
+> both analyzers clean.
+>
 > *Step recovery REFUTED via name-offset; a structural/user-content boundary.*
 > Parsed the twin's 4 step names per file (e.g. "Update pin map", "Create and
 > register NI-DMM Sessions", "Perform a measurement using an NI DMM", "Destroy and

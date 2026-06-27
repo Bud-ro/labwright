@@ -1010,6 +1010,30 @@ void main() {
     expect(byTitle['Module call-targets'], contains(r'My Computer\Lib\Read.vi'));
     expect(byTitle['Expressions (test logic)'], contains('Locals.x == 1'));
     expect(byTitle['Quoted literals (values)'], contains('"6105A"'));
+    // The pool-only fixture has no record region, so no named-scalar section.
+    expect(titles, isNot(contains('Named scalar values')));
+  });
+
+  test('binaryRecoverySections surfaces named scalar values with raw type', () {
+    final doc = BinarySeqDocument(
+      header: detectSeqHeader(_binary()),
+      inflatedSize: 0,
+      strings: const [],
+      stringTable: const [],
+      namedScalars: const [
+        BinaryNamedScalar(
+            name: 'Parameters',
+            rawTag: 0,
+            rawTypeCode: 62,
+            value: 8192.0,
+            wordIndex: 2),
+      ],
+    );
+    final byTitle = {for (final s in binaryRecoverySections(doc)) s.title: s.items};
+    expect(byTitle['Named scalar values'], isNotNull);
+    // Value is shown; the NI type code is carried verbatim, labelled not-modeled.
+    expect(byTitle['Named scalar values']!.single,
+        'Parameters = 8192.0  (raw type 62, not modeled)');
   });
 
   test('writeCapped lists up to the cap, then an honest "and N more"', () {
