@@ -493,6 +493,24 @@ refused (not mis-parsed).
 > expressions, quoted literals, inline numeric values, named scalar values, named-record
 > headers.
 >
+> *Named-record counts are TYPE-DEFINITION-driven, NOT instance-driven (differential vs
+> twin).* Cross-checked `binaryNamedRecords` counts against each XML twin's parsed
+> structure. **All 3 twins are structurally IDENTICAL** — 1 sequence (MainSequence), **4
+> steps, 0 params, 1 local, 23 types** — yet the binary header counts **differ**:
+> `Parameters` 35/32/22, `ResultList` 10/9/10, `[0]` 16/16/20 (NIDmm/NIFgen/NIScope). ⟹
+> the record multiplicity is **NOT** a function of the logical instance tree (it would be
+> constant if it were); it scales with the **step-TYPE definitions**, which differ per
+> instrument (DMM vs Fgen vs Scope step types carry different parameter/result counts).
+> This **confirms the binary embeds the full step-TYPE definitions inline** (the same
+> structural fact already established for the INI form, where each step inlines its full
+> step-type definition; XML centralizes these in `<typelist>`). So the
+> per-step/per-sequence multiplicity hypothesis is **REFUTED** — counts can't be mapped to
+> 4-steps/1-local without first separating type-def records from the 4 instance records,
+> which needs the not-yet-decoded record-boundary grammar. Notable **invariant**:
+> `NI_DotNetParameterResult` = **3 in all 3 files** (a fixed element of the standard
+> measurement-plugin template), unlike the type-varying counts — an observation, not yet
+> modeled. No code change (verification tick).
+>
 > *Step recovery REFUTED via name-offset; a structural/user-content boundary.*
 > Parsed the twin's 4 step names per file (e.g. "Update pin map", "Create and
 > register NI-DMM Sessions", "Perform a measurement using an NI DMM", "Destroy and
