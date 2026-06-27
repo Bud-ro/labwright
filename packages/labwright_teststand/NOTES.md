@@ -353,6 +353,24 @@ refused (not mis-parsed).
 >   boundaries must be found another way (the per-record header shape, not a magic
 >   word).
 
+> **2026-06 — container does NOT encode child-count in a fixed preceding word;
+> but a `⟨Objs⟩ 0 ⟨Objs⟩ ⟨n⟩` motif precedes small `[0]`-runs.** Grouping
+> consecutive `⟨[0]⟩⟨0x0b⟩` element headers into runs (byte-adjacency, gap ≤ 72)
+> gives 59/59/67 runs with a near-identical length histogram (len1×29, len2×10,
+> len3×3, **len4×1**, len5×1, len6×2, len10–12, len17×2):
+> - **Refuted:** the array-container record does **not** carry its element count as
+>   a `u32` in a fixed slot immediately before the run. Only **16/59** runs (27%)
+>   have their length anywhere in the 8 preceding words, and the canonical
+>   **len-4 run (@1084) has no `4`** in its preceding 8 words. ⟹ child-count is
+>   absent there / encoded indirectly, or byte-adjacency runs ≠ logical arrays
+>   (likely: complex elements aren't byte-adjacent, so an adjacent `[0]` run is an
+>   array of *empty/scalar* elements, not e.g. the 4 steps).
+> - **Observed (candidate, positive):** small `[0]`-runs are frequently immediately
+>   preceded by the motif **`⟨Objs=2⟩ 0 ⟨Objs=2⟩ ⟨rising int⟩`** — `2 0 2 70`
+>   (@698, @1084), `2 0 2 174` (@5897); the rising int looks like a string-table
+>   offset/ID. A container-declaration shape to pin next. (Run offsets / histogram /
+>   preceding bytes are byte-identical across the three siblings — shared scaffold.)
+
 > **2026-06 — Rosetta twin ground-truth + Objs=2 is NOT a standalone record
 > anchor (count-field hunt refuted for now).**
 > - **Verified twin structure** (parsing the XML twins with `parseSeqFile`): all
