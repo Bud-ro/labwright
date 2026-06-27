@@ -385,6 +385,19 @@ refused (not mis-parsed).
 > across NIDmm/NIFgen/NIScope), never a distinct leaf. (NIFgen carries extra
 > defaults `3.0, 8.0` — its standard-function step type differs from DMM/Scope.)
 >
+> *Inconclusive (value-table ENTRY-INDEX not confirmed either):* tested whether
+> value/expression strings are referenced by entry index into their packed table
+> (global index, or value-table-local index). Distinctive value strings show only
+> **1–3** record-region occurrences of their index — at noise level for ints in
+> [200,250]; the lone larger count (local-index 70 → 33×) is just the common small
+> int `70`, coincidental. Root cause: these value strings are **single-use** (each
+> referenced ~once), so no high-count signature can confirm any index scheme.
+> ⟹ value-string linkage stays **undecoded** — neither byte-offset (refuted) nor
+> demonstrably table-index. Value strings remain recovered *sets* (`binaryExpressions`
+> / `binaryModulePaths` / `binaryQuotedLiterals`); per-property value linkage is a
+> later target. Pivot: the next tractable goal is **step recovery** (step names ARE
+> in the name table → reachable via the decoded name-offset mechanism).
+>
 > *Refuted (string values use a DIFFERENT linkage than names):* the
 > `(name → string-value)` recovery via "two string-region offsets in one record"
 > fails for value strings. Byte-granular check on NIDmm: name-table strings ARE
