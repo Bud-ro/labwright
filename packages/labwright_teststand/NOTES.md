@@ -353,6 +353,29 @@ refused (not mis-parsed).
 >   boundaries must be found another way (the per-record header shape, not a magic
 >   word).
 
+> **2026-06 — string-offset reference mode is REAL & PREVALENT, but the
+> discriminator is multiplicity, not the raw exact-start test.** Mapping every
+> record `u32` against the set of exact string-start offsets (rel. to
+> `stringRegionStart`):
+> - **Tempering caveat (honest):** the *raw* "points at an exact string start" test
+>   is **not** a clean discriminator. The string region is dense (~410 starts in
+>   ~7 KB), so ~6% of in-range ints hit a start by chance — **399 hits vs ~385
+>   expected, enrichment ×1.0**. Most individual exact-start hits are coincidence.
+> - **Strengthening signal:** the *distribution* is massively non-random — only
+>   **~32 distinct** strings are referenced, and they are **genuine member names**
+>   with huge multiplicities: **`Parameters`×145, `[0]`×79, `Locals`×41,
+>   `ResultList`×32, `Seq`×14, `Main`×7, `MainSequence`×6**, plus `DescriptionFormat`,
+>   `TEResult`, `DefaultNameFormat`, `Expression`, `ExprValue`,
+>   `BlockStartTypes`/`BlockEndTypes`, `NI_Measurement`, `Step`, `Obj`. A single
+>   offset value recurring 145× is not chance — and `Parameters`/`Locals`/
+>   `ResultList` recurring per-object is exactly the standard step/sequence member
+>   set. (NIScope adds `ArrayClusterEls`×25, `Setup`×14.)
+> ⟹ the string-offset reference mode is confirmed & prevalent (real member names
+> recovered), but a real ref must be identified by **concentration** (a high-
+> multiplicity member-name offset), not by the exact-start test alone; the singleton
+> tail mixes real names with coincidences. Next: tie a specific record FIELD POSITION
+> to its member-name offset (not just "the value appears somewhere").
+
 > **2026-06 — SECOND reference mechanism CONFIRMED: record fields cite strings by
 > string-region-relative byte offset.** Testing record-stream integers as offsets
 > from the string-region start (`= recordRegionLength`), two resolve to **exact
