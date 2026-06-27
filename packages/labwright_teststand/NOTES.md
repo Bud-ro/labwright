@@ -382,13 +382,20 @@ refused (not mis-parsed).
 > *Refuted (leaf attribution):* pairing each clean f64 with the name-offset 2 words
 > before it does **not** give the value's leaf property name — **every** such pair
 > collapses to the single enclosing container `Parameters` (17/19, 21/22, 17/19
-> across NIDmm/NIFgen/NIScope), never a distinct leaf. So the recovered doubles are
-> confirmed to reside in `Parameters`-rooted records, but *which parameter* each
-> value belongs to is **not yet recovered** — the nearest preceding name-offset is
-> the container, not the leaf. (NIFgen carries extra defaults `3.0, 8.0` — its
-> standard-function step type differs from DMM/Scope.) Next: walk the record between
-> the `Parameters` header and each f64 to find the leaf parameter's own name
-> (likely an inner `[0]` element with its own name-offset).
+> across NIDmm/NIFgen/NIScope), never a distinct leaf. (NIFgen carries extra
+> defaults `3.0, 8.0` — its standard-function step type differs from DMM/Scope.)
+>
+> *Resolved (scalars are POSITIONAL):* scanning the **nearest** preceding
+> name-offset for every clean f64 (back up to 12 words) still yields the `Parameters`
+> container @−2w (17/19, 20/22) — there is **no closer leaf-parameter name** between
+> the header and the value. ⟹ scalar values are stored **positionally** within the
+> `Parameters` container record; per-value leaf names are *not* inline-adjacent —
+> they live in the step-TYPE definition / parameter order (exactly how TestStand
+> separates type from instance). So the right model is an **ordered scalar value
+> list under `Parameters`**, not a `(leaf-name → value)` map; `binaryScalarDoubles`
+> (the value set) is the correct granularity until the type-definition parameter
+> order is parsed. Next: parse the step-TYPE parameter order to label positional
+> values — or pivot to recovering string-valued properties.
 
 > **2026-06 — named-member records are TYPE-DEPENDENT (the array header does NOT
 > generalize); Parameters records embed IEEE-754 doubles.** Dumping Parameters
