@@ -3,9 +3,15 @@ description: >-
   Cross-platform, pure-Dart access to NI's NI-DAQmx behind one API: in-process FFI
   (nicaiu.dll / libnidaqmx.so) on Windows/Linux, or gRPC to an NI gRPC Device Server
   for any platform (required on macOS, where NI ships no local DAQmx runtime).
-version: 0.0.1
+version: 0.1.0
 publish_to: none
 resolution: workspace
+repository: https://github.com/Bud-ro/labwright
+topics:
+  - daq
+  - ni-daqmx
+  - ffi
+  - grpc
 
 environment:
   sdk: ^3.11.0

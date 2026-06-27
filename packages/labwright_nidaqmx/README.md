@@ -181,6 +181,30 @@ NI-DAQmx runtime (this dev box is WSL2, where NI-DAQmx's kernel modules don't bu
 The shim gets the FFI surface ~90% of the way to a real DLL; validate on real hardware
 (or NI-DAQmx *simulated devices*) before relying on it in production.
 
+## Validating against real hardware
+
+The final release-candidate gate. The `test/integration/` suites (tag `hardware`) run
+the same operations against a real driver/server and **self-skip** unless configured —
+no NI software is needed for the default `dart test` run. Easiest first pass uses NI MAX
+**simulated devices** (no physical hardware).
+
+```sh
+# FFI, on a Windows/Linux box with NI-DAQmx installed:
+DAQMX_AI_CHANNEL=Dev1/ai0 [DAQMX_AO_CHANNEL=Dev1/ao0] [DAQMX_LIB=/path/to/libnidaqmx.so] \
+  dart test -t hardware packages/labwright_nidaqmx/test/integration/ffi_hardware_test.dart
+
+# gRPC, against a running NI gRPC Device Server:
+NI_GRPC_HOST=192.168.1.50 NI_GRPC_AI_CHANNEL=Dev1/ai0 \
+  dart test -t hardware packages/labwright_nidaqmx/test/integration/grpc_hardware_test.dart
+
+# Both configured -> FFI/gRPC parity on the same device:
+DAQMX_AI_CHANNEL=Dev1/ai0 NI_GRPC_HOST=localhost \
+  dart test -t hardware packages/labwright_nidaqmx/test/integration/parity_test.dart
+```
+
+See [`example/main.dart`](example/main.dart) for a runnable enumerate → read → stream-to-
+TDMS demo (`--grpc <host>` switches transports).
+
 ## gRPC wire definitions
 
 The gRPC stubs are generated from **scoped, wire-compatible subsets** of NI's
