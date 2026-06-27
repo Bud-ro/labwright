@@ -385,6 +385,17 @@ refused (not mis-parsed).
 > across NIDmm/NIFgen/NIScope), never a distinct leaf. (NIFgen carries extra
 > defaults `3.0, 8.0` — its standard-function step type differs from DMM/Scope.)
 >
+> *Value table has NO per-entry header (pure packed strings).* Examined the bytes
+> between consecutive value-table strings: the inter-string gap is **1 byte (just the
+> NUL) in 272/273 entries** (one 3-byte anomaly). So there is **no per-entry header /
+> length prefix / back-pointer** beside value strings — the value table is
+> structurally **identical to the name table** (both are NUL-packed string pools).
+> The two differ *only* in how records reference them, not in internal layout. ⟹ the
+> value→property linkage lives entirely in the **record region**. One base remains
+> **untested**: a **value-table-relative** offset (offset from the value-table start,
+> not the string-region start) — prior tick tested string-region-relative & absolute,
+> not this. That is the next concrete test before declaring value linkage a plateau.
+>
 > *Step recovery REFUTED via name-offset; a structural/user-content boundary.*
 > Parsed the twin's 4 step names per file (e.g. "Update pin map", "Create and
 > register NI-DMM Sessions", "Perform a measurement using an NI DMM", "Destroy and
