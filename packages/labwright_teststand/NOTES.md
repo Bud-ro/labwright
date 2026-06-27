@@ -353,6 +353,23 @@ refused (not mis-parsed).
 >   boundaries must be found another way (the per-record header shape, not a magic
 >   word).
 
+> **2026-06 — the `[0]` array-element record: 2-word header + 28-byte minimal
+> length.** Mapping the `⟨4=[0]⟩⟨0x0b⟩` token's shape (8 `u32` columns captured at
+> each of its 233/233/243 occurrences, per-column histogram):
+> - **Columns 0–1 are 100% constant** — `⟨4=[0]⟩` then `⟨0x0b⟩` — a fixed 2-word
+>   record header.
+> - **The minimal record is 28 bytes (7 u32 words).** The dominant
+>   consecutive-occurrence stride is **28 B (78×, identical NIDmm/NIFgen)**, and
+>   col7 (the word at offset +28) is `[0]` in **exactly those 78** cases — i.e. it
+>   is the *next* record's header. So a minimal `[0]` element spans words 0..6.
+>   Longer records carry extra payload (strides 49/65/33/222 B — variable-length,
+>   as already established).
+> - **Columns 2–6 are the payload** (semi-variable: col2 79% `0`, col3 ~48% `0`),
+>   and frequently carry **name-pool back-references** — `Data` (1) and `Objs` (2)
+>   recur in cols 2/3/5 — i.e. the element's parent/child links into the object
+>   tree. (The non-name payload values, e.g. `0x0b`, `0xffffff00`, `512`, are NI
+>   type/class/flag codes — OFF-LIMITS to model; only the layout is asserted.)
+
 > **2026-06 — successor-word distribution disambiguates genuine name-index
 > citations from incidental small ints.** For each value `v ∈ [1..10]` appearing
 > as a `u32 LE` at *any* byte offset in the (post-scaffold) record region, tabulate
