@@ -353,6 +353,22 @@ refused (not mis-parsed).
 >   boundaries must be found another way (the per-record header shape, not a magic
 >   word).
 
+> **2026-06 — Rosetta twin ground-truth + Objs=2 is NOT a standalone record
+> anchor (count-field hunt refuted for now).**
+> - **Verified twin structure** (parsing the XML twins with `parseSeqFile`): all
+>   three NI examples are **1 sequence `MainSequence`, 4 steps, 1 local, 0 params**
+>   → the only array sizes present are **{0, 1, 4}**. This is the ground-truth a
+>   binary element-count field would have to match.
+> - **Refuted approach:** a whole-value histogram over `u32 == 2` does **not**
+>   yield a clean fixed-column Objs record or an element-count field. The value 2
+>   is heavily *incidental* (802/783/856 occurrences — it also appears as the
+>   `Objs` back-reference inside `[0]`-element payloads and as ordinary flag/field
+>   bytes), so — unlike the self-delimiting `⟨[0]⟩⟨0x0b⟩` token — `Objs=2` is not a
+>   standalone record anchor. Counts like 4 are far too rare to surface in a
+>   histogram of a polluted value. ⟹ the array-container record must be located by
+>   *structural position* (e.g. the bytes preceding a run of `[0]` elements), not
+>   by the bare name value; that is the next angle.
+
 > **2026-06 — the `[0]` array-element record: 2-word header + 28-byte minimal
 > length.** Mapping the `⟨4=[0]⟩⟨0x0b⟩` token's shape (8 `u32` columns captured at
 > each of its 233/233/243 occurrences, per-column histogram):
