@@ -1029,6 +1029,9 @@ void main() {
             wordIndex: 2),
       ],
       scalarDoubles: const [8192.0, -2.0],
+      namedRecords: const [
+        BinaryNamedRecord(name: 'ResultList', count: 10, rawTag: 2),
+      ],
     );
     final byTitle = {for (final s in binaryRecoverySections(doc)) s.title: s.items};
     expect(byTitle['Named scalar values'], isNotNull);
@@ -1037,10 +1040,14 @@ void main() {
         'Parameters = 8192.0  (raw type 62, not modeled)');
     // The full distinct inline-numeric superset gets its own section.
     expect(byTitle['Inline numeric values'], ['8192.0', '-2.0']);
-    // And both appear as count rows.
+    // The consistently-tagged named-record header census, raw tag verbatim.
+    expect(byTitle['Named-record headers'],
+        ['ResultList ×10  (raw tag 2, not modeled)']);
+    // And all appear as count rows.
     final rows = {for (final (k, v) in binaryHeaderRows(doc)) k: v};
     expect(rows['Inline numbers'], '2');
     expect(rows['Named scalars'], '1');
+    expect(rows['Named records'], '1');
   });
 
   test('writeCapped lists up to the cap, then an honest "and N more"', () {

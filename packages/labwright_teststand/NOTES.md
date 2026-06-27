@@ -483,6 +483,16 @@ refused (not mis-parsed).
 > dropped). package **175** green, analyze clean. (Records→step-tree link still not
 > decoded — this is a header census, not a parse.)
 >
+> *SURFACED named-record headers in the inspector GUI.* Threaded `namedRecords` through
+> `BinarySeqDocument` → a **"Named-record headers"** section in `binaryRecoverySections`
+> (each `name ×count  (raw tag N, not modeled)`) + a `Named records` count row in
+> `binaryHeaderRows`. Verified doc.namedRecords == binaryNamedRecords on the 3 Rosetta
+> binaries (5/5/6). +app-test coverage (section + count row); package **175** / app **65**
+> green. The decoded binary structural skeleton is now fully surfaced in BOTH the text
+> dump (`dumpBinaryRecon`) and the GUI: object names, module call-targets, step refs,
+> expressions, quoted literals, inline numeric values, named scalar values, named-record
+> headers.
+>
 > *Step recovery REFUTED via name-offset; a structural/user-content boundary.*
 > Parsed the twin's 4 step names per file (e.g. "Update pin map", "Create and
 > register NI-DMM Sessions", "Perform a measurement using an NI DMM", "Destroy and

@@ -42,6 +42,7 @@ sealed class SeqDocument {
           quotedLiterals: a?.quotedLiterals ?? const [],
           namedScalars: a?.namedScalars ?? const [],
           scalarDoubles: a?.scalarDoubles ?? const [],
+          namedRecords: a?.namedRecords ?? const [],
         );
       case SeqFormat.ini:
         // The legacy INI form maps onto the same typed model as XML — decode it
@@ -104,6 +105,7 @@ class BinarySeqDocument extends SeqDocument {
     this.quotedLiterals = const [],
     this.namedScalars = const [],
     this.scalarDoubles = const [],
+    this.namedRecords = const [],
   });
 
   @override
@@ -154,6 +156,12 @@ class BinarySeqDocument extends SeqDocument {
   /// the superset of [namedScalars]' values (genuinely decoded; some not yet
   /// tied to a named record).
   final List<double> scalarDoubles;
+
+  /// **Consistently-referenced named-property record headers** — which
+  /// property/container names the records cite and how often, with the raw
+  /// (unmodeled) consistent tag. The structural skeleton (header census, not a
+  /// parse — record→step-tree links not yet decoded).
+  final List<BinaryNamedRecord> namedRecords;
 }
 
 /// A file that is not a recognized/decodable TestStand sequence.

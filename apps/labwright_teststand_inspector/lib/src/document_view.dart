@@ -104,6 +104,15 @@ List<({String title, List<String> items})> binaryRecoverySections(
       title: 'Inline numeric values',
       items: [for (final v in doc.scalarDoubles) '$v'],
     ),
+    // Consistently-referenced named-property record headers (structural
+    // skeleton). The NI tag is carried verbatim — not interpreted.
+    (
+      title: 'Named-record headers',
+      items: [
+        for (final r in doc.namedRecords)
+          '${r.name} ×${r.count}  (raw tag ${r.rawTag}, not modeled)',
+      ],
+    ),
   ].where((s) => s.items.isNotEmpty).toList();
 }
 
@@ -150,6 +159,8 @@ List<(String, String)> binaryHeaderRows(BinarySeqDocument doc) {
       ('Inline numbers', '${doc.scalarDoubles.length}'),
     if (doc.namedScalars.isNotEmpty)
       ('Named scalars', '${doc.namedScalars.length}'),
+    if (doc.namedRecords.isNotEmpty)
+      ('Named records', '${doc.namedRecords.length}'),
   ];
 }
 
