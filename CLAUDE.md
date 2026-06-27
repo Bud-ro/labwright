@@ -1,45 +1,54 @@
 # Agent Instructions
 
 Labwright is an open, cross-platform, **Dart**-based ecosystem of tools aimed at
-understanding and replacing the National Instruments (NI) suite of tools, namely 
-**LabVIEW and TestStand**. There is an accompanying `PLAN.md` in the root of this repo
-for high level goals.
+understanding and replacing the National Instruments (NI) suite of tools, namely
+**LabVIEW and TestStand**.
+
+The repo was heavily pruned: a lot of speculative early scaffolding was deleted
+so the tree is small and understandable. The work going forward is in small,
+reviewable PRs, not large unfocused pushes.
 
 ## Current Focus
 
-1. **VI reader** (`packages/labwright_viparse`, `packages/labwright_videcode`,
+1. **VI reader** (`packages/labwright_vi_parse`,
    `apps/labwright_vi_inspector`) — a clean-room reader for LabVIEW `.vi` (RSRC)
    files: parse every resource block, walk the FP/BD object heaps, and present a
    high-visibility inspector. The goal is *full understanding of every single byte*.
    On top of byte/record-viewing, fully accurate block-diagram views along with 
    front panel views are in scope. The goal is a no compromise viewer that fully
    matches what users would see in the original programming (apart from styling).
-2. **TestStand reader** (`packages/labwright_teststand`, `apps/labwrite_teststand_inspector`) 
+2. **TestStand reader** (`packages/labwright_teststand`, `apps/labwright_teststand_inspector`)
    — the same role for NI **TestStand** `.seq` (and related `.config`/station files): expose
    hidden attributes/data, render a view as close as possible to the original
    tool, and export the sequence **logic**. TestStand is what most of the existing
-   test infra actually relies on, so this is high-value. See `docs/teststand-viewer-spec.md`.
+   test infra actually relies on, so this is high-value.
 
 Both are **clean-room** (own the parser; do not glue NI/third-party libraries
 into the core) and corpus-driven.
 
 ## Repository layout
 
-- `packages/labwright_core` — engine: Test/Phase/Plug/Measurement/Station (OpenHTF-modeled).
-- `packages/labwright_viparse` — RSRC container + resource-block decoders.
-- `packages/labwright_videcode` — heap walk, object graph, VI→IR, Dart scaffold.
-- `packages/labwright_tdms` — TDMS read/write. 
-- `packages/labwright_daq` — HAL + sim backend.
-- `packages/labwright_traceability`, `labwright_runner`, `labwright_cli`, `labwright_fuzz`.
+- `packages/labwright_vi_parse` — clean-room LabVIEW `.vi` reader: RSRC container
+  + resource-block parse, heap decode → object graph / VI→IR / Dart scaffold.
+- `packages/labwright_teststand` — clean-room TestStand `.seq` reader (XML/INI
+  typed model + binary `TOF1` recon).
+- `packages/labwright_tdms` — TDMS read/write.
 - `apps/labwright_vi_inspector` — Flutter VI inspector (hex view, render, IR/Dart tabs).
-- `corpus/` — pinned VI corpus catalog + metrics (`sources.json`, `baseline.json`).
+- `apps/labwright_teststand_inspector` — Flutter TestStand `.seq` inspector.
+- `example/e2e` — `e2e_test`: example authoring API for hardware end-to-end tests
+  as ordinary Dart tests (device-under-test, plugs, phases, limit-checked
+  measurements, TDMS records).
+- `corpus/` — pinned VI/`.seq` corpus catalog + metrics (`sources.json`, `baseline.json`).
 - It's a **pub workspace** (root `pubspec.yaml` `workspace:` list) — add new
   packages there. SDK `^3.11.0`. Branch: **develop**.
+- The owned NI-DAQmx Dart wrapper lives on its own branch/PR (`feat/nidaqmx-wrap`),
+  not yet on `develop`. Reverse-engineering cDAQ/native support is deferred
+  indefinitely (declared a novelty).
 
 ## Corpus (test data)
 
 - The `.vi` and `.seq` corpus are **not committed** (clean-room + licensing). Fetch it with
-  `dart run packages/labwright_videcode/tool/fetch_corpus.dart` → the gitignored
+  `dart run packages/labwright_vi_parse/tool/fetch_corpus.dart` → the gitignored
   **`corpus/vi/`** at the repo root (≈7.5k VIs from 20 pinned repos).
 - **Processing the corpus must use single-VM bounded-concurrency with a memory
   cap** — a reusable worker pool that streams files so peak memory ≈ poolSize ×
@@ -59,9 +68,9 @@ into the core) and corpus-driven.
   never fabricate data; never overclaim ("not yet recovered/decoded", never "unrecoverable").
 - **Commits:** commit ONLY your own files, by **explicit path** — never
   `git add -A`/`-u` (the tree carries untracked files that are not yours, e.g.
-  `PLAN.md`, `apps/labwright_station_ui/`, `native/`, `build*/`, `docs/*`). Put
-  `git commit` on its own line. Keep `dart analyze` clean and the relevant test
-  suites green before committing.
+  `build*/`, throwaway probe scripts, the gitignored `corpus/`). Put `git commit`
+  on its own line. Keep `dart analyze` clean and the relevant test suites green
+  before committing. Prefer small, reviewable PRs over large unfocused pushes.
 - **Background tasks:** be tidy — reap background shells; don't accumulate strays.
 
 ## Code style
