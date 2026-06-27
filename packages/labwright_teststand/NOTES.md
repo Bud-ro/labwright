@@ -587,6 +587,19 @@ refused (not mis-parsed).
 > records still needs the record-boundary grammar (the f64-core is reliable regardless).
 > No code change (probe tick).
 >
+> *2nd 8-word "array-element" shape is INSTRUMENT-SPECIFIC (NIDmm only) — corrects an
+> earlier impression.* Listed every Parameters record of the array shape (W3==2) per file.
+> **NIDmm: 13 contiguous records** `@w5110…5204` — `counter (W4) = 0,1,2,…,12` and
+> `type = 254 + counter` in **lockstep** (254/0 … 266/12), 8-word elements (the counter-0
+> element is 6 words to the next, possibly an array header/length; the rest +8), `W7 ∈
+> {2050,0}`. **NIFgen: 0. NIScope: 0.** ⟹ this is an **instrument-specific array** in the
+> DMM step-type defs (a ~12-element config/options/limits table unique to the DMM
+> measurement), **NOT a universal record shape** — which **corrects** the [c55848a] note
+> that implied the shape appeared in NIScope (it was always NIDmm's; misattributed). The
+> `W3==2` (vs scalar `W3==0`) re-confirms why `binaryNamedScalarRecords`' low-word-0 f64
+> gate correctly excludes all 13. (type values 254-266 cited only as evidence of lockstep
+> increment — their NI meaning stays unmodeled, OFF-LIMITS.) No code change (probe tick).
+>
 > *Step recovery REFUTED via name-offset; a structural/user-content boundary.*
 > Parsed the twin's 4 step names per file (e.g. "Update pin map", "Create and
 > register NI-DMM Sessions", "Perform a measurement using an NI DMM", "Destroy and
