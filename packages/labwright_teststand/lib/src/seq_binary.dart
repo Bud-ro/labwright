@@ -503,7 +503,13 @@ List<double> binaryScalarDoubles(Uint8List seqBytes) {
   if (body == null) return const [];
   final layout = _layoutFromBody(body);
   if (layout == null) return const [];
-  final rr = layout.recordRegionLength;
+  return _scalarDoublesFromBody(body, layout.recordRegionLength);
+}
+
+/// [binaryScalarDoubles] core over an already-inflated [body] (no re-inflate),
+/// given the record-region length [rr] — for the single-inflate [analyzeBinary]
+/// path.
+List<double> _scalarDoublesFromBody(Uint8List body, int rr) {
   final bd = ByteData.sublistView(body);
   final seen = <double>{};
   final out = <double>[];
@@ -778,6 +784,7 @@ class BinaryAnalysis {
     this.expressions = const [],
     this.quotedLiterals = const [],
     this.namedScalars = const [],
+    this.scalarDoubles = const [],
   });
 
   /// Size of the inflated body in bytes.
@@ -815,6 +822,10 @@ class BinaryAnalysis {
   /// doubles tied to their offset-referenced property name, with raw (unmodeled)
   /// tag/type words.
   final List<BinaryNamedScalar> namedScalars;
+
+  /// All distinct inline scalar `double` values (== [binaryScalarDoubles]) — the
+  /// superset of [namedScalars]' values (those not in a decoded named record too).
+  final List<double> scalarDoubles;
 }
 
 /// Inflates the binary TOF1 body **once** and runs the whole recon layer over it,
@@ -842,5 +853,8 @@ BinaryAnalysis? analyzeBinary(Uint8List seqBytes) {
     namedScalars: layout == null
         ? const []
         : _namedScalarsFromBody(body, layout.recordRegionLength),
+    scalarDoubles: layout == null
+        ? const []
+        : _scalarDoublesFromBody(body, layout.recordRegionLength),
   );
 }

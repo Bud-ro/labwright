@@ -41,6 +41,7 @@ sealed class SeqDocument {
           expressions: a?.expressions ?? const [],
           quotedLiterals: a?.quotedLiterals ?? const [],
           namedScalars: a?.namedScalars ?? const [],
+          scalarDoubles: a?.scalarDoubles ?? const [],
         );
       case SeqFormat.ini:
         // The legacy INI form maps onto the same typed model as XML — decode it
@@ -102,6 +103,7 @@ class BinarySeqDocument extends SeqDocument {
     this.expressions = const [],
     this.quotedLiterals = const [],
     this.namedScalars = const [],
+    this.scalarDoubles = const [],
   });
 
   @override
@@ -147,6 +149,11 @@ class BinarySeqDocument extends SeqDocument {
   /// offset-referenced property name, carrying the raw (unmodeled) tag/type
   /// words. Genuinely decoded values + structural attribution.
   final List<BinaryNamedScalar> namedScalars;
+
+  /// All distinct **inline numeric values** recovered from the record region —
+  /// the superset of [namedScalars]' values (genuinely decoded; some not yet
+  /// tied to a named record).
+  final List<double> scalarDoubles;
 }
 
 /// A file that is not a recognized/decodable TestStand sequence.

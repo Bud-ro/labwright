@@ -1014,7 +1014,7 @@ void main() {
     expect(titles, isNot(contains('Named scalar values')));
   });
 
-  test('binaryRecoverySections surfaces named scalar values with raw type', () {
+  test('binaryRecoverySections surfaces named + inline numeric values', () {
     final doc = BinarySeqDocument(
       header: detectSeqHeader(_binary()),
       inflatedSize: 0,
@@ -1028,12 +1028,19 @@ void main() {
             value: 8192.0,
             wordIndex: 2),
       ],
+      scalarDoubles: const [8192.0, -2.0],
     );
     final byTitle = {for (final s in binaryRecoverySections(doc)) s.title: s.items};
     expect(byTitle['Named scalar values'], isNotNull);
     // Value is shown; the NI type code is carried verbatim, labelled not-modeled.
     expect(byTitle['Named scalar values']!.single,
         'Parameters = 8192.0  (raw type 62, not modeled)');
+    // The full distinct inline-numeric superset gets its own section.
+    expect(byTitle['Inline numeric values'], ['8192.0', '-2.0']);
+    // And both appear as count rows.
+    final rows = {for (final (k, v) in binaryHeaderRows(doc)) k: v};
+    expect(rows['Inline numbers'], '2');
+    expect(rows['Named scalars'], '1');
   });
 
   test('writeCapped lists up to the cap, then an honest "and N more"', () {

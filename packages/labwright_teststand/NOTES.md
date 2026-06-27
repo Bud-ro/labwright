@@ -438,6 +438,17 @@ refused (not mis-parsed).
 > corpus; +1 app test for the section + formatting. package **172** / app **65** green,
 > both analyzers clean.
 >
+> *SURFACED the full inline-numeric set too.* Threaded `scalarDoubles` (the distinct
+> superset of the named scalars' values — includes numbers not yet tied to a named
+> record, e.g. `-2.0` in NIDmm) through the same single-inflate path:
+> `binaryScalarDoubles` gained a body-core `_scalarDoublesFromBody`,
+> `BinaryAnalysis.scalarDoubles`/`BinarySeqDocument.scalarDoubles` carry it, and the
+> inspector recon now shows an **"Inline numeric values"** section plus `Inline
+> numbers`/`Named scalars` count rows in `binaryHeaderRows`. Verified end-to-end on the
+> 3 Rosetta binaries (analyze == helper == doc): **7 / 9 / 7** distinct doubles (vs
+> 17/21/17 named records — confirming superset). Corpus equivalence test extended; app
+> test asserts both sections + count rows. package **172** / app **65** green.
+>
 > *Step recovery REFUTED via name-offset; a structural/user-content boundary.*
 > Parsed the twin's 4 step names per file (e.g. "Update pin map", "Create and
 > register NI-DMM Sessions", "Perform a measurement using an NI DMM", "Destroy and

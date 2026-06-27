@@ -1378,7 +1378,8 @@ void main() {
             a.stepReferences.length == binaryStepReferences(bytes).length &&
             a.expressions.length == binaryExpressions(bytes).length &&
             a.quotedLiterals.length == binaryQuotedLiterals(bytes).length &&
-            a.namedScalars.length == binaryNamedScalarRecords(bytes).length;
+            a.namedScalars.length == binaryNamedScalarRecords(bytes).length &&
+            a.scalarDoubles.length == binaryScalarDoubles(bytes).length;
         if (!ok) failures.add('${f.path}: analyzeBinary != helpers');
       }
       expect(failures, isEmpty, reason: failures.take(5).join('\n'));

@@ -98,6 +98,12 @@ List<({String title, List<String> items})> binaryRecoverySections(
           '${s.name} = ${s.value}  (raw type ${s.rawTypeCode}, not modeled)',
       ],
     ),
+    // The full distinct inline-numeric set (superset of the named scalars above —
+    // includes values not yet tied to a named record).
+    (
+      title: 'Inline numeric values',
+      items: [for (final v in doc.scalarDoubles) '$v'],
+    ),
   ].where((s) => s.items.isNotEmpty).toList();
 }
 
@@ -140,6 +146,10 @@ List<(String, String)> binaryHeaderRows(BinarySeqDocument doc) {
       ('Expressions', '${doc.expressions.length}'),
     if (doc.quotedLiterals.isNotEmpty)
       ('Quoted literals', '${doc.quotedLiterals.length}'),
+    if (doc.scalarDoubles.isNotEmpty)
+      ('Inline numbers', '${doc.scalarDoubles.length}'),
+    if (doc.namedScalars.isNotEmpty)
+      ('Named scalars', '${doc.namedScalars.length}'),
   ];
 }
 
