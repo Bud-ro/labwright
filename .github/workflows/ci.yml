@@ -1,0 +1,54 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  dart:
+    name: dart (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      # One workspace resolution, analyze the whole tree, then test each package.
+      - run: dart pub get
+      - run: dart analyze --fatal-infos
+      - name: test all packages
+        shell: bash
+        run: |
+          for p in packages/* example/e2e; do
+            if [ -d "$p/test" ]; then
+              echo "== $p =="
+              ( cd "$p" && dart test ) || exit 1
+            fi
+          done
+
+  flutter:
+    name: flutter apps
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      # Each app is a standalone Flutter package; analyze + test it headlessly.
+      - name: analyze + test apps
+        shell: bash
+        run: |
+          for app in apps/*/; do
+            if [ -f "$app/pubspec.yaml" ]; then
+              echo "== $app =="
+              ( cd "$app" && flutter pub get && flutter analyze && flutter test ) || exit 1
+            fi
+          done

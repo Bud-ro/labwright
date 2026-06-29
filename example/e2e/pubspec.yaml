@@ -1,0 +1,16 @@
+name: e2e_test
+description: Testbed for building examples of the E2E testing API, along with the various other labwright APIs
+publish_to: none
+version: 0.0.1
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  labwright_tdms:
+    path: ../../packages/labwright_tdms
+  test: ^1.25.0
+
+dev_dependencies:
+  lints: ^5.0.0
