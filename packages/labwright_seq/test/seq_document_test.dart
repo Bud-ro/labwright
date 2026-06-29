@@ -24,7 +24,6 @@ Uint8List _binary() {
       'SequenceFileData', 'MainSequence', 'Step', 'Locals', 'Parameters']) {
     pool..addAll(ascii.encode(n))..add(0);
   }
-  // Lay out a fixed 0x108-byte header so 'TestStand' lands at the 0x40 slot.
   final header = Uint8List(0x108);
   header.setAll(0, ascii.encode('TOF1'));
   header.setAll(0x0a, ascii.encode('SequenceFile'));
@@ -89,9 +88,6 @@ void main() {
     final bin = doc as BinarySeqDocument;
     expect(bin.inflatedSize, greaterThan(0));
     expect(bin.strings.map((s) => s.text), contains('MainSequence'));
-    // The packed-name pool frames as a string region (the synthetic fixture has
-    // no leading u32 record region, so recordRegionLength is 0 here; real corpus
-    // files exercise a non-empty record region in corpus_seq_test).
     expect(bin.layout, isNotNull);
     expect(bin.layout!.stringCount, greaterThanOrEqualTo(5));
   });

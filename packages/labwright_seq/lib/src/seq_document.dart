@@ -25,8 +25,6 @@ sealed class SeqDocument {
           return UnknownSeqDocument(detectSeqHeader(bytes), error: '$e');
         }
       case SeqFormat.binary:
-        // One inflate of the zlib body feeds every recon field (the individual
-        // helpers would each re-inflate).
         final a = analyzeBinary(bytes);
         return BinarySeqDocument(
           header: detectSeqHeader(bytes),
@@ -45,9 +43,6 @@ sealed class SeqDocument {
           namedRecords: a?.namedRecords ?? const [],
         );
       case SeqFormat.ini:
-        // The legacy INI form maps onto the same typed model as XML — decode it
-        // through the shared lens, degrading to a recon doc if it can't (e.g. the
-        // rare file without a reconstructable %OBJROOT root).
         try {
           return IniSeqDocument(parseSeqFile(bytes));
         } catch (e) {

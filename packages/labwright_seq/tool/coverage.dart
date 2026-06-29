@@ -23,6 +23,10 @@ String _defaultCorpusRoot() {
   return 'corpus/seq';
 }
 
+/// INI files larger than this are skipped while measuring coverage — the INI
+/// reader can OOM on very large files.
+const _iniSizeCapBytes = 300 * 1024;
+
 class _Stat {
   int files = 0, seqs = 0, steps = 0;
   var cov = const SeqCoverage(total: 0, modeled: 0);
@@ -44,9 +48,6 @@ void main(List<String> args) {
     }
   }
 
-  // Format census over every .seq — formatDetected% is the first coverage axis:
-  // a file we cannot classify is a file we understand nothing about. (See
-  // COVERAGE.md for the full axis list.)
   var nTotal = 0, nXml = 0, nIni = 0, nBinary = 0, nUnknown = 0;
   for (final fs in bySource.values) {
     for (final f in fs) {
@@ -89,22 +90,12 @@ void main(List<String> args) {
       'model coverage ${(overall.cov.ratio * 100).toStringAsFixed(1)}% '
       '(${overall.cov.modeled}/${overall.cov.total} property nodes)');
 
-  // The legacy INI encoding maps onto the same SeqProperty model, so the same
-  // lens + coverage metric apply. Measured separately (it is a different, older
-  // format): its raw tree is larger because each step INLINES its step-type
-  // definition (DescriptionFormat/DefaultNameFormat/CodeTemplates/Group/…), which
-  // the XML form keeps centralized in <typelist> — so the % is lower without any
-  // missing per-step instance data. INI files >300KB are skipped (OOM guard).
   final iniFiles = [for (final fs in bySource.values) ...fs];
   final ini = _measure(iniFiles, SeqFormat.ini);
   stdout.writeln('INI   ${ini.files} INI .seq · ${ini.seqs} sequences · ${ini.steps} steps · '
       'model coverage ${(ini.cov.ratio * 100).toStringAsFixed(1)}% '
       '(${ini.cov.modeled}/${ini.cov.total} property nodes)');
 
-  // The complete, declared-up-front axis set (see COVERAGE.md). A .seq is fully
-  // understood IFF every axis is 100%. The binary axis is the big frontier: TOF1
-  // binary files are detected and recon'd (strings/names) but their record grammar
-  // is NOT decoded, so binaryModel% is honestly 0 — stated here, not hidden.
   stdout.writeln('-' * 76);
   stdout.writeln('AXES (all must reach 100% for "fully understood"):');
   stdout.writeln('  formatDetected%  ${pct(nTotal - nUnknown, nTotal)}  '
@@ -143,8 +134,7 @@ void main(List<String> args) {
 _Stat _measure(List<File> files, SeqFormat fmt) {
   final s = _Stat();
   for (final f in files..sort((a, b) => a.path.compareTo(b.path))) {
-    // INI files can be very large; skip >300KB to avoid the parser OOMing.
-    if (fmt == SeqFormat.ini && f.lengthSync() > 300 * 1024) continue;
+    if (fmt == SeqFormat.ini && f.lengthSync() > _iniSizeCapBytes) continue;
     final bytes = f.readAsBytesSync();
     if (detectSeqFormat(bytes) != fmt) continue;
     final SeqFile sf;

@@ -50,9 +50,6 @@ DecodedSection inflateSection(ViSection s) {
   final b = s.bytes;
   if (_looksCompressed(b)) {
     final declared = ByteData.sublistView(b).getUint32(0);
-    // Refuse an implausible declared size before allocating — a bomb whose
-    // declared size is honest (so it could pass the integrity gate below) is the
-    // realistic OOM vector; this turns it into a clean raw fallback.
     if (declared <= _maxDecompressed) {
       try {
         final out = const ZLibDecoder().decodeBytes(b.sublist(4));
@@ -60,7 +57,7 @@ DecodedSection inflateSection(ViSection s) {
           return DecodedSection(section: s, bytes: out, wasCompressed: true);
         }
       } catch (_) {
-        // not actually a valid zlib stream — fall through to raw
+        // Not a valid zlib stream — fall through to the raw bytes.
       }
     }
   }

@@ -67,9 +67,8 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: ViDiagramView(diagrams: _modelWithDiagram().blockDiagrams))));
     await tester.pump();
 
-    expect(find.textContaining('objects'), findsOneWidget); // count header
-    expect(find.byType(CustomPaint), findsWidgets); // the painted layout
-    // legend mentions decoded categories
+    expect(find.textContaining('objects'), findsOneWidget);
+    expect(find.byType(CustomPaint), findsWidgets);
     expect(find.textContaining('node'), findsWidgets);
   });
 
@@ -85,8 +84,6 @@ void main() {
     expect(find.text('Faithful'), findsOneWidget);
     await tester.tap(find.text('Faithful'));
     await tester.pump();
-    // the faithful layer mounted (a TextField appears for the string/path/field
-    // controls, or at least the switch didn't crash) — and the count header stays.
     expect(find.textContaining('objects'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -97,7 +94,6 @@ void main() {
     addTearDown(tester.view.reset);
 
     final model = _modelWithControls();
-    // The 0x0d item-list items propagate up to the 0x57 enum control...
     expect(model.diagrams.expand((d) => d.objects).firstWhere((o) => o.oid == 2).items, ['Low', 'High']);
 
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: ViDiagramView(diagrams: model.blockDiagrams))));
@@ -106,7 +102,6 @@ void main() {
     await tester.pump();
 
     expect(tester.takeException(), isNull);
-    // The enum/ring control shows its first decoded item; the boolean shows OFF.
     expect(find.text('Low'), findsOneWidget);
     expect(find.text('OFF'), findsOneWidget);
   });
@@ -134,13 +129,10 @@ void main() {
     await tester.tap(find.text('Faithful'));
     await tester.pump();
     expect(tester.takeException(), isNull);
-    // The control with decoded help text is wrapped in a Tooltip carrying it.
     expect(find.byTooltip('help here'), findsOneWidget);
   });
 
   test('membersOf resolves declared members to DRAWN objects only', () {
-    // A structure (0x53) declaring: childRef->9 (drawn 0x50), memberRef->10
-    // (scaffolding 0x09), childRef->11 (undeclared). Only #9 should resolve.
     final records = <int>[
       ...open(0x7e, 1), ...bounds(0, 0, 400, 400),
       ...open(0x53, 2, tag: 0x1a), ...bounds(10, 10, 200, 200),
@@ -156,7 +148,7 @@ void main() {
     final d = buildDiagram(body);
     final structure = d.byId[2];
     final members = membersOf(structure, d.byId);
-    expect(members.map((m) => m.oid).toSet(), {9}); // 10 scaffolding-suppressed, 11 missing
+    expect(members.map((m) => m.oid).toSet(), {9});
     expect(membersOf(null, d.byId), isEmpty);
   });
 
@@ -176,7 +168,7 @@ void main() {
     final model = _modelFromRecords([0, 0, 0, records.length, ...records]);
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: ViDiagramView(diagrams: model.blockDiagrams))));
     await tester.pump();
-    await tester.tapAt(const Offset(120, 120)); // inside the structure, outside the control
+    await tester.tapAt(const Offset(120, 120));
     await tester.pump();
     expect(tester.takeException(), isNull);
   });
@@ -201,8 +193,8 @@ void main() {
       final within = nodesWithin(loop, [loop, inside, innerLoop, outside, termInside]);
       expect(within, containsAll([inside, innerLoop]));
       expect(within, isNot(contains(outside)));
-      expect(within, isNot(contains(termInside))); // terminals are not "logic" contents
-      expect(within, isNot(contains(loop))); // never itself
+      expect(within, isNot(contains(termInside)));
+      expect(within, isNot(contains(loop)));
     });
 
     test('a structure with no bounds yields nothing', () {
@@ -213,14 +205,10 @@ void main() {
     test('a child that exactly FILLS the parent is included; an exact-bounds clone is excluded', () {
       final frame = obj(1, ViObjectKind.structure, 0, 0, 100, 100);
       final fillingBody = obj(2, ViObjectKind.structure, 0, 0, 100, 100); // same bounds, distinct object
-      // exact-bounds same-category object is treated as a clone/viewport -> excluded;
-      // but a strictly-larger-area child is impossible when bounds are equal, so this
-      // documents the exact-equal exclusion (the per-frame body is caught when it is
-      // even 1px inset). Verify a 1px-inset body IS included:
       final insetBody = obj(3, ViObjectKind.structure, 0, 0, 100, 99);
       final within = nodesWithin(frame, [frame, fillingBody, insetBody]);
-      expect(within, contains(insetBody)); // fills-but-inset -> contained
-      expect(within, isNot(contains(fillingBody))); // exact clone -> excluded
+      expect(within, contains(insetBody));
+      expect(within, isNot(contains(fillingBody)));
     });
   });
 
@@ -230,7 +218,6 @@ void main() {
       expect(wireframeAnnotation(whileLoop), 'While loop');
       final caseStruct = ViHeapObject(oid: 2, kind: 0x2c, offset: 0)..category = ViObjectKind.structure;
       expect(wireframeAnnotation(caseStruct), 'Case structure');
-      // dual-role 0x53 keeps the catalog hedge, not a bare "Loop"
       final dual = ViHeapObject(oid: 3, kind: 0x53, offset: 0)..category = ViObjectKind.structure;
       expect(wireframeAnnotation(dual), 'Loop (BD) / container (FP)');
     });
@@ -250,8 +237,6 @@ void main() {
   });
 
   testWidgets('toolbar does not overflow on a narrow viewport (user-reported)', (tester) async {
-    // 600px is narrower than the toolbar's fixed controls + legend; the Wrap must
-    // flow them onto a second line rather than overflow (RenderFlex exception).
     tester.view.physicalSize = const Size(600, 900);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -259,8 +244,8 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: ViDiagramView(diagrams: _modelWithDiagram().blockDiagrams))));
     await tester.pump();
 
-    expect(tester.takeException(), isNull); // no overflow
-    expect(find.textContaining('objects'), findsOneWidget); // controls still render
+    expect(tester.takeException(), isNull);
+    expect(find.textContaining('objects'), findsOneWidget);
     expect(find.text('Wireframe'), findsOneWidget);
   });
 
@@ -280,18 +265,13 @@ void main() {
       final o = computeBdOutline(objs);
       expect(o.structuresByKind['While loop'], 2);
       expect(o.structuresByKind['Case structure'], 1);
-      expect(o.structuresByKind.containsKey('Diagram root'), isFalse); // excluded
-      expect(o.labeledNodes, ['Acquire.vi']); // hint-only primitive carries no caption
+      expect(o.structuresByKind.containsKey('Diagram root'), isFalse);
+      expect(o.labeledNodes, ['Acquire.vi']);
       expect(o.nodeCount, 2);
-      // class-confidence histogram covers exactly the listed objects: 3 control-
-      // flow structures (diagram root excluded) + 2 nodes = 5, drawn from the real
-      // catalog ClassConfidence (not invented).
       expect(o.confidence.values.fold<int>(0, (a, b) => a + b), 5);
     });
 
     test('emits NO wire/edge/dataflow linkage — the no-fabricated-wires honesty contract', () {
-      // Whatever the outline contains, it must never express a node->node edge or
-      // any wire/dataflow connection (LabVIEW wires are unrecoverable geometry).
       final objs = [
         struct(0x21),
         struct(0x2c),
@@ -332,7 +312,6 @@ void main() {
     expect(find.text('Control flow:'), findsOneWidget);
     expect(find.text('While loop ×1'), findsOneWidget);
     expect(find.textContaining('Diagram-labeled nodes (1): Acquire.vi'), findsOneWidget);
-    // per-object class-confidence overlay (honest: classification, not dataflow)
     expect(find.text('Class confidence:'), findsOneWidget);
     expect(find.textContaining('not dataflow'), findsOneWidget);
     // The no-fabricated-wires honesty contract is enforced at the data layer by
@@ -352,7 +331,6 @@ void main() {
       ...close(0x1a),
       ...close(),
     ]);
-    // the linker (LIbd) names the real dependencies even though the node is unlabeled
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
         body: ViDiagramView(diagrams: model.blockDiagrams, subViNames: const ['Open.vi', 'Close.vi']),

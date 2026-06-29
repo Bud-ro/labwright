@@ -29,7 +29,6 @@ enum _Mode { dart, json }
 class _GeneratedDartViewState extends State<GeneratedDartView> {
   _Mode _mode = _Mode.dart;
 
-  // Monospace font size — adjustable because the default is hard to read on 4K.
   static const double _minFont = 9;
   static const double _maxFont = 28;
   double _fontSize = 13;
@@ -41,7 +40,7 @@ class _GeneratedDartViewState extends State<GeneratedDartView> {
     if (n == null || n.isEmpty) return 'vi';
     final base = n.split(RegExp(r'[\\/]')).last;
     final stripped = base.toLowerCase().endsWith('.vi') ? base.substring(0, base.length - 3) : base;
-    return stripped.isEmpty ? 'vi' : stripped; // a name of just ".vi" -> generic
+    return stripped.isEmpty ? 'vi' : stripped;
   }
 
   @override
@@ -59,8 +58,6 @@ class _GeneratedDartViewState extends State<GeneratedDartView> {
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 4),
-          // The mode toggle alone is wider than a narrow pane; a horizontal
-          // scroll view lets the controls scroll instead of overflowing.
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(

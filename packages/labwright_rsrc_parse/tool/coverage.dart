@@ -55,9 +55,9 @@ String _defaultCorpusRoot() {
 class _Stat {
   int vis = 0, parseOk = 0, decOk = 0, containerExact = 0, objVIs = 0;
   int heaps = 0, fullHeaps = 0;
-  int framed = 0, body = 0, semantic = 0, valueKind = 0; // heap byte tiers
-  int blockInstances = 0, blocksIdentified = 0; // block identification
-  int blockBytes = 0, blockBytesDecoded = 0; // block-content byte decode
+  int framed = 0, body = 0, semantic = 0, valueKind = 0;
+  int blockInstances = 0, blocksIdentified = 0;
+  int blockBytes = 0, blockBytesDecoded = 0;
 
   static double _r(int a, int b) => b == 0 ? 0 : a / b;
   double get parseOkPct => _r(parseOk, vis);
@@ -65,7 +65,6 @@ class _Stat {
   double get containerExactPct => _r(containerExact, vis);
   double get blocksIdentifiedPct => _r(blocksIdentified, blockInstances);
   double get blockBytesDecodedPct => _r(blockBytesDecoded, blockBytes);
-  // Heap byte tiers (kept under the historical key names in baseline.json).
   double get deliberatelyParsed => _r(framed, body);
   double get semanticallyDecoded => _r(semantic, body);
   double get valueKindKnown => _r(valueKind, body);
@@ -115,7 +114,6 @@ _Stat _measure(List<File> files) {
     }
     var objs = 0;
     for (final sec in secs) {
-      // Block identification + byte-weighted decode coverage (every section).
       s.blockInstances++;
       if (isCataloguedTag(sec.tag)) s.blocksIdentified++;
       s.blockBytes += sec.bytes.length;
@@ -158,9 +156,6 @@ String _pct(double v) => (v * 100).toStringAsFixed(1);
 
 void main(List<String> args) {
   final root = args.isNotEmpty ? args[0] : _defaultCorpusRoot();
-  // Flat layout: each immediate subdir of the corpus root is one pinned source
-  // (`<owner>_<name>/`); group VIs by that source dir. The WHOLE corpus is
-  // measured — no per-source cap and no single pinned sample.
   final bySource = <String, List<File>>{};
   final rootDir = Directory(root);
   if (rootDir.existsSync()) {
@@ -229,8 +224,6 @@ void main(List<String> args) {
     stdout.writeln('wrote $root/REPORT.md');
   }
 
-  // Record the whole-corpus figures as the test's regression floor — never
-  // hand-typed. Every axis is here so the floor is the complete picture.
   if (overall.vis > 0) {
     final baseline = {
       'generatedBy': 'packages/labwright_rsrc_parse/tool/coverage.dart',

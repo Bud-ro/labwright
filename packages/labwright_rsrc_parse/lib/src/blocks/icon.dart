@@ -42,12 +42,12 @@ int _u16(Uint8List b, int p) => (b[p] << 8) | b[p + 1];
 /// involved (the data is already RGB888).
 ViIcon? extractRgbIcon(Uint8List bytes) {
   if (bytes.length < 36) return null;
-  if ((bytes[0] | bytes[1] | bytes[2] | bytes[3]) != 0) return null; // flags u32@0 == 0
+  if ((bytes[0] | bytes[1] | bytes[2] | bytes[3]) != 0) return null;
   final w = _u16(bytes, 4), h = _u16(bytes, 6), depth = _u16(bytes, 8);
   if (depth != 24 || w < 1 || h < 1 || w > 512 || h > 512) return null;
-  if (_u16(bytes, 30) != w || _u16(bytes, 32) != h) return null; // doubled-rect validation
+  if (_u16(bytes, 30) != w || _u16(bytes, 32) != h) return null;
   final need = w * h * 3;
-  if (bytes.length - need < 30) return null; // pixels are the tail; header must precede them
+  if (bytes.length - need < 30) return null;
   return ViIcon(width: w, height: h, rgb: bytes.sublist(bytes.length - need));
 }
 

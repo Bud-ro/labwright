@@ -15,12 +15,10 @@ void main() {
     });
 
     test('the extended form recovers 40xx-tagged item names', () {
-      // 4-byte header, then a 40 21 record [u8 len=9]"Auto Stop" with a 2-byte
-      // record prefix the scan tolerates.
       final b = Uint8List.fromList([
-        0x00, 0x00, 0x00, 0x40, // header
-        0x00, 0x0e, // varying per-record prefix (tolerated)
-        0x40, 0x21, 0x09, // tag 40 21, len 9
+        0x00, 0x00, 0x00, 0x40,
+        0x00, 0x0e,
+        0x40, 0x21, 0x09,
         ...'Auto Stop'.codeUnits,
       ]);
       final h = decodeDataTypeHeap(b)!;

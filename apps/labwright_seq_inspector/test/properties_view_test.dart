@@ -19,7 +19,6 @@ void main() {
       ],
     );
     await pump(tester, root);
-    // The distinct title marker renders (the RichText title carries it).
     expect(find.textContaining('overridden', findRichText: true), findsOneWidget);
   });
 

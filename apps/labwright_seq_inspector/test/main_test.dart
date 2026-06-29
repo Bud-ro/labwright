@@ -37,11 +37,9 @@ void main() {
     await tester.pumpWidget(InspectorApp(initialPath: f.path));
     await tester.pumpAndSettle();
 
-    // The Logic tab is present alongside Dump/Sequences/Properties.
     expect(find.text('Logic'), findsOneWidget);
     expect(find.text('Dump'), findsOneWidget);
 
-    // Switching to it renders the nested logic export.
     await tester.tap(find.text('Logic'));
     await tester.pumpAndSettle();
     expect(find.textContaining('if (Locals.X > 0) {'), findsOneWidget);

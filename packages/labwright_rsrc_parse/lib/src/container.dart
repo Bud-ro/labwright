@@ -54,7 +54,8 @@ class ViHeader {
   String get fileType => String.fromCharCodes(fileTypeBytes);
   String get creator => String.fromCharCodes(creatorBytes);
 
-  static const List<int> _magic = [0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a]; // "RSRC\r\n"
+  /// The RSRC magic bytes (`RSRC\r\n`) every container/header begins with.
+  static const List<int> _magic = [0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a];
 
   /// Parses the first 32 bytes of [bytes] into a [ViHeader]. Throws
   /// [ViFormatException] on a too-short or non-RSRC buffer.
@@ -557,14 +558,8 @@ class ViInfoArea {
     final subheader = ViInfoSubheader.parse(infoArea);
     final blockList = ViBlockList.parse(infoArea, subheader.blockListRel);
     final restStart = subheader.blockListRel + blockList.byteLength;
-    final descBase = subheader.blockListRel + 8; // countPos + 8
+    final descBase = subheader.blockListRel + 8;
 
-    // Find the descriptor records' address span by walking the block list.
-    // `sectionCountMinus1` comes straight from a u32, so cap the iteration by the
-    // records that can physically fit in the info area — otherwise a hostile
-    // count (e.g. 0xFFFFFFFF) would spin ~4e9 times. And BREAK on the first
-    // out-of-range record (like readViSections) rather than continue, so a bad
-    // descRel can't grind the whole (capped) range.
     final maxRecords = infoArea.length ~/ 20;
     var minStart = infoArea.length, maxEnd = 0;
     var inBounds = true;
@@ -581,7 +576,6 @@ class ViInfoArea {
       }
     }
 
-    // Clean shape: a 20-byte preGap, then a gapless run of 20-byte records.
     final clean = inBounds && maxEnd > minStart && minStart == restStart + 20 && (maxEnd - minStart) % 20 == 0;
     if (clean) {
       final total = (maxEnd - minStart) ~/ 20;
@@ -590,14 +584,10 @@ class ViInfoArea {
         blockList: blockList,
         preGap: ViInfoPreGap.parse(Uint8List.fromList(infoArea.sublist(restStart, restStart + 20))),
         descriptors: [for (var i = 0; i < total; i++) ViSectionDescriptor.parse(infoArea, minStart + i * 20)],
-        // The subheader's reservedB (viNameOffset) authoritatively locates the
-        // trailing VI-name record — pass it (tail-relative) so non-ASCII names
-        // are recovered verbatim rather than dropped by the printable-only scan.
         nameTable: ViNameTable.parse(Uint8List.fromList(infoArea.sublist(maxEnd)),
             nameStart: subheader.viNameOffset == null ? null : subheader.viNameOffset! - maxEnd),
       );
     }
-    // Fallback: keep the whole remainder raw so serialize() stays byte-exact.
     return ViInfoArea(
       subheader: subheader,
       blockList: blockList,
@@ -682,7 +672,8 @@ class ViContainer {
     return out;
   }
 
-  static const List<int> _magic = [0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a]; // "RSRC\r\n"
+  /// The RSRC magic bytes (`RSRC\r\n`) every container/header begins with.
+  static const List<int> _magic = [0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a];
 
   /// Splits [bytes] into the three regions on the header's declared offsets.
   /// Lossless: the regions concatenate back to the input. Throws
@@ -696,8 +687,6 @@ class ViContainer {
     final d = ByteData.sublistView(bytes);
     final infoOffset = d.getUint32(16);
     final dataOffset = d.getUint32(24);
-    // Require the observed, well-ordered layout so the three spans partition the
-    // file exactly: 0 < dataOffset <= infoOffset <= length.
     if (!(dataOffset >= 32 && dataOffset <= infoOffset && infoOffset <= bytes.length)) {
       throw ViFormatException('unexpected region order (dataOffset=$dataOffset, infoOffset=$infoOffset, len=${bytes.length})');
     }
@@ -821,24 +810,23 @@ bool _listEquals(List<int> a, List<int> b) {
 
 abstract final class ViExport {
   /// Decomposes the data area of [viBytes] into ordered sections + gaps. Section
-  /// positions come from the info-area descriptors ([readViSections]); the span
-  /// length is read from the section's own `u32` prefix (authoritative).
+  /// positions come from the info-area descriptors ([readViSections]) as a sorted
+  /// set of distinct offsets (a section's bytes may be referenced by more than one
+  /// descriptor); the span length is read from the section's own `u32` prefix
+  /// (authoritative).
   static List<ViDataSegment> decomposeDataArea(Uint8List viBytes) {
     final c = ViContainer.parse(viBytes);
     final data = c.dataArea;
     final bd = ByteData.sublistView(data);
-    // distinct section offsets (a section's bytes may be referenced by >1
-    // descriptor); sorted so we can walk the data area front-to-back.
     final secRels = <int>{for (final s in readViSections(viBytes)) s.dataOffset}.toList()..sort();
     final segs = <ViDataSegment>[];
     var pos = 0;
     for (final secRel in secRels) {
-      if (secRel < pos || secRel + 4 > data.length) continue; // overlap/oob: skip defensively
+      if (secRel < pos || secRel + 4 > data.length) continue;
       if (secRel > pos) segs.add(ViGap(Uint8List.sublistView(data, pos, secRel)));
       final len = bd.getUint32(secRel);
       final end = secRel + 4 + len;
       if (end > data.length) {
-        // truncated section descriptor — keep the remainder as a gap, stop.
         segs.add(ViGap(Uint8List.sublistView(data, secRel)));
         pos = data.length;
         break;
@@ -883,7 +871,7 @@ abstract final class ViExport {
     if (info.length < 0x30) return out;
     final ibd = ByteData.sublistView(info);
     final blockListRel = ibd.getUint32(0x2c);
-    final countPos = blockListRel; // info-relative
+    final countPos = blockListRel;
     if (countPos < 0 || countPos + 4 > info.length) return out;
     final count = ibd.getUint32(countPos);
     if (count > 100000) return out;
@@ -892,13 +880,13 @@ abstract final class ViExport {
     final descBase = countPos + 8;
     var entry = countPos + 4;
     for (var i = 0; i < count && entry + 12 <= info.length; i++) {
-      final sectionCount = ibd.getUint32(entry + 4) + 1; // stored as count-1
+      final sectionCount = ibd.getUint32(entry + 4) + 1;
       final descRel = ibd.getUint32(entry + 8);
       entry += 12;
       for (var s = 0; s < sectionCount; s++) {
         final dpos = descBase + descRel + s * descSize;
         if (dpos < 0 || dpos + descSize > info.length) break;
-        if (ibd.getUint32(dpos + 16) != commonWord16) continue; // LIBN/VINS section
+        if (ibd.getUint32(dpos + 16) != commonWord16) continue;
         out.add((dpos: dpos, secRel: ibd.getUint32(dpos + 4)));
       }
     }
@@ -924,15 +912,12 @@ abstract final class ViExport {
   /// input byte-for-byte. Corpus-validated across 7583 VIs (no-op byte-exact;
   /// grow and shrink both re-parse with the target updated and all other sections
   /// byte-identical). Throws [ViFormatException] if [secRel] is not a section
-  /// start in the data area.
+  /// start in the data area, or if the data area does not cleanly decompose
+  /// (an overlapping/out-of-range/truncated section would desync the descriptor
+  /// fixups) — only already-malformed VIs fail that check.
   static Uint8List editSection(Uint8List viBytes, {required int secRel, required Uint8List newPayload}) {
     final c = ViContainer.parse(viBytes);
     final segs = decomposeDataArea(viBytes);
-    // Refuse to edit a data area that doesn't cleanly decompose: if decompose had
-    // to skip an overlapping/out-of-range/truncated section, the segment model is
-    // incomplete and the descriptor-secRel fixups below would silently desync from
-    // the bytes. Only an already-malformed VI fails this; well-formed files (the
-    // whole corpus) round-trip exactly, so editing stays coherent or refuses.
     if (!_listEquals(rebuildDataArea(segs), c.dataArea)) {
       throw ViFormatException('data area does not cleanly decompose; refusing to edit');
     }
@@ -948,14 +933,12 @@ abstract final class ViExport {
     }
     final delta = newPayload.length - target.payload.length;
 
-    // data area: swap the target payload, rebuild (later spans shift with it)
     final newSegs = [
       for (final s in segs)
         if (s is ViSectionData && s.secRel == secRel) ViSectionData(secRel: secRel, payload: newPayload) else s,
     ];
     final newData = rebuildDataArea(newSegs);
 
-    // info area: shift every descriptor secRel strictly past the edit point
     final newInfo = Uint8List.fromList(c.infoArea);
     if (delta != 0) {
       final ibd = ByteData.sublistView(newInfo);
@@ -964,7 +947,6 @@ abstract final class ViExport {
       }
     }
 
-    // header: bump infoOffset + dataSize by delta (dataOffset stays put)
     final newHeader = Uint8List.fromList(c.header);
     final hbd = ByteData.sublistView(newHeader);
     hbd

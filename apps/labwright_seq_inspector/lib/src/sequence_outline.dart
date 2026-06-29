@@ -317,8 +317,6 @@ class StepOutline {
     final runMode = s.isNormalMode ? null : s.mode;
     final notes = <String>[];
     if (s.flowSummary != null) notes.add('flow ${s.flowSummary}');
-    // Custom-condition jump targets, with `ID#:` step references resolved to the
-    // destination step's name (bookmarks like <Cleanup> shown verbatim).
     String resolveTarget(String t) =>
         t.startsWith('ID#:') ? (file.stepNameForId(t) ?? t) : t;
     if (s.customTrueTarget != null) {
@@ -327,16 +325,12 @@ class StepOutline {
     if (s.customFalseTarget != null) {
       notes.add('cust-false→${resolveTarget(s.customFalseTarget!)}');
     }
-    // LabVIEW VI-call library/project (parity with the dump's {vi:} chip); the
-    // connector pane rides in [connectorParams] below.
     if (m.adapter == SeqAdapter.labView) {
       final lv = <String>[];
       if (m.viNamespace != null) lv.add('lib ${m.viNamespace}');
       if (m.viProjectPath != null) lv.add('proj ${m.viProjectPath}');
       if (lv.isNotEmpty) notes.add('vi: ${lv.join(', ')}');
     }
-    // Python call module/class/interpreter (parity with the dump's {python:}
-    // chip); the called function is already the module target.
     if (m.adapter == SeqAdapter.python) {
       final py = <String>[];
       if (m.pythonModulePath != null) py.add('mod ${m.pythonModulePath}');
@@ -344,7 +338,6 @@ class StepOutline {
       if (m.pythonVersion != null) py.add('py ${m.pythonVersion}');
       if (py.isNotEmpty) notes.add('python: ${py.join(', ')}');
     }
-    // Module load/unload timing, only when non-default.
     if (s.loadOption != null && s.loadOption != 'PreloadWhenExecuted') {
       notes.add('load ${s.loadOption}');
     }
@@ -352,27 +345,18 @@ class StepOutline {
       notes.add('unload ${s.unloadOption}');
     }
     if (s.isLooping) notes.add('loop ${s.loopType}');
-    // Notable non-default execution flags (same set the text dump surfaces).
     if (s.ignoresRunTimeErrors == true) notes.add('ignore-RTE');
     if (s.failureCausesSequenceFailure == false) notes.add('no-seq-fail');
     if (s.recordsResult == false) notes.add('no-record');
-    // "Additional Results" recording spec: the extra values the step logs to the
-    // report, each with its gating condition when set (parity with the dump's
-    // {+results} chip). Flags/CheckedState are not yet decoded, so omitted.
     final addl = step.additionalResults;
     if (addl.isNotEmpty) {
       String fmt(AdditionalResult a) =>
           a.condition != null ? '${a.name} if ${a.condition}' : a.name;
       notes.add('+results: ${addl.map(fmt).join(', ')}');
     }
-    // Step mutex synchronization, only when the step actually locks one (parity
-    // with the dump's `mutex` note; default-off in the corpus).
     if (s.usesMutex == true) {
       notes.add('mutex${s.mutexName != null ? ' ${s.mutexName}' : ''}');
     }
-    // A recorded run outcome (Result), shown only when non-default (a sequence
-    // file's un-run steps hold only defaults → nothing shown). Parity with the
-    // dump's {result:…} chip.
     final res = step.result;
     if (res != null && res.hasRecordedOutcome) {
       final r = <String>[];
@@ -385,16 +369,12 @@ class StepOutline {
       if (r.isNotEmpty) notes.add('result ${r.join('; ')}');
     }
 
-    // The step's set expressions, in editor order. Shown as their own rows (they
-    // can be long); precondition lives here too (was a note before).
     final expressions = <(String, String)>[
       if (s.precondition != null) ('Precondition', s.precondition!),
-      // The custom-condition expression (the step's own true/false branch test).
       if (s.customExpression != null) ('Custom condition', s.customExpression!),
       if (s.preExpression != null) ('Pre-expression', s.preExpression!),
       if (s.postExpression != null) ('Post-expression', s.postExpression!),
       if (s.statusExpression != null) ('Status', s.statusExpression!),
-      // The loop block (init → while → increment → status) for a looping step.
       if (s.loopInitialize != null) ('Loop init', s.loopInitialize!),
       if (s.loopWhile != null) ('Loop while', s.loopWhile!),
       if (s.loopIncrement != null) ('Loop increment', s.loopIncrement!),

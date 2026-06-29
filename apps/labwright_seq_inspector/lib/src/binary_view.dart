@@ -16,7 +16,6 @@ class BinaryView extends StatelessWidget {
     final theme = Theme.of(context);
     final rows = binaryHeaderRows(doc);
     final sections = binaryRecoverySections(doc);
-    // Prefer the largest contiguous table; fall back to all recovered strings.
     final strings = doc.stringTable.isNotEmpty ? doc.stringTable : doc.strings;
 
     return Column(
@@ -58,9 +57,6 @@ class BinaryView extends StatelessWidget {
         Expanded(
           child: ListView(
             children: [
-              // Categorized recovered datums (collapsible) — what the file calls,
-              // references, evaluates, and the constant values it carries. The
-              // record links that attach each to a step are not yet decoded.
               for (final s in sections)
                 ExpansionTile(
                   dense: true,

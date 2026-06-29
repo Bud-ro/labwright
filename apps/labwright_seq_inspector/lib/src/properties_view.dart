@@ -63,16 +63,12 @@ class _PropertiesViewState extends State<PropertiesView> {
           child: filtered == null
               ? const Center(child: Text('No matching properties.'))
               : ListView(
-                  // Rebuild the subtree on query change so ExpansionTiles pick
-                  // up the new force-expanded state.
                   key: ValueKey(_query),
                   padding: const EdgeInsets.all(8),
                   children: [
                     PropertyTile(
                       node: filtered,
                       depth: 0,
-                      // Root expanded by default; when filtering, expand all so
-                      // matches deep in the tree are visible.
                       initiallyExpanded: true,
                       forceExpanded: filtering,
                     ),
@@ -144,8 +140,6 @@ class PropertyTile extends StatelessWidget {
         style: monoStyle.copyWith(color: theme.hintColor),
       ));
     }
-    // A subtle marker for an explicit instance override (the raw %INSTOVRD flags
-    // still appear among the attribute chips below).
     if (node.isInstanceOverride) {
       spans.add(TextSpan(
         text: '  ⋄ overridden',
@@ -164,7 +158,6 @@ class PropertyTile extends StatelessWidget {
 
   Widget? _subtitle(ThemeData theme) {
     if (node.attributes.isEmpty) return null;
-    // className/typeName already shown via typeLabel; surface the rest verbatim.
     final shown = node.attributes.entries
         .where((e) => e.key != 'classname' && e.key != 'typename')
         .map((e) => '${e.key}=${e.value}')

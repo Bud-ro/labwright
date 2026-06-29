@@ -117,14 +117,12 @@ SeqFormat detectSeqFormat(Uint8List bytes) {
     i++;
   }
   if (i < bytes.length && bytes[i] == Ascii.lessThan.code) {
-    // '<' — XML/markup. Confirm it's a TestStand file, not arbitrary XML.
     final head = _asciiPeek(bytes, i, 4096).toLowerCase();
     if (head.startsWith('<?xml') || head.contains('<teststandfileheader')) {
       return SeqFormat.xml;
     }
   }
   if (i < bytes.length && bytes[i] == Ascii.leftBracket.code) {
-    // '[' — possible INI section. Require a TestStand marker to avoid false hits.
     final head = _asciiPeek(bytes, i, 4096);
     if (head.contains('TestStand') ||
         head.toLowerCase().contains('teststand')) {
@@ -181,13 +179,8 @@ SeqFileHeader detectSeqHeader(Uint8List bytes) {
         fileVersion: _attr['fileversion']!.firstMatch(head)?.group(1),
       );
     case SeqFormat.ini:
-      // INI uses `Key = "value"` lines, not XML attributes — parse the
-      // `[__Header__]` block (Type/ProductName/Version) via the INI reader.
       return parseIniHeader(_asciiPeek(bytes, 0, 8192));
     case SeqFormat.binary:
-      // Fixed header slots, catalogued in [TofHeaderField]. We recover the two
-      // safest (type + product); the numeric fileversion is not yet located in
-      // the binary header.
       return SeqFileHeader(
         format: fmt,
         fileType: _cString(bytes, TofHeaderField.fileType.offset),

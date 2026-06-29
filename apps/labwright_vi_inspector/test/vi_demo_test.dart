@@ -29,7 +29,6 @@ void main() {
     for (var i = 0; i < 5000; i++) {
       final n = rng.nextInt(1024);
       final b = Uint8List.fromList([for (var j = 0; j < n; j++) rng.nextInt(256)]);
-      // Must return a ViLoad, never throw, regardless of input.
       final load = summarize(b);
       expect(load.isOk || load.error != null, isTrue);
     }

@@ -11,7 +11,8 @@ Uint8List _pth0(List<String> comps, {int type = 0}) {
   final compBytes = body.toBytes();
   final b = BytesBuilder();
   b.add('PTH0'.codeUnits);
-  final inner = 4 + compBytes.length; // i16 type + i16 count + components
+  const i16PathType = 2, i16ComponentCount = 2;
+  final inner = i16PathType + i16ComponentCount + compBytes.length;
   b.add([(inner >> 24) & 0xff, (inner >> 16) & 0xff, (inner >> 8) & 0xff, inner & 0xff]);
   b.add([(type >> 8) & 0xff, type & 0xff]);
   b.add([(comps.length >> 8) & 0xff, comps.length & 0xff]);
@@ -38,19 +39,18 @@ void main() {
     test('too short yields null; a lying count does not throw', () {
       expect(decodeHelpPath(Uint8List(8)), isNull);
       final b = _pth0(['a']);
-      // corrupt the count to a huge value -> loop bails at buffer end, no throw.
       ByteData.sublistView(b).setUint16(10, 9999);
-      expect(decodeHelpPath(b)!.components.length, lessThanOrEqualTo(1));
+      expect(decodeHelpPath(b)!.components.length, lessThanOrEqualTo(1),
+          reason: 'a lying (huge) component count bails at buffer end without throwing');
     });
 
     test('HLPT reuses the STRG [u32 len][text] layout', () {
-      // helpTextFromSections delegates to decodeStringBlock; verify the shared
-      // decoder reads the same format HLPT uses.
       final body = '### Foo.vi'.codeUnits;
       final b = Uint8List(4 + body.length);
       ByteData.sublistView(b).setUint32(0, body.length);
       b.setRange(4, b.length, body);
-      expect(decodeStringBlock(b), '### Foo.vi');
+      expect(decodeStringBlock(b), '### Foo.vi',
+          reason: 'helpTextFromSections delegates to decodeStringBlock, the shared STRG/HLPT decoder');
     });
 
     test('catalog: HLPP help-path, HLPT confirmed text', () {

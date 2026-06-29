@@ -21,8 +21,8 @@ void main() {
     ];
     final table = <int>[...pascal('Sine'), ...pascal('Square'), ...pascal('Ramp')];
     final bdex = <int>[
-      0xc4, 0x2e, table.length, ...table, // C4 2E string table
-      0xc4, 0x2d, 0x08, 0, 0, 0, 0, 0, 0, 0, 0, // a C4 2D value record
+      0xc4, 0x2e, table.length, ...table,
+      0xc4, 0x2d, 0x08, 0, 0, 0, 0, 0, 0, 0, 0,
     ];
     final model = buildViModelFromDecoded([sec('vers', vers), sec('BDEx', bdex, comp: true)]);
 
@@ -43,7 +43,7 @@ void main() {
       sec('BDEx', <int>[0xc4, 0x2e, t1.length, ...t1]),
       sec('FPHb', <int>[0xc4, 0x2e, t2.length, ...t2]),
     ]);
-    expect(model.labels, <String>['error out', 'status', 'code']); // 'status' once
+    expect(model.labels, <String>['error out', 'status', 'code']);
   });
 
   test('buildViModel is total over arbitrary bytes (ViModel or ViFormatException)', () {

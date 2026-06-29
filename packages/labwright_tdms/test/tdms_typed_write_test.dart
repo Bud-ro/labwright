@@ -21,7 +21,6 @@ void main() {
             ..writeSegment([TdmsChannel(group: 'M', name: 'v', data: values, type: type)]))
           .toBytes();
       final read = TdmsReader.read(bytes).group('M')!.channel('v')!.data;
-      // single-precision rounds; compare with tolerance there
       if (type == TdsType.singleFloat) {
         expect(read.length, values.length);
         for (var i = 0; i < values.length; i++) {

@@ -20,13 +20,12 @@ void main() {
     expect(HeapOpcode.fromByte(0x22), HeapOpcode.caption);
     expect(HeapOpcode.fromByte(0x19), HeapOpcode.description);
     expect(HeapOpcode.fromByte(0x5f), HeapOpcode.rect5f);
-    expect(HeapOpcode.fromByte(0xAB), HeapOpcode.unknown); // uncatalogued
+    expect(HeapOpcode.fromByte(0xAB), HeapOpcode.unknown, reason: 'uncatalogued byte -> unknown');
     expect(HeapOpcode.bounds.isDecoded, isTrue);
     expect(HeapOpcode.rect5f.isDecoded, isFalse);
     expect(HeapOpcode.unknown.isDecoded, isFalse);
-    // every catalogued opcode has a unique byte
     final bytes = HeapOpcode.values.where((o) => o != HeapOpcode.unknown).map((o) => o.byte).toList();
-    expect(bytes.toSet().length, bytes.length);
+    expect(bytes.toSet().length, bytes.length, reason: 'every catalogued opcode has a unique byte');
   });
 
   test('HeapRecord.kind reflects the opcode byte', () {
@@ -35,7 +34,6 @@ void main() {
   });
 
   test('HeapShape taxonomy: string opcodes decode via text, rect opcodes via rect', () {
-    // plot name (0x27) and format string (0x74) are string-shaped -> text.
     final plot = <int>[0xc4, 0x27, 6, ...'Plot 0'.codeUnits];
     final fmt = <int>[0xc4, 0x74, 5, ...'%020b'.codeUnits];
     final recs = heapC4RecordsFromDecoded([bdex([...plot, ...fmt])]);
@@ -45,12 +43,11 @@ void main() {
     expect(recs[1].text, '%020b');
     expect(recs[0].kind.shape, HeapShape.string);
 
-    // a structural rect opcode (0x4c) decodes via the generic rect accessor.
     final r4c = <int>[0xc4, 0x4c, 0x08, 0xff, 0xdf, 0xff, 0x8e, 0x01, 0xd1, 0x02, 0xad];
     final rec = heapC4RecordsFromDecoded([bdex(r4c)]).single;
     expect(rec.kind, HeapOpcode.rect4c);
     expect(rec.kind.shape, HeapShape.rectangle);
-    expect(rec.bounds, isNull); // not the semantic bounds opcode
+    expect(rec.bounds, isNull, reason: 'rect4c is a structural rect, not the semantic bounds opcode');
     expect(rec.rect, isNotNull);
     expect([rec.rect!.top, rec.rect!.left], [-33, -114]);
   });
@@ -63,20 +60,21 @@ void main() {
   });
 
   test('frames C4 length-prefixed records and skips payloads', () {
-    final strTable = <int>[...pascal('Hi'), ...pascal('Yo')]; // 6 bytes
+    final strTable = <int>[...pascal('Hi'), ...pascal('Yo')];
     final heap = <int>[
-      0x10, 0x55, // a non-C4 token (stepped over)
-      0xc4, 0x2d, 0x08, 0, 0, 0, 0, 0, 0, 0xc4, 0x99, // C4 2D, len 8 (payload contains a 0xC4!)
-      0xc4, 0x5f, 0x08, 1, 2, 3, 4, 5, 6, 7, 8, // C4 5F, len 8
-      0xc4, 0x2e, strTable.length, ...strTable, // C4 2E string table, len 6
+      0x10, 0x55,
+      0xc4, 0x2d, 0x08, 0, 0, 0, 0, 0, 0, 0xc4, 0x99,
+      0xc4, 0x5f, 0x08, 1, 2, 3, 4, 5, 6, 7, 8,
+      0xc4, 0x2e, strTable.length, ...strTable,
     ];
     final recs = heapC4RecordsFromDecoded([bdex(heap)]);
-    expect(recs.map((r) => r.opcode).toList(), <int>[0x2d, 0x5f, 0x2e]);
+    expect(recs.map((r) => r.opcode).toList(), <int>[0x2d, 0x5f, 0x2e],
+        reason: 'the leading non-C4 0x10 token is stepped over');
     expect(recs[0].offset, 2);
-    expect(recs[0].byteLength, 11); // 0xC4 + op + len + 8 payload
+    expect(recs[0].byteLength, 11, reason: '0xC4 + opcode + len + 8 payload bytes');
     expect(recs[0].payload.length, 8);
-    // The 0xC4 inside the first record's payload must NOT have started a record.
-    expect(recs[1].opcode, 0x5f);
+    expect(recs[1].opcode, 0x5f,
+        reason: 'the 0xC4 inside the first record payload (0xc4 0x99) did not start a new record');
     expect(recs[2].payload.length, 6);
   });
 
@@ -95,8 +93,9 @@ void main() {
   });
 
   test('a C4 with a length running past the section end is not framed', () {
-    final heap = <int>[0xc4, 0x2d, 0xff, 1, 2, 3]; // claims 255 payload bytes, only 3 present
-    expect(heapC4RecordsFromDecoded([bdex(heap)]), isEmpty);
+    final heap = <int>[0xc4, 0x2d, 0xff, 1, 2, 3];
+    expect(heapC4RecordsFromDecoded([bdex(heap)]), isEmpty,
+        reason: 'length claims 255 payload bytes but only 3 are present -> not framed');
   });
 
   test('heapC4Records is total over arbitrary bytes and stays in-bounds', () {

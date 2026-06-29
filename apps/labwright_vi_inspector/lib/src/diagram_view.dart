@@ -60,17 +60,12 @@ class ViDiagramView extends StatefulWidget {
 class _ViDiagramViewState extends State<ViDiagramView> {
   final _tc = TransformationController();
   ViHeapObject? _selected;
-  // The selected object's drawn members, resolved once per selection (not in build).
   Set<ViHeapObject> _members = const {};
   Size? _lastViewport;
   Rect? _lastContent;
   bool _fitted = false;
   DiagramRenderMode _mode = DiagramRenderMode.wireframe;
 
-  // Layout is derived ONCE per widget (ViDiagramView is keyed by model identity,
-  // so widget.diagrams is immutable for this State's life). Computing it lazily
-  // here — rather than in build() — keeps a selection tap (setState) from
-  // re-filtering/re-sorting/re-measuring the whole diagram each time.
   late final ViDiagram? _diagram = _largestDiagram(widget.diagrams);
   late final Map<int, ViHeapObject> _byId = _diagram?.byId ?? const {};
   late final List<ViHeapObject> _drawable = _diagram == null
@@ -79,7 +74,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
           for (final o in _diagram.objects)
             if (o.absBounds != null &&
                 o.absBounds!.isValid &&
-                o.absBounds!.width > 0 && // zero-area objects (e.g. 0x1d node bodies) are not drawn
+                o.absBounds!.width > 0 &&
                 o.absBounds!.height > 0 &&
                 o.absBounds!.width < 8000 &&
                 o.absBounds!.height < 8000 &&
@@ -129,8 +124,6 @@ class _ViDiagramViewState extends State<ViDiagramView> {
         _BdOutline(outline: computeBdOutline(_drawable), linkedSubVis: widget.subViNames),
         const SizedBox(height: 6),
         Expanded(
-          // Stack so the details card is an OVERLAY — it never changes the
-          // viewport size, so selecting an object can't trigger a re-fit/reset.
           child: Stack(
             children: [
               Positioned.fill(
@@ -145,28 +138,21 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                   }
                   return ClipRect(
                     child: ColoredBox(
-                      color: const Color(0xFFE9E9E9), // LabVIEW-like BD canvas
+                      color: const Color(0xFFE9E9E9),
                       child: InteractiveViewer(
                         transformationController: _tc,
                         constrained: false,
                         minScale: 0.02,
                         maxScale: 16,
                         boundaryMargin: const EdgeInsets.all(2000),
-                        // Faithful mounts one live (stateful) widget per object, so
-                        // it is capped: above kFaithfulMaxObjects it would mount
-                        // thousands of controllers/render objects at once (jank/OOM)
-                        // — fall back to the cheap single-CustomPaint wireframe.
                         child: (_mode == DiagramRenderMode.faithful && ordered.length <= kFaithfulMaxObjects)
                             ? FaithfulLayer(objects: ordered, origin: content.topLeft, size: content.size, isFrontPanel: widget.isFrontPanel)
                             : GestureDetector(
                                 behavior: HitTestBehavior.opaque,
                                 onTapDown: (d) => _selectAt(d.localPosition, ordered, content),
                                 child: CustomPaint(
-                                  // Static object+label layer — repaints only when the
-                                  // diagram changes, never on a selection tap.
                                   size: Size(content.width, content.height),
                                   painter: _DiagramPainter(objects: ordered, origin: content.topLeft),
-                                  // Cheap highlight overlay — repaints on tap.
                                   foregroundPainter: _OverlayPainter(
                                     origin: content.topLeft,
                                     selected: _selected,
@@ -222,9 +208,6 @@ class _ViDiagramViewState extends State<ViDiagramView> {
     );
   }
 
-  // A Wrap (not a Row): the fixed-width SegmentedButton + Fit button can't shrink
-  // below their intrinsic size, so on a narrow pane they flow onto a second line
-  // instead of overflowing (the user reported overflows here).
   Widget _toolbar(int n, Map<ViObjectKind, int> counts) => Wrap(
         spacing: 12,
         runSpacing: 4,
@@ -267,7 +250,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
         final area = (r.width * r.height).toDouble();
         if (area <= bestArea) {
           bestArea = area;
-          hit = o; // smallest object under the cursor wins
+          hit = o;
         }
       }
     }
@@ -277,10 +260,6 @@ class _ViDiagramViewState extends State<ViDiagramView> {
     });
   }
 
-  // Selecting a structure highlights the LOGIC NODES spatially inside it (so
-  // "this loop/case contains these subVIs" is visible); other objects fall back
-  // to the declared-ref highlight. (memberOids is not node containment — see the
-  // D.3 finding — so positional containment is the honest signal here.)
   Set<ViHeapObject> _membersOf(ViHeapObject? o) =>
       o != null && o.category == ViObjectKind.structure ? nodesWithin(o, _drawable) : membersOf(o, _byId);
 
@@ -345,16 +324,16 @@ class _ViDiagramViewState extends State<ViDiagramView> {
 
 /// Faithful-ish LabVIEW palette: terminals colored by data type, else by class.
 Color _typeColor(ViTypeKind t) => switch (t) {
-      ViTypeKind.numericFloat => const Color(0xFFE8732A), // orange (DBL/SGL)
-      ViTypeKind.numericInt => const Color(0xFF1F6FE0), // blue (integers)
-      ViTypeKind.enumRing => const Color(0xFF1FA0C0), // cyan (ring/enum)
-      ViTypeKind.path => const Color(0xFF3FA64B), // green (path)
-      ViTypeKind.clnNode => const Color(0xFFE8C547), // yellow (CLN/subVI)
+      ViTypeKind.numericFloat => const Color(0xFFE8732A),
+      ViTypeKind.numericInt => const Color(0xFF1F6FE0),
+      ViTypeKind.enumRing => const Color(0xFF1FA0C0),
+      ViTypeKind.path => const Color(0xFF3FA64B),
+      ViTypeKind.clnNode => const Color(0xFFE8C547),
       ViTypeKind.unknown => const Color(0xFF707070),
     };
 
 Color _kindColor(ViObjectKind k) => switch (k) {
-      ViObjectKind.node => const Color(0xFFE8C547), // subVI/function yellow
+      ViObjectKind.node => const Color(0xFFE8C547),
       ViObjectKind.terminal => const Color(0xFF5C9BD6),
       ViObjectKind.terminalCluster => const Color(0xFF2BB8A8),
       ViObjectKind.structure => const Color(0xFF9A6B2E),
@@ -387,8 +366,6 @@ String? wireframeAnnotation(ViHeapObject o) {
 /// recoverable node→node endpoints). Pure + public so it is unit-testable.
 ({Map<String, int> structuresByKind, List<String> labeledNodes, int nodeCount, Map<ClassConfidence, int> confidence}) computeBdOutline(
     Iterable<ViHeapObject> objects) {
-  // The diagram canvas/root frames are structures but not control flow — exclude
-  // them so the outline reads as actual loops/cases/sequences/containers.
   const notControlFlow = {
     HeapObjectClass.diagramRoot,
     HeapObjectClass.diagramProps,
@@ -398,9 +375,6 @@ String? wireframeAnnotation(ViHeapObject o) {
   final byKind = <String, int>{};
   final labeledNodes = <String>[];
   var nodeCount = 0;
-  // How solid each object's CLASS is (catalog ClassConfidence) — a translation-
-  // review aid, NOT a dataflow/execution claim. Tallied over the same control-flow
-  // structures + nodes the outline lists.
   final confidence = <ClassConfidence, int>{};
   for (final o in objects) {
     if (o.category == ViObjectKind.structure) {
@@ -411,7 +385,7 @@ String? wireframeAnnotation(ViHeapObject o) {
     } else if (o.category == ViObjectKind.node) {
       nodeCount++;
       confidence[o.objectClass.confidence] = (confidence[o.objectClass.confidence] ?? 0) + 1;
-      final dl = nodeDisplayLabel(o); // (text, isHint) — a caption, not a proven call
+      final dl = nodeDisplayLabel(o);
       if (!dl.isHint && !labeledNodes.contains(dl.text)) labeledNodes.add(dl.text);
     }
   }
@@ -430,12 +404,12 @@ String? wireframeAnnotation(ViHeapObject o) {
 /// - the display/increment/terminal/item-list parts internal to a control
 ///   (`0xe0`/`0x0b`/`0x0c`/`0x0d` with a control-kind ancestor) — the control is
 ///   drawn as a single unit, not its internals (`0x0d`'s enum items are already
-///   propagated up to the control, so suppressing it loses nothing).
+///   propagated up to the control, so suppressing it loses nothing);
+/// - subVI-node internal display sub-parts (`0xe5`) — corpus: 947, all under a
+///   `0xc5` node; they overlap the parent node and would otherwise paint a stray
+///   unknown rectangle over it.
 bool _isScaffolding(ViHeapObject o, Map<int, ViHeapObject> byId) {
   if (o.kind == 0x09 || o.kind == 0x11c) return true;
-  // 0xe5 is a subVI-node internal display sub-part (corpus: 947, all under a 0xc5
-  // node, child profile 0x9/0xb/0xd/0x68 = chrome) — it overlaps its parent node
-  // and otherwise paints a stray unknown rectangle on top of it. Suppress.
   if (o.kind == 0xe5) return true;
   if (o.kind == 0x68 && o.bounds == null) return true;
   if (o.kind == 0xe0 || o.kind == 0x0b || o.kind == 0x0c || o.kind == 0x0d) {
@@ -452,9 +426,6 @@ bool _isScaffolding(ViHeapObject o, Map<int, ViHeapObject> byId) {
   return false;
 }
 
-/// The **static** diagram layer: grid, objects, and labels. Depends only on the
-/// (memoized, stable) object list + origin, so a selection tap never repaints it
-/// — the cheap [_OverlayPainter] handles highlights instead.
 /// The **drawn** objects [o] declares as members (childRef ∪ memberRef from the
 /// 0x14 ref graph), resolved via [byId] and filtered to objects actually on the
 /// canvas (has bounds, not scaffolding-suppressed, not [o] itself) so a highlight
@@ -486,15 +457,15 @@ Set<ViHeapObject> nodesWithin(ViHeapObject structure, Iterable<ViHeapObject> obj
     final b = o.absBounds;
     if (b == null) continue;
     if (b.left < s.left || b.top < s.top || b.right > s.right || b.bottom > s.bottom) continue;
-    // Exclude only an exact bounds clone (a viewport/self-overlap), NOT a child
-    // that legitimately FILLS its parent (e.g. a sequence subframe filling a
-    // Flat Sequence frame) — that's the per-frame body holding the logic.
     if (b.left == s.left && b.top == s.top && b.right == s.right && b.bottom == s.bottom) continue;
     out.add(o);
   }
   return out;
 }
 
+/// The **static** diagram layer: grid, objects, and labels. Depends only on the
+/// (memoized, stable) object list + origin, so a selection tap never repaints it
+/// — the cheap [_OverlayPainter] handles highlights instead.
 class _DiagramPainter extends CustomPainter {
   _DiagramPainter({required this.objects, required this.origin});
 
@@ -513,17 +484,14 @@ class _DiagramPainter extends CustomPainter {
 
     final structures = objects.where((o) => o.category == ViObjectKind.structure).toList();
     final decorations = objects.where((o) => o.category == ViObjectKind.decoration).toList();
-    // nodes/terminals/clusters, largest-first so small ones end up on top.
     final solids = objects
         .where((o) => o.category != ViObjectKind.structure && o.category != ViObjectKind.decoration)
         .toList()
       ..sort((a, b) => (b.absBounds!.width * b.absBounds!.height).compareTo(a.absBounds!.width * a.absBounds!.height));
 
-    // 1. decorations — faint, behind.
     for (final o in decorations) {
       canvas.drawRect(rectOf(o), Paint()..color = _kindColor(o.category).withValues(alpha: 0.10));
     }
-    // 2. structure frames — OUTLINE only (no muddy fill); nesting reads via overlap.
     for (final o in structures) {
       canvas.drawRRect(
         RRect.fromRectAndRadius(rectOf(o), const Radius.circular(5)),
@@ -533,7 +501,6 @@ class _DiagramPainter extends CustomPainter {
           ..strokeWidth = 1.5,
       );
     }
-    // 3. solids — small on top.
     for (final o in solids) {
       final rr = RRect.fromRectAndRadius(rectOf(o), const Radius.circular(2.5));
       canvas.drawRRect(rr, Paint()..color = _objectColor(o).withValues(alpha: 0.92));
@@ -542,7 +509,6 @@ class _DiagramPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 0.8);
     }
-    // 4. labels on top of everything, so text is never buried.
     for (final o in objects) {
       final text = wireframeAnnotation(o);
       if (text == null) continue;
@@ -567,10 +533,10 @@ class _DiagramPainter extends CustomPainter {
   }
 
   void _drawDotGrid(Canvas canvas, Size size) {
-    // Coarsen the step on very large canvases so the dot count (and per-paint
-    // cost) stays bounded — a 3000×2000 diagram at step 12 would be ~40k draws.
-    final cells = (size.width / 12) * (size.height / 12);
-    final step = cells > 20000 ? 12.0 * (cells / 20000) : 12.0;
+    const stepPx = 12.0;
+    const maxDots = 20000;
+    final cells = (size.width / stepPx) * (size.height / stepPx);
+    final step = cells > maxDots ? stepPx * (cells / maxDots) : stepPx;
     final dot = Paint()..color = const Color(0x22000000);
     for (var x = 0.0; x < size.width; x += step) {
       for (var y = 0.0; y < size.height; y += step) {
@@ -581,8 +547,6 @@ class _DiagramPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _DiagramPainter old) =>
-      // objects is the memoized stable list (same instance across rebuilds), so
-      // identity is enough — a selection tap repaints only the cheap overlay.
       !identical(old.objects, objects) || old.origin != origin;
 }
 
@@ -603,7 +567,6 @@ class _OverlayPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // declared-member highlight (amber) — the selected object's childRef/memberRef.
     if (members.isNotEmpty) {
       final mp = Paint()
         ..color = const Color(0xFFEF6C00)
@@ -680,10 +643,6 @@ class _DetailsCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Title: the object's own name, else its class label; but when the
-                  // class is uncatalogued yet the structural fallback assigned a
-                  // category (e.g. a node-box on canvas), name it by category so the
-                  // title isn't a bare "unknown" that contradicts the drawn shape.
                   Text(
                     object.label ??
                         (cls != HeapObjectClass.unknown
@@ -704,15 +663,12 @@ class _DetailsCard extends StatelessWidget {
                     '${object.parentOid != null ? ' · parent ${object.parentOid}' : ''}',
                     style: const TextStyle(color: Colors.grey, fontSize: 12),
                   ),
-                  // Decoded semantics (only shown when actually recovered — honest).
                   if (object.items.isNotEmpty)
                     _detail('values', object.items.take(8).join(', ') + (object.items.length > 8 ? ', …' : '')),
                   if (formatControlRange(object.controlMin, object.controlMax) case final range?)
                     _detail('range', range),
                   if (object.helpText != null && stripHelpMarkup(object.helpText!).isNotEmpty)
                     _detail('help', stripHelpMarkup(object.helpText!)),
-                  // For a structure, the logic it contains (spatially) — so the
-                  // loop/case reads as "contains these subVIs/nodes".
                   if (members.isNotEmpty)
                     _detail(
                       'contains',
@@ -767,8 +723,6 @@ class _BdOutline extends StatelessWidget {
               const Text('Control flow:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
               for (final e in structs) Text('${e.key} ×${e.value}', style: muted),
             ]),
-          // LIbd linker dependency list — present even when BD node bodies are
-          // unlabeled. Distinct from the heap-derived diagram-labeled captions.
           if (linkedSubVis.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 2),
@@ -779,9 +733,6 @@ class _BdOutline extends StatelessWidget {
               padding: const EdgeInsets.only(top: 2),
               child: capped('Diagram-labeled nodes (${labeledNodes.length})', labeledNodes),
             ),
-          // Per-object CLASS-confidence breakdown (catalog ClassConfidence) — a
-          // translation-review aid showing how solid each classification is, NOT
-          // a dataflow/execution-order claim (wires are not recovered).
           if (outline.confidence.isNotEmpty) ...[
             Padding(
               padding: const EdgeInsets.only(top: 2),

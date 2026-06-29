@@ -102,7 +102,8 @@ class ViSection {
   final Uint8List bytes;
 }
 
-const List<int> _magic = [0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a]; // "RSRC\r\n"
+/// The RSRC magic bytes (`RSRC\r\n`) every container begins with.
+const List<int> _magic = [0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a];
 
 /// Extracts every block section's raw bytes from an RSRC container.
 ///
@@ -175,7 +176,7 @@ List<String> readOwningLibraryNames(Uint8List bytes) {
     if (s.tag != 'LIBN') continue;
     final b = s.bytes;
     if (b.length < 5) continue;
-    final len = b[4]; // Pascal length at offset 4 (after the leading u32)
+    final len = b[4];
     if (len == 0 || 5 + len > b.length) continue;
     var ok = true;
     for (var i = 5; i < 5 + len; i++) {
@@ -245,14 +246,12 @@ List<ViSection> _readSections(Uint8List bytes, {required int wantWord16}) {
   if (count > 100000) throw ViFormatException('implausible block count $count');
 
   const descSize = 20;
-  // Section descriptors are addressed relative to the block-list header
-  // (`countPos + 8`), not to the info section — see the doc comment above.
   final descBase = countPos + 8;
   final sections = <ViSection>[];
   var entry = countPos + 4;
   for (var i = 0; i < count && entry + 12 <= bytes.length; i++) {
     final t = tag(entry);
-    final sectionCount = u32(entry + 4) + 1; // stored as count-1
+    final sectionCount = u32(entry + 4) + 1;
     final descRel = u32(entry + 8);
     entry += 12;
     if (!_printableTag(t)) continue;
@@ -308,9 +307,6 @@ ViSummary parseVi(Uint8List bytes) {
     throw ViFormatException('info section offset $infoOffset out of range');
   }
 
-  // The info section repeats the 32-byte header, then a small sub-header whose
-  // 4th word is the offset (within the info section) to the block-info list:
-  // a u32 count followed by `count` entries of {4-char tag, u32, u32}.
   final blockListRel = u32(infoOffset + 0x2c);
   final countPos = infoOffset + blockListRel;
   final count = u32(countPos);
@@ -319,13 +315,9 @@ ViSummary parseVi(Uint8List bytes) {
   final blocks = <String>[];
   final seen = <String>{};
   var entry = countPos + 4;
-  // Read exactly `count` 12-byte entries. (The old `count + 2` lenient walk
-  // over-read into the 20-byte block-list trailer that follows the entries,
-  // manufacturing a phantom "FTAB"/"VITS" block — present in the inventory but
-  // with no recoverable section, since readViSections correctly honours `count`.)
   for (var i = 0; i < count && entry + 12 <= bytes.length; i++) {
     final t = tag(entry);
-    if (!_printableTag(t)) break; // tolerate an early non-tag
+    if (!_printableTag(t)) break;
     if (seen.add(t)) blocks.add(t);
     entry += 12;
   }
@@ -394,9 +386,6 @@ List<String> readSubViNames(Uint8List bytes) {
   final libd = sectionBytes('LIbd');
   if (libd == null || libd.isEmpty) return const [];
 
-  // The VI's own name is its identity in LIbd, not a subVI call — exclude it.
-  // It can surface either as the first `.vi` name in LIvi or as the trailing
-  // EOF name; use both (basename, lowercased) so self is reliably dropped.
   final self = <String>{};
   final livi = sectionBytes('LIvi');
   final liviNames = livi == null ? const <String>[] : _pascalViNames(livi);
@@ -411,7 +400,7 @@ List<String> readSubViNames(Uint8List bytes) {
   final seen = <String>{};
   final out = <String>[];
   for (final n in _pascalViNames(libd)) {
-    final base = n.split(RegExp(r'[\\/]')).last; // strip any .llb/dir prefix
+    final base = n.split(RegExp(r'[\\/]')).last;
     final key = base.toLowerCase();
     if (self.contains(key)) continue;
     if (seen.add(key)) out.add(base);
@@ -428,7 +417,7 @@ List<String> _pascalViNames(Uint8List b) {
   final out = <String>[];
   for (var i = 0; i + 1 < b.length; i++) {
     final len = b[i];
-    if (len < 4 || i + 1 + len > b.length) continue; // shortest is "x.vi"
+    if (len < 4 || i + 1 + len > b.length) continue;
     var ok = true;
     for (var j = i + 1; j < i + 1 + len; j++) {
       if (b[j] < 0x20 || b[j] >= 0x7f) {
@@ -440,7 +429,7 @@ List<String> _pascalViNames(Uint8List b) {
     final s = String.fromCharCodes(b.sublist(i + 1, i + 1 + len));
     if (s.toLowerCase().endsWith('.vi')) {
       out.add(s);
-      i += len; // consume the matched string
+      i += len;
     }
   }
   return out;

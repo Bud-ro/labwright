@@ -16,7 +16,6 @@ void main() {
         findsOneWidget);
     expect(find.textContaining('FlexGStepAdditions', findRichText: true),
         findsOneWidget);
-    // The header shows shown/total.
     expect(find.text('2/2'), findsOneWidget);
   });
 

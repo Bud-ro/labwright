@@ -5,37 +5,43 @@ import 'package:test/test.dart';
 
 /// Builds a minimal big-endian RSRC (.vi) container with the given resource
 /// block tags and a trailing VI name, matching the layout [parseVi] reads.
+///
+/// Layout: a 32-byte header (`RSRC\r\n`, u16 format version = 3, 4-byte file
+/// type, 4-byte creator `LBVW`, then u32 info-offset / info-size / data-offset /
+/// data-size — only the info-offset is read). The info section repeats the
+/// header, then a sub-header of five u32 whose 4th word is the offset (0x34) to
+/// the block-info list, a u32 block count, two u32 per block entry, and finally a
+/// length-prefixed VI name.
 Uint8List _buildVi({required String fileType, required List<String> blocks, required String name}) {
   void be16(BytesBuilder b, int v) => b.add((ByteData(2)..setUint16(0, v)).buffer.asUint8List());
   void be32(BytesBuilder b, int v) => b.add((ByteData(4)..setUint32(0, v)).buffer.asUint8List());
 
   final header = BytesBuilder()
-    ..add([0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a]); // RSRC\r\n
-  be16(header, 3); // format version
+    ..add([0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a]);
+  be16(header, 3);
   header
-    ..add(fileType.codeUnits) // file type (4)
-    ..add('LBVW'.codeUnits); // creator (4)
-  be32(header, 32); // info section offset (right after this 32-byte header)
-  be32(header, 0); // info size (unused by parser)
-  be32(header, 0x20); // data offset (unused)
-  be32(header, 0); // data size (unused)
+    ..add(fileType.codeUnits)
+    ..add('LBVW'.codeUnits);
+  be32(header, 32);
+  be32(header, 0);
+  be32(header, 0x20);
+  be32(header, 0);
   final headerBytes = header.toBytes();
 
-  final info = BytesBuilder()..add(headerBytes); // info section repeats the header
-  // sub-header: 5 u32, the 4th = offset to the block-info list (0x34)
+  final info = BytesBuilder()..add(headerBytes);
   be32(info, 0);
   be32(info, 0);
   be32(info, 0x20);
   be32(info, 0x34);
   be32(info, 0);
-  be32(info, blocks.length); // block count
+  be32(info, blocks.length);
   for (final t in blocks) {
     info
       ..add(t.codeUnits)
-      ..add([0, 0, 0, 0, 0, 0, 0, 0]); // two u32 per entry
+      ..add([0, 0, 0, 0, 0, 0, 0, 0]);
   }
   info
-    ..addByte(name.length) // trailing length-prefixed VI name
+    ..addByte(name.length)
     ..add(name.codeUnits);
 
   return (BytesBuilder()

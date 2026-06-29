@@ -56,7 +56,6 @@ void main() {
 
       final sfVal = f.sections.firstWhere((s) => s.path == 'SF' && !s.isDef);
       expect(sfVal.members['Version'], '"0.0.0.0"');
-      // %-directives are separated from plain members.
       expect(sfVal.members.containsKey('%FLG: Seq'), isFalse);
       expect(sfVal.directives['%FLG: Seq'], '4194304');
       expect(sfVal.directives['%HI: Seq'], '[0]');
@@ -100,12 +99,10 @@ void main() {
       expect(seq.array, hasLength(1));
       final mainSeq = seq.array!.single;
       expect(mainSeq.name, 'MainSequence');
-      // The element's declared member (Main) is reconstructed.
       expect(mainSeq.subProps.map((p) => p.name), contains('Main'));
     });
 
     test('surfaces a scalar member with its value and declared type', () {
-      // Version is value-only in [SF]; it still surfaces (member union) as a leaf.
       final version = tree.subProps.firstWhere((p) => p.name == 'Version');
       expect(version.scalar, '0.0.0.0');
       expect(version.isLeaf, isTrue);
@@ -123,23 +120,16 @@ void main() {
       expect(seq.main, hasLength(1));
       final step = seq.main.single;
       expect(step.name, 'myStep');
-      // The step type comes from the array DEF's %TYPE: %[0].
       expect(step.type, 'Action');
     });
 
     test('the step has no instance-level settings/module to surface yet', () {
-      // _ini declares no [DEF, Action], so there is nothing to inherit — the
-      // run mode and module adapter are honestly absent (instance-only model).
       final step = sf.sequences.single.main.single;
       expect(step.settings.mode, isNull);
       expect(step.module.adapter, SeqAdapter.none);
     });
   });
 
-  // A step instance usually stores only its overrides; its run-mode, looping and
-  // module-adapter defaults live in the step's TYPE definition ([DEF, <Type>]).
-  // This fixture exercises that: `myStep` (type Action) declares only %NAME, and
-  // inherits TS.Mode/TS.LoopType and the VI-adapter binding from [DEF, Action].
   const inheritIni = '''
 [__Header__]
 ProductName = "TestStand"
@@ -199,11 +189,6 @@ VIPath = "measure.vi"
     });
   });
 
-  // Flow-control / no-module step types inherit a *bare* (empty) SData container
-  // from their type. An empty SData carries no binding, so it must classify as
-  // SeqAdapter.none — not `unknown` (which is reserved for SData shapes we can't
-  // yet parse). This mirrors the full corpus, where every empty-SData step is a
-  // no-module type (Statement, NI_Flow_*, Label, NI_Wait, …).
   const emptySDataIni = '''
 [__Header__]
 ProductName = "TestStand"
@@ -240,14 +225,10 @@ Mode = "Normal"
     final sf = parseSeqFile(Uint8List.fromList(latin1.encode(emptySDataIni)));
     final step = sf.sequences.single.main.single;
     expect(step.type, 'NI_Flow_End');
-    // Settings still inherit (run mode), but there is no code module.
     expect(step.settings.mode, 'Normal');
     expect(step.module.adapter, SeqAdapter.none);
   });
 
-  // Older TestStand INI (e.g. versions 127/143) declares its top-level objects
-  // under [DEF, %OBJECTS] instead of the newer [DEF, %OBJROOT]; the data root is
-  // still `SF = SequenceFileData`. The reader resolves both aliases.
   const objectsAliasIni = '''
 [__Header__]
 ProductName = "TestStand"
@@ -295,9 +276,6 @@ ViPath = "legacy.vi"
     expect(module.viPath, 'legacy.vi');
   });
 
-  // `%INSTOVRD: <member> = <flags>` marks a member the object overrides relative
-  // to its base type; a bare `%INSTOVRD` marks the whole object. The reader keeps
-  // the flags verbatim and exposes presence via SeqProperty.isInstanceOverride.
   const overrideIni = '''
 [__Header__]
 ProductName = "TestStand"
@@ -333,15 +311,11 @@ Mode = "Skip"
     final step = sf.sequences.single.main.single;
     final ts = step.raw.prop('TS');
     expect(ts, isNotNull);
-    // TS is flagged overridden by the step's `%INSTOVRD: TS`; its flags are kept.
     expect(ts!.isInstanceOverride, isTrue);
     expect(ts.attributes['%INSTOVRD'], '5046297');
-    // A member with no override marker stays a plain inherited/default value.
     expect(ts.prop('Mode')?.isInstanceOverride, isFalse);
-    // The override mask is also exposed typed; null for non-overrides.
     expect(ts.instanceOverrideFlags, 5046297);
     expect(ts.prop('Mode')?.instanceOverrideFlags, isNull);
-    // bit16 (0x10000) is the corpus-confirmed override-only bit — set here.
     expect((ts.instanceOverrideFlags! >> 16) & 1, 1);
     expect(SeqProperty(name: 'x').instanceOverrideFlags, isNull);
     expect(
@@ -350,10 +324,6 @@ Mode = "Skip"
         isNull);
   });
 
-  // `%FLG: <member> = <bitmask>` records a member's type-level PropertyFlags. It
-  // is ~constant per property name across the corpus, so it encodes the property's
-  // fixed options (its type), not instance data. The reader keeps the mask verbatim
-  // and exposes it via SeqProperty.propertyFlags; bit meanings are not yet decoded.
   const flagsIni = '''
 [__Header__]
 ProductName = "TestStand"
@@ -391,10 +361,8 @@ Mode = "Skip"
     final sf = parseSeqFile(Uint8List.fromList(latin1.encode(flagsIni)));
     final step = sf.sequences.single.main.single;
     final ts = step.raw.prop('TS')!;
-    // The step's `%FLG: TS` (a value-section directive) flows onto the TS object.
     expect(ts.propertyFlags, 0x400000);
     expect(ts.attributes['%FLG'], '4194304');
-    // The TS def's `%FLG: SData` / `%FLG: Mode` flow onto those members.
     expect(ts.prop('SData')?.propertyFlags, 0x200000);
     expect(ts.prop('Mode')?.propertyFlags, 0x4);
   });
@@ -402,10 +370,8 @@ Mode = "Skip"
   test('propertyFlags is null when no %FLG was recorded; parses defensively', () {
     final sf = parseSeqFile(Uint8List.fromList(latin1.encode(overrideIni)));
     final ts = sf.sequences.single.main.single.raw.prop('TS')!;
-    // overrideIni records %INSTOVRD but no %FLG for TS.
     expect(ts.propertyFlags, isNull);
     expect(SeqProperty(name: 'x').propertyFlags, isNull);
-    // A malformed mask parses to null rather than throwing.
     expect(
         SeqProperty(name: 'x', attributes: const {'%FLG': 'oops'}).propertyFlags,
         isNull);
@@ -415,8 +381,6 @@ Mode = "Skip"
         0x400000);
   });
 
-  // TestStand loops are expression-driven: a looping step carries
-  // LoopInitialize / LoopWhile / LoopIncrement / LoopStatus under its TS.
   const loopIni = '''
 [__Header__]
 ProductName = "TestStand"
@@ -462,7 +426,6 @@ LoopStatus = "RunState.LoopNumPassed >= 1"
     expect(set.loopWhile, 'RunState.LoopIndex < 10');
     expect(set.loopIncrement, 'RunState.LoopIndex += 1');
     expect(set.loopStatus, 'RunState.LoopNumPassed >= 1');
-    // The dump surfaces the loop's actual logic (while/init/incr expressions).
     final out = dumpSeqFile(sf);
     expect(out, contains('loop FixedNumLoops ['));
     expect(out, contains('while RunState.LoopIndex < 10'));
@@ -470,9 +433,6 @@ LoopStatus = "RunState.LoopNumPassed >= 1"
     expect(out, contains('incr RunState.LoopIndex += 1'));
   });
 
-  // A step's free-text comment is stored as a `%COMMENT` directive on the step
-  // instance section; the reader carries it onto the step as a `%COMMENT`
-  // attribute and the shared lens exposes it as Step.comment.
   const commentIni = '''
 [__Header__]
 ProductName = "TestStand"
@@ -509,7 +469,6 @@ Main = Objs
     final steps = sf.sequences.single.main;
     expect(steps.map((s) => s.name), ['lockStep', 'plainStep']);
     expect(steps[0].comment, 'Lock sequence');
-    // A step without a %COMMENT has no comment (not an empty string).
     expect(steps[1].comment, isNull);
   });
 
@@ -518,7 +477,6 @@ Main = Objs
     expect(sf.sequences.single.comment, 'Runs once at startup');
   });
 
-  // An object/cluster local reports its field count; a scalar reports none.
   const objLocalIni = '''
 [__Header__]
 ProductName = "TestStand"
@@ -558,18 +516,16 @@ High = "11"
     final limits = locals[1];
     expect(limits.isContainer, isTrue);
     expect(limits.isArray, isFalse);
-    expect(limits.containerCount, 2); // Low + High
+    expect(limits.containerCount, 2);
   });
 
   test('recovers a variable free-text comment via SeqVariable.comment', () {
     final sf = parseSeqFile(Uint8List.fromList(latin1.encode(objLocalIni)));
     final locals = sf.sequences.single.locals;
-    expect(locals[1].comment, 'DUT pass band'); // on the Limits container
-    expect(locals[0].comment, isNull); // Count has none
+    expect(locals[1].comment, 'DUT pass band');
+    expect(locals[0].comment, isNull);
   });
 
-  // An array local with actual elements: containerCount counts them (the corpus
-  // arrays are mostly empty defaults, so this exercises the populated path).
   const arrayLocalIni = '''
 [__Header__]
 ProductName = "TestStand"
@@ -606,16 +562,11 @@ Items = Objs
     expect(items.name, 'Items');
     expect(items.isArray, isTrue);
     expect(items.isContainer, isTrue);
-    expect(items.containerCount, 3); // a, b, c
-    expect(items.value, isNull); // arrays carry no scalar
-    // The dump renders an array variable with a `[N]` size suffix (the object/
-    // cluster form `{N fields}` is covered elsewhere; this is the array branch).
+    expect(items.containerCount, 3);
+    expect(items.value, isNull);
     expect(dumpSeqFile(sf), contains('• Items : Objs [3]'));
   });
 
-  // A step whose on-fail action jumps to a target (`FailAct = "Goto"`,
-  // `FailActTarget = "\"<Cleanup>\""`) — the target is a TestStand string-literal
-  // expression; the lens unwraps it for display.
   const flowIni = '''
 [__Header__]
 ProductName = "TestStand"
@@ -659,8 +610,8 @@ UnloadOpt = "UnloadAfterStepExecution"
     final set = sf.sequences.single.main.single.settings;
     expect(set.passAction, 'Next');
     expect(set.failAction, 'Goto');
-    expect(set.passActionTarget, isNull); // Next falls through, no target
-    expect(set.failActionTarget, '<Cleanup>'); // unwrapped from \"<Cleanup>\"
+    expect(set.passActionTarget, isNull);
+    expect(set.failActionTarget, '<Cleanup>');
     expect(set.flowSummary, 'Next/Goto→<Cleanup>');
   });
 
@@ -669,7 +620,6 @@ UnloadOpt = "UnloadAfterStepExecution"
     final set = sf.sequences.single.main.single.settings;
     expect(set.loadOption, 'DynamicLoad');
     expect(set.unloadOption, 'UnloadAfterStepExecution');
-    // The dump surfaces both (they differ from the common defaults).
     final out = dumpSeqFile(sf);
     expect(out, contains('load DynamicLoad'));
     expect(out, contains('unload UnloadAfterStepExecution'));
@@ -677,18 +627,12 @@ UnloadOpt = "UnloadAfterStepExecution"
 
   test('recovers the step editor icon basename (folder + .ico stripped)', () {
     final sf = parseSeqFile(Uint8List.fromList(latin1.encode(flowIni)));
-    // `FlowControl\NI_While.ico` -> `NI_While`.
     expect(sf.sequences.single.main.single.settings.icon, 'NI_While');
-    // A step with no Icon member has no icon.
     final plain = parseSeqFile(Uint8List.fromList(latin1.encode(commentIni)));
     expect(plain.sequences.single.main.first.settings.icon, isNull);
-    // The dump surfaces it.
     expect(dumpSeqFile(sf), contains('{icon NI_While}'));
   });
 
-  // A step with a custom-condition jump to another step by id reference
-  // (`CustFalseActTarget = "\"ID#:STEP2\""`); the destination step carries that
-  // id in its `TS.Id`, so the reference resolves to the step's name.
   const idRefIni = '''
 [__Header__]
 ProductName = "TestStand"
@@ -729,34 +673,29 @@ Id = "ID#:STEP2"
   test('resolves an ID#: step reference to the destination step name', () {
     final sf = parseSeqFile(Uint8List.fromList(latin1.encode(idRefIni)));
     final cond = sf.sequences.single.main.first;
-    expect(cond.settings.customFalseTarget, 'ID#:STEP2'); // unwrapped reference
-    // The file resolves the id (with or without the ID#: prefix) to the name.
+    expect(cond.settings.customFalseTarget, 'ID#:STEP2');
     expect(sf.stepNameForId('ID#:STEP2'), 'targetStep');
     expect(sf.stepNameForId('STEP2'), 'targetStep');
     expect(sf.stepNameForId('ID#:NOPE'), isNull);
-    // The dump shows the resolved destination, not the raw id.
     expect(dumpSeqFile(sf), contains('cust-false→targetStep'));
   });
 
   test('dumpSeqFile includes recovered comments and container sizes', () {
     final cf = parseSeqFile(Uint8List.fromList(latin1.encode(commentIni)));
     final out = dumpSeqFile(cf);
-    expect(out, contains('// Runs once at startup')); // sequence comment
-    expect(out, contains('lockStep')); // step present
-    expect(out, contains('// Lock sequence')); // step comment
+    expect(out, contains('// Runs once at startup'));
+    expect(out, contains('lockStep'));
+    expect(out, contains('// Lock sequence'));
 
     final of = parseSeqFile(Uint8List.fromList(latin1.encode(objLocalIni)));
     final out2 = dumpSeqFile(of);
-    expect(out2, contains('Limits : Obj {2 fields}')); // container size
-    expect(out2, contains('// DUT pass band')); // variable comment
+    expect(out2, contains('Limits : Obj {2 fields}'));
+    expect(out2, contains('// DUT pass band'));
 
     final ff = parseSeqFile(Uint8List.fromList(latin1.encode(flowIni)));
-    expect(dumpSeqFile(ff), contains('flow Next/Goto→<Cleanup>')); // flow target
+    expect(dumpSeqFile(ff), contains('flow Next/Goto→<Cleanup>'));
   });
 
-  // NI splits a value past a line-length cap across continuation lines named
-  // `KEY Line0001`, `KEY Line0002`, … — each a separately-quoted fragment. The
-  // reader rejoins them, in order, into the single base key with no separator.
   group('multi-line value continuation', () {
     const splitIni = '''
 [__Header__]
@@ -775,8 +714,6 @@ DescriptionFormat Line0002 = "uleDescription\\")"
     test('reassembles a split member into the single base key', () {
       final f = parseIniSeq(splitIni);
       final s = f.sections.single;
-      // The spurious ` LineNNNN` members are gone; one reassembled base remains
-      // at the position of the first fragment, single-line members untouched.
       expect(s.members.keys, ['Plain', 'DescriptionFormat']);
       expect(s.members['Plain'], '"untouched"');
       expect(
@@ -801,9 +738,6 @@ DescriptionFormat Line0002 = "uleDescription\\")"
     });
 
     test('reassembles a value whose content contains " = "', () {
-      // The line splitter cuts on the FIRST " = " (so the key is the LHS); a
-      // value with its own " = " (a TestStand expression) must survive intact
-      // across the fragment join.
       const ini = '''
 [__Header__]
 Type = "SequenceFile"
@@ -818,10 +752,6 @@ Expr Line0002 = "= Locals.y + 1"
     });
   });
 
-  // When only one flow action is set, flowSummary still renders both sides,
-  // marking the unset side `?` (the `act ?? '?'` fallback) rather than dropping
-  // it — so the pair structure stays readable. The both-set forms are covered
-  // elsewhere; this pins the one-sided branch.
   test('flowSummary marks an unset side with ? (only pass action present)', () {
     const ini = '''
 [__Header__]
@@ -908,10 +838,6 @@ FailActTarget = "\\"<Cleanup>\\""
     expect(set.flowSummary, 'Goto→<End>/Goto→<Cleanup>');
   });
 
-  // A code-module call (here an Automation/ActiveX step) binds named arguments
-  // under SData.Call.Parameters: each carries a Name, the ArgVal expression
-  // supplying its value, a DisplayType, and a Direction (1=in, 2=out). Mirrors
-  // the real corpus (e.g. ni_nitsm-python FrontEndCallbacks "Get User To Login").
   test('recovers a module call\'s bound arguments (name, expr, direction)', () {
     const ini = '''
 [__Header__]
@@ -971,9 +897,6 @@ Direction = 1
     expect(args[1].direction, 'in');
   });
 
-  // A numeric limit-test step records its measurement unit on a `Result`
-  // sub-object (a sibling of `TS`), not under `Limits` — e.g. a current check
-  // reads `mA`. Mirrors the real corpus (noffz FCT "Numeric Limit Test 1").
   test('recovers a step\'s recorded measurement units (Result.Units)', () {
     const ini = '''
 [__Header__]
@@ -1019,15 +942,9 @@ Units = "mA"
     expect(step.type, 'NumericLimitTest');
     expect(step.resultUnits, 'mA');
     expect(step.limits?.summary, 'GELE [9, 11]');
-    // The dump folds the unit into the limits chip.
     expect(dumpSeqFile(sf), contains('{limits GELE [9, 11] mA}'));
   });
 
-  // A PassFailTest evaluates a boolean criterion via its `DataSource` expression
-  // but carries no numeric `Comp`/`Limits`, so it has no StepLimits — yet the
-  // criterion is real and editor-visible. Step.dataSource recovers it generally,
-  // and the dump shows it as a `{data-source …}` note. Mirrors the corpus, where
-  // 113 such steps (mostly PassFailTest) set DataSource without limits.
   test('recovers a PassFailTest data-source criterion (no limits)', () {
     const ini = '''
 [__Header__]
@@ -1057,16 +974,11 @@ DataSource = "Step.Result.PassFail"
     final sf = parseSeqFile(Uint8List.fromList(latin1.encode(ini)));
     final step = sf.sequences.single.main.single;
     expect(step.type, 'PassFailTest');
-    expect(step.limits, isNull); // no Comp/Limits
+    expect(step.limits, isNull);
     expect(step.dataSource, 'Step.Result.PassFail');
     expect(dumpSeqFile(sf), contains('{data-source Step.Result.PassFail}'));
   });
 
-  // Edge cases for the recently-added result accessors: a step with no Result /
-  // no DataSource / no call yields null/empty (never a fabricated value), an
-  // empty `Result.Units` reads as null (not ''), and an unrecognized call-arg
-  // `Direction` code passes through raw while [CallParameter.direction] stays
-  // null rather than guessing.
   test('result accessors return null/empty on absent or empty members', () {
     const ini = '''
 [__Header__]
@@ -1115,25 +1027,20 @@ Direction = 0
         .single
         .main;
 
-    // Bare step: nothing recorded.
     final bare = main[0];
     expect(bare.resultUnits, isNull);
     expect(bare.dataSource, isNull);
     expect(bare.module.callParameters, isEmpty);
 
-    // Empty-bits step: present-but-empty members read as null/raw, not fabricated.
     final step = main[1];
-    expect(step.resultUnits, isNull); // empty Units string -> null, not ''
+    expect(step.resultUnits, isNull);
     final args = step.module.callParameters;
     expect(args.length, 1);
-    expect(args.single.boundExpression, isNull); // no ArgVal
-    expect(args.single.directionCode, '0'); // raw code preserved
-    expect(args.single.direction, isNull); // unknown code -> not guessed
+    expect(args.single.boundExpression, isNull);
+    expect(args.single.directionCode, '0');
+    expect(args.single.direction, isNull);
   });
 
-  // A step can record units without being a limit test (e.g. a plain Action that
-  // logs a measured value). The dump shows these as a standalone `{units X}`
-  // note rather than folding them into a limits chip.
   test('dump shows standalone {units} for a non-limit step', () {
     const ini = '''
 [__Header__]
@@ -1164,17 +1071,13 @@ Units = "V"
 ''';
     final sf = parseSeqFile(Uint8List.fromList(latin1.encode(ini)));
     final step = sf.sequences.single.main.single;
-    expect(step.limits, isNull); // not a limit test
+    expect(step.limits, isNull);
     expect(step.resultUnits, 'V');
     final out = dumpSeqFile(sf);
     expect(out, contains('{units V}'));
-    expect(out, isNot(contains('{limits'))); // not folded into a limits chip
+    expect(out, isNot(contains('{limits')));
   });
 
-  // CallParameter.direction maps the standard TestStand codes. The corpus only
-  // exercises 1 (in) and 2 (out); `3` (in/out) is a defensive mapping with no
-  // corpus example, so pin it (and the unknown-code passthrough) directly from a
-  // synthetic property rather than an INI fixture.
   group('CallParameter.direction code mapping', () {
     CallParameter withDirection(String? code) => CallParameter(SeqProperty(
           name: 'arg',
@@ -1203,10 +1106,6 @@ Units = "V"
     });
   });
 
-  // Sequence-level Parameters are empty across the whole corpus, so the populated
-  // `Sequence.parameters` path and the dump's `Parameters:` section are otherwise
-  // untested. A synthetic sequence that declares both a parameter and a local
-  // exercises both — and confirms the dump renders the two sections distinctly.
   test('a sequence with both parameters and locals is surfaced + dumped', () {
     const ini = '''
 [__Header__]
@@ -1247,9 +1146,6 @@ Count = "3"
     expect(out, contains('• Count : Num = 3'));
   });
 
-  // measureCoverage must count every TS step-setting the lens surfaces. Build a
-  // step whose TS carries the loop/unload settings and confirm each extra key
-  // raises `modeled` by one (differential — robust to the absolute node count).
   String covIni(List<String> tsKeys) => '''
 [__Header__]
 ProductName = "TestStand"
@@ -1284,7 +1180,6 @@ ${tsKeys.map((k) => '$k = "v"').join('\n')}
 
   test('measureCoverage counts the loop/unload TS step-settings', () {
     final base = modeledFor(['Mode']);
-    // Each newly-tracked setting the lens reads adds exactly one modeled node.
     for (final k in [
       'Id', 'UnloadOpt', 'LoopInitialize', 'LoopIncrement', 'LoopStatus', 'Icon',
       'StepFCSeqF', 'IgnoreRTE', 'ResultOption',
@@ -1296,12 +1191,10 @@ ${tsKeys.map((k) => '$k = "v"').join('\n')}
   test('Step.id recovers the step unique id (TS.Id)', () {
     final f = parseSeqFile(Uint8List.fromList(latin1.encode(covIni(['Id']))));
     expect(f.sequences.single.main.single.id, 'v');
-    // A step with no TS.Id reads null.
     final g = parseSeqFile(Uint8List.fromList(latin1.encode(covIni(['Mode']))));
     expect(g.sequences.single.main.single.id, isNull);
   });
 
-  // The boolean TS step-settings parse both 'true'/'false' and '1'/'0' forms.
   String boolIni(String key, String value) => '''
 [__Header__]
 ProductName = "TestStand"
@@ -1343,13 +1236,10 @@ $key = "$value"
     expect(settingsWith('IgnoreRTE', 'true').ignoresRunTimeErrors, isTrue);
     expect(settingsWith('ResultOption', '1').recordsResult, isTrue);
     expect(settingsWith('ResultOption', '0').recordsResult, isFalse);
-    // Absent flag reads null.
     expect(settingsWith('Mode', 'Normal').recordsResult, isNull);
   });
 
   group('quoted-value escape decoding', () {
-    // A step whose precondition (an expression with embedded quotes, a doubled
-    // backslash path, and a newline) is stored with TestStand's C-style escapes.
     String preIni(String escaped) => '''
 [__Header__]
 ProductName = "TestStand"
@@ -1387,12 +1277,10 @@ PreCond = "$escaped"
             .settings;
 
     test(r'decodes \" to a literal double quote', () {
-      // INI text: Locals.M != \"S001\"
       expect(parse(r'Locals.M != \"S001\"').precondition, 'Locals.M != "S001"');
     });
 
     test(r'decodes a doubled backslash \\ to one, and \n to a newline', () {
-      // INI text: line1\nC:\\dir  ->  "line1" <newline> "C:\dir"
       expect(parse(r'line1\nC:\\dir').precondition, 'line1\nC:\\dir');
     });
 
@@ -1401,7 +1289,6 @@ PreCond = "$escaped"
     });
 
     test('keeps an unrecognized escape verbatim (defensive)', () {
-      // \q is not a known escape; the backslash is preserved.
       expect(parse(r'a\qb').precondition, r'a\qb');
     });
   });

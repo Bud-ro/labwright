@@ -10,7 +10,6 @@ void main() {
       expect(p.typeIndex, 0x2a);
       expect(p.isInline, isFalse);
       expect(p.rawLength, 2);
-      // a larger index
       expect(decodeConnectorPane(Uint8List.fromList([0x01, 0x05]))!.typeIndex, 0x105);
     });
 
