@@ -1,0 +1,4 @@
+# Inherits the repo-wide analyzer config (strict-casts / strict-inference /
+# strict-raw-types + lints) so this package is analyzed identically whether via
+# the workspace root or standalone.
+include: ../../analysis_options.yaml
