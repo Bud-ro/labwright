@@ -42,6 +42,27 @@ void main(List<String> args) {
     }
   }
 
+  // Format census over every .seq — formatDetected% is the first coverage axis:
+  // a file we cannot classify is a file we understand nothing about. (See
+  // COVERAGE.md for the full axis list.)
+  var nTotal = 0, nXml = 0, nIni = 0, nBinary = 0, nUnknown = 0;
+  for (final fs in bySource.values) {
+    for (final f in fs) {
+      nTotal++;
+      switch (detectSeqFormat(f.readAsBytesSync())) {
+        case SeqFormat.xml:
+          nXml++;
+        case SeqFormat.ini:
+          nIni++;
+        case SeqFormat.binary:
+          nBinary++;
+        case SeqFormat.unknown:
+          nUnknown++;
+      }
+    }
+  }
+  String pct(int a, int b) => b == 0 ? '0.0' : (100 * a / b).toStringAsFixed(1);
+
   final overall = _Stat();
   final md = StringBuffer()
     ..writeln('| source | XML .seq | sequences | steps | modeled | total | model% |')
@@ -77,6 +98,18 @@ void main(List<String> args) {
   stdout.writeln('INI   ${ini.files} INI .seq · ${ini.seqs} sequences · ${ini.steps} steps · '
       'model coverage ${(ini.cov.ratio * 100).toStringAsFixed(1)}% '
       '(${ini.cov.modeled}/${ini.cov.total} property nodes)');
+
+  // The complete, declared-up-front axis set (see COVERAGE.md). A .seq is fully
+  // understood IFF every axis is 100%. The binary axis is the big frontier: TOF1
+  // binary files are detected and recon'd (strings/names) but their record grammar
+  // is NOT decoded, so binaryModel% is honestly 0 — stated here, not hidden.
+  stdout.writeln('-' * 76);
+  stdout.writeln('AXES (all must reach 100% for "fully understood"):');
+  stdout.writeln('  formatDetected%  ${pct(nTotal - nUnknown, nTotal)}  '
+      '($nXml xml, $nIni ini, $nBinary binary, $nUnknown unknown of $nTotal .seq)');
+  stdout.writeln('  xmlModel%        ${(overall.cov.ratio * 100).toStringAsFixed(1)}  (typed-lens nodes over XML Data trees)');
+  stdout.writeln('  iniModel%        ${(ini.cov.ratio * 100).toStringAsFixed(1)}  (typed-lens nodes over INI Data trees)');
+  stdout.writeln('  binaryModel%     0.0  (FRONTIER: $nBinary binary .seq, record grammar not yet decoded)');
 
   final report = StringBuffer()
     ..writeln('# TestStand XML model — coverage report card')
