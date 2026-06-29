@@ -129,6 +129,8 @@ IniSeqFile parseIniSeq(String text) {
       continue;
     }
     final eq = line.indexOf(' = ');
+    // Purely defensive: every non-section line in the corpus has a ` = `
+    // separator, so this skip is unobserved but guards against malformed input.
     if (eq < 0) continue;
     final key = line.substring(0, eq).trim();
     final value = line.substring(eq + 3);
@@ -424,6 +426,9 @@ class _IniBuilder {
         : const <String, String>{};
     String? memberTypeOf(String m) => def?.members[m] ?? typeDefMembers[m];
 
+    // Member order is deterministic and authoritative-first: instance DEF
+    // declarations (typed), then value-only members, then members implied by
+    // deeper sections, then type-inherited members never otherwise mentioned.
     final memberOrder = <String>[...(def?.members.keys ?? const <String>[])];
     final seen = memberOrder.toSet();
     for (final m in (val?.members.keys ?? const <String>[])) {
