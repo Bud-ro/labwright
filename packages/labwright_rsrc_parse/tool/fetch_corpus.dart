@@ -16,9 +16,10 @@ import 'dart:io';
 /// Usage:
 ///   dart run tool/fetch_corpus.dart [destRoot] [--prune]
 ///
-/// `destRoot` defaults to `<repoRoot>/corpus/vi/` — a gitignored folder at the
-/// repo root, kept there (not in /tmp) for visibility into what the corpus tests
-/// + coverage tool consume (see corpus/README.md and test/corpus_dirs.dart). Each
+/// `destRoot` defaults to `<package>/corpus/vi/` — a gitignored folder beside the
+/// committed `sources.json`, kept there (not in /tmp) for visibility into what the
+/// corpus tests + coverage tool consume (see corpus/README.md and
+/// test/corpus_dirs.dart). Each
 /// repo extracts to `<destRoot>/<owner>_<name>/`; already-populated dirs are
 /// skipped, so re-running only fetches what's missing. `--prune` reclaims space
 /// from an already-fetched corpus by deleting every non-`.vi` file (e.g. one
@@ -34,9 +35,9 @@ Future<void> main(List<String> args) async {
     exitCode = 1;
     return;
   }
-  // Repo root = the dir holding corpus/sources.json (i.e. <repoRoot>/corpus/sources.json).
-  final repoRoot = sources.parent.parent.path;
-  final dest = positional.isNotEmpty ? positional.first : '$repoRoot/corpus/vi';
+  // Package root = the dir holding corpus/sources.json (i.e. <pkg>/corpus/sources.json).
+  final pkgRoot = sources.parent.parent.path;
+  final dest = positional.isNotEmpty ? positional.first : '$pkgRoot/corpus/vi';
 
   if (prune) {
     _prune(Directory(dest), _keepExts);
