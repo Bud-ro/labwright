@@ -125,6 +125,13 @@ ViBlockInfo blockInfo(String tag) => _catalog[tag] ?? ViBlockInfo.unknownFor(tag
 /// Convenience: is [tag] one of the confirmed `C4` record heaps?
 bool isRecordHeapTag(String tag) => blockInfo(tag).category == ViBlockCategory.recordHeap;
 
+/// Whether [tag] is a catalogued block (identified by type), vs an entirely
+/// unrecognized tag that falls back to [ViBlockInfo.unknownFor].
+bool isCataloguedTag(String tag) => _catalog.containsKey(tag);
+
+/// All catalogued block tags, for registry/coverage tooling.
+Iterable<String> get cataloguedTags => _catalog.keys;
+
 /// Fail loudly for a recognized-but-undecoded block (one whose
 /// [ViBlockInfo.decoder] is null). Surfacing this instead of silently returning
 /// null keeps "not yet implemented" honest. To implement a block: write a
