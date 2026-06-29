@@ -1,0 +1,14 @@
+name: labwright
+publish_to: none
+
+environment:
+  sdk: ^3.11.0
+
+workspace:
+  - packages/labwright_tdms
+  - packages/labwright_rsrc_parse
+  - packages/labwright_seq
+  - example/e2e
+
+dev_dependencies:
+  lints: ^5.0.0

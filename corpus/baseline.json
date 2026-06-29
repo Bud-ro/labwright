@@ -1,0 +1,14 @@
+{
+  "generatedBy": "packages/labwright_rsrc_parse/tool/coverage.dart",
+  "metric": "deliberatelyParsed = framed bytes / total; semanticallyDecoded = typed-MEANING bytes / total (excludes kindOnly value-kind labels); valueKindKnown = kind-known-but-meaning-unknown bytes / total. Heaps BDHb/BDHP/FPHb/FPHP/DTHP.",
+  "picotechFirst60": {
+    "vis": 60,
+    "parseOk": 60,
+    "decodeOk": 60,
+    "heaps": 120,
+    "deliberatelyParsed": 1.0,
+    "semanticallyDecoded": 0.8552,
+    "valueKindKnown": 0.1335,
+    "fullyParsedHeaps": 1.0
+  }
+}

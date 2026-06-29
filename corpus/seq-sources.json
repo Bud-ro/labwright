@@ -1,0 +1,228 @@
+{
+  "_comment": "Pinned, reproducible TestStand corpus catalog (mirrors sources.json for the VI corpus). The .seq/config files are NOT committed (clean-room + licensing); fetch them with `dart run packages/labwright_seq/tool/fetch_seq_corpus.dart` into the gitignored seq-corpus/ at the repo root. Each source is pinned to a commit. `encoding` records the on-disk format observed during M0 reconnaissance (xml | binary-TOF1 | mixed); see packages/labwright_seq/NOTES.md.",
+  "extensions": [
+    ".seq",
+    ".ini",
+    ".cfg",
+    ".tsw",
+    ".tpj"
+  ],
+  "sources": [
+    {
+      "repo": "425J/SeqEditQuickDrop",
+      "commit": "94cdf5f7cc0b7b87d9cab369d0461f48e50aba53",
+      "encoding": "mixed",
+      "note": "Sequence-editor QuickDrop add-on: installer/front-end-callbacks/quickdrop sequences."
+    },
+    {
+      "repo": "425J/TemplatesGenerator",
+      "commit": "0f92c19909aa8e8a7c4a9d86445761e461d9c780",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via repo-search; 2 .seq (observed bin)."
+    },
+    {
+      "repo": "425J/TestStandMiscellaneous",
+      "commit": "bd77933c734dbac89dd3dc7013bdfa539894061e",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via repo-search; 5 .seq (observed bin)."
+    },
+    {
+      "repo": "Andraz23/TestStand",
+      "commit": "f5082814d6604ed50f4e782a65a642ffb35e118f",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via repo-search; 1 .seq (observed bin)."
+    },
+    {
+      "repo": "FloresFelipe/csv-doc-gen-tool-teststand",
+      "commit": "3ff57d60638466437d1aa13ebe8084f82de2bcb0",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via repo-search; 4 .seq (observed bin)."
+    },
+    {
+      "repo": "IronmanMark2/LabView-and-Teststand",
+      "commit": "c8bd841188d86c1f5466f7dd9ec27b3f3e759838",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via repo-search; 1 .seq (observed bin)."
+    },
+    {
+      "repo": "JavierABH/Elatch-Bench-Test",
+      "commit": "71012f41d229c2385e061521b447f8d7580c80b3",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via repo-search; 9 .seq (observed bin)."
+    },
+    {
+      "repo": "KMurphs/teststand-user-interfaces",
+      "commit": "3566c35ee134da142bf69b0a9227387c117b26a4",
+      "encoding": "mixed",
+      "note": "Sample test sequence driving a custom UI."
+    },
+    {
+      "repo": "NI-Measurement-Plug-Ins/abstraction-layer-python",
+      "commit": "b1e30c9310bd89fbd60d6a28541790e8ab458dfe",
+      "encoding": "xml",
+      "note": "NI HAL/FAL abstraction-layer demo sequences (DmmMeasurementHAL/SourceMeasureDCVoltageFAL)."
+    },
+    {
+      "repo": "NI-Measurement-Plug-Ins/pcba-fct",
+      "commit": "7fd522ffbe6b363dbf5ee4ff5e577fc70f5b0671",
+      "encoding": "xml",
+      "note": "NI PCBA functional-test plug-in examples: 6 instrument .seq (NIDCPower/NIDmm/NIFgen/...)."
+    },
+    {
+      "repo": "NISystemsEngineering/RF-Test_Sequencer-AI-Demo",
+      "commit": "ee6f3a50b75698cf394736e3b69157e59b487dc4",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via repo-search; 2 .seq (observed bin)."
+    },
+    {
+      "repo": "NIVeriStandAdd-Ons/VeriStand-steps-for-TestStand",
+      "commit": "5e2d8d85ef39d059eae043ba559d653e0c4f0523",
+      "encoding": "mixed",
+      "note": "Parent/child subsequences, references, async-task examples + test sequences."
+    },
+    {
+      "repo": "RETRTRE/.net-cvi-teststand",
+      "commit": "4e7f6d12e657d5cf88a15b1c7d03ca31c409de7d",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via repo-search; 1 .seq (observed bin)."
+    },
+    {
+      "repo": "SandeepKumarK098/TestStand",
+      "commit": "cc898b2d2f8c19d4b9f50d187c895cd83949241a",
+      "encoding": "mixed",
+      "note": "Large real-world mirror: ~141 .seq + 22 config across many adapters (ActiveX/CVI/DLL x64) and TS versions — the biggest single diversity boost in this batch."
+    },
+    {
+      "repo": "ShoutangYang/Labview-TeststandCallbackDLL",
+      "commit": "0473efc4339e0ec32e32a0a0a6ceb9ea5b30f306",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via repo-search; 2 .seq (observed bin)."
+    },
+    {
+      "repo": "astemes/astemes-csv-report-teststand-plugin",
+      "commit": "f13915451f8f874b8a7c34f2d80778d61b509ed8",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via repo-search; 2 .seq (observed bin)."
+    },
+    {
+      "repo": "bdsetiawan/TestStand",
+      "commit": "a4a1b92efec44521385613076733d3640797835a",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via repo-search; 1 .seq (observed bin)."
+    },
+    {
+      "repo": "bienieck/TestStandPlugins_Presentation",
+      "commit": "28862d3ed18bd0dfa83893257e9dfea51a3e230f",
+      "encoding": "binary-TOF1",
+      "note": "Result-processor plug-in sequence; binary TOF1, TS2019."
+    },
+    {
+      "repo": "caizikun/Teststand_Git",
+      "commit": "9b7088c95cd2c2c34fe187ca1247f0278d47ce6a",
+      "encoding": "binary-TOF1",
+      "note": "Real-world (non-NI) project: 50+ binary TOF1 subsequences (frequency/voltage/current/power), good diversity beyond NI examples."
+    },
+    {
+      "repo": "elijah286/TestStand-MAL-API",
+      "commit": "c01550b9549dc266cd64b0c4efe39f2eec4efd39",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via repo-search; 1 .seq (observed bin)."
+    },
+    {
+      "repo": "halsteadrideriver/TestStand_projects",
+      "commit": "c71180cfa35f1119c3279432948eefc373e62087",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via repo-search; 2 .seq (observed bin)."
+    },
+    {
+      "repo": "hongcc1/TsmPerformanceLogger",
+      "commit": "be7d856d854eb9d6492b7efbae1a75bab29cb36f",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via repo-search; 1 .seq (observed bin)."
+    },
+    {
+      "repo": "joshuaprewitt/teststand-executor",
+      "commit": "690241b668927d685f2ddf4bacc95a06059f64ec",
+      "encoding": "binary-TOF1",
+      "note": "Full NI shipped examples (Computer Motherboard Tests, Power Test) for TS2017/TS2019; binary TOF1."
+    },
+    {
+      "repo": "levylabpitt/TestStand",
+      "commit": "e6a93d99a1e830658ccc7c6baf74012fa42e441b",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via repo-search; 1 .seq (observed bin)."
+    },
+    {
+      "repo": "marigot/BATL-flight",
+      "commit": "8c4dc21c0c52c419ed861460bdbe4eedfaeb6808",
+      "encoding": "mixed",
+      "note": "Flight project carrying an ExtraPuTTY example 'TestStand sequence.seq' + many config files."
+    },
+    {
+      "repo": "michael-harhay-arx/CICDUtility",
+      "commit": "02c6c678012a49102febc107d962c0c54992b4ee",
+      "encoding": "mixed",
+      "note": "CI/CD utility: ~12 .seq incl. DBSeq.seq and DBSeq2019.seq (likely same sequence at different TS versions — candidate revision pair)."
+    },
+    {
+      "repo": "ni/grpc-teststand-api",
+      "commit": "bffa744c44dfcd45847898da813104855f2401c4",
+      "encoding": "xml",
+      "note": "NI canonical example sequences (LoadError/LoopForever/RunTimeError/StepResults/Test/TraceExecution); XML, fileversion 920."
+    },
+    {
+      "repo": "ni/measurement-plugin-labview",
+      "commit": "8229e64d0375c5b22bab7a5a74f1311af7698146",
+      "encoding": "xml",
+      "note": "LabVIEW measurement-plug-in example sequences (DMM/SCOPE/FGEN/VISA/...); XML."
+    },
+    {
+      "repo": "ni/measurement-plugin-python",
+      "commit": "145feccdee6e7163f6527af3c4d4d79f23857ad4",
+      "encoding": "xml",
+      "note": "Modern measurement-plug-in example sequences; XML, fileversion 962."
+    },
+    {
+      "repo": "ni/measurement-plugin-service-extension-example",
+      "commit": "2d62999804db66787ee7fca0e752c77336ebd628",
+      "encoding": "xml",
+      "note": "NI measurement-plug-in service-extension example: LabVIEW + Python NIDCPower example sequences (an XML twin pair)."
+    },
+    {
+      "repo": "ni/nitsm-python",
+      "commit": "334552e02b324bf5663e96a4fc31399570c3138a",
+      "encoding": "mixed",
+      "note": "NI TestStand semiconductor module Python bindings: ~13 system-test .seq (FrontEndCallbacks/SystemTestFixture/custom_instruments)."
+    },
+    {
+      "repo": "ni/stsmemsapt",
+      "commit": "672b0097e35c393d70adf14c79aaebf43b74f126",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via repo-search; 1 .seq (observed bin)."
+    },
+    {
+      "repo": "noffz-mbokcic/PR002165_FCT_NGPMH",
+      "commit": "83973ba32980051e144791ec73e4d706d3493399",
+      "encoding": "mixed",
+      "note": "Real-world FCT station project: ~30 .seq (interface/station sequences) + 21 config; non-NI authored."
+    },
+    {
+      "repo": "pranay001/STS-Live-Test-Result-Viewer",
+      "commit": "f2a84e036b066245c7d079697936d250fb102434",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via repo-search; 1 .seq (observed bin)."
+    },
+    {
+      "repo": "schieb2/Testing-Software",
+      "commit": "5d8502d1374bbd59b7bd74d2f69938c65a93f9ac",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via repo-search; 24 .seq (observed bin)."
+    },
+    {
+      "repo": "weaddquality/gsharp",
+      "commit": "3075c411b17edc3e9dc758230169fd234b92288e",
+      "encoding": "mixed",
+      "note": "Single KernelTestSequence.seq + config; small but adds an independent author."
+    }
+  ]
+}

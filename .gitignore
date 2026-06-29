@@ -1,0 +1,47 @@
+.DS_Store
+
+# Dart
+.dart_tool/
+.packages
+pubspec.lock
+doc/api/
+
+# Zig
+zig-out/
+.zig-cache/
+
+# Native build artifacts
+*.o
+*.obj
+*.so
+*.dylib
+*.dll
+*.a
+*.lib
+
+# Fetched TestStand and VI corpus
+# Vi  - `dart run packages/labwright_seq/tool/fetch_seq_corpus.dart`
+# Seq - `dart run packages/labwright_rsrc_parse/tool/fetch_corpus.dart`
+/corpus/vi/
+/corpus/seq/
+
+# Claude Junk
+.claude/
+
+# Claude outputting garbage 0 byte temp files in sandbox (https://github.com/anthropics/claude-code/issues/29316):
+.vscode
+.bash_profile
+.bashrc
+.gitconfig
+.gitmodules
+.idea
+.mcp.json
+.profile
+.ripgreprc
+.zprofile
+.zshrc
+HEAD
+config
+hooks
+objects
+refs

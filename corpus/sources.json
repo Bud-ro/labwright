@@ -1,0 +1,26 @@
+{
+  "description": "Pinned catalog of open-source LabVIEW .vi sources used as a diverse test corpus for the clean-room Labwright VI reader. Deliberately spans vendors, frameworks, domains and eras to avoid mono-culture overfitting. The .vi files themselves are NOT committed (clean-room + licensing); fetch them with `dart run packages/labwright_rsrc_parse/tool/fetch_corpus.dart`, which pins each repo to the commit below and extracts into the gitignored <repoRoot>/vi-corpus/ folder. Coverage is measured by tool/coverage.dart (see corpus/README.md).",
+  "fetchRoot": "vi-corpus",
+  "sources": [
+    {"repo": "picotech/picosdk-ni-labview-examples", "branch": "master", "commit": "dceb711c8a7878d64ef5993dc5706644ef397ad0", "viCount": 349, "category": "vendor-examples", "note": "PicoScope instrument driver examples (NI style)"},
+    {"repo": "ni/grpc-labview", "branch": "master", "commit": "2f07f0318a4f26bd4a6423b387f0343813f73f29", "viCount": 857, "category": "ni-official", "note": "National Instruments gRPC support (modern)"},
+    {"repo": "JKISoftware/JKI-State-Machine", "branch": "master", "commit": "df4a757208bcbe8b250fb4e41f5948c2d6926000", "viCount": 88, "category": "framework", "note": "JKI State Machine (classic widely-used template)"},
+    {"repo": "JKISoftware/JKI-State-Machine-Objects", "branch": "master", "commit": "d496f05f86b58d86e10e6393a15d31e1067dd263", "viCount": 404, "category": "framework", "note": "JKI SMO OO framework"},
+    {"repo": "nasa/NDAS", "branch": "main", "commit": "bc25389ada94d17a76900b7ec704118fa76c0599", "viCount": 67, "category": "application", "note": "NASA Data Acquisition System (large real app)"},
+    {"repo": "Rompil/LabVIEW", "branch": "master", "commit": "7a9f0ffd948d4a781a07996631647ede62b26949", "viCount": 76, "category": "individual", "note": "Individual developer's varied VIs"},
+    {"repo": "NISystemsEngineering/LabVIEW-Modbus-API", "branch": "master", "commit": "00aee3409703e4f53cee2b17b882eef35594fc59", "viCount": 297, "category": "ni-official", "note": "NI Modbus API library"},
+    {"repo": "opengds/OpenGDS", "branch": "master", "commit": "1945834963894a75c1f698d3376b993891304445", "viCount": 2479, "category": "framework", "note": "Open GOOP Development Suite (large OO suite)"},
+    {"repo": "LabVIEW-Open-Source/LV-MQTT-Broker", "branch": "master", "commit": "01aa7848b707cb5ac609e8d27fc6ae94b51d65d0", "viCount": 169, "category": "library", "note": "Native LabVIEW MQTT broker"},
+    {"repo": "DAQIO/LVMQTT", "branch": "master", "commit": "80dbba318033392f1771e30d6a6fef085c382ef1", "viCount": 43, "category": "library", "note": "MQTT client library"},
+    {"repo": "vipm-io/caraya", "branch": "master", "commit": "ca3533373135205796ba9e07cb69dbbe39f18639", "viCount": 557, "category": "test-framework", "note": "Caraya unit-test framework"},
+    {"repo": "NEVSTOP-LAB/Communicable-State-Machine", "branch": "main", "commit": "afe7d4d6886146babb220ca39e25f10ca4022f1c", "viCount": 1053, "category": "framework", "note": "Application framework extending JKI SM"},
+    {"repo": "unipsycho/Graph-Extensions-LabVIEW", "branch": "master", "commit": "d73bd49b43126c6f5a68c368c07d732930b10aef", "viCount": 58, "category": "ui", "note": "XYGraph/Waveform UI extensions"},
+    {"repo": "rcpacini/LabVIEW-VI-Hacker", "branch": "main", "commit": "9e28dda1d8458f4f1769b4397dd90e330d7bf65d", "viCount": 3, "category": "tooling", "note": "VI password unlocker (tiny; format edge cases)"},
+    {"repo": "smithed/vicompare", "branch": "master", "commit": "5bb0d48bedc41e86c1a312385ab0b784e4159127", "viCount": 36, "category": "tooling", "note": "VI diff/merge tool"},
+    {"repo": "rfporter/Modbus-Master", "branch": "master", "commit": "da8f0102198509bcb1213daf439c3e2f27113243", "viCount": 105, "category": "library", "note": "Modbus master library (alt vendor)"},
+    {"repo": "CrossTheRoadElec/FRC-Examples-STEAMWORKS", "branch": "master", "commit": "e525de6aeceab62b8e2ff753adda321ad88ecc53", "viCount": 132, "category": "robotics", "note": "FRC 2017 robotics examples"},
+    {"repo": "REVrobotics/SPARK-MAX-Examples", "branch": "master", "commit": "b519a006fbc2ce769eaba191db442e59714e255a", "viCount": 112, "category": "robotics", "note": "SPARK MAX motor controller examples"},
+    {"repo": "tuftsBaxter/ROS-for-LabVIEW-Software", "branch": "master", "commit": "cef95f1742ad6ce9ef6b733523317750b7a81296", "viCount": 562, "category": "robotics", "note": "ROS-for-LabVIEW (academic, robotics)"},
+    {"repo": "G-CLI/G-CLI", "branch": "main", "commit": "662f75a78cef656359a2312910a85cd142b77bab", "viCount": 77, "category": "tooling", "note": "Command-line proxy for LabVIEW"}
+  ]
+}
