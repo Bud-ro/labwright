@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'decode.dart';
+import '../decode.dart';
 
 /// An embedded uncompressed 24-bit RGB picture extracted from a VI.
 ///

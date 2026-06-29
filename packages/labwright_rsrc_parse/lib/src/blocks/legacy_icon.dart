@@ -15,8 +15,8 @@ library;
 
 import 'dart:typed_data';
 
+import '../viparse.dart' show ViSection;
 import 'block_catalog.dart' show BlockConfidence;
-import 'viparse.dart' show ViSection;
 
 /// A decoded legacy icon bitmap (always 32×32).
 class ViLegacyIcon {

@@ -11,9 +11,9 @@ library;
 
 import 'dart:typed_data';
 
+import '../viparse.dart' show ViSection;
 import 'block_catalog.dart' show BlockConfidence;
 import 'version_word.dart' show decodeVersionWord;
-import 'viparse.dart' show ViSection;
 
 /// The MD5-style hash LabVIEW stores for an **empty** (unset) password. Both the
 /// `BDPW` block and the `LVSR` password slot hold this when no password is set

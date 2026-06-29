@@ -24,8 +24,8 @@ library;
 
 import 'dart:typed_data';
 
+import '../viparse.dart' show ViSection;
 import 'block_catalog.dart' show BlockConfidence;
-import 'viparse.dart' show ViSection;
 
 /// A decoded `CONP`/`CPC2` connector-pane reference.
 class ViConnectorPane {

@@ -9,8 +9,8 @@ library;
 
 import 'dart:typed_data';
 
+import '../viparse.dart' show ViSection;
 import 'block_catalog.dart' show BlockConfidence;
-import 'viparse.dart' show ViSection;
 
 /// A decoded `[u32 count][count × u32]` id table.
 class ViIdTable {

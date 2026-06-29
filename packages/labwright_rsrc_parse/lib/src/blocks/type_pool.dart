@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'decode.dart';
+import '../decode.dart';
 
 /// A recovered LabVIEW data-type kind, from the VI Consolidated Type Pool
 /// (`VCTP`). The pool's per-descriptor **type enumerator** (one byte) maps to
