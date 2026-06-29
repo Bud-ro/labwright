@@ -112,7 +112,7 @@ void main() {
 
     final baselineFile = File('../../corpus/baseline.json');
     final base = baselineFile.existsSync()
-        ? (jsonDecode(baselineFile.readAsStringSync()) as Map)['picotechFirst60'] as Map
+        ? (jsonDecode(baselineFile.readAsStringSync()) as Map)['corpus'] as Map
         : const <String, Object?>{};
     num floor(String k) => (base[k] as num?) ?? 0.0;
 
