@@ -38,6 +38,10 @@ dart run packages/labwright_seq/tool/coverage.dart          # -> corpus/seq/REPO
 - `vi/`  — `dart run packages/labwright_rsrc_parse/tool/fetch_corpus.dart`
 - `seq/` — `dart run packages/labwright_seq/tool/fetch_seq_corpus.dart`
 
-TODO (tracked with the corpus-slimming work, not here): the fetch tools currently
-download whole repositories; fetch only the `.vi`/`.seq` (+ needed config) files,
-and unify the two `*-sources.json` formats.
+The fetch tools download each source repo's tarball but **extract only the corpus
+files** (`.vi`, or `.seq`/config), discarding the rest — so a fresh corpus is a
+fraction of the old whole-repo checkout. To reclaim space from a corpus fetched by
+an older whole-repo version of the tool, re-run either tool with `--prune`.
+
+TODO (not yet done): move each corpus under its owning package (VI vs TestStand are
+unrelated), and unify the two `*-sources.json` formats.
