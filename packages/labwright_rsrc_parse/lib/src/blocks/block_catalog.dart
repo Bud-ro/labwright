@@ -10,8 +10,16 @@
 /// (a magic number / embedded ASCII), `likely` is strong convention, `tentative`
 /// is a best-effort name with the format not yet decoded.
 ///
-/// Coverage is the 81 distinct tags observed across the 7583-VI corpus; an
-/// unknown tag resolves to [ViBlockInfo.unknownFor] rather than throwing.
+/// Coverage: the 81 distinct tags observed across the 7583-VI corpus, plus the
+/// remaining tags documented on labviewwiki.org/wiki/Resource_Container that we
+/// have not yet seen in a real VI (catalogued as `tentative` with a TODO so the
+/// registry is complete). An unknown tag resolves to [ViBlockInfo.unknownFor]
+/// rather than throwing.
+///
+/// This catalog doubles as the **block registry**: each entry's
+/// [ViBlockInfo.decoder] names the function that decodes it (grep it to find the
+/// file under `lib/src/blocks/`), or is null when no decoder exists yet — call
+/// [blockDecoderUnimplemented] at those sites to fail loudly instead of silently.
 library;
 
 /// Coarse role of a resource block. Drives display and parser dispatch.
@@ -81,13 +89,25 @@ enum BlockConfidence { confirmed, likely, tentative }
 /// One catalog entry: a block tag, a human name, its [ViBlockCategory], a
 /// [BlockConfidence], and a short note on the evidence.
 class ViBlockInfo {
-  const ViBlockInfo(this.tag, this.name, this.category, this.confidence, this.note);
+  const ViBlockInfo(this.tag, this.name, this.category, this.confidence, this.note, {this.decoder});
 
   final String tag;
   final String name;
   final ViBlockCategory category;
   final BlockConfidence confidence;
   final String note;
+
+  /// The name of the function that decodes this block (e.g. `decodeTypePool`,
+  /// `buildDiagram`), or null when no decoder exists yet. This is the registry
+  /// pointer that answers "where is the code for this block?": grep the name to
+  /// find its file under `lib/src/blocks/`. Tags with a null decoder are either
+  /// recognized-but-undecoded or only catalogued from documentation (see the
+  /// `// --- Documented … not yet observed/decoded ---` section); decoding one is
+  /// "add a `decodeXxxx` to its `blocks/` file and set this field".
+  final String? decoder;
+
+  /// Whether a decoder for this block exists today.
+  bool get isDecoded => decoder != null;
 
   /// True only for the corpus-confirmed `C4` record heaps — the blocks the heap
   /// record-walk may be applied to.
@@ -104,6 +124,15 @@ ViBlockInfo blockInfo(String tag) => _catalog[tag] ?? ViBlockInfo.unknownFor(tag
 
 /// Convenience: is [tag] one of the confirmed `C4` record heaps?
 bool isRecordHeapTag(String tag) => blockInfo(tag).category == ViBlockCategory.recordHeap;
+
+/// Fail loudly for a recognized-but-undecoded block (one whose
+/// [ViBlockInfo.decoder] is null). Surfacing this instead of silently returning
+/// null keeps "not yet implemented" honest. To implement a block: write a
+/// `decodeXxxx()` in its `lib/src/blocks/` file and set the catalog entry's
+/// `decoder:`; see labviewwiki.org/wiki/Resource_Container for documented formats.
+Never blockDecoderUnimplemented(String tag) => throw UnimplementedError(
+    'No decoder yet for RSRC block "$tag" (${blockInfo(tag).name}). '
+    'See its block_catalog entry + labviewwiki.org/wiki/Resource_Container.');
 
 const ViBlockCategory _h = ViBlockCategory.recordHeap;
 const ViBlockCategory _ti = ViBlockCategory.typeInfo;
@@ -129,15 +158,15 @@ const BlockConfidence _tt = BlockConfidence.tentative;
 
 const Map<String, ViBlockInfo> _catalog = {
   // --- C4 record heaps (corpus-confirmed: valid content-length + heap lead) ---
-  'FPHb': ViBlockInfo('FPHb', 'Front-panel heap', _h, _cf, 'C4 record heap; 7568/7568 valid.'),
-  'BDHb': ViBlockInfo('BDHb', 'Block-diagram heap', _h, _cf, 'C4 record heap; 7568/7568 valid.'),
-  'FPHc': ViBlockInfo('FPHc', 'Front-panel heap (variant c)', _h, _cf, 'C4 record heap; 14/14 valid.'),
-  'BDHc': ViBlockInfo('BDHc', 'Block-diagram heap (variant c)', _h, _cf, 'C4 record heap; 14/14 valid.'),
+  'FPHb': ViBlockInfo('FPHb', 'Front-panel heap', _h, _cf, 'C4 record heap; 7568/7568 valid.', decoder: 'buildDiagram'),
+  'BDHb': ViBlockInfo('BDHb', 'Block-diagram heap', _h, _cf, 'C4 record heap; 7568/7568 valid.', decoder: 'buildDiagram'),
+  'FPHc': ViBlockInfo('FPHc', 'Front-panel heap (variant c)', _h, _cf, 'C4 record heap; 14/14 valid.', decoder: 'buildDiagram'),
+  'BDHc': ViBlockInfo('BDHc', 'Block-diagram heap (variant c)', _h, _cf, 'C4 record heap; 14/14 valid.', decoder: 'buildDiagram'),
 
   // --- Type info ---
-  'VCTP': ViBlockInfo('VCTP', 'VI type pool', _ti, _cf, 'Type-descriptor table [count][records]; compressed; not a heap.'),
-  'TM80': ViBlockInfo('TM80', 'Type map (LV 8.0+)', _ti, _lk, 'Compressed. Short form (~71%) = [u16 count][u16 field1][count u16 entries]; entry semantics not yet decoded. See decodeTypeMap.'),
-  'DTHP': ViBlockInfo('DTHP', 'Data-type heap table', _ti, _lk, '4-byte [u16][u16] header (7541/7583 = 99.45%); rare extended form carries 40xx-tagged data-item names. See decodeDataTypeHeap.'),
+  'VCTP': ViBlockInfo('VCTP', 'VI type pool', _ti, _cf, 'Type-descriptor table [count][records]; compressed; not a heap.', decoder: 'decodeTypePool'),
+  'TM80': ViBlockInfo('TM80', 'Type map (LV 8.0+)', _ti, _lk, 'Compressed. Short form (~71%) = [u16 count][u16 field1][count u16 entries]; entry semantics not yet decoded. See decodeTypeMap.', decoder: 'decodeTypeMap'),
+  'DTHP': ViBlockInfo('DTHP', 'Data-type heap table', _ti, _lk, '4-byte [u16][u16] header (7541/7583 = 99.45%); rare extended form carries 40xx-tagged data-item names. See decodeDataTypeHeap.', decoder: 'decodeDataTypeHeap'),
   'FPTD': ViBlockInfo('FPTD', 'Front-panel type descriptors', _ti, _lk, 'Usually 2 bytes (u16, 3499/3531); occasionally a larger table. Likely a type-descriptor index/count.'),
 
   // --- Compiled code ---
@@ -149,14 +178,14 @@ const Map<String, ViBlockInfo> _catalog = {
   'DSTM': ViBlockInfo('DSTM', 'Data-space (TM)', _ds, _tt, 'Format not yet decoded.'),
 
   // --- Connector pane ---
-  'CONP': ViBlockInfo('CONP', 'Connector pane', _cp, _cf, 'u16 VCTP index of the conpane type descriptor (100% in-range); see decodeConnectorPane.'),
-  'CPC2': ViBlockInfo('CPC2', 'Connector pane (compiled)', _cp, _lk, 'Distinct 2-byte conpane reference (byte-equal to CONP only 55/7503); resolves as a VCTP index just ~84%, so its index reading is NOT confirmed.'),
+  'CONP': ViBlockInfo('CONP', 'Connector pane', _cp, _cf, 'u16 VCTP index of the conpane type descriptor (100% in-range); see decodeConnectorPane.', decoder: 'decodeConnectorPane'),
+  'CPC2': ViBlockInfo('CPC2', 'Connector pane (compiled)', _cp, _lk, 'Distinct 2-byte conpane reference (byte-equal to CONP only 55/7503); resolves as a VCTP index just ~84%, so its index reading is NOT confirmed.', decoder: 'decodeConnectorPane'),
   'CPMp': ViBlockInfo('CPMp', 'Connector pane map', _cp, _tt, 'Format not yet decoded.'),
 
   // --- Icons ---
-  'icl8': ViBlockInfo('icl8', 'Icon, 8-bit', _ic, _cf, 'Legacy 32x32 @ 8bpp palette bitmap (1024 B, 7583/7583). See decodeLegacyIcon.'),
-  'icl4': ViBlockInfo('icl4', 'Icon, 4-bit', _ic, _cf, 'Legacy 32x32 @ 4bpp palette bitmap (512 B). See decodeLegacyIcon.'),
-  'ICON': ViBlockInfo('ICON', 'Icon, 1-bit', _ic, _cf, 'Legacy 32x32 @ 1bpp mono bitmap (128 B, 7534). Real bitmap, NOT a name table. See decodeLegacyIcon.'),
+  'icl8': ViBlockInfo('icl8', 'Icon, 8-bit', _ic, _cf, 'Legacy 32x32 @ 8bpp palette bitmap (1024 B, 7583/7583). See decodeLegacyIcon.', decoder: 'decodeLegacyIcon'),
+  'icl4': ViBlockInfo('icl4', 'Icon, 4-bit', _ic, _cf, 'Legacy 32x32 @ 4bpp palette bitmap (512 B). See decodeLegacyIcon.', decoder: 'decodeLegacyIcon'),
+  'ICON': ViBlockInfo('ICON', 'Icon, 1-bit', _ic, _cf, 'Legacy 32x32 @ 1bpp mono bitmap (128 B, 7534). Real bitmap, NOT a name table. See decodeLegacyIcon.', decoder: 'decodeLegacyIcon'),
   'PICC': ViBlockInfo('PICC', 'Icon picture record', _ic, _tt, '12-byte icon record (not a bitmap); the colour RGB icon lives under PICC/DSIM/FPHb via extractRgbIcon.'),
   'PICT': ViBlockInfo('PICT', 'Mac PICT image', _im, _lk, 'QuickDraw PICT.'),
 
@@ -170,23 +199,23 @@ const Map<String, ViBlockInfo> _catalog = {
   'LIbd': ViBlockInfo('LIbd', 'Link info: block diagram', _li, _cf, 'Embeds ASCII "BDHP".'),
   'LIds': ViBlockInfo('LIds', 'Link info: data space', _li, _cf, 'Embeds ASCII "VIDS".'),
   'LPIN': ViBlockInfo('LPIN', 'Linked-instance info', _li, _tt, 'Format not yet decoded.'),
-  'DLLP': ViBlockInfo('DLLP', 'DLL/library path', _hp, _lk, 'PTH0 path (begins "PTH0"); decodeHelpPath parses it. Rare (n=1 in corpus).'),
+  'DLLP': ViBlockInfo('DLLP', 'DLL/library path', _hp, _lk, 'PTH0 path (begins "PTH0"); decodeHelpPath parses it. Rare (n=1 in corpus).', decoder: 'decodeHelpPath'),
 
   // --- Text ---
-  'STRG': ViBlockInfo('STRG', 'VI description text', _tx, _cf, '[u32 len][UTF-8 text] (100% of corpus); the VI description. See decodeStringBlock.'),
+  'STRG': ViBlockInfo('STRG', 'VI description text', _tx, _cf, '[u32 len][UTF-8 text] (100% of corpus); the VI description. See decodeStringBlock.', decoder: 'decodeStringBlock'),
   'STR': ViBlockInfo('STR', 'String', _tx, _tt, 'Format not yet decoded.'),
   'TITL': ViBlockInfo('TITL', 'VI title', _tx, _cf, 'Pascal-string title.'),
-  'HLPT': ViBlockInfo('HLPT', 'Help tag/text', _tx, _cf, 'Same [u32 len][UTF-8] layout as STRG (200/200); markdown-ish context help. See helpTextFromSections.'),
+  'HLPT': ViBlockInfo('HLPT', 'Help tag/text', _tx, _cf, 'Same [u32 len][UTF-8] layout as STRG (200/200); markdown-ish context help. See helpTextFromSections.', decoder: 'decodeStringBlock'),
 
   // --- Help path ---
-  'HLPP': ViBlockInfo('HLPP', 'Help path', _hp, _cf, 'PTH0 path: "PTH0"+i32 len+i16 type+i16 count+Pascal components (128/128). See decodeHelpPath.'),
+  'HLPP': ViBlockInfo('HLPP', 'Help path', _hp, _cf, 'PTH0 path: "PTH0"+i32 len+i16 type+i16 count+Pascal components (128/128). See decodeHelpPath.', decoder: 'decodeHelpPath'),
   'HLPU': ViBlockInfo('HLPU', 'Help URL/path', _hp, _tt, 'Help-related; format not yet decoded.'),
   'HLPX': ViBlockInfo('HLPX', 'Help (X)', _hp, _tt, 'Help-related; format not yet decoded.'),
   'HLPW': ViBlockInfo('HLPW', 'Help (W)', _hp, _tt, 'Help-related; format not yet decoded.'),
 
   // --- Settings / version ---
-  'LVSR': ViBlockInfo('LVSR', 'LabVIEW save record', _st, _cf, 'VI settings/flags (160/144/136 B). Decoded: version word @0 (BCD, == vers 99.95%) + BD password hash @96 (== BDPW). See decodeSaveRecord.'),
-  'vers': ViBlockInfo('vers', 'Version record', _st, _cf, 'Binary version word [BCD major][minor<<4|patch][stage][build] + ASCII version/title. See decodeVersionWord.'),
+  'LVSR': ViBlockInfo('LVSR', 'LabVIEW save record', _st, _cf, 'VI settings/flags (160/144/136 B). Decoded: version word @0 (BCD, == vers 99.95%) + BD password hash @96 (== BDPW). See decodeSaveRecord.', decoder: 'decodeSaveRecord'),
+  'vers': ViBlockInfo('vers', 'Version record', _st, _cf, 'Binary version word [BCD major][minor<<4|patch][stage][build] + ASCII version/title. See decodeVersionWord.', decoder: 'decodeVersionWord'),
 
   // --- Security ---
   'BDPW': ViBlockInfo('BDPW', 'Block-diagram password', _se, _cf, 'Password hash; sample is MD5("") d41d8cd9…'),
@@ -195,17 +224,17 @@ const Map<String, ViBlockInfo> _catalog = {
   'VINS': ViBlockInfo('VINS', 'Embedded sub-VIs', _ev, _cf, 'Nested RSRC VIs; recovered by readEmbeddedVis.'),
 
   // --- Name tables ---
-  'FTAB': ViBlockInfo('FTAB', 'Font table', _nt, _cf, 'u16 ver@0=1, u16 fontCount@6, u32 nameOffset@8 -> packed Pascal font-name strings. See decodeFontTable.'),
+  'FTAB': ViBlockInfo('FTAB', 'Font table', _nt, _cf, 'u16 ver@0=1, u16 fontCount@6, u32 nameOffset@8 -> packed Pascal font-name strings. See decodeFontTable.', decoder: 'decodeFontTable'),
   'VITS': ViBlockInfo('VITS', 'VI tag store / name tail', _nt, _tt, 'Trailing name/tag store.'),
 
   // --- History ---
-  'HIST': ViBlockInfo('HIST', 'Revision history', _hi, _cf, '40-byte record: version@0=2, flags@4, entryCount@8, reserved@12/28/32=0. See decodeHistory.'),
+  'HIST': ViBlockInfo('HIST', 'Revision history', _hi, _cf, '40-byte record: version@0=2, flags@4, entryCount@8, reserved@12/28/32=0. See decodeHistory.', decoder: 'decodeHistory'),
 
   // --- Identifiers / signatures (small fixed blobs; roles undetermined) ---
   'MUID': ViBlockInfo('MUID', 'Modified UID', _id, _lk, '4-byte u32 id, varied per VI (opaque value).'),
-  'NUID': ViBlockInfo('NUID', 'New UID table', _id, _cf, '[u32 count][count u32 ids], len==4+4*count (100%). See decodeIdTable. Id values opaque.'),
-  'SUID': ViBlockInfo('SUID', 'Saved UID table', _id, _cf, '[u32 count][count u32 ids], len==4+4*count (100%). See decodeIdTable. Id values opaque.'),
-  'BNID': ViBlockInfo('BNID', 'Block-name id table', _id, _cf, '[u32 count][count u32 ids], len==4+4*count (100%). See decodeIdTable. Id values opaque.'),
+  'NUID': ViBlockInfo('NUID', 'New UID table', _id, _cf, '[u32 count][count u32 ids], len==4+4*count (100%). See decodeIdTable. Id values opaque.', decoder: 'decodeIdTable'),
+  'SUID': ViBlockInfo('SUID', 'Saved UID table', _id, _cf, '[u32 count][count u32 ids], len==4+4*count (100%). See decodeIdTable. Id values opaque.', decoder: 'decodeIdTable'),
+  'BNID': ViBlockInfo('BNID', 'Block-name id table', _id, _cf, '[u32 count][count u32 ids], len==4+4*count (100%). See decodeIdTable. Id values opaque.', decoder: 'decodeIdTable'),
   'OMId': ViBlockInfo('OMId', 'Object-map id', _id, _tt, 'Rare (n=1 in corpus); not characterized.'),
   'RSID': ViBlockInfo('RSID', 'Resource id', _id, _tt, 'Rare (n=1 in corpus); not characterized.'),
   'RTSG': ViBlockInfo('RTSG', 'Run-time signature', _id, _cf, '16-byte signature, varied per VI (85%); opaque value, role=identity.'),
@@ -244,4 +273,41 @@ const Map<String, ViBlockInfo> _catalog = {
   'HBUF': ViBlockInfo('HBUF', 'Heap buffer', _un, _tt, 'Format not yet decoded.'),
   'COUT': ViBlockInfo('COUT', 'Compiled output', _un, _lk, 'Fixed 12-byte per-VI value (opaque; likely a hash/id). Rare (n=7).'),
   'RTMP': ViBlockInfo('RTMP', 'Run-time map / path', _un, _tt, 'Rare (n=2); one instance is a PTH0 path. Format not yet decoded.'),
+
+  // --- Documented on labviewwiki.org/wiki/Resource_Container but NOT yet observed
+  //     in our corpus (so unconfirmed) and NOT yet decoded. Catalogued here so the
+  //     registry is complete and each has a home; TODO: confirm against a real VI
+  //     and write a decoder (then move it into its own blocks/ file + set decoder).
+  'FLAG': ViBlockInfo('FLAG', 'Integer flags', _st, _tt, 'labviewwiki: integer flags. Not observed in corpus. TODO decode.'),
+  'LVIN': ViBlockInfo('LVIN', 'VI info (LV 4.0 and older)', _st, _tt, 'labviewwiki: general VI file information, predecessor of LVSR (pre-LV 6.0). Not observed in corpus. TODO decode.'),
+  'CPCT': ViBlockInfo('CPCT', 'Connector port content type', _cp, _tt, 'labviewwiki: connector port content type (CPC2 predecessor). Not observed in corpus. TODO decode.'),
+  'CPDI': ViBlockInfo('CPDI', 'Connector port DI', _cp, _tt, 'labviewwiki: connector port DI. Not observed in corpus. TODO decode.'),
+  'DLGH': ViBlockInfo('DLGH', 'Dialog HTML', _tx, _tt, 'labviewwiki: dialog HTML. Not observed in corpus. TODO decode.'),
+  'ERRH': ViBlockInfo('ERRH', 'Error HTML', _tx, _tt, 'labviewwiki: error HTML. Not observed in corpus. TODO decode.'),
+  'NODH': ViBlockInfo('NODH', 'NOD HTML', _tx, _tt, 'labviewwiki: NOD HTML. Not observed in corpus. TODO decode.'),
+  'NOEG': ViBlockInfo('NOEG', 'NOEG string', _tx, _tt, 'labviewwiki: NOEG string. Not observed in corpus. TODO decode.'),
+  'MItm': ViBlockInfo('MItm', 'M. item', _un, _tt, 'labviewwiki: M. item. Not observed in corpus. TODO decode.'),
+  'DNm#': ViBlockInfo('DNm#', 'D. name strings list', _tx, _tt, 'labviewwiki: D. name strings list. Not observed in corpus. TODO decode.'),
+  'HDb#': ViBlockInfo('HDb#', 'Help database item', _tx, _tt, 'labviewwiki: help database item. Not observed in corpus. TODO decode.'),
+  'LST#': ViBlockInfo('LST#', 'Short strings list', _tx, _tt, 'labviewwiki: short strings list. Not observed in corpus. TODO decode.'),
+  'STR#': ViBlockInfo('STR#', 'Short strings list', _tx, _tt, 'labviewwiki: short strings list. Not observed in corpus. TODO decode.'),
+  'FDFL': ViBlockInfo('FDFL', 'FDFL strings', _tx, _tt, 'labviewwiki: FDFL strings. Not observed in corpus. TODO decode.'),
+  'LPTH': ViBlockInfo('LPTH', 'L. path', _hp, _tt, 'labviewwiki: L. path. Not observed in corpus. TODO decode.'),
+  'LIBN': ViBlockInfo('LIBN', 'Library names', _nt, _tt, 'labviewwiki: library names. Recovered today via readEmbeddedSections, not yet a catalogued decoder. TODO decode.'),
+  'CGRS': ViBlockInfo('CGRS', 'Conglomerate resource', _un, _tt, 'labviewwiki: conglomerate resource. Not observed in corpus. TODO decode.'),
+  'PNGI': ViBlockInfo('PNGI', 'PNG image', _im, _tt, 'labviewwiki: PNG image bitmap (cf. MNGI). Not observed in corpus. TODO decode.'),
+  'ICN#': ViBlockInfo('ICN#', 'Icon large double, 1-bit', _ic, _tt, 'labviewwiki: 32x64 @ 1bpp. Not observed in corpus. TODO decode.'),
+  'ics#': ViBlockInfo('ics#', 'Icon small, 1-bit', _ic, _tt, 'labviewwiki: 16x16 @ 1bpp. Not observed in corpus. TODO decode.'),
+  'ics4': ViBlockInfo('ics4', 'Icon small, 4-bit', _ic, _tt, 'labviewwiki: 16x16 @ 4bpp. Not observed in corpus. TODO decode.'),
+  'ics8': ViBlockInfo('ics8', 'Icon small, 8-bit', _ic, _tt, 'labviewwiki: 16x16 @ 8bpp. Not observed in corpus. TODO decode.'),
+  'CURS': ViBlockInfo('CURS', 'Cursor, 1-bit', _ic, _tt, 'labviewwiki: 16x34 @ 1bpp cursor. Not observed in corpus. TODO decode.'),
+  'LVzp': ViBlockInfo('LVzp', 'Zipped application', _un, _tt, 'labviewwiki: a whole application compressed to a ZIP file. Not observed in corpus. TODO decode.'),
+  'BDHT': ViBlockInfo('BDHT', 'Block-diagram heap (text)', _tx, _tt, 'labviewwiki: block-diagram heap, text form. Not observed in corpus. TODO decode.'),
+  'FPHT': ViBlockInfo('FPHT', 'Front-panel heap (text)', _tx, _tt, 'labviewwiki: front-panel heap, text form. Not observed in corpus. TODO decode.'),
+  'BDHX': ViBlockInfo('BDHX', 'Block-diagram heap (XML)', _tx, _tt, 'labviewwiki: block-diagram heap, XML form. Not observed in corpus. TODO decode.'),
+  'FPHX': ViBlockInfo('FPHX', 'Front-panel heap (XML)', _tx, _tt, 'labviewwiki: front-panel heap, XML form. Not observed in corpus. TODO decode.'),
+  'UCRF': ViBlockInfo('UCRF', 'Uncompressed resource file', _un, _tt, 'labviewwiki: uncompressed resource file. Not observed in corpus. TODO decode.'),
+  'CPRF': ViBlockInfo('CPRF', 'Compressed resource file (Comp)', _un, _tt, 'labviewwiki: "Comp"-compressed resource file. Not observed in corpus. TODO decode.'),
+  'ZCRF': ViBlockInfo('ZCRF', 'Compressed resource file (ZLib)', _un, _tt, 'labviewwiki: ZLib-compressed resource file. Not observed in corpus. TODO decode.'),
+  'DLG3': ViBlockInfo('DLG3', 'Dialog resource file', _un, _tt, 'labviewwiki: dialog resource file. Not observed in corpus. TODO decode.'),
 };

@@ -9,7 +9,7 @@ library;
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'viparse.dart' show ViSection;
+import '../viparse.dart' show ViSection;
 
 /// Decodes a `STRG` body (`[u32 len][len bytes UTF-8]`) into its text. Returns
 /// null when the buffer can't hold the length prefix. UTF-8 is decoded leniently
