@@ -1,7 +1,7 @@
+import 'blocks/type_pool.dart';
 import 'graph.dart';
 import 'heap.dart';
 import 'ir.dart';
-import 'type_pool.dart';
 
 /// Serializes a recovered [ViDiagram] to a JSON-encodable map: its section tag
 /// plus a **flat list of objects** carrying the positional nesting via

@@ -1,6 +1,6 @@
+import 'blocks/type_pool.dart';
 import 'graph.dart';
 import 'ir.dart';
-import 'type_pool.dart';
 
 /// Marker line embedded in every [generateDartScaffold] output — the honest
 /// disclaimer that this is a structural outline; the dataflow is not yet

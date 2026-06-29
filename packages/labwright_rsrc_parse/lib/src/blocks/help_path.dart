@@ -13,8 +13,8 @@ library;
 
 import 'dart:typed_data';
 
+import '../viparse.dart' show ViSection;
 import 'block_catalog.dart' show BlockConfidence;
-import 'viparse.dart' show ViSection;
 
 /// A decoded `PTH0` path (from an `HLPP` block).
 class ViHelpPath {
