@@ -1,0 +1,5 @@
+tags:
+  corpus:
+    # Tests that require the fetched TestStand corpus (tool/fetch_seq_corpus.dart →
+    # the gitignored <repoRoot>/corpus/seq/). They self-skip when it is absent, so
+    # the default unit run stays green without it.
