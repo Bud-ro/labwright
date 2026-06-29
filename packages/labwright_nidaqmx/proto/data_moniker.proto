@@ -1,0 +1,72 @@
+// Scoped, wire-compatible subset of NI's data-moniker streaming protocol
+// (imports/protobuf/data_moniker.proto, github.com/ni/grpc-device — MIT, see
+// PROVENANCE.md). Monikers are server-side handles to a task's data endpoint: a
+// `Begin*Read` RPC on the NiDAQmx service returns a Moniker, then `DataMoniker.
+// StreamRead` pushes the samples continuously over one stream (each frame's
+// `google.protobuf.Any` wraps a `MonikerRead*Response`). This is NI's network
+// streaming path; `BeginSidebandStream` negotiates a faster non-gRPC transport.
+//
+// Package, service, method, message and field NUMBERS match NI's exactly. Only the
+// read path this client uses is vendored.
+syntax = "proto3";
+
+package ni.data_monikers;
+
+import "google/protobuf/any.proto";
+
+service DataMoniker {
+  // Server-streams the data behind the given read monikers (in-band over gRPC).
+  rpc StreamRead(MonikerList) returns (stream MonikerReadResponse);
+  // Negotiates a faster sideband transport (shared memory / sockets / RDMA) for the
+  // same monikers; returns where to connect.
+  rpc BeginSidebandStream(BeginMonikerSidebandStreamRequest)
+      returns (BeginMonikerSidebandStreamResponse);
+}
+
+// A handle to a server-side data endpoint (which server / data source / instance).
+message Moniker {
+  string service_location = 1;
+  string data_source = 2;
+  int64 data_instance = 3;
+}
+
+message MonikerList {
+  repeated Moniker read_monikers = 2;
+  repeated Moniker write_monikers = 3;
+}
+
+// One frame's payload: each value is a type-specific message (e.g. a
+// MonikerReadAnalogF64Response) packed into an Any.
+message MonikerValues {
+  repeated google.protobuf.Any values = 1;
+}
+
+message MonikerReadResponse {
+  MonikerValues data = 1;
+}
+
+// Sideband transport options. GRPC = in-band (this client). The rest are NI's
+// higher-throughput transports and require native support (see README "Streaming").
+enum SidebandStrategy {
+  UNKNOWN = 0;
+  GRPC = 1;
+  SHARED_MEMORY = 2;
+  DOUBLE_BUFFERED_SHARED_MEMORY = 3;
+  SOCKETS = 4;
+  SOCKETS_LOW_LATENCY = 5;
+  HYPERVISOR_SOCKETS = 6;
+  RDMA = 7;
+  RDMA_LOW_LATENCY = 8;
+}
+
+message BeginMonikerSidebandStreamRequest {
+  SidebandStrategy strategy = 1;
+  MonikerList monikers = 2;
+}
+
+message BeginMonikerSidebandStreamResponse {
+  SidebandStrategy strategy = 1;
+  string connection_url = 2;
+  string sideband_identifier = 3;
+  sint64 buffer_size = 4;
+}

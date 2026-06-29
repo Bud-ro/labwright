@@ -1,0 +1,8 @@
+# 'hardware' tags integration tests that need a real NI-DAQmx runtime or a real NI gRPC
+# Device Server. They self-skip (via env-var checks) when that environment is absent, so
+# the default run is green without NI software. To run them on a configured NI box:
+#   dart test -t hardware
+# To exclude them explicitly:
+#   dart test -x hardware
+tags:
+  hardware:
