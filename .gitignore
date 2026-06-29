@@ -19,11 +19,11 @@ zig-out/
 *.a
 *.lib
 
-# Fetched TestStand and VI corpus
-# Vi  - `dart run packages/labwright_seq/tool/fetch_seq_corpus.dart`
-# Seq - `dart run packages/labwright_rsrc_parse/tool/fetch_corpus.dart`
-/corpus/vi/
-/corpus/seq/
+# Fetched TestStand and VI corpus (live under each owning package)
+# VI  - `dart run packages/labwright_rsrc_parse/tool/fetch_corpus.dart`
+# Seq - `dart run packages/labwright_seq/tool/fetch_seq_corpus.dart`
+/packages/labwright_rsrc_parse/corpus/vi/
+/packages/labwright_seq/corpus/seq/
 
 # Claude Junk
 .claude/

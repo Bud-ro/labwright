@@ -9,10 +9,12 @@ import 'package:labwright_seq/labwright_seq.dart';
 /// Prints a per-source + total table and writes a gitignored `corpus/seq/REPORT.md`
 /// so the scorecard is regenerated from the live decoders, never hand-maintained.
 ///
-/// Run: `dart run tool/coverage.dart [corpusRoot=<repoRoot>/corpus/seq]`
+/// Run: `dart run tool/coverage.dart [corpusRoot=<package>/corpus/seq]`
 String _defaultCorpusRoot() {
+  const pkgRel = 'packages/labwright_seq/corpus';
   var d = Directory.current;
   for (var i = 0; i < 8; i++) {
+    if (File('${d.path}/$pkgRel/seq-sources.json').existsSync()) return '${d.path}/$pkgRel/seq';
     if (File('${d.path}/corpus/seq-sources.json').existsSync()) return '${d.path}/corpus/seq';
     final p = d.parent;
     if (p.path == d.path) break;

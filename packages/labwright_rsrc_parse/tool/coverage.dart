@@ -32,14 +32,18 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 /// corpus and writes `corpus/baseline.json` (the regression floor read by
 /// `corpus_coverage_test.dart`) and a gitignored `corpus/vi/REPORT.md` scorecard.
 ///
-/// Run: `dart run tool/coverage.dart [corpusRoot=<repoRoot>/corpus/vi]`
+/// Run: `dart run tool/coverage.dart [corpusRoot=<package>/corpus/vi]`
 const _heapTags = {'BDHb', 'BDHP', 'FPHb', 'FPHP', 'DTHP'};
 
-/// The gitignored corpus root checked out by tool/fetch_corpus.dart, found by
-/// walking up to the repo root (marked by corpus/sources.json).
+/// The gitignored VI corpus checked out by tool/fetch_corpus.dart, under this
+/// package's `corpus/vi/`. Resolved from CWD (the run may start at the repo root
+/// or the package dir) by checking the package-relative and package-local
+/// locations; the committed baseline.json is written next to it.
 String _defaultCorpusRoot() {
+  const pkgRel = 'packages/labwright_rsrc_parse/corpus';
   var d = Directory.current;
   for (var i = 0; i < 8; i++) {
+    if (File('${d.path}/$pkgRel/sources.json').existsSync()) return '${d.path}/$pkgRel/vi';
     if (File('${d.path}/corpus/sources.json').existsSync()) return '${d.path}/corpus/vi';
     final p = d.parent;
     if (p.path == d.path) break;
