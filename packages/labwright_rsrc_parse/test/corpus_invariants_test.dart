@@ -1,7 +1,6 @@
 @Tags(['corpus'])
 library;
 
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
@@ -18,23 +17,12 @@ import 'corpus_dirs.dart';
 /// superset (a few declared blocks may carry no extractable section in a given
 /// file). Corpus-validated: holds for 100% of 7583 files. Skipped if corpus absent.
 void main() {
-  final dir = corpusSampleDir;
-  if (!dir.existsSync()) {
+  // The WHOLE corpus, listed exactly once (no sample/diverse double-count tier).
+  final all = corpusVis();
+  if (all.isEmpty) {
     test('viparse corpus invariants (skipped: corpus not fetched)', () {}, skip: true);
     return;
   }
-  List<File> vis(String root) {
-    final d = Directory(root);
-    if (!d.existsSync()) return const [];
-    return d
-        .listSync(recursive: true)
-        .whereType<File>()
-        .where((f) => f.path.toLowerCase().endsWith('.vi'))
-        .toList()
-      ..sort((a, b) => a.path.compareTo(b.path));
-  }
-
-  final all = [...vis(corpusSampleDir.path), ...vis(corpusDiverseDir.path)];
 
   test('CROSS-CONSISTENCY: every extracted section tag is in parseVi\'s block inventory', () {
     var files = 0;
