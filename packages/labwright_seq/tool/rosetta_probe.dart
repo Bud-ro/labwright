@@ -48,8 +48,13 @@ String _short(String s) {
 void main(List<String> args) {
   final which = args.isEmpty ? 'NIScope' : args[0];
   final dir = _dir();
-  final binFile = File('$dir/${which}_labview_BIN.seq');
-  final xmlFile = File('$dir/${which}_python_XML.seq');
+  // Two naming schemes coexist: structural twins use `_labview_BIN`/`_python_XML`
+  // (LabVIEW vs Python toolchain); the OutputVoltage content-exact twin (one file
+  // re-saved binary->XML in git history) uses the plain `_BIN`/`_XML` suffix.
+  File pick(List<String> suffixes) =>
+      File('$dir/$which${suffixes.firstWhere((s) => File('$dir/$which$s').existsSync(), orElse: () => suffixes.first)}');
+  final binFile = pick(['_BIN.seq', '_labview_BIN.seq']);
+  final xmlFile = pick(['_XML.seq', '_python_XML.seq']);
   if (!binFile.existsSync() || !xmlFile.existsSync()) {
     stderr.writeln('missing pair for $which in $dir');
     exit(1);

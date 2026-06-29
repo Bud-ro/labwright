@@ -27,12 +27,24 @@ the hierarchical PropertyObject model is not yet decoded**. What is known:
   is not yet clean enough to extract objects byte-exactly.
 
 ### Record-region structure (Rosetta alignment, `tool/rosetta_probe.dart`)
-**Caveat on the oracle:** the Rosetta pairs are *structural* twins (the same NI measurement
-workflow saved by the LabVIEW vs Python toolchains), **not byte-identical content** — e.g.
-NIScope's binary uses different step names than its XML twin ("Update pin map" matches, but
-"Acquire a waveform…"/"Destroy and unregister…" exist only in the XML). So the twins
-validate *structure* (sequence/section/step counts, the standard property set), not exact
-per-field content. A content-exact check needs a true byte-twin (none fetched yet).
+**Two classes of Rosetta pair** (`tool/fetch_rosetta_pairs.sh`):
+- **Structural twins** — the same NI measurement workflow saved by the LabVIEW (binary) vs
+  Python (XML) toolchains: `NIDmm`/`NIFgen`/`NIScope` (TS 2021 SP1) and `DmmHAL`/`SmuFAL`
+  (TS 2023 Q4, from NI's abstraction-layer plugin). **Not byte-identical content** — e.g.
+  NIScope's binary uses different step names than its XML twin ("Update pin map" matches, but
+  "Acquire a waveform…"/"Destroy and unregister…" exist only in the XML). These validate
+  *structure* (sequence/section/step counts, the standard property set), not exact content.
+- **Content-exact twin** (`OutputVoltage_BIN.seq` / `OutputVoltage_XML.seq`) — the *same
+  file* (`OutputVoltageMeasurement_example.seq` in ni/measurement-plugin-python) that git
+  history shows re-saved binary→XML in one commit (PR #1258). This is the real decode
+  **oracle**: the binary name table walks in exact XML-tree order
+  (`SequenceFileData → Data → Objs → Seq → [0] → Sequence → MainSequence → Obj → Parameters
+  → Locals → ResultList → …`). The *only* known content delta is a bundled Python version
+  bump (3.9→3.10), so expect one or two differing leaf strings. Found via a web/GitHub
+  research sweep; no other content-exact public twin was located, and NI's own binary format
+  is publicly undocumented with no open-source TOF1 parser in any language. We deliberately
+  do **not** use TestStand product-install dumps or
+  unlicensed third-party test programs — only NI's MIT-licensed example repos.
 
 Aligning the NIScope binary against its XML twin established more of the encoding (verified
 on the bytes, not yet a full grammar):
