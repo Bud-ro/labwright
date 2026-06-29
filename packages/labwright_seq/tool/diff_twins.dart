@@ -84,10 +84,47 @@ void main(List<String> args) {
   for (final r in runs) {
     common += r.$3;
   }
+  final mode = args.length > 3 ? args[3] : 'runs';
   stdout.writeln('$aName(rr=$arr) vs $bName(rr=$brr): '
       '${runs.length} common runs >=$minRun B, $common B total\n');
+
+  String annot(Uint8List buf, int poolRr, int from, int to) {
+    final names = <String>{};
+    final bdl = ByteData.sublistView(buf);
+    final pool = <int, String>{
+      for (final s in binaryStrings(buf, minLength: 2))
+        if (s.offset >= poolRr) s.offset - poolRr: s.text,
+    };
+    for (var o = from; o + 4 <= to; o++) {
+      final n = pool[bdl.getUint32(o, Endian.little)];
+      if (n != null && n.length >= 3) names.add(n);
+    }
+    final ascii = StringBuffer();
+    for (var o = from; o < to && o < buf.length; o++) {
+      final c = buf[o];
+      ascii.write(c >= 0x20 && c < 0x7f ? String.fromCharCode(c) : '.');
+    }
+    return 'ascii="${ascii.toString().length > 60 ? '${ascii.toString().substring(0, 60)}…' : ascii}"'
+        '${names.isEmpty ? '' : '  names: ${names.take(6).join(", ")}'}';
+  }
+
+  if (mode == 'diffs') {
+    // print the DIFFERING regions (gaps between common A-runs), with the matching
+    // B-region, so measurement-specific content lines up against the XML diff.
+    var ai = 0, bi = 0;
+    for (final (ap, bp, len) in runs) {
+      if (ap > ai || bp > bi) {
+        stdout.writeln('DIFF  A@$ai..$ap (${ap - ai}B)  B@$bi..$bp (${bp - bi}B)');
+        if (ap > ai) stdout.writeln('   A: ${annot(a, arr, ai, ap)}');
+        if (bp > bi) stdout.writeln('   B: ${annot(b, brr, bi, bp)}');
+      }
+      ai = ap + len;
+      bi = bp + len;
+    }
+    return;
+  }
+
   for (final (ap, bp, len) in runs) {
-    // resolve name-refs (u32 rel-offsets) inside the run for context
     final names = <String>{};
     for (var o = 0; o + 4 <= len; o++) {
       final v = av.getUint32(ap + o, Endian.little);
