@@ -98,19 +98,31 @@ void main(List<String> args) {
       stderr.writeln('unknown spec: $spec');
       continue;
     }
-    stdout.writeln('\n===== $label  (${needle.length} bytes) =====');
-    var found = 0;
+    // total count first (whole body, and record-region-only), then dump first few.
+    final all = <int>[];
     for (var i = 0; i + needle.length <= body.length; i++) {
       var ok = true;
       for (var j = 0; j < needle.length; j++) {
         if (body[i + j] != needle[j]) { ok = false; break; }
       }
-      if (!ok) continue;
+      if (ok) all.add(i);
+    }
+    final inRr = all.where((p) => p < rr).toList();
+    stdout.writeln('\n===== $label  (${needle.length} bytes) — '
+        '${all.length} total, ${inRr.length} in record region =====');
+    if (inRr.length > 1) {
+      final gaps = [for (var i = 1; i < inRr.length; i++) inRr[i] - inRr[i - 1]];
+      gaps.sort();
+      stdout.writeln('  record-region gaps: min=${gaps.first} '
+          'median=${gaps[gaps.length ~/ 2]} max=${gaps.last}');
+    }
+    var found = 0;
+    for (final i in all) {
       found++;
       stdout.writeln('--- occurrence $found at @$i ---');
       _dumpContext(body, i, rr);
-      if (found >= 6) { stdout.writeln('  (more occurrences elided)'); break; }
+      if (found >= 4) { stdout.writeln('  (${all.length - 4} more elided)'); break; }
     }
-    if (found == 0) stdout.writeln('  NOT FOUND');
+    if (all.isEmpty) stdout.writeln('  NOT FOUND');
   }
 }
