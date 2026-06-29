@@ -12,9 +12,14 @@ void main(List<String> args) {
   for (final w in names) {
     var d = Directory.current;
     File? f;
-    for (var i = 0; i < 8; i++) {
-      final c = File('${d.path}/packages/labwright_seq/corpus/seq/rosetta/${w}_labview_BIN.seq');
-      if (c.existsSync()) { f = c; break; }
+    for (var i = 0; i < 8 && f == null; i++) {
+      for (final root in ['${d.path}/packages/labwright_seq/corpus/seq/rosetta', '${d.path}/corpus/seq/rosetta']) {
+        for (final suf in ['_BIN.seq', '_labview_BIN.seq']) {
+          final c = File('$root/$w$suf');
+          if (c.existsSync()) { f = c; break; }
+        }
+        if (f != null) break;
+      }
       d = d.parent;
     }
     if (f == null) continue;
