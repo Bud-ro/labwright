@@ -30,8 +30,6 @@ Map<String, Object?> _objectToJson(ViHeapObject o) {
   final m = <String, Object?>{
     'oid': o.oid,
     'kindCode': o.kind,
-    // the documented class catalog entry: human label + structural category +
-    // how well-grounded the name is (clean-room honesty).
     'class': {
       'label': cls.label,
       'category': cls.category.name,
@@ -92,23 +90,17 @@ Map<String, Object?> viModelToJson(ViModel m) => {
       if (m.symbolNames.isNotEmpty) 'symbolNames': m.symbolNames,
       if (m.paths.isNotEmpty) 'libraryPaths': m.paths,
       if (m.subViNames.isNotEmpty) 'subViNames': m.subViNames,
-      // Connector pane (the VI's interface): the VCTP index + resolved terminal
-      // types/names. Input/output direction is NOT recovered from the diagram.
       if (m.connectorPaneTypeIndex != null) 'connectorPaneTypeIndex': m.connectorPaneTypeIndex,
       if (_conpaneTerminals(m) != null) 'connectorPaneTerminals': _conpaneTerminals(m),
-      // VCTP type pool: a compact inventory (count + kind histogram). The full
-      // ordered descriptor list lives on ViModel.types; the JSON keeps a summary.
       if (m.types.isNotEmpty) 'typeCount': m.types.length,
       if (m.types.isNotEmpty) 'typeHistogram': typeKindHistogram(m.types),
-      // named typedefs / labelled data items (capped to keep the IR compact)
       if (namedTypes(m.types).isNotEmpty)
         'namedTypes': [
           for (final t in namedTypes(m.types).take(200))
             {
               'index': t.index,
-              'kind': typeLabel(t, m.types), // resolves array<elem>
+              'kind': typeLabel(t, m.types),
               'name': t.name,
-              // for a named cluster, its resolved member fields (the struct)
               if (t.members.isNotEmpty)
                 'members': [
                   for (final f in clusterFields(t, m.types)) {'kind': typeLabel(f, m.types), if (f.name != null) 'name': f.name},

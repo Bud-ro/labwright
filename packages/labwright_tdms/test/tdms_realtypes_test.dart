@@ -57,11 +57,11 @@ Uint8List _buildTdms({
   u32(meta, chans.length, endian);
   for (final c in chans) {
     str(meta, c.path, endian);
-    u32(meta, 20, endian); // raw-data index length (reader reads fields directly)
+    u32(meta, 20, endian);
     u32(meta, c.dtype, endian);
-    u32(meta, 1, endian); // dimension
+    u32(meta, 1, endian);
     u64(meta, c.values.length, endian);
-    u32(meta, 0, endian); // property count
+    u32(meta, 0, endian);
   }
 
   final raw = BytesBuilder();
@@ -82,12 +82,12 @@ Uint8List _buildTdms({
 
   final metaB = meta.toBytes();
   final rawB = raw.toBytes();
-  final out = BytesBuilder()..add(Uint8List.fromList([0x54, 0x44, 0x53, 0x6D])); // TDSm
+  final out = BytesBuilder()..add(Uint8List.fromList([0x54, 0x44, 0x53, 0x6D]));
   var toc = (1 << 1) | (1 << 2) | (1 << 3);
   if (endian == Endian.big) toc |= 1 << 6;
   if (interleaved) toc |= 1 << 5;
-  u32(out, toc, Endian.little); // ToC mask is always little-endian
-  u32(out, 4713, endian); // version + offsets honor the segment endianness
+  u32(out, toc, Endian.little);
+  u32(out, 4713, endian);
   u64(out, metaB.length + rawB.length, endian);
   u64(out, metaB.length, endian);
   out

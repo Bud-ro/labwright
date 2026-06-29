@@ -6,7 +6,6 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 void main() {
   testWidgets('starts empty, loads the demo VI, and shows its details', (tester) async {
-    // Tall viewport so the whole (lazy) ListView builds for the assertions.
     tester.view.physicalSize = const Size(1000, 2000);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -19,9 +18,9 @@ void main() {
     await tester.pump();
 
     expect(find.text('demo.vi'), findsOneWidget);
-    expect(find.text('Block diagram (logic)'), findsOneWidget); // capability chip
-    expect(find.text('BDHb'), findsOneWidget); // inventory chip
-    expect(find.textContaining('Read-only viewer'), findsOneWidget); // honesty card
+    expect(find.text('Block diagram (logic)'), findsOneWidget);
+    expect(find.text('BDHb'), findsOneWidget);
+    expect(find.textContaining('Read-only viewer'), findsOneWidget);
   });
 
   testWidgets('shows decoded version/title and a searchable string list', (tester) async {
@@ -54,15 +53,13 @@ void main() {
     expect(find.textContaining('Embedded strings (3)'), findsOneWidget);
     expect(find.text('Conversion time'), findsOneWidget);
     expect(find.text('Components (by decompressed size)'), findsOneWidget);
-    expect(find.text('BDEx'), findsOneWidget); // exact 'BDEx' is the components row only
-    expect(find.textContaining('76.2 KB'), findsWidgets); // 78000 bytes (components + inventory)
+    expect(find.text('BDEx'), findsOneWidget);
+    expect(find.textContaining('76.2 KB'), findsWidgets);
 
-    // Block inventory: catalog-driven identity per block, grouped by category.
     expect(find.text('Block inventory (by category)'), findsOneWidget);
-    expect(find.text('recordHeap'), findsOneWidget); // category header (FPHb)
-    expect(find.textContaining('Front-panel heap'), findsOneWidget); // FPHb name + confidence row
+    expect(find.text('recordHeap'), findsOneWidget);
+    expect(find.textContaining('Front-panel heap'), findsOneWidget);
 
-    // Filtering the string list.
     await tester.enterText(find.byKey(const Key('string-search')), 'error');
     await tester.pump();
     expect(find.text('error out'), findsOneWidget);
@@ -88,14 +85,13 @@ void main() {
         initialEmbeddedVis: [
           ViEmbeddedVi(name: 'abc12345-0000.vi', sizeBytes: 10170),
           ViEmbeddedVi(name: 'UMLEditor Main .vi', sizeBytes: 25638),
-          ViEmbeddedVi(name: null, sizeBytes: 1234), // name not cleanly recovered
+          ViEmbeddedVi(name: null, sizeBytes: 1234),
         ],
       ),
     ));
 
     expect(find.text('Owning library'), findsOneWidget);
     expect(find.text('MQTT Server.lvlib'), findsOneWidget);
-    // count reflects all 3 embedded VIs; the listing shows the clean .vi names
     expect(find.text('Embedded VIs (3)'), findsOneWidget);
     expect(find.textContaining('abc12345-0000.vi'), findsOneWidget);
     expect(find.textContaining('UMLEditor Main .vi'), findsOneWidget);
@@ -106,7 +102,6 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
-    // a real, parseable nested VI as the embedded payload
     final nested = demoViBytes(name: 'NestedDemo.vi');
     await tester.pumpWidget(MaterialApp(
       home: ViInspectorScreen(
@@ -130,7 +125,6 @@ void main() {
     await tester.tap(find.text('inner.vi'));
     await tester.pump();
 
-    // the nested VI is now loaded: source label updated + its recovered name shows
     expect(find.textContaining('embedded: inner.vi'), findsOneWidget);
     expect(find.text('NestedDemo.vi'), findsWidgets);
   });

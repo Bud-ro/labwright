@@ -209,7 +209,6 @@ enum ClassConfidence {
 /// Resolve a raw code with [HeapObjectClass.fromCode]; the per-object catalog
 /// entry is [ViHeapObject.objectClass].
 enum HeapObjectClass {
-  // --- Diagram structure / containers ---
   /// `0x7E` — the single **heap root** of a diagram (in both the BD and FP heaps);
   /// parentOid == null in all 15136 roots across the corpus.
   diagramRoot(0x7e, 'Diagram root', ViObjectKind.structure, ClassConfidence.confirmed),
@@ -337,7 +336,6 @@ enum HeapObjectClass {
   /// from the faithful render.
   contentViewport(0x11c, 'Content viewport', ViObjectKind.structure, ClassConfidence.confirmed),
 
-  // --- Nodes ---
   /// `0x12` — a **front-panel content group** (no bounds; never drawn) that holds
   /// the placed controls. Corpus: 42299 FP instances, 0 drawn, 41514 parented
   /// directly to the panel frame `0x4c`, with control/structure children
@@ -499,7 +497,6 @@ enum HeapObjectClass {
   /// `Empty String Constant`, `delimiter (Tab)`). Renders as a generic terminal.
   bdConstant4e(0x4e, 'Constant/terminal (BD)', ViObjectKind.terminal, ClassConfidence.inferred),
 
-  // --- Control / indicator terminal containers (top-level on the diagram) ---
   /// `0x50` — a **numeric** control/indicator terminal (defining signal: a
   /// `0xE0` numeric-display child + `C4 74` printf format).
   numericControl(0x50, 'Numeric control', ViObjectKind.terminal, ClassConfidence.confirmed),
@@ -545,7 +542,6 @@ enum HeapObjectClass {
   /// `0x59` — a rare control variant.
   controlVariant(0x59, 'Control (variant)', ViObjectKind.terminal, ClassConfidence.kindOnly),
 
-  // --- Internal control sub-parts (nested only) ---
   /// `0x0C` — a node/control **terminal cluster**: carries the `C4 1F` terminals
   /// (100% do).
   nodeTerminalCluster(0x0c, 'Terminal cluster', ViObjectKind.terminalCluster, ClassConfidence.confirmed),
@@ -570,7 +566,6 @@ enum HeapObjectClass {
   /// `0xC1` — a **tip-strip / help-text** sub-part (`C4 19` only).
   tipStrip(0xc1, 'Tip strip', ViObjectKind.terminal, ClassConfidence.confirmed),
 
-  // --- Decorations / chrome ---
   /// `0x09` — **control chrome / resize handle**: a bounded, child-less,
   /// never-labelled leaf — the visual frame/handle of a control or structure.
   /// Suppressed from the faithful render.
@@ -585,7 +580,6 @@ enum HeapObjectClass {
   /// `0xD2` — a legend **inner part**.
   legendSubPart(0xd2, 'Legend sub-part', ViObjectKind.decoration, ClassConfidence.inferred),
 
-  // --- Rare / undetermined ---
   /// `0x58` — rare; appears only as a parent of `0x0C`.
   rare58(0x58, 'Undetermined (0x58)', ViObjectKind.unknown, ClassConfidence.kindOnly),
 
@@ -640,19 +634,28 @@ const kControlTerminalCodes = {0x50, 0x4f, 0x57, 0x5b, 0x51};
 /// text. (0x31 names were dropped — they sit on non-drawable structural objects.)
 const _objAttrIds = {0x20, 0x21, 0x6c};
 
+/// Pixel-area threshold (width×height) for the structural node fallback in
+/// `buildDiagram`. A still-`unknown` object that otherwise matches the BD-node
+/// signature (drawable, parented to the node container `0x1b`, holding the
+/// structural `0x15` records, no `0x68` connector child) is reclassified as a
+/// node — but only below this cap, so a rare large unknown object (a possible
+/// structure body) stays a faint placeholder rather than a big node box. The
+/// fallback classifies ~1953 objects across ~22 low-frequency kinds without
+/// enumerating each.
+const int _structureAreaCap = 20000;
+
 String _fmtNum(double v) =>
     v == v.roundToDouble() && v.abs() < 1e15 ? v.toInt().toString() : v.toString();
 
 /// A human-readable range string for a control's decoded [min]/[max], or null
-/// when there is nothing meaningful to show. Honest: uses only **finite** bounds
-/// (a `±∞` sentinel = "no bound" and an absent bound are both omitted), drops an
-/// inverted *or degenerate* finite pair (`lo >= hi`, so `5 … 5` / `0 … -0.0`
-/// read as noise rather than a real range), and renders a one-sided bound as
-/// `≥ x` / `≤ x`.
+/// when there is nothing meaningful to show. Honest: a NaN in either slot means
+/// the pair is uninitialized/untrustworthy (corpus: a NaN max paired with a
+/// 0/-0.0 min was ~60% of "ranges" — decode noise), so the whole range is
+/// suppressed. Otherwise it uses only **finite** bounds (a `±∞` sentinel =
+/// "no bound" and an absent bound are both omitted), drops an inverted *or
+/// degenerate* finite pair (`lo >= hi`, so `5 … 5` / `0 … -0.0` read as noise
+/// rather than a real range), and renders a one-sided bound as `≥ x` / `≤ x`.
 String? formatControlRange(double? min, double? max) {
-  // A NaN in EITHER slot means the pair is uninitialized/untrustworthy (corpus:
-  // a NaN max paired with a 0/-0.0 min was ~60% of "ranges" — decode noise, not a
-  // real bound). Suppress the whole range, not just the NaN half.
   if ((min?.isNaN ?? false) || (max?.isNaN ?? false)) return null;
   final lo = (min != null && min.isFinite) ? min : null;
   final hi = (max != null && max.isFinite) ? max : null;
@@ -689,12 +692,17 @@ ViObjectKind classifyObject({required int kind, required int termCount}) {
   return HeapObjectClass.fromCode(kind).category;
 }
 
+/// The printf integer-conversion chars (`b` `d` `o` `x` `X`) that mark a numeric
+/// format as integer rather than float. See [inferTypeKind].
+const _intConvChars = {0x62, 0x64, 0x6f, 0x78, 0x58};
+
 /// The printf conversion char of a `C4 74` numeric format-string payload, or null.
 int? _formatConvChar(List<int> payload) {
+  const percent = 0x25;
   var seenPercent = false;
   for (final c in payload) {
     if (!seenPercent) {
-      if (c == 0x25) seenPercent = true; // '%'
+      if (c == percent) seenPercent = true;
       continue;
     }
     if ((c >= 0x41 && c <= 0x5a) || (c >= 0x61 && c <= 0x7a)) return c;
@@ -710,8 +718,7 @@ ViTypeKind inferTypeKind(Set<int> c4ops, List<int>? formatPayload) {
   if (c4ops.contains(0x2e)) return ViTypeKind.enumRing;
   if (c4ops.contains(0x74)) {
     final conv = formatPayload == null ? null : _formatConvChar(formatPayload);
-    const intConvs = {0x62, 0x64, 0x6f, 0x78, 0x58}; // b d o x X
-    return (conv != null && intConvs.contains(conv)) ? ViTypeKind.numericInt : ViTypeKind.numericFloat;
+    return (conv != null && _intConvChars.contains(conv)) ? ViTypeKind.numericInt : ViTypeKind.numericFloat;
   }
   return ViTypeKind.unknown;
 }
@@ -761,8 +768,6 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
   final fmt = <ViHeapObject, List<int>>{};
   final absTop = <ViHeapObject, int>{};
   final absLeft = <ViHeapObject, int>{};
-  // Group stack: each entry is (object-or-null, isObject). Non-object groups
-  // (typed lists like `10 55 01 fb`) are pushed too, so closes balance.
   final stack = <ViHeapObject?>[];
   final n = body.length;
 
@@ -793,7 +798,6 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
         );
         final parent = innermostObject();
         cur.parentOid = parent?.oid;
-        // absolute origin starts at the parent object's origin (pass-through).
         absTop[cur] = parent == null ? 0 : (absTop[parent] ?? 0);
         absLeft[cur] = parent == null ? 0 : (absLeft[parent] ?? 0);
         objects.add(cur);
@@ -839,33 +843,23 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
       } else if (rec.opcode == 0x19) {
         cur.helpText ??= rec.descriptionText;
       } else if (rec.opcode == 0x27) {
-        // Graph/chart plot name ("Plot 0"/"Line 0") — attaches to the 0x5E graph.
         final t = rec.text ?? rec.path ?? rec.descriptionText;
         if (t != null && t.isNotEmpty) cur.plotNames = [...cur.plotNames, t];
       }
     } else if (lead == 0x14) {
-      // Typed object reference (the heap's declared object graph). Single-source
-      // via decodeHeapRef (handles every subop + rejects the 0x53 literal).
       final r = decodeHeapRef(body, o);
       if (r != null) {
         (cur.typedRefs[r.kind] ??= <int>[]).add(r.targetOid);
         if (r.kind == HeapRefKind.childRef) cur.refs.add(r.targetOid);
       }
     } else if (o + 1 < n && _objAttrIds.contains(body[o + 1])) {
-      // Fast-reject by id (most else-spans carry none) before the heavier
-      // decodeHeapAttr, then surface a few decoded attributes on the object.
       final a = decodeHeapAttr(body, o);
       if (a != null) {
         final d = a.asDouble;
-        // Numeric-control range: ONLY the 0x20/0x21 f64 form, and ONLY on control
-        // terminals. (0xF5/0xF7 land on decorations with inverted values, so they
-        // are not used for the object-level range.)
         if (d != null && kControlTerminalCodes.contains(cur.kind)) {
           if (a.attribute == HeapAttribute.foregroundColor) cur.controlMin ??= d;
           if (a.attribute == HeapAttribute.foregroundColorB) cur.controlMax ??= d;
         }
-        // Help text ONLY from the genuine C6 6C FF blob (the <u8len> form carries
-        // library/format tokens, not help — see HeapAttribute.helpDescription).
         if (a.attribute == HeapAttribute.helpDescription && o + 2 < n && body[o + 2] == 0xff) {
           final s = a.asString;
           if (s != null && s.isNotEmpty) cur.helpText ??= s;
@@ -879,9 +873,6 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
     o.typeKind = inferTypeKind(c4ops[o] ?? const <int>{}, fmt[o]);
   }
 
-  // Propagate enum item-lists up to their enclosing control: the `C4 2E` items
-  // live on the `0x0d` item-list child, but the faithful render needs them on
-  // the enum/ring control object itself.
   final byOidItems = {for (final o in objects) o.oid: o};
   for (final o in objects) {
     if (o.items.isEmpty) continue;
@@ -899,14 +890,6 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
     }
   }
 
-  // Propagate help text up to the nearest DRAWABLE ancestor: help usually lives on
-  // a non-drawable tip-strip (0xc1) / description child that carries no bounds, but
-  // the details card / faithful tooltip can only show it on a drawn object. Corpus:
-  // 97% of help-bearing objects have a drawable ancestor. ~25% of landings are on a
-  // non-control drawable (predominantly a 0x53 structure) — intentional: structures
-  // own help too, and the walk takes the *nearest* drawable, so it never bypasses a
-  // drawable control to reach an enclosing structure. First-wins (`??=`) never
-  // overwrites an ancestor that already carries its own help.
   for (final o in objects) {
     final h = o.helpText;
     if (h == null || h.isEmpty || o.absBounds != null) continue;
@@ -923,38 +906,22 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
     }
   }
 
-  // Give each BD node its name: the function/subVI caption lives on a child `0xa`
-  // label (e.g. "PicoScope2000aOpen.vi", "Build Array"), not on the node object
-  // itself (node.label is null). Copy it up so the details card / tooltip name the
-  // selected node. The faithful render keeps the node box as an icon placeholder
-  // and still draws that 0xa child as a floating label where LabVIEW places it, so
-  // this does not double-print on the canvas — it only enriches selection/inspect.
   final nodeKids = <int, List<ViHeapObject>>{};
   for (final o in objects) {
     if (o.parentOid != null) (nodeKids[o.parentOid!] ??= <ViHeapObject>[]).add(o);
   }
 
-  // Structural node fallback: the BD node tail is dozens of low-frequency kinds
-  // that all share one signature — a drawable object parented to the node
-  // container `0x1b`, holding the structural `0x15` records, with NO `0x68`
-  // connector child (that would make it a terminal). It may also carry a `0xa`
-  // caption / `0x10b`/`0xbc`/`0x1b` sub-records (e.g. subVI calls `…​.vi`, formula
-  // nodes `x*4+6`). Rather than enumerate every kind (0x2f/0x63/0x124/0xc0/…),
-  // classify any still-`unknown` object matching it as a node so it renders as a
-  // node box (and the `0xa` caption then propagates to its name). Corpus: ~1953
-  // objects across ~22 kinds. A size cap keeps a rare large still-unknown object
-  // (a possible structure body) as a faint placeholder rather than a big node box.
   for (final o in objects) {
     if (o.category != ViObjectKind.unknown) continue;
     final b = o.absBounds;
     if (b == null || b.width <= 0 || b.height <= 0) continue;
-    if (b.width * b.height >= 20000) continue; // structure-sized -> leave as unknown
+    if (b.width * b.height >= _structureAreaCap) continue;
     if (o.parentOid == null || byOidItems[o.parentOid]?.kind != 0x1b) continue;
     final cs = nodeKids[o.oid];
     if (cs == null) continue;
     final hasStructural = cs.any((c) => c.kind == 0x15);
     final hasConnector = cs.any((c) => c.kind == 0x68);
-    if (!hasStructural || hasConnector) continue; // need node records; a 0x68 = terminal
+    if (!hasStructural || hasConnector) continue;
     o.category = ViObjectKind.node;
   }
 
@@ -985,10 +952,10 @@ List<String> _parseEnumItems(List<int> payload) {
   while (i < payload.length) {
     final len = payload[i++];
     if (len == 0) continue;
-    if (i + len > payload.length) return const []; // malformed → untrustworthy table
+    if (i + len > payload.length) return const [];
     final s = String.fromCharCodes(payload.sublist(i, i + len));
     i += len;
-    if (!s.codeUnits.every((c) => c >= 0x20 && c < 0x7f)) return const []; // ordinal-unsafe
+    if (!s.codeUnits.every((c) => c >= 0x20 && c < 0x7f)) return const [];
     out.add(s);
   }
   return out;
@@ -1020,35 +987,25 @@ void _reanchorScrolledControls(List<ViHeapObject> objects) {
     if (o.parentOid != null) (kids[o.parentOid!] ??= <ViHeapObject>[]).add(o);
   }
 
-  // The viewport to re-anchor [o] to — its nearest `0x11c` ancestor — but only
-  // if no *other control* sits between them. A control nested inside another
-  // control (e.g. a sub-element of a path/cluster control) is positioned
-  // relative to that parent control, not the viewport, so it must ride along
-  // with the parent's subtree shift rather than be re-anchored independently
-  // (otherwise it lands far outside, using the wrong origin).
+  /// The viewport to re-anchor [o] to — its nearest `0x11c` ancestor — but null
+  /// if any control or other positioned/bounded container sits between them
+  /// (those put [o]'s bounds in that container's frame, not the viewport's, so it
+  /// must ride along with the parent's subtree shift instead). Guards a parentOid
+  /// cycle (oids can repeat) so the walk can't loop forever.
   int? reanchorViewport(ViHeapObject o) {
     var p = o.parentOid;
-    // Guard against a parentOid cycle (oids can repeat; byOid is last-wins, so two
-    // objects can cross-link) — without this the walk loops forever on adversarial
-    // input, like the shiftSubtree guard below.
     final seen = <int>{};
     while (p != null) {
       if (!seen.add(p)) return null;
       final po = byOid[p];
       if (po == null) return null;
-      if (po.kind == 0x11c) return po.oid; // reached the viewport → re-anchor
-      // A control, or ANY other positioned/bounded container (e.g. a 0x52
-      // case/sequence or 0x64 cluster shell), between this control and the
-      // viewport means the control's bounds are in THAT container's frame, not
-      // the viewport's. Re-anchoring with the viewport group's min-corner would
-      // mix frames and fling it outside — ride along with its parent instead.
+      if (po.kind == 0x11c) return po.oid;
       if (kControlTerminalCodes.contains(po.kind) || po.bounds != null) return null;
       p = po.parentOid;
     }
     return null;
   }
 
-  // Group re-anchorable controls by the viewport that owns them.
   final groups = <int, List<ViHeapObject>>{};
   for (final o in objects) {
     if (!kControlTerminalCodes.contains(o.kind) || o.bounds == null || o.absBounds == null) continue;
@@ -1056,24 +1013,14 @@ void _reanchorScrolledControls(List<ViHeapObject> objects) {
     if (v != null) (groups[v] ??= <ViHeapObject>[]).add(o);
   }
 
+  /// Shifts [root] and its whole subtree by (dTop, dLeft). Because `kids` is keyed
+  /// by oid and oids can repeat, two guards keep this O(reachable) instead of
+  /// O(objects^2) on large diagrams: dedup by object identity at enqueue (`seen`),
+  /// and expand each oid's child list at most once (`expanded`). Each object is
+  /// still shifted exactly once by the same delta, so the result is unchanged.
   void shiftSubtree(ViHeapObject root, int dTop, int dLeft) {
     if (dTop == 0 && dLeft == 0) return;
-    // `kids` is keyed by parentOid, and oids repeat across objects (a control
-    // nested under an object sharing its oid makes kids[oid] contain itself, and
-    // popular oids collect unrelated children). Dedup by object identity *at
-    // enqueue* so each object enters the queue at most once: this both stops a
-    // self-referential/cyclic list from looping forever and bounds the queue to
-    // O(reachable objects). (Guarding only at dequeue let a heavily-reused oid
-    // enqueue the same objects O(objects) times over, blowing the queue up to
-    // O(objects^2) — minutes and gigabytes on large diagrams.) Each object is
-    // still shifted exactly once by the same constant delta, so the result is
-    // identical.
     final seen = <ViHeapObject>{root};
-    // `kids` is keyed by oid, so every object sharing an oid maps to the *same*
-    // child list. Expand each oid at most once — otherwise a reused oid rescans
-    // its (often large) child list once per sharer, costing O(sharers x children)
-    // even though every child is already queued. That rescan, not the queue, was
-    // the remaining O(objects^2) blow-up on large diagrams.
     final expanded = <int>{};
     final work = <ViHeapObject>[root];
     while (work.isNotEmpty) {

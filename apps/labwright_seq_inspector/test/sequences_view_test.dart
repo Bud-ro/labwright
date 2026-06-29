@@ -8,8 +8,6 @@ import 'package:labwright_seq_inspector/src/sequences_view.dart';
 
 void main() {
   group('adapterColor', () {
-    // The adapters that name a code module (and so get a distinct chip color).
-    // none/unknown are flow-control / not-yet-recognized and use the fallback.
     const fallbackAdapters = {SeqAdapter.none, SeqAdapter.unknown};
 
     test('every code-bearing SeqAdapter has a color (catches enum drift)', () {
@@ -63,8 +61,6 @@ void main() {
           notes: const [],
         )),
       );
-      // The first sequence is expanded by default, so the Main group + step
-      // render (the step name itself is a RichText, hence the group anchor).
       expect(find.text('Main'), findsOneWidget);
       expect(find.text('mode: Skip'), findsOneWidget);
     });
@@ -124,7 +120,6 @@ void main() {
         )),
       );
       expect(find.text('Arguments'), findsOneWidget);
-      // Direction-tagged labels and the bound expressions both render.
       expect(find.text('LoginName (in)'), findsOneWidget);
       expect(find.text('Return Value (out)'), findsOneWidget);
       expect(find.text('FileGlobals.UserToAutoLogin'), findsOneWidget);
@@ -145,8 +140,8 @@ void main() {
         )),
       );
       expect(find.text('Limits'), findsOneWidget);
-      expect(find.text('Units'), findsOneWidget); // the row label
-      expect(find.text('mA'), findsOneWidget); // the value
+      expect(find.text('Units'), findsOneWidget);
+      expect(find.text('mA'), findsOneWidget);
     });
 
     testWidgets('shows recorded units as a chip when the step has no limits',
@@ -223,8 +218,6 @@ void main() {
             ],
             comment: comment,
           );
-      // Two sequences: only the first is expanded by default, so the second's
-      // comment is visible solely via its collapsed subtitle preview.
       await pump(
         tester,
         SeqOutline([seq('First', null), seq('Second', 'Cleans up the DUT')]),
@@ -234,7 +227,7 @@ void main() {
 
     testWidgets('very long recovered text wraps without overflow',
         (tester) async {
-      final long = 'X${' word' * 200}'; // ~1000 chars, no hard breaks
+      final long = 'X${' word' * 200}';
       await pump(
         tester,
         SeqOutline([
@@ -257,19 +250,16 @@ void main() {
           ),
         ]),
       );
-      // A RenderFlex/text overflow surfaces as a thrown exception during layout;
-      // assert none occurred (the comment/expression rows must wrap, not clip).
       expect(tester.takeException(), isNull);
     });
   });
 
   group('flow-control nesting in the outline', () {
     SeqFile parse(String xml) => parseSeqFile(Uint8List.fromList([
-          0xef, 0xbb, 0xbf, // BOM
+          0xef, 0xbb, 0xbf,
           ...xml.codeUnits,
         ]));
 
-    // if { action } end ; for each { action } end — balanced blocks.
     final file = parse('''<?xml version="1.0" encoding="UTF-8"?>
 <teststandfileheader type='SequenceFile' fileversion='920' productname='TestStand'>
   <typelist/>
@@ -298,13 +288,12 @@ void main() {
       final steps = SeqOutline.of(file).sequences.single.groups.single.steps;
       expect(steps.map((s) => s.flowHeader), [
         'if (Locals.X > 0)',
-        null, // inner action
+        null,
         'end',
         'for each (Locals.Item in Locals.Items)',
-        null, // inner action
+        null,
         'end',
       ]);
-      // The body of each block indents one level; the opener/end sit at level 0.
       expect(steps.map((s) => s.flowDepth), [0, 1, 0, 0, 1, 0]);
     });
 

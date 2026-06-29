@@ -16,12 +16,9 @@ class ViTypesView extends StatefulWidget {
 }
 
 class _ViTypesViewState extends State<ViTypesView> {
-  // Caps so a large/hostile VCTP can't blow up the rendered string (the decoder
-  // admits up to 200000 types, 512 members, 256 items) — mirrors the scaffold.
   static const int _typeCap = 500;
   static const int _itemCap = 64;
 
-  // Adjustable monospace size (the fixed default was hard to read on 4K).
   static const double _minFont = 9;
   static const double _maxFont = 28;
   double _fontSize = 13;

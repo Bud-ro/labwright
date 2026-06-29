@@ -16,6 +16,9 @@ import 'dart:typed_data';
 import '../viparse.dart' show ViSection;
 import 'block_catalog.dart' show BlockConfidence;
 
+/// ASCII `"PTH0"` — the four magic bytes that head a LabVIEW path record.
+const List<int> _pth0Magic = [0x50, 0x54, 0x48, 0x30];
+
 /// A decoded `PTH0` path (from an `HLPP` block).
 class ViHelpPath {
   const ViHelpPath({
@@ -49,7 +52,8 @@ class ViHelpPath {
 /// `isPth0: false` (empty path) when the magic is absent rather than guessing.
 ViHelpPath? decodeHelpPath(Uint8List b) {
   if (b.length < 12) return null;
-  final isPth0 = b[0] == 0x50 && b[1] == 0x54 && b[2] == 0x48 && b[3] == 0x30; // "PTH0"
+  final isPth0 =
+      b[0] == _pth0Magic[0] && b[1] == _pth0Magic[1] && b[2] == _pth0Magic[2] && b[3] == _pth0Magic[3];
   if (!isPth0) {
     return ViHelpPath(rawLength: b.length, isPth0: false, pathType: 0, components: const []);
   }

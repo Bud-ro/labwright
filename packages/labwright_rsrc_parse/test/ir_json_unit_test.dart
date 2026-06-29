@@ -3,13 +3,8 @@ import 'dart:convert';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
-// Deterministic (no-corpus) unit tests for viModelToJson, built from direct
-// constructors so the emitted key SET and the non-finite drop are pinned exactly
-// — guarding the IR shape and the jsonEncode-safety claim.
-
 void main() {
   test('GOLDEN: emitted top-level + node key sets are pinned (update if the IR shape changes)', () {
-    // a fully-populated node so every conditional key is present at once
     final node = ViHeapObject(oid: 7, kind: 0x12, offset: 0)
       ..category = ViObjectKind.node
       ..parentOid = 1
@@ -35,12 +30,11 @@ void main() {
     );
 
     final json = viModelToJson(model);
-    // This model has version/title/description/subViNames but no symbolNames or
-    // libraryPaths (no heap records), so those two are absent here.
     expect(
       json.keys.toSet(),
       {'labviewVersion', 'title', 'description', 'subViNames', 'blockDiagrams', 'frontPanelDiagrams'},
-      reason: 'top-level key set changed (IR shape) — update this golden expectation',
+      reason: 'top-level key set changed (IR shape) — update this golden expectation. '
+          'symbolNames/libraryPaths are absent here because this model has no heap records.',
     );
 
     final emittedNode = ((json['blockDiagrams'] as List).first as Map)['objects'] as List;
@@ -53,7 +47,6 @@ void main() {
       },
       reason: 'node key set changed (IR shape) — update this golden expectation',
     );
-    // class is a nested map with its three documented keys
     expect(((emittedNode.first as Map)['class'] as Map).keys.cast<String>().toSet(),
         {'label', 'category', 'confidence'});
   });
@@ -62,8 +55,8 @@ void main() {
     final node = ViHeapObject(oid: 1, kind: 0x50, offset: 0)
       ..category = ViObjectKind.terminal
       ..absBounds = const HeapRect(top: 0, left: 0, bottom: 10, right: 10)
-      ..controlMin = double.negativeInfinity // "no minimum" sentinel
-      ..controlMax = double.infinity; //         "no maximum" sentinel
+      ..controlMin = double.negativeInfinity
+      ..controlMax = double.infinity;
 
     final model = ViModel(
       version: null,
@@ -79,8 +72,8 @@ void main() {
     final keys = (emitted.first as Map).keys;
     expect(keys, isNot(contains('controlMin')));
     expect(keys, isNot(contains('controlMax')));
-    // jsonEncode would THROW on Infinity/NaN — this proves they never reach JSON
-    expect(() => jsonEncode(json), returnsNormally);
+    expect(() => jsonEncode(json), returnsNormally,
+        reason: 'jsonEncode throws on Infinity/NaN — the sentinels must never reach JSON');
   });
 
   test('connector pane: index + resolved terminals are emitted in the IR JSON', () {
@@ -93,12 +86,13 @@ void main() {
       stringTables: [],
       heapRecords: [],
       types: [dbl, cluster],
-      connectorPaneTypeIndex: 2, // 1-based -> the cluster
+      connectorPaneTypeIndex: 2,
     );
     final json = viModelToJson(model);
-    expect(json['connectorPaneTypeIndex'], 2);
+    expect(json['connectorPaneTypeIndex'], 2,
+        reason: '1-based index into the type pool -> the cluster');
     final terms = json['connectorPaneTerminals'] as List;
-    expect(terms, hasLength(1)); // the cluster's one member
+    expect(terms, hasLength(1), reason: "the cluster's one member");
     expect((terms.first as Map)['kind'], 'dbl');
     expect((terms.first as Map)['name'], 'Threshold');
     expect(() => jsonEncode(json), returnsNormally);

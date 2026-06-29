@@ -106,9 +106,6 @@ String generateDartScaffold(ViModel model, {String name = 'vi'}) {
       b.writeln('//   (+${named.length - _namedTypeCap} more not shown)');
     }
   }
-  // Recovered cluster structures (named clusters with resolved member fields) —
-  // honest field KINDS (+ a member's typedef name where it has one); shown as a
-  // comment, not real Dart, since field names are only partially recoverable.
   final structs = [
     for (final t in model.types)
       if (t.kind == ViDataType.cluster && t.name != null && t.members.isNotEmpty) t,
@@ -125,10 +122,6 @@ String generateDartScaffold(ViModel model, {String name = 'vi'}) {
       b.writeln('//   (+${structs.length - _structCap} more not shown)');
     }
   }
-  // Connector pane — the VI's actual interface terminals (from CONP -> VCTP).
-  // More reliable than caption-guessing: when the conpane type is a cluster its
-  // members ARE the terminals; otherwise it is a single terminal. Direction
-  // (input vs output) is NOT recovered from the diagram, so we don't claim it.
   final cpIdx = model.connectorPaneTypeIndex;
   final cpTerms = <ViType>[];
   if (cpIdx != null && cpIdx >= 1 && cpIdx <= model.types.length) {
@@ -140,10 +133,6 @@ String generateDartScaffold(ViModel model, {String name = 'vi'}) {
       b.writeln('//   ${typeLabel(t, model.types)}$nm');
     }
   }
-  // Candidate parameters: the VI's recovered control/label captions. These are
-  // the NAMES of the VI's controls/indicators — the raw material of its function
-  // signature — but the block diagram alone does not say which are inputs vs
-  // outputs, nor their types, so they are listed (not turned into typed params).
   final captions = model.captions;
   if (captions.isNotEmpty) {
     b.writeln('// Candidate parameters (control/label captions — direction & type');
@@ -155,9 +144,6 @@ String generateDartScaffold(ViModel model, {String name = 'vi'}) {
       b.writeln('//   (+${captions.length - _captionCap} more not shown)');
     }
   }
-  // A suggested (commented) signature from the conpane terminals — all terminals
-  // listed positionally; in/out direction is NOT recovered, so they are not split
-  // into params vs returns, and the real stub stays `void`.
   if (cpTerms.isNotEmpty) {
     final sig = [
       for (final t in cpTerms)
@@ -190,15 +176,17 @@ String generateDartScaffold(ViModel model, {String name = 'vi'}) {
   return b.toString();
 }
 
+/// Emits one diagram's structures/nodes into [b]. Children are walked in
+/// positional (visual top→left) order — a layout heuristic, NOT execution/
+/// dataflow order. Coverage is guaranteed: roots, orphans (whose parent is
+/// absent), and any structure/node not reached by the nesting walk (e.g. in a
+/// cycle) are all emitted — the last as a trailing "outside the nesting tree"
+/// section — so nothing is silently dropped.
 void _emitDiagram(StringBuffer b, ViDiagram d) {
   final kids = <int, List<ViHeapObject>>{};
   for (final o in d.objects) {
     if (o.parentOid != null) (kids[o.parentOid!] ??= <ViHeapObject>[]).add(o);
   }
-  // Emit each parent's children in POSITIONAL order (visual top→left), so the
-  // outline reads like the diagram's layout instead of raw heap order. This is a
-  // VISUAL heuristic only — it is NOT execution/dataflow order (wires aren't
-  // recovered). Stable: equal/absent bounds keep heap order, null-bounds last.
   for (final k in kids.keys) {
     kids[k] = _positional(kids[k]!);
   }
@@ -207,10 +195,8 @@ void _emitDiagram(StringBuffer b, ViDiagram d) {
   final emitted = <int>{};
 
   void walk(ViHeapObject o, int depth) {
-    if (!seen.add(o.oid)) return; // visit each object once (cycle/repeat guard)
+    if (!seen.add(o.oid)) return;
     if (depth > _maxNestingDepth) {
-      // Stop recursing on pathological nesting; un-emitted structures/nodes are
-      // still covered by the trailing leftover pass (they stay out of `emitted`).
       b.writeln('${'  ' * (depth + 1)}// (nesting truncated at depth $_maxNestingDepth)');
       return;
     }
@@ -234,7 +220,6 @@ void _emitDiagram(StringBuffer b, ViDiagram d) {
       case ViObjectKind.terminalCluster:
       case ViObjectKind.decoration:
       case ViObjectKind.unknown:
-        // not logic — don't emit, but recurse to reach nested structures/nodes
         for (final c in children) {
           walk(c, depth);
         }
@@ -244,11 +229,9 @@ void _emitDiagram(StringBuffer b, ViDiagram d) {
   for (final r in _positional(d.roots.toList())) {
     walk(r, 0);
   }
-  // objects whose parent is absent (orphans) are still roots of their own subtree
   for (final o in d.objects) {
     if (o.parentOid != null && !present.contains(o.parentOid)) walk(o, 0);
   }
-  // coverage guarantee: any structure/node not reached above (e.g. in a cycle)
   final leftover = [
     for (final o in d.objects)
       if ((o.category == ViObjectKind.structure || o.category == ViObjectKind.node) && !emitted.contains(o.oid)) o,
@@ -272,14 +255,14 @@ List<ViHeapObject> _positional(List<ViHeapObject> objs) {
     final bb = b.o.absBounds;
     final av = ab != null && ab.isValid;
     final bv = bb != null && bb.isValid;
-    if (av != bv) return av ? -1 : 1; // bounds-less last
+    if (av != bv) return av ? -1 : 1;
     if (av && bv) {
       final t = ab.top.compareTo(bb.top);
       if (t != 0) return t;
       final l = ab.left.compareTo(bb.left);
       if (l != 0) return l;
     }
-    return a.i.compareTo(b.i); // stable tiebreak = heap order
+    return a.i.compareTo(b.i);
   });
   return [for (final e in indexed) e.o];
 }

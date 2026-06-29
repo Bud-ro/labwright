@@ -33,7 +33,6 @@ ViModel _bdModel() {
 
 void main() {
   testWidgets('review view shows both the diagram and the generated Dart side by side', (tester) async {
-    // a wide viewport so the Row (not the stacked Column) branch is taken
     tester.view.physicalSize = const Size(1600, 900);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
@@ -42,7 +41,7 @@ void main() {
 
     expect(find.byType(ViDiagramView), findsOneWidget);
     expect(find.byType(GeneratedDartView), findsOneWidget);
-    expect(find.byType(VerticalDivider), findsOneWidget); // side-by-side layout
+    expect(find.byType(VerticalDivider), findsOneWidget);
     expect(find.textContaining(scaffoldMarker, findRichText: true), findsWidgets);
   });
 
@@ -55,13 +54,10 @@ void main() {
 
     expect(find.textContaining('Recovered:'), findsOneWidget);
     expect(find.textContaining('BD objects'), findsOneWidget);
-    // honest disclaimer that dataflow is not recovered
     expect(find.textContaining('dataflow / wires are not recovered'), findsOneWidget);
   });
 
   testWidgets('review view stacks vertically on a narrow viewport', (tester) async {
-    // genuinely narrow: < 720 stacks, and the (now wrapping) diagram toolbar no
-    // longer overflows here — a regression guard for the D.10 toolbar fix too.
     tester.view.physicalSize = const Size(500, 1000);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
@@ -70,6 +66,6 @@ void main() {
 
     expect(find.byType(ViDiagramView), findsOneWidget);
     expect(find.byType(GeneratedDartView), findsOneWidget);
-    expect(find.byType(VerticalDivider), findsNothing); // stacked, not side-by-side
+    expect(find.byType(VerticalDivider), findsNothing);
   });
 }

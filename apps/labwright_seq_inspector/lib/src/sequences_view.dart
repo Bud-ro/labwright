@@ -48,8 +48,9 @@ class _SequencesViewState extends State<SequencesView> {
   final _scroll = ScrollController();
   final _searchController = TextEditingController();
   String _query = '';
-  // Keys/expansion are indexed by ORIGINAL outline position so jump targets stay
-  // valid regardless of what the filter currently shows.
+
+  /// Keys and expansion state, indexed by ORIGINAL outline position so jump
+  /// targets stay valid regardless of what the filter currently shows.
   late List<GlobalKey> _keys;
   late List<bool> _expanded;
 
@@ -68,14 +69,11 @@ class _SequencesViewState extends State<SequencesView> {
   void _resetState() {
     final n = widget.outline.sequences.length;
     _keys = List.generate(n, (_) => GlobalKey());
-    // Expand the first sequence by default so the view isn't all collapsed.
     _expanded = List.generate(n, (i) => i == 0);
   }
 
   void _jumpTo(int index) {
     setState(() {
-      // Clear any active filter so the target is shown in its full context and
-      // display position == original index again.
       _query = '';
       _searchController.clear();
       _expanded[index] = true;
@@ -147,13 +145,10 @@ class _SequencesViewState extends State<SequencesView> {
               ? const Center(child: Text('No matching sequences.'))
               : ListView.builder(
                   controller: _scroll,
-                  // Rebuild on query change so ExpansionTiles pick up the
-                  // force-expanded state while filtering.
                   key: ValueKey(_query),
                   itemCount: shown.length,
                   itemBuilder: (context, i) {
                     final seq = shown[i];
-                    // Map back to the original index for keys + expansion state.
                     final orig = widget.outline.indexOf(seq.name) ?? i;
                     return ExpansionTile(
                       key: _keys[orig],
@@ -168,9 +163,6 @@ class _SequencesViewState extends State<SequencesView> {
                           Text('${seq.stepCount} steps'
                               '${seq.parameters.isNotEmpty ? ' · ${seq.parameters.length} params' : ''}'
                               '${seq.locals.isNotEmpty ? ' · ${seq.locals.length} locals' : ''}'),
-                          // A one-line preview of the comment so its purpose is
-                          // visible without expanding; hidden once expanded (the
-                          // full text shows in the body then) to avoid duplication.
                           if (seq.comment != null && !(filtering || _expanded[orig]))
                             Text(
                               seq.comment!,
@@ -244,8 +236,6 @@ class _SequencesViewState extends State<SequencesView> {
 
   Widget _step(BuildContext context, StepOutline s) {
     final chips = <Widget>[];
-    // A forced run mode (Skip/Pass/Fail) changes whether/how the step runs, so it
-    // leads with its own warning-colored badge. Normal steps show nothing here.
     if (s.runMode != null) {
       chips.add(_chip(context, 'mode: ${s.runMode}', Colors.deepOrange));
     }
@@ -253,7 +243,6 @@ class _SequencesViewState extends State<SequencesView> {
     if (s.adapter != null && td != null) {
       final color = adapterColor(s.adapter!);
       final chip = _chip(context, '${s.adapter}: ${td.label}', color);
-      // Tooltip surfaces the full path when the label is just the basename.
       chips.add(td.label != td.tooltip
           ? Tooltip(message: td.tooltip, child: chip)
           : chip);
@@ -272,10 +261,6 @@ class _SequencesViewState extends State<SequencesView> {
           s.externalCall!.isEmpty ? 'external' : 'external: ${s.externalCall}',
           Colors.orange));
     }
-    // Limits get a richer inline mini-table below; only fall back to a summary
-    // chip if there are no structured fields to show. The recorded measurement
-    // unit joins the table as a "Units" row when the step has limits, else it
-    // shows as its own chip.
     final limitRows = [
       ...?s.limitsDetail?.rows,
       if (s.units != null && s.limitsDetail != null) ('Units', s.units!),
@@ -286,16 +271,12 @@ class _SequencesViewState extends State<SequencesView> {
     if (s.units != null && s.limitsDetail == null) {
       chips.add(_chip(context, 'units ${s.units}', Colors.indigo));
     }
-    // The data-source criterion for a non-limit step (e.g. a PassFailTest's
-    // pass/fail expression); limit steps show it in their limits table instead.
     if (s.dataSource != null && s.limitsDetail == null) {
       chips.add(_chip(context, 'data-source ${s.dataSource}', Colors.indigo));
     }
     for (final note in s.notes) {
       chips.add(_chip(context, note, Colors.blueGrey));
     }
-    // A flow-control construct (if/while/for/end/…) leads with its readable
-    // header as a prominent chip; the step nests by [StepOutline.flowDepth].
     if (s.flowHeader != null) {
       chips.insert(0, _chip(context, s.flowHeader!, Colors.teal));
     }

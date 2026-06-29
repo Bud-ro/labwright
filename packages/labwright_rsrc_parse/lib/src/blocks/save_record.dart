@@ -106,9 +106,6 @@ class ViSaveRecord {
 ViSaveRecord? decodeSaveRecord(Uint8List b) {
   if (b.length < 4) return null;
   final versionWord = ByteData.sublistView(b).getUint32(0);
-  // The version fields share LabVIEW's binary-version-word layout (see
-  // decodeVersionWord): byte0 = BCD major, byte1 = minor<<4 | patch — NOT a BCD
-  // of the whole byte. (Reusing the shared decoder keeps vers and LVSR in sync.)
   final vw = decodeVersionWord(b)!;
   return ViSaveRecord(
     rawLength: b.length,
@@ -117,7 +114,6 @@ ViSaveRecord? decodeSaveRecord(Uint8List b) {
     versionMinor: vw.minor,
     stage: vw.stage,
     build: vw.build,
-    // 160-byte-layout slots — only when the buffer actually reaches them.
     blockDiagramPasswordHash: b.length >= 112 ? List.unmodifiable(b.sublist(96, 112)) : null,
     secondaryHash: b.length >= 160 ? List.unmodifiable(b.sublist(144, 160)) : null,
   );

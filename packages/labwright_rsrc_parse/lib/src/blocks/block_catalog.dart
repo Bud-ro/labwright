@@ -164,43 +164,35 @@ const BlockConfidence _lk = BlockConfidence.likely;
 const BlockConfidence _tt = BlockConfidence.tentative;
 
 const Map<String, ViBlockInfo> _catalog = {
-  // --- C4 record heaps (corpus-confirmed: valid content-length + heap lead) ---
   'FPHb': ViBlockInfo('FPHb', 'Front-panel heap', _h, _cf, 'C4 record heap; 7568/7568 valid.', decoder: 'buildDiagram'),
   'BDHb': ViBlockInfo('BDHb', 'Block-diagram heap', _h, _cf, 'C4 record heap; 7568/7568 valid.', decoder: 'buildDiagram'),
   'FPHc': ViBlockInfo('FPHc', 'Front-panel heap (variant c)', _h, _cf, 'C4 record heap; 14/14 valid.', decoder: 'buildDiagram'),
   'BDHc': ViBlockInfo('BDHc', 'Block-diagram heap (variant c)', _h, _cf, 'C4 record heap; 14/14 valid.', decoder: 'buildDiagram'),
 
-  // --- Type info ---
   'VCTP': ViBlockInfo('VCTP', 'VI type pool', _ti, _cf, 'Type-descriptor table [count][records]; compressed; not a heap.', decoder: 'decodeTypePool'),
   'TM80': ViBlockInfo('TM80', 'Type map (LV 8.0+)', _ti, _lk, 'Compressed. Short form (~71%) = [u16 count][u16 field1][count u16 entries]; entry semantics not yet decoded. See decodeTypeMap.', decoder: 'decodeTypeMap'),
   'DTHP': ViBlockInfo('DTHP', 'Data-type heap table', _ti, _lk, '4-byte [u16][u16] header (7541/7583 = 99.45%); rare extended form carries 40xx-tagged data-item names. See decodeDataTypeHeap.', decoder: 'decodeDataTypeHeap'),
   'FPTD': ViBlockInfo('FPTD', 'Front-panel type descriptors', _ti, _lk, 'Usually 2 bytes (u16, 3499/3531); occasionally a larger table. Likely a type-descriptor index/count.'),
 
-  // --- Compiled code ---
   'VICD': ViBlockInfo('VICD', 'VI compiled code', _cc, _cf, 'Machine-code image (e.g. i386); compressed; opaque.'),
 
-  // --- Data space ---
   'DFDS': ViBlockInfo('DFDS', 'Default data space', _ds, _lk, 'Compressed serialized default control/indicator values, type-directed by VCTP. Probed + ruled out a simple framing: no count header (first u32==0 only 30%), no length law vs the VCTP pool count (len==H+stride*poolCount <0.5%). Decoding needs a full VCTP type-size walk (future work); not parsed.'),
   'DSIM': ViBlockInfo('DSIM', 'Data-space image', _ds, _lk, 'Uncompressed data-space image, near-constant (1% varied; dominant ~224/218 B, ~2 per VI); content format not yet decoded.'),
   'DSTM': ViBlockInfo('DSTM', 'Data-space (TM)', _ds, _tt, 'Format not yet decoded.'),
 
-  // --- Connector pane ---
   'CONP': ViBlockInfo('CONP', 'Connector pane', _cp, _cf, 'u16 VCTP index of the conpane type descriptor (100% in-range); see decodeConnectorPane.', decoder: 'decodeConnectorPane'),
   'CPC2': ViBlockInfo('CPC2', 'Connector pane (compiled)', _cp, _lk, 'Distinct 2-byte conpane reference (byte-equal to CONP only 55/7503); resolves as a VCTP index just ~84%, so its index reading is NOT confirmed.', decoder: 'decodeConnectorPane'),
   'CPMp': ViBlockInfo('CPMp', 'Connector pane map', _cp, _tt, 'Format not yet decoded.'),
 
-  // --- Icons ---
   'icl8': ViBlockInfo('icl8', 'Icon, 8-bit', _ic, _cf, 'Legacy 32x32 @ 8bpp palette bitmap (1024 B, 7583/7583). See decodeLegacyIcon.', decoder: 'decodeLegacyIcon'),
   'icl4': ViBlockInfo('icl4', 'Icon, 4-bit', _ic, _cf, 'Legacy 32x32 @ 4bpp palette bitmap (512 B). See decodeLegacyIcon.', decoder: 'decodeLegacyIcon'),
   'ICON': ViBlockInfo('ICON', 'Icon, 1-bit', _ic, _cf, 'Legacy 32x32 @ 1bpp mono bitmap (128 B, 7534). Real bitmap, NOT a name table. See decodeLegacyIcon.', decoder: 'decodeLegacyIcon'),
   'PICC': ViBlockInfo('PICC', 'Icon picture record', _ic, _tt, '12-byte icon record (not a bitmap); the colour RGB icon lives under PICC/DSIM/FPHb via extractRgbIcon.'),
   'PICT': ViBlockInfo('PICT', 'Mac PICT image', _im, _lk, 'QuickDraw PICT.'),
 
-  // --- Images ---
   'MNGI': ViBlockInfo('MNGI', 'PNG image', _im, _cf, 'Begins with the PNG magic 89 50 4E 47.'),
   'WEMF': ViBlockInfo('WEMF', 'Windows enhanced metafile', _im, _lk, 'EMF record stream.'),
 
-  // --- Link info ---
   'LIvi': ViBlockInfo('LIvi', 'Link info: VI', _li, _cf, 'Embeds ASCII "LVIN".'),
   'LIfp': ViBlockInfo('LIfp', 'Link info: front panel', _li, _cf, 'Embeds ASCII "FPHP".'),
   'LIbd': ViBlockInfo('LIbd', 'Link info: block diagram', _li, _cf, 'Embeds ASCII "BDHP".'),
@@ -208,36 +200,28 @@ const Map<String, ViBlockInfo> _catalog = {
   'LPIN': ViBlockInfo('LPIN', 'Linked-instance info', _li, _tt, 'Format not yet decoded.'),
   'DLLP': ViBlockInfo('DLLP', 'DLL/library path', _hp, _lk, 'PTH0 path (begins "PTH0"); decodeHelpPath parses it. Rare (n=1 in corpus).', decoder: 'decodeHelpPath'),
 
-  // --- Text ---
   'STRG': ViBlockInfo('STRG', 'VI description text', _tx, _cf, '[u32 len][UTF-8 text] (100% of corpus); the VI description. See decodeStringBlock.', decoder: 'decodeStringBlock'),
   'STR': ViBlockInfo('STR', 'String', _tx, _tt, 'Format not yet decoded.'),
   'TITL': ViBlockInfo('TITL', 'VI title', _tx, _cf, 'Pascal-string title.'),
   'HLPT': ViBlockInfo('HLPT', 'Help tag/text', _tx, _cf, 'Same [u32 len][UTF-8] layout as STRG (200/200); markdown-ish context help. See helpTextFromSections.', decoder: 'decodeStringBlock'),
 
-  // --- Help path ---
   'HLPP': ViBlockInfo('HLPP', 'Help path', _hp, _cf, 'PTH0 path: "PTH0"+i32 len+i16 type+i16 count+Pascal components (128/128). See decodeHelpPath.', decoder: 'decodeHelpPath'),
   'HLPU': ViBlockInfo('HLPU', 'Help URL/path', _hp, _tt, 'Help-related; format not yet decoded.'),
   'HLPX': ViBlockInfo('HLPX', 'Help (X)', _hp, _tt, 'Help-related; format not yet decoded.'),
   'HLPW': ViBlockInfo('HLPW', 'Help (W)', _hp, _tt, 'Help-related; format not yet decoded.'),
 
-  // --- Settings / version ---
   'LVSR': ViBlockInfo('LVSR', 'LabVIEW save record', _st, _cf, 'VI settings/flags (160/144/136 B). Decoded: version word @0 (BCD, == vers 99.95%) + BD password hash @96 (== BDPW). See decodeSaveRecord.', decoder: 'decodeSaveRecord'),
   'vers': ViBlockInfo('vers', 'Version record', _st, _cf, 'Binary version word [BCD major][minor<<4|patch][stage][build] + ASCII version/title. See decodeVersionWord.', decoder: 'decodeVersionWord'),
 
-  // --- Security ---
   'BDPW': ViBlockInfo('BDPW', 'Block-diagram password', _se, _cf, 'Password hash; sample is MD5("") d41d8cd9…'),
 
-  // --- Embedded VIs ---
   'VINS': ViBlockInfo('VINS', 'Embedded sub-VIs', _ev, _cf, 'Nested RSRC VIs; recovered by readEmbeddedVis.'),
 
-  // --- Name tables ---
   'FTAB': ViBlockInfo('FTAB', 'Font table', _nt, _cf, 'u16 ver@0=1, u16 fontCount@6, u32 nameOffset@8 -> packed Pascal font-name strings. See decodeFontTable.', decoder: 'decodeFontTable'),
   'VITS': ViBlockInfo('VITS', 'VI tag store / name tail', _nt, _tt, 'Trailing name/tag store.'),
 
-  // --- History ---
   'HIST': ViBlockInfo('HIST', 'Revision history', _hi, _cf, '40-byte record: version@0=2, flags@4, entryCount@8, reserved@12/28/32=0. See decodeHistory.', decoder: 'decodeHistory'),
 
-  // --- Identifiers / signatures (small fixed blobs; roles undetermined) ---
   'MUID': ViBlockInfo('MUID', 'Modified UID', _id, _lk, '4-byte u32 id, varied per VI (opaque value).'),
   'NUID': ViBlockInfo('NUID', 'New UID table', _id, _cf, '[u32 count][count u32 ids], len==4+4*count (100%). See decodeIdTable. Id values opaque.', decoder: 'decodeIdTable'),
   'SUID': ViBlockInfo('SUID', 'Saved UID table', _id, _cf, '[u32 count][count u32 ids], len==4+4*count (100%). See decodeIdTable. Id values opaque.', decoder: 'decodeIdTable'),
@@ -251,7 +235,6 @@ const Map<String, ViBlockInfo> _catalog = {
   'GCPR': ViBlockInfo('GCPR', 'Generated-code property', _id, _cf, 'Fixed 13-byte record, constant (all-zero) across the corpus.'),
   'GCDI': ViBlockInfo('GCDI', 'Generated-code debug info', _id, _tt, 'Compressed; mostly 9 B decompressed; format not yet decoded.'),
 
-  // --- FP/BD section markers + extended records (small; roles undetermined) ---
   'FPSE': ViBlockInfo('FPSE', 'Front-panel section entry', _un, _lk, '4-byte u32 (FP section offset/size marker; 7535/7582), rarely 8 B.'),
   'BDSE': ViBlockInfo('BDSE', 'Block-diagram section entry', _un, _lk, '4-byte u32 (BD section offset/size marker; 7535/7582), rarely 8 B.'),
   'FPEx': ViBlockInfo('FPEx', 'Front-panel extended', _un, _lk, 'Small near-constant record (4/12/16 B, ~0% varied); flags/extended state.'),
@@ -261,7 +244,6 @@ const Map<String, ViBlockInfo> _catalog = {
   'FPHP': ViBlockInfo('FPHP', 'Front-panel heap (legacy?)', _un, _tt, 'Rare; not a confirmed C4 heap in corpus.'),
   'BDHP': ViBlockInfo('BDHP', 'Block-diagram heap (legacy?)', _un, _tt, 'Rare; not a confirmed C4 heap in corpus.'),
 
-  // --- Other recognized-but-undecoded tags ---
   'VPDP': ViBlockInfo('VPDP', 'VI property data', _un, _cf, 'Fixed 4-byte record, constant (all-zero) across the corpus.'),
   'PRT ': ViBlockInfo('PRT ', 'Print settings', _un, _tt, 'Tag is "PRT " (trailing space). Format not yet decoded.'),
   'DLDR': ViBlockInfo('DLDR', 'Default-data loader', _un, _cf, 'Fixed 28-byte record, constant across the corpus.'),

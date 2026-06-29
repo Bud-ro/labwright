@@ -41,7 +41,7 @@ void main() {
     final g = merged.group('G')!;
     expect(g.channel('a')!.data, [1.0]);
     expect(g.channel('b')!.data, [2.0]);
-    expect(g.properties['owner'], 'shardA'); // first file wins on conflict
+    expect(g.properties['owner'], 'shardA');
     expect(g.properties['only_a'], '1');
     expect(g.properties['only_b'], '2');
   });

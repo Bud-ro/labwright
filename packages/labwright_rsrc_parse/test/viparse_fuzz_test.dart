@@ -49,7 +49,6 @@ Uint8List _validVi({List<String> blocks = const ['CONP', 'BDHb', 'vers'], String
 void _mustBeTotal(Uint8List b) {
   try {
     final s = parseVi(b);
-    // Exercise the whole public surface — these must not throw either.
     s
       ..describe()
       ..toJson();
@@ -72,7 +71,7 @@ void main() {
   test('arbitrary random bytes (0..4KB) never crash the parser', () {
     final rng = Random(99);
     for (var i = 0; i < 20000; i++) {
-      final n = rng.nextInt(i < 200 ? 40 : 4096); // many tiny, plus larger buffers
+      final n = rng.nextInt(i < 200 ? 40 : 4096);
       _mustBeTotal(Uint8List.fromList([for (var j = 0; j < n; j++) rng.nextInt(256)]));
     }
   });
@@ -82,7 +81,7 @@ void main() {
     for (var i = 0; i < 20000; i++) {
       final n = 6 + rng.nextInt(2048);
       final b = Uint8List(n);
-      b.setRange(0, 6, const [0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a]); // "RSRC\r\n"
+      b.setRange(0, 6, const [0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a]);
       for (var j = 6; j < n; j++) {
         b[j] = rng.nextInt(256);
       }
@@ -95,8 +94,6 @@ void main() {
     final rng = Random(7);
     for (var i = 0; i < 20000; i++) {
       final b = Uint8List.fromList(valid);
-      // A mix of single-byte flips and whole-word overwrites at random offsets —
-      // hits magic, version, type, offsets, counts, tags, and the trailing name.
       final muts = 1 + rng.nextInt(6);
       for (var m = 0; m < muts; m++) {
         if (rng.nextBool() && b.length >= 4) {
@@ -116,9 +113,7 @@ void main() {
     for (var i = 0; i < 20000; i++) {
       final b = Uint8List.fromList(_validVi());
       final view = ByteData.sublistView(b);
-      // Stomp the info offset (16) and, if in range, the block count region.
       view.setUint32(16, extremes[rng.nextInt(extremes.length)]);
-      // Also poke a few aligned words to push counts/offsets to extremes.
       for (var k = 0; k < 3; k++) {
         final at = (rng.nextInt(b.length ~/ 4)) * 4;
         if (at + 4 <= b.length) view.setUint32(at, extremes[rng.nextInt(extremes.length)]);
@@ -129,7 +124,6 @@ void main() {
 
   test('valid VI with many blocks + megabytes of trailing garbage stays total + fast', () {
     final rng = Random(13);
-    // A legitimately large VI: 5000 blocks then ~2 MB of junk appended.
     final base = _validVi(blocks: [for (var i = 0; i < 5000; i++) 'B${(i % 100).toString().padLeft(3, '0')}']);
     final big = BytesBuilder()
       ..add(base)

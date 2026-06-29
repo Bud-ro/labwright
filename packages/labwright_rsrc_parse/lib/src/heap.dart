@@ -624,11 +624,6 @@ class HeapAttr {
     if (width == HeapAttrWidth.rect) return HeapAttrKind.rectangle;
     if (width == HeapAttrWidth.container) return HeapAttrKind.container;
     if (width == HeapAttrWidth.rgb) {
-      // The `8x`/`84` form is an RGB tuple for colour ids and for rect-dual ids
-      // (e.g. 0x29, whose other form is a rect — its `84` form is an accent
-      // colour). But many catalogued ids appear in the 4-byte form carrying
-      // packed ASCII/integers, NOT colour (textStyle="Pane", formatStyle="%.0f",
-      // packedValue, ordinals) — those must keep their catalogued kind.
       return (attribute.kind == HeapAttrKind.color || attribute.kind == HeapAttrKind.rectangle)
           ? HeapAttrKind.color
           : attribute.kind;
@@ -698,8 +693,6 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
   if (offset + 2 > body.length) return null;
   final op = body[offset];
 
-  // C6 <id> <len> <raw ASCII> — an inline string (whole payload is the text, no
-  // FF/u32-strlen wrapper), e.g. 0x31 property/element names. Decoded for any len.
   if (op == 0xc6 && offset + 3 <= body.length && _inlineStringIds.contains(body[offset + 1]) && body[offset + 2] != 0xff) {
     final id = body[offset + 1];
     final len = body[offset + 2];
@@ -709,8 +702,6 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
     }
   }
 
-  // C5 <id> <len> container ids (e.g. 0xE7): an opaque length-prefixed payload
-  // (not a scalar f64). Expose payload[0] (a count-like leading byte).
   if (op == 0xc5 && offset + 3 <= body.length && _containerPayloadIds.contains(body[offset + 1])) {
     final id = body[offset + 1];
     final len = body[offset + 2];
@@ -720,9 +711,6 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
     }
   }
 
-  // C5/C6 <id> 08 <8-byte payload>. The `08` is a payload-LENGTH byte (the same
-  // `Cx <id> <u8 len>` framing recordSkip uses), so the 8 bytes are *not*
-  // universally an f64 — their type depends on the id (corpus-confirmed).
   if ((op == 0xc5 || op == 0xc6) && offset + 11 <= body.length && body[offset + 2] == 0x08) {
     final id = body[offset + 1];
     if (_rectPayloadIds.contains(id)) {
@@ -735,12 +723,9 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
       final v = ByteData.sublistView(body, offset + 3, offset + 11).getFloat64(0);
       return HeapAttr(attribute: HeapAttribute.fromId(id), id: id, width: HeapAttrWidth.f64, value: v, length: 11);
     }
-    return null; // uncatalogued …08 payload — framed by recordSkip, meaning undecoded
+    return null;
   }
 
-  // C6 <id> FF <u16 len> <u32 strlen><ascii…> — string/blob. Validity-gated: the
-  // string slice must be ≥90% printable, else it's binary mis-framed as text and
-  // we leave it framed (return null) rather than surface garbage as a string.
   if (op == 0xc6 && offset + 5 <= body.length && body[offset + 2] == 0xff) {
     final id = body[offset + 1];
     final len = (body[offset + 3] << 8) | body[offset + 4];
@@ -751,7 +736,7 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
     final raw = body.sublist(from, to);
     if (raw.isEmpty) return null;
     final printable = raw.where((c) => c >= 0x20 && c < 0x7f).length;
-    if (printable / raw.length < 0.9) return null; // not a real string — leave framed
+    if (printable / raw.length < 0.9) return null;
     return HeapAttr(
         attribute: HeapAttribute.fromId(id),
         id: id,
@@ -760,9 +745,6 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
         length: 5 + len);
   }
 
-  // C6 <id> <u8 len> <u32 strlen><ascii> — the short-length string form (sibling
-  // of the FF blob), e.g. 0x6c CLF/library names. Per-record validated so it never
-  // fabricates: only decodes when strlen fits and the bytes are fully printable.
   if (op == 0xc6 && offset + 3 <= body.length && _u32StringIds.contains(body[offset + 1])) {
     final id = body[offset + 1];
     final len = body[offset + 2];
@@ -770,9 +752,6 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
       final p = offset + 3;
       final strLen = (body[p] << 24) | (body[p + 1] << 16) | (body[p + 2] << 8) | body[p + 3];
       final slack = len - (strLen + 4);
-      // Reject the false-positive shape `len=64 strLen=1 …` (a structured/binary
-      // record whose leading u32 coincidentally reads 1 with a printable 5th byte):
-      // a genuine short string is exact-fit; only allow big slack for longer strings.
       if (strLen >= 1 && slack >= 0 && !(strLen <= 2 && slack >= 8)) {
         final raw = body.sublist(p + 4, p + 4 + strLen);
         if (raw.every((c) => c >= 0x20 && c < 0x7f)) {
@@ -782,15 +761,12 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
     }
   }
 
-  // The `64 cb 26` form is a fixed 3-byte record, NOT a `0x64` u24 attribute —
-  // recordSkip special-cases it, so mirror that here (else a walk-then-decode
-  // consumer gets a fabricated u24 whose 3rd byte is the next record, and a
-  // length that desyncs the walk). The dominant corpus decode/skip disagreement.
+  // The `64 cb 26` form is a fixed 3-byte record, not a `0x64` u24 attribute —
+  // mirror recordSkip's special-case so a walk-then-decode consumer stays in sync.
   if (op == 0x64 && offset + 3 <= body.length && body[offset + 1] == 0xcb && body[offset + 2] == 0x26) {
     return null;
   }
 
-  // Nibble family: low nibble in {4,5,6}, high nibble selects the width.
   final lo = op & 0xf, hi = op >> 4;
   if (lo == 4 || lo == 5 || lo == 6) {
     const widthBytes = {0x2: 1, 0x4: 2, 0x6: 3, 0x8: 4, 0xe: 0};
@@ -814,7 +790,7 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
       case 0x8:
         width = HeapAttrWidth.rgb;
         value = (body[offset + 2] << 24) | (body[offset + 3] << 16) | (body[offset + 4] << 8) | body[offset + 5];
-      default: // 0xE — bare flag, no value bytes.
+      default: // 0xE
         width = HeapAttrWidth.flag;
         value = 1;
     }
@@ -900,17 +876,15 @@ class HeapRecord {
   }
 
   /// If this is a [HeapOpcode.description] record, the embedded help/tooltip text
-  /// (often HTML-ish, multi-line), recovered from its length-prefixed text
-  /// segments; null if none. **Heuristic** — the inner multi-segment framing is
-  /// not fully decoded, so this recovers readable text, not exact fields. Total.
+  /// (often HTML-ish, multi-line); null if none. The dominant form is raw text
+  /// from byte 0 (no length prefix), returned verbatim when the payload is mostly
+  /// printable; otherwise it falls back to recovering length-prefixed text
+  /// segments. **Heuristic** — the inner multi-segment framing is not fully
+  /// decoded, so this recovers readable text, not exact fields. Total.
   String? get descriptionText {
     if (kind != HeapOpcode.description) return null;
     bool isTextByte(int c) => (c >= 32 && c < 127) || c == 9 || c == 10 || c == 13;
 
-    // The dominant C4 19 form is RAW text from byte 0 (no length prefix) — e.g.
-    // "The <B>error</B>…". When the whole payload is mostly printable, return it
-    // verbatim (the earlier "read payload[0] as a u8 length" logic dropped the
-    // leading char and fragmented on tags — corpus-confirmed wrong on ~80%).
     if (payload.isNotEmpty) {
       final printable = payload.where(isTextByte).length;
       if (printable / payload.length >= 0.9) {
@@ -918,11 +892,10 @@ class HeapRecord {
       }
     }
 
-    // Fallback for non-printable payloads: recover length-prefixed text segments.
     final runs = <String>[];
     var i = 0;
     while (i < payload.length) {
-      final len = payload[i]; // u8 length prefix
+      final len = payload[i];
       if (len >= 6 && i + 1 + len <= payload.length && payload.sublist(i + 1, i + 1 + len).every(isTextByte)) {
         runs.add(String.fromCharCodes(payload.sublist(i + 1, i + 1 + len)));
         i += 1 + len;
@@ -940,7 +913,7 @@ class HeapRecord {
     if (kind != HeapOpcode.path) return null;
     final p = payload;
     if (p.length < 12 || p[0] != 0x50 || p[1] != 0x54 || p[2] != 0x48 || p[3] != 0x30) {
-      return null; // not 'PTH0'
+      return null;
     }
     final nComp = (p[10] << 8) | p[11];
     final parts = <String>[];
@@ -1314,7 +1287,6 @@ class HeapPropertyValue {
 /// were already correct; this keeps the primitive honest standalone.)
 HeapPropertyValue? decodeHeapPropertyToken(Uint8List body, int offset) {
   if (offset + 2 > body.length) return null;
-  // Object header, not a property token — see doc above.
   if (offset + 9 <= body.length &&
       (body[offset] == 0x10 || body[offset] == 0x11 || body[offset] == 0x12) &&
       body[offset + 2] == 0x02 && body[offset + 3] == 0xfe && body[offset + 6] == 0xfd) {
@@ -1326,26 +1298,23 @@ HeapPropertyValue? decodeHeapPropertyToken(Uint8List body, int offset) {
   if (token.form == PropTokenForm.selector) {
     return HeapPropertyValue(token: token, value: null, length: 2);
   }
-  // Tagged sub-list `<op> <subop> <count> <tag> <items>`; decode the first item.
   if (offset + 4 > body.length || !_isTypeTag(body[offset + 3])) return null;
   final len = _typedList(body, offset);
   if (len == null) return null;
   final count = body[offset + 2];
   final tag = body[offset + 3];
   int? value;
-  // A count==0 list has NO first item — reading body[offset+4..] would fall
-  // outside the framed record (into the next one). Leave value null.
   if (count == 0) {
+    // No first item — reading past offset+4 would fall into the next record.
     value = null;
   } else if (tag == 0xfb && offset + 6 <= body.length) {
-    value = (body[offset + 4] << 8) | body[offset + 5]; // u16 item
+    value = (body[offset + 4] << 8) | body[offset + 5];
   } else if (tag == 0xfd && offset + 5 <= body.length && (body[offset + 4] & 0x80) != 0) {
     // 7-byte FD escape `fd 80 00 <u32 value>`: the u32 follows `80 00`.
     value = offset + 10 <= body.length
         ? (body[offset + 6] << 24) | (body[offset + 7] << 16) | (body[offset + 8] << 8) | body[offset + 9]
         : null;
   } else if ((tag == 0xfe || tag == 0xfd) && offset + 6 <= body.length) {
-    // 3-byte item `<tag><hi><lo>`: the trailing 2 bytes are the s16/oid value.
     value = (body[offset + 4] << 8) | body[offset + 5];
   }
   return HeapPropertyValue(token: token, value: value, length: len);
@@ -1427,9 +1396,8 @@ class HeapRef {
 /// is a value, not a reference. Mirrors [recordSkip]'s framing of the `0x14` family.
 HeapRef? decodeHeapRef(Uint8List body, int offset) {
   if (offset + 6 > body.length) return null;
-  // Only the `fd` tag is a typed object reference. recordSkip also frames the
-  // `14 sub 01 fe` form (a literal s16, like the 0x53 case), which is
-  // INTENTIONALLY not decoded as a reference here — do not "fix" it to emit oids.
+  // Only the `fd` tag is a typed object reference; the `14 sub 01 fe` form is a
+  // literal s16 (like 0x53) and is intentionally not decoded as a reference here.
   if (body[offset] != 0x14 || body[offset + 2] != 0x01 || body[offset + 3] != 0xfd) return null;
   final kind = HeapRefKind.fromSubop(body[offset + 1]);
   if (kind == HeapRefKind.literal) return null;
@@ -1459,42 +1427,26 @@ enum HeapDecodeTier {
 /// truth shared by the coverage tool and its regression test so they cannot
 /// drift. Assumes [offset] is a record start as produced by [walkHeapBody].
 HeapDecodeTier heapDecodeTier(Uint8List body, int offset, int lead, String sectionTag) {
-  // Object header (class + oid), group open/close (bracket tree) — structural meaning.
   if ((lead == 0x10 || lead == 0x11 || lead == 0x12) &&
       offset + 9 <= body.length && body[offset + 2] == 0x02 && body[offset + 3] == 0xfe && body[offset + 6] == 0xfd) {
     return HeapDecodeTier.semantic;
   }
-  // Group-close brackets (pop the innermost open group) — structural meaning, the
-  // bracket-tree counterpart of the group-open below. (~9% of semantic bytes; the
-  // close interpretation is inferred from the open/close family pairing, not
-  // independently pinned per record.)
   if (lead == 0x08 || lead == 0x09 || lead == 0x0a || lead == 0x0b) return HeapDecodeTier.semantic;
   if (lead == 0x10 || lead == 0x11 || lead == 0x12 || lead == 0x13) {
-    if (offset + 4 <= body.length && _isTypeTag(body[offset + 3])) return HeapDecodeTier.semantic; // group open
+    if (offset + 4 <= body.length && _isTypeTag(body[offset + 3])) return HeapDecodeTier.semantic;
   }
-  if (lead == 0x14 && decodeHeapRef(body, offset) != null) return HeapDecodeTier.semantic; // typed ref
+  if (lead == 0x14 && decodeHeapRef(body, offset) != null) return HeapDecodeTier.semantic;
   if (lead == kHeapRecordPrefix) {
     final rec = c4FrameAt(body, offset, sectionTag);
     if (rec == null) return HeapDecodeTier.framed;
     if (rec.kind.isDecoded) return HeapDecodeTier.semantic;
-    // A known payload SHAPE (a rectangle, or a container of nested records) but no
-    // meaning-specific accessor — its value-kind is known, even if the role isn't
-    // (value-kind-known, not just framed; consistent with the 0xE7 container).
     return rec.kind.shape == HeapShape.none ? HeapDecodeTier.framed : HeapDecodeTier.valueKindKnown;
   }
   final a = decodeHeapAttr(body, offset);
   if (a != null) {
-    // A length-prefixed container: we know its KIND (a wrapper with a count-like
-    // header) but NOT its contents' meaning — value-kind-known, not semantic
-    // (consistent with C4 composite containers, which are framed). Only ~38% of
-    // its payload re-walks as a clean record sub-stream.
     if (a.width == HeapAttrWidth.container) return HeapDecodeTier.valueKindKnown;
     if (a.attribute == HeapAttribute.unknown) return HeapDecodeTier.framed;
     if (a.attribute.confidence == AttrConfidence.kindOnly) return HeapDecodeTier.valueKindKnown;
-    // A colour-named id only carries a colour in the `rgb` (84/8x) form — or, for
-    // dual-use ids (0x20/0x21), an f64 control min/max in the `…08` form. In any
-    // OTHER width the value provably is NOT a colour, so don't credit its colour
-    // meaning as decoded: value-kind-known, not semantic.
     if (a.attribute.kind == HeapAttrKind.color &&
         a.width != HeapAttrWidth.rgb && a.width != HeapAttrWidth.f64) {
       return HeapDecodeTier.valueKindKnown;
@@ -1551,18 +1503,11 @@ int? recordSkip(Uint8List h, int i) {
     case 0x12:
     case 0x11:
     case 0x0a:
-      // A typed-list/group when followed by a type tag (FB/FE/FD); otherwise a
-      // 2-byte data record. 0x10/0x12 previously hard-stopped the walk on a
-      // non-tag byte (unlike 0x11/0x0a) — giving them the same 2-byte resync
-      // keeps the walk going and raises coverage.
       return (i + 4 <= n && _isTypeTag(h[i + 3])) ? _typedList(h, i) : 2;
     case 0x14:
-      // `14 <subop> 01 <fd|fe> <item>`: defer to _typedList so an FD item whose
-      // value high-bit is set is read as the 6-byte escape (`80 00 <u32>`) → a
-      // 10-byte record, not a hardcoded 6. The fixed-6 form under-read that
-      // escape by 4 bytes and desynced the rest of the heap (the dominant
-      // record-size desync behind the incomplete-walk tails). Non-escape items
-      // still return 6, so complete walks are unchanged.
+      // Defer to _typedList so an FD item with the value high-bit set is read as
+      // the 7-byte escape (`fd 80 00 <u32>`), not a hardcoded 6 (which desynced
+      // the walk); non-escape items still return 6.
       return (i + 4 <= n && h[i + 2] == 1 && (h[i + 3] == 0xfd || h[i + 3] == 0xfe)) ? _typedList(h, i) : null;
     case 0x08:
     case 0x09:
@@ -1577,10 +1522,8 @@ int? recordSkip(Uint8List h, int i) {
     case 0x02:
       return (i + 2 <= n && h[i + 1] == 0xfe) ? 7 : null;
     case 0x25:
-      return 3; // fixed 3-byte record (the `25 2d` form is NOT a counted list)
+      return 3;
     case 0xc6:
-      // Extended-length blob/string record, same escape form as C4. (Non-escape
-      // C6 is unobserved; it falls through to the attribute nibble-family.)
       if (i + 3 <= n && h[i + 2] == 0xff) {
         return (i + 5 <= n) ? 5 + ((h[i + 3] << 8) | h[i + 4]) : null;
       }
@@ -1602,14 +1545,6 @@ int? recordSkip(Uint8List h, int i) {
         return (i + 3 <= n) ? 3 + h[i + 2] : null;
     }
   }
-  // High-nibble 0/1 opcodes are all the same typed-list/object-node family as
-  // the explicit 0x10/0x11/0x12/0x0a cases: a typed sub-list when a type tag
-  // (FB/FE/FD) follows the count, else a 2-byte property/field token on the
-  // current object. Framing the rest of the family (05/06/15/16/… and the
-  // 0x19/0x01/0x00 leads) lifts corpus coverage from ~41% to ~99% — corpus-
-  // validated that it advances cleanly to recognized records (no desync). The
-  // decoded *meanings* of the high-volume pairs are catalogued in
-  // [HeapPropertyToken] (resolve a record with [decodeHeapPropertyToken]).
   final hi = op >> 4;
   if (hi == 0 || hi == 1) {
     return (i + 4 <= n && _isTypeTag(h[i + 3])) ? _typedList(h, i) : 2;
@@ -1630,14 +1565,14 @@ int? _typedList(Uint8List h, int i) {
     return end <= n ? end - i : null;
   }
   if (tag == 0xfe || tag == 0xfd) {
-    // `op subop count <count items>`; each item is normally 3 bytes
-    // (`<tag><hi><lo>`), but an `FD` item whose high value bit is set is a
-    // 7-byte escape (`fd 80 00 <u32 value>`).
+    // `op subop count <count items>`: items are normally 3 bytes (`<tag><hi><lo>`),
+    // but an `FD` item with its high value bit set is a 7-byte escape
+    // (`fd 80 00 <u32 value>`).
     var q = i + 3;
     for (var k = 0; k < count; k++) {
       final isEscape = q + 1 < n && h[q] == 0xfd && (h[q + 1] & 0x80) != 0;
       final step = isEscape ? 7 : 3;
-      if (q + step > n) return null; // the full item must fit — never frame past EOF
+      if (q + step > n) return null;
       q += step;
     }
     return q - i;

@@ -17,8 +17,9 @@ import 'src/sequences_view.dart';
 import 'src/types_view.dart';
 import 'src/ui.dart';
 
+/// App entry point. A path passed after `--` (e.g. `flutter run -- file.seq`)
+/// is opened at launch.
 void main(List<String> args) {
-  // Allow `flutter run -- path/to/file.seq` to open a file at launch.
   runApp(InspectorApp(initialPath: args.isNotEmpty ? args.first : null));
 }
 
@@ -49,8 +50,8 @@ class _InspectorPageState extends State<InspectorPage> {
   String? _path;
   String? _error;
   List<String> _recent = const [];
-  // Owned here so Ctrl/Cmd+F can focus the active tab's search field; passed
-  // down into the respective view's TextField.
+  /// Owned here so Ctrl/Cmd+F can focus the active tab's search field; each is
+  /// passed down into its view's TextField.
   final _sequencesSearchFocus = FocusNode();
   final _propertiesSearchFocus = FocusNode();
   final _typesSearchFocus = FocusNode();
@@ -68,12 +69,10 @@ class _InspectorPageState extends State<InspectorPage> {
   Future<void> _loadRecent() async {
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getStringList(_recentPrefsKey) ?? const [];
-    // Drop entries whose file no longer exists — don't list dead paths.
     final alive = saved.where((p) => File(p).existsSync()).toList();
     if (!mounted) return;
     setState(() {
       _prefs = prefs;
-      // Merge: keep anything already added during async load, then saved.
       for (final p in alive.reversed) {
         if (!_recent.contains(p)) _recent = addRecent(_recent, p);
       }
@@ -113,7 +112,6 @@ class _InspectorPageState extends State<InspectorPage> {
         _doc = null;
         _error = '$e';
       }
-      // Remember real filesystem paths so the entry is re-openable.
       if (remember && File(path).existsSync()) {
         _recent = addRecent(_recent, path);
         _saveRecent();
@@ -141,28 +139,22 @@ class _InspectorPageState extends State<InspectorPage> {
   @override
   Widget build(BuildContext context) {
     final doc = _doc;
-    // The Sequences/Properties tabs only apply to XML files we parsed into a
-    // SeqFile.
     final file = doc is StructuredSeqDocument ? doc.file : null;
     final outline = file != null ? SeqOutline.of(file) : null;
     final tree = file != null ? propertyTree(file) : null;
     final coverage = file != null ? coverageLabel(measureCoverage(file)) : null;
     final types = file?.types ?? const <SeqProperty>[];
     final typeCount = file?.types.length;
-    // The Types tab appears only when the file actually defines a type palette.
     final hasTypes = types.isNotEmpty;
     return DefaultTabController(
       length: file != null ? (hasTypes ? 5 : 4) : 1,
-      // Builder so the shortcut can read the active tab via DefaultTabController.
       child: Builder(
         builder: (context) {
           return CallbackShortcuts(
             bindings: {
-              // Ctrl+O / Cmd+O → open a file.
               const SingleActivator(LogicalKeyboardKey.keyO, control: true):
                   _pick,
               const SingleActivator(LogicalKeyboardKey.keyO, meta: true): _pick,
-              // Ctrl+F / Cmd+F → focus the active tab's search field.
               const SingleActivator(
                 LogicalKeyboardKey.keyF,
                 control: true,
@@ -255,7 +247,6 @@ class _InspectorPageState extends State<InspectorPage> {
         ),
       );
     }
-    // The parsed file (structured XML/INI) backs the Logic tab; null for binary.
     final file = doc is StructuredSeqDocument ? doc.file : null;
     if (doc == null) {
       return Center(

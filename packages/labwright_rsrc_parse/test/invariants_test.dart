@@ -74,10 +74,11 @@ class _M {
   final int subviTotal, subviNamed;
   final int layoutPairs, layoutContained;
   final List<int> kinds;
-  // MUTATION-FUZZ: the first wild coordinate a byte-flipped rebuild leaked (null
-  // if every fuzz iteration stayed in-bounds or threw cleanly).
+  /// The first wild coordinate a byte-flipped rebuild leaked (null if every fuzz
+  /// iteration stayed in-bounds or threw cleanly).
   final String? fuzzWild;
-  // BLOCK CATALOG ↔ corpus: per-VI section census for the record-heap gate.
+
+  /// Per-VI section census for the record-heap gate (BLOCK CATALOG ↔ corpus).
   final int catHeapSections, catHeapStructural, structuralSections, structuralCatalogued;
   final List<String> headTags;
   const _M({
@@ -106,7 +107,6 @@ class _M {
     required this.structuralCatalogued,
     required this.headTags,
   });
-  // A VI whose model build threw (a non-RSRC fixture): neutral, affects no aggregate.
   factory _M.neutral(String path) => _M(
         path: path, deterministic: true, boundsChecked: 0, boundsWild: null, fpBounded: 0,
         fpNeg: 0, fpHasNeg: false, drawn: 0, distinct: 0, bdVisible: 0, bdTyped: 0,
@@ -122,15 +122,13 @@ _M _modelSumm(Uint8List bytes, String path) {
   try {
     m = buildViModel(bytes);
   } catch (_) {
-    return _M.neutral(path); // a malformed container throwing cleanly is fine
+    return _M.neutral(path);
   }
-  // DETERMINISM: an independent re-parse must yield a byte-identical object graph.
   var deterministic = true;
   try {
     deterministic = _sig(m) == _sig(buildViModel(bytes));
   } catch (_) {}
 
-  // SANE BOUNDS + CATALOG: every object's coords in range; collect the kind set.
   var boundsChecked = 0;
   String? boundsWild;
   final kinds = <int>{};
@@ -144,7 +142,6 @@ _M _modelSumm(Uint8List bytes, String path) {
     }
   }
 
-  // FRONT-PANEL: negatives preserved; render-typed fraction; distinct-rect fraction.
   var fpBounded = 0, fpNeg = 0, fpVisible = 0, fpTyped = 0, drawn = 0, distinct = 0;
   var fpHasNeg = false;
   for (final d in m.frontPanelDiagrams) {
@@ -173,7 +170,6 @@ _M _modelSumm(Uint8List bytes, String path) {
     }
   }
 
-  // BLOCK-DIAGRAM: render-typed fraction; subVI-call name recovery.
   var bdVisible = 0, bdTyped = 0, subviTotal = 0, subviNamed = 0;
   for (final o in m.blockDiagrams.expand((d) => d.objects)) {
     final r = o.absBounds;
@@ -187,8 +183,6 @@ _M _modelSumm(Uint8List bytes, String path) {
     }
   }
 
-  // LAYOUT: a drawn BD node whose ancestor chain hits a drawn structure frame must
-  // have its center inside that frame.
   var layoutPairs = 0, layoutContained = 0;
   for (final diag in m.blockDiagrams) {
     final byOid = {for (final o in diag.objects) o.oid: o};
@@ -214,8 +208,6 @@ _M _modelSumm(Uint8List bytes, String path) {
     }
   }
 
-  // BLOCK CATALOG ↔ corpus: every catalogued record-heap section must be a
-  // structural C4 heap, and (reverse) structural heaps must be catalogued.
   var catHeapSections = 0, catHeapStructural = 0, structuralSections = 0, structuralCatalogued = 0;
   final headTags = <String>{};
   try {
@@ -234,10 +226,6 @@ _M _modelSumm(Uint8List bytes, String path) {
     }
   } catch (_) {}
 
-  // MUTATION-FUZZ: flip bytes inside this genuine VI and push the corrupt payload
-  // through the full build. Completing means no hang/OOM (a hang trips the
-  // setUpAll timeout); a clean throw is allowed; a returned model must still obey
-  // the bounds-sanity invariant. Deterministic RNG so a failure reproduces.
   String? fuzzWild;
   if (bytes.length >= 64) {
     final rng = Random(0xC0FFEE);
@@ -302,9 +290,6 @@ void main() {
     test('invariants (skipped: corpus not fetched)', () {}, skip: true);
     return;
   }
-  // Build the per-VI model summary ONCE, in parallel across isolates; the
-  // buildViModel-based tests below assert on this shared result instead of each
-  // re-walking the whole corpus (~96s of redundant model builds collapse to ~1).
   late final List<_M> M;
   setUpAll(() async {
     M = await corpusParallel(all, _modelSumm);
@@ -315,29 +300,12 @@ void main() {
     expect(bad, isEmpty, reason: 'non-deterministic decode: ${bad.take(5).join(', ')}');
   });
 
-  // SANE BOUNDS is the one structural property that genuinely holds for every
-  // object. Two other "obvious" invariants were tested here and FALSIFIED on the
-  // real corpus, which is itself valuable knowledge (it proves the decode's
-  // guards are load-bearing, not theoretical):
-  //   * oids are NOT unique within a diagram — real heaps reuse them (handled by
-  //     the walker/reanchor; see the duplicate-oid termination test);
-  //   * parent chains are NOT acyclic — real VIs contain parent cycles / oid-reuse
-  //     loops (e.g. oid 0x8000), which the shiftSubtree/reanchorViewport seen-set
-  //     guards tolerate. So we do NOT assert uniqueness or acyclicity.
-  // SANE BOUNDS: a mis-decode (wrong offset / walk desync) surfaces as a wild
-  // coordinate; real VI coords sit well inside ±200000. (We check each coordinate's
-  // magnitude, NOT width/height sign — inverted rects are real and filtered at
-  // render by HeapRect.isValid, so they are not a decode error.) Computed per VI in
-  // the shared model pass.
   test('STRUCTURAL INVARIANT: every decoded object has sane (non-wild) bounds', () {
     final wild = M.map((m) => m.boundsWild).whereType<String>().toList();
     expect(wild, isEmpty, reason: wild.take(5).join('; '));
     expect(M.fold<int>(0, (a, m) => a + m.boundsChecked), greaterThan(0));
   });
 
-  // Controls parked off the top-left of the panel origin carry genuine NEGATIVE
-  // signed-s16 coords (~13.6% of corpus FP objects); they must reach the model
-  // unaltered (a clamp would silently relocate parked controls).
   test('STRUCTURAL INVARIANT: front-panel coords may be negative (parked off-panel) and survive', () {
     final bounded = M.fold<int>(0, (a, m) => a + m.fpBounded);
     final negObjs = M.fold<int>(0, (a, m) => a + m.fpNeg);
@@ -347,8 +315,6 @@ void main() {
     expect(filesWithNeg, greaterThan(0));
   });
 
-  // FP controls overlap faithfully (a control sits inside its container) but a
-  // decode collapse would crater the distinct-rect fraction (~76.6%); floor 0.55.
   test('STRUCTURAL INVARIANT: drawn FP objects are distinctly placed (overlap is layout, not a collapse)', () {
     final drawn = M.fold<int>(0, (a, m) => a + m.drawn);
     final distinct = M.fold<int>(0, (a, m) => a + m.distinct);
@@ -357,8 +323,6 @@ void main() {
         reason: 'drawn FP objects collapsed to shared rects: only $distinct/$drawn distinct');
   });
 
-  // RENDER RATCHET (BD): visible objects classify to a typed widget. ~0.998; floor
-  // 0.99, upward-only (mirrors the coverage-baseline discipline).
   test('RENDER RATCHET: visible block-diagram objects classify to a typed widget (>= floor)', () {
     final visible = M.fold<int>(0, (a, m) => a + m.bdVisible);
     final typed = M.fold<int>(0, (a, m) => a + m.bdTyped);
@@ -368,8 +332,6 @@ void main() {
         reason: 'BD render-typed fraction dropped to ${(frac * 100).toStringAsFixed(2)}% (floor 99%).');
   });
 
-  // RENDER RATCHET (FP): the front-panel taxonomy is the most mature (~0.9991);
-  // floor 0.99, upward-only.
   test('RENDER RATCHET: visible FRONT-PANEL objects classify to a typed widget (>= floor)', () {
     final visible = M.fold<int>(0, (a, m) => a + m.fpVisible);
     final typed = M.fold<int>(0, (a, m) => a + m.fpTyped);
@@ -379,9 +341,6 @@ void main() {
         reason: 'FP render-typed fraction dropped to ${(frac * 100).toStringAsFixed(2)}% (floor 99%).');
   });
 
-  // NAMING-RECOVERY RATCHET — subVI-CALL node kinds must recover their called-VI
-  // *name* via 0xa-caption propagation (that name IS the call graph). Floor 0.99
-  // (~0.9965), upward-only.
   test('NAMING RATCHET: subVI-call nodes recover their called-VI name (>= floor)', () {
     final total = M.fold<int>(0, (a, m) => a + m.subviTotal);
     final named = M.fold<int>(0, (a, m) => a + m.subviNamed);
@@ -392,10 +351,6 @@ void main() {
             'the 0xa-caption propagation likely regressed.');
   });
 
-  // LAYOUT-CONTAINMENT RATCHET — a drawn BD node whose ancestor chain includes a
-  // drawn structure frame must have its CENTER inside that frame. A drop signals a
-  // coordinate-composition / re-anchor regression the typed-widget ratchets miss.
-  // Floor 0.98 (~0.9936), upward-only.
   test('LAYOUT RATCHET: BD nodes sit inside their enclosing structure frame (>= floor)', () {
     final pairs = M.fold<int>(0, (a, m) => a + m.layoutPairs);
     final contained = M.fold<int>(0, (a, m) => a + m.layoutContained);
@@ -406,28 +361,11 @@ void main() {
             'coordinate composition / re-anchor likely regressed.');
   });
 
-  // 4. MUTATION-FUZZ ROBUSTNESS — flip bytes inside genuine VIs and push them
-  // through the FULL pipeline (decodeSections -> inflate -> heap walk -> build).
-  // This is deeper than the truncation fuzz (parseVi only) and the random-bytes
-  // buildDiagram test: it exercises the walker on plausibly-corrupt, real-RSRC,
-  // inflated payloads. Contract: each build must COMPLETE (return or throw
-  // cleanly — never hang/OOM), and WHEN it returns, the output must still satisfy
-  // the bounds-sanity invariant (corruption must not leak wild coordinates into
-  // the render). Deterministic RNG so a failure reproduces.
   test('MUTATION-FUZZ: byte-flipped VIs decode without hanging and never emit wild bounds', () {
-    // Every VI was fuzzed ($_fuzzIters deterministic byte-flip iterations) inside
-    // the shared parallel pass. Completing that pass at all means no corrupt build
-    // hung/OOM'd (a hang trips the setUpAll timeout); a clean throw is allowed.
-    // The only positive assertion is that no returned model leaked a wild coord.
     final wild = M.map((m) => m.fuzzWild).whereType<String>().toList();
     expect(wild, isEmpty, reason: wild.take(5).join('; '));
   });
 
-  // 5. CATALOG INTEGRITY — clean-room honesty guard: every named HeapObjectClass
-  // entry must have real corpus evidence (occur >= 1 time). Catches a future
-  // fabricated / copy-pasted-wrong / corpus-drifted-away catalog entry — a class
-  // we "name" but that no VI actually contains. Confirmed at probe time: 0 of the
-  // current entries are corpus-absent.
   test('CATALOG INTEGRITY: every catalogued object-class kind occurs in the corpus', () {
     final seen = <int>{for (final m in M) ...m.kinds};
     for (final c in HeapObjectClass.values) {
@@ -438,38 +376,22 @@ void main() {
     }
   });
 
-  // 6. BLOCK-CATALOG ↔ CORPUS — the block catalog's recordHeap classification must
-  // match the *decompressed* structure: a real C4 heap opens with a u32
-  // content-length == len-4 followed by a group-open/C4 lead. This guards the
-  // load-bearing gate (only true heaps get the record-walk) so other compressed
-  // blocks (VCTP/VICD/DFDS/TM80…) can never be mis-read as heaps with a bogus
-  // content length + fat "unframed tail". Forward direction must be 100%.
   test('BLOCK CATALOG: every catalogued record-heap section really is a C4 heap (and only those)', () {
-    // Censused over the WHOLE corpus in the shared parallel pass.
     final headTags = <String>{for (final m in M) ...m.headTags};
     final catHeapSections = M.fold<int>(0, (a, m) => a + m.catHeapSections);
     final catHeapStructural = M.fold<int>(0, (a, m) => a + m.catHeapStructural);
     final structuralSections = M.fold<int>(0, (a, m) => a + m.structuralSections);
     final structuralCatalogued = M.fold<int>(0, (a, m) => a + m.structuralCatalogued);
-    // FORWARD (load-bearing): every catalogued heap section is structurally a heap.
     expect(catHeapSections, greaterThan(0));
     expect(catHeapStructural, catHeapSections,
         reason: 'a catalogued record-heap section was NOT a structural C4 heap — the recordHeap set is wrong.');
-    // The catalog's four heap tags actually occur in the corpus.
     expect(headTags, containsAll(<String>{'FPHb', 'BDHb'}));
-    // REVERSE (coverage): structurally-heap sections are almost all catalogued
-    // heaps — a missed heap tag would crater this. (STRG etc. give <2% coincidences.)
     expect(structuralSections, greaterThan(0));
     expect(structuralCatalogued / structuralSections, greaterThan(0.97),
         reason: 'structural heaps not catalogued as recordHeap: only $structuralCatalogued/$structuralSections — '
             'a real heap tag may be missing from the catalog.');
   });
 
-  // 7. LVSR SAVE-RECORD ↔ CORPUS — the decoded LVSR version word must match the
-  // independent `vers` string, and its @96 password-hash slot must mirror the
-  // BDPW block. These cross-source agreements are what make the field claims
-  // honest (not a lucky single-VI reading). Floors set just below the probed
-  // rates (version 7579/7583, password 5707/5710 ≈ 99.9%).
   test('LVSR: decoded version matches vers, and the @96 hash mirrors BDPW', () {
     var verTotal = 0, verMatch = 0, pwTotal = 0, pwMatch = 0, stageNon80 = 0, lvsrSeen = 0;
     for (final f in all) {
@@ -484,7 +406,6 @@ void main() {
       if (rec == null) continue;
       lvsrSeen++;
       if (rec.stage != 0x80) stageNon80++;
-      // version cross-check against the independent vers string.
       final vstr = decodeVersion(bytes).version;
       if (vstr != null) {
         final m = RegExp(r'^(\d{1,2})').firstMatch(vstr);
@@ -493,7 +414,6 @@ void main() {
           if (rec.versionMajor == int.parse(m.group(1)!)) verMatch++;
         }
       }
-      // @96 hash mirrors BDPW.
       final h = rec.blockDiagramPasswordHash;
       if (h != null) {
         for (final s in secs) {
@@ -518,17 +438,9 @@ void main() {
     expect(pwTotal, greaterThan(0));
     expect(pwMatch / pwTotal, greaterThan(0.99),
         reason: 'LVSR @96 hash did not mirror BDPW in too many VIs ($pwMatch/$pwTotal).');
-    // stage byte was 0x80 across the entire corpus at probe time.
     expect(stageNon80, 0, reason: 'an LVSR stage byte != 0x80 appeared ($stageNon80) — re-probe the stage claim.');
   });
 
-  // 8. CONNECTOR PANE ↔ VCTP — the 2-byte CONP value is a 1-based index into the
-  // VI's type pool; cross-checking it resolves in-range against the
-  // independently-decoded VCTP is what makes the "CONP is a VCTP index" claim
-  // honest (corpus: 7550/7550 = 100%). NOTE: this is CONP-specific — CPC2's same
-  // slot resolves in-range only ~84% and is NOT claimed as an index, so the test
-  // reads the CONP section directly (not connectorPaneFromSections, which would
-  // also accept a CPC2 fallback). A future off-by-one / layout drift trips this.
   test('CONP: the 2-byte connector-pane index resolves in-range against VCTP (CONP only)', () {
     var total = 0, inRange = 0;
     for (final f in all) {
@@ -559,12 +471,6 @@ void main() {
             'the index base/encoding may have drifted.');
   });
 
-  // 9. TM80 SHORT-FORM COVERAGE — the decoded TM80 short form (length == 4 +
-  // 2*count, with `count` entries) accounts for a majority of TM80 sections;
-  // assert the coverage and the self-consistency (entries.length == count) so a
-  // decode regression or a coverage drop is caught. (Corpus: 5367/7593 ≈ 70.7%
-  // short-form — VIs typically have ~2 TM80 sections and the other is the larger
-  // not-yet-decoded layout; entry SEMANTICS remain undecoded — not asserted.)
   test('TM80: the short-form layout covers most type maps and is self-consistent', () {
     var total = 0, shortForm = 0;
     for (final f in all) {
@@ -581,9 +487,6 @@ void main() {
         total++;
         if (m.isShortForm) {
           shortForm++;
-          // self-consistency with teeth: a loop-bound regression would make the
-          // entry list length disagree with the declared count. (rawLength ==
-          // 4+2*count is the branch gate itself, so it is not re-asserted.)
           expect(m.entries.length, m.count);
         }
       }
@@ -593,9 +496,6 @@ void main() {
         reason: 'TM80 short-form coverage dropped to $shortForm/$total (<65%; corpus ≈70.7%).');
   });
 
-  // 10. STRG TEXT BLOCK — the VI description block is [u32 len][UTF-8 text] with
-  // len == sectionLength-4 and a printable body. Corpus: 100% (2980/2980). Assert
-  // the length law + printability so a decode regression is caught.
   test('STRG: every description block is [u32 len][printable text]', () {
     var total = 0, ok = 0;
     for (final f in all) {
@@ -611,7 +511,6 @@ void main() {
         final len = (d.bytes[0] << 24) | (d.bytes[1] << 16) | (d.bytes[2] << 8) | d.bytes[3];
         final text = decodeStringBlock(d.bytes);
         if (len == d.bytes.length - 4 && text != null) {
-          // body is overwhelmingly printable text
           var printable = 0;
           for (final cu in text.runes) {
             if (cu == 9 || cu == 10 || cu == 13 || (cu >= 0x20 && cu != 0xfffd)) printable++;
@@ -625,10 +524,6 @@ void main() {
         reason: 'STRG length-law/printability held for only $ok/$total (<99%).');
   });
 
-  // 11. DTHP FRAMING — the data-type heap is the 4-byte [u16][u16] header in the
-  // overwhelming majority; a rare extended form carries named items. Assert the
-  // 4-byte dominance (corpus 99.6%) and that decode is total. (Header-field
-  // meaning is undecoded — not asserted.)
   test('DTHP: the 4-byte header form dominates and decode is total', () {
     var total = 0, fourByte = 0, decoded = 0;
     for (final f in all) {
@@ -651,12 +546,6 @@ void main() {
         reason: 'DTHP 4-byte dominance dropped to $fourByte/$total (<97%; corpus ≈99.45%).');
   });
 
-  // 11b. DTHP EXTENDED NAME RECOVERY — the rare extended form (length>4) is
-  // decoded by the most fragile, heuristic path (the tolerant 40xx _scanNames
-  // anchor-scan). Guard it: every extended DTHP must recover >=1 name and every
-  // recovered name must be printable. A regression in the scan (off-by-one on
-  // the len byte, dropped 0x40 anchor) would silently empty/garble names and no
-  // other test would notice. Corpus: 33/33 extended sections recover names.
   test('DTHP: every extended-form block recovers >=1 printable named item', () {
     var ext = 0, named = 0, printable = 0;
     for (final f in all) {
@@ -672,7 +561,6 @@ void main() {
         if (h == null || !h.isExtended) continue;
         ext++;
         if (h.names.isNotEmpty) named++;
-        // match _scanNames' accepted set: tab/newline/CR + printable ASCII.
         if (h.names.isNotEmpty &&
             h.names.every((n) => n.runes.every(
                 (c) => c == 9 || c == 10 || c == 13 || (c >= 0x20 && c < 0x7f)))) {
@@ -685,9 +573,6 @@ void main() {
     expect(printable, ext, reason: 'an extended DTHP recovered a non-printable name ($printable/$ext)');
   });
 
-  // 12. HIST RECORD — the revision-history block is a fixed 40-byte record:
-  // version@0==2 and the reserved words (@12/@28/@32) are zero across the corpus.
-  // Assert the fixed size + these constants so a decode/layout regression trips.
   test('HIST: fixed 40-byte record, version 2, reserved words zero', () {
     var total = 0, sized = 0, ver2 = 0, reservedZero = 0;
     for (final f in all) {
@@ -713,9 +598,6 @@ void main() {
     expect(reservedZero / total, greaterThan(0.99), reason: 'HIST reserved words non-zero in too many ($reservedZero/$total)');
   });
 
-  // 14. HELP BLOCKS — HLPP is a PTH0 path (magic + self-consistent component
-  // parse to a clean path); HLPT shares the STRG [u32 len][text] layout. Assert
-  // both for ≥99% (corpus: HLPP 128/128 PTH0, HLPT 200/200 length-law).
   test('HLPP is a parseable PTH0 path; HLPT is [u32 len][printable text]', () {
     var hlppTot = 0, hlppOk = 0, hlptTot = 0, hlptOk = 0;
     for (final f in all) {
@@ -729,7 +611,6 @@ void main() {
         if (s.tag == 'HLPP') {
           hlppTot++;
           final p = decodeHelpPath(s.bytes);
-          // PTH0 magic present, at least one component, and a non-empty path.
           if (p != null && p.isPth0 && p.components.isNotEmpty && p.path.isNotEmpty) hlppOk++;
         }
         if (s.tag == 'HLPT' && s.bytes.length >= 4) {
@@ -748,10 +629,6 @@ void main() {
     expect(hlptOk / hlptTot, greaterThan(0.99), reason: 'HLPT length-law/printability failed in too many ($hlptOk/$hlptTot)');
   });
 
-  // 13. FTAB FONT TABLE — version==1 and the name-table framing is self-
-  // consistent: reading fontCount Pascal strings recovers exactly that many
-  // printable names. Asserting recovered==count is the killer self-consistency
-  // check (corpus: every FTAB resolves cleanly).
   test('FTAB: version 1 and the font-name table is self-consistent', () {
     var total = 0, ver1 = 0, consistent = 0, printable = 0;
     for (final f in all) {
@@ -778,10 +655,6 @@ void main() {
     expect(printable / total, greaterThan(0.95), reason: 'FTAB names not printable in too many ($printable/$total)');
   });
 
-  // 15. LEGACY ICON BITMAPS — icl8/icl4/ICON are exact 32x32 bitmaps at 8/4/1 bpp
-  // (1024/512/128 B), each decoding to 1024 pixels. Corrects a stale belief that
-  // ICON was a name table / icl8 a stub: assert exact sizes + full 1024-pixel
-  // decode across the corpus (probe: 100%).
   test('icl8/icl4/ICON are exact 32x32 bitmaps decoding to 1024 pixels', () {
     final wantBytes = <String, int>{'icl8': 1024, 'icl4': 512, 'ICON': 128};
     var tot = 0, sized = 0, decoded = 0;
@@ -806,10 +679,6 @@ void main() {
     expect(decoded / tot, greaterThan(0.99), reason: 'legacy icon did not decode to 1024 px in $decoded/$tot');
   });
 
-  // 16. VERSION WORD — the vers binary version word (BCD major) must agree with
-  // the independently-decoded vers ASCII string AND with the LVSR version word.
-  // This triple agreement is what confirms the [BCD major][minor<<4|patch] layout
-  // (corpus: vers==string 7579/7583, vers==LVSR 7583/7583 = 100%).
   test('vers binary version word matches the ASCII string and the LVSR word', () {
     var strTot = 0, strEq = 0, lvsrTot = 0, lvsrEq = 0;
     for (final f in all) {
@@ -842,10 +711,6 @@ void main() {
     expect(lvsrEq / lvsrTot, greaterThan(0.999), reason: 'vers word major != LVSR major in too many ($lvsrEq/$lvsrTot; corpus 100%)');
   });
 
-  // 17. SIGNATURE BLOCKS — RTSG/OBSG/CCSG are 16-byte signatures, SCSR 20-byte,
-  // MUID a 4-byte id. The catalogued distinction is per-VI-varied (RTSG/OBSG) vs
-  // near-constant (CCSG/SCSR = shared toolchain signatures); assert the exact
-  // sizes plus that distinction so the honest characterisation can't silently rot.
   test('signature blocks: fixed sizes + the varied-vs-constant split holds', () {
     final wantLen = <String, int>{'RTSG': 16, 'OBSG': 16, 'CCSG': 16, 'SCSR': 20, 'MUID': 4};
     final counts = {for (final k in wantLen.keys) k: 0};
@@ -870,17 +735,12 @@ void main() {
       expect(counts[k]!, greaterThan(0), reason: '$k absent from corpus');
       expect(sized[k]! / counts[k]!, greaterThan(0.99), reason: '$k not its fixed size in ${sized[k]}/${counts[k]}');
     }
-    // RTSG/OBSG are per-VI varied; CCSG/SCSR are near-constant (few distinct).
     expect(bodies['RTSG']!.length / counts['RTSG']!, greaterThan(0.5), reason: 'RTSG should be per-VI varied');
     expect(bodies['OBSG']!.length / counts['OBSG']!, greaterThan(0.5), reason: 'OBSG should be per-VI varied');
     expect(bodies['CCSG']!.length, lessThan(50), reason: 'CCSG should be near-constant (shared signature)');
     expect(bodies['SCSR']!.length, lessThan(50), reason: 'SCSR should be near-constant');
   });
 
-  // 18. CONSTANT FIXED-SIZE BLOCKS — the tail sweep found several blocks that are
-  // a fixed size AND byte-constant across the whole corpus (VPDP 4B, DLDR 28B,
-  // GCPR 13B). Pin both facts so a future change that makes one variable (a real
-  // decode opportunity) or mis-sized is caught.
   test('VPDP/DLDR/GCPR are fixed-size, byte-constant records', () {
     final wantLen = <String, int>{'VPDP': 4, 'DLDR': 28, 'GCPR': 13};
     final counts = {for (final k in wantLen.keys) k: 0};
@@ -908,8 +768,6 @@ void main() {
     }
   });
 
-  // 19. ID TABLES — NUID/SUID/BNID are [u32 count][count u32], i.e. length ==
-  // 4 + 4*count, and decode to exactly `count` entries. Corpus: 100%.
   test('NUID/SUID/BNID are [u32 count][count u32] id tables', () {
     var tot = 0, framed = 0;
     for (final f in all) {
