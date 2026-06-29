@@ -37,17 +37,27 @@ void main(List<String> args) {
       if (s.offset >= rr) s.offset - rr: s.text,
   };
 
-  // marker positions (4 consecutive 0xff)
-  final marks = <int>[];
-  for (var i = 0; i + 4 <= rr; i++) {
-    if (body[i] == 0xff && body[i + 1] == 0xff && body[i + 2] == 0xff && body[i + 3] == 0xff) {
-      marks.add(i);
+  // marker positions = maximal runs of >=4 0xff bytes, collapsed to one mark each
+  // (runs longer than 4 come from adjacent -1 fields and would otherwise split
+  // into several bogus 1-byte "records"). mark = (runStart, runEnd-exclusive).
+  final marks = <int>[]; // run start
+  final markEnd = <int>[]; // run end (exclusive)
+  for (var i = 0; i < rr;) {
+    if (body[i] == 0xff) {
+      var j = i;
+      while (j < rr && body[j] == 0xff) {
+        j++;
+      }
+      if (j - i >= 4) { marks.add(i); markEnd.add(j); }
+      i = j;
+    } else {
+      i++;
     }
   }
   stdout.writeln('$which: rr=$rr  ${marks.length} 0xffffffff markers\n');
 
   for (var k = from; k < marks.length && k < from + count; k++) {
-    final start = marks[k] + 4; // chunk begins after the marker
+    final start = markEnd[k]; // chunk begins after the full 0xff run
     final end = k + 1 < marks.length ? marks[k + 1] : rr;
     final len = end - start;
     // header model (working hypothesis): [u32 w0][u32 objectID][u16 t1][u16 t2]...
