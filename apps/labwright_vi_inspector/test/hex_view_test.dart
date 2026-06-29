@@ -7,8 +7,6 @@ import 'package:labwright_vi_inspector/src/hex_view.dart';
 DecodedSection _section(List<int> records) {
   final body = Uint8List.fromList([0, 0, 0, records.length, ...records]);
   return DecodedSection(
-    // BDHb is a real C4 record-heap tag — the heap record-walk is gated on the
-    // block tag now, so the heap-path tests must use a genuine heap tag.
     section: ViSection(tag: 'BDHb', index: 0, dataOffset: 0, bytes: body),
     bytes: body,
     wasCompressed: true,
@@ -28,12 +26,10 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: BlockHexView(section: _section(records)))));
     await tester.pump();
 
-    // record panel shows real names from the catalogs
     expect(find.textContaining('Numeric control'), findsOneWidget);
     expect(find.textContaining('bounds'), findsWidgets);
     expect(find.textContaining('backgroundColor'), findsOneWidget);
 
-    // selecting the caption record reveals its decoded string in the detail panel
     await tester.tap(find.textContaining('caption').first);
     await tester.pump();
     expect(find.text('Hi'), findsOneWidget);
@@ -44,13 +40,10 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: BlockHexView(section: _section(records)))));
     await tester.pump();
 
-    // the 4-byte u32 length prefix is now annotated (previously unexplained)
     expect(find.textContaining('Heap content length'), findsOneWidget);
-    // the size shows INLINE in the row (a preview, like a colour swatch) — no click needed
     expect(find.text('2 B'), findsOneWidget);
     await tester.tap(find.textContaining('Heap content length').first);
     await tester.pump();
-    // detail explains it is the record-stream size (here == records.length == 2)
     expect(find.textContaining('= 2 bytes'), findsOneWidget);
   });
 
@@ -65,10 +58,10 @@ void main() {
     await tester.pump();
 
     expect(find.textContaining('Unframed tail'), findsOneWidget);
-    expect(find.text('2 B'), findsWidgets); // the 2 remaining bytes accounted inline
+    expect(find.text('2 B'), findsWidgets);
     await tester.tap(find.textContaining('Unframed tail').first);
     await tester.pump();
-    expect(find.textContaining('not yet decoded'), findsOneWidget); // honest framing
+    expect(find.textContaining('not yet decoded'), findsOneWidget);
   });
 
   testWidgets('hex view shows the group close tag in the title', (tester) async {
@@ -79,7 +72,6 @@ void main() {
     expect(find.textContaining('Group close · tag 0x2a'), findsOneWidget);
     await tester.tap(find.textContaining('Group close · tag 0x2a').first);
     await tester.pump();
-    // detail explains the matching-open tag pairing
     expect(find.textContaining('same tag'), findsOneWidget);
   });
 
@@ -94,25 +86,21 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: BlockHexView(section: _section(records)))));
     await tester.pump();
 
-    // the property-name record is named and its string is shown
     expect(find.textContaining('propertyName'), findsOneWidget);
     await tester.tap(find.textContaining('propertyName').first);
     await tester.pump();
     expect(find.text('Scale'), findsOneWidget);
 
-    // the help-text blob string is shown
     await tester.tap(find.textContaining('helpDescription').first);
     await tester.pump();
     expect(find.text('Robot!'), findsOneWidget);
 
-    // the C5 20 08 f64 control-min is surfaced as a numeric-control parameter
     await tester.tap(find.textContaining('foregroundColorOrControlMin').first);
     await tester.pump();
     expect(find.textContaining('Numeric-control parameter'), findsOneWidget);
   });
 
   testWidgets('an undecoded non-heap block shows raw hex + its catalog identity', (tester) async {
-    // TRec has no decoder -> the honest raw-hex note, not a parsed panel.
     final raw = DecodedSection(
       section: ViSection(tag: 'TRec', index: 0, dataOffset: 0, bytes: Uint8List.fromList(List.filled(40, 0x41))),
       bytes: Uint8List.fromList(List.filled(40, 0x41)),
@@ -137,10 +125,8 @@ void main() {
     final vers = _raw('vers', [0x08, 0x50, 0x80, 0x02, 0x03, ...'8.5'.codeUnits]);
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: BlockHexView(section: vers))));
     await tester.pump();
-    // the first 4 bytes are a clickable "Version word" field showing the version;
     expect(find.textContaining('Version word'), findsOneWidget);
-    expect(find.textContaining('8.5'), findsWidgets); // decoded version in the preview
-    // ...and the remaining (string) bytes are honestly marked undecoded — total coverage.
+    expect(find.textContaining('8.5'), findsWidgets);
     expect(find.textContaining('Undecoded'), findsWidgets);
   });
 
@@ -158,8 +144,6 @@ void main() {
     expect(find.textContaining('Per-VI value C'), findsOneWidget);
     expect(find.textContaining('BD password hash'), findsOneWidget);
     expect(find.textContaining('Secondary hash'), findsOneWidget);
-    // the standard 160-byte LVSR form now frames every byte (purpose-labeled,
-    // even where deep semantics stay 'not yet decoded') → no Undecoded gaps.
     expect(find.textContaining('Undecoded'), findsNothing);
     expect(find.textContaining('100% framed'), findsOneWidget);
   });
@@ -175,7 +159,6 @@ void main() {
     expect(find.textContaining('Entry count'), findsOneWidget);
     expect(find.textContaining('id[0]'), findsOneWidget);
     expect(find.textContaining('id[1]'), findsOneWidget);
-    // fully framed: no "Undecoded" gap for this exact [count][entries] layout
     expect(find.textContaining('Undecoded'), findsNothing);
   });
 
@@ -183,7 +166,6 @@ void main() {
     tester.view.physicalSize = const Size(1400, 1400);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
-    // NUID fully covered by [count][entries] spans → 100% framed in the header.
     final nuid = _raw('NUID', [0, 0, 0, 2, 0, 0, 0, 0x11, 0, 0, 0, 0x22]);
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: BlockHexView(section: nuid))));
     await tester.pump();
@@ -194,8 +176,6 @@ void main() {
     tester.view.physicalSize = const Size(1400, 1400);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
-    // vers: the 4-byte version word is framed; the trailing Pascal version string
-    // is honestly Undecoded → coverage is below 100% and never claims 100.
     final vers = _raw('vers', [0x08, 0x50, 0x80, 0x02, 0x03, ...'8.5'.codeUnits]);
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: BlockHexView(section: vers))));
     await tester.pump();
@@ -238,7 +218,6 @@ void main() {
     expect(find.textContaining('Title length'), findsOneWidget);
     expect(find.textContaining('Title (ASCII)'), findsOneWidget);
     expect(find.textContaining('Batch Tests'), findsWidgets);
-    // [len][text] covers every byte → 100% framed, nothing left Undecoded.
     expect(find.textContaining('100% framed'), findsOneWidget);
     expect(find.textContaining('Undecoded'), findsNothing);
   });
@@ -265,7 +244,6 @@ void main() {
     expect(find.textContaining('Font[1] metric record'), findsOneWidget);
     expect(find.textContaining('Font[0] u32 field'), findsOneWidget);
     expect(find.textContaining('Font names'), findsOneWidget);
-    // header + metric region + names now cover every byte → 100% framed.
     expect(find.textContaining('100% framed'), findsOneWidget);
     expect(find.textContaining('Undecoded'), findsNothing);
   });
@@ -282,7 +260,6 @@ void main() {
     expect(find.textContaining('entry[0]'), findsWidgets);
     expect(find.textContaining('True'), findsWidgets);
     expect(find.textContaining('False'), findsWidgets);
-    // [count][len][text]… covers every byte → 100% framed, nothing Undecoded.
     expect(find.textContaining('100% framed'), findsOneWidget);
     expect(find.textContaining('Undecoded'), findsNothing);
   });
@@ -326,7 +303,7 @@ void main() {
     ));
     await tester.pump();
     expect(find.textContaining('VCTP type index'), findsOneWidget);
-    expect(find.textContaining('boolean'), findsWidgets); // resolved conpane type
+    expect(find.textContaining('boolean'), findsWidgets);
   });
 
   testWidgets('a VCTP block lists the recovered type pool', (tester) async {
@@ -357,7 +334,6 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: BlockHexView(section: icon))));
     await tester.pump();
     expect(find.textContaining('32×32 @ 1bpp'), findsOneWidget);
-    // the preview CustomPaint is present (there may be others, e.g. the hex dump).
     expect(find.byType(CustomPaint), findsWidgets);
   });
 
@@ -387,10 +363,6 @@ void main() {
   });
 
   testWidgets('a compressed NON-heap block (VCTP) is not mis-walked as a heap', (tester) async {
-    // Regression: VCTP/TM80/VICD are compressed (or short look-alikes) but are NOT
-    // C4 heaps. The old heuristic read their first u32 as a "heap content length"
-    // and dumped the rest as a fat "unframed tail". Gating on the tag fixes it.
-    // Craft bytes the old heuristic WOULD have flagged: b[4] == 0xc4.
     final body = Uint8List.fromList([0x00, 0x00, 0x00, 0xee, 0xc4, 0x01, 0x02, 0x03, 0x04, 0x05]);
     final vctp = DecodedSection(
       section: ViSection(tag: 'VCTP', index: 0, dataOffset: 0, bytes: body),
@@ -401,6 +373,6 @@ void main() {
     await tester.pump();
     expect(find.textContaining('Heap content length'), findsNothing);
     expect(find.textContaining('Unframed tail'), findsNothing);
-    expect(find.textContaining('VI type pool'), findsOneWidget); // named honestly instead
+    expect(find.textContaining('VI type pool'), findsOneWidget);
   });
 }

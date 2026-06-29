@@ -48,7 +48,7 @@ int? legacyIconBpp(String tag) => switch (tag) {
 /// null unless the buffer is the exact 32×32 size for [bpp]
 /// (8→1024 B, 4→512 B, 1→128 B) — we never guess a partial bitmap.
 ViLegacyIcon? decodeLegacyIcon(Uint8List b, int bpp) {
-  const pixelCount = ViLegacyIcon.width * ViLegacyIcon.height; // 1024
+  const pixelCount = ViLegacyIcon.width * ViLegacyIcon.height;
   final expectBytes = pixelCount * bpp ~/ 8;
   if (b.length != expectBytes) return null;
   final pixels = List<int>.filled(pixelCount, 0);

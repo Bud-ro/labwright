@@ -16,9 +16,9 @@ Uint8List csvToTdms(String csv, {String group = 'Imported', String delimiter = '
     final values = <double>[];
     for (var r = 1; r < rows.length; r++) {
       final row = rows[r];
-      if (col >= row.length) continue; // ragged row
+      if (col >= row.length) continue;
       final cell = row[col].trim();
-      if (cell.isEmpty) continue; // blank cell
+      if (cell.isEmpty) continue;
       final v = double.tryParse(cell);
       if (v != null) values.add(v);
     }

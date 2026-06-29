@@ -26,8 +26,9 @@ void main() {
 
     test('reservedAreZero is false when a reserved word is non-zero', () {
       final b = _hist();
-      ByteData.sublistView(b).setUint32(12, 7); // @12 reserved -> non-zero
-      expect(decodeHistory(b)!.reservedAreZero, isFalse);
+      ByteData.sublistView(b).setUint32(12, 7);
+      expect(decodeHistory(b)!.reservedAreZero, isFalse,
+          reason: 'offset 12 is a reserved word; non-zero -> reservedAreZero is false');
     });
 
     test('a short buffer yields null', () {

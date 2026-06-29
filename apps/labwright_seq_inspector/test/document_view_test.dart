@@ -411,7 +411,6 @@ void main() {
     final text = documentText(doc);
     expect(text, contains('MainSequence'));
     expect(text, contains('iniStep'));
-    // The structured outline shapes the INI doc just like XML.
     final outline = SeqOutline.of((doc as IniSeqDocument).file);
     expect(outline.sequences.single.name, 'MainSequence');
   });
@@ -521,16 +520,12 @@ void main() {
   test('addRecent moves to front, dedups, caps, and is non-mutating', () {
     expect(addRecent(const [], 'a'), ['a']);
 
-    // New entry goes to the front.
     expect(addRecent(const ['a', 'b'], 'c'), ['c', 'a', 'b']);
 
-    // Re-adding an existing entry moves it to the front (dedup, no growth).
     expect(addRecent(const ['a', 'b', 'c'], 'c'), ['c', 'a', 'b']);
 
-    // Cap is respected (oldest dropped).
     expect(addRecent(const ['a', 'b', 'c'], 'd', cap: 3), ['d', 'a', 'b']);
 
-    // Input is not mutated.
     final input = ['a', 'b'];
     final out = addRecent(input, 'x');
     expect(input, ['a', 'b']);
@@ -545,14 +540,13 @@ void main() {
       final step = outline.sequences.single.groups.single.steps.single;
 
       expect(step.name, 'Check V');
-      expect(step.limits, isNotNull); // summary string still present
+      expect(step.limits, isNotNull);
       final d = step.limitsDetail;
       expect(d, isNotNull);
       expect(d!.comparison, 'GELE');
       expect(d.low, '9');
       expect(d.high, '11');
       expect(d.dataSource, 'Locals.V');
-      // Absent fields stay null (not invented) and are dropped from rows.
       expect(d.nominal, isNull);
       expect(d.thresholdType, isNull);
       final rowLabels = d.rows.map((r) => r.$1);
@@ -569,7 +563,6 @@ void main() {
     final step = SeqOutline.of(doc.file).sequences.single.groups.single.steps.single;
     expect(step.name, 'Skipped');
     expect(step.runMode, 'Skip');
-    // It is also reflected in the one-line summary and is searchable.
     expect(step.summary, contains('{mode Skip}'));
     expect(stepMatches(step, 'skip'), isTrue);
   });
@@ -581,7 +574,6 @@ void main() {
       comment: 'Lock the calibration fixture',
       notes: const [],
     );
-    // Query is pre-lowercased by the caller; match on comment substrings.
     expect(stepMatches(step, 'calibration'), isTrue);
     expect(stepMatches(step, 'fixture'), isTrue);
     expect(stepMatches(step, 'nope'), isFalse);
@@ -603,14 +595,12 @@ void main() {
       ],
       notes: const [],
     );
-    // Each surfaced field is reachable via search (query pre-lowercased).
-    expect(stepMatches(step, 'ma'), isTrue); // units
-    expect(stepMatches(step, 'step.result.passfail'), isTrue); // data source
-    expect(stepMatches(step, 'loginname'), isTrue); // call-arg name
-    expect(stepMatches(step, 'usertoautologin'), isTrue); // call-arg expression
-    expect(stepMatches(step, 'string'), isTrue); // call-arg display type
+    expect(stepMatches(step, 'ma'), isTrue);
+    expect(stepMatches(step, 'step.result.passfail'), isTrue);
+    expect(stepMatches(step, 'loginname'), isTrue);
+    expect(stepMatches(step, 'usertoautologin'), isTrue);
+    expect(stepMatches(step, 'string'), isTrue);
     expect(stepMatches(step, 'absent'), isFalse);
-    // And each appears in the one-line summary.
     final s = step.summary;
     expect(s, contains('{units mA}'));
     expect(s, contains('{data-source Step.Result.PassFail}'));
@@ -621,7 +611,6 @@ void main() {
     final doc = SeqDocument.parse(_xmlWithFlags()) as XmlSeqDocument;
     final step = SeqOutline.of(doc.file).sequences.single.groups.single.steps.single;
     expect(step.notes, containsAll(['ignore-RTE', 'no-seq-fail', 'no-record']));
-    // Searchable and present in the one-line summary.
     expect(stepMatches(step, 'no-record'), isTrue);
     expect(step.summary, contains('no-seq-fail'));
   });
@@ -629,9 +618,7 @@ void main() {
   test('StepOutline.of surfaces the Additional Results spec as a note', () {
     final doc = SeqDocument.parse(_xmlWithAddlResults()) as XmlSeqDocument;
     final step = SeqOutline.of(doc.file).sequences.single.groups.single.steps.single;
-    // The recorded slots, with the set condition surfaced and the empty one not.
     expect(step.notes, contains('+results: Input, Output if Locals.Save == True'));
-    // Searchable (by slot name and by gating expression) and in the summary.
     expect(stepMatches(step, 'output'), isTrue);
     expect(stepMatches(step, 'locals.save'), isTrue);
     expect(step.summary, contains('+results: Input'));
@@ -648,18 +635,15 @@ void main() {
     expect(p[0].isArray, isFalse);
     expect(p[0].cell, 'TypeDouble = 6');
     expect(p[0].line, 'voltage_level in TypeDouble = 6');
-    // The array output carries a type specialization and is not logged.
     expect(p[1].isArray, isTrue);
     expect(p[1].typeSpecialization, 'IOResource');
     expect(p[1].logged, isFalse);
     expect(p[1].cell, 'TypeString (IOResource)[] · not logged');
     expect(p[1].line, 'readings out TypeString (IOResource)[] [not logged]');
-    // The enum param renders its allowed values in the cell and search line.
     expect(p[2].name, 'measurement_type');
     expect(p[2].enumValues, ['NONE=0', 'DC_VOLTS=1']);
     expect(p[2].cell, 'TypeEnum {NONE=0, DC_VOLTS=1}');
     expect(p[2].line, contains('{NONE=0, DC_VOLTS=1}'));
-    // Searchable (by name, type, specialization, enum constant) and in summary.
     expect(stepMatches(step, 'voltage_level'), isTrue);
     expect(stepMatches(step, 'typedouble'), isTrue);
     expect(stepMatches(step, 'ioresource'), isTrue);
@@ -671,7 +655,6 @@ void main() {
     final doc = SeqDocument.parse(_xmlWithViCall()) as XmlSeqDocument;
     final step = SeqOutline.of(doc.file).sequences.single.groups.single.steps.single;
     expect(step.adapter, 'labView');
-    // Library/project ride as a searchable note (parity with the dump {vi:} chip).
     expect(step.notes, contains('vi: lib NIDCPower.lvlib, proj NIDCPower.lvproj'));
     final c = step.connectorParams;
     expect(c, hasLength(2));
@@ -680,7 +663,6 @@ void main() {
     expect(c[0].line, '#11 sequence context (Object Reference)←ThisContext');
     expect(c[1].label, '#0 error out');
     expect(c[1].cell, 'Container ←Step.Result.Error');
-    // Searchable by connector content + library, and present in summary.
     expect(stepMatches(step, 'object reference'), isTrue);
     expect(stepMatches(step, 'nidcpower.lvlib'), isTrue);
     expect(step.summary,
@@ -693,7 +675,6 @@ void main() {
     expect(step.adapter, 'python');
     expect(step.target, 'create_instrument_sessions');
     expect(step.notes, contains(r'python: mod ..\smu\test.py, py 3.9'));
-    // Searchable by the called function and the module file.
     expect(stepMatches(step, 'create_instrument_sessions'), isTrue);
     expect(stepMatches(step, 'test.py'), isTrue);
   });
@@ -717,11 +698,9 @@ void main() {
   test('StepOutline.of surfaces custom condition, mutex, and result outcome', () {
     final doc = SeqDocument.parse(_xmlStepExtras()) as XmlSeqDocument;
     final step = SeqOutline.of(doc.file).sequences.single.groups.single.steps.single;
-    // Custom condition is an expression row; mutex + result are notes.
     expect(step.expressions, contains(('Custom condition', 'Locals.go == True')));
     expect(step.notes, contains('mutex "Bus"'));
     expect(step.notes, contains('result status Passed'));
-    // All three are searchable and the summary carries them.
     expect(stepMatches(step, 'locals.go'), isTrue);
     expect(stepMatches(step, 'mutex'), isTrue);
     expect(stepMatches(step, 'passed'), isTrue);
@@ -733,7 +712,6 @@ void main() {
     final step = SeqOutline.of(doc.file).sequences.single.groups.single.steps.single;
     expect(step.name, 'Decide');
     expect(step.expressions, contains(('Status', 'Locals.x == 1')));
-    // It is searchable and reflected in the one-line summary.
     expect(stepMatches(step, 'locals.x'), isTrue);
     expect(step.summary, contains('Status: Locals.x == 1'));
   });
@@ -750,9 +728,7 @@ void main() {
     final outline = SeqOutline.of(doc.file);
 
     expect(outline.totalSteps, 1);
-    // Fixture has 1 sequence / 1 step → singular forms.
     expect(outlineSummary(outline), '1 sequence · 1 step');
-    // With a type count appended.
     expect(
       outlineSummary(outline, typeCount: 5),
       '1 sequence · 1 step · 5 types',
@@ -764,9 +740,7 @@ void main() {
     expect(pathBasename('/x/y/Bar.seq'), 'Bar.seq');
     expect(pathBasename('bare'), 'bare');
     expect(pathBasename(''), '');
-    // Mixed separators: the last separator of either kind wins.
     expect(pathBasename(r'/x\y/z\End.seq'), 'End.seq');
-    // Trailing separator → empty (callers add their own fallback).
     expect(pathBasename('/x/y/'), '');
   });
 
@@ -784,23 +758,18 @@ void main() {
       tooltip: r'C:\a\b\Foo.vi',
     ));
     expect(disp('/x/y/Bar.vi'), (label: 'Bar.vi', tooltip: '/x/y/Bar.vi'));
-    // A bare (non-path) target is shown verbatim.
     expect(disp('MySequence'), (label: 'MySequence', tooltip: 'MySequence'));
-    // No target → no display.
     expect(disp(null), isNull);
   });
 
   test('VarOutline.label shows scalar value or container size', () {
-    // Scalar with a default value.
     expect(VarOutline(name: 'Count', type: 'Num', value: '3').label,
         'Count : Num = 3');
-    // Array container → element count in brackets.
     expect(
       VarOutline(name: 'List', type: 'Objs', isArray: true, containerCount: 0)
           .label,
       'List : Objs [0]',
     );
-    // Object/cluster container → field count (singular vs plural).
     expect(
       VarOutline(name: 'Limits', type: 'Obj', containerCount: 2).label,
       'Limits : Obj {2 fields}',
@@ -809,9 +778,7 @@ void main() {
       VarOutline(name: 'One', type: 'Obj', containerCount: 1).label,
       'One : Obj {1 field}',
     );
-    // Bare scalar with neither value nor container info.
     expect(VarOutline(name: 'X', type: 'Str').label, 'X : Str');
-    // A free-text comment is appended after value/container info.
     expect(
       VarOutline(name: 'Off', type: 'Num', value: '4', comment: 'bitmask').label,
       'Off : Num = 4  // bitmask',
@@ -827,11 +794,9 @@ void main() {
     final doc = SeqDocument.parse(_xml()) as XmlSeqDocument;
     final outline = SeqOutline.of(doc.file);
 
-    // Empty/blank query returns the same instance.
     expect(filterSequences(outline, ''), same(outline));
     expect(filterSequences(outline, '   '), same(outline));
 
-    // A query matching the step 'S1' keeps its sequence (with the step).
     final byStep = filterSequences(outline, 's1');
     expect(byStep.sequences, hasLength(1));
     final seq = byStep.sequences.single;
@@ -841,11 +806,9 @@ void main() {
       contains('S1'),
     );
 
-    // A query matching the sequence name keeps the whole sequence.
     final byName = filterSequences(outline, 'mainseq');
     expect(byName.sequences.single.name, 'MainSequence');
 
-    // A non-matching query yields no sequences.
     expect(filterSequences(outline, 'zzz-nope').sequences, isEmpty);
   });
 
@@ -860,11 +823,9 @@ void main() {
         groups: const [],
       ),
     ]);
-    // The comment text alone (query pre-lowercased) keeps the sequence.
     final byComment = filterSequences(outline, 'bitmask');
     expect(byComment.sequences, hasLength(1));
     expect(byComment.sequences.single.locals.single.name, 'Off');
-    // A non-matching query drops it.
     expect(filterSequences(outline, 'zzz-nope').sequences, isEmpty);
   });
 
@@ -872,14 +833,11 @@ void main() {
     final doc = SeqDocument.parse(_xml()) as XmlSeqDocument;
     final root = propertyTree(doc.file);
 
-    // Root is the Data object; class Obj; has children (not a leaf).
     expect(root.name, 'Data');
     expect(root.className, 'Obj');
     expect(root.isLeaf, isFalse);
     expect(root.typeLabel, contains('Obj'));
 
-    // Walk Data → Seq (Objs array) → its single element is the Sequence object
-    // itself (name taken from the name= attribute).
     final seqContainer = root.children.firstWhere((c) => c.name == 'Seq');
     expect(seqContainer.isArray, isTrue);
     expect(seqContainer.typeLabel, contains('Objs['));
@@ -893,7 +851,6 @@ void main() {
       SeqProperty(name: 'TS', attributes: const {'%INSTOVRD': '5046297'}),
     );
     expect(overridden.isInstanceOverride, isTrue);
-    // The raw flags stay visible in the attributes map (nothing hidden).
     expect(overridden.attributes['%INSTOVRD'], '5046297');
 
     final plain = PropertyNode.of(SeqProperty(name: 'Mode', scalar: 'Normal'));
@@ -904,22 +861,18 @@ void main() {
     final doc = SeqDocument.parse(_xml()) as XmlSeqDocument;
     final root = propertyTree(doc.file);
 
-    // Empty query returns the tree unchanged (same instance).
     expect(filterTree(root, ''), same(root));
     expect(filterTree(root, '   '), same(root));
 
-    // A query hitting the deep Step (name 'S1') keeps the ancestor chain.
     final f = filterTree(root, 'S1');
     expect(f, isNotNull);
     expect(f!.name, 'Data');
     final seq = f.children.firstWhere((c) => c.name == 'Seq');
-    final mainSeq = seq.children.single; // MainSequence kept as an ancestor
+    final mainSeq = seq.children.single;
     expect(mainSeq.name, 'MainSequence');
-    // The matching leaf is reachable somewhere under MainSequence.
     bool hasStep(PropertyNode n) => n.name == 'S1' || n.children.any(hasStep);
     expect(hasStep(mainSeq), isTrue);
 
-    // A query matching nothing prunes the whole tree to null.
     expect(filterTree(root, 'zzz-no-such-token'), isNull);
   });
 
@@ -930,7 +883,6 @@ void main() {
     expect(label, startsWith('model coverage '));
     expect(label, contains('${c.modeled}/${c.total}'));
     expect(label, matches(RegExp(r'\d+\.\d%')));
-    // The fixture's typed lens recovers something but not everything.
     expect(c.modeled, greaterThan(0));
     expect(c.modeled, lessThanOrEqualTo(c.total));
   });
@@ -946,11 +898,9 @@ void main() {
     expect(map['Product'], 'TestStand');
     expect(map['Inflated body'], endsWith('bytes'));
     expect(int.parse(map['Strings recovered']!), greaterThan(0));
-    // The framed-body layout rows are surfaced when the body frames.
     expect(map.containsKey('Record region'), isTrue);
     expect(map.containsKey('Record sentinels'), isTrue);
     expect(int.parse(map['Strings in region']!), greaterThanOrEqualTo(5));
-    // The content-identified property-name table is surfaced.
     expect(map['Property-name table'], endsWith('entries'));
     expect(
       int.parse(map['Property-name table']!.split(' ').first),
@@ -962,11 +912,9 @@ void main() {
     final doc = SeqDocument.parse(_binary());
     final text = documentText(doc);
     expect(text, contains('recovered property/object names'));
-    // The fixture pool's model names are surfaced as recovered names.
     for (final n in ['MainSequence', 'Step', 'Locals', 'Parameters']) {
       expect(text, contains(n), reason: 'missing recovered name $n');
     }
-    // The new recovered categories are each surfaced with their content.
     expect(text, contains('module call-targets'));
     expect(text, contains(r'My Computer\Lib\Read.vi'));
     expect(text, contains('expressions (test logic)'));
@@ -975,7 +923,6 @@ void main() {
     expect(text, contains('ID#:abc123XYZ'));
     expect(text, contains('quoted literals (values)'));
     expect(text, contains('"6105A"'));
-    // Honest framing: it must not claim the tree/values are decoded.
     expect(text, contains('record tree not yet decoded'));
     expect(text, contains('record links not yet decoded'));
   });
@@ -994,7 +941,6 @@ void main() {
     final doc = SeqDocument.parse(_binary()) as BinarySeqDocument;
     final sections = binaryRecoverySections(doc);
     final titles = [for (final s in sections) s.title];
-    // The fixture exercises every category, so all five are present and ordered.
     expect(titles, [
       'Object names',
       'Module call-targets',
@@ -1002,7 +948,6 @@ void main() {
       'Expressions (test logic)',
       'Quoted literals (values)',
     ]);
-    // Every listed section is non-empty (empties are dropped) with real content.
     for (final s in sections) {
       expect(s.items, isNotEmpty);
     }
@@ -1010,7 +955,6 @@ void main() {
     expect(byTitle['Module call-targets'], contains(r'My Computer\Lib\Read.vi'));
     expect(byTitle['Expressions (test logic)'], contains('Locals.x == 1'));
     expect(byTitle['Quoted literals (values)'], contains('"6105A"'));
-    // The pool-only fixture has no record region, so no named-scalar section.
     expect(titles, isNot(contains('Named scalar values')));
   });
 
@@ -1035,15 +979,11 @@ void main() {
     );
     final byTitle = {for (final s in binaryRecoverySections(doc)) s.title: s.items};
     expect(byTitle['Named scalar values'], isNotNull);
-    // Value is shown; the NI type code is carried verbatim, labelled not-modeled.
     expect(byTitle['Named scalar values']!.single,
         'Parameters = 8192.0  (raw type 62, not modeled)');
-    // The full distinct inline-numeric superset gets its own section.
     expect(byTitle['Inline numeric values'], ['8192.0', '-2.0']);
-    // The consistently-tagged named-record header census, raw tag verbatim.
     expect(byTitle['Named-record headers'],
         ['ResultList ×10  (raw tag 2, not modeled)']);
-    // And all appear as count rows.
     final rows = {for (final (k, v) in binaryHeaderRows(doc)) k: v};
     expect(rows['Inline numbers'], '2');
     expect(rows['Named scalars'], '1');
@@ -1051,13 +991,11 @@ void main() {
   });
 
   test('writeCapped lists up to the cap, then an honest "and N more"', () {
-    // Under the cap: every item listed, no summary line.
     final small = StringBuffer();
     writeCapped(small, ['a', 'b', 'c'], (s) => s);
     expect(small.toString(), '  a\n  b\n  c\n');
     expect(small.toString(), isNot(contains('more')));
 
-    // Over the cap: exactly maxListedEntries listed + a truthful remainder line.
     final big = StringBuffer();
     final items = [for (var i = 0; i < maxListedEntries + 7; i++) 'n$i'];
     writeCapped(big, items, (s) => s);

@@ -67,6 +67,5 @@ ViTypeMap? decodeTypeMap(Uint8List b) {
     ];
     return ViTypeMap(rawLength: b.length, isShortForm: true, count: count, field1: field1, entries: entries);
   }
-  // Larger layout (e.g. the first==0 form in VIs without a VCTP) — not yet decoded.
   return ViTypeMap(rawLength: b.length, isShortForm: false, count: 0, field1: field1, entries: const []);
 }

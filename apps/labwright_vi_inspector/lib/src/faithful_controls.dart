@@ -74,7 +74,7 @@ String? structureFrameTitle(ViHeapObject o, {required bool isFrontPanel}) {
 /// full strength. Honest either way: nothing is hidden, all objects stay drawn +
 /// tappable, and the wireframe view remains the full-strength honest render.
 double _emphasis(ViHeapObject o, {bool isFrontPanel = false}) {
-  if (isFrontPanel) return 1; // the FP is a faithful solid panel — no dimming
+  if (isFrontPanel) return 1;
   final labeled = o.label?.trim().isNotEmpty ?? false;
   switch (o.category) {
     case ViObjectKind.structure:
@@ -86,7 +86,7 @@ double _emphasis(ViHeapObject o, {bool isFrontPanel = false}) {
       return 0.4;
     case ViObjectKind.terminal:
     case ViObjectKind.terminalCluster:
-      return (labeled || o.items.isNotEmpty) ? 1 : 0.6; // bare terminals = wire stubs/constants
+      return (labeled || o.items.isNotEmpty) ? 1 : 0.6;
   }
 }
 
@@ -137,7 +137,7 @@ Widget _faithfulFor(ViHeapObject o, {bool isFrontPanel = false}) {
     case HeapObjectClass.bdStructureFrame:
       return _StructureFrame(kind: structureFrameTitle(o, isFrontPanel: isFrontPanel));
     case HeapObjectClass.controlLabel:
-    case HeapObjectClass.bdSelectorLabel: // case selector text (True/False/case name)
+    case HeapObjectClass.bdSelectorLabel:
       return _LabelText(o.label);
     case HeapObjectClass.bdGlyph:
       return const _Glyph();
@@ -147,10 +147,6 @@ Widget _faithfulFor(ViHeapObject o, {bool isFrontPanel = false}) {
     case HeapObjectClass.enumRingControl:
       return _ControlWidget(form: _Form.enumRing, items: o.items);
     case HeapObjectClass.booleanOrClusterControl:
-      // A 0x4f's 0x0d child carries strings: a genuine ring/enum has >= 2 choices
-      // and renders as a dropdown; a SINGLE string is the boolean's own caption
-      // (e.g. "STOP", "Channel A", "Enable") — that is a BOOLEAN, not a one-option
-      // dropdown, so render a labeled boolean. (typeKind never propagates to 0x4f.)
       return o.items.length >= 2
           ? _ControlWidget(form: _Form.enumRing, items: o.items)
           : _ControlWidget(form: _Form.boolean, label: o.items.isNotEmpty ? o.items.first : o.label);
@@ -163,13 +159,8 @@ Widget _faithfulFor(ViHeapObject o, {bool isFrontPanel = false}) {
     case HeapObjectClass.graphIndicator:
       return _GraphPlaceholder(plotNames: o.plotNames);
     case HeapObjectClass.controlSubPart:
-      // 0x0b: an INTERNAL part of its parent control (a numeric's spinner arrows,
-      // a boolean's glyph) — the parent control already renders the functional
-      // widget, so draw this as faint scaffolding, not a standalone control box
-      // (which would read as a mystery extra control).
       return const _UnknownBox();
     default:
-      // Fall back by coarse category.
       if (o.category == ViObjectKind.node) {
         final n = nodeDisplayLabel(o);
         return _NodeBox(label: n.text, isHint: n.isHint);
@@ -178,8 +169,6 @@ Widget _faithfulFor(ViHeapObject o, {bool isFrontPanel = false}) {
         return _StructureFrame(kind: structureFrameTitle(o, isFrontPanel: isFrontPanel));
       }
       if (o.category == ViObjectKind.terminal) return const _ControlWidget(form: _Form.generic);
-      // Bounded but unclassified: draw a faint placeholder (honest — matches the
-      // wireframe's gray box) instead of vanishing, so faithful != silently-dropped.
       return const _UnknownBox();
   }
 }
@@ -197,10 +186,6 @@ const _kInk = Color(0xFF1A1A1A);
   final l = o.label?.trim();
   if (l != null && l.isNotEmpty) return (text: l, isHint: false);
   final cls = o.objectClass.label;
-  // Shorten only the "Node (kind)" wrapper (-> "primitive"/"growable"/"subVI
-  // call"); for any other label (e.g. "Call Library node", "Content group (FP)"
-  // where the parens are a qualifier, not a kind) keep the full catalog label so
-  // we never surface a misleading fragment like "FP".
   final m = RegExp(r'^Node \((.+)\)$').firstMatch(cls);
   return (text: m != null ? m.group(1)! : cls, isHint: true);
 }
@@ -218,11 +203,6 @@ class _StructureFrame extends StatelessWidget {
   const _StructureFrame({this.kind});
   final String? kind;
   @override
-  // Outline-only (no fill) so nesting reads via overlap like the wireframe, and
-  // deeply-nested frames don't accumulate a muddy tint (structures contain other
-  // structures ~79% of the time). The brown border is the LabVIEW structure look.
-  // A small corner badge names the structure's kind so loops/cases are legible as
-  // control flow rather than anonymous boxes.
   Widget build(BuildContext context) => Stack(
         clipBehavior: Clip.none,
         children: [
@@ -265,16 +245,6 @@ class _NodeBox extends StatelessWidget {
   /// name — rendered italic + dimmer so it reads as "kind" not a real name.
   final bool isHint;
 
-  // The node icon is not yet decoded, so the box is a translucent placeholder (the
-  // translucency lets overlapping sibling nodes — ~37% of cases — show through).
-  // A RECOVERED name (a subVI filename, e.g. `PicoScope2000aOpen.vi`) is NOT drawn
-  // in the box: it already renders on the canvas as the node's own floating `0xa`
-  // label, at the position LabVIEW gave it (the name is copied onto the node only
-  // to enrich selection/inspect). Drawing it here too would double-print the name
-  // (~42.3k corpus nodes). So a real name stays an icon placeholder — its name is
-  // still discoverable on hover via the shared `_withHelp` tooltip (controlTooltip
-  // falls back to the name). Only a class HINT (for an unlabeled primitive, which
-  // has no floating label) is drawn italic so the box isn't a blank mystery.
   @override
   Widget build(BuildContext context) => Container(
         alignment: Alignment.center,
@@ -307,8 +277,6 @@ class _LabelText extends StatelessWidget {
   final String? label;
   @override
   Widget build(BuildContext context) => Container(
-        // Transparent like a real LabVIEW label (no clashing filled box); a soft
-        // white halo keeps the dark text legible over any control beneath it.
         alignment: Alignment.centerLeft,
         padding: const EdgeInsets.symmetric(horizontal: 2),
         child: Text(
@@ -420,9 +388,9 @@ class _GraphPainter extends CustomPainter {
     canvas.drawPath(path, trace);
   }
 
-  // small sine without importing dart:math twice over (keeps the file self-contained)
+  /// Bhaskara I sine approximation — plenty for a decorative trace, and keeps the
+  /// file self-contained (no second `dart:math` import).
   double _sin(double t) {
-    // Bhaskara approximation is plenty for a decorative trace.
     final x = t % 6.283185;
     final xx = x > 3.14159 ? x - 6.283185 : x;
     return 16 * xx * (3.14159 - xx.abs()) / (5 * 3.14159 * 3.14159 - 4 * xx.abs() * (3.14159 - xx.abs()));
@@ -452,7 +420,6 @@ class _ControlWidgetState extends State<_ControlWidget> {
   bool _bool = false;
   int _enum = 0;
   late final TextEditingController _text = TextEditingController();
-  // Real decoded items when available; a neutral placeholder otherwise.
   List<String> get _enumItems => widget.items.isNotEmpty ? widget.items : const ['—'];
 
   @override
@@ -467,8 +434,6 @@ class _ControlWidgetState extends State<_ControlWidget> {
   Widget build(BuildContext context) {
     switch (widget.form) {
       case _Form.numeric:
-        // The spinner is a fixed-width adornment; drop it when the control box is
-        // too narrow to hold it, so a tiny numeric never overflows its Row.
         return LayoutBuilder(builder: (context, c) {
           final showSpin = c.maxWidth >= 22;
           return Container(
@@ -476,9 +441,6 @@ class _ControlWidgetState extends State<_ControlWidget> {
             padding: const EdgeInsets.only(left: 4),
             child: Row(children: [
               Expanded(child: Text(_num.toStringAsFixed(0), style: const TextStyle(fontSize: 11, color: _kInk), overflow: TextOverflow.clip)),
-              // SizedBox bounds the width; OverflowBox lets the spinner keep its
-              // natural height in very short terminals (clipped by FaithfulLayer's
-              // ClipRect) without a RenderFlex overflow assertion.
               if (showSpin)
                 SizedBox(
                   width: 14,
@@ -539,7 +501,6 @@ class _ControlWidgetState extends State<_ControlWidget> {
       case _Form.string:
         return _field(hint: 'abc');
       case _Form.path:
-        // Drop the leading folder icon when the box is too narrow for it.
         return LayoutBuilder(builder: (context, c) {
           final showIcon = c.maxWidth >= 26;
           return Container(

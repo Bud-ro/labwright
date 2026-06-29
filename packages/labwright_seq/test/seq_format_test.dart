@@ -37,7 +37,6 @@ void main() {
     test('legacy INI is recognized only with a TestStand marker', () {
       final ts = _bytes(ascii.encode('[TestStandStructuredFile]\nVersion=3.5\n'));
       expect(detectSeqFormat(ts), SeqFormat.ini);
-      // A plain INI without any TestStand marker must NOT be claimed as a .seq.
       final plain = _bytes(ascii.encode('[General]\nname=other\n'));
       expect(detectSeqFormat(plain), SeqFormat.unknown);
     });
@@ -66,8 +65,8 @@ void main() {
       final h = detectSeqHeader(_binary('SequenceFile'));
       expect(h.format, SeqFormat.binary);
       expect(h.fileType, 'SequenceFile');
-      // Numeric fileversion not yet located in the binary container — not fabricated.
-      expect(h.fileVersion, isNull);
+      expect(h.fileVersion, isNull,
+          reason: 'binary fileversion not yet located in the container — not fabricated');
     });
 
     test('binary header productName from the 0x40 slot', () {
@@ -85,16 +84,14 @@ void main() {
     test('extracts printable runs with offsets, incl. Latin-1 high bytes', () {
       final b = Uint8List.fromList([
         0x00, ...ascii.encode('Hello'), 0x00, 0x01, ...ascii.encode('World'), 0x00,
-        // Latin-1 letters (0xa0..0xff) stay inside the run (ü, ç)...
         ...latin1.encode('Aktif_Güç'), 0x00,
-        // ...but a C1-gap byte (0x7f..0x9f) still separates runs.
         ...ascii.encode('left'), 0x85, ...ascii.encode('right'),
       ]);
       final runs = binaryStrings(b);
       expect(runs.map((r) => r.text),
           ['Hello', 'World', 'Aktif_Güç', 'left', 'right']);
       expect(runs.first.offset, 1);
-      expect(binaryStrings(Uint8List(0)), isEmpty); // no throw on empty
+      expect(binaryStrings(Uint8List(0)), isEmpty);
     });
 
     test('type-palette file kind via binary token', () {

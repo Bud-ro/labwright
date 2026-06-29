@@ -23,11 +23,11 @@ void main() {
     });
 
     test('a corrupt over-large count reads only what is present (no over-read)', () {
-      final b = Uint8List(12); // count word + 2 u32
-      ByteData.sublistView(b).setUint32(0, 9999); // lies
+      final b = Uint8List(12);
+      ByteData.sublistView(b).setUint32(0, 9999);
       final t = decodeIdTable(b)!;
       expect(t.count, 9999);
-      expect(t.entries.length, 2); // min(count, available)
+      expect(t.entries.length, 2, reason: 'min(count, available): 2 u32 present');
     });
 
     test('too short for the count word yields null', () {

@@ -35,7 +35,6 @@ Future<void> main(List<String> args) async {
     exitCode = 1;
     return;
   }
-  // Package root = the dir holding corpus/sources.json (i.e. <pkg>/corpus/sources.json).
   final pkgRoot = sources.parent.parent.path;
   final dest = positional.isNotEmpty ? positional.first : '$pkgRoot/corpus/vi';
 
@@ -79,7 +78,6 @@ Future<void> main(List<String> args) async {
     stdout.writeln('  ok ($extracted .vi)');
   }
 
-  // Count the whole tree so re-runs (mostly skips) still report the real total.
   final grandTotal = Directory(dest).existsSync()
       ? Directory(
           dest,
@@ -104,7 +102,7 @@ Future<bool> _ghTarball(String repo, String commit, String tarPath) async {
   }
   final sink = File(tarPath).openWrite();
   final errFuture = proc.stderr.transform(utf8.decoder).join();
-  await proc.stdout.pipe(sink); // pipe closes the sink when stdout hits EOF
+  await proc.stdout.pipe(sink);
   final err = await errFuture;
   final code = await proc.exitCode;
   if (code != 0) {
@@ -171,7 +169,6 @@ void _prune(Directory root, List<String> keepExts) {
       removed++;
     } catch (_) {}
   }
-  // Remove directories that are now empty (deepest first).
   final dirs = root.listSync(recursive: true).whereType<Directory>().toList()
     ..sort((a, b) => b.path.length.compareTo(a.path.length));
   for (final d in dirs) {
@@ -185,7 +182,8 @@ void _prune(Directory root, List<String> keepExts) {
   );
 }
 
-/// Walks up from this script's directory to find the repo's `corpus/sources.json`.
+/// Walks up from this script's directory to find the repo's `corpus/sources.json`,
+/// falling back to the cwd-relative `corpus/sources.json` (when run from the repo root).
 File? _findSourcesJson() {
   var dir = File.fromUri(Platform.script).parent;
   for (var i = 0; i < 8; i++) {
@@ -195,7 +193,6 @@ File? _findSourcesJson() {
     if (parent.path == dir.path) break;
     dir = parent;
   }
-  // Fallback: cwd-relative (when run from the repo root).
   final cwd = File('corpus/sources.json');
   return cwd.existsSync() ? cwd : null;
 }

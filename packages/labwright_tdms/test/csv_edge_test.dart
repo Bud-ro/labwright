@@ -16,7 +16,7 @@ void main() {
 
     test('rows with extra cells beyond the header do not crash; extras ignored', () {
       final f = TdmsReader.read(csvToTdms('a\n1,2,3\n4\n'));
-      expect(f.group('Imported')!.channel('a')!.data, [1.0, 4.0]); // extras beyond header dropped, no throw
+      expect(f.group('Imported')!.channel('a')!.data, [1.0, 4.0]);
     });
 
     test('leading/trailing whitespace in cells is trimmed before parsing', () {
@@ -32,7 +32,7 @@ void main() {
 
     test('whitespace-only / header-only input yields empty channels, no crash', () {
       expect(() => csvToTdms('   '), returnsNormally);
-      final f = TdmsReader.read(csvToTdms('a,b\n')); // header only, no data rows
+      final f = TdmsReader.read(csvToTdms('a,b\n'));
       expect(f.group('Imported')!.channel('a')!.data, isEmpty);
       expect(f.group('Imported')!.channel('b')!.data, isEmpty);
     });
@@ -55,7 +55,7 @@ void main() {
       final lines = tdmsToCsv(bytes).trim().split('\n');
       expect(lines[0], 'G/long,G/short');
       expect(lines[1], '1.0,9.0');
-      expect(lines[2], '2.0,'); // short channel padded
+      expect(lines[2], '2.0,');
       expect(lines[3], '3.0,');
     });
 
@@ -81,6 +81,6 @@ void main() {
       [2.5, 5.5, 8.5],
       [3.5, 6.5, 9.5],
     ]);
-    expect(second, first); // re-export then re-import preserves every column
+    expect(second, first);
   });
 }

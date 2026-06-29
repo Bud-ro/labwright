@@ -33,7 +33,6 @@ void main() {
   });
 
   test('a corrupt "compressed-looking" section falls back to raw, never throws', () {
-    // declares 99 bytes, then a 0x78 byte but not a valid zlib stream
     final b = Uint8List.fromList([0, 0, 0, 99, 0x78, 0x9c, 1, 2, 3]);
     final dec = inflateSection(sec('X', b));
     expect(dec.wasCompressed, isFalse);
@@ -43,7 +42,7 @@ void main() {
   test('size-mismatch (valid zlib, wrong declared size) falls back to raw', () {
     final z = const ZLibEncoder().encode([1, 2, 3]);
     final b = BytesBuilder()
-      ..add((ByteData(4)..setUint32(0, 999)).buffer.asUint8List()) // wrong size
+      ..add((ByteData(4)..setUint32(0, 999)).buffer.asUint8List())
       ..add(z);
     final dec = inflateSection(sec('Y', b.toBytes()));
     expect(dec.wasCompressed, isFalse);
@@ -57,7 +56,7 @@ void main() {
       try {
         expect(decodeSections(bytes), isA<List<DecodedSection>>());
       } on ViFormatException {
-        // acceptable
+        // acceptable: decodeSections may reject malformed input
       } catch (e) {
         fail('decodeSections leaked ${e.runtimeType}: $e');
       }

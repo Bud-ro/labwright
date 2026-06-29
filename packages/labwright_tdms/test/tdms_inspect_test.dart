@@ -30,6 +30,6 @@ void main() {
         .toBytes();
     final report = inspectTdms(bytes, preview: 3);
     expect(report, contains('7 values'));
-    expect(report, contains(', ...]')); // truncated preview
+    expect(report, contains(', ...]'));
   });
 }

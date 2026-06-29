@@ -25,14 +25,12 @@ void main() {
       const MaterialApp(home: Scaffold(body: BinaryView(doc: doc))),
     );
 
-    // The recovered-datum category sections render with their counts.
     expect(find.text('Module call-targets (1)'), findsOneWidget);
     expect(find.text('Expressions (test logic) (1)'), findsOneWidget);
     expect(find.text('Quoted literals (values) (1)'), findsOneWidget);
     expect(find.text('Object names (2)'), findsOneWidget);
     expect(find.text('All recovered strings (0)'), findsOneWidget);
 
-    // Expanding a section reveals its recovered item.
     await tester.tap(find.text('Expressions (test logic) (1)'));
     await tester.pumpAndSettle();
     expect(find.text('Locals.x == 1'), findsOneWidget);

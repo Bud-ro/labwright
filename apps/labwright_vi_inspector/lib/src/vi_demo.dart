@@ -13,31 +13,36 @@ Uint8List demoViBytes({
   void be16(BytesBuilder b, int v) => b.add((ByteData(2)..setUint16(0, v)).buffer.asUint8List());
   void be32(BytesBuilder b, int v) => b.add((ByteData(4)..setUint32(0, v)).buffer.asUint8List());
 
-  final header = BytesBuilder()..add(const [0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a]); // RSRC\r\n
-  be16(header, 3); // format version
+  const rsrcMagic = [0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a];
+  const formatVersion = 3;
+  const infoSectionOffset = 32;
+  const blockInfoListOffset = 0x34;
+
+  final header = BytesBuilder()..add(rsrcMagic);
+  be16(header, formatVersion);
   header
-    ..add(fileType.codeUnits) // file type (4 bytes)
-    ..add('LBVW'.codeUnits); // creator (4 bytes)
-  be32(header, 32); // info section offset (right after this 32-byte header)
-  be32(header, 0); // info size (unused by parser)
-  be32(header, 0x20); // data offset (unused)
-  be32(header, 0); // data size (unused)
+    ..add(fileType.codeUnits)
+    ..add('LBVW'.codeUnits);
+  be32(header, infoSectionOffset);
+  be32(header, 0);
+  be32(header, 0x20);
+  be32(header, 0);
   final headerBytes = header.toBytes();
 
-  final info = BytesBuilder()..add(headerBytes); // info section repeats the header
+  final info = BytesBuilder()..add(headerBytes);
   be32(info, 0);
   be32(info, 0);
   be32(info, 0x20);
-  be32(info, 0x34); // offset to the block-info list
+  be32(info, blockInfoListOffset);
   be32(info, 0);
-  be32(info, blocks.length); // block count
+  be32(info, blocks.length);
   for (final t in blocks) {
     info
       ..add(t.codeUnits)
-      ..add(const [0, 0, 0, 0, 0, 0, 0, 0]); // two u32 per entry (unused here)
+      ..add(const [0, 0, 0, 0, 0, 0, 0, 0]);
   }
   info
-    ..addByte(name.length) // trailing length-prefixed VI name
+    ..addByte(name.length)
     ..add(name.codeUnits);
 
   return (BytesBuilder()
@@ -65,9 +70,6 @@ ViLoad summarize(Uint8List bytes) {
   } on ViFormatException catch (e) {
     return ViLoad.failed('Not a LabVIEW RSRC (.vi/.ctl) file: ${e.message}');
   } catch (e) {
-    // Defense in depth: `parseVi` is proven total by the viparse fuzz suite, but
-    // a UI importer pointed at random internet files must never crash — surface
-    // anything unforeseen calmly instead of taking down the app.
     return ViLoad.failed('Could not parse this file: $e');
   }
 }

@@ -351,19 +351,16 @@ void main() {
       expect(seq.cleanup, isEmpty);
       expect(seq.main.map((s) => s.name), ['Pass & go', 'Show "hi"', 'Check V', 'Call Sleep']);
       expect(seq.main.map((s) => s.type), ['Statement', 'MessagePopup', 'NumericLimitTest', 'Action']);
-      expect(seq.steps, hasLength(4)); // setup(0) + main(4) + cleanup(0)
+      expect(seq.steps, hasLength(4));
     });
 
     test('decodes the module-adapter binding per step', () {
       final main = f.sequences.single.main;
-      // LabVIEW VI adapter (ViCall → VIPath)
       expect(main[0].module.adapter, SeqAdapter.labView);
       expect(main[0].module.viPath, r'My Computer\Foo.vi');
       expect(main[0].module.target, r'My Computer\Foo.vi');
-      // No SData → no adapter, honestly.
       expect(main[1].module.adapter, SeqAdapter.none);
       expect(main[1].module.target, isNull);
-      // C/DLL adapter (Call → LibPath/Func)
       expect(main[3].module.adapter, SeqAdapter.cModule);
       expect(main[3].module.libPath, 'kernel32.dll');
       expect(main[3].module.function, 'Sleep');
@@ -372,7 +369,7 @@ void main() {
 
     test('decodes limit-test pass/fail criteria', () {
       final main = f.sequences.single.main;
-      final lim = main[2].limits!; // the NumericLimitTest step
+      final lim = main[2].limits!;
       expect(lim.comparison, 'GELE');
       expect(lim.low, '9');
       expect(lim.high, '11');
@@ -380,7 +377,6 @@ void main() {
       expect(lim.thresholdType, 'PERCENTAGE');
       expect(lim.dataSource, 'Step.Result.Numeric');
       expect(lim.summary, 'GELE [9, 11]');
-      // A non-limit step reports no limits, honestly.
       expect(main[0].limits, isNull);
     });
 
@@ -391,11 +387,10 @@ void main() {
       expect(s0.isLooping, isTrue);
       expect(s0.passAction, 'GotoStep');
       expect(s0.failAction, 'Next');
-      expect(s0.postExpression, isNull); // empty <value/> → not set, not ""
+      expect(s0.postExpression, isNull);
       expect(s0.mode, 'Skip');
       expect(s0.isNormalMode, isFalse);
       expect(s0.loadOption, 'PreloadWhenExecuted');
-      // A step without a TS container reports everything as unset, no throw.
       final s1 = f.sequences.single.main[1].settings;
       expect(s1.precondition, isNull);
       expect(s1.loopType, isNull);
@@ -413,29 +408,24 @@ void main() {
       expect(seq.locals[1].value, 'hi');
       final list = seq.locals[2];
       expect(list.type, 'Objs');
-      expect(list.value, isNull); // array container, no scalar default
+      expect(list.value, isNull);
       expect(list.isContainer, isTrue);
-      // An array container reports its element count (0 for an empty default)
-      // and identifies as an array; a scalar reports no container count.
       expect(list.isArray, isTrue);
       expect(list.containerCount, 0);
       expect(count.isArray, isFalse);
       expect(count.containerCount, isNull);
-      expect(seq.parameters, isEmpty); // this sequence takes none
+      expect(seq.parameters, isEmpty);
     });
 
     test('dumpSeqFile renders a faithful text view', () {
       final out = dumpSeqFile(f);
       expect(out, contains('SequenceFile'));
       expect(out, contains('Sequence: MainSequence'));
-      // step names
       expect(out, contains('Pass & go [Statement]'));
       expect(out, contains('Call Sleep [Action]'));
-      // module targets
       expect(out, contains(r'labView: My Computer\Foo.vi'));
       expect(out, contains('cModule: kernel32.dll:Sleep'));
       expect(out, contains('limits GELE [9, 11]'));
-      // settings + locals
       expect(out, contains('mode Skip'));
       expect(out, contains('loop FixedNumLoops'));
       expect(out, contains('if Locals.X == 1'));
@@ -447,10 +437,8 @@ void main() {
       final call = cf.sequences.single.main.single;
       expect(call.module.adapter, SeqAdapter.sequenceCall);
       expect(call.module.sequenceName, 'MainSequence');
-      // Resolves to the sequence in this file.
       expect(cf.resolveCall(call)?.name, 'MainSequence');
       expect(cf.sequence('Nope'), isNull);
-      // The dump shows the resolution.
       expect(dumpSeqFile(cf), contains('sequenceCall: MainSequence (in this file)'));
     });
 
@@ -460,8 +448,6 @@ void main() {
       expect(c.modeled, greaterThan(0));
       expect(c.modeled, lessThanOrEqualTo(c.total));
       expect(c.ratio, inInclusiveRange(0, 1));
-      // The lens surfaces the sequence, its groups, steps, settings, module
-      // fields and locals — so coverage is a meaningful fraction, not ~0.
       expect(c.ratio, greaterThan(0.1));
     });
 
@@ -469,7 +455,6 @@ void main() {
       final seq = f.sequences.single.raw;
       expect(seq.prop('Comment')!.scalar, 'a comment');
       expect(seq.attributes['classname'], 'Obj');
-      // The empty Setup array is an array (not a scalar/leaf), honestly empty.
       expect(seq.prop('Setup')!.isArray, isTrue);
       expect(seq.prop('Setup')!.array, isEmpty);
     });
@@ -486,7 +471,6 @@ void main() {
       expect(names(seq.stepsIn(StepGroup.setup)), names(seq.setup));
       expect(names(seq.stepsIn(StepGroup.main)), names(seq.main));
       expect(names(seq.stepsIn(StepGroup.cleanup)), names(seq.cleanup));
-      // steps is the three groups concatenated in execution order.
       expect(
         names(seq.steps),
         [...names(seq.setup), ...names(seq.main), ...names(seq.cleanup)],
@@ -506,10 +490,8 @@ void main() {
       expect(addl.map((a) => a.name), ['Input', 'Output']);
       expect(addl.map((a) => a.kind),
           ['PythonParameterResult', 'PythonParameterResult']);
-      // The empty Condition is always-on (null), the set one is surfaced.
       expect(addl[0].condition, isNull);
       expect(addl[1].condition, 'Locals.Save == True');
-      // Flags/CheckedState stay raw — meaning not yet decoded — but reachable.
       expect(addl[0].raw.prop('Flags')?.scalar, '8192');
       expect(addl[1].raw.prop('CheckedState')?.scalar, '2');
     });
@@ -526,11 +508,8 @@ void main() {
 
     test('coverage marks the container, entries and their Conditions', () {
       final f = parseSeqFile(_bytes(_seqAddlXml));
-      // container(1) + entries(2) + Conditions(2) = 5 nodes beyond the baseline
-      // step lens. Compare against the same file stripped of the spec.
       final cov = measureCoverage(f);
       expect(cov.modeled, greaterThan(0));
-      // The two Condition nodes + two entries + container are all modeled.
       final addl = f.sequences.single.main.single.additionalResults;
       expect(addl, hasLength(2));
     });
@@ -550,7 +529,6 @@ void main() {
       expect(p[0].direction, 'In');
       expect(p[0].isArray, isFalse);
       expect(p[0].value, '6');
-      // The output is an array (Dimension 1) with no bound value.
       expect(p[1].name, 'pin_map');
       expect(p[1].direction, 'Out');
       expect(p[1].isArray, isTrue);
@@ -559,7 +537,6 @@ void main() {
 
     test('recovers TypeSpecialization (refinement) and the Log flag', () {
       final p = step.measurementParameters;
-      // `None` reads as no specialization; a real refinement is surfaced.
       expect(p[0].typeSpecialization, isNull);
       expect(p[0].logged, isTrue);
       expect(p[1].typeSpecialization, 'IOResource');
@@ -573,7 +550,6 @@ void main() {
       final ev = p[2].enumValues;
       expect(ev.map((e) => e.name), ['NONE', 'DC_VOLTS', 'AC_VOLTS']);
       expect(ev.map((e) => e.value), ['0', '1', '2']);
-      // A non-enum param exposes no enum values.
       expect(p[0].enumValues, isEmpty);
     });
 
@@ -585,15 +561,12 @@ void main() {
     test('the dump surfaces measurement params with type, refinement, logging', () {
       final out = dumpSeqFile(parseSeqFile(_bytes(_seqMeasXml)));
       expect(out, contains('voltage_level in TypeDouble = 6'));
-      // The refinement and the not-logged marker ride along.
       expect(out, contains('pin_map out TypeString (IOResource)[] [not logged]'));
-      // The enum's allowed values are folded in.
       expect(out, contains('{NONE=0, DC_VOLTS=1, AC_VOLTS=2}'));
     });
 
     test('coverage credits the measurement-parameter cluster', () {
       final cov = measureCoverage(parseSeqFile(_bytes(_seqMeasXml)));
-      // Container + Parameters + 2 params + 5 marked fields each (some absent).
       expect(cov.modeled, greaterThan(8));
     });
   });
@@ -611,9 +584,7 @@ void main() {
     test('recovers Python call params (Name + ArgumentValue bound value)', () {
       final args = m.callParameters;
       expect(args.map((a) => a.name), ['sequence_context', 'Return Value']);
-      // ArgumentValue is read as the bound expression (not ArgVal).
       expect(args[0].boundExpression, 'ThisContext');
-      // An empty ArgumentValue reads as unbound; Python params carry no direction.
       expect(args[1].boundExpression, isNull);
       expect(args[0].direction, isNull);
     });
@@ -658,20 +629,16 @@ void main() {
       expect(r.errorCode, '-17');
       expect(r.errorMessage, 'boom');
       expect(r.hasRecordedOutcome, isTrue);
-      // The dump surfaces the recorded outcome.
       final out = dumpSeqFile(parseSeqFile(_bytes(_seqResultXml)));
       expect(out, contains('{result: status Failed; error -17 "boom"; report "measured 5V"}'));
     });
 
     test('a default (un-run) Result reads as no recorded outcome', () {
-      // The measurement fixture's steps carry only default Result slots.
       final step = parseSeqFile(_bytes(_seqMeasXml)).sequences.single.main.single;
       final r = step.result;
-      // The measurement step has no Result slot at all → null, honestly.
       if (r != null) {
         expect(r.hasRecordedOutcome, isFalse);
       }
-      // Either way, the dump shows no {result: …} chip for default/absent.
       expect(dumpSeqFile(parseSeqFile(_bytes(_seqMeasXml))), isNot(contains('{result:')));
     });
   });
@@ -687,7 +654,6 @@ void main() {
 
     test('a step without a mutex reports false/null and no dump note', () {
       final s = parseSeqFile(_bytes(_seqXml)).sequences.single.main.first.settings;
-      // The base fixture's step has no UseMutex member → null, honestly.
       expect(s.usesMutex, anyOf(isNull, isFalse));
       expect(dumpSeqFile(parseSeqFile(_bytes(_seqXml))), isNot(contains('mutex')));
     });
@@ -705,7 +671,6 @@ void main() {
     });
 
     test('a scalar typedef recovers an empty field list (no fabrication)', () {
-      // The base fixture's Expression typedef declares no sub-fields.
       final t = parseSeqFile(_bytes(_seqXml)).typeDefs.single;
       expect(t.name, 'Expression');
       expect(t.baseClass, 'ExprValue');
@@ -763,7 +728,7 @@ void main() {
       expect(m.pythonModulePath, r'..\measurements\smu\test.py');
       expect(m.pythonVersion, '3.9');
       expect(m.pythonVenvPath, r'..\measurements\smu\.venv');
-      expect(m.pythonClassName, isNull); // empty in this fixture → null, not ''
+      expect(m.pythonClassName, isNull);
       expect(m.target, 'create_instrument_sessions');
     });
 
@@ -808,10 +773,10 @@ void main() {
       final kinds = steps.map((s) => s.flowControl?.kind).toList();
       expect(kinds, [
         FlowKind.ifBlock,
-        null, // the inner action
+        null,
         FlowKind.end,
         FlowKind.forEach,
-        null, // the inner action
+        null,
         FlowKind.end,
       ]);
     });
@@ -830,9 +795,7 @@ void main() {
       final out = exportSequenceLogic(f);
       expect(out, contains('if (Locals.X > 0) {'));
       expect(out, contains('for each (Locals.Item in Locals.Items) {'));
-      // The inner action sits one level deeper than its opener.
       expect(out, contains('\n      Do Work'));
-      // Balanced: two openers → two closing braces in Main.
       expect('}'.allMatches(out).length, 2);
     });
 
@@ -849,8 +812,6 @@ void main() {
   });
 
   group('looping step in the logic export', () {
-    // The base fixture's first step loops (LoopType=FixedNumLoops); give it a
-    // loop-while so the annotation carries its termination condition.
     const loopXml = '''<?xml version="1.0" encoding="UTF-8"?>
 <teststandfileheader type='SequenceFile' fileversion='920' productname='TestStand'>
   <typelist/>
@@ -889,15 +850,12 @@ void main() {
       final out = exportSequenceLogic(parseSeqFile(_bytes(_seqXml)));
       final header = out.split('\n').first;
       expect(header, startsWith('sequence MainSequence:'));
-      // Counts come straight from the lens (no fabrication).
       expect(header, contains('${seq.steps.length} steps'));
       expect(header, contains('${seq.locals.length} locals'));
-      // This fixture declares no parameters → omitted, not "0 params".
       expect(header, isNot(contains('param')));
     });
 
     test('a single-step sequence uses the singular form', () {
-      // _seqCallXml has exactly one step and no params/locals.
       final out = exportSequenceLogic(parseSeqFile(_bytes(_seqCallXml)));
       expect(out.split('\n').first, contains('// 1 step'));
       expect(out.split('\n').first, isNot(contains('1 steps')));
@@ -908,7 +866,6 @@ void main() {
           exportSequenceLogic(parseSeqFile(_bytes(_seqParamsXml))).split('\n').first;
       expect(header,
           startsWith('sequence MainSequence(TestSocketName: Str, Voltage: Num = 5):'));
-      // Params are in the signature, not duplicated in the count comment.
       expect(header, isNot(contains('param')));
       expect(header, contains('// 1 step'));
     });
@@ -944,7 +901,6 @@ void main() {
 
     test('a fall-through (Next/Next) step gets no jump annotation', () {
       final out = exportSequenceLogic(parseSeqFile(_bytes(_seqJumpXml)));
-      // The plain step renders without any "on fail"/"on pass" note.
       final plainLine =
           out.split('\n').firstWhere((l) => l.contains('Plain'));
       expect(plainLine, isNot(contains('on fail')));

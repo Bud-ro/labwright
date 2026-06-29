@@ -17,8 +17,6 @@
 /// Recovering full block-diagram *logic* is ongoing work.
 library;
 
-// Container + resource blocks (parse layer) and heap decode → graph/IR
-// (decode layer), one flat surface.
 export 'src/blocks/block_catalog.dart';
 export 'src/blocks/connector_pane.dart';
 export 'src/blocks/data_type_heap.dart';

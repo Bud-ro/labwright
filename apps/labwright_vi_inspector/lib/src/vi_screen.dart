@@ -103,21 +103,12 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
     var libraryNames = const <String>[];
     var embeddedVis = const <ViEmbeddedVi>[];
     if (load.isOk) {
-      // Decode the heaps ONCE and derive everything from that single inflate
-      // pass (previously version/strings/components/model/sections each re-ran
-      // decodeSections → ~4 redundant zlib inflations of the heaviest heaps).
-      // Wrapped so a container that parses for the summary but throws on a
-      // section keeps the UI total.
       try {
         sections = decodeSections(bytes);
-        // subViNames come from the raw LIbd block (not the decoded heaps), so
-        // pass them in — otherwise the Generated-Dart view loses the subVI list.
         model = buildViModelFromDecoded(sections, subViNames: readSubViNames(bytes));
         strings = heapStringsFromDecoded(sections);
         components = model.components;
-        version = decodeVersion(bytes); // cheap: reads descriptors, no heap inflation
-        // Embedded secondary sections (owning library names + embedded sub-VIs)
-        // live in the @16==0 LIBN/VINS sections, separate from the heaps.
+        version = decodeVersion(bytes);
         libraryNames = readOwningLibraryNames(bytes);
         embeddedVis = readEmbeddedVis(bytes);
       } catch (_) {
@@ -177,7 +168,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
       type: FileType.custom,
       allowedExtensions: const ['vi', 'ctl', 'llb'],
     );
-    if (!mounted) return; // the dialog await may outlive this State
+    if (!mounted) return;
     final files = result?.files ?? const [];
     if (files.isNotEmpty && files.first.path != null) _loadPath(files.first.path!);
   }
@@ -287,9 +278,6 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                                             _loadBytes(b, 'embedded: ${vi.name ?? 'sub-VI'}');
                                           },
                                         ),
-                                        // Each layout view is keyed by model identity so loading a
-                                        // new VI builds fresh state (resets selection + re-fits).
-                                        // Front panel ← FPHb/FPHP, block diagram ← BDHb/BDHP.
                                         ViDiagramView(
                                           key: ValueKey('fp:$_model'),
                                           diagrams: _model?.frontPanelDiagrams,
@@ -431,11 +419,6 @@ class _SummaryViewState extends State<_SummaryView> {
 
     return ListView(
       children: [
-        // NOTE: the embedded 20x20 RGB picture is NOT shown here as a per-VI
-        // identity icon — on the corpus it is a generic LabVIEW glyph
-        // (checkmark/X) shared across files, so presenting it next to the name
-        // would imply identity it doesn't carry. It remains viewable, in context,
-        // as a typed display in the hex viewer for the block that holds it.
         Text(summary.name ?? '(unnamed)', style: Theme.of(context).textTheme.headlineSmall),
         const SizedBox(height: 4),
         Text(summary.describe(), style: const TextStyle(color: Colors.grey)),
@@ -460,7 +443,6 @@ class _SummaryViewState extends State<_SummaryView> {
           const SizedBox(height: 16),
         ],
 
-        // Recovered subVI dependencies (from the LIbd linker block).
         if (widget.model?.subViNames.isNotEmpty ?? false) ...[
           Text('SubVIs called (${widget.model!.subViNames.length})', style: const TextStyle(fontWeight: FontWeight.bold)),
           const SizedBox(height: 4),
@@ -472,7 +454,6 @@ class _SummaryViewState extends State<_SummaryView> {
           const SizedBox(height: 16),
         ],
 
-        // Recovered data-type inventory (VCTP type pool).
         if (widget.model != null && widget.model!.types.isNotEmpty) ...[
           Builder(builder: (context) {
             final m = widget.model!;
@@ -492,7 +473,6 @@ class _SummaryViewState extends State<_SummaryView> {
           const SizedBox(height: 16),
         ],
 
-        // Owning library (from LIBN sections).
         if (widget.libraryNames.isNotEmpty) ...[
           const Text('Owning library', style: TextStyle(fontWeight: FontWeight.bold)),
           const SizedBox(height: 4),
@@ -500,8 +480,6 @@ class _SummaryViewState extends State<_SummaryView> {
           const SizedBox(height: 16),
         ],
 
-        // Embedded sub-VIs (from VINS sections — each a complete nested VI).
-        // Tap a row to open that nested VI in the inspector (it IS a full VI).
         if (widget.embeddedVis.isNotEmpty) ...[
           Text('Embedded VIs (${widget.embeddedVis.length})',
               style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -510,7 +488,6 @@ class _SummaryViewState extends State<_SummaryView> {
           const SizedBox(height: 4),
           for (final vi in widget.embeddedVis.take(60))
             Builder(builder: (context) {
-              // Honest label: a cleanly-recovered .vi name, else a neutral fallback.
               final clean = vi.name != null && vi.name!.toLowerCase().endsWith('.vi');
               final label = clean ? vi.name! : '(name not recovered)';
               final openable = vi.bytes != null && widget.onOpenEmbedded != null;
@@ -576,11 +553,6 @@ class _SummaryViewState extends State<_SummaryView> {
               )
             else
               Tooltip(
-                // Honest: these blocks are listed in the file's block table but
-                // readViSections doesn't yet extract their section bytes (e.g.
-                // LIBN library names / VINS embedded sub-VIs, whose descriptor
-                // @16 word is 0 rather than 0xFFFFFFFF), so there is nothing to
-                // show in the hex view yet.
                 message: '${kBlockGlossary[b] ?? 'resource block'}\n(bytes not yet extracted for this block)',
                 child: Opacity(
                   opacity: 0.4,
@@ -778,9 +750,6 @@ class _HexDialogState extends State<_HexDialog> {
           ),
         ),
         const Divider(height: 1),
-        // Key per section so switching the dropdown rebuilds a fresh state — the
-        // parse (records/byte-map/preview) is recomputed for the selected section
-        // instead of crashing on the previous section's byte-map.
         Expanded(
           child: Padding(
             padding: const EdgeInsets.all(8),

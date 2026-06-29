@@ -224,8 +224,6 @@ class ViObject {
 /// Total.
 List<ViObject> assembleObjects(List<HeapRecord> records, List<HeapStringTable> stringTables,
     {int maxRecordGap = 3}) {
-  // Framed tables keyed by (section, payload offset). A framed C4 2E record's
-  // payload starts at record.offset + 3, which equals the table's run offset.
   final framed = <String, HeapStringTable>{};
   for (final t in stringTables) {
     if (t.framed) framed['${t.sectionTag}@${t.offset}'] = t;
@@ -256,7 +254,7 @@ List<ViObject> assembleObjects(List<HeapRecord> records, List<HeapStringTable> s
           boundsOffset: lastBounds.offset,
           nameOffset: r.offset,
         ));
-        lastBounds = null; // consume
+        lastBounds = null;
       }
     } else if (r.kind == HeapOpcode.stringTable && inRange) {
       final t = framed['${r.sectionTag}@${r.offset + r.headerLength}'];
@@ -268,7 +266,7 @@ List<ViObject> assembleObjects(List<HeapRecord> records, List<HeapStringTable> s
           boundsOffset: lastBounds.offset,
           nameOffset: r.offset,
         ));
-        lastBounds = null; // consume
+        lastBounds = null;
       }
     }
     idx++;
@@ -298,10 +296,6 @@ ViModel buildViModelFromDecoded(Iterable<DecodedSection> decoded, {List<String> 
     components: componentsFromDecoded(list),
     stringTables: heapStringTablesFromDecoded(list),
     heapRecords: heapC4RecordsFromDecoded(list),
-    // Which heap holds the object tree varies by LabVIEW save-format/version:
-    // newer corpus VIs use BDHb/FPHb, others put it in the "extended" BDEx/FPEx.
-    // Build from all candidates per kind; the view shows the richest, so a VI is
-    // never empty just because its content is in a different heap of the pair.
     blockDiagrams: [
       for (final d in list)
         if (const {'BDHb', 'BDHP', 'BDEx'}.contains(d.tag) && d.bytes.length >= 6) buildDiagram(d.bytes, sectionTag: d.tag),

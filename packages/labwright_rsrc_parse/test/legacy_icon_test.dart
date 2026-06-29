@@ -13,8 +13,8 @@ void main() {
     });
 
     test('1-bpp ICON expands each byte to 8 mask pixels (MSB first)', () {
-      final b = Uint8List(128); // 32x32 @ 1bpp
-      b[0] = 0xA0; // 1010 0000 -> pixels 1,0,1,0,0,0,0,0
+      final b = Uint8List(32 * 32 ~/ 8);
+      b[0] = 0xA0;
       final icon = decodeLegacyIcon(b, 1)!;
       expect(icon.bpp, 1);
       expect(icon.pixels.length, 1024);
@@ -23,7 +23,7 @@ void main() {
 
     test('4-bpp icl4 splits each byte into two nibbles', () {
       final b = Uint8List(512);
-      b[0] = 0x3C; // -> 3, 12
+      b[0] = 0x3C;
       final icon = decodeLegacyIcon(b, 4)!;
       expect(icon.pixels.length, 1024);
       expect(icon.pixels[0], 3);
@@ -39,8 +39,8 @@ void main() {
     });
 
     test('a wrong-size buffer is rejected (no partial bitmap guess)', () {
-      expect(decodeLegacyIcon(Uint8List(100), 1), isNull); // ICON must be 128
-      expect(decodeLegacyIcon(Uint8List(1024), 4), isNull); // icl4 must be 512
+      expect(decodeLegacyIcon(Uint8List(100), 1), isNull, reason: '1-bpp ICON must be exactly 128 bytes');
+      expect(decodeLegacyIcon(Uint8List(1024), 4), isNull, reason: '4-bpp icl4 must be exactly 512 bytes');
     });
 
     test('catalog: icl8/icl4/ICON are confirmed icon bitmaps', () {

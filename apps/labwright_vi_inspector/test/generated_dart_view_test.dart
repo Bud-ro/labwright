@@ -40,11 +40,8 @@ void main() {
   testWidgets('shows the honest scaffold marker and the structures/subVIs', (tester) async {
     await _pump(tester, GeneratedDartView(model: _bdModel(), viName: 'MyVi.vi'));
 
-    // the no-dataflow disclaimer is always present
     expect(find.textContaining(scaffoldMarker, findRichText: true), findsWidgets);
-    // the function name comes from the VI name (.vi stripped)
     expect(find.textContaining('void MyVi(', findRichText: true), findsWidgets);
-    // the recovered subVI is listed
     expect(find.textContaining('Helper.vi', findRichText: true), findsWidgets);
   });
 
@@ -52,16 +49,15 @@ void main() {
     await _pump(tester, GeneratedDartView(model: _bdModel(), viName: 'MyVi.vi'));
     await tester.tap(find.text('JSON IR'));
     await tester.pumpAndSettle();
-    // pull the actual displayed text and assert it is genuinely valid JSON
     final shown = tester.widget<SelectableText>(find.byType(SelectableText)).data!;
     final decoded = jsonDecode(shown) as Map<String, Object?>;
     final objs = ((decoded['blockDiagrams'] as List).first as Map)['objects'] as List;
     final oids = objs.map((o) => (o as Map)['oid']).toSet();
-    expect(oids, containsAll(<int>[2, 3])); // the while-loop + subVI node from _bdModel
+    expect(oids, containsAll(<int>[2, 3]));
   });
 
   testWidgets('function name falls back to "vi" when the VI name is null or only ".vi"', (tester) async {
-    await _pump(tester, GeneratedDartView(model: _bdModel())); // viName null -> 'vi'
+    await _pump(tester, GeneratedDartView(model: _bdModel()));
     expect(find.textContaining('void vi(', findRichText: true), findsWidgets);
 
     await _pump(tester, GeneratedDartView(model: _bdModel(), viName: '.vi'));

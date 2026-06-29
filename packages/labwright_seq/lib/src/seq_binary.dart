@@ -105,7 +105,7 @@ Uint8List? inflateBinaryBody(Uint8List bytes) {
       final out = zlib.decode(bytes.sublist(i));
       if (out.length > _minInflatedBytes) return Uint8List.fromList(out);
     } catch (_) {
-      // Not a valid stream at this position — keep scanning.
+      // Keep scanning past a position that does not start a valid stream.
     }
   }
   return null;
@@ -514,8 +514,6 @@ List<double> _scalarDoublesFromBody(Uint8List body, int rr) {
   final seen = <double>{};
   final out = <double>[];
   for (var i = 0; i + 8 <= rr && i + 8 <= body.length; i += _u32Bytes) {
-    // Low u32 word must be zero — only round doubles, killing coincidental
-    // patterns (a real default like 1.0/8192.0 has a zero low mantissa word).
     if ((body[i] | body[i + 1] | body[i + 2] | body[i + 3]) != 0) continue;
     final v = bd.getFloat64(i, Endian.little);
     if (!v.isFinite || v == 0) continue;
@@ -613,22 +611,20 @@ List<BinaryNamedScalar> binaryNamedScalarRecords(Uint8List seqBytes) {
 
 /// [binaryNamedScalarRecords] core over an already-inflated [body] (no
 /// re-inflate), given the record-region length [rr] — for the single-inflate
-/// [analyzeBinary] path.
+/// [analyzeBinary] path. Word `w` is the record's name-offset word; `w-1` is the
+/// tag, `w+1` the type-code, and `w+2..w+3` the inline f64.
 List<BinaryNamedScalar> _namedScalarsFromBody(Uint8List body, int rr) {
   final relToName = _stringRegionNamesByRel(body, rr);
   if (relToName.isEmpty) return const [];
 
   final bd = ByteData.sublistView(body);
   final out = <BinaryNamedScalar>[];
-  // word w = name-offset; w-1 = tag; w+1 = type; w+2..w+3 = the f64.
   final wordCount = rr ~/ _u32Bytes;
   for (var w = 1; w + 3 < wordCount; w++) {
     final name = relToName[bd.getUint32(w * _u32Bytes, Endian.little)];
     if (name == null) continue;
     final fp = (w + 2) * _u32Bytes;
     if (fp + 8 > rr) continue;
-    // Clean-f64 gate (mirrors binaryScalarDoubles): low word zero, finite,
-    // non-zero, magnitude in range.
     if (bd.getUint32(fp, Endian.little) != 0) continue;
     final v = bd.getFloat64(fp, Endian.little);
     if (!v.isFinite || v == 0) continue;
@@ -720,13 +716,12 @@ List<BinaryNamedRecord> _namedRecordsFromBody(Uint8List body, int rr) {
   if (relToName.isEmpty) return const [];
 
   final bd = ByteData.sublistView(body);
-  // name -> (count, set of distinct tags seen).
   final counts = <String, int>{};
   final tags = <String, Set<int>>{};
   final wordCount = rr ~/ _u32Bytes;
   for (var w = 1; w + 1 < wordCount; w++) {
     final off = bd.getUint32(w * _u32Bytes, Endian.little);
-    if (off == 0) continue; // rel 0 == root SequenceFileData — spurious matches.
+    if (off == 0) continue;
     final name = relToName[off];
     if (name == null || name.isEmpty || !_isNameLike(name)) continue;
     counts.update(name, (v) => v + 1, ifAbsent: () => 1);
@@ -736,7 +731,6 @@ List<BinaryNamedRecord> _namedRecordsFromBody(Uint8List body, int rr) {
   final out = <BinaryNamedRecord>[];
   for (final e in counts.entries) {
     final tagSet = tags[e.key]!;
-    // Gate: referenced >=2 times, always with the SAME preceding tag.
     if (e.value < 2 || tagSet.length != 1) continue;
     out.add(BinaryNamedRecord(
       name: e.key,
@@ -851,7 +845,6 @@ List<BinaryString> _stringTableFromBody(
   int minLength = _minRunLength,
 }) {
   final runs = binaryStrings(body, minLength: minLength);
-  // Longest chain of runs separated by exactly one byte (the NUL terminator).
   List<BinaryString> best = const [];
   var chain = <BinaryString>[];
   for (final r in runs) {
@@ -949,7 +942,6 @@ BinaryAnalysis? analyzeBinary(Uint8List seqBytes) {
   final layout = _layoutFromBody(body);
   return BinaryAnalysis(
     inflatedSize: body.length,
-    // minLength 2 mirrors binaryBodyStrings' default.
     strings: binaryStrings(body, minLength: 2),
     stringTable: _stringTableFromBody(body),
     layout: layout,

@@ -77,12 +77,10 @@ _J _jsonSumm(Uint8List bytes, String path) {
   try {
     model = buildViModel(Uint8List.fromList(bytes));
   } catch (_) {
-    return _J.neutral(path); // malformed container throwing cleanly is fine
+    return _J.neutral(path);
   }
   final name = path.split('/').last;
 
-  // (1)+(2) DETERMINISM + JSON-SAFETY: encode, re-parse independently, compare,
-  // and round-trip through jsonDecode.
   String? jsonFail;
   try {
     final a = jsonEncode(viModelToJson(model));
@@ -97,7 +95,6 @@ _J _jsonSumm(Uint8List bytes, String path) {
     jsonFail = 'THREW $name: $e';
   }
 
-  // (3) COVERAGE: every drawable object appears in the emitted node list.
   var diagrams = 0;
   String? drawableFail;
   for (final d in [...model.blockDiagrams, ...model.frontPanelDiagrams]) {
@@ -113,7 +110,6 @@ _J _jsonSumm(Uint8List bytes, String path) {
     if (drawableFail != null) break;
   }
 
-  // VCTP type inventory.
   final typesCount = model.types.length;
   final unknownTypes = model.types.where((t) => t.kind == ViDataType.unknown).length;
   final named = namedTypes(model.types);
@@ -218,10 +214,8 @@ void main() {
     final totalUnknown = J.fold<int>(0, (a, j) => a + j.unknownTypes);
     expect(filesBuilt, greaterThan(0));
     expect(totalTypes, greaterThan(0));
-    // ratchet: VCTP is present + parseable for ~99.6% of VIs — floor at 90%.
     expect(withTypes, greaterThan((filesBuilt * 0.90).floor()),
         reason: 'type-pool recovery dropped: only $withTypes/$filesBuilt VIs yielded types');
-    // sanity: the catalogue covers a real majority of descriptors (not all-unknown).
     expect(totalUnknown, lessThan(totalTypes * 0.6),
         reason: 'too many uncatalogued type codes: $totalUnknown/$totalTypes');
   });
@@ -233,7 +227,6 @@ void main() {
     expect(filesBuilt, greaterThan(0));
     expect(totalNames, greaterThan(0));
     expect(badNames, isEmpty, reason: 'malformed recovered type names: ${badNames.take(8).toList()}');
-    // ratchet: named typedefs are common; floor at 40% of VIs.
     expect(vIsWithNames, greaterThan((filesBuilt * 0.40).floor()),
         reason: 'named-type recovery dropped: only $vIsWithNames/$filesBuilt VIs yielded names');
   });
@@ -246,7 +239,6 @@ void main() {
     expect(clusters, greaterThan(0));
     expect(fails, isEmpty, reason: 'cluster members out of range: ${fails.take(8).toList()}');
     expect(totalFields, greaterThan(0));
-    // ratchet: most clusters expose a parseable member list (probe ~99.9%).
     expect(clustersWithMembers, greaterThan((clusters * 0.80).floor()),
         reason: 'cluster member recovery dropped: $clustersWithMembers/$clusters');
   });
@@ -257,7 +249,6 @@ void main() {
     final fails = J.map((j) => j.oobElem).whereType<String>().toList();
     expect(arrays, greaterThan(0));
     expect(fails, isEmpty, reason: 'array element index out of range: ${fails.take(8).toList()}');
-    // ratchet: most arrays expose a parseable element type.
     expect(arraysWithElem, greaterThan((arrays * 0.80).floor()),
         reason: 'array element recovery dropped: $arraysWithElem/$arrays');
   });
@@ -268,7 +259,6 @@ void main() {
     final fails = J.map((j) => j.badEnum).whereType<String>().toList();
     expect(enums, greaterThan(0));
     expect(fails, isEmpty, reason: 'malformed enum items: ${fails.take(8).toList()}');
-    // ratchet: most enums expose a parseable item list (probe ~96%).
     expect(enumsWithItems, greaterThan((enums * 0.80).floor()),
         reason: 'enum item recovery dropped: $enumsWithItems/$enums');
   });

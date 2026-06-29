@@ -56,7 +56,7 @@ class ViVersionWord {
 ViVersionWord? decodeVersionWord(Uint8List b) {
   if (b.length < 4) return null;
   return ViVersionWord(
-    major: (b[0] >> 4) * 10 + (b[0] & 0x0f), // BCD
+    major: (b[0] >> 4) * 10 + (b[0] & 0x0f),
     minor: b[1] >> 4,
     patch: b[1] & 0x0f,
     stage: b[2],

@@ -18,7 +18,7 @@ void main() {
   });
 
   test('C4 22 with non-printable payload yields null text', () {
-    final heap = <int>[0xc4, 0x22, 0x03, 0x41, 0x00, 0x42]; // contains a NUL
+    final heap = <int>[0xc4, 0x22, 0x03, 0x41, 0x00, 0x42];
     expect(heapC4RecordsFromDecoded([bdex(heap)]).single.text, isNull);
   });
 
@@ -31,7 +31,7 @@ void main() {
     final heap = <int>[
       ...c422('source'),
       ...c422('status'),
-      ...c422('source'), // duplicate
+      ...c422('source'),
       ...c422('error out'),
     ];
     final model = buildViModelFromDecoded([bdex(heap)]);
