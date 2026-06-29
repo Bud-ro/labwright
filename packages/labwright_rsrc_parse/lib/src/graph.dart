@@ -1058,20 +1058,37 @@ void _reanchorScrolledControls(List<ViHeapObject> objects) {
 
   void shiftSubtree(ViHeapObject root, int dTop, int dLeft) {
     if (dTop == 0 && dLeft == 0) return;
+    // `kids` is keyed by parentOid, and oids repeat across objects (a control
+    // nested under an object sharing its oid makes kids[oid] contain itself, and
+    // popular oids collect unrelated children). Dedup by object identity *at
+    // enqueue* so each object enters the queue at most once: this both stops a
+    // self-referential/cyclic list from looping forever and bounds the queue to
+    // O(reachable objects). (Guarding only at dequeue let a heavily-reused oid
+    // enqueue the same objects O(objects) times over, blowing the queue up to
+    // O(objects^2) — minutes and gigabytes on large diagrams.) Each object is
+    // still shifted exactly once by the same constant delta, so the result is
+    // identical.
+    final seen = <ViHeapObject>{root};
+    // `kids` is keyed by oid, so every object sharing an oid maps to the *same*
+    // child list. Expand each oid at most once — otherwise a reused oid rescans
+    // its (often large) child list once per sharer, costing O(sharers x children)
+    // even though every child is already queued. That rescan, not the queue, was
+    // the remaining O(objects^2) blow-up on large diagrams.
+    final expanded = <int>{};
     final work = <ViHeapObject>[root];
-    // `kids` is keyed by parentOid, and oids can repeat across objects (a control
-    // nested under an object sharing its oid makes kids[oid] contain itself). Guard
-    // by object identity so a self-referential/cyclic list can't loop forever.
-    final seen = <ViHeapObject>{};
     while (work.isNotEmpty) {
       final o = work.removeLast();
-      if (!seen.add(o)) continue;
       final a = o.absBounds;
       if (a != null) {
         o.absBounds = HeapRect(top: a.top + dTop, left: a.left + dLeft, bottom: a.bottom + dTop, right: a.right + dLeft);
       }
+      if (!expanded.add(o.oid)) continue;
       final cs = kids[o.oid];
-      if (cs != null) work.addAll(cs);
+      if (cs != null) {
+        for (final c in cs) {
+          if (seen.add(c)) work.add(c);
+        }
+      }
     }
   }
 
