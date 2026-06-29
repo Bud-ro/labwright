@@ -2,26 +2,32 @@ import 'dart:io';
 import 'dart:isolate';
 import 'dart:typed_data';
 
-/// Resolves the gitignored VI corpus checked out at the repo root by
-/// `tool/fetch_corpus.dart` (`<repoRoot>/corpus/vi/`). The repo root is found by
-/// walking up to the directory that holds `corpus/sources.json`, so this works
-/// regardless of the test runner's CWD. Falls back to a cwd-relative path.
-Directory _corpusRoot() {
+/// Resolves this package's corpus dir (`<pkg>/corpus/`), which holds the committed
+/// JSON indices and the gitignored `vi/` checkout from `tool/fetch_corpus.dart`.
+/// Tests run from either the repo root or the package dir (see the CWD probe), so
+/// walk up from CWD checking both the package-relative location (CWD at/above the
+/// repo root) and the package-local one (CWD == package root). Falls back to a
+/// cwd-relative path.
+Directory _corpusBase() {
+  const pkgRel = 'packages/labwright_rsrc_parse/corpus';
   var dir = Directory.current;
   for (var i = 0; i < 8; i++) {
+    if (File('${dir.path}/$pkgRel/sources.json').existsSync()) {
+      return Directory('${dir.path}/$pkgRel');
+    }
     if (File('${dir.path}/corpus/sources.json').existsSync()) {
-      return Directory('${dir.path}/corpus/vi');
+      return Directory('${dir.path}/corpus');
     }
     final parent = dir.parent;
     if (parent.path == dir.path) break;
     dir = parent;
   }
-  return Directory('corpus/vi');
+  return Directory('corpus');
 }
 
 /// The whole VI corpus directory (every pinned source). Empty/absent until
 /// fetched — corpus tests skip when it does not exist.
-final Directory corpusViDir = _corpusRoot();
+final Directory corpusViDir = Directory('${_corpusBase().path}/vi');
 
 List<File>? _allVisCache;
 
@@ -42,37 +48,13 @@ List<File> corpusVis() {
   return _allVisCache = list;
 }
 
-/// The coverage baseline written by `tool/coverage.dart` (at
-/// `corpus/baseline.json` under the repo root), resolved by walking up to the
-/// corpus root regardless of the test runner's CWD. Falls back to a cwd-relative
-/// path.
-File corpusBaselineFile() {
-  var dir = Directory.current;
-  for (var i = 0; i < 8; i++) {
-    final f = File('${dir.path}/corpus/baseline.json');
-    if (f.existsSync()) return f;
-    final parent = dir.parent;
-    if (parent.path == dir.path) break;
-    dir = parent;
-  }
-  return File('../../corpus/baseline.json');
-}
+/// The coverage baseline written by `tool/coverage.dart`, resolved next to the
+/// package-local corpus (`<pkg>/corpus/baseline.json`).
+File corpusBaselineFile() => File('${_corpusBase().path}/baseline.json');
 
-/// The per-VI feature snapshot written by `tool/snapshot.dart` (at
-/// `corpus/snapshot.json` under the repo root), resolved by walking up to the
-/// corpus root regardless of the test runner's CWD. Falls back to a cwd-relative
-/// path.
-File corpusSnapshotFile() {
-  var dir = Directory.current;
-  for (var i = 0; i < 8; i++) {
-    final f = File('${dir.path}/corpus/snapshot.json');
-    if (f.existsSync()) return f;
-    final parent = dir.parent;
-    if (parent.path == dir.path) break;
-    dir = parent;
-  }
-  return File('../../corpus/snapshot.json');
-}
+/// The per-VI feature snapshot written by `tool/snapshot.dart`, resolved next to
+/// the package-local corpus (`<pkg>/corpus/snapshot.json`).
+File corpusSnapshotFile() => File('${_corpusBase().path}/snapshot.json');
 
 /// A corpus entry that is deliberately NOT a valid RSRC/VI file — an upstream test
 /// fixture (G-CLI's `rust-proxy/test_data/test.vi` is a few bytes, "too small to be

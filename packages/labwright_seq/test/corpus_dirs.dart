@@ -1,12 +1,16 @@
 import 'dart:io';
 
-/// Resolves the gitignored TestStand corpus checked out by
-/// `tool/fetch_seq_corpus.dart` (`<repoRoot>/corpus/seq/`). The repo root is
-/// found by walking up to the directory holding `corpus/seq-sources.json`, so
-/// this works regardless of the test runner's CWD.
+/// Resolves this package's gitignored TestStand corpus (`<pkg>/corpus/seq/`),
+/// checked out by `tool/fetch_seq_corpus.dart`. Tests run from either the repo
+/// root or the package dir, so walk up from CWD checking both the package-relative
+/// location and the package-local one.
 Directory _corpusSeqRoot() {
+  const pkgRel = 'packages/labwright_seq/corpus';
   var dir = Directory.current;
   for (var i = 0; i < 8; i++) {
+    if (File('${dir.path}/$pkgRel/seq-sources.json').existsSync()) {
+      return Directory('${dir.path}/$pkgRel/seq');
+    }
     if (File('${dir.path}/corpus/seq-sources.json').existsSync()) {
       return Directory('${dir.path}/corpus/seq');
     }

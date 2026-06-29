@@ -16,7 +16,7 @@ import 'dart:io';
 /// Usage:
 ///   dart run tool/fetch_seq_corpus.dart [destRoot] [--prune]
 ///
-/// `destRoot` defaults to the gitignored `<repoRoot>/corpus/seq/`. Each repo
+/// `destRoot` defaults to the gitignored `<package>/corpus/seq/`. Each repo
 /// extracts to `<destRoot>/<owner>_<name>/`; already-populated dirs are skipped,
 /// so re-running only fetches what's missing. `--prune` reclaims space from an
 /// already-fetched corpus by deleting every non-corpus file and exits.
@@ -31,8 +31,8 @@ Future<void> main(List<String> args) async {
     exitCode = 1;
     return;
   }
-  final repoRoot = sources.parent.parent.path;
-  final dest = positional.isNotEmpty ? positional.first : '$repoRoot/corpus/seq';
+  final pkgRoot = sources.parent.parent.path;
+  final dest = positional.isNotEmpty ? positional.first : '$pkgRoot/corpus/seq';
 
   if (prune) {
     _prune(Directory(dest), _extensions);

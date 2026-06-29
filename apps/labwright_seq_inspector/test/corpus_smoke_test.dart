@@ -6,12 +6,17 @@ import 'package:labwright_seq_inspector/src/document_view.dart';
 import 'package:labwright_seq_inspector/src/property_outline.dart';
 import 'package:labwright_seq_inspector/src/sequence_outline.dart';
 
-/// Resolves the gitignored TestStand corpus (`<repoRoot>/corpus/seq/`) by
-/// walking up to the directory holding `corpus/seq-sources.json`, so it works
+/// Resolves the gitignored TestStand corpus, which now lives under its owning
+/// package (`packages/labwright_seq/corpus/seq/`). Walks up from CWD checking the
+/// package-relative location (and a package-local fallback), so it works
 /// regardless of the test runner's CWD. Mirrors the package's corpus_dirs.dart.
 Directory _corpusSeqDir() {
+  const pkgRel = 'packages/labwright_seq/corpus';
   var dir = Directory.current;
   for (var i = 0; i < 8; i++) {
+    if (File('${dir.path}/$pkgRel/seq-sources.json').existsSync()) {
+      return Directory('${dir.path}/$pkgRel/seq');
+    }
     if (File('${dir.path}/corpus/seq-sources.json').existsSync()) {
       return Directory('${dir.path}/corpus/seq');
     }

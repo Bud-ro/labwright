@@ -12,23 +12,27 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 /// or a resource block disappearing) — so a refactor can't silently take a VI
 /// "from something to nothing". Gaining features is fine (re-run to record it).
 ///
-/// Run: `dart run tool/snapshot.dart [corpusDir]`  (writes corpus/snapshot.json)
+/// Run: `dart run tool/snapshot.dart [corpusDir]`  (writes `<pkg>/corpus/snapshot.json`)
 /// Default corpusDir = the whole gitignored corpus fetched by tool/fetch_corpus.dart.
-String _defaultCorpusDir() {
+/// Resolves this package's `corpus/` dir from CWD (the run may start at the repo
+/// root or the package dir), checking the package-relative and package-local
+/// locations. The corpus + its committed JSON live under the package now.
+String _corpusBase() {
+  const pkgRel = 'packages/labwright_rsrc_parse/corpus';
   var d = Directory.current;
   for (var i = 0; i < 8; i++) {
-    if (File('${d.path}/corpus/sources.json').existsSync()) {
-      return '${d.path}/corpus/vi';
-    }
+    if (File('${d.path}/$pkgRel/sources.json').existsSync()) return '${d.path}/$pkgRel';
+    if (File('${d.path}/corpus/sources.json').existsSync()) return '${d.path}/corpus';
     final p = d.parent;
     if (p.path == d.path) break;
     d = p;
   }
-  return 'corpus/vi';
+  return 'corpus';
 }
 
 void main(List<String> args) {
-  final dir = Directory(args.isNotEmpty ? args[0] : _defaultCorpusDir());
+  final base = _corpusBase();
+  final dir = Directory(args.isNotEmpty ? args[0] : '$base/vi');
   if (!dir.existsSync()) {
     stderr.writeln('corpus dir not found: ${dir.path}');
     exit(1);
@@ -62,7 +66,7 @@ void main(List<String> args) {
     'note': 'Per-VI feature presence (fp=front-panel objects, bd=block-diagram objects, blocks=resource tags). Regression guard only allows these to grow.',
     'vis': out,
   };
-  File('../../corpus/snapshot.json').writeAsStringSync('${const JsonEncoder.withIndent('  ').convert(snap)}\n');
+  File('$base/snapshot.json').writeAsStringSync('${const JsonEncoder.withIndent('  ').convert(snap)}\n');
   final withFp = out.values.where((v) => ((v as Map)['fp'] as int? ?? 0) > 0).length;
   final withBd = out.values.where((v) => ((v as Map)['bd'] as int? ?? 0) > 0).length;
   stdout.writeln('snapshot: ${out.length} VIs · $withFp with front-panel objects · $withBd with block-diagram objects');

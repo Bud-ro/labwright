@@ -1,8 +1,9 @@
 tags:
   corpus:
     # Tests that require the fetched VI corpus (tool/fetch_corpus.dart → the
-    # gitignored <repoRoot>/corpus/vi/). They self-skip when the corpus is absent,
-    # so CI stays green without it.
+    # gitignored <package>/corpus/vi/). They self-skip when the corpus is absent,
+    # so CI stays green without it. By default they run a fast deterministic
+    # sample; LABWRIGHT_FULL_CORPUS=1 runs the whole corpus (see corpus/README.md).
     #
     # The full corpus suite is memory-heavy: ~7.5k VIs, some decompressing to
     # multi-MB heaps. The OOM failure mode is the test runner spawning many suite
