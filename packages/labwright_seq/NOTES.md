@@ -93,6 +93,39 @@ on the bytes, not yet a full grammar):
   fabricated partial tree. (`tool/annotate_probe.dart` dumps the annotated stream;
   `tool/magic_probe.dart` lists the type-def record sizes.)
 
+### Oracle-verified leaf grammar (OutputVoltage content twin, `tool/bytes_probe.dart`)
+Anchoring on *known* XML values inside the content-exact `OutputVoltage` binary (the only
+public twin where the two serializations are the same sequence) pins down the leaf layout —
+these are read off the actual bytes against ground truth, not inferred:
+- **String region = NUL-terminated string pool** (`\0` separators), entries in
+  serialization/tree order. Its head is the **shared name dictionary** at small rel-offsets,
+  exactly matching the record name-refs: `SequenceFileData`@0, `Data`@17, `Objs`@22, `Seq`@27,
+  `[0]`@31, `Sequence`@35, `MainSequence`@44, `Obj`@57, `Parameters`@61, `Locals`@72,
+  `ResultList`@79, `[]`@90, `TEResult`@93, `Main`@102, `Step`@107, `StepType`@112,
+  `NI_Measurement`@121, then version/ID literals. Later in the pool come per-instance child
+  names and string values interleaved (e.g. `…OptimizeNonReentrantCalls\0EPNameExpr\0"Unnamed
+  Entry Point"\0EPEnabledExpr\0True\0EPMenuHint\0…`).
+- **String/expression values are stored verbatim as their TestStand expression literal**: a
+  string value keeps its quotes (`"Unnamed Entry Point"`, bytes `22 …55… 22 00`), a boolean
+  expression is the bare token `True`, and an **empty string value is omitted** (no pool
+  entry — `EPMenuHint\0` is followed directly by the next name).
+- **`Num` scalars are stored as inline little-endian f64 in the record region** (verified:
+  `RTS.Priority = 2953567917` → `00 00 b0 e9 …` decoding to `2953567917.0` at rr−460). This
+  is the value shape `binaryNamedScalarRecords` already recovers.
+- **Two distinct name-reference schemes coexist**, which is why a single uniform record walk
+  fails: typed/standard containers cite *shared-dictionary* names by small rel-offset
+  (`22`=`Objs`, `61`=`Parameters`), but a generic-`Obj`'s own child properties (`Priority`,
+  `EPNameExpr`, …) live at *large* rel-offsets (5900+) and the word preceding a generic
+  child's inline f64 is **not** that child's name-offset (`Priority` is at rel 6150, but the
+  word before its f64 is `345`). So generic-`Obj` children are reached via the
+  type/field-order mechanism, not a direct rel-offset cite — confirming the type-def layer
+  must be decoded to bind field names to instance values.
+- **Type-def record framing** (record 1, bytes 24–93, 69 B): `magic, 0, 23, 18, 19,
+  0x02000004, 0, 0xffffffff, 0, 0, 0,` then a byte-packed tail of small values
+  (`…74 01 07 21 03`) before the next magic. The header is fixed; the tail is where the
+  field-layout table is encoded (still to be cracked — best approached by differential
+  analysis across the twin set, since standard types like `StepType`/`TEResult` recur).
+
 ## INI reader
 - `_IniBuilder.build` produces members in a deterministic order: instance `DEF` declarations
   first (authoritative + typed), then value-only members, then members implied by deeper

@@ -13,11 +13,16 @@ void main(List<String> args) {
   final which = args.isEmpty ? 'NIScope' : args[0];
   var d = Directory.current;
   File? f;
-  for (var i = 0; i < 8; i++) {
-    final c = File('${d.path}/packages/labwright_seq/corpus/seq/rosetta/${which}_labview_BIN.seq');
-    if (c.existsSync()) { f = c; break; }
-    final c2 = File('${d.path}/corpus/seq/rosetta/${which}_labview_BIN.seq');
-    if (c2.existsSync()) { f = c2; break; }
+  // Resolve both naming schemes: `_BIN.seq` (content-exact twin) and
+  // `_labview_BIN.seq` (structural twin), under either layout root.
+  for (var i = 0; i < 8 && f == null; i++) {
+    for (final root in ['${d.path}/packages/labwright_seq/corpus/seq/rosetta', '${d.path}/corpus/seq/rosetta']) {
+      for (final suf in ['_BIN.seq', '_labview_BIN.seq']) {
+        final c = File('$root/$which$suf');
+        if (c.existsSync()) { f = c; break; }
+      }
+      if (f != null) break;
+    }
     d = d.parent;
   }
   if (f == null) { stderr.writeln('not found'); exit(1); }
