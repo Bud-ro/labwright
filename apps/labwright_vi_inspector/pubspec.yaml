@@ -1,0 +1,23 @@
+name: labwright_vi_inspector
+description: From scratch .vi/.ctl/.llb viewer
+publish_to: none
+version: 0.0.1
+
+environment:
+  sdk: ^3.11.0
+  flutter: ">=3.41.0"
+
+dependencies:
+  desktop_drop: ^0.7.1
+  file_picker: ^11.0.2
+  flutter:
+    sdk: flutter
+  labwright_rsrc_parse:
+    path: ../../packages/labwright_rsrc_parse
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
