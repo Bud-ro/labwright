@@ -2,7 +2,7 @@
 library;
 
 import 'dart:convert';
-import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
@@ -11,53 +11,93 @@ import 'corpus_dirs.dart';
 
 /// Per-VI feature-presence regression guard (see tool/snapshot.dart).
 ///
-/// Reads corpus/snapshot.json (machine-written) and re-derives each VI's
-/// features via the app decode path, asserting nothing was LOST: front-panel and
-/// block-diagram object counts must not drop below the snapshot, and the
-/// resource-block set must remain a superset. Gaining features is fine — re-run
-/// the tool to record the higher numbers. Skips when the corpus or snapshot is
-/// absent (CI-safe). This is what catches "a VI went from something to nothing".
+/// Reads corpus/snapshot.json (machine-written over the WHOLE corpus) and
+/// re-derives each VI's features via the app decode path, asserting nothing was
+/// LOST: front-panel and block-diagram object counts must not drop below the
+/// snapshot, and the resource-block set must remain a superset. Gaining features
+/// is fine — re-run the tool to record the higher numbers. Skips when the corpus
+/// or snapshot is absent (CI-safe). This is what catches "a VI went from
+/// something to nothing".
+///
+/// Every VI is re-derived ONCE in a worker isolate ([corpusParallel]); the test
+/// compares the aggregate against the snapshot — no sampling, the per-VI build is
+/// just parallelized across cores.
+
+/// Per-VI feature summary. Sendable across isolates.
+class _Snap {
+  final String path;
+  final bool error;
+  final int fp, bd;
+  final List<String> blocks;
+  const _Snap({
+    required this.path,
+    required this.error,
+    required this.fp,
+    required this.bd,
+    required this.blocks,
+  });
+}
+
+_Snap _snapSumm(Uint8List bytes, String path) {
+  try {
+    final blocks = parseVi(bytes).blocks.toSet().toList()..sort();
+    final m = buildViModel(bytes);
+    return _Snap(
+      path: path,
+      error: false,
+      fp: m.frontPanelDiagrams.fold<int>(0, (a, b) => a + b.objects.length),
+      bd: m.blockDiagrams.fold<int>(0, (a, b) => a + b.objects.length),
+      blocks: blocks,
+    );
+  } catch (_) {
+    return _Snap(path: path, error: true, fp: 0, bd: 0, blocks: const []);
+  }
+}
+
 void main() {
-  final dir = corpusSampleDir;
-  final snapFile = File('../../corpus/snapshot.json');
-  if (!dir.existsSync() || !snapFile.existsSync()) {
+  final all = corpusVis();
+  final snapFile = corpusSnapshotFile();
+  if (all.isEmpty || !snapFile.existsSync()) {
     test('corpus feature snapshot (skipped: corpus/snapshot not present)', () {}, skip: true);
     return;
   }
 
-  final vis = dir
-      .listSync(recursive: true)
-      .whereType<File>()
-      .where((f) => f.path.toLowerCase().endsWith('.vi'))
-      .toList()
-    ..sort((a, b) => a.path.compareTo(b.path));
-  final root = _commonRoot(vis.map((f) => f.path));
-  final byKey = {for (final f in vis) f.path.substring(root.length).replaceAll('\\', '/'): f};
+  // Key each VI relative to the corpus common root, exactly as tool/snapshot.dart
+  // does, so keys line up with snapshot.json.
+  final root = _commonRoot(all.map((f) => f.path));
+  final byKey = {for (final f in all) f.path.substring(root.length).replaceAll('\\', '/'): f.path};
   final snap = (jsonDecode(snapFile.readAsStringSync()) as Map)['vis'] as Map;
-  // Bound runtime: check the first 150 snapshot entries by key.
-  final keys = (snap.keys.cast<String>().toList()..sort()).take(150).toList();
+
+  late final Map<String, _Snap> byPath;
+  setUpAll(() async {
+    final res = await corpusParallel(all, _snapSumm);
+    byPath = {for (final s in res) s.path: s};
+  });
 
   test('no VI loses front-panel/block-diagram objects or resource blocks', () {
     final regressions = <String>[];
-    for (final key in keys) {
-      final want = snap[key] as Map;
+    for (final entry in snap.entries) {
+      final key = entry.key as String;
+      final want = entry.value as Map;
       if (want.containsKey('error')) continue; // was already failing; not a regression target
-      final f = byKey[key];
-      if (f == null) continue; // file not in this checkout
-      final bytes = f.readAsBytesSync();
-      final m = buildViModel(bytes);
-      final fp = m.frontPanelDiagrams.fold<int>(0, (a, b) => a + b.objects.length);
-      final bd = m.blockDiagrams.fold<int>(0, (a, b) => a + b.objects.length);
-      final blocks = parseVi(bytes).blocks.toSet();
+      final path = byKey[key];
+      if (path == null) continue; // file not in this checkout
+      final s = byPath[path];
+      if (s == null) continue; // not summarized (should not happen)
+      if (s.error) {
+        regressions.add('$key: now throws on decode (was decodable)');
+        continue;
+      }
       final wantFp = (want['fp'] as int?) ?? 0;
       final wantBd = (want['bd'] as int?) ?? 0;
       final wantBlocks = ((want['blocks'] as List?) ?? const []).cast<String>();
-      if (fp < wantFp) regressions.add('$key: front-panel $wantFp -> $fp');
-      if (bd < wantBd) regressions.add('$key: block-diagram $wantBd -> $bd');
-      final lost = wantBlocks.where((b) => !blocks.contains(b)).toList();
+      if (s.fp < wantFp) regressions.add('$key: front-panel $wantFp -> ${s.fp}');
+      if (s.bd < wantBd) regressions.add('$key: block-diagram $wantBd -> ${s.bd}');
+      final have = s.blocks.toSet();
+      final lost = wantBlocks.where((b) => !have.contains(b)).toList();
       if (lost.isNotEmpty) regressions.add('$key: lost blocks $lost');
     }
-    expect(regressions, isEmpty, reason: 'feature regressions:\n${regressions.join('\n')}');
+    expect(regressions, isEmpty, reason: 'feature regressions:\n${regressions.take(20).join('\n')}');
   });
 }
 

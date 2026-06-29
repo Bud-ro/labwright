@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
-/// Per-VI **feature-presence snapshot** for the canonical picotech corpus.
+/// Per-VI **feature-presence snapshot** for the WHOLE VI corpus.
 ///
 /// Records, per VI (via the exact app decode path `buildViModel`/`parseVi`),
 /// whether the key features are present: front-panel object count, block-diagram
@@ -13,22 +13,22 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 /// "from something to nothing". Gaining features is fine (re-run to record it).
 ///
 /// Run: `dart run tool/snapshot.dart [corpusDir]`  (writes corpus/snapshot.json)
-/// Default corpusDir = the gitignored picotech sample fetched by tool/fetch_corpus.dart.
-String _defaultSampleDir() {
+/// Default corpusDir = the whole gitignored corpus fetched by tool/fetch_corpus.dart.
+String _defaultCorpusDir() {
   var d = Directory.current;
   for (var i = 0; i < 8; i++) {
     if (File('${d.path}/corpus/sources.json').existsSync()) {
-      return '${d.path}/corpus/vi/picotech_picosdk-ni-labview-examples';
+      return '${d.path}/corpus/vi';
     }
     final p = d.parent;
     if (p.path == d.path) break;
     d = p;
   }
-  return 'corpus/vi/picotech_picosdk-ni-labview-examples';
+  return 'corpus/vi';
 }
 
 void main(List<String> args) {
-  final dir = Directory(args.isNotEmpty ? args[0] : _defaultSampleDir());
+  final dir = Directory(args.isNotEmpty ? args[0] : _defaultCorpusDir());
   if (!dir.existsSync()) {
     stderr.writeln('corpus dir not found: ${dir.path}');
     exit(1);
