@@ -27,16 +27,34 @@ the hierarchical PropertyObject model is not yet decoded**. What is known:
   is not yet clean enough to extract objects byte-exactly.
 
 ### Record-region structure (Rosetta alignment, `tool/rosetta_probe.dart`)
+**Caveat on the oracle:** the Rosetta pairs are *structural* twins (the same NI measurement
+workflow saved by the LabVIEW vs Python toolchains), **not byte-identical content** — e.g.
+NIScope's binary uses different step names than its XML twin ("Update pin map" matches, but
+"Acquire a waveform…"/"Destroy and unregister…" exist only in the XML). So the twins
+validate *structure* (sequence/section/step counts, the standard property set), not exact
+per-field content. A content-exact check needs a true byte-twin (none fetched yet).
+
 Aligning the NIScope binary against its XML twin established more of the encoding (verified
 on the bytes, not yet a full grammar):
 - **Names are cited by string-region-relative byte offset**, not by index. A record word
   whose value equals `name.offset - recordRegionLength` references that name (e.g. word
   value `22` → `Objs` at rel-offset 22). This is the reference scheme the working
   `binaryNamedScalarRecords` / `binaryNamedRecords` decoders already use.
-- **The record region mixes field widths** — u32 fields, **u16** pairs (e.g. the
+- **The record region is BYTE-PACKED, not u32-aligned** — this is the real reason a
+  fixed-stride walk desyncs. Hard evidence: the type-def marker `0x6259ecd3` occurs 15×,
+  but **8 of the 15 sit at non-u32 byte offsets** (e.g. NIScope: `@93` (b1), `@359` (b3),
+  `@3210` (b2), `@16614` (b2)). Fields are a mix of u32, **u16** pairs (e.g. the
   `18 00 48 00 18 00 48 00` runs of `(0x18, 0x48)`), and 8-byte little-endian **f64**
-  values. This is *why* a fixed u32-stride walk desyncs and the record grammar can't be
-  read as a flat u32 array.
+  values, packed back-to-back with no alignment padding. The grammar must be walked
+  byte-by-byte with per-record length, not as a flat u32 array.
+- **Layer boundary**: the 15 type-def records run from byte 24 to the last marker at
+  byte ~16614 (NIScope, `rr`=29602), with byte sizes (inter-marker gaps) 24…9997; the
+  object-instance layer follows. Type-defs are byte-identical across same-template files
+  (so the 15-record type layer is shared boilerplate).
+- **Object names**: reused property/container names (`Parameters`, `Locals`, …) are cited
+  from the shared pool by rel-offset; a step's own name is in the pool too but is not cited
+  the same way (no u32 rel-offset reference to it appears in the records — it is reached
+  by some other index/inline mechanism still to be decoded).
 - **Verified value record**: at the `Parameters` container, the name-offset word is
   followed two words later by an inline f64 — e.g. NIScope carries `8192.0` as
   `00 00 00 00 00 00 c0 40` immediately after the `Parameters` reference. This is the shape
@@ -54,10 +72,14 @@ on the bytes, not yet a full grammar):
   across all three — i.e. the 15 standard type definitions are byte-identical in files built
   from the same NI plugin template. This delimits the type-def layer and is the most
   promising anchor for a desync-free record walk. (`tool/magic_probe.dart` checks this.)
-- **Still open** (needs the per-record *length* encoding to walk without desync): tying
-  each value to its specific step, and the container child-count encoding that would
-  reconstruct the full PropertyObject tree. Until that is byte-exact, `parseSeqFile` keeps
-  **refusing** binary rather than emitting a fabricated partial tree.
+- **Still open** — the blocker is the **byte-level per-record length** so the byte-packed
+  records can be walked without desync. Concrete next step: walk the 15 type-def records
+  from byte 24 (each delimited by `0x6259ecd3`) to learn the type→field-layout table, then
+  use it to size object records in the instance layer and reconstruct the PropertyObject
+  tree, validating *structure* against the Rosetta twins (counts, not exact names). Until
+  that walk is byte-exact, `parseSeqFile` keeps **refusing** binary rather than emitting a
+  fabricated partial tree. (`tool/annotate_probe.dart` dumps the annotated stream;
+  `tool/magic_probe.dart` lists the type-def record sizes.)
 
 ## INI reader
 - `_IniBuilder.build` produces members in a deterministic order: instance `DEF` declarations
