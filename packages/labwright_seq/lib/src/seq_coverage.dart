@@ -97,6 +97,8 @@ const _sdataSettingKeys = [
   'RemoteExecution', 'RemoteHost', 'RemoteHostExpr', 'SpecifyHostByExpr',
   // legacy LabVIEW VI adapter (VI path stored directly on SData)
   'ViPath', 'ShowFrntPnl', 'PassInBuf', 'PassInvocInfo', 'PassContextPtr',
+  // misc module config
+  'CodeTemplateName', 'ModuleWorkspacePath', 'AlwaysRunInProcess',
 ];
 
 /// The LabVIEW VI-call (`SData.ViCall`) settings the lens surfaces beyond the
@@ -189,12 +191,23 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
         'EvaluatedArrayExpr', 'EvaluatedArrayElementExpr',
         'EvaluatedSubscriptExpr', 'EvaluatedOffsetExpr',
         // wait / timeout step fields
-        'TimeoutExpr', 'TimeoutEnabled', 'ErrorOnTimeout',
-        // database step handles
-        'StatementHandle', 'DatabaseHandle',
+        'TimeoutExpr', 'TimeoutEnabled', 'ErrorOnTimeout', 'TimeExpr',
+        // database step fields + ADO recordset/command settings
+        'StatementHandle', 'DatabaseHandle', 'SQLStatement',
+        'RequiresParameters', 'PageSize', 'NumberOfRecordsSelected',
+        'CommandTimeout', 'CommandType', 'LockType', 'CursorLocation',
+        'CursorType', 'CacheSize', 'MarshalOptions', 'MaxRecordsToSelect',
+        'EvaluatedFieldMappingExpr',
+        // sequence-call-by-reference / Run / Wait-on-thread-or-execution
+        'SeqCallName', 'SeqCallStepGroupIdx', 'SpecifyBySeqCall',
+        'WaitForTarget', 'ThreadRefExpr', 'ExecutionRefExpr',
       ]) {
         mark(step.raw.prop(k));
       }
+      markSubtree(step.raw.prop('ColumnList')); // DB column descriptors
+      markSubtree(step.raw.prop('Position')); // 2-field position record
+      markSubtree(step.raw.prop('RemoteSettings')); // DB remote connection
+      markSubtree(step.raw.prop('StdError')); // DB step error record
       markContainer(step.raw.prop('Menu'));
       markContainer(step.raw.prop('NI_Data'));
       markContainer(step.raw.prop('NI_Data')?.prop('EditPanels'));
@@ -261,10 +274,14 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
         }
         markContainer(p.prop('AdditionalResult'));
         markContainer(p.prop('ArrayDimensionsSize')); // per-dimension sizes
-        // A cluster/array parameter's elements are themselves parameter
-        // descriptors (same fields) — recurse so the whole connector type tree is
-        // covered, however deeply nested.
-        for (final e in p.prop('ArrayClusterEls')?.array ?? const <SeqProperty>[]) {
+        // A cluster/array parameter's elements (and its prototype element) are
+        // themselves parameter descriptors (same fields) — recurse so the whole
+        // connector type tree is covered, however deeply nested.
+        for (final e in [
+          ...?p.prop('ArrayClusterEls')?.array,
+          ...?p.prop('ArrayClusterProto')?.subProps,
+          ...?p.prop('ArrayClusterProto')?.array,
+        ]) {
           markParam(e);
         }
       }
@@ -423,13 +440,30 @@ SeqCoverage measureCoverage(SeqFile f) {
 /// aggregate. Paths are pruned: once a node is unmodeled it represents its whole
 /// subtree, so its descendants are not also reported (avoids double-counting a
 /// raw subtree as hundreds of separate gaps).
-Map<String, int> coverageGaps(SeqFile f) {
+/// When [weightBySubtree] is true, each gap path is weighted by the **total
+/// number of nodes** in its raw subtree (so a container root surfaces the real
+/// unmodeled mass it hides), rather than by the count of raw roots.
+Map<String, int> coverageGaps(SeqFile f, {bool weightBySubtree = false}) {
   final modeled = _modeledNodes(f);
   final gaps = <String, int>{};
+  int subtreeSize(SeqProperty p) {
+    var n = 1;
+    for (final c in p.subProps) {
+      n += subtreeSize(c);
+    }
+    for (final c in p.array ?? const <SeqProperty>[]) {
+      n += subtreeSize(c);
+    }
+    return n;
+  }
+
   void walk(SeqProperty p, String path, bool ancestorRaw) {
     final raw = ancestorRaw || !modeled.contains(p);
     // Only tally the topmost unmodeled node of a raw subtree.
-    if (raw && !ancestorRaw) gaps.update(path, (n) => n + 1, ifAbsent: () => 1);
+    if (raw && !ancestorRaw) {
+      final w = weightBySubtree ? subtreeSize(p) : 1;
+      gaps.update(path, (n) => n + w, ifAbsent: () => w);
+    }
     for (final c in p.subProps) {
       walk(c, '$path.${c.name}', raw);
     }

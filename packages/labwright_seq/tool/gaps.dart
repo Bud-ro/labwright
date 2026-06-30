@@ -21,6 +21,9 @@ String _root() {
 void main(List<String> args) {
   final which = args.isEmpty ? 'xml' : args[0];
   final topN = args.length > 1 ? int.parse(args[1]) : 40;
+  // Pass `w` as a third arg to weight each gap path by its raw subtree size
+  // (where the unmodeled mass really is) instead of by raw-root count.
+  final weighted = args.length > 2 && args[2] == 'w';
   final dir = Directory(_root());
   final totals = <String, int>{};
   var files = 0;
@@ -36,7 +39,7 @@ void main(List<String> args) {
     try {
       final sf = parseSeqFile(bytes);
       files++;
-      coverageGaps(sf).forEach((path, n) {
+      coverageGaps(sf, weightBySubtree: weighted).forEach((path, n) {
         totals.update(path, (v) => v + n, ifAbsent: () => n);
       });
     } catch (_) {}
