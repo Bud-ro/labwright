@@ -95,6 +95,8 @@ const _sdataSettingKeys = [
   'ExecModelPath', 'ExecModelPathExpr',
   // remote execution
   'RemoteExecution', 'RemoteHost', 'RemoteHostExpr', 'SpecifyHostByExpr',
+  // legacy LabVIEW VI adapter (VI path stored directly on SData)
+  'ViPath', 'ShowFrntPnl', 'PassInBuf', 'PassInvocInfo', 'PassContextPtr',
 ];
 
 /// The LabVIEW VI-call (`SData.ViCall`) settings the lens surfaces beyond the
@@ -179,7 +181,17 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
       // Step instance-level fields the lens surfaces (Step.*).
       for (final k in [
         'Description', 'Active', 'InBuf', 'PinMapPath',
-        'Category', 'SuppressNextResult', 'EvaluatedConditionExpr', 'UseCompExpr',
+        'Category', 'SuppressNextResult', 'EvaluatedConditionExpr',
+        'UseCompExpr', 'CompExpr',
+        // array / for-each iteration step fields
+        'SubscriptExpr', 'Offset', 'IterationType', 'ElementRestorerLocal',
+        'AutoCloseAtEndofFile', 'FieldMappingExpr',
+        'EvaluatedArrayExpr', 'EvaluatedArrayElementExpr',
+        'EvaluatedSubscriptExpr', 'EvaluatedOffsetExpr',
+        // wait / timeout step fields
+        'TimeoutExpr', 'TimeoutEnabled', 'ErrorOnTimeout',
+        // database step handles
+        'StatementHandle', 'DatabaseHandle',
       ]) {
         mark(step.raw.prop(k));
       }
@@ -248,6 +260,7 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
           }
         }
         markContainer(p.prop('AdditionalResult'));
+        markContainer(p.prop('ArrayDimensionsSize')); // per-dimension sizes
         // A cluster/array parameter's elements are themselves parameter
         // descriptors (same fields) — recurse so the whole connector type tree is
         // covered, however deeply nested.
