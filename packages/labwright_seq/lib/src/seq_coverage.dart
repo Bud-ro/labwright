@@ -49,6 +49,17 @@ const _settingKeys = [
   'BatchSyncOpt', 'LoopOpt', 'PrecondIntExe', 'WindowActivation',
 ];
 
+/// The code-module call-parameter descriptor fields the [CallParameter] lens
+/// surfaces (kept in sync with it) — the bound value/display keys for each
+/// adapter, the type/sub-type/flags codes, and the array/result-action fields.
+const _callParamKeys = [
+  'Name', 'Label', 'ConnectorNumber',
+  'ArgVal', 'ArgumentValue', 'DisplayType', 'Direction',
+  'ArgDisplayVal', 'ArgumentDisplayValue',
+  'Type', 'NumType', 'ObjType', 'StructType',
+  'Flags', 'NumEls', 'ResultAct',
+];
+
 /// The set of nodes the typed lens surfaces with meaning, by object identity.
 /// Shared by [measureCoverage] (counts it) and [coverageGaps] (inverts it).
 Set<SeqProperty> _modeledNodes(SeqFile f) {
@@ -88,17 +99,35 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
       ]) {
         mark(viCall?.prop(k));
       }
+      void markParam(SeqProperty p) {
+        mark(p);
+        for (final k in _callParamKeys) {
+          mark(p.prop(k));
+        }
+        // The parameter's "additional results" spec (Input/Output sides, each a
+        // small container) is surfaced as raw structure via the lens.
+        final addl = p.prop('AdditionalResults');
+        mark(addl);
+        for (final side in ['Input', 'Output']) {
+          final s = addl?.prop(side);
+          mark(s);
+          for (final c in s?.subProps ?? const <SeqProperty>[]) {
+            mark(c);
+          }
+        }
+      }
+
       mark(viCall?.prop('Parms'));
       for (final p in step.module.viParameters) {
-        mark(p.raw);
-        for (final k in ['Label', 'DisplayType', 'ArgVal', 'Direction', 'ConnectorNumber']) {
-          mark(p.raw.prop(k));
-        }
+        markParam(p.raw);
       }
       mark(sdata?.prop('Call')?.prop('LibPath'));
       mark(sdata?.prop('Call')?.prop('Func'));
       mark(sdata?.prop('SeqName'));
       mark(sdata?.prop('SFPath'));
+      for (final k in ['ModuleSrcPath', 'ModulePrjPath', 'ModuleCreateSrcType']) {
+        mark(sdata?.prop(k));
+      }
       final pyCall = sdata?.prop('PythonCall');
       for (final k in [
         'FunctionOrAttributeName', 'ModulePath', 'ClassName',
@@ -109,10 +138,7 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
       mark(sdata?.prop('Call')?.prop('Parameters'));
       mark(sdata?.prop('PythonCall')?.prop('Parameters'));
       for (final p in step.module.callParameters) {
-        mark(p.raw);
-        for (final k in ['Name', 'ArgVal', 'ArgumentValue', 'DisplayType', 'Direction']) {
-          mark(p.raw.prop(k));
-        }
+        markParam(p.raw);
       }
       if (step.flowControl != null) {
         for (final k in [
@@ -163,7 +189,7 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
         mark(p.raw);
         for (final k in [
           'Name', 'Type', 'Direction', 'Dimension', 'ArgumentValue',
-          'TypeSpecialization', 'Log', 'ID',
+          'TypeSpecialization', 'Log', 'ID', 'MessageType',
         ]) {
           mark(p.raw.prop(k));
         }

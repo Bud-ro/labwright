@@ -512,6 +512,11 @@ class MeasurementParameter {
     final elems = raw.prop('EnumDefinition')?.array ?? const <SeqProperty>[];
     return [for (final e in elems) (name: e.name, value: _nz(e.scalar))];
   }
+
+  /// The parameter's message-type token (`MessageType`) — the measurement
+  /// plug-in's classification of the parameter; null when unset (empty in the
+  /// current corpus, where the field is present but blank on most parameters).
+  String? get messageType => _nz(raw.prop('MessageType')?.scalar);
 }
 
 /// A step's recorded-result slot (`Result`) — the per-step outcome record. In a
@@ -781,6 +786,22 @@ class StepModule {
   String? get pythonVenvPath =>
       _nz(_pyCall?.prop('PythonVirtualEnvironmentPath')?.scalar);
 
+  /// The on-disk source file backing the step's code module (`SData.ModuleSrcPath`,
+  /// e.g. `numericTests.c`, `64BitSupport\64BitSupport.cpp`) — the C/C++ source
+  /// the DLL was built from, where the editor records it. null when absent (the
+  /// adapter records the *built* module elsewhere, e.g. [libPath]).
+  String? get moduleSourcePath => _nz(raw?.prop('ModuleSrcPath')?.scalar);
+
+  /// The project/solution file the code module builds from (`SData.ModulePrjPath`,
+  /// e.g. `64BitSupport\64BitSupport.vcproj`); null when absent.
+  String? get moduleProjectPath => _nz(raw?.prop('ModulePrjPath')?.scalar);
+
+  /// The source-creation-type code (`SData.ModuleCreateSrcType`) recording how the
+  /// module's source was created/linked. Verbatim; the NI-internal code→name
+  /// mapping is not invented. null when absent.
+  int? get moduleSourceTypeCode =>
+      int.tryParse(_nz(raw?.prop('ModuleCreateSrcType')?.scalar) ?? '');
+
   static String? _e(String? s) => (s == null || s.isEmpty) ? null : s;
 
   factory StepModule.fromSData(SeqProperty? sdata) {
@@ -894,6 +915,48 @@ class CallParameter {
         '3' => 'in/out',
         _ => null,
       };
+
+  int? _int(String key) => int.tryParse(_nz(raw.prop(key)?.scalar) ?? '');
+
+  /// The editor's display rendering of the bound value (`ArgDisplayVal`, the
+  /// ActiveX/C adapter; `ArgumentDisplayValue`, the Python adapter) — the
+  /// formatted form shown next to the parameter, distinct from the live
+  /// [boundExpression]. null when absent.
+  String? get displayValue =>
+      _nz(raw.prop('ArgDisplayVal')?.scalar) ??
+      _nz(raw.prop('ArgumentDisplayValue')?.scalar);
+
+  /// The parameter's TestStand data-type code (`Type`) — the broad kind of the
+  /// C/LabVIEW connector value. Surfaced verbatim; the code→name mapping is
+  /// NI-internal and not invented. null when absent.
+  int? get typeCode => _int('Type');
+
+  /// Sub-type codes refining [typeCode] for a C-module / VI-call connector: the
+  /// numeric-format code (`NumType`), the object/reference-type code (`ObjType`),
+  /// and the struct/cluster-type code (`StructType`). Each verbatim; null when
+  /// absent. Their NI-internal meanings are not invented.
+  int? get numberTypeCode => _int('NumType');
+  int? get objectTypeCode => _int('ObjType');
+  int? get structTypeCode => _int('StructType');
+
+  /// The parameter descriptor's flags word (`Flags`) — a packed bit set of
+  /// per-parameter options. Surfaced verbatim as an integer; the individual bit
+  /// meanings are NI-internal and not decoded here. null when absent.
+  int? get flagsCode => _int('Flags');
+
+  /// The number of elements (`NumEls`) for an array parameter; null when absent
+  /// (a scalar parameter records none).
+  int? get elementCount => _int('NumEls');
+
+  /// The parameter's result-action code (`ResultAct`) — how the call's value for
+  /// this parameter feeds the step result. Verbatim; null when absent.
+  int? get resultActionCode => _int('ResultAct');
+
+  /// The parameter's "additional results" recording spec (`AdditionalResults`),
+  /// with `Input`/`Output` sub-objects, or null when the parameter records none.
+  /// Surfaced as raw structure; the per-side `Flags`/`CheckedState` codes are
+  /// NI-internal and not decoded.
+  SeqProperty? get additionalResults => raw.prop('AdditionalResults');
 
   @override
   String toString() =>
