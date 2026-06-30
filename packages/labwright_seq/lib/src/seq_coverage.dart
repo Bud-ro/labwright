@@ -68,6 +68,21 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
     if (p != null) modeled.add(p);
   }
 
+  /// Marks [p] and its direct children (named sub-properties and array elements)
+  /// — for a container the lens surfaces as accessible structured data whose
+  /// one-level contents are read out (RTS settings, Requirements.Links, the file
+  /// globals list).
+  void markContainer(SeqProperty? p) {
+    if (p == null) return;
+    mark(p);
+    for (final c in p.subProps) {
+      mark(c);
+    }
+    for (final c in p.array ?? const <SeqProperty>[]) {
+      mark(c);
+    }
+  }
+
   mark(f.data);
   mark(f.data.prop('Seq'));
   for (final seq in f.sequences) {
@@ -80,6 +95,13 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
     for (final v in [...seq.locals, ...seq.parameters]) {
       mark(v.raw);
     }
+    // Sequence-level settings the lens surfaces (Sequence.* / runtimeSettings).
+    for (final k in ['RecordResults', 'GotoCleanupOnFail', 'FailureAction']) {
+      mark(seq.raw.prop(k));
+    }
+    markContainer(seq.raw.prop('Requirements')); // + Links list
+    markContainer(seq.raw.prop('Requirements')?.prop('Links'));
+    markContainer(seq.raw.prop('RTS')); // entry-point / run-time settings
     for (final step in seq.steps) {
       mark(step.raw);
       final ts = step.raw.prop('TS');
@@ -201,6 +223,18 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
       }
     }
   }
+
+  // File-level settings the lens surfaces (SeqFile.*).
+  for (final k in [
+    'ModelFile', 'ModelOption', 'LoadOpt', 'UnloadOpt', 'Version',
+    'BatchSync', 'SFGlobalsScope', 'Type',
+  ]) {
+    mark(f.data.prop(k));
+  }
+  markContainer(f.data.prop('Requirements'));
+  markContainer(f.data.prop('Requirements')?.prop('Links'));
+  // The file globals (FileGlobalDefaults children) the lens lists.
+  markContainer(f.data.prop('FileGlobalDefaults'));
 
   final mp = f.measurementPlugIns;
   if (mp != null) {
