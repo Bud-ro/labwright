@@ -1055,6 +1055,87 @@ class StepSettings {
   /// paired with [usesMutex]; null when no mutex is configured (empty in the
   /// current corpus, since no step uses one).
   String? get mutexName => _scalar('MutexNameOrRef');
+
+  /// Parses an integer TS step-setting (an option *code*). null when absent or
+  /// non-numeric. TestStand stores many enumerated step options as small
+  /// integers; the code is surfaced verbatim — its `name` is NI-internal and is
+  /// not invented here (see the per-accessor docs for the option each selects).
+  int? _int(String key) => int.tryParse(_scalar(key) ?? '');
+
+  // --- Edit-permission flags (what a sequence editor may change on the step) ---
+
+  /// Whether the step type permits editing the step's code module
+  /// (`CanEditCode`). null when unset. Part of TestStand's step-type permission
+  /// set — `true` for ordinary steps.
+  bool? get canEditCode => _bool('CanEditCode');
+
+  /// Whether the step's module *prototype* (its parameter list) may be edited
+  /// (`CanEditModulePrototype`). null when unset.
+  bool? get canEditModulePrototype => _bool('CanEditModulePrototype');
+
+  /// Whether the user may (re)specify which code module the step calls
+  /// (`CanSpecifyModule`). null when unset; `false` for steps whose module is
+  /// fixed by their type.
+  bool? get canSpecifyModule => _bool('CanSpecifyModule');
+
+  /// Whether the step's parameter "additional results" recording may be edited
+  /// (`CanEditParameterAdditionalResults`). null when unset.
+  bool? get canEditParameterAdditionalResults =>
+      _bool('CanEditParameterAdditionalResults');
+
+  // --- Switch/IVI settings (the editor's "Switching" step tab) ---
+
+  /// Whether IVI switching is enabled for the step (`SwitchEnabled`) — the
+  /// "use switching" toggle. null when unset; `false` is the common default.
+  bool? get switchEnabled => _bool('SwitchEnabled');
+
+  /// The switch operation code (`SwitchOperation`) selecting connect/disconnect/
+  /// disconnect-all behaviour around the step. null when unset; raw NI code.
+  int? get switchOperationCode => _int('SwitchOperation');
+
+  /// The multi-connect mode code (`MulticonnectMode`) governing whether multiple
+  /// connections may coexist on a route. null when unset; raw NI code.
+  int? get multiconnectModeCode => _int('MulticonnectMode');
+
+  /// The connect/disconnect ordering code (`OperationOrder`) — when switching
+  /// happens relative to the step. null when unset; raw NI code.
+  int? get switchOperationOrderCode => _int('OperationOrder');
+
+  /// The connection-lifetime code (`ConnectionLifetime`) — how long a switch
+  /// connection persists (step / sequence / …). null when unset; raw NI code.
+  int? get connectionLifetimeCode => _int('ConnectionLifetime');
+
+  /// Whether the step waits for switch debounce before proceeding
+  /// (`WaitForDebounce`). null when unset.
+  bool? get waitForDebounce => _bool('WaitForDebounce');
+
+  /// The IVI virtual device name the switching targets (`VirtualDeviceName`);
+  /// null when switching is unused/empty. A name or TestStand expression.
+  String? get virtualDeviceName => _scalar('VirtualDeviceName');
+
+  /// The route group to connect / disconnect for the step (`RouteGroupConnect` /
+  /// `RouteGroupDisconnect`); null when unused. A name or TestStand expression.
+  String? get routeGroupConnect => _scalar('RouteGroupConnect');
+  String? get routeGroupDisconnect => _scalar('RouteGroupDisconnect');
+
+  // --- Execution / batch / window options ---
+
+  /// The batch-synchronization code (`BatchSyncOpt`) for the step under a batch
+  /// process model (serial / parallel / one-thread-only). null when unset; raw
+  /// NI code.
+  int? get batchSyncCode => _int('BatchSyncOpt');
+
+  /// The post-action loop option code (`LoopOpt`). null when unset; raw NI code.
+  int? get loopOptionCode => _int('LoopOpt');
+
+  /// The precondition interactive-execution code (`PrecondIntExe`) — whether the
+  /// precondition is honoured when the step is run interactively. null when
+  /// unset; raw NI code.
+  int? get preconditionInteractiveCode => _int('PrecondIntExe');
+
+  /// The window-activation setting (`WindowActivation`), e.g. `None` — how the
+  /// step affects the application window. null when unset.
+  String? get windowActivation => _scalar('WindowActivation');
 }
 
 /// A `<typelist>` type definition: a named type and the fields it declares.
