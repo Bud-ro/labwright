@@ -402,6 +402,47 @@ class Step {
   /// [limits] and [StepLimits.lowExpression]/[StepLimits.highExpression].
   bool? get usesComparisonExpression => _flag(raw.prop('UseCompExpr')?.scalar);
 
+  // --- Array / For-Each iteration step fields ---
+
+  /// For an array/For-Each iteration step: the subscript expression
+  /// (`SubscriptExpr`) selecting the element, the integer offset (`Offset`), the
+  /// iteration-type code (`IterationType`, verbatim), the local that restores the
+  /// element after the loop (`ElementRestorerLocal`), whether the data file
+  /// auto-closes at end (`AutoCloseAtEndofFile`), and a field-mapping expression
+  /// (`FieldMappingExpr`). Each null when absent.
+  String? get arraySubscriptExpression => _nz(raw.prop('SubscriptExpr')?.scalar);
+  int? get arrayOffset => int.tryParse(raw.prop('Offset')?.scalar ?? '');
+  int? get iterationTypeCode => int.tryParse(raw.prop('IterationType')?.scalar ?? '');
+  String? get elementRestorerLocal => _nz(raw.prop('ElementRestorerLocal')?.scalar);
+  bool? get autoClosesAtEndOfFile => _flag(raw.prop('AutoCloseAtEndofFile')?.scalar);
+  String? get fieldMappingExpression => _nz(raw.prop('FieldMappingExpr')?.scalar);
+
+  /// The runtime-evaluated forms TestStand caches for the step's array/loop
+  /// expressions (`EvaluatedArrayExpr` / `EvaluatedArrayElementExpr` /
+  /// `EvaluatedSubscriptExpr` / `EvaluatedOffsetExpr`) — the resolved counterparts
+  /// to the [FlowControl] expressions. Each null when absent.
+  String? get evaluatedArrayExpression => _nz(raw.prop('EvaluatedArrayExpr')?.scalar);
+  String? get evaluatedArrayElementExpression =>
+      _nz(raw.prop('EvaluatedArrayElementExpr')?.scalar);
+  String? get evaluatedSubscriptExpression =>
+      _nz(raw.prop('EvaluatedSubscriptExpr')?.scalar);
+  String? get evaluatedOffsetExpression => _nz(raw.prop('EvaluatedOffsetExpr')?.scalar);
+
+  // --- Wait / timeout and database step fields ---
+
+  /// For a Wait (or timeout-bearing) step: the timeout expression (`TimeoutExpr`),
+  /// whether the timeout is enabled (`TimeoutEnabled`), and whether a timeout
+  /// raises an error (`ErrorOnTimeout`). Each null when absent.
+  String? get timeoutExpression => _nz(raw.prop('TimeoutExpr')?.scalar);
+  bool? get timeoutEnabled => _flag(raw.prop('TimeoutEnabled')?.scalar);
+  bool? get errorsOnTimeout => _flag(raw.prop('ErrorOnTimeout')?.scalar);
+
+  /// For a database step: the statement / database handle expressions
+  /// (`StatementHandle` / `DatabaseHandle`, e.g. `Locals.SelectStatement`) the
+  /// step operates on. Each null when absent.
+  String? get statementHandle => _nz(raw.prop('StatementHandle')?.scalar);
+  String? get databaseHandle => _nz(raw.prop('DatabaseHandle')?.scalar);
+
   /// The step's run-time settings (preconditions, looping, pass/fail actions),
   /// read from its `TS` (TestStand system) sub-container.
   StepSettings get settings => StepSettings(raw.prop('TS'));
@@ -799,6 +840,7 @@ String? _unwrapExprString(String? s) {
 class StepLimits {
   StepLimits({
     this.comparison,
+    this.comparisonExpression,
     this.low,
     this.high,
     this.nominal,
@@ -809,6 +851,11 @@ class StepLimits {
 
   /// The comparison operator (`Comp`), e.g. `GELE`.
   final String? comparison;
+
+  /// The comparison as an expression (`CompExpr`), when the step selects its
+  /// operator dynamically (paired with [Step.usesComparisonExpression]); null
+  /// when the step uses the fixed [comparison] operator.
+  final String? comparisonExpression;
 
   /// Lower / upper / nominal limit values (`Limits.Low/High/Nominal`).
   final String? low;
@@ -845,6 +892,7 @@ class StepLimits {
     if (comp == null && lim == null) return null;
     return StepLimits(
       comparison: comp,
+      comparisonExpression: _nz(step.prop('CompExpr')?.scalar),
       low: _nz(lim?.prop('Low')?.scalar),
       high: _nz(lim?.prop('High')?.scalar),
       nominal: _nz(lim?.prop('Nominal')?.scalar),
@@ -971,6 +1019,17 @@ class StepModule {
   /// Whether the call is configured to show the VI's front panel at run time
   /// (`ViCall.ShowFrnPnl`). false when absent.
   bool get showsFrontPanel => _viCall?.prop('ShowFrnPnl')?.scalar == 'true';
+
+  /// Legacy LabVIEW VI adapter options, for older TestStand files that store the
+  /// VI directly on `SData` (a `ViPath` member, not nested under `ViCall`):
+  /// whether to show the front panel (`SData.ShowFrntPnl`) and whether to pass the
+  /// input buffer / invocation info / sequence-context pointer to the VI
+  /// (`SData.PassInBuf` / `PassInvocInfo` / `PassContextPtr`). Each null when
+  /// absent (a modern `ViCall` step records none). The VI path itself is [viPath].
+  bool? get legacyShowsFrontPanel => _sdFlag('ShowFrntPnl');
+  bool? get legacyPassesInputBuffer => _sdFlag('PassInBuf');
+  bool? get legacyPassesInvocationInfo => _sdFlag('PassInvocInfo');
+  bool? get legacyPassesContextPointer => _sdFlag('PassContextPtr');
 
   /// The LabVIEW VI call's connector-pane parameters (`ViCall.Parms`), in
   /// declaration order — the terminals wired to the subVI. Each [CallParameter]
