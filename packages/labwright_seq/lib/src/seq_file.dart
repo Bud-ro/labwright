@@ -443,6 +443,53 @@ class Step {
   String? get statementHandle => _nz(raw.prop('StatementHandle')?.scalar);
   String? get databaseHandle => _nz(raw.prop('DatabaseHandle')?.scalar);
 
+  /// Further database step fields: the SQL statement (`SQLStatement`, a literal or
+  /// expression), whether the statement requires parameters (`RequiresParameters`),
+  /// the fetch page size (`PageSize`), and the records-selected output expression
+  /// (`NumberOfRecordsSelected`). Each null when absent. The selected columns are
+  /// in the raw `ColumnList`.
+  String? get sqlStatement => _nz(raw.prop('SQLStatement')?.scalar);
+  bool? get requiresParameters => _flag(raw.prop('RequiresParameters')?.scalar);
+  int? get pageSize => int.tryParse(raw.prop('PageSize')?.scalar ?? '');
+  String? get numberOfRecordsSelectedExpression =>
+      _nz(raw.prop('NumberOfRecordsSelected')?.scalar);
+
+  /// The ADO recordset/command option codes for a database step
+  /// (`CommandTimeout`, `CommandType`, `LockType`, `CursorLocation`,
+  /// `CursorType`, `CacheSize`, `MarshalOptions`, `MaxRecordsToSelect`) — the
+  /// underlying ADO settings the Open/Statement step uses. Each surfaced verbatim
+  /// (the NI/ADO code→name mappings are not invented); null when absent. The
+  /// remote-connection and error records live in the raw `RemoteSettings` /
+  /// `StdError`.
+  int? get dbCommandTimeoutCode => int.tryParse(raw.prop('CommandTimeout')?.scalar ?? '');
+  int? get dbCommandTypeCode => int.tryParse(raw.prop('CommandType')?.scalar ?? '');
+  int? get dbLockTypeCode => int.tryParse(raw.prop('LockType')?.scalar ?? '');
+  int? get dbCursorLocationCode => int.tryParse(raw.prop('CursorLocation')?.scalar ?? '');
+  int? get dbCursorTypeCode => int.tryParse(raw.prop('CursorType')?.scalar ?? '');
+  int? get dbCacheSize => int.tryParse(raw.prop('CacheSize')?.scalar ?? '');
+  int? get dbMarshalOptionsCode => int.tryParse(raw.prop('MarshalOptions')?.scalar ?? '');
+  int? get dbMaxRecordsToSelect => int.tryParse(raw.prop('MaxRecordsToSelect')?.scalar ?? '');
+
+  // --- SequenceCall-by-reference / Run / Wait-on-thread-or-execution fields ---
+
+  /// For a Run/Wait step that references a sequence call by name: the referenced
+  /// SequenceCall step's name (`SeqCallName`) and step-group index code
+  /// (`SeqCallStepGroupIdx`), whether the target is specified by that sequence
+  /// call (`SpecifyBySeqCall`), and the wait-for-target code (`WaitForTarget`).
+  /// Each null when absent.
+  String? get referencedSequenceCallName => _nz(raw.prop('SeqCallName')?.scalar);
+  int? get referencedSequenceCallStepGroupCode =>
+      int.tryParse(raw.prop('SeqCallStepGroupIdx')?.scalar ?? '');
+  bool? get specifiesBySequenceCall => _flag(raw.prop('SpecifyBySeqCall')?.scalar);
+  int? get waitForTargetCode => int.tryParse(raw.prop('WaitForTarget')?.scalar ?? '');
+
+  /// For a Wait step targeting a thread/execution: the thread / execution
+  /// reference expressions (`ThreadRefExpr` / `ExecutionRefExpr`) and the wait
+  /// time expression (`TimeExpr`, seconds). Each null when absent.
+  String? get threadReferenceExpression => _nz(raw.prop('ThreadRefExpr')?.scalar);
+  String? get executionReferenceExpression => _nz(raw.prop('ExecutionRefExpr')?.scalar);
+  String? get waitTimeExpression => _nz(raw.prop('TimeExpr')?.scalar);
+
   /// The step's run-time settings (preconditions, looping, pass/fail actions),
   /// read from its `TS` (TestStand system) sub-container.
   StepSettings get settings => StepSettings(raw.prop('TS'));
@@ -1204,6 +1251,14 @@ class StepModule {
   /// absent.
   int? get pythonDefaultParamCategoryForArrayCode =>
       int.tryParse(_pyCall?.prop('DefaultParamCategoryForArray')?.scalar ?? '');
+
+  /// The code-template the module was generated from (`SData.CodeTemplateName`),
+  /// the module workspace/project root (`SData.ModuleWorkspacePath`), and the
+  /// always-run-in-process code (`SData.AlwaysRunInProcess`, verbatim). Each null
+  /// when absent.
+  String? get codeTemplateName => _sd('CodeTemplateName');
+  String? get moduleWorkspacePath => _sd('ModuleWorkspacePath');
+  int? get alwaysRunInProcessCode => _sdInt('AlwaysRunInProcess');
 
   // --- Python adapter session settings ---
 
