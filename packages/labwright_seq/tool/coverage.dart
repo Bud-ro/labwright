@@ -23,9 +23,6 @@ String _defaultCorpusRoot() {
   return 'corpus/seq';
 }
 
-/// INI files larger than this are skipped while measuring coverage — the INI
-/// reader can OOM on very large files.
-const _iniSizeCapBytes = 300 * 1024;
 
 class _Stat {
   int files = 0, seqs = 0, steps = 0;
@@ -126,7 +123,7 @@ void main(List<String> args) {
         '${(ini.cov.ratio * 100).toStringAsFixed(1)}% '
         '(${ini.cov.modeled}/${ini.cov.total} property nodes). Lower than XML '
         'because each step inlines its step-type definition (kept in `<typelist>` '
-        'for XML); no per-step instance data is missing. Files >300KB skipped.');
+        'for XML); no per-step instance data is missing.');
   File('$root/REPORT.md').writeAsStringSync('$report\n');
   stdout.writeln('wrote $root/REPORT.md');
 }
@@ -134,7 +131,6 @@ void main(List<String> args) {
 _Stat _measure(List<File> files, SeqFormat fmt) {
   final s = _Stat();
   for (final f in files..sort((a, b) => a.path.compareTo(b.path))) {
-    if (fmt == SeqFormat.ini && f.lengthSync() > _iniSizeCapBytes) continue;
     final bytes = f.readAsBytesSync();
     if (detectSeqFormat(bytes) != fmt) continue;
     final SeqFile sf;

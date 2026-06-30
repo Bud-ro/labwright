@@ -507,9 +507,10 @@ class Step {
   StepTypeInfo get typeInfo => StepTypeInfo(raw);
 
   /// The structured control-flow construct this step is, when it is one of the
-  /// `NI_Flow_*` step types (If/ElseIf/Else/While/For/ForEach/End/Break/Continue)
-  /// — with the recovered condition / loop expressions. null for an ordinary
-  /// (non-flow) step. See [FlowControl]; drives the nested logic export.
+  /// `NI_Flow_*` step types (If/ElseIf/Else/While/For/ForEach/Select/Case/End/
+  /// Break/Continue) — with the recovered condition / loop / case expressions.
+  /// null for an ordinary (non-flow) step. See [FlowControl]; drives the nested
+  /// logic export.
   FlowControl? get flowControl => FlowControl.fromStep(this);
 
   /// The test limits (pass/fail criteria) for a limit-test step, or null when
@@ -603,23 +604,29 @@ enum FlowKind {
   doWhile('do-while'),
   forLoop('for'),
   forEach('for each'),
+  selectBlock('select'),
+  caseBlock('case'),
   end('end'),
   breakStmt('break'),
   continueStmt('continue');
 
   const FlowKind(this.label);
 
-  /// A short readable keyword (`if`, `for each`, `end`, …).
+  /// A short readable keyword (`if`, `for each`, `select`, `case`, `end`, …).
   final String label;
 
   /// Whether this construct opens a nested block (its body is the following
-  /// steps until the matching [end]).
+  /// steps until the matching [end]). A `Select` opens the switch; each `Case`
+  /// opens its own body — both are closed by their own `NI_Flow_End` (verified
+  /// by opener/end balance across the corpus).
   bool get opensBlock =>
       this == ifBlock ||
       this == whileLoop ||
       this == doWhile ||
       this == forLoop ||
-      this == forEach;
+      this == forEach ||
+      this == selectBlock ||
+      this == caseBlock;
 
   /// Whether this construct closes a block (`NI_Flow_End`).
   bool get closesBlock => this == end;
@@ -634,8 +641,9 @@ enum FlowKind {
 /// field locations (100% populated where applicable):
 /// `If`/`Else If`/`While` → `ConditionExpr`; `For` →
 /// `InitializationExpr`/`ConditionExpr`/`IncrementExpr`; `For Each` →
-/// `ArrayExpr`/`ArrayElementExpr`/`OffsetExpr`. These are clean expression
-/// strings — the sequence's actual control logic — drawn straight from the step.
+/// `ArrayExpr`/`ArrayElementExpr`/`OffsetExpr`; `Select`/`Case` → `ItemExpr`.
+/// These are clean expression strings — the sequence's actual control logic —
+/// drawn straight from the step.
 class FlowControl {
   FlowControl._(this.kind, this._node);
 
@@ -660,6 +668,8 @@ class FlowControl {
       'NI_Flow_DoWhile' => FlowKind.doWhile,
       'NI_Flow_For' => FlowKind.forLoop,
       'NI_Flow_ForEach' => FlowKind.forEach,
+      'NI_Flow_Select' => FlowKind.selectBlock,
+      'NI_Flow_Case' => FlowKind.caseBlock,
       'NI_Flow_End' => FlowKind.end,
       'NI_Flow_Break' || 'NI_Flow_Break_Custom' => FlowKind.breakStmt,
       'NI_Flow_Continue' => FlowKind.continueStmt,
@@ -685,6 +695,15 @@ class FlowControl {
   /// The `for each` element expression (`ArrayElementExpr`) — the loop variable.
   String? get arrayElement => _nz(_node?.prop('ArrayElementExpr')?.scalar);
 
+  /// The `select`/`case` expression (`ItemExpr`) — the value a `Select` switches
+  /// on, or the value a `Case` matches; null otherwise.
+  String? get itemExpression => _nz(_node?.prop('ItemExpr')?.scalar);
+
+  /// Whether this is the default `Case` (`IsDefault`) — the fall-through arm of a
+  /// `Select`; false/absent for an ordinary value case and for non-case kinds.
+  bool get isDefaultCase =>
+      kind == FlowKind.caseBlock && _flag(_node?.prop('IsDefault')?.scalar) == true;
+
   /// A readable one-line header for the construct, e.g. `if (Locals.x > 0)`,
   /// `for (Locals.i = 0; Locals.i < N; Locals.i += 1)`,
   /// `for each (Locals.e in RunState.…)`, `while (True)`, `end`.
@@ -701,6 +720,9 @@ class FlowControl {
       ].whereType<String>().join('; ')})',
     FlowKind.forEach =>
       'for each (${arrayElement ?? '?'} in ${arrayExpr ?? '?'})',
+    FlowKind.selectBlock => 'select (${itemExpression ?? ''})',
+    FlowKind.caseBlock =>
+      isDefaultCase ? 'case (default)' : 'case (${itemExpression ?? ''})',
     FlowKind.end => 'end',
     FlowKind.breakStmt => 'break',
     FlowKind.continueStmt => 'continue',
