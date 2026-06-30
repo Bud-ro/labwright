@@ -54,10 +54,26 @@ const _settingKeys = [
 /// adapter, the type/sub-type/flags codes, and the array/result-action fields.
 const _callParamKeys = [
   'Name', 'Label', 'ConnectorNumber',
-  'ArgVal', 'ArgumentValue', 'DisplayType', 'Direction',
+  'ArgVal', 'ArgumentValue', 'DisplayType', 'Direction', 'WireRequirement',
   'ArgDisplayVal', 'ArgumentDisplayValue',
   'Type', 'NumType', 'ObjType', 'StructType',
   'Flags', 'NumEls', 'ResultAct',
+];
+
+/// The step **type**-definition fields the [StepTypeInfo] lens surfaces (flat
+/// siblings of `TS` under a step in a text/INI export).
+const _stepTypeKeys = [
+  'CodeTemplates', 'DescriptionFormat', 'DefaultNameFormat',
+  'BlockStartTypes', 'BlockEndTypes', 'AppliesToBlockStructure',
+  'CanEncapsulate', 'Substeps',
+];
+
+/// The result-hint descriptor fields each `AdditionalResultsHints`/`CustomResults`
+/// element carries (surfaced as raw structure; NI-internal Flags/CheckedState
+/// codes are not decoded).
+const _resultHintKeys = [
+  'Name', 'Type', 'ValueToLog', 'Condition', 'IsAnyType', 'Flags',
+  'CheckedState', 'Elements',
 ];
 
 /// The set of nodes the typed lens surfaces with meaning, by object identity.
@@ -109,6 +125,33 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
       for (final k in _settingKeys) {
         mark(ts?.prop(k));
       }
+      // Step type-definition metadata the lens surfaces (Step.typeInfo).
+      for (final k in _stepTypeKeys) {
+        mark(step.raw.prop(k));
+      }
+      markContainer(step.raw.prop('Menu'));
+      markContainer(step.raw.prop('NI_Data'));
+      markContainer(step.raw.prop('NI_Data')?.prop('EditPanels'));
+      // Result-recording hint lists (the step type's defaults at step level, the
+      // instance's recording hints under TS): each element + its descriptor
+      // fields, surfaced as raw structure.
+      void markHints(SeqProperty? list) {
+        if (list == null) return;
+        mark(list);
+        for (final e in [...list.subProps, ...?list.array]) {
+          mark(e);
+          for (final k in _resultHintKeys) {
+            mark(e.prop(k));
+          }
+        }
+      }
+
+      markHints(step.raw.prop('AdditionalResultsHints'));
+      markHints(ts?.prop('AdditionalResultsHints'));
+      markHints(ts?.prop('CustomResults'));
+      markContainer(ts?.prop('Requirements'));
+      markContainer(ts?.prop('Requirements')?.prop('Links'));
+      mark(ts?.prop('SData')); // empty/none SData containers
       final sdata = step.module.raw;
       mark(sdata);
       for (final rec in ['ViCall', 'Call', 'PythonCall']) {

@@ -371,6 +371,13 @@ class Step {
   /// SData.
   StepModule get module => StepModule.fromSData(raw.at(['TS', 'SData']));
 
+  /// The step **type** definition embedded alongside this step — its code
+  /// templates, menu placement, name/description formats, and (for flow-control
+  /// types) the block start/end step types. TestStand text/INI exports inline the
+  /// full type definition next to each step; this lens reads it out. See
+  /// [StepTypeInfo].
+  StepTypeInfo get typeInfo => StepTypeInfo(raw);
+
   /// The structured control-flow construct this step is, when it is one of the
   /// `NI_Flow_*` step types (If/ElseIf/Else/While/For/ForEach/End/Break/Continue)
   /// — with the recovered condition / loop expressions. null for an ordinary
@@ -1351,6 +1358,118 @@ class StepSettings {
   /// The window-activation setting (`WindowActivation`), e.g. `None` — how the
   /// step affects the application window. null when unset.
   String? get windowActivation => _scalar('WindowActivation');
+
+  /// The requirement-traceability links the step declares (`TS.Requirements.
+  /// Links`). Empty when none.
+  List<String> get requirementLinks => [
+        for (final e in _ts?.prop('Requirements')?.prop('Links')?.array ??
+            const <SeqProperty>[])
+          if (_nz(e.scalar) case final s?) s,
+      ];
+}
+
+/// A step **type** definition as embedded next to a step in a TestStand
+/// text/INI (and some XML) export — the metadata that defines the *kind* of step
+/// rather than this instance's configuration. TestStand inlines the whole type
+/// definition with each step, so the same fields repeat across every step of a
+/// type; this lens reads the meaningful ones. Every getter is null/empty when
+/// its field is absent.
+class StepTypeInfo {
+  StepTypeInfo(this.raw);
+
+  /// The step property object — the type-definition fields are flat siblings of
+  /// `TS` directly under the step.
+  final SeqProperty raw;
+
+  String? _str(String key) => _nz(raw.prop(key)?.scalar);
+
+  /// The code-template names the step type offers (`CodeTemplates`), split from
+  /// the stored `|`-delimited list (e.g. `PassFailLabVIEW|PassFailCVI|…`). These
+  /// name the per-language module skeletons the editor can generate. Empty when
+  /// the type defines none.
+  List<String> get codeTemplates {
+    final s = _str('CodeTemplates');
+    if (s == null) return const [];
+    return [for (final t in s.split('|')) if (t.trim().isNotEmpty) t.trim()];
+  }
+
+  /// The expression that formats the step's editor description
+  /// (`DescriptionFormat`, e.g. `ResStr("NI_STEPTYPES","PASSFAIL_DESCRIPTION…")`
+  /// or `"%ModuleDescription"`); null when unset.
+  String? get descriptionFormat => _str('DescriptionFormat');
+
+  /// The expression that formats a new step's default name (`DefaultNameFormat`);
+  /// null when unset.
+  String? get defaultNameFormat => _str('DefaultNameFormat');
+
+  /// For a flow-control step type, the step types that open / close a block this
+  /// type participates in (`BlockStartTypes` / `BlockEndTypes`), each split from
+  /// the stored comma-delimited list of `NI_Flow_*` type names. Empty for a
+  /// non-block type.
+  List<String> get blockStartTypes => _csv('BlockStartTypes');
+  List<String> get blockEndTypes => _csv('BlockEndTypes');
+
+  List<String> _csv(String key) {
+    final s = _str(key);
+    if (s == null) return const [];
+    return [for (final t in s.split(',')) if (t.trim().isNotEmpty) t.trim()];
+  }
+
+  /// Whether this step type participates in a block structure
+  /// (`AppliesToBlockStructure`) / may encapsulate other steps (`CanEncapsulate`).
+  /// Each null when unset.
+  bool? get appliesToBlockStructure => _flag(raw.prop('AppliesToBlockStructure')?.scalar);
+  bool? get canEncapsulate => _flag(raw.prop('CanEncapsulate')?.scalar);
+
+  /// The editor edit-panel class names the step type registers
+  /// (`NI_Data.EditPanels`) — the configuration tabs shown for the step. Empty
+  /// when the type defines none.
+  List<String> get editPanels => [
+        for (final e in raw.prop('NI_Data')?.prop('EditPanels')?.array ??
+            const <SeqProperty>[])
+          if (_nz(e.scalar) case final s?) s,
+      ];
+
+  /// The step type's Insertion-menu placement (`Menu`), or null when it carries
+  /// none. See [StepTypeMenu].
+  StepTypeMenu? get menu {
+    final m = raw.prop('Menu');
+    return m == null ? null : StepTypeMenu(m);
+  }
+}
+
+/// A step type's Insertion Palette / menu placement (`Menu`) — where the type
+/// appears in the editor's "Insert Step" menu and how it is labelled.
+class StepTypeMenu {
+  StepTypeMenu(this.raw);
+
+  /// The underlying `Menu` property object.
+  final SeqProperty raw;
+
+  String? _str(String key) => _nz(raw.prop(key)?.scalar);
+
+  /// The menu group the step type is filed under (`Group`, e.g. `Tests`,
+  /// `NI_FlowControl`); null when unset.
+  String? get group => _str('Group');
+
+  /// The menu sub-category within [group] (`Category`); null/empty when unset.
+  String? get category => _str('Category');
+
+  /// The menu item label (`ItemName`) — usually a `ResStr(...)` localization
+  /// expression or a literal name; null when unset.
+  String? get itemName => _str('ItemName');
+
+  /// The singular form of [itemName] (`SingularItemName`); null/empty when unset.
+  String? get singularItemName => _str('SingularItemName');
+
+  /// The module adapter the menu entry creates the step with (`Adapter`, e.g.
+  /// `Sequence Adapter`, `None Adapter`); null when unset.
+  String? get adapter => _str('Adapter');
+
+  /// Whether the type may be used as a substep type (`CanBeSubstepType`) / may
+  /// *only* be a substep type (`CanOnlyBeSubstepType`). Each null when unset.
+  bool? get canBeSubstepType => _flag(raw.prop('CanBeSubstepType')?.scalar);
+  bool? get canOnlyBeSubstepType => _flag(raw.prop('CanOnlyBeSubstepType')?.scalar);
 }
 
 /// A `<typelist>` type definition: a named type and the fields it declares.
