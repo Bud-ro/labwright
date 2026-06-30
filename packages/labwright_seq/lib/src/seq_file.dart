@@ -37,6 +37,58 @@ class SeqFile {
   /// The root `Data` property object holding the file's contents.
   final SeqProperty data;
 
+  /// The process model file this sequence file uses (`Data.ModelFile`), e.g. a
+  /// `.seq` station-model path; null when it inherits the station default.
+  String? get modelFile => _nz(data.prop('ModelFile')?.scalar);
+
+  /// The model-option code (`Data.ModelOption`) — how the file selects its model
+  /// (use station model / require specific / none). Verbatim; NI-internal
+  /// code→name not invented. null when absent.
+  int? get modelOptionCode => int.tryParse(data.prop('ModelOption')?.scalar ?? '');
+
+  /// The file-wide default module load/unload options (`Data.LoadOpt` /
+  /// `Data.UnloadOpt`), e.g. `UseStepLoadOpt` — the fallback a step inherits when
+  /// it defers to the file. null when absent.
+  String? get loadOption => _nz(data.prop('LoadOpt')?.scalar);
+  String? get unloadOption => _nz(data.prop('UnloadOpt')?.scalar);
+
+  /// The file's content version string (`Data.Version`, e.g. `2022.2.9`) — the
+  /// TestStand version stamp on the file contents, distinct from the
+  /// header/format version ([SeqFileHeader.fileVersion]). null when absent.
+  String? get contentVersion => _nz(data.prop('Version')?.scalar);
+
+  /// The file's batch-synchronization code (`Data.BatchSync`). Verbatim;
+  /// NI-internal code→name not invented. null when absent.
+  int? get batchSyncCode => int.tryParse(data.prop('BatchSync')?.scalar ?? '');
+
+  /// The file-globals scope code (`Data.SFGlobalsScope`) governing how this
+  /// file's globals are shared. Verbatim; null when absent.
+  int? get sequenceFileGlobalsScopeCode =>
+      int.tryParse(data.prop('SFGlobalsScope')?.scalar ?? '');
+
+  /// The file-type code (`Data.Type`) classifying the sequence file (model /
+  /// ordinary / …). Verbatim; NI-internal code→name not invented. null when
+  /// absent.
+  int? get fileTypeCode => int.tryParse(data.prop('Type')?.scalar ?? '');
+
+  /// The requirement-traceability links the file declares (`Data.Requirements.
+  /// Links`). Empty when none.
+  List<String> get requirementLinks => [
+        for (final e in data.prop('Requirements')?.prop('Links')?.array ??
+            const <SeqProperty>[])
+          if (_nz(e.scalar) case final s?) s,
+      ];
+
+  /// The file's global variables (`Data.FileGlobalDefaults` children) — the
+  /// FileGlobals a sequence references as `FileGlobals.…`. Empty when the file
+  /// declares none. (The Semiconductor-Test-System resource block among them is
+  /// also surfaced, typed, via [measurementPlugIns].)
+  List<SeqVariable> get fileGlobals => [
+        for (final p in data.prop('FileGlobalDefaults')?.subProps ??
+            const <SeqProperty>[])
+          SeqVariable(p),
+      ];
+
   /// The sequences in the file (`Data > Seq` array). Empty if the path is absent
   /// (e.g. a type-palette file) — honest rather than throwing.
   List<Sequence> get sequences =>
@@ -147,8 +199,100 @@ class Sequence {
   List<SeqVariable> _vars(String group) =>
       [for (final p in raw.prop(group)?.subProps ?? const <SeqProperty>[]) SeqVariable(p)];
 
+  /// Whether the sequence records its steps' results into the report
+  /// (`RecordResults`). null when the sequence stores no value.
+  bool? get recordsResults => _flag(raw.prop('RecordResults')?.scalar);
+
+  /// Whether a step failure jumps straight to the Cleanup group
+  /// (`GotoCleanupOnFail`). null when unset.
+  bool? get gotoCleanupOnFail => _flag(raw.prop('GotoCleanupOnFail')?.scalar);
+
+  /// The sequence-level on-failure action code (`FailureAction`) — what the
+  /// sequence does when it fails. Surfaced verbatim; the NI-internal code→name
+  /// mapping is not invented. null when unset.
+  int? get failureActionCode => int.tryParse(raw.prop('FailureAction')?.scalar ?? '');
+
+  /// The requirement-traceability links the sequence declares
+  /// (`Requirements.Links`) — free-text requirement identifiers the sequence is
+  /// tagged with. Empty when the sequence declares none.
+  List<String> get requirementLinks => [
+        for (final e in raw.prop('Requirements')?.prop('Links')?.array ??
+            const <SeqProperty>[])
+          if (_nz(e.scalar) case final s?) s,
+      ];
+
+  /// The sequence's run-time / entry-point settings (`RTS`) — how it appears and
+  /// behaves as a callable entry point — or null when it carries none.
+  SequenceRuntimeSettings? get runtimeSettings {
+    final rts = raw.prop('RTS');
+    return rts == null ? null : SequenceRuntimeSettings(rts);
+  }
+
   @override
   String toString() => 'Sequence($name, ${steps.length} steps)';
+}
+
+/// A sequence's run-time / entry-point settings (`RTS`) — the editor's
+/// "Sequence Properties" run-time tab. A sequence usable as an *entry point*
+/// (e.g. `MainSequence`, a process-model callback) carries display rules for
+/// where it appears (`ShowEPFor…`), its menu name/hint, an enabled expression,
+/// and execution options (reentrancy optimization, priority). Every getter is
+/// null/empty when its field is absent — no fabricated default.
+class SequenceRuntimeSettings {
+  SequenceRuntimeSettings(this.raw);
+
+  /// The underlying `RTS` property object — full access to every field.
+  final SeqProperty raw;
+
+  bool? _bool(String key) => _flag(raw.prop(key)?.scalar);
+  String? _str(String key) => _nz(raw.prop(key)?.scalar);
+
+  /// The expression the editor evaluates to display the entry point's name
+  /// (`EPNameExpr`, e.g. `"MainSequence"`); null when unset.
+  String? get entryPointNameExpression => _str('EPNameExpr');
+
+  /// The expression that enables/disables the entry point (`EPEnabledExpr`);
+  /// null when unset.
+  String? get entryPointEnabledExpression => _str('EPEnabledExpr');
+
+  /// The entry point's menu hint/category (`EPMenuHint`); null when unset.
+  String? get entryPointMenuHint => _str('EPMenuHint');
+
+  /// Whether the entry point starts hidden (`EPInitiallyHidden`). null when unset.
+  bool? get entryPointInitiallyHidden => _bool('EPInitiallyHidden');
+
+  /// Where the entry point is offered — always (`ShowEPAlways`), in the editor
+  /// only (`ShowEPForEditorOnly`), in execution windows (`ShowEPForExeWin`), and
+  /// in file windows (`ShowEPForFileWin`). Each null when unset.
+  bool? get showEntryPointAlways => _bool('ShowEPAlways');
+  bool? get showEntryPointForEditorOnly => _bool('ShowEPForEditorOnly');
+  bool? get showEntryPointForExecutionWindow => _bool('ShowEPForExeWin');
+  bool? get showEntryPointForFileWindow => _bool('ShowEPForFileWin');
+
+  /// Whether the entry point may be run interactively (`AllowIntExeOfEP`). null
+  /// when unset.
+  bool? get allowInteractiveExecution => _bool('AllowIntExeOfEP');
+
+  /// Whether the editor copies steps when overriding the sequence
+  /// (`CopyStepsOnOverriding`). null when unset.
+  bool? get copyStepsOnOverriding => _bool('CopyStepsOnOverriding');
+
+  /// Whether the entry point prompts to save a titled file (`EPCheckToSaveTitledFile`)
+  /// / ignores its client (`EPIgnoreClient`). Each null when unset.
+  bool? get entryPointCheckToSaveTitledFile => _bool('EPCheckToSaveTitledFile');
+  bool? get entryPointIgnoreClient => _bool('EPIgnoreClient');
+
+  /// Whether non-reentrant calls into this sequence are optimized
+  /// (`OptimizeNonReentrantCalls`). null when unset.
+  bool? get optimizeNonReentrantCalls => _bool('OptimizeNonReentrantCalls');
+
+  /// The sequence's run priority (`Priority`) as the raw stored integer; null
+  /// when unset. The value is TestStand's internal priority encoding.
+  int? get priorityCode => int.tryParse(raw.prop('Priority')?.scalar ?? '');
+
+  /// The sequence run-time `Type` code; surfaced verbatim, NI-internal meaning
+  /// not invented. null when unset.
+  int? get typeCode => int.tryParse(raw.prop('Type')?.scalar ?? '');
 }
 
 /// A sequence variable — a local or a parameter. Locals/Parameters are property
@@ -563,6 +707,14 @@ class StepResult {
 }
 
 String? _nz(String? s) => (s == null || s.isEmpty) ? null : s;
+
+/// Parses a TestStand boolean stored either as `true`/`false` (XML, any case) or
+/// `1`/`0` (some numeric flags). null when absent or unrecognized.
+bool? _flag(String? s) => switch (s?.toLowerCase()) {
+      'true' || '1' => true,
+      'false' || '0' => false,
+      _ => null,
+    };
 
 /// Unwraps a TestStand string-literal expression for display: strips one layer of
 /// surrounding quotes, whether backslash-escaped (`\"…\"`, as the INI form stores
