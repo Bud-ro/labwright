@@ -274,11 +274,64 @@ class _IniBuilder {
       (s.isDef ? _defs : _vals)[s.path] = s;
     }
     _allPaths = {..._defs.keys, ..._vals.keys};
+    _indexPaths();
   }
 
   final Map<String, IniSection> _defs = {};
   final Map<String, IniSection> _vals = {};
   late final Set<String> _allPaths;
+
+  // Child indices, built once from [_allPaths] so per-node lookups are O(children)
+  // instead of re-scanning every path (which made [build] O(paths²)). For each
+  // container path we record its immediate member-name children (first-seen order,
+  // matching the old [_allPaths] scan) and its array element indices.
+  final Map<String, List<String>> _memberChildren = {};
+  final Map<String, Set<String>> _memberChildSeen = {};
+  final Map<String, List<int>> _elemIdx = {};
+
+  /// Single pass over [_allPaths]: for every path, register each immediate
+  /// `parent.member` and `parent[index]` edge against its parent. A path's member
+  /// segments are separated by `.`; array elements by `[n]`.
+  void _indexPaths() {
+    final elemSets = <String, Set<int>>{};
+    for (final p in _allPaths) {
+      final n = p.length;
+      var i = 0;
+      // Skip the root token; edges begin at the first separator.
+      while (i < n && p[i] != '.' && p[i] != '[') {
+        i++;
+      }
+      while (i < n) {
+        final anc = p.substring(0, i);
+        if (p[i] == '.') {
+          var j = i + 1;
+          while (j < n && p[j] != '.' && p[j] != '[') {
+            j++;
+          }
+          if (j > i + 1) {
+            final seg = p.substring(i + 1, j);
+            final seen = _memberChildSeen[anc] ??= <String>{};
+            if (seen.add(seg)) (_memberChildren[anc] ??= <String>[]).add(seg);
+          }
+          i = j;
+        } else {
+          // p[i] == '[' : an array element edge.
+          var j = i + 1;
+          while (j < n && p[j] != ']') {
+            j++;
+          }
+          if (j < n) {
+            final idx = int.tryParse(p.substring(i + 1, j));
+            if (idx != null) (elemSets[anc] ??= <int>{}).add(idx);
+            i = j + 1;
+          } else {
+            i = n;
+          }
+        }
+      }
+    }
+    elemSets.forEach((k, v) => _elemIdx[k] = v.toList()..sort());
+  }
 
   bool hasPath(String path) => _allPaths.contains(path);
 
@@ -302,46 +355,21 @@ class _IniBuilder {
     return null;
   }
 
-  /// Distinct array indices present under a child path C (keys "C[0]", "C[1]"…).
-  List<int> _elementIndices(String c) {
-    final prefix = '$c[';
-    final idx = <int>{};
-    for (final p in _allPaths) {
-      if (!p.startsWith(prefix)) continue;
-      final close = p.indexOf(']', prefix.length);
-      if (close < 0) continue;
-      final n = int.tryParse(p.substring(prefix.length, close));
-      if (n != null) idx.add(n);
-    }
-    return idx.toList()..sort();
-  }
+  /// Distinct array indices present under a child path C (keys "C[0]", "C[1]"…),
+  /// sorted ascending. Sourced from the prebuilt index.
+  List<int> _elementIndices(String c) => _elemIdx[c] ?? const <int>[];
 
   bool _isContainer(String childPath) =>
       _allPaths.contains(childPath) ||
-      _allPaths.any((p) => p.startsWith('$childPath.') || p.startsWith('$childPath['));
+      _memberChildren.containsKey(childPath) ||
+      _elemIdx.containsKey(childPath);
 
   /// Immediate child member names of [path] discovered from the path set —
   /// catches container members (e.g. a step's `SData`) implied only by a deeper
-  /// section and not listed in the object's own DEF/value members.
-  List<String> _discoveredChildren(String path) {
-    final prefix = '$path.';
-    final seen = <String>{};
-    final order = <String>[];
-    for (final p in _allPaths) {
-      if (!p.startsWith(prefix)) continue;
-      final rest = p.substring(prefix.length);
-      var end = rest.length;
-      for (var i = 0; i < rest.length; i++) {
-        if (rest[i] == '.' || rest[i] == '[') {
-          end = i;
-          break;
-        }
-      }
-      final seg = rest.substring(0, end);
-      if (seg.isNotEmpty && seen.add(seg)) order.add(seg);
-    }
-    return order;
-  }
+  /// section and not listed in the object's own DEF/value members. Sourced from
+  /// the prebuilt index (first-seen order preserved).
+  List<String> _discoveredChildren(String path) =>
+      _memberChildren[path] ?? const <String>[];
 
   // Cache of inherited member subtrees keyed by their type-default path, so a
   // type's defaults (e.g. Action.TS) are built once, not per instance.
