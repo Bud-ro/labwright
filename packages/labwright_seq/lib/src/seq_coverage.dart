@@ -92,7 +92,9 @@ const _callParamKeys = [
   'Flags', 'NumEls', 'ResultAct', 'ArgValImag',
   'StrSize', 'StrPass', 'NumPass', 'ElemPass', 'ArrayClusterEls',
   'ArrayDimensionsSize', 'DefaultArraySize', 'PartiallySpecified',
-  'UseDefaultValues',
+  'UseDefaultValues', 'TypeValid',
+  // COM/ActiveX automation parameter descriptor fields
+  'IID', 'IsUserOptional', 'IsByRef',
 ];
 
 /// The step **type**-definition fields the [StepTypeInfo] lens surfaces (flat
@@ -190,11 +192,16 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
     }
     mark(seq.raw.prop('Locals'));
     mark(seq.raw.prop('Parameters'));
+    // Locals/parameters are user variables — the SeqVariable lens applies to a
+    // variable and, recursively, to every member of a struct/cluster variable,
+    // so the whole variable subtree is modeled user data.
     for (final v in [...seq.locals, ...seq.parameters]) {
-      mark(v.raw);
+      markSubtree(v.raw);
     }
     // Sequence-level settings the lens surfaces (Sequence.* / runtimeSettings).
-    for (final k in ['RecordResults', 'GotoCleanupOnFail', 'FailureAction']) {
+    for (final k in [
+      'RecordResults', 'GotoCleanupOnFail', 'FailureAction', 'StoreResults',
+    ]) {
       mark(seq.raw.prop(k));
     }
     markContainer(seq.raw.prop('Requirements')); // + Links list
@@ -215,12 +222,19 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
       for (final k in [
         'Description', 'Active', 'InBuf', 'PinMapPath',
         'Category', 'SuppressNextResult', 'EvaluatedConditionExpr',
-        'UseCompExpr', 'CompExpr',
+        'UseCompExpr', 'CompExpr', 'CompareCase', 'Operation',
+        'StdOutput', 'StdInput',
+        // select/case flow expressions (NI_Flow_Select / NI_Flow_Case)
+        'ItemExpr', 'EvaluatedItemExpr', 'IsDefault', 'CustomLoop',
         // array / for-each iteration step fields
         'SubscriptExpr', 'Offset', 'IterationType', 'ElementRestorerLocal',
         'AutoCloseAtEndofFile', 'FieldMappingExpr',
         'EvaluatedArrayExpr', 'EvaluatedArrayElementExpr',
         'EvaluatedSubscriptExpr', 'EvaluatedOffsetExpr',
+        'EvaluatedInitializationExpr', 'EvaluatedIncrementExpr',
+        // synchronization step fields (Lock / Rendezvous / Queue / Notification)
+        'Lifetime', 'LifetimeRefExpr', 'NameOrRefExpr', 'CreateIfDoesNotExist',
+        'AlreadyExistsExpr', 'NumThreadsWaitingExpr', 'LockLifetime',
         // wait / timeout step fields
         'TimeoutExpr', 'TimeoutEnabled', 'ErrorOnTimeout', 'TimeExpr',
         // database step fields + ADO recordset/command settings
@@ -232,9 +246,50 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
         // sequence-call-by-reference / Run / Wait-on-thread-or-execution
         'SeqCallName', 'SeqCallStepGroupIdx', 'SpecifyBySeqCall',
         'WaitForTarget', 'ThreadRefExpr', 'ExecutionRefExpr',
+        // message-popup / dialog step instance fields
+        'MessageExpr', 'TitleExpr', 'DefaultResponse', 'DefaultResponseExpr',
+        'ShowResponse', 'NumberLines', 'MaxResponseLength', 'ActiveCtrl',
+        'DefaultButton', 'CancelButton', 'TimerButton', 'TimeToWait',
+        'CenterDialog', 'Floating', 'CtrlArrangement', 'ButtonLocation',
+        'ButtonAlignment', 'ResizeDialog', 'Modal',
+        'Button1Label', 'Button2Label', 'Button3Label',
+        'Button5Label', 'Button6Label',
+        // measurement / instrument step instance fields
+        'ExpectedNumMeas', 'ExtraMeasAction', 'ExtraDataAction',
+        'UseIndividualDataSources', 'InstrumentStepDescription',
+        'Button4Label', 'MeasToRepeat',
+        // execute-process step instance fields
+        'Executable', 'ExecutableExpr', 'ExecutableCalled', 'SpecifyExeByExpr',
+        'Arguments', 'InitialWindowState', 'WaitCondition', 'SetErrorCode',
+        'TerminateOnAbort', 'SpecifyPathByExpr',
+        'ProcessHandle', 'ProcessHandlePtr', 'ProcessHandleExpr',
+        'StoreProcessHandle', 'ExitCodeStatusAction', 'ExitCodeErrorAction',
+        // read/parse-record (CSV / file stream) step instance fields
+        'CsvFilePath', 'CsvFilePathExpr', 'SkipLines', 'SkipLinesExpr',
+        'ScanForTag', 'ScanForTagExpr', 'IgnoreTagCase', 'InputRecordStreamExpr',
+        'ParseRecordPrototype', 'RecordPrototypeExpr', 'AllowExtraFieldsInRecord',
+        'ColumnListSource',
+        // database step instance fields
+        'ConnectionString', 'RecordToOperateOn', 'RecordIndex',
+        // remote / network (host-by-expr, call-by-reference) step fields
+        'RemoteHost', 'RemoteHostByExpr', 'PortNumber', 'Timeout',
+        'SequenceFile', 'SequenceFileExpr',
+        // misc per-step instance flags / expressions
+        'PulseNotifyOpt', 'AutoClear', 'IsAutoClearExpr', 'IsSetExpr',
+        'ByRef', 'DataExpr', 'WhichNotificationExpr',
       ]) {
         mark(step.raw.prop(k));
       }
+      // Std stream redirect descriptors + working-dir spec (Source/Dest/Expr/
+      // IsExpr/Type/Text) and the limit-string record — raw step structure.
+      for (final k in ['StdInput', 'StdOutput', 'WorkingDir']) {
+        markSubtree(step.raw.prop(k));
+      }
+      markSubtree(step.raw.prop('Limits')?.prop('String'));
+      // Message-popup file-attachment record + measurement data arrays — raw.
+      markSubtree(step.raw.prop('FileData'));
+      markSubtree(step.raw.prop('NumericArray'));
+      markSubtree(step.raw.prop('DataSourceArray'));
       markSubtree(step.raw.prop('ColumnList')); // DB column descriptors
       markSubtree(step.raw.prop('Position')); // 2-field position record
       markSubtree(step.raw.prop('RemoteSettings')); // DB remote connection
@@ -253,6 +308,9 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
           for (final k in _resultHintKeys) {
             mark(e.prop(k));
           }
+          // The hint's logged-value `Type` is a full NI type descriptor
+          // (ArrayDimensions/ValueType/ClassName internals) — raw subtree.
+          markSubtree(e.prop('Type'));
         }
       }
 
@@ -305,24 +363,48 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
         }
         markContainer(p.prop('AdditionalResult'));
         markContainer(p.prop('ArrayDimensionsSize')); // per-dimension sizes
-        // A cluster/array parameter's elements (and its prototype element) are
-        // themselves parameter descriptors (same fields) — recurse so the whole
-        // connector type tree is covered, however deeply nested.
-        for (final e in [
-          ...?p.prop('ArrayClusterEls')?.array,
-          ...?p.prop('ArrayClusterProto')?.subProps,
-          ...?p.prop('ArrayClusterProto')?.array,
-        ]) {
+        // A cluster/array parameter's elements are themselves parameter
+        // descriptors (same fields) — recurse so the whole connector type tree is
+        // covered, however deeply nested. The element-type *prototype* is a pure
+        // NI type descriptor (its Cluster/UserData/ComplexParts internals), so it
+        // is surfaced whole as raw structure.
+        final els = p.prop('ArrayClusterEls');
+        mark(els);
+        for (final e in els?.array ?? const <SeqProperty>[]) {
           markParam(e);
         }
+        markSubtree(p.prop('ArrayClusterProto'));
       }
 
       mark(viCall?.prop('Parms'));
       for (final p in step.module.viParameters) {
         markParam(p.raw);
       }
+      // The LabVIEW VI adapter can also hang a `VIModule` container directly off
+      // the step (legacy module slot, distinct from TS.SData.ViCall). Same shape:
+      // ViCall.{VIPath, Parms[]}.
+      final viModuleCall = step.raw.prop('VIModule')?.prop('ViCall');
+      mark(step.raw.prop('VIModule'));
+      mark(viModuleCall);
+      mark(viModuleCall?.prop('VIPath'));
+      final viModuleParms = viModuleCall?.prop('Parms');
+      mark(viModuleParms);
+      for (final p in viModuleParms?.array ?? const <SeqProperty>[]) {
+        markParam(p);
+      }
       mark(sdata?.prop('Call')?.prop('LibPath'));
       mark(sdata?.prop('Call')?.prop('Func'));
+      // The ActiveX/COM automation adapter's call binding (`Call.*`): the target
+      // object/server/interface/member identity + COM VTable/type-lib internals.
+      final call = sdata?.prop('Call');
+      for (final k in [
+        'CoClass', 'CoClassName', 'ObjectVariable',
+        'Server', 'ServerName', 'Interface', 'InterfaceName', 'InterfaceType',
+        'Member', 'MemberName', 'MemberType', 'HasMemberInfo', 'HasReturnValue',
+        'TypeLibVersion', 'VTableIndex',
+      ]) {
+        mark(call?.prop(k));
+      }
       // The C/ActiveX adapter's connector list (`Call.Parms`), like ViCall.Parms.
       final callParms = sdata?.prop('Call')?.prop('Parms');
       mark(callParms);
@@ -361,20 +443,17 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
       for (final k in [
         'Low', 'High', 'Nominal', 'ThresholdType',
         'LowExpr', 'HighExpr', 'NominalExpr', 'UseLowExpr', 'UseHighExpr',
+        'ThresholdTypeExpr', 'UseThresholdTypeExpr', 'UseNominalExpr',
       ]) {
         mark(lim?.prop(k));
       }
-      final result = step.raw.prop('Result');
-      mark(result);
-      mark(result?.prop('Units'));
-      mark(result?.prop('Status'));
-      mark(result?.prop('ReportText'));
-      mark(result?.prop('Common'));
-      mark(result?.prop('PassFail'));
-      final error = result?.prop('Error');
-      mark(error);
-      for (final k in ['Code', 'Msg', 'Occurred']) {
-        mark(error?.prop(k));
+      // The step's recorded-result slot — its full outcome record (status, report
+      // text, error, numeric/measurement sub-records, pass/fail) is surfaced via
+      // the StepResult lens.
+      markSubtree(step.raw.prop('Result'));
+      // Message-popup / UI step font records, surfaced as raw structure.
+      for (final k in ['ButtonFontData', 'MsgFontData', 'RespFontData']) {
+        markSubtree(step.raw.prop(k));
       }
       void markAddl(SeqProperty p) {
         if (p.name == 'AdditionalResults') {
@@ -393,6 +472,7 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
       markAddl(step.raw);
       final meas = step.raw.prop('Measurement');
       mark(meas);
+      mark(meas?.prop('Version')); // IVI/measurement-plugin schema version tag
       final mparams = meas?.prop('Parameters');
       mark(mparams);
       for (final p in step.measurementParameters) {
@@ -421,8 +501,9 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
   }
   markContainer(f.data.prop('Requirements'));
   markContainer(f.data.prop('Requirements')?.prop('Links'));
-  // The file globals (FileGlobalDefaults children) the lens lists.
-  markContainer(f.data.prop('FileGlobalDefaults'));
+  // The file globals (FileGlobalDefaults) the lens lists — each global carries a
+  // full value descriptor (type internals, array prototypes), surfaced raw.
+  markSubtree(f.data.prop('FileGlobalDefaults'));
 
   final mp = f.measurementPlugIns;
   if (mp != null) {
