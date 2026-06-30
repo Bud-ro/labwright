@@ -135,15 +135,23 @@ void main() {
   // docs 3-6x too low. ±20% band tolerates a corpus refetch / minor decode shift
   // but catches the multiples-off failure mode. Update the pin AND the matching
   // catalog doc together when the corpus or decode legitimately changes.
+  //
+  // Regenerated against the current on-disk corpus after the buildDiagram perf fix
+  // (graph.dart shiftSubtree) made the full corpus processable — previously this
+  // test hung indefinitely on a few giant VIs (a 2.5 MB heap took ~17 min / ~13 GB),
+  // so the prior pins predated those VIs and had drifted vs the fetched corpus.
+  // Verified the perf fix changes NO counts (o.kind is final): old and new code
+  // produce identical histograms on the same files; the deltas are entirely the
+  // now-processable VIs plus corpus drift.
   test('catalogued BD object kinds hold their full-corpus counts (anti-rot)', () {
     const expected = <int, int>{
-      0x2f: 44395, 0x31: 31995, 0x63: 13737, 0x8c: 6620, 0x3a: 3479, 0xd6: 2209,
-      0x32: 2075, 0xc5: 1518, 0x104: 2155, 0x44: 3228, 0x3e: 1961, 0x34: 1665, 0xa9: 2416,
-      0x2c: 14563, 0x20: 4892, 0x21: 1654, 0x16: 41830, 0x95: 16118, 0x177: 17043,
-      0x93: 1479, 0x172: 1409, 0x6c: 1020, 0x36: 1002, 0xcd: 1186, 0x14d: 896,
-      0x55: 2234, 0x153: 1466, 0x4e: 947,
-      0x6a: 878, 0xbd: 623, 0x114: 425, 0xb6: 503, 0xca: 560, 0x29: 423, 0x10c: 797, 0xc2: 643,
-      0xd5: 390, 0x121: 843, 0xb9: 372, 0x48: 304, 0xeb: 224, 0x103: 217, 0x14a: 367,
+      0x2f: 52265, 0x31: 35744, 0x63: 16797, 0x8c: 7432, 0x3a: 4091, 0xd6: 2437,
+      0x32: 2908, 0xc5: 1552, 0x104: 2377, 0x44: 3851, 0x3e: 2055, 0x34: 2099, 0xa9: 2628,
+      0x2c: 16670, 0x20: 5566, 0x21: 1939, 0x16: 46819, 0x95: 18327, 0x177: 17285,
+      0x93: 1566, 0x172: 1423, 0x6c: 1149, 0x36: 1106, 0xcd: 1251, 0x14d: 904,
+      0x55: 2341, 0x153: 1466, 0x4e: 1009,
+      0x6a: 1788, 0xbd: 645, 0x114: 608, 0xb6: 533, 0xca: 625, 0x29: 507, 0x10c: 868, 0xc2: 690,
+      0xd5: 399, 0x121: 926, 0xb9: 452, 0x48: 473, 0xeb: 226, 0x103: 217, 0x14a: 408,
     };
     final counts = {for (final k in expected.keys) k: 0};
     for (final root in [corpusSampleDir.path, corpusDiverseDir.path]) {
