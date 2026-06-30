@@ -88,16 +88,27 @@ const _sdataSettingKeys = [
   'SeqNameExpr', 'SFPathExpr', 'SpecifyByExpr', 'UseCurFile', 'UsePrototype',
   // threading / async
   'ThreadOpt', 'ExecModelOpt', 'CreateThreadSuspended', 'AutoWaitAsync',
-  'AsyncThreadExpr', 'Trace', 'IgnoreTerminate',
+  'AsyncThreadExpr', 'Trace', 'IgnoreTerminate', 'ExecSync',
+  'AsyncApartmentThreaded', 'ThreadAffinityOption', 'CustomThreadAffinity',
+  // new-execution model selection
+  'ExecTypeMask', 'ExecTypeMaskExpr', 'ExecBreakOnEntryExpr',
+  'ExecModelPath', 'ExecModelPathExpr',
   // remote execution
   'RemoteExecution', 'RemoteHost', 'RemoteHostExpr', 'SpecifyHostByExpr',
+];
+
+/// The LabVIEW VI-call (`SData.ViCall`) settings the lens surfaces beyond the
+/// VI path — remote/real-time deployment and node options.
+const _viCallSettingKeys = [
+  'RemoteVIPath', 'RemoteHost', 'RemoteHostByExpr', 'AutoDetectLVRT',
+  'NodeOperationMode',
 ];
 
 /// The Python-adapter session fields under `SData.PythonCall` the lens surfaces.
 const _pythonSessionKeys = [
   'InterpreterLocation', 'ClassInstanceLocation', 'OperationType',
   'OperationScope', 'InterpreterSessionScope', 'CreateIfInterpreterDoesNotExist',
-  'UseAdapterSettingsForInterpreterSession',
+  'UseAdapterSettingsForInterpreterSession', 'DefaultParamCategoryForArray',
 ];
 
 /// The set of nodes the typed lens surfaces with meaning, by object identity.
@@ -153,6 +164,10 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
       for (final k in _stepTypeKeys) {
         mark(step.raw.prop(k));
       }
+      // Step instance-level fields the lens surfaces (Step.*).
+      for (final k in ['Description', 'Active', 'InBuf', 'PinMapPath']) {
+        mark(step.raw.prop(k));
+      }
       markContainer(step.raw.prop('Menu'));
       markContainer(step.raw.prop('NI_Data'));
       markContainer(step.raw.prop('NI_Data')?.prop('EditPanels'));
@@ -196,6 +211,7 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
       mark(viCall?.prop('VIPath'));
       for (final k in [
         'Namespace', 'ProjectPath', 'CallName', 'VIDescription', 'ShowFrnPnl',
+        ..._viCallSettingKeys,
       ]) {
         mark(viCall?.prop(k));
       }
@@ -204,8 +220,9 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
         for (final k in _callParamKeys) {
           mark(p.prop(k));
         }
-        // The parameter's "additional results" spec (Input/Output sides, each a
-        // small container) is surfaced as raw structure via the lens.
+        // The parameter's "additional results" spec (Input/Output sides, or a
+        // single AdditionalResult with Condition/Flags/CheckedState) is surfaced
+        // as raw structure via the lens.
         final addl = p.prop('AdditionalResults');
         mark(addl);
         for (final side in ['Input', 'Output']) {
@@ -214,6 +231,13 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
           for (final c in s?.subProps ?? const <SeqProperty>[]) {
             mark(c);
           }
+        }
+        markContainer(p.prop('AdditionalResult'));
+        // A cluster/array parameter's elements are themselves parameter
+        // descriptors (same fields) — recurse so the whole connector type tree is
+        // covered, however deeply nested.
+        for (final e in p.prop('ArrayClusterEls')?.array ?? const <SeqProperty>[]) {
+          markParam(e);
         }
       }
 
@@ -252,7 +276,10 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
       mark(step.raw.prop('DataSource'));
       final lim = step.raw.prop('Limits');
       mark(lim);
-      for (final k in ['Low', 'High', 'Nominal', 'ThresholdType']) {
+      for (final k in [
+        'Low', 'High', 'Nominal', 'ThresholdType',
+        'LowExpr', 'HighExpr', 'NominalExpr', 'UseLowExpr', 'UseHighExpr',
+      ]) {
         mark(lim?.prop(k));
       }
       final result = step.raw.prop('Result');
