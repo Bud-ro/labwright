@@ -37,7 +37,7 @@ const _settingKeys = [
   'PassActTarget', 'FailActTarget', 'CustTrueActTarget', 'CustFalseActTarget',
   'CustExpr', 'CustTrueAct', 'CustFalseAct',
   'StepFCSeqF', 'IgnoreRTE', 'ResultOption', 'NoResult',
-  'UseMutex', 'MutexNameOrRef',
+  'UseMutex', 'MutexNameOrRef', 'Adapter', 'HasModule',
   // edit-permission flags
   'CanEditCode', 'CanEditModulePrototype', 'CanSpecifyModule',
   'CanEditParameterAdditionalResults',
@@ -101,7 +101,7 @@ const _sdataSettingKeys = [
 /// VI path — remote/real-time deployment and node options.
 const _viCallSettingKeys = [
   'RemoteVIPath', 'RemoteHost', 'RemoteHostByExpr', 'AutoDetectLVRT',
-  'NodeOperationMode',
+  'NodeOperationMode', 'CallType', 'VIType', 'ClassPath', 'RemoteProjectPath',
 ];
 
 /// The Python-adapter session fields under `SData.PythonCall` the lens surfaces.
@@ -131,6 +131,18 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
     }
     for (final c in p.array ?? const <SeqProperty>[]) {
       mark(c);
+    }
+  }
+
+  /// Marks [p] and its entire subtree — for a pure-data container the lens
+  /// surfaces as raw structure for full access (a SequenceCall's actual
+  /// arguments / parameter prototype), whose contents are NI-internal
+  /// per-argument descriptors not given individual typed meaning.
+  void markSubtree(SeqProperty? p) {
+    if (p == null) return;
+    mark(p);
+    for (final c in [...p.subProps, ...?p.array]) {
+      markSubtree(c);
     }
   }
 
@@ -165,7 +177,10 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
         mark(step.raw.prop(k));
       }
       // Step instance-level fields the lens surfaces (Step.*).
-      for (final k in ['Description', 'Active', 'InBuf', 'PinMapPath']) {
+      for (final k in [
+        'Description', 'Active', 'InBuf', 'PinMapPath',
+        'Category', 'SuppressNextResult', 'EvaluatedConditionExpr', 'UseCompExpr',
+      ]) {
         mark(step.raw.prop(k));
       }
       markContainer(step.raw.prop('Menu'));
@@ -198,8 +213,8 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
       for (final k in _sdataSettingKeys) {
         mark(sdata?.prop(k));
       }
-      markContainer(sdata?.prop('Prototype'));
-      markContainer(sdata?.prop('ActualArgs'));
+      markSubtree(sdata?.prop('Prototype'));
+      markSubtree(sdata?.prop('ActualArgs'));
       mark(step.raw.prop('Measurement')?.prop('Name'));
       for (final rec in ['ViCall', 'Call', 'PythonCall']) {
         mark(sdata?.prop(rec));
@@ -247,6 +262,12 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
       }
       mark(sdata?.prop('Call')?.prop('LibPath'));
       mark(sdata?.prop('Call')?.prop('Func'));
+      // The C/ActiveX adapter's connector list (`Call.Parms`), like ViCall.Parms.
+      final callParms = sdata?.prop('Call')?.prop('Parms');
+      mark(callParms);
+      for (final p in callParms?.array ?? const <SeqProperty>[]) {
+        markParam(p);
+      }
       mark(sdata?.prop('SeqName'));
       mark(sdata?.prop('SFPath'));
       for (final k in ['ModuleSrcPath', 'ModulePrjPath', 'ModuleCreateSrcType']) {
@@ -288,6 +309,7 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
       mark(result?.prop('Status'));
       mark(result?.prop('ReportText'));
       mark(result?.prop('Common'));
+      mark(result?.prop('PassFail'));
       final error = result?.prop('Error');
       mark(error);
       for (final k in ['Code', 'Msg', 'Occurred']) {
