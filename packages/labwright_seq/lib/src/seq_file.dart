@@ -384,6 +384,24 @@ class Step {
   /// structure is not decoded). null when absent.
   String? get inputBuffer => _nz(raw.prop('InBuf')?.scalar);
 
+  /// The step's editor category (`Category`, e.g. `Test`, `Action`) — how the
+  /// editor groups the step; null when unset.
+  String? get category => _nz(raw.prop('Category')?.scalar);
+
+  /// Whether the step suppresses the next step's result (`SuppressNextResult`).
+  /// null when unset.
+  bool? get suppressesNextResult => _flag(raw.prop('SuppressNextResult')?.scalar);
+
+  /// The precondition as last evaluated (`EvaluatedConditionExpr`) — the resolved
+  /// form of the step's precondition; null when absent.
+  String? get evaluatedConditionExpression =>
+      _nz(raw.prop('EvaluatedConditionExpr')?.scalar);
+
+  /// Whether the step's limit comparison is driven by an expression
+  /// (`UseCompExpr`) rather than a fixed operator; null when unset. Pairs with
+  /// [limits] and [StepLimits.lowExpression]/[StepLimits.highExpression].
+  bool? get usesComparisonExpression => _flag(raw.prop('UseCompExpr')?.scalar);
+
   /// The step's run-time settings (preconditions, looping, pass/fail actions),
   /// read from its `TS` (TestStand system) sub-container.
   StepSettings get settings => StepSettings(raw.prop('TS'));
@@ -716,6 +734,10 @@ class StepResult {
 
   /// The report text the step contributed (`ReportText`); null when unset.
   String? get reportText => _nz(raw.prop('ReportText')?.scalar);
+
+  /// The recorded pass/fail outcome (`PassFail`) for a pass/fail step; null when
+  /// the step records none (un-run, or not a pass/fail step).
+  bool? get passFail => _flag(raw.prop('PassFail')?.scalar);
 
   SeqProperty? get _error => raw.prop('Error');
 
@@ -1106,6 +1128,17 @@ class StepModule {
   bool? get viAutoDetectRealTime => _flag(_viCall?.prop('AutoDetectLVRT')?.scalar);
   int? get viNodeOperationModeCode =>
       int.tryParse(_viCall?.prop('NodeOperationMode')?.scalar ?? '');
+
+  /// The VI-call type / VI type codes (`ViCall.CallType` / `VIType`) classifying
+  /// the call (e.g. standard VI vs. malleable/class node) and the LabVIEW class
+  /// the VI belongs to (`ViCall.ClassPath`) with its remote project
+  /// (`ViCall.RemoteProjectPath`). Codes verbatim; NI-internal meaning not
+  /// invented. Each null when absent. Further LabVIEW VI-node descriptor fields
+  /// remain available on [raw] (`SData.ViCall`).
+  int? get viCallTypeCode => int.tryParse(_viCall?.prop('CallType')?.scalar ?? '');
+  int? get viTypeCode => int.tryParse(_viCall?.prop('VIType')?.scalar ?? '');
+  String? get viClassPath => _nz(_viCall?.prop('ClassPath')?.scalar);
+  String? get viRemoteProjectPath => _nz(_viCall?.prop('RemoteProjectPath')?.scalar);
 
   /// The Python adapter's default parameter category for array arguments
   /// (`PythonCall.DefaultParamCategoryForArray`), as a verbatim code; null when
@@ -1546,6 +1579,15 @@ class StepSettings {
   /// excluded from the result list / report. null when unset; the complement of
   /// [recordsResult] for step types that use this flag.
   bool? get producesNoResult => _bool('NoResult');
+
+  /// The human-readable module adapter the step uses (`Adapter`, e.g.
+  /// `Sequence Adapter`, `DLL Flexible Prototype Adapter`, `G Std Prototype
+  /// Adapter`, `None Adapter`) — the editor's "Module Adapter" label. null when
+  /// unset. The decoded binding is exposed via [Step.module]/[StepModule.adapter].
+  String? get adapterName => _scalar('Adapter');
+
+  /// Whether the step has a code module configured (`HasModule`). null when unset.
+  bool? get hasModule => _bool('HasModule');
 
   /// The requirement-traceability links the step declares (`TS.Requirements.
   /// Links`). Empty when none.
