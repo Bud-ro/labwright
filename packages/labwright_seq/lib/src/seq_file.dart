@@ -362,6 +362,28 @@ class Step {
   /// in the corpus store none, so this is null for them.)
   String? get comment => _nz(raw.attributes['%COMMENT']);
 
+  /// The step's editor description (`Description`) — the one-line summary shown
+  /// in the step list, produced from the step type's
+  /// [StepTypeInfo.descriptionFormat] (e.g. `This sequence will automatically
+  /// login…`). null when the step records none. Distinct from the free-text
+  /// [comment].
+  String? get description => _nz(raw.prop('Description')?.scalar);
+
+  /// The step's active-state code (`Active`) governing whether it runs in the
+  /// normal flow. Surfaced verbatim; the NI-internal code→name mapping is not
+  /// invented (the run-mode override is exposed readably as [StepSettings.mode]).
+  /// null when unset.
+  int? get activeStateCode => int.tryParse(raw.prop('Active')?.scalar ?? '');
+
+  /// The pin map path the step pins its operation to (`PinMapPath`), for a
+  /// Semiconductor-Test-System step; null when unset.
+  String? get pinMapPath => _nz(raw.prop('PinMapPath')?.scalar);
+
+  /// The step type's serialized input-buffer template (`InBuf`) — an NI-internal
+  /// blob the editor uses when creating the step; surfaced raw (its internal
+  /// structure is not decoded). null when absent.
+  String? get inputBuffer => _nz(raw.prop('InBuf')?.scalar);
+
   /// The step's run-time settings (preconditions, looping, pass/fail actions),
   /// read from its `TS` (TestStand system) sub-container.
   StepSettings get settings => StepSettings(raw.prop('TS'));
@@ -780,6 +802,20 @@ class StepLimits {
   /// The raw `Limits` property for full access; null if the step had none.
   final SeqProperty? raw;
 
+  /// The expression forms of the limits (`Limits.LowExpr` / `HighExpr` /
+  /// `NominalExpr`) — when a limit is driven by an expression (e.g.
+  /// `Locals.Limits_DUT.__01_Power[1]`) rather than the literal [low]/[high]/
+  /// [nominal] value. null when the limit is a plain constant or absent.
+  String? get lowExpression => _nz(raw?.prop('LowExpr')?.scalar);
+  String? get highExpression => _nz(raw?.prop('HighExpr')?.scalar);
+  String? get nominalExpression => _nz(raw?.prop('NominalExpr')?.scalar);
+
+  /// Whether the low / high bound is taken from its expression form
+  /// (`Limits.UseLowExpr` / `UseHighExpr`) instead of the literal value. null when
+  /// unset.
+  bool? get usesLowExpression => _flag(raw?.prop('UseLowExpr')?.scalar);
+  bool? get usesHighExpression => _flag(raw?.prop('UseHighExpr')?.scalar);
+
   /// Whether the step carries any limit information.
   static StepLimits? fromStep(SeqProperty step) {
     final comp = _nz(step.prop('Comp')?.scalar);
@@ -1037,6 +1073,45 @@ class StepModule {
   String? get remoteHost => _sd('RemoteHost');
   String? get remoteHostExpression => _sd('RemoteHostExpr');
   bool? get specifiesHostByExpression => _sdFlag('SpecifyHostByExpr');
+
+  /// Whether the call executes synchronously (`SData.ExecSync`) and, for an
+  /// async call, its apartment-threading / affinity options
+  /// (`AsyncApartmentThreaded`, `ThreadAffinityOption` code, `CustomThreadAffinity`).
+  /// Each null when absent.
+  bool? get executesSynchronously => _sdFlag('ExecSync');
+  bool? get asyncApartmentThreaded => _sdFlag('AsyncApartmentThreaded');
+  int? get threadAffinityOptionCode => _sdInt('ThreadAffinityOption');
+  String? get customThreadAffinity => _sd('CustomThreadAffinity');
+
+  /// The new-execution model the call runs under, when it spawns one: the
+  /// execution-type mask (`ExecTypeMask`, or `ExecTypeMaskExpr`), the model
+  /// `.seq` path (`ExecModelPath`, or `ExecModelPathExpr`), and the break-on-entry
+  /// expression (`ExecBreakOnEntryExpr`). Each null when absent.
+  int? get executionTypeMaskCode => _sdInt('ExecTypeMask');
+  String? get executionTypeMaskExpression => _sd('ExecTypeMaskExpr');
+  String? get executionModelPath => _sd('ExecModelPath');
+  String? get executionModelPathExpression => _sd('ExecModelPathExpr');
+  String? get executionBreakOnEntryExpression => _sd('ExecBreakOnEntryExpr');
+
+  // --- LabVIEW VI-call remote / real-time deployment ---
+
+  /// For a VI call deployed to a remote / LabVIEW Real-Time target: the remote VI
+  /// path (`ViCall.RemoteVIPath`), the host (`ViCall.RemoteHost`, or by expression
+  /// when `ViCall.RemoteHostByExpr`), whether the adapter auto-detects the RT
+  /// engine (`ViCall.AutoDetectLVRT`), and the node operation mode
+  /// (`ViCall.NodeOperationMode`, a verbatim code). Each null when absent.
+  String? get viRemoteVIPath => _nz(_viCall?.prop('RemoteVIPath')?.scalar);
+  String? get viRemoteHost => _nz(_viCall?.prop('RemoteHost')?.scalar);
+  bool? get viRemoteHostByExpression => _flag(_viCall?.prop('RemoteHostByExpr')?.scalar);
+  bool? get viAutoDetectRealTime => _flag(_viCall?.prop('AutoDetectLVRT')?.scalar);
+  int? get viNodeOperationModeCode =>
+      int.tryParse(_viCall?.prop('NodeOperationMode')?.scalar ?? '');
+
+  /// The Python adapter's default parameter category for array arguments
+  /// (`PythonCall.DefaultParamCategoryForArray`), as a verbatim code; null when
+  /// absent.
+  int? get pythonDefaultParamCategoryForArrayCode =>
+      int.tryParse(_pyCall?.prop('DefaultParamCategoryForArray')?.scalar ?? '');
 
   // --- Python adapter session settings ---
 
