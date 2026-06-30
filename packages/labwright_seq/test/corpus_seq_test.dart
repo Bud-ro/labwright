@@ -742,16 +742,14 @@ void main() {
 
   test('the typed lens + coverage metric apply to INI (shared model)', () {
     var ini = 0, steps = 0, withModule = 0, withAddl = 0;
-    var covTotal = 0, covModeled = 0;
+    var cov = const SeqCoverage(total: 0, modeled: 0);
     for (final f in seqs) {
       if (f.lengthSync() > _maxProbeBytes) continue;
       final bytes = f.readAsBytesSync();
       if (detectSeqFormat(bytes) != SeqFormat.ini) continue;
       ini++;
       final sf = parseSeqFile(bytes);
-      final c = measureCoverage(sf);
-      covTotal += c.total;
-      covModeled += c.modeled;
+      cov += measureCoverage(sf);
       for (final seq in sf.sequences) {
         for (final step in seq.steps) {
           steps++;
@@ -761,47 +759,43 @@ void main() {
       }
     }
     // ignore: avoid_print
-    print(
-      'INI lens: $ini files · $steps steps · $withModule with a module adapter · '
-      '$withAddl with additional-results · coverage '
-      '${(covModeled / covTotal * 100).toStringAsFixed(1)}% ($covModeled/$covTotal)',
-    );
+    print('INI lens: $ini files · $steps steps · $withModule with a module '
+        'adapter · $withAddl with additional-results · '
+        'accounted ${(cov.accountedRatio * 100).toStringAsFixed(1)}% · '
+        'modeled ${(cov.ratio * 100).toStringAsFixed(1)}% · '
+        'plumbing ${cov.plumbing} · unaccounted ${cov.unaccounted}');
     expect(ini, greaterThanOrEqualTo(30));
     expect(steps, greaterThanOrEqualTo(1000));
     expect(withModule, greaterThanOrEqualTo(500));
-    expect(covModeled, greaterThan(0));
-    expect(covModeled, lessThan(covTotal));
-    // Regression floor for the typed-lens model coverage of INI trees (the
-    // remainder is NI-internal plumbing: %ATTRIBUTES, TDChecksum, LabVIEW build
-    // descriptors). Currently ~80%; guard against the lens silently regressing.
-    expect(
-      covModeled / covTotal,
-      greaterThan(0.78),
-      reason: 'INI model coverage regressed (${covModeled / covTotal})',
-    );
+    // Completeness axis: every node is modeled or recognized NI-internal
+    // plumbing. Driving toward 1.0 as remaining gaps are classified.
+    expect(cov.accountedRatio, greaterThan(0.99),
+        reason: 'INI accounted-for coverage regressed (${cov.accountedRatio})');
+    // Deferred-work axis: how much is given real typed meaning (rises as the
+    // plumbing — %ATTRIBUTES, TDChecksum, LabVIEW build descriptors — is decoded).
+    expect(cov.ratio, greaterThan(0.97),
+        reason: 'INI model coverage regressed (${cov.ratio})');
   });
 
   test('the typed lens models the bulk of every XML Data tree', () {
-    var xml = 0, covTotal = 0, covModeled = 0;
+    var xml = 0;
+    var cov = const SeqCoverage(total: 0, modeled: 0);
     for (final f in seqs) {
       final bytes = f.readAsBytesSync();
       if (detectSeqFormat(bytes) != SeqFormat.xml) continue;
       xml++;
-      final c = measureCoverage(parseSeqFile(bytes));
-      covTotal += c.total;
-      covModeled += c.modeled;
+      cov += measureCoverage(parseSeqFile(bytes));
     }
     // ignore: avoid_print
-    print('XML lens: $xml files · coverage '
-        '${(covModeled / covTotal * 100).toStringAsFixed(1)}% ($covModeled/$covTotal)');
+    print('XML lens: $xml files · '
+        'accounted ${(cov.accountedRatio * 100).toStringAsFixed(1)}% · '
+        'modeled ${(cov.ratio * 100).toStringAsFixed(1)}% · '
+        'plumbing ${cov.plumbing} · unaccounted ${cov.unaccounted}');
     expect(xml, greaterThanOrEqualTo(20));
-    // Regression floor (currently ~97%); the small remainder is deliberately
-    // unmodeled NI-internal LabVIEW build/deployment descriptors.
-    expect(
-      covModeled / covTotal,
-      greaterThan(0.95),
-      reason: 'XML model coverage regressed (${covModeled / covTotal})',
-    );
+    expect(cov.accountedRatio, greaterThan(0.98),
+        reason: 'XML accounted-for coverage regressed (${cov.accountedRatio})');
+    expect(cov.ratio, greaterThan(0.95),
+        reason: 'XML model coverage regressed (${cov.ratio})');
   });
 
   test('newly-modeled lens accessors are wired across the corpus', () {

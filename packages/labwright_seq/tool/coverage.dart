@@ -93,13 +93,18 @@ void main(List<String> args) {
       'model coverage ${(ini.cov.ratio * 100).toStringAsFixed(1)}% '
       '(${ini.cov.modeled}/${ini.cov.total} property nodes)');
 
+  String axis(SeqCoverage c) =>
+      'accounted ${(c.accountedRatio * 100).toStringAsFixed(1)}% · '
+      'modeled ${(c.ratio * 100).toStringAsFixed(1)}% · '
+      'plumbing ${c.plumbing} · unaccounted ${c.unaccounted}';
   stdout.writeln('-' * 76);
-  stdout.writeln('AXES (all must reach 100% for "fully understood"):');
+  stdout.writeln('AXES — accounted% is the completeness goal (->100%); modeled% is '
+      'the deferred-work\nbenchmark (rises as NI-internal plumbing is decoded):');
   stdout.writeln('  formatDetected%  ${pct(nTotal - nUnknown, nTotal)}  '
       '($nXml xml, $nIni ini, $nBinary binary, $nUnknown unknown of $nTotal .seq)');
-  stdout.writeln('  xmlModel%        ${(overall.cov.ratio * 100).toStringAsFixed(1)}  (typed-lens nodes over XML Data trees)');
-  stdout.writeln('  iniModel%        ${(ini.cov.ratio * 100).toStringAsFixed(1)}  (typed-lens nodes over INI Data trees)');
-  stdout.writeln('  binaryModel%     0.0  (FRONTIER: $nBinary binary .seq, record grammar not yet decoded)');
+  stdout.writeln('  XML   ${axis(overall.cov)}');
+  stdout.writeln('  INI   ${axis(ini.cov)}');
+  stdout.writeln('  binary  FRONTIER: $nBinary binary .seq, record grammar not yet decoded');
 
   final report = StringBuffer()
     ..writeln('# TestStand XML model — coverage report card')

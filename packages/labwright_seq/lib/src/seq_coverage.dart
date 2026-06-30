@@ -9,18 +9,49 @@ import 'seq_property.dart';
 /// counts every node in the `Data` tree (`total`) and how many the lens
 /// explains (`modeled`) — honest about how much is still raw.
 class SeqCoverage {
-  const SeqCoverage({required this.total, required this.modeled});
+  const SeqCoverage({
+    required this.total,
+    required this.modeled,
+    this.plumbing = 0,
+  });
 
   /// Total property nodes in the file's `Data` tree.
   final int total;
 
-  /// Nodes the typed lens surfaces with meaning.
+  /// Nodes the typed lens surfaces with **meaning** (a typed accessor reaches
+  /// them). This is the benchmark we drive *up over time* — it stays below 100%
+  /// while [plumbing] nodes remain raw, and rises as they are decoded.
   final int modeled;
 
+  /// Nodes we **recognize as NI-internal metadata and deliberately defer** — the
+  /// "later" bucket (e.g. the `%ATTRIBUTES` type-system namespace, LabVIEW build
+  /// /deploy descriptors, `TDChecksum`). Accounted for, but not given typed
+  /// meaning, so we are honest about not having decoded them.
+  final int plumbing;
+
+  /// Nodes that are neither modeled nor recognized plumbing — the true gap. The
+  /// goal is **zero**: every node should be one or the other.
+  int get unaccounted => total - modeled - plumbing;
+
+  /// Raw modeled fraction `modeled/total` — the deferred-work benchmark that
+  /// stays below 100% until the [plumbing] is decoded.
   double get ratio => total == 0 ? 0 : modeled / total;
 
-  SeqCoverage operator +(SeqCoverage o) =>
-      SeqCoverage(total: total + o.total, modeled: modeled + o.modeled);
+  /// Accounted-for fraction `(modeled+plumbing)/total` — the completeness axis we
+  /// drive to **100%**: every node is either modeled or recognized as plumbing.
+  double get accountedRatio => total == 0 ? 0 : (modeled + plumbing) / total;
+
+  /// Of the nodes we consider semantically meaningful (everything that is not
+  /// recognized plumbing), the fraction the lens models — `modeled/(total -
+  /// plumbing)`. Reaches 100% exactly when [unaccounted] is zero.
+  double get semanticRatio =>
+      total - plumbing == 0 ? 0 : modeled / (total - plumbing);
+
+  SeqCoverage operator +(SeqCoverage o) => SeqCoverage(
+        total: total + o.total,
+        modeled: modeled + o.modeled,
+        plumbing: plumbing + o.plumbing,
+      );
 }
 
 /// The `TS` step-setting keys the lens surfaces (kept in sync with [StepSettings]
@@ -411,14 +442,66 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
   return modeled;
 }
 
+/// Property names that are **NI-internal plumbing**: recognized metadata we
+/// deliberately do not give typed meaning (the "decode later" bucket), so the
+/// semantic-coverage axis can honestly reach 100%. Each whole subtree is
+/// classified, since these nodes' internals are themselves undecoded NI data.
+///
+/// - `%ATTRIBUTES`: the legacy-INI per-object NI type-system attribute namespace
+///   (an `NI`-rooted dictionary), a serialization artifact of the INI form.
+/// - The LabVIEW VI-call **build / deployment / class-node** descriptors a
+///   `ViCall` carries for packed-library and malleable-VI tooling — NI-internal
+///   LabVIEW machinery, not TestStand test logic.
+const _plumbingNames = {
+  '%ATTRIBUTES',
+  'TDChecksum', 'VI', 'ExpressVIName', 'NodeProperties',
+  'NodeLibraryName', 'NodeLibraryGenericTypeName', 'NodeClassDataName',
+  'NodeUsesDataValueReference', 'NodeIgnoresInternalErrors',
+  'PrototypeFlags', 'BuildSpecificationName',
+  'ArrayParametersMatchLVArrayDimenions',
+  'OverrideBinaryClassPath', 'OverrideBinaryVIPath', 'OverrideBinaryProjectPath',
+  'OverrideBinaryNamespace', 'OverrideBinaryVIChecksum', 'OverrideModuleOptions',
+};
+
+/// The set of nodes classified as NI-internal [_plumbingNames] plumbing (whole
+/// subtrees), excluding any already in [modeled] (modeling always wins).
+Set<SeqProperty> _plumbingNodes(SeqFile f, Set<SeqProperty> modeled) {
+  final plumbing = <SeqProperty>{};
+  void markSubtree(SeqProperty p) {
+    if (!modeled.contains(p)) plumbing.add(p);
+    for (final c in [...p.subProps, ...?p.array]) {
+      markSubtree(c);
+    }
+  }
+
+  void walk(SeqProperty p) {
+    if (_plumbingNames.contains(p.name)) {
+      markSubtree(p);
+      return;
+    }
+    for (final c in [...p.subProps, ...?p.array]) {
+      walk(c);
+    }
+  }
+
+  walk(f.data);
+  return plumbing;
+}
+
 /// Measures [SeqCoverage] for [f] (the `Data` tree only; the type list is
 /// excluded as a separate concern). Modeled nodes are collected in a set that
-/// dedupes by object identity ([SeqProperty] declares no custom `==`).
+/// dedupes by object identity ([SeqProperty] declares no custom `==`); plumbing
+/// nodes are the recognized-but-deferred NI-internal metadata.
 SeqCoverage measureCoverage(SeqFile f) {
   final modeled = _modeledNodes(f);
-  var total = 0;
+  final plumbing = _plumbingNodes(f, modeled);
+  // Count **unique** nodes by object identity — the INI builder structurally
+  // shares inherited type subtrees (the same SeqProperty appears at many
+  // positions), and [modeled]/[plumbing] are identity sets, so `total` must
+  // dedupe the same way. Modeling a shared subtree once covers all its positions.
+  final all = <SeqProperty>{};
   void count(SeqProperty p) {
-    total++;
+    if (!all.add(p)) return;
     for (final c in p.subProps) {
       count(c);
     }
@@ -430,50 +513,42 @@ SeqCoverage measureCoverage(SeqFile f) {
   }
 
   count(f.data);
-  return SeqCoverage(total: total, modeled: modeled.length);
+  return SeqCoverage(
+      total: all.length, modeled: modeled.length, plumbing: plumbing.length);
 }
 
-/// The dotted `Data`-tree paths of nodes the typed lens does **not** surface,
-/// each mapped to how many such nodes share that path shape. Diagnostic for
-/// completion work: shows exactly where model coverage is still raw, ranked by
-/// mass. Array elements collapse to a `[]` path segment so repeated elements
-/// aggregate. Paths are pruned: once a node is unmodeled it represents its whole
-/// subtree, so its descendants are not also reported (avoids double-counting a
-/// raw subtree as hundreds of separate gaps).
-/// When [weightBySubtree] is true, each gap path is weighted by the **total
-/// number of nodes** in its raw subtree (so a container root surfaces the real
-/// unmodeled mass it hides), rather than by the count of raw roots.
+/// The dotted `Data`-tree paths of every **unaccounted** node — neither modeled
+/// nor recognized NI-internal [_plumbingNames] plumbing — each mapped to how many
+/// such nodes share that path shape. Array elements collapse to a `[]` segment so
+/// repeated elements aggregate. Diagnostic for completion work: ranking these by
+/// count shows exactly where [SeqCoverage.unaccounted] mass is and what to model
+/// next, until the total reaches zero.
+///
+/// Every unaccounted node is counted at its own path (no subtree pruning), so the
+/// per-path counts sum to [SeqCoverage.unaccounted] — an honest map of the mass,
+/// even where unaccounted nodes nest under a modeled container. (The
+/// [weightBySubtree] parameter is retained for call-compatibility but no longer
+/// changes the result, since each node is already counted exactly once.)
 Map<String, int> coverageGaps(SeqFile f, {bool weightBySubtree = false}) {
   final modeled = _modeledNodes(f);
+  final plumbing = _plumbingNodes(f, modeled);
+  final accounted = modeled.union(plumbing);
   final gaps = <String, int>{};
-  int subtreeSize(SeqProperty p) {
-    var n = 1;
-    for (final c in p.subProps) {
-      n += subtreeSize(c);
-    }
-    for (final c in p.array ?? const <SeqProperty>[]) {
-      n += subtreeSize(c);
-    }
-    return n;
-  }
 
-  void walk(SeqProperty p, String path, bool ancestorRaw) {
-    final raw = ancestorRaw || !modeled.contains(p);
-    // Only tally the topmost unmodeled node of a raw subtree.
-    if (raw && !ancestorRaw) {
-      final w = weightBySubtree ? subtreeSize(p) : 1;
-      gaps.update(path, (n) => n + w, ifAbsent: () => w);
+  void walk(SeqProperty p, String path) {
+    if (!accounted.contains(p)) {
+      gaps.update(path, (n) => n + 1, ifAbsent: () => 1);
     }
     for (final c in p.subProps) {
-      walk(c, '$path.${c.name}', raw);
+      walk(c, '$path.${c.name}');
     }
     if (p.array != null) {
       for (final c in p.array!) {
-        walk(c, '$path.[]', raw);
+        walk(c, '$path.[]');
       }
     }
   }
 
-  walk(f.data, f.data.name, false);
+  walk(f.data, f.data.name);
   return gaps;
 }
