@@ -768,6 +768,107 @@ void main() {
     expect(withModule, greaterThanOrEqualTo(500));
     expect(covModeled, greaterThan(0));
     expect(covModeled, lessThan(covTotal));
+    // Regression floor for the typed-lens model coverage of INI trees (the
+    // remainder is NI-internal plumbing: %ATTRIBUTES, TDChecksum, LabVIEW build
+    // descriptors). Currently ~80%; guard against the lens silently regressing.
+    expect(
+      covModeled / covTotal,
+      greaterThan(0.78),
+      reason: 'INI model coverage regressed (${covModeled / covTotal})',
+    );
+  });
+
+  test('the typed lens models the bulk of every XML Data tree', () {
+    var xml = 0, covTotal = 0, covModeled = 0;
+    for (final f in seqs) {
+      final bytes = f.readAsBytesSync();
+      if (detectSeqFormat(bytes) != SeqFormat.xml) continue;
+      xml++;
+      final c = measureCoverage(parseSeqFile(bytes));
+      covTotal += c.total;
+      covModeled += c.modeled;
+    }
+    // ignore: avoid_print
+    print('XML lens: $xml files · coverage '
+        '${(covModeled / covTotal * 100).toStringAsFixed(1)}% ($covModeled/$covTotal)');
+    expect(xml, greaterThanOrEqualTo(20));
+    // Regression floor (currently ~97%); the small remainder is deliberately
+    // unmodeled NI-internal LabVIEW build/deployment descriptors.
+    expect(
+      covModeled / covTotal,
+      greaterThan(0.95),
+      reason: 'XML model coverage regressed (${covModeled / covTotal})',
+    );
+  });
+
+  test('newly-modeled lens accessors are wired across the corpus', () {
+    // Exercise the expanded typed lens on real files: every accessor must run
+    // without throwing, and a representative spread must find real values —
+    // proving the new modeling is correctly wired to the property tree.
+    var adapterName = 0, stepDesc = 0, codeTemplates = 0, runtimeEP = 0;
+    var switchSettings = 0, seqCallExpr = 0, threading = 0, pyInterp = 0;
+    var clusterEls = 0, dbStep = 0, limitExpr = 0, fileSettings = 0, fileGlobals = 0;
+    for (final f in seqs) {
+      final bytes = f.readAsBytesSync();
+      final fmt = detectSeqFormat(bytes);
+      if (fmt != SeqFormat.xml && fmt != SeqFormat.ini) continue;
+      if (fmt == SeqFormat.ini && f.lengthSync() > _maxProbeBytes) continue;
+      final sf = parseSeqFile(bytes);
+      if (sf.modelFile != null ||
+          sf.contentVersion != null ||
+          sf.fileTypeCode != null) {
+        fileSettings++;
+      }
+      if (sf.fileGlobals.isNotEmpty) fileGlobals++;
+      for (final seq in sf.sequences) {
+        if (seq.runtimeSettings?.entryPointNameExpression != null) runtimeEP++;
+        for (final step in seq.steps) {
+          final s = step.settings;
+          if (s.adapterName != null) adapterName++;
+          if (s.switchEnabled != null || s.canEditCode != null) switchSettings++;
+          if (step.description != null) stepDesc++;
+          if (step.typeInfo.codeTemplates.isNotEmpty) codeTemplates++;
+          final m = step.module;
+          if (m.sequenceNameExpression != null ||
+              m.specifiesByExpression != null) {
+            seqCallExpr++;
+          }
+          if (m.threadOptionCode != null) threading++;
+          if (m.pythonInterpreterLocation != null ||
+              m.pythonOperationTypeCode != null) {
+            pyInterp++;
+          }
+          for (final p in [...m.viParameters, ...m.callParameters]) {
+            if (p.caption != null || p.typeCode != null) clusterEls++;
+          }
+          if (step.sqlStatement != null || step.statementHandle != null) dbStep++;
+          if (step.limits?.lowExpression != null ||
+              step.limits?.comparisonExpression != null) {
+            limitExpr++;
+          }
+        }
+      }
+    }
+    // ignore: avoid_print
+    print('new lens accessors: adapterName=$adapterName stepDesc=$stepDesc '
+        'codeTemplates=$codeTemplates runtimeEP=$runtimeEP switch=$switchSettings '
+        'seqCallExpr=$seqCallExpr threading=$threading py=$pyInterp '
+        'paramDescriptor=$clusterEls db=$dbStep limitExpr=$limitExpr '
+        'fileSettings=$fileSettings fileGlobals=$fileGlobals');
+    // Each newly-modeled area must be exercised by real corpus data.
+    expect(adapterName, greaterThan(0), reason: 'no Adapter names surfaced');
+    expect(stepDesc, greaterThan(0), reason: 'no step Descriptions surfaced');
+    expect(codeTemplates, greaterThan(0), reason: 'no CodeTemplates surfaced');
+    expect(runtimeEP, greaterThan(0), reason: 'no RTS entry-point names surfaced');
+    expect(switchSettings, greaterThan(0), reason: 'no switch/edit settings surfaced');
+    expect(seqCallExpr, greaterThan(0), reason: 'no SequenceCall expressions surfaced');
+    expect(threading, greaterThan(0), reason: 'no threading settings surfaced');
+    expect(pyInterp, greaterThan(0), reason: 'no Python interpreter settings surfaced');
+    expect(clusterEls, greaterThan(0), reason: 'no param type descriptors surfaced');
+    expect(dbStep, greaterThan(0), reason: 'no database step fields surfaced');
+    expect(limitExpr, greaterThan(0), reason: 'no limit expressions surfaced');
+    expect(fileSettings, greaterThan(0), reason: 'no file-level settings surfaced');
+    expect(fileGlobals, greaterThan(0), reason: 'no file globals surfaced');
   });
 
   test('INI parser drops no in-section data lines (every line is key = value)',
