@@ -36,7 +36,7 @@ const _settingKeys = [
   'PassAct', 'FailAct',
   'PassActTarget', 'FailActTarget', 'CustTrueActTarget', 'CustFalseActTarget',
   'CustExpr', 'CustTrueAct', 'CustFalseAct',
-  'StepFCSeqF', 'IgnoreRTE', 'ResultOption',
+  'StepFCSeqF', 'IgnoreRTE', 'ResultOption', 'NoResult',
   'UseMutex', 'MutexNameOrRef',
   // edit-permission flags
   'CanEditCode', 'CanEditModulePrototype', 'CanSpecifyModule',
@@ -55,9 +55,13 @@ const _settingKeys = [
 const _callParamKeys = [
   'Name', 'Label', 'ConnectorNumber',
   'ArgVal', 'ArgumentValue', 'DisplayType', 'Direction', 'WireRequirement',
-  'ArgDisplayVal', 'ArgumentDisplayValue',
-  'Type', 'NumType', 'ObjType', 'StructType',
-  'Flags', 'NumEls', 'ResultAct',
+  'ArgDisplayVal', 'ArgumentDisplayValue', 'Caption', 'AdditionalResult',
+  'Type', 'NumType', 'ObjType', 'StructType', 'ArrayType', 'ClusterType',
+  'LegacyClusterType', 'ReferenceType',
+  'Flags', 'NumEls', 'ResultAct', 'ArgValImag',
+  'StrSize', 'StrPass', 'NumPass', 'ElemPass', 'ArrayClusterEls',
+  'ArrayDimensionsSize', 'DefaultArraySize', 'PartiallySpecified',
+  'UseDefaultValues',
 ];
 
 /// The step **type**-definition fields the [StepTypeInfo] lens surfaces (flat
@@ -74,6 +78,26 @@ const _stepTypeKeys = [
 const _resultHintKeys = [
   'Name', 'Type', 'ValueToLog', 'Condition', 'IsAnyType', 'Flags',
   'CheckedState', 'Elements',
+];
+
+/// The `SData` module-call configuration fields the [StepModule] lens surfaces —
+/// SequenceCall target specification, threading / async execution, remote
+/// execution, and the Python adapter's interpreter-session settings.
+const _sdataSettingKeys = [
+  // SequenceCall target
+  'SeqNameExpr', 'SFPathExpr', 'SpecifyByExpr', 'UseCurFile', 'UsePrototype',
+  // threading / async
+  'ThreadOpt', 'ExecModelOpt', 'CreateThreadSuspended', 'AutoWaitAsync',
+  'AsyncThreadExpr', 'Trace', 'IgnoreTerminate',
+  // remote execution
+  'RemoteExecution', 'RemoteHost', 'RemoteHostExpr', 'SpecifyHostByExpr',
+];
+
+/// The Python-adapter session fields under `SData.PythonCall` the lens surfaces.
+const _pythonSessionKeys = [
+  'InterpreterLocation', 'ClassInstanceLocation', 'OperationType',
+  'OperationScope', 'InterpreterSessionScope', 'CreateIfInterpreterDoesNotExist',
+  'UseAdapterSettingsForInterpreterSession',
 ];
 
 /// The set of nodes the typed lens surfaces with meaning, by object identity.
@@ -154,8 +178,19 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
       mark(ts?.prop('SData')); // empty/none SData containers
       final sdata = step.module.raw;
       mark(sdata);
+      // SData module-call config (SequenceCall / threading / remote) the lens
+      // surfaces (StepModule.*), plus the prototype + actual-arguments containers.
+      for (final k in _sdataSettingKeys) {
+        mark(sdata?.prop(k));
+      }
+      markContainer(sdata?.prop('Prototype'));
+      markContainer(sdata?.prop('ActualArgs'));
+      mark(step.raw.prop('Measurement')?.prop('Name'));
       for (final rec in ['ViCall', 'Call', 'PythonCall']) {
         mark(sdata?.prop(rec));
+      }
+      for (final k in _pythonSessionKeys) {
+        mark(sdata?.prop('PythonCall')?.prop(k));
       }
       final viCall = sdata?.prop('ViCall');
       mark(viCall?.prop('VIPath'));

@@ -431,6 +431,12 @@ class Step {
     return [for (final p in kids) MeasurementParameter(p)];
   }
 
+  /// The registered name of the measurement a measurement step invokes
+  /// (`Measurement.Name`, e.g. `ni.examples.NIDCPowerSourceDCVoltage_Python`) —
+  /// the measurement plug-in's service identifier. null for a non-measurement
+  /// step or when unset.
+  String? get measurementName => _nz(raw.prop('Measurement')?.prop('Name')?.scalar);
+
   /// The step's "Additional Results" recording spec — the extra values it logs
   /// to the report. Collected from every `AdditionalResults` container in the
   /// step's subtree (these attach to module-call parameters, e.g. a Python or
@@ -961,6 +967,104 @@ class StepModule {
   int? get moduleSourceTypeCode =>
       int.tryParse(_nz(raw?.prop('ModuleCreateSrcType')?.scalar) ?? '');
 
+  String? _sd(String key) => _nz(raw?.prop(key)?.scalar);
+  bool? _sdFlag(String key) => _flag(raw?.prop(key)?.scalar);
+  int? _sdInt(String key) => int.tryParse(raw?.prop(key)?.scalar ?? '');
+
+  // --- SequenceCall adapter: which sequence is called, and how it's specified ---
+
+  /// For a SequenceCall step that names its target *by expression*, the sequence
+  /// name (`SData.SeqNameExpr`) and sequence-file path (`SData.SFPathExpr`)
+  /// expressions; null when the call names a literal target ([sequenceName] /
+  /// [sequenceFile]) instead. Paired with [specifiesByExpression].
+  String? get sequenceNameExpression => _sd('SeqNameExpr');
+  String? get sequenceFileExpression => _sd('SFPathExpr');
+
+  /// Whether the SequenceCall specifies its target by expression
+  /// (`SData.SpecifyByExpr`) rather than by a fixed name/path. null when absent.
+  bool? get specifiesByExpression => _sdFlag('SpecifyByExpr');
+
+  /// Whether the SequenceCall targets a sequence in the current file
+  /// (`SData.UseCurFile`) rather than an external file. null when absent.
+  bool? get usesCurrentFile => _sdFlag('UseCurFile');
+
+  /// Whether the call binds arguments through a declared prototype
+  /// (`SData.UsePrototype`). null when absent. The prototype's parameter list and
+  /// the call's actual arguments are [prototype] / [actualArguments].
+  bool? get usesPrototype => _sdFlag('UsePrototype');
+
+  /// The called sequence's parameter prototype (`SData.Prototype`) and the actual
+  /// arguments this call binds to it (`SData.ActualArgs`), as raw structure; null
+  /// when the step declares none.
+  SeqProperty? get prototype => raw?.prop('Prototype');
+  SeqProperty? get actualArguments => raw?.prop('ActualArgs');
+
+  // --- Threading / asynchronous execution ---
+
+  /// The threading option code (`SData.ThreadOpt`) — run in the same thread, a
+  /// new thread, or a new execution. Verbatim; NI-internal code→name not
+  /// invented. null when absent.
+  int? get threadOptionCode => _sdInt('ThreadOpt');
+
+  /// The execution-model option code (`SData.ExecModelOpt`). Verbatim; null when
+  /// absent.
+  int? get executionModelOptionCode => _sdInt('ExecModelOpt');
+
+  /// Whether a spawned thread starts suspended (`SData.CreateThreadSuspended`) /
+  /// is auto-waited as async (`SData.AutoWaitAsync`). Each null when absent.
+  bool? get createsThreadSuspended => _sdFlag('CreateThreadSuspended');
+  bool? get autoWaitsAsync => _sdFlag('AutoWaitAsync');
+
+  /// The expression naming the asynchronous thread the call spawns
+  /// (`SData.AsyncThreadExpr`); null when absent.
+  String? get asyncThreadExpression => _sd('AsyncThreadExpr');
+
+  /// The step's tracing setting (`SData.Trace`, e.g. `Off`, `Don't Change`) — how
+  /// the call affects execution tracing; null when absent.
+  String? get traceMode => _sd('Trace');
+
+  /// Whether the call ignores a Terminate request while running
+  /// (`SData.IgnoreTerminate`). null when absent.
+  bool? get ignoresTerminate => _sdFlag('IgnoreTerminate');
+
+  // --- Remote execution ---
+
+  /// Whether the step executes on a remote host (`SData.RemoteExecution`), and
+  /// the host it targets — a literal (`SData.RemoteHost`) or an expression
+  /// (`SData.RemoteHostExpr`, selected by `SData.SpecifyHostByExpr`). Each null
+  /// when absent.
+  bool? get remoteExecution => _sdFlag('RemoteExecution');
+  String? get remoteHost => _sd('RemoteHost');
+  String? get remoteHostExpression => _sd('RemoteHostExpr');
+  bool? get specifiesHostByExpression => _sdFlag('SpecifyHostByExpr');
+
+  // --- Python adapter session settings ---
+
+  /// Where the Python interpreter session is located/scoped
+  /// (`PythonCall.InterpreterLocation` / `ClassInstanceLocation`); null when
+  /// absent or for a non-Python step.
+  String? get pythonInterpreterLocation => _nz(_pyCall?.prop('InterpreterLocation')?.scalar);
+  String? get pythonClassInstanceLocation =>
+      _nz(_pyCall?.prop('ClassInstanceLocation')?.scalar);
+
+  /// Python session option codes — the operation type/scope
+  /// (`PythonCall.OperationType` / `OperationScope`) and interpreter-session
+  /// scope (`InterpreterSessionScope`). Verbatim; NI-internal code→name not
+  /// invented. Each null when absent.
+  int? get pythonOperationTypeCode => int.tryParse(_pyCall?.prop('OperationType')?.scalar ?? '');
+  int? get pythonOperationScopeCode => int.tryParse(_pyCall?.prop('OperationScope')?.scalar ?? '');
+  int? get pythonInterpreterSessionScopeCode =>
+      int.tryParse(_pyCall?.prop('InterpreterSessionScope')?.scalar ?? '');
+
+  /// Whether the Python adapter creates the interpreter if absent
+  /// (`PythonCall.CreateIfInterpreterDoesNotExist`) and uses the adapter's
+  /// settings for the session (`UseAdapterSettingsForInterpreterSession`). Each
+  /// null when absent.
+  bool? get pythonCreatesInterpreterIfMissing =>
+      _flag(_pyCall?.prop('CreateIfInterpreterDoesNotExist')?.scalar);
+  bool? get pythonUsesAdapterSessionSettings =>
+      _flag(_pyCall?.prop('UseAdapterSettingsForInterpreterSession')?.scalar);
+
   static String? _e(String? s) => (s == null || s.isEmpty) ? null : s;
 
   factory StepModule.fromSData(SeqProperty? sdata) {
@@ -1084,6 +1188,10 @@ class CallParameter {
   String? get displayValue =>
       _nz(raw.prop('ArgDisplayVal')?.scalar) ??
       _nz(raw.prop('ArgumentDisplayValue')?.scalar);
+
+  /// The editor caption for the parameter/connector terminal (`Caption`), e.g. a
+  /// LabVIEW control label; null when absent.
+  String? get caption => _nz(raw.prop('Caption')?.scalar);
 
   /// The parameter's TestStand data-type code (`Type`) — the broad kind of the
   /// C/LabVIEW connector value. Surfaced verbatim; the code→name mapping is
@@ -1358,6 +1466,11 @@ class StepSettings {
   /// The window-activation setting (`WindowActivation`), e.g. `None` — how the
   /// step affects the application window. null when unset.
   String? get windowActivation => _scalar('WindowActivation');
+
+  /// Whether the step is marked to produce no result entry (`NoResult`) — it is
+  /// excluded from the result list / report. null when unset; the complement of
+  /// [recordsResult] for step types that use this flag.
+  bool? get producesNoResult => _bool('NoResult');
 
   /// The requirement-traceability links the step declares (`TS.Requirements.
   /// Links`). Empty when none.
