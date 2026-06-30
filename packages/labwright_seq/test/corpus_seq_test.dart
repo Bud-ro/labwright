@@ -767,13 +767,15 @@ void main() {
     expect(ini, greaterThanOrEqualTo(30));
     expect(steps, greaterThanOrEqualTo(1000));
     expect(withModule, greaterThanOrEqualTo(500));
-    // Completeness axis: every node is modeled or recognized NI-internal
-    // plumbing. Driving toward 1.0 as remaining gaps are classified.
-    expect(cov.accountedRatio, greaterThan(0.99),
-        reason: 'INI accounted-for coverage regressed (${cov.accountedRatio})');
+    // Completeness axis: EVERY node is either modeled or recognized NI-internal
+    // plumbing — no node goes unaccounted across the whole INI corpus.
+    expect(cov.unaccounted, 0,
+        reason: 'INI left ${cov.unaccounted} node(s) unaccounted; run '
+            'tool/gaps.dart ini to classify them');
     // Deferred-work axis: how much is given real typed meaning (rises as the
     // plumbing — %ATTRIBUTES, TDChecksum, LabVIEW build descriptors — is decoded).
-    expect(cov.ratio, greaterThan(0.97),
+    // Stays below 1.0 by design while that plumbing remains undecoded.
+    expect(cov.ratio, greaterThan(0.995),
         reason: 'INI model coverage regressed (${cov.ratio})');
   });
 
@@ -792,9 +794,12 @@ void main() {
         'modeled ${(cov.ratio * 100).toStringAsFixed(1)}% · '
         'plumbing ${cov.plumbing} · unaccounted ${cov.unaccounted}');
     expect(xml, greaterThanOrEqualTo(20));
-    expect(cov.accountedRatio, greaterThan(0.98),
-        reason: 'XML accounted-for coverage regressed (${cov.accountedRatio})');
-    expect(cov.ratio, greaterThan(0.95),
+    // Completeness axis: every XML node modeled or recognized as NI plumbing.
+    expect(cov.unaccounted, 0,
+        reason: 'XML left ${cov.unaccounted} node(s) unaccounted; run '
+            'tool/gaps.dart xml to classify them');
+    // Deferred-work axis: stays below 1.0 while NI-internal plumbing is undecoded.
+    expect(cov.ratio, greaterThan(0.985),
         reason: 'XML model coverage regressed (${cov.ratio})');
   });
 
