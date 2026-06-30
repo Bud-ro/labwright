@@ -38,12 +38,20 @@ const _settingKeys = [
   'CustExpr', 'CustTrueAct', 'CustFalseAct',
   'StepFCSeqF', 'IgnoreRTE', 'ResultOption',
   'UseMutex', 'MutexNameOrRef',
+  // edit-permission flags
+  'CanEditCode', 'CanEditModulePrototype', 'CanSpecifyModule',
+  'CanEditParameterAdditionalResults',
+  // switch/IVI settings
+  'SwitchEnabled', 'SwitchOperation', 'MulticonnectMode', 'OperationOrder',
+  'ConnectionLifetime', 'WaitForDebounce', 'VirtualDeviceName',
+  'RouteGroupConnect', 'RouteGroupDisconnect',
+  // execution / batch / window options
+  'BatchSyncOpt', 'LoopOpt', 'PrecondIntExe', 'WindowActivation',
 ];
 
-/// Measures [SeqCoverage] for [f] (the `Data` tree only; the type list is
-/// excluded as a separate concern). Modeled nodes are collected in a set that
-/// dedupes by object identity ([SeqProperty] declares no custom `==`).
-SeqCoverage measureCoverage(SeqFile f) {
+/// The set of nodes the typed lens surfaces with meaning, by object identity.
+/// Shared by [measureCoverage] (counts it) and [coverageGaps] (inverts it).
+Set<SeqProperty> _modeledNodes(SeqFile f) {
   final modeled = <SeqProperty>{};
   void mark(SeqProperty? p) {
     if (p != null) modeled.add(p);
@@ -183,6 +191,14 @@ SeqCoverage measureCoverage(SeqFile f) {
     }
   }
 
+  return modeled;
+}
+
+/// Measures [SeqCoverage] for [f] (the `Data` tree only; the type list is
+/// excluded as a separate concern). Modeled nodes are collected in a set that
+/// dedupes by object identity ([SeqProperty] declares no custom `==`).
+SeqCoverage measureCoverage(SeqFile f) {
+  final modeled = _modeledNodes(f);
   var total = 0;
   void count(SeqProperty p) {
     total++;
@@ -198,4 +214,32 @@ SeqCoverage measureCoverage(SeqFile f) {
 
   count(f.data);
   return SeqCoverage(total: total, modeled: modeled.length);
+}
+
+/// The dotted `Data`-tree paths of nodes the typed lens does **not** surface,
+/// each mapped to how many such nodes share that path shape. Diagnostic for
+/// completion work: shows exactly where model coverage is still raw, ranked by
+/// mass. Array elements collapse to a `[]` path segment so repeated elements
+/// aggregate. Paths are pruned: once a node is unmodeled it represents its whole
+/// subtree, so its descendants are not also reported (avoids double-counting a
+/// raw subtree as hundreds of separate gaps).
+Map<String, int> coverageGaps(SeqFile f) {
+  final modeled = _modeledNodes(f);
+  final gaps = <String, int>{};
+  void walk(SeqProperty p, String path, bool ancestorRaw) {
+    final raw = ancestorRaw || !modeled.contains(p);
+    // Only tally the topmost unmodeled node of a raw subtree.
+    if (raw && !ancestorRaw) gaps.update(path, (n) => n + 1, ifAbsent: () => 1);
+    for (final c in p.subProps) {
+      walk(c, '$path.${c.name}', raw);
+    }
+    if (p.array != null) {
+      for (final c in p.array!) {
+        walk(c, '$path.[]', raw);
+      }
+    }
+  }
+
+  walk(f.data, f.data.name, false);
+  return gaps;
 }
