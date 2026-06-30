@@ -23,9 +23,12 @@ int _countOverrides(SeqProperty p, [int depth = 0]) {
   return n;
 }
 
-/// Per-file size ceiling for the heavier corpus probes — files larger than this
-/// are skipped to avoid the parser OOMing (matches tool/coverage.dart).
-const _maxProbeBytes = 300 * 1024;
+/// Per-file size ceiling for the heavier corpus probes. This is a **runtime**
+/// bound, not an OOM guard: the INI reader handles the full corpus fine (the
+/// largest file, ~2.3MB, parses in ~120ms since the O(paths²) blowup was fixed
+/// in the path-index pass). Set well above every real corpus file so coverage is
+/// measured over everything; it only fires for a hypothetical pathological giant.
+const _maxProbeBytes = 8 * 1024 * 1024;
 
 /// Validates the M1 XML reader against the real fetched corpus: every XML `.seq`
 /// must parse without throwing, and the typed lens must recover sequences and

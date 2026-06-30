@@ -35,7 +35,6 @@ void main(List<String> args) {
     if (!(which == 'both' ? (isXml || isIni) : which == 'xml' ? isXml : isIni)) {
       continue;
     }
-    if (isIni && bytes.length > 300 * 1024) continue; // INI OOM cap
     try {
       final sf = parseSeqFile(bytes);
       files++;

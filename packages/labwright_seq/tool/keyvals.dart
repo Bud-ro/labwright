@@ -58,7 +58,6 @@ void main(List<String> args) {
     final bytes = f.readAsBytesSync();
     final fmt = detectSeqFormat(bytes);
     if (fmt != SeqFormat.xml && fmt != SeqFormat.ini) continue;
-    if (fmt == SeqFormat.ini && bytes.length > 300 * 1024) continue;
     try {
       final sf = parseSeqFile(bytes);
       for (final path in args) {
