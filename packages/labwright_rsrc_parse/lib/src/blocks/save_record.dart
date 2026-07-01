@@ -79,7 +79,7 @@ class ViSaveRecord {
   /// and differs from [emptyPasswordHash]. False when unset or the hash is absent.
   bool get isBlockDiagramPasswordProtected {
     final h = blockDiagramPasswordHash;
-    return h != null && !_eq(h, emptyPasswordHash);
+    return h != null && !_bytesEqual(h, emptyPasswordHash);
   }
 
   /// Honest summary of what remains undecoded in the record.
@@ -93,13 +93,13 @@ class ViSaveRecord {
 /// when the buffer is too short to hold the universal version word.
 ViSaveRecord? decodeSaveRecord(Uint8List b) {
   if (b.length < 4) return null;
-  final vw = decodeVersionWord(b)!;
+  final versionWord = decodeVersionWord(b)!;
   return ViSaveRecord(
     rawLength: b.length,
-    versionMajor: vw.major,
-    versionMinor: vw.minor,
-    stage: vw.stage,
-    build: vw.build,
+    versionMajor: versionWord.major,
+    versionMinor: versionWord.minor,
+    stage: versionWord.stage,
+    build: versionWord.build,
     blockDiagramPasswordHash: b.length >= 112 ? List.unmodifiable(b.sublist(96, 112)) : null,
     secondaryHash: b.length >= 160 ? List.unmodifiable(b.sublist(144, 160)) : null,
   );
@@ -114,7 +114,7 @@ ViSaveRecord? saveRecordFromSections(Iterable<ViSection> sections) {
   return null;
 }
 
-bool _eq(List<int> a, List<int> b) {
+bool _bytesEqual(List<int> a, List<int> b) {
   for (var i = 0; i < a.length; i++) {
     if (a[i] != b[i]) return false;
   }

@@ -22,17 +22,29 @@ const _rsrcHeaderBytes = 32;
 /// Reads a file's bytes, or `null` if the read fails (skip-on-error idiom).
 Uint8List? _readBytes(File f) {
   try {
-    return Uint8List.fromList(f.readAsBytesSync());
+    return f.readAsBytesSync();
   } catch (_) {
     return null;
   }
 }
+
+/// The basename of a file (the diagnostic strings only ever want the last path
+/// segment).
+String _base(File f) => f.path.split('/').last;
 
 /// Byte-wise equality for two lists.
 bool eq(List<int> a, List<int> b) {
   if (a.length != b.length) return false;
   for (var i = 0; i < a.length; i++) {
     if (a[i] != b[i]) return false;
+  }
+  return true;
+}
+
+/// Byte-wise equality of `a[aStart..aStart+n)` against `b[bStart..bStart+n)`.
+bool eqRange(List<int> a, int aStart, List<int> b, int bStart, int n) {
+  for (var i = 0; i < n; i++) {
+    if (a[aStart + i] != b[bStart + i]) return false;
   }
   return true;
 }
@@ -50,6 +62,32 @@ void main() {
   if (all.isEmpty) {
     test('viparse corpus invariants (skipped: corpus not fetched)', () {}, skip: true);
     return;
+  }
+
+  /// Runs a whole-file byte-exact round-trip over the corpus: every file must
+  /// survive `transform` unchanged. Shared body for the several typed
+  /// serialize()/toBytes() idempotency tests.
+  void roundTripsExact(String label, Uint8List Function(Uint8List) transform) {
+    var files = 0, exact = 0;
+    final diffs = <String>[];
+    for (final f in all) {
+      final bytes = _readBytes(f);
+      if (bytes == null) continue;
+      final Uint8List out;
+      try {
+        out = transform(bytes);
+      } catch (_) {
+        continue;
+      }
+      files++;
+      if (eq(out, bytes)) {
+        exact++;
+      } else if (diffs.length < 6) {
+        diffs.add('len ${bytes.length}->${out.length} ${_base(f)}');
+      }
+    }
+    expect(files, greaterThan(0));
+    expect(exact, equals(files), reason: '$label not byte-exact for ${files - exact} file(s): $diffs');
   }
 
   test('CROSS-CONSISTENCY: every extracted section tag is in parseVi\'s block inventory', () {
@@ -103,7 +141,7 @@ void main() {
           if (!isRsrc || !reparses) {
             vinsNotRsrc++;
           } else if (vinsExamples.length < 3) {
-            vinsExamples.add('${f.path.split('/').last}: VINS#${s.index} ${s.bytes.length}B ${parseVi(s.bytes).name}');
+            vinsExamples.add('${_base(f)}: VINS#${s.index} ${s.bytes.length}B ${parseVi(s.bytes).name}');
           }
         } else if (s.tag == 'LIBN') {
           libnCount++;
@@ -112,7 +150,7 @@ void main() {
             libnNotPrintable++;
           } else if (libnExamples.length < 3) {
             final txt = String.fromCharCodes(s.bytes.where((b) => b >= 0x20 && b < 0x7f));
-            libnExamples.add('${f.path.split('/').last}: "$txt"');
+            libnExamples.add('${_base(f)}: "$txt"');
           }
         }
       }
@@ -124,27 +162,7 @@ void main() {
   });
 
   test('IDEMPOTENCY: ViContainer.parse(bytes).toBytes() == bytes for every VI', () {
-    var files = 0, exact = 0;
-    final diffs = <String>[];
-    for (final f in all) {
-      final bytes = _readBytes(f);
-      if (bytes == null) continue;
-      final Uint8List out;
-      try {
-        out = ViContainer.parse(bytes).toBytes();
-      } catch (_) {
-        continue;
-      }
-      files++;
-      final same = eq(out, bytes);
-      if (same) {
-        exact++;
-      } else if (diffs.length < 6) {
-        diffs.add('len ${bytes.length}->${out.length} ${f.path.split('/').last}');
-      }
-    }
-    expect(files, greaterThan(0));
-    expect(exact, equals(files), reason: 'container round-trip not byte-exact for ${files - exact} file(s): $diffs');
+    roundTripsExact('container round-trip', (b) => ViContainer.parse(b).toBytes());
   });
 
   test('IDEMPOTENCY: ViHeader.parse(header).serialize() == header for every VI', () {
@@ -161,19 +179,13 @@ void main() {
         continue;
       }
       files++;
-      var same = out.length == header.length && header.length >= _rsrcHeaderBytes;
-      if (same) {
-        for (var i = 0; i < _rsrcHeaderBytes; i++) {
-          if (out[i] != header[i]) {
-            same = false;
-            break;
-          }
-        }
-      }
+      final same = out.length == header.length &&
+          header.length >= _rsrcHeaderBytes &&
+          eqRange(out, 0, header, 0, _rsrcHeaderBytes);
       if (same) {
         exact++;
       } else if (diffs.length < 6) {
-        diffs.add(f.path.split('/').last);
+        diffs.add(_base(f));
       }
     }
     expect(files, greaterThan(0));
@@ -197,19 +209,11 @@ void main() {
         continue;
       }
       files++;
-      var same = out.length == blr;
-      if (same) {
-        for (var i = 0; i < blr; i++) {
-          if (out[i] != info[i]) {
-            same = false;
-            break;
-          }
-        }
-      }
+      final same = out.length == blr && eqRange(out, 0, info, 0, blr);
       if (same) {
         exact++;
       } else if (diffs.length < 6) {
-        diffs.add(f.path.split('/').last);
+        diffs.add(_base(f));
       }
     }
     expect(files, greaterThan(0));
@@ -232,19 +236,11 @@ void main() {
         continue;
       }
       files++;
-      var same = blr + out.length <= info.length;
-      if (same) {
-        for (var i = 0; i < out.length; i++) {
-          if (out[i] != info[blr + i]) {
-            same = false;
-            break;
-          }
-        }
-      }
+      final same = blr + out.length <= info.length && eqRange(out, 0, info, blr, out.length);
       if (same) {
         exact++;
       } else if (diffs.length < 6) {
-        diffs.add(f.path.split('/').last);
+        diffs.add(_base(f));
       }
     }
     expect(files, greaterThan(0));
@@ -277,11 +273,8 @@ void main() {
           descriptors++;
           final sd = ViSectionDescriptor.parse(info, dpos);
           final out = sd.serialize();
-          for (var i = 0; i < _sectionDescriptorBytes; i++) {
-            if (out[i] != info[dpos + i]) {
-              if (fails.length < 6) fails.add('${f.path.split('/').last}@$dpos');
-              break;
-            }
+          if (!eqRange(out, 0, info, dpos, _sectionDescriptorBytes) && fails.length < 6) {
+            fails.add('${_base(f)}@$dpos');
           }
         }
       }
@@ -292,27 +285,7 @@ void main() {
   });
 
   test('IDEMPOTENCY: ViContainer.serialize() == original bytes for every VI', () {
-    var files = 0, exact = 0;
-    final diffs = <String>[];
-    for (final f in all) {
-      final bytes = _readBytes(f);
-      if (bytes == null) continue;
-      final Uint8List out;
-      try {
-        out = ViContainer.parse(bytes).serialize();
-      } catch (_) {
-        continue;
-      }
-      files++;
-      final same = eq(out, bytes);
-      if (same) {
-        exact++;
-      } else if (diffs.length < 6) {
-        diffs.add('len ${bytes.length}->${out.length} ${f.path.split('/').last}');
-      }
-    }
-    expect(files, greaterThan(0));
-    expect(exact, equals(files), reason: 'typed serialize() not byte-exact for ${files - exact} file(s): $diffs');
+    roundTripsExact('typed serialize()', (b) => ViContainer.parse(b).serialize());
   });
 
   test('INFO-AREA: descriptor table is peeled into typed records for ~all VIs', () {
@@ -335,7 +308,7 @@ void main() {
       peeled++;
       final total = bl.entries.fold<int>(0, (a, e) => a + e.sectionCountMinus1 + 1);
       if (ia.descriptors.length < total || ia.preGap == null) {
-        if (mismatches.length < 6) mismatches.add('${f.path.split('/').last}: ${ia.descriptors.length} < $total or preGap null');
+        if (mismatches.length < 6) mismatches.add('${_base(f)}: ${ia.descriptors.length} < $total or preGap null');
       }
     }
     expect(files, greaterThan(0));
@@ -362,14 +335,14 @@ void main() {
       if (pg == null) continue;
       files++;
       if (pg.markerTag != 'FTAB' && pg.markerTag != 'VITS') {
-        if (badMarker.length < 6) badMarker.add('${f.path.split('/').last}: ${pg.markerTag}');
+        if (badMarker.length < 6) badMarker.add('${_base(f)}: ${pg.markerTag}');
       }
       if (pg.word1 != 0 || pg.word3 != 0) {
-        if (badZero.length < 6) badZero.add('${f.path.split('/').last}: w1=${pg.word1} w3=${pg.word3}');
+        if (badZero.length < 6) badZero.add('${_base(f)}: w1=${pg.word1} w3=${pg.word3}');
       }
       if (pg.hasEmbeddedSections != hasEmbedded || (pg.flags != 0xFFFFFFFF && pg.flags != 0)) {
         if (flagMismatch.length < 6) {
-          flagMismatch.add('${f.path.split('/').last}: flags=0x${pg.flags.toRadixString(16)} embedded=$hasEmbedded');
+          flagMismatch.add('${_base(f)}: flags=0x${pg.flags.toRadixString(16)} embedded=$hasEmbedded');
         }
       }
     }
@@ -400,7 +373,7 @@ void main() {
       final other = marker == 'FTAB' ? 'VITS' : 'FTAB';
       if (blocks.contains(marker)) {
         markerInInventory++;
-        if (bad.length < 6) bad.add('${f.path.split('/').last}: marker $marker also a block');
+        if (bad.length < 6) bad.add('${_base(f)}: marker $marker also a block');
       }
       if (blocks.contains(other)) oppositePresent++;
     }
@@ -498,7 +471,7 @@ void main() {
       if (hv == null) continue;
       checked++;
       if (hv >= dataSize) {
-        if (bad.length < 6) bad.add('${f.path.split('/').last}: headerValue=$hv >= dataSize=$dataSize');
+        if (bad.length < 6) bad.add('${_base(f)}: headerValue=$hv >= dataSize=$dataSize');
       }
     }
     expect(checked, greaterThan(0));
@@ -519,15 +492,13 @@ void main() {
       }
       if (ia.descriptors.isEmpty) continue;
       files++;
-      var fileW8 = false;
       for (final d in ia.descriptors) {
         if (d.word0 != 0) {
           badWord0++;
-          if (w0ex.length < 6) w0ex.add('${f.path.split('/').last}: word0=0x${d.word0.toRadixString(16)}');
+          if (w0ex.length < 6) w0ex.add('${_base(f)}: word0=0x${d.word0.toRadixString(16)}');
         }
-        if (d.word8 != 0) fileW8 = true;
       }
-      if (fileW8) filesWithWord8++;
+      if (ia.descriptors.any((d) => d.word8 != 0)) filesWithWord8++;
     }
     expect(files, greaterThan(0));
     expect(badWord0, 0, reason: 'word0 not always 0: $w0ex');
@@ -556,7 +527,7 @@ void main() {
       for (final d in ia.descriptors) {
         if (d.word16 != ViSectionDescriptor.commonWord16 && d.word16 != 0) {
           if (badWords.length < 6) {
-            badWords.add('${f.path.split('/').last}: @16=0x${d.word16.toRadixString(16)}');
+            badWords.add('${_base(f)}: @16=0x${d.word16.toRadixString(16)}');
           }
         }
         if (d.nameRef > maxNameRef) maxNameRef = d.nameRef;
@@ -588,7 +559,7 @@ void main() {
       if (nt != null) {
         withName++;
         if (summaryName != null && summaryName != nt) {
-          if (mismatches.length < 6) mismatches.add('${f.path.split('/').last}: "$nt" != "$summaryName"');
+          if (mismatches.length < 6) mismatches.add('${_base(f)}: "$nt" != "$summaryName"');
         }
       }
     }
@@ -598,27 +569,7 @@ void main() {
   });
 
   test('IDEMPOTENCY: ViVi.parse(bytes).serialize() == bytes for every VI', () {
-    var files = 0, exact = 0;
-    final diffs = <String>[];
-    for (final f in all) {
-      final bytes = _readBytes(f);
-      if (bytes == null) continue;
-      final Uint8List out;
-      try {
-        out = ViVi.parse(bytes).serialize();
-      } catch (_) {
-        continue;
-      }
-      files++;
-      final same = eq(out, bytes);
-      if (same) {
-        exact++;
-      } else if (diffs.length < 6) {
-        diffs.add('len ${bytes.length}->${out.length} ${f.path.split('/').last}');
-      }
-    }
-    expect(files, greaterThan(0));
-    expect(exact, equals(files), reason: 'ViVi round-trip not byte-exact for ${files - exact} file(s): $diffs');
+    roundTripsExact('ViVi round-trip', (b) => ViVi.parse(b).serialize());
   });
 
   test('TYPED EDIT: ViVi.withSectionEdited grow/shrink stays coherent for every VI', () {
@@ -628,7 +579,7 @@ void main() {
     for (final f in all) {
       final ViVi vi;
       try {
-        vi = ViVi.parse(Uint8List.fromList(f.readAsBytesSync()));
+        vi = ViVi.parse(f.readAsBytesSync());
       } catch (_) {
         continue;
       }
@@ -648,10 +599,10 @@ void main() {
         if (consistent && hasNew) {
           ok++;
         } else if (fails.length < 6) {
-          fails.add('${f.path.split('/').last} consistent=$consistent hasNew=$hasNew');
+          fails.add('${_base(f)} consistent=$consistent hasNew=$hasNew');
         }
       } catch (_) {
-        if (fails.length < 6) fails.add('${f.path.split('/').last} threw');
+        if (fails.length < 6) fails.add('${_base(f)} threw');
       }
     }
     expect(files, greaterThan(0));
@@ -676,7 +627,7 @@ void main() {
       if (same) {
         exact++;
       } else if (diffs.length < 6) {
-        diffs.add('len ${data.length}->${rebuilt.length} ${f.path.split('/').last}');
+        diffs.add('len ${data.length}->${rebuilt.length} ${_base(f)}');
       }
     }
     expect(files, greaterThan(0));
@@ -692,14 +643,14 @@ void main() {
       final Uint8List bytes;
       List<ViSection> secs;
       try {
-        bytes = Uint8List.fromList(f.readAsBytesSync());
+        bytes = f.readAsBytesSync();
         secs = readViSections(bytes);
       } catch (_) {
         continue;
       }
       if (secs.isEmpty) continue;
       files++;
-      final name = f.path.split('/').last;
+      final name = _base(f);
       final target = secs.reduce((a, b) => a.dataOffset <= b.dataOffset ? a : b);
       final secRel = target.dataOffset;
       final oldPayload = Uint8List.fromList(target.bytes);
@@ -766,22 +717,20 @@ void main() {
       String? self;
       try {
         self = parseVi(bytes).name?.toLowerCase();
-      } catch (_) {
-        self = null;
-      }
+      } catch (_) {}
       final seen = <String>{};
       for (final n in names) {
         if (!n.toLowerCase().endsWith('.vi')) {
-          if (fails.length < 8) fails.add('NOT .vi: "$n" in ${f.path.split('/').last}');
+          if (fails.length < 8) fails.add('NOT .vi: "$n" in ${_base(f)}');
         }
         if (n.contains('/') || n.contains(r'\')) {
-          if (fails.length < 8) fails.add('HAS PATH SEP: "$n" in ${f.path.split('/').last}');
+          if (fails.length < 8) fails.add('HAS PATH SEP: "$n" in ${_base(f)}');
         }
         if (!seen.add(n.toLowerCase())) {
-          if (fails.length < 8) fails.add('DUPLICATE: "$n" in ${f.path.split('/').last}');
+          if (fails.length < 8) fails.add('DUPLICATE: "$n" in ${_base(f)}');
         }
         if (self != null && n.toLowerCase() == self) {
-          if (fails.length < 8) fails.add('SELF INCLUDED: "$n" in ${f.path.split('/').last}');
+          if (fails.length < 8) fails.add('SELF INCLUDED: "$n" in ${_base(f)}');
         }
       }
       if (names.isNotEmpty) withNames++;

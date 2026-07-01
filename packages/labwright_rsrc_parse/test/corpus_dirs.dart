@@ -12,11 +12,10 @@ Directory _corpusBase() {
   const pkgRel = 'packages/labwright_rsrc_parse/corpus';
   var dir = Directory.current;
   for (var i = 0; i < 8; i++) {
-    if (File('${dir.path}/$pkgRel/sources.json').existsSync()) {
-      return Directory('${dir.path}/$pkgRel');
-    }
-    if (File('${dir.path}/corpus/sources.json').existsSync()) {
-      return Directory('${dir.path}/corpus');
+    for (final rel in const [pkgRel, 'corpus']) {
+      if (File('${dir.path}/$rel/sources.json').existsSync()) {
+        return Directory('${dir.path}/$rel');
+      }
     }
     final parent = dir.parent;
     if (parent.path == dir.path) break;
@@ -35,15 +34,17 @@ List<File>? _allVisCache;
 /// corpus tests run over ALL of these — there is no sampling tier; the heavy
 /// per-VI work is parallelized across isolates instead (see [corpusParallel]).
 List<File> corpusVis() {
+  if (_allVisCache != null) return _allVisCache!;
   final d = corpusViDir;
-  return _allVisCache ??= d.existsSync()
-      ? (d
-            .listSync(recursive: true)
-            .whereType<File>()
-            .where((f) => f.path.toLowerCase().endsWith('.vi'))
-            .toList()
-          ..sort((a, b) => a.path.compareTo(b.path)))
-      : <File>[];
+  if (!d.existsSync()) return _allVisCache = <File>[];
+  final vis =
+      d
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((f) => f.path.toLowerCase().endsWith('.vi'))
+          .toList()
+        ..sort((a, b) => a.path.compareTo(b.path));
+  return _allVisCache = vis;
 }
 
 /// The coverage baseline written by `tool/coverage.dart`, resolved next to the

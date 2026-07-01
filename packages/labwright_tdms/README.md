@@ -9,6 +9,7 @@ provided for:
 TODO: These should probably be deleted. Either out of scope or wholly inappropriate:
 - Structural + Value diffs via `diffTdms`
 - JSON structure summary
-- `mergeTdms` for combining sharded run archives — exposed as the
-, `tdms2csv`, `tdms-summary`, `csv2tdms`, `tdms-diff`, and
-`tdms-merge` CLIs.
+- `mergeTdms` for combining sharded run archives.
+
+These utilities are exposed as the `tdms2csv`, `tdms-summary`, `csv2tdms`,
+`tdms-diff`, and `tdms-merge` CLIs.

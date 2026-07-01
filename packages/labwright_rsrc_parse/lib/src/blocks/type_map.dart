@@ -53,11 +53,12 @@ ViTypeMap? decodeTypeMap(Uint8List b) {
   int u16(int o) => (b[o] << 8) | b[o + 1];
   final count = u16(0);
   final field1 = u16(2);
-  if (b.length == 4 + 2 * count) {
-    final entries = <int>[
-      for (var i = 0; i < count; i++) u16(4 + 2 * i),
-    ];
-    return ViTypeMap(rawLength: b.length, isShortForm: true, count: count, field1: field1, entries: entries);
-  }
-  return ViTypeMap(rawLength: b.length, isShortForm: false, count: 0, field1: field1, entries: const []);
+  final isShort = b.length == 4 + 2 * count;
+  return ViTypeMap(
+    rawLength: b.length,
+    isShortForm: isShort,
+    count: isShort ? count : 0,
+    field1: field1,
+    entries: isShort ? [for (var i = 0; i < count; i++) u16(4 + 2 * i)] : const <int>[],
+  );
 }

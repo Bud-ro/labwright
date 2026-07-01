@@ -59,17 +59,17 @@ class _Stat {
   int blockInstances = 0, blocksIdentified = 0;
   int blockBytes = 0, blockBytesDecoded = 0;
 
-  static double _r(int a, int b) => b == 0 ? 0 : a / b;
-  double get parseOkPct => _r(parseOk, vis);
-  double get decodeOkPct => _r(decOk, vis);
-  double get containerExactPct => _r(containerExact, vis);
-  double get blocksIdentifiedPct => _r(blocksIdentified, blockInstances);
-  double get blockBytesDecodedPct => _r(blockBytesDecoded, blockBytes);
-  double get deliberatelyParsed => _r(framed, body);
-  double get semanticallyDecoded => _r(semantic, body);
-  double get valueKindKnown => _r(valueKind, body);
-  double get classified => _r(semantic + valueKind, body);
-  double get fullyParsedHeaps => _r(fullHeaps, heaps);
+  static double _ratio(int a, int b) => b == 0 ? 0 : a / b;
+  double get parseOkPct => _ratio(parseOk, vis);
+  double get decodeOkPct => _ratio(decOk, vis);
+  double get containerExactPct => _ratio(containerExact, vis);
+  double get blocksIdentifiedPct => _ratio(blocksIdentified, blockInstances);
+  double get blockBytesDecodedPct => _ratio(blockBytesDecoded, blockBytes);
+  double get deliberatelyParsed => _ratio(framed, body);
+  double get semanticallyDecoded => _ratio(semantic, body);
+  double get valueKindKnown => _ratio(valueKind, body);
+  double get classified => _ratio(semantic + valueKind, body);
+  double get fullyParsedHeaps => _ratio(fullHeaps, heaps);
 
   void add(_Stat s) {
     vis += s.vis;
@@ -118,12 +118,12 @@ _Stat _measure(List<File> files) {
       if (blockInfo(sec.tag).isDecoded) s.blockBytesDecoded += sec.bytes.length;
 
       if (!_heapTags.contains(sec.tag) || sec.bytes.length < 6) continue;
-      final w = walkHeapBody(sec.bytes);
-      s.framed += w.coveredBytes;
-      s.body += w.bodyBytes;
+      final walk = walkHeapBody(sec.bytes);
+      s.framed += walk.coveredBytes;
+      s.body += walk.bodyBytes;
       s.heaps++;
-      if (w.complete) s.fullHeaps++;
-      for (final span in w.spans) {
+      if (walk.complete) s.fullHeaps++;
+      for (final span in walk.spans) {
         switch (heapDecodeTier(sec.bytes, span.offset, span.lead, sec.tag)) {
           case HeapDecodeTier.semantic:
             s.semantic += span.length;
@@ -219,6 +219,7 @@ void main(List<String> args) {
   }
 
   if (overall.vis > 0) {
+    double round4(double v) => double.parse(v.toStringAsFixed(4));
     final baseline = {
       'generatedBy': 'packages/labwright_rsrc_parse/tool/coverage.dart',
       'scope': 'whole VI corpus (corpus/vi); see COVERAGE.md for the metric taxonomy',
@@ -236,15 +237,15 @@ void main(List<String> args) {
       },
       'corpus': {
         'vis': overall.vis,
-        'parseOk': double.parse(overall.parseOkPct.toStringAsFixed(4)),
-        'decodeOk': double.parse(overall.decodeOkPct.toStringAsFixed(4)),
-        'containerExact': double.parse(overall.containerExactPct.toStringAsFixed(4)),
-        'blocksIdentified': double.parse(overall.blocksIdentifiedPct.toStringAsFixed(4)),
-        'blockBytesDecoded': double.parse(overall.blockBytesDecodedPct.toStringAsFixed(4)),
-        'deliberatelyParsed': double.parse(overall.deliberatelyParsed.toStringAsFixed(4)),
-        'semanticallyDecoded': double.parse(overall.semanticallyDecoded.toStringAsFixed(4)),
-        'valueKindKnown': double.parse(overall.valueKindKnown.toStringAsFixed(4)),
-        'fullyParsedHeaps': double.parse(overall.fullyParsedHeaps.toStringAsFixed(4)),
+        'parseOk': round4(overall.parseOkPct),
+        'decodeOk': round4(overall.decodeOkPct),
+        'containerExact': round4(overall.containerExactPct),
+        'blocksIdentified': round4(overall.blocksIdentifiedPct),
+        'blockBytesDecoded': round4(overall.blockBytesDecodedPct),
+        'deliberatelyParsed': round4(overall.deliberatelyParsed),
+        'semanticallyDecoded': round4(overall.semanticallyDecoded),
+        'valueKindKnown': round4(overall.valueKindKnown),
+        'fullyParsedHeaps': round4(overall.fullyParsedHeaps),
       },
     };
     final out = File('${rootDir.parent.path}/baseline.json');

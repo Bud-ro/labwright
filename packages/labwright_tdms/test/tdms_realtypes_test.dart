@@ -12,14 +12,14 @@ Uint8List _buildTdms({
   required bool interleaved,
   required List<({String path, int dtype, List<num> values})> chans,
 }) {
-  void put(BytesBuilder b, int v, int bytes, Endian e, {bool float = false}) {
+  void put(BytesBuilder b, int v, int bytes, {bool float = false}) {
     final d = ByteData(8);
     if (float) {
-      d.setFloat64(0, v.toDouble(), e);
+      d.setFloat64(0, v.toDouble(), endian);
     } else if (bytes == 2) {
-      d.setUint16(0, v, e);
+      d.setUint16(0, v, endian);
     } else {
-      d.setInt32(0, v, e);
+      d.setInt32(0, v, endian);
     }
     b.add(d.buffer.asUint8List(0, bytes));
   }
@@ -43,11 +43,11 @@ Uint8List _buildTdms({
   void elem(BytesBuilder b, int dtype, num v) {
     switch (dtype) {
       case 3:
-        put(b, v.toInt(), 4, endian);
+        put(b, v.toInt(), 4);
       case 6:
-        put(b, v.toInt(), 2, endian);
+        put(b, v.toInt(), 2);
       case 10:
-        put(b, v.toInt(), 8, endian, float: true);
+        put(b, v.toInt(), 8, float: true);
     }
   }
 

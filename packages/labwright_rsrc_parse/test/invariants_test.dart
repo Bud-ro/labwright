@@ -1,6 +1,7 @@
 @Tags(['corpus'])
 library;
 
+import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -61,7 +62,7 @@ bool _structuralHeap(List<int> b) {
 /// aggregate of these instead of each rebuilding the whole corpus. Fields are all
 /// sendable (ints/bools/`List<int>`). A VI whose model build throws (a non-RSRC
 /// fixture) returns a neutral summary so it affects no aggregate.
-class _M {
+class _ViSummary {
   final String path;
   final bool deterministic;
   final int boundsChecked;
@@ -81,7 +82,7 @@ class _M {
   /// Per-VI section census for the record-heap gate (BLOCK CATALOG ↔ corpus).
   final int catHeapSections, catHeapStructural, structuralSections, structuralCatalogued;
   final List<String> headTags;
-  const _M({
+  const _ViSummary({
     required this.path,
     required this.deterministic,
     required this.boundsChecked,
@@ -107,7 +108,7 @@ class _M {
     required this.structuralCatalogued,
     required this.headTags,
   });
-  factory _M.neutral(String path) => _M(
+  factory _ViSummary.neutral(String path) => _ViSummary(
         path: path, deterministic: true, boundsChecked: 0, boundsWild: null, fpBounded: 0,
         fpNeg: 0, fpHasNeg: false, drawn: 0, distinct: 0, bdVisible: 0, bdTyped: 0,
         fpVisible: 0, fpTyped: 0, subviTotal: 0, subviNamed: 0, layoutPairs: 0,
@@ -117,12 +118,12 @@ class _M {
       );
 }
 
-_M _modelSumm(Uint8List bytes, String path) {
+_ViSummary _modelSumm(Uint8List bytes, String path) {
   final ViModel m;
   try {
     m = buildViModel(bytes);
   } catch (_) {
-    return _M.neutral(path);
+    return _ViSummary.neutral(path);
   }
   var deterministic = true;
   try {
@@ -256,7 +257,7 @@ _M _modelSumm(Uint8List bytes, String path) {
     }
   }
 
-  return _M(
+  return _ViSummary(
     path: path,
     deterministic: deterministic,
     boundsChecked: boundsChecked,
@@ -284,48 +285,64 @@ _M _modelSumm(Uint8List bytes, String path) {
   );
 }
 
+List<ViSection>? _trySecs(File f) {
+  try {
+    return readViSections(f.readAsBytesSync());
+  } catch (_) {
+    return null;
+  }
+}
+
+List<DecodedSection>? _tryDsecs(File f) {
+  try {
+    return decodeSections(f.readAsBytesSync());
+  } catch (_) {
+    return null;
+  }
+}
+
 void main() {
   final all = corpusVis();
   if (all.isEmpty) {
     test('invariants (skipped: corpus not fetched)', () {}, skip: true);
     return;
   }
-  late final List<_M> M;
+  late final List<_ViSummary> summaries;
   setUpAll(() async {
-    M = await corpusParallel(all, _modelSumm);
+    summaries = await corpusParallel(all, _modelSumm);
   });
 
   test('DETERMINISM: building the same VI twice yields an identical object graph', () {
-    final bad = M.where((m) => !m.deterministic).map((m) => m.path).toList();
+    final bad = summaries.where((m) => !m.deterministic).map((m) => m.path).toList();
     expect(bad, isEmpty, reason: 'non-deterministic decode: ${bad.take(5).join(', ')}');
   });
 
   test('STRUCTURAL INVARIANT: every decoded object has sane (non-wild) bounds', () {
-    final wild = M.map((m) => m.boundsWild).whereType<String>().toList();
+    final wild = summaries.map((m) => m.boundsWild).whereType<String>().toList();
     expect(wild, isEmpty, reason: wild.take(5).join('; '));
-    expect(M.fold<int>(0, (a, m) => a + m.boundsChecked), greaterThan(0));
+    expect(summaries.fold<int>(0, (a, m) => a + m.boundsChecked), greaterThan(0));
   });
 
   test('STRUCTURAL INVARIANT: front-panel coords may be negative (parked off-panel) and survive', () {
-    final bounded = M.fold<int>(0, (a, m) => a + m.fpBounded);
-    final negObjs = M.fold<int>(0, (a, m) => a + m.fpNeg);
-    final filesWithNeg = M.where((m) => m.fpHasNeg).length;
+    final bounded = summaries.fold<int>(0, (a, m) => a + m.fpBounded);
+    final negObjs = summaries.fold<int>(0, (a, m) => a + m.fpNeg);
+    final filesWithNeg = summaries.where((m) => m.fpHasNeg).length;
     expect(bounded, greaterThan(0));
     expect(negObjs, greaterThan(0), reason: 'no negative FP coords survived — parked controls may be clamped');
     expect(filesWithNeg, greaterThan(0));
   });
 
   test('STRUCTURAL INVARIANT: drawn FP objects are distinctly placed (overlap is layout, not a collapse)', () {
-    final drawn = M.fold<int>(0, (a, m) => a + m.drawn);
-    final distinct = M.fold<int>(0, (a, m) => a + m.distinct);
+    final drawn = summaries.fold<int>(0, (a, m) => a + m.drawn);
+    final distinct = summaries.fold<int>(0, (a, m) => a + m.distinct);
     expect(drawn, greaterThan(0));
     expect(distinct / drawn, greaterThan(0.55),
         reason: 'drawn FP objects collapsed to shared rects: only $distinct/$drawn distinct');
   });
 
   test('RENDER RATCHET: visible block-diagram objects classify to a typed widget (>= floor)', () {
-    final visible = M.fold<int>(0, (a, m) => a + m.bdVisible);
-    final typed = M.fold<int>(0, (a, m) => a + m.bdTyped);
+    final visible = summaries.fold<int>(0, (a, m) => a + m.bdVisible);
+    final typed = summaries.fold<int>(0, (a, m) => a + m.bdTyped);
     expect(visible, greaterThan(0));
     final frac = typed / visible;
     expect(frac, greaterThanOrEqualTo(0.99),
@@ -333,8 +350,8 @@ void main() {
   });
 
   test('RENDER RATCHET: visible FRONT-PANEL objects classify to a typed widget (>= floor)', () {
-    final visible = M.fold<int>(0, (a, m) => a + m.fpVisible);
-    final typed = M.fold<int>(0, (a, m) => a + m.fpTyped);
+    final visible = summaries.fold<int>(0, (a, m) => a + m.fpVisible);
+    final typed = summaries.fold<int>(0, (a, m) => a + m.fpTyped);
     expect(visible, greaterThan(0));
     final frac = typed / visible;
     expect(frac, greaterThanOrEqualTo(0.99),
@@ -342,8 +359,8 @@ void main() {
   });
 
   test('NAMING RATCHET: subVI-call nodes recover their called-VI name (>= floor)', () {
-    final total = M.fold<int>(0, (a, m) => a + m.subviTotal);
-    final named = M.fold<int>(0, (a, m) => a + m.subviNamed);
+    final total = summaries.fold<int>(0, (a, m) => a + m.subviTotal);
+    final named = summaries.fold<int>(0, (a, m) => a + m.subviNamed);
     expect(total, greaterThan(0));
     final frac = named / total;
     expect(frac, greaterThanOrEqualTo(0.99),
@@ -352,8 +369,8 @@ void main() {
   });
 
   test('LAYOUT RATCHET: BD nodes sit inside their enclosing structure frame (>= floor)', () {
-    final pairs = M.fold<int>(0, (a, m) => a + m.layoutPairs);
-    final contained = M.fold<int>(0, (a, m) => a + m.layoutContained);
+    final pairs = summaries.fold<int>(0, (a, m) => a + m.layoutPairs);
+    final contained = summaries.fold<int>(0, (a, m) => a + m.layoutContained);
     expect(pairs, greaterThan(0));
     final frac = contained / pairs;
     expect(frac, greaterThanOrEqualTo(0.98),
@@ -362,12 +379,12 @@ void main() {
   });
 
   test('MUTATION-FUZZ: byte-flipped VIs decode without hanging and never emit wild bounds', () {
-    final wild = M.map((m) => m.fuzzWild).whereType<String>().toList();
+    final wild = summaries.map((m) => m.fuzzWild).whereType<String>().toList();
     expect(wild, isEmpty, reason: wild.take(5).join('; '));
   });
 
   test('CATALOG INTEGRITY: every catalogued object-class kind occurs in the corpus', () {
-    final seen = <int>{for (final m in M) ...m.kinds};
+    final seen = <int>{for (final m in summaries) ...m.kinds};
     for (final c in HeapObjectClass.values) {
       if (c == HeapObjectClass.unknown) continue;
       expect(seen.contains(c.code), isTrue,
@@ -377,11 +394,11 @@ void main() {
   });
 
   test('BLOCK CATALOG: every catalogued record-heap section really is a C4 heap (and only those)', () {
-    final headTags = <String>{for (final m in M) ...m.headTags};
-    final catHeapSections = M.fold<int>(0, (a, m) => a + m.catHeapSections);
-    final catHeapStructural = M.fold<int>(0, (a, m) => a + m.catHeapStructural);
-    final structuralSections = M.fold<int>(0, (a, m) => a + m.structuralSections);
-    final structuralCatalogued = M.fold<int>(0, (a, m) => a + m.structuralCatalogued);
+    final headTags = <String>{for (final m in summaries) ...m.headTags};
+    final catHeapSections = summaries.fold<int>(0, (a, m) => a + m.catHeapSections);
+    final catHeapStructural = summaries.fold<int>(0, (a, m) => a + m.catHeapStructural);
+    final structuralSections = summaries.fold<int>(0, (a, m) => a + m.structuralSections);
+    final structuralCatalogued = summaries.fold<int>(0, (a, m) => a + m.structuralCatalogued);
     expect(catHeapSections, greaterThan(0));
     expect(catHeapStructural, catHeapSections,
         reason: 'a catalogued record-heap section was NOT a structural C4 heap — the recordHeap set is wrong.');
@@ -474,12 +491,8 @@ void main() {
   test('TM80: the short-form layout covers most type maps and is self-consistent', () {
     var total = 0, shortForm = 0;
     for (final f in all) {
-      final List<DecodedSection> dsecs;
-      try {
-        dsecs = decodeSections(f.readAsBytesSync());
-      } catch (_) {
-        continue;
-      }
+      final dsecs = _tryDsecs(f);
+      if (dsecs == null) continue;
       for (final d in dsecs) {
         if (d.tag != 'TM80') continue;
         final m = decodeTypeMap(d.bytes);
@@ -499,12 +512,8 @@ void main() {
   test('STRG: every description block is [u32 len][printable text]', () {
     var total = 0, ok = 0;
     for (final f in all) {
-      final List<DecodedSection> dsecs;
-      try {
-        dsecs = decodeSections(f.readAsBytesSync());
-      } catch (_) {
-        continue;
-      }
+      final dsecs = _tryDsecs(f);
+      if (dsecs == null) continue;
       for (final d in dsecs) {
         if (d.tag != 'STRG' || d.bytes.length < 4) continue;
         total++;
@@ -527,12 +536,8 @@ void main() {
   test('DTHP: the 4-byte header form dominates and decode is total', () {
     var total = 0, fourByte = 0, decoded = 0;
     for (final f in all) {
-      final List<ViSection> secs;
-      try {
-        secs = readViSections(f.readAsBytesSync());
-      } catch (_) {
-        continue;
-      }
+      final secs = _trySecs(f);
+      if (secs == null) continue;
       for (final s in secs) {
         if (s.tag != 'DTHP' || s.bytes.length < 4) continue;
         total++;
@@ -549,12 +554,8 @@ void main() {
   test('DTHP: every extended-form block recovers >=1 printable named item', () {
     var ext = 0, named = 0, printable = 0;
     for (final f in all) {
-      final List<ViSection> secs;
-      try {
-        secs = readViSections(f.readAsBytesSync());
-      } catch (_) {
-        continue;
-      }
+      final secs = _trySecs(f);
+      if (secs == null) continue;
       for (final s in secs) {
         if (s.tag != 'DTHP' || s.bytes.length <= 4) continue;
         final h = decodeDataTypeHeap(s.bytes);
@@ -576,12 +577,8 @@ void main() {
   test('HIST: fixed 40-byte record, version 2, reserved words zero', () {
     var total = 0, sized = 0, ver2 = 0, reservedZero = 0;
     for (final f in all) {
-      final List<ViSection> secs;
-      try {
-        secs = readViSections(f.readAsBytesSync());
-      } catch (_) {
-        continue;
-      }
+      final secs = _trySecs(f);
+      if (secs == null) continue;
       for (final s in secs) {
         if (s.tag != 'HIST') continue;
         total++;
@@ -601,12 +598,8 @@ void main() {
   test('HLPP is a parseable PTH0 path; HLPT is [u32 len][printable text]', () {
     var hlppTot = 0, hlppOk = 0, hlptTot = 0, hlptOk = 0;
     for (final f in all) {
-      final List<ViSection> secs;
-      try {
-        secs = readViSections(f.readAsBytesSync());
-      } catch (_) {
-        continue;
-      }
+      final secs = _trySecs(f);
+      if (secs == null) continue;
       for (final s in secs) {
         if (s.tag == 'HLPP') {
           hlppTot++;
@@ -632,12 +625,8 @@ void main() {
   test('FTAB: version 1 and the font-name table is self-consistent', () {
     var total = 0, ver1 = 0, consistent = 0, printable = 0;
     for (final f in all) {
-      final List<ViSection> secs;
-      try {
-        secs = readViSections(f.readAsBytesSync());
-      } catch (_) {
-        continue;
-      }
+      final secs = _trySecs(f);
+      if (secs == null) continue;
       for (final s in secs) {
         if (s.tag != 'FTAB') continue;
         final t = decodeFontTable(s.bytes);
@@ -659,12 +648,8 @@ void main() {
     final wantBytes = <String, int>{'icl8': 1024, 'icl4': 512, 'ICON': 128};
     var tot = 0, sized = 0, decoded = 0;
     for (final f in all) {
-      final List<ViSection> secs;
-      try {
-        secs = readViSections(f.readAsBytesSync());
-      } catch (_) {
-        continue;
-      }
+      final secs = _trySecs(f);
+      if (secs == null) continue;
       for (final s in secs) {
         final want = wantBytes[s.tag];
         if (want == null) continue;
@@ -717,12 +702,8 @@ void main() {
     final sized = {for (final k in wantLen.keys) k: 0};
     final bodies = {for (final k in wantLen.keys) k: <String>{}};
     for (final f in all) {
-      final List<ViSection> secs;
-      try {
-        secs = readViSections(f.readAsBytesSync());
-      } catch (_) {
-        continue;
-      }
+      final secs = _trySecs(f);
+      if (secs == null) continue;
       for (final s in secs) {
         final want = wantLen[s.tag];
         if (want == null) continue;
@@ -747,12 +728,8 @@ void main() {
     final sized = {for (final k in wantLen.keys) k: 0};
     final bodies = {for (final k in wantLen.keys) k: <String>{}};
     for (final f in all) {
-      final List<ViSection> secs;
-      try {
-        secs = readViSections(f.readAsBytesSync());
-      } catch (_) {
-        continue;
-      }
+      final secs = _trySecs(f);
+      if (secs == null) continue;
       for (final s in secs) {
         final want = wantLen[s.tag];
         if (want == null) continue;
@@ -771,12 +748,8 @@ void main() {
   test('NUID/SUID/BNID are [u32 count][count u32] id tables', () {
     var tot = 0, framed = 0;
     for (final f in all) {
-      final List<ViSection> secs;
-      try {
-        secs = readViSections(f.readAsBytesSync());
-      } catch (_) {
-        continue;
-      }
+      final secs = _trySecs(f);
+      if (secs == null) continue;
       for (final s in secs) {
         if (!{'NUID', 'SUID', 'BNID'}.contains(s.tag) || s.bytes.length < 4) continue;
         tot++;

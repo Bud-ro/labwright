@@ -9,10 +9,9 @@ import 'package:labwright_seq/labwright_seq.dart';
 String _root() {
   var d = Directory.current;
   for (var i = 0; i < 8; i++) {
-    if (File('${d.path}/packages/labwright_seq/corpus/seq-sources.json').existsSync()) {
-      return '${d.path}/packages/labwright_seq/corpus/seq';
+    for (final base in ['${d.path}/packages/labwright_seq/corpus', '${d.path}/corpus']) {
+      if (File('$base/seq-sources.json').existsSync()) return '$base/seq';
     }
-    if (File('${d.path}/corpus/seq-sources.json').existsSync()) return '${d.path}/corpus/seq';
     d = d.parent;
   }
   return 'corpus/seq';
@@ -31,9 +30,11 @@ void main(List<String> args) {
     if (!f.path.toLowerCase().endsWith('.seq')) continue;
     final bytes = f.readAsBytesSync();
     final fmt = detectSeqFormat(bytes);
-    final ok = which == 'both'
-        ? (fmt == SeqFormat.xml || fmt == SeqFormat.ini)
-        : fmt == (which == 'xml' ? SeqFormat.xml : SeqFormat.ini);
+    final ok = switch (which) {
+      'both' => fmt == SeqFormat.xml || fmt == SeqFormat.ini,
+      'xml' => fmt == SeqFormat.xml,
+      _ => fmt == SeqFormat.ini,
+    };
     if (!ok) continue;
     try {
       final sf = parseSeqFile(bytes);

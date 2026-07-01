@@ -54,15 +54,15 @@ Uint8List buildRsrc(List<({String tag, List<List<int>> sections})> blocks,
   be32(info, blocks.length);
   const descBase = 0x3c;
   var off = (0x38 + blocks.length * 12) - descBase;
-  final n2 = <int>[];
+  final descOffsets = <int>[];
   for (final b in blocks) {
-    n2.add(off);
+    descOffsets.add(off);
     off += b.sections.length * 20;
   }
   for (var bi = 0; bi < blocks.length; bi++) {
     info.add(blocks[bi].tag.codeUnits);
     be32(info, blocks[bi].sections.length - 1);
-    be32(info, n2[bi]);
+    be32(info, descOffsets[bi]);
   }
   for (var bi = 0; bi < blocks.length; bi++) {
     for (var si = 0; si < blocks[bi].sections.length; si++) {

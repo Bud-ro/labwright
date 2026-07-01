@@ -145,7 +145,7 @@ _Stat _measure(List<File> files, SeqFormat fmt) {
     }
     s.files++;
     s.seqs += sf.sequences.length;
-    s.steps += sf.sequences.fold(0, (a, q) => a + q.steps.length);
+    s.steps += sf.sequences.fold(0, (a, seq) => a + seq.steps.length);
     s.cov = s.cov + measureCoverage(sf);
   }
   return s;

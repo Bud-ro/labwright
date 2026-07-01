@@ -84,12 +84,9 @@ void main() {
       0xc4, 0x2d, 0x02, 0, 0,
       0xc4, 0x1f, 0x01, 0,
     ];
-    final hist = heapC4RecordsFromDecoded([bdex(heap)]).fold<Map<int, int>>({}, (m, r) {
-      m[r.opcode] = (m[r.opcode] ?? 0) + 1;
-      return m;
-    });
-    expect(hist[0x2d], 2);
-    expect(hist[0x1f], 1);
+    final recs = heapC4RecordsFromDecoded([bdex(heap)]);
+    expect(recs.where((r) => r.opcode == 0x2d).length, 2);
+    expect(recs.where((r) => r.opcode == 0x1f).length, 1);
   });
 
   test('a C4 with a length running past the section end is not framed', () {

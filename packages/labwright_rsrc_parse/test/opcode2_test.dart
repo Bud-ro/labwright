@@ -13,7 +13,7 @@ List<int> c4(int op, List<int> payload) => [0xc4, op, payload.length, ...payload
 
 List<int> pth0Record(String path) {
   final c = path.codeUnits;
-  return [0x50, 0x54, 0x48, 0x30, 0, 0, 0, 0, 0, 0, 0, 1, c.length, ...c];
+  return [...'PTH0'.codeUnits, 0, 0, 0, 0, 0, 0, 0, 1, c.length, ...c];
 }
 
 void main() {

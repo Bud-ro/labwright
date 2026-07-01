@@ -44,11 +44,11 @@ const int _histWords = 10;
 const int _wordBytes = 4;
 
 /// Decodes a `HIST` body. Null when shorter than the 40-byte record.
-ViHistory? decodeHistory(Uint8List b) {
-  if (b.length < _histWords * _wordBytes) return null;
-  final bd = ByteData.sublistView(b);
+ViHistory? decodeHistory(Uint8List bytes) {
+  if (bytes.length < _histWords * _wordBytes) return null;
+  final data = ByteData.sublistView(bytes);
   return ViHistory(
-    rawLength: b.length,
-    words: [for (var w = 0; w < _histWords; w++) bd.getUint32(w * _wordBytes)],
+    rawLength: bytes.length,
+    words: [for (var w = 0; w < _histWords; w++) data.getUint32(w * _wordBytes)],
   );
 }

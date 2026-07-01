@@ -65,10 +65,7 @@ class SeqProperty {
   /// never with fabricated semantics. Kept verbatim in [attributes] under `%FLG`.
   int? get propertyFlags => _intAttr('%FLG');
 
-  int? _intAttr(String key) {
-    final raw = attributes[key];
-    return raw == null ? null : int.tryParse(raw.trim());
-  }
+  int? _intAttr(String key) => int.tryParse(attributes[key]?.trim() ?? '');
 
   /// The bitmask on this property's **instance-override record** (`%INSTOVRD`),
   /// or null when the property is not an instance override. This is the base
@@ -121,10 +118,10 @@ SeqProperty buildProperty(XmlElement e) {
         valueEl.getAttribute('ubound') != null;
     if (isArray) {
       array = [
-        for (final w in childElementsNamed(valueEl, 'value'))
-          w.childElements.isNotEmpty
-              ? buildProperty(w.childElements.first)
-              : SeqProperty(name: '', scalar: w.innerText),
+        for (final elementValue in childElementsNamed(valueEl, 'value'))
+          elementValue.childElements.isNotEmpty
+              ? buildProperty(elementValue.childElements.first)
+              : SeqProperty(name: '', scalar: elementValue.innerText),
       ];
     } else {
       scalar = valueEl.innerText;

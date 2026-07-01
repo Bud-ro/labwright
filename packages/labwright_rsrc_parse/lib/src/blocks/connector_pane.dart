@@ -48,10 +48,8 @@ class ViConnectorPane {
 /// Decodes a `CONP`/`CPC2` block body. Total: returns null on an empty buffer.
 ViConnectorPane? decodeConnectorPane(Uint8List b) {
   if (b.isEmpty) return null;
-  if (b.length == 2) {
-    return ViConnectorPane(rawLength: 2, typeIndex: (b[0] << 8) | b[1], isInline: false);
-  }
-  return ViConnectorPane(rawLength: b.length, isInline: true);
+  final inline = b.length != 2;
+  return ViConnectorPane(rawLength: b.length, typeIndex: inline ? null : (b[0] << 8) | b[1], isInline: inline);
 }
 
 /// Finds and decodes the connector pane, **preferring `CONP`** (whose 2-byte

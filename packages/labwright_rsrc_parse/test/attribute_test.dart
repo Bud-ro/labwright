@@ -5,10 +5,12 @@ import 'package:test/test.dart';
 
 /// Builds a `C5 <id> 08 <f64>` numeric-control parameter record.
 Uint8List f64Rec(int id, double v) {
-  final b = BytesBuilder()..add([0xc5, id, 0x08]);
-  final d = ByteData(8)..setFloat64(0, v);
-  b.add(d.buffer.asUint8List());
-  return b.toBytes();
+  final d = ByteData(11)
+    ..setUint8(0, 0xc5)
+    ..setUint8(1, id)
+    ..setUint8(2, 0x08)
+    ..setFloat64(3, v);
+  return d.buffer.asUint8List();
 }
 
 void main() {

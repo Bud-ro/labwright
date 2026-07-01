@@ -45,11 +45,12 @@ Map<String, Object?> diffTdms(TdmsFile a, TdmsFile b, {double tol = 0.0}) {
         continue;
       }
       final delta = _valueDelta(ca.data, cb.data, tol);
-      final status = ca.data.length != cb.data.length
-          ? ChannelDiffStatus.lengthMismatch
-          : delta['firstDiffIndex'] != null
-              ? ChannelDiffStatus.valueDiff
-              : null;
+      ChannelDiffStatus? status;
+      if (ca.data.length != cb.data.length) {
+        status = ChannelDiffStatus.lengthMismatch;
+      } else if (delta['firstDiffIndex'] != null) {
+        status = ChannelDiffStatus.valueDiff;
+      }
       if (status != null) {
         channels.add({
           'group': ga.name,
@@ -80,13 +81,13 @@ Map<String, Object?> diffTdms(TdmsFile a, TdmsFile b, {double tol = 0.0}) {
 /// Max absolute delta over the common prefix and the first index exceeding
 /// [tol]. Returns `firstDiffIndex: null` when every compared pair is within tol.
 Map<String, Object?> _valueDelta(List<double> a, List<double> b, double tol) {
-  final n = a.length < b.length ? a.length : b.length;
+  final commonLen = a.length < b.length ? a.length : b.length;
   var maxAbs = 0.0;
   int? firstDiff;
-  for (var i = 0; i < n; i++) {
-    final d = (a[i] - b[i]).abs();
-    if (d > maxAbs) maxAbs = d;
-    if (firstDiff == null && d > tol) firstDiff = i;
+  for (var i = 0; i < commonLen; i++) {
+    final absDelta = (a[i] - b[i]).abs();
+    if (absDelta > maxAbs) maxAbs = absDelta;
+    if (firstDiff == null && absDelta > tol) firstDiff = i;
   }
   return {'firstDiffIndex': firstDiff, 'maxAbsDelta': maxAbs};
 }

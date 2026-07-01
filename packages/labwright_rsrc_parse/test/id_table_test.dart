@@ -4,11 +4,11 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
 Uint8List _idtab(List<int> entries) {
-  final b = Uint8List(4 + 4 * entries.length);
+  final words = [entries.length, ...entries];
+  final b = Uint8List(4 * words.length);
   final bd = ByteData.sublistView(b);
-  bd.setUint32(0, entries.length);
-  for (var i = 0; i < entries.length; i++) {
-    bd.setUint32(4 + 4 * i, entries[i]);
+  for (var i = 0; i < words.length; i++) {
+    bd.setUint32(4 * i, words[i]);
   }
   return b;
 }

@@ -10,12 +10,12 @@ Uint8List _pth0(List<String> comps, {int type = 0}) {
   }
   final compBytes = body.toBytes();
   final b = BytesBuilder();
+  void be16(int v) => b.add((ByteData(2)..setUint16(0, v)).buffer.asUint8List());
+  void be32(int v) => b.add((ByteData(4)..setUint32(0, v)).buffer.asUint8List());
   b.add('PTH0'.codeUnits);
-  const i16PathType = 2, i16ComponentCount = 2;
-  final inner = i16PathType + i16ComponentCount + compBytes.length;
-  b.add([(inner >> 24) & 0xff, (inner >> 16) & 0xff, (inner >> 8) & 0xff, inner & 0xff]);
-  b.add([(type >> 8) & 0xff, type & 0xff]);
-  b.add([(comps.length >> 8) & 0xff, comps.length & 0xff]);
+  be32(2 + 2 + compBytes.length); // 2+2 = i16 pathType + i16 componentCount
+  be16(type);
+  be16(comps.length);
   b.add(compBytes);
   return Uint8List.fromList(b.toBytes());
 }

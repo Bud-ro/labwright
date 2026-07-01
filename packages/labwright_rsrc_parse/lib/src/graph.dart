@@ -678,9 +678,9 @@ String? formatControlRange(double? min, double? max) {
 /// BACK to the raw text when stripping empties a non-empty input (the token was
 /// real data, not markup). A math expression like `a < 5 > 0` is left untouched
 /// (digit/space bodies don't match). Returns the trimmed result.
-String stripHelpMarkup(String s) {
-  final out = s.replaceAll(_helpMarkupTag, '').replaceAll(_interiorSpaces, ' ').trim();
-  return out.isEmpty ? s.trim() : out;
+String stripHelpMarkup(String helpText) {
+  final out = helpText.replaceAll(_helpMarkupTag, '').replaceAll(_interiorSpaces, ' ').trim();
+  return out.isEmpty ? helpText.trim() : out;
 }
 
 final RegExp _helpMarkupTag = RegExp(r'<\s*/?\s*[A-Za-z][A-Za-z0-9]*\s*>');
@@ -775,7 +775,7 @@ Map<int, List<ViHeapObject>> _childrenByParentOid(List<ViHeapObject> objects) {
 ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
   final objects = <ViHeapObject>[];
   final c4ops = <ViHeapObject, Set<int>>{};
-  final fmt = <ViHeapObject, List<int>>{};
+  final formatPayloads = <ViHeapObject, List<int>>{};
   final absTop = <ViHeapObject, int>{};
   final absLeft = <ViHeapObject, int>{};
   final stack = <ViHeapObject?>[];
@@ -823,29 +823,32 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
       final rec = c4FrameAt(body, o, sectionTag);
       if (rec == null) continue;
       c4ops[cur]!.add(rec.opcode);
-      if (rec.opcode == 0x2d && cur.bounds == null && rec.bounds != null) {
-        cur.bounds = rec.bounds;
-        absTop[cur] = (absTop[cur] ?? 0) + cur.bounds!.top;
-        absLeft[cur] = (absLeft[cur] ?? 0) + cur.bounds!.left;
-        cur.absBounds = HeapRect(
-          top: absTop[cur]!,
-          left: absLeft[cur]!,
-          bottom: absTop[cur]! + cur.bounds!.height,
-          right: absLeft[cur]! + cur.bounds!.width,
-        );
-      } else if (rec.opcode == 0x22) {
-        cur.label ??= rec.text;
-      } else if (rec.opcode == 0x1f) {
-        cur.termCount++;
-      } else if (rec.opcode == 0x74) {
-        fmt[cur] ??= rec.payload;
-      } else if (rec.opcode == 0x2e) {
-        if (cur.items.isEmpty) cur.items = _parseEnumItems(rec.payload);
-      } else if (rec.opcode == 0x19) {
-        cur.helpText ??= rec.descriptionText;
-      } else if (rec.opcode == 0x27) {
-        final t = rec.text ?? rec.path ?? rec.descriptionText;
-        if (t != null && t.isNotEmpty) cur.plotNames = [...cur.plotNames, t];
+      switch (rec.opcode) {
+        case 0x2d:
+          if (cur.bounds == null && rec.bounds != null) {
+            final b = rec.bounds!;
+            cur.bounds = b;
+            final t = (absTop[cur] ?? 0) + b.top;
+            final l = (absLeft[cur] ?? 0) + b.left;
+            absTop[cur] = t;
+            absLeft[cur] = l;
+            cur.absBounds = HeapRect(top: t, left: l, bottom: t + b.height, right: l + b.width);
+          }
+        case 0x22:
+          cur.label ??= rec.text;
+        case 0x1f:
+          cur.termCount++;
+        case 0x74:
+          formatPayloads[cur] ??= rec.payload;
+        case 0x2e:
+          if (cur.items.isEmpty) cur.items = _parseEnumItems(rec.payload);
+        case 0x19:
+          cur.helpText ??= rec.descriptionText;
+        case 0x27:
+          {
+            final t = rec.text ?? rec.path ?? rec.descriptionText;
+            if (t != null && t.isNotEmpty) cur.plotNames = [...cur.plotNames, t];
+          }
       }
     } else if (lead == 0x14) {
       final r = decodeHeapRef(body, o);
@@ -870,16 +873,16 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
 
   for (final o in objects) {
     o.category = classifyObject(kind: o.kind, termCount: o.termCount);
-    o.typeKind = inferTypeKind(c4ops[o] ?? const <int>{}, fmt[o]);
+    o.typeKind = inferTypeKind(c4ops[o] ?? const <int>{}, formatPayloads[o]);
   }
 
-  final byOidItems = {for (final o in objects) o.oid: o};
+  final byOid = {for (final o in objects) o.oid: o};
   for (final o in objects) {
     if (o.items.isEmpty) continue;
     var p = o.parentOid;
     var depth = 0;
     while (p != null && depth < 12) {
-      final po = byOidItems[p];
+      final po = byOid[p];
       if (po == null) break;
       if (kControlTerminalCodes.contains(po.kind)) {
         if (po.items.isEmpty) po.items = o.items;
@@ -896,7 +899,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
     var p = o.parentOid;
     final seen = <int>{};
     while (p != null && seen.add(p)) {
-      final po = byOidItems[p];
+      final po = byOid[p];
       if (po == null) break;
       if (po.absBounds != null) {
         po.helpText ??= h;
@@ -913,7 +916,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
     final b = o.absBounds;
     if (b == null || b.width <= 0 || b.height <= 0) continue;
     if (b.width * b.height >= _structureAreaCap) continue;
-    if (o.parentOid == null || byOidItems[o.parentOid]?.kind != 0x1b) continue;
+    if (o.parentOid == null || byOid[o.parentOid]?.kind != 0x1b) continue;
     final cs = nodeKids[o.oid];
     if (cs == null) continue;
     final hasStructural = cs.any((c) => c.kind == 0x15);
@@ -924,13 +927,11 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
 
   for (final o in objects) {
     if (o.category != ViObjectKind.node || o.label != null) continue;
-    for (final c in nodeKids[o.oid] ?? const <ViHeapObject>[]) {
-      final cap = c.kind == 0x0a ? c.label?.trim() : null;
-      if (cap != null && cap.isNotEmpty) {
-        o.label = cap;
-        break;
-      }
-    }
+    final caps = (nodeKids[o.oid] ?? const <ViHeapObject>[])
+        .where((c) => c.kind == 0x0a)
+        .map((c) => c.label?.trim())
+        .where((cap) => cap != null && cap.isNotEmpty);
+    if (caps.isNotEmpty) o.label = caps.first;
   }
 
   _reanchorScrolledControls(objects);
@@ -1031,9 +1032,9 @@ void _reanchorScrolledControls(List<ViHeapObject> objects) {
     }
   }
 
-  groups.forEach((vOid, controls) {
+  for (final MapEntry(key: vOid, value: controls) in groups.entries) {
     final v = byOid[vOid];
-    if (v?.absBounds == null) return;
+    if (v?.absBounds == null) continue;
     final minTop = controls.map((c) => c.bounds!.top).reduce(min);
     final minLeft = controls.map((c) => c.bounds!.left).reduce(min);
     for (final c in controls) {
@@ -1041,5 +1042,5 @@ void _reanchorScrolledControls(List<ViHeapObject> objects) {
       final newLeft = v.absBounds!.left + (c.bounds!.left - minLeft);
       shiftSubtree(c, newTop - c.absBounds!.top, newLeft - c.absBounds!.left);
     }
-  });
+  }
 }

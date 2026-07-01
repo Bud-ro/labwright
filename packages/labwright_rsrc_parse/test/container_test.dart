@@ -25,10 +25,8 @@ Uint8List _container(List<int> data, List<int> info) {
 /// zero blocks) plus two trailing name-table bytes.
 Uint8List _minimalVi() {
   final bytes = _container([1, 2, 3, 4], [for (var i = 0; i < 0x34; i++) 0, 0, 0, 0, 0, 7, 7]);
-  final info = bytes.sublist(36);
-  info.setRange(0, 6, _rsrcMagic);
-  ByteData.sublistView(info).setUint32(0x2c, 0x34);
-  bytes.setRange(36, bytes.length, info);
+  bytes.setRange(36, 42, _rsrcMagic);
+  ByteData.sublistView(bytes, 36).setUint32(0x2c, 0x34);
   return bytes;
 }
 

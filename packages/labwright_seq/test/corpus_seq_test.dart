@@ -13,11 +13,9 @@ import 'corpus_dirs.dart';
 /// property tree — see [SeqProperty.isInstanceOverride].
 int _countOverrides(SeqProperty p, [int depth = 0]) {
   if (depth > 50) return 0;
-  var n = p.isInstanceOverride ? 1 : 0;
-  for (final c in p.subProps.followedBy(p.array ?? const <SeqProperty>[])) {
-    n += _countOverrides(c, depth + 1);
-  }
-  return n;
+  return p.subProps
+      .followedBy(p.array ?? const <SeqProperty>[])
+      .fold(p.isInstanceOverride ? 1 : 0, (n, c) => n + _countOverrides(c, depth + 1));
 }
 
 /// Per-file size ceiling for the heavier corpus probes. This is a **runtime**
@@ -1145,9 +1143,7 @@ void main() {
       }
       nameFound++;
       final texts = {for (final e in name.entries) e.text};
-      if (texts.contains('Step') ||
-          texts.contains('Sequence') ||
-          texts.contains('Locals')) {
+      if (['Step', 'Sequence', 'Locals'].any(texts.contains)) {
         hasModelTokens++;
       } else {
         failures.add('${f.path}: name table lacks core model tokens');
@@ -1208,11 +1204,9 @@ void main() {
       } else {
         failures.add('${f.path}: prefix ${names.take(2).toList()} != [SequenceFileData, Data]');
       }
-      final prefix = names.take(binaryNameScaffold.length).toList();
-      var matches = prefix.length == binaryNameScaffold.length;
-      for (var i = 0; matches && i < binaryNameScaffold.length; i++) {
-        if (prefix[i] != binaryNameScaffold[i]) matches = false;
-      }
+      final n = binaryNameScaffold.length;
+      final matches = names.length >= n &&
+          Iterable<int>.generate(n).every((i) => names[i] == binaryNameScaffold[i]);
       if (matches) scaffold5Ok++;
       final words = binaryRecordWords(bytes);
       if (words.length >= 3 && words[2] == 1 && names[1] == 'Data') {
@@ -1251,15 +1245,7 @@ void main() {
       if (field < 1 || field > 100000) continue;
       if (count < 1 || count > 1000) continue;
       final preOk =
-          i < 4 ||
-          (body[i - 1] == 0 &&
-              body[i - 2] == 0 &&
-              body[i - 3] == 0 &&
-              body[i - 4] == 0) ||
-          (body[i - 1] == 0xff &&
-              body[i - 2] == 0xff &&
-              body[i - 3] == 0xff &&
-              body[i - 4] == 0xff);
+          i < 4 || u32(body, i - 4) == 0 || u32(body, i - 4) == 0xffffffff;
       if (preOk) return true;
     }
     return false;

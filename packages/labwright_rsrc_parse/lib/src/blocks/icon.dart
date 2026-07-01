@@ -44,7 +44,9 @@ const int _maxIconEdge = 512;
 /// involved (the data is already RGB888).
 ViIcon? extractRgbIcon(Uint8List bytes) {
   if (bytes.length < 36) return null;
-  if ((bytes[0] | bytes[1] | bytes[2] | bytes[3]) != 0) return null;
+  if (bytes[0] != 0 || bytes[1] != 0 || bytes[2] != 0 || bytes[3] != 0) {
+    return null;
+  }
   final w = _u16(bytes, 4), h = _u16(bytes, 6), depth = _u16(bytes, 8);
   if (depth != 24 || w < 1 || h < 1 || w > _maxIconEdge || h > _maxIconEdge) {
     return null;
@@ -58,6 +60,10 @@ ViIcon? extractRgbIcon(Uint8List bytes) {
 /// Finds the VI's icon by scanning all decoded [sections] for an embedded RGB
 /// bitmap (it appears under different tags depending on the VI). Returns the
 /// first match, or null when no uncompressed icon is present (~11% of VIs).
-ViIcon? decodeViIcon(List<DecodedSection> sections) => sections
-    .map((s) => extractRgbIcon(s.bytes))
-    .firstWhere((i) => i != null, orElse: () => null);
+ViIcon? decodeViIcon(List<DecodedSection> sections) {
+  for (final s in sections) {
+    final icon = extractRgbIcon(s.bytes);
+    if (icon != null) return icon;
+  }
+  return null;
+}

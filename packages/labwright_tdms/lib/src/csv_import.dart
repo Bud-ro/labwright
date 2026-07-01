@@ -11,17 +11,18 @@ Uint8List csvToTdms(String csv, {String group = 'Imported', String delimiter = '
   if (rows.isEmpty) return (TdmsWriter()..writeSegment(const [])).toBytes();
 
   final header = rows.first;
-  final channels = <TdmsChannel>[];
-  for (var col = 0; col < header.length; col++) {
-    final values = <double>[];
-    for (var r = 1; r < rows.length; r++) {
-      final row = rows[r];
-      if (col >= row.length) continue;
-      final v = double.tryParse(row[col].trim());
-      if (v != null) values.add(v);
-    }
-    channels.add(TdmsChannel(group: group, name: header[col], data: values));
-  }
+  final channels = [
+    for (var col = 0; col < header.length; col++)
+      TdmsChannel(
+        group: group,
+        name: header[col],
+        data: [
+          for (var r = 1; r < rows.length; r++)
+            if (col < rows[r].length)
+              if (double.tryParse(rows[r][col].trim()) case final v?) v,
+        ],
+      ),
+  ];
   return (TdmsWriter()..writeSegment(channels)).toBytes();
 }
 

@@ -20,7 +20,7 @@ import 'corpus_dirs.dart';
 /// Each VI is summarized ONCE in a worker isolate ([corpusParallel]); the tests
 /// assert on the aggregate (no sampling — the heavy work is just parallelized).
 
-class _S {
+class _ScaffoldSummary {
   final bool built;
   final String? scaffoldFail;
   final int checked;
@@ -29,7 +29,7 @@ class _S {
   final String? captionFail;
   final bool withSubVis;
   final String? subviFail;
-  const _S({
+  const _ScaffoldSummary({
     required this.built,
     required this.scaffoldFail,
     required this.checked,
@@ -39,18 +39,18 @@ class _S {
     required this.withSubVis,
     required this.subviFail,
   });
-  factory _S.neutral() => const _S(
+  factory _ScaffoldSummary.neutral() => const _ScaffoldSummary(
         built: false, scaffoldFail: null, checked: 0, missingOid: null,
         withCaptions: false, captionFail: null, withSubVis: false, subviFail: null,
       );
 }
 
-_S _scaffoldSumm(Uint8List bytes, String path) {
+_ScaffoldSummary _scaffoldSummary(Uint8List bytes, String path) {
   final ViModel model;
   try {
     model = buildViModel(Uint8List.fromList(bytes));
   } catch (_) {
-    return _S.neutral();
+    return _ScaffoldSummary.neutral();
   }
   final name = path.split('/').last;
   final out = generateDartScaffold(model);
@@ -64,24 +64,22 @@ _S _scaffoldSumm(Uint8List bytes, String path) {
 
   var checked = 0;
   String? missingOid;
-  for (final d in model.blockDiagrams) {
+  oidScan: for (final d in model.blockDiagrams) {
     final logic = d.objects.where(
         (o) => o.category == ViObjectKind.structure || o.category == ViObjectKind.node);
     for (final o in logic) {
       checked++;
       if (!out.contains('[oid ${o.oid}]')) {
         missingOid = 'MISSING oid ${o.oid} (${o.category.name}) in $name/${d.sectionTag}';
-        break;
+        break oidScan;
       }
     }
-    if (missingOid != null) break;
   }
 
   final caps = model.captions;
-  var withCaptions = false;
+  final withCaptions = caps.isNotEmpty;
   String? captionFail;
-  if (caps.isNotEmpty) {
-    withCaptions = true;
+  if (withCaptions) {
     if (!out.contains(_oneLineForTest(caps.first))) {
       captionFail = 'CAPTION MISSING in $name';
     } else if (caps.length > 50 && !out.contains('(+${caps.length - 50} more not shown)')) {
@@ -89,10 +87,9 @@ _S _scaffoldSumm(Uint8List bytes, String path) {
     }
   }
 
-  var withSubVis = false;
+  final withSubVis = model.subViNames.isNotEmpty;
   String? subviFail;
-  if (model.subViNames.isNotEmpty) {
-    withSubVis = true;
+  if (withSubVis) {
     for (final s in model.subViNames) {
       if (!out.contains(_oneLineForTest(s))) {
         subviFail = 'SUBVI "$s" missing in $name';
@@ -101,7 +98,7 @@ _S _scaffoldSumm(Uint8List bytes, String path) {
     }
   }
 
-  return _S(
+  return _ScaffoldSummary(
     built: true,
     scaffoldFail: scaffoldFail,
     checked: checked,
@@ -119,38 +116,38 @@ void main() {
     test('Dart scaffold corpus tests (skipped: corpus not fetched)', () {}, skip: true);
     return;
   }
-  late final List<_S> S;
+  late final List<_ScaffoldSummary> summaries;
   late final int filesBuilt;
   setUpAll(() async {
-    S = await corpusParallel(all, _scaffoldSumm);
-    filesBuilt = S.where((s) => s.built).length;
+    summaries = await corpusParallel(all, _scaffoldSummary);
+    filesBuilt = summaries.where((s) => s.built).length;
   });
 
   test('generateDartScaffold is deterministic and always carries the honest marker', () {
-    final fails = S.map((s) => s.scaffoldFail).whereType<String>().toList();
+    final fails = summaries.map((s) => s.scaffoldFail).whereType<String>().toList();
     expect(filesBuilt, greaterThan(0));
     expect(fails, isEmpty, reason: 'scaffold determinism/marker failures: ${fails.take(8).toList()}');
   });
 
   test('scaffold represents every block-diagram structure and node (no logic dropped)', () {
-    final checked = S.fold<int>(0, (a, s) => a + s.checked);
-    final fails = S.map((s) => s.missingOid).whereType<String>().toList();
+    final checked = summaries.fold<int>(0, (a, s) => a + s.checked);
+    final fails = summaries.map((s) => s.missingOid).whereType<String>().toList();
     expect(filesBuilt, greaterThan(0));
     expect(checked, greaterThan(0));
     expect(fails, isEmpty, reason: 'scaffold dropped logic element(s): ${fails.take(8).toList()}');
   });
 
   test('scaffold surfaces candidate parameters (captions) without silent truncation', () {
-    final withCaptions = S.where((s) => s.withCaptions).length;
-    final fails = S.map((s) => s.captionFail).whereType<String>().toList();
+    final withCaptions = summaries.where((s) => s.withCaptions).length;
+    final fails = summaries.map((s) => s.captionFail).whereType<String>().toList();
     expect(filesBuilt, greaterThan(0));
     expect(withCaptions, greaterThan(0));
     expect(fails, isEmpty, reason: 'caption surfacing failures: ${fails.take(8).toList()}');
   });
 
   test('scaffold lists every recovered subVI name in its header', () {
-    final withSubVis = S.where((s) => s.withSubVis).length;
-    final fails = S.map((s) => s.subviFail).whereType<String>().toList();
+    final withSubVis = summaries.where((s) => s.withSubVis).length;
+    final fails = summaries.map((s) => s.subviFail).whereType<String>().toList();
     expect(filesBuilt, greaterThan(0));
     expect(withSubVis, greaterThan(0), reason: 'no VI exposed subVI names — recovery regressed');
     expect(fails, isEmpty, reason: 'scaffold dropped subVI name(s): ${fails.take(8).toList()}');

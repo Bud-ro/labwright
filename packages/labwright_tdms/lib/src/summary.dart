@@ -34,29 +34,12 @@ Map<String, Object?> tdmsSummary(Uint8List bytes) {
 }
 
 Map<String, Object?> _jsonProps(Map<String, Object> props) => {
-      for (final e in props.entries) e.key: e.value is DateTime ? (e.value as DateTime).toIso8601String() : e.value,
+      for (final MapEntry(:key, :value) in props.entries)
+        key: value is DateTime ? value.toIso8601String() : value,
     };
 
-double _min(List<double> d) {
-  var m = d.first;
-  for (final v in d) {
-    if (v < m) m = v;
-  }
-  return m;
-}
+double _min(List<double> d) => d.reduce((m, v) => v < m ? v : m);
 
-double _max(List<double> d) {
-  var m = d.first;
-  for (final v in d) {
-    if (v > m) m = v;
-  }
-  return m;
-}
+double _max(List<double> d) => d.reduce((m, v) => v > m ? v : m);
 
-double _mean(List<double> d) {
-  var s = 0.0;
-  for (final v in d) {
-    s += v;
-  }
-  return s / d.length;
-}
+double _mean(List<double> d) => d.fold(0.0, (s, v) => s + v) / d.length;

@@ -73,16 +73,16 @@ List<BlockComponent> componentsFromDecoded(Iterable<DecodedSection> decoded) {
   for (final d in decoded) {
     (byTag[d.tag] ??= <DecodedSection>[]).add(d);
   }
-  final out = <BlockComponent>[];
-  byTag.forEach((tag, list) {
-    out.add(BlockComponent(
-      tag: tag,
-      sectionCount: list.length,
-      rawBytes: list.fold<int>(0, (a, d) => a + d.section.bytes.length),
-      decompressedBytes: list.fold<int>(0, (a, d) => a + d.bytes.length),
-      compressed: list.any((d) => d.wasCompressed),
-    ));
-  });
+  final out = [
+    for (final e in byTag.entries)
+      BlockComponent(
+        tag: e.key,
+        sectionCount: e.value.length,
+        rawBytes: e.value.fold<int>(0, (a, d) => a + d.section.bytes.length),
+        decompressedBytes: e.value.fold<int>(0, (a, d) => a + d.bytes.length),
+        compressed: e.value.any((d) => d.wasCompressed),
+      ),
+  ];
   out.sort((a, b) => b.decompressedBytes.compareTo(a.decompressedBytes));
   return out;
 }
@@ -157,62 +157,48 @@ List<HeapStringTable> heapStringTablesFromDecoded(Iterable<DecodedSection> decod
     {int minLength = 4, int minRun = 2}) {
   final out = <HeapStringTable>[];
 
-  List<String> filt(List<String> raw) {
-    final seen = <String>{};
-    return [for (final s in raw) if (s.length >= minLength && _looksWordy(s) && seen.add(s)) s];
-  }
-
   for (final d in decoded) {
     final h = d.bytes;
     final n = h.length;
     var i = 0;
-    var heurStart = -1;
-    final heur = <String>[];
+    var runStart = -1;
+    final run = <String>[];
 
     void emit(List<String> raw, int offset, {bool framed = false}) {
-      final keep = filt(raw);
+      final seen = <String>{};
+      final keep = [for (final s in raw) if (s.length >= minLength && _looksWordy(s) && seen.add(s)) s];
       if (keep.isNotEmpty) {
         out.add(HeapStringTable(sectionTag: d.tag, offset: offset, strings: keep, framed: framed));
       }
     }
 
-    void flushHeur() {
-      if (heur.length >= minRun) emit(heur, heurStart);
-      heur.clear();
-      heurStart = -1;
+    void flushRun() {
+      if (run.length >= minRun) emit(run, runStart);
+      run.clear();
+      runStart = -1;
     }
 
     while (i < n) {
       final framed = _tryFramedTable(h, i);
       if (framed != null) {
-        flushHeur();
+        flushRun();
         emit(framed.strings, i + framed.headerLen, framed: true);
         i += framed.consumed;
         continue;
       }
       final len = h[i];
       if (len >= 1 && i + 1 + len <= n && _allPrintable(h, i + 1, len)) {
-        if (heur.isEmpty) heurStart = i;
-        heur.add(String.fromCharCodes(h.sublist(i + 1, i + 1 + len)));
+        if (run.isEmpty) runStart = i;
+        run.add(_pascalChars(h, i + 1, len));
         i += 1 + len;
       } else {
-        flushHeur();
+        flushRun();
         i++;
       }
     }
-    flushHeur();
+    flushRun();
   }
   return out;
-}
-
-class _FramedTable {
-  const _FramedTable(this.strings, this.headerLen, this.consumed);
-
-  final List<String> strings;
-
-  final int headerLen;
-
-  final int consumed;
 }
 
 /// If [h] at [i] is a `C4 2E` string table — `<region>` is exactly `<len>` bytes
@@ -220,24 +206,24 @@ class _FramedTable {
 /// otherwise null. The opcode is the **2-byte `C4 2E`** (`0xC4` precedes `0x2E`
 /// in 100% of corpus tables). Length is a `u8`, or the extended-length escape
 /// `C4 2E FF <u16 len>` for tables >255 bytes (header 5 bytes). Total/bounds-safe.
-_FramedTable? _tryFramedTable(Uint8List h, int i) {
+({List<String> strings, int headerLen, int consumed})? _tryFramedTable(Uint8List h, int i) {
   final n = h.length;
   if (i + 3 > n || h[i] != kHeapRecordPrefix || h[i + 1] != HeapOpcode.stringTable.byte) {
     return null;
   }
-  final int header, l;
+  final int headerLen, payloadLen;
   if (h[i + 2] == 0xff) {
     if (i + 5 > n) return null;
-    header = 5;
-    l = (h[i + 3] << 8) | h[i + 4];
+    headerLen = 5;
+    payloadLen = (h[i + 3] << 8) | h[i + 4];
   } else {
-    header = 3;
-    l = h[i + 2];
+    headerLen = 3;
+    payloadLen = h[i + 2];
   }
-  if (l < 2 || i + header + l > n) return null;
-  final strs = _packedPascals(h, i + header, l);
-  if (strs != null && strs.length >= 2) return _FramedTable(strs, header, header + l);
-  return null;
+  if (payloadLen < 2 || i + headerLen + payloadLen > n) return null;
+  final strs = _packedPascals(h, i + headerLen, payloadLen);
+  if (strs == null || strs.length < 2) return null;
+  return (strings: strs, headerLen: headerLen, consumed: headerLen + payloadLen);
 }
 
 /// Parses exactly [len] bytes at [start] as packed `[u8 L][L printable]` Pascal
@@ -248,10 +234,10 @@ List<String>? _packedPascals(Uint8List h, int start, int len) {
   final out = <String>[];
   var i = start;
   while (i < end) {
-    final l = h[i];
-    if (l == 0 || i + 1 + l > end || !_allPrintable(h, i + 1, l)) return null;
-    out.add(String.fromCharCodes(h.sublist(i + 1, i + 1 + l)));
-    i += 1 + l;
+    final len = h[i];
+    if (len == 0 || i + 1 + len > end || !_allPrintable(h, i + 1, len)) return null;
+    out.add(_pascalChars(h, i + 1, len));
+    i += 1 + len;
   }
   return out;
 }
@@ -267,6 +253,8 @@ List<String> heapStringsFromDecoded(Iterable<DecodedSection> decoded, {int minLe
   ];
 }
 
+String _pascalChars(Uint8List h, int start, int len) => String.fromCharCodes(h.sublist(start, start + len));
+
 bool _allPrintable(Uint8List h, int start, int len) {
   for (var j = start; j < start + len; j++) {
     if (h[j] < 32 || h[j] >= 127) return false;
@@ -281,7 +269,7 @@ List<String> _pascalStrings(Uint8List h) {
   while (i < h.length) {
     final len = h[i];
     if (len >= 1 && len <= 120 && i + 1 + len <= h.length && _allPrintable(h, i + 1, len)) {
-      out.add(String.fromCharCodes(h.sublist(i + 1, i + 1 + len)));
+      out.add(_pascalChars(h, i + 1, len));
       i += 1 + len;
       continue;
     }
@@ -289,6 +277,8 @@ List<String> _pascalStrings(Uint8List h) {
   }
   return out;
 }
+
+bool _isTextByte(int c) => c == 9 || c == 10 || c == 13 || (c >= 32 && c < 127); // tab/LF/CR or printable ASCII
 
 /// True if [s] contains at least one ASCII letter (filters numeric/byte noise).
 bool _looksWordy(String s) =>
@@ -304,8 +294,8 @@ String? cpc2Description(Iterable<ViSection> sections) {
     final b = s.bytes;
     if (b.length < 5) continue;
     final len = ByteData.sublistView(b).getUint32(0);
-    if (len <= 0 || 4 + len > b.length) continue;
-    final ok = b.getRange(4, 4 + len).every((c) => c == 9 || c == 10 || c == 13 || (c >= 32 && c < 127));
+    if (len == 0 || 4 + len > b.length) continue;
+    final ok = b.getRange(4, 4 + len).every(_isTextByte);
     if (ok) return String.fromCharCodes(b.sublist(4, 4 + len));
   }
   return null;
@@ -318,7 +308,7 @@ String? _vidsTitle(Uint8List b) {
     if (b[i] == 0x56 && b[i + 1] == 0x49 && b[i + 2] == 0x44 && b[i + 3] == 0x53) {
       final len = b[i + 4];
       if (len > 0 && i + 5 + len <= b.length && _allPrintable(b, i + 5, len)) {
-        return String.fromCharCodes(b.sublist(i + 5, i + 5 + len));
+        return _pascalChars(b, i + 5, len);
       }
     }
   }

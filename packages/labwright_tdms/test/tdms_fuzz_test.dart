@@ -33,7 +33,6 @@ void main() {
     final valid = validFile();
     final rng = Random(7);
     const flipTrials = 8000;
-    var handled = 0;
     for (var i = 0; i < flipTrials; i++) {
       final b = Uint8List.fromList(valid);
       final flips = 1 + rng.nextInt(4);
@@ -43,9 +42,7 @@ void main() {
       try {
         TdmsReader.read(b);
       } on TdmsFormatException {/* expected */}
-      handled++;
     }
-    expect(handled, flipTrials, reason: 'no exception type other than TdmsFormatException escaped');
   });
 
   test('every truncation of a valid file fails cleanly', () {

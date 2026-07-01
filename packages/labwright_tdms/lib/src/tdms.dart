@@ -35,6 +35,10 @@ enum TdsType {
 
 const double _twoPow64 = 18446744073709551616.0;
 
+/// Reinterprets a Dart signed 64-bit read as its unsigned u64 magnitude in
+/// double space.
+double _u64AsDouble(int v) => v >= 0 ? v.toDouble() : v + _twoPow64;
+
 const int _tocMetaData = 1 << 1;
 const int _tocNewObjList = 1 << 2;
 const int _tocRawData = 1 << 3;
@@ -101,12 +105,7 @@ class TdmsWriter {
     Map<String, Map<String, Object>> groupProperties = const {},
   }) {
     final chList = channels.toList();
-    final groups = <String>[];
-    for (final c in chList) {
-      if (!groups.contains(c.group)) {
-        groups.add(c.group);
-      }
-    }
+    final groups = {for (final c in chList) c.group}.toList();
 
     final meta = BytesBuilder();
     _u32(meta, 1 + groups.length + chList.length);
@@ -240,13 +239,12 @@ abstract final class TdmsReader {
             return _Obj();
           });
           final rawIdx = r.u32();
-          var hasData = false;
+          var hasData = true;
           if (rawIdx == _noRawDataIndex) {
+            hasData = false;
           } else if (rawIdx == _sameAsPreviousIndex) {
-            hasData = true;
           } else if (rawIdx == 0x1269 || rawIdx == 0x1369) {
             _readDaqmxIndex(r, obj);
-            hasData = true;
           } else {
             final dtype = r.u32();
             r.u32();
@@ -258,7 +256,6 @@ abstract final class TdmsReader {
               ..dataType = dtype
               ..numValues = count
               ..daqmx = false;
-            hasData = true;
           }
           final np = r.u32();
           for (var p = 0; p < np; p++) {
@@ -391,11 +388,6 @@ class _Cursor {
     return s;
   }
 
-  int byte() {
-    _need(1);
-    return _b[pos++];
-  }
-
   int i8() {
     _need(1);
     final v = _d.getInt8(pos);
@@ -471,8 +463,7 @@ class _Cursor {
   double timestamp1904Seconds() {
     final frac = u64();
     final sec = i64();
-    final fracUnsigned = frac >= 0 ? frac.toDouble() : frac + _twoPow64;
-    return sec + fracUnsigned / _twoPow64;
+    return sec + _u64AsDouble(frac) / _twoPow64;
   }
 
   /// Reads a length-prefixed UTF-8 string. Malformed bytes are replaced rather
@@ -506,16 +497,13 @@ double _readElem(_Cursor r, int code) {
     case TdsType.i64:
       return r.i64().toDouble();
     case TdsType.u64:
-      {
-        final v = r.u64();
-        return v >= 0 ? v.toDouble() : v + _twoPow64;
-      }
+      return _u64AsDouble(r.u64());
     case TdsType.singleFloat:
       return r.f32();
     case TdsType.doubleFloat:
       return r.f64();
     case TdsType.boolean:
-      return r.byte() != 0 ? 1.0 : 0.0;
+      return r.u8() != 0 ? 1.0 : 0.0;
     case TdsType.timestamp:
       return r.timestamp1904Seconds();
     case TdsType.string:
@@ -527,7 +515,7 @@ double _readElem(_Cursor r, int code) {
 DateTime _readTimestamp(_Cursor r) {
   final frac = r.u64();
   final sec = r.i64();
-  final fracUnsigned = frac >= 0 ? frac.toDouble() : frac + _twoPow64;
+  final fracUnsigned = _u64AsDouble(frac);
   final micros = (sec * 1000000) + ((fracUnsigned / _twoPow64) * 1000000).round();
   return DateTime.utc(1904).add(Duration(microseconds: micros));
 }
@@ -559,7 +547,7 @@ Object? _readProp(_Cursor r, int code) {
     case TdsType.string:
       return r.str();
     case TdsType.boolean:
-      return r.byte() != 0;
+      return r.u8() != 0;
     case TdsType.timestamp:
       return _readTimestamp(r);
     case null:
@@ -655,9 +643,9 @@ void _readDaqmxIndex(_Cursor r, _Obj obj) {
     throw TdmsFormatException('DAQmx width count $widthCount exceeds remaining');
   }
   var stride = 0;
-  for (var w = 0; w < widthCount; w++) {
+  for (var bufIdx = 0; bufIdx < widthCount; bufIdx++) {
     final width = r.u32();
-    if (w == buffer) stride = width;
+    if (bufIdx == buffer) stride = width;
   }
   obj
     ..daqmx = true
@@ -711,15 +699,13 @@ void _readDaqmx(_Cursor r, List<_Obj> chans, int rawStart, int rawLen) {
   for (final e in o.properties.entries) {
     final m = slopeKey.firstMatch(e.key);
     final v = e.value;
-    if (m != null && v is num) {
-      final n = int.parse(m.group(1)!);
-      if (n > best) {
-        best = n;
-        slope = v.toDouble();
-        final ic = o.properties['NI_Scale[$n]_Linear_Y_Intercept'];
-        intercept = ic is num ? ic.toDouble() : 0.0;
-      }
-    }
+    if (m == null || v is! num) continue;
+    final n = int.parse(m.group(1)!);
+    if (n <= best) continue;
+    best = n;
+    slope = v.toDouble();
+    final ic = o.properties['NI_Scale[$n]_Linear_Y_Intercept'];
+    intercept = ic is num ? ic.toDouble() : 0.0;
   }
   final apply = slope != null && o.properties['NI_Scaling_Status'] == 'unscaled';
   return (slope: slope ?? 1.0, intercept: intercept, apply: apply);

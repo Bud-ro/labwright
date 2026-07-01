@@ -16,7 +16,7 @@ String tdmsToCsv(Uint8List bytes, {String delimiter = ',', bool header = true}) 
   ];
   if (columns.isEmpty) return '';
 
-  String esc(String s) {
+  String quoteIfNeeded(String s) {
     if (s.contains(delimiter) || s.contains('"') || s.contains('\n') || s.contains('\r')) {
       return '"${s.replaceAll('"', '""')}"';
     }
@@ -24,9 +24,9 @@ String tdmsToCsv(Uint8List bytes, {String delimiter = ',', bool header = true}) 
   }
 
   final out = StringBuffer();
-  if (header) out.writeln([for (final c in columns) esc(c.name)].join(delimiter));
+  if (header) out.writeln([for (final c in columns) quoteIfNeeded(c.name)].join(delimiter));
 
-  final rows = columns.fold<int>(0, (m, c) => c.data.length > m ? c.data.length : m);
+  final rows = columns.map((c) => c.data.length).reduce((a, b) => a > b ? a : b);
   for (var i = 0; i < rows; i++) {
     out.writeln([for (final c in columns) i < c.data.length ? '${c.data[i]}' : ''].join(delimiter));
   }

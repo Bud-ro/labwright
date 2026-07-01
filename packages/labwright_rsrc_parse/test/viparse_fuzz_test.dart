@@ -22,25 +22,27 @@ Uint8List _validVi({List<String> blocks = const ['CONP', 'BDHb', 'vers'], String
   be32(header, 0);
   final headerBytes = header.toBytes();
 
-  final info = BytesBuilder()..add(headerBytes);
-  be32(info, 0);
-  be32(info, 0);
-  be32(info, 0x20);
-  be32(info, 0x34);
-  be32(info, 0);
-  be32(info, blocks.length);
+  final tail = BytesBuilder();
+  be32(tail, 0);
+  be32(tail, 0);
+  be32(tail, 0x20);
+  be32(tail, 0x34);
+  be32(tail, 0);
+  be32(tail, blocks.length);
   for (final t in blocks) {
-    info
+    tail
       ..add(t.codeUnits)
       ..add([0, 0, 0, 0, 0, 0, 0, 0]);
   }
-  info
+  tail
     ..addByte(name.length)
     ..add(name.codeUnits);
 
+  // The RSRC container stores the 32-byte header twice (offset 0 and 0x20).
   return (BytesBuilder()
         ..add(headerBytes)
-        ..add(info.toBytes()))
+        ..add(headerBytes)
+        ..add(tail.toBytes()))
       .toBytes();
 }
 
