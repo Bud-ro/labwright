@@ -8,6 +8,11 @@ import 'dart:io';
 /// licensing), so this pulls each source repo at its pinned commit, making the
 /// corpus reproducible. Requires `gh` (authenticated) and `tar`.
 ///
+/// Only the corpus files (the `_extensions` below) are kept from each repo
+/// tarball — extracting whole repos wasted gigabytes of unused sources. Everything
+/// else is discarded during extraction, so the on-disk corpus holds only what the
+/// tests + coverage tool read.
+///
 /// Usage:
 ///   dart run tool/fetch_seq_corpus.dart [destRoot]
 ///
@@ -17,6 +22,7 @@ import 'dart:io';
 const _extensions = ['.seq', '.ini', '.cfg', '.tsw', '.tpj'];
 
 Future<void> main(List<String> args) async {
+  final positional = args.where((a) => !a.startsWith('-')).toList();
   final sources = _findCatalog();
   if (sources == null) {
     stderr.writeln('error: could not locate corpus/seq-sources.json (run from within the repo)');
@@ -24,7 +30,8 @@ Future<void> main(List<String> args) async {
     return;
   }
   final repoRoot = sources.parent.parent.path;
-  final dest = args.isNotEmpty ? args.first : '$repoRoot/corpus/seq';
+  final dest = positional.isNotEmpty ? positional.first : '$repoRoot/corpus/seq';
+
   final list = (jsonDecode(sources.readAsStringSync())['sources'] as List).cast<Map<String, dynamic>>();
 
   Directory(dest).createSync(recursive: true);
@@ -49,36 +56,27 @@ Future<void> main(List<String> args) async {
       if (File(tar).existsSync()) File(tar).deleteSync();
       continue;
     }
-    final untar = await Process.run('tar', ['xzf', tar, '-C', out.path]);
+    final extracted = await _extractSelected(tar, out.path, _extensions);
     File(tar).deleteSync();
-    if (untar.exitCode != 0) {
-      stderr.writeln('  tar failed: ${untar.stderr}');
+    if (extracted < 0) {
       failed++;
       continue;
     }
     fetched++;
-    final n = _countCorpusFiles(out);
-    seqTotal += n;
-    stdout.writeln('  ok ($n corpus files; ${_countSeq(out)} .seq)');
+    seqTotal += extracted;
+    stdout.writeln('  ok ($extracted corpus files; ${_countSeq(out)} .seq)');
   }
 
   final grand = Directory(dest).existsSync() ? _countSeq(Directory(dest)) : 0;
-  stdout.writeln('done: fetched=$fetched skipped=$skipped failed=$failed '
-      '(this run +$seqTotal corpus files); corpus now holds $grand .seq at $dest');
+  stdout.writeln(
+    'done: fetched=$fetched skipped=$skipped failed=$failed '
+    '(this run +$seqTotal corpus files); corpus now holds $grand .seq at $dest',
+  );
   if (failed > 0) exitCode = 1;
 }
 
-int _countCorpusFiles(Directory d) => d
-    .listSync(recursive: true)
-    .whereType<File>()
-    .where((f) => _extensions.any((e) => f.path.toLowerCase().endsWith(e)))
-    .length;
-
-int _countSeq(Directory d) => d
-    .listSync(recursive: true)
-    .whereType<File>()
-    .where((f) => f.path.toLowerCase().endsWith('.seq'))
-    .length;
+int _countSeq(Directory d) =>
+    d.listSync(recursive: true).whereType<File>().where((f) => f.path.toLowerCase().endsWith('.seq')).length;
 
 /// Streams `gh api repos/<repo>/tarball/<commit>` to [tarPath]. Drains stderr
 /// concurrently so a large error stream can't deadlock.
@@ -100,6 +98,42 @@ Future<bool> _ghTarball(String repo, String commit, String tarPath) async {
     return false;
   }
   return true;
+}
+
+/// Extracts ONLY the archive members whose path ends in one of [keepExts] from
+/// the gzipped tarball [tarPath] into [destPath], discarding the rest of the repo.
+/// Returns the number of files extracted, or -1 on a tar error. The member list is
+/// piped to `tar --files-from=-` NUL-separated so paths with spaces are safe.
+Future<int> _extractSelected(String tarPath, String destPath, List<String> keepExts) async {
+  final listing = await Process.run('tar', ['tzf', tarPath]);
+  if (listing.exitCode != 0) {
+    stderr.writeln('  tar list failed: ${listing.stderr}');
+    return -1;
+  }
+  final members = (listing.stdout as String)
+      .split('\n')
+      .where((p) => p.isNotEmpty && keepExts.any((e) => p.toLowerCase().endsWith(e)))
+      .toList();
+  if (members.isEmpty) return 0;
+  final proc = await Process.start('tar', [
+    'xzf',
+    tarPath,
+    '-C',
+    destPath,
+    '--null',
+    '--files-from=-',
+    '--no-wildcards',
+  ]);
+  final errFuture = proc.stderr.transform(utf8.decoder).join();
+  proc.stdin.add(utf8.encode(members.map((m) => '$m${String.fromCharCode(0)}').join()));
+  await proc.stdin.close();
+  final code = await proc.exitCode;
+  final err = await errFuture;
+  if (code != 0) {
+    stderr.writeln('  tar extract failed ($code): ${err.trim()}');
+    return -1;
+  }
+  return members.length;
 }
 
 /// Walks up from this script to find `corpus/seq-sources.json`.
