@@ -9,6 +9,12 @@ ViSection versSection(List<int> bytes) =>
 
 List<int> pascal(String s) => [s.length, ...s.codeUnits];
 
+DecodedSection bdex(List<int> heap) => DecodedSection(
+      section: ViSection(tag: 'BDEx', index: 0, dataOffset: 0, bytes: Uint8List.fromList(heap)),
+      bytes: Uint8List.fromList(heap),
+      wasCompressed: false,
+    );
+
 void main() {
   test('decodes LabVIEW version and VIDS title from a vers section', () {
     final bytes = <int>[
@@ -39,11 +45,7 @@ void main() {
       ...pascal('Lonely'),
       0x00, 0x00,
     ];
-    final decoded = DecodedSection(
-      section: ViSection(tag: 'BDEx', index: 0, dataOffset: 0, bytes: Uint8List.fromList(heap)),
-      bytes: Uint8List.fromList(heap),
-      wasCompressed: false,
-    );
+    final decoded = bdex(heap);
     final strings = heapStringsFromDecoded([decoded]);
     expect(strings, containsAll(<String>['Conversion time', 'error out', 'Range Volts']));
     expect(strings.where((s) => s == 'error out').length, 1);
@@ -61,11 +63,7 @@ void main() {
       ...pascal('Channel'),
       ...pascal('Sample Rate'),
     ];
-    final decoded = DecodedSection(
-      section: ViSection(tag: 'BDEx', index: 0, dataOffset: 0, bytes: Uint8List.fromList(heap)),
-      bytes: Uint8List.fromList(heap),
-      wasCompressed: false,
-    );
+    final decoded = bdex(heap);
     final tables = heapStringTablesFromDecoded([decoded]);
     expect(tables.length, 2);
     expect(tables.first.sectionTag, 'BDEx');
@@ -83,11 +81,7 @@ void main() {
       0xc4, 0x2e, body.length, ...body,
       0x00,
     ];
-    final decoded = DecodedSection(
-      section: ViSection(tag: 'BDEx', index: 0, dataOffset: 0, bytes: Uint8List.fromList(heap)),
-      bytes: Uint8List.fromList(heap),
-      wasCompressed: false,
-    );
+    final decoded = bdex(heap);
     final tables = heapStringTablesFromDecoded([decoded]);
     expect(tables.length, 1);
     expect(tables.first.framed, isTrue);
@@ -98,11 +92,7 @@ void main() {
   test('a bare 0x2E without the C4 prefix is NOT framed (rejects stray dots)', () {
     final body = <int>[...pascal('Sine'), ...pascal('Square')];
     final heap = <int>[0x2e, body.length, ...body];
-    final decoded = DecodedSection(
-      section: ViSection(tag: 'BDEx', index: 0, dataOffset: 0, bytes: Uint8List.fromList(heap)),
-      bytes: Uint8List.fromList(heap),
-      wasCompressed: false,
-    );
+    final decoded = bdex(heap);
     final tables = heapStringTablesFromDecoded([decoded]);
     expect(tables.every((t) => !t.framed), isTrue,
         reason: '0x2E is ASCII "." and is recovered only via the unframed heuristic, never as a framed table opcode');
@@ -120,11 +110,7 @@ void main() {
     final heap = <int>[
       0xc4, 0x2e, 0xff, (entries.length >> 8) & 0xff, entries.length & 0xff, ...entries,
     ];
-    final decoded = DecodedSection(
-      section: ViSection(tag: 'BDEx', index: 0, dataOffset: 0, bytes: Uint8List.fromList(heap)),
-      bytes: Uint8List.fromList(heap),
-      wasCompressed: false,
-    );
+    final decoded = bdex(heap);
     final tables = heapStringTablesFromDecoded([decoded]);
     expect(tables.length, 1);
     expect(tables.first.framed, isTrue);

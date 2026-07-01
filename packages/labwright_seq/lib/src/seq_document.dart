@@ -17,13 +17,17 @@ sealed class SeqDocument {
   /// Parses [bytes] into the appropriate document kind. Total: never throws —
   /// an unparseable XML file degrades to [UnknownSeqDocument] with its header.
   factory SeqDocument.parse(Uint8List bytes) {
+    SeqDocument structured(StructuredSeqDocument Function(SeqFile) wrap) {
+      try {
+        return wrap(parseSeqFile(bytes));
+      } catch (e) {
+        return UnknownSeqDocument(detectSeqHeader(bytes), error: '$e');
+      }
+    }
+
     switch (detectSeqFormat(bytes)) {
       case SeqFormat.xml:
-        try {
-          return XmlSeqDocument(parseSeqFile(bytes));
-        } catch (e) {
-          return UnknownSeqDocument(detectSeqHeader(bytes), error: '$e');
-        }
+        return structured(XmlSeqDocument.new);
       case SeqFormat.binary:
         final a = analyzeBinary(bytes);
         return BinarySeqDocument(
@@ -43,11 +47,7 @@ sealed class SeqDocument {
           namedRecords: a?.namedRecords ?? const [],
         );
       case SeqFormat.ini:
-        try {
-          return IniSeqDocument(parseSeqFile(bytes));
-        } catch (e) {
-          return UnknownSeqDocument(detectSeqHeader(bytes), error: '$e');
-        }
+        return structured(IniSeqDocument.new);
       case SeqFormat.unknown:
         return UnknownSeqDocument(detectSeqHeader(bytes));
     }

@@ -14,10 +14,7 @@ import 'corpus_dirs.dart';
 int _countOverrides(SeqProperty p, [int depth = 0]) {
   if (depth > 50) return 0;
   var n = p.isInstanceOverride ? 1 : 0;
-  for (final c in p.subProps) {
-    n += _countOverrides(c, depth + 1);
-  }
-  for (final c in p.array ?? const <SeqProperty>[]) {
+  for (final c in p.subProps.followedBy(p.array ?? const <SeqProperty>[])) {
     n += _countOverrides(c, depth + 1);
   }
   return n;

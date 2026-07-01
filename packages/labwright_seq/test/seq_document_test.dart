@@ -31,10 +31,10 @@ Uint8List _binary() {
   final b = BytesBuilder()
     ..add(header)
     ..add(zlib.encode(pool));
-  return Uint8List.fromList(b.toBytes());
+  return b.toBytes();
 }
 
-Uint8List _ini() => Uint8List.fromList(ascii.encode([
+Uint8List _ini() => ascii.encode([
       '[__Header__]',
       'ProductName = "TestStand"',
       'Version = 354',
@@ -56,7 +56,7 @@ Uint8List _ini() => Uint8List.fromList(ascii.encode([
       '[DEF, SF.Seq[0].Main[0]]',
       '%NAME = "myStep"',
       '',
-    ].join('\n')));
+    ].join('\n'));
 
 void main() {
   test('parse → XmlSeqDocument for XML', () {

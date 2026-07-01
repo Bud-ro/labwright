@@ -35,9 +35,8 @@ List<File>? _allVisCache;
 /// corpus tests run over ALL of these — there is no sampling tier; the heavy
 /// per-VI work is parallelized across isolates instead (see [corpusParallel]).
 List<File> corpusVis() {
-  if (_allVisCache != null) return _allVisCache!;
   final d = corpusViDir;
-  final list = d.existsSync()
+  return _allVisCache ??= d.existsSync()
       ? (d
             .listSync(recursive: true)
             .whereType<File>()
@@ -45,7 +44,6 @@ List<File> corpusVis() {
             .toList()
           ..sort((a, b) => a.path.compareTo(b.path)))
       : <File>[];
-  return _allVisCache = list;
 }
 
 /// The coverage baseline written by `tool/coverage.dart`, resolved next to the
@@ -66,10 +64,7 @@ bool isNonRsrcFixture(String path) =>
 
 /// Worker count for [corpusParallel]: one isolate per core, less a couple so the
 /// machine stays responsive, capped at 16.
-int get _workers {
-  final n = Platform.numberOfProcessors - 2;
-  return n < 1 ? 1 : (n > 16 ? 16 : n);
-}
+int get _workers => (Platform.numberOfProcessors - 2).clamp(1, 16);
 
 /// Runs [perFile] over every file in [files] across a pool of isolates and returns
 /// the results (order not preserved — each result should carry its own identity).

@@ -14,7 +14,6 @@ import 'dart:typed_data';
 /// (malformed bytes become U+FFFD) so a stray byte never throws.
 String? decodeStringBlock(Uint8List b) {
   if (b.length < 4) return null;
-  final len = ByteData.sublistView(b).getUint32(0);
-  final end = (4 + len) <= b.length ? 4 + len : b.length;
-  return utf8.decode(b.sublist(4, end), allowMalformed: true);
+  final end = 4 + ByteData.sublistView(b).getUint32(0);
+  return utf8.decode(b.sublist(4, end.clamp(4, b.length)), allowMalformed: true);
 }

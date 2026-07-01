@@ -16,6 +16,10 @@ import 'dart:typed_data';
 /// ASCII `"PTH0"` — the four magic bytes that head a LabVIEW path record.
 const List<int> _pth0Magic = [0x50, 0x54, 0x48, 0x30];
 
+/// The fixed `PTH0` header length: 4 magic bytes + `i16 pathType@8` +
+/// `i16 componentCount@10`, before the first path component.
+const _pth0HeaderLen = 12;
+
 /// A decoded `PTH0` path (from an `HLPP` block).
 class ViHelpPath {
   const ViHelpPath({
@@ -42,9 +46,8 @@ class ViHelpPath {
 /// Decodes an `HLPP` (`PTH0`) body. Null when too short for the header; returns
 /// `isPth0: false` (empty path) when the magic is absent rather than guessing.
 ViHelpPath? decodeHelpPath(Uint8List b) {
-  if (b.length < 12) return null;
-  final isPth0 =
-      b[0] == _pth0Magic[0] && b[1] == _pth0Magic[1] && b[2] == _pth0Magic[2] && b[3] == _pth0Magic[3];
+  if (b.length < _pth0HeaderLen) return null;
+  final isPth0 = _pth0Magic.indexed.every((e) => b[e.$1] == e.$2);
   if (!isPth0) {
     return ViHelpPath(rawLength: b.length, isPth0: false, pathType: 0, components: const []);
   }
@@ -52,13 +55,13 @@ ViHelpPath? decodeHelpPath(Uint8List b) {
   final pathType = bd.getUint16(8);
   final count = bd.getUint16(10);
   final components = <String>[];
-  var p = 12;
+  var p = _pth0HeaderLen;
   for (var i = 0; i < count; i++) {
     if (p >= b.length) break;
     final len = b[p];
     p++;
     if (p + len > b.length) break;
-    components.add(String.fromCharCodes(b.sublist(p, p + len)));
+    components.add(String.fromCharCodes(b, p, p + len));
     p += len;
   }
   return ViHelpPath(rawLength: b.length, isPth0: true, pathType: pathType, components: components);

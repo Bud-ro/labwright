@@ -149,6 +149,9 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
   void mark(SeqProperty? p) {
     if (p != null) modeled.add(p);
   }
+  void markKeys(SeqProperty? owner, List<String> keys) {
+    for (final k in keys) { mark(owner?.prop(k)); }
+  }
 
   /// Marks [p] and its direct children (named sub-properties and array elements)
   /// — for a container the lens surfaces as accessible structured data whose
@@ -157,10 +160,7 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
   void markContainer(SeqProperty? p) {
     if (p == null) return;
     mark(p);
-    for (final c in p.subProps) {
-      mark(c);
-    }
-    for (final c in p.array ?? const <SeqProperty>[]) {
+    for (final c in [...p.subProps, ...?p.array]) {
       mark(c);
     }
   }
@@ -181,9 +181,7 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
   mark(f.data.prop('Seq'));
   for (final seq in f.sequences) {
     mark(seq.raw);
-    for (final g in ['Setup', 'Main', 'Cleanup']) {
-      mark(seq.raw.prop(g));
-    }
+    markKeys(seq.raw, ['Setup', 'Main', 'Cleanup']);
     mark(seq.raw.prop('Locals'));
     mark(seq.raw.prop('Parameters'));
     // Locals/parameters are user variables — the SeqVariable lens applies to a
@@ -192,11 +190,9 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
     for (final v in [...seq.locals, ...seq.parameters]) {
       markSubtree(v.raw);
     }
-    for (final k in [
+    markKeys(seq.raw, [
       'RecordResults', 'GotoCleanupOnFail', 'FailureAction', 'StoreResults',
-    ]) {
-      mark(seq.raw.prop(k));
-    }
+    ]);
     markContainer(seq.raw.prop('Requirements'));
     markContainer(seq.raw.prop('Requirements')?.prop('Links'));
     markContainer(seq.raw.prop('RTS'));
@@ -204,13 +200,9 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
       mark(step.raw);
       final ts = step.raw.prop('TS');
       mark(ts);
-      for (final k in _settingKeys) {
-        mark(ts?.prop(k));
-      }
-      for (final k in _stepTypeKeys) {
-        mark(step.raw.prop(k));
-      }
-      for (final k in [
+      markKeys(ts, _settingKeys);
+      markKeys(step.raw, _stepTypeKeys);
+      markKeys(step.raw, [
         'Description', 'Active', 'InBuf', 'PinMapPath',
         'Category', 'SuppressNextResult', 'EvaluatedConditionExpr',
         'UseCompExpr', 'CompExpr', 'CompareCase', 'Operation',
@@ -267,9 +259,7 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
         // misc per-step instance flags / expressions
         'PulseNotifyOpt', 'AutoClear', 'IsAutoClearExpr', 'IsSetExpr',
         'ByRef', 'DataExpr', 'WhichNotificationExpr',
-      ]) {
-        mark(step.raw.prop(k));
-      }
+      ]);
       // Std stream redirect descriptors + working-dir spec (Source/Dest/Expr/
       // IsExpr/Type/Text) and the limit-string record — raw step structure.
       for (final k in ['StdInput', 'StdOutput', 'WorkingDir']) {
@@ -295,9 +285,7 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
         mark(list);
         for (final e in [...list.subProps, ...?list.array]) {
           mark(e);
-          for (final k in _resultHintKeys) {
-            mark(e.prop(k));
-          }
+          markKeys(e, _resultHintKeys);
           // The hint's logged-value `Type` is a full NI type descriptor
           // (ArrayDimensions/ValueType/ClassName internals) — raw subtree.
           markSubtree(e.prop('Type'));
@@ -314,31 +302,23 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
       mark(sdata);
       // SData module-call config (SequenceCall / threading / remote) the lens
       // surfaces (StepModule.*), plus the prototype + actual-arguments containers.
-      for (final k in _sdataSettingKeys) {
-        mark(sdata?.prop(k));
-      }
+      markKeys(sdata, _sdataSettingKeys);
       markSubtree(sdata?.prop('Prototype'));
       markSubtree(sdata?.prop('ActualArgs'));
       mark(step.raw.prop('Measurement')?.prop('Name'));
       for (final rec in ['ViCall', 'Call', 'PythonCall']) {
         mark(sdata?.prop(rec));
       }
-      for (final k in _pythonSessionKeys) {
-        mark(sdata?.prop('PythonCall')?.prop(k));
-      }
+      markKeys(sdata?.prop('PythonCall'), _pythonSessionKeys);
       final viCall = sdata?.prop('ViCall');
       mark(viCall?.prop('VIPath'));
-      for (final k in [
+      markKeys(viCall, [
         'Namespace', 'ProjectPath', 'CallName', 'VIDescription', 'ShowFrnPnl',
         ..._viCallSettingKeys,
-      ]) {
-        mark(viCall?.prop(k));
-      }
+      ]);
       void markParam(SeqProperty p) {
         mark(p);
-        for (final k in _callParamKeys) {
-          mark(p.prop(k));
-        }
+        markKeys(p, _callParamKeys);
         // The parameter's "additional results" spec (Input/Output sides, or a
         // single AdditionalResult with Condition/Flags/CheckedState) is surfaced
         // as raw structure via the lens.
@@ -387,14 +367,12 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
       // The ActiveX/COM automation adapter's call binding (`Call.*`): the target
       // object/server/interface/member identity + COM VTable/type-lib internals.
       final call = sdata?.prop('Call');
-      for (final k in [
+      markKeys(call, [
         'CoClass', 'CoClassName', 'ObjectVariable',
         'Server', 'ServerName', 'Interface', 'InterfaceName', 'InterfaceType',
         'Member', 'MemberName', 'MemberType', 'HasMemberInfo', 'HasReturnValue',
         'TypeLibVersion', 'VTableIndex',
-      ]) {
-        mark(call?.prop(k));
-      }
+      ]);
       // The C/ActiveX adapter's connector list (`Call.Parms`), like ViCall.Parms.
       final callParms = sdata?.prop('Call')?.prop('Parms');
       mark(callParms);
@@ -403,40 +381,32 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
       }
       mark(sdata?.prop('SeqName'));
       mark(sdata?.prop('SFPath'));
-      for (final k in ['ModuleSrcPath', 'ModulePrjPath', 'ModuleCreateSrcType']) {
-        mark(sdata?.prop(k));
-      }
+      markKeys(sdata, ['ModuleSrcPath', 'ModulePrjPath', 'ModuleCreateSrcType']);
       final pyCall = sdata?.prop('PythonCall');
-      for (final k in [
+      markKeys(pyCall, [
         'FunctionOrAttributeName', 'ModulePath', 'ClassName',
         'PythonVersion', 'PythonVirtualEnvironmentPath',
-      ]) {
-        mark(pyCall?.prop(k));
-      }
+      ]);
       mark(sdata?.prop('Call')?.prop('Parameters'));
       mark(sdata?.prop('PythonCall')?.prop('Parameters'));
       for (final p in step.module.callParameters) {
         markParam(p.raw);
       }
       if (step.flowControl != null) {
-        for (final k in [
+        markKeys(step.raw, [
           'ConditionExpr', 'InitializationExpr', 'IncrementExpr',
           'ArrayExpr', 'ArrayElementExpr', 'OffsetExpr',
-        ]) {
-          mark(step.raw.prop(k));
-        }
+        ]);
       }
       mark(step.raw.prop('Comp'));
       mark(step.raw.prop('DataSource'));
       final lim = step.raw.prop('Limits');
       mark(lim);
-      for (final k in [
+      markKeys(lim, [
         'Low', 'High', 'Nominal', 'ThresholdType',
         'LowExpr', 'HighExpr', 'NominalExpr', 'UseLowExpr', 'UseHighExpr',
         'ThresholdTypeExpr', 'UseThresholdTypeExpr', 'UseNominalExpr',
-      ]) {
-        mark(lim?.prop(k));
-      }
+      ]);
       // The step's recorded-result slot — its full outcome record (status, report
       // text, error, numeric/measurement sub-records, pass/fail) is surfaced via
       // the StepResult lens.
@@ -467,12 +437,10 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
       mark(mparams);
       for (final p in step.measurementParameters) {
         mark(p.raw);
-        for (final k in [
+        markKeys(p.raw, [
           'Name', 'Type', 'Direction', 'Dimension', 'ArgumentValue',
           'TypeSpecialization', 'Log', 'ID', 'MessageType',
-        ]) {
-          mark(p.raw.prop(k));
-        }
+        ]);
         final ed = p.raw.prop('EnumDefinition');
         mark(ed);
         for (final e in ed?.array ?? const <SeqProperty>[]) {
@@ -482,12 +450,10 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
     }
   }
 
-  for (final k in [
+  markKeys(f.data, [
     'ModelFile', 'ModelOption', 'LoadOpt', 'UnloadOpt', 'Version',
     'BatchSync', 'SFGlobalsScope', 'Type',
-  ]) {
-    mark(f.data.prop(k));
-  }
+  ]);
   markContainer(f.data.prop('Requirements'));
   markContainer(f.data.prop('Requirements')?.prop('Links'));
   // The file globals (FileGlobalDefaults) the lens lists — each global carries a
@@ -572,13 +538,8 @@ SeqCoverage measureCoverage(SeqFile f) {
   final all = <SeqProperty>{};
   void count(SeqProperty p) {
     if (!all.add(p)) return;
-    for (final c in p.subProps) {
+    for (final c in [...p.subProps, ...?p.array]) {
       count(c);
-    }
-    if (p.array != null) {
-      for (final c in p.array!) {
-        count(c);
-      }
     }
   }
 

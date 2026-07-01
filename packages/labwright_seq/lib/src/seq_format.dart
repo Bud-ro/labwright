@@ -39,6 +39,12 @@ enum SeqFormat {
 const _tof1 = [0x54, 0x4f, 0x46, 0x31];
 const _utf8Bom = [0xef, 0xbb, 0xbf];
 
+/// Bytes peeked to sniff the encoding from the header.
+const _formatSniffLen = 4096;
+
+/// Bytes read to extract header attributes.
+const _headerScanLen = 8192;
+
 /// ASCII byte codes used in format sniffing and string scanning — one documented
 /// catalog instead of scattered hex literals.
 enum Ascii {
@@ -112,16 +118,18 @@ SeqFormat detectSeqFormat(Uint8List bytes) {
   while (i < bytes.length && _isAsciiWs(bytes[i])) {
     i++;
   }
-  if (i < bytes.length && bytes[i] == Ascii.lessThan.code) {
-    final head = _asciiPeek(bytes, i, 4096).toLowerCase();
-    if (head.startsWith('<?xml') || head.contains('<teststandfileheader')) {
-      return SeqFormat.xml;
-    }
-  }
-  if (i < bytes.length && bytes[i] == Ascii.leftBracket.code) {
-    final head = _asciiPeek(bytes, i, 4096);
-    if (head.toLowerCase().contains('teststand')) {
-      return SeqFormat.ini;
+  if (i < bytes.length) {
+    final b = bytes[i];
+    if (b == Ascii.lessThan.code) {
+      final head = _asciiPeek(bytes, i, _formatSniffLen).toLowerCase();
+      if (head.startsWith('<?xml') || head.contains('<teststandfileheader')) {
+        return SeqFormat.xml;
+      }
+    } else if (b == Ascii.leftBracket.code) {
+      final head = _asciiPeek(bytes, i, _formatSniffLen);
+      if (head.toLowerCase().contains('teststand')) {
+        return SeqFormat.ini;
+      }
     }
   }
   return SeqFormat.unknown;
@@ -166,15 +174,16 @@ SeqFileHeader detectSeqHeader(Uint8List bytes) {
   final fmt = detectSeqFormat(bytes);
   switch (fmt) {
     case SeqFormat.xml:
-      final head = _asciiPeek(bytes, 0, 8192);
+      final head = _asciiPeek(bytes, 0, _headerScanLen);
+      String? attr(String k) => _attr[k]!.firstMatch(head)?.group(1);
       return SeqFileHeader(
         format: fmt,
-        fileType: _attr['type']!.firstMatch(head)?.group(1),
-        productName: _attr['productname']!.firstMatch(head)?.group(1),
-        fileVersion: _attr['fileversion']!.firstMatch(head)?.group(1),
+        fileType: attr('type'),
+        productName: attr('productname'),
+        fileVersion: attr('fileversion'),
       );
     case SeqFormat.ini:
-      return parseIniHeader(_asciiPeek(bytes, 0, 8192));
+      return parseIniHeader(_asciiPeek(bytes, 0, _headerScanLen));
     case SeqFormat.binary:
       return SeqFileHeader(
         format: fmt,
@@ -256,11 +265,10 @@ List<BinaryString> binaryStrings(Uint8List bytes, {int minLength = 4}) {
 
 /// Reads a NUL-terminated printable-ASCII string at [start]; null if none.
 String? _cString(Uint8List b, int start) {
-  if (start >= b.length) return null;
   final sb = StringBuffer();
   for (var i = start; i < b.length && b[i] != 0; i++) {
     if (b[i] < Ascii.space.code || b[i] > Ascii.tilde.code) {
-      return sb.isEmpty ? null : sb.toString();
+      break;
     }
     sb.writeCharCode(b[i]);
   }

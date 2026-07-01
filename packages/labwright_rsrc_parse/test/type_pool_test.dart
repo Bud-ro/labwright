@@ -6,13 +6,14 @@ import 'package:test/test.dart';
 /// Builds a synthetic VCTP type pool for the decoder's deterministic
 /// (no-corpus) unit tests: a `[u32 count]` header followed by one 4-byte
 /// descriptor per code (`[u16 len=4][flags 0x40][typeCode]`).
-Uint8List _pool(List<int> codes) {
-  final b = <int>[0, 0, 0, codes.length];
-  for (final c in codes) {
-    b.addAll([0x00, 0x04, 0x40, c]);
-  }
-  return Uint8List.fromList(b);
-}
+Uint8List _pool(List<int> codes) => Uint8List.fromList([
+      0, 0, 0, codes.length,
+      for (final c in codes) ...[0x00, 0x04, 0x40, c],
+    ]);
+
+/// A VCTP descriptor: a `u16` length (`2 + body.length`) followed by [body].
+List<int> descriptor(List<int> body) =>
+    [((2 + body.length) >> 8) & 0xff, (2 + body.length) & 0xff, ...body];
 
 void main() {
   test('decodes well-known type codes to their kinds', () {
@@ -53,8 +54,7 @@ void main() {
   test('recovers a trailing Pascal name from a descriptor', () {
     const name = 'nine';
     final descBody = <int>[0x40, 0x50, name.length, ...name.codeUnits];
-    final descLen = 2 + descBody.length;
-    final b = <int>[0, 0, 0, 1, (descLen >> 8) & 0xff, descLen & 0xff, ...descBody];
+    final b = <int>[0, 0, 0, 1, ...descriptor(descBody)];
     final types = decodeTypePool(Uint8List.fromList(b));
     expect(types.single.kind, ViDataType.cluster);
     expect(types.single.name, 'nine');
@@ -67,13 +67,11 @@ void main() {
 
   test('namedTypes returns only the named entries, in order', () {
     final named = <int>[0x40, 0x50, 2, 0x61, 0x61];
-    final namedLen = 2 + named.length;
     final unnamed = <int>[0x40, 0x21];
-    final unnamedLen = 2 + unnamed.length;
     final b = <int>[
       0, 0, 0, 2,
-      (namedLen >> 8) & 0xff, namedLen & 0xff, ...named,
-      (unnamedLen >> 8) & 0xff, unnamedLen & 0xff, ...unnamed,
+      ...descriptor(named),
+      ...descriptor(unnamed),
     ];
     final types = decodeTypePool(Uint8List.fromList(b));
     final names = namedTypes(types);
@@ -118,8 +116,7 @@ void main() {
       7, ...'Falling'.codeUnits,
     ];
     final desc = <int>[0x40, 0x16, ...items];
-    final descLen = 2 + desc.length;
-    final b = Uint8List.fromList([0, 0, 0, 1, (descLen >> 8) & 0xff, descLen & 0xff, ...desc]);
+    final b = Uint8List.fromList([0, 0, 0, 1, ...descriptor(desc)]);
     final types = decodeTypePool(b);
     expect(types.single.kind, ViDataType.enumU16);
     expect(types.single.enumItems, ['Rising', 'Falling']);
@@ -127,8 +124,7 @@ void main() {
 
   test('a non-printable enum item list yields no items (no throw)', () {
     final desc = <int>[0x40, 0x16, 0x00, 0x01, 3, 0x01, 0x02, 0x03];
-    final descLen = 2 + desc.length;
-    final b = Uint8List.fromList([0, 0, 0, 1, (descLen >> 8) & 0xff, descLen & 0xff, ...desc]);
+    final b = Uint8List.fromList([0, 0, 0, 1, ...descriptor(desc)]);
     expect(decodeTypePool(b).single.enumItems, isEmpty);
   });
 

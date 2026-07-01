@@ -46,22 +46,21 @@ void main(List<String> args) {
   }
 
   var nTotal = 0, nXml = 0, nIni = 0, nBinary = 0, nUnknown = 0;
-  for (final fs in bySource.values) {
-    for (final f in fs) {
-      nTotal++;
-      switch (detectSeqFormat(f.readAsBytesSync())) {
-        case SeqFormat.xml:
-          nXml++;
-        case SeqFormat.ini:
-          nIni++;
-        case SeqFormat.binary:
-          nBinary++;
-        case SeqFormat.unknown:
-          nUnknown++;
-      }
+  for (final f in bySource.values.expand((e) => e)) {
+    nTotal++;
+    switch (detectSeqFormat(f.readAsBytesSync())) {
+      case SeqFormat.xml:
+        nXml++;
+      case SeqFormat.ini:
+        nIni++;
+      case SeqFormat.binary:
+        nBinary++;
+      case SeqFormat.unknown:
+        nUnknown++;
     }
   }
   String pct(int a, int b) => b == 0 ? '0.0' : (100 * a / b).toStringAsFixed(1);
+  String modelPct(SeqCoverage c) => (c.ratio * 100).toStringAsFixed(1);
 
   final overall = _Stat();
   final md = StringBuffer()
@@ -78,24 +77,24 @@ void main(List<String> args) {
     stdout.writeln('${src.padRight(34).substring(0, 34)} ${s.files.toString().padLeft(4)} '
         '${s.seqs.toString().padLeft(5)} ${s.steps.toString().padLeft(5)} '
         '${s.cov.modeled.toString().padLeft(8)} ${s.cov.total.toString().padLeft(6)} '
-        '${(s.cov.ratio * 100).toStringAsFixed(1).padLeft(6)}');
+        '${modelPct(s.cov).padLeft(6)}');
     md.writeln('| $src | ${s.files} | ${s.seqs} | ${s.steps} | ${s.cov.modeled} | '
-        '${s.cov.total} | ${(s.cov.ratio * 100).toStringAsFixed(1)} |');
+        '${s.cov.total} | ${modelPct(s.cov)} |');
   }
   stdout.writeln('-' * 76);
   stdout.writeln('TOTAL ${overall.files} XML .seq · ${overall.seqs} sequences · ${overall.steps} steps · '
-      'model coverage ${(overall.cov.ratio * 100).toStringAsFixed(1)}% '
+      'model coverage ${modelPct(overall.cov)}% '
       '(${overall.cov.modeled}/${overall.cov.total} property nodes)');
 
   final iniFiles = [for (final fs in bySource.values) ...fs];
   final ini = _measure(iniFiles, SeqFormat.ini);
   stdout.writeln('INI   ${ini.files} INI .seq · ${ini.seqs} sequences · ${ini.steps} steps · '
-      'model coverage ${(ini.cov.ratio * 100).toStringAsFixed(1)}% '
+      'model coverage ${modelPct(ini.cov)}% '
       '(${ini.cov.modeled}/${ini.cov.total} property nodes)');
 
   String axis(SeqCoverage c) =>
       'accounted ${(c.accountedRatio * 100).toStringAsFixed(1)}% · '
-      'modeled ${(c.ratio * 100).toStringAsFixed(1)}% · '
+      'modeled ${modelPct(c)}% · '
       'plumbing ${c.plumbing} · unaccounted ${c.unaccounted}';
   stdout.writeln('-' * 76);
   stdout.writeln('AXES — accounted% is the completeness goal (->100%); modeled% is '
@@ -120,12 +119,12 @@ void main(List<String> args) {
     ..writeln()
     ..writeln('**TOTAL (XML)** ${overall.files} XML .seq · ${overall.seqs} sequences · '
         '${overall.steps} steps · model coverage '
-        '${(overall.cov.ratio * 100).toStringAsFixed(1)}% '
+        '${modelPct(overall.cov)}% '
         '(${overall.cov.modeled}/${overall.cov.total} property nodes).')
     ..writeln()
     ..writeln('**TOTAL (INI, legacy)** ${ini.files} INI .seq · ${ini.seqs} sequences · '
         '${ini.steps} steps · model coverage '
-        '${(ini.cov.ratio * 100).toStringAsFixed(1)}% '
+        '${modelPct(ini.cov)}% '
         '(${ini.cov.modeled}/${ini.cov.total} property nodes). Lower than XML '
         'because each step inlines its step-type definition (kept in `<typelist>` '
         'for XML); no per-step instance data is missing.');

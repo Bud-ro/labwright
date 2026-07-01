@@ -96,10 +96,8 @@ class ViModel {
   /// The bounding rectangles of the VI's objects, decoded from the `C4 2D`
   /// records (position/size of controls, nodes, decorations). Partial but real
   /// spatial structure — the seed of a read-only layout/graph view.
-  List<HeapRect> get objectBounds => [
-        for (final r in heapRecords)
-          if (r.bounds != null) r.bounds!,
-      ];
+  List<HeapRect> get objectBounds =>
+      heapRecords.map((r) => r.bounds).whereType<HeapRect>().toList();
 
   /// The **labeled, positioned objects** of the VI: each pairs a `C4 2D` bounds
   /// record with the `C4 2E` label table that immediately follows it in the heap
@@ -109,71 +107,41 @@ class ViModel {
   /// this is not yet the full block-diagram graph.
   List<ViObject> get objects => assembleObjects(heapRecords, stringTables);
 
-  /// Single-string **captions** (control names/labels) decoded from `C4 22`
-  /// records — distinct from [labels] (which come from `C4 2E` string *tables*).
-  /// Deduped, order-preserving.
-  List<String> get captions {
+  List<String> _dedupe(Iterable<String?> values) {
     final seen = <String>{};
     final out = <String>[];
-    for (final r in heapRecords) {
-      if (r.kind != HeapOpcode.caption) continue;
-      final s = r.text;
+    for (final s in values) {
       if (s != null && seen.add(s)) out.add(s);
     }
     return out;
   }
+
+  /// Single-string **captions** (control names/labels) decoded from `C4 22`
+  /// records — distinct from [labels] (which come from `C4 2E` string *tables*).
+  /// Deduped, order-preserving.
+  List<String> get captions =>
+      _dedupe([for (final r in heapRecords) if (r.kind == HeapOpcode.caption) r.text]);
 
   /// External **symbol / C-function names** the VI references (from `C4 C4`
   /// records in the type heap), e.g. `ps2000aRunStreaming` — the Call-Library
   /// functions this VI invokes. Deduped, order-preserving.
-  List<String> get symbolNames {
-    final seen = <String>{};
-    final out = <String>[];
-    for (final r in heapRecords) {
-      if (r.kind != HeapOpcode.symbolName) continue;
-      final s = r.text;
-      if (s != null && seen.add(s)) out.add(s);
-    }
-    return out;
-  }
+  List<String> get symbolNames =>
+      _dedupe([for (final r in heapRecords) if (r.kind == HeapOpcode.symbolName) r.text]);
 
   /// External **library/DLL paths** the VI references (from `C4 A4` `PTH0`
   /// records), e.g. `ps5000.dll`. Deduped, order-preserving.
-  List<String> get paths {
-    final seen = <String>{};
-    final out = <String>[];
-    for (final r in heapRecords) {
-      final p = r.path;
-      if (p != null && seen.add(p)) out.add(p);
-    }
-    return out;
-  }
+  List<String> get paths => _dedupe([for (final r in heapRecords) r.path]);
 
   /// The VI's **description / help text** blocks, extracted from `C4 19` records
   /// (control tooltips, often HTML-ish). Heuristic text recovery; deduped,
   /// order-preserving.
-  List<String> get descriptions {
-    final seen = <String>{};
-    final out = <String>[];
-    for (final r in heapRecords) {
-      final s = r.descriptionText;
-      if (s != null && seen.add(s)) out.add(s);
-    }
-    return out;
-  }
+  List<String> get descriptions =>
+      _dedupe([for (final r in heapRecords) r.descriptionText]);
 
   /// All distinct, deduped label strings across [stringTables], order-preserving.
   /// Convenience for "what does this VI contain".
-  List<String> get labels {
-    final seen = <String>{};
-    final out = <String>[];
-    for (final t in stringTables) {
-      for (final s in t.strings) {
-        if (seen.add(s)) out.add(s);
-      }
-    }
-    return out;
-  }
+  List<String> get labels =>
+      _dedupe([for (final t in stringTables) for (final s in t.strings) s]);
 }
 
 /// A **named, positioned VI object** assembled from adjacent heap records: a
@@ -212,10 +180,10 @@ class ViObject {
 /// Total.
 List<ViObject> assembleObjects(List<HeapRecord> records, List<HeapStringTable> stringTables,
     {int maxRecordGap = 3}) {
-  final framed = <String, HeapStringTable>{};
-  for (final t in stringTables) {
-    if (t.framed) framed['${t.sectionTag}@${t.offset}'] = t;
-  }
+  final framed = {
+    for (final t in stringTables)
+      if (t.framed) '${t.sectionTag}@${t.offset}': t,
+  };
 
   final out = <ViObject>[];
   HeapRecord? lastBounds;
@@ -269,24 +237,23 @@ ViModel buildViModel(Uint8List viBytes) =>
 /// decoded path pass it explicitly or accept an empty list.
 ViModel buildViModelFromDecoded(Iterable<DecodedSection> decoded, {List<String> subViNames = const <String>[]}) {
   final list = decoded is List<DecodedSection> ? decoded : decoded.toList();
-  final ver = versionFromSections(list.map((d) => d.section));
+  final sections = list.map((d) => d.section).toList();
+  final ver = versionFromSections(sections);
+  List<ViDiagram> diagramsFor(Set<String> tags) => [
+        for (final d in list)
+          if (tags.contains(d.tag) && d.bytes.length >= 6) buildDiagram(d.bytes, sectionTag: d.tag),
+      ];
   return ViModel(
     subViNames: subViNames,
     types: typePoolFromDecoded(list),
-    connectorPaneTypeIndex: connectorPaneFromSections(list.map((d) => d.section))?.typeIndex,
+    connectorPaneTypeIndex: connectorPaneFromSections(sections)?.typeIndex,
     version: ver.version,
     title: ver.title,
-    description: cpc2Description(list.map((d) => d.section)),
+    description: cpc2Description(sections),
     components: componentsFromDecoded(list),
     stringTables: heapStringTablesFromDecoded(list),
     heapRecords: heapC4RecordsFromDecoded(list),
-    blockDiagrams: [
-      for (final d in list)
-        if (const {'BDHb', 'BDHP', 'BDEx'}.contains(d.tag) && d.bytes.length >= 6) buildDiagram(d.bytes, sectionTag: d.tag),
-    ],
-    frontPanelDiagrams: [
-      for (final d in list)
-        if (const {'FPHb', 'FPHP', 'FPEx'}.contains(d.tag) && d.bytes.length >= 6) buildDiagram(d.bytes, sectionTag: d.tag),
-    ],
+    blockDiagrams: diagramsFor(const {'BDHb', 'BDHP', 'BDEx'}),
+    frontPanelDiagrams: diagramsFor(const {'FPHb', 'FPHP', 'FPEx'}),
   );
 }

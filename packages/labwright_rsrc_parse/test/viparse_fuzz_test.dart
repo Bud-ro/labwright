@@ -4,12 +4,14 @@ import 'dart:typed_data';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
+const _rsrcMagic = [0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a]; // 'RSRC\r\n'
+
 /// A minimal valid RSRC (.vi) container (blocks CONP/BDHb/vers + a trailing name).
 Uint8List _validVi({List<String> blocks = const ['CONP', 'BDHb', 'vers'], String name = 'demo.vi'}) {
   void be16(BytesBuilder b, int v) => b.add((ByteData(2)..setUint16(0, v)).buffer.asUint8List());
   void be32(BytesBuilder b, int v) => b.add((ByteData(4)..setUint32(0, v)).buffer.asUint8List());
 
-  final header = BytesBuilder()..add([0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a]);
+  final header = BytesBuilder()..add(_rsrcMagic);
   be16(header, 3);
   header
     ..add('LVIN'.codeUnits)
@@ -81,7 +83,7 @@ void main() {
     for (var i = 0; i < 20000; i++) {
       final n = 6 + rng.nextInt(2048);
       final b = Uint8List(n);
-      b.setRange(0, 6, const [0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a]);
+      b.setRange(0, 6, _rsrcMagic);
       for (var j = 6; j < n; j++) {
         b[j] = rng.nextInt(256);
       }

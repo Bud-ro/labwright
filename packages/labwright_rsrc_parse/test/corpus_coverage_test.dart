@@ -80,7 +80,7 @@ _Cov _covSumm(Uint8List bytes, String path) {
         final a = decodeHeapAttr(s.bytes, span.offset);
         if (a == null) continue;
         if (a.attribute == HeapAttribute.propertyName) propertyNames++;
-        if (a.attribute == HeapAttribute.helpDescription && a.asString != null && a.asString!.isNotEmpty) {
+        if (a.attribute == HeapAttribute.helpDescription && (a.asString?.isNotEmpty ?? false)) {
           helpStrings++;
         }
         if ((a.attribute == HeapAttribute.foregroundColor || a.attribute == HeapAttribute.foregroundColorB) &&

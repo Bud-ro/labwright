@@ -39,6 +39,9 @@ Main = Objs
 ''';
 
 void main() {
+  SeqFile parseIni(String ini) =>
+      parseSeqFile(Uint8List.fromList(latin1.encode(ini)));
+
   group('parseIniSeq', () {
     final f = parseIniSeq(_ini);
 
@@ -110,7 +113,7 @@ void main() {
   });
 
   group('parseSeqFile on INI (typed lens)', () {
-    final sf = parseSeqFile(Uint8List.fromList(latin1.encode(_ini)));
+    final sf = parseIni(_ini);
 
     test('builds a SeqFile whose lens recovers the sequence + step', () {
       expect(sf.header.fileType, 'SequenceFile');
@@ -170,7 +173,7 @@ VIPath = "measure.vi"
 ''';
 
   group('INI type inheritance (instance inherits from its [DEF, <Type>])', () {
-    final sf = parseSeqFile(Uint8List.fromList(latin1.encode(inheritIni)));
+    final sf = parseIni(inheritIni);
     final step = sf.sequences.single.main.single;
 
     test('the instance keeps its identity', () {
@@ -222,7 +225,7 @@ Mode = "Normal"
 ''';
 
   test('an empty inherited SData classifies as SeqAdapter.none (not unknown)', () {
-    final sf = parseSeqFile(Uint8List.fromList(latin1.encode(emptySDataIni)));
+    final sf = parseIni(emptySDataIni);
     final step = sf.sequences.single.main.single;
     expect(step.type, 'NI_Flow_End');
     expect(step.settings.mode, 'Normal');
@@ -260,7 +263,7 @@ ViPath = "legacy.vi"
 ''';
 
   test('resolves the older %OBJECTS root alias (not just %OBJROOT)', () {
-    final sf = parseSeqFile(Uint8List.fromList(latin1.encode(objectsAliasIni)));
+    final sf = parseIni(objectsAliasIni);
     expect(sf.header.fileType, 'SequenceFile');
     final seq = sf.sequences.single;
     expect(seq.name, 'MainSequence');
@@ -270,7 +273,7 @@ ViPath = "legacy.vi"
 
   test('recognizes the older direct-ViPath LabVIEW adapter (no ViCall wrapper)',
       () {
-    final sf = parseSeqFile(Uint8List.fromList(latin1.encode(objectsAliasIni)));
+    final sf = parseIni(objectsAliasIni);
     final module = sf.sequences.single.main.single.module;
     expect(module.adapter, SeqAdapter.labView);
     expect(module.viPath, 'legacy.vi');
@@ -307,7 +310,7 @@ Mode = "Skip"
 ''';
 
   test('marks instance-overridden members via %INSTOVRD', () {
-    final sf = parseSeqFile(Uint8List.fromList(latin1.encode(overrideIni)));
+    final sf = parseIni(overrideIni);
     final step = sf.sequences.single.main.single;
     final ts = step.raw.prop('TS');
     expect(ts, isNotNull);
@@ -358,7 +361,7 @@ Mode = "Skip"
 ''';
 
   test('recovers type-level PropertyFlags via %FLG (raw bitmask)', () {
-    final sf = parseSeqFile(Uint8List.fromList(latin1.encode(flagsIni)));
+    final sf = parseIni(flagsIni);
     final step = sf.sequences.single.main.single;
     final ts = step.raw.prop('TS')!;
     expect(ts.propertyFlags, 0x400000);
@@ -368,7 +371,7 @@ Mode = "Skip"
   });
 
   test('propertyFlags is null when no %FLG was recorded; parses defensively', () {
-    final sf = parseSeqFile(Uint8List.fromList(latin1.encode(overrideIni)));
+    final sf = parseIni(overrideIni);
     final ts = sf.sequences.single.main.single.raw.prop('TS')!;
     expect(ts.propertyFlags, isNull);
     expect(SeqProperty(name: 'x').propertyFlags, isNull);
@@ -418,7 +421,7 @@ LoopStatus = "RunState.LoopNumPassed >= 1"
 ''';
 
   test('recovers the loop expressions of a looping step', () {
-    final sf = parseSeqFile(Uint8List.fromList(latin1.encode(loopIni)));
+    final sf = parseIni(loopIni);
     final set = sf.sequences.single.main.single.settings;
     expect(set.isLooping, isTrue);
     expect(set.loopType, 'FixedNumLoops');
@@ -465,7 +468,7 @@ Main = Objs
 ''';
 
   test('recovers a step free-text comment via Step.comment', () {
-    final sf = parseSeqFile(Uint8List.fromList(latin1.encode(commentIni)));
+    final sf = parseIni(commentIni);
     final steps = sf.sequences.single.main;
     expect(steps.map((s) => s.name), ['lockStep', 'plainStep']);
     expect(steps[0].comment, 'Lock sequence');
@@ -473,7 +476,7 @@ Main = Objs
   });
 
   test('recovers a sequence free-text comment via Sequence.comment', () {
-    final sf = parseSeqFile(Uint8List.fromList(latin1.encode(commentIni)));
+    final sf = parseIni(commentIni);
     expect(sf.sequences.single.comment, 'Runs once at startup');
   });
 
@@ -508,7 +511,7 @@ High = "11"
 ''';
 
   test('reports container field/element counts on variables', () {
-    final sf = parseSeqFile(Uint8List.fromList(latin1.encode(objLocalIni)));
+    final sf = parseIni(objLocalIni);
     final locals = sf.sequences.single.locals;
     expect(locals.map((v) => v.name), ['Count', 'Limits']);
     expect(locals[0].isContainer, isFalse);
@@ -520,7 +523,7 @@ High = "11"
   });
 
   test('recovers a variable free-text comment via SeqVariable.comment', () {
-    final sf = parseSeqFile(Uint8List.fromList(latin1.encode(objLocalIni)));
+    final sf = parseIni(objLocalIni);
     final locals = sf.sequences.single.locals;
     expect(locals[1].comment, 'DUT pass band');
     expect(locals[0].comment, isNull);
@@ -557,7 +560,7 @@ Items = Objs
 ''';
 
   test('counts elements of a populated array variable', () {
-    final sf = parseSeqFile(Uint8List.fromList(latin1.encode(arrayLocalIni)));
+    final sf = parseIni(arrayLocalIni);
     final items = sf.sequences.single.locals.single;
     expect(items.name, 'Items');
     expect(items.isArray, isTrue);
@@ -606,7 +609,7 @@ UnloadOpt = "UnloadAfterStepExecution"
 ''';
 
   test('recovers a step flow-action jump target (Goto -> <Cleanup>)', () {
-    final sf = parseSeqFile(Uint8List.fromList(latin1.encode(flowIni)));
+    final sf = parseIni(flowIni);
     final set = sf.sequences.single.main.single.settings;
     expect(set.passAction, 'Next');
     expect(set.failAction, 'Goto');
@@ -616,7 +619,7 @@ UnloadOpt = "UnloadAfterStepExecution"
   });
 
   test('recovers non-default module load/unload timing', () {
-    final sf = parseSeqFile(Uint8List.fromList(latin1.encode(flowIni)));
+    final sf = parseIni(flowIni);
     final set = sf.sequences.single.main.single.settings;
     expect(set.loadOption, 'DynamicLoad');
     expect(set.unloadOption, 'UnloadAfterStepExecution');
@@ -626,9 +629,9 @@ UnloadOpt = "UnloadAfterStepExecution"
   });
 
   test('recovers the step editor icon basename (folder + .ico stripped)', () {
-    final sf = parseSeqFile(Uint8List.fromList(latin1.encode(flowIni)));
+    final sf = parseIni(flowIni);
     expect(sf.sequences.single.main.single.settings.icon, 'NI_While');
-    final plain = parseSeqFile(Uint8List.fromList(latin1.encode(commentIni)));
+    final plain = parseIni(commentIni);
     expect(plain.sequences.single.main.first.settings.icon, isNull);
     expect(dumpSeqFile(sf), contains('{icon NI_While}'));
   });
@@ -671,7 +674,7 @@ Id = "ID#:STEP2"
 ''';
 
   test('resolves an ID#: step reference to the destination step name', () {
-    final sf = parseSeqFile(Uint8List.fromList(latin1.encode(idRefIni)));
+    final sf = parseIni(idRefIni);
     final cond = sf.sequences.single.main.first;
     expect(cond.settings.customFalseTarget, 'ID#:STEP2');
     expect(sf.stepNameForId('ID#:STEP2'), 'targetStep');
@@ -681,18 +684,18 @@ Id = "ID#:STEP2"
   });
 
   test('dumpSeqFile includes recovered comments and container sizes', () {
-    final cf = parseSeqFile(Uint8List.fromList(latin1.encode(commentIni)));
+    final cf = parseIni(commentIni);
     final out = dumpSeqFile(cf);
     expect(out, contains('// Runs once at startup'));
     expect(out, contains('lockStep'));
     expect(out, contains('// Lock sequence'));
 
-    final of = parseSeqFile(Uint8List.fromList(latin1.encode(objLocalIni)));
+    final of = parseIni(objLocalIni);
     final out2 = dumpSeqFile(of);
     expect(out2, contains('Limits : Obj {2 fields}'));
     expect(out2, contains('// DUT pass band'));
 
-    final ff = parseSeqFile(Uint8List.fromList(latin1.encode(flowIni)));
+    final ff = parseIni(flowIni);
     expect(dumpSeqFile(ff), contains('flow Next/Goto→<Cleanup>'));
   });
 
@@ -782,12 +785,7 @@ PassActTarget = String
 PassAct = "Goto"
 PassActTarget = "\\"<End>\\""
 ''';
-    final set = parseSeqFile(Uint8List.fromList(latin1.encode(ini)))
-        .sequences
-        .single
-        .main
-        .single
-        .settings;
+    final set = parseIni(ini).sequences.single.main.single.settings;
     expect(set.passActionTarget, '<End>');
     expect(set.failAction, isNull);
     expect(set.flowSummary, 'Goto→<End>/?');
@@ -827,12 +825,7 @@ FailAct = "Goto"
 PassActTarget = "\\"<End>\\""
 FailActTarget = "\\"<Cleanup>\\""
 ''';
-    final set = parseSeqFile(Uint8List.fromList(latin1.encode(ini)))
-        .sequences
-        .single
-        .main
-        .single
-        .settings;
+    final set = parseIni(ini).sequences.single.main.single.settings;
     expect(set.passActionTarget, '<End>');
     expect(set.failActionTarget, '<Cleanup>');
     expect(set.flowSummary, 'Goto→<End>/Goto→<Cleanup>');
@@ -881,8 +874,7 @@ ArgVal = "FileGlobals.UserToAutoLogin"
 DisplayType = "String"
 Direction = 1
 ''';
-    final step =
-        parseSeqFile(Uint8List.fromList(latin1.encode(ini))).sequences.single.main.single;
+    final step = parseIni(ini).sequences.single.main.single;
     final args = step.module.callParameters;
     expect(args.length, 2);
 
@@ -937,7 +929,7 @@ High = 11
 [SF.Seq[0].Main[0].Result]
 Units = "mA"
 ''';
-    final sf = parseSeqFile(Uint8List.fromList(latin1.encode(ini)));
+    final sf = parseIni(ini);
     final step = sf.sequences.single.main.single;
     expect(step.type, 'NumericLimitTest');
     expect(step.resultUnits, 'mA');
@@ -971,7 +963,7 @@ DataSource = String
 [SF.Seq[0].Main[0]]
 DataSource = "Step.Result.PassFail"
 ''';
-    final sf = parseSeqFile(Uint8List.fromList(latin1.encode(ini)));
+    final sf = parseIni(ini);
     final step = sf.sequences.single.main.single;
     expect(step.type, 'PassFailTest');
     expect(step.limits, isNull);
@@ -1022,10 +1014,7 @@ Units = ""
 Name = "flag"
 Direction = 0
 ''';
-    final main = parseSeqFile(Uint8List.fromList(latin1.encode(ini)))
-        .sequences
-        .single
-        .main;
+    final main = parseIni(ini).sequences.single.main;
 
     final bare = main[0];
     expect(bare.resultUnits, isNull);
@@ -1069,7 +1058,7 @@ Units = String
 [SF.Seq[0].Main[0].Result]
 Units = "V"
 ''';
-    final sf = parseSeqFile(Uint8List.fromList(latin1.encode(ini)));
+    final sf = parseIni(ini);
     final step = sf.sequences.single.main.single;
     expect(step.limits, isNull);
     expect(step.resultUnits, 'V');
@@ -1133,7 +1122,7 @@ Count = Num
 [SF.Seq[0].Locals]
 Count = "3"
 ''';
-    final sf = parseSeqFile(Uint8List.fromList(latin1.encode(ini)));
+    final sf = parseIni(ini);
     final seq = sf.sequences.single;
     expect(seq.parameters.map((v) => v.name), ['Voltage']);
     expect(seq.parameters.single.value, '5');
@@ -1175,7 +1164,7 @@ ${tsKeys.map((k) => '$k = "v"').join('\n')}
 ''';
 
   int modeledFor(List<String> tsKeys) => measureCoverage(
-        parseSeqFile(Uint8List.fromList(latin1.encode(covIni(tsKeys)))),
+        parseIni(covIni(tsKeys)),
       ).modeled;
 
   test('measureCoverage counts the loop/unload TS step-settings', () {
@@ -1189,9 +1178,9 @@ ${tsKeys.map((k) => '$k = "v"').join('\n')}
   });
 
   test('Step.id recovers the step unique id (TS.Id)', () {
-    final f = parseSeqFile(Uint8List.fromList(latin1.encode(covIni(['Id']))));
+    final f = parseIni(covIni(['Id']));
     expect(f.sequences.single.main.single.id, 'v');
-    final g = parseSeqFile(Uint8List.fromList(latin1.encode(covIni(['Mode']))));
+    final g = parseIni(covIni(['Mode']));
     expect(g.sequences.single.main.single.id, isNull);
   });
 
@@ -1225,12 +1214,7 @@ $key = "$value"
 
   test('StepSettings recovers boolean step flags (true/false and 1/0)', () {
     StepSettings settingsWith(String key, String value) =>
-        parseSeqFile(Uint8List.fromList(latin1.encode(boolIni(key, value))))
-            .sequences
-            .single
-            .main
-            .single
-            .settings;
+        parseIni(boolIni(key, value)).sequences.single.main.single.settings;
     expect(settingsWith('StepFCSeqF', 'true').failureCausesSequenceFailure, isTrue);
     expect(settingsWith('StepFCSeqF', 'false').failureCausesSequenceFailure, isFalse);
     expect(settingsWith('IgnoreRTE', 'true').ignoresRunTimeErrors, isTrue);
@@ -1269,12 +1253,7 @@ PreCond = "$escaped"
 ''';
 
     StepSettings parse(String escaped) =>
-        parseSeqFile(Uint8List.fromList(latin1.encode(preIni(escaped))))
-            .sequences
-            .single
-            .main
-            .single
-            .settings;
+        parseIni(preIni(escaped)).sequences.single.main.single.settings;
 
     test(r'decodes \" to a literal double quote', () {
       expect(parse(r'Locals.M != \"S001\"').precondition, 'Locals.M != "S001"');

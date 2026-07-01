@@ -14,10 +14,7 @@ void main(List<String> args) {
   final files = Directory(root)
       .listSync(recursive: true)
       .whereType<File>()
-      .where((f) {
-        final p = f.path.toLowerCase();
-        return p.endsWith('.vi') || p.endsWith('.ctl') || p.endsWith('.llb');
-      })
+      .where((f) => const ['.vi', '.ctl', '.llb'].any(f.path.toLowerCase().endsWith))
       .toList()
     ..sort((a, b) => a.path.compareTo(b.path));
 

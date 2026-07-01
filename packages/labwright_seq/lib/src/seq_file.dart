@@ -73,11 +73,8 @@ class SeqFile {
 
   /// The requirement-traceability links the file declares (`Data.Requirements.
   /// Links`). Empty when none.
-  List<String> get requirementLinks => [
-        for (final e in data.prop('Requirements')?.prop('Links')?.array ??
-            const <SeqProperty>[])
-          if (_nz(e.scalar) case final s?) s,
-      ];
+  List<String> get requirementLinks =>
+      _scalarValues(data.prop('Requirements')?.prop('Links'));
 
   /// The file's global variables (`Data.FileGlobalDefaults` children) — the
   /// FileGlobals a sequence references as `FileGlobals.…`. Empty when the file
@@ -123,9 +120,8 @@ class SeqFile {
   /// `ID#:` prefix) to the destination step's name, or null when no step in the
   /// file has that id. Used to make `ID#:`-form flow-action targets readable.
   String? stepNameForId(String idRef) {
-    final hit = _stepNamesById[idRef];
-    if (hit != null) return hit;
-    return idRef.startsWith('ID#:') ? null : _stepNamesById['ID#:$idRef'];
+    return _stepNamesById[idRef] ??
+        (idRef.startsWith('ID#:') ? null : _stepNamesById['ID#:$idRef']);
   }
 
   /// For a SequenceCall [step], the called sequence **within this file**, or null
@@ -215,11 +211,8 @@ class Sequence {
   /// The requirement-traceability links the sequence declares
   /// (`Requirements.Links`) — free-text requirement identifiers the sequence is
   /// tagged with. Empty when the sequence declares none.
-  List<String> get requirementLinks => [
-        for (final e in raw.prop('Requirements')?.prop('Links')?.array ??
-            const <SeqProperty>[])
-          if (_nz(e.scalar) case final s?) s,
-      ];
+  List<String> get requirementLinks =>
+      _scalarValues(raw.prop('Requirements')?.prop('Links'));
 
   /// The sequence's run-time / entry-point settings (`RTS`) — how it appears and
   /// behaves as a callable entry point — or null when it carries none.
@@ -318,7 +311,7 @@ class SeqVariable {
 
   /// The scalar default value, or null for container/array variables and empty
   /// values.
-  String? get value => (raw.scalar == null || raw.scalar!.isEmpty) ? null : raw.scalar;
+  String? get value => _nz(raw.scalar);
 
   /// True for an array/object container variable (no scalar value).
   bool get isContainer => raw.isArray || raw.subProps.isNotEmpty;
@@ -348,6 +341,10 @@ class Step {
   /// The underlying property object — full access to every step property.
   final SeqProperty raw;
 
+  String? _s(String key) => _nz(raw.prop(key)?.scalar);
+  int? _i(String key) => int.tryParse(raw.prop(key)?.scalar ?? '');
+  bool? _b(String key) => _flag(raw.prop(key)?.scalar);
+
   /// The step's display name (its `name=` attribute).
   String get name => raw.name;
 
@@ -367,40 +364,39 @@ class Step {
   /// [StepTypeInfo.descriptionFormat] (e.g. `This sequence will automatically
   /// login…`). null when the step records none. Distinct from the free-text
   /// [comment].
-  String? get description => _nz(raw.prop('Description')?.scalar);
+  String? get description => _s('Description');
 
   /// The step's active-state code (`Active`) governing whether it runs in the
   /// normal flow. Surfaced verbatim; the NI-internal code→name mapping is not
   /// invented (the run-mode override is exposed readably as [StepSettings.mode]).
   /// null when unset.
-  int? get activeStateCode => int.tryParse(raw.prop('Active')?.scalar ?? '');
+  int? get activeStateCode => _i('Active');
 
   /// The pin map path the step pins its operation to (`PinMapPath`), for a
   /// Semiconductor-Test-System step; null when unset.
-  String? get pinMapPath => _nz(raw.prop('PinMapPath')?.scalar);
+  String? get pinMapPath => _s('PinMapPath');
 
   /// The step type's serialized input-buffer template (`InBuf`) — an NI-internal
   /// blob the editor uses when creating the step; surfaced raw (its internal
   /// structure is not decoded). null when absent.
-  String? get inputBuffer => _nz(raw.prop('InBuf')?.scalar);
+  String? get inputBuffer => _s('InBuf');
 
   /// The step's editor category (`Category`, e.g. `Test`, `Action`) — how the
   /// editor groups the step; null when unset.
-  String? get category => _nz(raw.prop('Category')?.scalar);
+  String? get category => _s('Category');
 
   /// Whether the step suppresses the next step's result (`SuppressNextResult`).
   /// null when unset.
-  bool? get suppressesNextResult => _flag(raw.prop('SuppressNextResult')?.scalar);
+  bool? get suppressesNextResult => _b('SuppressNextResult');
 
   /// The precondition as last evaluated (`EvaluatedConditionExpr`) — the resolved
   /// form of the step's precondition; null when absent.
-  String? get evaluatedConditionExpression =>
-      _nz(raw.prop('EvaluatedConditionExpr')?.scalar);
+  String? get evaluatedConditionExpression => _s('EvaluatedConditionExpr');
 
   /// Whether the step's limit comparison is driven by an expression
   /// (`UseCompExpr`) rather than a fixed operator; null when unset. Pairs with
   /// [limits] and [StepLimits.lowExpression]/[StepLimits.highExpression].
-  bool? get usesComparisonExpression => _flag(raw.prop('UseCompExpr')?.scalar);
+  bool? get usesComparisonExpression => _b('UseCompExpr');
 
 
   /// For an array/For-Each iteration step: the subscript expression
@@ -409,48 +405,45 @@ class Step {
   /// element after the loop (`ElementRestorerLocal`), whether the data file
   /// auto-closes at end (`AutoCloseAtEndofFile`), and a field-mapping expression
   /// (`FieldMappingExpr`). Each null when absent.
-  String? get arraySubscriptExpression => _nz(raw.prop('SubscriptExpr')?.scalar);
-  int? get arrayOffset => int.tryParse(raw.prop('Offset')?.scalar ?? '');
-  int? get iterationTypeCode => int.tryParse(raw.prop('IterationType')?.scalar ?? '');
-  String? get elementRestorerLocal => _nz(raw.prop('ElementRestorerLocal')?.scalar);
-  bool? get autoClosesAtEndOfFile => _flag(raw.prop('AutoCloseAtEndofFile')?.scalar);
-  String? get fieldMappingExpression => _nz(raw.prop('FieldMappingExpr')?.scalar);
+  String? get arraySubscriptExpression => _s('SubscriptExpr');
+  int? get arrayOffset => _i('Offset');
+  int? get iterationTypeCode => _i('IterationType');
+  String? get elementRestorerLocal => _s('ElementRestorerLocal');
+  bool? get autoClosesAtEndOfFile => _b('AutoCloseAtEndofFile');
+  String? get fieldMappingExpression => _s('FieldMappingExpr');
 
   /// The runtime-evaluated forms TestStand caches for the step's array/loop
   /// expressions (`EvaluatedArrayExpr` / `EvaluatedArrayElementExpr` /
   /// `EvaluatedSubscriptExpr` / `EvaluatedOffsetExpr`) — the resolved counterparts
   /// to the [FlowControl] expressions. Each null when absent.
-  String? get evaluatedArrayExpression => _nz(raw.prop('EvaluatedArrayExpr')?.scalar);
-  String? get evaluatedArrayElementExpression =>
-      _nz(raw.prop('EvaluatedArrayElementExpr')?.scalar);
-  String? get evaluatedSubscriptExpression =>
-      _nz(raw.prop('EvaluatedSubscriptExpr')?.scalar);
-  String? get evaluatedOffsetExpression => _nz(raw.prop('EvaluatedOffsetExpr')?.scalar);
+  String? get evaluatedArrayExpression => _s('EvaluatedArrayExpr');
+  String? get evaluatedArrayElementExpression => _s('EvaluatedArrayElementExpr');
+  String? get evaluatedSubscriptExpression => _s('EvaluatedSubscriptExpr');
+  String? get evaluatedOffsetExpression => _s('EvaluatedOffsetExpr');
 
 
   /// For a Wait (or timeout-bearing) step: the timeout expression (`TimeoutExpr`),
   /// whether the timeout is enabled (`TimeoutEnabled`), and whether a timeout
   /// raises an error (`ErrorOnTimeout`). Each null when absent.
-  String? get timeoutExpression => _nz(raw.prop('TimeoutExpr')?.scalar);
-  bool? get timeoutEnabled => _flag(raw.prop('TimeoutEnabled')?.scalar);
-  bool? get errorsOnTimeout => _flag(raw.prop('ErrorOnTimeout')?.scalar);
+  String? get timeoutExpression => _s('TimeoutExpr');
+  bool? get timeoutEnabled => _b('TimeoutEnabled');
+  bool? get errorsOnTimeout => _b('ErrorOnTimeout');
 
   /// For a database step: the statement / database handle expressions
   /// (`StatementHandle` / `DatabaseHandle`, e.g. `Locals.SelectStatement`) the
   /// step operates on. Each null when absent.
-  String? get statementHandle => _nz(raw.prop('StatementHandle')?.scalar);
-  String? get databaseHandle => _nz(raw.prop('DatabaseHandle')?.scalar);
+  String? get statementHandle => _s('StatementHandle');
+  String? get databaseHandle => _s('DatabaseHandle');
 
   /// Further database step fields: the SQL statement (`SQLStatement`, a literal or
   /// expression), whether the statement requires parameters (`RequiresParameters`),
   /// the fetch page size (`PageSize`), and the records-selected output expression
   /// (`NumberOfRecordsSelected`). Each null when absent. The selected columns are
   /// in the raw `ColumnList`.
-  String? get sqlStatement => _nz(raw.prop('SQLStatement')?.scalar);
-  bool? get requiresParameters => _flag(raw.prop('RequiresParameters')?.scalar);
-  int? get pageSize => int.tryParse(raw.prop('PageSize')?.scalar ?? '');
-  String? get numberOfRecordsSelectedExpression =>
-      _nz(raw.prop('NumberOfRecordsSelected')?.scalar);
+  String? get sqlStatement => _s('SQLStatement');
+  bool? get requiresParameters => _b('RequiresParameters');
+  int? get pageSize => _i('PageSize');
+  String? get numberOfRecordsSelectedExpression => _s('NumberOfRecordsSelected');
 
   /// The ADO recordset/command option codes for a database step
   /// (`CommandTimeout`, `CommandType`, `LockType`, `CursorLocation`,
@@ -459,14 +452,14 @@ class Step {
   /// (the NI/ADO code→name mappings are not invented); null when absent. The
   /// remote-connection and error records live in the raw `RemoteSettings` /
   /// `StdError`.
-  int? get dbCommandTimeoutCode => int.tryParse(raw.prop('CommandTimeout')?.scalar ?? '');
-  int? get dbCommandTypeCode => int.tryParse(raw.prop('CommandType')?.scalar ?? '');
-  int? get dbLockTypeCode => int.tryParse(raw.prop('LockType')?.scalar ?? '');
-  int? get dbCursorLocationCode => int.tryParse(raw.prop('CursorLocation')?.scalar ?? '');
-  int? get dbCursorTypeCode => int.tryParse(raw.prop('CursorType')?.scalar ?? '');
-  int? get dbCacheSize => int.tryParse(raw.prop('CacheSize')?.scalar ?? '');
-  int? get dbMarshalOptionsCode => int.tryParse(raw.prop('MarshalOptions')?.scalar ?? '');
-  int? get dbMaxRecordsToSelect => int.tryParse(raw.prop('MaxRecordsToSelect')?.scalar ?? '');
+  int? get dbCommandTimeoutCode => _i('CommandTimeout');
+  int? get dbCommandTypeCode => _i('CommandType');
+  int? get dbLockTypeCode => _i('LockType');
+  int? get dbCursorLocationCode => _i('CursorLocation');
+  int? get dbCursorTypeCode => _i('CursorType');
+  int? get dbCacheSize => _i('CacheSize');
+  int? get dbMarshalOptionsCode => _i('MarshalOptions');
+  int? get dbMaxRecordsToSelect => _i('MaxRecordsToSelect');
 
 
   /// For a Run/Wait step that references a sequence call by name: the referenced
@@ -474,18 +467,17 @@ class Step {
   /// (`SeqCallStepGroupIdx`), whether the target is specified by that sequence
   /// call (`SpecifyBySeqCall`), and the wait-for-target code (`WaitForTarget`).
   /// Each null when absent.
-  String? get referencedSequenceCallName => _nz(raw.prop('SeqCallName')?.scalar);
-  int? get referencedSequenceCallStepGroupCode =>
-      int.tryParse(raw.prop('SeqCallStepGroupIdx')?.scalar ?? '');
-  bool? get specifiesBySequenceCall => _flag(raw.prop('SpecifyBySeqCall')?.scalar);
-  int? get waitForTargetCode => int.tryParse(raw.prop('WaitForTarget')?.scalar ?? '');
+  String? get referencedSequenceCallName => _s('SeqCallName');
+  int? get referencedSequenceCallStepGroupCode => _i('SeqCallStepGroupIdx');
+  bool? get specifiesBySequenceCall => _b('SpecifyBySeqCall');
+  int? get waitForTargetCode => _i('WaitForTarget');
 
   /// For a Wait step targeting a thread/execution: the thread / execution
   /// reference expressions (`ThreadRefExpr` / `ExecutionRefExpr`) and the wait
   /// time expression (`TimeExpr`, seconds). Each null when absent.
-  String? get threadReferenceExpression => _nz(raw.prop('ThreadRefExpr')?.scalar);
-  String? get executionReferenceExpression => _nz(raw.prop('ExecutionRefExpr')?.scalar);
-  String? get waitTimeExpression => _nz(raw.prop('TimeExpr')?.scalar);
+  String? get threadReferenceExpression => _s('ThreadRefExpr');
+  String? get executionReferenceExpression => _s('ExecutionRefExpr');
+  String? get waitTimeExpression => _s('TimeExpr');
 
   /// The step's run-time settings (preconditions, looping, pass/fail actions),
   /// read from its `TS` (TestStand system) sub-container.
@@ -536,7 +528,7 @@ class Step {
   /// value as [StepLimits.dataSource] for a limit test, but is exposed here too
   /// so it's recovered for non-limit steps (e.g. `PassFailTest`), where there is
   /// no [StepLimits].
-  String? get dataSource => _nz(raw.prop('DataSource')?.scalar);
+  String? get dataSource => _s('DataSource');
 
   /// The step's unique id (`TS.Id`, e.g. `ID#:1m8fotxw7RGuNrjdh1OqZD`) — the
   /// stable handle other steps' flow-action targets reference (see
@@ -572,15 +564,12 @@ class Step {
   List<AdditionalResult> get additionalResults {
     final out = <AdditionalResult>[];
     void walk(SeqProperty p) {
+      final kids = [...p.subProps, ...?p.array];
       if (p.name == 'AdditionalResults') {
-        for (final e in [...p.subProps, ...?p.array]) {
-          out.add(AdditionalResult(e));
-        }
+        out.addAll(kids.map(AdditionalResult.new));
         return;
       }
-      for (final c in [...p.subProps, ...?p.array]) {
-        walk(c);
-      }
+      kids.forEach(walk);
     }
 
     walk(raw);
@@ -616,14 +605,15 @@ enum FlowKind {
   /// steps until the matching [end]). A `Select` opens the switch; each `Case`
   /// opens its own body — both are closed by their own `NI_Flow_End` (verified
   /// by opener/end balance across the corpus).
-  bool get opensBlock =>
-      this == ifBlock ||
-      this == whileLoop ||
-      this == doWhile ||
-      this == forLoop ||
-      this == forEach ||
-      this == selectBlock ||
-      this == caseBlock;
+  bool get opensBlock => const {
+        ifBlock,
+        whileLoop,
+        doWhile,
+        forLoop,
+        forEach,
+        selectBlock,
+        caseBlock,
+      }.contains(this);
 
   /// Whether this construct closes a block (`NI_Flow_End`).
   bool get closesBlock => this == end;
@@ -785,10 +775,7 @@ class MeasurementParameter {
   String? get value => _nz(raw.prop('ArgumentValue')?.scalar);
 
   /// Whether the parameter is an array — `Dimension` ≥ 1 (0 = scalar).
-  bool get isArray {
-    final d = int.tryParse(raw.prop('Dimension')?.scalar ?? '');
-    return d != null && d > 0;
-  }
+  bool get isArray => (int.tryParse(raw.prop('Dimension')?.scalar ?? '') ?? 0) > 0;
 
   /// A refinement of [dataType] (`TypeSpecialization`) — `IOResource`, `Path`,
   /// `Pin`, or `Enum`: e.g. a `TypeString` parameter that is actually an
@@ -796,17 +783,13 @@ class MeasurementParameter {
   /// unspecialized parameter (`None`, the common case).
   String? get typeSpecialization {
     final s = _nz(raw.prop('TypeSpecialization')?.scalar);
-    return (s == null || s == 'None') ? null : s;
+    return s == 'None' ? null : s;
   }
 
   /// Whether this parameter's value is recorded to the report (`Log`). True for
   /// most parameters; false for those explicitly excluded from logging. null
   /// when the parameter records no `Log` flag.
-  bool? get logged => switch (raw.prop('Log')?.scalar) {
-        'true' || '1' => true,
-        'false' || '0' => false,
-        _ => null,
-      };
+  bool? get logged => _flagStrict(raw.prop('Log')?.scalar);
 
   /// For a [dataType] of `TypeEnum`, the enum's allowed values as `(name, value)`
   /// pairs — each `EnumDefinition` element is a named constant (e.g. `DC_VOLTS`)
@@ -857,11 +840,7 @@ class StepResult {
 
   /// Whether an error was recorded (`Error.Occurred`); null when the step has no
   /// `Error` slot. `false` is the default.
-  bool? get errorOccurred => switch (_error?.prop('Occurred')?.scalar) {
-        'true' || '1' => true,
-        'false' || '0' => false,
-        _ => null,
-      };
+  bool? get errorOccurred => _flagStrict(_error?.prop('Occurred')?.scalar);
 
   /// Whether this result holds any non-default value — true once a real run is
   /// recorded (status/report text set, or an error occurred). false for the
@@ -872,9 +851,26 @@ class StepResult {
 
 String? _nz(String? s) => (s == null || s.isEmpty) ? null : s;
 
+/// Collects the non-empty scalar values of an array-property container (a
+/// `Links`/`EditPanels` list, …), skipping null/empty elements. Empty when the
+/// container is null or holds no array.
+List<String> _scalarValues(SeqProperty? container) => [
+      for (final e in container?.array ?? const <SeqProperty>[])
+        if (_nz(e.scalar) case final s?) s,
+    ];
+
 /// Parses a TestStand boolean stored either as `true`/`false` (XML, any case) or
 /// `1`/`0` (some numeric flags). null when absent or unrecognized.
 bool? _flag(String? s) => switch (s?.toLowerCase()) {
+      'true' || '1' => true,
+      'false' || '0' => false,
+      _ => null,
+    };
+
+/// A strict (case-sensitive) TestStand boolean: `true`/`1` → true, `false`/`0` →
+/// false, everything else (including uppercase) → null. The non-lowercasing
+/// counterpart to [_flag].
+bool? _flagStrict(String? s) => switch (s) {
       'true' || '1' => true,
       'false' || '0' => false,
       _ => null,
@@ -969,10 +965,7 @@ class StepLimits {
   }
 
   /// A short readable summary, e.g. `GELE [9, 11]`.
-  String get summary {
-    final range = '[${low ?? '?'}, ${high ?? '?'}]';
-    return '${comparison ?? '?'} $range';
-  }
+  String get summary => '${comparison ?? '?'} [${low ?? '?'}, ${high ?? '?'}]';
 
   @override
   String toString() => 'StepLimits($summary)';
@@ -1054,14 +1047,13 @@ class StepModule {
   /// parameter's bound value under different keys (`ArgVal` vs `ArgumentValue`);
   /// [CallParameter] reads either. Empty when the call passes none, or when an
   /// adapter stores its arguments elsewhere (not yet decoded for other adapters).
-  List<CallParameter> get callParameters {
-    final params =
+  List<CallParameter> get callParameters => _params(
         raw?.prop('Call')?.prop('Parameters') ??
-        raw?.prop('PythonCall')?.prop('Parameters');
-    if (params == null) return const [];
-    final kids = params.array ?? params.subProps;
-    return [for (final p in kids) CallParameter(p)];
-  }
+            raw?.prop('PythonCall')?.prop('Parameters'),
+      );
+
+  List<CallParameter> _params(SeqProperty? p) =>
+      p == null ? const [] : [for (final e in p.array ?? p.subProps) CallParameter(e)];
 
   SeqProperty? get _viCall => raw?.prop('ViCall');
 
@@ -1103,12 +1095,7 @@ class StepModule {
   /// numeric type codes (`Type`/`NumType`/`ArrayType`/`ClusterType`) are left
   /// raw on [CallParameter.raw] (not yet decoded). Empty for a non-LabVIEW step
   /// or a VI call that wires nothing.
-  List<CallParameter> get viParameters {
-    final parms = _viCall?.prop('Parms');
-    if (parms == null) return const [];
-    final kids = parms.array ?? parms.subProps;
-    return [for (final p in kids) CallParameter(p)];
-  }
+  List<CallParameter> get viParameters => _params(_viCall?.prop('Parms'));
 
   SeqProperty? get _pyCall => raw?.prop('PythonCall');
 
@@ -1301,8 +1288,6 @@ class StepModule {
   bool? get pythonUsesAdapterSessionSettings =>
       _flag(_pyCall?.prop('UseAdapterSettingsForInterpreterSession')?.scalar);
 
-  static String? _e(String? s) => (s == null || s.isEmpty) ? null : s;
-
   factory StepModule.fromSData(SeqProperty? sdata) {
     if (sdata == null || sdata.subProps.isEmpty) {
       return StepModule(adapter: SeqAdapter.none);
@@ -1310,11 +1295,11 @@ class StepModule {
 
     final vi = sdata.prop('ViCall');
     if (vi != null) {
-      final p = _e(vi.prop('VIPath')?.scalar);
+      final p = _nz(vi.prop('VIPath')?.scalar);
       return StepModule(adapter: SeqAdapter.labView, viPath: p, target: p, raw: sdata);
     }
 
-    final directVi = _e(sdata.prop('ViPath')?.scalar);
+    final directVi = _nz(sdata.prop('ViPath')?.scalar);
     if (directVi != null) {
       return StepModule(
           adapter: SeqAdapter.labView, viPath: directVi, target: directVi, raw: sdata);
@@ -1322,8 +1307,8 @@ class StepModule {
 
     final call = sdata.prop('Call');
     if (call != null) {
-      final lib = _e(call.prop('LibPath')?.scalar);
-      final fn = _e(call.prop('Func')?.scalar);
+      final lib = _nz(call.prop('LibPath')?.scalar);
+      final fn = _nz(call.prop('Func')?.scalar);
       final target = lib == null ? fn : (fn == null ? lib : '$lib:$fn');
       return StepModule(
         adapter: SeqAdapter.cModule,
@@ -1336,15 +1321,15 @@ class StepModule {
 
     final py = sdata.prop('PythonCall');
     if (py != null) {
-      final fn = _e(py.prop('FunctionOrAttributeName')?.scalar);
-      final cls = _e(py.prop('ClassName')?.scalar);
+      final fn = _nz(py.prop('FunctionOrAttributeName')?.scalar);
+      final cls = _nz(py.prop('ClassName')?.scalar);
       final callee = fn == null ? null : (cls != null ? '$cls.$fn' : fn);
       return StepModule(adapter: SeqAdapter.python, target: callee, raw: sdata);
     }
 
     if (sdata.prop('SeqName') != null || sdata.prop('SFPath') != null) {
-      final sn = _e(sdata.prop('SeqName')?.scalar);
-      final sf = _e(sdata.prop('SFPath')?.scalar);
+      final sn = _nz(sdata.prop('SeqName')?.scalar);
+      final sf = _nz(sdata.prop('SFPath')?.scalar);
       return StepModule(
         adapter: SeqAdapter.sequenceCall,
         sequenceName: sn,
@@ -1381,10 +1366,7 @@ class CallParameter {
   /// The connector-pane terminal index this parameter wires to
   /// (`ConnectorNumber`), for a LabVIEW VI call (`ViCall.Parms`); null when
   /// absent (the non-LabVIEW adapters don't store a connector index).
-  int? get connectorNumber {
-    final s = _nz(raw.prop('ConnectorNumber')?.scalar);
-    return s == null ? null : int.tryParse(s);
-  }
+  int? get connectorNumber => _int('ConnectorNumber');
 
   /// The expression bound to the parameter — what the call passes, e.g.
   /// `Locals.userToLogin`, `ThisContext`,
@@ -1476,10 +1458,7 @@ class StepSettings {
   /// The `TS` property object, or null if the step has none.
   final SeqProperty? _ts;
 
-  String? _scalar(String key) {
-    final s = _ts?.prop(key)?.scalar;
-    return (s == null || s.isEmpty) ? null : s;
-  }
+  String? _scalar(String key) => _nz(_ts?.prop(key)?.scalar);
 
   /// The run mode (`Mode`): `Normal`, `Skip`, `Pass`, `Fail`, … — how the step
   /// executes (Skip/force-pass/force-fail are editor-visible overrides).
@@ -1573,11 +1552,7 @@ class StepSettings {
 
   /// Parses a TS boolean step-setting: stored either as `true`/`false` or `1`/`0`.
   /// null when the key is absent or unrecognized.
-  bool? _bool(String key) => switch (_scalar(key)) {
-        'true' || '1' => true,
-        'false' || '0' => false,
-        _ => null,
-      };
+  bool? _bool(String key) => _flagStrict(_scalar(key));
 
   /// Whether this step's failure fails the whole sequence (`StepFCSeqF` — "step
   /// failure causes sequence failure"). null when the step records no value.
@@ -1716,11 +1691,8 @@ class StepSettings {
 
   /// The requirement-traceability links the step declares (`TS.Requirements.
   /// Links`). Empty when none.
-  List<String> get requirementLinks => [
-        for (final e in _ts?.prop('Requirements')?.prop('Links')?.array ??
-            const <SeqProperty>[])
-          if (_nz(e.scalar) case final s?) s,
-      ];
+  List<String> get requirementLinks =>
+      _scalarValues(_ts?.prop('Requirements')?.prop('Links'));
 }
 
 /// A step **type** definition as embedded next to a step in a TestStand
@@ -1742,11 +1714,7 @@ class StepTypeInfo {
   /// the stored `|`-delimited list (e.g. `PassFailLabVIEW|PassFailCVI|…`). These
   /// name the per-language module skeletons the editor can generate. Empty when
   /// the type defines none.
-  List<String> get codeTemplates {
-    final s = _str('CodeTemplates');
-    if (s == null) return const [];
-    return [for (final t in s.split('|')) if (t.trim().isNotEmpty) t.trim()];
-  }
+  List<String> get codeTemplates => _split('CodeTemplates', '|');
 
   /// The expression that formats the step's editor description
   /// (`DescriptionFormat`, e.g. `ResStr("NI_STEPTYPES","PASSFAIL_DESCRIPTION…")`
@@ -1761,13 +1729,13 @@ class StepTypeInfo {
   /// type participates in (`BlockStartTypes` / `BlockEndTypes`), each split from
   /// the stored comma-delimited list of `NI_Flow_*` type names. Empty for a
   /// non-block type.
-  List<String> get blockStartTypes => _csv('BlockStartTypes');
-  List<String> get blockEndTypes => _csv('BlockEndTypes');
+  List<String> get blockStartTypes => _split('BlockStartTypes', ',');
+  List<String> get blockEndTypes => _split('BlockEndTypes', ',');
 
-  List<String> _csv(String key) {
+  List<String> _split(String key, String sep) {
     final s = _str(key);
     if (s == null) return const [];
-    return [for (final t in s.split(',')) if (t.trim().isNotEmpty) t.trim()];
+    return [for (final t in s.split(sep)) if (t.trim().isNotEmpty) t.trim()];
   }
 
   /// Whether this step type participates in a block structure
@@ -1779,11 +1747,8 @@ class StepTypeInfo {
   /// The editor edit-panel class names the step type registers
   /// (`NI_Data.EditPanels`) — the configuration tabs shown for the step. Empty
   /// when the type defines none.
-  List<String> get editPanels => [
-        for (final e in raw.prop('NI_Data')?.prop('EditPanels')?.array ??
-            const <SeqProperty>[])
-          if (_nz(e.scalar) case final s?) s,
-      ];
+  List<String> get editPanels =>
+      _scalarValues(raw.prop('NI_Data')?.prop('EditPanels'));
 
   /// The step type's Insertion-menu placement (`Menu`), or null when it carries
   /// none. See [StepTypeMenu].
@@ -1889,14 +1854,10 @@ class MeasurementPlugIns {
   /// Pattern files (`PatternFilePaths`), in order; empty when none.
   List<String> get patternFiles => _paths('PatternFilePaths');
 
-  List<String> _paths(String key) {
-    final p = raw.prop(key);
-    if (p == null) return const [];
-    return [
-      for (final e in p.array ?? const <SeqProperty>[])
-        if (_nz(e.scalar) != null) e.scalar!,
-    ];
-  }
+  List<String> _paths(String key) => [
+        for (final e in raw.prop(key)?.array ?? const <SeqProperty>[])
+          if (_nz(e.scalar) case final s?) s,
+      ];
 
   /// True when the file actually declares any STS resource (a pin map or any
   /// file list) — i.e. the block carries more than a bare monitoring flag.

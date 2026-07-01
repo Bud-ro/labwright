@@ -55,10 +55,9 @@ ViFontTable? decodeFontTable(Uint8List b) {
   var p = nameOff;
   for (var i = 0; i < fontCount; i++) {
     if (p >= b.length) break;
-    final len = b[p];
-    p++;
+    final len = b[p++];
     if (p + len > b.length) break;
-    names.add(String.fromCharCodes(b.sublist(p, p + len)));
+    names.add(String.fromCharCodes(b, p, p + len));
     p += len;
   }
   return ViFontTable(

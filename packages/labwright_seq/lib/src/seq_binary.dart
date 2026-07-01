@@ -36,8 +36,15 @@ const _sentinelByte = 0xff;
 /// Bytes per little-endian u32 word in the record region.
 const _u32Bytes = 4;
 
+/// Bytes per little-endian IEEE-754 double in the record region.
+const _f64Bytes = 8;
+
 /// Minimum printable-run length when scanning the body for strings.
 const _minRunLength = 3;
+
+/// Minimum printable-run length when reading the loose body/name pool (looser
+/// than [_minRunLength], which frames the layout).
+const _poolMinRunLength = 2;
 
 /// Minimum runs in a NUL-adjacent chain to mark the record/string boundary.
 const _boundaryChainMin = 5;
@@ -117,7 +124,10 @@ Uint8List? inflateBinaryBody(Uint8List bytes) {
 /// recovered cleanly. This surfaces *what is in* a binary file even though the
 /// record tree that links the names is **not yet parsed**. Returns `[]` when
 /// [seqBytes] is not an inflatable binary file.
-List<BinaryString> binaryBodyStrings(Uint8List seqBytes, {int minLength = 2}) {
+List<BinaryString> binaryBodyStrings(
+  Uint8List seqBytes, {
+  int minLength = _poolMinRunLength,
+}) {
   final body = inflateBinaryBody(seqBytes);
   if (body == null) return const [];
   return binaryStrings(body, minLength: minLength);
@@ -446,23 +456,30 @@ BinaryStringSegment? _nameTableFromSegments(
 /// aid, **not** a flat index array — the full record grammar is **not yet
 /// decoded**. Returns `[]` when [seqBytes] is not an inflatable binary file or
 /// the body does not frame.
-List<int> binaryRecordWords(Uint8List seqBytes) {
+List<int> binaryRecordWords(Uint8List seqBytes) =>
+    _withLayout(seqBytes, _recordWordsFromBody);
+
+/// Inflates [seqBytes], frames its layout, and delegates to [f] over the body and
+/// its record-region length — the shared inflate+frame+guard prologue for the
+/// record-region readers. Returns `[]` when the file is not an inflatable binary
+/// file or does not frame. (`const <Never>[]` is used because a bare `const []`
+/// would try to infer the type parameter `T`, which is a compile error.)
+List<T> _withLayout<T>(
+  Uint8List seqBytes,
+  List<T> Function(Uint8List body, int rr) f,
+) {
   final body = inflateBinaryBody(seqBytes);
-  if (body == null) return const [];
+  if (body == null) return const <Never>[];
   final layout = _layoutFromBody(body);
-  if (layout == null) return const [];
-  return _recordWordsFromBody(body, layout.recordRegionLength);
+  if (layout == null) return const <Never>[];
+  return f(body, layout.recordRegionLength);
 }
 
-List<int> _recordWordsFromBody(Uint8List body, int recordRegionLength) {
-  final rr = recordRegionLength;
+List<int> _recordWordsFromBody(Uint8List body, int rr) {
+  final bd = ByteData.sublistView(body);
   final out = <int>[];
-  for (
-    var i = 0;
-    i + _u32Bytes <= rr;
-    i += _u32Bytes
-  ) {
-    out.add(body[i] | body[i + 1] << 8 | body[i + 2] << 16 | body[i + 3] << 24);
+  for (var i = 0; i + _u32Bytes <= rr; i += _u32Bytes) {
+    out.add(bd.getUint32(i, Endian.little));
   }
   return out;
 }
@@ -489,24 +506,26 @@ const _maxScalarMagnitude = 1e12;
 /// low 32 bits must be zero (a round value, as every observed default is), finite,
 /// non-zero, and `|v|` within [[_minScalarMagnitude], [_maxScalarMagnitude]].
 /// Returns `[]` when [seqBytes] is not an inflatable binary file or doesn't frame.
-List<double> binaryScalarDoubles(Uint8List seqBytes) {
-  final body = inflateBinaryBody(seqBytes);
-  if (body == null) return const [];
-  final layout = _layoutFromBody(body);
-  if (layout == null) return const [];
-  return _scalarDoublesFromBody(body, layout.recordRegionLength);
+List<double> binaryScalarDoubles(Uint8List seqBytes) =>
+    _withLayout(seqBytes, _scalarDoublesFromBody);
+
+/// A **clean** recovered double: finite, non-zero, and `|v|` within
+/// [[_minScalarMagnitude], [_maxScalarMagnitude]] — the shared acceptance filter
+/// for [binaryScalarDoubles] and [binaryNamedScalarRecords].
+bool _isCleanScalar(double v) {
+  if (!v.isFinite || v == 0) return false;
+  final a = v.abs();
+  return a >= _minScalarMagnitude && a <= _maxScalarMagnitude;
 }
 
 List<double> _scalarDoublesFromBody(Uint8List body, int rr) {
   final bd = ByteData.sublistView(body);
   final seen = <double>{};
   final out = <double>[];
-  for (var i = 0; i + 8 <= rr; i += _u32Bytes) {
+  for (var i = 0; i + _f64Bytes <= rr; i += _u32Bytes) {
     if ((body[i] | body[i + 1] | body[i + 2] | body[i + 3]) != 0) continue;
     final v = bd.getFloat64(i, Endian.little);
-    if (!v.isFinite || v == 0) continue;
-    final a = v.abs();
-    if (a < _minScalarMagnitude || a > _maxScalarMagnitude) continue;
+    if (!_isCleanScalar(v)) continue;
     if (seen.add(v)) out.add(v);
   }
   return out;
@@ -560,7 +579,7 @@ class BinaryNamedScalar {
 /// (runs in the string region, keyed by `offset - recordRegionLength`).
 Map<int, String> _stringRegionNamesByRel(Uint8List body, int rr) {
   final out = <int, String>{};
-  for (final s in binaryStrings(body, minLength: 2)) {
+  for (final s in binaryStrings(body, minLength: _poolMinRunLength)) {
     if (s.offset >= rr) out[s.offset - rr] = s.text;
   }
   return out;
@@ -585,13 +604,8 @@ Map<int, String> _stringRegionNamesByRel(Uint8List body, int rr) {
 /// Records are returned in record order; duplicate values are kept (distinct
 /// record slots). Returns `[]` when [seqBytes] is not an inflatable binary file
 /// or the body does not frame.
-List<BinaryNamedScalar> binaryNamedScalarRecords(Uint8List seqBytes) {
-  final body = inflateBinaryBody(seqBytes);
-  if (body == null) return const [];
-  final layout = _layoutFromBody(body);
-  if (layout == null) return const [];
-  return _namedScalarsFromBody(body, layout.recordRegionLength);
-}
+List<BinaryNamedScalar> binaryNamedScalarRecords(Uint8List seqBytes) =>
+    _withLayout(seqBytes, _namedScalarsFromBody);
 
 /// [binaryNamedScalarRecords] core over an already-inflated [body] (no
 /// re-inflate), given the record-region length [rr] — for the single-inflate
@@ -608,12 +622,10 @@ List<BinaryNamedScalar> _namedScalarsFromBody(Uint8List body, int rr) {
     final name = relToName[bd.getUint32(w * _u32Bytes, Endian.little)];
     if (name == null) continue;
     final fp = (w + 2) * _u32Bytes;
-    if (fp + 8 > rr) continue;
+    if (fp + _f64Bytes > rr) continue;
     if (bd.getUint32(fp, Endian.little) != 0) continue;
     final v = bd.getFloat64(fp, Endian.little);
-    if (!v.isFinite || v == 0) continue;
-    final a = v.abs();
-    if (a < _minScalarMagnitude || a > _maxScalarMagnitude) continue;
+    if (!_isCleanScalar(v)) continue;
     out.add(BinaryNamedScalar(
       name: name,
       rawTag: bd.getUint32((w - 1) * _u32Bytes, Endian.little),
@@ -681,13 +693,8 @@ bool _isNameLike(String s) =>
     !isBinaryModulePath(s) &&
     !_isStepRef(s);
 
-List<BinaryNamedRecord> binaryNamedRecords(Uint8List seqBytes) {
-  final body = inflateBinaryBody(seqBytes);
-  if (body == null) return const [];
-  final layout = _layoutFromBody(body);
-  if (layout == null) return const [];
-  return _namedRecordsFromBody(body, layout.recordRegionLength);
-}
+List<BinaryNamedRecord> binaryNamedRecords(Uint8List seqBytes) =>
+    _withLayout(seqBytes, _namedRecordsFromBody);
 
 List<BinaryNamedRecord> _namedRecordsFromBody(Uint8List body, int rr) {
   final relToName = _stringRegionNamesByRel(body, rr);
@@ -720,6 +727,12 @@ List<BinaryNamedRecord> _namedRecordsFromBody(Uint8List body, int rr) {
   return out;
 }
 
+/// Whether [cur] is packed immediately after [prev] in a NUL-terminated string
+/// table — its offset is one byte (the single NUL) past the end of [prev]. The
+/// back-to-back single-NUL packing invariant every chain-walker keys on.
+bool _packedAfter(BinaryString prev, BinaryString cur) =>
+    cur.offset == prev.offset + prev.text.length + 1;
+
 /// Maximal chains of NUL-adjacent runs at/after [from], each of ≥[minChain].
 List<List<BinaryString>> _segmentsFrom(
   List<BinaryString> runs,
@@ -732,8 +745,7 @@ List<List<BinaryString>> _segmentsFrom(
     if (r.offset < from) continue;
     if (chain.isNotEmpty) {
       final prev = chain.last;
-      final adjacent = r.offset == prev.offset + prev.text.length + 1;
-      if (!adjacent) {
+      if (!_packedAfter(prev, r)) {
         if (chain.length >= minChain) segs.add(chain);
         chain = <BinaryString>[];
       }
@@ -746,12 +758,9 @@ List<List<BinaryString>> _segmentsFrom(
 
 List<int> _leadingWords(Uint8List body, int count) {
   final out = <int>[];
-  for (
-    var i = 0;
-    i + _u32Bytes - 1 < body.length && out.length < count;
-    i += _u32Bytes
-  ) {
-    out.add(body[i] | body[i + 1] << 8 | body[i + 2] << 16 | body[i + 3] << 24);
+  final bd = ByteData.sublistView(body);
+  for (var i = 0; i + _u32Bytes <= body.length && out.length < count; i += _u32Bytes) {
+    out.add(bd.getUint32(i, Endian.little));
   }
   return out;
 }
@@ -767,8 +776,7 @@ int? _firstTableOffset(
   for (var i = 0; i < runs.length; i++) {
     if (i > 0) {
       final prev = runs[i - 1];
-      final adjacent = runs[i].offset == prev.offset + prev.text.length + 1;
-      if (adjacent) {
+      if (_packedAfter(prev, runs[i])) {
         len++;
         continue;
       }
@@ -821,20 +829,10 @@ List<BinaryString> _stringTableFromBody(
   int minLength = _minRunLength,
 }) {
   final runs = binaryStrings(body, minLength: minLength);
-  List<BinaryString> best = const [];
-  var chain = <BinaryString>[];
-  for (final r in runs) {
-    if (chain.isNotEmpty) {
-      final prev = chain.last;
-      final adjacent = r.offset == prev.offset + prev.text.length + 1;
-      if (!adjacent) {
-        if (chain.length > best.length) best = chain;
-        chain = <BinaryString>[];
-      }
-    }
-    chain.add(r);
+  var best = const <BinaryString>[];
+  for (final chain in _segmentsFrom(runs, 0, minChain: 1)) {
+    if (chain.length > best.length) best = chain;
   }
-  if (chain.length > best.length) best = chain;
   return best.length >= _minTableEntries ? best : const [];
 }
 
@@ -918,7 +916,7 @@ BinaryAnalysis? analyzeBinary(Uint8List seqBytes) {
   final layout = _layoutFromBody(body);
   return BinaryAnalysis(
     inflatedSize: body.length,
-    strings: binaryStrings(body, minLength: 2),
+    strings: binaryStrings(body, minLength: _poolMinRunLength),
     stringTable: _stringTableFromBody(body),
     layout: layout,
     nameTable: nameTable,

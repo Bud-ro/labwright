@@ -97,14 +97,15 @@ List<ViType> decodeTypePool(Uint8List body) {
     final descLen = (body[off] << 8) | body[off + 1];
     if (descLen < 4 || off + descLen > body.length) break;
     final code = body[off + 3];
-    final members = code == 0x50 ? _clusterMembers(body, off, descLen, count) : const <int>[];
-    final elementIndex = code == 0x40 ? _arrayElement(body, off, descLen, count) : null;
-    final enumItems = (code == 0x15 || code == 0x16 || code == 0x17) ? _enumItems(body, off, descLen) : const <String>[];
-    final nameStart = _nameRegionStart(body, off, code, members, elementIndex, enumItems);
+    final kind = _typeCodes[code] ?? ViDataType.unknown;
+    final members = kind == ViDataType.cluster ? _clusterMembers(body, off, descLen, count) : const <int>[];
+    final elementIndex = kind == ViDataType.array ? _arrayElement(body, off, descLen, count) : null;
+    final enumItems = (kind == ViDataType.enumU8 || kind == ViDataType.enumU16 || kind == ViDataType.enumU32) ? _enumItems(body, off, descLen) : const <String>[];
+    final nameStart = _nameRegionStart(body, off, kind, members, elementIndex, enumItems);
     out.add(ViType(
       index: i,
       code: code,
-      kind: _typeCodes[code] ?? ViDataType.unknown,
+      kind: kind,
       name: _trailingName(body, nameStart, off + descLen),
       members: members,
       elementIndex: elementIndex,
@@ -228,20 +229,16 @@ String? _trailingName(Uint8List b, int start, int end) {
 /// dimension sizes + element index, enum item strings). For other types the name
 /// (if any) follows the flags+code word. Confining [_trailingName] to this region
 /// stops binary payload bytes from being mis-read as a name.
-int _nameRegionStart(Uint8List b, int off, int code, List<int> members, int? elementIndex, List<String> enumItems) {
-  if (code == 0x50 && members.isNotEmpty) {
+int _nameRegionStart(Uint8List b, int off, ViDataType kind, List<int> members, int? elementIndex, List<String> enumItems) {
+  if (kind == ViDataType.cluster && members.isNotEmpty) {
     return off + 6 + members.length * 2;
   }
-  if (code == 0x40 && elementIndex != null) {
+  if (kind == ViDataType.array && elementIndex != null) {
     final numDims = (b[off + 4] << 8) | b[off + 5];
     return off + 6 + numDims * 4 + 2;
   }
   if (enumItems.isNotEmpty) {
-    var p = off + 6;
-    for (final it in enumItems) {
-      p += 1 + it.length;
-    }
-    return p;
+    return off + 6 + enumItems.fold<int>(0, (s, it) => s + 1 + it.length);
   }
   return off + 4;
 }
@@ -267,7 +264,7 @@ List<ViType> namedTypes(List<ViType> types) => [
 Map<String, int> typeKindHistogram(List<ViType> types) {
   final counts = <ViDataType, int>{};
   for (final t in types) {
-    counts[t.kind] = (counts[t.kind] ?? 0) + 1;
+    counts.update(t.kind, (n) => n + 1, ifAbsent: () => 1);
   }
   final entries = counts.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
   return {for (final e in entries) e.key.name: e.value};

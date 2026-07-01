@@ -105,6 +105,37 @@ class ViSection {
 /// The RSRC magic bytes (`RSRC\r\n`) every container begins with.
 const List<int> _magic = [0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a];
 
+/// True when every byte in `b[start..end)` is printable ASCII (0x20–0x7e).
+bool _allPrintable(Uint8List b, int start, int end) {
+  for (var i = start; i < end; i++) {
+    if (b[i] < 0x20 || b[i] >= 0x7f) return false;
+  }
+  return true;
+}
+
+/// Splits a name on either path separator; compiled once (used per-name).
+final _pathSep = RegExp(r'[\\/]');
+
+/// The bare filename of [s], with any `.llb`/directory prefix stripped.
+String _baseName(String s) => s.split(_pathSep).last;
+
+/// Best-effort embedded sections; empty on a malformed container (never throws).
+List<ViSection> _embeddedOrEmpty(Uint8List bytes) {
+  try {
+    return readEmbeddedSections(bytes);
+  } catch (_) {
+    return const [];
+  }
+}
+
+/// Validates the RSRC container header: minimum size + magic bytes.
+void _checkRsrcMagic(Uint8List bytes) {
+  if (bytes.length < 32) throw ViFormatException('too small to be an RSRC file');
+  for (var i = 0; i < _magic.length; i++) {
+    if (bytes[i] != _magic[i]) throw ViFormatException('not an RSRC/.vi file (bad magic)');
+  }
+}
+
 /// Extracts every block section's raw bytes from an RSRC container.
 ///
 /// Total and bounds-safe like [parseVi]: a malformed *container* (bad magic,
@@ -166,26 +197,13 @@ class ViEmbeddedVi {
 /// yields a clean printable name (deduped, order-preserving). Never throws.
 List<String> readOwningLibraryNames(Uint8List bytes) {
   final out = <String>[];
-  final List<ViSection> emb;
-  try {
-    emb = readEmbeddedSections(bytes);
-  } catch (_) {
-    return out;
-  }
-  for (final s in emb) {
+  for (final s in _embeddedOrEmpty(bytes)) {
     if (s.tag != 'LIBN') continue;
     final b = s.bytes;
     if (b.length < 5) continue;
     final len = b[4];
     if (len == 0 || 5 + len > b.length) continue;
-    var ok = true;
-    for (var i = 5; i < 5 + len; i++) {
-      if (b[i] < 0x20 || b[i] >= 0x7f) {
-        ok = false;
-        break;
-      }
-    }
-    if (!ok) continue;
+    if (!_allPrintable(b, 5, 5 + len)) continue;
     final name = String.fromCharCodes(b.sublist(5, 5 + len));
     if (!out.contains(name)) out.add(name);
   }
@@ -197,20 +215,12 @@ List<String> readOwningLibraryNames(Uint8List bytes) {
 /// are fed to [parseVi] for a best-effort name. Never throws.
 List<ViEmbeddedVi> readEmbeddedVis(Uint8List bytes) {
   final out = <ViEmbeddedVi>[];
-  final List<ViSection> emb;
-  try {
-    emb = readEmbeddedSections(bytes);
-  } catch (_) {
-    return out;
-  }
-  for (final s in emb) {
+  for (final s in _embeddedOrEmpty(bytes)) {
     if (s.tag != 'VINS') continue;
     String? name;
     try {
       name = parseVi(s.bytes).name;
-    } catch (_) {
-      name = null;
-    }
+    } catch (_) {}
     out.add(ViEmbeddedVi(name: name, sizeBytes: s.bytes.length, bytes: Uint8List.fromList(s.bytes)));
   }
   return out;
@@ -230,10 +240,7 @@ List<ViSection> _readSections(Uint8List bytes, {required int wantWord16}) {
 
   String tag(int p) => String.fromCharCodes(bytes.sublist(p, p + 4));
 
-  if (bytes.length < 32) throw ViFormatException('too small to be an RSRC file');
-  for (var i = 0; i < _magic.length; i++) {
-    if (bytes[i] != _magic[i]) throw ViFormatException('not an RSRC/.vi file (bad magic)');
-  }
+  _checkRsrcMagic(bytes);
 
   final infoOffset = u32(16);
   final dataOffset = u32(24);
@@ -294,10 +301,7 @@ ViSummary parseVi(Uint8List bytes) {
     return String.fromCharCodes(bytes.sublist(p, p + 4));
   }
 
-  if (bytes.length < 32) throw ViFormatException('too small to be an RSRC file');
-  for (var i = 0; i < _magic.length; i++) {
-    if (bytes[i] != _magic[i]) throw ViFormatException('not an RSRC/.vi file (bad magic)');
-  }
+  _checkRsrcMagic(bytes);
 
   final formatVersion = u16(6);
   final fileType = tag(8);
@@ -339,23 +343,15 @@ String? _viName(Uint8List b, int infoOffset) {
   if (infoOffset + 0x34 <= b.length) {
     final rel = ByteData.sublistView(b).getUint32(infoOffset + 0x30);
     final at = infoOffset + rel;
-    if (at < b.length) {
-      final len = b[at];
-      if (len > 0 && at + 1 + len == b.length) {
-        return String.fromCharCodes(b.sublist(at + 1));
-      }
+    if (at < b.length && b[at] > 0 && at + 1 + b[at] == b.length) {
+      return String.fromCharCodes(b.sublist(at + 1));
     }
   }
   return _trailingName(b);
 }
 
-bool _printableTag(String s) {
-  if (s.length != 4) return false;
-  for (final c in s.codeUnits) {
-    if (c < 0x20 || c >= 0x7f) return false;
-  }
-  return true;
-}
+bool _printableTag(String s) =>
+    s.length == 4 && s.codeUnits.every((c) => c >= 0x20 && c < 0x7f);
 
 /// Recovers the names of the **subVIs this VI calls**, from the block-diagram
 /// linker-info block (`LIbd`). LabVIEW records each block-diagram dependency
@@ -390,17 +386,17 @@ List<String> readSubViNames(Uint8List bytes) {
   final livi = sectionBytes('LIvi');
   final liviNames = livi == null ? const <String>[] : _pascalViNames(livi);
   if (liviNames.isNotEmpty) {
-    self.add(liviNames.first.split(RegExp(r'[\\/]')).last.toLowerCase());
+    self.add(_baseName(liviNames.first).toLowerCase());
   }
   final trailing = _trailingName(bytes);
   if (trailing != null && trailing.toLowerCase().endsWith('.vi')) {
-    self.add(trailing.split(RegExp(r'[\\/]')).last.toLowerCase());
+    self.add(_baseName(trailing).toLowerCase());
   }
 
   final seen = <String>{};
   final out = <String>[];
   for (final n in _pascalViNames(libd)) {
-    final base = n.split(RegExp(r'[\\/]')).last;
+    final base = _baseName(n);
     final key = base.toLowerCase();
     if (self.contains(key)) continue;
     if (seen.add(key)) out.add(base);
@@ -418,14 +414,7 @@ List<String> _pascalViNames(Uint8List b) {
   for (var i = 0; i + 1 < b.length; i++) {
     final len = b[i];
     if (len < 4 || i + 1 + len > b.length) continue;
-    var ok = true;
-    for (var j = i + 1; j < i + 1 + len; j++) {
-      if (b[j] < 0x20 || b[j] >= 0x7f) {
-        ok = false;
-        break;
-      }
-    }
-    if (!ok) continue;
+    if (!_allPrintable(b, i + 1, i + 1 + len)) continue;
     final s = String.fromCharCodes(b.sublist(i + 1, i + 1 + len));
     if (s.toLowerCase().endsWith('.vi')) {
       out.add(s);
@@ -442,14 +431,7 @@ String? _trailingName(Uint8List b) {
   for (var len = maxLen; len >= 1; len--) {
     final lenPos = b.length - 1 - len;
     if (b[lenPos] != len) continue;
-    var ok = true;
-    for (var i = lenPos + 1; i < b.length; i++) {
-      if (b[i] < 0x20 || b[i] >= 0x7f) {
-        ok = false;
-        break;
-      }
-    }
-    if (ok) return String.fromCharCodes(b.sublist(lenPos + 1));
+    if (_allPrintable(b, lenPos + 1, b.length)) return String.fromCharCodes(b.sublist(lenPos + 1));
   }
   return null;
 }

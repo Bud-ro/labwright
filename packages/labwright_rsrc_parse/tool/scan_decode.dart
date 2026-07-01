@@ -12,9 +12,7 @@ void main(List<String> args) {
   final files = Directory(root)
       .listSync(recursive: true)
       .whereType<File>()
-      .where((f) => f.path.toLowerCase().endsWith('.vi') ||
-          f.path.toLowerCase().endsWith('.ctl') ||
-          f.path.toLowerCase().endsWith('.llb'))
+      .where((f) => const ['.vi', '.ctl', '.llb'].any(f.path.toLowerCase().endsWith))
       .toList()
     ..sort((a, b) => a.path.compareTo(b.path));
 

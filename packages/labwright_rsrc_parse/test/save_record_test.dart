@@ -12,10 +12,8 @@ Uint8List _lvsr160({int verByte0 = 0x20, List<int>? hash96, List<int>? hash144})
   b[2] = 0x80;
   final h96 = hash96 ?? emptyPasswordHash;
   final h144 = hash144 ?? emptyPasswordHash;
-  for (var i = 0; i < 16; i++) {
-    b[96 + i] = h96[i];
-    b[144 + i] = h144[i];
-  }
+  b.setAll(96, h96);
+  b.setAll(144, h144);
   return b;
 }
 

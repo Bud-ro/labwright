@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'heap.dart';
@@ -624,6 +625,13 @@ enum HeapObjectClass {
 /// footprint). Single source of truth.
 const kControlTerminalCodes = {0x50, 0x4f, 0x57, 0x5b, 0x51};
 
+/// The object/group-open header opcodes — the high-nibble-1 lead bytes that open
+/// an object header (`10/11/12 <tag> 02 fe <kind> fd <oid>`) or a typed group.
+const _objectHeaderLeads = {0x10, 0x11, 0x12};
+
+/// The high-nibble-0 group-close opcodes (`08/09/0a/0b`), popped positionally.
+const _groupCloseLeads = {0x08, 0x09, 0x0a, 0x0b};
+
 /// Attribute ids `buildDiagram` surfaces onto [ViHeapObject] (a fast id pre-filter
 /// before the heavier `decodeHeapAttr`): 0x20/0x21 = control range, 0x6c = help
 /// text. (0x31 names were dropped — they sit on non-drawable structural objects.)
@@ -651,7 +659,7 @@ String _fmtNum(double v) =>
 /// degenerate* finite pair (`lo >= hi`, so `5 … 5` / `0 … -0.0` read as noise
 /// rather than a real range), and renders a one-sided bound as `≥ x` / `≤ x`.
 String? formatControlRange(double? min, double? max) {
-  if ((min?.isNaN ?? false) || (max?.isNaN ?? false)) return null;
+  if (min?.isNaN == true || max?.isNaN == true) return null;
   final lo = (min != null && min.isFinite) ? min : null;
   final hi = (max != null && max.isFinite) ? max : null;
   if (lo == null && hi == null) return null;
@@ -693,13 +701,9 @@ const _intConvChars = {0x62, 0x64, 0x6f, 0x78, 0x58};
 
 /// The printf conversion char of a `C4 74` numeric format-string payload, or null.
 int? _formatConvChar(List<int> payload) {
-  const percent = 0x25;
-  var seenPercent = false;
-  for (final c in payload) {
-    if (!seenPercent) {
-      if (c == percent) seenPercent = true;
-      continue;
-    }
+  final pct = payload.indexOf(0x25);
+  if (pct < 0) return null;
+  for (final c in payload.skip(pct + 1)) {
     if ((c >= 0x41 && c <= 0x5a) || (c >= 0x61 && c <= 0x7a)) return c;
   }
   return null;
@@ -749,6 +753,17 @@ class ViDiagram {
 
 bool _isTypeTag(int b) => b == 0xfb || b == 0xfe || b == 0xfd;
 
+/// Groups [objects] by their [ViHeapObject.parentOid] (objects with a null parent
+/// are omitted) — the positional child lists used by both the node-fallback pass
+/// and the scrolled-control re-anchor.
+Map<int, List<ViHeapObject>> _childrenByParentOid(List<ViHeapObject> objects) {
+  final kids = <int, List<ViHeapObject>>{};
+  for (final o in objects) {
+    if (o.parentOid != null) (kids[o.parentOid!] ??= <ViHeapObject>[]).add(o);
+  }
+  return kids;
+}
+
 /// Recovers the [ViDiagram] from a decompressed heap [body] by walking its record
 /// stream ([walkHeapBody]) as a **balanced typed-group tree**: a group opens at a
 /// high-nibble-1 opcode (`10/11/12/13 <tag>` with a type tag after the count) and
@@ -766,21 +781,16 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
   final stack = <ViHeapObject?>[];
   final n = body.length;
 
-  ViHeapObject? innermostObject() {
-    for (var k = stack.length - 1; k >= 0; k--) {
-      if (stack[k] != null) return stack[k];
-    }
-    return null;
-  }
+  ViHeapObject? innermostObject() => stack.lastWhere((e) => e != null, orElse: () => null);
 
   for (final s in walkHeapBody(body).spans) {
     final o = s.offset;
     final lead = s.lead;
-    final isGroupOpen = (lead == 0x10 || lead == 0x11 || lead == 0x12 || lead == 0x13) &&
+    final isGroupOpen = (_objectHeaderLeads.contains(lead) || lead == 0x13) &&
         o + 4 <= n &&
         _isTypeTag(body[o + 3]);
     if (isGroupOpen) {
-      final isObj = (lead == 0x10 || lead == 0x11 || lead == 0x12) &&
+      final isObj = _objectHeaderLeads.contains(lead) &&
           o + 9 <= n &&
           body[o + 2] == 0x02 &&
           body[o + 3] == 0xfe &&
@@ -793,8 +803,8 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
         );
         final parent = innermostObject();
         cur.parentOid = parent?.oid;
-        absTop[cur] = parent == null ? 0 : (absTop[parent] ?? 0);
-        absLeft[cur] = parent == null ? 0 : (absLeft[parent] ?? 0);
+        absTop[cur] = absTop[parent] ?? 0;
+        absLeft[cur] = absLeft[parent] ?? 0;
         objects.add(cur);
         c4ops[cur] = <int>{};
         stack.add(cur);
@@ -803,7 +813,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
       }
       continue;
     }
-    if (lead == 0x08 || lead == 0x09 || lead == 0x0a || lead == 0x0b) {
+    if (_groupCloseLeads.contains(lead)) {
       if (stack.isNotEmpty) stack.removeLast();
       continue;
     }
@@ -813,20 +823,16 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
       final rec = c4FrameAt(body, o, sectionTag);
       if (rec == null) continue;
       c4ops[cur]!.add(rec.opcode);
-      if (rec.opcode == 0x2d) {
-        if (cur.bounds == null) {
-          cur.bounds = rec.bounds;
-          if (cur.bounds != null) {
-            absTop[cur] = (absTop[cur] ?? 0) + cur.bounds!.top;
-            absLeft[cur] = (absLeft[cur] ?? 0) + cur.bounds!.left;
-            cur.absBounds = HeapRect(
-              top: absTop[cur]!,
-              left: absLeft[cur]!,
-              bottom: absTop[cur]! + cur.bounds!.height,
-              right: absLeft[cur]! + cur.bounds!.width,
-            );
-          }
-        }
+      if (rec.opcode == 0x2d && cur.bounds == null && rec.bounds != null) {
+        cur.bounds = rec.bounds;
+        absTop[cur] = (absTop[cur] ?? 0) + cur.bounds!.top;
+        absLeft[cur] = (absLeft[cur] ?? 0) + cur.bounds!.left;
+        cur.absBounds = HeapRect(
+          top: absTop[cur]!,
+          left: absLeft[cur]!,
+          bottom: absTop[cur]! + cur.bounds!.height,
+          right: absLeft[cur]! + cur.bounds!.width,
+        );
       } else if (rec.opcode == 0x22) {
         cur.label ??= rec.text;
       } else if (rec.opcode == 0x1f) {
@@ -849,16 +855,15 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
       }
     } else if (o + 1 < n && _objAttrIds.contains(body[o + 1])) {
       final a = decodeHeapAttr(body, o);
-      if (a != null) {
-        final d = a.asDouble;
-        if (d != null && kControlTerminalCodes.contains(cur.kind)) {
-          if (a.attribute == HeapAttribute.foregroundColor) cur.controlMin ??= d;
-          if (a.attribute == HeapAttribute.foregroundColorB) cur.controlMax ??= d;
-        }
-        if (a.attribute == HeapAttribute.helpDescription && o + 2 < n && body[o + 2] == 0xff) {
-          final s = a.asString;
-          if (s != null && s.isNotEmpty) cur.helpText ??= s;
-        }
+      if (a == null) continue;
+      final d = a.asDouble;
+      if (d != null && kControlTerminalCodes.contains(cur.kind)) {
+        if (a.attribute == HeapAttribute.foregroundColor) cur.controlMin ??= d;
+        if (a.attribute == HeapAttribute.foregroundColorB) cur.controlMax ??= d;
+      }
+      if (a.attribute == HeapAttribute.helpDescription && o + 2 < n && body[o + 2] == 0xff) {
+        final s = a.asString;
+        if (s != null && s.isNotEmpty) cur.helpText ??= s;
       }
     }
   }
@@ -901,10 +906,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
     }
   }
 
-  final nodeKids = <int, List<ViHeapObject>>{};
-  for (final o in objects) {
-    if (o.parentOid != null) (nodeKids[o.parentOid!] ??= <ViHeapObject>[]).add(o);
-  }
+  final nodeKids = _childrenByParentOid(objects);
 
   for (final o in objects) {
     if (o.category != ViObjectKind.unknown) continue;
@@ -975,10 +977,7 @@ List<String> _parseEnumItems(List<int> payload) {
 /// re-anchored-control-center-inside-its-viewport 12% → 99%.
 void _reanchorScrolledControls(List<ViHeapObject> objects) {
   final byOid = {for (final o in objects) o.oid: o};
-  final kids = <int, List<ViHeapObject>>{};
-  for (final o in objects) {
-    if (o.parentOid != null) (kids[o.parentOid!] ??= <ViHeapObject>[]).add(o);
-  }
+  final kids = _childrenByParentOid(objects);
 
   /// The viewport to re-anchor [o] to — its nearest `0x11c` ancestor — but null
   /// if any control or other positioned/bounded container sits between them
@@ -1035,12 +1034,8 @@ void _reanchorScrolledControls(List<ViHeapObject> objects) {
   groups.forEach((vOid, controls) {
     final v = byOid[vOid];
     if (v?.absBounds == null) return;
-    var minTop = controls.first.bounds!.top;
-    var minLeft = controls.first.bounds!.left;
-    for (final c in controls) {
-      if (c.bounds!.top < minTop) minTop = c.bounds!.top;
-      if (c.bounds!.left < minLeft) minLeft = c.bounds!.left;
-    }
+    final minTop = controls.map((c) => c.bounds!.top).reduce(min);
+    final minLeft = controls.map((c) => c.bounds!.left).reduce(min);
     for (final c in controls) {
       final newTop = v!.absBounds!.top + (c.bounds!.top - minTop);
       final newLeft = v.absBounds!.left + (c.bounds!.left - minLeft);

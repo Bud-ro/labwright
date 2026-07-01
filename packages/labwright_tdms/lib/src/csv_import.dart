@@ -17,9 +17,7 @@ Uint8List csvToTdms(String csv, {String group = 'Imported', String delimiter = '
     for (var r = 1; r < rows.length; r++) {
       final row = rows[r];
       if (col >= row.length) continue;
-      final cell = row[col].trim();
-      if (cell.isEmpty) continue;
-      final v = double.tryParse(cell);
+      final v = double.tryParse(row[col].trim());
       if (v != null) values.add(v);
     }
     channels.add(TdmsChannel(group: group, name: header[col], data: values));
@@ -27,12 +25,17 @@ Uint8List csvToTdms(String csv, {String group = 'Imported', String delimiter = '
   return (TdmsWriter()..writeSegment(channels)).toBytes();
 }
 
+const _quote = 0x22; // "
+const _lf = 0x0a; // \n
+const _cr = 0x0d; // \r
+const _comma = 0x2c; // ,
+
 List<List<String>> _parseCsv(String text, String delimiter) {
   final rows = <List<String>>[];
   var row = <String>[];
   final field = StringBuffer();
   var inQuotes = false;
-  final delim = delimiter.isEmpty ? 0x2c : delimiter.codeUnitAt(0);
+  final delim = delimiter.isEmpty ? _comma : delimiter.codeUnitAt(0);
 
   void endField() {
     row.add(field.toString());
@@ -48,9 +51,9 @@ List<List<String>> _parseCsv(String text, String delimiter) {
   for (var i = 0; i < text.length; i++) {
     final c = text.codeUnitAt(i);
     if (inQuotes) {
-      if (c == 0x22) {
-        if (i + 1 < text.length && text.codeUnitAt(i + 1) == 0x22) {
-          field.writeCharCode(0x22);
+      if (c == _quote) {
+        if (i + 1 < text.length && text.codeUnitAt(i + 1) == _quote) {
+          field.writeCharCode(_quote);
           i++;
         } else {
           inQuotes = false;
@@ -58,13 +61,13 @@ List<List<String>> _parseCsv(String text, String delimiter) {
       } else {
         field.writeCharCode(c);
       }
-    } else if (c == 0x22) {
+    } else if (c == _quote) {
       inQuotes = true;
     } else if (c == delim) {
       endField();
-    } else if (c == 0x0a) {
+    } else if (c == _lf) {
       endRow();
-    } else if (c != 0x0d) {
+    } else if (c != _cr) {
       field.writeCharCode(c);
     }
   }

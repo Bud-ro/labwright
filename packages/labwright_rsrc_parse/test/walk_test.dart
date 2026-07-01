@@ -4,8 +4,8 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
 void main() {
+  Uint8List b(List<int> x) => Uint8List.fromList(x);
   test('recordSkip frames the known record families', () {
-    Uint8List b(List<int> x) => Uint8List.fromList(x);
     expect(recordSkip(b([0xc4, 0x2d, 0x08, 0, 0, 0, 0, 0, 0, 0, 0]), 0), 11);
     expect(recordSkip(b([0xc4, 0x19, 0xff, 0x01, 0x02, ...List.filled(258, 0)]), 0), 263);
     expect(recordSkip(b([0x84, 1, 2, 3, 4, 5]), 0), 6);
@@ -66,7 +66,6 @@ void main() {
   });
 
   test('decodeHeapPropertyToken decodes tagged-list values and bare selectors', () {
-    Uint8List b(List<int> x) => Uint8List.fromList(x);
     final role = decodeHeapPropertyToken(b([0x10, 0x19, 0x01, 0xfe, 0x02, 0x58]), 0);
     expect(role!.token, HeapPropertyToken.selfRoleClass,
         reason: 'count==1 makes 10 19 a genuine single-item property token');
@@ -103,7 +102,6 @@ void main() {
   });
 
   test('decodeHeapRef decodes typed refs and rejects the 0x53 literal', () {
-    Uint8List b(List<int> x) => Uint8List.fromList(x);
     final m = decodeHeapRef(b([0x14, 0x4f, 0x01, 0xfd, 0x00, 0x2a]), 0)!;
     expect(m.kind, HeapRefKind.memberRef);
     expect(m.targetOid, 0x2a);
