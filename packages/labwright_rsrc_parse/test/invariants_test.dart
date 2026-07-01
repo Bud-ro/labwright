@@ -1,7 +1,6 @@
 @Tags(['corpus'])
 library;
 
-import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -24,18 +23,6 @@ import 'corpus_dirs.dart';
 ///    display can only improve. Pushes toward 100% display.
 ///
 /// Corpus-tagged: skipped automatically when the pinned corpus isn't fetched.
-List<File> _vis(String dir, int take) {
-  final d = Directory(dir);
-  if (!d.existsSync()) return const [];
-  final all = d
-      .listSync(recursive: true)
-      .whereType<File>()
-      .where((f) => f.path.toLowerCase().endsWith('.vi'))
-      .toList()
-    ..sort((a, b) => a.path.compareTo(b.path));
-  return take <= 0 ? all : all.take(take).toList();
-}
-
 String _sig(ViModel m) {
   final b = StringBuffer();
   for (final diag in [...m.blockDiagrams, ...m.frontPanelDiagrams]) {
@@ -50,22 +37,282 @@ String _sig(ViModel m) {
   return b.toString();
 }
 
+const _subviKinds = {0x31, 0x32, 0xc5, 0x104, 0x103};
+bool _inside(HeapRect o, int cx, int cy) => cx >= o.left && cx <= o.right && cy >= o.top && cy <= o.bottom;
+
+/// Deterministic byte-flip iterations fuzzed per VI in the shared pass. Every VI
+/// in the corpus is fuzzed (no seed sampling), so a small per-VI iteration count
+/// already yields far more fuzz coverage than the old 40-seed loop while keeping
+/// the shared pass fast.
+const _fuzzIters = 2;
+
+bool _heapLead(int x) => x == 0xc4 || (x >= 0x08 && x <= 0x13);
+
+/// A real C4 record-heap opens with a u32 content-length == len-4 followed by a
+/// group-open/C4 lead (the load-bearing gate for the record walk).
+bool _structuralHeap(List<int> b) {
+  if (b.length < 8) return false;
+  final declared = (b[0] << 24) | (b[1] << 16) | (b[2] << 8) | b[3];
+  return declared == b.length - 4 && _heapLead(b[4]);
+}
+
+/// Per-VI summary for every `buildViModel`-based invariant. Computed ONCE per VI
+/// in a worker isolate (see [corpusParallel]); the model tests below assert on the
+/// aggregate of these instead of each rebuilding the whole corpus. Fields are all
+/// sendable (ints/bools/`List<int>`). A VI whose model build throws (a non-RSRC
+/// fixture) returns a neutral summary so it affects no aggregate.
+class _M {
+  final String path;
+  final bool deterministic;
+  final int boundsChecked;
+  final String? boundsWild;
+  final int fpBounded, fpNeg;
+  final bool fpHasNeg;
+  final int drawn, distinct;
+  final int bdVisible, bdTyped;
+  final int fpVisible, fpTyped;
+  final int subviTotal, subviNamed;
+  final int layoutPairs, layoutContained;
+  final List<int> kinds;
+  // MUTATION-FUZZ: the first wild coordinate a byte-flipped rebuild leaked (null
+  // if every fuzz iteration stayed in-bounds or threw cleanly).
+  final String? fuzzWild;
+  // BLOCK CATALOG ↔ corpus: per-VI section census for the record-heap gate.
+  final int catHeapSections, catHeapStructural, structuralSections, structuralCatalogued;
+  final List<String> headTags;
+  const _M({
+    required this.path,
+    required this.deterministic,
+    required this.boundsChecked,
+    required this.boundsWild,
+    required this.fpBounded,
+    required this.fpNeg,
+    required this.fpHasNeg,
+    required this.drawn,
+    required this.distinct,
+    required this.bdVisible,
+    required this.bdTyped,
+    required this.fpVisible,
+    required this.fpTyped,
+    required this.subviTotal,
+    required this.subviNamed,
+    required this.layoutPairs,
+    required this.layoutContained,
+    required this.kinds,
+    required this.fuzzWild,
+    required this.catHeapSections,
+    required this.catHeapStructural,
+    required this.structuralSections,
+    required this.structuralCatalogued,
+    required this.headTags,
+  });
+  // A VI whose model build threw (a non-RSRC fixture): neutral, affects no aggregate.
+  factory _M.neutral(String path) => _M(
+        path: path, deterministic: true, boundsChecked: 0, boundsWild: null, fpBounded: 0,
+        fpNeg: 0, fpHasNeg: false, drawn: 0, distinct: 0, bdVisible: 0, bdTyped: 0,
+        fpVisible: 0, fpTyped: 0, subviTotal: 0, subviNamed: 0, layoutPairs: 0,
+        layoutContained: 0, kinds: const <int>[], fuzzWild: null, catHeapSections: 0,
+        catHeapStructural: 0, structuralSections: 0, structuralCatalogued: 0,
+        headTags: const <String>[],
+      );
+}
+
+_M _modelSumm(Uint8List bytes, String path) {
+  final ViModel m;
+  try {
+    m = buildViModel(bytes);
+  } catch (_) {
+    return _M.neutral(path); // a malformed container throwing cleanly is fine
+  }
+  // DETERMINISM: an independent re-parse must yield a byte-identical object graph.
+  var deterministic = true;
+  try {
+    deterministic = _sig(m) == _sig(buildViModel(bytes));
+  } catch (_) {}
+
+  // SANE BOUNDS + CATALOG: every object's coords in range; collect the kind set.
+  var boundsChecked = 0;
+  String? boundsWild;
+  final kinds = <int>{};
+  for (final o in [...m.blockDiagrams, ...m.frontPanelDiagrams].expand((d) => d.objects)) {
+    kinds.add(o.kind);
+    final r = o.absBounds;
+    if (r == null) continue;
+    boundsChecked++;
+    for (final c in [r.left, r.top, r.right, r.bottom]) {
+      if (c < -200000 || c > 200000) boundsWild ??= 'wild coordinate $c in $path';
+    }
+  }
+
+  // FRONT-PANEL: negatives preserved; render-typed fraction; distinct-rect fraction.
+  var fpBounded = 0, fpNeg = 0, fpVisible = 0, fpTyped = 0, drawn = 0, distinct = 0;
+  var fpHasNeg = false;
+  for (final d in m.frontPanelDiagrams) {
+    final keys = <String>{};
+    var n = 0;
+    for (final o in d.objects) {
+      final r = o.absBounds;
+      if (r == null) continue;
+      fpBounded++;
+      if (r.top < 0 || r.left < 0) {
+        fpNeg++;
+        fpHasNeg = true;
+      }
+      if (r.width > 1 && r.height > 1) {
+        fpVisible++;
+        if (o.category != ViObjectKind.unknown) fpTyped++;
+      }
+      if (r.isValid && r.width > 1 && r.height > 1) {
+        n++;
+        keys.add('${r.top},${r.left},${r.bottom},${r.right}');
+      }
+    }
+    if (n >= 8) {
+      drawn += n;
+      distinct += keys.length;
+    }
+  }
+
+  // BLOCK-DIAGRAM: render-typed fraction; subVI-call name recovery.
+  var bdVisible = 0, bdTyped = 0, subviTotal = 0, subviNamed = 0;
+  for (final o in m.blockDiagrams.expand((d) => d.objects)) {
+    final r = o.absBounds;
+    if (r != null && r.width > 1 && r.height > 1) {
+      bdVisible++;
+      if (o.category != ViObjectKind.unknown) bdTyped++;
+    }
+    if (_subviKinds.contains(o.kind)) {
+      subviTotal++;
+      if (o.label != null && o.label!.trim().isNotEmpty) subviNamed++;
+    }
+  }
+
+  // LAYOUT: a drawn BD node whose ancestor chain hits a drawn structure frame must
+  // have its center inside that frame.
+  var layoutPairs = 0, layoutContained = 0;
+  for (final diag in m.blockDiagrams) {
+    final byOid = {for (final o in diag.objects) o.oid: o};
+    for (final o in diag.objects) {
+      if (o.category != ViObjectKind.node) continue;
+      final b = o.absBounds;
+      if (b == null || !b.isValid || b.width <= 1 || b.height <= 1) continue;
+      HeapRect? frame;
+      var p = o.parentOid;
+      final seen = <int>{o.oid};
+      while (p != null && seen.add(p)) {
+        final po = byOid[p];
+        if (po == null) break;
+        if (po.category == ViObjectKind.structure && (po.absBounds?.isValid ?? false)) {
+          frame = po.absBounds;
+          break;
+        }
+        p = po.parentOid;
+      }
+      if (frame == null) continue;
+      layoutPairs++;
+      if (_inside(frame, b.left + b.width ~/ 2, b.top + b.height ~/ 2)) layoutContained++;
+    }
+  }
+
+  // BLOCK CATALOG ↔ corpus: every catalogued record-heap section must be a
+  // structural C4 heap, and (reverse) structural heaps must be catalogued.
+  var catHeapSections = 0, catHeapStructural = 0, structuralSections = 0, structuralCatalogued = 0;
+  final headTags = <String>{};
+  try {
+    for (final s in decodeSections(bytes)) {
+      final isCatHeap = isRecordHeapTag(s.tag);
+      final isStruct = _structuralHeap(s.bytes);
+      if (isCatHeap) {
+        headTags.add(s.tag);
+        catHeapSections++;
+        if (isStruct) catHeapStructural++;
+      }
+      if (isStruct) {
+        structuralSections++;
+        if (isCatHeap) structuralCatalogued++;
+      }
+    }
+  } catch (_) {}
+
+  // MUTATION-FUZZ: flip bytes inside this genuine VI and push the corrupt payload
+  // through the full build. Completing means no hang/OOM (a hang trips the
+  // setUpAll timeout); a clean throw is allowed; a returned model must still obey
+  // the bounds-sanity invariant. Deterministic RNG so a failure reproduces.
+  String? fuzzWild;
+  if (bytes.length >= 64) {
+    final rng = Random(0xC0FFEE);
+    for (var iter = 0; iter < _fuzzIters && fuzzWild == null; iter++) {
+      final mut = Uint8List.fromList(bytes);
+      final flips = 1 + rng.nextInt(3);
+      for (var k = 0; k < flips; k++) {
+        mut[rng.nextInt(mut.length)] ^= 1 << rng.nextInt(8);
+      }
+      ViModel? built;
+      try {
+        built = buildViModel(mut);
+      } catch (_) {
+        built = null;
+      }
+      if (built == null) continue;
+      for (final o in [...built.blockDiagrams, ...built.frontPanelDiagrams].expand((d) => d.objects)) {
+        final r = o.absBounds;
+        if (r == null) continue;
+        for (final c in [r.left, r.top, r.right, r.bottom]) {
+          if (c < -200000 || c > 200000) {
+            fuzzWild = 'corruption leaked a wild coordinate $c (seed VI $path, iter $iter)';
+            break;
+          }
+        }
+        if (fuzzWild != null) break;
+      }
+    }
+  }
+
+  return _M(
+    path: path,
+    deterministic: deterministic,
+    boundsChecked: boundsChecked,
+    boundsWild: boundsWild,
+    fpBounded: fpBounded,
+    fpNeg: fpNeg,
+    fpHasNeg: fpHasNeg,
+    drawn: drawn,
+    distinct: distinct,
+    bdVisible: bdVisible,
+    bdTyped: bdTyped,
+    fpVisible: fpVisible,
+    fpTyped: fpTyped,
+    subviTotal: subviTotal,
+    subviNamed: subviNamed,
+    layoutPairs: layoutPairs,
+    layoutContained: layoutContained,
+    kinds: kinds.toList(),
+    fuzzWild: fuzzWild,
+    catHeapSections: catHeapSections,
+    catHeapStructural: catHeapStructural,
+    structuralSections: structuralSections,
+    structuralCatalogued: structuralCatalogued,
+    headTags: headTags.toList(),
+  );
+}
+
 void main() {
-  final sample = _vis(corpusSampleDir.path, 0);
-  if (sample.isEmpty) {
+  final all = corpusVis();
+  if (all.isEmpty) {
     test('invariants (skipped: corpus not fetched)', () {}, skip: true);
     return;
   }
-  final diverse = _vis(corpusDiverseDir.path, 0);
-  final all = [...sample, ...diverse];
+  // Build the per-VI model summary ONCE, in parallel across isolates; the
+  // buildViModel-based tests below assert on this shared result instead of each
+  // re-walking the whole corpus (~96s of redundant model builds collapse to ~1).
+  late final List<_M> M;
+  setUpAll(() async {
+    M = await corpusParallel(all, _modelSumm);
+  });
 
   test('DETERMINISM: building the same VI twice yields an identical object graph', () {
-    // Double-parse is ~2x cost, so a deterministic slice is plenty to catch a
-    // non-deterministic decode (it would fail on essentially any affected VI).
-    for (final f in all.take(250)) {
-      final bytes = f.readAsBytesSync();
-      expect(_sig(buildViModel(bytes)), _sig(buildViModel(bytes)), reason: 'non-deterministic decode: ${f.path}');
-    }
+    final bad = M.where((m) => !m.deterministic).map((m) => m.path).toList();
+    expect(bad, isEmpty, reason: 'non-deterministic decode: ${bad.take(5).join(', ')}');
   });
 
   // SANE BOUNDS is the one structural property that genuinely holds for every
@@ -77,158 +324,67 @@ void main() {
   //   * parent chains are NOT acyclic — real VIs contain parent cycles / oid-reuse
   //     loops (e.g. oid 0x8000), which the shiftSubtree/reanchorViewport seen-set
   //     guards tolerate. So we do NOT assert uniqueness or acyclicity.
+  // SANE BOUNDS: a mis-decode (wrong offset / walk desync) surfaces as a wild
+  // coordinate; real VI coords sit well inside ±200000. (We check each coordinate's
+  // magnitude, NOT width/height sign — inverted rects are real and filtered at
+  // render by HeapRect.isValid, so they are not a decode error.) Computed per VI in
+  // the shared model pass.
   test('STRUCTURAL INVARIANT: every decoded object has sane (non-wild) bounds', () {
-    var checked = 0;
-    for (final f in all) {
-      final ViModel m;
-      try {
-        m = buildViModel(f.readAsBytesSync());
-      } catch (_) {
-        continue; // totality is guarded elsewhere
-      }
-      for (final o in [...m.blockDiagrams, ...m.frontPanelDiagrams].expand((d) => d.objects)) {
-        final r = o.absBounds;
-        if (r == null) continue;
-        checked++;
-        // Magnitude sanity on the raw coordinates: a mis-decode (wrong offset /
-        // walk desync) tends to surface as a wild coordinate, while real VI coords
-        // sit well inside this range. NOTE: we check each coordinate's magnitude,
-        // not width/height sign — INVERTED rects (negative w/h) are real in the
-        // corpus and are filtered at render by HeapRect.isValid, so they are not a
-        // decode error.
-        for (final c in [r.left, r.top, r.right, r.bottom]) {
-          expect(c, inInclusiveRange(-200000, 200000), reason: 'wild coordinate $c in ${f.path}');
-        }
-      }
-    }
-    expect(checked, greaterThan(0));
+    final wild = M.map((m) => m.boundsWild).whereType<String>().toList();
+    expect(wild, isEmpty, reason: wild.take(5).join('; '));
+    expect(M.fold<int>(0, (a, m) => a + m.boundsChecked), greaterThan(0));
   });
 
+  // Controls parked off the top-left of the panel origin carry genuine NEGATIVE
+  // signed-s16 coords (~13.6% of corpus FP objects); they must reach the model
+  // unaltered (a clamp would silently relocate parked controls).
   test('STRUCTURAL INVARIANT: front-panel coords may be negative (parked off-panel) and survive', () {
-    // Controls parked off the top-left of the panel origin (e.g. error in/out
-    // clusters in many example VIs) carry genuine NEGATIVE signed-s16 coordinates.
-    // They are faithful, not a decode bug (~13.6% of corpus FP objects), and must
-    // NOT be clamped to the origin — a clamp would silently relocate parked
-    // controls. Assert that negatives reach the model unaltered.
-    var negObjs = 0, filesWithNeg = 0, bounded = 0;
-    for (final f in all) {
-      final ViModel m;
-      try {
-        m = buildViModel(f.readAsBytesSync());
-      } catch (_) {
-        continue;
-      }
-      var fileHasNeg = false;
-      for (final o in m.frontPanelDiagrams.expand((d) => d.objects)) {
-        final r = o.absBounds;
-        if (r == null) continue;
-        bounded++;
-        if (r.top < 0 || r.left < 0) {
-          negObjs++;
-          fileHasNeg = true;
-        }
-      }
-      if (fileHasNeg) filesWithNeg++;
-    }
+    final bounded = M.fold<int>(0, (a, m) => a + m.fpBounded);
+    final negObjs = M.fold<int>(0, (a, m) => a + m.fpNeg);
+    final filesWithNeg = M.where((m) => m.fpHasNeg).length;
     expect(bounded, greaterThan(0));
-    // negative panel coords are common and preserved (probe: ~13.6% of objects).
     expect(negObjs, greaterThan(0), reason: 'no negative FP coords survived — parked controls may be clamped');
     expect(filesWithNeg, greaterThan(0));
   });
 
+  // FP controls overlap faithfully (a control sits inside its container) but a
+  // decode collapse would crater the distinct-rect fraction (~76.6%); floor 0.55.
   test('STRUCTURAL INVARIANT: drawn FP objects are distinctly placed (overlap is layout, not a collapse)', () {
-    // FP controls overlap heavily — but that is faithful (a control sits inside its
-    // container; chrome/scrollbars overlap content; dense panels). It is NOT a
-    // decode collapse: drawn objects carry DISTINCT bounds (probe: 76.6% of drawn
-    // objects have a unique rect). A decode bug collapsing objects to one rect would
-    // crater this ratio, so assert it stays well above a floor.
-    var drawn = 0, distinct = 0;
-    for (final f in all) {
-      final ViModel m;
-      try {
-        m = buildViModel(f.readAsBytesSync());
-      } catch (_) {
-        continue;
-      }
-      for (final d in m.frontPanelDiagrams) {
-        final keys = <String>{};
-        var n = 0;
-        for (final o in d.objects) {
-          final r = o.absBounds;
-          if (r == null || !r.isValid || r.width <= 1 || r.height <= 1) continue;
-          n++;
-          keys.add('${r.top},${r.left},${r.bottom},${r.right}');
-        }
-        if (n < 8) continue; // tiny diagrams aren't a meaningful ratio
-        drawn += n;
-        distinct += keys.length;
-      }
-    }
+    final drawn = M.fold<int>(0, (a, m) => a + m.drawn);
+    final distinct = M.fold<int>(0, (a, m) => a + m.distinct);
     expect(drawn, greaterThan(0));
-    // aggregate unique-rect fraction (probe: ~76.6%); floor well below that.
     expect(distinct / drawn, greaterThan(0.55),
         reason: 'drawn FP objects collapsed to shared rects: only $distinct/$drawn distinct');
   });
 
+  // RENDER RATCHET (BD): visible objects classify to a typed widget. ~0.998; floor
+  // 0.99, upward-only (mirrors the coverage-baseline discipline).
   test('RENDER RATCHET: visible block-diagram objects classify to a typed widget (>= floor)', () {
-    var visible = 0, typed = 0;
-    for (final f in all) {
-      try {
-        final m = buildViModel(f.readAsBytesSync());
-        for (final o in m.blockDiagrams.expand((d) => d.objects)) {
-          final r = o.absBounds;
-          if (r == null || r.width <= 1 || r.height <= 1) continue;
-          visible++;
-          if (o.category != ViObjectKind.unknown) typed++;
-        }
-      } catch (_) {}
-    }
+    final visible = M.fold<int>(0, (a, m) => a + m.bdVisible);
+    final typed = M.fold<int>(0, (a, m) => a + m.bdTyped);
     expect(visible, greaterThan(0));
     final frac = typed / visible;
-    // Current: ~0.998. Floor at 0.99 — ratchets up only; raise the floor when a
-    // commit legitimately improves it (mirrors the coverage baseline discipline).
     expect(frac, greaterThanOrEqualTo(0.99),
         reason: 'BD render-typed fraction dropped to ${(frac * 100).toStringAsFixed(2)}% (floor 99%).');
   });
 
+  // RENDER RATCHET (FP): the front-panel taxonomy is the most mature (~0.9991);
+  // floor 0.99, upward-only.
   test('RENDER RATCHET: visible FRONT-PANEL objects classify to a typed widget (>= floor)', () {
-    var visible = 0, typed = 0;
-    for (final f in all) {
-      try {
-        final m = buildViModel(f.readAsBytesSync());
-        for (final o in m.frontPanelDiagrams.expand((d) => d.objects)) {
-          final r = o.absBounds;
-          if (r == null || r.width <= 1 || r.height <= 1) continue;
-          visible++;
-          if (o.category != ViObjectKind.unknown) typed++;
-        }
-      } catch (_) {}
-    }
+    final visible = M.fold<int>(0, (a, m) => a + m.fpVisible);
+    final typed = M.fold<int>(0, (a, m) => a + m.fpTyped);
     expect(visible, greaterThan(0));
     final frac = typed / visible;
-    // Current: ~0.9991. Floor 0.99, upward-only — the front-panel taxonomy is the
-    // most mature, so this guards against a regression dropping FP coverage.
     expect(frac, greaterThanOrEqualTo(0.99),
         reason: 'FP render-typed fraction dropped to ${(frac * 100).toStringAsFixed(2)}% (floor 99%).');
   });
 
-  // 7. NAMING-RECOVERY RATCHET — distinct from the render ratchets (typed widget):
-  // this guards that subVI-CALL node kinds recover their called-VI *name* (the
-  // `.vi`/`.lvclass` filename) via 0xa-caption propagation. That name is the call
-  // graph — losing it would silently gut "understanding" while every render ratchet
-  // still passed. Floor 0.99 (currently ~0.9965), upward-only.
+  // NAMING-RECOVERY RATCHET — subVI-CALL node kinds must recover their called-VI
+  // *name* via 0xa-caption propagation (that name IS the call graph). Floor 0.99
+  // (~0.9965), upward-only.
   test('NAMING RATCHET: subVI-call nodes recover their called-VI name (>= floor)', () {
-    const subviKinds = {0x31, 0x32, 0xc5, 0x104, 0x103};
-    var total = 0, named = 0;
-    for (final f in all) {
-      try {
-        for (final o in buildViModel(f.readAsBytesSync()).blockDiagrams.expand((d) => d.objects)) {
-          if (!subviKinds.contains(o.kind)) continue;
-          total++;
-          if (o.label != null && o.label!.trim().isNotEmpty) named++;
-        }
-      } catch (_) {}
-    }
+    final total = M.fold<int>(0, (a, m) => a + m.subviTotal);
+    final named = M.fold<int>(0, (a, m) => a + m.subviNamed);
     expect(total, greaterThan(0));
     final frac = named / total;
     expect(frac, greaterThanOrEqualTo(0.99),
@@ -236,42 +392,13 @@ void main() {
             'the 0xa-caption propagation likely regressed.');
   });
 
-  // 8. LAYOUT-CONTAINMENT RATCHET — geometric correctness of coordinate
-  // composition: a drawn BD node whose ancestor chain includes a drawn structure
-  // frame should have its CENTER inside that frame (nodes live in their loop/case
-  // body). A drop signals a coordinate-composition / re-anchor regression that the
-  // typed-widget render ratchets would NOT catch (a node can be the right widget
-  // but in the wrong place). Floor 0.98 (currently ~0.9936), upward-only.
+  // LAYOUT-CONTAINMENT RATCHET — a drawn BD node whose ancestor chain includes a
+  // drawn structure frame must have its CENTER inside that frame. A drop signals a
+  // coordinate-composition / re-anchor regression the typed-widget ratchets miss.
+  // Floor 0.98 (~0.9936), upward-only.
   test('LAYOUT RATCHET: BD nodes sit inside their enclosing structure frame (>= floor)', () {
-    bool inside(HeapRect o, int cx, int cy) => cx >= o.left && cx <= o.right && cy >= o.top && cy <= o.bottom;
-    var pairs = 0, contained = 0;
-    for (final f in all) {
-      try {
-        for (final diag in buildViModel(f.readAsBytesSync()).blockDiagrams) {
-          final byOid = {for (final o in diag.objects) o.oid: o};
-          for (final o in diag.objects) {
-            if (o.category != ViObjectKind.node) continue;
-            final b = o.absBounds;
-            if (b == null || !b.isValid || b.width <= 1 || b.height <= 1) continue;
-            HeapRect? frame;
-            var p = o.parentOid;
-            final seen = <int>{o.oid};
-            while (p != null && seen.add(p)) {
-              final po = byOid[p];
-              if (po == null) break;
-              if (po.category == ViObjectKind.structure && (po.absBounds?.isValid ?? false)) {
-                frame = po.absBounds;
-                break;
-              }
-              p = po.parentOid;
-            }
-            if (frame == null) continue;
-            pairs++;
-            if (inside(frame, b.left + b.width ~/ 2, b.top + b.height ~/ 2)) contained++;
-          }
-        }
-      } catch (_) {}
-    }
+    final pairs = M.fold<int>(0, (a, m) => a + m.layoutPairs);
+    final contained = M.fold<int>(0, (a, m) => a + m.layoutContained);
     expect(pairs, greaterThan(0));
     final frac = contained / pairs;
     expect(frac, greaterThanOrEqualTo(0.98),
@@ -288,38 +415,12 @@ void main() {
   // the bounds-sanity invariant (corruption must not leak wild coordinates into
   // the render). Deterministic RNG so a failure reproduces.
   test('MUTATION-FUZZ: byte-flipped VIs decode without hanging and never emit wild bounds', () {
-    final rng = Random(0xC0FFEE);
-    for (final f in all.take(40)) {
-      final orig = f.readAsBytesSync();
-      if (orig.length < 64) continue;
-      for (var iter = 0; iter < 8; iter++) {
-        final m = Uint8List.fromList(orig);
-        final flips = 1 + rng.nextInt(3);
-        for (var k = 0; k < flips; k++) {
-          m[rng.nextInt(m.length)] ^= 1 << rng.nextInt(8);
-        }
-        ViModel? built;
-        // Completing this expect at all means no hang/OOM (a hang trips the test
-        // runner timeout); a clean throw on corrupt input is allowed.
-        expect(() {
-          try {
-            built = buildViModel(m);
-          } catch (_) {
-            built = null;
-          }
-        }, returnsNormally);
-        if (built case final mm?) {
-          for (final o in [...mm.blockDiagrams, ...mm.frontPanelDiagrams].expand((d) => d.objects)) {
-            final r = o.absBounds;
-            if (r == null) continue;
-            for (final c in [r.left, r.top, r.right, r.bottom]) {
-              expect(c, inInclusiveRange(-200000, 200000),
-                  reason: 'corruption leaked a wild coordinate $c (seed VI ${f.path}, iter $iter)');
-            }
-          }
-        }
-      }
-    }
+    // Every VI was fuzzed ($_fuzzIters deterministic byte-flip iterations) inside
+    // the shared parallel pass. Completing that pass at all means no corrupt build
+    // hung/OOM'd (a hang trips the setUpAll timeout); a clean throw is allowed.
+    // The only positive assertion is that no returned model leaked a wild coord.
+    final wild = M.map((m) => m.fuzzWild).whereType<String>().toList();
+    expect(wild, isEmpty, reason: wild.take(5).join('; '));
   });
 
   // 5. CATALOG INTEGRITY — clean-room honesty guard: every named HeapObjectClass
@@ -328,15 +429,7 @@ void main() {
   // we "name" but that no VI actually contains. Confirmed at probe time: 0 of the
   // current entries are corpus-absent.
   test('CATALOG INTEGRITY: every catalogued object-class kind occurs in the corpus', () {
-    final seen = <int>{};
-    for (final f in all) {
-      try {
-        final m = buildViModel(f.readAsBytesSync());
-        for (final o in [...m.blockDiagrams, ...m.frontPanelDiagrams].expand((d) => d.objects)) {
-          seen.add(o.kind);
-        }
-      } catch (_) {}
-    }
+    final seen = <int>{for (final m in M) ...m.kinds};
     for (final c in HeapObjectClass.values) {
       if (c == HeapObjectClass.unknown) continue;
       expect(seen.contains(c.code), isTrue,
@@ -352,37 +445,12 @@ void main() {
   // blocks (VCTP/VICD/DFDS/TM80…) can never be mis-read as heaps with a bogus
   // content length + fat "unframed tail". Forward direction must be 100%.
   test('BLOCK CATALOG: every catalogued record-heap section really is a C4 heap (and only those)', () {
-    bool heapLead(int x) => x == 0xc4 || (x >= 0x08 && x <= 0x13);
-    bool structuralHeap(List<int> b) {
-      if (b.length < 8) return false;
-      final declared = (b[0] << 24) | (b[1] << 16) | (b[2] << 8) | b[3];
-      return declared == b.length - 4 && heapLead(b[4]);
-    }
-
-    final headTags = <String>{};
-    var catHeapSections = 0, catHeapStructural = 0;
-    var structuralSections = 0, structuralCatalogued = 0;
-    for (final f in all.take(900)) {
-      final List<DecodedSection> secs;
-      try {
-        secs = decodeSections(f.readAsBytesSync());
-      } catch (_) {
-        continue;
-      }
-      for (final s in secs) {
-        final isCatHeap = isRecordHeapTag(s.tag);
-        final isStruct = structuralHeap(s.bytes);
-        if (isCatHeap) {
-          headTags.add(s.tag);
-          catHeapSections++;
-          if (isStruct) catHeapStructural++;
-        }
-        if (isStruct) {
-          structuralSections++;
-          if (isCatHeap) structuralCatalogued++;
-        }
-      }
-    }
+    // Censused over the WHOLE corpus in the shared parallel pass.
+    final headTags = <String>{for (final m in M) ...m.headTags};
+    final catHeapSections = M.fold<int>(0, (a, m) => a + m.catHeapSections);
+    final catHeapStructural = M.fold<int>(0, (a, m) => a + m.catHeapStructural);
+    final structuralSections = M.fold<int>(0, (a, m) => a + m.structuralSections);
+    final structuralCatalogued = M.fold<int>(0, (a, m) => a + m.structuralCatalogued);
     // FORWARD (load-bearing): every catalogued heap section is structurally a heap.
     expect(catHeapSections, greaterThan(0));
     expect(catHeapStructural, catHeapSections,
