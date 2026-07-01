@@ -15,8 +15,6 @@ library;
 
 import 'dart:typed_data';
 
-import '../viparse.dart' show ViSection;
-import 'block_catalog.dart' show BlockConfidence;
 
 /// A decoded legacy icon bitmap (always 32×32).
 class ViLegacyIcon {
@@ -32,8 +30,6 @@ class ViLegacyIcon {
   /// 4/8 bpp they are palette indices (RGB mapping is future work).
   final List<int> pixels;
 
-  /// Confidence in dimensions + bit-depth + index extraction (corpus-exact).
-  static const BlockConfidence framingConfidence = BlockConfidence.confirmed;
 }
 
 /// Bits-per-pixel for a legacy-icon tag, or null if not a legacy-icon tag.
@@ -72,22 +68,4 @@ ViLegacyIcon? decodeLegacyIcon(Uint8List b, int bpp) {
       return null;
   }
   return ViLegacyIcon(bpp: bpp, pixels: pixels);
-}
-
-/// Finds the best legacy icon among [sections], preferring richer depth
-/// (`icl8` → `icl4` → `ICON`). Null if none present/decodable.
-ViLegacyIcon? legacyIconFromSections(Iterable<ViSection> sections) {
-  ViSection? icl8, icl4, icon;
-  for (final s in sections) {
-    if (s.tag == 'icl8') icl8 = s;
-    if (s.tag == 'icl4') icl4 = s;
-    if (s.tag == 'ICON') icon = s;
-  }
-  for (final s in [icl8, icl4, icon]) {
-    if (s == null) continue;
-    final bpp = legacyIconBpp(s.tag)!;
-    final dec = decodeLegacyIcon(s.bytes, bpp);
-    if (dec != null) return dec;
-  }
-  return null;
 }

@@ -17,8 +17,6 @@ library;
 
 import 'dart:typed_data';
 
-import 'block_catalog.dart' show BlockConfidence;
-
 /// A decoded `TM80` type map.
 class ViTypeMap {
   const ViTypeMap({
@@ -46,13 +44,6 @@ class ViTypeMap {
   /// The `count` 16-bit entries (short form). Raw values — semantics not yet
   /// decoded (they are NOT plain VCTP indices). Empty for the large form.
   final List<int> entries;
-
-  /// Confidence in the short-form *structure* (length law holds for ~71% of
-  /// corpus TM80 sections; the rest are the large form).
-  static const BlockConfidence structureConfidence = BlockConfidence.likely;
-
-  /// Confidence in what the entries *mean* — open.
-  static const BlockConfidence entrySemanticsConfidence = BlockConfidence.tentative;
 }
 
 /// Decodes a decompressed `TM80` body. Total: returns null only when the buffer

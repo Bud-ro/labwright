@@ -10,22 +10,17 @@ import '../labwright_rsrc_parse.dart';
 class DecodedSection {
   DecodedSection({required this.section, required this.bytes, required this.wasCompressed});
 
-  /// The source section (tag, index, raw bytes).
   final ViSection section;
 
   /// The section's logical bytes: decompressed if it was a zlib heap, else raw.
   final Uint8List bytes;
 
-  /// Whether [bytes] came from inflating a zlib stream.
   final bool wasCompressed;
 
-  /// The owning block's 4-char tag (e.g. `BDEx`, `DTHP`).
   String get tag => section.tag;
 
-  /// The section's index within its block.
   int get index => section.index;
 
-  /// Decompressed length in bytes.
   int get length => bytes.length;
 }
 

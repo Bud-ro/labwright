@@ -71,11 +71,9 @@ Future<void> main(List<String> args) async {
     stdout.writeln('  ok ($extracted .vi)');
   }
 
-  final grandTotal = Directory(dest).existsSync()
-      ? Directory(
-          dest,
-        ).listSync(recursive: true).whereType<File>().where((f) => f.path.toLowerCase().endsWith('.vi')).length
-      : 0;
+  final grandTotal = Directory(
+    dest,
+  ).listSync(recursive: true).whereType<File>().where((f) => f.path.toLowerCase().endsWith('.vi')).length;
   stdout.writeln(
     'done: fetched=$fetched skipped=$skipped failed=$failed '
     '(this run +$viTotal .vi); corpus now holds $grandTotal .vi at $dest',

@@ -67,7 +67,7 @@ Future<void> main(List<String> args) async {
     stdout.writeln('  ok ($extracted corpus files; ${_countSeq(out)} .seq)');
   }
 
-  final grand = Directory(dest).existsSync() ? _countSeq(Directory(dest)) : 0;
+  final grand = _countSeq(Directory(dest));
   stdout.writeln(
     'done: fetched=$fetched skipped=$skipped failed=$failed '
     '(this run +$seqTotal corpus files); corpus now holds $grand .seq at $dest',

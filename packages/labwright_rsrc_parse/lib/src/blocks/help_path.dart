@@ -13,9 +13,6 @@ library;
 
 import 'dart:typed_data';
 
-import '../viparse.dart' show ViSection;
-import 'block_catalog.dart' show BlockConfidence;
-
 /// ASCII `"PTH0"` — the four magic bytes that head a LabVIEW path record.
 const List<int> _pth0Magic = [0x50, 0x54, 0x48, 0x30];
 
@@ -28,10 +25,8 @@ class ViHelpPath {
     required this.components,
   });
 
-  /// The block length in bytes.
   final int rawLength;
 
-  /// True when the `PTH0` magic was present and the record parsed.
   final bool isPth0;
 
   /// `i16 @8` — the path kind (0 = relative-style in the corpus; full enumeration
@@ -41,11 +36,7 @@ class ViHelpPath {
   /// The path components in order (`<helpdir>`, `JKI`, `Caraya`, `README.html`).
   final List<String> components;
 
-  /// The components joined with `/` — the help document path.
   String get path => components.join('/');
-
-  /// Confidence in the `PTH0` framing + component recovery (corpus: 100%).
-  static const BlockConfidence framingConfidence = BlockConfidence.confirmed;
 }
 
 /// Decodes an `HLPP` (`PTH0`) body. Null when too short for the header; returns
@@ -71,12 +62,4 @@ ViHelpPath? decodeHelpPath(Uint8List b) {
     p += len;
   }
   return ViHelpPath(rawLength: b.length, isPth0: true, pathType: pathType, components: components);
-}
-
-/// Finds the `HLPP` section and decodes its path. Null if absent.
-ViHelpPath? helpPathFromSections(Iterable<ViSection> sections) {
-  for (final s in sections) {
-    if (s.tag == 'HLPP') return decodeHelpPath(s.bytes);
-  }
-  return null;
 }

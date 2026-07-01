@@ -81,7 +81,6 @@ class SeqProperty {
     return raw == null ? null : int.tryParse(raw.trim());
   }
 
-  /// First sub-property named [name], or null.
   SeqProperty? prop(String name) {
     for (final p in subProps) {
       if (p.name == name) return p;
@@ -89,7 +88,6 @@ class SeqProperty {
     return null;
   }
 
-  /// Follows a chain of sub-property names; null if any link is missing.
   SeqProperty? at(List<String> names) {
     SeqProperty? cur = this;
     for (final n in names) {
@@ -105,7 +103,6 @@ class SeqProperty {
       '${isArray ? '[${array!.length}]' : scalar != null ? 'scalar' : '{${subProps.length}}'})';
 }
 
-/// First direct child element of [e] whose local name is [name], or null.
 XmlElement? childElement(XmlElement e, String name) {
   for (final c in e.childElements) {
     if (c.name.local == name) return c;
@@ -113,7 +110,6 @@ XmlElement? childElement(XmlElement e, String name) {
   return null;
 }
 
-/// Direct child elements of [e] whose local name is [name].
 Iterable<XmlElement> childElementsNamed(XmlElement e, String name) =>
     e.childElements.where((c) => c.name.local == name);
 

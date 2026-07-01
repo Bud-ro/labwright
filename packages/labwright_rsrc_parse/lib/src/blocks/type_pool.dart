@@ -178,7 +178,7 @@ List<String> _enumItems(Uint8List b, int off, int descLen) {
 /// [types] into the ordered member [ViType]s. Out-of-range indices are skipped.
 List<ViType> clusterFields(ViType c, List<ViType> types) => [
       for (final i in c.members)
-        if (i >= 0 && i < types.length) types[i],
+        if (i < types.length) types[i],
     ];
 
 /// A short human label for a type, resolving one level of array nesting:
@@ -232,7 +232,7 @@ int _nameRegionStart(Uint8List b, int off, int code, List<int> members, int? ele
   if (code == 0x50 && members.isNotEmpty) {
     return off + 6 + members.length * 2;
   }
-  if (code == 0x40 && elementIndex != null && off + 6 <= b.length) {
+  if (code == 0x40 && elementIndex != null) {
     final numDims = (b[off + 4] << 8) | b[off + 5];
     return off + 6 + numDims * 4 + 2;
   }

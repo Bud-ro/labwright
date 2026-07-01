@@ -81,7 +81,6 @@ class IniSeqFile {
   IniSeqFile({
     required this.header,
     required this.sections,
-    required this.headerFields,
   });
 
   /// Header recovered from `[__Header__]` (format [SeqFormat.ini]).
@@ -89,9 +88,6 @@ class IniSeqFile {
 
   /// All `[...]` / `[DEF, ...]` sections in order (header section excluded).
   final List<IniSection> sections;
-
-  /// The raw `[__Header__]` key→value map (quoted values left as-is).
-  final Map<String, String> headerFields;
 }
 
 /// Parses [bytes] of a legacy INI `.seq`. INI files are single-byte (SBCS), so
@@ -149,7 +145,6 @@ IniSeqFile parseIniSeq(String text) {
   return IniSeqFile(
     header: _headerFrom(headerFields),
     sections: sections,
-    headerFields: headerFields,
   );
 }
 

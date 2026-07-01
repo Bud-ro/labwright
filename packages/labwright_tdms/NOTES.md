@@ -26,6 +26,4 @@ On-disk layout of a DAQmx format-changing scaler raw-data index (recognized by t
 | width count | u32 | |
 | *per width* → raw width/stride | u32 | |
 
-The reader uses the **first scaler only**. (This layout was previously documented only by
-trailing comments in `tdms.dart` and the `tdms_daqmx_test._buildDaqmx` fixture, both now
-removed in favor of this note plus named constants.)
+The reader uses the **first scaler only**.

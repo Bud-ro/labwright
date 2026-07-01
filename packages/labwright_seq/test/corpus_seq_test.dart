@@ -767,14 +767,9 @@ void main() {
     expect(ini, greaterThanOrEqualTo(30));
     expect(steps, greaterThanOrEqualTo(1000));
     expect(withModule, greaterThanOrEqualTo(500));
-    // Completeness axis: EVERY node is either modeled or recognized NI-internal
-    // plumbing — no node goes unaccounted across the whole INI corpus.
     expect(cov.unaccounted, 0,
         reason: 'INI left ${cov.unaccounted} node(s) unaccounted; run '
             'tool/gaps.dart ini to classify them');
-    // Deferred-work axis: how much is given real typed meaning (rises as the
-    // plumbing — %ATTRIBUTES, TDChecksum, LabVIEW build descriptors — is decoded).
-    // Stays below 1.0 by design while that plumbing remains undecoded.
     expect(cov.ratio, greaterThan(0.995),
         reason: 'INI model coverage regressed (${cov.ratio})');
   });
@@ -794,19 +789,14 @@ void main() {
         'modeled ${(cov.ratio * 100).toStringAsFixed(1)}% · '
         'plumbing ${cov.plumbing} · unaccounted ${cov.unaccounted}');
     expect(xml, greaterThanOrEqualTo(20));
-    // Completeness axis: every XML node modeled or recognized as NI plumbing.
     expect(cov.unaccounted, 0,
         reason: 'XML left ${cov.unaccounted} node(s) unaccounted; run '
             'tool/gaps.dart xml to classify them');
-    // Deferred-work axis: stays below 1.0 while NI-internal plumbing is undecoded.
     expect(cov.ratio, greaterThan(0.985),
         reason: 'XML model coverage regressed (${cov.ratio})');
   });
 
   test('newly-modeled lens accessors are wired across the corpus', () {
-    // Exercise the expanded typed lens on real files: every accessor must run
-    // without throwing, and a representative spread must find real values —
-    // proving the new modeling is correctly wired to the property tree.
     var adapterName = 0, stepDesc = 0, codeTemplates = 0, runtimeEP = 0;
     var switchSettings = 0, seqCallExpr = 0, threading = 0, pyInterp = 0;
     var clusterEls = 0, dbStep = 0, limitExpr = 0, fileSettings = 0, fileGlobals = 0;
@@ -857,7 +847,6 @@ void main() {
         'seqCallExpr=$seqCallExpr threading=$threading py=$pyInterp '
         'paramDescriptor=$clusterEls db=$dbStep limitExpr=$limitExpr '
         'fileSettings=$fileSettings fileGlobals=$fileGlobals');
-    // Each newly-modeled area must be exercised by real corpus data.
     expect(adapterName, greaterThan(0), reason: 'no Adapter names surfaced');
     expect(stepDesc, greaterThan(0), reason: 'no step Descriptions surfaced');
     expect(codeTemplates, greaterThan(0), reason: 'no CodeTemplates surfaced');

@@ -15,8 +15,6 @@ library;
 
 import 'dart:typed_data';
 
-import 'block_catalog.dart' show BlockConfidence;
-
 /// A decoded `FTAB` font table.
 class ViFontTable {
   const ViFontTable({
@@ -43,11 +41,6 @@ class ViFontTable {
   /// order. LIKELY (recovered count matches [fontCount] when self-consistent).
   final List<String> names;
 
-  /// Confidence in the version + header framing.
-  static const BlockConfidence framingConfidence = BlockConfidence.confirmed;
-
-  /// Confidence in the recovered names.
-  static const BlockConfidence namesConfidence = BlockConfidence.likely;
 }
 
 /// Decodes an `FTAB` body. Null when too short for the header (version + count +
@@ -59,16 +52,14 @@ ViFontTable? decodeFontTable(Uint8List b) {
   final fontCount = bd.getUint16(6);
   final nameOff = bd.getUint32(8);
   final names = <String>[];
-  if (nameOff <= b.length) {
-    var p = nameOff;
-    for (var i = 0; i < fontCount; i++) {
-      if (p >= b.length) break;
-      final len = b[p];
-      p++;
-      if (p + len > b.length) break;
-      names.add(String.fromCharCodes(b.sublist(p, p + len)));
-      p += len;
-    }
+  var p = nameOff;
+  for (var i = 0; i < fontCount; i++) {
+    if (p >= b.length) break;
+    final len = b[p];
+    p++;
+    if (p + len > b.length) break;
+    names.add(String.fromCharCodes(b.sublist(p, p + len)));
+    p += len;
   }
   return ViFontTable(
     rawLength: b.length,

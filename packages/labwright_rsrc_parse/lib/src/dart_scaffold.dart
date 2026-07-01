@@ -7,9 +7,6 @@ import 'ir.dart';
 /// recovered. Tests and tools can detect generated scaffolds by this string.
 const String scaffoldMarker = 'structural scaffold, dataflow not yet recovered';
 
-/// Max control/label captions listed as candidate parameters before truncating
-/// (with an explicit "+N more" note — never a silent cap). A few VIs carry
-/// hundreds of captions; the header stays readable without hiding the count.
 const int _captionCap = 50;
 
 /// Max nesting depth the scaffold walk recurses before stopping (with a
@@ -19,19 +16,12 @@ const int _captionCap = 50;
 /// trailing "outside the nesting tree" coverage pass, so nothing is dropped.
 const int _maxNestingDepth = 96;
 
-/// Max characters of the VI's description shown in the header (truncated with an
-/// ellipsis). Descriptions are usually a line or two but can be long help text.
 const int _descCap = 200;
 
-/// Max named typedefs listed in the scaffold header before truncating (with a
-/// "+N more" note). VIs can define dozens; the header stays readable.
 const int _namedTypeCap = 40;
 
-/// Max recovered cluster structures listed in the scaffold header before
-/// truncating (with a "+N more" note).
 const int _structCap = 20;
 
-/// Max enum item labels shown inline for a named enum (with a "…" if more).
 const int _enumItemCap = 16;
 
 /// Generates an **honest structural Dart scaffold** from a decoded [ViModel] —
@@ -290,7 +280,6 @@ String _oneLine(String s) => s
     .replaceAll('*/', '* /')
     .trim();
 
-/// Makes [name] a safe lowerCamel-ish Dart identifier for the function stub.
 String _ident(String name) {
   final cleaned = name.replaceAll(RegExp(r'[^A-Za-z0-9_]'), '_');
   if (cleaned.isEmpty || RegExp(r'^[0-9]').hasMatch(cleaned)) return 'vi_$cleaned';

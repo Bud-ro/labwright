@@ -9,7 +9,6 @@ library;
 
 import 'dart:typed_data';
 
-import '../viparse.dart' show ViSection;
 import 'block_catalog.dart' show BlockConfidence;
 
 /// A decoded `[u32 count][count × u32]` id table.
@@ -43,16 +42,4 @@ ViIdTable? decodeIdTable(Uint8List b) {
     count: count,
     entries: [for (var i = 0; i < n; i++) bd.getUint32(4 + 4 * i)],
   );
-}
-
-/// Finds and decodes the first of the id-table blocks present, preferring the
-/// given [tag] if supplied (`NUID`/`SUID`/`BNID`). Null if none present.
-ViIdTable? idTableFromSections(Iterable<ViSection> sections, {String? tag}) {
-  const idTags = {'NUID', 'SUID', 'BNID'};
-  for (final s in sections) {
-    if (tag != null ? s.tag == tag : idTags.contains(s.tag)) {
-      return decodeIdTable(s.bytes);
-    }
-  }
-  return null;
 }

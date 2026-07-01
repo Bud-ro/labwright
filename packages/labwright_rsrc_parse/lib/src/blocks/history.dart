@@ -9,13 +9,9 @@
 /// - `@12`, `@28`, `@32` = always `0` — **reserved** (CONFIRMED).
 /// - `@20`, `@24` = `0` for ~97.6%, otherwise a timestamp/id-like pair — TENTATIVE.
 /// - `@16`, `@36` = small flags (mostly `0`).
-///
-/// Clean-room; every byte is accounted for via [words].
 library;
 
 import 'dart:typed_data';
-
-import 'block_catalog.dart' show BlockConfidence;
 
 /// A decoded `HIST` revision-history record (10 u32 words).
 class ViHistory {
@@ -36,16 +32,9 @@ class ViHistory {
   /// `@8` — the revision/entry count. LIKELY.
   int get entryCount => words[2];
 
-  /// `@20`/`@24` — a timestamp/id-like pair, non-zero for a minority. TENTATIVE.
-  int get stampA => words[5];
-  int get stampB => words[6];
-
   /// True when the three reserved words (`@12`,`@28`,`@32`) are zero, as in 100%
   /// of the corpus — a cheap integrity signal.
   bool get reservedAreZero => words[3] == 0 && words[7] == 0 && words[8] == 0;
-
-  /// Confidence in the version + reserved-word layout (corpus-constant).
-  static const BlockConfidence layoutConfidence = BlockConfidence.confirmed;
 }
 
 /// Decodes a `HIST` body. Null when shorter than the 40-byte record.

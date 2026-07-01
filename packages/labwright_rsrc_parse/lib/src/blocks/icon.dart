@@ -18,10 +18,8 @@ import '../decode.dart';
 class ViIcon {
   const ViIcon({required this.width, required this.height, required this.rgb});
 
-  /// Pixel width.
   final int width;
 
-  /// Pixel height.
   final int height;
 
   /// `width * height * 3` bytes, row-major top-to-bottom, RGB per pixel.

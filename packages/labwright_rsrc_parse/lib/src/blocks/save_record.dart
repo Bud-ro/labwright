@@ -41,7 +41,6 @@ const List<int> emptyPasswordHash = [
 class ViSaveRecord {
   const ViSaveRecord({
     required this.rawLength,
-    required this.versionWord,
     required this.versionMajor,
     required this.versionMinor,
     required this.stage,
@@ -50,11 +49,7 @@ class ViSaveRecord {
     this.secondaryHash,
   });
 
-  /// The LVSR section length in bytes (predominantly 160/144/136; a few others).
   final int rawLength;
-
-  /// The raw `@0` version u32 (big-endian).
-  final int versionWord;
 
   /// BCD-decoded major version (e.g. `20` for LabVIEW 2020). CONFIRMED.
   final int versionMajor;
@@ -88,12 +83,6 @@ class ViSaveRecord {
     return !_eq(h, emptyPasswordHash);
   }
 
-  /// Confidence of the version fields (corpus-cross-checked against `vers`).
-  static const BlockConfidence versionConfidence = BlockConfidence.confirmed;
-
-  /// Confidence of the `@96` block-diagram password hash (mirrors `BDPW`).
-  static const BlockConfidence passwordConfidence = BlockConfidence.confirmed;
-
   /// Honest summary of what remains undecoded in the record.
   static const String unknownNote =
       'Undecoded: small flag/count words near the start (@36 = -1 sentinel, '
@@ -105,11 +94,9 @@ class ViSaveRecord {
 /// when the buffer is too short to hold the universal version word.
 ViSaveRecord? decodeSaveRecord(Uint8List b) {
   if (b.length < 4) return null;
-  final versionWord = ByteData.sublistView(b).getUint32(0);
   final vw = decodeVersionWord(b)!;
   return ViSaveRecord(
     rawLength: b.length,
-    versionWord: versionWord,
     versionMajor: vw.major,
     versionMinor: vw.minor,
     stage: vw.stage,
@@ -129,7 +116,6 @@ ViSaveRecord? saveRecordFromSections(Iterable<ViSection> sections) {
 }
 
 bool _eq(List<int> a, List<int> b) {
-  if (a.length != b.length) return false;
   for (var i = 0; i < a.length; i++) {
     if (a[i] != b[i]) return false;
   }

@@ -25,7 +25,6 @@ library;
 import 'dart:typed_data';
 
 import '../viparse.dart' show ViSection;
-import 'block_catalog.dart' show BlockConfidence;
 
 /// A decoded `CONP`/`CPC2` connector-pane reference.
 class ViConnectorPane {
@@ -44,13 +43,6 @@ class ViConnectorPane {
   /// True for the rare older ≥28-byte layout that stores the descriptor inline
   /// instead of as a pool index. Its internal structure is not yet decoded.
   final bool isInline;
-
-  /// Confidence that a **CONP** [typeIndex] is a valid `VCTP` index (corpus: 100%).
-  /// (Does NOT apply to CPC2, which resolves in-range only ~84%.)
-  static const BlockConfidence indexConfidence = BlockConfidence.confirmed;
-
-  /// Confidence that the indexed descriptor is the connector pane specifically.
-  static const BlockConfidence semanticConfidence = BlockConfidence.likely;
 }
 
 /// Decodes a `CONP`/`CPC2` block body. Total: returns null on an empty buffer.

@@ -20,10 +20,8 @@ enum TdsType {
 
   const TdsType(this.code, this.width);
 
-  /// The on-disk type code.
   final int code;
 
-  /// Fixed element width in bytes, or -1 for variable-length (string).
   final int width;
 
   /// The type for [code], or null if unknown/unsupported.
@@ -159,13 +157,10 @@ class TdmsWriter {
 
 /// Parsed TDMS file: root [properties] plus ordered [groups].
 class TdmsFile {
-  /// Wraps the parsed root [properties] and ordered [groups].
   TdmsFile(this.properties, this.groups);
 
-  /// File-level (root object) properties.
   final Map<String, Object> properties;
 
-  /// The groups, in the order they first appeared in the file.
   final List<TdmsGroup> groups;
 
   /// The group named [name], or null if absent.
@@ -179,16 +174,12 @@ class TdmsFile {
 
 /// One TDMS group (a named collection of channels).
 class TdmsGroup {
-  /// Wraps a group's [name], [properties], and [channels].
   TdmsGroup(this.name, this.properties, this.channels);
 
-  /// The group name.
   final String name;
 
-  /// Group-level properties.
   final Map<String, Object> properties;
 
-  /// The channels in this group, in file order.
   final List<TdmsChannelData> channels;
 
   /// The channel named [name] in this group, or null if absent.
@@ -204,16 +195,12 @@ class TdmsGroup {
 /// doubles; non-numeric channels carry their value(s) in [properties] with empty
 /// [data].
 class TdmsChannelData {
-  /// Wraps a channel's [group] name, [name], [properties], and [data].
   TdmsChannelData(this.group, this.name, this.properties, this.data);
 
-  /// The owning group's name.
   final String group;
 
-  /// The channel name.
   final String name;
 
-  /// Channel-level properties (units, scaling, etc.).
   final Map<String, Object> properties;
 
   /// Decoded numeric samples (empty for non-numeric channels).
@@ -250,12 +237,11 @@ abstract final class TdmsReader {
           final path = r.str();
           final obj = objects.putIfAbsent(path, () {
             order.add(path);
-            return _Obj(path);
+            return _Obj();
           });
           final rawIdx = r.u32();
           var hasData = false;
           if (rawIdx == _noRawDataIndex) {
-            hasData = false;
           } else if (rawIdx == _sameAsPreviousIndex) {
             hasData = true;
           } else if (rawIdx == 0x1269 || rawIdx == 0x1369) {
@@ -339,8 +325,7 @@ abstract final class TdmsReader {
 }
 
 class _Obj {
-  _Obj(this.path);
-  final String path;
+  _Obj();
   int dataType = 0;
   int numValues = 0;
   final Map<String, Object> properties = {};
@@ -501,7 +486,6 @@ class _Cursor {
   }
 }
 
-/// Byte width of a fixed-size raw element type (-1 if variable/unsupported).
 int _typeWidth(int code) => TdsType.fromCode(code)?.width ?? -1;
 
 /// Reads one fixed-size raw element as a double (the channel data model).
@@ -599,7 +583,7 @@ void _readChannelRaw(_Cursor r, _Obj obj) {
     for (var i = 0; i < n; i++) {
       lastOffset = r.u32();
     }
-    if (lastOffset < 0 || lastOffset > r.remaining) {
+    if (lastOffset > r.remaining) {
       throw TdmsFormatException('string data size $lastOffset exceeds remaining ${r.remaining} bytes');
     }
     r.skip(lastOffset);
@@ -631,7 +615,7 @@ void _readInterleaved(_Cursor r, List<_Obj> chans) {
   }
   final n = chans.first.numValues;
   if (n < 0) throw TdmsFormatException('negative raw-data count $n');
-  if (perSample > 0 && n > r.remaining ~/ perSample) {
+  if (n > r.remaining ~/ perSample) {
     throw TdmsFormatException('interleaved raw-data ($n x $perSample B) exceeds remaining ${r.remaining} bytes');
   }
   for (var s = 0; s < n; s++) {
@@ -650,7 +634,7 @@ void _readDaqmxIndex(_Cursor r, _Obj obj) {
   r.u32();
   final count = r.u64();
   final scalerCount = r.u32();
-  if (scalerCount < 0 || scalerCount > r.remaining ~/ 20) {
+  if (scalerCount > r.remaining ~/ 20) {
     throw TdmsFormatException('DAQmx scaler count $scalerCount exceeds remaining');
   }
   var buffer = 0;
@@ -667,7 +651,7 @@ void _readDaqmxIndex(_Cursor r, _Obj obj) {
     }
   }
   final widthCount = r.u32();
-  if (widthCount < 0 || widthCount > r.remaining ~/ 4) {
+  if (widthCount > r.remaining ~/ 4) {
     throw TdmsFormatException('DAQmx width count $widthCount exceeds remaining');
   }
   var stride = 0;
@@ -689,7 +673,6 @@ void _readDaqmxIndex(_Cursor r, _Obj obj) {
 /// inferred from the gaps between channel offsets. Applies the linear scale when
 /// the channel's data is stored unscaled.
 void _readDaqmx(_Cursor r, List<_Obj> chans, int rawStart, int rawLen) {
-  if (chans.isEmpty) return;
   final stride = chans.first.daqmxStride;
   if (stride <= 0) throw TdmsFormatException('invalid DAQmx stride $stride');
   for (final c in chans) {

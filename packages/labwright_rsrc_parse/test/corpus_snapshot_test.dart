@@ -113,7 +113,6 @@ void main() {
 
 String _commonRoot(Iterable<String> paths) {
   final list = paths.toList();
-  if (list.isEmpty) return '';
   var prefix = list.first;
   for (final p in list) {
     while (!p.startsWith(prefix)) {
