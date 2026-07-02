@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
-import 'tdms.dart';
+import 'model.dart';
+import 'writer.dart';
 
 /// Imports CSV into TDMS (the inverse of [tdmsToCsv]). The header row supplies
 /// channel names; each column becomes a double channel under [group]. Blank
@@ -17,9 +18,9 @@ Uint8List csvToTdms(String csv, {String group = 'Imported', String delimiter = '
         group: group,
         name: header[col],
         data: [
-          for (var r = 1; r < rows.length; r++)
-            if (col < rows[r].length)
-              if (double.tryParse(rows[r][col].trim()) case final v?) v,
+          for (var row = 1; row < rows.length; row++)
+            if (col < rows[row].length)
+              if (double.tryParse(rows[row][col].trim()) case final value?) value,
         ],
       ),
   ];
@@ -36,7 +37,7 @@ List<List<String>> _parseCsv(String text, String delimiter) {
   var row = <String>[];
   final field = StringBuffer();
   var inQuotes = false;
-  final delim = delimiter.isEmpty ? _comma : delimiter.codeUnitAt(0);
+  final delimiterCode = delimiter.isEmpty ? _comma : delimiter.codeUnitAt(0);
 
   void endField() {
     row.add(field.toString());
@@ -50,9 +51,9 @@ List<List<String>> _parseCsv(String text, String delimiter) {
   }
 
   for (var i = 0; i < text.length; i++) {
-    final c = text.codeUnitAt(i);
+    final codeUnit = text.codeUnitAt(i);
     if (inQuotes) {
-      if (c == _quote) {
+      if (codeUnit == _quote) {
         if (i + 1 < text.length && text.codeUnitAt(i + 1) == _quote) {
           field.writeCharCode(_quote);
           i++;
@@ -60,16 +61,16 @@ List<List<String>> _parseCsv(String text, String delimiter) {
           inQuotes = false;
         }
       } else {
-        field.writeCharCode(c);
+        field.writeCharCode(codeUnit);
       }
-    } else if (c == _quote) {
+    } else if (codeUnit == _quote) {
       inQuotes = true;
-    } else if (c == delim) {
+    } else if (codeUnit == delimiterCode) {
       endField();
-    } else if (c == _lf) {
+    } else if (codeUnit == _lf) {
       endRow();
-    } else if (c != _cr) {
-      field.writeCharCode(c);
+    } else if (codeUnit != _cr) {
+      field.writeCharCode(codeUnit);
     }
   }
   if (field.isNotEmpty || row.isNotEmpty) endRow();

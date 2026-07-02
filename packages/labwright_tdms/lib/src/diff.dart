@@ -1,4 +1,4 @@
-import 'tdms.dart';
+import 'model.dart';
 
 /// How a single channel differs between two TDMS files. The `.name` of each
 /// value is exactly the string emitted in the `status` field of a [diffTdms]
@@ -28,43 +28,59 @@ enum ChannelDiffStatus {
 /// `channels` (equal ones are omitted to keep the report focused). [tol] defaults
 /// to exact equality.
 Map<String, Object?> diffTdms(TdmsFile a, TdmsFile b, {double tol = 0.0}) {
-  final groupsA = {for (final g in a.groups) g.name};
-  final groupsB = {for (final g in b.groups) g.name};
-  final onlyInA = [for (final g in a.groups) if (!groupsB.contains(g.name)) g.name];
-  final onlyInB = [for (final g in b.groups) if (!groupsA.contains(g.name)) g.name];
+  final groupNamesA = {for (final group in a.groups) group.name};
+  final groupNamesB = {for (final group in b.groups) group.name};
+  final onlyInA = [
+    for (final group in a.groups)
+      if (!groupNamesB.contains(group.name)) group.name,
+  ];
+  final onlyInB = [
+    for (final group in b.groups)
+      if (!groupNamesA.contains(group.name)) group.name,
+  ];
 
   final channels = <Map<String, Object?>>[];
-  for (final ga in a.groups) {
-    final gb = b.group(ga.name);
-    if (gb == null) continue;
-    final namesA = {for (final c in ga.channels) c.name};
-    for (final ca in ga.channels) {
-      final cb = gb.channel(ca.name);
-      if (cb == null) {
-        channels.add({'group': ga.name, 'name': ca.name, 'status': ChannelDiffStatus.onlyInA.name, 'lenA': ca.data.length});
+  for (final groupA in a.groups) {
+    final groupB = b.group(groupA.name);
+    if (groupB == null) continue;
+    final channelNamesA = {for (final channel in groupA.channels) channel.name};
+    for (final channelA in groupA.channels) {
+      final channelB = groupB.channel(channelA.name);
+      if (channelB == null) {
+        channels.add({
+          'group': groupA.name,
+          'name': channelA.name,
+          'status': ChannelDiffStatus.onlyInA.name,
+          'lenA': channelA.data.length,
+        });
         continue;
       }
-      final delta = _valueDelta(ca.data, cb.data, tol);
+      final delta = _valueDelta(channelA.data, channelB.data, tol);
       ChannelDiffStatus? status;
-      if (ca.data.length != cb.data.length) {
+      if (channelA.data.length != channelB.data.length) {
         status = ChannelDiffStatus.lengthMismatch;
       } else if (delta['firstDiffIndex'] != null) {
         status = ChannelDiffStatus.valueDiff;
       }
       if (status != null) {
         channels.add({
-          'group': ga.name,
-          'name': ca.name,
+          'group': groupA.name,
+          'name': channelA.name,
           'status': status.name,
-          'lenA': ca.data.length,
-          'lenB': cb.data.length,
+          'lenA': channelA.data.length,
+          'lenB': channelB.data.length,
           ...delta,
         });
       }
     }
-    for (final cb in gb.channels) {
-      if (!namesA.contains(cb.name)) {
-        channels.add({'group': ga.name, 'name': cb.name, 'status': ChannelDiffStatus.onlyInB.name, 'lenB': cb.data.length});
+    for (final channelB in groupB.channels) {
+      if (!channelNamesA.contains(channelB.name)) {
+        channels.add({
+          'group': groupA.name,
+          'name': channelB.name,
+          'status': ChannelDiffStatus.onlyInB.name,
+          'lenB': channelB.data.length,
+        });
       }
     }
   }
