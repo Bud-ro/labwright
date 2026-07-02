@@ -25,28 +25,28 @@ Map<String, Object?> viDiagramToJson(ViDiagram d) => {
       'objects': d.objects.map(_objectToJson).toList(),
     };
 
-Map<String, Object?> _objectToJson(ViHeapObject o) {
-  final cls = o.objectClass;
+Map<String, Object?> _objectToJson(ViHeapObject object) {
+  final cls = object.objectClass;
   return {
-    'oid': o.oid,
-    'kindCode': o.kind,
+    'oid': object.oid,
+    'kindCode': object.kind,
     'class': {
       'label': cls.label,
       'category': cls.category.name,
       'confidence': cls.confidence.name,
     },
-    'objectKind': o.category.name,
-    'typeKind': o.typeKind.name,
-    if (o.parentOid != null) 'parentOid': o.parentOid,
-    if (o.label != null) 'label': o.label,
-    if (o.bounds != null) 'bounds': _rectToJson(o.bounds!),
-    if (o.absBounds != null) 'absBounds': _rectToJson(o.absBounds!),
-    if (o.items.isNotEmpty) 'items': o.items,
-    if (o.termCount != 0) 'termCount': o.termCount,
-    if (o.memberOids.isNotEmpty) 'memberOids': o.memberOids.toList(),
-    if (o.controlMin?.isFinite ?? false) 'controlMin': o.controlMin,
-    if (o.controlMax?.isFinite ?? false) 'controlMax': o.controlMax,
-    if (o.helpText != null) 'helpText': o.helpText,
+    'objectKind': object.category.name,
+    'typeKind': object.typeKind.name,
+    if (object.parentOid != null) 'parentOid': object.parentOid,
+    if (object.label != null) 'label': object.label,
+    if (object.bounds != null) 'bounds': _rectToJson(object.bounds!),
+    if (object.absBounds != null) 'absBounds': _rectToJson(object.absBounds!),
+    if (object.items.isNotEmpty) 'items': object.items,
+    if (object.termCount != 0) 'termCount': object.termCount,
+    if (object.memberOids.isNotEmpty) 'memberOids': object.memberOids.toList(),
+    if (object.controlMin?.isFinite ?? false) 'controlMin': object.controlMin,
+    if (object.controlMax?.isFinite ?? false) 'controlMax': object.controlMax,
+    if (object.helpText != null) 'helpText': object.helpText,
   };
 }
 
@@ -76,7 +76,7 @@ List<Map<String, Object?>>? _conpaneTerminals(ViModel m) {
   if (typeIndex == null || typeIndex < 1 || typeIndex > m.types.length) return null;
   final conpaneType = m.types[typeIndex - 1];
   final terms = conpaneType.kind == ViDataType.cluster ? clusterFields(conpaneType, m.types) : <ViType>[conpaneType];
-  return [for (final t in terms) _termJson(t, m.types)];
+  return [for (final term in terms) _termJson(term, m.types)];
 }
 
 /// A terminal/cluster field rendered as its `{kind, name?}` JSON object — the
@@ -102,19 +102,19 @@ Map<String, Object?> viModelToJson(ViModel m) {
     },
     if (named.isNotEmpty)
       'namedTypes': [
-        for (final t in named.take(200))
+        for (final type in named.take(200))
           {
-            'index': t.index,
-            'kind': typeLabel(t, m.types),
-            'name': t.name,
-            if (t.members.isNotEmpty)
+            'index': type.index,
+            'kind': typeLabel(type, m.types),
+            'name': type.name,
+            if (type.members.isNotEmpty)
               'members': [
-                for (final f in clusterFields(t, m.types)) _termJson(f, m.types),
+                for (final field in clusterFields(type, m.types)) _termJson(field, m.types),
               ],
-            if (t.enumItems.isNotEmpty) 'items': t.enumItems,
+            if (type.enumItems.isNotEmpty) 'items': type.enumItems,
           },
       ],
-    'blockDiagrams': [for (final d in m.blockDiagrams) viDiagramToJson(d)],
-    'frontPanelDiagrams': [for (final d in m.frontPanelDiagrams) viDiagramToJson(d)],
+    'blockDiagrams': [for (final diagram in m.blockDiagrams) viDiagramToJson(diagram)],
+    'frontPanelDiagrams': [for (final diagram in m.frontPanelDiagrams) viDiagramToJson(diagram)],
   };
 }

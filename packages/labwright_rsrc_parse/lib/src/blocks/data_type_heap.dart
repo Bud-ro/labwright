@@ -50,37 +50,37 @@ class ViDataTypeHeap {
 }
 
 /// Decodes a `DTHP` body. Null when too short for the header.
-ViDataTypeHeap? decodeDataTypeHeap(Uint8List b) {
-  if (b.length < 4) return null;
-  final extended = b.length > 4;
+ViDataTypeHeap? decodeDataTypeHeap(Uint8List bytes) {
+  if (bytes.length < 4) return null;
+  final extended = bytes.length > 4;
   return ViDataTypeHeap(
-    rawLength: b.length,
-    field0: (b[0] << 8) | b[1],
-    field1: (b[2] << 8) | b[3],
+    rawLength: bytes.length,
+    field0: (bytes[0] << 8) | bytes[1],
+    field1: (bytes[2] << 8) | bytes[3],
     isExtended: extended,
-    names: extended ? _scanNames(b, 4) : const [],
+    names: extended ? _scanNames(bytes, 4) : const [],
   );
 }
 
 /// Tolerant scan for `40xx [u8 len][printable name]` records from [from]. The
 /// per-record prefix bytes vary, so we anchor on the `40xx` tag and validate the
 /// length + printability rather than assume a fixed record stride.
-List<String> _scanNames(Uint8List b, int from) {
+List<String> _scanNames(Uint8List bytes, int from) {
   final out = <String>[];
-  var i = from;
-  while (i + 3 < b.length) {
-    final len = b[i + 2];
-    final start = i + 3;
-    if (b[i] == 0x40 && b[i + 1] <= 0x7f && len > 0 && start + len <= b.length && _printable(b, start, start + len)) {
-      out.add(String.fromCharCodes(b, start, start + len));
-      i = start + len;
+  var pos = from;
+  while (pos + 3 < bytes.length) {
+    final len = bytes[pos + 2];
+    final start = pos + 3;
+    if (bytes[pos] == 0x40 && bytes[pos + 1] <= 0x7f && len > 0 && start + len <= bytes.length && _printable(bytes, start, start + len)) {
+      out.add(String.fromCharCodes(bytes, start, start + len));
+      pos = start + len;
       continue;
     }
-    i++;
+    pos++;
   }
   return out;
 }
 
-bool _printable(Uint8List b, int start, int end) => b
+bool _printable(Uint8List bytes, int start, int end) => bytes
     .getRange(start, end)
     .every((c) => c == 0x09 || c == 0x0a || c == 0x0d || (c >= 0x20 && c < 0x7f));

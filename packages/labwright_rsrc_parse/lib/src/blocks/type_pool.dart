@@ -122,15 +122,15 @@ List<ViType> decodeTypePool(Uint8List body) {
 /// index pointing into the same pool. Returns the member indices, or `const []`
 /// if the layout doesn't validate (count fits the descriptor, every index in
 /// range) — corpus-validated to parse for 99.9% of clusters.
-List<int> _clusterMembers(Uint8List b, int off, int descLen, int poolCount) {
-  if (off + 6 > b.length) return const [];
-  final memberCount = (b[off + 4] << 8) | b[off + 5];
+List<int> _clusterMembers(Uint8List bytes, int off, int descLen, int poolCount) {
+  if (off + 6 > bytes.length) return const [];
+  final memberCount = (bytes[off + 4] << 8) | bytes[off + 5];
   if (memberCount <= 0 || memberCount > 512) return const [];
   if (6 + memberCount * 2 > descLen) return const [];
   final out = <int>[];
-  for (var m = 0; m < memberCount; m++) {
-    final p = off + 6 + m * 2;
-    final idx = (b[p] << 8) | b[p + 1];
+  for (var memberIndex = 0; memberIndex < memberCount; memberIndex++) {
+    final pos = off + 6 + memberIndex * 2;
+    final idx = (bytes[pos] << 8) | bytes[pos + 1];
     if (idx >= poolCount) return const [];
     out.add(idx);
   }
@@ -141,13 +141,13 @@ List<int> _clusterMembers(Uint8List b, int off, int descLen, int poolCount) {
 /// `[u16 numDims][u32 dimSize]*numDims[u16 elementTypeIndex]` after flags+code.
 /// Returns the element index (into the pool) or null if it doesn't validate
 /// (1–8 dims, the index fits the descriptor and is in range) — corpus-derived.
-int? _arrayElement(Uint8List b, int off, int descLen, int poolCount) {
-  if (off + 6 > b.length) return null;
-  final numDims = (b[off + 4] << 8) | b[off + 5];
+int? _arrayElement(Uint8List bytes, int off, int descLen, int poolCount) {
+  if (off + 6 > bytes.length) return null;
+  final numDims = (bytes[off + 4] << 8) | bytes[off + 5];
   if (numDims < 1 || numDims > 8) return null;
   final elementIndexPos = off + 6 + numDims * 4;
   if (elementIndexPos + 2 > off + descLen) return null;
-  final idx = (b[elementIndexPos] << 8) | b[elementIndexPos + 1];
+  final idx = (bytes[elementIndexPos] << 8) | bytes[elementIndexPos + 1];
   if (idx >= poolCount) return null;
   return idx;
 }
@@ -156,20 +156,20 @@ int? _arrayElement(Uint8List b, int off, int descLen, int poolCount) {
 /// `numItems` × `[u8 len][label]` Pascal strings, after flags+code. Returns the
 /// labels, or `const []` if the list doesn't validate (1–256 items, printable,
 /// fits the descriptor) — corpus-validated to parse for ~96% of enums.
-List<String> _enumItems(Uint8List b, int off, int descLen) {
-  if (off + 6 > b.length) return const [];
-  final numItems = (b[off + 4] << 8) | b[off + 5];
+List<String> _enumItems(Uint8List bytes, int off, int descLen) {
+  if (off + 6 > bytes.length) return const [];
+  final numItems = (bytes[off + 4] << 8) | bytes[off + 5];
   if (numItems < 1 || numItems > 256) return const [];
   final out = <String>[];
-  var p = off + 6;
+  var pos = off + 6;
   final endPos = off + descLen;
-  for (var k = 0; k < numItems; k++) {
-    if (p >= endPos) return const [];
-    final len = b[p];
-    if (len < 1 || p + 1 + len > endPos) return const [];
-    if (b.getRange(p + 1, p + 1 + len).any((c) => c < 0x20 || c >= 0x7f)) return const [];
-    out.add(String.fromCharCodes(b, p + 1, p + 1 + len));
-    p += 1 + len;
+  for (var itemIndex = 0; itemIndex < numItems; itemIndex++) {
+    if (pos >= endPos) return const [];
+    final len = bytes[pos];
+    if (len < 1 || pos + 1 + len > endPos) return const [];
+    if (bytes.getRange(pos + 1, pos + 1 + len).any((c) => c < 0x20 || c >= 0x7f)) return const [];
+    out.add(String.fromCharCodes(bytes, pos + 1, pos + 1 + len));
+    pos += 1 + len;
   }
   return out;
 }
@@ -177,8 +177,8 @@ List<String> _enumItems(Uint8List b, int off, int descLen) {
 /// Resolves a cluster [c]'s [ViType.members] indices against the full pool
 /// [types] into the ordered member [ViType]s. Out-of-range indices are skipped.
 List<ViType> clusterFields(ViType c, List<ViType> types) => [
-      for (final i in c.members)
-        if (i < types.length) types[i],
+      for (final member in c.members)
+        if (member < types.length) types[member],
     ];
 
 /// A short human label for a type, resolving one level of array nesting:
@@ -199,25 +199,25 @@ String typeLabel(ViType t, List<ViType> types) {
 /// byte). Returns null when no clean name is present
 /// — heuristic but precise enough that ~all recovered names are real identifiers
 /// (corpus-validated: ~64% of descriptors named, e.g. `Serial Number`).
-String? _trailingName(Uint8List b, int start, int end) {
+String? _trailingName(Uint8List bytes, int start, int end) {
   for (final nameEnd in [end, end - 1]) {
     if (nameEnd <= start) continue;
     for (var len = 2; len <= 63; len++) {
       final lenPos = nameEnd - len - 1;
       if (lenPos < start) break;
-      if (b[lenPos] != len) continue;
+      if (bytes[lenPos] != len) continue;
       var ok = true;
       var letters = 0;
       for (var i = lenPos + 1; i < nameEnd; i++) {
-        final c = b[i];
-        if (c < 0x20 || c >= 0x7f) {
+        final byte = bytes[i];
+        if (byte < 0x20 || byte >= 0x7f) {
           ok = false;
           break;
         }
-        if ((c >= 0x41 && c <= 0x5a) || (c >= 0x61 && c <= 0x7a)) letters++;
+        if ((byte >= 0x41 && byte <= 0x5a) || (byte >= 0x61 && byte <= 0x7a)) letters++;
       }
       if (ok && (letters >= 2 || letters * 2 >= len)) {
-        return String.fromCharCodes(b.sublist(lenPos + 1, nameEnd));
+        return String.fromCharCodes(bytes.sublist(lenPos + 1, nameEnd));
       }
     }
   }
@@ -229,12 +229,12 @@ String? _trailingName(Uint8List b, int start, int end) {
 /// dimension sizes + element index, enum item strings). For other types the name
 /// (if any) follows the flags+code word. Confining [_trailingName] to this region
 /// stops binary payload bytes from being mis-read as a name.
-int _nameRegionStart(Uint8List b, int off, ViDataType kind, List<int> members, int? elementIndex, List<String> enumItems) {
+int _nameRegionStart(Uint8List bytes, int off, ViDataType kind, List<int> members, int? elementIndex, List<String> enumItems) {
   if (kind == ViDataType.cluster && members.isNotEmpty) {
     return off + 6 + members.length * 2;
   }
   if (kind == ViDataType.array && elementIndex != null) {
-    final numDims = (b[off + 4] << 8) | b[off + 5];
+    final numDims = (bytes[off + 4] << 8) | bytes[off + 5];
     return off + 6 + numDims * 4 + 2;
   }
   if (enumItems.isNotEmpty) {
@@ -246,8 +246,8 @@ int _nameRegionStart(Uint8List b, int off, ViDataType kind, List<int> members, i
 /// [decodeTypePool] over a set of decoded sections — finds the `VCTP` section and
 /// decodes it, or returns `const []` if absent.
 List<ViType> typePoolFromDecoded(Iterable<DecodedSection> decoded) {
-  for (final d in decoded) {
-    if (d.tag == 'VCTP') return decodeTypePool(d.bytes);
+  for (final decodedSection in decoded) {
+    if (decodedSection.tag == 'VCTP') return decodeTypePool(decodedSection.bytes);
   }
   return const [];
 }
@@ -255,17 +255,17 @@ List<ViType> typePoolFromDecoded(Iterable<DecodedSection> decoded) {
 /// The subset of [types] that carry a recovered [ViType.name], in pool order —
 /// the VI's named typedefs / labelled data items.
 List<ViType> namedTypes(List<ViType> types) => [
-      for (final t in types)
-        if (t.name != null) t,
+      for (final type in types)
+        if (type.name != null) type,
     ];
 
 /// A compact `{kind-name: count}` histogram of [types] (omitting empties),
 /// ordered most-frequent first — the VI's type inventory at a glance.
 Map<String, int> typeKindHistogram(List<ViType> types) {
   final counts = <ViDataType, int>{};
-  for (final t in types) {
-    counts.update(t.kind, (n) => n + 1, ifAbsent: () => 1);
+  for (final type in types) {
+    counts.update(type.kind, (n) => n + 1, ifAbsent: () => 1);
   }
   final entries = counts.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
-  return {for (final e in entries) e.key.name: e.value};
+  return {for (final entry in entries) entry.key.name: entry.value};
 }

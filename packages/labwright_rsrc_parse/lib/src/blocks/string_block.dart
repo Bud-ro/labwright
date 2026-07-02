@@ -12,9 +12,9 @@ import 'dart:typed_data';
 /// Decodes a `STRG` body (`[u32 len][len bytes UTF-8]`) into its text. Returns
 /// null when the buffer can't hold the length prefix. UTF-8 is decoded leniently
 /// (malformed bytes become U+FFFD) so a stray byte never throws.
-String? decodeStringBlock(Uint8List b) {
-  if (b.length < 4) return null;
-  final len = ByteData.sublistView(b).getUint32(0);
-  final end = (4 + len).clamp(4, b.length);
-  return utf8.decode(b.sublist(4, end), allowMalformed: true);
+String? decodeStringBlock(Uint8List bytes) {
+  if (bytes.length < 4) return null;
+  final len = ByteData.sublistView(bytes).getUint32(0);
+  final end = (4 + len).clamp(4, bytes.length);
+  return utf8.decode(bytes.sublist(4, end), allowMalformed: true);
 }

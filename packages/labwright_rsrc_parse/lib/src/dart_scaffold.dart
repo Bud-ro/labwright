@@ -44,72 +44,72 @@ const int _enumItemCap = 16;
 /// decorations and unclassified heap objects are not logic and are not emitted
 /// (only traversed). Deterministic: output depends only on [model].
 String generateDartScaffold(ViModel model, {String name = 'vi'}) {
-  final b = StringBuffer()
+  final out = StringBuffer()
     ..writeln('// AUTO-GENERATED structural scaffold (labwright_rsrc_parse VI->IR->Dart).')
     ..writeln('// $scaffoldMarker —')
     ..writeln('// LabVIEW wires are stored as geometry, so node->node dataflow is not yet')
     ..writeln('// decoded; this is a STRUCTURAL OUTLINE of the block diagram. Fill in.')
     ..writeln('// Nodes are listed in POSITIONAL order (visual top->left), which is NOT')
     ..writeln('// execution/dataflow order (that is not recovered).');
-  if (model.version != null) b.writeln('// Saved in LabVIEW ${model.version}.');
+  if (model.version != null) out.writeln('// Saved in LabVIEW ${model.version}.');
   final desc = model.description?.trim();
   if (desc != null && desc.isNotEmpty) {
     final one = _oneLine(desc);
-    b.writeln('// Description: ${one.length > _descCap ? '${one.substring(0, _descCap)}…' : one}');
+    out.writeln('// Description: ${one.length > _descCap ? '${one.substring(0, _descCap)}…' : one}');
   }
   if (model.symbolNames.isNotEmpty) {
-    b.writeln('// Call-Library functions referenced:');
-    for (final s in model.symbolNames) {
-      b.writeln('//   - ${_oneLine(s)}');
+    out.writeln('// Call-Library functions referenced:');
+    for (final symbol in model.symbolNames) {
+      out.writeln('//   - ${_oneLine(symbol)}');
     }
   }
   if (model.paths.isNotEmpty) {
-    b.writeln('// Libraries referenced:');
-    for (final p in model.paths) {
-      b.writeln('//   - ${_oneLine(p)}');
+    out.writeln('// Libraries referenced:');
+    for (final path in model.paths) {
+      out.writeln('//   - ${_oneLine(path)}');
     }
   }
   if (model.subViNames.isNotEmpty) {
-    b.writeln('// SubVIs called (from LIbd; which node calls which is not yet recovered):');
-    for (final s in model.subViNames) {
-      b.writeln('//   - ${_oneLine(s)}');
+    out.writeln('// SubVIs called (from LIbd; which node calls which is not yet recovered):');
+    for (final subViName in model.subViNames) {
+      out.writeln('//   - ${_oneLine(subViName)}');
     }
   }
   if (model.types.isNotEmpty) {
     final hist = typeKindHistogram(model.types);
     final summary = hist.entries.map((e) => '${e.key}:${e.value}').join(', ');
-    b.writeln('// Data types (VCTP, ${model.types.length}): ${_oneLine(summary)}');
+    out.writeln('// Data types (VCTP, ${model.types.length}): ${_oneLine(summary)}');
   }
   final named = namedTypes(model.types);
   if (named.isNotEmpty) {
-    b.writeln('// Named types (typedefs / labelled data items):');
-    for (final t in named.take(_namedTypeCap)) {
-      if (t.enumItems.isNotEmpty) {
-        final items = t.enumItems.take(_enumItemCap).map(_oneLine).join(', ');
-        final more = t.enumItems.length > _enumItemCap ? ', …' : '';
-        b.writeln('//   enum ${_oneLine(t.name!)} { $items$more }');
+    out.writeln('// Named types (typedefs / labelled data items):');
+    for (final type in named.take(_namedTypeCap)) {
+      if (type.enumItems.isNotEmpty) {
+        final items = type.enumItems.take(_enumItemCap).map(_oneLine).join(', ');
+        final more = type.enumItems.length > _enumItemCap ? ', …' : '';
+        out.writeln('//   enum ${_oneLine(type.name!)} { $items$more }');
       } else {
-        b.writeln('//   ${typeLabel(t, model.types)} ${_oneLine(t.name!)}');
+        out.writeln('//   ${typeLabel(type, model.types)} ${_oneLine(type.name!)}');
       }
     }
     if (named.length > _namedTypeCap) {
-      b.writeln('//   (+${named.length - _namedTypeCap} more not shown)');
+      out.writeln('//   (+${named.length - _namedTypeCap} more not shown)');
     }
   }
   final structs = [
-    for (final t in model.types)
-      if (t.kind == ViDataType.cluster && t.name != null && t.members.isNotEmpty) t,
+    for (final type in model.types)
+      if (type.kind == ViDataType.cluster && type.name != null && type.members.isNotEmpty) type,
   ];
   if (structs.isNotEmpty) {
-    b.writeln('// Recovered cluster structures:');
-    for (final t in structs.take(_structCap)) {
-      final fields = clusterFields(t, model.types)
+    out.writeln('// Recovered cluster structures:');
+    for (final type in structs.take(_structCap)) {
+      final fields = clusterFields(type, model.types)
           .map((f) => f.name != null ? '${typeLabel(f, model.types)} ${_oneLine(f.name!)}' : typeLabel(f, model.types))
           .join('; ');
-      b.writeln('//   ${_oneLine(t.name!)} { $fields }');
+      out.writeln('//   ${_oneLine(type.name!)} { $fields }');
     }
     if (structs.length > _structCap) {
-      b.writeln('//   (+${structs.length - _structCap} more not shown)');
+      out.writeln('//   (+${structs.length - _structCap} more not shown)');
     }
   }
   final cpIdx = model.connectorPaneTypeIndex;
@@ -117,53 +117,53 @@ String generateDartScaffold(ViModel model, {String name = 'vi'}) {
   if (cpIdx != null && cpIdx >= 1 && cpIdx <= model.types.length) {
     final cp = model.types[cpIdx - 1];
     cpTerms.addAll(cp.kind == ViDataType.cluster ? clusterFields(cp, model.types) : <ViType>[cp]);
-    b.writeln("// Connector-pane terminals (the VI's interface; in/out direction not recovered):");
-    for (final t in cpTerms) {
-      final nm = t.name != null && t.name!.isNotEmpty ? ' ${_oneLine(t.name!)}' : '';
-      b.writeln('//   ${typeLabel(t, model.types)}$nm');
+    out.writeln("// Connector-pane terminals (the VI's interface; in/out direction not recovered):");
+    for (final term in cpTerms) {
+      final nm = term.name != null && term.name!.isNotEmpty ? ' ${_oneLine(term.name!)}' : '';
+      out.writeln('//   ${typeLabel(term, model.types)}$nm');
     }
   }
   final captions = model.captions;
   if (captions.isNotEmpty) {
-    b.writeln('// Candidate parameters (control/label captions — direction & type');
-    b.writeln('// are not yet recovered from the diagram, so these are names only):');
-    for (final c in captions.take(_captionCap)) {
-      b.writeln('//   ${_oneLine(c)}');
+    out.writeln('// Candidate parameters (control/label captions — direction & type');
+    out.writeln('// are not yet recovered from the diagram, so these are names only):');
+    for (final caption in captions.take(_captionCap)) {
+      out.writeln('//   ${_oneLine(caption)}');
     }
     if (captions.length > _captionCap) {
-      b.writeln('//   (+${captions.length - _captionCap} more not shown)');
+      out.writeln('//   (+${captions.length - _captionCap} more not shown)');
     }
   }
   if (cpTerms.isNotEmpty) {
     final sig = [
-      for (final t in cpTerms)
-        t.name != null && t.name!.isNotEmpty
-            ? '${typeLabel(t, model.types)} ${_ident(_oneLine(t.name!))}'
-            : typeLabel(t, model.types),
+      for (final term in cpTerms)
+        term.name != null && term.name!.isNotEmpty
+            ? '${typeLabel(term, model.types)} ${_ident(_oneLine(term.name!))}'
+            : typeLabel(term, model.types),
     ].join(', ');
-    b
+    out
       ..writeln()
       ..writeln('// suggested signature (conpane terminals, positional — in/out not recovered):')
       ..writeln('//   ${_ident(name)}($sig)');
   }
-  b
+  out
     ..writeln()
     ..writeln('void ${_ident(name)}() {');
 
   final diagrams = [
-    for (final d in model.blockDiagrams)
-      if (d.objects.any((o) => o.category == ViObjectKind.structure || o.category == ViObjectKind.node)) d,
+    for (final diagram in model.blockDiagrams)
+      if (diagram.objects.any((o) => o.category == ViObjectKind.structure || o.category == ViObjectKind.node)) diagram,
   ];
   if (diagrams.isEmpty) {
-    b.writeln('  // (no block-diagram structures or nodes recovered)');
+    out.writeln('  // (no block-diagram structures or nodes recovered)');
   } else {
     for (var i = 0; i < diagrams.length; i++) {
-      if (diagrams.length > 1) b.writeln('  // --- block diagram ${diagrams[i].sectionTag} ---');
-      _emitDiagram(b, diagrams[i]);
+      if (diagrams.length > 1) out.writeln('  // --- block diagram ${diagrams[i].sectionTag} ---');
+      _emitDiagram(out, diagrams[i]);
     }
   }
-  b.writeln('}');
-  return b.toString();
+  out.writeln('}');
+  return out.toString();
 }
 
 /// Emits one diagram's structures/nodes into [b]. Children are walked in
@@ -174,63 +174,63 @@ String generateDartScaffold(ViModel model, {String name = 'vi'}) {
 /// section — so nothing is silently dropped.
 void _emitDiagram(StringBuffer b, ViDiagram d) {
   final kids = <int, List<ViHeapObject>>{};
-  for (final o in d.objects) {
-    if (o.parentOid != null) (kids[o.parentOid!] ??= <ViHeapObject>[]).add(o);
+  for (final object in d.objects) {
+    if (object.parentOid != null) (kids[object.parentOid!] ??= <ViHeapObject>[]).add(object);
   }
-  for (final k in kids.keys) {
-    kids[k] = _positional(kids[k]!);
+  for (final parentOid in kids.keys) {
+    kids[parentOid] = _positional(kids[parentOid]!);
   }
-  final present = {for (final o in d.objects) o.oid};
+  final present = {for (final object in d.objects) object.oid};
   final seen = <int>{};
   final emitted = <int>{};
 
-  void walk(ViHeapObject o, int depth) {
-    if (!seen.add(o.oid)) return;
+  void walk(ViHeapObject object, int depth) {
+    if (!seen.add(object.oid)) return;
     if (depth > _maxNestingDepth) {
       b.writeln('${'  ' * (depth + 1)}// (nesting truncated at depth $_maxNestingDepth)');
       return;
     }
     final pad = '  ' * (depth + 1);
-    final children = kids[o.oid] ?? const <ViHeapObject>[];
-    switch (o.category) {
+    final children = kids[object.oid] ?? const <ViHeapObject>[];
+    switch (object.category) {
       case ViObjectKind.structure:
-        b.writeln('$pad// ${_oneLine(o.objectClass.label)}  [oid ${o.oid}] {');
-        emitted.add(o.oid);
-        for (final c in children) {
-          walk(c, depth + 1);
+        b.writeln('$pad// ${_oneLine(object.objectClass.label)}  [oid ${object.oid}] {');
+        emitted.add(object.oid);
+        for (final child in children) {
+          walk(child, depth + 1);
         }
         b.writeln('$pad// }');
       case ViObjectKind.node:
-        b.writeln('$pad// ${_nodeStub(o)}  [oid ${o.oid}]');
-        emitted.add(o.oid);
-        for (final c in children) {
-          walk(c, depth + 1);
+        b.writeln('$pad// ${_nodeStub(object)}  [oid ${object.oid}]');
+        emitted.add(object.oid);
+        for (final child in children) {
+          walk(child, depth + 1);
         }
       case ViObjectKind.terminal:
       case ViObjectKind.terminalCluster:
       case ViObjectKind.decoration:
       case ViObjectKind.unknown:
-        for (final c in children) {
-          walk(c, depth);
+        for (final child in children) {
+          walk(child, depth);
         }
     }
   }
 
-  for (final r in _positional(d.roots.toList())) {
-    walk(r, 0);
+  for (final root in _positional(d.roots.toList())) {
+    walk(root, 0);
   }
-  for (final o in d.objects) {
-    if (o.parentOid != null && !present.contains(o.parentOid)) walk(o, 0);
+  for (final object in d.objects) {
+    if (object.parentOid != null && !present.contains(object.parentOid)) walk(object, 0);
   }
   final leftover = [
-    for (final o in d.objects)
-      if ((o.category == ViObjectKind.structure || o.category == ViObjectKind.node) && !emitted.contains(o.oid)) o,
+    for (final object in d.objects)
+      if ((object.category == ViObjectKind.structure || object.category == ViObjectKind.node) && !emitted.contains(object.oid)) object,
   ];
   if (leftover.isNotEmpty) {
     b.writeln('  // (objects outside the nesting tree:)');
-    for (final o in leftover) {
-      final body = o.category == ViObjectKind.structure ? _nodeName(o) : _nodeStub(o);
-      b.writeln('  // $body  [oid ${o.oid}]');
+    for (final object in leftover) {
+      final body = object.category == ViObjectKind.structure ? _nodeName(object) : _nodeStub(object);
+      b.writeln('  // $body  [oid ${object.oid}]');
     }
   }
 }
@@ -239,43 +239,43 @@ void _emitDiagram(StringBuffer b, ViDiagram d) {
 /// reading order, NOT execution order. Objects with no/invalid bounds sort last;
 /// ties (and bounds-less objects) keep their original heap order (stable).
 List<ViHeapObject> _positional(List<ViHeapObject> objs) {
-  final indexed = [for (var i = 0; i < objs.length; i++) (o: objs[i], i: i)];
+  final indexed = [for (var i = 0; i < objs.length; i++) (object: objs[i], index: i)];
   indexed.sort((a, b) {
-    final ab = a.o.absBounds;
-    final bb = b.o.absBounds;
-    final av = ab != null && ab.isValid;
-    final bv = bb != null && bb.isValid;
-    if (av != bv) return av ? -1 : 1;
-    if (av && bv) {
-      final t = ab.top.compareTo(bb.top);
-      if (t != 0) return t;
-      final l = ab.left.compareTo(bb.left);
-      if (l != 0) return l;
+    final boundsA = a.object.absBounds;
+    final boundsB = b.object.absBounds;
+    final validA = boundsA != null && boundsA.isValid;
+    final validB = boundsB != null && boundsB.isValid;
+    if (validA != validB) return validA ? -1 : 1;
+    if (validA && validB) {
+      final byTop = boundsA.top.compareTo(boundsB.top);
+      if (byTop != 0) return byTop;
+      final byLeft = boundsA.left.compareTo(boundsB.left);
+      if (byLeft != 0) return byLeft;
     }
-    return a.i.compareTo(b.i);
+    return a.index.compareTo(b.index);
   });
-  return [for (final e in indexed) e.o];
+  return [for (final entry in indexed) entry.object];
 }
 
 /// The stub line body for a node: a subVI-call node carries the called-VI
 /// filename in its 0xa caption (recovered ~99.6%), so emit it as `calls <name>`;
 /// every other node stays a generic `TODO: <name/hint>`. This names WHAT is
 /// called, never which wires connect calls (dataflow is not recovered).
-String _nodeStub(ViHeapObject o) {
-  final name = _nodeName(o);
+String _nodeStub(ViHeapObject object) {
+  final name = _nodeName(object);
   final lower = name.toLowerCase();
   final isCall = lower.endsWith('.vi') || lower.endsWith('.lvclass') || lower.endsWith('.lvlib');
   return isCall ? 'calls $name' : 'TODO: $name';
 }
 
-String _nodeName(ViHeapObject o) {
-  final l = o.label?.trim();
-  return _oneLine(l != null && l.isNotEmpty ? l : o.objectClass.label);
+String _nodeName(ViHeapObject object) {
+  final label = object.label?.trim();
+  return _oneLine(label != null && label.isNotEmpty ? label : object.objectClass.label);
 }
 
 /// Collapses newlines/control chars to single spaces so a value stays on one
 /// comment line, and neutralizes a stray `*/` that could close a block comment.
-String _oneLine(String s) => s
+String _oneLine(String text) => text
     .replaceAll(RegExp(r'[\x00-\x1f]+'), ' ')
     .replaceAll('*/', '* /')
     .trim();

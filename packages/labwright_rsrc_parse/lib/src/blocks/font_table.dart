@@ -45,23 +45,23 @@ class ViFontTable {
 
 /// Decodes an `FTAB` body. Null when too short for the header (version + count +
 /// name-table offset).
-ViFontTable? decodeFontTable(Uint8List b) {
-  if (b.length < 12) return null;
-  final bd = ByteData.sublistView(b);
+ViFontTable? decodeFontTable(Uint8List bytes) {
+  if (bytes.length < 12) return null;
+  final bd = ByteData.sublistView(bytes);
   final version = bd.getUint16(0);
   final fontCount = bd.getUint16(6);
   final nameOff = bd.getUint32(8);
   final names = <String>[];
-  var p = nameOff;
+  var pos = nameOff;
   for (var i = 0; i < fontCount; i++) {
-    if (p >= b.length) break;
-    final len = b[p++];
-    if (p + len > b.length) break;
-    names.add(String.fromCharCodes(b, p, p + len));
-    p += len;
+    if (pos >= bytes.length) break;
+    final len = bytes[pos++];
+    if (pos + len > bytes.length) break;
+    names.add(String.fromCharCodes(bytes, pos, pos + len));
+    pos += len;
   }
   return ViFontTable(
-    rawLength: b.length,
+    rawLength: bytes.length,
     version: version,
     fontCount: fontCount,
     nameTableOffset: nameOff,
