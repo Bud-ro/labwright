@@ -3,6 +3,8 @@ import 'dart:typed_data';
 import 'seq_binary.dart';
 import 'seq_file.dart';
 import 'seq_format.dart';
+import 'seq_module.dart';
+import 'seq_step.dart';
 
 /// Max enum allowed-values shown inline for a `TypeEnum` measurement parameter
 /// before truncating with a `…(count)` marker (kept short for readability).

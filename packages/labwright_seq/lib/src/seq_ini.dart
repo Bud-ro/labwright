@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'seq_file.dart';
 import 'seq_format.dart';
 import 'seq_property.dart';
+import 'seq_step.dart';
 
 /// Reader for the **legacy INI** `.seq` encoding (TestStand 3.x–era; some newer
 /// installs still emit it). It is a *plaintext* serialization of the **same

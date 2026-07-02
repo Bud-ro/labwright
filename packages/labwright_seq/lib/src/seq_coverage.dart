@@ -1,5 +1,8 @@
 import 'seq_file.dart';
+import 'seq_module.dart';
 import 'seq_property.dart';
+import 'seq_step.dart';
+import 'seq_typedefs.dart';
 
 /// A property's direct child nodes: its named sub-properties followed by its
 /// array elements (if any). Names the `[...subProps, ...?array]` idiom the
