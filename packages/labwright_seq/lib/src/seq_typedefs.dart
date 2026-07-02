@@ -39,9 +39,9 @@ class StepTypeInfo {
   List<String> get blockEndTypes => _split('BlockEndTypes', ',');
 
   List<String> _split(String key, String sep) {
-    final s = _str(key);
-    if (s == null) return const [];
-    return s.split(sep).map((t) => t.trim()).where((t) => t.isNotEmpty).toList();
+    final text = _str(key);
+    if (text == null) return const [];
+    return text.split(sep).map((t) => t.trim()).where((t) => t.isNotEmpty).toList();
   }
 
   /// Whether this step type participates in a block structure
@@ -59,8 +59,8 @@ class StepTypeInfo {
   /// The step type's Insertion-menu placement (`Menu`), or null when it carries
   /// none. See [StepTypeMenu].
   StepTypeMenu? get menu {
-    final m = raw.prop('Menu');
-    return m == null ? null : StepTypeMenu(m);
+    final menu = raw.prop('Menu');
+    return menu == null ? null : StepTypeMenu(menu);
   }
 }
 
@@ -124,8 +124,8 @@ class SeqType {
   /// pair where `type` is the field's own `classname` token (may be null).
   /// Empty for a leaf/scalar type that declares no sub-fields.
   List<({String name, String? type})> get fields => [
-        for (final c in [...raw.subProps, ...?raw.array])
-          (name: c.name, type: c.className),
+        for (final child in [...raw.subProps, ...?raw.array])
+          (name: child.name, type: child.className),
       ];
 }
 

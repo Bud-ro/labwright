@@ -29,22 +29,22 @@ sealed class SeqDocument {
       case SeqFormat.xml:
         return structured(XmlSeqDocument.new);
       case SeqFormat.binary:
-        final a = analyzeBinary(bytes);
+        final analysis = analyzeBinary(bytes);
         return BinarySeqDocument(
           header: detectSeqHeader(bytes),
-          inflatedSize: a?.inflatedSize ?? 0,
-          strings: a?.strings ?? const [],
-          stringTable: a?.stringTable ?? const [],
-          layout: a?.layout,
-          nameTable: a?.nameTable ?? const [],
-          objectNames: a?.objectNames ?? const [],
-          modulePaths: a?.modulePaths ?? const [],
-          stepReferences: a?.stepReferences ?? const [],
-          expressions: a?.expressions ?? const [],
-          quotedLiterals: a?.quotedLiterals ?? const [],
-          namedScalars: a?.namedScalars ?? const [],
-          scalarDoubles: a?.scalarDoubles ?? const [],
-          namedRecords: a?.namedRecords ?? const [],
+          inflatedSize: analysis?.inflatedSize ?? 0,
+          strings: analysis?.strings ?? const [],
+          stringTable: analysis?.stringTable ?? const [],
+          layout: analysis?.layout,
+          nameTable: analysis?.nameTable ?? const [],
+          objectNames: analysis?.objectNames ?? const [],
+          modulePaths: analysis?.modulePaths ?? const [],
+          stepReferences: analysis?.stepReferences ?? const [],
+          expressions: analysis?.expressions ?? const [],
+          quotedLiterals: analysis?.quotedLiterals ?? const [],
+          namedScalars: analysis?.namedScalars ?? const [],
+          scalarDoubles: analysis?.scalarDoubles ?? const [],
+          namedRecords: analysis?.namedRecords ?? const [],
         );
       case SeqFormat.ini:
         return structured(IniSeqDocument.new);

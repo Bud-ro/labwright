@@ -11,9 +11,9 @@ class Step {
   /// The underlying property object — full access to every step property.
   final SeqProperty raw;
 
-  String? _s(String key) => nonEmpty(raw.prop(key)?.scalar);
-  int? _i(String key) => int.tryParse(_s(key) ?? '');
-  bool? _b(String key) => parseFlag(_s(key));
+  String? _scalarOf(String key) => nonEmpty(raw.prop(key)?.scalar);
+  int? _intOf(String key) => int.tryParse(_scalarOf(key) ?? '');
+  bool? _flagOf(String key) => parseFlag(_scalarOf(key));
 
   /// The step's display name (its `name=` attribute).
   String get name => raw.name;
@@ -34,39 +34,39 @@ class Step {
   /// [StepTypeInfo.descriptionFormat] (e.g. `This sequence will automatically
   /// login…`). null when the step records none. Distinct from the free-text
   /// [comment].
-  String? get description => _s('Description');
+  String? get description => _scalarOf('Description');
 
   /// The step's active-state code (`Active`) governing whether it runs in the
   /// normal flow. Surfaced verbatim; the NI-internal code→name mapping is not
   /// invented (the run-mode override is exposed readably as [StepSettings.mode]).
   /// null when unset.
-  int? get activeStateCode => _i('Active');
+  int? get activeStateCode => _intOf('Active');
 
   /// The pin map path the step pins its operation to (`PinMapPath`), for a
   /// Semiconductor-Test-System step; null when unset.
-  String? get pinMapPath => _s('PinMapPath');
+  String? get pinMapPath => _scalarOf('PinMapPath');
 
   /// The step type's serialized input-buffer template (`InBuf`) — an NI-internal
   /// blob the editor uses when creating the step; surfaced raw (its internal
   /// structure is not decoded). null when absent.
-  String? get inputBuffer => _s('InBuf');
+  String? get inputBuffer => _scalarOf('InBuf');
 
   /// The step's editor category (`Category`, e.g. `Test`, `Action`) — how the
   /// editor groups the step; null when unset.
-  String? get category => _s('Category');
+  String? get category => _scalarOf('Category');
 
   /// Whether the step suppresses the next step's result (`SuppressNextResult`).
   /// null when unset.
-  bool? get suppressesNextResult => _b('SuppressNextResult');
+  bool? get suppressesNextResult => _flagOf('SuppressNextResult');
 
   /// The precondition as last evaluated (`EvaluatedConditionExpr`) — the resolved
   /// form of the step's precondition; null when absent.
-  String? get evaluatedConditionExpression => _s('EvaluatedConditionExpr');
+  String? get evaluatedConditionExpression => _scalarOf('EvaluatedConditionExpr');
 
   /// Whether the step's limit comparison is driven by an expression
   /// (`UseCompExpr`) rather than a fixed operator; null when unset. Pairs with
   /// [limits] and [StepLimits.lowExpression]/[StepLimits.highExpression].
-  bool? get usesComparisonExpression => _b('UseCompExpr');
+  bool? get usesComparisonExpression => _flagOf('UseCompExpr');
 
 
   /// For an array/For-Each iteration step: the subscript expression
@@ -75,45 +75,45 @@ class Step {
   /// element after the loop (`ElementRestorerLocal`), whether the data file
   /// auto-closes at end (`AutoCloseAtEndofFile`), and a field-mapping expression
   /// (`FieldMappingExpr`). Each null when absent.
-  String? get arraySubscriptExpression => _s('SubscriptExpr');
-  int? get arrayOffset => _i('Offset');
-  int? get iterationTypeCode => _i('IterationType');
-  String? get elementRestorerLocal => _s('ElementRestorerLocal');
-  bool? get autoClosesAtEndOfFile => _b('AutoCloseAtEndofFile');
-  String? get fieldMappingExpression => _s('FieldMappingExpr');
+  String? get arraySubscriptExpression => _scalarOf('SubscriptExpr');
+  int? get arrayOffset => _intOf('Offset');
+  int? get iterationTypeCode => _intOf('IterationType');
+  String? get elementRestorerLocal => _scalarOf('ElementRestorerLocal');
+  bool? get autoClosesAtEndOfFile => _flagOf('AutoCloseAtEndofFile');
+  String? get fieldMappingExpression => _scalarOf('FieldMappingExpr');
 
   /// The runtime-evaluated forms TestStand caches for the step's array/loop
   /// expressions (`EvaluatedArrayExpr` / `EvaluatedArrayElementExpr` /
   /// `EvaluatedSubscriptExpr` / `EvaluatedOffsetExpr`) — the resolved counterparts
   /// to the [FlowControl] expressions. Each null when absent.
-  String? get evaluatedArrayExpression => _s('EvaluatedArrayExpr');
-  String? get evaluatedArrayElementExpression => _s('EvaluatedArrayElementExpr');
-  String? get evaluatedSubscriptExpression => _s('EvaluatedSubscriptExpr');
-  String? get evaluatedOffsetExpression => _s('EvaluatedOffsetExpr');
+  String? get evaluatedArrayExpression => _scalarOf('EvaluatedArrayExpr');
+  String? get evaluatedArrayElementExpression => _scalarOf('EvaluatedArrayElementExpr');
+  String? get evaluatedSubscriptExpression => _scalarOf('EvaluatedSubscriptExpr');
+  String? get evaluatedOffsetExpression => _scalarOf('EvaluatedOffsetExpr');
 
 
   /// For a Wait (or timeout-bearing) step: the timeout expression (`TimeoutExpr`),
   /// whether the timeout is enabled (`TimeoutEnabled`), and whether a timeout
   /// raises an error (`ErrorOnTimeout`). Each null when absent.
-  String? get timeoutExpression => _s('TimeoutExpr');
-  bool? get timeoutEnabled => _b('TimeoutEnabled');
-  bool? get errorsOnTimeout => _b('ErrorOnTimeout');
+  String? get timeoutExpression => _scalarOf('TimeoutExpr');
+  bool? get timeoutEnabled => _flagOf('TimeoutEnabled');
+  bool? get errorsOnTimeout => _flagOf('ErrorOnTimeout');
 
   /// For a database step: the statement / database handle expressions
   /// (`StatementHandle` / `DatabaseHandle`, e.g. `Locals.SelectStatement`) the
   /// step operates on. Each null when absent.
-  String? get statementHandle => _s('StatementHandle');
-  String? get databaseHandle => _s('DatabaseHandle');
+  String? get statementHandle => _scalarOf('StatementHandle');
+  String? get databaseHandle => _scalarOf('DatabaseHandle');
 
   /// Further database step fields: the SQL statement (`SQLStatement`, a literal or
   /// expression), whether the statement requires parameters (`RequiresParameters`),
   /// the fetch page size (`PageSize`), and the records-selected output expression
   /// (`NumberOfRecordsSelected`). Each null when absent. The selected columns are
   /// in the raw `ColumnList`.
-  String? get sqlStatement => _s('SQLStatement');
-  bool? get requiresParameters => _b('RequiresParameters');
-  int? get pageSize => _i('PageSize');
-  String? get numberOfRecordsSelectedExpression => _s('NumberOfRecordsSelected');
+  String? get sqlStatement => _scalarOf('SQLStatement');
+  bool? get requiresParameters => _flagOf('RequiresParameters');
+  int? get pageSize => _intOf('PageSize');
+  String? get numberOfRecordsSelectedExpression => _scalarOf('NumberOfRecordsSelected');
 
   /// The ADO recordset/command option codes for a database step
   /// (`CommandTimeout`, `CommandType`, `LockType`, `CursorLocation`,
@@ -122,14 +122,14 @@ class Step {
   /// (the NI/ADO code→name mappings are not invented); null when absent. The
   /// remote-connection and error records live in the raw `RemoteSettings` /
   /// `StdError`.
-  int? get dbCommandTimeoutCode => _i('CommandTimeout');
-  int? get dbCommandTypeCode => _i('CommandType');
-  int? get dbLockTypeCode => _i('LockType');
-  int? get dbCursorLocationCode => _i('CursorLocation');
-  int? get dbCursorTypeCode => _i('CursorType');
-  int? get dbCacheSize => _i('CacheSize');
-  int? get dbMarshalOptionsCode => _i('MarshalOptions');
-  int? get dbMaxRecordsToSelect => _i('MaxRecordsToSelect');
+  int? get dbCommandTimeoutCode => _intOf('CommandTimeout');
+  int? get dbCommandTypeCode => _intOf('CommandType');
+  int? get dbLockTypeCode => _intOf('LockType');
+  int? get dbCursorLocationCode => _intOf('CursorLocation');
+  int? get dbCursorTypeCode => _intOf('CursorType');
+  int? get dbCacheSize => _intOf('CacheSize');
+  int? get dbMarshalOptionsCode => _intOf('MarshalOptions');
+  int? get dbMaxRecordsToSelect => _intOf('MaxRecordsToSelect');
 
 
   /// For a Run/Wait step that references a sequence call by name: the referenced
@@ -137,17 +137,17 @@ class Step {
   /// (`SeqCallStepGroupIdx`), whether the target is specified by that sequence
   /// call (`SpecifyBySeqCall`), and the wait-for-target code (`WaitForTarget`).
   /// Each null when absent.
-  String? get referencedSequenceCallName => _s('SeqCallName');
-  int? get referencedSequenceCallStepGroupCode => _i('SeqCallStepGroupIdx');
-  bool? get specifiesBySequenceCall => _b('SpecifyBySeqCall');
-  int? get waitForTargetCode => _i('WaitForTarget');
+  String? get referencedSequenceCallName => _scalarOf('SeqCallName');
+  int? get referencedSequenceCallStepGroupCode => _intOf('SeqCallStepGroupIdx');
+  bool? get specifiesBySequenceCall => _flagOf('SpecifyBySeqCall');
+  int? get waitForTargetCode => _intOf('WaitForTarget');
 
   /// For a Wait step targeting a thread/execution: the thread / execution
   /// reference expressions (`ThreadRefExpr` / `ExecutionRefExpr`) and the wait
   /// time expression (`TimeExpr`, seconds). Each null when absent.
-  String? get threadReferenceExpression => _s('ThreadRefExpr');
-  String? get executionReferenceExpression => _s('ExecutionRefExpr');
-  String? get waitTimeExpression => _s('TimeExpr');
+  String? get threadReferenceExpression => _scalarOf('ThreadRefExpr');
+  String? get executionReferenceExpression => _scalarOf('ExecutionRefExpr');
+  String? get waitTimeExpression => _scalarOf('TimeExpr');
 
   /// The step's run-time settings (preconditions, looping, pass/fail actions),
   /// read from its `TS` (TestStand system) sub-container.
@@ -187,8 +187,8 @@ class Step {
   /// [StepResult]; the measured-value unit is exposed separately as
   /// [resultUnits].
   StepResult? get result {
-    final r = raw.prop('Result');
-    return r == null ? null : StepResult(r);
+    final result = raw.prop('Result');
+    return result == null ? null : StepResult(result);
   }
 
   /// The step's data-source expression (`DataSource`) — what the step measures
@@ -198,7 +198,7 @@ class Step {
   /// value as [StepLimits.dataSource] for a limit test, but is exposed here too
   /// so it's recovered for non-limit steps (e.g. `PassFailTest`), where there is
   /// no [StepLimits].
-  String? get dataSource => _s('DataSource');
+  String? get dataSource => _scalarOf('DataSource');
 
   /// The step's unique id (`TS.Id`, e.g. `ID#:1m8fotxw7RGuNrjdh1OqZD`) — the
   /// stable handle other steps' flow-action targets reference (see
@@ -216,7 +216,7 @@ class Step {
   List<MeasurementParameter> get measurementParameters {
     final params = raw.prop('Measurement')?.prop('Parameters');
     final kids = params?.array ?? params?.subProps ?? const <SeqProperty>[];
-    return [for (final p in kids) MeasurementParameter(p)];
+    return [for (final parameter in kids) MeasurementParameter(parameter)];
   }
 
   /// The registered name of the measurement a measurement step invokes
@@ -233,9 +233,9 @@ class Step {
   /// `Flags`/`CheckedState` siblings are left raw (meaning not yet decoded).
   List<AdditionalResult> get additionalResults {
     final out = <AdditionalResult>[];
-    void walk(SeqProperty p) {
-      final kids = [...p.subProps, ...?p.array];
-      if (p.name == 'AdditionalResults') {
+    void walk(SeqProperty node) {
+      final kids = [...node.subProps, ...?node.array];
+      if (node.name == 'AdditionalResults') {
         out.addAll(kids.map(AdditionalResult.new));
         return;
       }
@@ -663,8 +663,8 @@ class StepSettings {
   String? get flowSummary {
     if (passAction == null && failAction == null) return null;
     String side(String? act, String? target) {
-      final a = act ?? '?';
-      return (a != 'Next' && target != null) ? '$a→$target' : a;
+      final actionText = act ?? '?';
+      return (actionText != 'Next' && target != null) ? '$actionText→$target' : actionText;
     }
 
     return '${side(passAction, passActionTarget)}/'

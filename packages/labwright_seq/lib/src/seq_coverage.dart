@@ -154,24 +154,24 @@ const _pythonSessionKeys = [
 
 /// The set of nodes the typed lens surfaces with meaning, by object identity.
 /// Shared by [measureCoverage] (counts it) and [coverageGaps] (inverts it).
-Set<SeqProperty> _modeledNodes(SeqFile f) {
+Set<SeqProperty> _modeledNodes(SeqFile file) {
   final modeled = <SeqProperty>{};
-  void mark(SeqProperty? p) {
-    if (p != null) modeled.add(p);
+  void mark(SeqProperty? node) {
+    if (node != null) modeled.add(node);
   }
   void markKeys(SeqProperty? owner, List<String> keys) {
-    for (final k in keys) { mark(owner?.prop(k)); }
+    for (final key in keys) { mark(owner?.prop(key)); }
   }
 
   /// Marks [p] and its direct children (named sub-properties and array elements)
   /// — for a container the lens surfaces as accessible structured data whose
   /// one-level contents are read out (RTS settings, Requirements.Links, the file
   /// globals list).
-  void markContainer(SeqProperty? p) {
-    if (p == null) return;
-    mark(p);
-    for (final c in p.children) {
-      mark(c);
+  void markContainer(SeqProperty? node) {
+    if (node == null) return;
+    mark(node);
+    for (final child in node.children) {
+      mark(child);
     }
   }
 
@@ -179,17 +179,17 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
   /// surfaces as raw structure for full access (a SequenceCall's actual
   /// arguments / parameter prototype), whose contents are NI-internal
   /// per-argument descriptors not given individual typed meaning.
-  void markSubtree(SeqProperty? p) {
-    if (p == null) return;
-    mark(p);
-    for (final c in p.children) {
-      markSubtree(c);
+  void markSubtree(SeqProperty? node) {
+    if (node == null) return;
+    mark(node);
+    for (final child in node.children) {
+      markSubtree(child);
     }
   }
 
-  mark(f.data);
-  mark(f.data.prop('Seq'));
-  for (final seq in f.sequences) {
+  mark(file.data);
+  mark(file.data.prop('Seq'));
+  for (final seq in file.sequences) {
     mark(seq.raw);
     markKeys(seq.raw, ['Setup', 'Main', 'Cleanup']);
     mark(seq.raw.prop('Locals'));
@@ -197,8 +197,8 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
     // Locals/parameters are user variables — the SeqVariable lens applies to a
     // variable and, recursively, to every member of a struct/cluster variable,
     // so the whole variable subtree is modeled user data.
-    for (final v in [...seq.locals, ...seq.parameters]) {
-      markSubtree(v.raw);
+    for (final variable in [...seq.locals, ...seq.parameters]) {
+      markSubtree(variable.raw);
     }
     markKeys(seq.raw, [
       'RecordResults', 'GotoCleanupOnFail', 'FailureAction', 'StoreResults',
@@ -272,8 +272,8 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
       ]);
       // Std stream redirect descriptors + working-dir spec (Source/Dest/Expr/
       // IsExpr/Type/Text) and the limit-string record — raw step structure.
-      for (final k in ['StdInput', 'StdOutput', 'WorkingDir']) {
-        markSubtree(step.raw.prop(k));
+      for (final key in ['StdInput', 'StdOutput', 'WorkingDir']) {
+        markSubtree(step.raw.prop(key));
       }
       markSubtree(step.raw.prop('Limits')?.prop('String'));
       // Message-popup file-attachment record + measurement data arrays — raw.
@@ -293,12 +293,12 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
       void markHints(SeqProperty? list) {
         if (list == null) return;
         mark(list);
-        for (final e in list.children) {
-          mark(e);
-          markKeys(e, _resultHintKeys);
+        for (final element in list.children) {
+          mark(element);
+          markKeys(element, _resultHintKeys);
           // The hint's logged-value `Type` is a full NI type descriptor
           // (ArrayDimensions/ValueType/ClassName internals) — raw subtree.
-          markSubtree(e.prop('Type'));
+          markSubtree(element.prop('Type'));
         }
       }
 
@@ -326,39 +326,39 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
         'Namespace', 'ProjectPath', 'CallName', 'VIDescription', 'ShowFrnPnl',
         ..._viCallSettingKeys,
       ]);
-      void markParam(SeqProperty p) {
-        mark(p);
-        markKeys(p, _callParamKeys);
+      void markParam(SeqProperty node) {
+        mark(node);
+        markKeys(node, _callParamKeys);
         // The parameter's "additional results" spec (Input/Output sides, or a
         // single AdditionalResult with Condition/Flags/CheckedState) is surfaced
         // as raw structure via the lens.
-        final addl = p.prop('AdditionalResults');
+        final addl = node.prop('AdditionalResults');
         mark(addl);
         for (final side in ['Input', 'Output']) {
-          final s = addl?.prop(side);
-          mark(s);
-          for (final c in s?.subProps ?? const <SeqProperty>[]) {
-            mark(c);
+          final sideProp = addl?.prop(side);
+          mark(sideProp);
+          for (final child in sideProp?.subProps ?? const <SeqProperty>[]) {
+            mark(child);
           }
         }
-        markContainer(p.prop('AdditionalResult'));
-        markContainer(p.prop('ArrayDimensionsSize'));
+        markContainer(node.prop('AdditionalResult'));
+        markContainer(node.prop('ArrayDimensionsSize'));
         // A cluster/array parameter's elements are themselves parameter
         // descriptors (same fields) — recurse so the whole connector type tree is
         // covered, however deeply nested. The element-type *prototype* is a pure
         // NI type descriptor (its Cluster/UserData/ComplexParts internals), so it
         // is surfaced whole as raw structure.
-        final els = p.prop('ArrayClusterEls');
+        final els = node.prop('ArrayClusterEls');
         mark(els);
-        for (final e in els?.array ?? const <SeqProperty>[]) {
-          markParam(e);
+        for (final element in els?.array ?? const <SeqProperty>[]) {
+          markParam(element);
         }
-        markSubtree(p.prop('ArrayClusterProto'));
+        markSubtree(node.prop('ArrayClusterProto'));
       }
 
       mark(viCall?.prop('Parms'));
-      for (final p in step.module.viParameters) {
-        markParam(p.raw);
+      for (final parameter in step.module.viParameters) {
+        markParam(parameter.raw);
       }
       // The LabVIEW VI adapter can also hang a `VIModule` container directly off
       // the step (legacy module slot, distinct from TS.SData.ViCall). Same shape:
@@ -369,8 +369,8 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
       mark(viModuleCall?.prop('VIPath'));
       final viModuleParms = viModuleCall?.prop('Parms');
       mark(viModuleParms);
-      for (final p in viModuleParms?.array ?? const <SeqProperty>[]) {
-        markParam(p);
+      for (final parameter in viModuleParms?.array ?? const <SeqProperty>[]) {
+        markParam(parameter);
       }
       final call = sdata?.prop('Call');
       mark(call?.prop('LibPath'));
@@ -386,8 +386,8 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
       // The C/ActiveX adapter's connector list (`Call.Parms`), like ViCall.Parms.
       final callParms = call?.prop('Parms');
       mark(callParms);
-      for (final p in callParms?.array ?? const <SeqProperty>[]) {
-        markParam(p);
+      for (final parameter in callParms?.array ?? const <SeqProperty>[]) {
+        markParam(parameter);
       }
       mark(sdata?.prop('SeqName'));
       mark(sdata?.prop('SFPath'));
@@ -399,8 +399,8 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
       ]);
       mark(call?.prop('Parameters'));
       mark(sdata?.prop('PythonCall')?.prop('Parameters'));
-      for (final p in step.module.callParameters) {
-        markParam(p.raw);
+      for (final parameter in step.module.callParameters) {
+        markParam(parameter.raw);
       }
       if (step.flowControl != null) {
         markKeys(step.raw, [
@@ -422,20 +422,20 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
       // the StepResult lens.
       markSubtree(step.raw.prop('Result'));
       // Message-popup / UI step font records, surfaced as raw structure.
-      for (final k in ['ButtonFontData', 'MsgFontData', 'RespFontData']) {
-        markSubtree(step.raw.prop(k));
+      for (final key in ['ButtonFontData', 'MsgFontData', 'RespFontData']) {
+        markSubtree(step.raw.prop(key));
       }
-      void markAddl(SeqProperty p) {
-        if (p.name == 'AdditionalResults') {
-          mark(p);
-          for (final e in p.children) {
-            mark(e);
-            mark(e.prop('Condition'));
+      void markAddl(SeqProperty node) {
+        if (node.name == 'AdditionalResults') {
+          mark(node);
+          for (final element in node.children) {
+            mark(element);
+            mark(element.prop('Condition'));
           }
           return;
         }
-        for (final c in p.children) {
-          markAddl(c);
+        for (final child in node.children) {
+          markAddl(child);
         }
       }
 
@@ -445,42 +445,42 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
       mark(meas?.prop('Version')); // IVI/measurement-plugin schema version tag
       final mparams = meas?.prop('Parameters');
       mark(mparams);
-      for (final p in step.measurementParameters) {
-        mark(p.raw);
-        markKeys(p.raw, [
+      for (final parameter in step.measurementParameters) {
+        mark(parameter.raw);
+        markKeys(parameter.raw, [
           'Name', 'Type', 'Direction', 'Dimension', 'ArgumentValue',
           'TypeSpecialization', 'Log', 'ID', 'MessageType',
         ]);
-        final enumDef = p.raw.prop('EnumDefinition');
+        final enumDef = parameter.raw.prop('EnumDefinition');
         mark(enumDef);
-        for (final e in enumDef?.array ?? const <SeqProperty>[]) {
-          mark(e);
+        for (final element in enumDef?.array ?? const <SeqProperty>[]) {
+          mark(element);
         }
       }
     }
   }
 
-  markKeys(f.data, [
+  markKeys(file.data, [
     'ModelFile', 'ModelOption', 'LoadOpt', 'UnloadOpt', 'Version',
     'BatchSync', 'SFGlobalsScope', 'Type',
   ]);
-  markContainer(f.data.prop('Requirements'));
-  markContainer(f.data.prop('Requirements')?.prop('Links'));
+  markContainer(file.data.prop('Requirements'));
+  markContainer(file.data.prop('Requirements')?.prop('Links'));
   // The file globals (FileGlobalDefaults) the lens lists — each global carries a
   // full value descriptor (type internals, array prototypes), surfaced raw.
-  markSubtree(f.data.prop('FileGlobalDefaults'));
+  markSubtree(file.data.prop('FileGlobalDefaults'));
 
-  final measPlugins = f.measurementPlugIns;
+  final measPlugins = file.measurementPlugIns;
   if (measPlugins != null) {
     mark(measPlugins.raw);
-    for (final k in [
+    for (final key in [
       'PinMapPath', 'EnableMonitoring', 'SpecificationsFilePaths',
       'LevelsFilePaths', 'TimingFilePaths', 'PatternFilePaths',
     ]) {
-      final node = measPlugins.raw.prop(k);
+      final node = measPlugins.raw.prop(key);
       mark(node);
-      for (final e in node?.array ?? const <SeqProperty>[]) {
-        mark(e);
+      for (final element in node?.array ?? const <SeqProperty>[]) {
+        mark(element);
       }
     }
   }
@@ -511,26 +511,26 @@ const _plumbingNames = {
 
 /// The set of nodes classified as NI-internal [_plumbingNames] plumbing (whole
 /// subtrees), excluding any already in [modeled] (modeling always wins).
-Set<SeqProperty> _plumbingNodes(SeqFile f, Set<SeqProperty> modeled) {
+Set<SeqProperty> _plumbingNodes(SeqFile file, Set<SeqProperty> modeled) {
   final plumbing = <SeqProperty>{};
-  void markSubtree(SeqProperty p) {
-    if (!modeled.contains(p)) plumbing.add(p);
-    for (final c in p.children) {
-      markSubtree(c);
+  void markSubtree(SeqProperty node) {
+    if (!modeled.contains(node)) plumbing.add(node);
+    for (final child in node.children) {
+      markSubtree(child);
     }
   }
 
-  void walk(SeqProperty p) {
-    if (_plumbingNames.contains(p.name)) {
-      markSubtree(p);
+  void walk(SeqProperty node) {
+    if (_plumbingNames.contains(node.name)) {
+      markSubtree(node);
       return;
     }
-    for (final c in p.children) {
-      walk(c);
+    for (final child in node.children) {
+      walk(child);
     }
   }
 
-  walk(f.data);
+  walk(file.data);
   return plumbing;
 }
 
@@ -538,22 +538,22 @@ Set<SeqProperty> _plumbingNodes(SeqFile f, Set<SeqProperty> modeled) {
 /// excluded as a separate concern). Modeled nodes are collected in a set that
 /// dedupes by object identity ([SeqProperty] declares no custom `==`); plumbing
 /// nodes are the recognized-but-deferred NI-internal metadata.
-SeqCoverage measureCoverage(SeqFile f) {
-  final modeled = _modeledNodes(f);
-  final plumbing = _plumbingNodes(f, modeled);
+SeqCoverage measureCoverage(SeqFile file) {
+  final modeled = _modeledNodes(file);
+  final plumbing = _plumbingNodes(file, modeled);
   // Count **unique** nodes by object identity — the INI builder structurally
   // shares inherited type subtrees (the same SeqProperty appears at many
   // positions), and [modeled]/[plumbing] are identity sets, so `total` must
   // dedupe the same way. Modeling a shared subtree once covers all its positions.
   final all = <SeqProperty>{};
-  void count(SeqProperty p) {
-    if (!all.add(p)) return;
-    for (final c in p.children) {
-      count(c);
+  void count(SeqProperty node) {
+    if (!all.add(node)) return;
+    for (final child in node.children) {
+      count(child);
     }
   }
 
-  count(f.data);
+  count(file.data);
   return SeqCoverage(
       total: all.length, modeled: modeled.length, plumbing: plumbing.length);
 }
@@ -570,26 +570,26 @@ SeqCoverage measureCoverage(SeqFile f) {
 /// even where unaccounted nodes nest under a modeled container. (The
 /// [weightBySubtree] parameter is retained for call-compatibility but no longer
 /// changes the result, since each node is already counted exactly once.)
-Map<String, int> coverageGaps(SeqFile f, {bool weightBySubtree = false}) {
-  final modeled = _modeledNodes(f);
-  final plumbing = _plumbingNodes(f, modeled);
+Map<String, int> coverageGaps(SeqFile file, {bool weightBySubtree = false}) {
+  final modeled = _modeledNodes(file);
+  final plumbing = _plumbingNodes(file, modeled);
   final accounted = modeled.union(plumbing);
   final gaps = <String, int>{};
 
-  void walk(SeqProperty p, String path) {
-    if (!accounted.contains(p)) {
+  void walk(SeqProperty node, String path) {
+    if (!accounted.contains(node)) {
       gaps.update(path, (n) => n + 1, ifAbsent: () => 1);
     }
-    for (final c in p.subProps) {
-      walk(c, '$path.${c.name}');
+    for (final child in node.subProps) {
+      walk(child, '$path.${child.name}');
     }
-    if (p.array != null) {
-      for (final c in p.array!) {
-        walk(c, '$path.[]');
+    if (node.array != null) {
+      for (final child in node.array!) {
+        walk(child, '$path.[]');
       }
     }
   }
 
-  walk(f.data, f.data.name);
+  walk(file.data, file.data.name);
   return gaps;
 }

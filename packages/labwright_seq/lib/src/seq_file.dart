@@ -27,7 +27,7 @@ class SeqFile {
 
   /// The `<typelist>` entries as typed [SeqType] wrappers — each type's name,
   /// base class, and declared fields. The raw roots remain available as [types].
-  List<SeqType> get typeDefs => [for (final t in types) SeqType(t)];
+  List<SeqType> get typeDefs => [for (final type in types) SeqType(type)];
 
   /// The Semiconductor-Test-System measurement plug-in resource set this file
   /// declares (`Data > FileGlobalDefaults > MeasurementPlugIns`) — the pin map
@@ -41,8 +41,8 @@ class SeqFile {
   /// The root `Data` property object holding the file's contents.
   final SeqProperty data;
 
-  String? _str(String k) => nonEmpty(data.prop(k)?.scalar);
-  int? _int(String k) => int.tryParse(data.prop(k)?.scalar ?? '');
+  String? _str(String key) => nonEmpty(data.prop(key)?.scalar);
+  int? _int(String key) => int.tryParse(data.prop(key)?.scalar ?? '');
 
   /// The process model file this sequence file uses (`Data.ModelFile`), e.g. a
   /// `.seq` station-model path; null when it inherits the station default.
@@ -87,20 +87,20 @@ class SeqFile {
   /// declares none. (The Semiconductor-Test-System resource block among them is
   /// also surfaced, typed, via [measurementPlugIns].)
   List<SeqVariable> get fileGlobals => [
-        for (final p in data.prop('FileGlobalDefaults')?.subProps ??
+        for (final prop in data.prop('FileGlobalDefaults')?.subProps ??
             const <SeqProperty>[])
-          SeqVariable(p),
+          SeqVariable(prop),
       ];
 
   /// The sequences in the file (`Data > Seq` array). Empty if the path is absent
   /// (e.g. a type-palette file) — honest rather than throwing.
   List<Sequence> get sequences =>
-      [for (final s in data.prop('Seq')?.array ?? const <SeqProperty>[]) Sequence(s)];
+      [for (final seq in data.prop('Seq')?.array ?? const <SeqProperty>[]) Sequence(seq)];
 
   /// The sequence named [name] in this file, or null.
   Sequence? sequence(String name) {
-    for (final s in sequences) {
-      if (s.name == name) return s;
+    for (final seq in sequences) {
+      if (seq.name == name) return seq;
     }
     return null;
   }
@@ -112,14 +112,14 @@ class SeqFile {
   late final Map<String, String> _stepNamesById = _buildStepIdIndex();
 
   Map<String, String> _buildStepIdIndex() {
-    final m = <String, String>{};
+    final namesById = <String, String>{};
     for (final seq in sequences) {
       for (final step in seq.steps) {
         final id = step.id;
-        if (id != null) m[id] = step.name;
+        if (id != null) namesById[id] = step.name;
       }
     }
-    return m;
+    return namesById;
   }
 
   /// Resolves a step reference [idRef] (a `TS.Id` value, with or without the
@@ -133,9 +133,9 @@ class SeqFile {
   /// when the step isn't a sequence call or the target lives in another file
   /// (an external call — see [Step.module] `sequenceFile`).
   Sequence? resolveCall(Step step) {
-    final m = step.module;
-    if (m.adapter != SeqAdapter.sequenceCall || m.sequenceName == null) return null;
-    return sequence(m.sequenceName!);
+    final module = step.module;
+    if (module.adapter != SeqAdapter.sequenceCall || module.sequenceName == null) return null;
+    return sequence(module.sequenceName!);
   }
 
   @override
@@ -179,14 +179,14 @@ class Sequence {
 
   /// The steps in [group] (its array property), in declaration order.
   List<Step> stepsIn(StepGroup group) =>
-      [for (final s in raw.prop(group.key)?.array ?? const <SeqProperty>[]) Step(s)];
+      [for (final stepProp in raw.prop(group.key)?.array ?? const <SeqProperty>[]) Step(stepProp)];
 
   List<Step> get setup => stepsIn(StepGroup.setup);
   List<Step> get main => stepsIn(StepGroup.main);
   List<Step> get cleanup => stepsIn(StepGroup.cleanup);
 
   /// All steps in editor order (Setup, then Main, then Cleanup).
-  List<Step> get steps => [for (final g in StepGroup.values) ...stepsIn(g)];
+  List<Step> get steps => [for (final group in StepGroup.values) ...stepsIn(group)];
 
   /// The sequence's local variables (`Locals`), in declaration order.
   List<SeqVariable> get locals => _vars('Locals');
@@ -196,7 +196,7 @@ class Sequence {
   List<SeqVariable> get parameters => _vars('Parameters');
 
   List<SeqVariable> _vars(String group) =>
-      [for (final p in raw.prop(group)?.subProps ?? const <SeqProperty>[]) SeqVariable(p)];
+      [for (final prop in raw.prop(group)?.subProps ?? const <SeqProperty>[]) SeqVariable(prop)];
 
   /// Whether the sequence records its steps' results into the report
   /// (`RecordResults`). null when the sequence stores no value.
@@ -378,5 +378,5 @@ SeqFile _parseXml(Uint8List bytes) {
 }
 
 /// Removes a leading UTF-8 BOM (`U+FEFF`) so the XML parser sees a clean prolog.
-String _stripBom(String s) =>
-    s.isNotEmpty && s.codeUnitAt(0) == 0xFEFF ? s.substring(1) : s;
+String _stripBom(String text) =>
+    text.isNotEmpty && text.codeUnitAt(0) == 0xFEFF ? text.substring(1) : text;

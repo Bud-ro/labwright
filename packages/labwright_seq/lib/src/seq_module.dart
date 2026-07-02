@@ -82,8 +82,8 @@ class StepModule {
             raw?.prop('PythonCall')?.prop('Parameters'),
       );
 
-  List<CallParameter> _params(SeqProperty? p) =>
-      p == null ? const [] : [for (final e in p.array ?? p.subProps) CallParameter(e)];
+  List<CallParameter> _params(SeqProperty? container) =>
+      container == null ? const [] : [for (final element in container.array ?? container.subProps) CallParameter(element)];
 
   SeqProperty? get _viCall => raw?.prop('ViCall');
 
@@ -114,10 +114,10 @@ class StepModule {
   /// input buffer / invocation info / sequence-context pointer to the VI
   /// (`SData.PassInBuf` / `PassInvocInfo` / `PassContextPtr`). Each null when
   /// absent (a modern `ViCall` step records none). The VI path itself is [viPath].
-  bool? get legacyShowsFrontPanel => _sdFlag('ShowFrntPnl');
-  bool? get legacyPassesInputBuffer => _sdFlag('PassInBuf');
-  bool? get legacyPassesInvocationInfo => _sdFlag('PassInvocInfo');
-  bool? get legacyPassesContextPointer => _sdFlag('PassContextPtr');
+  bool? get legacyShowsFrontPanel => _dataFlag('ShowFrntPnl');
+  bool? get legacyPassesInputBuffer => _dataFlag('PassInBuf');
+  bool? get legacyPassesInvocationInfo => _dataFlag('PassInvocInfo');
+  bool? get legacyPassesContextPointer => _dataFlag('PassContextPtr');
 
   /// The LabVIEW VI call's connector-pane parameters (`ViCall.Parms`), in
   /// declaration order — the terminals wired to the subVI. Each [CallParameter]
@@ -155,41 +155,41 @@ class StepModule {
   /// e.g. `numericTests.c`, `64BitSupport\64BitSupport.cpp`) — the C/C++ source
   /// the DLL was built from, where the editor records it. null when absent (the
   /// adapter records the *built* module elsewhere, e.g. [libPath]).
-  String? get moduleSourcePath => _sd('ModuleSrcPath');
+  String? get moduleSourcePath => _dataScalar('ModuleSrcPath');
 
   /// The project/solution file the code module builds from (`SData.ModulePrjPath`,
   /// e.g. `64BitSupport\64BitSupport.vcproj`); null when absent.
-  String? get moduleProjectPath => _sd('ModulePrjPath');
+  String? get moduleProjectPath => _dataScalar('ModulePrjPath');
 
   /// The source-creation-type code (`SData.ModuleCreateSrcType`) recording how the
   /// module's source was created/linked. Verbatim; the NI-internal code→name
   /// mapping is not invented. null when absent.
-  int? get moduleSourceTypeCode => _sdInt('ModuleCreateSrcType');
+  int? get moduleSourceTypeCode => _dataInt('ModuleCreateSrcType');
 
-  String? _sd(String key) => nonEmpty(raw?.prop(key)?.scalar);
-  bool? _sdFlag(String key) => parseFlag(raw?.prop(key)?.scalar);
-  int? _sdInt(String key) => int.tryParse(raw?.prop(key)?.scalar ?? '');
+  String? _dataScalar(String key) => nonEmpty(raw?.prop(key)?.scalar);
+  bool? _dataFlag(String key) => parseFlag(raw?.prop(key)?.scalar);
+  int? _dataInt(String key) => int.tryParse(raw?.prop(key)?.scalar ?? '');
 
 
   /// For a SequenceCall step that names its target *by expression*, the sequence
   /// name (`SData.SeqNameExpr`) and sequence-file path (`SData.SFPathExpr`)
   /// expressions; null when the call names a literal target ([sequenceName] /
   /// [sequenceFile]) instead. Paired with [specifiesByExpression].
-  String? get sequenceNameExpression => _sd('SeqNameExpr');
-  String? get sequenceFileExpression => _sd('SFPathExpr');
+  String? get sequenceNameExpression => _dataScalar('SeqNameExpr');
+  String? get sequenceFileExpression => _dataScalar('SFPathExpr');
 
   /// Whether the SequenceCall specifies its target by expression
   /// (`SData.SpecifyByExpr`) rather than by a fixed name/path. null when absent.
-  bool? get specifiesByExpression => _sdFlag('SpecifyByExpr');
+  bool? get specifiesByExpression => _dataFlag('SpecifyByExpr');
 
   /// Whether the SequenceCall targets a sequence in the current file
   /// (`SData.UseCurFile`) rather than an external file. null when absent.
-  bool? get usesCurrentFile => _sdFlag('UseCurFile');
+  bool? get usesCurrentFile => _dataFlag('UseCurFile');
 
   /// Whether the call binds arguments through a declared prototype
   /// (`SData.UsePrototype`). null when absent. The prototype's parameter list and
   /// the call's actual arguments are [prototype] / [actualArguments].
-  bool? get usesPrototype => _sdFlag('UsePrototype');
+  bool? get usesPrototype => _dataFlag('UsePrototype');
 
   /// The called sequence's parameter prototype (`SData.Prototype`) and the actual
   /// arguments this call binds to it (`SData.ActualArgs`), as raw structure; null
@@ -201,57 +201,57 @@ class StepModule {
   /// The threading option code (`SData.ThreadOpt`) — run in the same thread, a
   /// new thread, or a new execution. Verbatim; NI-internal code→name not
   /// invented. null when absent.
-  int? get threadOptionCode => _sdInt('ThreadOpt');
+  int? get threadOptionCode => _dataInt('ThreadOpt');
 
   /// The execution-model option code (`SData.ExecModelOpt`). Verbatim; null when
   /// absent.
-  int? get executionModelOptionCode => _sdInt('ExecModelOpt');
+  int? get executionModelOptionCode => _dataInt('ExecModelOpt');
 
   /// Whether a spawned thread starts suspended (`SData.CreateThreadSuspended`) /
   /// is auto-waited as async (`SData.AutoWaitAsync`). Each null when absent.
-  bool? get createsThreadSuspended => _sdFlag('CreateThreadSuspended');
-  bool? get autoWaitsAsync => _sdFlag('AutoWaitAsync');
+  bool? get createsThreadSuspended => _dataFlag('CreateThreadSuspended');
+  bool? get autoWaitsAsync => _dataFlag('AutoWaitAsync');
 
   /// The expression naming the asynchronous thread the call spawns
   /// (`SData.AsyncThreadExpr`); null when absent.
-  String? get asyncThreadExpression => _sd('AsyncThreadExpr');
+  String? get asyncThreadExpression => _dataScalar('AsyncThreadExpr');
 
   /// The step's tracing setting (`SData.Trace`, e.g. `Off`, `Don't Change`) — how
   /// the call affects execution tracing; null when absent.
-  String? get traceMode => _sd('Trace');
+  String? get traceMode => _dataScalar('Trace');
 
   /// Whether the call ignores a Terminate request while running
   /// (`SData.IgnoreTerminate`). null when absent.
-  bool? get ignoresTerminate => _sdFlag('IgnoreTerminate');
+  bool? get ignoresTerminate => _dataFlag('IgnoreTerminate');
 
 
   /// Whether the step executes on a remote host (`SData.RemoteExecution`), and
   /// the host it targets — a literal (`SData.RemoteHost`) or an expression
   /// (`SData.RemoteHostExpr`, selected by `SData.SpecifyHostByExpr`). Each null
   /// when absent.
-  bool? get remoteExecution => _sdFlag('RemoteExecution');
-  String? get remoteHost => _sd('RemoteHost');
-  String? get remoteHostExpression => _sd('RemoteHostExpr');
-  bool? get specifiesHostByExpression => _sdFlag('SpecifyHostByExpr');
+  bool? get remoteExecution => _dataFlag('RemoteExecution');
+  String? get remoteHost => _dataScalar('RemoteHost');
+  String? get remoteHostExpression => _dataScalar('RemoteHostExpr');
+  bool? get specifiesHostByExpression => _dataFlag('SpecifyHostByExpr');
 
   /// Whether the call executes synchronously (`SData.ExecSync`) and, for an
   /// async call, its apartment-threading / affinity options
   /// (`AsyncApartmentThreaded`, `ThreadAffinityOption` code, `CustomThreadAffinity`).
   /// Each null when absent.
-  bool? get executesSynchronously => _sdFlag('ExecSync');
-  bool? get asyncApartmentThreaded => _sdFlag('AsyncApartmentThreaded');
-  int? get threadAffinityOptionCode => _sdInt('ThreadAffinityOption');
-  String? get customThreadAffinity => _sd('CustomThreadAffinity');
+  bool? get executesSynchronously => _dataFlag('ExecSync');
+  bool? get asyncApartmentThreaded => _dataFlag('AsyncApartmentThreaded');
+  int? get threadAffinityOptionCode => _dataInt('ThreadAffinityOption');
+  String? get customThreadAffinity => _dataScalar('CustomThreadAffinity');
 
   /// The new-execution model the call runs under, when it spawns one: the
   /// execution-type mask (`ExecTypeMask`, or `ExecTypeMaskExpr`), the model
   /// `.seq` path (`ExecModelPath`, or `ExecModelPathExpr`), and the break-on-entry
   /// expression (`ExecBreakOnEntryExpr`). Each null when absent.
-  int? get executionTypeMaskCode => _sdInt('ExecTypeMask');
-  String? get executionTypeMaskExpression => _sd('ExecTypeMaskExpr');
-  String? get executionModelPath => _sd('ExecModelPath');
-  String? get executionModelPathExpression => _sd('ExecModelPathExpr');
-  String? get executionBreakOnEntryExpression => _sd('ExecBreakOnEntryExpr');
+  int? get executionTypeMaskCode => _dataInt('ExecTypeMask');
+  String? get executionTypeMaskExpression => _dataScalar('ExecTypeMaskExpr');
+  String? get executionModelPath => _dataScalar('ExecModelPath');
+  String? get executionModelPathExpression => _dataScalar('ExecModelPathExpr');
+  String? get executionBreakOnEntryExpression => _dataScalar('ExecBreakOnEntryExpr');
 
 
   /// For a VI call deployed to a remote / LabVIEW Real-Time target: the remote VI
@@ -287,9 +287,9 @@ class StepModule {
   /// the module workspace/project root (`SData.ModuleWorkspacePath`), and the
   /// always-run-in-process code (`SData.AlwaysRunInProcess`, verbatim). Each null
   /// when absent.
-  String? get codeTemplateName => _sd('CodeTemplateName');
-  String? get moduleWorkspacePath => _sd('ModuleWorkspacePath');
-  int? get alwaysRunInProcessCode => _sdInt('AlwaysRunInProcess');
+  String? get codeTemplateName => _dataScalar('CodeTemplateName');
+  String? get moduleWorkspacePath => _dataScalar('ModuleWorkspacePath');
+  int? get alwaysRunInProcessCode => _dataInt('AlwaysRunInProcess');
 
 
   /// Where the Python interpreter session is located/scoped
@@ -324,8 +324,8 @@ class StepModule {
 
     final vi = sdata.prop('ViCall');
     if (vi != null) {
-      final p = nonEmpty(vi.prop('VIPath')?.scalar);
-      return StepModule(adapter: SeqAdapter.labView, viPath: p, target: p, raw: sdata);
+      final path = nonEmpty(vi.prop('VIPath')?.scalar);
+      return StepModule(adapter: SeqAdapter.labView, viPath: path, target: path, raw: sdata);
     }
 
     final directVi = nonEmpty(sdata.prop('ViPath')?.scalar);
@@ -512,8 +512,8 @@ class MeasurementParameter {
   /// instrument I/O resource, a file path, or a pin reference. null for an
   /// unspecialized parameter (`None`, the common case).
   String? get typeSpecialization {
-    final s = nonEmpty(raw.prop('TypeSpecialization')?.scalar);
-    return s == 'None' ? null : s;
+    final text = nonEmpty(raw.prop('TypeSpecialization')?.scalar);
+    return text == 'None' ? null : text;
   }
 
   /// Whether this parameter's value is recorded to the report (`Log`). True for
@@ -527,7 +527,7 @@ class MeasurementParameter {
   /// (or an enum whose definition is absent).
   List<({String name, String? value})> get enumValues {
     final elems = raw.prop('EnumDefinition')?.array ?? const <SeqProperty>[];
-    return [for (final e in elems) (name: e.name, value: nonEmpty(e.scalar))];
+    return [for (final element in elems) (name: element.name, value: nonEmpty(element.scalar))];
   }
 
   /// The parameter's message-type token (`MessageType`) — the measurement
