@@ -33,7 +33,7 @@ void main() {
       if (Platform.isMacOS) {
         // There is no local NI-DAQmx runtime on macOS, so a local connection is
         // impossible by construction — callers must use Daqmx.remote(...).
-        expect(Daqmx.local, throwsA(isA<UnimplementedError>()));
+        expect(Daqmx.local, throwsA(isA<UnsupportedError>()));
       } else {
         expect(Daqmx.local(), isA<FfiDaqmxBackend>());
       }
