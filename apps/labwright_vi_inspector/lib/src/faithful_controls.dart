@@ -40,14 +40,14 @@ class FaithfulLayer extends StatelessWidget {
       height: size.height,
       child: Stack(
         children: [
-          for (final o in objects)
-            if (o.absBounds != null)
+          for (final object in objects)
+            if (object.absBounds != null)
               Positioned(
-                left: o.absBounds!.left - origin.dx,
-                top: o.absBounds!.top - origin.dy,
-                width: o.absBounds!.width.toDouble().clamp(1, 8000),
-                height: o.absBounds!.height.toDouble().clamp(1, 8000),
-                child: _emphasize(o, ClipRect(child: _withHelp(o, _faithfulFor(o, isFrontPanel: isFrontPanel))),
+                left: object.absBounds!.left - origin.dx,
+                top: object.absBounds!.top - origin.dy,
+                width: object.absBounds!.width.toDouble().clamp(1, 8000),
+                height: object.absBounds!.height.toDouble().clamp(1, 8000),
+                child: _emphasize(object, ClipRect(child: _withHelp(object, _faithfulFor(object, isFrontPanel: isFrontPanel))),
                     isFrontPanel: isFrontPanel),
               ),
         ],
@@ -60,9 +60,9 @@ class FaithfulLayer extends StatelessWidget {
 /// kind ("While loop", "Case structure") so control flow reads; on the front panel
 /// — where the structure is just a container — it is the structure's own caption
 /// if it has one, else nothing (so it never obscures a separate caption object).
-String? structureFrameTitle(ViHeapObject o, {required bool isFrontPanel}) {
-  if (!isFrontPanel) return structureBadge(o);
-  final own = o.label?.trim();
+String? structureFrameTitle(ViHeapObject object, {required bool isFrontPanel}) {
+  if (!isFrontPanel) return structureBadge(object);
+  final own = object.label?.trim();
   return (own != null && own.isNotEmpty) ? own : null;
 }
 
@@ -73,10 +73,10 @@ String? structureFrameTitle(ViHeapObject o, {required bool isFrontPanel}) {
 /// wrong — a panel is a solid UI, not a logic graph — so everything renders at
 /// full strength. Honest either way: nothing is hidden, all objects stay drawn +
 /// tappable, and the wireframe view remains the full-strength honest render.
-double _emphasis(ViHeapObject o, {bool isFrontPanel = false}) {
+double _emphasis(ViHeapObject object, {bool isFrontPanel = false}) {
   if (isFrontPanel) return 1;
-  final labeled = o.label?.trim().isNotEmpty ?? false;
-  switch (o.category) {
+  final labeled = object.label?.trim().isNotEmpty ?? false;
+  switch (object.category) {
     case ViObjectKind.structure:
     case ViObjectKind.node:
       return 1;
@@ -86,22 +86,22 @@ double _emphasis(ViHeapObject o, {bool isFrontPanel = false}) {
       return 0.4;
     case ViObjectKind.terminal:
     case ViObjectKind.terminalCluster:
-      return (labeled || o.items.isNotEmpty) ? 1 : 0.6;
+      return (labeled || object.items.isNotEmpty) ? 1 : 0.6;
   }
 }
 
 /// Applies [_emphasis] as opacity. Opacity 1.0 short-circuits (no save layer), so
 /// only the dimmed noise objects pay any cost (none on the front panel).
-Widget _emphasize(ViHeapObject o, Widget child, {bool isFrontPanel = false}) {
-  final e = _emphasis(o, isFrontPanel: isFrontPanel);
-  return e >= 1 ? child : Opacity(opacity: e, child: child);
+Widget _emphasize(ViHeapObject object, Widget child, {bool isFrontPanel = false}) {
+  final emphasis = _emphasis(object, isFrontPanel: isFrontPanel);
+  return emphasis >= 1 ? child : Opacity(opacity: emphasis, child: child);
 }
 
 /// Wraps a faithful control in a hover [Tooltip] surfacing its decoded help text
 /// and/or numeric range — honest (only shown when actually decoded), and on the
 /// tooltip so it never overflows a tiny control box.
-Widget _withHelp(ViHeapObject o, Widget child) {
-  final msg = controlTooltip(o);
+Widget _withHelp(ViHeapObject object, Widget child) {
+  final msg = controlTooltip(object);
   return msg == null ? child : Tooltip(message: msg, waitDuration: const Duration(milliseconds: 400), child: child);
 }
 
@@ -112,44 +112,44 @@ Widget _withHelp(ViHeapObject o, Widget child) {
 /// its class label (`Node (primitive)`, `Case structure`). Returns null only for
 /// an anonymous non-node/structure with nothing to say.
 /// Pure + public for unit testing (the tap-to-select path is widget-test-hostile).
-String? controlTooltip(ViHeapObject o) {
+String? controlTooltip(ViHeapObject object) {
   final parts = <String>[];
-  final h = o.helpText == null ? null : stripHelpMarkup(o.helpText!);
-  if (h != null && h.isNotEmpty) parts.add(h);
-  final range = formatControlRange(o.controlMin, o.controlMax);
+  final helpText = object.helpText == null ? null : stripHelpMarkup(object.helpText!);
+  if (helpText != null && helpText.isNotEmpty) parts.add(helpText);
+  final range = formatControlRange(object.controlMin, object.controlMax);
   if (range != null) parts.add('range: $range');
   if (parts.isNotEmpty) return parts.join('\n');
-  final name = o.label?.trim();
+  final name = object.label?.trim();
   if (name != null && name.isNotEmpty) return name;
-  final cls = o.objectClass;
+  final cls = object.objectClass;
   if (cls != HeapObjectClass.unknown &&
-      (o.category == ViObjectKind.node || o.category == ViObjectKind.structure)) {
+      (object.category == ViObjectKind.node || object.category == ViObjectKind.structure)) {
     return cls.label;
   }
   return null;
 }
 
-Widget _faithfulFor(ViHeapObject o, {bool isFrontPanel = false}) {
-  switch (o.objectClass) {
+Widget _faithfulFor(ViHeapObject object, {bool isFrontPanel = false}) {
+  switch (object.objectClass) {
     case HeapObjectClass.loop:
     case HeapObjectClass.caseOrSequence:
     case HeapObjectClass.clusterShell:
     case HeapObjectClass.bdStructureFrame:
-      return _StructureFrame(kind: structureFrameTitle(o, isFrontPanel: isFrontPanel));
+      return _StructureFrame(kind: structureFrameTitle(object, isFrontPanel: isFrontPanel));
     case HeapObjectClass.controlLabel:
     case HeapObjectClass.bdSelectorLabel:
-      return _LabelText(o.label);
+      return _LabelText(object.label);
     case HeapObjectClass.bdGlyph:
       return const _Glyph();
     case HeapObjectClass.numericControl:
     case HeapObjectClass.numericControlVariant:
       return const _ControlWidget(form: _Form.numeric);
     case HeapObjectClass.enumRingControl:
-      return _ControlWidget(form: _Form.enumRing, items: o.items);
+      return _ControlWidget(form: _Form.enumRing, items: object.items);
     case HeapObjectClass.booleanOrClusterControl:
-      return o.items.length >= 2
-          ? _ControlWidget(form: _Form.enumRing, items: o.items)
-          : _ControlWidget(form: _Form.boolean, label: o.items.isNotEmpty ? o.items.first : o.label);
+      return object.items.length >= 2
+          ? _ControlWidget(form: _Form.enumRing, items: object.items)
+          : _ControlWidget(form: _Form.boolean, label: object.items.isNotEmpty ? object.items.first : object.label);
     case HeapObjectClass.stringOrArrayControl:
       return const _ControlWidget(form: _Form.string);
     case HeapObjectClass.pathControl:
@@ -157,18 +157,18 @@ Widget _faithfulFor(ViHeapObject o, {bool isFrontPanel = false}) {
     case HeapObjectClass.bdLeaf:
       return const _LeafBox();
     case HeapObjectClass.graphIndicator:
-      return _GraphPlaceholder(plotNames: o.plotNames);
+      return _GraphPlaceholder(plotNames: object.plotNames);
     case HeapObjectClass.controlSubPart:
       return const _UnknownBox();
     default:
-      if (o.category == ViObjectKind.node) {
-        final n = nodeDisplayLabel(o);
-        return _NodeBox(label: n.text, isHint: n.isHint);
+      if (object.category == ViObjectKind.node) {
+        final label = nodeDisplayLabel(object);
+        return _NodeBox(label: label.text, isHint: label.isHint);
       }
-      if (o.category == ViObjectKind.structure) {
-        return _StructureFrame(kind: structureFrameTitle(o, isFrontPanel: isFrontPanel));
+      if (object.category == ViObjectKind.structure) {
+        return _StructureFrame(kind: structureFrameTitle(object, isFrontPanel: isFrontPanel));
       }
-      if (o.category == ViObjectKind.terminal) return const _ControlWidget(form: _Form.generic);
+      if (object.category == ViObjectKind.terminal) return const _ControlWidget(form: _Form.generic);
       return const _UnknownBox();
   }
 }
@@ -182,12 +182,12 @@ const _kInk = Color(0xFF1A1A1A);
 /// (`primitive`, `growable`, `Call Library node`) so the box isn't blank.
 /// `isHint` is true for the class-derived fallback so it can be styled apart from
 /// a real name. Pure + public for testing.
-({String text, bool isHint}) nodeDisplayLabel(ViHeapObject o) {
-  final l = o.label?.trim();
-  if (l != null && l.isNotEmpty) return (text: l, isHint: false);
-  final cls = o.objectClass.label;
-  final m = RegExp(r'^Node \((.+)\)$').firstMatch(cls);
-  return (text: m != null ? m.group(1)! : cls, isHint: true);
+({String text, bool isHint}) nodeDisplayLabel(ViHeapObject object) {
+  final label = object.label?.trim();
+  if (label != null && label.isNotEmpty) return (text: label, isHint: false);
+  final cls = object.objectClass.label;
+  final match = RegExp(r'^Node \((.+)\)$').firstMatch(cls);
+  return (text: match != null ? match.group(1)! : cls, isHint: true);
 }
 
 /// The badge text for a structure object — taken from the videcode CLASS CATALOG
@@ -196,8 +196,8 @@ const _kInk = Color(0xFF1A1A1A);
 /// "Loop (BD) / container (FP)", 0x2c = "Case structure", 0x20 = "For loop").
 /// Falls back to "Structure" only when the class is uncatalogued. Public for
 /// testing + shared with the wireframe annotation.
-String structureBadge(ViHeapObject o) =>
-    o.objectClass == HeapObjectClass.unknown ? 'Structure' : o.objectClass.label;
+String structureBadge(ViHeapObject object) =>
+    object.objectClass == HeapObjectClass.unknown ? 'Structure' : object.objectClass.label;
 
 class _StructureFrame extends StatelessWidget {
   const _StructureFrame({this.kind});
@@ -391,8 +391,8 @@ class _GraphPainter extends CustomPainter {
   /// Bhaskara I sine approximation — plenty for a decorative trace, and keeps the
   /// file self-contained (no second `dart:math` import).
   double _sin(double t) {
-    final x = t % 6.283185;
-    final xx = x > 3.14159 ? x - 6.283185 : x;
+    final radians = t % 6.283185;
+    final xx = radians > 3.14159 ? radians - 6.283185 : radians;
     return 16 * xx * (3.14159 - xx.abs()) / (5 * 3.14159 * 3.14159 - 4 * xx.abs() * (3.14159 - xx.abs()));
   }
 

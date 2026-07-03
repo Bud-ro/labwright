@@ -58,7 +58,7 @@ class ViDiagramView extends StatefulWidget {
 }
 
 class _ViDiagramViewState extends State<ViDiagramView> {
-  final _tc = TransformationController();
+  final _transform = TransformationController();
   ViHeapObject? _selected;
   Set<ViHeapObject> _members = const {};
   Size? _lastViewport;
@@ -71,31 +71,31 @@ class _ViDiagramViewState extends State<ViDiagramView> {
   late final List<ViHeapObject> _drawable = _diagram == null
       ? const []
       : [
-          for (final o in _diagram.objects)
-            if (o.absBounds != null &&
-                o.absBounds!.isValid &&
-                o.absBounds!.width > 0 &&
-                o.absBounds!.height > 0 &&
-                o.absBounds!.width < 8000 &&
-                o.absBounds!.height < 8000 &&
-                !_isScaffolding(o, _byId))
-              o,
+          for (final object in _diagram.objects)
+            if (object.absBounds != null &&
+                object.absBounds!.isValid &&
+                object.absBounds!.width > 0 &&
+                object.absBounds!.height > 0 &&
+                object.absBounds!.width < 8000 &&
+                object.absBounds!.height < 8000 &&
+                !_isScaffolding(object, _byId))
+              object,
         ];
   late final List<ViHeapObject> _ordered = [..._drawable]..sort((a, b) => _depth(a, _byId).compareTo(_depth(b, _byId)));
   late final Rect _content = _drawable.isEmpty ? Rect.zero : _contentRect(_drawable);
   late final Map<ViObjectKind, int> _counts = _computeCounts();
 
   Map<ViObjectKind, int> _computeCounts() {
-    final m = <ViObjectKind, int>{};
-    for (final o in _drawable) {
-      m[o.category] = (m[o.category] ?? 0) + 1;
+    final countsByKind = <ViObjectKind, int>{};
+    for (final object in _drawable) {
+      countsByKind[object.category] = (countsByKind[object.category] ?? 0) + 1;
     }
-    return m;
+    return countsByKind;
   }
 
   @override
   void dispose() {
-    _tc.dispose();
+    _transform.dispose();
     super.dispose();
   }
 
@@ -140,7 +140,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                     child: ColoredBox(
                       color: const Color(0xFFE9E9E9),
                       child: InteractiveViewer(
-                        transformationController: _tc,
+                        transformationController: _transform,
                         constrained: false,
                         minScale: 0.02,
                         maxScale: 16,
@@ -208,14 +208,14 @@ class _ViDiagramViewState extends State<ViDiagramView> {
     );
   }
 
-  Widget _toolbar(int n, Map<ViObjectKind, int> counts) => Wrap(
+  Widget _toolbar(int objectCount, Map<ViObjectKind, int> counts) => Wrap(
         spacing: 12,
         runSpacing: 4,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          Text('$n objects', style: const TextStyle(fontWeight: FontWeight.bold)),
-          for (final e in counts.entries)
-            _LegendChip(color: _kindColor(e.key), label: '${e.key.name} ${e.value}'),
+          Text('$objectCount objects', style: const TextStyle(fontWeight: FontWeight.bold)),
+          for (final entry in counts.entries)
+            _LegendChip(color: _kindColor(entry.key), label: '${entry.key.name} ${entry.value}'),
           SegmentedButton<DiagramRenderMode>(
             style: const ButtonStyle(visualDensity: VisualDensity.compact),
             segments: const [
@@ -244,13 +244,13 @@ class _ViDiagramViewState extends State<ViDiagramView> {
     final y = local.dy + content.top;
     ViHeapObject? hit;
     var bestArea = double.infinity;
-    for (final o in objects) {
-      final r = o.absBounds!;
-      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) {
-        final area = (r.width * r.height).toDouble();
+    for (final object in objects) {
+      final bounds = object.absBounds!;
+      if (x >= bounds.left && x <= bounds.right && y >= bounds.top && y <= bounds.bottom) {
+        final area = (bounds.width * bounds.height).toDouble();
         if (area <= bestArea) {
           bestArea = area;
-          hit = o;
+          hit = object;
         }
       }
     }
@@ -264,14 +264,14 @@ class _ViDiagramViewState extends State<ViDiagramView> {
       o != null && o.category == ViObjectKind.structure ? nodesWithin(o, _drawable) : membersOf(o, _byId);
 
   void _fit() {
-    final vp = _lastViewport;
-    final c = _lastContent;
-    if (vp == null || c == null || c.width <= 0 || c.height <= 0) return;
-    final s = (vp.width / c.width).clamp(0.0, double.infinity);
-    final scale = (s < vp.height / c.height ? s : vp.height / c.height) * 0.94;
-    final tx = (vp.width - c.width * scale) / 2;
-    final ty = (vp.height - c.height * scale) / 2;
-    _tc.value = Matrix4.identity()
+    final viewport = _lastViewport;
+    final content = _lastContent;
+    if (viewport == null || content == null || content.width <= 0 || content.height <= 0) return;
+    final widthScale = (viewport.width / content.width).clamp(0.0, double.infinity);
+    final scale = (widthScale < viewport.height / content.height ? widthScale : viewport.height / content.height) * 0.94;
+    final tx = (viewport.width - content.width * scale) / 2;
+    final ty = (viewport.height - content.height * scale) / 2;
+    _transform.value = Matrix4.identity()
       ..translateByDouble(tx, ty, 0, 1)
       ..scaleByDouble(scale, scale, 1, 1);
     _fitted = true;
@@ -279,12 +279,12 @@ class _ViDiagramViewState extends State<ViDiagramView> {
 
   static Rect _contentRect(List<ViHeapObject> drawable) {
     var minX = 1 << 30, minY = 1 << 30, maxX = -(1 << 30), maxY = -(1 << 30);
-    for (final o in drawable) {
-      final r = o.absBounds!;
-      if (r.left < minX) minX = r.left;
-      if (r.top < minY) minY = r.top;
-      if (r.right > maxX) maxX = r.right;
-      if (r.bottom > maxY) maxY = r.bottom;
+    for (final object in drawable) {
+      final bounds = object.absBounds!;
+      if (bounds.left < minX) minX = bounds.left;
+      if (bounds.top < minY) minY = bounds.top;
+      if (bounds.right > maxX) maxX = bounds.right;
+      if (bounds.bottom > maxY) maxY = bounds.bottom;
     }
     const margin = 40;
     return Rect.fromLTRB(
@@ -295,27 +295,27 @@ class _ViDiagramViewState extends State<ViDiagramView> {
     );
   }
 
-  static int _depth(ViHeapObject o, Map<int, ViHeapObject> byId) {
-    var d = 0;
-    var cur = o;
-    while (cur.parentOid != null && d < 64) {
-      final p = byId[cur.parentOid];
-      if (p == null) break;
-      cur = p;
-      d++;
+  static int _depth(ViHeapObject object, Map<int, ViHeapObject> byId) {
+    var depth = 0;
+    var cur = object;
+    while (cur.parentOid != null && depth < 64) {
+      final parent = byId[cur.parentOid];
+      if (parent == null) break;
+      cur = parent;
+      depth++;
     }
-    return d;
+    return depth;
   }
 
   static ViDiagram? _largestDiagram(List<ViDiagram>? diagrams) {
     if (diagrams == null || diagrams.isEmpty) return null;
     ViDiagram? best;
     var bestN = -1;
-    for (final d in diagrams) {
-      final n = d.objects.where((o) => o.absBounds != null).length;
-      if (n > bestN) {
-        bestN = n;
-        best = d;
+    for (final diagram in diagrams) {
+      final placedCount = diagram.objects.where((o) => o.absBounds != null).length;
+      if (placedCount > bestN) {
+        bestN = placedCount;
+        best = diagram;
       }
     }
     return bestN <= 0 ? null : best;
@@ -341,8 +341,8 @@ Color _kindColor(ViObjectKind k) => switch (k) {
       ViObjectKind.unknown => const Color(0xFF9E9E9E),
     };
 
-Color _objectColor(ViHeapObject o) =>
-    o.category == ViObjectKind.terminal && o.typeKind != ViTypeKind.unknown ? _typeColor(o.typeKind) : _kindColor(o.category);
+Color _objectColor(ViHeapObject object) =>
+    object.category == ViObjectKind.terminal && object.typeKind != ViTypeKind.unknown ? _typeColor(object.typeKind) : _kindColor(object.category);
 
 /// The label drawn on a wireframe object. Structures (never text-labeled) show
 /// their catalog kind via [structureBadge] (so the wireframe reads as logic too,
@@ -376,16 +376,16 @@ String? wireframeAnnotation(ViHeapObject o) {
   final labeledNodes = <String>[];
   var nodeCount = 0;
   final confidence = <ClassConfidence, int>{};
-  for (final o in objects) {
-    if (o.category == ViObjectKind.structure) {
-      if (notControlFlow.contains(o.objectClass)) continue;
-      final k = structureBadge(o);
-      byKind[k] = (byKind[k] ?? 0) + 1;
-      confidence[o.objectClass.confidence] = (confidence[o.objectClass.confidence] ?? 0) + 1;
-    } else if (o.category == ViObjectKind.node) {
+  for (final object in objects) {
+    if (object.category == ViObjectKind.structure) {
+      if (notControlFlow.contains(object.objectClass)) continue;
+      final badge = structureBadge(object);
+      byKind[badge] = (byKind[badge] ?? 0) + 1;
+      confidence[object.objectClass.confidence] = (confidence[object.objectClass.confidence] ?? 0) + 1;
+    } else if (object.category == ViObjectKind.node) {
       nodeCount++;
-      confidence[o.objectClass.confidence] = (confidence[o.objectClass.confidence] ?? 0) + 1;
-      final dl = nodeDisplayLabel(o);
+      confidence[object.objectClass.confidence] = (confidence[object.objectClass.confidence] ?? 0) + 1;
+      final dl = nodeDisplayLabel(object);
       if (!dl.isHint && !labeledNodes.contains(dl.text)) labeledNodes.add(dl.text);
     }
   }
@@ -413,14 +413,14 @@ bool _isScaffolding(ViHeapObject o, Map<int, ViHeapObject> byId) {
   if (o.kind == 0xe5) return true;
   if (o.kind == 0x68 && o.bounds == null) return true;
   if (o.kind == 0xe0 || o.kind == 0x0b || o.kind == 0x0c || o.kind == 0x0d) {
-    var p = o.parentOid;
-    var d = 0;
-    while (p != null && d < 64) {
-      final po = byId[p];
+    var parentOid = o.parentOid;
+    var depth = 0;
+    while (parentOid != null && depth < 64) {
+      final po = byId[parentOid];
       if (po == null) break;
       if (kControlTerminalCodes.contains(po.kind)) return true;
-      p = po.parentOid;
-      d++;
+      parentOid = po.parentOid;
+      depth++;
     }
   }
   return false;
@@ -448,17 +448,17 @@ Set<ViHeapObject> membersOf(ViHeapObject? o, Map<int, ViHeapObject> byId) {
 /// (excluding itself and same-size overlaps); terminals/decorations are omitted
 /// so the highlight reads as the contained logic. Public for testing.
 Set<ViHeapObject> nodesWithin(ViHeapObject structure, Iterable<ViHeapObject> objects) {
-  final s = structure.absBounds;
-  if (s == null) return const {};
+  final structureBounds = structure.absBounds;
+  if (structureBounds == null) return const {};
   final out = <ViHeapObject>{};
-  for (final o in objects) {
-    if (identical(o, structure)) continue;
-    if (o.category != ViObjectKind.node && o.category != ViObjectKind.structure) continue;
-    final b = o.absBounds;
-    if (b == null) continue;
-    if (b.left < s.left || b.top < s.top || b.right > s.right || b.bottom > s.bottom) continue;
-    if (b.left == s.left && b.top == s.top && b.right == s.right && b.bottom == s.bottom) continue;
-    out.add(o);
+  for (final object in objects) {
+    if (identical(object, structure)) continue;
+    if (object.category != ViObjectKind.node && object.category != ViObjectKind.structure) continue;
+    final bounds = object.absBounds;
+    if (bounds == null) continue;
+    if (bounds.left < structureBounds.left || bounds.top < structureBounds.top || bounds.right > structureBounds.right || bounds.bottom > structureBounds.bottom) continue;
+    if (bounds.left == structureBounds.left && bounds.top == structureBounds.top && bounds.right == structureBounds.right && bounds.bottom == structureBounds.bottom) continue;
+    out.add(object);
   }
   return out;
 }
@@ -478,8 +478,8 @@ class _DiagramPainter extends CustomPainter {
     _drawDotGrid(canvas, size);
 
     Rect rectOf(ViHeapObject o) {
-      final r = o.absBounds!;
-      return Rect.fromLTRB(r.left - origin.dx, r.top - origin.dy, r.right - origin.dx, r.bottom - origin.dy);
+      final bounds = o.absBounds!;
+      return Rect.fromLTRB(bounds.left - origin.dx, bounds.top - origin.dy, bounds.right - origin.dx, bounds.bottom - origin.dy);
     }
 
     final structures = objects.where((o) => o.category == ViObjectKind.structure).toList();
@@ -489,32 +489,32 @@ class _DiagramPainter extends CustomPainter {
         .toList()
       ..sort((a, b) => (b.absBounds!.width * b.absBounds!.height).compareTo(a.absBounds!.width * a.absBounds!.height));
 
-    for (final o in decorations) {
-      canvas.drawRect(rectOf(o), Paint()..color = _kindColor(o.category).withValues(alpha: 0.10));
+    for (final object in decorations) {
+      canvas.drawRect(rectOf(object), Paint()..color = _kindColor(object.category).withValues(alpha: 0.10));
     }
-    for (final o in structures) {
+    for (final object in structures) {
       canvas.drawRRect(
-        RRect.fromRectAndRadius(rectOf(o), const Radius.circular(5)),
+        RRect.fromRectAndRadius(rectOf(object), const Radius.circular(5)),
         Paint()
           ..color = _kindColor(ViObjectKind.structure).withValues(alpha: 0.85)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.5,
       );
     }
-    for (final o in solids) {
-      final rr = RRect.fromRectAndRadius(rectOf(o), const Radius.circular(2.5));
-      canvas.drawRRect(rr, Paint()..color = _objectColor(o).withValues(alpha: 0.92));
+    for (final object in solids) {
+      final rr = RRect.fromRectAndRadius(rectOf(object), const Radius.circular(2.5));
+      canvas.drawRRect(rr, Paint()..color = _objectColor(object).withValues(alpha: 0.92));
       canvas.drawRRect(rr, Paint()
         ..color = Colors.black.withValues(alpha: 0.5)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 0.8);
     }
-    for (final o in objects) {
-      final text = wireframeAnnotation(o);
+    for (final object in objects) {
+      final text = wireframeAnnotation(object);
       if (text == null) continue;
-      final rect = rectOf(o);
+      final rect = rectOf(object);
       if (rect.width < 26 || rect.height < 11) continue;
-      final onFrame = o.category == ViObjectKind.structure;
+      final onFrame = object.category == ViObjectKind.structure;
       final tp = TextPainter(
         text: TextSpan(
           text: text,
@@ -561,8 +561,8 @@ class _OverlayPainter extends CustomPainter {
   final Set<ViHeapObject> members;
 
   Rect _rectOf(ViHeapObject o) {
-    final r = o.absBounds!;
-    return Rect.fromLTRB(r.left - origin.dx, r.top - origin.dy, r.right - origin.dx, r.bottom - origin.dy);
+    final bounds = o.absBounds!;
+    return Rect.fromLTRB(bounds.left - origin.dx, bounds.top - origin.dy, bounds.right - origin.dx, bounds.bottom - origin.dy);
   }
 
   @override
@@ -572,8 +572,8 @@ class _OverlayPainter extends CustomPainter {
         ..color = const Color(0xFFEF6C00)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2;
-      for (final m in members) {
-        if (m.absBounds != null) canvas.drawRect(_rectOf(m).inflate(1.5), mp);
+      for (final member in members) {
+        if (member.absBounds != null) canvas.drawRect(_rectOf(member).inflate(1.5), mp);
       }
     }
     final sel = selected;
@@ -617,13 +617,13 @@ class _DetailsCard extends StatelessWidget {
   final Set<ViHeapObject> members;
 
   static String _contentLabel(ViHeapObject o) {
-    final l = o.label?.trim();
-    return (l != null && l.isNotEmpty) ? l : o.objectClass.label;
+    final label = o.label?.trim();
+    return (label != null && label.isNotEmpty) ? label : o.objectClass.label;
   }
 
   @override
   Widget build(BuildContext context) {
-    final r = object.absBounds;
+    final bounds = object.absBounds;
     final cls = object.objectClass;
     final conf = cls.confidence == ClassConfidence.confirmed ? '' : ' (${cls.confidence.name})';
     return Card(
@@ -659,7 +659,7 @@ class _DetailsCard extends StatelessWidget {
                   Text(
                     '${cls.label}$conf · class 0x${object.kind.toRadixString(16)} · oid ${object.oid}'
                     '${object.typeKind != ViTypeKind.unknown ? ' · type ${object.typeKind.name}' : ''}'
-                    '${r != null ? ' · ${r.width}×${r.height} @(${r.left},${r.top})' : ''}'
+                    '${bounds != null ? ' · ${bounds.width}×${bounds.height} @(${bounds.left},${bounds.top})' : ''}'
                     '${object.parentOid != null ? ' · parent ${object.parentOid}' : ''}',
                     style: const TextStyle(color: Colors.grey, fontSize: 12),
                   ),
@@ -721,7 +721,7 @@ class _BdOutline extends StatelessWidget {
           if (structs.isNotEmpty)
             Wrap(spacing: 10, runSpacing: 2, crossAxisAlignment: WrapCrossAlignment.center, children: [
               const Text('Control flow:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-              for (final e in structs) Text('${e.key} ×${e.value}', style: muted),
+              for (final entry in structs) Text('${entry.key} ×${entry.value}', style: muted),
             ]),
           if (linkedSubVis.isNotEmpty)
             Padding(

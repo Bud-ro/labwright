@@ -47,11 +47,11 @@ class ViReviewView extends StatelessWidget {
       },
     );
 
-    final m = model;
-    if (m == null) return sideBySide;
+    final viModel = model;
+    if (viModel == null) return sideBySide;
     return Column(
       children: [
-        _RecoverySummary(m),
+        _RecoverySummary(viModel),
         const Divider(height: 1),
         Expanded(child: sideBySide),
       ],
@@ -68,7 +68,7 @@ class _RecoverySummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final objs = [for (final d in model.blockDiagrams) ...d.objects];
+    final objs = [for (final diagram in model.blockDiagrams) ...diagram.objects];
     final classified = objs.where((o) => o.category != ViObjectKind.unknown).length;
     final unknown = objs.length - classified;
     final structures = objs.where((o) => o.category == ViObjectKind.structure).length;

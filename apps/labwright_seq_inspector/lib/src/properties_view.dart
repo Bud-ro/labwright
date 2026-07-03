@@ -169,14 +169,14 @@ class PropertyTile extends StatelessWidget {
         spacing: 6,
         runSpacing: 2,
         children: [
-          for (final a in shown)
+          for (final attribute in shown)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
               decoration: BoxDecoration(
                 color: theme.colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: Text(a,
+              child: Text(attribute,
                   style: const TextStyle(fontFamily: monoFamily, fontSize: 11)),
             ),
         ],

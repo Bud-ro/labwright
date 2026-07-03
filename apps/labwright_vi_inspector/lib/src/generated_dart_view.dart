@@ -36,9 +36,9 @@ class _GeneratedDartViewState extends State<GeneratedDartView> {
       setState(() => _fontSize = (_fontSize + delta).clamp(_minFont, _maxFont));
 
   String _functionName() {
-    final n = widget.viName?.trim();
-    if (n == null || n.isEmpty) return 'vi';
-    final base = n.split(RegExp(r'[\\/]')).last;
+    final name = widget.viName?.trim();
+    if (name == null || name.isEmpty) return 'vi';
+    final base = name.split(RegExp(r'[\\/]')).last;
     final stripped = base.toLowerCase().endsWith('.vi') ? base.substring(0, base.length - 3) : base;
     return stripped.isEmpty ? 'vi' : stripped;
   }
