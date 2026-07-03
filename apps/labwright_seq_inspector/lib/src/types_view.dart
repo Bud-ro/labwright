@@ -41,9 +41,9 @@ class _TypesViewState extends State<TypesView> {
     if (widget.types.isEmpty) {
       return const Center(child: Text('This file defines no types.'));
     }
-    final q = _query.trim().toLowerCase();
+    final needle = _query.trim().toLowerCase();
     final shown =
-        q.isEmpty ? widget.types : widget.types.where((t) => _matches(t, q)).toList();
+        needle.isEmpty ? widget.types : widget.types.where((t) => _matches(t, needle)).toList();
 
     return Column(
       children: [
@@ -60,7 +60,7 @@ class _TypesViewState extends State<TypesView> {
                     prefixIcon: const Icon(Icons.search, size: 18),
                     hintText: 'Filter types (name, class)…',
                     border: const OutlineInputBorder(),
-                    suffixIcon: q.isNotEmpty
+                    suffixIcon: needle.isNotEmpty
                         ? IconButton(
                             icon: const Icon(Icons.clear, size: 18),
                             onPressed: () {

@@ -27,35 +27,35 @@ class _ViTypesViewState extends State<ViTypesView> {
 
   String _render(ViModel m) {
     final named = namedTypes(m.types);
-    final b = StringBuffer()
+    final out = StringBuffer()
       ..writeln('// Recovered data types — VCTP type pool (${m.types.length} types, ${named.length} named).')
       ..writeln('// Honest, heuristic inventory: kinds + structure recovered (names may be')
       ..writeln('// approximate for short strings); not executable Dart.')
       ..writeln();
-    for (final t in named.take(_typeCap)) {
-      if (t.enumItems.isNotEmpty) {
-        final items = t.enumItems.take(_itemCap).join(', ');
-        final more = t.enumItems.length > _itemCap ? ', …' : '';
-        b.writeln('enum ${t.name} { $items$more }');
-      } else if (t.members.isNotEmpty) {
-        final fields = clusterFields(t, m.types)
+    for (final type in named.take(_typeCap)) {
+      if (type.enumItems.isNotEmpty) {
+        final items = type.enumItems.take(_itemCap).join(', ');
+        final more = type.enumItems.length > _itemCap ? ', …' : '';
+        out.writeln('enum ${type.name} { $items$more }');
+      } else if (type.members.isNotEmpty) {
+        final fields = clusterFields(type, m.types)
             .take(_itemCap)
             .map((f) => f.name != null ? '  ${typeLabel(f, m.types)} ${f.name};' : '  ${typeLabel(f, m.types)};')
             .join('\n');
-        final more = t.members.length > _itemCap ? '\n  // (+${t.members.length - _itemCap} more)' : '';
-        b.writeln('${t.name} {\n$fields$more\n}');
+        final more = type.members.length > _itemCap ? '\n  // (+${type.members.length - _itemCap} more)' : '';
+        out.writeln('${type.name} {\n$fields$more\n}');
       } else {
-        b.writeln('${typeLabel(t, m.types)} ${t.name}');
+        out.writeln('${typeLabel(type, m.types)} ${type.name}');
       }
     }
-    if (named.length > _typeCap) b.writeln('// (+${named.length - _typeCap} more named types not shown)');
-    return b.toString();
+    if (named.length > _typeCap) out.writeln('// (+${named.length - _typeCap} more named types not shown)');
+    return out.toString();
   }
 
   @override
   Widget build(BuildContext context) {
-    final m = widget.model;
-    if (m == null || m.types.isEmpty) {
+    final viModel = widget.model;
+    if (viModel == null || viModel.types.isEmpty) {
       return const Center(child: Text('No data types recovered (VCTP) for this file.'));
     }
     return Column(
@@ -87,7 +87,7 @@ class _ViTypesViewState extends State<ViTypesView> {
               primary: true,
               padding: const EdgeInsets.all(8),
               child: SelectableText(
-                _render(m),
+                _render(viModel),
                 style: TextStyle(fontFamily: 'monospace', fontSize: _fontSize, height: 1.4),
               ),
             ),

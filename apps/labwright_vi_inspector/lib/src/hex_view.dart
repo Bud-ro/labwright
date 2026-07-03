@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
+import 'span_annotations.dart';
+
 /// A read-only **hex + parser** view of one decoded resource-block section —
 /// HxD/Wireshark style. The section's bytes are shown as a hex dump on the left,
 /// record-colored; the right panel lists the parsed records (driven by the
@@ -27,7 +29,7 @@ class BlockHexView extends StatefulWidget {
 class _BlockHexViewState extends State<BlockHexView> {
   final _hexScroll = ScrollController();
   final _recScroll = ScrollController();
-  late final List<_SpanInfo> _records;
+  late final List<SpanInfo> _records;
   late final List<int> _byteToRecord;
   Widget? _preview;
   HeapWalk? _walk;
@@ -49,50 +51,50 @@ class _BlockHexViewState extends State<BlockHexView> {
   }
 
   void _buildModel() {
-    final b = widget.section.bytes;
-    _preview = iconPreview(b);
+    final bytes = widget.section.bytes;
+    _preview = iconPreview(bytes);
     final isHeap = isRecordHeapTag(widget.section.tag);
     if (isHeap) {
       try {
-        final w = walkHeapBody(b);
-        _walk = w;
+        final walk = walkHeapBody(bytes);
+        _walk = walk;
         _records = [
-          if (b.length >= 4)
-            _SpanInfo(
+          if (bytes.length >= 4)
+            SpanInfo(
               offset: 0,
               length: 4,
-              lead: b[0],
-              color: _cHeader,
+              lead: bytes[0],
+              color: spanColorHeader,
               title: 'Heap content length (u32)',
-              detail: 'Big-endian u32 = ${_u32(b, 0)} bytes: the size of the record stream that '
+              detail: 'Big-endian u32 = ${readU32be(bytes, 0)} bytes: the size of the record stream that '
                   'follows (= decompressed heap size − 4). The bracket-tree walk begins at offset 4.',
-              inlinePreview: '${_u32(b, 0)} B',
+              inlinePreview: '${readU32be(bytes, 0)} B',
             ),
-          for (final s in w.spans) _classify(b, s, widget.section.tag),
-          if (w.stoppedAtOffset != null && w.stoppedAtOffset! < b.length)
-            _SpanInfo(
-              offset: w.stoppedAtOffset!,
-              length: b.length - w.stoppedAtOffset!,
-              lead: w.stoppedLead ?? b[w.stoppedAtOffset!],
-              color: _cUnframed,
-              title: 'Unframed tail (lead 0x${(w.stoppedLead ?? 0).toRadixString(16)})',
+          for (final span in walk.spans) classifySpan(bytes, span, widget.section.tag),
+          if (walk.stoppedAtOffset != null && walk.stoppedAtOffset! < bytes.length)
+            SpanInfo(
+              offset: walk.stoppedAtOffset!,
+              length: bytes.length - walk.stoppedAtOffset!,
+              lead: walk.stoppedLead ?? bytes[walk.stoppedAtOffset!],
+              color: spanColorUnframed,
+              title: 'Unframed tail (lead 0x${(walk.stoppedLead ?? 0).toRadixString(16)})',
               detail: 'The record walk stopped here: this lead byte\'s record family is not yet '
-                  'decoded, so the remaining ${b.length - w.stoppedAtOffset!} bytes are not '
+                  'decoded, so the remaining ${bytes.length - walk.stoppedAtOffset!} bytes are not '
                   'individually framed. They are preserved — decoding this family is the open frontier.',
-              inlinePreview: '${b.length - w.stoppedAtOffset!} B',
+              inlinePreview: '${bytes.length - walk.stoppedAtOffset!} B',
             ),
         ];
       } catch (_) {
         _records = const [];
       }
     } else {
-      _records = _fieldSpans(widget.section.tag, b);
+      _records = _fieldSpans(widget.section.tag, bytes);
     }
-    _byteToRecord = List<int>.filled(b.length, -1);
+    _byteToRecord = List<int>.filled(bytes.length, -1);
     for (var i = 0; i < _records.length; i++) {
-      final r = _records[i];
-      for (var o = r.offset; o < r.offset + r.length && o < b.length; o++) {
-        _byteToRecord[o] = i;
+      final record = _records[i];
+      for (var byteOffset = record.offset; byteOffset < record.offset + record.length && byteOffset < bytes.length; byteOffset++) {
+        _byteToRecord[byteOffset] = i;
       }
     }
   }
@@ -108,24 +110,24 @@ class _BlockHexViewState extends State<BlockHexView> {
   /// the selection originated from a hex-byte tap ([fromHex]) it also scrolls the
   /// records list to bring that record into view (and vice-versa is implicit:
   /// tapping a record row scrolls the hex to its bytes).
-  void _select(int i, {bool fromHex = false}) {
-    setState(() => _selected = i);
-    if (i < 0 || i >= _records.length) return;
+  void _select(int recordIndex, {bool fromHex = false}) {
+    setState(() => _selected = recordIndex);
+    if (recordIndex < 0 || recordIndex >= _records.length) return;
     if (_hexScroll.hasClients) {
-      final row = _records[i].offset ~/ 16;
+      final row = _records[recordIndex].offset ~/ 16;
       _hexScroll.animateTo((row * _kRowHeight).clamp(0.0, _hexScroll.position.maxScrollExtent),
           duration: const Duration(milliseconds: 180), curve: Curves.easeOut);
     }
     if (fromHex && _recScroll.hasClients) {
-      _recScroll.animateTo((i * _kRecHeight - 80).clamp(0.0, _recScroll.position.maxScrollExtent),
+      _recScroll.animateTo((recordIndex * _kRecHeight - 80).clamp(0.0, _recScroll.position.maxScrollExtent),
           duration: const Duration(milliseconds: 180), curve: Curves.easeOut);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final b = widget.section.bytes;
-    final rows = (b.length + 15) ~/ 16;
+    final bytes = widget.section.bytes;
+    final rows = (bytes.length + 15) ~/ 16;
     final fieldCov = _fieldCoverage();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -139,7 +141,7 @@ class _BlockHexViewState extends State<BlockHexView> {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  '${_fmt(b.length)} ${widget.section.wasCompressed ? '(inflated)' : ''} · '
+                  '${_fmt(bytes.length)} ${widget.section.wasCompressed ? '(inflated)' : ''} · '
                   '${_records.isEmpty ? 'raw bytes (no record framing)' : '${_records.length} records'}'
                   '${_walk != null && !_walk!.complete ? ' · walk stopped at 0x${_walk!.stoppedAtOffset!.toRadixString(16)} (lead 0x${_walk!.stoppedLead!.toRadixString(16)}), ${(_walk!.coverage * 100).toStringAsFixed(0)}% framed' : ''}'
                   '${fieldCov != null ? ' · ${(fieldCov * 100).toStringAsFixed(0)}% framed' : ''}',
@@ -152,7 +154,7 @@ class _BlockHexViewState extends State<BlockHexView> {
                       fontSize: 12),
                 ),
               ),
-              _copyMenu(context, b),
+              _copyMenu(context, bytes),
             ],
           ),
         ),
@@ -175,7 +177,7 @@ class _BlockHexViewState extends State<BlockHexView> {
                           controller: _hexScroll,
                           itemCount: rows,
                           itemExtent: _kRowHeight,
-                          itemBuilder: (context, row) => _hexRow(b, row),
+                          itemBuilder: (context, row) => _hexRow(bytes, row),
                         ),
                       ),
                     ),
@@ -258,8 +260,8 @@ class _BlockHexViewState extends State<BlockHexView> {
     final ri = _byteToRecord[o];
     final color = ri < 0 ? const Color(0xFF6E6E6E) : _records[ri].color;
     final sel = ri >= 0 && ri == _selected;
-    final c = b[o];
-    final text = hex ? b[o].toRadixString(16).padLeft(2, '0') : (c >= 0x20 && c < 0x7f ? String.fromCharCode(c) : '·');
+    final byte = b[o];
+    final text = hex ? b[o].toRadixString(16).padLeft(2, '0') : (byte >= 0x20 && byte < 0x7f ? String.fromCharCode(byte) : '·');
     return Container(
       width: hex ? _cellW : _asciiW,
       alignment: Alignment.center,
@@ -270,39 +272,39 @@ class _BlockHexViewState extends State<BlockHexView> {
     );
   }
 
-  Widget _recordRow(int i) {
-    final r = _records[i];
-    final selected = i == _selected;
+  Widget _recordRow(int recordIndex) {
+    final record = _records[recordIndex];
+    final selected = recordIndex == _selected;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: () => _select(i),
+      onTap: () => _select(recordIndex),
       child: Container(
-        color: selected ? r.color.withValues(alpha: 0.18) : null,
+        color: selected ? record.color.withValues(alpha: 0.18) : null,
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         child: Row(
           children: [
-            Container(width: 8, height: 8, margin: const EdgeInsets.only(right: 8), decoration: BoxDecoration(color: r.color, shape: BoxShape.circle)),
+            Container(width: 8, height: 8, margin: const EdgeInsets.only(right: 8), decoration: BoxDecoration(color: record.color, shape: BoxShape.circle)),
             SizedBox(
               width: 54,
-              child: Text('@${r.offset.toRadixString(16)}',
+              child: Text('@${record.offset.toRadixString(16)}',
                   style: const TextStyle(color: Colors.grey, fontFamily: 'monospace', fontSize: 11)),
             ),
-            Expanded(child: Text(r.title, style: const TextStyle(fontSize: 12.5), overflow: TextOverflow.ellipsis)),
-            if (r.inlinePreview != null)
+            Expanded(child: Text(record.title, style: const TextStyle(fontSize: 12.5), overflow: TextOverflow.ellipsis)),
+            if (record.inlinePreview != null)
               Padding(
                 padding: const EdgeInsets.only(left: 6),
-                child: Text(r.inlinePreview!,
+                child: Text(record.inlinePreview!,
                     style: const TextStyle(fontSize: 11.5, color: Colors.grey, fontFamily: 'monospace')),
               ),
-            if (r.swatch != null)
-              Container(width: 14, height: 14, decoration: BoxDecoration(color: r.swatch, borderRadius: BorderRadius.circular(2), border: Border.all(color: Colors.black26))),
+            if (record.swatch != null)
+              Container(width: 14, height: 14, decoration: BoxDecoration(color: record.swatch, borderRadius: BorderRadius.circular(2), border: Border.all(color: Colors.black26))),
           ],
         ),
       ),
     );
   }
 
-  Widget _detail(_SpanInfo r) {
+  Widget _detail(SpanInfo r) {
     return Container(
       width: double.infinity,
       decoration: const BoxDecoration(border: Border(top: BorderSide(color: Color(0x33FFFFFF)))),
@@ -331,9 +333,9 @@ class _BlockHexViewState extends State<BlockHexView> {
     final total = widget.section.bytes.length;
     if (total == 0) return null;
     var framed = 0;
-    for (final r in _records) {
-      if (r.color == _cUnframed) continue;
-      framed += r.length;
+    for (final record in _records) {
+      if (record.color == spanColorUnframed) continue;
+      framed += record.length;
     }
     return framed / total;
   }
@@ -342,54 +344,54 @@ class _BlockHexViewState extends State<BlockHexView> {
   /// pairs straight from the viparse decoders (never fabricated; only what a
   /// decoder actually returns). Empty when the block has no decoder.
   List<MapEntry<String, String>> _parsedBlockSummary() {
-    final b = widget.section.bytes;
+    final bytes = widget.section.bytes;
     switch (widget.section.tag) {
       case 'vers':
-        final v = decodeVersionWord(b);
-        return v == null
+        final versionWord = decodeVersionWord(bytes);
+        return versionWord == null
             ? const []
             : [
-                MapEntry('Version', v.version),
-                MapEntry('Stage', '0x${v.stage.toRadixString(16)}${v.stage == 0x80 ? ' (release)' : ''}'),
-                MapEntry('Build', '${v.build}'),
+                MapEntry('Version', versionWord.version),
+                MapEntry('Stage', '0x${versionWord.stage.toRadixString(16)}${versionWord.stage == 0x80 ? ' (release)' : ''}'),
+                MapEntry('Build', '${versionWord.build}'),
               ];
       case 'LVSR':
-        final r = decodeSaveRecord(b);
-        return r == null
+        final saveRecord = decodeSaveRecord(bytes);
+        return saveRecord == null
             ? const []
             : [
-                MapEntry('LabVIEW version', r.version),
-                MapEntry('BD password-protected', r.isBlockDiagramPasswordProtected ? 'yes' : 'no'),
+                MapEntry('LabVIEW version', saveRecord.version),
+                MapEntry('BD password-protected', saveRecord.isBlockDiagramPasswordProtected ? 'yes' : 'no'),
               ];
       case 'CONP':
       case 'CPC2':
-        final c = decodeConnectorPane(b);
-        if (c == null) return const [];
-        if (c.isInline) return [const MapEntry('Form', 'inline (not yet decoded)')];
-        final out = [MapEntry('VCTP type index', '${c.typeIndex}')];
+        final pane = decodeConnectorPane(bytes);
+        if (pane == null) return const [];
+        if (pane.isInline) return [const MapEntry('Form', 'inline (not yet decoded)')];
+        final out = [MapEntry('VCTP type index', '${pane.typeIndex}')];
         final pool = widget.siblings.isEmpty ? const <ViType>[] : typePoolFromDecoded(widget.siblings);
-        final idx = c.typeIndex;
+        final idx = pane.typeIndex;
         if (idx != null && idx >= 1 && idx <= pool.length) {
-          final t = pool[idx - 1];
-          final name = t.name != null && t.name!.isNotEmpty ? " '${t.name}'" : '';
-          out.add(MapEntry('Conpane type', '${typeLabel(t, pool)}$name'));
+          final type = pool[idx - 1];
+          final name = type.name != null && type.name!.isNotEmpty ? " '${type.name}'" : '';
+          out.add(MapEntry('Conpane type', '${typeLabel(type, pool)}$name'));
         }
         return out;
       case 'HLPP':
-        final p = decodeHelpPath(b);
-        return (p == null || !p.isPth0 || p.path.isEmpty) ? const [] : [MapEntry('Help path', p.path)];
+        final helpPath = decodeHelpPath(bytes);
+        return (helpPath == null || !helpPath.isPth0 || helpPath.path.isEmpty) ? const [] : [MapEntry('Help path', helpPath.path)];
       case 'STRG':
       case 'HLPT':
-        final t = decodeStringBlock(b);
-        if (t == null || t.isEmpty) return const [];
-        return [MapEntry('Text', t.length > 240 ? '${t.substring(0, 240)}…' : t)];
+        final text = decodeStringBlock(bytes);
+        if (text == null || text.isEmpty) return const [];
+        return [MapEntry('Text', text.length > 240 ? '${text.substring(0, 240)}…' : text)];
       case 'HIST':
-        final h = decodeHistory(b);
-        return h == null
+        final history = decodeHistory(bytes);
+        return history == null
             ? const []
-            : [MapEntry('Format version', '${h.formatVersion}'), MapEntry('Revision entries', '${h.entryCount}')];
+            : [MapEntry('Format version', '${history.formatVersion}'), MapEntry('Revision entries', '${history.entryCount}')];
       case 'FTAB':
-        final ft = decodeFontTable(b);
+        final ft = decodeFontTable(bytes);
         if (ft == null) return const [];
         return [
           MapEntry('Fonts', '${ft.fontCount}'),
@@ -398,7 +400,7 @@ class _BlockHexViewState extends State<BlockHexView> {
       case 'NUID':
       case 'SUID':
       case 'BNID':
-        final it = decodeIdTable(b);
+        final it = decodeIdTable(bytes);
         return it == null ? const [] : [MapEntry('Id count', '${it.count}')];
       default:
         return const [];
@@ -419,14 +421,14 @@ class _BlockHexViewState extends State<BlockHexView> {
             const SizedBox(height: 2),
             Text('${types.length} types', style: const TextStyle(fontSize: 11, color: Colors.grey)),
             const Divider(height: 14),
-            for (final t in shown)
+            for (final type in shown)
               Padding(
                 padding: const EdgeInsets.only(bottom: 2),
                 child: Text.rich(TextSpan(children: [
-                  TextSpan(text: '#${t.index} ', style: const TextStyle(fontFamily: 'monospace', fontSize: 12, color: Colors.grey)),
-                  TextSpan(text: typeLabel(t, types), style: const TextStyle(fontSize: 12.5)),
-                  if (t.name != null && t.name!.isNotEmpty)
-                    TextSpan(text: "  '${t.name}'", style: const TextStyle(fontSize: 12.5, color: Color(0xFF4C8C4C))),
+                  TextSpan(text: '#${type.index} ', style: const TextStyle(fontFamily: 'monospace', fontSize: 12, color: Colors.grey)),
+                  TextSpan(text: typeLabel(type, types), style: const TextStyle(fontSize: 12.5)),
+                  if (type.name != null && type.name!.isNotEmpty)
+                    TextSpan(text: "  '${type.name}'", style: const TextStyle(fontSize: 12.5, color: Color(0xFF4C8C4C))),
                 ])),
               ),
             if (types.length > cap)
@@ -452,7 +454,7 @@ class _BlockHexViewState extends State<BlockHexView> {
             Center(
               child: CustomPaint(
                 size: const Size(128, 128),
-                painter: _LegacyIconPainter(icon),
+                painter: LegacyIconPainter(icon),
               ),
             ),
             const SizedBox(height: 10),
@@ -488,9 +490,9 @@ class _BlockHexViewState extends State<BlockHexView> {
         const SizedBox(height: 2),
         Text('${widget.section.tag} — ${info.confidence.name}', style: const TextStyle(fontSize: 11, color: Colors.grey)),
         const Divider(height: 14),
-        for (final f in fields) ...[
-          Text(f.key, style: const TextStyle(fontSize: 11, color: Colors.grey)),
-          SelectableText(f.value, style: const TextStyle(fontSize: 13)),
+        for (final field in fields) ...[
+          Text(field.key, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+          SelectableText(field.value, style: const TextStyle(fontSize: 13)),
           const SizedBox(height: 8),
         ],
         Text(info.note, style: const TextStyle(fontSize: 11, color: Colors.grey, fontStyle: FontStyle.italic)),
@@ -503,162 +505,162 @@ class _BlockHexViewState extends State<BlockHexView> {
   /// for blocks without a field layout (the raw-hex panel is shown instead).
   /// Whatever spans are produced, [_fillGaps] adds explicit "undecoded" spans so
   /// EVERY byte is accounted for — coverage is total and the gaps stay visible.
-  List<_SpanInfo> _fieldSpans(String tag, List<int> b) {
-    final out = <_SpanInfo>[];
+  List<SpanInfo> _fieldSpans(String tag, List<int> b) {
+    final out = <SpanInfo>[];
     void span(int off, int len, Color c, String title, String detail, {String? preview}) {
       if (len <= 0 || off < 0 || off + len > b.length) return;
-      out.add(_SpanInfo(offset: off, length: len, lead: b[off], color: c, title: title, detail: detail, inlinePreview: preview));
+      out.add(SpanInfo(offset: off, length: len, lead: b[off], color: c, title: title, detail: detail, inlinePreview: preview));
     }
 
     switch (tag) {
       case 'vers':
         final vw = b is Uint8List ? decodeVersionWord(b) : decodeVersionWord(Uint8List.fromList(b));
-        span(0, 4, _cObject, 'Version word (u32)',
+        span(0, 4, spanColorObject, 'Version word (u32)',
             'BCD major · minor<<4|patch · stage · build. The same word heads LVSR. See decodeVersionWord.',
-            preview: vw == null ? '0x${_u32(b, 0).toRadixString(16)}' : 'v${vw.version}');
+            preview: vw == null ? '0x${readU32be(b, 0).toRadixString(16)}' : 'v${vw.version}');
       case 'STRG':
       case 'HLPT':
-        span(0, 4, _cHeader, 'Text length (u32)', 'Byte length of the UTF-8 text that follows (== sectionLen-4).',
-            preview: '${_u32(b, 0)} B');
-        span(4, b.length - 4, _cRect, 'Text (UTF-8)', 'The VI description / context-help text.');
+        span(0, 4, spanColorHeader, 'Text length (u32)', 'Byte length of the UTF-8 text that follows (== sectionLen-4).',
+            preview: '${readU32be(b, 0)} B');
+        span(4, b.length - 4, spanColorRect, 'Text (UTF-8)', 'The VI description / context-help text.');
       case 'NUID':
       case 'SUID':
       case 'BNID':
         if (b.length >= 4) {
-          final count = _u32(b, 0);
-          span(0, 4, _cHeader, 'Entry count (u32)', '$count u32 id entries follow ([u32 count][count u32]).',
+          final count = readU32be(b, 0);
+          span(0, 4, spanColorHeader, 'Entry count (u32)', '$count u32 id entries follow ([u32 count][count u32]).',
               preview: '$count');
           for (var i = 0; i < count && 4 + 4 * i + 4 <= b.length; i++) {
-            span(4 + 4 * i, 4, _cObject, 'id[$i] (u32)', 'An opaque UID/handle value (role not yet decoded).',
-                preview: '0x${_u32(b, 4 + 4 * i).toRadixString(16)}');
+            span(4 + 4 * i, 4, spanColorObject, 'id[$i] (u32)', 'An opaque UID/handle value (role not yet decoded).',
+                preview: '0x${readU32be(b, 4 + 4 * i).toRadixString(16)}');
           }
         }
       case 'HIST':
         const names = ['format version', 'flags', 'entry count', 'reserved', 'word4', 'stamp A', 'stamp B', 'reserved', 'reserved', 'word9'];
-        for (var w = 0; w < 10 && w * 4 + 4 <= b.length; w++) {
-          span(w * 4, 4, _cObject, 'HIST @${w * 4}: ${names[w]} (u32)', 'Revision-history record word. See decodeHistory.',
-              preview: '${_u32(b, w * 4)}');
+        for (var wordIndex = 0; wordIndex < 10 && wordIndex * 4 + 4 <= b.length; wordIndex++) {
+          span(wordIndex * 4, 4, spanColorObject, 'HIST @${wordIndex * 4}: ${names[wordIndex]} (u32)', 'Revision-history record word. See decodeHistory.',
+              preview: '${readU32be(b, wordIndex * 4)}');
         }
       case 'LVSR':
-        span(0, 4, _cObject, 'Version word (u32)', 'BCD major · minor<<4|patch · stage · build (== vers word). See decodeSaveRecord.',
-            preview: '0x${_u32(b, 0).toRadixString(16)}');
-        for (final r in const [
+        span(0, 4, spanColorObject, 'Version word (u32)', 'BCD major · minor<<4|patch · stage · build (== vers word). See decodeSaveRecord.',
+            preview: '0x${readU32be(b, 0).toRadixString(16)}');
+        for (final range in const [
           [4, 52],
           [68, 80],
           [112, 120],
           [136, 144],
         ]) {
-          for (var o = r[0]; o + 4 <= r[1] && o + 4 <= b.length; o += 4) {
-            span(o, 4, _cGroup, 'Config/flags word (u32) @$o',
+          for (var wordOffset = range[0]; wordOffset + 4 <= range[1] && wordOffset + 4 <= b.length; wordOffset += 4) {
+            span(wordOffset, 4, spanColorGroup, 'Config/flags word (u32) @$wordOffset',
                 'A low-cardinality LVSR config/flags word; exact bit meaning not yet decoded.',
-                preview: '0x${_u32(b, o).toRadixString(16)}');
+                preview: '0x${readU32be(b, wordOffset).toRadixString(16)}');
           }
         }
-        span(52, 16, _cObject, 'Per-VI value A (16B)',
+        span(52, 16, spanColorObject, 'Per-VI value A (16B)',
             'A 16-byte value that varies per VI (≈6920 distinct across the corpus); role not yet decoded.');
-        span(80, 16, _cObject, 'Per-VI value B (16B)',
+        span(80, 16, spanColorObject, 'Per-VI value B (16B)',
             'A second 16-byte per-VI value (≈6920 distinct across the corpus); role not yet decoded.');
-        span(96, 16, _cRect, 'BD password hash (16B)', 'Block-diagram password hash; mirrors the BDPW block. Empty-password default = d41d8cd9…');
-        span(120, 16, _cObject, 'Per-VI value C (16B)',
+        span(96, 16, spanColorRect, 'BD password hash (16B)', 'Block-diagram password hash; mirrors the BDPW block. Empty-password default = d41d8cd9…');
+        span(120, 16, spanColorObject, 'Per-VI value C (16B)',
             'A third 16-byte per-VI value (≈6854 distinct across the corpus); role not yet decoded.');
-        span(144, 16, _cRect, 'Secondary hash (16B)', 'A second hash/checksum slot (role not fully decoded).');
+        span(144, 16, spanColorRect, 'Secondary hash (16B)', 'A second hash/checksum slot (role not fully decoded).');
       case 'CONP':
       case 'CPC2':
         if (b.length == 2) {
-          final idx = _u16(b, 0);
+          final idx = readU16be(b, 0);
           var resolved = '';
           if (widget.siblings.isNotEmpty) {
             final pool = typePoolFromDecoded(widget.siblings);
             if (idx >= 1 && idx <= pool.length) {
-              final t = pool[idx - 1];
-              resolved = ' → ${typeLabel(t, pool)}${t.name != null && t.name!.isNotEmpty ? " '${t.name}'" : ''}';
+              final type = pool[idx - 1];
+              resolved = ' → ${typeLabel(type, pool)}${type.name != null && type.name!.isNotEmpty ? " '${type.name}'" : ''}';
             }
           }
-          span(0, 2, _cObject, 'VCTP type index (u16)',
+          span(0, 2, spanColorObject, 'VCTP type index (u16)',
               '${tag == 'CONP' ? 'Index of the connector-pane type in the VCTP pool (CONP: 100% in-range).' : 'A second conpane reference (CPC2: resolves as a VCTP index only ~84%).'}$resolved',
               preview: '$idx$resolved');
         }
       case 'FTAB':
-        span(0, 2, _cObject, 'Version (u16)', 'Font-table version (1 in the corpus).', preview: '${_u16(b, 0)}');
+        span(0, 2, spanColorObject, 'Version (u16)', 'Font-table version (1 in the corpus).', preview: '${readU16be(b, 0)}');
         if (b.length >= 6) {
-          span(2, 4, _cGroup, 'Header constant (00 02 00 03)',
+          span(2, 4, spanColorGroup, 'Header constant (00 02 00 03)',
               'Fixed format sub-version words (u16 2, u16 3); 00 02 00 03 in all 322 corpus FTABs.');
         }
-        if (b.length >= 8) span(6, 2, _cHeader, 'Font count (u16)', 'Number of packed name entries.', preview: '${_u16(b, 6)}');
+        if (b.length >= 8) span(6, 2, spanColorHeader, 'Font count (u16)', 'Number of packed name entries.', preview: '${readU16be(b, 6)}');
         if (b.length >= 12) {
-          final nameOff = _u32(b, 8);
-          span(8, 4, _cHeader, 'Name-table offset (u32)', 'Byte offset of the packed Pascal font-name strings.', preview: '$nameOff');
-          final count = _u16(b, 6);
+          final nameOff = readU32be(b, 8);
+          span(8, 4, spanColorHeader, 'Name-table offset (u32)', 'Byte offset of the packed Pascal font-name strings.', preview: '$nameOff');
+          final count = readU16be(b, 6);
           if (nameOff >= 12 && nameOff <= b.length && count > 0) {
-            var p = 12;
-            for (var i = 0; i < count && p + 12 <= nameOff; i++) {
-              span(p, 12, _cObject, 'Font[$i] metric record (12B)',
+            var pos = 12;
+            for (var i = 0; i < count && pos + 12 <= nameOff; i++) {
+              span(pos, 12, spanColorObject, 'Font[$i] metric record (12B)',
                   'Per-font size/style metrics; inner fields not yet decoded.');
-              p += 12;
-              if (i < count - 1 && p + 4 <= nameOff) {
-                span(p, 4, _cGroup, 'Font[$i] u32 field',
-                    'A 4-byte value between font records (role not yet decoded).', preview: '${_u32(b, p)}');
-                p += 4;
+              pos += 12;
+              if (i < count - 1 && pos + 4 <= nameOff) {
+                span(pos, 4, spanColorGroup, 'Font[$i] u32 field',
+                    'A 4-byte value between font records (role not yet decoded).', preview: '${readU32be(b, pos)}');
+                pos += 4;
               }
             }
           }
-          if (nameOff < b.length) span(nameOff, b.length - nameOff, _cRect, 'Font names (Pascal strings)', 'Packed [u8 len][name] font face names. See decodeFontTable.');
+          if (nameOff < b.length) span(nameOff, b.length - nameOff, spanColorRect, 'Font names (Pascal strings)', 'Packed [u8 len][name] font face names. See decodeFontTable.');
         }
       case 'BDPW':
-        span(0, 16, _cRect, 'Password hash (16B)', 'Block-diagram password hash; sample is MD5("") d41d8cd9…');
+        span(0, 16, spanColorRect, 'Password hash (16B)', 'Block-diagram password hash; sample is MD5("") d41d8cd9…');
       case 'GCPR':
-        span(0, b.length, _cGroup, 'Generated-code property (${b.length}B)', 'Fixed-size record, byte-constant (all-zero) across the corpus.');
+        span(0, b.length, spanColorGroup, 'Generated-code property (${b.length}B)', 'Fixed-size record, byte-constant (all-zero) across the corpus.');
       case 'VPDP':
-        span(0, b.length, _cGroup, 'VI property data (${b.length}B)', 'Fixed 4-byte record, byte-constant (all-zero) across the corpus.');
+        span(0, b.length, spanColorGroup, 'VI property data (${b.length}B)', 'Fixed 4-byte record, byte-constant (all-zero) across the corpus.');
       case 'DLDR':
-        span(0, b.length, _cGroup, 'Default-data loader (${b.length}B)', 'Fixed 28-byte record, byte-constant across the corpus.');
+        span(0, b.length, spanColorGroup, 'Default-data loader (${b.length}B)', 'Fixed 28-byte record, byte-constant across the corpus.');
       case 'RTSG':
       case 'OBSG':
       case 'CCSG':
-        span(0, 16, _cObject, '16-byte signature', tag == 'CCSG' ? 'Near-constant shared toolchain signature (opaque value).' : 'Per-VI signature (identity; opaque value).',
+        span(0, 16, spanColorObject, '16-byte signature', tag == 'CCSG' ? 'Near-constant shared toolchain signature (opaque value).' : 'Per-VI signature (identity; opaque value).',
             preview: 'sig');
       case 'SCSR':
-        span(0, 4, _cHeader, 'Header (u32)', 'Leading word 0x01000000 BE (version-ish).', preview: '0x${_u32(b, 0).toRadixString(16)}');
-        span(4, 16, _cObject, '16-byte signature', 'Source signature (near-constant; opaque value).', preview: 'sig');
+        span(0, 4, spanColorHeader, 'Header (u32)', 'Leading word 0x01000000 BE (version-ish).', preview: '0x${readU32be(b, 0).toRadixString(16)}');
+        span(4, 16, spanColorObject, '16-byte signature', 'Source signature (near-constant; opaque value).', preview: 'sig');
       case 'FPSE':
       case 'BDSE':
-        for (var p = 0; p + 4 <= b.length; p += 4) {
-          span(p, 4, _cObject, '$tag marker (u32)',
+        for (var pos = 0; pos + 4 <= b.length; pos += 4) {
+          span(pos, 4, spanColorObject, '$tag marker (u32)',
               '${tag == 'FPSE' ? 'Front-panel' : 'Block-diagram'} section marker word (value role not yet decoded).',
-              preview: '${_u32(b, p)}');
+              preview: '${readU32be(b, pos)}');
         }
       case 'MUID':
-        span(0, 4, _cObject, 'MUID (u32)', 'Module/object unique id (opaque value).', preview: '${_u32(b, 0)}');
+        span(0, 4, spanColorObject, 'MUID (u32)', 'Module/object unique id (opaque value).', preview: '${readU32be(b, 0)}');
       case 'CPST':
       case 'CPSP':
         if (b.length >= 4) {
-          final count = _u32(b, 0);
-          span(0, 4, _cHeader, 'String count (u32)',
+          final count = readU32be(b, 0);
+          span(0, 4, spanColorHeader, 'String count (u32)',
               '$count Pascal-string label entries follow ([u8 len][ASCII]).', preview: '$count');
-          var p = 4;
-          for (var i = 0; i < count && p < b.length; i++) {
-            final n = b[p];
-            span(p, 1, _cObject, 'entry[$i] length (u8)', 'Length of the label string that follows.', preview: '$n');
-            if (n > 0 && p + 1 + n <= b.length) {
-              span(p + 1, n, _cRect, 'entry[$i] (ASCII)', 'A boolean/comparison/report label.',
-                  preview: String.fromCharCodes(b.sublist(p + 1, p + 1 + n)));
+          var pos = 4;
+          for (var i = 0; i < count && pos < b.length; i++) {
+            final nameLen = b[pos];
+            span(pos, 1, spanColorObject, 'entry[$i] length (u8)', 'Length of the label string that follows.', preview: '$nameLen');
+            if (nameLen > 0 && pos + 1 + nameLen <= b.length) {
+              span(pos + 1, nameLen, spanColorRect, 'entry[$i] (ASCII)', 'A boolean/comparison/report label.',
+                  preview: String.fromCharCodes(b.sublist(pos + 1, pos + 1 + nameLen)));
             }
-            p += 1 + n;
+            pos += 1 + nameLen;
           }
         }
       case 'FPTD':
         if (b.length == 2) {
-          span(0, 2, _cObject, 'Type index (u16)',
+          span(0, 2, spanColorObject, 'Type index (u16)',
               'Front-panel terminal type descriptor; likely indexes the VCTP pool (not corpus-verified for FPTD).',
-              preview: '${_u16(b, 0)}');
+              preview: '${readU16be(b, 0)}');
         }
       case 'TITL':
         if (b.isNotEmpty) {
-          final n = b[0];
-          span(0, 1, _cHeader, 'Title length (u8)', 'Pascal-string length of the VI title that follows.', preview: '$n');
-          if (1 + n <= b.length) {
-            final text = String.fromCharCodes(b.sublist(1, 1 + n));
-            span(1, n, _cRect, 'Title (ASCII)', 'The VI window title (Pascal string).', preview: text);
+          final nameLen = b[0];
+          span(0, 1, spanColorHeader, 'Title length (u8)', 'Pascal-string length of the VI title that follows.', preview: '$nameLen');
+          if (1 + nameLen <= b.length) {
+            final text = String.fromCharCodes(b.sublist(1, 1 + nameLen));
+            span(1, nameLen, spanColorRect, 'Title (ASCII)', 'The VI window title (Pascal string).', preview: text);
           }
         }
       default:
@@ -669,18 +671,18 @@ class _BlockHexViewState extends State<BlockHexView> {
 
   /// Inserts explicit "undecoded" spans for any byte ranges [fields] leaves
   /// uncovered (and a trailing tail), so the hex view accounts for every byte.
-  List<_SpanInfo> _fillGaps(List<_SpanInfo> fields, int len) {
+  List<SpanInfo> _fillGaps(List<SpanInfo> fields, int len) {
     if (fields.isEmpty) return fields;
     fields.sort((a, b) => a.offset.compareTo(b.offset));
-    final out = <_SpanInfo>[];
+    final out = <SpanInfo>[];
     var cursor = 0;
     void gap(int from, int to) {
       if (to > from) {
-        out.add(_SpanInfo(
+        out.add(SpanInfo(
           offset: from,
           length: to - from,
           lead: 0,
-          color: _cUnframed,
+          color: spanColorUnframed,
           title: 'Undecoded ($from..${to - 1})',
           detail: 'These ${to - from} bytes are not yet field-decoded for this block — preserved, not hidden.',
           inlinePreview: '${to - from} B',
@@ -688,16 +690,16 @@ class _BlockHexViewState extends State<BlockHexView> {
       }
     }
 
-    for (final f in fields) {
-      gap(cursor, f.offset);
-      out.add(f);
-      if (f.offset + f.length > cursor) cursor = f.offset + f.length;
+    for (final field in fields) {
+      gap(cursor, field.offset);
+      out.add(field);
+      if (field.offset + field.length > cursor) cursor = field.offset + field.length;
     }
     gap(cursor, len);
     return out;
   }
 
-  static String _fmt(int n) => n >= 1024 ? '${(n / 1024).toStringAsFixed(1)} KB' : '$n B';
+  static String _fmt(int byteCount) => byteCount >= 1024 ? '${(byteCount / 1024).toStringAsFixed(1)} KB' : '$byteCount B';
 
   /// Lower-case hex of [bytes]; [spaced] inserts a space between bytes for reading
   /// (continuous form pastes straight into a hasher — e.g. to check a BDPW hash).
@@ -747,309 +749,3 @@ class _BlockHexViewState extends State<BlockHexView> {
 const double _kRowHeight = 20;
 const double _kRecHeight = 30;
 
-/// One parsed record for display.
-class _SpanInfo {
-  _SpanInfo({
-    required this.offset,
-    required this.length,
-    required this.lead,
-    required this.color,
-    required this.title,
-    required this.detail,
-    this.swatch,
-    this.display,
-    this.inlinePreview,
-  });
-  final int offset;
-  final int length;
-  final int lead;
-  final Color color;
-  final String title;
-  final String detail;
-  final Color? swatch;
-  final Widget? display;
-
-  /// A short value shown inline in the record row (right-aligned) — a "preview"
-  /// of the decoded value (e.g. a size/count) so it is legible without selecting
-  /// the row, mirroring the colour swatch for colour records.
-  final String? inlinePreview;
-}
-
-int _u16(List<int> b, int p) => (b[p] << 8) | b[p + 1];
-int _u32(List<int> b, int p) => (b[p] << 24) | (b[p + 1] << 16) | (b[p + 2] << 8) | b[p + 3];
-
-const _cHeader = Color(0xFFD08BB0);
-const _cUnframed = Color(0xFFE57373);
-const _cObject = Color(0xFF9E7BE0);
-const _cGroup = Color(0xFF8A8A8A);
-const _cRect = Color(0xFF5C9BD6);
-const _cString = Color(0xFF6FCF6F);
-const _cContainer = Color(0xFF2BB8A8);
-const _cAttr = Color(0xFFE8A33A);
-const _cRef = Color(0xFF49C4D8);
-const _cOther = Color(0xFFB0B0B0);
-
-_SpanInfo _classify(Uint8List b, HeapSpan s, String tag) {
-  final o = s.offset, lead = s.lead, len = s.length;
-  _SpanInfo make(Color c, String title, String detail, {Color? swatch, Widget? display, String? inlinePreview}) =>
-      _SpanInfo(
-          offset: o,
-          length: len,
-          lead: lead,
-          color: c,
-          title: title,
-          detail: detail,
-          swatch: swatch,
-          display: display,
-          inlinePreview: inlinePreview);
-
-  if ((lead == 0x10 || lead == 0x11 || lead == 0x12) && o + 9 <= b.length && b[o + 2] == 0x02 && b[o + 3] == 0xfe && b[o + 6] == 0xfd) {
-    final kind = _u16(b, o + 4), oid = _u16(b, o + 7);
-    final cls = HeapObjectClass.fromCode(kind);
-    final conf = cls.confidence == ClassConfidence.confirmed ? '' : ' (${cls.confidence.name})';
-    return make(_cObject, 'Object · ${cls.label}',
-        'Declares object #$oid of class 0x${kind.toRadixString(16)} — ${cls.label}$conf.');
-  }
-  final prop = decodeHeapPropertyToken(b, o);
-  if (prop != null) {
-    final t = prop.token;
-    final conf = t.confidence == AttrConfidence.confirmed ? '' : ' (${t.confidence.name})';
-    final hexpair = '${lead.toRadixString(16).padLeft(2, '0')} ${b[o + 1].toRadixString(16).padLeft(2, '0')}';
-    final val = prop.value == null ? '' : ' = ${prop.value}';
-    return make(_cAttr, '$hexpair · ${t.tokenName}', 'Object property$val$conf.');
-  }
-  String _hx(int v) => '0x${v.toRadixString(16).padLeft(2, '0')}';
-  if (lead == 0x10 || lead == 0x11 || lead == 0x12 || lead == 0x13) {
-    final hasTypeTag = o + 3 < b.length && (b[o + 3] == 0xfb || b[o + 3] == 0xfe || b[o + 3] == 0xfd);
-    if (hasTypeTag) {
-      final tag = o + 1 < b.length ? b[o + 1] : -1;
-      return make(_cGroup, 'Group open · tag ${_hx(tag)}',
-          'Opens a bracket-tree group: ${_hx(lead)} subop count ${_hx(b[o + 3])}(type tag). The '
-          'type tag at +3 (fb/fe/fd) is what makes this a GROUP rather than a property token. Its '
-          'matching close is lead ${_hx(lead - 0x08)} (open − 0x08) carrying the same tag ${_hx(tag)} '
-          '— structural (corpus: 99.99% lead, 99.8% tag).');
-    }
-  }
-  if (lead == 0x08 || lead == 0x09 || lead == 0x0a || lead == 0x0b) {
-    final tag = o + 1 < b.length ? b[o + 1] : -1;
-    return make(_cGroup, 'Group close · tag ${_hx(tag)}',
-        'Closes the group whose open lead is ${_hx(lead + 0x08)} (open − 0x08) and which carries '
-        'the same tag ${_hx(tag)}. The pairing is structural (corpus: 99.99% lead, 99.8% tag); '
-        'otherwise the innermost open is popped positionally (~0.07% of closes have no tracked open).');
-  }
-  final ref = decodeHeapRef(b, o);
-  if (ref != null) {
-    final conf = ref.kind.confidence == AttrConfidence.confirmed ? '' : ' (${ref.kind.confidence.name})';
-    return make(_cRef, '${ref.kind.refName} → #${ref.targetOid}',
-        'A typed object reference (${ref.kind.refName}$conf) — a link in the object graph, not a wire.');
-  }
-  if (lead == kHeapRecordPrefix) {
-    final rec = c4FrameAt(b, o, tag);
-    if (rec != null) {
-      final op = rec.opcode;
-      final opc = rec.kind;
-      final hexop = 'C4 ${op.toRadixString(16).padLeft(2, '0')}';
-      final r = rec.rect;
-      if (r != null) {
-        return make(_cRect, '$hexop · ${opc.name}',
-            'Rectangle (4× s16): top ${r.top}, left ${r.left}, bottom ${r.bottom}, right ${r.right}  (${r.width}×${r.height}).',
-            display: _RectPreview(r));
-      }
-      final text = rec.text ?? rec.descriptionText ?? rec.path;
-      if (text != null && text.isNotEmpty) {
-        return make(_cString, '$hexop · ${opc.name}', 'String payload:', display: _StringPreview(text));
-      }
-      final c = opc == HeapOpcode.container24 || opc == HeapOpcode.container44 || opc == HeapOpcode.container64;
-      return make(c ? _cContainer : _cOther, '$hexop · ${opc == HeapOpcode.unknown ? 'record' : opc.name}',
-          opc.isDecoded ? 'A decoded ${opc.name} record.' : 'A framed ${opc.name} record (${rec.payload.length}-byte payload).');
-    }
-  }
-  final attr = decodeHeapAttr(b, o);
-  if (attr != null) {
-    final a = attr.attribute;
-    final name = a == HeapAttribute.unknown ? 'attribute 0x${attr.id.toRadixString(16)}' : a.attrName;
-    final hexlead = lead.toRadixString(16).padLeft(2, '0');
-    switch (attr.kind) {
-      case HeapAttrKind.color:
-        final rgb = attr.rgb ?? 0;
-        final swatch = attr.isTransparent ? null : Color(0xFF000000 | rgb);
-        return make(_cAttr, '$hexlead · $name',
-            attr.isTransparent ? 'Colour: transparent.' : 'Colour #${rgb.toRadixString(16).padLeft(6, '0')}.',
-            swatch: swatch, display: swatch == null ? null : _ColorPreview(swatch, rgb));
-      case HeapAttrKind.controlParam:
-        return make(_cAttr, '$hexlead · $name', 'Numeric-control parameter (f64) = ${attr.asDouble}.');
-      case HeapAttrKind.stringBlob:
-        return make(_cString, '$hexlead · $name', 'String/blob:', display: _StringPreview(attr.asString ?? ''));
-      case HeapAttrKind.rectangle:
-        final r = attr.asRect;
-        return r == null
-            ? make(_cAttr, '$hexlead · $name', 'Rectangle (4× s16).')
-            : make(_cRect, '$hexlead · $name',
-                'Rectangle (4× s16): top ${r.top}, left ${r.left}, bottom ${r.bottom}, right ${r.right}  (${r.width}×${r.height}).',
-                display: _RectPreview(r));
-      case HeapAttrKind.container:
-        return make(_cContainer, '$hexlead · $name',
-            'An opaque length-prefixed container (count-like lead byte ${attr.asInt}; e.g. a front-panel attribute blob).');
-      default:
-        return make(_cAttr, '$hexlead · $name',
-            '${_kindLabel(attr.kind)} = ${attr.asInt} (${attr.width.name}).');
-    }
-  }
-  if (isTypeDescriptorToken(lead)) {
-    return make(_cOther, '04 ${b[o + 1].toRadixString(16).padLeft(2, '0')} · 04-token',
-        'A bare 04 <subop> token (framed; role undecoded).');
-  }
-  return make(_cOther, 'lead 0x${lead.toRadixString(16)}', 'Framed record ($len bytes); role not individually decoded.');
-}
-
-String _kindLabel(HeapAttrKind k) => switch (k) {
-      HeapAttrKind.coordinate => 'Coordinate',
-      HeapAttrKind.size => 'Size',
-      HeapAttrKind.enumValue => 'Enum value',
-      HeapAttrKind.flag => 'Flag',
-      HeapAttrKind.ordinal => 'Index',
-      HeapAttrKind.numeric => 'Numeric',
-      HeapAttrKind.text => 'Text attribute',
-      _ => 'Value',
-    };
-
-class _RectPreview extends StatelessWidget {
-  const _RectPreview(this.r);
-  final HeapRect r;
-  @override
-  Widget build(BuildContext context) {
-    final w = r.width.abs().clamp(1, 200).toDouble();
-    final h = r.height.abs().clamp(1, 80).toDouble();
-    return Container(
-      width: w,
-      height: h,
-      decoration: BoxDecoration(border: Border.all(color: _cRect), color: _cRect.withValues(alpha: 0.15)),
-      alignment: Alignment.center,
-      child: Text('${r.width}×${r.height}', style: const TextStyle(fontSize: 10, color: Colors.white70)),
-    );
-  }
-}
-
-class _ColorPreview extends StatelessWidget {
-  const _ColorPreview(this.color, this.rgb);
-  final Color color;
-  final int rgb;
-  @override
-  Widget build(BuildContext context) => Row(children: [
-        Container(width: 40, height: 24, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(3), border: Border.all(color: Colors.black26))),
-        const SizedBox(width: 8),
-        Text('#${rgb.toRadixString(16).padLeft(6, '0')}', style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
-      ]);
-}
-
-/// A typed whole-section display for the VI icon. The recognizable icon is a
-/// plain 24-bit RGB bitmap embedded (uncompressed) in a LabVIEW "picture" stream
-/// — it can appear under several tags (`PICC`/`DSIM`/`FPHb`/…), *not* the
-/// `ICON`/`icl4`/`icl8` resource blocks (those hold unrelated metadata). So this
-/// keys on the bitmap signature in the bytes, not the tag. Returns null when the
-/// section carries no embedded RGB bitmap.
-Widget? iconPreview(Uint8List bytes) {
-  final icon = extractRgbIcon(bytes);
-  if (icon == null) return null;
-  return _IconView(
-    caption: '${icon.width}×${icon.height} · embedded 24-bit RGB picture',
-    child: ViIconImage(icon: icon),
-  );
-}
-
-/// Renders a decoded [ViIcon] (24-bit RGB bitmap) at [size]×[size], nearest-
-/// neighbour scaled so the small icon stays crisp.
-class ViIconImage extends StatelessWidget {
-  const ViIconImage({super.key, required this.icon, this.size = 160});
-  final ViIcon icon;
-  final double size;
-  @override
-  Widget build(BuildContext context) =>
-      SizedBox(width: size, height: size, child: CustomPaint(painter: _RgbIconPainter(icon)));
-}
-
-class _IconView extends StatelessWidget {
-  const _IconView({required this.caption, required this.child});
-  final String caption;
-  final Widget child;
-  @override
-  Widget build(BuildContext context) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          DecoratedBox(
-            decoration: BoxDecoration(border: Border.all(color: const Color(0x33FFFFFF))),
-            child: child,
-          ),
-          const SizedBox(height: 8),
-          Text(caption, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-        ],
-      );
-}
-
-class _RgbIconPainter extends CustomPainter {
-  _RgbIconPainter(this.icon);
-  final ViIcon icon;
-  @override
-  void paint(Canvas canvas, Size size) {
-    final pw = size.width / icon.width, ph = size.height / icon.height;
-    final p = Paint();
-    var k = 0;
-    for (var y = 0; y < icon.height; y++) {
-      for (var x = 0; x < icon.width; x++) {
-        p.color = Color.fromARGB(255, icon.rgb[k], icon.rgb[k + 1], icon.rgb[k + 2]);
-        k += 3;
-        canvas.drawRect(Rect.fromLTWH(x * pw, y * ph, pw + 0.5, ph + 0.5), p);
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _RgbIconPainter oldDelegate) => false;
-}
-
-class _StringPreview extends StatelessWidget {
-  const _StringPreview(this.text);
-  final String text;
-  @override
-  Widget build(BuildContext context) => Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.25), borderRadius: BorderRadius.circular(4)),
-        child: SelectableText(text, style: const TextStyle(fontFamily: 'monospace', fontSize: 12.5)),
-      );
-}
-
-/// Paints a 32×32 [ViLegacyIcon] scaled to fill the given size. 1-bit pixels are
-/// drawn black/white (mask); 4/8-bit pixels are shaded by their palette index
-/// (grayscale) — an honest stand-in, since the true LabVIEW palette is not mapped.
-class _LegacyIconPainter extends CustomPainter {
-  _LegacyIconPainter(this.icon);
-  final ViLegacyIcon icon;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    const dim = 32;
-    final cw = size.width / dim;
-    final ch = size.height / dim;
-    final maxIdx = (1 << icon.bpp) - 1;
-    final p = Paint();
-    for (var y = 0; y < dim; y++) {
-      for (var x = 0; x < dim; x++) {
-        final v = icon.pixels[y * dim + x];
-        if (icon.bpp == 1) {
-          p.color = v == 0 ? Colors.white : Colors.black;
-        } else {
-          final g = maxIdx == 0 ? 0 : (255 * v ~/ maxIdx).clamp(0, 255);
-          p.color = Color.fromARGB(255, g, g, g);
-        }
-        canvas.drawRect(Rect.fromLTWH(x * cw, y * ch, cw + 0.5, ch + 0.5), p);
-      }
-    }
-    canvas.drawRect(Offset.zero & size, Paint()
-      ..style = PaintingStyle.stroke
-      ..color = const Color(0xFF888888));
-  }
-
-  @override
-  bool shouldRepaint(_LegacyIconPainter old) => !identical(old.icon, icon);
-}

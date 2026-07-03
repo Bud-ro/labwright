@@ -73,8 +73,8 @@ class _InspectorPageState extends State<InspectorPage> {
     if (!mounted) return;
     setState(() {
       _prefs = prefs;
-      for (final p in alive.reversed) {
-        if (!_recent.contains(p)) _recent = addRecent(_recent, p);
+      for (final path in alive.reversed) {
+        if (!_recent.contains(path)) _recent = addRecent(_recent, path);
       }
     });
     if (alive.length != saved.length) _saveRecent();
@@ -129,11 +129,11 @@ class _InspectorPageState extends State<InspectorPage> {
 
   Future<void> _pick() async {
     final res = await FilePicker.pickFiles(withData: true);
-    final f = res?.files.single;
-    if (f == null) return;
+    final file = res?.files.single;
+    if (file == null) return;
     final bytes =
-        f.bytes ?? (f.path != null ? File(f.path!).readAsBytesSync() : null);
-    if (bytes != null) _loadBytes(f.path ?? f.name, bytes);
+        file.bytes ?? (file.path != null ? File(file.path!).readAsBytesSync() : null);
+    if (bytes != null) _loadBytes(file.path ?? file.name, bytes);
   }
 
   @override

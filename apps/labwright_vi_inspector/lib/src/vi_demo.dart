@@ -36,9 +36,9 @@ Uint8List demoViBytes({
   be32(info, blockInfoListOffset);
   be32(info, 0);
   be32(info, blocks.length);
-  for (final t in blocks) {
+  for (final tag in blocks) {
     info
-      ..add(t.codeUnits)
+      ..add(tag.codeUnits)
       ..add(const [0, 0, 0, 0, 0, 0, 0, 0]);
   }
   info

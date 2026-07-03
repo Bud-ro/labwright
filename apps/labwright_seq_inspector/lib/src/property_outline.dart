@@ -95,8 +95,8 @@ bool matchesQuery(PropertyNode node, String query) {
       hit(node.value)) {
     return true;
   }
-  for (final e in node.attributes.entries) {
-    if (hit(e.key) || hit(e.value)) return true;
+  for (final entry in node.attributes.entries) {
+    if (hit(entry.key) || hit(entry.value)) return true;
   }
   return false;
 }
@@ -106,14 +106,14 @@ bool matchesQuery(PropertyNode node, String query) {
 /// ancestors. An empty/blank query returns [node] unchanged. Returns `null`
 /// when neither [node] nor any descendant matches. Pure.
 PropertyNode? filterTree(PropertyNode node, String query) {
-  final q = query.trim().toLowerCase();
-  if (q.isEmpty) return node;
+  final needle = query.trim().toLowerCase();
+  if (needle.isEmpty) return node;
   final keptChildren = <PropertyNode>[];
-  for (final c in node.children) {
-    final f = filterTree(c, q);
-    if (f != null) keptChildren.add(f);
+  for (final child in node.children) {
+    final filtered = filterTree(child, needle);
+    if (filtered != null) keptChildren.add(filtered);
   }
-  final selfMatches = matchesQuery(node, q);
+  final selfMatches = matchesQuery(node, needle);
   if (!selfMatches && keptChildren.isEmpty) return null;
   // If this node matches but no child does, keep its full subtree so the user
   // can still drill into the match; otherwise keep only the matching branches.

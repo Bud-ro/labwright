@@ -67,9 +67,9 @@ class _SequencesViewState extends State<SequencesView> {
   }
 
   void _resetState() {
-    final n = widget.outline.sequences.length;
-    _keys = List.generate(n, (_) => GlobalKey());
-    _expanded = List.generate(n, (i) => i == 0);
+    final sequenceCount = widget.outline.sequences.length;
+    _keys = List.generate(sequenceCount, (_) => GlobalKey());
+    _expanded = List.generate(sequenceCount, (i) => i == 0);
   }
 
   void _jumpTo(int index) {
@@ -193,7 +193,7 @@ class _SequencesViewState extends State<SequencesView> {
                           ),
                         _vars(context, 'Parameters', seq.parameters),
                         _vars(context, 'Locals', seq.locals),
-                        for (final g in seq.groups) _group(context, g),
+                        for (final group in seq.groups) _group(context, group),
                       ].whereType<Widget>().toList(),
                     );
                   },
@@ -211,10 +211,10 @@ class _SequencesViewState extends State<SequencesView> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(label, style: Theme.of(context).textTheme.labelLarge),
-          for (final v in vars)
+          for (final variable in vars)
             Padding(
               padding: const EdgeInsets.only(left: 12, top: 2),
-              child: Text('• ${v.label}', style: monoStyle),
+              child: Text('• ${variable.label}', style: monoStyle),
             ),
         ],
       ),
@@ -229,7 +229,7 @@ class _SequencesViewState extends State<SequencesView> {
           padding: const EdgeInsets.only(top: 8, bottom: 2),
           child: Text(g.name, style: Theme.of(context).textTheme.labelLarge),
         ),
-        for (final s in g.steps) _step(context, s),
+        for (final step in g.steps) _step(context, step),
       ],
     );
   }
@@ -383,17 +383,17 @@ class _SequencesViewState extends State<SequencesView> {
             },
             defaultVerticalAlignment: TableCellVerticalAlignment.middle,
             children: [
-              for (final a in args)
+              for (final arg in args)
                 TableRow(children: [
                   Padding(
                     padding: const EdgeInsets.only(right: 16, top: 1, bottom: 1),
-                    child: Text(a.label,
+                    child: Text(arg.label,
                         style: theme.textTheme.bodySmall
                             ?.copyWith(color: theme.hintColor)),
                   ),
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 1),
-                    child: Text(a.value, style: monoStyle),
+                    child: Text(arg.value, style: monoStyle),
                   ),
                 ]),
             ],
@@ -403,9 +403,9 @@ class _SequencesViewState extends State<SequencesView> {
     );
   }
 
-  /// A measurement step's typed parameters as a `name (dir) → type = value`
+  /// A measurement step's typed parameters as arg `name (dir) → type = value`
   /// mini-table, mirroring [_argsTable] — the editor's measurement "Parameters".
-  Widget _paramsTable(BuildContext context, List<MeasurementParamOutline> ps) {
+  Widget _paramsTable(BuildContext context, List<MeasurementParamOutline> params) {
     final theme = Theme.of(context);
     const color = Colors.teal;
     return Container(
@@ -428,17 +428,17 @@ class _SequencesViewState extends State<SequencesView> {
             },
             defaultVerticalAlignment: TableCellVerticalAlignment.middle,
             children: [
-              for (final p in ps)
+              for (final param in params)
                 TableRow(children: [
                   Padding(
                     padding: const EdgeInsets.only(right: 16, top: 1, bottom: 1),
-                    child: Text(p.label,
+                    child: Text(param.label,
                         style: theme.textTheme.bodySmall
                             ?.copyWith(color: theme.hintColor)),
                   ),
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 1),
-                    child: Text(p.cell, style: monoStyle),
+                    child: Text(param.cell, style: monoStyle),
                   ),
                 ]),
             ],
@@ -450,7 +450,7 @@ class _SequencesViewState extends State<SequencesView> {
 
   /// A LabVIEW VI call's connector pane as a `#conn label → type ←expr`
   /// mini-table, mirroring [_argsTable] — the editor's "VI > connector pane".
-  Widget _connectorTable(BuildContext context, List<ConnectorParamOutline> ps) {
+  Widget _connectorTable(BuildContext context, List<ConnectorParamOutline> params) {
     final theme = Theme.of(context);
     const color = Colors.blue;
     return Container(
@@ -473,17 +473,17 @@ class _SequencesViewState extends State<SequencesView> {
             },
             defaultVerticalAlignment: TableCellVerticalAlignment.middle,
             children: [
-              for (final p in ps)
+              for (final param in params)
                 TableRow(children: [
                   Padding(
                     padding: const EdgeInsets.only(right: 16, top: 1, bottom: 1),
-                    child: Text(p.label,
+                    child: Text(param.label,
                         style: theme.textTheme.bodySmall
                             ?.copyWith(color: theme.hintColor)),
                   ),
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 1),
-                    child: Text(p.cell, style: monoStyle),
+                    child: Text(param.cell, style: monoStyle),
                   ),
                 ]),
             ],

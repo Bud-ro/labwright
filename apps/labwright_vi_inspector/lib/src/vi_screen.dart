@@ -273,9 +273,9 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                                           libraryNames: _libraryNames,
                                           embeddedVis: _embeddedVis,
                                           onOpenEmbedded: (vi) {
-                                            final b = vi.bytes;
-                                            if (b == null) return;
-                                            _loadBytes(b, 'embedded: ${vi.name ?? 'sub-VI'}');
+                                            final bytes = vi.bytes;
+                                            if (bytes == null) return;
+                                            _loadBytes(bytes, 'embedded: ${vi.name ?? 'sub-VI'}');
                                           },
                                         ),
                                         ViDiagramView(
@@ -412,10 +412,10 @@ class _SummaryViewState extends State<_SummaryView> {
     final summary = widget.summary;
     final version = widget.version;
     final hasDecoded = version != null && (version.version != null || version.title != null);
-    final q = _filter.trim().toLowerCase();
-    final filtered = q.isEmpty
+    final needle = _filter.trim().toLowerCase();
+    final filtered = needle.isEmpty
         ? widget.strings
-        : [for (final s in widget.strings) if (s.toLowerCase().contains(q)) s];
+        : [for (final text in widget.strings) if (text.toLowerCase().contains(needle)) text];
 
     return ListView(
       children: [
@@ -456,13 +456,13 @@ class _SummaryViewState extends State<_SummaryView> {
 
         if (widget.model != null && widget.model!.types.isNotEmpty) ...[
           Builder(builder: (context) {
-            final m = widget.model!;
-            final hist = typeKindHistogram(m.types);
-            final named = namedTypes(m.types).length;
+            final viModel = widget.model!;
+            final hist = typeKindHistogram(viModel.types);
+            final named = namedTypes(viModel.types).length;
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Data types (${m.types.length}${named > 0 ? ', $named named' : ''})',
+                Text('Data types (${viModel.types.length}${named > 0 ? ', $named named' : ''})',
                     style: const TextStyle(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 4),
                 Text(hist.entries.map((e) => '${e.key}:${e.value}').join('  '),
@@ -540,24 +540,24 @@ class _SummaryViewState extends State<_SummaryView> {
         ),
         const SizedBox(height: 8),
         Wrap(spacing: 8, runSpacing: 8, children: [
-          for (final b in summary.blocks)
-            if (_hasSection(b))
+          for (final block in summary.blocks)
+            if (_hasSection(block))
               Tooltip(
-                message: kBlockGlossary[b] ?? 'resource block',
+                message: kBlockGlossary[block] ?? 'resource block',
                 child: ActionChip(
-                  label: Text(b),
+                  label: Text(block),
                   avatar: const Icon(Icons.data_object, size: 16),
                   visualDensity: VisualDensity.compact,
-                  onPressed: () => _openHex(context, b),
+                  onPressed: () => _openHex(context, block),
                 ),
               )
             else
               Tooltip(
-                message: '${kBlockGlossary[b] ?? 'resource block'}\n(bytes not yet extracted for this block)',
+                message: '${kBlockGlossary[block] ?? 'resource block'}\n(bytes not yet extracted for this block)',
                 child: Opacity(
                   opacity: 0.4,
                   child: Chip(
-                    label: Text(b),
+                    label: Text(block),
                     avatar: const Icon(Icons.block, size: 14),
                     visualDensity: VisualDensity.compact,
                   ),
@@ -569,12 +569,12 @@ class _SummaryViewState extends State<_SummaryView> {
           const SizedBox(height: 16),
           const Text('Components (by decompressed size)', style: TextStyle(fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
-          for (final c in widget.components.take(20))
+          for (final component in widget.components.take(20))
             _kv(
-              c.sectionCount > 1 ? '${c.tag} ×${c.sectionCount}' : c.tag,
-              c.compressed
-                  ? '${_fmtSize(c.decompressedBytes)}  (zlib ${_fmtSize(c.rawBytes)})'
-                  : _fmtSize(c.decompressedBytes),
+              component.sectionCount > 1 ? '${component.tag} ×${component.sectionCount}' : component.tag,
+              component.compressed
+                  ? '${_fmtSize(component.decompressedBytes)}  (zlib ${_fmtSize(component.rawBytes)})'
+                  : _fmtSize(component.decompressedBytes),
             ),
         ],
 
@@ -609,10 +609,10 @@ class _SummaryViewState extends State<_SummaryView> {
             ),
           ),
           const SizedBox(height: 8),
-          for (final s in filtered.take(1000))
+          for (final text in filtered.take(1000))
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 1),
-              child: Text(s, style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
+              child: Text(text, style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
             ),
           if (filtered.length > 1000) Text('… and ${filtered.length - 1000} more'),
           if (filtered.isEmpty) const Text('(no match)', style: TextStyle(color: Colors.grey)),
@@ -651,8 +651,8 @@ class _SummaryViewState extends State<_SummaryView> {
   /// catalog-driven (blockInfo) — no fabrication.
   List<Widget> _blockInventory() {
     final byCat = <ViBlockCategory, List<BlockComponent>>{};
-    for (final c in widget.components) {
-      (byCat[blockInfo(c.tag).category] ??= []).add(c);
+    for (final component in widget.components) {
+      (byCat[blockInfo(component.tag).category] ??= []).add(component);
     }
     final cats = byCat.keys.toList()..sort((a, b) => a.name.compareTo(b.name));
     final rows = <Widget>[];
@@ -662,17 +662,17 @@ class _SummaryViewState extends State<_SummaryView> {
         child: Text(cat.name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: Color(0xFF4C8C4C))),
       ));
       final items = byCat[cat]!..sort((a, b) => a.tag.compareTo(b.tag));
-      for (final c in items) {
-        final info = blockInfo(c.tag);
-        final label = c.sectionCount > 1 ? '${c.tag} ×${c.sectionCount}' : c.tag;
-        rows.add(_kv('$label  ${info.name}', '${info.confidence.name} · ${_fmtSize(c.decompressedBytes)}'));
+      for (final item in items) {
+        final info = blockInfo(item.tag);
+        final label = item.sectionCount > 1 ? '${item.tag} ×${item.sectionCount}' : item.tag;
+        rows.add(_kv('$label  ${info.name}', '${info.confidence.name} · ${_fmtSize(item.decompressedBytes)}'));
       }
     }
     return rows;
   }
 
   void _openHex(BuildContext context, String tag) {
-    final matches = [for (final s in widget.sections) if (s.tag == tag) s]
+    final matches = [for (final section in widget.sections) if (section.tag == tag) section]
       ..sort((a, b) => b.length.compareTo(a.length));
     if (matches.isEmpty) return;
     showDialog<void>(
@@ -684,18 +684,18 @@ class _SummaryViewState extends State<_SummaryView> {
     );
   }
 
-  static Widget _kv(String k, String v) => Padding(
+  static Widget _kv(String label, String value) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 3),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(width: 140, child: Text(k, style: const TextStyle(color: Colors.grey))),
-            Expanded(child: Text(v)),
+            SizedBox(width: 140, child: Text(label, style: const TextStyle(color: Colors.grey))),
+            Expanded(child: Text(value)),
           ],
         ),
       );
 
-  static String _fmtSize(int n) => n >= 1024 ? '${(n / 1024).toStringAsFixed(1)} KB' : '$n B';
+  static String _fmtSize(int byteCount) => byteCount >= 1024 ? '${(byteCount / 1024).toStringAsFixed(1)} KB' : '$byteCount B';
 
   static Widget _cap(String label, bool on) => Chip(
         avatar: Icon(on ? Icons.check_circle : Icons.remove_circle_outline,

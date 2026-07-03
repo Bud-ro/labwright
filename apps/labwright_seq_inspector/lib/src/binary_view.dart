@@ -57,13 +57,13 @@ class BinaryView extends StatelessWidget {
         Expanded(
           child: ListView(
             children: [
-              for (final s in sections)
+              for (final section in sections)
                 ExpansionTile(
                   dense: true,
-                  title: Text('${s.title} (${s.items.length})',
+                  title: Text('${section.title} (${section.items.length})',
                       style: theme.textTheme.titleSmall),
                   children: [
-                    for (final item in s.items)
+                    for (final item in section.items)
                       ListTile(
                         dense: true,
                         visualDensity: VisualDensity.compact,
@@ -80,14 +80,14 @@ class BinaryView extends StatelessWidget {
                     const ListTile(
                         dense: true, title: Text('No strings recovered.'))
                   else
-                    for (final s in strings)
+                    for (final entry in strings)
                       ListTile(
                         dense: true,
                         visualDensity: VisualDensity.compact,
-                        leading: Text('0x${s.offset.toRadixString(16)}',
+                        leading: Text('0x${entry.offset.toRadixString(16)}',
                             style: monoStyle.copyWith(
                                 fontSize: 11, color: theme.hintColor)),
-                        title: SelectableText(s.text, style: monoStyle),
+                        title: SelectableText(entry.text, style: monoStyle),
                       ),
                 ],
               ),

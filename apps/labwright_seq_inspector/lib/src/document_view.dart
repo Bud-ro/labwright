@@ -17,17 +17,17 @@ String documentText(SeqDocument doc) {
         :final expressions,
         :final quotedLiterals,
       ):
-      final b = StringBuffer()
+      final out = StringBuffer()
         ..writeln('$header')
         ..writeln('binary TOF1 — record tree not yet decoded (recon view)')
         ..writeln('inflated body: $inflatedSize bytes · '
             '${stringTable.length} strings in the largest table');
       void section(String title, List<String> items) {
         if (items.isEmpty) return;
-        b
+        out
           ..writeln()
           ..writeln('$title (${items.length}; record links not yet decoded):');
-        writeCapped(b, items, (n) => n);
+        writeCapped(out, items, (n) => n);
       }
 
       section('recovered property/object names', objectNames);
@@ -35,11 +35,11 @@ String documentText(SeqDocument doc) {
       section('step references', stepReferences);
       section('expressions (test logic)', expressions);
       section('quoted literals (values)', quotedLiterals);
-      b
+      out
         ..writeln()
         ..writeln('largest string table:');
-      writeCapped(b, stringTable, (s) => s.text);
-      return b.toString();
+      writeCapped(out, stringTable, (s) => s.text);
+      return out.toString();
     case UnknownSeqDocument(:final header, :final error):
       return 'Not a recognized TestStand sequence.\n$header'
           '${error != null ? '\n\n$error' : ''}';
@@ -64,13 +64,13 @@ void writeCapped<T>(StringBuffer b, List<T> items, String Function(T) line) {
 
 /// A one-line title for a document (for the app bar / file label).
 String documentTitle(SeqDocument doc) {
-  final h = doc.header;
+  final header = doc.header;
   final kind = switch (doc) {
     StructuredSeqDocument(:final file) => '${file.sequences.length} sequences',
     BinarySeqDocument() => 'binary (recon)',
     UnknownSeqDocument() => 'unrecognized',
   };
-  return '${h.fileType ?? 'TestStand'} · ${h.format.name} · $kind';
+  return '${header.fileType ?? 'TestStand'} · ${header.format.name} · $kind';
 }
 
 /// The recovered-datum categories of a binary `TOF1` document as
@@ -88,19 +88,19 @@ List<({String title, List<String> items})> binaryRecoverySections(
     (
       title: 'Named scalar values',
       items: [
-        for (final s in doc.namedScalars)
-          '${s.name} = ${s.value}  (raw type ${s.rawTypeCode}, not modeled)',
+        for (final scalar in doc.namedScalars)
+          '${scalar.name} = ${scalar.value}  (raw type ${scalar.rawTypeCode}, not modeled)',
       ],
     ),
     (
       title: 'Inline numeric values',
-      items: [for (final v in doc.scalarDoubles) '$v'],
+      items: [for (final value in doc.scalarDoubles) '$value'],
     ),
     (
       title: 'Named-record headers',
       items: [
-        for (final r in doc.namedRecords)
-          '${r.name} ×${r.count}  (raw tag ${r.rawTag}, not modeled)',
+        for (final record in doc.namedRecords)
+          '${record.name} ×${record.count}  (raw tag ${record.rawTag}, not modeled)',
       ],
     ),
   ].where((s) => s.items.isNotEmpty).toList();
@@ -110,12 +110,12 @@ List<({String title, List<String> items})> binaryRecoverySections(
 /// small table. Pure. Only includes what the reader actually recovered (no
 /// build/compatible version is stored on the header yet, so it isn't shown).
 List<(String, String)> binaryHeaderRows(BinarySeqDocument doc) {
-  final h = doc.header;
+  final header = doc.header;
   return [
-    ('Encoding', h.format.name),
-    ('File type', h.fileType ?? '(not recovered)'),
-    ('Product', h.productName ?? '(not recovered)'),
-    if (h.fileVersion != null) ('File version', h.fileVersion!),
+    ('Encoding', header.format.name),
+    ('File type', header.fileType ?? '(not recovered)'),
+    ('Product', header.productName ?? '(not recovered)'),
+    if (header.fileVersion != null) ('File version', header.fileVersion!),
     (
       'Inflated body',
       doc.inflatedSize > 0 ? '${doc.inflatedSize} bytes' : '(not inflated)'
