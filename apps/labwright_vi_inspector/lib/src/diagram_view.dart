@@ -216,6 +216,17 @@ class _ViDiagramViewState extends State<ViDiagramView> {
           Text('$objectCount objects', style: const TextStyle(fontWeight: FontWeight.bold)),
           for (final entry in counts.entries)
             _LegendChip(color: _kindColor(entry.key), label: '${entry.key.name} ${entry.value}'),
+          const Tooltip(
+            message: 'Wire path geometry is not yet decoded from the heap — objects are\n'
+                'placed faithfully, but the connections between them cannot be drawn\n'
+                'honestly yet. Refuted so far: terminal typed-refs (0/2699), C4\n'
+                'point-list records (0/22557), binary blob attributes.',
+            child: Chip(
+              avatar: Icon(Icons.linear_scale, size: 14),
+              label: Text('wires: not yet decoded', style: TextStyle(fontSize: 11)),
+              visualDensity: VisualDensity.compact,
+            ),
+          ),
           SegmentedButton<DiagramRenderMode>(
             style: const ButtonStyle(visualDensity: VisualDensity.compact),
             segments: const [
@@ -343,6 +354,18 @@ Color _kindColor(ViObjectKind k) => switch (k) {
 
 Color _objectColor(ViHeapObject object) =>
     object.category == ViObjectKind.terminal && object.typeKind != ViTypeKind.unknown ? _typeColor(object.typeKind) : _kindColor(object.category);
+
+/// LabVIEW's canonical datatype colors, applied to terminals so the diagram
+/// reads like the original: orange = float, blue = int/enum, green-brown =
+/// path, yellow = call-library node. Unknown stays neutral (never guessed).
+Color labviewTypeColor(ViTypeKind kind) => switch (kind) {
+      ViTypeKind.numericFloat => const Color(0xFFFF8000),
+      ViTypeKind.numericInt => const Color(0xFF0066CC),
+      ViTypeKind.enumRing => const Color(0xFF0066CC),
+      ViTypeKind.path => const Color(0xFF669900),
+      ViTypeKind.clnNode => const Color(0xFFE8C547),
+      ViTypeKind.unknown => const Color(0xFF8A8A8A),
+    };
 
 /// The label drawn on a wireframe object. Structures (never text-labeled) show
 /// their catalog kind via [structureBadge] (so the wireframe reads as logic too,
@@ -493,21 +516,68 @@ class _DiagramPainter extends CustomPainter {
       canvas.drawRect(rectOf(object), Paint()..color = _kindColor(object.category).withValues(alpha: 0.10));
     }
     for (final object in structures) {
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(rectOf(object), const Radius.circular(5)),
+      // LabVIEW draws structures as a double-line frame; the badge tab at the
+      // top-left names the construct (While/For/Case) like the original's
+      // border furniture does.
+      final rect = rectOf(object);
+      final frame = _kindColor(ViObjectKind.structure);
+      canvas.drawRect(
+        rect,
         Paint()
-          ..color = _kindColor(ViObjectKind.structure).withValues(alpha: 0.85)
+          ..color = frame
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.5,
+          ..strokeWidth = 2.0,
+      );
+      canvas.drawRect(
+        rect.deflate(3),
+        Paint()
+          ..color = frame.withValues(alpha: 0.55)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.0,
       );
     }
     for (final object in solids) {
-      final rr = RRect.fromRectAndRadius(rectOf(object), const Radius.circular(2.5));
-      canvas.drawRRect(rr, Paint()..color = _objectColor(object).withValues(alpha: 0.92));
-      canvas.drawRRect(rr, Paint()
-        ..color = Colors.black.withValues(alpha: 0.5)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.8);
+      final rect = rectOf(object);
+      switch (object.category) {
+        case ViObjectKind.terminal:
+          // LabVIEW terminal: sharp rect, datatype fill, thin dark border, and
+          // the inner double-border that marks a control/indicator terminal.
+          final fill = object.typeKind == ViTypeKind.unknown
+              ? _kindColor(ViObjectKind.terminal)
+              : labviewTypeColor(object.typeKind);
+          canvas.drawRect(rect, Paint()..color = fill.withValues(alpha: 0.9));
+          canvas.drawRect(rect, Paint()
+            ..color = Colors.black.withValues(alpha: 0.65)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 0.8);
+          if (rect.width > 8 && rect.height > 8) {
+            canvas.drawRect(rect.deflate(2), Paint()
+              ..color = Colors.white.withValues(alpha: 0.7)
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 0.8);
+          }
+        case ViObjectKind.node:
+          // LabVIEW subVI/function node: pale icon plate with a firm border.
+          final rr = RRect.fromRectAndRadius(rect, const Radius.circular(1.5));
+          canvas.drawRRect(rr, Paint()..color = const Color(0xFFF6EDC8));
+          canvas.drawRRect(rr, Paint()
+            ..color = Colors.black.withValues(alpha: 0.75)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.0);
+          if (rect.width > 10 && rect.height > 10) {
+            canvas.drawRect(rect.deflate(2.5), Paint()
+              ..color = const Color(0x33805B10)
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 0.8);
+          }
+        default:
+          final rr = RRect.fromRectAndRadius(rect, const Radius.circular(2.5));
+          canvas.drawRRect(rr, Paint()..color = _objectColor(object).withValues(alpha: 0.92));
+          canvas.drawRRect(rr, Paint()
+            ..color = Colors.black.withValues(alpha: 0.5)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 0.8);
+      }
     }
     for (final object in objects) {
       final text = wireframeAnnotation(object);
