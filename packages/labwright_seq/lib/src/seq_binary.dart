@@ -743,9 +743,14 @@ enum _PropRecordField {
   /// Bytes 2..5: a `u32` that is always zero in a valid record (a framing guard).
   zeroA(2),
 
-  /// Bytes 6..9: the record `size` (`4` for a bare record, `6` for a valued one;
-  /// wider for containers). Bounded `2..16` on real records.
-  size(6),
+  /// Bytes 6..9: the record `kind` code — NOT a byte size. `Bool`/`Num`/`Str`
+  /// all read `6` when valued despite 1/8/4-byte values, so it classifies the
+  /// record's shape, not its length. Observed across the twins: `2` empty list,
+  /// `4` bare (no stored value), `6` scalar value present, `14` a special string
+  /// form; `36`/`66` are structured `Status`/`ReportText`/`CustomResults`
+  /// descriptor records (out of scope for the leaf decoder — see
+  /// tool/binary_record_map.dart).
+  kind(6),
 
   /// Bytes 10..13: a second always-zero `u32` framing guard.
   zeroB(10),
@@ -757,7 +762,8 @@ enum _PropRecordField {
   /// Bytes 18..21: the `u32` **pool index** of the property name.
   nameIndex(18),
 
-  /// Byte 22: where the inline value begins on a valued (`size >= 6`) record.
+  /// Byte 22: where the inline value begins on a scalar-valued record
+  /// ([kind] `>= _propScalarKind`).
   value(22);
 
   const _PropRecordField(this.offset);
@@ -771,19 +777,24 @@ enum _PropRecordField {
 const _propRecordLeads = {0x40, 0x44};
 const _propRecordFlagsWidth = 1;
 const _propTerminatorWidth = 2;
-const _propMinSize = 2;
-const _propMaxSize = 16;
 
-/// The value-carrying `size` at/above which a valued record has an inline value.
-const _propValuedSize = 6;
+/// The [_PropRecordField.kind] range the leaf decoder accepts: `2` (empty list)
+/// through `14` (special string). Structured descriptor kinds (`36`/`66`) sit
+/// above this and are left to the not-yet-decoded type/tree layer.
+const _propMinKind = 2;
+const _propMaxLeafKind = 16;
+
+/// The [_PropRecordField.kind] at/above which a record carries an inline scalar
+/// value (`6`); below it (`4` bare, `2` empty list) there is no stored value.
+const _propScalarKind = 6;
 
 /// A **decoded old-format TOF1 property record**: a leaf `name = value` pair with
 /// its TestStand type name, read by the fixed [_PropRecordField] grammar and
 /// resolved against the ordered NUL string pool.
 ///
 /// The value is a [bool] (`Bool`), a [double] (`Num`), a [String] (`Str`/`Path`/
-/// `Expr`, resolved from the pool), or `null` for a bare (`size == 4`) or
-/// container record that carries no inline value. Unlike [binaryScalarDoubles],
+/// `Expr`, resolved from the pool), or `null` for a bare ([_PropRecordField.kind]
+/// `4`) or container record that carries no inline value. Unlike [binaryScalarDoubles],
 /// which *guesses* numeric slots from clean bit patterns, this reads the record's
 /// declared type — so it recovers every value, including non-round doubles (e.g.
 /// TestStand's `Priority` default `2953567917`).
@@ -838,8 +849,9 @@ List<String> _orderedStringPool(Uint8List body, int recordRegionLength) {
 ///
 /// This is a **leaf-record scan**, not a tree parse: it walks the record region
 /// emitting every record matching the grammar's shape (a [_propRecordLeads] lead,
-/// two zero framing guards, in-range `size`, and pool-resolvable type/name
-/// indices), skipping unrecognized bytes. The **container nesting** that would
+/// two zero framing guards, a leaf-range [_PropRecordField.kind], and
+/// pool-resolvable type/name indices), skipping unrecognized bytes. The
+/// **container nesting** that would
 /// place each leaf in the sequence/step tree is **not yet decoded**, so records
 /// are returned flat, in file order; duplicate names at different tree positions
 /// are therefore indistinguishable here. Returns `[]` when [seqBytes] is not an
@@ -864,20 +876,20 @@ List<BinaryPropertyRecord> _propertyRecordsFromBody(Uint8List body, int recordRe
     final headerEnd = at + _PropRecordField.value.offset;
     if (_propRecordLeads.contains(body[at + _PropRecordField.lead.offset]) &&
         headerEnd <= recordRegionLength) {
-      final size = wordAt(at + _PropRecordField.size.offset);
+      final kind = wordAt(at + _PropRecordField.kind.offset);
       final typeIndex = wordAt(at + _PropRecordField.typeNameIndex.offset);
       final nameIndex = wordAt(at + _PropRecordField.nameIndex.offset);
       final framed = wordAt(at + _PropRecordField.zeroA.offset) == 0 &&
           wordAt(at + _PropRecordField.zeroB.offset) == 0 &&
-          size >= _propMinSize &&
-          size <= _propMaxSize &&
+          kind >= _propMinKind &&
+          kind <= _propMaxLeafKind &&
           typeIndex < pool.length &&
           nameIndex < pool.length;
       if (framed) {
         final typeName = pool[typeIndex];
         var consumed = _PropRecordField.value.offset;
         Object? value;
-        if (size >= _propValuedSize) {
+        if (kind >= _propScalarKind) {
           final valueAt = at + _PropRecordField.value.offset;
           switch (typeName) {
             case 'Str' || 'Path' || 'Expr':
