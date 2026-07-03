@@ -1037,6 +1037,68 @@ List<String> _sequenceNamesFromBody(Uint8List body, int recordRegionLength) {
   return names;
 }
 
+/// The UNIX-timestamp range accepted as a type-record save stamp (~2000-2040).
+/// The stamp is the file's typedef `timestamp` attribute — NOT a magic
+/// constant: it varies per file (on the OutputVoltage oracle it is
+/// 0x6259ecd3 == 1650060499, exactly the XML twin's `timestamp='1650060499'`).
+const _typeStampMin = 0x386D4380;
+const _typeStampMax = 0x83AA7E80;
+
+/// Type names are identifier-like tokens; this gates coincidental matches on
+/// newer-layout files whose candidate "name" word resolves to arbitrary text.
+final _typeNamePattern = RegExp(r'^[A-Za-z_][A-Za-z0-9_.\- ]*$');
+
+/// The **type names** defined by a binary TOF1 file, recovered from its type
+/// records. A type record opens `[u32 nameIdx][u32 ?][u32 timestamp]` followed
+/// by pool references to the typedef version strings — the same fields the XML
+/// encoding stores as `<TypeName timestamp='...' typeversion='21.0.0.49156'
+/// ...>`. Detection keys on the record SHAPE (pool-resolvable name +
+/// plausible save-timestamp + >=2 version-string references), not on any
+/// constant.
+///
+/// Corpus-validated on the content-exact OutputVoltage twin: 25 names
+/// recovered — the root typedefs of the XML typelist plus the step/parameter
+/// types the XML stores on steps (`NI_Measurement`, `NI_UpdatePinMap`,
+/// `NI_MeasurementParameter`, ...); every recovered name appears in the twin
+/// as a typedef element or a step/object `typename`. De-duplicated, in file
+/// order. Returns `[]` when [seqBytes] is not an inflatable binary file or
+/// does not frame.
+List<String> binaryTypeNames(Uint8List seqBytes) =>
+    _withLayout(seqBytes, _typeNamesFromBody);
+
+/// [binaryTypeNames] over an **already-inflated** [body] — the single-inflate
+/// path for parseSeqFile. Returns `[]` when the body does not frame.
+List<String> binaryTypeNamesFromBody(Uint8List body) {
+  final layout = _layoutFromBody(body);
+  if (layout == null) return const [];
+  return _typeNamesFromBody(body, layout.recordRegionLength);
+}
+
+List<String> _typeNamesFromBody(Uint8List body, int recordRegionLength) {
+  final pool = _orderedStringPool(body, recordRegionLength);
+  if (pool.isEmpty) return const [];
+  final view = ByteData.sublistView(body);
+  final versionLike = RegExp(r'^\d+\.\d+');
+  final seen = <String>{};
+  final names = <String>[];
+  for (var at = 0; at + 20 <= recordRegionLength; at++) {
+    final stamp = view.getUint32(at + 8, Endian.little);
+    if (stamp < _typeStampMin || stamp > _typeStampMax) continue;
+    final nameIndex = view.getUint32(at, Endian.little);
+    if (nameIndex == 0 || nameIndex >= pool.length) continue;
+    final name = pool[nameIndex];
+    if (name.isEmpty || !_typeNamePattern.hasMatch(name)) continue;
+    var versionRefs = 0;
+    for (var offset = 12; offset <= 32 && at + offset + 4 <= recordRegionLength; offset += 4) {
+      final word = view.getUint32(at + offset, Endian.little);
+      if (word < pool.length && versionLike.hasMatch(pool[word])) versionRefs++;
+    }
+    if (versionRefs < 2) continue;
+    if (seen.add(name)) names.add(name);
+  }
+  return names;
+}
+
 /// A step reference in the record region is a run of four `u32` pool-index words
 /// `Step / <kind> / <name> / <container>`: the `Step` token, then the step's kind
 /// (a TestStand unique-ID string, or `Expression`/`ExprValue`), then the step's
