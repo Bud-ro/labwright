@@ -37,6 +37,58 @@ class SeqFile {
   /// The root `Data` property object holding the file's contents.
   final SeqProperty data;
 
+  /// The process model file this sequence file uses (`Data.ModelFile`), e.g. a
+  /// `.seq` station-model path; null when it inherits the station default.
+  String? get modelFile => _nz(data.prop('ModelFile')?.scalar);
+
+  /// The model-option code (`Data.ModelOption`) — how the file selects its model
+  /// (use station model / require specific / none). Verbatim; NI-internal
+  /// code→name not invented. null when absent.
+  int? get modelOptionCode => int.tryParse(data.prop('ModelOption')?.scalar ?? '');
+
+  /// The file-wide default module load/unload options (`Data.LoadOpt` /
+  /// `Data.UnloadOpt`), e.g. `UseStepLoadOpt` — the fallback a step inherits when
+  /// it defers to the file. null when absent.
+  String? get loadOption => _nz(data.prop('LoadOpt')?.scalar);
+  String? get unloadOption => _nz(data.prop('UnloadOpt')?.scalar);
+
+  /// The file's content version string (`Data.Version`, e.g. `2022.2.9`) — the
+  /// TestStand version stamp on the file contents, distinct from the
+  /// header/format version ([SeqFileHeader.fileVersion]). null when absent.
+  String? get contentVersion => _nz(data.prop('Version')?.scalar);
+
+  /// The file's batch-synchronization code (`Data.BatchSync`). Verbatim;
+  /// NI-internal code→name not invented. null when absent.
+  int? get batchSyncCode => int.tryParse(data.prop('BatchSync')?.scalar ?? '');
+
+  /// The file-globals scope code (`Data.SFGlobalsScope`) governing how this
+  /// file's globals are shared. Verbatim; null when absent.
+  int? get sequenceFileGlobalsScopeCode =>
+      int.tryParse(data.prop('SFGlobalsScope')?.scalar ?? '');
+
+  /// The file-type code (`Data.Type`) classifying the sequence file (model /
+  /// ordinary / …). Verbatim; NI-internal code→name not invented. null when
+  /// absent.
+  int? get fileTypeCode => int.tryParse(data.prop('Type')?.scalar ?? '');
+
+  /// The requirement-traceability links the file declares (`Data.Requirements.
+  /// Links`). Empty when none.
+  List<String> get requirementLinks => [
+        for (final e in data.prop('Requirements')?.prop('Links')?.array ??
+            const <SeqProperty>[])
+          if (_nz(e.scalar) case final s?) s,
+      ];
+
+  /// The file's global variables (`Data.FileGlobalDefaults` children) — the
+  /// FileGlobals a sequence references as `FileGlobals.…`. Empty when the file
+  /// declares none. (The Semiconductor-Test-System resource block among them is
+  /// also surfaced, typed, via [measurementPlugIns].)
+  List<SeqVariable> get fileGlobals => [
+        for (final p in data.prop('FileGlobalDefaults')?.subProps ??
+            const <SeqProperty>[])
+          SeqVariable(p),
+      ];
+
   /// The sequences in the file (`Data > Seq` array). Empty if the path is absent
   /// (e.g. a type-palette file) — honest rather than throwing.
   List<Sequence> get sequences =>
@@ -147,8 +199,100 @@ class Sequence {
   List<SeqVariable> _vars(String group) =>
       [for (final p in raw.prop(group)?.subProps ?? const <SeqProperty>[]) SeqVariable(p)];
 
+  /// Whether the sequence records its steps' results into the report
+  /// (`RecordResults`). null when the sequence stores no value.
+  bool? get recordsResults => _flag(raw.prop('RecordResults')?.scalar);
+
+  /// Whether a step failure jumps straight to the Cleanup group
+  /// (`GotoCleanupOnFail`). null when unset.
+  bool? get gotoCleanupOnFail => _flag(raw.prop('GotoCleanupOnFail')?.scalar);
+
+  /// The sequence-level on-failure action code (`FailureAction`) — what the
+  /// sequence does when it fails. Surfaced verbatim; the NI-internal code→name
+  /// mapping is not invented. null when unset.
+  int? get failureActionCode => int.tryParse(raw.prop('FailureAction')?.scalar ?? '');
+
+  /// The requirement-traceability links the sequence declares
+  /// (`Requirements.Links`) — free-text requirement identifiers the sequence is
+  /// tagged with. Empty when the sequence declares none.
+  List<String> get requirementLinks => [
+        for (final e in raw.prop('Requirements')?.prop('Links')?.array ??
+            const <SeqProperty>[])
+          if (_nz(e.scalar) case final s?) s,
+      ];
+
+  /// The sequence's run-time / entry-point settings (`RTS`) — how it appears and
+  /// behaves as a callable entry point — or null when it carries none.
+  SequenceRuntimeSettings? get runtimeSettings {
+    final rts = raw.prop('RTS');
+    return rts == null ? null : SequenceRuntimeSettings(rts);
+  }
+
   @override
   String toString() => 'Sequence($name, ${steps.length} steps)';
+}
+
+/// A sequence's run-time / entry-point settings (`RTS`) — the editor's
+/// "Sequence Properties" run-time tab. A sequence usable as an *entry point*
+/// (e.g. `MainSequence`, a process-model callback) carries display rules for
+/// where it appears (`ShowEPFor…`), its menu name/hint, an enabled expression,
+/// and execution options (reentrancy optimization, priority). Every getter is
+/// null/empty when its field is absent — no fabricated default.
+class SequenceRuntimeSettings {
+  SequenceRuntimeSettings(this.raw);
+
+  /// The underlying `RTS` property object — full access to every field.
+  final SeqProperty raw;
+
+  bool? _bool(String key) => _flag(raw.prop(key)?.scalar);
+  String? _str(String key) => _nz(raw.prop(key)?.scalar);
+
+  /// The expression the editor evaluates to display the entry point's name
+  /// (`EPNameExpr`, e.g. `"MainSequence"`); null when unset.
+  String? get entryPointNameExpression => _str('EPNameExpr');
+
+  /// The expression that enables/disables the entry point (`EPEnabledExpr`);
+  /// null when unset.
+  String? get entryPointEnabledExpression => _str('EPEnabledExpr');
+
+  /// The entry point's menu hint/category (`EPMenuHint`); null when unset.
+  String? get entryPointMenuHint => _str('EPMenuHint');
+
+  /// Whether the entry point starts hidden (`EPInitiallyHidden`). null when unset.
+  bool? get entryPointInitiallyHidden => _bool('EPInitiallyHidden');
+
+  /// Where the entry point is offered — always (`ShowEPAlways`), in the editor
+  /// only (`ShowEPForEditorOnly`), in execution windows (`ShowEPForExeWin`), and
+  /// in file windows (`ShowEPForFileWin`). Each null when unset.
+  bool? get showEntryPointAlways => _bool('ShowEPAlways');
+  bool? get showEntryPointForEditorOnly => _bool('ShowEPForEditorOnly');
+  bool? get showEntryPointForExecutionWindow => _bool('ShowEPForExeWin');
+  bool? get showEntryPointForFileWindow => _bool('ShowEPForFileWin');
+
+  /// Whether the entry point may be run interactively (`AllowIntExeOfEP`). null
+  /// when unset.
+  bool? get allowInteractiveExecution => _bool('AllowIntExeOfEP');
+
+  /// Whether the editor copies steps when overriding the sequence
+  /// (`CopyStepsOnOverriding`). null when unset.
+  bool? get copyStepsOnOverriding => _bool('CopyStepsOnOverriding');
+
+  /// Whether the entry point prompts to save a titled file (`EPCheckToSaveTitledFile`)
+  /// / ignores its client (`EPIgnoreClient`). Each null when unset.
+  bool? get entryPointCheckToSaveTitledFile => _bool('EPCheckToSaveTitledFile');
+  bool? get entryPointIgnoreClient => _bool('EPIgnoreClient');
+
+  /// Whether non-reentrant calls into this sequence are optimized
+  /// (`OptimizeNonReentrantCalls`). null when unset.
+  bool? get optimizeNonReentrantCalls => _bool('OptimizeNonReentrantCalls');
+
+  /// The sequence's run priority (`Priority`) as the raw stored integer; null
+  /// when unset. The value is TestStand's internal priority encoding.
+  int? get priorityCode => int.tryParse(raw.prop('Priority')?.scalar ?? '');
+
+  /// The sequence run-time `Type` code; surfaced verbatim, NI-internal meaning
+  /// not invented. null when unset.
+  int? get typeCode => int.tryParse(raw.prop('Type')?.scalar ?? '');
 }
 
 /// A sequence variable — a local or a parameter. Locals/Parameters are property
@@ -218,6 +362,134 @@ class Step {
   /// in the corpus store none, so this is null for them.)
   String? get comment => _nz(raw.attributes['%COMMENT']);
 
+  /// The step's editor description (`Description`) — the one-line summary shown
+  /// in the step list, produced from the step type's
+  /// [StepTypeInfo.descriptionFormat] (e.g. `This sequence will automatically
+  /// login…`). null when the step records none. Distinct from the free-text
+  /// [comment].
+  String? get description => _nz(raw.prop('Description')?.scalar);
+
+  /// The step's active-state code (`Active`) governing whether it runs in the
+  /// normal flow. Surfaced verbatim; the NI-internal code→name mapping is not
+  /// invented (the run-mode override is exposed readably as [StepSettings.mode]).
+  /// null when unset.
+  int? get activeStateCode => int.tryParse(raw.prop('Active')?.scalar ?? '');
+
+  /// The pin map path the step pins its operation to (`PinMapPath`), for a
+  /// Semiconductor-Test-System step; null when unset.
+  String? get pinMapPath => _nz(raw.prop('PinMapPath')?.scalar);
+
+  /// The step type's serialized input-buffer template (`InBuf`) — an NI-internal
+  /// blob the editor uses when creating the step; surfaced raw (its internal
+  /// structure is not decoded). null when absent.
+  String? get inputBuffer => _nz(raw.prop('InBuf')?.scalar);
+
+  /// The step's editor category (`Category`, e.g. `Test`, `Action`) — how the
+  /// editor groups the step; null when unset.
+  String? get category => _nz(raw.prop('Category')?.scalar);
+
+  /// Whether the step suppresses the next step's result (`SuppressNextResult`).
+  /// null when unset.
+  bool? get suppressesNextResult => _flag(raw.prop('SuppressNextResult')?.scalar);
+
+  /// The precondition as last evaluated (`EvaluatedConditionExpr`) — the resolved
+  /// form of the step's precondition; null when absent.
+  String? get evaluatedConditionExpression =>
+      _nz(raw.prop('EvaluatedConditionExpr')?.scalar);
+
+  /// Whether the step's limit comparison is driven by an expression
+  /// (`UseCompExpr`) rather than a fixed operator; null when unset. Pairs with
+  /// [limits] and [StepLimits.lowExpression]/[StepLimits.highExpression].
+  bool? get usesComparisonExpression => _flag(raw.prop('UseCompExpr')?.scalar);
+
+  // --- Array / For-Each iteration step fields ---
+
+  /// For an array/For-Each iteration step: the subscript expression
+  /// (`SubscriptExpr`) selecting the element, the integer offset (`Offset`), the
+  /// iteration-type code (`IterationType`, verbatim), the local that restores the
+  /// element after the loop (`ElementRestorerLocal`), whether the data file
+  /// auto-closes at end (`AutoCloseAtEndofFile`), and a field-mapping expression
+  /// (`FieldMappingExpr`). Each null when absent.
+  String? get arraySubscriptExpression => _nz(raw.prop('SubscriptExpr')?.scalar);
+  int? get arrayOffset => int.tryParse(raw.prop('Offset')?.scalar ?? '');
+  int? get iterationTypeCode => int.tryParse(raw.prop('IterationType')?.scalar ?? '');
+  String? get elementRestorerLocal => _nz(raw.prop('ElementRestorerLocal')?.scalar);
+  bool? get autoClosesAtEndOfFile => _flag(raw.prop('AutoCloseAtEndofFile')?.scalar);
+  String? get fieldMappingExpression => _nz(raw.prop('FieldMappingExpr')?.scalar);
+
+  /// The runtime-evaluated forms TestStand caches for the step's array/loop
+  /// expressions (`EvaluatedArrayExpr` / `EvaluatedArrayElementExpr` /
+  /// `EvaluatedSubscriptExpr` / `EvaluatedOffsetExpr`) — the resolved counterparts
+  /// to the [FlowControl] expressions. Each null when absent.
+  String? get evaluatedArrayExpression => _nz(raw.prop('EvaluatedArrayExpr')?.scalar);
+  String? get evaluatedArrayElementExpression =>
+      _nz(raw.prop('EvaluatedArrayElementExpr')?.scalar);
+  String? get evaluatedSubscriptExpression =>
+      _nz(raw.prop('EvaluatedSubscriptExpr')?.scalar);
+  String? get evaluatedOffsetExpression => _nz(raw.prop('EvaluatedOffsetExpr')?.scalar);
+
+  // --- Wait / timeout and database step fields ---
+
+  /// For a Wait (or timeout-bearing) step: the timeout expression (`TimeoutExpr`),
+  /// whether the timeout is enabled (`TimeoutEnabled`), and whether a timeout
+  /// raises an error (`ErrorOnTimeout`). Each null when absent.
+  String? get timeoutExpression => _nz(raw.prop('TimeoutExpr')?.scalar);
+  bool? get timeoutEnabled => _flag(raw.prop('TimeoutEnabled')?.scalar);
+  bool? get errorsOnTimeout => _flag(raw.prop('ErrorOnTimeout')?.scalar);
+
+  /// For a database step: the statement / database handle expressions
+  /// (`StatementHandle` / `DatabaseHandle`, e.g. `Locals.SelectStatement`) the
+  /// step operates on. Each null when absent.
+  String? get statementHandle => _nz(raw.prop('StatementHandle')?.scalar);
+  String? get databaseHandle => _nz(raw.prop('DatabaseHandle')?.scalar);
+
+  /// Further database step fields: the SQL statement (`SQLStatement`, a literal or
+  /// expression), whether the statement requires parameters (`RequiresParameters`),
+  /// the fetch page size (`PageSize`), and the records-selected output expression
+  /// (`NumberOfRecordsSelected`). Each null when absent. The selected columns are
+  /// in the raw `ColumnList`.
+  String? get sqlStatement => _nz(raw.prop('SQLStatement')?.scalar);
+  bool? get requiresParameters => _flag(raw.prop('RequiresParameters')?.scalar);
+  int? get pageSize => int.tryParse(raw.prop('PageSize')?.scalar ?? '');
+  String? get numberOfRecordsSelectedExpression =>
+      _nz(raw.prop('NumberOfRecordsSelected')?.scalar);
+
+  /// The ADO recordset/command option codes for a database step
+  /// (`CommandTimeout`, `CommandType`, `LockType`, `CursorLocation`,
+  /// `CursorType`, `CacheSize`, `MarshalOptions`, `MaxRecordsToSelect`) — the
+  /// underlying ADO settings the Open/Statement step uses. Each surfaced verbatim
+  /// (the NI/ADO code→name mappings are not invented); null when absent. The
+  /// remote-connection and error records live in the raw `RemoteSettings` /
+  /// `StdError`.
+  int? get dbCommandTimeoutCode => int.tryParse(raw.prop('CommandTimeout')?.scalar ?? '');
+  int? get dbCommandTypeCode => int.tryParse(raw.prop('CommandType')?.scalar ?? '');
+  int? get dbLockTypeCode => int.tryParse(raw.prop('LockType')?.scalar ?? '');
+  int? get dbCursorLocationCode => int.tryParse(raw.prop('CursorLocation')?.scalar ?? '');
+  int? get dbCursorTypeCode => int.tryParse(raw.prop('CursorType')?.scalar ?? '');
+  int? get dbCacheSize => int.tryParse(raw.prop('CacheSize')?.scalar ?? '');
+  int? get dbMarshalOptionsCode => int.tryParse(raw.prop('MarshalOptions')?.scalar ?? '');
+  int? get dbMaxRecordsToSelect => int.tryParse(raw.prop('MaxRecordsToSelect')?.scalar ?? '');
+
+  // --- SequenceCall-by-reference / Run / Wait-on-thread-or-execution fields ---
+
+  /// For a Run/Wait step that references a sequence call by name: the referenced
+  /// SequenceCall step's name (`SeqCallName`) and step-group index code
+  /// (`SeqCallStepGroupIdx`), whether the target is specified by that sequence
+  /// call (`SpecifyBySeqCall`), and the wait-for-target code (`WaitForTarget`).
+  /// Each null when absent.
+  String? get referencedSequenceCallName => _nz(raw.prop('SeqCallName')?.scalar);
+  int? get referencedSequenceCallStepGroupCode =>
+      int.tryParse(raw.prop('SeqCallStepGroupIdx')?.scalar ?? '');
+  bool? get specifiesBySequenceCall => _flag(raw.prop('SpecifyBySeqCall')?.scalar);
+  int? get waitForTargetCode => int.tryParse(raw.prop('WaitForTarget')?.scalar ?? '');
+
+  /// For a Wait step targeting a thread/execution: the thread / execution
+  /// reference expressions (`ThreadRefExpr` / `ExecutionRefExpr`) and the wait
+  /// time expression (`TimeExpr`, seconds). Each null when absent.
+  String? get threadReferenceExpression => _nz(raw.prop('ThreadRefExpr')?.scalar);
+  String? get executionReferenceExpression => _nz(raw.prop('ExecutionRefExpr')?.scalar);
+  String? get waitTimeExpression => _nz(raw.prop('TimeExpr')?.scalar);
+
   /// The step's run-time settings (preconditions, looping, pass/fail actions),
   /// read from its `TS` (TestStand system) sub-container.
   StepSettings get settings => StepSettings(raw.prop('TS'));
@@ -227,10 +499,18 @@ class Step {
   /// SData.
   StepModule get module => StepModule.fromSData(raw.at(['TS', 'SData']));
 
+  /// The step **type** definition embedded alongside this step — its code
+  /// templates, menu placement, name/description formats, and (for flow-control
+  /// types) the block start/end step types. TestStand text/INI exports inline the
+  /// full type definition next to each step; this lens reads it out. See
+  /// [StepTypeInfo].
+  StepTypeInfo get typeInfo => StepTypeInfo(raw);
+
   /// The structured control-flow construct this step is, when it is one of the
-  /// `NI_Flow_*` step types (If/ElseIf/Else/While/For/ForEach/End/Break/Continue)
-  /// — with the recovered condition / loop expressions. null for an ordinary
-  /// (non-flow) step. See [FlowControl]; drives the nested logic export.
+  /// `NI_Flow_*` step types (If/ElseIf/Else/While/For/ForEach/Select/Case/End/
+  /// Break/Continue) — with the recovered condition / loop / case expressions.
+  /// null for an ordinary (non-flow) step. See [FlowControl]; drives the nested
+  /// logic export.
   FlowControl? get flowControl => FlowControl.fromStep(this);
 
   /// The test limits (pass/fail criteria) for a limit-test step, or null when
@@ -280,6 +560,12 @@ class Step {
     return [for (final p in kids) MeasurementParameter(p)];
   }
 
+  /// The registered name of the measurement a measurement step invokes
+  /// (`Measurement.Name`, e.g. `ni.examples.NIDCPowerSourceDCVoltage_Python`) —
+  /// the measurement plug-in's service identifier. null for a non-measurement
+  /// step or when unset.
+  String? get measurementName => _nz(raw.prop('Measurement')?.prop('Name')?.scalar);
+
   /// The step's "Additional Results" recording spec — the extra values it logs
   /// to the report. Collected from every `AdditionalResults` container in the
   /// step's subtree (these attach to module-call parameters, e.g. a Python or
@@ -318,23 +604,29 @@ enum FlowKind {
   doWhile('do-while'),
   forLoop('for'),
   forEach('for each'),
+  selectBlock('select'),
+  caseBlock('case'),
   end('end'),
   breakStmt('break'),
   continueStmt('continue');
 
   const FlowKind(this.label);
 
-  /// A short readable keyword (`if`, `for each`, `end`, …).
+  /// A short readable keyword (`if`, `for each`, `select`, `case`, `end`, …).
   final String label;
 
   /// Whether this construct opens a nested block (its body is the following
-  /// steps until the matching [end]).
+  /// steps until the matching [end]). A `Select` opens the switch; each `Case`
+  /// opens its own body — both are closed by their own `NI_Flow_End` (verified
+  /// by opener/end balance across the corpus).
   bool get opensBlock =>
       this == ifBlock ||
       this == whileLoop ||
       this == doWhile ||
       this == forLoop ||
-      this == forEach;
+      this == forEach ||
+      this == selectBlock ||
+      this == caseBlock;
 
   /// Whether this construct closes a block (`NI_Flow_End`).
   bool get closesBlock => this == end;
@@ -349,8 +641,9 @@ enum FlowKind {
 /// field locations (100% populated where applicable):
 /// `If`/`Else If`/`While` → `ConditionExpr`; `For` →
 /// `InitializationExpr`/`ConditionExpr`/`IncrementExpr`; `For Each` →
-/// `ArrayExpr`/`ArrayElementExpr`/`OffsetExpr`. These are clean expression
-/// strings — the sequence's actual control logic — drawn straight from the step.
+/// `ArrayExpr`/`ArrayElementExpr`/`OffsetExpr`; `Select`/`Case` → `ItemExpr`.
+/// These are clean expression strings — the sequence's actual control logic —
+/// drawn straight from the step.
 class FlowControl {
   FlowControl._(this.kind, this._node);
 
@@ -375,6 +668,8 @@ class FlowControl {
       'NI_Flow_DoWhile' => FlowKind.doWhile,
       'NI_Flow_For' => FlowKind.forLoop,
       'NI_Flow_ForEach' => FlowKind.forEach,
+      'NI_Flow_Select' => FlowKind.selectBlock,
+      'NI_Flow_Case' => FlowKind.caseBlock,
       'NI_Flow_End' => FlowKind.end,
       'NI_Flow_Break' || 'NI_Flow_Break_Custom' => FlowKind.breakStmt,
       'NI_Flow_Continue' => FlowKind.continueStmt,
@@ -400,6 +695,15 @@ class FlowControl {
   /// The `for each` element expression (`ArrayElementExpr`) — the loop variable.
   String? get arrayElement => _nz(_node?.prop('ArrayElementExpr')?.scalar);
 
+  /// The `select`/`case` expression (`ItemExpr`) — the value a `Select` switches
+  /// on, or the value a `Case` matches; null otherwise.
+  String? get itemExpression => _nz(_node?.prop('ItemExpr')?.scalar);
+
+  /// Whether this is the default `Case` (`IsDefault`) — the fall-through arm of a
+  /// `Select`; false/absent for an ordinary value case and for non-case kinds.
+  bool get isDefaultCase =>
+      kind == FlowKind.caseBlock && _flag(_node?.prop('IsDefault')?.scalar) == true;
+
   /// A readable one-line header for the construct, e.g. `if (Locals.x > 0)`,
   /// `for (Locals.i = 0; Locals.i < N; Locals.i += 1)`,
   /// `for each (Locals.e in RunState.…)`, `while (True)`, `end`.
@@ -416,6 +720,9 @@ class FlowControl {
       ].whereType<String>().join('; ')})',
     FlowKind.forEach =>
       'for each (${arrayElement ?? '?'} in ${arrayExpr ?? '?'})',
+    FlowKind.selectBlock => 'select (${itemExpression ?? ''})',
+    FlowKind.caseBlock =>
+      isDefaultCase ? 'case (default)' : 'case (${itemExpression ?? ''})',
     FlowKind.end => 'end',
     FlowKind.breakStmt => 'break',
     FlowKind.continueStmt => 'continue',
@@ -512,6 +819,11 @@ class MeasurementParameter {
     final elems = raw.prop('EnumDefinition')?.array ?? const <SeqProperty>[];
     return [for (final e in elems) (name: e.name, value: _nz(e.scalar))];
   }
+
+  /// The parameter's message-type token (`MessageType`) — the measurement
+  /// plug-in's classification of the parameter; null when unset (empty in the
+  /// current corpus, where the field is present but blank on most parameters).
+  String? get messageType => _nz(raw.prop('MessageType')?.scalar);
 }
 
 /// A step's recorded-result slot (`Result`) — the per-step outcome record. In a
@@ -532,6 +844,10 @@ class StepResult {
 
   /// The report text the step contributed (`ReportText`); null when unset.
   String? get reportText => _nz(raw.prop('ReportText')?.scalar);
+
+  /// The recorded pass/fail outcome (`PassFail`) for a pass/fail step; null when
+  /// the step records none (un-run, or not a pass/fail step).
+  bool? get passFail => _flag(raw.prop('PassFail')?.scalar);
 
   SeqProperty? get _error => raw.prop('Error');
 
@@ -559,6 +875,14 @@ class StepResult {
 
 String? _nz(String? s) => (s == null || s.isEmpty) ? null : s;
 
+/// Parses a TestStand boolean stored either as `true`/`false` (XML, any case) or
+/// `1`/`0` (some numeric flags). null when absent or unrecognized.
+bool? _flag(String? s) => switch (s?.toLowerCase()) {
+      'true' || '1' => true,
+      'false' || '0' => false,
+      _ => null,
+    };
+
 /// Unwraps a TestStand string-literal expression for display: strips one layer of
 /// surrounding quotes, whether backslash-escaped (`\"…\"`, as the INI form stores
 /// a quoted target after its own outer quotes are removed) or plain (`"…"`).
@@ -585,6 +909,7 @@ String? _unwrapExprString(String? s) {
 class StepLimits {
   StepLimits({
     this.comparison,
+    this.comparisonExpression,
     this.low,
     this.high,
     this.nominal,
@@ -595,6 +920,11 @@ class StepLimits {
 
   /// The comparison operator (`Comp`), e.g. `GELE`.
   final String? comparison;
+
+  /// The comparison as an expression (`CompExpr`), when the step selects its
+  /// operator dynamically (paired with [Step.usesComparisonExpression]); null
+  /// when the step uses the fixed [comparison] operator.
+  final String? comparisonExpression;
 
   /// Lower / upper / nominal limit values (`Limits.Low/High/Nominal`).
   final String? low;
@@ -610,6 +940,20 @@ class StepLimits {
   /// The raw `Limits` property for full access; null if the step had none.
   final SeqProperty? raw;
 
+  /// The expression forms of the limits (`Limits.LowExpr` / `HighExpr` /
+  /// `NominalExpr`) — when a limit is driven by an expression (e.g.
+  /// `Locals.Limits_DUT.__01_Power[1]`) rather than the literal [low]/[high]/
+  /// [nominal] value. null when the limit is a plain constant or absent.
+  String? get lowExpression => _nz(raw?.prop('LowExpr')?.scalar);
+  String? get highExpression => _nz(raw?.prop('HighExpr')?.scalar);
+  String? get nominalExpression => _nz(raw?.prop('NominalExpr')?.scalar);
+
+  /// Whether the low / high bound is taken from its expression form
+  /// (`Limits.UseLowExpr` / `UseHighExpr`) instead of the literal value. null when
+  /// unset.
+  bool? get usesLowExpression => _flag(raw?.prop('UseLowExpr')?.scalar);
+  bool? get usesHighExpression => _flag(raw?.prop('UseHighExpr')?.scalar);
+
   /// Whether the step carries any limit information.
   static StepLimits? fromStep(SeqProperty step) {
     final comp = _nz(step.prop('Comp')?.scalar);
@@ -617,6 +961,7 @@ class StepLimits {
     if (comp == null && lim == null) return null;
     return StepLimits(
       comparison: comp,
+      comparisonExpression: _nz(step.prop('CompExpr')?.scalar),
       low: _nz(lim?.prop('Low')?.scalar),
       high: _nz(lim?.prop('High')?.scalar),
       nominal: _nz(lim?.prop('Nominal')?.scalar),
@@ -744,6 +1089,17 @@ class StepModule {
   /// (`ViCall.ShowFrnPnl`). false when absent.
   bool get showsFrontPanel => _viCall?.prop('ShowFrnPnl')?.scalar == 'true';
 
+  /// Legacy LabVIEW VI adapter options, for older TestStand files that store the
+  /// VI directly on `SData` (a `ViPath` member, not nested under `ViCall`):
+  /// whether to show the front panel (`SData.ShowFrntPnl`) and whether to pass the
+  /// input buffer / invocation info / sequence-context pointer to the VI
+  /// (`SData.PassInBuf` / `PassInvocInfo` / `PassContextPtr`). Each null when
+  /// absent (a modern `ViCall` step records none). The VI path itself is [viPath].
+  bool? get legacyShowsFrontPanel => _sdFlag('ShowFrntPnl');
+  bool? get legacyPassesInputBuffer => _sdFlag('PassInBuf');
+  bool? get legacyPassesInvocationInfo => _sdFlag('PassInvocInfo');
+  bool? get legacyPassesContextPointer => _sdFlag('PassContextPtr');
+
   /// The LabVIEW VI call's connector-pane parameters (`ViCall.Parms`), in
   /// declaration order — the terminals wired to the subVI. Each [CallParameter]
   /// exposes its label, display type, bound expression and connector index. The
@@ -780,6 +1136,178 @@ class StepModule {
   /// (`PythonCall.PythonVirtualEnvironmentPath`); null when none is configured.
   String? get pythonVenvPath =>
       _nz(_pyCall?.prop('PythonVirtualEnvironmentPath')?.scalar);
+
+  /// The on-disk source file backing the step's code module (`SData.ModuleSrcPath`,
+  /// e.g. `numericTests.c`, `64BitSupport\64BitSupport.cpp`) — the C/C++ source
+  /// the DLL was built from, where the editor records it. null when absent (the
+  /// adapter records the *built* module elsewhere, e.g. [libPath]).
+  String? get moduleSourcePath => _nz(raw?.prop('ModuleSrcPath')?.scalar);
+
+  /// The project/solution file the code module builds from (`SData.ModulePrjPath`,
+  /// e.g. `64BitSupport\64BitSupport.vcproj`); null when absent.
+  String? get moduleProjectPath => _nz(raw?.prop('ModulePrjPath')?.scalar);
+
+  /// The source-creation-type code (`SData.ModuleCreateSrcType`) recording how the
+  /// module's source was created/linked. Verbatim; the NI-internal code→name
+  /// mapping is not invented. null when absent.
+  int? get moduleSourceTypeCode =>
+      int.tryParse(_nz(raw?.prop('ModuleCreateSrcType')?.scalar) ?? '');
+
+  String? _sd(String key) => _nz(raw?.prop(key)?.scalar);
+  bool? _sdFlag(String key) => _flag(raw?.prop(key)?.scalar);
+  int? _sdInt(String key) => int.tryParse(raw?.prop(key)?.scalar ?? '');
+
+  // --- SequenceCall adapter: which sequence is called, and how it's specified ---
+
+  /// For a SequenceCall step that names its target *by expression*, the sequence
+  /// name (`SData.SeqNameExpr`) and sequence-file path (`SData.SFPathExpr`)
+  /// expressions; null when the call names a literal target ([sequenceName] /
+  /// [sequenceFile]) instead. Paired with [specifiesByExpression].
+  String? get sequenceNameExpression => _sd('SeqNameExpr');
+  String? get sequenceFileExpression => _sd('SFPathExpr');
+
+  /// Whether the SequenceCall specifies its target by expression
+  /// (`SData.SpecifyByExpr`) rather than by a fixed name/path. null when absent.
+  bool? get specifiesByExpression => _sdFlag('SpecifyByExpr');
+
+  /// Whether the SequenceCall targets a sequence in the current file
+  /// (`SData.UseCurFile`) rather than an external file. null when absent.
+  bool? get usesCurrentFile => _sdFlag('UseCurFile');
+
+  /// Whether the call binds arguments through a declared prototype
+  /// (`SData.UsePrototype`). null when absent. The prototype's parameter list and
+  /// the call's actual arguments are [prototype] / [actualArguments].
+  bool? get usesPrototype => _sdFlag('UsePrototype');
+
+  /// The called sequence's parameter prototype (`SData.Prototype`) and the actual
+  /// arguments this call binds to it (`SData.ActualArgs`), as raw structure; null
+  /// when the step declares none.
+  SeqProperty? get prototype => raw?.prop('Prototype');
+  SeqProperty? get actualArguments => raw?.prop('ActualArgs');
+
+  // --- Threading / asynchronous execution ---
+
+  /// The threading option code (`SData.ThreadOpt`) — run in the same thread, a
+  /// new thread, or a new execution. Verbatim; NI-internal code→name not
+  /// invented. null when absent.
+  int? get threadOptionCode => _sdInt('ThreadOpt');
+
+  /// The execution-model option code (`SData.ExecModelOpt`). Verbatim; null when
+  /// absent.
+  int? get executionModelOptionCode => _sdInt('ExecModelOpt');
+
+  /// Whether a spawned thread starts suspended (`SData.CreateThreadSuspended`) /
+  /// is auto-waited as async (`SData.AutoWaitAsync`). Each null when absent.
+  bool? get createsThreadSuspended => _sdFlag('CreateThreadSuspended');
+  bool? get autoWaitsAsync => _sdFlag('AutoWaitAsync');
+
+  /// The expression naming the asynchronous thread the call spawns
+  /// (`SData.AsyncThreadExpr`); null when absent.
+  String? get asyncThreadExpression => _sd('AsyncThreadExpr');
+
+  /// The step's tracing setting (`SData.Trace`, e.g. `Off`, `Don't Change`) — how
+  /// the call affects execution tracing; null when absent.
+  String? get traceMode => _sd('Trace');
+
+  /// Whether the call ignores a Terminate request while running
+  /// (`SData.IgnoreTerminate`). null when absent.
+  bool? get ignoresTerminate => _sdFlag('IgnoreTerminate');
+
+  // --- Remote execution ---
+
+  /// Whether the step executes on a remote host (`SData.RemoteExecution`), and
+  /// the host it targets — a literal (`SData.RemoteHost`) or an expression
+  /// (`SData.RemoteHostExpr`, selected by `SData.SpecifyHostByExpr`). Each null
+  /// when absent.
+  bool? get remoteExecution => _sdFlag('RemoteExecution');
+  String? get remoteHost => _sd('RemoteHost');
+  String? get remoteHostExpression => _sd('RemoteHostExpr');
+  bool? get specifiesHostByExpression => _sdFlag('SpecifyHostByExpr');
+
+  /// Whether the call executes synchronously (`SData.ExecSync`) and, for an
+  /// async call, its apartment-threading / affinity options
+  /// (`AsyncApartmentThreaded`, `ThreadAffinityOption` code, `CustomThreadAffinity`).
+  /// Each null when absent.
+  bool? get executesSynchronously => _sdFlag('ExecSync');
+  bool? get asyncApartmentThreaded => _sdFlag('AsyncApartmentThreaded');
+  int? get threadAffinityOptionCode => _sdInt('ThreadAffinityOption');
+  String? get customThreadAffinity => _sd('CustomThreadAffinity');
+
+  /// The new-execution model the call runs under, when it spawns one: the
+  /// execution-type mask (`ExecTypeMask`, or `ExecTypeMaskExpr`), the model
+  /// `.seq` path (`ExecModelPath`, or `ExecModelPathExpr`), and the break-on-entry
+  /// expression (`ExecBreakOnEntryExpr`). Each null when absent.
+  int? get executionTypeMaskCode => _sdInt('ExecTypeMask');
+  String? get executionTypeMaskExpression => _sd('ExecTypeMaskExpr');
+  String? get executionModelPath => _sd('ExecModelPath');
+  String? get executionModelPathExpression => _sd('ExecModelPathExpr');
+  String? get executionBreakOnEntryExpression => _sd('ExecBreakOnEntryExpr');
+
+  // --- LabVIEW VI-call remote / real-time deployment ---
+
+  /// For a VI call deployed to a remote / LabVIEW Real-Time target: the remote VI
+  /// path (`ViCall.RemoteVIPath`), the host (`ViCall.RemoteHost`, or by expression
+  /// when `ViCall.RemoteHostByExpr`), whether the adapter auto-detects the RT
+  /// engine (`ViCall.AutoDetectLVRT`), and the node operation mode
+  /// (`ViCall.NodeOperationMode`, a verbatim code). Each null when absent.
+  String? get viRemoteVIPath => _nz(_viCall?.prop('RemoteVIPath')?.scalar);
+  String? get viRemoteHost => _nz(_viCall?.prop('RemoteHost')?.scalar);
+  bool? get viRemoteHostByExpression => _flag(_viCall?.prop('RemoteHostByExpr')?.scalar);
+  bool? get viAutoDetectRealTime => _flag(_viCall?.prop('AutoDetectLVRT')?.scalar);
+  int? get viNodeOperationModeCode =>
+      int.tryParse(_viCall?.prop('NodeOperationMode')?.scalar ?? '');
+
+  /// The VI-call type / VI type codes (`ViCall.CallType` / `VIType`) classifying
+  /// the call (e.g. standard VI vs. malleable/class node) and the LabVIEW class
+  /// the VI belongs to (`ViCall.ClassPath`) with its remote project
+  /// (`ViCall.RemoteProjectPath`). Codes verbatim; NI-internal meaning not
+  /// invented. Each null when absent. Further LabVIEW VI-node descriptor fields
+  /// remain available on [raw] (`SData.ViCall`).
+  int? get viCallTypeCode => int.tryParse(_viCall?.prop('CallType')?.scalar ?? '');
+  int? get viTypeCode => int.tryParse(_viCall?.prop('VIType')?.scalar ?? '');
+  String? get viClassPath => _nz(_viCall?.prop('ClassPath')?.scalar);
+  String? get viRemoteProjectPath => _nz(_viCall?.prop('RemoteProjectPath')?.scalar);
+
+  /// The Python adapter's default parameter category for array arguments
+  /// (`PythonCall.DefaultParamCategoryForArray`), as a verbatim code; null when
+  /// absent.
+  int? get pythonDefaultParamCategoryForArrayCode =>
+      int.tryParse(_pyCall?.prop('DefaultParamCategoryForArray')?.scalar ?? '');
+
+  /// The code-template the module was generated from (`SData.CodeTemplateName`),
+  /// the module workspace/project root (`SData.ModuleWorkspacePath`), and the
+  /// always-run-in-process code (`SData.AlwaysRunInProcess`, verbatim). Each null
+  /// when absent.
+  String? get codeTemplateName => _sd('CodeTemplateName');
+  String? get moduleWorkspacePath => _sd('ModuleWorkspacePath');
+  int? get alwaysRunInProcessCode => _sdInt('AlwaysRunInProcess');
+
+  // --- Python adapter session settings ---
+
+  /// Where the Python interpreter session is located/scoped
+  /// (`PythonCall.InterpreterLocation` / `ClassInstanceLocation`); null when
+  /// absent or for a non-Python step.
+  String? get pythonInterpreterLocation => _nz(_pyCall?.prop('InterpreterLocation')?.scalar);
+  String? get pythonClassInstanceLocation =>
+      _nz(_pyCall?.prop('ClassInstanceLocation')?.scalar);
+
+  /// Python session option codes — the operation type/scope
+  /// (`PythonCall.OperationType` / `OperationScope`) and interpreter-session
+  /// scope (`InterpreterSessionScope`). Verbatim; NI-internal code→name not
+  /// invented. Each null when absent.
+  int? get pythonOperationTypeCode => int.tryParse(_pyCall?.prop('OperationType')?.scalar ?? '');
+  int? get pythonOperationScopeCode => int.tryParse(_pyCall?.prop('OperationScope')?.scalar ?? '');
+  int? get pythonInterpreterSessionScopeCode =>
+      int.tryParse(_pyCall?.prop('InterpreterSessionScope')?.scalar ?? '');
+
+  /// Whether the Python adapter creates the interpreter if absent
+  /// (`PythonCall.CreateIfInterpreterDoesNotExist`) and uses the adapter's
+  /// settings for the session (`UseAdapterSettingsForInterpreterSession`). Each
+  /// null when absent.
+  bool? get pythonCreatesInterpreterIfMissing =>
+      _flag(_pyCall?.prop('CreateIfInterpreterDoesNotExist')?.scalar);
+  bool? get pythonUsesAdapterSessionSettings =>
+      _flag(_pyCall?.prop('UseAdapterSettingsForInterpreterSession')?.scalar);
 
   static String? _e(String? s) => (s == null || s.isEmpty) ? null : s;
 
@@ -894,6 +1422,52 @@ class CallParameter {
         '3' => 'in/out',
         _ => null,
       };
+
+  int? _int(String key) => int.tryParse(_nz(raw.prop(key)?.scalar) ?? '');
+
+  /// The editor's display rendering of the bound value (`ArgDisplayVal`, the
+  /// ActiveX/C adapter; `ArgumentDisplayValue`, the Python adapter) — the
+  /// formatted form shown next to the parameter, distinct from the live
+  /// [boundExpression]. null when absent.
+  String? get displayValue =>
+      _nz(raw.prop('ArgDisplayVal')?.scalar) ??
+      _nz(raw.prop('ArgumentDisplayValue')?.scalar);
+
+  /// The editor caption for the parameter/connector terminal (`Caption`), e.g. a
+  /// LabVIEW control label; null when absent.
+  String? get caption => _nz(raw.prop('Caption')?.scalar);
+
+  /// The parameter's TestStand data-type code (`Type`) — the broad kind of the
+  /// C/LabVIEW connector value. Surfaced verbatim; the code→name mapping is
+  /// NI-internal and not invented. null when absent.
+  int? get typeCode => _int('Type');
+
+  /// Sub-type codes refining [typeCode] for a C-module / VI-call connector: the
+  /// numeric-format code (`NumType`), the object/reference-type code (`ObjType`),
+  /// and the struct/cluster-type code (`StructType`). Each verbatim; null when
+  /// absent. Their NI-internal meanings are not invented.
+  int? get numberTypeCode => _int('NumType');
+  int? get objectTypeCode => _int('ObjType');
+  int? get structTypeCode => _int('StructType');
+
+  /// The parameter descriptor's flags word (`Flags`) — a packed bit set of
+  /// per-parameter options. Surfaced verbatim as an integer; the individual bit
+  /// meanings are NI-internal and not decoded here. null when absent.
+  int? get flagsCode => _int('Flags');
+
+  /// The number of elements (`NumEls`) for an array parameter; null when absent
+  /// (a scalar parameter records none).
+  int? get elementCount => _int('NumEls');
+
+  /// The parameter's result-action code (`ResultAct`) — how the call's value for
+  /// this parameter feeds the step result. Verbatim; null when absent.
+  int? get resultActionCode => _int('ResultAct');
+
+  /// The parameter's "additional results" recording spec (`AdditionalResults`),
+  /// with `Input`/`Output` sub-objects, or null when the parameter records none.
+  /// Surfaced as raw structure; the per-side `Flags`/`CheckedState` codes are
+  /// NI-internal and not decoded.
+  SeqProperty? get additionalResults => raw.prop('AdditionalResults');
 
   @override
   String toString() =>
@@ -1055,6 +1629,213 @@ class StepSettings {
   /// paired with [usesMutex]; null when no mutex is configured (empty in the
   /// current corpus, since no step uses one).
   String? get mutexName => _scalar('MutexNameOrRef');
+
+  /// Parses an integer TS step-setting (an option *code*). null when absent or
+  /// non-numeric. TestStand stores many enumerated step options as small
+  /// integers; the code is surfaced verbatim — its `name` is NI-internal and is
+  /// not invented here (see the per-accessor docs for the option each selects).
+  int? _int(String key) => int.tryParse(_scalar(key) ?? '');
+
+  // --- Edit-permission flags (what a sequence editor may change on the step) ---
+
+  /// Whether the step type permits editing the step's code module
+  /// (`CanEditCode`). null when unset. Part of TestStand's step-type permission
+  /// set — `true` for ordinary steps.
+  bool? get canEditCode => _bool('CanEditCode');
+
+  /// Whether the step's module *prototype* (its parameter list) may be edited
+  /// (`CanEditModulePrototype`). null when unset.
+  bool? get canEditModulePrototype => _bool('CanEditModulePrototype');
+
+  /// Whether the user may (re)specify which code module the step calls
+  /// (`CanSpecifyModule`). null when unset; `false` for steps whose module is
+  /// fixed by their type.
+  bool? get canSpecifyModule => _bool('CanSpecifyModule');
+
+  /// Whether the step's parameter "additional results" recording may be edited
+  /// (`CanEditParameterAdditionalResults`). null when unset.
+  bool? get canEditParameterAdditionalResults =>
+      _bool('CanEditParameterAdditionalResults');
+
+  // --- Switch/IVI settings (the editor's "Switching" step tab) ---
+
+  /// Whether IVI switching is enabled for the step (`SwitchEnabled`) — the
+  /// "use switching" toggle. null when unset; `false` is the common default.
+  bool? get switchEnabled => _bool('SwitchEnabled');
+
+  /// The switch operation code (`SwitchOperation`) selecting connect/disconnect/
+  /// disconnect-all behaviour around the step. null when unset; raw NI code.
+  int? get switchOperationCode => _int('SwitchOperation');
+
+  /// The multi-connect mode code (`MulticonnectMode`) governing whether multiple
+  /// connections may coexist on a route. null when unset; raw NI code.
+  int? get multiconnectModeCode => _int('MulticonnectMode');
+
+  /// The connect/disconnect ordering code (`OperationOrder`) — when switching
+  /// happens relative to the step. null when unset; raw NI code.
+  int? get switchOperationOrderCode => _int('OperationOrder');
+
+  /// The connection-lifetime code (`ConnectionLifetime`) — how long a switch
+  /// connection persists (step / sequence / …). null when unset; raw NI code.
+  int? get connectionLifetimeCode => _int('ConnectionLifetime');
+
+  /// Whether the step waits for switch debounce before proceeding
+  /// (`WaitForDebounce`). null when unset.
+  bool? get waitForDebounce => _bool('WaitForDebounce');
+
+  /// The IVI virtual device name the switching targets (`VirtualDeviceName`);
+  /// null when switching is unused/empty. A name or TestStand expression.
+  String? get virtualDeviceName => _scalar('VirtualDeviceName');
+
+  /// The route group to connect / disconnect for the step (`RouteGroupConnect` /
+  /// `RouteGroupDisconnect`); null when unused. A name or TestStand expression.
+  String? get routeGroupConnect => _scalar('RouteGroupConnect');
+  String? get routeGroupDisconnect => _scalar('RouteGroupDisconnect');
+
+  // --- Execution / batch / window options ---
+
+  /// The batch-synchronization code (`BatchSyncOpt`) for the step under a batch
+  /// process model (serial / parallel / one-thread-only). null when unset; raw
+  /// NI code.
+  int? get batchSyncCode => _int('BatchSyncOpt');
+
+  /// The post-action loop option code (`LoopOpt`). null when unset; raw NI code.
+  int? get loopOptionCode => _int('LoopOpt');
+
+  /// The precondition interactive-execution code (`PrecondIntExe`) — whether the
+  /// precondition is honoured when the step is run interactively. null when
+  /// unset; raw NI code.
+  int? get preconditionInteractiveCode => _int('PrecondIntExe');
+
+  /// The window-activation setting (`WindowActivation`), e.g. `None` — how the
+  /// step affects the application window. null when unset.
+  String? get windowActivation => _scalar('WindowActivation');
+
+  /// Whether the step is marked to produce no result entry (`NoResult`) — it is
+  /// excluded from the result list / report. null when unset; the complement of
+  /// [recordsResult] for step types that use this flag.
+  bool? get producesNoResult => _bool('NoResult');
+
+  /// The human-readable module adapter the step uses (`Adapter`, e.g.
+  /// `Sequence Adapter`, `DLL Flexible Prototype Adapter`, `G Std Prototype
+  /// Adapter`, `None Adapter`) — the editor's "Module Adapter" label. null when
+  /// unset. The decoded binding is exposed via [Step.module]/[StepModule.adapter].
+  String? get adapterName => _scalar('Adapter');
+
+  /// Whether the step has a code module configured (`HasModule`). null when unset.
+  bool? get hasModule => _bool('HasModule');
+
+  /// The requirement-traceability links the step declares (`TS.Requirements.
+  /// Links`). Empty when none.
+  List<String> get requirementLinks => [
+        for (final e in _ts?.prop('Requirements')?.prop('Links')?.array ??
+            const <SeqProperty>[])
+          if (_nz(e.scalar) case final s?) s,
+      ];
+}
+
+/// A step **type** definition as embedded next to a step in a TestStand
+/// text/INI (and some XML) export — the metadata that defines the *kind* of step
+/// rather than this instance's configuration. TestStand inlines the whole type
+/// definition with each step, so the same fields repeat across every step of a
+/// type; this lens reads the meaningful ones. Every getter is null/empty when
+/// its field is absent.
+class StepTypeInfo {
+  StepTypeInfo(this.raw);
+
+  /// The step property object — the type-definition fields are flat siblings of
+  /// `TS` directly under the step.
+  final SeqProperty raw;
+
+  String? _str(String key) => _nz(raw.prop(key)?.scalar);
+
+  /// The code-template names the step type offers (`CodeTemplates`), split from
+  /// the stored `|`-delimited list (e.g. `PassFailLabVIEW|PassFailCVI|…`). These
+  /// name the per-language module skeletons the editor can generate. Empty when
+  /// the type defines none.
+  List<String> get codeTemplates {
+    final s = _str('CodeTemplates');
+    if (s == null) return const [];
+    return [for (final t in s.split('|')) if (t.trim().isNotEmpty) t.trim()];
+  }
+
+  /// The expression that formats the step's editor description
+  /// (`DescriptionFormat`, e.g. `ResStr("NI_STEPTYPES","PASSFAIL_DESCRIPTION…")`
+  /// or `"%ModuleDescription"`); null when unset.
+  String? get descriptionFormat => _str('DescriptionFormat');
+
+  /// The expression that formats a new step's default name (`DefaultNameFormat`);
+  /// null when unset.
+  String? get defaultNameFormat => _str('DefaultNameFormat');
+
+  /// For a flow-control step type, the step types that open / close a block this
+  /// type participates in (`BlockStartTypes` / `BlockEndTypes`), each split from
+  /// the stored comma-delimited list of `NI_Flow_*` type names. Empty for a
+  /// non-block type.
+  List<String> get blockStartTypes => _csv('BlockStartTypes');
+  List<String> get blockEndTypes => _csv('BlockEndTypes');
+
+  List<String> _csv(String key) {
+    final s = _str(key);
+    if (s == null) return const [];
+    return [for (final t in s.split(',')) if (t.trim().isNotEmpty) t.trim()];
+  }
+
+  /// Whether this step type participates in a block structure
+  /// (`AppliesToBlockStructure`) / may encapsulate other steps (`CanEncapsulate`).
+  /// Each null when unset.
+  bool? get appliesToBlockStructure => _flag(raw.prop('AppliesToBlockStructure')?.scalar);
+  bool? get canEncapsulate => _flag(raw.prop('CanEncapsulate')?.scalar);
+
+  /// The editor edit-panel class names the step type registers
+  /// (`NI_Data.EditPanels`) — the configuration tabs shown for the step. Empty
+  /// when the type defines none.
+  List<String> get editPanels => [
+        for (final e in raw.prop('NI_Data')?.prop('EditPanels')?.array ??
+            const <SeqProperty>[])
+          if (_nz(e.scalar) case final s?) s,
+      ];
+
+  /// The step type's Insertion-menu placement (`Menu`), or null when it carries
+  /// none. See [StepTypeMenu].
+  StepTypeMenu? get menu {
+    final m = raw.prop('Menu');
+    return m == null ? null : StepTypeMenu(m);
+  }
+}
+
+/// A step type's Insertion Palette / menu placement (`Menu`) — where the type
+/// appears in the editor's "Insert Step" menu and how it is labelled.
+class StepTypeMenu {
+  StepTypeMenu(this.raw);
+
+  /// The underlying `Menu` property object.
+  final SeqProperty raw;
+
+  String? _str(String key) => _nz(raw.prop(key)?.scalar);
+
+  /// The menu group the step type is filed under (`Group`, e.g. `Tests`,
+  /// `NI_FlowControl`); null when unset.
+  String? get group => _str('Group');
+
+  /// The menu sub-category within [group] (`Category`); null/empty when unset.
+  String? get category => _str('Category');
+
+  /// The menu item label (`ItemName`) — usually a `ResStr(...)` localization
+  /// expression or a literal name; null when unset.
+  String? get itemName => _str('ItemName');
+
+  /// The singular form of [itemName] (`SingularItemName`); null/empty when unset.
+  String? get singularItemName => _str('SingularItemName');
+
+  /// The module adapter the menu entry creates the step with (`Adapter`, e.g.
+  /// `Sequence Adapter`, `None Adapter`); null when unset.
+  String? get adapter => _str('Adapter');
+
+  /// Whether the type may be used as a substep type (`CanBeSubstepType`) / may
+  /// *only* be a substep type (`CanOnlyBeSubstepType`). Each null when unset.
+  bool? get canBeSubstepType => _flag(raw.prop('CanBeSubstepType')?.scalar);
+  bool? get canOnlyBeSubstepType => _flag(raw.prop('CanOnlyBeSubstepType')?.scalar);
 }
 
 /// A `<typelist>` type definition: a named type and the fields it declares.
