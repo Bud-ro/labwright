@@ -59,6 +59,25 @@ void main() {
         reason: 'the grammar must recover inline values, not just names');
   });
 
+  test('every decoded record is well-formed (no framing false positives)', () {
+    // The skip-a-byte resync could in principle match a coincidental 0x40 lead
+    // with zero framing words. Guard against that class of garbage directly,
+    // since the twin cross-check below only inspects names it can find in the
+    // XML: names/types must be printable identifiers and no Num may be NaN/inf.
+    final printable = RegExp(r'^[\x20-\x7e]+$');
+    for (final record in records) {
+      expect(record.name, matches(printable),
+          reason: 'garbage name at offset ${record.offset}: ${record.name.codeUnits}');
+      expect(record.typeName, matches(printable),
+          reason: 'garbage type at offset ${record.offset}');
+      final value = record.value;
+      if (value is double) {
+        expect(value.isFinite, isTrue,
+            reason: 'non-finite Num for ${record.name} at ${record.offset}');
+      }
+    }
+  });
+
   test('every decoded value matches the content-exact XML twin', () {
     // A binary value is confirmed when the XML records that exact value for the
     // same property somewhere in the tree. (A flat scan cannot pin WHICH
