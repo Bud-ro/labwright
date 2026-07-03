@@ -88,6 +88,9 @@ class _TypesViewState extends State<TypesView> {
           child: shown.isEmpty
               ? const Center(child: Text('No matching types.'))
               : ListView.builder(
+                  // Forces a rebuild on query change so ExpansionTiles pick up the new
+                  // force-expanded state while filtering; removing this silently
+                  // breaks filter expansion.
                   key: ValueKey(_query),
                   padding: const EdgeInsets.all(8),
                   itemCount: shown.length,

@@ -237,7 +237,13 @@ enum HeapObjectClass {
   /// multi-segment wire is a run of consecutive `0x1d` siblings whose
   /// endpoints chain (verified 4741 exact end-to-start links in one source),
   /// with the vertical connector implicit between consecutive runs. The wire's
-  /// datatype and its endpoint binding to terminals are not yet decoded.
+  /// datatype and its endpoint binding to terminals are not yet decoded, and
+  /// the **absolute-coordinate anchoring is unverified** — rendered samples
+  /// show some runs composing outside the diagram when treated like object
+  /// bounds, so wire coords may be relative to a different ancestor frame.
+  /// (Refuted encodings, corpus-probed: terminal typed-refs 0/2699; framed C4
+  /// point-list payloads 0/22557; binary blob attributes — see
+  /// tool/probe_wires.dart, tool/probe_wire_blobs.dart.)
   bdWire(0x1d, 'Wire segment (BD)', ViObjectKind.wire, ClassConfidence.inferred),
 
   /// `0x101` — a root **auxiliary** record; purpose undetermined.

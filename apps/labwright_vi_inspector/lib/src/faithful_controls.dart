@@ -60,6 +60,14 @@ class FaithfulLayer extends StatelessWidget {
 /// kind ("While loop", "Case structure") so control flow reads; on the front panel
 /// — where the structure is just a container — it is the structure's own caption
 /// if it has one, else nothing (so it never obscures a separate caption object).
+// Rendering decisions that are not obvious from the code:
+// - Structure frames draw outline-only (no fill): structures nest inside other
+//   structures ~79% of the time, and stacked fills accumulate a muddy tint.
+// - Node boxes are translucent placeholders: ~37% of sibling nodes overlap, so
+//   an opaque plate would hide neighbours.
+// - A recovered subVI name is NOT drawn inside the node box — it already
+//   renders as the node's own floating label, and re-printing it would
+//   double-print across ~42k corpus nodes. It stays reachable via the tooltip.
 String? structureFrameTitle(ViHeapObject object, {required bool isFrontPanel}) {
   if (!isFrontPanel) return structureBadge(object);
   final own = object.label?.trim();
