@@ -10,6 +10,7 @@
 /// `docs/teststand-viewer-spec.md`.
 library;
 
+export 'src/dart_export.dart';
 export 'src/seq_binary.dart';
 export 'src/seq_coverage.dart';
 export 'src/seq_document.dart';
