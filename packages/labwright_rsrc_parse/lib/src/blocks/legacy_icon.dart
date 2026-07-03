@@ -50,9 +50,7 @@ ViLegacyIcon? decodeLegacyIcon(Uint8List b, int bpp) {
   final pixels = List<int>.filled(pixelCount, 0);
   switch (bpp) {
     case 8:
-      for (var i = 0; i < pixelCount; i++) {
-        pixels[i] = b[i];
-      }
+      pixels.setAll(0, b);
     case 4:
       for (var j = 0; j < expectBytes; j++) {
         pixels[2 * j] = b[j] >> 4;

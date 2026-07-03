@@ -79,8 +79,7 @@ class ViSaveRecord {
   /// and differs from [emptyPasswordHash]. False when unset or the hash is absent.
   bool get isBlockDiagramPasswordProtected {
     final h = blockDiagramPasswordHash;
-    if (h == null) return false;
-    return !_eq(h, emptyPasswordHash);
+    return h != null && !_eq(h, emptyPasswordHash);
   }
 
   /// Honest summary of what remains undecoded in the record.

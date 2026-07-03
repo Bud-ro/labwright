@@ -114,7 +114,7 @@ IniSeqFile parseIniSeq(String text) {
       }
       inHeader = false;
       final isDef = inner.startsWith('DEF,');
-      final path = isDef ? inner.substring(4).trim() : inner;
+      final path = isDef ? inner.substring('DEF,'.length).trim() : inner;
       current = IniSection(
         isDef: isDef,
         path: path,
@@ -127,15 +127,11 @@ IniSeqFile parseIniSeq(String text) {
     final eq = line.indexOf(' = ');
     if (eq < 0) continue;
     final key = line.substring(0, eq).trim();
-    final value = line.substring(eq + 3);
+    final value = line.substring(eq + ' = '.length);
     if (inHeader) {
       headerFields[key] = value;
     } else if (current != null) {
-      if (key.startsWith('%')) {
-        current.directives[key] = value;
-      } else {
-        current.members[key] = value;
-      }
+      (key.startsWith('%') ? current.directives : current.members)[key] = value;
     }
   }
   for (final s in sections) {
@@ -200,7 +196,7 @@ String _joinFragments(Iterable<String> fragments) {
   var anyQuoted = false;
   for (final f in fragments) {
     final t = f.trim();
-    if (t.length >= 2 && t.startsWith('"') && t.endsWith('"')) {
+    if (_isQuoted(t)) {
       anyQuoted = true;
       buf.write(t.substring(1, t.length - 1));
     } else {
@@ -365,7 +361,7 @@ class _IniBuilder {
   (String?, String?) _memberType(String? raw) {
     final t = _unquote(raw);
     if (t == null) return (null, null);
-    if (t.startsWith('TYPE, ')) return (null, t.substring(6).trim());
+    if (t.startsWith('TYPE, ')) return (null, t.substring('TYPE, '.length).trim());
     return (t, null);
   }
 
@@ -419,17 +415,18 @@ class _IniBuilder {
         : const <String, String>{};
     String? memberTypeOf(String m) => def?.members[m] ?? typeDefMembers[m];
 
-    final memberOrder = <String>[...(def?.members.keys ?? const <String>[])];
-    final seen = memberOrder.toSet();
-    for (final m in (val?.members.keys ?? const <String>[])) {
-      if (seen.add(m)) memberOrder.add(m);
+    final memberOrder = <String>[];
+    final seen = <String>{};
+    void addUnique(Iterable<String> ms) {
+      for (final m in ms) {
+        if (seen.add(m)) memberOrder.add(m);
+      }
     }
-    for (final m in _discoveredChildren(path)) {
-      if (seen.add(m)) memberOrder.add(m);
-    }
-    for (final m in typeDefMembers.keys) {
-      if (seen.add(m)) memberOrder.add(m);
-    }
+
+    addUnique(def?.members.keys ?? const <String>[]);
+    addUnique(val?.members.keys ?? const <String>[]);
+    addUnique(_discoveredChildren(path));
+    addUnique(typeDefMembers.keys);
 
     final subs = <SeqProperty>[];
     for (final m in memberOrder) {
@@ -507,11 +504,14 @@ SeqFile parseIniSeqFile(Uint8List bytes) {
 String? _unquote(String? s) {
   if (s == null) return null;
   final t = s.trim();
-  if (t.length >= 2 && t.startsWith('"') && t.endsWith('"')) {
+  if (_isQuoted(t)) {
     return _unescapeIni(t.substring(1, t.length - 1));
   }
   return t;
 }
+
+/// True when [t] is surrounded by a matching pair of double quotes.
+bool _isQuoted(String t) => t.length >= 2 && t.startsWith('"') && t.endsWith('"');
 
 /// Decodes the C-style escapes TestStand writes inside a *quoted* INI value:
 /// `\\`→`\`, `\"`→`"`, `\n`→newline, `\t`→tab, `\r`→CR. NI always doubles a

@@ -37,12 +37,18 @@ class ViHistory {
   bool get reservedAreZero => words[3] == 0 && words[7] == 0 && words[8] == 0;
 }
 
+/// The ten big-endian u32 words that make up a fixed HIST record.
+const int _histWords = 10;
+
+/// Bytes per u32 word — the 40-byte record is `_histWords * _wordBytes`.
+const int _wordBytes = 4;
+
 /// Decodes a `HIST` body. Null when shorter than the 40-byte record.
 ViHistory? decodeHistory(Uint8List b) {
-  if (b.length < 40) return null;
+  if (b.length < _histWords * _wordBytes) return null;
   final bd = ByteData.sublistView(b);
   return ViHistory(
     rawLength: b.length,
-    words: [for (var w = 0; w < 10; w++) bd.getUint32(w * 4)],
+    words: [for (var w = 0; w < _histWords; w++) bd.getUint32(w * _wordBytes)],
   );
 }

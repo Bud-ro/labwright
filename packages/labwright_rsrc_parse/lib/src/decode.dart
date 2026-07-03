@@ -43,20 +43,19 @@ const int _maxDecompressed = 64 * 1024 * 1024;
 /// usable [DecodedSection].
 DecodedSection inflateSection(ViSection s) {
   final b = s.bytes;
-  if (_looksCompressed(b)) {
-    final declared = ByteData.sublistView(b).getUint32(0);
-    if (declared <= _maxDecompressed) {
-      try {
-        final out = const ZLibDecoder().decodeBytes(b.sublist(4));
-        if (out.length == declared) {
-          return DecodedSection(section: s, bytes: out, wasCompressed: true);
-        }
-      } catch (_) {
-        // Not a valid zlib stream — fall through to the raw bytes.
-      }
+  final raw = DecodedSection(section: s, bytes: b, wasCompressed: false);
+  if (!_looksCompressed(b)) return raw;
+  final declared = ByteData.sublistView(b).getUint32(0);
+  if (declared > _maxDecompressed) return raw;
+  try {
+    final out = const ZLibDecoder().decodeBytes(b.sublist(4));
+    if (out.length == declared) {
+      return DecodedSection(section: s, bytes: out, wasCompressed: true);
     }
+  } catch (_) {
+    // Not a valid zlib stream — fall through to the raw bytes.
   }
-  return DecodedSection(section: s, bytes: b, wasCompressed: false);
+  return raw;
 }
 
 /// Reads every block section from a `.vi` and inflates the compressed ones.

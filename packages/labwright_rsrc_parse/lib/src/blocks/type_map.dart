@@ -50,11 +50,12 @@ class ViTypeMap {
 /// is too short to hold the header.
 ViTypeMap? decodeTypeMap(Uint8List b) {
   if (b.length < 4) return null;
-  final count = (b[0] << 8) | b[1];
-  final field1 = (b[2] << 8) | b[3];
+  int u16(int o) => (b[o] << 8) | b[o + 1];
+  final count = u16(0);
+  final field1 = u16(2);
   if (b.length == 4 + 2 * count) {
     final entries = <int>[
-      for (var i = 0; i < count; i++) (b[4 + 2 * i] << 8) | b[4 + 2 * i + 1],
+      for (var i = 0; i < count; i++) u16(4 + 2 * i),
     ];
     return ViTypeMap(rawLength: b.length, isShortForm: true, count: count, field1: field1, entries: entries);
   }

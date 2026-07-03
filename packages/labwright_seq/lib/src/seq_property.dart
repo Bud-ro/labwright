@@ -63,8 +63,10 @@ class SeqProperty {
   /// reads `0x200000`, `Status`/`ReportText`/`Result` read `0x400000`. Individual
   /// bit meanings are **not yet decoded**; the raw mask is exposed for analysis,
   /// never with fabricated semantics. Kept verbatim in [attributes] under `%FLG`.
-  int? get propertyFlags {
-    final raw = attributes['%FLG'];
+  int? get propertyFlags => _intAttr('%FLG');
+
+  int? _intAttr(String key) {
+    final raw = attributes[key];
     return raw == null ? null : int.tryParse(raw.trim());
   }
 
@@ -76,26 +78,13 @@ class SeqProperty {
   /// `%INSTFLG`) — so it is an override-set bit, not a type flag. (It skews to
   /// leaf *value* overrides — `StatusExpr`, `ResultAct`, `LoopWhile` — over
   /// container/metadata ones; the precise trigger is not yet fully decoded.)
-  int? get instanceOverrideFlags {
-    final raw = attributes['%INSTOVRD'];
-    return raw == null ? null : int.tryParse(raw.trim());
-  }
+  int? get instanceOverrideFlags => _intAttr('%INSTOVRD');
 
-  SeqProperty? prop(String name) {
-    for (final p in subProps) {
-      if (p.name == name) return p;
-    }
-    return null;
-  }
+  SeqProperty? prop(String name) =>
+      subProps.where((p) => p.name == name).firstOrNull;
 
-  SeqProperty? at(List<String> names) {
-    SeqProperty? cur = this;
-    for (final n in names) {
-      cur = cur?.prop(n);
-      if (cur == null) return null;
-    }
-    return cur;
-  }
+  SeqProperty? at(List<String> names) =>
+      names.fold<SeqProperty?>(this, (cur, n) => cur?.prop(n));
 
   @override
   String toString() =>
@@ -103,12 +92,8 @@ class SeqProperty {
       '${isArray ? '[${array!.length}]' : scalar != null ? 'scalar' : '{${subProps.length}}'})';
 }
 
-XmlElement? childElement(XmlElement e, String name) {
-  for (final c in e.childElements) {
-    if (c.name.local == name) return c;
-  }
-  return null;
-}
+XmlElement? childElement(XmlElement e, String name) =>
+    childElementsNamed(e, name).firstOrNull;
 
 Iterable<XmlElement> childElementsNamed(XmlElement e, String name) =>
     e.childElements.where((c) => c.name.local == name);
@@ -120,17 +105,13 @@ SeqProperty buildProperty(XmlElement e) {
     for (final a in e.attributes) a.name.qualified: a.value,
   };
   final tag = e.name.local;
-  final name = tag == '_NAME_IN_ATTRIBUTE_'
-      ? (attrs['name'] ?? '')
-      : (attrs['name'] ?? tag);
+  final name = attrs['name'] ?? (tag == '_NAME_IN_ATTRIBUTE_' ? '' : tag);
 
-  final subProps = <SeqProperty>[];
   final subpropsEl = childElement(e, 'subprops');
-  if (subpropsEl != null) {
-    for (final c in subpropsEl.childElements) {
-      subProps.add(buildProperty(c));
-    }
-  }
+  final subProps = [
+    if (subpropsEl != null)
+      for (final c in subpropsEl.childElements) buildProperty(c),
+  ];
 
   String? scalar;
   List<SeqProperty>? array;

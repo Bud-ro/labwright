@@ -36,7 +36,7 @@ ViIdTable? decodeIdTable(Uint8List b) {
   final bd = ByteData.sublistView(b);
   final count = bd.getUint32(0);
   final available = (b.length - 4) ~/ 4;
-  final n = count < available ? count : available;
+  final n = count.clamp(0, available);
   return ViIdTable(
     rawLength: b.length,
     count: count,

@@ -31,10 +31,10 @@ void main(List<String> args) {
     if (!f.path.toLowerCase().endsWith('.seq')) continue;
     final bytes = f.readAsBytesSync();
     final fmt = detectSeqFormat(bytes);
-    final isXml = fmt == SeqFormat.xml, isIni = fmt == SeqFormat.ini;
-    if (!(which == 'both' ? (isXml || isIni) : which == 'xml' ? isXml : isIni)) {
-      continue;
-    }
+    final ok = which == 'both'
+        ? (fmt == SeqFormat.xml || fmt == SeqFormat.ini)
+        : fmt == (which == 'xml' ? SeqFormat.xml : SeqFormat.ini);
+    if (!ok) continue;
     try {
       final sf = parseSeqFile(bytes);
       files++;

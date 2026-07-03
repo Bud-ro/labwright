@@ -16,6 +16,9 @@ List<int> enum2e(List<String> items) {
   return [0xc4, 0x2e, b.length, ...b];
 }
 
+List<int> c6blob(int id, String s) =>
+    [0xc6, id, 0xff, (4 + s.length) >> 8, (4 + s.length) & 0xff, 0, 0, 0, s.length, ...s.codeUnits];
+
 void main() {
   test('bracket tree: parent/child nesting + absolute coordinates', () {
     final records = <int>[
@@ -244,11 +247,6 @@ void main() {
       final d = ByteData(8)..setFloat64(0, v);
       return [0xc5, id, 0x08, ...d.buffer.asUint8List()];
     }
-    List<int> c6blob(int id, String s) {
-      final len = 4 + s.length;
-      return [0xc6, id, 0xff, len >> 8, len & 0xff, 0, 0, 0, s.length, ...s.codeUnits];
-    }
-
     final records = <int>[
       ...open(0x7e, 1), ...bounds(0, 0, 400, 400),
       ...open(0x50, 2, tag: 0x1a), ...bounds(0, 0, 17, 80),
@@ -270,10 +268,6 @@ void main() {
   });
 
   test('help text propagates up from a non-drawable child to its nearest drawable control', () {
-    List<int> c6blob(int id, String s) {
-      final len = 4 + s.length;
-      return [0xc6, id, 0xff, len >> 8, len & 0xff, 0, 0, 0, s.length, ...s.codeUnits];
-    }
     final records = <int>[
       ...open(0x7e, 1), ...bounds(0, 0, 400, 400),
       ...open(0x50, 2, tag: 0x1a), ...bounds(10, 10, 30, 100),
@@ -289,8 +283,6 @@ void main() {
   });
 
   test('help propagation skips a non-drawable intermediate to reach the nearest drawable', () {
-    List<int> c6blob(int id, String s) =>
-        [0xc6, id, 0xff, (4 + s.length) >> 8, (4 + s.length) & 0xff, 0, 0, 0, s.length, ...s.codeUnits];
     final records = <int>[
       ...open(0x7e, 1), ...bounds(0, 0, 400, 400),
       ...open(0x50, 2, tag: 0x1a), ...bounds(10, 10, 30, 100),
@@ -306,8 +298,6 @@ void main() {
   });
 
   test('help propagation lands on a 0x53 structure when that is the nearest drawable ancestor', () {
-    List<int> c6blob(int id, String s) =>
-        [0xc6, id, 0xff, (4 + s.length) >> 8, (4 + s.length) & 0xff, 0, 0, 0, s.length, ...s.codeUnits];
     final records = <int>[
       ...open(0x53, 1), ...bounds(0, 0, 200, 200),
       ...open(0xc1, 2, tag: 0x1a),
@@ -319,8 +309,6 @@ void main() {
   });
 
   test('help propagation never overwrites an ancestor that already carries its own help (??=)', () {
-    List<int> c6blob(int id, String s) =>
-        [0xc6, id, 0xff, (4 + s.length) >> 8, (4 + s.length) & 0xff, 0, 0, 0, s.length, ...s.codeUnits];
     final records = <int>[
       ...open(0x50, 1), ...bounds(10, 10, 30, 100),
       ...c6blob(0x6c, 'own help'),

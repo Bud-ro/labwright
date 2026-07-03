@@ -125,7 +125,7 @@ Future<int> _extractSelected(String tarPath, String destPath, List<String> keepE
     '--no-wildcards',
   ]);
   final errFuture = proc.stderr.transform(utf8.decoder).join();
-  proc.stdin.add(utf8.encode(members.map((m) => '$m${String.fromCharCode(0)}').join()));
+  proc.stdin.add(utf8.encode('${members.join('\x00')}\x00'));
   await proc.stdin.close();
   final code = await proc.exitCode;
   final err = await errFuture;

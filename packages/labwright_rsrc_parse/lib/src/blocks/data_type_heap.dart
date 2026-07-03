@@ -52,13 +52,11 @@ class ViDataTypeHeap {
 /// Decodes a `DTHP` body. Null when too short for the header.
 ViDataTypeHeap? decodeDataTypeHeap(Uint8List b) {
   if (b.length < 4) return null;
-  final field0 = (b[0] << 8) | b[1];
-  final field1 = (b[2] << 8) | b[3];
   final extended = b.length > 4;
   return ViDataTypeHeap(
     rawLength: b.length,
-    field0: field0,
-    field1: field1,
+    field0: (b[0] << 8) | b[1],
+    field1: (b[2] << 8) | b[3],
     isExtended: extended,
     names: extended ? _scanNames(b, 4) : const [],
   );

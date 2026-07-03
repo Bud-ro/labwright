@@ -9,12 +9,11 @@ import 'tdms.dart';
 String tdmsToCsv(Uint8List bytes, {String delimiter = ',', bool header = true}) {
   final file = TdmsReader.read(bytes);
 
-  final columns = <({String name, List<double> data})>[];
-  for (final g in file.groups) {
-    for (final c in g.channels) {
-      if (c.data.isNotEmpty) columns.add((name: '${g.name}/${c.name}', data: c.data));
-    }
-  }
+  final columns = <({String name, List<double> data})>[
+    for (final g in file.groups)
+      for (final c in g.channels)
+        if (c.data.isNotEmpty) (name: '${g.name}/${c.name}', data: c.data),
+  ];
   if (columns.isEmpty) return '';
 
   String esc(String s) {
@@ -27,10 +26,7 @@ String tdmsToCsv(Uint8List bytes, {String delimiter = ',', bool header = true}) 
   final out = StringBuffer();
   if (header) out.writeln([for (final c in columns) esc(c.name)].join(delimiter));
 
-  var rows = 0;
-  for (final c in columns) {
-    if (c.data.length > rows) rows = c.data.length;
-  }
+  final rows = columns.fold<int>(0, (m, c) => c.data.length > m ? c.data.length : m);
   for (var i = 0; i < rows; i++) {
     out.writeln([for (final c in columns) i < c.data.length ? '${c.data[i]}' : ''].join(delimiter));
   }

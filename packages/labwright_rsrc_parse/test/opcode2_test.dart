@@ -11,6 +11,11 @@ DecodedSection bdex(List<int> bytes, {String tag = 'BDEx'}) => DecodedSection(
 
 List<int> c4(int op, List<int> payload) => [0xc4, op, payload.length, ...payload];
 
+List<int> pth0Record(String path) {
+  final c = path.codeUnits;
+  return [0x50, 0x54, 0x48, 0x30, 0, 0, 0, 0, 0, 0, 0, 1, c.length, ...c];
+}
+
 void main() {
   test('itemLabel (0x20) and symbolName (0xC4) decode as text', () {
     final recs = heapC4RecordsFromDecoded([
@@ -39,15 +44,7 @@ void main() {
   });
 
   test('path (0xA4) decodes a PTH0 record to a joined path', () {
-    final comp = 'ps5000.dll'.codeUnits;
-    final pth0 = <int>[
-      0x50, 0x54, 0x48, 0x30,
-      0, 0, 0, 0,
-      0, 0,
-      0, 1,
-      comp.length, ...comp,
-    ];
-    final rec = heapC4RecordsFromDecoded([bdex(c4(0xa4, pth0))]).single;
+    final rec = heapC4RecordsFromDecoded([bdex(c4(0xa4, pth0Record('ps5000.dll')))]).single;
     expect(rec.kind, HeapOpcode.path);
     expect(rec.path, 'ps5000.dll');
   });
@@ -66,12 +63,10 @@ void main() {
   });
 
   test('ViModel surfaces symbolNames and paths (external calls)', () {
-    final comp = 'ps5000.dll'.codeUnits;
-    final pth0 = <int>[0x50, 0x54, 0x48, 0x30, 0, 0, 0, 0, 0, 0, 0, 1, comp.length, ...comp];
     final heap = <int>[
       ...c4(0xc4, 'ps5000RunStreaming'.codeUnits),
       ...c4(0xc4, 'ps5000RunStreaming'.codeUnits),
-      ...c4(0xa4, pth0),
+      ...c4(0xa4, pth0Record('ps5000.dll')),
     ];
     final m = buildViModelFromDecoded([bdex(heap, tag: 'DTHP')]);
     expect(m.symbolNames, <String>['ps5000RunStreaming']);

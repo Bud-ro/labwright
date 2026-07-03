@@ -32,8 +32,9 @@ void main() {
   test('bit-flips of a valid file fail cleanly (TdmsFormatException only)', () {
     final valid = validFile();
     final rng = Random(7);
+    const flipTrials = 8000;
     var handled = 0;
-    for (var i = 0; i < 8000; i++) {
+    for (var i = 0; i < flipTrials; i++) {
       final b = Uint8List.fromList(valid);
       final flips = 1 + rng.nextInt(4);
       for (var f = 0; f < flips; f++) {
@@ -41,12 +42,10 @@ void main() {
       }
       try {
         TdmsReader.read(b);
-        handled++;
-      } on TdmsFormatException {
-        handled++;
-      }
+      } on TdmsFormatException {/* expected */}
+      handled++;
     }
-    expect(handled, 8000, reason: 'no exception type other than TdmsFormatException escaped');
+    expect(handled, flipTrials, reason: 'no exception type other than TdmsFormatException escaped');
   });
 
   test('every truncation of a valid file fails cleanly', () {

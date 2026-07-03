@@ -16,6 +16,22 @@ Uint8List _tof1(List<int> bodyBytes) {
   return Uint8List.fromList(b.toBytes());
 }
 
+final _bd = ByteData(8);
+List<int> _f64le(double v) {
+  _bd.setFloat64(0, v, Endian.little);
+  return [for (var i = 0; i < 8; i++) _bd.getUint8(i)];
+}
+
+List<int> _u32le(int v) => [v & 0xff, v >> 8 & 0xff, v >> 16 & 0xff, v >> 24 & 0xff];
+
+List<int> _nulPool(List<String> names) {
+  final pool = <int>[];
+  for (final n in names) {
+    pool..addAll(ascii.encode(n))..add(0);
+  }
+  return pool;
+}
+
 void main() {
   test('inflateBinaryBody locates + inflates the TOF1 zlib body', () {
     final body = inflateBinaryBody(_tof1(ascii.encode('SequenceFileData-MainSequence-Step' * 4)));
@@ -24,12 +40,8 @@ void main() {
   });
 
   test('binaryBodyStrings recovers the NUL-terminated name pool', () {
-    final pool = <int>[];
-    for (final name in ['PaddingNameToExceedTheSixtyFourByteInflateGuardInThisTest',
-        'SequenceFileData', 'MainSequence', 'Step', 'Locals']) {
-      pool.addAll(ascii.encode(name));
-      pool.add(0);
-    }
+    final pool = _nulPool(['PaddingNameToExceedTheSixtyFourByteInflateGuardInThisTest',
+        'SequenceFileData', 'MainSequence', 'Step', 'Locals']);
     final names = binaryBodyStrings(_tof1(pool)).map((s) => s.text).toList();
     expect(names, containsAll(['SequenceFileData', 'MainSequence', 'Step', 'Locals']));
   });
@@ -102,22 +114,14 @@ void main() {
   });
 
   test('binaryScalarDoubles recovers clean inline IEEE-754 doubles', () {
-    final bd = ByteData(8);
-    List<int> f64le(double v) {
-      bd.setFloat64(0, v, Endian.little);
-      return [for (var i = 0; i < 8; i++) bd.getUint8(i)];
-    }
     final rec = <int>[
       0x1c, 0x00, 0x00, 0x00,
-      ...f64le(8192.0),
-      ...f64le(1.0),
-      ...f64le(3.14159265358979),
+      ..._f64le(8192.0),
+      ..._f64le(1.0),
+      ..._f64le(3.14159265358979),
     ];
-    final pool = <int>[];
-    for (final name in ['SequenceFileData', 'MainSequence', 'StepGroupMain',
-        'LocalsVarOne', 'ResultListItem', 'ParametersBlock']) {
-      pool..addAll(ascii.encode(name))..add(0);
-    }
+    final pool = _nulPool(['SequenceFileData', 'MainSequence', 'StepGroupMain',
+        'LocalsVarOne', 'ResultListItem', 'ParametersBlock']);
     final got = binaryScalarDoubles(_tof1([...rec, ...pool]));
     expect(got, containsAll(<double>[8192.0, 1.0]));
     expect(got, isNot(contains(3.14159265358979)));
@@ -128,15 +132,6 @@ void main() {
   });
 
   test('binaryNamedScalarRecords pairs a named-property header with its f64', () {
-    final bd = ByteData(8);
-    List<int> f64le(double v) {
-      bd.setFloat64(0, v, Endian.little);
-      return [for (var i = 0; i < 8; i++) bd.getUint8(i)];
-    }
-
-    List<int> u32le(int v) =>
-        [v & 0xff, v >> 8 & 0xff, v >> 16 & 0xff, v >> 24 & 0xff];
-
     final pool = <int>[];
     final relOf = <String, int>{};
     for (final name in ['PadName', 'Parameters', 'Locals', 'ResultList',
@@ -147,17 +142,17 @@ void main() {
     expect(relOf['Parameters'], 8);
 
     final rec = <int>[
-      ...u32le(0),
-      ...u32le(0),
-      ...u32le(relOf['Parameters']!),
-      ...u32le(99),
-      ...f64le(42.0),
-      ...u32le(0),
-      ...u32le(0),
-      ...u32le(0),
-      ...u32le(0),
-      ...u32le(0),
-      ...u32le(0),
+      ..._u32le(0),
+      ..._u32le(0),
+      ..._u32le(relOf['Parameters']!),
+      ..._u32le(99),
+      ..._f64le(42.0),
+      ..._u32le(0),
+      ..._u32le(0),
+      ..._u32le(0),
+      ..._u32le(0),
+      ..._u32le(0),
+      ..._u32le(0),
     ];
     expect(rec.length, 48);
 
@@ -177,24 +172,13 @@ void main() {
   });
 
   test('dumpBinaryRecon reports recovered data + honest not-yet-decoded note', () {
-    final bd = ByteData(8);
-    List<int> f64le(double v) {
-      bd.setFloat64(0, v, Endian.little);
-      return [for (var i = 0; i < 8; i++) bd.getUint8(i)];
-    }
-    List<int> u32le(int v) =>
-        [v & 0xff, v >> 8 & 0xff, v >> 16 & 0xff, v >> 24 & 0xff];
-
-    final pool = <int>[];
-    for (final name in ['PadName', 'Parameters', 'Locals', 'ResultList',
-        'StepEntry', 'SeqEntry']) {
-      pool..addAll(ascii.encode(name))..add(0);
-    }
+    final pool = _nulPool(['PadName', 'Parameters', 'Locals', 'ResultList',
+        'StepEntry', 'SeqEntry']);
     final rec = <int>[
-      ...u32le(0), ...u32le(0), ...u32le(8), ...u32le(99),
-      ...f64le(42.0),
-      ...u32le(0), ...u32le(0), ...u32le(0), ...u32le(0), ...u32le(0),
-      ...u32le(0),
+      ..._u32le(0), ..._u32le(0), ..._u32le(8), ..._u32le(99),
+      ..._f64le(42.0),
+      ..._u32le(0), ..._u32le(0), ..._u32le(0), ..._u32le(0), ..._u32le(0),
+      ..._u32le(0),
     ];
 
     final text = dumpBinaryRecon(_tof1([...rec, ...pool]));
@@ -208,20 +192,14 @@ void main() {
   });
 
   test('binaryNamedRecords keeps consistently-tagged names, drops the rest', () {
-    List<int> u32le(int v) =>
-        [v & 0xff, v >> 8 & 0xff, v >> 16 & 0xff, v >> 24 & 0xff];
-
-    final pool = <int>[];
-    for (final name in ['PadName', 'Parameters', 'Locals', 'ResultList',
-        'StepX', 'SeqX']) {
-      pool..addAll(ascii.encode(name))..add(0);
-    }
+    final pool = _nulPool(['PadName', 'Parameters', 'Locals', 'ResultList',
+        'StepX', 'SeqX']);
 
     final rec = <int>[
-      ...u32le(0), ...u32le(5), ...u32le(8), ...u32le(0),
-      ...u32le(5), ...u32le(8), ...u32le(0), ...u32le(3),
-      ...u32le(19), ...u32le(0), ...u32le(4), ...u32le(19),
-      ...u32le(0), ...u32le(0), ...u32le(0), ...u32le(0),
+      ..._u32le(0), ..._u32le(5), ..._u32le(8), ..._u32le(0),
+      ..._u32le(5), ..._u32le(8), ..._u32le(0), ..._u32le(3),
+      ..._u32le(19), ..._u32le(0), ..._u32le(4), ..._u32le(19),
+      ..._u32le(0), ..._u32le(0), ..._u32le(0), ..._u32le(0),
     ];
 
     final recs = binaryNamedRecords(_tof1([...rec, ...pool]));

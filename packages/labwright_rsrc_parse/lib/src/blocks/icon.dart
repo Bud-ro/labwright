@@ -28,6 +28,10 @@ class ViIcon {
 
 int _u16(Uint8List b, int p) => (b[p] << 8) | b[p + 1];
 
+/// Largest plausible embedded-icon edge, in pixels; a sanity bound rejecting
+/// garbage rects.
+const int _maxIconEdge = 512;
+
 /// Extracts an embedded 24-bit RGB icon bitmap from one section's [bytes], or
 /// null if the section does not contain one.
 ///
@@ -42,7 +46,9 @@ ViIcon? extractRgbIcon(Uint8List bytes) {
   if (bytes.length < 36) return null;
   if ((bytes[0] | bytes[1] | bytes[2] | bytes[3]) != 0) return null;
   final w = _u16(bytes, 4), h = _u16(bytes, 6), depth = _u16(bytes, 8);
-  if (depth != 24 || w < 1 || h < 1 || w > 512 || h > 512) return null;
+  if (depth != 24 || w < 1 || h < 1 || w > _maxIconEdge || h > _maxIconEdge) {
+    return null;
+  }
   if (_u16(bytes, 30) != w || _u16(bytes, 32) != h) return null;
   final need = w * h * 3;
   if (bytes.length - need < 30) return null;
@@ -52,10 +58,6 @@ ViIcon? extractRgbIcon(Uint8List bytes) {
 /// Finds the VI's icon by scanning all decoded [sections] for an embedded RGB
 /// bitmap (it appears under different tags depending on the VI). Returns the
 /// first match, or null when no uncompressed icon is present (~11% of VIs).
-ViIcon? decodeViIcon(List<DecodedSection> sections) {
-  for (final s in sections) {
-    final icon = extractRgbIcon(s.bytes);
-    if (icon != null) return icon;
-  }
-  return null;
-}
+ViIcon? decodeViIcon(List<DecodedSection> sections) => sections
+    .map((s) => extractRgbIcon(s.bytes))
+    .firstWhere((i) => i != null, orElse: () => null);

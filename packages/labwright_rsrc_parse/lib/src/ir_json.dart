@@ -27,7 +27,7 @@ Map<String, Object?> viDiagramToJson(ViDiagram d) => {
 
 Map<String, Object?> _objectToJson(ViHeapObject o) {
   final cls = o.objectClass;
-  final m = <String, Object?>{
+  return {
     'oid': o.oid,
     'kindCode': o.kind,
     'class': {
@@ -37,19 +37,17 @@ Map<String, Object?> _objectToJson(ViHeapObject o) {
     },
     'objectKind': o.category.name,
     'typeKind': o.typeKind.name,
+    if (o.parentOid != null) 'parentOid': o.parentOid,
+    if (o.label != null) 'label': o.label,
+    if (o.bounds != null) 'bounds': _rectToJson(o.bounds!),
+    if (o.absBounds != null) 'absBounds': _rectToJson(o.absBounds!),
+    if (o.items.isNotEmpty) 'items': o.items,
+    if (o.termCount != 0) 'termCount': o.termCount,
+    if (o.memberOids.isNotEmpty) 'memberOids': o.memberOids.toList(),
+    if (o.controlMin != null && o.controlMin!.isFinite) 'controlMin': o.controlMin,
+    if (o.controlMax != null && o.controlMax!.isFinite) 'controlMax': o.controlMax,
+    if (o.helpText != null) 'helpText': o.helpText,
   };
-  if (o.parentOid != null) m['parentOid'] = o.parentOid;
-  if (o.label != null) m['label'] = o.label;
-  if (o.bounds != null) m['bounds'] = _rectToJson(o.bounds!);
-  if (o.absBounds != null) m['absBounds'] = _rectToJson(o.absBounds!);
-  if (o.items.isNotEmpty) m['items'] = o.items;
-  if (o.termCount != 0) m['termCount'] = o.termCount;
-  final members = o.memberOids.toList();
-  if (members.isNotEmpty) m['memberOids'] = members;
-  if (o.controlMin != null && o.controlMin!.isFinite) m['controlMin'] = o.controlMin;
-  if (o.controlMax != null && o.controlMax!.isFinite) m['controlMax'] = o.controlMax;
-  if (o.helpText != null) m['helpText'] = o.helpText;
-  return m;
 }
 
 Map<String, Object?> _rectToJson(HeapRect r) => {
@@ -79,35 +77,44 @@ List<Map<String, Object?>>? _conpaneTerminals(ViModel m) {
   final cp = m.types[i - 1];
   final terms = cp.kind == ViDataType.cluster ? clusterFields(cp, m.types) : <ViType>[cp];
   return [
-    for (final t in terms) {'kind': typeLabel(t, m.types), if (t.name != null) 'name': t.name},
+    for (final t in terms) _termJson(t, m.types),
   ];
 }
 
-Map<String, Object?> viModelToJson(ViModel m) => {
-      if (m.version != null) 'labviewVersion': m.version,
-      if (m.title != null) 'title': m.title,
-      if (m.description != null) 'description': m.description,
-      if (m.symbolNames.isNotEmpty) 'symbolNames': m.symbolNames,
-      if (m.paths.isNotEmpty) 'libraryPaths': m.paths,
-      if (m.subViNames.isNotEmpty) 'subViNames': m.subViNames,
-      if (m.connectorPaneTypeIndex != null) 'connectorPaneTypeIndex': m.connectorPaneTypeIndex,
-      if (_conpaneTerminals(m) != null) 'connectorPaneTerminals': _conpaneTerminals(m),
-      if (m.types.isNotEmpty) 'typeCount': m.types.length,
-      if (m.types.isNotEmpty) 'typeHistogram': typeKindHistogram(m.types),
-      if (namedTypes(m.types).isNotEmpty)
-        'namedTypes': [
-          for (final t in namedTypes(m.types).take(200))
-            {
-              'index': t.index,
-              'kind': typeLabel(t, m.types),
-              'name': t.name,
-              if (t.members.isNotEmpty)
-                'members': [
-                  for (final f in clusterFields(t, m.types)) {'kind': typeLabel(f, m.types), if (f.name != null) 'name': f.name},
-                ],
-              if (t.enumItems.isNotEmpty) 'items': t.enumItems,
-            },
-        ],
-      'blockDiagrams': [for (final d in m.blockDiagrams) viDiagramToJson(d)],
-      'frontPanelDiagrams': [for (final d in m.frontPanelDiagrams) viDiagramToJson(d)],
-    };
+/// A terminal/cluster field rendered as its `{kind, name?}` JSON object — the
+/// shared shape used by both the connector-pane terminals and named-type members.
+Map<String, Object?> _termJson(ViType t, List<ViType> types) =>
+    {'kind': typeLabel(t, types), if (t.name != null) 'name': t.name};
+
+Map<String, Object?> viModelToJson(ViModel m) {
+  final terminals = _conpaneTerminals(m);
+  final named = namedTypes(m.types);
+  return {
+    if (m.version != null) 'labviewVersion': m.version,
+    if (m.title != null) 'title': m.title,
+    if (m.description != null) 'description': m.description,
+    if (m.symbolNames.isNotEmpty) 'symbolNames': m.symbolNames,
+    if (m.paths.isNotEmpty) 'libraryPaths': m.paths,
+    if (m.subViNames.isNotEmpty) 'subViNames': m.subViNames,
+    if (m.connectorPaneTypeIndex != null) 'connectorPaneTypeIndex': m.connectorPaneTypeIndex,
+    if (terminals != null) 'connectorPaneTerminals': terminals,
+    if (m.types.isNotEmpty) 'typeCount': m.types.length,
+    if (m.types.isNotEmpty) 'typeHistogram': typeKindHistogram(m.types),
+    if (named.isNotEmpty)
+      'namedTypes': [
+        for (final t in named.take(200))
+          {
+            'index': t.index,
+            'kind': typeLabel(t, m.types),
+            'name': t.name,
+            if (t.members.isNotEmpty)
+              'members': [
+                for (final f in clusterFields(t, m.types)) _termJson(f, m.types),
+              ],
+            if (t.enumItems.isNotEmpty) 'items': t.enumItems,
+          },
+      ],
+    'blockDiagrams': [for (final d in m.blockDiagrams) viDiagramToJson(d)],
+    'frontPanelDiagrams': [for (final d in m.frontPanelDiagrams) viDiagramToJson(d)],
+  };
+}

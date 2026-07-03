@@ -20,6 +20,18 @@ Uint8List _container(List<int> data, List<int> info) {
   return Uint8List.fromList([...header, ...data, ...info]);
 }
 
+/// Builds the minimal well-formed VI used across the container/VI round-trip
+/// tests: a container whose info area is a bare subheader (blockListRel = 0x34,
+/// zero blocks) plus two trailing name-table bytes.
+Uint8List _minimalVi() {
+  final bytes = _container([1, 2, 3, 4], [for (var i = 0; i < 0x34; i++) 0, 0, 0, 0, 0, 7, 7]);
+  final info = bytes.sublist(36);
+  info.setRange(0, 6, _rsrcMagic);
+  ByteData.sublistView(info).setUint32(0x2c, 0x34);
+  bytes.setRange(36, bytes.length, info);
+  return bytes;
+}
+
 void main() {
   group('ViContainer', () {
     test('parse → toBytes is byte-exact for an unmodified container', () {
@@ -293,16 +305,7 @@ void main() {
     });
 
     test('ViContainer.serialize() reproduces the original bytes (== toBytes)', () {
-      final bytes = _container([1, 2, 3, 4], [
-        for (var i = 0; i < 0x34; i++) 0,
-        0, 0, 0, 0,
-        7, 7,
-      ]);
-      final info = bytes.sublist(36);
-      final id = ByteData.sublistView(info);
-      info.setRange(0, 6, _rsrcMagic);
-      id.setUint32(0x2c, 0x34);
-      bytes.setRange(36, bytes.length, info);
+      final bytes = _minimalVi();
       final c = ViContainer.parse(bytes);
       expect(c.serialize(), orderedEquals(c.toBytes()));
       expect(c.serialize(), orderedEquals(bytes));
@@ -311,15 +314,7 @@ void main() {
 
   group('ViVi (capstone typed model)', () {
     test('parse -> serialize reproduces a synthetic VI byte-exact', () {
-      final bytes = _container([1, 2, 3, 4], [
-        for (var i = 0; i < 0x34; i++) 0,
-        0, 0, 0, 0,
-        7, 7,
-      ]);
-      final info = bytes.sublist(36);
-      info.setRange(0, 6, _rsrcMagic);
-      ByteData.sublistView(info).setUint32(0x2c, 0x34);
-      bytes.setRange(36, bytes.length, info);
+      final bytes = _minimalVi();
 
       final vi = ViVi.parse(bytes);
       expect(vi.serialize(), orderedEquals(bytes));
@@ -328,15 +323,7 @@ void main() {
     });
 
     test('withSectionEdited rejects a secRel that is not a section start', () {
-      final bytes = _container([1, 2, 3, 4], [
-        for (var i = 0; i < 0x34; i++) 0,
-        0, 0, 0, 0,
-        7, 7,
-      ]);
-      final info = bytes.sublist(36);
-      info.setRange(0, 6, _rsrcMagic);
-      ByteData.sublistView(info).setUint32(0x2c, 0x34);
-      bytes.setRange(36, bytes.length, info);
+      final bytes = _minimalVi();
       final vi = ViVi.parse(bytes);
       expect(
         () => vi.withSectionEdited(secRel: 0, newPayload: Uint8List.fromList([9])),

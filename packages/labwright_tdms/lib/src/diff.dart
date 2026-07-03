@@ -45,20 +45,16 @@ Map<String, Object?> diffTdms(TdmsFile a, TdmsFile b, {double tol = 0.0}) {
         continue;
       }
       final delta = _valueDelta(ca.data, cb.data, tol);
-      if (ca.data.length != cb.data.length) {
+      final status = ca.data.length != cb.data.length
+          ? ChannelDiffStatus.lengthMismatch
+          : delta['firstDiffIndex'] != null
+              ? ChannelDiffStatus.valueDiff
+              : null;
+      if (status != null) {
         channels.add({
           'group': ga.name,
           'name': ca.name,
-          'status': ChannelDiffStatus.lengthMismatch.name,
-          'lenA': ca.data.length,
-          'lenB': cb.data.length,
-          ...delta,
-        });
-      } else if (delta['firstDiffIndex'] != null) {
-        channels.add({
-          'group': ga.name,
-          'name': ca.name,
-          'status': ChannelDiffStatus.valueDiff.name,
+          'status': status.name,
           'lenA': ca.data.length,
           'lenB': cb.data.length,
           ...delta,

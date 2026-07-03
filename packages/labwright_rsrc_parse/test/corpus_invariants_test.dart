@@ -1,6 +1,7 @@
 @Tags(['corpus'])
 library;
 
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
@@ -11,6 +12,30 @@ import 'corpus_dirs.dart';
 /// Bytes from the block-list count word (at blockListRel) to the first 20-byte
 /// section descriptor, per readViSections.
 const _descBaseAfterCount = 8;
+
+/// One info-area section descriptor is a fixed 20-byte record.
+const _sectionDescriptorBytes = 20;
+
+/// The RSRC file header is a fixed 32-byte struct.
+const _rsrcHeaderBytes = 32;
+
+/// Reads a file's bytes, or `null` if the read fails (skip-on-error idiom).
+Uint8List? _readBytes(File f) {
+  try {
+    return Uint8List.fromList(f.readAsBytesSync());
+  } catch (_) {
+    return null;
+  }
+}
+
+/// Byte-wise equality for two lists.
+bool eq(List<int> a, List<int> b) {
+  if (a.length != b.length) return false;
+  for (var i = 0; i < a.length; i++) {
+    if (a[i] != b[i]) return false;
+  }
+  return true;
+}
 
 /// NEW test type at the RSRC-container layer: a CROSS-CONSISTENCY invariant
 /// between viparse's two independent code paths — [parseVi] (which builds the
@@ -30,12 +55,8 @@ void main() {
   test('CROSS-CONSISTENCY: every extracted section tag is in parseVi\'s block inventory', () {
     var files = 0;
     for (final f in all) {
-      final Uint8List bytes;
-      try {
-        bytes = Uint8List.fromList(f.readAsBytesSync());
-      } catch (_) {
-        continue;
-      }
+      final bytes = _readBytes(f);
+      if (bytes == null) continue;
       final Set<String> inventory, sectionTags;
       try {
         inventory = parseVi(bytes).blocks.toSet();
@@ -58,12 +79,8 @@ void main() {
     final vinsExamples = <String>[];
     final libnExamples = <String>[];
     for (final f in all) {
-      final Uint8List bytes;
-      try {
-        bytes = Uint8List.fromList(f.readAsBytesSync());
-      } catch (_) {
-        continue;
-      }
+      final bytes = _readBytes(f);
+      if (bytes == null) continue;
       final List<ViSection> secs;
       try {
         secs = readEmbeddedSections(bytes);
@@ -74,10 +91,7 @@ void main() {
         if (s.tag == 'VINS') {
           vinsCount++;
           final isRsrc = s.bytes.length >= 12 &&
-              s.bytes[0] == 0x52 &&
-              s.bytes[1] == 0x53 &&
-              s.bytes[2] == 0x52 &&
-              s.bytes[3] == 0x43 &&
+              String.fromCharCodes(s.bytes.sublist(0, 4)) == 'RSRC' &&
               String.fromCharCodes(s.bytes.sublist(8, 12)) == 'LVIN';
           var reparses = false;
           if (isRsrc) {
@@ -113,12 +127,8 @@ void main() {
     var files = 0, exact = 0;
     final diffs = <String>[];
     for (final f in all) {
-      final Uint8List bytes;
-      try {
-        bytes = Uint8List.fromList(f.readAsBytesSync());
-      } catch (_) {
-        continue;
-      }
+      final bytes = _readBytes(f);
+      if (bytes == null) continue;
       final Uint8List out;
       try {
         out = ViContainer.parse(bytes).toBytes();
@@ -126,15 +136,7 @@ void main() {
         continue;
       }
       files++;
-      var same = out.length == bytes.length;
-      if (same) {
-        for (var i = 0; i < bytes.length; i++) {
-          if (out[i] != bytes[i]) {
-            same = false;
-            break;
-          }
-        }
-      }
+      final same = eq(out, bytes);
       if (same) {
         exact++;
       } else if (diffs.length < 6) {
@@ -149,12 +151,8 @@ void main() {
     var files = 0, exact = 0;
     final diffs = <String>[];
     for (final f in all) {
-      final Uint8List bytes;
-      try {
-        bytes = Uint8List.fromList(f.readAsBytesSync());
-      } catch (_) {
-        continue;
-      }
+      final bytes = _readBytes(f);
+      if (bytes == null) continue;
       final Uint8List header, out;
       try {
         header = ViContainer.parse(bytes).header;
@@ -163,9 +161,9 @@ void main() {
         continue;
       }
       files++;
-      var same = out.length == header.length && header.length >= 32;
+      var same = out.length == header.length && header.length >= _rsrcHeaderBytes;
       if (same) {
-        for (var i = 0; i < 32; i++) {
+        for (var i = 0; i < _rsrcHeaderBytes; i++) {
           if (out[i] != header[i]) {
             same = false;
             break;
@@ -186,12 +184,8 @@ void main() {
     var files = 0, exact = 0;
     final diffs = <String>[];
     for (final f in all) {
-      final Uint8List bytes;
-      try {
-        bytes = Uint8List.fromList(f.readAsBytesSync());
-      } catch (_) {
-        continue;
-      }
+      final bytes = _readBytes(f);
+      if (bytes == null) continue;
       final Uint8List info, out;
       final int blr;
       try {
@@ -226,12 +220,8 @@ void main() {
     var files = 0, exact = 0;
     final diffs = <String>[];
     for (final f in all) {
-      final Uint8List bytes;
-      try {
-        bytes = Uint8List.fromList(f.readAsBytesSync());
-      } catch (_) {
-        continue;
-      }
+      final bytes = _readBytes(f);
+      if (bytes == null) continue;
       final Uint8List info, out;
       final int blr;
       try {
@@ -265,12 +255,8 @@ void main() {
     var files = 0, descriptors = 0;
     final fails = <String>[];
     for (final f in all) {
-      final Uint8List bytes;
-      try {
-        bytes = Uint8List.fromList(f.readAsBytesSync());
-      } catch (_) {
-        continue;
-      }
+      final bytes = _readBytes(f);
+      if (bytes == null) continue;
       final Uint8List info;
       final ViBlockList bl;
       final int descBase;
@@ -286,12 +272,12 @@ void main() {
       for (final e in bl.entries) {
         final n = e.sectionCountMinus1 + 1;
         for (var s = 0; s < n; s++) {
-          final dpos = descBase + e.descRel + s * 20;
-          if (dpos < 0 || dpos + 20 > info.length) continue;
+          final dpos = descBase + e.descRel + s * _sectionDescriptorBytes;
+          if (dpos < 0 || dpos + _sectionDescriptorBytes > info.length) continue;
           descriptors++;
           final sd = ViSectionDescriptor.parse(info, dpos);
           final out = sd.serialize();
-          for (var i = 0; i < 20; i++) {
+          for (var i = 0; i < _sectionDescriptorBytes; i++) {
             if (out[i] != info[dpos + i]) {
               if (fails.length < 6) fails.add('${f.path.split('/').last}@$dpos');
               break;
@@ -309,12 +295,8 @@ void main() {
     var files = 0, exact = 0;
     final diffs = <String>[];
     for (final f in all) {
-      final Uint8List bytes;
-      try {
-        bytes = Uint8List.fromList(f.readAsBytesSync());
-      } catch (_) {
-        continue;
-      }
+      final bytes = _readBytes(f);
+      if (bytes == null) continue;
       final Uint8List out;
       try {
         out = ViContainer.parse(bytes).serialize();
@@ -322,15 +304,7 @@ void main() {
         continue;
       }
       files++;
-      var same = out.length == bytes.length;
-      if (same) {
-        for (var i = 0; i < bytes.length; i++) {
-          if (out[i] != bytes[i]) {
-            same = false;
-            break;
-          }
-        }
-      }
+      final same = eq(out, bytes);
       if (same) {
         exact++;
       } else if (diffs.length < 6) {
@@ -345,12 +319,8 @@ void main() {
     var files = 0, peeled = 0;
     final mismatches = <String>[];
     for (final f in all) {
-      final Uint8List bytes;
-      try {
-        bytes = Uint8List.fromList(f.readAsBytesSync());
-      } catch (_) {
-        continue;
-      }
+      final bytes = _readBytes(f);
+      if (bytes == null) continue;
       final ViInfoArea ia;
       final ViBlockList bl;
       try {
@@ -379,12 +349,8 @@ void main() {
     final badZero = <String>[];
     final flagMismatch = <String>[];
     for (final f in all) {
-      final Uint8List bytes;
-      try {
-        bytes = Uint8List.fromList(f.readAsBytesSync());
-      } catch (_) {
-        continue;
-      }
+      final bytes = _readBytes(f);
+      if (bytes == null) continue;
       final ViInfoPreGap? pg;
       final bool hasEmbedded;
       try {
@@ -417,12 +383,8 @@ void main() {
     var checked = 0, markerInInventory = 0, oppositePresent = 0;
     final bad = <String>[];
     for (final f in all) {
-      final Uint8List bytes;
-      try {
-        bytes = Uint8List.fromList(f.readAsBytesSync());
-      } catch (_) {
-        continue;
-      }
+      final bytes = _readBytes(f);
+      if (bytes == null) continue;
       final String marker;
       final Set<String> blocks;
       try {
@@ -451,12 +413,8 @@ void main() {
   test('INFO-AREA: subheader reservedA == [0,0,0x20]; reservedB == trailing-name offset', () {
     var files = 0, badA = 0, nameOffMatch = 0, nameOffChecked = 0;
     for (final f in all) {
-      final Uint8List bytes;
-      try {
-        bytes = Uint8List.fromList(f.readAsBytesSync());
-      } catch (_) {
-        continue;
-      }
+      final bytes = _readBytes(f);
+      if (bytes == null) continue;
       final ViContainer c;
       try {
         c = ViContainer.parse(bytes);
@@ -489,12 +447,8 @@ void main() {
     var files = 0, twelve = 0;
     var highRefFiles = 0, highRefHeader12 = 0, maxHeaderAtHighRef = 0, maxRefSeen = 0;
     for (final f in all) {
-      final Uint8List bytes;
-      try {
-        bytes = Uint8List.fromList(f.readAsBytesSync());
-      } catch (_) {
-        continue;
-      }
+      final bytes = _readBytes(f);
+      if (bytes == null) continue;
       final ViInfoArea ia;
       try {
         ia = ViContainer.parse(bytes).parsedInfoArea;
@@ -530,12 +484,8 @@ void main() {
     var checked = 0;
     final bad = <String>[];
     for (final f in all) {
-      final Uint8List bytes;
-      try {
-        bytes = Uint8List.fromList(f.readAsBytesSync());
-      } catch (_) {
-        continue;
-      }
+      final bytes = _readBytes(f);
+      if (bytes == null) continue;
       final int? hv;
       final int dataSize;
       try {
@@ -559,12 +509,8 @@ void main() {
     var files = 0, badWord0 = 0, filesWithWord8 = 0;
     final w0ex = <String>[];
     for (final f in all) {
-      final Uint8List bytes;
-      try {
-        bytes = Uint8List.fromList(f.readAsBytesSync());
-      } catch (_) {
-        continue;
-      }
+      final bytes = _readBytes(f);
+      if (bytes == null) continue;
       final ViInfoArea ia;
       try {
         ia = ViContainer.parse(bytes).parsedInfoArea;
@@ -594,12 +540,8 @@ void main() {
     var maxNameRef = 0, maxInfoLen = 0;
     final badWords = <String>[];
     for (final f in all) {
-      final Uint8List bytes;
-      try {
-        bytes = Uint8List.fromList(f.readAsBytesSync());
-      } catch (_) {
-        continue;
-      }
+      final bytes = _readBytes(f);
+      if (bytes == null) continue;
       final ViContainer c;
       final ViInfoArea ia;
       try {
@@ -631,12 +573,8 @@ void main() {
     var files = 0, withName = 0;
     final mismatches = <String>[];
     for (final f in all) {
-      final Uint8List bytes;
-      try {
-        bytes = Uint8List.fromList(f.readAsBytesSync());
-      } catch (_) {
-        continue;
-      }
+      final bytes = _readBytes(f);
+      if (bytes == null) continue;
       final ViInfoArea ia;
       String? summaryName;
       try {
@@ -663,12 +601,8 @@ void main() {
     var files = 0, exact = 0;
     final diffs = <String>[];
     for (final f in all) {
-      final Uint8List bytes;
-      try {
-        bytes = Uint8List.fromList(f.readAsBytesSync());
-      } catch (_) {
-        continue;
-      }
+      final bytes = _readBytes(f);
+      if (bytes == null) continue;
       final Uint8List out;
       try {
         out = ViVi.parse(bytes).serialize();
@@ -676,15 +610,7 @@ void main() {
         continue;
       }
       files++;
-      var same = out.length == bytes.length;
-      if (same) {
-        for (var i = 0; i < bytes.length; i++) {
-          if (out[i] != bytes[i]) {
-            same = false;
-            break;
-          }
-        }
-      }
+      final same = eq(out, bytes);
       if (same) {
         exact++;
       } else if (diffs.length < 6) {
@@ -698,14 +624,6 @@ void main() {
   test('TYPED EDIT: ViVi.withSectionEdited grow/shrink stays coherent for every VI', () {
     var files = 0, ok = 0;
     final fails = <String>[];
-
-    bool eq(List<int> a, List<int> b) {
-      if (a.length != b.length) return false;
-      for (var i = 0; i < a.length; i++) {
-        if (a[i] != b[i]) return false;
-      }
-      return true;
-    }
 
     for (final f in all) {
       final ViVi vi;
@@ -744,12 +662,8 @@ void main() {
     var files = 0, exact = 0;
     final diffs = <String>[];
     for (final f in all) {
-      final Uint8List bytes;
-      try {
-        bytes = Uint8List.fromList(f.readAsBytesSync());
-      } catch (_) {
-        continue;
-      }
+      final bytes = _readBytes(f);
+      if (bytes == null) continue;
       final Uint8List data, rebuilt;
       try {
         data = ViContainer.parse(bytes).dataArea;
@@ -758,15 +672,7 @@ void main() {
         continue;
       }
       files++;
-      var same = rebuilt.length == data.length;
-      if (same) {
-        for (var i = 0; i < data.length; i++) {
-          if (rebuilt[i] != data[i]) {
-            same = false;
-            break;
-          }
-        }
-      }
+      final same = eq(rebuilt, data);
       if (same) {
         exact++;
       } else if (diffs.length < 6) {
@@ -781,14 +687,6 @@ void main() {
   test('SECTION-EDIT: editSection no-op is byte-exact; grow/shrink re-parse correctly', () {
     var files = 0, noopExact = 0, growOk = 0, shrinkOk = 0, grown = 0, shrunk = 0;
     final fails = <String>[];
-
-    bool eq(List<int> a, List<int> b) {
-      if (a.length != b.length) return false;
-      for (var i = 0; i < a.length; i++) {
-        if (a[i] != b[i]) return false;
-      }
-      return true;
-    }
 
     for (final f in all) {
       final Uint8List bytes;
@@ -860,12 +758,8 @@ void main() {
     var files = 0, withNames = 0, totalNames = 0;
     final fails = <String>[];
     for (final f in all) {
-      final Uint8List bytes;
-      try {
-        bytes = Uint8List.fromList(f.readAsBytesSync());
-      } catch (_) {
-        continue;
-      }
+      final bytes = _readBytes(f);
+      if (bytes == null) continue;
       files++;
       final names = readSubViNames(bytes);
       if (names.isEmpty) continue;

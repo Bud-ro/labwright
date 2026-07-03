@@ -2,6 +2,10 @@ import 'dart:typed_data';
 
 import 'viparse.dart' show ViFormatException, readViSections;
 
+/// Guard threshold: a declared block count above this is treated as implausible
+/// (corrupt/hostile input) rather than allocated against.
+const _maxPlausibleBlockCount = 100000;
+
 /// The 32-byte RSRC (`.vi`) file header, modeled field-by-field — the first
 /// fully-typed piece of the exporter: every one of the 32 bytes maps to a named
 /// field, so [serialize] reconstructs the header byte-for-byte (no opaque span).
@@ -54,13 +58,16 @@ class ViHeader {
   String get fileType => String.fromCharCodes(fileTypeBytes);
   String get creator => String.fromCharCodes(creatorBytes);
 
+  /// The fixed 32-byte RSRC file header size.
+  static const int byteSize = 32;
+
   /// The RSRC magic bytes (`RSRC\r\n`) every container/header begins with.
   static const List<int> _magic = [0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a];
 
   /// Parses the first 32 bytes of [bytes] into a [ViHeader]. Throws
   /// [ViFormatException] on a too-short or non-RSRC buffer.
   factory ViHeader.parse(Uint8List bytes) {
-    if (bytes.length < 32) throw ViFormatException('too small for an RSRC header');
+    if (bytes.length < byteSize) throw ViFormatException('too small for an RSRC header');
     for (var i = 0; i < _magic.length; i++) {
       if (bytes[i] != _magic[i]) throw ViFormatException('not an RSRC/.vi file (bad magic)');
     }
@@ -80,7 +87,7 @@ class ViHeader {
   /// Re-emits the 32 header bytes. Byte-identical to the input for a parsed,
   /// unmodified header — the per-field serialize() contract.
   Uint8List serialize() {
-    final out = Uint8List(32);
+    final out = Uint8List(byteSize);
     final d = ByteData.sublistView(out);
     out.setRange(0, 6, magic);
     d.setUint16(6, formatVersion);
@@ -150,7 +157,7 @@ class ViInfoSubheader {
       throw ViFormatException('implausible blockListRel $blockListRel');
     }
     return ViInfoSubheader(
-      headerCopy: ViHeader.parse(Uint8List.sublistView(infoArea, 0, 32)),
+      headerCopy: ViHeader.parse(Uint8List.sublistView(infoArea, 0, ViHeader.byteSize)),
       reservedA: Uint8List.fromList(infoArea.sublist(32, 0x2c)),
       blockListRel: blockListRel,
       reservedB: Uint8List.fromList(infoArea.sublist(0x30, blockListRel)),
@@ -160,14 +167,13 @@ class ViInfoSubheader {
   /// Re-emits the `[0, blockListRel)` prefix, byte-identical to the input for a
   /// parsed, unmodified subheader.
   Uint8List serialize() {
-    final out = BytesBuilder()
-      ..add(headerCopy.serialize())
-      ..add(reservedA);
     final blr = ByteData(4)..setUint32(0, blockListRel);
-    out
-      ..add(blr.buffer.asUint8List())
-      ..add(reservedB);
-    return out.toBytes();
+    return (BytesBuilder()
+          ..add(headerCopy.serialize())
+          ..add(reservedA)
+          ..add(blr.buffer.asUint8List())
+          ..add(reservedB))
+        .toBytes();
   }
 }
 
@@ -189,6 +195,9 @@ class ViBlockListEntry {
   final int descRel;
 
   String get tag => String.fromCharCodes(tagBytes);
+
+  /// The fixed 12-byte block-list entry size (`{tag[4], u32 sectionCount-1, u32 descRel}`).
+  static const int byteSize = 12;
 
   factory ViBlockListEntry.parse(Uint8List info, int at) {
     final d = ByteData.sublistView(info);
@@ -219,18 +228,18 @@ class ViBlockList {
   int get count => entries.length;
 
   /// Total serialized byte length (the `u32 count` + the entry array).
-  int get byteLength => 4 + entries.length * 12;
+  int get byteLength => 4 + entries.length * ViBlockListEntry.byteSize;
 
   /// Parses the block list at [blockListRel] within [infoArea].
   factory ViBlockList.parse(Uint8List infoArea, int blockListRel) {
     if (blockListRel + 4 > infoArea.length) throw ViFormatException('block list out of range');
     final d = ByteData.sublistView(infoArea);
     final count = d.getUint32(blockListRel);
-    if (count > 100000) throw ViFormatException('implausible block count $count');
-    final end = blockListRel + 4 + count * 12;
+    if (count > _maxPlausibleBlockCount) throw ViFormatException('implausible block count $count');
+    final end = blockListRel + 4 + count * ViBlockListEntry.byteSize;
     if (end > infoArea.length) throw ViFormatException('block list entries out of range');
     return ViBlockList(entries: [
-      for (var i = 0; i < count; i++) ViBlockListEntry.parse(infoArea, blockListRel + 4 + i * 12),
+      for (var i = 0; i < count; i++) ViBlockListEntry.parse(infoArea, blockListRel + 4 + i * ViBlockListEntry.byteSize),
     ]);
   }
 
@@ -240,7 +249,7 @@ class ViBlockList {
     final d = ByteData.sublistView(out);
     d.setUint32(0, entries.length);
     for (var i = 0; i < entries.length; i++) {
-      entries[i].writeInto(d, out, 4 + i * 12);
+      entries[i].writeInto(d, out, 4 + i * ViBlockListEntry.byteSize);
     }
     return out;
   }
@@ -304,6 +313,9 @@ class ViSectionDescriptor {
   /// LIBN/VINS sections carry `0` instead. Not a section-vs-nonsection flag.
   static const int commonWord16 = 0xFFFFFFFF;
 
+  /// The fixed 20-byte section-descriptor record size.
+  static const int byteSize = 20;
+
   /// Whether this section carries a name (a non-zero [nameRef] index). The name
   /// itself is not yet resolvable — see [nameRef] — but a caller can already tell
   /// named sections from anonymous ones.
@@ -311,7 +323,7 @@ class ViSectionDescriptor {
 
   /// Parses the 20-byte record (five big-endian `u32`s) at [at] within [info].
   factory ViSectionDescriptor.parse(Uint8List info, int at) {
-    if (at < 0 || at + 20 > info.length) throw ViFormatException('descriptor out of range at $at');
+    if (at < 0 || at + byteSize > info.length) throw ViFormatException('descriptor out of range at $at');
     final d = ByteData.sublistView(info);
     return ViSectionDescriptor(
       word0: d.getUint32(at),
@@ -324,7 +336,7 @@ class ViSectionDescriptor {
 
   /// Re-emits the 20 bytes (five `u32`s), byte-identical to the parsed record.
   Uint8List serialize() {
-    final out = Uint8List(20);
+    final out = Uint8List(byteSize);
     ByteData.sublistView(out)
       ..setUint32(0, word0)
       ..setUint32(4, secRel)
@@ -370,7 +382,7 @@ class ViNameTable {
   /// The VI name decoded from [trailingNameRecord] (Latin-1: each byte is a code
   /// point, so accented/Unicode names like `HÜll°` decode correctly), or null.
   String? get trailingName =>
-      trailingNameRecord.isEmpty ? null : String.fromCharCodes(trailingNameRecord.sublist(1));
+      trailingNameRecord.isEmpty ? null : String.fromCharCodes(trailingNameRecord, 1);
 
   /// Splits a name-table [tail] into header + trailing Pascal VI name.
   ///
@@ -406,7 +418,6 @@ class ViNameTable {
     final maxLen = b.length - 1 < 255 ? b.length - 1 : 255;
     for (var len = maxLen; len >= 1; len--) {
       final lenPos = b.length - 1 - len;
-      if (lenPos < 0) continue;
       if (b[lenPos] != len) continue;
       var ok = true;
       for (var i = lenPos + 1; i < b.length; i++) {
@@ -560,30 +571,33 @@ class ViInfoArea {
     final restStart = subheader.blockListRel + blockList.byteLength;
     final descBase = subheader.blockListRel + 8;
 
-    final maxRecords = infoArea.length ~/ 20;
+    final maxRecords = infoArea.length ~/ ViSectionDescriptor.byteSize;
     var minStart = infoArea.length, maxEnd = 0;
     var inBounds = true;
     for (final e in blockList.entries) {
       final n = e.sectionCountMinus1 + 1;
       for (var s = 0; s < n && s <= maxRecords; s++) {
-        final dpos = descBase + e.descRel + s * 20;
-        if (dpos + 20 > infoArea.length) {
+        final dpos = descBase + e.descRel + s * ViSectionDescriptor.byteSize;
+        if (dpos + ViSectionDescriptor.byteSize > infoArea.length) {
           inBounds = false;
           break;
         }
         if (dpos < minStart) minStart = dpos;
-        if (dpos + 20 > maxEnd) maxEnd = dpos + 20;
+        if (dpos + ViSectionDescriptor.byteSize > maxEnd) maxEnd = dpos + ViSectionDescriptor.byteSize;
       }
     }
 
-    final clean = inBounds && maxEnd > minStart && minStart == restStart + 20 && (maxEnd - minStart) % 20 == 0;
+    final clean = inBounds &&
+        maxEnd > minStart &&
+        minStart == restStart + 20 &&
+        (maxEnd - minStart) % ViSectionDescriptor.byteSize == 0;
     if (clean) {
-      final total = (maxEnd - minStart) ~/ 20;
+      final total = (maxEnd - minStart) ~/ ViSectionDescriptor.byteSize;
       return ViInfoArea(
         subheader: subheader,
         blockList: blockList,
         preGap: ViInfoPreGap.parse(Uint8List.fromList(infoArea.sublist(restStart, restStart + 20))),
-        descriptors: [for (var i = 0; i < total; i++) ViSectionDescriptor.parse(infoArea, minStart + i * 20)],
+        descriptors: [for (var i = 0; i < total; i++) ViSectionDescriptor.parse(infoArea, minStart + i * ViSectionDescriptor.byteSize)],
         nameTable: ViNameTable.parse(Uint8List.fromList(infoArea.sublist(maxEnd)),
             nameStart: subheader.viNameOffset == null ? null : subheader.viNameOffset! - maxEnd),
       );
@@ -597,15 +611,11 @@ class ViInfoArea {
     );
   }
 
-  Uint8List serialize() {
-    final out = BytesBuilder()
-      ..add(subheader.serialize())
-      ..add(blockList.serialize())
-      ..add(preGap?.serialize() ?? Uint8List(0))
-      ..add(_descriptorBytes())
-      ..add(nameTable.serialize());
-    return out.toBytes();
-  }
+  Uint8List serialize() => (BytesBuilder()
+        ..add(subheader.serialize())
+        ..add(blockList.serialize())
+        ..add(rest))
+      .toBytes();
 }
 
 /// A **lossless** decomposition of an RSRC (`.vi`) container into its three
@@ -664,16 +674,8 @@ class ViContainer {
   Uint8List serialize() {
     final h = parsedHeader.serialize();
     final info = parsedInfoArea.serialize();
-    final out = Uint8List(h.length + dataArea.length + info.length);
-    out
-      ..setRange(0, h.length, h)
-      ..setRange(h.length, h.length + dataArea.length, dataArea)
-      ..setRange(h.length + dataArea.length, out.length, info);
-    return out;
+    return _concat3(h, dataArea, info);
   }
-
-  /// The RSRC magic bytes (`RSRC\r\n`) every container/header begins with.
-  static const List<int> _magic = [0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a];
 
   /// Splits [bytes] into the three regions on the header's declared offsets.
   /// Lossless: the regions concatenate back to the input. Throws
@@ -681,8 +683,8 @@ class ViContainer {
   /// distinguish "can't round-trip this" from a silent partial parse).
   factory ViContainer.parse(Uint8List bytes) {
     if (bytes.length < 32) throw ViFormatException('too small to be an RSRC file');
-    for (var i = 0; i < _magic.length; i++) {
-      if (bytes[i] != _magic[i]) throw ViFormatException('not an RSRC/.vi file (bad magic)');
+    for (var i = 0; i < ViHeader._magic.length; i++) {
+      if (bytes[i] != ViHeader._magic[i]) throw ViFormatException('not an RSRC/.vi file (bad magic)');
     }
     final d = ByteData.sublistView(bytes);
     final infoOffset = d.getUint32(16);
@@ -699,14 +701,7 @@ class ViContainer {
 
   /// Re-emits the container as bytes. For a container parsed and left unmodified
   /// this is byte-identical to the input (the idempotency contract).
-  Uint8List toBytes() {
-    final out = Uint8List(header.length + dataArea.length + infoArea.length);
-    out
-      ..setRange(0, header.length, header)
-      ..setRange(header.length, header.length + dataArea.length, dataArea)
-      ..setRange(header.length + dataArea.length, out.length, infoArea);
-    return out;
-  }
+  Uint8List toBytes() => _concat3(header, dataArea, infoArea);
 }
 
 /// The whole `.vi` file as a **fully-typed model** — the capstone of the
@@ -764,12 +759,7 @@ class ViVi {
     final h = header.serialize();
     final data = ViExport.rebuildDataArea(dataSegments);
     final info = infoArea.serialize();
-    final out = Uint8List(h.length + data.length + info.length);
-    out
-      ..setRange(0, h.length, h)
-      ..setRange(h.length, h.length + data.length, data)
-      ..setRange(h.length + data.length, out.length, info);
-    return out;
+    return _concat3(h, data, info);
   }
 }
 
@@ -806,6 +796,17 @@ bool _listEquals(List<int> a, List<int> b) {
     if (a[i] != b[i]) return false;
   }
   return true;
+}
+
+/// Concatenates the three regions `a ++ b ++ c` into one buffer — the shared
+/// `header ++ data ++ info` layout used by every container serializer here.
+Uint8List _concat3(Uint8List a, Uint8List b, Uint8List c) {
+  final out = Uint8List(a.length + b.length + c.length);
+  out
+    ..setRange(0, a.length, a)
+    ..setRange(a.length, a.length + b.length, b)
+    ..setRange(a.length + b.length, out.length, c);
+  return out;
 }
 
 abstract final class ViExport {
@@ -874,19 +875,17 @@ abstract final class ViExport {
     final countPos = blockListRel;
     if (countPos + 4 > info.length) return out;
     final count = ibd.getUint32(countPos);
-    if (count > 100000) return out;
-    const commonWord16 = 0xFFFFFFFF;
-    const descSize = 20;
+    if (count > _maxPlausibleBlockCount) return out;
     final descBase = countPos + 8;
     var entry = countPos + 4;
-    for (var i = 0; i < count && entry + 12 <= info.length; i++) {
+    for (var i = 0; i < count && entry + ViBlockListEntry.byteSize <= info.length; i++) {
       final sectionCount = ibd.getUint32(entry + 4) + 1;
       final descRel = ibd.getUint32(entry + 8);
-      entry += 12;
+      entry += ViBlockListEntry.byteSize;
       for (var s = 0; s < sectionCount; s++) {
-        final dpos = descBase + descRel + s * descSize;
-        if (dpos + descSize > info.length) break;
-        if (ibd.getUint32(dpos + 16) != commonWord16) continue;
+        final dpos = descBase + descRel + s * ViSectionDescriptor.byteSize;
+        if (dpos + ViSectionDescriptor.byteSize > info.length) break;
+        if (ibd.getUint32(dpos + 16) != ViSectionDescriptor.commonWord16) continue;
         out.add((dpos: dpos, secRel: ibd.getUint32(dpos + 4)));
       }
     }
@@ -921,16 +920,8 @@ abstract final class ViExport {
     if (!_listEquals(rebuildDataArea(segs), c.dataArea)) {
       throw ViFormatException('data area does not cleanly decompose; refusing to edit');
     }
-    ViSectionData? target;
-    for (final s in segs) {
-      if (s is ViSectionData && s.secRel == secRel) {
-        target = s;
-        break;
-      }
-    }
-    if (target == null) {
-      throw ViFormatException('no section at secRel $secRel to edit');
-    }
+    final target = segs.whereType<ViSectionData>().firstWhere((s) => s.secRel == secRel,
+        orElse: () => throw ViFormatException('no section at secRel $secRel to edit'));
     final delta = newPayload.length - target.payload.length;
 
     final newSegs = [
@@ -953,11 +944,6 @@ abstract final class ViExport {
       ..setUint32(16, hbd.getUint32(16) + delta)
       ..setUint32(28, hbd.getUint32(28) + delta);
 
-    final out = Uint8List(newHeader.length + newData.length + newInfo.length);
-    out
-      ..setRange(0, newHeader.length, newHeader)
-      ..setRange(newHeader.length, newHeader.length + newData.length, newData)
-      ..setRange(newHeader.length + newData.length, out.length, newInfo);
-    return out;
+    return _concat3(newHeader, newData, newInfo);
   }
 }

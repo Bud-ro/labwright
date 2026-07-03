@@ -67,7 +67,6 @@ _S _scaffoldSumm(Uint8List bytes, String path) {
   for (final d in model.blockDiagrams) {
     final logic = d.objects.where(
         (o) => o.category == ViObjectKind.structure || o.category == ViObjectKind.node);
-    if (logic.isEmpty) continue;
     for (final o in logic) {
       checked++;
       if (!out.contains('[oid ${o.oid}]')) {
