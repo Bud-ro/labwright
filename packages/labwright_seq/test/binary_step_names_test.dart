@@ -47,7 +47,8 @@ void main() {
 
   final outputVoltage = File('${rosetta.path}/OutputVoltage_BIN.seq');
   test('content-exact twin: binary step names match the XML twin exactly', () {
-    if (!outputVoltage.existsSync()) return;
+    expect(outputVoltage.existsSync(), isTrue,
+        reason: 'the content-exact oracle must be fetched with the corpus');
     final actual =
         binaryStepNames(Uint8List.fromList(outputVoltage.readAsBytesSync()))
             .toSet();
@@ -62,6 +63,7 @@ void main() {
     final name = bin.uri.pathSegments.last;
     test('$name: binary step count matches its twin', () {
       final twin = _twin(rosetta, name);
+      expect(twin, isNotNull, reason: 'model twin missing for $name');
       if (twin == null) return;
       final actual =
           binaryStepNames(Uint8List.fromList(bin.readAsBytesSync()));

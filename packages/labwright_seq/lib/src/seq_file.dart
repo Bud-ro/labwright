@@ -341,9 +341,12 @@ class SeqVariable {
 
 /// Parses TestStand sequence-file [bytes] into a [SeqFile].
 ///
-/// Supports the **XML** encoding. Throws [UnsupportedError] for the binary
-/// `TOF1` encoding (not yet decoded) and [FormatException] for unrecognized
-/// input — never a silent partial result.
+/// The **XML** and **INI** encodings parse to the complete typed model. The
+/// binary `TOF1` encoding parses to an explicitly **partial** model — the
+/// decoded sequence/step skeleton only (see [_parseBinary] for the exact
+/// scope; `types`/`locals` read empty and step types are null there). Throws
+/// [FormatException] for unrecognized input or a binary header without an
+/// inflatable body.
 SeqFile parseSeqFile(Uint8List bytes) {
   final fmt = detectSeqFormat(bytes);
   switch (fmt) {
@@ -387,10 +390,14 @@ SeqFile _parseXml(Uint8List bytes) {
 /// **not yet decoded** from the binary encoding, so those lenses read empty/null.
 /// Throws [FormatException] when the body does not inflate (not a TOF1 binary).
 SeqFile _parseBinary(Uint8List bytes) {
-  if (inflateBinaryBody(bytes) == null) {
+  // Single inflate: reuse the body for layout + outlines rather than letting
+  // each helper re-inflate (review-measured: the previous shape inflated the
+  // same zlib body up to three times per document).
+  final body = inflateBinaryBody(bytes);
+  if (body == null) {
     throw const FormatException('binary .seq body does not inflate (not TOF1?)');
   }
-  final outlines = binarySequenceOutlines(bytes);
+  final outlines = binarySequenceOutlinesFromBody(body);
   SeqProperty stepProp(String name) => SeqProperty(name: name);
   return SeqFile(
     header: detectSeqHeader(bytes),

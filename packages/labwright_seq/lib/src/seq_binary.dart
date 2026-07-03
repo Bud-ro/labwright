@@ -779,10 +779,21 @@ const _propRecordFlagsWidth = 1;
 const _propTerminatorWidth = 2;
 
 /// The [_PropRecordField.kind] range the leaf decoder accepts: `2` (empty list)
-/// through `14` (special string). Structured descriptor kinds (`36`/`66`) sit
-/// above this and are left to the not-yet-decoded type/tree layer.
+/// through `14` (special string) — exactly the observed leaf kinds. Structured
+/// descriptor kinds (`36`/`66`) sit above this and are left to the
+/// not-yet-decoded type/tree layer.
 const _propMinKind = 2;
-const _propMaxLeafKind = 16;
+const _propMaxLeafKind = 14;
+
+/// The type names observed on real leaf property records across the validated
+/// corpus. Requiring the decoded type name to be one of these is the false-
+/// positive gate for newer-layout binaries whose record bytes are NOT pool
+/// indices: on such files a coincidental `0x40` lead with two zero words can
+/// pass the framing test while its "type index" resolves to an arbitrary pool
+/// string (review-confirmed on three corpus files where identical record
+/// offsets resolved to different type names per file). With this gate those
+/// files emit 0 records while the validated oracle keeps its exact 37/37.
+const _propLeafTypeNames = {'Bool', 'Num', 'Str', 'Path', 'Expr', 'Obj', 'Objs'};
 
 /// The [_PropRecordField.kind] at/above which a record carries an inline scalar
 /// value (`6`); below it (`4` bare, `2` empty list) there is no stored value.
@@ -884,7 +895,8 @@ List<BinaryPropertyRecord> _propertyRecordsFromBody(Uint8List body, int recordRe
           kind >= _propMinKind &&
           kind <= _propMaxLeafKind &&
           typeIndex < pool.length &&
-          nameIndex < pool.length;
+          nameIndex < pool.length &&
+          _propLeafTypeNames.contains(pool[typeIndex]);
       if (framed) {
         final typeName = pool[typeIndex];
         var consumed = _PropRecordField.value.offset;
@@ -940,9 +952,14 @@ List<BinaryPropertyRecord> _propertyRecordsFromBody(Uint8List body, int recordRe
 /// `MainSequence` living at `…/Objs/Seq/[0]`. Element `[1]` is the object's own
 /// name; the structural tokens (`Objs`, `Seq`, `[i]`, `Data`, …) spell the path.
 ///
+/// Upper bound on the words read for one declaration path. Review-confirmed:
+/// an unbounded walk crosses record boundaries (every zero word reads as a
+/// separator), letting unrelated trailing words complete a match.
+const _maxDeclarationPathWords = 8;
+
 /// Reads the path words of the record at [at], or `null` if it is not a
 /// path-declaration record. Stops at the first word that is neither zero nor a
-/// resolvable pool index.
+/// resolvable pool index, and after [_maxDeclarationPathWords] words.
 List<String>? _objectDeclarationPath(
     Uint8List body, ByteData view, List<String> pool, int at, int recordRegionLength) {
   if (at + _PropRecordField.zeroA.offset + _u32Bytes > recordRegionLength) return null;
@@ -954,7 +971,8 @@ List<String>? _objectDeclarationPath(
 
   final path = <String>[];
   var offset = firstOffset;
-  while (offset + _u32Bytes <= recordRegionLength) {
+  while (offset + _u32Bytes <= recordRegionLength &&
+      path.length < _maxDeclarationPathWords) {
     final word = view.getUint32(offset, Endian.little);
     if (word == 0) {
       offset += _u32Bytes; // separator
@@ -970,18 +988,38 @@ List<String>? _objectDeclarationPath(
   return path;
 }
 
-/// The `Objs / Seq / [i]` container path under which a file's sequences are
-/// declared (see [_objectDeclarationPath]).
-const _sequenceListPath = ['Objs', 'Seq'];
+/// Minimum bytes a declaration record needs before scanning (lead + flags +
+/// one path word).
+const _minDeclarationBytes = 8;
+
+/// Whether a declaration [path] is a **sequence declaration** in the validated
+/// root shape `[] / <name> / Objs / Seq / [i]`: the array-root token first, the
+/// sequence name at element 1, and `Objs / Seq / [i]` at exactly elements 2-4.
+///
+/// The exact-position requirement is the false-positive gate: review-confirmed,
+/// paths shaped `ResultList / <x> / Objs / Seq / [i]` (result containers) and
+/// `<class> / Calls / Objs / Seq / [i]` (.NET call containers) match a
+/// floating `Objs/Seq/[i]` window but are NOT sequence declarations — a
+/// floating-window matcher emitted structural tokens as "sequence names" on
+/// 47/294 corpus binaries. With the root shape pinned, a corpus sweep emits
+/// zero structural tokens (86/294 binaries legitimately declare sequences in
+/// this shape; the rest use layouts not yet decoded).
+bool _isSequenceDeclaration(List<String> path) =>
+    path.length >= 5 &&
+    path[0] == '[]' &&
+    path[2] == 'Objs' &&
+    path[3] == 'Seq' &&
+    path[4].startsWith('[');
 
 /// The **sequence names** of a binary TOF1 file, recovered from the object-path
-/// declarations ([_objectDeclarationPath]): every declaration whose path passes
-/// through `Objs / Seq / [i]` names a sequence at path element `[1]`.
+/// declarations in the validated root shape (see [_isSequenceDeclaration]).
 ///
-/// Corpus-validated: on all six Rosetta binary twins this yields exactly the
-/// sequence list their content-exact XML twins parse to (`[MainSequence]`).
-/// Returned de-duplicated in first-seen order. Returns `[]` when [seqBytes] is not
-/// an inflatable binary file or does not frame.
+/// Corpus-validated two ways: on the six Rosetta binary twins this yields
+/// exactly the sequence list their XML twins parse to (`[MainSequence]`; only
+/// the OutputVoltage pair is content-exact — the others are same-sequence
+/// re-saves), and a whole-corpus sweep emits zero structural-token false
+/// positives. Files whose sequences are declared in a not-yet-decoded layout
+/// honestly return `[]`. De-duplicated, first-seen order.
 List<String> binarySequenceNames(Uint8List seqBytes) =>
     _withLayout(seqBytes, _sequenceNamesFromBody);
 
@@ -989,18 +1027,12 @@ List<String> _sequenceNamesFromBody(Uint8List body, int recordRegionLength) {
   final pool = _orderedStringPool(body, recordRegionLength);
   if (pool.isEmpty) return const [];
   final view = ByteData.sublistView(body);
+  final seen = <String>{};
   final names = <String>[];
-  for (var at = 0; at + 8 <= recordRegionLength; at++) {
+  for (var at = 0; at + _minDeclarationBytes <= recordRegionLength; at++) {
     final path = _objectDeclarationPath(body, view, pool, at, recordRegionLength);
-    if (path == null || path.length < 2) continue;
-    for (var i = 0; i + 2 < path.length; i++) {
-      if (path[i] == _sequenceListPath[0] &&
-          path[i + 1] == _sequenceListPath[1] &&
-          path[i + 2].startsWith('[')) {
-        if (!names.contains(path[1])) names.add(path[1]);
-        break;
-      }
-    }
+    if (path == null || !_isSequenceDeclaration(path)) continue;
+    if (seen.add(path[1])) names.add(path[1]);
   }
   return names;
 }
@@ -1033,7 +1065,14 @@ bool _looksLikeUniqueId(String text) =>
 /// execution order). Corpus-validated: on the content-exact OutputVoltage twin
 /// the recovered set equals the XML twin's steps exactly, and on every other
 /// Rosetta twin the *count* matches (the names differ only because those pairs
-/// are the same sequence saved from different toolchains). Returns `[]` when
+/// are the same sequence saved from different toolchains).
+///
+/// Known contamination, review-measured: on 4/294 corpus binaries a step-TYPE
+/// substep hook (`OnNewStep`/`Post`/`Edit`) matches this reference shape and is
+/// wrongly reported as a step. Those hooks are step-shaped objects inside type
+/// definitions; separating them needs the type-region framing (not yet
+/// decoded) — a name blocklist would be pattern-matching, not decoding, so the
+/// contamination is documented rather than masked. Returns `[]` when
 /// [seqBytes] is not an inflatable binary file or does not frame.
 List<String> binaryStepNames(Uint8List seqBytes) =>
     _withLayout(seqBytes, _stepNamesFromBody);
@@ -1049,7 +1088,9 @@ List<String> _stepNamesFromBody(Uint8List body, int recordRegionLength) {
       index > 0 && index < pool.length && pool[index].isNotEmpty ? pool[index] : null;
 
   // Step references are not 4-byte aligned (they pack at 2-byte record
-  // boundaries), so scan every byte offset.
+  // boundaries), so scan every byte offset. Set-backed dedup keeps the scan
+  // linear on files with many matches.
+  final seen = <String>{};
   final names = <String>[];
   for (var at = 0; at + (_stepNameWordGap + 2) * _u32Bytes <= recordRegionLength; at++) {
     if (wordAt(at) != stepToken) continue;
@@ -1059,7 +1100,7 @@ List<String> _stepNamesFromBody(Uint8List body, int recordRegionLength) {
     if (name == null || container == null || kind == null) continue;
     if (!_stepContainerTokens.contains(container)) continue;
     if (!_looksLikeUniqueId(kind) && !_stepExpressionKinds.contains(kind)) continue;
-    if (!names.contains(name)) names.add(name);
+    if (seen.add(name)) names.add(name);
   }
   return names;
 }
@@ -1083,6 +1124,7 @@ class BinarySequenceOutline {
     required this.setup,
     required this.main,
     required this.cleanup,
+    this.ungrouped = const [],
   });
 
   /// The sequence name (path element `[1]` of its object declaration).
@@ -1092,6 +1134,11 @@ class BinarySequenceOutline {
   final List<String> setup;
   final List<String> main;
   final List<String> cleanup;
+
+  /// Steps whose group membership is not decodable from position (they are
+  /// laid out before any group marker — seen on 7/294 corpus binaries).
+  /// Reported here rather than guessed into a group.
+  final List<String> ungrouped;
 }
 
 /// The **sequence outlines** of a binary TOF1 file — each sequence with its
@@ -1103,25 +1150,28 @@ class BinarySequenceOutline {
 List<BinarySequenceOutline> binarySequenceOutlines(Uint8List seqBytes) =>
     _withLayout(seqBytes, _sequenceOutlinesFromBody);
 
+/// [binarySequenceOutlines] over an **already-inflated** [body] — the
+/// single-inflate path for callers that hold the body (parseSeqFile). Frames
+/// the layout from the body; returns `[]` when it does not frame.
+List<BinarySequenceOutline> binarySequenceOutlinesFromBody(Uint8List body) {
+  final layout = _layoutFromBody(body);
+  if (layout == null) return const [];
+  return _sequenceOutlinesFromBody(body, layout.recordRegionLength);
+}
+
 List<BinarySequenceOutline> _sequenceOutlinesFromBody(
     Uint8List body, int recordRegionLength) {
   final pool = _orderedStringPool(body, recordRegionLength);
   if (pool.isEmpty) return const [];
   final view = ByteData.sublistView(body);
 
-  // 1. sequence declarations, with offsets
+  // 1. sequence declarations, with offsets (same root-shape gate as
+  // binarySequenceNames — see _isSequenceDeclaration)
   final sequenceDecls = <(int, String)>[];
-  for (var at = 0; at + 8 <= recordRegionLength; at++) {
+  for (var at = 0; at + _minDeclarationBytes <= recordRegionLength; at++) {
     final path = _objectDeclarationPath(body, view, pool, at, recordRegionLength);
-    if (path == null || path.length < 2) continue;
-    for (var i = 0; i + 2 < path.length; i++) {
-      if (path[i] == _sequenceListPath[0] &&
-          path[i + 1] == _sequenceListPath[1] &&
-          path[i + 2].startsWith('[')) {
-        sequenceDecls.add((at, path[1]));
-        break;
-      }
-    }
+    if (path == null || !_isSequenceDeclaration(path)) continue;
+    sequenceDecls.add((at, path[1]));
   }
   if (sequenceDecls.isEmpty) return const [];
 
@@ -1168,24 +1218,37 @@ List<BinarySequenceOutline> _sequenceOutlinesFromBody(
     return owner;
   }
 
+  final ungrouped = <String, List<String>>{
+    for (final (_, name) in sequenceDecls) name: <String>[],
+  };
   for (final (stepOffset, stepName) in steps) {
     String? group;
     for (final (markerOffset, markerName) in markers) {
       if (markerOffset < stepOffset) group = markerName;
     }
-    if (group == null) continue; // step before any group marker: unplaceable
-    final groups = outlines[sequenceAt(stepOffset)]!;
-    if (!groups[group]!.contains(stepName)) groups[group]!.add(stepName);
+    final owner = sequenceAt(stepOffset);
+    if (group == null) {
+      // Step laid out before any group marker (review-confirmed on 7/294
+      // corpus binaries): its Setup/Main/Cleanup membership is not decodable
+      // from position, so it is reported ungrouped rather than guessed.
+      ungrouped[owner]!.add(stepName);
+      continue;
+    }
+    // Duplicate names stay: distinct steps legitimately share a name.
+    outlines[owner]![group]!.add(stepName);
   }
 
+  final seenNames = <String>{};
   return [
     for (final (_, name) in sequenceDecls)
-      BinarySequenceOutline(
-        name: name,
-        setup: outlines[name]!['Setup']!,
-        main: outlines[name]!['Main']!,
-        cleanup: outlines[name]!['Cleanup']!,
-      ),
+      if (seenNames.add(name))
+        BinarySequenceOutline(
+          name: name,
+          setup: outlines[name]!['Setup']!,
+          main: outlines[name]!['Main']!,
+          cleanup: outlines[name]!['Cleanup']!,
+          ungrouped: ungrouped[name]!,
+        ),
   ];
 }
 

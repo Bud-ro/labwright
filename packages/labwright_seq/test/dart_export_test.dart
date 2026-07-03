@@ -67,7 +67,8 @@ void main() {
 
   test('the Rosetta oracle export carries sequences, steps, and stubs', () {
     final f = File('${corpusSeqDir.path}/rosetta/OutputVoltage_XML.seq');
-    if (!f.existsSync()) return;
+    expect(f.existsSync(), isTrue,
+        reason: 'the Rosetta oracle must be fetched with the corpus');
     final file = parseSeqFile(Uint8List.fromList(f.readAsBytesSync()));
     final source = exportSeqFileToDart(file);
     expect(source, contains('Future<void> mainSequence(TsRuntime ts'));
