@@ -55,7 +55,6 @@ _S _scaffoldSumm(Uint8List bytes, String path) {
   final name = path.split('/').last;
   final out = generateDartScaffold(model);
 
-  // (1)+(2) DETERMINISM + HONEST MARKER.
   String? scaffoldFail;
   if (out != generateDartScaffold(model)) {
     scaffoldFail = 'NONDET $name';
@@ -63,7 +62,6 @@ _S _scaffoldSumm(Uint8List bytes, String path) {
     scaffoldFail = 'NOMARKER $name';
   }
 
-  // (3) COVERAGE: every struct/node oid the scaffold is obligated to represent.
   var checked = 0;
   String? missingOid;
   for (final d in model.blockDiagrams) {
@@ -80,7 +78,6 @@ _S _scaffoldSumm(Uint8List bytes, String path) {
     if (missingOid != null) break;
   }
 
-  // Captions surfaced without silent truncation.
   final caps = model.captions;
   var withCaptions = false;
   String? captionFail;
@@ -93,7 +90,6 @@ _S _scaffoldSumm(Uint8List bytes, String path) {
     }
   }
 
-  // Every recovered subVI name listed in the header.
   var withSubVis = false;
   String? subviFail;
   if (model.subViNames.isNotEmpty) {

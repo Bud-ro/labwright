@@ -97,3 +97,16 @@ flutter run -d macos -- path/to/file.seq   # open a file at launch
 - Richer step **Limits** display (low/high/nominal as a small table).
 - A hex pane for binary files alongside the recovered strings.
 - Decode the binary `TOF1` record tree → unlock the typed views for binary too.
+
+## Implementation notes (non-obvious)
+
+- `ListView`'s `key: ValueKey(_query)` in the Properties/Sequences filters exists to
+  force a rebuild on query change so `ExpansionTile`s pick up the new force-expanded
+  state while filtering. Removing the key silently breaks filter expansion.
+- `_keys`/`_expanded` in the sequences view are indexed by **original** outline position
+  (not filtered position), so jump targets stay correct while a filter is applied.
+- The attribute chips in `properties_view`'s `_subtitle` deliberately exclude the
+  `classname`/`typename` keys — those are already surfaced via `node.typeLabel`.
+- `document_view.binaryRecoverySections`: the "Inline numeric values" section is a
+  superset of "Named scalar values" (it includes inline numbers not yet tied to a named
+  record).

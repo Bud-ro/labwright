@@ -128,11 +128,7 @@ IniSeqFile parseIniSeq(String text) {
       sections.add(current);
       continue;
     }
-    // A `key = value` line (the only non-section line shape). Split on the first
-    // ` = ` so values may themselves contain '='.
     final eq = line.indexOf(' = ');
-    // No ` = `: not a key=value line. None occur in any corpus INI inside a
-    // section (verified + guarded by a corpus test); skip defensively.
     if (eq < 0) continue;
     final key = line.substring(0, eq).trim();
     final value = line.substring(eq + 3);
@@ -180,8 +176,6 @@ void _reassembleContinuations(Map<String, String> map) {
         .add((int.parse(m.group(2)!), map[key]!));
   }
   if (groups == null) return;
-  // Rebuild preserving insertion order: emit the joined base value where the
-  // group's first fragment sat; drop the remaining fragment keys.
   final rebuilt = <String, String>{};
   final emitted = <String>{};
   for (final entry in map.entries) {
@@ -229,7 +223,7 @@ SeqFileHeader _headerFrom(Map<String, String> h) => SeqFileHeader(
       format: SeqFormat.ini,
       fileType: _unquote(h['Type']),
       productName: _unquote(h['ProductName']),
-      fileVersion: h['Version'], // a bare integer like 354 (no quotes)
+      fileVersion: h['Version'],
     );
 
 /// Reconstructs the data [SeqProperty] tree from a parsed INI `.seq`, rooted at
@@ -281,23 +275,21 @@ class _IniBuilder {
   final Map<String, IniSection> _vals = {};
   late final Set<String> _allPaths;
 
-  // Child indices, built once from [_allPaths] so per-node lookups are O(children)
-  // instead of re-scanning every path (which made [build] O(paths²)). For each
-  // container path we record its immediate member-name children (first-seen order,
-  // matching the old [_allPaths] scan) and its array element indices.
   final Map<String, List<String>> _memberChildren = {};
   final Map<String, Set<String>> _memberChildSeen = {};
   final Map<String, List<int>> _elemIdx = {};
 
   /// Single pass over [_allPaths]: for every path, register each immediate
   /// `parent.member` and `parent[index]` edge against its parent. A path's member
-  /// segments are separated by `.`; array elements by `[n]`.
+  /// segments are separated by `.`; array elements by `[n]`. For each container
+  /// path this records its immediate member-name children (first-seen order) and
+  /// its array element indices. Built once so per-node child lookups are
+  /// O(children) instead of re-scanning every path (which made [build] O(paths²)).
   void _indexPaths() {
     final elemSets = <String, Set<int>>{};
     for (final p in _allPaths) {
       final n = p.length;
       var i = 0;
-      // Skip the root token; edges begin at the first separator.
       while (i < n && p[i] != '.' && p[i] != '[') {
         i++;
       }
@@ -315,7 +307,6 @@ class _IniBuilder {
           }
           i = j;
         } else {
-          // p[i] == '[' : an array element edge.
           var j = i + 1;
           while (j < n && p[j] != ']') {
             j++;
@@ -371,8 +362,6 @@ class _IniBuilder {
   List<String> _discoveredChildren(String path) =>
       _memberChildren[path] ?? const <String>[];
 
-  // Cache of inherited member subtrees keyed by their type-default path, so a
-  // type's defaults (e.g. Action.TS) are built once, not per instance.
   final Map<String, SeqProperty> _inheritCache = {};
 
   /// Splits a member's declared type string into (className, typeName). A
@@ -413,16 +402,7 @@ class _IniBuilder {
     final name = _unquote(val?.directives['%NAME']) ??
         _unquote(def?.directives['%NAME']) ??
         displayName;
-    // Instance overrides. `%INSTOVRD: <member> = <flags>` in a value section marks
-    // a member this object overrides relative to its base type; a bare
-    // `%INSTOVRD = <flags>` marks the whole object. The flags are a bitmask we
-    // don't fully decode yet; presence is the signal. Preserved as an attribute.
     String? ovrOf(String m) => val?.directives['$instOverrideAttr: $m'];
-    // Type-level PropertyFlags. `%FLG: <member> = <bitmask>` records the member's
-    // fixed property options (it is ~constant per property name across the corpus,
-    // so it encodes the property's type, not instance data). We keep the bitmask
-    // verbatim; individual bit meanings are not yet decoded. Found on the owning
-    // object's value or DEF section.
     String? flgOf(String m) =>
         val?.directives['$flagsAttr: $m'] ?? def?.directives['$flagsAttr: $m'];
     Map<String, String> memberAttrs(String m) {
@@ -433,14 +413,6 @@ class _IniBuilder {
         if (flg != null) flagsAttr: flg,
       };
     }
-    // Type inheritance. A typed object (e.g. a step of type "Action") declares
-    // its member *types* in its `[DEF, <Type>]`; the instance stores only the
-    // members/values it overrides. So the type def supplies (a) member type
-    // declarations the instance omits — even for members the instance only
-    // implies via a deeper section, like a step's `TS` whose type lives in the
-    // step type def — and (b) whole members the instance never mentions, whose
-    // values come from the type's own default subtree. Bounded against type
-    // cycles by [visiting]; inherited default subtrees are cached.
     final typeRoot = (declaredTypeName != null &&
             declaredTypeName != path &&
             _defs.containsKey(declaredTypeName))
@@ -450,12 +422,8 @@ class _IniBuilder {
     final typeDefMembers = (typeRoot != null && inheritGuard)
         ? _defs[typeRoot]!.members
         : const <String, String>{};
-    // The member's declared type: instance declaration wins over the type def's.
     String? memberTypeOf(String m) => def?.members[m] ?? typeDefMembers[m];
 
-    // Member order: instance DEF declarations first (authoritative + typed),
-    // then value-only members, then members implied by deeper sections, and
-    // finally members the object inherits from its type but never mentions.
     final memberOrder = <String>[...(def?.members.keys ?? const <String>[])];
     final seen = memberOrder.toSet();
     for (final m in (val?.members.keys ?? const <String>[])) {
@@ -475,9 +443,6 @@ class _IniBuilder {
       final typePath = typeRoot == null ? null : '$typeRoot.$m';
       final elems = _elementIndices(instPath);
       if (elems.isNotEmpty) {
-        // An array member: build each element object in index order. The element
-        // class (%[i]) and TestStand type (%TYPE: %[i]) are declared in the
-        // array's own DEF section (e.g. `%[0] = Step`, `%TYPE: %[0] = "Action"`).
         final arrDef = _defs[instPath];
         final arr = [
           for (final i in elems)
@@ -492,15 +457,10 @@ class _IniBuilder {
         subs.add(SeqProperty(
             name: m, className: cls, array: arr, attributes: memberAttrs(m)));
       } else if (_isContainer(instPath)) {
-        // The instance has this container: build it (and let it inherit its own
-        // type's defaults via the typeName we pass down).
         subs.add(build(instPath, m, cls, tn, visiting, memberAttrs(m)));
       } else if (typePath != null && _isContainer(typePath)) {
-        // Inherited-only container: take the type's default subtree (cached). The
-        // instance is silent here, so it carries no override marker.
         subs.add(_inheritCache[typePath] ??= build(typePath, m, cls, tn, visiting));
       } else {
-        // Scalar leaf: instance value wins, else the type default value.
         subs.add(SeqProperty(
           name: m,
           className: cls,
@@ -513,15 +473,10 @@ class _IniBuilder {
     }
     if (inheritGuard) visiting.remove(typeRoot);
 
-    // The object's own attributes: any passed-in override marker (from its
-    // parent's `%INSTOVRD: <thisMember>`) plus a bare `%INSTOVRD` on its section.
     final attrs = <String, String>{...ownAttributes};
     final bareOvr =
         val?.directives[instOverrideAttr] ?? def?.directives[instOverrideAttr];
     if (bareOvr != null) attrs[instOverrideAttr] = bareOvr;
-    // Free-text comment (`%COMMENT`): the editor's per-object note. Long comments
-    // arrive pre-joined from continuation fragments. Stored unquoted; absent or
-    // empty comments carry no attribute.
     final comment =
         _unquote(val?.directives[commentAttr] ?? def?.directives[commentAttr]);
     if (comment != null && comment.isNotEmpty) attrs[commentAttr] = comment;
@@ -574,7 +529,7 @@ String? _unquote(String? s) {
 /// in the corpus) is kept verbatim, defensively. Only called on quoted values,
 /// so unquoted bare tokens (numbers, enums) are never touched.
 String _unescapeIni(String s) {
-  if (!s.contains(r'\')) return s; // fast path — most values carry no escapes
+  if (!s.contains(r'\')) return s;
   final b = StringBuffer();
   for (var i = 0; i < s.length; i++) {
     if (s[i] == r'\' && i + 1 < s.length) {
@@ -588,7 +543,7 @@ String _unescapeIni(String s) {
       };
       if (decoded != null) {
         b.write(decoded);
-        i++; // consume the escaped char
+        i++;
         continue;
       }
     }

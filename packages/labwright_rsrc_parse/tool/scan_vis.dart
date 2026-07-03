@@ -1,13 +1,14 @@
-// Corpus scanner: recursively parse every .vi/.ctl/.llb under a directory and
-// report how many parsed, how many were cleanly rejected (ViFormatException),
-// and how many CRASHED — i.e. parseVi threw something other than
-// ViFormatException, which is always a bug. Handy for validating the reader
-// against a folder of real VIs. Exits non-zero if any file crashed. Usage:
-//   dart run packages/labwright_rsrc_parse/tool/scan_vis.dart <dir>
 import 'dart:io';
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
+/// Corpus scanner: recursively parses every `.vi`/`.ctl`/`.llb` under a directory
+/// and reports how many parsed, how many were cleanly rejected
+/// (`ViFormatException`), and how many CRASHED — i.e. `parseVi` threw something
+/// other than `ViFormatException`, which is always a bug. Handy for validating the
+/// reader against a folder of real VIs. Exits non-zero if any file crashed.
+///
+/// Usage: `dart run packages/labwright_rsrc_parse/tool/scan_vis.dart <dir>`
 void main(List<String> args) {
   final root = args.isEmpty ? '.' : args.first;
   final files = Directory(root)
@@ -28,7 +29,6 @@ void main(List<String> args) {
 
   for (final f in files) {
     final bytes = f.readAsBytesSync();
-    // Section extraction (Stage 1): must be total — count sections, never crash.
     try {
       final secs = readViSections(bytes);
       totalSections += secs.length;
@@ -47,7 +47,7 @@ void main(List<String> args) {
       if (vi.name != null) named++;
       if (samples.length < 8) samples.add('${f.path.split('/').last}  ->  ${vi.describe()}');
     } on ViFormatException {
-      rejected++; // handled cleanly — no crash
+      rejected++;
     } catch (e) {
       crashed++;
       if (crashes.length < 20) crashes.add('${f.path}: ${e.runtimeType}: $e');

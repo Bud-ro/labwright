@@ -4,6 +4,10 @@ import 'seq_binary.dart';
 import 'seq_file.dart';
 import 'seq_format.dart';
 
+/// Max enum allowed-values shown inline for a `TypeEnum` measurement parameter
+/// before truncating with a `…(count)` marker (kept short for readability).
+const _enumValueCap = 6;
+
 /// Renders a [SeqFile] as a faithful, sequence-editor-like text view — the M4
 /// "viewer" in text form. Pure (returns a String); honest (shows
 /// `(not yet recovered)` / omits a field rather than inventing one).
@@ -109,7 +113,6 @@ void _emitLogic(StringBuffer b, List<Step> steps, SeqFile file,
       if (depth > baseIndent) depth--;
       b.writeln('${ind(depth)}}');
     } else if (fc.kind.isContinuation) {
-      // `} else if (…) {` — dedent to the opener level, then re-open.
       final d = depth > baseIndent ? depth - 1 : baseIndent;
       b.writeln('${ind(d)}} ${fc.header} {');
       depth = d + 1;
@@ -117,7 +120,6 @@ void _emitLogic(StringBuffer b, List<Step> steps, SeqFile file,
       b.writeln('${ind(depth)}${fc.header} {');
       depth++;
     } else {
-      // break / continue — a statement at the current level.
       b.writeln('${ind(depth)}${fc.header}');
     }
   }
@@ -132,8 +134,6 @@ String _logicStepLine(Step step, SeqFile file) {
   final m = step.module;
   if (m.adapter != SeqAdapter.none && m.target != null) {
     b.write(' → ${m.target}');
-    // For a SequenceCall into another file (not resolvable in this file), show
-    // the file so the cross-reference is explicit, e.g. `→ Foo in Other.seq`.
     if (m.adapter == SeqAdapter.sequenceCall && file.resolveCall(step) == null) {
       final sf = m.sequenceFile;
       if (sf != null && sf.isNotEmpty) b.write(' in $sf');
@@ -170,7 +170,7 @@ String? _jumpAnnotation(StepSettings set, SeqFile file) {
   String resolve(String t) =>
       t.startsWith('ID#:') ? (file.stepNameForId(t) ?? t) : t;
   String? side(String label, String? act, String? target) {
-    if (act == null || act == 'Next') return null; // falls through
+    if (act == null || act == 'Next') return null;
     return target != null ? 'on $label → ${resolve(target)}' : 'on $label: $act';
   }
 
@@ -281,8 +281,6 @@ String _dumpStep(Step step, SeqFile file) {
     if (args.isNotEmpty) {
       parts.write('  {args: ${args.map(_dumpCallParam).join('; ')}}');
     }
-    // LabVIEW VI call: the library/project that owns the VI and its connector
-    // pane (the terminals wired to the subVI), when recovered.
     if (m.adapter == SeqAdapter.labView) {
       final lv = <String>[];
       if (m.viNamespace != null) lv.add('lib ${m.viNamespace}');
@@ -293,7 +291,6 @@ String _dumpStep(Step step, SeqFile file) {
         parts.write('  {conn: ${vps.map(_dumpViParam).join('; ')}}');
       }
     }
-    // Python call: the module file, owning class, and interpreter version.
     if (m.adapter == SeqAdapter.python) {
       final py = <String>[];
       if (m.pythonModulePath != null) py.add('mod ${m.pythonModulePath}');
@@ -310,9 +307,6 @@ String _dumpStep(Step step, SeqFile file) {
   } else if (units != null) {
     parts.write('  {units $units}');
   }
-  // The data-source expression (measured value / pass-fail criterion). Shown for
-  // non-limit steps (e.g. PassFailTest); for a limit test it already rides along
-  // the limits chip's structured detail, so it isn't repeated here.
   if (limits == null && step.dataSource != null) {
     parts.write('  {data-source ${step.dataSource}}');
   }
@@ -322,7 +316,6 @@ String _dumpStep(Step step, SeqFile file) {
   final notes = <String>[];
   if (!s.isNormalMode) notes.add('mode ${s.mode}');
   if (s.flowSummary != null) notes.add('flow ${s.flowSummary}');
-  // Module load/unload timing, only when it differs from the common default.
   if (s.loadOption != null && s.loadOption != 'PreloadWhenExecuted') {
     notes.add('load ${s.loadOption}');
   }
@@ -331,8 +324,6 @@ String _dumpStep(Step step, SeqFile file) {
   }
   String resolveTarget(String t) =>
       t.startsWith('ID#:') ? (file.stepNameForId(t) ?? t) : t;
-  // The custom-condition expression (the step's own true/false branch test),
-  // shown before its branch targets.
   if (s.customExpression != null) notes.add('cust-cond ${s.customExpression}');
   if (s.customTrueTarget != null) {
     notes.add('cust-true→${resolveTarget(s.customTrueTarget!)}');
@@ -341,7 +332,6 @@ String _dumpStep(Step step, SeqFile file) {
     notes.add('cust-false→${resolveTarget(s.customFalseTarget!)}');
   }
   if (s.isLooping) {
-    // The loop's actual logic: continue condition, init, and increment exprs.
     final lp = <String>[];
     if (s.loopWhile != null) lp.add('while ${s.loopWhile}');
     if (s.loopInitialize != null) lp.add('init ${s.loopInitialize}');
@@ -349,17 +339,14 @@ String _dumpStep(Step step, SeqFile file) {
     notes.add('loop ${s.loopType}${lp.isEmpty ? '' : ' [${lp.join('; ')}]'}');
   }
   if (s.precondition != null) notes.add('if ${s.precondition}');
-  // Notable non-default execution flags.
   if (s.ignoresRunTimeErrors == true) notes.add('ignore-RTE');
   if (s.failureCausesSequenceFailure == false) notes.add('no-seq-fail');
   if (s.recordsResult == false) notes.add('no-record');
-  // Step mutex synchronization, only when the step actually locks one.
   if (s.usesMutex == true) {
     notes.add('mutex${s.mutexName != null ? ' ${s.mutexName}' : ''}');
   }
   if (notes.isNotEmpty) parts.write('  (${notes.join('; ')})');
 
-  // Measurement-step formal parameters: name [direction] [type][\[\]] [= value].
   final mp = step.measurementParameters;
   if (mp.isNotEmpty) {
     String fmt(MeasurementParameter p) {
@@ -369,11 +356,11 @@ String _dumpStep(Step step, SeqFile file) {
       if (p.typeSpecialization != null) b.write(' (${p.typeSpecialization})');
       if (p.isArray) b.write('[]');
       if (p.value != null) b.write(' = ${p.value}');
-      // The enum's allowed values for a TypeEnum param (capped for readability).
       final ev = p.enumValues;
       if (ev.isNotEmpty) {
-        final shown = ev.take(6).map((e) => '${e.name}=${e.value ?? '?'}');
-        final more = ev.length > 6 ? ', …(${ev.length})' : '';
+        final shown =
+            ev.take(_enumValueCap).map((e) => '${e.name}=${e.value ?? '?'}');
+        final more = ev.length > _enumValueCap ? ', …(${ev.length})' : '';
         b.write(' {${shown.join(', ')}$more}');
       }
       if (p.logged == false) b.write(' [not logged]');
@@ -383,8 +370,6 @@ String _dumpStep(Step step, SeqFile file) {
     parts.write('  {params: ${mp.map(fmt).join('; ')}}');
   }
 
-  // "Additional Results" recording spec: the extra values the step logs, each
-  // with its gating condition when one is set.
   final addl = step.additionalResults;
   if (addl.isNotEmpty) {
     String fmt(AdditionalResult a) =>
@@ -392,8 +377,6 @@ String _dumpStep(Step step, SeqFile file) {
     parts.write('  {+results: ${addl.map(fmt).join(', ')}}');
   }
 
-  // A recorded run outcome (`Result`), shown only when it carries non-default
-  // values (a sequence file's un-run steps hold only defaults → nothing shown).
   final res = step.result;
   if (res != null && res.hasRecordedOutcome) {
     final r = <String>[];
@@ -464,8 +447,6 @@ String dumpBinaryRecon(Uint8List seqBytes) {
   _reconSection(b, 'Quoted literals (values)', a.quotedLiterals);
   _reconSection(b, 'Inline numeric values',
       [for (final v in a.scalarDoubles) '$v']);
-  // Each scalar is tied to its offset-referenced property name; the NI type
-  // code is carried verbatim and deliberately not interpreted.
   _reconSection(b, 'Named scalar values', [
     for (final s in a.namedScalars)
       '${s.name} = ${s.value}  (raw type ${s.rawTypeCode}, not modeled)',

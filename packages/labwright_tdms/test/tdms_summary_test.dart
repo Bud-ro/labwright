@@ -32,9 +32,8 @@ void main() {
 
     final note = channels.firstWhere((c) => c['name'] == 'note');
     expect(note['count'], 0);
-    expect(note.containsKey('min'), isFalse); // no stats for empty channels
+    expect(note.containsKey('min'), isFalse, reason: 'empty channels carry no min/max/mean stats');
 
-    // whole summary must round-trip through JSON
     expect(() => jsonEncode(s), returnsNormally);
   });
 }

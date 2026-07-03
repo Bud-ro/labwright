@@ -32,7 +32,6 @@ Future<void> main(List<String> args) async {
     exitCode = 1;
     return;
   }
-  // Package root = the dir holding corpus/sources.json (i.e. <pkg>/corpus/sources.json).
   final pkgRoot = sources.parent.parent.path;
   final dest = positional.isNotEmpty ? positional.first : '$pkgRoot/corpus/vi';
 
@@ -72,7 +71,6 @@ Future<void> main(List<String> args) async {
     stdout.writeln('  ok ($extracted .vi)');
   }
 
-  // Count the whole tree so re-runs (mostly skips) still report the real total.
   final grandTotal = Directory(dest).existsSync()
       ? Directory(
           dest,
@@ -97,7 +95,7 @@ Future<bool> _ghTarball(String repo, String commit, String tarPath) async {
   }
   final sink = File(tarPath).openWrite();
   final errFuture = proc.stderr.transform(utf8.decoder).join();
-  await proc.stdout.pipe(sink); // pipe closes the sink when stdout hits EOF
+  await proc.stdout.pipe(sink);
   final err = await errFuture;
   final code = await proc.exitCode;
   if (code != 0) {
@@ -153,7 +151,6 @@ File? _findSourcesJson() {
     if (parent.path == dir.path) break;
     dir = parent;
   }
-  // Fallback: cwd-relative (when run from the repo root).
   final cwd = File('corpus/sources.json');
   return cwd.existsSync() ? cwd : null;
 }

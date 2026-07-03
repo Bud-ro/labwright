@@ -22,9 +22,6 @@ String documentText(SeqDocument doc) {
         ..writeln('binary TOF1 — record tree not yet decoded (recon view)')
         ..writeln('inflated body: $inflatedSize bytes · '
             '${stringTable.length} strings in the largest table');
-      // Recovered datums from the string pool. Honest: these are the NAMES /
-      // call-targets / step refs / expressions a file carries — *which* it uses,
-      // not yet *attached to a specific step* (the record grammar is undecoded).
       void section(String title, List<String> items) {
         if (items.isEmpty) return;
         b
@@ -88,9 +85,6 @@ List<({String title, List<String> items})> binaryRecoverySections(
     (title: 'Step references', items: doc.stepReferences),
     (title: 'Expressions (test logic)', items: doc.expressions),
     (title: 'Quoted literals (values)', items: doc.quotedLiterals),
-    // Inline scalar values tied to their offset-referenced property name. The
-    // NI type code is carried verbatim ("raw type N, not modeled") — we do not
-    // interpret NI's type/class enumeration.
     (
       title: 'Named scalar values',
       items: [
@@ -98,14 +92,10 @@ List<({String title, List<String> items})> binaryRecoverySections(
           '${s.name} = ${s.value}  (raw type ${s.rawTypeCode}, not modeled)',
       ],
     ),
-    // The full distinct inline-numeric set (superset of the named scalars above —
-    // includes values not yet tied to a named record).
     (
       title: 'Inline numeric values',
       items: [for (final v in doc.scalarDoubles) '$v'],
     ),
-    // Consistently-referenced named-property record headers (structural
-    // skeleton). The NI tag is carried verbatim — not interpreted.
     (
       title: 'Named-record headers',
       items: [
@@ -132,7 +122,6 @@ List<(String, String)> binaryHeaderRows(BinarySeqDocument doc) {
     ),
     ('Strings recovered', '${doc.strings.length}'),
     ('Largest string table', '${doc.stringTable.length}'),
-    // The framed body layout (record region + string region), when it framed.
     if (doc.layout case final l?) ...[
       ('Record region', '${l.recordRegionLength} bytes'),
       ('String region @', '${l.stringRegionOffset}'),
@@ -144,7 +133,6 @@ List<(String, String)> binaryHeaderRows(BinarySeqDocument doc) {
       if (l.leadingWords.isNotEmpty)
         ('Record header words', l.leadingWords.join(', ')),
     ],
-    // Recovered string-pool datums (record links not yet decoded).
     if (doc.objectNames.isNotEmpty)
       ('Object names', '${doc.objectNames.length}'),
     if (doc.modulePaths.isNotEmpty)

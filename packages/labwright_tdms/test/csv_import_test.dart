@@ -7,13 +7,13 @@ void main() {
     final f = TdmsReader.read(csvToTdms(csv));
     final g = f.group('Imported')!;
     expect(g.channel('a')!.data, [1.0, 2.0, 3.0]);
-    expect(g.channel('b')!.data, [9.0, 8.0]); // blank 3rd cell skipped
+    expect(g.channel('b')!.data, [9.0, 8.0]);
   });
 
   test('round-trips values through tdms2csv', () {
     const csv = 'x,y\n1.5,2.5\n3.5,4.5\n';
     final lines = tdmsToCsv(csvToTdms(csv, group: 'G')).trim().split('\n');
-    expect(lines.first, 'G/x,G/y'); // channels get the group prefix on export
+    expect(lines.first, 'G/x,G/y');
     expect(lines[1], '1.5,2.5');
     expect(lines[2], '3.5,4.5');
   });

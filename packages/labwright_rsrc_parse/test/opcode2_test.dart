@@ -34,17 +34,17 @@ void main() {
       bdex(c4(0x4a, [0x00, 0x10, 0x00, 0x20, 0x00, 0x30, 0x00, 0x40]))
     ]).single;
     expect(rec.kind, HeapOpcode.typeBounds);
-    expect(rec.bounds, isNull); // not the semantic bounds opcode
+    expect(rec.bounds, isNull, reason: 'typeBounds (0x4A) is not the semantic bounds opcode, so .bounds stays null');
     expect([rec.rect!.top, rec.rect!.left, rec.rect!.bottom, rec.rect!.right], [16, 32, 48, 64]);
   });
 
   test('path (0xA4) decodes a PTH0 record to a joined path', () {
     final comp = 'ps5000.dll'.codeUnits;
     final pth0 = <int>[
-      0x50, 0x54, 0x48, 0x30, // 'PTH0'
-      0, 0, 0, 0, // u32 contentLen (ignored)
-      0, 0, // u16 type
-      0, 1, // u16 nComponents = 1
+      0x50, 0x54, 0x48, 0x30,
+      0, 0, 0, 0,
+      0, 0,
+      0, 1,
       comp.length, ...comp,
     ];
     final rec = heapC4RecordsFromDecoded([bdex(c4(0xa4, pth0))]).single;
@@ -54,8 +54,8 @@ void main() {
 
   test('container (0x44) exposes its nested C4 children', () {
     final inner = <int>[
-      ...c4(0x2d, [0, 0, 0, 0, 0, 10, 0, 20]), // a bounds child
-      ...c4(0x22, 'Knob'.codeUnits), // a caption child
+      ...c4(0x2d, [0, 0, 0, 0, 0, 10, 0, 20]),
+      ...c4(0x22, 'Knob'.codeUnits),
     ];
     final rec = heapC4RecordsFromDecoded([bdex(c4(0x44, inner))]).single;
     expect(rec.kind, HeapOpcode.container44);
@@ -70,7 +70,7 @@ void main() {
     final pth0 = <int>[0x50, 0x54, 0x48, 0x30, 0, 0, 0, 0, 0, 0, 0, 1, comp.length, ...comp];
     final heap = <int>[
       ...c4(0xc4, 'ps5000RunStreaming'.codeUnits),
-      ...c4(0xc4, 'ps5000RunStreaming'.codeUnits), // dup
+      ...c4(0xc4, 'ps5000RunStreaming'.codeUnits),
       ...c4(0xa4, pth0),
     ];
     final m = buildViModelFromDecoded([bdex(heap, tag: 'DTHP')]);

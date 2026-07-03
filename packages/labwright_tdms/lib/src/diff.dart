@@ -36,7 +36,7 @@ Map<String, Object?> diffTdms(TdmsFile a, TdmsFile b, {double tol = 0.0}) {
   final channels = <Map<String, Object?>>[];
   for (final ga in a.groups) {
     final gb = b.group(ga.name);
-    if (gb == null) continue; // whole group already reported in onlyInA
+    if (gb == null) continue;
     final namesA = {for (final c in ga.channels) c.name};
     for (final ca in ga.channels) {
       final cb = gb.channel(ca.name);

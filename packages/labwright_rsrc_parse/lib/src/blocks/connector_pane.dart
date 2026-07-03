@@ -59,7 +59,6 @@ ViConnectorPane? decodeConnectorPane(Uint8List b) {
   if (b.length == 2) {
     return ViConnectorPane(rawLength: 2, typeIndex: (b[0] << 8) | b[1], isInline: false);
   }
-  // Older inline form (≥28 B observed): not yet decoded — flag, don't guess.
   return ViConnectorPane(rawLength: b.length, isInline: true);
 }
 

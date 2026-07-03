@@ -25,12 +25,23 @@ const _heapTags = {'BDHb', 'BDHP', 'FPHb', 'FPHP', 'DTHP'};
 /// Per-VI coverage summary. Sendable across isolates (primitives + a small
 /// `Map<int,int>` kind histogram + nullable failure strings).
 class _Cov {
-  final String? totalityFail; // parseVi/decodeSections/walk threw (real VI)
-  final String? walkFail; // a framed span ran past the section body
-  final int framed, body, semantic; // heap-byte coverage numerator/denominators
-  final int propertyNames, helpStrings, controlF64; // decoder-presence sentinels
-  final Map<int, int> kinds; // BD object-kind histogram for this VI
-  final int fallbackNodes, drawableUnknown; // structural node-fallback census
+  /// parseVi/decodeSections/walk threw on a real VI.
+  final String? totalityFail;
+
+  /// A framed span ran past the section body.
+  final String? walkFail;
+
+  /// Heap-byte coverage numerator/denominators (framed and semantic over body).
+  final int framed, body, semantic;
+
+  /// Decoder-presence sentinels (a count drop signals a silently dropped decoder).
+  final int propertyNames, helpStrings, controlF64;
+
+  /// BD object-kind histogram for this VI.
+  final Map<int, int> kinds;
+
+  /// Structural node-fallback census.
+  final int fallbackNodes, drawableUnknown;
   const _Cov({
     required this.totalityFail,
     required this.walkFail,
@@ -52,8 +63,6 @@ _Cov _covSumm(Uint8List bytes, String path) {
   String? walkFail;
   String? totalityFail;
 
-  // TOTALITY + heap-byte coverage: parse, decode, and walk every heap section.
-  // A throw on a real VI is a regression (the G-CLI non-RSRC fixture is exempt).
   try {
     parseVi(bytes);
     for (final s in decodeSections(bytes)) {
@@ -84,9 +93,6 @@ _Cov _covSumm(Uint8List bytes, String path) {
     if (!isNonRsrcFixture(path)) totalityFail = '$path: $e';
   }
 
-  // BD-kind census + structural node-fallback census (model level). A clean
-  // build failure here is not a totality failure — it is ignored (the totality
-  // check above is the guard for that).
   final kinds = <int, int>{};
   var fallbackNodes = 0, drawableUnknown = 0;
   try {
@@ -131,7 +137,6 @@ void main() {
     final oob = C.map((c) => c.walkFail).whereType<String>().toList();
     expect(fails, isEmpty, reason: 'VIs failed to parse/decode/walk: ${fails.take(8).toList()}');
     expect(oob, isEmpty, reason: 'framed heap spans ran past the section body: ${oob.take(8).toList()}');
-    // These ids exist in the corpus; >0 guards against a silently dropped decoder.
     expect(C.fold<int>(0, (a, c) => a + c.propertyNames), greaterThan(0), reason: 'propertyName (0x31) decode dropped');
     expect(C.fold<int>(0, (a, c) => a + c.helpStrings), greaterThan(0), reason: 'helpDescription (0x6c) string decode dropped');
     expect(C.fold<int>(0, (a, c) => a + c.controlF64), greaterThan(0), reason: '0x20/0x21 control-min/max f64 decode dropped');
@@ -167,12 +172,9 @@ void main() {
   test('structural node-fallback keeps classifying the BD node tail (anti-regression)', () {
     final fallbackNodes = C.fold<int>(0, (a, c) => a + c.fallbackNodes);
     final drawableUnknown = C.fold<int>(0, (a, c) => a + c.drawableUnknown);
-    // Fallback caught ~2010 across the caption-less/uncatalogued node kinds.
     expect(fallbackNodes, inInclusiveRange(1500, 2600),
         reason: 'node-fallback output ($fallbackNodes) drifted — the gate (parent 0x1b + 0x15 child '
             '+ no 0x68 + size cap) may have broken; the tail would revert to unknown boxes.');
-    // Ceiling: still-unknown drawable BD objects (~1062 area>1px). A big jump means
-    // a new uncatalogued drawable bucket appeared — investigate/classify it.
     expect(drawableUnknown, lessThan(1600),
         reason: 'still-unknown drawable BD objects ($drawableUnknown) exceeded the ceiling — '
             'a new uncatalogued kind likely appeared; probe and classify it.');

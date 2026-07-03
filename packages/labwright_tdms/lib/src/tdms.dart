@@ -37,16 +37,29 @@ enum TdsType {
 
 const double _twoPow64 = 18446744073709551616.0;
 
-// --- ToC (table of contents) bit flags ---
-const int _tocMetaData = 1 << 1; // 2
-const int _tocNewObjList = 1 << 2; // 4
-const int _tocRawData = 1 << 3; // 8
-const int _tocInterleaved = 1 << 5; // 32
-const int _tocBigEndian = 1 << 6; // 64
-// (DAQmx raw data is detected via the per-object raw-data index, not the ToC.)
+const int _tocMetaData = 1 << 1;
+const int _tocNewObjList = 1 << 2;
+const int _tocRawData = 1 << 3;
+const int _tocInterleaved = 1 << 5;
+const int _tocBigEndian = 1 << 6;
 
-const int _tdmsVersion = 4713; // TDMS v2.0
-const List<int> _tag = [0x54, 0x44, 0x53, 0x6D]; // "TDSm"
+/// TDMS format version written/expected in each segment lead-in (4713 = v2.0).
+const int _tdmsVersion = 4713;
+
+/// Segment lead-in tag, ASCII "TDSm".
+const List<int> _tag = [0x54, 0x44, 0x53, 0x6D];
+
+/// Raw-data index sentinel for an object with no raw data in this segment.
+const int _noRawDataIndex = 0xFFFFFFFF;
+
+/// Raw-data index sentinel meaning "same layout as this object's previous segment".
+const int _sameAsPreviousIndex = 0;
+
+/// Byte length of the raw-data index a writer emits: type code (4) + dimension (4) + value count (8).
+const int _rawDataIndexLength = 16;
+
+/// Array dimension written for every channel (TDMS raw data is one-dimensional).
+const int _arrayDimension = 1;
 
 /// Thrown when TDMS bytes are malformed — truncated, or with declared
 /// lengths/counts that exceed the data. The reader bounds-checks every read, so
@@ -100,28 +113,25 @@ class TdmsWriter {
     final meta = BytesBuilder();
     _u32(meta, 1 + groups.length + chList.length);
 
-    // root object
     _str(meta, '/');
-    _u32(meta, 0xFFFFFFFF); // no raw data
+    _u32(meta, _noRawDataIndex);
     _writeProps(meta, fileProperties);
 
-    // group objects
     for (final g in groups) {
       _str(meta, _groupPath(g));
-      _u32(meta, 0xFFFFFFFF);
+      _u32(meta, _noRawDataIndex);
       _writeProps(meta, groupProperties[g] ?? const {});
     }
 
-    // channel objects (with raw-data index)
     for (final c in chList) {
       if (c.type == TdsType.string || c.type == TdsType.boolean || c.type == TdsType.timestamp) {
         throw ArgumentError('TdmsWriter cannot write channel type ${c.type}');
       }
       _str(meta, _channelPath(c.group, c.name));
-      _u32(meta, 16); // byte length of the index info that follows
-      _u32(meta, c.type.code); // data type
-      _u32(meta, 1); // array dimension
-      _u64(meta, c.data.length); // number of values
+      _u32(meta, _rawDataIndexLength);
+      _u32(meta, c.type.code);
+      _u32(meta, _arrayDimension);
+      _u64(meta, c.data.length);
       _writeProps(meta, c.properties);
     }
 
@@ -138,8 +148,8 @@ class TdmsWriter {
     _out.add(Uint8List.fromList(_tag));
     _u32(_out, _tocMetaData | _tocNewObjList | _tocRawData);
     _u32(_out, _tdmsVersion);
-    _u64(_out, metaBytes.length + rawBytes.length); // next-segment offset
-    _u64(_out, metaBytes.length); // raw-data offset
+    _u64(_out, metaBytes.length + rawBytes.length);
+    _u64(_out, metaBytes.length);
     _out.add(metaBytes);
     _out.add(rawBytes);
   }
@@ -217,19 +227,15 @@ abstract final class TdmsReader {
     final r = _Cursor(bytes);
     final objects = <String, _Obj>{};
     final order = <String>[];
-    // Channels carrying raw data, persisted across segments. A segment without a
-    // new object list reuses it; this is how DAQmx (and incremental) files split
-    // the layout from the data across segments.
     final active = <_Obj>[];
 
     while (r.remaining >= 28) {
-      r.endian = Endian.little; // the tag + ToC mask are little-endian
+      r.endian = Endian.little;
       final tag = r.bytes(4);
       if (!_eq(tag, _tag)) break;
       final toc = r.u32();
-      // Everything after the ToC (version, offsets, metadata, raw) honors the flag.
       r.endian = (toc & _tocBigEndian) != 0 ? Endian.big : Endian.little;
-      r.u32(); // version
+      r.u32();
       final nextOff = r.u64();
       final rawOff = r.u64();
       if (nextOff < 0 || rawOff < 0 || rawOff > nextOff) {
@@ -248,19 +254,19 @@ abstract final class TdmsReader {
           });
           final rawIdx = r.u32();
           var hasData = false;
-          if (rawIdx == 0xFFFFFFFF) {
+          if (rawIdx == _noRawDataIndex) {
             hasData = false;
-          } else if (rawIdx == 0) {
-            hasData = true; // "same as previous" — reuse the object's prior index
+          } else if (rawIdx == _sameAsPreviousIndex) {
+            hasData = true;
           } else if (rawIdx == 0x1269 || rawIdx == 0x1369) {
             _readDaqmxIndex(r, obj);
             hasData = true;
           } else {
             final dtype = r.u32();
-            r.u32(); // dimension
+            r.u32();
             final count = r.u64();
             if (dtype == TdsType.string.code) {
-              r.u64(); // declared string raw size (we recompute from offsets)
+              r.u64();
             }
             obj
               ..dataType = dtype
@@ -340,7 +346,8 @@ class _Obj {
   final Map<String, Object> properties = {};
   final List<double> data = [];
 
-  // DAQmx format-changing scaler layout (when [daqmx] is true).
+  /// DAQmx format-changing scaler layout: set when this object carries DAQmx
+  /// raw data, with the buffer/offset/stride that locate its samples.
   bool daqmx = false;
   int daqmxBuffer = 0;
   int daqmxOffset = 0;
@@ -353,7 +360,9 @@ class _Cursor {
   final ByteData _d;
   int pos = 0;
 
-  /// Endianness of the current segment's metadata + raw data (lead-in is LE).
+  /// Endianness of the current segment after its ToC — its version, segment
+  /// offsets, metadata, and raw data. The lead-in tag and ToC mask are always
+  /// little-endian; the ToC big-endian flag selects this.
   Endian endian = Endian.little;
 
   int get remaining => _b.length - pos;
@@ -481,10 +490,11 @@ class _Cursor {
     return sec + fracUnsigned / _twoPow64;
   }
 
+  /// Reads a length-prefixed UTF-8 string. Malformed bytes are replaced rather
+  /// than thrown, so arbitrary input never raises a (non-TDMS) FormatException.
   String str() {
     final n = u32();
     _need(n);
-    // allowMalformed: arbitrary bytes must not raise a (non-TDMS) FormatException.
     final s = utf8.decode(_b.sublist(pos, pos + n), allowMalformed: true);
     pos += n;
     return s;
@@ -540,7 +550,7 @@ DateTime _readTimestamp(_Cursor r) {
 
 /// Reads one property value (or null for a void property).
 Object? _readProp(_Cursor r, int code) {
-  if (code == 0) return null; // void
+  if (code == 0) return null;
   switch (TdsType.fromCode(code)) {
     case TdsType.i8:
       return r.i8();
@@ -632,10 +642,12 @@ void _readInterleaved(_Cursor r, List<_Obj> chans) {
 }
 
 /// Parses a DAQmx format-changing/digital-line scaler index into [obj]'s layout
-/// (buffer, byte offset within the stride, and stride). Uses the first scaler.
+/// (buffer, byte offset within the stride, and stride), using the first scaler.
+/// Recognized by the raw-data index sentinels 0x1269 (format-changing) and
+/// 0x1369 (digital-line), not by any ToC flag.
 void _readDaqmxIndex(_Cursor r, _Obj obj) {
-  r.u32(); // overall data type (0xFFFFFFFF for scaler-based)
-  r.u32(); // dimension
+  r.u32();
+  r.u32();
   final count = r.u64();
   final scalerCount = r.u32();
   if (scalerCount < 0 || scalerCount > r.remaining ~/ 20) {
@@ -644,11 +656,11 @@ void _readDaqmxIndex(_Cursor r, _Obj obj) {
   var buffer = 0;
   var offset = 0;
   for (var s = 0; s < scalerCount; s++) {
-    r.u32(); // DAQmx data type code
+    r.u32();
     final bufferIndex = r.u32();
     final byteOffset = r.u32();
-    r.u32(); // sample format bitmap
-    r.u32(); // scale id
+    r.u32();
+    r.u32();
     if (s == 0) {
       buffer = bufferIndex;
       offset = byteOffset;

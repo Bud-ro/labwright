@@ -62,8 +62,6 @@ void main() {
     return;
   }
 
-  // Key each VI relative to the corpus common root, exactly as tool/snapshot.dart
-  // does, so keys line up with snapshot.json.
   final root = _commonRoot(all.map((f) => f.path));
   final byKey = {for (final f in all) f.path.substring(root.length).replaceAll('\\', '/'): f.path};
   // The snapshot groups files by block-set; flatten back to per-file expectations
@@ -93,9 +91,9 @@ void main() {
       final want = entry.value;
       if (want.containsKey('error')) continue; // was already failing; not a regression target
       final path = byKey[key];
-      if (path == null) continue; // file not in this checkout
+      if (path == null) continue;
       final s = byPath[path];
-      if (s == null) continue; // not summarized (should not happen)
+      if (s == null) continue;
       if (s.error) {
         regressions.add('$key: now throws on decode (was decodable)');
         continue;

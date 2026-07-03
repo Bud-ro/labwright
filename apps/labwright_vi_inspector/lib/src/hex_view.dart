@@ -28,9 +28,9 @@ class _BlockHexViewState extends State<BlockHexView> {
   final _hexScroll = ScrollController();
   final _recScroll = ScrollController();
   late final List<_SpanInfo> _records;
-  late final List<int> _byteToRecord; // byte offset -> record index (or -1)
-  Widget? _preview; // typed whole-section display (e.g. an icon image)
-  HeapWalk? _walk; // the record walk (for coverage / stop-point reporting)
+  late final List<int> _byteToRecord;
+  Widget? _preview;
+  HeapWalk? _walk;
   int _selected = -1;
 
   @override
@@ -42,9 +42,6 @@ class _BlockHexViewState extends State<BlockHexView> {
   @override
   void didUpdateWidget(BlockHexView old) {
     super.didUpdateWidget(old);
-    // The Inspect tab swaps the selected block in-place (same State), so rebuild
-    // the record/byte map when the section changes — otherwise a stale
-    // _byteToRecord (sized for the old block) range-errors the hex dump.
     if (!identical(old.section, widget.section)) {
       _selected = -1;
       _buildModel();
@@ -54,20 +51,12 @@ class _BlockHexViewState extends State<BlockHexView> {
   void _buildModel() {
     final b = widget.section.bytes;
     _preview = iconPreview(b);
-    // Only the corpus-confirmed C4 record heaps (FPHb/BDHb/FPHc/BDHc) get the
-    // bracket-walk. Gating on the block tag — not a byte heuristic — stops other
-    // compressed blocks (VCTP type pool, VICD code, DFDS data, …) and short
-    // look-alikes (e.g. TM80) from being mis-read as heaps with a bogus
-    // content-length and a fat "unframed tail".
     final isHeap = isRecordHeapTag(widget.section.tag);
     if (isHeap) {
       try {
         final w = walkHeapBody(b);
         _walk = w;
         _records = [
-          // The heap stream opens with a u32 big-endian content-length header
-          // (= record-stream bytes that follow = decompressed size − 4). The walk
-          // proper begins at offset 4; annotate the header so no byte is unlabeled.
           if (b.length >= 4)
             _SpanInfo(
               offset: 0,
@@ -80,15 +69,6 @@ class _BlockHexViewState extends State<BlockHexView> {
               inlinePreview: '${_u32(b, 0)} B',
             ),
           for (final s in w.spans) _classify(b, s, widget.section.tag),
-          // If the walk stopped on an un-framable record, account for the
-          // remaining bytes explicitly (so NO byte is silently unlabeled): a
-          // single "unframed tail" span. Honest — the bytes are preserved; their
-          // record family is just not yet decoded (the coverage frontier).
-          // Measured over the corpus (14,346 heap sections): 99.64% walk to
-          // completion; the ~0.36% that stop do so on diverse lead bytes (no
-          // single dominant opcode — consistent with an upstream record-size
-          // desync) and can leave a large tail, so aggregate heap byte-coverage
-          // is ~93%. A complete walk needs no tail.
           if (w.stoppedAtOffset != null && w.stoppedAtOffset! < b.length)
             _SpanInfo(
               offset: w.stoppedAtOffset!,
@@ -106,10 +86,6 @@ class _BlockHexViewState extends State<BlockHexView> {
         _records = const [];
       }
     } else {
-      // Non-heap block: annotate per-byte from the block's known field layout so
-      // every byte is clickable to its purpose (with explicit "undecoded" spans
-      // for any bytes we can't yet name — honest, total coverage). Empty when the
-      // block has no field decoder, in which case the raw-hex panel is shown.
       _records = _fieldSpans(widget.section.tag, b);
     }
     _byteToRecord = List<int>.filled(b.length, -1);
@@ -184,7 +160,6 @@ class _BlockHexViewState extends State<BlockHexView> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // hex dump
               Expanded(
                 flex: 3,
                 child: Container(
@@ -208,7 +183,6 @@ class _BlockHexViewState extends State<BlockHexView> {
                 ),
               ),
               const VerticalDivider(width: 1),
-              // records panel
               Expanded(
                 flex: 2,
                 child: _records.isEmpty
@@ -239,13 +213,10 @@ class _BlockHexViewState extends State<BlockHexView> {
     );
   }
 
-  // Fixed-width columns so the hex/ASCII grids align regardless of the platform
-  // font (a "monospace" family alone does not guarantee equal glyph advance),
-  // and so a tap maps to an exact byte.
-  static const _offW = 66.0; // offset column
-  static const _cellW = 21.0; // per-hex-byte cell
-  static const _asciiW = 9.0; // per-ascii-char cell
-  static const _gap = 14.0; // hex→ascii gap
+  static const _offW = 66.0;
+  static const _cellW = 21.0;
+  static const _asciiW = 9.0;
+  static const _gap = 14.0;
   static const _rowWidth = _offW + 16 * _cellW + _gap + 16 * _asciiW;
 
   Widget _hexRow(List<int> b, int row) {
@@ -361,7 +332,7 @@ class _BlockHexViewState extends State<BlockHexView> {
     if (total == 0) return null;
     var framed = 0;
     for (final r in _records) {
-      if (r.color == _cUnframed) continue; // skip the "Undecoded (a..b)" gaps
+      if (r.color == _cUnframed) continue;
       framed += r.length;
     }
     return framed / total;
@@ -396,7 +367,6 @@ class _BlockHexViewState extends State<BlockHexView> {
         if (c == null) return const [];
         if (c.isInline) return [const MapEntry('Form', 'inline (not yet decoded)')];
         final out = [MapEntry('VCTP type index', '${c.typeIndex}')];
-        // Resolve the index against the sibling VCTP type pool, when available.
         final pool = widget.siblings.isEmpty ? const <ViType>[] : typePoolFromDecoded(widget.siblings);
         final idx = c.typeIndex;
         if (idx != null && idx >= 1 && idx <= pool.length) {
@@ -437,7 +407,6 @@ class _BlockHexViewState extends State<BlockHexView> {
 
   Widget _nonHeapPanel() {
     final info = blockInfo(widget.section.tag);
-    // VCTP — the VI's type pool. Its decompressed bytes decode to the type list.
     if (widget.section.tag == 'VCTP') {
       final types = decodeTypePool(widget.section.bytes);
       if (types.isNotEmpty) {
@@ -469,7 +438,6 @@ class _BlockHexViewState extends State<BlockHexView> {
         );
       }
     }
-    // Legacy icon bitmaps (icl8/icl4/ICON) render as a real 32x32 preview.
     final bpp = legacyIconBpp(widget.section.tag);
     if (bpp != null) {
       final icon = decodeLegacyIcon(widget.section.bytes, bpp);
@@ -548,8 +516,6 @@ class _BlockHexViewState extends State<BlockHexView> {
         span(0, 4, _cObject, 'Version word (u32)',
             'BCD major · minor<<4|patch · stage · build. The same word heads LVSR. See decodeVersionWord.',
             preview: vw == null ? '0x${_u32(b, 0).toRadixString(16)}' : 'v${vw.version}');
-        // bytes 4.. are the Pascal version string + VIDS title — left as undecoded
-        // here (decodeVersion reads them as strings, not byte-framed yet).
       case 'STRG':
       case 'HLPT':
         span(0, 4, _cHeader, 'Text length (u32)', 'Byte length of the UTF-8 text that follows (== sectionLen-4).',
@@ -576,10 +542,6 @@ class _BlockHexViewState extends State<BlockHexView> {
       case 'LVSR':
         span(0, 4, _cObject, 'Version word (u32)', 'BCD major · minor<<4|patch · stage · build (== vers word). See decodeSaveRecord.',
             preview: '0x${_u32(b, 0).toRadixString(16)}');
-        // The remaining u32 words are low-cardinality LVSR config/flags fields
-        // (one value dominates 90-99% of the corpus, or a bitmask). Framed as
-        // config/flags words showing their actual value; exact bit meaning is
-        // not claimed (left as not-yet-decoded).
         for (final r in const [
           [4, 52],
           [68, 80],
@@ -600,13 +562,10 @@ class _BlockHexViewState extends State<BlockHexView> {
         span(120, 16, _cObject, 'Per-VI value C (16B)',
             'A third 16-byte per-VI value (≈6854 distinct across the corpus); role not yet decoded.');
         span(144, 16, _cRect, 'Secondary hash (16B)', 'A second hash/checksum slot (role not fully decoded).');
-        // With these, the 160-byte and 136-byte LVSR forms (~97% of the corpus) frame fully.
       case 'CONP':
       case 'CPC2':
         if (b.length == 2) {
           final idx = _u16(b, 0);
-          // Resolve the index against the sibling VCTP pool so the conpane type
-          // shows here too (not lost when CONP routes to the per-byte view).
           var resolved = '';
           if (widget.siblings.isNotEmpty) {
             final pool = typePoolFromDecoded(widget.siblings);
@@ -619,7 +578,6 @@ class _BlockHexViewState extends State<BlockHexView> {
               '${tag == 'CONP' ? 'Index of the connector-pane type in the VCTP pool (CONP: 100% in-range).' : 'A second conpane reference (CPC2: resolves as a VCTP index only ~84%).'}$resolved',
               preview: '$idx$resolved');
         }
-        // the rare >=28-byte inline form is left undecoded (gap-filled).
       case 'FTAB':
         span(0, 2, _cObject, 'Version (u16)', 'Font-table version (1 in the corpus).', preview: '${_u16(b, 0)}');
         if (b.length >= 6) {
@@ -630,11 +588,6 @@ class _BlockHexViewState extends State<BlockHexView> {
         if (b.length >= 12) {
           final nameOff = _u32(b, 8);
           span(8, 4, _cHeader, 'Name-table offset (u32)', 'Byte offset of the packed Pascal font-name strings.', preview: '$nameOff');
-          // Per-font metric records between the header (12) and the name table:
-          // each font has a 12-byte metric record, with a u32 between adjacent
-          // fonts (count-1 of them). Corpus-confirmed: the region is exactly
-          // count*16 - 4 bytes across all 322 FTABs. Inner metric fields and the
-          // u32 value are not yet decoded — framed as opaque, not guessed.
           final count = _u16(b, 6);
           if (nameOff >= 12 && nameOff <= b.length && count > 0) {
             var p = 12;
@@ -651,10 +604,8 @@ class _BlockHexViewState extends State<BlockHexView> {
           }
           if (nameOff < b.length) span(nameOff, b.length - nameOff, _cRect, 'Font names (Pascal strings)', 'Packed [u8 len][name] font face names. See decodeFontTable.');
         }
-        // header (0..12), the per-font metric region, and names are all framed now.
       case 'BDPW':
         span(0, 16, _cRect, 'Password hash (16B)', 'Block-diagram password hash; sample is MD5("") d41d8cd9…');
-        // remaining bytes (salt/secondary) not yet decoded -> gap-filled.
       case 'GCPR':
         span(0, b.length, _cGroup, 'Generated-code property (${b.length}B)', 'Fixed-size record, byte-constant (all-zero) across the corpus.');
       case 'VPDP':
@@ -671,9 +622,6 @@ class _BlockHexViewState extends State<BlockHexView> {
         span(4, 16, _cObject, '16-byte signature', 'Source signature (near-constant; opaque value).', preview: 'sig');
       case 'FPSE':
       case 'BDSE':
-        // Section marker: one u32 per 4 bytes. Corpus is overwhelmingly a single
-        // u32 (4 B); a rare 8-byte form carries two. The value's exact meaning
-        // (size/offset/flags) is not yet decoded — labeled honestly as a marker.
         for (var p = 0; p + 4 <= b.length; p += 4) {
           span(p, 4, _cObject, '$tag marker (u32)',
               '${tag == 'FPSE' ? 'Front-panel' : 'Block-diagram'} section marker word (value role not yet decoded).',
@@ -683,9 +631,6 @@ class _BlockHexViewState extends State<BlockHexView> {
         span(0, 4, _cObject, 'MUID (u32)', 'Module/object unique id (opaque value).', preview: '${_u32(b, 0)}');
       case 'CPST':
       case 'CPSP':
-        // String-label table: [u32 count][count × [u8 len][ASCII]]. Corpus shows
-        // boolean / comparison / report labels (e.g. "True", "Equal (Value)").
-        // Empty slots are len-0 Pascal strings. Confirmed across the corpus.
         if (b.length >= 4) {
           final count = _u32(b, 0);
           span(0, 4, _cHeader, 'String count (u32)',
@@ -702,10 +647,6 @@ class _BlockHexViewState extends State<BlockHexView> {
           }
         }
       case 'FPTD':
-        // Overwhelmingly a 2-byte u16 (3119/3123). Likely a VCTP type index, but
-        // unlike CONP that mapping is NOT corpus-verified for FPTD — so it is
-        // labeled a type index without resolving/claiming the pool entry. The
-        // rare larger forms are left raw (no confident layout) → gap-filled.
         if (b.length == 2) {
           span(0, 2, _cObject, 'Type index (u16)',
               'Front-panel terminal type descriptor; likely indexes the VCTP pool (not corpus-verified for FPTD).',
@@ -804,7 +745,7 @@ class _BlockHexViewState extends State<BlockHexView> {
 }
 
 const double _kRowHeight = 20;
-const double _kRecHeight = 30; // records-list row height (fixed → smooth scroll + scroll-to-index)
+const double _kRecHeight = 30;
 
 /// One parsed record for display.
 class _SpanInfo {
@@ -838,7 +779,7 @@ int _u16(List<int> b, int p) => (b[p] << 8) | b[p + 1];
 int _u32(List<int> b, int p) => (b[p] << 24) | (b[p + 1] << 16) | (b[p + 2] << 8) | b[p + 3];
 
 const _cHeader = Color(0xFFD08BB0);
-const _cUnframed = Color(0xFFE57373); // the un-framable tail (decode frontier)
+const _cUnframed = Color(0xFFE57373);
 const _cObject = Color(0xFF9E7BE0);
 const _cGroup = Color(0xFF8A8A8A);
 const _cRect = Color(0xFF5C9BD6);
@@ -862,7 +803,6 @@ _SpanInfo _classify(Uint8List b, HeapSpan s, String tag) {
           display: display,
           inlinePreview: inlinePreview);
 
-  // Object header: 10/11/12 02 fe <kind> fd <oid>
   if ((lead == 0x10 || lead == 0x11 || lead == 0x12) && o + 9 <= b.length && b[o + 2] == 0x02 && b[o + 3] == 0xfe && b[o + 6] == 0xfd) {
     final kind = _u16(b, o + 4), oid = _u16(b, o + 7);
     final cls = HeapObjectClass.fromCode(kind);
@@ -870,7 +810,6 @@ _SpanInfo _classify(Uint8List b, HeapSpan s, String tag) {
     return make(_cObject, 'Object · ${cls.label}',
         'Declares object #$oid of class 0x${kind.toRadixString(16)} — ${cls.label}$conf.');
   }
-  // Named property token (the decoded hi-nibble 0/1 family) — show its meaning.
   final prop = decodeHeapPropertyToken(b, o);
   if (prop != null) {
     final t = prop.token;
@@ -879,13 +818,6 @@ _SpanInfo _classify(Uint8List b, HeapSpan s, String tag) {
     final val = prop.value == null ? '' : ' = ${prop.value}';
     return make(_cAttr, '$hexpair · ${t.tokenName}', 'Object property$val$conf.');
   }
-  // Group open / close (bracket tree). What MAKES a group: a record
-  // <10|11|12|13> <subop> <count> <type-tag> where the byte at +3 is a type tag
-  // (fb/fe/fd) — that type tag is the discriminator (a 0x10/0x11 WITHOUT it is a
-  // property token, not a group). The matching close is the open's lead − 0x08
-  // (0x08←0x10, 0x09←0x11, 0x0a←0x12) carrying the same subop tag — STRUCTURAL,
-  // not coincidence: corpus-measured 99.99% on the lead and 99.8% on the tag, with
-  // the tree ~99.93% balanced (the rest pop the innermost open positionally).
   String _hx(int v) => '0x${v.toRadixString(16).padLeft(2, '0')}';
   if (lead == 0x10 || lead == 0x11 || lead == 0x12 || lead == 0x13) {
     final hasTypeTag = o + 3 < b.length && (b[o + 3] == 0xfb || b[o + 3] == 0xfe || b[o + 3] == 0xfd);
@@ -897,7 +829,6 @@ _SpanInfo _classify(Uint8List b, HeapSpan s, String tag) {
           'matching close is lead ${_hx(lead - 0x08)} (open − 0x08) carrying the same tag ${_hx(tag)} '
           '— structural (corpus: 99.99% lead, 99.8% tag).');
     }
-    // No type tag at +3 → this is not a group open; fall through to generic classification.
   }
   if (lead == 0x08 || lead == 0x09 || lead == 0x0a || lead == 0x0b) {
     final tag = o + 1 < b.length ? b[o + 1] : -1;
@@ -906,21 +837,19 @@ _SpanInfo _classify(Uint8List b, HeapSpan s, String tag) {
         'the same tag ${_hx(tag)}. The pairing is structural (corpus: 99.99% lead, 99.8% tag); '
         'otherwise the innermost open is popped positionally (~0.07% of closes have no tracked open).');
   }
-  // Typed object reference: 14 <subop> 01 fd <oid> (the heap's object graph).
   final ref = decodeHeapRef(b, o);
   if (ref != null) {
     final conf = ref.kind.confidence == AttrConfidence.confirmed ? '' : ' (${ref.kind.confidence.name})';
     return make(_cRef, '${ref.kind.refName} → #${ref.targetOid}',
         'A typed object reference (${ref.kind.refName}$conf) — a link in the object graph, not a wire.');
   }
-  // C4 length-prefixed record
   if (lead == kHeapRecordPrefix) {
     final rec = c4FrameAt(b, o, tag);
     if (rec != null) {
       final op = rec.opcode;
       final opc = rec.kind;
       final hexop = 'C4 ${op.toRadixString(16).padLeft(2, '0')}';
-      final r = rec.rect; // any rectangle-shape opcode (0x2d/0x1f/0x4a/0x5f/…), not just bounds/size
+      final r = rec.rect;
       if (r != null) {
         return make(_cRect, '$hexop · ${opc.name}',
             'Rectangle (4× s16): top ${r.top}, left ${r.left}, bottom ${r.bottom}, right ${r.right}  (${r.width}×${r.height}).',
@@ -935,7 +864,6 @@ _SpanInfo _classify(Uint8List b, HeapSpan s, String tag) {
           opc.isDecoded ? 'A decoded ${opc.name} record.' : 'A framed ${opc.name} record (${rec.payload.length}-byte payload).');
     }
   }
-  // Attribute records (nibble family / 84 colour / C5 f64 / C6 blob)
   final attr = decodeHeapAttr(b, o);
   if (attr != null) {
     final a = attr.attribute;
@@ -1103,7 +1031,7 @@ class _LegacyIconPainter extends CustomPainter {
     const dim = 32;
     final cw = size.width / dim;
     final ch = size.height / dim;
-    final maxIdx = (1 << icon.bpp) - 1; // 1, 15, or 255
+    final maxIdx = (1 << icon.bpp) - 1;
     final p = Paint();
     for (var y = 0; y < dim; y++) {
       for (var x = 0; x < dim; x++) {
@@ -1117,7 +1045,6 @@ class _LegacyIconPainter extends CustomPainter {
         canvas.drawRect(Rect.fromLTWH(x * cw, y * ch, cw + 0.5, ch + 0.5), p);
       }
     }
-    // a faint border so a mostly-white icon is still visible
     canvas.drawRect(Offset.zero & size, Paint()
       ..style = PaintingStyle.stroke
       ..color = const Color(0xFF888888));

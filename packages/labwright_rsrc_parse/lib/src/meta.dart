@@ -188,7 +188,6 @@ List<HeapStringTable> heapStringTablesFromDecoded(Iterable<DecodedSection> decod
     }
 
     while (i < n) {
-      // Prefer the confirmed structural opcode: 0x2E <len> <packed pascals>.
       final framed = _tryFramedTable(h, i);
       if (framed != null) {
         flushHeur();
@@ -200,7 +199,6 @@ List<HeapStringTable> heapStringTablesFromDecoded(Iterable<DecodedSection> decod
         i += framed.consumed;
         continue;
       }
-      // Heuristic fallback: accumulate a run of valid Pascal strings.
       final len = h[i];
       if (len >= 1 && i + 1 + len <= n && _allPrintable(h, i + 1, len)) {
         if (heur.isEmpty) heurStart = i;
@@ -219,9 +217,16 @@ List<HeapStringTable> heapStringTablesFromDecoded(Iterable<DecodedSection> decod
 /// Result of structurally framing a `0x2E <len>` string table at a byte offset.
 class _FramedTable {
   const _FramedTable(this.strings, this.headerLen, this.consumed);
-  final List<String> strings; // all entries (unfiltered)
-  final int headerLen; // bytes from the 0x2E opcode to the first string (2 or 3)
-  final int consumed; // total bytes consumed (opcode + len + region)
+
+  /// All entries (unfiltered).
+  final List<String> strings;
+
+  /// Bytes from the introducing `C4` opcode to the first string: 3 for the normal
+  /// `C4 2E <u8 len>` header, or 5 for the `C4 2E FF <u16 len>` extended form.
+  final int headerLen;
+
+  /// Total bytes consumed (opcode + len + region).
+  final int consumed;
 }
 
 /// If [h] at [i] is a `C4 2E` string table — `<region>` is exactly `<len>` bytes

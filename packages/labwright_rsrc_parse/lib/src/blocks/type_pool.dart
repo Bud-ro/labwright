@@ -93,16 +93,13 @@ List<ViType> decodeTypePool(Uint8List body) {
   final out = <ViType>[];
   var off = 4;
   for (var i = 0; i < count; i++) {
-    if (off + 4 > body.length) break; // truncated — stop, keep what parsed
+    if (off + 4 > body.length) break;
     final descLen = (body[off] << 8) | body[off + 1];
     if (descLen < 4 || off + descLen > body.length) break;
-    final code = body[off + 3]; // low byte of the type word (after the flags byte)
+    final code = body[off + 3];
     final members = code == 0x50 ? _clusterMembers(body, off, descLen, count) : const <int>[];
     final elementIndex = code == 0x40 ? _arrayElement(body, off, descLen, count) : null;
     final enumItems = (code == 0x15 || code == 0x16 || code == 0x17) ? _enumItems(body, off, descLen) : const <String>[];
-    // Only scan for a trailing name AFTER this type's known binary payload, so a
-    // cluster's member indices / array's dim sizes / enum item bytes can't be
-    // mis-read as a coincidental "name".
     final nameStart = _nameRegionStart(body, off, code, members, elementIndex, enumItems);
     out.add(ViType(
       index: i,
@@ -127,12 +124,12 @@ List<int> _clusterMembers(Uint8List b, int off, int descLen, int poolCount) {
   if (off + 6 > b.length) return const [];
   final nm = (b[off + 4] << 8) | b[off + 5];
   if (nm <= 0 || nm > 512) return const [];
-  if (6 + nm * 2 > descLen) return const []; // members must fit before the name
+  if (6 + nm * 2 > descLen) return const [];
   final out = <int>[];
   for (var m = 0; m < nm; m++) {
     final p = off + 6 + m * 2;
     final idx = (b[p] << 8) | b[p + 1];
-    if (idx >= poolCount) return const []; // out-of-range -> not the layout we think
+    if (idx >= poolCount) return const [];
     out.add(idx);
   }
   return out;
@@ -146,7 +143,7 @@ int? _arrayElement(Uint8List b, int off, int descLen, int poolCount) {
   if (off + 6 > b.length) return null;
   final numDims = (b[off + 4] << 8) | b[off + 5];
   if (numDims < 1 || numDims > 8) return null;
-  final ep = off + 6 + numDims * 4; // after the per-dimension u32 sizes
+  final ep = off + 6 + numDims * 4;
   if (ep + 2 > off + descLen) return null;
   final idx = (b[ep] << 8) | b[ep + 1];
   if (idx >= poolCount) return null;
@@ -195,14 +192,15 @@ String typeLabel(ViType t, List<ViType> types) {
 
 /// Recovers a type descriptor's embedded name: LabVIEW stores it as a Pascal
 /// string (`u8 len` + bytes) at the **end** of the descriptor. Scans for a valid
-/// string (1–63 printable bytes, containing a letter) ending at the descriptor's
-/// last byte (allowing one pad byte). Returns null when no clean name is present
+/// string (2–63 printable bytes — a single char is too weak — containing letters:
+/// ≥2, or a letter-majority for short names, so a coincidental `[len][punct]`
+/// binary tail is rejected) ending at the descriptor's last byte (allowing one pad
+/// byte). Returns null when no clean name is present
 /// — heuristic but precise enough that ~all recovered names are real identifiers
 /// (corpus-validated: ~64% of descriptors named, e.g. `Serial Number`).
 String? _trailingName(Uint8List b, int start, int end) {
   for (final e in [end, end - 1]) {
     if (e <= start) continue;
-    // require >=2 bytes: a single printable char is too weak to be a real name.
     for (var len = 2; len <= 63; len++) {
       final lenPos = e - len - 1;
       if (lenPos < start) break;
@@ -217,8 +215,6 @@ String? _trailingName(Uint8List b, int start, int end) {
         }
         if ((c >= 0x41 && c <= 0x5a) || (c >= 0x61 && c <= 0x7a)) letters++;
       }
-      // require at least 2 letters (or letter-majority for short names) so a
-      // coincidental "[len][punct][letter]" binary tail is rejected.
       if (ok && (letters >= 2 || letters * 2 >= len)) {
         return String.fromCharCodes(b.sublist(lenPos + 1, e));
       }
@@ -234,20 +230,20 @@ String? _trailingName(Uint8List b, int start, int end) {
 /// stops binary payload bytes from being mis-read as a name.
 int _nameRegionStart(Uint8List b, int off, int code, List<int> members, int? elementIndex, List<String> enumItems) {
   if (code == 0x50 && members.isNotEmpty) {
-    return off + 6 + members.length * 2; // numMembers word + member indices
+    return off + 6 + members.length * 2;
   }
   if (code == 0x40 && elementIndex != null && off + 6 <= b.length) {
     final numDims = (b[off + 4] << 8) | b[off + 5];
-    return off + 6 + numDims * 4 + 2; // numDims word + dim sizes + element index
+    return off + 6 + numDims * 4 + 2;
   }
   if (enumItems.isNotEmpty) {
-    var p = off + 6; // numItems word
+    var p = off + 6;
     for (final it in enumItems) {
       p += 1 + it.length;
     }
     return p;
   }
-  return off + 4; // after flags + code
+  return off + 4;
 }
 
 /// [decodeTypePool] over a set of decoded sections — finds the `VCTP` section and

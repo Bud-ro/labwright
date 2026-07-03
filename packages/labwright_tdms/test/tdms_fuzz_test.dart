@@ -46,7 +46,7 @@ void main() {
         handled++;
       }
     }
-    expect(handled, 8000); // no other exception type escaped
+    expect(handled, 8000, reason: 'no exception type other than TdmsFormatException escaped');
   });
 
   test('every truncation of a valid file fails cleanly', () {

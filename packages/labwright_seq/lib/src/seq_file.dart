@@ -73,7 +73,6 @@ class SeqFile {
   String? stepNameForId(String idRef) {
     final hit = _stepNamesById[idRef];
     if (hit != null) return hit;
-    // Tolerate a bare uid (no `ID#:` prefix) against `ID#:`-prefixed ids.
     return idRef.startsWith('ID#:') ? null : _stepNamesById['ID#:$idRef'];
   }
 
@@ -294,7 +293,7 @@ class Step {
         for (final e in [...p.subProps, ...?p.array]) {
           out.add(AdditionalResult(e));
         }
-        return; // entries don't nest further AdditionalResults containers
+        return;
       }
       for (final c in [...p.subProps, ...?p.array]) {
         walk(c);
@@ -641,7 +640,10 @@ class StepLimits {
 /// the code it runs. Only kinds seen in real files are modeled (honesty); others
 /// (e.g. .NET, HTBasic) surface as [unknown] until a sample is decoded.
 enum SeqAdapter {
-  /// LabVIEW VI adapter (`ViCall`/`VICall`) — calls a `.vi`.
+  /// LabVIEW VI adapter (`ViCall`/`VICall`) — calls a `.vi`. Older TestStand
+  /// (e.g. versions 127/143) instead stores the VI path as a direct `ViPath`
+  /// member of `SData` (alongside `PassInBuf`/`PassInvocInfo`), not nested under
+  /// a `ViCall` sub-object.
   labView,
 
   /// C/CVI / DLL adapter (`Call`/`ExternalCall`) — calls a function in a DLL or
@@ -782,8 +784,6 @@ class StepModule {
   static String? _e(String? s) => (s == null || s.isEmpty) ? null : s;
 
   factory StepModule.fromSData(SeqProperty? sdata) {
-    // No SData, or an empty SData container (commonly an inherited bare default
-    // on a flow-control/no-module step), means there is no code-module binding.
     if (sdata == null || sdata.subProps.isEmpty) {
       return StepModule(adapter: SeqAdapter.none);
     }
@@ -794,9 +794,6 @@ class StepModule {
       return StepModule(adapter: SeqAdapter.labView, viPath: p, target: p, raw: sdata);
     }
 
-    // Older TestStand (e.g. versions 127/143) stores the LabVIEW adapter's path
-    // as a direct `ViPath` member of SData (alongside `PassInBuf`/`PassInvocInfo`),
-    // rather than nested under a `ViCall` sub-object.
     final directVi = _e(sdata.prop('ViPath')?.scalar);
     if (directVi != null) {
       return StepModule(
@@ -821,7 +818,6 @@ class StepModule {
     if (py != null) {
       final fn = _e(py.prop('FunctionOrAttributeName')?.scalar);
       final cls = _e(py.prop('ClassName')?.scalar);
-      // The callee, qualified by its class when the call targets a method.
       final callee = fn == null ? null : (cls != null ? '$cls.$fn' : fn);
       return StepModule(adapter: SeqAdapter.python, target: callee, raw: sdata);
     }
@@ -1155,8 +1151,6 @@ SeqFile parseSeqFile(Uint8List bytes) {
     case SeqFormat.binary:
       throw UnsupportedError('binary TOF1 .seq decoding is not yet implemented (M2)');
     case SeqFormat.ini:
-      // The legacy INI form maps onto the same PropertyObject model — build a
-      // SeqFile via the INI reader so the typed lens works on it too.
       return parseIniSeqFile(bytes);
     case SeqFormat.unknown:
       throw FormatException('not a recognized XML TestStand sequence file ($fmt)');
@@ -1172,7 +1166,6 @@ SeqFile _parseXml(Uint8List bytes) {
   final typelist = childElement(root, 'typelist');
   if (typelist != null) {
     for (final typedef in childElementsNamed(typelist, 'typedef')) {
-      // A typedef wraps exactly one type root element.
       final kids = typedef.childElements;
       if (kids.isNotEmpty) types.add(buildProperty(kids.first));
     }
