@@ -1,0 +1,47 @@
+// Scoped, wire-compatible subset of NI's gRPC Device Server session + utilities
+// protos, transcribed from NI's MIT-licensed sources (see proto/PROVENANCE.md):
+//   - `Session` / `SessionInitializationBehavior` from ni/grpcdevice/v1/session.proto
+//     (github.com/ni/ni-apis)
+//   - `SessionUtilities.EnumerateDevices` from source/protobuf/session_utilities.proto
+//     (github.com/ni/grpc-device)
+//
+// Package, service, method, message and field NUMBERS match NI's exactly, so the
+// generated client is designed to be wire-compatible with a real NI gRPC Device Server
+// (verified against an in-process fake to date, not a live NI server). Only the
+// messages this package uses are included; absent fields default per proto3 rules.
+syntax = "proto3";
+
+package nidevice_grpc;
+
+// A server-side session handle. For NI-DAQmx, `name` is the DAQmx task handle the
+// server returns from CreateTask and that subsequent calls pass back.
+message Session {
+  string name = 1;
+}
+
+// How the server should treat a session name on creation.
+enum SessionInitializationBehavior {
+  SESSION_INITIALIZATION_BEHAVIOR_UNSPECIFIED = 0;
+  SESSION_INITIALIZATION_BEHAVIOR_INITIALIZE_NEW = 1;
+  SESSION_INITIALIZATION_BEHAVIOR_ATTACH_TO_EXISTING = 2;
+}
+
+// Cross-driver utilities exposed by the server (device discovery, reservation, ...).
+// Only EnumerateDevices is transcribed here.
+service SessionUtilities {
+  rpc EnumerateDevices(EnumerateDevicesRequest) returns (EnumerateDevicesResponse);
+}
+
+message EnumerateDevicesRequest {}
+
+message EnumerateDevicesResponse {
+  repeated DeviceProperties devices = 1;
+}
+
+message DeviceProperties {
+  string name = 1;
+  string model = 2;
+  string vendor = 3;
+  string serial_number = 4;
+  uint32 product_id = 5;
+}

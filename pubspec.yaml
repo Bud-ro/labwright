@@ -8,6 +8,7 @@ workspace:
   - packages/labwright_tdms
   - packages/labwright_rsrc_parse
   - packages/labwright_seq
+  - packages/labwright_nidaqmx
   - example/e2e
 
 dev_dependencies:

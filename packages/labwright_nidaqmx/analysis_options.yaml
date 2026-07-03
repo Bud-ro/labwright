@@ -1,0 +1,8 @@
+# Inherit the workspace lint set, but exclude machine-generated protobuf/gRPC stubs.
+# lib/src/generated/ is produced by tool/gen_proto.sh and carries its own
+# ignore_for_file headers; subjecting it to the workspace's strict lints is noise.
+include: ../../analysis_options.yaml
+
+analyzer:
+  exclude:
+    - lib/src/generated/**
