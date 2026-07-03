@@ -27,8 +27,9 @@ const _maxProbeBytes = 8 * 1024 * 1024;
 
 /// Validates the M1 XML reader against the real fetched corpus: every XML `.seq`
 /// must parse without throwing, and the typed lens must recover sequences and
-/// steps. Binary `TOF1` files must be honestly classified and refused (not
-/// silently mis-parsed). Self-skips when the corpus is absent.
+/// steps. Binary `TOF1` files parse to the honest PARTIAL model (sequence/step
+/// skeleton; properties/modules not yet decoded). Self-skips when the corpus is
+/// absent.
 void main() {
   if (!corpusSeqDir.existsSync()) {
     test(
@@ -97,7 +98,12 @@ void main() {
           }
         case SeqFormat.binary:
           binary++;
-          expect(() => parseSeqFile(bytes), throwsA(isA<UnsupportedError>()));
+          // Binary now parses to a PARTIAL typed model (sequence/step skeleton
+          // from the decoded record structures); it must not throw.
+          final partial = parseSeqFile(bytes);
+          for (final seq in partial.sequences) {
+            expect(seq.name, isNotEmpty);
+          }
           final bh = detectSeqHeader(bytes);
           expect(bh.fileType, 'SequenceFile');
           expect(bh.productName, 'TestStand');

@@ -909,9 +909,12 @@ void main() {
   });
 
   group('parseSeqFile rejects non-XML honestly', () {
-    test('binary TOF1 is unsupported (not silently mis-parsed)', () {
+    test('a binary TOF1 header without an inflatable body throws FormatException', () {
+      // Real binary TOF1 files now parse to the partial typed model (see
+      // binary_parse_seq_file_test.dart, oracle-validated); a header-only stub
+      // with no zlib body must still be refused, not guessed at.
       final bin = Uint8List.fromList([...ascii.encode('TOF1'), 0, 0, 0, 0, 0, 0, ...ascii.encode('SequenceFile'), 0]);
-      expect(() => parseSeqFile(bin), throwsA(isA<UnsupportedError>()));
+      expect(() => parseSeqFile(bin), throwsFormatException);
     });
 
     test('unknown bytes throw FormatException', () {

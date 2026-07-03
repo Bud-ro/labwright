@@ -930,6 +930,265 @@ List<BinaryPropertyRecord> _propertyRecordsFromBody(Uint8List body, int recordRe
   return out;
 }
 
+/// The record region holds a SECOND record shape besides the leaf property
+/// record: a **path/object declaration**. It shares the `0x40`/`0x44` lead but is
+/// distinguished by a NON-zero word at [_PropRecordField.zeroA]'s offset — where a
+/// leaf record has its framing zero, a path record has the first **pool index** of
+/// the object's location path. The path is a run of `u32` pool-index words
+/// (`0` acts as a separator), naming the containers from the file root down to the
+/// object, e.g. `[] / MainSequence / Objs / Seq / [0]` declares the sequence
+/// `MainSequence` living at `…/Objs/Seq/[0]`. Element `[1]` is the object's own
+/// name; the structural tokens (`Objs`, `Seq`, `[i]`, `Data`, …) spell the path.
+///
+/// Reads the path words of the record at [at], or `null` if it is not a
+/// path-declaration record. Stops at the first word that is neither zero nor a
+/// resolvable pool index.
+List<String>? _objectDeclarationPath(
+    Uint8List body, ByteData view, List<String> pool, int at, int recordRegionLength) {
+  if (at + _PropRecordField.zeroA.offset + _u32Bytes > recordRegionLength) return null;
+  if (!_propRecordLeads.contains(body[at + _PropRecordField.lead.offset])) return null;
+  if (body[at + 1] != 0) return null; // flags byte
+  final firstOffset = at + _PropRecordField.zeroA.offset;
+  final first = view.getUint32(firstOffset, Endian.little);
+  if (first == 0 || first >= pool.length || pool[first].isEmpty) return null;
+
+  final path = <String>[];
+  var offset = firstOffset;
+  while (offset + _u32Bytes <= recordRegionLength) {
+    final word = view.getUint32(offset, Endian.little);
+    if (word == 0) {
+      offset += _u32Bytes; // separator
+      continue;
+    }
+    if (word < pool.length && pool[word].isNotEmpty) {
+      path.add(pool[word]);
+      offset += _u32Bytes;
+    } else {
+      break;
+    }
+  }
+  return path;
+}
+
+/// The `Objs / Seq / [i]` container path under which a file's sequences are
+/// declared (see [_objectDeclarationPath]).
+const _sequenceListPath = ['Objs', 'Seq'];
+
+/// The **sequence names** of a binary TOF1 file, recovered from the object-path
+/// declarations ([_objectDeclarationPath]): every declaration whose path passes
+/// through `Objs / Seq / [i]` names a sequence at path element `[1]`.
+///
+/// Corpus-validated: on all six Rosetta binary twins this yields exactly the
+/// sequence list their content-exact XML twins parse to (`[MainSequence]`).
+/// Returned de-duplicated in first-seen order. Returns `[]` when [seqBytes] is not
+/// an inflatable binary file or does not frame.
+List<String> binarySequenceNames(Uint8List seqBytes) =>
+    _withLayout(seqBytes, _sequenceNamesFromBody);
+
+List<String> _sequenceNamesFromBody(Uint8List body, int recordRegionLength) {
+  final pool = _orderedStringPool(body, recordRegionLength);
+  if (pool.isEmpty) return const [];
+  final view = ByteData.sublistView(body);
+  final names = <String>[];
+  for (var at = 0; at + 8 <= recordRegionLength; at++) {
+    final path = _objectDeclarationPath(body, view, pool, at, recordRegionLength);
+    if (path == null || path.length < 2) continue;
+    for (var i = 0; i + 2 < path.length; i++) {
+      if (path[i] == _sequenceListPath[0] &&
+          path[i + 1] == _sequenceListPath[1] &&
+          path[i + 2].startsWith('[')) {
+        if (!names.contains(path[1])) names.add(path[1]);
+        break;
+      }
+    }
+  }
+  return names;
+}
+
+/// A step reference in the record region is a run of four `u32` pool-index words
+/// `Step / <kind> / <name> / <container>`: the `Step` token, then the step's kind
+/// (a TestStand unique-ID string, or `Expression`/`ExprValue`), then the step's
+/// name, then its subobject container (`Objs` or `Data`). The name is two words
+/// after the `Step` token. The kind word is the discriminator that separates a
+/// real step from the many other `Step`-token uses (type tables, `StepType`,
+/// engine callbacks like `OnNewStep`/`Post`, whose middle word is `ResultList`,
+/// a version, or `0xffffffff`).
+const _stepToken = 'Step';
+const _stepNameWordGap = 2; // words after the Step token to the name
+const _stepContainerTokens = {'Objs', 'Data'};
+const _stepExpressionKinds = {'Expression', 'ExprValue'};
+
+/// The minimum length + punctuation signature of a TestStand **unique-ID** string
+/// (e.g. `8;G6MnVLO732>8ODE2E3h4jDhR\`), the kind word of a normal placed step.
+/// Corpus-tuned to admit the ID charset while rejecting ordinary identifiers.
+bool _looksLikeUniqueId(String text) =>
+    text.length >= 15 && RegExp(r'[;\\<>^\]]').hasMatch(text);
+
+/// The **step names** of a binary TOF1 file, recovered from the step references
+/// ([_stepToken] runs) in the record region. Returned in file order,
+/// de-duplicated.
+///
+/// This is the step *set*, not yet grouped into each sequence's Setup/Main/
+/// Cleanup lists (that membership is a further layer — file order is not
+/// execution order). Corpus-validated: on the content-exact OutputVoltage twin
+/// the recovered set equals the XML twin's steps exactly, and on every other
+/// Rosetta twin the *count* matches (the names differ only because those pairs
+/// are the same sequence saved from different toolchains). Returns `[]` when
+/// [seqBytes] is not an inflatable binary file or does not frame.
+List<String> binaryStepNames(Uint8List seqBytes) =>
+    _withLayout(seqBytes, _stepNamesFromBody);
+
+List<String> _stepNamesFromBody(Uint8List body, int recordRegionLength) {
+  final pool = _orderedStringPool(body, recordRegionLength);
+  if (pool.isEmpty) return const [];
+  final stepToken = pool.indexOf(_stepToken);
+  if (stepToken < 0) return const [];
+  final view = ByteData.sublistView(body);
+  int wordAt(int at) => view.getUint32(at, Endian.little);
+  String? poolAt(int index) =>
+      index > 0 && index < pool.length && pool[index].isNotEmpty ? pool[index] : null;
+
+  // Step references are not 4-byte aligned (they pack at 2-byte record
+  // boundaries), so scan every byte offset.
+  final names = <String>[];
+  for (var at = 0; at + (_stepNameWordGap + 2) * _u32Bytes <= recordRegionLength; at++) {
+    if (wordAt(at) != stepToken) continue;
+    final kind = poolAt(wordAt(at + _u32Bytes));
+    final name = poolAt(wordAt(at + _stepNameWordGap * _u32Bytes));
+    final container = poolAt(wordAt(at + (_stepNameWordGap + 1) * _u32Bytes));
+    if (name == null || container == null || kind == null) continue;
+    if (!_stepContainerTokens.contains(container)) continue;
+    if (!_looksLikeUniqueId(kind) && !_stepExpressionKinds.contains(kind)) continue;
+    if (!names.contains(name)) names.add(name);
+  }
+  return names;
+}
+
+/// The step-group container names, in the record region's declaration order
+/// context (`Main` is emitted before `Setup`/`Cleanup` in observed files).
+const _stepGroupNames = {'Setup', 'Main', 'Cleanup'};
+
+/// A **reconstructed sequence outline** from a binary TOF1 record region: the
+/// sequence's name and its step names grouped into Setup/Main/Cleanup.
+///
+/// Assembly rule (corpus-validated on the content-exact OutputVoltage twin,
+/// where the grouped, ordered result equals the XML twin exactly): a step
+/// belongs to the **nearest preceding group container** record (`Objs Setup` /
+/// `Objs Main` / `Objs Cleanup`), and group containers/steps belong to the
+/// nearest preceding sequence declaration ([_objectDeclarationPath] through
+/// `Objs/Seq/[i]`) — the region lays each sequence's content out contiguously.
+class BinarySequenceOutline {
+  const BinarySequenceOutline({
+    required this.name,
+    required this.setup,
+    required this.main,
+    required this.cleanup,
+  });
+
+  /// The sequence name (path element `[1]` of its object declaration).
+  final String name;
+
+  /// Step names in declaration order per group.
+  final List<String> setup;
+  final List<String> main;
+  final List<String> cleanup;
+}
+
+/// The **sequence outlines** of a binary TOF1 file — each sequence with its
+/// step names grouped into Setup/Main/Cleanup (see [BinarySequenceOutline] for
+/// the assembly rule and its validation). Sequence-level properties, locals,
+/// parameters, and step types/modules are **not yet decoded** — this is the
+/// structural skeleton. Returns `[]` when [seqBytes] is not an inflatable
+/// binary file or does not frame.
+List<BinarySequenceOutline> binarySequenceOutlines(Uint8List seqBytes) =>
+    _withLayout(seqBytes, _sequenceOutlinesFromBody);
+
+List<BinarySequenceOutline> _sequenceOutlinesFromBody(
+    Uint8List body, int recordRegionLength) {
+  final pool = _orderedStringPool(body, recordRegionLength);
+  if (pool.isEmpty) return const [];
+  final view = ByteData.sublistView(body);
+
+  // 1. sequence declarations, with offsets
+  final sequenceDecls = <(int, String)>[];
+  for (var at = 0; at + 8 <= recordRegionLength; at++) {
+    final path = _objectDeclarationPath(body, view, pool, at, recordRegionLength);
+    if (path == null || path.length < 2) continue;
+    for (var i = 0; i + 2 < path.length; i++) {
+      if (path[i] == _sequenceListPath[0] &&
+          path[i + 1] == _sequenceListPath[1] &&
+          path[i + 2].startsWith('[')) {
+        sequenceDecls.add((at, path[1]));
+        break;
+      }
+    }
+  }
+  if (sequenceDecls.isEmpty) return const [];
+
+  // 2. group-container markers (leaf records `Objs <group>`), with offsets
+  final markers = <(int, String)>[];
+  for (final record in _propertyRecordsFromBody(body, recordRegionLength)) {
+    if (record.typeName == 'Objs' && _stepGroupNames.contains(record.name)) {
+      markers.add((record.offset, record.name));
+    }
+  }
+
+  // 3. step references, with offsets (same discriminator as binaryStepNames)
+  final stepToken = pool.indexOf(_stepToken);
+  final steps = <(int, String)>[];
+  if (stepToken > 0) {
+    int wordAt(int at) => view.getUint32(at, Endian.little);
+    String? poolAt(int index) =>
+        index > 0 && index < pool.length && pool[index].isNotEmpty ? pool[index] : null;
+    for (var at = 0;
+        at + (_stepNameWordGap + 2) * _u32Bytes <= recordRegionLength;
+        at++) {
+      if (wordAt(at) != stepToken) continue;
+      final kind = poolAt(wordAt(at + _u32Bytes));
+      final name = poolAt(wordAt(at + _stepNameWordGap * _u32Bytes));
+      final container = poolAt(wordAt(at + (_stepNameWordGap + 1) * _u32Bytes));
+      if (name == null || container == null || kind == null) continue;
+      if (!_stepContainerTokens.contains(container)) continue;
+      if (!_looksLikeUniqueId(kind) && !_stepExpressionKinds.contains(kind)) continue;
+      steps.add((at, name));
+    }
+  }
+
+  // 4. assemble: nearest preceding sequence decl, then nearest preceding marker
+  sequenceDecls.sort((a, b) => a.$1.compareTo(b.$1));
+  final outlines = {
+    for (final (_, name) in sequenceDecls)
+      name: {'Setup': <String>[], 'Main': <String>[], 'Cleanup': <String>[]},
+  };
+  String sequenceAt(int offset) {
+    var owner = sequenceDecls.first.$2;
+    for (final (declOffset, name) in sequenceDecls) {
+      if (declOffset < offset) owner = name;
+    }
+    return owner;
+  }
+
+  for (final (stepOffset, stepName) in steps) {
+    String? group;
+    for (final (markerOffset, markerName) in markers) {
+      if (markerOffset < stepOffset) group = markerName;
+    }
+    if (group == null) continue; // step before any group marker: unplaceable
+    final groups = outlines[sequenceAt(stepOffset)]!;
+    if (!groups[group]!.contains(stepName)) groups[group]!.add(stepName);
+  }
+
+  return [
+    for (final (_, name) in sequenceDecls)
+      BinarySequenceOutline(
+        name: name,
+        setup: outlines[name]!['Setup']!,
+        main: outlines[name]!['Main']!,
+        cleanup: outlines[name]!['Cleanup']!,
+      ),
+  ];
+}
+
 /// Whether [cur] is packed immediately after [prev] in a NUL-terminated string
 /// table — its offset is one byte (the single NUL) past the end of [prev]. The
 /// back-to-back single-NUL packing invariant every chain-walker keys on.
