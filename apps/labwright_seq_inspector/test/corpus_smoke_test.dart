@@ -51,6 +51,7 @@ void main() {
   test('every .seq parses into a sane document and renders through the app helpers',
       () {
     var structured = 0, binary = 0, other = 0;
+    var partialTyped = 0;
     final failures = <String>[];
     for (final f in seqs) {
       final bytes = f.readAsBytesSync();
@@ -76,6 +77,18 @@ void main() {
             binary++;
             expect(doc.header.format, SeqFormat.binary, reason: f.path);
             expect(binaryHeaderRows(doc), isNotEmpty, reason: f.path);
+            // The partial typed model must render through the same helper path
+            // the typed tabs use (sequence/step skeleton; may be sequence-less
+            // for type-palette files, but must not throw).
+            final partial = doc.partialFile;
+            if (partial != null) {
+              partialTyped++;
+              SeqOutline.of(partial);
+              expect(propertyTree(partial).name, isNotEmpty, reason: f.path);
+              for (final seq in partial.sequences) {
+                expect(seq.name, isNotEmpty, reason: f.path);
+              }
+            }
           case UnknownSeqDocument():
             other++;
         }
@@ -85,7 +98,8 @@ void main() {
     }
     // ignore: avoid_print
     print('corpus smoke: ${seqs.length} files — '
-        '$structured structured (xml+ini), $binary binary, $other other; '
+        '$structured structured (xml+ini), $binary binary '
+        '($partialTyped with typed skeleton), $other other; '
         '${failures.length} failures');
     expect(failures, isEmpty, reason: failures.join('\n'));
   });
