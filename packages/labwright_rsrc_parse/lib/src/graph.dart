@@ -24,6 +24,9 @@ enum ViObjectKind {
   /// A decoration (unlabeled, never-wired large rect).
   decoration,
 
+  /// A wire segment — one Manhattan run of a block-diagram wire (class `0x1d`).
+  wire,
+
   /// Not classifiable from the available signals.
   unknown,
 }
@@ -226,6 +229,16 @@ enum HeapObjectClass {
 
   /// `0x7F` — a root-level **diagram property / scroll-state** record (no bounds).
   diagramProps(0x7f, 'Diagram properties', ViObjectKind.structure, ClassConfidence.inferred),
+
+  /// `0x1D` — a **wire segment**: one Manhattan run of a block-diagram wire.
+  /// Corpus (7584 VIs): 61673 instances, **BD-only** (0 FP); 61396/61396 of the
+  /// rect records attached at the object's own level are degenerate lines
+  /// (top == bottom, a horizontal run; a zero-length run marks a joint); a
+  /// multi-segment wire is a run of consecutive `0x1d` siblings whose
+  /// endpoints chain (verified 4741 exact end-to-start links in one source),
+  /// with the vertical connector implicit between consecutive runs. The wire's
+  /// datatype and its endpoint binding to terminals are not yet decoded.
+  bdWire(0x1d, 'Wire segment (BD)', ViObjectKind.wire, ClassConfidence.inferred),
 
   /// `0x101` — a root **auxiliary** record; purpose undetermined.
   rootAux(0x101, 'Root auxiliary', ViObjectKind.unknown, ClassConfidence.kindOnly),

@@ -82,6 +82,8 @@ double _emphasis(ViHeapObject object, {bool isFrontPanel = false}) {
       return 1;
     case ViObjectKind.decoration:
       return 0.3;
+    case ViObjectKind.wire:
+      return 1;
     case ViObjectKind.unknown:
       return 0.4;
     case ViObjectKind.terminal:

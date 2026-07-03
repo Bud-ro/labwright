@@ -72,17 +72,26 @@ class _ViDiagramViewState extends State<ViDiagramView> {
       ? const []
       : [
           for (final object in _diagram.objects)
+            // Wires are degenerate rects (a zero-height/width Manhattan
+            // run), so the positive-area gate exempts them.
             if (object.absBounds != null &&
                 object.absBounds!.isValid &&
-                object.absBounds!.width > 0 &&
-                object.absBounds!.height > 0 &&
+                (object.category == ViObjectKind.wire ||
+                    (object.absBounds!.width > 0 && object.absBounds!.height > 0)) &&
                 object.absBounds!.width < 8000 &&
                 object.absBounds!.height < 8000 &&
                 !_isScaffolding(object, _byId))
               object,
         ];
   late final List<ViHeapObject> _ordered = [..._drawable]..sort((a, b) => _depth(a, _byId).compareTo(_depth(b, _byId)));
-  late final Rect _content = _drawable.isEmpty ? Rect.zero : _contentRect(_drawable);
+  // Wires are excluded from the fit: their absolute anchoring is not yet
+  // verified (a misanchored run must not blow up the zoom-to-fit envelope).
+  late final Rect _content = _drawable.isEmpty
+      ? Rect.zero
+      : _contentRect([
+          for (final object in _drawable)
+            if (object.category != ViObjectKind.wire) object,
+        ]);
   late final Map<ViObjectKind, int> _counts = _computeCounts();
 
   Map<ViObjectKind, int> _computeCounts() {
@@ -199,8 +208,9 @@ class _ViDiagramViewState extends State<ViDiagramView> {
         const Padding(
           padding: EdgeInsets.only(top: 6),
           child: Text(
-            'Object layout decoded clean-room. Signal wires are not drawn — LabVIEW '
-            'does not store wire paths (it re-routes them at draw time).',
+            'Object layout decoded clean-room. Wire segments (class 0x1d) are drawn '
+            'from their stored Manhattan runs; wire datatype and terminal binding '
+            'are not yet decoded.',
             style: TextStyle(color: Colors.grey, fontSize: 11),
           ),
         ),
@@ -217,13 +227,13 @@ class _ViDiagramViewState extends State<ViDiagramView> {
           for (final entry in counts.entries)
             _LegendChip(color: _kindColor(entry.key), label: '${entry.key.name} ${entry.value}'),
           const Tooltip(
-            message: 'Wire path geometry is not yet decoded from the heap — objects are\n'
-                'placed faithfully, but the connections between them cannot be drawn\n'
-                'honestly yet. Refuted so far: terminal typed-refs (0/2699), C4\n'
-                'point-list records (0/22557), binary blob attributes.',
+            message: 'Wire segments are decoded (class 0x1d: stored Manhattan runs,\n'
+                '61396/61396 line-like across the corpus) and drawn with their\n'
+                'implicit connectors. Not yet decoded: wire datatype (for per-type\n'
+                'colors) and endpoint-to-terminal binding.',
             child: Chip(
               avatar: Icon(Icons.linear_scale, size: 14),
-              label: Text('wires: not yet decoded', style: TextStyle(fontSize: 11)),
+              label: Text('wires: segments decoded', style: TextStyle(fontSize: 11)),
               visualDensity: VisualDensity.compact,
             ),
           ),
@@ -349,6 +359,7 @@ Color _kindColor(ViObjectKind k) => switch (k) {
       ViObjectKind.terminalCluster => const Color(0xFF2BB8A8),
       ViObjectKind.structure => const Color(0xFF9A6B2E),
       ViObjectKind.decoration => const Color(0xFFBDBDBD),
+      ViObjectKind.wire => const Color(0xFF303030),
       ViObjectKind.unknown => const Color(0xFF9E9E9E),
     };
 
@@ -507,8 +518,12 @@ class _DiagramPainter extends CustomPainter {
 
     final structures = objects.where((o) => o.category == ViObjectKind.structure).toList();
     final decorations = objects.where((o) => o.category == ViObjectKind.decoration).toList();
+    final wires = objects.where((o) => o.category == ViObjectKind.wire).toList();
     final solids = objects
-        .where((o) => o.category != ViObjectKind.structure && o.category != ViObjectKind.decoration)
+        .where((o) =>
+            o.category != ViObjectKind.structure &&
+            o.category != ViObjectKind.decoration &&
+            o.category != ViObjectKind.wire)
         .toList()
       ..sort((a, b) => (b.absBounds!.width * b.absBounds!.height).compareTo(a.absBounds!.width * a.absBounds!.height));
 
@@ -536,6 +551,31 @@ class _DiagramPainter extends CustomPainter {
           ..strokeWidth = 1.0,
       );
     }
+    // Wires: each 0x1d object is one Manhattan run; consecutive runs in heap
+    // order that share an endpoint x get their implicit vertical connector.
+    final wirePaint = Paint()
+      ..color = _kindColor(ViObjectKind.wire)
+      ..strokeWidth = 1.6
+      ..strokeCap = StrokeCap.square;
+    Offset startOf(Rect r) => Offset(r.left, r.top);
+    Offset endOf(Rect r) => Offset(r.right, r.bottom);
+    Rect? previousWire;
+    for (final object in wires) {
+      final rect = rectOf(object);
+      canvas.drawLine(startOf(rect), endOf(rect), wirePaint);
+      if (previousWire != null) {
+        final gapStart = endOf(previousWire);
+        final gapEnd = startOf(rect);
+        // implicit connector: same column (or row) continuation between runs
+        final connects = (gapStart.dx - gapEnd.dx).abs() < 0.5 ||
+            (gapStart.dy - gapEnd.dy).abs() < 0.5;
+        if (connects && (gapStart - gapEnd).distance <= 400) {
+          canvas.drawLine(gapStart, gapEnd, wirePaint);
+        }
+      }
+      previousWire = rect;
+    }
+
     for (final object in solids) {
       final rect = rectOf(object);
       switch (object.category) {
@@ -592,6 +632,7 @@ class _DiagramPainter extends CustomPainter {
             color: onFrame ? const Color(0xCC4A2E00) : Colors.black.withValues(alpha: 0.85),
             fontSize: 10,
             fontWeight: FontWeight.w500,
+            fontFamily: 'Roboto',
           ),
         ),
         maxLines: 1,

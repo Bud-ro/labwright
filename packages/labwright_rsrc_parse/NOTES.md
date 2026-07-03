@@ -63,9 +63,23 @@ hypotheses (see `tool/probe_wires.dart` + `tool/probe_wire_blobs.dart`):
 - **Blob attributes**: BD heap blob attrs surface only printable text; no
   binary point runs.
 
-Remaining candidates for the next session: 2-point (8-byte) records that
-alias the rect shape (bounds-vs-segment disambiguation by parent object
-class); the undecoded portion between framed records (heap-framed is 97.6%,
-the 2.4% gap clusters in BD heaps); and per-object trailing group content
-after the `C4 1F` terminal clusters. Wires are certainly *somewhere* in
-BDHb — the heap round-trips byte-exactly, so nothing is lost, only unread.
+**RESOLVED — wires found.** The rect-aliased-segment candidate was right:
+class `0x1d` is the wire-segment object. Corpus evidence (7584 VIs):
+
+- 61673 `0x1d` instances, **BD-only** (0 FP);
+- 61396/61396 rect records attached at the object's own level are
+  **degenerate lines** (top == bottom — one horizontal Manhattan run each);
+- a multi-segment wire is a run of consecutive `0x1d` siblings whose
+  endpoints chain (4741 exact end-to-start links measured in one source);
+  the vertical connector between consecutive runs is implicit;
+- the earlier "heap-framed 2.4% gap" candidate dissolved: it is ONE file
+  (an embedded bitmap row pattern), not wires.
+
+Catalogued as [HeapObjectClass.bdWire] → `ViObjectKind.wire`; the inspector
+draws each segment plus the implicit connectors. Still not decoded:
+- the wire's **datatype** (for LabVIEW's per-type wire colors/patterns);
+- the **endpoint→terminal binding** (which terminal each wire end attaches to);
+- the **absolute-coordinate anchoring**: visually verified renders show some
+  wire runs landing far outside the diagram when composed like object
+  bounds, so wire coords are relative to a different ancestor frame — probe
+  which one before trusting wire positions.
