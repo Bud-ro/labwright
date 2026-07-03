@@ -46,6 +46,9 @@ const _minRunLength = 3;
 /// than [_minRunLength], which frames the layout).
 const _poolMinRunLength = 2;
 
+/// The all-ones `u32` that separates object-record groups in the record region.
+const _recordDelimiter = 0xffffffff;
+
 /// Minimum runs in a NUL-adjacent chain to mark the record/string boundary.
 const _boundaryChainMin = 5;
 
@@ -724,6 +727,206 @@ List<BinaryNamedRecord> _namedRecordsFromBody(Uint8List body, int recordRegionLe
     ));
   }
   out.sort((a, b) => b.count.compareTo(a.count));
+  return out;
+}
+
+/// The fixed shape of an **old-format** (TS 4.x/5.0) TOF1 property record, whose
+/// fields sit at constant byte offsets from the record's lead byte. Decoded and
+/// corpus-validated against the content-exact Rosetta XML twin (see
+/// [binaryPropertyRecords]); catalogued as an enhanced enum rather than bare
+/// offsets because a wrong offset silently misreads every value.
+enum _PropRecordField {
+  /// Byte 0: the record lead — one of [_propRecordLeads]. Byte 1 is a flags byte
+  /// (`0x00`/`0x04` observed; not yet modeled).
+  lead(0),
+
+  /// Bytes 2..5: a `u32` that is always zero in a valid record (a framing guard).
+  zeroA(2),
+
+  /// Bytes 6..9: the record `kind` code — NOT a byte size. `Bool`/`Num`/`Str`
+  /// all read `6` when valued despite 1/8/4-byte values, so it classifies the
+  /// record's shape, not its length. Observed across the twins: `2` empty list,
+  /// `4` bare (no stored value), `6` scalar value present, `14` a special string
+  /// form; `36`/`66` are structured `Status`/`ReportText`/`CustomResults`
+  /// descriptor records (out of scope for the leaf decoder — see
+  /// tool/binary_record_map.dart).
+  kind(6),
+
+  /// Bytes 10..13: a second always-zero `u32` framing guard.
+  zeroB(10),
+
+  /// Bytes 14..17: the `u32` **pool index** of the record's type name
+  /// (`Bool`/`Num`/`Str`/`Path`/`Expr`/a container type).
+  typeNameIndex(14),
+
+  /// Bytes 18..21: the `u32` **pool index** of the property name.
+  nameIndex(18),
+
+  /// Byte 22: where the inline value begins on a scalar-valued record
+  /// ([kind] `>= _propScalarKind`).
+  value(22);
+
+  const _PropRecordField(this.offset);
+
+  /// Byte offset of the field from the record's lead byte.
+  final int offset;
+}
+
+/// The record lead bytes that introduce a property record. The trailing `u16`
+/// zero after the value terminates the record.
+const _propRecordLeads = {0x40, 0x44};
+const _propRecordFlagsWidth = 1;
+const _propTerminatorWidth = 2;
+
+/// The [_PropRecordField.kind] range the leaf decoder accepts: `2` (empty list)
+/// through `14` (special string). Structured descriptor kinds (`36`/`66`) sit
+/// above this and are left to the not-yet-decoded type/tree layer.
+const _propMinKind = 2;
+const _propMaxLeafKind = 16;
+
+/// The [_PropRecordField.kind] at/above which a record carries an inline scalar
+/// value (`6`); below it (`4` bare, `2` empty list) there is no stored value.
+const _propScalarKind = 6;
+
+/// A **decoded old-format TOF1 property record**: a leaf `name = value` pair with
+/// its TestStand type name, read by the fixed [_PropRecordField] grammar and
+/// resolved against the ordered NUL string pool.
+///
+/// The value is a [bool] (`Bool`), a [double] (`Num`), a [String] (`Str`/`Path`/
+/// `Expr`, resolved from the pool), or `null` for a bare ([_PropRecordField.kind]
+/// `4`) or container record that carries no inline value. Unlike [binaryScalarDoubles],
+/// which *guesses* numeric slots from clean bit patterns, this reads the record's
+/// declared type — so it recovers every value, including non-round doubles (e.g.
+/// TestStand's `Priority` default `2953567917`).
+class BinaryPropertyRecord {
+  const BinaryPropertyRecord({
+    required this.name,
+    required this.typeName,
+    required this.value,
+    required this.offset,
+  });
+
+  /// The property name, resolved from the ordered string pool.
+  final String name;
+
+  /// The declared TestStand type name (`Bool`/`Num`/`Str`/`Path`/`Expr`/…).
+  final String typeName;
+
+  /// The decoded value: [bool], [double], [String], or `null` when the record is
+  /// bare or a container (no inline value).
+  final Object? value;
+
+  /// The record's byte offset within the inflated body (record order).
+  final int offset;
+}
+
+/// The **ordered NUL-terminated string pool** of a binary TOF1 body: the string
+/// region (from [recordRegionLength] to the end) split on NUL, in order, empties
+/// kept — so a record's pool index resolves positionally.
+List<String> _orderedStringPool(Uint8List body, int recordRegionLength) {
+  final pool = <String>[];
+  var at = recordRegionLength;
+  while (at < body.length) {
+    final start = at;
+    while (at < body.length && body[at] != 0) {
+      at++;
+    }
+    pool.add(String.fromCharCodes(body.sublist(start, at)));
+    at++;
+  }
+  return pool;
+}
+
+/// The **leaf property records** an old-format (TS 4.x/5.0) binary TOF1 file
+/// embeds — each `name = value` pair with its declared TestStand type, decoded by
+/// the fixed [_PropRecordField] grammar.
+///
+/// Corpus-validated against the content-exact Rosetta twin: every valued record
+/// decoded from `OutputVoltage_BIN.seq` whose (unambiguous) name resolves in
+/// `OutputVoltage_XML.seq` carries the twin's exact value — `BatchSync = 1`,
+/// `FailureAction = 2`, `Priority = 2953567917`, `RecordResults = true`, string
+/// expressions like `EPNameExpr`, etc.
+///
+/// This is a **leaf-record scan**, not a tree parse: it walks the record region
+/// emitting every record matching the grammar's shape (a [_propRecordLeads] lead,
+/// two zero framing guards, a leaf-range [_PropRecordField.kind], and
+/// pool-resolvable type/name indices), skipping unrecognized bytes. The
+/// **container nesting** that would
+/// place each leaf in the sequence/step tree is **not yet decoded**, so records
+/// are returned flat, in file order; duplicate names at different tree positions
+/// are therefore indistinguishable here. Returns `[]` when [seqBytes] is not an
+/// inflatable binary file or does not frame.
+List<BinaryPropertyRecord> binaryPropertyRecords(Uint8List seqBytes) =>
+    _withLayout(seqBytes, _propertyRecordsFromBody);
+
+List<BinaryPropertyRecord> _propertyRecordsFromBody(Uint8List body, int recordRegionLength) {
+  final pool = _orderedStringPool(body, recordRegionLength);
+  if (pool.isEmpty) return const [];
+  final view = ByteData.sublistView(body);
+
+  int wordAt(int at) => view.getUint32(at, Endian.little);
+  final out = <BinaryPropertyRecord>[];
+
+  var at = 0;
+  while (at < recordRegionLength) {
+    if (at + _u32Bytes <= recordRegionLength && wordAt(at) == _recordDelimiter) {
+      at += _u32Bytes;
+      continue;
+    }
+    final headerEnd = at + _PropRecordField.value.offset;
+    if (_propRecordLeads.contains(body[at + _PropRecordField.lead.offset]) &&
+        headerEnd <= recordRegionLength) {
+      final kind = wordAt(at + _PropRecordField.kind.offset);
+      final typeIndex = wordAt(at + _PropRecordField.typeNameIndex.offset);
+      final nameIndex = wordAt(at + _PropRecordField.nameIndex.offset);
+      final framed = wordAt(at + _PropRecordField.zeroA.offset) == 0 &&
+          wordAt(at + _PropRecordField.zeroB.offset) == 0 &&
+          kind >= _propMinKind &&
+          kind <= _propMaxLeafKind &&
+          typeIndex < pool.length &&
+          nameIndex < pool.length;
+      if (framed) {
+        final typeName = pool[typeIndex];
+        var consumed = _PropRecordField.value.offset;
+        Object? value;
+        if (kind >= _propScalarKind) {
+          final valueAt = at + _PropRecordField.value.offset;
+          switch (typeName) {
+            case 'Str' || 'Path' || 'Expr':
+              if (valueAt + _u32Bytes <= recordRegionLength) {
+                final poolIndex = wordAt(valueAt);
+                if (poolIndex < pool.length) value = pool[poolIndex];
+                consumed += _u32Bytes;
+              }
+            case 'Bool':
+              if (valueAt < recordRegionLength) {
+                value = body[valueAt] != 0;
+                consumed += _propRecordFlagsWidth;
+              }
+            case 'Num':
+              if (valueAt + _f64Bytes <= recordRegionLength) {
+                value = view.getFloat64(valueAt, Endian.little);
+                consumed += _f64Bytes;
+              }
+          }
+        }
+        if (at + consumed + _propTerminatorWidth <= recordRegionLength &&
+            body[at + consumed] == 0 &&
+            body[at + consumed + 1] == 0) {
+          consumed += _propTerminatorWidth;
+        }
+        out.add(BinaryPropertyRecord(
+          name: pool[nameIndex],
+          typeName: typeName,
+          value: value,
+          offset: at,
+        ));
+        at += consumed;
+        continue;
+      }
+    }
+    at++;
+  }
   return out;
 }
 
