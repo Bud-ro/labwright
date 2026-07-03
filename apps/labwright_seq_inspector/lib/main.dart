@@ -139,10 +139,21 @@ class _InspectorPageState extends State<InspectorPage> {
   @override
   Widget build(BuildContext context) {
     final doc = _doc;
-    final file = doc is StructuredSeqDocument ? doc.file : null;
+    final file = switch (doc) {
+      StructuredSeqDocument() => doc.file,
+      // Binary: the partial typed model (sequence/step skeleton) — the typed
+      // tabs render what IS decoded; the Dump tab stays the honest recon view.
+      BinarySeqDocument() => doc.partialFile,
+      _ => null,
+    };
     final outline = file != null ? SeqOutline.of(file) : null;
     final tree = file != null ? propertyTree(file) : null;
-    final coverage = file != null ? coverageLabel(measureCoverage(file)) : null;
+    final coverage = file == null
+        ? null
+        : doc is BinarySeqDocument
+            ? 'binary TOF1 · partial skeleton (sequences + step names; '
+                'properties/types not yet decoded)'
+            : coverageLabel(measureCoverage(file));
     final types = file?.types ?? const <SeqProperty>[];
     final typeCount = file?.types.length;
     final hasTypes = types.isNotEmpty;
@@ -247,7 +258,13 @@ class _InspectorPageState extends State<InspectorPage> {
         ),
       );
     }
-    final file = doc is StructuredSeqDocument ? doc.file : null;
+    final file = switch (doc) {
+      StructuredSeqDocument() => doc.file,
+      // Binary: the partial typed model (sequence/step skeleton) — the typed
+      // tabs render what IS decoded; the Dump tab stays the honest recon view.
+      BinarySeqDocument() => doc.partialFile,
+      _ => null,
+    };
     if (doc == null) {
       return Center(
         child: Column(

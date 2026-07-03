@@ -30,8 +30,15 @@ sealed class SeqDocument {
         return structured(XmlSeqDocument.new);
       case SeqFormat.binary:
         final analysis = analyzeBinary(bytes);
+        SeqFile? partial;
+        try {
+          partial = parseSeqFile(bytes);
+        } on Exception {
+          partial = null; // header-only / non-inflatable binary: recon only
+        }
         return BinarySeqDocument(
           header: detectSeqHeader(bytes),
+          partialFile: partial,
           inflatedSize: analysis?.inflatedSize ?? 0,
           strings: analysis?.strings ?? const [],
           stringTable: analysis?.stringTable ?? const [],
@@ -88,6 +95,7 @@ class IniSeqDocument extends StructuredSeqDocument {
 class BinarySeqDocument extends SeqDocument {
   const BinarySeqDocument({
     required this.header,
+    this.partialFile,
     required this.inflatedSize,
     required this.strings,
     required this.stringTable,
@@ -105,6 +113,13 @@ class BinarySeqDocument extends SeqDocument {
 
   @override
   final SeqFileHeader header;
+
+  /// The **partial typed model** reconstructed from the decoded binary record
+  /// structures — sequences with grouped, ordered step names (see
+  /// [binarySequenceOutlines]). Sequence properties, variables, and step
+  /// types/modules are not yet decoded, so those lenses read empty/null. Null
+  /// when the body does not inflate.
+  final SeqFile? partialFile;
 
   /// Size of the inflated body (0 if it could not be inflated).
   final int inflatedSize;
