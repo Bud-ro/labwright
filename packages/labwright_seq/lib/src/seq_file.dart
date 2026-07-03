@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:xml/xml.dart';
 
 import 'scalar_read.dart';
+import 'seq_binary.dart';
 import 'seq_format.dart';
 import 'seq_ini.dart';
 import 'seq_module.dart';
@@ -14,9 +15,10 @@ import 'seq_typedefs.dart';
 /// A parsed TestStand sequence file: the header, the type list, and the root
 /// `Data` property object, with a typed lens over the sequences and their steps.
 ///
-/// Built from the **XML** encoding (M1). The binary `TOF1` encoding maps onto the
-/// same model and is a later milestone — [parseSeqFile] throws for it rather than
-/// guessing.
+/// Built fully from the **XML** and **INI** encodings. The binary `TOF1`
+/// encoding parses to a **partial** model: the sequence/step skeleton is
+/// reconstructed from the decoded record structures (see [binarySequenceOutlines]),
+/// while sequence properties, variables, and step modules are not yet decoded.
 class SeqFile {
   SeqFile({required this.header, required this.types, required this.data});
 
@@ -348,7 +350,7 @@ SeqFile parseSeqFile(Uint8List bytes) {
     case SeqFormat.xml:
       return _parseXml(bytes);
     case SeqFormat.binary:
-      throw UnsupportedError('binary TOF1 .seq decoding is not yet implemented (M2)');
+      return _parseBinary(bytes);
     case SeqFormat.ini:
       return parseIniSeqFile(bytes);
     case SeqFormat.unknown:
@@ -374,6 +376,42 @@ SeqFile _parseXml(Uint8List bytes) {
     header: detectSeqHeader(bytes),
     types: types,
     data: buildProperty(dataEl),
+  );
+}
+
+/// Builds the **partial** typed model for a binary `TOF1` file from the decoded
+/// record structures: each [BinarySequenceOutline] becomes a [Sequence] with its
+/// named steps grouped into Setup/Main/Cleanup (corpus-validated against the
+/// content-exact Rosetta twin). The synthesized properties carry names only —
+/// sequence-level properties, locals/parameters, step types and modules are
+/// **not yet decoded** from the binary encoding, so those lenses read empty/null.
+/// Throws [FormatException] when the body does not inflate (not a TOF1 binary).
+SeqFile _parseBinary(Uint8List bytes) {
+  if (inflateBinaryBody(bytes) == null) {
+    throw const FormatException('binary .seq body does not inflate (not TOF1?)');
+  }
+  final outlines = binarySequenceOutlines(bytes);
+  SeqProperty stepProp(String name) => SeqProperty(name: name);
+  return SeqFile(
+    header: detectSeqHeader(bytes),
+    types: const [],
+    data: SeqProperty(
+      name: 'Data',
+      subProps: [
+        SeqProperty(name: 'Seq', array: [
+          for (final outline in outlines)
+            SeqProperty(
+              name: outline.name,
+              className: 'Sequence',
+              subProps: [
+                SeqProperty(name: 'Setup', array: [...outline.setup.map(stepProp)]),
+                SeqProperty(name: 'Main', array: [...outline.main.map(stepProp)]),
+                SeqProperty(name: 'Cleanup', array: [...outline.cleanup.map(stepProp)]),
+              ],
+            ),
+        ]),
+      ],
+    ),
   );
 }
 

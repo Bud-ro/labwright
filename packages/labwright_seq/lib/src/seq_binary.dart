@@ -1064,6 +1064,131 @@ List<String> _stepNamesFromBody(Uint8List body, int recordRegionLength) {
   return names;
 }
 
+/// The step-group container names, in the record region's declaration order
+/// context (`Main` is emitted before `Setup`/`Cleanup` in observed files).
+const _stepGroupNames = {'Setup', 'Main', 'Cleanup'};
+
+/// A **reconstructed sequence outline** from a binary TOF1 record region: the
+/// sequence's name and its step names grouped into Setup/Main/Cleanup.
+///
+/// Assembly rule (corpus-validated on the content-exact OutputVoltage twin,
+/// where the grouped, ordered result equals the XML twin exactly): a step
+/// belongs to the **nearest preceding group container** record (`Objs Setup` /
+/// `Objs Main` / `Objs Cleanup`), and group containers/steps belong to the
+/// nearest preceding sequence declaration ([_objectDeclarationPath] through
+/// `Objs/Seq/[i]`) — the region lays each sequence's content out contiguously.
+class BinarySequenceOutline {
+  const BinarySequenceOutline({
+    required this.name,
+    required this.setup,
+    required this.main,
+    required this.cleanup,
+  });
+
+  /// The sequence name (path element `[1]` of its object declaration).
+  final String name;
+
+  /// Step names in declaration order per group.
+  final List<String> setup;
+  final List<String> main;
+  final List<String> cleanup;
+}
+
+/// The **sequence outlines** of a binary TOF1 file — each sequence with its
+/// step names grouped into Setup/Main/Cleanup (see [BinarySequenceOutline] for
+/// the assembly rule and its validation). Sequence-level properties, locals,
+/// parameters, and step types/modules are **not yet decoded** — this is the
+/// structural skeleton. Returns `[]` when [seqBytes] is not an inflatable
+/// binary file or does not frame.
+List<BinarySequenceOutline> binarySequenceOutlines(Uint8List seqBytes) =>
+    _withLayout(seqBytes, _sequenceOutlinesFromBody);
+
+List<BinarySequenceOutline> _sequenceOutlinesFromBody(
+    Uint8List body, int recordRegionLength) {
+  final pool = _orderedStringPool(body, recordRegionLength);
+  if (pool.isEmpty) return const [];
+  final view = ByteData.sublistView(body);
+
+  // 1. sequence declarations, with offsets
+  final sequenceDecls = <(int, String)>[];
+  for (var at = 0; at + 8 <= recordRegionLength; at++) {
+    final path = _objectDeclarationPath(body, view, pool, at, recordRegionLength);
+    if (path == null || path.length < 2) continue;
+    for (var i = 0; i + 2 < path.length; i++) {
+      if (path[i] == _sequenceListPath[0] &&
+          path[i + 1] == _sequenceListPath[1] &&
+          path[i + 2].startsWith('[')) {
+        sequenceDecls.add((at, path[1]));
+        break;
+      }
+    }
+  }
+  if (sequenceDecls.isEmpty) return const [];
+
+  // 2. group-container markers (leaf records `Objs <group>`), with offsets
+  final markers = <(int, String)>[];
+  for (final record in _propertyRecordsFromBody(body, recordRegionLength)) {
+    if (record.typeName == 'Objs' && _stepGroupNames.contains(record.name)) {
+      markers.add((record.offset, record.name));
+    }
+  }
+
+  // 3. step references, with offsets (same discriminator as binaryStepNames)
+  final stepToken = pool.indexOf(_stepToken);
+  final steps = <(int, String)>[];
+  if (stepToken > 0) {
+    int wordAt(int at) => view.getUint32(at, Endian.little);
+    String? poolAt(int index) =>
+        index > 0 && index < pool.length && pool[index].isNotEmpty ? pool[index] : null;
+    for (var at = 0;
+        at + (_stepNameWordGap + 2) * _u32Bytes <= recordRegionLength;
+        at++) {
+      if (wordAt(at) != stepToken) continue;
+      final kind = poolAt(wordAt(at + _u32Bytes));
+      final name = poolAt(wordAt(at + _stepNameWordGap * _u32Bytes));
+      final container = poolAt(wordAt(at + (_stepNameWordGap + 1) * _u32Bytes));
+      if (name == null || container == null || kind == null) continue;
+      if (!_stepContainerTokens.contains(container)) continue;
+      if (!_looksLikeUniqueId(kind) && !_stepExpressionKinds.contains(kind)) continue;
+      steps.add((at, name));
+    }
+  }
+
+  // 4. assemble: nearest preceding sequence decl, then nearest preceding marker
+  sequenceDecls.sort((a, b) => a.$1.compareTo(b.$1));
+  final outlines = {
+    for (final (_, name) in sequenceDecls)
+      name: {'Setup': <String>[], 'Main': <String>[], 'Cleanup': <String>[]},
+  };
+  String sequenceAt(int offset) {
+    var owner = sequenceDecls.first.$2;
+    for (final (declOffset, name) in sequenceDecls) {
+      if (declOffset < offset) owner = name;
+    }
+    return owner;
+  }
+
+  for (final (stepOffset, stepName) in steps) {
+    String? group;
+    for (final (markerOffset, markerName) in markers) {
+      if (markerOffset < stepOffset) group = markerName;
+    }
+    if (group == null) continue; // step before any group marker: unplaceable
+    final groups = outlines[sequenceAt(stepOffset)]!;
+    if (!groups[group]!.contains(stepName)) groups[group]!.add(stepName);
+  }
+
+  return [
+    for (final (_, name) in sequenceDecls)
+      BinarySequenceOutline(
+        name: name,
+        setup: outlines[name]!['Setup']!,
+        main: outlines[name]!['Main']!,
+        cleanup: outlines[name]!['Cleanup']!,
+      ),
+  ];
+}
+
 /// Whether [cur] is packed immediately after [prev] in a NUL-terminated string
 /// table — its offset is one byte (the single NUL) past the end of [prev]. The
 /// back-to-back single-NUL packing invariant every chain-walker keys on.
