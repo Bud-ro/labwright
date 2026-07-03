@@ -72,17 +72,26 @@ class _ViDiagramViewState extends State<ViDiagramView> {
       ? const []
       : [
           for (final object in _diagram.objects)
+            // Wires are degenerate rects (a zero-height/width Manhattan
+            // run), so the positive-area gate exempts them.
             if (object.absBounds != null &&
                 object.absBounds!.isValid &&
-                object.absBounds!.width > 0 &&
-                object.absBounds!.height > 0 &&
+                (object.category == ViObjectKind.wire ||
+                    (object.absBounds!.width > 0 && object.absBounds!.height > 0)) &&
                 object.absBounds!.width < 8000 &&
                 object.absBounds!.height < 8000 &&
                 !_isScaffolding(object, _byId))
               object,
         ];
   late final List<ViHeapObject> _ordered = [..._drawable]..sort((a, b) => _depth(a, _byId).compareTo(_depth(b, _byId)));
-  late final Rect _content = _drawable.isEmpty ? Rect.zero : _contentRect(_drawable);
+  // Wires are excluded from the fit: their absolute anchoring is not yet
+  // verified (a misanchored run must not blow up the zoom-to-fit envelope).
+  late final Rect _content = _drawable.isEmpty
+      ? Rect.zero
+      : _contentRect([
+          for (final object in _drawable)
+            if (object.category != ViObjectKind.wire) object,
+        ]);
   late final Map<ViObjectKind, int> _counts = _computeCounts();
 
   Map<ViObjectKind, int> _computeCounts() {

@@ -76,7 +76,10 @@ class `0x1d` is the wire-segment object. Corpus evidence (7584 VIs):
   (an embedded bitmap row pattern), not wires.
 
 Catalogued as [HeapObjectClass.bdWire] → `ViObjectKind.wire`; the inspector
-draws each segment plus the implicit connectors. Still not decoded: the
-wire's **datatype** (for LabVIEW's per-type wire colors/patterns) and the
-**endpoint→terminal binding** (which terminal each wire end attaches to) —
-both need the relationship records around `0x1d` groups read next.
+draws each segment plus the implicit connectors. Still not decoded:
+- the wire's **datatype** (for LabVIEW's per-type wire colors/patterns);
+- the **endpoint→terminal binding** (which terminal each wire end attaches to);
+- the **absolute-coordinate anchoring**: visually verified renders show some
+  wire runs landing far outside the diagram when composed like object
+  bounds, so wire coords are relative to a different ancestor frame — probe
+  which one before trusting wire positions.

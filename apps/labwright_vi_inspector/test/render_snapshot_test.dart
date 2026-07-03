@@ -59,13 +59,15 @@ void main() {
     if (!file.existsSync()) continue;
     final shortName = rel.split('/').last.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
 
-    testWidgets('render $shortName', (tester) async {
-      await _loadRealFont();
-      final model = buildViModel(file.readAsBytesSync());
-      await tester.binding.setSurfaceSize(const Size(1400, 900));
-
-      Future<void> snap(List<ViDiagram> diagrams, String label,
-          {bool isFrontPanel = false}) async {
+    Future<void> snapTest(String label, {required bool isFrontPanel}) async {
+      testWidgets('render $shortName $label', (tester) async {
+        await _loadRealFont();
+        final model = buildViModel(file.readAsBytesSync());
+        final diagrams =
+            isFrontPanel ? model.frontPanelDiagrams : model.blockDiagrams;
+        if (!diagrams.any((d) => d.objects.isNotEmpty)) return;
+        await tester.binding.setSurfaceSize(const Size(1400, 900));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
         final key = GlobalKey();
         await tester.pumpWidget(MaterialApp(
           home: Scaffold(
@@ -75,24 +77,27 @@ void main() {
             ),
           ),
         ));
-        await tester.pump(const Duration(milliseconds: 100));
-        await tester.pump(const Duration(milliseconds: 100));
+        await tester.pump(const Duration(milliseconds: 50));
+        await tester.pump(const Duration(milliseconds: 50));
         final boundary =
             key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
-        final image = await boundary.toImage();
-        final png = await image.toByteData(format: ui.ImageByteFormat.png);
-        final path = '${outDir.path}/$shortName.$label.png';
-        File(path).writeAsBytesSync(png!.buffer.asUint8List());
-        // ignore: avoid_print
-        print('wrote $path');
-      }
+        // toImage/toByteData perform real async work; run them outside the
+        // fake-async test zone or they can never complete.
+        await tester.runAsync(() async {
+          final image = await boundary.toImage();
+          final png = await image.toByteData(format: ui.ImageByteFormat.png);
+          final path = '${outDir.path}/$shortName.$label.png';
+          File(path).writeAsBytesSync(png!.buffer.asUint8List());
+          // ignore: avoid_print
+          print('wrote $path');
+        });
+        // Unmount so no timers/animations outlive the test.
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(seconds: 1));
+      });
+    }
 
-      if (model.blockDiagrams.any((d) => d.objects.isNotEmpty)) {
-        await snap(model.blockDiagrams, 'bd');
-      }
-      if (model.frontPanelDiagrams.any((d) => d.objects.isNotEmpty)) {
-        await snap(model.frontPanelDiagrams, 'fp', isFrontPanel: true);
-      }
-    });
+    snapTest('bd', isFrontPanel: false);
+    snapTest('fp', isFrontPanel: true);
   }
 }
