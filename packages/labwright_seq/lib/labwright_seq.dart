@@ -7,7 +7,7 @@
 ///
 /// The binary `TOF1` encoding maps onto the same model and is the next milestone
 /// ([parseSeqFile] throws for it rather than guessing). See
-/// `docs/teststand-viewer-spec.md` and the package `NOTES.md`.
+/// `docs/teststand-viewer-spec.md`.
 library;
 
 export 'src/seq_binary.dart';

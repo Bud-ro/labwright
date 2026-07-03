@@ -2,7 +2,8 @@ import 'dart:io';
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
-/// Third wire hunt: the two remaining candidates from NOTES.md.
+/// Third wire hunt: the two remaining candidates from the wire research
+/// (recorded on [HeapObjectClass.bdWire] in graph.dart).
 ///
 /// 1. **Un-walked heap content**: where `walkHeapBody` stops early in a BD
 ///    heap, what lead bytes/structure sits in the un-walked remainder?

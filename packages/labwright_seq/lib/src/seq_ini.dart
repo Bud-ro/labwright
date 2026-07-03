@@ -9,7 +9,7 @@ import 'seq_step.dart';
 /// Reader for the **legacy INI** `.seq` encoding (TestStand 3.x–era; some newer
 /// installs still emit it). It is a *plaintext* serialization of the **same
 /// PropertyObject model** the binary `TOF1` and the XML forms encode, which makes
-/// it a readable Rosetta for the binary record tree (see NOTES.md).
+/// it a readable Rosetta for the binary record tree.
 ///
 /// Grammar (confirmed across the 58 INI files in the corpus, versions
 /// 143/354/797/894/920):
@@ -126,6 +126,8 @@ IniSeqFile parseIniSeq(String text) {
       continue;
     }
     final eq = line.indexOf(' = ');
+    // Purely defensive: no corpus INI section line lacks a ' = ' separator
+    // (verified corpus-wide and guarded by a corpus test).
     if (eq < 0) continue;
     final key = line.substring(0, eq).trim();
     final value = line.substring(eq + ' = '.length);
@@ -380,6 +382,10 @@ class _IniBuilder {
   /// the `%COMMENT` directive; stored unquoted.
   static const commentAttr = '%COMMENT';
 
+  /// Builds the property node for a section, producing members in a
+  /// deterministic order: instance `DEF` declarations first (authoritative +
+  /// typed), then value-only members, then members implied by deeper sections,
+  /// then members inherited from the type but never mentioned.
   SeqProperty build(
     String path,
     String displayName,

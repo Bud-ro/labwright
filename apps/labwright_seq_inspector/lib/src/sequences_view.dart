@@ -68,6 +68,8 @@ class _SequencesViewState extends State<SequencesView> {
 
   void _resetState() {
     final sequenceCount = widget.outline.sequences.length;
+    // Indexed by ORIGINAL outline position (not filtered position) so jump
+    // targets stay correct while a filter is applied.
     _keys = List.generate(sequenceCount, (_) => GlobalKey());
     _expanded = List.generate(sequenceCount, (i) => i == 0);
   }
@@ -145,6 +147,9 @@ class _SequencesViewState extends State<SequencesView> {
               ? const Center(child: Text('No matching sequences.'))
               : ListView.builder(
                   controller: _scroll,
+                  // Forces a rebuild on query change so ExpansionTiles pick up the new
+                  // force-expanded state while filtering; removing this silently
+                  // breaks filter expansion.
                   key: ValueKey(_query),
                   itemCount: shown.length,
                   itemBuilder: (context, i) {

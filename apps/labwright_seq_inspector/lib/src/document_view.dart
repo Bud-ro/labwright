@@ -76,6 +76,8 @@ String documentTitle(SeqDocument doc) {
 /// The recovered-datum categories of a binary `TOF1` document as
 /// (title, items) groups, omitting empty ones — for collapsible UI sections.
 /// Pure. Each title states the count; the items are the recovered strings.
+/// Note: "Inline numeric values" is a superset of "Named scalar values" (it
+/// includes inline numbers not yet tied to a named record).
 List<({String title, List<String> items})> binaryRecoverySections(
   BinarySeqDocument doc,
 ) {

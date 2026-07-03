@@ -8,7 +8,7 @@ import 'seq_ini.dart';
 /// INI** — for the *same* logical content (sequences + types + globals). This
 /// catalog is the single documented source of truth for telling them apart; each
 /// value records how it is recognized and the confidence of that rule (clean-room
-/// RE from real files — see `packages/labwright_seq/NOTES.md`).
+/// RE from real files).
 enum SeqFormat {
   /// XML text: an optional UTF-8 BOM (`EF BB BF`) then `<?xml …?>`, whose root is
   /// `<teststandfileheader type='…' fileversion='…' productname='TestStand'>`.

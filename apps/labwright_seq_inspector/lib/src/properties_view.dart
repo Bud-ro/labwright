@@ -63,6 +63,9 @@ class _PropertiesViewState extends State<PropertiesView> {
           child: filtered == null
               ? const Center(child: Text('No matching properties.'))
               : ListView(
+                  // Forces a rebuild on query change so ExpansionTiles pick up the new
+                  // force-expanded state while filtering; removing this silently
+                  // breaks filter expansion.
                   key: ValueKey(_query),
                   padding: const EdgeInsets.all(8),
                   children: [
@@ -156,6 +159,8 @@ class PropertyTile extends StatelessWidget {
     return RichText(text: TextSpan(style: theme.textTheme.bodyMedium, children: spans));
   }
 
+  /// Attribute chips deliberately exclude the `classname`/`typename` keys —
+  /// those are already surfaced via `node.typeLabel`.
   Widget? _subtitle(ThemeData theme) {
     if (node.attributes.isEmpty) return null;
     final shown = node.attributes.entries
