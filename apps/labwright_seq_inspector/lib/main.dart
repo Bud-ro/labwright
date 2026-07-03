@@ -123,7 +123,14 @@ class _InspectorPageState extends State<InspectorPage> {
     try {
       _loadBytes(path, File(path).readAsBytesSync());
     } catch (e) {
-      setState(() => _error = '$e');
+      // A failed read replaces the whole document state: keeping the previous
+      // _doc/_path would leave the AppBar title and tabs showing the old file
+      // while the body shows this error (review finding).
+      setState(() {
+        _doc = null;
+        _path = path;
+        _error = '$e';
+      });
     }
   }
 
