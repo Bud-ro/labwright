@@ -1005,6 +1005,65 @@ List<String> _sequenceNamesFromBody(Uint8List body, int recordRegionLength) {
   return names;
 }
 
+/// A step reference in the record region is a run of four `u32` pool-index words
+/// `Step / <kind> / <name> / <container>`: the `Step` token, then the step's kind
+/// (a TestStand unique-ID string, or `Expression`/`ExprValue`), then the step's
+/// name, then its subobject container (`Objs` or `Data`). The name is two words
+/// after the `Step` token. The kind word is the discriminator that separates a
+/// real step from the many other `Step`-token uses (type tables, `StepType`,
+/// engine callbacks like `OnNewStep`/`Post`, whose middle word is `ResultList`,
+/// a version, or `0xffffffff`).
+const _stepToken = 'Step';
+const _stepNameWordGap = 2; // words after the Step token to the name
+const _stepContainerTokens = {'Objs', 'Data'};
+const _stepExpressionKinds = {'Expression', 'ExprValue'};
+
+/// The minimum length + punctuation signature of a TestStand **unique-ID** string
+/// (e.g. `8;G6MnVLO732>8ODE2E3h4jDhR\`), the kind word of a normal placed step.
+/// Corpus-tuned to admit the ID charset while rejecting ordinary identifiers.
+bool _looksLikeUniqueId(String text) =>
+    text.length >= 15 && RegExp(r'[;\\<>^\]]').hasMatch(text);
+
+/// The **step names** of a binary TOF1 file, recovered from the step references
+/// ([_stepToken] runs) in the record region. Returned in file order,
+/// de-duplicated.
+///
+/// This is the step *set*, not yet grouped into each sequence's Setup/Main/
+/// Cleanup lists (that membership is a further layer — file order is not
+/// execution order). Corpus-validated: on the content-exact OutputVoltage twin
+/// the recovered set equals the XML twin's steps exactly, and on every other
+/// Rosetta twin the *count* matches (the names differ only because those pairs
+/// are the same sequence saved from different toolchains). Returns `[]` when
+/// [seqBytes] is not an inflatable binary file or does not frame.
+List<String> binaryStepNames(Uint8List seqBytes) =>
+    _withLayout(seqBytes, _stepNamesFromBody);
+
+List<String> _stepNamesFromBody(Uint8List body, int recordRegionLength) {
+  final pool = _orderedStringPool(body, recordRegionLength);
+  if (pool.isEmpty) return const [];
+  final stepToken = pool.indexOf(_stepToken);
+  if (stepToken < 0) return const [];
+  final view = ByteData.sublistView(body);
+  int wordAt(int at) => view.getUint32(at, Endian.little);
+  String? poolAt(int index) =>
+      index > 0 && index < pool.length && pool[index].isNotEmpty ? pool[index] : null;
+
+  // Step references are not 4-byte aligned (they pack at 2-byte record
+  // boundaries), so scan every byte offset.
+  final names = <String>[];
+  for (var at = 0; at + (_stepNameWordGap + 2) * _u32Bytes <= recordRegionLength; at++) {
+    if (wordAt(at) != stepToken) continue;
+    final kind = poolAt(wordAt(at + _u32Bytes));
+    final name = poolAt(wordAt(at + _stepNameWordGap * _u32Bytes));
+    final container = poolAt(wordAt(at + (_stepNameWordGap + 1) * _u32Bytes));
+    if (name == null || container == null || kind == null) continue;
+    if (!_stepContainerTokens.contains(container)) continue;
+    if (!_looksLikeUniqueId(kind) && !_stepExpressionKinds.contains(kind)) continue;
+    if (!names.contains(name)) names.add(name);
+  }
+  return names;
+}
+
 /// Whether [cur] is packed immediately after [prev] in a NUL-terminated string
 /// table — its offset is one byte (the single NUL) past the end of [prev]. The
 /// back-to-back single-NUL packing invariant every chain-walker keys on.
