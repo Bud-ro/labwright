@@ -91,7 +91,6 @@ class ViModel {
   /// recovered). Corpus-confirmed in-range for CONP (see decodeConnectorPane).
   final int? connectorPaneTypeIndex;
 
-  /// All recovered diagrams (block + front panel). Back-compat convenience.
   List<ViDiagram> get diagrams => [...blockDiagrams, ...frontPanelDiagrams];
 
   /// The bounding rectangles of the VI's objects, decoded from the `C4 2D`
@@ -188,16 +187,12 @@ class ViObject {
   const ViObject({
     required this.sectionTag,
     required this.bounds,
-    required this.boundsOffset,
-    required this.nameOffset,
     this.caption,
     this.labels = const <String>[],
   });
 
-  /// The section the object lives in (`BDEx` = block diagram, `FPHb` = front panel).
   final String sectionTag;
 
-  /// The object's bounding rectangle (position + size).
   final HeapRect bounds;
 
   /// The object's single caption (from a `C4 22` record), or null if it was named
@@ -208,13 +203,6 @@ class ViObject {
   /// or empty if it was named by a caption instead.
   final List<String> labels;
 
-  /// Byte offset of the bounds (`C4 2D`) record within the decompressed section.
-  final int boundsOffset;
-
-  /// Byte offset of the naming record (caption or label run) within the section.
-  final int nameOffset;
-
-  /// The object's primary name — its [caption], else the first label, else null.
   String? get name => caption ?? (labels.isEmpty ? null : labels.first);
 }
 
@@ -251,8 +239,6 @@ List<ViObject> assembleObjects(List<HeapRecord> records, List<HeapStringTable> s
           sectionTag: r.sectionTag,
           bounds: lastBounds.bounds!,
           caption: cap,
-          boundsOffset: lastBounds.offset,
-          nameOffset: r.offset,
         ));
         lastBounds = null;
       }
@@ -263,8 +249,6 @@ List<ViObject> assembleObjects(List<HeapRecord> records, List<HeapStringTable> s
           sectionTag: r.sectionTag,
           bounds: lastBounds.bounds!,
           labels: t.strings,
-          boundsOffset: lastBounds.offset,
-          nameOffset: r.offset,
         ));
         lastBounds = null;
       }

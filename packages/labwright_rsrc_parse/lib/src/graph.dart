@@ -618,15 +618,10 @@ enum HeapObjectClass {
 
   /// Maps a raw class code to its [HeapObjectClass], or [unknown].
   static HeapObjectClass fromCode(int code) => _byCode[code] ?? unknown;
-
-  /// Whether this class is a front-panel-control/indicator **terminal** form
-  /// (numeric/enum/boolean-cluster/string-array/path). The canonical set, so
-  /// call sites don't hardcode the codes.
-  bool get isControlTerminal => kControlTerminalCodes.contains(code);
 }
 
 /// The control/indicator terminal class codes (front-panel controls' diagram
-/// footprint). Single source of truth — see [HeapObjectClass.isControlTerminal].
+/// footprint). Single source of truth.
 const kControlTerminalCodes = {0x50, 0x4f, 0x57, 0x5b, 0x51};
 
 /// Attribute ids `buildDiagram` surfaces onto [ViHeapObject] (a fast id pre-filter
@@ -960,8 +955,6 @@ List<String> _parseEnumItems(List<int> payload) {
   }
   return out;
 }
-
-/// Control-terminal classes (front-panel control/indicator terminals).
 
 /// Re-anchors **scrolled-cluster control terminals** to their content viewport.
 ///

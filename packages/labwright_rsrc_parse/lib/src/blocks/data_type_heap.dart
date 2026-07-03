@@ -47,9 +47,6 @@ class ViDataTypeHeap {
 
   /// Confidence in the 4-byte header *framing* (corpus: 99.45%).
   static const BlockConfidence framingConfidence = BlockConfidence.confirmed;
-
-  /// Confidence in the header field *meanings* and the extended-record framing.
-  static const BlockConfidence semanticsConfidence = BlockConfidence.tentative;
 }
 
 /// Decodes a `DTHP` body. Null when too short for the header.

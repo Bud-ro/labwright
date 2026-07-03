@@ -36,12 +36,11 @@ enum SeqFormat {
   bool get isText => this == xml || this == ini;
 }
 
-/// ASCII `TOF1` — the binary container magic, at offset 0.
 const _tof1 = [0x54, 0x4f, 0x46, 0x31];
 const _utf8Bom = [0xef, 0xbb, 0xbf];
 
 /// ASCII byte codes used in format sniffing and string scanning — one documented
-/// catalog instead of scattered hex literals. (Code points of the same kind.)
+/// catalog instead of scattered hex literals.
 enum Ascii {
   tab(0x09),
   lineFeed(0x0a),
@@ -78,7 +77,7 @@ enum Ascii {
 
 /// Byte offsets of the fixed fields in a binary `TOF1` header (verified across
 /// the binary corpus, TS2014 layout). Each field is a NUL-terminated ASCII run;
-/// the product fields sit in 50-byte ([slotSize]) NUL-padded slots. One
+/// the product fields sit in 50-byte NUL-padded slots. One
 /// documented catalog replaces scattered offset literals.
 enum TofHeaderField {
   /// The file-type token, e.g. `SequenceFile`. Decoded.
@@ -102,9 +101,6 @@ enum TofHeaderField {
 
   /// Byte offset of the field from the start of the file.
   final int offset;
-
-  /// Size in bytes of a product-field NUL-padded slot (0x32 = 50).
-  static const int slotSize = 0x32;
 }
 
 /// Classifies [bytes] as a TestStand file encoding from its header alone — total
@@ -124,8 +120,7 @@ SeqFormat detectSeqFormat(Uint8List bytes) {
   }
   if (i < bytes.length && bytes[i] == Ascii.leftBracket.code) {
     final head = _asciiPeek(bytes, i, 4096);
-    if (head.contains('TestStand') ||
-        head.toLowerCase().contains('teststand')) {
+    if (head.toLowerCase().contains('teststand')) {
       return SeqFormat.ini;
     }
   }

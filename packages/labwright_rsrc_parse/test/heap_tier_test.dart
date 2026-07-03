@@ -6,8 +6,8 @@ import 'package:test/test.dart';
 /// Classifies one crafted record with [heapDecodeTier], the single source of
 /// truth for the 3-tier coverage metric. Each record is tiered standalone so a
 /// mis-tiering can't silently inflate the corpus % and get re-baselined.
-HeapDecodeTier tier(List<int> bytes, {String tag = 'BDHb'}) =>
-    heapDecodeTier(Uint8List.fromList(bytes), 0, bytes[0], tag);
+HeapDecodeTier tier(List<int> bytes) =>
+    heapDecodeTier(Uint8List.fromList(bytes), 0, bytes[0], 'BDHb');
 
 void main() {
   test('semantic: object header, group open/close, typed ref, decoded C4, named attr', () {

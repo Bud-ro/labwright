@@ -53,7 +53,7 @@ String _defaultCorpusRoot() {
 }
 
 class _Stat {
-  int vis = 0, parseOk = 0, decOk = 0, containerExact = 0, objVIs = 0;
+  int vis = 0, parseOk = 0, decOk = 0, containerExact = 0;
   int heaps = 0, fullHeaps = 0;
   int framed = 0, body = 0, semantic = 0, valueKind = 0;
   int blockInstances = 0, blocksIdentified = 0;
@@ -76,7 +76,6 @@ class _Stat {
     parseOk += s.parseOk;
     decOk += s.decOk;
     containerExact += s.containerExact;
-    objVIs += s.objVIs;
     heaps += s.heaps;
     fullHeaps += s.fullHeaps;
     framed += s.framed;
@@ -112,7 +111,6 @@ _Stat _measure(List<File> files) {
     } catch (_) {
       continue;
     }
-    var objs = 0;
     for (final sec in secs) {
       s.blockInstances++;
       if (isCataloguedTag(sec.tag)) s.blocksIdentified++;
@@ -135,11 +133,7 @@ _Stat _measure(List<File> files) {
             break;
         }
       }
-      try {
-        objs += buildDiagram(sec.bytes, sectionTag: sec.tag).objects.length;
-      } catch (_) {}
     }
-    if (objs > 0) s.objVIs++;
   }
   return s;
 }

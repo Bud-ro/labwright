@@ -18,8 +18,7 @@
 ///
 /// This catalog doubles as the **block registry**: each entry's
 /// [ViBlockInfo.decoder] names the function that decodes it (grep it to find the
-/// file under `lib/src/blocks/`), or is null when no decoder exists yet — call
-/// [blockDecoderUnimplemented] at those sites to fail loudly instead of silently.
+/// file under `lib/src/blocks/`), or is null when no decoder exists yet.
 library;
 
 /// Coarse role of a resource block. Drives display and parser dispatch.
@@ -106,14 +105,8 @@ class ViBlockInfo {
   /// "add a `decodeXxxx` to its `blocks/` file and set this field".
   final String? decoder;
 
-  /// Whether a decoder for this block exists today.
   bool get isDecoded => decoder != null;
 
-  /// True only for the corpus-confirmed `C4` record heaps — the blocks the heap
-  /// record-walk may be applied to.
-  bool get isRecordHeap => category == ViBlockCategory.recordHeap;
-
-  /// The fallback for a tag not in the catalog.
   static ViBlockInfo unknownFor(String tag) =>
       ViBlockInfo(tag, 'Unknown ($tag)', ViBlockCategory.unknown, BlockConfidence.tentative, 'Not catalogued.');
 }
@@ -122,24 +115,11 @@ class ViBlockInfo {
 /// [ViBlockInfo.unknownFor].
 ViBlockInfo blockInfo(String tag) => _catalog[tag] ?? ViBlockInfo.unknownFor(tag);
 
-/// Convenience: is [tag] one of the confirmed `C4` record heaps?
 bool isRecordHeapTag(String tag) => blockInfo(tag).category == ViBlockCategory.recordHeap;
 
 /// Whether [tag] is a catalogued block (identified by type), vs an entirely
 /// unrecognized tag that falls back to [ViBlockInfo.unknownFor].
 bool isCataloguedTag(String tag) => _catalog.containsKey(tag);
-
-/// All catalogued block tags, for registry/coverage tooling.
-Iterable<String> get cataloguedTags => _catalog.keys;
-
-/// Fail loudly for a recognized-but-undecoded block (one whose
-/// [ViBlockInfo.decoder] is null). Surfacing this instead of silently returning
-/// null keeps "not yet implemented" honest. To implement a block: write a
-/// `decodeXxxx()` in its `lib/src/blocks/` file and set the catalog entry's
-/// `decoder:`; see labviewwiki.org/wiki/Resource_Container for documented formats.
-Never blockDecoderUnimplemented(String tag) => throw UnimplementedError(
-    'No decoder yet for RSRC block "$tag" (${blockInfo(tag).name}). '
-    'See its block_catalog entry + labviewwiki.org/wiki/Resource_Container.');
 
 const ViBlockCategory _h = ViBlockCategory.recordHeap;
 const ViBlockCategory _ti = ViBlockCategory.typeInfo;

@@ -18,10 +18,8 @@ Uint8List _buildTdms({
       d.setFloat64(0, v.toDouble(), e);
     } else if (bytes == 2) {
       d.setUint16(0, v, e);
-    } else if (bytes == 4) {
-      d.setInt32(0, v, e);
     } else {
-      d.setInt64(0, v, e);
+      d.setInt32(0, v, e);
     }
     b.add(d.buffer.asUint8List(0, bytes));
   }

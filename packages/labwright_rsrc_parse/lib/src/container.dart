@@ -226,7 +226,7 @@ class ViBlockList {
     if (blockListRel + 4 > infoArea.length) throw ViFormatException('block list out of range');
     final d = ByteData.sublistView(infoArea);
     final count = d.getUint32(blockListRel);
-    if (count < 0 || count > 100000) throw ViFormatException('implausible block count $count');
+    if (count > 100000) throw ViFormatException('implausible block count $count');
     final end = blockListRel + 4 + count * 12;
     if (end > infoArea.length) throw ViFormatException('block list entries out of range');
     return ViBlockList(entries: [
@@ -567,7 +567,7 @@ class ViInfoArea {
       final n = e.sectionCountMinus1 + 1;
       for (var s = 0; s < n && s <= maxRecords; s++) {
         final dpos = descBase + e.descRel + s * 20;
-        if (dpos < 0 || dpos + 20 > infoArea.length) {
+        if (dpos + 20 > infoArea.length) {
           inBounds = false;
           break;
         }
@@ -872,7 +872,7 @@ abstract final class ViExport {
     final ibd = ByteData.sublistView(info);
     final blockListRel = ibd.getUint32(0x2c);
     final countPos = blockListRel;
-    if (countPos < 0 || countPos + 4 > info.length) return out;
+    if (countPos + 4 > info.length) return out;
     final count = ibd.getUint32(countPos);
     if (count > 100000) return out;
     const commonWord16 = 0xFFFFFFFF;
@@ -885,7 +885,7 @@ abstract final class ViExport {
       entry += 12;
       for (var s = 0; s < sectionCount; s++) {
         final dpos = descBase + descRel + s * descSize;
-        if (dpos < 0 || dpos + descSize > info.length) break;
+        if (dpos + descSize > info.length) break;
         if (ibd.getUint32(dpos + 16) != commonWord16) continue;
         out.add((dpos: dpos, secRel: ibd.getUint32(dpos + 4)));
       }

@@ -10,19 +10,15 @@ const _zlibCmf = 0x78;
 /// Recognized zlib FLG second bytes (the byte after [_zlibCmf]) seen in TOF1
 /// bodies — one documented catalog instead of scattered hex literals.
 enum ZlibFlag {
-  /// No compression / fastest.
   none(0x01),
 
-  /// Default compression.
   byDefault(0x9c),
 
-  /// Best compression.
   best(0xda);
 
   const ZlibFlag(this.byte);
   final int byte;
 
-  /// Whether [b] is a recognized FLG byte.
   static bool isKnown(int b) =>
       b == none.byte || b == byDefault.byte || b == best.byte;
 }
@@ -209,7 +205,6 @@ BinaryBodyLayout? analyzeBinaryBody(Uint8List seqBytes) {
   return _layoutFromBody(body);
 }
 
-/// [analyzeBinaryBody] core over an already-inflated [body] (no re-inflate).
 BinaryBodyLayout? _layoutFromBody(Uint8List body) {
   final runs = binaryStrings(body, minLength: _minRunLength);
   final boundary = _firstTableOffset(runs);
@@ -247,7 +242,6 @@ List<BinaryStringSegment> binaryStringSegments(
   return _segmentsFromBody(body, minChain: minChain);
 }
 
-/// [binaryStringSegments] core over an already-inflated [body] (no re-inflate).
 List<BinaryStringSegment> _segmentsFromBody(
   Uint8List body, {
   int minChain = _minSegmentChain,
@@ -339,7 +333,6 @@ List<String> _poolWhere(Uint8List seqBytes, bool Function(String) keep) {
   return _poolWhereFrom(_segmentsFromBody(body), keep);
 }
 
-/// [_poolWhere] core over already-computed [segments] (no inflate).
 List<String> _poolWhereFrom(
   List<BinaryStringSegment> segments,
   bool Function(String) keep,
@@ -425,7 +418,6 @@ bool isBinaryQuotedLiteral(String s) =>
 List<String> binaryQuotedLiterals(Uint8List seqBytes) =>
     _poolWhere(seqBytes, isBinaryQuotedLiteral);
 
-/// [binaryNameTable] core over already-computed [segments] (no re-inflate).
 BinaryStringSegment? _nameTableFromSegments(
   List<BinaryStringSegment> segments,
 ) {
@@ -462,13 +454,12 @@ List<int> binaryRecordWords(Uint8List seqBytes) {
   return _recordWordsFromBody(body, layout.recordRegionLength);
 }
 
-/// [binaryRecordWords] core over an already-inflated [body] (no re-inflate).
 List<int> _recordWordsFromBody(Uint8List body, int recordRegionLength) {
   final rr = recordRegionLength;
   final out = <int>[];
   for (
     var i = 0;
-    i + _u32Bytes <= rr && i + _u32Bytes <= body.length;
+    i + _u32Bytes <= rr;
     i += _u32Bytes
   ) {
     out.add(body[i] | body[i + 1] << 8 | body[i + 2] << 16 | body[i + 3] << 24);
@@ -506,14 +497,11 @@ List<double> binaryScalarDoubles(Uint8List seqBytes) {
   return _scalarDoublesFromBody(body, layout.recordRegionLength);
 }
 
-/// [binaryScalarDoubles] core over an already-inflated [body] (no re-inflate),
-/// given the record-region length [rr] — for the single-inflate [analyzeBinary]
-/// path.
 List<double> _scalarDoublesFromBody(Uint8List body, int rr) {
   final bd = ByteData.sublistView(body);
   final seen = <double>{};
   final out = <double>[];
-  for (var i = 0; i + 8 <= rr && i + 8 <= body.length; i += _u32Bytes) {
+  for (var i = 0; i + 8 <= rr; i += _u32Bytes) {
     if ((body[i] | body[i + 1] | body[i + 2] | body[i + 3]) != 0) continue;
     final v = bd.getFloat64(i, Endian.little);
     if (!v.isFinite || v == 0) continue;
@@ -565,10 +553,6 @@ class BinaryNamedScalar {
 
   /// The record-region u32 word index of the name-offset word (record order).
   final int wordIndex;
-
-  @override
-  String toString() =>
-      'BinaryNamedScalar($name tag=$rawTag type=$rawTypeCode value=$value)';
 }
 
 /// Maps each string-region-relative byte offset to the name that begins there —
@@ -669,10 +653,6 @@ class BinaryNamedRecord {
 
   /// The consistent leading `tag` word of the record header — **not modeled**.
   final int rawTag;
-
-  @override
-  String toString() =>
-      'BinaryNamedRecord($name x$count, tag=$rawTag)';
 }
 
 /// The **consistently-referenced named-property record headers** of a binary
@@ -709,8 +689,6 @@ List<BinaryNamedRecord> binaryNamedRecords(Uint8List seqBytes) {
   return _namedRecordsFromBody(body, layout.recordRegionLength);
 }
 
-/// [binaryNamedRecords] core over an already-inflated [body] (no re-inflate),
-/// given the record-region length [rr] — for the single-inflate [analyzeBinary].
 List<BinaryNamedRecord> _namedRecordsFromBody(Uint8List body, int rr) {
   final relToName = _stringRegionNamesByRel(body, rr);
   if (relToName.isEmpty) return const [];
@@ -766,7 +744,6 @@ List<List<BinaryString>> _segmentsFrom(
   return segs;
 }
 
-/// Reads up to [count] little-endian u32 words from the start of [body].
 List<int> _leadingWords(Uint8List body, int count) {
   final out = <int>[];
   for (
@@ -839,7 +816,6 @@ List<BinaryString> binaryStringTable(
   return _stringTableFromBody(body, minLength: minLength);
 }
 
-/// [binaryStringTable] core over an already-inflated [body] (no re-inflate).
 List<BinaryString> _stringTableFromBody(
   Uint8List body, {
   int minLength = _minRunLength,

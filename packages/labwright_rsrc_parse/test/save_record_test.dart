@@ -9,9 +9,7 @@ import 'package:test/test.dart';
 Uint8List _lvsr160({int verByte0 = 0x20, List<int>? hash96, List<int>? hash144}) {
   final b = Uint8List(160);
   b[0] = verByte0;
-  b[1] = 0x00;
   b[2] = 0x80;
-  b[3] = 0x00;
   final h96 = hash96 ?? emptyPasswordHash;
   final h144 = hash144 ?? emptyPasswordHash;
   for (var i = 0; i < 16; i++) {

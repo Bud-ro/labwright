@@ -402,7 +402,6 @@ class Step {
   /// [limits] and [StepLimits.lowExpression]/[StepLimits.highExpression].
   bool? get usesComparisonExpression => _flag(raw.prop('UseCompExpr')?.scalar);
 
-  // --- Array / For-Each iteration step fields ---
 
   /// For an array/For-Each iteration step: the subscript expression
   /// (`SubscriptExpr`) selecting the element, the integer offset (`Offset`), the
@@ -428,7 +427,6 @@ class Step {
       _nz(raw.prop('EvaluatedSubscriptExpr')?.scalar);
   String? get evaluatedOffsetExpression => _nz(raw.prop('EvaluatedOffsetExpr')?.scalar);
 
-  // --- Wait / timeout and database step fields ---
 
   /// For a Wait (or timeout-bearing) step: the timeout expression (`TimeoutExpr`),
   /// whether the timeout is enabled (`TimeoutEnabled`), and whether a timeout
@@ -470,7 +468,6 @@ class Step {
   int? get dbMarshalOptionsCode => int.tryParse(raw.prop('MarshalOptions')?.scalar ?? '');
   int? get dbMaxRecordsToSelect => int.tryParse(raw.prop('MaxRecordsToSelect')?.scalar ?? '');
 
-  // --- SequenceCall-by-reference / Run / Wait-on-thread-or-execution fields ---
 
   /// For a Run/Wait step that references a sequence call by name: the referenced
   /// SequenceCall step's name (`SeqCallName`) and step-group index code
@@ -1151,13 +1148,12 @@ class StepModule {
   /// module's source was created/linked. Verbatim; the NI-internal code→name
   /// mapping is not invented. null when absent.
   int? get moduleSourceTypeCode =>
-      int.tryParse(_nz(raw?.prop('ModuleCreateSrcType')?.scalar) ?? '');
+      int.tryParse(raw?.prop('ModuleCreateSrcType')?.scalar ?? '');
 
   String? _sd(String key) => _nz(raw?.prop(key)?.scalar);
   bool? _sdFlag(String key) => _flag(raw?.prop(key)?.scalar);
   int? _sdInt(String key) => int.tryParse(raw?.prop(key)?.scalar ?? '');
 
-  // --- SequenceCall adapter: which sequence is called, and how it's specified ---
 
   /// For a SequenceCall step that names its target *by expression*, the sequence
   /// name (`SData.SeqNameExpr`) and sequence-file path (`SData.SFPathExpr`)
@@ -1185,7 +1181,6 @@ class StepModule {
   SeqProperty? get prototype => raw?.prop('Prototype');
   SeqProperty? get actualArguments => raw?.prop('ActualArgs');
 
-  // --- Threading / asynchronous execution ---
 
   /// The threading option code (`SData.ThreadOpt`) — run in the same thread, a
   /// new thread, or a new execution. Verbatim; NI-internal code→name not
@@ -1213,7 +1208,6 @@ class StepModule {
   /// (`SData.IgnoreTerminate`). null when absent.
   bool? get ignoresTerminate => _sdFlag('IgnoreTerminate');
 
-  // --- Remote execution ---
 
   /// Whether the step executes on a remote host (`SData.RemoteExecution`), and
   /// the host it targets — a literal (`SData.RemoteHost`) or an expression
@@ -1243,7 +1237,6 @@ class StepModule {
   String? get executionModelPathExpression => _sd('ExecModelPathExpr');
   String? get executionBreakOnEntryExpression => _sd('ExecBreakOnEntryExpr');
 
-  // --- LabVIEW VI-call remote / real-time deployment ---
 
   /// For a VI call deployed to a remote / LabVIEW Real-Time target: the remote VI
   /// path (`ViCall.RemoteVIPath`), the host (`ViCall.RemoteHost`, or by expression
@@ -1282,7 +1275,6 @@ class StepModule {
   String? get moduleWorkspacePath => _sd('ModuleWorkspacePath');
   int? get alwaysRunInProcessCode => _sdInt('AlwaysRunInProcess');
 
-  // --- Python adapter session settings ---
 
   /// Where the Python interpreter session is located/scoped
   /// (`PythonCall.InterpreterLocation` / `ClassInstanceLocation`); null when
@@ -1636,7 +1628,6 @@ class StepSettings {
   /// not invented here (see the per-accessor docs for the option each selects).
   int? _int(String key) => int.tryParse(_scalar(key) ?? '');
 
-  // --- Edit-permission flags (what a sequence editor may change on the step) ---
 
   /// Whether the step type permits editing the step's code module
   /// (`CanEditCode`). null when unset. Part of TestStand's step-type permission
@@ -1657,7 +1648,6 @@ class StepSettings {
   bool? get canEditParameterAdditionalResults =>
       _bool('CanEditParameterAdditionalResults');
 
-  // --- Switch/IVI settings (the editor's "Switching" step tab) ---
 
   /// Whether IVI switching is enabled for the step (`SwitchEnabled`) — the
   /// "use switching" toggle. null when unset; `false` is the common default.
@@ -1692,7 +1682,6 @@ class StepSettings {
   String? get routeGroupConnect => _scalar('RouteGroupConnect');
   String? get routeGroupDisconnect => _scalar('RouteGroupDisconnect');
 
-  // --- Execution / batch / window options ---
 
   /// The batch-synchronization code (`BatchSyncOpt`) for the step under a batch
   /// process model (serial / parallel / one-thread-only). null when unset; raw

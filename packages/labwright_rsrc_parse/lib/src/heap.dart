@@ -1497,13 +1497,6 @@ int? recordSkip(Uint8List h, int i) {
         return 5 + ((h[i + 3] << 8) | h[i + 4]);
       }
       return 3 + lb;
-    case 0x84:
-      return 6;
-    case 0x10:
-    case 0x12:
-    case 0x11:
-    case 0x0a:
-      return (i + 4 <= n && _isTypeTag(h[i + 3])) ? _typedList(h, i) : 2;
     case 0x14:
       // Defer to _typedList so an FD item with the value high-bit set is read as
       // the 7-byte escape (`fd 80 00 <u32>`), not a hardcoded 6 (which desynced
@@ -1513,16 +1506,10 @@ int? recordSkip(Uint8List h, int i) {
     case 0x09:
     case 0x04:
       return 2;
-    case 0x24:
-      return 3;
-    case 0x44:
-      return 4;
     case 0x64:
       return (i + 3 <= n && h[i + 1] == 0xcb && h[i + 2] == 0x26) ? 3 : 5;
     case 0x02:
       return (i + 2 <= n && h[i + 1] == 0xfe) ? 7 : null;
-    case 0x25:
-      return 3;
     case 0xc6:
       if (i + 3 <= n && h[i + 2] == 0xff) {
         return (i + 5 <= n) ? 5 + ((h[i + 3] << 8) | h[i + 4]) : null;
@@ -1587,13 +1574,13 @@ int? _typedList(Uint8List h, int i) {
 HeapWalk walkHeapBody(Uint8List body) {
   final spans = <HeapSpan>[];
   final n = body.length;
-  if (n < 4) return HeapWalk(spans: spans, coveredBytes: 0, bodyBytes: n < 0 ? 0 : (n - 4).clamp(0, n));
+  if (n < 4) return HeapWalk(spans: spans, coveredBytes: 0, bodyBytes: (n - 4).clamp(0, n));
   final bodyBytes = n - 4;
   var i = 4;
   var covered = 0;
   while (i < n) {
     final s = recordSkip(body, i);
-    if (s == null || s <= 0 || i + s > n) {
+    if (s == null || i + s > n) {
       return HeapWalk(
         spans: spans,
         coveredBytes: covered,

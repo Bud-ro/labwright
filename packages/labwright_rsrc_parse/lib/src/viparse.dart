@@ -257,11 +257,11 @@ List<ViSection> _readSections(Uint8List bytes, {required int wantWord16}) {
     if (!_printableTag(t)) continue;
     for (var s = 0; s < sectionCount; s++) {
       final dpos = descBase + descRel + s * descSize;
-      if (dpos < 0 || dpos + descSize > bytes.length) break;
+      if (dpos + descSize > bytes.length) break;
       if (d.getUint32(dpos + 16) != wantWord16) continue;
       final secRel = d.getUint32(dpos + 4);
       final pos = dataOffset + secRel;
-      if (pos < 0 || pos + 4 > bytes.length) continue;
+      if (pos + 4 > bytes.length) continue;
       final len = d.getUint32(pos);
       if (len > dataSize || pos + 4 + len > bytes.length) continue;
       sections.add(ViSection(
@@ -280,7 +280,7 @@ ViSummary parseVi(Uint8List bytes) {
   final d = ByteData.sublistView(bytes);
 
   int u16(int p) {
-    if (p < 0 || p + 2 > bytes.length) throw ViFormatException('truncated u16 at $p');
+    if (p + 2 > bytes.length) throw ViFormatException('truncated u16 at $p');
     return d.getUint16(p);
   }
 
@@ -290,7 +290,7 @@ ViSummary parseVi(Uint8List bytes) {
   }
 
   String tag(int p) {
-    if (p < 0 || p + 4 > bytes.length) throw ViFormatException('truncated tag at $p');
+    if (p + 4 > bytes.length) throw ViFormatException('truncated tag at $p');
     return String.fromCharCodes(bytes.sublist(p, p + 4));
   }
 
@@ -303,14 +303,14 @@ ViSummary parseVi(Uint8List bytes) {
   final fileType = tag(8);
   final creator = tag(12);
   final infoOffset = u32(16);
-  if (infoOffset < 0 || infoOffset + 0x30 > bytes.length) {
+  if (infoOffset + 0x30 > bytes.length) {
     throw ViFormatException('info section offset $infoOffset out of range');
   }
 
   final blockListRel = u32(infoOffset + 0x2c);
   final countPos = infoOffset + blockListRel;
   final count = u32(countPos);
-  if (count < 0 || count > 100000) throw ViFormatException('implausible block count $count');
+  if (count > 100000) throw ViFormatException('implausible block count $count');
 
   final blocks = <String>[];
   final seen = <String>{};
@@ -339,7 +339,7 @@ String? _viName(Uint8List b, int infoOffset) {
   if (infoOffset + 0x34 <= b.length) {
     final rel = ByteData.sublistView(b).getUint32(infoOffset + 0x30);
     final at = infoOffset + rel;
-    if (at >= 0 && at < b.length) {
+    if (at < b.length) {
       final len = b[at];
       if (len > 0 && at + 1 + len == b.length) {
         return String.fromCharCodes(b.sublist(at + 1));
@@ -441,7 +441,6 @@ String? _trailingName(Uint8List b) {
   final maxLen = b.length - 1 < 255 ? b.length - 1 : 255;
   for (var len = maxLen; len >= 1; len--) {
     final lenPos = b.length - 1 - len;
-    if (lenPos < 0) continue;
     if (b[lenPos] != len) continue;
     var ok = true;
     for (var i = lenPos + 1; i < b.length; i++) {

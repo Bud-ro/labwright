@@ -41,12 +41,6 @@ class SeqCoverage {
   /// drive to **100%**: every node is either modeled or recognized as plumbing.
   double get accountedRatio => total == 0 ? 0 : (modeled + plumbing) / total;
 
-  /// Of the nodes we consider semantically meaningful (everything that is not
-  /// recognized plumbing), the fraction the lens models — `modeled/(total -
-  /// plumbing)`. Reaches 100% exactly when [unaccounted] is zero.
-  double get semanticRatio =>
-      total - plumbing == 0 ? 0 : modeled / (total - plumbing);
-
   SeqCoverage operator +(SeqCoverage o) => SeqCoverage(
         total: total + o.total,
         modeled: modeled + o.modeled,
@@ -198,15 +192,14 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
     for (final v in [...seq.locals, ...seq.parameters]) {
       markSubtree(v.raw);
     }
-    // Sequence-level settings the lens surfaces (Sequence.* / runtimeSettings).
     for (final k in [
       'RecordResults', 'GotoCleanupOnFail', 'FailureAction', 'StoreResults',
     ]) {
       mark(seq.raw.prop(k));
     }
-    markContainer(seq.raw.prop('Requirements')); // + Links list
+    markContainer(seq.raw.prop('Requirements'));
     markContainer(seq.raw.prop('Requirements')?.prop('Links'));
-    markContainer(seq.raw.prop('RTS')); // entry-point / run-time settings
+    markContainer(seq.raw.prop('RTS'));
     for (final step in seq.steps) {
       mark(step.raw);
       final ts = step.raw.prop('TS');
@@ -214,16 +207,13 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
       for (final k in _settingKeys) {
         mark(ts?.prop(k));
       }
-      // Step type-definition metadata the lens surfaces (Step.typeInfo).
       for (final k in _stepTypeKeys) {
         mark(step.raw.prop(k));
       }
-      // Step instance-level fields the lens surfaces (Step.*).
       for (final k in [
         'Description', 'Active', 'InBuf', 'PinMapPath',
         'Category', 'SuppressNextResult', 'EvaluatedConditionExpr',
         'UseCompExpr', 'CompExpr', 'CompareCase', 'Operation',
-        'StdOutput', 'StdInput',
         // select/case flow expressions (NI_Flow_Select / NI_Flow_Case)
         'ItemExpr', 'EvaluatedItemExpr', 'IsDefault', 'CustomLoop',
         // array / for-each iteration step fields
@@ -290,10 +280,10 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
       markSubtree(step.raw.prop('FileData'));
       markSubtree(step.raw.prop('NumericArray'));
       markSubtree(step.raw.prop('DataSourceArray'));
-      markSubtree(step.raw.prop('ColumnList')); // DB column descriptors
-      markSubtree(step.raw.prop('Position')); // 2-field position record
-      markSubtree(step.raw.prop('RemoteSettings')); // DB remote connection
-      markSubtree(step.raw.prop('StdError')); // DB step error record
+      markSubtree(step.raw.prop('ColumnList'));
+      markSubtree(step.raw.prop('Position'));
+      markSubtree(step.raw.prop('RemoteSettings'));
+      markSubtree(step.raw.prop('StdError'));
       markContainer(step.raw.prop('Menu'));
       markContainer(step.raw.prop('NI_Data'));
       markContainer(step.raw.prop('NI_Data')?.prop('EditPanels'));
@@ -362,7 +352,7 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
           }
         }
         markContainer(p.prop('AdditionalResult'));
-        markContainer(p.prop('ArrayDimensionsSize')); // per-dimension sizes
+        markContainer(p.prop('ArrayDimensionsSize'));
         // A cluster/array parameter's elements are themselves parameter
         // descriptors (same fields) — recurse so the whole connector type tree is
         // covered, however deeply nested. The element-type *prototype* is a pure
@@ -492,7 +482,6 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
     }
   }
 
-  // File-level settings the lens surfaces (SeqFile.*).
   for (final k in [
     'ModelFile', 'ModelOption', 'LoadOpt', 'UnloadOpt', 'Version',
     'BatchSync', 'SFGlobalsScope', 'Type',

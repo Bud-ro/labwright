@@ -214,18 +214,13 @@ List<HeapStringTable> heapStringTablesFromDecoded(Iterable<DecodedSection> decod
   return out;
 }
 
-/// Result of structurally framing a `0x2E <len>` string table at a byte offset.
 class _FramedTable {
   const _FramedTable(this.strings, this.headerLen, this.consumed);
 
-  /// All entries (unfiltered).
   final List<String> strings;
 
-  /// Bytes from the introducing `C4` opcode to the first string: 3 for the normal
-  /// `C4 2E <u8 len>` header, or 5 for the `C4 2E FF <u16 len>` extended form.
   final int headerLen;
 
-  /// Total bytes consumed (opcode + len + region).
   final int consumed;
 }
 
@@ -260,7 +255,6 @@ _FramedTable? _tryFramedTable(Uint8List h, int i) {
 /// trailing bytes, no zero-length or non-printable entry); otherwise null. Total.
 List<String>? _packedPascals(Uint8List h, int start, int len) {
   final end = start + len;
-  if (end > h.length) return null;
   final out = <String>[];
   var i = start;
   while (i < end) {
@@ -269,7 +263,7 @@ List<String>? _packedPascals(Uint8List h, int start, int len) {
     out.add(String.fromCharCodes(h.sublist(i + 1, i + 1 + l)));
     i += 1 + l;
   }
-  return out.isEmpty ? null : out;
+  return out;
 }
 
 /// [extractHeapStrings] over already-decoded sections — the flat, globally
@@ -293,12 +287,12 @@ bool _allPrintable(Uint8List h, int start, int len) {
 }
 
 /// Extracts `[u8 len][len printable bytes]` runs from [h]. Total.
-List<String> _pascalStrings(Uint8List h, {int minLength = 1, int maxLength = 120}) {
+List<String> _pascalStrings(Uint8List h) {
   final out = <String>[];
   var i = 0;
   while (i < h.length) {
     final len = h[i];
-    if (len >= minLength && len <= maxLength && i + 1 + len <= h.length) {
+    if (len >= 1 && len <= 120 && i + 1 + len <= h.length) {
       var printable = true;
       for (var j = i + 1; j < i + 1 + len; j++) {
         if (h[j] < 32 || h[j] >= 127) {
