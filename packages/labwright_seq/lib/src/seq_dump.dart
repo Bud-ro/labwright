@@ -3,6 +3,8 @@ import 'dart:typed_data';
 import 'seq_binary.dart';
 import 'seq_file.dart';
 import 'seq_format.dart';
+import 'seq_module.dart';
+import 'seq_step.dart';
 
 /// Max enum allowed-values shown inline for a `TypeEnum` measurement parameter
 /// before truncating with a `…(count)` marker (kept short for readability).
@@ -11,34 +13,34 @@ const _enumValueCap = 6;
 /// Renders a [SeqFile] as a faithful, sequence-editor-like text view — the M4
 /// "viewer" in text form. Pure (returns a String); honest (shows
 /// `(not yet recovered)` / omits a field rather than inventing one).
-String dumpSeqFile(SeqFile f) {
-  final b = StringBuffer();
-  final h = f.header;
-  b.writeln('${h.fileType ?? 'TestStand file'} '
-      '(${h.productName ?? '?'} v${h.fileVersion ?? '?'}, ${h.format.name})');
-  b.writeln('${f.types.length} types · ${f.sequences.length} sequences');
+String dumpSeqFile(SeqFile file) {
+  final out = StringBuffer();
+  final header = file.header;
+  out.writeln('${header.fileType ?? 'TestStand file'} '
+      '(${header.productName ?? '?'} v${header.fileVersion ?? '?'}, ${header.format.name})');
+  out.writeln('${file.types.length} types · ${file.sequences.length} sequences');
 
-  for (final seq in f.sequences) {
-    b.writeln();
-    b.writeln('Sequence: ${seq.name}');
-    if (seq.comment != null) b.writeln('  // ${seq.comment}');
-    _dumpVars(b, 'Parameters', seq.parameters);
-    _dumpVars(b, 'Locals', seq.locals);
+  for (final seq in file.sequences) {
+    out.writeln();
+    out.writeln('Sequence: ${seq.name}');
+    if (seq.comment != null) out.writeln('  // ${seq.comment}');
+    _dumpVars(out, 'Parameters', seq.parameters);
+    _dumpVars(out, 'Locals', seq.locals);
     for (final group in StepGroup.values) {
       final steps = seq.stepsIn(group);
       if (steps.isEmpty) continue;
-      b.writeln('  ${group.key}:');
+      out.writeln('  ${group.key}:');
       for (final step in steps) {
-        b.writeln('    - ${_dumpStep(step, f)}');
+        out.writeln('    - ${_dumpStep(step, file)}');
       }
     }
   }
-  _dumpPlugins(b, f);
-  _dumpTypes(b, f);
-  b.writeln();
-  b.writeln('=== Sequence logic ===');
-  b.write(exportSequenceLogic(f));
-  return b.toString();
+  _dumpPlugins(out, file);
+  _dumpTypes(out, file);
+  out.writeln();
+  out.writeln('=== Sequence logic ===');
+  out.write(exportSequenceLogic(file));
+  return out.toString();
 }
 
 /// Renders each sequence's steps as readable, **nested** control-flow pseudocode
@@ -50,19 +52,19 @@ String dumpSeqFile(SeqFile f) {
 /// [FlowControl]). Ordinary steps render at the current indent with their call
 /// target + key gating expression / limits. Built entirely from already-recovered
 /// fields — no new decode.
-String exportSequenceLogic(SeqFile f) {
-  final b = StringBuffer();
-  for (final seq in f.sequences) {
-    b.writeln('sequence ${seq.name}${_paramSignature(seq)}:${_seqSummary(seq)}');
+String exportSequenceLogic(SeqFile file) {
+  final out = StringBuffer();
+  for (final seq in file.sequences) {
+    out.writeln('sequence ${seq.name}${_paramSignature(seq)}:${_seqSummary(seq)}');
     for (final group in StepGroup.values) {
       final steps = seq.stepsIn(group);
       if (steps.isEmpty) continue;
-      b.writeln('  ${group.key}:');
-      _emitLogic(b, steps, f, baseIndent: 2);
+      out.writeln('  ${group.key}:');
+      _emitLogic(out, steps, file, baseIndent: 2);
     }
-    b.writeln();
+    out.writeln();
   }
-  return b.toString();
+  return out.toString();
 }
 
 /// The sequence's parameter list as a function-style signature, e.g.
@@ -99,28 +101,28 @@ String _seqSummary(Sequence seq) {
 /// Emits [steps] as indented logic, opening/closing blocks on `NI_Flow_*` steps.
 /// [baseIndent] is the starting indent depth (in 2-space units). Indent never
 /// drops below [baseIndent], so a malformed/unbalanced block can't underflow.
-void _emitLogic(StringBuffer b, List<Step> steps, SeqFile file,
+void _emitLogic(StringBuffer out, List<Step> steps, SeqFile file,
     {required int baseIndent}) {
   var depth = baseIndent;
-  String ind(int d) => '  ' * d;
+  String ind(int depth) => '  ' * depth;
   for (final step in steps) {
     final fc = step.flowControl;
     if (fc == null) {
-      b.writeln('${ind(depth)}${_logicStepLine(step, file)}');
+      out.writeln('${ind(depth)}${_logicStepLine(step, file)}');
       continue;
     }
     if (fc.kind.closesBlock) {
       if (depth > baseIndent) depth--;
-      b.writeln('${ind(depth)}}');
+      out.writeln('${ind(depth)}}');
     } else if (fc.kind.isContinuation) {
-      final d = depth > baseIndent ? depth - 1 : baseIndent;
-      b.writeln('${ind(d)}} ${fc.header} {');
-      depth = d + 1;
+      final effectiveDepth = depth > baseIndent ? depth - 1 : baseIndent;
+      out.writeln('${ind(effectiveDepth)}} ${fc.header} {');
+      depth = effectiveDepth + 1;
     } else if (fc.kind.opensBlock) {
-      b.writeln('${ind(depth)}${fc.header} {');
+      out.writeln('${ind(depth)}${fc.header} {');
       depth++;
     } else {
-      b.writeln('${ind(depth)}${fc.header}');
+      out.writeln('${ind(depth)}${fc.header}');
     }
   }
 }
@@ -130,24 +132,24 @@ void _emitLogic(StringBuffer b, List<Step> steps, SeqFile file,
 /// limits, and a non-default pass/fail jump) — kept short so the nested
 /// structure stays readable.
 String _logicStepLine(Step step, SeqFile file) {
-  final b = StringBuffer(step.name);
-  final m = step.module;
-  if (m.adapter != SeqAdapter.none && m.target != null) {
-    b.write(' → ${m.target}');
-    if (m.adapter == SeqAdapter.sequenceCall && file.resolveCall(step) == null) {
-      final sf = m.sequenceFile;
-      if (sf != null && sf.isNotEmpty) b.write(' in $sf');
+  final out = StringBuffer(step.name);
+  final module = step.module;
+  if (module.adapter != SeqAdapter.none && module.target != null) {
+    out.write(' → ${module.target}');
+    if (module.adapter == SeqAdapter.sequenceCall && file.resolveCall(step) == null) {
+      final sf = module.sequenceFile;
+      if (sf != null && sf.isNotEmpty) out.write(' in $sf');
     }
   }
   final pre = step.settings.precondition;
-  if (pre != null) b.write('  [if $pre]');
+  if (pre != null) out.write('  [if $pre]');
   final lim = step.limits;
-  if (lim != null) b.write('  [${lim.summary}]');
+  if (lim != null) out.write('  [${lim.summary}]');
   final loop = _loopAnnotation(step.settings);
-  if (loop != null) b.write('  $loop');
+  if (loop != null) out.write('  $loop');
   final jump = _jumpAnnotation(step.settings, file);
-  if (jump != null) b.write('  $jump');
-  return b.toString();
+  if (jump != null) out.write('  $jump');
+  return out.toString();
 }
 
 /// A concise rendering of a non-flow step's own looping (the step repeats itself
@@ -167,8 +169,8 @@ String? _loopAnnotation(StepSettings set) {
 /// fall through (`Next`) — the common case. An `ID#:` target is resolved to the
 /// destination step's name; a bookmark like `<Cleanup>` is shown verbatim.
 String? _jumpAnnotation(StepSettings set, SeqFile file) {
-  String resolve(String t) =>
-      t.startsWith('ID#:') ? (file.stepNameForId(t) ?? t) : t;
+  String resolve(String target) =>
+      target.startsWith('ID#:') ? (file.stepNameForId(target) ?? target) : target;
   String? side(String label, String? act, String? target) {
     if (act == null || act == 'Next') return null;
     return target != null ? 'on $label → ${resolve(target)}' : 'on $label: $act';
@@ -184,14 +186,14 @@ String? _jumpAnnotation(StepSettings set, SeqFile file) {
 /// Lists the Semiconductor-Test-System resource set the file declares (pin map +
 /// specifications/levels/timing/pattern files) — the external files the sequence
 /// depends on. Omitted when the file declares none.
-void _dumpPlugins(StringBuffer b, SeqFile f) {
-  final mp = f.measurementPlugIns;
+void _dumpPlugins(StringBuffer out, SeqFile file) {
+  final mp = file.measurementPlugIns;
   if (mp == null || !mp.isNotEmpty) return;
-  b.writeln();
-  b.writeln('Measurement plug-ins:');
-  if (mp.pinMapPath != null) b.writeln('  pin map: ${mp.pinMapPath}');
+  out.writeln();
+  out.writeln('Measurement plug-ins:');
+  if (mp.pinMapPath != null) out.writeln('  pin map: ${mp.pinMapPath}');
   void list(String label, List<String> paths) {
-    if (paths.isNotEmpty) b.writeln('  $label: ${paths.join(', ')}');
+    if (paths.isNotEmpty) out.writeln('  $label: ${paths.join(', ')}');
   }
 
   list('specifications', mp.specificationFiles);
@@ -203,99 +205,99 @@ void _dumpPlugins(StringBuffer b, SeqFile f) {
 /// Lists the `<typelist>` type definitions and their declared fields. This is
 /// recovered structure (type name, base class, field names + type tokens) — not
 /// an interpretation of NI's internal type-system semantics.
-void _dumpTypes(StringBuffer b, SeqFile f) {
-  final defs = f.typeDefs;
+void _dumpTypes(StringBuffer out, SeqFile file) {
+  final defs = file.typeDefs;
   if (defs.isEmpty) return;
-  b.writeln();
-  b.writeln('Types (${defs.length}):');
-  for (final t in defs) {
-    final base = t.baseClass != null ? ' : ${t.baseClass}' : '';
-    b.writeln('  ${t.name}$base');
-    for (final field in t.fields) {
+  out.writeln();
+  out.writeln('Types (${defs.length}):');
+  for (final typeDef in defs) {
+    final base = typeDef.baseClass != null ? ' : ${typeDef.baseClass}' : '';
+    out.writeln('  ${typeDef.name}$base');
+    for (final field in typeDef.fields) {
       final ty = field.type != null ? ' [${field.type}]' : '';
-      b.writeln('      .${field.name}$ty');
+      out.writeln('      .${field.name}$ty');
     }
   }
 }
 
-void _dumpVars(StringBuffer b, String label, List<SeqVariable> vars) {
+void _dumpVars(StringBuffer out, String label, List<SeqVariable> vars) {
   if (vars.isEmpty) return;
-  b.writeln('  $label:');
-  for (final v in vars) {
-    b.writeln('    • ${v.name} : ${v.type ?? '(untyped)'}${_varSuffix(v)}');
+  out.writeln('  $label:');
+  for (final variable in vars) {
+    out.writeln('    • ${variable.name} : ${variable.type ?? '(untyped)'}${_varSuffix(variable)}');
   }
 }
 
 /// The trailing detail for a variable: ` = value` for a scalar, else a container
 /// size (` [N]` array / ` {N fields}` object), plus ` // comment` when present.
 String _varSuffix(SeqVariable v) {
-  final b = StringBuffer();
+  final out = StringBuffer();
   if (v.value != null) {
-    b.write(' = ${v.value}');
+    out.write(' = ${v.value}');
   } else if (v.containerCount != null) {
-    b.write(v.isArray
+    out.write(v.isArray
         ? ' [${v.containerCount}]'
         : ' {${v.containerCount} ${v.containerCount == 1 ? 'field' : 'fields'}}');
   }
-  if (v.comment != null) b.write('  // ${v.comment}');
-  return b.toString();
+  if (v.comment != null) out.write('  // ${v.comment}');
+  return out.toString();
 }
 
 /// Renders one module call argument as `name[ dir][←expr]` — e.g.
 /// `LoginName in←FileGlobals.UserToAutoLogin`, `Return Value out`.
 String _dumpCallParam(CallParameter p) {
-  final b = StringBuffer(p.name);
-  if (p.direction != null) b.write(' ${p.direction}');
-  if (p.boundExpression != null) b.write('←${p.boundExpression}');
-  return b.toString();
+  final out = StringBuffer(p.name);
+  if (p.direction != null) out.write(' ${p.direction}');
+  if (p.boundExpression != null) out.write('←${p.boundExpression}');
+  return out.toString();
 }
 
 /// Renders one LabVIEW VI-call connector parameter as
 /// `[#conn ]label[ (DisplayType)][←expr]` — e.g.
 /// `#11 sequence context (Object Reference)←ThisContext`.
 String _dumpViParam(CallParameter p) {
-  final b = StringBuffer();
-  if (p.connectorNumber != null) b.write('#${p.connectorNumber} ');
-  b.write(p.name);
-  if (p.displayType != null) b.write(' (${p.displayType})');
-  if (p.boundExpression != null) b.write('←${p.boundExpression}');
-  return b.toString();
+  final out = StringBuffer();
+  if (p.connectorNumber != null) out.write('#${p.connectorNumber} ');
+  out.write(p.name);
+  if (p.displayType != null) out.write(' (${p.displayType})');
+  if (p.boundExpression != null) out.write('←${p.boundExpression}');
+  return out.toString();
 }
 
 String _dumpStep(Step step, SeqFile file) {
   final parts = StringBuffer('${step.name} [${step.type ?? '?'}]');
 
-  final m = step.module;
-  if (m.adapter != SeqAdapter.none) {
-    final target = switch (m.adapter) {
-      SeqAdapter.python => m.target ?? '(target not yet recovered)',
-      _ => m.target ?? '(none)',
+  final module = step.module;
+  if (module.adapter != SeqAdapter.none) {
+    final target = switch (module.adapter) {
+      SeqAdapter.python => module.target ?? '(target not yet recovered)',
+      _ => module.target ?? '(none)',
     };
-    parts.write(' -> ${m.adapter.name}: $target');
-    if (m.adapter == SeqAdapter.sequenceCall) {
+    parts.write(' -> ${module.adapter.name}: $target');
+    if (module.adapter == SeqAdapter.sequenceCall) {
       parts.write(file.resolveCall(step) != null
           ? ' (in this file)'
-          : ' (external${m.sequenceFile != null ? ': ${m.sequenceFile}' : ''})');
+          : ' (external${module.sequenceFile != null ? ': ${module.sequenceFile}' : ''})');
     }
-    final args = m.callParameters;
+    final args = module.callParameters;
     if (args.isNotEmpty) {
       parts.write('  {args: ${args.map(_dumpCallParam).join('; ')}}');
     }
-    if (m.adapter == SeqAdapter.labView) {
+    if (module.adapter == SeqAdapter.labView) {
       final lv = <String>[];
-      if (m.viNamespace != null) lv.add('lib ${m.viNamespace}');
-      if (m.viProjectPath != null) lv.add('proj ${m.viProjectPath}');
+      if (module.viNamespace != null) lv.add('lib ${module.viNamespace}');
+      if (module.viProjectPath != null) lv.add('proj ${module.viProjectPath}');
       if (lv.isNotEmpty) parts.write('  {vi: ${lv.join(', ')}}');
-      final vps = m.viParameters;
+      final vps = module.viParameters;
       if (vps.isNotEmpty) {
         parts.write('  {conn: ${vps.map(_dumpViParam).join('; ')}}');
       }
     }
-    if (m.adapter == SeqAdapter.python) {
+    if (module.adapter == SeqAdapter.python) {
       final py = <String>[];
-      if (m.pythonModulePath != null) py.add('mod ${m.pythonModulePath}');
-      if (m.pythonClassName != null) py.add('class ${m.pythonClassName}');
-      if (m.pythonVersion != null) py.add('py ${m.pythonVersion}');
+      if (module.pythonModulePath != null) py.add('mod ${module.pythonModulePath}');
+      if (module.pythonClassName != null) py.add('class ${module.pythonClassName}');
+      if (module.pythonVersion != null) py.add('py ${module.pythonVersion}');
       if (py.isNotEmpty) parts.write('  {python: ${py.join(', ')}}');
     }
   }
@@ -311,60 +313,60 @@ String _dumpStep(Step step, SeqFile file) {
     parts.write('  {data-source ${step.dataSource}}');
   }
 
-  final s = step.settings;
-  if (s.icon != null) parts.write('  {icon ${s.icon}}');
+  final settings = step.settings;
+  if (settings.icon != null) parts.write('  {icon ${settings.icon}}');
   final notes = <String>[];
-  if (!s.isNormalMode) notes.add('mode ${s.mode}');
-  if (s.flowSummary != null) notes.add('flow ${s.flowSummary}');
-  if (s.loadOption != null && s.loadOption != 'PreloadWhenExecuted') {
-    notes.add('load ${s.loadOption}');
+  if (!settings.isNormalMode) notes.add('mode ${settings.mode}');
+  if (settings.flowSummary != null) notes.add('flow ${settings.flowSummary}');
+  if (settings.loadOption != null && settings.loadOption != 'PreloadWhenExecuted') {
+    notes.add('load ${settings.loadOption}');
   }
-  if (s.unloadOption != null && s.unloadOption != 'UnloadWithFile') {
-    notes.add('unload ${s.unloadOption}');
+  if (settings.unloadOption != null && settings.unloadOption != 'UnloadWithFile') {
+    notes.add('unload ${settings.unloadOption}');
   }
-  String resolveTarget(String t) =>
-      t.startsWith('ID#:') ? (file.stepNameForId(t) ?? t) : t;
-  if (s.customExpression != null) notes.add('cust-cond ${s.customExpression}');
-  if (s.customTrueTarget != null) {
-    notes.add('cust-true→${resolveTarget(s.customTrueTarget!)}');
+  String resolveTarget(String target) =>
+      target.startsWith('ID#:') ? (file.stepNameForId(target) ?? target) : target;
+  if (settings.customExpression != null) notes.add('cust-cond ${settings.customExpression}');
+  if (settings.customTrueTarget != null) {
+    notes.add('cust-true→${resolveTarget(settings.customTrueTarget!)}');
   }
-  if (s.customFalseTarget != null) {
-    notes.add('cust-false→${resolveTarget(s.customFalseTarget!)}');
+  if (settings.customFalseTarget != null) {
+    notes.add('cust-false→${resolveTarget(settings.customFalseTarget!)}');
   }
-  if (s.isLooping) {
+  if (settings.isLooping) {
     final lp = <String>[];
-    if (s.loopWhile != null) lp.add('while ${s.loopWhile}');
-    if (s.loopInitialize != null) lp.add('init ${s.loopInitialize}');
-    if (s.loopIncrement != null) lp.add('incr ${s.loopIncrement}');
-    notes.add('loop ${s.loopType}${lp.isEmpty ? '' : ' [${lp.join('; ')}]'}');
+    if (settings.loopWhile != null) lp.add('while ${settings.loopWhile}');
+    if (settings.loopInitialize != null) lp.add('init ${settings.loopInitialize}');
+    if (settings.loopIncrement != null) lp.add('incr ${settings.loopIncrement}');
+    notes.add('loop ${settings.loopType}${lp.isEmpty ? '' : ' [${lp.join('; ')}]'}');
   }
-  if (s.precondition != null) notes.add('if ${s.precondition}');
-  if (s.ignoresRunTimeErrors == true) notes.add('ignore-RTE');
-  if (s.failureCausesSequenceFailure == false) notes.add('no-seq-fail');
-  if (s.recordsResult == false) notes.add('no-record');
-  if (s.usesMutex == true) {
-    notes.add('mutex${s.mutexName != null ? ' ${s.mutexName}' : ''}');
+  if (settings.precondition != null) notes.add('if ${settings.precondition}');
+  if (settings.ignoresRunTimeErrors == true) notes.add('ignore-RTE');
+  if (settings.failureCausesSequenceFailure == false) notes.add('no-seq-fail');
+  if (settings.recordsResult == false) notes.add('no-record');
+  if (settings.usesMutex == true) {
+    notes.add('mutex${settings.mutexName != null ? ' ${settings.mutexName}' : ''}');
   }
   if (notes.isNotEmpty) parts.write('  (${notes.join('; ')})');
 
   final mp = step.measurementParameters;
   if (mp.isNotEmpty) {
     String fmt(MeasurementParameter p) {
-      final b = StringBuffer(p.name);
-      if (p.direction != null) b.write(' ${p.direction!.toLowerCase()}');
-      if (p.dataType != null) b.write(' ${p.dataType}');
-      if (p.typeSpecialization != null) b.write(' (${p.typeSpecialization})');
-      if (p.isArray) b.write('[]');
-      if (p.value != null) b.write(' = ${p.value}');
+      final out = StringBuffer(p.name);
+      if (p.direction != null) out.write(' ${p.direction!.toLowerCase()}');
+      if (p.dataType != null) out.write(' ${p.dataType}');
+      if (p.typeSpecialization != null) out.write(' (${p.typeSpecialization})');
+      if (p.isArray) out.write('[]');
+      if (p.value != null) out.write(' = ${p.value}');
       final ev = p.enumValues;
       if (ev.isNotEmpty) {
         final shown =
             ev.take(_enumValueCap).map((e) => '${e.name}=${e.value ?? '?'}');
         final more = ev.length > _enumValueCap ? ', …(${ev.length})' : '';
-        b.write(' {${shown.join(', ')}$more}');
+        out.write(' {${shown.join(', ')}$more}');
       }
-      if (p.logged == false) b.write(' [not logged]');
-      return b.toString();
+      if (p.logged == false) out.write(' [not logged]');
+      return out.toString();
     }
 
     parts.write('  {params: ${mp.map(fmt).join('; ')}}');
@@ -379,15 +381,15 @@ String _dumpStep(Step step, SeqFile file) {
 
   final res = step.result;
   if (res != null && res.hasRecordedOutcome) {
-    final r = <String>[];
-    if (res.status != null) r.add('status ${res.status}');
+    final resultBits = <String>[];
+    if (res.status != null) resultBits.add('status ${res.status}');
     if (res.errorOccurred == true) {
       final code = res.errorCode;
       final msg = res.errorMessage;
-      r.add('error${code != null ? ' $code' : ''}${msg != null ? ' "$msg"' : ''}');
+      resultBits.add('error${code != null ? ' $code' : ''}${msg != null ? ' "$msg"' : ''}');
     }
-    if (res.reportText != null) r.add('report "${res.reportText}"');
-    if (r.isNotEmpty) parts.write('  {result: ${r.join('; ')}}');
+    if (res.reportText != null) resultBits.add('report "${res.reportText}"');
+    if (resultBits.isNotEmpty) parts.write('  {result: ${resultBits.join('; ')}}');
   }
 
   if (step.comment != null) parts.write('  // ${step.comment}');
@@ -408,55 +410,55 @@ String dumpBinaryRecon(Uint8List seqBytes) {
   if (detectSeqFormat(seqBytes) != SeqFormat.binary) {
     return '(not a binary TOF1 file)';
   }
-  final h = detectSeqHeader(seqBytes);
-  final b = StringBuffer();
-  b.writeln('${h.fileType ?? 'TestStand file'} '
-      '(${h.productName ?? '?'} v${h.fileVersion ?? '?'}, ${h.format.name})');
+  final header = detectSeqHeader(seqBytes);
+  final out = StringBuffer();
+  out.writeln('${header.fileType ?? 'TestStand file'} '
+      '(${header.productName ?? '?'} v${header.fileVersion ?? '?'}, ${header.format.name})');
 
-  final a = analyzeBinary(seqBytes);
-  if (a == null) {
-    b.writeln('(binary body did not inflate/frame — recon unavailable)');
-    return b.toString();
+  final analysis = analyzeBinary(seqBytes);
+  if (analysis == null) {
+    out.writeln('(binary body did not inflate/frame — recon unavailable)');
+    return out.toString();
   }
-  b.writeln('inflated body ${a.inflatedSize} bytes · ${a.strings.length} '
-      'strings · ${a.nameTable.length} name-table entries');
+  out.writeln('inflated body ${analysis.inflatedSize} bytes · ${analysis.strings.length} '
+      'strings · ${analysis.nameTable.length} name-table entries');
 
-  b.writeln();
-  b.writeln('=== Layout ===');
-  if (a.layout case final l?) {
-    b.writeln('  record region: ${l.recordRegionLength} bytes');
-    b.writeln('  string region @ ${l.stringRegionOffset}');
-    b.writeln('  record sentinels: ${l.sentinelCount}');
-    b.writeln('  strings in region: ${l.stringCount} · tables: '
+  out.writeln();
+  out.writeln('=== Layout ===');
+  if (analysis.layout case final l?) {
+    out.writeln('  record region: ${l.recordRegionLength} bytes');
+    out.writeln('  string region @ ${l.stringRegionOffset}');
+    out.writeln('  record sentinels: ${l.sentinelCount}');
+    out.writeln('  strings in region: ${l.stringCount} · tables: '
         '${l.segmentCount}');
     if (l.leadingWords.isNotEmpty) {
-      b.writeln('  leading record words: ${l.leadingWords.join(', ')}');
+      out.writeln('  leading record words: ${l.leadingWords.join(', ')}');
     }
   } else {
-    b.writeln('  (body did not frame into record/string regions)');
+    out.writeln('  (body did not frame into record/string regions)');
   }
 
-  _reconSection(b, 'Named-record headers', [
-    for (final r in a.namedRecords)
-      '${r.name} ×${r.count}  (raw tag ${r.rawTag}, not modeled)',
+  _reconSection(out, 'Named-record headers', [
+    for (final record in analysis.namedRecords)
+      '${record.name} ×${record.count}  (raw tag ${record.rawTag}, not modeled)',
   ]);
-  _reconSection(b, 'Object names', a.objectNames);
-  _reconSection(b, 'Module call-targets', a.modulePaths);
-  _reconSection(b, 'Step references', a.stepReferences);
-  _reconSection(b, 'Expressions (test logic)', a.expressions);
-  _reconSection(b, 'Quoted literals (values)', a.quotedLiterals);
-  _reconSection(b, 'Inline numeric values',
-      [for (final v in a.scalarDoubles) '$v']);
-  _reconSection(b, 'Named scalar values', [
-    for (final s in a.namedScalars)
-      '${s.name} = ${s.value}  (raw type ${s.rawTypeCode}, not modeled)',
+  _reconSection(out, 'Object names', analysis.objectNames);
+  _reconSection(out, 'Module call-targets', analysis.modulePaths);
+  _reconSection(out, 'Step references', analysis.stepReferences);
+  _reconSection(out, 'Expressions (test logic)', analysis.expressions);
+  _reconSection(out, 'Quoted literals (values)', analysis.quotedLiterals);
+  _reconSection(out, 'Inline numeric values',
+      [for (final value in analysis.scalarDoubles) '$value']);
+  _reconSection(out, 'Named scalar values', [
+    for (final scalar in analysis.namedScalars)
+      '${scalar.name} = ${scalar.value}  (raw type ${scalar.rawTypeCode}, not modeled)',
   ]);
 
-  b.writeln();
-  b.writeln('(record links not yet decoded: the above are recovered values; the '
+  out.writeln();
+  out.writeln('(record links not yet decoded: the above are recovered values; the '
       'variable-length record grammar tying each to its step tree is not yet '
       'recovered)');
-  return b.toString();
+  return out.toString();
 }
 
 /// Emits a `=== title (n) ===` block listing [items] (capped at [cap], with an

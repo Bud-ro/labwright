@@ -16,5 +16,7 @@ export 'src/csv_import.dart';
 export 'src/diff.dart';
 export 'src/inspect.dart';
 export 'src/merge.dart';
+export 'src/model.dart';
+export 'src/reader.dart';
 export 'src/summary.dart';
-export 'src/tdms.dart';
+export 'src/writer.dart';

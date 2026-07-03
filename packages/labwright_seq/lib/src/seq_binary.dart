@@ -19,8 +19,8 @@ enum ZlibFlag {
   const ZlibFlag(this.byte);
   final int byte;
 
-  static bool isKnown(int b) =>
-      b == none.byte || b == byDefault.byte || b == best.byte;
+  static bool isKnown(int flagByte) =>
+      flagByte == none.byte || flagByte == byDefault.byte || flagByte == best.byte;
 }
 
 /// Minimum inflated size to accept a candidate zlib stream as the body — guards
@@ -296,7 +296,7 @@ BinaryStringSegment? binaryNameTable(Uint8List seqBytes) {
 List<String> binaryObjectNames(Uint8List seqBytes) {
   final table = binaryNameTable(seqBytes);
   if (table == null) return const [];
-  return _objectNamesFrom([for (final e in table.entries) e.text]);
+  return _objectNamesFrom([for (final entry in table.entries) entry.text]);
 }
 
 /// Drops the leading [binaryNameScaffold] prefix from an ordered name list.
@@ -319,8 +319,8 @@ final _modulePathRe = RegExp(r'\.(vi|dll|seq|llb)$', caseSensitive: false);
 /// ending in a known adapter target extension (`.vi`/`.dll`/`.seq`/`.llb`), e.g.
 /// `My Computer\ExcelReadWrite\Excel_Read.vi` or `SubSequences\AC_Gerilim.seq`.
 /// A bare suffix (`.vi`) or a separator-less token is rejected.
-bool isBinaryModulePath(String s) =>
-    s.contains('\\') && _modulePathRe.hasMatch(s);
+bool isBinaryModulePath(String text) =>
+    text.contains('\\') && _modulePathRe.hasMatch(text);
 
 /// The **module call-target paths** a binary TOF1 file references — the LabVIEW
 /// VIs / DLLs / sub-sequences / libraries its steps invoke (see
@@ -350,8 +350,8 @@ List<String> _poolWhereFrom(
   final seen = <String>{};
   final out = <String>[];
   for (final seg in segments) {
-    for (final e in seg.entries) {
-      if (keep(e.text) && seen.add(e.text)) out.add(e.text);
+    for (final entry in seg.entries) {
+      if (keep(entry.text) && seen.add(entry.text)) out.add(entry.text);
     }
   }
   return out;
@@ -367,7 +367,7 @@ List<String> _poolWhereFrom(
 List<String> binaryStepReferences(Uint8List seqBytes) =>
     _poolWhere(seqBytes, _isStepRef);
 
-bool _isStepRef(String s) => s.startsWith('ID#:');
+bool _isStepRef(String text) => text.startsWith('ID#:');
 
 /// Member access on a TestStand expression **root** (`Locals.x`, `Step.Result…`,
 /// `RunState.LoopIndex`, `StationGlobals.…`, …) — the surest expression marker.
@@ -386,11 +386,11 @@ final _exprFnRe = RegExp(
 /// `Step` member access, ternaries, and known expression-function calls. Module
 /// paths ([isBinaryModulePath]) and `ID#:` step references are excluded so this
 /// stays disjoint from those recoveries.
-bool isBinaryExpression(String s) {
-  if (s.startsWith('ID#:') || isBinaryModulePath(s)) return false;
-  return _exprRootRe.hasMatch(s) ||
-      _exprOpRe.hasMatch(s) ||
-      _exprFnRe.hasMatch(s);
+bool isBinaryExpression(String text) {
+  if (text.startsWith('ID#:') || isBinaryModulePath(text)) return false;
+  return _exprRootRe.hasMatch(text) ||
+      _exprOpRe.hasMatch(text) ||
+      _exprFnRe.hasMatch(text);
 }
 
 /// The **expression strings** a binary TOF1 file carries — its test logic
@@ -411,11 +411,11 @@ List<String> binaryExpressions(Uint8List seqBytes) =>
 /// constant value rather than an [isBinaryExpression] (a quoted entry that also
 /// contains operators — `"a" == "b"` — is an expression, not a literal, and is
 /// excluded here so the recoveries stay disjoint).
-bool isBinaryQuotedLiteral(String s) =>
-    s.length >= 2 &&
-    s.startsWith('"') &&
-    s.endsWith('"') &&
-    !isBinaryExpression(s);
+bool isBinaryQuotedLiteral(String text) =>
+    text.length >= 2 &&
+    text.startsWith('"') &&
+    text.endsWith('"') &&
+    !isBinaryExpression(text);
 
 /// The **quoted string literals** a binary TOF1 file carries — constant values
 /// its steps/expressions reference (instrument resource strings, expected values,
@@ -434,7 +434,7 @@ BinaryStringSegment? _nameTableFromSegments(
   BinaryStringSegment? best;
   var bestHits = 0;
   for (final seg in segments) {
-    final texts = {for (final e in seg.entries) e.text};
+    final texts = {for (final entry in seg.entries) entry.text};
     final hits = _modelNameTokens.where(texts.contains).length;
     if (hits > bestHits) {
       bestHits = hits;
@@ -466,20 +466,20 @@ List<int> binaryRecordWords(Uint8List seqBytes) =>
 /// would try to infer the type parameter `T`, which is a compile error.)
 List<T> _withLayout<T>(
   Uint8List seqBytes,
-  List<T> Function(Uint8List body, int rr) f,
+  List<T> Function(Uint8List body, int recordRegionLength) extract,
 ) {
   final body = inflateBinaryBody(seqBytes);
   if (body == null) return const <Never>[];
   final layout = _layoutFromBody(body);
   if (layout == null) return const <Never>[];
-  return f(body, layout.recordRegionLength);
+  return extract(body, layout.recordRegionLength);
 }
 
-List<int> _recordWordsFromBody(Uint8List body, int rr) {
-  final bd = ByteData.sublistView(body);
+List<int> _recordWordsFromBody(Uint8List body, int recordRegionLength) {
+  final view = ByteData.sublistView(body);
   final out = <int>[];
-  for (var i = 0; i + _u32Bytes <= rr; i += _u32Bytes) {
-    out.add(bd.getUint32(i, Endian.little));
+  for (var i = 0; i + _u32Bytes <= recordRegionLength; i += _u32Bytes) {
+    out.add(view.getUint32(i, Endian.little));
   }
   return out;
 }
@@ -512,21 +512,21 @@ List<double> binaryScalarDoubles(Uint8List seqBytes) =>
 /// A **clean** recovered double: finite, non-zero, and `|v|` within
 /// [[_minScalarMagnitude], [_maxScalarMagnitude]] — the shared acceptance filter
 /// for [binaryScalarDoubles] and [binaryNamedScalarRecords].
-bool _isCleanScalar(double v) {
-  if (!v.isFinite || v == 0) return false;
-  final a = v.abs();
-  return a >= _minScalarMagnitude && a <= _maxScalarMagnitude;
+bool _isCleanScalar(double value) {
+  if (!value.isFinite || value == 0) return false;
+  final magnitude = value.abs();
+  return magnitude >= _minScalarMagnitude && magnitude <= _maxScalarMagnitude;
 }
 
-List<double> _scalarDoublesFromBody(Uint8List body, int rr) {
-  final bd = ByteData.sublistView(body);
+List<double> _scalarDoublesFromBody(Uint8List body, int recordRegionLength) {
+  final view = ByteData.sublistView(body);
   final seen = <double>{};
   final out = <double>[];
-  for (var i = 0; i + _f64Bytes <= rr; i += _u32Bytes) {
+  for (var i = 0; i + _f64Bytes <= recordRegionLength; i += _u32Bytes) {
     if ((body[i] | body[i + 1] | body[i + 2] | body[i + 3]) != 0) continue;
-    final v = bd.getFloat64(i, Endian.little);
-    if (!_isCleanScalar(v)) continue;
-    if (seen.add(v)) out.add(v);
+    final value = view.getFloat64(i, Endian.little);
+    if (!_isCleanScalar(value)) continue;
+    if (seen.add(value)) out.add(value);
   }
   return out;
 }
@@ -577,10 +577,10 @@ class BinaryNamedScalar {
 /// Maps each string-region-relative byte offset to the name that begins there —
 /// the inverse of a record's name-offset reference. Built from [binaryStrings]
 /// (runs in the string region, keyed by `offset - recordRegionLength`).
-Map<int, String> _stringRegionNamesByRel(Uint8List body, int rr) {
+Map<int, String> _stringRegionNamesByRel(Uint8List body, int recordRegionLength) {
   final out = <int, String>{};
-  for (final s in binaryStrings(body, minLength: _poolMinRunLength)) {
-    if (s.offset >= rr) out[s.offset - rr] = s.text;
+  for (final run in binaryStrings(body, minLength: _poolMinRunLength)) {
+    if (run.offset >= recordRegionLength) out[run.offset - recordRegionLength] = run.text;
   }
   return out;
 }
@@ -608,30 +608,30 @@ List<BinaryNamedScalar> binaryNamedScalarRecords(Uint8List seqBytes) =>
     _withLayout(seqBytes, _namedScalarsFromBody);
 
 /// [binaryNamedScalarRecords] core over an already-inflated [body] (no
-/// re-inflate), given the record-region length [rr] — for the single-inflate
+/// re-inflate), given the record-region length [recordRegionLength] — for the single-inflate
 /// [analyzeBinary] path. Word `w` is the record's name-offset word; `w-1` is the
 /// tag, `w+1` the type-code, and `w+2..w+3` the inline f64.
-List<BinaryNamedScalar> _namedScalarsFromBody(Uint8List body, int rr) {
-  final relToName = _stringRegionNamesByRel(body, rr);
+List<BinaryNamedScalar> _namedScalarsFromBody(Uint8List body, int recordRegionLength) {
+  final relToName = _stringRegionNamesByRel(body, recordRegionLength);
   if (relToName.isEmpty) return const [];
 
-  final bd = ByteData.sublistView(body);
+  final view = ByteData.sublistView(body);
   final out = <BinaryNamedScalar>[];
-  final wordCount = rr ~/ _u32Bytes;
-  for (var w = 1; w + 3 < wordCount; w++) {
-    final name = relToName[bd.getUint32(w * _u32Bytes, Endian.little)];
+  final wordCount = recordRegionLength ~/ _u32Bytes;
+  for (var wordIndex = 1; wordIndex + 3 < wordCount; wordIndex++) {
+    final name = relToName[view.getUint32(wordIndex * _u32Bytes, Endian.little)];
     if (name == null) continue;
-    final fp = (w + 2) * _u32Bytes;
-    if (fp + _f64Bytes > rr) continue;
-    if (bd.getUint32(fp, Endian.little) != 0) continue;
-    final v = bd.getFloat64(fp, Endian.little);
-    if (!_isCleanScalar(v)) continue;
+    final doubleOffset = (wordIndex + 2) * _u32Bytes;
+    if (doubleOffset + _f64Bytes > recordRegionLength) continue;
+    if (view.getUint32(doubleOffset, Endian.little) != 0) continue;
+    final value = view.getFloat64(doubleOffset, Endian.little);
+    if (!_isCleanScalar(value)) continue;
     out.add(BinaryNamedScalar(
       name: name,
-      rawTag: bd.getUint32((w - 1) * _u32Bytes, Endian.little),
-      rawTypeCode: bd.getUint32((w + 1) * _u32Bytes, Endian.little),
-      value: v,
-      wordIndex: w,
+      rawTag: view.getUint32((wordIndex - 1) * _u32Bytes, Endian.little),
+      rawTypeCode: view.getUint32((wordIndex + 1) * _u32Bytes, Endian.little),
+      value: value,
+      wordIndex: wordIndex,
     ));
   }
   return out;
@@ -687,39 +687,39 @@ class BinaryNamedRecord {
 /// **value** string. Value strings (quoted literals, expressions, module paths,
 /// `ID#:` step refs) are confirmed **not** offset-referenced, so a record word
 /// matching one's offset is coincidence — excluded from [binaryNamedRecords].
-bool _isNameLike(String s) =>
-    !isBinaryQuotedLiteral(s) &&
-    !isBinaryExpression(s) &&
-    !isBinaryModulePath(s) &&
-    !_isStepRef(s);
+bool _isNameLike(String text) =>
+    !isBinaryQuotedLiteral(text) &&
+    !isBinaryExpression(text) &&
+    !isBinaryModulePath(text) &&
+    !_isStepRef(text);
 
 List<BinaryNamedRecord> binaryNamedRecords(Uint8List seqBytes) =>
     _withLayout(seqBytes, _namedRecordsFromBody);
 
-List<BinaryNamedRecord> _namedRecordsFromBody(Uint8List body, int rr) {
-  final relToName = _stringRegionNamesByRel(body, rr);
+List<BinaryNamedRecord> _namedRecordsFromBody(Uint8List body, int recordRegionLength) {
+  final relToName = _stringRegionNamesByRel(body, recordRegionLength);
   if (relToName.isEmpty) return const [];
 
-  final bd = ByteData.sublistView(body);
+  final view = ByteData.sublistView(body);
   final counts = <String, int>{};
   final tags = <String, Set<int>>{};
-  final wordCount = rr ~/ _u32Bytes;
-  for (var w = 1; w + 1 < wordCount; w++) {
-    final off = bd.getUint32(w * _u32Bytes, Endian.little);
+  final wordCount = recordRegionLength ~/ _u32Bytes;
+  for (var wordIndex = 1; wordIndex + 1 < wordCount; wordIndex++) {
+    final off = view.getUint32(wordIndex * _u32Bytes, Endian.little);
     if (off == 0) continue;
     final name = relToName[off];
     if (name == null || name.isEmpty || !_isNameLike(name)) continue;
     counts.update(name, (v) => v + 1, ifAbsent: () => 1);
-    (tags[name] ??= <int>{}).add(bd.getUint32((w - 1) * _u32Bytes, Endian.little));
+    (tags[name] ??= <int>{}).add(view.getUint32((wordIndex - 1) * _u32Bytes, Endian.little));
   }
 
   final out = <BinaryNamedRecord>[];
-  for (final e in counts.entries) {
-    final tagSet = tags[e.key]!;
-    if (e.value < 2 || tagSet.length != 1) continue;
+  for (final entry in counts.entries) {
+    final tagSet = tags[entry.key]!;
+    if (entry.value < 2 || tagSet.length != 1) continue;
     out.add(BinaryNamedRecord(
-      name: e.key,
-      count: e.value,
+      name: entry.key,
+      count: entry.value,
       rawTag: tagSet.single,
     ));
   }
@@ -741,16 +741,16 @@ List<List<BinaryString>> _segmentsFrom(
 }) {
   final segs = <List<BinaryString>>[];
   var chain = <BinaryString>[];
-  for (final r in runs) {
-    if (r.offset < from) continue;
+  for (final run in runs) {
+    if (run.offset < from) continue;
     if (chain.isNotEmpty) {
       final prev = chain.last;
-      if (!_packedAfter(prev, r)) {
+      if (!_packedAfter(prev, run)) {
         if (chain.length >= minChain) segs.add(chain);
         chain = <BinaryString>[];
       }
     }
-    chain.add(r);
+    chain.add(run);
   }
   if (chain.length >= minChain) segs.add(chain);
   return segs;
@@ -758,9 +758,9 @@ List<List<BinaryString>> _segmentsFrom(
 
 List<int> _leadingWords(Uint8List body, int count) {
   final out = <int>[];
-  final bd = ByteData.sublistView(body);
+  final view = ByteData.sublistView(body);
   for (var i = 0; i + _u32Bytes <= body.length && out.length < count; i += _u32Bytes) {
-    out.add(bd.getUint32(i, Endian.little));
+    out.add(view.getUint32(i, Endian.little));
   }
   return out;
 }
@@ -793,16 +793,16 @@ int? _firstTableOffset(
 /// read past it.
 int _countSentinels(Uint8List bytes, int end) {
   final limit = end < bytes.length ? end : bytes.length;
-  var n = 0;
+  var count = 0;
   for (var i = 0; i + _u32Bytes - 1 < limit; i += _u32Bytes) {
     if (bytes[i] == _sentinelByte &&
         bytes[i + 1] == _sentinelByte &&
         bytes[i + 2] == _sentinelByte &&
         bytes[i + 3] == _sentinelByte) {
-      n++;
+      count++;
     }
   }
-  return n;
+  return count;
 }
 
 /// The largest contiguous **string table** in a binary TOF1 body: the longest
@@ -920,7 +920,7 @@ BinaryAnalysis? analyzeBinary(Uint8List seqBytes) {
     stringTable: _stringTableFromBody(body),
     layout: layout,
     nameTable: nameTable,
-    objectNames: _objectNamesFrom([for (final e in nameTable) e.text]),
+    objectNames: _objectNamesFrom([for (final entry in nameTable) entry.text]),
     modulePaths: _poolWhereFrom(segments, isBinaryModulePath),
     stepReferences: _poolWhereFrom(segments, _isStepRef),
     expressions: _poolWhereFrom(segments, isBinaryExpression),

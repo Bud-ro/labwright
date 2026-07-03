@@ -99,7 +99,7 @@ Iterable<XmlElement> childElementsNamed(XmlElement e, String name) =>
 /// TestStand XML shape).
 SeqProperty buildProperty(XmlElement e) {
   final attrs = <String, String>{
-    for (final a in e.attributes) a.name.qualified: a.value,
+    for (final attribute in e.attributes) attribute.name.qualified: attribute.value,
   };
   final tag = e.name.local;
   final name = attrs['name'] ?? (tag == '_NAME_IN_ATTRIBUTE_' ? '' : tag);
@@ -107,7 +107,7 @@ SeqProperty buildProperty(XmlElement e) {
   final subpropsEl = childElement(e, 'subprops');
   final subProps = [
     if (subpropsEl != null)
-      for (final c in subpropsEl.childElements) buildProperty(c),
+      for (final child in subpropsEl.childElements) buildProperty(child),
   ];
 
   String? scalar;

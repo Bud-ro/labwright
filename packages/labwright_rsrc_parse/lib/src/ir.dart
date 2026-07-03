@@ -109,30 +109,30 @@ class ViModel {
 
   List<String> _dedupe(Iterable<String?> values) {
     final seen = <String>{};
-    return [for (final s in values) if (s != null && seen.add(s)) s];
+    return [for (final value in values) if (value != null && seen.add(value)) value];
   }
 
   /// Single-string **captions** (control names/labels) decoded from `C4 22`
   /// records — distinct from [labels] (which come from `C4 2E` string *tables*).
   /// Deduped, order-preserving.
   List<String> get captions =>
-      _dedupe([for (final r in heapRecords) if (r.kind == HeapOpcode.caption) r.text]);
+      _dedupe([for (final record in heapRecords) if (record.kind == HeapOpcode.caption) record.text]);
 
   /// External **symbol / C-function names** the VI references (from `C4 C4`
   /// records in the type heap), e.g. `ps2000aRunStreaming` — the Call-Library
   /// functions this VI invokes. Deduped, order-preserving.
   List<String> get symbolNames =>
-      _dedupe([for (final r in heapRecords) if (r.kind == HeapOpcode.symbolName) r.text]);
+      _dedupe([for (final record in heapRecords) if (record.kind == HeapOpcode.symbolName) record.text]);
 
   /// External **library/DLL paths** the VI references (from `C4 A4` `PTH0`
   /// records), e.g. `ps5000.dll`. Deduped, order-preserving.
-  List<String> get paths => _dedupe([for (final r in heapRecords) r.path]);
+  List<String> get paths => _dedupe([for (final record in heapRecords) record.path]);
 
   /// The VI's **description / help text** blocks, extracted from `C4 19` records
   /// (control tooltips, often HTML-ish). Heuristic text recovery; deduped,
   /// order-preserving.
   List<String> get descriptions =>
-      _dedupe([for (final r in heapRecords) r.descriptionText]);
+      _dedupe([for (final record in heapRecords) record.descriptionText]);
 
   /// All distinct, deduped label strings across [stringTables], order-preserving.
   /// Convenience for "what does this VI contain".
@@ -176,8 +176,8 @@ class ViObject {
 List<ViObject> assembleObjects(List<HeapRecord> records, List<HeapStringTable> stringTables,
     {int maxRecordGap = 3}) {
   final framed = {
-    for (final t in stringTables)
-      if (t.framed) '${t.sectionTag}@${t.offset}': t,
+    for (final table in stringTables)
+      if (table.framed) '${table.sectionTag}@${table.offset}': table,
   };
 
   final out = <ViObject>[];
@@ -190,32 +190,32 @@ List<ViObject> assembleObjects(List<HeapRecord> records, List<HeapStringTable> s
     lastBounds = null;
   }
 
-  for (final r in records) {
-    if (r.sectionTag != section) {
-      section = r.sectionTag;
+  for (final record in records) {
+    if (record.sectionTag != section) {
+      section = record.sectionTag;
       lastBounds = null;
       lastBoundsIdx = -1;
     }
     final inRange = lastBounds != null && idx - lastBoundsIdx <= maxRecordGap;
-    if (r.kind == HeapOpcode.bounds && r.bounds != null) {
-      lastBounds = r;
+    if (record.kind == HeapOpcode.bounds && record.bounds != null) {
+      lastBounds = record;
       lastBoundsIdx = idx;
-    } else if (r.kind == HeapOpcode.caption && inRange) {
-      final cap = r.text;
+    } else if (record.kind == HeapOpcode.caption && inRange) {
+      final cap = record.text;
       if (cap != null) {
         attach(ViObject(
-          sectionTag: r.sectionTag,
+          sectionTag: record.sectionTag,
           bounds: lastBounds!.bounds!,
           caption: cap,
         ));
       }
-    } else if (r.kind == HeapOpcode.stringTable && inRange) {
-      final t = framed['${r.sectionTag}@${r.offset + r.headerLength}'];
-      if (t != null) {
+    } else if (record.kind == HeapOpcode.stringTable && inRange) {
+      final table = framed['${record.sectionTag}@${record.offset + record.headerLength}'];
+      if (table != null) {
         attach(ViObject(
-          sectionTag: r.sectionTag,
+          sectionTag: record.sectionTag,
           bounds: lastBounds!.bounds!,
-          labels: t.strings,
+          labels: table.strings,
         ));
       }
     }
@@ -238,8 +238,8 @@ ViModel buildViModelFromDecoded(Iterable<DecodedSection> decoded, {List<String> 
   final sections = list.map((d) => d.section).toList();
   final ver = versionFromSections(sections);
   List<ViDiagram> diagramsFor(Set<String> tags) => [
-        for (final d in list)
-          if (tags.contains(d.tag) && d.bytes.length >= 6) buildDiagram(d.bytes, sectionTag: d.tag),
+        for (final decodedSection in list)
+          if (tags.contains(decodedSection.tag) && decodedSection.bytes.length >= 6) buildDiagram(decodedSection.bytes, sectionTag: decodedSection.tag),
       ];
   return ViModel(
     subViNames: subViNames,

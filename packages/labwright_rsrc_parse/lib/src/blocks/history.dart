@@ -49,6 +49,6 @@ ViHistory? decodeHistory(Uint8List bytes) {
   final data = ByteData.sublistView(bytes);
   return ViHistory(
     rawLength: bytes.length,
-    words: [for (var w = 0; w < _histWords; w++) data.getUint32(w * _wordBytes)],
+    words: [for (var wordIndex = 0; wordIndex < _histWords; wordIndex++) data.getUint32(wordIndex * _wordBytes)],
   );
 }

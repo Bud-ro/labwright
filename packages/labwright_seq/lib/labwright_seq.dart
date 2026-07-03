@@ -17,4 +17,7 @@ export 'src/seq_dump.dart';
 export 'src/seq_file.dart';
 export 'src/seq_format.dart';
 export 'src/seq_ini.dart';
+export 'src/seq_module.dart';
 export 'src/seq_property.dart';
+export 'src/seq_step.dart';
+export 'src/seq_typedefs.dart';

@@ -119,13 +119,13 @@ SeqFormat detectSeqFormat(Uint8List bytes) {
     i++;
   }
   if (i < bytes.length) {
-    final b = bytes[i];
-    if (b == Ascii.lessThan.code) {
+    final byte = bytes[i];
+    if (byte == Ascii.lessThan.code) {
       final head = _asciiPeek(bytes, i, _formatSniffLen).toLowerCase();
       if (head.startsWith('<?xml') || head.contains('<teststandfileheader')) {
         return SeqFormat.xml;
       }
-    } else if (b == Ascii.leftBracket.code) {
+    } else if (byte == Ascii.leftBracket.code) {
       final head = _asciiPeek(bytes, i, _formatSniffLen);
       if (head.toLowerCase().contains('teststand')) {
         return SeqFormat.ini;
@@ -175,7 +175,7 @@ SeqFileHeader detectSeqHeader(Uint8List bytes) {
   switch (fmt) {
     case SeqFormat.xml:
       final head = _asciiPeek(bytes, 0, _headerScanLen);
-      String? attr(String k) => _attr[k]!.firstMatch(head)?.group(1);
+      String? attr(String name) => _attr[name]!.firstMatch(head)?.group(1);
       return SeqFileHeader(
         format: fmt,
         fileType: attr('type'),
@@ -195,28 +195,28 @@ SeqFileHeader detectSeqHeader(Uint8List bytes) {
   }
 }
 
-bool _startsWith(Uint8List b, List<int> sig) {
-  if (b.length < sig.length) return false;
+bool _startsWith(Uint8List bytes, List<int> sig) {
+  if (bytes.length < sig.length) return false;
   for (var i = 0; i < sig.length; i++) {
-    if (b[i] != sig[i]) return false;
+    if (bytes[i] != sig[i]) return false;
   }
   return true;
 }
 
-bool _isAsciiWs(int c) =>
-    c == Ascii.space.code ||
-    c == Ascii.tab.code ||
-    c == Ascii.lineFeed.code ||
-    c == Ascii.carriageReturn.code;
+bool _isAsciiWs(int byte) =>
+    byte == Ascii.space.code ||
+    byte == Ascii.tab.code ||
+    byte == Ascii.lineFeed.code ||
+    byte == Ascii.carriageReturn.code;
 
 /// Decodes up to [len] bytes from [start] as ASCII for header sniffing (bytes
 /// ≥ 0x80 become '.'), stopping at the buffer end.
-String _asciiPeek(Uint8List b, int start, int len) {
-  final end = (start + len) < b.length ? (start + len) : b.length;
+String _asciiPeek(Uint8List bytes, int start, int len) {
+  final end = (start + len) < bytes.length ? (start + len) : bytes.length;
   final sb = StringBuffer();
   for (var i = start; i < end; i++) {
-    final c = b[i];
-    sb.writeCharCode(c < Ascii.nonAscii.code ? c : Ascii.dot.code);
+    final byte = bytes[i];
+    sb.writeCharCode(byte < Ascii.nonAscii.code ? byte : Ascii.dot.code);
   }
   return sb.toString();
 }
@@ -230,9 +230,9 @@ typedef BinaryString = ({int offset, String text});
 /// so non-ASCII letters (e.g. `ü`, `ı`, `ö`) are real text — including them keeps
 /// runs like `…\4_Aktif_Güç.vi` intact instead of fragmenting them at the accent.
 /// The `0x7f..0x9f` gap (C1 controls / undefined in Latin-1) stays a separator.
-bool isBinaryPrintable(int c) =>
-    (c >= Ascii.space.code && c <= Ascii.tilde.code) ||
-    (c >= Ascii.latin1Start.code && c <= Ascii.latin1End.code);
+bool isBinaryPrintable(int byte) =>
+    (byte >= Ascii.space.code && byte <= Ascii.tilde.code) ||
+    (byte >= Ascii.latin1Start.code && byte <= Ascii.latin1End.code);
 
 /// Extracts the printable runs (length ≥ [minLength]) from binary [bytes] — see
 /// [isBinaryPrintable] for the byte set (ASCII + Latin-1 high range).
@@ -251,10 +251,10 @@ List<BinaryString> binaryStrings(Uint8List bytes, {int minLength = 4}) {
   }
 
   for (var i = 0; i < bytes.length; i++) {
-    final c = bytes[i];
-    if (isBinaryPrintable(c)) {
+    final byte = bytes[i];
+    if (isBinaryPrintable(byte)) {
       if (sb.isEmpty) start = i;
-      sb.writeCharCode(c);
+      sb.writeCharCode(byte);
     } else {
       flush();
     }
@@ -264,13 +264,13 @@ List<BinaryString> binaryStrings(Uint8List bytes, {int minLength = 4}) {
 }
 
 /// Reads a NUL-terminated printable-ASCII string at [start]; null if none.
-String? _cString(Uint8List b, int start) {
+String? _cString(Uint8List bytes, int start) {
   final sb = StringBuffer();
-  for (var i = start; i < b.length && b[i] != 0; i++) {
-    if (b[i] < Ascii.space.code || b[i] > Ascii.tilde.code) {
+  for (var i = start; i < bytes.length && bytes[i] != 0; i++) {
+    if (bytes[i] < Ascii.space.code || bytes[i] > Ascii.tilde.code) {
       break;
     }
-    sb.writeCharCode(b[i]);
+    sb.writeCharCode(bytes[i]);
   }
   return sb.isEmpty ? null : sb.toString();
 }

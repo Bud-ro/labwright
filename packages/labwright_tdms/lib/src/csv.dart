@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'tdms.dart';
+import 'reader.dart';
 
 /// Converts the numeric channels of a TDMS file to CSV: one column per channel
 /// (header `group/channel`), one row per sample index, shorter channels padded
@@ -10,25 +10,30 @@ String tdmsToCsv(Uint8List bytes, {String delimiter = ',', bool header = true}) 
   final file = TdmsReader.read(bytes);
 
   final columns = <({String name, List<double> data})>[
-    for (final g in file.groups)
-      for (final c in g.channels)
-        if (c.data.isNotEmpty) (name: '${g.name}/${c.name}', data: c.data),
+    for (final group in file.groups)
+      for (final channel in group.channels)
+        if (channel.data.isNotEmpty)
+          (name: '${group.name}/${channel.name}', data: channel.data),
   ];
   if (columns.isEmpty) return '';
 
-  String quoteIfNeeded(String s) {
-    if (s.contains(delimiter) || s.contains('"') || s.contains('\n') || s.contains('\r')) {
-      return '"${s.replaceAll('"', '""')}"';
+  String quoteIfNeeded(String field) {
+    if (field.contains(delimiter) || field.contains('"') || field.contains('\n') || field.contains('\r')) {
+      return '"${field.replaceAll('"', '""')}"';
     }
-    return s;
+    return field;
   }
 
   final out = StringBuffer();
-  if (header) out.writeln([for (final c in columns) quoteIfNeeded(c.name)].join(delimiter));
+  if (header) {
+    out.writeln([for (final column in columns) quoteIfNeeded(column.name)].join(delimiter));
+  }
 
-  final rows = columns.map((c) => c.data.length).reduce((a, b) => a > b ? a : b);
-  for (var i = 0; i < rows; i++) {
-    out.writeln([for (final c in columns) i < c.data.length ? '${c.data[i]}' : ''].join(delimiter));
+  final rowCount = columns.map((column) => column.data.length).reduce((a, b) => a > b ? a : b);
+  for (var row = 0; row < rowCount; row++) {
+    out.writeln([
+      for (final column in columns) row < column.data.length ? '${column.data[row]}' : '',
+    ].join(delimiter));
   }
   return out.toString();
 }

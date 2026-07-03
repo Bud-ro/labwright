@@ -48,14 +48,14 @@ class ViTypeMap {
 
 /// Decodes a decompressed `TM80` body. Total: returns null only when the buffer
 /// is too short to hold the header.
-ViTypeMap? decodeTypeMap(Uint8List b) {
-  if (b.length < 4) return null;
-  int u16(int o) => (b[o] << 8) | b[o + 1];
+ViTypeMap? decodeTypeMap(Uint8List bytes) {
+  if (bytes.length < 4) return null;
+  int u16(int at) => (bytes[at] << 8) | bytes[at + 1];
   final count = u16(0);
   final field1 = u16(2);
-  final isShort = b.length == 4 + 2 * count;
+  final isShort = bytes.length == 4 + 2 * count;
   return ViTypeMap(
-    rawLength: b.length,
+    rawLength: bytes.length,
     isShortForm: isShort,
     count: isShort ? count : 0,
     field1: field1,

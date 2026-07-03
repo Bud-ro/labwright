@@ -78,8 +78,8 @@ class ViSaveRecord {
   /// Whether the block diagram is password-protected: the `@96` hash is present
   /// and differs from [emptyPasswordHash]. False when unset or the hash is absent.
   bool get isBlockDiagramPasswordProtected {
-    final h = blockDiagramPasswordHash;
-    return h != null && !_bytesEqual(h, emptyPasswordHash);
+    final hash = blockDiagramPasswordHash;
+    return hash != null && !_bytesEqual(hash, emptyPasswordHash);
   }
 
   /// Honest summary of what remains undecoded in the record.
@@ -91,25 +91,25 @@ class ViSaveRecord {
 
 /// Decodes an `LVSR` section body into a [ViSaveRecord]. Total: returns null only
 /// when the buffer is too short to hold the universal version word.
-ViSaveRecord? decodeSaveRecord(Uint8List b) {
-  if (b.length < 4) return null;
-  final versionWord = decodeVersionWord(b)!;
+ViSaveRecord? decodeSaveRecord(Uint8List bytes) {
+  if (bytes.length < 4) return null;
+  final versionWord = decodeVersionWord(bytes)!;
   return ViSaveRecord(
-    rawLength: b.length,
+    rawLength: bytes.length,
     versionMajor: versionWord.major,
     versionMinor: versionWord.minor,
     stage: versionWord.stage,
     build: versionWord.build,
-    blockDiagramPasswordHash: b.length >= 112 ? List.unmodifiable(b.sublist(96, 112)) : null,
-    secondaryHash: b.length >= 160 ? List.unmodifiable(b.sublist(144, 160)) : null,
+    blockDiagramPasswordHash: bytes.length >= 112 ? List.unmodifiable(bytes.sublist(96, 112)) : null,
+    secondaryHash: bytes.length >= 160 ? List.unmodifiable(bytes.sublist(144, 160)) : null,
   );
 }
 
 /// Finds the `LVSR` section among [sections] and decodes it. Null if absent.
 /// (`LVSR` is uncompressed, so raw [ViSection] bytes suffice.)
 ViSaveRecord? saveRecordFromSections(Iterable<ViSection> sections) {
-  for (final s in sections) {
-    if (s.tag == 'LVSR') return decodeSaveRecord(s.bytes);
+  for (final section in sections) {
+    if (section.tag == 'LVSR') return decodeSaveRecord(section.bytes);
   }
   return null;
 }

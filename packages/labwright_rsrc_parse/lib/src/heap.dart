@@ -164,7 +164,7 @@ enum HeapOpcode {
   };
 
   /// Maps a raw opcode byte to its [HeapOpcode], or [unknown] if not catalogued.
-  static HeapOpcode fromByte(int b) => _byByte[b] ?? unknown;
+  static HeapOpcode fromByte(int opByte) => _byByte[opByte] ?? unknown;
 }
 
 /// The shape of a heap record's payload — what kind of value it holds, used to
@@ -575,11 +575,11 @@ enum HeapAttribute {
   final AttrConfidence confidence;
 
   static final Map<int, HeapAttribute> _byId = {
-    for (final a in values)
-      if (a != unknown) a.id: a,
+    for (final attribute in values)
+      if (attribute != unknown) attribute.id: attribute,
   };
 
-  /// Maps a raw attribute id to its [HeapAttribute], or [unknown] if not
+  /// Maps attribute raw attribute id to its [HeapAttribute], or [unknown] if not
   /// catalogued. Note ids `0xF8`/`0x5A` are dual-use (see [HeapAttr.kind]).
   static HeapAttribute fromId(int id) => _byId[id] ?? unknown;
 }
@@ -684,7 +684,7 @@ const Set<int> _u32StringIds = {0x6c};
 const Set<int> _containerPayloadIds = {0xe7};
 
 /// Whether [c] is a printable ASCII byte (`0x20..0x7e`).
-bool _isPrintableAscii(int c) => c >= 0x20 && c < 0x7f;
+bool _isPrintableAscii(int byte) => byte >= 0x20 && byte < 0x7f;
 
 /// Decodes an attribute-style record at [offset] in a heap [body], or returns
 /// null if the byte there does not introduce a known attribute form. Handles the
@@ -699,8 +699,8 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
   if (op == 0xc6 && offset + 3 <= body.length && _inlineStringIds.contains(body[offset + 1]) && body[offset + 2] != 0xff) {
     final len = body[offset + 2];
     if (offset + 3 + len <= body.length) {
-      final s = String.fromCharCodes(body.sublist(offset + 3, offset + 3 + len).where(_isPrintableAscii));
-      return HeapAttr(attribute: HeapAttribute.fromId(id), id: id, width: HeapAttrWidth.blob, value: s, length: 3 + len);
+      final text = String.fromCharCodes(body.sublist(offset + 3, offset + 3 + len).where(_isPrintableAscii));
+      return HeapAttr(attribute: HeapAttribute.fromId(id), id: id, width: HeapAttrWidth.blob, value: text, length: 3 + len);
     }
   }
 
@@ -720,8 +720,8 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
       }
     }
     if (_f64PayloadIds.contains(id)) {
-      final v = ByteData.sublistView(body, offset + 3, offset + 11).getFloat64(0);
-      return HeapAttr(attribute: HeapAttribute.fromId(id), id: id, width: HeapAttrWidth.f64, value: v, length: 11);
+      final value = ByteData.sublistView(body, offset + 3, offset + 11).getFloat64(0);
+      return HeapAttr(attribute: HeapAttribute.fromId(id), id: id, width: HeapAttrWidth.f64, value: value, length: 11);
     }
     return null;
   }
@@ -747,11 +747,11 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
   if (op == 0xc6 && offset + 3 <= body.length && _u32StringIds.contains(body[offset + 1])) {
     final len = body[offset + 2];
     if (len != 0xff && len != 0x08 && len >= 5 && offset + 3 + len <= body.length) {
-      final p = offset + 3;
-      final strLen = ByteData.sublistView(body, p, p + 4).getUint32(0);
+      final payloadStart = offset + 3;
+      final strLen = ByteData.sublistView(body, payloadStart, payloadStart + 4).getUint32(0);
       final slack = len - (strLen + 4);
       if (strLen >= 1 && slack >= 0 && !(strLen <= 2 && slack >= 8)) {
-        final raw = body.sublist(p + 4, p + 4 + strLen);
+        final raw = body.sublist(payloadStart + 4, payloadStart + 4 + strLen);
         if (raw.every(_isPrintableAscii)) {
           return HeapAttr(attribute: HeapAttribute.fromId(id), id: id, width: HeapAttrWidth.blob, value: String.fromCharCodes(raw), length: 3 + len);
         }
@@ -878,7 +878,7 @@ class HeapRecord {
   /// decoded, so this recovers readable text, not exact fields. Total.
   String? get descriptionText {
     if (kind != HeapOpcode.description) return null;
-    bool isTextByte(int c) => (c >= 32 && c < 127) || c == 9 || c == 10 || c == 13;
+    bool isTextByte(int byte) => (byte >= 32 && byte < 127) || byte == 9 || byte == 10 || byte == 13;
 
     if (payload.isNotEmpty) {
       final printable = payload.where(isTextByte).length;
@@ -906,18 +906,18 @@ class HeapRecord {
   /// a valid `PTH0`. (A DLL / library reference.) Total/bounds-safe.
   String? get path {
     if (kind != HeapOpcode.path) return null;
-    final p = payload;
-    if (p.length < 12 || p[0] != 0x50 || p[1] != 0x54 || p[2] != 0x48 || p[3] != 0x30) {
+    final bytes = payload;
+    if (bytes.length < 12 || bytes[0] != 0x50 || bytes[1] != 0x54 || bytes[2] != 0x48 || bytes[3] != 0x30) {
       return null;
     }
-    final nComp = (p[10] << 8) | p[11];
+    final nComp = (bytes[10] << 8) | bytes[11];
     final parts = <String>[];
     var i = 12;
-    for (var c = 0; c < nComp && i < p.length; c++) {
-      final len = p[i];
-      if (i + 1 + len > p.length) break;
-      final part = p.sublist(i + 1, i + 1 + len);
-      if (part.any((c) => c < 32 || c >= 127)) break;
+    for (var componentIndex = 0; componentIndex < nComp && i < bytes.length; componentIndex++) {
+      final len = bytes[i];
+      if (i + 1 + len > bytes.length) break;
+      final part = bytes.sublist(i + 1, i + 1 + len);
+      if (part.any((byte) => byte < 32 || byte >= 127)) break;
       parts.add(String.fromCharCodes(part));
       i += 1 + len;
     }
@@ -934,15 +934,15 @@ class HeapRecord {
 /// Frames the `C4 <op> <u8 len> <payload>` records in [h] (a decompressed heap or
 /// a container payload), tagging each with [sectionTag]. Non-`C4` bytes are
 /// stepped over one at a time. Total/bounds-safe.
-List<HeapRecord> scanC4Records(Uint8List h, String sectionTag) {
+List<HeapRecord> scanC4Records(Uint8List heapBytes, String sectionTag) {
   final out = <HeapRecord>[];
-  final n = h.length;
+  final length = heapBytes.length;
   var i = 0;
-  while (i < n) {
-    final r = c4FrameAt(h, i, sectionTag);
-    if (r != null) {
-      out.add(r);
-      i += r.byteLength;
+  while (i < length) {
+    final frame = c4FrameAt(heapBytes, i, sectionTag);
+    if (frame != null) {
+      out.add(frame);
+      i += frame.byteLength;
       continue;
     }
     i++;
@@ -954,27 +954,27 @@ List<HeapRecord> scanC4Records(Uint8List h, String sectionTag) {
 /// handling both the normal `C4 <op> <u8 len>` header and the extended-length
 /// escape `C4 <op> FF <u16 len>` (payload > 255 bytes). Returns null otherwise.
 /// Total/bounds-safe.
-HeapRecord? c4FrameAt(Uint8List h, int i, String sectionTag) {
-  final n = h.length;
-  if (i + 3 > n || h[i] != kHeapRecordPrefix) return null;
-  final op = h[i + 1];
-  final lenByte = h[i + 2];
+HeapRecord? c4FrameAt(Uint8List heapBytes, int offset, String sectionTag) {
+  final length = heapBytes.length;
+  if (offset + 3 > length || heapBytes[offset] != kHeapRecordPrefix) return null;
+  final op = heapBytes[offset + 1];
+  final lenByte = heapBytes[offset + 2];
   int headerLen;
   int len;
   if (lenByte == 0xff) {
-    if (i + 5 > n) return null;
+    if (offset + 5 > length) return null;
     headerLen = 5;
-    len = (h[i + 3] << 8) | h[i + 4];
+    len = (heapBytes[offset + 3] << 8) | heapBytes[offset + 4];
   } else {
     headerLen = 3;
     len = lenByte;
   }
-  if (i + headerLen + len > n) return null;
+  if (offset + headerLen + len > length) return null;
   return HeapRecord(
     sectionTag: sectionTag,
-    offset: i,
+    offset: offset,
     opcode: op,
-    payload: Uint8List.sublistView(h, i + headerLen, i + headerLen + len),
+    payload: Uint8List.sublistView(heapBytes, offset + headerLen, offset + headerLen + len),
     headerLength: headerLen,
   );
 }
@@ -989,8 +989,8 @@ class HeapRect {
   /// Total/bounds-safe.
   static HeapRect? fromPayload(Uint8List payload) {
     if (payload.length != 8) return null;
-    final d = ByteData.sublistView(payload);
-    return HeapRect(top: d.getInt16(0), left: d.getInt16(2), bottom: d.getInt16(4), right: d.getInt16(6));
+    final view = ByteData.sublistView(payload);
+    return HeapRect(top: view.getInt16(0), left: view.getInt16(2), bottom: view.getInt16(4), right: view.getInt16(6));
   }
 
   final int top;
@@ -1027,7 +1027,7 @@ List<HeapRecord> heapC4Records(Uint8List viBytes) => heapC4RecordsFromDecoded(de
 
 /// [heapC4Records] over already-decoded sections.
 List<HeapRecord> heapC4RecordsFromDecoded(Iterable<DecodedSection> decoded) =>
-    [for (final d in decoded) ...scanC4Records(d.bytes, d.tag)];
+    [for (final decodedSection in decoded) ...scanC4Records(decodedSection.bytes, decodedSection.tag)];
 
 /// One record found by [walkHeapBody]: its byte span and lead opcode byte.
 class HeapSpan {
@@ -1225,7 +1225,7 @@ enum HeapPropertyToken {
   final AttrConfidence confidence;
 
   static final Map<int, HeapPropertyToken> _byKey = {
-    for (final t in values) (t.op << 8) | t.subop: t,
+    for (final token in values) (token.op << 8) | token.subop: token,
   };
 
   /// The catalogued token for an `(op, subop)` pair, or null if uncatalogued.
@@ -1351,8 +1351,8 @@ enum HeapRefKind {
   final AttrConfidence confidence;
 
   static final Map<int, HeapRefKind> _bySubop = {
-    for (final r in values)
-      if (r != objectRef) r.subop: r,
+    for (final refKind in values)
+      if (refKind != objectRef) refKind.subop: refKind,
   };
 
   /// The relationship for a `0x14` subop: a named kind, [literal] for `0x53`, or
@@ -1421,13 +1421,13 @@ HeapDecodeTier heapDecodeTier(Uint8List body, int offset, int lead, String secti
     if (rec.kind.isDecoded) return HeapDecodeTier.semantic;
     return rec.kind.shape == HeapShape.none ? HeapDecodeTier.framed : HeapDecodeTier.valueKindKnown;
   }
-  final a = decodeHeapAttr(body, offset);
-  if (a != null) {
-    if (a.width == HeapAttrWidth.container) return HeapDecodeTier.valueKindKnown;
-    if (a.attribute == HeapAttribute.unknown) return HeapDecodeTier.framed;
-    if (a.attribute.confidence == AttrConfidence.kindOnly) return HeapDecodeTier.valueKindKnown;
-    if (a.attribute.kind == HeapAttrKind.color &&
-        a.width != HeapAttrWidth.rgb && a.width != HeapAttrWidth.f64) {
+  final attr = decodeHeapAttr(body, offset);
+  if (attr != null) {
+    if (attr.width == HeapAttrWidth.container) return HeapDecodeTier.valueKindKnown;
+    if (attr.attribute == HeapAttribute.unknown) return HeapDecodeTier.framed;
+    if (attr.attribute.confidence == AttrConfidence.kindOnly) return HeapDecodeTier.valueKindKnown;
+    if (attr.attribute.kind == HeapAttrKind.color &&
+        attr.width != HeapAttrWidth.rgb && attr.width != HeapAttrWidth.f64) {
       return HeapDecodeTier.valueKindKnown;
     }
     return HeapDecodeTier.semantic;
@@ -1463,35 +1463,35 @@ HeapDecodeTier heapDecodeTier(Uint8List body, int offset, int lead, String secti
 /// - `25` — a fixed **3-byte** record (the `25 2d` form is NOT a counted list).
 /// - attribute nibble-family (opcode low nibble in {4,5,6}): the high nibble sets
 ///   the value width — `2x`→3, `4x`→4, `6x`→5, `8x`→6, `Ex`→2, `Cx`→`3 + u8len`.
-int? recordSkip(Uint8List h, int i) {
-  final n = h.length;
-  if (i >= n) return null;
-  final op = h[i];
+int? recordSkip(Uint8List heapBytes, int offset) {
+  final length = heapBytes.length;
+  if (offset >= length) return null;
+  final op = heapBytes[offset];
   switch (op) {
     case 0xc4:
-      if (i + 3 > n) return null;
-      final lenByte = h[i + 2];
+      if (offset + 3 > length) return null;
+      final lenByte = heapBytes[offset + 2];
       if (lenByte == 0xff) {
-        if (i + 5 > n) return null;
-        return 5 + ((h[i + 3] << 8) | h[i + 4]);
+        if (offset + 5 > length) return null;
+        return 5 + ((heapBytes[offset + 3] << 8) | heapBytes[offset + 4]);
       }
       return 3 + lenByte;
     case 0x14:
       // Defer to _typedList so an FD item with the value high-bit set is read as
       // the 7-byte escape (`fd 80 00 <u32>`), not a hardcoded 6 (which desynced
       // the walk); non-escape items still return 6.
-      return (i + 4 <= n && h[i + 2] == 1 && (h[i + 3] == 0xfd || h[i + 3] == 0xfe)) ? _typedList(h, i) : null;
+      return (offset + 4 <= length && heapBytes[offset + 2] == 1 && (heapBytes[offset + 3] == 0xfd || heapBytes[offset + 3] == 0xfe)) ? _typedList(heapBytes, offset) : null;
     case 0x08:
     case 0x09:
     case 0x04:
       return 2;
     case 0x64:
-      return (i + 3 <= n && h[i + 1] == 0xcb && h[i + 2] == 0x26) ? 3 : 5;
+      return (offset + 3 <= length && heapBytes[offset + 1] == 0xcb && heapBytes[offset + 2] == 0x26) ? 3 : 5;
     case 0x02:
-      return (i + 2 <= n && h[i + 1] == 0xfe) ? 7 : null;
+      return (offset + 2 <= length && heapBytes[offset + 1] == 0xfe) ? 7 : null;
     case 0xc6:
-      if (i + 3 <= n && h[i + 2] == 0xff) {
-        return (i + 5 <= n) ? 5 + ((h[i + 3] << 8) | h[i + 4]) : null;
+      if (offset + 3 <= length && heapBytes[offset + 2] == 0xff) {
+        return (offset + 5 <= length) ? 5 + ((heapBytes[offset + 3] << 8) | heapBytes[offset + 4]) : null;
       }
   }
   final lo = op & 0x0f;
@@ -1508,40 +1508,40 @@ int? recordSkip(Uint8List h, int i) {
       case 0xe:
         return 2;
       case 0xc:
-        return (i + 3 <= n) ? 3 + h[i + 2] : null;
+        return (offset + 3 <= length) ? 3 + heapBytes[offset + 2] : null;
     }
   }
   final hi = op >> 4;
   if (hi == 0 || hi == 1) {
-    return (i + 4 <= n && _isTypeTag(h[i + 3])) ? _typedList(h, i) : 2;
+    return (offset + 4 <= length && _isTypeTag(heapBytes[offset + 3])) ? _typedList(heapBytes, offset) : 2;
   }
   return null;
 }
 
-bool _isTypeTag(int t) => t == 0xfb || t == 0xfe || t == 0xfd;
+bool _isTypeTag(int tagByte) => tagByte == 0xfb || tagByte == 0xfe || tagByte == 0xfd;
 
-int? _typedList(Uint8List h, int i) {
-  final n = h.length;
-  if (i + 4 > n) return null;
-  final count = h[i + 2];
-  final tag = h[i + 3];
+int? _typedList(Uint8List heapBytes, int offset) {
+  final length = heapBytes.length;
+  if (offset + 4 > length) return null;
+  final count = heapBytes[offset + 2];
+  final tag = heapBytes[offset + 3];
   if (tag == 0xfb) {
     // `op subop count FB <count 2-byte items>` — only if the whole record fits.
-    final end = i + 4 + 2 * count;
-    return end <= n ? end - i : null;
+    final end = offset + 4 + 2 * count;
+    return end <= length ? end - offset : null;
   }
   if (tag == 0xfe || tag == 0xfd) {
     // `op subop count <count items>`: items are normally 3 bytes (`<tag><hi><lo>`),
     // but an `FD` item with its high value bit set is a 7-byte escape
     // (`fd 80 00 <u32 value>`).
-    var pos = i + 3;
-    for (var k = 0; k < count; k++) {
-      final isEscape = pos + 1 < n && h[pos] == 0xfd && (h[pos + 1] & 0x80) != 0;
+    var pos = offset + 3;
+    for (var itemIndex = 0; itemIndex < count; itemIndex++) {
+      final isEscape = pos + 1 < length && heapBytes[pos] == 0xfd && (heapBytes[pos + 1] & 0x80) != 0;
       final step = isEscape ? 7 : 3;
-      if (pos + step > n) return null;
+      if (pos + step > length) return null;
       pos += step;
     }
-    return pos - i;
+    return pos - offset;
   }
   return null;
 }
@@ -1552,14 +1552,14 @@ int? _typedList(Uint8List h, int i) {
 /// far it got. Total/bounds-safe — never throws.
 HeapWalk walkHeapBody(Uint8List body) {
   final spans = <HeapSpan>[];
-  final n = body.length;
-  if (n < 4) return HeapWalk(spans: spans, coveredBytes: 0, bodyBytes: 0);
-  final bodyBytes = n - 4;
+  final length = body.length;
+  if (length < 4) return HeapWalk(spans: spans, coveredBytes: 0, bodyBytes: 0);
+  final bodyBytes = length - 4;
   var i = 4;
   var covered = 0;
-  while (i < n) {
-    final s = recordSkip(body, i);
-    if (s == null || i + s > n) {
+  while (i < length) {
+    final step = recordSkip(body, i);
+    if (step == null || i + step > length) {
       return HeapWalk(
         spans: spans,
         coveredBytes: covered,
@@ -1568,9 +1568,9 @@ HeapWalk walkHeapBody(Uint8List body) {
         stoppedLead: body[i],
       );
     }
-    spans.add(HeapSpan(offset: i, length: s, lead: body[i]));
-    covered += s;
-    i += s;
+    spans.add(HeapSpan(offset: i, length: step, lead: body[i]));
+    covered += step;
+    i += step;
   }
   return HeapWalk(spans: spans, coveredBytes: covered, bodyBytes: bodyBytes);
 }
@@ -1580,8 +1580,8 @@ HeapWalk walkHeapBody(Uint8List body) {
 /// Total.
 Map<int, int> heapOpcodeHistogram(Uint8List viBytes) {
   final hist = <int, int>{};
-  for (final r in heapC4Records(viBytes)) {
-    hist[r.opcode] = (hist[r.opcode] ?? 0) + 1;
+  for (final record in heapC4Records(viBytes)) {
+    hist[record.opcode] = (hist[record.opcode] ?? 0) + 1;
   }
   return hist;
 }

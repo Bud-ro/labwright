@@ -55,14 +55,14 @@ ViHelpPath? decodeHelpPath(Uint8List body) {
   final pathType = bd.getUint16(8);
   final count = bd.getUint16(10);
   final components = <String>[];
-  var p = _pth0HeaderLen;
+  var pos = _pth0HeaderLen;
   for (var i = 0; i < count; i++) {
-    if (p >= body.length) break;
-    final len = body[p];
-    p++;
-    if (p + len > body.length) break;
-    components.add(String.fromCharCodes(body, p, p + len));
-    p += len;
+    if (pos >= body.length) break;
+    final len = body[pos];
+    pos++;
+    if (pos + len > body.length) break;
+    components.add(String.fromCharCodes(body, pos, pos + len));
+    pos += len;
   }
   return ViHelpPath(rawLength: body.length, isPth0: true, pathType: pathType, components: components);
 }

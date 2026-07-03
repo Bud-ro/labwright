@@ -53,22 +53,22 @@ class ViVersionWord {
 
 /// Decodes the version word from the first 4 bytes of [b] (vers/LVSR header).
 /// Null if fewer than 4 bytes.
-ViVersionWord? decodeVersionWord(Uint8List b) {
-  if (b.length < 4) return null;
+ViVersionWord? decodeVersionWord(Uint8List bytes) {
+  if (bytes.length < 4) return null;
   return ViVersionWord(
-    major: (b[0] >> 4) * 10 + (b[0] & 0x0f),
-    minor: b[1] >> 4,
-    patch: b[1] & 0x0f,
-    stage: b[2],
-    build: b[3],
+    major: (bytes[0] >> 4) * 10 + (bytes[0] & 0x0f),
+    minor: bytes[1] >> 4,
+    patch: bytes[1] & 0x0f,
+    stage: bytes[2],
+    build: bytes[3],
   );
 }
 
 /// Finds the `vers` section and decodes its binary version word. Null if absent.
 /// (`vers` is uncompressed, so raw [ViSection] bytes suffice.)
 ViVersionWord? versionWordFromSections(Iterable<ViSection> sections) {
-  for (final s in sections) {
-    if (s.tag == 'vers') return decodeVersionWord(s.bytes);
+  for (final section in sections) {
+    if (section.tag == 'vers') return decodeVersionWord(section.bytes);
   }
   return null;
 }

@@ -106,9 +106,9 @@ class ViSection {
 const List<int> _magic = [0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a];
 
 /// True when every byte in `b[start..end)` is printable ASCII (0x20–0x7e).
-bool _allPrintable(Uint8List b, int start, int end) {
+bool _allPrintable(Uint8List bytes, int start, int end) {
   for (var i = start; i < end; i++) {
-    if (b[i] < 0x20 || b[i] >= 0x7f) return false;
+    if (bytes[i] < 0x20 || bytes[i] >= 0x7f) return false;
   }
   return true;
 }
@@ -117,7 +117,7 @@ bool _allPrintable(Uint8List b, int start, int end) {
 final _pathSep = RegExp(r'[\\/]');
 
 /// The bare filename of [s], with any `.llb`/directory prefix stripped.
-String _baseName(String s) => s.split(_pathSep).last;
+String _baseName(String path) => path.split(_pathSep).last;
 
 /// Best-effort embedded sections; empty on a malformed container (never throws).
 List<ViSection> _embeddedOrEmpty(Uint8List bytes) {
@@ -207,14 +207,14 @@ class ViEmbeddedVi {
 /// yields a clean printable name (deduped, order-preserving). Never throws.
 List<String> readOwningLibraryNames(Uint8List bytes) {
   final out = <String>[];
-  for (final s in _embeddedOrEmpty(bytes)) {
-    if (s.tag != 'LIBN') continue;
-    final b = s.bytes;
-    if (b.length < 5) continue;
-    final len = b[4];
-    if (len == 0 || 5 + len > b.length) continue;
-    if (!_allPrintable(b, 5, 5 + len)) continue;
-    final name = String.fromCharCodes(b.sublist(5, 5 + len));
+  for (final section in _embeddedOrEmpty(bytes)) {
+    if (section.tag != 'LIBN') continue;
+    final sectionBytes = section.bytes;
+    if (sectionBytes.length < 5) continue;
+    final len = sectionBytes[4];
+    if (len == 0 || 5 + len > sectionBytes.length) continue;
+    if (!_allPrintable(sectionBytes, 5, 5 + len)) continue;
+    final name = String.fromCharCodes(sectionBytes.sublist(5, 5 + len));
     if (!out.contains(name)) out.add(name);
   }
   return out;
@@ -225,13 +225,13 @@ List<String> readOwningLibraryNames(Uint8List bytes) {
 /// are fed to [parseVi] for a best-effort name. Never throws.
 List<ViEmbeddedVi> readEmbeddedVis(Uint8List bytes) {
   final out = <ViEmbeddedVi>[];
-  for (final s in _embeddedOrEmpty(bytes)) {
-    if (s.tag != 'VINS') continue;
+  for (final section in _embeddedOrEmpty(bytes)) {
+    if (section.tag != 'VINS') continue;
     String? name;
     try {
-      name = parseVi(s.bytes).name;
+      name = parseVi(section.bytes).name;
     } catch (_) {}
-    out.add(ViEmbeddedVi(name: name, sizeBytes: s.bytes.length, bytes: Uint8List.fromList(s.bytes)));
+    out.add(ViEmbeddedVi(name: name, sizeBytes: section.bytes.length, bytes: Uint8List.fromList(section.bytes)));
   }
   return out;
 }
@@ -241,14 +241,14 @@ List<ViEmbeddedVi> readEmbeddedVis(Uint8List bytes) {
 /// ([readViSections]) or `0` for the embedded LIBN/VINS sections
 /// ([readEmbeddedSections]). See [readViSections] for the descriptor-table base.
 List<ViSection> _readSections(Uint8List bytes, {required int wantWord16}) {
-  final d = ByteData.sublistView(bytes);
+  final view = ByteData.sublistView(bytes);
 
-  int u32(int p) {
-    if (p < 0 || p + 4 > bytes.length) throw ViFormatException('truncated u32 at $p');
-    return d.getUint32(p);
+  int u32(int at) {
+    if (at < 0 || at + 4 > bytes.length) throw ViFormatException('truncated u32 at $at');
+    return view.getUint32(at);
   }
 
-  String tag(int p) => String.fromCharCodes(bytes.sublist(p, p + 4));
+  String tag(int at) => String.fromCharCodes(bytes.sublist(at, at + 4));
 
   _checkRsrcMagic(bytes);
 
@@ -264,23 +264,23 @@ List<ViSection> _readSections(Uint8List bytes, {required int wantWord16}) {
   final sections = <ViSection>[];
   var entry = countPos + 4;
   for (var i = 0; i < count && entry + 12 <= bytes.length; i++) {
-    final t = tag(entry);
+    final tagText = tag(entry);
     final sectionCount = u32(entry + 4) + 1;
     final descRel = u32(entry + 8);
     entry += 12;
-    if (!_printableTag(t)) continue;
-    for (var s = 0; s < sectionCount; s++) {
-      final dpos = descBase + descRel + s * descSize;
+    if (!_printableTag(tagText)) continue;
+    for (var sectionIndex = 0; sectionIndex < sectionCount; sectionIndex++) {
+      final dpos = descBase + descRel + sectionIndex * descSize;
       if (dpos + descSize > bytes.length) break;
-      if (d.getUint32(dpos + 16) != wantWord16) continue;
-      final secRel = d.getUint32(dpos + 4);
+      if (view.getUint32(dpos + 16) != wantWord16) continue;
+      final secRel = view.getUint32(dpos + 4);
       final pos = dataOffset + secRel;
       if (pos + 4 > bytes.length) continue;
-      final len = d.getUint32(pos);
+      final len = view.getUint32(pos);
       if (len > dataSize || pos + 4 + len > bytes.length) continue;
       sections.add(ViSection(
-        tag: t,
-        index: s,
+        tag: tagText,
+        index: sectionIndex,
         dataOffset: secRel,
         bytes: Uint8List.sublistView(bytes, pos + 4, pos + 4 + len),
       ));
@@ -291,21 +291,21 @@ List<ViSection> _readSections(Uint8List bytes, {required int wantWord16}) {
 
 /// Parses a LabVIEW RSRC container (`.vi`) into a [ViSummary]. Big-endian.
 ViSummary parseVi(Uint8List bytes) {
-  final d = ByteData.sublistView(bytes);
+  final view = ByteData.sublistView(bytes);
 
-  int u16(int p) {
-    if (p + 2 > bytes.length) throw ViFormatException('truncated u16 at $p');
-    return d.getUint16(p);
+  int u16(int at) {
+    if (at + 2 > bytes.length) throw ViFormatException('truncated u16 at $at');
+    return view.getUint16(at);
   }
 
-  int u32(int p) {
-    if (p < 0 || p + 4 > bytes.length) throw ViFormatException('truncated u32 at $p');
-    return d.getUint32(p);
+  int u32(int at) {
+    if (at < 0 || at + 4 > bytes.length) throw ViFormatException('truncated u32 at $at');
+    return view.getUint32(at);
   }
 
-  String tag(int p) {
-    if (p + 4 > bytes.length) throw ViFormatException('truncated tag at $p');
-    return String.fromCharCodes(bytes.sublist(p, p + 4));
+  String tag(int at) {
+    if (at + 4 > bytes.length) throw ViFormatException('truncated tag at $at');
+    return String.fromCharCodes(bytes.sublist(at, at + 4));
   }
 
   _checkRsrcMagic(bytes);
@@ -324,9 +324,9 @@ ViSummary parseVi(Uint8List bytes) {
   final seen = <String>{};
   var entry = countPos + 4;
   for (var i = 0; i < count && entry + 12 <= bytes.length; i++) {
-    final t = tag(entry);
-    if (!_printableTag(t)) break;
-    if (seen.add(t)) blocks.add(t);
+    final tagText = tag(entry);
+    if (!_printableTag(tagText)) break;
+    if (seen.add(tagText)) blocks.add(tagText);
     entry += 12;
   }
 
@@ -343,20 +343,20 @@ ViSummary parseVi(Uint8List bytes) {
 /// (`u32 @ infoOffset+0x30`) — the info-relative offset of the trailing
 /// `[u8 len][name]` record. Taken verbatim (so Latin-1/Unicode names decode and
 /// are not dropped), with the printable-only [_trailingName] scan as a fallback.
-String? _viName(Uint8List b, int infoOffset) {
-  if (infoOffset + 0x34 <= b.length) {
-    final rel = ByteData.sublistView(b).getUint32(infoOffset + 0x30);
+String? _viName(Uint8List bytes, int infoOffset) {
+  if (infoOffset + 0x34 <= bytes.length) {
+    final rel = ByteData.sublistView(bytes).getUint32(infoOffset + 0x30);
     final at = infoOffset + rel;
-    if (at < b.length) {
-      final len = b[at];
-      if (len > 0 && at + 1 + len == b.length) return String.fromCharCodes(b.sublist(at + 1));
+    if (at < bytes.length) {
+      final len = bytes[at];
+      if (len > 0 && at + 1 + len == bytes.length) return String.fromCharCodes(bytes.sublist(at + 1));
     }
   }
-  return _trailingName(b);
+  return _trailingName(bytes);
 }
 
-bool _printableTag(String s) =>
-    s.length == 4 && s.codeUnits.every((c) => c >= 0x20 && c < 0x7f);
+bool _printableTag(String tag) =>
+    tag.length == 4 && tag.codeUnits.every((c) => c >= 0x20 && c < 0x7f);
 
 /// Recovers the names of the **subVIs this VI calls**, from the block-diagram
 /// linker-info block (`LIbd`). LabVIEW records each block-diagram dependency
@@ -378,8 +378,8 @@ List<String> readSubViNames(Uint8List bytes) {
     return const [];
   }
   Uint8List? sectionBytes(String tag) {
-    for (final s in secs) {
-      if (s.tag == tag) return s.bytes;
+    for (final section in secs) {
+      if (section.tag == tag) return section.bytes;
     }
     return null;
   }
@@ -400,8 +400,8 @@ List<String> readSubViNames(Uint8List bytes) {
 
   final seen = <String>{};
   final out = <String>[];
-  for (final n in _pascalViNames(libd)) {
-    final base = _baseName(n);
+  for (final name in _pascalViNames(libd)) {
+    final base = _baseName(name);
     final key = base.toLowerCase();
     if (self.contains(key)) continue;
     if (seen.add(key)) out.add(base);
@@ -414,15 +414,15 @@ List<String> readSubViNames(Uint8List bytes) {
 /// requiring the exact length match + all-printable payload + `.vi` suffix makes
 /// false positives vanishingly unlikely. Order-preserving (duplicates kept; the
 /// caller dedupes).
-List<String> _pascalViNames(Uint8List b) {
+List<String> _pascalViNames(Uint8List bytes) {
   final out = <String>[];
-  for (var i = 0; i + 1 < b.length; i++) {
-    final len = b[i];
-    if (len < 4 || i + 1 + len > b.length) continue;
-    if (!_allPrintable(b, i + 1, i + 1 + len)) continue;
-    final s = String.fromCharCodes(b.sublist(i + 1, i + 1 + len));
-    if (s.toLowerCase().endsWith('.vi')) {
-      out.add(s);
+  for (var i = 0; i + 1 < bytes.length; i++) {
+    final len = bytes[i];
+    if (len < 4 || i + 1 + len > bytes.length) continue;
+    if (!_allPrintable(bytes, i + 1, i + 1 + len)) continue;
+    final text = String.fromCharCodes(bytes.sublist(i + 1, i + 1 + len));
+    if (text.toLowerCase().endsWith('.vi')) {
+      out.add(text);
       i += len;
     }
   }
@@ -431,12 +431,12 @@ List<String> _pascalViNames(Uint8List b) {
 
 /// Recovers the trailing length-prefixed VI name (a Pascal string at EOF), if
 /// present. Scans largest-first so the full name wins over shorter coincidences.
-String? _trailingName(Uint8List b) {
-  final maxLen = (b.length - 1).clamp(0, 255);
+String? _trailingName(Uint8List bytes) {
+  final maxLen = (bytes.length - 1).clamp(0, 255);
   for (var len = maxLen; len >= 1; len--) {
-    final lenPos = b.length - 1 - len;
-    if (b[lenPos] != len) continue;
-    if (_allPrintable(b, lenPos + 1, b.length)) return String.fromCharCodes(b, lenPos + 1);
+    final lenPos = bytes.length - 1 - len;
+    if (bytes[lenPos] != len) continue;
+    if (_allPrintable(bytes, lenPos + 1, bytes.length)) return String.fromCharCodes(bytes, lenPos + 1);
   }
   return null;
 }

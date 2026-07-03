@@ -31,15 +31,15 @@ class ViIdTable {
 /// Decodes an `NUID`/`SUID`/`BNID` body. Total: returns null when too short for
 /// the count word; reads min(count, available) entries so a corrupt count never
 /// over-reads.
-ViIdTable? decodeIdTable(Uint8List b) {
-  if (b.length < 4) return null;
-  final bd = ByteData.sublistView(b);
+ViIdTable? decodeIdTable(Uint8List bytes) {
+  if (bytes.length < 4) return null;
+  final bd = ByteData.sublistView(bytes);
   final count = bd.getUint32(0);
-  final available = (b.length - 4) ~/ 4;
-  final n = count.clamp(0, available);
+  final available = (bytes.length - 4) ~/ 4;
+  final entryCount = count.clamp(0, available);
   return ViIdTable(
-    rawLength: b.length,
+    rawLength: bytes.length,
     count: count,
-    entries: [for (var i = 0; i < n; i++) bd.getUint32(4 + 4 * i)],
+    entries: [for (var i = 0; i < entryCount; i++) bd.getUint32(4 + 4 * i)],
   );
 }

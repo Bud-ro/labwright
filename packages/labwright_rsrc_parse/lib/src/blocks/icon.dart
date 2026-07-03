@@ -26,7 +26,7 @@ class ViIcon {
   final Uint8List rgb;
 }
 
-int _u16(Uint8List b, int p) => (b[p] << 8) | b[p + 1];
+int _u16(Uint8List bytes, int at) => (bytes[at] << 8) | bytes[at + 1];
 
 /// Largest plausible embedded-icon edge, in pixels; a sanity bound rejecting
 /// garbage rects.
@@ -47,22 +47,22 @@ ViIcon? extractRgbIcon(Uint8List bytes) {
   if (bytes[0] != 0 || bytes[1] != 0 || bytes[2] != 0 || bytes[3] != 0) {
     return null;
   }
-  final w = _u16(bytes, 4), h = _u16(bytes, 6), depth = _u16(bytes, 8);
-  if (depth != 24 || w < 1 || h < 1 || w > _maxIconEdge || h > _maxIconEdge) {
+  final width = _u16(bytes, 4), height = _u16(bytes, 6), depth = _u16(bytes, 8);
+  if (depth != 24 || width < 1 || height < 1 || width > _maxIconEdge || height > _maxIconEdge) {
     return null;
   }
-  if (_u16(bytes, 30) != w || _u16(bytes, 32) != h) return null;
-  final need = w * h * 3;
+  if (_u16(bytes, 30) != width || _u16(bytes, 32) != height) return null;
+  final need = width * height * 3;
   if (bytes.length - need < 30) return null;
-  return ViIcon(width: w, height: h, rgb: bytes.sublist(bytes.length - need));
+  return ViIcon(width: width, height: height, rgb: bytes.sublist(bytes.length - need));
 }
 
 /// Finds the VI's icon by scanning all decoded [sections] for an embedded RGB
 /// bitmap (it appears under different tags depending on the VI). Returns the
 /// first match, or null when no uncompressed icon is present (~11% of VIs).
 ViIcon? decodeViIcon(List<DecodedSection> sections) {
-  for (final s in sections) {
-    final icon = extractRgbIcon(s.bytes);
+  for (final section in sections) {
+    final icon = extractRgbIcon(section.bytes);
     if (icon != null) return icon;
   }
   return null;

@@ -613,8 +613,8 @@ enum HeapObjectClass {
   final ClassConfidence confidence;
 
   static final Map<int, HeapObjectClass> _byCode = {
-    for (final c in values)
-      if (c != unknown) c.code: c,
+    for (final objectClass in values)
+      if (objectClass != unknown) objectClass.code: objectClass,
   };
 
   /// Maps a raw class code to its [HeapObjectClass], or [unknown].
@@ -703,8 +703,8 @@ const _intConvChars = {0x62, 0x64, 0x6f, 0x78, 0x58};
 int? _formatConvChar(List<int> payload) {
   final pct = payload.indexOf(0x25);
   if (pct < 0) return null;
-  for (final c in payload.skip(pct + 1)) {
-    if ((c >= 0x41 && c <= 0x5a) || (c >= 0x61 && c <= 0x7a)) return c;
+  for (final byte in payload.skip(pct + 1)) {
+    if ((byte >= 0x41 && byte <= 0x5a) || (byte >= 0x61 && byte <= 0x7a)) return byte;
   }
   return null;
 }
@@ -738,7 +738,7 @@ class ViDiagram {
   final List<ViHeapObject> objects;
 
   /// Objects indexed by their unique [ViHeapObject.oid].
-  Map<int, ViHeapObject> get byId => {for (final o in objects) o.oid: o};
+  Map<int, ViHeapObject> get byId => {for (final object in objects) object.oid: object};
 
   /// The root object(s) of the nesting tree (parentOid == null) — normally the
   /// single diagram root (kind `0x7e`).
@@ -751,15 +751,15 @@ class ViDiagram {
   Iterable<ViHeapObject> get nodes => objects.where((o) => o.absBounds != null);
 }
 
-bool _isTypeTag(int b) => b == 0xfb || b == 0xfe || b == 0xfd;
+bool _isTypeTag(int tagByte) => tagByte == 0xfb || tagByte == 0xfe || tagByte == 0xfd;
 
 /// Groups [objects] by their [ViHeapObject.parentOid] (objects with a null parent
 /// are omitted) — the positional child lists used by both the node-fallback pass
 /// and the scrolled-control re-anchor.
 Map<int, List<ViHeapObject>> _childrenByParentOid(List<ViHeapObject> objects) {
   final kids = <int, List<ViHeapObject>>{};
-  for (final o in objects) {
-    if (o.parentOid != null) (kids[o.parentOid!] ??= <ViHeapObject>[]).add(o);
+  for (final object in objects) {
+    if (object.parentOid != null) (kids[object.parentOid!] ??= <ViHeapObject>[]).add(object);
   }
   return kids;
 }
@@ -779,27 +779,27 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
   final absTop = <ViHeapObject, int>{};
   final absLeft = <ViHeapObject, int>{};
   final stack = <ViHeapObject?>[];
-  final n = body.length;
+  final length = body.length;
 
   ViHeapObject? innermostObject() => stack.lastWhere((e) => e != null, orElse: () => null);
 
-  for (final s in walkHeapBody(body).spans) {
-    final o = s.offset;
-    final lead = s.lead;
+  for (final span in walkHeapBody(body).spans) {
+    final offset = span.offset;
+    final lead = span.lead;
     final isGroupOpen = (_objectHeaderLeads.contains(lead) || lead == 0x13) &&
-        o + 4 <= n &&
-        _isTypeTag(body[o + 3]);
+        offset + 4 <= length &&
+        _isTypeTag(body[offset + 3]);
     if (isGroupOpen) {
       final isObj = _objectHeaderLeads.contains(lead) &&
-          o + 9 <= n &&
-          body[o + 2] == 0x02 &&
-          body[o + 3] == 0xfe &&
-          body[o + 6] == 0xfd;
+          offset + 9 <= length &&
+          body[offset + 2] == 0x02 &&
+          body[offset + 3] == 0xfe &&
+          body[offset + 6] == 0xfd;
       if (isObj) {
         final cur = ViHeapObject(
-          oid: (body[o + 7] << 8) | body[o + 8],
-          kind: (body[o + 4] << 8) | body[o + 5],
-          offset: o,
+          oid: (body[offset + 7] << 8) | body[offset + 8],
+          kind: (body[offset + 4] << 8) | body[offset + 5],
+          offset: offset,
         );
         final parent = innermostObject();
         cur.parentOid = parent?.oid;
@@ -820,19 +820,19 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
     final cur = innermostObject();
     if (cur == null) continue;
     if (lead == kHeapRecordPrefix) {
-      final rec = c4FrameAt(body, o, sectionTag);
+      final rec = c4FrameAt(body, offset, sectionTag);
       if (rec == null) continue;
       c4ops[cur]!.add(rec.opcode);
       switch (rec.opcode) {
         case 0x2d:
           if (cur.bounds == null && rec.bounds != null) {
-            final b = rec.bounds!;
-            cur.bounds = b;
-            final t = (absTop[cur] ?? 0) + b.top;
-            final l = (absLeft[cur] ?? 0) + b.left;
-            absTop[cur] = t;
-            absLeft[cur] = l;
-            cur.absBounds = HeapRect(top: t, left: l, bottom: t + b.height, right: l + b.width);
+            final bounds = rec.bounds!;
+            cur.bounds = bounds;
+            final top = (absTop[cur] ?? 0) + bounds.top;
+            final left = (absLeft[cur] ?? 0) + bounds.left;
+            absTop[cur] = top;
+            absLeft[cur] = left;
+            cur.absBounds = HeapRect(top: top, left: left, bottom: top + bounds.height, right: left + bounds.width);
           }
         case 0x22:
           cur.label ??= rec.text;
@@ -846,92 +846,92 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
           cur.helpText ??= rec.descriptionText;
         case 0x27:
           {
-            final t = rec.text ?? rec.path ?? rec.descriptionText;
-            if (t != null && t.isNotEmpty) cur.plotNames = [...cur.plotNames, t];
+            final text = rec.text ?? rec.path ?? rec.descriptionText;
+            if (text != null && text.isNotEmpty) cur.plotNames = [...cur.plotNames, text];
           }
       }
     } else if (lead == 0x14) {
-      final r = decodeHeapRef(body, o);
-      if (r != null) {
-        (cur.typedRefs[r.kind] ??= <int>[]).add(r.targetOid);
-        if (r.kind == HeapRefKind.childRef) cur.refs.add(r.targetOid);
+      final ref = decodeHeapRef(body, offset);
+      if (ref != null) {
+        (cur.typedRefs[ref.kind] ??= <int>[]).add(ref.targetOid);
+        if (ref.kind == HeapRefKind.childRef) cur.refs.add(ref.targetOid);
       }
-    } else if (o + 1 < n && _objAttrIds.contains(body[o + 1])) {
-      final a = decodeHeapAttr(body, o);
-      if (a == null) continue;
-      final d = a.asDouble;
-      if (d != null && kControlTerminalCodes.contains(cur.kind)) {
-        if (a.attribute == HeapAttribute.foregroundColor) cur.controlMin ??= d;
-        if (a.attribute == HeapAttribute.foregroundColorB) cur.controlMax ??= d;
+    } else if (offset + 1 < length && _objAttrIds.contains(body[offset + 1])) {
+      final attr = decodeHeapAttr(body, offset);
+      if (attr == null) continue;
+      final number = attr.asDouble;
+      if (number != null && kControlTerminalCodes.contains(cur.kind)) {
+        if (attr.attribute == HeapAttribute.foregroundColor) cur.controlMin ??= number;
+        if (attr.attribute == HeapAttribute.foregroundColorB) cur.controlMax ??= number;
       }
-      if (a.attribute == HeapAttribute.helpDescription && o + 2 < n && body[o + 2] == 0xff) {
-        final s = a.asString;
-        if (s != null && s.isNotEmpty) cur.helpText ??= s;
+      if (attr.attribute == HeapAttribute.helpDescription && offset + 2 < length && body[offset + 2] == 0xff) {
+        final text = attr.asString;
+        if (text != null && text.isNotEmpty) cur.helpText ??= text;
       }
     }
   }
 
-  for (final o in objects) {
-    o.category = classifyObject(kind: o.kind, termCount: o.termCount);
-    o.typeKind = inferTypeKind(c4ops[o] ?? const <int>{}, formatPayloads[o]);
+  for (final object in objects) {
+    object.category = classifyObject(kind: object.kind, termCount: object.termCount);
+    object.typeKind = inferTypeKind(c4ops[object] ?? const <int>{}, formatPayloads[object]);
   }
 
-  final byOid = {for (final o in objects) o.oid: o};
-  for (final o in objects) {
-    if (o.items.isEmpty) continue;
-    var p = o.parentOid;
+  final byOid = {for (final object in objects) object.oid: object};
+  for (final object in objects) {
+    if (object.items.isEmpty) continue;
+    var parentOid = object.parentOid;
     var depth = 0;
-    while (p != null && depth < 12) {
-      final po = byOid[p];
+    while (parentOid != null && depth < 12) {
+      final po = byOid[parentOid];
       if (po == null) break;
       if (kControlTerminalCodes.contains(po.kind)) {
-        if (po.items.isEmpty) po.items = o.items;
+        if (po.items.isEmpty) po.items = object.items;
         break;
       }
-      p = po.parentOid;
+      parentOid = po.parentOid;
       depth++;
     }
   }
 
-  for (final o in objects) {
-    final h = o.helpText;
-    if (h == null || h.isEmpty || o.absBounds != null) continue;
-    var p = o.parentOid;
+  for (final object in objects) {
+    final helpText = object.helpText;
+    if (helpText == null || helpText.isEmpty || object.absBounds != null) continue;
+    var parentOid = object.parentOid;
     final seen = <int>{};
-    while (p != null && seen.add(p)) {
-      final po = byOid[p];
+    while (parentOid != null && seen.add(parentOid)) {
+      final po = byOid[parentOid];
       if (po == null) break;
       if (po.absBounds != null) {
-        po.helpText ??= h;
+        po.helpText ??= helpText;
         break;
       }
-      p = po.parentOid;
+      parentOid = po.parentOid;
     }
   }
 
   final nodeKids = _childrenByParentOid(objects);
 
-  for (final o in objects) {
-    if (o.category != ViObjectKind.unknown) continue;
-    final b = o.absBounds;
-    if (b == null || b.width <= 0 || b.height <= 0) continue;
-    if (b.width * b.height >= _structureAreaCap) continue;
-    if (o.parentOid == null || byOid[o.parentOid]?.kind != 0x1b) continue;
-    final cs = nodeKids[o.oid];
+  for (final object in objects) {
+    if (object.category != ViObjectKind.unknown) continue;
+    final bounds = object.absBounds;
+    if (bounds == null || bounds.width <= 0 || bounds.height <= 0) continue;
+    if (bounds.width * bounds.height >= _structureAreaCap) continue;
+    if (object.parentOid == null || byOid[object.parentOid]?.kind != 0x1b) continue;
+    final cs = nodeKids[object.oid];
     if (cs == null) continue;
     final hasStructural = cs.any((c) => c.kind == 0x15);
     final hasConnector = cs.any((c) => c.kind == 0x68);
     if (!hasStructural || hasConnector) continue;
-    o.category = ViObjectKind.node;
+    object.category = ViObjectKind.node;
   }
 
-  for (final o in objects) {
-    if (o.category != ViObjectKind.node || o.label != null) continue;
-    final caps = (nodeKids[o.oid] ?? const <ViHeapObject>[])
+  for (final object in objects) {
+    if (object.category != ViObjectKind.node || object.label != null) continue;
+    final caps = (nodeKids[object.oid] ?? const <ViHeapObject>[])
         .where((c) => c.kind == 0x0a)
         .map((c) => c.label?.trim())
         .where((cap) => cap != null && cap.isNotEmpty);
-    if (caps.isNotEmpty) o.label = caps.first;
+    if (caps.isNotEmpty) object.label = caps.first;
   }
 
   _reanchorScrolledControls(objects);
@@ -951,10 +951,10 @@ List<String> _parseEnumItems(List<int> payload) {
     final len = payload[i++];
     if (len == 0) continue;
     if (i + len > payload.length) return const [];
-    final s = String.fromCharCodes(payload.sublist(i, i + len));
+    final text = String.fromCharCodes(payload.sublist(i, i + len));
     i += len;
-    if (!s.codeUnits.every((c) => c >= 0x20 && c < 0x7f)) return const [];
-    out.add(s);
+    if (!text.codeUnits.every((c) => c >= 0x20 && c < 0x7f)) return const [];
+    out.add(text);
   }
   return out;
 }
@@ -977,7 +977,7 @@ List<String> _parseEnumItems(List<int> payload) {
 /// 398-section sample: control↔control overlap 6.5% → 0.35%,
 /// re-anchored-control-center-inside-its-viewport 12% → 99%.
 void _reanchorScrolledControls(List<ViHeapObject> objects) {
-  final byOid = {for (final o in objects) o.oid: o};
+  final byOid = {for (final object in objects) object.oid: object};
   final kids = _childrenByParentOid(objects);
 
   /// The viewport to re-anchor [o] to — its nearest `0x11c` ancestor — but null
@@ -985,25 +985,25 @@ void _reanchorScrolledControls(List<ViHeapObject> objects) {
   /// (those put [o]'s bounds in that container's frame, not the viewport's, so it
   /// must ride along with the parent's subtree shift instead). Guards a parentOid
   /// cycle (oids can repeat) so the walk can't loop forever.
-  int? reanchorViewport(ViHeapObject o) {
-    var p = o.parentOid;
+  int? reanchorViewport(ViHeapObject object) {
+    var parentOid = object.parentOid;
     final seen = <int>{};
-    while (p != null) {
-      if (!seen.add(p)) return null;
-      final po = byOid[p];
+    while (parentOid != null) {
+      if (!seen.add(parentOid)) return null;
+      final po = byOid[parentOid];
       if (po == null) return null;
       if (po.kind == 0x11c) return po.oid;
       if (kControlTerminalCodes.contains(po.kind) || po.bounds != null) return null;
-      p = po.parentOid;
+      parentOid = po.parentOid;
     }
     return null;
   }
 
   final groups = <int, List<ViHeapObject>>{};
-  for (final o in objects) {
-    if (!kControlTerminalCodes.contains(o.kind) || o.bounds == null || o.absBounds == null) continue;
-    final v = reanchorViewport(o);
-    if (v != null) (groups[v] ??= <ViHeapObject>[]).add(o);
+  for (final object in objects) {
+    if (!kControlTerminalCodes.contains(object.kind) || object.bounds == null || object.absBounds == null) continue;
+    final viewport = reanchorViewport(object);
+    if (viewport != null) (groups[viewport] ??= <ViHeapObject>[]).add(object);
   }
 
   /// Shifts [root] and its whole subtree by (dTop, dLeft). Because `kids` is keyed
@@ -1017,30 +1017,30 @@ void _reanchorScrolledControls(List<ViHeapObject> objects) {
     final expanded = <int>{};
     final work = <ViHeapObject>[root];
     while (work.isNotEmpty) {
-      final o = work.removeLast();
-      final a = o.absBounds;
-      if (a != null) {
-        o.absBounds = HeapRect(top: a.top + dTop, left: a.left + dLeft, bottom: a.bottom + dTop, right: a.right + dLeft);
+      final object = work.removeLast();
+      final bounds = object.absBounds;
+      if (bounds != null) {
+        object.absBounds = HeapRect(top: bounds.top + dTop, left: bounds.left + dLeft, bottom: bounds.bottom + dTop, right: bounds.right + dLeft);
       }
-      if (!expanded.add(o.oid)) continue;
-      final cs = kids[o.oid];
+      if (!expanded.add(object.oid)) continue;
+      final cs = kids[object.oid];
       if (cs != null) {
-        for (final c in cs) {
-          if (seen.add(c)) work.add(c);
+        for (final child in cs) {
+          if (seen.add(child)) work.add(child);
         }
       }
     }
   }
 
   for (final MapEntry(key: vOid, value: controls) in groups.entries) {
-    final v = byOid[vOid];
-    if (v?.absBounds == null) continue;
+    final viewport = byOid[vOid];
+    if (viewport?.absBounds == null) continue;
     final minTop = controls.map((c) => c.bounds!.top).reduce(min);
     final minLeft = controls.map((c) => c.bounds!.left).reduce(min);
-    for (final c in controls) {
-      final newTop = v!.absBounds!.top + (c.bounds!.top - minTop);
-      final newLeft = v.absBounds!.left + (c.bounds!.left - minLeft);
-      shiftSubtree(c, newTop - c.absBounds!.top, newLeft - c.absBounds!.left);
+    for (final control in controls) {
+      final newTop = viewport!.absBounds!.top + (control.bounds!.top - minTop);
+      final newLeft = viewport.absBounds!.left + (control.bounds!.left - minLeft);
+      shiftSubtree(control, newTop - control.absBounds!.top, newLeft - control.absBounds!.left);
     }
   }
 }

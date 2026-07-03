@@ -46,10 +46,10 @@ class ViConnectorPane {
 }
 
 /// Decodes a `CONP`/`CPC2` block body. Total: returns null on an empty buffer.
-ViConnectorPane? decodeConnectorPane(Uint8List b) {
-  if (b.isEmpty) return null;
-  final inline = b.length != 2;
-  return ViConnectorPane(rawLength: b.length, typeIndex: inline ? null : (b[0] << 8) | b[1], isInline: inline);
+ViConnectorPane? decodeConnectorPane(Uint8List bytes) {
+  if (bytes.isEmpty) return null;
+  final inline = bytes.length != 2;
+  return ViConnectorPane(rawLength: bytes.length, typeIndex: inline ? null : (bytes[0] << 8) | bytes[1], isInline: inline);
 }
 
 /// Finds and decodes the connector pane, **preferring `CONP`** (whose 2-byte
@@ -58,9 +58,9 @@ ViConnectorPane? decodeConnectorPane(Uint8List b) {
 /// (`CONP`/`CPC2` are uncompressed, so raw [ViSection] bytes suffice.)
 ViConnectorPane? connectorPaneFromSections(Iterable<ViSection> sections) {
   ViSection? conp, cpc2;
-  for (final s in sections) {
-    if (s.tag == 'CONP') conp = s;
-    if (s.tag == 'CPC2') cpc2 = s;
+  for (final section in sections) {
+    if (section.tag == 'CONP') conp = section;
+    if (section.tag == 'CPC2') cpc2 = section;
   }
   final pick = conp ?? cpc2;
   return pick == null ? null : decodeConnectorPane(pick.bytes);

@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'seq_file.dart';
 import 'seq_format.dart';
 import 'seq_property.dart';
+import 'seq_step.dart';
 
 /// Reader for the **legacy INI** `.seq` encoding (TestStand 3.x–era; some newer
 /// installs still emit it). It is a *plaintext* serialization of the **same
@@ -134,9 +135,9 @@ IniSeqFile parseIniSeq(String text) {
       (key.startsWith('%') ? current.directives : current.members)[key] = value;
     }
   }
-  for (final s in sections) {
-    _reassembleContinuations(s.members);
-    _reassembleContinuations(s.directives);
+  for (final section in sections) {
+    _reassembleContinuations(section.members);
+    _reassembleContinuations(section.directives);
   }
   return IniSeqFile(
     header: _headerFrom(headerFields),
@@ -160,21 +161,21 @@ final _continuationKey = RegExp(r'^(.+) Line(\d+)$');
 void _reassembleContinuations(Map<String, String> map) {
   Map<String, List<(int, String)>>? groups;
   for (final key in map.keys) {
-    final m = _continuationKey.firstMatch(key);
-    if (m == null) continue;
+    final match = _continuationKey.firstMatch(key);
+    if (match == null) continue;
     (groups ??= {})
-        .putIfAbsent(m.group(1)!, () => [])
-        .add((int.parse(m.group(2)!), map[key]!));
+        .putIfAbsent(match.group(1)!, () => [])
+        .add((int.parse(match.group(2)!), map[key]!));
   }
   if (groups == null) return;
   final rebuilt = <String, String>{};
   for (final entry in map.entries) {
-    final m = _continuationKey.firstMatch(entry.key);
-    if (m == null) {
+    final match = _continuationKey.firstMatch(entry.key);
+    if (match == null) {
       rebuilt[entry.key] = entry.value;
       continue;
     }
-    final base = m.group(1)!;
+    final base = match.group(1)!;
     if (!rebuilt.containsKey(base)) {
       final frags = groups[base]!..sort((a, b) => a.$1.compareTo(b.$1));
       rebuilt[base] = _joinFragments(frags.map((f) => f.$2));
@@ -193,13 +194,13 @@ void _reassembleContinuations(Map<String, String> map) {
 String _joinFragments(Iterable<String> fragments) {
   final buf = StringBuffer();
   var anyQuoted = false;
-  for (final f in fragments) {
-    final t = f.trim();
-    if (_isQuoted(t)) {
+  for (final fragment in fragments) {
+    final trimmed = fragment.trim();
+    if (_isQuoted(trimmed)) {
       anyQuoted = true;
-      buf.write(t.substring(1, t.length - 1));
+      buf.write(trimmed.substring(1, trimmed.length - 1));
     } else {
-      buf.write(f);
+      buf.write(fragment);
     }
   }
   return anyQuoted ? '"$buf"' : buf.toString();
@@ -230,9 +231,9 @@ SeqFileHeader _headerFrom(Map<String, String> h) => SeqFileHeader(
 /// [_IniBuilder]. The `%INSTOVRD` flags *bitmask* is kept verbatim (its bit
 /// meanings need NI's PropFlags enum), not yet interpreted.
 SeqProperty? iniDataTree(IniSeqFile doc) {
-  final b = _IniBuilder(doc);
-  final rootPath = b.dataRootPath();
-  return rootPath == null ? null : b.build(rootPath, 'Data', 'SequenceFileData');
+  final builder = _IniBuilder(doc);
+  final rootPath = builder.dataRootPath();
+  return rootPath == null ? null : builder.build(rootPath, 'Data', 'SequenceFileData');
 }
 
 /// Reconstructs the type list (`[%TYPES]`) of a parsed INI `.seq` into
@@ -240,22 +241,22 @@ SeqProperty? iniDataTree(IniSeqFile doc) {
 /// the `[%TYPES]` section names a top-level type defined by its own
 /// `[DEF, <Type>]`/`[<Type>]` sections. Returns an empty list if absent.
 List<SeqProperty> iniTypes(IniSeqFile doc) {
-  final b = _IniBuilder(doc);
+  final builder = _IniBuilder(doc);
   final typeList = doc.sections
       .where((s) => !s.isDef && s.path == '%TYPES')
       .firstOrNull;
   if (typeList == null) return const [];
   return [
-    for (final t in typeList.members.keys)
-      if (b.hasPath(t)) b.build(t, t, _unquote(typeList.members[t])),
+    for (final typeName in typeList.members.keys)
+      if (builder.hasPath(typeName)) builder.build(typeName, typeName, _unquote(typeList.members[typeName])),
   ];
 }
 
 /// Builds [SeqProperty] objects from an INI `.seq`'s path-addressed sections.
 class _IniBuilder {
   _IniBuilder(IniSeqFile doc) {
-    for (final s in doc.sections) {
-      (s.isDef ? _defs : _vals)[s.path] = s;
+    for (final section in doc.sections) {
+      (section.isDef ? _defs : _vals)[section.path] = section;
     }
     _allPaths = {..._defs.keys, ..._vals.keys};
     _indexPaths();
@@ -277,36 +278,36 @@ class _IniBuilder {
   /// O(children) instead of re-scanning every path (which made [build] O(paths²)).
   void _indexPaths() {
     final elemSets = <String, Set<int>>{};
-    for (final p in _allPaths) {
-      final n = p.length;
+    for (final path in _allPaths) {
+      final pathLength = path.length;
       var i = 0;
-      while (i < n && p[i] != '.' && p[i] != '[') {
+      while (i < pathLength && path[i] != '.' && path[i] != '[') {
         i++;
       }
-      while (i < n) {
-        final anc = p.substring(0, i);
-        if (p[i] == '.') {
+      while (i < pathLength) {
+        final anc = path.substring(0, i);
+        if (path[i] == '.') {
           var j = i + 1;
-          while (j < n && p[j] != '.' && p[j] != '[') {
+          while (j < pathLength && path[j] != '.' && path[j] != '[') {
             j++;
           }
           if (j > i + 1) {
-            final seg = p.substring(i + 1, j);
+            final seg = path.substring(i + 1, j);
             final seen = _memberChildSeen[anc] ??= <String>{};
             if (seen.add(seg)) (_memberChildren[anc] ??= <String>[]).add(seg);
           }
           i = j;
         } else {
           var j = i + 1;
-          while (j < n && p[j] != ']') {
+          while (j < pathLength && path[j] != ']') {
             j++;
           }
-          if (j < n) {
-            final idx = int.tryParse(p.substring(i + 1, j));
+          if (j < pathLength) {
+            final idx = int.tryParse(path.substring(i + 1, j));
             if (idx != null) (elemSets[anc] ??= <int>{}).add(idx);
             i = j + 1;
           } else {
-            i = n;
+            i = pathLength;
           }
         }
       }
@@ -329,8 +330,8 @@ class _IniBuilder {
     for (final alias in _rootAliases) {
       final root = _defs[alias];
       if (root == null) continue;
-      for (final e in root.members.entries) {
-        if (e.value == 'SequenceFileData') return e.key;
+      for (final member in root.members.entries) {
+        if (member.value == 'SequenceFileData') return member.key;
       }
     }
     return null;
@@ -359,10 +360,10 @@ class _IniBuilder {
   /// `"TYPE, X"` reference is a typed object of type X (className null, typeName
   /// X); anything else is a plain value-kind (className = it, typeName null).
   (String?, String?) _memberType(String? raw) {
-    final t = _unquote(raw);
-    if (t == null) return (null, null);
-    if (t.startsWith('TYPE, ')) return (null, t.substring('TYPE, '.length).trim());
-    return (t, null);
+    final text = _unquote(raw);
+    if (text == null) return (null, null);
+    if (text.startsWith('TYPE, ')) return (null, text.substring('TYPE, '.length).trim());
+    return (text, null);
   }
 
   /// The attribute key under which an instance-override marker is stored on a
@@ -391,10 +392,10 @@ class _IniBuilder {
     final def = _defs[path];
     final val = _vals[path];
     final name = val?.name ?? def?.name ?? displayName;
-    Map<String, String> memberAttrs(String m) {
-      final ovr = val?.directives['$instOverrideAttr: $m'];
+    Map<String, String> memberAttrs(String memberName) {
+      final ovr = val?.directives['$instOverrideAttr: $memberName'];
       final flg =
-          val?.directives['$flagsAttr: $m'] ?? def?.directives['$flagsAttr: $m'];
+          val?.directives['$flagsAttr: $memberName'] ?? def?.directives['$flagsAttr: $memberName'];
       return {
         if (ovr != null) instOverrideAttr: ovr,
         if (flg != null) flagsAttr: flg,
@@ -408,7 +409,7 @@ class _IniBuilder {
     final inheritGuard = typeRoot != null && visiting.add(typeRoot);
     final typeDefMembers =
         inheritGuard ? _defs[typeRoot]!.members : const <String, String>{};
-    String? memberTypeOf(String m) => def?.members[m] ?? typeDefMembers[m];
+    String? memberTypeOf(String memberName) => def?.members[memberName] ?? typeDefMembers[memberName];
 
     final memberOrder = <String>{
       ...?def?.members.keys,
@@ -418,42 +419,42 @@ class _IniBuilder {
     };
 
     final subs = <SeqProperty>[];
-    for (final m in memberOrder) {
-      final (className, typeName) = _memberType(memberTypeOf(m));
-      final instPath = '$path.$m';
-      final typePath = typeRoot == null ? null : '$typeRoot.$m';
+    for (final memberName in memberOrder) {
+      final (className, typeName) = _memberType(memberTypeOf(memberName));
+      final instPath = '$path.$memberName';
+      final typePath = typeRoot == null ? null : '$typeRoot.$memberName';
       final elems = _elementIndices(instPath);
       if (elems.isNotEmpty) {
         final arrDef = _defs[instPath];
         final arr = [
-          for (final i in elems)
+          for (final item in elems)
             build(
-              '$instPath[$i]',
-              '[$i]',
-              arrDef?.directives['%[$i]'],
-              _unquote(arrDef?.directives['%TYPE: %[$i]']),
+              '$instPath[$item]',
+              '[$item]',
+              arrDef?.directives['%[$item]'],
+              _unquote(arrDef?.directives['%TYPE: %[$item]']),
               visiting,
             ),
         ];
         subs.add(SeqProperty(
-            name: m,
+            name: memberName,
             className: className,
             array: arr,
-            attributes: memberAttrs(m)));
+            attributes: memberAttrs(memberName)));
       } else if (_isContainer(instPath)) {
         subs.add(
-            build(instPath, m, className, typeName, visiting, memberAttrs(m)));
+            build(instPath, memberName, className, typeName, visiting, memberAttrs(memberName)));
       } else if (typePath != null && _isContainer(typePath)) {
         subs.add(_inheritCache[typePath] ??=
-            build(typePath, m, className, typeName, visiting));
+            build(typePath, memberName, className, typeName, visiting));
       } else {
         subs.add(SeqProperty(
-          name: m,
+          name: memberName,
           className: className,
           typeName: typeName,
-          scalar: _unquote(val?.members[m]) ??
-              (typeRoot == null ? null : _unquote(_vals[typeRoot]?.members[m])),
-          attributes: memberAttrs(m),
+          scalar: _unquote(val?.members[memberName]) ??
+              (typeRoot == null ? null : _unquote(_vals[typeRoot]?.members[memberName])),
+          attributes: memberAttrs(memberName),
         ));
       }
     }
@@ -499,12 +500,12 @@ SeqFile parseIniSeqFile(Uint8List bytes) {
 /// Returns null for a null input.
 String? _unquote(String? s) {
   if (s == null) return null;
-  final t = s.trim();
-  return _isQuoted(t) ? _unescapeIni(t.substring(1, t.length - 1)) : t;
+  final trimmed = s.trim();
+  return _isQuoted(trimmed) ? _unescapeIni(trimmed.substring(1, trimmed.length - 1)) : trimmed;
 }
 
 /// True when [t] is surrounded by a matching pair of double quotes.
-bool _isQuoted(String t) => t.length >= 2 && t.startsWith('"') && t.endsWith('"');
+bool _isQuoted(String text) => text.length >= 2 && text.startsWith('"') && text.endsWith('"');
 
 /// Decodes the C-style escapes TestStand writes inside a *quoted* INI value:
 /// `\\`→`\`, `\"`→`"`, `\n`→newline, `\t`→tab, `\r`→CR. NI always doubles a
@@ -516,12 +517,12 @@ bool _isQuoted(String t) => t.length >= 2 && t.startsWith('"') && t.endsWith('"'
 /// Processed left-to-right, consuming each pair; an unrecognized `\x` (none seen
 /// in the corpus) is kept verbatim, defensively. Only called on quoted values,
 /// so unquoted bare tokens (numbers, enums) are never touched.
-String _unescapeIni(String s) {
-  if (!s.contains(r'\')) return s;
-  final b = StringBuffer();
-  for (var i = 0; i < s.length; i++) {
-    if (s[i] == r'\' && i + 1 < s.length) {
-      final decoded = switch (s[i + 1]) {
+String _unescapeIni(String text) {
+  if (!text.contains(r'\')) return text;
+  final buffer = StringBuffer();
+  for (var i = 0; i < text.length; i++) {
+    if (text[i] == r'\' && i + 1 < text.length) {
+      final decoded = switch (text[i + 1]) {
         r'\' => r'\',
         '"' => '"',
         'n' => '\n',
@@ -530,12 +531,12 @@ String _unescapeIni(String s) {
         _ => null,
       };
       if (decoded != null) {
-        b.write(decoded);
+        buffer.write(decoded);
         i++;
         continue;
       }
     }
-    b.write(s[i]);
+    buffer.write(text[i]);
   }
-  return b.toString();
+  return buffer.toString();
 }

@@ -25,12 +25,12 @@ ViVersionInfo decodeVersion(Uint8List viBytes) => versionFromSections(readViSect
 /// so raw [ViSection] bytes suffice). Total — never throws.
 ViVersionInfo versionFromSections(Iterable<ViSection> sections) {
   String? version, title;
-  for (final s in sections) {
-    if (s.tag != 'vers') continue;
-    for (final str in _pascalStrings(s.bytes)) {
+  for (final section in sections) {
+    if (section.tag != 'vers') continue;
+    for (final str in _pascalStrings(section.bytes)) {
       if (version == null && _versionPattern.hasMatch(str)) version = str;
     }
-    title ??= _vidsTitle(s.bytes);
+    title ??= _vidsTitle(section.bytes);
   }
   return ViVersionInfo(version: version, title: title);
 }
@@ -70,17 +70,17 @@ List<BlockComponent> blockComponents(Uint8List viBytes) => componentsFromDecoded
 /// [blockComponents] over already-decoded sections.
 List<BlockComponent> componentsFromDecoded(Iterable<DecodedSection> decoded) {
   final byTag = <String, List<DecodedSection>>{};
-  for (final d in decoded) {
-    (byTag[d.tag] ??= <DecodedSection>[]).add(d);
+  for (final decodedSection in decoded) {
+    (byTag[decodedSection.tag] ??= <DecodedSection>[]).add(decodedSection);
   }
   final out = [
-    for (final e in byTag.entries)
+    for (final entry in byTag.entries)
       BlockComponent(
-        tag: e.key,
-        sectionCount: e.value.length,
-        rawBytes: e.value.fold<int>(0, (a, d) => a + d.section.bytes.length),
-        decompressedBytes: e.value.fold<int>(0, (a, d) => a + d.bytes.length),
-        compressed: e.value.any((d) => d.wasCompressed),
+        tag: entry.key,
+        sectionCount: entry.value.length,
+        rawBytes: entry.value.fold<int>(0, (a, d) => a + d.section.bytes.length),
+        decompressedBytes: entry.value.fold<int>(0, (a, d) => a + d.bytes.length),
+        compressed: entry.value.any((d) => d.wasCompressed),
       ),
   ];
   out.sort((a, b) => b.decompressedBytes.compareTo(a.decompressedBytes));
@@ -105,7 +105,7 @@ List<BlockComponent> componentsFromDecoded(Iterable<DecodedSection> decoded) {
 ///   exceptions (see the format doc).
 /// - `false` — the table was located by the heuristic run-scan fallback (a run of
 ///   ≥2 consecutive valid Pascal strings). Used for tables not introduced by
-///   `0x2E` (e.g. long help-text tables, which use a different, not-yet-decoded
+///   `0x2E` (entry.g. long help-text tables, which use a different, not-yet-decoded
 ///   framing). Best-effort: may occasionally merge adjacent tables or clip.
 class HeapStringTable {
   const HeapStringTable({
@@ -157,18 +157,18 @@ List<HeapStringTable> heapStringTablesFromDecoded(Iterable<DecodedSection> decod
     {int minLength = 4, int minRun = 2}) {
   final out = <HeapStringTable>[];
 
-  for (final d in decoded) {
-    final h = d.bytes;
-    final n = h.length;
+  for (final decodedSection in decoded) {
+    final bytes = decodedSection.bytes;
+    final byteCount = bytes.length;
     var i = 0;
     var runStart = -1;
     final run = <String>[];
 
     void emit(List<String> raw, int offset, {bool framed = false}) {
       final seen = <String>{};
-      final keep = [for (final s in raw) if (s.length >= minLength && _looksWordy(s) && seen.add(s)) s];
+      final keep = [for (final text in raw) if (text.length >= minLength && _looksWordy(text) && seen.add(text)) text];
       if (keep.isNotEmpty) {
-        out.add(HeapStringTable(sectionTag: d.tag, offset: offset, strings: keep, framed: framed));
+        out.add(HeapStringTable(sectionTag: decodedSection.tag, offset: offset, strings: keep, framed: framed));
       }
     }
 
@@ -178,18 +178,18 @@ List<HeapStringTable> heapStringTablesFromDecoded(Iterable<DecodedSection> decod
       runStart = -1;
     }
 
-    while (i < n) {
-      final framed = _tryFramedTable(h, i);
+    while (i < byteCount) {
+      final framed = _tryFramedTable(bytes, i);
       if (framed != null) {
         flushRun();
         emit(framed.strings, i + framed.headerLen, framed: true);
         i += framed.consumed;
         continue;
       }
-      final len = h[i];
-      if (len >= 1 && i + 1 + len <= n && _allPrintable(h, i + 1, len)) {
+      final len = bytes[i];
+      if (len >= 1 && i + 1 + len <= byteCount && _allPrintable(bytes, i + 1, len)) {
         if (run.isEmpty) runStart = i;
-        run.add(_pascalChars(h, i + 1, len));
+        run.add(_pascalChars(bytes, i + 1, len));
         i += 1 + len;
       } else {
         flushRun();
@@ -206,22 +206,22 @@ List<HeapStringTable> heapStringTablesFromDecoded(Iterable<DecodedSection> decod
 /// otherwise null. The opcode is the **2-byte `C4 2E`** (`0xC4` precedes `0x2E`
 /// in 100% of corpus tables). Length is a `u8`, or the extended-length escape
 /// `C4 2E FF <u16 len>` for tables >255 bytes (header 5 bytes). Total/bounds-safe.
-({List<String> strings, int headerLen, int consumed})? _tryFramedTable(Uint8List h, int i) {
-  final n = h.length;
-  if (i + 3 > n || h[i] != kHeapRecordPrefix || h[i + 1] != HeapOpcode.stringTable.byte) {
+({List<String> strings, int headerLen, int consumed})? _tryFramedTable(Uint8List bytes, int start) {
+  final byteCount = bytes.length;
+  if (start + 3 > byteCount || bytes[start] != kHeapRecordPrefix || bytes[start + 1] != HeapOpcode.stringTable.byte) {
     return null;
   }
   final int headerLen, payloadLen;
-  if (h[i + 2] == 0xff) {
-    if (i + 5 > n) return null;
+  if (bytes[start + 2] == 0xff) {
+    if (start + 5 > byteCount) return null;
     headerLen = 5;
-    payloadLen = (h[i + 3] << 8) | h[i + 4];
+    payloadLen = (bytes[start + 3] << 8) | bytes[start + 4];
   } else {
     headerLen = 3;
-    payloadLen = h[i + 2];
+    payloadLen = bytes[start + 2];
   }
-  if (payloadLen < 2 || i + headerLen + payloadLen > n) return null;
-  final strs = _packedPascals(h, i + headerLen, payloadLen);
+  if (payloadLen < 2 || start + headerLen + payloadLen > byteCount) return null;
+  final strs = _packedPascals(bytes, start + headerLen, payloadLen);
   if (strs == null || strs.length < 2) return null;
   return (strings: strs, headerLen: headerLen, consumed: headerLen + payloadLen);
 }
@@ -229,14 +229,14 @@ List<HeapStringTable> heapStringTablesFromDecoded(Iterable<DecodedSection> decod
 /// Parses exactly [len] bytes at [start] as packed `[u8 L][L printable]` Pascal
 /// strings. Returns the strings only if the region is consumed exactly (no
 /// trailing bytes, no zero-length or non-printable entry); otherwise null. Total.
-List<String>? _packedPascals(Uint8List h, int start, int len) {
+List<String>? _packedPascals(Uint8List bytes, int start, int len) {
   final end = start + len;
   final out = <String>[];
   var i = start;
   while (i < end) {
-    final len = h[i];
-    if (len == 0 || i + 1 + len > end || !_allPrintable(h, i + 1, len)) return null;
-    out.add(_pascalChars(h, i + 1, len));
+    final len = bytes[i];
+    if (len == 0 || i + 1 + len > end || !_allPrintable(bytes, i + 1, len)) return null;
+    out.add(_pascalChars(bytes, i + 1, len));
     i += 1 + len;
   }
   return out;
@@ -247,29 +247,29 @@ List<String>? _packedPascals(Uint8List h, int start, int len) {
 List<String> heapStringsFromDecoded(Iterable<DecodedSection> decoded, {int minLength = 4, int minRun = 2}) {
   final seen = <String>{};
   return [
-    for (final t in heapStringTablesFromDecoded(decoded, minLength: minLength, minRun: minRun))
-      for (final s in t.strings)
-        if (seen.add(s)) s
+    for (final table in heapStringTablesFromDecoded(decoded, minLength: minLength, minRun: minRun))
+      for (final text in table.strings)
+        if (seen.add(text)) text
   ];
 }
 
-String _pascalChars(Uint8List h, int start, int len) => String.fromCharCodes(h.sublist(start, start + len));
+String _pascalChars(Uint8List bytes, int start, int len) => String.fromCharCodes(bytes.sublist(start, start + len));
 
-bool _allPrintable(Uint8List h, int start, int len) {
+bool _allPrintable(Uint8List bytes, int start, int len) {
   for (var j = start; j < start + len; j++) {
-    if (h[j] < 32 || h[j] >= 127) return false;
+    if (bytes[j] < 32 || bytes[j] >= 127) return false;
   }
   return true;
 }
 
 /// Extracts `[u8 len][len printable bytes]` runs from [h]. Total.
-List<String> _pascalStrings(Uint8List h) {
+List<String> _pascalStrings(Uint8List bytes) {
   final out = <String>[];
   var i = 0;
-  while (i < h.length) {
-    final len = h[i];
-    if (len >= 1 && len <= 120 && i + 1 + len <= h.length && _allPrintable(h, i + 1, len)) {
-      out.add(_pascalChars(h, i + 1, len));
+  while (i < bytes.length) {
+    final len = bytes[i];
+    if (len >= 1 && len <= 120 && i + 1 + len <= bytes.length && _allPrintable(bytes, i + 1, len)) {
+      out.add(_pascalChars(bytes, i + 1, len));
       i += 1 + len;
       continue;
     }
@@ -278,37 +278,37 @@ List<String> _pascalStrings(Uint8List h) {
   return out;
 }
 
-bool _isTextByte(int c) => c == 9 || c == 10 || c == 13 || (c >= 32 && c < 127); // tab/LF/CR or printable ASCII
+bool _isTextByte(int byte) => byte == 9 || byte == 10 || byte == 13 || (byte >= 32 && byte < 127); // tab/LF/CR or printable ASCII
 
 /// True if [s] contains at least one ASCII letter (filters numeric/byte noise).
-bool _looksWordy(String s) =>
-    s.codeUnits.any((c) => (c >= 0x41 && c <= 0x5a) || (c >= 0x61 && c <= 0x7a));
+bool _looksWordy(String text) =>
+    text.codeUnits.any((byte) => (byte >= 0x41 && byte <= 0x5a) || (byte >= 0x61 && byte <= 0x7a));
 
 /// The VI's top-level **description / help text**, from the `CPC2` block, stored
 /// as `[u32 len][ASCII]` (e.g. "This closes the device…"). Returns null when the
 /// `CPC2` block is a compiled-cache/empty variant rather than a description.
 /// Total.
 String? cpc2Description(Iterable<ViSection> sections) {
-  for (final s in sections) {
-    if (s.tag != 'CPC2') continue;
-    final b = s.bytes;
-    if (b.length < 5) continue;
-    final len = ByteData.sublistView(b).getUint32(0);
-    if (len == 0 || 4 + len > b.length) continue;
-    final ok = b.getRange(4, 4 + len).every(_isTextByte);
-    if (ok) return String.fromCharCodes(b.sublist(4, 4 + len));
+  for (final section in sections) {
+    if (section.tag != 'CPC2') continue;
+    final bytes = section.bytes;
+    if (bytes.length < 5) continue;
+    final len = ByteData.sublistView(bytes).getUint32(0);
+    if (len == 0 || 4 + len > bytes.length) continue;
+    final ok = bytes.getRange(4, 4 + len).every(_isTextByte);
+    if (ok) return String.fromCharCodes(bytes.sublist(4, 4 + len));
   }
   return null;
 }
 
 /// Reads the `VIDS` record's title (`'VIDS'` then `[u8 len][string]`) from a
 /// `vers` section, or null.
-String? _vidsTitle(Uint8List b) {
-  for (var i = 0; i + 5 <= b.length; i++) {
-    if (b[i] == 0x56 && b[i + 1] == 0x49 && b[i + 2] == 0x44 && b[i + 3] == 0x53) {
-      final len = b[i + 4];
-      if (len > 0 && i + 5 + len <= b.length && _allPrintable(b, i + 5, len)) {
-        return _pascalChars(b, i + 5, len);
+String? _vidsTitle(Uint8List bytes) {
+  for (var i = 0; i + 5 <= bytes.length; i++) {
+    if (bytes[i] == 0x56 && bytes[i + 1] == 0x49 && bytes[i + 2] == 0x44 && bytes[i + 3] == 0x53) {
+      final len = bytes[i + 4];
+      if (len > 0 && i + 5 + len <= bytes.length && _allPrintable(bytes, i + 5, len)) {
+        return _pascalChars(bytes, i + 5, len);
       }
     }
   }

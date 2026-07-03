@@ -26,7 +26,7 @@ class DecodedSection {
 
 /// A heap section begins with a 4-byte big-endian decompressed size followed by
 /// a zlib stream (CMF byte `0x78`). This is a cheap pre-check before inflating.
-bool _looksCompressed(Uint8List b) => b.length >= 6 && b[4] == 0x78;
+bool _looksCompressed(Uint8List bytes) => bytes.length >= 6 && bytes[4] == 0x78;
 
 /// Upper bound on a heap section's declared decompressed size. Real VIs stay far
 /// below this — the entire corpus tops out under 16 MiB — so a larger declared
@@ -41,16 +41,16 @@ const int _maxDecompressed = 64 * 1024 * 1024;
 /// returns it unchanged. Never throws: a malformed/!-matching stream (inflate
 /// error or size mismatch) falls back to the raw bytes, so callers always get a
 /// usable [DecodedSection].
-DecodedSection inflateSection(ViSection s) {
-  final b = s.bytes;
-  final raw = DecodedSection(section: s, bytes: b, wasCompressed: false);
-  if (!_looksCompressed(b)) return raw;
-  final declared = ByteData.sublistView(b).getUint32(0);
+DecodedSection inflateSection(ViSection section) {
+  final bytes = section.bytes;
+  final raw = DecodedSection(section: section, bytes: bytes, wasCompressed: false);
+  if (!_looksCompressed(bytes)) return raw;
+  final declared = ByteData.sublistView(bytes).getUint32(0);
   if (declared > _maxDecompressed) return raw;
   try {
-    final out = const ZLibDecoder().decodeBytes(b.sublist(4));
+    final out = const ZLibDecoder().decodeBytes(bytes.sublist(4));
     if (out.length == declared) {
-      return DecodedSection(section: s, bytes: out, wasCompressed: true);
+      return DecodedSection(section: section, bytes: out, wasCompressed: true);
     }
   } catch (_) {
     // Not a valid zlib stream — fall through to the raw bytes.
@@ -62,4 +62,4 @@ DecodedSection inflateSection(ViSection s) {
 /// Container-level corruption throws [ViFormatException] (from [readViSections]);
 /// individual section decode is total.
 List<DecodedSection> decodeSections(Uint8List viBytes) =>
-    [for (final s in readViSections(viBytes)) inflateSection(s)];
+    [for (final section in readViSections(viBytes)) inflateSection(section)];
