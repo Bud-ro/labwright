@@ -11,20 +11,32 @@
 //   * A property record leads with `0x40`/`0x44`, carries two zero framing u32s
 //     at +2 and +10, and a `size` word at +6. `size` is 4 (bare) or 6 (valued)
 //     for LEAF records — those are decoded by [binaryPropertyRecords].
+//   * That leaf capture is COMPLETE, not partial: a brute-force scan of every
+//     offset for the same shape with a known type name finds exactly the same
+//     records the sequential decoder returns (37/37 on OutputVoltage, and the
+//     same on the other twins). So the ~90% of the region the leaf decoder does
+//     not cover is OTHER structure — not missed property records.
 //   * `size > 16` marks a CONTAINER/descriptor record (`Objs`, `Obj`, and the
 //     result-string holders `Status`/`ReportText`). `size` is NOT the byte span
 //     of the container's children: it recurs at a fixed value per property type
 //     (e.g. `Str:Status` is always 36) regardless of content, so it reads as a
 //     type-descriptor constant, not a nesting extent. (Refuted: `at{,+6,+14,+22}
 //     + size` does not land on the group delimiters.)
+//   * `0xffffffff` delimiters partition the region into per-OBJECT property
+//     blocks: on a minimal 2-sequence file each block is one object's sibling
+//     properties (empty sub-objects appear as bare `size==4` containers like
+//     `Obj RTS`/`Obj Requirements`), and the two sequences are two near-identical
+//     blocks followed by a `FileGlobalDefaults` block. On a real file most
+//     delimiters bracket the still-undecoded type/step structure, so the blocks
+//     are dominated by empties plus one dense file-global block.
 //   * ~0x40 leads also occur mid-value (inside f64 bytes); those fail the
 //     double-zero framing test (their `size` reads as a power-of-two like
 //     `0x02000000`) and are filtered out here.
 //
-// Open (the next decode): the sequence/step TREE is not framed by `size`. It is
-// most likely held in the header node-table at the region start (a run of
-// pool-index words before the first framed record) — to be cracked by
-// differential analysis across the Rosetta twin set.
+// Open (the next decode): the two remaining structures are (1) the type
+// descriptor table `size>16` records point at, and (2) the TREE linkage that
+// says which object owns which property block. Neither is framed by `size`; both
+// are best cracked by differential analysis across the Rosetta twin set.
 import 'dart:io';
 import 'dart:typed_data';
 
