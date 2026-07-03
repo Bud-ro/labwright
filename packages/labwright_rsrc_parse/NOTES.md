@@ -50,3 +50,22 @@ edges. Percentages are corpus-probed; re-probe before relying on an exact figure
 - **LIBN** (owning-library name) and **VINS** (embedded sub-VI) descriptors carry `@16 == 0`
   rather than `0xFFFFFFFF`, so `readViSections` does not extract their section bytes — use
   `readEmbeddedSections`. They still appear in the block inventory.
+
+## Wire geometry (block diagram) — open frontier
+
+The one thing the BD render cannot yet draw honestly. Corpus-refuted
+hypotheses (see `tool/probe_wires.dart` + `tool/probe_wire_blobs.dart`):
+
+- **Terminal typed-refs**: 0/2699 sampled `0x68` terminal objects carry any
+  ref (typed or raw) — connectivity is not stored on terminals.
+- **C4 point-list records**: 0/22557 BD C4 records read as >=3 plausible
+  i16 coordinate pairs — wire polylines are not framed C4 payloads.
+- **Blob attributes**: BD heap blob attrs surface only printable text; no
+  binary point runs.
+
+Remaining candidates for the next session: 2-point (8-byte) records that
+alias the rect shape (bounds-vs-segment disambiguation by parent object
+class); the undecoded portion between framed records (heap-framed is 97.6%,
+the 2.4% gap clusters in BD heaps); and per-object trailing group content
+after the `C4 1F` terminal clusters. Wires are certainly *somewhere* in
+BDHb — the heap round-trips byte-exactly, so nothing is lost, only unread.
