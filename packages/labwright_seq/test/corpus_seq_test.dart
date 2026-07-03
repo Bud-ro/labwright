@@ -66,7 +66,9 @@ void main() {
         withMode = 0,
         withIcon = 0,
         typedSteps = 0,
-        unknownAdapters = 0;
+        unknownAdapters = 0,
+        binaryWithSequences = 0,
+        binaryStepsRecovered = 0;
     final failures = <String>[];
     for (final f in seqs) {
       final bytes = f.readAsBytesSync();
@@ -99,10 +101,16 @@ void main() {
         case SeqFormat.binary:
           binary++;
           // Binary now parses to a PARTIAL typed model (sequence/step skeleton
-          // from the decoded record structures); it must not throw.
+          // from the decoded record structures); it must not throw, and the
+          // root-shape gate must never emit structural tokens as names.
           final partial = parseSeqFile(bytes);
+          if (partial.sequences.isNotEmpty) binaryWithSequences++;
           for (final seq in partial.sequences) {
             expect(seq.name, isNotEmpty);
+            expect(const {'Sequence', 'Calls', 'ResultList', 'Objs', 'Seq', 'Obj', 'Data'},
+                isNot(contains(seq.name)),
+                reason: '${f.path}: structural token as sequence name');
+            binaryStepsRecovered += seq.steps.length;
           }
           final bh = detectSeqHeader(bytes);
           expect(bh.fileType, 'SequenceFile');
@@ -136,6 +144,16 @@ void main() {
     expect(failures, isEmpty, reason: failures.take(5).join('\n'));
     expect(xml, 26, reason: 'XML file count drifted');
     expect(binary, 288, reason: 'binary file count drifted');
+    // Partial-parse recovery floors (review: the previous check was vacuous —
+    // an empty sequences list passed silently). Measured after the root-shape
+    // gate: 86 binaries decode >=1 sequence; 32 steps reach the typed model
+    // (steps laid out before their group markers are reported ungrouped and
+    // honestly kept OUT of the typed tree — raising this floor is the
+    // grouping-decode roadmap, not a tuning knob).
+    expect(binaryWithSequences, greaterThanOrEqualTo(80),
+        reason: 'binary sequence recovery regressed ($binaryWithSequences files)');
+    expect(binaryStepsRecovered, greaterThanOrEqualTo(30),
+        reason: 'binary step recovery regressed ($binaryStepsRecovered steps)');
     expect(other, 58, reason: 'other (INI) file count drifted');
     expect(totalSeqs, 33, reason: 'XML sequence count drifted');
     expect(totalSteps, 214, reason: 'XML step count drifted');

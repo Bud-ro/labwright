@@ -54,9 +54,10 @@ void main() {
   final xmlValues = _xmlValues(xml.readAsStringSync());
 
   test('decodes valued property records from the binary body', () {
-    expect(records, isNotEmpty);
-    expect(records.where((r) => r.value != null), isNotEmpty,
-        reason: 'the grammar must recover inline values, not just names');
+    // Exact pins (review: a floor of "some records" would hide large silent
+    // losses): the oracle decodes exactly 37 records, 14 of them valued.
+    expect(records.length, 37);
+    expect(records.where((r) => r.value != null).length, 14);
   });
 
   test('every decoded record is well-formed (no framing false positives)', () {

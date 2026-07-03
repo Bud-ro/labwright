@@ -5,9 +5,10 @@ import 'seq_file.dart';
 import 'seq_format.dart';
 
 /// A parsed TestStand document — a single type a UI can switch on, regardless of
-/// the on-disk encoding. XML files yield the full typed model; binary `TOF1`
-/// files yield a recon view (header + recovered strings) since their record tree
-/// isn't decoded yet; anything else yields [UnknownSeqDocument].
+/// the on-disk encoding. XML/INI files yield the full typed model; binary
+/// `TOF1` files yield the recon view PLUS the partial typed model
+/// ([BinarySeqDocument.partialFile]: the decoded sequence/step skeleton);
+/// anything else yields [UnknownSeqDocument].
 sealed class SeqDocument {
   const SeqDocument();
 

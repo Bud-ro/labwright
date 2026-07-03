@@ -44,13 +44,23 @@ void main() {
 
   test('a binary twin is present to validate against', () {
     expect(binaries, isNotEmpty);
+    // Review: the per-file tests silently return when a twin is missing, so
+    // this asserts the pairing itself — every fetched binary must have a
+    // model twin, or the "validated against the twins" claim is vacuous.
+    final unpaired = [
+      for (final bin in binaries)
+        if (_twin(rosetta, bin.uri.pathSegments.last) == null)
+          bin.uri.pathSegments.last,
+    ];
+    expect(unpaired, isEmpty, reason: 'binaries without a model twin');
   });
 
   for (final bin in binaries) {
     final name = bin.uri.pathSegments.last;
     test('$name: binary sequence names match its XML twin', () {
       final twin = _twin(rosetta, name);
-      if (twin == null) return; // no model twin fetched for this binary
+      expect(twin, isNotNull, reason: 'model twin missing for $name');
+      if (twin == null) return;
       final expected =
           parseSeqFile(Uint8List.fromList(twin.readAsBytesSync()))
               .sequences
