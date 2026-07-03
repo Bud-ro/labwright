@@ -19,7 +19,7 @@
     "decodeOk": 0.9999,
     "containerExact": 0.9999,
     "blocksIdentified": 0.9998,
-    "blockBytesDecoded": 0.6955,
+    "blockBytesDecoded": 0.9802,
     "deliberatelyParsed": 0.9756,
     "semanticallyDecoded": 0.8255,
     "valueKindKnown": 0.1353,

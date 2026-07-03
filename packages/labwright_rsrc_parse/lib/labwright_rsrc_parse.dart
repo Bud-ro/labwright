@@ -17,6 +17,7 @@
 /// Recovering full block-diagram *logic* is ongoing work.
 library;
 
+export 'src/blocks/aux_records.dart';
 export 'src/blocks/block_catalog.dart';
 export 'src/blocks/connector_pane.dart';
 export 'src/blocks/data_type_heap.dart';
@@ -26,8 +27,11 @@ export 'src/blocks/history.dart';
 export 'src/blocks/icon.dart';
 export 'src/blocks/id_table.dart';
 export 'src/blocks/legacy_icon.dart';
+export 'src/blocks/link_info.dart';
 export 'src/blocks/save_record.dart';
+export 'src/blocks/small_records.dart';
 export 'src/blocks/string_block.dart';
+export 'src/blocks/tag_store.dart';
 export 'src/blocks/type_map.dart';
 export 'src/blocks/type_pool.dart';
 export 'src/blocks/version_word.dart';

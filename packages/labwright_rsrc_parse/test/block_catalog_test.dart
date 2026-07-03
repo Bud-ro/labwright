@@ -34,7 +34,8 @@ void main() {
         expect(blockInfo(t).confidence, BlockConfidence.confirmed, reason: t);
       }
       expect(blockInfo('MUID').category, ViBlockCategory.identifier);
-      expect(blockInfo('MUID').confidence, BlockConfidence.likely);
+      expect(blockInfo('MUID').confidence, BlockConfidence.confirmed,
+          reason: 'single u32 id verified 7582/7582 + decodeModifiedUid');
       for (final t in ['NUID', 'SUID', 'BNID']) {
         expect(blockInfo(t).confidence, BlockConfidence.confirmed,
             reason: '$t id table is confirmed [u32 count][count u32] framing');
