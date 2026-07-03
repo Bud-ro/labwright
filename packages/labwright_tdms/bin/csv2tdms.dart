@@ -8,13 +8,13 @@ Future<void> main(List<String> args) async {
   String? outPath;
   String? input;
   for (var i = 0; i < args.length; i++) {
-    final a = args[i];
-    if (a == '--group' && i + 1 < args.length) {
+    final arg = args[i];
+    if (arg == '--group' && i + 1 < args.length) {
       group = args[++i];
-    } else if (a == '--out' && i + 1 < args.length) {
+    } else if (arg == '--out' && i + 1 < args.length) {
       outPath = args[++i];
-    } else if (!a.startsWith('--')) {
-      input = a;
+    } else if (!arg.startsWith('--')) {
+      input = arg;
     }
   }
 

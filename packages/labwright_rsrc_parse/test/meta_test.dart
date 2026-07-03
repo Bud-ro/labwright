@@ -15,6 +15,21 @@ DecodedSection bdex(List<int> heap) => DecodedSection(
       wasCompressed: false,
     );
 
+void expectTotalOverRandomBytes(int seed, void Function(Uint8List) probe) {
+  final rng = Random(seed);
+  for (var i = 0; i < 2000; i++) {
+    final n = rng.nextInt(200);
+    final b = Uint8List.fromList([for (var j = 0; j < n; j++) rng.nextInt(256)]);
+    try {
+      probe(b);
+    } on ViFormatException {
+      // acceptable
+    } catch (e) {
+      fail('leaked ${e.runtimeType}: $e');
+    }
+  }
+}
+
 void main() {
   test('decodes LabVIEW version and VIDS title from a vers section', () {
     final bytes = <int>[
@@ -120,21 +135,12 @@ void main() {
   });
 
   test('heapStringTables is total over arbitrary bytes', () {
-    final rng = Random(11);
-    for (var i = 0; i < 2000; i++) {
-      final n = rng.nextInt(200);
-      final b = Uint8List.fromList([for (var j = 0; j < n; j++) rng.nextInt(256)]);
-      try {
-        for (final t in heapStringTables(b)) {
-          expect(t.offset, inInclusiveRange(0, b.length));
-          expect(t.strings, isNotEmpty);
-        }
-      } on ViFormatException {
-        // acceptable
-      } catch (e) {
-        fail('leaked ${e.runtimeType}: $e');
+    expectTotalOverRandomBytes(11, (b) {
+      for (final t in heapStringTables(b)) {
+        expect(t.offset, inInclusiveRange(0, b.length));
+        expect(t.strings, isNotEmpty);
       }
-    }
+    });
   });
 
   test('componentsFromDecoded summarizes per-block sizes, largest first', () {
@@ -158,19 +164,10 @@ void main() {
   });
 
   test('decodeVersion, extractHeapStrings, blockComponents are total over arbitrary bytes', () {
-    final rng = Random(8);
-    for (var i = 0; i < 2000; i++) {
-      final n = rng.nextInt(200);
-      final b = Uint8List.fromList([for (var j = 0; j < n; j++) rng.nextInt(256)]);
-      try {
-        decodeVersion(b);
-        extractHeapStrings(b);
-        blockComponents(b);
-      } on ViFormatException {
-        // acceptable
-      } catch (e) {
-        fail('leaked ${e.runtimeType}: $e');
-      }
-    }
+    expectTotalOverRandomBytes(8, (b) {
+      decodeVersion(b);
+      extractHeapStrings(b);
+      blockComponents(b);
+    });
   });
 }

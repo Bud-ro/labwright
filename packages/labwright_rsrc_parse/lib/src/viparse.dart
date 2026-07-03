@@ -136,6 +136,16 @@ void _checkRsrcMagic(Uint8List bytes) {
   }
 }
 
+/// Locates the block-info list: reads the list-relative offset at
+/// `infoOffset + 0x2c`, returns its absolute position and the block `count`
+/// there. Throws on an implausible count. Shared by [parseVi]/[_readSections].
+({int countPos, int count}) _locateBlockList(int Function(int) u32, int infoOffset) {
+  final countPos = infoOffset + u32(infoOffset + 0x2c);
+  final count = u32(countPos);
+  if (count > 100000) throw ViFormatException('implausible block count $count');
+  return (countPos: countPos, count: count);
+}
+
 /// Extracts every block section's raw bytes from an RSRC container.
 ///
 /// Total and bounds-safe like [parseVi]: a malformed *container* (bad magic,
@@ -247,10 +257,7 @@ List<ViSection> _readSections(Uint8List bytes, {required int wantWord16}) {
   final dataSize = u32(28);
   if (infoOffset + 0x30 > bytes.length) throw ViFormatException('info section offset out of range');
 
-  final blockListRel = u32(infoOffset + 0x2c);
-  final countPos = infoOffset + blockListRel;
-  final count = u32(countPos);
-  if (count > 100000) throw ViFormatException('implausible block count $count');
+  final (:countPos, :count) = _locateBlockList(u32, infoOffset);
 
   const descSize = 20;
   final descBase = countPos + 8;
@@ -311,10 +318,7 @@ ViSummary parseVi(Uint8List bytes) {
     throw ViFormatException('info section offset $infoOffset out of range');
   }
 
-  final blockListRel = u32(infoOffset + 0x2c);
-  final countPos = infoOffset + blockListRel;
-  final count = u32(countPos);
-  if (count > 100000) throw ViFormatException('implausible block count $count');
+  final (:countPos, :count) = _locateBlockList(u32, infoOffset);
 
   final blocks = <String>[];
   final seen = <String>{};
@@ -343,8 +347,9 @@ String? _viName(Uint8List b, int infoOffset) {
   if (infoOffset + 0x34 <= b.length) {
     final rel = ByteData.sublistView(b).getUint32(infoOffset + 0x30);
     final at = infoOffset + rel;
-    if (at < b.length && b[at] > 0 && at + 1 + b[at] == b.length) {
-      return String.fromCharCodes(b.sublist(at + 1));
+    if (at < b.length) {
+      final len = b[at];
+      if (len > 0 && at + 1 + len == b.length) return String.fromCharCodes(b.sublist(at + 1));
     }
   }
   return _trailingName(b);
@@ -384,9 +389,9 @@ List<String> readSubViNames(Uint8List bytes) {
 
   final self = <String>{};
   final livi = sectionBytes('LIvi');
-  final liviNames = livi == null ? const <String>[] : _pascalViNames(livi);
-  if (liviNames.isNotEmpty) {
-    self.add(_baseName(liviNames.first).toLowerCase());
+  if (livi != null) {
+    final names = _pascalViNames(livi);
+    if (names.isNotEmpty) self.add(_baseName(names.first).toLowerCase());
   }
   final trailing = _trailingName(bytes);
   if (trailing != null && trailing.toLowerCase().endsWith('.vi')) {
@@ -427,11 +432,11 @@ List<String> _pascalViNames(Uint8List b) {
 /// Recovers the trailing length-prefixed VI name (a Pascal string at EOF), if
 /// present. Scans largest-first so the full name wins over shorter coincidences.
 String? _trailingName(Uint8List b) {
-  final maxLen = b.length - 1 < 255 ? b.length - 1 : 255;
+  final maxLen = (b.length - 1).clamp(0, 255);
   for (var len = maxLen; len >= 1; len--) {
     final lenPos = b.length - 1 - len;
     if (b[lenPos] != len) continue;
-    if (_allPrintable(b, lenPos + 1, b.length)) return String.fromCharCodes(b.sublist(lenPos + 1));
+    if (_allPrintable(b, lenPos + 1, b.length)) return String.fromCharCodes(b, lenPos + 1);
   }
   return null;
 }

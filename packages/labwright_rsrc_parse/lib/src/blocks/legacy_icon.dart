@@ -43,23 +43,23 @@ int? legacyIconBpp(String tag) => switch (tag) {
 /// Decodes an `icl8`/`icl4`/`ICON` body into its 1024-pixel index grid. Returns
 /// null unless the buffer is the exact 32×32 size for [bpp]
 /// (8→1024 B, 4→512 B, 1→128 B) — we never guess a partial bitmap.
-ViLegacyIcon? decodeLegacyIcon(Uint8List b, int bpp) {
+ViLegacyIcon? decodeLegacyIcon(Uint8List body, int bpp) {
   const pixelCount = ViLegacyIcon.width * ViLegacyIcon.height;
   final expectBytes = pixelCount * bpp ~/ 8;
-  if (b.length != expectBytes) return null;
+  if (body.length != expectBytes) return null;
   final pixels = List<int>.filled(pixelCount, 0);
   switch (bpp) {
     case 8:
-      pixels.setAll(0, b);
+      pixels.setAll(0, body);
     case 4:
       for (var j = 0; j < expectBytes; j++) {
-        pixels[2 * j] = b[j] >> 4;
-        pixels[2 * j + 1] = b[j] & 0x0f;
+        pixels[2 * j] = body[j] >> 4;
+        pixels[2 * j + 1] = body[j] & 0x0f;
       }
     case 1:
       for (var j = 0; j < expectBytes; j++) {
         for (var k = 0; k < 8; k++) {
-          pixels[8 * j + k] = (b[j] >> (7 - k)) & 1;
+          pixels[8 * j + k] = (body[j] >> (7 - k)) & 1;
         }
       }
     default:

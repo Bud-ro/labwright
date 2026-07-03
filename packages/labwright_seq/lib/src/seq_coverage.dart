@@ -1,6 +1,13 @@
 import 'seq_file.dart';
 import 'seq_property.dart';
 
+/// A property's direct child nodes: its named sub-properties followed by its
+/// array elements (if any). Names the `[...subProps, ...?array]` idiom the
+/// recursive tree walkers below repeat.
+extension on SeqProperty {
+  List<SeqProperty> get children => [...subProps, ...?array];
+}
+
 /// How much of a sequence file's property tree the typed lens actually surfaces.
 ///
 /// The analog of the VI reader's coverage metric: a `.seq` decodes into a large
@@ -160,7 +167,7 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
   void markContainer(SeqProperty? p) {
     if (p == null) return;
     mark(p);
-    for (final c in [...p.subProps, ...?p.array]) {
+    for (final c in p.children) {
       mark(c);
     }
   }
@@ -172,7 +179,7 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
   void markSubtree(SeqProperty? p) {
     if (p == null) return;
     mark(p);
-    for (final c in [...p.subProps, ...?p.array]) {
+    for (final c in p.children) {
       markSubtree(c);
     }
   }
@@ -283,7 +290,7 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
       void markHints(SeqProperty? list) {
         if (list == null) return;
         mark(list);
-        for (final e in [...list.subProps, ...?list.array]) {
+        for (final e in list.children) {
           mark(e);
           markKeys(e, _resultHintKeys);
           // The hint's logged-value `Type` is a full NI type descriptor
@@ -362,11 +369,11 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
       for (final p in viModuleParms?.array ?? const <SeqProperty>[]) {
         markParam(p);
       }
-      mark(sdata?.prop('Call')?.prop('LibPath'));
-      mark(sdata?.prop('Call')?.prop('Func'));
+      final call = sdata?.prop('Call');
+      mark(call?.prop('LibPath'));
+      mark(call?.prop('Func'));
       // The ActiveX/COM automation adapter's call binding (`Call.*`): the target
       // object/server/interface/member identity + COM VTable/type-lib internals.
-      final call = sdata?.prop('Call');
       markKeys(call, [
         'CoClass', 'CoClassName', 'ObjectVariable',
         'Server', 'ServerName', 'Interface', 'InterfaceName', 'InterfaceType',
@@ -374,7 +381,7 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
         'TypeLibVersion', 'VTableIndex',
       ]);
       // The C/ActiveX adapter's connector list (`Call.Parms`), like ViCall.Parms.
-      final callParms = sdata?.prop('Call')?.prop('Parms');
+      final callParms = call?.prop('Parms');
       mark(callParms);
       for (final p in callParms?.array ?? const <SeqProperty>[]) {
         markParam(p);
@@ -387,7 +394,7 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
         'FunctionOrAttributeName', 'ModulePath', 'ClassName',
         'PythonVersion', 'PythonVirtualEnvironmentPath',
       ]);
-      mark(sdata?.prop('Call')?.prop('Parameters'));
+      mark(call?.prop('Parameters'));
       mark(sdata?.prop('PythonCall')?.prop('Parameters'));
       for (final p in step.module.callParameters) {
         markParam(p.raw);
@@ -400,9 +407,9 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
       }
       mark(step.raw.prop('Comp'));
       mark(step.raw.prop('DataSource'));
-      final lim = step.raw.prop('Limits');
-      mark(lim);
-      markKeys(lim, [
+      final limits = step.raw.prop('Limits');
+      mark(limits);
+      markKeys(limits, [
         'Low', 'High', 'Nominal', 'ThresholdType',
         'LowExpr', 'HighExpr', 'NominalExpr', 'UseLowExpr', 'UseHighExpr',
         'ThresholdTypeExpr', 'UseThresholdTypeExpr', 'UseNominalExpr',
@@ -418,13 +425,13 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
       void markAddl(SeqProperty p) {
         if (p.name == 'AdditionalResults') {
           mark(p);
-          for (final e in [...p.subProps, ...?p.array]) {
+          for (final e in p.children) {
             mark(e);
             mark(e.prop('Condition'));
           }
           return;
         }
-        for (final c in [...p.subProps, ...?p.array]) {
+        for (final c in p.children) {
           markAddl(c);
         }
       }
@@ -441,9 +448,9 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
           'Name', 'Type', 'Direction', 'Dimension', 'ArgumentValue',
           'TypeSpecialization', 'Log', 'ID', 'MessageType',
         ]);
-        final ed = p.raw.prop('EnumDefinition');
-        mark(ed);
-        for (final e in ed?.array ?? const <SeqProperty>[]) {
+        final enumDef = p.raw.prop('EnumDefinition');
+        mark(enumDef);
+        for (final e in enumDef?.array ?? const <SeqProperty>[]) {
           mark(e);
         }
       }
@@ -460,14 +467,14 @@ Set<SeqProperty> _modeledNodes(SeqFile f) {
   // full value descriptor (type internals, array prototypes), surfaced raw.
   markSubtree(f.data.prop('FileGlobalDefaults'));
 
-  final mp = f.measurementPlugIns;
-  if (mp != null) {
-    mark(mp.raw);
+  final measPlugins = f.measurementPlugIns;
+  if (measPlugins != null) {
+    mark(measPlugins.raw);
     for (final k in [
       'PinMapPath', 'EnableMonitoring', 'SpecificationsFilePaths',
       'LevelsFilePaths', 'TimingFilePaths', 'PatternFilePaths',
     ]) {
-      final node = mp.raw.prop(k);
+      final node = measPlugins.raw.prop(k);
       mark(node);
       for (final e in node?.array ?? const <SeqProperty>[]) {
         mark(e);
@@ -505,7 +512,7 @@ Set<SeqProperty> _plumbingNodes(SeqFile f, Set<SeqProperty> modeled) {
   final plumbing = <SeqProperty>{};
   void markSubtree(SeqProperty p) {
     if (!modeled.contains(p)) plumbing.add(p);
-    for (final c in [...p.subProps, ...?p.array]) {
+    for (final c in p.children) {
       markSubtree(c);
     }
   }
@@ -515,7 +522,7 @@ Set<SeqProperty> _plumbingNodes(SeqFile f, Set<SeqProperty> modeled) {
       markSubtree(p);
       return;
     }
-    for (final c in [...p.subProps, ...?p.array]) {
+    for (final c in p.children) {
       walk(c);
     }
   }
@@ -538,7 +545,7 @@ SeqCoverage measureCoverage(SeqFile f) {
   final all = <SeqProperty>{};
   void count(SeqProperty p) {
     if (!all.add(p)) return;
-    for (final c in [...p.subProps, ...?p.array]) {
+    for (final c in p.children) {
       count(c);
     }
   }

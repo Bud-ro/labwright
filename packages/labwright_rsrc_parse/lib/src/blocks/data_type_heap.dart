@@ -69,24 +69,18 @@ List<String> _scanNames(Uint8List b, int from) {
   final out = <String>[];
   var i = from;
   while (i + 3 < b.length) {
-    if (b[i] == 0x40 && b[i + 1] <= 0x7f) {
-      final len = b[i + 2];
-      final start = i + 3;
-      if (len > 0 && start + len <= b.length && _printable(b, start, start + len)) {
-        out.add(String.fromCharCodes(b.sublist(start, start + len)));
-        i = start + len;
-        continue;
-      }
+    final len = b[i + 2];
+    final start = i + 3;
+    if (b[i] == 0x40 && b[i + 1] <= 0x7f && len > 0 && start + len <= b.length && _printable(b, start, start + len)) {
+      out.add(String.fromCharCodes(b, start, start + len));
+      i = start + len;
+      continue;
     }
     i++;
   }
   return out;
 }
 
-bool _printable(Uint8List b, int start, int end) {
-  for (var i = start; i < end; i++) {
-    final c = b[i];
-    if (c != 0x09 && c != 0x0a && c != 0x0d && (c < 0x20 || c >= 0x7f)) return false;
-  }
-  return true;
-}
+bool _printable(Uint8List b, int start, int end) => b
+    .getRange(start, end)
+    .every((c) => c == 0x09 || c == 0x0a || c == 0x0d || (c >= 0x20 && c < 0x7f));

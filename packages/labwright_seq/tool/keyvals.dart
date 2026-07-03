@@ -23,26 +23,30 @@ String _root() {
 /// Resolve [segs] (path after the root) from [p], emitting (node, concretePath).
 /// A `[]` segment matches every array element; a `*` segment matches every named
 /// child and substitutes the child's name into the reported path.
-void _resolve(SeqProperty p, List<String> segs, String concrete,
-    void Function(SeqProperty, String) emit) {
-  if (segs.isEmpty) {
-    emit(p, concrete);
-    return;
-  }
+List<(SeqProperty, String)> _resolve(
+    SeqProperty p, List<String> segs, String concrete) {
+  if (segs.isEmpty) return [(p, concrete)];
   final seg = segs.first, rest = segs.sublist(1);
   if (seg == '[]') {
-    for (final e in p.array ?? const <SeqProperty>[]) {
-      _resolve(e, rest, '$concrete.[]', emit);
-    }
+    return [
+      for (final e in p.array ?? const <SeqProperty>[])
+        ..._resolve(e, rest, '$concrete.[]')
+    ];
   } else if (seg == '*') {
-    for (final c in p.subProps) {
-      _resolve(c, rest, '$concrete.${c.name}', emit);
-    }
+    return [
+      for (final c in p.subProps) ..._resolve(c, rest, '$concrete.${c.name}')
+    ];
   } else {
     final c = p.prop(seg);
-    if (c != null) _resolve(c, rest, '$concrete.$seg', emit);
+    return c != null ? _resolve(c, rest, '$concrete.$seg') : const [];
   }
 }
+
+String _classLabel(SeqProperty p) => p.isArray
+    ? 'Array[${p.array?.length ?? 0}]'
+    : p.subProps.isNotEmpty
+        ? 'Container{${p.subProps.length}}'
+        : (p.className ?? '?');
 
 void main(List<String> args) {
   if (args.isEmpty) {
@@ -63,20 +67,16 @@ void main(List<String> args) {
       for (final path in args) {
         final segs = path.split('.');
         final after = segs.first == sf.data.name ? segs.sublist(1) : segs;
-        _resolve(sf.data, after, sf.data.name, (p, concrete) {
+        for (final (p, concrete) in _resolve(sf.data, after, sf.data.name)) {
           counts.update(concrete, (n) => n + 1, ifAbsent: () => 1);
-          final cls = p.isArray
-              ? 'Array[${p.array?.length ?? 0}]'
-              : p.subProps.isNotEmpty
-                  ? 'Container{${p.subProps.length}}'
-                  : (p.className ?? '?');
+          final cls = _classLabel(p);
           (classDist[concrete] ??= {}).update(cls, (n) => n + 1, ifAbsent: () => 1);
           final v = p.scalar;
           final s = samples[concrete] ??= {};
           if (v != null && v.isNotEmpty && s.length < 8) {
             s.add(v.length > 50 ? '${v.substring(0, 50)}…' : v);
           }
-        });
+        }
       }
     } catch (_) {}
   }

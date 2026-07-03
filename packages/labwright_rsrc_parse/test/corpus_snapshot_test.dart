@@ -38,7 +38,7 @@ class _Snap {
   });
 }
 
-_Snap _snapSumm(Uint8List bytes, String path) {
+_Snap _summarizeVi(Uint8List bytes, String path) {
   try {
     final blocks = parseVi(bytes).blocks.toSet().toList()..sort();
     final m = buildViModel(bytes);
@@ -80,7 +80,7 @@ void main() {
 
   late final Map<String, _Snap> byPath;
   setUpAll(() async {
-    final res = await corpusParallel(all, _snapSumm);
+    final res = await corpusParallel(all, _summarizeVi);
     byPath = {for (final s in res) s.path: s};
   });
 
@@ -112,13 +112,11 @@ void main() {
 }
 
 String _commonRoot(Iterable<String> paths) {
-  final list = paths.toList();
-  var prefix = list.first;
-  for (final p in list) {
+  return paths.reduce((prefix, p) {
     while (!p.startsWith(prefix)) {
       prefix = prefix.substring(0, prefix.length - 1);
       if (prefix.isEmpty) return '';
     }
-  }
-  return prefix;
+    return prefix;
+  });
 }

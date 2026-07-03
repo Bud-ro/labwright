@@ -19,7 +19,7 @@ void main(List<String> args) {
     ..sort((a, b) => a.path.compareTo(b.path));
 
   var parsed = 0, rejected = 0, crashed = 0;
-  var withBD = 0, withFP = 0, withCONP = 0, withSub = 0, named = 0;
+  var withBD = 0, withFP = 0, withConnectorPane = 0, withSub = 0, named = 0;
   var totalSections = 0, filesWithBdSection = 0, sectionCrashes = 0;
   final crashes = <String>[];
   final samples = <String>[];
@@ -39,7 +39,7 @@ void main(List<String> args) {
       parsed++;
       if (vi.hasBlockDiagram) withBD++;
       if (vi.hasFrontPanel) withFP++;
-      if (vi.hasConnectorPane) withCONP++;
+      if (vi.hasConnectorPane) withConnectorPane++;
       if (vi.hasSubViLinks) withSub++;
       if (vi.name != null) named++;
       if (samples.length < 8) samples.add('${f.path.split('/').last}  ->  ${vi.describe()}');
@@ -56,7 +56,7 @@ void main(List<String> args) {
     ..writeln('parsed OK     : $parsed')
     ..writeln('  has block diagram : $withBD')
     ..writeln('  has front panel   : $withFP')
-    ..writeln('  has connector pane: $withCONP')
+    ..writeln('  has connector pane: $withConnectorPane')
     ..writeln('  has sub-VI links  : $withSub')
     ..writeln('  recovered a name  : $named')
     ..writeln('cleanly rejected (ViFormatException): $rejected')

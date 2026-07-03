@@ -8,11 +8,10 @@ Directory _corpusSeqRoot() {
   const pkgRel = 'packages/labwright_seq/corpus';
   var dir = Directory.current;
   for (var i = 0; i < 8; i++) {
-    if (File('${dir.path}/$pkgRel/seq-sources.json').existsSync()) {
-      return Directory('${dir.path}/$pkgRel/seq');
-    }
-    if (File('${dir.path}/corpus/seq-sources.json').existsSync()) {
-      return Directory('${dir.path}/corpus/seq');
+    for (final base in ['${dir.path}/$pkgRel', '${dir.path}/corpus']) {
+      if (File('$base/seq-sources.json').existsSync()) {
+        return Directory('$base/seq');
+      }
     }
     final parent = dir.parent;
     if (parent.path == dir.path) break;

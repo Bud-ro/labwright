@@ -168,7 +168,6 @@ void _reassembleContinuations(Map<String, String> map) {
   }
   if (groups == null) return;
   final rebuilt = <String, String>{};
-  final emitted = <String>{};
   for (final entry in map.entries) {
     final m = _continuationKey.firstMatch(entry.key);
     if (m == null) {
@@ -176,7 +175,7 @@ void _reassembleContinuations(Map<String, String> map) {
       continue;
     }
     final base = m.group(1)!;
-    if (emitted.add(base)) {
+    if (!rebuilt.containsKey(base)) {
       final frags = groups[base]!..sort((a, b) => a.$1.compareTo(b.$1));
       rebuilt[base] = _joinFragments(frags.map((f) => f.$2));
     }
@@ -339,7 +338,8 @@ class _IniBuilder {
 
   /// Distinct array indices present under a child path C (keys "C[0]", "C[1]"…),
   /// sorted ascending. Sourced from the prebuilt index.
-  List<int> _elementIndices(String c) => _elemIdx[c] ?? const <int>[];
+  List<int> _elementIndices(String childPath) =>
+      _elemIdx[childPath] ?? const <int>[];
 
   bool _isContainer(String childPath) =>
       _allPaths.contains(childPath) ||
@@ -390,15 +390,11 @@ class _IniBuilder {
     visiting ??= <String>{};
     final def = _defs[path];
     final val = _vals[path];
-    final name = _unquote(val?.directives['%NAME']) ??
-        _unquote(def?.directives['%NAME']) ??
-        displayName;
-    String? ovrOf(String m) => val?.directives['$instOverrideAttr: $m'];
-    String? flgOf(String m) =>
-        val?.directives['$flagsAttr: $m'] ?? def?.directives['$flagsAttr: $m'];
+    final name = val?.name ?? def?.name ?? displayName;
     Map<String, String> memberAttrs(String m) {
-      final ovr = ovrOf(m), flg = flgOf(m);
-      if (ovr == null && flg == null) return const {};
+      final ovr = val?.directives['$instOverrideAttr: $m'];
+      final flg =
+          val?.directives['$flagsAttr: $m'] ?? def?.directives['$flagsAttr: $m'];
       return {
         if (ovr != null) instOverrideAttr: ovr,
         if (flg != null) flagsAttr: flg,
@@ -410,27 +406,20 @@ class _IniBuilder {
         ? declaredTypeName
         : null;
     final inheritGuard = typeRoot != null && visiting.add(typeRoot);
-    final typeDefMembers = (typeRoot != null && inheritGuard)
-        ? _defs[typeRoot]!.members
-        : const <String, String>{};
+    final typeDefMembers =
+        inheritGuard ? _defs[typeRoot]!.members : const <String, String>{};
     String? memberTypeOf(String m) => def?.members[m] ?? typeDefMembers[m];
 
-    final memberOrder = <String>[];
-    final seen = <String>{};
-    void addUnique(Iterable<String> ms) {
-      for (final m in ms) {
-        if (seen.add(m)) memberOrder.add(m);
-      }
-    }
-
-    addUnique(def?.members.keys ?? const <String>[]);
-    addUnique(val?.members.keys ?? const <String>[]);
-    addUnique(_discoveredChildren(path));
-    addUnique(typeDefMembers.keys);
+    final memberOrder = <String>{
+      ...?def?.members.keys,
+      ...?val?.members.keys,
+      ..._discoveredChildren(path),
+      ...typeDefMembers.keys,
+    };
 
     final subs = <SeqProperty>[];
     for (final m in memberOrder) {
-      final (cls, tn) = _memberType(memberTypeOf(m));
+      final (className, typeName) = _memberType(memberTypeOf(m));
       final instPath = '$path.$m';
       final typePath = typeRoot == null ? null : '$typeRoot.$m';
       final elems = _elementIndices(instPath);
@@ -447,16 +436,21 @@ class _IniBuilder {
             ),
         ];
         subs.add(SeqProperty(
-            name: m, className: cls, array: arr, attributes: memberAttrs(m)));
+            name: m,
+            className: className,
+            array: arr,
+            attributes: memberAttrs(m)));
       } else if (_isContainer(instPath)) {
-        subs.add(build(instPath, m, cls, tn, visiting, memberAttrs(m)));
+        subs.add(
+            build(instPath, m, className, typeName, visiting, memberAttrs(m)));
       } else if (typePath != null && _isContainer(typePath)) {
-        subs.add(_inheritCache[typePath] ??= build(typePath, m, cls, tn, visiting));
+        subs.add(_inheritCache[typePath] ??=
+            build(typePath, m, className, typeName, visiting));
       } else {
         subs.add(SeqProperty(
           name: m,
-          className: cls,
-          typeName: tn,
+          className: className,
+          typeName: typeName,
           scalar: _unquote(val?.members[m]) ??
               (typeRoot == null ? null : _unquote(_vals[typeRoot]?.members[m])),
           attributes: memberAttrs(m),
@@ -465,13 +459,15 @@ class _IniBuilder {
     }
     if (inheritGuard) visiting.remove(typeRoot);
 
-    final attrs = <String, String>{...ownAttributes};
     final bareOvr =
         val?.directives[instOverrideAttr] ?? def?.directives[instOverrideAttr];
-    if (bareOvr != null) attrs[instOverrideAttr] = bareOvr;
     final comment =
         _unquote(val?.directives[commentAttr] ?? def?.directives[commentAttr]);
-    if (comment != null && comment.isNotEmpty) attrs[commentAttr] = comment;
+    final attrs = <String, String>{
+      ...ownAttributes,
+      if (bareOvr != null) instOverrideAttr: bareOvr,
+      if (comment != null && comment.isNotEmpty) commentAttr: comment,
+    };
 
     return SeqProperty(
       name: name,
@@ -504,10 +500,7 @@ SeqFile parseIniSeqFile(Uint8List bytes) {
 String? _unquote(String? s) {
   if (s == null) return null;
   final t = s.trim();
-  if (_isQuoted(t)) {
-    return _unescapeIni(t.substring(1, t.length - 1));
-  }
-  return t;
+  return _isQuoted(t) ? _unescapeIni(t.substring(1, t.length - 1)) : t;
 }
 
 /// True when [t] is surrounded by a matching pair of double quotes.

@@ -100,7 +100,8 @@ List<ViType> decodeTypePool(Uint8List body) {
     final kind = _typeCodes[code] ?? ViDataType.unknown;
     final members = kind == ViDataType.cluster ? _clusterMembers(body, off, descLen, count) : const <int>[];
     final elementIndex = kind == ViDataType.array ? _arrayElement(body, off, descLen, count) : null;
-    final enumItems = (kind == ViDataType.enumU8 || kind == ViDataType.enumU16 || kind == ViDataType.enumU32) ? _enumItems(body, off, descLen) : const <String>[];
+    final isEnum = kind == ViDataType.enumU8 || kind == ViDataType.enumU16 || kind == ViDataType.enumU32;
+    final enumItems = isEnum ? _enumItems(body, off, descLen) : const <String>[];
     final nameStart = _nameRegionStart(body, off, kind, members, elementIndex, enumItems);
     out.add(ViType(
       index: i,
@@ -123,11 +124,11 @@ List<ViType> decodeTypePool(Uint8List body) {
 /// range) — corpus-validated to parse for 99.9% of clusters.
 List<int> _clusterMembers(Uint8List b, int off, int descLen, int poolCount) {
   if (off + 6 > b.length) return const [];
-  final nm = (b[off + 4] << 8) | b[off + 5];
-  if (nm <= 0 || nm > 512) return const [];
-  if (6 + nm * 2 > descLen) return const [];
+  final memberCount = (b[off + 4] << 8) | b[off + 5];
+  if (memberCount <= 0 || memberCount > 512) return const [];
+  if (6 + memberCount * 2 > descLen) return const [];
   final out = <int>[];
-  for (var m = 0; m < nm; m++) {
+  for (var m = 0; m < memberCount; m++) {
     final p = off + 6 + m * 2;
     final idx = (b[p] << 8) | b[p + 1];
     if (idx >= poolCount) return const [];
@@ -144,9 +145,9 @@ int? _arrayElement(Uint8List b, int off, int descLen, int poolCount) {
   if (off + 6 > b.length) return null;
   final numDims = (b[off + 4] << 8) | b[off + 5];
   if (numDims < 1 || numDims > 8) return null;
-  final ep = off + 6 + numDims * 4;
-  if (ep + 2 > off + descLen) return null;
-  final idx = (b[ep] << 8) | b[ep + 1];
+  final elementIndexPos = off + 6 + numDims * 4;
+  if (elementIndexPos + 2 > off + descLen) return null;
+  final idx = (b[elementIndexPos] << 8) | b[elementIndexPos + 1];
   if (idx >= poolCount) return null;
   return idx;
 }
@@ -166,10 +167,8 @@ List<String> _enumItems(Uint8List b, int off, int descLen) {
     if (p >= endPos) return const [];
     final len = b[p];
     if (len < 1 || p + 1 + len > endPos) return const [];
-    for (var j = p + 1; j < p + 1 + len; j++) {
-      if (b[j] < 0x20 || b[j] >= 0x7f) return const [];
-    }
-    out.add(String.fromCharCodes(b.sublist(p + 1, p + 1 + len)));
+    if (b.getRange(p + 1, p + 1 + len).any((c) => c < 0x20 || c >= 0x7f)) return const [];
+    out.add(String.fromCharCodes(b, p + 1, p + 1 + len));
     p += 1 + len;
   }
   return out;
@@ -185,8 +184,9 @@ List<ViType> clusterFields(ViType c, List<ViType> types) => [
 /// A short human label for a type, resolving one level of array nesting:
 /// `array<dbl>`, `array<cluster>`, else the bare kind name (`i32`, `cluster`).
 String typeLabel(ViType t, List<ViType> types) {
-  if (t.kind == ViDataType.array && t.elementIndex != null && t.elementIndex! < types.length) {
-    return 'array<${types[t.elementIndex!].kind.name}>';
+  final ei = t.elementIndex;
+  if (t.kind == ViDataType.array && ei != null && ei < types.length) {
+    return 'array<${types[ei].kind.name}>';
   }
   return t.kind.name;
 }
@@ -200,15 +200,15 @@ String typeLabel(ViType t, List<ViType> types) {
 /// — heuristic but precise enough that ~all recovered names are real identifiers
 /// (corpus-validated: ~64% of descriptors named, e.g. `Serial Number`).
 String? _trailingName(Uint8List b, int start, int end) {
-  for (final e in [end, end - 1]) {
-    if (e <= start) continue;
+  for (final nameEnd in [end, end - 1]) {
+    if (nameEnd <= start) continue;
     for (var len = 2; len <= 63; len++) {
-      final lenPos = e - len - 1;
+      final lenPos = nameEnd - len - 1;
       if (lenPos < start) break;
       if (b[lenPos] != len) continue;
       var ok = true;
       var letters = 0;
-      for (var i = lenPos + 1; i < e; i++) {
+      for (var i = lenPos + 1; i < nameEnd; i++) {
         final c = b[i];
         if (c < 0x20 || c >= 0x7f) {
           ok = false;
@@ -217,7 +217,7 @@ String? _trailingName(Uint8List b, int start, int end) {
         if ((c >= 0x41 && c <= 0x5a) || (c >= 0x61 && c <= 0x7a)) letters++;
       }
       if (ok && (letters >= 2 || letters * 2 >= len)) {
-        return String.fromCharCodes(b.sublist(lenPos + 1, e));
+        return String.fromCharCodes(b.sublist(lenPos + 1, nameEnd));
       }
     }
   }

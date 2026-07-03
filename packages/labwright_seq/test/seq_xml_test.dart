@@ -319,8 +319,8 @@ const _seqMutexXml = '''<?xml version="1.0" encoding="UTF-8"?>
   </subprops></Data>
 </teststandfileheader>''';
 
-Uint8List _bytes(String s, {bool bom = true}) =>
-    Uint8List.fromList([if (bom) ...[0xef, 0xbb, 0xbf], ...utf8.encode(s)]);
+Uint8List _bytes(String s) =>
+    Uint8List.fromList([0xef, 0xbb, 0xbf, ...utf8.encode(s)]);
 
 void main() {
   group('parseSeqFile (XML)', () {

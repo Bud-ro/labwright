@@ -21,10 +21,12 @@ import 'corpus_dirs.dart';
 /// isolate (see [corpusParallel]) and the tests assert on the aggregate — there is
 /// no sampling, the heavy work is just parallelized.
 
+bool _hasNonPrintable(String s) => s.runes.any((c) => c < 0x20 || c >= 0x7f);
+
 /// Per-VI summary covering every test below. Sendable (primitives + nullable
 /// strings). A VI whose model build throws returns a neutral summary (`built`
 /// false), affecting no aggregate.
-class _J {
+class _ViSummary {
   final String path;
   final bool built;
   final int diagrams;
@@ -41,7 +43,7 @@ class _J {
   final String? oobElem;
   final int enums, enumsWithItems;
   final String? badEnum;
-  const _J({
+  const _ViSummary({
     required this.path,
     required this.built,
     required this.diagrams,
@@ -64,7 +66,7 @@ class _J {
     required this.enumsWithItems,
     required this.badEnum,
   });
-  factory _J.neutral(String path) => _J(
+  factory _ViSummary.neutral(String path) => _ViSummary(
         path: path, built: false, diagrams: 0, jsonFail: null, drawableFail: null,
         typesCount: 0, unknownTypes: 0, withTypes: false, namedCount: 0, hasNames: false,
         badName: null, clusters: 0, clustersWithMembers: 0, totalFields: 0, oobMember: null,
@@ -72,12 +74,12 @@ class _J {
       );
 }
 
-_J _jsonSumm(Uint8List bytes, String path) {
+_ViSummary _summarizeVi(Uint8List bytes, String path) {
   final ViModel model;
   try {
     model = buildViModel(Uint8List.fromList(bytes));
   } catch (_) {
-    return _J.neutral(path);
+    return _ViSummary.neutral(path);
   }
   final name = path.split('/').last;
 
@@ -101,13 +103,11 @@ _J _jsonSumm(Uint8List bytes, String path) {
     diagrams++;
     final json = viDiagramToJson(d);
     final emitted = (json['objects'] as List).map((o) => (o as Map)['oid'] as int).toSet();
-    for (final o in d.nodes) {
-      if (!emitted.contains(o.oid)) {
-        drawableFail = 'MISSING ${o.oid} in $name/${d.sectionTag}';
-        break;
-      }
+    final missing = d.nodes.where((o) => !emitted.contains(o.oid));
+    if (missing.isNotEmpty) {
+      drawableFail = 'MISSING ${missing.first.oid} in $name/${d.sectionTag}';
+      break;
     }
-    if (drawableFail != null) break;
   }
 
   final typesCount = model.types.length;
@@ -116,7 +116,7 @@ _J _jsonSumm(Uint8List bytes, String path) {
   String? badName;
   for (final t in named) {
     final n = t.name!;
-    if (n.isEmpty || n.runes.any((c) => c < 0x20 || c >= 0x7f) || !RegExp(r'[A-Za-z]').hasMatch(n)) {
+    if (n.isEmpty || _hasNonPrintable(n) || !RegExp(r'[A-Za-z]').hasMatch(n)) {
       badName = '"$n" in $name';
       break;
     }
@@ -146,18 +146,18 @@ _J _jsonSumm(Uint8List bytes, String path) {
           oobElem ??= 'OOB elem ${t.elementIndex} in $name';
         }
       }
-    } else if (t.kind == ViDataType.enumU8 || t.kind == ViDataType.enumU16 || t.kind == ViDataType.enumU32) {
+    } else if (const {ViDataType.enumU8, ViDataType.enumU16, ViDataType.enumU32}.contains(t.kind)) {
       enums++;
       if (t.enumItems.isNotEmpty) {
         enumsWithItems++;
         for (final it in t.enumItems) {
-          if (it.isEmpty || it.runes.any((c) => c < 0x20 || c >= 0x7f)) badEnum ??= '"$it" in $name';
+          if (it.isEmpty || _hasNonPrintable(it)) badEnum ??= '"$it" in $name';
         }
       }
     }
   }
 
-  return _J(
+  return _ViSummary(
     path: path,
     built: true,
     diagrams: diagrams,
@@ -188,30 +188,30 @@ void main() {
     test('IR JSON corpus tests (skipped: corpus not fetched)', () {}, skip: true);
     return;
   }
-  late final List<_J> J;
+  late final List<_ViSummary> summaries;
   late final int filesBuilt;
   setUpAll(() async {
-    J = await corpusParallel(all, _jsonSumm);
-    filesBuilt = J.where((j) => j.built).length;
+    summaries = await corpusParallel(all, _summarizeVi);
+    filesBuilt = summaries.where((j) => j.built).length;
   });
 
   test('viModelToJson is deterministic and jsonEncode-safe for every VI', () {
-    final fails = J.map((j) => j.jsonFail).whereType<String>().toList();
+    final fails = summaries.map((j) => j.jsonFail).whereType<String>().toList();
     expect(filesBuilt, greaterThan(0));
     expect(fails, isEmpty, reason: 'IR JSON determinism/safety failures: ${fails.take(8).toList()}');
   });
 
   test('IR JSON represents every drawable object (no drawable lost)', () {
-    final fails = J.map((j) => j.drawableFail).whereType<String>().toList();
+    final fails = summaries.map((j) => j.drawableFail).whereType<String>().toList();
     expect(filesBuilt, greaterThan(0));
-    expect(J.fold<int>(0, (a, j) => a + j.diagrams), greaterThan(0));
+    expect(summaries.fold<int>(0, (a, j) => a + j.diagrams), greaterThan(0));
     expect(fails, isEmpty, reason: 'IR JSON dropped drawable object(s): ${fails.take(8).toList()}');
   });
 
   test('VCTP type pool recovers a type inventory for the vast majority of VIs', () {
-    final withTypes = J.where((j) => j.withTypes).length;
-    final totalTypes = J.fold<int>(0, (a, j) => a + j.typesCount);
-    final totalUnknown = J.fold<int>(0, (a, j) => a + j.unknownTypes);
+    final withTypes = summaries.where((j) => j.withTypes).length;
+    final totalTypes = summaries.fold<int>(0, (a, j) => a + j.typesCount);
+    final totalUnknown = summaries.fold<int>(0, (a, j) => a + j.unknownTypes);
     expect(filesBuilt, greaterThan(0));
     expect(totalTypes, greaterThan(0));
     expect(withTypes, greaterThan((filesBuilt * 0.90).floor()),
@@ -221,9 +221,9 @@ void main() {
   });
 
   test('VCTP named typedefs are recovered and look like real identifiers', () {
-    final vIsWithNames = J.where((j) => j.hasNames).length;
-    final totalNames = J.fold<int>(0, (a, j) => a + j.namedCount);
-    final badNames = J.map((j) => j.badName).whereType<String>().toList();
+    final vIsWithNames = summaries.where((j) => j.hasNames).length;
+    final totalNames = summaries.fold<int>(0, (a, j) => a + j.namedCount);
+    final badNames = summaries.map((j) => j.badName).whereType<String>().toList();
     expect(filesBuilt, greaterThan(0));
     expect(totalNames, greaterThan(0));
     expect(badNames, isEmpty, reason: 'malformed recovered type names: ${badNames.take(8).toList()}');
@@ -232,10 +232,10 @@ void main() {
   });
 
   test('cluster member structures resolve into valid fields', () {
-    final clusters = J.fold<int>(0, (a, j) => a + j.clusters);
-    final clustersWithMembers = J.fold<int>(0, (a, j) => a + j.clustersWithMembers);
-    final totalFields = J.fold<int>(0, (a, j) => a + j.totalFields);
-    final fails = J.map((j) => j.oobMember).whereType<String>().toList();
+    final clusters = summaries.fold<int>(0, (a, j) => a + j.clusters);
+    final clustersWithMembers = summaries.fold<int>(0, (a, j) => a + j.clustersWithMembers);
+    final totalFields = summaries.fold<int>(0, (a, j) => a + j.totalFields);
+    final fails = summaries.map((j) => j.oobMember).whereType<String>().toList();
     expect(clusters, greaterThan(0));
     expect(fails, isEmpty, reason: 'cluster members out of range: ${fails.take(8).toList()}');
     expect(totalFields, greaterThan(0));
@@ -244,9 +244,9 @@ void main() {
   });
 
   test('array element types resolve into valid in-range indices', () {
-    final arrays = J.fold<int>(0, (a, j) => a + j.arrays);
-    final arraysWithElem = J.fold<int>(0, (a, j) => a + j.arraysWithElem);
-    final fails = J.map((j) => j.oobElem).whereType<String>().toList();
+    final arrays = summaries.fold<int>(0, (a, j) => a + j.arrays);
+    final arraysWithElem = summaries.fold<int>(0, (a, j) => a + j.arraysWithElem);
+    final fails = summaries.map((j) => j.oobElem).whereType<String>().toList();
     expect(arrays, greaterThan(0));
     expect(fails, isEmpty, reason: 'array element index out of range: ${fails.take(8).toList()}');
     expect(arraysWithElem, greaterThan((arrays * 0.80).floor()),
@@ -254,9 +254,9 @@ void main() {
   });
 
   test('enum item labels are recovered and printable', () {
-    final enums = J.fold<int>(0, (a, j) => a + j.enums);
-    final enumsWithItems = J.fold<int>(0, (a, j) => a + j.enumsWithItems);
-    final fails = J.map((j) => j.badEnum).whereType<String>().toList();
+    final enums = summaries.fold<int>(0, (a, j) => a + j.enums);
+    final enumsWithItems = summaries.fold<int>(0, (a, j) => a + j.enumsWithItems);
+    final fails = summaries.map((j) => j.badEnum).whereType<String>().toList();
     expect(enums, greaterThan(0));
     expect(fails, isEmpty, reason: 'malformed enum items: ${fails.take(8).toList()}');
     expect(enumsWithItems, greaterThan((enums * 0.80).floor()),

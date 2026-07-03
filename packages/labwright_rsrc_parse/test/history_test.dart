@@ -3,12 +3,12 @@ import 'dart:typed_data';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
-Uint8List _hist({int version = 2, int flags = 0x400, int count = 11}) {
+Uint8List _hist() {
   final b = Uint8List(40);
   final bd = ByteData.sublistView(b);
-  bd.setUint32(0, version);
-  bd.setUint32(4, flags);
-  bd.setUint32(8, count);
+  bd.setUint32(0, 2);
+  bd.setUint32(4, 0x400);
+  bd.setUint32(8, 11);
   return b;
 }
 

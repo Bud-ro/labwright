@@ -37,39 +37,41 @@ class SeqFile {
   /// The root `Data` property object holding the file's contents.
   final SeqProperty data;
 
+  String? _str(String k) => _nz(data.prop(k)?.scalar);
+  int? _int(String k) => int.tryParse(data.prop(k)?.scalar ?? '');
+
   /// The process model file this sequence file uses (`Data.ModelFile`), e.g. a
   /// `.seq` station-model path; null when it inherits the station default.
-  String? get modelFile => _nz(data.prop('ModelFile')?.scalar);
+  String? get modelFile => _str('ModelFile');
 
   /// The model-option code (`Data.ModelOption`) — how the file selects its model
   /// (use station model / require specific / none). Verbatim; NI-internal
   /// code→name not invented. null when absent.
-  int? get modelOptionCode => int.tryParse(data.prop('ModelOption')?.scalar ?? '');
+  int? get modelOptionCode => _int('ModelOption');
 
   /// The file-wide default module load/unload options (`Data.LoadOpt` /
   /// `Data.UnloadOpt`), e.g. `UseStepLoadOpt` — the fallback a step inherits when
   /// it defers to the file. null when absent.
-  String? get loadOption => _nz(data.prop('LoadOpt')?.scalar);
-  String? get unloadOption => _nz(data.prop('UnloadOpt')?.scalar);
+  String? get loadOption => _str('LoadOpt');
+  String? get unloadOption => _str('UnloadOpt');
 
   /// The file's content version string (`Data.Version`, e.g. `2022.2.9`) — the
   /// TestStand version stamp on the file contents, distinct from the
   /// header/format version ([SeqFileHeader.fileVersion]). null when absent.
-  String? get contentVersion => _nz(data.prop('Version')?.scalar);
+  String? get contentVersion => _str('Version');
 
   /// The file's batch-synchronization code (`Data.BatchSync`). Verbatim;
   /// NI-internal code→name not invented. null when absent.
-  int? get batchSyncCode => int.tryParse(data.prop('BatchSync')?.scalar ?? '');
+  int? get batchSyncCode => _int('BatchSync');
 
   /// The file-globals scope code (`Data.SFGlobalsScope`) governing how this
   /// file's globals are shared. Verbatim; null when absent.
-  int? get sequenceFileGlobalsScopeCode =>
-      int.tryParse(data.prop('SFGlobalsScope')?.scalar ?? '');
+  int? get sequenceFileGlobalsScopeCode => _int('SFGlobalsScope');
 
   /// The file-type code (`Data.Type`) classifying the sequence file (model /
   /// ordinary / …). Verbatim; NI-internal code→name not invented. null when
   /// absent.
-  int? get fileTypeCode => int.tryParse(data.prop('Type')?.scalar ?? '');
+  int? get fileTypeCode => _int('Type');
 
   /// The requirement-traceability links the file declares (`Data.Requirements.
   /// Links`). Empty when none.
@@ -109,8 +111,8 @@ class SeqFile {
     final m = <String, String>{};
     for (final seq in sequences) {
       for (final step in seq.steps) {
-        final id = step.raw.prop('TS')?.prop('Id')?.scalar;
-        if (id != null && id.isNotEmpty) m[id] = step.name;
+        final id = step.id;
+        if (id != null) m[id] = step.name;
       }
     }
     return m;
@@ -119,10 +121,9 @@ class SeqFile {
   /// Resolves a step reference [idRef] (a `TS.Id` value, with or without the
   /// `ID#:` prefix) to the destination step's name, or null when no step in the
   /// file has that id. Used to make `ID#:`-form flow-action targets readable.
-  String? stepNameForId(String idRef) {
-    return _stepNamesById[idRef] ??
-        (idRef.startsWith('ID#:') ? null : _stepNamesById['ID#:$idRef']);
-  }
+  String? stepNameForId(String idRef) =>
+      _stepNamesById[idRef] ??
+      (idRef.startsWith('ID#:') ? null : _stepNamesById['ID#:$idRef']);
 
   /// For a SequenceCall [step], the called sequence **within this file**, or null
   /// when the step isn't a sequence call or the target lives in another file
@@ -173,7 +174,8 @@ class Sequence {
   String? get comment => _nz(raw.attributes['%COMMENT']);
 
   /// The steps in [group] (its array property), in declaration order.
-  List<Step> stepsIn(StepGroup group) => _group(group.key);
+  List<Step> stepsIn(StepGroup group) =>
+      [for (final s in raw.prop(group.key)?.array ?? const <SeqProperty>[]) Step(s)];
 
   List<Step> get setup => stepsIn(StepGroup.setup);
   List<Step> get main => stepsIn(StepGroup.main);
@@ -181,9 +183,6 @@ class Sequence {
 
   /// All steps in editor order (Setup, then Main, then Cleanup).
   List<Step> get steps => [for (final g in StepGroup.values) ...stepsIn(g)];
-
-  List<Step> _group(String name) =>
-      [for (final s in raw.prop(name)?.array ?? const <SeqProperty>[]) Step(s)];
 
   /// The sequence's local variables (`Locals`), in declaration order.
   List<SeqVariable> get locals => _vars('Locals');
@@ -342,8 +341,8 @@ class Step {
   final SeqProperty raw;
 
   String? _s(String key) => _nz(raw.prop(key)?.scalar);
-  int? _i(String key) => int.tryParse(raw.prop(key)?.scalar ?? '');
-  bool? _b(String key) => _flag(raw.prop(key)?.scalar);
+  int? _i(String key) => int.tryParse(_s(key) ?? '');
+  bool? _b(String key) => _flag(_s(key));
 
   /// The step's display name (its `name=` attribute).
   String get name => raw.name;
@@ -532,7 +531,7 @@ class Step {
 
   /// The step's unique id (`TS.Id`, e.g. `ID#:1m8fotxw7RGuNrjdh1OqZD`) — the
   /// stable handle other steps' flow-action targets reference (see
-  /// [SeqFile.stepNameById], which resolves such a reference back to this step's
+  /// [SeqFile.stepNameForId], which resolves such a reference back to this step's
   /// name). null when the step records none. Opaque by design; its value is the
   /// link identity, not human-meaningful text.
   String? get id => _nz(raw.prop('TS')?.prop('Id')?.scalar);
@@ -861,11 +860,7 @@ List<String> _scalarValues(SeqProperty? container) => [
 
 /// Parses a TestStand boolean stored either as `true`/`false` (XML, any case) or
 /// `1`/`0` (some numeric flags). null when absent or unrecognized.
-bool? _flag(String? s) => switch (s?.toLowerCase()) {
-      'true' || '1' => true,
-      'false' || '0' => false,
-      _ => null,
-    };
+bool? _flag(String? s) => _flagStrict(s?.toLowerCase());
 
 /// A strict (case-sensitive) TestStand boolean: `true`/`1` → true, `false`/`0` →
 /// false, everything else (including uppercase) → null. The non-lowercasing
@@ -1125,17 +1120,16 @@ class StepModule {
   /// e.g. `numericTests.c`, `64BitSupport\64BitSupport.cpp`) — the C/C++ source
   /// the DLL was built from, where the editor records it. null when absent (the
   /// adapter records the *built* module elsewhere, e.g. [libPath]).
-  String? get moduleSourcePath => _nz(raw?.prop('ModuleSrcPath')?.scalar);
+  String? get moduleSourcePath => _sd('ModuleSrcPath');
 
   /// The project/solution file the code module builds from (`SData.ModulePrjPath`,
   /// e.g. `64BitSupport\64BitSupport.vcproj`); null when absent.
-  String? get moduleProjectPath => _nz(raw?.prop('ModulePrjPath')?.scalar);
+  String? get moduleProjectPath => _sd('ModulePrjPath');
 
   /// The source-creation-type code (`SData.ModuleCreateSrcType`) recording how the
   /// module's source was created/linked. Verbatim; the NI-internal code→name
   /// mapping is not invented. null when absent.
-  int? get moduleSourceTypeCode =>
-      int.tryParse(raw?.prop('ModuleCreateSrcType')?.scalar ?? '');
+  int? get moduleSourceTypeCode => _sdInt('ModuleCreateSrcType');
 
   String? _sd(String key) => _nz(raw?.prop(key)?.scalar);
   bool? _sdFlag(String key) => _flag(raw?.prop(key)?.scalar);
@@ -1735,7 +1729,7 @@ class StepTypeInfo {
   List<String> _split(String key, String sep) {
     final s = _str(key);
     if (s == null) return const [];
-    return [for (final t in s.split(sep)) if (t.trim().isNotEmpty) t.trim()];
+    return s.split(sep).map((t) => t.trim()).where((t) => t.isNotEmpty).toList();
   }
 
   /// Whether this step type participates in a block structure
@@ -1854,10 +1848,7 @@ class MeasurementPlugIns {
   /// Pattern files (`PatternFilePaths`), in order; empty when none.
   List<String> get patternFiles => _paths('PatternFilePaths');
 
-  List<String> _paths(String key) => [
-        for (final e in raw.prop(key)?.array ?? const <SeqProperty>[])
-          if (_nz(e.scalar) case final s?) s,
-      ];
+  List<String> _paths(String key) => _scalarValues(raw.prop(key));
 
   /// True when the file actually declares any STS resource (a pin map or any
   /// file list) — i.e. the block carries more than a bare monitoring flag.
@@ -1893,14 +1884,13 @@ SeqFile _parseXml(Uint8List bytes) {
   if (root.name.local != 'teststandfileheader') {
     throw FormatException('unexpected root element <${root.name.local}>');
   }
-  final types = <SeqProperty>[];
   final typelist = childElement(root, 'typelist');
-  if (typelist != null) {
-    for (final typedef in childElementsNamed(typelist, 'typedef')) {
-      final kids = typedef.childElements;
-      if (kids.isNotEmpty) types.add(buildProperty(kids.first));
-    }
-  }
+  final types = [
+    if (typelist != null)
+      for (final typedef in childElementsNamed(typelist, 'typedef'))
+        if (typedef.childElements.isNotEmpty)
+          buildProperty(typedef.childElements.first),
+  ];
   final dataEl = childElement(root, 'Data');
   if (dataEl == null) throw const FormatException('missing <Data> element');
   return SeqFile(

@@ -22,7 +22,7 @@ import 'ir.dart';
 /// consumer must not read it as the child list.
 Map<String, Object?> viDiagramToJson(ViDiagram d) => {
       'sectionTag': d.sectionTag,
-      'objects': [for (final o in d.objects) _objectToJson(o)],
+      'objects': d.objects.map(_objectToJson).toList(),
     };
 
 Map<String, Object?> _objectToJson(ViHeapObject o) {
@@ -44,8 +44,8 @@ Map<String, Object?> _objectToJson(ViHeapObject o) {
     if (o.items.isNotEmpty) 'items': o.items,
     if (o.termCount != 0) 'termCount': o.termCount,
     if (o.memberOids.isNotEmpty) 'memberOids': o.memberOids.toList(),
-    if (o.controlMin != null && o.controlMin!.isFinite) 'controlMin': o.controlMin,
-    if (o.controlMax != null && o.controlMax!.isFinite) 'controlMax': o.controlMax,
+    if (o.controlMin?.isFinite ?? false) 'controlMin': o.controlMin,
+    if (o.controlMax?.isFinite ?? false) 'controlMax': o.controlMax,
     if (o.helpText != null) 'helpText': o.helpText,
   };
 }
@@ -72,13 +72,11 @@ Map<String, Object?> _rectToJson(HeapRect r) => {
 /// members are the terminals; otherwise the conpane type is a single terminal.
 /// Direction (in/out) is not recovered, so it is not emitted.
 List<Map<String, Object?>>? _conpaneTerminals(ViModel m) {
-  final i = m.connectorPaneTypeIndex;
-  if (i == null || i < 1 || i > m.types.length) return null;
-  final cp = m.types[i - 1];
-  final terms = cp.kind == ViDataType.cluster ? clusterFields(cp, m.types) : <ViType>[cp];
-  return [
-    for (final t in terms) _termJson(t, m.types),
-  ];
+  final typeIndex = m.connectorPaneTypeIndex;
+  if (typeIndex == null || typeIndex < 1 || typeIndex > m.types.length) return null;
+  final conpaneType = m.types[typeIndex - 1];
+  final terms = conpaneType.kind == ViDataType.cluster ? clusterFields(conpaneType, m.types) : <ViType>[conpaneType];
+  return [for (final t in terms) _termJson(t, m.types)];
 }
 
 /// A terminal/cluster field rendered as its `{kind, name?}` JSON object — the
@@ -98,8 +96,10 @@ Map<String, Object?> viModelToJson(ViModel m) {
     if (m.subViNames.isNotEmpty) 'subViNames': m.subViNames,
     if (m.connectorPaneTypeIndex != null) 'connectorPaneTypeIndex': m.connectorPaneTypeIndex,
     if (terminals != null) 'connectorPaneTerminals': terminals,
-    if (m.types.isNotEmpty) 'typeCount': m.types.length,
-    if (m.types.isNotEmpty) 'typeHistogram': typeKindHistogram(m.types),
+    if (m.types.isNotEmpty) ...{
+      'typeCount': m.types.length,
+      'typeHistogram': typeKindHistogram(m.types),
+    },
     if (named.isNotEmpty)
       'namedTypes': [
         for (final t in named.take(200))

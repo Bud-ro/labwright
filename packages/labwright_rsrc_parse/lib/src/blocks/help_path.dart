@@ -45,24 +45,24 @@ class ViHelpPath {
 
 /// Decodes an `HLPP` (`PTH0`) body. Null when too short for the header; returns
 /// `isPth0: false` (empty path) when the magic is absent rather than guessing.
-ViHelpPath? decodeHelpPath(Uint8List b) {
-  if (b.length < _pth0HeaderLen) return null;
-  final isPth0 = _pth0Magic.indexed.every((e) => b[e.$1] == e.$2);
+ViHelpPath? decodeHelpPath(Uint8List body) {
+  if (body.length < _pth0HeaderLen) return null;
+  final isPth0 = _pth0Magic.indexed.every((e) => body[e.$1] == e.$2);
   if (!isPth0) {
-    return ViHelpPath(rawLength: b.length, isPth0: false, pathType: 0, components: const []);
+    return ViHelpPath(rawLength: body.length, isPth0: false, pathType: 0, components: const []);
   }
-  final bd = ByteData.sublistView(b);
+  final bd = ByteData.sublistView(body);
   final pathType = bd.getUint16(8);
   final count = bd.getUint16(10);
   final components = <String>[];
   var p = _pth0HeaderLen;
   for (var i = 0; i < count; i++) {
-    if (p >= b.length) break;
-    final len = b[p];
+    if (p >= body.length) break;
+    final len = body[p];
     p++;
-    if (p + len > b.length) break;
-    components.add(String.fromCharCodes(b, p, p + len));
+    if (p + len > body.length) break;
+    components.add(String.fromCharCodes(body, p, p + len));
     p += len;
   }
-  return ViHelpPath(rawLength: b.length, isPth0: true, pathType: pathType, components: components);
+  return ViHelpPath(rawLength: body.length, isPth0: true, pathType: pathType, components: components);
 }

@@ -109,11 +109,7 @@ class ViModel {
 
   List<String> _dedupe(Iterable<String?> values) {
     final seen = <String>{};
-    final out = <String>[];
-    for (final s in values) {
-      if (s != null && seen.add(s)) out.add(s);
-    }
-    return out;
+    return [for (final s in values) if (s != null && seen.add(s)) s];
   }
 
   /// Single-string **captions** (control names/labels) decoded from `C4 22`
@@ -140,8 +136,7 @@ class ViModel {
 
   /// All distinct, deduped label strings across [stringTables], order-preserving.
   /// Convenience for "what does this VI contain".
-  List<String> get labels =>
-      _dedupe([for (final t in stringTables) for (final s in t.strings) s]);
+  List<String> get labels => _dedupe(stringTables.expand((t) => t.strings));
 }
 
 /// A **named, positioned VI object** assembled from adjacent heap records: a
@@ -190,6 +185,11 @@ List<ViObject> assembleObjects(List<HeapRecord> records, List<HeapStringTable> s
   var lastBoundsIdx = -1;
   String? section;
   var idx = 0;
+  void attach(ViObject o) {
+    out.add(o);
+    lastBounds = null;
+  }
+
   for (final r in records) {
     if (r.sectionTag != section) {
       section = r.sectionTag;
@@ -203,22 +203,20 @@ List<ViObject> assembleObjects(List<HeapRecord> records, List<HeapStringTable> s
     } else if (r.kind == HeapOpcode.caption && inRange) {
       final cap = r.text;
       if (cap != null) {
-        out.add(ViObject(
+        attach(ViObject(
           sectionTag: r.sectionTag,
-          bounds: lastBounds.bounds!,
+          bounds: lastBounds!.bounds!,
           caption: cap,
         ));
-        lastBounds = null;
       }
     } else if (r.kind == HeapOpcode.stringTable && inRange) {
       final t = framed['${r.sectionTag}@${r.offset + r.headerLength}'];
       if (t != null) {
-        out.add(ViObject(
+        attach(ViObject(
           sectionTag: r.sectionTag,
-          bounds: lastBounds.bounds!,
+          bounds: lastBounds!.bounds!,
           labels: t.strings,
         ));
-        lastBounds = null;
       }
     }
     idx++;
