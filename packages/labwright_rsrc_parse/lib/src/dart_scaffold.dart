@@ -209,6 +209,7 @@ void _emitDiagram(StringBuffer b, ViDiagram d) {
       case ViObjectKind.terminal:
       case ViObjectKind.terminalCluster:
       case ViObjectKind.decoration:
+      case ViObjectKind.wire:
       case ViObjectKind.unknown:
         for (final child in children) {
           walk(child, depth);
