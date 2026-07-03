@@ -87,11 +87,29 @@ const _variableRoots = {
 final _dartSafeExpression = RegExp(
     r"^[A-Za-z0-9_.\s+\-*/!<>=&|(),'\x22\[\]]+$");
 
+/// TestStand built-ins the exporter translates to implemented [TsRuntime]
+/// methods (chosen from corpus frequency: these cover the bulk of ts.eval
+/// fallbacks). Each runtime method implements the common arity and throws
+/// [UnimplementedError] for the engine-specific forms, so the generated code
+/// always compiles and never silently changes semantics.
+const _builtinCalls = {
+  'Len': 'ts.len',
+  'GetNumElements': 'ts.getNumElements',
+  'SetNumElements': 'ts.setNumElements',
+  'Str': 'ts.str',
+  'Left': 'ts.left',
+  'Right': 'ts.right',
+  'Mid': 'ts.mid',
+  'Find': 'ts.find',
+  'Random': 'ts.random',
+};
+
 /// Constructs that force the `ts.eval` fallback even when the charset looks
-/// safe: ANY function-style call (TestStand's built-in library is large and
-/// none of it exists in Dart), plus engine-only operators. Parenthesized
-/// grouping (`(a || b)`) is fine — only `identifier(` marks a call.
-final _testStandOnly = RegExp(r'[A-Za-z_][A-Za-z0-9_]*\s*\(|#|->');
+/// safe: any function-style call that is NOT a rewritten `ts.` method call
+/// (TestStand's built-in library is large; only [_builtinCalls] are
+/// translated), plus engine-only operators. Parenthesized grouping
+/// (`(a || b)`) is fine — only `identifier(` marks a call.
+final _testStandOnly = RegExp(r'(?<!\.)\b[A-Za-z_][A-Za-z0-9_]*\s*\(|#|->');
 
 class _DartExporter {
   _DartExporter(this.file, {this.sourceName});
@@ -157,6 +175,8 @@ class _DartExporter {
       ..writeln('// ordered comments.')
       ..writeln('// ignore_for_file: unused_local_variable, dead_code, '
           'unused_element, unused_label')
+      ..writeln()
+      ..writeln("import 'dart:math' as math; // ignore: unused_import")
       ..writeln();
   }
 
@@ -250,6 +270,14 @@ class _DartExporter {
             }
             return '$root.$path';
           },
+        );
+      }
+      // Translate the catalogued TestStand built-ins to ts.* method calls
+      // (not preceded by a dot — a member path stays a member path).
+      for (final entry in _builtinCalls.entries) {
+        code = code.replaceAllMapped(
+          RegExp('(?<![.A-Za-z0-9_])${entry.key}\\s*\\('),
+          (_) => '${entry.value}(',
         );
       }
       // Bitwise &/| (after masking the shared &&/||) parse with different
@@ -695,7 +723,9 @@ class _DartExporter {
 // ── minimal runtime ─────────────────────────────────────────────────────────
 
 /// The TestStand-engine surface the exported logic needs. Expressions beyond
-/// mechanical translation arrive at [eval] verbatim.
+/// mechanical translation arrive at [eval] verbatim; the implemented helpers
+/// (len/str/left/...) cover the corpus-frequent TestStand built-ins with the
+/// common arity, throwing UnimplementedError for engine-specific forms.
 class TsRuntime {
   // Dynamic on purpose: exported member paths (FileGlobals.X.Y) resolve by
   // dynamic dispatch; a real host can back these with typed objects.
@@ -706,6 +736,93 @@ class TsRuntime {
 
   Object? eval(String expression) =>
       throw UnimplementedError('TestStand expression: \$expression');
+
+  /// TestStand `Len`: string length or array element count.
+  num len(Object? v) => switch (v) {
+        String s => s.length,
+        Iterable i => i.length,
+        Map m => m.length,
+        _ => throw UnimplementedError('Len of \${v.runtimeType}'),
+      };
+
+  /// TestStand `GetNumElements` (array size). The engine-specific forms
+  /// (extra arguments) are not implemented.
+  num getNumElements(Object? v, [Object? a]) => a == null
+      ? len(v)
+      : throw UnimplementedError('GetNumElements with options');
+
+  /// TestStand `SetNumElements`: resizes a growable list, null-filling new
+  /// slots (the engine default-fills by element type — a null fill is the
+  /// closest core-Dart equivalent; replace in a real host if it matters).
+  Object? setNumElements(Object? v, Object? n, [Object? a]) {
+    if (v is! List || n is! num || a != null) {
+      throw UnimplementedError('SetNumElements on \${v.runtimeType}');
+    }
+    final target = n.toInt();
+    while (v.length > target) {
+      v.removeLast();
+    }
+    while (v.length < target) {
+      v.add(null);
+    }
+    return v;
+  }
+
+  /// TestStand `Str` (1-arg): number -> string with the engine's default
+  /// `%\$.13g` format, approximated with toStringAsPrecision(13) + cleanup.
+  /// C-printf %g edge cases may differ — replace in a real host if exactness
+  /// matters. Format-string forms are not implemented.
+  String str(Object? v, [Object? f1, Object? f2, Object? f3]) {
+    if (f1 != null || f2 != null || f3 != null) {
+      throw UnimplementedError('Str with format options');
+    }
+    if (v is! num) return v.toString();
+    if (v is int || v == v.roundToDouble()) return v.toInt().toString();
+    var text = v.toStringAsPrecision(13);
+    if (text.contains('.') && !text.contains('e')) {
+      text = text.replaceAll(RegExp(r'0+\$'), '');
+      if (text.endsWith('.')) text = text.substring(0, text.length - 1);
+    }
+    return text;
+  }
+
+  /// TestStand `Left`/`Right`/`Mid`/`Find` string helpers (count clamped).
+  String left(Object? s, Object? n) => _clip(s, n, fromLeft: true);
+  String right(Object? s, Object? n) => _clip(s, n, fromLeft: false);
+  String mid(Object? s, Object? offset, [Object? count]) {
+    final text = s is String ? s : throw UnimplementedError('Mid of \${s.runtimeType}');
+    final start = (offset is num ? offset.toInt() : 0).clamp(0, text.length);
+    final end = count is num
+        ? (start + count.toInt()).clamp(start, text.length)
+        : text.length;
+    return text.substring(start, end);
+  }
+
+  num find(Object? s, Object? sub, [Object? start]) {
+    if (s is! String || sub is! String) {
+      throw UnimplementedError('Find of \${s.runtimeType}');
+    }
+    return s.indexOf(sub, (start is num ? start.toInt() : 0).clamp(0, s.length));
+  }
+
+  String _clip(Object? s, Object? n, {required bool fromLeft}) {
+    final text = s is String ? s : throw UnimplementedError('Left/Right of \${s.runtimeType}');
+    final count = (n is num ? n.toInt() : 0).clamp(0, text.length);
+    return fromLeft
+        ? text.substring(0, count)
+        : text.substring(text.length - count);
+  }
+
+  /// TestStand `Random()` / `Random(min, max)`.
+  num random([Object? min, Object? max]) {
+    _rng ??= math.Random();
+    final r = _rng!.nextDouble();
+    if (min is num && max is num) return min + r * (max - min);
+    if (min == null && max == null) return r;
+    throw UnimplementedError('Random with non-numeric bounds');
+  }
+
+  math.Random? _rng;
 
   Future<void> wait(Object? seconds) async {
     final s = seconds is num ? seconds : null;
