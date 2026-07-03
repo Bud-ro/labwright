@@ -930,6 +930,81 @@ List<BinaryPropertyRecord> _propertyRecordsFromBody(Uint8List body, int recordRe
   return out;
 }
 
+/// The record region holds a SECOND record shape besides the leaf property
+/// record: a **path/object declaration**. It shares the `0x40`/`0x44` lead but is
+/// distinguished by a NON-zero word at [_PropRecordField.zeroA]'s offset — where a
+/// leaf record has its framing zero, a path record has the first **pool index** of
+/// the object's location path. The path is a run of `u32` pool-index words
+/// (`0` acts as a separator), naming the containers from the file root down to the
+/// object, e.g. `[] / MainSequence / Objs / Seq / [0]` declares the sequence
+/// `MainSequence` living at `…/Objs/Seq/[0]`. Element `[1]` is the object's own
+/// name; the structural tokens (`Objs`, `Seq`, `[i]`, `Data`, …) spell the path.
+///
+/// Reads the path words of the record at [at], or `null` if it is not a
+/// path-declaration record. Stops at the first word that is neither zero nor a
+/// resolvable pool index.
+List<String>? _objectDeclarationPath(
+    Uint8List body, ByteData view, List<String> pool, int at, int recordRegionLength) {
+  if (at + _PropRecordField.zeroA.offset + _u32Bytes > recordRegionLength) return null;
+  if (!_propRecordLeads.contains(body[at + _PropRecordField.lead.offset])) return null;
+  if (body[at + 1] != 0) return null; // flags byte
+  final firstOffset = at + _PropRecordField.zeroA.offset;
+  final first = view.getUint32(firstOffset, Endian.little);
+  if (first == 0 || first >= pool.length || pool[first].isEmpty) return null;
+
+  final path = <String>[];
+  var offset = firstOffset;
+  while (offset + _u32Bytes <= recordRegionLength) {
+    final word = view.getUint32(offset, Endian.little);
+    if (word == 0) {
+      offset += _u32Bytes; // separator
+      continue;
+    }
+    if (word < pool.length && pool[word].isNotEmpty) {
+      path.add(pool[word]);
+      offset += _u32Bytes;
+    } else {
+      break;
+    }
+  }
+  return path;
+}
+
+/// The `Objs / Seq / [i]` container path under which a file's sequences are
+/// declared (see [_objectDeclarationPath]).
+const _sequenceListPath = ['Objs', 'Seq'];
+
+/// The **sequence names** of a binary TOF1 file, recovered from the object-path
+/// declarations ([_objectDeclarationPath]): every declaration whose path passes
+/// through `Objs / Seq / [i]` names a sequence at path element `[1]`.
+///
+/// Corpus-validated: on all six Rosetta binary twins this yields exactly the
+/// sequence list their content-exact XML twins parse to (`[MainSequence]`).
+/// Returned de-duplicated in first-seen order. Returns `[]` when [seqBytes] is not
+/// an inflatable binary file or does not frame.
+List<String> binarySequenceNames(Uint8List seqBytes) =>
+    _withLayout(seqBytes, _sequenceNamesFromBody);
+
+List<String> _sequenceNamesFromBody(Uint8List body, int recordRegionLength) {
+  final pool = _orderedStringPool(body, recordRegionLength);
+  if (pool.isEmpty) return const [];
+  final view = ByteData.sublistView(body);
+  final names = <String>[];
+  for (var at = 0; at + 8 <= recordRegionLength; at++) {
+    final path = _objectDeclarationPath(body, view, pool, at, recordRegionLength);
+    if (path == null || path.length < 2) continue;
+    for (var i = 0; i + 2 < path.length; i++) {
+      if (path[i] == _sequenceListPath[0] &&
+          path[i + 1] == _sequenceListPath[1] &&
+          path[i + 2].startsWith('[')) {
+        if (!names.contains(path[1])) names.add(path[1]);
+        break;
+      }
+    }
+  }
+  return names;
+}
+
 /// Whether [cur] is packed immediately after [prev] in a NUL-terminated string
 /// table — its offset is one byte (the single NUL) past the end of [prev]. The
 /// back-to-back single-NUL packing invariant every chain-walker keys on.
