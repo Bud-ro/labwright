@@ -1037,6 +1037,122 @@ List<String> _sequenceNamesFromBody(Uint8List body, int recordRegionLength) {
   return names;
 }
 
+/// The UNIX-timestamp range accepted as a type-record save stamp (~2000-2040).
+/// The stamp is the file's typedef `timestamp` attribute — NOT a magic
+/// constant: it varies per file (on the OutputVoltage oracle it is
+/// 0x6259ecd3 == 1650060499, exactly the XML twin's `timestamp='1650060499'`).
+const _typeStampMin = 0x386D4380;
+const _typeStampMax = 0x83AA7E80;
+
+/// Type names are identifier-like tokens; this gates coincidental matches on
+/// newer-layout files whose candidate "name" word resolves to arbitrary text.
+final _typeNamePattern = RegExp(r'^[A-Za-z_][A-Za-z0-9_.\- ]*$');
+
+/// Byte geometry of a type record's fixed head, in record-region words:
+/// `[u32 nameIdx][u32 ?][u32 timestamp][version-string refs ...]`.
+/// TODO: word 1 (offset `_u32Bytes`) is not yet decoded.
+const _typeStampOffset = 2 * _u32Bytes; // the save timestamp is word 2
+
+/// A type record carries the XML twin's version-attribute triple —
+/// `typeversion` / `typelastmodversion` / `typeminprodversion` — as three
+/// CONSECUTIVE pool references. Two corpus-observed record generations place
+/// the triple differently: old-layout records (TS 4.x/5.0-era files) follow
+/// the stamp immediately (triple at word 3), newer records carry one more
+/// pool-ref word (resolving to e.g. `SequenceFileData`; TODO: not yet
+/// decoded) before it (triple at word 4). A looser gate (any 2 version refs
+/// in words 3..8) fabricated `Objs`/enum-member names on one corpus file —
+/// the consecutive-triple shape is what separates a real record.
+const _typeVersionTripleStarts = [3 * _u32Bytes, 4 * _u32Bytes];
+const _typeVersionTripleWords = 3;
+
+/// Minimum bytes a type record needs: the 3-word head plus the word-3
+/// (old-layout) version triple. The word-4 variant is bounds-checked where
+/// it is probed.
+const _typeRecordMinBytes = (3 + _typeVersionTripleWords) * _u32Bytes;
+
+/// The **type names** defined by a binary TOF1 file, recovered from its type
+/// records. A type record opens `[u32 nameIdx][u32 ?][u32 timestamp]` followed
+/// by the consecutive version-string triple (see [_typeVersionTripleStarts])
+/// — the same fields the XML encoding stores as `<TypeName timestamp='...'
+/// typeversion='21.0.0.49156' typelastmodversion='...' typeminprodversion=
+/// '...'>`. Detection keys on the record SHAPE (pool-resolvable name +
+/// plausible save-timestamp + the version triple), not on any constant.
+///
+/// Corpus-validated on the content-exact OutputVoltage twin: 25 names
+/// recovered — the root typedefs of the XML typelist plus the step/parameter
+/// types the XML stores on steps (`NI_Measurement`, `NI_UpdatePinMap`,
+/// `NI_MeasurementParameter`, ...); every recovered name appears in the twin
+/// as a typedef element or a `typename`/`xsi:type` reference (pinned by
+/// `binary_parse_seq_file_test.dart`). Whole-corpus sweep: 283/294 binaries
+/// yield names with zero structural-token fabrications (pinned by
+/// `binary_type_names_test.dart`). De-duplicated, in file order. Returns `[]`
+/// when [seqBytes] is not an inflatable binary file or does not frame.
+List<String> binaryTypeNames(Uint8List seqBytes) =>
+    _withLayout(seqBytes, _typeNamesFromBody);
+
+/// The decoded typed-model lenses of an **already-inflated** [body] in one
+/// shared frame+pool pass: the sequence outlines and the recovered type
+/// names. This is the single-scan path for `parseSeqFile` — calling the
+/// per-lens helpers separately would re-frame the layout and rebuild the
+/// ordered string pool once per lens (both are O(body) passes). Both lenses
+/// read empty when the body does not frame.
+({List<BinarySequenceOutline> outlines, List<String> typeNames})
+    binaryOutlinesAndTypeNamesFromBody(Uint8List body) {
+  final layout = _layoutFromBody(body);
+  if (layout == null) return const (outlines: [], typeNames: []);
+  final recordRegionLength = layout.recordRegionLength;
+  final pool = _orderedStringPool(body, recordRegionLength);
+  return (
+    outlines: _sequenceOutlinesFromBody(body, recordRegionLength, pool),
+    typeNames: _typeNamesFromBody(body, recordRegionLength, pool),
+  );
+}
+
+List<String> _typeNamesFromBody(Uint8List body, int recordRegionLength,
+    [List<String>? sharedPool]) {
+  final pool = sharedPool ?? _orderedStringPool(body, recordRegionLength);
+  if (pool.isEmpty) return const [];
+  final view = ByteData.sublistView(body);
+  final versionLike = RegExp(r'^\d+\.\d+');
+  final seen = <String>{};
+  final names = <String>[];
+  for (var at = 0; at + _typeRecordMinBytes <= recordRegionLength; at++) {
+    final stamp = view.getUint32(at + _typeStampOffset, Endian.little);
+    if (stamp < _typeStampMin || stamp > _typeStampMax) continue;
+    final nameIndex = view.getUint32(at, Endian.little);
+    if (nameIndex == 0 || nameIndex >= pool.length) continue;
+    final name = pool[nameIndex];
+    if (name.isEmpty || !_typeNamePattern.hasMatch(name)) continue;
+    var hasTriple = false;
+    for (final tripleStart in _typeVersionTripleStarts) {
+      if (at + tripleStart + _typeVersionTripleWords * _u32Bytes >
+          recordRegionLength) {
+        continue;
+      }
+      var triple = true;
+      for (var i = 0; i < _typeVersionTripleWords; i++) {
+        final word =
+            view.getUint32(at + tripleStart + i * _u32Bytes, Endian.little);
+        // Index 0 is padding/separator by this file's pool convention (see
+        // poolAt) — a zero word must not count as a version reference.
+        if (word == 0 ||
+            word >= pool.length ||
+            !versionLike.hasMatch(pool[word])) {
+          triple = false;
+          break;
+        }
+      }
+      if (triple) {
+        hasTriple = true;
+        break;
+      }
+    }
+    if (!hasTriple) continue;
+    if (seen.add(name)) names.add(name);
+  }
+  return names;
+}
+
 /// A step reference in the record region is a run of four `u32` pool-index words
 /// `Step / <kind> / <name> / <container>`: the `Step` token, then the step's kind
 /// (a TestStand unique-ID string, or `Expression`/`ExprValue`), then the step's
@@ -1150,18 +1266,10 @@ class BinarySequenceOutline {
 List<BinarySequenceOutline> binarySequenceOutlines(Uint8List seqBytes) =>
     _withLayout(seqBytes, _sequenceOutlinesFromBody);
 
-/// [binarySequenceOutlines] over an **already-inflated** [body] — the
-/// single-inflate path for callers that hold the body (parseSeqFile). Frames
-/// the layout from the body; returns `[]` when it does not frame.
-List<BinarySequenceOutline> binarySequenceOutlinesFromBody(Uint8List body) {
-  final layout = _layoutFromBody(body);
-  if (layout == null) return const [];
-  return _sequenceOutlinesFromBody(body, layout.recordRegionLength);
-}
-
 List<BinarySequenceOutline> _sequenceOutlinesFromBody(
-    Uint8List body, int recordRegionLength) {
-  final pool = _orderedStringPool(body, recordRegionLength);
+    Uint8List body, int recordRegionLength,
+    [List<String>? sharedPool]) {
+  final pool = sharedPool ?? _orderedStringPool(body, recordRegionLength);
   if (pool.isEmpty) return const [];
   final view = ByteData.sublistView(body);
 

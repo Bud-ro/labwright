@@ -117,9 +117,11 @@ class BinarySeqDocument extends SeqDocument {
 
   /// The **partial typed model** reconstructed from the decoded binary record
   /// structures — sequences with grouped, ordered step names (see
-  /// [binarySequenceOutlines]). Sequence properties, variables, and step
-  /// types/modules are not yet decoded, so those lenses read empty/null. Null
-  /// when the body does not inflate.
+  /// [binarySequenceOutlines]) plus the file's recovered type names (see
+  /// [binaryTypeNames]; name-only stubs — typedef bodies are not decoded).
+  /// Sequence properties, variables, and per-step type bindings/modules are
+  /// not yet decoded, so those lenses read empty/null. Null when the body
+  /// does not inflate.
   final SeqFile? partialFile;
 
   /// Size of the inflated body (0 if it could not be inflated).

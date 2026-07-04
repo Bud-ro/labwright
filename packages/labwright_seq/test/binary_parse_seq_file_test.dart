@@ -48,7 +48,32 @@ void main() {
   });
 
   test('the partial model is honest: undecoded lenses read empty, not fabricated', () {
-    expect(binFile.types, isEmpty);
+    // Types carry recovered NAMES (25 on the oracle: root typedefs + the
+    // step/parameter types) with empty bodies — the typedef contents are not
+    // yet decoded. Every recovered name must appear in the XML twin AS A TYPE
+    // (a root typedef element or a typename/xsi:type reference) — a raw
+    // substring check would let short fabricated tokens ride inside longer
+    // attribute names.
+    expect(binFile.types.length, 25);
+    final xmlText = xml.readAsStringSync();
+    final twinTypeNames = <String>{
+      for (final m in RegExp(r"<([A-Za-z_][\w.\-]*)\b[^>]*\bisroottypedef='true'")
+          .allMatches(xmlText))
+        m.group(1)!,
+      for (final m
+          in RegExp(r"(?:typename|xsi:type)='([^']+)'").allMatches(xmlText))
+        m.group(1)!,
+    };
+    for (final type in binFile.types) {
+      expect(twinTypeNames, contains(type.name),
+          reason: 'recovered type ${type.name} is not a typedef or typename '
+              'in the XML twin');
+      expect(type.subProps, isEmpty,
+          reason: 'typedef bodies are not decoded — must not be fabricated');
+    }
+    expect(binFile.types.map((t) => t.name),
+        containsAll(['NI_Measurement', 'NI_UpdatePinMap', 'Action']),
+        reason: 'the step types used by this file must be among the names');
     for (final seq in binFile.sequences) {
       expect(seq.locals, isEmpty, reason: 'locals are not yet decoded from binary');
       expect(seq.parameters, isEmpty);
