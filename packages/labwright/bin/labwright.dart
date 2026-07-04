@@ -2,22 +2,27 @@
 // the live execution viewer.
 //
 //   labwright run [paths...] [--port N] [--report out.json]
-//                 [--fail-on-pending] [--keep-open]
+//                 [--total-shards N --shard-index I]
+//                 [--fail-on-skipped] [--keep-open]
 //
 //   paths             E2E files or directories (default: ./e2e). Directories
 //                     are walked recursively for *.dart, hidden dirs skipped.
 //   --port N          Viewer HTTP port (default 8642; 0 picks a free port).
 //                     The viewer is up from launch, streaming live results.
-//   --report out.json Write the machine-readable run report (files,
-//                     sequences, steps, and the requirements trace).
-//   --fail-on-pending Exit non-zero when any step is pending (strict CI).
+//   --report out.json Write the machine-readable run report (files, tests,
+//                     and the requirements trace).
+//   --total-shards N  With --shard-index I: run only tests whose
+//   --shard-index I   registration index i satisfies i % N == I (dart
+//                     test's sharding convention) — one bench per shard.
+//   --fail-on-skipped Exit non-zero when any test is skipped (strict CI —
+//                     generated boilerplate ships as skipTest until armed).
 //   --keep-open       Keep the viewer serving after the run until Ctrl-C.
 //
 // Each file runs under `dart run` with LABWRIGHT_REPORT=jsonl; the runner
 // renders its events, updates the viewer, and aggregates the exit code:
-// non-zero iff any sequence failed/errored, a file crashed, or
-// --fail-on-pending saw a pending step. Files run strictly one at a time —
-// hardware E2E owns the bench; there is no parallelism tier.
+// non-zero iff any test failed/errored, a file crashed, or --fail-on-skipped
+// saw a skip. Files run strictly one at a time — hardware E2E owns the
+// bench; there is no parallelism tier.
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -25,8 +30,10 @@ import 'dart:io';
 Future<void> main(List<String> args) async {
   var port = 8642;
   String? reportPath;
-  var failOnPending = false;
+  var failOnSkipped = false;
   var keepOpen = false;
+  var totalShards = 1;
+  var shardIndex = 0;
   final paths = <String>[];
 
   final rest = [...args];
@@ -38,8 +45,14 @@ Future<void> main(List<String> args) async {
         port = int.tryParse(rest.isEmpty ? '' : rest.removeAt(0)) ?? port;
       case '--report':
         reportPath = rest.isEmpty ? null : rest.removeAt(0);
-      case '--fail-on-pending':
-        failOnPending = true;
+      case '--total-shards':
+        totalShards =
+            int.tryParse(rest.isEmpty ? '' : rest.removeAt(0)) ?? totalShards;
+      case '--shard-index':
+        shardIndex =
+            int.tryParse(rest.isEmpty ? '' : rest.removeAt(0)) ?? shardIndex;
+      case '--fail-on-skipped':
+        failOnSkipped = true;
       case '--keep-open':
         keepOpen = true;
       case '--help' || '-h':
@@ -50,6 +63,12 @@ Future<void> main(List<String> args) async {
     }
   }
   if (paths.isEmpty) paths.add('e2e');
+  if (totalShards < 1 || shardIndex < 0 || shardIndex >= totalShards) {
+    stderr.writeln(
+        'labwright: invalid shard $shardIndex of $totalShards\n$_usage');
+    exitCode = 64;
+    return;
+  }
 
   final files = _collectFiles(paths);
   if (files.isEmpty) {
@@ -63,25 +82,29 @@ Future<void> main(List<String> args) async {
   final state = _RunState(files);
   final viewer = await _Viewer.start(port, state);
   stdout.writeln('labwright: viewer on http://localhost:${viewer.port} · '
-      '${files.length} file(s)');
+      '${files.length} file(s)'
+      '${totalShards > 1 ? ' · shard $shardIndex of $totalShards' : ''}');
 
   for (final file in files) {
-    await _runFile(file, state, viewer);
+    await _runFile(file, state, viewer,
+        totalShards: totalShards, shardIndex: shardIndex);
   }
   state.done = true;
   viewer.broadcast({'e': 'done'});
 
   final summary = state.summary();
-  stdout.writeln('labwright: ${summary.sequences} sequence(s) — '
+  stdout.writeln('labwright: ${summary.tests} test(s) — '
       '${summary.passed} passed, ${summary.failed} failed, '
-      '${summary.pending} pending');
+      '${summary.errors} errors, ${summary.skipped} skipped');
   if (reportPath != null) {
     File(reportPath).writeAsStringSync(
         const JsonEncoder.withIndent('  ').convert(state.toJson()));
     stdout.writeln('labwright: report written to $reportPath');
   }
-  if (summary.failed > 0 || state.crashedFiles > 0) exitCode = 1;
-  if (failOnPending && summary.pending > 0) exitCode = 1;
+  if (summary.failed > 0 || summary.errors > 0 || state.crashedFiles > 0) {
+    exitCode = 1;
+  }
+  if (failOnSkipped && summary.skipped > 0) exitCode = 1;
 
   if (keepOpen) {
     stdout.writeln('labwright: --keep-open — viewer stays on '
@@ -93,7 +116,8 @@ Future<void> main(List<String> args) async {
 
 const _usage = '''
 usage: labwright run [paths...] [--port N] [--report out.json]
-                     [--fail-on-pending] [--keep-open]
+                     [--total-shards N --shard-index I]
+                     [--fail-on-skipped] [--keep-open]
 Runs hardware E2E files (plain Dart programs using package:labwright)
 sequentially via `dart run`, with a live viewer and CI exit codes.''';
 
@@ -122,7 +146,8 @@ List<File> _collectFiles(List<String> paths) {
   return out;
 }
 
-Future<void> _runFile(File file, _RunState state, _Viewer viewer) async {
+Future<void> _runFile(File file, _RunState state, _Viewer viewer,
+    {required int totalShards, required int shardIndex}) async {
   stdout.writeln('── ${file.path}');
   final fileState = state.file(file.path)..status = 'running';
   viewer.broadcast({'e': 'file-start', 'file': file.path});
@@ -130,7 +155,13 @@ Future<void> _runFile(File file, _RunState state, _Viewer viewer) async {
   final process = await Process.start(
     Platform.resolvedExecutable,
     ['run', file.path],
-    environment: {'LABWRIGHT_REPORT': 'jsonl'},
+    environment: {
+      'LABWRIGHT_REPORT': 'jsonl',
+      if (totalShards > 1) ...{
+        'LABWRIGHT_TOTAL_SHARDS': '$totalShards',
+        'LABWRIGHT_SHARD_INDEX': '$shardIndex',
+      },
+    },
   );
   // Hardware E2E: strictly sequential; stderr passes straight through.
   final stderrDone = process.stderr.pipe(stderr.nonBlocking);
@@ -170,25 +201,27 @@ Map<String, Object?>? _tryDecode(String line) {
 
 void _renderEvent(Map<String, Object?> event) {
   switch (event['e']) {
-    case 'seq-start':
-      stdout.writeln('▶ ${event['seq']}');
-    case 'step':
-      final mark = switch (event['status']) {
-        'passed' => '✓',
-        'failed' => '✗',
-        'pending' => '○',
-        _ => '‼',
-      };
+    case 'test-start':
       final reqs = event['requirements'] is List
           ? ' [${(event['requirements'] as List).join(', ')}]'
           : '';
-      final detail = event['detail'] != null ? ' — ${event['detail']}' : '';
-      stdout.writeln('  $mark ${event['step']}$reqs$detail');
-    case 'seq-end':
-      stdout.writeln(
-          '${event['seq']}: ${(event['status'] as String?)?.toUpperCase()}');
+      stdout.writeln('▶ ${event['test']}$reqs');
+    case 'test-end':
+      final mark = switch (event['status']) {
+        'passed' => '✓',
+        'failed' => '✗',
+        'skipped' => '○',
+        _ => '‼',
+      };
+      final detail = event['detail'] != null
+          ? '\n    ${'${event['detail']}'.replaceAll('\n', '\n    ')}'
+          : '';
+      stdout.writeln('  $mark ${event['test']}: ${event['status']}$detail');
     case 'log':
-      stdout.writeln('    · ${event['message']}');
+      stdout.writeln('  · ${event['message']}');
+    case 'shard':
+      stdout.writeln('  shard ${event['index']} of ${event['total']}: '
+          '${event['selected']} of ${event['registered']} test(s)');
   }
 }
 
@@ -199,33 +232,38 @@ class _FileState {
   final String path;
   String status = 'queued';
 
-  /// seq name → its latest known state.
-  final Map<String, Map<String, Object?>> sequences = {};
+  /// Tests in registration order (name → entry; names are unique per run in
+  /// practice — a duplicate name folds into its first entry's slot).
+  final Map<String, Map<String, Object?>> tests = {};
+
+  Map<String, Object?> _test(String name) => tests.putIfAbsent(
+      name,
+      () => {
+            'name': name,
+            'status': 'running',
+            'requirements': const <Object?>[],
+            'detail': '',
+            'logs': <Object?>[],
+          });
 
   void apply(Map<String, Object?> event) {
-    final seq = event['seq'];
-    if (seq is! String) return;
-    final entry = sequences.putIfAbsent(
-        seq,
-        () => {
-              'name': seq,
-              'status': 'running',
-              'requirements': const <Object?>[],
-              'steps': <Object?>[],
-            });
     switch (event['e']) {
-      case 'seq-start':
-        entry['requirements'] = event['requirements'] ?? const <Object?>[];
-      case 'step':
-        (entry['steps'] as List).add({
-          'name': event['step'],
-          'status': event['status'],
-          'requirements': event['requirements'] ?? const <Object?>[],
-          'detail': event['detail'] ?? '',
-          'ms': event['ms'],
-        });
-      case 'seq-end':
+      case 'test-start':
+        _test(event['test'] as String)['requirements'] =
+            event['requirements'] ?? const <Object?>[];
+      case 'test-end':
+        final entry = _test(event['test'] as String);
         entry['status'] = event['status'];
+        entry['detail'] = event['detail'] ?? '';
+        entry['ms'] = event['ms'];
+        entry['requirements'] =
+            event['requirements'] ?? entry['requirements']!;
+      case 'log':
+        // Attributed to its test when one is running; suite-level otherwise.
+        final name = event['test'];
+        if (name is String) {
+          (_test(name)['logs'] as List).add(event['message']);
+        }
     }
   }
 }
@@ -243,45 +281,44 @@ class _RunState {
 
   _FileState file(String path) => _files[path]!;
 
-  ({int sequences, int passed, int failed, int pending}) summary() {
-    var sequences = 0, passed = 0, failed = 0, pending = 0;
+  ({int tests, int passed, int failed, int errors, int skipped}) summary() {
+    var tests = 0, passed = 0, failed = 0, errors = 0, skipped = 0;
     for (final f in _files.values) {
-      for (final seq in f.sequences.values) {
-        sequences++;
-        switch (seq['status']) {
+      for (final t in f.tests.values) {
+        tests++;
+        switch (t['status']) {
           case 'passed':
             passed++;
           case 'failed':
             failed++;
-          case 'pending':
-            pending++;
+          case 'error':
+            errors++;
+          case 'skipped':
+            skipped++;
         }
       }
     }
     return (
-      sequences: sequences,
+      tests: tests,
       passed: passed,
       failed: failed,
-      pending: pending
+      errors: errors,
+      skipped: skipped
     );
   }
 
-  /// The full report: per-file sequences/steps plus the requirements trace
-  /// (requirement ID → every step that claims it, with status).
+  /// The full report: per-file tests plus the requirements trace
+  /// (requirement ID → every test that claims it, with status).
   Map<String, Object?> toJson() {
     final requirements = <String, List<Map<String, Object?>>>{};
     for (final f in _files.values) {
-      for (final seq in f.sequences.values) {
-        for (final step in (seq['steps'] as List)
-            .cast<Map<String, Object?>>()) {
-          for (final req in (step['requirements'] as List).cast<Object?>()) {
-            requirements.putIfAbsent('$req', () => []).add({
-              'file': f.path,
-              'sequence': seq['name'],
-              'step': step['name'],
-              'status': step['status'],
-            });
-          }
+      for (final t in f.tests.values) {
+        for (final req in (t['requirements'] as List).cast<Object?>()) {
+          requirements.putIfAbsent('$req', () => []).add({
+            'file': f.path,
+            'test': t['name'],
+            'status': t['status'],
+          });
         }
       }
     }
@@ -292,15 +329,16 @@ class _RunState {
           {
             'path': f.path,
             'status': f.status,
-            'sequences': f.sequences.values.toList(),
+            'tests': f.tests.values.toList(),
           },
       ],
       'requirements': requirements,
       'summary': {
-        'sequences': s.sequences,
+        'tests': s.tests,
         'passed': s.passed,
         'failed': s.failed,
-        'pending': s.pending,
+        'errors': s.errors,
+        'skipped': s.skipped,
         'crashedFiles': crashedFiles,
       },
       'done': done,
@@ -380,7 +418,8 @@ class _Viewer {
   }
 }
 
-/// The self-contained live viewer page: SSE-fed, no external assets.
+/// The self-contained live viewer page: SSE-fed, no external assets. Logs
+/// stream in under their owning test — the bench view during a run.
 const _viewerHtml = '''
 <!doctype html>
 <html>
@@ -393,15 +432,17 @@ const _viewerHtml = '''
          max-width: 60rem; padding: 0 1rem; }
   h1 { font-size: 1.1rem; } h2 { font-size: .95rem; margin: 1.2rem 0 .3rem;
        font-family: ui-monospace, monospace; opacity: .8; }
-  .seq { margin: .4rem 0 .8rem; border-left: 3px solid #8884;
-         padding-left: .8rem; }
-  .seq > .name { font-weight: 600; }
-  .step { display: flex; gap: .5rem; align-items: baseline; }
-  .step .detail { opacity: .7; }
+  .test { margin: .4rem 0; border-left: 3px solid #8884; padding-left: .8rem; }
+  .head { display: flex; gap: .5rem; align-items: baseline; }
+  .name { font-weight: 600; }
   .req { font-family: ui-monospace, monospace; font-size: .8em;
          border: 1px solid #8886; border-radius: .6em; padding: 0 .5em; }
+  .detail { white-space: pre-wrap; font-family: ui-monospace, monospace;
+            font-size: .85em; opacity: .85; margin: .2rem 0 0 1.2rem; }
+  .logs { font-family: ui-monospace, monospace; font-size: .8em; opacity: .7;
+          margin: .2rem 0 0 1.2rem; white-space: pre-wrap; }
   .passed { color: #2e7d32; } .failed { color: #c62828; }
-  .pending { color: #b28900; } .error { color: #c62828; }
+  .skipped { color: #b28900; } .error { color: #c62828; }
   .running { opacity: .75; } #status { opacity: .7; }
 </style>
 </head>
@@ -412,7 +453,8 @@ const _viewerHtml = '''
 const filesEl = document.getElementById('files');
 const statusEl = document.getElementById('status');
 const state = { files: {} };
-const mark = { passed: '✓', failed: '✗', pending: '○', error: '‼' };
+const mark = { passed: '✓', failed: '✗', skipped: '○', error: '‼',
+               running: '…' };
 
 function render() {
   filesEl.replaceChildren();
@@ -420,36 +462,37 @@ function render() {
     const h = document.createElement('h2');
     h.textContent = path + '  (' + file.status + ')';
     filesEl.appendChild(h);
-    for (const seq of Object.values(file.sequences)) {
+    for (const t of Object.values(file.tests)) {
       const div = document.createElement('div');
-      div.className = 'seq ' + (seq.status || 'running');
-      const name = document.createElement('div');
-      name.className = 'name ' + (seq.status || 'running');
-      name.textContent = seq.name + (seq.status ? ' — ' + seq.status : ' …');
-      div.appendChild(name);
-      for (const st of seq.steps) {
-        const row = document.createElement('div');
-        row.className = 'step';
-        const m = document.createElement('span');
-        m.className = st.status;
-        m.textContent = mark[st.status] || '•';
-        row.appendChild(m);
-        const n = document.createElement('span');
-        n.textContent = st.name;
-        row.appendChild(n);
-        for (const r of st.requirements || []) {
-          const chip = document.createElement('span');
-          chip.className = 'req';
-          chip.textContent = r;
-          row.appendChild(chip);
-        }
-        if (st.detail) {
-          const d = document.createElement('span');
-          d.className = 'detail';
-          d.textContent = '— ' + st.detail;
-          row.appendChild(d);
-        }
-        div.appendChild(row);
+      div.className = 'test';
+      const head = document.createElement('div');
+      head.className = 'head';
+      const m = document.createElement('span');
+      m.className = t.status;
+      m.textContent = mark[t.status] || '•';
+      head.appendChild(m);
+      const n = document.createElement('span');
+      n.className = 'name ' + t.status;
+      n.textContent = t.name;
+      head.appendChild(n);
+      for (const r of t.requirements || []) {
+        const chip = document.createElement('span');
+        chip.className = 'req';
+        chip.textContent = r;
+        head.appendChild(chip);
+      }
+      div.appendChild(head);
+      if (t.detail) {
+        const d = document.createElement('div');
+        d.className = 'detail failed';
+        d.textContent = t.detail;
+        div.appendChild(d);
+      }
+      if ((t.logs || []).length) {
+        const l = document.createElement('div');
+        l.className = 'logs';
+        l.textContent = t.logs.join('\\n');
+        div.appendChild(l);
       }
       filesEl.appendChild(div);
     }
@@ -457,16 +500,21 @@ function render() {
 }
 
 function fileState(path) {
-  return state.files[path] ??= { status: 'running', sequences: {} };
+  return state.files[path] ??= { status: 'running', tests: {} };
+}
+
+function testState(file, name) {
+  return file.tests[name] ??=
+      { name, status: 'running', requirements: [], detail: '', logs: [] };
 }
 
 function apply(ev) {
   if (ev.e === 'state') {
     state.files = {};
     for (const f of ev.state.files) {
-      const sequences = {};
-      for (const s of f.sequences) sequences[s.name] = s;
-      state.files[f.path] = { status: f.status, sequences };
+      const tests = {};
+      for (const t of f.tests) tests[t.name] = t;
+      state.files[f.path] = { status: f.status, tests };
     }
     statusEl.textContent = ev.state.done ? 'finished' : 'live';
     return;
@@ -474,13 +522,17 @@ function apply(ev) {
   if (ev.e === 'done') { statusEl.textContent = 'finished'; return; }
   const file = fileState(ev.file || '');
   if (ev.e === 'file-end') { file.status = ev.exit === 0 ? 'done' : 'crashed'; }
-  if (!ev.seq) return;
-  const seq = file.sequences[ev.seq] ??=
-      { name: ev.seq, status: '', requirements: [], steps: [] };
-  if (ev.e === 'seq-start') seq.requirements = ev.requirements || [];
-  if (ev.e === 'step') seq.steps.push({ name: ev.step, status: ev.status,
-      requirements: ev.requirements || [], detail: ev.detail || '' });
-  if (ev.e === 'seq-end') seq.status = ev.status;
+  if (ev.e === 'test-start') {
+    const t = testState(file, ev.test);
+    t.requirements = ev.requirements || [];
+  }
+  if (ev.e === 'test-end') {
+    const t = testState(file, ev.test);
+    t.status = ev.status;
+    t.detail = ev.detail || '';
+    t.requirements = ev.requirements || t.requirements;
+  }
+  if (ev.e === 'log' && ev.test) testState(file, ev.test).logs.push(ev.message);
 }
 
 const source = new EventSource('/events');

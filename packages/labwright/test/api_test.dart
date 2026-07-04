@@ -12,11 +12,12 @@ final String pkgRoot = Directory('packages/labwright').existsSync()
 /// Runs [file] under `dart run` the way the labwright runner does and returns
 /// (exitCode, stdout lines). E2E files are plain programs — this is their
 /// real execution surface, so the API tests exercise exactly that.
-(int, List<String>) _run(String file, {bool jsonl = true}) {
+(int, List<String>) _run(String file,
+    {bool jsonl = true, Map<String, String> env = const {}}) {
   final result = Process.runSync(
     Platform.resolvedExecutable,
     ['run', file],
-    environment: {if (jsonl) 'LABWRIGHT_REPORT': 'jsonl'},
+    environment: {if (jsonl) 'LABWRIGHT_REPORT': 'jsonl', ...env},
     workingDirectory: pkgRoot,
   );
   return (
@@ -32,55 +33,106 @@ List<Map<String, Object?>> _events(List<String> lines) => [
     ];
 
 void main() {
-  test('green fixture: passes, streams events, binds requirements, exits 0',
+  test('green fixture: registration then execution, real expect, skip green',
       () {
     final (exit, lines) = _run('test/fixtures/green_e2e.dart');
-    expect(exit, 0, reason: 'pending alone must stay green:\n$lines');
+    expect(exit, 0, reason: 'skipped alone must stay green:\n$lines');
     final events = _events(lines);
-    expect(events.map((e) => e['e']),
-        containsAllInOrder(['seq-start', 'step', 'step', 'step', 'seq-end']));
-
-    final seqStart = events.firstWhere((e) => e['e'] == 'seq-start');
-    expect(seqStart['requirements'], ['REQ-SEQ-1'],
-        reason: 'sequence-level requirement binding');
-
-    final steps = events.where((e) => e['e'] == 'step').toList();
-    expect(steps[0]['status'], 'passed');
-    expect(steps[0]['requirements'], ['REQ-1']);
-    expect(steps[1]['requirements'], ['REQ-2', 'REQ-3']);
-    expect(steps[2]['status'], 'pending',
-        reason: 'ctx.pending marks the step pending');
-    expect(steps[2]['detail'], contains('ThermalSweep.vi'),
-        reason: 'the pending target is named');
-
-    final seqEnd = events.firstWhere((e) => e['e'] == 'seq-end');
-    expect(seqEnd['status'], 'pending',
-        reason: 'no failures + a pending step → sequence pending');
-    expect(events.any((e) => e['e'] == 'log'), isTrue);
+    final ends = events.where((e) => e['e'] == 'test-end').toList();
+    expect(ends.map((e) => e['test']), [
+      'rail comes up',
+      'ripple in limits',
+      'thermal camera sweep',
+    ], reason: 'registration order is execution order');
+    expect(ends[0]['status'], 'passed',
+        reason: 'async setup at the top of main completed before any body; '
+            'package:test expect/expectLater/matchers work as-is');
+    expect(ends[0]['requirements'], ['REQ-1']);
+    expect(ends[1]['requirements'], ['REQ-2', 'REQ-3']);
+    expect(ends[2]['status'], 'skipped',
+        reason: 'skipTest reports without running the body');
+    final logs = events.where((e) => e['e'] == 'log').toList();
+    expect(logs.single['test'], 'rail comes up',
+        reason: 'log lines attribute to the running test');
   });
 
-  test('red fixture: false check fails step, run continues, exits non-zero',
+  test('red fixture: TestFailure=failed, other throw=error, exits non-zero',
       () {
     final (exit, lines) = _run('test/fixtures/red_e2e.dart');
-    expect(exit, isNot(0), reason: 'a failed sequence must fail CI');
+    expect(exit, isNot(0), reason: 'failures must fail CI');
     final events = _events(lines);
-    final steps = events.where((e) => e['e'] == 'step').toList();
-    expect(steps[0]['status'], 'failed');
-    expect(steps[0]['detail'], contains('trip current'),
-        reason: 'the failing check message is carried');
-    expect(steps, hasLength(2),
-        reason: 'continue-on-fail: the next step still runs');
-    expect(steps[1]['status'], 'passed');
-    expect(events.firstWhere((e) => e['e'] == 'seq-end')['status'], 'failed');
+    final ends = events.where((e) => e['e'] == 'test-end').toList();
+    expect(ends, hasLength(3),
+        reason: 'a failed test does not stop later tests');
+    expect(ends[0]['status'], 'failed');
+    expect('${ends[0]['detail']}', contains('trip current'),
+        reason: 'the matcher mismatch description is carried');
+    expect(ends[1]['status'], 'passed');
+    expect(ends[2]['status'], 'error',
+        reason: 'a non-TestFailure escape is an error, not a failure');
+    expect('${ends[2]['detail']}', contains('relay stuck'));
   });
 
-  test('human mode (no env): readable lines, same exit semantics', () {
+  test('sharding: registration index i % N == I, shards partition the tests',
+      () {
+    final byShard = <int, List<Object?>>{};
+    for (var i = 0; i < 2; i++) {
+      final (exit, lines) = _run('test/fixtures/green_e2e.dart', env: {
+        'LABWRIGHT_TOTAL_SHARDS': '2',
+        'LABWRIGHT_SHARD_INDEX': '$i',
+      });
+      expect(exit, 0, reason: 'shard $i:\n$lines');
+      final events = _events(lines);
+      final shard = events.singleWhere((e) => e['e'] == 'shard');
+      expect(shard['total'], 2);
+      expect(shard['registered'], 3,
+          reason: 'the full registry is known before the run — that is what '
+              'deferred registration buys');
+      byShard[i] = [
+        for (final e in events)
+          if (e['e'] == 'test-end') e['test'],
+      ];
+    }
+    expect(byShard[0], ['rail comes up', 'thermal camera sweep'],
+        reason: 'indices 0,2 land in shard 0');
+    expect(byShard[1], ['ripple in limits'],
+        reason: 'index 1 lands in shard 1');
+  });
+
+  test('late registration (after the run starts) dies loudly, not silently',
+      () {
+    final result = Process.runSync(
+      Platform.resolvedExecutable,
+      ['run', 'test/bad_fixtures/late_registration_e2e.dart'],
+      environment: {'LABWRIGHT_REPORT': 'jsonl'},
+      workingDirectory: pkgRoot,
+    );
+    expect(result.exitCode, isNot(0));
+    expect(result.stderr.toString(),
+        contains('registered after the run started'),
+        reason: 'the contract violation names itself');
+    final events =
+        _events(const LineSplitter().convert(result.stdout.toString()));
+    expect(
+        events
+            .where((e) => e['e'] == 'test-end')
+            .map((e) => e['test']),
+        ['registered in time'],
+        reason: 'the in-time test still ran; the late one never joined');
+  });
+
+  test('human mode (no env): readable lines, summary, same exit semantics',
+      () {
     final (exit, lines) = _run('test/fixtures/green_e2e.dart', jsonl: false);
     expect(exit, 0);
     final text = lines.join('\n');
-    expect(text, contains('▶ PowerRail'));
-    expect(text, contains('✓ Rail comes up [REQ-1]'));
-    expect(text, contains('○ Thermal camera sweep'));
+    expect(text, contains('▶ rail comes up [REQ-1]'));
+    expect(text, contains('✓ rail comes up'));
+    expect(text, contains('○ thermal camera sweep (skipped)'));
+    expect(text,
+        contains('labwright: 3 test(s) — 2 passed, 0 failed, 0 errors, '
+            '1 skipped'),
+        reason: 'deferred registration gives a definite end-of-run summary');
     expect(text, isNot(contains('{"e"')), reason: 'no JSON in human mode');
   });
 }

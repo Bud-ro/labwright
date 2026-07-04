@@ -33,22 +33,26 @@ String exportSeqFileToDart(SeqFile file, {String? sourceName}) =>
     _DartExporter(file, sourceName: sourceName).export();
 
 /// Exports [file] as a **labwright E2E program** — the same exported logic as
-/// [exportSeqFileToDart] plus a generated `main()` that runs each sequence
-/// through `package:labwright` (`lw.sequence` per sequence, every plain step
-/// wrapped in `s.step`, in source order). The output is a plain Dart program:
-/// run it with `dart run` or a set of them with the `labwright` runner —
-/// never `dart test` (hardware E2E owns the process).
+/// [exportSeqFileToDart] plus a generated `main()` that turns each **root**
+/// sequence (one no other sequence in the file calls — the smallest
+/// independently runnable unit) into one `lw.test`; called sequences stay
+/// plain functions the tests reach. Steps are just lines of code. The output
+/// is a plain Dart program: run it with `dart run` or a set of them with the
+/// `labwright` runner — never `dart test` (hardware E2E owns the process).
 ///
 /// The boilerplate contract:
 ///  * **Stubs are generated for VI calls only.** A LabVIEW-adapter step calls
-///    a named stub that throws [UnimplementedError] — implementing the stub
-///    arms the step. Every other module adapter (DLL / Python / external
-///    sequence / unknown) marks its step `ctx.pending('<adapter> call: …')`
-///    inline, keeping the target on record without stub clutter.
-///  * Requirement tracing IDs (`Requirements.Links`) bind through: sequence
-///    links onto `lw.sequence(requirements: …)`, step links onto
-///    `s.step(requirements: …)` — the runner's report traces them.
-///  * A pending surface never fails the run; false checks and real throws do.
+///    a named stub that throws [UnimplementedError] — implement the stub to
+///    port it. Every other unported surface (DLL / Python / external
+///    sequence / a typed step whose action is not exported) is an inline
+///    `throw UnimplementedError('…')` line naming its target — exceptions
+///    are how tests fail, so an armed test is loud about what is missing.
+///  * A test whose reachable code still contains unported surfaces is
+///    emitted as `lw.skipTest` with a TODO comment listing them — the suite
+///    ships green; renaming to `lw.test` arms it.
+///  * Requirement tracing IDs (`Requirements.Links`) attach to TESTS: each
+///    test carries the union of the links declared by every sequence and
+///    step it reaches — the runner's report traces them.
 String exportSeqFileToLabwright(SeqFile file, {String? sourceName}) =>
     _DartExporter(file, sourceName: sourceName, asTest: true).export();
 
@@ -144,10 +148,23 @@ class _DartExporter {
 
   /// When set, the export is a labwright E2E program: the header imports
   /// `package:labwright` (prefixed `lw` so generated names cannot shadow
-  /// it), sequence functions take the `lw.SequenceContext`, plain steps wrap
-  /// in `s.step`, only VI calls get stubs, and a `main()` harness is
-  /// appended after the runtime.
+  /// it), only VI calls get stubs (other unported surfaces are inline
+  /// throws), and a `main()` harness of one `lw.test`/`lw.skipTest` per root
+  /// sequence is appended after the runtime.
   final bool asTest;
+
+  /// E2E mode: sequences whose own emitted body contains an unported surface
+  /// (a stub call or an inline `throw UnimplementedError`), by name —
+  /// reachability from each root decides `lw.test` vs `lw.skipTest`.
+  final Map<String, Set<String>> _seqUnported = {};
+
+  /// The sequence currently being emitted (unported bookkeeping).
+  String? _currentSeq;
+
+  void _markUnported(String target) {
+    final seq = _currentSeq;
+    if (seq != null) (_seqUnported[seq] ??= {}).add(target);
+  }
 
   final StringBuffer _out = StringBuffer();
   int _indent = 1;
@@ -375,11 +392,11 @@ class _DartExporter {
     _out.writeln('/// Sequence `${_comment(sequence.name)}`'
         '${sequence.comment != null ? ' — ${_comment(sequence.comment!)}' : ''}.');
 
+    _currentSeq = sequence.name;
     // Parameter identifiers: unique within the signature and never colliding
-    // with the generated scope names (`ts` — and `s` in E2E mode — are
-    // pre-claimed).
+    // with the generated scope names (`ts` is pre-claimed).
     final paramIds = <String, String>{};
-    final usedParams = <String>{'ts', if (asTest) 's'};
+    final usedParams = <String>{'ts'};
     for (final p in sequence.parameters) {
       final base = dartIdentifier(p.name);
       var id = base;
@@ -396,7 +413,6 @@ class _DartExporter {
             '${p.value != null ? ' = ${_literal(p.value!, p.type)}' : ''}',
     ];
     _out.writeln('Future<void> $fnName(TsRuntime ts'
-        '${asTest ? ', lw.SequenceContext s' : ''}'
         '${params.isEmpty ? '' : ', {${params.join(', ')}}'}) async {');
     _indent = 1;
 
@@ -432,6 +448,7 @@ class _DartExporter {
     _out
       ..writeln('}')
       ..writeln();
+    _currentSeq = null;
   }
 
   /// A Dart literal for a TestStand default value, respecting the variable's
@@ -652,21 +669,6 @@ class _DartExporter {
   String _exprStatement(String raw) => _expr(raw);
 
   void _emitPlainStep(Step step) {
-    // E2E mode: every plain step runs inside `s.step(...)` so its status and
-    // requirement links land in the run report. Exceptions: an in-file
-    // sequence call stays unwrapped — the callee registers its OWN steps on
-    // `s`, and nesting step registrations inside a step body would misstate
-    // the caller's status.
-    final wrap = asTest && !_isInFileSequenceCall(step);
-    if (wrap) {
-      final reqs = step.settings.requirementLinks;
-      final reqArg = reqs.isEmpty
-          ? ''
-          : ', requirements: [${reqs.map((r) => "'${_escape(r)}'").join(', ')}]';
-      _line("await s.step('${_escape(step.name)}'$reqArg, (ctx) async {");
-      _indent++;
-    }
-
     final settings = step.settings;
     final precondition = settings.precondition;
     if (precondition != null) {
@@ -689,19 +691,7 @@ class _DartExporter {
       _indent--;
       _line('}');
     }
-
-    if (wrap) {
-      _indent--;
-      _line('});');
-    }
   }
-
-  /// Whether [step] is a sequence call resolving to a sequence in this file
-  /// (its exported function runs the callee's steps on the shared context).
-  bool _isInFileSequenceCall(Step step) =>
-      step.module.adapter == SeqAdapter.sequenceCall &&
-      step.module.sequenceName != null &&
-      _sequenceFnNames.containsKey(step.module.sequenceName);
 
   void _emitStepAction(Step step) {
     final module = step.module;
@@ -732,12 +722,10 @@ class _DartExporter {
         if (inFileFn != null) {
           // Parameter bindings on the call are not yet exported — the callee
           // runs on its declared defaults. Stated, not hidden.
-          _line('await $inFileFn(ts${asTest ? ', s' : ''}); // $name '
+          _line('await $inFileFn(ts); // $name '
               '(call parameters not exported yet)');
         } else if (asTest) {
-          _pendingLine(step,
-              detail: 'external sequence call: '
-                  '${_escape(_stubTarget(step, module))}');
+          _throwLine(step, 'external sequence call', _stubTarget(step, module));
         } else {
           _line('await ${_stubFor(step, module)}(ts); // $name: '
               'external sequence call');
@@ -745,16 +733,16 @@ class _DartExporter {
       case SeqAdapter.labView:
         // VI calls are the ONE adapter that gets a generated stub in E2E
         // mode: the VI is the port target — implementing the stub arms the
-        // step (everything else stays pending-by-name, no stub clutter).
+        // step (other unported surfaces are inline throws, no stub clutter).
+        if (asTest) _markUnported(_stubTarget(step, module));
         _line('await ${_stubFor(step, module)}(ts); // $name'
             '${step.type != null ? ' [${_comment(step.type!)}]' : ''}');
       case SeqAdapter.cModule:
       case SeqAdapter.python:
       case SeqAdapter.unknown:
         if (asTest) {
-          _pendingLine(step,
-              detail: '${module.adapter.name} call: '
-                  '${_escape(_stubTarget(step, module))}');
+          _throwLine(
+              step, '${module.adapter.name} call', _stubTarget(step, module));
         } else {
           _line('await ${_stubFor(step, module)}(ts); // $name'
               '${step.type != null ? ' [${_comment(step.type!)}]' : ''}');
@@ -762,12 +750,12 @@ class _DartExporter {
       case SeqAdapter.none:
         // E2E mode: a typed step with no code module still carries its
         // TYPE's action (NI_Measurement measures, NumericLimitTest compares)
-        // — none of that is exported yet, so a silent no-op "passed" would
-        // fabricate a result. Pending, with the type named. An UNtyped
-        // module-less step genuinely has nothing to run and stays a comment.
+        // — none of that is exported yet, so a silent no-op would fabricate
+        // a pass. Inline throw, naming the type. An UNtyped module-less step
+        // genuinely has nothing to run and stays a comment.
         if (asTest && step.type != null) {
-          _line("ctx.pending('step type ${_escape(step.type!)}: action not "
-              "exported yet'); // $name");
+          _throwLine(
+              step, 'step type ${step.type}', 'action not exported yet');
         } else {
           _line('// $name'
               '${step.type != null ? ' [${_comment(step.type!)}]' : ''}: '
@@ -776,10 +764,12 @@ class _DartExporter {
     }
   }
 
-  /// E2E mode: a non-VI module call marks its step pending inline, with the
-  /// adapter and target on record (pre-escaped by the caller).
-  void _pendingLine(Step step, {required String detail}) {
-    _line("ctx.pending('$detail'); "
+  /// E2E mode: an unported non-VI surface is an inline throw — exceptions
+  /// are how tests fail, so an armed test is loud about what is missing.
+  /// Also recorded so the harness emits the owning root as `lw.skipTest`.
+  void _throwLine(Step step, String kind, String target) {
+    _markUnported('$kind: $target');
+    _line("throw UnimplementedError('${_escape('$kind: $target')}'); "
         '// ${_comment(step.name)}'
         '${step.type != null ? ' [${_comment(step.type!)}]' : ''}');
   }
@@ -827,28 +817,87 @@ class _DartExporter {
     }
   }
 
-  /// The generated labwright harness: `main()` runs one `lw.sequence` per
-  /// TestStand sequence, in file order, each on a fresh [TsRuntime]. The
-  /// program is `dart run`-able directly and aggregates under the
-  /// `labwright` runner — see [exportSeqFileToLabwright] for the contract.
+  /// The generated labwright harness: `main()` runs one `lw.test` per ROOT
+  /// sequence (the smallest unit no other sequence calls), in file order,
+  /// each on a fresh [TsRuntime]. Called sequences are reached as plain
+  /// functions. A root whose reachable code still contains unported
+  /// surfaces is emitted `lw.skipTest` with a TODO listing them; its
+  /// `requirements:` is the union of the links declared by everything it
+  /// reaches. See [exportSeqFileToLabwright] for the contract.
   void _emitTestMain() {
+    // In-file call graph (self-calls do not disqualify a root).
+    final callTargets = <String, Set<String>>{};
+    final called = <String>{};
+    for (final sequence in file.sequences) {
+      final targets = callTargets[sequence.name] ??= {};
+      for (final step in sequence.steps) {
+        final target = step.module.sequenceName;
+        if (step.module.adapter == SeqAdapter.sequenceCall &&
+            target != null &&
+            _sequenceFnNames.containsKey(target) &&
+            target != sequence.name) {
+          targets.add(target);
+          called.add(target);
+        }
+      }
+    }
+    var roots =
+        [for (final s in file.sequences) if (!called.contains(s.name)) s];
+    // A purely cyclic file has no roots; every sequence becomes a test
+    // rather than silently exporting none.
+    if (roots.isEmpty) roots = file.sequences;
+
+    final byName = {for (final s in file.sequences) s.name: s};
+    Set<String> reach(String name) {
+      final seen = <String>{};
+      void visit(String at) {
+        if (!seen.add(at)) return;
+        callTargets[at]?.forEach(visit);
+      }
+
+      visit(name);
+      return seen;
+    }
+
     _out
       ..writeln('// ── generated labwright harness '
           '─────────────────────────────────────────────')
       ..writeln()
-      ..writeln('Future<void> main() async {');
-    for (final sequence in file.sequences) {
-      final fnName = _sequenceFnNames[sequence.name]!;
-      final reqs = sequence.requirementLinks;
+      // Registration only — bodies run after main returns, in order.
+      ..writeln('void main() {');
+    for (final root in roots) {
+      final reachable = reach(root.name);
+      // Requirement links of the whole unit this test runs: the root's, the
+      // reached sequences', and every reached step's — de-duplicated, in
+      // declaration order.
+      final reqs = <String>{};
+      final unported = <String>{};
+      for (final name in reachable) {
+        final seq = byName[name];
+        if (seq == null) continue;
+        reqs.addAll(seq.requirementLinks);
+        for (final step in seq.steps) {
+          reqs.addAll(step.settings.requirementLinks);
+        }
+        unported.addAll(_seqUnported[name] ?? const {});
+      }
       final reqArg = reqs.isEmpty
           ? ''
           : ' requirements: '
               "[${reqs.map((r) => "'${_escape(r)}'").join(', ')}],";
+      final fnName = _sequenceFnNames[root.name]!;
+      if (unported.isNotEmpty) {
+        _out.writeln('  // TODO: unported — implement, then rename '
+            'lw.skipTest -> lw.test to arm:');
+        for (final target in unported) {
+          _out.writeln('  //   ${_comment(target)}');
+        }
+      }
       _out
-        ..writeln("  await lw.sequence('${_escape(sequence.name)}',$reqArg "
-            '(s) async {')
+        ..writeln('  lw.${unported.isEmpty ? 'test' : 'skipTest'}'
+            "('${_escape(root.name)}',$reqArg () async {")
         ..writeln('    final ts = TsRuntime();')
-        ..writeln('    await $fnName(ts, s);')
+        ..writeln('    await $fnName(ts);')
         ..writeln('  });');
     }
     _out.writeln('}');
