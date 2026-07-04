@@ -4,9 +4,10 @@
 /// An E2E file is a **plain Dart program**: setup is ordinary code at the top
 /// of `main()`, a test is a named body of ordinary code, and the file runs
 /// under `dart run` (never `dart test` — hardware tests own their process and
-/// run strictly in order). The `labwright` executable runs a set of E2E files
-/// sequentially, renders live progress, serves the execution viewer over
-/// HTTP, and produces CI exit codes and JSON reports.
+/// run strictly in order). By convention E2E files live in an `e2e/` folder;
+/// the `labwright` executable scans it (or takes explicit files), runs each
+/// file once to **collect** test names and metadata, then runs the selected
+/// tests — with a live viewer, CI exit codes, and JSON reports.
 ///
 /// ```dart
 /// import 'package:labwright/labwright.dart';
@@ -27,19 +28,16 @@
 /// quiet — in practice, when `main` finishes). Register from `main` or any
 /// function it reaches, but do it in one synchronous burst: async setup goes
 /// BEFORE the first [test] call, and a registration arriving after the run
-/// has started throws a [StateError] rather than silently joining. The full
-/// ordered list is what makes sharding deterministic.
+/// has started throws a [StateError] rather than silently joining.
 ///
-/// **Sharding and the seed.** With `LABWRIGHT_TOTAL_SHARDS`/
-/// `LABWRIGHT_SHARD_INDEX` set (the runner's `--total-shards N
-/// --shard-index i`, same convention as `dart test`), a test runs in shard
-/// `i` iff its GLOBAL registration index — this file's index plus the
-/// runner-provided `LABWRIGHT_SHARD_OFFSET` of the files run before it —
-/// is `≡ i (mod N)`; unselected tests are not run and not reported. The
-/// [seed] (runner `--seed`) deterministically shuffles the runner's file
-/// order and each file's in-shard run order. For a FIXED seed the shards
-/// exactly partition the suite — give every shard of one run the same
-/// `--seed` (the runner header and report carry it for reproduction).
+/// **Under the runner** the file is invoked twice — a collect pass
+/// (`-Dlabwright.mode=collect`: registrations are reported, no body runs;
+/// note `main`'s setup code DOES run both times) and a run pass
+/// (`-Dlabwright.tests=…`: exactly the runner-chosen tests, in the
+/// runner-chosen order). Sharding and seed-shuffling are entirely the
+/// runner's business, computed over the whole collected suite — this
+/// library only ever executes the list it is handed. Configuration travels
+/// as Dart defines (`-D`), never environment variables.
 ///
 /// The `package:test` assertion surface works **as-is**: [expect],
 /// [expectLater], [fail], [TestFailure], and every matcher are re-exported,
@@ -53,8 +51,7 @@
 ///    make the process exit non-zero. There is no soft-fail tier — if a
 ///    non-immediately-failing check is ever needed, it will be carved out
 ///    explicitly.
-///  * Tests execute strictly in registration order, one at a time — the
-///    bench is singular.
+///  * Tests execute one at a time — the bench is singular.
 ///  * [skipTest] has the identical signature and skips the body (reported,
 ///    not run) — rename `test` ⇄ `skipTest` to disarm/arm. To-do notes are
 ///    just comments; there is no metadata for them.
@@ -62,9 +59,13 @@
 ///    `requirements:` and flow into the runner's report and viewer.
 ///  * [log] lines are attributed to the running test and stream to the
 ///    viewer.
+///  * The [seed] is printed at the start of every test and available to
+///    bodies — the hook fuzz testing will grow from. Standalone,
+///    `dart run -Dlabwright.seed=N file.dart` also shuffles the file's own
+///    run order (0 = registration order).
 ///
 /// Reporting: human-readable lines by default; under the runner
-/// (`LABWRIGHT_REPORT=jsonl`) one JSON event per line on stdout.
+/// (`-Dlabwright.report=jsonl`) one JSON event per line on stdout.
 library;
 
 import 'dart:async';
@@ -76,32 +77,22 @@ import 'package:test_api/hooks_testing.dart';
 
 export 'package:matcher/expect.dart';
 
-/// The environment variable the `labwright` runner sets to switch a file's
-/// output from human lines to machine JSON-lines events.
-const String reportEnv = 'LABWRIGHT_REPORT';
+/// The run's seed (define `labwright.seed`; the runner's `--seed`): `0` =
+/// registration order. Printed at the start of every test, and available
+/// here to test bodies — the hook fuzz testing will grow from.
+const int seed = int.fromEnvironment('labwright.seed');
 
-/// The [reportEnv] value selecting JSON-lines event output.
-const String reportJsonl = 'jsonl';
+/// `collect` = report registrations and exit without running any body (the
+/// runner's first pass). Empty/anything else = execute.
+const String _mode = String.fromEnvironment('labwright.mode');
 
-/// Sharding environment variables — `dart test`'s `--total-shards` /
-/// `--shard-index` convention, delivered by the runner (or set by hand).
-/// [shardOffsetEnv] is the number of tests registered by files that ran
-/// earlier: shard membership is `(offset + i) % total == index`, so the
-/// modulo spans the WHOLE suite, not one file — the runner advances the
-/// offset by each file's registry count as it goes.
-const String totalShardsEnv = 'LABWRIGHT_TOTAL_SHARDS';
-const String shardIndexEnv = 'LABWRIGHT_SHARD_INDEX';
-const String shardOffsetEnv = 'LABWRIGHT_SHARD_OFFSET';
+/// Comma-separated local registration indices to execute, in execution
+/// order (the runner's second pass). Empty = standalone: run everything.
+const String _testsDefine = String.fromEnvironment('labwright.tests');
 
-/// The run-order seed environment variable, delivered by the runner's
-/// `--seed`. `0` (or unset) means registration order.
-const String seedEnv = 'LABWRIGHT_SEED';
-
-/// The run's seed: `0` = registration order; anything else deterministically
-/// shuffles the run order of this file's selected tests (and the runner's
-/// file order). Printed at the start of every test, and available here to
-/// test bodies — the hook fuzz testing will grow from.
-final int seed = int.tryParse(Platform.environment[seedEnv] ?? '') ?? 0;
+/// `jsonl` switches output to machine JSON-lines events.
+const bool _jsonl =
+    String.fromEnvironment('labwright.report') == 'jsonl';
 
 /// Terminal status of one test.
 enum TestStatus {
@@ -119,7 +110,7 @@ enum TestStatus {
 }
 
 /// Registers one named test. Bodies run later — after every test is
-/// registered — strictly in registration order, one at a time.
+/// registered — one at a time.
 ///
 /// [requirement]/[requirements] bind requirement tracing IDs (they merge).
 ///
@@ -188,32 +179,39 @@ void _register(
 
 Future<void> _runAll() async {
   _runStarted = true;
-  final env = Platform.environment;
-  final total = int.tryParse(env[totalShardsEnv] ?? '') ?? 1;
-  final index = int.tryParse(env[shardIndexEnv] ?? '') ?? 0;
-  final offset = int.tryParse(env[shardOffsetEnv] ?? '') ?? 0;
-  if (total < 1 || index < 0 || index >= total || offset < 0) {
-    stderr.writeln(
-        'labwright: invalid shard $index of $total (offset $offset)');
-    exitCode = 64;
+  if (_mode == 'collect') {
+    // The runner's first pass: the full registry — names and metadata, in
+    // registration order — and nothing executes.
+    stdout.writeln(jsonEncode({
+      'e': 'registry',
+      'tests': [
+        for (final entry in _registry)
+          {
+            'name': entry.name,
+            if (entry.requirements.isNotEmpty)
+              'requirements': entry.requirements,
+            if (entry.skip) 'skip': true,
+          },
+      ],
+    }));
     return;
   }
-  // The registry count is what lets the runner keep the shard modulo global:
-  // it advances the next file's offset by this.
-  _sink.registry(_registry.length);
-  // Shard membership is keyed to the GLOBAL registration index — stable, so
-  // the seed can permute order but never move a test between shards.
-  final selected = [
-    for (var i = 0; i < _registry.length; i++)
-      if ((offset + i) % total == index) _registry[i],
-  ];
-  if (seed != 0) {
-    // Deterministic per (seed, file): mixing in the offset makes each file's
-    // permutation differ while staying reproducible from the one seed.
-    selected.shuffle(Random(seed + offset));
-  }
-  if (total > 1) {
-    _sink.shard(index, total, offset, selected.length, _registry.length);
+  final List<_Registered> selected;
+  if (_testsDefine.isNotEmpty) {
+    // The runner's second pass: exactly the chosen tests, in the chosen
+    // order — selection and ordering (sharding, seed) happened globally in
+    // the runner over the collected suite.
+    selected = [
+      for (final part in _testsDefine.split(','))
+        if (int.tryParse(part) case final i? when i >= 0 && i < _registry.length)
+          _registry[i],
+    ];
+  } else {
+    // Standalone `dart run file.dart`: everything, in registration order —
+    // or seed-shuffled when a seed is defined, so a single file's order is
+    // reproducible without the runner.
+    selected = [..._registry];
+    if (seed != 0) selected.shuffle(Random(seed));
   }
   final counts = <TestStatus, int>{};
   for (final entry in selected) {
@@ -274,38 +272,13 @@ final _EventSink _sink = _EventSink._();
 /// Where events go: JSON lines on stdout under the runner, human lines
 /// otherwise.
 class _EventSink {
-  _EventSink._() : jsonl = Platform.environment[reportEnv] == reportJsonl;
-
-  /// Whether the runner asked for machine output.
-  final bool jsonl;
+  _EventSink._();
 
   void _emit(Map<String, Object?> event) => stdout.writeln(jsonEncode(event));
 
-  /// Emitted before any test runs — the runner advances the global shard
-  /// offset for the NEXT file by [count].
-  void registry(int count) {
-    if (jsonl) _emit({'e': 'registry', 'count': count});
-  }
-
-  void shard(int index, int total, int offset, int selected, int registered) {
-    if (jsonl) {
-      _emit({
-        'e': 'shard',
-        'index': index,
-        'total': total,
-        'offset': offset,
-        'selected': selected,
-        'registered': registered,
-      });
-    } else {
-      stdout.writeln('shard $index of $total (offset $offset): running '
-          '$selected of $registered test(s)');
-    }
-  }
-
   void testStart(String name, List<String> requirements,
       {required bool skip}) {
-    if (jsonl) {
+    if (_jsonl) {
       _emit({
         'e': 'test-start',
         'test': name,
@@ -321,7 +294,7 @@ class _EventSink {
 
   void testEnd(String name, TestStatus status, List<String> requirements,
       String detail, Duration elapsed) {
-    if (jsonl) {
+    if (_jsonl) {
       _emit({
         'e': 'test-end',
         'test': name,
@@ -346,7 +319,7 @@ class _EventSink {
   }
 
   void suiteEnd(int ran, Map<TestStatus, int> counts) {
-    if (jsonl) return; // the runner aggregates from test-end events
+    if (_jsonl) return; // the runner aggregates from test-end events
     stdout.writeln('labwright: $ran test(s) — '
         '${counts[TestStatus.passed] ?? 0} passed, '
         '${counts[TestStatus.failed] ?? 0} failed, '
@@ -355,7 +328,7 @@ class _EventSink {
   }
 
   void log(String? testName, String message) {
-    if (jsonl) {
+    if (_jsonl) {
       _emit({
         'e': 'log',
         if (testName != null) 'test': testName,

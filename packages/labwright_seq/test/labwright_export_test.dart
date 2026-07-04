@@ -112,10 +112,9 @@ void main() {
     try {
       final genPath = '${genDir.path}/oracle_gen.dart';
       File(genPath).writeAsStringSync(source);
-      final result = Process.runSync(
-          'dart', ['run', 'test/.export_gen/oracle_gen.dart'],
-          workingDirectory: pkgRoot.path,
-          environment: {'LABWRIGHT_REPORT': 'jsonl'});
+      final result = Process.runSync('dart',
+          ['run', '-Dlabwright.report=jsonl', 'test/.export_gen/oracle_gen.dart'],
+          workingDirectory: pkgRoot.path);
       expect(result.exitCode, 0,
           reason: 'disarmed boilerplate must exit green:\n'
               '${result.stdout}\n${result.stderr}');

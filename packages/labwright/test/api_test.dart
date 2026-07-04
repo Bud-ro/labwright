@@ -9,22 +9,24 @@ final String pkgRoot = Directory('packages/labwright').existsSync()
     ? 'packages/labwright'
     : '.';
 
-/// Runs [file] under `dart run` the way the labwright runner does and returns
-/// (exitCode, stdout lines). E2E files are plain programs — this is their
-/// real execution surface, so the API tests exercise exactly that.
-(int, List<String>) _run(String file,
-    {bool jsonl = true, Map<String, String> env = const {}}) {
+/// Runs [file] under `dart run` the way the labwright runner does — all
+/// configuration as Dart defines, never environment variables — and returns
+/// (exitCode, stdout lines, stderr).
+(int, List<String>, String) _run(String file,
+    {List<String> defines = const []}) {
   final result = Process.runSync(
     Platform.resolvedExecutable,
-    ['run', file],
-    environment: {if (jsonl) 'LABWRIGHT_REPORT': 'jsonl', ...env},
+    ['run', ...defines, file],
     workingDirectory: pkgRoot,
   );
   return (
     result.exitCode,
     const LineSplitter().convert(result.stdout.toString()),
+    result.stderr.toString(),
   );
 }
+
+const _jsonl = '-Dlabwright.report=jsonl';
 
 List<Map<String, Object?>> _events(List<String> lines) => [
       for (final line in lines)
@@ -35,7 +37,8 @@ List<Map<String, Object?>> _events(List<String> lines) => [
 void main() {
   test('green fixture: registration then execution, real expect, skip green',
       () {
-    final (exit, lines) = _run('test/fixtures/green_e2e.dart');
+    final (exit, lines, _) =
+        _run('test/fixtures/green_e2e.dart', defines: [_jsonl]);
     expect(exit, 0, reason: 'skipped alone must stay green:\n$lines');
     final events = _events(lines);
     final ends = events.where((e) => e['e'] == 'test-end').toList();
@@ -58,7 +61,8 @@ void main() {
 
   test('red fixture: TestFailure=failed, other throw=error, exits non-zero',
       () {
-    final (exit, lines) = _run('test/fixtures/red_e2e.dart');
+    final (exit, lines, _) =
+        _run('test/fixtures/red_e2e.dart', defines: [_jsonl]);
     expect(exit, isNot(0), reason: 'failures must fail CI');
     final events = _events(lines);
     final ends = events.where((e) => e['e'] == 'test-end').toList();
@@ -73,55 +77,51 @@ void main() {
     expect('${ends[2]['detail']}', contains('relay stuck'));
   });
 
-  test('sharding: (offset + i) % N == I — the modulo is global, not per-file',
-      () {
-    final byShard = <int, List<Object?>>{};
-    for (var i = 0; i < 2; i++) {
-      final (exit, lines) = _run('test/fixtures/green_e2e.dart', env: {
-        'LABWRIGHT_TOTAL_SHARDS': '2',
-        'LABWRIGHT_SHARD_INDEX': '$i',
-      });
-      expect(exit, 0, reason: 'shard $i:\n$lines');
-      final events = _events(lines);
-      expect(
-          events.singleWhere((e) => e['e'] == 'registry')['count'], 3,
-          reason: 'the registry count feeds the runner\'s global offset');
-      final shard = events.singleWhere((e) => e['e'] == 'shard');
-      expect(shard['total'], 2);
-      expect(shard['offset'], 0);
-      expect(shard['registered'], 3,
-          reason: 'the full registry is known before the run — that is what '
-              'deferred registration buys');
-      byShard[i] = [
-        for (final e in events)
-          if (e['e'] == 'test-end') e['test'],
-      ];
-    }
-    expect(byShard[0], ['rail comes up', 'thermal camera sweep'],
-        reason: 'global indices 0,2 land in shard 0');
-    expect(byShard[1], ['ripple in limits'],
-        reason: 'global index 1 lands in shard 1');
+  test('collect mode: full registry with metadata, no body runs', () {
+    final (exit, lines, _) = _run('test/fixtures/red_e2e.dart',
+        defines: ['-Dlabwright.mode=collect']);
+    expect(exit, 0,
+        reason: 'collect must be green even for a failing file — nothing '
+            'executes:\n$lines');
+    final events = _events(lines);
+    expect(events.where((e) => e['e'] == 'test-end'), isEmpty,
+        reason: 'no body runs during collection');
+    final registry = events.singleWhere((e) => e['e'] == 'registry');
+    final tests = (registry['tests'] as List).cast<Map<String, Object?>>();
+    expect(tests.map((t) => t['name']), [
+      'trip threshold',
+      'still reachable after trip',
+      'teardown throws',
+    ]);
+    expect(tests[0]['requirements'], ['REQ-9'],
+        reason: 'metadata travels with the collected registry');
 
-    // A non-zero offset shifts membership: this file's tests behave as
-    // global indices 3,4,5 — proof the modulo spans the suite.
-    final (exit, lines) = _run('test/fixtures/green_e2e.dart', env: {
-      'LABWRIGHT_TOTAL_SHARDS': '2',
-      'LABWRIGHT_SHARD_INDEX': '0',
-      'LABWRIGHT_SHARD_OFFSET': '3',
-    });
+    final (_, greenLines, _) = _run('test/fixtures/green_e2e.dart',
+        defines: ['-Dlabwright.mode=collect']);
+    final greenTests = (_events(greenLines)
+            .singleWhere((e) => e['e'] == 'registry')['tests'] as List)
+        .cast<Map<String, Object?>>();
+    expect(greenTests[2]['skip'], true,
+        reason: 'skipTest is visible in the collected metadata');
+  });
+
+  test('run mode executes exactly the chosen tests in the chosen order', () {
+    final (exit, lines, _) = _run('test/fixtures/green_e2e.dart',
+        defines: [_jsonl, '-Dlabwright.tests=2,0']);
     expect(exit, 0, reason: '$lines');
     expect(
         [
           for (final e in _events(lines))
             if (e['e'] == 'test-end') e['test'],
         ],
-        ['ripple in limits'],
-        reason: '(3 + i) % 2 == 0 selects local index 1 only');
+        ['thermal camera sweep', 'rail comes up'],
+        reason: 'the runner owns selection AND order; the file just obeys');
   });
 
   test('seed: printed on every test start, shuffles order, never the set',
       () {
-    final (exit0, lines0) = _run('test/fixtures/green_e2e.dart');
+    final (exit0, lines0, _) =
+        _run('test/fixtures/green_e2e.dart', defines: [_jsonl]);
     final order0 = [
       for (final e in _events(lines0))
         if (e['e'] == 'test-end') e['test'],
@@ -132,8 +132,8 @@ void main() {
     }
 
     List<Object?> runSeeded() {
-      final (exit, lines) =
-          _run('test/fixtures/green_e2e.dart', env: {'LABWRIGHT_SEED': '1'});
+      final (exit, lines, _) = _run('test/fixtures/green_e2e.dart',
+          defines: [_jsonl, '-Dlabwright.seed=1']);
       expect(exit, 0, reason: '$lines');
       final events = _events(lines);
       for (final e in events.where((e) => e['e'] == 'test-start')) {
@@ -156,29 +156,23 @@ void main() {
 
   test('late registration (after the run starts) dies loudly, not silently',
       () {
-    final result = Process.runSync(
-      Platform.resolvedExecutable,
-      ['run', 'test/bad_fixtures/late_registration_e2e.dart'],
-      environment: {'LABWRIGHT_REPORT': 'jsonl'},
-      workingDirectory: pkgRoot,
-    );
-    expect(result.exitCode, isNot(0));
-    expect(result.stderr.toString(),
-        contains('registered after the run started'),
+    final (exit, lines, errText) = _run(
+        'test/bad_fixtures/late_registration_e2e.dart',
+        defines: [_jsonl]);
+    expect(exit, isNot(0));
+    expect(errText, contains('registered after the run started'),
         reason: 'the contract violation names itself');
-    final events =
-        _events(const LineSplitter().convert(result.stdout.toString()));
     expect(
-        events
+        _events(lines)
             .where((e) => e['e'] == 'test-end')
             .map((e) => e['test']),
         ['registered in time'],
         reason: 'the in-time test still ran; the late one never joined');
   });
 
-  test('human mode (no env): readable lines, summary, same exit semantics',
+  test('human mode (no defines): readable lines, summary, same semantics',
       () {
-    final (exit, lines) = _run('test/fixtures/green_e2e.dart', jsonl: false);
+    final (exit, lines, _) = _run('test/fixtures/green_e2e.dart');
     expect(exit, 0);
     final text = lines.join('\n');
     expect(text, contains('▶ rail comes up [REQ-1] (seed 0)'),
