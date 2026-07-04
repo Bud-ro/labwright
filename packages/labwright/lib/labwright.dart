@@ -30,10 +30,16 @@
 /// has started throws a [StateError] rather than silently joining. The full
 /// ordered list is what makes sharding deterministic.
 ///
-/// **Sharding.** With `LABWRIGHT_TOTAL_SHARDS`/`LABWRIGHT_SHARD_INDEX` set
-/// (the runner's `--total-shards N --shard-index i`, same convention as
-/// `dart test`), registration index `i % N` selects each test's shard;
-/// unselected tests are not run and not reported.
+/// **Sharding and the seed.** With `LABWRIGHT_TOTAL_SHARDS`/
+/// `LABWRIGHT_SHARD_INDEX` set (the runner's `--total-shards N
+/// --shard-index i`, same convention as `dart test`), a test runs in shard
+/// `i` iff its GLOBAL registration index — this file's index plus the
+/// runner-provided `LABWRIGHT_SHARD_OFFSET` of the files run before it —
+/// is `≡ i (mod N)`; unselected tests are not run and not reported. The
+/// [seed] (runner `--seed`) deterministically shuffles the runner's file
+/// order and each file's in-shard run order. For a FIXED seed the shards
+/// exactly partition the suite — give every shard of one run the same
+/// `--seed` (the runner header and report carry it for reproduction).
 ///
 /// The `package:test` assertion surface works **as-is**: [expect],
 /// [expectLater], [fail], [TestFailure], and every matcher are re-exported,
@@ -64,6 +70,7 @@ library;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:test_api/hooks_testing.dart';
 
@@ -78,8 +85,23 @@ const String reportJsonl = 'jsonl';
 
 /// Sharding environment variables — `dart test`'s `--total-shards` /
 /// `--shard-index` convention, delivered by the runner (or set by hand).
+/// [shardOffsetEnv] is the number of tests registered by files that ran
+/// earlier: shard membership is `(offset + i) % total == index`, so the
+/// modulo spans the WHOLE suite, not one file — the runner advances the
+/// offset by each file's registry count as it goes.
 const String totalShardsEnv = 'LABWRIGHT_TOTAL_SHARDS';
 const String shardIndexEnv = 'LABWRIGHT_SHARD_INDEX';
+const String shardOffsetEnv = 'LABWRIGHT_SHARD_OFFSET';
+
+/// The run-order seed environment variable, delivered by the runner's
+/// `--seed`. `0` (or unset) means registration order.
+const String seedEnv = 'LABWRIGHT_SEED';
+
+/// The run's seed: `0` = registration order; anything else deterministically
+/// shuffles the run order of this file's selected tests (and the runner's
+/// file order). Printed at the start of every test, and available here to
+/// test bodies — the hook fuzz testing will grow from.
+final int seed = int.tryParse(Platform.environment[seedEnv] ?? '') ?? 0;
 
 /// Terminal status of one test.
 enum TestStatus {
@@ -169,19 +191,29 @@ Future<void> _runAll() async {
   final env = Platform.environment;
   final total = int.tryParse(env[totalShardsEnv] ?? '') ?? 1;
   final index = int.tryParse(env[shardIndexEnv] ?? '') ?? 0;
-  if (total < 1 || index < 0 || index >= total) {
-    stderr.writeln('labwright: invalid shard $index of $total');
+  final offset = int.tryParse(env[shardOffsetEnv] ?? '') ?? 0;
+  if (total < 1 || index < 0 || index >= total || offset < 0) {
+    stderr.writeln(
+        'labwright: invalid shard $index of $total (offset $offset)');
     exitCode = 64;
     return;
   }
-  // Deterministic shard selection by registration index — the reason the
-  // registry must be complete before anything runs.
+  // The registry count is what lets the runner keep the shard modulo global:
+  // it advances the next file's offset by this.
+  _sink.registry(_registry.length);
+  // Shard membership is keyed to the GLOBAL registration index — stable, so
+  // the seed can permute order but never move a test between shards.
   final selected = [
     for (var i = 0; i < _registry.length; i++)
-      if (i % total == index) _registry[i],
+      if ((offset + i) % total == index) _registry[i],
   ];
+  if (seed != 0) {
+    // Deterministic per (seed, file): mixing in the offset makes each file's
+    // permutation differ while staying reproducible from the one seed.
+    selected.shuffle(Random(seed + offset));
+  }
   if (total > 1) {
-    _sink.shard(index, total, selected.length, _registry.length);
+    _sink.shard(index, total, offset, selected.length, _registry.length);
   }
   final counts = <TestStatus, int>{};
   for (final entry in selected) {
@@ -249,18 +281,25 @@ class _EventSink {
 
   void _emit(Map<String, Object?> event) => stdout.writeln(jsonEncode(event));
 
-  void shard(int index, int total, int selected, int registered) {
+  /// Emitted before any test runs — the runner advances the global shard
+  /// offset for the NEXT file by [count].
+  void registry(int count) {
+    if (jsonl) _emit({'e': 'registry', 'count': count});
+  }
+
+  void shard(int index, int total, int offset, int selected, int registered) {
     if (jsonl) {
       _emit({
         'e': 'shard',
         'index': index,
         'total': total,
+        'offset': offset,
         'selected': selected,
         'registered': registered,
       });
     } else {
-      stdout.writeln('shard $index of $total: running $selected of '
-          '$registered test(s)');
+      stdout.writeln('shard $index of $total (offset $offset): running '
+          '$selected of $registered test(s)');
     }
   }
 
@@ -270,12 +309,13 @@ class _EventSink {
       _emit({
         'e': 'test-start',
         'test': name,
+        'seed': seed,
         if (requirements.isNotEmpty) 'requirements': requirements,
       });
     } else if (!skip) {
       final reqs =
           requirements.isEmpty ? '' : ' [${requirements.join(', ')}]';
-      stdout.writeln('▶ $name$reqs');
+      stdout.writeln('▶ $name$reqs (seed $seed)');
     }
   }
 

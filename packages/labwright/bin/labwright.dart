@@ -2,7 +2,7 @@
 // the live execution viewer.
 //
 //   labwright run [paths...] [--port N] [--report out.json]
-//                 [--total-shards N --shard-index I]
+//                 [--total-shards N --shard-index I] [--seed N|random]
 //                 [--fail-on-skipped] [--keep-open]
 //
 //   paths             E2E files or directories (default: ./e2e). Directories
@@ -11,9 +11,15 @@
 //                     The viewer is up from launch, streaming live results.
 //   --report out.json Write the machine-readable run report (files, tests,
 //                     and the requirements trace).
-//   --total-shards N  With --shard-index I: run only tests whose
-//   --shard-index I   registration index i satisfies i % N == I (dart
-//                     test's sharding convention) — one bench per shard.
+//   --total-shards N  With --shard-index I: run only tests whose GLOBAL
+//   --shard-index I   registration index (across the whole suite, files in
+//                     order) is ≡ I (mod N) — dart test's convention, one
+//                     bench per shard. The runner threads the running
+//                     offset through the files.
+//   --seed N|random   Deterministically shuffle file order and each file's
+//                     in-shard test order (0 = registration order, the
+//                     default). Printed at the start of every test; shard
+//                     membership never depends on it.
 //   --fail-on-skipped Exit non-zero when any test is skipped (strict CI —
 //                     generated boilerplate ships as skipTest until armed).
 //   --keep-open       Keep the viewer serving after the run until Ctrl-C.
@@ -26,6 +32,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 Future<void> main(List<String> args) async {
   var port = 8642;
@@ -34,6 +41,7 @@ Future<void> main(List<String> args) async {
   var keepOpen = false;
   var totalShards = 1;
   var shardIndex = 0;
+  var seed = 0;
   final paths = <String>[];
 
   final rest = [...args];
@@ -51,6 +59,12 @@ Future<void> main(List<String> args) async {
       case '--shard-index':
         shardIndex =
             int.tryParse(rest.isEmpty ? '' : rest.removeAt(0)) ?? shardIndex;
+      case '--seed':
+        final raw = rest.isEmpty ? '' : rest.removeAt(0);
+        // `random` mints a fresh seed (printed everywhere for reproduction).
+        seed = raw == 'random'
+            ? Random().nextInt(1 << 31)
+            : int.tryParse(raw) ?? seed;
       case '--fail-on-skipped':
         failOnSkipped = true;
       case '--keep-open':
@@ -70,7 +84,7 @@ Future<void> main(List<String> args) async {
     return;
   }
 
-  final files = _collectFiles(paths);
+  final files = _collectFiles(paths, seed: seed);
   if (files.isEmpty) {
     stderr
       ..writeln('no E2E .dart files found under: ${paths.join(', ')}')
@@ -79,15 +93,23 @@ Future<void> main(List<String> args) async {
     return;
   }
 
-  final state = _RunState(files);
+  final state = _RunState(files)..seed = seed;
   final viewer = await _Viewer.start(port, state);
   stdout.writeln('labwright: viewer on http://localhost:${viewer.port} · '
-      '${files.length} file(s)'
+      '${files.length} file(s) · seed $seed'
       '${totalShards > 1 ? ' · shard $shardIndex of $totalShards' : ''}');
 
+  // The global shard offset: advanced by each file's registry count as it
+  // runs, so the modulo spans the WHOLE suite in run order. For a fixed
+  // seed the shards exactly partition the suite — every shard of one run
+  // must be given the same --seed (the header and report carry it).
+  var shardOffset = 0;
   for (final file in files) {
-    await _runFile(file, state, viewer,
-        totalShards: totalShards, shardIndex: shardIndex);
+    shardOffset += await _runFile(file, state, viewer,
+        totalShards: totalShards,
+        shardIndex: shardIndex,
+        shardOffset: shardOffset,
+        seed: seed);
   }
   state.done = true;
   viewer.broadcast({'e': 'done'});
@@ -122,8 +144,10 @@ Runs hardware E2E files (plain Dart programs using package:labwright)
 sequentially via `dart run`, with a live viewer and CI exit codes.''';
 
 /// E2E files: explicit .dart paths as-is; directories walked recursively,
-/// hidden directories skipped, sorted for a deterministic run order.
-List<File> _collectFiles(List<String> paths) {
+/// hidden directories skipped, sorted for a deterministic order — then
+/// shuffled by [seed] when one is set (order only; global registration
+/// indices for sharding always follow the sorted order).
+List<File> _collectFiles(List<String> paths, {required int seed}) {
   final out = <File>[];
   for (final path in paths) {
     if (FileSystemEntity.isDirectorySync(path)) {
@@ -143,11 +167,19 @@ List<File> _collectFiles(List<String> paths) {
     }
   }
   out.sort((a, b) => a.path.compareTo(b.path));
+  if (seed != 0) out.shuffle(Random(seed));
   return out;
 }
 
-Future<void> _runFile(File file, _RunState state, _Viewer viewer,
-    {required int totalShards, required int shardIndex}) async {
+/// Runs one file and returns its registered-test count (from its `registry`
+/// event) so the caller can advance the global shard offset. A file that
+/// crashes before reporting counts as 0 — the run is already red (non-zero
+/// exit), so downstream offsets being disturbed cannot turn a failure green.
+Future<int> _runFile(File file, _RunState state, _Viewer viewer,
+    {required int totalShards,
+    required int shardIndex,
+    required int shardOffset,
+    required int seed}) async {
   stdout.writeln('── ${file.path}');
   final fileState = state.file(file.path)..status = 'running';
   viewer.broadcast({'e': 'file-start', 'file': file.path});
@@ -157,12 +189,15 @@ Future<void> _runFile(File file, _RunState state, _Viewer viewer,
     ['run', file.path],
     environment: {
       'LABWRIGHT_REPORT': 'jsonl',
+      if (seed != 0) 'LABWRIGHT_SEED': '$seed',
       if (totalShards > 1) ...{
         'LABWRIGHT_TOTAL_SHARDS': '$totalShards',
         'LABWRIGHT_SHARD_INDEX': '$shardIndex',
+        'LABWRIGHT_SHARD_OFFSET': '$shardOffset',
       },
     },
   );
+  var registered = 0;
   // Hardware E2E: strictly sequential; stderr passes straight through.
   final stderrDone = process.stderr.pipe(stderr.nonBlocking);
   await for (final line in process.stdout
@@ -172,6 +207,9 @@ Future<void> _runFile(File file, _RunState state, _Viewer viewer,
     if (event == null) {
       stdout.writeln('  | $line'); // non-event output, passed through
       continue;
+    }
+    if (event['e'] == 'registry') {
+      registered = event['count'] is int ? event['count'] as int : 0;
     }
     fileState.apply(event);
     _renderEvent(event);
@@ -185,6 +223,7 @@ Future<void> _runFile(File file, _RunState state, _Viewer viewer,
     stdout.writeln('  ‼ ${file.path} exited $exit');
   }
   viewer.broadcast({'e': 'file-end', 'file': file.path, 'exit': exit});
+  return registered;
 }
 
 Map<String, Object?>? _tryDecode(String line) {
@@ -220,7 +259,8 @@ void _renderEvent(Map<String, Object?> event) {
     case 'log':
       stdout.writeln('  · ${event['message']}');
     case 'shard':
-      stdout.writeln('  shard ${event['index']} of ${event['total']}: '
+      stdout.writeln('  shard ${event['index']} of ${event['total']} '
+          '(offset ${event['offset']}): '
           '${event['selected']} of ${event['registered']} test(s)');
   }
 }
@@ -278,6 +318,7 @@ class _RunState {
   final Map<String, _FileState> _files = {};
   var crashedFiles = 0;
   var done = false;
+  var seed = 0;
 
   _FileState file(String path) => _files[path]!;
 
@@ -333,6 +374,7 @@ class _RunState {
           },
       ],
       'requirements': requirements,
+      'seed': seed,
       'summary': {
         'tests': s.tests,
         'passed': s.passed,

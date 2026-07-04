@@ -73,7 +73,7 @@ void main() {
     expect('${ends[2]['detail']}', contains('relay stuck'));
   });
 
-  test('sharding: registration index i % N == I, shards partition the tests',
+  test('sharding: (offset + i) % N == I — the modulo is global, not per-file',
       () {
     final byShard = <int, List<Object?>>{};
     for (var i = 0; i < 2; i++) {
@@ -83,8 +83,12 @@ void main() {
       });
       expect(exit, 0, reason: 'shard $i:\n$lines');
       final events = _events(lines);
+      expect(
+          events.singleWhere((e) => e['e'] == 'registry')['count'], 3,
+          reason: 'the registry count feeds the runner\'s global offset');
       final shard = events.singleWhere((e) => e['e'] == 'shard');
       expect(shard['total'], 2);
+      expect(shard['offset'], 0);
       expect(shard['registered'], 3,
           reason: 'the full registry is known before the run — that is what '
               'deferred registration buys');
@@ -94,9 +98,60 @@ void main() {
       ];
     }
     expect(byShard[0], ['rail comes up', 'thermal camera sweep'],
-        reason: 'indices 0,2 land in shard 0');
+        reason: 'global indices 0,2 land in shard 0');
     expect(byShard[1], ['ripple in limits'],
-        reason: 'index 1 lands in shard 1');
+        reason: 'global index 1 lands in shard 1');
+
+    // A non-zero offset shifts membership: this file's tests behave as
+    // global indices 3,4,5 — proof the modulo spans the suite.
+    final (exit, lines) = _run('test/fixtures/green_e2e.dart', env: {
+      'LABWRIGHT_TOTAL_SHARDS': '2',
+      'LABWRIGHT_SHARD_INDEX': '0',
+      'LABWRIGHT_SHARD_OFFSET': '3',
+    });
+    expect(exit, 0, reason: '$lines');
+    expect(
+        [
+          for (final e in _events(lines))
+            if (e['e'] == 'test-end') e['test'],
+        ],
+        ['ripple in limits'],
+        reason: '(3 + i) % 2 == 0 selects local index 1 only');
+  });
+
+  test('seed: printed on every test start, shuffles order, never the set',
+      () {
+    final (exit0, lines0) = _run('test/fixtures/green_e2e.dart');
+    final order0 = [
+      for (final e in _events(lines0))
+        if (e['e'] == 'test-end') e['test'],
+    ];
+    expect(exit0, 0);
+    for (final e in _events(lines0).where((e) => e['e'] == 'test-start')) {
+      expect(e['seed'], 0, reason: 'no seed -> seed 0, still printed');
+    }
+
+    List<Object?> runSeeded() {
+      final (exit, lines) =
+          _run('test/fixtures/green_e2e.dart', env: {'LABWRIGHT_SEED': '1'});
+      expect(exit, 0, reason: '$lines');
+      final events = _events(lines);
+      for (final e in events.where((e) => e['e'] == 'test-start')) {
+        expect(e['seed'], 1,
+            reason: 'the seed is printed at the start of each test');
+      }
+      return [
+        for (final e in events)
+          if (e['e'] == 'test-end') e['test'],
+      ];
+    }
+
+    final order1 = runSeeded();
+    expect(order1.toSet(), order0.toSet(),
+        reason: 'a seed permutes the run order, never the set of tests');
+    expect(order1, isNot(equals(order0)),
+        reason: 'seed 1 reorders this fixture (verified permutation)');
+    expect(runSeeded(), order1, reason: 'the same seed reproduces the order');
   });
 
   test('late registration (after the run starts) dies loudly, not silently',
@@ -126,7 +181,8 @@ void main() {
     final (exit, lines) = _run('test/fixtures/green_e2e.dart', jsonl: false);
     expect(exit, 0);
     final text = lines.join('\n');
-    expect(text, contains('▶ rail comes up [REQ-1]'));
+    expect(text, contains('▶ rail comes up [REQ-1] (seed 0)'),
+        reason: 'the seed is printed at the start of each test');
     expect(text, contains('✓ rail comes up'));
     expect(text, contains('○ thermal camera sweep (skipped)'));
     expect(text,
