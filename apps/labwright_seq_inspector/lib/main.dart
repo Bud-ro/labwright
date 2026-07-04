@@ -158,8 +158,8 @@ class _InspectorPageState extends State<InspectorPage> {
     final coverage = file == null
         ? null
         : doc is BinarySeqDocument
-            ? 'binary TOF1 · partial skeleton (sequences + step names; '
-                'properties/types not yet decoded)'
+            ? 'binary TOF1 · partial skeleton (sequences + step names + '
+                'type names; properties/typedef bodies not yet decoded)'
             : coverageLabel(measureCoverage(file));
     final types = file?.types ?? const <SeqProperty>[];
     final typeCount = file?.types.length;

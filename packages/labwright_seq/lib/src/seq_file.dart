@@ -399,16 +399,16 @@ SeqFile _parseBinary(Uint8List bytes) {
   if (body == null) {
     throw const FormatException('binary .seq body does not inflate (not TOF1?)');
   }
-  final outlines = binarySequenceOutlinesFromBody(body);
+  // Single scan: outlines + type names share one layout framing and one
+  // ordered string pool (each is an O(body) pass the per-lens helpers would
+  // otherwise repeat).
+  final (:outlines, :typeNames) = binaryOutlinesAndTypeNamesFromBody(body);
   SeqProperty stepProp(String name) => SeqProperty(name: name);
   return SeqFile(
     header: detectSeqHeader(bytes),
     // Recovered type NAMES only (name-only stubs): the typedef bodies (fields,
     // defaults) are not yet decoded from binary.
-    types: [
-      for (final typeName in binaryTypeNamesFromBody(body))
-        SeqProperty(name: typeName),
-    ],
+    types: [for (final typeName in typeNames) SeqProperty(name: typeName)],
     data: SeqProperty(
       name: 'Data',
       subProps: [
