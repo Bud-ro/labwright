@@ -1108,6 +1108,17 @@ const _typeRecordMinBytes = (3 + _typeVersionTripleWords) * _u32Bytes;
 /// ref needs the variable-length container/record-tree grammar (the known
 /// undecoded layer, see [binaryPropertyRecords]) so `TS`/`SData` sub-objects
 /// attach to their steps. That grammar is the next decode lever.
+///
+/// Two further probe results (2026-07): [binaryPropertyRecords]'s leaf
+/// grammar barely fires on TS2021-era files (37 records on the oracle, none
+/// of them step sub-objects — it was tuned on TS 4.x/5.0 layouts), and the
+/// word before a placed step's `SData` token is confirmed by pool-alignment
+/// check to BE the `ResStr(...)` index (25 on the oracle), not an off-by-k
+/// miss of the typename (pool index 292). Step-adjacent record heads are
+/// NOT 4-byte aligned — the next approach is a differential sweep over the
+/// rosetta twins (every byte offset/encoding near each step, kept only if
+/// it tracks the twin's known step type consistently across files), not
+/// fixed-offset eyeballing.
 List<String> binaryTypeNames(Uint8List seqBytes) =>
     _withLayout(seqBytes, _typeNamesFromBody);
 
