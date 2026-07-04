@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -9,141 +10,118 @@ final String pkgRoot = Directory('packages/labwright').existsSync()
     ? 'packages/labwright'
     : '.';
 
-/// Runs [file] under `dart run` the way the labwright runner does — all
-/// configuration as Dart defines, never environment variables — and returns
-/// (exitCode, stdout lines, stderr).
-(int, List<String>, String) _run(String file,
-    {List<String> defines = const []}) {
+const _noViewer = '-Dlabwright.viewer=false';
+
+/// Runs a suite the only way suites run — ONE process, `dart run`, all
+/// configuration as Dart defines — and returns (exitCode, stdout, stderr).
+(int, String, String) _run(String file, {List<String> defines = const []}) {
   final result = Process.runSync(
     Platform.resolvedExecutable,
-    ['run', ...defines, file],
+    ['run', _noViewer, ...defines, file],
     workingDirectory: pkgRoot,
   );
-  return (
-    result.exitCode,
-    const LineSplitter().convert(result.stdout.toString()),
-    result.stderr.toString(),
-  );
+  return (result.exitCode, result.stdout.toString(), result.stderr.toString());
 }
 
-const _jsonl = '-Dlabwright.report=jsonl';
+/// Runs [file] with a report define and returns (exitCode, stdout, report).
+(int, String, Map<String, Object?>) _runWithReport(String file,
+    {List<String> defines = const []}) {
+  final dir = Directory.systemTemp.createTempSync('lw_');
+  try {
+    final path = '${dir.path}/report.json';
+    final (exit, out, _) =
+        _run(file, defines: ['-Dlabwright.report=$path', ...defines]);
+    final report =
+        (jsonDecode(File(path).readAsStringSync()) as Map)
+            .cast<String, Object?>();
+    return (exit, out, report);
+  } finally {
+    dir.deleteSync(recursive: true);
+  }
+}
 
-List<Map<String, Object?>> _events(List<String> lines) => [
-      for (final line in lines)
-        if (line.startsWith('{'))
-          (jsonDecode(line) as Map).cast<String, Object?>(),
-    ];
+List<Map<String, Object?>> _tests(Map<String, Object?> report) =>
+    (report['tests'] as List).cast<Map<String, Object?>>();
 
 void main() {
   test('green fixture: registration then execution, real expect, skip green',
       () {
-    final (exit, lines, _) =
-        _run('test/fixtures/green_e2e.dart', defines: [_jsonl]);
-    expect(exit, 0, reason: 'skipped alone must stay green:\n$lines');
-    final events = _events(lines);
-    final ends = events.where((e) => e['e'] == 'test-end').toList();
-    expect(ends.map((e) => e['test']), [
+    final (exit, out, report) =
+        _runWithReport('test/fixtures/green_e2e.dart');
+    expect(exit, 0, reason: 'skipped alone must stay green:\n$out');
+    final tests = _tests(report);
+    expect(tests.map((t) => t['name']), [
       'rail comes up',
       'ripple in limits',
       'thermal camera sweep',
     ], reason: 'registration order is execution order');
-    expect(ends[0]['status'], 'passed',
+    expect(tests[0]['status'], 'passed',
         reason: 'async setup at the top of main completed before any body; '
             'package:test expect/expectLater/matchers work as-is');
-    expect(ends[0]['requirements'], ['REQ-1']);
-    expect(ends[1]['requirements'], ['REQ-2', 'REQ-3']);
-    expect(ends[2]['status'], 'skipped',
+    expect(tests[0]['requirements'], ['REQ-1']);
+    expect(tests[0]['logs'], ['applying power'],
+        reason: 'log lines attach to their test in the report');
+    expect(tests[1]['requirements'], ['REQ-2', 'REQ-3']);
+    expect(tests[2]['status'], 'skipped',
         reason: 'skipTest reports without running the body');
-    final logs = events.where((e) => e['e'] == 'log').toList();
-    expect(logs.single['test'], 'rail comes up',
-        reason: 'log lines attribute to the running test');
+    expect((report['summary'] as Map)['skipped'], 1);
   });
 
   test('red fixture: TestFailure=failed, other throw=error, exits non-zero',
       () {
-    final (exit, lines, _) =
-        _run('test/fixtures/red_e2e.dart', defines: [_jsonl]);
+    final (exit, out, report) = _runWithReport('test/fixtures/red_e2e.dart');
     expect(exit, isNot(0), reason: 'failures must fail CI');
-    final events = _events(lines);
-    final ends = events.where((e) => e['e'] == 'test-end').toList();
-    expect(ends, hasLength(3),
+    final tests = _tests(report);
+    expect(tests, hasLength(3),
         reason: 'a failed test does not stop later tests');
-    expect(ends[0]['status'], 'failed');
-    expect('${ends[0]['detail']}', contains('trip current'),
+    expect(tests[0]['status'], 'failed');
+    expect('${tests[0]['detail']}', contains('trip current'),
         reason: 'the matcher mismatch description is carried');
-    expect(ends[1]['status'], 'passed');
-    expect(ends[2]['status'], 'error',
+    expect(tests[1]['status'], 'passed');
+    expect(tests[2]['status'], 'error',
         reason: 'a non-TestFailure escape is an error, not a failure');
-    expect('${ends[2]['detail']}', contains('relay stuck'));
-  });
-
-  test('collect mode: full registry with metadata, no body runs', () {
-    final (exit, lines, _) = _run('test/fixtures/red_e2e.dart',
-        defines: ['-Dlabwright.mode=collect']);
-    expect(exit, 0,
-        reason: 'collect must be green even for a failing file — nothing '
-            'executes:\n$lines');
-    final events = _events(lines);
-    expect(events.where((e) => e['e'] == 'test-end'), isEmpty,
-        reason: 'no body runs during collection');
-    final registry = events.singleWhere((e) => e['e'] == 'registry');
-    final tests = (registry['tests'] as List).cast<Map<String, Object?>>();
-    expect(tests.map((t) => t['name']), [
-      'trip threshold',
-      'still reachable after trip',
-      'teardown throws',
-    ]);
-    expect(tests[0]['requirements'], ['REQ-9'],
-        reason: 'metadata travels with the collected registry');
-
-    final (_, greenLines, _) = _run('test/fixtures/green_e2e.dart',
-        defines: ['-Dlabwright.mode=collect']);
-    final greenTests = (_events(greenLines)
-            .singleWhere((e) => e['e'] == 'registry')['tests'] as List)
+    expect('${tests[2]['detail']}', contains('relay stuck'));
+    // The requirements trace maps each ID to its tests and statuses.
+    final req9 = ((report['requirements'] as Map)['REQ-9'] as List)
         .cast<Map<String, Object?>>();
-    expect(greenTests[2]['skip'], true,
-        reason: 'skipTest is visible in the collected metadata');
+    expect(req9.single['status'], 'failed');
+    expect(out, contains('▶ trip threshold [REQ-9] (seed 0)'));
   });
 
-  test('run mode executes exactly the chosen tests in the chosen order', () {
-    final (exit, lines, _) = _run('test/fixtures/green_e2e.dart',
-        defines: [_jsonl, '-Dlabwright.tests=2,0']);
-    expect(exit, 0, reason: '$lines');
-    expect(
-        [
-          for (final e in _events(lines))
-            if (e['e'] == 'test-end') e['test'],
-        ],
-        ['thermal camera sweep', 'rail comes up'],
-        reason: 'the runner owns selection AND order; the file just obeys');
+  test('sharding: plain index % N over the one in-process registry', () {
+    final byShard = <int, List<Object?>>{};
+    for (var i = 0; i < 2; i++) {
+      final (exit, out, report) = _runWithReport(
+          'test/fixtures/green_e2e.dart',
+          defines: [
+            '-Dlabwright.totalShards=2',
+            '-Dlabwright.shardIndex=$i',
+          ]);
+      expect(exit, 0, reason: 'shard $i:\n$out');
+      byShard[i] = _tests(report).map((t) => t['name']).toList();
+    }
+    expect(byShard[0], ['rail comes up', 'thermal camera sweep'],
+        reason: 'indices 0,2 land in shard 0');
+    expect(byShard[1], ['ripple in limits'],
+        reason: 'index 1 lands in shard 1');
   });
 
   test('seed: printed on every test start, shuffles order, never the set',
       () {
-    final (exit0, lines0, _) =
-        _run('test/fixtures/green_e2e.dart', defines: [_jsonl]);
-    final order0 = [
-      for (final e in _events(lines0))
-        if (e['e'] == 'test-end') e['test'],
-    ];
+    final (exit0, _, report0) =
+        _runWithReport('test/fixtures/green_e2e.dart');
     expect(exit0, 0);
-    for (final e in _events(lines0).where((e) => e['e'] == 'test-start')) {
-      expect(e['seed'], 0, reason: 'no seed -> seed 0, still printed');
-    }
+    final order0 = _tests(report0).map((t) => t['name']).toList();
 
     List<Object?> runSeeded() {
-      final (exit, lines, _) = _run('test/fixtures/green_e2e.dart',
-          defines: [_jsonl, '-Dlabwright.seed=1']);
-      expect(exit, 0, reason: '$lines');
-      final events = _events(lines);
-      for (final e in events.where((e) => e['e'] == 'test-start')) {
-        expect(e['seed'], 1,
-            reason: 'the seed is printed at the start of each test');
-      }
-      return [
-        for (final e in events)
-          if (e['e'] == 'test-end') e['test'],
-      ];
+      final (exit, out, report) = _runWithReport(
+          'test/fixtures/green_e2e.dart',
+          defines: ['-Dlabwright.seed=1']);
+      expect(exit, 0, reason: out);
+      expect(out, contains('(seed 1)'),
+          reason: 'the seed is printed at the start of each test');
+      expect(report['seed'], 1, reason: 'the report carries the seed');
+      return _tests(report).map((t) => t['name']).toList();
     }
 
     final order1 = runSeeded();
@@ -156,33 +134,79 @@ void main() {
 
   test('late registration (after the run starts) dies loudly, not silently',
       () {
-    final (exit, lines, errText) = _run(
-        'test/bad_fixtures/late_registration_e2e.dart',
-        defines: [_jsonl]);
+    final (exit, out, errText) =
+        _run('test/bad_fixtures/late_registration_e2e.dart');
     expect(exit, isNot(0));
     expect(errText, contains('registered after the run started'),
         reason: 'the contract violation names itself');
-    expect(
-        _events(lines)
-            .where((e) => e['e'] == 'test-end')
-            .map((e) => e['test']),
-        ['registered in time'],
+    expect(out, contains('✓ registered in time'),
         reason: 'the in-time test still ran; the late one never joined');
   });
 
-  test('human mode (no defines): readable lines, summary, same semantics',
-      () {
-    final (exit, lines, _) = _run('test/fixtures/green_e2e.dart');
+  test('human output: readable lines and a definite end-of-run summary', () {
+    final (exit, out, _) = _run('test/fixtures/green_e2e.dart');
     expect(exit, 0);
-    final text = lines.join('\n');
-    expect(text, contains('▶ rail comes up [REQ-1] (seed 0)'),
+    expect(out, contains('▶ rail comes up [REQ-1] (seed 0)'),
         reason: 'the seed is printed at the start of each test');
-    expect(text, contains('✓ rail comes up'));
-    expect(text, contains('○ thermal camera sweep (skipped)'));
-    expect(text,
+    expect(out, contains('✓ rail comes up'));
+    expect(out, contains('○ thermal camera sweep (skipped)'));
+    expect(out,
         contains('labwright: 3 test(s) — 2 passed, 0 failed, 0 errors, '
-            '1 skipped'),
-        reason: 'deferred registration gives a definite end-of-run summary');
-    expect(text, isNot(contains('{"e"')), reason: 'no JSON in human mode');
+            '1 skipped'));
   });
+
+  test('the in-process viewer serves the page and state; busy port tolerated',
+      () async {
+    // keepOpen holds the (single) process alive serving results.
+    final process = await Process.start(
+      Platform.resolvedExecutable,
+      [
+        'run',
+        '-Dlabwright.port=0',
+        '-Dlabwright.keepOpen=true',
+        'test/fixtures/green_e2e.dart',
+      ],
+      workingDirectory: pkgRoot,
+    );
+    try {
+      final port = Completer<int>();
+      final done = Completer<void>();
+      process.stdout
+          .transform(utf8.decoder)
+          .transform(const LineSplitter())
+          .listen((line) {
+        final m = RegExp(r'viewer on http://localhost:(\d+)').firstMatch(line);
+        if (m != null && !port.isCompleted) port.complete(int.parse(m[1]!));
+        if (line.contains('keepOpen') && !done.isCompleted) done.complete();
+      });
+      final p = await port.future.timeout(const Duration(seconds: 30));
+      await done.future.timeout(const Duration(seconds: 60));
+
+      final client = HttpClient();
+      final stateRes = await (await client
+              .getUrl(Uri.parse('http://localhost:$p/state.json')))
+          .close();
+      expect(stateRes.statusCode, 200);
+      final state = (jsonDecode(await stateRes.transform(utf8.decoder).join())
+              as Map)
+          .cast<String, Object?>();
+      expect(state['done'], true);
+      final tests = (state['tests'] as List).cast<Map<String, Object?>>();
+      expect(tests, hasLength(3));
+      expect(tests.first['logs'], ['applying power'],
+          reason: 'logs attach to their test for the viewer');
+
+      final pageRes = await (await client
+              .getUrl(Uri.parse('http://localhost:$p/')))
+          .close();
+      expect(pageRes.statusCode, 200);
+      final page = await pageRes.transform(utf8.decoder).join();
+      expect(page, contains('labwright run'));
+      expect(page, contains('EventSource'), reason: 'live SSE viewer');
+      client.close(force: true);
+    } finally {
+      process.kill();
+      await process.exitCode;
+    }
+  }, timeout: const Timeout(Duration(minutes: 2)));
 }

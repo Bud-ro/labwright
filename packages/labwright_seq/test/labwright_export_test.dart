@@ -1,7 +1,6 @@
 @Tags(['corpus'])
 library;
 
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:labwright_seq/labwright_seq.dart';
@@ -112,22 +111,22 @@ void main() {
     try {
       final genPath = '${genDir.path}/oracle_gen.dart';
       File(genPath).writeAsStringSync(source);
-      final result = Process.runSync('dart',
-          ['run', '-Dlabwright.report=jsonl', 'test/.export_gen/oracle_gen.dart'],
+      final result = Process.runSync(
+          'dart',
+          [
+            'run',
+            '-Dlabwright.viewer=false',
+            'test/.export_gen/oracle_gen.dart',
+          ],
           workingDirectory: pkgRoot.path);
       expect(result.exitCode, 0,
           reason: 'disarmed boilerplate must exit green:\n'
               '${result.stdout}\n${result.stderr}');
-      final events = [
-        for (final line
-            in const LineSplitter().convert(result.stdout.toString()))
-          if (line.startsWith('{'))
-            (jsonDecode(line) as Map).cast<String, Object?>(),
-      ];
-      final end = events.lastWhere((e) => e['e'] == 'test-end');
-      expect(end['test'], 'MainSequence');
-      expect(end['status'], 'skipped',
+      final out = result.stdout.toString();
+      expect(out, contains('○ MainSequence (skipped)'),
           reason: 'unported boilerplate reports skipped, not passed');
+      expect(out, contains('1 test(s) — 0 passed, 0 failed, 0 errors, '
+          '1 skipped'));
     } finally {
       genDir.deleteSync(recursive: true);
     }

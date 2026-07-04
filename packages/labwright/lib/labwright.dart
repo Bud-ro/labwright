@@ -1,43 +1,55 @@
 /// Labwright's hardware end-to-end test API — the TestStand-replacement
-/// runner surface.
+/// runner surface. **Everything runs in one process.**
 ///
-/// An E2E file is a **plain Dart program**: setup is ordinary code at the top
-/// of `main()`, a test is a named body of ordinary code, and the file runs
-/// under `dart run` (never `dart test` — hardware tests own their process and
-/// run strictly in order). By convention E2E files live in an `e2e/` folder;
-/// the `labwright` executable scans it (or takes explicit files), runs each
-/// file once to **collect** test names and metadata, then runs the selected
-/// tests — with a live viewer, CI exit codes, and JSON reports.
+/// The convention (like `integration_test`, minus the machinery): an `e2e/`
+/// folder with a top-level `main.dart` that every test module is plugged
+/// into by hand. The suite IS `dart run e2e/main.dart` — no scanning, no
+/// IPC, no child processes. Setup is ordinary code at the top of `main()`;
+/// a test is a named body of ordinary code registered from `main` or any
+/// function it reaches:
 ///
 /// ```dart
-/// import 'package:labwright/labwright.dart';
+/// // e2e/main.dart
+/// import 'power_rail_test.dart' as power_rail;
 ///
 /// Future<void> main() async {
 ///   await pinMap.load('OutputVoltage.pinmap'); // setup — before any test()
+///   power_rail.register();
+/// }
 ///
+/// // e2e/power_rail_test.dart
+/// import 'package:labwright/labwright.dart';
+///
+/// void register() {
 ///   test('output voltage in range', requirements: ['REQ-101'], () async {
 ///     await psu.setVoltage(2.0);
-///     final v = await dmm.readVoltage();
-///     expect(v, inInclusiveRange(1.9, 2.1));
+///     expect(await dmm.readVoltage(), inInclusiveRange(1.9, 2.1));
 ///   });
 /// }
 /// ```
 ///
-/// **Registration, then execution.** [test] only *registers*; nothing runs
-/// until every test is registered (the run starts once registration goes
-/// quiet — in practice, when `main` finishes). Register from `main` or any
-/// function it reaches, but do it in one synchronous burst: async setup goes
-/// BEFORE the first [test] call, and a registration arriving after the run
-/// has started throws a [StateError] rather than silently joining.
+/// **Registration, then execution.** [test] only *registers*; bodies run
+/// after every test is registered (when `main` finishes), one at a time —
+/// the bench is singular. A registration arriving after the run has started
+/// throws a [StateError] rather than silently joining; async setup goes
+/// BEFORE the first [test] call.
 ///
-/// **Under the runner** the file is invoked twice — a collect pass
-/// (`-Dlabwright.mode=collect`: registrations are reported, no body runs;
-/// note `main`'s setup code DOES run both times) and a run pass
-/// (`-Dlabwright.tests=…`: exactly the runner-chosen tests, in the
-/// runner-chosen order). Sharding and seed-shuffling are entirely the
-/// runner's business, computed over the whole collected suite — this
-/// library only ever executes the list it is handed. Configuration travels
-/// as Dart defines (`-D`), never environment variables.
+/// **Sharding and the seed.** The single in-process registry is the whole
+/// suite, so sharding is a plain `index % N == I` over it
+/// (`-Dlabwright.totalShards`/`-Dlabwright.shardIndex`, `dart test`'s
+/// convention) and the [seed] (`-Dlabwright.seed`) deterministically
+/// shuffles the selected run order. The seed is printed at the start of
+/// every test and available to bodies — the hook fuzz testing will grow
+/// from. Configuration travels as Dart defines (`-D`), never environment
+/// variables; the `labwright` CLI is optional sugar that maps flags to the
+/// same defines.
+///
+/// **The live viewer runs in-process** (default `http://localhost:8642`,
+/// `-Dlabwright.port`, disable with `-Dlabwright.viewer=false`): SSE-fed,
+/// self-contained, showing the planned suite up front and each test's log
+/// lines as it runs. A busy port warns and continues — a viewer must never
+/// fail a hardware run. `-Dlabwright.keepOpen=true` keeps serving after the
+/// run until the process is killed.
 ///
 /// The `package:test` assertion surface works **as-is**: [expect],
 /// [expectLater], [fail], [TestFailure], and every matcher are re-exported,
@@ -48,24 +60,16 @@
 /// Semantics:
 ///  * **Exceptions are how tests fail.** A [TestFailure] (what [expect]
 ///    throws) reports as *failed*; any other escape reports as *error*; both
-///    make the process exit non-zero. There is no soft-fail tier — if a
-///    non-immediately-failing check is ever needed, it will be carved out
-///    explicitly.
-///  * Tests execute one at a time — the bench is singular.
+///    make the process exit non-zero. There is no soft-fail tier.
 ///  * [skipTest] has the identical signature and skips the body (reported,
 ///    not run) — rename `test` ⇄ `skipTest` to disarm/arm. To-do notes are
 ///    just comments; there is no metadata for them.
 ///  * Requirement tracing IDs attach to tests via `requirement:` /
-///    `requirements:` and flow into the runner's report and viewer.
-///  * [log] lines are attributed to the running test and stream to the
+///    `requirements:` and land in the report's requirements trace.
+///  * [log] lines print, attach to the running test, and stream to the
 ///    viewer.
-///  * The [seed] is printed at the start of every test and available to
-///    bodies — the hook fuzz testing will grow from. Standalone,
-///    `dart run -Dlabwright.seed=N file.dart` also shuffles the file's own
-///    run order (0 = registration order).
-///
-/// Reporting: human-readable lines by default; under the runner
-/// (`-Dlabwright.report=jsonl`) one JSON event per line on stdout.
+///  * `-Dlabwright.report=path.json` writes the machine-readable run report
+///    (tests, statuses, logs, the requirements trace, seed, summary) for CI.
 library;
 
 import 'dart:async';
@@ -75,24 +79,27 @@ import 'dart:math';
 
 import 'package:test_api/hooks_testing.dart';
 
+import 'src/viewer.dart';
+
 export 'package:matcher/expect.dart';
 
-/// The run's seed (define `labwright.seed`; the runner's `--seed`): `0` =
+/// The run's seed (define `labwright.seed`; the CLI's `--seed`): `0` =
 /// registration order. Printed at the start of every test, and available
 /// here to test bodies — the hook fuzz testing will grow from.
 const int seed = int.fromEnvironment('labwright.seed');
 
-/// `collect` = report registrations and exit without running any body (the
-/// runner's first pass). Empty/anything else = execute.
-const String _mode = String.fromEnvironment('labwright.mode');
+/// Sharding, `dart test`'s convention (`labwright.totalShards` /
+/// `labwright.shardIndex`): a test runs in this shard iff its registration
+/// index is `≡ shardIndex (mod totalShards)`. The in-process registry is
+/// the whole suite, so the modulo is global by construction.
+const int totalShards = int.fromEnvironment('labwright.totalShards', defaultValue: 1);
+const int shardIndex = int.fromEnvironment('labwright.shardIndex');
 
-/// Comma-separated local registration indices to execute, in execution
-/// order (the runner's second pass). Empty = standalone: run everything.
-const String _testsDefine = String.fromEnvironment('labwright.tests');
-
-/// `jsonl` switches output to machine JSON-lines events.
-const bool _jsonl =
-    String.fromEnvironment('labwright.report') == 'jsonl';
+const int _port = int.fromEnvironment('labwright.port', defaultValue: 8642);
+const bool _viewerEnabled =
+    bool.fromEnvironment('labwright.viewer', defaultValue: true);
+const bool _keepOpen = bool.fromEnvironment('labwright.keepOpen');
+const String _reportPath = String.fromEnvironment('labwright.report');
 
 /// Terminal status of one test.
 enum TestStatus {
@@ -137,23 +144,47 @@ void skipTest(
     _register(name, body, skip: true,
         requirements: [if (requirement != null) requirement, ...requirements]);
 
-/// Emits a log line, attributed to the currently running test (suite-level
-/// when none is running). Streams to the runner/viewer live.
-void log(String message) => _sink.log(_currentTest, message);
+/// Prints a log line, attributed to the currently running test (suite-level
+/// when none is running) — shown in the viewer under its test and carried
+/// in the report.
+void log(String message) {
+  stdout.writeln('  · $message');
+  _running?.logs.add(message);
+  _viewer?.update();
+}
 
 // ── registry and execution ───────────────────────────────────────────────────
 
-typedef _Registered = ({
-  String name,
-  FutureOr<void> Function() body,
-  bool skip,
-  List<String> requirements,
-});
+class _TestEntry {
+  _TestEntry(this.name, this.body, this.requirements, {required this.skip});
 
-final List<_Registered> _registry = [];
+  final String name;
+  final FutureOr<void> Function() body;
+  final List<String> requirements;
+  final bool skip;
+
+  String status = 'queued';
+  String detail = '';
+  int? ms;
+  final List<String> logs = [];
+
+  Map<String, Object?> toJson() => {
+        'name': name,
+        'status': status,
+        if (requirements.isNotEmpty) 'requirements': requirements,
+        if (detail.isNotEmpty) 'detail': detail,
+        if (ms != null) 'ms': ms,
+        if (logs.isNotEmpty) 'logs': logs,
+      };
+}
+
+final List<_TestEntry> _registry = [];
+List<_TestEntry> _selected = const [];
 bool _runScheduled = false;
 bool _runStarted = false;
-String? _currentTest;
+bool _done = false;
+_TestEntry? _running;
+Viewer? _viewer;
 
 void _register(
   String name,
@@ -167,8 +198,7 @@ void _register(
         'must register before anything runs — do async setup BEFORE the '
         'first test() call and register in one synchronous burst.');
   }
-  _registry.add(
-      (name: name, body: body, skip: skip, requirements: requirements));
+  _registry.add(_TestEntry(name, body, requirements, skip: skip));
   if (!_runScheduled) {
     _runScheduled = true;
     // Fires once the current synchronous burst (typically the rest of main)
@@ -177,67 +207,121 @@ void _register(
   }
 }
 
-Future<void> _runAll() async {
-  _runStarted = true;
-  if (_mode == 'collect') {
-    // The runner's first pass: the full registry — names and metadata, in
-    // registration order — and nothing executes.
-    stdout.writeln(jsonEncode({
-      'e': 'registry',
-      'tests': [
-        for (final entry in _registry)
-          {
-            'name': entry.name,
-            if (entry.requirements.isNotEmpty)
-              'requirements': entry.requirements,
-            if (entry.skip) 'skip': true,
-          },
-      ],
-    }));
-    return;
+/// The suite state the viewer and the report share.
+Map<String, Object?> _state() => {
+      'seed': seed,
+      'done': _done,
+      'tests': [for (final t in _selected) t.toJson()],
+      'summary': _summary(),
+    };
+
+Map<String, Object?> _summary() {
+  var passed = 0, failed = 0, errors = 0, skipped = 0;
+  for (final t in _selected) {
+    switch (t.status) {
+      case 'passed':
+        passed++;
+      case 'failed':
+        failed++;
+      case 'error':
+        errors++;
+      case 'skipped':
+        skipped++;
+    }
   }
-  final List<_Registered> selected;
-  if (_testsDefine.isNotEmpty) {
-    // The runner's second pass: exactly the chosen tests, in the chosen
-    // order — selection and ordering (sharding, seed) happened globally in
-    // the runner over the collected suite.
-    selected = [
-      for (final part in _testsDefine.split(','))
-        if (int.tryParse(part) case final i? when i >= 0 && i < _registry.length)
-          _registry[i],
-    ];
-  } else {
-    // Standalone `dart run file.dart`: everything, in registration order —
-    // or seed-shuffled when a seed is defined, so a single file's order is
-    // reproducible without the runner.
-    selected = [..._registry];
-    if (seed != 0) selected.shuffle(Random(seed));
-  }
-  final counts = <TestStatus, int>{};
-  for (final entry in selected) {
-    final status = await _runOne(entry);
-    counts[status] = (counts[status] ?? 0) + 1;
-  }
-  _sink.suiteEnd(selected.length, counts);
+  return {
+    'tests': _selected.length,
+    'passed': passed,
+    'failed': failed,
+    'errors': errors,
+    'skipped': skipped,
+  };
 }
 
-Future<TestStatus> _runOne(_Registered entry) async {
-  _sink.testStart(entry.name, entry.requirements, skip: entry.skip);
-  if (entry.skip) {
-    const status = TestStatus.skipped;
-    _sink.testEnd(
-        entry.name, status, entry.requirements, '', Duration.zero);
-    return status;
+Future<void> _runAll() async {
+  _runStarted = true;
+  if (totalShards < 1 || shardIndex < 0 || shardIndex >= totalShards) {
+    stderr.writeln('labwright: invalid shard $shardIndex of $totalShards');
+    exitCode = 64;
+    return;
   }
-  _currentTest = entry.name;
+  // Shard over the one in-process registry (the whole suite), then let the
+  // seed shuffle only the ORDER of the selection — membership is stable.
+  _selected = [
+    for (var i = 0; i < _registry.length; i++)
+      if (i % totalShards == shardIndex) _registry[i],
+  ];
+  if (seed != 0) _selected.shuffle(Random(seed));
+
+  if (_viewerEnabled) {
+    _viewer = await Viewer.start(_port, _state);
+    if (_viewer != null) {
+      stdout.writeln('labwright: viewer on http://localhost:${_viewer!.port}'
+          '${totalShards > 1 ? ' · shard $shardIndex of $totalShards '
+              '(${_selected.length} of ${_registry.length})' : ''}');
+    }
+  }
+
+  for (final entry in _selected) {
+    await _runOne(entry);
+  }
+  _done = true;
+  _viewer?.update();
+
+  final s = _summary();
+  stdout.writeln('labwright: ${s['tests']} test(s) — ${s['passed']} passed, '
+      '${s['failed']} failed, ${s['errors']} errors, ${s['skipped']} skipped'
+      '${seed != 0 ? ' (seed $seed)' : ''}');
+  if (_reportPath.isNotEmpty) {
+    File(_reportPath).writeAsStringSync(
+        const JsonEncoder.withIndent('  ').convert(_report()));
+    stdout.writeln('labwright: report written to $_reportPath');
+  }
+  if (_keepOpen && _viewer != null) {
+    stdout.writeln('labwright: keepOpen — viewer stays on '
+        'http://localhost:${_viewer!.port} until the process is killed');
+  } else {
+    // The server subscription would otherwise keep the process alive.
+    await _viewer?.close();
+  }
+}
+
+/// The report: the suite state plus the requirements trace
+/// (requirement ID → every test that claims it, with status).
+Map<String, Object?> _report() {
+  final requirements = <String, List<Map<String, Object?>>>{};
+  for (final t in _selected) {
+    for (final req in t.requirements) {
+      requirements
+          .putIfAbsent(req, () => [])
+          .add({'test': t.name, 'status': t.status});
+    }
+  }
+  return {..._state(), 'requirements': requirements};
+}
+
+Future<void> _runOne(_TestEntry entry) async {
+  final reqs = entry.requirements.isEmpty
+      ? ''
+      : ' [${entry.requirements.join(', ')}]';
+  if (entry.skip) {
+    entry.status = 'skipped';
+    stdout.writeln('○ ${entry.name}$reqs (skipped)');
+    _viewer?.update();
+    return;
+  }
+  stdout.writeln('▶ ${entry.name}$reqs (seed $seed)');
+  entry.status = 'running';
+  _running = entry;
+  _viewer?.update();
   final watch = Stopwatch()..start();
   // Host the body in a real test_api case: package:test's expect/expectLater/
   // matchers work as-is, and late async errors surface like under dart test.
   final monitor = await TestCaseMonitor.run(entry.body);
   watch.stop();
-  _currentTest = null;
+  _running = null;
+  entry.ms = watch.elapsedMilliseconds;
   final TestStatus status;
-  var detail = '';
   switch (monitor.state) {
     case State.passed:
       status = TestStatus.passed;
@@ -249,93 +333,28 @@ Future<TestStatus> _runOne(_Registered entry) async {
       // done. Classified as error rather than silently passed if it ever
       // changes under us.
       status = TestStatus.error;
-      detail = 'internal: test case still ${monitor.state.name} after run';
+      entry.detail = 'internal: test case still ${monitor.state.name} after run';
     case State.failed:
       final errors = monitor.errors.toList();
       status = errors.every((e) => e.error is TestFailure)
           ? TestStatus.failed
           : TestStatus.error;
-      detail = errors
+      entry.detail = errors
           .map((e) => e.error.toString().trimRight())
           .join('\n')
           .trim();
   }
+  entry.status = status.name;
   if (status == TestStatus.failed || status == TestStatus.error) exitCode = 1;
-  _sink.testEnd(entry.name, status, entry.requirements, detail, watch.elapsed);
-  return status;
-}
-
-// ── reporting ────────────────────────────────────────────────────────────────
-
-final _EventSink _sink = _EventSink._();
-
-/// Where events go: JSON lines on stdout under the runner, human lines
-/// otherwise.
-class _EventSink {
-  _EventSink._();
-
-  void _emit(Map<String, Object?> event) => stdout.writeln(jsonEncode(event));
-
-  void testStart(String name, List<String> requirements,
-      {required bool skip}) {
-    if (_jsonl) {
-      _emit({
-        'e': 'test-start',
-        'test': name,
-        'seed': seed,
-        if (requirements.isNotEmpty) 'requirements': requirements,
-      });
-    } else if (!skip) {
-      final reqs =
-          requirements.isEmpty ? '' : ' [${requirements.join(', ')}]';
-      stdout.writeln('▶ $name$reqs (seed $seed)');
-    }
-  }
-
-  void testEnd(String name, TestStatus status, List<String> requirements,
-      String detail, Duration elapsed) {
-    if (_jsonl) {
-      _emit({
-        'e': 'test-end',
-        'test': name,
-        'status': status.name,
-        if (requirements.isNotEmpty) 'requirements': requirements,
-        if (detail.isNotEmpty) 'detail': detail,
-        'ms': elapsed.inMilliseconds,
-      });
-      return;
-    }
-    final mark = switch (status) {
-      TestStatus.passed => '✓',
-      TestStatus.failed => '✗',
-      TestStatus.error => '‼',
-      TestStatus.skipped => '○',
-    };
-    final reqs = requirements.isEmpty ? '' : ' [${requirements.join(', ')}]';
-    final note = detail.isEmpty ? '' : '\n  ${detail.replaceAll('\n', '\n  ')}';
-    stdout.writeln(status == TestStatus.skipped
-        ? '$mark $name$reqs (skipped)'
-        : '$mark $name$reqs (${elapsed.inMilliseconds} ms)$note');
-  }
-
-  void suiteEnd(int ran, Map<TestStatus, int> counts) {
-    if (_jsonl) return; // the runner aggregates from test-end events
-    stdout.writeln('labwright: $ran test(s) — '
-        '${counts[TestStatus.passed] ?? 0} passed, '
-        '${counts[TestStatus.failed] ?? 0} failed, '
-        '${counts[TestStatus.error] ?? 0} errors, '
-        '${counts[TestStatus.skipped] ?? 0} skipped');
-  }
-
-  void log(String? testName, String message) {
-    if (_jsonl) {
-      _emit({
-        'e': 'log',
-        if (testName != null) 'test': testName,
-        'message': message,
-      });
-    } else {
-      stdout.writeln('  · $message');
-    }
-  }
+  final mark = switch (status) {
+    TestStatus.passed => '✓',
+    TestStatus.failed => '✗',
+    TestStatus.error => '‼',
+    TestStatus.skipped => '○',
+  };
+  final note = entry.detail.isEmpty
+      ? ''
+      : '\n  ${entry.detail.replaceAll('\n', '\n  ')}';
+  stdout.writeln('$mark ${entry.name}$reqs (${entry.ms} ms)$note');
+  _viewer?.update();
 }
