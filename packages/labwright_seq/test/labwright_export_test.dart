@@ -51,7 +51,7 @@ void main() {
       exported++;
       expect('{'.allMatches(source).length, '}'.allMatches(source).length,
           reason: '${f.path}: unbalanced braces');
-      expect('Future<void> main() async {'.allMatches(source).length, 1,
+      expect('void main() {'.allMatches(source).length, 1,
           reason: '${f.path}: exactly one generated main');
       expect(
           "import 'package:labwright/labwright.dart' as lw;"
@@ -59,8 +59,8 @@ void main() {
               .length,
           1,
           reason: '${f.path}: prefixed labwright import');
-      final tests = 'await lw.test('.allMatches(source).length +
-          'await lw.skipTest('.allMatches(source).length;
+      final tests = 'lw.test('.allMatches(source).length +
+          'lw.skipTest('.allMatches(source).length;
       if (file.sequences.isNotEmpty) {
         expect(tests, inInclusiveRange(1, file.sequences.length),
             reason: '${f.path}: one test per ROOT sequence');
@@ -102,7 +102,7 @@ void main() {
         sourceName: 'OutputVoltage_XML.seq');
     // Disarmed: the oracle's steps are python/typed — all unported, so the
     // harness ships it as skipTest with the targets in the TODO.
-    expect(source, contains('await lw.skipTest('));
+    expect(source, contains('lw.skipTest('));
     expect(source, contains('rename lw.skipTest -> lw.test'));
     expect(source, contains('python call: teststand_nidcpower.py'));
     // Run from the package root so package:labwright resolves (dev_dep).

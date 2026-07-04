@@ -57,6 +57,39 @@ void main() {
     reportFile.parent.deleteSync(recursive: true);
   }, timeout: const Timeout(Duration(minutes: 2)));
 
+  test('--total-shards/--shard-index partition the run; green shard exits 0',
+      () {
+    String runShard(int index) {
+      final result = Process.runSync(
+          Platform.resolvedExecutable,
+          [
+            'run',
+            'bin/labwright.dart',
+            'run',
+            'test/fixtures',
+            '--port',
+            '0',
+            '--total-shards',
+            '2',
+            '--shard-index',
+            '$index',
+          ],
+          workingDirectory: pkgRoot);
+      // Shard 0 holds the failing/error tests; shard 1 is all-green.
+      expect(result.exitCode, index == 0 ? 1 : 0,
+          reason: 'shard $index:\n${result.stdout}');
+      return result.stdout.toString();
+    }
+
+    final shard0 = runShard(0);
+    expect(shard0, contains('shard 0 of 2'));
+    expect(shard0,
+        contains('4 test(s) — 1 passed, 1 failed, 1 errors, 1 skipped'));
+    final shard1 = runShard(1);
+    expect(shard1,
+        contains('2 test(s) — 2 passed, 0 failed, 0 errors, 0 skipped'));
+  }, timeout: const Timeout(Duration(minutes: 2)));
+
   test('viewer serves the page, state.json (with logs), --keep-open persists',
       () async {
     final process = await Process.start(

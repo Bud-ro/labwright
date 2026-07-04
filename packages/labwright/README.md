@@ -19,15 +19,21 @@ ordinary code at the top of `main`, a test is a named body of ordinary code:
 import 'package:labwright/labwright.dart';
 
 Future<void> main() async {
-  await pinMap.load('OutputVoltage.pinmap'); // setup: just code, runs first
+  await pinMap.load('OutputVoltage.pinmap'); // setup — before any test()
 
-  await test('output voltage in range', requirements: ['REQ-101'], () async {
+  test('output voltage in range', requirements: ['REQ-101'], () async {
     await psu.setVoltage(2.0);
     final v = await dmm.readVoltage();
     expect(v, inInclusiveRange(1.9, 2.1));
   });
 }
 ```
+
+**Registration, then execution.** `test()` only registers; bodies run after
+every test is registered (when `main` finishes). Async setup goes before the
+first `test()`; a registration arriving after the run starts throws a
+`StateError` rather than silently joining. The complete ordered registry is
+what makes sharding deterministic.
 
 The `package:test` assertion surface works **as-is** — `expect`,
 `expectLater`, `fail`, `TestFailure`, and every matcher are re-exported, and
@@ -40,9 +46,8 @@ so failure descriptions and late async errors behave exactly as under
 - **Exceptions are how tests fail.** A `TestFailure` (what `expect` throws)
   reports *failed*; any other escape reports *error*; both exit non-zero.
   There is no soft-fail tier.
-- **Registration order is execution order, never interleaved** — each
-  `test()` chains behind the previous one, so bodies are serialized even
-  un-awaited. Register from `main` or any function `main` reaches.
+- **Registration order is execution order**, one body at a time — the bench
+  is singular. Register from `main` or any function `main` reaches.
 - `skipTest` = `test` with the body disarmed (reported, not run). Rename to
   arm. To-do notes are comments; there is no metadata for them.
 - Requirement tracing IDs attach to tests (`requirement:`/`requirements:`)
@@ -59,6 +64,10 @@ so failure descriptions and late async errors behave exactly as under
   self-contained page, with each test's log lines under it;
 - writes `--report out.json`: per-file tests plus the **requirements trace**
   (each requirement ID → every test claiming it, with status);
+- shards with `--total-shards N --shard-index I` (`dart test`'s
+  convention): a test runs in shard `I` iff its registration index `i`
+  satisfies `i % N == I` — one bench per shard, deterministic because the
+  registry is complete before anything runs;
 - exits non-zero for CI on failures/errors/crashes (and skips under
   `--fail-on-skipped` — generated boilerplate ships as `skipTest`).
 

@@ -863,7 +863,8 @@ class _DartExporter {
       ..writeln('// ── generated labwright harness '
           '─────────────────────────────────────────────')
       ..writeln()
-      ..writeln('Future<void> main() async {');
+      // Registration only — bodies run after main returns, in order.
+      ..writeln('void main() {');
     for (final root in roots) {
       final reachable = reach(root.name);
       // Requirement links of the whole unit this test runs: the root's, the
@@ -893,7 +894,7 @@ class _DartExporter {
         }
       }
       _out
-        ..writeln('  await lw.${unported.isEmpty ? 'test' : 'skipTest'}'
+        ..writeln('  lw.${unported.isEmpty ? 'test' : 'skipTest'}'
             "('${_escape(root.name)}',$reqArg () async {")
         ..writeln('    final ts = TsRuntime();')
         ..writeln('    await $fnName(ts);')

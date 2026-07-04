@@ -2,6 +2,7 @@
 // the live execution viewer.
 //
 //   labwright run [paths...] [--port N] [--report out.json]
+//                 [--total-shards N --shard-index I]
 //                 [--fail-on-skipped] [--keep-open]
 //
 //   paths             E2E files or directories (default: ./e2e). Directories
@@ -10,6 +11,9 @@
 //                     The viewer is up from launch, streaming live results.
 //   --report out.json Write the machine-readable run report (files, tests,
 //                     and the requirements trace).
+//   --total-shards N  With --shard-index I: run only tests whose
+//   --shard-index I   registration index i satisfies i % N == I (dart
+//                     test's sharding convention) — one bench per shard.
 //   --fail-on-skipped Exit non-zero when any test is skipped (strict CI —
 //                     generated boilerplate ships as skipTest until armed).
 //   --keep-open       Keep the viewer serving after the run until Ctrl-C.
@@ -28,6 +32,8 @@ Future<void> main(List<String> args) async {
   String? reportPath;
   var failOnSkipped = false;
   var keepOpen = false;
+  var totalShards = 1;
+  var shardIndex = 0;
   final paths = <String>[];
 
   final rest = [...args];
@@ -39,6 +45,12 @@ Future<void> main(List<String> args) async {
         port = int.tryParse(rest.isEmpty ? '' : rest.removeAt(0)) ?? port;
       case '--report':
         reportPath = rest.isEmpty ? null : rest.removeAt(0);
+      case '--total-shards':
+        totalShards =
+            int.tryParse(rest.isEmpty ? '' : rest.removeAt(0)) ?? totalShards;
+      case '--shard-index':
+        shardIndex =
+            int.tryParse(rest.isEmpty ? '' : rest.removeAt(0)) ?? shardIndex;
       case '--fail-on-skipped':
         failOnSkipped = true;
       case '--keep-open':
@@ -51,6 +63,12 @@ Future<void> main(List<String> args) async {
     }
   }
   if (paths.isEmpty) paths.add('e2e');
+  if (totalShards < 1 || shardIndex < 0 || shardIndex >= totalShards) {
+    stderr.writeln(
+        'labwright: invalid shard $shardIndex of $totalShards\n$_usage');
+    exitCode = 64;
+    return;
+  }
 
   final files = _collectFiles(paths);
   if (files.isEmpty) {
@@ -64,10 +82,12 @@ Future<void> main(List<String> args) async {
   final state = _RunState(files);
   final viewer = await _Viewer.start(port, state);
   stdout.writeln('labwright: viewer on http://localhost:${viewer.port} · '
-      '${files.length} file(s)');
+      '${files.length} file(s)'
+      '${totalShards > 1 ? ' · shard $shardIndex of $totalShards' : ''}');
 
   for (final file in files) {
-    await _runFile(file, state, viewer);
+    await _runFile(file, state, viewer,
+        totalShards: totalShards, shardIndex: shardIndex);
   }
   state.done = true;
   viewer.broadcast({'e': 'done'});
@@ -96,6 +116,7 @@ Future<void> main(List<String> args) async {
 
 const _usage = '''
 usage: labwright run [paths...] [--port N] [--report out.json]
+                     [--total-shards N --shard-index I]
                      [--fail-on-skipped] [--keep-open]
 Runs hardware E2E files (plain Dart programs using package:labwright)
 sequentially via `dart run`, with a live viewer and CI exit codes.''';
@@ -125,7 +146,8 @@ List<File> _collectFiles(List<String> paths) {
   return out;
 }
 
-Future<void> _runFile(File file, _RunState state, _Viewer viewer) async {
+Future<void> _runFile(File file, _RunState state, _Viewer viewer,
+    {required int totalShards, required int shardIndex}) async {
   stdout.writeln('── ${file.path}');
   final fileState = state.file(file.path)..status = 'running';
   viewer.broadcast({'e': 'file-start', 'file': file.path});
@@ -133,7 +155,13 @@ Future<void> _runFile(File file, _RunState state, _Viewer viewer) async {
   final process = await Process.start(
     Platform.resolvedExecutable,
     ['run', file.path],
-    environment: {'LABWRIGHT_REPORT': 'jsonl'},
+    environment: {
+      'LABWRIGHT_REPORT': 'jsonl',
+      if (totalShards > 1) ...{
+        'LABWRIGHT_TOTAL_SHARDS': '$totalShards',
+        'LABWRIGHT_SHARD_INDEX': '$shardIndex',
+      },
+    },
   );
   // Hardware E2E: strictly sequential; stderr passes straight through.
   final stderrDone = process.stderr.pipe(stderr.nonBlocking);
@@ -191,6 +219,9 @@ void _renderEvent(Map<String, Object?> event) {
       stdout.writeln('  $mark ${event['test']}: ${event['status']}$detail');
     case 'log':
       stdout.writeln('  · ${event['message']}');
+    case 'shard':
+      stdout.writeln('  shard ${event['index']} of ${event['total']}: '
+          '${event['selected']} of ${event['registered']} test(s)');
   }
 }
 

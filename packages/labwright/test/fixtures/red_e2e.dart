@@ -1,8 +1,7 @@
 // Fixture: a failing run — expect() throws TestFailure (exceptions ARE how
 // tests fail), the next test still runs (tests are independent), and the
-// process exits non-zero. Also covers un-awaited registration: the FIFO
-// chain keeps bodies strictly ordered without awaits.
-// ignore_for_file: unawaited_futures
+// process exits non-zero. Registration is a plain synchronous burst from a
+// sync main; execution starts after.
 import 'package:labwright/labwright.dart';
 
 void main() {
