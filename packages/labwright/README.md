@@ -32,8 +32,15 @@ Future<void> main() async {
 **Registration, then execution.** `test()` only registers; bodies run after
 every test is registered (when `main` finishes). Async setup goes before the
 first `test()`; a registration arriving after the run starts throws a
-`StateError` rather than silently joining. The complete ordered registry is
-what makes sharding deterministic.
+`StateError` rather than silently joining.
+
+**Collect, then run.** Like `integration_test`, the runner invokes each file
+twice: a collect pass (`-Dlabwright.mode=collect` — registrations reported,
+no body runs; note `main`'s setup code executes both times) gathers the
+whole ordered suite, then each file runs exactly the tests the runner chose
+(`-Dlabwright.tests=…`), in the chosen order. All configuration travels as
+Dart defines (`-D`) — no environment variables. Convention: E2E files live
+in an `e2e/` folder; `labwright run` scans it (or takes explicit files).
 
 The `package:test` assertion surface works **as-is** — `expect`,
 `expectLater`, `fail`, `TestFailure`, and every matcher are re-exported, and
@@ -56,8 +63,8 @@ so failure descriptions and late async errors behave exactly as under
 
 ## The runner
 
-`labwright run [paths...]` executes each file via `dart run` with
-`LABWRIGHT_REPORT=jsonl`, renders live progress, and:
+`labwright run [paths...]` (default `e2e/`) collects, then executes each
+file via `dart run`, renders live progress, and:
 
 - serves the **live viewer** at `http://localhost:8642` (`--port`, `0` picks a
   free port; `--keep-open` keeps serving after the run) — SSE-fed, single
@@ -65,16 +72,13 @@ so failure descriptions and late async errors behave exactly as under
 - writes `--report out.json`: per-file tests plus the **requirements trace**
   (each requirement ID → every test claiming it, with status);
 - shards with `--total-shards N --shard-index I` (`dart test`'s
-  convention): a test runs in shard `I` iff its **global** registration
-  index — across the whole suite, threaded file-to-file by the runner —
-  is `≡ I (mod N)`. One bench per shard; deterministic because every
-  registry is complete before anything runs. For a fixed seed the shards
-  exactly partition the suite (give all shards the same `--seed`);
-- randomizes run order with `--seed N` (`random` mints one): file order and
-  each file's in-shard test order shuffle deterministically; the seed is
-  printed at the start of every test, carried in the report, and exposed to
-  bodies as `seed` — the hook fuzz testing will grow from. `0` (default) =
-  registration order;
+  convention): of the collected suite, a test runs in shard `I` iff its
+  global index is `≡ I (mod N)` — a plain modulo over one list, one bench
+  per shard, and for any N the shards exactly partition the suite;
+- randomizes run order with `--seed N` (`random` mints one): the selected
+  tests shuffle deterministically; the seed is printed at the start of
+  every test, carried in the report, and exposed to bodies as `seed` — the
+  hook fuzz testing will grow from. `0` (default) = collected order;
 - exits non-zero for CI on failures/errors/crashes (and skips under
   `--fail-on-skipped` — generated boilerplate ships as `skipTest`).
 

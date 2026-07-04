@@ -1,34 +1,37 @@
-// The `labwright` runner: executes hardware E2E files sequentially and hosts
-// the live execution viewer.
+// The `labwright` runner: collects hardware E2E tests, then executes the
+// selected ones sequentially, hosting the live execution viewer.
 //
 //   labwright run [paths...] [--port N] [--report out.json]
 //                 [--total-shards N --shard-index I] [--seed N|random]
 //                 [--fail-on-skipped] [--keep-open]
 //
-//   paths             E2E files or directories (default: ./e2e). Directories
-//                     are walked recursively for *.dart, hidden dirs skipped.
+//   paths             E2E files or directories (default: ./e2e — the
+//                     convention). Directories are walked recursively for
+//                     *.dart, hidden dirs skipped.
 //   --port N          Viewer HTTP port (default 8642; 0 picks a free port).
 //                     The viewer is up from launch, streaming live results.
 //   --report out.json Write the machine-readable run report (files, tests,
 //                     and the requirements trace).
-//   --total-shards N  With --shard-index I: run only tests whose GLOBAL
-//   --shard-index I   registration index (across the whole suite, files in
-//                     order) is ≡ I (mod N) — dart test's convention, one
-//                     bench per shard. The runner threads the running
-//                     offset through the files.
-//   --seed N|random   Deterministically shuffle file order and each file's
-//                     in-shard test order (0 = registration order, the
-//                     default). Printed at the start of every test; shard
-//                     membership never depends on it.
+//   --total-shards N  With --shard-index I: of the collected suite, run only
+//   --shard-index I   tests whose global index is ≡ I (mod N) — dart test's
+//                     convention, one bench per shard.
+//   --seed N|random   Deterministically shuffle the selected tests' run
+//                     order (0 = collected order, the default). Printed at
+//                     the start of every test.
 //   --fail-on-skipped Exit non-zero when any test is skipped (strict CI —
 //                     generated boilerplate ships as skipTest until armed).
 //   --keep-open       Keep the viewer serving after the run until Ctrl-C.
 //
-// Each file runs under `dart run` with LABWRIGHT_REPORT=jsonl; the runner
-// renders its events, updates the viewer, and aggregates the exit code:
-// non-zero iff any test failed/errored, a file crashed, or --fail-on-skipped
-// saw a skip. Files run strictly one at a time — hardware E2E owns the
-// bench; there is no parallelism tier.
+// Two passes, like integration_test: every file first runs in COLLECT mode
+// (`dart run -Dlabwright.mode=collect` — registrations are reported, no test
+// body executes; note a file's setup code at the top of main runs in both
+// passes), giving the runner the whole ordered suite. Sharding is then a
+// plain `globalIndex % N == I` over that list and the seed shuffles the
+// selection; each file with selected tests runs once more with exactly those
+// tests in exactly that order (`-Dlabwright.tests=…`). All configuration
+// travels as Dart defines — no environment variables. Exit code: non-zero
+// iff any test failed/errored, a file crashed, or --fail-on-skipped saw a
+// skip. Everything is strictly sequential — hardware E2E owns the bench.
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -84,7 +87,7 @@ Future<void> main(List<String> args) async {
     return;
   }
 
-  final files = _collectFiles(paths, seed: seed);
+  final files = _collectFiles(paths);
   if (files.isEmpty) {
     stderr
       ..writeln('no E2E .dart files found under: ${paths.join(', ')}')
@@ -93,23 +96,36 @@ Future<void> main(List<String> args) async {
     return;
   }
 
-  final state = _RunState(files)..seed = seed;
+  final state = _RunState()..seed = seed;
   final viewer = await _Viewer.start(port, state);
   stdout.writeln('labwright: viewer on http://localhost:${viewer.port} · '
-      '${files.length} file(s) · seed $seed'
-      '${totalShards > 1 ? ' · shard $shardIndex of $totalShards' : ''}');
+      'collecting from ${files.length} file(s)');
 
-  // The global shard offset: advanced by each file's registry count as it
-  // runs, so the modulo spans the WHOLE suite in run order. For a fixed
-  // seed the shards exactly partition the suite — every shard of one run
-  // must be given the same --seed (the header and report carry it).
-  var shardOffset = 0;
+  // ── pass 1: collect — the whole suite, in file order, no body runs ──
+  final suite = <_CollectedTest>[];
   for (final file in files) {
-    shardOffset += await _runFile(file, state, viewer,
-        totalShards: totalShards,
-        shardIndex: shardIndex,
-        shardOffset: shardOffset,
-        seed: seed);
+    suite.addAll(await _collect(file, state) ?? const []);
+  }
+
+  // ── selection: shard over the GLOBAL list, then seed-shuffle order ──
+  final selected = [
+    for (var i = 0; i < suite.length; i++)
+      if (i % totalShards == shardIndex) suite[i],
+  ];
+  if (seed != 0) selected.shuffle(Random(seed));
+  state.plan(selected);
+  viewer.broadcast({'e': 'plan', 'state': state.toJson()});
+  stdout.writeln('labwright: collected ${suite.length} test(s) · seed $seed'
+      '${totalShards > 1 ? ' · shard $shardIndex of $totalShards '
+          '(${selected.length} selected)' : ''}');
+
+  // ── pass 2: execute — per file, exactly the chosen tests in order ──
+  final byFile = <String, List<_CollectedTest>>{};
+  for (final t in selected) {
+    (byFile[t.file] ??= []).add(t); // file order = first appearance
+  }
+  for (final entry in byFile.entries) {
+    await _runFile(File(entry.key), entry.value, state, viewer, seed: seed);
   }
   state.done = true;
   viewer.broadcast({'e': 'done'});
@@ -138,16 +154,29 @@ Future<void> main(List<String> args) async {
 
 const _usage = '''
 usage: labwright run [paths...] [--port N] [--report out.json]
-                     [--total-shards N --shard-index I]
+                     [--total-shards N --shard-index I] [--seed N|random]
                      [--fail-on-skipped] [--keep-open]
-Runs hardware E2E files (plain Dart programs using package:labwright)
+Collects tests from hardware E2E files (plain Dart programs using
+package:labwright; convention: an e2e/ folder), then runs the selected ones
 sequentially via `dart run`, with a live viewer and CI exit codes.''';
 
+/// One collected test: where it lives, its local registration index, and
+/// the metadata the collect pass reported.
+class _CollectedTest {
+  _CollectedTest(this.file, this.localIndex, this.name, this.requirements,
+      {required this.skip});
+
+  final String file;
+  final int localIndex;
+  final String name;
+  final List<String> requirements;
+  final bool skip;
+}
+
 /// E2E files: explicit .dart paths as-is; directories walked recursively,
-/// hidden directories skipped, sorted for a deterministic order — then
-/// shuffled by [seed] when one is set (order only; global registration
-/// indices for sharding always follow the sorted order).
-List<File> _collectFiles(List<String> paths, {required int seed}) {
+/// hidden directories skipped, sorted — the collected (pre-shard, pre-seed)
+/// suite order is always this deterministic file order.
+List<File> _collectFiles(List<String> paths) {
   final out = <File>[];
   for (final path in paths) {
     if (FileSystemEntity.isDirectorySync(path)) {
@@ -167,37 +196,67 @@ List<File> _collectFiles(List<String> paths, {required int seed}) {
     }
   }
   out.sort((a, b) => a.path.compareTo(b.path));
-  if (seed != 0) out.shuffle(Random(seed));
   return out;
 }
 
-/// Runs one file and returns its registered-test count (from its `registry`
-/// event) so the caller can advance the global shard offset. A file that
-/// crashes before reporting counts as 0 — the run is already red (non-zero
-/// exit), so downstream offsets being disturbed cannot turn a failure green.
-Future<int> _runFile(File file, _RunState state, _Viewer viewer,
-    {required int totalShards,
-    required int shardIndex,
-    required int shardOffset,
-    required int seed}) async {
+/// The collect pass for one file: run it with bodies suppressed and return
+/// its registered tests in order, or null when it crashed (recorded).
+Future<List<_CollectedTest>?> _collect(File file, _RunState state) async {
+  final result = await Process.run(
+    Platform.resolvedExecutable,
+    ['run', '-Dlabwright.mode=collect', file.path],
+  );
+  final fileState = state.file(file.path);
+  if (result.exitCode != 0) {
+    fileState.status = 'crashed(collect: ${result.exitCode})';
+    state.crashedFiles++;
+    stderr
+      ..writeln('‼ ${file.path} crashed during collection '
+          '(exit ${result.exitCode}):')
+      ..write(result.stderr);
+    return null;
+  }
+  for (final line in const LineSplitter().convert(result.stdout.toString())) {
+    final event = _tryDecode(line);
+    if (event == null || event['e'] != 'registry') continue;
+    return [
+      for (final (i, t) in ((event['tests'] as List?) ?? const [])
+          .cast<Map<String, Object?>>()
+          .indexed)
+        _CollectedTest(
+          file.path,
+          i,
+          t['name'] as String,
+          [...((t['requirements'] as List?) ?? const []).cast<String>()],
+          skip: t['skip'] == true,
+        ),
+    ];
+  }
+  fileState.status = 'crashed(no registry)';
+  state.crashedFiles++;
+  stderr.writeln('‼ ${file.path} reported no registry during collection');
+  return null;
+}
+
+/// The run pass for one file: exactly [tests], in that order.
+Future<void> _runFile(File file, List<_CollectedTest> tests, _RunState state,
+    _Viewer viewer,
+    {required int seed}) async {
   stdout.writeln('── ${file.path}');
   final fileState = state.file(file.path)..status = 'running';
   viewer.broadcast({'e': 'file-start', 'file': file.path});
 
+  final indices = tests.map((t) => t.localIndex).join(',');
   final process = await Process.start(
     Platform.resolvedExecutable,
-    ['run', file.path],
-    environment: {
-      'LABWRIGHT_REPORT': 'jsonl',
-      if (seed != 0) 'LABWRIGHT_SEED': '$seed',
-      if (totalShards > 1) ...{
-        'LABWRIGHT_TOTAL_SHARDS': '$totalShards',
-        'LABWRIGHT_SHARD_INDEX': '$shardIndex',
-        'LABWRIGHT_SHARD_OFFSET': '$shardOffset',
-      },
-    },
+    [
+      'run',
+      '-Dlabwright.report=jsonl',
+      '-Dlabwright.tests=$indices',
+      if (seed != 0) '-Dlabwright.seed=$seed',
+      file.path,
+    ],
   );
-  var registered = 0;
   // Hardware E2E: strictly sequential; stderr passes straight through.
   final stderrDone = process.stderr.pipe(stderr.nonBlocking);
   await for (final line in process.stdout
@@ -207,9 +266,6 @@ Future<int> _runFile(File file, _RunState state, _Viewer viewer,
     if (event == null) {
       stdout.writeln('  | $line'); // non-event output, passed through
       continue;
-    }
-    if (event['e'] == 'registry') {
-      registered = event['count'] is int ? event['count'] as int : 0;
     }
     fileState.apply(event);
     _renderEvent(event);
@@ -223,7 +279,6 @@ Future<int> _runFile(File file, _RunState state, _Viewer viewer,
     stdout.writeln('  ‼ ${file.path} exited $exit');
   }
   viewer.broadcast({'e': 'file-end', 'file': file.path, 'exit': exit});
-  return registered;
 }
 
 Map<String, Object?>? _tryDecode(String line) {
@@ -244,7 +299,7 @@ void _renderEvent(Map<String, Object?> event) {
       final reqs = event['requirements'] is List
           ? ' [${(event['requirements'] as List).join(', ')}]'
           : '';
-      stdout.writeln('▶ ${event['test']}$reqs');
+      stdout.writeln('▶ ${event['test']}$reqs (seed ${event['seed']})');
     case 'test-end':
       final mark = switch (event['status']) {
         'passed' => '✓',
@@ -258,10 +313,6 @@ void _renderEvent(Map<String, Object?> event) {
       stdout.writeln('  $mark ${event['test']}: ${event['status']}$detail');
     case 'log':
       stdout.writeln('  · ${event['message']}');
-    case 'shard':
-      stdout.writeln('  shard ${event['index']} of ${event['total']} '
-          '(offset ${event['offset']}): '
-          '${event['selected']} of ${event['registered']} test(s)');
   }
 }
 
@@ -272,7 +323,7 @@ class _FileState {
   final String path;
   String status = 'queued';
 
-  /// Tests in registration order (name → entry; names are unique per run in
+  /// Tests in plan order (name → entry; names are unique per run in
   /// practice — a duplicate name folds into its first entry's slot).
   final Map<String, Map<String, Object?>> tests = {};
 
@@ -280,7 +331,7 @@ class _FileState {
       name,
       () => {
             'name': name,
-            'status': 'running',
+            'status': 'queued',
             'requirements': const <Object?>[],
             'detail': '',
             'logs': <Object?>[],
@@ -289,8 +340,10 @@ class _FileState {
   void apply(Map<String, Object?> event) {
     switch (event['e']) {
       case 'test-start':
-        _test(event['test'] as String)['requirements'] =
-            event['requirements'] ?? const <Object?>[];
+        final entry = _test(event['test'] as String);
+        entry['status'] = 'running';
+        entry['requirements'] =
+            event['requirements'] ?? entry['requirements']!;
       case 'test-end':
         final entry = _test(event['test'] as String);
         entry['status'] = event['status'];
@@ -309,18 +362,21 @@ class _FileState {
 }
 
 class _RunState {
-  _RunState(List<File> files) {
-    for (final f in files) {
-      _files[f.path] = _FileState(f.path);
-    }
-  }
-
   final Map<String, _FileState> _files = {};
   var crashedFiles = 0;
   var done = false;
   var seed = 0;
 
-  _FileState file(String path) => _files[path]!;
+  _FileState file(String path) =>
+      _files.putIfAbsent(path, () => _FileState(path));
+
+  /// Pre-populates the plan after selection: the viewer shows the whole
+  /// selected run as queued before anything executes.
+  void plan(List<_CollectedTest> selected) {
+    for (final t in selected) {
+      file(t.file)._test(t.name)['requirements'] = t.requirements;
+    }
+  }
 
   ({int tests, int passed, int failed, int errors, int skipped}) summary() {
     var tests = 0, passed = 0, failed = 0, errors = 0, skipped = 0;
@@ -460,8 +516,9 @@ class _Viewer {
   }
 }
 
-/// The self-contained live viewer page: SSE-fed, no external assets. Logs
-/// stream in under their owning test — the bench view during a run.
+/// The self-contained live viewer page: SSE-fed, no external assets. The
+/// collected plan appears queued up front; logs stream in under their
+/// owning test — the bench view during a run.
 const _viewerHtml = '''
 <!doctype html>
 <html>
@@ -485,7 +542,7 @@ const _viewerHtml = '''
           margin: .2rem 0 0 1.2rem; white-space: pre-wrap; }
   .passed { color: #2e7d32; } .failed { color: #c62828; }
   .skipped { color: #b28900; } .error { color: #c62828; }
-  .running { opacity: .75; } #status { opacity: .7; }
+  .running { opacity: .9; } .queued { opacity: .55; } #status { opacity: .7; }
 </style>
 </head>
 <body>
@@ -496,7 +553,7 @@ const filesEl = document.getElementById('files');
 const statusEl = document.getElementById('status');
 const state = { files: {} };
 const mark = { passed: '✓', failed: '✗', skipped: '○', error: '‼',
-               running: '…' };
+               running: '…', queued: '·' };
 
 function render() {
   filesEl.replaceChildren();
@@ -547,26 +604,28 @@ function fileState(path) {
 
 function testState(file, name) {
   return file.tests[name] ??=
-      { name, status: 'running', requirements: [], detail: '', logs: [] };
+      { name, status: 'queued', requirements: [], detail: '', logs: [] };
+}
+
+function applyState(st) {
+  state.files = {};
+  for (const f of st.files) {
+    const tests = {};
+    for (const t of f.tests) tests[t.name] = t;
+    state.files[f.path] = { status: f.status, tests };
+  }
+  statusEl.textContent = st.done ? 'finished' : 'live';
 }
 
 function apply(ev) {
-  if (ev.e === 'state') {
-    state.files = {};
-    for (const f of ev.state.files) {
-      const tests = {};
-      for (const t of f.tests) tests[t.name] = t;
-      state.files[f.path] = { status: f.status, tests };
-    }
-    statusEl.textContent = ev.state.done ? 'finished' : 'live';
-    return;
-  }
+  if (ev.e === 'state' || ev.e === 'plan') { applyState(ev.state); return; }
   if (ev.e === 'done') { statusEl.textContent = 'finished'; return; }
   const file = fileState(ev.file || '');
   if (ev.e === 'file-end') { file.status = ev.exit === 0 ? 'done' : 'crashed'; }
   if (ev.e === 'test-start') {
     const t = testState(file, ev.test);
-    t.requirements = ev.requirements || [];
+    t.status = 'running';
+    t.requirements = ev.requirements || t.requirements;
   }
   if (ev.e === 'test-end') {
     const t = testState(file, ev.test);

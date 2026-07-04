@@ -34,6 +34,8 @@ void main() {
     expect(result.exitCode, 1, reason: result.stdout.toString());
     final out = result.stdout.toString();
     expect(out, contains('viewer on http://localhost:'));
+    expect(out, contains('collected 6 test(s)'),
+        reason: 'the collect pass gathered the whole suite up front');
     expect(out, contains('green_e2e.dart'));
     expect(out, contains('red_e2e.dart'));
     expect(out,
@@ -75,20 +77,20 @@ void main() {
             '$index',
           ],
           workingDirectory: pkgRoot);
-      // Global indices: green 0,1,2 then red 3,4,5. Shard 0 = {0,2,4} =
-      // rail, thermal(skip), still-reachable — all green. Shard 1 = {1,3,5}
-      // = ripple, trip(FAIL), teardown(ERROR). Per-file modulo would have
-      // put a failure in BOTH shards — this split is the proof the offset
-      // carried across the file boundary.
+      // Global indices over the collected suite: green 0,1,2 then red
+      // 3,4,5. Shard 0 = {0,2,4} = rail, thermal(skip), still-reachable —
+      // all green. Shard 1 = {1,3,5} = ripple, trip(FAIL), teardown(ERROR).
+      // A per-file modulo would have put a failure in BOTH shards — this
+      // split is the proof the modulo ran over the whole collected list.
       expect(result.exitCode, index == 0 ? 0 : 1,
           reason: 'shard $index:\n${result.stdout}');
       return result.stdout.toString();
     }
 
     final shard0 = runShard(0);
-    expect(shard0, contains('shard 0 of 2 (offset 0): 2 of 3 test(s)'));
-    expect(shard0, contains('shard 0 of 2 (offset 3): 1 of 3 test(s)'),
-        reason: 'the second file sees the first file\'s registry as offset');
+    expect(shard0, contains('shard 0 of 2 (3 selected)'));
+    expect(shard0, contains('still reachable after trip'),
+        reason: 'red\'s middle test crossed into the green shard');
     expect(shard0,
         contains('3 test(s) — 2 passed, 0 failed, 0 errors, 1 skipped'));
     final shard1 = runShard(1);
