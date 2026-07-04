@@ -1104,9 +1104,21 @@ const _typeRecordMinBytes = (3 + _typeVersionTripleWords) * _u32Bytes;
 /// word before SData is a ResStr index; the TS 4.x/5.0 leaf grammar
 /// barely fires on TS2021 files) are kept in git history at PRs #39/#48.
 ///
-/// TODO(binary decode, remaining): step MODULES (the SData payload),
-/// sequence locals/parameters, typedef bodies — the variable-length
-/// container/record-tree grammar is still the lever for all three.
+/// TODO(binary decode, remaining): sequence locals/parameters (thin twin
+/// oracle: rosetta declares only the implicit `ResultList`) and TYPEDEF
+/// BODIES. Probe results for the bodies (2026-07, twin-scored flat pair
+/// scan — 29/117 typedefs exact, NOT shippable, kept out per no-hacks):
+///  * simple fields serialize as `[classTokenIdx][fieldNameIdx]` word
+///    pairs (`[Num][Code]`, `[Str][Msg]`, `[Bool][Occurred]` on Error);
+///  * fields typed by a NAMED type reference the type table like steps do
+///    — `[typeIdx+1][nameIdx]` (confirmed: NI_CustomResult's
+///    `Type:PropertyObjectType` as `[4][Type]`), but ExprValue-typed
+///    fields match NEITHER pair form;
+///  * flat scans flatten nesting: Objs-array fields inline their
+///    ElementType/LowerBounds/UpperBounds/Elements machinery, and
+///    StepType roots embed a full default-step instance — root-level
+///    extraction without the record-tree grammar fabricates structure.
+/// The variable-length container/record-tree grammar remains the lever.
 List<String> binaryTypeNames(Uint8List seqBytes) =>
     _withLayout(seqBytes, _typeNamesFromBody);
 
