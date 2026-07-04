@@ -404,8 +404,35 @@ SeqFile _parseBinary(Uint8List bytes) {
   // ordered string pool (each is an O(body) pass the per-lens helpers would
   // otherwise repeat).
   final (:outlines, :typeNames) = binaryOutlinesAndTypeNamesFromBody(body);
-  SeqProperty stepProp(BinaryStepRef step) =>
-      SeqProperty(name: step.name, typeName: step.typeName);
+  // Recovered fields synthesize the same TS>SData shape the XML parse
+  // yields, so the typed lens (Step.module) reads both encodings alike.
+  SeqProperty stepProp(BinaryStepRef step) => SeqProperty(
+        name: step.name,
+        typeName: step.typeName,
+        subProps: [
+          if (step.viPath != null ||
+              step.pythonModule != null ||
+              step.pythonFunction != null)
+            SeqProperty(name: 'TS', subProps: [
+              SeqProperty(name: 'SData', subProps: [
+                if (step.viPath != null)
+                  SeqProperty(name: 'ViCall', subProps: [
+                    SeqProperty(name: 'VIPath', scalar: step.viPath),
+                  ]),
+                if (step.pythonModule != null || step.pythonFunction != null)
+                  SeqProperty(name: 'PythonCall', subProps: [
+                    if (step.pythonModule != null)
+                      SeqProperty(
+                          name: 'ModulePath', scalar: step.pythonModule),
+                    if (step.pythonFunction != null)
+                      SeqProperty(
+                          name: 'FunctionOrAttributeName',
+                          scalar: step.pythonFunction),
+                  ]),
+              ]),
+            ]),
+        ],
+      );
   return SeqFile(
     header: detectSeqHeader(bytes),
     // Recovered type NAMES only (name-only stubs): the typedef bodies (fields,

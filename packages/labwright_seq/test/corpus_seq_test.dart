@@ -83,7 +83,8 @@ void main() {
         unknownAdapters = 0,
         binaryWithSequences = 0,
         binaryStepsRecovered = 0,
-        binaryTypedSteps = 0;
+        binaryTypedSteps = 0,
+        binaryModuleSteps = 0;
     final failures = <String>[];
     for (final f in seqs) {
       final bytes = f.readAsBytesSync();
@@ -129,13 +130,29 @@ void main() {
             binaryStepsRecovered += seq.steps.length;
             for (final step in seq.steps) {
               final type = step.type;
-              if (type == null) continue;
-              binaryTypedSteps++;
-              // A bound type must come from the file's own recovered type
-              // table — anything else would be fabrication.
-              expect(partialTypeNames, contains(type),
-                  reason: '${f.path}: step ${step.name} bound to a type '
-                      'outside the recovered table');
+              if (type != null) {
+                binaryTypedSteps++;
+                // A bound type must come from the file's own recovered type
+                // table — anything else would be fabrication.
+                expect(partialTypeNames, contains(type),
+                    reason: '${f.path}: step ${step.name} bound to a type '
+                        'outside the recovered table');
+              }
+              final m = step.module;
+              if (m.adapter != SeqAdapter.none &&
+                  m.adapter != SeqAdapter.unknown) {
+                binaryModuleSteps++;
+                // Recovered module targets must look like targets.
+                if (m.viPath != null) {
+                  expect(m.viPath, contains('.vi'),
+                      reason: '${f.path}: ${step.name} VIPath ${m.viPath}');
+                }
+                if (m.pythonModulePath != null) {
+                  expect(m.pythonModulePath, endsWith('.py'),
+                      reason: '${f.path}: ${step.name} python module '
+                          '${m.pythonModulePath}');
+                }
+              }
             }
           }
           final bh = detectSeqHeader(bytes);
@@ -184,6 +201,9 @@ void main() {
     expect(binaryTypedSteps, greaterThanOrEqualTo(25),
         reason: 'binary per-step type binding regressed '
             '($binaryTypedSteps typed steps)');
+    expect(binaryModuleSteps, greaterThanOrEqualTo(10),
+        reason: 'binary per-step module binding regressed '
+            '($binaryModuleSteps module steps)');
     expect(other, 58, reason: 'other (INI) file count drifted');
     expect(totalSeqs, 33, reason: 'XML sequence count drifted');
     expect(totalSteps, 214, reason: 'XML step count drifted');
@@ -205,6 +225,7 @@ void main() {
     print(
       'teststand corpus: $xml XML / $binary binary / $other other · '
       '$binaryTypedSteps binary typed steps · '
+      '$binaryModuleSteps binary module steps · '
       '$totalSeqs sequences · $totalSteps steps ($typedSteps typed) · '
       '$withAction with pass/fail actions · $withModule with module bindings '
       '($unknownAdapters unknown) · $totalLocals locals · $withLimits limit tests · '
