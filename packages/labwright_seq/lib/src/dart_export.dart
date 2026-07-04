@@ -735,7 +735,7 @@ class _DartExporter {
           _line('await $inFileFn(ts${asTest ? ', s' : ''}); // $name '
               '(call parameters not exported yet)');
         } else if (asTest) {
-          _pendingLine(module, step,
+          _pendingLine(step,
               detail: 'external sequence call: '
                   '${_escape(_stubTarget(step, module))}');
         } else {
@@ -752,7 +752,7 @@ class _DartExporter {
       case SeqAdapter.python:
       case SeqAdapter.unknown:
         if (asTest) {
-          _pendingLine(module, step,
+          _pendingLine(step,
               detail: '${module.adapter.name} call: '
                   '${_escape(_stubTarget(step, module))}');
         } else {
@@ -777,8 +777,8 @@ class _DartExporter {
   }
 
   /// E2E mode: a non-VI module call marks its step pending inline, with the
-  /// adapter and target on record.
-  void _pendingLine(StepModule module, Step step, {required String detail}) {
+  /// adapter and target on record (pre-escaped by the caller).
+  void _pendingLine(Step step, {required String detail}) {
     _line("ctx.pending('$detail'); "
         '// ${_comment(step.name)}'
         '${step.type != null ? ' [${_comment(step.type!)}]' : ''}');
