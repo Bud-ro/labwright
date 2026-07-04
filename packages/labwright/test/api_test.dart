@@ -32,55 +32,53 @@ List<Map<String, Object?>> _events(List<String> lines) => [
     ];
 
 void main() {
-  test('green fixture: passes, streams events, binds requirements, exits 0',
+  test('green fixture: real expect works, requirements bind, skip stays green',
       () {
     final (exit, lines) = _run('test/fixtures/green_e2e.dart');
-    expect(exit, 0, reason: 'pending alone must stay green:\n$lines');
+    expect(exit, 0, reason: 'skipped alone must stay green:\n$lines');
     final events = _events(lines);
-    expect(events.map((e) => e['e']),
-        containsAllInOrder(['seq-start', 'step', 'step', 'step', 'seq-end']));
-
-    final seqStart = events.firstWhere((e) => e['e'] == 'seq-start');
-    expect(seqStart['requirements'], ['REQ-SEQ-1'],
-        reason: 'sequence-level requirement binding');
-
-    final steps = events.where((e) => e['e'] == 'step').toList();
-    expect(steps[0]['status'], 'passed');
-    expect(steps[0]['requirements'], ['REQ-1']);
-    expect(steps[1]['requirements'], ['REQ-2', 'REQ-3']);
-    expect(steps[2]['status'], 'pending',
-        reason: 'ctx.pending marks the step pending');
-    expect(steps[2]['detail'], contains('ThermalSweep.vi'),
-        reason: 'the pending target is named');
-
-    final seqEnd = events.firstWhere((e) => e['e'] == 'seq-end');
-    expect(seqEnd['status'], 'pending',
-        reason: 'no failures + a pending step → sequence pending');
-    expect(events.any((e) => e['e'] == 'log'), isTrue);
+    final ends = events.where((e) => e['e'] == 'test-end').toList();
+    expect(ends.map((e) => e['test']), [
+      'rail comes up',
+      'ripple in limits',
+      'thermal camera sweep',
+    ], reason: 'registration order is execution order');
+    expect(ends[0]['status'], 'passed',
+        reason: 'package:test expect/expectLater/matchers work as-is');
+    expect(ends[0]['requirements'], ['REQ-1']);
+    expect(ends[1]['requirements'], ['REQ-2', 'REQ-3']);
+    expect(ends[2]['status'], 'skipped',
+        reason: 'skipTest reports without running the body');
+    final logs = events.where((e) => e['e'] == 'log').toList();
+    expect(logs.single['test'], 'rail comes up',
+        reason: 'log lines attribute to the running test');
   });
 
-  test('red fixture: false check fails step, run continues, exits non-zero',
+  test('red fixture: TestFailure=failed, other throw=error, exits non-zero',
       () {
     final (exit, lines) = _run('test/fixtures/red_e2e.dart');
-    expect(exit, isNot(0), reason: 'a failed sequence must fail CI');
+    expect(exit, isNot(0), reason: 'failures must fail CI');
     final events = _events(lines);
-    final steps = events.where((e) => e['e'] == 'step').toList();
-    expect(steps[0]['status'], 'failed');
-    expect(steps[0]['detail'], contains('trip current'),
-        reason: 'the failing check message is carried');
-    expect(steps, hasLength(2),
-        reason: 'continue-on-fail: the next step still runs');
-    expect(steps[1]['status'], 'passed');
-    expect(events.firstWhere((e) => e['e'] == 'seq-end')['status'], 'failed');
+    final ends = events.where((e) => e['e'] == 'test-end').toList();
+    expect(ends, hasLength(3),
+        reason: 'a failed test does not stop later tests');
+    expect(ends[0]['status'], 'failed');
+    expect('${ends[0]['detail']}', contains('trip current'),
+        reason: 'the matcher mismatch description is carried');
+    expect(ends[1]['status'], 'passed',
+        reason: 'un-awaited registrations still run in order via the chain');
+    expect(ends[2]['status'], 'error',
+        reason: 'a non-TestFailure escape is an error, not a failure');
+    expect('${ends[2]['detail']}', contains('relay stuck'));
   });
 
   test('human mode (no env): readable lines, same exit semantics', () {
     final (exit, lines) = _run('test/fixtures/green_e2e.dart', jsonl: false);
     expect(exit, 0);
     final text = lines.join('\n');
-    expect(text, contains('▶ PowerRail'));
-    expect(text, contains('✓ Rail comes up [REQ-1]'));
-    expect(text, contains('○ Thermal camera sweep'));
+    expect(text, contains('▶ rail comes up [REQ-1]'));
+    expect(text, contains('✓ rail comes up'));
+    expect(text, contains('○ thermal camera sweep (skipped)'));
     expect(text, isNot(contains('{"e"')), reason: 'no JSON in human mode');
   });
 }

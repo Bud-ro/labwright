@@ -1,47 +1,62 @@
 /// Labwright's hardware end-to-end test API — the TestStand-replacement
 /// runner surface.
 ///
-/// An E2E file is a **plain Dart program**: `main()` awaits [sequence] calls,
-/// and the file runs under `dart run` (never `dart test` — hardware tests own
-/// their process, run strictly in order, and cannot be sharded or isolated by
-/// a unit-test runner). The `labwright` executable (see `bin/labwright.dart`)
-/// runs a set of E2E files sequentially, renders live progress, serves the
-/// execution viewer over HTTP, and produces CI exit codes and JSON reports.
+/// An E2E file is a **plain Dart program**: setup is ordinary code at the top
+/// of `main()`, a test is a named body of ordinary code, and the file runs
+/// under `dart run` (never `dart test` — hardware tests own their process and
+/// run strictly in order). The `labwright` executable runs a set of E2E files
+/// sequentially, renders live progress, serves the execution viewer over
+/// HTTP, and produces CI exit codes and JSON reports.
 ///
 /// ```dart
 /// import 'package:labwright/labwright.dart';
 ///
 /// Future<void> main() async {
-///   await sequence('MainSequence', (s) async {
-///     await s.step('Update pin map', requirement: 'REQ-101', (ctx) async {
-///       await pinMap.load('OutputVoltage.pinmap');
-///     });
-///     await s.step('Output voltage test', (ctx) async {
-///       final v = await dmm.read();
-///       ctx.check(v >= 1.9 && v <= 2.1, 'voltage $v within [1.9, 2.1]');
-///     });
+///   await pinMap.load('OutputVoltage.pinmap'); // setup: just code, runs first
+///
+///   await test('output voltage in range', requirements: ['REQ-101'], () async {
+///     await psu.setVoltage(2.0);
+///     final v = await dmm.readVoltage();
+///     expect(v, inInclusiveRange(1.9, 2.1));
 ///   });
 /// }
 /// ```
 ///
-/// Step status contract (shared with the TestStand exporter's boilerplate):
-///  * a false [StepContext.check] marks the step **failed** and execution
-///    continues (TestStand's continue-on-fail);
-///  * [StepContext.pending] or an [UnimplementedError] escaping the body
-///    marks the step **pending** — an unimplemented surface (a VI-call stub,
-///    an untranslated engine expression), never a failure;
-///  * any other escape is an **error**;
-///  * the process [exitCode] goes non-zero iff a sequence failed or errored —
-///    pending alone stays green (CI can tighten with `--fail-on-pending`).
+/// The `package:test` assertion surface works **as-is**: [expect],
+/// [expectLater], [fail], [TestFailure], and every matcher are re-exported,
+/// and each body runs inside a real `test_api` case (via its
+/// third-party-runner hooks), so failure descriptions and late async errors
+/// behave exactly as they do under `dart test`.
 ///
-/// Reporting: human-readable lines by default; when the runner sets
-/// `LABWRIGHT_REPORT=jsonl` the file emits one JSON event per line on stdout
-/// instead, which the runner renders, serves to the viewer, and aggregates.
+/// Semantics:
+///  * **Exceptions are how tests fail.** A [TestFailure] (what [expect]
+///    throws) reports as *failed*; any other escape reports as *error*; both
+///    make the process exit non-zero. There is no soft-fail tier — if a
+///    non-immediately-failing check is ever needed, it will be carved out
+///    explicitly.
+///  * **Tests run strictly in registration order, never interleaved.** Each
+///    [test] call chains behind the previous one, so bodies are serialized
+///    even if a caller forgets to await — the bench is singular. Register
+///    from `main` or from any function `main` reaches.
+///  * [skipTest] has the identical signature and skips the body (reported,
+///    not run) — rename `test` ⇄ `skipTest` to disarm/arm. To-do notes are
+///    just comments; there is no metadata for them.
+///  * Requirement tracing IDs attach to tests via `requirement:` /
+///    `requirements:` and flow into the runner's report and viewer.
+///  * [log] lines are attributed to the running test and stream to the
+///    viewer.
+///
+/// Reporting: human-readable lines by default; under the runner
+/// (`LABWRIGHT_REPORT=jsonl`) one JSON event per line on stdout.
 library;
 
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+
+import 'package:test_api/hooks_testing.dart';
+
+export 'package:matcher/expect.dart';
 
 /// The environment variable the `labwright` runner sets to switch a file's
 /// output from human lines to machine JSON-lines events.
@@ -50,275 +65,190 @@ const String reportEnv = 'LABWRIGHT_REPORT';
 /// The [reportEnv] value selecting JSON-lines event output.
 const String reportJsonl = 'jsonl';
 
-/// Terminal status of one step.
-enum StepStatus {
-  /// Ran to completion with every check true.
+/// Terminal status of one test.
+enum TestStatus {
+  /// Body ran to completion with no escape.
   passed,
 
-  /// A check was false or [StepContext.fail] was called.
+  /// The body threw a [TestFailure] — an assertion did not hold.
   failed,
 
-  /// The step reached an unimplemented surface ([StepContext.pending] or an
-  /// escaped [UnimplementedError]) — boilerplate awaiting an implementation.
-  pending,
-
-  /// The body escaped with an unexpected error.
+  /// The body escaped with something other than a [TestFailure].
   error,
+
+  /// A [skipTest] body — reported in order, never run.
+  skipped,
 }
 
-/// Terminal status of one sequence: the worst of its steps ([StepStatus.error]
-/// and [StepStatus.failed] both fail the sequence).
-enum SequenceStatus { passed, failed, pending }
-
-/// One executed step, as recorded by [SequenceContext.step].
-class StepResult {
-  StepResult({
-    required this.name,
-    required this.status,
-    required this.requirements,
-    required this.detail,
-    required this.elapsed,
-  });
-
-  /// The step's display name.
-  final String name;
-
-  /// Terminal status (see the class contract on the library doc).
-  final StepStatus status;
-
-  /// Requirement tracing IDs this step covers (may be empty).
-  final List<String> requirements;
-
-  /// Failure messages / pending reason / error text — empty when passed.
-  final String detail;
-
-  /// Wall-clock duration of the step body.
-  final Duration elapsed;
-
-  Map<String, Object?> toJson(String sequenceName) => {
-        'e': 'step',
-        'seq': sequenceName,
-        'step': name,
-        'status': status.name,
-        if (requirements.isNotEmpty) 'requirements': requirements,
-        if (detail.isNotEmpty) 'detail': detail,
-        'ms': elapsed.inMilliseconds,
-      };
-}
-
-/// Handed to each step body: checks, explicit outcomes, and logging.
-class StepContext {
-  StepContext._(this._sink);
-
-  final _EventSink _sink;
-  final List<String> _failures = [];
-
-  /// Records a pass/fail check. A false [condition] marks the step failed
-  /// and keeps executing — TestStand's continue-on-fail semantics.
-  void check(bool condition, String message) {
-    if (!condition) _failures.add(message);
-  }
-
-  /// Marks the step **pending** (an unimplemented surface) and stops its
-  /// body. This is what generated boilerplate calls for a not-yet-ported
-  /// module target; implementing the target and removing the call arms the
-  /// step.
-  Never pending(String reason) => throw _Pending(reason);
-
-  /// Fails the step with [message] and stops its body.
-  Never fail(String message) => throw _Failed(message);
-
-  /// Emits a free-form log line attributed to the running step.
-  void log(String message) => _sink.log(message);
-}
-
-/// Handed to a [sequence] body: registers and runs steps **in order**.
-class SequenceContext {
-  SequenceContext._(this._name, this._sink);
-
-  final String _name;
-  final _EventSink _sink;
-  final List<StepResult> results = [];
-
-  /// Runs one step. [requirement]/[requirements] bind requirement tracing
-  /// IDs to the step (both accepted; they merge).
-  Future<void> step(
-    String name,
-    FutureOr<void> Function(StepContext ctx) body, {
-    String? requirement,
-    List<String> requirements = const [],
-  }) async {
-    final reqs = [if (requirement != null) requirement, ...requirements];
-    final ctx = StepContext._(_sink);
-    final watch = Stopwatch()..start();
-    StepStatus status;
-    var detail = '';
-    try {
-      await body(ctx);
-      status = ctx._failures.isEmpty ? StepStatus.passed : StepStatus.failed;
-      detail = ctx._failures.join('; ');
-    } on _Pending catch (e) {
-      status = StepStatus.pending;
-      detail = e.reason;
-    } on _Failed catch (e) {
-      status = StepStatus.failed;
-      detail = [...ctx._failures, e.message].join('; ');
-    } on UnimplementedError catch (e) {
-      status = StepStatus.pending;
-      detail = e.message ?? 'UnimplementedError';
-    } catch (e) {
-      status = StepStatus.error;
-      detail = e.toString();
-    }
-    watch.stop();
-    final result = StepResult(
-      name: name,
-      status: status,
-      requirements: reqs,
-      detail: detail,
-      elapsed: watch.elapsed,
-    );
-    results.add(result);
-    _sink.step(_name, result);
-  }
-}
-
-/// Runs one named sequence of steps, reporting as it goes. Returns the
-/// sequence's terminal status; also accumulates it into the process
-/// [exitCode] (failed → non-zero) so a bare `dart run file.dart` is already
-/// CI-meaningful.
-Future<SequenceStatus> sequence(
+/// Runs [body] as one named test, strictly after every previously registered
+/// test. Returns when this test (and everything queued before it) has
+/// finished, so `await test(...)` in an async `main` reads sequentially; an
+/// un-awaited call is still safe — bodies never interleave.
+///
+/// [requirement]/[requirements] bind requirement tracing IDs (they merge).
+Future<TestStatus> test(
   String name,
-  FutureOr<void> Function(SequenceContext s) body, {
+  FutureOr<void> Function() body, {
+  String? requirement,
   List<String> requirements = const [],
+}) =>
+    _enqueue(name, body, skip: false,
+        requirements: [if (requirement != null) requirement, ...requirements]);
+
+/// [test] with the body disarmed: reported as skipped, in order, without
+/// running. Rename `skipTest` → `test` to arm (and back to disarm) — the
+/// signature is identical by design.
+Future<TestStatus> skipTest(
+  String name,
+  FutureOr<void> Function() body, {
+  String? requirement,
+  List<String> requirements = const [],
+}) =>
+    _enqueue(name, body, skip: true,
+        requirements: [if (requirement != null) requirement, ...requirements]);
+
+/// Emits a log line, attributed to the currently running test (suite-level
+/// when none is running). Streams to the runner/viewer live.
+void log(String message) => _sink.log(_currentTest, message);
+
+// ── execution ────────────────────────────────────────────────────────────────
+
+/// The FIFO chain: every registration queues behind the previous one. This is
+/// what makes un-awaited `test(...)` calls safe on hardware — there is never
+/// a second body in flight.
+Future<void> _chain = Future.value();
+
+String? _currentTest;
+
+Future<TestStatus> _enqueue(
+  String name,
+  FutureOr<void> Function() body, {
+  required bool skip,
+  required List<String> requirements,
+}) {
+  final previous = _chain;
+  final done = Future(() async {
+    await previous;
+    return _runOne(name, body, skip: skip, requirements: requirements);
+  });
+  // The chain must survive a failed test: errors are consumed by _runOne and
+  // reported as results, so `done` only errors on labwright's own bugs.
+  _chain = done.then((_) {}, onError: (_) {});
+  return done;
+}
+
+Future<TestStatus> _runOne(
+  String name,
+  FutureOr<void> Function() body, {
+  required bool skip,
+  required List<String> requirements,
 }) async {
-  final sink = _EventSink._instance;
-  sink.sequenceStart(name, requirements);
-  final s = SequenceContext._(name, sink);
-  final watch = Stopwatch()..start();
-  var bodyError = '';
-  var bodyPending = '';
-  try {
-    await body(s);
-  } on UnimplementedError catch (e) {
-    // An unimplemented surface OUTSIDE any step (e.g. an untranslated
-    // expression in generated flow control) is boilerplate, not a failure —
-    // the sequence is pending; note that execution stopped there.
-    bodyPending = e.message ?? 'UnimplementedError';
-  } catch (e) {
-    // Any other escape OUTSIDE a step is a sequence-level error.
-    bodyError = e.toString();
+  _sink.testStart(name, requirements, skip: skip);
+  if (skip) {
+    const status = TestStatus.skipped;
+    _sink.testEnd(name, status, requirements, '', Duration.zero);
+    return status;
   }
+  _currentTest = name;
+  final watch = Stopwatch()..start();
+  // Host the body in a real test_api case: package:test's expect/expectLater/
+  // matchers work as-is, and late async errors surface like under dart test.
+  final monitor = await TestCaseMonitor.run(body);
   watch.stop();
-  final failed = bodyError.isNotEmpty ||
-      s.results.any((r) =>
-          r.status == StepStatus.failed || r.status == StepStatus.error);
-  final pending = bodyPending.isNotEmpty ||
-      s.results.any((r) => r.status == StepStatus.pending);
-  final status = failed
-      ? SequenceStatus.failed
-      : pending
-          ? SequenceStatus.pending
-          : SequenceStatus.passed;
-  if (status == SequenceStatus.failed) exitCode = 1;
-  sink.sequenceEnd(name, status, s.results, watch.elapsed,
-      bodyError.isNotEmpty ? bodyError : bodyPending);
+  _currentTest = null;
+  final TestStatus status;
+  var detail = '';
+  switch (monitor.state) {
+    case State.passed:
+      status = TestStatus.passed;
+    case State.skipped:
+      // A body used test_api's own skip surface; honor it.
+      status = TestStatus.skipped;
+    case State.pending || State.running:
+      // Unreachable: TestCaseMonitor.run returns only after the case is
+      // done. Classified as error rather than silently passed if it ever
+      // changes under us.
+      status = TestStatus.error;
+      detail = 'internal: test case still ${monitor.state.name} after run';
+    case State.failed:
+      final errors = monitor.errors.toList();
+      status = errors.every((e) => e.error is TestFailure)
+          ? TestStatus.failed
+          : TestStatus.error;
+      detail = errors
+          .map((e) => e.error.toString().trimRight())
+          .join('\n')
+          .trim();
+  }
+  if (status == TestStatus.failed || status == TestStatus.error) exitCode = 1;
+  _sink.testEnd(name, status, requirements, detail, watch.elapsed);
   return status;
 }
 
-/// Explicit pending/failed step escapes (private control-flow signals — a
-/// generic catch in the step body would defeat them, so bodies should not
-/// blanket-catch).
-class _Pending implements Exception {
-  _Pending(this.reason);
-  final String reason;
-}
+// ── reporting ────────────────────────────────────────────────────────────────
 
-class _Failed implements Exception {
-  _Failed(this.message);
-  final String message;
-}
+final _EventSink _sink = _EventSink._();
 
 /// Where events go: JSON lines on stdout under the runner, human lines
 /// otherwise.
 class _EventSink {
   _EventSink._() : jsonl = Platform.environment[reportEnv] == reportJsonl;
 
-  static final _EventSink _instance = _EventSink._();
-
   /// Whether the runner asked for machine output.
   final bool jsonl;
 
   void _emit(Map<String, Object?> event) => stdout.writeln(jsonEncode(event));
 
-  void sequenceStart(String name, List<String> requirements) {
+  void testStart(String name, List<String> requirements,
+      {required bool skip}) {
     if (jsonl) {
       _emit({
-        'e': 'seq-start',
-        'seq': name,
+        'e': 'test-start',
+        'test': name,
         if (requirements.isNotEmpty) 'requirements': requirements,
       });
-    } else {
-      final reqs = requirements.isEmpty ? '' : ' ${requirements.join(', ')}';
+    } else if (!skip) {
+      final reqs =
+          requirements.isEmpty ? '' : ' [${requirements.join(', ')}]';
       stdout.writeln('▶ $name$reqs');
     }
   }
 
-  void step(String sequenceName, StepResult result) {
-    if (jsonl) {
-      _emit(result.toJson(sequenceName));
-      return;
-    }
-    final mark = switch (result.status) {
-      StepStatus.passed => '✓',
-      StepStatus.failed => '✗',
-      StepStatus.pending => '○',
-      StepStatus.error => '‼',
-    };
-    final reqs = result.requirements.isEmpty
-        ? ''
-        : ' [${result.requirements.join(', ')}]';
-    final detail = result.detail.isEmpty ? '' : ' — ${result.detail}';
-    stdout.writeln('  $mark ${result.name}$reqs$detail '
-        '(${result.elapsed.inMilliseconds} ms)');
-  }
-
-  void log(String message) {
-    if (jsonl) {
-      _emit({'e': 'log', 'message': message});
-    } else {
-      stdout.writeln('    · $message');
-    }
-  }
-
-  void sequenceEnd(String name, SequenceStatus status,
-      List<StepResult> results, Duration elapsed, String detail) {
+  void testEnd(String name, TestStatus status, List<String> requirements,
+      String detail, Duration elapsed) {
     if (jsonl) {
       _emit({
-        'e': 'seq-end',
-        'seq': name,
+        'e': 'test-end',
+        'test': name,
         'status': status.name,
+        if (requirements.isNotEmpty) 'requirements': requirements,
         if (detail.isNotEmpty) 'detail': detail,
         'ms': elapsed.inMilliseconds,
       });
       return;
     }
-    var passed = 0, failed = 0, pending = 0, errors = 0;
-    for (final r in results) {
-      switch (r.status) {
-        case StepStatus.passed:
-          passed++;
-        case StepStatus.failed:
-          failed++;
-        case StepStatus.pending:
-          pending++;
-        case StepStatus.error:
-          errors++;
-      }
+    final mark = switch (status) {
+      TestStatus.passed => '✓',
+      TestStatus.failed => '✗',
+      TestStatus.error => '‼',
+      TestStatus.skipped => '○',
+    };
+    final reqs = requirements.isEmpty ? '' : ' [${requirements.join(', ')}]';
+    final note = detail.isEmpty ? '' : '\n  ${detail.replaceAll('\n', '\n  ')}';
+    stdout.writeln(status == TestStatus.skipped
+        ? '$mark $name$reqs (skipped)'
+        : '$mark $name$reqs (${elapsed.inMilliseconds} ms)$note');
+  }
+
+  void log(String? testName, String message) {
+    if (jsonl) {
+      _emit({
+        'e': 'log',
+        if (testName != null) 'test': testName,
+        'message': message,
+      });
+    } else {
+      stdout.writeln('  · $message');
     }
-    final note = detail.isEmpty ? '' : ' — $detail';
-    stdout.writeln('$name: ${status.name.toUpperCase()} '
-        '($passed passed, $failed failed, $errors errors, $pending pending, '
-        '${elapsed.inMilliseconds} ms)$note');
   }
 }

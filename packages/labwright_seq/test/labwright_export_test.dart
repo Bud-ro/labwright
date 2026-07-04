@@ -12,13 +12,14 @@ import 'corpus_dirs.dart';
 /// Validates the TestStand → labwright E2E exporter
 /// ([exportSeqFileToLabwright]) over the real corpus:
 ///  * every parseable corpus `.seq` exports a balanced program with exactly
-///    one `main()`, the prefixed labwright import, and one `lw.sequence` per
-///    sequence;
-///  * stubs are generated for VI calls ONLY — every other module adapter
-///    marks its step `ctx.pending(...)` inline with the target named;
+///    one `main()`, the prefixed labwright import, and one `lw.test`/
+///    `lw.skipTest` per ROOT sequence (called sequences are plain functions
+///    — some corpus files must exercise that);
+///  * stub FUNCTIONS are generated for VI calls only — every other unported
+///    surface is an inline `throw UnimplementedError` line;
 ///  * the flagship guarantee: the oracle's generated program actually RUNS
-///    under `dart run` (the E2E execution surface — not `dart test`), exits
-///    0, and reports its module-bound steps as pending with targets named.
+///    under `dart run` (the E2E execution surface — not `dart test`), ships
+///    disarmed as `lw.skipTest` (its module calls are unported), and exits 0.
 ///
 /// Generated files use no `_test.dart` suffix so a stray file can never join
 /// unit-suite discovery; E2E programs are run by explicit path.
@@ -37,7 +38,8 @@ void main() {
 
   test('every parseable corpus .seq exports a balanced labwright program',
       () {
-    var exported = 0, withViStub = 0, withPending = 0;
+    var exported = 0, withViStub = 0, withInlineThrow = 0, withHelpers = 0;
+    final stubAdapter = RegExp(r'/// Stub for the (\w+) module call');
     for (final f in seqs) {
       final SeqFile file;
       try {
@@ -57,36 +59,52 @@ void main() {
               .length,
           1,
           reason: '${f.path}: prefixed labwright import');
-      expect('lw.sequence('.allMatches(source).length, file.sequences.length,
-          reason: '${f.path}: one lw.sequence per sequence');
-      // Stub policy: VI calls only. Any UnimplementedError-throwing stub in
-      // the program must be a labView stub; other adapters go ctx.pending.
-      for (final m in RegExp(r"UnimplementedError\('(\w+) call")
-          .allMatches(source)) {
-        expect(m.group(1), 'labView',
-            reason: '${f.path}: non-VI adapter got a stub');
+      final tests = 'await lw.test('.allMatches(source).length +
+          'await lw.skipTest('.allMatches(source).length;
+      if (file.sequences.isNotEmpty) {
+        expect(tests, inInclusiveRange(1, file.sequences.length),
+            reason: '${f.path}: one test per ROOT sequence');
+        if (tests < file.sequences.length) withHelpers++;
+      } else {
+        expect(tests, 0, reason: '${f.path}: no sequences, no tests');
       }
-      if (source.contains("UnimplementedError('labView call")) withViStub++;
-      if (source.contains('ctx.pending(')) withPending++;
+      // Stub policy: stub FUNCTIONS for VI calls only. Other adapters are
+      // inline throws, not stubs.
+      for (final m in stubAdapter.allMatches(source)) {
+        expect(m.group(1), 'labView',
+            reason: '${f.path}: non-VI adapter got a stub function');
+      }
+      if (stubAdapter.hasMatch(source)) withViStub++;
+      if (source.contains("throw UnimplementedError('")) withInlineThrow++;
     }
     expect(exported, greaterThan(300),
         reason: 'XML+INI+binary corpus should all export');
     expect(withViStub, greaterThanOrEqualTo(5),
         reason: 'the corpus has VI-call files; their stubs must be generated');
-    expect(withPending, greaterThan(50),
-        reason: 'non-VI module calls must surface as pending markers');
+    expect(withInlineThrow, greaterThan(50),
+        reason: 'non-VI unported surfaces must be inline throws');
+    expect(withHelpers, greaterThan(10),
+        reason: 'files with called sequences must export them as plain '
+            'functions, not tests');
     // ignore: avoid_print
     print('labwright export: $exported programs · $withViStub with VI stubs '
-        '· $withPending with pending markers');
+        '· $withInlineThrow with inline throws · $withHelpers with helper '
+        'sequences');
   });
 
-  test('the oracle program runs under dart run: exit 0, pending named', () {
+  test('the oracle program runs under dart run: disarmed skipTest, exit 0',
+      () {
     final oracle = File('${corpusSeqDir.path}/rosetta/OutputVoltage_XML.seq');
     expect(oracle.existsSync(), isTrue,
         reason: 'the Rosetta oracle must be fetched with the corpus');
     final source = exportSeqFileToLabwright(
         parseSeqFile(oracle.readAsBytesSync()),
         sourceName: 'OutputVoltage_XML.seq');
+    // Disarmed: the oracle's steps are python/typed — all unported, so the
+    // harness ships it as skipTest with the targets in the TODO.
+    expect(source, contains('await lw.skipTest('));
+    expect(source, contains('rename lw.skipTest -> lw.test'));
+    expect(source, contains('python call: teststand_nidcpower.py'));
     // Run from the package root so package:labwright resolves (dev_dep).
     final pkgRoot = corpusSeqDir.parent.parent;
     final genDir = Directory('${pkgRoot.path}/test/.export_gen')
@@ -99,7 +117,7 @@ void main() {
           workingDirectory: pkgRoot.path,
           environment: {'LABWRIGHT_REPORT': 'jsonl'});
       expect(result.exitCode, 0,
-          reason: 'pending-only boilerplate must exit green:\n'
+          reason: 'disarmed boilerplate must exit green:\n'
               '${result.stdout}\n${result.stderr}');
       final events = [
         for (final line
@@ -107,16 +125,10 @@ void main() {
           if (line.startsWith('{'))
             (jsonDecode(line) as Map).cast<String, Object?>(),
       ];
-      final steps = events.where((e) => e['e'] == 'step').toList();
-      expect(steps, isNotEmpty, reason: 'oracle steps must register');
-      // The oracle's six steps are all Python module calls — every one is
-      // boilerplate pending with its module named; none may fail.
-      expect(steps.map((e) => e['status']), everyElement('pending'));
-      expect(steps.map((e) => '${e['detail']}').join('\n'),
-          contains('python call:'));
-      final end = events.lastWhere((e) => e['e'] == 'seq-end');
-      expect(end['seq'], 'MainSequence');
-      expect(end['status'], 'pending');
+      final end = events.lastWhere((e) => e['e'] == 'test-end');
+      expect(end['test'], 'MainSequence');
+      expect(end['status'], 'skipped',
+          reason: 'unported boilerplate reports skipped, not passed');
     } finally {
       genDir.deleteSync(recursive: true);
     }

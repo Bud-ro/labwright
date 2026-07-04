@@ -36,14 +36,16 @@ void main() {
     expect(out, contains('viewer on http://localhost:'));
     expect(out, contains('green_e2e.dart'));
     expect(out, contains('red_e2e.dart'));
-    expect(out, contains('2 sequence(s) — 0 passed, 1 failed, 1 pending'));
+    expect(out,
+        contains('6 test(s) — 3 passed, 1 failed, 1 errors, 1 skipped'));
 
-    final report =
-        (jsonDecode(reportFile.readAsStringSync()) as Map).cast<String, Object?>();
+    final report = (jsonDecode(reportFile.readAsStringSync()) as Map)
+        .cast<String, Object?>();
     final summary = (report['summary'] as Map).cast<String, Object?>();
     expect(summary['failed'], 1);
-    expect(summary['pending'], 1);
-    // The requirements trace: every claimed ID maps to its steps + statuses.
+    expect(summary['errors'], 1);
+    expect(summary['skipped'], 1);
+    // The requirements trace: every claimed ID maps to its tests + statuses.
     final requirements =
         (report['requirements'] as Map).cast<String, Object?>();
     expect(requirements.keys,
@@ -51,11 +53,11 @@ void main() {
     final req9 =
         (requirements['REQ-9'] as List).cast<Map<String, Object?>>();
     expect(req9.single['status'], 'failed');
-    expect(req9.single['step'], 'Trip threshold');
+    expect(req9.single['test'], 'trip threshold');
     reportFile.parent.deleteSync(recursive: true);
   }, timeout: const Timeout(Duration(minutes: 2)));
 
-  test('viewer serves the page, state.json, and stays up with --keep-open',
+  test('viewer serves the page, state.json (with logs), --keep-open persists',
       () async {
     final process = await Process.start(
         Platform.resolvedExecutable,
@@ -95,11 +97,14 @@ void main() {
           .cast<String, Object?>();
       expect(state['done'], true);
       final files = (state['files'] as List).cast<Map<String, Object?>>();
-      final sequences =
-          (files.single['sequences'] as List).cast<Map<String, Object?>>();
-      expect(sequences.single['name'], 'PowerRail');
-      expect(sequences.single['status'], 'pending');
-      expect(sequences.single['steps'] as List, hasLength(3));
+      final tests =
+          (files.single['tests'] as List).cast<Map<String, Object?>>();
+      expect(tests, hasLength(3));
+      expect(tests.first['name'], 'rail comes up');
+      expect(tests.first['status'], 'passed');
+      expect(tests.first['logs'], ['applying power'],
+          reason: 'logs attach to their test for the viewer');
+      expect(tests.last['status'], 'skipped');
 
       final pageReq = await client.getUrl(Uri.parse('http://localhost:$p/'));
       final pageRes = await pageReq.close();

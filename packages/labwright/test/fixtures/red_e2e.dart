@@ -1,15 +1,19 @@
-// Fixture: a failing run — a false check fails the step but execution
-// continues (TestStand continue-on-fail), and the process exits non-zero.
+// Fixture: a failing run — expect() throws TestFailure (exceptions ARE how
+// tests fail), the next test still runs (tests are independent), and the
+// process exits non-zero. Also covers un-awaited registration: the FIFO
+// chain keeps bodies strictly ordered without awaits.
+// ignore_for_file: unawaited_futures
 import 'package:labwright/labwright.dart';
 
-Future<void> main() async {
-  await sequence('Overcurrent', (s) async {
-    await s.step('Trip threshold', requirement: 'REQ-9', (ctx) async {
-      ctx.check(false, 'trip current 2.4A within [1.9, 2.1]');
-      ctx.check(true, 'recovery time under 10ms');
-    });
-    await s.step('Still reachable after trip', (ctx) async {
-      ctx.check(true, 'DUT responds');
-    });
+void main() {
+  test('trip threshold', requirement: 'REQ-9', () {
+    expect(2.4, inInclusiveRange(1.9, 2.1), reason: 'trip current');
+  });
+  test('still reachable after trip', () {
+    log('pinging DUT');
+    expect(true, isTrue, reason: 'DUT responds');
+  });
+  test('teardown throws', () {
+    throw StateError('relay stuck'); // non-TestFailure escape -> error status
   });
 }
