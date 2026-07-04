@@ -71,7 +71,7 @@ int get _workers => (Platform.numberOfProcessors - 2).clamp(1, 16);
 /// the results (order not preserved — each result should carry its own identity).
 ///
 /// This is how the corpus tests stay fast while still covering the WHOLE corpus:
-/// the expensive per-VI work (`buildViModel`, IR/JSON encode, scaffold) runs in
+/// the expensive per-VI work (`buildViModel`, IR/JSON encode) runs in
 /// parallel rather than sampling the corpus down. [perFile] MUST be a top-level (or
 /// static) function — it is sent to the worker isolates — and its return type [R]
 /// must be sendable (primitives, `List`/`Map`/`Set` of sendables, or a class whose

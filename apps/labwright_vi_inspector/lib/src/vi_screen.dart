@@ -7,9 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 import 'diagram_view.dart';
-import 'generated_dart_view.dart';
 import 'hex_view.dart';
-import 'review_view.dart';
 import 'types_view.dart';
 import 'vi_demo.dart';
 
@@ -243,7 +241,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                       : _summary == null
                           ? _Empty(dragging: _dragging)
                           : DefaultTabController(
-                              length: 6,
+                              length: 4,
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
@@ -253,9 +251,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                                       Tab(text: 'Inspect'),
                                       Tab(text: 'Front Panel'),
                                       Tab(text: 'Block Diagram'),
-                                      Tab(text: 'Generated Dart'),
                                       Tab(text: 'Types'),
-                                      Tab(text: 'Review'),
                                     ],
                                   ),
                                   const SizedBox(height: 8),
@@ -284,23 +280,26 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                                           emptyHint: 'No front-panel objects recovered in this file.',
                                           isFrontPanel: true,
                                         ),
-                                        ViDiagramView(
-                                          key: ValueKey('bd:$_model'),
-                                          diagrams: _model?.blockDiagrams,
-                                          emptyHint: 'No block-diagram objects recovered in this file.',
-                                          subViNames: _model?.subViNames ?? const [],
-                                        ),
-                                        GeneratedDartView(
-                                          key: ValueKey('dart:$_model'),
-                                          model: _model,
-                                          viName: _summary?.name,
+                                        // Block Diagram, headed by the honest
+                                        // recovery-summary strip (previously
+                                        // the Review tab's header).
+                                        Column(
+                                          children: [
+                                            if (_model != null) ...[
+                                              _RecoverySummary(_model!),
+                                              const Divider(height: 1),
+                                            ],
+                                            Expanded(
+                                              child: ViDiagramView(
+                                                key: ValueKey('bd:$_model'),
+                                                diagrams: _model?.blockDiagrams,
+                                                emptyHint: 'No block-diagram objects recovered in this file.',
+                                                subViNames: _model?.subViNames ?? const [],
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                         ViTypesView(key: ValueKey('types:$_model'), model: _model),
-                                        ViReviewView(
-                                          key: ValueKey('review:$_model'),
-                                          model: _model,
-                                          viName: _summary?.name,
-                                        ),
                                       ],
                                     ),
                                   ),
@@ -775,4 +774,44 @@ class _Section extends StatelessWidget {
           ...rows,
         ],
       );
+}
+
+/// An honest "what we recovered vs what's still unknown" strip for the Block
+/// Diagram tab, derived entirely from real model counts — never fabricated,
+/// and explicit that only STRUCTURE is recovered (dataflow/wires are not).
+class _RecoverySummary extends StatelessWidget {
+  const _RecoverySummary(this.model);
+  final ViModel model;
+
+  @override
+  Widget build(BuildContext context) {
+    final objs = [for (final diagram in model.blockDiagrams) ...diagram.objects];
+    final classified = objs.where((o) => o.category != ViObjectKind.unknown).length;
+    final unknown = objs.length - classified;
+    final structures = objs.where((o) => o.category == ViObjectKind.structure).length;
+    final nodes = objs.where((o) => o.category == ViObjectKind.node).length;
+    final parts = <String>[
+      '${objs.length} BD objects',
+      '$classified classified / $unknown unknown',
+      '$structures structures',
+      '$nodes nodes',
+      '${model.subViNames.length} subVI calls',
+      '${model.types.length} types',
+    ];
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Recovered: ${parts.join('  ·  ')}',
+              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 2),
+          const Text('Structure only — node→node dataflow / wires are not recovered.',
+              style: TextStyle(fontSize: 11, color: Colors.grey)),
+        ],
+      ),
+    );
+  }
 }

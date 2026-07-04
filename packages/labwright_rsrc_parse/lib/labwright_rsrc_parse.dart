@@ -36,7 +36,6 @@ export 'src/blocks/type_map.dart';
 export 'src/blocks/type_pool.dart';
 export 'src/blocks/version_word.dart';
 export 'src/container.dart';
-export 'src/dart_scaffold.dart';
 export 'src/decode.dart';
 export 'src/graph.dart';
 export 'src/heap.dart';

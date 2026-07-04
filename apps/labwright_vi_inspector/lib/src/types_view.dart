@@ -3,9 +3,7 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 /// Read-only view of the VI's recovered **data-type dictionary** (the VCTP type
 /// pool): named typedefs rendered structurally — enums with their item values,
-/// clusters with their typed fields, others as `kind name`. This surfaces the
-/// deep type recovery that otherwise only appears as comments in the generated
-/// Dart scaffold.
+/// clusters with their typed fields, others as `kind name`.
 class ViTypesView extends StatefulWidget {
   const ViTypesView({super.key, required this.model});
 
