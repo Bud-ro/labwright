@@ -2,7 +2,6 @@
 library;
 
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:labwright_seq/labwright_seq.dart';
 import 'package:test/test.dart';
@@ -53,7 +52,7 @@ void main() {
         .toList()
       ..sort((a, b) => a.path.compareTo(b.path));
     for (final f in files) {
-      final bytes = Uint8List.fromList(f.readAsBytesSync());
+      final bytes = f.readAsBytesSync();
       if (detectSeqFormat(bytes) != SeqFormat.binary) continue;
       binaries++;
       final names = binaryTypeNames(bytes);

@@ -2,7 +2,6 @@
 library;
 
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:labwright_seq/labwright_seq.dart';
 import 'package:test/test.dart';
@@ -23,8 +22,8 @@ void main() {
     return;
   }
 
-  final binFile = parseSeqFile(Uint8List.fromList(bin.readAsBytesSync()));
-  final xmlFile = parseSeqFile(Uint8List.fromList(xml.readAsBytesSync()));
+  final binFile = parseSeqFile(bin.readAsBytesSync());
+  final xmlFile = parseSeqFile(xml.readAsBytesSync());
 
   test('binary parses to the same sequences as the content-exact XML twin', () {
     expect(binFile.sequences.map((s) => s.name).toList(),

@@ -4,7 +4,6 @@
 //   dart run tool/export_dart.dart <input.seq> [output.dart]
 // With no output path the generated source prints to stdout.
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:labwright_seq/labwright_seq.dart';
 
@@ -20,7 +19,7 @@ void main(List<String> args) {
   }
   final SeqFile file;
   try {
-    file = parseSeqFile(Uint8List.fromList(input.readAsBytesSync()));
+    file = parseSeqFile(input.readAsBytesSync());
   } on Exception catch (e) {
     stderr.writeln('cannot parse ${input.path}: $e');
     exit(65);

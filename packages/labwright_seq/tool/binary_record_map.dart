@@ -66,7 +66,7 @@ void main(List<String> args) {
     stderr.writeln('not found: ${file.path} (fetch the corpus, or pass a path)');
     exit(1);
   }
-  final bytes = Uint8List.fromList(file.readAsBytesSync());
+  final bytes = file.readAsBytesSync();
   final body = inflateBinaryBody(bytes);
   final layout = analyzeBinaryBody(bytes);
   if (body == null || layout == null) {
@@ -83,7 +83,7 @@ void main(List<String> args) {
     while (at < body.length && body[at] != 0) {
       at++;
     }
-    pool.add(String.fromCharCodes(body.sublist(start, at)));
+    pool.add(String.fromCharCodes(body, start, at));
     at++;
   }
   String name(int index) => index >= 0 && index < pool.length ? pool[index] : '<$index>';

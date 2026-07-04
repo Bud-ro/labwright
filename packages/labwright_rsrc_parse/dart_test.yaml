@@ -2,14 +2,13 @@ tags:
   corpus:
     # Tests that require the fetched VI corpus (tool/fetch_corpus.dart → the
     # gitignored <package>/corpus/vi/). They self-skip when the corpus is absent,
-    # so CI stays green without it. By default they run a fast deterministic
-    # sample; LABWRIGHT_FULL_CORPUS=1 runs the whole corpus (see corpus/README.md).
+    # so CI stays green without it. They iterate the WHOLE corpus (~7.5k VIs, no
+    # sampling tier); the heavy per-VI work runs through corpusParallel
+    # (test/corpus_dirs.dart) — a bounded pool of worker isolates, each holding
+    # one VI's working set at a time, returning small per-VI summaries.
     #
-    # The full corpus suite is memory-heavy: ~7.5k VIs, some decompressing to
-    # multi-MB heaps. The OOM failure mode is the test runner spawning many suite
-    # isolates that EACH iterate the whole corpus (N concurrent full passes, each
-    # holding big heaps). The fix is NOT `-j 1` (far too slow over 7.5k files) — it
-    # is bounded-concurrency iteration inside a SINGLE Dart VM with a memory cap
-    # (a reusable worker pool that streams files, peak memory ≈ poolSize × per-VI
-    # working set). See tool/corpus_run.dart (the shared corpus harness) — corpus
-    # tests should drive the corpus through it rather than via parallel suites.
+    # Memory model (measured 2026-07): full suite ~1.9 GB peak RSS, dominated by
+    # suite compilation, not corpus data; `-j1` does NOT lower the peak (same
+    # RSS, 1.7x slower) because the parallelism that matters is the per-suite
+    # isolate pool. Keep sweeps streaming (no whole-corpus byte/model
+    # accumulation) and the pool bound intact — see corpus/README.md.

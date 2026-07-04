@@ -16,21 +16,15 @@ in [`../COVERAGE.md`](../COVERAGE.md). Regenerate the live scorecard with:
 dart run packages/labwright_seq/tool/coverage.dart          # -> corpus/seq/REPORT.md
 ```
 
-## Test tiers: fast sample vs. whole corpus
+## How the corpus tests run (whole corpus, streaming)
 
-The corpus-tagged tests run in two tiers so the inner dev loop stays fast:
+Every corpus-tagged test iterates the WHOLE corpus — there is no sampling
+tier. The sweeps read one file at a time and keep only counters/summaries, so
+peak data memory ≈ one file's bytes + its parsed model (largest corpus file
+~2.3 MB). Measured 2026-07 (388 `.seq`: 26 XML / 288 binary / 58 INI plus the
+16 rosetta twins): full package suite ~20 s wall, ~0.5 GB peak RSS.
 
-- **Fast (default `dart test`).** The heavy binary tests iterate a small,
-  deterministic, evenly-strided *sample* (~30 binary `.seq`), so each test finishes
-  well under a second. The cheap XML/INI exact-count tests still run over the whole
-  corpus.
-- **Whole corpus (opt-in).** `LABWRIGHT_FULL_CORPUS=1 dart test packages/labwright_seq`
-  runs the heavy binary tests over every file and asserts their absolute-count
-  floors.
-
-The selection lives in `test/corpus_dirs.dart` (`seqCorpusSample()` + the
-`corpusFull` flag). The sample is a fixed stride over the sorted corpus, so it is
-reproducible run-to-run; it only shifts if the corpus is refetched.
+Corpus resolution lives in `test/corpus_dirs.dart` (`corpusSeqDir`).
 
 ## Committed indices
 

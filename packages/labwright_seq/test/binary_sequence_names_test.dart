@@ -2,7 +2,6 @@
 library;
 
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:labwright_seq/labwright_seq.dart';
 import 'package:test/test.dart';
@@ -62,12 +61,12 @@ void main() {
       expect(twin, isNotNull, reason: 'model twin missing for $name');
       if (twin == null) return;
       final expected =
-          parseSeqFile(Uint8List.fromList(twin.readAsBytesSync()))
+          parseSeqFile(twin.readAsBytesSync())
               .sequences
               .map((s) => s.name)
               .toList();
       final actual =
-          binarySequenceNames(Uint8List.fromList(bin.readAsBytesSync()));
+          binarySequenceNames(bin.readAsBytesSync());
       expect(actual, equals(expected),
           reason: 'binary decoded $actual, XML twin has $expected');
     });
