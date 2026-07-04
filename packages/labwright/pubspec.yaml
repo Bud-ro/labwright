@@ -1,0 +1,19 @@
+name: labwright
+description: >-
+  Hardware end-to-end test authoring API and the `labwright` runner: executes
+  plain-Dart E2E files sequentially (dart run — no dart test, hardware owns
+  the process), binds requirement tracing IDs, serves a live execution viewer
+  over HTTP, and emits CI-grade exit codes and JSON reports.
+publish_to: none
+version: 0.0.1
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+executables:
+  labwright:
+
+dev_dependencies:
+  lints: ^5.0.0
+  test: ^1.25.0

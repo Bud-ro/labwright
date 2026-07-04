@@ -1,10 +1,13 @@
-name: labwright
+# The workspace root only hosts resolution — the user-facing `labwright`
+# package (E2E test API + runner executable) lives at packages/labwright.
+name: labwright_workspace
 publish_to: none
 
 environment:
   sdk: ^3.11.0
 
 workspace:
+  - packages/labwright
   - packages/labwright_tdms
   - packages/labwright_rsrc_parse
   - packages/labwright_seq
