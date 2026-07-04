@@ -105,4 +105,37 @@ void main() {
       'Destroy and unregister NI-DMM sessions=Action',
     ]);
   });
+
+  test('per-step MODULES match the twin (the name→value pair binding)', () {
+    // The module payload serializes fields as [nameIdx][valueIdx] word
+    // pairs inside the step's span — adapter, module path, and function
+    // must equal the XML twin's for every step (module-less steps
+    // included: nothing may be fabricated for them).
+    for (var i = 0; i < xmlFile.sequences.length; i++) {
+      final xs = xmlFile.sequences[i].steps;
+      final bs = binFile.sequences[i].steps;
+      for (var j = 0; j < xs.length; j++) {
+        final xm = xs[j].module;
+        final bm = bs[j].module;
+        expect(bm.adapter, xm.adapter,
+            reason: '${xs[j].name}: adapter');
+        expect(bm.pythonModulePath, xm.pythonModulePath,
+            reason: '${xs[j].name}: python module path');
+        expect(bm.pythonFunction, xm.pythonFunction,
+            reason: '${xs[j].name}: python function');
+      }
+    }
+    // Concretely: four Python calls, two module-less steps.
+    expect(
+        binFile.sequences.single.steps
+            .map((s) => s.module.pythonFunction ?? '-'),
+        [
+          '-',
+          'create_nidcpower_sessions',
+          'create_nivisa_dmm_sessions',
+          '-',
+          'destroy_nidcpower_sessions',
+          'destroy_nivisa_dmm_sessions',
+        ]);
+  });
 }

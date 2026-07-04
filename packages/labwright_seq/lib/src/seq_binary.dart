@@ -1268,7 +1268,8 @@ const _stepGroupNames = {'Setup', 'Main', 'Cleanup'};
 /// oracle's `Update pin map` carries word 21 = type #20 `NI_UpdatePinMap`
 /// (1-based 21), while pool[21] happens to be `'ExprValue'`.
 class BinaryStepRef {
-  const BinaryStepRef(this.name, {this.typeName});
+  const BinaryStepRef(this.name,
+      {this.typeName, this.viPath, this.pythonModule, this.pythonFunction});
 
   /// The step's display name.
   final String name;
@@ -1276,6 +1277,19 @@ class BinaryStepRef {
   /// The step's type name resolved from the type table, or null when the
   /// type word does not land in the recovered table (never fabricated).
   final String? typeName;
+
+  /// The step's code-module binding, recovered from the **name→value word
+  /// pairs** in the step's record span (this step reference up to the
+  /// next): the module payload serializes each field as `[nameIdx]
+  /// [valueIdx]` — `VIPath` for the LabVIEW adapter, `ModulePath` +
+  /// `FunctionOrAttributeName` for the Python adapter. Twin-validated on
+  /// the oracle (all four Python steps' paths and functions equal the
+  /// XML's), and every rosetta LabVIEW binary yields its `VIPath` pairs.
+  /// null when the span carries no such pair (no module, or an adapter
+  /// whose pair tokens are not yet catalogued).
+  final String? viPath;
+  final String? pythonModule;
+  final String? pythonFunction;
 
   @override
   String toString() =>
@@ -1346,11 +1360,14 @@ List<BinarySequenceOutline> _sequenceOutlinesFromBody(
   // type binds only when the index lands in the recovered table.
   final typeNames = _typeNamesFromBody(body, recordRegionLength, pool);
   final stepToken = pool.indexOf(_stepToken);
-  final steps = <(int, BinaryStepRef)>[];
+  // First pass: detect references (offset, name, 1-based type index).
+  final found = <(int, String, int)>[];
+  int wordAt(int at) => view.getUint32(at, Endian.little);
+  String? poolAt(int index) =>
+      index > 0 && index < pool.length && pool[index].isNotEmpty
+          ? pool[index]
+          : null;
   if (stepToken > 0) {
-    int wordAt(int at) => view.getUint32(at, Endian.little);
-    String? poolAt(int index) =>
-        index > 0 && index < pool.length && pool[index].isNotEmpty ? pool[index] : null;
     for (var at = 0;
         at + (_stepNameWordGap + 2) * _u32Bytes <= recordRegionLength;
         at++) {
@@ -1362,15 +1379,44 @@ List<BinarySequenceOutline> _sequenceOutlinesFromBody(
       if (name == null || container == null || kind == null) continue;
       if (!_stepContainerTokens.contains(container)) continue;
       if (!_looksLikeUniqueId(kind) && !_stepExpressionKinds.contains(kind)) continue;
-      final typeIndex = typeWord - 1; // 1-based into the type table
-      steps.add((
-        at,
-        BinaryStepRef(name,
-            typeName: typeIndex >= 0 && typeIndex < typeNames.length
-                ? typeNames[typeIndex]
-                : null),
-      ));
+      found.add((at, name, typeWord - 1));
     }
+  }
+  // Second pass: each step's module fields from the name→value word pairs
+  // in its span — this reference up to the next (or the region end). A
+  // token may sit at several pool indices, so match against index SETS.
+  Set<int> indicesOf(String token) =>
+      {for (var i = 1; i < pool.length; i++) if (pool[i] == token) i};
+  final viPathIdx = indicesOf('VIPath');
+  final modulePathIdx = indicesOf('ModulePath');
+  final functionIdx = indicesOf('FunctionOrAttributeName');
+  String? pairIn(int start, int end, Set<int> nameIdx) {
+    if (nameIdx.isEmpty) return null;
+    for (var at = start; at + 2 * _u32Bytes <= end; at++) {
+      if (!nameIdx.contains(wordAt(at))) continue;
+      final value = poolAt(wordAt(at + _u32Bytes));
+      if (value != null) return value;
+    }
+    return null;
+  }
+
+  final steps = <(int, BinaryStepRef)>[];
+  for (var i = 0; i < found.length; i++) {
+    final (at, name, typeIndex) = found[i];
+    final spanEnd =
+        i + 1 < found.length ? found[i + 1].$1 : recordRegionLength;
+    steps.add((
+      at,
+      BinaryStepRef(
+        name,
+        typeName: typeIndex >= 0 && typeIndex < typeNames.length
+            ? typeNames[typeIndex]
+            : null,
+        viPath: pairIn(at, spanEnd, viPathIdx),
+        pythonModule: pairIn(at, spanEnd, modulePathIdx),
+        pythonFunction: pairIn(at, spanEnd, functionIdx),
+      ),
+    ));
   }
 
   // 4. assemble: nearest preceding sequence decl, then nearest preceding marker
