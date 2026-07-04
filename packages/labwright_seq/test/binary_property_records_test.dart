@@ -2,7 +2,6 @@
 library;
 
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:labwright_seq/labwright_seq.dart';
 import 'package:test/test.dart';
@@ -50,7 +49,7 @@ void main() {
   }
 
   final records =
-      binaryPropertyRecords(Uint8List.fromList(bin.readAsBytesSync()));
+      binaryPropertyRecords(bin.readAsBytesSync());
   final xmlValues = _xmlValues(xml.readAsStringSync());
 
   test('decodes valued property records from the binary body', () {

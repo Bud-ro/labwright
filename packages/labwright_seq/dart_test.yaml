@@ -2,5 +2,9 @@ tags:
   corpus:
     # Tests that require the fetched TestStand corpus (tool/fetch_seq_corpus.dart →
     # the gitignored <package>/corpus/seq/). They self-skip when it is absent, so
-    # the default unit run stays green without it. The heavy binary tests run a
-    # fast sample by default; LABWRIGHT_FULL_CORPUS=1 runs the whole corpus.
+    # the default unit run stays green without it. They iterate the WHOLE corpus
+    # (no sampling tier), streaming one file at a time and keeping only
+    # counters/summaries — peak data memory ≈ one file's bytes + parsed model.
+    # Measured 2026-07: full suite ~20 s wall, ~0.5 GB peak RSS. Keep sweeps
+    # streaming; never accumulate bodies/models across files — see
+    # corpus/README.md.

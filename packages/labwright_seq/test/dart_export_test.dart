@@ -2,7 +2,6 @@
 library;
 
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:labwright_seq/labwright_seq.dart';
 import 'package:test/test.dart';
@@ -37,7 +36,7 @@ void main() {
     for (final f in seqs) {
       final SeqFile file;
       try {
-        file = parseSeqFile(Uint8List.fromList(f.readAsBytesSync()));
+        file = parseSeqFile(f.readAsBytesSync());
       } catch (_) {
         continue; // unparseable files are covered by corpus_seq_test
       }
@@ -69,7 +68,7 @@ void main() {
     final f = File('${corpusSeqDir.path}/rosetta/OutputVoltage_XML.seq');
     expect(f.existsSync(), isTrue,
         reason: 'the Rosetta oracle must be fetched with the corpus');
-    final file = parseSeqFile(Uint8List.fromList(f.readAsBytesSync()));
+    final file = parseSeqFile(f.readAsBytesSync());
     final source = exportSeqFileToDart(file);
     expect(source, contains('Future<void> mainSequence(TsRuntime ts'));
     for (final seq in file.sequences) {
@@ -89,7 +88,7 @@ void main() {
     for (final f in seqs) {
       final SeqFile file;
       try {
-        file = parseSeqFile(Uint8List.fromList(f.readAsBytesSync()));
+        file = parseSeqFile(f.readAsBytesSync());
       } catch (_) {
         continue;
       }
@@ -113,7 +112,7 @@ void main() {
     try {
       final generated = <String>[];
       for (final f in targets) {
-        final file = parseSeqFile(Uint8List.fromList(f.readAsBytesSync()));
+        final file = parseSeqFile(f.readAsBytesSync());
         final out =
             '${dir.path}/${f.uri.pathSegments.last.replaceAll('.seq', '')}.dart';
         File(out).writeAsStringSync(

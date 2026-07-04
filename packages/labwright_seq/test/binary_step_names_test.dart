@@ -2,7 +2,6 @@
 library;
 
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:labwright_seq/labwright_seq.dart';
 import 'package:test/test.dart';
@@ -27,7 +26,7 @@ File? _twin(Directory dir, String binName) {
 }
 
 Set<String> _xmlSteps(File twin) {
-  final file = parseSeqFile(Uint8List.fromList(twin.readAsBytesSync()));
+  final file = parseSeqFile(twin.readAsBytesSync());
   return {
     for (final seq in file.sequences) ...[
       ...seq.setup.map((s) => s.name),
@@ -50,7 +49,7 @@ void main() {
     expect(outputVoltage.existsSync(), isTrue,
         reason: 'the content-exact oracle must be fetched with the corpus');
     final actual =
-        binaryStepNames(Uint8List.fromList(outputVoltage.readAsBytesSync()))
+        binaryStepNames(outputVoltage.readAsBytesSync())
             .toSet();
     final expected = _xmlSteps(File('${rosetta.path}/OutputVoltage_XML.seq'));
     expect(actual, equals(expected));
@@ -66,7 +65,7 @@ void main() {
       expect(twin, isNotNull, reason: 'model twin missing for $name');
       if (twin == null) return;
       final actual =
-          binaryStepNames(Uint8List.fromList(bin.readAsBytesSync()));
+          binaryStepNames(bin.readAsBytesSync());
       expect(actual, isNotEmpty);
       expect(actual.length, _xmlSteps(twin).length,
           reason: '$name decoded ${actual.length} steps: $actual');

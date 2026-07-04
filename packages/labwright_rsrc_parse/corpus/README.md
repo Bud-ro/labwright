@@ -16,23 +16,20 @@ in [`../COVERAGE.md`](../COVERAGE.md). Regenerate the live scorecard with:
 dart run packages/labwright_rsrc_parse/tool/coverage.dart   # -> corpus/baseline.json + corpus/vi/REPORT.md
 ```
 
-## Test tiers: fast sample vs. whole corpus
+## How the corpus tests run (whole corpus, isolate-parallel)
 
-The corpus-tagged tests run in two tiers so the inner dev loop stays fast:
+Every corpus-tagged test iterates the WHOLE corpus (~7.5k VIs) — there is no
+sampling tier. The heavy per-VI work stays fast through `corpusParallel` in
+`test/corpus_dirs.dart`: a pool of worker isolates (one per core, capped at 16)
+that each read and process one VI at a time, so peak data memory ≈ workers ×
+one VI's working set, and results are small per-VI summaries.
 
-- **Fast (default `dart test`).** Each corpus test iterates a small, deterministic,
-  evenly-strided *sample* (~64 VIs), so each test finishes well under a second.
-  Ratios, floors, per-file invariants and totality all hold on the sample.
-- **Whole corpus (opt-in).** `LABWRIGHT_FULL_CORPUS=1 dart test packages/labwright_rsrc_parse`
-  iterates every VI. Only this tier asserts the exact whole-corpus census pins
-  (per-kind histograms) and the presence of rare features (VINS/LIBN sections,
-  extended DTHP, every catalogued object kind). Run it before relying on a pinned
-  count or after a change that could affect the long tail.
-
-The selection lives in `test/corpus_dirs.dart` (`corpusVis()` + the `corpusFull`
-flag). The sample is a fixed stride over the sorted corpus, so it is reproducible
-run-to-run; it only shifts if the corpus is refetched (when the pins are re-derived
-anyway).
+Measured 2026-07 (7,524 VIs, 447 MB corpus): full package suite ~47 s wall,
+~1.9 GB peak RSS — dominated by test-runner suite compilation, not corpus
+data. Lowering `dart test -j` does NOT reduce peak (measured `-j1`: same RSS,
+1.7× slower), because the parallelism that matters is the per-suite isolate
+pool, not suite concurrency. If memory regresses, profile a single heavy suite
+(`corpus_coverage_test` ≈ 0.6 GB alone) before blaming concurrency.
 
 ## Committed indices
 

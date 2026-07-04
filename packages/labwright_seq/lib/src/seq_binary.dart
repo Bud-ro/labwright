@@ -108,8 +108,13 @@ Uint8List? inflateBinaryBody(Uint8List bytes) {
     if (bytes[i] != _zlibCmf) continue;
     if (!ZlibFlag.isKnown(bytes[i + 1])) continue;
     try {
-      final out = zlib.decode(bytes.sublist(i));
-      if (out.length > _minInflatedBytes) return Uint8List.fromList(out);
+      // sublistView + identity check: neither the candidate tail nor the
+      // inflated result is copied (zlib.decode already returns a Uint8List
+      // in practice; a file-sized copy per parse adds up over corpus sweeps).
+      final out = zlib.decode(Uint8List.sublistView(bytes, i));
+      if (out.length > _minInflatedBytes) {
+        return out is Uint8List ? out : Uint8List.fromList(out);
+      }
     } catch (_) {
       // Keep scanning past a position that does not start a valid stream.
     }
@@ -842,7 +847,8 @@ List<String> _orderedStringPool(Uint8List body, int recordRegionLength) {
     while (at < body.length && body[at] != 0) {
       at++;
     }
-    pool.add(String.fromCharCodes(body.sublist(start, at)));
+    // fromCharCodes with a range — no intermediate sublist copy per string.
+    pool.add(String.fromCharCodes(body, start, at));
     at++;
   }
   return pool;

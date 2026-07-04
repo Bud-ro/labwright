@@ -18,6 +18,20 @@ int _countOverrides(SeqProperty p, [int depth = 0]) {
       .fold(p.isInstanceOverride ? 1 : 0, (n, c) => n + _countOverrides(c, depth + 1));
 }
 
+/// Byte-level ASCII substring search — avoids materializing a whole inflated
+/// body as a String just to probe for a token (peak memory in corpus sweeps).
+bool _bodyContains(List<int> body, String ascii) {
+  final pat = ascii.codeUnits;
+  outer:
+  for (var i = 0; i + pat.length <= body.length; i++) {
+    for (var j = 0; j < pat.length; j++) {
+      if (body[i + j] != pat[j]) continue outer;
+    }
+    return true;
+  }
+  return false;
+}
+
 /// Per-file size ceiling for the heavier corpus probes. This is a **runtime**
 /// bound, not an OOM guard: the INI reader handles the full corpus fine (the
 /// largest file, ~2.3MB, parses in ~120ms since the O(paths²) blowup was fixed
@@ -119,7 +133,8 @@ void main() {
           expect(body, isNotNull, reason: '${f.path}: no inflatable body');
           if (body != null) {
             withBinaryBody++;
-            expect(String.fromCharCodes(body), contains('Sequence'));
+            expect(_bodyContains(body, 'Sequence'), isTrue,
+                reason: '${f.path}: body lacks the Sequence token');
             final names = binaryBodyStrings(bytes).map((s) => s.text).toSet();
             expect(
               ['Sequence', 'Step', 'Locals'].any(names.contains),
