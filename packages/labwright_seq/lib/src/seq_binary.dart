@@ -1093,6 +1093,21 @@ const _typeRecordMinBytes = (3 + _typeVersionTripleWords) * _u32Bytes;
 /// yield names with zero structural-token fabrications (pinned by
 /// `binary_type_names_test.dart`). De-duplicated, in file order. Returns `[]`
 /// when [seqBytes] is not an inflatable binary file or does not frame.
+///
+/// TODO(binary per-step type binding): the placed-step `typename` (XML:
+/// `<Step typename='NI_Measurement'>`) is NOT yet recoverable. Oracle probes
+/// establish what it is not: the step reference's kind word is only a
+/// discriminator (the oracle's `Update pin map` step is typed
+/// `NI_UpdatePinMap` but its kind word is `ExprValue`), and the unique-ID
+/// string inside a StepType's record tail belongs to the typedef's embedded
+/// default-step instance, not to a per-type identity (`NI_Measurement` and
+/// `NI_UpdatePinMap` tails carry the SAME ID). The oracle's placed Action
+/// steps each serialize an `SData` whose XML twin reads
+/// `<SData typename='PythonStepAdditions'>`, but the adjacent record word
+/// resolves to an unrelated `ResStr(...)` pool token — locating the typename
+/// ref needs the variable-length container/record-tree grammar (the known
+/// undecoded layer, see [binaryPropertyRecords]) so `TS`/`SData` sub-objects
+/// attach to their steps. That grammar is the next decode lever.
 List<String> binaryTypeNames(Uint8List seqBytes) =>
     _withLayout(seqBytes, _typeNamesFromBody);
 
