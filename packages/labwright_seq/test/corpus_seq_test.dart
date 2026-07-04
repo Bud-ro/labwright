@@ -82,7 +82,8 @@ void main() {
         typedSteps = 0,
         unknownAdapters = 0,
         binaryWithSequences = 0,
-        binaryStepsRecovered = 0;
+        binaryStepsRecovered = 0,
+        binaryTypedSteps = 0;
     final failures = <String>[];
     for (final f in seqs) {
       final bytes = f.readAsBytesSync();
@@ -119,12 +120,23 @@ void main() {
           // root-shape gate must never emit structural tokens as names.
           final partial = parseSeqFile(bytes);
           if (partial.sequences.isNotEmpty) binaryWithSequences++;
+          final partialTypeNames = {for (final t in partial.types) t.name};
           for (final seq in partial.sequences) {
             expect(seq.name, isNotEmpty);
             expect(const {'Sequence', 'Calls', 'ResultList', 'Objs', 'Seq', 'Obj', 'Data'},
                 isNot(contains(seq.name)),
                 reason: '${f.path}: structural token as sequence name');
             binaryStepsRecovered += seq.steps.length;
+            for (final step in seq.steps) {
+              final type = step.type;
+              if (type == null) continue;
+              binaryTypedSteps++;
+              // A bound type must come from the file's own recovered type
+              // table — anything else would be fabrication.
+              expect(partialTypeNames, contains(type),
+                  reason: '${f.path}: step ${step.name} bound to a type '
+                      'outside the recovered table');
+            }
           }
           final bh = detectSeqHeader(bytes);
           expect(bh.fileType, 'SequenceFile');
@@ -169,6 +181,9 @@ void main() {
         reason: 'binary sequence recovery regressed ($binaryWithSequences files)');
     expect(binaryStepsRecovered, greaterThanOrEqualTo(30),
         reason: 'binary step recovery regressed ($binaryStepsRecovered steps)');
+    expect(binaryTypedSteps, greaterThanOrEqualTo(25),
+        reason: 'binary per-step type binding regressed '
+            '($binaryTypedSteps typed steps)');
     expect(other, 58, reason: 'other (INI) file count drifted');
     expect(totalSeqs, 33, reason: 'XML sequence count drifted');
     expect(totalSteps, 214, reason: 'XML step count drifted');
@@ -189,6 +204,7 @@ void main() {
     // ignore: avoid_print
     print(
       'teststand corpus: $xml XML / $binary binary / $other other · '
+      '$binaryTypedSteps binary typed steps · '
       '$totalSeqs sequences · $totalSteps steps ($typedSteps typed) · '
       '$withAction with pass/fail actions · $withModule with module bindings '
       '($unknownAdapters unknown) · $totalLocals locals · $withLimits limit tests · '

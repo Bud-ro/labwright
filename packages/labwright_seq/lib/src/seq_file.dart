@@ -344,8 +344,8 @@ class SeqVariable {
 /// The **XML** and **INI** encodings parse to the complete typed model. The
 /// binary `TOF1` encoding parses to an explicitly **partial** model — the
 /// decoded sequence/step skeleton only (see [_parseBinary] for the exact
-/// scope; `types` carries recovered type NAMES only, `locals` read empty and
-/// step types are null there). Throws
+/// scope; `types` carries recovered type NAMES only, step types are bound
+/// from the type table, and `locals` read empty there). Throws
 /// [FormatException] for unrecognized input or a binary header without an
 /// inflatable body.
 SeqFile parseSeqFile(Uint8List bytes) {
@@ -386,10 +386,11 @@ SeqFile _parseXml(Uint8List bytes) {
 /// Builds the **partial** typed model for a binary `TOF1` file from the decoded
 /// record structures: each [BinarySequenceOutline] becomes a [Sequence] with its
 /// named steps grouped into Setup/Main/Cleanup (corpus-validated against the
-/// content-exact Rosetta twin) and the file's recovered type names. The
-/// synthesized properties carry names only — sequence-level properties,
-/// locals/parameters, per-step type binding and modules are **not yet
-/// decoded** from the binary encoding, so those lenses read empty/null.
+/// content-exact Rosetta twin), each step bound to its TYPE via the
+/// reference's 1-based type-table index (see [BinaryStepRef]), and the
+/// file's recovered type names. Sequence-level properties,
+/// locals/parameters, and step modules are **not yet decoded** from the
+/// binary encoding, so those lenses read empty/null.
 /// Throws [FormatException] when the body does not inflate (not a TOF1 binary).
 SeqFile _parseBinary(Uint8List bytes) {
   // Single inflate: reuse the body for layout + outlines rather than letting
@@ -403,7 +404,8 @@ SeqFile _parseBinary(Uint8List bytes) {
   // ordered string pool (each is an O(body) pass the per-lens helpers would
   // otherwise repeat).
   final (:outlines, :typeNames) = binaryOutlinesAndTypeNamesFromBody(body);
-  SeqProperty stepProp(String name) => SeqProperty(name: name);
+  SeqProperty stepProp(BinaryStepRef step) =>
+      SeqProperty(name: step.name, typeName: step.typeName);
   return SeqFile(
     header: detectSeqHeader(bytes),
     // Recovered type NAMES only (name-only stubs): the typedef bodies (fields,

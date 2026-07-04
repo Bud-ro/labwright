@@ -1094,31 +1094,19 @@ const _typeRecordMinBytes = (3 + _typeVersionTripleWords) * _u32Bytes;
 /// `binary_type_names_test.dart`). De-duplicated, in file order. Returns `[]`
 /// when [seqBytes] is not an inflatable binary file or does not frame.
 ///
-/// TODO(binary per-step type binding): the placed-step `typename` (XML:
-/// `<Step typename='NI_Measurement'>`) is NOT yet recoverable. Oracle probes
-/// establish what it is not: the step reference's kind word is only a
-/// discriminator (the oracle's `Update pin map` step is typed
-/// `NI_UpdatePinMap` but its kind word is `ExprValue`), and the unique-ID
-/// string inside a StepType's record tail belongs to the typedef's embedded
-/// default-step instance, not to a per-type identity (`NI_Measurement` and
-/// `NI_UpdatePinMap` tails carry the SAME ID). The oracle's placed Action
-/// steps each serialize an `SData` whose XML twin reads
-/// `<SData typename='PythonStepAdditions'>`, but the adjacent record word
-/// resolves to an unrelated `ResStr(...)` pool token — locating the typename
-/// ref needs the variable-length container/record-tree grammar (the known
-/// undecoded layer, see [binaryPropertyRecords]) so `TS`/`SData` sub-objects
-/// attach to their steps. That grammar is the next decode lever.
+/// RESOLVED (the differential sweep found it — see [BinaryStepRef]): the
+/// placed-step `typename` binds through the step reference's second word,
+/// which is the 1-based index into THIS table. This makes the table's
+/// ORDER load-bearing: a false or missed type record shifts every later
+/// step's binding, so the corpus sweeps that pin this list are the guard.
+/// Earlier negative probe results (kind-token reading is coincidental;
+/// StepType record-tail IDs belong to embedded default instances; the
+/// word before SData is a ResStr index; the TS 4.x/5.0 leaf grammar
+/// barely fires on TS2021 files) are kept in git history at PRs #39/#48.
 ///
-/// Two further probe results (2026-07): [binaryPropertyRecords]'s leaf
-/// grammar barely fires on TS2021-era files (37 records on the oracle, none
-/// of them step sub-objects — it was tuned on TS 4.x/5.0 layouts), and the
-/// word before a placed step's `SData` token is confirmed by pool-alignment
-/// check to BE the `ResStr(...)` index (25 on the oracle), not an off-by-k
-/// miss of the typename (pool index 292). Step-adjacent record heads are
-/// NOT 4-byte aligned — the next approach is a differential sweep over the
-/// rosetta twins (every byte offset/encoding near each step, kept only if
-/// it tracks the twin's known step type consistently across files), not
-/// fixed-offset eyeballing.
+/// TODO(binary decode, remaining): step MODULES (the SData payload),
+/// sequence locals/parameters, typedef bodies — the variable-length
+/// container/record-tree grammar is still the lever for all three.
 List<String> binaryTypeNames(Uint8List seqBytes) =>
     _withLayout(seqBytes, _typeNamesFromBody);
 
@@ -1266,6 +1254,34 @@ const _stepGroupNames = {'Setup', 'Main', 'Cleanup'};
 /// `Objs Main` / `Objs Cleanup`), and group containers/steps belong to the
 /// nearest preceding sequence declaration ([_objectDeclarationPath] through
 /// `Objs/Seq/[i]`) — the region lays each sequence's content out contiguously.
+/// One placed step recovered from a binary step reference: its name and —
+/// when the reference's type word lands in the file's type table — its step
+/// TYPE name.
+///
+/// The binding (differential-sweep validated across the rosetta twins — 9
+/// placed steps in 4 files, every byte offset/width/transform near each
+/// step tested; the ONLY consistent survivor): the word after the `Step`
+/// token is the step's **1-based index into the type table**
+/// ([binaryTypeNames] order), NOT a string-pool reference. The historical
+/// "kind token" reading (`ExprValue`/`Expression`/unique-ID) matched only
+/// because low pool indices land in the typedef string region — e.g. the
+/// oracle's `Update pin map` carries word 21 = type #20 `NI_UpdatePinMap`
+/// (1-based 21), while pool[21] happens to be `'ExprValue'`.
+class BinaryStepRef {
+  const BinaryStepRef(this.name, {this.typeName});
+
+  /// The step's display name.
+  final String name;
+
+  /// The step's type name resolved from the type table, or null when the
+  /// type word does not land in the recovered table (never fabricated).
+  final String? typeName;
+
+  @override
+  String toString() =>
+      'BinaryStepRef($name${typeName != null ? ': $typeName' : ''})';
+}
+
 class BinarySequenceOutline {
   const BinarySequenceOutline({
     required this.name,
@@ -1278,22 +1294,22 @@ class BinarySequenceOutline {
   /// The sequence name (path element `[1]` of its object declaration).
   final String name;
 
-  /// Step names in declaration order per group.
-  final List<String> setup;
-  final List<String> main;
-  final List<String> cleanup;
+  /// Steps in declaration order per group, with their bound types.
+  final List<BinaryStepRef> setup;
+  final List<BinaryStepRef> main;
+  final List<BinaryStepRef> cleanup;
 
   /// Steps whose group membership is not decodable from position (they are
   /// laid out before any group marker — seen on 7/294 corpus binaries).
   /// Reported here rather than guessed into a group.
-  final List<String> ungrouped;
+  final List<BinaryStepRef> ungrouped;
 }
 
 /// The **sequence outlines** of a binary TOF1 file — each sequence with its
-/// step names grouped into Setup/Main/Cleanup (see [BinarySequenceOutline] for
-/// the assembly rule and its validation). Sequence-level properties, locals,
-/// parameters, and step types/modules are **not yet decoded** — this is the
-/// structural skeleton. Returns `[]` when [seqBytes] is not an inflatable
+/// typed steps grouped into Setup/Main/Cleanup (see [BinarySequenceOutline]
+/// for the assembly rule, and [BinaryStepRef] for the type binding).
+/// Sequence-level properties, locals, parameters, and step modules are
+/// **not yet decoded**. Returns `[]` when [seqBytes] is not an inflatable
 /// binary file or does not frame.
 List<BinarySequenceOutline> binarySequenceOutlines(Uint8List seqBytes) =>
     _withLayout(seqBytes, _sequenceOutlinesFromBody);
@@ -1323,9 +1339,14 @@ List<BinarySequenceOutline> _sequenceOutlinesFromBody(
     }
   }
 
-  // 3. step references, with offsets (same discriminator as binaryStepNames)
+  // 3. step references, with offsets (same detection discriminator as
+  // binaryStepNames). The word after the Step token doubles as the step's
+  // 1-based TYPE-TABLE index (see BinaryStepRef) — detection still keys on
+  // its pool-string shape (corpus-pinned, zero false positives), and the
+  // type binds only when the index lands in the recovered table.
+  final typeNames = _typeNamesFromBody(body, recordRegionLength, pool);
   final stepToken = pool.indexOf(_stepToken);
-  final steps = <(int, String)>[];
+  final steps = <(int, BinaryStepRef)>[];
   if (stepToken > 0) {
     int wordAt(int at) => view.getUint32(at, Endian.little);
     String? poolAt(int index) =>
@@ -1334,13 +1355,21 @@ List<BinarySequenceOutline> _sequenceOutlinesFromBody(
         at + (_stepNameWordGap + 2) * _u32Bytes <= recordRegionLength;
         at++) {
       if (wordAt(at) != stepToken) continue;
-      final kind = poolAt(wordAt(at + _u32Bytes));
+      final typeWord = wordAt(at + _u32Bytes);
+      final kind = poolAt(typeWord);
       final name = poolAt(wordAt(at + _stepNameWordGap * _u32Bytes));
       final container = poolAt(wordAt(at + (_stepNameWordGap + 1) * _u32Bytes));
       if (name == null || container == null || kind == null) continue;
       if (!_stepContainerTokens.contains(container)) continue;
       if (!_looksLikeUniqueId(kind) && !_stepExpressionKinds.contains(kind)) continue;
-      steps.add((at, name));
+      final typeIndex = typeWord - 1; // 1-based into the type table
+      steps.add((
+        at,
+        BinaryStepRef(name,
+            typeName: typeIndex >= 0 && typeIndex < typeNames.length
+                ? typeNames[typeIndex]
+                : null),
+      ));
     }
   }
 
@@ -1348,7 +1377,11 @@ List<BinarySequenceOutline> _sequenceOutlinesFromBody(
   sequenceDecls.sort((a, b) => a.$1.compareTo(b.$1));
   final outlines = {
     for (final (_, name) in sequenceDecls)
-      name: {'Setup': <String>[], 'Main': <String>[], 'Cleanup': <String>[]},
+      name: {
+        'Setup': <BinaryStepRef>[],
+        'Main': <BinaryStepRef>[],
+        'Cleanup': <BinaryStepRef>[],
+      },
   };
   String sequenceAt(int offset) {
     var owner = sequenceDecls.first.$2;
@@ -1358,10 +1391,10 @@ List<BinarySequenceOutline> _sequenceOutlinesFromBody(
     return owner;
   }
 
-  final ungrouped = <String, List<String>>{
-    for (final (_, name) in sequenceDecls) name: <String>[],
+  final ungrouped = <String, List<BinaryStepRef>>{
+    for (final (_, name) in sequenceDecls) name: <BinaryStepRef>[],
   };
-  for (final (stepOffset, stepName) in steps) {
+  for (final (stepOffset, step) in steps) {
     String? group;
     for (final (markerOffset, markerName) in markers) {
       if (markerOffset < stepOffset) group = markerName;
@@ -1371,11 +1404,11 @@ List<BinarySequenceOutline> _sequenceOutlinesFromBody(
       // Step laid out before any group marker (review-confirmed on 7/294
       // corpus binaries): its Setup/Main/Cleanup membership is not decodable
       // from position, so it is reported ungrouped rather than guessed.
-      ungrouped[owner]!.add(stepName);
+      ungrouped[owner]!.add(step);
       continue;
     }
     // Duplicate names stay: distinct steps legitimately share a name.
-    outlines[owner]![group]!.add(stepName);
+    outlines[owner]![group]!.add(step);
   }
 
   final seenNames = <String>{};

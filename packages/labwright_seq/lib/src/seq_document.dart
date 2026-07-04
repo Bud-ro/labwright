@@ -116,10 +116,10 @@ class BinarySeqDocument extends SeqDocument {
   final SeqFileHeader header;
 
   /// The **partial typed model** reconstructed from the decoded binary record
-  /// structures — sequences with grouped, ordered step names (see
-  /// [binarySequenceOutlines]) plus the file's recovered type names (see
-  /// [binaryTypeNames]; name-only stubs — typedef bodies are not decoded).
-  /// Sequence properties, variables, and per-step type bindings/modules are
+  /// structures — sequences with grouped, ordered, TYPED steps (see
+  /// [binarySequenceOutlines]/[BinaryStepRef]) plus the file's recovered
+  /// type names (see [binaryTypeNames]; name-only stubs — typedef bodies
+  /// are not decoded). Sequence properties, variables, and step modules are
   /// not yet decoded, so those lenses read empty/null. Null when the body
   /// does not inflate.
   final SeqFile? partialFile;

@@ -76,9 +76,33 @@ void main() {
     for (final seq in binFile.sequences) {
       expect(seq.locals, isEmpty, reason: 'locals are not yet decoded from binary');
       expect(seq.parameters, isEmpty);
-      for (final step in seq.steps) {
-        expect(step.type, isNull, reason: 'step types are not yet decoded from binary');
+    }
+  });
+
+  test('per-step TYPES match the twin exactly (the type-index binding)', () {
+    // The step reference's second word is the 1-based type-table index —
+    // differential-sweep discovered, and pinned here against the
+    // content-exact twin: every step's bound type equals the XML's
+    // `<Step typename='...'>`, position by position.
+    for (var i = 0; i < xmlFile.sequences.length; i++) {
+      final xs = xmlFile.sequences[i];
+      final bs = binFile.sequences[i];
+      for (final group in StepGroup.values) {
+        final xSteps = xs.stepsIn(group);
+        final bSteps = bs.stepsIn(group);
+        expect(bSteps.map((s) => s.type).toList(),
+            xSteps.map((s) => s.type).toList(),
+            reason: '${xs.name}.${group.key} step types');
       }
     }
+    // And concretely, the oracle's six steps:
+    expect(binFile.sequences.single.steps.map((s) => '${s.name}=${s.type}'), [
+      'Update pin map=NI_UpdatePinMap',
+      'Create and register NI-DCPower Sessions=Action',
+      'Create and register NI-DMM Sessions=Action',
+      'Output voltage test=NI_Measurement',
+      'Destroy and unregister NI-DCPower sessions=Action',
+      'Destroy and unregister NI-DMM sessions=Action',
+    ]);
   });
 }
