@@ -65,9 +65,16 @@ so failure descriptions and late async errors behave exactly as under
 - writes `--report out.json`: per-file tests plus the **requirements trace**
   (each requirement ID → every test claiming it, with status);
 - shards with `--total-shards N --shard-index I` (`dart test`'s
-  convention): a test runs in shard `I` iff its registration index `i`
-  satisfies `i % N == I` — one bench per shard, deterministic because the
-  registry is complete before anything runs;
+  convention): a test runs in shard `I` iff its **global** registration
+  index — across the whole suite, threaded file-to-file by the runner —
+  is `≡ I (mod N)`. One bench per shard; deterministic because every
+  registry is complete before anything runs. For a fixed seed the shards
+  exactly partition the suite (give all shards the same `--seed`);
+- randomizes run order with `--seed N` (`random` mints one): file order and
+  each file's in-shard test order shuffle deterministically; the seed is
+  printed at the start of every test, carried in the report, and exposed to
+  bodies as `seed` — the hook fuzz testing will grow from. `0` (default) =
+  registration order;
 - exits non-zero for CI on failures/errors/crashes (and skips under
   `--fail-on-skipped` — generated boilerplate ships as `skipTest`).
 

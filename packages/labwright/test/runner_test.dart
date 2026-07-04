@@ -57,7 +57,7 @@ void main() {
     reportFile.parent.deleteSync(recursive: true);
   }, timeout: const Timeout(Duration(minutes: 2)));
 
-  test('--total-shards/--shard-index partition the run; green shard exits 0',
+  test('sharding is GLOBAL: the modulo runs across files via the offset',
       () {
     String runShard(int index) {
       final result = Process.runSync(
@@ -75,20 +75,86 @@ void main() {
             '$index',
           ],
           workingDirectory: pkgRoot);
-      // Shard 0 holds the failing/error tests; shard 1 is all-green.
-      expect(result.exitCode, index == 0 ? 1 : 0,
+      // Global indices: green 0,1,2 then red 3,4,5. Shard 0 = {0,2,4} =
+      // rail, thermal(skip), still-reachable — all green. Shard 1 = {1,3,5}
+      // = ripple, trip(FAIL), teardown(ERROR). Per-file modulo would have
+      // put a failure in BOTH shards — this split is the proof the offset
+      // carried across the file boundary.
+      expect(result.exitCode, index == 0 ? 0 : 1,
           reason: 'shard $index:\n${result.stdout}');
       return result.stdout.toString();
     }
 
     final shard0 = runShard(0);
-    expect(shard0, contains('shard 0 of 2'));
+    expect(shard0, contains('shard 0 of 2 (offset 0): 2 of 3 test(s)'));
+    expect(shard0, contains('shard 0 of 2 (offset 3): 1 of 3 test(s)'),
+        reason: 'the second file sees the first file\'s registry as offset');
     expect(shard0,
-        contains('4 test(s) — 1 passed, 1 failed, 1 errors, 1 skipped'));
+        contains('3 test(s) — 2 passed, 0 failed, 0 errors, 1 skipped'));
     final shard1 = runShard(1);
     expect(shard1,
-        contains('2 test(s) — 2 passed, 0 failed, 0 errors, 0 skipped'));
+        contains('3 test(s) — 1 passed, 1 failed, 1 errors, 0 skipped'));
   }, timeout: const Timeout(Duration(minutes: 2)));
+
+  test('no test is ever missed: shards partition the suite for any seed × N',
+      () {
+    const allTests = {
+      'rail comes up',
+      'ripple in limits',
+      'thermal camera sweep',
+      'trip threshold',
+      'still reachable after trip',
+      'teardown throws',
+    };
+    for (final totalShards in [2, 3]) {
+      for (final seed in [0, 12345]) {
+        final executed = <String>[];
+        for (var index = 0; index < totalShards; index++) {
+          final reportFile = File(
+              '${Directory.systemTemp.createTempSync('lw_').path}/r.json');
+          final result = Process.runSync(
+              Platform.resolvedExecutable,
+              [
+                'run',
+                'bin/labwright.dart',
+                'run',
+                'test/fixtures',
+                '--port',
+                '0',
+                '--total-shards',
+                '$totalShards',
+                '--shard-index',
+                '$index',
+                '--seed',
+                '$seed',
+                '--report',
+                reportFile.path,
+              ],
+              workingDirectory: pkgRoot);
+          expect(result.exitCode, anyOf(0, 1),
+              reason: 'shard $index/$totalShards seed $seed crashed:\n'
+                  '${result.stdout}\n${result.stderr}');
+          final report = (jsonDecode(reportFile.readAsStringSync()) as Map)
+              .cast<String, Object?>();
+          expect(report['seed'], seed, reason: 'the report carries the seed');
+          for (final f
+              in (report['files'] as List).cast<Map<String, Object?>>()) {
+            for (final t
+                in (f['tests'] as List).cast<Map<String, Object?>>()) {
+              executed.add(t['name'] as String);
+            }
+          }
+          reportFile.parent.deleteSync(recursive: true);
+        }
+        expect(executed, hasLength(allTests.length),
+            reason: 'seed $seed, $totalShards shards: every test exactly '
+                'once — none missed, none duplicated');
+        expect(executed.toSet(), allTests,
+            reason: 'seed $seed, $totalShards shards: union of shards is '
+                'the whole suite');
+      }
+    }
+  }, timeout: const Timeout(Duration(minutes: 4)));
 
   test('viewer serves the page, state.json (with logs), --keep-open persists',
       () async {
