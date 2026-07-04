@@ -30,6 +30,9 @@
 import 'dart:io';
 import 'dart:math';
 
+import 'package:analyzer/dart/analysis/utilities.dart';
+import 'package:analyzer/dart/ast/ast.dart';
+
 Future<void> main(List<String> args) async {
   final rest = [...args];
   final command = rest.isEmpty ? 'run' : rest.removeAt(0);
@@ -140,10 +143,30 @@ String? _resolveTarget(String? target) {
 
 // ── scan ─────────────────────────────────────────────────────────────────────
 
-/// Local `import`/`export`/`part` targets of a Dart file (package:/dart:
-/// URIs excluded), resolved against the file's directory.
-final _localDirective =
-    RegExp(r'''^\s*(?:import|export|part)\s+['"]([^'"]+)['"]''', multiLine: true);
+/// The local (non-`package:`/`dart:`) URIs a Dart file's directives point
+/// at, from a real AST parse (syntactic only — no resolution needed).
+/// Comments and string literals containing import-shaped text cannot fool
+/// this, and conditional imports contribute EVERY branch (any of them may
+/// be the one that loads).
+Iterable<String> _localDirectiveUris(String source) sync* {
+  final unit =
+      parseString(content: source, throwIfDiagnostics: false).unit;
+  for (final directive in unit.directives) {
+    if (directive is! UriBasedDirective) continue; // `part of` has no target
+    final uris = [
+      directive.uri.stringValue,
+      if (directive is NamespaceDirective)
+        for (final config in directive.configurations)
+          config.uri.stringValue,
+    ];
+    for (final uri in uris) {
+      if (uri == null || uri.startsWith('package:') || uri.startsWith('dart:')) {
+        continue;
+      }
+      yield uri;
+    }
+  }
+}
 
 int _scan(List<String> args) {
   final dir = args.where((a) => !a.startsWith('-')).firstOrNull ?? 'e2e';
@@ -155,18 +178,15 @@ int _scan(List<String> args) {
       ..writeln('run `labwright init` to generate the example e2e/ folder');
     return 64;
   }
-  // Everything reachable from main.dart via local directives.
+  // Everything reachable from main.dart, transitively — including THROUGH
+  // files outside the scanned folder (a shared helper outside e2e/ that
+  // imports a module back inside still plugs that module in).
   final reachable = <String>{};
   void visit(File file) {
     final path = file.absolute.uri.normalizePath().toFilePath();
     if (!reachable.add(path) || !file.existsSync()) return;
-    final source = file.readAsStringSync();
-    for (final m in _localDirective.allMatches(source)) {
-      final target = m.group(1)!;
-      if (target.startsWith('package:') || target.startsWith('dart:')) {
-        continue;
-      }
-      visit(File.fromUri(file.absolute.uri.resolve(target)));
+    for (final uri in _localDirectiveUris(file.readAsStringSync())) {
+      visit(File.fromUri(file.absolute.uri.resolve(uri)));
     }
   }
 

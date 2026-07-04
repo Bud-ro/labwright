@@ -15,6 +15,9 @@ executables:
   labwright:
 
 dependencies:
+  # `labwright scan` parses real ASTs (syntactic only, no resolution) so
+  # comments/strings/conditional imports can't fool the reachability walk.
+  analyzer: '>=6.0.0 <9.0.0'
   # The package:test assertion surface, usable as-is: matcher re-exports
   # expect/expectLater/fail/TestFailure + every matcher; test_api's
   # third-party-runner hooks host each body in a real test case.
