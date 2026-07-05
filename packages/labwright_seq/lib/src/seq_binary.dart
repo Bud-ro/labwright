@@ -1470,6 +1470,48 @@ class _TypeBodyParser {
   static bool debugCollectSpecs = false;
   static final List<(String, int, int)> debugSpecSites = [];
 
+  /// Parses the LEADING fields of a sequence record's subprop list
+  /// (`[Sequence][name][subpropCount]` then the subprops) — the
+  /// scalar/Obj subprops (`Parameters`, `Locals`) that precede the
+  /// `Main` group array. Walks fields until it reaches a GROUP-array
+  /// field ([groupNames]: Main/Setup/Cleanup, whose step-tree content is
+  /// a separate decode), which BOUNDS the leading region and confirms
+  /// the record framed correctly. Returns `[]` unless that boundary is
+  /// reached within [max] fields — a partial/unbounded walk is not
+  /// trusted (it would fabricate names past the record). Reuses the full
+  /// field grammar (sequence subprops serialize identically to typedef
+  /// fields — twin-validated: valueflags match attribute-for-attribute).
+  List<BinaryTypeField> parseLeadingSubProps(
+      int at, int max, Set<String> groupNames) {
+    _usedSpec = false;
+    _depth = 0;
+    final fields = <BinaryTypeField>[];
+    var cur = at;
+    for (var i = 0; i < max; i++) {
+      // Peek the field header `[flags][0][class][name]`: a group array
+      // (`Objs`-classed, group-named) BOUNDS the leading region. When
+      // POPULATED it does not parse as a plain field (its trailing bytes
+      // are step content, not a terminator); when EMPTY it does — so
+      // detect the boundary from the header, before parsing, either way.
+      if (cur + 4 * _u32Bytes <= recordRegionLength) {
+        final cls = _tok(_u32(cur + 2 * _u32Bytes));
+        final nm = _tok(_u32(cur + 3 * _u32Bytes));
+        if (cls == 'Objs' && nm != null && groupNames.contains(nm)) {
+          return fields; // bounded by the group array — trust the run
+        }
+      }
+      final field = _field(cur);
+      // A parse failure here is the POPULATED first group array
+      // (framed step content) — the leading run ends, return what
+      // decoded. (The caller still requires it to lead with
+      // Parameters/Locals, the honesty gate against coincidence.)
+      if (field == null) return fields;
+      fields.add(field.$1);
+      cur = field.$2;
+    }
+    return fields;
+  }
+
   /// The whole body: `[0][count]` then exactly `count` fields.
   List<BinaryTypeField>? parse(int after) {
     debugLastFieldOffset = null;
@@ -2020,7 +2062,7 @@ class _TypeBodyParser {
   final typeRecords = _typeRecordsFromBody(body, recordRegionLength, pool);
   return (
     outlines: _sequenceOutlinesFromBody(body, recordRegionLength, pool,
-        [for (final record in typeRecords) record.name]),
+        [for (final record in typeRecords) record.name], typeRecords),
     typeRecords: typeRecords,
   );
 }
@@ -2505,6 +2547,12 @@ List<String> _stepNamesFromBody(Uint8List body, int recordRegionLength) {
 /// context (`Main` is emitted before `Setup`/`Cleanup` in observed files).
 const _stepGroupNames = {'Setup', 'Main', 'Cleanup'};
 
+/// The sequence-record subprops that precede the `Main` group array in
+/// TestStand's fixed layout — the only ones the leading-subprop decode
+/// covers (the rest sit after the group arrays, behind the not-yet-
+/// decoded step content). Used as the honesty gate on the leading walk.
+const _sequenceLeadingSubPropNames = {'Parameters', 'Locals'};
+
 /// A **reconstructed sequence outline** from a binary TOF1 record region: the
 /// sequence's name and its step names grouped into Setup/Main/Cleanup.
 ///
@@ -2563,6 +2611,7 @@ class BinarySequenceOutline {
     required this.main,
     required this.cleanup,
     this.ungrouped = const [],
+    this.leadingSubProps = const [],
   });
 
   /// The sequence name (path element `[1]` of its object declaration).
@@ -2577,20 +2626,31 @@ class BinarySequenceOutline {
   /// laid out before any group marker — seen on 7/294 corpus binaries).
   /// Reported here rather than guessed into a group.
   final List<BinaryStepRef> ungrouped;
+
+  /// The sequence-record subprops that precede the `Main` group array —
+  /// `Parameters`, `Locals`, and any others (decoded with the typedef
+  /// field grammar; see [BinaryTypeField]). The group arrays themselves
+  /// (`Main`/`Setup`/`Cleanup`) and the subprops after them are not
+  /// included here — those steps are surfaced via [setup]/[main]/[cleanup].
+  final List<BinaryTypeField> leadingSubProps;
 }
 
 /// The **sequence outlines** of a binary TOF1 file — each sequence with its
 /// typed steps grouped into Setup/Main/Cleanup (see [BinarySequenceOutline]
-/// for the assembly rule, and [BinaryStepRef] for the type binding).
-/// Sequence-level properties, locals, parameters, and step modules are
-/// **not yet decoded**. Returns `[]` when [seqBytes] is not an inflatable
-/// binary file or does not frame.
+/// for the assembly rule, and [BinaryStepRef] for the type binding), plus
+/// the sequence record's leading subprops (Parameters/Locals — see
+/// [BinarySequenceOutline.leadingSubProps]). The subprops that follow the
+/// group arrays (RTS, Requirements, FailureAction, …) are not yet decoded.
+/// Returns `[]` when [seqBytes] is not an inflatable binary file or does
+/// not frame.
 List<BinarySequenceOutline> binarySequenceOutlines(Uint8List seqBytes) =>
     _withLayout(seqBytes, _sequenceOutlinesFromBody);
 
 List<BinarySequenceOutline> _sequenceOutlinesFromBody(
     Uint8List body, int recordRegionLength,
-    [List<String>? sharedPool, List<String>? sharedTypeNames]) {
+    [List<String>? sharedPool,
+    List<String>? sharedTypeNames,
+    List<BinaryTypeRecord>? sharedTypeRecords]) {
   final pool = sharedPool ?? _orderedStringPool(body, recordRegionLength);
   if (pool.isEmpty) return const [];
   final view = ByteData.sublistView(body);
@@ -2718,6 +2778,15 @@ List<BinarySequenceOutline> _sequenceOutlinesFromBody(
     outlines[owner]![group]!.add(step);
   }
 
+  // Sequence-record leading subprops (Parameters/Locals/…) per sequence.
+  // The type table is needed for any framed references the subprops carry;
+  // reuse the caller's when it already built one.
+  final table = sharedTypeRecords ??
+      _typeRecordsFromBody(body, recordRegionLength, pool);
+  final leading = _sequenceLeadingSubProps(
+      body, view, pool, recordRegionLength, table,
+      {for (final (_, name) in sequenceDecls) name});
+
   final seenNames = <String>{};
   return [
     for (final (_, name) in sequenceDecls)
@@ -2728,8 +2797,61 @@ List<BinarySequenceOutline> _sequenceOutlinesFromBody(
           main: outlines[name]!['Main']!,
           cleanup: outlines[name]!['Cleanup']!,
           ungrouped: ungrouped[name]!,
+          leadingSubProps: leading[name] ?? const [],
         ),
   ];
+}
+
+/// Locates each sequence RECORD — `[Sequence][name][subpropCount]` — and
+/// decodes the subprops that precede its `Main` group array (Parameters,
+/// Locals, …) with the typedef field grammar. Keyed by sequence name; a
+/// sequence whose record is not found or whose leading subprops do not
+/// frame is simply absent (never guessed). The record is distinct from
+/// the array-element DECLARATION (`[] / name / Objs / Seq / [i]`); it is
+/// the `Sequence`-classed object that carries the sequence's own fields.
+Map<String, List<BinaryTypeField>> _sequenceLeadingSubProps(
+    Uint8List body,
+    ByteData view,
+    List<String> pool,
+    int recordRegionLength,
+    List<BinaryTypeRecord> table,
+    Set<String> sequenceNames) {
+  final sequenceToken = pool.indexOf('Sequence');
+  if (sequenceToken <= 0) return const {};
+  final nameIndices = <int, String>{
+    for (var i = 1; i < pool.length; i++)
+      if (sequenceNames.contains(pool[i])) i: pool[i],
+  };
+  if (nameIndices.isEmpty) return const {};
+  int u32(int at) => view.getUint32(at, Endian.little);
+  final result = <String, List<BinaryTypeField>>{};
+  final parser = _TypeBodyParser(view, pool, recordRegionLength, table);
+  for (var at = 0;
+      at + 3 * _u32Bytes <= recordRegionLength;
+      at += 1) {
+    if (u32(at) != sequenceToken) continue;
+    final name = nameIndices[u32(at + _u32Bytes)];
+    if (name == null || result.containsKey(name)) continue;
+    final count = u32(at + 2 * _u32Bytes);
+    if (count < 1 || count > _typeMaxFields) continue;
+    final decoded = parser.parseLeadingSubProps(
+        at + 3 * _u32Bytes, count, _stepGroupNames);
+    // Keep only the KNOWN pre-Main subprops (Parameters, Locals — the
+    // only two the sequence layout places before the Main group array),
+    // as a leading prefix. This is the honesty gate: it drops any field
+    // the walk misparsed past the real leading region (e.g. a field
+    // spuriously named after a structural token) and rejects a
+    // coincidental [Sequence][name][small-number] triple whose first
+    // field is not one of them.
+    final subProps = <BinaryTypeField>[];
+    for (final field in decoded) {
+      if (!_sequenceLeadingSubPropNames.contains(field.name)) break;
+      subProps.add(field);
+    }
+    if (subProps.isEmpty) continue;
+    result[name] = subProps;
+  }
+  return result;
 }
 
 /// Whether [cur] is packed immediately after [prev] in a NUL-terminated string

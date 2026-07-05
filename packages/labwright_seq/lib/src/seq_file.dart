@@ -387,10 +387,12 @@ SeqFile _parseXml(Uint8List bytes) {
 /// record structures: each [BinarySequenceOutline] becomes a [Sequence] with its
 /// named steps grouped into Setup/Main/Cleanup (corpus-validated against the
 /// content-exact Rosetta twin), each step bound to its TYPE via the
-/// reference's 1-based type-table index (see [BinaryStepRef]), and the
-/// file's recovered type names. Sequence-level properties,
-/// locals/parameters, and step modules are **not yet decoded** from the
-/// binary encoding, so those lenses read empty/null.
+/// reference's 1-based type-table index (see [BinaryStepRef]), the file's
+/// recovered type names, the module bindings, and the sequence Locals /
+/// Parameters (decoded from the sequence record's field tree). The
+/// sequence-level properties that follow the group arrays (RTS,
+/// Requirements, FailureAction) and per-step subproperties are **not yet
+/// decoded**, so those lenses read empty/null.
 /// Throws [FormatException] when the body does not inflate (not a TOF1 binary).
 SeqFile _parseBinary(Uint8List bytes) {
   // Single inflate: reuse the body for layout + outlines rather than letting
@@ -465,6 +467,12 @@ SeqFile _parseBinary(Uint8List bytes) {
               name: outline.name,
               className: 'Sequence',
               subProps: [
+                // Sequence-record leading subprops (Parameters, Locals, …)
+                // decoded from the field tree — these light up the typed
+                // Sequence.locals/parameters lenses. The group step arrays
+                // are synthesized below from the decoded step outlines.
+                for (final field in outline.leadingSubProps)
+                  _typeFieldProp(field),
                 SeqProperty(name: 'Setup', array: [...outline.setup.map(stepProp)]),
                 SeqProperty(name: 'Main', array: [...outline.main.map(stepProp)]),
                 SeqProperty(name: 'Cleanup', array: [...outline.cleanup.map(stepProp)]),

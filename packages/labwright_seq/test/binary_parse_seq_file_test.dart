@@ -71,9 +71,17 @@ void main() {
     expect(binFile.types.map((t) => t.name),
         containsAll(['NI_Measurement', 'NI_UpdatePinMap', 'Action']),
         reason: 'the step types used by this file must be among the names');
-    for (final seq in binFile.sequences) {
-      expect(seq.locals, isEmpty, reason: 'locals are not yet decoded from binary');
-      expect(seq.parameters, isEmpty);
+    // Sequence leading subprops (locals/parameters) ARE decoded now, from
+    // the sequence record's field tree — they must equal the twin's, not
+    // read fabricated-empty. (The oracle carries the implicit ResultList
+    // local and no parameters.)
+    for (var i = 0; i < xmlFile.sequences.length; i++) {
+      expect(binFile.sequences[i].locals.map((l) => l.name).toList(),
+          xmlFile.sequences[i].locals.map((l) => l.name).toList(),
+          reason: '${xmlFile.sequences[i].name}: locals');
+      expect(binFile.sequences[i].parameters.map((p) => p.name).toList(),
+          xmlFile.sequences[i].parameters.map((p) => p.name).toList(),
+          reason: '${xmlFile.sequences[i].name}: parameters');
     }
   });
 
@@ -216,6 +224,28 @@ void main() {
         reason: 'the covered grammar decodes a solid share of the oracle '
             'typedefs at full recursive depth ($decoded decoded; 18 at '
             'the current tier)');
+  });
+
+  test('sequence LOCALS/PARAMETERS match the twin (leading-subprop decode)',
+      () {
+    // The sequence record's leading subprops (Parameters, Locals) decode
+    // with the typedef field grammar and light up the typed
+    // Sequence.locals/parameters lenses. Names, classes, and nested
+    // structure must equal the XML twin's, sequence for sequence.
+    for (var i = 0; i < xmlFile.sequences.length; i++) {
+      final xs = xmlFile.sequences[i];
+      final bs = binFile.sequences[i];
+      expect(bs.locals.map((l) => '${l.name}:${l.type}').toList(),
+          xs.locals.map((l) => '${l.name}:${l.type}').toList(),
+          reason: '${xs.name}: locals (name:type)');
+      expect(bs.parameters.map((p) => '${p.name}:${p.type}').toList(),
+          xs.parameters.map((p) => '${p.name}:${p.type}').toList(),
+          reason: '${xs.name}: parameters (name:type)');
+    }
+    // Concretely, the oracle's sole sequence: one implicit ResultList
+    // local, no parameters.
+    expect(binFile.sequences.single.locals.map((l) => l.name), ['ResultList']);
+    expect(binFile.sequences.single.parameters, isEmpty);
   });
 
   test('per-step MODULES match the twin (the name→value pair binding)', () {
