@@ -38,6 +38,7 @@ void main() {
   test('every parseable corpus .seq exports a balanced labwright program',
       () {
     var exported = 0, withViStub = 0, withInlineThrow = 0, withHelpers = 0;
+    var withIntLocals = 0, withSkipComments = 0;
     final stubAdapter = RegExp(r'/// Stub for the (\w+) module call');
     for (final f in seqs) {
       final SeqFile file;
@@ -77,9 +78,20 @@ void main() {
       }
       if (stubAdapter.hasMatch(source)) withViStub++;
       if (source.contains("throw UnimplementedError('")) withInlineThrow++;
+      if (RegExp(r'\bint \w+ = ').hasMatch(source)) withIntLocals++;
+      if (source.contains('[skipped in source]')) withSkipComments++;
+      // A Skip-mode break/wait must never survive as active code: the
+      // corpus template pattern was `do { break; wait; } while (…)` —
+      // dead code fabricated from steps the author disabled.
+      expect(source, isNot(contains('break; // Break On Terminate')),
+          reason: '${f.path}: a skipped/type-gated break emitted bare');
     }
     expect(exported, greaterThan(300),
         reason: 'XML+INI+binary corpus should all export');
+    expect(withIntLocals, greaterThan(20),
+        reason: 'counter/index Nums must refine to int locals');
+    expect(withSkipComments, greaterThan(5),
+        reason: 'Skip-mode steps must be comments, not active code');
     expect(withViStub, greaterThanOrEqualTo(5),
         reason: 'the corpus has VI-call files; their stubs must be generated');
     expect(withInlineThrow, greaterThan(50),
@@ -90,7 +102,8 @@ void main() {
     // ignore: avoid_print
     print('labwright export: $exported programs · $withViStub with VI stubs '
         '· $withInlineThrow with inline throws · $withHelpers with helper '
-        'sequences');
+        'sequences · $withIntLocals with int locals · $withSkipComments '
+        'with skip comments');
   });
 
   test('the oracle program runs under dart run: disarmed skipTest, exit 0',

@@ -437,6 +437,19 @@ class _DartExporter {
   /// stub key (adapter + target) → generated stub function name.
   final Map<String, String> _stubs = {};
 
+  /// Step-type name → the TYPE's default precondition (`<Type>.TS.PreCond`).
+  /// A custom step type can carry the condition its instances inherit —
+  /// corpus: NI_Flow_Break_Custom's "break on terminate" gate (29 sites),
+  /// which made every such break read as unconditional dead code. An
+  /// instance with its own PreCond overrides; one that CLEARED the type's
+  /// default to empty is indistinguishable from inheritance in the text
+  /// form (empty collapses to null) — none exist in the corpus.
+  late final Map<String, String> _typePreconditions = {
+    for (final t in file.typeDefs)
+      if ((t.raw.prop('TS')?.prop('PreCond')?.scalar ?? '').isNotEmpty)
+        t.name: t.raw.prop('TS')!.prop('PreCond')!.scalar!,
+  };
+
   /// Stub declarations, emitted after the sequences.
   final List<String> _stubDecls = [];
 
@@ -813,7 +826,7 @@ class _DartExporter {
   String _cond(String raw) {
     final e = _expr(raw);
     if (_staticallyBool(e)) return e;
-    if (_idTypes[e] == 'double') return '$e != 0';
+    if (_idTypes[e] == 'double' || _idTypes[e] == 'int') return '$e != 0';
     return '_truthy($e)';
   }
 
@@ -856,7 +869,7 @@ class _DartExporter {
       if (lead == null) return false;
       if (RegExp(r'^[0-9.]').hasMatch(lead)) return true;
       final t = _idTypes[lead];
-      return t == 'double' || t == 'bool' || t == 'String';
+      return t == 'double' || t == 'int' || t == 'bool' || t == 'String';
     }
     return false;
   }
@@ -923,6 +936,7 @@ class _DartExporter {
       for (final p in emittedParams) _paramIds[p.name]!: typeOf(p),
       for (final l in emittedLocals) _localIds[l.name]!: typeOf(l),
     };
+    _refineIntNums(sequence, emittedParams, emittedLocals);
 
     // Parameters: typed where the class is scalar. Scalars with a declared
     // default are non-nullable; containers are `dynamic` so exported member
@@ -941,11 +955,20 @@ class _DartExporter {
     }
     if (emittedLocals.isNotEmpty) _line('');
 
-    for (final group in StepGroup.values) {
-      final steps = sequence.stepsIn(group);
-      if (steps.isEmpty) continue;
-      _line('// ── ${group.name} ──');
-      _emitSteps(steps);
+    // Group banners earn their lines only when there is more than one
+    // group to tell apart; an empty sequence states that it is empty in
+    // the SOURCE (a real template hook), not a translation failure.
+    final nonEmptyGroups = [
+      for (final g in StepGroup.values)
+        if (sequence.stepsIn(g).isNotEmpty) g,
+    ];
+    if (nonEmptyGroups.isEmpty) {
+      _line('// (no steps in the source sequence)');
+      _line('');
+    }
+    for (final group in nonEmptyGroups) {
+      if (nonEmptyGroups.length > 1) _line('// ── ${group.name} ──');
+      _emitSteps(sequence.stepsIn(group));
       _line('');
     }
     _indent = 0;
@@ -956,6 +979,119 @@ class _DartExporter {
     _localIds = const {};
     _paramIds = const {};
     _idTypes = const {};
+  }
+
+  /// TestStand Num is a double, but a Num the author uses as a counter or
+  /// index is an `int` to any Dart reader (`num` would be an anti-pattern
+  /// and `double index` reads wrong). Refines `_idTypes` double → int for
+  /// each Num local/param whose declared default is integral and whose
+  /// every raw assignment keeps it integral: RHS built ONLY of integer
+  /// literals (dec/hex), other int-candidate Locals/Parameters refs, and
+  /// `+ - *` — anything else (division, function calls, engine paths,
+  /// non-integral literals) demotes to double. Iterated to fixpoint, and
+  /// an int-valued RHS assigned to a var that stays double demotes the
+  /// RHS's candidates too (Dart does not implicitly widen an int
+  /// EXPRESSION to double). ForEach element targets demote — element
+  /// types are not pinned. Purely conservative: a miss just keeps double.
+  void _refineIntNums(Sequence sequence, List<SeqVariable> params,
+      List<SeqVariable> locals) {
+    bool integralDefault(SeqVariable v) {
+      final value = v.value;
+      if (value == null) return true; // class zero (0)
+      final n = num.tryParse(value);
+      return n != null && n % 1 == 0 && n.abs() < 9007199254740992;
+    }
+
+    final candidates = <String>{};
+    void seed(List<SeqVariable> list, Map<String, String> ids) {
+      for (final v in list) {
+        final id = ids[v.name];
+        if (id != null && _idTypes[id] == 'double' && integralDefault(v)) {
+          candidates.add(id);
+        }
+      }
+    }
+
+    seed(params, _paramIds);
+    seed(locals, _localIds);
+    if (candidates.isEmpty) return;
+
+    String? idOf(String scope, String name) =>
+        scope.toLowerCase() == 'locals' ? _localIds[name] : _paramIds[name];
+
+    final refRe = RegExp(r'(Locals|Parameters)\.([A-Za-z_][A-Za-z0-9_]*)',
+        caseSensitive: false);
+    // (target id, raw RHS; null RHS = unconditional demotion)
+    final assigns = <(String, String?)>[];
+    final assignRe = RegExp(
+        r'^\s*(Locals|Parameters)\.([A-Za-z_][A-Za-z0-9_]*)'
+        r'\s*([-+*/]?=)(?!=)\s*(.*)$',
+        caseSensitive: false, dotAll: true);
+    void scan(String? raw) {
+      if (raw == null) return;
+      for (final piece in _rawStmtPieces(raw) ?? [raw]) {
+        final m = assignRe.firstMatch(piece);
+        if (m == null) continue;
+        final id = idOf(m.group(1)!, m.group(2)!);
+        if (id == null) continue;
+        assigns.add((id, m.group(3) == '/=' ? null : m.group(4)!));
+      }
+    }
+
+    for (final step in sequence.steps) {
+      scan(step.settings.preExpression);
+      scan(step.settings.postExpression);
+      final flow = step.flowControl;
+      if (flow != null) {
+        scan(flow.initialization);
+        scan(flow.increment);
+        final element = flow.arrayElement;
+        if (element != null) {
+          final m = refRe.firstMatch(element);
+          final id = m != null ? idOf(m.group(1)!, m.group(2)!) : null;
+          if (id != null) candidates.remove(id);
+        }
+      }
+    }
+
+    bool intExpr(String rhs) {
+      for (final m in refRe.allMatches(rhs)) {
+        final id = idOf(m.group(1)!, m.group(2)!);
+        if (id == null || !candidates.contains(id)) return false;
+      }
+      final rest = rhs.replaceAll(refRe, '0');
+      return rest.trim().isNotEmpty &&
+          RegExp(r'^(?:\s|[()+\-*]|0x[0-9A-Fa-f]+|\d+(?![\d.eE]))+$')
+              .hasMatch(rest);
+    }
+
+    var changed = true;
+    while (changed) {
+      changed = false;
+      for (final (id, rhs) in assigns) {
+        if (candidates.contains(id)) {
+          if (rhs == null || !intExpr(rhs)) {
+            candidates.remove(id);
+            changed = true;
+          }
+        } else if (_idTypes[id] == 'double' && rhs != null) {
+          // A double target with an int-typed RHS would not compile —
+          // unless the RHS is a bare literal (Dart types a literal by
+          // context). Demote the RHS's candidate refs.
+          final refs = [
+            for (final m in refRe.allMatches(rhs)) idOf(m.group(1)!, m.group(2)!),
+          ].whereType<String>();
+          if (refs.isNotEmpty && intExpr(rhs)) {
+            for (final ref in refs) {
+              if (candidates.remove(ref)) changed = true;
+            }
+          }
+        }
+      }
+    }
+    for (final id in candidates) {
+      _idTypes[id] = 'int';
+    }
   }
 
   /// The Dart (type, zero-default) for a TestStand value class, or null when
@@ -997,6 +1133,11 @@ class _DartExporter {
     final value = v.value;
     if (value == null) return zero;
     switch (type) {
+      case 'int':
+        // Only reachable for a refined int candidate — integral by
+        // construction ([_refineIntNums] checked the declared default).
+        final i = num.tryParse(value);
+        return i == null ? zero : i.toInt().toString();
       case 'double':
         final n = num.tryParse(value);
         if (n == null) return zero; // non-literal default; raw kept in comment
@@ -1021,7 +1162,8 @@ class _DartExporter {
   String _paramDecl(SeqVariable p, String id) {
     final scalar = _scalarType(p);
     if (scalar != null) {
-      final (type, zero) = scalar;
+      var (type, zero) = scalar;
+      if (type == 'double' && _idTypes[id] == 'int') type = 'int';
       final init = _scalarInit(p, type, zero);
       return '$type $id = $init';
     }
@@ -1033,7 +1175,8 @@ class _DartExporter {
   String _localDecl(SeqVariable local, String id) {
     final scalar = _scalarType(local);
     if (scalar != null) {
-      final (type, zero) = scalar;
+      var (type, zero) = scalar;
+      if (type == 'double' && _idTypes[id] == 'int') type = 'int';
       final init = _scalarInit(local, type, zero);
       // A non-literal declared default (expression, NAN, …) initializes to
       // the class zero — the raw text rides in the comment, never dropped.
@@ -1126,11 +1269,55 @@ class _DartExporter {
     for (final step in steps) {
       final flow = step.flowControl;
       final rawName = _comment(step.name);
+      // The step's author-written comment is real human content — always
+      // kept, above the step it documents.
+      final authorComment = step.comment;
+      if (authorComment != null) {
+        for (final line in authorComment.split('\n')) {
+          _line('// ${_comment(line)}');
+        }
+      }
+      // Run mode: a Skip/force-pass step does not run its action in the
+      // engine — emitting active code for it would fabricate behavior the
+      // author disabled (a template's skipped `break`/`wait` placeholders
+      // read as live dead code). A STRUCTURAL flow step in a non-normal
+      // mode keeps its block (balance is not negotiable), is annotated,
+      // and disarms the owning test: skipped-flow semantics are not
+      // pinned. A force-fail's status effect is not exported — stated.
+      final mode = step.settings.mode;
+      var modeNote = '';
+      if (!step.settings.isNormalMode) {
+        final structural = flow != null &&
+            flow.kind != FlowKind.breakStmt &&
+            flow.kind != FlowKind.continueStmt;
+        if (!structural) {
+          if (mode == 'Fail' && asTest) {
+            _markUnported('force-fail step "${step.name}" '
+                '(status semantics not exported)');
+          }
+          final what = switch (mode) {
+            'Skip' => 'skipped',
+            'Pass' => 'force-pass',
+            'Fail' => 'force-fail',
+            _ => 'mode $mode',
+          };
+          _line('// [$what in source] $rawName');
+          continue;
+        }
+        if (asTest) {
+          _markUnported('flow step "${step.name}" is $mode in source '
+              '(skipped flow semantics not pinned)');
+        }
+        modeNote = ' [$mode in source]';
+      }
       // A flow step named by its default TestStand name duplicates the
       // emitted keyword (`} // End`, `{ // If`) — suppressed; a CUSTOM
       // name stays (it is documentation).
-      final nameNote =
+      var nameNote =
           defaultFlowNames.contains(rawName) ? '' : ' // $rawName';
+      if (modeNote.isNotEmpty) {
+        nameNote = nameNote.isEmpty ? ' //$modeNote' : '$nameNote$modeNote';
+      }
       final name = rawName;
       if (flow == null) {
         _emitPlainStep(step);
@@ -1233,6 +1420,7 @@ class _DartExporter {
                   ?.group(1);
               final cast = switch (_idTypes[targetId]) {
                 'double' => '(_element as num).toDouble()',
+                'int' => '(_element as num).toInt()',
                 'bool' => '_element as bool',
                 'String' => '_element as String',
                 'List' => '_element as List<dynamic>',
@@ -1291,10 +1479,25 @@ class _DartExporter {
           if (target == null) {
             _line('// $name: Break with no enclosing loop/select — kept as a '
                 'comment');
-          } else if (target.kind == FlowKind.selectBlock) {
-            _line('break sel${target.selectId};$nameNote');
           } else {
-            _line('break;$nameNote');
+            final breakStmt = target.kind == FlowKind.selectBlock
+                ? 'break sel${target.selectId};'
+                : 'break;';
+            // A break/continue step's effective precondition (instance or
+            // type default) GATES the jump — emitting it bare fabricates
+            // an unconditional exit (a "Break On Terminate" would kill its
+            // loop on iteration one).
+            final pre =
+                step.settings.precondition ?? _typePreconditions[step.type];
+            if (pre != null) {
+              _line('if (${_cond(pre)}) {$nameNote');
+              _indent++;
+              _line(breakStmt);
+              _indent--;
+              _line('}');
+            } else {
+              _line('$breakStmt$nameNote');
+            }
           }
         case FlowKind.continueStmt:
           final loop = innermost(loopKinds.contains);
@@ -1302,11 +1505,21 @@ class _DartExporter {
             _line('// $name: Continue with no enclosing loop — kept as a '
                 'comment');
           } else {
+            final pre =
+                step.settings.precondition ?? _typePreconditions[step.type];
+            if (pre != null) {
+              _line('if (${_cond(pre)}) {$nameNote');
+              _indent++;
+            }
             if (loop.kind == FlowKind.forLoop && loop.increment != null) {
               _line('${_exprStatement(loop.increment!)}; // for increment '
                   '(before continue)');
             }
-            _line('continue;$nameNote');
+            _line('continue;${pre == null ? nameNote : ''}');
+            if (pre != null) {
+              _indent--;
+              _line('}');
+            }
           }
       }
     }
@@ -1335,16 +1548,17 @@ class _DartExporter {
           rhs.startsWith('"') ||
           _idTypes[rhs] == 'String' ||
           rhs.startsWith('_str(');
+      final rhsLeadType = _idTypes[
+          RegExp(r'^[A-Za-z_][A-Za-z0-9_]*').firstMatch(rhs)?.group(0) ?? ''];
       final looksNumericLead = RegExp(r'^[0-9(]').hasMatch(rhs) ||
-          _idTypes[RegExp(r'^[A-Za-z_][A-Za-z0-9_]*')
-                  .firstMatch(rhs)
-                  ?.group(0) ??
-              ''] ==
-          'double';
+          rhsLeadType == 'double' ||
+          rhsLeadType == 'int';
       if (lhsType == 'String' && looksNumericLead && !looksString) {
         return _evalFallback(raw);
       }
-      if (lhsType == 'double' && looksString) return _evalFallback(raw);
+      if ((lhsType == 'double' || lhsType == 'int') && looksString) {
+        return _evalFallback(raw);
+      }
       if (lhsType == 'bool' &&
           !_staticallyBool(rhs) &&
           (looksString || looksNumericLead)) {
@@ -1361,6 +1575,19 @@ class _DartExporter {
   /// assignment chains). Each piece translates independently; a piece
   /// beyond mechanical translation gets its own _eval line.
   List<String> _stmtParts(String raw) {
+    final pieces = _rawStmtPieces(raw);
+    if (pieces == null) return [_exprStatement(raw)];
+    final out = <String>[
+      for (final p in pieces)
+        if (p.trim().isNotEmpty) _exprStatement(p),
+    ];
+    return out.isEmpty ? [_exprStatement(raw)] : out;
+  }
+
+  /// The comma-split raw pieces of a statement expression (comment/
+  /// NoValidation-stripped), or null when a piece is mis-sliced (quotes/
+  /// brackets unbalanced) and the whole raw must translate as one.
+  List<String>? _rawStmtPieces(String raw) {
     final cleaned = _stripNoValidation(_stripComments(raw));
     final parts = <String>[];
     var depth = 0;
@@ -1404,27 +1631,26 @@ class _DartExporter {
     }
 
     if (parts.length > 1 && !parts.every(balanced)) {
-      return [_exprStatement(raw)]; // a piece mis-sliced — do not split
+      return null; // a piece mis-sliced — do not split
     }
-    final out = <String>[
-      for (final p in parts)
-        if (p.trim().isNotEmpty) _exprStatement(p),
-    ];
-    return out.isEmpty ? [_exprStatement(raw)] : out;
+    return parts;
   }
 
   /// Emits a statement-position expression, one line per top-level piece.
   void _emitStmt(String raw, String note) {
     final parts = _stmtParts(raw);
     for (var i = 0; i < parts.length; i++) {
-      _line('${parts[i]};'
-          '${i == 0 ? ' // $note' : ' // $note (cont.)'}');
+      final suffix = note.isEmpty
+          ? ''
+          : (i == 0 ? ' // $note' : ' // $note (cont.)');
+      _line('${parts[i]};$suffix');
     }
   }
 
   void _emitPlainStep(Step step) {
     final settings = step.settings;
-    final precondition = settings.precondition;
+    final precondition =
+        settings.precondition ?? _typePreconditions[step.type];
     if (precondition != null) {
       _line('if (${_cond(precondition)}) { '
           '// precondition of ${_comment(step.name)}');
@@ -1454,7 +1680,8 @@ class _DartExporter {
       case 'Statement':
         final expression = step.settings.postExpression;
         if (expression != null) {
-          _emitStmt(expression, name);
+          // A default-named step's trailing comment restates nothing.
+          _emitStmt(expression, name == 'Statement' ? '' : name);
         } else {
           _line('// $name: Statement with no expression');
         }
@@ -1467,16 +1694,17 @@ class _DartExporter {
         // A literal wait becomes a plain Future.delayed — no runtime shim;
         // computed waits go through the generated _wait helper.
         final literal = timeout != null ? num.tryParse(timeout.trim()) : null;
+        final waitNote = name == 'Wait' ? '' : ' // $name';
         if (literal != null) {
           final ms = (literal * 1000).round();
           _line(ms % 1000 == 0
               ? 'await Future<void>.delayed('
-                  'const Duration(seconds: ${ms ~/ 1000})); // $name'
+                  'const Duration(seconds: ${ms ~/ 1000}));$waitNote'
               : 'await Future<void>.delayed('
-                  'const Duration(milliseconds: $ms)); // $name');
+                  'const Duration(milliseconds: $ms));$waitNote');
         } else {
           _line('await _wait('
-              '${timeout != null ? _expr(timeout) : 'null'}); // $name');
+              '${timeout != null ? _expr(timeout) : 'null'});$waitNote');
         }
         return;
     }
