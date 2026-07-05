@@ -65,8 +65,9 @@ const _dartReserved = {
   'catch', 'finally', 'throw', 'rethrow', 'assert', 'await', 'async',
   'enum', 'extends', 'with', 'implements', 'abstract', 'static', 'late',
   'required', 'dynamic', 'yield', 'export', 'import', 'library', 'part',
-  // names the generator itself uses in scope (s/ctx/lw are the E2E-mode
-  // sequence context, step context, and labwright import prefix):
+  // names the generator itself uses in scope (the top-level engine-state
+  // globals, the labwright import prefix, and legacy context names):
+  'fileGlobals', 'stationGlobals', 'runState', 'step',
   'ts', 'params', 'locals', 's', 'ctx', 'lw',
 };
 
@@ -93,16 +94,16 @@ String dartIdentifier(String name, {bool capitalize = false}) {
   return id;
 }
 
-/// The TestStand variable roots the translator rewrites, mapped to the Dart
-/// expression that replaces them. `Locals`/`Parameters` resolve to the
-/// generated runtime maps so nested member paths keep working uniformly.
+/// The TestStand variable roots the translator rewrites. `FileGlobals`/
+/// `StationGlobals`/`RunState`/`Step` map to generated top-level `dynamic`
+/// state (member paths resolve by dynamic dispatch); `Locals`/`Parameters`
+/// rewrite to the sequence's own typed Dart variables (per-sequence id
+/// maps — see `_localIds`/`_paramIds`), so they are not in this table.
 const _variableRoots = {
-  'Locals': 'locals',
-  'Parameters': 'params',
-  'FileGlobals': 'ts.fileGlobals',
-  'StationGlobals': 'ts.stationGlobals',
-  'RunState': 'ts.runState',
-  'Step': 'ts.step',
+  'FileGlobals': 'fileGlobals',
+  'StationGlobals': 'stationGlobals',
+  'RunState': 'runState',
+  'Step': 'step',
 };
 
 /// Whether a root-rewritten expression is **mechanically Dart-safe**: only
@@ -116,29 +117,30 @@ const _variableRoots = {
 final _dartSafeExpression = RegExp(
     r"^[A-Za-z0-9_.\s+\-*/!<>=&|(),'\x22\[\]]+$");
 
-/// TestStand built-ins the exporter translates to implemented [TsRuntime]
-/// methods (chosen from corpus frequency: these cover the bulk of ts.eval
-/// fallbacks). Each runtime method implements the common arity and throws
-/// [UnimplementedError] for the engine-specific forms, so the generated code
-/// always compiles and never silently changes semantics.
+/// TestStand built-ins the exporter translates to generated top-level
+/// helper functions (chosen from corpus frequency: these cover the bulk of
+/// the `_eval` fallbacks). Each helper implements the common arity and
+/// throws [UnimplementedError] for the engine-specific forms, so the
+/// generated code always compiles and never silently changes semantics.
 const _builtinCalls = {
-  'Len': 'ts.len',
-  'GetNumElements': 'ts.getNumElements',
-  'SetNumElements': 'ts.setNumElements',
-  'Str': 'ts.str',
-  'Left': 'ts.left',
-  'Right': 'ts.right',
-  'Mid': 'ts.mid',
-  'Find': 'ts.find',
-  'Random': 'ts.random',
+  'Len': '_len',
+  'GetNumElements': '_getNumElements',
+  'SetNumElements': '_setNumElements',
+  'Str': '_str',
+  'Left': '_left',
+  'Right': '_right',
+  'Mid': '_mid',
+  'Find': '_find',
+  'Random': '_random',
 };
 
-/// Constructs that force the `ts.eval` fallback even when the charset looks
-/// safe: any function-style call that is NOT a rewritten `ts.` method call
+/// Constructs that force the `_eval` fallback even when the charset looks
+/// safe: any function-style call that is NOT a rewritten helper call
 /// (TestStand's built-in library is large; only [_builtinCalls] are
 /// translated), plus engine-only operators. Parenthesized grouping
-/// (`(a || b)`) is fine — only `identifier(` marks a call.
-final _testStandOnly = RegExp(r'(?<!\.)\b[A-Za-z_][A-Za-z0-9_]*\s*\(|#|->');
+/// (`(a || b)`) is fine — only `identifier(` marks a call; the rewritten
+/// `_helper(` calls are exempted by the leading underscore.
+final _testStandOnly = RegExp(r'(?<!\.)\b[A-Za-z][A-Za-z0-9_]*\s*\(|#|->');
 
 class _DartExporter {
   _DartExporter(this.file, {this.sourceName, this.asTest = false});
@@ -160,6 +162,13 @@ class _DartExporter {
 
   /// The sequence currently being emitted (unported bookkeeping).
   String? _currentSeq;
+
+  /// TestStand name → generated Dart identifier for the current sequence's
+  /// locals and parameters (typed top-of-function declarations / named
+  /// args). `Locals.X` / `Parameters.X` rewrite through these; a reference
+  /// to an undeclared name falls back to `_eval` (honest, never guessed).
+  Map<String, String> _localIds = const {};
+  Map<String, String> _paramIds = const {};
 
   void _markUnported(String target) {
     final seq = _currentSeq;
@@ -220,13 +229,15 @@ class _DartExporter {
           'exportSeqFileToDart${asTest ? 'Test' : ''}'
           '${sourceName != null ? ' from ${_comment(sourceName!)}' : ''}.')
       ..writeln('//')
-      ..writeln('// Sequence logic is exported as Dart; code-module calls '
-          '(VI/DLL/.NET/Python)')
-      ..writeln('// are stubs, and expressions beyond mechanical translation '
-          'are kept verbatim')
-      ..writeln('// in ts.eval(...) calls. Nothing is fabricated: unexportable '
-          'steps remain as')
-      ..writeln('// ordered comments.')
+      ..writeln('// Sequence logic is exported as idiomatic Dart: typed '
+          'locals, real control')
+      ..writeln('// flow, native waits, and direct function calls. '
+          'Code-module calls and')
+      ..writeln('// external sequences are stubs; expressions beyond '
+          'mechanical translation')
+      ..writeln('// are kept verbatim in _eval(...) calls. Nothing is '
+          'fabricated: unexportable')
+      ..writeln('// steps remain as ordered comments.')
       ..writeln('// ignore_for_file: unused_local_variable, dead_code, '
           'unused_element, unused_label')
       ..writeln()
@@ -306,7 +317,11 @@ class _DartExporter {
           in RegExp(r'\b([A-Za-z_][A-Za-z0-9_]*)\s*\.').allMatches(code)) {
         final precededByDot =
             m.start > 0 && code.substring(m.start - 1, m.start) == '.';
-        if (!precededByDot && !_variableRoots.containsKey(m.group(1))) {
+        final root = m.group(1)!;
+        if (!precededByDot &&
+            !_variableRoots.containsKey(root) &&
+            root != 'Locals' &&
+            root != 'Parameters') {
           return _evalFallback(raw);
         }
       }
@@ -314,21 +329,34 @@ class _DartExporter {
       code = code
           .replaceAll(RegExp(r'\bTrue\b'), 'true')
           .replaceAll(RegExp(r'\bFalse\b'), 'false');
+      // Locals/Parameters rewrite to the sequence's own typed Dart
+      // variables; a reference to an UNDECLARED name has no variable to
+      // land on — _eval fallback, never guessed.
+      var undeclared = false;
+      for (final (root, ids) in [
+        ('Locals', _localIds),
+        ('Parameters', _paramIds),
+      ]) {
+        code = code.replaceAllMapped(
+          RegExp('\\b$root\\.([A-Za-z_][A-Za-z0-9_.]*)'),
+          (m) {
+            final segments = m.group(1)!.split('.');
+            final id = ids[segments.first];
+            if (id == null) {
+              undeclared = true;
+              return m.group(0)!;
+            }
+            return segments.length == 1
+                ? id
+                : '$id.${segments.sublist(1).join('.')}';
+          },
+        );
+      }
+      if (undeclared) return _evalFallback(raw);
       for (final entry in _variableRoots.entries) {
         code = code.replaceAllMapped(
           RegExp('\\b${entry.key}\\.([A-Za-z_][A-Za-z0-9_.]*)'),
-          (m) {
-            final path = m.group(1)!;
-            final root = entry.value;
-            if (root == 'locals' || root == 'params') {
-              final segments = path.split('.');
-              final lookup = "$root['${segments.first}']";
-              return segments.length == 1
-                  ? lookup
-                  : '$lookup.${segments.sublist(1).join('.')}';
-            }
-            return '$root.$path';
-          },
+          (m) => '${entry.value}.${m.group(1)!}',
         );
       }
       // Translate the catalogued TestStand built-ins to ts.* method calls
@@ -354,8 +382,12 @@ class _DartExporter {
       // Any bare identifier that survived rewriting must be a name the
       // generated scope actually declares — otherwise it is a TestStand
       // constant (Nothing, NAN, INF, ...) that would not compile.
-      const knownBare = {'true', 'false', 'null', 'ts', 'locals', 'params'};
-      final generatedName = RegExp(r'^_(select|matched)\d+$|^_element$');
+      const knownBare = {
+        'true', 'false', 'null',
+        'fileGlobals', 'stationGlobals', 'runState', 'step',
+      };
+      final generatedName =
+          RegExp(r'^_(select|matched)\d+$|^_element$|^_[a-z][A-Za-z0-9]*$');
       final codeSansKeys = code.replaceAll(RegExp(r"'[^']*'"), '');
       for (final m in RegExp(r'\b([A-Za-z_][A-Za-z0-9_]*)\b')
           .allMatches(codeSansKeys)) {
@@ -363,7 +395,10 @@ class _DartExporter {
         final precededByDot = m.start > 0 &&
             codeSansKeys.substring(m.start - 1, m.start) == '.';
         if (precededByDot) continue;
-        if (!knownBare.contains(id) && !generatedName.hasMatch(id)) {
+        if (!knownBare.contains(id) &&
+            !generatedName.hasMatch(id) &&
+            !_localIds.containsValue(id) &&
+            !_paramIds.containsValue(id)) {
           return _evalFallback(raw);
         }
       }
@@ -372,7 +407,7 @@ class _DartExporter {
     return rebuilt.toString();
   }
 
-  String _evalFallback(String raw) => "ts.eval('${_escape(raw)}')";
+  String _evalFallback(String raw) => "_eval('${_escape(raw)}')";
 
   String _escape(String s) => s
       .replaceAll(r'\', r'\\')
@@ -393,49 +428,51 @@ class _DartExporter {
         '${sequence.comment != null ? ' — ${_comment(sequence.comment!)}' : ''}.');
 
     _currentSeq = sequence.name;
-    // Parameter identifiers: unique within the signature and never colliding
-    // with the generated scope names (`ts` is pre-claimed).
-    final paramIds = <String, String>{};
-    final usedParams = <String>{'ts'};
-    for (final p in sequence.parameters) {
-      final base = dartIdentifier(p.name);
+    // Parameter and local identifiers: unique within the function scope and
+    // never colliding with the generated top-level names (state globals,
+    // sequence functions, stubs) — a local named like a sequence would
+    // otherwise shadow the function it calls.
+    final used = <String>{
+      'fileGlobals', 'stationGlobals', 'runState', 'step',
+      ..._topLevelNames,
+    };
+    String claim(String name) {
+      final base = dartIdentifier(name);
       var id = base;
       var n = 2;
-      while (!usedParams.add(id)) {
+      while (!used.add(id)) {
         id = '$base$n';
         n++;
       }
-      paramIds[p.name] = id;
+      return id;
     }
-    final params = [
-      for (final p in sequence.parameters)
-        'Object? ${paramIds[p.name]}'
-            '${p.value != null ? ' = ${_literal(p.value!, p.type)}' : ''}',
+
+    _paramIds = {for (final p in sequence.parameters) p.name: claim(p.name)};
+    final seenLocals = <String>{};
+    final emittedLocals = [
+      for (final local in sequence.locals)
+        // ResultList is the engine's implicit result bookkeeping, not user
+        // state — skipped (a reference to it falls back to _eval).
+        if (local.name != 'ResultList' && seenLocals.add(local.name)) local,
     ];
-    _out.writeln('Future<void> $fnName(TsRuntime ts'
-        '${params.isEmpty ? '' : ', {${params.join(', ')}}'}) async {');
+    _localIds = {for (final l in emittedLocals) l.name: claim(l.name)};
+
+    // Parameters: typed where the class is scalar. Scalars with a declared
+    // default are non-nullable; containers are `dynamic` so exported member
+    // paths (Parameters.Result.Status) still compile via dynamic dispatch.
+    final params = [
+      for (final p in sequence.parameters) _paramDecl(p, _paramIds[p.name]!),
+    ];
+    _out.writeln('Future<void> $fnName('
+        '${params.isEmpty ? '' : '{${params.join(', ')}}'}) async {');
     _indent = 1;
 
-    if (sequence.parameters.isNotEmpty) {
-      _line('final params = <String, dynamic>{');
-      for (final p in sequence.parameters) {
-        _line("  '${_escape(p.name)}': ${paramIds[p.name]},");
-      }
-      _line('};');
-    } else {
-      _line('final params = <String, dynamic>{};');
+    // Locals: real typed Dart declarations, defaults from the sequence file
+    // (TestStand's declared defaults) or the class zero.
+    for (final local in emittedLocals) {
+      _line(_localDecl(local, _localIds[local.name]!));
     }
-    _line('final locals = <String, dynamic>{');
-    final seenLocals = <String>{};
-    for (final local in sequence.locals) {
-      if (!seenLocals.add(local.name)) continue; // duplicate name in source
-      final init =
-          local.value != null ? _literal(local.value!, local.type) : 'null';
-      _line("  '${_escape(local.name)}': $init,"
-          '${local.type != null ? ' // ${_comment(local.type!)}' : ''}');
-    }
-    _line('};');
-    _line('');
+    if (emittedLocals.isNotEmpty) _line('');
 
     for (final group in StepGroup.values) {
       final steps = sequence.stepsIn(group);
@@ -449,28 +486,79 @@ class _DartExporter {
       ..writeln('}')
       ..writeln();
     _currentSeq = null;
+    _localIds = const {};
+    _paramIds = const {};
   }
 
-  /// A Dart literal for a TestStand default value, respecting the variable's
-  /// declared [type]: only Number/Boolean-typed values coerce (review finding:
-  /// a Str local whose text is "True" or "42" must stay a string).
-  String _literal(String value, String? type) {
-    final t = type?.toLowerCase() ?? '';
-    if (t.contains('num')) {
-      return num.tryParse(value)?.toString() ?? "'${_escape(value)}'";
+  /// The Dart (type, zero-default) for a TestStand value class, or null when
+  /// the class has no scalar Dart form (containers/refs stay `dynamic` so
+  /// exported member paths compile via dynamic dispatch — `Object?` would
+  /// reject `.member` at compile time).
+  (String, String)? _scalarType(SeqVariable v) =>
+      switch (v.raw.className) {
+        'Num' => ('double', '0'),
+        'Bool' || 'Boolean' => ('bool', 'false'),
+        'Str' || 'ExprValue' || 'PathValue' => ('String', "''"),
+        _ => null,
+      };
+
+  /// Whether the variable is a TestStand array (`Nums`/`Strs`/`Objs`/
+  /// `Containers` — any `s`-suffixed array class or an explicit array value).
+  bool _isArrayVar(SeqVariable v) =>
+      v.raw.array != null ||
+      const {'Nums', 'Strs', 'Objs', 'Containers'}
+          .contains(v.raw.className);
+
+  String _typeComment(SeqVariable v) {
+    final t = v.type;
+    final c = v.comment;
+    if (t == null && c == null) return '';
+    return ' // ${[if (t != null) t, if (c != null) _comment(c)].join(' — ')}';
+  }
+
+  /// The initializer for a scalar-typed variable: the declared default when
+  /// it is a valid literal of the type, else the class zero (with the
+  /// original kept in a comment by the caller via [_typeComment] — a default
+  /// that is an expression can't be a Dart initializer).
+  String _scalarInit(SeqVariable v, String type, String zero) {
+    final value = v.value;
+    if (value == null) return zero;
+    return switch (type) {
+      'double' => num.tryParse(value)?.toString() ?? zero,
+      'bool' => value == 'True'
+          ? 'true'
+          : value == 'False'
+              ? 'false'
+              : zero,
+      _ => "'${_escape(value)}'",
+    };
+  }
+
+  /// A typed named-parameter declaration. Scalars are non-nullable with the
+  /// declared default (or the class zero — TestStand parameters always have
+  /// a default); containers are `dynamic`.
+  String _paramDecl(SeqVariable p, String id) {
+    final scalar = _scalarType(p);
+    if (scalar != null) {
+      final (type, zero) = scalar;
+      return '$type $id = ${_scalarInit(p, type, zero)}';
     }
-    if (t.contains('bool')) {
-      if (value == 'True') return 'true';
-      if (value == 'False') return 'false';
-      return "'${_escape(value)}'";
+    if (_isArrayVar(p)) return 'List<dynamic>? $id';
+    return 'dynamic $id';
+  }
+
+  /// A typed local declaration line: `double loopIndex = 0; // Num`.
+  String _localDecl(SeqVariable local, String id) {
+    final scalar = _scalarType(local);
+    if (scalar != null) {
+      final (type, zero) = scalar;
+      return '$type $id = ${_scalarInit(local, type, zero)};'
+          '${_typeComment(local)}';
     }
-    if (t.isEmpty) {
-      // No declared type recovered: coerce only unambiguous numerics/bools.
-      if (num.tryParse(value) != null) return value;
-      if (value == 'True') return 'true';
-      if (value == 'False') return 'false';
+    if (_isArrayVar(local)) {
+      return 'List<dynamic> $id = <dynamic>[];${_typeComment(local)}';
     }
-    return "'${_escape(value)}'";
+    return 'dynamic $id;${_typeComment(local)}';
   }
 
   // ── steps ──────────────────────────────────────────────────────────────────
@@ -710,8 +798,20 @@ class _DartExporter {
         return;
       case 'NI_Wait':
         final timeout = step.timeoutExpression ?? step.waitTimeExpression;
-        _line('await ts.wait('
-            '${timeout != null ? _expr(timeout) : 'null'}); // $name');
+        // A literal wait becomes a plain Future.delayed — no runtime shim;
+        // computed waits go through the generated _wait helper.
+        final literal = timeout != null ? num.tryParse(timeout.trim()) : null;
+        if (literal != null) {
+          final ms = (literal * 1000).round();
+          _line(ms % 1000 == 0
+              ? 'await Future<void>.delayed('
+                  'const Duration(seconds: ${ms ~/ 1000})); // $name'
+              : 'await Future<void>.delayed('
+                  'const Duration(milliseconds: $ms)); // $name');
+        } else {
+          _line('await _wait('
+              '${timeout != null ? _expr(timeout) : 'null'}); // $name');
+        }
         return;
     }
 
@@ -722,20 +822,24 @@ class _DartExporter {
         if (inFileFn != null) {
           // Parameter bindings on the call are not yet exported — the callee
           // runs on its declared defaults. Stated, not hidden.
-          _line('await $inFileFn(ts); // $name '
+          _line('await $inFileFn(); // $name '
               '(call parameters not exported yet)');
-        } else if (asTest) {
-          _throwLine(step, 'external sequence call', _stubTarget(step, module));
         } else {
-          _line('await ${_stubFor(step, module)}(ts); // $name: '
+          // An EXTERNAL sequence call is just a function that lives in
+          // another file: emitted as `await <fn>();` against a generated
+          // stub — implement the stub (or point it at the other exported
+          // file's function) to port it. Still counted unported so the
+          // harness ships the owning test disarmed until then.
+          if (asTest) _markUnported('external sequence: ${_stubTarget(step, module)}');
+          _line('await ${_stubFor(step, module)}(); // $name: '
               'external sequence call');
         }
       case SeqAdapter.labView:
-        // VI calls are the ONE adapter that gets a generated stub in E2E
-        // mode: the VI is the port target — implementing the stub arms the
-        // step (other unported surfaces are inline throws, no stub clutter).
+        // VI calls are the ONE code-module adapter that gets a generated
+        // stub in E2E mode: the VI is the port target — implementing the
+        // stub arms the step (other unported surfaces are inline throws).
         if (asTest) _markUnported(_stubTarget(step, module));
-        _line('await ${_stubFor(step, module)}(ts); // $name'
+        _line('await ${_stubFor(step, module)}(); // $name'
             '${step.type != null ? ' [${_comment(step.type!)}]' : ''}');
       case SeqAdapter.cModule:
       case SeqAdapter.python:
@@ -744,7 +848,7 @@ class _DartExporter {
           _throwLine(
               step, '${module.adapter.name} call', _stubTarget(step, module));
         } else {
-          _line('await ${_stubFor(step, module)}(ts); // $name'
+          _line('await ${_stubFor(step, module)}(); // $name'
               '${step.type != null ? ' [${_comment(step.type!)}]' : ''}');
         }
       case SeqAdapter.none:
@@ -791,16 +895,28 @@ class _DartExporter {
     final adapter = module.adapter.name;
     final key = '$adapter|$target';
     return _stubs.putIfAbsent(key, () {
-      final base = dartIdentifier(
-          target.split(RegExp(r'[/\\]')).last.split('.').first,
-          capitalize: true);
-      final name = _uniqueTopLevel('call$base');
+      final isSeq = module.adapter == SeqAdapter.sequenceCall;
+      final lastSegment =
+          target.split(RegExp(r'[/\\]')).last.split('.').first;
+      // An external sequence call reads as the sequence's own function name
+      // (`await loadIniFile();` — implement it, or point it at the other
+      // exported file's function); code-module stubs keep the `call` prefix.
+      final name = _uniqueTopLevel(isSeq
+          ? dartIdentifier(lastSegment)
+          : 'call${dartIdentifier(lastSegment, capitalize: true)}');
       _stubDecls.add([
-        '/// Stub for the $adapter module call `${_comment(target)}`',
-        '/// (from step `${_comment(step.name)}`). TODO: implement against '
-            'the real module.',
-        'Future<Object?> $name(TsRuntime ts) async =>',
-        "    throw UnimplementedError('$adapter call: ${_escape(target)}');",
+        if (isSeq) ...[
+          '/// External sequence `${_comment(target)}` (called from step ',
+          '/// `${_comment(step.name)}`) — lives in another sequence file.',
+          '/// TODO: implement, or delegate to that file\'s exported function.',
+        ] else ...[
+          '/// Stub for the $adapter module call `${_comment(target)}`',
+          '/// (from step `${_comment(step.name)}`). TODO: implement against '
+              'the real module.',
+        ],
+        'Future<Object?> $name() async =>',
+        "    throw UnimplementedError('"
+            "${_escape(isSeq ? 'external sequence: $target' : '$adapter call: $target')}');",
       ].join('\n'));
       return name;
     });
@@ -819,7 +935,7 @@ class _DartExporter {
 
   /// The generated labwright harness: `main()` runs one `lw.test` per ROOT
   /// sequence (the smallest unit no other sequence calls), in file order,
-  /// each on a fresh [TsRuntime]. Called sequences are reached as plain
+  /// in a plain async call. Called sequences are reached as plain
   /// functions. A root whose reachable code still contains unported
   /// surfaces is emitted `lw.skipTest` with a TODO listing them; its
   /// `requirements:` is the union of the links declared by everything it
@@ -896,131 +1012,139 @@ class _DartExporter {
       _out
         ..writeln('  lw.${unported.isEmpty ? 'test' : 'skipTest'}'
             "('${_escape(root.name)}',$reqArg () async {")
-        ..writeln('    final ts = TsRuntime();')
-        ..writeln('    await $fnName(ts);')
+        ..writeln('    await $fnName();')
         ..writeln('  });');
     }
     _out.writeln('}');
   }
 
   void _emitRuntime() {
-    _out.writeln('''
-// ── minimal runtime ─────────────────────────────────────────────────────────
+    // The seeded RNG: E2E mode draws the seed from the labwright suite
+    // (`--seed` / -Dlabwright.seed) so runs reproduce; plain mode has no
+    // suite, so it is unseeded.
+    final rngInit = asTest
+        ? 'lw.seed != 0 ? math.Random(lw.seed) : math.Random()'
+        : 'math.Random()';
+    _out.writeln("""
+// ── engine state and helpers ────────────────────────────────────────────────
+//
+// The exported logic is plain Dart. The four TestStand variable scopes that
+// outlive a sequence live here as top-level state — `dynamic` on purpose:
+// exported member paths (FileGlobals.X.Y) resolve by dynamic dispatch, and a
+// real host can back them with typed objects. Expressions beyond mechanical
+// translation arrive at [_eval] verbatim; the helper functions cover the
+// corpus-frequent TestStand built-ins with the common arity, throwing
+// UnimplementedError for engine-specific forms.
 
-/// The TestStand-engine surface the exported logic needs. Expressions beyond
-/// mechanical translation arrive at [eval] verbatim; the implemented helpers
-/// (len/str/left/...) cover the corpus-frequent TestStand built-ins with the
-/// common arity, throwing UnimplementedError for engine-specific forms.
-class TsRuntime {
-  // Dynamic on purpose: exported member paths (FileGlobals.X.Y) resolve by
-  // dynamic dispatch; a real host can back these with typed objects.
-  final dynamic fileGlobals = <String, dynamic>{};
-  final dynamic stationGlobals = <String, dynamic>{};
-  final dynamic runState = null;
-  final dynamic step = null;
+final dynamic fileGlobals = <String, dynamic>{};
+final dynamic stationGlobals = <String, dynamic>{};
+final dynamic runState = null;
+final dynamic step = null;
 
-  Object? eval(String expression) =>
-      throw UnimplementedError('TestStand expression: \$expression');
+Object? _eval(String expression) =>
+    throw UnimplementedError('TestStand expression: \$expression');
 
-  /// TestStand `Len`: string length or array element count.
-  num len(Object? v) => switch (v) {
-        String s => s.length,
-        Iterable i => i.length,
-        Map m => m.length,
-        _ => throw UnimplementedError('Len of \${v.runtimeType}'),
-      };
+/// TestStand `Len`: string length or array element count.
+num _len(Object? v) => switch (v) {
+      String s => s.length,
+      Iterable i => i.length,
+      Map m => m.length,
+      _ => throw UnimplementedError('Len of \${v.runtimeType}'),
+    };
 
-  /// TestStand `GetNumElements` (array size). The engine-specific forms
-  /// (extra arguments) are not implemented.
-  num getNumElements(Object? v, [Object? a]) => a == null
-      ? len(v)
-      : throw UnimplementedError('GetNumElements with options');
+/// TestStand `GetNumElements` (array size). The engine-specific forms
+/// (extra arguments) are not implemented.
+num _getNumElements(Object? v, [Object? a]) => a == null
+    ? _len(v)
+    : throw UnimplementedError('GetNumElements with options');
 
-  /// TestStand `SetNumElements`: resizes a growable list, null-filling new
-  /// slots (the engine default-fills by element type — a null fill is the
-  /// closest core-Dart equivalent; replace in a real host if it matters).
-  Object? setNumElements(Object? v, Object? n, [Object? a]) {
-    if (v is! List || n is! num || a != null) {
-      throw UnimplementedError('SetNumElements on \${v.runtimeType}');
-    }
-    final target = n.toInt();
-    while (v.length > target) {
-      v.removeLast();
-    }
-    while (v.length < target) {
-      v.add(null);
-    }
-    return v;
+/// TestStand `SetNumElements`: resizes a growable list, null-filling new
+/// slots (the engine default-fills by element type — a null fill is the
+/// closest core-Dart equivalent; replace in a real host if it matters).
+Object? _setNumElements(Object? v, Object? n, [Object? a]) {
+  if (v is! List || n is! num || a != null) {
+    throw UnimplementedError('SetNumElements on \${v.runtimeType}');
   }
-
-  /// TestStand `Str` (1-arg): number -> string with the engine's default
-  /// `%\$.13g` format, approximated with toStringAsPrecision(13) + cleanup.
-  /// C-printf %g edge cases may differ — replace in a real host if exactness
-  /// matters. Format-string forms are not implemented.
-  String str(Object? v, [Object? f1, Object? f2, Object? f3]) {
-    if (f1 != null || f2 != null || f3 != null) {
-      throw UnimplementedError('Str with format options');
-    }
-    if (v is! num) return v.toString();
-    if (v is int || v == v.roundToDouble()) return v.toInt().toString();
-    var text = v.toStringAsPrecision(13);
-    if (text.contains('.') && !text.contains('e')) {
-      text = text.replaceAll(RegExp(r'0+\$'), '');
-      if (text.endsWith('.')) text = text.substring(0, text.length - 1);
-    }
-    return text;
+  final target = n.toInt();
+  while (v.length > target) {
+    v.removeLast();
   }
-
-  /// TestStand `Left`/`Right`/`Mid`/`Find` string helpers (count clamped).
-  String left(Object? s, Object? n) => _clip(s, n, fromLeft: true);
-  String right(Object? s, Object? n) => _clip(s, n, fromLeft: false);
-  String mid(Object? s, Object? offset, [Object? count]) {
-    final text = s is String ? s : throw UnimplementedError('Mid of \${s.runtimeType}');
-    final start = (offset is num ? offset.toInt() : 0).clamp(0, text.length);
-    final end = count is num
-        ? (start + count.toInt()).clamp(start, text.length)
-        : text.length;
-    return text.substring(start, end);
+  while (v.length < target) {
+    v.add(null);
   }
+  return v;
+}
 
-  num find(Object? s, Object? sub, [Object? start]) {
-    if (s is! String || sub is! String) {
-      throw UnimplementedError('Find of \${s.runtimeType}');
-    }
-    return s.indexOf(sub, (start is num ? start.toInt() : 0).clamp(0, s.length));
+/// TestStand `Str` (1-arg): number -> string with the engine's default
+/// `%\$.13g` format, approximated with toStringAsPrecision(13) + cleanup.
+/// C-printf %g edge cases may differ — replace in a real host if exactness
+/// matters. Format-string forms are not implemented.
+String _str(Object? v, [Object? f1, Object? f2, Object? f3]) {
+  if (f1 != null || f2 != null || f3 != null) {
+    throw UnimplementedError('Str with format options');
   }
-
-  String _clip(Object? s, Object? n, {required bool fromLeft}) {
-    final text = s is String ? s : throw UnimplementedError('Left/Right of \${s.runtimeType}');
-    final count = (n is num ? n.toInt() : 0).clamp(0, text.length);
-    return fromLeft
-        ? text.substring(0, count)
-        : text.substring(text.length - count);
+  if (v is! num) return v.toString();
+  if (v is int || v == v.roundToDouble()) return v.toInt().toString();
+  var text = v.toStringAsPrecision(13);
+  if (text.contains('.') && !text.contains('e')) {
+    text = text.replaceAll(RegExp(r'0+\$'), '');
+    if (text.endsWith('.')) text = text.substring(0, text.length - 1);
   }
+  return text;
+}
 
-  /// TestStand `Random()` / `Random(min, max)`.
-  num random([Object? min, Object? max]) {
-    _rng ??= math.Random();
-    final r = _rng!.nextDouble();
-    if (min is num && max is num) return min + r * (max - min);
-    if (min == null && max == null) return r;
-    throw UnimplementedError('Random with non-numeric bounds');
+/// TestStand `Left`/`Right`/`Mid`/`Find` string helpers (count clamped).
+String _left(Object? s, Object? n) => _clip(s, n, fromLeft: true);
+String _right(Object? s, Object? n) => _clip(s, n, fromLeft: false);
+String _mid(Object? s, Object? offset, [Object? count]) {
+  final text =
+      s is String ? s : throw UnimplementedError('Mid of \${s.runtimeType}');
+  final start = (offset is num ? offset.toInt() : 0).clamp(0, text.length);
+  final end = count is num
+      ? (start + count.toInt()).clamp(start, text.length)
+      : text.length;
+  return text.substring(start, end);
+}
+
+num _find(Object? s, Object? sub, [Object? start]) {
+  if (s is! String || sub is! String) {
+    throw UnimplementedError('Find of \${s.runtimeType}');
   }
+  return s.indexOf(sub, (start is num ? start.toInt() : 0).clamp(0, s.length));
+}
 
-  math.Random? _rng;
+String _clip(Object? s, Object? n, {required bool fromLeft}) {
+  final text = s is String
+      ? s
+      : throw UnimplementedError('Left/Right of \${s.runtimeType}');
+  final count = (n is num ? n.toInt() : 0).clamp(0, text.length);
+  return fromLeft
+      ? text.substring(0, count)
+      : text.substring(text.length - count);
+}
 
-  Future<void> wait(Object? seconds) async {
-    final s = seconds is num ? seconds : null;
-    if (s != null) {
-      await Future<void>.delayed(
-          Duration(microseconds: (s * 1e6).round()));
-    }
+/// TestStand `Random()` / `Random(min, max)`. Seeded from the suite seed
+/// when one is set, so a seeded run reproduces its random waits/values.
+math.Random? _rngInstance;
+num _random([Object? min, Object? max]) {
+  final rng = _rngInstance ??= $rngInit;
+  final r = rng.nextDouble();
+  if (min is num && max is num) return min + r * (max - min);
+  if (min == null && max == null) return r;
+  throw UnimplementedError('Random with non-numeric bounds');
+}
+
+/// A computed wait (a literal wait exports as a plain Future.delayed).
+Future<void> _wait(Object? seconds) async {
+  final s = seconds is num ? seconds : null;
+  if (s != null) {
+    await Future<void>.delayed(Duration(microseconds: (s * 1e6).round()));
   }
 }
 
 bool _truthy(Object? v) => v == true || (v is num && v != 0);
 
 Iterable<Object?> _iterate(Object? v) =>
-    v is Iterable ? v : const <Object?>[];''');
+    v is Iterable ? v : const <Object?>[];""");
   }
 }

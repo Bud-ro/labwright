@@ -70,7 +70,7 @@ void main() {
         reason: 'the Rosetta oracle must be fetched with the corpus');
     final file = parseSeqFile(f.readAsBytesSync());
     final source = exportSeqFileToDart(file);
-    expect(source, contains('Future<void> mainSequence(TsRuntime ts'));
+    expect(source, contains('Future<void> mainSequence('));
     for (final seq in file.sequences) {
       for (final step in seq.steps) {
         expect(source, contains(step.name),
@@ -79,7 +79,10 @@ void main() {
     }
     expect(source, contains('UnimplementedError'),
         reason: 'code-module stubs must be present');
-    expect(source, contains('class TsRuntime'));
+    // The runtime shim is gone: engine state is top-level, expressions
+    // beyond mechanical translation land in the _eval fallback.
+    expect(source, isNot(contains('class TsRuntime')));
+    expect(source, contains('Object? _eval(String expression)'));
   });
 
   test('generated Dart passes dart analyze (oracle + flow-heaviest file)', () {
