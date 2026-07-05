@@ -1105,18 +1105,22 @@ const _typeRecordMinBytes = (3 + _typeVersionTripleWords) * _u32Bytes;
 /// barely fires on TS2021 files) are kept in git history at PRs #39/#48.
 ///
 /// TODO(binary decode — typedef bodies PARTIALLY DONE, see
-/// [BinaryTypeField]; scalar/Expression/empty-array fields decode
-/// twin-exactly, all-or-nothing per typedef). Remaining body shapes, with
-/// their observed openers (bail contexts, oracle offsets in git history):
+/// [BinaryTypeField]; scalar/Expression/empty-array fields plus the 0xC
+/// and 0xEE flag combos decode twin-exactly, all-or-nothing per typedef).
+/// THE remaining gate is NESTING — every still-bailing rosetta typedef
+/// contains at least one of:
+///  * nested Obj/typed-object fields — either `[0x80-family][0][DELIM][k]`
+///    with k != 0 (e.g. `Menu:Obj`, k = 1 = its typecategory-like word)
+///    and the instance body inline, or the class word as an object class /
+///    type-name string (`[0][0][CPythonCall][PythonCall]…`,
+///    `[0][0][Obj][AdditionalResults]…`);
 ///  * populated object arrays — `[flags][0][Objs][name]['[0]']['[]']`
-///    followed by non-zero content (Calls/Params/Substeps);
-///  * nested Obj/typed-object fields — class word is an object class or a
-///    type name string (`[0][0][CPythonCall][PythonCall]…`,
-///    `[0][0][Obj][AdditionalResults]…`) with the instance body inline;
-///  * instance blocks with unique IDs — `[idRef][0][DELIM][0][name]
-///    [value][flag][flag][flag]…` (Substep/PostSubstep DescriptionFormat);
-///  * TEInf's flagged-Str variant (field flags beyond 0x2/0x200 change
-///    the Str value arity).
+///    followed by element content (Calls/Params/Substeps);
+///  * TEInf's flagged-Str variants (further flag bits change Str arity —
+///    0xC is done, others remain).
+/// The recursive parser needs BinaryTypeField to carry children and the
+/// instance-head arity mapped the same way the 0x80/0x82/0xEE combos
+/// were: one combo at a time against the twins, wrong = 0 throughout.
 /// Locals/parameters: thin twin oracle (rosetta declares only the
 /// implicit `ResultList`) — ride along once nesting lands.
 List<String> binaryTypeNames(Uint8List seqBytes) =>
@@ -1127,10 +1131,22 @@ List<String> binaryTypeNames(Uint8List seqBytes) =>
 const _fieldHasValueBit = 0x2;
 const _fieldHasFormatBit = 0x200;
 
-/// Expression-typed field markers: bare, and the two stored-value variants
-/// observed corpus-wide (all rosetta ExprValue typedef fields are typename
-/// `Expression`; the exactness sweep is the guard).
+/// Expression-typed field flag combos: bare (0x80), stored value (0x82),
+/// and stored value + three instance-flag words (0xEE) — the arity table
+/// is per observed combo, twin-exactness-guarded; unknown combos leave the
+/// body undecoded. (The 0x80 bit marks a delimiter-framed instance; a
+/// non-zero word after the frame's delimiter signals a NESTED object body
+/// — e.g. `Menu:Obj` — which is not yet covered and bails.)
 const _exprFieldMarkers = {0x80, 0x82, 0xee};
+
+/// 0xEE's trailing instance-flag words (flagsforinstances-family values,
+/// carried opaquely — attribute naming for these is not yet pinned).
+const _exprInstanceFlagWords = 3;
+
+/// Field-flags combo 0xC: unvalued field carrying one instance-flag word
+/// after the name (BlockStartTypes/BlockEndTypes/AppliesToBlockStructure
+/// on Substep-family typedefs).
+const _fieldInstanceFlagsCombo = 0xc;
 
 /// Defensive cap on a typedef's subprop count (the largest real body in
 /// the corpus carries 49 fields — TEInf).
@@ -1168,13 +1184,15 @@ List<BinaryTypeField>? _typeFieldsAt(Uint8List body, ByteData view,
       if (fieldFlags & _fieldHasValueBit != 0) {
         final value = tok(u32(at + 5 * _u32Bytes));
         if (value == null) return null;
-        if (at + 7 * _u32Bytes > recordRegionLength ||
-            u32(at + 6 * _u32Bytes) != 0) {
+        // 0xEE carries three instance-flag words between value and trail.
+        final extras = fieldFlags == 0xee ? _exprInstanceFlagWords : 0;
+        final trailAt = at + (6 + extras) * _u32Bytes;
+        if (trailAt + _u32Bytes > recordRegionLength || u32(trailAt) != 0) {
           return null;
         }
         fields.add(BinaryTypeField(name,
             className: 'ExprValue', typeName: 'Expression', value: value));
-        at += 7 * _u32Bytes;
+        at = trailAt + _u32Bytes;
       } else {
         if (u32(at + 5 * _u32Bytes) != 0) return null;
         // Bare expression: the twin's `<value/>` reads as an empty string.
@@ -1182,6 +1200,28 @@ List<BinaryTypeField>? _typeFieldsAt(Uint8List body, ByteData view,
             className: 'ExprValue', typeName: 'Expression', value: ''));
         at += 6 * _u32Bytes;
       }
+      continue;
+    }
+    // Unvalued field with one instance-flag word after the name.
+    if (fieldFlags == _fieldInstanceFlagsCombo) {
+      final className = tok(u32(at + 2 * _u32Bytes));
+      final name = tok(u32(at + 3 * _u32Bytes));
+      if (className == null || name == null) return null;
+      if (at + 6 * _u32Bytes > recordRegionLength ||
+          u32(at + 5 * _u32Bytes) != 0) {
+        return null;
+      }
+      switch (className) {
+        case 'Bool':
+          fields.add(BinaryTypeField(name, className: 'Bool', value: 'false'));
+        case 'Str':
+          fields.add(BinaryTypeField(name, className: 'Str', value: ''));
+        case 'Num':
+          fields.add(BinaryTypeField(name, className: 'Num', value: '0'));
+        default:
+          return null;
+      }
+      at += 6 * _u32Bytes;
       continue;
     }
     final valued = fieldFlags & _fieldHasValueBit != 0;
