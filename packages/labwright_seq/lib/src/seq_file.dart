@@ -489,6 +489,8 @@ SeqProperty _typeFieldProp(BinaryTypeField field) => SeqProperty(
         if (field.instanceOverrides) '%BINOVERRIDES': 'true',
         if (field.elementSpecBytes != null)
           '%BINELEMENTSPEC': '${field.elementSpecBytes}',
+        if (field.intrinsicTypeId != null)
+          '%BININTRINSIC': '${field.intrinsicTypeId}',
       },
       subProps: [for (final child in field.children) _typeFieldProp(child)],
     );

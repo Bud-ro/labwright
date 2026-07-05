@@ -139,8 +139,11 @@ void main() {
       expect(got.name, want.name, reason: '$path: name');
       expect(got.className, want.className, reason: '$path: classname');
       // The typename is compared when recovered; inline custom instances
-      // legitimately carry none (engine-intrinsic, not in the file).
-      if (got.typeName != null || got.attributes['%BINOVERRIDES'] == null) {
+      // and intrinsically-typed arrays legitimately carry none
+      // (engine-intrinsic types are not serialized in the file).
+      if (got.typeName != null ||
+          (got.attributes['%BINOVERRIDES'] == null &&
+              got.attributes['%BININTRINSIC'] == null)) {
         expect(got.typeName, want.typeName, reason: '$path: typename');
       }
       expect(got.scalar, want.scalar, reason: '$path: value');
@@ -157,18 +160,27 @@ void main() {
           final twinChild = wantByName[child.name];
           expect(twinChild, isNotNull,
               reason: '$path.${child.name}: override not in twin');
-          expect(child.scalar, twinChild!.scalar,
-              reason: '$path.${child.name}: override value');
+          // A null scalar inside an instance is a flags-only override —
+          // the value is inherited from the type's default, which the
+          // binary does not restate.
+          if (child.scalar != null) {
+            expect(child.scalar, twinChild!.scalar,
+                reason: '$path.${child.name}: override value');
+          }
         }
         expect(got.subProps.length, lessThanOrEqualTo(want.subProps.length),
             reason: '$path: overrides are a subset');
         return;
       }
-      // Nested Obj declarations decode their children recursively; typed
-      // default-instance REFERENCES carry none (the binary stores only
-      // the ref — the twin materializes the type's defaults, which is
-      // out of the file's content).
-      if (got.subProps.isNotEmpty || got.className == 'Obj') {
+      // Nested object declarations (class 'Obj' or a class-name string)
+      // decode their children recursively; typed default-instance
+      // REFERENCES (typeName set, e.g. Result's Error:Error) carry none
+      // — the binary stores only the ref; the twin materializes the
+      // type's defaults, which is out of the file's content. The twin
+      // arbitrates: a declaration whose twin has children must have
+      // them all.
+      if (got.subProps.isNotEmpty ||
+          (got.typeName == null && want.subProps.isNotEmpty)) {
         expect(got.subProps.length, want.subProps.length,
             reason: '$path: child count');
         for (var i = 0; i < got.subProps.length; i++) {
