@@ -1113,12 +1113,17 @@ const _typeRecordMinBytes = (3 + _typeVersionTripleWords) * _u32Bytes;
 ///    TYPE is engine-intrinsic and not serialized). NOT yet exercised by
 ///    a completing typedef: every instance-bearing rosetta typedef also
 ///    hits the next item;
-///  * populated-array/element-type blocks — `AdditionalResultsHints`
-///    closes its `'[0]' '[]'` with a ~179-byte tail before the next
-///    field: the array's ELEMENT-TYPE declaration block (the
-///    `ElementType`/bounds machinery seen flattening in early probes).
-///    Decoding it is the next arity hunt, and it gates Substep-family
-///    completion;
+///  * array ELEMENT-TYPE blocks — `AdditionalResultsHints` closes its
+///    `'[0]' '[]'` + 0x8001 extra + terminator with a ~180-byte tail,
+///    byte-for-byte IDENTICAL across every rosetta binary. Byte-decoded
+///    prefix: `[one 0x00 pad][DELIM][5][DELIM][2][0][0][DELIM]` then a
+///    nested `'Type'` SPEC object — the `ElementType`/`LowerBounds`/
+///    `UpperBounds` motif repeating ~3 levels deep (the array element
+///    type's PropertyObjectType descriptor, cf. NI_CustomResult's
+///    `Type:PropertyObjectType` field). Decoding this nested spec (same
+///    prober method; the [5]/[2] count words are the open question)
+///    completes Substep/PostSubstep/Action and exercises the
+///    instance-override path end-to-end;
 ///  * POPULATED object arrays — `'[0]' '[]'` followed by element
 ///    content (`Calls`/`Params`/`Substeps`);
 ///  * fields whose class word is a TYPE NAME string
