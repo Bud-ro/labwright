@@ -482,9 +482,14 @@ SeqProperty _typeFieldProp(BinaryTypeField field) => SeqProperty(
       array: field.emptyArray ? const [] : null,
       // Inline custom instances serialize ONLY their overridden fields
       // (and their type is engine-intrinsic, not in the file) — marked so
-      // consumers compare children as an override subset.
-      attributes:
-          field.instanceOverrides ? const {'%BINOVERRIDES': 'true'} : const {},
+      // consumers compare children as an override subset. A skipped
+      // element-type spec is surfaced as its byte length — an explicitly
+      // undecoded blob, never silently dropped.
+      attributes: {
+        if (field.instanceOverrides) '%BINOVERRIDES': 'true',
+        if (field.elementSpecBytes != null)
+          '%BINELEMENTSPEC': '${field.elementSpecBytes}',
+      },
       subProps: [for (final child in field.children) _typeFieldProp(child)],
     );
 
