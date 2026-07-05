@@ -1,22 +1,27 @@
-/// `e2e_test` — author hardware end-to-end tests as ordinary Dart tests.
+/// `e2e_test` — the bench-team extension layer of the labwright example.
 ///
-/// The feel is borrowed from `package:integration_test`: you still write test
-/// bodies and `expect(...)`, but [e2eTest] hands you a [Dut] (device under test)
-/// that carries instrument [Plug]s, named [Dut.phase]s, and limit-checked
-/// [Dut.measure]ments. A run passes iff every measurement lands inside its
-/// limit, and each run yields a [TestRecord] that serialises to TDMS — the same
-/// traceable artifact the NI stack produced, written from plain Dart.
+/// `package:labwright` is the runner: `test()` registers named bodies from
+/// an `e2e/main.dart`, they run one at a time after `main` returns, and
+/// `expect(...)` decides pass/fail. This library shows what a bench team
+/// layers ON TOP of that surface without touching the runner: [e2eTest]
+/// hands the body a [Dut] (device under test) that carries instrument
+/// [Plug]s, named [Dut.phase]s, and limit-checked [Dut.measure]ments; each
+/// reading is [log]ged as it is checked, the run passes iff every
+/// measurement lands inside its limit, and the [TestRecord] serialises to
+/// TDMS — the same traceable artifact the legacy NI stack produced,
+/// written from plain Dart.
 ///
 /// Nothing here talks to real hardware: a [Plug] is an interface, and the
-/// examples implement it in-memory so the suite runs in CI. Swapping in a bench
-/// driver that implements [Plug] is the only change needed on real hardware.
+/// example implements it in-memory so the suite runs in CI. Swapping in a
+/// bench driver that implements [Plug] is the only change needed on real
+/// hardware.
 library;
 
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:labwright/labwright.dart';
 import 'package:labwright_tdms/labwright_tdms.dart';
-import 'package:test/test.dart' as t;
 
 export 'package:labwright_tdms/labwright_tdms.dart' show TdmsReader, TdmsFile;
 
@@ -61,8 +66,12 @@ class Limit {
   /// Whether [value] is within `[min, max]`.
   bool accepts(double value) => value >= min && value <= max;
 
+  // 3.3 - 0.1 is 3.1999999999999997; the log line should read 3.2.
+  static String _fmt(double v) =>
+      v.isFinite ? num.parse(v.toStringAsPrecision(10)).toString() : '$v';
+
   @override
-  String toString() => '[$min, $max] ${unit.symbol}';
+  String toString() => '[${_fmt(min)}, ${_fmt(max)}] ${unit.symbol}';
 }
 
 /// An instrument or fixture a [Dut] drives — the end-to-end analogue of an
@@ -184,7 +193,7 @@ class Dut {
 }
 
 /// Runs [body] against a fresh [Dut] and returns its [TestRecord] — the core
-/// without the `test()` wrapper, for when you want the record directly (e.g.
+/// without the [test] wrapper, for when you want the record directly (e.g.
 /// to assert a TDMS round-trip).
 Future<TestRecord> runDevice(
   String dutId,
@@ -195,29 +204,39 @@ Future<TestRecord> runDevice(
   return dut.record;
 }
 
-/// Declares a hardware end-to-end test — `testWidgets` for a device. The run
-/// passes iff every measurement is within its limit, unless you assert a
-/// different [expectedOutcome] (e.g. to prove a fault is caught). Any id in
-/// [requirements] must actually be measured, or the test fails as uncovered.
+/// Declares a hardware end-to-end test on the labwright runner — layered
+/// over [test], so it registers like any other test and its body runs after
+/// `main` returns. The run passes iff every measurement lands inside its
+/// limit, and any id in [requirements] must actually be measured or the
+/// test fails as uncovered. [requirements] also bind to the labwright
+/// requirements trace (the run report), and every reading is [log]ged as
+/// it is checked — visible in the terminal and the live viewer.
+///
+/// labwright has no expected-failure tier (exceptions ARE failures), so
+/// proving a fault is CAUGHT is written as a normal passing test that
+/// asserts the reading falls OUTSIDE its limit — see the brownout example.
 void e2eTest(
   String description,
   FutureOr<void> Function(Dut) body, {
   List<String> requirements = const [],
-  Outcome expectedOutcome = Outcome.pass,
   String? dutId,
 }) {
-  t.test(description, () async {
+  test(description, requirements: requirements, () async {
     final record = await runDevice(dutId ?? description, body);
-    t.expect(
+    for (final m in record.measurements) {
+      log('${m.phase} · ${m.name} = ${m.value} ${m.limit.unit.symbol}, '
+          'limit ${m.limit}${m.inLimit ? '' : ' — OUT'}');
+    }
+    expect(
       record.outcome,
-      expectedOutcome,
+      Outcome.pass,
       reason: 'readings: '
           '${record.measurements.map((m) => '${m.name}=${m.value}${m.inLimit ? '' : ' OUT'}').join(', ')}',
     );
     for (final req in requirements) {
-      t.expect(
+      expect(
         record.requirements,
-        t.contains(req),
+        contains(req),
         reason: 'declared requirement $req was never measured',
       );
     }
