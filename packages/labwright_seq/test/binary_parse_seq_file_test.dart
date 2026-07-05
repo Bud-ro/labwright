@@ -268,6 +268,29 @@ void main() {
     expect(binFile.sequences.single.failureActionCode, 2);
   });
 
+  test('post-group Requirements/RTS objects match the twin', () {
+    // The nested Obj subprops after the group arrays: Requirements (with
+    // its Links traceability list) and RTS (runtime/entry-point
+    // settings), anchor-located and parsed with the field grammar.
+    for (var i = 0; i < xmlFile.sequences.length; i++) {
+      final xs = xmlFile.sequences[i];
+      final bs = binFile.sequences[i];
+      expect(bs.requirementLinks, xs.requirementLinks,
+          reason: '${xs.name}: requirementLinks');
+      expect(bs.runtimeSettings != null, xs.runtimeSettings != null,
+          reason: '${xs.name}: runtimeSettings presence');
+      // RTS children (names) must equal the twin's exactly.
+      final bRts = bs.raw.prop('RTS');
+      final xRts = xs.raw.prop('RTS');
+      expect(bRts?.subProps.map((p) => p.name).toList(),
+          xRts?.subProps.map((p) => p.name).toList(),
+          reason: '${xs.name}: RTS children');
+    }
+    // Concretely: the oracle has no requirement links and a 15-field RTS.
+    expect(binFile.sequences.single.requirementLinks, isEmpty);
+    expect(binFile.sequences.single.raw.prop('RTS')?.subProps.length, 15);
+  });
+
   test('per-step TS subprops decode as an override subset of the twin', () {
     // The step-data descriptor node decodes the step's SERIALIZED TS
     // subprops (Id, and any overrides) — a SUBSET of the twin's
