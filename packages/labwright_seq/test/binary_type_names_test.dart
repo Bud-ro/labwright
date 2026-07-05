@@ -182,4 +182,78 @@ void main() {
     expect(totalNames, greaterThanOrEqualTo(7000),
         reason: 'type-name recovery regressed ($totalNames names)');
   });
+
+  test('whole-corpus sweep: sequence leading subprops never fabricate', () {
+    // The leading-subprop decode (Parameters/Locals from the sequence
+    // record) must never emit a structural token as a subprop name, and
+    // must only ever emit the known pre-Main names — the honesty gate
+    // over the whole corpus, not just the twinned pairs.
+    var withLeading = 0, total = 0;
+    final offenders = <String>[];
+    for (final f in corpusSeqDir
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((f) => f.path.toLowerCase().endsWith('.seq'))) {
+      final bytes = f.readAsBytesSync();
+      if (detectSeqFormat(bytes) != SeqFormat.binary) continue;
+      for (final outline in binarySequenceOutlines(bytes)) {
+        if (outline.leadingSubProps.isNotEmpty) withLeading++;
+        for (final sp in outline.leadingSubProps) {
+          total++;
+          if (sp.name != 'Parameters' && sp.name != 'Locals') {
+            offenders.add('${f.uri.pathSegments.last}: ${sp.name}');
+          }
+        }
+      }
+    }
+    // ignore: avoid_print
+    print('sequence leading subprops: $total across $withLeading sequences');
+    expect(offenders, isEmpty,
+        reason: 'non-leading subprop name emitted:\n'
+            '${offenders.take(5).join('\n')}');
+    expect(withLeading, greaterThanOrEqualTo(80),
+        reason: 'leading-subprop recovery regressed ($withLeading)');
+  });
+
+  test('rosetta-wide: sequence locals/parameters match every twin', () {
+    // Every rosetta pair's sequences must decode the same locals and
+    // parameters (name + type) as the XML twin — the leading-subprop
+    // decode generalizes past the content-exact OutputVoltage pair.
+    final rosetta = Directory('${corpusSeqDir.path}/rosetta');
+    var pairs = 0, sequences = 0;
+    for (final bin in rosetta
+        .listSync()
+        .whereType<File>()
+        .where((f) => f.path.endsWith('_BIN.seq'))) {
+      final name = bin.uri.pathSegments.last;
+      final prefix =
+          name.replaceAll('_labview_BIN.seq', '').replaceAll('_BIN.seq', '');
+      File? twin;
+      for (final suffix in ['_python_XML.seq', '_XML.seq', '_python.seq']) {
+        final f = File('${rosetta.path}/$prefix$suffix');
+        if (f.existsSync()) {
+          twin = f;
+          break;
+        }
+      }
+      if (twin == null) continue;
+      pairs++;
+      final binFile = parseSeqFile(bin.readAsBytesSync());
+      final xmlFile = parseSeqFile(twin.readAsBytesSync());
+      final xmlByName = {for (final s in xmlFile.sequences) s.name: s};
+      for (final bs in binFile.sequences) {
+        final xs = xmlByName[bs.name];
+        if (xs == null) continue;
+        sequences++;
+        expect(bs.locals.map((l) => '${l.name}:${l.type}').toList(),
+            xs.locals.map((l) => '${l.name}:${l.type}').toList(),
+            reason: '$name ${bs.name}: locals');
+        expect(bs.parameters.map((p) => '${p.name}:${p.type}').toList(),
+            xs.parameters.map((p) => '${p.name}:${p.type}').toList(),
+            reason: '$name ${bs.name}: parameters');
+      }
+    }
+    expect(pairs, greaterThanOrEqualTo(5));
+    expect(sequences, greaterThanOrEqualTo(5));
+  });
 }
