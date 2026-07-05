@@ -38,9 +38,12 @@ class PropertyNode {
   bool get isLeaf => children.isEmpty;
 
   /// Whether the source property was an explicit **instance override** — it
-  /// carried a legacy `%INSTOVRD` marker, i.e. it overrides its base type rather
-  /// than inheriting the default. See [SeqProperty.isInstanceOverride].
-  bool get isInstanceOverride => attributes.containsKey('%INSTOVRD');
+  /// overrides its base type rather than inheriting the default (the INI
+  /// `%INSTOVRD` or the binary `%BINOVERRIDES` marker). See
+  /// [SeqProperty.isInstanceOverride].
+  bool get isInstanceOverride =>
+      attributes.containsKey('%INSTOVRD') ||
+      attributes.containsKey('%BINOVERRIDES');
 
   /// Builds the node for [p]. Array elements are indexed for a readable label.
   factory PropertyNode.of(SeqProperty p, {int? index}) {

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -26,6 +27,11 @@ enum ZlibFlag {
 /// Minimum inflated size to accept a candidate zlib stream as the body — guards
 /// against tiny false-positive streams.
 const _minInflatedBytes = 64;
+
+/// Hard cap on an inflated body (16× headroom over the largest real
+/// corpus body, ~8 MB) — bounds a zlib decompression bomb during the
+/// planned fuzzing. See [_inflateCapped].
+const _maxInflatedBytes = 128 * 1024 * 1024;
 
 /// `0xff` — the byte [_countSentinels] scans for as a `ff ff ff ff` dword. NOTE:
 /// despite the legacy "sentinel" name, these are **not** record delimiters
@@ -108,18 +114,64 @@ Uint8List? inflateBinaryBody(Uint8List bytes) {
     if (bytes[i] != _zlibCmf) continue;
     if (!ZlibFlag.isKnown(bytes[i + 1])) continue;
     try {
-      // sublistView + identity check: neither the candidate tail nor the
-      // inflated result is copied (zlib.decode already returns a Uint8List
-      // in practice; a file-sized copy per parse adds up over corpus sweeps).
-      final out = zlib.decode(Uint8List.sublistView(bytes, i));
-      if (out.length > _minInflatedBytes) {
-        return out is Uint8List ? out : Uint8List.fromList(out);
-      }
+      // Streamed with a hard output cap so a decompression bomb (a few KB
+      // that inflates to gigabytes) aborts instead of exhausting memory —
+      // the fuzzing corpus WILL feed hostile inputs. The cap is generous
+      // vs. real files (the largest corpus body inflates to ~8 MB, ratio
+      // ~22×) yet bounds the worst case. sublistView avoids copying the
+      // candidate tail.
+      final out = _inflateCapped(Uint8List.sublistView(bytes, i));
+      if (out != null && out.length > _minInflatedBytes) return out;
     } catch (_) {
       // Keep scanning past a position that does not start a valid stream.
     }
   }
   return null;
+}
+
+/// Inflates [input] with a chunked [ZLibDecoder], returning null once the
+/// running output exceeds [_maxInflatedBytes] — a decompression bomb
+/// aborts after buffering at most one input chunk past the cap, never the
+/// whole gigabyte output. Rethrows genuine format errors so the caller
+/// keeps scanning.
+Uint8List? _inflateCapped(Uint8List input) {
+  final sink = _CappedByteSink(_maxInflatedBytes);
+  final decoderInput = ZLibDecoder().startChunkedConversion(sink);
+  const chunk = 1 << 16;
+  for (var o = 0; o < input.length && !sink.overflowed; o += chunk) {
+    final end = o + chunk < input.length ? o + chunk : input.length;
+    decoderInput.add(Uint8List.sublistView(input, o, end));
+  }
+  if (!sink.overflowed) decoderInput.close();
+  return sink.overflowed ? null : sink.takeBytes();
+}
+
+/// A byte sink that accumulates decoded chunks and latches [overflowed]
+/// once the total passes [_cap], so [_inflateCapped] can stop feeding a
+/// bomb.
+class _CappedByteSink extends ByteConversionSink {
+  _CappedByteSink(this._cap);
+
+  final int _cap;
+  final BytesBuilder _builder = BytesBuilder(copy: false);
+  bool overflowed = false;
+
+  @override
+  void add(List<int> chunk) {
+    if (overflowed) return;
+    _builder.add(chunk);
+    if (_builder.length > _cap) overflowed = true;
+  }
+
+  @override
+  void addSlice(List<int> chunk, int start, int end, bool isLast) {
+    add(Uint8List.sublistView(chunk as Uint8List, start, end));
+  }
+
+  @override
+  void close() {}
+
+  Uint8List takeBytes() => _builder.takeBytes();
 }
 
 /// Recovers the string/name pool from a binary TOF1 `.seq` — the inflated body's
@@ -1106,9 +1158,10 @@ const _typeRecordMinBytes = (3 + _typeVersionTripleWords) * _u32Bytes;
 ///
 /// TODO(binary decode — typedef bodies: SPEC GRAMMAR + descriptor
 /// nodes + framed-lite + inline instances w/ attr-scanned counts +
-/// class-name declarations + populated-array bounds landed; 87 rosetta
-/// bodies twin-exact; see [BinaryTypeField] and the body parser).
-/// Remaining (every TWIN-VALIDATED typedef now decodes — 93 bodies):
+/// class-name declarations + populated-array bounds + EXTDATA landed;
+/// see [BinaryTypeField] and the body parser).
+/// Remaining (every TWIN-VALIDATED typedef now decodes — 93 bodies
+/// across the rosetta pairs, pinned by the binary tests):
 ///  * EXTDATA block CONTENT: the marshalling blocks (type-level opener
 ///    `[0][extCount]{blocks}[subCount]` and per-field 0x100-flagged
 ///    tails) are walked but their payloads (STRUCT packing/type/buffer
@@ -1130,10 +1183,26 @@ const _typeRecordMinBytes = (3 + _typeVersionTripleWords) * _u32Bytes;
 List<String> binaryTypeNames(Uint8List seqBytes) =>
     _withLayout(seqBytes, _typeNamesFromBody);
 
-/// Field-flag bits (see [BinaryTypeField]): a stored value, and a display-
-/// format string following it (e.g. `%#x` on `Flags` fields).
-const _fieldHasValueBit = 0x2;
-const _fieldHasFormatBit = 0x200;
+/// The known field-flag bits (word 1 of a typedef field record; see
+/// [BinaryTypeField] and the body parser). Cataloged so the known-bits
+/// mask [_fieldKnownFlagBits] is DERIVED from the same source the code
+/// tests against — a raw mask literal could silently drift from the
+/// individual bit checks. Bits 0x4/0x8/0x20/0x40 advertise which flag
+/// ATTRIBUTES the field stores; their exact arity is not reliable (see
+/// `_attrTail`), so they are grouped rather than named individually.
+const _fieldHasValueBit = 0x2; // a stored value follows
+const _fieldAttrBits = 0x4 | 0x8 | 0x20 | 0x40; // flag-attribute markers
+const _fieldFramedBit = 0x80; // delimiter-framed form
+const _fieldHasExtDataBit = 0x100; // extdata (marshalling) tail
+const _fieldHasFormatBit = 0x200; // display-format string after the value
+
+/// Every bit the field grammar recognizes; a field carrying any OTHER
+/// bit is a shape the grammar does not cover and bails.
+const _fieldKnownFlagBits = _fieldHasValueBit |
+    _fieldAttrBits |
+    _fieldFramedBit |
+    _fieldHasExtDataBit |
+    _fieldHasFormatBit;
 
 /// Defensive cap on a typedef's subprop count (the largest real body in
 /// the corpus carries 49 fields — TEInf).
@@ -1223,6 +1292,12 @@ class _TypeBodyParser {
   /// never fabricate a body silently).
   bool _usedSpec = false;
 
+  /// Current field-nesting depth. Bounded by [_maxFieldDepth] so a
+  /// hostile body of self-nesting declarations (each descriptor node
+  /// costs ~20 bytes and one recursion level) bails instead of
+  /// overflowing the stack — [parse] must be total over arbitrary input.
+  int _depth = 0;
+
   /// Whether the walk is inside an INSTANCE's children (framed X >= 1).
   /// There an unvalued field means "value INHERITED from the type's
   /// default" (Action's TS stores PassAct with flags 0x60 and no value
@@ -1274,28 +1349,31 @@ class _TypeBodyParser {
     // A single realignment pad byte precedes the frame after non-Objs
     // arrays (Objs arrays already consume their own pad).
     if (view.getUint8(p) == 0) p++;
-    if (p + 4 * _u32Bytes > recordRegionLength ||
-        _u32(p) != _recordDelimiter) {
-      return null;
-    }
+    // Reads its words one at a time, each bounds-checked — the frame is
+    // variable-length (optional X word, optional 0x20000 tag), so a
+    // single entry guard cannot cover the later reads.
+    if (!_canRead(p) || _u32(p) != _recordDelimiter) return null;
     p += _u32Bytes;
     // X = the element type as a 1-based table reference. When the next
     // word is already the closing delimiter, X is OMITTED — a
     // self/inherit reference (Substep.TS's CustomResults spec reads
     // [DELIM][DELIM][count]).
+    if (!_canRead(p)) return null;
     final x = _u32(p);
     if (x == _recordDelimiter) {
       p += _u32Bytes;
     } else {
       if (x < 1 || x > table.length) return null;
       p += _u32Bytes;
-      if (_u32(p) != _recordDelimiter) return null;
+      if (!_canRead(p) || _u32(p) != _recordDelimiter) return null;
       p += _u32Bytes;
     }
+    if (!_canRead(p)) return null;
     var tagged = false;
     if (_u32(p) == 0x20000) {
       tagged = true;
       p += _u32Bytes;
+      if (!_canRead(p)) return null;
     }
     final count = _u32(p);
     // Zero items only frames as a full spec under the 0x20000 tag
@@ -1308,6 +1386,9 @@ class _TypeBodyParser {
     if (items == null) return null;
     return _attrTail(items.$2);
   }
+
+  /// Whether a `u32` can be read at [at] within the record region.
+  bool _canRead(int at) => at + _u32Bytes <= recordRegionLength;
 
   /// Walks [remaining] adapter-marshalling EXTDATA blocks (the twin's
   /// `<extdata controllername='STRUCT'/'CLUST'/'DNSTRUCT'/'BLVCLUSTER'…>`
@@ -1450,6 +1531,18 @@ class _TypeBodyParser {
   }
 
   (List<BinaryTypeField>, int)? _fields(int from, int count) {
+    // Every recursion (_field → nested declaration/instance/spec →
+    // _fields) routes through here, so one depth guard covers them all.
+    if (_depth >= _maxFieldDepth) return null;
+    _depth++;
+    try {
+      return _fieldsInner(from, count);
+    } finally {
+      _depth--;
+    }
+  }
+
+  (List<BinaryTypeField>, int)? _fieldsInner(int from, int count) {
     var at = from;
     final fields = <BinaryTypeField>[];
     for (var i = 0; i < count; i++) {
@@ -1457,8 +1550,8 @@ class _TypeBodyParser {
       if (field == null) return null;
       at = field.$2;
       var specBytes = 0;
-      if (field.$1.emptyArray) {
-        // An element-type spec may follow any empty array. It is
+      if (field.$1.isArray) {
+        // An element-type spec may follow any array. It is
         // detected by its frame — nothing else in a field walk leads
         // with a bare DELIMITER — not by the attr bits (TEInf's
         // CustomResults carries 0x8001 before its spec, the same field
@@ -1491,16 +1584,10 @@ class _TypeBodyParser {
         if (debugCollectSpecs) {
           debugSpecSites.add((field.$1.name, field.$2, specBytes));
         }
-        fields.add(BinaryTypeField(
-          field.$1.name,
-          className: field.$1.className,
-          typeName: field.$1.typeName,
-          value: field.$1.value,
-          emptyArray: field.$1.emptyArray,
-          children: field.$1.children,
-          instanceOverrides: field.$1.instanceOverrides,
-          elementSpecBytes: specBytes,
-        ));
+        // copyWith (not a hand-copied constructor) so a future field on
+        // BinaryTypeField can't silently vanish here — intrinsicTypeId
+        // once did.
+        fields.add(field.$1.withElementSpecBytes(specBytes));
       } else {
         fields.add(field.$1);
       }
@@ -1536,12 +1623,8 @@ class _TypeBodyParser {
       if (after == null) return null;
       return (BinaryTypeField(name, value: value), after);
     }
-    if (fieldFlags &
-            ~(0x2 | 0x4 | 0x8 | 0x20 | 0x40 | 0x80 | 0x100 | 0x200) !=
-        0) {
-      return null;
-    }
-    final hasExtData = fieldFlags & 0x100 != 0;
+    if (fieldFlags & ~_fieldKnownFlagBits != 0) return null;
+    final hasExtData = fieldFlags & _fieldHasExtDataBit != 0;
     final valued = fieldFlags & _fieldHasValueBit != 0;
     final hasFormat = fieldFlags & _fieldHasFormatBit != 0;
 
@@ -1569,8 +1652,8 @@ class _TypeBodyParser {
       );
     }
 
-    // Framed form: [flags|0x80][0][DELIM][X][name][value…][extras…][0].
-    if (fieldFlags & 0x80 != 0) {
+    // Framed form: [flags|0x80][0][DELIM][X][name][value…][attrs…][0].
+    if (fieldFlags & _fieldFramedBit != 0) {
       if (_u32(at + 2 * _u32Bytes) != _recordDelimiter) return null;
       final x = _u32(at + 3 * _u32Bytes);
       final name = _tok(_u32(at + 4 * _u32Bytes));
@@ -1610,7 +1693,10 @@ class _TypeBodyParser {
         // X is surfaced as the undecoded intrinsic-type id.
         return (
           BinaryTypeField(name,
-              className: 'Objs', emptyArray: true, intrinsicTypeId: x),
+              className: 'Objs',
+              arrayLBound: '[0]',
+              arrayUBound: '[]',
+              intrinsicTypeId: x),
           tail + 1
         );
       } else if (x >= 2 && !valued && x - 1 < table.length) {
@@ -1835,7 +1921,7 @@ class _TypeBodyParser {
         after
       );
     }
-    // Empty array field: value tokens '[0]' '[]' then trail 0. Object
+    // Array field: bound tokens `lbound ubound` then trail 0. Object
     // arrays (`Objs`) additionally carry ONE 0x00 pad byte after the
     // trail — the stream is byte-granular, and this pad is what shifts
     // everything after an empty Objs array off word alignment.
@@ -1843,11 +1929,13 @@ class _TypeBodyParser {
         next + 2 * _u32Bytes <= recordRegionLength &&
         _isBoundToken(_tok(_u32(next))) &&
         _isBoundToken(_tok(_u32(next + _u32Bytes)))) {
-      // Bounds are literal tokens ('[0]' '[]' = empty; '[0]' '[0]' = a
-      // populated one-element array — PythonCall.Parameters). Populated
-      // content rides in the trailing DELIM-led blocks, currently
-      // surfaced undecoded via elementSpecBytes (TODO: decode element
-      // values once more corpus shapes are in hand).
+      // The bounds are surfaced verbatim ('[0]' '[]' = empty; '[0]'
+      // '[0]' = a populated one-element array — PythonCall.Parameters).
+      // A populated array is NOT claimed empty: its element content
+      // rides in the trailing DELIM-led blocks, surfaced undecoded via
+      // elementSpecBytes (TODO: decode element values).
+      final lbound = _tok(_u32(next))!;
+      final ubound = _tok(_u32(next + _u32Bytes))!;
       var after = _attrTail(next + 2 * _u32Bytes);
       if (after == null) return null;
       if (className == 'Objs') {
@@ -1857,7 +1945,8 @@ class _TypeBodyParser {
         after += 1;
       }
       return (
-        BinaryTypeField(name, className: className, emptyArray: true),
+        BinaryTypeField(name,
+            className: className, arrayLBound: lbound, arrayUBound: ubound),
         after
       );
     }
@@ -1944,39 +2033,26 @@ List<String> _typeNamesFromBody(Uint8List body, int recordRegionLength,
         record.name,
     ];
 
-/// A decoded type-record HEAD — the same attributes the XML encoding puts
-/// on the typedef element. Layout (validated attribute-for-attribute
-/// against the oracle twin: 22/22 comparable typedefs exact):
-///
-/// `[classIdx][nameIdx][typecategory][stamp][0?][ver][ver][ver]
-///  [flags…][0][0xffffffff]`
-///
-/// The version triple starts at word 3 (TS 4.x/5.0 layout) or word 4
-/// (newer); the flag words after the triple — up to the `0xffffffff`
-/// record delimiter, trailing zeros dropped — carry, IN ORDER: `typeflags`,
-/// `flagsforinstances`, `instanceoverrideflags`, `valueflags` (later ones
-/// only when the typedef declares them, exactly like the XML attributes).
-/// The typedef BODY (fields, defaults) follows the delimiter and is not
-/// yet decoded.
 /// One decoded typedef FIELD — the binary form of an XML typedef subprop.
+///
 /// Field records follow the typedef head as
 /// `[fieldFlags][0][classIdx][nameIdx][value…]`, where flag bit 0x2 marks a
-/// stored value and bit 0x200 a display-format string after it. Value
-/// arity by class: Bool/Str one word (+ trailing 0 when stored), Num an
-/// inline f64 (+ format ref when flagged, + trailing 0), `Nums`/`Strs`
-/// empty arrays the token pair `'[0]' '[]'` + 0. A field typed by
-/// `Expression` fuses the prefix into a delimiter-framed block
-/// `[marker][0][0xffffffff][0][nameIdx][value…]` (markers 0x80 bare,
-/// 0x82/0xEE with a stored value). Twin-validated: 55 typedef bodies
-/// across the rosetta pairs decode field-for-field exactly; anything not
-/// matching these shapes leaves the WHOLE body undecoded (all-or-nothing —
-/// no partial trees, no fabrication).
+/// stored value, bit 0x80 a delimiter-framed form, bit 0x100 an extdata
+/// tail, and bit 0x200 a display-format string after the value. Value
+/// arity by class: Bool one byte, Str one word, Num an inline f64 (+
+/// format ref when flagged), `Nums`/`Strs`/`Objs` arrays a bound-token
+/// pair. Framed fields carry an X word selecting Expression / a
+/// 1-based type-table reference / an inline instance. See the body
+/// parser for the full grammar. Anything not matching a covered shape
+/// leaves the WHOLE body undecoded (all-or-nothing — no partial trees,
+/// no fabrication).
 class BinaryTypeField {
   const BinaryTypeField(this.name,
       {this.className,
       this.typeName,
       this.value,
-      this.emptyArray = false,
+      this.arrayLBound,
+      this.arrayUBound,
       this.children = const [],
       this.instanceOverrides = false,
       this.elementSpecBytes,
@@ -1986,19 +2062,33 @@ class BinaryTypeField {
   final String name;
 
   /// The value class (`Bool`/`Str`/`Num`/`Nums`/`Strs`), or `ExprValue`
-  /// for Expression-typed fields.
+  /// for Expression-typed fields. Null for compact fields, whose class is
+  /// not serialized (never guessed).
   final String? className;
 
   /// The named type for typed fields (`Expression`), null otherwise.
   final String? typeName;
 
   /// The stored scalar value in XML text form (`false`, `8192`, `""`), or
-  /// null when the field carries none.
+  /// null when the field carries none — including a flags-only override
+  /// inside an instance, whose value is INHERITED from the type default.
   final String? value;
 
-  /// Whether this is an empty scalar-array field (`Nums`/`Strs` with
-  /// `lbound 0, ubound -1`).
-  final bool emptyArray;
+  /// The array bounds tokens as the file stores them (`'[0]'` /
+  /// `'[]'` / `'[3]'`), or null for a non-array field. `arrayUBound ==
+  /// '[]'` is an EMPTY array; anything else is POPULATED — the element
+  /// values ride in [elementSpecBytes] (not yet decoded), so the field
+  /// is honestly marked an array whose contents are undecoded rather
+  /// than fabricated empty. See [isArray] / [isEmptyArray].
+  final String? arrayLBound;
+  final String? arrayUBound;
+
+  /// Whether this field is an array (empty or populated).
+  bool get isArray => arrayUBound != null;
+
+  /// Whether this array is genuinely empty (`ubound == '[]'`). False for
+  /// a populated array whose elements are undecoded.
+  bool get isEmptyArray => arrayUBound == '[]';
 
   /// Nested declaration children (an `Obj` field's own field list),
   /// decoded recursively. A typed default-instance REFERENCE (`X >= 2`
@@ -2008,19 +2098,20 @@ class BinaryTypeField {
   final List<BinaryTypeField> children;
 
   /// TODO(element-type spec): the length in bytes of this array field's
-  /// trailing ELEMENT-TYPE SPEC — an explicitly UNDECODED blob (it
-  /// encodes the array's element type; needed for populated arrays and
-  /// eventual .seq writing, so it is surfaced, never dropped). The blob
-  /// starts right after this field's own encoding. Null when the field
-  /// carries no spec (or the spec trails the body's last field, where
-  /// the count-driven walk leaves it untouched).
+  /// trailing ELEMENT-TYPE SPEC plus (for a populated array) its element
+  /// content — an explicitly UNDECODED blob (needed for populated-array
+  /// values and eventual .seq writing, so it is surfaced, never
+  /// dropped). The blob starts right after this field's own encoding.
+  /// Null when the field carries no spec (or the spec trails the body's
+  /// last field, where the count-driven walk leaves it untouched).
   final int? elementSpecBytes;
 
-  /// True for an inline CUSTOM instance (framed `X == 1`): [children]
-  /// holds ONLY the fields the instance OVERRIDES — the file serializes
-  /// nothing else, and the instance's TYPE is engine-intrinsic (not in
-  /// the file), so [typeName] stays null. Compare such children as a
-  /// subset of the materialized twin, never as the full field list.
+  /// True for an inline CUSTOM/OVERRIDE instance (framed `X >= 1`) and
+  /// for a descriptor node: [children] holds ONLY the fields serialized
+  /// (a subset of the materialized type — the rest are inherited), so
+  /// compare children as a subset of the twin, never as the full field
+  /// list. For the `X == 1` intrinsic form the instance TYPE is
+  /// engine-intrinsic (not in the file), so [typeName] stays null.
   final bool instanceOverrides;
 
   /// TODO(intrinsic types): for a framed VALUED empty array, the X word
@@ -2029,8 +2120,36 @@ class BinaryTypeField {
   /// the file never serializes). Surfaced undecoded; the id → name map
   /// needs more corpus evidence. Null elsewhere.
   final int? intrinsicTypeId;
+
+  /// Returns a copy with [elementSpecBytes] set — used when a trailing
+  /// element-type spec is walked after the field's own encoding. A
+  /// method (not a hand-copied constructor) so a newly added field can
+  /// never be silently dropped in the copy.
+  BinaryTypeField withElementSpecBytes(int bytes) => BinaryTypeField(
+        name,
+        className: className,
+        typeName: typeName,
+        value: value,
+        arrayLBound: arrayLBound,
+        arrayUBound: arrayUBound,
+        children: children,
+        instanceOverrides: instanceOverrides,
+        elementSpecBytes: bytes,
+        intrinsicTypeId: intrinsicTypeId,
+      );
 }
 
+/// A decoded type record — the binary form of an XML typedef element.
+///
+/// The HEAD carries the same attributes the XML encoding puts on the
+/// typedef element (classname, typecategory, timestamp, the version
+/// triple, and the ordered flag words typeflags / flagsforinstances /
+/// instanceoverrideflags / valueflags), from the layout
+/// `[classIdx][nameIdx][typecategory][stamp][0?][ver][ver][ver]
+/// [flags…][0][0xffffffff]` (the triple starts at word 3 on the TS
+/// 4.x/5.0 layout, word 4 on newer). Head attributes are validated
+/// attribute-for-attribute against the oracle twin. The BODY follows the
+/// delimiter and decodes into [fields] (null when undecoded — see there).
 class BinaryTypeRecord {
   const BinaryTypeRecord({
     required this.name,
@@ -2040,6 +2159,7 @@ class BinaryTypeRecord {
     required this.versions,
     required this.flags,
     this.fields,
+    this.undecodedBody = false,
   });
 
   /// The type name (the typedef element name in XML).
@@ -2072,10 +2192,17 @@ class BinaryTypeRecord {
   final List<int> flags;
 
   /// The typedef's decoded FIELD list (see [BinaryTypeField]), or null
-  /// when the body contains shapes the grammar does not yet cover (nested
-  /// objects, populated arrays, instance-ID blocks) — undecoded, never
-  /// partially guessed.
+  /// when the body was not decoded — either the record has no body
+  /// region at all, or it has one whose shapes the grammar does not yet
+  /// cover ([undecodedBody] distinguishes the two). Never partially
+  /// guessed.
   final List<BinaryTypeField>? fields;
+
+  /// True when a body region EXISTS but did not decode (all-or-nothing
+  /// bail) — as opposed to a record with no body region. Both leave
+  /// [fields] null; this separates "undecoded" from "declares nothing"
+  /// so consumers do not present a bailed body as an empty type.
+  final bool undecodedBody;
 
   int? get typeFlags => flags.isNotEmpty ? flags[0] : null;
   int? get flagsForInstances => flags.length > 2 ? flags[1] : null;
@@ -2120,6 +2247,12 @@ const _fieldMaxAttrWords = 8;
 /// Defensive cap on an extdata block list (Error stores four:
 /// STRUCT/CLUST/DNSTRUCT/BLVCLUSTER).
 const _typeMaxExtBlocks = 8;
+
+/// Defensive cap on typedef-body field-nesting depth. The deepest real
+/// nesting is a handful of levels (TS instance → Result Obj → Error
+/// ref); this bound is far above that and exists only to make a hostile
+/// self-nesting body bail instead of overflowing the stack.
+const _maxFieldDepth = 64;
 
 /// Defensive cap on flag words read after the version triple while looking
 /// for the record delimiter (real records carry at most four flags plus a
@@ -2239,7 +2372,8 @@ List<BinaryTypeRecord> _typeRecordsFromBody(
         : null;
     final fields = _typeFieldsAt(
         body, view, pool, bodyAt, recordRegionLength, result, boundary);
-    if (fields == null) continue;
+    // A body region existed here (bodyAt != null); record whether it
+    // decoded so consumers can tell "undecoded" from "declares nothing".
     result[i] = BinaryTypeRecord(
       name: records[i].name,
       className: records[i].className,
@@ -2248,6 +2382,7 @@ List<BinaryTypeRecord> _typeRecordsFromBody(
       versions: records[i].versions,
       flags: records[i].flags,
       fields: fields,
+      undecodedBody: fields == null,
     );
   }
   return result;

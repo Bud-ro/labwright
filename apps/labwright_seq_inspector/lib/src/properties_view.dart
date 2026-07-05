@@ -159,13 +159,29 @@ class PropertyTile extends StatelessWidget {
     return RichText(text: TextSpan(style: theme.textTheme.bodyMedium, children: spans));
   }
 
-  /// Attribute chips deliberately exclude the `classname`/`typename` keys —
-  /// those are already surfaced via `node.typeLabel`.
+  /// Renders a synthetic binary-decoder marker as a human-readable chip;
+  /// passes ordinary XML attributes through as `key=value`.
+  static String _chipLabel(String key, String value) => switch (key) {
+        '%BINELEMENTSPEC' => 'element type: $value bytes undecoded',
+        '%BININTRINSIC' => 'intrinsic type id $value',
+        '%BINARRAYUNDECODED' => 'array $value — elements undecoded',
+        '%BINBODYUNDECODED' => 'body not yet decoded',
+        _ => '$key=$value',
+      };
+
+  /// Attribute chips deliberately exclude the `classname`/`typename` keys
+  /// (already surfaced via `node.typeLabel`) and the `%BINOVERRIDES`
+  /// marker (surfaced as the "⋄ overridden" badge). The remaining
+  /// synthetic `%BIN*` markers are rendered as readable labels rather
+  /// than raw sentinel keys.
   Widget? _subtitle(ThemeData theme) {
     if (node.attributes.isEmpty) return null;
     final shown = node.attributes.entries
-        .where((e) => e.key != 'classname' && e.key != 'typename')
-        .map((e) => '${e.key}=${e.value}')
+        .where((e) =>
+            e.key != 'classname' &&
+            e.key != 'typename' &&
+            e.key != '%BINOVERRIDES')
+        .map((e) => _chipLabel(e.key, e.value))
         .toList();
     if (shown.isEmpty) return null;
     return Padding(

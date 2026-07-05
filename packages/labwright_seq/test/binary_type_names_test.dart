@@ -42,6 +42,40 @@ void main() {
     return;
   }
 
+  // Compares a decoded binary field against its XML-twin subprop,
+  // RECURSING into plain nested declarations (toolchain-stable across the
+  // twin pairs). Instance/override and typed-reference subtrees carry a
+  // subset (or nothing) and are validated at full depth by the
+  // content-exact OutputVoltage parse test; here they are compared
+  // shallowly (their own name/class), not descended.
+  void compareField(String path, BinaryTypeField got, SeqProperty want) {
+    expect(got.name, want.name, reason: '$path field name');
+    // Intrinsically-typed arrays and inline custom instances carry no
+    // recoverable typename (engine-intrinsic types are not serialized) —
+    // the class still must match.
+    final intrinsic = got.intrinsicTypeId != null ||
+        (got.instanceOverrides && got.typeName == null);
+    expect(
+        intrinsic ? got.className : got.typeName ?? got.className,
+        intrinsic ? want.className : want.typeName ?? want.className,
+        reason: '$path.${got.name}: class/type');
+    expect(got.value, want.scalar, reason: '$path.${got.name}: value');
+    // Recurse only into plain declarations: children present, not an
+    // override subset, not a typed reference. Then the twin's children
+    // must match one-for-one — catches swapped/dropped/fabricated
+    // grandchildren the old top-level-only check missed.
+    final plainDeclaration = got.children.isNotEmpty &&
+        !got.instanceOverrides &&
+        got.typeName == null;
+    if (plainDeclaration) {
+      expect(got.children.length, want.subProps.length,
+          reason: '$path.${got.name}: child count');
+      for (var i = 0; i < got.children.length; i++) {
+        compareField('$path.${got.name}', got.children[i], want.subProps[i]);
+      }
+    }
+  }
+
   test('rosetta-wide: type-record HEADS match every twin, attribute for '
       'attribute', () {
     // Cross-file validation of the head layout AND the flag-naming rule
@@ -85,21 +119,8 @@ void main() {
           expect(fields.length, expected.subProps.length,
               reason: '$name ${record.name}: field count');
           for (var i = 0; i < fields.length; i++) {
-            final got = fields[i];
-            final want = expected.subProps[i];
-            expect(got.name, want.name,
-                reason: '$name ${record.name} field #$i');
-            // Intrinsically-typed arrays and inline custom instances
-            // carry no recoverable typename (engine-intrinsic types are
-            // not serialized) — the class still must match.
-            final intrinsic = got.intrinsicTypeId != null ||
-                (got.instanceOverrides && got.typeName == null);
-            expect(
-                intrinsic ? got.className : got.typeName ?? got.className,
-                intrinsic ? want.className : want.typeName ?? want.className,
-                reason: '$name ${record.name}.${got.name}: class/type');
-            expect(got.value, want.scalar,
-                reason: '$name ${record.name}.${got.name}: value');
+            compareField('$name ${record.name}', fields[i],
+                expected.subProps[i]);
           }
         }
         expect(record.className, expected.className,
