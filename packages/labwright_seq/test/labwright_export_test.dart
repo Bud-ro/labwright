@@ -53,11 +53,13 @@ void main() {
           reason: '${f.path}: unbalanced braces');
       expect('void main() {'.allMatches(source).length, 1,
           reason: '${f.path}: exactly one generated main');
+      // A file with no sequences registers no tests and drops the lw
+      // import (it would be unused); every other file has exactly one.
       expect(
           "import 'package:labwright/labwright.dart' as lw;"
               .allMatches(source)
               .length,
-          1,
+          file.sequences.isEmpty ? 0 : 1,
           reason: '${f.path}: prefixed labwright import');
       final tests = 'lw.test('.allMatches(source).length +
           'lw.skipTest('.allMatches(source).length;
