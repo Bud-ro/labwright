@@ -1,4 +1,4 @@
-import 'package:e2e_test/e2e_test.dart';
+import 'e2e_test.dart' show Plug;
 
 /// A simulated power-supply board — stands in for a real bench [Plug] so the
 /// example suite runs in CI with no hardware. A real board would implement the

@@ -1,13 +1,13 @@
+// The example bench module: `register()` is called from e2e/main.dart and
+// only REGISTERS — bodies run after main returns, one at a time. The device
+// is a simulated PSU board so the suite runs anywhere; on a real bench you
+// hand `dut.use` a driver that implements Plug and the bodies stay
+// identical.
 import 'package:e2e_test/e2e_test.dart';
-import 'package:test/test.dart';
+import 'package:e2e_test/psu_board.dart';
+import 'package:labwright/labwright.dart';
 
-import 'support/psu_board.dart';
-
-void main() {
-  // Each e2eTest drives a device end to end, like a testWidgets for hardware.
-  // The device here is a simulated PSU board, so the suite runs in CI; on the
-  // bench you'd hand `dut.use` a real plug and the bodies below stay identical.
-
+void register() {
   e2eTest(
     'a healthy board brings up every rail within tolerance',
     requirements: ['REQ-PWR-001', 'REQ-PWR-002'],
@@ -28,17 +28,18 @@ void main() {
     },
   );
 
-  e2eTest(
-    'a 5V brownout fails the run',
-    expectedOutcome: Outcome.fail,
-    (dut) async {
-      final board = dut.use(PsuBoard(brownout5v: true));
-      await dut.phase('5v rail', () async {
-        final v = await board.railVoltage('5v');
-        dut.measure('rail_5v', v, volts.within(5.0, 0.25));
-      });
-    },
-  );
+  // labwright has no expected-failure tier (an exception IS a failure), so
+  // proving the fault is CAUGHT is a normal passing test: the sagged rail
+  // must read OUTSIDE its limit.
+  test('a 5V brownout is caught by the rail limit', () async {
+    final board = PsuBoard(brownout5v: true);
+    const nominal = 5.0;
+    final limit = volts.within(nominal, 0.25);
+    final v = await board.railVoltage('5v');
+    log('brownout 5v rail reads $v V against $limit');
+    expect(limit.accepts(v), isFalse,
+        reason: 'a browned-out rail must fall outside $limit');
+  });
 
   test('a passing run round-trips through TDMS for the existing tooling',
       () async {
