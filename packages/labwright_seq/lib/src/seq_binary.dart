@@ -1104,25 +1104,21 @@ const _typeRecordMinBytes = (3 + _typeVersionTripleWords) * _u32Bytes;
 /// word before SData is a ResStr index; the TS 4.x/5.0 leaf grammar
 /// barely fires on TS2021 files) are kept in git history at PRs #39/#48.
 ///
-/// TODO(binary decode — typedef bodies PARTIALLY DONE, see
-/// [BinaryTypeField]; scalar/Expression/empty-array fields plus the 0xC
-/// and 0xEE flag combos decode twin-exactly, all-or-nothing per typedef).
-/// THE remaining gate is NESTING — every still-bailing rosetta typedef
-/// contains at least one of:
-///  * nested Obj/typed-object fields — either `[0x80-family][0][DELIM][k]`
-///    with k != 0 (e.g. `Menu:Obj`, k = 1 = its typecategory-like word)
-///    and the instance body inline, or the class word as an object class /
-///    type-name string (`[0][0][CPythonCall][PythonCall]…`,
-///    `[0][0][Obj][AdditionalResults]…`);
-///  * populated object arrays — `[flags][0][Objs][name]['[0]']['[]']`
-///    followed by element content (Calls/Params/Substeps);
-///  * TEInf's flagged-Str variants (further flag bits change Str arity —
-///    0xC is done, others remain).
-/// The recursive parser needs BinaryTypeField to carry children and the
-/// instance-head arity mapped the same way the 0x80/0x82/0xEE combos
-/// were: one combo at a time against the twins, wrong = 0 throughout.
+/// TODO(binary decode — typedef bodies: RECURSION LANDED, 38 rosetta
+/// bodies twin-exact; see [BinaryTypeField] and the unified flag-bit
+/// model on the body parser). Still-bailing shapes:
+///  * inline CUSTOM instances — framed fields whose post-delimiter word
+///    is 1 (`Menu:Obj` with non-default values): the instance content
+///    switches to a compact byte-packed encoding (a `true` Bool was
+///    observed as a single byte) — a separate sub-grammar;
+///  * POPULATED object arrays — `'[0]' '[]'` followed by element
+///    content (`Calls`/`Params`/`Substeps`);
+///  * fields whose class word is a TYPE NAME string
+///    (`[0][0][CPythonCall][PythonCall]…`) with the instance inline;
+///  * `Error`'s adapter-marshalling records (STRUCT/DNSTRUCT/BLVCLUSTER
+///    blocks) and TEInf's remaining flagged variants.
 /// Locals/parameters: thin twin oracle (rosetta declares only the
-/// implicit `ResultList`) — ride along once nesting lands.
+/// implicit `ResultList`) — ride along once instances land.
 List<String> binaryTypeNames(Uint8List seqBytes) =>
     _withLayout(seqBytes, _typeNamesFromBody);
 
@@ -1130,23 +1126,6 @@ List<String> binaryTypeNames(Uint8List seqBytes) =>
 /// format string following it (e.g. `%#x` on `Flags` fields).
 const _fieldHasValueBit = 0x2;
 const _fieldHasFormatBit = 0x200;
-
-/// Expression-typed field flag combos: bare (0x80), stored value (0x82),
-/// and stored value + three instance-flag words (0xEE) — the arity table
-/// is per observed combo, twin-exactness-guarded; unknown combos leave the
-/// body undecoded. (The 0x80 bit marks a delimiter-framed instance; a
-/// non-zero word after the frame's delimiter signals a NESTED object body
-/// — e.g. `Menu:Obj` — which is not yet covered and bails.)
-const _exprFieldMarkers = {0x80, 0x82, 0xee};
-
-/// 0xEE's trailing instance-flag words (flagsforinstances-family values,
-/// carried opaquely — attribute naming for these is not yet pinned).
-const _exprInstanceFlagWords = 3;
-
-/// Field-flags combo 0xC: unvalued field carrying one instance-flag word
-/// after the name (BlockStartTypes/BlockEndTypes/AppliesToBlockStructure
-/// on Substep-family typedefs).
-const _fieldInstanceFlagsCombo = 0xc;
 
 /// Defensive cap on a typedef's subprop count (the largest real body in
 /// the corpus carries 49 fields — TEInf).
@@ -1157,151 +1136,231 @@ const _typeMaxFields = 200;
 /// field uses a shape the grammar does not yet cover — all-or-nothing, so
 /// an undecoded construct can never fabricate a partial body. See
 /// [BinaryTypeField] for the field grammar and its twin validation.
-List<BinaryTypeField>? _typeFieldsAt(Uint8List body, ByteData view,
-    List<String> pool, int after, int recordRegionLength) {
-  int u32(int at) => view.getUint32(at, Endian.little);
-  String? tok(int word) =>
+
+/// Parses a typedef BODY (`[0][subpropCount][field…]`, starting right after
+/// the head's record delimiter) into its field list, or null when any
+/// field uses a shape the grammar does not yet cover — all-or-nothing, so
+/// an undecoded construct can never fabricate a partial body. See
+/// [BinaryTypeField] for the field grammar and its twin validation.
+/// [table] is the file's complete type table (both passes done): framed
+/// default-instance references index it 1-based, the same convention as
+/// step references, and may point forward.
+List<BinaryTypeField>? _typeFieldsAt(
+        Uint8List body,
+        ByteData view,
+        List<String> pool,
+        int after,
+        int recordRegionLength,
+        List<BinaryTypeRecord> table) =>
+    _TypeBodyParser(view, pool, recordRegionLength, table).parse(after);
+
+/// The recursive typedef-body field parser — see [_typeFieldsAt].
+class _TypeBodyParser {
+  _TypeBodyParser(this.view, this.pool, this.recordRegionLength, this.table);
+
+
+  final ByteData view;
+  final List<String> pool;
+  final int recordRegionLength;
+  final List<BinaryTypeRecord> table;
+
+  int _u32(int at) => view.getUint32(at, Endian.little);
+  String? _tok(int word) =>
       word > 0 && word < pool.length && pool[word].isNotEmpty
           ? pool[word]
           : null;
-  var at = after;
-  if (at + 2 * _u32Bytes > recordRegionLength || u32(at) != 0) return null;
-  at += _u32Bytes;
-  final count = u32(at);
-  at += _u32Bytes;
-  if (count > _typeMaxFields) return null;
-  final fields = <BinaryTypeField>[];
-  for (var i = 0; i < count; i++) {
-    if (at + 6 * _u32Bytes > recordRegionLength) return null;
-    final fieldFlags = u32(at);
-    if (u32(at + _u32Bytes) != 0) return null;
-    // Expression-typed field: [marker][0][DELIM][0][name][value…].
-    if (_exprFieldMarkers.contains(fieldFlags) &&
-        u32(at + 2 * _u32Bytes) == _recordDelimiter) {
-      if (u32(at + 3 * _u32Bytes) != 0) return null;
-      final name = tok(u32(at + 4 * _u32Bytes));
-      if (name == null) return null;
-      if (fieldFlags & _fieldHasValueBit != 0) {
-        final value = tok(u32(at + 5 * _u32Bytes));
-        if (value == null) return null;
-        // 0xEE carries three instance-flag words between value and trail.
-        final extras = fieldFlags == 0xee ? _exprInstanceFlagWords : 0;
-        final trailAt = at + (6 + extras) * _u32Bytes;
-        if (trailAt + _u32Bytes > recordRegionLength || u32(trailAt) != 0) {
-          return null;
-        }
-        fields.add(BinaryTypeField(name,
-            className: 'ExprValue', typeName: 'Expression', value: value));
-        at = trailAt + _u32Bytes;
-      } else {
-        if (u32(at + 5 * _u32Bytes) != 0) return null;
-        // Bare expression: the twin's `<value/>` reads as an empty string.
-        fields.add(BinaryTypeField(name,
-            className: 'ExprValue', typeName: 'Expression', value: ''));
-        at += 6 * _u32Bytes;
-      }
-      continue;
+
+  /// The whole body: `[0][count]` then exactly `count` fields.
+  List<BinaryTypeField>? parse(int after) {
+    if (after + 2 * _u32Bytes > recordRegionLength || _u32(after) != 0) {
+      return null;
     }
-    // Unvalued field with one instance-flag word after the name.
-    if (fieldFlags == _fieldInstanceFlagsCombo) {
-      final className = tok(u32(at + 2 * _u32Bytes));
-      final name = tok(u32(at + 3 * _u32Bytes));
-      if (className == null || name == null) return null;
-      if (at + 6 * _u32Bytes > recordRegionLength ||
-          u32(at + 5 * _u32Bytes) != 0) {
-        return null;
-      }
-      switch (className) {
-        case 'Bool':
-          fields.add(BinaryTypeField(name, className: 'Bool', value: 'false'));
-        case 'Str':
-          fields.add(BinaryTypeField(name, className: 'Str', value: ''));
-        case 'Num':
-          fields.add(BinaryTypeField(name, className: 'Num', value: '0'));
-        default:
-          return null;
-      }
-      at += 6 * _u32Bytes;
-      continue;
+    final count = _u32(after + _u32Bytes);
+    if (count > _typeMaxFields) return null;
+    final parsed = _fields(after + 2 * _u32Bytes, count);
+    return parsed?.$1;
+  }
+
+  (List<BinaryTypeField>, int)? _fields(int from, int count) {
+    var at = from;
+    final fields = <BinaryTypeField>[];
+    for (var i = 0; i < count; i++) {
+      final field = _field(at);
+      if (field == null) return null;
+      fields.add(field.$1);
+      at = field.$2;
+    }
+    return (fields, at);
+  }
+
+  /// One field record; returns (field, next offset) or null on an
+  /// uncovered shape.
+  ///
+  /// UNIFIED FLAG-BIT MODEL (twin-validated arity by arity): bit 0x2 =
+  /// stored value; 0x200 = display-format word after the value; each of
+  /// 0x8, 0x20, 0x40 adds ONE opaque instance-flag word (after the name in
+  /// plain form, after the value slot in framed form); 0x4 is
+  /// arity-neutral; 0x80 = delimiter-framed (Expression scalars, typed
+  /// default-instance references, and inline custom instances — the last
+  /// not yet covered).
+  (BinaryTypeField, int)? _field(int at) {
+    if (at + 6 * _u32Bytes > recordRegionLength) return null;
+    final fieldFlags = _u32(at);
+    if (_u32(at + _u32Bytes) != 0) return null;
+    if (fieldFlags & ~(0x2 | 0x4 | 0x8 | 0x20 | 0x40 | 0x80 | 0x200) != 0) {
+      return null;
     }
     final valued = fieldFlags & _fieldHasValueBit != 0;
     final hasFormat = fieldFlags & _fieldHasFormatBit != 0;
-    final className = tok(u32(at + 2 * _u32Bytes));
-    final name = tok(u32(at + 3 * _u32Bytes));
-    if (className == null || name == null) return null;
-    at += 4 * _u32Bytes;
-    if (!valued) {
-      // Unvalued fields read their class default (false / empty / 0).
-      if (u32(at) != 0) return null;
-      switch (className) {
-        case 'Bool':
-          fields.add(BinaryTypeField(name, className: 'Bool', value: 'false'));
-        case 'Str':
-          // The XML twin's `<value/>` reads as an empty string.
-          fields.add(BinaryTypeField(name, className: 'Str', value: ''));
-        case 'Num':
-          fields.add(BinaryTypeField(name, className: 'Num', value: '0'));
-        default:
-          return null;
+    final extraWords = ((fieldFlags >> 3) & 1) +
+        ((fieldFlags >> 5) & 1) +
+        ((fieldFlags >> 6) & 1);
+
+    // Framed form: [flags|0x80][0][DELIM][X][name][value…][extras…][0].
+    if (fieldFlags & 0x80 != 0) {
+      if (_u32(at + 2 * _u32Bytes) != _recordDelimiter) return null;
+      final x = _u32(at + 3 * _u32Bytes);
+      final name = _tok(_u32(at + 4 * _u32Bytes));
+      if (name == null) return null;
+      var next = at + 5 * _u32Bytes;
+      String? value;
+      var typeName = 'Expression';
+      var className = 'ExprValue';
+      if (x == 0) {
+        if (valued) {
+          value = _tok(_u32(next));
+          if (value == null) return null;
+          next += _u32Bytes;
+        } else {
+          value = ''; // the twin's `<value/>` reads as an empty string
+        }
+      } else if (x >= 2 && !valued && x - 1 < table.length) {
+        // Default-instance REFERENCE of type table[X-1] (1-based, the
+        // same convention as step references). The file stores only the
+        // reference — no inline content.
+        final ref = table[x - 1];
+        className = ref.className ?? 'Obj';
+        typeName = ref.name;
+        value = null;
+      } else {
+        return null; // X == 1: inline custom instance (compact encoding)
       }
-      at += _u32Bytes;
-      continue;
+      next += extraWords * _u32Bytes; // opaque instance-flag words
+      if (next + _u32Bytes > recordRegionLength || _u32(next) != 0) {
+        return null;
+      }
+      return (
+        BinaryTypeField(name,
+            className: className, typeName: typeName, value: value),
+        next + _u32Bytes
+      );
+    }
+
+    // Plain form: [flags][0][cls][name][extras…][value…].
+    final className = _tok(_u32(at + 2 * _u32Bytes));
+    final name = _tok(_u32(at + 3 * _u32Bytes));
+    if (className == null || name == null) return null;
+    var next = at + 4 * _u32Bytes + extraWords * _u32Bytes;
+    // Nested Obj DECLARATION: [childCount][children…] — no trailing zero.
+    if (className == 'Obj' && !valued) {
+      if (next + _u32Bytes > recordRegionLength) return null;
+      final childCount = _u32(next);
+      if (childCount > _typeMaxFields) return null;
+      final children = _fields(next + _u32Bytes, childCount);
+      if (children == null) return null;
+      return (
+        BinaryTypeField(name, className: 'Obj', children: children.$1),
+        children.$2
+      );
+    }
+    if (!valued) {
+      // Unvalued fields read their class defaults (false / '' / 0 — the
+      // twin's `<value/>` semantics), with an empty value slot.
+      if (next + _u32Bytes > recordRegionLength || _u32(next) != 0) {
+        return null;
+      }
+      final field = switch (className) {
+        'Bool' => BinaryTypeField(name, className: 'Bool', value: 'false'),
+        'Str' => BinaryTypeField(name, className: 'Str', value: ''),
+        'Num' => BinaryTypeField(name, className: 'Num', value: '0'),
+        _ => null,
+      };
+      if (field == null) return null;
+      return (field, next + _u32Bytes);
+    }
+    // Empty array field: value tokens '[0]' '[]' then trail 0. Object
+    // arrays (`Objs`) additionally carry ONE 0x00 pad byte after the
+    // trail — the stream is byte-granular, and this pad is what shifts
+    // everything after an empty Objs array off word alignment.
+    if (const {'Nums', 'Strs', 'Objs'}.contains(className) &&
+        next + 3 * _u32Bytes <= recordRegionLength &&
+        _tok(_u32(next)) == '[0]' &&
+        _tok(_u32(next + _u32Bytes)) == '[]' &&
+        _u32(next + 2 * _u32Bytes) == 0) {
+      var after = next + 3 * _u32Bytes;
+      if (className == 'Objs') {
+        if (after >= recordRegionLength || view.getUint8(after) != 0) {
+          return null;
+        }
+        after += 1;
+      }
+      return (
+        BinaryTypeField(name, className: className, emptyArray: true),
+        after
+      );
     }
     switch (className) {
       case 'Str':
-        final value = tok(u32(at));
+        final value = _tok(_u32(next));
         if (value == null ||
-            at + 2 * _u32Bytes > recordRegionLength ||
-            u32(at + _u32Bytes) != 0) {
+            next + 2 * _u32Bytes > recordRegionLength ||
+            _u32(next + _u32Bytes) != 0) {
           return null;
         }
-        fields.add(BinaryTypeField(name, className: 'Str', value: value));
-        at += 2 * _u32Bytes;
+        return (
+          BinaryTypeField(name, className: 'Str', value: value),
+          next + 2 * _u32Bytes
+        );
       case 'Bool':
-        final value = u32(at);
+        final value = _u32(next);
         if (value > 1 ||
-            at + 2 * _u32Bytes > recordRegionLength ||
-            u32(at + _u32Bytes) != 0) {
+            next + 2 * _u32Bytes > recordRegionLength ||
+            _u32(next + _u32Bytes) != 0) {
           return null;
         }
-        fields.add(BinaryTypeField(name,
-            className: 'Bool', value: value == 1 ? 'true' : 'false'));
-        at += 2 * _u32Bytes;
+        return (
+          BinaryTypeField(name,
+              className: 'Bool', value: value == 1 ? 'true' : 'false'),
+          next + 2 * _u32Bytes
+        );
       case 'Num':
-        if (at + 2 * _u32Bytes > recordRegionLength) return null;
-        final value = view.getFloat64(at, Endian.little);
-        at += 2 * _u32Bytes;
+        if (next + 2 * _u32Bytes > recordRegionLength) return null;
+        final value = view.getFloat64(next, Endian.little);
+        next += 2 * _u32Bytes;
         if (hasFormat) {
-          if (at + _u32Bytes > recordRegionLength || tok(u32(at)) == null) {
+          if (next + _u32Bytes > recordRegionLength ||
+              _tok(_u32(next)) == null) {
             return null;
           }
-          at += _u32Bytes; // display-format ref, e.g. '%#x'
+          next += _u32Bytes; // display-format ref, e.g. '%#x'
         }
-        if (at + _u32Bytes > recordRegionLength || u32(at) != 0) return null;
-        at += _u32Bytes;
-        fields.add(BinaryTypeField(name,
-            className: 'Num',
-            value: value == value.truncateToDouble() && value.abs() < 1e15
-                ? '${value.truncate()}'
-                : '$value'));
-      case 'Nums' when tok(u32(at)) == '[0]' &&
-              at + 3 * _u32Bytes <= recordRegionLength &&
-              tok(u32(at + _u32Bytes)) == '[]' &&
-              u32(at + 2 * _u32Bytes) == 0:
-        fields.add(BinaryTypeField(name, className: 'Nums', emptyArray: true));
-        at += 3 * _u32Bytes;
-      case 'Strs' when tok(u32(at)) == '[0]' &&
-              at + 3 * _u32Bytes <= recordRegionLength &&
-              tok(u32(at + _u32Bytes)) == '[]' &&
-              u32(at + 2 * _u32Bytes) == 0:
-        fields.add(BinaryTypeField(name, className: 'Strs', emptyArray: true));
-        at += 3 * _u32Bytes;
+        if (next + _u32Bytes > recordRegionLength || _u32(next) != 0) {
+          return null;
+        }
+        return (
+          BinaryTypeField(name,
+              className: 'Num',
+              value: value == value.truncateToDouble() && value.abs() < 1e15
+                  ? '${value.truncate()}'
+                  : '$value'),
+          next + _u32Bytes
+        );
       default:
         return null;
     }
   }
-  return fields;
 }
+
 
 /// The decoded typed-model lenses of an **already-inflated** [body] in one
 /// shared frame+pool+table pass: the sequence outlines and the type-record
@@ -1360,7 +1419,11 @@ List<String> _typeNamesFromBody(Uint8List body, int recordRegionLength,
 /// no partial trees, no fabrication).
 class BinaryTypeField {
   const BinaryTypeField(this.name,
-      {this.className, this.typeName, this.value, this.emptyArray = false});
+      {this.className,
+      this.typeName,
+      this.value,
+      this.emptyArray = false,
+      this.children = const []});
 
   /// The field name (`Code`, `ItemName`, …).
   final String name;
@@ -1379,6 +1442,13 @@ class BinaryTypeField {
   /// Whether this is an empty scalar-array field (`Nums`/`Strs` with
   /// `lbound 0, ubound -1`).
   final bool emptyArray;
+
+  /// Nested declaration children (an `Obj` field's own field list),
+  /// decoded recursively. A typed default-instance REFERENCE (`X >= 2`
+  /// framed form) carries no children — the binary itself stores only the
+  /// reference; materializing the referenced type's defaults is the XML
+  /// writer's job, not the file's content.
+  final List<BinaryTypeField> children;
 }
 
 class BinaryTypeRecord {
@@ -1477,6 +1547,7 @@ List<BinaryTypeRecord> _typeRecordsFromBody(
   final versionLike = RegExp(r'^\d+\.\d+');
   final seen = <String>{};
   final records = <BinaryTypeRecord>[];
+  final bodyOffsets = <int?>[];
   String? tok(int word) =>
       word > 0 && word < pool.length && pool[word].isNotEmpty
           ? pool[word]
@@ -1539,14 +1610,13 @@ List<BinaryTypeRecord> _typeRecordsFromBody(
       flags.add(value);
       flagAt += _u32Bytes;
     }
-    List<BinaryTypeField>? fields;
+    int? bodyAt;
     if (framed) {
       while (flags.isNotEmpty && flags.last == 0) {
         flags.removeLast();
       }
       // The body follows the head delimiter: [0][subpropCount][fields…].
-      fields = _typeFieldsAt(
-          body, view, pool, flagAt + _u32Bytes, recordRegionLength);
+      bodyAt = flagAt + _u32Bytes;
     } else {
       flags.clear(); // tail did not frame — report nothing, not guesses
     }
@@ -1557,10 +1627,27 @@ List<BinaryTypeRecord> _typeRecordsFromBody(
       timestamp: stamp,
       versions: versions,
       flags: flags,
-      fields: fields,
     ));
+    bodyOffsets.add(bodyAt);
   }
-  return records;
+  // Second pass: bodies parse with the COMPLETE table in hand — framed
+  // default-instance references index it 1-based (the same convention as
+  // step references), and references can point forward.
+  return [
+    for (var i = 0; i < records.length; i++)
+      BinaryTypeRecord(
+        name: records[i].name,
+        className: records[i].className,
+        typeCategory: records[i].typeCategory,
+        timestamp: records[i].timestamp,
+        versions: records[i].versions,
+        flags: records[i].flags,
+        fields: bodyOffsets[i] == null
+            ? null
+            : _typeFieldsAt(body, view, pool, bodyOffsets[i]!,
+                recordRegionLength, records),
+      ),
+  ];
 }
 
 /// A step reference in the record region is a run of four `u32` pool-index words

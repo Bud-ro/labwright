@@ -135,6 +135,27 @@ void main() {
     // trees, no fabrication.
     final twinByName = {for (final t in xmlFile.types) t.name: t};
     var decoded = 0;
+    void compare(String path, SeqProperty got, SeqProperty want) {
+      expect(got.name, want.name, reason: '$path: name');
+      expect(got.className, want.className, reason: '$path: classname');
+      expect(got.typeName, want.typeName, reason: '$path: typename');
+      expect(got.scalar, want.scalar, reason: '$path: value');
+      expect(got.array == null, want.array == null,
+          reason: '$path: array-ness');
+      // Nested Obj declarations decode their children recursively; typed
+      // default-instance REFERENCES carry none (the binary stores only
+      // the ref — the twin materializes the type's defaults, which is
+      // out of the file's content).
+      if (got.subProps.isNotEmpty || got.className == 'Obj') {
+        expect(got.subProps.length, want.subProps.length,
+            reason: '$path: child count');
+        for (var i = 0; i < got.subProps.length; i++) {
+          compare('$path.${got.subProps[i].name}', got.subProps[i],
+              want.subProps[i]);
+        }
+      }
+    }
+
     for (final type in binFile.types) {
       if (type.subProps.isEmpty) continue;
       final twin = twinByName[type.name];
@@ -143,17 +164,8 @@ void main() {
       expect(type.subProps.length, twin.subProps.length,
           reason: '${type.name}: field count');
       for (var i = 0; i < type.subProps.length; i++) {
-        final got = type.subProps[i];
-        final want = twin.subProps[i];
-        expect(got.name, want.name, reason: '${type.name} field #$i name');
-        expect(got.className, want.className,
-            reason: '${type.name}.${got.name}: classname');
-        expect(got.typeName, want.typeName,
-            reason: '${type.name}.${got.name}: typename');
-        expect(got.scalar, want.scalar,
-            reason: '${type.name}.${got.name}: value');
-        expect(got.array == null, want.array == null,
-            reason: '${type.name}.${got.name}: array-ness');
+        compare('${type.name}.${twin.subProps[i].name}', type.subProps[i],
+            twin.subProps[i]);
       }
     }
     expect(decoded, greaterThanOrEqualTo(6),
