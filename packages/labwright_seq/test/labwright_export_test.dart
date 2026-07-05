@@ -133,4 +133,71 @@ void main() {
       genDir.deleteSync(recursive: true);
     }
   }, timeout: const Timeout(Duration(minutes: 2)));
+
+  test(
+      'project export: cross-module calls bind, analyze is clean, '
+      'dart run exits green', () {
+    // The most cross-connected multi-file project in the corpus: 12
+    // parseable modules whose SequenceCalls reference each other by
+    // basename (Utilities.seq, GUIMessage.seq, …).
+    final projDir = Directory('${corpusSeqDir.path}'
+        '/michael-harhay-arx_CICDUtility'
+        '/michael-harhay-arx-CICDUtility-02c6c67');
+    expect(projDir.existsSync(), isTrue,
+        reason: 'the CICDUtility project must be fetched with the corpus');
+    final byPath = <String, SeqFile>{};
+    for (final f in projDir.listSync(recursive: true).whereType<File>()) {
+      if (!f.path.toLowerCase().endsWith('.seq')) continue;
+      final rel = f.path
+          .substring(projDir.path.length + 1)
+          .replaceAll(r'\', '/');
+      try {
+        byPath[rel] = parseSeqFile(f.readAsBytesSync());
+      } on FormatException {
+        // Unparseable corpus files are the parser suite's concern.
+      }
+    }
+    expect(byPath.length, greaterThanOrEqualTo(12));
+
+    final project = exportSeqProjectToLabwright(byPath);
+    // One module per input + lw_runtime.dart + main.dart + analysis options.
+    expect(project.files.length, byPath.length + 3);
+    expect(project.files.keys,
+        containsAll(['main.dart', 'lw_runtime.dart', 'analysis_options.yaml']));
+    // The point of project export: external SequenceCalls bind to the
+    // sibling module's REAL exported function instead of a stub.
+    final allSource = project.files.values.join('\n');
+    final crossCalls = RegExp(r'await [a-z0-9_]+_seq\.\w+\(\);')
+        .allMatches(allSource)
+        .length;
+    expect(crossCalls, greaterThan(100),
+        reason: 'CICDUtility has ~149 resolvable cross-module call sites');
+
+    // Compile + run gates, from the package root so package:labwright
+    // resolves (dev_dep).
+    final pkgRoot = corpusSeqDir.parent.parent;
+    final genDir = Directory('${pkgRoot.path}/test/.export_gen_proj')
+      ..createSync(recursive: true);
+    try {
+      project.files.forEach((name, source) =>
+          File('${genDir.path}/$name').writeAsStringSync(source));
+      final analyze = Process.runSync(
+          'dart', ['analyze', 'test/.export_gen_proj'],
+          workingDirectory: pkgRoot.path);
+      expect(analyze.exitCode, 0,
+          reason: 'generated project must analyze clean:\n${analyze.stdout}');
+      final run = Process.runSync(
+          'dart',
+          ['run', '-Dlabwright.viewer=false', 'test/.export_gen_proj/main.dart'],
+          workingDirectory: pkgRoot.path);
+      expect(run.exitCode, 0,
+          reason: 'fresh project export must run green (armed tests are '
+              'fully translated; hazards ship disarmed):\n'
+              '${run.stdout}\n${run.stderr}');
+      final out = run.stdout.toString();
+      expect(out, contains('0 failed, 0 errors,'));
+    } finally {
+      genDir.deleteSync(recursive: true);
+    }
+  }, timeout: const Timeout(Duration(minutes: 4)));
 }
