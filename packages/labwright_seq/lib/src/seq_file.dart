@@ -403,7 +403,7 @@ SeqFile _parseBinary(Uint8List bytes) {
   // Single scan: outlines + type names share one layout framing and one
   // ordered string pool (each is an O(body) pass the per-lens helpers would
   // otherwise repeat).
-  final (:outlines, :typeNames) = binaryOutlinesAndTypeNamesFromBody(body);
+  final (:outlines, :typeRecords) = binaryOutlinesAndTypeRecordsFromBody(body);
   // Recovered fields synthesize the same TS>SData shape the XML parse
   // yields, so the typed lens (Step.module) reads both encodings alike.
   SeqProperty stepProp(BinaryStepRef step) => SeqProperty(
@@ -435,9 +435,17 @@ SeqFile _parseBinary(Uint8List bytes) {
       );
   return SeqFile(
     header: detectSeqHeader(bytes),
-    // Recovered type NAMES only (name-only stubs): the typedef bodies (fields,
-    // defaults) are not yet decoded from binary.
-    types: [for (final typeName in typeNames) SeqProperty(name: typeName)],
+    // Recovered typedef HEADS: name, classname, and the XML-shaped head
+    // attributes (typecategory/timestamp/versions/flags). The typedef
+    // BODIES (fields, defaults) are not yet decoded from binary.
+    types: [
+      for (final record in typeRecords)
+        SeqProperty(
+          name: record.name,
+          className: record.className,
+          attributes: record.toAttributes(),
+        ),
+    ],
     data: SeqProperty(
       name: 'Data',
       subProps: [

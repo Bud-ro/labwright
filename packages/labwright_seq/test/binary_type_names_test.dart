@@ -42,6 +42,61 @@ void main() {
     return;
   }
 
+  test('rosetta-wide: type-record HEADS match every twin, attribute for '
+      'attribute', () {
+    // Cross-file validation of the head layout AND the flag-naming rule
+    // (count + typecategory): for every rosetta pair, every recovered type
+    // that is a root typedef in the twin must match classname and every
+    // SAVE-STABLE attribute exactly. Timestamps and version stamps differ
+    // legitimately between the twin toolchains (only the OutputVoltage
+    // pair is content-exact — the parse test pins those bytes too).
+    final rosetta = Directory('${corpusSeqDir.path}/rosetta');
+    var pairs = 0, compared = 0;
+    for (final bin in rosetta
+        .listSync()
+        .whereType<File>()
+        .where((f) => f.path.endsWith('_BIN.seq'))) {
+      final name = bin.uri.pathSegments.last;
+      final prefix =
+          name.replaceAll('_labview_BIN.seq', '').replaceAll('_BIN.seq', '');
+      File? twin;
+      for (final suffix in ['_python_XML.seq', '_XML.seq', '_python.seq']) {
+        final f = File('${rosetta.path}/$prefix$suffix');
+        if (f.existsSync()) {
+          twin = f;
+          break;
+        }
+      }
+      if (twin == null) continue;
+      pairs++;
+      final twinByName = {
+        for (final t in parseSeqFile(twin.readAsBytesSync()).types) t.name: t,
+      };
+      for (final record in binaryTypeRecords(bin.readAsBytesSync())) {
+        final expected = twinByName[record.name];
+        if (expected == null) continue;
+        compared++;
+        expect(record.className, expected.className,
+            reason: '$name ${record.name}: classname');
+        const saveDependent = {
+          'timestamp', 'typeversion', 'typelastmodversion',
+          'typeminprodversion',
+        };
+        record.toAttributes().forEach((key, value) {
+          if (saveDependent.contains(key)) return;
+          expect(value, expected.attributes[key],
+              reason: '$name ${record.name}: attribute $key');
+        });
+      }
+    }
+    // ignore: avoid_print
+    print('type-record heads: $compared typedefs matched across $pairs '
+        'twin pairs');
+    expect(pairs, greaterThanOrEqualTo(5));
+    expect(compared, greaterThanOrEqualTo(100),
+        reason: 'the rosetta twins carry hundreds of comparable typedefs');
+  });
+
   test('whole-corpus sweep: no structural tokens, recovery floors hold', () {
     var binaries = 0, withNames = 0, totalNames = 0;
     final offenders = <String>[];
