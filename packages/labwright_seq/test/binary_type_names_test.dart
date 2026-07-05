@@ -89,8 +89,14 @@ void main() {
             final want = expected.subProps[i];
             expect(got.name, want.name,
                 reason: '$name ${record.name} field #$i');
-            expect(got.typeName ?? got.className,
-                want.typeName ?? want.className,
+            // Intrinsically-typed arrays and inline custom instances
+            // carry no recoverable typename (engine-intrinsic types are
+            // not serialized) — the class still must match.
+            final intrinsic = got.intrinsicTypeId != null ||
+                (got.instanceOverrides && got.typeName == null);
+            expect(
+                intrinsic ? got.className : got.typeName ?? got.className,
+                intrinsic ? want.className : want.typeName ?? want.className,
                 reason: '$name ${record.name}.${got.name}: class/type');
             expect(got.value, want.scalar,
                 reason: '$name ${record.name}.${got.name}: value');
@@ -115,10 +121,10 @@ void main() {
     expect(pairs, greaterThanOrEqualTo(5));
     expect(compared, greaterThanOrEqualTo(100),
         reason: 'the rosetta twins carry hundreds of comparable typedefs');
-    expect(decodedBodies, greaterThanOrEqualTo(50),
+    expect(decodedBodies, greaterThanOrEqualTo(80),
         reason: 'the covered body grammar decodes a solid share '
-            '($decodedBodies bodies; 56 at the attr-tail + inline-instance '
-            '+ spec-skip tier)');
+            '($decodedBodies bodies; 87 at the spec-grammar + instance '
+            'tier)');
   });
 
   test('whole-corpus sweep: no structural tokens, recovery floors hold', () {

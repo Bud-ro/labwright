@@ -1104,43 +1104,32 @@ const _typeRecordMinBytes = (3 + _typeVersionTripleWords) * _u32Bytes;
 /// word before SData is a ResStr index; the TS 4.x/5.0 leaf grammar
 /// barely fires on TS2021 files) are kept in git history at PRs #39/#48.
 ///
-/// TODO(binary decode — typedef bodies: ATTR-TAIL MODEL + INLINE
-/// INSTANCES + boundary-gated SPEC SKIP landed, 44 rosetta bodies
-/// twin-exact; see [BinaryTypeField] and the body parser). Still-bailing
-/// shapes:
-///  * array ELEMENT-TYPE specs: SKIPPED structurally (trial skip
-///    accepted only when the remaining top-level fields land exactly on
-///    the body-end boundary; length surfaced as
-///    [BinaryTypeField.elementSpecBytes]) but their CONTENT is still
-///    undecoded. Measured structure so far: `[00?][DELIM][5][DELIM][2]
-///    [0][0][DELIM]['Type'][…]` — a serialized PropertyObjectType
-///    descriptor whose interior reuses the standard field grammar (and
-///    NESTS: inner spec'd arrays carry their own `[DELIM][5]` specs).
-///    Decoding it properly would also unlock nested spec'd arrays
-///    (currently only top-level fields may skip) and bodies whose spec
-///    sits before a non-contiguous boundary (TEInf, DotNetStepAdditions
-///    bail this way — their tails don't end 17 bytes before the next
-///    head);
-///  * framed REFS with trailing payloads — Substep's `TS` reads
-///    `[0xA0][0][DELIM][X=6]` = a framed reference to TEInf (table idx
-///    5 + 1: the 1-based table convention holds) but trails ~534 bytes
-///    before `NI_Data`: framed refs can carry an override payload
-///    (ref/instance hybrid — presumably TS's non-default TEInf fields;
-///    the twin's 49 materialized children give anchor names for the
-///    prober);
-///  * step-type typedef bodies whose fields drop the `[flags][0][cls]`
-///    prefix (NI_Measurement/NI_UpdatePinMap/Action bail at
-///    `DescriptionFormat` immediately after the body head — the first
-///    word there is the ResStr VALUE, so these bodies open with a
-///    different field encoding);
-///  * POPULATED object arrays — `'[0]' '[]'` followed by element
-///    content (`Calls`/`Params`/`Substeps`);
-///  * fields whose class word is a TYPE NAME string
-///    (`[0][0][CPythonCall][PythonCall]…`) with the instance inline;
-///  * `Error`'s adapter-marshalling records (STRUCT/DNSTRUCT/BLVCLUSTER
-///    blocks).
-/// Locals/parameters: thin twin oracle (rosetta declares only the
-/// implicit `ResultList`) — ride along once instances land.
+/// TODO(binary decode — typedef bodies: SPEC GRAMMAR + descriptor
+/// nodes + framed-lite + inline instances w/ attr-scanned counts +
+/// class-name declarations + populated-array bounds landed; 87 rosetta
+/// bodies twin-exact; see [BinaryTypeField] and the body parser).
+/// Remaining:
+///  * `Error`'s adapter-marshalling EXTDATA blocks (the twin's
+///    `<extdata controllername='STRUCT'/'CLUST'/'DNSTRUCT'/
+///    'BLVCLUSTER'…>` elements) — serialized both at type level (after
+///    the body's `[0][count]`) and per field (inside the attr tail,
+///    e.g. `Code` trails `[0x4][STRUCT]…[CLUST]…[DNSTRUCT 'code']
+///    [BLVCLUSTER 'code']`) — the last twin-validated typedef still
+///    bailing;
+///  * the binary-only step-type bodies (NI_Measurement/NI_UpdatePinMap
+///    — no XML twin carries them): the count-less `[0]{fields}` +
+///    compact `[name][value]` machinery walks them to `Substeps`, whose
+///    POPULATED framed array (`'[0]' '[1]'`) trails non-DELIM-led
+///    substep-element instances (`[0xe][count?][name]…`) — undecoded,
+///    and unverifiable without an oracle, so they stay bailing;
+///  * populated-array ELEMENT VALUES: bounds tokens and the trailing
+///    type-spec + element-content blocks are walked and surfaced as one
+///    undecoded blob ([BinaryTypeField.elementSpecBytes]); decoding the
+///    content awaits more corpus shapes;
+///  * the intrinsic-type id → name map ([BinaryTypeField.
+///    intrinsicTypeId]: 2 = StepTypeSubstepsArray measured);
+///  * locals/parameters: thin twin oracle (rosetta declares only the
+///    implicit `ResultList`) — ride along once needed.
 List<String> binaryTypeNames(Uint8List seqBytes) =>
     _withLayout(seqBytes, _typeNamesFromBody);
 
@@ -1178,6 +1167,22 @@ List<BinaryTypeField>? _typeFieldsAt(
     _TypeBodyParser(view, pool, recordRegionLength, table, endBoundary)
         .parse(after);
 
+/// Tooling aid for grammar iteration, not part of the decode API: every
+/// element-type spec the decode ACCEPTED a structural skip for, as
+/// (field name, spec start offset within the inflated body, byte
+/// length) — ground truth sites for probing the spec's internal
+/// grammar. Uses the production parser.
+List<(String, int, int)> binaryElementSpecSites(Uint8List seqBytes) {
+  _TypeBodyParser.debugSpecSites.clear();
+  _TypeBodyParser.debugCollectSpecs = true;
+  try {
+    binaryTypeRecords(seqBytes);
+  } finally {
+    _TypeBodyParser.debugCollectSpecs = false;
+  }
+  return List.of(_TypeBodyParser.debugSpecSites);
+}
+
 /// The fixed byte count between a type-record body's final field
 /// terminator and the next record's head (its className word): measured
 /// 17 on every cleanly-decoded rosetta body ("gap=17" in the extents
@@ -1210,10 +1215,24 @@ class _TypeBodyParser {
           ? pool[word]
           : null;
 
-  /// Set by [_field] when the just-parsed array field's attr-word tail
-  /// carries the 0x8000 "element-type spec follows" signal — the field
-  /// walk then structurally skips the spec (see [_fields]).
-  bool _specPending = false;
+  /// Whether [token] is an array-bound token: `'[]'` or `'[<digits>]'`
+  /// (the XML twin writes these verbatim as lbound/ubound).
+  static final _boundPattern = RegExp(r'^\[\d*\]$');
+  static bool _isBoundToken(String? token) =>
+      token != null && _boundPattern.hasMatch(token);
+
+  /// Whether any element-type spec was walked during the current
+  /// [parse] — arms the body-end boundary gate (a walker misparse must
+  /// never fabricate a body silently).
+  bool _usedSpec = false;
+
+  /// Whether the walk is inside an INSTANCE's children (framed X >= 1).
+  /// There an unvalued field means "value INHERITED from the type's
+  /// default" (Action's TS stores PassAct with flags 0x60 and no value
+  /// — a flags-only override of TEInf's default 'Next'), so class
+  /// defaults must not be materialized; [BinaryTypeField.value] stays
+  /// null and consumers treat it as not-overridden.
+  bool _inInstance = false;
 
   /// Consumes a field's ATTR-WORD tail: zero or more nonzero words —
   /// the field's flag attributes, `flagsforinstances`/
@@ -1224,16 +1243,91 @@ class _TypeBodyParser {
   /// null when no terminator arrives within the cap. On array fields, an
   /// attr word with bit 0x8000 (0x8001/0x8801 measured) signals a
   /// trailing element-type spec and arms [_specPending].
-  int? _attrTail(int from, {bool arrayField = false}) {
+  int? _attrTail(int from) {
     var at = from;
     for (var i = 0; i <= _fieldMaxAttrWords; i++) {
       if (at + _u32Bytes > recordRegionLength) return null;
       final word = _u32(at);
       at += _u32Bytes;
       if (word == 0) return at;
-      if (arrayField && word & 0x8000 != 0) _specPending = true;
+      // Bits 0x8000/0x800 accompany SOME element-type specs (0x8001/
+      // 0x8801/0x801) but are unreliable in both directions (Substep.TS's
+      // CustomResults spec follows a plain 0x1; Action.Substeps carries
+      // 0x8001800 with no spec at all) — specs are detected by their
+      // DELIM-led frame instead (see [_fields]).
     }
     return null;
+  }
+
+  /// Walks a full ELEMENT-TYPE SPEC structurally and returns the offset
+  /// after it, or null when the bytes don't frame as one. Measured
+  /// grammar (constant across the rosetta corpus):
+  /// `[00 pad?][DELIM][X][DELIM][0x20000?][count]{items}[attrs…][0]`
+  /// where X is the array's ELEMENT TYPE as a 1-based type-table
+  /// reference (CustomResults→5=NI_CustomResult, Params→12=
+  /// DotNetParameter, Calls→14=DotNetCall), 0x20000 tags the compact
+  /// form, and the items reuse the standard field grammar — descriptor
+  /// NODEs ([_field]'s `[0][0][DELIM][name][count]` shape), plain
+  /// fields, and nested spec'd arrays (recursion). The spec's CONTENT
+  /// is not surfaced (no twin oracle — XML writes only
+  /// `<value lbound='0' ubound='-1'/>`); only its extent is walked.
+  int? _elementSpec(int at) {
+    var p = at;
+    if (p >= recordRegionLength) return null;
+    // A single realignment pad byte precedes the frame after non-Objs
+    // arrays (Objs arrays already consume their own pad).
+    if (view.getUint8(p) == 0) p++;
+    if (p + 4 * _u32Bytes > recordRegionLength ||
+        _u32(p) != _recordDelimiter) {
+      return null;
+    }
+    p += _u32Bytes;
+    // X = the element type as a 1-based table reference. When the next
+    // word is already the closing delimiter, X is OMITTED — a
+    // self/inherit reference (Substep.TS's CustomResults spec reads
+    // [DELIM][DELIM][count]).
+    final x = _u32(p);
+    if (x == _recordDelimiter) {
+      p += _u32Bytes;
+    } else {
+      if (x < 1 || x > table.length) return null;
+      p += _u32Bytes;
+      if (_u32(p) != _recordDelimiter) return null;
+      p += _u32Bytes;
+    }
+    var tagged = false;
+    if (_u32(p) == 0x20000) {
+      tagged = true;
+      p += _u32Bytes;
+    }
+    final count = _u32(p);
+    // Zero items only frames as a full spec under the 0x20000 tag
+    // (PythonCall.Parameters' type spec: the element type is fully
+    // named by X, so no descriptor items follow) — an untagged
+    // [DELIM][DELIM][0][0][0] is the short REFERENCE spec ([_refSpec]).
+    if ((count < 1 && !tagged) || count > _typeMaxFields) return null;
+    p += _u32Bytes;
+    final items = _fields(p, count);
+    if (items == null) return null;
+    return _attrTail(items.$2);
+  }
+
+  /// Walks a short REFERENCE spec: `[00 pad?][DELIM][ref][0][0][0]` —
+  /// the 0x800-signalled form (the full spec's nested arrays reference
+  /// an already-described element type instead of respelling it).
+  int? _refSpec(int at) {
+    var p = at;
+    if (p >= recordRegionLength) return null;
+    if (view.getUint8(p) == 0) p++;
+    if (p + 5 * _u32Bytes > recordRegionLength ||
+        _u32(p) != _recordDelimiter) {
+      return null;
+    }
+    if (_u32(p + _u32Bytes) == 0) return null; // ref word must exist
+    for (var i = 2; i < 5; i++) {
+      if (_u32(p + i * _u32Bytes) != 0) return null;
+    }
+    return p + 5 * _u32Bytes;
   }
 
   /// Tooling aid (grammar iteration): the byte offset of the most recent
@@ -1245,63 +1339,116 @@ class _TypeBodyParser {
   /// [parse] consumed to. Not part of the decode result.
   static int? debugLastEndOffset;
 
+  /// Tooling aid: when [debugCollectSpecs] is on, every ACCEPTED
+  /// element-type spec skip is recorded as (field name, spec start
+  /// offset, byte length) — ground truth for the spec-content prober.
+  /// Off by default so decode runs never accumulate.
+  static bool debugCollectSpecs = false;
+  static final List<(String, int, int)> debugSpecSites = [];
+
   /// The whole body: `[0][count]` then exactly `count` fields.
   List<BinaryTypeField>? parse(int after) {
     debugLastFieldOffset = null;
+    _usedSpec = false;
     if (after + 2 * _u32Bytes > recordRegionLength || _u32(after) != 0) {
       return null;
     }
     final count = _u32(after + _u32Bytes);
-    if (count > _typeMaxFields) return null;
-    final parsed = _fields(after + 2 * _u32Bytes, count, top: true);
-    if (parsed != null) debugLastEndOffset = parsed.$2;
-    return parsed?.$1;
+    var parsed = count > _typeMaxFields
+        ? null
+        : _fields(after + 2 * _u32Bytes, count);
+    if (parsed == null) {
+      // COUNT-LESS body: the step-type typedefs that exist only in the
+      // binary (NI_Measurement/NI_UpdatePinMap — no XML twin carries
+      // them) open `[0]{fields}` with no subprop count; the walk runs
+      // until it lands EXACTLY on the body-end boundary. Without a
+      // boundary (the last record) this form stays undecoded.
+      final boundary = bodyEndBoundary;
+      if (boundary == null) return null;
+      parsed = _fieldsUntil(after + _u32Bytes, boundary);
+      if (parsed == null) return null;
+    }
+    // Boundary gate: when a body used element-type specs and the next
+    // record's position is known, the walk must not OVERRUN it — a
+    // walker misparse must never fabricate a body silently. (Ending
+    // short of the boundary is normal: some records trail undecoded
+    // inter-record content.)
+    final boundary = bodyEndBoundary;
+    if (_usedSpec && boundary != null && parsed.$2 > boundary) return null;
+    debugLastEndOffset = parsed.$2;
+    return parsed.$1;
   }
 
-  (List<BinaryTypeField>, int)? _fields(int from, int count,
-      {bool top = false}) {
+  /// Parses fields until the walk lands EXACTLY on [boundary] — the
+  /// count-less body form. Any misparse, overshoot, or runaway bails.
+  (List<BinaryTypeField>, int)? _fieldsUntil(int from, int boundary) {
+    var at = from;
+    final fields = <BinaryTypeField>[];
+    while (at < boundary && fields.length <= _typeMaxFields) {
+      final parsed = _fields(at, 1);
+      if (parsed == null) return null;
+      fields.addAll(parsed.$1);
+      at = parsed.$2;
+    }
+    if (at != boundary) return null;
+    return (fields, at);
+  }
+
+  (List<BinaryTypeField>, int)? _fields(int from, int count) {
     var at = from;
     final fields = <BinaryTypeField>[];
     for (var i = 0; i < count; i++) {
-      _specPending = false;
       final field = _field(at);
       if (field == null) return null;
-      if (_specPending && i + 1 < count) {
-        _specPending = false;
-        // An element-type spec follows this array field, mid-body. Its
-        // internal grammar is not decoded (and has no twin oracle) — it
-        // is skipped STRUCTURALLY: the smallest skip from which every
-        // remaining field parses to completion AND lands exactly on the
-        // body-end boundary (spec interiors parse as field-alikes, so a
-        // first-match trial fabricates — the exact-end gate rejects
-        // those). Top-level fields only; nested spec'd arrays bail. The
-        // length is surfaced on the field as an explicitly undecoded
-        // blob (elementSpecBytes) — the spec encodes the array's element
-        // type, needed later for populated arrays and .seq writing.
-        final boundary = bodyEndBoundary;
-        if (!top || boundary == null) return null;
-        for (var skip = 0; skip <= _specMaxBytes; skip++) {
-          final rest = _fields(field.$2 + skip, count - i - 1, top: true);
-          if (rest != null && rest.$2 == boundary) {
-            fields.add(BinaryTypeField(
-              field.$1.name,
-              className: field.$1.className,
-              typeName: field.$1.typeName,
-              value: field.$1.value,
-              emptyArray: field.$1.emptyArray,
-              children: field.$1.children,
-              instanceOverrides: field.$1.instanceOverrides,
-              elementSpecBytes: skip,
-            ));
-            fields.addAll(rest.$1);
-            return (fields, rest.$2);
+      at = field.$2;
+      var specBytes = 0;
+      if (field.$1.emptyArray) {
+        // An element-type spec may follow any empty array. It is
+        // detected by its frame — nothing else in a field walk leads
+        // with a bare DELIMITER — not by the attr bits (TEInf's
+        // CustomResults carries 0x8001 before its spec, the same field
+        // inside Substep.TS a plain 0x1, and Action.Substeps 0x8001800
+        // with no spec at all). Walked structurally ([_elementSpec] /
+        // [_refSpec]); the length is surfaced as an explicitly
+        // undecoded blob (elementSpecBytes) — the spec encodes the
+        // array's element type, needed later for populated arrays and
+        // .seq writing. A DELIM-led tail neither form can walk fails
+        // the body, honestly.
+        // Blocks CHAIN: a populated array stores its type spec and then
+        // its element-content block, both DELIM-led.
+        while (true) {
+          final specEnd = _elementSpec(at) ?? _refSpec(at);
+          if (specEnd == null) break;
+          specBytes += specEnd - at;
+          at = specEnd;
+          _usedSpec = true;
+        }
+        if (specBytes == 0) {
+          var lead = at;
+          if (lead < recordRegionLength && view.getUint8(lead) == 0) lead++;
+          if (lead + _u32Bytes <= recordRegionLength &&
+              _u32(lead) == _recordDelimiter) {
+            return null;
           }
         }
-        return null;
       }
-      _specPending = false;
-      fields.add(field.$1);
-      at = field.$2;
+      if (specBytes > 0) {
+        if (debugCollectSpecs) {
+          debugSpecSites.add((field.$1.name, field.$2, specBytes));
+        }
+        fields.add(BinaryTypeField(
+          field.$1.name,
+          className: field.$1.className,
+          typeName: field.$1.typeName,
+          value: field.$1.value,
+          emptyArray: field.$1.emptyArray,
+          children: field.$1.children,
+          instanceOverrides: field.$1.instanceOverrides,
+          elementSpecBytes: specBytes,
+        ));
+      } else {
+        fields.add(field.$1);
+      }
     }
     return (fields, at);
   }
@@ -1321,18 +1468,48 @@ class _TypeBodyParser {
     debugLastFieldOffset = at;
     if (at + 6 * _u32Bytes > recordRegionLength) return null;
     final fieldFlags = _u32(at);
-    if (_u32(at + _u32Bytes) != 0) return null;
+    if (_u32(at + _u32Bytes) != 0) {
+      // COMPACT form: [name][value][attr words…][0] — no flags/class
+      // prefix (every other form has 0 in the second slot; here it is
+      // the stored value). Measured on the binary-only step-type
+      // typedefs (DescriptionFormat = ResStr(…) in NI_Measurement).
+      // The class is not serialized — surfaced as null, undecoded.
+      final name = _tok(fieldFlags);
+      final value = _tok(_u32(at + _u32Bytes));
+      if (name == null || value == null) return null;
+      final after = _attrTail(at + 2 * _u32Bytes);
+      if (after == null) return null;
+      return (BinaryTypeField(name, value: value), after);
+    }
     if (fieldFlags & ~(0x2 | 0x4 | 0x8 | 0x20 | 0x40 | 0x80 | 0x200) != 0) {
       return null;
     }
     final valued = fieldFlags & _fieldHasValueBit != 0;
     final hasFormat = fieldFlags & _fieldHasFormatBit != 0;
-    // Obj declarations have no field terminator (their extent is the child
-    // walk), so their attr-word count comes from the flag bits — the only
-    // place the bit-arity model is still load-bearing.
-    final extraWords = ((fieldFlags >> 3) & 1) +
-        ((fieldFlags >> 5) & 1) +
-        ((fieldFlags >> 6) & 1);
+
+    // DESCRIPTOR NODE: [0][0][DELIM][name][childCount][children…] — no
+    // tail. The shape type descriptors use for nested objects, measured
+    // inside element-type specs and PropertyObjectType instances (the
+    // spec's 'Type'/'ArrayDimensions' nodes). Distinguished from the
+    // framed form by flags == 0 (framed fields always carry bit 0x80)
+    // and from the plain form by the DELIMITER where the class word
+    // would sit. Children serialize like overrides: a subset, so they
+    // compare by name against the materialized twin.
+    if (fieldFlags == 0 && _u32(at + 2 * _u32Bytes) == _recordDelimiter) {
+      final name = _tok(_u32(at + 3 * _u32Bytes));
+      if (name == null) return null;
+      final childCount = _u32(at + 4 * _u32Bytes);
+      if (childCount > _typeMaxFields) return null;
+      final children = _fields(at + 5 * _u32Bytes, childCount);
+      if (children == null) return null;
+      return (
+        BinaryTypeField(name,
+            className: 'Obj',
+            children: children.$1,
+            instanceOverrides: true),
+        children.$2
+      );
+    }
 
     // Framed form: [flags|0x80][0][DELIM][X][name][value…][extras…][0].
     if (fieldFlags & 0x80 != 0) {
@@ -1350,9 +1527,11 @@ class _TypeBodyParser {
           if (value == null) return null;
           next += _u32Bytes;
         } else {
-          value = ''; // the twin's `<value/>` reads as an empty string
+          // The twin's `<value/>` reads as an empty string — unless
+          // inside an instance, where an unvalued field is inherited.
+          value = _inInstance ? null : '';
         }
-      } else if (x >= 2 && valued && x - 1 < table.length) {
+      } else if (x >= 2 && valued) {
         // Typed EMPTY-ARRAY instance (`Substeps` of StepTypeSubstepsArray):
         // ['[0]']['[]'][attr words…][0][one 0x00 pad byte] — anchor-
         // measured across every rosetta binary.
@@ -1361,34 +1540,45 @@ class _TypeBodyParser {
             _tok(_u32(next + _u32Bytes)) != '[]') {
           return null;
         }
-        final tail = _attrTail(next + 2 * _u32Bytes, arrayField: true);
+        final tail = _attrTail(next + 2 * _u32Bytes);
         if (tail == null ||
             tail >= recordRegionLength ||
             view.getUint8(tail) != 0) {
           return null;
         }
-        final ref = table[x - 1];
+        // X here is NOT a table reference: Substeps carries X=2 while
+        // its twin types it StepTypeSubstepsArray — an ENGINE-INTRINSIC
+        // type that is never serialized (the table has no such record).
+        // X is surfaced as the undecoded intrinsic-type id.
         return (
           BinaryTypeField(name,
-              className: 'Objs', typeName: ref.name, emptyArray: true),
+              className: 'Objs', emptyArray: true, intrinsicTypeId: x),
           tail + 1
         );
       } else if (x >= 2 && !valued && x - 1 < table.length) {
         // Type table[X-1] (1-based, the same convention as step
         // references), in one of two twin-validated shapes:
-        //  * an INLINE OVERRIDE instance — `[name][childCount]` then the
-        //    overridden fields in the full field grammar (the same
-        //    explicit count the X == 1 custom-instance form carries).
-        //    Like X == 1 this serializes ONLY the overrides
-        //    (DotNetStepAdditions.StructDef stores 2 of DotNetParameter's
-        //    11 fields), so children compare as a subset of the
-        //    materialized twin;
+        //  * an INLINE OVERRIDE instance — `[name][attr words…]
+        //    [childCount]` then the overridden fields in the full field
+        //    grammar (the same explicit count the X == 1 custom-instance
+        //    form carries; Substep.TS stores an attr word 0x440018
+        //    before its count). Like X == 1 this serializes ONLY the
+        //    overrides (DotNetStepAdditions.StructDef stores 2 of
+        //    DotNetParameter's 11 fields), so children compare as a
+        //    subset of the materialized twin;
         //  * a default-instance REFERENCE — no inline content, just the
         //    attr-word tail.
         final ref = table[x - 1];
-        final childCount = _u32(next);
-        if (childCount >= 1 && childCount <= _typeMaxFields) {
-          final children = _fields(next + _u32Bytes, childCount);
+        for (var k = 0; k <= _fieldMaxAttrWords; k++) {
+          final countAt = next + k * _u32Bytes;
+          if (countAt + _u32Bytes > recordRegionLength) break;
+          final word = _u32(countAt);
+          if (word == 0) break; // the ref-only terminator — no instance
+          if (word < 1 || word > _typeMaxFields) continue; // attr word
+          final outerInstance = _inInstance;
+          _inInstance = true;
+          final children = _fields(countAt + _u32Bytes, word);
+          _inInstance = outerInstance;
           if (children != null) {
             return (
               BinaryTypeField(name,
@@ -1405,15 +1595,19 @@ class _TypeBodyParser {
         // A reference to a scalar-classed type reads that class's
         // default, the twin's `<value/>` semantics (AssemblyPath:Path
         // materializes '' via its PathValue class) — object-classed
-        // references carry no value.
-        value = switch (className) {
-          'Str' || 'PathValue' || 'ExprValue' => '',
-          'Bool' => 'false',
-          'Num' => '0',
-          _ => null,
-        };
+        // references carry no value, and inside an instance an
+        // unvalued field is inherited, not defaulted.
+        value = _inInstance
+            ? null
+            : switch (className) {
+                'Str' || 'PathValue' || 'ExprValue' => '',
+                'Bool' => 'false',
+                'Num' => '0',
+                _ => null,
+              };
       } else if (x == 1 && !valued) {
-        // Inline CUSTOM instance: [name][overrideCount] then entries,
+        // Inline CUSTOM instance: [name][attr words…][overrideCount]
+        // then entries,
         // each `[2][0]` + `[cls][name][value][trail]` (trail: one 0x00
         // byte after Bool, u32 0 after Str) or `[2][0][DELIM][name]
         // [value][u32 0]` for ExprValue overrides. No terminator — the
@@ -1421,7 +1615,16 @@ class _TypeBodyParser {
         // engine-intrinsic (not serialized), so typeName stays null and
         // children carry ONLY the overrides. Anchor-measured across all
         // rosetta instances.
-        final overrideCount = _u32(next);
+        // Attr words may precede the count (Action.Menu stores two
+        // 0x80018 words) — scan past them, same as the X >= 2 form.
+        var overrideCount = _u32(next);
+        for (var k = 0;
+            overrideCount > _typeMaxFields && k < _fieldMaxAttrWords;
+            k++) {
+          next += _u32Bytes;
+          if (next + _u32Bytes > recordRegionLength) return null;
+          overrideCount = _u32(next);
+        }
         if (overrideCount > _typeMaxFields) return null;
         next += _u32Bytes;
         final overrides = <BinaryTypeField>[];
@@ -1491,6 +1694,33 @@ class _TypeBodyParser {
       );
     }
 
+    // FRAMED-LITE form: [flags][0][DELIM][name][value?][attrs…][0] — an
+    // Expression-typed field with the DELIMITER in the class slot and no
+    // X word (Action's TS override stores PassActTarget/FailActTarget
+    // this way with flags 0x60). Distinguished from the full framed form
+    // by the absent 0x80 bit and from the descriptor node by flags != 0.
+    if (fieldFlags != 0 && _u32(at + 2 * _u32Bytes) == _recordDelimiter) {
+      final name = _tok(_u32(at + 3 * _u32Bytes));
+      if (name == null) return null;
+      var next = at + 4 * _u32Bytes;
+      // The twin's `<value/>` reads as an empty string — unless inside
+      // an instance, where an unvalued field is inherited (null).
+      var value = _inInstance ? null : '';
+      if (valued) {
+        final stored = _tok(_u32(next));
+        if (stored == null) return null;
+        value = stored;
+        next += _u32Bytes;
+      }
+      final after = _attrTail(next);
+      if (after == null) return null;
+      return (
+        BinaryTypeField(name,
+            className: 'ExprValue', typeName: 'Expression', value: value),
+        after
+      );
+    }
+
     // Plain form: [flags][0][cls][name][value-part][format?][extras…]
     // [terminator 0] — extras sit AFTER the value part (anchor-measured on
     // CodeTemplates: [Str][name][value][0x480018][0]); with no value part
@@ -1500,34 +1730,51 @@ class _TypeBodyParser {
     final name = _tok(_u32(at + 3 * _u32Bytes));
     if (className == null || name == null) return null;
     var next = at + 4 * _u32Bytes;
-    // Nested Obj DECLARATION: [childCount][children…] — no trailing zero,
-    // so the attr words are counted from the flag bits (Requirements:
-    // flags 0x6c → exactly three attr words before childCount).
-    if (className == 'Obj' && !valued) {
-      next += extraWords * _u32Bytes;
-      if (next + _u32Bytes > recordRegionLength) return null;
-      final childCount = _u32(next);
-      if (childCount > _typeMaxFields) return null;
-      final children = _fields(next + _u32Bytes, childCount);
-      if (children == null) return null;
-      return (
-        BinaryTypeField(name, className: 'Obj', children: children.$1),
-        children.$2
-      );
+    // Nested object DECLARATION — class word 'Obj' or a CLASS NAME
+    // string (PythonStepAdditions.PythonCall declares class
+    // 'CPythonCall' this way, its 14 children inline):
+    // [attr words…][childCount][children…] — no trailing zero, so the
+    // childCount is found by scanning past the attr words: the first
+    // word small enough to be a count whose children then parse
+    // (Substep.TS's Result stores two 0x400000 attr words where its
+    // flag bits promise one — bit arity is not reliable here either).
+    if (!valued &&
+        !const {'Bool', 'Str', 'Num', 'Nums', 'Strs', 'Objs', 'ExprValue',
+            'PathValue'}.contains(className)) {
+      for (var k = 0; k <= _fieldMaxAttrWords; k++) {
+        final countAt = next + k * _u32Bytes;
+        if (countAt + _u32Bytes > recordRegionLength) break;
+        final childCount = _u32(countAt);
+        if (childCount > _typeMaxFields) continue; // attr word
+        final children = _fields(countAt + _u32Bytes, childCount);
+        if (children == null) continue;
+        return (
+          BinaryTypeField(name,
+              className: className, children: children.$1),
+          children.$2
+        );
+      }
+      return null;
     }
     if (!valued) {
       // Unvalued fields read their class defaults (false / '' / 0 — the
       // twin's `<value/>` semantics): [attr words…][terminator 0].
+      // Inside an instance the value is INHERITED instead (null).
       final after = _attrTail(next);
       if (after == null) return null;
-      final field = switch (className) {
-        'Bool' => BinaryTypeField(name, className: 'Bool', value: 'false'),
-        'Str' => BinaryTypeField(name, className: 'Str', value: ''),
-        'Num' => BinaryTypeField(name, className: 'Num', value: '0'),
-        _ => null,
-      };
-      if (field == null) return null;
-      return (field, after);
+      if (!const {'Bool', 'Str', 'Num'}.contains(className)) return null;
+      return (
+        BinaryTypeField(name,
+            className: className,
+            value: _inInstance
+                ? null
+                : switch (className) {
+                    'Bool' => 'false',
+                    'Num' => '0',
+                    _ => '',
+                  }),
+        after
+      );
     }
     // Empty array field: value tokens '[0]' '[]' then trail 0. Object
     // arrays (`Objs`) additionally carry ONE 0x00 pad byte after the
@@ -1535,9 +1782,14 @@ class _TypeBodyParser {
     // everything after an empty Objs array off word alignment.
     if (const {'Nums', 'Strs', 'Objs'}.contains(className) &&
         next + 2 * _u32Bytes <= recordRegionLength &&
-        _tok(_u32(next)) == '[0]' &&
-        _tok(_u32(next + _u32Bytes)) == '[]') {
-      var after = _attrTail(next + 2 * _u32Bytes, arrayField: true);
+        _isBoundToken(_tok(_u32(next))) &&
+        _isBoundToken(_tok(_u32(next + _u32Bytes)))) {
+      // Bounds are literal tokens ('[0]' '[]' = empty; '[0]' '[0]' = a
+      // populated one-element array — PythonCall.Parameters). Populated
+      // content rides in the trailing DELIM-led blocks, currently
+      // surfaced undecoded via elementSpecBytes (TODO: decode element
+      // values once more corpus shapes are in hand).
+      var after = _attrTail(next + 2 * _u32Bytes);
       if (after == null) return null;
       if (className == 'Objs') {
         if (after >= recordRegionLength || view.getUint8(after) != 0) {
@@ -1665,7 +1917,8 @@ class BinaryTypeField {
       this.emptyArray = false,
       this.children = const [],
       this.instanceOverrides = false,
-      this.elementSpecBytes});
+      this.elementSpecBytes,
+      this.intrinsicTypeId});
 
   /// The field name (`Code`, `ItemName`, …).
   final String name;
@@ -1707,6 +1960,13 @@ class BinaryTypeField {
   /// the file), so [typeName] stays null. Compare such children as a
   /// subset of the materialized twin, never as the full field list.
   final bool instanceOverrides;
+
+  /// TODO(intrinsic types): for a framed VALUED empty array, the X word
+  /// is an ENGINE-INTRINSIC type id, not a table reference (`Substeps`
+  /// carries 2 while its twin types it `StepTypeSubstepsArray` — a type
+  /// the file never serializes). Surfaced undecoded; the id → name map
+  /// needs more corpus evidence. Null elsewhere.
+  final int? intrinsicTypeId;
 }
 
 class BinaryTypeRecord {
@@ -1790,11 +2050,6 @@ class BinaryTypeRecord {
 /// the corpus-pinned table is shared.
 List<BinaryTypeRecord> binaryTypeRecords(Uint8List seqBytes) =>
     _withLayout(seqBytes, _typeRecordsFromBody);
-
-/// Upper bound for the structural element-type-spec skip search (the
-/// standard-typelist specs measure ~180 bytes; headroom for larger
-/// element types).
-const _specMaxBytes = 512;
 
 /// Defensive cap on a field's attr-word tail (three is the most any
 /// twin-validated field stores — ffi/iof/vf, e.g. TEInf.Links).
