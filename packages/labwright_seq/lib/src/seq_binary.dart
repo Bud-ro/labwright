@@ -1104,43 +1104,41 @@ const _typeRecordMinBytes = (3 + _typeVersionTripleWords) * _u32Bytes;
 /// word before SData is a ResStr index; the TS 4.x/5.0 leaf grammar
 /// barely fires on TS2021 files) are kept in git history at PRs #39/#48.
 ///
-/// TODO(binary decode — typedef bodies: RECURSION LANDED, 38 rosetta
-/// bodies twin-exact; see [BinaryTypeField] and the unified flag-bit
-/// model on the body parser). Still-bailing shapes:
-///  * inline CUSTOM instances: DECODED (override-only serialization;
-///    entry arities anchor-measured — Bool value u32 + one 0x00 pad
-///    byte, Str value + u32 0, framed ExprValue + u32 0; the instance
-///    TYPE is engine-intrinsic and not serialized). NOT yet exercised by
-///    a completing typedef: every instance-bearing rosetta typedef also
-///    hits the next item;
-///  * array ELEMENT-TYPE blocks — `AdditionalResultsHints` closes its
-///    `'[0]' '[]'` + 0x8001 extra + terminator with a ~180-byte tail,
-///    byte-for-byte IDENTICAL across every rosetta binary. Byte-decoded
-///    prefix: `[one 0x00 pad][DELIM][5][DELIM][2][0][0][DELIM]` then a
-///    nested `'Type'` SPEC object — the `ElementType`/`LowerBounds`/
-///    `UpperBounds` motif repeating ~3 levels deep (the array element
-///    type's PropertyObjectType descriptor, cf. NI_CustomResult's
-///    `Type:PropertyObjectType` field). The XML twin NEVER writes this
-///    spec (`<value lbound='0' ubound='-1'/>` only), so its content has
-///    no twin oracle — the right treatment is a structural SKIP rule
-///    (recognize the spec after a hint-array's pad, walk its DELIM
-///    framing to the end), not a value decode; the [5]/[2] words remain
-///    the open skip-length question. Cracking it completes
-///    Substep/PostSubstep/Action and exercises the instance-override
-///    path end-to-end;
+/// TODO(binary decode — typedef bodies: ATTR-TAIL MODEL + INLINE
+/// INSTANCES + boundary-gated SPEC SKIP landed, 44 rosetta bodies
+/// twin-exact; see [BinaryTypeField] and the body parser). Still-bailing
+/// shapes:
+///  * array ELEMENT-TYPE specs: SKIPPED structurally (trial skip
+///    accepted only when the remaining top-level fields land exactly on
+///    the body-end boundary; length surfaced as
+///    [BinaryTypeField.elementSpecBytes]) but their CONTENT is still
+///    undecoded. Measured structure so far: `[00?][DELIM][5][DELIM][2]
+///    [0][0][DELIM]['Type'][…]` — a serialized PropertyObjectType
+///    descriptor whose interior reuses the standard field grammar (and
+///    NESTS: inner spec'd arrays carry their own `[DELIM][5]` specs).
+///    Decoding it properly would also unlock nested spec'd arrays
+///    (currently only top-level fields may skip) and bodies whose spec
+///    sits before a non-contiguous boundary (TEInf, DotNetStepAdditions
+///    bail this way — their tails don't end 17 bytes before the next
+///    head);
 ///  * framed REFS with trailing payloads — Substep's `TS` reads
 ///    `[0xA0][0][DELIM][X=6]` = a framed reference to TEInf (table idx
-///    5 + 1: the 1-based table convention and the 0x20 extras bit BOTH
-///    hold) but trails ~534 bytes before `NI_Data`: framed refs can
-///    carry an override payload (ref/instance hybrid — presumably TS's
-///    non-default TEInf fields; the twin's 49 materialized children
-///    give anchor names for the prober);
+///    5 + 1: the 1-based table convention holds) but trails ~534 bytes
+///    before `NI_Data`: framed refs can carry an override payload
+///    (ref/instance hybrid — presumably TS's non-default TEInf fields;
+///    the twin's 49 materialized children give anchor names for the
+///    prober);
+///  * step-type typedef bodies whose fields drop the `[flags][0][cls]`
+///    prefix (NI_Measurement/NI_UpdatePinMap/Action bail at
+///    `DescriptionFormat` immediately after the body head — the first
+///    word there is the ResStr VALUE, so these bodies open with a
+///    different field encoding);
 ///  * POPULATED object arrays — `'[0]' '[]'` followed by element
 ///    content (`Calls`/`Params`/`Substeps`);
 ///  * fields whose class word is a TYPE NAME string
 ///    (`[0][0][CPythonCall][PythonCall]…`) with the instance inline;
 ///  * `Error`'s adapter-marshalling records (STRUCT/DNSTRUCT/BLVCLUSTER
-///    blocks) and TEInf's remaining flagged variants.
+///    blocks).
 /// Locals/parameters: thin twin oracle (rosetta declares only the
 /// implicit `ResultList`) — ride along once instances land.
 List<String> binaryTypeNames(Uint8List seqBytes) =>
@@ -1175,18 +1173,36 @@ List<BinaryTypeField>? _typeFieldsAt(
         List<String> pool,
         int after,
         int recordRegionLength,
-        List<BinaryTypeRecord> table) =>
-    _TypeBodyParser(view, pool, recordRegionLength, table).parse(after);
+        List<BinaryTypeRecord> table,
+        [int? endBoundary]) =>
+    _TypeBodyParser(view, pool, recordRegionLength, table, endBoundary)
+        .parse(after);
+
+/// The fixed byte count between a type-record body's final field
+/// terminator and the next record's head (its className word): measured
+/// 17 on every cleanly-decoded rosetta body ("gap=17" in the extents
+/// tool). The preamble's contents are not yet decoded (TODO); it is used
+/// only to compute the body-end boundary that gates element-type spec
+/// skips — a wrong value there makes skips bail, never fabricate.
+const _typeRecordPreambleBytes = 17;
 
 /// The recursive typedef-body field parser — see [_typeFieldsAt].
 class _TypeBodyParser {
-  _TypeBodyParser(this.view, this.pool, this.recordRegionLength, this.table);
-
+  _TypeBodyParser(this.view, this.pool, this.recordRegionLength, this.table,
+      [this.bodyEndBoundary]);
 
   final ByteData view;
   final List<String> pool;
   final int recordRegionLength;
   final List<BinaryTypeRecord> table;
+
+  /// Where this body must END — the next type record's head start minus
+  /// its preamble ([_typeRecordPreambleBytes]) — or null for the last
+  /// record. An element-type spec skip is only accepted when the
+  /// remaining fields land EXACTLY here; without this gate a trial skip
+  /// can re-anchor inside the spec (its interior parses as field-alikes)
+  /// and fabricate a body, measured on TEInf/DotNetStepAdditions.
+  final int? bodyEndBoundary;
 
   int _u32(int at) => view.getUint32(at, Endian.little);
   String? _tok(int word) =>
@@ -1194,23 +1210,96 @@ class _TypeBodyParser {
           ? pool[word]
           : null;
 
+  /// Set by [_field] when the just-parsed array field's attr-word tail
+  /// carries the 0x8000 "element-type spec follows" signal — the field
+  /// walk then structurally skips the spec (see [_fields]).
+  bool _specPending = false;
+
+  /// Consumes a field's ATTR-WORD tail: zero or more nonzero words —
+  /// the field's flag attributes, `flagsforinstances`/
+  /// `instanceoverrideflags`/`valueflags` when present (TEInf.Links
+  /// stores its twin's exact 71303168/72286233/71303168 triple; 0x4d0018
+  /// everywhere is the ubiquitous `instanceoverrideflags='5046296'`) —
+  /// then the 0 terminator. Returns the offset after the terminator, or
+  /// null when no terminator arrives within the cap. On array fields, an
+  /// attr word with bit 0x8000 (0x8001/0x8801 measured) signals a
+  /// trailing element-type spec and arms [_specPending].
+  int? _attrTail(int from, {bool arrayField = false}) {
+    var at = from;
+    for (var i = 0; i <= _fieldMaxAttrWords; i++) {
+      if (at + _u32Bytes > recordRegionLength) return null;
+      final word = _u32(at);
+      at += _u32Bytes;
+      if (word == 0) return at;
+      if (arrayField && word & 0x8000 != 0) _specPending = true;
+    }
+    return null;
+  }
+
+  /// Tooling aid (grammar iteration): the byte offset of the most recent
+  /// [_field] attempt — after a bailed parse this points at the shape the
+  /// grammar does not cover yet. Not part of the decode result.
+  static int? debugLastFieldOffset;
+
+  /// Tooling aid: the end offset (exclusive) the most recent successful
+  /// [parse] consumed to. Not part of the decode result.
+  static int? debugLastEndOffset;
+
   /// The whole body: `[0][count]` then exactly `count` fields.
   List<BinaryTypeField>? parse(int after) {
+    debugLastFieldOffset = null;
     if (after + 2 * _u32Bytes > recordRegionLength || _u32(after) != 0) {
       return null;
     }
     final count = _u32(after + _u32Bytes);
     if (count > _typeMaxFields) return null;
-    final parsed = _fields(after + 2 * _u32Bytes, count);
+    final parsed = _fields(after + 2 * _u32Bytes, count, top: true);
+    if (parsed != null) debugLastEndOffset = parsed.$2;
     return parsed?.$1;
   }
 
-  (List<BinaryTypeField>, int)? _fields(int from, int count) {
+  (List<BinaryTypeField>, int)? _fields(int from, int count,
+      {bool top = false}) {
     var at = from;
     final fields = <BinaryTypeField>[];
     for (var i = 0; i < count; i++) {
+      _specPending = false;
       final field = _field(at);
       if (field == null) return null;
+      if (_specPending && i + 1 < count) {
+        _specPending = false;
+        // An element-type spec follows this array field, mid-body. Its
+        // internal grammar is not decoded (and has no twin oracle) — it
+        // is skipped STRUCTURALLY: the smallest skip from which every
+        // remaining field parses to completion AND lands exactly on the
+        // body-end boundary (spec interiors parse as field-alikes, so a
+        // first-match trial fabricates — the exact-end gate rejects
+        // those). Top-level fields only; nested spec'd arrays bail. The
+        // length is surfaced on the field as an explicitly undecoded
+        // blob (elementSpecBytes) — the spec encodes the array's element
+        // type, needed later for populated arrays and .seq writing.
+        final boundary = bodyEndBoundary;
+        if (!top || boundary == null) return null;
+        for (var skip = 0; skip <= _specMaxBytes; skip++) {
+          final rest = _fields(field.$2 + skip, count - i - 1, top: true);
+          if (rest != null && rest.$2 == boundary) {
+            fields.add(BinaryTypeField(
+              field.$1.name,
+              className: field.$1.className,
+              typeName: field.$1.typeName,
+              value: field.$1.value,
+              emptyArray: field.$1.emptyArray,
+              children: field.$1.children,
+              instanceOverrides: field.$1.instanceOverrides,
+              elementSpecBytes: skip,
+            ));
+            fields.addAll(rest.$1);
+            return (fields, rest.$2);
+          }
+        }
+        return null;
+      }
+      _specPending = false;
       fields.add(field.$1);
       at = field.$2;
     }
@@ -1220,14 +1309,16 @@ class _TypeBodyParser {
   /// One field record; returns (field, next offset) or null on an
   /// uncovered shape.
   ///
-  /// UNIFIED FLAG-BIT MODEL (twin-validated arity by arity): bit 0x2 =
-  /// stored value; 0x200 = display-format word after the value; each of
-  /// 0x8, 0x20, 0x40 adds ONE opaque instance-flag word (after the name in
-  /// plain form, after the value slot in framed form); 0x4 is
-  /// arity-neutral; 0x80 = delimiter-framed (Expression scalars, typed
-  /// default-instance references, and inline custom instances — the last
-  /// not yet covered).
+  /// FIELD MODEL (twin-validated): bit 0x2 = stored value; 0x200 =
+  /// display-format word after the value; 0x80 = delimiter-framed
+  /// (Expression scalars, typed references, inline instances). The other
+  /// low bits (0x4/0x8/0x20/0x40) advertise which FLAG ATTRIBUTES the
+  /// field stores, but the attr words themselves simply run until the 0
+  /// terminator ([_attrTail]) — except on Obj declarations, which have
+  /// no terminator, so there the 0x8/0x20/0x40 bit count is
+  /// load-bearing (one word each; twin-validated on Requirements).
   (BinaryTypeField, int)? _field(int at) {
+    debugLastFieldOffset = at;
     if (at + 6 * _u32Bytes > recordRegionLength) return null;
     final fieldFlags = _u32(at);
     if (_u32(at + _u32Bytes) != 0) return null;
@@ -1236,6 +1327,9 @@ class _TypeBodyParser {
     }
     final valued = fieldFlags & _fieldHasValueBit != 0;
     final hasFormat = fieldFlags & _fieldHasFormatBit != 0;
+    // Obj declarations have no field terminator (their extent is the child
+    // walk), so their attr-word count comes from the flag bits — the only
+    // place the bit-arity model is still load-bearing.
     final extraWords = ((fieldFlags >> 3) & 1) +
         ((fieldFlags >> 5) & 1) +
         ((fieldFlags >> 6) & 1);
@@ -1260,33 +1354,64 @@ class _TypeBodyParser {
         }
       } else if (x >= 2 && valued && x - 1 < table.length) {
         // Typed EMPTY-ARRAY instance (`Substeps` of StepTypeSubstepsArray):
-        // ['[0]']['[]'][extras…][0][one 0x00 pad byte] — anchor-measured
-        // across every rosetta binary.
+        // ['[0]']['[]'][attr words…][0][one 0x00 pad byte] — anchor-
+        // measured across every rosetta binary.
         if (_tok(_u32(next)) != '[0]' ||
             next + 2 * _u32Bytes > recordRegionLength ||
             _tok(_u32(next + _u32Bytes)) != '[]') {
           return null;
         }
-        final after = next + (2 + extraWords) * _u32Bytes;
-        if (after + _u32Bytes + 1 > recordRegionLength ||
-            _u32(after) != 0 ||
-            view.getUint8(after + _u32Bytes) != 0) {
+        final tail = _attrTail(next + 2 * _u32Bytes, arrayField: true);
+        if (tail == null ||
+            tail >= recordRegionLength ||
+            view.getUint8(tail) != 0) {
           return null;
         }
         final ref = table[x - 1];
         return (
           BinaryTypeField(name,
               className: 'Objs', typeName: ref.name, emptyArray: true),
-          after + _u32Bytes + 1
+          tail + 1
         );
       } else if (x >= 2 && !valued && x - 1 < table.length) {
-        // Default-instance REFERENCE of type table[X-1] (1-based, the
-        // same convention as step references). The file stores only the
-        // reference — no inline content.
+        // Type table[X-1] (1-based, the same convention as step
+        // references), in one of two twin-validated shapes:
+        //  * an INLINE OVERRIDE instance — `[name][childCount]` then the
+        //    overridden fields in the full field grammar (the same
+        //    explicit count the X == 1 custom-instance form carries).
+        //    Like X == 1 this serializes ONLY the overrides
+        //    (DotNetStepAdditions.StructDef stores 2 of DotNetParameter's
+        //    11 fields), so children compare as a subset of the
+        //    materialized twin;
+        //  * a default-instance REFERENCE — no inline content, just the
+        //    attr-word tail.
         final ref = table[x - 1];
+        final childCount = _u32(next);
+        if (childCount >= 1 && childCount <= _typeMaxFields) {
+          final children = _fields(next + _u32Bytes, childCount);
+          if (children != null) {
+            return (
+              BinaryTypeField(name,
+                  className: ref.className ?? 'Obj',
+                  typeName: ref.name,
+                  children: children.$1,
+                  instanceOverrides: true),
+              children.$2
+            );
+          }
+        }
         className = ref.className ?? 'Obj';
         typeName = ref.name;
-        value = null;
+        // A reference to a scalar-classed type reads that class's
+        // default, the twin's `<value/>` semantics (AssemblyPath:Path
+        // materializes '' via its PathValue class) — object-classed
+        // references carry no value.
+        value = switch (className) {
+          'Str' || 'PathValue' || 'ExprValue' => '',
+          'Bool' => 'false',
+          'Num' => '0',
+          _ => null,
+        };
       } else if (x == 1 && !valued) {
         // Inline CUSTOM instance: [name][overrideCount] then entries,
         // each `[2][0]` + `[cls][name][value][trail]` (trail: one 0x00
@@ -1357,14 +1482,12 @@ class _TypeBodyParser {
       } else {
         return null;
       }
-      next += extraWords * _u32Bytes; // opaque instance-flag words
-      if (next + _u32Bytes > recordRegionLength || _u32(next) != 0) {
-        return null;
-      }
+      final after = _attrTail(next);
+      if (after == null) return null;
       return (
         BinaryTypeField(name,
             className: className, typeName: typeName, value: value),
-        next + _u32Bytes
+        after
       );
     }
 
@@ -1377,17 +1500,11 @@ class _TypeBodyParser {
     final name = _tok(_u32(at + 3 * _u32Bytes));
     if (className == null || name == null) return null;
     var next = at + 4 * _u32Bytes;
-    int? afterExtrasAndTerminator(int from) {
-      final terminatorAt = from + extraWords * _u32Bytes;
-      if (terminatorAt + _u32Bytes > recordRegionLength ||
-          _u32(terminatorAt) != 0) {
-        return null;
-      }
-      return terminatorAt + _u32Bytes;
-    }
-    // Nested Obj DECLARATION: [childCount][children…] — no trailing zero.
+    // Nested Obj DECLARATION: [childCount][children…] — no trailing zero,
+    // so the attr words are counted from the flag bits (Requirements:
+    // flags 0x6c → exactly three attr words before childCount).
     if (className == 'Obj' && !valued) {
-      next += extraWords * _u32Bytes; // opaque instance-flag words
+      next += extraWords * _u32Bytes;
       if (next + _u32Bytes > recordRegionLength) return null;
       final childCount = _u32(next);
       if (childCount > _typeMaxFields) return null;
@@ -1400,8 +1517,8 @@ class _TypeBodyParser {
     }
     if (!valued) {
       // Unvalued fields read their class defaults (false / '' / 0 — the
-      // twin's `<value/>` semantics): [extras…][terminator 0].
-      final after = afterExtrasAndTerminator(next);
+      // twin's `<value/>` semantics): [attr words…][terminator 0].
+      final after = _attrTail(next);
       if (after == null) return null;
       final field = switch (className) {
         'Bool' => BinaryTypeField(name, className: 'Bool', value: 'false'),
@@ -1420,7 +1537,7 @@ class _TypeBodyParser {
         next + 2 * _u32Bytes <= recordRegionLength &&
         _tok(_u32(next)) == '[0]' &&
         _tok(_u32(next + _u32Bytes)) == '[]') {
-      var after = afterExtrasAndTerminator(next + 2 * _u32Bytes);
+      var after = _attrTail(next + 2 * _u32Bytes, arrayField: true);
       if (after == null) return null;
       if (className == 'Objs') {
         if (after >= recordRegionLength || view.getUint8(after) != 0) {
@@ -1437,7 +1554,7 @@ class _TypeBodyParser {
       case 'Str':
         final value = _tok(_u32(next));
         if (value == null) return null;
-        final after = afterExtrasAndTerminator(next + _u32Bytes);
+        final after = _attrTail(next + _u32Bytes);
         if (after == null) return null;
         return (
           BinaryTypeField(name, className: 'Str', value: value),
@@ -1445,12 +1562,12 @@ class _TypeBodyParser {
         );
       case 'Bool':
         // A stored Bool is ONE byte (TEInf's StepFCSeqF=true measured:
-        // [01][extra 0x4d0018][terminator]) — the same byte the instance
+        // [01][attr 0x4d0018][terminator]) — the same byte the instance
         // grammar reads. Reading it as u32 was survivable only while
         // every validated stored Bool was false.
         final value = view.getUint8(next);
         if (value > 1) return null;
-        final after = afterExtrasAndTerminator(next + 1);
+        final after = _attrTail(next + 1);
         if (after == null) return null;
         return (
           BinaryTypeField(name,
@@ -1468,7 +1585,7 @@ class _TypeBodyParser {
           }
           next += _u32Bytes; // display-format ref, e.g. '%#x'
         }
-        final after = afterExtrasAndTerminator(next);
+        final after = _attrTail(next);
         if (after == null) return null;
         return (
           BinaryTypeField(name,
@@ -1547,7 +1664,8 @@ class BinaryTypeField {
       this.value,
       this.emptyArray = false,
       this.children = const [],
-      this.instanceOverrides = false});
+      this.instanceOverrides = false,
+      this.elementSpecBytes});
 
   /// The field name (`Code`, `ItemName`, …).
   final String name;
@@ -1573,6 +1691,15 @@ class BinaryTypeField {
   /// reference; materializing the referenced type's defaults is the XML
   /// writer's job, not the file's content.
   final List<BinaryTypeField> children;
+
+  /// TODO(element-type spec): the length in bytes of this array field's
+  /// trailing ELEMENT-TYPE SPEC — an explicitly UNDECODED blob (it
+  /// encodes the array's element type; needed for populated arrays and
+  /// eventual .seq writing, so it is surfaced, never dropped). The blob
+  /// starts right after this field's own encoding. Null when the field
+  /// carries no spec (or the spec trails the body's last field, where
+  /// the count-driven walk leaves it untouched).
+  final int? elementSpecBytes;
 
   /// True for an inline CUSTOM instance (framed `X == 1`): [children]
   /// holds ONLY the fields the instance OVERRIDES — the file serializes
@@ -1664,6 +1791,15 @@ class BinaryTypeRecord {
 List<BinaryTypeRecord> binaryTypeRecords(Uint8List seqBytes) =>
     _withLayout(seqBytes, _typeRecordsFromBody);
 
+/// Upper bound for the structural element-type-spec skip search (the
+/// standard-typelist specs measure ~180 bytes; headroom for larger
+/// element types).
+const _specMaxBytes = 512;
+
+/// Defensive cap on a field's attr-word tail (three is the most any
+/// twin-validated field stores — ffi/iof/vf, e.g. TEInf.Links).
+const _fieldMaxAttrWords = 8;
+
 /// Defensive cap on flag words read after the version triple while looking
 /// for the record delimiter (real records carry at most four flags plus a
 /// trailing zero).
@@ -1671,7 +1807,9 @@ const _typeMaxFlagWords = 8;
 
 List<BinaryTypeRecord> _typeRecordsFromBody(
     Uint8List body, int recordRegionLength,
-    [List<String>? sharedPool]) {
+    [List<String>? sharedPool,
+    Map<String, int>? bodyOffsetsOut,
+    Map<String, int>? headOffsetsOut]) {
   final pool = sharedPool ?? _orderedStringPool(body, recordRegionLength);
   if (pool.isEmpty) return const [];
   final view = ByteData.sublistView(body);
@@ -1679,6 +1817,7 @@ List<BinaryTypeRecord> _typeRecordsFromBody(
   final seen = <String>{};
   final records = <BinaryTypeRecord>[];
   final bodyOffsets = <int?>[];
+  final headAts = <int>[];
   String? tok(int word) =>
       word > 0 && word < pool.length && pool[word].isNotEmpty
           ? pool[word]
@@ -1760,25 +1899,82 @@ List<BinaryTypeRecord> _typeRecordsFromBody(
       flags: flags,
     ));
     bodyOffsets.add(bodyAt);
+    headAts.add(at);
+    if (bodyAt != null) bodyOffsetsOut?[name] = bodyAt;
+    headOffsetsOut?[name] = at;
   }
-  // Second pass: bodies parse with the COMPLETE table in hand — framed
-  // default-instance references index it 1-based (the same convention as
-  // step references), and references can point forward.
-  return [
-    for (var i = 0; i < records.length; i++)
-      BinaryTypeRecord(
-        name: records[i].name,
-        className: records[i].className,
-        typeCategory: records[i].typeCategory,
-        timestamp: records[i].timestamp,
-        versions: records[i].versions,
-        flags: records[i].flags,
-        fields: bodyOffsets[i] == null
-            ? null
-            : _typeFieldsAt(body, view, pool, bodyOffsets[i]!,
-                recordRegionLength, records),
-      ),
-  ];
+  // Second pass: bodies parse with the COMPLETE table of heads in hand —
+  // framed references index it 1-based (the same convention as step
+  // references), and may point forward. Bodies parse in TABLE ORDER with
+  // each result folded back in: an inline materialized instance needs the
+  // REFERENCED type's field count, and the corpus defines element/base
+  // types before their use sites.
+  final result = List.of(records);
+  for (var i = 0; i < result.length; i++) {
+    final bodyAt = bodyOffsets[i];
+    if (bodyAt == null) continue;
+    final boundary = i + 1 < headAts.length
+        ? headAts[i + 1] - _u32Bytes - _typeRecordPreambleBytes
+        : null;
+    final fields = _typeFieldsAt(
+        body, view, pool, bodyAt, recordRegionLength, result, boundary);
+    if (fields == null) continue;
+    result[i] = BinaryTypeRecord(
+      name: records[i].name,
+      className: records[i].className,
+      typeCategory: records[i].typeCategory,
+      timestamp: records[i].timestamp,
+      versions: records[i].versions,
+      flags: records[i].flags,
+      fields: fields,
+    );
+  }
+  return result;
+}
+
+/// Tooling aid for grammar iteration, not part of the decode API: every
+/// type record with a framed body, in table order, with its body start
+/// offset (within the inflated body) and either the end offset the parse
+/// consumed to, or the byte offset of the first field the grammar could
+/// not cover — the exact spot to point the prober at. Uses the
+/// production parser, so it can never disagree with the real decode.
+List<({String name, int headAt, int bodyAt, int? end, int? bail})>
+    binaryTypeBodyExtents(Uint8List seqBytes) {
+  final body = inflateBinaryBody(seqBytes);
+  if (body == null) return const [];
+  final layout = _layoutFromBody(body);
+  if (layout == null) return const [];
+  final recordRegionLength = layout.recordRegionLength;
+  final pool = _orderedStringPool(body, recordRegionLength);
+  if (pool.isEmpty) return const [];
+  final view = ByteData.sublistView(body);
+  final bodyOffsets = <String, int>{};
+  final headOffsets = <String, int>{};
+  final records = _typeRecordsFromBody(
+      body, recordRegionLength, pool, bodyOffsets, headOffsets);
+  final extents =
+      <({String name, int headAt, int bodyAt, int? end, int? bail})>[];
+  for (var i = 0; i < records.length; i++) {
+    final record = records[i];
+    final bodyAt = bodyOffsets[record.name];
+    if (bodyAt == null) continue;
+    final boundary = i + 1 < records.length
+        ? (headOffsets[records[i + 1].name] ?? 0) -
+            _u32Bytes -
+            _typeRecordPreambleBytes
+        : null;
+    final parser = _TypeBodyParser(
+        view, pool, recordRegionLength, records, boundary);
+    final ok = parser.parse(bodyAt) != null;
+    extents.add((
+      name: record.name,
+      headAt: headOffsets[record.name] ?? -1,
+      bodyAt: bodyAt,
+      end: ok ? _TypeBodyParser.debugLastEndOffset : null,
+      bail: ok ? null : _TypeBodyParser.debugLastFieldOffset ?? -1,
+    ));
+  }
+  return extents;
 }
 
 /// A step reference in the record region is a run of four `u32` pool-index words
