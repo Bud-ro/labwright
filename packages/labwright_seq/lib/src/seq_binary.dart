@@ -530,9 +530,11 @@ List<T> _withLayout<T>(
 ) {
   final body = inflateBinaryBody(seqBytes);
   if (body == null) return const <Never>[];
-  final layout = _layoutFromBody(body);
-  if (layout == null) return const <Never>[];
-  return extract(body, layout.recordRegionLength);
+  // Only the record/string boundary is needed here — use the cheap
+  // boundary finder, not the full [_layoutFromBody] recon stats.
+  final boundary = _recordRegionBoundary(body);
+  if (boundary == null) return const <Never>[];
+  return extract(body, boundary);
 }
 
 List<int> _recordWordsFromBody(Uint8List body, int recordRegionLength) {
@@ -2059,9 +2061,10 @@ class _TypeBodyParser {
 /// lenses read empty when the body does not frame.
 ({List<BinarySequenceOutline> outlines, List<BinaryTypeRecord> typeRecords})
     binaryOutlinesAndTypeRecordsFromBody(Uint8List body) {
-  final layout = _layoutFromBody(body);
-  if (layout == null) return const (outlines: [], typeRecords: []);
-  final recordRegionLength = layout.recordRegionLength;
+  final recordRegionLength = _recordRegionBoundary(body);
+  if (recordRegionLength == null) {
+    return const (outlines: [], typeRecords: []);
+  }
   final pool = _orderedStringPool(body, recordRegionLength);
   final typeRecords = _typeRecordsFromBody(body, recordRegionLength, sharedPool: pool);
   return (
@@ -2452,9 +2455,8 @@ List<({String name, int headAt, int bodyAt, int? end, int? bail})>
     binaryTypeBodyExtents(Uint8List seqBytes) {
   final body = inflateBinaryBody(seqBytes);
   if (body == null) return const [];
-  final layout = _layoutFromBody(body);
-  if (layout == null) return const [];
-  final recordRegionLength = layout.recordRegionLength;
+  final recordRegionLength = _recordRegionBoundary(body);
+  if (recordRegionLength == null) return const [];
   final pool = _orderedStringPool(body, recordRegionLength);
   if (pool.isEmpty) return const [];
   final view = ByteData.sublistView(body);
@@ -3029,6 +3031,52 @@ List<int> _leadingWords(Uint8List body, int count) {
 
 /// The offset where the first chain of ≥[chainMin] NUL-adjacent runs begins —
 /// the start of the string region. Null if no such chain exists.
+/// Finds the record/string boundary — the offset where the first packed
+/// string table begins — WITHOUT materializing the body's strings.
+///
+/// Equivalent to `_firstTableOffset(binaryStrings(body, minLength:
+/// _minRunLength))` (the record region is scanned for the first chain of
+/// ≥[_boundaryChainMin] NUL-adjacent printable runs), but it tracks only
+/// each run's (offset, length), returns the instant the chain first
+/// reaches the threshold (its start is already fixed), and never touches
+/// the bytes past the boundary. That turns an O(body)-time, O(strings)-
+/// allocation pass — run on EVERY public lens via [_withLayout] — into an
+/// O(boundary)-time, O(1)-allocation one. The rich [_layoutFromBody]
+/// (string/sentinel/segment counts) stays for the recon views that need
+/// those stats.
+int? _recordRegionBoundary(Uint8List body) {
+  int? prevStart, prevLen;
+  var chainStart = -1;
+  var chainCount = 0;
+  var runStart = -1;
+  final n = body.length;
+  for (var i = 0; i <= n; i++) {
+    if (i < n && isBinaryPrintable(body[i])) {
+      if (runStart < 0) runStart = i;
+      continue;
+    }
+    if (runStart >= 0) {
+      final len = i - runStart;
+      if (len >= _minRunLength) {
+        // Packed right after the previous run (its start == the previous
+        // run's end + one NUL) extends the chain; otherwise starts a new
+        // one — the same adjacency [_packedAfter] tests.
+        if (prevStart != null && runStart == prevStart + prevLen! + 1) {
+          chainCount++;
+        } else {
+          chainStart = runStart;
+          chainCount = 1;
+        }
+        if (chainCount >= _boundaryChainMin) return chainStart;
+        prevStart = runStart;
+        prevLen = len;
+      }
+      runStart = -1;
+    }
+  }
+  return null;
+}
+
 int? _firstTableOffset(
   List<BinaryString> runs, {
   int chainMin = _boundaryChainMin,
