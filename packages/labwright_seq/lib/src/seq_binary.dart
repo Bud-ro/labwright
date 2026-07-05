@@ -1522,6 +1522,43 @@ class _TypeBodyParser {
     return _field(at)?.$1;
   }
 
+  /// Decodes a step's `TS` subprops from the descriptor node at [at]
+  /// (`[0][0][DELIM][TS][childCount][children…]`).
+  ///
+  ///  * When the whole node decodes (measurement-type steps: Id +
+  ///    CustomResults + AdditionalResultsHints), returns all its
+  ///    children.
+  ///  * When a later child uses a shape not yet covered (Action/Python
+  ///    steps carry an inline module + expression fields as child 2),
+  ///    the all-or-nothing node parse fails — but child 1 is invariably
+  ///    the step's unique `Id` (`[flags][0][Str][Id]['ID#:…'][0]`), so
+  ///    it is extracted on its own. The `ID#:` value prefix is the
+  ///    honesty anchor against a coincidental parse.
+  ///
+  /// Returns `[]` unless the node is actually named `TS`.
+  List<BinaryTypeField> parseStepTs(int at) {
+    // Must be a `TS`-named descriptor node header.
+    if (at + 5 * _u32Bytes > recordRegionLength) return const [];
+    if (_u32(at) != 0 || _u32(at + 2 * _u32Bytes) != _recordDelimiter) {
+      return const [];
+    }
+    if (_tok(_u32(at + 3 * _u32Bytes)) != 'TS') return const [];
+    final full = parseFieldAt(at);
+    if (full != null && full.name == 'TS' && full.children.isNotEmpty) {
+      return full.children;
+    }
+    // Fallback: extract just child 1 (the Id) from after the 5-word
+    // descriptor header.
+    final idField = parseFieldAt(at + 5 * _u32Bytes);
+    if (idField != null &&
+        idField.className == 'Str' &&
+        idField.name == 'Id' &&
+        (idField.value?.startsWith('ID#:') ?? false)) {
+      return [idField];
+    }
+    return const [];
+  }
+
   /// The whole body: `[0][count]` then exactly `count` fields.
   List<BinaryTypeField>? parse(int after) {
     debugLastFieldOffset = null;
@@ -2835,16 +2872,10 @@ List<BinarySequenceOutline> _sequenceOutlinesFromBody(
 
 /// Decodes a step's `TS` subprops from the step-data descriptor node at
 /// [at] (`[0][0][DELIM][TS][childCount][children…]`, immediately after
-/// the four-word step reference). Returns the node's children — the
-/// step's serialized TS fields (`Id`, and any overrides) — or `[]` when
-/// the data does not frame as a `TS`-named descriptor node (the honesty
-/// gate: only a node actually named `TS` is trusted, never a coincidental
-/// parse).
-List<BinaryTypeField> _stepTsSubProps(_TypeBodyParser parser, int at) {
-  final node = parser.parseFieldAt(at);
-  if (node == null || node.name != 'TS') return const [];
-  return node.children;
-}
+/// the four-word step reference) — see [_TypeBodyParser.parseStepTs] for
+/// the full-node vs Id-only fallback and the honesty gates.
+List<BinaryTypeField> _stepTsSubProps(_TypeBodyParser parser, int at) =>
+    parser.parseStepTs(at);
 
 /// Locates each sequence RECORD — `[Sequence][name][subpropCount]` — and
 /// decodes the subprops that precede its `Main` group array (Parameters,

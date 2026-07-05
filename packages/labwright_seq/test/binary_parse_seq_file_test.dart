@@ -279,18 +279,23 @@ void main() {
         }
       }
     }
-    // Concretely: the two measurement-type steps carry their unique Ids.
-    final ids = {
-      for (final s in binFile.sequences.single.steps)
-        s.name: s.raw
-            .prop('TS')
-            ?.subProps
-            .firstWhere((p) => p.name == 'Id',
-                orElse: () => SeqProperty(name: 'Id'))
-            .scalar,
-    };
-    expect(ids['Output voltage test'], 'ID#:lSaDme0m7hG/g0xEW1VriB');
-    expect(ids['Update pin map'], 'ID#:oWmczOOU7hGhxWDjK76h1B');
+    // Every step — measurement-type AND Action/Python — carries its
+    // unique Id (the Action steps via the Id-only fallback, since their
+    // TS also holds an inline module the full node parse can't cover).
+    String? idOf(Step s) => s.raw
+        .prop('TS')
+        ?.subProps
+        .firstWhere((p) => p.name == 'Id', orElse: () => SeqProperty(name: 'Id'))
+        .scalar;
+    final ids = {for (final s in binFile.sequences.single.steps) s.name: idOf(s)};
+    expect(ids, {
+      'Update pin map': 'ID#:oWmczOOU7hGhxWDjK76h1B',
+      'Create and register NI-DCPower Sessions': 'ID#:PZz20+wm7hG/g0xEW1VriB',
+      'Create and register NI-DMM Sessions': 'ID#:0U7o5ewm7hG/g0xEW1VriB',
+      'Output voltage test': 'ID#:lSaDme0m7hG/g0xEW1VriB',
+      'Destroy and unregister NI-DCPower sessions': 'ID#:HKlD0e0m7hG/g0xEW1VriB',
+      'Destroy and unregister NI-DMM sessions': 'ID#:ZU8H3e0m7hG/g0xEW1VriB',
+    });
   });
 
   test('per-step MODULES match the twin (the name→value pair binding)', () {
