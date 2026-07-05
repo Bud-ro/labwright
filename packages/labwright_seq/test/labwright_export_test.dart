@@ -67,11 +67,13 @@ void main() {
       } else {
         expect(tests, 0, reason: '${f.path}: no sequences, no tests');
       }
-      // Stub policy: stub FUNCTIONS for VI calls only. Other adapters are
-      // inline throws, not stubs.
+      // Stub policy: stub FUNCTIONS for VI calls (the port targets) and
+      // external sequence calls (plain `await fn();` against a stub the
+      // porter implements). DLL/Python/typed-step surfaces stay inline
+      // throws, not stubs.
       for (final m in stubAdapter.allMatches(source)) {
         expect(m.group(1), 'labView',
-            reason: '${f.path}: non-VI adapter got a stub function');
+            reason: '${f.path}: non-VI adapter got a module-call stub');
       }
       if (stubAdapter.hasMatch(source)) withViStub++;
       if (source.contains("throw UnimplementedError('")) withInlineThrow++;
