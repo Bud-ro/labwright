@@ -1839,15 +1839,15 @@ class _TypeBodyParser {
                 _ => null,
               };
       } else if (x == 1 && !valued) {
-        // Inline CUSTOM instance: [name][attr words…][overrideCount]
-        // then entries,
-        // each `[2][0]` + `[cls][name][value][trail]` (trail: one 0x00
-        // byte after Bool, u32 0 after Str) or `[2][0][DELIM][name]
-        // [value][u32 0]` for ExprValue overrides. No terminator — the
-        // next field starts immediately. The instance's TYPE is
+        // Inline CUSTOM instance: [name][attr words…][overrideCount] then
+        // the overridden fields. The entries ARE ordinary valued fields
+        // (`[0x2][0][cls][name][value]` — Bool/Str/framed-Expression), so
+        // they decode with the general grammar in instance context; a
+        // bespoke sub-parser here previously re-implemented it and
+        // mis-read the Bool value as a u32 (the same latent slip PR #61
+        // fixed in the shared path). The instance's TYPE is
         // engine-intrinsic (not serialized), so typeName stays null and
-        // children carry ONLY the overrides. Anchor-measured across all
-        // rosetta instances.
+        // children carry ONLY the overrides.
         // Attr words may precede the count (Action.Menu stores two
         // 0x80018 words) — scan past them, same as the X >= 2 form.
         var overrideCount = _u32(next);
@@ -1860,60 +1860,17 @@ class _TypeBodyParser {
         }
         if (overrideCount > _typeMaxFields) return null;
         next += _u32Bytes;
-        final overrides = <BinaryTypeField>[];
-        for (var i = 0; i < overrideCount; i++) {
-          if (next + 5 * _u32Bytes > recordRegionLength) return null;
-          if (_u32(next) != 0x2 || _u32(next + _u32Bytes) != 0) return null;
-          final third = _u32(next + 2 * _u32Bytes);
-          final childName = _tok(_u32(next + 3 * _u32Bytes));
-          final valueWord = _u32(next + 4 * _u32Bytes);
-          if (childName == null) return null;
-          if (third == _recordDelimiter) {
-            final childValue = _tok(valueWord);
-            if (childValue == null ||
-                next + 6 * _u32Bytes > recordRegionLength ||
-                _u32(next + 5 * _u32Bytes) != 0) {
-              return null;
-            }
-            overrides.add(BinaryTypeField(childName,
-                className: 'ExprValue',
-                typeName: 'Expression',
-                value: childValue));
-            next += 6 * _u32Bytes;
-            continue;
-          }
-          final childClass = _tok(third);
-          switch (childClass) {
-            case 'Bool':
-              if (valueWord > 1 ||
-                  next + 5 * _u32Bytes + 1 > recordRegionLength ||
-                  view.getUint8(next + 5 * _u32Bytes) != 0) {
-                return null;
-              }
-              overrides.add(BinaryTypeField(childName,
-                  className: 'Bool',
-                  value: valueWord == 1 ? 'true' : 'false'));
-              next += 5 * _u32Bytes + 1;
-            case 'Str':
-              final childValue = _tok(valueWord);
-              if (childValue == null ||
-                  next + 6 * _u32Bytes > recordRegionLength ||
-                  _u32(next + 5 * _u32Bytes) != 0) {
-                return null;
-              }
-              overrides.add(BinaryTypeField(childName,
-                  className: 'Str', value: childValue));
-              next += 6 * _u32Bytes;
-            default:
-              return null;
-          }
-        }
+        final outer = _inInstance;
+        _inInstance = true;
+        final overrides = _fields(next, overrideCount);
+        _inInstance = outer;
+        if (overrides == null) return null;
         return (
           BinaryTypeField(name,
               className: 'Obj',
-              children: overrides,
+              children: overrides.$1,
               instanceOverrides: true),
-          next
+          overrides.$2
         );
       } else {
         return null;
