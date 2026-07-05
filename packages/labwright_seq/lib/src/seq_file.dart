@@ -447,13 +447,7 @@ SeqFile _parseBinary(Uint8List bytes) {
           attributes: record.toAttributes(),
           subProps: [
             for (final field in record.fields ?? const <BinaryTypeField>[])
-              SeqProperty(
-                name: field.name,
-                className: field.className,
-                typeName: field.typeName,
-                scalar: field.value,
-                array: field.emptyArray ? const [] : null,
-              ),
+              _typeFieldProp(field),
           ],
         ),
     ],
@@ -476,6 +470,18 @@ SeqFile _parseBinary(Uint8List bytes) {
     ),
   );
 }
+
+/// A decoded typedef field as a [SeqProperty], recursively (nested Obj
+/// declarations carry their children; typed default-instance references
+/// carry none — the binary stores only the reference).
+SeqProperty _typeFieldProp(BinaryTypeField field) => SeqProperty(
+      name: field.name,
+      className: field.className,
+      typeName: field.typeName,
+      scalar: field.value,
+      array: field.emptyArray ? const [] : null,
+      subProps: [for (final child in field.children) _typeFieldProp(child)],
+    );
 
 /// Removes a leading UTF-8 BOM (`U+FEFF`) so the XML parser sees a clean prolog.
 String _stripBom(String text) =>
