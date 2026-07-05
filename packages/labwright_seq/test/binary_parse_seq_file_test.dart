@@ -279,16 +279,27 @@ void main() {
           reason: '${xs.name}: requirementLinks');
       expect(bs.runtimeSettings != null, xs.runtimeSettings != null,
           reason: '${xs.name}: runtimeSettings presence');
-      // RTS children (names) must equal the twin's exactly.
+      // RTS children must equal the twin's name, class, AND value —
+      // the decode is a plain Obj declaration, so every field is present
+      // with its stored value.
       final bRts = bs.raw.prop('RTS');
       final xRts = xs.raw.prop('RTS');
-      expect(bRts?.subProps.map((p) => p.name).toList(),
-          xRts?.subProps.map((p) => p.name).toList(),
-          reason: '${xs.name}: RTS children');
+      expect(
+          bRts?.subProps
+              .map((p) => '${p.name}:${p.className}=${p.scalar}')
+              .toList(),
+          xRts?.subProps
+              .map((p) => '${p.name}:${p.className}=${p.scalar}')
+              .toList(),
+          reason: '${xs.name}: RTS children (name:class=value)');
     }
-    // Concretely: the oracle has no requirement links and a 15-field RTS.
+    // Concretely: the oracle has no requirement links and a 15-field RTS
+    // whose Priority and entry-point expressions decode exactly.
     expect(binFile.sequences.single.requirementLinks, isEmpty);
-    expect(binFile.sequences.single.raw.prop('RTS')?.subProps.length, 15);
+    final rts = binFile.sequences.single.raw.prop('RTS')!;
+    expect(rts.subProps.length, 15);
+    expect(rts.prop('Priority')?.scalar, '2953567917');
+    expect(rts.prop('EPNameExpr')?.scalar, '"Unnamed Entry Point"');
   });
 
   test('per-step TS subprops decode as an override subset of the twin', () {
