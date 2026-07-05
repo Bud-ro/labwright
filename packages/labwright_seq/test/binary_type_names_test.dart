@@ -358,9 +358,20 @@ void main() {
               reason: '$name ${bs.name}: requirementLinks');
         }
         if (bs.runtimeSettings != null) {
-          expect(bs.raw.prop('RTS')?.subProps.map((p) => p.name).toList(),
-              xs.raw.prop('RTS')?.subProps.map((p) => p.name).toList(),
-              reason: '$name ${bs.name}: RTS children');
+          // Name, class AND value — the RTS Obj declaration stores every
+          // field, so all must match the twin.
+          expect(
+              bs.raw
+                  .prop('RTS')
+                  ?.subProps
+                  .map((p) => '${p.name}:${p.className}=${p.scalar}')
+                  .toList(),
+              xs.raw
+                  .prop('RTS')
+                  ?.subProps
+                  .map((p) => '${p.name}:${p.className}=${p.scalar}')
+                  .toList(),
+              reason: '$name ${bs.name}: RTS children (name:class=value)');
         }
       }
     }
