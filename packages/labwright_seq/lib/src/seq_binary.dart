@@ -1108,9 +1108,17 @@ const _typeRecordMinBytes = (3 + _typeVersionTripleWords) * _u32Bytes;
 /// bodies twin-exact; see [BinaryTypeField] and the unified flag-bit
 /// model on the body parser). Still-bailing shapes:
 ///  * inline CUSTOM instances — framed fields whose post-delimiter word
-///    is 1 (`Menu:Obj` with non-default values): the instance content
-///    switches to a compact byte-packed encoding (a `true` Bool was
-///    observed as a single byte) — a separate sub-grammar;
+///    is 1 (`Menu:Obj` with non-default values). Byte-decoded so far on
+///    the oracle's Menu (Substep body +160): the instance serializes ONLY
+///    its OVERRIDDEN fields — header `[nameIdx][overrideCount]` (Menu: 4
+///    = exactly its non-default values), then per-override entries
+///    opening `[2][0]` with `[cls][name][value]` (framed
+///    `[2][0][DELIM][name][value]` for the ExprValue one). AMBIGUOUS and
+///    unresolved: per-class value/trail arities (Bool-as-one-byte + u32
+///    trail fits two entries; the final Str entry ends with a 2-byte
+///    tail fitting neither reading). Next tool: a segmentation prober
+///    that enumerates per-class arity hypotheses and fits them against
+///    every X=1 instance across all twins at once;
 ///  * POPULATED object arrays — `'[0]' '[]'` followed by element
 ///    content (`Calls`/`Params`/`Substeps`);
 ///  * fields whose class word is a TYPE NAME string
