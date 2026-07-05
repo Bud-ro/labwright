@@ -1444,9 +1444,13 @@ class _TypeBodyParser {
           after
         );
       case 'Bool':
-        final value = _u32(next);
+        // A stored Bool is ONE byte (TEInf's StepFCSeqF=true measured:
+        // [01][extra 0x4d0018][terminator]) — the same byte the instance
+        // grammar reads. Reading it as u32 was survivable only while
+        // every validated stored Bool was false.
+        final value = view.getUint8(next);
         if (value > 1) return null;
-        final after = afterExtrasAndTerminator(next + _u32Bytes);
+        final after = afterExtrasAndTerminator(next + 1);
         if (after == null) return null;
         return (
           BinaryTypeField(name,
