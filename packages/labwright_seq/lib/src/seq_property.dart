@@ -80,6 +80,42 @@ class SeqProperty {
   /// container/metadata ones; the precise trigger is not yet fully decoded.)
   int? get instanceOverrideFlags => _intAttr('%INSTOVRD');
 
+  /// The declared array bounds as high-indices, from the legacy INI
+  /// `%HI: <member> = [63]` directive — `[63]` → `[63]` (64 elements),
+  /// multi-dimensional bounds chain as `[31][63]` → `[31, 63]`, and an
+  /// empty array declares `[-1]`. null when the source recorded no
+  /// high-index for this property. The text format stores default-valued
+  /// elements ONLY this way (no members materialize), so a sized array
+  /// with no [array] entries still has a real declared length:
+  /// `declaredArrayLength`. XML (`lbound`/`ubound` on the value node) and
+  /// binary bounds are TODO — not yet surfaced here.
+  List<int>? get highIndices {
+    final raw = attributes['%HI'];
+    if (raw == null) return null;
+    final bounds = [
+      for (final m in RegExp(r'\[(-?\d+)\]').allMatches(raw))
+        int.parse(m.group(1)!),
+    ];
+    return bounds.isEmpty ? null : bounds;
+  }
+
+  /// The array's declared ELEMENT prototype type name (`%EPTYPE`) — the
+  /// type each default-valued element instantiates. null when absent.
+  String? get elementTypeName => attributes['%EPTYPE'];
+
+  /// The declared TOTAL element count from [highIndices] (dimensions
+  /// multiply; a 1-D `[63]` is 64). null when no bounds are declared.
+  int? get declaredArrayLength {
+    final his = highIndices;
+    if (his == null) return null;
+    var count = 1;
+    for (final hi in his) {
+      if (hi < 0) return 0;
+      count *= hi + 1;
+    }
+    return count;
+  }
+
   SeqProperty? prop(String name) =>
       subProps.where((p) => p.name == name).firstOrNull;
 

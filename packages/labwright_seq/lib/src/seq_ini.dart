@@ -377,6 +377,16 @@ class _IniBuilder {
   /// Sourced from the `%FLG: <member>` directive on the owning object's section.
   static const flagsAttr = '%FLG';
 
+  /// The attribute key under which a member's declared array high-index
+  /// bounds are stored (`%HI: <member> = [63]`) — see
+  /// [SeqProperty.highIndices].
+  static const highIndexAttr = '%HI';
+
+  /// The attribute key under which an array's ELEMENT prototype type is
+  /// stored (a bare `%EPTYPE = TEResult` directive on the array's own
+  /// section) — the type every default element instantiates.
+  static const elementTypeAttr = '%EPTYPE';
+
   /// The attribute key under which an object's free-text comment is stored on a
   /// built [SeqProperty] (the editor's per-step/per-object note). Sourced from
   /// the `%COMMENT` directive; stored unquoted.
@@ -402,9 +412,12 @@ class _IniBuilder {
       final ovr = val?.directives['$instOverrideAttr: $memberName'];
       final flg =
           val?.directives['$flagsAttr: $memberName'] ?? def?.directives['$flagsAttr: $memberName'];
+      final hi = val?.directives['$highIndexAttr: $memberName'] ??
+          def?.directives['$highIndexAttr: $memberName'];
       return {
         if (ovr != null) instOverrideAttr: ovr,
         if (flg != null) flagsAttr: flg,
+        if (hi != null) highIndexAttr: hi,
       };
     }
     final typeRoot = (declaredTypeName != null &&
@@ -470,10 +483,14 @@ class _IniBuilder {
         val?.directives[instOverrideAttr] ?? def?.directives[instOverrideAttr];
     final comment =
         _unquote(val?.directives[commentAttr] ?? def?.directives[commentAttr]);
+    final elementType = _unquote(val?.directives[elementTypeAttr] ??
+        def?.directives[elementTypeAttr]);
     final attrs = <String, String>{
       ...ownAttributes,
       if (bareOvr != null) instOverrideAttr: bareOvr,
       if (comment != null && comment.isNotEmpty) commentAttr: comment,
+      if (elementType != null && elementType.isNotEmpty)
+        elementTypeAttr: elementType,
     };
 
     return SeqProperty(
