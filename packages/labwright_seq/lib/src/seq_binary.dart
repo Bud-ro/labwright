@@ -1120,10 +1120,21 @@ const _typeRecordMinBytes = (3 + _typeVersionTripleWords) * _u32Bytes;
 ///    nested `'Type'` SPEC object — the `ElementType`/`LowerBounds`/
 ///    `UpperBounds` motif repeating ~3 levels deep (the array element
 ///    type's PropertyObjectType descriptor, cf. NI_CustomResult's
-///    `Type:PropertyObjectType` field). Decoding this nested spec (same
-///    prober method; the [5]/[2] count words are the open question)
-///    completes Substep/PostSubstep/Action and exercises the
-///    instance-override path end-to-end;
+///    `Type:PropertyObjectType` field). The XML twin NEVER writes this
+///    spec (`<value lbound='0' ubound='-1'/>` only), so its content has
+///    no twin oracle — the right treatment is a structural SKIP rule
+///    (recognize the spec after a hint-array's pad, walk its DELIM
+///    framing to the end), not a value decode; the [5]/[2] words remain
+///    the open skip-length question. Cracking it completes
+///    Substep/PostSubstep/Action and exercises the instance-override
+///    path end-to-end;
+///  * framed REFS with trailing payloads — Substep's `TS` reads
+///    `[0xA0][0][DELIM][X=6]` = a framed reference to TEInf (table idx
+///    5 + 1: the 1-based table convention and the 0x20 extras bit BOTH
+///    hold) but trails ~534 bytes before `NI_Data`: framed refs can
+///    carry an override payload (ref/instance hybrid — presumably TS's
+///    non-default TEInf fields; the twin's 49 materialized children
+///    give anchor names for the prober);
 ///  * POPULATED object arrays — `'[0]' '[]'` followed by element
 ///    content (`Calls`/`Params`/`Substeps`);
 ///  * fields whose class word is a TYPE NAME string
