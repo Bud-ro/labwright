@@ -444,7 +444,12 @@ SeqFile _parseBinary(Uint8List bytes) {
         SeqProperty(
           name: record.name,
           className: record.className,
-          attributes: record.toAttributes(),
+          attributes: {
+            ...record.toAttributes(),
+            // A bailed body is marked undecoded so it is not shown as a
+            // type that genuinely declares no fields.
+            if (record.undecodedBody) BinAttr.bodyUndecoded: 'true',
+          },
           subProps: [
             for (final field in record.fields ?? const <BinaryTypeField>[])
               _typeFieldProp(field),
@@ -471,6 +476,37 @@ SeqFile _parseBinary(Uint8List bytes) {
   );
 }
 
+/// Synthetic attribute keys the binary decoder attaches to a
+/// [SeqProperty] to surface facts the XML encoding carries structurally
+/// but the binary model cannot yet place inline. The `%` prefix marks
+/// them synthetic — NOT real file attributes — so any attribute-diffing
+/// or round-tripping consumer must drop `%`-prefixed keys. Cataloged
+/// here (rather than as inline literals in producer and tests) so there
+/// is one source of truth per the repo's magic-constant rule.
+abstract final class BinAttr {
+  /// The property's children are an OVERRIDE SUBSET of the type default
+  /// (an inline instance / descriptor node), not the full field list.
+  static const overrides = '%BINOVERRIDES';
+
+  /// Byte length of the trailing, undecoded element-type-spec blob (plus
+  /// any populated-array element content).
+  static const elementSpec = '%BINELEMENTSPEC';
+
+  /// Engine-intrinsic array-type id (the framed valued-array X word).
+  static const intrinsic = '%BININTRINSIC';
+
+  /// Present on a POPULATED array whose elements are not yet decoded;
+  /// value is the ubound token (e.g. `'[0]'`). Absent on empty arrays.
+  /// Distinguishes "array of undecoded elements" from a genuine empty
+  /// array so the `array: []` mapping is not read as a false emptiness.
+  static const arrayUndecoded = '%BINARRAYUNDECODED';
+
+  /// Present on a TYPE whose body region exists but did not decode
+  /// (all-or-nothing bail) — distinguishes it from a type that genuinely
+  /// declares no fields.
+  static const bodyUndecoded = '%BINBODYUNDECODED';
+}
+
 /// A decoded typedef field as a [SeqProperty], recursively (nested Obj
 /// declarations carry their children; typed default-instance references
 /// carry none — the binary stores only the reference).
@@ -479,18 +515,17 @@ SeqProperty _typeFieldProp(BinaryTypeField field) => SeqProperty(
       className: field.className,
       typeName: field.typeName,
       scalar: field.value,
-      array: field.emptyArray ? const [] : null,
-      // Inline custom instances serialize ONLY their overridden fields
-      // (and their type is engine-intrinsic, not in the file) — marked so
-      // consumers compare children as an override subset. A skipped
-      // element-type spec is surfaced as its byte length — an explicitly
-      // undecoded blob, never silently dropped.
+      // An array (empty or populated) is an array; a populated one is
+      // marked undecoded rather than presented as falsely empty.
+      array: field.isArray ? const [] : null,
       attributes: {
-        if (field.instanceOverrides) '%BINOVERRIDES': 'true',
+        if (field.instanceOverrides) BinAttr.overrides: 'true',
         if (field.elementSpecBytes != null)
-          '%BINELEMENTSPEC': '${field.elementSpecBytes}',
+          BinAttr.elementSpec: '${field.elementSpecBytes}',
         if (field.intrinsicTypeId != null)
-          '%BININTRINSIC': '${field.intrinsicTypeId}',
+          BinAttr.intrinsic: '${field.intrinsicTypeId}',
+        if (field.isArray && !field.isEmptyArray)
+          BinAttr.arrayUndecoded: field.arrayUBound!,
       },
       subProps: [for (final child in field.children) _typeFieldProp(child)],
     );

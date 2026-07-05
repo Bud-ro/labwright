@@ -48,11 +48,14 @@ class SeqProperty {
   bool get isLeaf => array == null && subProps.isEmpty;
 
   /// Whether this property is an explicit **instance override** — i.e. the file
-  /// marked it (via a legacy INI `%INSTOVRD` directive) as set on this object
-  /// rather than inherited from its base type. False for properties that simply
-  /// take their type's default. (The override's flags bitmask is kept verbatim in
-  /// [attributes] under `%INSTOVRD`; only its presence is interpreted so far.)
-  bool get isInstanceOverride => attributes.containsKey('%INSTOVRD');
+  /// marked it as set on this object rather than inherited from its base type.
+  /// False for properties that simply take their type's default. Two encodings
+  /// carry this: the legacy INI `%INSTOVRD` directive (flags bitmask kept
+  /// verbatim), and the binary decoder's `%BINOVERRIDES` marker (its children
+  /// are an override subset). Only presence is interpreted so far.
+  bool get isInstanceOverride =>
+      attributes.containsKey('%INSTOVRD') ||
+      attributes.containsKey('%BINOVERRIDES');
 
   /// The property's type-level **PropertyFlags** bitmask, recovered verbatim from
   /// the legacy INI `%FLG: <member>` directive — null when the source recorded no

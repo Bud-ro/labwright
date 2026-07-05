@@ -142,14 +142,24 @@ void main() {
       // and intrinsically-typed arrays legitimately carry none
       // (engine-intrinsic types are not serialized in the file).
       if (got.typeName != null ||
-          (got.attributes['%BINOVERRIDES'] == null &&
-              got.attributes['%BININTRINSIC'] == null)) {
+          (got.attributes[BinAttr.overrides] == null &&
+              got.attributes[BinAttr.intrinsic] == null)) {
         expect(got.typeName, want.typeName, reason: '$path: typename');
       }
       expect(got.scalar, want.scalar, reason: '$path: value');
       expect(got.array == null, want.array == null,
           reason: '$path: array-ness');
-      if (got.attributes['%BINOVERRIDES'] == 'true') {
+      // Honesty on arrays: a populated twin array must NOT be presented
+      // as a decoded empty array — the binary marks it undecoded (the
+      // element values ride in the undecoded element-spec blob). This
+      // pins the anti-fabrication fix; a bare `array == null` check
+      // could not see a populated array flattened to empty.
+      if (want.array != null && want.array!.isNotEmpty) {
+        expect(got.attributes[BinAttr.arrayUndecoded], isNotNull,
+            reason: '$path: populated array must be marked undecoded, '
+                'not shown empty');
+      }
+      if (got.attributes[BinAttr.overrides] == 'true') {
         // An inline custom instance serializes ONLY its overrides: every
         // emitted child must match the twin's same-named child, and each
         // must genuinely BE an override (differ from some default — the
@@ -202,9 +212,10 @@ void main() {
             twin.subProps[i]);
       }
     }
-    expect(decoded, greaterThanOrEqualTo(6),
+    expect(decoded, greaterThanOrEqualTo(15),
         reason: 'the covered grammar decodes a solid share of the oracle '
-            'typedefs ($decoded decoded)');
+            'typedefs at full recursive depth ($decoded decoded; 18 at '
+            'the current tier)');
   });
 
   test('per-step MODULES match the twin (the name→value pair binding)', () {
