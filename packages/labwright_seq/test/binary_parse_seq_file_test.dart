@@ -67,8 +67,6 @@ void main() {
       expect(twinTypeNames, contains(type.name),
           reason: 'recovered type ${type.name} is not a typedef or typename '
               'in the XML twin');
-      expect(type.subProps, isEmpty,
-          reason: 'typedef bodies are not decoded — must not be fabricated');
     }
     expect(binFile.types.map((t) => t.name),
         containsAll(['NI_Measurement', 'NI_UpdatePinMap', 'Action']),
@@ -127,6 +125,40 @@ void main() {
     }
     expect(compared, greaterThanOrEqualTo(20),
         reason: 'most recovered types are root typedefs in the twin');
+  });
+
+  test('typedef BODIES: every decoded field list matches the twin exactly',
+      () {
+    // All-or-nothing per typedef: a body either decodes field-for-field
+    // (name, class/type, scalar value, empty-array-ness) equal to the XML
+    // twin's subprops, or stays empty. Nothing in between — no partial
+    // trees, no fabrication.
+    final twinByName = {for (final t in xmlFile.types) t.name: t};
+    var decoded = 0;
+    for (final type in binFile.types) {
+      if (type.subProps.isEmpty) continue;
+      final twin = twinByName[type.name];
+      if (twin == null) continue;
+      decoded++;
+      expect(type.subProps.length, twin.subProps.length,
+          reason: '${type.name}: field count');
+      for (var i = 0; i < type.subProps.length; i++) {
+        final got = type.subProps[i];
+        final want = twin.subProps[i];
+        expect(got.name, want.name, reason: '${type.name} field #$i name');
+        expect(got.className, want.className,
+            reason: '${type.name}.${got.name}: classname');
+        expect(got.typeName, want.typeName,
+            reason: '${type.name}.${got.name}: typename');
+        expect(got.scalar, want.scalar,
+            reason: '${type.name}.${got.name}: value');
+        expect(got.array == null, want.array == null,
+            reason: '${type.name}.${got.name}: array-ness');
+      }
+    }
+    expect(decoded, greaterThanOrEqualTo(6),
+        reason: 'the covered grammar decodes a solid share of the oracle '
+            'typedefs ($decoded decoded)');
   });
 
   test('per-step MODULES match the twin (the name→value pair binding)', () {

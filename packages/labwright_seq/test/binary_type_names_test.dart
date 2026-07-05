@@ -51,7 +51,7 @@ void main() {
     // legitimately between the twin toolchains (only the OutputVoltage
     // pair is content-exact — the parse test pins those bytes too).
     final rosetta = Directory('${corpusSeqDir.path}/rosetta');
-    var pairs = 0, compared = 0;
+    var pairs = 0, compared = 0, decodedBodies = 0;
     for (final bin in rosetta
         .listSync()
         .whereType<File>()
@@ -76,6 +76,26 @@ void main() {
         final expected = twinByName[record.name];
         if (expected == null) continue;
         compared++;
+        // Decoded BODIES must equal the twin's subprops field-for-field
+        // (bodies are toolchain-stable, unlike save timestamps — the
+        // decode sweep held across every pair).
+        final fields = record.fields;
+        if (fields != null && fields.isNotEmpty) {
+          decodedBodies++;
+          expect(fields.length, expected.subProps.length,
+              reason: '$name ${record.name}: field count');
+          for (var i = 0; i < fields.length; i++) {
+            final got = fields[i];
+            final want = expected.subProps[i];
+            expect(got.name, want.name,
+                reason: '$name ${record.name} field #$i');
+            expect(got.typeName ?? got.className,
+                want.typeName ?? want.className,
+                reason: '$name ${record.name}.${got.name}: class/type');
+            expect(got.value, want.scalar,
+                reason: '$name ${record.name}.${got.name}: value');
+          }
+        }
         expect(record.className, expected.className,
             reason: '$name ${record.name}: classname');
         const saveDependent = {
@@ -91,10 +111,13 @@ void main() {
     }
     // ignore: avoid_print
     print('type-record heads: $compared typedefs matched across $pairs '
-        'twin pairs');
+        'twin pairs · $decodedBodies bodies decoded field-for-field');
     expect(pairs, greaterThanOrEqualTo(5));
     expect(compared, greaterThanOrEqualTo(100),
         reason: 'the rosetta twins carry hundreds of comparable typedefs');
+    expect(decodedBodies, greaterThanOrEqualTo(25),
+        reason: 'the covered body grammar decodes a solid share '
+            '($decodedBodies bodies)');
   });
 
   test('whole-corpus sweep: no structural tokens, recovery floors hold', () {

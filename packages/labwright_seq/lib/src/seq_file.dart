@@ -435,15 +435,26 @@ SeqFile _parseBinary(Uint8List bytes) {
       );
   return SeqFile(
     header: detectSeqHeader(bytes),
-    // Recovered typedef HEADS: name, classname, and the XML-shaped head
-    // attributes (typecategory/timestamp/versions/flags). The typedef
-    // BODIES (fields, defaults) are not yet decoded from binary.
+    // Recovered typedef HEADS (name, classname, XML-shaped attributes)
+    // plus decoded FIELD lists where the body grammar covers the typedef —
+    // bodies with not-yet-covered shapes stay empty (all-or-nothing per
+    // typedef; see BinaryTypeField).
     types: [
       for (final record in typeRecords)
         SeqProperty(
           name: record.name,
           className: record.className,
           attributes: record.toAttributes(),
+          subProps: [
+            for (final field in record.fields ?? const <BinaryTypeField>[])
+              SeqProperty(
+                name: field.name,
+                className: field.className,
+                typeName: field.typeName,
+                scalar: field.value,
+                array: field.emptyArray ? const [] : null,
+              ),
+          ],
         ),
     ],
     data: SeqProperty(
