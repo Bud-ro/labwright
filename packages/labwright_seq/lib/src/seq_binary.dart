@@ -1108,14 +1108,11 @@ const _typeRecordMinBytes = (3 + _typeVersionTripleWords) * _u32Bytes;
 /// nodes + framed-lite + inline instances w/ attr-scanned counts +
 /// class-name declarations + populated-array bounds landed; 87 rosetta
 /// bodies twin-exact; see [BinaryTypeField] and the body parser).
-/// Remaining:
-///  * `Error`'s adapter-marshalling EXTDATA blocks (the twin's
-///    `<extdata controllername='STRUCT'/'CLUST'/'DNSTRUCT'/
-///    'BLVCLUSTER'…>` elements) — serialized both at type level (after
-///    the body's `[0][count]`) and per field (inside the attr tail,
-///    e.g. `Code` trails `[0x4][STRUCT]…[CLUST]…[DNSTRUCT 'code']
-///    [BLVCLUSTER 'code']`) — the last twin-validated typedef still
-///    bailing;
+/// Remaining (every TWIN-VALIDATED typedef now decodes — 93 bodies):
+///  * EXTDATA block CONTENT: the marshalling blocks (type-level opener
+///    `[0][extCount]{blocks}[subCount]` and per-field 0x100-flagged
+///    tails) are walked but their payloads (STRUCT packing/type/buffer
+///    words, member-name slots) are not surfaced;
 ///  * the binary-only step-type bodies (NI_Measurement/NI_UpdatePinMap
 ///    — no XML twin carries them): the count-less `[0]{fields}` +
 ///    compact `[name][value]` machinery walks them to `Substeps`, whose
@@ -1312,6 +1309,52 @@ class _TypeBodyParser {
     return _attrTail(items.$2);
   }
 
+  /// Walks [remaining] adapter-marshalling EXTDATA blocks (the twin's
+  /// `<extdata controllername='STRUCT'/'CLUST'/'DNSTRUCT'/'BLVCLUSTER'…>`
+  /// elements). Each block is `[ctrlNameIdx][u16][string slot]` (10
+  /// bytes; the slot is a member-name pool ref, DELIM for none) or the
+  /// STRUCT kind `[ctrlNameIdx][u16][20 opaque payload bytes]` (26
+  /// bytes: packing/type/buffer sizes — undecoded). The two sizes are
+  /// disambiguated by trying the short form first and requiring the
+  /// REMAINING blocks to parse. Content is not surfaced yet (TODO) —
+  /// only the extent is walked.
+  int? _extBlocksFrom(int at, int remaining) {
+    if (remaining == 0) return at;
+    if (at + 10 > recordRegionLength) return null;
+    if (_tok(_u32(at)) == null) return null;
+    final slotAt = at + _u32Bytes + 2;
+    if (slotAt + _u32Bytes <= recordRegionLength) {
+      final slot = _u32(slotAt);
+      if (slot == _recordDelimiter || _tok(slot) != null) {
+        final rest = _extBlocksFrom(slotAt + _u32Bytes, remaining - 1);
+        if (rest != null) return rest;
+      }
+    }
+    final structEnd = at + _u32Bytes + 2 + 20;
+    if (structEnd > recordRegionLength) return null;
+    return _extBlocksFrom(structEnd, remaining - 1);
+  }
+
+  /// A field's EXTDATA tail (flag bit 0x100):
+  /// `[attr words…][extCount][blocks…][terminator 0]`.
+  int? _extTail(int from) {
+    var p = from;
+    for (var k = 0; k <= _fieldMaxAttrWords; k++, p += _u32Bytes) {
+      if (p + _u32Bytes > recordRegionLength) return null;
+      final count = _u32(p);
+      if (count == 0) return null; // terminator before any extdata
+      if (count <= _typeMaxExtBlocks) {
+        final end = _extBlocksFrom(p + _u32Bytes, count);
+        if (end != null &&
+            end + _u32Bytes <= recordRegionLength &&
+            _u32(end) == 0) {
+          return end + _u32Bytes;
+        }
+      }
+    }
+    return null;
+  }
+
   /// Walks a short REFERENCE spec: `[00 pad?][DELIM][ref][0][0][0]` —
   /// the 0x800-signalled form (the full spec's nested arrays reference
   /// an already-described element type instead of respelling it).
@@ -1357,6 +1400,18 @@ class _TypeBodyParser {
     var parsed = count > _typeMaxFields
         ? null
         : _fields(after + 2 * _u32Bytes, count);
+    if (parsed == null && count >= 1 && count <= _typeMaxExtBlocks) {
+      // EXTDATA-OPENER body (Error): `[0][extCount]{extdata blocks}
+      // [subpropCount]{fields}` — the type-level marshalling blocks sit
+      // between the opener and the field count.
+      final extEnd = _extBlocksFrom(after + 2 * _u32Bytes, count);
+      if (extEnd != null && extEnd + _u32Bytes <= recordRegionLength) {
+        final subCount = _u32(extEnd);
+        if (subCount <= _typeMaxFields) {
+          parsed = _fields(extEnd + _u32Bytes, subCount);
+        }
+      }
+    }
     if (parsed == null) {
       // COUNT-LESS body: the step-type typedefs that exist only in the
       // binary (NI_Measurement/NI_UpdatePinMap — no XML twin carries
@@ -1481,9 +1536,12 @@ class _TypeBodyParser {
       if (after == null) return null;
       return (BinaryTypeField(name, value: value), after);
     }
-    if (fieldFlags & ~(0x2 | 0x4 | 0x8 | 0x20 | 0x40 | 0x80 | 0x200) != 0) {
+    if (fieldFlags &
+            ~(0x2 | 0x4 | 0x8 | 0x20 | 0x40 | 0x80 | 0x100 | 0x200) !=
+        0) {
       return null;
     }
+    final hasExtData = fieldFlags & 0x100 != 0;
     final valued = fieldFlags & _fieldHasValueBit != 0;
     final hasFormat = fieldFlags & _fieldHasFormatBit != 0;
 
@@ -1758,9 +1816,10 @@ class _TypeBodyParser {
     }
     if (!valued) {
       // Unvalued fields read their class defaults (false / '' / 0 — the
-      // twin's `<value/>` semantics): [attr words…][terminator 0].
+      // twin's `<value/>` semantics): [attr words…][terminator 0], or
+      // the extdata tail when flagged (Error's Code/Msg/Occurred).
       // Inside an instance the value is INHERITED instead (null).
-      final after = _attrTail(next);
+      final after = hasExtData ? _extTail(next) : _attrTail(next);
       if (after == null) return null;
       if (!const {'Bool', 'Str', 'Num'}.contains(className)) return null;
       return (
@@ -1806,7 +1865,9 @@ class _TypeBodyParser {
       case 'Str':
         final value = _tok(_u32(next));
         if (value == null) return null;
-        final after = _attrTail(next + _u32Bytes);
+        final after = hasExtData
+            ? _extTail(next + _u32Bytes)
+            : _attrTail(next + _u32Bytes);
         if (after == null) return null;
         return (
           BinaryTypeField(name, className: 'Str', value: value),
@@ -1819,7 +1880,8 @@ class _TypeBodyParser {
         // every validated stored Bool was false.
         final value = view.getUint8(next);
         if (value > 1) return null;
-        final after = _attrTail(next + 1);
+        final after =
+            hasExtData ? _extTail(next + 1) : _attrTail(next + 1);
         if (after == null) return null;
         return (
           BinaryTypeField(name,
@@ -1837,7 +1899,7 @@ class _TypeBodyParser {
           }
           next += _u32Bytes; // display-format ref, e.g. '%#x'
         }
-        final after = _attrTail(next);
+        final after = hasExtData ? _extTail(next) : _attrTail(next);
         if (after == null) return null;
         return (
           BinaryTypeField(name,
@@ -2054,6 +2116,10 @@ List<BinaryTypeRecord> binaryTypeRecords(Uint8List seqBytes) =>
 /// Defensive cap on a field's attr-word tail (three is the most any
 /// twin-validated field stores — ffi/iof/vf, e.g. TEInf.Links).
 const _fieldMaxAttrWords = 8;
+
+/// Defensive cap on an extdata block list (Error stores four:
+/// STRUCT/CLUST/DNSTRUCT/BLVCLUSTER).
+const _typeMaxExtBlocks = 8;
 
 /// Defensive cap on flag words read after the version triple while looking
 /// for the record delimiter (real records carry at most four flags plus a
