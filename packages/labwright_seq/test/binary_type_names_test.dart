@@ -215,6 +215,45 @@ void main() {
         reason: 'leading-subprop recovery regressed ($withLeading)');
   });
 
+  test('whole-corpus sweep: step TS subprops never fabricate', () {
+    // The per-step TS decode must never emit a structural token as a
+    // subprop name — the honesty gate over the whole corpus.
+    const structural = {
+      'SequenceFileData', 'Data', 'Seq', 'Objs', 'Obj', 'Step',
+      'Sequence', 'Setup', 'Main', 'Cleanup', 'TS',
+    };
+    var withTs = 0, total = 0;
+    final offenders = <String>[];
+    for (final f in corpusSeqDir
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((f) => f.path.toLowerCase().endsWith('.seq'))) {
+      final bytes = f.readAsBytesSync();
+      if (detectSeqFormat(bytes) != SeqFormat.binary) continue;
+      for (final outline in binarySequenceOutlines(bytes)) {
+        for (final step in [
+          ...outline.setup,
+          ...outline.main,
+          ...outline.cleanup,
+          ...outline.ungrouped,
+        ]) {
+          if (step.tsSubProps.isNotEmpty) withTs++;
+          for (final sp in step.tsSubProps) {
+            total++;
+            if (structural.contains(sp.name)) {
+              offenders.add('${f.uri.pathSegments.last}: ${sp.name}');
+            }
+          }
+        }
+      }
+    }
+    // ignore: avoid_print
+    print('step TS subprops: $total across $withTs steps');
+    expect(offenders, isEmpty,
+        reason: 'structural token emitted as a TS subprop:\n'
+            '${offenders.take(5).join('\n')}');
+  });
+
   test('rosetta-wide: sequence locals/parameters match every twin', () {
     // Every rosetta pair's sequences must decode the same locals and
     // parameters (name + type) as the XML twin — the leading-subprop
