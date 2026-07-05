@@ -2173,6 +2173,22 @@ class BinaryTypeField {
   /// needs more corpus evidence. Null elsewhere.
   final int? intrinsicTypeId;
 
+  /// Whether this field's TYPE is engine-intrinsic and therefore not
+  /// serialized — an intrinsically-typed array ([intrinsicTypeId]) or an
+  /// inline custom instance ([instanceOverrides] with no [typeName]). For
+  /// these, [typeName] is legitimately absent (not a decode gap), so a
+  /// twin comparison checks [className] rather than the typename.
+  bool get typeNameEngineIntrinsic =>
+      intrinsicTypeId != null || (instanceOverrides && typeName == null);
+
+  /// Whether this is a plain nested-object DECLARATION whose [children]
+  /// are the full field list — as opposed to an override subset
+  /// ([instanceOverrides]) or a typed reference ([typeName] set, no
+  /// serialized children). Only these are descended one-for-one against
+  /// a twin.
+  bool get isPlainDeclaration =>
+      children.isNotEmpty && !instanceOverrides && typeName == null;
+
   /// Returns a copy with [elementSpecBytes] set — used when a trailing
   /// element-type spec is walked after the field's own encoding. A
   /// method (not a hand-copied constructor) so a newly added field can
