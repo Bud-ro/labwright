@@ -2106,7 +2106,7 @@ class _TypeBodyParser {
   if (layout == null) return const (outlines: [], typeRecords: []);
   final recordRegionLength = layout.recordRegionLength;
   final pool = _orderedStringPool(body, recordRegionLength);
-  final typeRecords = _typeRecordsFromBody(body, recordRegionLength, pool);
+  final typeRecords = _typeRecordsFromBody(body, recordRegionLength, sharedPool: pool);
   return (
     outlines: _sequenceOutlinesFromBody(body, recordRegionLength, pool,
         [for (final record in typeRecords) record.name], typeRecords),
@@ -2117,8 +2117,11 @@ class _TypeBodyParser {
 List<String> _typeNamesFromBody(Uint8List body, int recordRegionLength,
         [List<String>? sharedPool]) =>
     [
-      for (final record
-          in _typeRecordsFromBody(body, recordRegionLength, sharedPool))
+      // Names come entirely from the head scan — skip the (expensive)
+      // second-pass body decode. This is the hot path for
+      // [binaryTypeNames] and the whole-corpus name sweep.
+      for (final record in _typeRecordsFromBody(body, recordRegionLength,
+          sharedPool: sharedPool, decodeBodies: false))
         record.name,
     ];
 
@@ -2350,9 +2353,10 @@ const _typeMaxFlagWords = 8;
 
 List<BinaryTypeRecord> _typeRecordsFromBody(
     Uint8List body, int recordRegionLength,
-    [List<String>? sharedPool,
+    {List<String>? sharedPool,
     Map<String, int>? bodyOffsetsOut,
-    Map<String, int>? headOffsetsOut]) {
+    Map<String, int>? headOffsetsOut,
+    bool decodeBodies = true}) {
   final pool = sharedPool ?? _orderedStringPool(body, recordRegionLength);
   if (pool.isEmpty) return const [];
   final view = ByteData.sublistView(body);
@@ -2446,6 +2450,10 @@ List<BinaryTypeRecord> _typeRecordsFromBody(
     if (bodyAt != null) bodyOffsetsOut?[name] = bodyAt;
     headOffsetsOut?[name] = at;
   }
+  // Names-only callers skip the second pass entirely (the head scan
+  // already has every name) — the hot path for the whole-corpus name
+  // sweep.
+  if (!decodeBodies) return records;
   // Second pass: bodies parse with the COMPLETE table of heads in hand —
   // framed references index it 1-based (the same convention as step
   // references), and may point forward. Bodies parse in TABLE ORDER with
@@ -2495,8 +2503,10 @@ List<({String name, int headAt, int bodyAt, int? end, int? bail})>
   final view = ByteData.sublistView(body);
   final bodyOffsets = <String, int>{};
   final headOffsets = <String, int>{};
-  final records = _typeRecordsFromBody(
-      body, recordRegionLength, pool, bodyOffsets, headOffsets);
+  final records = _typeRecordsFromBody(body, recordRegionLength,
+      sharedPool: pool,
+      bodyOffsetsOut: bodyOffsets,
+      headOffsetsOut: headOffsets);
   final extents =
       <({String name, int headAt, int bodyAt, int? end, int? bail})>[];
   for (var i = 0; i < records.length; i++) {
@@ -2790,7 +2800,7 @@ List<BinarySequenceOutline> _sequenceOutlinesFromBody(
   // The type table (for any framed references the step's TS subprops
   // carry) — reuse the caller's when it already built one.
   final table = sharedTypeRecords ??
-      _typeRecordsFromBody(body, recordRegionLength, pool);
+      _typeRecordsFromBody(body, recordRegionLength, sharedPool: pool);
   final tsParser = _TypeBodyParser(view, pool, recordRegionLength, table);
 
   final steps = <(int, BinaryStepRef)>[];
