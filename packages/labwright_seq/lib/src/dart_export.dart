@@ -56,6 +56,221 @@ String exportSeqFileToDart(SeqFile file, {String? sourceName}) =>
 String exportSeqFileToLabwright(SeqFile file, {String? sourceName}) =>
     _DartExporter(file, sourceName: sourceName, asTest: true).export();
 
+/// A multi-file project export: generated sources by output path.
+class SeqProjectExport {
+  const SeqProjectExport({required this.files});
+
+  /// Output file name → generated Dart source. Contains one
+  /// `<stem>_seq.dart` module per input (exposing `register()`), the
+  /// shared `lw_runtime.dart` (station-wide state), and a `main.dart`
+  /// that registers every module — the labwright e2e entry point.
+  final Map<String, String> files;
+}
+
+/// Exports several sequence files as ONE labwright E2E project, so an
+/// external SequenceCall whose target file is in the set binds to that
+/// module's real exported function (`await other_module.fn();`) instead
+/// of a stub. [byPath] keys are '/'-separated relative paths (as the
+/// files reference each other); targets outside the set keep stubs.
+/// Resolution: exact caller-relative path first, then a unique
+/// case-insensitive basename match (TestStand resolves bare basenames
+/// via search paths — 99.5% of corpus references are bare basenames);
+/// expression-form targets and ambiguous matches stay stubs. Resolved
+/// calls still mark the owning test disarmed (`lw.skipTest`) — the
+/// callee usually carries its own stubs, and v1 does not chase
+/// cross-module reachability, so nothing can fabricate a green run.
+SeqProjectExport exportSeqProjectToLabwright(Map<String, SeqFile> byPath) {
+  String norm(String p) => p.replaceAll(r'\', '/');
+  String baseOf(String p) => norm(p).split('/').last;
+  String stemOf(String p) {
+    final b = baseOf(p);
+    return b.toLowerCase().endsWith('.seq') ? b.substring(0, b.length - 4) : b;
+  }
+
+  String snake(String text) {
+    final cleaned = text
+        .replaceAll(RegExp('[^A-Za-z0-9]+'), '_')
+        .replaceAllMapped(RegExp('([a-z0-9])([A-Z])'),
+            (m) => '${m.group(1)}_${m.group(2)}')
+        .toLowerCase()
+        .replaceAll(RegExp('_+'), '_')
+        .replaceAll(RegExp(r'^_|_$'), '');
+    return cleaned.isEmpty ? 'module' : cleaned;
+  }
+
+  // Module names and import prefixes, uniquified.
+  final ordered = byPath.keys.toList()..sort();
+  final moduleOf = <String, String>{};
+  final taken = <String>{'main', 'lw_runtime'};
+  for (final key in ordered) {
+    var name = '${snake(stemOf(key))}_seq';
+    var n = 2;
+    while (!taken.add(name)) {
+      name = '${snake(stemOf(key))}${n++}_seq';
+    }
+    moduleOf[key] = name;
+  }
+
+  // Predict each module's sequence → function-name table (mirrors the
+  // exporter's own assignment: dartIdentifier per sequence in file
+  // order, uniquified against the pre-claimed harness names).
+  final fnOf = <String, Map<String, String>>{};
+  for (final key in ordered) {
+    final claimed = <String>{'lw', 'main', 'register'};
+    final table = <String, String>{};
+    for (final seq in byPath[key]!.sequences) {
+      if (table.containsKey(seq.name)) continue;
+      var fn = dartIdentifier(seq.name);
+      var n = 2;
+      while (!claimed.add(fn)) {
+        fn = '${dartIdentifier(seq.name)}${n++}';
+      }
+      table[seq.name] = fn;
+    }
+    fnOf[key] = table;
+  }
+
+  final lowerByBase = <String, List<String>>{};
+  for (final key in ordered) {
+    (lowerByBase[baseOf(key).toLowerCase()] ??= []).add(key);
+  }
+  String dirOf(String key) {
+    final n = norm(key);
+    final cut = n.lastIndexOf('/');
+    return cut < 0 ? '' : n.substring(0, cut);
+  }
+
+  String joinNorm(String dir, String rel) {
+    final parts = <String>[
+      if (dir.isNotEmpty) ...dir.split('/'),
+      ...norm(rel).split('/'),
+    ];
+    final out = <String>[];
+    for (final part in parts) {
+      if (part == '.' || part.isEmpty) continue;
+      if (part == '..') {
+        if (out.isNotEmpty) out.removeLast();
+        continue;
+      }
+      out.add(part);
+    }
+    return out.join('/');
+  }
+
+  String? resolveTargetFile(String callerKey, String sfPath) {
+    final exact = joinNorm(dirOf(callerKey), sfPath);
+    for (final key in ordered) {
+      if (norm(key).toLowerCase() == exact.toLowerCase()) return key;
+    }
+    final candidates = lowerByBase[baseOf(sfPath).toLowerCase()];
+    if (candidates == null) return null;
+    if (candidates.length == 1) return candidates.single;
+    // Prefer the caller's own directory; otherwise ambiguous → stub.
+    final sameDir = [
+      for (final c in candidates)
+        if (dirOf(c) == dirOf(callerKey)) c,
+    ];
+    return sameDir.length == 1 ? sameDir.single : null;
+  }
+
+  // (callerKey, targetFileRef|seqName) → 'prefix.fn', per-file imports,
+  // and the globally-called sequence set (those are not roots).
+  final resolvedOf = <String, Map<String, String>>{};
+  final importsOf = <String, Set<String>>{};
+  final externallyCalledOf = <String, Set<String>>{};
+  for (final key in ordered) {
+    for (final seq in byPath[key]!.sequences) {
+      for (final st in seq.steps) {
+        final m = st.module;
+        if (m.adapter != SeqAdapter.sequenceCall) continue;
+        if (m.specifiesByExpression == true) continue;
+        final sf = m.sequenceFile;
+        final target = m.sequenceName;
+        if (sf == null || target == null) continue;
+        final targetKey = resolveTargetFile(key, sf);
+        if (targetKey == null || targetKey == key) continue;
+        final fn = fnOf[targetKey]![target];
+        if (fn == null) continue; // named sequence absent → stub
+        final prefix = moduleOf[targetKey]!;
+        (resolvedOf[key] ??= {})['$sf|$target'] =
+            '$prefix.$fn';
+        (importsOf[key] ??= {}).add(targetKey);
+        (externallyCalledOf[targetKey] ??= {}).add(target);
+      }
+    }
+  }
+
+  final files = <String, String>{};
+  // The exported modules use `dynamic` engine state on purpose (member
+  // paths on FileGlobals/RunState resolve at runtime), which
+  // strict-casts would reject — the project carries its own default
+  // analysis options so it analyzes the same everywhere.
+  files['analysis_options.yaml'] = [
+    '# GENERATED by labwright_seq exportSeqProjectToLabwright.',
+    '# Exported modules use dynamic TestStand engine state by design;',
+    '# implicit downcasts from dynamic are part of that contract.',
+    'analyzer:',
+    '  language:',
+    '    strict-casts: false',
+    '',
+  ].join('\n');
+  files['lw_runtime.dart'] = [
+    '// GENERATED by labwright_seq exportSeqProjectToLabwright — shared',
+    '// runtime.',
+    '',
+    '/// Station-wide TestStand state (StationGlobals) — ONE instance',
+    "/// across every module, mirroring the engine's scoping.",
+    'final dynamic stationGlobals = <String, dynamic>{};',
+    '',
+  ].join('\n');
+
+  final registers = <String>[];
+  for (final key in ordered) {
+    final module = moduleOf[key]!;
+    final extra = <String>[
+      "import 'lw_runtime.dart';",
+      for (final dep in (importsOf[key] ?? const <String>{}).toList()
+        ..sort())
+        "import '${moduleOf[dep]!}.dart' as ${moduleOf[dep]!};",
+    ];
+    final resolved = resolvedOf[key] ?? const <String, String>{};
+    files['$module.dart'] = _DartExporter(
+      byPath[key]!,
+      sourceName: key,
+      asTest: true,
+      registerName: 'register',
+      extraImports: extra,
+      resolveExternalCall: (m) =>
+          resolved['${m.sequenceFile}|${m.sequenceName}'],
+      externallyCalled: externallyCalledOf[key] ?? const <String>{},
+    ).export();
+    // Modules that never touch station-wide state don't need the shared
+    // runtime import (the placeholder comment deliberately avoids the
+    // lowercase identifier so it can't defeat this check).
+    var src = files['$module.dart']!;
+    if (!RegExp(r'stationGlobals').hasMatch(
+        src.replaceFirst("import 'lw_runtime.dart';\n", ''))) {
+      src = src.replaceFirst("import 'lw_runtime.dart';\n", '');
+      files['$module.dart'] = src;
+    }
+    registers.add(module);
+  }
+
+  files['main.dart'] = [
+    '// GENERATED by labwright_seq exportSeqProjectToLabwright — the e2e',
+    '// entry point: registers every module; labwright runs the suite.',
+    for (final module in registers)
+      "import '$module.dart' as $module;",
+    '',
+    'void main() {',
+    for (final module in registers) '  $module.register();',
+    '}',
+    '',
+  ].join('\n');
+
+  return SeqProjectExport(files: files);
+}
+
 /// Dart reserved words and builtins a generated identifier must not collide
 /// with (suffixed with `$` when hit).
 const _dartReserved = {
@@ -155,7 +370,24 @@ const _builtinCalls = {
 final _testStandOnly = RegExp(r'(?<!\.)\b[A-Za-z][A-Za-z0-9_]*\s*\(|#|->');
 
 class _DartExporter {
-  _DartExporter(this.file, {this.sourceName, this.asTest = false});
+  _DartExporter(this.file,
+      {this.sourceName,
+      this.asTest = false,
+      this.registerName,
+      this.extraImports = const [],
+      this.resolveExternalCall,
+      this.externallyCalled = const {}});
+
+  /// PROJECT mode (multi-file export): the module exposes
+  /// `void <registerName>()` instead of `main()`, [extraImports] lines
+  /// (the shared runtime + prefixed sibling modules) follow the header,
+  /// [resolveExternalCall] binds an external SequenceCall to a sibling
+  /// module's `prefix.fn` (null → today's stub), and sequences in
+  /// [externallyCalled] are not roots (another module calls them).
+  final String? registerName;
+  final List<String> extraImports;
+  final String? Function(StepModule module)? resolveExternalCall;
+  final Set<String> externallyCalled;
 
   final SeqFile file;
   final String? sourceName;
@@ -208,8 +440,34 @@ class _DartExporter {
   /// Stub declarations, emitted after the sequences.
   final List<String> _stubDecls = [];
 
-  void _line(String text) =>
-      _out.writeln(text.isEmpty ? '' : '${'  ' * _indent}$text');
+  void _line(String text) {
+    if (asTest && text.isNotEmpty) _scanHazards(text);
+    _out.writeln(text.isEmpty ? '' : '${'  ' * _indent}$text');
+  }
+
+  /// E2E mode: statically-CERTAIN runtime hazards in an emitted body line
+  /// disarm the owning root, so a fresh export runs green and the skip
+  /// reason says what to port. `_eval` always throws; the engine-state
+  /// placeholders can never satisfy a member access (`runState`/`step` are
+  /// null, the globals are plain Maps with no such getters). Lookarounds
+  /// exclude claimed identifiers (a parameter named `step\$`) and
+  /// member paths on other objects (`caller.step.Result`).
+  static final Map<RegExp, String> _hazards = {
+    RegExp(r'_eval\('): 'untranslated expression in body',
+    RegExp(r'(?<![\w\$.])runState(?![\w\$])'):
+        'RunState engine access (no engine at run time)',
+    RegExp(r'(?<![\w\$.])step\.'):
+        'Step engine access (no engine at run time)',
+    RegExp(r'(?<![\w\$.])(?:fileGlobals|stationGlobals)\.'):
+        'FileGlobals/StationGlobals member access (not exported yet)',
+  };
+
+  void _scanHazards(String text) {
+    if (_currentSeq == null) return;
+    for (final entry in _hazards.entries) {
+      if (entry.key.hasMatch(text)) _markUnported(entry.value);
+    }
+  }
 
   /// Claims a unique top-level identifier derived from [base].
   String _uniqueTopLevel(String base) {
@@ -226,6 +484,8 @@ class _DartExporter {
     // `lw` is the package:labwright import prefix and `main` the harness
     // entry — no generated top-level name may shadow either.
     if (asTest) _topLevelNames.addAll(const {'lw', 'main'});
+    final regName = registerName;
+    if (regName != null) _topLevelNames.add(regName);
     _emitHeader();
     for (final sequence in file.sequences) {
       _sequenceFnNames.putIfAbsent(
@@ -261,9 +521,11 @@ class _DartExporter {
       ..writeln("import 'dart:math' as math; // ignore: unused_import")
       ..writeln();
     if (asTest) {
-      _out
-        ..writeln("import 'package:labwright/labwright.dart' as lw;")
-        ..writeln();
+      _out.writeln("import 'package:labwright/labwright.dart' as lw;");
+      for (final line in extraImports) {
+        _out.writeln(line);
+      }
+      _out.writeln();
     }
   }
 
@@ -1222,21 +1484,54 @@ class _DartExporter {
     switch (module.adapter) {
       case SeqAdapter.sequenceCall:
         final target = module.sequenceName;
-        final inFileFn = target != null ? _sequenceFnNames[target] : null;
+        // Bind to a local sequence ONLY when the call targets the current
+        // file (UseCurFile, no file named, or the file's own path) —
+        // matching by name alone bound external calls to same-named local
+        // sequences, which generated infinite self-recursion (17 corpus
+        // sites, e.g. a MainSequence delegating to sibling MainSequences).
+        final inFileFn = _isLocalCall(module) && target != null
+            ? _sequenceFnNames[target]
+            : null;
+        // Parameter bindings on the call are not exported yet — the callee
+        // would run on its declared defaults, which is NOT the authored
+        // semantics (it can even change termination: a corpus recursion
+        // walks Parameters.Caller upward and never stops on defaults). A
+        // binding call therefore disarms the owning test; a bare call
+        // (1 in 20 in the corpus) is exact and stays armed.
+        final hasArgs = module.actualArguments?.subProps.isNotEmpty == true ||
+            module.actualArguments?.array?.isNotEmpty == true;
+        final caveat =
+            hasArgs ? ' (call parameters not exported yet)' : '';
         if (inFileFn != null) {
-          // Parameter bindings on the call are not yet exported — the callee
-          // runs on its declared defaults. Stated, not hidden.
-          _line('await $inFileFn(); // $name '
-              '(call parameters not exported yet)');
+          if (asTest && hasArgs) {
+            _markUnported(
+                'call parameters of sequence ${target ?? inFileFn}');
+          }
+          _line('await $inFileFn(); // $name$caveat');
         } else {
           // An EXTERNAL sequence call is just a function that lives in
-          // another file: emitted as `await <fn>();` against a generated
-          // stub — implement the stub (or point it at the other exported
-          // file's function) to port it. Still counted unported so the
-          // harness ships the owning test disarmed until then.
-          if (asTest) _markUnported('external sequence: ${_stubTarget(step, module)}');
-          _line('await ${_stubFor(step, module)}(); // $name: '
-              'external sequence call');
+          // another file. In PROJECT mode a resolvable target binds to the
+          // sibling module's real exported function; otherwise (or in
+          // single-file mode) it calls a generated stub. Either way it is
+          // counted unported so the harness ships the owning test disarmed
+          // — a resolved callee usually still contains its own stubs, and
+          // v1 does not chase cross-module reachability (conservative,
+          // never a fabricated green).
+          final resolved = resolveExternalCall?.call(module);
+          if (resolved != null) {
+            if (asTest) {
+              _markUnported('cross-file sequence '
+                  '${_stubTarget(step, module)} (see its module TODOs)');
+            }
+            _line('await $resolved(); // $name: external sequence$caveat');
+          } else {
+            if (asTest) {
+              _markUnported(
+                  'external sequence: ${_stubTarget(step, module)}');
+            }
+            _line('await ${_stubFor(step, module)}(); // $name: '
+                'external sequence call');
+          }
         }
       case SeqAdapter.labView:
         // VI calls are the ONE code-module adapter that gets a generated
@@ -1280,6 +1575,27 @@ class _DartExporter {
     _line("throw UnimplementedError('${_escape('$kind: $target')}'); "
         '// ${_comment(step.name)}'
         '${step.type != null ? ' [${_comment(step.type!)}]' : ''}');
+  }
+
+  /// Whether a SequenceCall targets a sequence in the CURRENT file:
+  /// the UseCurFile flag, no file named at all, or the file's own path.
+  /// Both the emitted call and the root call graph use this — matching
+  /// by name alone bound external calls to same-named local sequences
+  /// (17 corpus sites), generating infinite self-recursion.
+  bool _isLocalCall(StepModule m) =>
+      m.usesCurrentFile == true ||
+      (m.sequenceFile == null && m.sequenceNameExpression == null) ||
+      _isOwnFile(m.sequenceFile);
+
+  /// Whether a SequenceCall's named file is THIS file (by basename,
+  /// case-insensitive, as TestStand resolves it) — one corpus file calls
+  /// itself by its own path rather than the UseCurFile flag.
+  bool _isOwnFile(String? seqFile) {
+    final own = sourceName;
+    if (seqFile == null || own == null) return false;
+    String base(String p) =>
+        p.replaceAll(r'\', '/').split('/').last.toLowerCase();
+    return base(seqFile) == base(own);
   }
 
   /// The module's call target — the path/name a stub or pending marker
@@ -1359,6 +1675,7 @@ class _DartExporter {
       for (final step in sequence.steps) {
         final target = step.module.sequenceName;
         if (step.module.adapter == SeqAdapter.sequenceCall &&
+            _isLocalCall(step.module) &&
             target != null &&
             _sequenceFnNames.containsKey(target) &&
             target != sequence.name) {
@@ -1367,8 +1684,11 @@ class _DartExporter {
         }
       }
     }
-    var roots =
-        [for (final s in file.sequences) if (!called.contains(s.name)) s];
+    var roots = [
+      for (final s in file.sequences)
+        if (!called.contains(s.name) && !externallyCalled.contains(s.name))
+          s,
+    ];
     // A purely cyclic file has no roots; every sequence becomes a test
     // rather than silently exporting none.
     if (roots.isEmpty) roots = file.sequences;
@@ -1390,7 +1710,7 @@ class _DartExporter {
           '─────────────────────────────────────────────')
       ..writeln()
       // Registration only — bodies run after main returns, in order.
-      ..writeln('void main() {');
+      ..writeln('void ${registerName ?? 'main'}() {');
     for (final root in roots) {
       final reachable = reach(root.name);
       // Requirement links of the whole unit this test runs: the root's, the
@@ -1406,6 +1726,17 @@ class _DartExporter {
           reqs.addAll(step.settings.requirementLinks);
         }
         unported.addAll(_seqUnported[name] ?? const {});
+      }
+      // A root with an engine-object parameter (container/reference —
+      // emitted `dynamic`, defaulting null) is a CALLBACK: nothing binds
+      // that parameter when the harness runs it as a test, so it either
+      // throws on the null or vacuously no-ops behind a null guard.
+      // Neither is the authored behavior — disarmed, stated.
+      for (final p in root.parameters) {
+        if (_scalarType(p) == null && !_isArrayVar(p)) {
+          unported.add("root parameter '${p.name}' is an engine object "
+              '(nothing binds it when run as a test)');
+        }
       }
       final reqArg = reqs.isEmpty
           ? ''
@@ -1447,7 +1778,7 @@ class _DartExporter {
 // UnimplementedError for engine-specific forms.
 
 final dynamic fileGlobals = <String, dynamic>{};
-final dynamic stationGlobals = <String, dynamic>{};
+${registerName != null ? '// Station-wide state (StationGlobals) lives in lw_runtime.dart.' : 'final dynamic stationGlobals = <String, dynamic>{};'}
 final dynamic runState = null;
 final dynamic step = null;
 
