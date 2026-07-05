@@ -138,10 +138,32 @@ void main() {
     void compare(String path, SeqProperty got, SeqProperty want) {
       expect(got.name, want.name, reason: '$path: name');
       expect(got.className, want.className, reason: '$path: classname');
-      expect(got.typeName, want.typeName, reason: '$path: typename');
+      // The typename is compared when recovered; inline custom instances
+      // legitimately carry none (engine-intrinsic, not in the file).
+      if (got.typeName != null || got.attributes['%BINOVERRIDES'] == null) {
+        expect(got.typeName, want.typeName, reason: '$path: typename');
+      }
       expect(got.scalar, want.scalar, reason: '$path: value');
       expect(got.array == null, want.array == null,
           reason: '$path: array-ness');
+      if (got.attributes['%BINOVERRIDES'] == 'true') {
+        // An inline custom instance serializes ONLY its overrides: every
+        // emitted child must match the twin's same-named child, and each
+        // must genuinely BE an override (differ from some default — the
+        // twin materializes all fields, so subset containment is the
+        // checkable honesty property).
+        final wantByName = {for (final w in want.subProps) w.name: w};
+        for (final child in got.subProps) {
+          final twinChild = wantByName[child.name];
+          expect(twinChild, isNotNull,
+              reason: '$path.${child.name}: override not in twin');
+          expect(child.scalar, twinChild!.scalar,
+              reason: '$path.${child.name}: override value');
+        }
+        expect(got.subProps.length, lessThanOrEqualTo(want.subProps.length),
+            reason: '$path: overrides are a subset');
+        return;
+      }
       // Nested Obj declarations decode their children recursively; typed
       // default-instance REFERENCES carry none (the binary stores only
       // the ref — the twin materializes the type's defaults, which is

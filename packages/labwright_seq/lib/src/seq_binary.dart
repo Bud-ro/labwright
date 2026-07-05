@@ -1107,18 +1107,18 @@ const _typeRecordMinBytes = (3 + _typeVersionTripleWords) * _u32Bytes;
 /// TODO(binary decode — typedef bodies: RECURSION LANDED, 38 rosetta
 /// bodies twin-exact; see [BinaryTypeField] and the unified flag-bit
 /// model on the body parser). Still-bailing shapes:
-///  * inline CUSTOM instances — framed fields whose post-delimiter word
-///    is 1 (`Menu:Obj` with non-default values). Byte-decoded so far on
-///    the oracle's Menu (Substep body +160): the instance serializes ONLY
-///    its OVERRIDDEN fields — header `[nameIdx][overrideCount]` (Menu: 4
-///    = exactly its non-default values), then per-override entries
-///    opening `[2][0]` with `[cls][name][value]` (framed
-///    `[2][0][DELIM][name][value]` for the ExprValue one). AMBIGUOUS and
-///    unresolved: per-class value/trail arities (Bool-as-one-byte + u32
-///    trail fits two entries; the final Str entry ends with a 2-byte
-///    tail fitting neither reading). Next tool: a segmentation prober
-///    that enumerates per-class arity hypotheses and fits them against
-///    every X=1 instance across all twins at once;
+///  * inline CUSTOM instances: DECODED (override-only serialization;
+///    entry arities anchor-measured — Bool value u32 + one 0x00 pad
+///    byte, Str value + u32 0, framed ExprValue + u32 0; the instance
+///    TYPE is engine-intrinsic and not serialized). NOT yet exercised by
+///    a completing typedef: every instance-bearing rosetta typedef also
+///    hits the next item;
+///  * populated-array/element-type blocks — `AdditionalResultsHints`
+///    closes its `'[0]' '[]'` with a ~179-byte tail before the next
+///    field: the array's ELEMENT-TYPE declaration block (the
+///    `ElementType`/bounds machinery seen flattening in early probes).
+///    Decoding it is the next arity hunt, and it gates Substep-family
+///    completion;
 ///  * POPULATED object arrays — `'[0]' '[]'` followed by element
 ///    content (`Calls`/`Params`/`Substeps`);
 ///  * fields whose class word is a TYPE NAME string
@@ -1242,6 +1242,27 @@ class _TypeBodyParser {
         } else {
           value = ''; // the twin's `<value/>` reads as an empty string
         }
+      } else if (x >= 2 && valued && x - 1 < table.length) {
+        // Typed EMPTY-ARRAY instance (`Substeps` of StepTypeSubstepsArray):
+        // ['[0]']['[]'][extras…][0][one 0x00 pad byte] — anchor-measured
+        // across every rosetta binary.
+        if (_tok(_u32(next)) != '[0]' ||
+            next + 2 * _u32Bytes > recordRegionLength ||
+            _tok(_u32(next + _u32Bytes)) != '[]') {
+          return null;
+        }
+        final after = next + (2 + extraWords) * _u32Bytes;
+        if (after + _u32Bytes + 1 > recordRegionLength ||
+            _u32(after) != 0 ||
+            view.getUint8(after + _u32Bytes) != 0) {
+          return null;
+        }
+        final ref = table[x - 1];
+        return (
+          BinaryTypeField(name,
+              className: 'Objs', typeName: ref.name, emptyArray: true),
+          after + _u32Bytes + 1
+        );
       } else if (x >= 2 && !valued && x - 1 < table.length) {
         // Default-instance REFERENCE of type table[X-1] (1-based, the
         // same convention as step references). The file stores only the
@@ -1250,8 +1271,75 @@ class _TypeBodyParser {
         className = ref.className ?? 'Obj';
         typeName = ref.name;
         value = null;
+      } else if (x == 1 && !valued) {
+        // Inline CUSTOM instance: [name][overrideCount] then entries,
+        // each `[2][0]` + `[cls][name][value][trail]` (trail: one 0x00
+        // byte after Bool, u32 0 after Str) or `[2][0][DELIM][name]
+        // [value][u32 0]` for ExprValue overrides. No terminator — the
+        // next field starts immediately. The instance's TYPE is
+        // engine-intrinsic (not serialized), so typeName stays null and
+        // children carry ONLY the overrides. Anchor-measured across all
+        // rosetta instances.
+        final overrideCount = _u32(next);
+        if (overrideCount > _typeMaxFields) return null;
+        next += _u32Bytes;
+        final overrides = <BinaryTypeField>[];
+        for (var i = 0; i < overrideCount; i++) {
+          if (next + 5 * _u32Bytes > recordRegionLength) return null;
+          if (_u32(next) != 0x2 || _u32(next + _u32Bytes) != 0) return null;
+          final third = _u32(next + 2 * _u32Bytes);
+          final childName = _tok(_u32(next + 3 * _u32Bytes));
+          final valueWord = _u32(next + 4 * _u32Bytes);
+          if (childName == null) return null;
+          if (third == _recordDelimiter) {
+            final childValue = _tok(valueWord);
+            if (childValue == null ||
+                next + 6 * _u32Bytes > recordRegionLength ||
+                _u32(next + 5 * _u32Bytes) != 0) {
+              return null;
+            }
+            overrides.add(BinaryTypeField(childName,
+                className: 'ExprValue',
+                typeName: 'Expression',
+                value: childValue));
+            next += 6 * _u32Bytes;
+            continue;
+          }
+          final childClass = _tok(third);
+          switch (childClass) {
+            case 'Bool':
+              if (valueWord > 1 ||
+                  next + 5 * _u32Bytes + 1 > recordRegionLength ||
+                  view.getUint8(next + 5 * _u32Bytes) != 0) {
+                return null;
+              }
+              overrides.add(BinaryTypeField(childName,
+                  className: 'Bool',
+                  value: valueWord == 1 ? 'true' : 'false'));
+              next += 5 * _u32Bytes + 1;
+            case 'Str':
+              final childValue = _tok(valueWord);
+              if (childValue == null ||
+                  next + 6 * _u32Bytes > recordRegionLength ||
+                  _u32(next + 5 * _u32Bytes) != 0) {
+                return null;
+              }
+              overrides.add(BinaryTypeField(childName,
+                  className: 'Str', value: childValue));
+              next += 6 * _u32Bytes;
+            default:
+              return null;
+          }
+        }
+        return (
+          BinaryTypeField(name,
+              className: 'Obj',
+              children: overrides,
+              instanceOverrides: true),
+          next
+        );
       } else {
-        return null; // X == 1: inline custom instance (compact encoding)
+        return null;
       }
       next += extraWords * _u32Bytes; // opaque instance-flag words
       if (next + _u32Bytes > recordRegionLength || _u32(next) != 0) {
@@ -1264,13 +1352,26 @@ class _TypeBodyParser {
       );
     }
 
-    // Plain form: [flags][0][cls][name][extras…][value…].
+    // Plain form: [flags][0][cls][name][value-part][format?][extras…]
+    // [terminator 0] — extras sit AFTER the value part (anchor-measured on
+    // CodeTemplates: [Str][name][value][0x480018][0]); with no value part
+    // they directly precede the terminator (BlockStartTypes:
+    // [Str][name][0x480018][0]).
     final className = _tok(_u32(at + 2 * _u32Bytes));
     final name = _tok(_u32(at + 3 * _u32Bytes));
     if (className == null || name == null) return null;
-    var next = at + 4 * _u32Bytes + extraWords * _u32Bytes;
+    var next = at + 4 * _u32Bytes;
+    int? afterExtrasAndTerminator(int from) {
+      final terminatorAt = from + extraWords * _u32Bytes;
+      if (terminatorAt + _u32Bytes > recordRegionLength ||
+          _u32(terminatorAt) != 0) {
+        return null;
+      }
+      return terminatorAt + _u32Bytes;
+    }
     // Nested Obj DECLARATION: [childCount][children…] — no trailing zero.
     if (className == 'Obj' && !valued) {
+      next += extraWords * _u32Bytes; // opaque instance-flag words
       if (next + _u32Bytes > recordRegionLength) return null;
       final childCount = _u32(next);
       if (childCount > _typeMaxFields) return null;
@@ -1283,10 +1384,9 @@ class _TypeBodyParser {
     }
     if (!valued) {
       // Unvalued fields read their class defaults (false / '' / 0 — the
-      // twin's `<value/>` semantics), with an empty value slot.
-      if (next + _u32Bytes > recordRegionLength || _u32(next) != 0) {
-        return null;
-      }
+      // twin's `<value/>` semantics): [extras…][terminator 0].
+      final after = afterExtrasAndTerminator(next);
+      if (after == null) return null;
       final field = switch (className) {
         'Bool' => BinaryTypeField(name, className: 'Bool', value: 'false'),
         'Str' => BinaryTypeField(name, className: 'Str', value: ''),
@@ -1294,18 +1394,18 @@ class _TypeBodyParser {
         _ => null,
       };
       if (field == null) return null;
-      return (field, next + _u32Bytes);
+      return (field, after);
     }
     // Empty array field: value tokens '[0]' '[]' then trail 0. Object
     // arrays (`Objs`) additionally carry ONE 0x00 pad byte after the
     // trail — the stream is byte-granular, and this pad is what shifts
     // everything after an empty Objs array off word alignment.
     if (const {'Nums', 'Strs', 'Objs'}.contains(className) &&
-        next + 3 * _u32Bytes <= recordRegionLength &&
+        next + 2 * _u32Bytes <= recordRegionLength &&
         _tok(_u32(next)) == '[0]' &&
-        _tok(_u32(next + _u32Bytes)) == '[]' &&
-        _u32(next + 2 * _u32Bytes) == 0) {
-      var after = next + 3 * _u32Bytes;
+        _tok(_u32(next + _u32Bytes)) == '[]') {
+      var after = afterExtrasAndTerminator(next + 2 * _u32Bytes);
+      if (after == null) return null;
       if (className == 'Objs') {
         if (after >= recordRegionLength || view.getUint8(after) != 0) {
           return null;
@@ -1320,26 +1420,22 @@ class _TypeBodyParser {
     switch (className) {
       case 'Str':
         final value = _tok(_u32(next));
-        if (value == null ||
-            next + 2 * _u32Bytes > recordRegionLength ||
-            _u32(next + _u32Bytes) != 0) {
-          return null;
-        }
+        if (value == null) return null;
+        final after = afterExtrasAndTerminator(next + _u32Bytes);
+        if (after == null) return null;
         return (
           BinaryTypeField(name, className: 'Str', value: value),
-          next + 2 * _u32Bytes
+          after
         );
       case 'Bool':
         final value = _u32(next);
-        if (value > 1 ||
-            next + 2 * _u32Bytes > recordRegionLength ||
-            _u32(next + _u32Bytes) != 0) {
-          return null;
-        }
+        if (value > 1) return null;
+        final after = afterExtrasAndTerminator(next + _u32Bytes);
+        if (after == null) return null;
         return (
           BinaryTypeField(name,
               className: 'Bool', value: value == 1 ? 'true' : 'false'),
-          next + 2 * _u32Bytes
+          after
         );
       case 'Num':
         if (next + 2 * _u32Bytes > recordRegionLength) return null;
@@ -1352,16 +1448,15 @@ class _TypeBodyParser {
           }
           next += _u32Bytes; // display-format ref, e.g. '%#x'
         }
-        if (next + _u32Bytes > recordRegionLength || _u32(next) != 0) {
-          return null;
-        }
+        final after = afterExtrasAndTerminator(next);
+        if (after == null) return null;
         return (
           BinaryTypeField(name,
               className: 'Num',
               value: value == value.truncateToDouble() && value.abs() < 1e15
                   ? '${value.truncate()}'
                   : '$value'),
-          next + _u32Bytes
+          after
         );
       default:
         return null;
@@ -1431,7 +1526,8 @@ class BinaryTypeField {
       this.typeName,
       this.value,
       this.emptyArray = false,
-      this.children = const []});
+      this.children = const [],
+      this.instanceOverrides = false});
 
   /// The field name (`Code`, `ItemName`, …).
   final String name;
@@ -1457,6 +1553,13 @@ class BinaryTypeField {
   /// reference; materializing the referenced type's defaults is the XML
   /// writer's job, not the file's content.
   final List<BinaryTypeField> children;
+
+  /// True for an inline CUSTOM instance (framed `X == 1`): [children]
+  /// holds ONLY the fields the instance OVERRIDES — the file serializes
+  /// nothing else, and the instance's TYPE is engine-intrinsic (not in
+  /// the file), so [typeName] stays null. Compare such children as a
+  /// subset of the materialized twin, never as the full field list.
+  final bool instanceOverrides;
 }
 
 class BinaryTypeRecord {

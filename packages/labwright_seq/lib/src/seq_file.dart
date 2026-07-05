@@ -480,6 +480,11 @@ SeqProperty _typeFieldProp(BinaryTypeField field) => SeqProperty(
       typeName: field.typeName,
       scalar: field.value,
       array: field.emptyArray ? const [] : null,
+      // Inline custom instances serialize ONLY their overridden fields
+      // (and their type is engine-intrinsic, not in the file) — marked so
+      // consumers compare children as an override subset.
+      attributes:
+          field.instanceOverrides ? const {'%BINOVERRIDES': 'true'} : const {},
       subProps: [for (final child in field.children) _typeFieldProp(child)],
     );
 
