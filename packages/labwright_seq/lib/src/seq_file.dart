@@ -388,11 +388,13 @@ SeqFile _parseXml(Uint8List bytes) {
 /// named steps grouped into Setup/Main/Cleanup (corpus-validated against the
 /// content-exact Rosetta twin), each step bound to its TYPE via the
 /// reference's 1-based type-table index (see [BinaryStepRef]), the file's
-/// recovered type names, the module bindings, and the sequence Locals /
-/// Parameters (decoded from the sequence record's field tree). The
-/// sequence-level properties that follow the group arrays (RTS,
-/// Requirements, FailureAction) and per-step subproperties are **not yet
-/// decoded**, so those lenses read empty/null.
+/// recovered type names, the module bindings, the sequence Locals /
+/// Parameters (from the sequence record's field tree), and each step's
+/// serialized `TS` subprops (Id and overrides, from the step-data
+/// descriptor node). The sequence-level properties that follow the group
+/// arrays (RTS, Requirements, FailureAction) and the TS subprops of steps
+/// whose data frames in a not-yet-covered shape are **not yet decoded**,
+/// so those lenses read empty/null.
 /// Throws [FormatException] when the body does not inflate (not a TOF1 binary).
 SeqFile _parseBinary(Uint8List bytes) {
   // Single inflate: reuse the body for layout + outlines rather than letting
@@ -406,35 +408,42 @@ SeqFile _parseBinary(Uint8List bytes) {
   // ordered string pool (each is an O(body) pass the per-lens helpers would
   // otherwise repeat).
   final (:outlines, :typeRecords) = binaryOutlinesAndTypeRecordsFromBody(body);
-  // Recovered fields synthesize the same TS>SData shape the XML parse
-  // yields, so the typed lens (Step.module) reads both encodings alike.
-  SeqProperty stepProp(BinaryStepRef step) => SeqProperty(
-        name: step.name,
-        typeName: step.typeName,
-        subProps: [
-          if (step.viPath != null ||
-              step.pythonModule != null ||
-              step.pythonFunction != null)
-            SeqProperty(name: 'TS', subProps: [
-              SeqProperty(name: 'SData', subProps: [
-                if (step.viPath != null)
-                  SeqProperty(name: 'ViCall', subProps: [
-                    SeqProperty(name: 'VIPath', scalar: step.viPath),
-                  ]),
-                if (step.pythonModule != null || step.pythonFunction != null)
-                  SeqProperty(name: 'PythonCall', subProps: [
-                    if (step.pythonModule != null)
-                      SeqProperty(
-                          name: 'ModulePath', scalar: step.pythonModule),
-                    if (step.pythonFunction != null)
-                      SeqProperty(
-                          name: 'FunctionOrAttributeName',
-                          scalar: step.pythonFunction),
-                  ]),
-              ]),
+  // The step's TS node carries the decoded TS subprops (Id, … — the
+  // step's serialized overrides) plus the synthesized SData>ViCall/
+  // PythonCall module shape (recovered separately from the step span),
+  // so the typed lens reads the same TS>SData shape the XML parse yields.
+  SeqProperty stepProp(BinaryStepRef step) {
+    final hasModule = step.viPath != null ||
+        step.pythonModule != null ||
+        step.pythonFunction != null;
+    final tsChildren = <SeqProperty>[
+      for (final field in step.tsSubProps) _typeFieldProp(field),
+      if (hasModule)
+        SeqProperty(name: 'SData', subProps: [
+          if (step.viPath != null)
+            SeqProperty(name: 'ViCall', subProps: [
+              SeqProperty(name: 'VIPath', scalar: step.viPath),
             ]),
-        ],
-      );
+          if (step.pythonModule != null || step.pythonFunction != null)
+            SeqProperty(name: 'PythonCall', subProps: [
+              if (step.pythonModule != null)
+                SeqProperty(name: 'ModulePath', scalar: step.pythonModule),
+              if (step.pythonFunction != null)
+                SeqProperty(
+                    name: 'FunctionOrAttributeName',
+                    scalar: step.pythonFunction),
+            ]),
+        ]),
+    ];
+    return SeqProperty(
+      name: step.name,
+      typeName: step.typeName,
+      subProps: [
+        if (tsChildren.isNotEmpty)
+          SeqProperty(name: 'TS', subProps: tsChildren),
+      ],
+    );
+  }
   return SeqFile(
     header: detectSeqHeader(bytes),
     // Recovered typedef HEADS (name, classname, XML-shaped attributes)

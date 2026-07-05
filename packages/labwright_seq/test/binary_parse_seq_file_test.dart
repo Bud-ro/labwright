@@ -248,6 +248,51 @@ void main() {
     expect(binFile.sequences.single.parameters, isEmpty);
   });
 
+  test('per-step TS subprops decode as an override subset of the twin', () {
+    // The step-data descriptor node decodes the step's SERIALIZED TS
+    // subprops (Id, and any overrides) — a SUBSET of the twin's
+    // materialized TS list. Every decoded subprop must appear in the
+    // twin's TS with matching name and (for scalars) value; the step's
+    // unique Id must match exactly. Steps whose TS frames in a shape not
+    // yet covered decode no TS subprops (honest — never fabricated).
+    for (var i = 0; i < xmlFile.sequences.length; i++) {
+      final xSteps = xmlFile.sequences[i].steps;
+      final bSteps = binFile.sequences[i].steps;
+      for (var j = 0; j < bSteps.length; j++) {
+        final xTs = xSteps[j].raw.prop('TS');
+        final bTs = bSteps[j].raw.prop('TS');
+        final decoded =
+            bTs?.subProps.where((p) => p.name != 'SData').toList() ??
+                const <SeqProperty>[];
+        if (decoded.isEmpty) continue; // TS not decoded for this step
+        final twinByName = {
+          for (final p in xTs?.subProps ?? const <SeqProperty>[]) p.name: p,
+        };
+        for (final got in decoded) {
+          final want = twinByName[got.name];
+          expect(want, isNotNull,
+              reason: '${bSteps[j].name}.TS.${got.name}: not in twin TS');
+          if (got.scalar != null) {
+            expect(got.scalar, want!.scalar,
+                reason: '${bSteps[j].name}.TS.${got.name}: value');
+          }
+        }
+      }
+    }
+    // Concretely: the two measurement-type steps carry their unique Ids.
+    final ids = {
+      for (final s in binFile.sequences.single.steps)
+        s.name: s.raw
+            .prop('TS')
+            ?.subProps
+            .firstWhere((p) => p.name == 'Id',
+                orElse: () => SeqProperty(name: 'Id'))
+            .scalar,
+    };
+    expect(ids['Output voltage test'], 'ID#:lSaDme0m7hG/g0xEW1VriB');
+    expect(ids['Update pin map'], 'ID#:oWmczOOU7hGhxWDjK76h1B');
+  });
+
   test('per-step MODULES match the twin (the name→value pair binding)', () {
     // The module payload serializes fields as [nameIdx][valueIdx] word
     // pairs inside the step's span — adapter, module path, and function

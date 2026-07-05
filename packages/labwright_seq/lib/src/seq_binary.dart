@@ -1512,6 +1512,16 @@ class _TypeBodyParser {
     return fields;
   }
 
+  /// Parses a single field at [at] — used for a step's data descriptor
+  /// node (`[0][0][DELIM][TS][childCount][children…]`), which the field
+  /// grammar already covers as a descriptor node. Returns the field
+  /// (with its decoded children) or null when the bytes do not frame.
+  BinaryTypeField? parseFieldAt(int at) {
+    _usedSpec = false;
+    _depth = 0;
+    return _field(at)?.$1;
+  }
+
   /// The whole body: `[0][count]` then exactly `count` fields.
   List<BinaryTypeField>? parse(int after) {
     debugLastFieldOffset = null;
@@ -2577,7 +2587,11 @@ const _sequenceLeadingSubPropNames = {'Parameters', 'Locals'};
 /// (1-based 21), while pool[21] happens to be `'ExprValue'`.
 class BinaryStepRef {
   const BinaryStepRef(this.name,
-      {this.typeName, this.viPath, this.pythonModule, this.pythonFunction});
+      {this.typeName,
+      this.viPath,
+      this.pythonModule,
+      this.pythonFunction,
+      this.tsSubProps = const []});
 
   /// The step's display name.
   final String name;
@@ -2585,6 +2599,15 @@ class BinaryStepRef {
   /// The step's type name resolved from the type table, or null when the
   /// type word does not land in the recovered table (never fabricated).
   final String? typeName;
+
+  /// The step's `TS` (TestStand) subproperties decoded from the step-data
+  /// descriptor node that follows the step reference
+  /// (`[0][0][DELIM][TS][childCount][children…]` — the same descriptor
+  /// grammar typedef bodies use). These are the fields the step
+  /// SERIALIZES — its overrides of the step type's TS defaults (`Id`, and
+  /// any non-default `CustomResults`/expressions), not the full
+  /// materialized list. Empty when the step data does not frame.
+  final List<BinaryTypeField> tsSubProps;
 
   /// The step's code-module binding, recovered from the **name→value word
   /// pairs** in the step's record span (this step reference up to the
@@ -2721,11 +2744,22 @@ List<BinarySequenceOutline> _sequenceOutlinesFromBody(
     return null;
   }
 
+  // The type table (for any framed references the step's TS subprops
+  // carry) — reuse the caller's when it already built one.
+  final table = sharedTypeRecords ??
+      _typeRecordsFromBody(body, recordRegionLength, pool);
+  final tsParser = _TypeBodyParser(view, pool, recordRegionLength, table);
+
   final steps = <(int, BinaryStepRef)>[];
   for (var i = 0; i < found.length; i++) {
     final (at, name, typeIndex) = found[i];
     final spanEnd =
         i + 1 < found.length ? found[i + 1].$1 : recordRegionLength;
+    // The step's data descriptor node follows the four-word reference
+    // (`[Step][kind][name][container]`): `[0][0][DELIM][TS][childCount]
+    // [children…]`, which the field grammar decodes as a descriptor
+    // node. Its children are the step's TS subprops (Id, …).
+    final tsSubProps = _stepTsSubProps(tsParser, at + 4 * _u32Bytes);
     steps.add((
       at,
       BinaryStepRef(
@@ -2736,6 +2770,7 @@ List<BinarySequenceOutline> _sequenceOutlinesFromBody(
         viPath: pairIn(at, spanEnd, viPathIdx),
         pythonModule: pairIn(at, spanEnd, modulePathIdx),
         pythonFunction: pairIn(at, spanEnd, functionIdx),
+        tsSubProps: tsSubProps,
       ),
     ));
   }
@@ -2779,10 +2814,6 @@ List<BinarySequenceOutline> _sequenceOutlinesFromBody(
   }
 
   // Sequence-record leading subprops (Parameters/Locals/…) per sequence.
-  // The type table is needed for any framed references the subprops carry;
-  // reuse the caller's when it already built one.
-  final table = sharedTypeRecords ??
-      _typeRecordsFromBody(body, recordRegionLength, pool);
   final leading = _sequenceLeadingSubProps(
       body, view, pool, recordRegionLength, table,
       {for (final (_, name) in sequenceDecls) name});
@@ -2800,6 +2831,19 @@ List<BinarySequenceOutline> _sequenceOutlinesFromBody(
           leadingSubProps: leading[name] ?? const [],
         ),
   ];
+}
+
+/// Decodes a step's `TS` subprops from the step-data descriptor node at
+/// [at] (`[0][0][DELIM][TS][childCount][children…]`, immediately after
+/// the four-word step reference). Returns the node's children — the
+/// step's serialized TS fields (`Id`, and any overrides) — or `[]` when
+/// the data does not frame as a `TS`-named descriptor node (the honesty
+/// gate: only a node actually named `TS` is trusted, never a coincidental
+/// parse).
+List<BinaryTypeField> _stepTsSubProps(_TypeBodyParser parser, int at) {
+  final node = parser.parseFieldAt(at);
+  if (node == null || node.name != 'TS') return const [];
+  return node.children;
 }
 
 /// Locates each sequence RECORD — `[Sequence][name][subpropCount]` — and
