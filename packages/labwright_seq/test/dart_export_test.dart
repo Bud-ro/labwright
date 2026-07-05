@@ -79,20 +79,30 @@ void main() {
     }
     expect(source, contains('UnimplementedError'),
         reason: 'code-module stubs must be present');
-    // The runtime shim is gone: engine state is top-level, expressions
-    // beyond mechanical translation land in the _eval fallback.
+    // No per-file runtime: engine state is top-level, the built-in
+    // helpers are hosted (package:labwright/shims.dart, imported as ts),
+    // and untranslated expressions land in the ts.eval fallback.
     expect(source, isNot(contains('class TsRuntime')));
-    expect(source, contains('Object? _eval(String expression)'));
+    expect(source, contains("import 'package:labwright/shims.dart' as ts;"));
+    expect(source, isNot(contains('_eval(')),
+        reason: 'no underscore-prefixed generated helpers remain');
   });
 
   test('EVERY parseable corpus export passes dart analyze (one batch run)',
       () {
     // The whole-corpus compile gate: the review fleet found 14/388 exports
     // failing analyze while the old two-file gate stayed green. All plain
-    // exports land in one temp dir and one analyzer invocation checks them
-    // all — the generator's type choices must never reject its own output.
-    final dir = Directory.systemTemp.createTempSync('seq_export_all_');
+    // exports land in one dir and one analyzer invocation checks them all
+    // — the generator's type choices must never reject its own output.
+    // In-package (not systemTemp) so package:labwright/shims.dart
+    // resolves; its own analysis options mirror what a generated project
+    // ships (dynamic engine state by design → strict-casts off).
+    final pkgRoot = corpusSeqDir.parent.parent;
+    final dir = Directory('${pkgRoot.path}/test/.export_gen_batch')
+      ..createSync(recursive: true);
     try {
+      File('${dir.path}/analysis_options.yaml').writeAsStringSync(
+          'analyzer:\n  language:\n    strict-casts: false\n');
       var n = 0; // ignore: prefer_final_locals
       for (final f in seqs) {
         final SeqFile file;
@@ -106,7 +116,9 @@ void main() {
             exportSeqFileToDart(file, sourceName: f.uri.pathSegments.last));
       }
       expect(n, greaterThan(300));
-      final result = Process.runSync('dart', ['analyze', dir.path]);
+      final result = Process.runSync(
+          'dart', ['analyze', 'test/.export_gen_batch'],
+          workingDirectory: pkgRoot.path);
       expect(result.exitCode, 0,
           reason: 'all generated exports must analyze clean:\n'
               '${result.stdout}');
@@ -115,48 +127,8 @@ void main() {
     }
   }, timeout: const Timeout(Duration(minutes: 5)));
 
-  test('generated Dart passes dart analyze (oracle + flow-heaviest file)', () {
-    File? flowHeaviestFile;
-    var flowHeaviest = -1;
-    for (final f in seqs) {
-      final SeqFile file;
-      try {
-        file = parseSeqFile(f.readAsBytesSync());
-      } catch (_) {
-        continue;
-      }
-      var flow = 0;
-      for (final seq in file.sequences) {
-        for (final step in seq.steps) {
-          if (step.flowControl != null) flow++;
-        }
-      }
-      if (flow > flowHeaviest) {
-        flowHeaviest = flow;
-        flowHeaviestFile = f;
-      }
-    }
-    final targets = <File>[
-      File('${corpusSeqDir.path}/rosetta/OutputVoltage_XML.seq'),
-      if (flowHeaviestFile != null) flowHeaviestFile,
-    ].where((f) => f.existsSync()).toList();
+  // (The former oracle + flow-heaviest two-file analyze gate is subsumed
+  // by the whole-corpus batch gate above — same export mode, same
+  // analyzer, every parseable file.)
 
-    final dir = Directory.systemTemp.createTempSync('seq_export_');
-    try {
-      final generated = <String>[];
-      for (final f in targets) {
-        final file = parseSeqFile(f.readAsBytesSync());
-        final out =
-            '${dir.path}/${f.uri.pathSegments.last.replaceAll('.seq', '')}.dart';
-        File(out).writeAsStringSync(
-            exportSeqFileToDart(file, sourceName: f.uri.pathSegments.last));
-        generated.add(out);
-      }
-      final result = Process.runSync('dart', ['analyze', ...generated]);
-      expect(result.exitCode, 0,
-          reason: 'generated Dart must analyze clean:\n${result.stdout}');
-    } finally {
-      dir.deleteSync(recursive: true);
-    }
-  }, timeout: const Timeout(Duration(minutes: 2)));
 }

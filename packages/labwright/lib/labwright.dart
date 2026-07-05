@@ -88,6 +88,22 @@ export 'package:matcher/expect.dart';
 /// here to test bodies — the hook fuzz testing will grow from.
 const int seed = int.fromEnvironment('labwright.seed');
 
+Random? _rand;
+
+/// The suite's deterministic random stream: seeded from [seed] when one is
+/// set (so a run reproduces its random delays/values exactly), advancing
+/// on every draw. `rand()` draws in `[0, 1)`; `rand(min, max)` draws in
+/// `[min, max)`. Test bodies and exported sequence programs share this one
+/// stream — determinism holds only while the draw ORDER is deterministic,
+/// which the single-threaded suite guarantees.
+double rand([num? min, num? max]) {
+  final rng = _rand ??= seed != 0 ? Random(seed) : Random();
+  final r = rng.nextDouble();
+  if (min == null && max == null) return r;
+  if (min != null && max != null) return min + r * (max - min);
+  throw ArgumentError('rand() takes zero bounds or both');
+}
+
 /// Sharding, `dart test`'s convention (`labwright.totalShards` /
 /// `labwright.shardIndex`): a test runs in this shard iff its registration
 /// index is `≡ shardIndex (mod totalShards)`. The in-process registry is
