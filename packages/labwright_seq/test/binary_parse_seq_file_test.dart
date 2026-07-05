@@ -248,6 +248,26 @@ void main() {
     expect(binFile.sequences.single.parameters, isEmpty);
   });
 
+  test('post-group scalar subprops (RecordResults/FailureAction) match twin',
+      () {
+    // The scalar subprops after the Main/Setup/Cleanup group arrays,
+    // anchor-located and single-field parsed: RecordResults (Bool) and
+    // FailureAction (Num) must equal the XML twin's, sequence for
+    // sequence. (RTS/Requirements between them are nested instances not
+    // yet decoded — honestly absent, not guessed.)
+    for (var i = 0; i < xmlFile.sequences.length; i++) {
+      final xs = xmlFile.sequences[i];
+      final bs = binFile.sequences[i];
+      expect(bs.recordsResults, xs.recordsResults,
+          reason: '${xs.name}: recordsResults');
+      expect(bs.failureActionCode, xs.failureActionCode,
+          reason: '${xs.name}: failureActionCode');
+    }
+    // Concretely: the oracle records results and uses failure action 2.
+    expect(binFile.sequences.single.recordsResults, isTrue);
+    expect(binFile.sequences.single.failureActionCode, 2);
+  });
+
   test('per-step TS subprops decode as an override subset of the twin', () {
     // The step-data descriptor node decodes the step's SERIALIZED TS
     // subprops (Id, and any overrides) — a SUBSET of the twin's
