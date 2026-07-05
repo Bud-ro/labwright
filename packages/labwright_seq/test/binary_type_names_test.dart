@@ -254,6 +254,46 @@ void main() {
             '${offenders.take(5).join('\n')}');
   });
 
+  test('whole-corpus sweep: post-group scalar subprops never fabricate', () {
+    // RecordResults must always decode as a Bool true/false, FailureAction
+    // as an integer Num — the honesty gate over the whole corpus.
+    var withRr = 0, withFa = 0;
+    final offenders = <String>[];
+    for (final f in corpusSeqDir
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((f) => f.path.toLowerCase().endsWith('.seq'))) {
+      final bytes = f.readAsBytesSync();
+      if (detectSeqFormat(bytes) != SeqFormat.binary) continue;
+      for (final s in parseSeqFile(bytes).sequences) {
+        final rr = s.raw.prop('RecordResults');
+        final fa = s.raw.prop('FailureAction');
+        if (rr != null) {
+          withRr++;
+          if (rr.className != 'Bool' ||
+              (rr.scalar != 'true' && rr.scalar != 'false')) {
+            offenders.add('${f.uri.pathSegments.last}: RecordResults='
+                '${rr.className}/${rr.scalar}');
+          }
+        }
+        if (fa != null) {
+          withFa++;
+          if (fa.className != 'Num' || int.tryParse(fa.scalar ?? '') == null) {
+            offenders.add('${f.uri.pathSegments.last}: FailureAction='
+                '${fa.className}/${fa.scalar}');
+          }
+        }
+      }
+    }
+    // ignore: avoid_print
+    print('post-group scalars: $withRr RecordResults · $withFa FailureAction');
+    expect(offenders, isEmpty,
+        reason: 'post-group scalar decoded wrong:\n'
+            '${offenders.take(5).join('\n')}');
+    expect(withRr, greaterThanOrEqualTo(80),
+        reason: 'RecordResults recovery regressed ($withRr)');
+  });
+
   test('rosetta-wide: sequence locals/parameters match every twin', () {
     // Every rosetta pair's sequences must decode the same locals and
     // parameters (name + type) as the XML twin — the leading-subprop
@@ -290,6 +330,16 @@ void main() {
         expect(bs.parameters.map((p) => '${p.name}:${p.type}').toList(),
             xs.parameters.map((p) => '${p.name}:${p.type}').toList(),
             reason: '$name ${bs.name}: parameters');
+        // Post-group scalars, where decoded, must match the twin (never
+        // a wrong value; absent is honest when not decoded).
+        if (bs.recordsResults != null) {
+          expect(bs.recordsResults, xs.recordsResults,
+              reason: '$name ${bs.name}: recordsResults');
+        }
+        if (bs.failureActionCode != null) {
+          expect(bs.failureActionCode, xs.failureActionCode,
+              reason: '$name ${bs.name}: failureActionCode');
+        }
       }
     }
     expect(pairs, greaterThanOrEqualTo(5));

@@ -476,11 +476,15 @@ SeqFile _parseBinary(Uint8List bytes) {
               name: outline.name,
               className: 'Sequence',
               subProps: [
-                // Sequence-record leading subprops (Parameters, Locals, …)
-                // decoded from the field tree — these light up the typed
-                // Sequence.locals/parameters lenses. The group step arrays
-                // are synthesized below from the decoded step outlines.
+                // Sequence-record subprops decoded from the field tree —
+                // the leading Parameters/Locals plus the post-group
+                // scalars RecordResults/FailureAction — light up the
+                // typed Sequence.locals/parameters/recordsResults/
+                // failureActionCode lenses. The group step arrays are
+                // synthesized below from the decoded step outlines.
                 for (final field in outline.leadingSubProps)
+                  _typeFieldProp(field),
+                for (final field in outline.tailScalarSubProps)
                   _typeFieldProp(field),
                 SeqProperty(name: 'Setup', array: [...outline.setup.map(stepProp)]),
                 SeqProperty(name: 'Main', array: [...outline.main.map(stepProp)]),
