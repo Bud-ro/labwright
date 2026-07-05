@@ -121,10 +121,10 @@ void main() {
     expect(pairs, greaterThanOrEqualTo(5));
     expect(compared, greaterThanOrEqualTo(100),
         reason: 'the rosetta twins carry hundreds of comparable typedefs');
-    expect(decodedBodies, greaterThanOrEqualTo(80),
+    expect(decodedBodies, greaterThanOrEqualTo(90),
         reason: 'the covered body grammar decodes a solid share '
-            '($decodedBodies bodies; 87 at the spec-grammar + instance '
-            'tier)');
+            '($decodedBodies bodies; 93 at the extdata tier — every '
+            'twinned typedef decodes)');
   });
 
   test('whole-corpus sweep: no structural tokens, recovery floors hold', () {
