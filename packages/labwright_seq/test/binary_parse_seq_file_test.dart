@@ -106,6 +106,29 @@ void main() {
     ]);
   });
 
+  test('typedef HEADS match the twin: classname and every attribute', () {
+    // The type-record head decodes the same attributes the XML typedef
+    // element carries: classname, typecategory, timestamp, the version
+    // triple, and the ordered flags (typeflags / flagsforinstances /
+    // instanceoverrideflags / valueflags). Every emitted value must EQUAL
+    // the twin's — attribute for attribute.
+    final twinByName = {for (final t in xmlFile.types) t.name: t};
+    var compared = 0;
+    for (final type in binFile.types) {
+      final twin = twinByName[type.name];
+      if (twin == null) continue; // step-stored typedefs live off-typelist
+      compared++;
+      expect(type.className, twin.className,
+          reason: '${type.name}: classname');
+      type.attributes.forEach((key, value) {
+        expect(value, twin.attributes[key],
+            reason: '${type.name}: attribute $key');
+      });
+    }
+    expect(compared, greaterThanOrEqualTo(20),
+        reason: 'most recovered types are root typedefs in the twin');
+  });
+
   test('per-step MODULES match the twin (the name→value pair binding)', () {
     // The module payload serializes fields as [nameIdx][valueIdx] word
     // pairs inside the step's span — adapter, module path, and function

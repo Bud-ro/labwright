@@ -1123,31 +1123,140 @@ List<String> binaryTypeNames(Uint8List seqBytes) =>
     _withLayout(seqBytes, _typeNamesFromBody);
 
 /// The decoded typed-model lenses of an **already-inflated** [body] in one
-/// shared frame+pool pass: the sequence outlines and the recovered type
-/// names. This is the single-scan path for `parseSeqFile` — calling the
-/// per-lens helpers separately would re-frame the layout and rebuild the
-/// ordered string pool once per lens (both are O(body) passes). Both lenses
-/// read empty when the body does not frame.
-({List<BinarySequenceOutline> outlines, List<String> typeNames})
-    binaryOutlinesAndTypeNamesFromBody(Uint8List body) {
+/// shared frame+pool+table pass: the sequence outlines and the type-record
+/// heads. This is the single-scan path for `parseSeqFile` — calling the
+/// per-lens helpers separately would re-frame the layout, rebuild the
+/// ordered string pool, and rescan the type table once per lens. Both
+/// lenses read empty when the body does not frame.
+({List<BinarySequenceOutline> outlines, List<BinaryTypeRecord> typeRecords})
+    binaryOutlinesAndTypeRecordsFromBody(Uint8List body) {
   final layout = _layoutFromBody(body);
-  if (layout == null) return const (outlines: [], typeNames: []);
+  if (layout == null) return const (outlines: [], typeRecords: []);
   final recordRegionLength = layout.recordRegionLength;
   final pool = _orderedStringPool(body, recordRegionLength);
+  final typeRecords = _typeRecordsFromBody(body, recordRegionLength, pool);
   return (
-    outlines: _sequenceOutlinesFromBody(body, recordRegionLength, pool),
-    typeNames: _typeNamesFromBody(body, recordRegionLength, pool),
+    outlines: _sequenceOutlinesFromBody(body, recordRegionLength, pool,
+        [for (final record in typeRecords) record.name]),
+    typeRecords: typeRecords,
   );
 }
 
 List<String> _typeNamesFromBody(Uint8List body, int recordRegionLength,
+        [List<String>? sharedPool]) =>
+    [
+      for (final record
+          in _typeRecordsFromBody(body, recordRegionLength, sharedPool))
+        record.name,
+    ];
+
+/// A decoded type-record HEAD — the same attributes the XML encoding puts
+/// on the typedef element. Layout (validated attribute-for-attribute
+/// against the oracle twin: 22/22 comparable typedefs exact):
+///
+/// `[classIdx][nameIdx][typecategory][stamp][0?][ver][ver][ver]
+///  [flags…][0][0xffffffff]`
+///
+/// The version triple starts at word 3 (TS 4.x/5.0 layout) or word 4
+/// (newer); the flag words after the triple — up to the `0xffffffff`
+/// record delimiter, trailing zeros dropped — carry, IN ORDER: `typeflags`,
+/// `flagsforinstances`, `instanceoverrideflags`, `valueflags` (later ones
+/// only when the typedef declares them, exactly like the XML attributes).
+/// The typedef BODY (fields, defaults) follows the delimiter and is not
+/// yet decoded.
+class BinaryTypeRecord {
+  const BinaryTypeRecord({
+    required this.name,
+    required this.className,
+    required this.typeCategory,
+    required this.timestamp,
+    required this.versions,
+    required this.flags,
+  });
+
+  /// The type name (the typedef element name in XML).
+  final String name;
+
+  /// The value-kind (`classname` attribute: `Obj`, `ExprValue`, `StepType`,
+  /// …), or null when the class word does not resolve in the pool.
+  final String? className;
+
+  /// `typecategory` (verbatim code; NI-internal meaning not invented).
+  final int typeCategory;
+
+  /// The typedef save `timestamp` (UNIX seconds — the "type stamp").
+  final int timestamp;
+
+  /// `typeversion`, `typelastmodversion`, `typeminprodversion`, in order.
+  final List<String> versions;
+
+  /// The ordered flag words after the version triple (trailing zeros
+  /// dropped). Absent attributes are simply not written, so the ATTRIBUTE
+  /// each word carries depends on how many there are — and, for three, on
+  /// the record's [typeCategory] (rosetta-twin enumerated: the only two
+  /// 3-flag combos split exactly on category 1 vs not):
+  ///   1 → typeflags
+  ///   2 → typeflags, valueflags
+  ///   3 → typeflags, flagsforinstances, then instanceoverrideflags when
+  ///       [typeCategory] == 1 (step types), else valueflags
+  ///   4 → typeflags, flagsforinstances, instanceoverrideflags, valueflags
+  /// Empty when the record tail did not frame (absent, never guessed).
+  final List<int> flags;
+
+  int? get typeFlags => flags.isNotEmpty ? flags[0] : null;
+  int? get flagsForInstances => flags.length > 2 ? flags[1] : null;
+  int? get instanceOverrideFlags => flags.length == 4
+      ? flags[2]
+      : (flags.length == 3 && typeCategory == 1 ? flags[2] : null);
+  int? get valueFlags => switch (flags.length) {
+        2 => flags[1],
+        3 => typeCategory == 1 ? null : flags[2],
+        4 => flags[3],
+        _ => null,
+      };
+
+  /// The head as XML-shaped attributes (same names/format the XML twin
+  /// uses), for the synthesized typed model.
+  Map<String, String> toAttributes() => {
+        'typecategory': '$typeCategory',
+        'timestamp': '$timestamp',
+        if (versions.isNotEmpty) 'typeversion': versions[0],
+        if (versions.length > 1) 'typelastmodversion': versions[1],
+        if (versions.length > 2) 'typeminprodversion': versions[2],
+        if (typeFlags != null) 'typeflags': '$typeFlags',
+        if (flagsForInstances != null)
+          'flagsforinstances': '$flagsForInstances',
+        if (instanceOverrideFlags != null)
+          'instanceoverrideflags': '$instanceOverrideFlags',
+        if (valueFlags != null) 'valueflags': '$valueFlags',
+      };
+}
+
+/// The decoded type-record heads of a binary TOF1 file, in table order —
+/// see [BinaryTypeRecord] for the layout. Detection is IDENTICAL to
+/// [binaryTypeNames] (this is the same scan keeping the head fields), so
+/// the corpus-pinned table is shared.
+List<BinaryTypeRecord> binaryTypeRecords(Uint8List seqBytes) =>
+    _withLayout(seqBytes, _typeRecordsFromBody);
+
+/// Defensive cap on flag words read after the version triple while looking
+/// for the record delimiter (real records carry at most four flags plus a
+/// trailing zero).
+const _typeMaxFlagWords = 8;
+
+List<BinaryTypeRecord> _typeRecordsFromBody(
+    Uint8List body, int recordRegionLength,
     [List<String>? sharedPool]) {
   final pool = sharedPool ?? _orderedStringPool(body, recordRegionLength);
   if (pool.isEmpty) return const [];
   final view = ByteData.sublistView(body);
   final versionLike = RegExp(r'^\d+\.\d+');
   final seen = <String>{};
-  final names = <String>[];
+  final records = <BinaryTypeRecord>[];
+  String? tok(int word) =>
+      word > 0 && word < pool.length && pool[word].isNotEmpty
+          ? pool[word]
+          : null;
   for (var at = 0; at + _typeRecordMinBytes <= recordRegionLength; at++) {
     final stamp = view.getUint32(at + _typeStampOffset, Endian.little);
     if (stamp < _typeStampMin || stamp > _typeStampMax) continue;
@@ -1155,7 +1264,7 @@ List<String> _typeNamesFromBody(Uint8List body, int recordRegionLength,
     if (nameIndex == 0 || nameIndex >= pool.length) continue;
     final name = pool[nameIndex];
     if (name.isEmpty || !_typeNamePattern.hasMatch(name)) continue;
-    var hasTriple = false;
+    int? tripleAt;
     for (final tripleStart in _typeVersionTripleStarts) {
       if (at + tripleStart + _typeVersionTripleWords * _u32Bytes >
           recordRegionLength) {
@@ -1175,14 +1284,54 @@ List<String> _typeNamesFromBody(Uint8List body, int recordRegionLength,
         }
       }
       if (triple) {
-        hasTriple = true;
+        tripleAt = tripleStart;
         break;
       }
     }
-    if (!hasTriple) continue;
-    if (seen.add(name)) names.add(name);
+    if (tripleAt == null) continue;
+    if (!seen.add(name)) continue;
+    // Head fields are PASSIVE — never part of the detection gate, so the
+    // corpus-pinned detection counts cannot shift: class word right before
+    // the name, typecategory right after, flags after the triple up to the
+    // record delimiter (trailing zeros dropped).
+    final className = at >= _u32Bytes
+        ? tok(view.getUint32(at - _u32Bytes, Endian.little))
+        : null;
+    final typeCategory = view.getUint32(at + _u32Bytes, Endian.little);
+    final versions = [
+      for (var i = 0; i < _typeVersionTripleWords; i++)
+        pool[view.getUint32(at + tripleAt + i * _u32Bytes, Endian.little)],
+    ];
+    final flags = <int>[];
+    var flagAt = at + tripleAt + _typeVersionTripleWords * _u32Bytes;
+    var framed = false;
+    while (flagAt + _u32Bytes <= recordRegionLength &&
+        flags.length < _typeMaxFlagWords) {
+      final value = view.getUint32(flagAt, Endian.little);
+      if (value == _recordDelimiter) {
+        framed = true;
+        break;
+      }
+      flags.add(value);
+      flagAt += _u32Bytes;
+    }
+    if (framed) {
+      while (flags.isNotEmpty && flags.last == 0) {
+        flags.removeLast();
+      }
+    } else {
+      flags.clear(); // tail did not frame — report nothing, not guesses
+    }
+    records.add(BinaryTypeRecord(
+      name: name,
+      className: className,
+      typeCategory: typeCategory,
+      timestamp: stamp,
+      versions: versions,
+      flags: flags,
+    ));
   }
-  return names;
+  return records;
 }
 
 /// A step reference in the record region is a run of four `u32` pool-index words
@@ -1342,7 +1491,7 @@ List<BinarySequenceOutline> binarySequenceOutlines(Uint8List seqBytes) =>
 
 List<BinarySequenceOutline> _sequenceOutlinesFromBody(
     Uint8List body, int recordRegionLength,
-    [List<String>? sharedPool]) {
+    [List<String>? sharedPool, List<String>? sharedTypeNames]) {
   final pool = sharedPool ?? _orderedStringPool(body, recordRegionLength);
   if (pool.isEmpty) return const [];
   final view = ByteData.sublistView(body);
@@ -1370,7 +1519,8 @@ List<BinarySequenceOutline> _sequenceOutlinesFromBody(
   // 1-based TYPE-TABLE index (see BinaryStepRef) — detection still keys on
   // its pool-string shape (corpus-pinned, zero false positives), and the
   // type binds only when the index lands in the recovered table.
-  final typeNames = _typeNamesFromBody(body, recordRegionLength, pool);
+  final typeNames =
+      sharedTypeNames ?? _typeNamesFromBody(body, recordRegionLength, pool);
   final stepToken = pool.indexOf(_stepToken);
   // First pass: detect references (offset, name, 1-based type index).
   final found = <(int, String, int)>[];
