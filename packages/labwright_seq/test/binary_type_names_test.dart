@@ -283,6 +283,18 @@ void main() {
                 '${fa.className}/${fa.scalar}');
           }
         }
+        // Requirements must hold a Links child; RTS children must never
+        // be structural tokens (a coincidental Obj anchor).
+        final req = s.raw.prop('Requirements');
+        if (req != null &&
+            !req.subProps.any((c) => c.name == 'Links')) {
+          offenders.add('${f.uri.pathSegments.last}: Requirements w/o Links');
+        }
+        for (final c in s.raw.prop('RTS')?.subProps ?? const <SeqProperty>[]) {
+          if (const {'Objs', 'Obj', 'Seq', 'Data', 'Step'}.contains(c.name)) {
+            offenders.add('${f.uri.pathSegments.last}: RTS.${c.name}');
+          }
+        }
       }
     }
     // ignore: avoid_print
@@ -339,6 +351,16 @@ void main() {
         if (bs.failureActionCode != null) {
           expect(bs.failureActionCode, xs.failureActionCode,
               reason: '$name ${bs.name}: failureActionCode');
+        }
+        // Requirement links and RTS presence, where decoded, match twin.
+        if (bs.raw.prop('Requirements') != null) {
+          expect(bs.requirementLinks, xs.requirementLinks,
+              reason: '$name ${bs.name}: requirementLinks');
+        }
+        if (bs.runtimeSettings != null) {
+          expect(bs.raw.prop('RTS')?.subProps.map((p) => p.name).toList(),
+              xs.raw.prop('RTS')?.subProps.map((p) => p.name).toList(),
+              reason: '$name ${bs.name}: RTS children');
         }
       }
     }

@@ -2672,7 +2672,7 @@ class BinarySequenceOutline {
     required this.cleanup,
     this.ungrouped = const [],
     this.leadingSubProps = const [],
-    this.tailScalarSubProps = const [],
+    this.tailSubProps = const [],
   });
 
   /// The sequence name (path element `[1]` of its object declaration).
@@ -2694,22 +2694,21 @@ class BinarySequenceOutline {
   /// `Cleanup`) are surfaced via [setup]/[main]/[cleanup].
   final List<BinaryTypeField> leadingSubProps;
 
-  /// The scalar sequence subprops that FOLLOW the group arrays —
-  /// `RecordResults` (Bool), `FailureAction` (Num) — anchor-located and
-  /// single-field parsed. The nested `RTS`/`Requirements` between them
-  /// are not yet decoded, so this holds only the scalars.
-  final List<BinaryTypeField> tailScalarSubProps;
+  /// The sequence subprops that FOLLOW the group arrays —
+  /// `RecordResults` (Bool), `FailureAction` (Num), `Requirements` (Obj
+  /// with its `Links` child) and `RTS` (Obj runtime settings) —
+  /// anchor-located and single-field parsed (see [_sequenceTailSubProps]).
+  final List<BinaryTypeField> tailSubProps;
 }
 
 /// The **sequence outlines** of a binary TOF1 file — each sequence with its
 /// typed steps grouped into Setup/Main/Cleanup (see [BinarySequenceOutline]
 /// for the assembly rule, and [BinaryStepRef] for the type binding), plus
 /// the sequence record's leading subprops (Parameters/Locals — see
-/// [BinarySequenceOutline.leadingSubProps]) and the post-group scalar
-/// subprops (RecordResults/FailureAction — see
-/// [BinarySequenceOutline.tailScalarSubProps]). The nested `RTS`/
-/// `Requirements` subprops are not yet decoded. Returns `[]` when
-/// [seqBytes] is not an inflatable binary file or does not frame.
+/// [BinarySequenceOutline.leadingSubProps]) and the post-group subprops
+/// (RecordResults/FailureAction/Requirements/RTS — see
+/// [BinarySequenceOutline.tailSubProps]). Returns `[]` when [seqBytes] is
+/// not an inflatable binary file or does not frame.
 List<BinarySequenceOutline> binarySequenceOutlines(Uint8List seqBytes) =>
     _withLayout(seqBytes, _sequenceOutlinesFromBody);
 
@@ -2862,9 +2861,9 @@ List<BinarySequenceOutline> _sequenceOutlinesFromBody(
       body, view, pool, recordRegionLength, table,
       {for (final (_, name) in sequenceDecls) name});
 
-  // Post-group SCALAR subprops (RecordResults, FailureAction) — the
-  // clean scalar fields that follow the Main/Setup/Cleanup group arrays.
-  final tail = _sequenceTailScalars(
+  // Post-group subprops (RecordResults, FailureAction, Requirements,
+  // RTS) — the fields that follow the Main/Setup/Cleanup group arrays.
+  final tail = _sequenceTailSubProps(
       view, pool, recordRegionLength, table, sequenceDecls);
 
   final seenNames = <String>{};
@@ -2878,21 +2877,23 @@ List<BinarySequenceOutline> _sequenceOutlinesFromBody(
           cleanup: outlines[name]!['Cleanup']!,
           ungrouped: ungrouped[name]!,
           leadingSubProps: leading[name] ?? const [],
-          tailScalarSubProps: tail[name] ?? const [],
+          tailSubProps: tail[name] ?? const [],
         ),
   ];
 }
 
-/// The post-group SCALAR sequence subprops that follow the
-/// Main/Setup/Cleanup group arrays — `RecordResults` (Bool) and
-/// `FailureAction` (Num). Each is a clean `[flags][0][class][name]
-/// [value]` field located by ANCHOR (its expected class token
-/// immediately before its name token) and parsed as a single field;
-/// associated with the nearest preceding sequence declaration. The
-/// intervening `RTS`/`Requirements` are nested instances not yet
-/// decoded, so this reaches only the scalars — honestly, by name+class,
-/// never a positional guess.
-Map<String, List<BinaryTypeField>> _sequenceTailScalars(
+/// The sequence subprops that follow the Main/Setup/Cleanup group arrays,
+/// recovered by ANCHOR — each located by its expected class token
+/// immediately before its name token (with a zero slot), parsed as a
+/// single field, and associated with the nearest preceding sequence
+/// declaration:
+///   * scalars `RecordResults` (Bool) and `FailureAction` (Num);
+///   * `Requirements` (Obj) with its `Links` (Strs) child — the
+///     requirement-traceability list;
+///   * `RTS` (Obj) — the runtime/entry-point settings.
+/// Each is validated against its expected shape ([_TailSubProp.accepts])
+/// so a coincidental anchor is rejected — never a positional guess.
+Map<String, List<BinaryTypeField>> _sequenceTailSubProps(
     ByteData view,
     List<String> pool,
     int recordRegionLength,
@@ -2902,11 +2903,9 @@ Map<String, List<BinaryTypeField>> _sequenceTailScalars(
   int u32(int at) => view.getUint32(at, Endian.little);
   Set<int> indicesOf(String token) =>
       {for (var i = 1; i < pool.length; i++) if (pool[i] == token) i};
-  // (name, expected class) — the two scalar tail subprops.
-  const wanted = {'RecordResults': 'Bool', 'FailureAction': 'Num'};
-  final anchors = <(Set<int> nameIdx, Set<int> classIdx, String name)>[
-    for (final entry in wanted.entries)
-      (indicesOf(entry.key), indicesOf(entry.value), entry.key),
+  final anchors = [
+    for (final spec in _tailSubProps)
+      (indicesOf(spec.name), indicesOf(spec.className), spec),
   ];
   final sorted = [...sequenceDecls]..sort((a, b) => a.$1.compareTo(b.$1));
   String ownerOf(int offset) {
@@ -2921,22 +2920,48 @@ Map<String, List<BinaryTypeField>> _sequenceTailScalars(
   final result = <String, List<BinaryTypeField>>{};
   final seenPerOwner = <String, Set<String>>{};
   for (var at = 0; at + 4 * _u32Bytes <= recordRegionLength; at++) {
-    for (final (nameIdx, classIdx, name) in anchors) {
+    for (final (nameIdx, classIdx, spec) in anchors) {
       if (u32(at + _u32Bytes) != 0) continue; // the field's zero slot
       if (!classIdx.contains(u32(at + 2 * _u32Bytes))) continue;
       if (!nameIdx.contains(u32(at + 3 * _u32Bytes))) continue;
       final field = parser.parseFieldAt(at);
-      if (field == null || field.name != name || field.value == null) {
-        continue;
-      }
+      if (field == null || !spec.accepts(field)) continue;
       final owner = ownerOf(at);
       final seen = seenPerOwner.putIfAbsent(owner, () => <String>{});
-      if (!seen.add(name)) continue; // first occurrence per sequence
+      if (!seen.add(spec.name)) continue; // first occurrence per sequence
       result.putIfAbsent(owner, () => <BinaryTypeField>[]).add(field);
     }
   }
   return result;
 }
+
+/// A tail-subprop anchor spec: the name/class to anchor on and the shape
+/// gate that a coincidental parse must fail.
+class _TailSubProp {
+  const _TailSubProp(this.name, this.className, this.accepts);
+  final String name;
+  final String className;
+  final bool Function(BinaryTypeField) accepts;
+}
+
+/// The tail subprops recovered by [_sequenceTailSubProps], with their
+/// shape gates. Scalars must carry a value; `Requirements` must hold a
+/// `Links` child; `RTS` must be an object with children.
+final _tailSubProps = <_TailSubProp>[
+  _TailSubProp('RecordResults', 'Bool',
+      (f) => f.name == 'RecordResults' && f.value != null),
+  _TailSubProp('FailureAction', 'Num',
+      (f) => f.name == 'FailureAction' && f.value != null),
+  _TailSubProp(
+      'Requirements',
+      'Obj',
+      (f) =>
+          f.name == 'Requirements' &&
+          f.className == 'Obj' &&
+          f.children.any((c) => c.name == 'Links' && c.className == 'Strs')),
+  _TailSubProp('RTS', 'Obj',
+      (f) => f.name == 'RTS' && f.className == 'Obj' && f.children.isNotEmpty),
+];
 
 /// Decodes a step's `TS` subprops from the step-data descriptor node at
 /// [at] (`[0][0][DELIM][TS][childCount][children…]`, immediately after

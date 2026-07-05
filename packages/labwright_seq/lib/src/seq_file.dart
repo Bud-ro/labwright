@@ -484,7 +484,7 @@ SeqFile _parseBinary(Uint8List bytes) {
                 // synthesized below from the decoded step outlines.
                 for (final field in outline.leadingSubProps)
                   _typeFieldProp(field),
-                for (final field in outline.tailScalarSubProps)
+                for (final field in outline.tailSubProps)
                   _typeFieldProp(field),
                 SeqProperty(name: 'Setup', array: [...outline.setup.map(stepProp)]),
                 SeqProperty(name: 'Main', array: [...outline.main.map(stepProp)]),
