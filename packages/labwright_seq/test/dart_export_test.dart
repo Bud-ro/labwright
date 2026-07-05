@@ -85,6 +85,36 @@ void main() {
     expect(source, contains('Object? _eval(String expression)'));
   });
 
+  test('EVERY parseable corpus export passes dart analyze (one batch run)',
+      () {
+    // The whole-corpus compile gate: the review fleet found 14/388 exports
+    // failing analyze while the old two-file gate stayed green. All plain
+    // exports land in one temp dir and one analyzer invocation checks them
+    // all — the generator's type choices must never reject its own output.
+    final dir = Directory.systemTemp.createTempSync('seq_export_all_');
+    try {
+      var n = 0; // ignore: prefer_final_locals
+      for (final f in seqs) {
+        final SeqFile file;
+        try {
+          file = parseSeqFile(f.readAsBytesSync());
+        } catch (_) {
+          continue;
+        }
+        final out = File('${dir.path}/gen_${n++}.dart');
+        out.writeAsStringSync(
+            exportSeqFileToDart(file, sourceName: f.uri.pathSegments.last));
+      }
+      expect(n, greaterThan(300));
+      final result = Process.runSync('dart', ['analyze', dir.path]);
+      expect(result.exitCode, 0,
+          reason: 'all generated exports must analyze clean:\n'
+              '${result.stdout}');
+    } finally {
+      dir.deleteSync(recursive: true);
+    }
+  }, timeout: const Timeout(Duration(minutes: 5)));
+
   test('generated Dart passes dart analyze (oracle + flow-heaviest file)', () {
     File? flowHeaviestFile;
     var flowHeaviest = -1;

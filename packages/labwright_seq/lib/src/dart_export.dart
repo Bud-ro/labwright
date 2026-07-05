@@ -11,7 +11,7 @@
 ///  * TestStand expressions are translated where the translation is purely
 ///    mechanical (variable-root rewriting + the shared C-like operator set,
 ///    applied OUTSIDE string literals only); anything beyond that is preserved
-///    verbatim in a `ts.eval('…')` call so no logic is silently dropped or
+///    verbatim in an `_eval('…')` call so no logic is silently dropped or
 ///    guessed.
 ///  * Code-module steps become stub invocations; each unique module gets one
 ///    stub function that throws [UnimplementedError] with the original target.
@@ -74,16 +74,28 @@ const _dartReserved = {
 /// A Dart-identifier-safe form of a TestStand name: camelCase, invalid
 /// characters dropped, leading digit guarded, reserved/in-scope words suffixed.
 String dartIdentifier(String name, {bool capitalize = false}) {
-  final words = name
-      .split(RegExp(r'[^A-Za-z0-9]+'))
-      .where((w) => w.isNotEmpty)
-      .toList();
+  // Split on non-alphanumerics, then split camel/acronym boundaries inside
+  // each chunk: lower→Upper, and acronym-run→Word (DUTPresent → DUT +
+  // Present). Acronym runs then case like ordinary words (Effective Dart:
+  // "capitalize acronyms like words") — GUI Message UI SET →
+  // guiMessageUiSet, not gUIMessageUISET.
+  final words = <String>[
+    for (final chunk in name.split(RegExp(r'[^A-Za-z0-9]+')))
+      if (chunk.isNotEmpty)
+        ...chunk
+            .replaceAllMapped(RegExp(r'([a-z0-9])([A-Z])'),
+                (m) => '${m.group(1)} ${m.group(2)}')
+            .replaceAllMapped(RegExp(r'([A-Z]+)([A-Z][a-z])'),
+                (m) => '${m.group(1)} ${m.group(2)}')
+            .split(' ')
+            .where((w) => w.isNotEmpty),
+  ];
   if (words.isEmpty) return capitalize ? 'Unnamed' : 'unnamed';
   final buffer = StringBuffer();
   for (var i = 0; i < words.length; i++) {
-    final word = words[i];
+    final word = words[i].toLowerCase();
     if (i == 0 && !capitalize) {
-      buffer.write(word[0].toLowerCase() + word.substring(1));
+      buffer.write(word);
     } else {
       buffer.write(word[0].toUpperCase() + word.substring(1));
     }
@@ -110,7 +122,7 @@ const _variableRoots = {
 /// identifiers/member access, numbers, strings, and the operator set TestStand
 /// shares with Dart. `%` is deliberately absent — TestStand's modulo is
 /// C-style (sign of dividend) while Dart's is Euclidean, so `%` expressions
-/// keep their TestStand semantics via `ts.eval`. Bitwise `&`/`|` are handled
+/// keep their TestStand semantics via `_eval`. Bitwise `&`/`|` are handled
 /// separately (they bind tighter than comparisons in Dart but looser in
 /// TestStand's C-like grammar, so mechanical passthrough would silently
 /// re-parenthesize the expression).
@@ -169,6 +181,11 @@ class _DartExporter {
   /// to an undeclared name falls back to `_eval` (honest, never guessed).
   Map<String, String> _localIds = const {};
   Map<String, String> _paramIds = const {};
+
+  /// Generated Dart identifier → its declared Dart type ('double' | 'bool'
+  /// | 'String' | 'List' | 'dynamic') for the current sequence — drives the
+  /// _truthy elision and the double-subscript guard.
+  Map<String, String> _idTypes = const {};
 
   void _markUnported(String target) {
     final seq = _currentSeq;
@@ -265,7 +282,12 @@ class _DartExporter {
         if (i > start) out.add((text.substring(start, i), false));
         final quote = c;
         var j = i + 1;
-        while (j < text.length && (text[j] != quote || text[j - 1] == r'\')) {
+        while (j < text.length) {
+          if (text[j] == r'\') {
+            j += 2; // consume the escape pair (fixes even-backslash endings)
+            continue;
+          }
+          if (text[j] == quote) break;
           j++;
         }
         j = j < text.length ? j + 1 : text.length;
@@ -280,9 +302,81 @@ class _DartExporter {
     return out;
   }
 
-  /// Translates a TestStand expression to Dart, or wraps it in `ts.eval`.
+  /// Strips TestStand `//` and `/* */` comments from code (non-string)
+  /// segments — comments are non-semantic, and a surviving `//` would
+  /// swallow the generated line tail after newline flattening.
+  String _stripComments(String text) {
+    // Single-pass scanner: string literals copy through escape-aware
+    // (a quote INSIDE a /* */ comment must not open a bogus string, and
+    // a /* inside a string must not open a comment — segment-based
+    // stripping got both wrong).
+    final out = StringBuffer();
+    var i = 0;
+    while (i < text.length) {
+      final c = text[i];
+      if (c == '"' || c == "'") {
+        out.write(c);
+        i++;
+        while (i < text.length) {
+          out.write(text[i]);
+          if (text[i] == r'\') {
+            if (i + 1 < text.length) out.write(text[i + 1]);
+            i += 2;
+            continue;
+          }
+          final closed = text[i] == c;
+          i++;
+          if (closed) break;
+        }
+        continue;
+      }
+      if (c == '/' && i + 1 < text.length && text[i + 1] == '/') {
+        while (i < text.length && text[i] != '\n' && text[i] != '\r') {
+          i++;
+        }
+        continue;
+      }
+      if (c == '/' && i + 1 < text.length && text[i + 1] == '*') {
+        final end = text.indexOf('*/', i + 2);
+        out.write(' ');
+        i = end < 0 ? text.length : end + 2;
+        continue;
+      }
+      out.write(c);
+      i++;
+    }
+    return out.toString();
+  }
+
+  /// Unwraps `#NoValidation(...)`: it suppresses EDIT-TIME expression
+  /// validation only — runtime semantics are the identity, so stripping
+  /// the wrapper is lossless.
+  String _stripNoValidation(String text) {
+    const marker = '#NoValidation(';
+    var result = text;
+    var at = result.indexOf(marker);
+    while (at >= 0) {
+      var depth = 1;
+      var i = at + marker.length;
+      while (i < result.length && depth > 0) {
+        if (result[i] == '(') depth++;
+        if (result[i] == ')') depth--;
+        i++;
+      }
+      if (depth != 0) return text; // unbalanced — leave for the eval fallback
+      result = result.substring(0, at) +
+          result.substring(at + marker.length, i - 1) +
+          result.substring(i);
+      at = result.indexOf(marker);
+    }
+    return result;
+  }
+
+  /// Translates a TestStand expression to Dart, or wraps it in `_eval`.
   String _expr(String raw) {
-    final trimmed = raw.trim();
+    var trimmed = raw.trim();
+    if (trimmed.isEmpty) return "''";
+    trimmed = _stripNoValidation(_stripComments(trimmed)).trim();
     if (trimmed.isEmpty) return "''";
 
     // Comma/paren state must carry ACROSS string-literal boundaries: in
@@ -307,7 +401,18 @@ class _DartExporter {
     final rebuilt = StringBuffer();
     for (final (segment, isString) in _segments(trimmed)) {
       if (isString) {
-        rebuilt.write(segment);
+        // A raw newline cannot live in a single-line Dart literal, and
+        // escapes Dart does not share with TestStand (\a, \0, …) would
+        // silently drop the backslash — both keep TestStand semantics
+        // via the eval fallback. `\$` is escaped so a TestStand literal
+        // can never become accidental Dart interpolation.
+        if (segment.contains('\n') || segment.contains('\r')) {
+          return _evalFallback(raw);
+        }
+        if (RegExp(r'''\\[^nrt"'\\]''').hasMatch(segment)) {
+          return _evalFallback(raw);
+        }
+        rebuilt.write(segment.replaceAll('\$', r'\$'));
         continue;
       }
       var code = segment;
@@ -328,7 +433,8 @@ class _DartExporter {
       if (RegExp(r'\*\s*[A-Za-z_]').hasMatch(code)) return _evalFallback(raw);
       code = code
           .replaceAll(RegExp(r'\bTrue\b'), 'true')
-          .replaceAll(RegExp(r'\bFalse\b'), 'false');
+          .replaceAll(RegExp(r'\bFalse\b'), 'false')
+          .replaceAll(RegExp(r'(?<!\.)\bNothing\b'), 'null');
       // Locals/Parameters rewrite to the sequence's own typed Dart
       // variables; a reference to an UNDECLARED name has no variable to
       // land on — _eval fallback, never guessed.
@@ -379,6 +485,31 @@ class _DartExporter {
       }
       // Multi-line source expressions must land on one generated line.
       code = code.replaceAll(RegExp(r'\s*[\r\n]+\s*'), ' ');
+      // An expression left syntactically incomplete (a comment swallowed
+      // its continuation: `GetSequenceFile().`) cannot be emitted as Dart.
+      if (RegExp(r'[.+\-*/<>=&|!,]\s*$').hasMatch(code)) {
+        return _evalFallback(raw);
+      }
+      // A method call on a TYPED local (x.SetNumElements(...)) has no
+      // Dart member to land on — dynamic receivers dispatch, typed
+      // ones would not compile. Keep TestStand semantics via eval.
+      for (final m in RegExp(
+              r'\b([A-Za-z_][A-Za-z0-9_]*)\.[A-Za-z_][A-Za-z0-9_.]*\s*\(')
+          .allMatches(code)) {
+        if (_idTypes.containsKey(m.group(1)) &&
+            _idTypes[m.group(1)] != 'dynamic') {
+          return _evalFallback(raw);
+        }
+      }
+      // A double-typed variable used as a LIST SUBSCRIPT cannot compile
+      // (Dart indexes with int) and truncation vs rounding is a TestStand
+      // semantic we have not pinned — keep via eval.
+      for (final m in RegExp(r'\[([^\[\]]*)\]').allMatches(code)) {
+        for (final idm in RegExp(r'[A-Za-z_][A-Za-z0-9_]*')
+            .allMatches(m.group(1)!)) {
+          if (_idTypes[idm.group(0)] == 'double') return _evalFallback(raw);
+        }
+      }
       // Any bare identifier that survived rewriting must be a name the
       // generated scope actually declares — otherwise it is a TestStand
       // constant (Nothing, NAN, INF, ...) that would not compile.
@@ -387,7 +518,7 @@ class _DartExporter {
         'fileGlobals', 'stationGlobals', 'runState', 'step',
       };
       final generatedName =
-          RegExp(r'^_(select|matched)\d+$|^_element$|^_[a-z][A-Za-z0-9]*$');
+          RegExp(r'^_(select|matched)\d+$|^_element$|^__LWELEMENT__$|^_[a-z][A-Za-z0-9]*$');
       final codeSansKeys = code.replaceAll(RegExp(r"'[^']*'"), '');
       for (final m in RegExp(r'\b([A-Za-z_][A-Za-z0-9_]*)\b')
           .allMatches(codeSansKeys)) {
@@ -408,6 +539,65 @@ class _DartExporter {
   }
 
   String _evalFallback(String raw) => "_eval('${_escape(raw)}')";
+
+  /// A condition expression: translates via [_expr] and drops the `_truthy`
+  /// wrapper when the result is STATICALLY a Dart bool — comparisons
+  /// (`==`/`!=` are bool on Object; `<` etc. only with a typed/literal
+  /// receiver), `!`-prefixed forms, `&&`/`||` combinations (Dart casts the
+  /// operands to bool either way), bool literals, and bool-typed
+  /// locals/params. A double-typed variable becomes the exact TestStand
+  /// numeric truthiness `x != 0`. Everything else (dynamic member paths,
+  /// `_eval` results, String/num expressions) keeps `_truthy`.
+  String _cond(String raw) {
+    final e = _expr(raw);
+    if (_staticallyBool(e)) return e;
+    if (_idTypes[e] == 'double') return '$e != 0';
+    return '_truthy($e)';
+  }
+
+  bool _staticallyBool(String e) {
+    if (e.startsWith('_eval(')) return false;
+    if (e == 'true' || e == 'false') return true;
+    if (_idTypes[e] == 'bool') return true;
+    if (e.startsWith('!')) return true; // Dart ! forces a bool static type
+    // Top-level scan outside string literals and parens.
+    var depth = 0;
+    String? topOp;
+    for (final (segment, isString) in _segments(e)) {
+      if (isString) continue;
+      for (var i = 0; i < segment.length; i++) {
+        final c = segment[i];
+        if (c == '(' || c == '[') depth++;
+        if (c == ')' || c == ']') depth--;
+        if (depth > 0) continue;
+        if (c == '&' && i + 1 < segment.length && segment[i + 1] == '&') {
+          return true; // both operands are cast to bool by Dart
+        }
+        if (c == '|' && i + 1 < segment.length && segment[i + 1] == '|') {
+          return true;
+        }
+        if ((c == '=' || c == '!') &&
+            i + 1 < segment.length &&
+            segment[i + 1] == '=') {
+          topOp ??= '==';
+        }
+        if (c == '<' || c == '>') topOp ??= '<';
+      }
+    }
+    if (topOp == '==') return true; // Object.== is declared bool
+    if (topOp == '<') {
+      // Ordering operators are provably bool only on a typed receiver:
+      // a numeric/string literal or a typed local/param leading the LHS.
+      final lead = RegExp(r'^\(?\s*([A-Za-z_][A-Za-z0-9_]*|[0-9.]+)')
+          .firstMatch(e)
+          ?.group(1);
+      if (lead == null) return false;
+      if (RegExp(r'^[0-9.]').hasMatch(lead)) return true;
+      final t = _idTypes[lead];
+      return t == 'double' || t == 'bool' || t == 'String';
+    }
+    return false;
+  }
 
   String _escape(String s) => s
       .replaceAll(r'\', r'\\')
@@ -447,7 +637,12 @@ class _DartExporter {
       return id;
     }
 
-    _paramIds = {for (final p in sequence.parameters) p.name: claim(p.name)};
+    final seenParams = <String>{};
+    final emittedParams = [
+      for (final p in sequence.parameters)
+        if (seenParams.add(p.name)) p, // duplicate names in source: first wins
+    ];
+    _paramIds = {for (final p in emittedParams) p.name: claim(p.name)};
     final seenLocals = <String>{};
     final emittedLocals = [
       for (final local in sequence.locals)
@@ -456,12 +651,22 @@ class _DartExporter {
         if (local.name != 'ResultList' && seenLocals.add(local.name)) local,
     ];
     _localIds = {for (final l in emittedLocals) l.name: claim(l.name)};
+    String typeOf(SeqVariable v) {
+      final scalar = _scalarType(v);
+      if (scalar != null) return scalar.$1;
+      return _isArrayVar(v) ? 'List' : 'dynamic';
+    }
+
+    _idTypes = {
+      for (final p in emittedParams) _paramIds[p.name]!: typeOf(p),
+      for (final l in emittedLocals) _localIds[l.name]!: typeOf(l),
+    };
 
     // Parameters: typed where the class is scalar. Scalars with a declared
     // default are non-nullable; containers are `dynamic` so exported member
     // paths (Parameters.Result.Status) still compile via dynamic dispatch.
     final params = [
-      for (final p in sequence.parameters) _paramDecl(p, _paramIds[p.name]!),
+      for (final p in emittedParams) _paramDecl(p, _paramIds[p.name]!),
     ];
     _out.writeln('Future<void> $fnName('
         '${params.isEmpty ? '' : '{${params.join(', ')}}'}) async {');
@@ -488,6 +693,7 @@ class _DartExporter {
     _currentSeq = null;
     _localIds = const {};
     _paramIds = const {};
+    _idTypes = const {};
   }
 
   /// The Dart (type, zero-default) for a TestStand value class, or null when
@@ -509,11 +715,16 @@ class _DartExporter {
       const {'Nums', 'Strs', 'Objs', 'Containers'}
           .contains(v.raw.className);
 
-  String _typeComment(SeqVariable v) {
+  String _typeComment(SeqVariable v, {String? rawDefault}) {
     final t = v.type;
     final c = v.comment;
-    if (t == null && c == null) return '';
-    return ' // ${[if (t != null) t, if (c != null) _comment(c)].join(' — ')}';
+    final parts = [
+      if (t != null) t,
+      if (rawDefault != null) "default: ${_comment(rawDefault)}",
+      if (c != null) _comment(c),
+    ];
+    if (parts.isEmpty) return '';
+    return ' // ${parts.join(' — ')}';
   }
 
   /// The initializer for a scalar-typed variable: the declared default when
@@ -523,15 +734,23 @@ class _DartExporter {
   String _scalarInit(SeqVariable v, String type, String zero) {
     final value = v.value;
     if (value == null) return zero;
-    return switch (type) {
-      'double' => num.tryParse(value)?.toString() ?? zero,
-      'bool' => value == 'True'
-          ? 'true'
-          : value == 'False'
-              ? 'false'
-              : zero,
-      _ => "'${_escape(value)}'",
-    };
+    switch (type) {
+      case 'double':
+        final n = num.tryParse(value);
+        if (n == null) return zero; // non-literal default; raw kept in comment
+        // Integral magnitudes past 2^53 are imprecise as Dart int literals
+        // in a double context — emit the double form instead.
+        return n is int && n.abs() < 9007199254740992
+            ? n.toString()
+            : n.toDouble().toString();
+      case 'bool':
+        final lower = value.toLowerCase();
+        if (lower == 'true') return 'true';
+        if (lower == 'false') return 'false';
+        return zero; // non-literal default; raw kept in comment
+      default:
+        return "'${_escape(value)}'";
+    }
   }
 
   /// A typed named-parameter declaration. Scalars are non-nullable with the
@@ -541,9 +760,10 @@ class _DartExporter {
     final scalar = _scalarType(p);
     if (scalar != null) {
       final (type, zero) = scalar;
-      return '$type $id = ${_scalarInit(p, type, zero)}';
+      final init = _scalarInit(p, type, zero);
+      return '$type $id = $init';
     }
-    if (_isArrayVar(p)) return 'List<dynamic>? $id';
+    if (_isArrayVar(p)) return 'List<dynamic> $id = const []';
     return 'dynamic $id';
   }
 
@@ -552,13 +772,50 @@ class _DartExporter {
     final scalar = _scalarType(local);
     if (scalar != null) {
       final (type, zero) = scalar;
-      return '$type $id = ${_scalarInit(local, type, zero)};'
-          '${_typeComment(local)}';
+      final init = _scalarInit(local, type, zero);
+      // A non-literal declared default (expression, NAN, …) initializes to
+      // the class zero — the raw text rides in the comment, never dropped.
+      final fellBack = local.value != null &&
+          init == zero &&
+          type != 'String';
+      return '$type $id = $init;'
+          '${_typeComment(local, rawDefault: fellBack ? local.value : null)}';
     }
     if (_isArrayVar(local)) {
-      return 'List<dynamic> $id = <dynamic>[];${_typeComment(local)}';
+      return 'List<dynamic> $id = ${_arrayInit(local)};${_typeComment(local)}';
     }
     return 'dynamic $id;${_typeComment(local)}';
+  }
+
+  /// An array local's initializer: the DECLARED default elements (TestStand
+  /// pre-fills sized arrays — an empty list here would make count-driven
+  /// loops silently run zero times where the engine runs N). Scalars come
+  /// from each element's stored value or the element-class zero; nested
+  /// arrays/objects fall back to null placeholders of the right LENGTH.
+  String _arrayInit(SeqVariable local) {
+    final elements = local.raw.array;
+    if (elements == null || elements.isEmpty) return '<dynamic>[]';
+    final parts = <String>[];
+    for (final e in elements) {
+      final cls = e.className;
+      final scalar = e.scalar;
+      if (scalar != null) {
+        parts.add(switch (cls) {
+          'Num' => num.tryParse(scalar)?.toString() ?? "'${_escape(scalar)}'",
+          'Bool' || 'Boolean' =>
+            scalar.toLowerCase() == 'true' ? 'true' : 'false',
+          _ => "'${_escape(scalar)}'",
+        });
+      } else {
+        parts.add(switch (cls) {
+          'Num' => '0',
+          'Bool' || 'Boolean' => 'false',
+          'Str' || 'ExprValue' || 'PathValue' => "''",
+          _ => 'null',
+        });
+      }
+    }
+    return '<dynamic>[${parts.join(', ')}]';
   }
 
   // ── steps ──────────────────────────────────────────────────────────────────
@@ -594,22 +851,32 @@ class _DartExporter {
       }
       _indent--;
       if (opened.kind == FlowKind.doWhile) {
-        _line('} while (_truthy(${_expr(opened.condition ?? 'true')}));$note');
+        _line('} while (${_cond(opened.condition ?? 'true')});$note');
       } else {
         _line('}$note');
       }
     }
 
+    const defaultFlowNames = {
+      'If', 'Else', 'Else If', 'While', 'Do While', 'For', 'For Each',
+      'Select', 'Case', 'End', 'Break', 'Continue', 'Statement', 'Goto',
+    };
     for (final step in steps) {
       final flow = step.flowControl;
-      final name = _comment(step.name);
+      final rawName = _comment(step.name);
+      // A flow step named by its default TestStand name duplicates the
+      // emitted keyword (`} // End`, `{ // If`) — suppressed; a CUSTOM
+      // name stays (it is documentation).
+      final nameNote =
+          defaultFlowNames.contains(rawName) ? '' : ' // $rawName';
+      final name = rawName;
       if (flow == null) {
         _emitPlainStep(step);
         continue;
       }
       switch (flow.kind) {
         case FlowKind.ifBlock:
-          _line('if (_truthy(${_expr(flow.condition ?? 'true')})) { // $name');
+          _line('if (${_cond(flow.condition ?? 'true')}) {$nameNote');
           _indent++;
           open.add(
               (kind: flow.kind, increment: null, condition: null, selectId: 0));
@@ -620,8 +887,8 @@ class _DartExporter {
             continue;
           }
           _indent--;
-          _line('} else if (_truthy(${_expr(flow.condition ?? 'true')})) '
-              '{ // $name');
+          _line('} else if (${_cond(flow.condition ?? 'true')}) '
+              '{$nameNote');
           _indent++;
         case FlowKind.elseBlock:
           if (open.isEmpty || open.last.kind != FlowKind.ifBlock) {
@@ -630,16 +897,16 @@ class _DartExporter {
             continue;
           }
           _indent--;
-          _line('} else { // $name');
+          _line('} else {$nameNote');
           _indent++;
         case FlowKind.whileLoop:
-          _line('while (_truthy(${_expr(flow.condition ?? 'true')})) '
-              '{ // $name');
+          _line('while (${_cond(flow.condition ?? 'true')}) '
+              '{$nameNote');
           _indent++;
           open.add(
               (kind: flow.kind, increment: null, condition: null, selectId: 0));
         case FlowKind.doWhile:
-          _line('do { // $name');
+          _line('do {$nameNote');
           _indent++;
           open.add((
             kind: flow.kind,
@@ -649,38 +916,74 @@ class _DartExporter {
           ));
         case FlowKind.forLoop:
           final init = flow.initialization;
-          if (init != null) _line('${_exprStatement(init)}; // $name (init)');
-          _line('while (_truthy(${_expr(flow.condition ?? 'true')})) '
-              '{ // $name');
-          _indent++;
-          open.add((
-            kind: flow.kind,
-            increment: flow.increment,
-            condition: null,
-            selectId: 0,
-          ));
+          final initDart = init != null ? _exprStatement(init) : null;
+          final incrDart =
+              flow.increment != null ? _exprStatement(flow.increment!) : null;
+          // A real Dart `for` when init and increment both translate
+          // mechanically: the increment then runs on `continue` natively,
+          // eliminating the re-emit-before-continue pattern (and its
+          // missed-increment bug class). Otherwise keep the while-lowering.
+          final canFor = (initDart == null || !initDart.startsWith('_eval(')) &&
+              (incrDart == null || !incrDart.startsWith('_eval('));
+          if (canFor) {
+            _line('for (${initDart ?? ''}; '
+                '${_cond(flow.condition ?? 'true')}; ${incrDart ?? ''}) '
+                '{$nameNote');
+            _indent++;
+            open.add((
+              kind: flow.kind,
+              increment: null, // the for statement owns it
+              condition: null,
+              selectId: 0,
+            ));
+          } else {
+            if (init != null) {
+              _line('${initDart!};${nameNote.isEmpty ? ' // init' : '$nameNote (init)'}');
+            }
+            _line('while (${_cond(flow.condition ?? 'true')}) '
+                '{$nameNote');
+            _indent++;
+            open.add((
+              kind: flow.kind,
+              increment: flow.increment,
+              condition: null,
+              selectId: 0,
+            ));
+          }
         case FlowKind.forEach:
           final array = flow.arrayExpr ?? '[]';
           _line('for (final _element in _iterate(${_expr(array)})) '
-              '{ // $name');
+              '{$nameNote');
           _indent++;
           final element = flow.arrayElement;
           if (element != null) {
             final assign = _expr('$element = __LWELEMENT__');
-            if (assign.startsWith('ts.eval(')) {
+            if (assign.startsWith('_eval(')) {
               // Baking the Dart loop variable into a TestStand expression
               // string would be fabrication — keep the binding as a TODO.
               _line('// TODO: bind loop element: '
                   '${_comment(element)} = <element>');
             } else {
-              _line('${assign.replaceAll('__LWELEMENT__', '_element')};');
+              // Cast to the target's declared type — loud on a
+              // mismatched element, never a silent reinterpretation.
+              final targetId = RegExp(r'^([A-Za-z_][A-Za-z0-9_]*)')
+                  .firstMatch(assign)
+                  ?.group(1);
+              final cast = switch (_idTypes[targetId]) {
+                'double' => '(_element as num).toDouble()',
+                'bool' => '_element as bool',
+                'String' => '_element as String',
+                'List' => '_element as List<dynamic>',
+                _ => '_element',
+              };
+              _line('${assign.replaceAll('__LWELEMENT__', cast)};');
             }
           }
           open.add(
               (kind: flow.kind, increment: null, condition: null, selectId: 0));
         case FlowKind.selectBlock:
           selectCounter++;
-          _line('sel$selectCounter: { // $name');
+          _line('sel$selectCounter: {$nameNote');
           _indent++;
           _line('final _select$selectCounter = '
               '${_expr(flow.itemExpression ?? 'null')};');
@@ -700,10 +1003,10 @@ class _DartExporter {
             continue;
           }
           if (flow.isDefaultCase) {
-            _line('if (!_matched$select) { // $name (default case)');
+            _line('if (!_matched$select) {${nameNote.isEmpty ? ' // default case' : '$nameNote (default)'}');
           } else {
             _line('if (!_matched$select && _select$select == '
-                '${_expr(flow.itemExpression ?? 'null')}) { // $name');
+                '${_expr(flow.itemExpression ?? 'null')}) {$nameNote');
           }
           _indent++;
           _line('_matched$select = true;');
@@ -719,7 +1022,7 @@ class _DartExporter {
                 '(unbalanced in source)');
             continue;
           }
-          closeBlock(open.removeLast(), note: ' // $name');
+          closeBlock(open.removeLast(), note: nameNote);
         case FlowKind.breakStmt:
           final target = innermost(
               (k) => k == FlowKind.selectBlock || loopKinds.contains(k));
@@ -727,9 +1030,9 @@ class _DartExporter {
             _line('// $name: Break with no enclosing loop/select — kept as a '
                 'comment');
           } else if (target.kind == FlowKind.selectBlock) {
-            _line('break sel${target.selectId}; // $name');
+            _line('break sel${target.selectId};$nameNote');
           } else {
-            _line('break; // $name');
+            _line('break;$nameNote');
           }
         case FlowKind.continueStmt:
           final loop = innermost(loopKinds.contains);
@@ -741,7 +1044,7 @@ class _DartExporter {
               _line('${_exprStatement(loop.increment!)}; // for increment '
                   '(before continue)');
             }
-            _line('continue; // $name');
+            _line('continue;$nameNote');
           }
       }
     }
@@ -753,26 +1056,127 @@ class _DartExporter {
   }
 
   /// An expression used as a statement: assignment translates directly,
-  /// anything else routes through `ts.eval` to keep the side effect.
-  String _exprStatement(String raw) => _expr(raw);
+  /// anything else routes through `_eval` to keep the side effect.
+  /// A top-level assignment to a TYPED variable whose right-hand side
+  /// is visibly of another kind (Str local = numeric expression —
+  /// TestStand's engine coercion there is not pinned) keeps TestStand
+  /// semantics via the eval fallback rather than a guessed cast.
+  String _exprStatement(String raw) {
+    final translated = _expr(raw);
+    if (translated.startsWith('_eval(')) return translated;
+    final m =
+        RegExp(r'^([A-Za-z_][A-Za-z0-9_]*)\s*=(?![=])').firstMatch(translated);
+    if (m != null) {
+      final lhsType = _idTypes[m.group(1)];
+      final rhs = translated.substring(m.end).trim();
+      final looksString = rhs.startsWith("'") ||
+          rhs.startsWith('"') ||
+          _idTypes[rhs] == 'String' ||
+          rhs.startsWith('_str(');
+      final looksNumericLead = RegExp(r'^[0-9(]').hasMatch(rhs) ||
+          _idTypes[RegExp(r'^[A-Za-z_][A-Za-z0-9_]*')
+                  .firstMatch(rhs)
+                  ?.group(0) ??
+              ''] ==
+          'double';
+      if (lhsType == 'String' && looksNumericLead && !looksString) {
+        return _evalFallback(raw);
+      }
+      if (lhsType == 'double' && looksString) return _evalFallback(raw);
+      if (lhsType == 'bool' &&
+          !_staticallyBool(rhs) &&
+          (looksString || looksNumericLead)) {
+        return _evalFallback(raw);
+      }
+    }
+    return translated;
+  }
+
+  /// A statement-position expression, split at TOP-LEVEL COMMAS into
+  /// sequential statements — TestStand's comma is C-heritage sequential
+  /// evaluation, and in statement position the value is discarded, so the
+  /// split is lossless (30% of all corpus eval-fallbacks are these
+  /// assignment chains). Each piece translates independently; a piece
+  /// beyond mechanical translation gets its own _eval line.
+  List<String> _stmtParts(String raw) {
+    final cleaned = _stripNoValidation(_stripComments(raw));
+    final parts = <String>[];
+    var depth = 0;
+    var start = 0;
+    var consumed = 0;
+    for (final (segment, isString) in _segments(cleaned)) {
+      final base = consumed;
+      if (!isString) {
+        for (var i = 0; i < segment.length; i++) {
+          switch (segment[i]) {
+            case '(' || '[' || '{':
+              depth++;
+            case ')' || ']' || '}':
+              depth--;
+            case ',':
+              if (depth <= 0) {
+                parts.add(cleaned.substring(start, base + i));
+                start = base + i + 1;
+              }
+          }
+        }
+      }
+      consumed += segment.length;
+    }
+    parts.add(cleaned.substring(start));
+    bool balanced(String p) {
+      var d = 0;
+      for (final (seg, isString) in _segments(p)) {
+        if (isString) continue;
+        for (var i = 0; i < seg.length; i++) {
+          if (seg[i] == '(' || seg[i] == '[' || seg[i] == '{') d++;
+          if (seg[i] == ')' || seg[i] == ']' || seg[i] == '}') d--;
+          if (d < 0) return false;
+        }
+      }
+      // A piece ending inside an unterminated string shows up as a
+      // string segment missing its close quote — _segments absorbs to
+      // the end, so check the piece's own quote parity cheaply.
+      return d == 0 &&
+          '"'.allMatches(p.replaceAll(r'\"', '')).length.isEven;
+    }
+
+    if (parts.length > 1 && !parts.every(balanced)) {
+      return [_exprStatement(raw)]; // a piece mis-sliced — do not split
+    }
+    final out = <String>[
+      for (final p in parts)
+        if (p.trim().isNotEmpty) _exprStatement(p),
+    ];
+    return out.isEmpty ? [_exprStatement(raw)] : out;
+  }
+
+  /// Emits a statement-position expression, one line per top-level piece.
+  void _emitStmt(String raw, String note) {
+    final parts = _stmtParts(raw);
+    for (var i = 0; i < parts.length; i++) {
+      _line('${parts[i]};'
+          '${i == 0 ? ' // $note' : ' // $note (cont.)'}');
+    }
+  }
 
   void _emitPlainStep(Step step) {
     final settings = step.settings;
     final precondition = settings.precondition;
     if (precondition != null) {
-      _line('if (_truthy(${_expr(precondition)})) { '
+      _line('if (${_cond(precondition)}) { '
           '// precondition of ${_comment(step.name)}');
       _indent++;
     }
 
     final pre = settings.preExpression;
-    if (pre != null) _line('${_exprStatement(pre)}; // pre-expression');
+    if (pre != null) _emitStmt(pre, 'pre-expression');
 
     _emitStepAction(step);
 
     final post = settings.postExpression;
     if (post != null && step.type != 'Statement') {
-      _line('${_exprStatement(post)}; // post-expression');
+      _emitStmt(post, 'post-expression');
     }
 
     if (precondition != null) {
@@ -788,7 +1192,7 @@ class _DartExporter {
       case 'Statement':
         final expression = step.settings.postExpression;
         if (expression != null) {
-          _line('${_exprStatement(expression)}; // $name');
+          _emitStmt(expression, name);
         } else {
           _line('// $name: Statement with no expression');
         }
@@ -896,8 +1300,13 @@ class _DartExporter {
     final key = '$adapter|$target';
     return _stubs.putIfAbsent(key, () {
       final isSeq = module.adapter == SeqAdapter.sequenceCall;
-      final lastSegment =
-          target.split(RegExp(r'[/\\]')).last.split('.').first;
+      // Strip only a known file extension; a dotted TARGET NAME
+      // (UI.TestSocket.SetCaption) keeps every segment — collapsing to the
+      // first segment minted unreadable uI2…uI8 collision names.
+      final lastSegment = target
+          .split(RegExp(r'[/\\]'))
+          .last
+          .replaceFirst(RegExp(r'\.(vi|seq|dll|py)\$', caseSensitive: false), '');
       // An external sequence call reads as the sequence's own function name
       // (`await loadIniFile();` — implement it, or point it at the other
       // exported file's function); code-module stubs keep the `call` prefix.
@@ -906,9 +1315,10 @@ class _DartExporter {
           : 'call${dartIdentifier(lastSegment, capitalize: true)}');
       _stubDecls.add([
         if (isSeq) ...[
-          '/// External sequence `${_comment(target)}` (called from step ',
-          '/// `${_comment(step.name)}`) — lives in another sequence file.',
-          '/// TODO: implement, or delegate to that file\'s exported function.',
+          '/// External sequence `${_comment(target)}`',
+          '/// (called from step `${_comment(step.name)}`) — lives in another',
+          '/// sequence file. TODO: implement, or delegate to that file\'s',
+          '/// exported function.',
         ] else ...[
           '/// Stub for the $adapter module call `${_comment(target)}`',
           '/// (from step `${_comment(step.name)}`). TODO: implement against '
@@ -1045,16 +1455,16 @@ Object? _eval(String expression) =>
     throw UnimplementedError('TestStand expression: \$expression');
 
 /// TestStand `Len`: string length or array element count.
-num _len(Object? v) => switch (v) {
-      String s => s.length,
-      Iterable i => i.length,
-      Map m => m.length,
+double _len(Object? v) => switch (v) {
+      String s => s.length.toDouble(),
+      Iterable i => i.length.toDouble(),
+      Map m => m.length.toDouble(),
       _ => throw UnimplementedError('Len of \${v.runtimeType}'),
     };
 
 /// TestStand `GetNumElements` (array size). The engine-specific forms
 /// (extra arguments) are not implemented.
-num _getNumElements(Object? v, [Object? a]) => a == null
+double _getNumElements(Object? v, [Object? a]) => a == null
     ? _len(v)
     : throw UnimplementedError('GetNumElements with options');
 
@@ -1084,7 +1494,9 @@ String _str(Object? v, [Object? f1, Object? f2, Object? f3]) {
     throw UnimplementedError('Str with format options');
   }
   if (v is! num) return v.toString();
-  if (v is int || v == v.roundToDouble()) return v.toInt().toString();
+  if ((v is int || v == v.roundToDouble()) && v.abs() < 9007199254740992) {
+    return v.toInt().toString();
+  }
   var text = v.toStringAsPrecision(13);
   if (text.contains('.') && !text.contains('e')) {
     text = text.replaceAll(RegExp(r'0+\$'), '');
@@ -1106,11 +1518,13 @@ String _mid(Object? s, Object? offset, [Object? count]) {
   return text.substring(start, end);
 }
 
-num _find(Object? s, Object? sub, [Object? start]) {
+double _find(Object? s, Object? sub, [Object? start]) {
   if (s is! String || sub is! String) {
     throw UnimplementedError('Find of \${s.runtimeType}');
   }
-  return s.indexOf(sub, (start is num ? start.toInt() : 0).clamp(0, s.length));
+  return s
+      .indexOf(sub, (start is num ? start.toInt() : 0).clamp(0, s.length))
+      .toDouble();
 }
 
 String _clip(Object? s, Object? n, {required bool fromLeft}) {
@@ -1126,7 +1540,7 @@ String _clip(Object? s, Object? n, {required bool fromLeft}) {
 /// TestStand `Random()` / `Random(min, max)`. Seeded from the suite seed
 /// when one is set, so a seeded run reproduces its random waits/values.
 math.Random? _rngInstance;
-num _random([Object? min, Object? max]) {
+double _random([Object? min, Object? max]) {
   final rng = _rngInstance ??= $rngInit;
   final r = rng.nextDouble();
   if (min is num && max is num) return min + r * (max - min);
@@ -1142,9 +1556,22 @@ Future<void> _wait(Object? seconds) async {
   }
 }
 
-bool _truthy(Object? v) => v == true || (v is num && v != 0);
+bool _truthy(Object? v) => switch (v) {
+      bool b => b,
+      num n => n != 0,
+      // TestStand converts string operands by numeric parse: non-zero
+      // number text is True, anything else False (NI forum-confirmed).
+      String s => switch (num.tryParse(s.trim())) {
+          final num n => n != 0,
+          _ => false,
+        },
+      null => false,
+      _ => throw UnimplementedError(
+          'TestStand condition of type \${v.runtimeType}'),
+    };
 
-Iterable<Object?> _iterate(Object? v) =>
-    v is Iterable ? v : const <Object?>[];""");
+Iterable<Object?> _iterate(Object? v) => v is Iterable
+    ? v
+    : throw UnimplementedError('ForEach over \${v.runtimeType}');""");
   }
 }
