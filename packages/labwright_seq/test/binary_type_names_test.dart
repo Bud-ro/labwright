@@ -53,8 +53,7 @@ void main() {
     // Intrinsically-typed arrays and inline custom instances carry no
     // recoverable typename (engine-intrinsic types are not serialized) —
     // the class still must match.
-    final intrinsic = got.intrinsicTypeId != null ||
-        (got.instanceOverrides && got.typeName == null);
+    final intrinsic = got.typeNameEngineIntrinsic;
     expect(
         intrinsic ? got.className : got.typeName ?? got.className,
         intrinsic ? want.className : want.typeName ?? want.className,
@@ -64,10 +63,7 @@ void main() {
     // override subset, not a typed reference. Then the twin's children
     // must match one-for-one — catches swapped/dropped/fabricated
     // grandchildren the old top-level-only check missed.
-    final plainDeclaration = got.children.isNotEmpty &&
-        !got.instanceOverrides &&
-        got.typeName == null;
-    if (plainDeclaration) {
+    if (got.isPlainDeclaration) {
       expect(got.children.length, want.subProps.length,
           reason: '$path.${got.name}: child count');
       for (var i = 0; i < got.children.length; i++) {
