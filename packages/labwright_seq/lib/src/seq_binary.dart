@@ -1104,21 +1104,27 @@ const _typeRecordMinBytes = (3 + _typeVersionTripleWords) * _u32Bytes;
 /// word before SData is a ResStr index; the TS 4.x/5.0 leaf grammar
 /// barely fires on TS2021 files) are kept in git history at PRs #39/#48.
 ///
-/// TODO(binary decode, remaining): sequence locals/parameters (thin twin
-/// oracle: rosetta declares only the implicit `ResultList`) and TYPEDEF
-/// BODIES. Probe results for the bodies (2026-07, twin-scored flat pair
-/// scan — 29/117 typedefs exact, NOT shippable, kept out per no-hacks):
-///  * simple fields serialize as `[classTokenIdx][fieldNameIdx]` word
-///    pairs (`[Num][Code]`, `[Str][Msg]`, `[Bool][Occurred]` on Error);
-///  * fields typed by a NAMED type reference the type table like steps do
-///    — `[typeIdx+1][nameIdx]` (confirmed: NI_CustomResult's
-///    `Type:PropertyObjectType` as `[4][Type]`), but ExprValue-typed
-///    fields match NEITHER pair form;
-///  * flat scans flatten nesting: Objs-array fields inline their
-///    ElementType/LowerBounds/UpperBounds/Elements machinery, and
-///    StepType roots embed a full default-step instance — root-level
-///    extraction without the record-tree grammar fabricates structure.
-/// The variable-length container/record-tree grammar remains the lever.
+/// TODO(binary decode — typedef bodies; the head is DONE, see
+/// [BinaryTypeRecord]): the body follows the head's 0xffffffff delimiter
+/// as `[subpropCount]` then per-field records. Field model read off
+/// StepTypeMenu's fully-segmented 8-field body (u32 stream at byte 141 of
+/// the oracle; the stream is BYTE-granular — records start at unaligned
+/// offsets):
+///  * field := `[w1][w2][clsIdx][nameIdx][valueIdx|0]` — prefix `[2][0]`
+///    on valued scalars (`Str Category ""`), `[0][0]` otherwise; Bool
+///    fields carry an explicit `0` (false) value word; `<value/>` strings
+///    carry value word 0;
+///  * a field typed by a NAMED type (ItemName typename='Expression')
+///    replaces the class word with a DELIM-framed block
+///    (`[0x82][0][0xffffffff][0]` on the oracle — marker semantics not
+///    yet decoded) followed by the `[nameIdx][valueIdx]` pair;
+///  * nesting is real: Objs fields inline ElementType/bounds machinery
+///    and StepType roots embed a full default-step instance, so the body
+///    parser must consume exactly `subpropCount` fields with per-class
+///    rules and mark anything unrecognized as undecoded (flat scans
+///    reached only 29/117 twin-exact and fabricate root structure).
+/// Locals/parameters: thin twin oracle (rosetta declares only the
+/// implicit `ResultList`) — ride along once the body parser exists.
 List<String> binaryTypeNames(Uint8List seqBytes) =>
     _withLayout(seqBytes, _typeNamesFromBody);
 
