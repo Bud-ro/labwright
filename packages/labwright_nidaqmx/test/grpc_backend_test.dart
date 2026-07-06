@@ -72,8 +72,7 @@ void main() {
     test('forwards custom min/max/terminalConfig/timeout on the wire', () async {
       final fake = FakeDaqmxService();
       await startWith(daqmx: fake);
-      await daq.readVoltage('cDAQ1Mod1/ai0',
-          min: -5, max: 5, terminalConfig: DaqmxVal.diff, timeout: 2.5);
+      await daq.readVoltage('cDAQ1Mod1/ai0', min: -5, max: 5, terminalConfig: DaqmxVal.diff, timeout: 2.5);
       expect(fake.aiConfigs.single.min, -5);
       expect(fake.aiConfigs.single.max, 5);
       expect(fake.aiConfigs.single.termCfg, DaqmxVal.diff);
@@ -85,8 +84,7 @@ void main() {
       await startWith(daqmx: fake);
       await expectLater(
         daq.readVoltage('cDAQ1Mod1/ai0'),
-        throwsA(isA<DaqmxException>()
-            .having((e) => e.operation, 'op', 'DAQmxReadAnalogScalarF64')),
+        throwsA(isA<DaqmxException>().having((e) => e.operation, 'op', 'DAQmxReadAnalogScalarF64')),
       );
       expect(fake.clearedTasks, hasLength(1));
     });
@@ -103,7 +101,8 @@ void main() {
 
     test('a positive DAQmx warning does not throw and the reading is returned', () async {
       final fake = FakeDaqmxService()
-        ..failAiChanStatus = 200015 // warning code (>0)
+        ..failAiChanStatus =
+            200015 // warning code (>0)
         ..channelValues['cDAQ1Mod1/ai0'] = 7.0;
       await startWith(daqmx: fake);
       expect(await daq.readVoltage('cDAQ1Mod1/ai0'), 7.0);
@@ -131,8 +130,7 @@ void main() {
       await startWith(daqmx: fake);
       await expectLater(
         daq.writeVoltage('cDAQ1Mod2/ao0', 1.0),
-        throwsA(isA<DaqmxException>()
-            .having((e) => e.operation, 'op', 'DAQmxCreateAOVoltageChan')),
+        throwsA(isA<DaqmxException>().having((e) => e.operation, 'op', 'DAQmxCreateAOVoltageChan')),
       );
       expect(fake.clearedTasks, hasLength(1));
     });
@@ -142,8 +140,7 @@ void main() {
       await startWith(daqmx: fake);
       await expectLater(
         daq.writeVoltage('cDAQ1Mod2/ao0', 1.0),
-        throwsA(isA<DaqmxException>()
-            .having((e) => e.operation, 'op', 'DAQmxWriteAnalogScalarF64')),
+        throwsA(isA<DaqmxException>().having((e) => e.operation, 'op', 'DAQmxWriteAnalogScalarF64')),
       );
       expect(fake.clearedTasks, hasLength(1));
     });
@@ -155,10 +152,12 @@ void main() {
       await startWith(daqmx: fake);
       await expectLater(
         daq.readVoltage('cDAQ1Mod1/ai0'),
-        throwsA(isA<DaqmxException>()
-            .having((e) => e.status, 'status', -200279)
-            .having((e) => e.message, 'message', contains('Simulated DAQmx error'))
-            .having((e) => e.operation, 'op', 'DAQmxCreateAIVoltageChan')),
+        throwsA(
+          isA<DaqmxException>()
+              .having((e) => e.status, 'status', -200279)
+              .having((e) => e.message, 'message', contains('Simulated DAQmx error'))
+              .having((e) => e.operation, 'op', 'DAQmxCreateAIVoltageChan'),
+        ),
       );
     });
 
@@ -180,8 +179,7 @@ void main() {
       await startWith(daqmx: fake);
       await expectLater(
         daq.readVoltage('cDAQ1Mod1/ai0'),
-        throwsA(isA<DaqmxException>()
-            .having((e) => e.message, 'message', contains('error text unavailable'))),
+        throwsA(isA<DaqmxException>().having((e) => e.message, 'message', contains('error text unavailable'))),
       );
     });
 
@@ -198,13 +196,17 @@ void main() {
       await expectLater(daq.deviceNames(), throwsA(isA<DaqmxUnavailable>()));
     });
 
-    test('a hung server is bounded by callTimeout and surfaces DaqmxUnavailable', () async {
-      await startWith(
-        utilities: FakeUtilitiesService(hang: true),
-        callTimeout: const Duration(milliseconds: 300),
-      );
-      await expectLater(daq.deviceNames(), throwsA(isA<DaqmxUnavailable>()));
-    }, timeout: const Timeout(Duration(seconds: 10)));
+    test(
+      'a hung server is bounded by callTimeout and surfaces DaqmxUnavailable',
+      () async {
+        await startWith(
+          utilities: FakeUtilitiesService(hang: true),
+          callTimeout: const Duration(milliseconds: 300),
+        );
+        await expectLater(daq.deviceNames(), throwsA(isA<DaqmxUnavailable>()));
+      },
+      timeout: const Timeout(Duration(seconds: 10)),
+    );
 
     test('close() is idempotent', () async {
       await startWith();

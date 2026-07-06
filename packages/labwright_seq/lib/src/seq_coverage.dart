@@ -52,10 +52,10 @@ class SeqCoverage {
   double get accountedRatio => total == 0 ? 0 : (modeled + plumbing) / total;
 
   SeqCoverage operator +(SeqCoverage o) => SeqCoverage(
-        total: total + o.total,
-        modeled: modeled + o.modeled,
-        plumbing: plumbing + o.plumbing,
-      );
+    total: total + o.total,
+    modeled: modeled + o.modeled,
+    plumbing: plumbing + o.plumbing,
+  );
 }
 
 /// The `TS` step-setting keys the lens surfaces (kept in sync with [StepSettings]
@@ -104,17 +104,28 @@ const _callParamKeys = [
 /// The step **type**-definition fields the [StepTypeInfo] lens surfaces (flat
 /// siblings of `TS` under a step in a text/INI export).
 const _stepTypeKeys = [
-  'CodeTemplates', 'DescriptionFormat', 'DefaultNameFormat',
-  'BlockStartTypes', 'BlockEndTypes', 'AppliesToBlockStructure',
-  'CanEncapsulate', 'Substeps',
+  'CodeTemplates',
+  'DescriptionFormat',
+  'DefaultNameFormat',
+  'BlockStartTypes',
+  'BlockEndTypes',
+  'AppliesToBlockStructure',
+  'CanEncapsulate',
+  'Substeps',
 ];
 
 /// The result-hint descriptor fields each `AdditionalResultsHints`/`CustomResults`
 /// element carries (surfaced as raw structure; NI-internal Flags/CheckedState
 /// codes are not decoded).
 const _resultHintKeys = [
-  'Name', 'Type', 'ValueToLog', 'Condition', 'IsAnyType', 'Flags',
-  'CheckedState', 'Elements',
+  'Name',
+  'Type',
+  'ValueToLog',
+  'Condition',
+  'IsAnyType',
+  'Flags',
+  'CheckedState',
+  'Elements',
 ];
 
 /// The `SData` module-call configuration fields the [StepModule] lens surfaces —
@@ -141,15 +152,27 @@ const _sdataSettingKeys = [
 /// The LabVIEW VI-call (`SData.ViCall`) settings the lens surfaces beyond the
 /// VI path — remote/real-time deployment and node options.
 const _viCallSettingKeys = [
-  'RemoteVIPath', 'RemoteHost', 'RemoteHostByExpr', 'AutoDetectLVRT',
-  'NodeOperationMode', 'CallType', 'VIType', 'ClassPath', 'RemoteProjectPath',
+  'RemoteVIPath',
+  'RemoteHost',
+  'RemoteHostByExpr',
+  'AutoDetectLVRT',
+  'NodeOperationMode',
+  'CallType',
+  'VIType',
+  'ClassPath',
+  'RemoteProjectPath',
 ];
 
 /// The Python-adapter session fields under `SData.PythonCall` the lens surfaces.
 const _pythonSessionKeys = [
-  'InterpreterLocation', 'ClassInstanceLocation', 'OperationType',
-  'OperationScope', 'InterpreterSessionScope', 'CreateIfInterpreterDoesNotExist',
-  'UseAdapterSettingsForInterpreterSession', 'DefaultParamCategoryForArray',
+  'InterpreterLocation',
+  'ClassInstanceLocation',
+  'OperationType',
+  'OperationScope',
+  'InterpreterSessionScope',
+  'CreateIfInterpreterDoesNotExist',
+  'UseAdapterSettingsForInterpreterSession',
+  'DefaultParamCategoryForArray',
 ];
 
 /// The set of nodes the typed lens surfaces with meaning, by object identity.
@@ -159,8 +182,11 @@ Set<SeqProperty> _modeledNodes(SeqFile file) {
   void mark(SeqProperty? node) {
     if (node != null) modeled.add(node);
   }
+
   void markKeys(SeqProperty? owner, List<String> keys) {
-    for (final key in keys) { mark(owner?.prop(key)); }
+    for (final key in keys) {
+      mark(owner?.prop(key));
+    }
   }
 
   /// Marks [p] and its direct children (named sub-properties and array elements)
@@ -201,7 +227,10 @@ Set<SeqProperty> _modeledNodes(SeqFile file) {
       markSubtree(variable.raw);
     }
     markKeys(seq.raw, [
-      'RecordResults', 'GotoCleanupOnFail', 'FailureAction', 'StoreResults',
+      'RecordResults',
+      'GotoCleanupOnFail',
+      'FailureAction',
+      'StoreResults',
     ]);
     markContainer(seq.raw.prop('Requirements'));
     markContainer(seq.raw.prop('Requirements')?.prop('Links'));
@@ -323,7 +352,11 @@ Set<SeqProperty> _modeledNodes(SeqFile file) {
       final viCall = sdata?.prop('ViCall');
       mark(viCall?.prop('VIPath'));
       markKeys(viCall, [
-        'Namespace', 'ProjectPath', 'CallName', 'VIDescription', 'ShowFrnPnl',
+        'Namespace',
+        'ProjectPath',
+        'CallName',
+        'VIDescription',
+        'ShowFrnPnl',
         ..._viCallSettingKeys,
       ]);
       void markParam(SeqProperty node) {
@@ -378,10 +411,21 @@ Set<SeqProperty> _modeledNodes(SeqFile file) {
       // The ActiveX/COM automation adapter's call binding (`Call.*`): the target
       // object/server/interface/member identity + COM VTable/type-lib internals.
       markKeys(call, [
-        'CoClass', 'CoClassName', 'ObjectVariable',
-        'Server', 'ServerName', 'Interface', 'InterfaceName', 'InterfaceType',
-        'Member', 'MemberName', 'MemberType', 'HasMemberInfo', 'HasReturnValue',
-        'TypeLibVersion', 'VTableIndex',
+        'CoClass',
+        'CoClassName',
+        'ObjectVariable',
+        'Server',
+        'ServerName',
+        'Interface',
+        'InterfaceName',
+        'InterfaceType',
+        'Member',
+        'MemberName',
+        'MemberType',
+        'HasMemberInfo',
+        'HasReturnValue',
+        'TypeLibVersion',
+        'VTableIndex',
       ]);
       // The C/ActiveX adapter's connector list (`Call.Parms`), like ViCall.Parms.
       final callParms = call?.prop('Parms');
@@ -394,8 +438,11 @@ Set<SeqProperty> _modeledNodes(SeqFile file) {
       markKeys(sdata, ['ModuleSrcPath', 'ModulePrjPath', 'ModuleCreateSrcType']);
       final pyCall = sdata?.prop('PythonCall');
       markKeys(pyCall, [
-        'FunctionOrAttributeName', 'ModulePath', 'ClassName',
-        'PythonVersion', 'PythonVirtualEnvironmentPath',
+        'FunctionOrAttributeName',
+        'ModulePath',
+        'ClassName',
+        'PythonVersion',
+        'PythonVirtualEnvironmentPath',
       ]);
       mark(call?.prop('Parameters'));
       mark(sdata?.prop('PythonCall')?.prop('Parameters'));
@@ -404,8 +451,12 @@ Set<SeqProperty> _modeledNodes(SeqFile file) {
       }
       if (step.flowControl != null) {
         markKeys(step.raw, [
-          'ConditionExpr', 'InitializationExpr', 'IncrementExpr',
-          'ArrayExpr', 'ArrayElementExpr', 'OffsetExpr',
+          'ConditionExpr',
+          'InitializationExpr',
+          'IncrementExpr',
+          'ArrayExpr',
+          'ArrayElementExpr',
+          'OffsetExpr',
         ]);
       }
       mark(step.raw.prop('Comp'));
@@ -413,9 +464,18 @@ Set<SeqProperty> _modeledNodes(SeqFile file) {
       final limits = step.raw.prop('Limits');
       mark(limits);
       markKeys(limits, [
-        'Low', 'High', 'Nominal', 'ThresholdType',
-        'LowExpr', 'HighExpr', 'NominalExpr', 'UseLowExpr', 'UseHighExpr',
-        'ThresholdTypeExpr', 'UseThresholdTypeExpr', 'UseNominalExpr',
+        'Low',
+        'High',
+        'Nominal',
+        'ThresholdType',
+        'LowExpr',
+        'HighExpr',
+        'NominalExpr',
+        'UseLowExpr',
+        'UseHighExpr',
+        'ThresholdTypeExpr',
+        'UseThresholdTypeExpr',
+        'UseNominalExpr',
       ]);
       // The step's recorded-result slot — its full outcome record (status, report
       // text, error, numeric/measurement sub-records, pass/fail) is surfaced via
@@ -448,8 +508,15 @@ Set<SeqProperty> _modeledNodes(SeqFile file) {
       for (final parameter in step.measurementParameters) {
         mark(parameter.raw);
         markKeys(parameter.raw, [
-          'Name', 'Type', 'Direction', 'Dimension', 'ArgumentValue',
-          'TypeSpecialization', 'Log', 'ID', 'MessageType',
+          'Name',
+          'Type',
+          'Direction',
+          'Dimension',
+          'ArgumentValue',
+          'TypeSpecialization',
+          'Log',
+          'ID',
+          'MessageType',
         ]);
         final enumDef = parameter.raw.prop('EnumDefinition');
         mark(enumDef);
@@ -461,8 +528,14 @@ Set<SeqProperty> _modeledNodes(SeqFile file) {
   }
 
   markKeys(file.data, [
-    'ModelFile', 'ModelOption', 'LoadOpt', 'UnloadOpt', 'Version',
-    'BatchSync', 'SFGlobalsScope', 'Type',
+    'ModelFile',
+    'ModelOption',
+    'LoadOpt',
+    'UnloadOpt',
+    'Version',
+    'BatchSync',
+    'SFGlobalsScope',
+    'Type',
   ]);
   markContainer(file.data.prop('Requirements'));
   markContainer(file.data.prop('Requirements')?.prop('Links'));
@@ -474,8 +547,12 @@ Set<SeqProperty> _modeledNodes(SeqFile file) {
   if (measPlugins != null) {
     mark(measPlugins.raw);
     for (final key in [
-      'PinMapPath', 'EnableMonitoring', 'SpecificationsFilePaths',
-      'LevelsFilePaths', 'TimingFilePaths', 'PatternFilePaths',
+      'PinMapPath',
+      'EnableMonitoring',
+      'SpecificationsFilePaths',
+      'LevelsFilePaths',
+      'TimingFilePaths',
+      'PatternFilePaths',
     ]) {
       final node = measPlugins.raw.prop(key);
       mark(node);
@@ -500,13 +577,24 @@ Set<SeqProperty> _modeledNodes(SeqFile file) {
 ///   LabVIEW machinery, not TestStand test logic.
 const _plumbingNames = {
   '%ATTRIBUTES',
-  'TDChecksum', 'VI', 'ExpressVIName', 'NodeProperties',
-  'NodeLibraryName', 'NodeLibraryGenericTypeName', 'NodeClassDataName',
-  'NodeUsesDataValueReference', 'NodeIgnoresInternalErrors',
-  'PrototypeFlags', 'BuildSpecificationName',
+  'TDChecksum',
+  'VI',
+  'ExpressVIName',
+  'NodeProperties',
+  'NodeLibraryName',
+  'NodeLibraryGenericTypeName',
+  'NodeClassDataName',
+  'NodeUsesDataValueReference',
+  'NodeIgnoresInternalErrors',
+  'PrototypeFlags',
+  'BuildSpecificationName',
   'ArrayParametersMatchLVArrayDimenions',
-  'OverrideBinaryClassPath', 'OverrideBinaryVIPath', 'OverrideBinaryProjectPath',
-  'OverrideBinaryNamespace', 'OverrideBinaryVIChecksum', 'OverrideModuleOptions',
+  'OverrideBinaryClassPath',
+  'OverrideBinaryVIPath',
+  'OverrideBinaryProjectPath',
+  'OverrideBinaryNamespace',
+  'OverrideBinaryVIChecksum',
+  'OverrideModuleOptions',
 };
 
 /// The set of nodes classified as NI-internal [_plumbingNames] plumbing (whole
@@ -554,8 +642,7 @@ SeqCoverage measureCoverage(SeqFile file) {
   }
 
   count(file.data);
-  return SeqCoverage(
-      total: all.length, modeled: modeled.length, plumbing: plumbing.length);
+  return SeqCoverage(total: all.length, modeled: modeled.length, plumbing: plumbing.length);
 }
 
 /// The dotted `Data`-tree paths of every **unaccounted** node — neither modeled

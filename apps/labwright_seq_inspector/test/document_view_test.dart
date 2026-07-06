@@ -382,28 +382,30 @@ void main() {
   });
 
   test('documentText/Title render a legacy INI document', () {
-    final ini = ascii.encode([
-      '[__Header__]',
-      'ProductName = "TestStand"',
-      'Version = 354',
-      'Type = "SequenceFile"',
-      '[DEF, %OBJROOT]',
-      'SF = SequenceFileData',
-      '[DEF, SF]',
-      'Seq = Objs',
-      '%NAME = "Data"',
-      '[DEF, SF.Seq]',
-      '%[0] = Sequence',
-      '[DEF, SF.Seq[0]]',
-      'Main = Objs',
-      '%NAME = "MainSequence"',
-      '[DEF, SF.Seq[0].Main]',
-      '%[0] = Step',
-      '%TYPE: %[0] = "Action"',
-      '[DEF, SF.Seq[0].Main[0]]',
-      '%NAME = "iniStep"',
-      '',
-    ].join('\n'));
+    final ini = ascii.encode(
+      [
+        '[__Header__]',
+        'ProductName = "TestStand"',
+        'Version = 354',
+        'Type = "SequenceFile"',
+        '[DEF, %OBJROOT]',
+        'SF = SequenceFileData',
+        '[DEF, SF]',
+        'Seq = Objs',
+        '%NAME = "Data"',
+        '[DEF, SF.Seq]',
+        '%[0] = Sequence',
+        '[DEF, SF.Seq[0]]',
+        'Main = Objs',
+        '%NAME = "MainSequence"',
+        '[DEF, SF.Seq[0].Main]',
+        '%[0] = Step',
+        '%TYPE: %[0] = "Action"',
+        '[DEF, SF.Seq[0].Main[0]]',
+        '%NAME = "iniStep"',
+        '',
+      ].join('\n'),
+    );
     final doc = SeqDocument.parse(Uint8List.fromList(ini));
     expect(doc, isA<IniSeqDocument>());
     expect(documentTitle(doc), contains('1 sequences'));
@@ -416,86 +418,92 @@ void main() {
   });
 
   test('outline note shows a flow-action jump target', () {
-    final ini = ascii.encode([
-      '[__Header__]',
-      'ProductName = "TestStand"',
-      'Version = 354',
-      'Type = "SequenceFile"',
-      '[DEF, %OBJROOT]',
-      'SF = SequenceFileData',
-      '[DEF, SF]',
-      'Seq = Objs',
-      '%NAME = "Data"',
-      '[DEF, SF.Seq]',
-      '%[0] = Sequence',
-      '[DEF, SF.Seq[0]]',
-      'Main = Objs',
-      '%NAME = "MainSequence"',
-      '[DEF, SF.Seq[0].Main]',
-      '%[0] = Step',
-      '%TYPE: %[0] = "Action"',
-      '[DEF, SF.Seq[0].Main[0]]',
-      'TS = Obj',
-      '%NAME = "gotoStep"',
-      '[DEF, SF.Seq[0].Main[0].TS]',
-      'PassAct = String',
-      'FailAct = String',
-      'FailActTarget = String',
-      '[SF.Seq[0].Main[0].TS]',
-      'PassAct = "Next"',
-      'FailAct = "Goto"',
-      'FailActTarget = "\\"<Cleanup>\\""',
-      '',
-    ].join('\n'));
+    final ini = ascii.encode(
+      [
+        '[__Header__]',
+        'ProductName = "TestStand"',
+        'Version = 354',
+        'Type = "SequenceFile"',
+        '[DEF, %OBJROOT]',
+        'SF = SequenceFileData',
+        '[DEF, SF]',
+        'Seq = Objs',
+        '%NAME = "Data"',
+        '[DEF, SF.Seq]',
+        '%[0] = Sequence',
+        '[DEF, SF.Seq[0]]',
+        'Main = Objs',
+        '%NAME = "MainSequence"',
+        '[DEF, SF.Seq[0].Main]',
+        '%[0] = Step',
+        '%TYPE: %[0] = "Action"',
+        '[DEF, SF.Seq[0].Main[0]]',
+        'TS = Obj',
+        '%NAME = "gotoStep"',
+        '[DEF, SF.Seq[0].Main[0].TS]',
+        'PassAct = String',
+        'FailAct = String',
+        'FailActTarget = String',
+        '[SF.Seq[0].Main[0].TS]',
+        'PassAct = "Next"',
+        'FailAct = "Goto"',
+        'FailActTarget = "\\"<Cleanup>\\""',
+        '',
+      ].join('\n'),
+    );
     final doc = SeqDocument.parse(Uint8List.fromList(ini)) as IniSeqDocument;
     final outline = SeqOutline.of(doc.file);
     final step = outline.sequences.single.groups.single.steps.single;
     expect(step.notes, contains('flow Next/Goto→<Cleanup>'));
   });
 
-  test('outline note resolves an ID#: custom-condition target to a step name',
-      () {
-    final ini = ascii.encode([
-      '[__Header__]',
-      'ProductName = "TestStand"',
-      'Version = 354',
-      'Type = "SequenceFile"',
-      '[DEF, %OBJROOT]',
-      'SF = SequenceFileData',
-      '[DEF, SF]',
-      'Seq = Objs',
-      '%NAME = "Data"',
-      '[DEF, SF.Seq]',
-      '%[0] = Sequence',
-      '[DEF, SF.Seq[0]]',
-      'Main = Objs',
-      '%NAME = "MainSequence"',
-      '[DEF, SF.Seq[0].Main]',
-      '%[0] = Step',
-      '%[1] = Step',
-      '%TYPE: %[0] = "Action"',
-      '%TYPE: %[1] = "Action"',
-      '[DEF, SF.Seq[0].Main[0]]',
-      'TS = Obj',
-      '%NAME = "condStep"',
-      '[DEF, SF.Seq[0].Main[0].TS]',
-      'CustFalseActTarget = String',
-      '[SF.Seq[0].Main[0].TS]',
-      'CustFalseActTarget = "\\"ID#:STEP2\\""',
-      '[DEF, SF.Seq[0].Main[1]]',
-      'TS = Obj',
-      '%NAME = "targetStep"',
-      '[DEF, SF.Seq[0].Main[1].TS]',
-      'Id = String',
-      '[SF.Seq[0].Main[1].TS]',
-      'Id = "ID#:STEP2"',
-      '',
-    ].join('\n'));
-    final doc = SeqDocument.parse(Uint8List.fromList(ini)) as IniSeqDocument;
-    final outline = SeqOutline.of(doc.file);
-    final cond = outline.sequences.single.groups.single.steps.first;
-    expect(cond.notes, contains('cust-false→targetStep'));
-  });
+  test(
+    'outline note resolves an ID#: custom-condition target to a step name',
+    () {
+      final ini = ascii.encode(
+        [
+          '[__Header__]',
+          'ProductName = "TestStand"',
+          'Version = 354',
+          'Type = "SequenceFile"',
+          '[DEF, %OBJROOT]',
+          'SF = SequenceFileData',
+          '[DEF, SF]',
+          'Seq = Objs',
+          '%NAME = "Data"',
+          '[DEF, SF.Seq]',
+          '%[0] = Sequence',
+          '[DEF, SF.Seq[0]]',
+          'Main = Objs',
+          '%NAME = "MainSequence"',
+          '[DEF, SF.Seq[0].Main]',
+          '%[0] = Step',
+          '%[1] = Step',
+          '%TYPE: %[0] = "Action"',
+          '%TYPE: %[1] = "Action"',
+          '[DEF, SF.Seq[0].Main[0]]',
+          'TS = Obj',
+          '%NAME = "condStep"',
+          '[DEF, SF.Seq[0].Main[0].TS]',
+          'CustFalseActTarget = String',
+          '[SF.Seq[0].Main[0].TS]',
+          'CustFalseActTarget = "\\"ID#:STEP2\\""',
+          '[DEF, SF.Seq[0].Main[1]]',
+          'TS = Obj',
+          '%NAME = "targetStep"',
+          '[DEF, SF.Seq[0].Main[1].TS]',
+          'Id = String',
+          '[SF.Seq[0].Main[1].TS]',
+          'Id = "ID#:STEP2"',
+          '',
+        ].join('\n'),
+      );
+      final doc = SeqDocument.parse(Uint8List.fromList(ini)) as IniSeqDocument;
+      final outline = SeqOutline.of(doc.file);
+      final cond = outline.sequences.single.groups.single.steps.first;
+      expect(cond.notes, contains('cust-false→targetStep'));
+    },
+  );
 
   test('SeqOutline.of shapes sequences → groups → steps', () {
     final doc = SeqDocument.parse(_xml()) as XmlSeqDocument;
@@ -560,7 +568,9 @@ void main() {
 
   test('StepOutline.of surfaces a forced run mode (Skip) as runMode', () {
     final doc = SeqDocument.parse(_xmlWithSkip()) as XmlSeqDocument;
-    final step = SeqOutline.of(doc.file).sequences.single.groups.single.steps.single;
+    final step = SeqOutline.of(
+      doc.file,
+    ).sequences.single.groups.single.steps.single;
     expect(step.name, 'Skipped');
     expect(step.runMode, 'Skip');
     expect(step.summary, contains('{mode Skip}'));
@@ -609,7 +619,9 @@ void main() {
 
   test('StepOutline.of surfaces notable step flags as searchable notes', () {
     final doc = SeqDocument.parse(_xmlWithFlags()) as XmlSeqDocument;
-    final step = SeqOutline.of(doc.file).sequences.single.groups.single.steps.single;
+    final step = SeqOutline.of(
+      doc.file,
+    ).sequences.single.groups.single.steps.single;
     expect(step.notes, containsAll(['ignore-RTE', 'no-seq-fail', 'no-record']));
     expect(stepMatches(step, 'no-record'), isTrue);
     expect(step.summary, contains('no-seq-fail'));
@@ -617,61 +629,83 @@ void main() {
 
   test('StepOutline.of surfaces the Additional Results spec as a note', () {
     final doc = SeqDocument.parse(_xmlWithAddlResults()) as XmlSeqDocument;
-    final step = SeqOutline.of(doc.file).sequences.single.groups.single.steps.single;
-    expect(step.notes, contains('+results: Input, Output if Locals.Save == True'));
+    final step = SeqOutline.of(
+      doc.file,
+    ).sequences.single.groups.single.steps.single;
+    expect(
+      step.notes,
+      contains('+results: Input, Output if Locals.Save == True'),
+    );
     expect(stepMatches(step, 'output'), isTrue);
     expect(stepMatches(step, 'locals.save'), isTrue);
     expect(step.summary, contains('+results: Input'));
   });
 
-  test('StepOutline.of surfaces measurement parameters with type/direction', () {
-    final doc = SeqDocument.parse(_xmlWithMeasParams()) as XmlSeqDocument;
-    final step = SeqOutline.of(doc.file).sequences.single.groups.single.steps.single;
-    final p = step.measurementParams;
-    expect(p, hasLength(3));
-    expect(p[0].name, 'voltage_level');
-    expect(p[0].dataType, 'TypeDouble');
-    expect(p[0].direction, 'In');
-    expect(p[0].isArray, isFalse);
-    expect(p[0].cell, 'TypeDouble = 6');
-    expect(p[0].line, 'voltage_level in TypeDouble = 6');
-    expect(p[1].isArray, isTrue);
-    expect(p[1].typeSpecialization, 'IOResource');
-    expect(p[1].logged, isFalse);
-    expect(p[1].cell, 'TypeString (IOResource)[] · not logged');
-    expect(p[1].line, 'readings out TypeString (IOResource)[] [not logged]');
-    expect(p[2].name, 'measurement_type');
-    expect(p[2].enumValues, ['NONE=0', 'DC_VOLTS=1']);
-    expect(p[2].cell, 'TypeEnum {NONE=0, DC_VOLTS=1}');
-    expect(p[2].line, contains('{NONE=0, DC_VOLTS=1}'));
-    expect(stepMatches(step, 'voltage_level'), isTrue);
-    expect(stepMatches(step, 'typedouble'), isTrue);
-    expect(stepMatches(step, 'ioresource'), isTrue);
-    expect(stepMatches(step, 'dc_volts'), isTrue);
-    expect(step.summary, contains('voltage_level in TypeDouble = 6'));
-  });
+  test(
+    'StepOutline.of surfaces measurement parameters with type/direction',
+    () {
+      final doc = SeqDocument.parse(_xmlWithMeasParams()) as XmlSeqDocument;
+      final step = SeqOutline.of(
+        doc.file,
+      ).sequences.single.groups.single.steps.single;
+      final p = step.measurementParams;
+      expect(p, hasLength(3));
+      expect(p[0].name, 'voltage_level');
+      expect(p[0].dataType, 'TypeDouble');
+      expect(p[0].direction, 'In');
+      expect(p[0].isArray, isFalse);
+      expect(p[0].cell, 'TypeDouble = 6');
+      expect(p[0].line, 'voltage_level in TypeDouble = 6');
+      expect(p[1].isArray, isTrue);
+      expect(p[1].typeSpecialization, 'IOResource');
+      expect(p[1].logged, isFalse);
+      expect(p[1].cell, 'TypeString (IOResource)[] · not logged');
+      expect(p[1].line, 'readings out TypeString (IOResource)[] [not logged]');
+      expect(p[2].name, 'measurement_type');
+      expect(p[2].enumValues, ['NONE=0', 'DC_VOLTS=1']);
+      expect(p[2].cell, 'TypeEnum {NONE=0, DC_VOLTS=1}');
+      expect(p[2].line, contains('{NONE=0, DC_VOLTS=1}'));
+      expect(stepMatches(step, 'voltage_level'), isTrue);
+      expect(stepMatches(step, 'typedouble'), isTrue);
+      expect(stepMatches(step, 'ioresource'), isTrue);
+      expect(stepMatches(step, 'dc_volts'), isTrue);
+      expect(step.summary, contains('voltage_level in TypeDouble = 6'));
+    },
+  );
 
-  test('StepOutline.of surfaces the LabVIEW VI-call descriptor + connector pane', () {
-    final doc = SeqDocument.parse(_xmlWithViCall()) as XmlSeqDocument;
-    final step = SeqOutline.of(doc.file).sequences.single.groups.single.steps.single;
-    expect(step.adapter, 'labView');
-    expect(step.notes, contains('vi: lib NIDCPower.lvlib, proj NIDCPower.lvproj'));
-    final c = step.connectorParams;
-    expect(c, hasLength(2));
-    expect(c[0].label, '#11 sequence context');
-    expect(c[0].cell, 'Object Reference ←ThisContext');
-    expect(c[0].line, '#11 sequence context (Object Reference)←ThisContext');
-    expect(c[1].label, '#0 error out');
-    expect(c[1].cell, 'Container ←Step.Result.Error');
-    expect(stepMatches(step, 'object reference'), isTrue);
-    expect(stepMatches(step, 'nidcpower.lvlib'), isTrue);
-    expect(step.summary,
-        contains('#11 sequence context (Object Reference)←ThisContext'));
-  });
+  test(
+    'StepOutline.of surfaces the LabVIEW VI-call descriptor + connector pane',
+    () {
+      final doc = SeqDocument.parse(_xmlWithViCall()) as XmlSeqDocument;
+      final step = SeqOutline.of(
+        doc.file,
+      ).sequences.single.groups.single.steps.single;
+      expect(step.adapter, 'labView');
+      expect(
+        step.notes,
+        contains('vi: lib NIDCPower.lvlib, proj NIDCPower.lvproj'),
+      );
+      final c = step.connectorParams;
+      expect(c, hasLength(2));
+      expect(c[0].label, '#11 sequence context');
+      expect(c[0].cell, 'Object Reference ←ThisContext');
+      expect(c[0].line, '#11 sequence context (Object Reference)←ThisContext');
+      expect(c[1].label, '#0 error out');
+      expect(c[1].cell, 'Container ←Step.Result.Error');
+      expect(stepMatches(step, 'object reference'), isTrue);
+      expect(stepMatches(step, 'nidcpower.lvlib'), isTrue);
+      expect(
+        step.summary,
+        contains('#11 sequence context (Object Reference)←ThisContext'),
+      );
+    },
+  );
 
   test('StepOutline.of surfaces the Python call descriptor', () {
     final doc = SeqDocument.parse(_xmlWithPyCall()) as XmlSeqDocument;
-    final step = SeqOutline.of(doc.file).sequences.single.groups.single.steps.single;
+    final step = SeqOutline.of(
+      doc.file,
+    ).sequences.single.groups.single.steps.single;
     expect(step.adapter, 'python');
     expect(step.target, 'create_instrument_sessions');
     expect(step.notes, contains(r'python: mod ..\smu\test.py, py 3.9'));
@@ -695,21 +729,31 @@ void main() {
     expect(SeqOutline.of(doc.file).plugins, isNull);
   });
 
-  test('StepOutline.of surfaces custom condition, mutex, and result outcome', () {
-    final doc = SeqDocument.parse(_xmlStepExtras()) as XmlSeqDocument;
-    final step = SeqOutline.of(doc.file).sequences.single.groups.single.steps.single;
-    expect(step.expressions, contains(('Custom condition', 'Locals.go == True')));
-    expect(step.notes, contains('mutex "Bus"'));
-    expect(step.notes, contains('result status Passed'));
-    expect(stepMatches(step, 'locals.go'), isTrue);
-    expect(stepMatches(step, 'mutex'), isTrue);
-    expect(stepMatches(step, 'passed'), isTrue);
-    expect(step.summary, contains('mutex "Bus"'));
-  });
+  test(
+    'StepOutline.of surfaces custom condition, mutex, and result outcome',
+    () {
+      final doc = SeqDocument.parse(_xmlStepExtras()) as XmlSeqDocument;
+      final step = SeqOutline.of(
+        doc.file,
+      ).sequences.single.groups.single.steps.single;
+      expect(
+        step.expressions,
+        contains(('Custom condition', 'Locals.go == True')),
+      );
+      expect(step.notes, contains('mutex "Bus"'));
+      expect(step.notes, contains('result status Passed'));
+      expect(stepMatches(step, 'locals.go'), isTrue);
+      expect(stepMatches(step, 'mutex'), isTrue);
+      expect(stepMatches(step, 'passed'), isTrue);
+      expect(step.summary, contains('mutex "Bus"'));
+    },
+  );
 
   test('StepOutline.of surfaces a step status expression', () {
     final doc = SeqDocument.parse(_xmlWithStatusExpr()) as XmlSeqDocument;
-    final step = SeqOutline.of(doc.file).sequences.single.groups.single.steps.single;
+    final step = SeqOutline.of(
+      doc.file,
+    ).sequences.single.groups.single.steps.single;
     expect(step.name, 'Decide');
     expect(step.expressions, contains(('Status', 'Locals.x == 1')));
     expect(stepMatches(step, 'locals.x'), isTrue);
@@ -718,7 +762,9 @@ void main() {
 
   test('a Normal-mode step has no runMode (default is not noteworthy)', () {
     final doc = SeqDocument.parse(_xml()) as XmlSeqDocument;
-    final step = SeqOutline.of(doc.file).sequences.single.groups.single.steps.single;
+    final step = SeqOutline.of(
+      doc.file,
+    ).sequences.single.groups.single.steps.single;
     expect(step.runMode, isNull);
     expect(step.summary, isNot(contains('mode')));
   });
@@ -763,11 +809,17 @@ void main() {
   });
 
   test('VarOutline.label shows scalar value or container size', () {
-    expect(VarOutline(name: 'Count', type: 'Num', value: '3').label,
-        'Count : Num = 3');
     expect(
-      VarOutline(name: 'List', type: 'Objs', isArray: true, containerCount: 0)
-          .label,
+      VarOutline(name: 'Count', type: 'Num', value: '3').label,
+      'Count : Num = 3',
+    );
+    expect(
+      VarOutline(
+        name: 'List',
+        type: 'Objs',
+        isArray: true,
+        containerCount: 0,
+      ).label,
       'List : Objs [0]',
     );
     expect(
@@ -780,12 +832,21 @@ void main() {
     );
     expect(VarOutline(name: 'X', type: 'Str').label, 'X : Str');
     expect(
-      VarOutline(name: 'Off', type: 'Num', value: '4', comment: 'bitmask').label,
+      VarOutline(
+        name: 'Off',
+        type: 'Num',
+        value: '4',
+        comment: 'bitmask',
+      ).label,
       'Off : Num = 4  // bitmask',
     );
     expect(
-      VarOutline(name: 'T', type: 'Obj', containerCount: 2, comment: 'pass band')
-          .label,
+      VarOutline(
+        name: 'T',
+        type: 'Obj',
+        containerCount: 2,
+        comment: 'pass band',
+      ).label,
       'T : Obj {2 fields}  // pass band',
     );
   });
@@ -952,7 +1013,10 @@ void main() {
       expect(s.items, isNotEmpty);
     }
     final byTitle = {for (final s in sections) s.title: s.items};
-    expect(byTitle['Module call-targets'], contains(r'My Computer\Lib\Read.vi'));
+    expect(
+      byTitle['Module call-targets'],
+      contains(r'My Computer\Lib\Read.vi'),
+    );
     expect(byTitle['Expressions (test logic)'], contains('Locals.x == 1'));
     expect(byTitle['Quoted literals (values)'], contains('"6105A"'));
     expect(titles, isNot(contains('Named scalar values')));
@@ -966,24 +1030,30 @@ void main() {
       stringTable: const [],
       namedScalars: const [
         BinaryNamedScalar(
-            name: 'Parameters',
-            rawTag: 0,
-            rawTypeCode: 62,
-            value: 8192.0,
-            wordIndex: 2),
+          name: 'Parameters',
+          rawTag: 0,
+          rawTypeCode: 62,
+          value: 8192.0,
+          wordIndex: 2,
+        ),
       ],
       scalarDoubles: const [8192.0, -2.0],
       namedRecords: const [
         BinaryNamedRecord(name: 'ResultList', count: 10, rawTag: 2),
       ],
     );
-    final byTitle = {for (final s in binaryRecoverySections(doc)) s.title: s.items};
+    final byTitle = {
+      for (final s in binaryRecoverySections(doc)) s.title: s.items,
+    };
     expect(byTitle['Named scalar values'], isNotNull);
-    expect(byTitle['Named scalar values']!.single,
-        'Parameters = 8192.0  (raw type 62, not modeled)');
+    expect(
+      byTitle['Named scalar values']!.single,
+      'Parameters = 8192.0  (raw type 62, not modeled)',
+    );
     expect(byTitle['Inline numeric values'], ['8192.0', '-2.0']);
-    expect(byTitle['Named-record headers'],
-        ['ResultList ×10  (raw tag 2, not modeled)']);
+    expect(byTitle['Named-record headers'], [
+      'ResultList ×10  (raw tag 2, not modeled)',
+    ]);
     final rows = {for (final (k, v) in binaryHeaderRows(doc)) k: v};
     expect(rows['Inline numbers'], '2');
     expect(rows['Named scalars'], '1');

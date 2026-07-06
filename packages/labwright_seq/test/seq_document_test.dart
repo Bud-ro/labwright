@@ -6,23 +6,35 @@ import 'package:labwright_seq/labwright_seq.dart';
 import 'package:test/test.dart';
 
 Uint8List _xml() => Uint8List.fromList([
-      0xef, 0xbb, 0xbf,
-      ...utf8.encode("<?xml version='1.0'?>\n"
-          "<teststandfileheader type='SequenceFile' fileversion='920' productname='TestStand'>"
-          "<typelist/><Data classname='Obj'><subprops>"
-          "<Seq classname='Objs'><value lbound='[0]' ubound='[1]'><value>"
-          "<Sequence name='MainSequence' classname='Obj'><subprops>"
-          "<Main classname='Objs'><value lbound='[0]' ubound='[1]'>"
-          "<value><Step typename='Statement' name='S1'/></value></value></Main>"
-          "</subprops></Sequence></value></value></Seq></subprops></Data>"
-          "</teststandfileheader>"),
-    ]);
+  0xef,
+  0xbb,
+  0xbf,
+  ...utf8.encode(
+    "<?xml version='1.0'?>\n"
+    "<teststandfileheader type='SequenceFile' fileversion='920' productname='TestStand'>"
+    "<typelist/><Data classname='Obj'><subprops>"
+    "<Seq classname='Objs'><value lbound='[0]' ubound='[1]'><value>"
+    "<Sequence name='MainSequence' classname='Obj'><subprops>"
+    "<Main classname='Objs'><value lbound='[0]' ubound='[1]'>"
+    "<value><Step typename='Statement' name='S1'/></value></value></Main>"
+    "</subprops></Sequence></value></value></Seq></subprops></Data>"
+    "</teststandfileheader>",
+  ),
+]);
 
 Uint8List _binary() {
   final pool = <int>[];
-  for (final n in ['PaddingNameSoTheInflatedBodyExceedsTheSixtyFourByteGuardHere',
-      'SequenceFileData', 'MainSequence', 'Step', 'Locals', 'Parameters']) {
-    pool..addAll(ascii.encode(n))..add(0);
+  for (final n in [
+    'PaddingNameSoTheInflatedBodyExceedsTheSixtyFourByteGuardHere',
+    'SequenceFileData',
+    'MainSequence',
+    'Step',
+    'Locals',
+    'Parameters',
+  ]) {
+    pool
+      ..addAll(ascii.encode(n))
+      ..add(0);
   }
   final header = Uint8List(0x108);
   header.setAll(0, ascii.encode('TOF1'));
@@ -34,29 +46,31 @@ Uint8List _binary() {
   return b.toBytes();
 }
 
-Uint8List _ini() => ascii.encode([
-      '[__Header__]',
-      'ProductName = "TestStand"',
-      'Version = 354',
-      'Type = "SequenceFile"',
-      '',
-      '[DEF, %OBJROOT]',
-      'SF = SequenceFileData',
-      '[DEF, SF]',
-      'Seq = Objs',
-      '%NAME = "Data"',
-      '[DEF, SF.Seq]',
-      '%[0] = Sequence',
-      '[DEF, SF.Seq[0]]',
-      'Main = Objs',
-      '%NAME = "MainSequence"',
-      '[DEF, SF.Seq[0].Main]',
-      '%[0] = Step',
-      '%TYPE: %[0] = "Action"',
-      '[DEF, SF.Seq[0].Main[0]]',
-      '%NAME = "myStep"',
-      '',
-    ].join('\n'));
+Uint8List _ini() => ascii.encode(
+  [
+    '[__Header__]',
+    'ProductName = "TestStand"',
+    'Version = 354',
+    'Type = "SequenceFile"',
+    '',
+    '[DEF, %OBJROOT]',
+    'SF = SequenceFileData',
+    '[DEF, SF]',
+    'Seq = Objs',
+    '%NAME = "Data"',
+    '[DEF, SF.Seq]',
+    '%[0] = Sequence',
+    '[DEF, SF.Seq[0]]',
+    'Main = Objs',
+    '%NAME = "MainSequence"',
+    '[DEF, SF.Seq[0].Main]',
+    '%[0] = Step',
+    '%TYPE: %[0] = "Action"',
+    '[DEF, SF.Seq[0].Main[0]]',
+    '%NAME = "myStep"',
+    '',
+  ].join('\n'),
+);
 
 void main() {
   test('parse → XmlSeqDocument for XML', () {

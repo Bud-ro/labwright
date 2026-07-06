@@ -104,9 +104,13 @@ void main() {
       }
       files++;
       final stray = sectionTags.difference(inventory);
-      expect(stray, isEmpty,
-          reason: 'readViSections produced tag(s) $stray absent from parseVi inventory — '
-              'the two RSRC readers desynced in ${f.path}');
+      expect(
+        stray,
+        isEmpty,
+        reason:
+            'readViSections produced tag(s) $stray absent from parseVi inventory — '
+            'the two RSRC readers desynced in ${f.path}',
+      );
     }
     expect(files, greaterThan(0));
   });
@@ -128,7 +132,8 @@ void main() {
       for (final s in secs) {
         if (s.tag == 'VINS') {
           vinsCount++;
-          final isRsrc = s.bytes.length >= 12 &&
+          final isRsrc =
+              s.bytes.length >= 12 &&
               String.fromCharCodes(s.bytes.sublist(0, 4)) == 'RSRC' &&
               String.fromCharCodes(s.bytes.sublist(8, 12)) == 'LVIN';
           var reparses = false;
@@ -179,7 +184,8 @@ void main() {
         continue;
       }
       files++;
-      final same = out.length == header.length &&
+      final same =
+          out.length == header.length &&
           header.length >= _rsrcHeaderBytes &&
           eqRange(out, 0, header, 0, _rsrcHeaderBytes);
       if (same) {
@@ -217,7 +223,11 @@ void main() {
       }
     }
     expect(files, greaterThan(0));
-    expect(exact, equals(files), reason: 'info-subheader round-trip not byte-exact for ${files - exact} file(s): $diffs');
+    expect(
+      exact,
+      equals(files),
+      reason: 'info-subheader round-trip not byte-exact for ${files - exact} file(s): $diffs',
+    );
   });
 
   test('IDEMPOTENCY: ViBlockList.serialize() == raw block-list region for every VI', () {
@@ -379,8 +389,11 @@ void main() {
     }
     expect(checked, greaterThan(0));
     expect(markerInInventory, 0, reason: 'preGap marker tag appeared as a block: $bad');
-    expect(oppositePresent, greaterThan((checked * 0.95).floor()),
-        reason: 'opposite FTAB/VITS block missing: only $oppositePresent/$checked');
+    expect(
+      oppositePresent,
+      greaterThan((checked * 0.95).floor()),
+      reason: 'opposite FTAB/VITS block missing: only $oppositePresent/$checked',
+    );
   });
 
   test('INFO-AREA: subheader reservedA == [0,0,0x20]; reservedB == trailing-name offset', () {
@@ -412,8 +425,7 @@ void main() {
     expect(files, greaterThan(0));
     expect(badA, 0, reason: 'reservedA not [0,0,0x20] in $badA files');
     expect(nameOffChecked, greaterThan(1000), reason: 'too few name records checked: $nameOffChecked');
-    expect(nameOffMatch, nameOffChecked,
-        reason: 'reservedB != trailing-name offset: $nameOffMatch/$nameOffChecked');
+    expect(nameOffMatch, nameOffChecked, reason: 'reservedB != trailing-name offset: $nameOffMatch/$nameOffChecked');
   });
 
   test('INFO-AREA: name-table header is a fixed 12-byte struct, unrelated to nameRef', () {
@@ -449,8 +461,12 @@ void main() {
     expect(files, greaterThan(0));
     expect(twelve, files, reason: 'name-table header not always 12 bytes: $twelve/$files');
     expect(highRefFiles, greaterThan(0), reason: 'no high-nameRef files to disprove with (maxRef seen: $maxRefSeen)');
-    expect(highRefHeader12, highRefFiles,
-        reason: 'header grew with nameRef ($highRefHeader12/$highRefFiles stayed 12; max header at high ref: $maxHeaderAtHighRef, maxRef: $maxRefSeen)');
+    expect(
+      highRefHeader12,
+      highRefFiles,
+      reason:
+          'header grew with nameRef ($highRefHeader12/$highRefFiles stayed 12; max header at high ref: $maxHeaderAtHighRef, maxRef: $maxRefSeen)',
+    );
   });
 
   test('INFO-AREA: name-table headerValue is a data-area offset (< dataSize)', () {
@@ -502,8 +518,11 @@ void main() {
     }
     expect(files, greaterThan(0));
     expect(badWord0, 0, reason: 'word0 not always 0: $w0ex');
-    expect(filesWithWord8, lessThan((files * 0.02).ceil()),
-        reason: 'word8 nonzero in too many files ($filesWithWord8/$files) — not legacy-only');
+    expect(
+      filesWithWord8,
+      lessThan((files * 0.02).ceil()),
+      reason: 'word8 nonzero in too many files ($filesWithWord8/$files) — not legacy-only',
+    );
   });
 
   test('INFO-AREA: descriptor @16 is binary (0xFFFFFFFF | 0); nameRef is index-like', () {
@@ -536,8 +555,11 @@ void main() {
     expect(files, greaterThan(0));
     expect(badWords, isEmpty, reason: 'descriptor @16 not binary: $badWords');
     expect(maxInfoLen, greaterThan(4000), reason: 'corpus lacks large info areas to discriminate (max $maxInfoLen)');
-    expect(maxNameRef, lessThan(1000),
-        reason: 'nameRef looks like a byte offset, not an index: max $maxNameRef vs info up to $maxInfoLen');
+    expect(
+      maxNameRef,
+      lessThan(1000),
+      reason: 'nameRef looks like a byte offset, not an index: max $maxNameRef vs info up to $maxInfoLen',
+    );
   });
 
   test('INFO-AREA: name table recovers the trailing VI name for ~all VIs', () {
@@ -631,8 +653,11 @@ void main() {
       }
     }
     expect(files, greaterThan(0));
-    expect(exact, equals(files),
-        reason: 'data-area section round-trip not byte-exact for ${files - exact} file(s): $diffs');
+    expect(
+      exact,
+      equals(files),
+      reason: 'data-area section round-trip not byte-exact for ${files - exact} file(s): $diffs',
+    );
   });
 
   test('SECTION-EDIT: editSection no-op is byte-exact; grow/shrink re-parse correctly', () {
@@ -738,7 +763,10 @@ void main() {
     }
     expect(files, greaterThan(0));
     expect(fails, isEmpty, reason: 'subVI-name recovery cleanliness failures: $fails');
-    expect(withNames, greaterThan((files * 0.60).floor()),
-        reason: 'subVI-name recovery dropped: only $withNames/$files VIs yielded names ($totalNames total)');
+    expect(
+      withNames,
+      greaterThan((files * 0.60).floor()),
+      reason: 'subVI-name recovery dropped: only $withNames/$files VIs yielded names ($totalNames total)',
+    );
   });
 }

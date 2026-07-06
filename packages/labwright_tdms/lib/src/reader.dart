@@ -31,8 +31,7 @@ abstract final class TdmsReader {
       final nextSegmentOffset = cursor.u64();
       final rawDataOffset = cursor.u64();
       if (nextSegmentOffset < 0 || rawDataOffset < 0 || rawDataOffset > nextSegmentOffset) {
-        throw TdmsFormatException(
-            'invalid segment offsets (next=$nextSegmentOffset raw=$rawDataOffset)');
+        throw TdmsFormatException('invalid segment offsets (next=$nextSegmentOffset raw=$rawDataOffset)');
       }
       final segmentBodyStart = cursor.position;
 
@@ -51,8 +50,7 @@ abstract final class TdmsReader {
             carriesRawData = false;
           } else if (rawDataIndex == sameLayoutAsPreviousIndex) {
             // Layout unchanged from this object's previous segment.
-          } else if (rawDataIndex == daqmxFormatChangingIndex ||
-              rawDataIndex == daqmxDigitalLineIndex) {
+          } else if (rawDataIndex == daqmxFormatChangingIndex || rawDataIndex == daqmxDigitalLineIndex) {
             _readDaqmxRawDataIndex(cursor, object);
           } else {
             final dataTypeCode = cursor.u32();
@@ -83,7 +81,10 @@ abstract final class TdmsReader {
         if (activeObjects.any((object) => object.isDaqmx)) {
           _readDaqmxSamples(
             cursor,
-            [for (final object in activeObjects) if (object.isDaqmx) object],
+            [
+              for (final object in activeObjects)
+                if (object.isDaqmx) object,
+            ],
             rawDataStart,
             rawDataLength,
           );
@@ -127,8 +128,7 @@ abstract final class TdmsReader {
         final groupName = names[0];
         ensureGroup(groupName);
         final object = objectsByPath[path]!;
-        channelsByGroup[groupName]!
-            .add(TdmsChannelData(groupName, names[1], object.properties, object.samples));
+        channelsByGroup[groupName]!.add(TdmsChannelData(groupName, names[1], object.properties, object.samples));
       }
     }
 
@@ -206,8 +206,7 @@ class _ByteCursor {
 
   void _need(int count) {
     if (count < 0 || position + count > _bytes.length) {
-      throw TdmsFormatException(
-          'unexpected end of data: need $count byte(s) at offset $position of ${_bytes.length}');
+      throw TdmsFormatException('unexpected end of data: need $count byte(s) at offset $position of ${_bytes.length}');
     }
   }
 
@@ -400,16 +399,14 @@ void _readContiguousSamples(_ByteCursor cursor, _ObjectState object) {
 
   if (dataTypeCode == TdsType.string.code) {
     if (valueCount > cursor.remaining ~/ 4) {
-      throw TdmsFormatException(
-          'string offset count $valueCount exceeds remaining ${cursor.remaining} bytes');
+      throw TdmsFormatException('string offset count $valueCount exceeds remaining ${cursor.remaining} bytes');
     }
     var lastOffset = 0;
     for (var i = 0; i < valueCount; i++) {
       lastOffset = cursor.u32();
     }
     if (lastOffset > cursor.remaining) {
-      throw TdmsFormatException(
-          'string data size $lastOffset exceeds remaining ${cursor.remaining} bytes');
+      throw TdmsFormatException('string data size $lastOffset exceeds remaining ${cursor.remaining} bytes');
     }
     cursor.skip(lastOffset);
     return;
@@ -418,8 +415,7 @@ void _readContiguousSamples(_ByteCursor cursor, _ObjectState object) {
   final width = _elementWidth(dataTypeCode);
   if (width <= 0) throw TdmsFormatException('unsupported channel data type $dataTypeCode');
   if (valueCount > cursor.remaining ~/ width) {
-    throw TdmsFormatException(
-        'raw-data count $valueCount exceeds remaining ${cursor.remaining} bytes');
+    throw TdmsFormatException('raw-data count $valueCount exceeds remaining ${cursor.remaining} bytes');
   }
   for (var i = 0; i < valueCount; i++) {
     object.samples.add(_readSample(cursor, dataTypeCode));
@@ -445,7 +441,8 @@ void _readInterleavedSamples(_ByteCursor cursor, List<_ObjectState> objects) {
   if (sampleCount < 0) throw TdmsFormatException('negative raw-data count $sampleCount');
   if (sampleCount > cursor.remaining ~/ bytesPerSample) {
     throw TdmsFormatException(
-        'interleaved raw-data ($sampleCount x $bytesPerSample B) exceeds remaining ${cursor.remaining} bytes');
+      'interleaved raw-data ($sampleCount x $bytesPerSample B) exceeds remaining ${cursor.remaining} bytes',
+    );
   }
   for (var sample = 0; sample < sampleCount; sample++) {
     for (final object in objects) {
@@ -501,13 +498,11 @@ void _readDaqmxRawDataIndex(_ByteCursor cursor, _ObjectState object) {
 /// stride bytes per sample, each channel at its byte offset. Element width is
 /// inferred from the gaps between channel offsets. Applies the linear scale
 /// when the channel's data is stored unscaled.
-void _readDaqmxSamples(
-    _ByteCursor cursor, List<_ObjectState> objects, int rawDataStart, int rawDataLength) {
+void _readDaqmxSamples(_ByteCursor cursor, List<_ObjectState> objects, int rawDataStart, int rawDataLength) {
   final strideBytes = objects.first.daqmxStrideBytes;
   if (strideBytes <= 0) throw TdmsFormatException('invalid DAQmx stride $strideBytes');
   for (final object in objects) {
-    if (object.daqmxStrideBytes != strideBytes ||
-        object.daqmxBufferIndex != objects.first.daqmxBufferIndex) {
+    if (object.daqmxStrideBytes != strideBytes || object.daqmxBufferIndex != objects.first.daqmxBufferIndex) {
       throw TdmsFormatException('multi-buffer DAQmx raw data is not supported');
     }
   }
@@ -527,8 +522,7 @@ void _readDaqmxSamples(
     final scale = _daqmxLinearScale(object);
     for (var sample = 0; sample < sampleCount; sample++) {
       final rawValue = cursor.intAt(rawDataStart + sample * strideBytes + object.daqmxByteOffset, width);
-      object.samples
-          .add(scale.apply ? rawValue * scale.slope + scale.intercept : rawValue.toDouble());
+      object.samples.add(scale.apply ? rawValue * scale.slope + scale.intercept : rawValue.toDouble());
     }
   }
 }
@@ -558,9 +552,8 @@ void _readDaqmxSamples(
 /// Splits an object path (`/'group'/'channel'`) into its unescaped names.
 final RegExp _quotedSegmentPattern = RegExp("'((?:[^']|'')*)'");
 List<String> _parseObjectPath(String path) => [
-      for (final match in _quotedSegmentPattern.allMatches(path))
-        match.group(1)!.replaceAll("''", "'"),
-    ];
+  for (final match in _quotedSegmentPattern.allMatches(path)) match.group(1)!.replaceAll("''", "'"),
+];
 
 bool _bytesEqual(List<int> a, List<int> b) {
   if (a.length != b.length) return false;

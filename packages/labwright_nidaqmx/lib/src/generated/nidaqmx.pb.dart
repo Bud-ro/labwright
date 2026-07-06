@@ -30,8 +30,7 @@ class CreateTaskRequest extends $pb.GeneratedMessage {
   }) {
     final result = create();
     if (sessionName != null) result.sessionName = sessionName;
-    if (initializationBehavior != null)
-      result.initializationBehavior = initializationBehavior;
+    if (initializationBehavior != null) result.initializationBehavior = initializationBehavior;
     return result;
   }
 
@@ -44,13 +43,10 @@ class CreateTaskRequest extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'CreateTaskRequest',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'),
-      createEmptyInstance: create)
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'CreateTaskRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'), createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'sessionName')
-    ..aE<$1.SessionInitializationBehavior>(
-        2, _omitFieldNames ? '' : 'initializationBehavior',
+    ..aE<$1.SessionInitializationBehavior>(2, _omitFieldNames ? '' : 'initializationBehavior',
         enumValues: $1.SessionInitializationBehavior.values)
     ..hasRequiredFields = false;
 
@@ -58,8 +54,7 @@ class CreateTaskRequest extends $pb.GeneratedMessage {
   CreateTaskRequest clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   CreateTaskRequest copyWith(void Function(CreateTaskRequest) updates) =>
-      super.copyWith((message) => updates(message as CreateTaskRequest))
-          as CreateTaskRequest;
+      super.copyWith((message) => updates(message as CreateTaskRequest)) as CreateTaskRequest;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -69,8 +64,8 @@ class CreateTaskRequest extends $pb.GeneratedMessage {
   @$core.override
   CreateTaskRequest createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static CreateTaskRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<CreateTaskRequest>(create);
+  static CreateTaskRequest getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<CreateTaskRequest>(create);
   static CreateTaskRequest? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -85,8 +80,7 @@ class CreateTaskRequest extends $pb.GeneratedMessage {
   @$pb.TagNumber(2)
   $1.SessionInitializationBehavior get initializationBehavior => $_getN(1);
   @$pb.TagNumber(2)
-  set initializationBehavior($1.SessionInitializationBehavior value) =>
-      $_setField(2, value);
+  set initializationBehavior($1.SessionInitializationBehavior value) => $_setField(2, value);
   @$pb.TagNumber(2)
   $core.bool hasInitializationBehavior() => $_has(1);
   @$pb.TagNumber(2)
@@ -102,8 +96,7 @@ class CreateTaskResponse extends $pb.GeneratedMessage {
     final result = create();
     if (status != null) result.status = status;
     if (task != null) result.task = task;
-    if (newSessionInitialized != null)
-      result.newSessionInitialized = newSessionInitialized;
+    if (newSessionInitialized != null) result.newSessionInitialized = newSessionInitialized;
     return result;
   }
 
@@ -116,13 +109,10 @@ class CreateTaskResponse extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'CreateTaskResponse',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'),
-      createEmptyInstance: create)
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'CreateTaskResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'), createEmptyInstance: create)
     ..aI(1, _omitFieldNames ? '' : 'status')
-    ..aOM<$1.Session>(2, _omitFieldNames ? '' : 'task',
-        subBuilder: $1.Session.create)
+    ..aOM<$1.Session>(2, _omitFieldNames ? '' : 'task', subBuilder: $1.Session.create)
     ..aOB(3, _omitFieldNames ? '' : 'newSessionInitialized')
     ..hasRequiredFields = false;
 
@@ -130,8 +120,7 @@ class CreateTaskResponse extends $pb.GeneratedMessage {
   CreateTaskResponse clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   CreateTaskResponse copyWith(void Function(CreateTaskResponse) updates) =>
-      super.copyWith((message) => updates(message as CreateTaskResponse))
-          as CreateTaskResponse;
+      super.copyWith((message) => updates(message as CreateTaskResponse)) as CreateTaskResponse;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -141,8 +130,8 @@ class CreateTaskResponse extends $pb.GeneratedMessage {
   @$core.override
   CreateTaskResponse createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static CreateTaskResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<CreateTaskResponse>(create);
+  static CreateTaskResponse getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<CreateTaskResponse>(create);
   static CreateTaskResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -175,11 +164,7 @@ class CreateTaskResponse extends $pb.GeneratedMessage {
   void clearNewSessionInitialized() => $_clearField(3);
 }
 
-enum CreateAIVoltageChanRequest_TerminalConfigEnum {
-  terminalConfig,
-  terminalConfigRaw,
-  notSet
-}
+enum CreateAIVoltageChanRequest_TerminalConfigEnum { terminalConfig, terminalConfigRaw, notSet }
 
 enum CreateAIVoltageChanRequest_UnitsEnum { units, unitsRaw, notSet }
 
@@ -199,8 +184,7 @@ class CreateAIVoltageChanRequest extends $pb.GeneratedMessage {
     final result = create();
     if (task != null) result.task = task;
     if (physicalChannel != null) result.physicalChannel = physicalChannel;
-    if (nameToAssignToChannel != null)
-      result.nameToAssignToChannel = nameToAssignToChannel;
+    if (nameToAssignToChannel != null) result.nameToAssignToChannel = nameToAssignToChannel;
     if (terminalConfig != null) result.terminalConfig = terminalConfig;
     if (terminalConfigRaw != null) result.terminalConfigRaw = terminalConfigRaw;
     if (minVal != null) result.minVal = minVal;
@@ -220,27 +204,22 @@ class CreateAIVoltageChanRequest extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static const $core
-      .Map<$core.int, CreateAIVoltageChanRequest_TerminalConfigEnum>
+  static const $core.Map<$core.int, CreateAIVoltageChanRequest_TerminalConfigEnum>
       _CreateAIVoltageChanRequest_TerminalConfigEnumByTag = {
     4: CreateAIVoltageChanRequest_TerminalConfigEnum.terminalConfig,
     5: CreateAIVoltageChanRequest_TerminalConfigEnum.terminalConfigRaw,
     0: CreateAIVoltageChanRequest_TerminalConfigEnum.notSet
   };
-  static const $core.Map<$core.int, CreateAIVoltageChanRequest_UnitsEnum>
-      _CreateAIVoltageChanRequest_UnitsEnumByTag = {
+  static const $core.Map<$core.int, CreateAIVoltageChanRequest_UnitsEnum> _CreateAIVoltageChanRequest_UnitsEnumByTag = {
     8: CreateAIVoltageChanRequest_UnitsEnum.units,
     9: CreateAIVoltageChanRequest_UnitsEnum.unitsRaw,
     0: CreateAIVoltageChanRequest_UnitsEnum.notSet
   };
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'CreateAIVoltageChanRequest',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'),
-      createEmptyInstance: create)
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'CreateAIVoltageChanRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'), createEmptyInstance: create)
     ..oo(0, [4, 5])
     ..oo(1, [8, 9])
-    ..aOM<$1.Session>(1, _omitFieldNames ? '' : 'task',
-        subBuilder: $1.Session.create)
+    ..aOM<$1.Session>(1, _omitFieldNames ? '' : 'task', subBuilder: $1.Session.create)
     ..aOS(2, _omitFieldNames ? '' : 'physicalChannel')
     ..aOS(3, _omitFieldNames ? '' : 'nameToAssignToChannel')
     ..aE<InputTermCfgWithDefault>(4, _omitFieldNames ? '' : 'terminalConfig',
@@ -248,8 +227,7 @@ class CreateAIVoltageChanRequest extends $pb.GeneratedMessage {
     ..aI(5, _omitFieldNames ? '' : 'terminalConfigRaw')
     ..aD(6, _omitFieldNames ? '' : 'minVal')
     ..aD(7, _omitFieldNames ? '' : 'maxVal')
-    ..aE<VoltageUnits2>(8, _omitFieldNames ? '' : 'units',
-        enumValues: VoltageUnits2.values)
+    ..aE<VoltageUnits2>(8, _omitFieldNames ? '' : 'units', enumValues: VoltageUnits2.values)
     ..aI(9, _omitFieldNames ? '' : 'unitsRaw')
     ..aOS(10, _omitFieldNames ? '' : 'customScaleName')
     ..hasRequiredFields = false;
@@ -257,11 +235,8 @@ class CreateAIVoltageChanRequest extends $pb.GeneratedMessage {
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   CreateAIVoltageChanRequest clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  CreateAIVoltageChanRequest copyWith(
-          void Function(CreateAIVoltageChanRequest) updates) =>
-      super.copyWith(
-              (message) => updates(message as CreateAIVoltageChanRequest))
-          as CreateAIVoltageChanRequest;
+  CreateAIVoltageChanRequest copyWith(void Function(CreateAIVoltageChanRequest) updates) =>
+      super.copyWith((message) => updates(message as CreateAIVoltageChanRequest)) as CreateAIVoltageChanRequest;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -271,8 +246,8 @@ class CreateAIVoltageChanRequest extends $pb.GeneratedMessage {
   @$core.override
   CreateAIVoltageChanRequest createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static CreateAIVoltageChanRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<CreateAIVoltageChanRequest>(create);
+  static CreateAIVoltageChanRequest getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<CreateAIVoltageChanRequest>(create);
   static CreateAIVoltageChanRequest? _defaultInstance;
 
   @$pb.TagNumber(4)
@@ -285,8 +260,7 @@ class CreateAIVoltageChanRequest extends $pb.GeneratedMessage {
 
   @$pb.TagNumber(8)
   @$pb.TagNumber(9)
-  CreateAIVoltageChanRequest_UnitsEnum whichUnitsEnum() =>
-      _CreateAIVoltageChanRequest_UnitsEnumByTag[$_whichOneof(1)]!;
+  CreateAIVoltageChanRequest_UnitsEnum whichUnitsEnum() => _CreateAIVoltageChanRequest_UnitsEnumByTag[$_whichOneof(1)]!;
   @$pb.TagNumber(8)
   @$pb.TagNumber(9)
   void clearUnitsEnum() => $_clearField($_whichOneof(1));
@@ -402,33 +376,27 @@ class CreateAIVoltageChanResponse extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'CreateAIVoltageChanResponse',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'),
-      createEmptyInstance: create)
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'CreateAIVoltageChanResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'), createEmptyInstance: create)
     ..aI(1, _omitFieldNames ? '' : 'status')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   CreateAIVoltageChanResponse clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  CreateAIVoltageChanResponse copyWith(
-          void Function(CreateAIVoltageChanResponse) updates) =>
-      super.copyWith(
-              (message) => updates(message as CreateAIVoltageChanResponse))
-          as CreateAIVoltageChanResponse;
+  CreateAIVoltageChanResponse copyWith(void Function(CreateAIVoltageChanResponse) updates) =>
+      super.copyWith((message) => updates(message as CreateAIVoltageChanResponse)) as CreateAIVoltageChanResponse;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
-  static CreateAIVoltageChanResponse create() =>
-      CreateAIVoltageChanResponse._();
+  static CreateAIVoltageChanResponse create() => CreateAIVoltageChanResponse._();
   @$core.override
   CreateAIVoltageChanResponse createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static CreateAIVoltageChanResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<CreateAIVoltageChanResponse>(create);
+  static CreateAIVoltageChanResponse getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<CreateAIVoltageChanResponse>(create);
   static CreateAIVoltageChanResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -457,8 +425,7 @@ class CreateAOVoltageChanRequest extends $pb.GeneratedMessage {
     final result = create();
     if (task != null) result.task = task;
     if (physicalChannel != null) result.physicalChannel = physicalChannel;
-    if (nameToAssignToChannel != null)
-      result.nameToAssignToChannel = nameToAssignToChannel;
+    if (nameToAssignToChannel != null) result.nameToAssignToChannel = nameToAssignToChannel;
     if (minVal != null) result.minVal = minVal;
     if (maxVal != null) result.maxVal = maxVal;
     if (units != null) result.units = units;
@@ -476,25 +443,20 @@ class CreateAOVoltageChanRequest extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static const $core.Map<$core.int, CreateAOVoltageChanRequest_UnitsEnum>
-      _CreateAOVoltageChanRequest_UnitsEnumByTag = {
+  static const $core.Map<$core.int, CreateAOVoltageChanRequest_UnitsEnum> _CreateAOVoltageChanRequest_UnitsEnumByTag = {
     6: CreateAOVoltageChanRequest_UnitsEnum.units,
     7: CreateAOVoltageChanRequest_UnitsEnum.unitsRaw,
     0: CreateAOVoltageChanRequest_UnitsEnum.notSet
   };
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'CreateAOVoltageChanRequest',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'),
-      createEmptyInstance: create)
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'CreateAOVoltageChanRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'), createEmptyInstance: create)
     ..oo(0, [6, 7])
-    ..aOM<$1.Session>(1, _omitFieldNames ? '' : 'task',
-        subBuilder: $1.Session.create)
+    ..aOM<$1.Session>(1, _omitFieldNames ? '' : 'task', subBuilder: $1.Session.create)
     ..aOS(2, _omitFieldNames ? '' : 'physicalChannel')
     ..aOS(3, _omitFieldNames ? '' : 'nameToAssignToChannel')
     ..aD(4, _omitFieldNames ? '' : 'minVal')
     ..aD(5, _omitFieldNames ? '' : 'maxVal')
-    ..aE<VoltageUnits2>(6, _omitFieldNames ? '' : 'units',
-        enumValues: VoltageUnits2.values)
+    ..aE<VoltageUnits2>(6, _omitFieldNames ? '' : 'units', enumValues: VoltageUnits2.values)
     ..aI(7, _omitFieldNames ? '' : 'unitsRaw')
     ..aOS(8, _omitFieldNames ? '' : 'customScaleName')
     ..hasRequiredFields = false;
@@ -502,11 +464,8 @@ class CreateAOVoltageChanRequest extends $pb.GeneratedMessage {
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   CreateAOVoltageChanRequest clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  CreateAOVoltageChanRequest copyWith(
-          void Function(CreateAOVoltageChanRequest) updates) =>
-      super.copyWith(
-              (message) => updates(message as CreateAOVoltageChanRequest))
-          as CreateAOVoltageChanRequest;
+  CreateAOVoltageChanRequest copyWith(void Function(CreateAOVoltageChanRequest) updates) =>
+      super.copyWith((message) => updates(message as CreateAOVoltageChanRequest)) as CreateAOVoltageChanRequest;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -516,14 +475,13 @@ class CreateAOVoltageChanRequest extends $pb.GeneratedMessage {
   @$core.override
   CreateAOVoltageChanRequest createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static CreateAOVoltageChanRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<CreateAOVoltageChanRequest>(create);
+  static CreateAOVoltageChanRequest getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<CreateAOVoltageChanRequest>(create);
   static CreateAOVoltageChanRequest? _defaultInstance;
 
   @$pb.TagNumber(6)
   @$pb.TagNumber(7)
-  CreateAOVoltageChanRequest_UnitsEnum whichUnitsEnum() =>
-      _CreateAOVoltageChanRequest_UnitsEnumByTag[$_whichOneof(0)]!;
+  CreateAOVoltageChanRequest_UnitsEnum whichUnitsEnum() => _CreateAOVoltageChanRequest_UnitsEnumByTag[$_whichOneof(0)]!;
   @$pb.TagNumber(6)
   @$pb.TagNumber(7)
   void clearUnitsEnum() => $_clearField($_whichOneof(0));
@@ -621,33 +579,27 @@ class CreateAOVoltageChanResponse extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'CreateAOVoltageChanResponse',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'),
-      createEmptyInstance: create)
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'CreateAOVoltageChanResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'), createEmptyInstance: create)
     ..aI(1, _omitFieldNames ? '' : 'status')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   CreateAOVoltageChanResponse clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  CreateAOVoltageChanResponse copyWith(
-          void Function(CreateAOVoltageChanResponse) updates) =>
-      super.copyWith(
-              (message) => updates(message as CreateAOVoltageChanResponse))
-          as CreateAOVoltageChanResponse;
+  CreateAOVoltageChanResponse copyWith(void Function(CreateAOVoltageChanResponse) updates) =>
+      super.copyWith((message) => updates(message as CreateAOVoltageChanResponse)) as CreateAOVoltageChanResponse;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
-  static CreateAOVoltageChanResponse create() =>
-      CreateAOVoltageChanResponse._();
+  static CreateAOVoltageChanResponse create() => CreateAOVoltageChanResponse._();
   @$core.override
   CreateAOVoltageChanResponse createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static CreateAOVoltageChanResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<CreateAOVoltageChanResponse>(create);
+  static CreateAOVoltageChanResponse getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<CreateAOVoltageChanResponse>(create);
   static CreateAOVoltageChanResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -678,20 +630,16 @@ class StartTaskRequest extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'StartTaskRequest',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'),
-      createEmptyInstance: create)
-    ..aOM<$1.Session>(1, _omitFieldNames ? '' : 'task',
-        subBuilder: $1.Session.create)
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'StartTaskRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'), createEmptyInstance: create)
+    ..aOM<$1.Session>(1, _omitFieldNames ? '' : 'task', subBuilder: $1.Session.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   StartTaskRequest clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   StartTaskRequest copyWith(void Function(StartTaskRequest) updates) =>
-      super.copyWith((message) => updates(message as StartTaskRequest))
-          as StartTaskRequest;
+      super.copyWith((message) => updates(message as StartTaskRequest)) as StartTaskRequest;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -701,8 +649,8 @@ class StartTaskRequest extends $pb.GeneratedMessage {
   @$core.override
   StartTaskRequest createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static StartTaskRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<StartTaskRequest>(create);
+  static StartTaskRequest getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<StartTaskRequest>(create);
   static StartTaskRequest? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -735,10 +683,8 @@ class StartTaskResponse extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'StartTaskResponse',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'),
-      createEmptyInstance: create)
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'StartTaskResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'), createEmptyInstance: create)
     ..aI(1, _omitFieldNames ? '' : 'status')
     ..hasRequiredFields = false;
 
@@ -746,8 +692,7 @@ class StartTaskResponse extends $pb.GeneratedMessage {
   StartTaskResponse clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   StartTaskResponse copyWith(void Function(StartTaskResponse) updates) =>
-      super.copyWith((message) => updates(message as StartTaskResponse))
-          as StartTaskResponse;
+      super.copyWith((message) => updates(message as StartTaskResponse)) as StartTaskResponse;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -757,8 +702,8 @@ class StartTaskResponse extends $pb.GeneratedMessage {
   @$core.override
   StartTaskResponse createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static StartTaskResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<StartTaskResponse>(create);
+  static StartTaskResponse getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<StartTaskResponse>(create);
   static StartTaskResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -785,24 +730,19 @@ class StopTaskRequest extends $pb.GeneratedMessage {
   factory StopTaskRequest.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromBuffer(data, registry);
-  factory StopTaskRequest.fromJson($core.String json,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+  factory StopTaskRequest.fromJson($core.String json, [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'StopTaskRequest',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'),
-      createEmptyInstance: create)
-    ..aOM<$1.Session>(1, _omitFieldNames ? '' : 'task',
-        subBuilder: $1.Session.create)
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'StopTaskRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'), createEmptyInstance: create)
+    ..aOM<$1.Session>(1, _omitFieldNames ? '' : 'task', subBuilder: $1.Session.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   StopTaskRequest clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   StopTaskRequest copyWith(void Function(StopTaskRequest) updates) =>
-      super.copyWith((message) => updates(message as StopTaskRequest))
-          as StopTaskRequest;
+      super.copyWith((message) => updates(message as StopTaskRequest)) as StopTaskRequest;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -812,8 +752,8 @@ class StopTaskRequest extends $pb.GeneratedMessage {
   @$core.override
   StopTaskRequest createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static StopTaskRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<StopTaskRequest>(create);
+  static StopTaskRequest getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<StopTaskRequest>(create);
   static StopTaskRequest? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -846,10 +786,8 @@ class StopTaskResponse extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'StopTaskResponse',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'),
-      createEmptyInstance: create)
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'StopTaskResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'), createEmptyInstance: create)
     ..aI(1, _omitFieldNames ? '' : 'status')
     ..hasRequiredFields = false;
 
@@ -857,8 +795,7 @@ class StopTaskResponse extends $pb.GeneratedMessage {
   StopTaskResponse clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   StopTaskResponse copyWith(void Function(StopTaskResponse) updates) =>
-      super.copyWith((message) => updates(message as StopTaskResponse))
-          as StopTaskResponse;
+      super.copyWith((message) => updates(message as StopTaskResponse)) as StopTaskResponse;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -868,8 +805,8 @@ class StopTaskResponse extends $pb.GeneratedMessage {
   @$core.override
   StopTaskResponse createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static StopTaskResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<StopTaskResponse>(create);
+  static StopTaskResponse getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<StopTaskResponse>(create);
   static StopTaskResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -900,20 +837,16 @@ class ClearTaskRequest extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'ClearTaskRequest',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'),
-      createEmptyInstance: create)
-    ..aOM<$1.Session>(1, _omitFieldNames ? '' : 'task',
-        subBuilder: $1.Session.create)
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'ClearTaskRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'), createEmptyInstance: create)
+    ..aOM<$1.Session>(1, _omitFieldNames ? '' : 'task', subBuilder: $1.Session.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   ClearTaskRequest clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   ClearTaskRequest copyWith(void Function(ClearTaskRequest) updates) =>
-      super.copyWith((message) => updates(message as ClearTaskRequest))
-          as ClearTaskRequest;
+      super.copyWith((message) => updates(message as ClearTaskRequest)) as ClearTaskRequest;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -923,8 +856,8 @@ class ClearTaskRequest extends $pb.GeneratedMessage {
   @$core.override
   ClearTaskRequest createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static ClearTaskRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ClearTaskRequest>(create);
+  static ClearTaskRequest getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ClearTaskRequest>(create);
   static ClearTaskRequest? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -957,10 +890,8 @@ class ClearTaskResponse extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'ClearTaskResponse',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'),
-      createEmptyInstance: create)
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'ClearTaskResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'), createEmptyInstance: create)
     ..aI(1, _omitFieldNames ? '' : 'status')
     ..hasRequiredFields = false;
 
@@ -968,8 +899,7 @@ class ClearTaskResponse extends $pb.GeneratedMessage {
   ClearTaskResponse clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   ClearTaskResponse copyWith(void Function(ClearTaskResponse) updates) =>
-      super.copyWith((message) => updates(message as ClearTaskResponse))
-          as ClearTaskResponse;
+      super.copyWith((message) => updates(message as ClearTaskResponse)) as ClearTaskResponse;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -979,8 +909,8 @@ class ClearTaskResponse extends $pb.GeneratedMessage {
   @$core.override
   ClearTaskResponse createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static ClearTaskResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ClearTaskResponse>(create);
+  static ClearTaskResponse getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ClearTaskResponse>(create);
   static ClearTaskResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1013,23 +943,17 @@ class ReadAnalogScalarF64Request extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'ReadAnalogScalarF64Request',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'),
-      createEmptyInstance: create)
-    ..aOM<$1.Session>(1, _omitFieldNames ? '' : 'task',
-        subBuilder: $1.Session.create)
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'ReadAnalogScalarF64Request',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'), createEmptyInstance: create)
+    ..aOM<$1.Session>(1, _omitFieldNames ? '' : 'task', subBuilder: $1.Session.create)
     ..aD(2, _omitFieldNames ? '' : 'timeout')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   ReadAnalogScalarF64Request clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  ReadAnalogScalarF64Request copyWith(
-          void Function(ReadAnalogScalarF64Request) updates) =>
-      super.copyWith(
-              (message) => updates(message as ReadAnalogScalarF64Request))
-          as ReadAnalogScalarF64Request;
+  ReadAnalogScalarF64Request copyWith(void Function(ReadAnalogScalarF64Request) updates) =>
+      super.copyWith((message) => updates(message as ReadAnalogScalarF64Request)) as ReadAnalogScalarF64Request;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -1039,8 +963,8 @@ class ReadAnalogScalarF64Request extends $pb.GeneratedMessage {
   @$core.override
   ReadAnalogScalarF64Request createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static ReadAnalogScalarF64Request getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ReadAnalogScalarF64Request>(create);
+  static ReadAnalogScalarF64Request getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ReadAnalogScalarF64Request>(create);
   static ReadAnalogScalarF64Request? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1084,10 +1008,8 @@ class ReadAnalogScalarF64Response extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'ReadAnalogScalarF64Response',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'),
-      createEmptyInstance: create)
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'ReadAnalogScalarF64Response',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'), createEmptyInstance: create)
     ..aI(1, _omitFieldNames ? '' : 'status')
     ..aD(2, _omitFieldNames ? '' : 'value')
     ..hasRequiredFields = false;
@@ -1095,23 +1017,19 @@ class ReadAnalogScalarF64Response extends $pb.GeneratedMessage {
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   ReadAnalogScalarF64Response clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  ReadAnalogScalarF64Response copyWith(
-          void Function(ReadAnalogScalarF64Response) updates) =>
-      super.copyWith(
-              (message) => updates(message as ReadAnalogScalarF64Response))
-          as ReadAnalogScalarF64Response;
+  ReadAnalogScalarF64Response copyWith(void Function(ReadAnalogScalarF64Response) updates) =>
+      super.copyWith((message) => updates(message as ReadAnalogScalarF64Response)) as ReadAnalogScalarF64Response;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
-  static ReadAnalogScalarF64Response create() =>
-      ReadAnalogScalarF64Response._();
+  static ReadAnalogScalarF64Response create() => ReadAnalogScalarF64Response._();
   @$core.override
   ReadAnalogScalarF64Response createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static ReadAnalogScalarF64Response getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ReadAnalogScalarF64Response>(create);
+  static ReadAnalogScalarF64Response getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ReadAnalogScalarF64Response>(create);
   static ReadAnalogScalarF64Response? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1157,12 +1075,9 @@ class WriteAnalogScalarF64Request extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'WriteAnalogScalarF64Request',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'),
-      createEmptyInstance: create)
-    ..aOM<$1.Session>(1, _omitFieldNames ? '' : 'task',
-        subBuilder: $1.Session.create)
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'WriteAnalogScalarF64Request',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'), createEmptyInstance: create)
+    ..aOM<$1.Session>(1, _omitFieldNames ? '' : 'task', subBuilder: $1.Session.create)
     ..aOB(2, _omitFieldNames ? '' : 'autoStart')
     ..aD(3, _omitFieldNames ? '' : 'timeout')
     ..aD(4, _omitFieldNames ? '' : 'value')
@@ -1171,23 +1086,19 @@ class WriteAnalogScalarF64Request extends $pb.GeneratedMessage {
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   WriteAnalogScalarF64Request clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  WriteAnalogScalarF64Request copyWith(
-          void Function(WriteAnalogScalarF64Request) updates) =>
-      super.copyWith(
-              (message) => updates(message as WriteAnalogScalarF64Request))
-          as WriteAnalogScalarF64Request;
+  WriteAnalogScalarF64Request copyWith(void Function(WriteAnalogScalarF64Request) updates) =>
+      super.copyWith((message) => updates(message as WriteAnalogScalarF64Request)) as WriteAnalogScalarF64Request;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
-  static WriteAnalogScalarF64Request create() =>
-      WriteAnalogScalarF64Request._();
+  static WriteAnalogScalarF64Request create() => WriteAnalogScalarF64Request._();
   @$core.override
   WriteAnalogScalarF64Request createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static WriteAnalogScalarF64Request getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<WriteAnalogScalarF64Request>(create);
+  static WriteAnalogScalarF64Request getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<WriteAnalogScalarF64Request>(create);
   static WriteAnalogScalarF64Request? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1247,33 +1158,27 @@ class WriteAnalogScalarF64Response extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'WriteAnalogScalarF64Response',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'),
-      createEmptyInstance: create)
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'WriteAnalogScalarF64Response',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'), createEmptyInstance: create)
     ..aI(1, _omitFieldNames ? '' : 'status')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   WriteAnalogScalarF64Response clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  WriteAnalogScalarF64Response copyWith(
-          void Function(WriteAnalogScalarF64Response) updates) =>
-      super.copyWith(
-              (message) => updates(message as WriteAnalogScalarF64Response))
-          as WriteAnalogScalarF64Response;
+  WriteAnalogScalarF64Response copyWith(void Function(WriteAnalogScalarF64Response) updates) =>
+      super.copyWith((message) => updates(message as WriteAnalogScalarF64Response)) as WriteAnalogScalarF64Response;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
-  static WriteAnalogScalarF64Response create() =>
-      WriteAnalogScalarF64Response._();
+  static WriteAnalogScalarF64Response create() => WriteAnalogScalarF64Response._();
   @$core.override
   WriteAnalogScalarF64Response createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static WriteAnalogScalarF64Response getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<WriteAnalogScalarF64Response>(create);
+  static WriteAnalogScalarF64Response getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<WriteAnalogScalarF64Response>(create);
   static WriteAnalogScalarF64Response? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1304,20 +1209,16 @@ class GetErrorStringRequest extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'GetErrorStringRequest',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'),
-      createEmptyInstance: create)
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'GetErrorStringRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'), createEmptyInstance: create)
     ..aI(1, _omitFieldNames ? '' : 'errorCode')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   GetErrorStringRequest clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  GetErrorStringRequest copyWith(
-          void Function(GetErrorStringRequest) updates) =>
-      super.copyWith((message) => updates(message as GetErrorStringRequest))
-          as GetErrorStringRequest;
+  GetErrorStringRequest copyWith(void Function(GetErrorStringRequest) updates) =>
+      super.copyWith((message) => updates(message as GetErrorStringRequest)) as GetErrorStringRequest;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -1327,8 +1228,8 @@ class GetErrorStringRequest extends $pb.GeneratedMessage {
   @$core.override
   GetErrorStringRequest createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static GetErrorStringRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<GetErrorStringRequest>(create);
+  static GetErrorStringRequest getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<GetErrorStringRequest>(create);
   static GetErrorStringRequest? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1361,10 +1262,8 @@ class GetErrorStringResponse extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'GetErrorStringResponse',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'),
-      createEmptyInstance: create)
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'GetErrorStringResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'), createEmptyInstance: create)
     ..aI(1, _omitFieldNames ? '' : 'status')
     ..aOS(2, _omitFieldNames ? '' : 'errorString')
     ..hasRequiredFields = false;
@@ -1372,10 +1271,8 @@ class GetErrorStringResponse extends $pb.GeneratedMessage {
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   GetErrorStringResponse clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  GetErrorStringResponse copyWith(
-          void Function(GetErrorStringResponse) updates) =>
-      super.copyWith((message) => updates(message as GetErrorStringResponse))
-          as GetErrorStringResponse;
+  GetErrorStringResponse copyWith(void Function(GetErrorStringResponse) updates) =>
+      super.copyWith((message) => updates(message as GetErrorStringResponse)) as GetErrorStringResponse;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -1385,8 +1282,8 @@ class GetErrorStringResponse extends $pb.GeneratedMessage {
   @$core.override
   GetErrorStringResponse createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static GetErrorStringResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<GetErrorStringResponse>(create);
+  static GetErrorStringResponse getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<GetErrorStringResponse>(create);
   static GetErrorStringResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1438,28 +1335,22 @@ class CfgSampClkTimingRequest extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'CfgSampClkTimingRequest',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'),
-      createEmptyInstance: create)
-    ..aOM<$1.Session>(1, _omitFieldNames ? '' : 'task',
-        subBuilder: $1.Session.create)
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'CfgSampClkTimingRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'), createEmptyInstance: create)
+    ..aOM<$1.Session>(1, _omitFieldNames ? '' : 'task', subBuilder: $1.Session.create)
     ..aOS(2, _omitFieldNames ? '' : 'source')
     ..aD(3, _omitFieldNames ? '' : 'rate')
     ..aI(5, _omitFieldNames ? '' : 'activeEdgeRaw')
     ..aI(7, _omitFieldNames ? '' : 'sampleModeRaw')
-    ..a<$fixnum.Int64>(
-        8, _omitFieldNames ? '' : 'sampsPerChan', $pb.PbFieldType.OU6,
+    ..a<$fixnum.Int64>(8, _omitFieldNames ? '' : 'sampsPerChan', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   CfgSampClkTimingRequest clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  CfgSampClkTimingRequest copyWith(
-          void Function(CfgSampClkTimingRequest) updates) =>
-      super.copyWith((message) => updates(message as CfgSampClkTimingRequest))
-          as CfgSampClkTimingRequest;
+  CfgSampClkTimingRequest copyWith(void Function(CfgSampClkTimingRequest) updates) =>
+      super.copyWith((message) => updates(message as CfgSampClkTimingRequest)) as CfgSampClkTimingRequest;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -1469,8 +1360,8 @@ class CfgSampClkTimingRequest extends $pb.GeneratedMessage {
   @$core.override
   CfgSampClkTimingRequest createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static CfgSampClkTimingRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<CfgSampClkTimingRequest>(create);
+  static CfgSampClkTimingRequest getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<CfgSampClkTimingRequest>(create);
   static CfgSampClkTimingRequest? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1548,20 +1439,16 @@ class CfgSampClkTimingResponse extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'CfgSampClkTimingResponse',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'),
-      createEmptyInstance: create)
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'CfgSampClkTimingResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'), createEmptyInstance: create)
     ..aI(1, _omitFieldNames ? '' : 'status')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   CfgSampClkTimingResponse clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  CfgSampClkTimingResponse copyWith(
-          void Function(CfgSampClkTimingResponse) updates) =>
-      super.copyWith((message) => updates(message as CfgSampClkTimingResponse))
-          as CfgSampClkTimingResponse;
+  CfgSampClkTimingResponse copyWith(void Function(CfgSampClkTimingResponse) updates) =>
+      super.copyWith((message) => updates(message as CfgSampClkTimingResponse)) as CfgSampClkTimingResponse;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -1571,8 +1458,8 @@ class CfgSampClkTimingResponse extends $pb.GeneratedMessage {
   @$core.override
   CfgSampClkTimingResponse createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static CfgSampClkTimingResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<CfgSampClkTimingResponse>(create);
+  static CfgSampClkTimingResponse getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<CfgSampClkTimingResponse>(create);
   static CfgSampClkTimingResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1613,26 +1500,20 @@ class BeginReadAnalogF64Request extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'BeginReadAnalogF64Request',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'),
-      createEmptyInstance: create)
-    ..aOM<$1.Session>(1, _omitFieldNames ? '' : 'task',
-        subBuilder: $1.Session.create)
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'BeginReadAnalogF64Request',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'), createEmptyInstance: create)
+    ..aOM<$1.Session>(1, _omitFieldNames ? '' : 'task', subBuilder: $1.Session.create)
     ..aI(2, _omitFieldNames ? '' : 'numSampsPerChan')
     ..aD(3, _omitFieldNames ? '' : 'timeout')
     ..aI(5, _omitFieldNames ? '' : 'fillModeRaw')
-    ..aI(6, _omitFieldNames ? '' : 'arraySizeInSamps',
-        fieldType: $pb.PbFieldType.OU3)
+    ..aI(6, _omitFieldNames ? '' : 'arraySizeInSamps', fieldType: $pb.PbFieldType.OU3)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   BeginReadAnalogF64Request clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  BeginReadAnalogF64Request copyWith(
-          void Function(BeginReadAnalogF64Request) updates) =>
-      super.copyWith((message) => updates(message as BeginReadAnalogF64Request))
-          as BeginReadAnalogF64Request;
+  BeginReadAnalogF64Request copyWith(void Function(BeginReadAnalogF64Request) updates) =>
+      super.copyWith((message) => updates(message as BeginReadAnalogF64Request)) as BeginReadAnalogF64Request;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -1642,8 +1523,8 @@ class BeginReadAnalogF64Request extends $pb.GeneratedMessage {
   @$core.override
   BeginReadAnalogF64Request createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static BeginReadAnalogF64Request getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<BeginReadAnalogF64Request>(create);
+  static BeginReadAnalogF64Request getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<BeginReadAnalogF64Request>(create);
   static BeginReadAnalogF64Request? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1714,23 +1595,17 @@ class BeginReadAnalogF64Response extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'BeginReadAnalogF64Response',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'),
-      createEmptyInstance: create)
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'BeginReadAnalogF64Response',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'), createEmptyInstance: create)
     ..aI(1, _omitFieldNames ? '' : 'status')
-    ..aOM<$2.Moniker>(2, _omitFieldNames ? '' : 'moniker',
-        subBuilder: $2.Moniker.create)
+    ..aOM<$2.Moniker>(2, _omitFieldNames ? '' : 'moniker', subBuilder: $2.Moniker.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   BeginReadAnalogF64Response clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  BeginReadAnalogF64Response copyWith(
-          void Function(BeginReadAnalogF64Response) updates) =>
-      super.copyWith(
-              (message) => updates(message as BeginReadAnalogF64Response))
-          as BeginReadAnalogF64Response;
+  BeginReadAnalogF64Response copyWith(void Function(BeginReadAnalogF64Response) updates) =>
+      super.copyWith((message) => updates(message as BeginReadAnalogF64Response)) as BeginReadAnalogF64Response;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -1740,8 +1615,8 @@ class BeginReadAnalogF64Response extends $pb.GeneratedMessage {
   @$core.override
   BeginReadAnalogF64Response createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static BeginReadAnalogF64Response getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<BeginReadAnalogF64Response>(create);
+  static BeginReadAnalogF64Response getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<BeginReadAnalogF64Response>(create);
   static BeginReadAnalogF64Response? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1791,26 +1666,20 @@ class BeginReadBinaryI16Request extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'BeginReadBinaryI16Request',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'),
-      createEmptyInstance: create)
-    ..aOM<$1.Session>(1, _omitFieldNames ? '' : 'task',
-        subBuilder: $1.Session.create)
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'BeginReadBinaryI16Request',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'), createEmptyInstance: create)
+    ..aOM<$1.Session>(1, _omitFieldNames ? '' : 'task', subBuilder: $1.Session.create)
     ..aI(2, _omitFieldNames ? '' : 'numSampsPerChan')
     ..aD(3, _omitFieldNames ? '' : 'timeout')
     ..aI(5, _omitFieldNames ? '' : 'fillModeRaw')
-    ..aI(6, _omitFieldNames ? '' : 'arraySizeInSamps',
-        fieldType: $pb.PbFieldType.OU3)
+    ..aI(6, _omitFieldNames ? '' : 'arraySizeInSamps', fieldType: $pb.PbFieldType.OU3)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   BeginReadBinaryI16Request clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  BeginReadBinaryI16Request copyWith(
-          void Function(BeginReadBinaryI16Request) updates) =>
-      super.copyWith((message) => updates(message as BeginReadBinaryI16Request))
-          as BeginReadBinaryI16Request;
+  BeginReadBinaryI16Request copyWith(void Function(BeginReadBinaryI16Request) updates) =>
+      super.copyWith((message) => updates(message as BeginReadBinaryI16Request)) as BeginReadBinaryI16Request;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -1820,8 +1689,8 @@ class BeginReadBinaryI16Request extends $pb.GeneratedMessage {
   @$core.override
   BeginReadBinaryI16Request createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static BeginReadBinaryI16Request getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<BeginReadBinaryI16Request>(create);
+  static BeginReadBinaryI16Request getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<BeginReadBinaryI16Request>(create);
   static BeginReadBinaryI16Request? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1892,23 +1761,17 @@ class BeginReadBinaryI16Response extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'BeginReadBinaryI16Response',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'),
-      createEmptyInstance: create)
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'BeginReadBinaryI16Response',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'), createEmptyInstance: create)
     ..aI(1, _omitFieldNames ? '' : 'status')
-    ..aOM<$2.Moniker>(2, _omitFieldNames ? '' : 'moniker',
-        subBuilder: $2.Moniker.create)
+    ..aOM<$2.Moniker>(2, _omitFieldNames ? '' : 'moniker', subBuilder: $2.Moniker.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   BeginReadBinaryI16Response clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  BeginReadBinaryI16Response copyWith(
-          void Function(BeginReadBinaryI16Response) updates) =>
-      super.copyWith(
-              (message) => updates(message as BeginReadBinaryI16Response))
-          as BeginReadBinaryI16Response;
+  BeginReadBinaryI16Response copyWith(void Function(BeginReadBinaryI16Response) updates) =>
+      super.copyWith((message) => updates(message as BeginReadBinaryI16Response)) as BeginReadBinaryI16Response;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -1918,8 +1781,8 @@ class BeginReadBinaryI16Response extends $pb.GeneratedMessage {
   @$core.override
   BeginReadBinaryI16Response createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static BeginReadBinaryI16Response getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<BeginReadBinaryI16Response>(create);
+  static BeginReadBinaryI16Response getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<BeginReadBinaryI16Response>(create);
   static BeginReadBinaryI16Response? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1969,26 +1832,20 @@ class BeginReadBinaryI32Request extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'BeginReadBinaryI32Request',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'),
-      createEmptyInstance: create)
-    ..aOM<$1.Session>(1, _omitFieldNames ? '' : 'task',
-        subBuilder: $1.Session.create)
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'BeginReadBinaryI32Request',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'), createEmptyInstance: create)
+    ..aOM<$1.Session>(1, _omitFieldNames ? '' : 'task', subBuilder: $1.Session.create)
     ..aI(2, _omitFieldNames ? '' : 'numSampsPerChan')
     ..aD(3, _omitFieldNames ? '' : 'timeout')
     ..aI(5, _omitFieldNames ? '' : 'fillModeRaw')
-    ..aI(6, _omitFieldNames ? '' : 'arraySizeInSamps',
-        fieldType: $pb.PbFieldType.OU3)
+    ..aI(6, _omitFieldNames ? '' : 'arraySizeInSamps', fieldType: $pb.PbFieldType.OU3)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   BeginReadBinaryI32Request clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  BeginReadBinaryI32Request copyWith(
-          void Function(BeginReadBinaryI32Request) updates) =>
-      super.copyWith((message) => updates(message as BeginReadBinaryI32Request))
-          as BeginReadBinaryI32Request;
+  BeginReadBinaryI32Request copyWith(void Function(BeginReadBinaryI32Request) updates) =>
+      super.copyWith((message) => updates(message as BeginReadBinaryI32Request)) as BeginReadBinaryI32Request;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -1998,8 +1855,8 @@ class BeginReadBinaryI32Request extends $pb.GeneratedMessage {
   @$core.override
   BeginReadBinaryI32Request createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static BeginReadBinaryI32Request getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<BeginReadBinaryI32Request>(create);
+  static BeginReadBinaryI32Request getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<BeginReadBinaryI32Request>(create);
   static BeginReadBinaryI32Request? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -2070,23 +1927,17 @@ class BeginReadBinaryI32Response extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'BeginReadBinaryI32Response',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'),
-      createEmptyInstance: create)
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'BeginReadBinaryI32Response',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'), createEmptyInstance: create)
     ..aI(1, _omitFieldNames ? '' : 'status')
-    ..aOM<$2.Moniker>(2, _omitFieldNames ? '' : 'moniker',
-        subBuilder: $2.Moniker.create)
+    ..aOM<$2.Moniker>(2, _omitFieldNames ? '' : 'moniker', subBuilder: $2.Moniker.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   BeginReadBinaryI32Response clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  BeginReadBinaryI32Response copyWith(
-          void Function(BeginReadBinaryI32Response) updates) =>
-      super.copyWith(
-              (message) => updates(message as BeginReadBinaryI32Response))
-          as BeginReadBinaryI32Response;
+  BeginReadBinaryI32Response copyWith(void Function(BeginReadBinaryI32Response) updates) =>
+      super.copyWith((message) => updates(message as BeginReadBinaryI32Response)) as BeginReadBinaryI32Response;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -2096,8 +1947,8 @@ class BeginReadBinaryI32Response extends $pb.GeneratedMessage {
   @$core.override
   BeginReadBinaryI32Response createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static BeginReadBinaryI32Response getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<BeginReadBinaryI32Response>(create);
+  static BeginReadBinaryI32Response getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<BeginReadBinaryI32Response>(create);
   static BeginReadBinaryI32Response? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -2145,10 +1996,8 @@ class MonikerReadAnalogF64Response extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'MonikerReadAnalogF64Response',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'),
-      createEmptyInstance: create)
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'MonikerReadAnalogF64Response',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'), createEmptyInstance: create)
     ..aI(1, _omitFieldNames ? '' : 'status')
     ..p<$core.double>(2, _omitFieldNames ? '' : 'readArray', $pb.PbFieldType.KD)
     ..aI(3, _omitFieldNames ? '' : 'sampsPerChanRead')
@@ -2157,23 +2006,19 @@ class MonikerReadAnalogF64Response extends $pb.GeneratedMessage {
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   MonikerReadAnalogF64Response clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  MonikerReadAnalogF64Response copyWith(
-          void Function(MonikerReadAnalogF64Response) updates) =>
-      super.copyWith(
-              (message) => updates(message as MonikerReadAnalogF64Response))
-          as MonikerReadAnalogF64Response;
+  MonikerReadAnalogF64Response copyWith(void Function(MonikerReadAnalogF64Response) updates) =>
+      super.copyWith((message) => updates(message as MonikerReadAnalogF64Response)) as MonikerReadAnalogF64Response;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
-  static MonikerReadAnalogF64Response create() =>
-      MonikerReadAnalogF64Response._();
+  static MonikerReadAnalogF64Response create() => MonikerReadAnalogF64Response._();
   @$core.override
   MonikerReadAnalogF64Response createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static MonikerReadAnalogF64Response getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<MonikerReadAnalogF64Response>(create);
+  static MonikerReadAnalogF64Response getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<MonikerReadAnalogF64Response>(create);
   static MonikerReadAnalogF64Response? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -2220,10 +2065,8 @@ class MonikerReadBinaryI16Response extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'MonikerReadBinaryI16Response',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'),
-      createEmptyInstance: create)
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'MonikerReadBinaryI16Response',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'), createEmptyInstance: create)
     ..aI(1, _omitFieldNames ? '' : 'status')
     ..p<$core.int>(2, _omitFieldNames ? '' : 'readArray', $pb.PbFieldType.K3)
     ..aI(3, _omitFieldNames ? '' : 'sampsPerChanRead')
@@ -2232,23 +2075,19 @@ class MonikerReadBinaryI16Response extends $pb.GeneratedMessage {
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   MonikerReadBinaryI16Response clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  MonikerReadBinaryI16Response copyWith(
-          void Function(MonikerReadBinaryI16Response) updates) =>
-      super.copyWith(
-              (message) => updates(message as MonikerReadBinaryI16Response))
-          as MonikerReadBinaryI16Response;
+  MonikerReadBinaryI16Response copyWith(void Function(MonikerReadBinaryI16Response) updates) =>
+      super.copyWith((message) => updates(message as MonikerReadBinaryI16Response)) as MonikerReadBinaryI16Response;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
-  static MonikerReadBinaryI16Response create() =>
-      MonikerReadBinaryI16Response._();
+  static MonikerReadBinaryI16Response create() => MonikerReadBinaryI16Response._();
   @$core.override
   MonikerReadBinaryI16Response createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static MonikerReadBinaryI16Response getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<MonikerReadBinaryI16Response>(create);
+  static MonikerReadBinaryI16Response getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<MonikerReadBinaryI16Response>(create);
   static MonikerReadBinaryI16Response? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -2295,10 +2134,8 @@ class MonikerReadBinaryI32Response extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'MonikerReadBinaryI32Response',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'),
-      createEmptyInstance: create)
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'MonikerReadBinaryI32Response',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidaqmx_grpc'), createEmptyInstance: create)
     ..aI(1, _omitFieldNames ? '' : 'status')
     ..p<$core.int>(2, _omitFieldNames ? '' : 'readArray', $pb.PbFieldType.K3)
     ..aI(3, _omitFieldNames ? '' : 'sampsPerChanRead')
@@ -2307,23 +2144,19 @@ class MonikerReadBinaryI32Response extends $pb.GeneratedMessage {
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   MonikerReadBinaryI32Response clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  MonikerReadBinaryI32Response copyWith(
-          void Function(MonikerReadBinaryI32Response) updates) =>
-      super.copyWith(
-              (message) => updates(message as MonikerReadBinaryI32Response))
-          as MonikerReadBinaryI32Response;
+  MonikerReadBinaryI32Response copyWith(void Function(MonikerReadBinaryI32Response) updates) =>
+      super.copyWith((message) => updates(message as MonikerReadBinaryI32Response)) as MonikerReadBinaryI32Response;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
-  static MonikerReadBinaryI32Response create() =>
-      MonikerReadBinaryI32Response._();
+  static MonikerReadBinaryI32Response create() => MonikerReadBinaryI32Response._();
   @$core.override
   MonikerReadBinaryI32Response createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static MonikerReadBinaryI32Response getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<MonikerReadBinaryI32Response>(create);
+  static MonikerReadBinaryI32Response getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<MonikerReadBinaryI32Response>(create);
   static MonikerReadBinaryI32Response? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -2348,7 +2181,5 @@ class MonikerReadBinaryI32Response extends $pb.GeneratedMessage {
   void clearSampsPerChanRead() => $_clearField(3);
 }
 
-const $core.bool _omitFieldNames =
-    $core.bool.fromEnvironment('protobuf.omit_field_names');
-const $core.bool _omitMessageNames =
-    $core.bool.fromEnvironment('protobuf.omit_message_names');
+const $core.bool _omitFieldNames = $core.bool.fromEnvironment('protobuf.omit_field_names');
+const $core.bool _omitMessageNames = $core.bool.fromEnvironment('protobuf.omit_message_names');

@@ -27,12 +27,9 @@ void main(List<String> args) {
     stderr.writeln('corpus dir not found: ${dir.path}');
     exit(1);
   }
-  final vis = dir
-      .listSync(recursive: true)
-      .whereType<File>()
-      .where((f) => f.path.toLowerCase().endsWith('.vi'))
-      .toList()
-    ..sort((a, b) => a.path.compareTo(b.path));
+  final vis =
+      dir.listSync(recursive: true).whereType<File>().where((f) => f.path.toLowerCase().endsWith('.vi')).toList()
+        ..sort((a, b) => a.path.compareTo(b.path));
 
   final bytesByTag = <String, int>{};
   final sectionsByTag = <String, int>{};
@@ -54,15 +51,19 @@ void main(List<String> args) {
   ]..sort((a, b) => b.value.compareTo(a.value));
 
   final undecodedTotal = undecoded.fold<int>(0, (sum, e) => sum + e.value);
-  stdout.writeln('corpus: ${vis.length} VIs · $totalBytes decompressed block bytes · '
-      '$undecodedTotal (${(100 * undecodedTotal / totalBytes).toStringAsFixed(1)}%) in decoder-less tags\n');
+  stdout.writeln(
+    'corpus: ${vis.length} VIs · $totalBytes decompressed block bytes · '
+    '$undecodedTotal (${(100 * undecodedTotal / totalBytes).toStringAsFixed(1)}%) in decoder-less tags\n',
+  );
   stdout.writeln('tag    sections       bytes   share  note');
   for (final entry in undecoded.take(40)) {
     final info = blockInfo(entry.key);
     final note = info.note.split('.').first;
-    stdout.writeln('${entry.key.padRight(6)} ${sectionsByTag[entry.key].toString().padLeft(8)} '
-        '${entry.value.toString().padLeft(11)} '
-        '${(100 * entry.value / totalBytes).toStringAsFixed(2).padLeft(6)}%  '
-        '${note.length > 90 ? note.substring(0, 90) : note}');
+    stdout.writeln(
+      '${entry.key.padRight(6)} ${sectionsByTag[entry.key].toString().padLeft(8)} '
+      '${entry.value.toString().padLeft(11)} '
+      '${(100 * entry.value / totalBytes).toStringAsFixed(2).padLeft(6)}%  '
+      '${note.length > 90 ? note.substring(0, 90) : note}',
+    );
   }
 }

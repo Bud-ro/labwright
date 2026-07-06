@@ -13,11 +13,17 @@ void main() {
     test('every code-bearing SeqAdapter has a color (catches enum drift)', () {
       for (final a in SeqAdapter.values) {
         if (fallbackAdapters.contains(a)) {
-          expect(adapterColors.containsKey(a.name), isFalse,
-              reason: '${a.name} should fall back, not have a color');
+          expect(
+            adapterColors.containsKey(a.name),
+            isFalse,
+            reason: '${a.name} should fall back, not have a color',
+          );
         } else {
-          expect(adapterColors.containsKey(a.name), isTrue,
-              reason: '${a.name} is missing a chip color');
+          expect(
+            adapterColors.containsKey(a.name),
+            isTrue,
+            reason: '${a.name} is missing a chip color',
+          );
         }
       }
     });
@@ -28,8 +34,10 @@ void main() {
     });
 
     test('resolves known adapters, falls back for the rest', () {
-      expect(adapterColor(SeqAdapter.labView.name),
-          adapterColors[SeqAdapter.labView.name]);
+      expect(
+        adapterColor(SeqAdapter.labView.name),
+        adapterColors[SeqAdapter.labView.name],
+      );
       expect(adapterColor(SeqAdapter.none.name), adapterFallbackColor);
       expect(adapterColor('not-an-adapter'), adapterFallbackColor);
     });
@@ -37,29 +45,36 @@ void main() {
 
   group('SequencesView step rendering', () {
     SeqOutline outlineWith(StepOutline step) => SeqOutline([
-          SequenceOutline(
-            name: 'MainSequence',
-            parameters: const [],
-            locals: const [],
-            groups: [StepGroupOutline('Main', [step])],
-          ),
-        ]);
+      SequenceOutline(
+        name: 'MainSequence',
+        parameters: const [],
+        locals: const [],
+        groups: [
+          StepGroupOutline('Main', [step]),
+        ],
+      ),
+    ]);
 
     Future<void> pump(WidgetTester tester, SeqOutline outline) =>
-        tester.pumpWidget(MaterialApp(
-          home: Scaffold(body: SequencesView(outline: outline)),
-        ));
+        tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(body: SequencesView(outline: outline)),
+          ),
+        );
 
-    testWidgets('renders a forced run-mode badge for a Skip step',
-        (tester) async {
+    testWidgets('renders a forced run-mode badge for a Skip step', (
+      tester,
+    ) async {
       await pump(
         tester,
-        outlineWith(StepOutline(
-          name: 'Skipped',
-          type: 'Statement',
-          runMode: 'Skip',
-          notes: const [],
-        )),
+        outlineWith(
+          StepOutline(
+            name: 'Skipped',
+            type: 'Statement',
+            runMode: 'Skip',
+            notes: const [],
+          ),
+        ),
       );
       expect(find.text('Main'), findsOneWidget);
       expect(find.text('mode: Skip'), findsOneWidget);
@@ -68,11 +83,9 @@ void main() {
     testWidgets('a Normal step shows no run-mode badge', (tester) async {
       await pump(
         tester,
-        outlineWith(StepOutline(
-          name: 'Plain',
-          type: 'Statement',
-          notes: const [],
-        )),
+        outlineWith(
+          StepOutline(name: 'Plain', type: 'Statement', notes: const []),
+        ),
       );
       expect(find.text('Main'), findsOneWidget);
       expect(find.textContaining('mode:'), findsNothing);
@@ -81,12 +94,14 @@ void main() {
     testWidgets('renders a step status expression row', (tester) async {
       await pump(
         tester,
-        outlineWith(StepOutline(
-          name: 'Decide',
-          type: 'Statement',
-          expressions: const [('Status', 'Locals.x == 1')],
-          notes: const [],
-        )),
+        outlineWith(
+          StepOutline(
+            name: 'Decide',
+            type: 'Statement',
+            expressions: const [('Status', 'Locals.x == 1')],
+            notes: const [],
+          ),
+        ),
       );
       expect(
         find.textContaining('Locals.x == 1', findRichText: true),
@@ -97,27 +112,29 @@ void main() {
     testWidgets('renders a module call arguments mini-table', (tester) async {
       await pump(
         tester,
-        outlineWith(StepOutline(
-          name: 'Get User',
-          type: 'Action',
-          adapter: SeqAdapter.cModule.name,
-          target: 'Engine.GetUser',
-          callArgs: [
-            CallArgOutline(
-              name: 'LoginName',
-              direction: 'in',
-              boundExpression: 'FileGlobals.UserToAutoLogin',
-              displayType: 'String',
-            ),
-            CallArgOutline(
-              name: 'Return Value',
-              direction: 'out',
-              boundExpression: 'Locals.userToLogin',
-              displayType: 'User (Object Reference)',
-            ),
-          ],
-          notes: const [],
-        )),
+        outlineWith(
+          StepOutline(
+            name: 'Get User',
+            type: 'Action',
+            adapter: SeqAdapter.cModule.name,
+            target: 'Engine.GetUser',
+            callArgs: [
+              CallArgOutline(
+                name: 'LoginName',
+                direction: 'in',
+                boundExpression: 'FileGlobals.UserToAutoLogin',
+                displayType: 'String',
+              ),
+              CallArgOutline(
+                name: 'Return Value',
+                direction: 'out',
+                boundExpression: 'Locals.userToLogin',
+                displayType: 'User (Object Reference)',
+              ),
+            ],
+            notes: const [],
+          ),
+        ),
       );
       expect(find.text('Arguments'), findsOneWidget);
       expect(find.text('LoginName (in)'), findsOneWidget);
@@ -126,48 +143,61 @@ void main() {
       expect(find.text('Locals.userToLogin'), findsOneWidget);
     });
 
-    testWidgets('shows recorded units as a row in the limits table',
-        (tester) async {
+    testWidgets('shows recorded units as a row in the limits table', (
+      tester,
+    ) async {
       await pump(
         tester,
-        outlineWith(StepOutline(
-          name: 'Check V',
-          type: 'NumericLimitTest',
-          limits: 'GELE [9, 11]',
-          limitsDetail: LimitsOutline(comparison: 'GELE', low: '9', high: '11'),
-          units: 'mA',
-          notes: const [],
-        )),
+        outlineWith(
+          StepOutline(
+            name: 'Check V',
+            type: 'NumericLimitTest',
+            limits: 'GELE [9, 11]',
+            limitsDetail: LimitsOutline(
+              comparison: 'GELE',
+              low: '9',
+              high: '11',
+            ),
+            units: 'mA',
+            notes: const [],
+          ),
+        ),
       );
       expect(find.text('Limits'), findsOneWidget);
       expect(find.text('Units'), findsOneWidget);
       expect(find.text('mA'), findsOneWidget);
     });
 
-    testWidgets('shows recorded units as a chip when the step has no limits',
-        (tester) async {
+    testWidgets('shows recorded units as a chip when the step has no limits', (
+      tester,
+    ) async {
       await pump(
         tester,
-        outlineWith(StepOutline(
-          name: 'Measure',
-          type: 'Action',
-          units: 'V',
-          notes: const [],
-        )),
+        outlineWith(
+          StepOutline(
+            name: 'Measure',
+            type: 'Action',
+            units: 'V',
+            notes: const [],
+          ),
+        ),
       );
       expect(find.text('units V'), findsOneWidget);
     });
 
-    testWidgets('shows a PassFailTest data-source criterion as a chip',
-        (tester) async {
+    testWidgets('shows a PassFailTest data-source criterion as a chip', (
+      tester,
+    ) async {
       await pump(
         tester,
-        outlineWith(StepOutline(
-          name: 'Motor running',
-          type: 'PassFailTest',
-          dataSource: 'Step.Result.PassFail',
-          notes: const [],
-        )),
+        outlineWith(
+          StepOutline(
+            name: 'Motor running',
+            type: 'PassFailTest',
+            dataSource: 'Step.Result.PassFail',
+            notes: const [],
+          ),
+        ),
       );
       expect(find.text('data-source Step.Result.PassFail'), findsOneWidget);
     });
@@ -175,12 +205,14 @@ void main() {
     testWidgets('renders a step free-text comment', (tester) async {
       await pump(
         tester,
-        outlineWith(StepOutline(
-          name: 'Lock',
-          type: 'Action',
-          comment: 'Lock sequence',
-          notes: const [],
-        )),
+        outlineWith(
+          StepOutline(
+            name: 'Lock',
+            type: 'Action',
+            comment: 'Lock sequence',
+            notes: const [],
+          ),
+        ),
       );
       expect(find.text('Lock sequence'), findsOneWidget);
     });
@@ -205,19 +237,20 @@ void main() {
       expect(find.text('Runs once at startup'), findsOneWidget);
     });
 
-    testWidgets('shows a collapsed sequence comment as a subtitle preview',
-        (tester) async {
+    testWidgets('shows a collapsed sequence comment as a subtitle preview', (
+      tester,
+    ) async {
       SequenceOutline seq(String name, String? comment) => SequenceOutline(
-            name: name,
-            parameters: const [],
-            locals: const [],
-            groups: [
-              StepGroupOutline('Main', [
-                StepOutline(name: '$name-s', type: 'Action', notes: const []),
-              ]),
-            ],
-            comment: comment,
-          );
+        name: name,
+        parameters: const [],
+        locals: const [],
+        groups: [
+          StepGroupOutline('Main', [
+            StepOutline(name: '$name-s', type: 'Action', notes: const []),
+          ]),
+        ],
+        comment: comment,
+      );
       await pump(
         tester,
         SeqOutline([seq('First', null), seq('Second', 'Cleans up the DUT')]),
@@ -225,8 +258,9 @@ void main() {
       expect(find.text('Cleans up the DUT'), findsOneWidget);
     });
 
-    testWidgets('very long recovered text wraps without overflow',
-        (tester) async {
+    testWidgets('very long recovered text wraps without overflow', (
+      tester,
+    ) async {
       final long = 'X${' word' * 200}';
       await pump(
         tester,
@@ -255,10 +289,8 @@ void main() {
   });
 
   group('flow-control nesting in the outline', () {
-    SeqFile parse(String xml) => parseSeqFile(Uint8List.fromList([
-          0xef, 0xbb, 0xbf,
-          ...xml.codeUnits,
-        ]));
+    SeqFile parse(String xml) =>
+        parseSeqFile(Uint8List.fromList([0xef, 0xbb, 0xbf, ...xml.codeUnits]));
 
     final file = parse('''<?xml version="1.0" encoding="UTF-8"?>
 <teststandfileheader type='SequenceFile' fileversion='920' productname='TestStand'>
@@ -304,11 +336,16 @@ void main() {
     });
 
     testWidgets('renders the flow-control header chip', (tester) async {
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(body: SequencesView(outline: SeqOutline.of(file))),
-      ));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(body: SequencesView(outline: SeqOutline.of(file))),
+        ),
+      );
       expect(find.text('if (Locals.X > 0)'), findsOneWidget);
-      expect(find.text('for each (Locals.Item in Locals.Items)'), findsOneWidget);
+      expect(
+        find.text('for each (Locals.Item in Locals.Items)'),
+        findsOneWidget,
+      );
     });
   });
 }

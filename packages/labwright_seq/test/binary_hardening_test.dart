@@ -11,8 +11,7 @@ import 'package:test/test.dart';
 /// crafted bytes, not the corpus, so they run without the `corpus` tag.
 void main() {
   // A minimal binary TOF1 file: the 'TOF1' magic followed by [tail].
-  Uint8List tof1(List<int> tail) =>
-      Uint8List.fromList([0x54, 0x4f, 0x46, 0x31, ...tail]);
+  Uint8List tof1(List<int> tail) => Uint8List.fromList([0x54, 0x4f, 0x46, 0x31, ...tail]);
 
   test('a zlib decompression bomb aborts instead of exhausting memory', () {
     // ~1 MB of zeros deflates to a couple KB but would inflate far past
@@ -35,13 +34,10 @@ void main() {
 
   test('a non-binary file yields null, never throws', () {
     expect(inflateBinaryBody(Uint8List.fromList([1, 2, 3, 4, 5])), isNull);
-    expect(
-        inflateBinaryBody(Uint8List.fromList('<?xml version="1.0"?>'.codeUnits)),
-        isNull);
+    expect(inflateBinaryBody(Uint8List.fromList('<?xml version="1.0"?>'.codeUnits)), isNull);
   });
 
-  test('deeply nested typedef bodies bail instead of overflowing the stack',
-      () {
+  test('deeply nested typedef bodies bail instead of overflowing the stack', () {
     // A record region built entirely of self-nesting descriptor nodes —
     // each `[0][0][DELIM][nameIdx][childCount=1]` recurses one level per
     // 20 bytes. Without a depth cap this overflows the Dart stack; with
@@ -56,11 +52,11 @@ void main() {
     // absent.
     final region = BytesBuilder();
     void u32(int v) => region.add([
-          v & 0xff,
-          (v >> 8) & 0xff,
-          (v >> 16) & 0xff,
-          (v >> 24) & 0xff,
-        ]);
+      v & 0xff,
+      (v >> 8) & 0xff,
+      (v >> 16) & 0xff,
+      (v >> 24) & 0xff,
+    ]);
     for (var i = 0; i < 100000; i++) {
       u32(0); // flags
       u32(0); // zero slot

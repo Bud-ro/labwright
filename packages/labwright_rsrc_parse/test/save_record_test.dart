@@ -26,8 +26,7 @@ void main() {
       expect(r.stage, 0x80);
       expect(r.version, '20.0');
       expect(r.rawLength, 160);
-      expect(decodeSaveRecord(_lvsr160(verByte0: 0x09))!.versionMajor, 9,
-          reason: '0x09 BCD = 9 (LabVIEW 2009)');
+      expect(decodeSaveRecord(_lvsr160(verByte0: 0x09))!.versionMajor, 9, reason: '0x09 BCD = 9 (LabVIEW 2009)');
     });
 
     test('reads the @96 password hash and reports protection state', () {
@@ -45,28 +44,27 @@ void main() {
       final hash144 = List<int>.generate(16, (i) => 100 + i);
       final r = decodeSaveRecord(_lvsr160(hash144: hash144))!;
       expect(r.secondaryHash, hash144);
-      expect(r.blockDiagramPasswordHash, emptyPasswordHash,
-          reason: '@96 password hash is independent of the @144 slot');
-      expect(() => r.secondaryHash!.add(0), throwsUnsupportedError,
-          reason: 'the returned hash slot is read-only');
+      expect(
+        r.blockDiagramPasswordHash,
+        emptyPasswordHash,
+        reason: '@96 password hash is independent of the @144 slot',
+      );
+      expect(() => r.secondaryHash!.add(0), throwsUnsupportedError, reason: 'the returned hash slot is read-only');
     });
 
     test('hash slots are gated on length', () {
       final b112 = Uint8List(112)..[0] = 0x12;
       b112[2] = 0x80;
       final r = decodeSaveRecord(b112)!;
-      expect(r.blockDiagramPasswordHash, isNotNull,
-          reason: '112 bytes reaches the @96 hash');
+      expect(r.blockDiagramPasswordHash, isNotNull, reason: '112 bytes reaches the @96 hash');
       expect(r.secondaryHash, isNull, reason: '112 bytes does not reach the @144 hash');
 
       final tiny = decodeSaveRecord(Uint8List.fromList([0x16, 0, 0x80, 0]))!;
       expect(tiny.versionMajor, 16);
-      expect(tiny.blockDiagramPasswordHash, isNull,
-          reason: '4 bytes is only the version word, no hash slots');
+      expect(tiny.blockDiagramPasswordHash, isNull, reason: '4 bytes is only the version word, no hash slots');
       expect(tiny.secondaryHash, isNull);
 
-      expect(decodeSaveRecord(Uint8List.fromList([1, 2])), isNull,
-          reason: 'too short for even the version word');
+      expect(decodeSaveRecord(Uint8List.fromList([1, 2])), isNull, reason: 'too short for even the version word');
     });
 
     test('the LVSR catalog entry is confirmed', () {

@@ -21,12 +21,9 @@ String _corpusBase() {
 
 void main(List<String> args) {
   final dir = Directory('${_corpusBase()}/vi');
-  final vis = dir
-      .listSync(recursive: true)
-      .whereType<File>()
-      .where((f) => f.path.toLowerCase().endsWith('.vi'))
-      .toList()
-    ..sort((a, b) => a.path.compareTo(b.path));
+  final vis =
+      dir.listSync(recursive: true).whereType<File>().where((f) => f.path.toLowerCase().endsWith('.vi')).toList()
+        ..sort((a, b) => a.path.compareTo(b.path));
   final sample = vis.take(args.isNotEmpty ? int.parse(args[0]) : 150).toList();
 
   final pointyBlobsByAttr = <int, int>{};
@@ -70,7 +67,9 @@ void main(List<String> args) {
   stdout.writeln('sample ${sample.length} VIs · BD blob attrs: $blobCount · point-like: $pointyBlobs');
   final sorted = pointyBlobsByAttr.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
   for (final entry in sorted.take(12)) {
-    stdout.writeln('  attr 0x${entry.key.toRadixString(16)}: ${entry.value} point-like '
-        '(of ${blobsByAttr[entry.key]} blobs)');
+    stdout.writeln(
+      '  attr 0x${entry.key.toRadixString(16)}: ${entry.value} point-like '
+      '(of ${blobsByAttr[entry.key]} blobs)',
+    );
   }
 }

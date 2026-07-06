@@ -7,14 +7,30 @@ import '../decode.dart';
 /// these; clean-room RE, so well-attested codes are named and everything else is
 /// [unknown] (the raw code is preserved on [ViType] regardless).
 enum ViDataType {
-  i8, i16, i32, i64,
-  u8, u16, u32, u64,
-  sgl, dbl, ext,
-  complexSgl, complexDbl, complexExt,
-  enumU8, enumU16, enumU32,
+  i8,
+  i16,
+  i32,
+  i64,
+  u8,
+  u16,
+  u32,
+  u64,
+  sgl,
+  dbl,
+  ext,
+  complexSgl,
+  complexDbl,
+  complexExt,
+  enumU8,
+  enumU16,
+  enumU32,
   boolean,
-  string, path, picture,
-  array, cluster, refnum,
+  string,
+  path,
+  picture,
+  array,
+  cluster,
+  refnum,
 
   /// A type code not (yet) catalogued — see [ViType.code] for the raw byte.
   unknown,
@@ -24,14 +40,30 @@ enum ViDataType {
 /// descriptor's type word). Corpus-validated against the `VCTP` histogram; codes
 /// absent here decode to [ViDataType.unknown] rather than being guessed.
 const Map<int, ViDataType> _typeCodes = {
-  0x01: ViDataType.i8, 0x02: ViDataType.i16, 0x03: ViDataType.i32, 0x04: ViDataType.i64,
-  0x05: ViDataType.u8, 0x06: ViDataType.u16, 0x07: ViDataType.u32, 0x08: ViDataType.u64,
-  0x09: ViDataType.sgl, 0x0a: ViDataType.dbl, 0x0b: ViDataType.ext,
-  0x0c: ViDataType.complexSgl, 0x0d: ViDataType.complexDbl, 0x0e: ViDataType.complexExt,
-  0x15: ViDataType.enumU8, 0x16: ViDataType.enumU16, 0x17: ViDataType.enumU32,
+  0x01: ViDataType.i8,
+  0x02: ViDataType.i16,
+  0x03: ViDataType.i32,
+  0x04: ViDataType.i64,
+  0x05: ViDataType.u8,
+  0x06: ViDataType.u16,
+  0x07: ViDataType.u32,
+  0x08: ViDataType.u64,
+  0x09: ViDataType.sgl,
+  0x0a: ViDataType.dbl,
+  0x0b: ViDataType.ext,
+  0x0c: ViDataType.complexSgl,
+  0x0d: ViDataType.complexDbl,
+  0x0e: ViDataType.complexExt,
+  0x15: ViDataType.enumU8,
+  0x16: ViDataType.enumU16,
+  0x17: ViDataType.enumU32,
   0x21: ViDataType.boolean,
-  0x30: ViDataType.string, 0x31: ViDataType.path, 0x32: ViDataType.picture,
-  0x40: ViDataType.array, 0x50: ViDataType.cluster, 0x70: ViDataType.refnum,
+  0x30: ViDataType.string,
+  0x31: ViDataType.path,
+  0x32: ViDataType.picture,
+  0x40: ViDataType.array,
+  0x50: ViDataType.cluster,
+  0x70: ViDataType.refnum,
 };
 
 /// One entry in the VI's type pool: its position [index], the raw type
@@ -103,15 +135,17 @@ List<ViType> decodeTypePool(Uint8List body) {
     final isEnum = kind == ViDataType.enumU8 || kind == ViDataType.enumU16 || kind == ViDataType.enumU32;
     final enumItems = isEnum ? _enumItems(body, off, descLen) : const <String>[];
     final nameStart = _nameRegionStart(body, off, kind, members, elementIndex, enumItems);
-    out.add(ViType(
-      index: i,
-      code: code,
-      kind: kind,
-      name: _trailingName(body, nameStart, off + descLen),
-      members: members,
-      elementIndex: elementIndex,
-      enumItems: enumItems,
-    ));
+    out.add(
+      ViType(
+        index: i,
+        code: code,
+        kind: kind,
+        name: _trailingName(body, nameStart, off + descLen),
+        members: members,
+        elementIndex: elementIndex,
+        enumItems: enumItems,
+      ),
+    );
     off += descLen;
   }
   return out;
@@ -177,9 +211,9 @@ List<String> _enumItems(Uint8List bytes, int off, int descLen) {
 /// Resolves a cluster [c]'s [ViType.members] indices against the full pool
 /// [types] into the ordered member [ViType]s. Out-of-range indices are skipped.
 List<ViType> clusterFields(ViType c, List<ViType> types) => [
-      for (final member in c.members)
-        if (member < types.length) types[member],
-    ];
+  for (final member in c.members)
+    if (member < types.length) types[member],
+];
 
 /// A short human label for a type, resolving one level of array nesting:
 /// `array<dbl>`, `array<cluster>`, else the bare kind name (`i32`, `cluster`).
@@ -229,7 +263,14 @@ String? _trailingName(Uint8List bytes, int start, int end) {
 /// dimension sizes + element index, enum item strings). For other types the name
 /// (if any) follows the flags+code word. Confining [_trailingName] to this region
 /// stops binary payload bytes from being mis-read as a name.
-int _nameRegionStart(Uint8List bytes, int off, ViDataType kind, List<int> members, int? elementIndex, List<String> enumItems) {
+int _nameRegionStart(
+  Uint8List bytes,
+  int off,
+  ViDataType kind,
+  List<int> members,
+  int? elementIndex,
+  List<String> enumItems,
+) {
   if (kind == ViDataType.cluster && members.isNotEmpty) {
     return off + 6 + members.length * 2;
   }
@@ -255,9 +296,9 @@ List<ViType> typePoolFromDecoded(Iterable<DecodedSection> decoded) {
 /// The subset of [types] that carry a recovered [ViType.name], in pool order —
 /// the VI's named typedefs / labelled data items.
 List<ViType> namedTypes(List<ViType> types) => [
-      for (final type in types)
-        if (type.name != null) type,
-    ];
+  for (final type in types)
+    if (type.name != null) type,
+];
 
 /// A compact `{kind-name: count}` histogram of [types] (omitting empties),
 /// ordered most-frequent first — the VI's type inventory at a glance.

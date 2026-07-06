@@ -34,14 +34,11 @@ class Session extends $pb.GeneratedMessage {
   factory Session.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromBuffer(data, registry);
-  factory Session.fromJson($core.String json,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+  factory Session.fromJson($core.String json, [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'Session',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidevice_grpc'),
-      createEmptyInstance: create)
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'Session',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidevice_grpc'), createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'name')
     ..hasRequiredFields = false;
 
@@ -59,8 +56,7 @@ class Session extends $pb.GeneratedMessage {
   @$core.override
   Session createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static Session getDefault() =>
-      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<Session>(create);
+  static Session getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<Session>(create);
   static Session? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -85,19 +81,15 @@ class EnumerateDevicesRequest extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'EnumerateDevicesRequest',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidevice_grpc'),
-      createEmptyInstance: create)
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EnumerateDevicesRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidevice_grpc'), createEmptyInstance: create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   EnumerateDevicesRequest clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  EnumerateDevicesRequest copyWith(
-          void Function(EnumerateDevicesRequest) updates) =>
-      super.copyWith((message) => updates(message as EnumerateDevicesRequest))
-          as EnumerateDevicesRequest;
+  EnumerateDevicesRequest copyWith(void Function(EnumerateDevicesRequest) updates) =>
+      super.copyWith((message) => updates(message as EnumerateDevicesRequest)) as EnumerateDevicesRequest;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -107,8 +99,8 @@ class EnumerateDevicesRequest extends $pb.GeneratedMessage {
   @$core.override
   EnumerateDevicesRequest createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static EnumerateDevicesRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<EnumerateDevicesRequest>(create);
+  static EnumerateDevicesRequest getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EnumerateDevicesRequest>(create);
   static EnumerateDevicesRequest? _defaultInstance;
 }
 
@@ -130,21 +122,16 @@ class EnumerateDevicesResponse extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'EnumerateDevicesResponse',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidevice_grpc'),
-      createEmptyInstance: create)
-    ..pPM<DeviceProperties>(1, _omitFieldNames ? '' : 'devices',
-        subBuilder: DeviceProperties.create)
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EnumerateDevicesResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidevice_grpc'), createEmptyInstance: create)
+    ..pPM<DeviceProperties>(1, _omitFieldNames ? '' : 'devices', subBuilder: DeviceProperties.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   EnumerateDevicesResponse clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  EnumerateDevicesResponse copyWith(
-          void Function(EnumerateDevicesResponse) updates) =>
-      super.copyWith((message) => updates(message as EnumerateDevicesResponse))
-          as EnumerateDevicesResponse;
+  EnumerateDevicesResponse copyWith(void Function(EnumerateDevicesResponse) updates) =>
+      super.copyWith((message) => updates(message as EnumerateDevicesResponse)) as EnumerateDevicesResponse;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -154,8 +141,8 @@ class EnumerateDevicesResponse extends $pb.GeneratedMessage {
   @$core.override
   EnumerateDevicesResponse createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static EnumerateDevicesResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<EnumerateDevicesResponse>(create);
+  static EnumerateDevicesResponse getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EnumerateDevicesResponse>(create);
   static EnumerateDevicesResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -188,10 +175,8 @@ class DeviceProperties extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'DeviceProperties',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidevice_grpc'),
-      createEmptyInstance: create)
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'DeviceProperties',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'nidevice_grpc'), createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'name')
     ..aOS(2, _omitFieldNames ? '' : 'model')
     ..aOS(3, _omitFieldNames ? '' : 'vendor')
@@ -203,8 +188,7 @@ class DeviceProperties extends $pb.GeneratedMessage {
   DeviceProperties clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   DeviceProperties copyWith(void Function(DeviceProperties) updates) =>
-      super.copyWith((message) => updates(message as DeviceProperties))
-          as DeviceProperties;
+      super.copyWith((message) => updates(message as DeviceProperties)) as DeviceProperties;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -214,8 +198,8 @@ class DeviceProperties extends $pb.GeneratedMessage {
   @$core.override
   DeviceProperties createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static DeviceProperties getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<DeviceProperties>(create);
+  static DeviceProperties getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<DeviceProperties>(create);
   static DeviceProperties? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -264,7 +248,5 @@ class DeviceProperties extends $pb.GeneratedMessage {
   void clearProductId() => $_clearField(5);
 }
 
-const $core.bool _omitFieldNames =
-    $core.bool.fromEnvironment('protobuf.omit_field_names');
-const $core.bool _omitMessageNames =
-    $core.bool.fromEnvironment('protobuf.omit_message_names');
+const $core.bool _omitFieldNames = $core.bool.fromEnvironment('protobuf.omit_field_names');
+const $core.bool _omitMessageNames = $core.bool.fromEnvironment('protobuf.omit_message_names');

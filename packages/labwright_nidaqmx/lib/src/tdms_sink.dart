@@ -13,12 +13,12 @@ import 'streaming.dart';
 
 /// On-disk TDMS type for a stream [format].
 TdsType tdsTypeFor(DaqSampleFormat format) => switch (format) {
-      DaqSampleFormat.volts => TdsType.doubleFloat,
-      DaqSampleFormat.rawI16 => TdsType.i16,
-      DaqSampleFormat.rawI32 => TdsType.i32,
-      DaqSampleFormat.rawU16 => TdsType.u16,
-      DaqSampleFormat.rawU32 => TdsType.u32,
-    };
+  DaqSampleFormat.volts => TdsType.doubleFloat,
+  DaqSampleFormat.rawI16 => TdsType.i16,
+  DaqSampleFormat.rawI32 => TdsType.i32,
+  DaqSampleFormat.rawU16 => TdsType.u16,
+  DaqSampleFormat.rawU32 => TdsType.u32,
+};
 
 /// Records a DAQ [stream] of [format] chunks into TDMS bytes under
 /// `<group>/<channel>`, one segment per chunk. When [rateHz] is given, the first

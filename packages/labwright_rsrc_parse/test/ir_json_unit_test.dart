@@ -25,7 +25,9 @@ void main() {
       components: const [],
       stringTables: const [],
       heapRecords: const [],
-      blockDiagrams: [ViDiagram(sectionTag: 'BDHb', objects: [node])],
+      blockDiagrams: [
+        ViDiagram(sectionTag: 'BDHb', objects: [node]),
+      ],
       subViNames: const ['Helper.vi'],
     );
 
@@ -33,7 +35,8 @@ void main() {
     expect(
       json.keys.toSet(),
       {'labviewVersion', 'title', 'description', 'subViNames', 'blockDiagrams', 'frontPanelDiagrams'},
-      reason: 'top-level key set changed (IR shape) — update this golden expectation. '
+      reason:
+          'top-level key set changed (IR shape) — update this golden expectation. '
           'symbolNames/libraryPaths are absent here because this model has no heap records.',
     );
 
@@ -42,13 +45,29 @@ void main() {
     expect(
       nodeKeys,
       {
-        'oid', 'kindCode', 'class', 'objectKind', 'typeKind', 'parentOid', 'label',
-        'bounds', 'absBounds', 'items', 'termCount', 'memberOids', 'controlMin', 'controlMax', 'helpText',
+        'oid',
+        'kindCode',
+        'class',
+        'objectKind',
+        'typeKind',
+        'parentOid',
+        'label',
+        'bounds',
+        'absBounds',
+        'items',
+        'termCount',
+        'memberOids',
+        'controlMin',
+        'controlMax',
+        'helpText',
       },
       reason: 'node key set changed (IR shape) — update this golden expectation',
     );
-    expect(((emittedNode.first as Map)['class'] as Map).keys.cast<String>().toSet(),
-        {'label', 'category', 'confidence'});
+    expect(((emittedNode.first as Map)['class'] as Map).keys.cast<String>().toSet(), {
+      'label',
+      'category',
+      'confidence',
+    });
   });
 
   test('non-finite control range sentinels are dropped and the IR stays jsonEncode-safe', () {
@@ -64,7 +83,9 @@ void main() {
       components: const [],
       stringTables: const [],
       heapRecords: const [],
-      blockDiagrams: [ViDiagram(sectionTag: 'BDHb', objects: [node])],
+      blockDiagrams: [
+        ViDiagram(sectionTag: 'BDHb', objects: [node]),
+      ],
     );
 
     final json = viModelToJson(model);
@@ -72,8 +93,11 @@ void main() {
     final keys = (emitted.first as Map).keys;
     expect(keys, isNot(contains('controlMin')));
     expect(keys, isNot(contains('controlMax')));
-    expect(() => jsonEncode(json), returnsNormally,
-        reason: 'jsonEncode throws on Infinity/NaN — the sentinels must never reach JSON');
+    expect(
+      () => jsonEncode(json),
+      returnsNormally,
+      reason: 'jsonEncode throws on Infinity/NaN — the sentinels must never reach JSON',
+    );
   });
 
   test('connector pane: index + resolved terminals are emitted in the IR JSON', () {
@@ -89,8 +113,7 @@ void main() {
       connectorPaneTypeIndex: 2,
     );
     final json = viModelToJson(model);
-    expect(json['connectorPaneTypeIndex'], 2,
-        reason: '1-based index into the type pool -> the cluster');
+    expect(json['connectorPaneTypeIndex'], 2, reason: '1-based index into the type pool -> the cluster');
     final terms = json['connectorPaneTerminals'] as List;
     expect(terms, hasLength(1), reason: "the cluster's one member");
     expect((terms.first as Map)['kind'], 'dbl');

@@ -8,12 +8,14 @@ import 'package:test/test.dart';
 /// surface via dynamic dispatch.
 void main() {
   test('eval and cond always throw, naming the expression', () {
-    expect(() => ts.eval('RunState.Foo'),
-        throwsA(isA<UnimplementedError>().having(
-            (e) => e.message, 'message', contains('RunState.Foo'))));
-    expect(() => ts.cond('Locals.X > 1'),
-        throwsA(isA<UnimplementedError>().having(
-            (e) => e.message, 'message', contains('Locals.X > 1'))));
+    expect(
+      () => ts.eval('RunState.Foo'),
+      throwsA(isA<UnimplementedError>().having((e) => e.message, 'message', contains('RunState.Foo'))),
+    );
+    expect(
+      () => ts.cond('Locals.X > 1'),
+      throwsA(isA<UnimplementedError>().having((e) => e.message, 'message', contains('Locals.X > 1'))),
+    );
   });
 
   test('truthy: engine boolean coercion where pinned, loud elsewhere', () {
@@ -47,13 +49,18 @@ void main() {
 
   test('iterate: lists, maps, PropObj sub-properties', () {
     expect(ts.iterate([1, 2]).toList(), [1, 2]);
-    final dynamic bag = ts.PropObj({'A': 1.0, 'B': ts.PropObj({'C': true})});
+    final dynamic bag = ts.PropObj({
+      'A': 1.0,
+      'B': ts.PropObj({'C': true}),
+    });
     final names = [for (final dynamic e in ts.iterate(bag)) e.Name];
     expect(names, ['A', 'B']);
   });
 
   test('PropObj: case-insensitive member get/set via dynamic dispatch', () {
-    final dynamic bag = ts.PropObj({'Menus': ts.PropObj({'MENU_RECIPE': false})});
+    final dynamic bag = ts.PropObj({
+      'Menus': ts.PropObj({'MENU_RECIPE': false}),
+    });
     expect(bag.Menus.MENU_RECIPE, isFalse);
     expect(bag.menus.menu_recipe, isFalse, reason: 'engine names ignore case');
     bag.Menus.MENU_RECIPE = true;
@@ -69,7 +76,10 @@ void main() {
   });
 
   test('PropObj: engine-object surface (GetSubProperties/Name/Exists)', () {
-    final dynamic bag = ts.PropObj({'A': 1.0, 'Nested': ts.PropObj({'B': ''})});
+    final dynamic bag = ts.PropObj({
+      'A': 1.0,
+      'Nested': ts.PropObj({'B': ''}),
+    });
     expect(bag.AsPropertyObject, same(bag));
     final subs = bag.GetSubProperties('', 0) as List<Object?>;
     expect([for (final dynamic p in subs) p.Name], ['A', 'Nested']);

@@ -34,11 +34,17 @@ void main() {
         expect(blockInfo(t).confidence, BlockConfidence.confirmed, reason: t);
       }
       expect(blockInfo('MUID').category, ViBlockCategory.identifier);
-      expect(blockInfo('MUID').confidence, BlockConfidence.confirmed,
-          reason: 'single u32 id verified 7582/7582 + decodeModifiedUid');
+      expect(
+        blockInfo('MUID').confidence,
+        BlockConfidence.confirmed,
+        reason: 'single u32 id verified 7582/7582 + decodeModifiedUid',
+      );
       for (final t in ['NUID', 'SUID', 'BNID']) {
-        expect(blockInfo(t).confidence, BlockConfidence.confirmed,
-            reason: '$t id table is confirmed [u32 count][count u32] framing');
+        expect(
+          blockInfo(t).confidence,
+          BlockConfidence.confirmed,
+          reason: '$t id table is confirmed [u32 count][count u32] framing',
+        );
       }
     });
 
@@ -48,8 +54,11 @@ void main() {
         expect(blockInfo(t).note, contains('constant'), reason: t);
       }
       expect(blockInfo('PRT ').name, 'Print settings');
-      expect(blockInfo('PRT').category, ViBlockCategory.unknown,
-          reason: "the real tag is 'PRT ' with a trailing space; 3-char 'PRT' is not the tag");
+      expect(
+        blockInfo('PRT').category,
+        ViBlockCategory.unknown,
+        reason: "the real tag is 'PRT ' with a trailing space; 3-char 'PRT' is not the tag",
+      );
       expect(blockInfo('CPST').category, ViBlockCategory.text, reason: 'CPST is a boolean-text table');
       expect(blockInfo('CPSP').category, ViBlockCategory.text, reason: 'CPSP is a boolean-text table');
       expect(blockInfo('DLLP').category, ViBlockCategory.helpPath, reason: 'DLLP is a PTH0 path');

@@ -153,8 +153,9 @@ class StepOutline {
     final runMode = settings.isNormalMode ? null : settings.mode;
     final notes = <String>[];
     if (settings.flowSummary != null) notes.add('flow ${settings.flowSummary}');
-    String resolveTarget(String target) =>
-        target.startsWith('ID#:') ? (file.stepNameForId(target) ?? target) : target;
+    String resolveTarget(String target) => target.startsWith('ID#:')
+        ? (file.stepNameForId(target) ?? target)
+        : target;
     if (settings.customTrueTarget != null) {
       notes.add('cust-true→${resolveTarget(settings.customTrueTarget!)}');
     }
@@ -169,20 +170,25 @@ class StepOutline {
     }
     if (module.adapter == SeqAdapter.python) {
       final py = <String>[];
-      if (module.pythonModulePath != null) py.add('mod ${module.pythonModulePath}');
-      if (module.pythonClassName != null) py.add('class ${module.pythonClassName}');
+      if (module.pythonModulePath != null)
+        py.add('mod ${module.pythonModulePath}');
+      if (module.pythonClassName != null)
+        py.add('class ${module.pythonClassName}');
       if (module.pythonVersion != null) py.add('py ${module.pythonVersion}');
       if (py.isNotEmpty) notes.add('python: ${py.join(', ')}');
     }
-    if (settings.loadOption != null && settings.loadOption != 'PreloadWhenExecuted') {
+    if (settings.loadOption != null &&
+        settings.loadOption != 'PreloadWhenExecuted') {
       notes.add('load ${settings.loadOption}');
     }
-    if (settings.unloadOption != null && settings.unloadOption != 'UnloadWithFile') {
+    if (settings.unloadOption != null &&
+        settings.unloadOption != 'UnloadWithFile') {
       notes.add('unload ${settings.unloadOption}');
     }
     if (settings.isLooping) notes.add('loop ${settings.loopType}');
     if (settings.ignoresRunTimeErrors == true) notes.add('ignore-RTE');
-    if (settings.failureCausesSequenceFailure == false) notes.add('no-seq-fail');
+    if (settings.failureCausesSequenceFailure == false)
+      notes.add('no-seq-fail');
     if (settings.recordsResult == false) notes.add('no-record');
     final addl = step.additionalResults;
     if (addl.isNotEmpty) {
@@ -191,7 +197,9 @@ class StepOutline {
       notes.add('+results: ${addl.map(fmt).join(', ')}');
     }
     if (settings.usesMutex == true) {
-      notes.add('mutex${settings.mutexName != null ? ' ${settings.mutexName}' : ''}');
+      notes.add(
+        'mutex${settings.mutexName != null ? ' ${settings.mutexName}' : ''}',
+      );
     }
     final res = step.result;
     if (res != null && res.hasRecordedOutcome) {
@@ -206,14 +214,21 @@ class StepOutline {
     }
 
     final expressions = <(String, String)>[
-      if (settings.precondition != null) ('Precondition', settings.precondition!),
-      if (settings.customExpression != null) ('Custom condition', settings.customExpression!),
-      if (settings.preExpression != null) ('Pre-expression', settings.preExpression!),
-      if (settings.postExpression != null) ('Post-expression', settings.postExpression!),
-      if (settings.statusExpression != null) ('Status', settings.statusExpression!),
-      if (settings.loopInitialize != null) ('Loop init', settings.loopInitialize!),
+      if (settings.precondition != null)
+        ('Precondition', settings.precondition!),
+      if (settings.customExpression != null)
+        ('Custom condition', settings.customExpression!),
+      if (settings.preExpression != null)
+        ('Pre-expression', settings.preExpression!),
+      if (settings.postExpression != null)
+        ('Post-expression', settings.postExpression!),
+      if (settings.statusExpression != null)
+        ('Status', settings.statusExpression!),
+      if (settings.loopInitialize != null)
+        ('Loop init', settings.loopInitialize!),
       if (settings.loopWhile != null) ('Loop while', settings.loopWhile!),
-      if (settings.loopIncrement != null) ('Loop increment', settings.loopIncrement!),
+      if (settings.loopIncrement != null)
+        ('Loop increment', settings.loopIncrement!),
       if (settings.loopStatus != null) ('Loop status', settings.loopStatus!),
     ];
 
@@ -231,13 +246,16 @@ class StepOutline {
       runMode: runMode,
       comment: step.comment,
       expressions: expressions,
-      callArgs: [for (final param in module.callParameters) CallArgOutline.of(param)],
+      callArgs: [
+        for (final param in module.callParameters) CallArgOutline.of(param),
+      ],
       measurementParams: [
         for (final param in step.measurementParameters)
           MeasurementParamOutline.of(param),
       ],
       connectorParams: [
-        for (final param in module.viParameters) ConnectorParamOutline.of(param),
+        for (final param in module.viParameters)
+          ConnectorParamOutline.of(param),
       ],
       flowHeader: step.flowControl?.header,
       flowDepth: flowDepth,
@@ -271,7 +289,9 @@ class StepOutline {
       out.write('  {args: ${callArgs.map((a) => a.line).join('; ')}}');
     }
     if (measurementParams.isNotEmpty) {
-      out.write('  {params: ${measurementParams.map((p) => p.line).join('; ')}}');
+      out.write(
+        '  {params: ${measurementParams.map((p) => p.line).join('; ')}}',
+      );
     }
     if (connectorParams.isNotEmpty) {
       out.write('  {conn: ${connectorParams.map((p) => p.line).join('; ')}}');
@@ -300,11 +320,11 @@ class ConnectorParamOutline {
   final String? boundExpression;
 
   factory ConnectorParamOutline.of(CallParameter p) => ConnectorParamOutline(
-        name: p.name,
-        connectorNumber: p.connectorNumber,
-        displayType: p.displayType,
-        boundExpression: p.boundExpression,
-      );
+    name: p.name,
+    connectorNumber: p.connectorNumber,
+    displayType: p.displayType,
+    boundExpression: p.boundExpression,
+  );
 
   /// Left-column label: the connector terminal index (when known) and the param
   /// name, e.g. `#11 sequence context`.
@@ -316,7 +336,8 @@ class ConnectorParamOutline {
   String get cell {
     final out = StringBuffer();
     if (displayType != null) out.write(displayType);
-    if (boundExpression != null) out.write('${out.isEmpty ? '' : ' '}←$boundExpression');
+    if (boundExpression != null)
+      out.write('${out.isEmpty ? '' : ' '}←$boundExpression');
     return out.isEmpty ? '(unwired)' : out.toString();
   }
 
@@ -351,11 +372,11 @@ class CallArgOutline {
   final String? displayType;
 
   factory CallArgOutline.of(CallParameter p) => CallArgOutline(
-        name: p.name,
-        direction: p.direction,
-        boundExpression: p.boundExpression,
-        displayType: p.displayType,
-      );
+    name: p.name,
+    direction: p.direction,
+    boundExpression: p.boundExpression,
+    displayType: p.displayType,
+  );
 
   /// Left-column label: the parameter name, tagged with its direction when known
   /// (e.g. `LoginName (in)`).
@@ -420,7 +441,9 @@ class MeasurementParamOutline {
         isArray: p.isArray,
         typeSpecialization: p.typeSpecialization,
         logged: p.logged,
-        enumValues: [for (final item in p.enumValues) '${item.name}=${item.value ?? '?'}'],
+        enumValues: [
+          for (final item in p.enumValues) '${item.name}=${item.value ?? '?'}',
+        ],
       );
 
   /// The enum value list capped for compact display, e.g. `NONE=0, DC_VOLTS=1,
@@ -473,7 +496,8 @@ class MeasurementParamOutline {
 }
 
 /// `n label` with the label pluralized (`label + 's'`) unless `n == 1`.
-String _count(int count, String label) => '$count $label${count == 1 ? '' : 's'}';
+String _count(int count, String label) =>
+    '$count $label${count == 1 ? '' : 's'}';
 
 /// A one-line summary of an outline, e.g. `3 sequences · 42 steps`; when
 /// [typeCount] is given (from the file's type list), appends `· K types`. Pure.
@@ -642,13 +666,13 @@ class VarOutline {
   final String? comment;
 
   factory VarOutline.of(SeqVariable v) => VarOutline(
-        name: v.name,
-        type: v.type,
-        value: v.value,
-        isArray: v.isArray,
-        containerCount: v.containerCount,
-        comment: v.comment,
-      );
+    name: v.name,
+    type: v.type,
+    value: v.value,
+    isArray: v.isArray,
+    containerCount: v.containerCount,
+    comment: v.comment,
+  );
 
   /// `name : type`, then either ` = value` for a scalar or a container-size
   /// suffix (` [N]` for an array, ` {N fields}` for an object/cluster), and a
@@ -658,9 +682,11 @@ class VarOutline {
     if (value != null) {
       out.write(' = $value');
     } else if (containerCount != null) {
-      out.write(isArray
-          ? ' [$containerCount]'
-          : ' {$containerCount ${containerCount == 1 ? 'field' : 'fields'}}');
+      out.write(
+        isArray
+            ? ' [$containerCount]'
+            : ' {$containerCount ${containerCount == 1 ? 'field' : 'fields'}}',
+      );
     }
     if (comment != null) out.write('  // $comment');
     return out.toString();

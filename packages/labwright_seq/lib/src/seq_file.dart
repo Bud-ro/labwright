@@ -81,23 +81,19 @@ class SeqFile {
 
   /// The requirement-traceability links the file declares (`Data.Requirements.
   /// Links`). Empty when none.
-  List<String> get requirementLinks =>
-      scalarValues(data.prop('Requirements')?.prop('Links'));
+  List<String> get requirementLinks => scalarValues(data.prop('Requirements')?.prop('Links'));
 
   /// The file's global variables (`Data.FileGlobalDefaults` children) — the
   /// FileGlobals a sequence references as `FileGlobals.…`. Empty when the file
   /// declares none. (The Semiconductor-Test-System resource block among them is
   /// also surfaced, typed, via [measurementPlugIns].)
   List<SeqVariable> get fileGlobals => [
-        for (final prop in data.prop('FileGlobalDefaults')?.subProps ??
-            const <SeqProperty>[])
-          SeqVariable(prop),
-      ];
+    for (final prop in data.prop('FileGlobalDefaults')?.subProps ?? const <SeqProperty>[]) SeqVariable(prop),
+  ];
 
   /// The sequences in the file (`Data > Seq` array). Empty if the path is absent
   /// (e.g. a type-palette file) — honest rather than throwing.
-  List<Sequence> get sequences =>
-      [for (final seq in data.prop('Seq')?.array ?? const <SeqProperty>[]) Sequence(seq)];
+  List<Sequence> get sequences => [for (final seq in data.prop('Seq')?.array ?? const <SeqProperty>[]) Sequence(seq)];
 
   /// The sequence named [name] in this file, or null.
   Sequence? sequence(String name) {
@@ -128,8 +124,7 @@ class SeqFile {
   /// `ID#:` prefix) to the destination step's name, or null when no step in the
   /// file has that id. Used to make `ID#:`-form flow-action targets readable.
   String? stepNameForId(String idRef) =>
-      _stepNamesById[idRef] ??
-      (idRef.startsWith('ID#:') ? null : _stepNamesById['ID#:$idRef']);
+      _stepNamesById[idRef] ?? (idRef.startsWith('ID#:') ? null : _stepNamesById['ID#:$idRef']);
 
   /// For a SequenceCall [step], the called sequence **within this file**, or null
   /// when the step isn't a sequence call or the target lives in another file
@@ -154,7 +149,8 @@ class SeqFile {
 enum StepGroup {
   setup('Setup'),
   main('Main'),
-  cleanup('Cleanup');
+  cleanup('Cleanup')
+  ;
 
   const StepGroup(this.key);
 
@@ -180,8 +176,9 @@ class Sequence {
   String? get comment => nonEmpty(raw.attributes['%COMMENT']);
 
   /// The steps in [group] (its array property), in declaration order.
-  List<Step> stepsIn(StepGroup group) =>
-      [for (final stepProp in raw.prop(group.key)?.array ?? const <SeqProperty>[]) Step(stepProp)];
+  List<Step> stepsIn(StepGroup group) => [
+    for (final stepProp in raw.prop(group.key)?.array ?? const <SeqProperty>[]) Step(stepProp),
+  ];
 
   List<Step> get setup => stepsIn(StepGroup.setup);
   List<Step> get main => stepsIn(StepGroup.main);
@@ -197,8 +194,9 @@ class Sequence {
   /// the sequence takes none.
   List<SeqVariable> get parameters => _vars('Parameters');
 
-  List<SeqVariable> _vars(String group) =>
-      [for (final prop in raw.prop(group)?.subProps ?? const <SeqProperty>[]) SeqVariable(prop)];
+  List<SeqVariable> _vars(String group) => [
+    for (final prop in raw.prop(group)?.subProps ?? const <SeqProperty>[]) SeqVariable(prop),
+  ];
 
   /// Whether the sequence records its steps' results into the report
   /// (`RecordResults`). null when the sequence stores no value.
@@ -216,8 +214,7 @@ class Sequence {
   /// The requirement-traceability links the sequence declares
   /// (`Requirements.Links`) — free-text requirement identifiers the sequence is
   /// tagged with. Empty when the sequence declares none.
-  List<String> get requirementLinks =>
-      scalarValues(raw.prop('Requirements')?.prop('Links'));
+  List<String> get requirementLinks => scalarValues(raw.prop('Requirements')?.prop('Links'));
 
   /// The sequence's run-time / entry-point settings (`RTS`) — how it appears and
   /// behaves as a callable entry point — or null when it carries none.
@@ -371,8 +368,7 @@ SeqFile _parseXml(Uint8List bytes) {
   final types = [
     if (typelist != null)
       for (final typedef in childElementsNamed(typelist, 'typedef'))
-        if (typedef.childElements.isNotEmpty)
-          buildProperty(typedef.childElements.first),
+        if (typedef.childElements.isNotEmpty) buildProperty(typedef.childElements.first),
   ];
   final dataEl = childElement(root, 'Data');
   if (dataEl == null) throw const FormatException('missing <Data> element');
@@ -413,37 +409,41 @@ SeqFile _parseBinary(Uint8List bytes) {
   // PythonCall module shape (recovered separately from the step span),
   // so the typed lens reads the same TS>SData shape the XML parse yields.
   SeqProperty stepProp(BinaryStepRef step) {
-    final hasModule = step.viPath != null ||
-        step.pythonModule != null ||
-        step.pythonFunction != null;
+    final hasModule = step.viPath != null || step.pythonModule != null || step.pythonFunction != null;
     final tsChildren = <SeqProperty>[
       for (final field in step.tsSubProps) _typeFieldProp(field),
       if (hasModule)
-        SeqProperty(name: 'SData', subProps: [
-          if (step.viPath != null)
-            SeqProperty(name: 'ViCall', subProps: [
-              SeqProperty(name: 'VIPath', scalar: step.viPath),
-            ]),
-          if (step.pythonModule != null || step.pythonFunction != null)
-            SeqProperty(name: 'PythonCall', subProps: [
-              if (step.pythonModule != null)
-                SeqProperty(name: 'ModulePath', scalar: step.pythonModule),
-              if (step.pythonFunction != null)
-                SeqProperty(
-                    name: 'FunctionOrAttributeName',
-                    scalar: step.pythonFunction),
-            ]),
-        ]),
+        SeqProperty(
+          name: 'SData',
+          subProps: [
+            if (step.viPath != null)
+              SeqProperty(
+                name: 'ViCall',
+                subProps: [
+                  SeqProperty(name: 'VIPath', scalar: step.viPath),
+                ],
+              ),
+            if (step.pythonModule != null || step.pythonFunction != null)
+              SeqProperty(
+                name: 'PythonCall',
+                subProps: [
+                  if (step.pythonModule != null) SeqProperty(name: 'ModulePath', scalar: step.pythonModule),
+                  if (step.pythonFunction != null)
+                    SeqProperty(name: 'FunctionOrAttributeName', scalar: step.pythonFunction),
+                ],
+              ),
+          ],
+        ),
     ];
     return SeqProperty(
       name: step.name,
       typeName: step.typeName,
       subProps: [
-        if (tsChildren.isNotEmpty)
-          SeqProperty(name: 'TS', subProps: tsChildren),
+        if (tsChildren.isNotEmpty) SeqProperty(name: 'TS', subProps: tsChildren),
       ],
     );
   }
+
   return SeqFile(
     header: detectSeqHeader(bytes),
     // Recovered typedef HEADS (name, classname, XML-shaped attributes)
@@ -462,36 +462,36 @@ SeqFile _parseBinary(Uint8List bytes) {
             if (record.undecodedBody) BinAttr.bodyUndecoded: 'true',
           },
           subProps: [
-            for (final field in record.fields ?? const <BinaryTypeField>[])
-              _typeFieldProp(field),
+            for (final field in record.fields ?? const <BinaryTypeField>[]) _typeFieldProp(field),
           ],
         ),
     ],
     data: SeqProperty(
       name: 'Data',
       subProps: [
-        SeqProperty(name: 'Seq', array: [
-          for (final outline in outlines)
-            SeqProperty(
-              name: outline.name,
-              className: 'Sequence',
-              subProps: [
-                // Sequence-record subprops decoded from the field tree —
-                // the leading Parameters/Locals plus the post-group
-                // scalars RecordResults/FailureAction — light up the
-                // typed Sequence.locals/parameters/recordsResults/
-                // failureActionCode lenses. The group step arrays are
-                // synthesized below from the decoded step outlines.
-                for (final field in outline.leadingSubProps)
-                  _typeFieldProp(field),
-                for (final field in outline.tailSubProps)
-                  _typeFieldProp(field),
-                SeqProperty(name: 'Setup', array: [...outline.setup.map(stepProp)]),
-                SeqProperty(name: 'Main', array: [...outline.main.map(stepProp)]),
-                SeqProperty(name: 'Cleanup', array: [...outline.cleanup.map(stepProp)]),
-              ],
-            ),
-        ]),
+        SeqProperty(
+          name: 'Seq',
+          array: [
+            for (final outline in outlines)
+              SeqProperty(
+                name: outline.name,
+                className: 'Sequence',
+                subProps: [
+                  // Sequence-record subprops decoded from the field tree —
+                  // the leading Parameters/Locals plus the post-group
+                  // scalars RecordResults/FailureAction — light up the
+                  // typed Sequence.locals/parameters/recordsResults/
+                  // failureActionCode lenses. The group step arrays are
+                  // synthesized below from the decoded step outlines.
+                  for (final field in outline.leadingSubProps) _typeFieldProp(field),
+                  for (final field in outline.tailSubProps) _typeFieldProp(field),
+                  SeqProperty(name: 'Setup', array: [...outline.setup.map(stepProp)]),
+                  SeqProperty(name: 'Main', array: [...outline.main.map(stepProp)]),
+                  SeqProperty(name: 'Cleanup', array: [...outline.cleanup.map(stepProp)]),
+                ],
+              ),
+          ],
+        ),
       ],
     ),
   );
@@ -532,25 +532,21 @@ abstract final class BinAttr {
 /// declarations carry their children; typed default-instance references
 /// carry none — the binary stores only the reference).
 SeqProperty _typeFieldProp(BinaryTypeField field) => SeqProperty(
-      name: field.name,
-      className: field.className,
-      typeName: field.typeName,
-      scalar: field.value,
-      // An array (empty or populated) is an array; a populated one is
-      // marked undecoded rather than presented as falsely empty.
-      array: field.isArray ? const [] : null,
-      attributes: {
-        if (field.instanceOverrides) BinAttr.overrides: 'true',
-        if (field.elementSpecBytes != null)
-          BinAttr.elementSpec: '${field.elementSpecBytes}',
-        if (field.intrinsicTypeId != null)
-          BinAttr.intrinsic: '${field.intrinsicTypeId}',
-        if (field.isArray && !field.isEmptyArray)
-          BinAttr.arrayUndecoded: field.arrayUBound!,
-      },
-      subProps: [for (final child in field.children) _typeFieldProp(child)],
-    );
+  name: field.name,
+  className: field.className,
+  typeName: field.typeName,
+  scalar: field.value,
+  // An array (empty or populated) is an array; a populated one is
+  // marked undecoded rather than presented as falsely empty.
+  array: field.isArray ? const [] : null,
+  attributes: {
+    if (field.instanceOverrides) BinAttr.overrides: 'true',
+    if (field.elementSpecBytes != null) BinAttr.elementSpec: '${field.elementSpecBytes}',
+    if (field.intrinsicTypeId != null) BinAttr.intrinsic: '${field.intrinsicTypeId}',
+    if (field.isArray && !field.isEmptyArray) BinAttr.arrayUndecoded: field.arrayUBound!,
+  },
+  subProps: [for (final child in field.children) _typeFieldProp(child)],
+);
 
 /// Removes a leading UTF-8 BOM (`U+FEFF`) so the XML parser sees a clean prolog.
-String _stripBom(String text) =>
-    text.isNotEmpty && text.codeUnitAt(0) == 0xFEFF ? text.substring(1) : text;
+String _stripBom(String text) => text.isNotEmpty && text.codeUnitAt(0) == 0xFEFF ? text.substring(1) : text;

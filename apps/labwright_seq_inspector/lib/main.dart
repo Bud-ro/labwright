@@ -50,6 +50,7 @@ class _InspectorPageState extends State<InspectorPage> {
   String? _path;
   String? _error;
   List<String> _recent = const [];
+
   /// Owned here so Ctrl/Cmd+F can focus the active tab's search field; each is
   /// passed down into its view's TextField.
   final _sequencesSearchFocus = FocusNode();
@@ -139,7 +140,8 @@ class _InspectorPageState extends State<InspectorPage> {
     final file = res?.files.single;
     if (file == null) return;
     final bytes =
-        file.bytes ?? (file.path != null ? File(file.path!).readAsBytesSync() : null);
+        file.bytes ??
+        (file.path != null ? File(file.path!).readAsBytesSync() : null);
     if (bytes != null) _loadBytes(file.path ?? file.name, bytes);
   }
 
@@ -158,11 +160,11 @@ class _InspectorPageState extends State<InspectorPage> {
     final coverage = file == null
         ? null
         : doc is BinarySeqDocument
-            ? 'binary TOF1 · partial typed model (sequences + typed steps + '
-                'modules + typedef heads and decoded bodies; a body marked '
-                'undecoded, and populated-array element values, are not yet '
-                'decoded)'
-            : coverageLabel(measureCoverage(file));
+        ? 'binary TOF1 · partial typed model (sequences + typed steps + '
+              'modules + typedef heads and decoded bodies; a body marked '
+              'undecoded, and populated-array element values, are not yet '
+              'decoded)'
+        : coverageLabel(measureCoverage(file));
     final types = file?.types ?? const <SeqProperty>[];
     final typeCount = file?.types.length;
     final hasTypes = types.isNotEmpty;
@@ -355,10 +357,7 @@ class _InspectorPageState extends State<InspectorPage> {
                   searchFocusNode: _propertiesSearchFocus,
                 ),
               if (types.isNotEmpty)
-                TypesView(
-                  types: types,
-                  searchFocusNode: _typesSearchFocus,
-                ),
+                TypesView(types: types, searchFocusNode: _typesSearchFocus),
             ],
           ),
         ),

@@ -124,7 +124,10 @@ class PropertyTile extends StatelessWidget {
         children: [
           for (final child in node.children)
             PropertyTile(
-                node: child, depth: depth + 1, forceExpanded: forceExpanded),
+              node: child,
+              depth: depth + 1,
+              forceExpanded: forceExpanded,
+            ),
         ],
       ),
     );
@@ -133,41 +136,57 @@ class PropertyTile extends StatelessWidget {
   Widget _title(ThemeData theme) {
     final spans = <TextSpan>[
       TextSpan(
-          text: node.label,
-          style: const TextStyle(
-              fontFamily: monoFamily, fontWeight: FontWeight.w600)),
+        text: node.label,
+        style: const TextStyle(
+          fontFamily: monoFamily,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     ];
     if (node.typeLabel.isNotEmpty) {
-      spans.add(TextSpan(
-        text: '  ${node.typeLabel}',
-        style: monoStyle.copyWith(color: theme.hintColor),
-      ));
+      spans.add(
+        TextSpan(
+          text: '  ${node.typeLabel}',
+          style: monoStyle.copyWith(color: theme.hintColor),
+        ),
+      );
     }
     if (node.isInstanceOverride) {
-      spans.add(TextSpan(
-        text: '  ⋄ overridden',
-        style: monoStyle.copyWith(
-            color: theme.colorScheme.tertiary, fontWeight: FontWeight.w600),
-      ));
+      spans.add(
+        TextSpan(
+          text: '  ⋄ overridden',
+          style: monoStyle.copyWith(
+            color: theme.colorScheme.tertiary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      );
     }
     if (node.isLeaf && node.value != null) {
-      spans.add(TextSpan(
-        text: '  = ${node.value}',
-        style: TextStyle(fontFamily: monoFamily, color: theme.colorScheme.primary),
-      ));
+      spans.add(
+        TextSpan(
+          text: '  = ${node.value}',
+          style: TextStyle(
+            fontFamily: monoFamily,
+            color: theme.colorScheme.primary,
+          ),
+        ),
+      );
     }
-    return RichText(text: TextSpan(style: theme.textTheme.bodyMedium, children: spans));
+    return RichText(
+      text: TextSpan(style: theme.textTheme.bodyMedium, children: spans),
+    );
   }
 
   /// Renders a synthetic binary-decoder marker as a human-readable chip;
   /// passes ordinary XML attributes through as `key=value`.
   static String _chipLabel(String key, String value) => switch (key) {
-        '%BINELEMENTSPEC' => 'element type: $value bytes undecoded',
-        '%BININTRINSIC' => 'intrinsic type id $value',
-        '%BINARRAYUNDECODED' => 'array $value — elements undecoded',
-        '%BINBODYUNDECODED' => 'body not yet decoded',
-        _ => '$key=$value',
-      };
+    '%BINELEMENTSPEC' => 'element type: $value bytes undecoded',
+    '%BININTRINSIC' => 'intrinsic type id $value',
+    '%BINARRAYUNDECODED' => 'array $value — elements undecoded',
+    '%BINBODYUNDECODED' => 'body not yet decoded',
+    _ => '$key=$value',
+  };
 
   /// Attribute chips deliberately exclude the `classname`/`typename` keys
   /// (already surfaced via `node.typeLabel`) and the `%BINOVERRIDES`
@@ -177,10 +196,12 @@ class PropertyTile extends StatelessWidget {
   Widget? _subtitle(ThemeData theme) {
     if (node.attributes.isEmpty) return null;
     final shown = node.attributes.entries
-        .where((e) =>
-            e.key != 'classname' &&
-            e.key != 'typename' &&
-            e.key != '%BINOVERRIDES')
+        .where(
+          (e) =>
+              e.key != 'classname' &&
+              e.key != 'typename' &&
+              e.key != '%BINOVERRIDES',
+        )
         .map((e) => _chipLabel(e.key, e.value))
         .toList();
     if (shown.isEmpty) return null;
@@ -197,8 +218,10 @@ class PropertyTile extends StatelessWidget {
                 color: theme.colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: Text(attribute,
-                  style: const TextStyle(fontFamily: monoFamily, fontSize: 11)),
+              child: Text(
+                attribute,
+                style: const TextStyle(fontFamily: monoFamily, fontSize: 11),
+              ),
             ),
         ],
       ),

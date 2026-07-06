@@ -47,8 +47,16 @@ class FaithfulLayer extends StatelessWidget {
                 top: object.absBounds!.top - origin.dy,
                 width: object.absBounds!.width.toDouble().clamp(1, 8000),
                 height: object.absBounds!.height.toDouble().clamp(1, 8000),
-                child: _emphasize(object, ClipRect(child: _withHelp(object, _faithfulFor(object, isFrontPanel: isFrontPanel))),
-                    isFrontPanel: isFrontPanel),
+                child: _emphasize(
+                  object,
+                  ClipRect(
+                    child: _withHelp(
+                      object,
+                      _faithfulFor(object, isFrontPanel: isFrontPanel),
+                    ),
+                  ),
+                  isFrontPanel: isFrontPanel,
+                ),
               ),
         ],
       ),
@@ -102,7 +110,11 @@ double _emphasis(ViHeapObject object, {bool isFrontPanel = false}) {
 
 /// Applies [_emphasis] as opacity. Opacity 1.0 short-circuits (no save layer), so
 /// only the dimmed noise objects pay any cost (none on the front panel).
-Widget _emphasize(ViHeapObject object, Widget child, {bool isFrontPanel = false}) {
+Widget _emphasize(
+  ViHeapObject object,
+  Widget child, {
+  bool isFrontPanel = false,
+}) {
   final emphasis = _emphasis(object, isFrontPanel: isFrontPanel);
   return emphasis >= 1 ? child : Opacity(opacity: emphasis, child: child);
 }
@@ -112,7 +124,13 @@ Widget _emphasize(ViHeapObject object, Widget child, {bool isFrontPanel = false}
 /// tooltip so it never overflows a tiny control box.
 Widget _withHelp(ViHeapObject object, Widget child) {
   final msg = controlTooltip(object);
-  return msg == null ? child : Tooltip(message: msg, waitDuration: const Duration(milliseconds: 400), child: child);
+  return msg == null
+      ? child
+      : Tooltip(
+          message: msg,
+          waitDuration: const Duration(milliseconds: 400),
+          child: child,
+        );
 }
 
 /// The faithful-control hover tooltip for [o] — its decoded help text and/or
@@ -124,7 +142,9 @@ Widget _withHelp(ViHeapObject object, Widget child) {
 /// Pure + public for unit testing (the tap-to-select path is widget-test-hostile).
 String? controlTooltip(ViHeapObject object) {
   final parts = <String>[];
-  final helpText = object.helpText == null ? null : stripHelpMarkup(object.helpText!);
+  final helpText = object.helpText == null
+      ? null
+      : stripHelpMarkup(object.helpText!);
   if (helpText != null && helpText.isNotEmpty) parts.add(helpText);
   final range = formatControlRange(object.controlMin, object.controlMax);
   if (range != null) parts.add('range: $range');
@@ -133,7 +153,8 @@ String? controlTooltip(ViHeapObject object) {
   if (name != null && name.isNotEmpty) return name;
   final cls = object.objectClass;
   if (cls != HeapObjectClass.unknown &&
-      (object.category == ViObjectKind.node || object.category == ViObjectKind.structure)) {
+      (object.category == ViObjectKind.node ||
+          object.category == ViObjectKind.structure)) {
     return cls.label;
   }
   return null;
@@ -145,7 +166,9 @@ Widget _faithfulFor(ViHeapObject object, {bool isFrontPanel = false}) {
     case HeapObjectClass.caseOrSequence:
     case HeapObjectClass.clusterShell:
     case HeapObjectClass.bdStructureFrame:
-      return _StructureFrame(kind: structureFrameTitle(object, isFrontPanel: isFrontPanel));
+      return _StructureFrame(
+        kind: structureFrameTitle(object, isFrontPanel: isFrontPanel),
+      );
     case HeapObjectClass.controlLabel:
     case HeapObjectClass.bdSelectorLabel:
       return _LabelText(object.label);
@@ -159,7 +182,12 @@ Widget _faithfulFor(ViHeapObject object, {bool isFrontPanel = false}) {
     case HeapObjectClass.booleanOrClusterControl:
       return object.items.length >= 2
           ? _ControlWidget(form: _Form.enumRing, items: object.items)
-          : _ControlWidget(form: _Form.boolean, label: object.items.isNotEmpty ? object.items.first : object.label);
+          : _ControlWidget(
+              form: _Form.boolean,
+              label: object.items.isNotEmpty
+                  ? object.items.first
+                  : object.label,
+            );
     case HeapObjectClass.stringOrArrayControl:
       return const _ControlWidget(form: _Form.string);
     case HeapObjectClass.pathControl:
@@ -176,9 +204,12 @@ Widget _faithfulFor(ViHeapObject object, {bool isFrontPanel = false}) {
         return _NodeBox(label: label.text, isHint: label.isHint);
       }
       if (object.category == ViObjectKind.structure) {
-        return _StructureFrame(kind: structureFrameTitle(object, isFrontPanel: isFrontPanel));
+        return _StructureFrame(
+          kind: structureFrameTitle(object, isFrontPanel: isFrontPanel),
+        );
       }
-      if (object.category == ViObjectKind.terminal) return const _ControlWidget(form: _Form.generic);
+      if (object.category == ViObjectKind.terminal)
+        return const _ControlWidget(form: _Form.generic);
       return const _UnknownBox();
   }
 }
@@ -207,44 +238,52 @@ const _kInk = Color(0xFF1A1A1A);
 /// Falls back to "Structure" only when the class is uncatalogued. Public for
 /// testing + shared with the wireframe annotation.
 String structureBadge(ViHeapObject object) =>
-    object.objectClass == HeapObjectClass.unknown ? 'Structure' : object.objectClass.label;
+    object.objectClass == HeapObjectClass.unknown
+    ? 'Structure'
+    : object.objectClass.label;
 
 class _StructureFrame extends StatelessWidget {
   const _StructureFrame({this.kind});
   final String? kind;
   @override
   Widget build(BuildContext context) => Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                border: Border.all(color: const Color(0xFF8C6B3F), width: 3),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Container(
-                margin: const EdgeInsets.all(1),
-                decoration: BoxDecoration(border: Border.all(color: const Color(0x33FFFFFF))),
+    clipBehavior: Clip.none,
+    children: [
+      Positioned.fill(
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border.all(color: const Color(0xFF8C6B3F), width: 3),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Container(
+            margin: const EdgeInsets.all(1),
+            decoration: BoxDecoration(
+              border: Border.all(color: const Color(0x33FFFFFF)),
+            ),
+          ),
+        ),
+      ),
+      if (kind != null)
+        Positioned(
+          left: 0,
+          top: 0,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+            color: const Color(0xCC8C6B3F),
+            child: Text(
+              kind!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 9,
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
               ),
             ),
           ),
-          if (kind != null)
-            Positioned(
-              left: 0,
-              top: 0,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
-                color: const Color(0xCC8C6B3F),
-                child: Text(
-                  kind!,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ),
-        ],
-      );
+        ),
+    ],
+  );
 }
 
 class _NodeBox extends StatelessWidget {
@@ -257,29 +296,29 @@ class _NodeBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        alignment: Alignment.center,
-        padding: const EdgeInsets.symmetric(horizontal: 1),
-        clipBehavior: Clip.hardEdge,
-        decoration: BoxDecoration(
-          color: const Color(0xCCEFD98A),
-          border: Border.all(color: const Color(0xFF8A7320)),
-          borderRadius: BorderRadius.circular(2),
-        ),
-        child: (isHint && label != null && label!.isNotEmpty)
-            ? Text(
-                label!,
-                textAlign: TextAlign.center,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 8,
-                  color: Color(0x99000000),
-                  height: 1.05,
-                  fontStyle: FontStyle.italic,
-                ),
-              )
-            : null,
-      );
+    alignment: Alignment.center,
+    padding: const EdgeInsets.symmetric(horizontal: 1),
+    clipBehavior: Clip.hardEdge,
+    decoration: BoxDecoration(
+      color: const Color(0xCCEFD98A),
+      border: Border.all(color: const Color(0xFF8A7320)),
+      borderRadius: BorderRadius.circular(2),
+    ),
+    child: (isHint && label != null && label!.isNotEmpty)
+        ? Text(
+            label!,
+            textAlign: TextAlign.center,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 8,
+              color: Color(0x99000000),
+              height: 1.05,
+              fontStyle: FontStyle.italic,
+            ),
+          )
+        : null,
+  );
 }
 
 class _LabelText extends StatelessWidget {
@@ -287,22 +326,22 @@ class _LabelText extends StatelessWidget {
   final String? label;
   @override
   Widget build(BuildContext context) => Container(
-        alignment: Alignment.centerLeft,
-        padding: const EdgeInsets.symmetric(horizontal: 2),
-        child: Text(
-          label ?? '',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            fontSize: 10,
-            color: _kInk,
-            shadows: [
-              Shadow(color: Color(0xCCFFFFFF), blurRadius: 1.5),
-              Shadow(color: Color(0x88FFFFFF), blurRadius: 2.5),
-            ],
-          ),
-        ),
-      );
+    alignment: Alignment.centerLeft,
+    padding: const EdgeInsets.symmetric(horizontal: 2),
+    child: Text(
+      label ?? '',
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: const TextStyle(
+        fontSize: 10,
+        color: _kInk,
+        shadows: [
+          Shadow(color: Color(0xCCFFFFFF), blurRadius: 1.5),
+          Shadow(color: Color(0x88FFFFFF), blurRadius: 2.5),
+        ],
+      ),
+    ),
+  );
 }
 
 /// A free-standing block-diagram leaf (0x16) — a small terminal/constant box at
@@ -313,12 +352,12 @@ class _LeafBox extends StatelessWidget {
   const _LeafBox();
   @override
   Widget build(BuildContext context) => Container(
-        decoration: BoxDecoration(
-          color: const Color(0x225B6B7A),
-          border: Border.all(color: const Color(0xFF5B6B7A), width: 0.5),
-          borderRadius: BorderRadius.circular(1),
-        ),
-      );
+    decoration: BoxDecoration(
+      color: const Color(0x225B6B7A),
+      border: Border.all(color: const Color(0xFF5B6B7A), width: 0.5),
+      borderRadius: BorderRadius.circular(1),
+    ),
+  );
 }
 
 /// A bounded but unclassified object — a faint dashed-look outline so it stays
@@ -328,11 +367,11 @@ class _UnknownBox extends StatelessWidget {
   const _UnknownBox();
   @override
   Widget build(BuildContext context) => Container(
-        decoration: BoxDecoration(
-          color: const Color(0x11000000),
-          border: Border.all(color: const Color(0x55808080)),
-        ),
-      );
+    decoration: BoxDecoration(
+      color: const Color(0x11000000),
+      border: Border.all(color: const Color(0x55808080)),
+    ),
+  );
 }
 
 /// A small fixed node glyph (0x177, 12×12) — drawn as a faint centred dot rather
@@ -341,12 +380,17 @@ class _Glyph extends StatelessWidget {
   const _Glyph();
   @override
   Widget build(BuildContext context) => const Center(
-        child: SizedBox(
-          width: 4,
-          height: 4,
-          child: DecoratedBox(decoration: BoxDecoration(color: Color(0x99000000), shape: BoxShape.circle)),
+    child: SizedBox(
+      width: 4,
+      height: 4,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Color(0x99000000),
+          shape: BoxShape.circle,
         ),
-      );
+      ),
+    ),
+  );
 }
 
 class _GraphPlaceholder extends StatelessWidget {
@@ -362,7 +406,10 @@ class _GraphPlaceholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final graph = Container(
-      decoration: BoxDecoration(color: const Color(0xFF0F1A0F), border: Border.all(color: _kBorder)),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F1A0F),
+        border: Border.all(color: _kBorder),
+      ),
       child: CustomPaint(painter: _GraphPainter()),
     );
     if (plotNames.isEmpty) return graph;
@@ -392,7 +439,8 @@ class _GraphPainter extends CustomPainter {
     final path = Path();
     for (var i = 0; i <= 48; i++) {
       final x = size.width * i / 48;
-      final y = size.height / 2 - (size.height / 2.6) * _sin(i / 48 * 6.283 * 2);
+      final y =
+          size.height / 2 - (size.height / 2.6) * _sin(i / 48 * 6.283 * 2);
       i == 0 ? path.moveTo(x, y) : path.lineTo(x, y);
     }
     canvas.drawPath(path, trace);
@@ -403,7 +451,10 @@ class _GraphPainter extends CustomPainter {
   double _sin(double t) {
     final radians = t % 6.283185;
     final xx = radians > 3.14159 ? radians - 6.283185 : radians;
-    return 16 * xx * (3.14159 - xx.abs()) / (5 * 3.14159 * 3.14159 - 4 * xx.abs() * (3.14159 - xx.abs()));
+    return 16 *
+        xx *
+        (3.14159 - xx.abs()) /
+        (5 * 3.14159 * 3.14159 - 4 * xx.abs() * (3.14159 - xx.abs()));
   }
 
   @override
@@ -430,7 +481,8 @@ class _ControlWidgetState extends State<_ControlWidget> {
   bool _bool = false;
   int _enum = 0;
   late final TextEditingController _text = TextEditingController();
-  List<String> get _enumItems => widget.items.isNotEmpty ? widget.items : const ['—'];
+  List<String> get _enumItems =>
+      widget.items.isNotEmpty ? widget.items : const ['—'];
 
   @override
   void dispose() {
@@ -438,57 +490,99 @@ class _ControlWidgetState extends State<_ControlWidget> {
     super.dispose();
   }
 
-  BoxDecoration get _box => BoxDecoration(color: _kField, border: Border.all(color: _kBorder), borderRadius: BorderRadius.circular(2));
+  BoxDecoration get _box => BoxDecoration(
+    color: _kField,
+    border: Border.all(color: _kBorder),
+    borderRadius: BorderRadius.circular(2),
+  );
 
   @override
   Widget build(BuildContext context) {
     switch (widget.form) {
       case _Form.numeric:
-        return LayoutBuilder(builder: (context, c) {
-          final showSpin = c.maxWidth >= 22;
-          return Container(
-            decoration: _box,
-            padding: const EdgeInsets.only(left: 4),
-            child: Row(children: [
-              Expanded(child: Text(_num.toStringAsFixed(0), style: const TextStyle(fontSize: 11, color: _kInk), overflow: TextOverflow.clip)),
-              if (showSpin)
-                SizedBox(
-                  width: 14,
-                  child: OverflowBox(
-                    maxHeight: double.infinity,
-                    child: Column(mainAxisSize: MainAxisSize.min, children: [
-                      _spin(Icons.arrow_drop_up, () => setState(() => _num += 1)),
-                      _spin(Icons.arrow_drop_down, () => setState(() => _num -= 1)),
-                    ]),
-                  ),
-                ),
-            ]),
-          );
-        });
-      case _Form.enumRing:
-        return LayoutBuilder(builder: (context, c) {
-          final showCaret = c.maxWidth >= 24;
-          return InkWell(
-            onTap: () async {
-              final box = context.findRenderObject()! as RenderBox;
-              final pos = box.localToGlobal(Offset.zero);
-              final sel = await showMenu<int>(
-                context: context,
-                position: RelativeRect.fromLTRB(pos.dx, pos.dy + box.size.height, pos.dx + 1, pos.dy),
-                items: [for (var i = 0; i < _enumItems.length; i++) PopupMenuItem(value: i, child: Text(_enumItems[i]))],
-              );
-              if (sel != null && mounted) setState(() => _enum = sel);
-            },
-            child: Container(
-              decoration: _box.copyWith(color: const Color(0xFFEFEFEF)),
+        return LayoutBuilder(
+          builder: (context, c) {
+            final showSpin = c.maxWidth >= 22;
+            return Container(
+              decoration: _box,
               padding: const EdgeInsets.only(left: 4),
-              child: Row(children: [
-                Expanded(child: Text(_enumItems[_enum], style: const TextStyle(fontSize: 11, color: _kInk), overflow: TextOverflow.ellipsis)),
-                if (showCaret) const Icon(Icons.arrow_drop_down, size: 16, color: _kInk),
-              ]),
-            ),
-          );
-        });
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _num.toStringAsFixed(0),
+                      style: const TextStyle(fontSize: 11, color: _kInk),
+                      overflow: TextOverflow.clip,
+                    ),
+                  ),
+                  if (showSpin)
+                    SizedBox(
+                      width: 14,
+                      child: OverflowBox(
+                        maxHeight: double.infinity,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _spin(
+                              Icons.arrow_drop_up,
+                              () => setState(() => _num += 1),
+                            ),
+                            _spin(
+                              Icons.arrow_drop_down,
+                              () => setState(() => _num -= 1),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
+        );
+      case _Form.enumRing:
+        return LayoutBuilder(
+          builder: (context, c) {
+            final showCaret = c.maxWidth >= 24;
+            return InkWell(
+              onTap: () async {
+                final box = context.findRenderObject()! as RenderBox;
+                final pos = box.localToGlobal(Offset.zero);
+                final sel = await showMenu<int>(
+                  context: context,
+                  position: RelativeRect.fromLTRB(
+                    pos.dx,
+                    pos.dy + box.size.height,
+                    pos.dx + 1,
+                    pos.dy,
+                  ),
+                  items: [
+                    for (var i = 0; i < _enumItems.length; i++)
+                      PopupMenuItem(value: i, child: Text(_enumItems[i])),
+                  ],
+                );
+                if (sel != null && mounted) setState(() => _enum = sel);
+              },
+              child: Container(
+                decoration: _box.copyWith(color: const Color(0xFFEFEFEF)),
+                padding: const EdgeInsets.only(left: 4),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        _enumItems[_enum],
+                        style: const TextStyle(fontSize: 11, color: _kInk),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (showCaret)
+                      const Icon(Icons.arrow_drop_down, size: 16, color: _kInk),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
       case _Form.boolean:
         return InkWell(
           onTap: () => setState(() => _bool = !_bool),
@@ -501,45 +595,67 @@ class _ControlWidgetState extends State<_ControlWidget> {
             alignment: Alignment.center,
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Text(
-              (widget.label != null && widget.label!.trim().isNotEmpty) ? widget.label!.trim() : (_bool ? 'ON' : 'OFF'),
+              (widget.label != null && widget.label!.trim().isNotEmpty)
+                  ? widget.label!.trim()
+                  : (_bool ? 'ON' : 'OFF'),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white),
+              style: const TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
             ),
           ),
         );
       case _Form.string:
         return _field(hint: 'abc');
       case _Form.path:
-        return LayoutBuilder(builder: (context, c) {
-          final showIcon = c.maxWidth >= 26;
-          return Container(
-            decoration: _box,
-            child: Row(children: [
-              if (showIcon)
-                const Padding(padding: EdgeInsets.symmetric(horizontal: 3), child: Icon(Icons.folder_open, size: 13, color: Color(0xFF7A6A20))),
-              Expanded(child: _field(hint: 'path', bare: true)),
-            ]),
-          );
-        });
+        return LayoutBuilder(
+          builder: (context, c) {
+            final showIcon = c.maxWidth >= 26;
+            return Container(
+              decoration: _box,
+              child: Row(
+                children: [
+                  if (showIcon)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 3),
+                      child: Icon(
+                        Icons.folder_open,
+                        size: 13,
+                        color: Color(0xFF7A6A20),
+                      ),
+                    ),
+                  Expanded(child: _field(hint: 'path', bare: true)),
+                ],
+              ),
+            );
+          },
+        );
       case _Form.generic:
-        return Container(decoration: _box.copyWith(color: const Color(0xFFE3ECF5)));
+        return Container(
+          decoration: _box.copyWith(color: const Color(0xFFE3ECF5)),
+        );
     }
   }
 
   Widget _spin(IconData icon, VoidCallback onTap) => InkWell(
-        onTap: onTap,
-        child: Icon(icon, size: 11, color: _kInk),
-      );
+    onTap: onTap,
+    child: Icon(icon, size: 11, color: _kInk),
+  );
 
   Widget _field({required String hint, bool bare = false}) => Container(
-        decoration: bare ? null : _box,
-        alignment: Alignment.centerLeft,
-        padding: const EdgeInsets.symmetric(horizontal: 4),
-        child: TextField(
-          controller: _text,
-          style: const TextStyle(fontSize: 11, color: _kInk),
-          decoration: InputDecoration.collapsed(hintText: hint, hintStyle: const TextStyle(fontSize: 11, color: Color(0xFFAAAAAA))),
-        ),
-      );
+    decoration: bare ? null : _box,
+    alignment: Alignment.centerLeft,
+    padding: const EdgeInsets.symmetric(horizontal: 4),
+    child: TextField(
+      controller: _text,
+      style: const TextStyle(fontSize: 11, color: _kInk),
+      decoration: InputDecoration.collapsed(
+        hintText: hint,
+        hintStyle: const TextStyle(fontSize: 11, color: Color(0xFFAAAAAA)),
+      ),
+    ),
+  );
 }

@@ -149,8 +149,11 @@ void main() {
       expect(a.width, HeapAttrWidth.container);
       expect(a.kind, HeapAttrKind.container);
       expect(a.asDouble, isNull);
-      expect(a.asInt, 0x04,
-          reason: 'asInt exposes payload[0], a count-like leading byte (not a reliable element count)');
+      expect(
+        a.asInt,
+        0x04,
+        reason: 'asInt exposes payload[0], a count-like leading byte (not a reliable element count)',
+      );
       expect(a.length, 11);
       final r6 = decodeHeapAttr(Uint8List.fromList([0xc5, 0xe7, 0x06, 0x03, 0, 0, 0, 0, 0]), 0)!;
       expect(r6.width, HeapAttrWidth.container);
@@ -209,19 +212,46 @@ void main() {
     });
 
     test('0x6C FF blob rejects mostly-binary payloads (no garbage-as-string)', () {
-      final bin = Uint8List.fromList([0xc6, 0x6c, 0xff, 0x00, 0x0a, 0x00, 0x00, 0x00, 0x06, 0x01, 0x02, 0x03, 0x04, 0x05, 0x41]);
+      final bin = Uint8List.fromList([
+        0xc6,
+        0x6c,
+        0xff,
+        0x00,
+        0x0a,
+        0x00,
+        0x00,
+        0x00,
+        0x06,
+        0x01,
+        0x02,
+        0x03,
+        0x04,
+        0x05,
+        0x41,
+      ]);
       expect(decodeHeapAttr(bin, 0), isNull, reason: 'a payload under 90% printable must not decode as a string');
     });
 
     test('0x6C <u8len> rejects the big-slack 1-char false positive', () {
       final fake = Uint8List.fromList([0xc6, 0x6c, 64, 0x00, 0x00, 0x00, 0x01, 0x23, ...List.filled(59, 0)]);
-      expect(decodeHeapAttr(fake, 0), isNull, reason: 'len=64 / strLen=1 / slack=59 is a structured record, not a string');
+      expect(
+        decodeHeapAttr(fake, 0),
+        isNull,
+        reason: 'len=64 / strLen=1 / slack=59 is a structured record, not a string',
+      );
     });
 
     test('0x6C help-description blob (C6 6C FF) decodes to text', () {
       final blob = Uint8List.fromList([
-        0xc6, 0x6c, 0xff, 0x00, 0x0a,
-        0x00, 0x00, 0x00, 0x06,
+        0xc6,
+        0x6c,
+        0xff,
+        0x00,
+        0x0a,
+        0x00,
+        0x00,
+        0x00,
+        0x06,
         ...'Robot!'.codeUnits,
       ]);
       final a = decodeHeapAttr(blob, 0)!;
@@ -276,8 +306,15 @@ void main() {
       expect(asFlag.kind, HeapAttrKind.flag);
 
       final blob = Uint8List.fromList([
-        0xc6, 0x5a, 0xff, 0x00, 0x0c,
-        0x00, 0x00, 0x00, 0x08,
+        0xc6,
+        0x5a,
+        0xff,
+        0x00,
+        0x0c,
+        0x00,
+        0x00,
+        0x00,
+        0x08,
         ...'USB:TEST'.codeUnits,
       ]);
       final a = decodeHeapAttr(blob, 0)!;
@@ -296,8 +333,11 @@ void main() {
   test('decodeHeapAttr agrees with recordSkip on the 64 cb 26 form (returns null)', () {
     final rec = Uint8List.fromList([0x64, 0xcb, 0x26, 0x84, 0x20]);
     expect(recordSkip(rec, 0), 3);
-    expect(decodeHeapAttr(rec, 0), isNull,
-        reason: 'recordSkip frames 64 cb 26 as a fixed 3-byte record; fabricating a u24 here would desync a heap walk');
+    expect(
+      decodeHeapAttr(rec, 0),
+      isNull,
+      reason: 'recordSkip frames 64 cb 26 as a fixed 3-byte record; fabricating a u24 here would desync a heap walk',
+    );
     final u24 = decodeHeapAttr(Uint8List.fromList([0x64, 0xcb, 0x10, 0x00, 0x00]), 0)!;
     expect(u24.width, HeapAttrWidth.u24);
   });

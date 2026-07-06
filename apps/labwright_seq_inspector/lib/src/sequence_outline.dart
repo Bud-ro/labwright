@@ -91,12 +91,13 @@ class MeasurementPluginsOutline {
 
   /// Present resources as label→value rows, in display order, omitting empties.
   List<(String, String)> get rows => [
-        if (pinMap != null) ('Pin map', pinMap!),
-        if (specifications.isNotEmpty) ('Specifications', specifications.join(', ')),
-        if (levels.isNotEmpty) ('Levels', levels.join(', ')),
-        if (timing.isNotEmpty) ('Timing', timing.join(', ')),
-        if (patterns.isNotEmpty) ('Patterns', patterns.join(', ')),
-      ];
+    if (pinMap != null) ('Pin map', pinMap!),
+    if (specifications.isNotEmpty)
+      ('Specifications', specifications.join(', ')),
+    if (levels.isNotEmpty) ('Levels', levels.join(', ')),
+    if (timing.isNotEmpty) ('Timing', timing.join(', ')),
+    if (patterns.isNotEmpty) ('Patterns', patterns.join(', ')),
+  ];
 }
 
 /// One sequence: its name, variables, and non-empty step groups.
@@ -128,13 +129,13 @@ class SequenceOutline {
     for (final group in StepGroup.values) {
       final steps = seq.stepsIn(group);
       if (steps.isEmpty) continue;
-      groups.add(
-        StepGroupOutline(group.key, _withFlowDepth(steps, file)),
-      );
+      groups.add(StepGroupOutline(group.key, _withFlowDepth(steps, file)));
     }
     return SequenceOutline(
       name: seq.name,
-      parameters: [for (final variable in seq.parameters) VarOutline.of(variable)],
+      parameters: [
+        for (final variable in seq.parameters) VarOutline.of(variable),
+      ],
       locals: [for (final variable in seq.locals) VarOutline.of(variable)],
       groups: groups,
       comment: seq.comment,
@@ -174,4 +175,3 @@ class StepGroupOutline {
   final String name;
   final List<StepOutline> steps;
 }
-

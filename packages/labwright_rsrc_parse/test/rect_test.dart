@@ -4,10 +4,10 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
 DecodedSection bdex(List<int> bytes) => DecodedSection(
-      section: ViSection(tag: 'BDEx', index: 0, dataOffset: 0, bytes: Uint8List.fromList(bytes)),
-      bytes: Uint8List.fromList(bytes),
-      wasCompressed: false,
-    );
+  section: ViSection(tag: 'BDEx', index: 0, dataOffset: 0, bytes: Uint8List.fromList(bytes)),
+  bytes: Uint8List.fromList(bytes),
+  wasCompressed: false,
+);
 
 void main() {
   test('C4 2D record decodes to an object-bounds rectangle (top,left,bottom,right)', () {
@@ -40,18 +40,55 @@ void main() {
 
   test('non-C4-2D records have null bounds', () {
     final heap = <int>[
-      0xc4, 0x1f, 0x08, 0, 0, 0, 0, 0, 0, 0, 0,
-      0xc4, 0x2d, 0x02, 0, 0,
+      0xc4,
+      0x1f,
+      0x08,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0xc4,
+      0x2d,
+      0x02,
+      0,
+      0,
     ];
     final recs = heapC4RecordsFromDecoded([bdex(heap)]);
-    expect(recs.every((r) => r.bounds == null), isTrue,
-        reason: 'C4 1F is not a bounds record, and a C4 2D with a non-8 payload is rejected');
+    expect(
+      recs.every((r) => r.bounds == null),
+      isTrue,
+      reason: 'C4 1F is not a bounds record, and a C4 2D with a non-8 payload is rejected',
+    );
   });
 
   test('ViModel.objectBounds aggregates all C4 2D rectangles', () {
     final heap = <int>[
-      0xc4, 0x2d, 0x08, 0x00, 0x00, 0x00, 0x00, 0x03, 0x37, 0x06, 0x95,
-      0xc4, 0x2d, 0x08, 0x00, 0x35, 0x02, 0x45, 0x00, 0x5b, 0x02, 0xb8,
+      0xc4,
+      0x2d,
+      0x08,
+      0x00,
+      0x00,
+      0x00,
+      0x00,
+      0x03,
+      0x37,
+      0x06,
+      0x95,
+      0xc4,
+      0x2d,
+      0x08,
+      0x00,
+      0x35,
+      0x02,
+      0x45,
+      0x00,
+      0x5b,
+      0x02,
+      0xb8,
     ];
     final model = buildViModelFromDecoded([bdex(heap)]);
     expect(model.objectBounds.length, 2);

@@ -10,9 +10,9 @@ String? nonEmpty(String? value) => (value == null || value.isEmpty) ? null : val
 /// `Links`/`EditPanels` list, …), skipping null/empty elements. Empty when the
 /// container is null or holds no array.
 List<String> scalarValues(SeqProperty? container) => [
-      for (final element in container?.array ?? const <SeqProperty>[])
-        if (nonEmpty(element.scalar) case final s?) s,
-    ];
+  for (final element in container?.array ?? const <SeqProperty>[])
+    if (nonEmpty(element.scalar) case final s?) s,
+];
 
 /// Parses a TestStand boolean stored either as `true`/`false` (XML, any case) or
 /// `1`/`0` (some numeric flags). null when absent or unrecognized.
@@ -22,10 +22,10 @@ bool? parseFlag(String? text) => parseFlagStrict(text?.toLowerCase());
 /// false, everything else (including uppercase) → null. The non-lowercasing
 /// counterpart to [parseFlag].
 bool? parseFlagStrict(String? text) => switch (text) {
-      'true' || '1' => true,
-      'false' || '0' => false,
-      _ => null,
-    };
+  'true' || '1' => true,
+  'false' || '0' => false,
+  _ => null,
+};
 
 /// Unwraps a TestStand string-literal expression for display: strips one layer of
 /// surrounding quotes, whether backslash-escaped (`\"…\"`, as the INI form stores

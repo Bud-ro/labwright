@@ -30,9 +30,11 @@ String _sig(ViModel m) {
     b.write('§${diag.sectionTag}');
     for (final o in diag.objects) {
       final r = o.absBounds;
-      b.write('|${o.oid},${o.kind},${o.parentOid},'
-          '${r == null ? 'n' : '${r.top}.${r.left}.${r.bottom}.${r.right}'},'
-          '${o.category.index},${o.label}');
+      b.write(
+        '|${o.oid},${o.kind},${o.parentOid},'
+        '${r == null ? 'n' : '${r.top}.${r.left}.${r.bottom}.${r.right}'},'
+        '${o.category.index},${o.label}',
+      );
     }
   }
   return b.toString();
@@ -75,6 +77,7 @@ class _ViSummary {
   final int subviTotal, subviNamed;
   final int layoutPairs, layoutContained;
   final List<int> kinds;
+
   /// The first wild coordinate a byte-flipped rebuild leaked (null if every fuzz
   /// iteration stayed in-bounds or threw cleanly).
   final String? fuzzWild;
@@ -109,13 +112,31 @@ class _ViSummary {
     required this.headTags,
   });
   factory _ViSummary.neutral(String path) => _ViSummary(
-        path: path, deterministic: true, boundsChecked: 0, boundsWild: null, fpBounded: 0,
-        fpNeg: 0, fpHasNeg: false, drawn: 0, distinct: 0, bdVisible: 0, bdTyped: 0,
-        fpVisible: 0, fpTyped: 0, subviTotal: 0, subviNamed: 0, layoutPairs: 0,
-        layoutContained: 0, kinds: const <int>[], fuzzWild: null, catHeapSections: 0,
-        catHeapStructural: 0, structuralSections: 0, structuralCatalogued: 0,
-        headTags: const <String>[],
-      );
+    path: path,
+    deterministic: true,
+    boundsChecked: 0,
+    boundsWild: null,
+    fpBounded: 0,
+    fpNeg: 0,
+    fpHasNeg: false,
+    drawn: 0,
+    distinct: 0,
+    bdVisible: 0,
+    bdTyped: 0,
+    fpVisible: 0,
+    fpTyped: 0,
+    subviTotal: 0,
+    subviNamed: 0,
+    layoutPairs: 0,
+    layoutContained: 0,
+    kinds: const <int>[],
+    fuzzWild: null,
+    catHeapSections: 0,
+    catHeapStructural: 0,
+    structuralSections: 0,
+    structuralCatalogued: 0,
+    headTags: const <String>[],
+  );
 }
 
 _ViSummary _modelSumm(Uint8List bytes, String path) {
@@ -336,8 +357,11 @@ void main() {
     final drawn = summaries.fold<int>(0, (a, m) => a + m.drawn);
     final distinct = summaries.fold<int>(0, (a, m) => a + m.distinct);
     expect(drawn, greaterThan(0));
-    expect(distinct / drawn, greaterThan(0.55),
-        reason: 'drawn FP objects collapsed to shared rects: only $distinct/$drawn distinct');
+    expect(
+      distinct / drawn,
+      greaterThan(0.55),
+      reason: 'drawn FP objects collapsed to shared rects: only $distinct/$drawn distinct',
+    );
   });
 
   test('RENDER RATCHET: visible block-diagram objects classify to a typed widget (>= floor)', () {
@@ -345,8 +369,11 @@ void main() {
     final typed = summaries.fold<int>(0, (a, m) => a + m.bdTyped);
     expect(visible, greaterThan(0));
     final frac = typed / visible;
-    expect(frac, greaterThanOrEqualTo(0.99),
-        reason: 'BD render-typed fraction dropped to ${(frac * 100).toStringAsFixed(2)}% (floor 99%).');
+    expect(
+      frac,
+      greaterThanOrEqualTo(0.99),
+      reason: 'BD render-typed fraction dropped to ${(frac * 100).toStringAsFixed(2)}% (floor 99%).',
+    );
   });
 
   test('RENDER RATCHET: visible FRONT-PANEL objects classify to a typed widget (>= floor)', () {
@@ -354,8 +381,11 @@ void main() {
     final typed = summaries.fold<int>(0, (a, m) => a + m.fpTyped);
     expect(visible, greaterThan(0));
     final frac = typed / visible;
-    expect(frac, greaterThanOrEqualTo(0.99),
-        reason: 'FP render-typed fraction dropped to ${(frac * 100).toStringAsFixed(2)}% (floor 99%).');
+    expect(
+      frac,
+      greaterThanOrEqualTo(0.99),
+      reason: 'FP render-typed fraction dropped to ${(frac * 100).toStringAsFixed(2)}% (floor 99%).',
+    );
   });
 
   test('NAMING RATCHET: subVI-call nodes recover their called-VI name (>= floor)', () {
@@ -363,9 +393,13 @@ void main() {
     final named = summaries.fold<int>(0, (a, m) => a + m.subviNamed);
     expect(total, greaterThan(0));
     final frac = named / total;
-    expect(frac, greaterThanOrEqualTo(0.99),
-        reason: 'subVI-call name recovery dropped to ${(frac * 100).toStringAsFixed(2)}% (floor 99%) — '
-            'the 0xa-caption propagation likely regressed.');
+    expect(
+      frac,
+      greaterThanOrEqualTo(0.99),
+      reason:
+          'subVI-call name recovery dropped to ${(frac * 100).toStringAsFixed(2)}% (floor 99%) — '
+          'the 0xa-caption propagation likely regressed.',
+    );
   });
 
   test('LAYOUT RATCHET: BD nodes sit inside their enclosing structure frame (>= floor)', () {
@@ -373,9 +407,13 @@ void main() {
     final contained = summaries.fold<int>(0, (a, m) => a + m.layoutContained);
     expect(pairs, greaterThan(0));
     final frac = contained / pairs;
-    expect(frac, greaterThanOrEqualTo(0.98),
-        reason: 'node-in-structure containment dropped to ${(frac * 100).toStringAsFixed(2)}% (floor 98%) — '
-            'coordinate composition / re-anchor likely regressed.');
+    expect(
+      frac,
+      greaterThanOrEqualTo(0.98),
+      reason:
+          'node-in-structure containment dropped to ${(frac * 100).toStringAsFixed(2)}% (floor 98%) — '
+          'coordinate composition / re-anchor likely regressed.',
+    );
   });
 
   test('MUTATION-FUZZ: byte-flipped VIs decode without hanging and never emit wild bounds', () {
@@ -387,9 +425,13 @@ void main() {
     final seen = <int>{for (final m in summaries) ...m.kinds};
     for (final c in HeapObjectClass.values) {
       if (c == HeapObjectClass.unknown) continue;
-      expect(seen.contains(c.code), isTrue,
-          reason: 'catalogued kind 0x${c.code.toRadixString(16)} (${c.name}) has NO corpus evidence — '
-              'fabricated/dead entry, or the corpus drifted. Re-probe before keeping it.');
+      expect(
+        seen.contains(c.code),
+        isTrue,
+        reason:
+            'catalogued kind 0x${c.code.toRadixString(16)} (${c.name}) has NO corpus evidence — '
+            'fabricated/dead entry, or the corpus drifted. Re-probe before keeping it.',
+      );
     }
   });
 
@@ -400,13 +442,20 @@ void main() {
     final structuralSections = summaries.fold<int>(0, (a, m) => a + m.structuralSections);
     final structuralCatalogued = summaries.fold<int>(0, (a, m) => a + m.structuralCatalogued);
     expect(catHeapSections, greaterThan(0));
-    expect(catHeapStructural, catHeapSections,
-        reason: 'a catalogued record-heap section was NOT a structural C4 heap — the recordHeap set is wrong.');
+    expect(
+      catHeapStructural,
+      catHeapSections,
+      reason: 'a catalogued record-heap section was NOT a structural C4 heap — the recordHeap set is wrong.',
+    );
     expect(headTags, containsAll(<String>{'FPHb', 'BDHb'}));
     expect(structuralSections, greaterThan(0));
-    expect(structuralCatalogued / structuralSections, greaterThan(0.97),
-        reason: 'structural heaps not catalogued as recordHeap: only $structuralCatalogued/$structuralSections — '
-            'a real heap tag may be missing from the catalog.');
+    expect(
+      structuralCatalogued / structuralSections,
+      greaterThan(0.97),
+      reason:
+          'structural heaps not catalogued as recordHeap: only $structuralCatalogued/$structuralSections — '
+          'a real heap tag may be missing from the catalog.',
+    );
   });
 
   test('LVSR: decoded version matches vers, and the @96 hash mirrors BDPW', () {
@@ -450,11 +499,17 @@ void main() {
     }
     expect(lvsrSeen, greaterThan(0));
     expect(verTotal, greaterThan(0));
-    expect(verMatch / verTotal, greaterThan(0.99),
-        reason: 'LVSR version major disagreed with vers in too many VIs ($verMatch/$verTotal).');
+    expect(
+      verMatch / verTotal,
+      greaterThan(0.99),
+      reason: 'LVSR version major disagreed with vers in too many VIs ($verMatch/$verTotal).',
+    );
     expect(pwTotal, greaterThan(0));
-    expect(pwMatch / pwTotal, greaterThan(0.99),
-        reason: 'LVSR @96 hash did not mirror BDPW in too many VIs ($pwMatch/$pwTotal).');
+    expect(
+      pwMatch / pwTotal,
+      greaterThan(0.99),
+      reason: 'LVSR @96 hash did not mirror BDPW in too many VIs ($pwMatch/$pwTotal).',
+    );
     expect(stageNon80, 0, reason: 'an LVSR stage byte != 0x80 appeared ($stageNon80) — re-probe the stage claim.');
   });
 
@@ -483,9 +538,13 @@ void main() {
       if (pane!.typeIndex! >= 1 && pane.typeIndex! <= pool.length) inRange++;
     }
     expect(total, greaterThan(0));
-    expect(inRange / total, greaterThan(0.999),
-        reason: 'CONP index out of VCTP range in too many VIs ($inRange/$total; corpus 100%) — '
-            'the index base/encoding may have drifted.');
+    expect(
+      inRange / total,
+      greaterThan(0.999),
+      reason:
+          'CONP index out of VCTP range in too many VIs ($inRange/$total; corpus 100%) — '
+          'the index base/encoding may have drifted.',
+    );
   });
 
   test('TM80: the short-form layout covers most type maps and is self-consistent', () {
@@ -505,8 +564,11 @@ void main() {
       }
     }
     expect(total, greaterThan(0));
-    expect(shortForm / total, greaterThan(0.65),
-        reason: 'TM80 short-form coverage dropped to $shortForm/$total (<65%; corpus ≈70.7%).');
+    expect(
+      shortForm / total,
+      greaterThan(0.65),
+      reason: 'TM80 short-form coverage dropped to $shortForm/$total (<65%; corpus ≈70.7%).',
+    );
   });
 
   test('STRG: every description block is [u32 len][printable text]', () {
@@ -529,8 +591,7 @@ void main() {
       }
     }
     expect(total, greaterThan(0));
-    expect(ok / total, greaterThan(0.99),
-        reason: 'STRG length-law/printability held for only $ok/$total (<99%).');
+    expect(ok / total, greaterThan(0.99), reason: 'STRG length-law/printability held for only $ok/$total (<99%).');
   });
 
   test('DTHP: the 4-byte header form dominates and decode is total', () {
@@ -547,8 +608,11 @@ void main() {
     }
     expect(total, greaterThan(0));
     expect(decoded, total, reason: 'decodeDataTypeHeap returned null for a >=4-byte DTHP');
-    expect(fourByte / total, greaterThan(0.97),
-        reason: 'DTHP 4-byte dominance dropped to $fourByte/$total (<97%; corpus ≈99.45%).');
+    expect(
+      fourByte / total,
+      greaterThan(0.97),
+      reason: 'DTHP 4-byte dominance dropped to $fourByte/$total (<97%; corpus ≈99.45%).',
+    );
   });
 
   test('DTHP: every extended-form block recovers >=1 printable named item', () {
@@ -563,8 +627,7 @@ void main() {
         ext++;
         if (h.names.isNotEmpty) named++;
         if (h.names.isNotEmpty &&
-            h.names.every((n) => n.runes.every(
-                (c) => c == 9 || c == 10 || c == 13 || (c >= 0x20 && c < 0x7f)))) {
+            h.names.every((n) => n.runes.every((c) => c == 9 || c == 10 || c == 13 || (c >= 0x20 && c < 0x7f)))) {
           printable++;
         }
       }
@@ -592,7 +655,11 @@ void main() {
     expect(total, greaterThan(0));
     expect(sized / total, greaterThan(0.99), reason: 'HIST not 40 bytes in $sized/$total');
     expect(ver2 / total, greaterThan(0.99), reason: 'HIST @0 != 2 in too many ($ver2/$total)');
-    expect(reservedZero / total, greaterThan(0.99), reason: 'HIST reserved words non-zero in too many ($reservedZero/$total)');
+    expect(
+      reservedZero / total,
+      greaterThan(0.99),
+      reason: 'HIST reserved words non-zero in too many ($reservedZero/$total)',
+    );
   });
 
   test('HLPP is a parseable PTH0 path; HLPT is [u32 len][printable text]', () {
@@ -610,8 +677,12 @@ void main() {
           hlptTot++;
           final len = (s.bytes[0] << 24) | (s.bytes[1] << 16) | (s.bytes[2] << 8) | s.bytes[3];
           final t = decodeStringBlock(s.bytes);
-          final printable = t != null &&
-              (t.isEmpty || t.runes.where((c) => c == 9 || c == 10 || c == 13 || (c >= 0x20 && c < 0x7f)).length / t.runes.length > 0.9);
+          final printable =
+              t != null &&
+              (t.isEmpty ||
+                  t.runes.where((c) => c == 9 || c == 10 || c == 13 || (c >= 0x20 && c < 0x7f)).length /
+                          t.runes.length >
+                      0.9);
           if (len == s.bytes.length - 4 && printable) hlptOk++;
         }
       }
@@ -619,7 +690,11 @@ void main() {
     expect(hlppTot, greaterThan(0));
     expect(hlppOk / hlppTot, greaterThan(0.99), reason: 'HLPP PTH0 parse failed in too many ($hlppOk/$hlppTot)');
     expect(hlptTot, greaterThan(0));
-    expect(hlptOk / hlptTot, greaterThan(0.99), reason: 'HLPT length-law/printability failed in too many ($hlptOk/$hlptTot)');
+    expect(
+      hlptOk / hlptTot,
+      greaterThan(0.99),
+      reason: 'HLPT length-law/printability failed in too many ($hlptOk/$hlptTot)',
+    );
   });
 
   test('FTAB: version 1 and the font-name table is self-consistent', () {
@@ -639,8 +714,11 @@ void main() {
     }
     expect(total, greaterThan(0));
     expect(ver1 / total, greaterThan(0.99), reason: 'FTAB version != 1 in too many ($ver1/$total)');
-    expect(consistent / total, greaterThan(0.95),
-        reason: 'FTAB recovered-names != fontCount in too many ($consistent/$total) — framing drift.');
+    expect(
+      consistent / total,
+      greaterThan(0.95),
+      reason: 'FTAB recovered-names != fontCount in too many ($consistent/$total) — framing drift.',
+    );
     expect(printable / total, greaterThan(0.95), reason: 'FTAB names not printable in too many ($printable/$total)');
   });
 
@@ -693,7 +771,11 @@ void main() {
     expect(strTot, greaterThan(0));
     expect(strEq / strTot, greaterThan(0.99), reason: 'vers word major != ASCII major in too many ($strEq/$strTot)');
     expect(lvsrTot, greaterThan(0));
-    expect(lvsrEq / lvsrTot, greaterThan(0.999), reason: 'vers word major != LVSR major in too many ($lvsrEq/$lvsrTot; corpus 100%)');
+    expect(
+      lvsrEq / lvsrTot,
+      greaterThan(0.999),
+      reason: 'vers word major != LVSR major in too many ($lvsrEq/$lvsrTot; corpus 100%)',
+    );
   });
 
   test('signature blocks: fixed sizes + the varied-vs-constant split holds', () {
@@ -741,7 +823,11 @@ void main() {
     for (final k in wantLen.keys) {
       expect(counts[k]!, greaterThan(0), reason: '$k absent');
       expect(sized[k]! / counts[k]!, greaterThan(0.99), reason: '$k not its fixed size (${sized[k]}/${counts[k]})');
-      expect(bodies[k]!.length, lessThan(5), reason: '$k is no longer byte-constant (${bodies[k]!.length} distinct) — may be decodable now');
+      expect(
+        bodies[k]!.length,
+        lessThan(5),
+        reason: '$k is no longer byte-constant (${bodies[k]!.length} distinct) — may be decodable now',
+      );
     }
   });
 

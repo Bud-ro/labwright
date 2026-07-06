@@ -9,8 +9,10 @@ import 'package:labwright_seq/labwright_seq.dart';
 void main(List<String> args) {
   final path = args.isNotEmpty ? args.first : _firstCorpusXml();
   if (path == null) {
-    stderr.writeln('usage: dart run tool/dump.dart <file.seq>  '
-        '(no corpus/seq found to auto-pick from)');
+    stderr.writeln(
+      'usage: dart run tool/dump.dart <file.seq>  '
+      '(no corpus/seq found to auto-pick from)',
+    );
     exit(1);
   }
   final bytes = File(path).readAsBytesSync();
@@ -34,12 +36,9 @@ String? _firstCorpusXml() {
   for (var i = 0; i < 8; i++) {
     final root = Directory('${d.path}/corpus/seq');
     if (root.existsSync()) {
-      final files = root
-          .listSync(recursive: true)
-          .whereType<File>()
-          .where((f) => f.path.toLowerCase().endsWith('.seq'))
-          .toList()
-        ..sort((a, b) => a.path.compareTo(b.path));
+      final files =
+          root.listSync(recursive: true).whereType<File>().where((f) => f.path.toLowerCase().endsWith('.seq')).toList()
+            ..sort((a, b) => a.path.compareTo(b.path));
       for (final f in files) {
         if (detectSeqFormat(f.readAsBytesSync()) == SeqFormat.xml) return f.path;
       }

@@ -94,7 +94,9 @@ PropertyNode propertyTree(SeqFile file) => PropertyNode.of(file.data);
 bool matchesQuery(PropertyNode node, String query) {
   if (query.isEmpty) return true;
   bool hit(String? s) => s != null && s.toLowerCase().contains(query);
-  if (hit(node.name) || hit(node.className) || hit(node.typeName) ||
+  if (hit(node.name) ||
+      hit(node.className) ||
+      hit(node.typeName) ||
       hit(node.value)) {
     return true;
   }
@@ -120,8 +122,7 @@ PropertyNode? filterTree(PropertyNode node, String query) {
   if (!selfMatches && keptChildren.isEmpty) return null;
   // If this node matches but no child does, keep its full subtree so the user
   // can still drill into the match; otherwise keep only the matching branches.
-  final children =
-      keptChildren.isEmpty ? node.children : keptChildren;
+  final children = keptChildren.isEmpty ? node.children : keptChildren;
   return PropertyNode(
     name: node.name,
     className: node.className,

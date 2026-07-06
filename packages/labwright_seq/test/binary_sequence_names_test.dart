@@ -17,9 +17,7 @@ import 'corpus_dirs.dart';
 /// `NIDmm`, …); the binary is `<prefix>_labview_BIN.seq` or `<prefix>_BIN.seq`,
 /// the model twin is `<prefix>_python_XML.seq` or `<prefix>_XML.seq`.
 File? _twin(Directory dir, String binName) {
-  final prefix = binName
-      .replaceAll('_labview_BIN.seq', '')
-      .replaceAll('_BIN.seq', '');
+  final prefix = binName.replaceAll('_labview_BIN.seq', '').replaceAll('_BIN.seq', '');
   for (final suffix in ['_python_XML.seq', '_XML.seq', '_python.seq']) {
     final f = File('${dir.path}/$prefix$suffix');
     if (f.existsSync()) return f;
@@ -30,16 +28,11 @@ File? _twin(Directory dir, String binName) {
 void main() {
   final rosetta = Directory('${corpusSeqDir.path}/rosetta');
   if (!rosetta.existsSync()) {
-    test('binary sequence names (skipped: Rosetta corpus not fetched)', () {},
-        skip: true);
+    test('binary sequence names (skipped: Rosetta corpus not fetched)', () {}, skip: true);
     return;
   }
 
-  final binaries = rosetta
-      .listSync()
-      .whereType<File>()
-      .where((f) => f.path.endsWith('_BIN.seq'))
-      .toList();
+  final binaries = rosetta.listSync().whereType<File>().where((f) => f.path.endsWith('_BIN.seq')).toList();
 
   test('a binary twin is present to validate against', () {
     expect(binaries, isNotEmpty);
@@ -48,8 +41,7 @@ void main() {
     // model twin, or the "validated against the twins" claim is vacuous.
     final unpaired = [
       for (final bin in binaries)
-        if (_twin(rosetta, bin.uri.pathSegments.last) == null)
-          bin.uri.pathSegments.last,
+        if (_twin(rosetta, bin.uri.pathSegments.last) == null) bin.uri.pathSegments.last,
     ];
     expect(unpaired, isEmpty, reason: 'binaries without a model twin');
   });
@@ -60,15 +52,9 @@ void main() {
       final twin = _twin(rosetta, name);
       expect(twin, isNotNull, reason: 'model twin missing for $name');
       if (twin == null) return;
-      final expected =
-          parseSeqFile(twin.readAsBytesSync())
-              .sequences
-              .map((s) => s.name)
-              .toList();
-      final actual =
-          binarySequenceNames(bin.readAsBytesSync());
-      expect(actual, equals(expected),
-          reason: 'binary decoded $actual, XML twin has $expected');
+      final expected = parseSeqFile(twin.readAsBytesSync()).sequences.map((s) => s.name).toList();
+      final actual = binarySequenceNames(bin.readAsBytesSync());
+      expect(actual, equals(expected), reason: 'binary decoded $actual, XML twin has $expected');
     });
   }
 }

@@ -5,17 +5,25 @@ import 'package:labwright_seq_inspector/src/types_view.dart';
 
 void main() {
   Future<void> pump(WidgetTester tester, List<SeqProperty> types) =>
-      tester.pumpWidget(MaterialApp(home: Scaffold(body: TypesView(types: types))));
+      tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(body: TypesView(types: types)),
+        ),
+      );
 
   testWidgets('lists the file type names and a total count', (tester) async {
     await pump(tester, [
       SeqProperty(name: 'NI_MultipleNumericLimitTest', className: 'Obj'),
       SeqProperty(name: 'FlexGStepAdditions', className: 'Obj'),
     ]);
-    expect(find.textContaining('NI_MultipleNumericLimitTest', findRichText: true),
-        findsOneWidget);
-    expect(find.textContaining('FlexGStepAdditions', findRichText: true),
-        findsOneWidget);
+    expect(
+      find.textContaining('NI_MultipleNumericLimitTest', findRichText: true),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('FlexGStepAdditions', findRichText: true),
+      findsOneWidget,
+    );
     expect(find.text('2/2'), findsOneWidget);
   });
 
@@ -26,7 +34,10 @@ void main() {
     ]);
     await tester.enterText(find.byType(TextField), 'passfail');
     await tester.pump();
-    expect(find.textContaining('PassFailTest', findRichText: true), findsOneWidget);
+    expect(
+      find.textContaining('PassFailTest', findRichText: true),
+      findsOneWidget,
+    );
     expect(find.textContaining('Action', findRichText: true), findsNothing);
     expect(find.text('1/2'), findsOneWidget);
   });

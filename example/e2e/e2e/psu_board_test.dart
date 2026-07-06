@@ -16,14 +16,12 @@ void register() {
 
       await dut.phase('3v3 rail', () async {
         final v = await board.railVoltage('3v3');
-        dut.measure('rail_3v3', v, volts.within(3.3, 0.1),
-            requirement: 'REQ-PWR-001');
+        dut.measure('rail_3v3', v, volts.within(3.3, 0.1), requirement: 'REQ-PWR-001');
       });
 
       await dut.phase('5v rail', () async {
         final v = await board.railVoltage('5v');
-        dut.measure('rail_5v', v, volts.within(5.0, 0.25),
-            requirement: 'REQ-PWR-002');
+        dut.measure('rail_5v', v, volts.within(5.0, 0.25), requirement: 'REQ-PWR-002');
       });
     },
   );
@@ -37,17 +35,14 @@ void register() {
     final limit = volts.within(nominal, 0.25);
     final v = await board.railVoltage('5v');
     log('brownout 5v rail reads $v V against $limit');
-    expect(limit.accepts(v), isFalse,
-        reason: 'a browned-out rail must fall outside $limit');
+    expect(limit.accepts(v), isFalse, reason: 'a browned-out rail must fall outside $limit');
   });
 
-  test('a passing run round-trips through TDMS for the existing tooling',
-      () async {
+  test('a passing run round-trips through TDMS for the existing tooling', () async {
     final record = await runDevice('PSU-0001', (dut) async {
       final board = dut.use(PsuBoard());
       await dut.phase('3v3 rail', () async {
-        dut.measure('rail_3v3', await board.railVoltage('3v3'),
-            volts.within(3.3, 0.1));
+        dut.measure('rail_3v3', await board.railVoltage('3v3'), volts.within(3.3, 0.1));
       });
     });
 

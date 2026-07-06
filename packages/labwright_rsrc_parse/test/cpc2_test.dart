@@ -16,7 +16,12 @@ void main() {
   test('cpc2Description returns null for a non-description CPC2 variant', () {
     final cpc2 = <int>[0xff, 0xff, 0xff, 0xff, 0x80, 0x00, 0x00, 0x01];
     expect(cpc2Description([sec('CPC2', cpc2)]), isNull);
-    expect(cpc2Description([sec('vers', [1, 2, 3])]), isNull);
+    expect(
+      cpc2Description([
+        sec('vers', [1, 2, 3]),
+      ]),
+      isNull,
+    );
   });
 
   test('cpc2Description is total over arbitrary bytes', () {

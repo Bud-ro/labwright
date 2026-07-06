@@ -143,7 +143,8 @@ enum HeapOpcode {
 
   /// A heap opcode that is not (yet) catalogued. Its [byte] is -1; use
   /// [HeapRecord.opcode] for the actual byte value.
-  unknown(-1, HeapShape.none);
+  unknown(-1, HeapShape.none)
+  ;
 
   const HeapOpcode(this.byte, this.shape, {this.isDecoded = false});
 
@@ -557,7 +558,8 @@ enum HeapAttribute {
   controlUnit(0xfa, HeapAttrKind.controlParam, 'controlUnit', AttrConfidence.confirmed),
 
   /// An attribute id that is not (yet) catalogued. Its [id] is -1.
-  unknown(-1, HeapAttrKind.unknown, 'unknown', AttrConfidence.kindOnly);
+  unknown(-1, HeapAttrKind.unknown, 'unknown', AttrConfidence.kindOnly)
+  ;
 
   const HeapAttribute(this.id, this.kind, this.attrName, this.confidence);
 
@@ -619,16 +621,16 @@ class HeapAttr {
   /// `rgb`→[HeapAttrKind.color] for colour/rect-dual ids (else the catalog kind);
   /// every other width returns the catalog [kind].
   HeapAttrKind get kind => switch (width) {
-        HeapAttrWidth.f64 => HeapAttrKind.controlParam,
-        HeapAttrWidth.blob => HeapAttrKind.stringBlob,
-        HeapAttrWidth.rect => HeapAttrKind.rectangle,
-        HeapAttrWidth.container => HeapAttrKind.container,
-        HeapAttrWidth.rgb =>
-          (attribute.kind == HeapAttrKind.color || attribute.kind == HeapAttrKind.rectangle)
-              ? HeapAttrKind.color
-              : attribute.kind,
-        _ => attribute.kind,
-      };
+    HeapAttrWidth.f64 => HeapAttrKind.controlParam,
+    HeapAttrWidth.blob => HeapAttrKind.stringBlob,
+    HeapAttrWidth.rect => HeapAttrKind.rectangle,
+    HeapAttrWidth.container => HeapAttrKind.container,
+    HeapAttrWidth.rgb =>
+      (attribute.kind == HeapAttrKind.color || attribute.kind == HeapAttrKind.rectangle)
+          ? HeapAttrKind.color
+          : attribute.kind,
+    _ => attribute.kind,
+  };
 
   /// The value as an `int`, or null if it is not integer-stored.
   int? get asInt => value is int ? value as int : null;
@@ -696,11 +698,20 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
   final op = body[offset];
   final id = body[offset + 1];
 
-  if (op == 0xc6 && offset + 3 <= body.length && _inlineStringIds.contains(body[offset + 1]) && body[offset + 2] != 0xff) {
+  if (op == 0xc6 &&
+      offset + 3 <= body.length &&
+      _inlineStringIds.contains(body[offset + 1]) &&
+      body[offset + 2] != 0xff) {
     final len = body[offset + 2];
     if (offset + 3 + len <= body.length) {
       final text = String.fromCharCodes(body.sublist(offset + 3, offset + 3 + len).where(_isPrintableAscii));
-      return HeapAttr(attribute: HeapAttribute.fromId(id), id: id, width: HeapAttrWidth.blob, value: text, length: 3 + len);
+      return HeapAttr(
+        attribute: HeapAttribute.fromId(id),
+        id: id,
+        width: HeapAttrWidth.blob,
+        value: text,
+        length: 3 + len,
+      );
     }
   }
 
@@ -708,7 +719,13 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
     final len = body[offset + 2];
     if (offset + 3 + len <= body.length) {
       final lead = len > 0 ? body[offset + 3] : 0;
-      return HeapAttr(attribute: HeapAttribute.fromId(id), id: id, width: HeapAttrWidth.container, value: lead, length: 3 + len);
+      return HeapAttr(
+        attribute: HeapAttribute.fromId(id),
+        id: id,
+        width: HeapAttrWidth.container,
+        value: lead,
+        length: 3 + len,
+      );
     }
   }
 
@@ -716,7 +733,13 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
     if (_rectPayloadIds.contains(id)) {
       final rect = HeapRect.fromPayload(body.sublist(offset + 3, offset + 11));
       if (rect != null) {
-        return HeapAttr(attribute: HeapAttribute.fromId(id), id: id, width: HeapAttrWidth.rect, value: rect, length: 11);
+        return HeapAttr(
+          attribute: HeapAttribute.fromId(id),
+          id: id,
+          width: HeapAttrWidth.rect,
+          value: rect,
+          length: 11,
+        );
       }
     }
     if (_f64PayloadIds.contains(id)) {
@@ -737,11 +760,12 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
     final chars = raw.where(_isPrintableAscii).toList();
     if (chars.length / raw.length < 0.9) return null;
     return HeapAttr(
-        attribute: HeapAttribute.fromId(id),
-        id: id,
-        width: HeapAttrWidth.blob,
-        value: String.fromCharCodes(chars),
-        length: 5 + len);
+      attribute: HeapAttribute.fromId(id),
+      id: id,
+      width: HeapAttrWidth.blob,
+      value: String.fromCharCodes(chars),
+      length: 5 + len,
+    );
   }
 
   if (op == 0xc6 && offset + 3 <= body.length && _u32StringIds.contains(body[offset + 1])) {
@@ -753,7 +777,13 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
       if (strLen >= 1 && slack >= 0 && !(strLen <= 2 && slack >= 8)) {
         final raw = body.sublist(payloadStart + 4, payloadStart + 4 + strLen);
         if (raw.every(_isPrintableAscii)) {
-          return HeapAttr(attribute: HeapAttribute.fromId(id), id: id, width: HeapAttrWidth.blob, value: String.fromCharCodes(raw), length: 3 + len);
+          return HeapAttr(
+            attribute: HeapAttribute.fromId(id),
+            id: id,
+            width: HeapAttrWidth.blob,
+            value: String.fromCharCodes(raw),
+            length: 3 + len,
+          );
         }
       }
     }
@@ -1026,8 +1056,9 @@ class HeapRect {
 List<HeapRecord> heapC4Records(Uint8List viBytes) => heapC4RecordsFromDecoded(decodeSections(viBytes));
 
 /// [heapC4Records] over already-decoded sections.
-List<HeapRecord> heapC4RecordsFromDecoded(Iterable<DecodedSection> decoded) =>
-    [for (final decodedSection in decoded) ...scanC4Records(decodedSection.bytes, decodedSection.tag)];
+List<HeapRecord> heapC4RecordsFromDecoded(Iterable<DecodedSection> decoded) => [
+  for (final decodedSection in decoded) ...scanC4Records(decodedSection.bytes, decodedSection.tag),
+];
 
 /// One record found by [walkHeapBody]: its byte span and lead opcode byte.
 class HeapSpan {
@@ -1205,7 +1236,8 @@ enum HeapPropertyToken {
 
   /// `11 14` — **viewport property slot 2** (bare selector), same `64`/`44`
   /// framing as [viewportSlot1] inside content viewports.
-  viewportSlot2(0x11, 0x14, PropTokenForm.selector, 'viewportSlot2', AttrConfidence.inferred);
+  viewportSlot2(0x11, 0x14, PropTokenForm.selector, 'viewportSlot2', AttrConfidence.inferred)
+  ;
 
   const HeapPropertyToken(this.op, this.subop, this.form, this.tokenName, this.confidence);
 
@@ -1337,7 +1369,8 @@ enum HeapRefKind {
 
   /// `14 53` — a literal `u16` value, **NOT** an object reference (0% oid-resolve
   /// across the corpus). [decodeHeapRef] returns null for it.
-  literal(0x53, 'literal', AttrConfidence.confirmed);
+  literal(0x53, 'literal', AttrConfidence.confirmed)
+  ;
 
   const HeapRefKind(this.subop, this.refName, this.confidence);
 
@@ -1413,7 +1446,10 @@ HeapDecodeTier heapDecodeTier(Uint8List body, int offset, int lead, String secti
   if (_isObjectHeader(body, offset)) return HeapDecodeTier.semantic;
   if (lead == 0x08 || lead == 0x09 || lead == 0x0a || lead == 0x0b) return HeapDecodeTier.semantic;
   if ((lead == 0x10 || lead == 0x11 || lead == 0x12 || lead == 0x13) &&
-      offset + 4 <= body.length && _isTypeTag(body[offset + 3])) { return HeapDecodeTier.semantic; }
+      offset + 4 <= body.length &&
+      _isTypeTag(body[offset + 3])) {
+    return HeapDecodeTier.semantic;
+  }
   if (lead == 0x14 && decodeHeapRef(body, offset) != null) return HeapDecodeTier.semantic;
   if (lead == kHeapRecordPrefix) {
     final rec = c4FrameAt(body, offset, sectionTag);
@@ -1427,7 +1463,8 @@ HeapDecodeTier heapDecodeTier(Uint8List body, int offset, int lead, String secti
     if (attr.attribute == HeapAttribute.unknown) return HeapDecodeTier.framed;
     if (attr.attribute.confidence == AttrConfidence.kindOnly) return HeapDecodeTier.valueKindKnown;
     if (attr.attribute.kind == HeapAttrKind.color &&
-        attr.width != HeapAttrWidth.rgb && attr.width != HeapAttrWidth.f64) {
+        attr.width != HeapAttrWidth.rgb &&
+        attr.width != HeapAttrWidth.f64) {
       return HeapDecodeTier.valueKindKnown;
     }
     return HeapDecodeTier.semantic;
@@ -1480,7 +1517,11 @@ int? recordSkip(Uint8List heapBytes, int offset) {
       // Defer to _typedList so an FD item with the value high-bit set is read as
       // the 7-byte escape (`fd 80 00 <u32>`), not a hardcoded 6 (which desynced
       // the walk); non-escape items still return 6.
-      return (offset + 4 <= length && heapBytes[offset + 2] == 1 && (heapBytes[offset + 3] == 0xfd || heapBytes[offset + 3] == 0xfe)) ? _typedList(heapBytes, offset) : null;
+      return (offset + 4 <= length &&
+              heapBytes[offset + 2] == 1 &&
+              (heapBytes[offset + 3] == 0xfd || heapBytes[offset + 3] == 0xfe))
+          ? _typedList(heapBytes, offset)
+          : null;
     case 0x08:
     case 0x09:
     case 0x04:

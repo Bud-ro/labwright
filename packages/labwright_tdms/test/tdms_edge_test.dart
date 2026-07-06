@@ -17,12 +17,19 @@ void main() {
   });
 
   test('a channel with zero values round-trips empty', () {
-    final f = TdmsReader.read((TdmsWriter()..writeSegment([TdmsChannel(group: 'M', name: 'v', data: const [])])).toBytes());
+    final f = TdmsReader.read(
+      (TdmsWriter()..writeSegment([TdmsChannel(group: 'M', name: 'v', data: const [])])).toBytes(),
+    );
     expect(f.group('M')!.channel('v')!.data, isEmpty);
   });
 
   test('single-sample channel round-trips', () {
-    final f = TdmsReader.read((TdmsWriter()..writeSegment([TdmsChannel(group: 'M', name: 'v', data: const [42.0])])).toBytes());
+    final f = TdmsReader.read(
+      (TdmsWriter()..writeSegment([
+            TdmsChannel(group: 'M', name: 'v', data: const [42.0]),
+          ]))
+          .toBytes(),
+    );
     expect(f.group('M')!.channel('v')!.data, [42.0]);
   });
 }

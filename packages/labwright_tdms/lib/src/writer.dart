@@ -34,9 +34,7 @@ class TdmsWriter {
     }
 
     for (final channel in channelList) {
-      if (channel.type == TdsType.string ||
-          channel.type == TdsType.boolean ||
-          channel.type == TdsType.timestamp) {
+      if (channel.type == TdsType.string || channel.type == TdsType.boolean || channel.type == TdsType.timestamp) {
         throw ArgumentError('TdmsWriter cannot write channel type ${channel.type}');
       }
       _writeString(metadata, _channelObjectPath(channel.group, channel.name));
@@ -168,5 +166,4 @@ void _writeProperty(BytesBuilder out, String name, Object value) {
 // by doubling them: /'group'/'channel'.
 String _escapeQuotes(String name) => name.replaceAll("'", "''");
 String _groupObjectPath(String group) => "/'${_escapeQuotes(group)}'";
-String _channelObjectPath(String group, String channel) =>
-    "/'${_escapeQuotes(group)}'/'${_escapeQuotes(channel)}'";
+String _channelObjectPath(String group, String channel) => "/'${_escapeQuotes(group)}'/'${_escapeQuotes(channel)}'";

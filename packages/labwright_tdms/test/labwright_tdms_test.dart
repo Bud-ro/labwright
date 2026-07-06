@@ -37,8 +37,12 @@ void main() {
 
   test('streams across multiple segments, appending samples', () {
     final w = TdmsWriter()
-      ..writeSegment([TdmsChannel(group: 'M', name: 'v', data: [1.0, 2.0])])
-      ..writeSegment([TdmsChannel(group: 'M', name: 'v', data: [3.0, 4.0, 5.0])]);
+      ..writeSegment([
+        TdmsChannel(group: 'M', name: 'v', data: [1.0, 2.0]),
+      ])
+      ..writeSegment([
+        TdmsChannel(group: 'M', name: 'v', data: [3.0, 4.0, 5.0]),
+      ]);
     final f = TdmsReader.read(w.toBytes());
     expect(f.group('M')!.channel('v')!.data, [1.0, 2.0, 3.0, 4.0, 5.0]);
   });
@@ -55,13 +59,20 @@ void main() {
   });
 
   test('begins with the TDSm tag and TDMS v2 version', () {
-    final b = (TdmsWriter()..writeSegment([TdmsChannel(group: 'M', name: 'v', data: [1.0])])).toBytes();
+    final b =
+        (TdmsWriter()..writeSegment([
+              TdmsChannel(group: 'M', name: 'v', data: [1.0]),
+            ]))
+            .toBytes();
     expect(String.fromCharCodes(b.sublist(0, 4)), 'TDSm');
     expect(ByteData.sublistView(b).getUint32(8, Endian.little), 4713);
   });
 
   test('escapes single quotes in group/channel names', () {
-    final w = TdmsWriter()..writeSegment([TdmsChannel(group: "O'Brien", name: "a'b", data: [1.0])]);
+    final w = TdmsWriter()
+      ..writeSegment([
+        TdmsChannel(group: "O'Brien", name: "a'b", data: [1.0]),
+      ]);
     final f = TdmsReader.read(w.toBytes());
     expect(f.group("O'Brien")!.channel("a'b")!.data, [1.0]);
   });

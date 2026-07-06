@@ -12,8 +12,7 @@ String tdmsToCsv(Uint8List bytes, {String delimiter = ',', bool header = true}) 
   final columns = <({String name, List<double> data})>[
     for (final group in file.groups)
       for (final channel in group.channels)
-        if (channel.data.isNotEmpty)
-          (name: '${group.name}/${channel.name}', data: channel.data),
+        if (channel.data.isNotEmpty) (name: '${group.name}/${channel.name}', data: channel.data),
   ];
   if (columns.isEmpty) return '';
 
@@ -31,9 +30,11 @@ String tdmsToCsv(Uint8List bytes, {String delimiter = ',', bool header = true}) 
 
   final rowCount = columns.map((column) => column.data.length).reduce((a, b) => a > b ? a : b);
   for (var row = 0; row < rowCount; row++) {
-    out.writeln([
-      for (final column in columns) row < column.data.length ? '${column.data[row]}' : '',
-    ].join(delimiter));
+    out.writeln(
+      [
+        for (final column in columns) row < column.data.length ? '${column.data[row]}' : '',
+      ].join(delimiter),
+    );
   }
   return out.toString();
 }

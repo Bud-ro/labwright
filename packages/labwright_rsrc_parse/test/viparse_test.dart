@@ -16,8 +16,7 @@ Uint8List _buildVi({required String fileType, required List<String> blocks, requ
   void be16(BytesBuilder b, int v) => b.add((ByteData(2)..setUint16(0, v)).buffer.asUint8List());
   void be32(BytesBuilder b, int v) => b.add((ByteData(4)..setUint32(0, v)).buffer.asUint8List());
 
-  final header = BytesBuilder()
-    ..add([0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a]);
+  final header = BytesBuilder()..add([0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a]);
   be16(header, 3);
   header
     ..add(fileType.codeUnits)

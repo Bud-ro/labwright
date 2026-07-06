@@ -71,7 +71,11 @@ List<String> _scanNames(Uint8List bytes, int from) {
   while (pos + 3 < bytes.length) {
     final len = bytes[pos + 2];
     final start = pos + 3;
-    if (bytes[pos] == 0x40 && bytes[pos + 1] <= 0x7f && len > 0 && start + len <= bytes.length && _printable(bytes, start, start + len)) {
+    if (bytes[pos] == 0x40 &&
+        bytes[pos + 1] <= 0x7f &&
+        len > 0 &&
+        start + len <= bytes.length &&
+        _printable(bytes, start, start + len)) {
       out.add(String.fromCharCodes(bytes, start, start + len));
       pos = start + len;
       continue;
@@ -81,6 +85,5 @@ List<String> _scanNames(Uint8List bytes, int from) {
   return out;
 }
 
-bool _printable(Uint8List bytes, int start, int end) => bytes
-    .getRange(start, end)
-    .every((c) => c == 0x09 || c == 0x0a || c == 0x0d || (c >= 0x20 && c < 0x7f));
+bool _printable(Uint8List bytes, int start, int end) =>
+    bytes.getRange(start, end).every((c) => c == 0x09 || c == 0x0a || c == 0x0d || (c >= 0x20 && c < 0x7f));

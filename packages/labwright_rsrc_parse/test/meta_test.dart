@@ -10,10 +10,10 @@ ViSection versSection(List<int> bytes) =>
 List<int> pascal(String s) => [s.length, ...s.codeUnits];
 
 DecodedSection bdex(List<int> heap) => DecodedSection(
-      section: ViSection(tag: 'BDEx', index: 0, dataOffset: 0, bytes: Uint8List.fromList(heap)),
-      bytes: Uint8List.fromList(heap),
-      wasCompressed: false,
-    );
+  section: ViSection(tag: 'BDEx', index: 0, dataOffset: 0, bytes: Uint8List.fromList(heap)),
+  bytes: Uint8List.fromList(heap),
+  wasCompressed: false,
+);
 
 void expectTotalOverRandomBytes(int seed, void Function(Uint8List) probe) {
   final rng = Random(seed);
@@ -36,7 +36,8 @@ void main() {
       0xAB,
       ...pascal('10.0'),
       0x00,
-      ...'VIDS'.codeUnits, ...pascal('My Example.vi'),
+      ...'VIDS'.codeUnits,
+      ...pascal('My Example.vi'),
     ];
     final info = versionFromSections([versSection(bytes)]);
     expect(info.version, '10.0');
@@ -44,7 +45,9 @@ void main() {
   });
 
   test('version is null when no version-like string is present', () {
-    final info = versionFromSections([versSection([...pascal('not a version')])]);
+    final info = versionFromSections([
+      versSection([...pascal('not a version')]),
+    ]);
     expect(info.version, isNull);
   });
 
@@ -55,17 +58,24 @@ void main() {
       ...pascal('error out'),
       ...pascal('Range Volts'),
       ...pascal('1234'),
-      0xff, 0xfe, 0x00,
+      0xff,
+      0xfe,
+      0x00,
       0x99,
       ...pascal('Lonely'),
-      0x00, 0x00,
+      0x00,
+      0x00,
     ];
     final decoded = bdex(heap);
     final strings = heapStringsFromDecoded([decoded]);
     expect(strings, containsAll(<String>['Conversion time', 'error out', 'Range Volts']));
     expect(strings.where((s) => s == 'error out').length, 1);
     expect(strings, isNot(contains('1234')), reason: 'purely-numeric strings carry no ASCII letter and are dropped');
-    expect(strings, isNot(contains('Lonely')), reason: 'a run of fewer than minRun (2) strings is dropped as coincidental');
+    expect(
+      strings,
+      isNot(contains('Lonely')),
+      reason: 'a run of fewer than minRun (2) strings is dropped as coincidental',
+    );
   });
 
   test('heapStringTablesFromDecoded groups runs and records section + offset', () {
@@ -74,7 +84,8 @@ void main() {
       ...lead,
       ...pascal('Range Volts'),
       ...pascal('error out'),
-      0x00, 0x00,
+      0x00,
+      0x00,
       ...pascal('Channel'),
       ...pascal('Sample Rate'),
     ];
@@ -85,15 +96,18 @@ void main() {
     expect(tables.first.offset, lead.length);
     expect(tables.first.strings, <String>['Range Volts', 'error out']);
     expect(tables[1].strings, <String>['Channel', 'Sample Rate']);
-    expect(heapStringsFromDecoded([decoded]),
-        <String>['Range Volts', 'error out', 'Channel', 'Sample Rate']);
+    expect(heapStringsFromDecoded([decoded]), <String>['Range Volts', 'error out', 'Channel', 'Sample Rate']);
   });
 
   test('heapStringTablesFromDecoded frames a C4 2E <len> opcode table exactly', () {
     final body = <int>[...pascal('Sine'), ...pascal('Square'), ...pascal('Ramp Up')];
     final heap = <int>[
-      0xaa, 0xbb,
-      0xc4, 0x2e, body.length, ...body,
+      0xaa,
+      0xbb,
+      0xc4,
+      0x2e,
+      body.length,
+      ...body,
       0x00,
     ];
     final decoded = bdex(heap);
@@ -109,8 +123,11 @@ void main() {
     final heap = <int>[0x2e, body.length, ...body];
     final decoded = bdex(heap);
     final tables = heapStringTablesFromDecoded([decoded]);
-    expect(tables.every((t) => !t.framed), isTrue,
-        reason: '0x2E is ASCII "." and is recovered only via the unframed heuristic, never as a framed table opcode');
+    expect(
+      tables.every((t) => !t.framed),
+      isTrue,
+      reason: '0x2E is ASCII "." and is recovered only via the unframed heuristic, never as a framed table opcode',
+    );
   });
 
   test('heapStringTablesFromDecoded frames a C4 2E <u16 len> big table', () {
@@ -123,14 +140,22 @@ void main() {
     }
     expect(entries.length > 255, isTrue);
     final heap = <int>[
-      0xc4, 0x2e, 0xff, (entries.length >> 8) & 0xff, entries.length & 0xff, ...entries,
+      0xc4,
+      0x2e,
+      0xff,
+      (entries.length >> 8) & 0xff,
+      entries.length & 0xff,
+      ...entries,
     ];
     final decoded = bdex(heap);
     final tables = heapStringTablesFromDecoded([decoded]);
     expect(tables.length, 1);
     expect(tables.first.framed, isTrue);
-    expect(tables.first.offset, 5,
-        reason: 'payload starts after the C4 2E FF <u16 len> extended-length header (5 bytes)');
+    expect(
+      tables.first.offset,
+      5,
+      reason: 'payload starts after the C4 2E FF <u16 len> extended-length header (5 bytes)',
+    );
     expect(tables.first.strings, expected);
   });
 
@@ -145,10 +170,10 @@ void main() {
 
   test('componentsFromDecoded summarizes per-block sizes, largest first', () {
     DecodedSection d(String tag, int rawLen, int decLen, bool comp) => DecodedSection(
-          section: ViSection(tag: tag, index: 0, dataOffset: 0, bytes: Uint8List(rawLen)),
-          bytes: Uint8List(decLen),
-          wasCompressed: comp,
-        );
+      section: ViSection(tag: tag, index: 0, dataOffset: 0, bytes: Uint8List(rawLen)),
+      bytes: Uint8List(decLen),
+      wasCompressed: comp,
+    );
     final comps = componentsFromDecoded([
       d('FPHb', 100, 100, false),
       d('BDEx', 50, 5000, true),

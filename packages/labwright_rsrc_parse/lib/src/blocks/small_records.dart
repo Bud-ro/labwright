@@ -6,8 +6,7 @@ library;
 
 import 'dart:typed_data';
 
-String _hexOf(Uint8List bytes) =>
-    bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+String _hexOf(Uint8List bytes) => bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
 
 /// A decoded `BDPW` **block-diagram password record**: three 16-byte MD5
 /// digests (48 B in 7538/7539 corpus sections; one legacy 32 B = two digests).
@@ -33,8 +32,7 @@ ViPasswordRecord? decodePasswordRecord(Uint8List bytes) {
   return ViPasswordRecord(
     passwordHash: _hexOf(Uint8List.sublistView(bytes, 0, 16)),
     extraHashes: [
-      for (var at = 16; at + 16 <= bytes.length; at += 16)
-        _hexOf(Uint8List.sublistView(bytes, at, at + 16)),
+      for (var at = 16; at + 16 <= bytes.length; at += 16) _hexOf(Uint8List.sublistView(bytes, at, at + 16)),
     ],
   );
 }
@@ -48,8 +46,7 @@ class ViSignature {
 }
 
 /// Decodes an `RTSG` signature; null unless exactly 16 bytes (7582/7582).
-ViSignature? decodeRuntimeSignature(Uint8List bytes) =>
-    bytes.length == 16 ? ViSignature(hex: _hexOf(bytes)) : null;
+ViSignature? decodeRuntimeSignature(Uint8List bytes) => bytes.length == 16 ? ViSignature(hex: _hexOf(bytes)) : null;
 
 /// A decoded `SCSR` record: a u32 marker (0x01000000 across the corpus) plus a
 /// 16-byte signature.
@@ -232,7 +229,13 @@ ViTextRecord? decodeTextRecord(Uint8List bytes) {
 /// from the header (`[u16 size][rect: 4 x u16 top/left/bottom/right]` then the
 /// `00 11 02 ff` version-2 opcode). Opcode stream content is standard PICT.
 class ViPictImage {
-  const ViPictImage({required this.top, required this.left, required this.bottom, required this.right, required this.byteLength});
+  const ViPictImage({
+    required this.top,
+    required this.left,
+    required this.bottom,
+    required this.right,
+    required this.byteLength,
+  });
   final int top, left, bottom, right;
   final int byteLength;
   int get width => right - left;

@@ -53,8 +53,7 @@ class StepTypeInfo {
   /// The editor edit-panel class names the step type registers
   /// (`NI_Data.EditPanels`) — the configuration tabs shown for the step. Empty
   /// when the type defines none.
-  List<String> get editPanels =>
-      scalarValues(raw.prop('NI_Data')?.prop('EditPanels'));
+  List<String> get editPanels => scalarValues(raw.prop('NI_Data')?.prop('EditPanels'));
 
   /// The step type's Insertion-menu placement (`Menu`), or null when it carries
   /// none. See [StepTypeMenu].
@@ -124,9 +123,8 @@ class SeqType {
   /// pair where `type` is the field's own `classname` token (may be null).
   /// Empty for a leaf/scalar type that declares no sub-fields.
   List<({String name, String? type})> get fields => [
-        for (final child in [...raw.subProps, ...?raw.array])
-          (name: child.name, type: child.className),
-      ];
+    for (final child in [...raw.subProps, ...?raw.array]) (name: child.name, type: child.className),
+  ];
 }
 
 /// The Semiconductor-Test-System (STS) measurement plug-in resource set a

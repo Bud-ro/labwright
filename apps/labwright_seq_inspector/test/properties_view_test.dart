@@ -5,9 +5,15 @@ import 'package:labwright_seq_inspector/src/property_outline.dart';
 
 void main() {
   Future<void> pump(WidgetTester tester, PropertyNode root) =>
-      tester.pumpWidget(MaterialApp(home: Scaffold(body: PropertiesView(root: root))));
+      tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(body: PropertiesView(root: root)),
+        ),
+      );
 
-  testWidgets('shows an "overridden" marker on a %INSTOVRD node', (tester) async {
+  testWidgets('shows an "overridden" marker on a %INSTOVRD node', (
+    tester,
+  ) async {
     final root = PropertyNode(
       name: 'Data',
       children: [
@@ -19,7 +25,10 @@ void main() {
       ],
     );
     await pump(tester, root);
-    expect(find.textContaining('overridden', findRichText: true), findsOneWidget);
+    expect(
+      find.textContaining('overridden', findRichText: true),
+      findsOneWidget,
+    );
   });
 
   testWidgets('a plain node shows no override marker', (tester) async {

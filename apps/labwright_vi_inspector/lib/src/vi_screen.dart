@@ -103,7 +103,10 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
     if (load.isOk) {
       try {
         sections = decodeSections(bytes);
-        model = buildViModelFromDecoded(sections, subViNames: readSubViNames(bytes));
+        model = buildViModelFromDecoded(
+          sections,
+          subViNames: readSubViNames(bytes),
+        );
         strings = heapStringsFromDecoded(sections);
         components = model.components;
         version = decodeVersion(bytes);
@@ -168,7 +171,8 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
     );
     if (!mounted) return;
     final files = result?.files ?? const [];
-    if (files.isNotEmpty && files.first.path != null) _loadPath(files.first.path!);
+    if (files.isNotEmpty && files.first.path != null)
+      _loadPath(files.first.path!);
   }
 
   @override
@@ -211,7 +215,8 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                 const SizedBox(width: 8),
                 OutlinedButton.icon(
                   key: const Key('demo'),
-                  onPressed: () => _loadBytes(demoViBytes(), 'demo VI (synthetic)'),
+                  onPressed: () =>
+                      _loadBytes(demoViBytes(), 'demo VI (synthetic)'),
                   icon: const Icon(Icons.science_outlined),
                   label: const Text('Load demo VI'),
                 ),
@@ -224,12 +229,15 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                 onDragExited: (_) => setState(() => _dragging = false),
                 onDragDone: (detail) {
                   setState(() => _dragging = false);
-                  if (detail.files.isNotEmpty) _loadPath(detail.files.first.path);
+                  if (detail.files.isNotEmpty)
+                    _loadPath(detail.files.first.path);
                 },
                 child: Container(
                   decoration: BoxDecoration(
                     border: Border.all(
-                      color: _dragging ? Theme.of(context).colorScheme.primary : const Color(0x22FFFFFF),
+                      color: _dragging
+                          ? Theme.of(context).colorScheme.primary
+                          : const Color(0x22FFFFFF),
                       width: _dragging ? 2 : 1,
                       style: _dragging ? BorderStyle.solid : BorderStyle.none,
                     ),
@@ -239,73 +247,82 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                   child: _error != null
                       ? _ErrorCard(_error!)
                       : _summary == null
-                          ? _Empty(dragging: _dragging)
-                          : DefaultTabController(
-                              length: 4,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  const TabBar(
-                                    isScrollable: true,
-                                    tabs: [
-                                      Tab(text: 'Inspect'),
-                                      Tab(text: 'Front Panel'),
-                                      Tab(text: 'Block Diagram'),
-                                      Tab(text: 'Types'),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Expanded(
-                                    child: TabBarView(
-                                      children: [
-                                        _SummaryView(
-                                          summary: _summary!,
-                                          source: _source,
-                                          version: _version,
-                                          strings: _strings,
-                                          components: _components,
-                                          sections: _sections,
-                                          model: _model,
-                                          libraryNames: _libraryNames,
-                                          embeddedVis: _embeddedVis,
-                                          onOpenEmbedded: (vi) {
-                                            final bytes = vi.bytes;
-                                            if (bytes == null) return;
-                                            _loadBytes(bytes, 'embedded: ${vi.name ?? 'sub-VI'}');
-                                          },
-                                        ),
-                                        ViDiagramView(
-                                          key: ValueKey('fp:$_model'),
-                                          diagrams: _model?.frontPanelDiagrams,
-                                          emptyHint: 'No front-panel objects recovered in this file.',
-                                          isFrontPanel: true,
-                                        ),
-                                        // Block Diagram, headed by the honest
-                                        // recovery-summary strip (previously
-                                        // the Review tab's header).
-                                        Column(
-                                          children: [
-                                            if (_model != null) ...[
-                                              _RecoverySummary(_model!),
-                                              const Divider(height: 1),
-                                            ],
-                                            Expanded(
-                                              child: ViDiagramView(
-                                                key: ValueKey('bd:$_model'),
-                                                diagrams: _model?.blockDiagrams,
-                                                emptyHint: 'No block-diagram objects recovered in this file.',
-                                                subViNames: _model?.subViNames ?? const [],
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        ViTypesView(key: ValueKey('types:$_model'), model: _model),
-                                      ],
-                                    ),
-                                  ),
+                      ? _Empty(dragging: _dragging)
+                      : DefaultTabController(
+                          length: 4,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              const TabBar(
+                                isScrollable: true,
+                                tabs: [
+                                  Tab(text: 'Inspect'),
+                                  Tab(text: 'Front Panel'),
+                                  Tab(text: 'Block Diagram'),
+                                  Tab(text: 'Types'),
                                 ],
                               ),
-                            ),
+                              const SizedBox(height: 8),
+                              Expanded(
+                                child: TabBarView(
+                                  children: [
+                                    _SummaryView(
+                                      summary: _summary!,
+                                      source: _source,
+                                      version: _version,
+                                      strings: _strings,
+                                      components: _components,
+                                      sections: _sections,
+                                      model: _model,
+                                      libraryNames: _libraryNames,
+                                      embeddedVis: _embeddedVis,
+                                      onOpenEmbedded: (vi) {
+                                        final bytes = vi.bytes;
+                                        if (bytes == null) return;
+                                        _loadBytes(
+                                          bytes,
+                                          'embedded: ${vi.name ?? 'sub-VI'}',
+                                        );
+                                      },
+                                    ),
+                                    ViDiagramView(
+                                      key: ValueKey('fp:$_model'),
+                                      diagrams: _model?.frontPanelDiagrams,
+                                      emptyHint:
+                                          'No front-panel objects recovered in this file.',
+                                      isFrontPanel: true,
+                                    ),
+                                    // Block Diagram, headed by the honest
+                                    // recovery-summary strip (previously
+                                    // the Review tab's header).
+                                    Column(
+                                      children: [
+                                        if (_model != null) ...[
+                                          _RecoverySummary(_model!),
+                                          const Divider(height: 1),
+                                        ],
+                                        Expanded(
+                                          child: ViDiagramView(
+                                            key: ValueKey('bd:$_model'),
+                                            diagrams: _model?.blockDiagrams,
+                                            emptyHint:
+                                                'No block-diagram objects recovered in this file.',
+                                            subViNames:
+                                                _model?.subViNames ?? const [],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    ViTypesView(
+                                      key: ValueKey('types:$_model'),
+                                      model: _model,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                 ),
               ),
             ),
@@ -322,19 +339,24 @@ class _Empty extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(dragging ? Icons.file_download : Icons.upload_file,
-                size: 48, color: dragging ? Theme.of(context).colorScheme.primary : Colors.grey),
-            const SizedBox(height: 12),
-            Text(
-              dragging ? 'Drop the .vi to inspect it' : 'Drag a .vi here, or use Browse… / Load demo VI',
-              style: const TextStyle(color: Colors.grey),
-            ),
-          ],
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          dragging ? Icons.file_download : Icons.upload_file,
+          size: 48,
+          color: dragging ? Theme.of(context).colorScheme.primary : Colors.grey,
         ),
-      );
+        const SizedBox(height: 12),
+        Text(
+          dragging
+              ? 'Drop the .vi to inspect it'
+              : 'Drag a .vi here, or use Browse… / Load demo VI',
+          style: const TextStyle(color: Colors.grey),
+        ),
+      ],
+    ),
+  );
 }
 
 class _ErrorCard extends StatelessWidget {
@@ -343,15 +365,15 @@ class _ErrorCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Align(
-        alignment: Alignment.topCenter,
-        child: Card(
-          color: Colors.red.shade900,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Text(message, style: const TextStyle(color: Colors.white)),
-          ),
-        ),
-      );
+    alignment: Alignment.topCenter,
+    child: Card(
+      color: Colors.red.shade900,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Text(message, style: const TextStyle(color: Colors.white)),
+      ),
+    ),
+  );
 }
 
 class _SummaryView extends StatefulWidget {
@@ -401,28 +423,38 @@ class _SummaryViewState extends State<_SummaryView> {
   }
 
   String get _kind => switch (widget.summary.fileType) {
-        'LVIN' => 'VI',
-        'LVCC' => 'Control / typedef',
-        _ => widget.summary.fileType,
-      };
+    'LVIN' => 'VI',
+    'LVCC' => 'Control / typedef',
+    _ => widget.summary.fileType,
+  };
 
   @override
   Widget build(BuildContext context) {
     final summary = widget.summary;
     final version = widget.version;
-    final hasDecoded = version != null && (version.version != null || version.title != null);
+    final hasDecoded =
+        version != null && (version.version != null || version.title != null);
     final needle = _filter.trim().toLowerCase();
     final filtered = needle.isEmpty
         ? widget.strings
-        : [for (final text in widget.strings) if (text.toLowerCase().contains(needle)) text];
+        : [
+            for (final text in widget.strings)
+              if (text.toLowerCase().contains(needle)) text,
+          ];
 
     return ListView(
       children: [
-        Text(summary.name ?? '(unnamed)', style: Theme.of(context).textTheme.headlineSmall),
+        Text(
+          summary.name ?? '(unnamed)',
+          style: Theme.of(context).textTheme.headlineSmall,
+        ),
         const SizedBox(height: 4),
         Text(summary.describe(), style: const TextStyle(color: Colors.grey)),
         const SizedBox(height: 4),
-        Text('source: ${widget.source}', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+        Text(
+          'source: ${widget.source}',
+          style: const TextStyle(color: Colors.grey, fontSize: 12),
+        ),
         const SizedBox(height: 16),
 
         _Section('Identity', [
@@ -436,100 +468,156 @@ class _SummaryViewState extends State<_SummaryView> {
 
         if (hasDecoded) ...[
           _Section('Decoded', [
-            if (version.version != null) _kv('LabVIEW version', version.version!),
+            if (version.version != null)
+              _kv('LabVIEW version', version.version!),
             if (version.title != null) _kv('Title', version.title!),
           ]),
           const SizedBox(height: 16),
         ],
 
         if (widget.model?.subViNames.isNotEmpty ?? false) ...[
-          Text('SubVIs called (${widget.model!.subViNames.length})', style: const TextStyle(fontWeight: FontWeight.bold)),
+          Text(
+            'SubVIs called (${widget.model!.subViNames.length})',
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 4),
           Text(
             widget.model!.subViNames.take(40).join(', ') +
-                (widget.model!.subViNames.length > 40 ? ', … (+${widget.model!.subViNames.length - 40} more)' : ''),
+                (widget.model!.subViNames.length > 40
+                    ? ', … (+${widget.model!.subViNames.length - 40} more)'
+                    : ''),
             style: const TextStyle(fontSize: 12),
           ),
           const SizedBox(height: 16),
         ],
 
         if (widget.model != null && widget.model!.types.isNotEmpty) ...[
-          Builder(builder: (context) {
-            final viModel = widget.model!;
-            final hist = typeKindHistogram(viModel.types);
-            final named = namedTypes(viModel.types).length;
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Data types (${viModel.types.length}${named > 0 ? ', $named named' : ''})',
-                    style: const TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 4),
-                Text(hist.entries.map((e) => '${e.key}:${e.value}').join('  '),
-                    style: const TextStyle(fontSize: 12, color: Colors.grey)),
-              ],
-            );
-          }),
+          Builder(
+            builder: (context) {
+              final viModel = widget.model!;
+              final hist = typeKindHistogram(viModel.types);
+              final named = namedTypes(viModel.types).length;
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Data types (${viModel.types.length}${named > 0 ? ', $named named' : ''})',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    hist.entries.map((e) => '${e.key}:${e.value}').join('  '),
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ],
+              );
+            },
+          ),
           const SizedBox(height: 16),
         ],
 
         if (widget.libraryNames.isNotEmpty) ...[
-          const Text('Owning library', style: TextStyle(fontWeight: FontWeight.bold)),
+          const Text(
+            'Owning library',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 4),
-          Text(widget.libraryNames.join(', '), style: const TextStyle(fontSize: 12)),
+          Text(
+            widget.libraryNames.join(', '),
+            style: const TextStyle(fontSize: 12),
+          ),
           const SizedBox(height: 16),
         ],
 
         if (widget.embeddedVis.isNotEmpty) ...[
-          Text('Embedded VIs (${widget.embeddedVis.length})',
-              style: const TextStyle(fontWeight: FontWeight.bold)),
+          Text(
+            'Embedded VIs (${widget.embeddedVis.length})',
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 4),
-          const Text('Tap to open a nested VI.', style: TextStyle(color: Colors.grey, fontSize: 12)),
+          const Text(
+            'Tap to open a nested VI.',
+            style: TextStyle(color: Colors.grey, fontSize: 12),
+          ),
           const SizedBox(height: 4),
           for (final vi in widget.embeddedVis.take(60))
-            Builder(builder: (context) {
-              final clean = vi.name != null && vi.name!.toLowerCase().endsWith('.vi');
-              final label = clean ? vi.name! : '(name not recovered)';
-              final openable = vi.bytes != null && widget.onOpenEmbedded != null;
-              return InkWell(
-                onTap: openable ? () => widget.onOpenEmbedded!(vi) : null,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Row(
-                    children: [
-                      Icon(openable ? Icons.open_in_new : Icons.insert_drive_file,
-                          size: 14, color: openable ? Theme.of(context).colorScheme.primary : Colors.grey),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(label,
+            Builder(
+              builder: (context) {
+                final clean =
+                    vi.name != null && vi.name!.toLowerCase().endsWith('.vi');
+                final label = clean ? vi.name! : '(name not recovered)';
+                final openable =
+                    vi.bytes != null && widget.onOpenEmbedded != null;
+                return InkWell(
+                  onTap: openable ? () => widget.onOpenEmbedded!(vi) : null,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      children: [
+                        Icon(
+                          openable
+                              ? Icons.open_in_new
+                              : Icons.insert_drive_file,
+                          size: 14,
+                          color: openable
+                              ? Theme.of(context).colorScheme.primary
+                              : Colors.grey,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            label,
                             style: TextStyle(
-                                fontSize: 12,
-                                color: clean ? null : Colors.grey,
-                                decoration: openable ? TextDecoration.underline : null)),
-                      ),
-                      Text(_fmtSize(vi.sizeBytes),
-                          style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                    ],
+                              fontSize: 12,
+                              color: clean ? null : Colors.grey,
+                              decoration: openable
+                                  ? TextDecoration.underline
+                                  : null,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          _fmtSize(vi.sizeBytes),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              );
-            }),
+                );
+              },
+            ),
           if (widget.embeddedVis.length > 60)
-            Text('… (+${widget.embeddedVis.length - 60} more)',
-                style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            Text(
+              '… (+${widget.embeddedVis.length - 60} more)',
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            ),
           const SizedBox(height: 16),
         ],
 
-        const Text('Capabilities', style: TextStyle(fontWeight: FontWeight.bold)),
+        const Text(
+          'Capabilities',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         const SizedBox(height: 8),
-        Wrap(spacing: 8, runSpacing: 8, children: [
-          _cap('Front panel', summary.hasFrontPanel),
-          _cap('Block diagram (logic)', summary.hasBlockDiagram),
-          _cap('Connector pane', summary.hasConnectorPane),
-          _cap('Sub-VI links', summary.hasSubViLinks),
-        ]),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _cap('Front panel', summary.hasFrontPanel),
+            _cap('Block diagram (logic)', summary.hasBlockDiagram),
+            _cap('Connector pane', summary.hasConnectorPane),
+            _cap('Sub-VI links', summary.hasSubViLinks),
+          ],
+        ),
         const SizedBox(height: 16),
 
-        const Text('Resource-block inventory', style: TextStyle(fontWeight: FontWeight.bold)),
+        const Text(
+          'Resource-block inventory',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         const SizedBox(height: 4),
         Text(
           widget.sections.isEmpty
@@ -538,39 +626,49 @@ class _SummaryViewState extends State<_SummaryView> {
           style: const TextStyle(color: Colors.grey, fontSize: 12),
         ),
         const SizedBox(height: 8),
-        Wrap(spacing: 8, runSpacing: 8, children: [
-          for (final block in summary.blocks)
-            if (_hasSection(block))
-              Tooltip(
-                message: kBlockGlossary[block] ?? 'resource block',
-                child: ActionChip(
-                  label: Text(block),
-                  avatar: const Icon(Icons.data_object, size: 16),
-                  visualDensity: VisualDensity.compact,
-                  onPressed: () => _openHex(context, block),
-                ),
-              )
-            else
-              Tooltip(
-                message: '${kBlockGlossary[block] ?? 'resource block'}\n(bytes not yet extracted for this block)',
-                child: Opacity(
-                  opacity: 0.4,
-                  child: Chip(
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final block in summary.blocks)
+              if (_hasSection(block))
+                Tooltip(
+                  message: kBlockGlossary[block] ?? 'resource block',
+                  child: ActionChip(
                     label: Text(block),
-                    avatar: const Icon(Icons.block, size: 14),
+                    avatar: const Icon(Icons.data_object, size: 16),
                     visualDensity: VisualDensity.compact,
+                    onPressed: () => _openHex(context, block),
+                  ),
+                )
+              else
+                Tooltip(
+                  message:
+                      '${kBlockGlossary[block] ?? 'resource block'}\n(bytes not yet extracted for this block)',
+                  child: Opacity(
+                    opacity: 0.4,
+                    child: Chip(
+                      label: Text(block),
+                      avatar: const Icon(Icons.block, size: 14),
+                      visualDensity: VisualDensity.compact,
+                    ),
                   ),
                 ),
-              ),
-        ]),
+          ],
+        ),
 
         if (widget.components.isNotEmpty) ...[
           const SizedBox(height: 16),
-          const Text('Components (by decompressed size)', style: TextStyle(fontWeight: FontWeight.bold)),
+          const Text(
+            'Components (by decompressed size)',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 8),
           for (final component in widget.components.take(20))
             _kv(
-              component.sectionCount > 1 ? '${component.tag} ×${component.sectionCount}' : component.tag,
+              component.sectionCount > 1
+                  ? '${component.tag} ×${component.sectionCount}'
+                  : component.tag,
               component.compressed
                   ? '${_fmtSize(component.decompressedBytes)}  (zlib ${_fmtSize(component.rawBytes)})'
                   : _fmtSize(component.decompressedBytes),
@@ -579,17 +677,25 @@ class _SummaryViewState extends State<_SummaryView> {
 
         if (widget.components.isNotEmpty) ...[
           const SizedBox(height: 16),
-          const Text('Block inventory (by category)', style: TextStyle(fontWeight: FontWeight.bold)),
+          const Text(
+            'Block inventory (by category)',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 4),
-          const Text('Every resource block, identified via the clean-room catalog (name · confidence · size).',
-              style: TextStyle(color: Colors.grey, fontSize: 12)),
+          const Text(
+            'Every resource block, identified via the clean-room catalog (name · confidence · size).',
+            style: TextStyle(color: Colors.grey, fontSize: 12),
+          ),
           const SizedBox(height: 8),
           ..._blockInventory(),
         ],
 
         if (widget.strings.isNotEmpty) ...[
           const SizedBox(height: 16),
-          Text('Embedded strings (${widget.strings.length})', style: const TextStyle(fontWeight: FontWeight.bold)),
+          Text(
+            'Embedded strings (${widget.strings.length})',
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 4),
           const Text(
             'Labels, help text and value lists found in the heaps (best-effort).',
@@ -611,10 +717,15 @@ class _SummaryViewState extends State<_SummaryView> {
           for (final text in filtered.take(1000))
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 1),
-              child: Text(text, style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
+              child: Text(
+                text,
+                style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+              ),
             ),
-          if (filtered.length > 1000) Text('… and ${filtered.length - 1000} more'),
-          if (filtered.isEmpty) const Text('(no match)', style: TextStyle(color: Colors.grey)),
+          if (filtered.length > 1000)
+            Text('… and ${filtered.length - 1000} more'),
+          if (filtered.isEmpty)
+            const Text('(no match)', style: TextStyle(color: Colors.grey)),
         ],
 
         const SizedBox(height: 20),
@@ -625,7 +736,10 @@ class _SummaryViewState extends State<_SummaryView> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Read-only viewer', style: TextStyle(fontWeight: FontWeight.bold)),
+                Text(
+                  'Read-only viewer',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
                 SizedBox(height: 6),
                 Text(
                   'Shows the RSRC container, decoded version/title, embedded strings, and — '
@@ -656,56 +770,94 @@ class _SummaryViewState extends State<_SummaryView> {
     final cats = byCat.keys.toList()..sort((a, b) => a.name.compareTo(b.name));
     final rows = <Widget>[];
     for (final cat in cats) {
-      rows.add(Padding(
-        padding: const EdgeInsets.only(top: 6, bottom: 2),
-        child: Text(cat.name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: Color(0xFF4C8C4C))),
-      ));
+      rows.add(
+        Padding(
+          padding: const EdgeInsets.only(top: 6, bottom: 2),
+          child: Text(
+            cat.name,
+            style: const TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 12,
+              color: Color(0xFF4C8C4C),
+            ),
+          ),
+        ),
+      );
       final items = byCat[cat]!..sort((a, b) => a.tag.compareTo(b.tag));
       for (final item in items) {
         final info = blockInfo(item.tag);
-        final label = item.sectionCount > 1 ? '${item.tag} ×${item.sectionCount}' : item.tag;
-        rows.add(_kv('$label  ${info.name}', '${info.confidence.name} · ${_fmtSize(item.decompressedBytes)}'));
+        final label = item.sectionCount > 1
+            ? '${item.tag} ×${item.sectionCount}'
+            : item.tag;
+        rows.add(
+          _kv(
+            '$label  ${info.name}',
+            '${info.confidence.name} · ${_fmtSize(item.decompressedBytes)}',
+          ),
+        );
       }
     }
     return rows;
   }
 
   void _openHex(BuildContext context, String tag) {
-    final matches = [for (final section in widget.sections) if (section.tag == tag) section]
-      ..sort((a, b) => b.length.compareTo(a.length));
+    final matches = [
+      for (final section in widget.sections)
+        if (section.tag == tag) section,
+    ]..sort((a, b) => b.length.compareTo(a.length));
     if (matches.isEmpty) return;
     showDialog<void>(
       context: context,
       builder: (ctx) => Dialog(
         insetPadding: const EdgeInsets.all(24),
-        child: SizedBox(width: 1120, height: 740, child: _HexDialog(tag: tag, sections: matches, allSections: widget.sections)),
+        child: SizedBox(
+          width: 1120,
+          height: 740,
+          child: _HexDialog(
+            tag: tag,
+            sections: matches,
+            allSections: widget.sections,
+          ),
+        ),
       ),
     );
   }
 
   static Widget _kv(String label, String value) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 3),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(width: 140, child: Text(label, style: const TextStyle(color: Colors.grey))),
-            Expanded(child: Text(value)),
-          ],
+    padding: const EdgeInsets.symmetric(vertical: 3),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 140,
+          child: Text(label, style: const TextStyle(color: Colors.grey)),
         ),
-      );
+        Expanded(child: Text(value)),
+      ],
+    ),
+  );
 
-  static String _fmtSize(int byteCount) => byteCount >= 1024 ? '${(byteCount / 1024).toStringAsFixed(1)} KB' : '$byteCount B';
+  static String _fmtSize(int byteCount) => byteCount >= 1024
+      ? '${(byteCount / 1024).toStringAsFixed(1)} KB'
+      : '$byteCount B';
 
   static Widget _cap(String label, bool on) => Chip(
-        avatar: Icon(on ? Icons.check_circle : Icons.remove_circle_outline,
-            color: on ? Colors.green : Colors.grey, size: 18),
-        label: Text(label),
-        backgroundColor: on ? Colors.green.withValues(alpha: 0.12) : null,
-      );
+    avatar: Icon(
+      on ? Icons.check_circle : Icons.remove_circle_outline,
+      color: on ? Colors.green : Colors.grey,
+      size: 18,
+    ),
+    label: Text(label),
+    backgroundColor: on ? Colors.green.withValues(alpha: 0.12) : null,
+  );
 }
 
 class _HexDialog extends StatefulWidget {
-  const _HexDialog({required this.tag, required this.sections, this.allSections = const []});
+  const _HexDialog({
+    required this.tag,
+    required this.sections,
+    this.allSections = const [],
+  });
   final String tag;
   final List<DecodedSection> sections;
 
@@ -729,9 +881,16 @@ class _HexDialogState extends State<_HexDialog> {
           padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
           child: Row(
             children: [
-              Icon(Icons.data_object, size: 18, color: Theme.of(context).colorScheme.primary),
+              Icon(
+                Icons.data_object,
+                size: 18,
+                color: Theme.of(context).colorScheme.primary,
+              ),
               const SizedBox(width: 8),
-              Text('${widget.tag} — byte inspector', style: const TextStyle(fontWeight: FontWeight.bold)),
+              Text(
+                '${widget.tag} — byte inspector',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
               const SizedBox(width: 16),
               if (widget.sections.length > 1)
                 DropdownButton<int>(
@@ -740,11 +899,19 @@ class _HexDialogState extends State<_HexDialog> {
                   onChanged: (v) => setState(() => _idx = v ?? 0),
                   items: [
                     for (var i = 0; i < widget.sections.length; i++)
-                      DropdownMenuItem(value: i, child: Text('section ${widget.sections[i].index} (${widget.sections[i].length} B)')),
+                      DropdownMenuItem(
+                        value: i,
+                        child: Text(
+                          'section ${widget.sections[i].index} (${widget.sections[i].length} B)',
+                        ),
+                      ),
                   ],
                 ),
               const Spacer(),
-              IconButton(onPressed: () => Navigator.of(context).pop(), icon: const Icon(Icons.close)),
+              IconButton(
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.close),
+              ),
             ],
           ),
         ),
@@ -752,7 +919,11 @@ class _HexDialogState extends State<_HexDialog> {
         Expanded(
           child: Padding(
             padding: const EdgeInsets.all(8),
-            child: BlockHexView(key: ValueKey('${section.tag}:${section.index}'), section: section, siblings: widget.allSections),
+            child: BlockHexView(
+              key: ValueKey('${section.tag}:${section.index}'),
+              section: section,
+              siblings: widget.allSections,
+            ),
           ),
         ),
       ],
@@ -767,13 +938,13 @@ class _Section extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          ...rows,
-        ],
-      );
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+      const SizedBox(height: 8),
+      ...rows,
+    ],
+  );
 }
 
 /// An honest "what we recovered vs what's still unknown" strip for the Block
@@ -785,10 +956,16 @@ class _RecoverySummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final objs = [for (final diagram in model.blockDiagrams) ...diagram.objects];
-    final classified = objs.where((o) => o.category != ViObjectKind.unknown).length;
+    final objs = [
+      for (final diagram in model.blockDiagrams) ...diagram.objects,
+    ];
+    final classified = objs
+        .where((o) => o.category != ViObjectKind.unknown)
+        .length;
     final unknown = objs.length - classified;
-    final structures = objs.where((o) => o.category == ViObjectKind.structure).length;
+    final structures = objs
+        .where((o) => o.category == ViObjectKind.structure)
+        .length;
     final nodes = objs.where((o) => o.category == ViObjectKind.node).length;
     final parts = <String>[
       '${objs.length} BD objects',
@@ -805,11 +982,15 @@ class _RecoverySummary extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Recovered: ${parts.join('  ·  ')}',
-              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+          Text(
+            'Recovered: ${parts.join('  ·  ')}',
+            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+          ),
           const SizedBox(height: 2),
-          const Text('Structure only — node→node dataflow / wires are not recovered.',
-              style: TextStyle(fontSize: 11, color: Colors.grey)),
+          const Text(
+            'Structure only — node→node dataflow / wires are not recovered.',
+            style: TextStyle(fontSize: 11, color: Colors.grey),
+          ),
         ],
       ),
     );

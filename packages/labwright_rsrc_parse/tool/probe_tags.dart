@@ -22,8 +22,7 @@ String _corpusBase() {
   return 'corpus';
 }
 
-String _hex(List<int> bytes) =>
-    bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ');
+String _hex(List<int> bytes) => bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ');
 
 String _printableRuns(Uint8List bytes, {int minLen = 4, int cap = 5}) {
   final runs = <String>[];
@@ -47,12 +46,9 @@ void main(List<String> args) {
     exit(1);
   }
   final dir = Directory('${_corpusBase()}/vi');
-  final vis = dir
-      .listSync(recursive: true)
-      .whereType<File>()
-      .where((f) => f.path.toLowerCase().endsWith('.vi'))
-      .toList()
-    ..sort((a, b) => a.path.compareTo(b.path));
+  final vis =
+      dir.listSync(recursive: true).whereType<File>().where((f) => f.path.toLowerCase().endsWith('.vi')).toList()
+        ..sort((a, b) => a.path.compareTo(b.path));
 
   final samples = <String, List<Uint8List>>{for (final tag in args) tag: []};
   final sizes = <String, Map<int, int>>{for (final tag in args) tag: {}};

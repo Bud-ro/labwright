@@ -27,7 +27,8 @@ enum DaqSampleFormat {
   rawU16(2),
 
   /// `DAQmxReadBinaryU32` — raw unsigned 32-bit codes. Stream yields `Uint32List`.
-  rawU32(4);
+  rawU32(4)
+  ;
 
   const DaqSampleFormat(this.bytesPerSample);
 
@@ -66,15 +67,15 @@ extension DaqmxStreams on DaqmxApi {
     double min = -10,
     double max = 10,
     int terminalConfig = DaqmxVal.cfgDefault,
-  }) =>
-      readStream(physicalChannel,
-              rateHz: rateHz,
-              samplesPerChunk: samplesPerChunk,
-              totalSamples: totalSamples,
-              min: min,
-              max: max,
-              terminalConfig: terminalConfig)
-          .cast<Float64List>();
+  }) => readStream(
+    physicalChannel,
+    rateHz: rateHz,
+    samplesPerChunk: samplesPerChunk,
+    totalSamples: totalSamples,
+    min: min,
+    max: max,
+    terminalConfig: terminalConfig,
+  ).cast<Float64List>();
 
   /// Raw signed 16-bit ADC codes (`Int16List`) — the typical high-speed format.
   Stream<Int16List> readRawI16Stream(
@@ -85,16 +86,16 @@ extension DaqmxStreams on DaqmxApi {
     double min = -10,
     double max = 10,
     int terminalConfig = DaqmxVal.cfgDefault,
-  }) =>
-      readStream(physicalChannel,
-              rateHz: rateHz,
-              samplesPerChunk: samplesPerChunk,
-              totalSamples: totalSamples,
-              format: DaqSampleFormat.rawI16,
-              min: min,
-              max: max,
-              terminalConfig: terminalConfig)
-          .cast<Int16List>();
+  }) => readStream(
+    physicalChannel,
+    rateHz: rateHz,
+    samplesPerChunk: samplesPerChunk,
+    totalSamples: totalSamples,
+    format: DaqSampleFormat.rawI16,
+    min: min,
+    max: max,
+    terminalConfig: terminalConfig,
+  ).cast<Int16List>();
 
   /// Raw signed 32-bit ADC codes (`Int32List`) — for 24-/32-bit devices and counters.
   Stream<Int32List> readRawI32Stream(
@@ -105,14 +106,14 @@ extension DaqmxStreams on DaqmxApi {
     double min = -10,
     double max = 10,
     int terminalConfig = DaqmxVal.cfgDefault,
-  }) =>
-      readStream(physicalChannel,
-              rateHz: rateHz,
-              samplesPerChunk: samplesPerChunk,
-              totalSamples: totalSamples,
-              format: DaqSampleFormat.rawI32,
-              min: min,
-              max: max,
-              terminalConfig: terminalConfig)
-          .cast<Int32List>();
+  }) => readStream(
+    physicalChannel,
+    rateHz: rateHz,
+    samplesPerChunk: samplesPerChunk,
+    totalSamples: totalSamples,
+    format: DaqSampleFormat.rawI32,
+    min: min,
+    max: max,
+    terminalConfig: terminalConfig,
+  ).cast<Int32List>();
 }

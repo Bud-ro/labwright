@@ -67,11 +67,28 @@ class _ViSummary {
     required this.badEnum,
   });
   factory _ViSummary.neutral(String path) => _ViSummary(
-        path: path, built: false, diagrams: 0, jsonFail: null, drawableFail: null,
-        typesCount: 0, unknownTypes: 0, withTypes: false, namedCount: 0, hasNames: false,
-        badName: null, clusters: 0, clustersWithMembers: 0, totalFields: 0, oobMember: null,
-        arrays: 0, arraysWithElem: 0, oobElem: null, enums: 0, enumsWithItems: 0, badEnum: null,
-      );
+    path: path,
+    built: false,
+    diagrams: 0,
+    jsonFail: null,
+    drawableFail: null,
+    typesCount: 0,
+    unknownTypes: 0,
+    withTypes: false,
+    namedCount: 0,
+    hasNames: false,
+    badName: null,
+    clusters: 0,
+    clustersWithMembers: 0,
+    totalFields: 0,
+    oobMember: null,
+    arrays: 0,
+    arraysWithElem: 0,
+    oobElem: null,
+    enums: 0,
+    enumsWithItems: 0,
+    badEnum: null,
+  );
 }
 
 _ViSummary _summarizeVi(Uint8List bytes, String path) {
@@ -214,10 +231,16 @@ void main() {
     final totalUnknown = summaries.fold<int>(0, (a, j) => a + j.unknownTypes);
     expect(filesBuilt, greaterThan(0));
     expect(totalTypes, greaterThan(0));
-    expect(withTypes, greaterThan((filesBuilt * 0.90).floor()),
-        reason: 'type-pool recovery dropped: only $withTypes/$filesBuilt VIs yielded types');
-    expect(totalUnknown, lessThan(totalTypes * 0.6),
-        reason: 'too many uncatalogued type codes: $totalUnknown/$totalTypes');
+    expect(
+      withTypes,
+      greaterThan((filesBuilt * 0.90).floor()),
+      reason: 'type-pool recovery dropped: only $withTypes/$filesBuilt VIs yielded types',
+    );
+    expect(
+      totalUnknown,
+      lessThan(totalTypes * 0.6),
+      reason: 'too many uncatalogued type codes: $totalUnknown/$totalTypes',
+    );
   });
 
   test('VCTP named typedefs are recovered and look like real identifiers', () {
@@ -227,8 +250,11 @@ void main() {
     expect(filesBuilt, greaterThan(0));
     expect(totalNames, greaterThan(0));
     expect(badNames, isEmpty, reason: 'malformed recovered type names: ${badNames.take(8).toList()}');
-    expect(vIsWithNames, greaterThan((filesBuilt * 0.40).floor()),
-        reason: 'named-type recovery dropped: only $vIsWithNames/$filesBuilt VIs yielded names');
+    expect(
+      vIsWithNames,
+      greaterThan((filesBuilt * 0.40).floor()),
+      reason: 'named-type recovery dropped: only $vIsWithNames/$filesBuilt VIs yielded names',
+    );
   });
 
   test('cluster member structures resolve into valid fields', () {
@@ -239,8 +265,11 @@ void main() {
     expect(clusters, greaterThan(0));
     expect(fails, isEmpty, reason: 'cluster members out of range: ${fails.take(8).toList()}');
     expect(totalFields, greaterThan(0));
-    expect(clustersWithMembers, greaterThan((clusters * 0.80).floor()),
-        reason: 'cluster member recovery dropped: $clustersWithMembers/$clusters');
+    expect(
+      clustersWithMembers,
+      greaterThan((clusters * 0.80).floor()),
+      reason: 'cluster member recovery dropped: $clustersWithMembers/$clusters',
+    );
   });
 
   test('array element types resolve into valid in-range indices', () {
@@ -249,8 +278,11 @@ void main() {
     final fails = summaries.map((j) => j.oobElem).whereType<String>().toList();
     expect(arrays, greaterThan(0));
     expect(fails, isEmpty, reason: 'array element index out of range: ${fails.take(8).toList()}');
-    expect(arraysWithElem, greaterThan((arrays * 0.80).floor()),
-        reason: 'array element recovery dropped: $arraysWithElem/$arrays');
+    expect(
+      arraysWithElem,
+      greaterThan((arrays * 0.80).floor()),
+      reason: 'array element recovery dropped: $arraysWithElem/$arrays',
+    );
   });
 
   test('enum item labels are recovered and printable', () {
@@ -259,7 +291,10 @@ void main() {
     final fails = summaries.map((j) => j.badEnum).whereType<String>().toList();
     expect(enums, greaterThan(0));
     expect(fails, isEmpty, reason: 'malformed enum items: ${fails.take(8).toList()}');
-    expect(enumsWithItems, greaterThan((enums * 0.80).floor()),
-        reason: 'enum item recovery dropped: $enumsWithItems/$enums');
+    expect(
+      enumsWithItems,
+      greaterThan((enums * 0.80).floor()),
+      reason: 'enum item recovery dropped: $enumsWithItems/$enums',
+    );
   });
 }

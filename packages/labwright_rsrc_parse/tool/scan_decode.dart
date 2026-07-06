@@ -9,12 +9,13 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 /// Usage: `dart run packages/labwright_rsrc_parse/tool/scan_decode.dart <dir>`
 void main(List<String> args) {
   final root = args.isEmpty ? '.' : args.first;
-  final files = Directory(root)
-      .listSync(recursive: true)
-      .whereType<File>()
-      .where((f) => const ['.vi', '.ctl', '.llb'].any(f.path.toLowerCase().endsWith))
-      .toList()
-    ..sort((a, b) => a.path.compareTo(b.path));
+  final files =
+      Directory(root)
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((f) => const ['.vi', '.ctl', '.llb'].any(f.path.toLowerCase().endsWith))
+          .toList()
+        ..sort((a, b) => a.path.compareTo(b.path));
 
   var ok = 0, crashed = 0, sections = 0, inflated = 0, decBytes = 0;
   var withVersion = 0, withTitle = 0, withStrings = 0;
@@ -56,8 +57,10 @@ void main(List<String> args) {
     ..writeln('with heap strings   : $withStrings/$ok');
   if (bdSizes.isNotEmpty) {
     bdSizes.sort();
-    stdout.writeln('BDEx decompressed: n=${bdSizes.length} min=${bdSizes.first} '
-        'max=${bdSizes.last} median=${bdSizes[bdSizes.length ~/ 2]}');
+    stdout.writeln(
+      'BDEx decompressed: n=${bdSizes.length} min=${bdSizes.first} '
+      'max=${bdSizes.last} median=${bdSizes[bdSizes.length ~/ 2]}',
+    );
   }
   for (final c in crashes) {
     stdout.writeln('  $c');

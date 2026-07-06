@@ -7,10 +7,10 @@ import 'package:test/test.dart';
 List<int> pascal(String s) => [s.length, ...s.codeUnits];
 
 DecodedSection bdex(List<int> bytes) => DecodedSection(
-      section: ViSection(tag: 'BDEx', index: 0, dataOffset: 0, bytes: Uint8List.fromList(bytes)),
-      bytes: Uint8List.fromList(bytes),
-      wasCompressed: false,
-    );
+  section: ViSection(tag: 'BDEx', index: 0, dataOffset: 0, bytes: Uint8List.fromList(bytes)),
+  bytes: Uint8List.fromList(bytes),
+  wasCompressed: false,
+);
 
 void main() {
   test('HeapOpcode catalog maps bytes to kinds and back', () {
@@ -36,7 +36,9 @@ void main() {
   test('HeapShape taxonomy: string opcodes decode via text, rect opcodes via rect', () {
     final plot = <int>[0xc4, 0x27, 6, ...'Plot 0'.codeUnits];
     final fmt = <int>[0xc4, 0x74, 5, ...'%020b'.codeUnits];
-    final recs = heapC4RecordsFromDecoded([bdex([...plot, ...fmt])]);
+    final recs = heapC4RecordsFromDecoded([
+      bdex([...plot, ...fmt]),
+    ]);
     expect(recs[0].kind, HeapOpcode.plotName);
     expect(recs[0].text, 'Plot 0');
     expect(recs[1].kind, HeapOpcode.formatString);
@@ -62,27 +64,68 @@ void main() {
   test('frames C4 length-prefixed records and skips payloads', () {
     final strTable = <int>[...pascal('Hi'), ...pascal('Yo')];
     final heap = <int>[
-      0x10, 0x55,
-      0xc4, 0x2d, 0x08, 0, 0, 0, 0, 0, 0, 0xc4, 0x99,
-      0xc4, 0x5f, 0x08, 1, 2, 3, 4, 5, 6, 7, 8,
-      0xc4, 0x2e, strTable.length, ...strTable,
+      0x10,
+      0x55,
+      0xc4,
+      0x2d,
+      0x08,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0xc4,
+      0x99,
+      0xc4,
+      0x5f,
+      0x08,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      0xc4,
+      0x2e,
+      strTable.length,
+      ...strTable,
     ];
     final recs = heapC4RecordsFromDecoded([bdex(heap)]);
-    expect(recs.map((r) => r.opcode).toList(), <int>[0x2d, 0x5f, 0x2e],
-        reason: 'the leading non-C4 0x10 token is stepped over');
+    expect(recs.map((r) => r.opcode).toList(), <int>[
+      0x2d,
+      0x5f,
+      0x2e,
+    ], reason: 'the leading non-C4 0x10 token is stepped over');
     expect(recs[0].offset, 2);
     expect(recs[0].byteLength, 11, reason: '0xC4 + opcode + len + 8 payload bytes');
     expect(recs[0].payload.length, 8);
-    expect(recs[1].opcode, 0x5f,
-        reason: 'the 0xC4 inside the first record payload (0xc4 0x99) did not start a new record');
+    expect(
+      recs[1].opcode,
+      0x5f,
+      reason: 'the 0xC4 inside the first record payload (0xc4 0x99) did not start a new record',
+    );
     expect(recs[2].payload.length, 6);
   });
 
   test('heapOpcodeHistogram counts C4 opcodes', () {
     final heap = <int>[
-      0xc4, 0x2d, 0x02, 0, 0,
-      0xc4, 0x2d, 0x02, 0, 0,
-      0xc4, 0x1f, 0x01, 0,
+      0xc4,
+      0x2d,
+      0x02,
+      0,
+      0,
+      0xc4,
+      0x2d,
+      0x02,
+      0,
+      0,
+      0xc4,
+      0x1f,
+      0x01,
+      0,
     ];
     final recs = heapC4RecordsFromDecoded([bdex(heap)]);
     expect(recs.where((r) => r.opcode == 0x2d).length, 2);
@@ -91,8 +134,11 @@ void main() {
 
   test('a C4 with a length running past the section end is not framed', () {
     final heap = <int>[0xc4, 0x2d, 0xff, 1, 2, 3];
-    expect(heapC4RecordsFromDecoded([bdex(heap)]), isEmpty,
-        reason: 'length claims 255 payload bytes but only 3 are present -> not framed');
+    expect(
+      heapC4RecordsFromDecoded([bdex(heap)]),
+      isEmpty,
+      reason: 'length claims 255 payload bytes but only 3 are present -> not framed',
+    );
   });
 
   test('heapC4Records is total over arbitrary bytes and stays in-bounds', () {

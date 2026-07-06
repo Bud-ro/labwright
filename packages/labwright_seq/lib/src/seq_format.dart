@@ -30,7 +30,8 @@ enum SeqFormat {
   ini,
 
   /// Not recognized as any known TestStand encoding.
-  unknown;
+  unknown
+  ;
 
   /// True for the two text encodings (viewable without the TestStand engine).
   bool get isText => this == xml || this == ini;
@@ -75,7 +76,8 @@ enum Ascii {
   latin1Start(0xa0),
 
   /// Highest Latin-1 printable (`0xff`, `ÿ`).
-  latin1End(0xff);
+  latin1End(0xff)
+  ;
 
   const Ascii(this.code);
   final int code;
@@ -101,7 +103,8 @@ enum TofHeaderField {
   compatibleVersion(0xa4),
 
   /// Build-version slot. Not yet decoded/verified.
-  buildVersion(0xd6);
+  buildVersion(0xd6)
+  ;
 
   const TofHeaderField(this.offset);
 

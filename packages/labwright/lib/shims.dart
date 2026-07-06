@@ -26,37 +26,34 @@ import 'dart:math' as math;
 /// `dynamic` (not `Never`) so the call composes anywhere the engine value
 /// would have — arithmetic, arguments, assignment — without analyzer
 /// noise about unreachable receivers.
-dynamic eval(String expression) =>
-    throw UnimplementedError('expression not translated: $expression');
+dynamic eval(String expression) => throw UnimplementedError('expression not translated: $expression');
 
 /// [eval] in condition position (`if (ts.cond('…'))`). Typed `bool` so the
 /// generated `if` compiles; always throws, exactly like [eval].
-bool cond(String expression) =>
-    throw UnimplementedError('condition not translated: $expression');
+bool cond(String expression) => throw UnimplementedError('condition not translated: $expression');
 
 /// Engine truthiness for a value of unknown type: numbers are true when
 /// non-zero, bools are themselves, strings/objects follow the engine's
 /// boolean coercion where pinned.
 bool truthy(Object? v) => switch (v) {
-      final bool b => b,
-      final num n => n != 0,
-      _ => throw UnimplementedError('truthiness of ${v.runtimeType}'),
-    };
+  final bool b => b,
+  final num n => n != 0,
+  _ => throw UnimplementedError('truthiness of ${v.runtimeType}'),
+};
 
 /// `Len`: string length or array element count.
 double len(Object? v) => switch (v) {
-      final String s => s.length.toDouble(),
-      final Iterable<Object?> i => i.length.toDouble(),
-      final Map<Object?, Object?> m => m.length.toDouble(),
-      final PropObj p => p.entries.length.toDouble(),
-      _ => throw UnimplementedError('Len of ${v.runtimeType}'),
-    };
+  final String s => s.length.toDouble(),
+  final Iterable<Object?> i => i.length.toDouble(),
+  final Map<Object?, Object?> m => m.length.toDouble(),
+  final PropObj p => p.entries.length.toDouble(),
+  _ => throw UnimplementedError('Len of ${v.runtimeType}'),
+};
 
 /// `GetNumElements` (array size). The engine-specific forms (extra
 /// arguments) are not implemented.
-double getNumElements(Object? v, [Object? a]) => a == null
-    ? len(v)
-    : throw UnimplementedError('GetNumElements with options');
+double getNumElements(Object? v, [Object? a]) =>
+    a == null ? len(v) : throw UnimplementedError('GetNumElements with options');
 
 /// `SetNumElements`: resizes a growable list, null-filling new slots (the
 /// engine default-fills by element type — a null fill is the closest
@@ -101,12 +98,9 @@ String left(Object? s, Object? n) => _clip(s, n, fromLeft: true);
 String right(Object? s, Object? n) => _clip(s, n, fromLeft: false);
 
 String mid(Object? s, Object? offset, [Object? count]) {
-  final text =
-      s is String ? s : throw UnimplementedError('Mid of ${s.runtimeType}');
+  final text = s is String ? s : throw UnimplementedError('Mid of ${s.runtimeType}');
   final start = (offset is num ? offset.toInt() : 0).clamp(0, text.length);
-  final end = count is num
-      ? (start + count.toInt()).clamp(start, text.length)
-      : text.length;
+  final end = count is num ? (start + count.toInt()).clamp(start, text.length) : text.length;
   return text.substring(start, end);
 }
 
@@ -114,19 +108,13 @@ double find(Object? s, Object? sub, [Object? start]) {
   if (s is! String || sub is! String) {
     throw UnimplementedError('Find of ${s.runtimeType}');
   }
-  return s
-      .indexOf(sub, (start is num ? start.toInt() : 0).clamp(0, s.length))
-      .toDouble();
+  return s.indexOf(sub, (start is num ? start.toInt() : 0).clamp(0, s.length)).toDouble();
 }
 
 String _clip(Object? s, Object? n, {required bool fromLeft}) {
-  final text = s is String
-      ? s
-      : throw UnimplementedError('Left/Right of ${s.runtimeType}');
+  final text = s is String ? s : throw UnimplementedError('Left/Right of ${s.runtimeType}');
   final count = (n is num ? n.toInt() : 0).clamp(0, text.length);
-  return fromLeft
-      ? text.substring(0, count)
-      : text.substring(text.length - count);
+  return fromLeft ? text.substring(0, count) : text.substring(text.length - count);
 }
 
 math.Random? _rng;
@@ -145,11 +133,11 @@ double rand([Object? min, Object? max]) {
 /// elements, [PropObj]s their sub-properties (as [PropObj] views, matching
 /// the engine's `GetSubProperties`).
 Iterable<Object?> iterate(Object? v) => switch (v) {
-      final Iterable<Object?> i => i,
-      final Map<Object?, Object?> m => m.values,
-      final PropObj p => p.entries,
-      _ => throw UnimplementedError('iterate over ${v.runtimeType}'),
-    };
+  final Iterable<Object?> i => i,
+  final Map<Object?, Object?> m => m.values,
+  final PropObj p => p.entries,
+  _ => throw UnimplementedError('iterate over ${v.runtimeType}'),
+};
 
 /// A structured sequence variable (an `Obj`/container), preserving the
 /// declared default structure the source file carries — member names are
@@ -181,8 +169,7 @@ class PropObj {
   Object? operator [](String key) {
     final canon = _canonical[key.toLowerCase()];
     if (canon == null) {
-      throw StateError(
-          "property '$key' is not set on ${name.isEmpty ? 'this object' : name}");
+      throw StateError("property '$key' is not set on ${name.isEmpty ? 'this object' : name}");
     }
     return _values[canon];
   }
@@ -200,16 +187,15 @@ class PropObj {
   /// what the engine's `GetSubProperties("", 0)` returns. A scalar child
   /// is wrapped in a single-value [PropObj] (its value under `Value`).
   List<PropObj> get entries => [
-        for (final key in _values.keys)
-          switch (_values[key]) {
-            final PropObj p => p,
-            final v => PropObj.named(key, {'Value': v}),
-          },
-      ];
+    for (final key in _values.keys)
+      switch (_values[key]) {
+        final PropObj p => p,
+        final v => PropObj.named(key, {'Value': v}),
+      },
+  ];
 
   @override
-  String toString() =>
-      'PropObj(${name.isEmpty ? '' : '$name: '}${_values.keys.join(', ')})';
+  String toString() => 'PropObj(${name.isEmpty ? '' : '$name: '}${_values.keys.join(', ')})';
 
   @override
   dynamic noSuchMethod(Invocation invocation) {
@@ -218,8 +204,7 @@ class PropObj {
     var member = invocation.memberName.toString();
     member = member.substring(8, member.length - 2);
     if (invocation.isSetter) {
-      this[member.substring(0, member.length - 1)] =
-          invocation.positionalArguments.single;
+      this[member.substring(0, member.length - 1)] = invocation.positionalArguments.single;
       return null;
     }
     if (invocation.isGetter) {
@@ -232,8 +217,7 @@ class PropObj {
     return switch (member) {
       'GetSubProperties' => entries,
       'Exists' => has('${invocation.positionalArguments.first}'),
-      _ => throw UnimplementedError(
-          'engine method not shimmed: PropObj.$member'),
+      _ => throw UnimplementedError('engine method not shimmed: PropObj.$member'),
     };
   }
 }

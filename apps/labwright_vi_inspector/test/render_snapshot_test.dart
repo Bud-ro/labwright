@@ -21,7 +21,8 @@ Directory? _corpusDir() {
   var dir = Directory.current;
   for (var i = 0; i < 8; i++) {
     final candidate = Directory(
-        '${dir.path}/packages/labwright_rsrc_parse/corpus/vi');
+      '${dir.path}/packages/labwright_rsrc_parse/corpus/vi',
+    );
     if (candidate.existsSync()) return candidate;
     final parent = dir.parent;
     if (parent.path == dir.path) break;
@@ -45,12 +46,13 @@ const int _sweepTarget = 100;
 List<String> _diverseSample(Directory corpus) {
   final bySource = <String, List<File>>{};
   for (final entry in corpus.listSync().whereType<Directory>()) {
-    final files = entry
-        .listSync(recursive: true)
-        .whereType<File>()
-        .where((f) => f.path.toLowerCase().endsWith('.vi'))
-        .toList()
-      ..sort((a, b) => a.lengthSync().compareTo(b.lengthSync()));
+    final files =
+        entry
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((f) => f.path.toLowerCase().endsWith('.vi'))
+            .toList()
+          ..sort((a, b) => a.lengthSync().compareTo(b.lengthSync()));
     if (files.isNotEmpty) bySource[entry.path.split('/').last] = files;
   }
   final perSource = (_sweepTarget / bySource.length).ceil();
@@ -73,7 +75,8 @@ List<String> _diverseSample(Directory corpus) {
 /// every glyph as a solid box). Uses the Roboto shipped in the Flutter SDK.
 Future<void> _loadRealFont() async {
   final sdkFont = File(
-      '${Platform.environment['FLUTTER_ROOT'] ?? '/home/carson/develop/flutter'}/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf');
+    '${Platform.environment['FLUTTER_ROOT'] ?? '/home/carson/develop/flutter'}/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf',
+  );
   if (!sdkFont.existsSync()) return;
   final loader = FontLoader('Roboto')
     ..addFont(Future.value(sdkFont.readAsBytesSync().buffer.asByteData()));
@@ -86,7 +89,8 @@ void main() {
     test('render snapshots (skipped: corpus not fetched)', () {}, skip: true);
     return;
   }
-  final outDir = Directory('build/render_snapshots')..createSync(recursive: true);
+  final outDir = Directory('build/render_snapshots')
+    ..createSync(recursive: true);
 
   final sample = _sweep ? _diverseSample(corpus) : _curatedVis;
   // ignore: avoid_print
@@ -94,7 +98,10 @@ void main() {
   for (final rel in sample) {
     final file = File('${corpus.path}/$rel');
     if (!file.existsSync()) continue;
-    final shortName = rel.split('/').last.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
+    final shortName = rel
+        .split('/')
+        .last
+        .replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
 
     Future<void> snapTest(String label, {required bool isFrontPanel}) async {
       testWidgets('render $shortName $label', (tester) async {
@@ -104,6 +111,7 @@ void main() {
           clock.reset();
           return ms;
         }
+
         await _loadRealFont();
         final fontMs = lap();
         final ViModel model;
@@ -114,20 +122,26 @@ void main() {
           return;
         }
         final modelMs = lap();
-        final diagrams =
-            isFrontPanel ? model.frontPanelDiagrams : model.blockDiagrams;
+        final diagrams = isFrontPanel
+            ? model.frontPanelDiagrams
+            : model.blockDiagrams;
         if (!diagrams.any((d) => d.objects.isNotEmpty)) return;
         await tester.binding.setSurfaceSize(const Size(1400, 900));
         addTearDown(() => tester.binding.setSurfaceSize(null));
         final key = GlobalKey();
-        await tester.pumpWidget(MaterialApp(
-          home: Scaffold(
-            body: RepaintBoundary(
-              key: key,
-              child: ViDiagramView(diagrams: diagrams, isFrontPanel: isFrontPanel),
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: RepaintBoundary(
+                key: key,
+                child: ViDiagramView(
+                  diagrams: diagrams,
+                  isFrontPanel: isFrontPanel,
+                ),
+              ),
             ),
           ),
-        ));
+        );
         await tester.pump(const Duration(milliseconds: 50));
         await tester.pump(const Duration(milliseconds: 50));
         final pumpMs = lap();
@@ -143,8 +157,10 @@ void main() {
           final path = '${outDir.path}/$shortName.$label.png';
           File(path).writeAsBytesSync(png!.buffer.asUint8List());
           // ignore: avoid_print
-          print('wrote $path  font=${fontMs}ms model=${modelMs}ms '
-              'pump=${pumpMs}ms raster=${rasterMs}ms encode=${encodeMs}ms');
+          print(
+            'wrote $path  font=${fontMs}ms model=${modelMs}ms '
+            'pump=${pumpMs}ms raster=${rasterMs}ms encode=${encodeMs}ms',
+          );
         });
         // Unmount so no timers/animations outlive the test.
         await tester.pumpWidget(const SizedBox.shrink());

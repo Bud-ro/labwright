@@ -40,7 +40,6 @@ class ViFontTable {
   /// The recovered name entries (font face names + short style strings), in
   /// order. LIKELY (recovered count matches [fontCount] when self-consistent).
   final List<String> names;
-
 }
 
 /// Decodes an `FTAB` body. Null when too short for the header (version + count +

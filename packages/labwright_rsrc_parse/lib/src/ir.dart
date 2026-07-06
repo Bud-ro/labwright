@@ -96,8 +96,7 @@ class ViModel {
   /// The bounding rectangles of the VI's objects, decoded from the `C4 2D`
   /// records (position/size of controls, nodes, decorations). Partial but real
   /// spatial structure — the seed of a read-only layout/graph view.
-  List<HeapRect> get objectBounds =>
-      heapRecords.map((r) => r.bounds).whereType<HeapRect>().toList();
+  List<HeapRect> get objectBounds => heapRecords.map((r) => r.bounds).whereType<HeapRect>().toList();
 
   /// The **labeled, positioned objects** of the VI: each pairs a `C4 2D` bounds
   /// record with the `C4 2E` label table that immediately follows it in the heap
@@ -109,20 +108,27 @@ class ViModel {
 
   List<String> _dedupe(Iterable<String?> values) {
     final seen = <String>{};
-    return [for (final value in values) if (value != null && seen.add(value)) value];
+    return [
+      for (final value in values)
+        if (value != null && seen.add(value)) value,
+    ];
   }
 
   /// Single-string **captions** (control names/labels) decoded from `C4 22`
   /// records — distinct from [labels] (which come from `C4 2E` string *tables*).
   /// Deduped, order-preserving.
-  List<String> get captions =>
-      _dedupe([for (final record in heapRecords) if (record.kind == HeapOpcode.caption) record.text]);
+  List<String> get captions => _dedupe([
+    for (final record in heapRecords)
+      if (record.kind == HeapOpcode.caption) record.text,
+  ]);
 
   /// External **symbol / C-function names** the VI references (from `C4 C4`
   /// records in the type heap), e.g. `ps2000aRunStreaming` — the Call-Library
   /// functions this VI invokes. Deduped, order-preserving.
-  List<String> get symbolNames =>
-      _dedupe([for (final record in heapRecords) if (record.kind == HeapOpcode.symbolName) record.text]);
+  List<String> get symbolNames => _dedupe([
+    for (final record in heapRecords)
+      if (record.kind == HeapOpcode.symbolName) record.text,
+  ]);
 
   /// External **library/DLL paths** the VI references (from `C4 A4` `PTH0`
   /// records), e.g. `ps5000.dll`. Deduped, order-preserving.
@@ -131,8 +137,7 @@ class ViModel {
   /// The VI's **description / help text** blocks, extracted from `C4 19` records
   /// (control tooltips, often HTML-ish). Heuristic text recovery; deduped,
   /// order-preserving.
-  List<String> get descriptions =>
-      _dedupe([for (final record in heapRecords) record.descriptionText]);
+  List<String> get descriptions => _dedupe([for (final record in heapRecords) record.descriptionText]);
 
   /// All distinct, deduped label strings across [stringTables], order-preserving.
   /// Convenience for "what does this VI contain".
@@ -173,8 +178,7 @@ class ViObject {
 /// table with the `C4 2D` bounds record immediately preceding it (within
 /// [maxRecordGap] `C4` records, same section). One bounds pairs with one name.
 /// Total.
-List<ViObject> assembleObjects(List<HeapRecord> records, List<HeapStringTable> stringTables,
-    {int maxRecordGap = 3}) {
+List<ViObject> assembleObjects(List<HeapRecord> records, List<HeapStringTable> stringTables, {int maxRecordGap = 3}) {
   final framed = {
     for (final table in stringTables)
       if (table.framed) '${table.sectionTag}@${table.offset}': table,
@@ -203,20 +207,24 @@ List<ViObject> assembleObjects(List<HeapRecord> records, List<HeapStringTable> s
     } else if (record.kind == HeapOpcode.caption && inRange) {
       final cap = record.text;
       if (cap != null) {
-        attach(ViObject(
-          sectionTag: record.sectionTag,
-          bounds: lastBounds!.bounds!,
-          caption: cap,
-        ));
+        attach(
+          ViObject(
+            sectionTag: record.sectionTag,
+            bounds: lastBounds!.bounds!,
+            caption: cap,
+          ),
+        );
       }
     } else if (record.kind == HeapOpcode.stringTable && inRange) {
       final table = framed['${record.sectionTag}@${record.offset + record.headerLength}'];
       if (table != null) {
-        attach(ViObject(
-          sectionTag: record.sectionTag,
-          bounds: lastBounds!.bounds!,
-          labels: table.strings,
-        ));
+        attach(
+          ViObject(
+            sectionTag: record.sectionTag,
+            bounds: lastBounds!.bounds!,
+            labels: table.strings,
+          ),
+        );
       }
     }
     idx++;
@@ -238,9 +246,10 @@ ViModel buildViModelFromDecoded(Iterable<DecodedSection> decoded, {List<String> 
   final sections = list.map((d) => d.section).toList();
   final ver = versionFromSections(sections);
   List<ViDiagram> diagramsFor(Set<String> tags) => [
-        for (final decodedSection in list)
-          if (tags.contains(decodedSection.tag) && decodedSection.bytes.length >= 6) buildDiagram(decodedSection.bytes, sectionTag: decodedSection.tag),
-      ];
+    for (final decodedSection in list)
+      if (tags.contains(decodedSection.tag) && decodedSection.bytes.length >= 6)
+        buildDiagram(decodedSection.bytes, sectionTag: decodedSection.tag),
+  ];
   return ViModel(
     subViNames: subViNames,
     types: typePoolFromDecoded(list),

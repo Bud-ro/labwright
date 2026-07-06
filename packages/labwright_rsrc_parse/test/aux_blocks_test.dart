@@ -85,8 +85,7 @@ void main() {
       }
     }
     rates = {
-      for (final entry in counts.entries)
-        entry.key: (total: entry.value[0], decoded: entry.value[1]),
+      for (final entry in counts.entries) entry.key: (total: entry.value[0], decoded: entry.value[1]),
     };
   });
 
@@ -94,8 +93,11 @@ void main() {
     final rate = rates[tag];
     expect(rate, isNotNull, reason: 'no $tag sections seen in corpus');
     final fraction = rate!.decoded / rate.total;
-    expect(fraction, greaterThanOrEqualTo(floor),
-        reason: '$tag decode rate ${rate.decoded}/${rate.total} fell below $floor');
+    expect(
+      fraction,
+      greaterThanOrEqualTo(floor),
+      reason: '$tag decode rate ${rate.decoded}/${rate.total} fell below $floor',
+    );
   }
 
   test('aux block decoders hold their corpus-measured decode rates', () {
@@ -139,7 +141,10 @@ void main() {
     }
     expect(linkSections, greaterThan(100));
     // Many VIs have no sub-VI dependencies; just require a healthy fraction.
-    expect(withNames, greaterThan(linkSections ~/ 10),
-        reason: 'dependency-name recovery collapsed ($withNames/$linkSections)');
+    expect(
+      withNames,
+      greaterThan(linkSections ~/ 10),
+      reason: 'dependency-name recovery collapsed ($withNames/$linkSections)',
+    );
   });
 }

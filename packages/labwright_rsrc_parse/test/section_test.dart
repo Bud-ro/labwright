@@ -17,8 +17,7 @@ import 'package:test/test.dart';
 /// `[idx][dataOffset][0][0][word16]`, where `word16` (`@16`) is `0xFFFFFFFF`
 /// for the VI's own data sections and `0` for embedded (LIBN/VINS) sections,
 /// which route to `readEmbeddedSections`.
-Uint8List buildRsrc(List<({String tag, List<List<int>> sections})> blocks,
-    {Set<String> embeddedTags = const {}}) {
+Uint8List buildRsrc(List<({String tag, List<List<int>> sections})> blocks, {Set<String> embeddedTags = const {}}) {
   void be16(BytesBuilder b, int v) => b.add((ByteData(2)..setUint16(0, v)).buffer.asUint8List());
   void be32(BytesBuilder b, int v) => b.add((ByteData(4)..setUint32(0, v)).buffer.asUint8List());
 
@@ -84,13 +83,19 @@ Uint8List buildRsrc(List<({String tag, List<List<int>> sections})> blocks,
 void main() {
   test('extracts each block section with its exact bytes', () {
     final rsrc = buildRsrc([
-      (tag: 'vers', sections: [
-        [1, 2, 3, 4],
-        [9, 9],
-      ]),
-      (tag: 'BDHb', sections: [
-        [0xde, 0xad, 0xbe, 0xef, 0x10],
-      ]),
+      (
+        tag: 'vers',
+        sections: [
+          [1, 2, 3, 4],
+          [9, 9],
+        ],
+      ),
+      (
+        tag: 'BDHb',
+        sections: [
+          [0xde, 0xad, 0xbe, 0xef, 0x10],
+        ],
+      ),
     ]);
 
     final secs = readViSections(rsrc);
@@ -105,22 +110,35 @@ void main() {
 
   test('readEmbeddedSections returns LIBN/VINS (word16==0); readViSections excludes them', () {
     final nested = buildRsrc([
-      (tag: 'vers', sections: [
-        [9, 9],
-      ]),
+      (
+        tag: 'vers',
+        sections: [
+          [9, 9],
+        ],
+      ),
     ]);
-    final rsrc = buildRsrc([
-      (tag: 'vers', sections: [
-        [1, 2, 3, 4],
-      ]),
-      (tag: 'LIBN', sections: [
-        'My.lvlib'.codeUnits,
-      ]),
-      (tag: 'VINS', sections: [nested]),
-    ], embeddedTags: {'LIBN', 'VINS'});
+    final rsrc = buildRsrc(
+      [
+        (
+          tag: 'vers',
+          sections: [
+            [1, 2, 3, 4],
+          ],
+        ),
+        (
+          tag: 'LIBN',
+          sections: [
+            'My.lvlib'.codeUnits,
+          ],
+        ),
+        (tag: 'VINS', sections: [nested]),
+      ],
+      embeddedTags: {'LIBN', 'VINS'},
+    );
 
-    expect(readViSections(rsrc).map((s) => s.tag), ['vers'],
-        reason: 'primary reader sees only the VI\'s own data section');
+    expect(readViSections(rsrc).map((s) => s.tag), [
+      'vers',
+    ], reason: 'primary reader sees only the VI\'s own data section');
 
     final emb = readEmbeddedSections(rsrc);
     expect(emb.map((s) => '${s.tag}#${s.index}'), ['LIBN#0', 'VINS#0']);
@@ -132,10 +150,18 @@ void main() {
 
   test('returns bytes as-stored (no inflation at this layer)', () {
     final payload = [0, 0, 0, 8, 0x78, 0x9c, 1, 2, 3, 4];
-    final secs = readViSections(buildRsrc([(tag: 'BDEx', sections: [payload])]));
-    expect(secs.single.bytes, payload,
-        reason: 'a zlib-looking payload ([u32 decompSize][0x78 0x9c ...]) is returned '
-            'untouched; inflation happens later in videcode');
+    final secs = readViSections(
+      buildRsrc([
+        (tag: 'BDEx', sections: [payload]),
+      ]),
+    );
+    expect(
+      secs.single.bytes,
+      payload,
+      reason:
+          'a zlib-looking payload ([u32 decompSize][0x78 0x9c ...]) is returned '
+          'untouched; inflation happens later in videcode',
+    );
   });
 
   test('an empty container (no blocks) yields no sections', () {

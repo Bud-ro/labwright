@@ -32,11 +32,11 @@ const SidebandStrategy$json = {
 };
 
 /// Descriptor for `SidebandStrategy`. Decode as a `google.protobuf.EnumDescriptorProto`.
-final $typed_data.Uint8List sidebandStrategyDescriptor = $convert.base64Decode(
-    'ChBTaWRlYmFuZFN0cmF0ZWd5EgsKB1VOS05PV04QABIICgRHUlBDEAESEQoNU0hBUkVEX01FTU'
-    '9SWRACEiEKHURPVUJMRV9CVUZGRVJFRF9TSEFSRURfTUVNT1JZEAMSCwoHU09DS0VUUxAEEhcK'
-    'E1NPQ0tFVFNfTE9XX0xBVEVOQ1kQBRIWChJIWVBFUlZJU09SX1NPQ0tFVFMQBhIICgRSRE1BEA'
-    'cSFAoQUkRNQV9MT1dfTEFURU5DWRAI');
+final $typed_data.Uint8List sidebandStrategyDescriptor =
+    $convert.base64Decode('ChBTaWRlYmFuZFN0cmF0ZWd5EgsKB1VOS05PV04QABIICgRHUlBDEAESEQoNU0hBUkVEX01FTU'
+        '9SWRACEiEKHURPVUJMRV9CVUZGRVJFRF9TSEFSRURfTUVNT1JZEAMSCwoHU09DS0VUUxAEEhcK'
+        'E1NPQ0tFVFNfTE9XX0xBVEVOQ1kQBRIWChJIWVBFUlZJU09SX1NPQ0tFVFMQBhIICgRSRE1BEA'
+        'cSFAoQUkRNQV9MT1dfTEFURU5DWRAI');
 
 @$core.Deprecated('Use monikerDescriptor instead')
 const Moniker$json = {
@@ -49,107 +49,64 @@ const Moniker$json = {
 };
 
 /// Descriptor for `Moniker`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List monikerDescriptor = $convert.base64Decode(
-    'CgdNb25pa2VyEikKEHNlcnZpY2VfbG9jYXRpb24YASABKAlSD3NlcnZpY2VMb2NhdGlvbhIfCg'
-    'tkYXRhX3NvdXJjZRgCIAEoCVIKZGF0YVNvdXJjZRIjCg1kYXRhX2luc3RhbmNlGAMgASgDUgxk'
-    'YXRhSW5zdGFuY2U=');
+final $typed_data.Uint8List monikerDescriptor =
+    $convert.base64Decode('CgdNb25pa2VyEikKEHNlcnZpY2VfbG9jYXRpb24YASABKAlSD3NlcnZpY2VMb2NhdGlvbhIfCg'
+        'tkYXRhX3NvdXJjZRgCIAEoCVIKZGF0YVNvdXJjZRIjCg1kYXRhX2luc3RhbmNlGAMgASgDUgxk'
+        'YXRhSW5zdGFuY2U=');
 
 @$core.Deprecated('Use monikerListDescriptor instead')
 const MonikerList$json = {
   '1': 'MonikerList',
   '2': [
-    {
-      '1': 'read_monikers',
-      '3': 2,
-      '4': 3,
-      '5': 11,
-      '6': '.ni.data_monikers.Moniker',
-      '10': 'readMonikers'
-    },
-    {
-      '1': 'write_monikers',
-      '3': 3,
-      '4': 3,
-      '5': 11,
-      '6': '.ni.data_monikers.Moniker',
-      '10': 'writeMonikers'
-    },
+    {'1': 'read_monikers', '3': 2, '4': 3, '5': 11, '6': '.ni.data_monikers.Moniker', '10': 'readMonikers'},
+    {'1': 'write_monikers', '3': 3, '4': 3, '5': 11, '6': '.ni.data_monikers.Moniker', '10': 'writeMonikers'},
   ],
 };
 
 /// Descriptor for `MonikerList`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List monikerListDescriptor = $convert.base64Decode(
-    'CgtNb25pa2VyTGlzdBI+Cg1yZWFkX21vbmlrZXJzGAIgAygLMhkubmkuZGF0YV9tb25pa2Vycy'
-    '5Nb25pa2VyUgxyZWFkTW9uaWtlcnMSQAoOd3JpdGVfbW9uaWtlcnMYAyADKAsyGS5uaS5kYXRh'
-    'X21vbmlrZXJzLk1vbmlrZXJSDXdyaXRlTW9uaWtlcnM=');
+final $typed_data.Uint8List monikerListDescriptor =
+    $convert.base64Decode('CgtNb25pa2VyTGlzdBI+Cg1yZWFkX21vbmlrZXJzGAIgAygLMhkubmkuZGF0YV9tb25pa2Vycy'
+        '5Nb25pa2VyUgxyZWFkTW9uaWtlcnMSQAoOd3JpdGVfbW9uaWtlcnMYAyADKAsyGS5uaS5kYXRh'
+        'X21vbmlrZXJzLk1vbmlrZXJSDXdyaXRlTW9uaWtlcnM=');
 
 @$core.Deprecated('Use monikerValuesDescriptor instead')
 const MonikerValues$json = {
   '1': 'MonikerValues',
   '2': [
-    {
-      '1': 'values',
-      '3': 1,
-      '4': 3,
-      '5': 11,
-      '6': '.google.protobuf.Any',
-      '10': 'values'
-    },
+    {'1': 'values', '3': 1, '4': 3, '5': 11, '6': '.google.protobuf.Any', '10': 'values'},
   ],
 };
 
 /// Descriptor for `MonikerValues`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List monikerValuesDescriptor = $convert.base64Decode(
-    'Cg1Nb25pa2VyVmFsdWVzEiwKBnZhbHVlcxgBIAMoCzIULmdvb2dsZS5wcm90b2J1Zi5BbnlSBn'
-    'ZhbHVlcw==');
+final $typed_data.Uint8List monikerValuesDescriptor =
+    $convert.base64Decode('Cg1Nb25pa2VyVmFsdWVzEiwKBnZhbHVlcxgBIAMoCzIULmdvb2dsZS5wcm90b2J1Zi5BbnlSBn'
+        'ZhbHVlcw==');
 
 @$core.Deprecated('Use monikerReadResponseDescriptor instead')
 const MonikerReadResponse$json = {
   '1': 'MonikerReadResponse',
   '2': [
-    {
-      '1': 'data',
-      '3': 1,
-      '4': 1,
-      '5': 11,
-      '6': '.ni.data_monikers.MonikerValues',
-      '10': 'data'
-    },
+    {'1': 'data', '3': 1, '4': 1, '5': 11, '6': '.ni.data_monikers.MonikerValues', '10': 'data'},
   ],
 };
 
 /// Descriptor for `MonikerReadResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List monikerReadResponseDescriptor = $convert.base64Decode(
-    'ChNNb25pa2VyUmVhZFJlc3BvbnNlEjMKBGRhdGEYASABKAsyHy5uaS5kYXRhX21vbmlrZXJzLk'
-    '1vbmlrZXJWYWx1ZXNSBGRhdGE=');
+final $typed_data.Uint8List monikerReadResponseDescriptor =
+    $convert.base64Decode('ChNNb25pa2VyUmVhZFJlc3BvbnNlEjMKBGRhdGEYASABKAsyHy5uaS5kYXRhX21vbmlrZXJzLk'
+        '1vbmlrZXJWYWx1ZXNSBGRhdGE=');
 
 @$core.Deprecated('Use beginMonikerSidebandStreamRequestDescriptor instead')
 const BeginMonikerSidebandStreamRequest$json = {
   '1': 'BeginMonikerSidebandStreamRequest',
   '2': [
-    {
-      '1': 'strategy',
-      '3': 1,
-      '4': 1,
-      '5': 14,
-      '6': '.ni.data_monikers.SidebandStrategy',
-      '10': 'strategy'
-    },
-    {
-      '1': 'monikers',
-      '3': 2,
-      '4': 1,
-      '5': 11,
-      '6': '.ni.data_monikers.MonikerList',
-      '10': 'monikers'
-    },
+    {'1': 'strategy', '3': 1, '4': 1, '5': 14, '6': '.ni.data_monikers.SidebandStrategy', '10': 'strategy'},
+    {'1': 'monikers', '3': 2, '4': 1, '5': 11, '6': '.ni.data_monikers.MonikerList', '10': 'monikers'},
   ],
 };
 
 /// Descriptor for `BeginMonikerSidebandStreamRequest`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List beginMonikerSidebandStreamRequestDescriptor =
-    $convert.base64Decode(
-        'CiFCZWdpbk1vbmlrZXJTaWRlYmFuZFN0cmVhbVJlcXVlc3QSPgoIc3RyYXRlZ3kYASABKA4yIi'
+    $convert.base64Decode('CiFCZWdpbk1vbmlrZXJTaWRlYmFuZFN0cmVhbVJlcXVlc3QSPgoIc3RyYXRlZ3kYASABKA4yIi'
         '5uaS5kYXRhX21vbmlrZXJzLlNpZGViYW5kU3RyYXRlZ3lSCHN0cmF0ZWd5EjkKCG1vbmlrZXJz'
         'GAIgASgLMh0ubmkuZGF0YV9tb25pa2Vycy5Nb25pa2VyTGlzdFIIbW9uaWtlcnM=');
 
@@ -157,30 +114,16 @@ final $typed_data.Uint8List beginMonikerSidebandStreamRequestDescriptor =
 const BeginMonikerSidebandStreamResponse$json = {
   '1': 'BeginMonikerSidebandStreamResponse',
   '2': [
-    {
-      '1': 'strategy',
-      '3': 1,
-      '4': 1,
-      '5': 14,
-      '6': '.ni.data_monikers.SidebandStrategy',
-      '10': 'strategy'
-    },
+    {'1': 'strategy', '3': 1, '4': 1, '5': 14, '6': '.ni.data_monikers.SidebandStrategy', '10': 'strategy'},
     {'1': 'connection_url', '3': 2, '4': 1, '5': 9, '10': 'connectionUrl'},
-    {
-      '1': 'sideband_identifier',
-      '3': 3,
-      '4': 1,
-      '5': 9,
-      '10': 'sidebandIdentifier'
-    },
+    {'1': 'sideband_identifier', '3': 3, '4': 1, '5': 9, '10': 'sidebandIdentifier'},
     {'1': 'buffer_size', '3': 4, '4': 1, '5': 18, '10': 'bufferSize'},
   ],
 };
 
 /// Descriptor for `BeginMonikerSidebandStreamResponse`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List beginMonikerSidebandStreamResponseDescriptor =
-    $convert.base64Decode(
-        'CiJCZWdpbk1vbmlrZXJTaWRlYmFuZFN0cmVhbVJlc3BvbnNlEj4KCHN0cmF0ZWd5GAEgASgOMi'
+    $convert.base64Decode('CiJCZWdpbk1vbmlrZXJTaWRlYmFuZFN0cmVhbVJlc3BvbnNlEj4KCHN0cmF0ZWd5GAEgASgOMi'
         'IubmkuZGF0YV9tb25pa2Vycy5TaWRlYmFuZFN0cmF0ZWd5UghzdHJhdGVneRIlCg5jb25uZWN0'
         'aW9uX3VybBgCIAEoCVINY29ubmVjdGlvblVybBIvChNzaWRlYmFuZF9pZGVudGlmaWVyGAMgAS'
         'gJUhJzaWRlYmFuZElkZW50aWZpZXISHwoLYnVmZmVyX3NpemUYBCABKBJSCmJ1ZmZlclNpemU=');

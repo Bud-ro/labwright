@@ -25,9 +25,11 @@ String inspectTdms(Uint8List bytes, {int preview = 5}) {
         continue;
       }
       final stats = _stats(channel.data);
-      out.writeln('    channel "${channel.name}": ${channel.data.length} values  '
-          'min=${_fmt(stats.min)} max=${_fmt(stats.max)} mean=${_fmt(stats.mean)}'
-          '${_props(channel.properties)}');
+      out.writeln(
+        '    channel "${channel.name}": ${channel.data.length} values  '
+        'min=${_fmt(stats.min)} max=${_fmt(stats.max)} mean=${_fmt(stats.mean)}'
+        '${_props(channel.properties)}',
+      );
       final head = channel.data.take(preview).map(_fmt).join(', ');
       out.writeln('        [$head${channel.data.length > preview ? ', ...' : ''}]');
     }
@@ -36,9 +38,8 @@ String inspectTdms(Uint8List bytes, {int preview = 5}) {
   return out.toString();
 }
 
-String _props(Map<String, Object> properties) => properties.isEmpty
-    ? ''
-    : '  (${properties.entries.map((e) => '${e.key}=${e.value}').join(', ')})';
+String _props(Map<String, Object> properties) =>
+    properties.isEmpty ? '' : '  (${properties.entries.map((e) => '${e.key}=${e.value}').join(', ')})';
 
 String _fmt(double value) => value.toStringAsPrecision(6);
 

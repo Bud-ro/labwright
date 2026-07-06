@@ -43,8 +43,7 @@ class SessionUtilitiesClient extends $grpc.Client {
 
   // method descriptors
 
-  static final _$enumerateDevices = $grpc.ClientMethod<
-          $0.EnumerateDevicesRequest, $0.EnumerateDevicesResponse>(
+  static final _$enumerateDevices = $grpc.ClientMethod<$0.EnumerateDevicesRequest, $0.EnumerateDevicesResponse>(
       '/nidevice_grpc.SessionUtilities/EnumerateDevices',
       ($0.EnumerateDevicesRequest value) => value.writeToBuffer(),
       $0.EnumerateDevicesResponse.fromBuffer);
@@ -55,20 +54,17 @@ abstract class SessionUtilitiesServiceBase extends $grpc.Service {
   $core.String get $name => 'nidevice_grpc.SessionUtilities';
 
   SessionUtilitiesServiceBase() {
-    $addMethod($grpc.ServiceMethod<$0.EnumerateDevicesRequest,
-            $0.EnumerateDevicesResponse>(
+    $addMethod($grpc.ServiceMethod<$0.EnumerateDevicesRequest, $0.EnumerateDevicesResponse>(
         'EnumerateDevices',
         enumerateDevices_Pre,
         false,
         false,
-        ($core.List<$core.int> value) =>
-            $0.EnumerateDevicesRequest.fromBuffer(value),
+        ($core.List<$core.int> value) => $0.EnumerateDevicesRequest.fromBuffer(value),
         ($0.EnumerateDevicesResponse value) => value.writeToBuffer()));
   }
 
   $async.Future<$0.EnumerateDevicesResponse> enumerateDevices_Pre(
-      $grpc.ServiceCall $call,
-      $async.Future<$0.EnumerateDevicesRequest> $request) async {
+      $grpc.ServiceCall $call, $async.Future<$0.EnumerateDevicesRequest> $request) async {
     return enumerateDevices($call, await $request);
   }
 

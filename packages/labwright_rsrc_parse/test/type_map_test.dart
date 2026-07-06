@@ -21,8 +21,7 @@ void main() {
     test('a buffer whose length != 4 + 2*count is flagged as the large form', () {
       final b = Uint8List.fromList([0x00, 0x32, 0x00, 0x60, 1, 2, 3, 4]);
       final m = decodeTypeMap(b)!;
-      expect(m.isShortForm, isFalse,
-          reason: 'count=50 but len=8 (!= 4 + 2*count) -> large form');
+      expect(m.isShortForm, isFalse, reason: 'count=50 but len=8 (!= 4 + 2*count) -> large form');
       expect(m.entries, isEmpty);
       expect(m.rawLength, 8);
     });

@@ -49,10 +49,14 @@ void main() {
 
     test('a real i16 acquisition lands in TDMS as a ramp', () async {
       final daq = FfiDaqmxBackend(libraryPath: lib!);
-      final stream =
-          daq.readRawI16Stream('Dev1/ai0', rateHz: 5000, samplesPerChunk: 64, totalSamples: 200);
-      final bytes = await recordStreamToTdms(stream,
-          format: DaqSampleFormat.rawI16, group: 'AI', channel: 'ai0', rateHz: 5000);
+      final stream = daq.readRawI16Stream('Dev1/ai0', rateHz: 5000, samplesPerChunk: 64, totalSamples: 200);
+      final bytes = await recordStreamToTdms(
+        stream,
+        format: DaqSampleFormat.rawI16,
+        group: 'AI',
+        channel: 'ai0',
+        rateHz: 5000,
+      );
       await daq.close();
 
       final ch = TdmsReader.read(bytes).group('AI')!.channel('ai0')!;

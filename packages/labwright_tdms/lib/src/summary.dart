@@ -34,9 +34,8 @@ Map<String, Object?> tdmsSummary(Uint8List bytes) {
 }
 
 Map<String, Object?> _jsonProps(Map<String, Object> props) => {
-      for (final MapEntry(:key, :value) in props.entries)
-        key: value is DateTime ? value.toIso8601String() : value,
-    };
+  for (final MapEntry(:key, :value) in props.entries) key: value is DateTime ? value.toIso8601String() : value,
+};
 
 double _min(List<double> data) => data.reduce((min, v) => v < min ? v : min);
 

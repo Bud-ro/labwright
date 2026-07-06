@@ -27,7 +27,9 @@ List<int> _u32le(int v) => [v & 0xff, v >> 8 & 0xff, v >> 16 & 0xff, v >> 24 & 0
 List<int> _nulPool(List<String> names) {
   final pool = <int>[];
   for (final n in names) {
-    pool..addAll(ascii.encode(n))..add(0);
+    pool
+      ..addAll(ascii.encode(n))
+      ..add(0);
   }
   return pool;
 }
@@ -40,8 +42,13 @@ void main() {
   });
 
   test('binaryBodyStrings recovers the NUL-terminated name pool', () {
-    final pool = _nulPool(['PaddingNameToExceedTheSixtyFourByteInflateGuardInThisTest',
-        'SequenceFileData', 'MainSequence', 'Step', 'Locals']);
+    final pool = _nulPool([
+      'PaddingNameToExceedTheSixtyFourByteInflateGuardInThisTest',
+      'SequenceFileData',
+      'MainSequence',
+      'Step',
+      'Locals',
+    ]);
     final names = binaryBodyStrings(_tof1(pool)).map((s) => s.text).toList();
     expect(names, containsAll(['SequenceFileData', 'MainSequence', 'Step', 'Locals']));
   });
@@ -53,8 +60,16 @@ void main() {
     body.add(0x00);
     body.addAll([0xFF, 0xFF, 0xFF, 0xFF]);
     body.add(0x00);
-    for (final name in ['SequenceFileData', 'Data', 'Objs', 'Sequence',
-        'MainSequence', 'Parameters', 'Locals', 'Step']) {
+    for (final name in [
+      'SequenceFileData',
+      'Data',
+      'Objs',
+      'Sequence',
+      'MainSequence',
+      'Parameters',
+      'Locals',
+      'Step',
+    ]) {
       body.addAll(ascii.encode(name));
       body.add(0);
     }
@@ -89,8 +104,7 @@ void main() {
     expect(isBinaryExpression('RunState.LoopIndex += 1'), isTrue);
     expect(isBinaryExpression('Step.Result.Error.Occurred'), isTrue);
     expect(isBinaryExpression('Abs(Locals.FD1) <= 0.1'), isTrue);
-    expect(isBinaryExpression(r'ResStr("NI_STEPTYPES", "ACTION_DEF_STEP_NAME")'),
-        isTrue);
+    expect(isBinaryExpression(r'ResStr("NI_STEPTYPES", "ACTION_DEF_STEP_NAME")'), isTrue);
     expect(isBinaryExpression('(x == 0) ? "a" : "b"'), isTrue);
     expect(isBinaryExpression('Status'), isFalse);
     expect(isBinaryExpression('Measurement 0'), isFalse);
@@ -115,13 +129,22 @@ void main() {
 
   test('binaryScalarDoubles recovers clean inline IEEE-754 doubles', () {
     final rec = <int>[
-      0x1c, 0x00, 0x00, 0x00,
+      0x1c,
+      0x00,
+      0x00,
+      0x00,
       ..._f64le(8192.0),
       ..._f64le(1.0),
       ..._f64le(3.14159265358979),
     ];
-    final pool = _nulPool(['SequenceFileData', 'MainSequence', 'StepGroupMain',
-        'LocalsVarOne', 'ResultListItem', 'ParametersBlock']);
+    final pool = _nulPool([
+      'SequenceFileData',
+      'MainSequence',
+      'StepGroupMain',
+      'LocalsVarOne',
+      'ResultListItem',
+      'ParametersBlock',
+    ]);
     final got = binaryScalarDoubles(_tof1([...rec, ...pool]));
     expect(got, containsAll(<double>[8192.0, 1.0]));
     expect(got, isNot(contains(3.14159265358979)));
@@ -134,10 +157,11 @@ void main() {
   test('binaryNamedScalarRecords pairs a named-property header with its f64', () {
     final pool = <int>[];
     final relOf = <String, int>{};
-    for (final name in ['PadName', 'Parameters', 'Locals', 'ResultList',
-        'StepEntry', 'SeqEntry']) {
+    for (final name in ['PadName', 'Parameters', 'Locals', 'ResultList', 'StepEntry', 'SeqEntry']) {
       relOf[name] = pool.length;
-      pool..addAll(ascii.encode(name))..add(0);
+      pool
+        ..addAll(ascii.encode(name))
+        ..add(0);
     }
     expect(relOf['Parameters'], 8);
 
@@ -167,17 +191,22 @@ void main() {
 
   test('binaryNamedScalarRecords empty on non-binary input', () {
     expect(binaryNamedScalarRecords(Uint8List(0)), isEmpty);
-    expect(binaryNamedScalarRecords(
-        Uint8List.fromList(ascii.encode('<?xml?>'))), isEmpty);
+    expect(binaryNamedScalarRecords(Uint8List.fromList(ascii.encode('<?xml?>'))), isEmpty);
   });
 
   test('dumpBinaryRecon reports recovered data + honest not-yet-decoded note', () {
-    final pool = _nulPool(['PadName', 'Parameters', 'Locals', 'ResultList',
-        'StepEntry', 'SeqEntry']);
+    final pool = _nulPool(['PadName', 'Parameters', 'Locals', 'ResultList', 'StepEntry', 'SeqEntry']);
     final rec = <int>[
-      ..._u32le(0), ..._u32le(0), ..._u32le(8), ..._u32le(99),
+      ..._u32le(0),
+      ..._u32le(0),
+      ..._u32le(8),
+      ..._u32le(99),
       ..._f64le(42.0),
-      ..._u32le(0), ..._u32le(0), ..._u32le(0), ..._u32le(0), ..._u32le(0),
+      ..._u32le(0),
+      ..._u32le(0),
+      ..._u32le(0),
+      ..._u32le(0),
+      ..._u32le(0),
       ..._u32le(0),
     ];
 
@@ -187,19 +216,29 @@ void main() {
     expect(text, contains('Parameters = 42.0  (raw type 99, not modeled)'));
     expect(text, contains('record links not yet decoded'));
 
-    expect(dumpBinaryRecon(Uint8List.fromList(ascii.encode('<?xml?>'))),
-        '(not a binary TOF1 file)');
+    expect(dumpBinaryRecon(Uint8List.fromList(ascii.encode('<?xml?>'))), '(not a binary TOF1 file)');
   });
 
   test('binaryNamedRecords keeps consistently-tagged names, drops the rest', () {
-    final pool = _nulPool(['PadName', 'Parameters', 'Locals', 'ResultList',
-        'StepX', 'SeqX']);
+    final pool = _nulPool(['PadName', 'Parameters', 'Locals', 'ResultList', 'StepX', 'SeqX']);
 
     final rec = <int>[
-      ..._u32le(0), ..._u32le(5), ..._u32le(8), ..._u32le(0),
-      ..._u32le(5), ..._u32le(8), ..._u32le(0), ..._u32le(3),
-      ..._u32le(19), ..._u32le(0), ..._u32le(4), ..._u32le(19),
-      ..._u32le(0), ..._u32le(0), ..._u32le(0), ..._u32le(0),
+      ..._u32le(0),
+      ..._u32le(5),
+      ..._u32le(8),
+      ..._u32le(0),
+      ..._u32le(5),
+      ..._u32le(8),
+      ..._u32le(0),
+      ..._u32le(3),
+      ..._u32le(19),
+      ..._u32le(0),
+      ..._u32le(4),
+      ..._u32le(19),
+      ..._u32le(0),
+      ..._u32le(0),
+      ..._u32le(0),
+      ..._u32le(0),
     ];
 
     final recs = binaryNamedRecords(_tof1([...rec, ...pool]));

@@ -16,39 +16,24 @@ import 'package:protobuf/protobuf.dart' as $pb;
 
 /// How the server should treat a session name on creation.
 class SessionInitializationBehavior extends $pb.ProtobufEnum {
-  static const SessionInitializationBehavior
-      SESSION_INITIALIZATION_BEHAVIOR_UNSPECIFIED =
-      SessionInitializationBehavior._(0,
-          _omitEnumNames ? '' : 'SESSION_INITIALIZATION_BEHAVIOR_UNSPECIFIED');
-  static const SessionInitializationBehavior
-      SESSION_INITIALIZATION_BEHAVIOR_INITIALIZE_NEW =
-      SessionInitializationBehavior._(
-          1,
-          _omitEnumNames
-              ? ''
-              : 'SESSION_INITIALIZATION_BEHAVIOR_INITIALIZE_NEW');
-  static const SessionInitializationBehavior
-      SESSION_INITIALIZATION_BEHAVIOR_ATTACH_TO_EXISTING =
-      SessionInitializationBehavior._(
-          2,
-          _omitEnumNames
-              ? ''
-              : 'SESSION_INITIALIZATION_BEHAVIOR_ATTACH_TO_EXISTING');
+  static const SessionInitializationBehavior SESSION_INITIALIZATION_BEHAVIOR_UNSPECIFIED =
+      SessionInitializationBehavior._(0, _omitEnumNames ? '' : 'SESSION_INITIALIZATION_BEHAVIOR_UNSPECIFIED');
+  static const SessionInitializationBehavior SESSION_INITIALIZATION_BEHAVIOR_INITIALIZE_NEW =
+      SessionInitializationBehavior._(1, _omitEnumNames ? '' : 'SESSION_INITIALIZATION_BEHAVIOR_INITIALIZE_NEW');
+  static const SessionInitializationBehavior SESSION_INITIALIZATION_BEHAVIOR_ATTACH_TO_EXISTING =
+      SessionInitializationBehavior._(2, _omitEnumNames ? '' : 'SESSION_INITIALIZATION_BEHAVIOR_ATTACH_TO_EXISTING');
 
-  static const $core.List<SessionInitializationBehavior> values =
-      <SessionInitializationBehavior>[
+  static const $core.List<SessionInitializationBehavior> values = <SessionInitializationBehavior>[
     SESSION_INITIALIZATION_BEHAVIOR_UNSPECIFIED,
     SESSION_INITIALIZATION_BEHAVIOR_INITIALIZE_NEW,
     SESSION_INITIALIZATION_BEHAVIOR_ATTACH_TO_EXISTING,
   ];
 
-  static final $core.List<SessionInitializationBehavior?> _byValue =
-      $pb.ProtobufEnum.$_initByValueList(values, 2);
+  static final $core.List<SessionInitializationBehavior?> _byValue = $pb.ProtobufEnum.$_initByValueList(values, 2);
   static SessionInitializationBehavior? valueOf($core.int value) =>
       value < 0 || value >= _byValue.length ? null : _byValue[value];
 
   const SessionInitializationBehavior._(super.value, super.name);
 }
 
-const $core.bool _omitEnumNames =
-    $core.bool.fromEnvironment('protobuf.omit_enum_names');
+const $core.bool _omitEnumNames = $core.bool.fromEnvironment('protobuf.omit_enum_names');

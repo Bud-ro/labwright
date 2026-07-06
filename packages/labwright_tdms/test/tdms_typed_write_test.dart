@@ -17,8 +17,7 @@ void main() {
     ];
 
     for (final (type, values) in cases) {
-      final bytes = (TdmsWriter()
-            ..writeSegment([TdmsChannel(group: 'M', name: 'v', data: values, type: type)]))
+      final bytes = (TdmsWriter()..writeSegment([TdmsChannel(group: 'M', name: 'v', data: values, type: type)]))
           .toBytes();
       final read = TdmsReader.read(bytes).group('M')!.channel('v')!.data;
       if (type == TdsType.singleFloat) {

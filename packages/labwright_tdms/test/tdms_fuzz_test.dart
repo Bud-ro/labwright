@@ -7,14 +7,14 @@ import 'package:test/test.dart';
 /// The reader must be total on adversarial input: every byte string either
 /// parses or raises [TdmsFormatException] — never RangeError, OOM, or a hang.
 void main() {
-  Uint8List validFile() => (TdmsWriter()
-        ..writeSegment(
-          [
-            TdmsChannel(group: 'M', name: 'v', data: const [1.0, 2.0, 3.0], properties: {'unit': 'V', 'n': 3}),
-          ],
-          fileProperties: {'op': 'loop'},
-        ))
-      .toBytes();
+  Uint8List validFile() =>
+      (TdmsWriter()..writeSegment(
+            [
+              TdmsChannel(group: 'M', name: 'v', data: const [1.0, 2.0, 3.0], properties: {'unit': 'V', 'n': 3}),
+            ],
+            fileProperties: {'op': 'loop'},
+          ))
+          .toBytes();
 
   test('arbitrary random bytes never crash the reader', () {
     final rng = Random(12345);
@@ -41,7 +41,9 @@ void main() {
       }
       try {
         TdmsReader.read(b);
-      } on TdmsFormatException {/* expected */}
+      } on TdmsFormatException {
+        /* expected */
+      }
     }
   });
 

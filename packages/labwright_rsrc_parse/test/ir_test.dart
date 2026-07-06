@@ -7,22 +7,36 @@ import 'package:test/test.dart';
 List<int> pascal(String s) => [s.length, ...s.codeUnits];
 
 DecodedSection sec(String tag, List<int> bytes, {bool comp = false}) => DecodedSection(
-      section: ViSection(tag: tag, index: 0, dataOffset: 0, bytes: Uint8List.fromList(bytes)),
-      bytes: Uint8List.fromList(bytes),
-      wasCompressed: comp,
-    );
+  section: ViSection(tag: tag, index: 0, dataOffset: 0, bytes: Uint8List.fromList(bytes)),
+  bytes: Uint8List.fromList(bytes),
+  wasCompressed: comp,
+);
 
 void main() {
   test('buildViModelFromDecoded aggregates version, components, tables, records', () {
     final vers = <int>[
       ...pascal('10.0'),
       0x00,
-      ...'VIDS'.codeUnits, ...pascal('My Example.vi'),
+      ...'VIDS'.codeUnits,
+      ...pascal('My Example.vi'),
     ];
     final table = <int>[...pascal('Sine'), ...pascal('Square'), ...pascal('Ramp')];
     final bdex = <int>[
-      0xc4, 0x2e, table.length, ...table,
-      0xc4, 0x2d, 0x08, 0, 0, 0, 0, 0, 0, 0, 0,
+      0xc4,
+      0x2e,
+      table.length,
+      ...table,
+      0xc4,
+      0x2d,
+      0x08,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
     ];
     final model = buildViModelFromDecoded([sec('vers', vers), sec('BDEx', bdex, comp: true)]);
 

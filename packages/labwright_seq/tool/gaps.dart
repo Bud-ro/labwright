@@ -46,8 +46,10 @@ void main(List<String> args) {
   }
   final ranked = totals.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
   final sum = totals.values.fold(0, (a, b) => a + b);
-  stdout.writeln('$which: $files files · ${ranked.length} distinct unmodeled '
-      'path shapes · $sum unmodeled nodes total\n');
+  stdout.writeln(
+    '$which: $files files · ${ranked.length} distinct unmodeled '
+    'path shapes · $sum unmodeled nodes total\n',
+  );
   for (final e in ranked.take(topN)) {
     stdout.writeln('${e.value.toString().padLeft(7)}  ${e.key}');
   }

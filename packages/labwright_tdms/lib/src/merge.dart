@@ -24,12 +24,14 @@ List<TdmsChannel> mergeTdmsChannels(List<TdmsFile> files) {
           name = '${channel.name}#$suffix';
         }
         takenKeys.add(key(group.name, name));
-        merged.add(TdmsChannel(
-          group: group.name,
-          name: name,
-          data: channel.data,
-          properties: channel.properties,
-        ));
+        merged.add(
+          TdmsChannel(
+            group: group.name,
+            name: name,
+            data: channel.data,
+            properties: channel.properties,
+          ),
+        );
       }
     }
   }
@@ -60,7 +62,6 @@ Uint8List mergeTdms(List<TdmsFile> files) {
     }
   }
 
-  return (TdmsWriter()
-        ..writeSegment(channels, fileProperties: fileProperties, groupProperties: groupProperties))
+  return (TdmsWriter()..writeSegment(channels, fileProperties: fileProperties, groupProperties: groupProperties))
       .toBytes();
 }

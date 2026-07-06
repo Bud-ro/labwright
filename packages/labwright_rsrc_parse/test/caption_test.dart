@@ -4,10 +4,10 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
 DecodedSection bdex(List<int> bytes) => DecodedSection(
-      section: ViSection(tag: 'BDEx', index: 0, dataOffset: 0, bytes: Uint8List.fromList(bytes)),
-      bytes: Uint8List.fromList(bytes),
-      wasCompressed: false,
-    );
+  section: ViSection(tag: 'BDEx', index: 0, dataOffset: 0, bytes: Uint8List.fromList(bytes)),
+  bytes: Uint8List.fromList(bytes),
+  wasCompressed: false,
+);
 
 List<int> c422(String s) => [0xc4, 0x22, s.length, ...s.codeUnits];
 

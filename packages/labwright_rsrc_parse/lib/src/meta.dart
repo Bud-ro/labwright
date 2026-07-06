@@ -153,8 +153,11 @@ List<HeapStringTable> heapStringTables(Uint8List viBytes, {int minLength = 4, in
 /// matches), emitted with `framed == false`. Within a table the strings are
 /// filtered to wordy ones of length ≥ [minLength] and deduped (preserving order);
 /// a table with no useful strings is dropped. Single forward pass and total.
-List<HeapStringTable> heapStringTablesFromDecoded(Iterable<DecodedSection> decoded,
-    {int minLength = 4, int minRun = 2}) {
+List<HeapStringTable> heapStringTablesFromDecoded(
+  Iterable<DecodedSection> decoded, {
+  int minLength = 4,
+  int minRun = 2,
+}) {
   final out = <HeapStringTable>[];
 
   for (final decodedSection in decoded) {
@@ -166,7 +169,10 @@ List<HeapStringTable> heapStringTablesFromDecoded(Iterable<DecodedSection> decod
 
     void emit(List<String> raw, int offset, {bool framed = false}) {
       final seen = <String>{};
-      final keep = [for (final text in raw) if (text.length >= minLength && _looksWordy(text) && seen.add(text)) text];
+      final keep = [
+        for (final text in raw)
+          if (text.length >= minLength && _looksWordy(text) && seen.add(text)) text,
+      ];
       if (keep.isNotEmpty) {
         out.add(HeapStringTable(sectionTag: decodedSection.tag, offset: offset, strings: keep, framed: framed));
       }
@@ -249,7 +255,7 @@ List<String> heapStringsFromDecoded(Iterable<DecodedSection> decoded, {int minLe
   return [
     for (final table in heapStringTablesFromDecoded(decoded, minLength: minLength, minRun: minRun))
       for (final text in table.strings)
-        if (seen.add(text)) text
+        if (seen.add(text)) text,
   ];
 }
 
@@ -278,7 +284,8 @@ List<String> _pascalStrings(Uint8List bytes) {
   return out;
 }
 
-bool _isTextByte(int byte) => byte == 9 || byte == 10 || byte == 13 || (byte >= 32 && byte < 127); // tab/LF/CR or printable ASCII
+bool _isTextByte(int byte) =>
+    byte == 9 || byte == 10 || byte == 13 || (byte >= 32 && byte < 127); // tab/LF/CR or printable ASCII
 
 /// True if [s] contains at least one ASCII letter (filters numeric/byte noise).
 bool _looksWordy(String text) =>

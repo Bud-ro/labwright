@@ -4,10 +4,10 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
 DecodedSection bdex(List<int> bytes, {String tag = 'BDEx'}) => DecodedSection(
-      section: ViSection(tag: tag, index: 0, dataOffset: 0, bytes: Uint8List.fromList(bytes)),
-      bytes: Uint8List.fromList(bytes),
-      wasCompressed: false,
-    );
+  section: ViSection(tag: tag, index: 0, dataOffset: 0, bytes: Uint8List.fromList(bytes)),
+  bytes: Uint8List.fromList(bytes),
+  wasCompressed: false,
+);
 
 List<int> c4(int op, List<int> payload) => [0xc4, op, payload.length, ...payload];
 
@@ -19,7 +19,7 @@ List<int> pth0Record(String path) {
 void main() {
   test('itemLabel (0x20) and symbolName (0xC4) decode as text', () {
     final recs = heapC4RecordsFromDecoded([
-      bdex([...c4(0x20, 'Line 0'.codeUnits), ...c4(0xc4, 'ps2000aRunStreaming'.codeUnits)])
+      bdex([...c4(0x20, 'Line 0'.codeUnits), ...c4(0xc4, 'ps2000aRunStreaming'.codeUnits)]),
     ]);
     expect(recs[0].kind, HeapOpcode.itemLabel);
     expect(recs[0].text, 'Line 0');
@@ -36,7 +36,7 @@ void main() {
 
   test('typeBounds (0x4A) decodes via the generic rect accessor', () {
     final rec = heapC4RecordsFromDecoded([
-      bdex(c4(0x4a, [0x00, 0x10, 0x00, 0x20, 0x00, 0x30, 0x00, 0x40]))
+      bdex(c4(0x4a, [0x00, 0x10, 0x00, 0x20, 0x00, 0x30, 0x00, 0x40])),
     ]).single;
     expect(rec.kind, HeapOpcode.typeBounds);
     expect(rec.bounds, isNull, reason: 'typeBounds (0x4A) is not the semantic bounds opcode, so .bounds stays null');

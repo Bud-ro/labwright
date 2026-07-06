@@ -26,12 +26,9 @@ String _corpusBase() {
 
 void main(List<String> args) {
   final dir = Directory('${_corpusBase()}/vi');
-  final vis = dir
-      .listSync(recursive: true)
-      .whereType<File>()
-      .where((f) => f.path.toLowerCase().endsWith('.vi'))
-      .toList()
-    ..sort((a, b) => a.path.compareTo(b.path));
+  final vis =
+      dir.listSync(recursive: true).whereType<File>().where((f) => f.path.toLowerCase().endsWith('.vi')).toList()
+        ..sort((a, b) => a.path.compareTo(b.path));
   final sample = args.isNotEmpty ? vis.take(int.parse(args[0])).toList() : vis.take(120).toList();
 
   var terminalCount = 0;
@@ -54,7 +51,8 @@ void main(List<String> args) {
           for (final refs in object.typedRefs.entries) {
             for (final oid in refs.value) {
               final target = byOid[oid];
-              final key = '${refs.key.refName}->${target == null ? 'unresolved' : 'class 0x${target.kind.toRadixString(16)}'}';
+              final key =
+                  '${refs.key.refName}->${target == null ? 'unresolved' : 'class 0x${target.kind.toRadixString(16)}'}';
               refTargets.update(key, (v) => v + 1, ifAbsent: () => 1);
             }
           }

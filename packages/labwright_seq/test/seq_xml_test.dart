@@ -319,8 +319,7 @@ const _seqMutexXml = '''<?xml version="1.0" encoding="UTF-8"?>
   </subprops></Data>
 </teststandfileheader>''';
 
-Uint8List _bytes(String s) =>
-    Uint8List.fromList([0xef, 0xbb, 0xbf, ...utf8.encode(s)]);
+Uint8List _bytes(String s) => Uint8List.fromList([0xef, 0xbb, 0xbf, ...utf8.encode(s)]);
 
 void main() {
   group('parseSeqFile (XML)', () {
@@ -488,8 +487,7 @@ void main() {
     test('recovers each recorded entry and its gating Condition', () {
       final addl = step.additionalResults;
       expect(addl.map((a) => a.name), ['Input', 'Output']);
-      expect(addl.map((a) => a.kind),
-          ['PythonParameterResult', 'PythonParameterResult']);
+      expect(addl.map((a) => a.kind), ['PythonParameterResult', 'PythonParameterResult']);
       expect(addl[0].condition, isNull);
       expect(addl[1].condition, 'Locals.Save == True');
       expect(addl[0].raw.prop('Flags')?.scalar, '8192');
@@ -648,8 +646,7 @@ void main() {
       final s = parseSeqFile(_bytes(_seqMutexXml)).sequences.single.main.single.settings;
       expect(s.usesMutex, isTrue);
       expect(s.mutexName, '"InstrumentLock"');
-      expect(dumpSeqFile(parseSeqFile(_bytes(_seqMutexXml))),
-          contains('mutex "InstrumentLock"'));
+      expect(dumpSeqFile(parseSeqFile(_bytes(_seqMutexXml))), contains('mutex "InstrumentLock"'));
     });
 
     test('a step without a mutex reports false/null and no dump note', () {
@@ -862,17 +859,14 @@ void main() {
     });
 
     test('renders typed parameters as a function-style signature', () {
-      final header =
-          exportSequenceLogic(parseSeqFile(_bytes(_seqParamsXml))).split('\n').first;
-      expect(header,
-          startsWith('sequence MainSequence(TestSocketName: Str, Voltage: Num = 5):'));
+      final header = exportSequenceLogic(parseSeqFile(_bytes(_seqParamsXml))).split('\n').first;
+      expect(header, startsWith('sequence MainSequence(TestSocketName: Str, Voltage: Num = 5):'));
       expect(header, isNot(contains('param')));
       expect(header, contains('// 1 step'));
     });
 
     test('a parameterless sequence has no empty parens', () {
-      final header =
-          exportSequenceLogic(parseSeqFile(_bytes(_seqXml))).split('\n').first;
+      final header = exportSequenceLogic(parseSeqFile(_bytes(_seqXml))).split('\n').first;
       expect(header, startsWith('sequence MainSequence:'));
       expect(header, isNot(contains('()')));
     });
@@ -901,8 +895,7 @@ void main() {
 
     test('a fall-through (Next/Next) step gets no jump annotation', () {
       final out = exportSequenceLogic(parseSeqFile(_bytes(_seqJumpXml)));
-      final plainLine =
-          out.split('\n').firstWhere((l) => l.contains('Plain'));
+      final plainLine = out.split('\n').firstWhere((l) => l.contains('Plain'));
       expect(plainLine, isNot(contains('on fail')));
       expect(plainLine, isNot(contains('on pass')));
     });

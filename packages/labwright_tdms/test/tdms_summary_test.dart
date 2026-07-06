@@ -5,15 +5,15 @@ import 'package:test/test.dart';
 
 void main() {
   test('summarizes groups/channels with stats and is JSON-encodable', () {
-    final bytes = (TdmsWriter()
-          ..writeSegment(
-            [
-              TdmsChannel(group: 'M', name: 'v', data: const [1.0, 3.0, 2.0], properties: {'unit': 'V'}),
-              TdmsChannel(group: 'M', name: 'note', data: const [], properties: {'value': 'hi'}),
-            ],
-            fileProperties: {'operator': 'loop'},
-          ))
-        .toBytes();
+    final bytes =
+        (TdmsWriter()..writeSegment(
+              [
+                TdmsChannel(group: 'M', name: 'v', data: const [1.0, 3.0, 2.0], properties: {'unit': 'V'}),
+                TdmsChannel(group: 'M', name: 'note', data: const [], properties: {'value': 'hi'}),
+              ],
+              fileProperties: {'operator': 'loop'},
+            ))
+            .toBytes();
 
     final s = tdmsSummary(bytes);
     expect(s['properties'], {'operator': 'loop'});

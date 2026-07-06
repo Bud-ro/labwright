@@ -10,8 +10,7 @@ import 'dart:typed_data';
 import 'package:labwright_seq/labwright_seq.dart';
 
 void main(List<String> argv) {
-  final path =
-      argv.isEmpty ? 'corpus/seq/rosetta/OutputVoltage_BIN.seq' : argv.first;
+  final path = argv.isEmpty ? 'corpus/seq/rosetta/OutputVoltage_BIN.seq' : argv.first;
   final bytes = File(path).readAsBytesSync();
   final body = inflateBinaryBody(bytes);
   final layout = body == null ? null : analyzeBinaryBody(bytes);
@@ -47,18 +46,24 @@ void main(List<String> argv) {
     if (e.bail == null) {
       final nextHead = i + 1 < extents.length ? extents[i + 1].headAt : null;
       final gap = nextHead == null ? '?' : '${nextHead - 4 - e.end!}';
-      print('OK    ${e.name} body=${e.bodyAt} end=${e.end} '
-          'gapToNextHead=$gap');
+      print(
+        'OK    ${e.name} body=${e.bodyAt} end=${e.end} '
+        'gapToNextHead=$gap',
+      );
     } else {
       final at = e.bail!;
       if (at < 0 || at + 52 > rr) {
-        print('BAIL  ${e.name} body=${e.bodyAt} @$at (head rejected or '
-            'out of range)');
+        print(
+          'BAIL  ${e.name} body=${e.bodyAt} @$at (head rejected or '
+          'out of range)',
+        );
         continue;
       }
       final words = [for (var o = -8; o <= 48; o += 4) show(u32(at + o))];
-      print('BAIL  ${e.name} body=${e.bodyAt} @$at  '
-          '«${words.sublist(0, 2).join(' ')}» ${words.sublist(2).join(' ')}');
+      print(
+        'BAIL  ${e.name} body=${e.bodyAt} @$at  '
+        '«${words.sublist(0, 2).join(' ')}» ${words.sublist(2).join(' ')}',
+      );
     }
   }
 }

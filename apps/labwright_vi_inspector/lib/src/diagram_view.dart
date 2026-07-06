@@ -77,13 +77,15 @@ class _ViDiagramViewState extends State<ViDiagramView> {
             if (object.absBounds != null &&
                 object.absBounds!.isValid &&
                 (object.category == ViObjectKind.wire ||
-                    (object.absBounds!.width > 0 && object.absBounds!.height > 0)) &&
+                    (object.absBounds!.width > 0 &&
+                        object.absBounds!.height > 0)) &&
                 object.absBounds!.width < 8000 &&
                 object.absBounds!.height < 8000 &&
                 !_isScaffolding(object, _byId))
               object,
         ];
-  late final List<ViHeapObject> _ordered = [..._drawable]..sort((a, b) => _depth(a, _byId).compareTo(_depth(b, _byId)));
+  late final List<ViHeapObject> _ordered = [..._drawable]
+    ..sort((a, b) => _depth(a, _byId).compareTo(_depth(b, _byId)));
   // Wires are excluded from the fit: their absolute anchoring is not yet
   // verified (a misanchored run must not blow up the zoom-to-fit envelope).
   late final Rect _content = _drawable.isEmpty
@@ -114,12 +116,21 @@ class _ViDiagramViewState extends State<ViDiagramView> {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Text(widget.emptyHint, textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey)),
+          child: Text(
+            widget.emptyHint,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.grey),
+          ),
         ),
       );
     }
     if (_drawable.isEmpty) {
-      return const Center(child: Text('Diagram has no positioned objects.', style: TextStyle(color: Colors.grey)));
+      return const Center(
+        child: Text(
+          'Diagram has no positioned objects.',
+          style: TextStyle(color: Colors.grey),
+        ),
+      );
     }
 
     final content = _content;
@@ -130,61 +141,90 @@ class _ViDiagramViewState extends State<ViDiagramView> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _toolbar(_drawable.length, _counts),
-        _BdOutline(outline: computeBdOutline(_drawable), linkedSubVis: widget.subViNames),
+        _BdOutline(
+          outline: computeBdOutline(_drawable),
+          linkedSubVis: widget.subViNames,
+        ),
         const SizedBox(height: 6),
         Expanded(
           child: Stack(
             children: [
               Positioned.fill(
-                child: LayoutBuilder(builder: (context, constraints) {
-                  final viewport = Size(constraints.maxWidth, constraints.maxHeight);
-                  if (viewport != _lastViewport) {
-                    _lastViewport = viewport;
-                    _fitted = false;
-                  }
-                  if (!_fitted) {
-                    WidgetsBinding.instance.addPostFrameCallback((_) => _fit());
-                  }
-                  return ClipRect(
-                    child: ColoredBox(
-                      color: const Color(0xFFE9E9E9),
-                      child: InteractiveViewer(
-                        transformationController: _transform,
-                        constrained: false,
-                        minScale: 0.02,
-                        maxScale: 16,
-                        boundaryMargin: const EdgeInsets.all(2000),
-                        child: (_mode == DiagramRenderMode.faithful && ordered.length <= kFaithfulMaxObjects)
-                            ? FaithfulLayer(objects: ordered, origin: content.topLeft, size: content.size, isFrontPanel: widget.isFrontPanel)
-                            : GestureDetector(
-                                behavior: HitTestBehavior.opaque,
-                                onTapDown: (d) => _selectAt(d.localPosition, ordered, content),
-                                child: CustomPaint(
-                                  size: Size(content.width, content.height),
-                                  painter: _DiagramPainter(objects: ordered, origin: content.topLeft),
-                                  foregroundPainter: _OverlayPainter(
-                                    origin: content.topLeft,
-                                    selected: _selected,
-                                    members: _members,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final viewport = Size(
+                      constraints.maxWidth,
+                      constraints.maxHeight,
+                    );
+                    if (viewport != _lastViewport) {
+                      _lastViewport = viewport;
+                      _fitted = false;
+                    }
+                    if (!_fitted) {
+                      WidgetsBinding.instance.addPostFrameCallback(
+                        (_) => _fit(),
+                      );
+                    }
+                    return ClipRect(
+                      child: ColoredBox(
+                        color: const Color(0xFFE9E9E9),
+                        child: InteractiveViewer(
+                          transformationController: _transform,
+                          constrained: false,
+                          minScale: 0.02,
+                          maxScale: 16,
+                          boundaryMargin: const EdgeInsets.all(2000),
+                          child:
+                              (_mode == DiagramRenderMode.faithful &&
+                                  ordered.length <= kFaithfulMaxObjects)
+                              ? FaithfulLayer(
+                                  objects: ordered,
+                                  origin: content.topLeft,
+                                  size: content.size,
+                                  isFrontPanel: widget.isFrontPanel,
+                                )
+                              : GestureDetector(
+                                  behavior: HitTestBehavior.opaque,
+                                  onTapDown: (d) => _selectAt(
+                                    d.localPosition,
+                                    ordered,
+                                    content,
+                                  ),
+                                  child: CustomPaint(
+                                    size: Size(content.width, content.height),
+                                    painter: _DiagramPainter(
+                                      objects: ordered,
+                                      origin: content.topLeft,
+                                    ),
+                                    foregroundPainter: _OverlayPainter(
+                                      origin: content.topLeft,
+                                      selected: _selected,
+                                      members: _members,
+                                    ),
                                   ),
                                 ),
-                              ),
+                        ),
                       ),
-                    ),
-                  );
-                }),
+                    );
+                  },
+                ),
               ),
               if (_mode == DiagramRenderMode.wireframe && _selected != null)
                 Positioned(
                   left: 8,
                   right: 8,
                   bottom: 8,
-                  child: _DetailsCard(object: _selected!, members: _members, onClose: () => setState(() {
-                        _selected = null;
-                        _members = const {};
-                      })),
+                  child: _DetailsCard(
+                    object: _selected!,
+                    members: _members,
+                    onClose: () => setState(() {
+                      _selected = null;
+                      _members = const {};
+                    }),
+                  ),
                 ),
-              if (_mode == DiagramRenderMode.faithful && _ordered.length > kFaithfulMaxObjects)
+              if (_mode == DiagramRenderMode.faithful &&
+                  _ordered.length > kFaithfulMaxObjects)
                 Positioned(
                   left: 8,
                   right: 8,
@@ -197,7 +237,10 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                       child: Text(
                         'Faithful mode is disabled for large diagrams '
                         '(${_ordered.length} objects > $kFaithfulMaxObjects) — showing wireframe.',
-                        style: const TextStyle(fontSize: 12, color: Color(0xFF7A5B00)),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF7A5B00),
+                        ),
                       ),
                     ),
                   ),
@@ -219,46 +262,64 @@ class _ViDiagramViewState extends State<ViDiagramView> {
   }
 
   Widget _toolbar(int objectCount, Map<ViObjectKind, int> counts) => Wrap(
-        spacing: 12,
-        runSpacing: 4,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          Text('$objectCount objects', style: const TextStyle(fontWeight: FontWeight.bold)),
-          for (final entry in counts.entries)
-            _LegendChip(color: _kindColor(entry.key), label: '${entry.key.name} ${entry.value}'),
-          const Tooltip(
-            message: 'Wire segments are decoded (class 0x1d: stored Manhattan runs,\n'
-                '61396/61396 line-like across the corpus) and drawn with their\n'
-                'implicit connectors. Not yet decoded: wire datatype (for per-type\n'
-                'colors) and endpoint-to-terminal binding.',
-            child: Chip(
-              avatar: Icon(Icons.linear_scale, size: 14),
-              label: Text('wires: segments decoded', style: TextStyle(fontSize: 11)),
-              visualDensity: VisualDensity.compact,
-            ),
+    spacing: 12,
+    runSpacing: 4,
+    crossAxisAlignment: WrapCrossAlignment.center,
+    children: [
+      Text(
+        '$objectCount objects',
+        style: const TextStyle(fontWeight: FontWeight.bold),
+      ),
+      for (final entry in counts.entries)
+        _LegendChip(
+          color: _kindColor(entry.key),
+          label: '${entry.key.name} ${entry.value}',
+        ),
+      const Tooltip(
+        message:
+            'Wire segments are decoded (class 0x1d: stored Manhattan runs,\n'
+            '61396/61396 line-like across the corpus) and drawn with their\n'
+            'implicit connectors. Not yet decoded: wire datatype (for per-type\n'
+            'colors) and endpoint-to-terminal binding.',
+        child: Chip(
+          avatar: Icon(Icons.linear_scale, size: 14),
+          label: Text(
+            'wires: segments decoded',
+            style: TextStyle(fontSize: 11),
           ),
-          SegmentedButton<DiagramRenderMode>(
-            style: const ButtonStyle(visualDensity: VisualDensity.compact),
-            segments: const [
-              ButtonSegment(value: DiagramRenderMode.wireframe, icon: Icon(Icons.grid_4x4, size: 16), label: Text('Wireframe')),
-              ButtonSegment(value: DiagramRenderMode.faithful, icon: Icon(Icons.widgets_outlined, size: 16), label: Text('Faithful')),
-            ],
-            selected: {_mode},
-            onSelectionChanged: (s) => setState(() {
-              _mode = s.first;
-              if (_mode == DiagramRenderMode.faithful) {
-                _selected = null;
-                _members = const {};
-              }
-            }),
+          visualDensity: VisualDensity.compact,
+        ),
+      ),
+      SegmentedButton<DiagramRenderMode>(
+        style: const ButtonStyle(visualDensity: VisualDensity.compact),
+        segments: const [
+          ButtonSegment(
+            value: DiagramRenderMode.wireframe,
+            icon: Icon(Icons.grid_4x4, size: 16),
+            label: Text('Wireframe'),
           ),
-          IconButton(
-            tooltip: 'Fit to view',
-            onPressed: _fit,
-            icon: const Icon(Icons.fit_screen),
+          ButtonSegment(
+            value: DiagramRenderMode.faithful,
+            icon: Icon(Icons.widgets_outlined, size: 16),
+            label: Text('Faithful'),
           ),
         ],
-      );
+        selected: {_mode},
+        onSelectionChanged: (s) => setState(() {
+          _mode = s.first;
+          if (_mode == DiagramRenderMode.faithful) {
+            _selected = null;
+            _members = const {};
+          }
+        }),
+      ),
+      IconButton(
+        tooltip: 'Fit to view',
+        onPressed: _fit,
+        icon: const Icon(Icons.fit_screen),
+      ),
+    ],
+  );
 
   void _selectAt(Offset local, List<ViHeapObject> objects, Rect content) {
     final x = local.dx + content.left;
@@ -267,7 +328,10 @@ class _ViDiagramViewState extends State<ViDiagramView> {
     var bestArea = double.infinity;
     for (final object in objects) {
       final bounds = object.absBounds!;
-      if (x >= bounds.left && x <= bounds.right && y >= bounds.top && y <= bounds.bottom) {
+      if (x >= bounds.left &&
+          x <= bounds.right &&
+          y >= bounds.top &&
+          y <= bounds.bottom) {
         final area = (bounds.width * bounds.height).toDouble();
         if (area <= bestArea) {
           bestArea = area;
@@ -282,14 +346,27 @@ class _ViDiagramViewState extends State<ViDiagramView> {
   }
 
   Set<ViHeapObject> _membersOf(ViHeapObject? o) =>
-      o != null && o.category == ViObjectKind.structure ? nodesWithin(o, _drawable) : membersOf(o, _byId);
+      o != null && o.category == ViObjectKind.structure
+      ? nodesWithin(o, _drawable)
+      : membersOf(o, _byId);
 
   void _fit() {
     final viewport = _lastViewport;
     final content = _lastContent;
-    if (viewport == null || content == null || content.width <= 0 || content.height <= 0) return;
-    final widthScale = (viewport.width / content.width).clamp(0.0, double.infinity);
-    final scale = (widthScale < viewport.height / content.height ? widthScale : viewport.height / content.height) * 0.94;
+    if (viewport == null ||
+        content == null ||
+        content.width <= 0 ||
+        content.height <= 0)
+      return;
+    final widthScale = (viewport.width / content.width).clamp(
+      0.0,
+      double.infinity,
+    );
+    final scale =
+        (widthScale < viewport.height / content.height
+            ? widthScale
+            : viewport.height / content.height) *
+        0.94;
     final tx = (viewport.width - content.width * scale) / 2;
     final ty = (viewport.height - content.height * scale) / 2;
     _transform.value = Matrix4.identity()
@@ -333,7 +410,9 @@ class _ViDiagramViewState extends State<ViDiagramView> {
     ViDiagram? best;
     var bestN = -1;
     for (final diagram in diagrams) {
-      final placedCount = diagram.objects.where((o) => o.absBounds != null).length;
+      final placedCount = diagram.objects
+          .where((o) => o.absBounds != null)
+          .length;
       if (placedCount > bestN) {
         bestN = placedCount;
         best = diagram;
@@ -345,38 +424,41 @@ class _ViDiagramViewState extends State<ViDiagramView> {
 
 /// Faithful-ish LabVIEW palette: terminals colored by data type, else by class.
 Color _typeColor(ViTypeKind t) => switch (t) {
-      ViTypeKind.numericFloat => const Color(0xFFE8732A),
-      ViTypeKind.numericInt => const Color(0xFF1F6FE0),
-      ViTypeKind.enumRing => const Color(0xFF1FA0C0),
-      ViTypeKind.path => const Color(0xFF3FA64B),
-      ViTypeKind.clnNode => const Color(0xFFE8C547),
-      ViTypeKind.unknown => const Color(0xFF707070),
-    };
+  ViTypeKind.numericFloat => const Color(0xFFE8732A),
+  ViTypeKind.numericInt => const Color(0xFF1F6FE0),
+  ViTypeKind.enumRing => const Color(0xFF1FA0C0),
+  ViTypeKind.path => const Color(0xFF3FA64B),
+  ViTypeKind.clnNode => const Color(0xFFE8C547),
+  ViTypeKind.unknown => const Color(0xFF707070),
+};
 
 Color _kindColor(ViObjectKind k) => switch (k) {
-      ViObjectKind.node => const Color(0xFFE8C547),
-      ViObjectKind.terminal => const Color(0xFF5C9BD6),
-      ViObjectKind.terminalCluster => const Color(0xFF2BB8A8),
-      ViObjectKind.structure => const Color(0xFF9A6B2E),
-      ViObjectKind.decoration => const Color(0xFFBDBDBD),
-      ViObjectKind.wire => const Color(0xFF303030),
-      ViObjectKind.unknown => const Color(0xFF9E9E9E),
-    };
+  ViObjectKind.node => const Color(0xFFE8C547),
+  ViObjectKind.terminal => const Color(0xFF5C9BD6),
+  ViObjectKind.terminalCluster => const Color(0xFF2BB8A8),
+  ViObjectKind.structure => const Color(0xFF9A6B2E),
+  ViObjectKind.decoration => const Color(0xFFBDBDBD),
+  ViObjectKind.wire => const Color(0xFF303030),
+  ViObjectKind.unknown => const Color(0xFF9E9E9E),
+};
 
 Color _objectColor(ViHeapObject object) =>
-    object.category == ViObjectKind.terminal && object.typeKind != ViTypeKind.unknown ? _typeColor(object.typeKind) : _kindColor(object.category);
+    object.category == ViObjectKind.terminal &&
+        object.typeKind != ViTypeKind.unknown
+    ? _typeColor(object.typeKind)
+    : _kindColor(object.category);
 
 /// LabVIEW's canonical datatype colors, applied to terminals so the diagram
 /// reads like the original: orange = float, blue = int/enum, green-brown =
 /// path, yellow = call-library node. Unknown stays neutral (never guessed).
 Color labviewTypeColor(ViTypeKind kind) => switch (kind) {
-      ViTypeKind.numericFloat => const Color(0xFFFF8000),
-      ViTypeKind.numericInt => const Color(0xFF0066CC),
-      ViTypeKind.enumRing => const Color(0xFF0066CC),
-      ViTypeKind.path => const Color(0xFF669900),
-      ViTypeKind.clnNode => const Color(0xFFE8C547),
-      ViTypeKind.unknown => const Color(0xFF8A8A8A),
-    };
+  ViTypeKind.numericFloat => const Color(0xFFFF8000),
+  ViTypeKind.numericInt => const Color(0xFF0066CC),
+  ViTypeKind.enumRing => const Color(0xFF0066CC),
+  ViTypeKind.path => const Color(0xFF669900),
+  ViTypeKind.clnNode => const Color(0xFFE8C547),
+  ViTypeKind.unknown => const Color(0xFF8A8A8A),
+};
 
 /// The label drawn on a wireframe object. Structures (never text-labeled) show
 /// their catalog kind via [structureBadge] (so the wireframe reads as logic too,
@@ -398,8 +480,13 @@ String? wireframeAnnotation(ViHeapObject o) {
 /// the total node count. Conveys the diagram's control-flow shape at a glance
 /// without claiming any dataflow edges (LabVIEW stores wires as geometry, with no
 /// recoverable node→node endpoints). Pure + public so it is unit-testable.
-({Map<String, int> structuresByKind, List<String> labeledNodes, int nodeCount, Map<ClassConfidence, int> confidence}) computeBdOutline(
-    Iterable<ViHeapObject> objects) {
+({
+  Map<String, int> structuresByKind,
+  List<String> labeledNodes,
+  int nodeCount,
+  Map<ClassConfidence, int> confidence,
+})
+computeBdOutline(Iterable<ViHeapObject> objects) {
   const notControlFlow = {
     HeapObjectClass.diagramRoot,
     HeapObjectClass.diagramProps,
@@ -415,15 +502,23 @@ String? wireframeAnnotation(ViHeapObject o) {
       if (notControlFlow.contains(object.objectClass)) continue;
       final badge = structureBadge(object);
       byKind[badge] = (byKind[badge] ?? 0) + 1;
-      confidence[object.objectClass.confidence] = (confidence[object.objectClass.confidence] ?? 0) + 1;
+      confidence[object.objectClass.confidence] =
+          (confidence[object.objectClass.confidence] ?? 0) + 1;
     } else if (object.category == ViObjectKind.node) {
       nodeCount++;
-      confidence[object.objectClass.confidence] = (confidence[object.objectClass.confidence] ?? 0) + 1;
+      confidence[object.objectClass.confidence] =
+          (confidence[object.objectClass.confidence] ?? 0) + 1;
       final dl = nodeDisplayLabel(object);
-      if (!dl.isHint && !labeledNodes.contains(dl.text)) labeledNodes.add(dl.text);
+      if (!dl.isHint && !labeledNodes.contains(dl.text))
+        labeledNodes.add(dl.text);
     }
   }
-  return (structuresByKind: byKind, labeledNodes: labeledNodes, nodeCount: nodeCount, confidence: confidence);
+  return (
+    structuresByKind: byKind,
+    labeledNodes: labeledNodes,
+    nodeCount: nodeCount,
+    confidence: confidence,
+  );
 }
 
 /// Control-terminal classes — their internal sub-terminals are scaffolding.
@@ -471,7 +566,11 @@ Set<ViHeapObject> membersOf(ViHeapObject? o, Map<int, ViHeapObject> byId) {
   if (o == null) return const {};
   return {
     for (final oid in o.memberOids)
-      if (byId[oid] case final m? when m.absBounds != null && !identical(m, o) && !_isScaffolding(m, byId)) m,
+      if (byId[oid] case final m?
+          when m.absBounds != null &&
+              !identical(m, o) &&
+              !_isScaffolding(m, byId))
+        m,
   };
 }
 
@@ -481,17 +580,30 @@ Set<ViHeapObject> membersOf(ViHeapObject? o, Map<int, ViHeapObject> byId) {
 /// node/structure objects whose absolute bounds fall within [structure]'s bounds
 /// (excluding itself and same-size overlaps); terminals/decorations are omitted
 /// so the highlight reads as the contained logic. Public for testing.
-Set<ViHeapObject> nodesWithin(ViHeapObject structure, Iterable<ViHeapObject> objects) {
+Set<ViHeapObject> nodesWithin(
+  ViHeapObject structure,
+  Iterable<ViHeapObject> objects,
+) {
   final structureBounds = structure.absBounds;
   if (structureBounds == null) return const {};
   final out = <ViHeapObject>{};
   for (final object in objects) {
     if (identical(object, structure)) continue;
-    if (object.category != ViObjectKind.node && object.category != ViObjectKind.structure) continue;
+    if (object.category != ViObjectKind.node &&
+        object.category != ViObjectKind.structure)
+      continue;
     final bounds = object.absBounds;
     if (bounds == null) continue;
-    if (bounds.left < structureBounds.left || bounds.top < structureBounds.top || bounds.right > structureBounds.right || bounds.bottom > structureBounds.bottom) continue;
-    if (bounds.left == structureBounds.left && bounds.top == structureBounds.top && bounds.right == structureBounds.right && bounds.bottom == structureBounds.bottom) continue;
+    if (bounds.left < structureBounds.left ||
+        bounds.top < structureBounds.top ||
+        bounds.right > structureBounds.right ||
+        bounds.bottom > structureBounds.bottom)
+      continue;
+    if (bounds.left == structureBounds.left &&
+        bounds.top == structureBounds.top &&
+        bounds.right == structureBounds.right &&
+        bounds.bottom == structureBounds.bottom)
+      continue;
     out.add(object);
   }
   return out;
@@ -508,27 +620,51 @@ class _DiagramPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.drawRect(Offset.zero & size, Paint()..color = const Color(0xFFE9E9E9));
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()..color = const Color(0xFFE9E9E9),
+    );
     _drawDotGrid(canvas, size);
 
     Rect rectOf(ViHeapObject o) {
       final bounds = o.absBounds!;
-      return Rect.fromLTRB(bounds.left - origin.dx, bounds.top - origin.dy, bounds.right - origin.dx, bounds.bottom - origin.dy);
+      return Rect.fromLTRB(
+        bounds.left - origin.dx,
+        bounds.top - origin.dy,
+        bounds.right - origin.dx,
+        bounds.bottom - origin.dy,
+      );
     }
 
-    final structures = objects.where((o) => o.category == ViObjectKind.structure).toList();
-    final decorations = objects.where((o) => o.category == ViObjectKind.decoration).toList();
-    final wires = objects.where((o) => o.category == ViObjectKind.wire).toList();
-    final solids = objects
-        .where((o) =>
-            o.category != ViObjectKind.structure &&
-            o.category != ViObjectKind.decoration &&
-            o.category != ViObjectKind.wire)
-        .toList()
-      ..sort((a, b) => (b.absBounds!.width * b.absBounds!.height).compareTo(a.absBounds!.width * a.absBounds!.height));
+    final structures = objects
+        .where((o) => o.category == ViObjectKind.structure)
+        .toList();
+    final decorations = objects
+        .where((o) => o.category == ViObjectKind.decoration)
+        .toList();
+    final wires = objects
+        .where((o) => o.category == ViObjectKind.wire)
+        .toList();
+    final solids =
+        objects
+            .where(
+              (o) =>
+                  o.category != ViObjectKind.structure &&
+                  o.category != ViObjectKind.decoration &&
+                  o.category != ViObjectKind.wire,
+            )
+            .toList()
+          ..sort(
+            (a, b) => (b.absBounds!.width * b.absBounds!.height).compareTo(
+              a.absBounds!.width * a.absBounds!.height,
+            ),
+          );
 
     for (final object in decorations) {
-      canvas.drawRect(rectOf(object), Paint()..color = _kindColor(object.category).withValues(alpha: 0.10));
+      canvas.drawRect(
+        rectOf(object),
+        Paint()..color = _kindColor(object.category).withValues(alpha: 0.10),
+      );
     }
     for (final object in structures) {
       // LabVIEW draws structures as a double-line frame; the badge tab at the
@@ -567,7 +703,8 @@ class _DiagramPainter extends CustomPainter {
         final gapStart = endOf(previousWire);
         final gapEnd = startOf(rect);
         // implicit connector: same column (or row) continuation between runs
-        final connects = (gapStart.dx - gapEnd.dx).abs() < 0.5 ||
+        final connects =
+            (gapStart.dx - gapEnd.dx).abs() < 0.5 ||
             (gapStart.dy - gapEnd.dy).abs() < 0.5;
         if (connects && (gapStart - gapEnd).distance <= 400) {
           canvas.drawLine(gapStart, gapEnd, wirePaint);
@@ -586,37 +723,55 @@ class _DiagramPainter extends CustomPainter {
               ? _kindColor(ViObjectKind.terminal)
               : labviewTypeColor(object.typeKind);
           canvas.drawRect(rect, Paint()..color = fill.withValues(alpha: 0.9));
-          canvas.drawRect(rect, Paint()
-            ..color = Colors.black.withValues(alpha: 0.65)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 0.8);
-          if (rect.width > 8 && rect.height > 8) {
-            canvas.drawRect(rect.deflate(2), Paint()
-              ..color = Colors.white.withValues(alpha: 0.7)
+          canvas.drawRect(
+            rect,
+            Paint()
+              ..color = Colors.black.withValues(alpha: 0.65)
               ..style = PaintingStyle.stroke
-              ..strokeWidth = 0.8);
+              ..strokeWidth = 0.8,
+          );
+          if (rect.width > 8 && rect.height > 8) {
+            canvas.drawRect(
+              rect.deflate(2),
+              Paint()
+                ..color = Colors.white.withValues(alpha: 0.7)
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 0.8,
+            );
           }
         case ViObjectKind.node:
           // LabVIEW subVI/function node: pale icon plate with a firm border.
           final rr = RRect.fromRectAndRadius(rect, const Radius.circular(1.5));
           canvas.drawRRect(rr, Paint()..color = const Color(0xFFF6EDC8));
-          canvas.drawRRect(rr, Paint()
-            ..color = Colors.black.withValues(alpha: 0.75)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.0);
-          if (rect.width > 10 && rect.height > 10) {
-            canvas.drawRect(rect.deflate(2.5), Paint()
-              ..color = const Color(0x33805B10)
+          canvas.drawRRect(
+            rr,
+            Paint()
+              ..color = Colors.black.withValues(alpha: 0.75)
               ..style = PaintingStyle.stroke
-              ..strokeWidth = 0.8);
+              ..strokeWidth = 1.0,
+          );
+          if (rect.width > 10 && rect.height > 10) {
+            canvas.drawRect(
+              rect.deflate(2.5),
+              Paint()
+                ..color = const Color(0x33805B10)
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 0.8,
+            );
           }
         default:
           final rr = RRect.fromRectAndRadius(rect, const Radius.circular(2.5));
-          canvas.drawRRect(rr, Paint()..color = _objectColor(object).withValues(alpha: 0.92));
-          canvas.drawRRect(rr, Paint()
-            ..color = Colors.black.withValues(alpha: 0.5)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 0.8);
+          canvas.drawRRect(
+            rr,
+            Paint()..color = _objectColor(object).withValues(alpha: 0.92),
+          );
+          canvas.drawRRect(
+            rr,
+            Paint()
+              ..color = Colors.black.withValues(alpha: 0.5)
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 0.8,
+          );
       }
     }
     for (final object in objects) {
@@ -629,7 +784,9 @@ class _DiagramPainter extends CustomPainter {
         text: TextSpan(
           text: text,
           style: TextStyle(
-            color: onFrame ? const Color(0xCC4A2E00) : Colors.black.withValues(alpha: 0.85),
+            color: onFrame
+                ? const Color(0xCC4A2E00)
+                : Colors.black.withValues(alpha: 0.85),
             fontSize: 10,
             fontWeight: FontWeight.w500,
             fontFamily: 'Roboto',
@@ -665,7 +822,11 @@ class _DiagramPainter extends CustomPainter {
 /// A few `drawRect`s, so a selection tap repaints this (not the static object
 /// layer). Shares the object→canvas mapping with [_DiagramPainter].
 class _OverlayPainter extends CustomPainter {
-  _OverlayPainter({required this.origin, required this.selected, required this.members});
+  _OverlayPainter({
+    required this.origin,
+    required this.selected,
+    required this.members,
+  });
 
   final Offset origin;
   final ViHeapObject? selected;
@@ -673,7 +834,12 @@ class _OverlayPainter extends CustomPainter {
 
   Rect _rectOf(ViHeapObject o) {
     final bounds = o.absBounds!;
-    return Rect.fromLTRB(bounds.left - origin.dx, bounds.top - origin.dy, bounds.right - origin.dx, bounds.bottom - origin.dy);
+    return Rect.fromLTRB(
+      bounds.left - origin.dx,
+      bounds.top - origin.dy,
+      bounds.right - origin.dx,
+      bounds.bottom - origin.dy,
+    );
   }
 
   @override
@@ -684,42 +850,58 @@ class _OverlayPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2;
       for (final member in members) {
-        if (member.absBounds != null) canvas.drawRect(_rectOf(member).inflate(1.5), mp);
+        if (member.absBounds != null)
+          canvas.drawRect(_rectOf(member).inflate(1.5), mp);
       }
     }
     final sel = selected;
     if (sel != null && sel.absBounds != null) {
-      canvas.drawRect(_rectOf(sel).inflate(2.5), Paint()
-        ..color = const Color(0xFF1565C0)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.5);
+      canvas.drawRect(
+        _rectOf(sel).inflate(2.5),
+        Paint()
+          ..color = const Color(0xFF1565C0)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.5,
+      );
     }
   }
 
   @override
   bool shouldRepaint(covariant _OverlayPainter old) =>
-      old.origin != origin || !identical(old.selected, selected) ||
-      old.members.length != members.length || !old.members.containsAll(members);
+      old.origin != origin ||
+      !identical(old.selected, selected) ||
+      old.members.length != members.length ||
+      !old.members.containsAll(members);
 }
 
 /// A "label: value" detail row for the selected-object card (decoded semantics).
 Widget _detail(String label, String value) => Padding(
-      padding: const EdgeInsets.only(top: 3),
-      child: RichText(
-        maxLines: 3,
-        overflow: TextOverflow.ellipsis,
-        text: TextSpan(
-          style: const TextStyle(fontSize: 12, color: Color(0xFF333333)),
-          children: [
-            TextSpan(text: '$label: ', style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF1565C0))),
-            TextSpan(text: value),
-          ],
+  padding: const EdgeInsets.only(top: 3),
+  child: RichText(
+    maxLines: 3,
+    overflow: TextOverflow.ellipsis,
+    text: TextSpan(
+      style: const TextStyle(fontSize: 12, color: Color(0xFF333333)),
+      children: [
+        TextSpan(
+          text: '$label: ',
+          style: const TextStyle(
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF1565C0),
+          ),
         ),
-      ),
-    );
+        TextSpan(text: value),
+      ],
+    ),
+  ),
+);
 
 class _DetailsCard extends StatelessWidget {
-  const _DetailsCard({required this.object, required this.onClose, this.members = const {}});
+  const _DetailsCard({
+    required this.object,
+    required this.onClose,
+    this.members = const {},
+  });
   final ViHeapObject object;
   final VoidCallback onClose;
 
@@ -736,7 +918,9 @@ class _DetailsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final bounds = object.absBounds;
     final cls = object.objectClass;
-    final conf = cls.confidence == ClassConfidence.confirmed ? '' : ' (${cls.confidence.name})';
+    final conf = cls.confidence == ClassConfidence.confirmed
+        ? ''
+        : ' (${cls.confidence.name})';
     return Card(
       margin: const EdgeInsets.only(top: 6),
       child: Padding(
@@ -748,7 +932,10 @@ class _DetailsCard extends StatelessWidget {
               width: 14,
               height: 14,
               margin: const EdgeInsets.only(top: 2, right: 8),
-              decoration: BoxDecoration(color: _objectColor(object), borderRadius: BorderRadius.circular(3)),
+              decoration: BoxDecoration(
+                color: _objectColor(object),
+                borderRadius: BorderRadius.circular(3),
+              ),
             ),
             Expanded(
               child: Column(
@@ -775,20 +962,31 @@ class _DetailsCard extends StatelessWidget {
                     style: const TextStyle(color: Colors.grey, fontSize: 12),
                   ),
                   if (object.items.isNotEmpty)
-                    _detail('values', object.items.take(8).join(', ') + (object.items.length > 8 ? ', …' : '')),
-                  if (formatControlRange(object.controlMin, object.controlMax) case final range?)
+                    _detail(
+                      'values',
+                      object.items.take(8).join(', ') +
+                          (object.items.length > 8 ? ', …' : ''),
+                    ),
+                  if (formatControlRange(object.controlMin, object.controlMax)
+                      case final range?)
                     _detail('range', range),
-                  if (object.helpText != null && stripHelpMarkup(object.helpText!).isNotEmpty)
+                  if (object.helpText != null &&
+                      stripHelpMarkup(object.helpText!).isNotEmpty)
                     _detail('help', stripHelpMarkup(object.helpText!)),
                   if (members.isNotEmpty)
                     _detail(
                       'contains',
-                      members.map(_contentLabel).take(10).join(', ') + (members.length > 10 ? ', …' : ''),
+                      members.map(_contentLabel).take(10).join(', ') +
+                          (members.length > 10 ? ', …' : ''),
                     ),
                 ],
               ),
             ),
-            IconButton(visualDensity: VisualDensity.compact, onPressed: onClose, icon: const Icon(Icons.close, size: 18)),
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              onPressed: onClose,
+              icon: const Icon(Icons.close, size: 18),
+            ),
           ],
         ),
       ),
@@ -801,7 +999,13 @@ class _DetailsCard extends StatelessWidget {
 /// nothing when the diagram has no structures or named calls.
 class _BdOutline extends StatelessWidget {
   const _BdOutline({required this.outline, this.linkedSubVis = const []});
-  final ({Map<String, int> structuresByKind, List<String> labeledNodes, int nodeCount, Map<ClassConfidence, int> confidence}) outline;
+  final ({
+    Map<String, int> structuresByKind,
+    List<String> labeledNodes,
+    int nodeCount,
+    Map<ClassConfidence, int> confidence,
+  })
+  outline;
 
   /// The VI's sub-VI dependency names from the LIbd linker block — recoverable
   /// for ~82% of VIs; a linker dependency list, not a per-node call mapping.
@@ -813,49 +1017,90 @@ class _BdOutline extends StatelessWidget {
     final structs = outline.structuresByKind.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     final labeledNodes = outline.labeledNodes;
-    if (structs.isEmpty && labeledNodes.isEmpty && linkedSubVis.isEmpty && outline.confidence.isEmpty) {
+    if (structs.isEmpty &&
+        labeledNodes.isEmpty &&
+        linkedSubVis.isEmpty &&
+        outline.confidence.isEmpty) {
       return const SizedBox.shrink();
     }
 
     const muted = TextStyle(fontSize: 12, color: Colors.grey);
     Widget capped(String prefix, List<String> items) => Text(
-          '$prefix: ' +
-              items.take(20).join(', ') +
-              (items.length > 20 ? ', … (+${items.length - 20})' : ''),
-          style: muted,
-        );
+      '$prefix: ' +
+          items.take(20).join(', ') +
+          (items.length > 20 ? ', … (+${items.length - 20})' : ''),
+      style: muted,
+    );
     return Padding(
       padding: const EdgeInsets.only(top: 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (structs.isNotEmpty)
-            Wrap(spacing: 10, runSpacing: 2, crossAxisAlignment: WrapCrossAlignment.center, children: [
-              const Text('Control flow:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-              for (final entry in structs) Text('${entry.key} ×${entry.value}', style: muted),
-            ]),
+            Wrap(
+              spacing: 10,
+              runSpacing: 2,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                const Text(
+                  'Control flow:',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+                for (final entry in structs)
+                  Text('${entry.key} ×${entry.value}', style: muted),
+              ],
+            ),
           if (linkedSubVis.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 2),
-              child: capped('Linked subVIs (${linkedSubVis.length})', linkedSubVis),
+              child: capped(
+                'Linked subVIs (${linkedSubVis.length})',
+                linkedSubVis,
+              ),
             ),
           if (labeledNodes.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 2),
-              child: capped('Diagram-labeled nodes (${labeledNodes.length})', labeledNodes),
+              child: capped(
+                'Diagram-labeled nodes (${labeledNodes.length})',
+                labeledNodes,
+              ),
             ),
           if (outline.confidence.isNotEmpty) ...[
             Padding(
               padding: const EdgeInsets.only(top: 2),
-              child: Wrap(spacing: 10, runSpacing: 2, crossAxisAlignment: WrapCrossAlignment.center, children: [
-                const Text('Class confidence:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                Text('${outline.confidence[ClassConfidence.confirmed] ?? 0} confirmed', style: muted),
-                Text('${outline.confidence[ClassConfidence.inferred] ?? 0} inferred', style: muted),
-                Text('${outline.confidence[ClassConfidence.kindOnly] ?? 0} guessed', style: muted),
-              ]),
+              child: Wrap(
+                spacing: 10,
+                runSpacing: 2,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  const Text(
+                    'Class confidence:',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    '${outline.confidence[ClassConfidence.confirmed] ?? 0} confirmed',
+                    style: muted,
+                  ),
+                  Text(
+                    '${outline.confidence[ClassConfidence.inferred] ?? 0} inferred',
+                    style: muted,
+                  ),
+                  Text(
+                    '${outline.confidence[ClassConfidence.kindOnly] ?? 0} guessed',
+                    style: muted,
+                  ),
+                ],
+              ),
             ),
-            const Text('(how solid each object’s classification is — not dataflow / execution order)',
-                style: TextStyle(fontSize: 11, color: Colors.grey, fontStyle: FontStyle.italic)),
+            const Text(
+              '(how solid each object’s classification is — not dataflow / execution order)',
+              style: TextStyle(
+                fontSize: 11,
+                color: Colors.grey,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
           ],
         ],
       ),
@@ -870,11 +1115,18 @@ class _LegendChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(width: 11, height: 11, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
-          const SizedBox(width: 4),
-          Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-        ],
-      );
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Container(
+        width: 11,
+        height: 11,
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(2),
+        ),
+      ),
+      const SizedBox(width: 4),
+      Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+    ],
+  );
 }

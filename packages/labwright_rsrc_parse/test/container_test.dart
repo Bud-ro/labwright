@@ -45,8 +45,11 @@ void main() {
       expect(() => ViContainer.parse(Uint8List(10)), throwsA(isA<ViFormatException>()));
       final bad = _container([1, 2, 3, 4], const []);
       ByteData.sublistView(bad).setUint32(16, 8);
-      expect(() => ViContainer.parse(bad), throwsA(isA<ViFormatException>()),
-          reason: 'infoOffset=8 < dataOffset=32 is mis-ordered and must be rejected, not silently mangled');
+      expect(
+        () => ViContainer.parse(bad),
+        throwsA(isA<ViFormatException>()),
+        reason: 'infoOffset=8 < dataOffset=32 is mis-ordered and must be rejected, not silently mangled',
+      );
     });
 
     test('the three regions partition the whole file with no gap/overlap', () {
@@ -147,6 +150,7 @@ void main() {
           ..setUint32(4, descRel);
         b.add(e.buffer.asUint8List());
       }
+
       entry('LVSR', 0, 0x10);
       entry('BDHb', 1, 0x40);
       final region = b.toBytes();
@@ -247,8 +251,12 @@ void main() {
     test('peels the trailing Pascal VI name and serializes byte-exact', () {
       const name = 'Foo.vi';
       final tail = Uint8List.fromList([
-        0x00, 0x01, 0x02, 0x03,
-        name.length, ...name.codeUnits,
+        0x00,
+        0x01,
+        0x02,
+        0x03,
+        name.length,
+        ...name.codeUnits,
       ]);
       final nt = ViNameTable.parse(tail);
       expect(nt.trailingName, 'Foo.vi');
@@ -266,10 +274,20 @@ void main() {
     test('headerValue reads the lone u32@4 of the canonical 12-byte header', () {
       const name = 'X.vi';
       final tail = Uint8List.fromList([
-        0, 0, 0, 0,
-        0, 0, 0x4d, 0x40,
-        0, 0, 0, 0,
-        name.length, ...name.codeUnits,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0x4d,
+        0x40,
+        0,
+        0,
+        0,
+        0,
+        name.length,
+        ...name.codeUnits,
       ]);
       final nt = ViNameTable.parse(tail);
       expect(nt.header.length, 12);
@@ -337,11 +355,25 @@ void main() {
         ViGap(Uint8List.fromList([0, 0])),
         ViSectionData(secRel: 9, payload: Uint8List.fromList([9])),
       ]);
-      expect(out, orderedEquals([
-        0, 0, 0, 3, 1, 2, 3,
-        0, 0,
-        0, 0, 0, 1, 9,
-      ]));
+      expect(
+        out,
+        orderedEquals([
+          0,
+          0,
+          0,
+          3,
+          1,
+          2,
+          3,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          9,
+        ]),
+      );
     });
 
     test('editing a payload recomputes its length prefix', () {

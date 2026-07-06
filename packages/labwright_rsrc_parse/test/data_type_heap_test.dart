@@ -16,9 +16,15 @@ void main() {
 
     test('the extended form recovers 40xx-tagged item names', () {
       final b = Uint8List.fromList([
-        0x00, 0x00, 0x00, 0x40,
-        0x00, 0x0e,
-        0x40, 0x21, 0x09,
+        0x00,
+        0x00,
+        0x00,
+        0x40,
+        0x00,
+        0x0e,
+        0x40,
+        0x21,
+        0x09,
         ...'Auto Stop'.codeUnits,
       ]);
       final h = decodeDataTypeHeap(b)!;

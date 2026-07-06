@@ -49,7 +49,11 @@ class ViConnectorPane {
 ViConnectorPane? decodeConnectorPane(Uint8List bytes) {
   if (bytes.isEmpty) return null;
   final inline = bytes.length != 2;
-  return ViConnectorPane(rawLength: bytes.length, typeIndex: inline ? null : (bytes[0] << 8) | bytes[1], isInline: inline);
+  return ViConnectorPane(
+    rawLength: bytes.length,
+    typeIndex: inline ? null : (bytes[0] << 8) | bytes[1],
+    isInline: inline,
+  );
 }
 
 /// Finds and decodes the connector pane, **preferring `CONP`** (whose 2-byte

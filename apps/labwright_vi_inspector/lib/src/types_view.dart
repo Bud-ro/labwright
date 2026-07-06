@@ -26,8 +26,12 @@ class _ViTypesViewState extends State<ViTypesView> {
   String _render(ViModel m) {
     final named = namedTypes(m.types);
     final out = StringBuffer()
-      ..writeln('// Recovered data types — VCTP type pool (${m.types.length} types, ${named.length} named).')
-      ..writeln('// Honest, heuristic inventory: kinds + structure recovered (names may be')
+      ..writeln(
+        '// Recovered data types — VCTP type pool (${m.types.length} types, ${named.length} named).',
+      )
+      ..writeln(
+        '// Honest, heuristic inventory: kinds + structure recovered (names may be',
+      )
       ..writeln('// approximate for short strings); not executable Dart.')
       ..writeln();
     for (final type in named.take(_typeCap)) {
@@ -38,15 +42,24 @@ class _ViTypesViewState extends State<ViTypesView> {
       } else if (type.members.isNotEmpty) {
         final fields = clusterFields(type, m.types)
             .take(_itemCap)
-            .map((f) => f.name != null ? '  ${typeLabel(f, m.types)} ${f.name};' : '  ${typeLabel(f, m.types)};')
+            .map(
+              (f) => f.name != null
+                  ? '  ${typeLabel(f, m.types)} ${f.name};'
+                  : '  ${typeLabel(f, m.types)};',
+            )
             .join('\n');
-        final more = type.members.length > _itemCap ? '\n  // (+${type.members.length - _itemCap} more)' : '';
+        final more = type.members.length > _itemCap
+            ? '\n  // (+${type.members.length - _itemCap} more)'
+            : '';
         out.writeln('${type.name} {\n$fields$more\n}');
       } else {
         out.writeln('${typeLabel(type, m.types)} ${type.name}');
       }
     }
-    if (named.length > _typeCap) out.writeln('// (+${named.length - _typeCap} more named types not shown)');
+    if (named.length > _typeCap)
+      out.writeln(
+        '// (+${named.length - _typeCap} more named types not shown)',
+      );
     return out.toString();
   }
 
@@ -54,7 +67,9 @@ class _ViTypesViewState extends State<ViTypesView> {
   Widget build(BuildContext context) {
     final viModel = widget.model;
     if (viModel == null || viModel.types.isEmpty) {
-      return const Center(child: Text('No data types recovered (VCTP) for this file.'));
+      return const Center(
+        child: Text('No data types recovered (VCTP) for this file.'),
+      );
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -69,7 +84,10 @@ class _ViTypesViewState extends State<ViTypesView> {
                 onPressed: _fontSize <= _minFont ? null : () => _bumpFont(-1),
                 icon: const Icon(Icons.text_decrease, size: 18),
               ),
-              Text('${_fontSize.round()}', style: const TextStyle(fontSize: 12)),
+              Text(
+                '${_fontSize.round()}',
+                style: const TextStyle(fontSize: 12),
+              ),
               IconButton(
                 tooltip: 'Larger text',
                 visualDensity: VisualDensity.compact,
@@ -86,7 +104,11 @@ class _ViTypesViewState extends State<ViTypesView> {
               padding: const EdgeInsets.all(8),
               child: SelectableText(
                 _render(viModel),
-                style: TextStyle(fontFamily: 'monospace', fontSize: _fontSize, height: 1.4),
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: _fontSize,
+                  height: 1.4,
+                ),
               ),
             ),
           ),

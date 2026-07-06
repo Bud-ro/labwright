@@ -8,20 +8,22 @@ String documentText(SeqDocument doc) {
     case StructuredSeqDocument(:final file):
       return dumpSeqFile(file);
     case BinarySeqDocument(
-        :final header,
-        :final inflatedSize,
-        :final stringTable,
-        :final objectNames,
-        :final modulePaths,
-        :final stepReferences,
-        :final expressions,
-        :final quotedLiterals,
-      ):
+      :final header,
+      :final inflatedSize,
+      :final stringTable,
+      :final objectNames,
+      :final modulePaths,
+      :final stepReferences,
+      :final expressions,
+      :final quotedLiterals,
+    ):
       final out = StringBuffer()
         ..writeln('$header')
         ..writeln('binary TOF1 — record tree not yet decoded (recon view)')
-        ..writeln('inflated body: $inflatedSize bytes · '
-            '${stringTable.length} strings in the largest table');
+        ..writeln(
+          'inflated body: $inflatedSize bytes · '
+          '${stringTable.length} strings in the largest table',
+        );
       void section(String title, List<String> items) {
         if (items.isEmpty) return;
         out
@@ -120,7 +122,7 @@ List<(String, String)> binaryHeaderRows(BinarySeqDocument doc) {
     if (header.fileVersion != null) ('File version', header.fileVersion!),
     (
       'Inflated body',
-      doc.inflatedSize > 0 ? '${doc.inflatedSize} bytes' : '(not inflated)'
+      doc.inflatedSize > 0 ? '${doc.inflatedSize} bytes' : '(not inflated)',
     ),
     ('Strings recovered', '${doc.strings.length}'),
     ('Largest string table', '${doc.stringTable.length}'),

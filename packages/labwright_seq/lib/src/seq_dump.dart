@@ -16,8 +16,10 @@ const _enumValueCap = 6;
 String dumpSeqFile(SeqFile file) {
   final out = StringBuffer();
   final header = file.header;
-  out.writeln('${header.fileType ?? 'TestStand file'} '
-      '(${header.productName ?? '?'} v${header.fileVersion ?? '?'}, ${header.format.name})');
+  out.writeln(
+    '${header.fileType ?? 'TestStand file'} '
+    '(${header.productName ?? '?'} v${header.fileVersion ?? '?'}, ${header.format.name})',
+  );
   out.writeln('${file.types.length} types · ${file.sequences.length} sequences');
 
   for (final seq in file.sequences) {
@@ -101,8 +103,7 @@ String _seqSummary(Sequence seq) {
 /// Emits [steps] as indented logic, opening/closing blocks on `NI_Flow_*` steps.
 /// [baseIndent] is the starting indent depth (in 2-space units). Indent never
 /// drops below [baseIndent], so a malformed/unbalanced block can't underflow.
-void _emitLogic(StringBuffer out, List<Step> steps, SeqFile file,
-    {required int baseIndent}) {
+void _emitLogic(StringBuffer out, List<Step> steps, SeqFile file, {required int baseIndent}) {
   var depth = baseIndent;
   String ind(int depth) => '  ' * depth;
   for (final step in steps) {
@@ -169,8 +170,7 @@ String? _loopAnnotation(StepSettings set) {
 /// fall through (`Next`) — the common case. An `ID#:` target is resolved to the
 /// destination step's name; a bookmark like `<Cleanup>` is shown verbatim.
 String? _jumpAnnotation(StepSettings set, SeqFile file) {
-  String resolve(String target) =>
-      target.startsWith('ID#:') ? (file.stepNameForId(target) ?? target) : target;
+  String resolve(String target) => target.startsWith('ID#:') ? (file.stepNameForId(target) ?? target) : target;
   String? side(String label, String? act, String? target) {
     if (act == null || act == 'Next') return null;
     return target != null ? 'on $label → ${resolve(target)}' : 'on $label: $act';
@@ -235,9 +235,9 @@ String _varSuffix(SeqVariable v) {
   if (v.value != null) {
     out.write(' = ${v.value}');
   } else if (v.containerCount != null) {
-    out.write(v.isArray
-        ? ' [${v.containerCount}]'
-        : ' {${v.containerCount} ${v.containerCount == 1 ? 'field' : 'fields'}}');
+    out.write(
+      v.isArray ? ' [${v.containerCount}]' : ' {${v.containerCount} ${v.containerCount == 1 ? 'field' : 'fields'}}',
+    );
   }
   if (v.comment != null) out.write('  // ${v.comment}');
   return out.toString();
@@ -275,9 +275,11 @@ String _dumpStep(Step step, SeqFile file) {
     };
     parts.write(' -> ${module.adapter.name}: $target');
     if (module.adapter == SeqAdapter.sequenceCall) {
-      parts.write(file.resolveCall(step) != null
-          ? ' (in this file)'
-          : ' (external${module.sequenceFile != null ? ': ${module.sequenceFile}' : ''})');
+      parts.write(
+        file.resolveCall(step) != null
+            ? ' (in this file)'
+            : ' (external${module.sequenceFile != null ? ': ${module.sequenceFile}' : ''})',
+      );
     }
     final args = module.callParameters;
     if (args.isNotEmpty) {
@@ -324,8 +326,7 @@ String _dumpStep(Step step, SeqFile file) {
   if (settings.unloadOption != null && settings.unloadOption != 'UnloadWithFile') {
     notes.add('unload ${settings.unloadOption}');
   }
-  String resolveTarget(String target) =>
-      target.startsWith('ID#:') ? (file.stepNameForId(target) ?? target) : target;
+  String resolveTarget(String target) => target.startsWith('ID#:') ? (file.stepNameForId(target) ?? target) : target;
   if (settings.customExpression != null) notes.add('cust-cond ${settings.customExpression}');
   if (settings.customTrueTarget != null) {
     notes.add('cust-true→${resolveTarget(settings.customTrueTarget!)}');
@@ -360,8 +361,7 @@ String _dumpStep(Step step, SeqFile file) {
       if (p.value != null) out.write(' = ${p.value}');
       final ev = p.enumValues;
       if (ev.isNotEmpty) {
-        final shown =
-            ev.take(_enumValueCap).map((e) => '${e.name}=${e.value ?? '?'}');
+        final shown = ev.take(_enumValueCap).map((e) => '${e.name}=${e.value ?? '?'}');
         final more = ev.length > _enumValueCap ? ', …(${ev.length})' : '';
         out.write(' {${shown.join(', ')}$more}');
       }
@@ -374,8 +374,7 @@ String _dumpStep(Step step, SeqFile file) {
 
   final addl = step.additionalResults;
   if (addl.isNotEmpty) {
-    String fmt(AdditionalResult a) =>
-        a.condition != null ? '${a.name} if ${a.condition}' : a.name;
+    String fmt(AdditionalResult a) => a.condition != null ? '${a.name} if ${a.condition}' : a.name;
     parts.write('  {+results: ${addl.map(fmt).join(', ')}}');
   }
 
@@ -412,16 +411,20 @@ String dumpBinaryRecon(Uint8List seqBytes) {
   }
   final header = detectSeqHeader(seqBytes);
   final out = StringBuffer();
-  out.writeln('${header.fileType ?? 'TestStand file'} '
-      '(${header.productName ?? '?'} v${header.fileVersion ?? '?'}, ${header.format.name})');
+  out.writeln(
+    '${header.fileType ?? 'TestStand file'} '
+    '(${header.productName ?? '?'} v${header.fileVersion ?? '?'}, ${header.format.name})',
+  );
 
   final analysis = analyzeBinary(seqBytes);
   if (analysis == null) {
     out.writeln('(binary body did not inflate/frame — recon unavailable)');
     return out.toString();
   }
-  out.writeln('inflated body ${analysis.inflatedSize} bytes · ${analysis.strings.length} '
-      'strings · ${analysis.nameTable.length} name-table entries');
+  out.writeln(
+    'inflated body ${analysis.inflatedSize} bytes · ${analysis.strings.length} '
+    'strings · ${analysis.nameTable.length} name-table entries',
+  );
 
   out.writeln();
   out.writeln('=== Layout ===');
@@ -429,8 +432,10 @@ String dumpBinaryRecon(Uint8List seqBytes) {
     out.writeln('  record region: ${l.recordRegionLength} bytes');
     out.writeln('  string region @ ${l.stringRegionOffset}');
     out.writeln('  record sentinels: ${l.sentinelCount}');
-    out.writeln('  strings in region: ${l.stringCount} · tables: '
-        '${l.segmentCount}');
+    out.writeln(
+      '  strings in region: ${l.stringCount} · tables: '
+      '${l.segmentCount}',
+    );
     if (l.leadingWords.isNotEmpty) {
       out.writeln('  leading record words: ${l.leadingWords.join(', ')}');
     }
@@ -447,17 +452,18 @@ String dumpBinaryRecon(Uint8List seqBytes) {
   _reconSection(out, 'Step references', analysis.stepReferences);
   _reconSection(out, 'Expressions (test logic)', analysis.expressions);
   _reconSection(out, 'Quoted literals (values)', analysis.quotedLiterals);
-  _reconSection(out, 'Inline numeric values',
-      [for (final value in analysis.scalarDoubles) '$value']);
+  _reconSection(out, 'Inline numeric values', [for (final value in analysis.scalarDoubles) '$value']);
   _reconSection(out, 'Named scalar values', [
     for (final scalar in analysis.namedScalars)
       '${scalar.name} = ${scalar.value}  (raw type ${scalar.rawTypeCode}, not modeled)',
   ]);
 
   out.writeln();
-  out.writeln('(record links not yet decoded: the above are recovered values; the '
-      'variable-length record grammar tying each to its step tree is not yet '
-      'recovered)');
+  out.writeln(
+    '(record links not yet decoded: the above are recovered values; the '
+    'variable-length record grammar tying each to its step tree is not yet '
+    'recovered)',
+  );
   return out.toString();
 }
 

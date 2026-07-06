@@ -138,8 +138,16 @@ void main() {
     expect(fails, isEmpty, reason: 'VIs failed to parse/decode/walk: ${fails.take(8).toList()}');
     expect(oob, isEmpty, reason: 'framed heap spans ran past the section body: ${oob.take(8).toList()}');
     expect(C.fold<int>(0, (a, c) => a + c.propertyNames), greaterThan(0), reason: 'propertyName (0x31) decode dropped');
-    expect(C.fold<int>(0, (a, c) => a + c.helpStrings), greaterThan(0), reason: 'helpDescription (0x6c) string decode dropped');
-    expect(C.fold<int>(0, (a, c) => a + c.controlF64), greaterThan(0), reason: '0x20/0x21 control-min/max f64 decode dropped');
+    expect(
+      C.fold<int>(0, (a, c) => a + c.helpStrings),
+      greaterThan(0),
+      reason: 'helpDescription (0x6c) string decode dropped',
+    );
+    expect(
+      C.fold<int>(0, (a, c) => a + c.controlF64),
+      greaterThan(0),
+      reason: '0x20/0x21 control-min/max f64 decode dropped',
+    );
   });
 
   test('"% deliberately parsed" AND "% semantically decoded" hold at or above baseline', () {
@@ -155,14 +163,22 @@ void main() {
     num floor(String k) => (base[k] as num?) ?? 0.0;
 
     final framedPct = framed / body;
-    expect(framedPct, greaterThanOrEqualTo(floor('deliberatelyParsed') - 0.001),
-        reason: 'deliberately-parsed regressed to ${(framedPct * 100).toStringAsFixed(1)}% '
-            '(baseline ${(floor('deliberatelyParsed') * 100).toStringAsFixed(1)}%). Re-run tool/coverage.dart only if this is a real improvement.');
+    expect(
+      framedPct,
+      greaterThanOrEqualTo(floor('deliberatelyParsed') - 0.001),
+      reason:
+          'deliberately-parsed regressed to ${(framedPct * 100).toStringAsFixed(1)}% '
+          '(baseline ${(floor('deliberatelyParsed') * 100).toStringAsFixed(1)}%). Re-run tool/coverage.dart only if this is a real improvement.',
+    );
 
     final semanticPct = semantic / body;
-    expect(semanticPct, greaterThanOrEqualTo(floor('semanticallyDecoded') - 0.001),
-        reason: 'semantically-decoded regressed to ${(semanticPct * 100).toStringAsFixed(1)}% '
-            '(baseline ${(floor('semanticallyDecoded') * 100).toStringAsFixed(1)}%). Re-run tool/coverage.dart only if this is a real improvement.');
+    expect(
+      semanticPct,
+      greaterThanOrEqualTo(floor('semanticallyDecoded') - 0.001),
+      reason:
+          'semantically-decoded regressed to ${(semanticPct * 100).toStringAsFixed(1)}% '
+          '(baseline ${(floor('semanticallyDecoded') * 100).toStringAsFixed(1)}%). Re-run tool/coverage.dart only if this is a real improvement.',
+    );
   });
 
   // Pin the STRUCTURAL NODE-FALLBACK output (category==node while objectClass is
@@ -172,11 +188,19 @@ void main() {
   test('structural node-fallback keeps classifying the BD node tail (anti-regression)', () {
     final fallbackNodes = C.fold<int>(0, (a, c) => a + c.fallbackNodes);
     final drawableUnknown = C.fold<int>(0, (a, c) => a + c.drawableUnknown);
-    expect(fallbackNodes, inInclusiveRange(1500, 2600),
-        reason: 'node-fallback output ($fallbackNodes) drifted — the gate (parent 0x1b + 0x15 child '
-            '+ no 0x68 + size cap) may have broken; the tail would revert to unknown boxes.');
-    expect(drawableUnknown, lessThan(1600),
-        reason: 'still-unknown drawable BD objects ($drawableUnknown) exceeded the ceiling — '
-            'a new uncatalogued kind likely appeared; probe and classify it.');
+    expect(
+      fallbackNodes,
+      inInclusiveRange(1500, 2600),
+      reason:
+          'node-fallback output ($fallbackNodes) drifted — the gate (parent 0x1b + 0x15 child '
+          '+ no 0x68 + size cap) may have broken; the tail would revert to unknown boxes.',
+    );
+    expect(
+      drawableUnknown,
+      lessThan(1600),
+      reason:
+          'still-unknown drawable BD objects ($drawableUnknown) exceeded the ceiling — '
+          'a new uncatalogued kind likely appeared; probe and classify it.',
+    );
   });
 }

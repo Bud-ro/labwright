@@ -40,8 +40,11 @@ void main() {
       expect(decodeHelpPath(Uint8List(8)), isNull);
       final b = _pth0(['a']);
       ByteData.sublistView(b).setUint16(10, 9999);
-      expect(decodeHelpPath(b)!.components.length, lessThanOrEqualTo(1),
-          reason: 'a lying (huge) component count bails at buffer end without throwing');
+      expect(
+        decodeHelpPath(b)!.components.length,
+        lessThanOrEqualTo(1),
+        reason: 'a lying (huge) component count bails at buffer end without throwing',
+      );
     });
 
     test('HLPT reuses the STRG [u32 len][text] layout', () {
@@ -49,8 +52,11 @@ void main() {
       final b = Uint8List(4 + body.length);
       ByteData.sublistView(b).setUint32(0, body.length);
       b.setRange(4, b.length, body);
-      expect(decodeStringBlock(b), '### Foo.vi',
-          reason: 'helpTextFromSections delegates to decodeStringBlock, the shared STRG/HLPT decoder');
+      expect(
+        decodeStringBlock(b),
+        '### Foo.vi',
+        reason: 'helpTextFromSections delegates to decodeStringBlock, the shared STRG/HLPT decoder',
+      );
     });
 
     test('catalog: HLPP help-path, HLPT confirmed text', () {

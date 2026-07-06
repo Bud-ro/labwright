@@ -35,16 +35,15 @@ void main() {
     final badFlags = _iconSection(px)..[0] = 1;
     expect(extractRgbIcon(badFlags), isNull);
     expect(extractRgbIcon(Uint8List(10)), isNull, reason: 'too short');
-    expect(extractRgbIcon(Uint8List.fromList(List.filled(60, 0x41))), isNull,
-        reason: 'arbitrary bytes');
+    expect(extractRgbIcon(Uint8List.fromList(List.filled(60, 0x41))), isNull, reason: 'arbitrary bytes');
   });
 
   test('decodeViIcon finds the icon across sections regardless of tag', () {
     DecodedSection sec(String tag, Uint8List bytes) => DecodedSection(
-          section: ViSection(tag: tag, index: 0, dataOffset: 0, bytes: bytes),
-          bytes: bytes,
-          wasCompressed: false,
-        );
+      section: ViSection(tag: tag, index: 0, dataOffset: 0, bytes: bytes),
+      bytes: bytes,
+      wasCompressed: false,
+    );
     final sections = [
       sec('LVSR', Uint8List.fromList(List.filled(20, 0))),
       sec('PICC', _iconSection(px)),

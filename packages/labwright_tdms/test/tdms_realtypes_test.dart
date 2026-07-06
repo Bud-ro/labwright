@@ -96,32 +96,42 @@ Uint8List _buildTdms({
 
 void main() {
   test('reads an Int32 channel (little-endian)', () {
-    final f = TdmsReader.read(_buildTdms(
-      endian: Endian.little,
-      interleaved: false,
-      chans: [(path: "/'g'/'i'", dtype: 3, values: [-5, 0, 7, 2147483647])],
-    ));
+    final f = TdmsReader.read(
+      _buildTdms(
+        endian: Endian.little,
+        interleaved: false,
+        chans: [
+          (path: "/'g'/'i'", dtype: 3, values: [-5, 0, 7, 2147483647]),
+        ],
+      ),
+    );
     expect(f.group('g')!.channel('i')!.data, [-5.0, 0.0, 7.0, 2147483647.0]);
   });
 
   test('reads a big-endian U16 channel', () {
-    final f = TdmsReader.read(_buildTdms(
-      endian: Endian.big,
-      interleaved: false,
-      chans: [(path: "/'g'/'u'", dtype: 6, values: [0, 1, 65535, 1000])],
-    ));
+    final f = TdmsReader.read(
+      _buildTdms(
+        endian: Endian.big,
+        interleaved: false,
+        chans: [
+          (path: "/'g'/'u'", dtype: 6, values: [0, 1, 65535, 1000]),
+        ],
+      ),
+    );
     expect(f.group('g')!.channel('u')!.data, [0.0, 1.0, 65535.0, 1000.0]);
   });
 
   test('reads interleaved channels (sample-major)', () {
-    final f = TdmsReader.read(_buildTdms(
-      endian: Endian.little,
-      interleaved: true,
-      chans: [
-        (path: "/'g'/'a'", dtype: 3, values: [1, 2, 3]),
-        (path: "/'g'/'b'", dtype: 3, values: [10, 20, 30]),
-      ],
-    ));
+    final f = TdmsReader.read(
+      _buildTdms(
+        endian: Endian.little,
+        interleaved: true,
+        chans: [
+          (path: "/'g'/'a'", dtype: 3, values: [1, 2, 3]),
+          (path: "/'g'/'b'", dtype: 3, values: [10, 20, 30]),
+        ],
+      ),
+    );
     expect(f.group('g')!.channel('a')!.data, [1.0, 2.0, 3.0]);
     expect(f.group('g')!.channel('b')!.data, [10.0, 20.0, 30.0]);
   });

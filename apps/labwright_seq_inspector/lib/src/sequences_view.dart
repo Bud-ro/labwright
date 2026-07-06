@@ -26,11 +26,12 @@ Color adapterColor(String adapter) =>
 /// The Sequences tab: a tree of sequences → Setup/Main/Cleanup groups → steps.
 /// In-file SequenceCall steps are tappable and jump to the called sequence.
 class SequencesView extends StatefulWidget {
-  const SequencesView(
-      {super.key,
-      required this.outline,
-      this.searchFocusNode,
-      this.typeCount});
+  const SequencesView({
+    super.key,
+    required this.outline,
+    this.searchFocusNode,
+    this.typeCount,
+  });
   final SeqOutline outline;
 
   /// Optional focus node for the search field (so a parent shortcut can focus
@@ -83,8 +84,11 @@ class _SequencesViewState extends State<SequencesView> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final ctx = _keys[index].currentContext;
       if (ctx != null) {
-        Scrollable.ensureVisible(ctx,
-            duration: const Duration(milliseconds: 300), alignment: 0.1);
+        Scrollable.ensureVisible(
+          ctx,
+          duration: const Duration(milliseconds: 300),
+          alignment: 0.1,
+        );
       }
     });
   }
@@ -113,7 +117,8 @@ class _SequencesViewState extends State<SequencesView> {
             child: Text(
               outlineSummary(widget.outline, typeCount: widget.typeCount),
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).hintColor),
+                color: Theme.of(context).hintColor,
+              ),
             ),
           ),
         ),
@@ -160,15 +165,20 @@ class _SequencesViewState extends State<SequencesView> {
                       initiallyExpanded: filtering || _expanded[orig],
                       onExpansionChanged: (v) =>
                           setState(() => _expanded[orig] = v),
-                      title: Text(seq.name,
-                          style: const TextStyle(fontWeight: FontWeight.bold)),
+                      title: Text(
+                        seq.name,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
                       subtitle: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('${seq.stepCount} steps'
-                              '${seq.parameters.isNotEmpty ? ' · ${seq.parameters.length} params' : ''}'
-                              '${seq.locals.isNotEmpty ? ' · ${seq.locals.length} locals' : ''}'),
-                          if (seq.comment != null && !(filtering || _expanded[orig]))
+                          Text(
+                            '${seq.stepCount} steps'
+                            '${seq.parameters.isNotEmpty ? ' · ${seq.parameters.length} params' : ''}'
+                            '${seq.locals.isNotEmpty ? ' · ${seq.locals.length} locals' : ''}',
+                          ),
+                          if (seq.comment != null &&
+                              !(filtering || _expanded[orig]))
                             Text(
                               seq.comment!,
                               maxLines: 1,
@@ -180,7 +190,10 @@ class _SequencesViewState extends State<SequencesView> {
                             ),
                         ],
                       ),
-                      childrenPadding: const EdgeInsets.only(left: 16, bottom: 8),
+                      childrenPadding: const EdgeInsets.only(
+                        left: 16,
+                        bottom: 8,
+                      ),
                       children: [
                         if (seq.comment != null)
                           Padding(
@@ -248,23 +261,30 @@ class _SequencesViewState extends State<SequencesView> {
     if (s.adapter != null && td != null) {
       final color = adapterColor(s.adapter!);
       final chip = _chip(context, '${s.adapter}: ${td.label}', color);
-      chips.add(td.label != td.tooltip
-          ? Tooltip(message: td.tooltip, child: chip)
-          : chip);
+      chips.add(
+        td.label != td.tooltip
+            ? Tooltip(message: td.tooltip, child: chip)
+            : chip,
+      );
     } else if (s.adapter != null) {
       chips.add(_chip(context, s.adapter!, adapterColor(s.adapter!)));
     }
     if (s.isInFileCall) {
-      chips.add(ActionChip(
-        label: const Text('→ go to sequence'),
-        visualDensity: VisualDensity.compact,
-        onPressed: () => _jumpTo(s.callTargetIndex!),
-      ));
+      chips.add(
+        ActionChip(
+          label: const Text('→ go to sequence'),
+          visualDensity: VisualDensity.compact,
+          onPressed: () => _jumpTo(s.callTargetIndex!),
+        ),
+      );
     } else if (s.externalCall != null) {
-      chips.add(_chip(
+      chips.add(
+        _chip(
           context,
           s.externalCall!.isEmpty ? 'external' : 'external: ${s.externalCall}',
-          Colors.orange));
+          Colors.orange,
+        ),
+      );
     }
     final limitRows = [
       ...?s.limitsDetail?.rows,
@@ -296,11 +316,13 @@ class _SequencesViewState extends State<SequencesView> {
               style: DefaultTextStyle.of(context).style,
               children: [
                 TextSpan(
-                    text: s.name,
-                    style: const TextStyle(fontWeight: FontWeight.w600)),
+                  text: s.name,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
                 TextSpan(
-                    text: '  [${s.type}]',
-                    style: TextStyle(color: Theme.of(context).hintColor)),
+                  text: '  [${s.type}]',
+                  style: TextStyle(color: Theme.of(context).hintColor),
+                ),
               ],
             ),
           ),
@@ -352,7 +374,9 @@ class _SequencesViewState extends State<SequencesView> {
                     TextSpan(text: '$label: '),
                     TextSpan(
                       text: value,
-                      style: monoStyle.copyWith(color: theme.colorScheme.secondary),
+                      style: monoStyle.copyWith(
+                        color: theme.colorScheme.secondary,
+                      ),
                     ),
                   ],
                 ),
@@ -378,8 +402,10 @@ class _SequencesViewState extends State<SequencesView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Arguments',
-              style: theme.textTheme.labelSmall?.copyWith(color: color)),
+          Text(
+            'Arguments',
+            style: theme.textTheme.labelSmall?.copyWith(color: color),
+          ),
           const SizedBox(height: 2),
           Table(
             columnWidths: const {
@@ -389,18 +415,27 @@ class _SequencesViewState extends State<SequencesView> {
             defaultVerticalAlignment: TableCellVerticalAlignment.middle,
             children: [
               for (final arg in args)
-                TableRow(children: [
-                  Padding(
-                    padding: const EdgeInsets.only(right: 16, top: 1, bottom: 1),
-                    child: Text(arg.label,
-                        style: theme.textTheme.bodySmall
-                            ?.copyWith(color: theme.hintColor)),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 1),
-                    child: Text(arg.value, style: monoStyle),
-                  ),
-                ]),
+                TableRow(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(
+                        right: 16,
+                        top: 1,
+                        bottom: 1,
+                      ),
+                      child: Text(
+                        arg.label,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.hintColor,
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 1),
+                      child: Text(arg.value, style: monoStyle),
+                    ),
+                  ],
+                ),
             ],
           ),
         ],
@@ -410,7 +445,10 @@ class _SequencesViewState extends State<SequencesView> {
 
   /// A measurement step's typed parameters as arg `name (dir) → type = value`
   /// mini-table, mirroring [_argsTable] — the editor's measurement "Parameters".
-  Widget _paramsTable(BuildContext context, List<MeasurementParamOutline> params) {
+  Widget _paramsTable(
+    BuildContext context,
+    List<MeasurementParamOutline> params,
+  ) {
     final theme = Theme.of(context);
     const color = Colors.teal;
     return Container(
@@ -423,8 +461,10 @@ class _SequencesViewState extends State<SequencesView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Parameters',
-              style: theme.textTheme.labelSmall?.copyWith(color: color)),
+          Text(
+            'Parameters',
+            style: theme.textTheme.labelSmall?.copyWith(color: color),
+          ),
           const SizedBox(height: 2),
           Table(
             columnWidths: const {
@@ -434,18 +474,27 @@ class _SequencesViewState extends State<SequencesView> {
             defaultVerticalAlignment: TableCellVerticalAlignment.middle,
             children: [
               for (final param in params)
-                TableRow(children: [
-                  Padding(
-                    padding: const EdgeInsets.only(right: 16, top: 1, bottom: 1),
-                    child: Text(param.label,
-                        style: theme.textTheme.bodySmall
-                            ?.copyWith(color: theme.hintColor)),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 1),
-                    child: Text(param.cell, style: monoStyle),
-                  ),
-                ]),
+                TableRow(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(
+                        right: 16,
+                        top: 1,
+                        bottom: 1,
+                      ),
+                      child: Text(
+                        param.label,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.hintColor,
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 1),
+                      child: Text(param.cell, style: monoStyle),
+                    ),
+                  ],
+                ),
             ],
           ),
         ],
@@ -455,7 +504,10 @@ class _SequencesViewState extends State<SequencesView> {
 
   /// A LabVIEW VI call's connector pane as a `#conn label → type ←expr`
   /// mini-table, mirroring [_argsTable] — the editor's "VI > connector pane".
-  Widget _connectorTable(BuildContext context, List<ConnectorParamOutline> params) {
+  Widget _connectorTable(
+    BuildContext context,
+    List<ConnectorParamOutline> params,
+  ) {
     final theme = Theme.of(context);
     const color = Colors.blue;
     return Container(
@@ -468,8 +520,10 @@ class _SequencesViewState extends State<SequencesView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Connector pane',
-              style: theme.textTheme.labelSmall?.copyWith(color: color)),
+          Text(
+            'Connector pane',
+            style: theme.textTheme.labelSmall?.copyWith(color: color),
+          ),
           const SizedBox(height: 2),
           Table(
             columnWidths: const {
@@ -479,18 +533,27 @@ class _SequencesViewState extends State<SequencesView> {
             defaultVerticalAlignment: TableCellVerticalAlignment.middle,
             children: [
               for (final param in params)
-                TableRow(children: [
-                  Padding(
-                    padding: const EdgeInsets.only(right: 16, top: 1, bottom: 1),
-                    child: Text(param.label,
-                        style: theme.textTheme.bodySmall
-                            ?.copyWith(color: theme.hintColor)),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 1),
-                    child: Text(param.cell, style: monoStyle),
-                  ),
-                ]),
+                TableRow(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(
+                        right: 16,
+                        top: 1,
+                        bottom: 1,
+                      ),
+                      child: Text(
+                        param.label,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.hintColor,
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 1),
+                      child: Text(param.cell, style: monoStyle),
+                    ),
+                  ],
+                ),
             ],
           ),
         ],
@@ -518,8 +581,10 @@ class _SequencesViewState extends State<SequencesView> {
             children: [
               const Icon(Icons.folder_special_outlined, size: 14, color: color),
               const SizedBox(width: 4),
-              Text('Measurement plug-ins',
-                  style: theme.textTheme.labelSmall?.copyWith(color: color)),
+              Text(
+                'Measurement plug-ins',
+                style: theme.textTheme.labelSmall?.copyWith(color: color),
+              ),
             ],
           ),
           const SizedBox(height: 2),
@@ -531,18 +596,27 @@ class _SequencesViewState extends State<SequencesView> {
             defaultVerticalAlignment: TableCellVerticalAlignment.middle,
             children: [
               for (final (label, value) in mp.rows)
-                TableRow(children: [
-                  Padding(
-                    padding: const EdgeInsets.only(right: 16, top: 1, bottom: 1),
-                    child: Text(label,
-                        style: theme.textTheme.bodySmall
-                            ?.copyWith(color: theme.hintColor)),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 1),
-                    child: Text(value, style: monoStyle),
-                  ),
-                ]),
+                TableRow(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(
+                        right: 16,
+                        top: 1,
+                        bottom: 1,
+                      ),
+                      child: Text(
+                        label,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.hintColor,
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 1),
+                      child: Text(value, style: monoStyle),
+                    ),
+                  ],
+                ),
             ],
           ),
         ],
@@ -562,9 +636,10 @@ class _SequencesViewState extends State<SequencesView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Limits',
-              style: theme.textTheme.labelSmall
-                  ?.copyWith(color: Colors.indigo)),
+          Text(
+            'Limits',
+            style: theme.textTheme.labelSmall?.copyWith(color: Colors.indigo),
+          ),
           const SizedBox(height: 2),
           Table(
             columnWidths: const {
@@ -574,18 +649,27 @@ class _SequencesViewState extends State<SequencesView> {
             defaultVerticalAlignment: TableCellVerticalAlignment.middle,
             children: [
               for (final (label, value) in rows)
-                TableRow(children: [
-                  Padding(
-                    padding: const EdgeInsets.only(right: 16, top: 1, bottom: 1),
-                    child: Text(label,
-                        style: theme.textTheme.bodySmall
-                            ?.copyWith(color: theme.hintColor)),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 1),
-                    child: Text(value, style: monoStyle),
-                  ),
-                ]),
+                TableRow(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(
+                        right: 16,
+                        top: 1,
+                        bottom: 1,
+                      ),
+                      child: Text(
+                        label,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.hintColor,
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 1),
+                      child: Text(value, style: monoStyle),
+                    ),
+                  ],
+                ),
             ],
           ),
         ],

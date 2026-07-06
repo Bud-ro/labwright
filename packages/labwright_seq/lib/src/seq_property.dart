@@ -53,9 +53,7 @@ class SeqProperty {
   /// carry this: the legacy INI `%INSTOVRD` directive (flags bitmask kept
   /// verbatim), and the binary decoder's `%BINOVERRIDES` marker (its children
   /// are an override subset). Only presence is interpreted so far.
-  bool get isInstanceOverride =>
-      attributes.containsKey('%INSTOVRD') ||
-      attributes.containsKey('%BINOVERRIDES');
+  bool get isInstanceOverride => attributes.containsKey('%INSTOVRD') || attributes.containsKey('%BINOVERRIDES');
 
   /// The property's type-level **PropertyFlags** bitmask, recovered verbatim from
   /// the legacy INI `%FLG: <member>` directive — null when the source recorded no
@@ -93,8 +91,7 @@ class SeqProperty {
     final raw = attributes['%HI'];
     if (raw == null) return null;
     final bounds = [
-      for (final m in RegExp(r'\[(-?\d+)\]').allMatches(raw))
-        int.parse(m.group(1)!),
+      for (final m in RegExp(r'\[(-?\d+)\]').allMatches(raw)) int.parse(m.group(1)!),
     ];
     return bounds.isEmpty ? null : bounds;
   }
@@ -116,20 +113,21 @@ class SeqProperty {
     return count;
   }
 
-  SeqProperty? prop(String name) =>
-      subProps.where((p) => p.name == name).firstOrNull;
+  SeqProperty? prop(String name) => subProps.where((p) => p.name == name).firstOrNull;
 
-  SeqProperty? at(List<String> names) =>
-      names.fold<SeqProperty?>(this, (cur, n) => cur?.prop(n));
+  SeqProperty? at(List<String> names) => names.fold<SeqProperty?>(this, (cur, n) => cur?.prop(n));
 
   @override
   String toString() =>
       'SeqProperty($name, class=$className${typeName != null ? ', type=$typeName' : ''}, '
-      '${isArray ? '[${array!.length}]' : scalar != null ? 'scalar' : '{${subProps.length}}'})';
+      '${isArray
+          ? '[${array!.length}]'
+          : scalar != null
+          ? 'scalar'
+          : '{${subProps.length}}'})';
 }
 
-XmlElement? childElement(XmlElement e, String name) =>
-    childElementsNamed(e, name).firstOrNull;
+XmlElement? childElement(XmlElement e, String name) => childElementsNamed(e, name).firstOrNull;
 
 Iterable<XmlElement> childElementsNamed(XmlElement e, String name) =>
     e.childElements.where((c) => c.name.local == name);
@@ -153,8 +151,7 @@ SeqProperty buildProperty(XmlElement e) {
   List<SeqProperty>? array;
   final valueEl = childElement(e, 'value');
   if (valueEl != null) {
-    final isArray = valueEl.getAttribute('lbound') != null ||
-        valueEl.getAttribute('ubound') != null;
+    final isArray = valueEl.getAttribute('lbound') != null || valueEl.getAttribute('ubound') != null;
     if (isArray) {
       array = [
         for (final elementValue in childElementsNamed(valueEl, 'value'))

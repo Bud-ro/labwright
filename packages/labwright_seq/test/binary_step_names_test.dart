@@ -16,8 +16,7 @@ import 'corpus_dirs.dart';
 /// names legitimately differ — there the step *count* must match. Skips when the
 /// corpus is not fetched.
 File? _twin(Directory dir, String binName) {
-  final prefix =
-      binName.replaceAll('_labview_BIN.seq', '').replaceAll('_BIN.seq', '');
+  final prefix = binName.replaceAll('_labview_BIN.seq', '').replaceAll('_BIN.seq', '');
   for (final suffix in ['_python_XML.seq', '_XML.seq', '_python.seq']) {
     final f = File('${dir.path}/$prefix$suffix');
     if (f.existsSync()) return f;
@@ -39,36 +38,27 @@ Set<String> _xmlSteps(File twin) {
 void main() {
   final rosetta = Directory('${corpusSeqDir.path}/rosetta');
   if (!rosetta.existsSync()) {
-    test('binary step names (skipped: Rosetta corpus not fetched)', () {},
-        skip: true);
+    test('binary step names (skipped: Rosetta corpus not fetched)', () {}, skip: true);
     return;
   }
 
   final outputVoltage = File('${rosetta.path}/OutputVoltage_BIN.seq');
   test('content-exact twin: binary step names match the XML twin exactly', () {
-    expect(outputVoltage.existsSync(), isTrue,
-        reason: 'the content-exact oracle must be fetched with the corpus');
-    final actual =
-        binaryStepNames(outputVoltage.readAsBytesSync())
-            .toSet();
+    expect(outputVoltage.existsSync(), isTrue, reason: 'the content-exact oracle must be fetched with the corpus');
+    final actual = binaryStepNames(outputVoltage.readAsBytesSync()).toSet();
     final expected = _xmlSteps(File('${rosetta.path}/OutputVoltage_XML.seq'));
     expect(actual, equals(expected));
   });
 
-  for (final bin in rosetta
-      .listSync()
-      .whereType<File>()
-      .where((f) => f.path.endsWith('_BIN.seq'))) {
+  for (final bin in rosetta.listSync().whereType<File>().where((f) => f.path.endsWith('_BIN.seq'))) {
     final name = bin.uri.pathSegments.last;
     test('$name: binary step count matches its twin', () {
       final twin = _twin(rosetta, name);
       expect(twin, isNotNull, reason: 'model twin missing for $name');
       if (twin == null) return;
-      final actual =
-          binaryStepNames(bin.readAsBytesSync());
+      final actual = binaryStepNames(bin.readAsBytesSync());
       expect(actual, isNotEmpty);
-      expect(actual.length, _xmlSteps(twin).length,
-          reason: '$name decoded ${actual.length} steps: $actual');
+      expect(actual.length, _xmlSteps(twin).length, reason: '$name decoded ${actual.length} steps: $actual');
     });
   }
 }

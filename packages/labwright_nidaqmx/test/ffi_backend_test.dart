@@ -30,8 +30,7 @@ void main() {
       await daq.close();
     });
 
-    test('readVoltage marshals AI config (int32 term, doubles, units) and returns the value',
-        () async {
+    test('readVoltage marshals AI config (int32 term, doubles, units) and returns the value', () async {
       final daq = open();
       final v = await daq.readVoltage('Dev1/ai0', min: -3, max: 7, terminalConfig: DaqmxVal.diff);
       expect(v, 4.2); // shim's magic scalar
@@ -58,10 +57,12 @@ void main() {
       // The shim returns -200279 for any channel containing "fail".
       await expectLater(
         daq.readVoltage('Dev1/aifail0'),
-        throwsA(isA<DaqmxException>()
-            .having((e) => e.status, 'status', -200279)
-            .having((e) => e.message, 'message', contains('FAKE-DAQmx'))
-            .having((e) => e.operation, 'op', 'DAQmxCreateAIVoltageChan')),
+        throwsA(
+          isA<DaqmxException>()
+              .having((e) => e.status, 'status', -200279)
+              .having((e) => e.message, 'message', contains('FAKE-DAQmx'))
+              .having((e) => e.operation, 'op', 'DAQmxCreateAIVoltageChan'),
+        ),
       );
       await daq.close();
     });
@@ -70,9 +71,9 @@ void main() {
   group('streaming through real FFI + an isolate', () {
     test('finite f64 stream yields a continuous ramp of the right length', () async {
       final daq = open();
-      final chunks =
-          await daq.readVoltageStream('Dev1/ai0', rateHz: 10000, samplesPerChunk: 100, totalSamples: 250)
-              .toList();
+      final chunks = await daq
+          .readVoltageStream('Dev1/ai0', rateHz: 10000, samplesPerChunk: 100, totalSamples: 250)
+          .toList();
       final all = chunks.expand((c) => c).toList();
       expect(all.length, 250);
       expect(all, List.generate(250, (i) => i.toDouble())); // shim ramp 0..249

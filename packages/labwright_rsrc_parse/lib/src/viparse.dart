@@ -51,16 +51,16 @@ class ViSummary {
   bool get hasSubViLinks => blocks.contains('LIvi') || blocks.contains('LIbd') || blocks.contains('LIfp');
 
   Map<String, Object?> toJson() => {
-        'fileType': fileType,
-        'creator': creator,
-        'formatVersion': formatVersion,
-        'name': name,
-        'blocks': blocks,
-        'hasBlockDiagram': hasBlockDiagram,
-        'hasFrontPanel': hasFrontPanel,
-        'hasConnectorPane': hasConnectorPane,
-        'hasSubViLinks': hasSubViLinks,
-      };
+    'fileType': fileType,
+    'creator': creator,
+    'formatVersion': formatVersion,
+    'name': name,
+    'blocks': blocks,
+    'hasBlockDiagram': hasBlockDiagram,
+    'hasFrontPanel': hasFrontPanel,
+    'hasConnectorPane': hasConnectorPane,
+    'hasSubViLinks': hasSubViLinks,
+  };
 
   /// A one-line human description of what the VI is/does.
   String describe() {
@@ -278,12 +278,14 @@ List<ViSection> _readSections(Uint8List bytes, {required int wantWord16}) {
       if (pos + 4 > bytes.length) continue;
       final len = view.getUint32(pos);
       if (len > dataSize || pos + 4 + len > bytes.length) continue;
-      sections.add(ViSection(
-        tag: tagText,
-        index: sectionIndex,
-        dataOffset: secRel,
-        bytes: Uint8List.sublistView(bytes, pos + 4, pos + 4 + len),
-      ));
+      sections.add(
+        ViSection(
+          tag: tagText,
+          index: sectionIndex,
+          dataOffset: secRel,
+          bytes: Uint8List.sublistView(bytes, pos + 4, pos + 4 + len),
+        ),
+      );
     }
   }
   return sections;
@@ -355,8 +357,7 @@ String? _viName(Uint8List bytes, int infoOffset) {
   return _trailingName(bytes);
 }
 
-bool _printableTag(String tag) =>
-    tag.length == 4 && tag.codeUnits.every((c) => c >= 0x20 && c < 0x7f);
+bool _printableTag(String tag) => tag.length == 4 && tag.codeUnits.every((c) => c >= 0x20 && c < 0x7f);
 
 /// Recovers the names of the **subVIs this VI calls**, from the block-diagram
 /// linker-info block (`LIbd`). LabVIEW records each block-diagram dependency

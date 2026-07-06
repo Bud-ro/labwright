@@ -53,13 +53,12 @@ abstract final class Daqmx {
     ChannelCredentials? credentials,
     Duration callTimeout = const Duration(seconds: 30),
     SidebandStrategy sideband = SidebandStrategy.inBandGrpc,
-  }) =>
-      GrpcDaqmxBackend(
-        host: host,
-        port: port,
-        secure: secure,
-        credentials: credentials,
-        callTimeout: callTimeout,
-        sideband: sideband,
-      );
+  }) => GrpcDaqmxBackend(
+    host: host,
+    port: port,
+    secure: secure,
+    credentials: credentials,
+    callTimeout: callTimeout,
+    sideband: sideband,
+  );
 }

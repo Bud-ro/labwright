@@ -57,10 +57,7 @@ ViLinkInfo? decodeLinkInfo(Uint8List bytes) {
   // ASCII] where the text looks like a file-ish name; a PTH0 marker is the
   // literal "PTH0". Grammar of the surrounding records is not yet decoded.
   for (var pos = 10; pos < bytes.length - 4; pos++) {
-    if (bytes[pos] == 0x50 &&
-        bytes[pos + 1] == 0x54 &&
-        bytes[pos + 2] == 0x48 &&
-        bytes[pos + 3] == 0x30) {
+    if (bytes[pos] == 0x50 && bytes[pos + 1] == 0x54 && bytes[pos + 2] == 0x48 && bytes[pos + 3] == 0x30) {
       pathCount++;
       pos += 3;
       continue;
@@ -78,8 +75,7 @@ ViLinkInfo? decodeLinkInfo(Uint8List bytes) {
     if (!printable) continue;
     final text = String.fromCharCodes(bytes.sublist(pos + 1, pos + 1 + len));
     // Keep only file-ish names so scan noise never fabricates a dependency.
-    if (RegExp(r'\.(vi|vim|vit|ctl|ctt|lvclass|lvlib|llb)$', caseSensitive: false)
-        .hasMatch(text)) {
+    if (RegExp(r'\.(vi|vim|vit|ctl|ctt|lvclass|lvlib|llb)$', caseSensitive: false).hasMatch(text)) {
       if (!linkedNames.contains(text)) linkedNames.add(text);
       pos += len;
     }

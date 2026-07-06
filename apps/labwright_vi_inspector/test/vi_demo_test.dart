@@ -24,15 +24,20 @@ void main() {
     expect(load.error, isNotNull);
   });
 
-  test('summarize is total over arbitrary junk — the importer never throws', () {
-    final rng = Random(2);
-    for (var i = 0; i < 5000; i++) {
-      final n = rng.nextInt(1024);
-      final b = Uint8List.fromList([for (var j = 0; j < n; j++) rng.nextInt(256)]);
-      final load = summarize(b);
-      expect(load.isOk || load.error != null, isTrue);
-    }
-  });
+  test(
+    'summarize is total over arbitrary junk — the importer never throws',
+    () {
+      final rng = Random(2);
+      for (var i = 0; i < 5000; i++) {
+        final n = rng.nextInt(1024);
+        final b = Uint8List.fromList([
+          for (var j = 0; j < n; j++) rng.nextInt(256),
+        ]);
+        final load = summarize(b);
+        expect(load.isOk || load.error != null, isTrue);
+      }
+    },
+  );
 
   test('every common block tag has a glossary entry', () {
     for (final t in ['BDHb', 'FPHb', 'CONP', 'LIvi', 'vers']) {

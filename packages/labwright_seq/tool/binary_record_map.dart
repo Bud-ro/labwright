@@ -108,17 +108,25 @@ void main(List<String> args) {
       leaves++;
     } else {
       containers++;
-      stdout.writeln('  container @0x${offset.toRadixString(16).padLeft(4, '0')} '
-          'size=$size ${name(typeIndex)}:${name(nameIndex)}');
+      stdout.writeln(
+        '  container @0x${offset.toRadixString(16).padLeft(4, '0')} '
+        'size=$size ${name(typeIndex)}:${name(nameIndex)}',
+      );
     }
   }
 
   final records = binaryPropertyRecords(bytes);
   stdout
-    ..writeln('${file.uri.pathSegments.last}: recordRegion=$recordRegionLength bytes, '
-        'pool=${pool.length} names')
-    ..writeln('leaf records decoded: ${records.length} '
-        '(${records.where((r) => r.value != null).length} valued)')
-    ..writeln('framed-leaf candidates: $leaves · container candidates: $containers '
-        '· group delimiters: $delimiters');
+    ..writeln(
+      '${file.uri.pathSegments.last}: recordRegion=$recordRegionLength bytes, '
+      'pool=${pool.length} names',
+    )
+    ..writeln(
+      'leaf records decoded: ${records.length} '
+      '(${records.where((r) => r.value != null).length} valued)',
+    )
+    ..writeln(
+      'framed-leaf candidates: $leaves · container candidates: $containers '
+      '· group delimiters: $delimiters',
+    );
 }

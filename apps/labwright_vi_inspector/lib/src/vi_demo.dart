@@ -10,8 +10,10 @@ Uint8List demoViBytes({
   List<String> blocks = const ['vers', 'FPHb', 'BDHb', 'CONP', 'LIvi'],
   String name = 'demo.vi',
 }) {
-  void be16(BytesBuilder b, int v) => b.add((ByteData(2)..setUint16(0, v)).buffer.asUint8List());
-  void be32(BytesBuilder b, int v) => b.add((ByteData(4)..setUint32(0, v)).buffer.asUint8List());
+  void be16(BytesBuilder b, int v) =>
+      b.add((ByteData(2)..setUint16(0, v)).buffer.asUint8List());
+  void be32(BytesBuilder b, int v) =>
+      b.add((ByteData(4)..setUint32(0, v)).buffer.asUint8List());
 
   const rsrcMagic = [0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a];
   const formatVersion = 3;

@@ -65,12 +65,14 @@ class FakeDaqmxService extends NiDAQmxServiceBase {
     }
     final name = 'task${++_seq}';
     return CreateTaskResponse(
-        status: failCreateTaskStatus ?? 0, task: Session(name: name), newSessionInitialized: true);
+      status: failCreateTaskStatus ?? 0,
+      task: Session(name: name),
+      newSessionInitialized: true,
+    );
   }
 
   @override
-  Future<CreateAIVoltageChanResponse> createAIVoltageChan(
-      ServiceCall call, CreateAIVoltageChanRequest request) async {
+  Future<CreateAIVoltageChanResponse> createAIVoltageChan(ServiceCall call, CreateAIVoltageChanRequest request) async {
     if (hang) await _never;
     aiConfigs.add((
       min: request.minVal,
@@ -87,8 +89,7 @@ class FakeDaqmxService extends NiDAQmxServiceBase {
   }
 
   @override
-  Future<CreateAOVoltageChanResponse> createAOVoltageChan(
-      ServiceCall call, CreateAOVoltageChanRequest request) async {
+  Future<CreateAOVoltageChanResponse> createAOVoltageChan(ServiceCall call, CreateAOVoltageChanRequest request) async {
     if (hang) await _never;
     if (failAoChanStatus != null && failAoChanStatus! < 0) {
       return CreateAOVoltageChanResponse(status: failAoChanStatus);
@@ -99,8 +100,7 @@ class FakeDaqmxService extends NiDAQmxServiceBase {
   }
 
   @override
-  Future<ReadAnalogScalarF64Response> readAnalogScalarF64(
-      ServiceCall call, ReadAnalogScalarF64Request request) async {
+  Future<ReadAnalogScalarF64Response> readAnalogScalarF64(ServiceCall call, ReadAnalogScalarF64Request request) async {
     if (hang) await _never;
     readTimeouts.add(request.timeout);
     if (failReadStatus != null && failReadStatus! < 0) {
@@ -113,7 +113,9 @@ class FakeDaqmxService extends NiDAQmxServiceBase {
 
   @override
   Future<WriteAnalogScalarF64Response> writeAnalogScalarF64(
-      ServiceCall call, WriteAnalogScalarF64Request request) async {
+    ServiceCall call,
+    WriteAnalogScalarF64Request request,
+  ) async {
     if (hang) await _never;
     final channel = _taskChannel[request.task.name] ?? '';
     writes.add((
@@ -129,12 +131,10 @@ class FakeDaqmxService extends NiDAQmxServiceBase {
   }
 
   @override
-  Future<StartTaskResponse> startTask(ServiceCall call, StartTaskRequest request) async =>
-      StartTaskResponse(status: 0);
+  Future<StartTaskResponse> startTask(ServiceCall call, StartTaskRequest request) async => StartTaskResponse(status: 0);
 
   @override
-  Future<StopTaskResponse> stopTask(ServiceCall call, StopTaskRequest request) async =>
-      StopTaskResponse(status: 0);
+  Future<StopTaskResponse> stopTask(ServiceCall call, StopTaskRequest request) async => StopTaskResponse(status: 0);
 
   @override
   Future<ClearTaskResponse> clearTask(ServiceCall call, ClearTaskRequest request) async {
@@ -143,8 +143,7 @@ class FakeDaqmxService extends NiDAQmxServiceBase {
   }
 
   @override
-  Future<CfgSampClkTimingResponse> cfgSampClkTiming(
-      ServiceCall call, CfgSampClkTimingRequest request) async {
+  Future<CfgSampClkTimingResponse> cfgSampClkTiming(ServiceCall call, CfgSampClkTimingRequest request) async {
     lastStreamRate = request.rate;
     lastStreamModeRaw = request.sampleModeRaw;
     return CfgSampClkTimingResponse(status: 0);
@@ -153,33 +152,27 @@ class FakeDaqmxService extends NiDAQmxServiceBase {
   // Begin*Read return a moniker that encodes the format + chunk so the fake
   // DataMoniker service knows what ramp to stream.
   @override
-  Future<BeginReadAnalogF64Response> beginReadAnalogF64(
-          ServiceCall call, BeginReadAnalogF64Request request) async =>
+  Future<BeginReadAnalogF64Response> beginReadAnalogF64(ServiceCall call, BeginReadAnalogF64Request request) async =>
       BeginReadAnalogF64Response(status: 0, moniker: _moniker('f64', request.numSampsPerChan));
 
   @override
-  Future<BeginReadBinaryI16Response> beginReadBinaryI16(
-          ServiceCall call, BeginReadBinaryI16Request request) async =>
+  Future<BeginReadBinaryI16Response> beginReadBinaryI16(ServiceCall call, BeginReadBinaryI16Request request) async =>
       BeginReadBinaryI16Response(status: 0, moniker: _moniker('i16', request.numSampsPerChan));
 
   @override
-  Future<BeginReadBinaryI32Response> beginReadBinaryI32(
-          ServiceCall call, BeginReadBinaryI32Request request) async =>
+  Future<BeginReadBinaryI32Response> beginReadBinaryI32(ServiceCall call, BeginReadBinaryI32Request request) async =>
       BeginReadBinaryI32Response(status: 0, moniker: _moniker('i32', request.numSampsPerChan));
 
   double? lastStreamRate;
   int? lastStreamModeRaw;
-  Moniker _moniker(String fmt, int chunk) =>
-      Moniker(dataSource: fmt, dataInstance: Int64(chunk));
+  Moniker _moniker(String fmt, int chunk) => Moniker(dataSource: fmt, dataInstance: Int64(chunk));
 
   @override
-  Future<GetErrorStringResponse> getErrorString(
-      ServiceCall call, GetErrorStringRequest request) async {
+  Future<GetErrorStringResponse> getErrorString(ServiceCall call, GetErrorStringRequest request) async {
     if (throwOnGetErrorString) throw const GrpcError.unavailable('error-string lookup down');
     if (request.errorCode == 0) return GetErrorStringResponse(status: 0, errorString: '');
     if (emptyErrorString) return GetErrorStringResponse(status: 0);
-    return GetErrorStringResponse(
-        status: 0, errorString: 'Simulated DAQmx error (code ${request.errorCode}).');
+    return GetErrorStringResponse(status: 0, errorString: 'Simulated DAQmx error (code ${request.errorCode}).');
   }
 }
 
@@ -194,8 +187,7 @@ class FakeUtilitiesService extends SessionUtilitiesServiceBase {
   bool hang;
 
   @override
-  Future<EnumerateDevicesResponse> enumerateDevices(
-      ServiceCall call, EnumerateDevicesRequest request) async {
+  Future<EnumerateDevicesResponse> enumerateDevices(ServiceCall call, EnumerateDevicesRequest request) async {
     if (hang) await _never;
     return EnumerateDevicesResponse(
       devices: devices.map((n) => DeviceProperties(name: n)).toList(),
@@ -222,16 +214,29 @@ class FakeMonikerService extends DataMonikerServiceBase {
   Any _frame(String fmt, int base, int chunk) {
     switch (fmt) {
       case 'f64':
-        return Any.pack(MonikerReadAnalogF64Response(
+        return Any.pack(
+          MonikerReadAnalogF64Response(
             status: 0,
             readArray: [for (var i = 0; i < chunk; i++) (base + i).toDouble()],
-            sampsPerChanRead: chunk));
+            sampsPerChanRead: chunk,
+          ),
+        );
       case 'i16':
-        return Any.pack(MonikerReadBinaryI16Response(
-            status: 0, readArray: [for (var i = 0; i < chunk; i++) base + i], sampsPerChanRead: chunk));
+        return Any.pack(
+          MonikerReadBinaryI16Response(
+            status: 0,
+            readArray: [for (var i = 0; i < chunk; i++) base + i],
+            sampsPerChanRead: chunk,
+          ),
+        );
       case 'i32':
-        return Any.pack(MonikerReadBinaryI32Response(
-            status: 0, readArray: [for (var i = 0; i < chunk; i++) base + i], sampsPerChanRead: chunk));
+        return Any.pack(
+          MonikerReadBinaryI32Response(
+            status: 0,
+            readArray: [for (var i = 0; i < chunk; i++) base + i],
+            sampsPerChanRead: chunk,
+          ),
+        );
       default:
         throw StateError('unknown moniker format "$fmt"');
     }
@@ -239,8 +244,9 @@ class FakeMonikerService extends DataMonikerServiceBase {
 
   @override
   Future<BeginMonikerSidebandStreamResponse> beginSidebandStream(
-          ServiceCall call, BeginMonikerSidebandStreamRequest request) async =>
-      BeginMonikerSidebandStreamResponse(strategy: request.strategy, connectionUrl: '');
+    ServiceCall call,
+    BeginMonikerSidebandStreamRequest request,
+  ) async => BeginMonikerSidebandStreamResponse(strategy: request.strategy, connectionUrl: '');
 }
 
 /// A running fake server bound to an ephemeral loopback port.

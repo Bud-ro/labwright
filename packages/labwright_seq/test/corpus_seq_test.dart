@@ -103,8 +103,7 @@ void main() {
                 if (step.settings.mode != null) withMode++;
                 if (step.settings.icon != null) withIcon++;
                 if (step.module.adapter == SeqAdapter.unknown) unknownAdapters++;
-                if (step.module.adapter != SeqAdapter.none &&
-                    step.module.adapter != SeqAdapter.unknown) {
+                if (step.module.adapter != SeqAdapter.none && step.module.adapter != SeqAdapter.unknown) {
                   withModule++;
                 }
                 if (step.limits != null) withLimits++;
@@ -124,9 +123,11 @@ void main() {
           final partialTypeNames = {for (final t in partial.types) t.name};
           for (final seq in partial.sequences) {
             expect(seq.name, isNotEmpty);
-            expect(const {'Sequence', 'Calls', 'ResultList', 'Objs', 'Seq', 'Obj', 'Data'},
-                isNot(contains(seq.name)),
-                reason: '${f.path}: structural token as sequence name');
+            expect(
+              const {'Sequence', 'Calls', 'ResultList', 'Objs', 'Seq', 'Obj', 'Data'},
+              isNot(contains(seq.name)),
+              reason: '${f.path}: structural token as sequence name',
+            );
             binaryStepsRecovered += seq.steps.length;
             for (final step in seq.steps) {
               final type = step.type;
@@ -134,23 +135,29 @@ void main() {
                 binaryTypedSteps++;
                 // A bound type must come from the file's own recovered type
                 // table — anything else would be fabrication.
-                expect(partialTypeNames, contains(type),
-                    reason: '${f.path}: step ${step.name} bound to a type '
-                        'outside the recovered table');
+                expect(
+                  partialTypeNames,
+                  contains(type),
+                  reason:
+                      '${f.path}: step ${step.name} bound to a type '
+                      'outside the recovered table',
+                );
               }
               final m = step.module;
-              if (m.adapter != SeqAdapter.none &&
-                  m.adapter != SeqAdapter.unknown) {
+              if (m.adapter != SeqAdapter.none && m.adapter != SeqAdapter.unknown) {
                 binaryModuleSteps++;
                 // Recovered module targets must look like targets.
                 if (m.viPath != null) {
-                  expect(m.viPath, contains('.vi'),
-                      reason: '${f.path}: ${step.name} VIPath ${m.viPath}');
+                  expect(m.viPath, contains('.vi'), reason: '${f.path}: ${step.name} VIPath ${m.viPath}');
                 }
                 if (m.pythonModulePath != null) {
-                  expect(m.pythonModulePath, endsWith('.py'),
-                      reason: '${f.path}: ${step.name} python module '
-                          '${m.pythonModulePath}');
+                  expect(
+                    m.pythonModulePath,
+                    endsWith('.py'),
+                    reason:
+                        '${f.path}: ${step.name} python module '
+                        '${m.pythonModulePath}',
+                  );
                 }
               }
             }
@@ -162,8 +169,7 @@ void main() {
           expect(body, isNotNull, reason: '${f.path}: no inflatable body');
           if (body != null) {
             withBinaryBody++;
-            expect(_bodyContains(body, 'Sequence'), isTrue,
-                reason: '${f.path}: body lacks the Sequence token');
+            expect(_bodyContains(body, 'Sequence'), isTrue, reason: '${f.path}: body lacks the Sequence token');
             final names = binaryBodyStrings(bytes).map((s) => s.text).toSet();
             expect(
               ['Sequence', 'Step', 'Locals'].any(names.contains),
@@ -194,16 +200,30 @@ void main() {
     // (steps laid out before their group markers are reported ungrouped and
     // honestly kept OUT of the typed tree — raising this floor is the
     // grouping-decode roadmap, not a tuning knob).
-    expect(binaryWithSequences, greaterThanOrEqualTo(80),
-        reason: 'binary sequence recovery regressed ($binaryWithSequences files)');
-    expect(binaryStepsRecovered, greaterThanOrEqualTo(30),
-        reason: 'binary step recovery regressed ($binaryStepsRecovered steps)');
-    expect(binaryTypedSteps, greaterThanOrEqualTo(25),
-        reason: 'binary per-step type binding regressed '
-            '($binaryTypedSteps typed steps)');
-    expect(binaryModuleSteps, greaterThanOrEqualTo(10),
-        reason: 'binary per-step module binding regressed '
-            '($binaryModuleSteps module steps)');
+    expect(
+      binaryWithSequences,
+      greaterThanOrEqualTo(80),
+      reason: 'binary sequence recovery regressed ($binaryWithSequences files)',
+    );
+    expect(
+      binaryStepsRecovered,
+      greaterThanOrEqualTo(30),
+      reason: 'binary step recovery regressed ($binaryStepsRecovered steps)',
+    );
+    expect(
+      binaryTypedSteps,
+      greaterThanOrEqualTo(25),
+      reason:
+          'binary per-step type binding regressed '
+          '($binaryTypedSteps typed steps)',
+    );
+    expect(
+      binaryModuleSteps,
+      greaterThanOrEqualTo(10),
+      reason:
+          'binary per-step module binding regressed '
+          '($binaryModuleSteps module steps)',
+    );
     expect(other, 58, reason: 'other (INI) file count drifted');
     expect(totalSeqs, 33, reason: 'XML sequence count drifted');
     expect(totalSteps, 214, reason: 'XML step count drifted');
@@ -299,8 +319,7 @@ void main() {
   });
 
   test('recovers LabVIEW VI-call connector params across XML corpus', () {
-    var viSteps = 0, params = 0, withDisplayType = 0, withConnector = 0,
-        withNamespace = 0, withBound = 0;
+    var viSteps = 0, params = 0, withDisplayType = 0, withConnector = 0, withNamespace = 0, withBound = 0;
     for (final f in seqs) {
       if (f.lengthSync() > _maxProbeBytes) continue;
       final bytes = f.readAsBytesSync();
@@ -336,8 +355,16 @@ void main() {
   });
 
   test('recovers structured flow-control logic across the corpus', () {
-    var openers = 0, ends = 0, conds = 0, forInit = 0, forIncr = 0,
-        eachArr = 0, eachElem = 0, ifWhile = 0, forLoops = 0, eachLoops = 0;
+    var openers = 0,
+        ends = 0,
+        conds = 0,
+        forInit = 0,
+        forIncr = 0,
+        eachArr = 0,
+        eachElem = 0,
+        ifWhile = 0,
+        forLoops = 0,
+        eachLoops = 0;
     var seqsWithFlow = 0, balancedSeqs = 0, totalFlowSeqs = 0;
     for (final f in seqs) {
       if (f.lengthSync() > _maxProbeBytes) continue;
@@ -399,8 +426,7 @@ void main() {
     );
     expect(openers, greaterThan(0), reason: 'no flow-control steps found');
     expect(ends, openers, reason: 'every opener must have a matching NI_Flow_End');
-    expect(balancedSeqs, totalFlowSeqs,
-        reason: 'every flow-bearing sequence nests cleanly (balanced blocks)');
+    expect(balancedSeqs, totalFlowSeqs, reason: 'every flow-bearing sequence nests cleanly (balanced blocks)');
     expect(conds, ifWhile + forLoops, reason: 'every if/while/for has a condition');
     expect(forInit, forLoops, reason: 'every for has an initialization');
     expect(forIncr, forLoops, reason: 'every for has an increment');
@@ -441,11 +467,12 @@ void main() {
       }
     }
     // ignore: avoid_print
-    print('jumps: $jumpSteps non-default pass/fail actions in $filesWithJump '
-        'files; $exportsWithJump exports annotate them');
+    print(
+      'jumps: $jumpSteps non-default pass/fail actions in $filesWithJump '
+      'files; $exportsWithJump exports annotate them',
+    );
     expect(jumpSteps, greaterThan(0), reason: 'no pass/fail jumps in corpus');
-    expect(exportsWithJump, filesWithJump,
-        reason: 'every file with a jump must annotate it in the logic export');
+    expect(exportsWithJump, filesWithJump, reason: 'every file with a jump must annotate it in the logic export');
   });
 
   test('logic export annotates looping non-flow steps across the corpus', () {
@@ -476,11 +503,12 @@ void main() {
       }
     }
     // ignore: avoid_print
-    print('loops: $loopSteps looping non-flow steps in $filesWithLoop files; '
-        '$exportsWithLoop exports annotate them');
+    print(
+      'loops: $loopSteps looping non-flow steps in $filesWithLoop files; '
+      '$exportsWithLoop exports annotate them',
+    );
     expect(loopSteps, greaterThan(0), reason: 'no looping steps in corpus');
-    expect(exportsWithLoop, filesWithLoop,
-        reason: 'every file with a looping step must annotate it in the export');
+    expect(exportsWithLoop, filesWithLoop, reason: 'every file with a looping step must annotate it in the export');
   });
 
   test('logic export marks external SequenceCalls with their file', () {
@@ -515,16 +543,16 @@ void main() {
       }
     }
     // ignore: avoid_print
-    print('external seq-calls: $external in $filesWithExternal files; '
-        '$exportsMarked exports mark them with a file');
+    print(
+      'external seq-calls: $external in $filesWithExternal files; '
+      '$exportsMarked exports mark them with a file',
+    );
     expect(external, greaterThan(0), reason: 'no external seq-calls in corpus');
-    expect(exportsMarked, filesWithExternal,
-        reason: 'every file with an external call must mark it in the export');
+    expect(exportsMarked, filesWithExternal, reason: 'every file with an external call must mark it in the export');
   });
 
   test('logic export renders typed parameter signatures across the corpus', () {
-    var seqsWithParams = 0, params = 0, typed = 0, filesWithParams = 0,
-        exportsSigned = 0;
+    var seqsWithParams = 0, params = 0, typed = 0, filesWithParams = 0, exportsSigned = 0;
     for (final f in seqs) {
       if (f.lengthSync() > _maxProbeBytes) continue;
       final bytes = f.readAsBytesSync();
@@ -554,12 +582,13 @@ void main() {
       }
     }
     // ignore: avoid_print
-    print('signatures: $seqsWithParams seqs with params ($params params, '
-        '$typed typed) in $filesWithParams files; $exportsSigned exports signed');
+    print(
+      'signatures: $seqsWithParams seqs with params ($params params, '
+      '$typed typed) in $filesWithParams files; $exportsSigned exports signed',
+    );
     expect(params, greaterThan(0), reason: 'no parameterized sequences in corpus');
     expect(typed, params, reason: 'every recovered parameter carries a type');
-    expect(exportsSigned, filesWithParams,
-        reason: 'every file with params must render a signature in the export');
+    expect(exportsSigned, filesWithParams, reason: 'every file with params must render a signature in the export');
   });
 
   test('recovers <typelist> type definitions across XML corpus', () {
@@ -591,14 +620,12 @@ void main() {
     expect(totalTypes, greaterThanOrEqualTo(300));
     expect(withFields, greaterThanOrEqualTo(1));
     expect(baseClasses, isNotEmpty);
-    final first = parseSeqFile(seqs
-            .firstWhere((f) =>
-                f.lengthSync() <= _maxProbeBytes &&
-                detectSeqFormat(f.readAsBytesSync()) == SeqFormat.xml)
-            .readAsBytesSync())
-        .typeDefs;
-    expect(first.map((t) => t.name).toList(),
-        isNotEmpty, reason: 'typeDefs should mirror types 1:1');
+    final first = parseSeqFile(
+      seqs
+          .firstWhere((f) => f.lengthSync() <= _maxProbeBytes && detectSeqFormat(f.readAsBytesSync()) == SeqFormat.xml)
+          .readAsBytesSync(),
+    ).typeDefs;
+    expect(first.map((t) => t.name).toList(), isNotEmpty, reason: 'typeDefs should mirror types 1:1');
   });
 
   test('recovers the "Additional Results" recording spec across XML corpus', () {
@@ -659,8 +686,7 @@ void main() {
     );
     expect(withResult, greaterThan(0), reason: 'no step Result slots recovered');
     expect(withError, withResult, reason: 'a Result lost its Error sub-object');
-    expect(recorded, 0,
-        reason: 'a sequence file unexpectedly carries a recorded run outcome');
+    expect(recorded, 0, reason: 'a sequence file unexpectedly carries a recorded run outcome');
   });
 
   test('recovers custom-condition flow fields across XML corpus', () {
@@ -773,8 +799,7 @@ void main() {
     expect(specs, contains('IOResource'));
     expect(notLogged, greaterThan(0), reason: 'Log flag never varies');
     expect(enumParams, greaterThan(0), reason: 'no TypeEnum params found');
-    expect(enumValues, greaterThanOrEqualTo(enumParams),
-        reason: 'an enum param lost its allowed-value list');
+    expect(enumValues, greaterThanOrEqualTo(enumParams), reason: 'an enum param lost its allowed-value list');
   });
 
   test('every INI .seq parses into a header + sections (Rosetta form)', () {
@@ -830,19 +855,24 @@ void main() {
       }
     }
     // ignore: avoid_print
-    print('INI lens: $ini files · $steps steps · $withModule with a module '
-        'adapter · $withAddl with additional-results · '
-        'accounted ${(cov.accountedRatio * 100).toStringAsFixed(1)}% · '
-        'modeled ${(cov.ratio * 100).toStringAsFixed(1)}% · '
-        'plumbing ${cov.plumbing} · unaccounted ${cov.unaccounted}');
+    print(
+      'INI lens: $ini files · $steps steps · $withModule with a module '
+      'adapter · $withAddl with additional-results · '
+      'accounted ${(cov.accountedRatio * 100).toStringAsFixed(1)}% · '
+      'modeled ${(cov.ratio * 100).toStringAsFixed(1)}% · '
+      'plumbing ${cov.plumbing} · unaccounted ${cov.unaccounted}',
+    );
     expect(ini, greaterThanOrEqualTo(30));
     expect(steps, greaterThanOrEqualTo(1000));
     expect(withModule, greaterThanOrEqualTo(500));
-    expect(cov.unaccounted, 0,
-        reason: 'INI left ${cov.unaccounted} node(s) unaccounted; run '
-            'tool/gaps.dart ini to classify them');
-    expect(cov.ratio, greaterThan(0.995),
-        reason: 'INI model coverage regressed (${cov.ratio})');
+    expect(
+      cov.unaccounted,
+      0,
+      reason:
+          'INI left ${cov.unaccounted} node(s) unaccounted; run '
+          'tool/gaps.dart ini to classify them',
+    );
+    expect(cov.ratio, greaterThan(0.995), reason: 'INI model coverage regressed (${cov.ratio})');
   });
 
   test('the typed lens models the bulk of every XML Data tree', () {
@@ -855,16 +885,21 @@ void main() {
       cov += measureCoverage(parseSeqFile(bytes));
     }
     // ignore: avoid_print
-    print('XML lens: $xml files · '
-        'accounted ${(cov.accountedRatio * 100).toStringAsFixed(1)}% · '
-        'modeled ${(cov.ratio * 100).toStringAsFixed(1)}% · '
-        'plumbing ${cov.plumbing} · unaccounted ${cov.unaccounted}');
+    print(
+      'XML lens: $xml files · '
+      'accounted ${(cov.accountedRatio * 100).toStringAsFixed(1)}% · '
+      'modeled ${(cov.ratio * 100).toStringAsFixed(1)}% · '
+      'plumbing ${cov.plumbing} · unaccounted ${cov.unaccounted}',
+    );
     expect(xml, greaterThanOrEqualTo(20));
-    expect(cov.unaccounted, 0,
-        reason: 'XML left ${cov.unaccounted} node(s) unaccounted; run '
-            'tool/gaps.dart xml to classify them');
-    expect(cov.ratio, greaterThan(0.985),
-        reason: 'XML model coverage regressed (${cov.ratio})');
+    expect(
+      cov.unaccounted,
+      0,
+      reason:
+          'XML left ${cov.unaccounted} node(s) unaccounted; run '
+          'tool/gaps.dart xml to classify them',
+    );
+    expect(cov.ratio, greaterThan(0.985), reason: 'XML model coverage regressed (${cov.ratio})');
   });
 
   test('newly-modeled lens accessors are wired across the corpus', () {
@@ -877,9 +912,7 @@ void main() {
       if (fmt != SeqFormat.xml && fmt != SeqFormat.ini) continue;
       if (fmt == SeqFormat.ini && f.lengthSync() > _maxProbeBytes) continue;
       final sf = parseSeqFile(bytes);
-      if (sf.modelFile != null ||
-          sf.contentVersion != null ||
-          sf.fileTypeCode != null) {
+      if (sf.modelFile != null || sf.contentVersion != null || sf.fileTypeCode != null) {
         fileSettings++;
       }
       if (sf.fileGlobals.isNotEmpty) fileGlobals++;
@@ -892,32 +925,31 @@ void main() {
           if (step.description != null) stepDesc++;
           if (step.typeInfo.codeTemplates.isNotEmpty) codeTemplates++;
           final m = step.module;
-          if (m.sequenceNameExpression != null ||
-              m.specifiesByExpression != null) {
+          if (m.sequenceNameExpression != null || m.specifiesByExpression != null) {
             seqCallExpr++;
           }
           if (m.threadOptionCode != null) threading++;
-          if (m.pythonInterpreterLocation != null ||
-              m.pythonOperationTypeCode != null) {
+          if (m.pythonInterpreterLocation != null || m.pythonOperationTypeCode != null) {
             pyInterp++;
           }
           for (final p in [...m.viParameters, ...m.callParameters]) {
             if (p.caption != null || p.typeCode != null) clusterEls++;
           }
           if (step.sqlStatement != null || step.statementHandle != null) dbStep++;
-          if (step.limits?.lowExpression != null ||
-              step.limits?.comparisonExpression != null) {
+          if (step.limits?.lowExpression != null || step.limits?.comparisonExpression != null) {
             limitExpr++;
           }
         }
       }
     }
     // ignore: avoid_print
-    print('new lens accessors: adapterName=$adapterName stepDesc=$stepDesc '
-        'codeTemplates=$codeTemplates runtimeEP=$runtimeEP switch=$switchSettings '
-        'seqCallExpr=$seqCallExpr threading=$threading py=$pyInterp '
-        'paramDescriptor=$clusterEls db=$dbStep limitExpr=$limitExpr '
-        'fileSettings=$fileSettings fileGlobals=$fileGlobals');
+    print(
+      'new lens accessors: adapterName=$adapterName stepDesc=$stepDesc '
+      'codeTemplates=$codeTemplates runtimeEP=$runtimeEP switch=$switchSettings '
+      'seqCallExpr=$seqCallExpr threading=$threading py=$pyInterp '
+      'paramDescriptor=$clusterEls db=$dbStep limitExpr=$limitExpr '
+      'fileSettings=$fileSettings fileGlobals=$fileGlobals',
+    );
     expect(adapterName, greaterThan(0), reason: 'no Adapter names surfaced');
     expect(stepDesc, greaterThan(0), reason: 'no step Descriptions surfaced');
     expect(codeTemplates, greaterThan(0), reason: 'no CodeTemplates surfaced');
@@ -933,8 +965,7 @@ void main() {
     expect(fileGlobals, greaterThan(0), reason: 'no file globals surfaced');
   });
 
-  test('INI parser drops no in-section data lines (every line is key = value)',
-      () {
+  test('INI parser drops no in-section data lines (every line is key = value)', () {
     var ini = 0, skipped = 0;
     final samples = <String>[];
     for (final f in seqs) {
@@ -958,12 +989,10 @@ void main() {
     // ignore: avoid_print
     print('INI line audit: $ini files, $skipped in-section lines without " = "');
     expect(ini, greaterThan(0));
-    expect(skipped, 0,
-        reason: 'INI parser silently skips data line(s): ${samples.join(' | ')}');
+    expect(skipped, 0, reason: 'INI parser silently skips data line(s): ${samples.join(' | ')}');
   });
 
-  test('INI multi-line values are reassembled (no residual ` LineNNNN` keys)',
-      () {
+  test('INI multi-line values are reassembled (no residual ` LineNNNN` keys)', () {
     var ini = 0, reassembled = 0, residual = 0;
     final baseKeys = <String>{};
     for (final f in seqs) {
@@ -988,8 +1017,10 @@ void main() {
       }
     }
     // ignore: avoid_print
-    print('INI continuations: $reassembled fragments collapsed across '
-        '${baseKeys.length} base keys in $ini INI files; $residual residual');
+    print(
+      'INI continuations: $reassembled fragments collapsed across '
+      '${baseKeys.length} base keys in $ini INI files; $residual residual',
+    );
     expect(ini, 58, reason: 'no INI files in corpus');
     expect(residual, 0, reason: 'a ` LineNNNN` fragment survived reassembly');
     expect(reassembled, 19820, reason: 'continuation-fragment count drifted');
@@ -1008,9 +1039,7 @@ void main() {
         if (tree == null) continue;
         built++;
         if (tree.name == 'Data') dataRoot++;
-        final seq = tree.subProps
-            .where((p) => p.name == 'Seq' && p.isArray)
-            .firstOrNull;
+        final seq = tree.subProps.where((p) => p.name == 'Seq' && p.isArray).firstOrNull;
         if (seq != null && seq.array!.isNotEmpty) {
           withSeqArray++;
           if (seq.array!.any((s) => s.name.isNotEmpty && s.name != '[0]')) {
@@ -1083,23 +1112,19 @@ void main() {
             if (st.settings.mode != null) withMode++;
             if (st.settings.loopType != null) withLoop++;
             if (st.comment != null) withComment++;
-            if (st.settings.passActionTarget != null ||
-                st.settings.failActionTarget != null) {
+            if (st.settings.passActionTarget != null || st.settings.failActionTarget != null) {
               withFlowTarget++;
             }
             for (final t in [
               st.settings.customTrueTarget,
               st.settings.customFalseTarget,
             ]) {
-              if (t != null &&
-                  t.startsWith('ID#:') &&
-                  sf.stepNameForId(t) != null) {
+              if (t != null && t.startsWith('ID#:') && sf.stepNameForId(t) != null) {
                 resolvedIdTargets++;
               }
             }
             final lo = st.settings.loadOption, uo = st.settings.unloadOption;
-            if ((lo != null && lo != 'PreloadWhenExecuted') ||
-                (uo != null && uo != 'UnloadWithFile')) {
+            if ((lo != null && lo != 'PreloadWhenExecuted') || (uo != null && uo != 'UnloadWithFile')) {
               withModuleTiming++;
             }
           }
@@ -1133,8 +1158,11 @@ void main() {
     expect(unknownAdapter, 0, reason: 'an INI step has an unrecognized SData adapter');
     expect(recognized, 2186, reason: 'INI recognized-adapter count drifted');
     expect(noneAdapter, 3478, reason: 'INI none-adapter count drifted');
-    expect(recognized + noneAdapter + unknownAdapter, totSteps,
-        reason: 'adapter classification must partition all steps');
+    expect(
+      recognized + noneAdapter + unknownAdapter,
+      totSteps,
+      reason: 'adapter classification must partition all steps',
+    );
     expect(withType, greaterThan(0), reason: 'no INI step types via the lens');
     expect(withMode, greaterThan(0), reason: 'no type-inherited run-mode recovered');
     expect(withLoop, greaterThan(0), reason: 'no type-inherited looping recovered');
@@ -1145,8 +1173,7 @@ void main() {
     expect(objVarsWithFields, 95, reason: 'object-variable field count drifted');
     expect(withFlowTarget, 58, reason: 'flow-target count drifted');
     expect(resolvedIdTargets, 12, reason: 'resolved ID#: target count drifted');
-    expect(withModuleTiming, 63,
-        reason: 'non-default module load/unload count drifted');
+    expect(withModuleTiming, 63, reason: 'non-default module load/unload count drifted');
   });
 
   test('every binary TOF1 body frames into a record region + string table', () {
@@ -1196,16 +1223,10 @@ void main() {
       s.contains('(') ||
       s.contains(')') ||
       s.contains('"') ||
-      (RegExp(r'[+\-*/=<>!]').hasMatch(s) &&
-          RegExp(r'[A-Za-z0-9]').hasMatch(s));
+      (RegExp(r'[+\-*/=<>!]').hasMatch(s) && RegExp(r'[A-Za-z0-9]').hasMatch(s));
 
   test('binary string region has a content-identified property-name table', () {
-    var binary = 0,
-        nameFound = 0,
-        hasModelTokens = 0,
-        notLargest = 0,
-        isFirst = 0,
-        valuesOutsideName = 0;
+    var binary = 0, nameFound = 0, hasModelTokens = 0, notLargest = 0, isFirst = 0, valuesOutsideName = 0;
     final failures = <String>[];
     for (final f in seqs) {
       final bytes = f.readAsBytesSync();
@@ -1227,8 +1248,7 @@ void main() {
       if (segs.any((s) => s.entries.length > name.entries.length)) notLargest++;
       if (segs.isNotEmpty && name.offset == segs.first.offset) isFirst++;
       if (segs.any(
-        (s) =>
-            s.offset != name.offset && s.entries.any((e) => isExprLike(e.text)),
+        (s) => s.offset != name.offset && s.entries.any((e) => isExprLike(e.text)),
       )) {
         valuesOutsideName++;
       }
@@ -1281,8 +1301,7 @@ void main() {
         failures.add('${f.path}: prefix ${names.take(2).toList()} != [SequenceFileData, Data]');
       }
       final n = binaryNameScaffold.length;
-      final matches = names.length >= n &&
-          Iterable<int>.generate(n).every((i) => names[i] == binaryNameScaffold[i]);
+      final matches = names.length >= n && Iterable<int>.generate(n).every((i) => names[i] == binaryNameScaffold[i]);
       if (matches) scaffold5Ok++;
       final words = binaryRecordWords(bytes);
       if (words.length >= 3 && words[2] == 1 && names[1] == 'Data') {
@@ -1311,8 +1330,7 @@ void main() {
     );
   });
 
-  int u32(List<int> b, int i) =>
-      b[i] | b[i + 1] << 8 | b[i + 2] << 16 | b[i + 3] << 24;
+  int u32(List<int> b, int i) => b[i] | b[i + 1] << 8 | b[i + 2] << 16 | b[i + 3] << 24;
   bool tripletExists(List<int> body, int rr, int idx) {
     for (var i = 0; i + 12 <= rr; i++) {
       if (u32(body, i) != idx) continue;
@@ -1320,8 +1338,7 @@ void main() {
       final count = u32(body, i + 8);
       if (field < 1 || field > 100000) continue;
       if (count < 1 || count > 1000) continue;
-      final preOk =
-          i < 4 || u32(body, i - 4) == 0 || u32(body, i - 4) == 0xffffffff;
+      final preOk = i < 4 || u32(body, i - 4) == 0 || u32(body, i - 4) == 0xffffffff;
       if (preOk) return true;
     }
     return false;
@@ -1389,8 +1406,7 @@ void main() {
             a.inflatedSize == (inflateBinaryBody(bytes)?.length ?? 0) &&
             a.strings.length == binaryBodyStrings(bytes).length &&
             a.stringTable.length == binaryStringTable(bytes).length &&
-            a.layout?.recordRegionLength ==
-                analyzeBinaryBody(bytes)?.recordRegionLength &&
+            a.layout?.recordRegionLength == analyzeBinaryBody(bytes)?.recordRegionLength &&
             a.nameTable.length == (binaryNameTable(bytes)?.entries.length ?? 0) &&
             a.objectNames.length == binaryObjectNames(bytes).length &&
             a.modulePaths.length == binaryModulePaths(bytes).length &&
@@ -1419,10 +1435,7 @@ void main() {
       if (detectSeqFormat(bytes) != SeqFormat.binary) continue;
       binary++;
       final table = binaryNameTable(bytes);
-      final rootedHere =
-          table != null &&
-          table.entries.isNotEmpty &&
-          table.entries.first.text == 'SequenceFileData';
+      final rootedHere = table != null && table.entries.isNotEmpty && table.entries.first.text == 'SequenceFileData';
       if (!rootedHere) continue;
       rooted++;
       final names = binaryObjectNames(bytes);
@@ -1461,17 +1474,14 @@ void main() {
       }
       for (final l in binaryQuotedLiterals(bytes)) {
         if (!isBinaryQuotedLiteral(l)) bad.add('${f.path}: lit $l');
-        if (isBinaryExpression(l) ||
-            isBinaryModulePath(l) ||
-            l.startsWith('ID#:')) {
+        if (isBinaryExpression(l) || isBinaryModulePath(l) || l.startsWith('ID#:')) {
           bad.add('${f.path}: literal overlaps expr/path/id $l');
         }
       }
       if (paths.isNotEmpty) {
         withPath++;
         totalPaths += paths.length;
-        nonAsciiPaths +=
-            paths.where((p) => p.codeUnits.any((u) => u >= 0x80)).length;
+        nonAsciiPaths += paths.where((p) => p.codeUnits.any((u) => u >= 0x80)).length;
       }
       if (binaryStepReferences(bytes).isNotEmpty) withId++;
       if (binaryExpressions(bytes).isNotEmpty) withExpr++;

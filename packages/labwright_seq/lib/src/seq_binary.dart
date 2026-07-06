@@ -15,13 +15,13 @@ enum ZlibFlag {
 
   byDefault(0x9c),
 
-  best(0xda);
+  best(0xda)
+  ;
 
   const ZlibFlag(this.byte);
   final int byte;
 
-  static bool isKnown(int flagByte) =>
-      flagByte == none.byte || flagByte == byDefault.byte || flagByte == best.byte;
+  static bool isKnown(int flagByte) => flagByte == none.byte || flagByte == byDefault.byte || flagByte == best.byte;
 }
 
 /// Minimum inflated size to accept a candidate zlib stream as the body — guards
@@ -320,8 +320,7 @@ List<BinaryStringSegment> _segmentsFromBody(
   final boundary = _firstTableOffset(runs);
   if (boundary == null) return const [];
   return [
-    for (final chain in _segmentsFrom(runs, boundary, minChain: minChain))
-      (offset: chain.first.offset, entries: chain),
+    for (final chain in _segmentsFrom(runs, boundary, minChain: minChain)) (offset: chain.first.offset, entries: chain),
   ];
 }
 
@@ -362,9 +361,7 @@ List<String> binaryObjectNames(Uint8List seqBytes) {
 /// Drops the leading [binaryNameScaffold] prefix from an ordered name list.
 List<String> _objectNamesFrom(List<String> names) {
   var start = 0;
-  while (start < names.length &&
-      start < binaryNameScaffold.length &&
-      names[start] == binaryNameScaffold[start]) {
+  while (start < names.length && start < binaryNameScaffold.length && names[start] == binaryNameScaffold[start]) {
     start++;
   }
   return names.sublist(start);
@@ -379,8 +376,7 @@ final _modulePathRe = RegExp(r'\.(vi|dll|seq|llb)$', caseSensitive: false);
 /// ending in a known adapter target extension (`.vi`/`.dll`/`.seq`/`.llb`), e.g.
 /// `My Computer\ExcelReadWrite\Excel_Read.vi` or `SubSequences\AC_Gerilim.seq`.
 /// A bare suffix (`.vi`) or a separator-less token is rejected.
-bool isBinaryModulePath(String text) =>
-    text.contains('\\') && _modulePathRe.hasMatch(text);
+bool isBinaryModulePath(String text) => text.contains('\\') && _modulePathRe.hasMatch(text);
 
 /// The **module call-target paths** a binary TOF1 file references — the LabVIEW
 /// VIs / DLLs / sub-sequences / libraries its steps invoke (see
@@ -393,8 +389,7 @@ bool isBinaryModulePath(String text) =>
 /// (median 5); the rest either make no external calls or carry paths fragmented by
 /// non-ASCII bytes in the run splitter. Returns `[]` when [seqBytes] is not an
 /// inflatable binary file.
-List<String> binaryModulePaths(Uint8List seqBytes) =>
-    _poolWhere(seqBytes, isBinaryModulePath);
+List<String> binaryModulePaths(Uint8List seqBytes) => _poolWhere(seqBytes, isBinaryModulePath);
 
 /// Distinct pool entries (in order) matching [keep], over a fresh inflate.
 List<String> _poolWhere(Uint8List seqBytes, bool Function(String) keep) {
@@ -424,22 +419,19 @@ List<String> _poolWhereFrom(
 /// resolving each to its target step needs the **not yet decoded** record grammar.
 /// Corpus-observed: 285/288 binary files expose ≥1. Returns `[]` when [seqBytes]
 /// is not an inflatable binary file.
-List<String> binaryStepReferences(Uint8List seqBytes) =>
-    _poolWhere(seqBytes, _isStepRef);
+List<String> binaryStepReferences(Uint8List seqBytes) => _poolWhere(seqBytes, _isStepRef);
 
 bool _isStepRef(String text) => text.startsWith('ID#:');
 
 /// Member access on a TestStand expression **root** (`Locals.x`, `Step.Result…`,
 /// `RunState.LoopIndex`, `StationGlobals.…`, …) — the surest expression marker.
-final _exprRootRe = RegExp(
-    r'\b(Locals|Parameters|Step|RunState|FileGlobals|StationGlobals|Seq|ThisContext)\.');
+final _exprRootRe = RegExp(r'\b(Locals|Parameters|Step|RunState|FileGlobals|StationGlobals|Seq|ThisContext)\.');
 
 /// A comparison / logical / ternary operator (the test-logic operators).
 final _exprOpRe = RegExp(r'(==|!=|<=|>=|&&|\|\||\?.*:)');
 
 /// A known TestStand expression **function call** (`Abs(`, `Str(`, `ResStr(`, …).
-final _exprFnRe = RegExp(
-    r'\b(Abs|Str|Val|Round|Mid|Len|Left|Right|ResStr|LocalizeExpression|Mod)\s*\(');
+final _exprFnRe = RegExp(r'\b(Abs|Str|Val|Round|Mid|Len|Left|Right|ResStr|LocalizeExpression|Mod)\s*\(');
 
 /// Whether [s] looks like a TestStand **expression** — the strings that carry a
 /// sequence's actual logic: limit/condition comparisons, `RunState`/`Locals`/
@@ -448,9 +440,7 @@ final _exprFnRe = RegExp(
 /// stays disjoint from those recoveries.
 bool isBinaryExpression(String text) {
   if (text.startsWith('ID#:') || isBinaryModulePath(text)) return false;
-  return _exprRootRe.hasMatch(text) ||
-      _exprOpRe.hasMatch(text) ||
-      _exprFnRe.hasMatch(text);
+  return _exprRootRe.hasMatch(text) || _exprOpRe.hasMatch(text) || _exprFnRe.hasMatch(text);
 }
 
 /// The **expression strings** a binary TOF1 file carries — its test logic
@@ -463,8 +453,7 @@ bool isBinaryExpression(String text) {
 /// honest *set* of expressions a file evaluates, not a per-step mapping.
 /// Corpus-observed: 285/288 binary files expose ≥1 (15910 distinct total). Returns
 /// `[]` when [seqBytes] is not an inflatable binary file.
-List<String> binaryExpressions(Uint8List seqBytes) =>
-    _poolWhere(seqBytes, isBinaryExpression);
+List<String> binaryExpressions(Uint8List seqBytes) => _poolWhere(seqBytes, isBinaryExpression);
 
 /// Whether [s] is a **quoted string literal** — a whole entry wrapped in double
 /// quotes (`"6105A"`, `"Unnamed Entry Point"`, `"%ModuleDescription"`), i.e. a
@@ -472,10 +461,7 @@ List<String> binaryExpressions(Uint8List seqBytes) =>
 /// contains operators — `"a" == "b"` — is an expression, not a literal, and is
 /// excluded here so the recoveries stay disjoint).
 bool isBinaryQuotedLiteral(String text) =>
-    text.length >= 2 &&
-    text.startsWith('"') &&
-    text.endsWith('"') &&
-    !isBinaryExpression(text);
+    text.length >= 2 && text.startsWith('"') && text.endsWith('"') && !isBinaryExpression(text);
 
 /// The **quoted string literals** a binary TOF1 file carries — constant values
 /// its steps/expressions reference (instrument resource strings, expected values,
@@ -485,8 +471,7 @@ bool isBinaryQuotedLiteral(String text) =>
 /// needs the **not yet decoded** record grammar. Corpus-observed: 288/288 binary
 /// files expose ≥1 (2883 distinct total). Returns `[]` when [seqBytes] is not an
 /// inflatable binary file.
-List<String> binaryQuotedLiterals(Uint8List seqBytes) =>
-    _poolWhere(seqBytes, isBinaryQuotedLiteral);
+List<String> binaryQuotedLiterals(Uint8List seqBytes) => _poolWhere(seqBytes, isBinaryQuotedLiteral);
 
 BinaryStringSegment? _nameTableFromSegments(
   List<BinaryStringSegment> segments,
@@ -516,8 +501,7 @@ BinaryStringSegment? _nameTableFromSegments(
 /// aid, **not** a flat index array — the full record grammar is **not yet
 /// decoded**. Returns `[]` when [seqBytes] is not an inflatable binary file or
 /// the body does not frame.
-List<int> binaryRecordWords(Uint8List seqBytes) =>
-    _withLayout(seqBytes, _recordWordsFromBody);
+List<int> binaryRecordWords(Uint8List seqBytes) => _withLayout(seqBytes, _recordWordsFromBody);
 
 /// Inflates [seqBytes], frames its layout, and delegates to [f] over the body and
 /// its record-region length — the shared inflate+frame+guard prologue for the
@@ -568,8 +552,7 @@ const _maxScalarMagnitude = 1e12;
 /// low 32 bits must be zero (a round value, as every observed default is), finite,
 /// non-zero, and `|v|` within [[_minScalarMagnitude], [_maxScalarMagnitude]].
 /// Returns `[]` when [seqBytes] is not an inflatable binary file or doesn't frame.
-List<double> binaryScalarDoubles(Uint8List seqBytes) =>
-    _withLayout(seqBytes, _scalarDoublesFromBody);
+List<double> binaryScalarDoubles(Uint8List seqBytes) => _withLayout(seqBytes, _scalarDoublesFromBody);
 
 /// A **clean** recovered double: finite, non-zero, and `|v|` within
 /// [[_minScalarMagnitude], [_maxScalarMagnitude]] — the shared acceptance filter
@@ -666,8 +649,7 @@ Map<int, String> _stringRegionNamesByRel(Uint8List body, int recordRegionLength)
 /// Records are returned in record order; duplicate values are kept (distinct
 /// record slots). Returns `[]` when [seqBytes] is not an inflatable binary file
 /// or the body does not frame.
-List<BinaryNamedScalar> binaryNamedScalarRecords(Uint8List seqBytes) =>
-    _withLayout(seqBytes, _namedScalarsFromBody);
+List<BinaryNamedScalar> binaryNamedScalarRecords(Uint8List seqBytes) => _withLayout(seqBytes, _namedScalarsFromBody);
 
 /// [binaryNamedScalarRecords] core over an already-inflated [body] (no
 /// re-inflate), given the record-region length [recordRegionLength] — for the single-inflate
@@ -688,13 +670,15 @@ List<BinaryNamedScalar> _namedScalarsFromBody(Uint8List body, int recordRegionLe
     if (view.getUint32(doubleOffset, Endian.little) != 0) continue;
     final value = view.getFloat64(doubleOffset, Endian.little);
     if (!_isCleanScalar(value)) continue;
-    out.add(BinaryNamedScalar(
-      name: name,
-      rawTag: view.getUint32((wordIndex - 1) * _u32Bytes, Endian.little),
-      rawTypeCode: view.getUint32((wordIndex + 1) * _u32Bytes, Endian.little),
-      value: value,
-      wordIndex: wordIndex,
-    ));
+    out.add(
+      BinaryNamedScalar(
+        name: name,
+        rawTag: view.getUint32((wordIndex - 1) * _u32Bytes, Endian.little),
+        rawTypeCode: view.getUint32((wordIndex + 1) * _u32Bytes, Endian.little),
+        value: value,
+        wordIndex: wordIndex,
+      ),
+    );
   }
   return out;
 }
@@ -750,13 +734,9 @@ class BinaryNamedRecord {
 /// `ID#:` step refs) are confirmed **not** offset-referenced, so a record word
 /// matching one's offset is coincidence — excluded from [binaryNamedRecords].
 bool _isNameLike(String text) =>
-    !isBinaryQuotedLiteral(text) &&
-    !isBinaryExpression(text) &&
-    !isBinaryModulePath(text) &&
-    !_isStepRef(text);
+    !isBinaryQuotedLiteral(text) && !isBinaryExpression(text) && !isBinaryModulePath(text) && !_isStepRef(text);
 
-List<BinaryNamedRecord> binaryNamedRecords(Uint8List seqBytes) =>
-    _withLayout(seqBytes, _namedRecordsFromBody);
+List<BinaryNamedRecord> binaryNamedRecords(Uint8List seqBytes) => _withLayout(seqBytes, _namedRecordsFromBody);
 
 List<BinaryNamedRecord> _namedRecordsFromBody(Uint8List body, int recordRegionLength) {
   final relToName = _stringRegionNamesByRel(body, recordRegionLength);
@@ -779,11 +759,13 @@ List<BinaryNamedRecord> _namedRecordsFromBody(Uint8List body, int recordRegionLe
   for (final entry in counts.entries) {
     final tagSet = tags[entry.key]!;
     if (entry.value < 2 || tagSet.length != 1) continue;
-    out.add(BinaryNamedRecord(
-      name: entry.key,
-      count: entry.value,
-      rawTag: tagSet.single,
-    ));
+    out.add(
+      BinaryNamedRecord(
+        name: entry.key,
+        count: entry.value,
+        rawTag: tagSet.single,
+      ),
+    );
   }
   out.sort((a, b) => b.count.compareTo(a.count));
   return out;
@@ -823,7 +805,8 @@ enum _PropRecordField {
 
   /// Byte 22: where the inline value begins on a scalar-valued record
   /// ([kind] `>= _propScalarKind`).
-  value(22);
+  value(22)
+  ;
 
   const _PropRecordField(this.offset);
 
@@ -927,8 +910,7 @@ List<String> _orderedStringPool(Uint8List body, int recordRegionLength) {
 /// are returned flat, in file order; duplicate names at different tree positions
 /// are therefore indistinguishable here. Returns `[]` when [seqBytes] is not an
 /// inflatable binary file or does not frame.
-List<BinaryPropertyRecord> binaryPropertyRecords(Uint8List seqBytes) =>
-    _withLayout(seqBytes, _propertyRecordsFromBody);
+List<BinaryPropertyRecord> binaryPropertyRecords(Uint8List seqBytes) => _withLayout(seqBytes, _propertyRecordsFromBody);
 
 List<BinaryPropertyRecord> _propertyRecordsFromBody(Uint8List body, int recordRegionLength) {
   final pool = _orderedStringPool(body, recordRegionLength);
@@ -945,12 +927,12 @@ List<BinaryPropertyRecord> _propertyRecordsFromBody(Uint8List body, int recordRe
       continue;
     }
     final headerEnd = at + _PropRecordField.value.offset;
-    if (_propRecordLeads.contains(body[at + _PropRecordField.lead.offset]) &&
-        headerEnd <= recordRegionLength) {
+    if (_propRecordLeads.contains(body[at + _PropRecordField.lead.offset]) && headerEnd <= recordRegionLength) {
       final kind = wordAt(at + _PropRecordField.kind.offset);
       final typeIndex = wordAt(at + _PropRecordField.typeNameIndex.offset);
       final nameIndex = wordAt(at + _PropRecordField.nameIndex.offset);
-      final framed = wordAt(at + _PropRecordField.zeroA.offset) == 0 &&
+      final framed =
+          wordAt(at + _PropRecordField.zeroA.offset) == 0 &&
           wordAt(at + _PropRecordField.zeroB.offset) == 0 &&
           kind >= _propMinKind &&
           kind <= _propMaxLeafKind &&
@@ -987,12 +969,14 @@ List<BinaryPropertyRecord> _propertyRecordsFromBody(Uint8List body, int recordRe
             body[at + consumed + 1] == 0) {
           consumed += _propTerminatorWidth;
         }
-        out.add(BinaryPropertyRecord(
-          name: pool[nameIndex],
-          typeName: typeName,
-          value: value,
-          offset: at,
-        ));
+        out.add(
+          BinaryPropertyRecord(
+            name: pool[nameIndex],
+            typeName: typeName,
+            value: value,
+            offset: at,
+          ),
+        );
         at += consumed;
         continue;
       }
@@ -1020,8 +1004,7 @@ const _maxDeclarationPathWords = 8;
 /// Reads the path words of the record at [at], or `null` if it is not a
 /// path-declaration record. Stops at the first word that is neither zero nor a
 /// resolvable pool index, and after [_maxDeclarationPathWords] words.
-List<String>? _objectDeclarationPath(
-    Uint8List body, ByteData view, List<String> pool, int at, int recordRegionLength) {
+List<String>? _objectDeclarationPath(Uint8List body, ByteData view, List<String> pool, int at, int recordRegionLength) {
   if (at + _PropRecordField.zeroA.offset + _u32Bytes > recordRegionLength) return null;
   if (!_propRecordLeads.contains(body[at + _PropRecordField.lead.offset])) return null;
   if (body[at + 1] != 0) return null; // flags byte
@@ -1031,8 +1014,7 @@ List<String>? _objectDeclarationPath(
 
   final path = <String>[];
   var offset = firstOffset;
-  while (offset + _u32Bytes <= recordRegionLength &&
-      path.length < _maxDeclarationPathWords) {
+  while (offset + _u32Bytes <= recordRegionLength && path.length < _maxDeclarationPathWords) {
     final word = view.getUint32(offset, Endian.little);
     if (word == 0) {
       offset += _u32Bytes; // separator
@@ -1065,11 +1047,7 @@ const _minDeclarationBytes = 8;
 /// zero structural tokens (86/294 binaries legitimately declare sequences in
 /// this shape; the rest use layouts not yet decoded).
 bool _isSequenceDeclaration(List<String> path) =>
-    path.length >= 5 &&
-    path[0] == '[]' &&
-    path[2] == 'Objs' &&
-    path[3] == 'Seq' &&
-    path[4].startsWith('[');
+    path.length >= 5 && path[0] == '[]' && path[2] == 'Objs' && path[3] == 'Seq' && path[4].startsWith('[');
 
 /// The **sequence names** of a binary TOF1 file, recovered from the object-path
 /// declarations in the validated root shape (see [_isSequenceDeclaration]).
@@ -1080,8 +1058,7 @@ bool _isSequenceDeclaration(List<String> path) =>
 /// re-saves), and a whole-corpus sweep emits zero structural-token false
 /// positives. Files whose sequences are declared in a not-yet-decoded layout
 /// honestly return `[]`. De-duplicated, first-seen order.
-List<String> binarySequenceNames(Uint8List seqBytes) =>
-    _withLayout(seqBytes, _sequenceNamesFromBody);
+List<String> binarySequenceNames(Uint8List seqBytes) => _withLayout(seqBytes, _sequenceNamesFromBody);
 
 List<String> _sequenceNamesFromBody(Uint8List body, int recordRegionLength) {
   final pool = _orderedStringPool(body, recordRegionLength);
@@ -1182,8 +1159,7 @@ const _typeRecordMinBytes = (3 + _typeVersionTripleWords) * _u32Bytes;
 ///    intrinsicTypeId]: 2 = StepTypeSubstepsArray measured);
 ///  * locals/parameters: thin twin oracle (rosetta declares only the
 ///    implicit `ResultList`) — ride along once needed.
-List<String> binaryTypeNames(Uint8List seqBytes) =>
-    _withLayout(seqBytes, _typeNamesFromBody);
+List<String> binaryTypeNames(Uint8List seqBytes) => _withLayout(seqBytes, _typeNamesFromBody);
 
 /// The known field-flag bits (word 1 of a typedef field record; see
 /// [BinaryTypeField] and the body parser). Cataloged so the known-bits
@@ -1200,11 +1176,8 @@ const _fieldHasFormatBit = 0x200; // display-format string after the value
 
 /// Every bit the field grammar recognizes; a field carrying any OTHER
 /// bit is a shape the grammar does not cover and bails.
-const _fieldKnownFlagBits = _fieldHasValueBit |
-    _fieldAttrBits |
-    _fieldFramedBit |
-    _fieldHasExtDataBit |
-    _fieldHasFormatBit;
+const _fieldKnownFlagBits =
+    _fieldHasValueBit | _fieldAttrBits | _fieldFramedBit | _fieldHasExtDataBit | _fieldHasFormatBit;
 
 /// Defensive cap on a typedef's subprop count (the largest real body in
 /// the corpus carries 49 fields — TEInf).
@@ -1225,15 +1198,14 @@ const _typeMaxFields = 200;
 /// default-instance references index it 1-based, the same convention as
 /// step references, and may point forward.
 List<BinaryTypeField>? _typeFieldsAt(
-        Uint8List body,
-        ByteData view,
-        List<String> pool,
-        int after,
-        int recordRegionLength,
-        List<BinaryTypeRecord> table,
-        [int? endBoundary]) =>
-    _TypeBodyParser(view, pool, recordRegionLength, table, endBoundary)
-        .parse(after);
+  Uint8List body,
+  ByteData view,
+  List<String> pool,
+  int after,
+  int recordRegionLength,
+  List<BinaryTypeRecord> table, [
+  int? endBoundary,
+]) => _TypeBodyParser(view, pool, recordRegionLength, table, endBoundary).parse(after);
 
 /// Tooling aid for grammar iteration, not part of the decode API: every
 /// element-type spec the decode ACCEPTED a structural skip for, as
@@ -1261,8 +1233,7 @@ const _typeRecordPreambleBytes = 17;
 
 /// The recursive typedef-body field parser — see [_typeFieldsAt].
 class _TypeBodyParser {
-  _TypeBodyParser(this.view, this.pool, this.recordRegionLength, this.table,
-      [this.bodyEndBoundary]);
+  _TypeBodyParser(this.view, this.pool, this.recordRegionLength, this.table, [this.bodyEndBoundary]);
 
   final ByteData view;
   final List<String> pool;
@@ -1278,16 +1249,12 @@ class _TypeBodyParser {
   final int? bodyEndBoundary;
 
   int _u32(int at) => view.getUint32(at, Endian.little);
-  String? _tok(int word) =>
-      word > 0 && word < pool.length && pool[word].isNotEmpty
-          ? pool[word]
-          : null;
+  String? _tok(int word) => word > 0 && word < pool.length && pool[word].isNotEmpty ? pool[word] : null;
 
   /// Whether [token] is an array-bound token: `'[]'` or `'[<digits>]'`
   /// (the XML twin writes these verbatim as lbound/ubound).
   static final _boundPattern = RegExp(r'^\[\d*\]$');
-  static bool _isBoundToken(String? token) =>
-      token != null && _boundPattern.hasMatch(token);
+  static bool _isBoundToken(String? token) => token != null && _boundPattern.hasMatch(token);
 
   /// Whether any element-type spec was walked during the current
   /// [parse] — arms the body-end boundary gate (a walker misparse must
@@ -1428,9 +1395,7 @@ class _TypeBodyParser {
       if (count == 0) return null; // terminator before any extdata
       if (count <= _typeMaxExtBlocks) {
         final end = _extBlocksFrom(p + _u32Bytes, count);
-        if (end != null &&
-            end + _u32Bytes <= recordRegionLength &&
-            _u32(end) == 0) {
+        if (end != null && end + _u32Bytes <= recordRegionLength && _u32(end) == 0) {
           return end + _u32Bytes;
         }
       }
@@ -1445,8 +1410,7 @@ class _TypeBodyParser {
     var p = at;
     if (p >= recordRegionLength) return null;
     if (view.getUint8(p) == 0) p++;
-    if (p + 5 * _u32Bytes > recordRegionLength ||
-        _u32(p) != _recordDelimiter) {
+    if (p + 5 * _u32Bytes > recordRegionLength || _u32(p) != _recordDelimiter) {
       return null;
     }
     if (_u32(p + _u32Bytes) == 0) return null; // ref word must exist
@@ -1483,8 +1447,7 @@ class _TypeBodyParser {
   /// trusted (it would fabricate names past the record). Reuses the full
   /// field grammar (sequence subprops serialize identically to typedef
   /// fields — twin-validated: valueflags match attribute-for-attribute).
-  List<BinaryTypeField> parseLeadingSubProps(
-      int at, int max, Set<String> groupNames) {
+  List<BinaryTypeField> parseLeadingSubProps(int at, int max, Set<String> groupNames) {
     _usedSpec = false;
     _depth = 0;
     final fields = <BinaryTypeField>[];
@@ -1569,9 +1532,7 @@ class _TypeBodyParser {
       return null;
     }
     final count = _u32(after + _u32Bytes);
-    var parsed = count > _typeMaxFields
-        ? null
-        : _fields(after + 2 * _u32Bytes, count);
+    var parsed = count > _typeMaxFields ? null : _fields(after + 2 * _u32Bytes, count);
     if (parsed == null && count >= 1 && count <= _typeMaxExtBlocks) {
       // EXTDATA-OPENER body (Error): `[0][extCount]{extdata blocks}
       // [subpropCount]{fields}` — the type-level marshalling blocks sit
@@ -1665,8 +1626,7 @@ class _TypeBodyParser {
         if (specBytes == 0) {
           var lead = at;
           if (lead < recordRegionLength && view.getUint8(lead) == 0) lead++;
-          if (lead + _u32Bytes <= recordRegionLength &&
-              _u32(lead) == _recordDelimiter) {
+          if (lead + _u32Bytes <= recordRegionLength && _u32(lead) == _recordDelimiter) {
             return null;
           }
         }
@@ -1734,13 +1694,7 @@ class _TypeBodyParser {
       if (childCount > _typeMaxFields) return null;
       final children = _fields(at + 5 * _u32Bytes, childCount);
       if (children == null) return null;
-      return (
-        BinaryTypeField(name,
-            className: 'Obj',
-            children: children.$1,
-            instanceOverrides: true),
-        children.$2
-      );
+      return (BinaryTypeField(name, className: 'Obj', children: children.$1, instanceOverrides: true), children.$2);
     }
 
     // Framed form: [flags|0x80][0][DELIM][X][name][value…][attrs…][0].
@@ -1773,9 +1727,7 @@ class _TypeBodyParser {
           return null;
         }
         final tail = _attrTail(next + 2 * _u32Bytes);
-        if (tail == null ||
-            tail >= recordRegionLength ||
-            view.getUint8(tail) != 0) {
+        if (tail == null || tail >= recordRegionLength || view.getUint8(tail) != 0) {
           return null;
         }
         // X here is NOT a table reference: Substeps carries X=2 while
@@ -1783,12 +1735,8 @@ class _TypeBodyParser {
         // type that is never serialized (the table has no such record).
         // X is surfaced as the undecoded intrinsic-type id.
         return (
-          BinaryTypeField(name,
-              className: 'Objs',
-              arrayLBound: '[0]',
-              arrayUBound: '[]',
-              intrinsicTypeId: x),
-          tail + 1
+          BinaryTypeField(name, className: 'Objs', arrayLBound: '[0]', arrayUBound: '[]', intrinsicTypeId: x),
+          tail + 1,
         );
       } else if (x >= 2 && !valued && x - 1 < table.length) {
         // Type table[X-1] (1-based, the same convention as step
@@ -1816,12 +1764,14 @@ class _TypeBodyParser {
           _inInstance = outerInstance;
           if (children != null) {
             return (
-              BinaryTypeField(name,
-                  className: ref.className ?? 'Obj',
-                  typeName: ref.name,
-                  children: children.$1,
-                  instanceOverrides: true),
-              children.$2
+              BinaryTypeField(
+                name,
+                className: ref.className ?? 'Obj',
+                typeName: ref.name,
+                children: children.$1,
+                instanceOverrides: true,
+              ),
+              children.$2,
             );
           }
         }
@@ -1853,9 +1803,7 @@ class _TypeBodyParser {
         // Attr words may precede the count (Action.Menu stores two
         // 0x80018 words) — scan past them, same as the X >= 2 form.
         var overrideCount = _u32(next);
-        for (var k = 0;
-            overrideCount > _typeMaxFields && k < _fieldMaxAttrWords;
-            k++) {
+        for (var k = 0; overrideCount > _typeMaxFields && k < _fieldMaxAttrWords; k++) {
           next += _u32Bytes;
           if (next + _u32Bytes > recordRegionLength) return null;
           overrideCount = _u32(next);
@@ -1867,23 +1815,13 @@ class _TypeBodyParser {
         final overrides = _fields(next, overrideCount);
         _inInstance = outer;
         if (overrides == null) return null;
-        return (
-          BinaryTypeField(name,
-              className: 'Obj',
-              children: overrides.$1,
-              instanceOverrides: true),
-          overrides.$2
-        );
+        return (BinaryTypeField(name, className: 'Obj', children: overrides.$1, instanceOverrides: true), overrides.$2);
       } else {
         return null;
       }
       final after = _attrTail(next);
       if (after == null) return null;
-      return (
-        BinaryTypeField(name,
-            className: className, typeName: typeName, value: value),
-        after
-      );
+      return (BinaryTypeField(name, className: className, typeName: typeName, value: value), after);
     }
 
     // FRAMED-LITE form: [flags][0][DELIM][name][value?][attrs…][0] — an
@@ -1906,11 +1844,7 @@ class _TypeBodyParser {
       }
       final after = _attrTail(next);
       if (after == null) return null;
-      return (
-        BinaryTypeField(name,
-            className: 'ExprValue', typeName: 'Expression', value: value),
-        after
-      );
+      return (BinaryTypeField(name, className: 'ExprValue', typeName: 'Expression', value: value), after);
     }
 
     // Plain form: [flags][0][cls][name][value-part][format?][extras…]
@@ -1931,8 +1865,7 @@ class _TypeBodyParser {
     // (Substep.TS's Result stores two 0x400000 attr words where its
     // flag bits promise one — bit arity is not reliable here either).
     if (!valued &&
-        !const {'Bool', 'Str', 'Num', 'Nums', 'Strs', 'Objs', 'ExprValue',
-            'PathValue'}.contains(className)) {
+        !const {'Bool', 'Str', 'Num', 'Nums', 'Strs', 'Objs', 'ExprValue', 'PathValue'}.contains(className)) {
       for (var k = 0; k <= _fieldMaxAttrWords; k++) {
         final countAt = next + k * _u32Bytes;
         if (countAt + _u32Bytes > recordRegionLength) break;
@@ -1940,11 +1873,7 @@ class _TypeBodyParser {
         if (childCount > _typeMaxFields) continue; // attr word
         final children = _fields(countAt + _u32Bytes, childCount);
         if (children == null) continue;
-        return (
-          BinaryTypeField(name,
-              className: className, children: children.$1),
-          children.$2
-        );
+        return (BinaryTypeField(name, className: className, children: children.$1), children.$2);
       }
       return null;
     }
@@ -1957,16 +1886,18 @@ class _TypeBodyParser {
       if (after == null) return null;
       if (!const {'Bool', 'Str', 'Num'}.contains(className)) return null;
       return (
-        BinaryTypeField(name,
-            className: className,
-            value: _inInstance
-                ? null
-                : switch (className) {
-                    'Bool' => 'false',
-                    'Num' => '0',
-                    _ => '',
-                  }),
-        after
+        BinaryTypeField(
+          name,
+          className: className,
+          value: _inInstance
+              ? null
+              : switch (className) {
+                  'Bool' => 'false',
+                  'Num' => '0',
+                  _ => '',
+                },
+        ),
+        after,
       );
     }
     // Array field: bound tokens `lbound ubound` then trail 0. Object
@@ -1992,24 +1923,15 @@ class _TypeBodyParser {
         }
         after += 1;
       }
-      return (
-        BinaryTypeField(name,
-            className: className, arrayLBound: lbound, arrayUBound: ubound),
-        after
-      );
+      return (BinaryTypeField(name, className: className, arrayLBound: lbound, arrayUBound: ubound), after);
     }
     switch (className) {
       case 'Str':
         final value = _tok(_u32(next));
         if (value == null) return null;
-        final after = hasExtData
-            ? _extTail(next + _u32Bytes)
-            : _attrTail(next + _u32Bytes);
+        final after = hasExtData ? _extTail(next + _u32Bytes) : _attrTail(next + _u32Bytes);
         if (after == null) return null;
-        return (
-          BinaryTypeField(name, className: 'Str', value: value),
-          after
-        );
+        return (BinaryTypeField(name, className: 'Str', value: value), after);
       case 'Bool':
         // A stored Bool is ONE byte (TEInf's StepFCSeqF=true measured:
         // [01][attr 0x4d0018][terminator]) — the same byte the instance
@@ -2017,21 +1939,15 @@ class _TypeBodyParser {
         // every validated stored Bool was false.
         final value = view.getUint8(next);
         if (value > 1) return null;
-        final after =
-            hasExtData ? _extTail(next + 1) : _attrTail(next + 1);
+        final after = hasExtData ? _extTail(next + 1) : _attrTail(next + 1);
         if (after == null) return null;
-        return (
-          BinaryTypeField(name,
-              className: 'Bool', value: value == 1 ? 'true' : 'false'),
-          after
-        );
+        return (BinaryTypeField(name, className: 'Bool', value: value == 1 ? 'true' : 'false'), after);
       case 'Num':
         if (next + 2 * _u32Bytes > recordRegionLength) return null;
         final value = view.getFloat64(next, Endian.little);
         next += 2 * _u32Bytes;
         if (hasFormat) {
-          if (next + _u32Bytes > recordRegionLength ||
-              _tok(_u32(next)) == null) {
+          if (next + _u32Bytes > recordRegionLength || _tok(_u32(next)) == null) {
             return null;
           }
           next += _u32Bytes; // display-format ref, e.g. '%#x'
@@ -2039,12 +1955,12 @@ class _TypeBodyParser {
         final after = hasExtData ? _extTail(next) : _attrTail(next);
         if (after == null) return null;
         return (
-          BinaryTypeField(name,
-              className: 'Num',
-              value: value == value.truncateToDouble() && value.abs() < 1e15
-                  ? '${value.truncate()}'
-                  : '$value'),
-          after
+          BinaryTypeField(
+            name,
+            className: 'Num',
+            value: value == value.truncateToDouble() && value.abs() < 1e15 ? '${value.truncate()}' : '$value',
+          ),
+          after,
         );
       default:
         return null;
@@ -2052,15 +1968,15 @@ class _TypeBodyParser {
   }
 }
 
-
 /// The decoded typed-model lenses of an **already-inflated** [body] in one
 /// shared frame+pool+table pass: the sequence outlines and the type-record
 /// heads. This is the single-scan path for `parseSeqFile` — calling the
 /// per-lens helpers separately would re-frame the layout, rebuild the
 /// ordered string pool, and rescan the type table once per lens. Both
 /// lenses read empty when the body does not frame.
-({List<BinarySequenceOutline> outlines, List<BinaryTypeRecord> typeRecords})
-    binaryOutlinesAndTypeRecordsFromBody(Uint8List body) {
+({List<BinarySequenceOutline> outlines, List<BinaryTypeRecord> typeRecords}) binaryOutlinesAndTypeRecordsFromBody(
+  Uint8List body,
+) {
   final recordRegionLength = _recordRegionBoundary(body);
   if (recordRegionLength == null) {
     return const (outlines: [], typeRecords: []);
@@ -2068,22 +1984,20 @@ class _TypeBodyParser {
   final pool = _orderedStringPool(body, recordRegionLength);
   final typeRecords = _typeRecordsFromBody(body, recordRegionLength, sharedPool: pool);
   return (
-    outlines: _sequenceOutlinesFromBody(body, recordRegionLength, pool,
-        [for (final record in typeRecords) record.name], typeRecords),
+    outlines: _sequenceOutlinesFromBody(body, recordRegionLength, pool, [
+      for (final record in typeRecords) record.name,
+    ], typeRecords),
     typeRecords: typeRecords,
   );
 }
 
-List<String> _typeNamesFromBody(Uint8List body, int recordRegionLength,
-        [List<String>? sharedPool]) =>
-    [
-      // Names come entirely from the head scan — skip the (expensive)
-      // second-pass body decode. This is the hot path for
-      // [binaryTypeNames] and the whole-corpus name sweep.
-      for (final record in _typeRecordsFromBody(body, recordRegionLength,
-          sharedPool: sharedPool, decodeBodies: false))
-        record.name,
-    ];
+List<String> _typeNamesFromBody(Uint8List body, int recordRegionLength, [List<String>? sharedPool]) => [
+  // Names come entirely from the head scan — skip the (expensive)
+  // second-pass body decode. This is the hot path for
+  // [binaryTypeNames] and the whole-corpus name sweep.
+  for (final record in _typeRecordsFromBody(body, recordRegionLength, sharedPool: sharedPool, decodeBodies: false))
+    record.name,
+];
 
 /// One decoded typedef FIELD — the binary form of an XML typedef subprop.
 ///
@@ -2099,16 +2013,18 @@ List<String> _typeNamesFromBody(Uint8List body, int recordRegionLength,
 /// leaves the WHOLE body undecoded (all-or-nothing — no partial trees,
 /// no fabrication).
 class BinaryTypeField {
-  const BinaryTypeField(this.name,
-      {this.className,
-      this.typeName,
-      this.value,
-      this.arrayLBound,
-      this.arrayUBound,
-      this.children = const [],
-      this.instanceOverrides = false,
-      this.elementSpecBytes,
-      this.intrinsicTypeId});
+  const BinaryTypeField(
+    this.name, {
+    this.className,
+    this.typeName,
+    this.value,
+    this.arrayLBound,
+    this.arrayUBound,
+    this.children = const [],
+    this.instanceOverrides = false,
+    this.elementSpecBytes,
+    this.intrinsicTypeId,
+  });
 
   /// The field name (`Code`, `ItemName`, …).
   final String name;
@@ -2178,33 +2094,31 @@ class BinaryTypeField {
   /// inline custom instance ([instanceOverrides] with no [typeName]). For
   /// these, [typeName] is legitimately absent (not a decode gap), so a
   /// twin comparison checks [className] rather than the typename.
-  bool get typeNameEngineIntrinsic =>
-      intrinsicTypeId != null || (instanceOverrides && typeName == null);
+  bool get typeNameEngineIntrinsic => intrinsicTypeId != null || (instanceOverrides && typeName == null);
 
   /// Whether this is a plain nested-object DECLARATION whose [children]
   /// are the full field list — as opposed to an override subset
   /// ([instanceOverrides]) or a typed reference ([typeName] set, no
   /// serialized children). Only these are descended one-for-one against
   /// a twin.
-  bool get isPlainDeclaration =>
-      children.isNotEmpty && !instanceOverrides && typeName == null;
+  bool get isPlainDeclaration => children.isNotEmpty && !instanceOverrides && typeName == null;
 
   /// Returns a copy with [elementSpecBytes] set — used when a trailing
   /// element-type spec is walked after the field's own encoding. A
   /// method (not a hand-copied constructor) so a newly added field can
   /// never be silently dropped in the copy.
   BinaryTypeField withElementSpecBytes(int bytes) => BinaryTypeField(
-        name,
-        className: className,
-        typeName: typeName,
-        value: value,
-        arrayLBound: arrayLBound,
-        arrayUBound: arrayUBound,
-        children: children,
-        instanceOverrides: instanceOverrides,
-        elementSpecBytes: bytes,
-        intrinsicTypeId: intrinsicTypeId,
-      );
+    name,
+    className: className,
+    typeName: typeName,
+    value: value,
+    arrayLBound: arrayLBound,
+    arrayUBound: arrayUBound,
+    children: children,
+    instanceOverrides: instanceOverrides,
+    elementSpecBytes: bytes,
+    intrinsicTypeId: intrinsicTypeId,
+  );
 }
 
 /// A decoded type record — the binary form of an XML typedef element.
@@ -2274,39 +2188,35 @@ class BinaryTypeRecord {
 
   int? get typeFlags => flags.isNotEmpty ? flags[0] : null;
   int? get flagsForInstances => flags.length > 2 ? flags[1] : null;
-  int? get instanceOverrideFlags => flags.length == 4
-      ? flags[2]
-      : (flags.length == 3 && typeCategory == 1 ? flags[2] : null);
+  int? get instanceOverrideFlags =>
+      flags.length == 4 ? flags[2] : (flags.length == 3 && typeCategory == 1 ? flags[2] : null);
   int? get valueFlags => switch (flags.length) {
-        2 => flags[1],
-        3 => typeCategory == 1 ? null : flags[2],
-        4 => flags[3],
-        _ => null,
-      };
+    2 => flags[1],
+    3 => typeCategory == 1 ? null : flags[2],
+    4 => flags[3],
+    _ => null,
+  };
 
   /// The head as XML-shaped attributes (same names/format the XML twin
   /// uses), for the synthesized typed model.
   Map<String, String> toAttributes() => {
-        'typecategory': '$typeCategory',
-        'timestamp': '$timestamp',
-        if (versions.isNotEmpty) 'typeversion': versions[0],
-        if (versions.length > 1) 'typelastmodversion': versions[1],
-        if (versions.length > 2) 'typeminprodversion': versions[2],
-        if (typeFlags != null) 'typeflags': '$typeFlags',
-        if (flagsForInstances != null)
-          'flagsforinstances': '$flagsForInstances',
-        if (instanceOverrideFlags != null)
-          'instanceoverrideflags': '$instanceOverrideFlags',
-        if (valueFlags != null) 'valueflags': '$valueFlags',
-      };
+    'typecategory': '$typeCategory',
+    'timestamp': '$timestamp',
+    if (versions.isNotEmpty) 'typeversion': versions[0],
+    if (versions.length > 1) 'typelastmodversion': versions[1],
+    if (versions.length > 2) 'typeminprodversion': versions[2],
+    if (typeFlags != null) 'typeflags': '$typeFlags',
+    if (flagsForInstances != null) 'flagsforinstances': '$flagsForInstances',
+    if (instanceOverrideFlags != null) 'instanceoverrideflags': '$instanceOverrideFlags',
+    if (valueFlags != null) 'valueflags': '$valueFlags',
+  };
 }
 
 /// The decoded type-record heads of a binary TOF1 file, in table order —
 /// see [BinaryTypeRecord] for the layout. Detection is IDENTICAL to
 /// [binaryTypeNames] (this is the same scan keeping the head fields), so
 /// the corpus-pinned table is shared.
-List<BinaryTypeRecord> binaryTypeRecords(Uint8List seqBytes) =>
-    _withLayout(seqBytes, _typeRecordsFromBody);
+List<BinaryTypeRecord> binaryTypeRecords(Uint8List seqBytes) => _withLayout(seqBytes, _typeRecordsFromBody);
 
 /// Defensive cap on a field's attr-word tail (three is the most any
 /// twin-validated field stores — ffi/iof/vf, e.g. TEInf.Links).
@@ -2328,11 +2238,13 @@ const _maxFieldDepth = 64;
 const _typeMaxFlagWords = 8;
 
 List<BinaryTypeRecord> _typeRecordsFromBody(
-    Uint8List body, int recordRegionLength,
-    {List<String>? sharedPool,
-    Map<String, int>? bodyOffsetsOut,
-    Map<String, int>? headOffsetsOut,
-    bool decodeBodies = true}) {
+  Uint8List body,
+  int recordRegionLength, {
+  List<String>? sharedPool,
+  Map<String, int>? bodyOffsetsOut,
+  Map<String, int>? headOffsetsOut,
+  bool decodeBodies = true,
+}) {
   final pool = sharedPool ?? _orderedStringPool(body, recordRegionLength);
   if (pool.isEmpty) return const [];
   final view = ByteData.sublistView(body);
@@ -2341,10 +2253,7 @@ List<BinaryTypeRecord> _typeRecordsFromBody(
   final records = <BinaryTypeRecord>[];
   final bodyOffsets = <int?>[];
   final headAts = <int>[];
-  String? tok(int word) =>
-      word > 0 && word < pool.length && pool[word].isNotEmpty
-          ? pool[word]
-          : null;
+  String? tok(int word) => word > 0 && word < pool.length && pool[word].isNotEmpty ? pool[word] : null;
   for (var at = 0; at + _typeRecordMinBytes <= recordRegionLength; at++) {
     final stamp = view.getUint32(at + _typeStampOffset, Endian.little);
     if (stamp < _typeStampMin || stamp > _typeStampMax) continue;
@@ -2354,19 +2263,15 @@ List<BinaryTypeRecord> _typeRecordsFromBody(
     if (name.isEmpty || !_typeNamePattern.hasMatch(name)) continue;
     int? tripleAt;
     for (final tripleStart in _typeVersionTripleStarts) {
-      if (at + tripleStart + _typeVersionTripleWords * _u32Bytes >
-          recordRegionLength) {
+      if (at + tripleStart + _typeVersionTripleWords * _u32Bytes > recordRegionLength) {
         continue;
       }
       var triple = true;
       for (var i = 0; i < _typeVersionTripleWords; i++) {
-        final word =
-            view.getUint32(at + tripleStart + i * _u32Bytes, Endian.little);
+        final word = view.getUint32(at + tripleStart + i * _u32Bytes, Endian.little);
         // Index 0 is padding/separator by this file's pool convention (see
         // poolAt) — a zero word must not count as a version reference.
-        if (word == 0 ||
-            word >= pool.length ||
-            !versionLike.hasMatch(pool[word])) {
+        if (word == 0 || word >= pool.length || !versionLike.hasMatch(pool[word])) {
           triple = false;
           break;
         }
@@ -2382,9 +2287,7 @@ List<BinaryTypeRecord> _typeRecordsFromBody(
     // corpus-pinned detection counts cannot shift: class word right before
     // the name, typecategory right after, flags after the triple up to the
     // record delimiter (trailing zeros dropped).
-    final className = at >= _u32Bytes
-        ? tok(view.getUint32(at - _u32Bytes, Endian.little))
-        : null;
+    final className = at >= _u32Bytes ? tok(view.getUint32(at - _u32Bytes, Endian.little)) : null;
     final typeCategory = view.getUint32(at + _u32Bytes, Endian.little);
     final versions = [
       for (var i = 0; i < _typeVersionTripleWords; i++)
@@ -2393,8 +2296,7 @@ List<BinaryTypeRecord> _typeRecordsFromBody(
     final flags = <int>[];
     var flagAt = at + tripleAt + _typeVersionTripleWords * _u32Bytes;
     var framed = false;
-    while (flagAt + _u32Bytes <= recordRegionLength &&
-        flags.length < _typeMaxFlagWords) {
+    while (flagAt + _u32Bytes <= recordRegionLength && flags.length < _typeMaxFlagWords) {
       final value = view.getUint32(flagAt, Endian.little);
       if (value == _recordDelimiter) {
         framed = true;
@@ -2413,14 +2315,16 @@ List<BinaryTypeRecord> _typeRecordsFromBody(
     } else {
       flags.clear(); // tail did not frame — report nothing, not guesses
     }
-    records.add(BinaryTypeRecord(
-      name: name,
-      className: className,
-      typeCategory: typeCategory,
-      timestamp: stamp,
-      versions: versions,
-      flags: flags,
-    ));
+    records.add(
+      BinaryTypeRecord(
+        name: name,
+        className: className,
+        typeCategory: typeCategory,
+        timestamp: stamp,
+        versions: versions,
+        flags: flags,
+      ),
+    );
     bodyOffsets.add(bodyAt);
     headAts.add(at);
     if (bodyAt != null) bodyOffsetsOut?[name] = bodyAt;
@@ -2440,11 +2344,8 @@ List<BinaryTypeRecord> _typeRecordsFromBody(
   for (var i = 0; i < result.length; i++) {
     final bodyAt = bodyOffsets[i];
     if (bodyAt == null) continue;
-    final boundary = i + 1 < headAts.length
-        ? headAts[i + 1] - _u32Bytes - _typeRecordPreambleBytes
-        : null;
-    final fields = _typeFieldsAt(
-        body, view, pool, bodyAt, recordRegionLength, result, boundary);
+    final boundary = i + 1 < headAts.length ? headAts[i + 1] - _u32Bytes - _typeRecordPreambleBytes : null;
+    final fields = _typeFieldsAt(body, view, pool, bodyAt, recordRegionLength, result, boundary);
     // A body region existed here (bodyAt != null); record whether it
     // decoded so consumers can tell "undecoded" from "declares nothing".
     result[i] = BinaryTypeRecord(
@@ -2467,8 +2368,7 @@ List<BinaryTypeRecord> _typeRecordsFromBody(
 /// consumed to, or the byte offset of the first field the grammar could
 /// not cover — the exact spot to point the prober at. Uses the
 /// production parser, so it can never disagree with the real decode.
-List<({String name, int headAt, int bodyAt, int? end, int? bail})>
-    binaryTypeBodyExtents(Uint8List seqBytes) {
+List<({String name, int headAt, int bodyAt, int? end, int? bail})> binaryTypeBodyExtents(Uint8List seqBytes) {
   final body = inflateBinaryBody(seqBytes);
   if (body == null) return const [];
   final recordRegionLength = _recordRegionBoundary(body);
@@ -2478,23 +2378,22 @@ List<({String name, int headAt, int bodyAt, int? end, int? bail})>
   final view = ByteData.sublistView(body);
   final bodyOffsets = <String, int>{};
   final headOffsets = <String, int>{};
-  final records = _typeRecordsFromBody(body, recordRegionLength,
-      sharedPool: pool,
-      bodyOffsetsOut: bodyOffsets,
-      headOffsetsOut: headOffsets);
-  final extents =
-      <({String name, int headAt, int bodyAt, int? end, int? bail})>[];
+  final records = _typeRecordsFromBody(
+    body,
+    recordRegionLength,
+    sharedPool: pool,
+    bodyOffsetsOut: bodyOffsets,
+    headOffsetsOut: headOffsets,
+  );
+  final extents = <({String name, int headAt, int bodyAt, int? end, int? bail})>[];
   for (var i = 0; i < records.length; i++) {
     final record = records[i];
     final bodyAt = bodyOffsets[record.name];
     if (bodyAt == null) continue;
     final boundary = i + 1 < records.length
-        ? (headOffsets[records[i + 1].name] ?? 0) -
-            _u32Bytes -
-            _typeRecordPreambleBytes
+        ? (headOffsets[records[i + 1].name] ?? 0) - _u32Bytes - _typeRecordPreambleBytes
         : null;
-    final parser = _TypeBodyParser(
-        view, pool, recordRegionLength, records, boundary);
+    final parser = _TypeBodyParser(view, pool, recordRegionLength, records, boundary);
     final ok = parser.parse(bodyAt) != null;
     extents.add((
       name: record.name,
@@ -2523,8 +2422,7 @@ const _stepExpressionKinds = {'Expression', 'ExprValue'};
 /// The minimum length + punctuation signature of a TestStand **unique-ID** string
 /// (e.g. `8;G6MnVLO732>8ODE2E3h4jDhR\`), the kind word of a normal placed step.
 /// Corpus-tuned to admit the ID charset while rejecting ordinary identifiers.
-bool _looksLikeUniqueId(String text) =>
-    text.length >= 15 && RegExp(r'[;\\<>^\]]').hasMatch(text);
+bool _looksLikeUniqueId(String text) => text.length >= 15 && RegExp(r'[;\\<>^\]]').hasMatch(text);
 
 /// The **step names** of a binary TOF1 file, recovered from the step references
 /// ([_stepToken] runs) in the record region. Returned in file order,
@@ -2544,8 +2442,7 @@ bool _looksLikeUniqueId(String text) =>
 /// decoded) — a name blocklist would be pattern-matching, not decoding, so the
 /// contamination is documented rather than masked. Returns `[]` when
 /// [seqBytes] is not an inflatable binary file or does not frame.
-List<String> binaryStepNames(Uint8List seqBytes) =>
-    _withLayout(seqBytes, _stepNamesFromBody);
+List<String> binaryStepNames(Uint8List seqBytes) => _withLayout(seqBytes, _stepNamesFromBody);
 
 List<String> _stepNamesFromBody(Uint8List body, int recordRegionLength) {
   final pool = _orderedStringPool(body, recordRegionLength);
@@ -2554,8 +2451,7 @@ List<String> _stepNamesFromBody(Uint8List body, int recordRegionLength) {
   if (stepToken < 0) return const [];
   final view = ByteData.sublistView(body);
   int wordAt(int at) => view.getUint32(at, Endian.little);
-  String? poolAt(int index) =>
-      index > 0 && index < pool.length && pool[index].isNotEmpty ? pool[index] : null;
+  String? poolAt(int index) => index > 0 && index < pool.length && pool[index].isNotEmpty ? pool[index] : null;
 
   // Step references are not 4-byte aligned (they pack at 2-byte record
   // boundaries), so scan every byte offset. Set-backed dedup keeps the scan
@@ -2608,12 +2504,14 @@ const _sequenceLeadingSubPropNames = {'Parameters', 'Locals'};
 /// oracle's `Update pin map` carries word 21 = type #20 `NI_UpdatePinMap`
 /// (1-based 21), while pool[21] happens to be `'ExprValue'`.
 class BinaryStepRef {
-  const BinaryStepRef(this.name,
-      {this.typeName,
-      this.viPath,
-      this.pythonModule,
-      this.pythonFunction,
-      this.tsSubProps = const []});
+  const BinaryStepRef(
+    this.name, {
+    this.typeName,
+    this.viPath,
+    this.pythonModule,
+    this.pythonFunction,
+    this.tsSubProps = const [],
+  });
 
   /// The step's display name.
   final String name;
@@ -2645,8 +2543,7 @@ class BinaryStepRef {
   final String? pythonFunction;
 
   @override
-  String toString() =>
-      'BinaryStepRef($name${typeName != null ? ': $typeName' : ''})';
+  String toString() => 'BinaryStepRef($name${typeName != null ? ': $typeName' : ''})';
 }
 
 class BinarySequenceOutline {
@@ -2698,10 +2595,12 @@ List<BinarySequenceOutline> binarySequenceOutlines(Uint8List seqBytes) =>
     _withLayout(seqBytes, _sequenceOutlinesFromBody);
 
 List<BinarySequenceOutline> _sequenceOutlinesFromBody(
-    Uint8List body, int recordRegionLength,
-    [List<String>? sharedPool,
-    List<String>? sharedTypeNames,
-    List<BinaryTypeRecord>? sharedTypeRecords]) {
+  Uint8List body,
+  int recordRegionLength, [
+  List<String>? sharedPool,
+  List<String>? sharedTypeNames,
+  List<BinaryTypeRecord>? sharedTypeRecords,
+]) {
   final pool = sharedPool ?? _orderedStringPool(body, recordRegionLength);
   if (pool.isEmpty) return const [];
   final view = ByteData.sublistView(body);
@@ -2729,20 +2628,14 @@ List<BinarySequenceOutline> _sequenceOutlinesFromBody(
   // 1-based TYPE-TABLE index (see BinaryStepRef) — detection still keys on
   // its pool-string shape (corpus-pinned, zero false positives), and the
   // type binds only when the index lands in the recovered table.
-  final typeNames =
-      sharedTypeNames ?? _typeNamesFromBody(body, recordRegionLength, pool);
+  final typeNames = sharedTypeNames ?? _typeNamesFromBody(body, recordRegionLength, pool);
   final stepToken = pool.indexOf(_stepToken);
   // First pass: detect references (offset, name, 1-based type index).
   final found = <(int, String, int)>[];
   int wordAt(int at) => view.getUint32(at, Endian.little);
-  String? poolAt(int index) =>
-      index > 0 && index < pool.length && pool[index].isNotEmpty
-          ? pool[index]
-          : null;
+  String? poolAt(int index) => index > 0 && index < pool.length && pool[index].isNotEmpty ? pool[index] : null;
   if (stepToken > 0) {
-    for (var at = 0;
-        at + (_stepNameWordGap + 2) * _u32Bytes <= recordRegionLength;
-        at++) {
+    for (var at = 0; at + (_stepNameWordGap + 2) * _u32Bytes <= recordRegionLength; at++) {
       if (wordAt(at) != stepToken) continue;
       final typeWord = wordAt(at + _u32Bytes);
       final kind = poolAt(typeWord);
@@ -2757,8 +2650,10 @@ List<BinarySequenceOutline> _sequenceOutlinesFromBody(
   // Second pass: each step's module fields from the name→value word pairs
   // in its span — this reference up to the next (or the region end). A
   // token may sit at several pool indices, so match against index SETS.
-  Set<int> indicesOf(String token) =>
-      {for (var i = 1; i < pool.length; i++) if (pool[i] == token) i};
+  Set<int> indicesOf(String token) => {
+    for (var i = 1; i < pool.length; i++)
+      if (pool[i] == token) i,
+  };
   final viPathIdx = indicesOf('VIPath');
   final modulePathIdx = indicesOf('ModulePath');
   final functionIdx = indicesOf('FunctionOrAttributeName');
@@ -2774,15 +2669,13 @@ List<BinarySequenceOutline> _sequenceOutlinesFromBody(
 
   // The type table (for any framed references the step's TS subprops
   // carry) — reuse the caller's when it already built one.
-  final table = sharedTypeRecords ??
-      _typeRecordsFromBody(body, recordRegionLength, sharedPool: pool);
+  final table = sharedTypeRecords ?? _typeRecordsFromBody(body, recordRegionLength, sharedPool: pool);
   final tsParser = _TypeBodyParser(view, pool, recordRegionLength, table);
 
   final steps = <(int, BinaryStepRef)>[];
   for (var i = 0; i < found.length; i++) {
     final (at, name, typeIndex) = found[i];
-    final spanEnd =
-        i + 1 < found.length ? found[i + 1].$1 : recordRegionLength;
+    final spanEnd = i + 1 < found.length ? found[i + 1].$1 : recordRegionLength;
     // The step's data descriptor node follows the four-word reference
     // (`[Step][kind][name][container]`): `[0][0][DELIM][TS][childCount]
     // [children…]`, which the field grammar decodes as a descriptor
@@ -2792,9 +2685,7 @@ List<BinarySequenceOutline> _sequenceOutlinesFromBody(
       at,
       BinaryStepRef(
         name,
-        typeName: typeIndex >= 0 && typeIndex < typeNames.length
-            ? typeNames[typeIndex]
-            : null,
+        typeName: typeIndex >= 0 && typeIndex < typeNames.length ? typeNames[typeIndex] : null,
         viPath: pairIn(at, spanEnd, viPathIdx),
         pythonModule: pairIn(at, spanEnd, modulePathIdx),
         pythonFunction: pairIn(at, spanEnd, functionIdx),
@@ -2842,14 +2733,13 @@ List<BinarySequenceOutline> _sequenceOutlinesFromBody(
   }
 
   // Sequence-record leading subprops (Parameters/Locals/…) per sequence.
-  final leading = _sequenceLeadingSubProps(
-      body, view, pool, recordRegionLength, table,
-      {for (final (_, name) in sequenceDecls) name});
+  final leading = _sequenceLeadingSubProps(body, view, pool, recordRegionLength, table, {
+    for (final (_, name) in sequenceDecls) name,
+  });
 
   // Post-group subprops (RecordResults, FailureAction, Requirements,
   // RTS) — the fields that follow the Main/Setup/Cleanup group arrays.
-  final tail = _sequenceTailSubProps(
-      view, pool, recordRegionLength, table, sequenceDecls);
+  final tail = _sequenceTailSubProps(view, pool, recordRegionLength, table, sequenceDecls);
 
   final seenNames = <String>{};
   return [
@@ -2879,18 +2769,20 @@ List<BinarySequenceOutline> _sequenceOutlinesFromBody(
 /// Each is validated against its expected shape ([_TailSubProp.accepts])
 /// so a coincidental anchor is rejected — never a positional guess.
 Map<String, List<BinaryTypeField>> _sequenceTailSubProps(
-    ByteData view,
-    List<String> pool,
-    int recordRegionLength,
-    List<BinaryTypeRecord> table,
-    List<(int, String)> sequenceDecls) {
+  ByteData view,
+  List<String> pool,
+  int recordRegionLength,
+  List<BinaryTypeRecord> table,
+  List<(int, String)> sequenceDecls,
+) {
   if (sequenceDecls.isEmpty) return const {};
   int u32(int at) => view.getUint32(at, Endian.little);
-  Set<int> indicesOf(String token) =>
-      {for (var i = 1; i < pool.length; i++) if (pool[i] == token) i};
+  Set<int> indicesOf(String token) => {
+    for (var i = 1; i < pool.length; i++)
+      if (pool[i] == token) i,
+  };
   final anchors = [
-    for (final spec in _tailSubProps)
-      (indicesOf(spec.name), indicesOf(spec.className), spec),
+    for (final spec in _tailSubProps) (indicesOf(spec.name), indicesOf(spec.className), spec),
   ];
   final sorted = [...sequenceDecls]..sort((a, b) => a.$1.compareTo(b.$1));
   String ownerOf(int offset) {
@@ -2933,27 +2825,24 @@ class _TailSubProp {
 /// shape gates. Scalars must carry a value; `Requirements` must hold a
 /// `Links` child; `RTS` must be an object with children.
 final _tailSubProps = <_TailSubProp>[
-  _TailSubProp('RecordResults', 'Bool',
-      (f) => f.name == 'RecordResults' && f.value != null),
-  _TailSubProp('FailureAction', 'Num',
-      (f) => f.name == 'FailureAction' && f.value != null),
+  _TailSubProp('RecordResults', 'Bool', (f) => f.name == 'RecordResults' && f.value != null),
+  _TailSubProp('FailureAction', 'Num', (f) => f.name == 'FailureAction' && f.value != null),
   _TailSubProp(
-      'Requirements',
-      'Obj',
-      (f) =>
-          f.name == 'Requirements' &&
-          f.className == 'Obj' &&
-          f.children.any((c) => c.name == 'Links' && c.className == 'Strs')),
-  _TailSubProp('RTS', 'Obj',
-      (f) => f.name == 'RTS' && f.className == 'Obj' && f.children.isNotEmpty),
+    'Requirements',
+    'Obj',
+    (f) =>
+        f.name == 'Requirements' &&
+        f.className == 'Obj' &&
+        f.children.any((c) => c.name == 'Links' && c.className == 'Strs'),
+  ),
+  _TailSubProp('RTS', 'Obj', (f) => f.name == 'RTS' && f.className == 'Obj' && f.children.isNotEmpty),
 ];
 
 /// Decodes a step's `TS` subprops from the step-data descriptor node at
 /// [at] (`[0][0][DELIM][TS][childCount][children…]`, immediately after
 /// the four-word step reference) — see [_TypeBodyParser.parseStepTs] for
 /// the full-node vs Id-only fallback and the honesty gates.
-List<BinaryTypeField> _stepTsSubProps(_TypeBodyParser parser, int at) =>
-    parser.parseStepTs(at);
+List<BinaryTypeField> _stepTsSubProps(_TypeBodyParser parser, int at) => parser.parseStepTs(at);
 
 /// Locates each sequence RECORD — `[Sequence][name][subpropCount]` — and
 /// decodes the subprops that precede its `Main` group array (Parameters,
@@ -2963,12 +2852,13 @@ List<BinaryTypeField> _stepTsSubProps(_TypeBodyParser parser, int at) =>
 /// the array-element DECLARATION (`[] / name / Objs / Seq / [i]`); it is
 /// the `Sequence`-classed object that carries the sequence's own fields.
 Map<String, List<BinaryTypeField>> _sequenceLeadingSubProps(
-    Uint8List body,
-    ByteData view,
-    List<String> pool,
-    int recordRegionLength,
-    List<BinaryTypeRecord> table,
-    Set<String> sequenceNames) {
+  Uint8List body,
+  ByteData view,
+  List<String> pool,
+  int recordRegionLength,
+  List<BinaryTypeRecord> table,
+  Set<String> sequenceNames,
+) {
   final sequenceToken = pool.indexOf('Sequence');
   if (sequenceToken <= 0) return const {};
   final nameIndices = <int, String>{
@@ -2979,16 +2869,13 @@ Map<String, List<BinaryTypeField>> _sequenceLeadingSubProps(
   int u32(int at) => view.getUint32(at, Endian.little);
   final result = <String, List<BinaryTypeField>>{};
   final parser = _TypeBodyParser(view, pool, recordRegionLength, table);
-  for (var at = 0;
-      at + 3 * _u32Bytes <= recordRegionLength;
-      at += 1) {
+  for (var at = 0; at + 3 * _u32Bytes <= recordRegionLength; at += 1) {
     if (u32(at) != sequenceToken) continue;
     final name = nameIndices[u32(at + _u32Bytes)];
     if (name == null || result.containsKey(name)) continue;
     final count = u32(at + 2 * _u32Bytes);
     if (count < 1 || count > _typeMaxFields) continue;
-    final decoded = parser.parseLeadingSubProps(
-        at + 3 * _u32Bytes, count, _stepGroupNames);
+    final decoded = parser.parseLeadingSubProps(at + 3 * _u32Bytes, count, _stepGroupNames);
     // Keep only the KNOWN pre-Main subprops (Parameters, Locals — the
     // only two the sequence layout places before the Main group array),
     // as a leading prefix. This is the honesty gate: it drops any field
@@ -3010,8 +2897,7 @@ Map<String, List<BinaryTypeField>> _sequenceLeadingSubProps(
 /// Whether [cur] is packed immediately after [prev] in a NUL-terminated string
 /// table — its offset is one byte (the single NUL) past the end of [prev]. The
 /// back-to-back single-NUL packing invariant every chain-walker keys on.
-bool _packedAfter(BinaryString prev, BinaryString cur) =>
-    cur.offset == prev.offset + prev.text.length + 1;
+bool _packedAfter(BinaryString prev, BinaryString cur) => cur.offset == prev.offset + prev.text.length + 1;
 
 /// Maximal chains of NUL-adjacent runs at/after [from], each of ≥[minChain].
 List<List<BinaryString>> _segmentsFrom(
@@ -3251,14 +3137,8 @@ BinaryAnalysis? analyzeBinary(Uint8List seqBytes) {
     stepReferences: _poolWhereFrom(segments, _isStepRef),
     expressions: _poolWhereFrom(segments, isBinaryExpression),
     quotedLiterals: _poolWhereFrom(segments, isBinaryQuotedLiteral),
-    namedScalars: layout == null
-        ? const []
-        : _namedScalarsFromBody(body, layout.recordRegionLength),
-    scalarDoubles: layout == null
-        ? const []
-        : _scalarDoublesFromBody(body, layout.recordRegionLength),
-    namedRecords: layout == null
-        ? const []
-        : _namedRecordsFromBody(body, layout.recordRegionLength),
+    namedScalars: layout == null ? const [] : _namedScalarsFromBody(body, layout.recordRegionLength),
+    scalarDoubles: layout == null ? const [] : _scalarDoublesFromBody(body, layout.recordRegionLength),
+    namedRecords: layout == null ? const [] : _namedRecordsFromBody(body, layout.recordRegionLength),
   );
 }

@@ -23,19 +23,13 @@ String _root() {
 /// Resolve [segs] (path after the root) from [p], emitting (node, concretePath).
 /// A `[]` segment matches every array element; a `*` segment matches every named
 /// child and substitutes the child's name into the reported path.
-List<(SeqProperty, String)> _resolve(
-    SeqProperty p, List<String> segs, String concrete) {
+List<(SeqProperty, String)> _resolve(SeqProperty p, List<String> segs, String concrete) {
   if (segs.isEmpty) return [(p, concrete)];
   final seg = segs.first, rest = segs.sublist(1);
   if (seg == '[]') {
-    return [
-      for (final e in p.array ?? const <SeqProperty>[])
-        ..._resolve(e, rest, '$concrete.[]')
-    ];
+    return [for (final e in p.array ?? const <SeqProperty>[]) ..._resolve(e, rest, '$concrete.[]')];
   } else if (seg == '*') {
-    return [
-      for (final c in p.subProps) ..._resolve(c, rest, '$concrete.${c.name}')
-    ];
+    return [for (final c in p.subProps) ..._resolve(c, rest, '$concrete.${c.name}')];
   } else {
     final c = p.prop(seg);
     return c != null ? _resolve(c, rest, '$concrete.$seg') : const [];
@@ -45,8 +39,8 @@ List<(SeqProperty, String)> _resolve(
 String _classLabel(SeqProperty p) => p.isArray
     ? 'Array[${p.array?.length ?? 0}]'
     : p.subProps.isNotEmpty
-        ? 'Container{${p.subProps.length}}'
-        : (p.className ?? '?');
+    ? 'Container{${p.subProps.length}}'
+    : (p.className ?? '?');
 
 void main(List<String> args) {
   if (args.isEmpty) {

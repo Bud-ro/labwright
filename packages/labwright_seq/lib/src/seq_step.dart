@@ -68,7 +68,6 @@ class Step {
   /// [limits] and [StepLimits.lowExpression]/[StepLimits.highExpression].
   bool? get usesComparisonExpression => _flagOf('UseCompExpr');
 
-
   /// For an array/For-Each iteration step: the subscript expression
   /// (`SubscriptExpr`) selecting the element, the integer offset (`Offset`), the
   /// iteration-type code (`IterationType`, verbatim), the local that restores the
@@ -90,7 +89,6 @@ class Step {
   String? get evaluatedArrayElementExpression => _scalarOf('EvaluatedArrayElementExpr');
   String? get evaluatedSubscriptExpression => _scalarOf('EvaluatedSubscriptExpr');
   String? get evaluatedOffsetExpression => _scalarOf('EvaluatedOffsetExpr');
-
 
   /// For a Wait (or timeout-bearing) step: the timeout expression (`TimeoutExpr`),
   /// whether the timeout is enabled (`TimeoutEnabled`), and whether a timeout
@@ -130,7 +128,6 @@ class Step {
   int? get dbCacheSize => _intOf('CacheSize');
   int? get dbMarshalOptionsCode => _intOf('MarshalOptions');
   int? get dbMaxRecordsToSelect => _intOf('MaxRecordsToSelect');
-
 
   /// For a Run/Wait step that references a sequence call by name: the referenced
   /// SequenceCall step's name (`SeqCallName`) and step-group index code
@@ -264,7 +261,8 @@ enum FlowKind {
   caseBlock('case'),
   end('end'),
   breakStmt('break'),
-  continueStmt('continue');
+  continueStmt('continue')
+  ;
 
   const FlowKind(this.label);
 
@@ -276,14 +274,14 @@ enum FlowKind {
   /// opens its own body — both are closed by their own `NI_Flow_End` (verified
   /// by opener/end balance across the corpus).
   bool get opensBlock => const {
-        ifBlock,
-        whileLoop,
-        doWhile,
-        forLoop,
-        forEach,
-        selectBlock,
-        caseBlock,
-      }.contains(this);
+    ifBlock,
+    whileLoop,
+    doWhile,
+    forLoop,
+    forEach,
+    selectBlock,
+    caseBlock,
+  }.contains(this);
 
   /// Whether this construct closes a block (`NI_Flow_End`).
   bool get closesBlock => this == end;
@@ -358,8 +356,7 @@ class FlowControl {
 
   /// Whether this is the default `Case` (`IsDefault`) — the fall-through arm of a
   /// `Select`; false/absent for an ordinary value case and for non-case kinds.
-  bool get isDefaultCase =>
-      kind == FlowKind.caseBlock && parseFlag(_node?.prop('IsDefault')?.scalar) == true;
+  bool get isDefaultCase => kind == FlowKind.caseBlock && parseFlag(_node?.prop('IsDefault')?.scalar) == true;
 
   /// A readable one-line header for the construct, e.g. `if (Locals.x > 0)`,
   /// `for (Locals.i = 0; Locals.i < N; Locals.i += 1)`,
@@ -370,16 +367,15 @@ class FlowControl {
     FlowKind.elseBlock => 'else',
     FlowKind.whileLoop => 'while (${condition ?? ''})',
     FlowKind.doWhile => 'do-while (${condition ?? ''})',
-    FlowKind.forLoop => 'for (${[
+    FlowKind.forLoop =>
+      'for (${[
         initialization,
         condition,
         increment,
       ].whereType<String>().join('; ')})',
-    FlowKind.forEach =>
-      'for each (${arrayElement ?? '?'} in ${arrayExpr ?? '?'})',
+    FlowKind.forEach => 'for each (${arrayElement ?? '?'} in ${arrayExpr ?? '?'})',
     FlowKind.selectBlock => 'select (${itemExpression ?? ''})',
-    FlowKind.caseBlock =>
-      isDefaultCase ? 'case (default)' : 'case (${itemExpression ?? ''})',
+    FlowKind.caseBlock => isDefaultCase ? 'case (default)' : 'case (${itemExpression ?? ''})',
     FlowKind.end => 'end',
     FlowKind.breakStmt => 'break',
     FlowKind.continueStmt => 'continue',
@@ -456,8 +452,7 @@ class StepResult {
   /// Whether this result holds any non-default value — true once a real run is
   /// recorded (status/report text set, or an error occurred). false for the
   /// compile-time default state seen in a sequence file.
-  bool get hasRecordedOutcome =>
-      status != null || reportText != null || errorOccurred == true;
+  bool get hasRecordedOutcome => status != null || reportText != null || errorOccurred == true;
 }
 
 /// A limit-test step's pass/fail criteria: the comparison operator and the
@@ -693,7 +688,6 @@ class StepSettings {
   /// not invented here (see the per-accessor docs for the option each selects).
   int? _int(String key) => int.tryParse(_scalar(key) ?? '');
 
-
   /// Whether the step type permits editing the step's code module
   /// (`CanEditCode`). null when unset. Part of TestStand's step-type permission
   /// set — `true` for ordinary steps.
@@ -710,9 +704,7 @@ class StepSettings {
 
   /// Whether the step's parameter "additional results" recording may be edited
   /// (`CanEditParameterAdditionalResults`). null when unset.
-  bool? get canEditParameterAdditionalResults =>
-      _bool('CanEditParameterAdditionalResults');
-
+  bool? get canEditParameterAdditionalResults => _bool('CanEditParameterAdditionalResults');
 
   /// Whether IVI switching is enabled for the step (`SwitchEnabled`) — the
   /// "use switching" toggle. null when unset; `false` is the common default.
@@ -747,7 +739,6 @@ class StepSettings {
   String? get routeGroupConnect => _scalar('RouteGroupConnect');
   String? get routeGroupDisconnect => _scalar('RouteGroupDisconnect');
 
-
   /// The batch-synchronization code (`BatchSyncOpt`) for the step under a batch
   /// process model (serial / parallel / one-thread-only). null when unset; raw
   /// NI code.
@@ -781,6 +772,5 @@ class StepSettings {
 
   /// The requirement-traceability links the step declares (`TS.Requirements.
   /// Links`). Empty when none.
-  List<String> get requirementLinks =>
-      scalarValues(_ts?.prop('Requirements')?.prop('Links'));
+  List<String> get requirementLinks => scalarValues(_ts?.prop('Requirements')?.prop('Links'));
 }

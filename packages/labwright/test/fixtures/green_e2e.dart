@@ -15,8 +15,7 @@ Future<void> main() async {
 
   test('rail comes up', requirement: 'REQ-1', () async {
     log('applying power');
-    expect(_railUp, isTrue,
-        reason: 'setup at the top of main ran before any body');
+    expect(_railUp, isTrue, reason: 'setup at the top of main ran before any body');
     expect(3.3, inInclusiveRange(3.0, 3.6));
     await expectLater(Future.value(42), completion(equals(42)));
   });

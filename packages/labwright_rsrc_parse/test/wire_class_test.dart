@@ -49,9 +49,13 @@ void main() {
     }
     expect(bdWires, greaterThan(100), reason: 'sample should contain wires');
     expect(fpWires, 0, reason: 'wires are a BD-only class (0 FP at discovery)');
-    expect(lineLike, withBounds,
-        reason: 'every wire bounds rect is a degenerate Manhattan run '
-            '($lineLike/$withBounds)');
+    expect(
+      lineLike,
+      withBounds,
+      reason:
+          'every wire bounds rect is a degenerate Manhattan run '
+          '($lineLike/$withBounds)',
+    );
     // ignore: avoid_print
     print('wire sample: $bdWires BD wires, $withBounds with bounds, all line-like');
   });

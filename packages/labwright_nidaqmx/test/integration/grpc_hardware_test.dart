@@ -40,15 +40,12 @@ void main() {
 
     test('moniker streaming returns the requested samples', () async {
       // gRPC finite is whole-chunk granular; assert we reached at least totalSamples.
-      final chunks = await daq
-          .readVoltageStream(ai!, rateHz: 1000, samplesPerChunk: 100, totalSamples: 500)
-          .toList();
+      final chunks = await daq.readVoltageStream(ai!, rateHz: 1000, samplesPerChunk: 100, totalSamples: 500).toList();
       expect(chunks.expand((c) => c).length, greaterThanOrEqualTo(500));
     });
 
     test('continuous moniker stream yields then cancels cleanly', () async {
-      final got =
-          await daq.readVoltageStream(ai!, rateHz: 1000, samplesPerChunk: 100).take(3).toList();
+      final got = await daq.readVoltageStream(ai!, rateHz: 1000, samplesPerChunk: 100).take(3).toList();
       expect(got, hasLength(3));
     });
 

@@ -24,9 +24,7 @@ void main() {
   final ai = Platform.environment['DAQMX_AI_CHANNEL'];
   final ao = Platform.environment['DAQMX_AO_CHANNEL'];
   final lib = Platform.environment['DAQMX_LIB'];
-  final skip = ai == null
-      ? 'set DAQMX_AI_CHANNEL (e.g. Dev1/ai0) to run FFI integration against real NI-DAQmx'
-      : null;
+  final skip = ai == null ? 'set DAQMX_AI_CHANNEL (e.g. Dev1/ai0) to run FFI integration against real NI-DAQmx' : null;
 
   group('FFI backend against a live NI-DAQmx runtime', () {
     late DaqmxApi daq;
@@ -42,23 +40,18 @@ void main() {
     });
 
     test('finite f64 stream returns exactly totalSamples', () async {
-      final chunks = await daq
-          .readVoltageStream(ai!, rateHz: 1000, samplesPerChunk: 100, totalSamples: 500)
-          .toList();
+      final chunks = await daq.readVoltageStream(ai!, rateHz: 1000, samplesPerChunk: 100, totalSamples: 500).toList();
       expect(chunks.expand((c) => c).length, 500);
     });
 
     test('raw i16 stream yields Int16List chunks', () async {
-      final chunks = await daq
-          .readRawI16Stream(ai!, rateHz: 1000, samplesPerChunk: 100, totalSamples: 300)
-          .toList();
+      final chunks = await daq.readRawI16Stream(ai!, rateHz: 1000, samplesPerChunk: 100, totalSamples: 300).toList();
       expect(chunks, everyElement(isA<Int16List>()));
       expect(chunks.expand((c) => c).length, greaterThanOrEqualTo(300));
     });
 
     test('continuous stream yields then cancels cleanly', () async {
-      final got =
-          await daq.readVoltageStream(ai!, rateHz: 1000, samplesPerChunk: 100).take(3).toList();
+      final got = await daq.readVoltageStream(ai!, rateHz: 1000, samplesPerChunk: 100).take(3).toList();
       expect(got, hasLength(3));
     });
 
@@ -69,8 +62,12 @@ void main() {
       );
     });
 
-    test('AO write round-trips (set DAQMX_AO_CHANNEL)', () async {
-      await daq.writeVoltage(ao!, 1.0);
-    }, skip: ao == null ? 'set DAQMX_AO_CHANNEL to exercise analog output' : null);
+    test(
+      'AO write round-trips (set DAQMX_AO_CHANNEL)',
+      () async {
+        await daq.writeVoltage(ao!, 1.0);
+      },
+      skip: ao == null ? 'set DAQMX_AO_CHANNEL to exercise analog output' : null,
+    );
   }, skip: skip);
 }

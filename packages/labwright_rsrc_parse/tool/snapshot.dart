@@ -38,12 +38,9 @@ void main(List<String> args) {
     stderr.writeln('corpus dir not found: ${dir.path}');
     exit(1);
   }
-  final vis = dir
-      .listSync(recursive: true)
-      .whereType<File>()
-      .where((f) => f.path.toLowerCase().endsWith('.vi'))
-      .toList()
-    ..sort((a, b) => a.path.compareTo(b.path));
+  final vis =
+      dir.listSync(recursive: true).whereType<File>().where((f) => f.path.toLowerCase().endsWith('.vi')).toList()
+        ..sort((a, b) => a.path.compareTo(b.path));
 
   final root = vis.isEmpty ? dir.path : _commonRoot(vis.map((f) => f.path));
   // Group VIs by their resource-block SET, so structurally-similar VIs cluster
@@ -81,7 +78,8 @@ void main(List<String> args) {
 
   // Pretty outer structure; each file record stays compact on one line and each
   // group's block list is one line — readable and diffable over the whole corpus.
-  const note = 'VIs grouped by resource-block set (structurally similar VIs '
+  const note =
+      'VIs grouped by resource-block set (structurally similar VIs '
       'cluster); each file records fp=front-panel and bd=block-diagram object '
       'counts. Regression guard only allows these to grow.';
   final buf = StringBuffer()
@@ -115,8 +113,10 @@ void main(List<String> args) {
     ..writeln('}');
   File('$base/snapshot.json').writeAsStringSync(buf.toString());
   final nFiles = files.values.fold<int>(0, (a, g) => a + g.length);
-  stdout.writeln('snapshot: $nFiles VIs in ${groupKeys.length} block-set groups · '
-      '${errors.length} errors');
+  stdout.writeln(
+    'snapshot: $nFiles VIs in ${groupKeys.length} block-set groups · '
+    '${errors.length} errors',
+  );
 }
 
 String _commonRoot(Iterable<String> paths) {

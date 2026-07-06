@@ -17,8 +17,7 @@ void main() {
   final bin = File('${rosetta.path}/OutputVoltage_BIN.seq');
   final xml = File('${rosetta.path}/OutputVoltage_XML.seq');
   if (!bin.existsSync() || !xml.existsSync()) {
-    test('binary parseSeqFile (skipped: Rosetta corpus not fetched)', () {},
-        skip: true);
+    test('binary parseSeqFile (skipped: Rosetta corpus not fetched)', () {}, skip: true);
     return;
   }
 
@@ -26,23 +25,20 @@ void main() {
   final xmlFile = parseSeqFile(xml.readAsBytesSync());
 
   test('binary parses to the same sequences as the content-exact XML twin', () {
-    expect(binFile.sequences.map((s) => s.name).toList(),
-        xmlFile.sequences.map((s) => s.name).toList());
+    expect(binFile.sequences.map((s) => s.name).toList(), xmlFile.sequences.map((s) => s.name).toList());
   });
 
   test('grouped, ordered step names match the XML twin exactly', () {
     for (var i = 0; i < xmlFile.sequences.length; i++) {
       final xs = xmlFile.sequences[i];
       final bs = binFile.sequences[i];
-      expect(bs.setup.map((s) => s.name).toList(),
-          xs.setup.map((s) => s.name).toList(),
-          reason: '${xs.name}.Setup');
-      expect(bs.main.map((s) => s.name).toList(),
-          xs.main.map((s) => s.name).toList(),
-          reason: '${xs.name}.Main');
-      expect(bs.cleanup.map((s) => s.name).toList(),
-          xs.cleanup.map((s) => s.name).toList(),
-          reason: '${xs.name}.Cleanup');
+      expect(bs.setup.map((s) => s.name).toList(), xs.setup.map((s) => s.name).toList(), reason: '${xs.name}.Setup');
+      expect(bs.main.map((s) => s.name).toList(), xs.main.map((s) => s.name).toList(), reason: '${xs.name}.Main');
+      expect(
+        bs.cleanup.map((s) => s.name).toList(),
+        xs.cleanup.map((s) => s.name).toList(),
+        reason: '${xs.name}.Cleanup',
+      );
     }
   });
 
@@ -56,32 +52,38 @@ void main() {
     expect(binFile.types.length, 25);
     final xmlText = xml.readAsStringSync();
     final twinTypeNames = <String>{
-      for (final m in RegExp(r"<([A-Za-z_][\w.\-]*)\b[^>]*\bisroottypedef='true'")
-          .allMatches(xmlText))
-        m.group(1)!,
-      for (final m
-          in RegExp(r"(?:typename|xsi:type)='([^']+)'").allMatches(xmlText))
-        m.group(1)!,
+      for (final m in RegExp(r"<([A-Za-z_][\w.\-]*)\b[^>]*\bisroottypedef='true'").allMatches(xmlText)) m.group(1)!,
+      for (final m in RegExp(r"(?:typename|xsi:type)='([^']+)'").allMatches(xmlText)) m.group(1)!,
     };
     for (final type in binFile.types) {
-      expect(twinTypeNames, contains(type.name),
-          reason: 'recovered type ${type.name} is not a typedef or typename '
-              'in the XML twin');
+      expect(
+        twinTypeNames,
+        contains(type.name),
+        reason:
+            'recovered type ${type.name} is not a typedef or typename '
+            'in the XML twin',
+      );
     }
-    expect(binFile.types.map((t) => t.name),
-        containsAll(['NI_Measurement', 'NI_UpdatePinMap', 'Action']),
-        reason: 'the step types used by this file must be among the names');
+    expect(
+      binFile.types.map((t) => t.name),
+      containsAll(['NI_Measurement', 'NI_UpdatePinMap', 'Action']),
+      reason: 'the step types used by this file must be among the names',
+    );
     // Sequence leading subprops (locals/parameters) ARE decoded now, from
     // the sequence record's field tree — they must equal the twin's, not
     // read fabricated-empty. (The oracle carries the implicit ResultList
     // local and no parameters.)
     for (var i = 0; i < xmlFile.sequences.length; i++) {
-      expect(binFile.sequences[i].locals.map((l) => l.name).toList(),
-          xmlFile.sequences[i].locals.map((l) => l.name).toList(),
-          reason: '${xmlFile.sequences[i].name}: locals');
-      expect(binFile.sequences[i].parameters.map((p) => p.name).toList(),
-          xmlFile.sequences[i].parameters.map((p) => p.name).toList(),
-          reason: '${xmlFile.sequences[i].name}: parameters');
+      expect(
+        binFile.sequences[i].locals.map((l) => l.name).toList(),
+        xmlFile.sequences[i].locals.map((l) => l.name).toList(),
+        reason: '${xmlFile.sequences[i].name}: locals',
+      );
+      expect(
+        binFile.sequences[i].parameters.map((p) => p.name).toList(),
+        xmlFile.sequences[i].parameters.map((p) => p.name).toList(),
+        reason: '${xmlFile.sequences[i].name}: parameters',
+      );
     }
   });
 
@@ -96,9 +98,11 @@ void main() {
       for (final group in StepGroup.values) {
         final xSteps = xs.stepsIn(group);
         final bSteps = bs.stepsIn(group);
-        expect(bSteps.map((s) => s.type).toList(),
-            xSteps.map((s) => s.type).toList(),
-            reason: '${xs.name}.${group.key} step types');
+        expect(
+          bSteps.map((s) => s.type).toList(),
+          xSteps.map((s) => s.type).toList(),
+          reason: '${xs.name}.${group.key} step types',
+        );
       }
     }
     // And concretely, the oracle's six steps:
@@ -124,19 +128,15 @@ void main() {
       final twin = twinByName[type.name];
       if (twin == null) continue; // step-stored typedefs live off-typelist
       compared++;
-      expect(type.className, twin.className,
-          reason: '${type.name}: classname');
+      expect(type.className, twin.className, reason: '${type.name}: classname');
       type.attributes.forEach((key, value) {
-        expect(value, twin.attributes[key],
-            reason: '${type.name}: attribute $key');
+        expect(value, twin.attributes[key], reason: '${type.name}: attribute $key');
       });
     }
-    expect(compared, greaterThanOrEqualTo(20),
-        reason: 'most recovered types are root typedefs in the twin');
+    expect(compared, greaterThanOrEqualTo(20), reason: 'most recovered types are root typedefs in the twin');
   });
 
-  test('typedef BODIES: every decoded field list matches the twin exactly',
-      () {
+  test('typedef BODIES: every decoded field list matches the twin exactly', () {
     // All-or-nothing per typedef: a body either decodes field-for-field
     // (name, class/type, scalar value, empty-array-ness) equal to the XML
     // twin's subprops, or stays empty. Nothing in between — no partial
@@ -150,22 +150,24 @@ void main() {
       // and intrinsically-typed arrays legitimately carry none
       // (engine-intrinsic types are not serialized in the file).
       if (got.typeName != null ||
-          (got.attributes[BinAttr.overrides] == null &&
-              got.attributes[BinAttr.intrinsic] == null)) {
+          (got.attributes[BinAttr.overrides] == null && got.attributes[BinAttr.intrinsic] == null)) {
         expect(got.typeName, want.typeName, reason: '$path: typename');
       }
       expect(got.scalar, want.scalar, reason: '$path: value');
-      expect(got.array == null, want.array == null,
-          reason: '$path: array-ness');
+      expect(got.array == null, want.array == null, reason: '$path: array-ness');
       // Honesty on arrays: a populated twin array must NOT be presented
       // as a decoded empty array — the binary marks it undecoded (the
       // element values ride in the undecoded element-spec blob). This
       // pins the anti-fabrication fix; a bare `array == null` check
       // could not see a populated array flattened to empty.
       if (want.array != null && want.array!.isNotEmpty) {
-        expect(got.attributes[BinAttr.arrayUndecoded], isNotNull,
-            reason: '$path: populated array must be marked undecoded, '
-                'not shown empty');
+        expect(
+          got.attributes[BinAttr.arrayUndecoded],
+          isNotNull,
+          reason:
+              '$path: populated array must be marked undecoded, '
+              'not shown empty',
+        );
       }
       if (got.attributes[BinAttr.overrides] == 'true') {
         // An inline custom instance serializes ONLY its overrides: every
@@ -176,18 +178,15 @@ void main() {
         final wantByName = {for (final w in want.subProps) w.name: w};
         for (final child in got.subProps) {
           final twinChild = wantByName[child.name];
-          expect(twinChild, isNotNull,
-              reason: '$path.${child.name}: override not in twin');
+          expect(twinChild, isNotNull, reason: '$path.${child.name}: override not in twin');
           // A null scalar inside an instance is a flags-only override —
           // the value is inherited from the type's default, which the
           // binary does not restate.
           if (child.scalar != null) {
-            expect(child.scalar, twinChild!.scalar,
-                reason: '$path.${child.name}: override value');
+            expect(child.scalar, twinChild!.scalar, reason: '$path.${child.name}: override value');
           }
         }
-        expect(got.subProps.length, lessThanOrEqualTo(want.subProps.length),
-            reason: '$path: overrides are a subset');
+        expect(got.subProps.length, lessThanOrEqualTo(want.subProps.length), reason: '$path: overrides are a subset');
         return;
       }
       // Nested object declarations (class 'Obj' or a class-name string)
@@ -197,13 +196,10 @@ void main() {
       // type's defaults, which is out of the file's content. The twin
       // arbitrates: a declaration whose twin has children must have
       // them all.
-      if (got.subProps.isNotEmpty ||
-          (got.typeName == null && want.subProps.isNotEmpty)) {
-        expect(got.subProps.length, want.subProps.length,
-            reason: '$path: child count');
+      if (got.subProps.isNotEmpty || (got.typeName == null && want.subProps.isNotEmpty)) {
+        expect(got.subProps.length, want.subProps.length, reason: '$path: child count');
         for (var i = 0; i < got.subProps.length; i++) {
-          compare('$path.${got.subProps[i].name}', got.subProps[i],
-              want.subProps[i]);
+          compare('$path.${got.subProps[i].name}', got.subProps[i], want.subProps[i]);
         }
       }
     }
@@ -213,21 +209,22 @@ void main() {
       final twin = twinByName[type.name];
       if (twin == null) continue;
       decoded++;
-      expect(type.subProps.length, twin.subProps.length,
-          reason: '${type.name}: field count');
+      expect(type.subProps.length, twin.subProps.length, reason: '${type.name}: field count');
       for (var i = 0; i < type.subProps.length; i++) {
-        compare('${type.name}.${twin.subProps[i].name}', type.subProps[i],
-            twin.subProps[i]);
+        compare('${type.name}.${twin.subProps[i].name}', type.subProps[i], twin.subProps[i]);
       }
     }
-    expect(decoded, greaterThanOrEqualTo(15),
-        reason: 'the covered grammar decodes a solid share of the oracle '
-            'typedefs at full recursive depth ($decoded decoded; 18 at '
-            'the current tier)');
+    expect(
+      decoded,
+      greaterThanOrEqualTo(15),
+      reason:
+          'the covered grammar decodes a solid share of the oracle '
+          'typedefs at full recursive depth ($decoded decoded; 18 at '
+          'the current tier)',
+    );
   });
 
-  test('sequence LOCALS/PARAMETERS match the twin (leading-subprop decode)',
-      () {
+  test('sequence LOCALS/PARAMETERS match the twin (leading-subprop decode)', () {
     // The sequence record's leading subprops (Parameters, Locals) decode
     // with the typedef field grammar and light up the typed
     // Sequence.locals/parameters lenses. Names, classes, and nested
@@ -235,12 +232,16 @@ void main() {
     for (var i = 0; i < xmlFile.sequences.length; i++) {
       final xs = xmlFile.sequences[i];
       final bs = binFile.sequences[i];
-      expect(bs.locals.map((l) => '${l.name}:${l.type}').toList(),
-          xs.locals.map((l) => '${l.name}:${l.type}').toList(),
-          reason: '${xs.name}: locals (name:type)');
-      expect(bs.parameters.map((p) => '${p.name}:${p.type}').toList(),
-          xs.parameters.map((p) => '${p.name}:${p.type}').toList(),
-          reason: '${xs.name}: parameters (name:type)');
+      expect(
+        bs.locals.map((l) => '${l.name}:${l.type}').toList(),
+        xs.locals.map((l) => '${l.name}:${l.type}').toList(),
+        reason: '${xs.name}: locals (name:type)',
+      );
+      expect(
+        bs.parameters.map((p) => '${p.name}:${p.type}').toList(),
+        xs.parameters.map((p) => '${p.name}:${p.type}').toList(),
+        reason: '${xs.name}: parameters (name:type)',
+      );
     }
     // Concretely, the oracle's sole sequence: one implicit ResultList
     // local, no parameters.
@@ -248,8 +249,7 @@ void main() {
     expect(binFile.sequences.single.parameters, isEmpty);
   });
 
-  test('post-group scalar subprops (RecordResults/FailureAction) match twin',
-      () {
+  test('post-group scalar subprops (RecordResults/FailureAction) match twin', () {
     // The scalar subprops after the Main/Setup/Cleanup group arrays,
     // anchor-located and single-field parsed: RecordResults (Bool) and
     // FailureAction (Num) must equal the XML twin's, sequence for
@@ -258,10 +258,8 @@ void main() {
     for (var i = 0; i < xmlFile.sequences.length; i++) {
       final xs = xmlFile.sequences[i];
       final bs = binFile.sequences[i];
-      expect(bs.recordsResults, xs.recordsResults,
-          reason: '${xs.name}: recordsResults');
-      expect(bs.failureActionCode, xs.failureActionCode,
-          reason: '${xs.name}: failureActionCode');
+      expect(bs.recordsResults, xs.recordsResults, reason: '${xs.name}: recordsResults');
+      expect(bs.failureActionCode, xs.failureActionCode, reason: '${xs.name}: failureActionCode');
     }
     // Concretely: the oracle records results and uses failure action 2.
     expect(binFile.sequences.single.recordsResults, isTrue);
@@ -275,23 +273,18 @@ void main() {
     for (var i = 0; i < xmlFile.sequences.length; i++) {
       final xs = xmlFile.sequences[i];
       final bs = binFile.sequences[i];
-      expect(bs.requirementLinks, xs.requirementLinks,
-          reason: '${xs.name}: requirementLinks');
-      expect(bs.runtimeSettings != null, xs.runtimeSettings != null,
-          reason: '${xs.name}: runtimeSettings presence');
+      expect(bs.requirementLinks, xs.requirementLinks, reason: '${xs.name}: requirementLinks');
+      expect(bs.runtimeSettings != null, xs.runtimeSettings != null, reason: '${xs.name}: runtimeSettings presence');
       // RTS children must equal the twin's name, class, AND value —
       // the decode is a plain Obj declaration, so every field is present
       // with its stored value.
       final bRts = bs.raw.prop('RTS');
       final xRts = xs.raw.prop('RTS');
       expect(
-          bRts?.subProps
-              .map((p) => '${p.name}:${p.className}=${p.scalar}')
-              .toList(),
-          xRts?.subProps
-              .map((p) => '${p.name}:${p.className}=${p.scalar}')
-              .toList(),
-          reason: '${xs.name}: RTS children (name:class=value)');
+        bRts?.subProps.map((p) => '${p.name}:${p.className}=${p.scalar}').toList(),
+        xRts?.subProps.map((p) => '${p.name}:${p.className}=${p.scalar}').toList(),
+        reason: '${xs.name}: RTS children (name:class=value)',
+      );
     }
     // Concretely: the oracle has no requirement links and a 15-field RTS
     // whose Priority and entry-point expressions decode exactly.
@@ -315,20 +308,16 @@ void main() {
       for (var j = 0; j < bSteps.length; j++) {
         final xTs = xSteps[j].raw.prop('TS');
         final bTs = bSteps[j].raw.prop('TS');
-        final decoded =
-            bTs?.subProps.where((p) => p.name != 'SData').toList() ??
-                const <SeqProperty>[];
+        final decoded = bTs?.subProps.where((p) => p.name != 'SData').toList() ?? const <SeqProperty>[];
         if (decoded.isEmpty) continue; // TS not decoded for this step
         final twinByName = {
           for (final p in xTs?.subProps ?? const <SeqProperty>[]) p.name: p,
         };
         for (final got in decoded) {
           final want = twinByName[got.name];
-          expect(want, isNotNull,
-              reason: '${bSteps[j].name}.TS.${got.name}: not in twin TS');
+          expect(want, isNotNull, reason: '${bSteps[j].name}.TS.${got.name}: not in twin TS');
           if (got.scalar != null) {
-            expect(got.scalar, want!.scalar,
-                reason: '${bSteps[j].name}.TS.${got.name}: value');
+            expect(got.scalar, want!.scalar, reason: '${bSteps[j].name}.TS.${got.name}: value');
           }
         }
       }
@@ -336,11 +325,8 @@ void main() {
     // Every step — measurement-type AND Action/Python — carries its
     // unique Id (the Action steps via the Id-only fallback, since their
     // TS also holds an inline module the full node parse can't cover).
-    String? idOf(Step s) => s.raw
-        .prop('TS')
-        ?.subProps
-        .firstWhere((p) => p.name == 'Id', orElse: () => SeqProperty(name: 'Id'))
-        .scalar;
+    String? idOf(Step s) =>
+        s.raw.prop('TS')?.subProps.firstWhere((p) => p.name == 'Id', orElse: () => SeqProperty(name: 'Id')).scalar;
     final ids = {for (final s in binFile.sequences.single.steps) s.name: idOf(s)};
     expect(ids, {
       'Update pin map': 'ID#:oWmczOOU7hGhxWDjK76h1B',
@@ -363,25 +349,19 @@ void main() {
       for (var j = 0; j < xs.length; j++) {
         final xm = xs[j].module;
         final bm = bs[j].module;
-        expect(bm.adapter, xm.adapter,
-            reason: '${xs[j].name}: adapter');
-        expect(bm.pythonModulePath, xm.pythonModulePath,
-            reason: '${xs[j].name}: python module path');
-        expect(bm.pythonFunction, xm.pythonFunction,
-            reason: '${xs[j].name}: python function');
+        expect(bm.adapter, xm.adapter, reason: '${xs[j].name}: adapter');
+        expect(bm.pythonModulePath, xm.pythonModulePath, reason: '${xs[j].name}: python module path');
+        expect(bm.pythonFunction, xm.pythonFunction, reason: '${xs[j].name}: python function');
       }
     }
     // Concretely: four Python calls, two module-less steps.
-    expect(
-        binFile.sequences.single.steps
-            .map((s) => s.module.pythonFunction ?? '-'),
-        [
-          '-',
-          'create_nidcpower_sessions',
-          'create_nivisa_dmm_sessions',
-          '-',
-          'destroy_nidcpower_sessions',
-          'destroy_nivisa_dmm_sessions',
-        ]);
+    expect(binFile.sequences.single.steps.map((s) => s.module.pythonFunction ?? '-'), [
+      '-',
+      'create_nidcpower_sessions',
+      'create_nivisa_dmm_sessions',
+      '-',
+      'destroy_nidcpower_sessions',
+      'destroy_nivisa_dmm_sessions',
+    ]);
   });
 }

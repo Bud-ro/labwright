@@ -32,9 +32,7 @@ Map<String, Set<String>> _xmlValues(String xml) {
 String _asXmlText(Object? value) {
   if (value is bool) return value ? 'true' : 'false';
   if (value is double) {
-    return value == value.truncateToDouble()
-        ? value.toInt().toString()
-        : value.toString();
+    return value == value.truncateToDouble() ? value.toInt().toString() : value.toString();
   }
   return (value ?? '').toString().replaceAll('"', '').trim();
 }
@@ -43,13 +41,11 @@ void main() {
   final bin = _rosetta('OutputVoltage_BIN.seq');
   final xml = _rosetta('OutputVoltage_XML.seq');
   if (bin == null || xml == null) {
-    test('binary property records (skipped: Rosetta corpus not fetched)', () {},
-        skip: true);
+    test('binary property records (skipped: Rosetta corpus not fetched)', () {}, skip: true);
     return;
   }
 
-  final records =
-      binaryPropertyRecords(bin.readAsBytesSync());
+  final records = binaryPropertyRecords(bin.readAsBytesSync());
   final xmlValues = _xmlValues(xml.readAsStringSync());
 
   test('decodes valued property records from the binary body', () {
@@ -66,14 +62,15 @@ void main() {
     // XML: names/types must be printable identifiers and no Num may be NaN/inf.
     final printable = RegExp(r'^[\x20-\x7e]+$');
     for (final record in records) {
-      expect(record.name, matches(printable),
-          reason: 'garbage name at offset ${record.offset}: ${record.name.codeUnits}');
-      expect(record.typeName, matches(printable),
-          reason: 'garbage type at offset ${record.offset}');
+      expect(
+        record.name,
+        matches(printable),
+        reason: 'garbage name at offset ${record.offset}: ${record.name.codeUnits}',
+      );
+      expect(record.typeName, matches(printable), reason: 'garbage type at offset ${record.offset}');
       final value = record.value;
       if (value is double) {
-        expect(value.isFinite, isTrue,
-            reason: 'non-finite Num for ${record.name} at ${record.offset}');
+        expect(value.isFinite, isTrue, reason: 'non-finite Num for ${record.name} at ${record.offset}');
       }
     }
   });
@@ -94,20 +91,24 @@ void main() {
       if (xmlForName.contains(_asXmlText(record.value))) {
         confirmed++;
       } else if (unmatched.length < 6) {
-        unmatched.add('${record.name}=${_asXmlText(record.value)} '
-            'not in {${xmlForName.join(', ')}}');
+        unmatched.add(
+          '${record.name}=${_asXmlText(record.value)} '
+          'not in {${xmlForName.join(', ')}}',
+        );
       }
     }
-    expect(checked, greaterThanOrEqualTo(8),
-        reason: 'the twin should share several checkable property names');
-    expect(confirmed, checked,
-        reason: 'every checkable decoded value must appear in the XML twin; '
-            'unmatched: ${unmatched.join(' | ')}');
+    expect(checked, greaterThanOrEqualTo(8), reason: 'the twin should share several checkable property names');
+    expect(
+      confirmed,
+      checked,
+      reason:
+          'every checkable decoded value must appear in the XML twin; '
+          'unmatched: ${unmatched.join(' | ')}',
+    );
   });
 
   test('specific TestStand defaults decode exactly (incl. a non-round double)', () {
-    Object? valueOf(String name) =>
-        records.where((r) => r.name == name && r.value != null).firstOrNull?.value;
+    Object? valueOf(String name) => records.where((r) => r.name == name && r.value != null).firstOrNull?.value;
     // Priority's default is a large non-round double NI's clean-bits scalar
     // heuristic would drop — the typed grammar recovers it.
     expect(valueOf('Priority'), 2953567917.0);

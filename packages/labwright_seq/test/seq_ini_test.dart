@@ -39,8 +39,7 @@ Main = Objs
 ''';
 
 void main() {
-  SeqFile parseIni(String ini) =>
-      parseSeqFile(Uint8List.fromList(latin1.encode(ini)));
+  SeqFile parseIni(String ini) => parseSeqFile(Uint8List.fromList(latin1.encode(ini)));
 
   group('parseIniSeq', () {
     final f = parseIniSeq(_ini);
@@ -67,8 +66,7 @@ void main() {
     test('exposes object names via %NAME (unquoted)', () {
       final data = f.sections.firstWhere((s) => s.isDef && s.path == 'SF');
       expect(data.name, 'Data');
-      final mainSeq =
-          f.sections.firstWhere((s) => s.isDef && s.path == 'SF.Seq[0]');
+      final mainSeq = f.sections.firstWhere((s) => s.isDef && s.path == 'SF.Seq[0]');
       expect(mainSeq.name, 'MainSequence');
     });
 
@@ -271,8 +269,7 @@ ViPath = "legacy.vi"
     expect(seq.main.single.type, 'Action');
   });
 
-  test('recognizes the older direct-ViPath LabVIEW adapter (no ViCall wrapper)',
-      () {
+  test('recognizes the older direct-ViPath LabVIEW adapter (no ViCall wrapper)', () {
     final sf = parseIni(objectsAliasIni);
     final module = sf.sequences.single.main.single.module;
     expect(module.adapter, SeqAdapter.labView);
@@ -321,10 +318,7 @@ Mode = "Skip"
     expect(ts.prop('Mode')?.instanceOverrideFlags, isNull);
     expect((ts.instanceOverrideFlags! >> 16) & 1, 1);
     expect(SeqProperty(name: 'x').instanceOverrideFlags, isNull);
-    expect(
-        SeqProperty(name: 'x', attributes: const {'%INSTOVRD': 'bad'})
-            .instanceOverrideFlags,
-        isNull);
+    expect(SeqProperty(name: 'x', attributes: const {'%INSTOVRD': 'bad'}).instanceOverrideFlags, isNull);
   });
 
   const flagsIni = '''
@@ -375,13 +369,8 @@ Mode = "Skip"
     final ts = sf.sequences.single.main.single.raw.prop('TS')!;
     expect(ts.propertyFlags, isNull);
     expect(SeqProperty(name: 'x').propertyFlags, isNull);
-    expect(
-        SeqProperty(name: 'x', attributes: const {'%FLG': 'oops'}).propertyFlags,
-        isNull);
-    expect(
-        SeqProperty(name: 'x', attributes: const {'%FLG': '4194304'})
-            .propertyFlags,
-        0x400000);
+    expect(SeqProperty(name: 'x', attributes: const {'%FLG': 'oops'}).propertyFlags, isNull);
+    expect(SeqProperty(name: 'x', attributes: const {'%FLG': '4194304'}).propertyFlags, 0x400000);
   });
 
   const loopIni = '''
@@ -1068,13 +1057,15 @@ Units = "V"
   });
 
   group('CallParameter.direction code mapping', () {
-    CallParameter withDirection(String? code) => CallParameter(SeqProperty(
-          name: 'arg',
-          subProps: [
-            SeqProperty(name: 'Name', scalar: 'arg'),
-            if (code != null) SeqProperty(name: 'Direction', scalar: code),
-          ],
-        ));
+    CallParameter withDirection(String? code) => CallParameter(
+      SeqProperty(
+        name: 'arg',
+        subProps: [
+          SeqProperty(name: 'Name', scalar: 'arg'),
+          if (code != null) SeqProperty(name: 'Direction', scalar: code),
+        ],
+      ),
+    );
 
     test('1/2/3 map to in/out/in-out', () {
       expect(withDirection('1').direction, 'in');
@@ -1135,7 +1126,8 @@ Count = "3"
     expect(out, contains('• Count : Num = 3'));
   });
 
-  String covIni(List<String> tsKeys) => '''
+  String covIni(List<String> tsKeys) =>
+      '''
 [__Header__]
 ProductName = "TestStand"
 Version = 354
@@ -1164,14 +1156,21 @@ ${tsKeys.map((k) => '$k = "v"').join('\n')}
 ''';
 
   int modeledFor(List<String> tsKeys) => measureCoverage(
-        parseIni(covIni(tsKeys)),
-      ).modeled;
+    parseIni(covIni(tsKeys)),
+  ).modeled;
 
   test('measureCoverage counts the loop/unload TS step-settings', () {
     final base = modeledFor(['Mode']);
     for (final k in [
-      'Id', 'UnloadOpt', 'LoopInitialize', 'LoopIncrement', 'LoopStatus', 'Icon',
-      'StepFCSeqF', 'IgnoreRTE', 'ResultOption',
+      'Id',
+      'UnloadOpt',
+      'LoopInitialize',
+      'LoopIncrement',
+      'LoopStatus',
+      'Icon',
+      'StepFCSeqF',
+      'IgnoreRTE',
+      'ResultOption',
     ]) {
       expect(modeledFor(['Mode', k]), base + 1, reason: '$k not counted');
     }
@@ -1184,7 +1183,8 @@ ${tsKeys.map((k) => '$k = "v"').join('\n')}
     expect(g.sequences.single.main.single.id, isNull);
   });
 
-  String boolIni(String key, String value) => '''
+  String boolIni(String key, String value) =>
+      '''
 [__Header__]
 ProductName = "TestStand"
 Version = 354
@@ -1224,7 +1224,8 @@ $key = "$value"
   });
 
   group('quoted-value escape decoding', () {
-    String preIni(String escaped) => '''
+    String preIni(String escaped) =>
+        '''
 [__Header__]
 ProductName = "TestStand"
 Version = 354
@@ -1252,8 +1253,7 @@ PreCond = ExprValue
 PreCond = "$escaped"
 ''';
 
-    StepSettings parse(String escaped) =>
-        parseIni(preIni(escaped)).sequences.single.main.single.settings;
+    StepSettings parse(String escaped) => parseIni(preIni(escaped)).sequences.single.main.single.settings;
 
     test(r'decodes \" to a literal double quote', () {
       expect(parse(r'Locals.M != \"S001\"').precondition, 'Locals.M != "S001"');

@@ -32,15 +32,10 @@ bool _sharesEndpoint(HeapRect a, HeapRect b) {
 
 void main(List<String> args) {
   final dir = Directory('${_corpusBase()}/vi');
-  final vis = dir
-      .listSync(recursive: true)
-      .whereType<File>()
-      .where((f) => f.path.toLowerCase().endsWith('.vi'))
-      .toList()
-    ..sort((a, b) => a.path.compareTo(b.path));
-  final sample = args.isNotEmpty
-      ? vis.where((f) => f.path.contains(args[0])).toList()
-      : vis;
+  final vis =
+      dir.listSync(recursive: true).whereType<File>().where((f) => f.path.toLowerCase().endsWith('.vi')).toList()
+        ..sort((a, b) => a.path.compareTo(b.path));
+  final sample = args.isNotEmpty ? vis.where((f) => f.path.contains(args[0])).toList() : vis;
 
   const objectHeaderLeads = {0x10, 0x11, 0x12};
   var wireObjects = 0;
@@ -127,11 +122,13 @@ void main(List<String> args) {
         for (final span in walkHeapBody(body).spans) {
           final lead = span.lead;
           final offset = span.offset;
-          final isGroupOpen = (objectHeaderLeads.contains(lead) || lead == 0x13) &&
+          final isGroupOpen =
+              (objectHeaderLeads.contains(lead) || lead == 0x13) &&
               offset + 4 <= body.length &&
               (body[offset + 3] == 0xfb || body[offset + 3] == 0xfe || body[offset + 3] == 0xfd);
           if (isGroupOpen) {
-            final isObject = objectHeaderLeads.contains(lead) &&
+            final isObject =
+                objectHeaderLeads.contains(lead) &&
                 offset + 9 <= body.length &&
                 body[offset + 2] == 0x02 &&
                 body[offset + 3] == 0xfe;

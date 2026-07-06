@@ -15,7 +15,6 @@ library;
 
 import 'dart:typed_data';
 
-
 /// A decoded legacy icon bitmap (always 32×32).
 class ViLegacyIcon {
   const ViLegacyIcon({required this.bpp, required this.pixels});
@@ -29,16 +28,15 @@ class ViLegacyIcon {
   /// Row-major 32×32 = 1024 pixel values. For 1 bpp these are 0/1 (mask); for
   /// 4/8 bpp they are palette indices (RGB mapping is future work).
   final List<int> pixels;
-
 }
 
 /// Bits-per-pixel for a legacy-icon tag, or null if not a legacy-icon tag.
 int? legacyIconBpp(String tag) => switch (tag) {
-      'icl8' => 8,
-      'icl4' => 4,
-      'ICON' => 1,
-      _ => null,
-    };
+  'icl8' => 8,
+  'icl4' => 4,
+  'ICON' => 1,
+  _ => null,
+};
 
 /// Decodes an `icl8`/`icl4`/`ICON` body into its 1024-pixel index grid. Returns
 /// null unless the buffer is the exact 32×32 size for [bpp]

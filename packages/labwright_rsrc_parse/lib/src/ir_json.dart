@@ -21,9 +21,9 @@ import 'ir.dart';
 /// orthogonal to `parentOid` and diverges from it ~72% of the time, so a
 /// consumer must not read it as the child list.
 Map<String, Object?> viDiagramToJson(ViDiagram d) => {
-      'sectionTag': d.sectionTag,
-      'objects': d.objects.map(_objectToJson).toList(),
-    };
+  'sectionTag': d.sectionTag,
+  'objects': d.objects.map(_objectToJson).toList(),
+};
 
 Map<String, Object?> _objectToJson(ViHeapObject object) {
   final cls = object.objectClass;
@@ -51,11 +51,11 @@ Map<String, Object?> _objectToJson(ViHeapObject object) {
 }
 
 Map<String, Object?> _rectToJson(HeapRect r) => {
-      'top': r.top,
-      'left': r.left,
-      'bottom': r.bottom,
-      'right': r.right,
-    };
+  'top': r.top,
+  'left': r.left,
+  'bottom': r.bottom,
+  'right': r.right,
+};
 
 /// Serializes a whole [ViModel] to a JSON-encodable map — the top-level IR
 /// artifact: schema version, VI identity (version/title/description), the
@@ -81,8 +81,10 @@ List<Map<String, Object?>>? _conpaneTerminals(ViModel m) {
 
 /// A terminal/cluster field rendered as its `{kind, name?}` JSON object — the
 /// shared shape used by both the connector-pane terminals and named-type members.
-Map<String, Object?> _termJson(ViType t, List<ViType> types) =>
-    {'kind': typeLabel(t, types), if (t.name != null) 'name': t.name};
+Map<String, Object?> _termJson(ViType t, List<ViType> types) => {
+  'kind': typeLabel(t, types),
+  if (t.name != null) 'name': t.name,
+};
 
 Map<String, Object?> viModelToJson(ViModel m) {
   final terminals = _conpaneTerminals(m);

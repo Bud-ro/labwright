@@ -11,12 +11,13 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 /// Usage: `dart run packages/labwright_rsrc_parse/tool/scan_vis.dart <dir>`
 void main(List<String> args) {
   final root = args.isEmpty ? '.' : args.first;
-  final files = Directory(root)
-      .listSync(recursive: true)
-      .whereType<File>()
-      .where((f) => const ['.vi', '.ctl', '.llb'].any(f.path.toLowerCase().endsWith))
-      .toList()
-    ..sort((a, b) => a.path.compareTo(b.path));
+  final files =
+      Directory(root)
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((f) => const ['.vi', '.ctl', '.llb'].any(f.path.toLowerCase().endsWith))
+          .toList()
+        ..sort((a, b) => a.path.compareTo(b.path));
 
   var parsed = 0, rejected = 0, crashed = 0;
   var withBD = 0, withFP = 0, withConnectorPane = 0, withSub = 0, named = 0;

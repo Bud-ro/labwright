@@ -33,7 +33,8 @@ enum TocFlag {
   interleaved(1 << 5),
 
   /// Everything after the ToC mask is big-endian.
-  bigEndian(1 << 6);
+  bigEndian(1 << 6)
+  ;
 
   const TocFlag(this.mask);
 

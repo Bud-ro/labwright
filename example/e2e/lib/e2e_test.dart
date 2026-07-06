@@ -37,8 +37,7 @@ class Unit {
   final String symbol;
 
   /// A limit of `nominal ± tolerance`.
-  Limit within(double nominal, double tolerance) =>
-      Limit(nominal - tolerance, nominal + tolerance, this);
+  Limit within(double nominal, double tolerance) => Limit(nominal - tolerance, nominal + tolerance, this);
 
   /// A limit of `[min, max]`, inclusive.
   Limit between(double min, double max) => Limit(min, max, this);
@@ -67,8 +66,7 @@ class Limit {
   bool accepts(double value) => value >= min && value <= max;
 
   // 3.3 - 0.1 is 3.1999999999999997; the log line should read 3.2.
-  static String _fmt(double v) =>
-      v.isFinite ? num.parse(v.toStringAsPrecision(10)).toString() : '$v';
+  static String _fmt(double v) => v.isFinite ? num.parse(v.toStringAsPrecision(10)).toString() : '$v';
 
   @override
   String toString() => '[${_fmt(min)}, ${_fmt(max)}] ${unit.symbol}';
@@ -122,14 +120,13 @@ class TestRecord {
   final List<Measurement> measurements;
 
   /// [Outcome.pass] iff every measurement met its limit.
-  Outcome get outcome =>
-      measurements.every((m) => m.inLimit) ? Outcome.pass : Outcome.fail;
+  Outcome get outcome => measurements.every((m) => m.inLimit) ? Outcome.pass : Outcome.fail;
 
   /// The distinct requirement ids this run covered.
   Set<String> get requirements => {
-        for (final m in measurements)
-          if (m.requirement != null) m.requirement!,
-      };
+    for (final m in measurements)
+      if (m.requirement != null) m.requirement!,
+  };
 
   /// Encodes the run as a single-segment TDMS file (one channel per
   /// measurement, grouped by phase). Round-trips through [TdmsReader].
@@ -147,11 +144,10 @@ class TestRecord {
           },
         ),
     ];
-    return (TdmsWriter()
-          ..writeSegment(
-            channels,
-            fileProperties: {'dutId': dutId, 'outcome': outcome.name},
-          ))
+    return (TdmsWriter()..writeSegment(
+          channels,
+          fileProperties: {'dutId': dutId, 'outcome': outcome.name},
+        ))
         .toBytes();
   }
 }
@@ -224,13 +220,16 @@ void e2eTest(
   test(description, requirements: requirements, () async {
     final record = await runDevice(dutId ?? description, body);
     for (final m in record.measurements) {
-      log('${m.phase} · ${m.name} = ${m.value} ${m.limit.unit.symbol}, '
-          'limit ${m.limit}${m.inLimit ? '' : ' — OUT'}');
+      log(
+        '${m.phase} · ${m.name} = ${m.value} ${m.limit.unit.symbol}, '
+        'limit ${m.limit}${m.inLimit ? '' : ' — OUT'}',
+      );
     }
     expect(
       record.outcome,
       Outcome.pass,
-      reason: 'readings: '
+      reason:
+          'readings: '
           '${record.measurements.map((m) => '${m.name}=${m.value}${m.inLimit ? '' : ' OUT'}').join(', ')}',
     );
     for (final req in requirements) {

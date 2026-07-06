@@ -37,15 +37,12 @@ class DataMonikerClient extends $grpc.Client {
     $0.MonikerList request, {
     $grpc.CallOptions? options,
   }) {
-    return $createStreamingCall(
-        _$streamRead, $async.Stream.fromIterable([request]),
-        options: options);
+    return $createStreamingCall(_$streamRead, $async.Stream.fromIterable([request]), options: options);
   }
 
   /// Negotiates a faster sideband transport (shared memory / sockets / RDMA) for the
   /// same monikers; returns where to connect.
-  $grpc.ResponseFuture<$0.BeginMonikerSidebandStreamResponse>
-      beginSidebandStream(
+  $grpc.ResponseFuture<$0.BeginMonikerSidebandStreamResponse> beginSidebandStream(
     $0.BeginMonikerSidebandStreamRequest request, {
     $grpc.CallOptions? options,
   }) {
@@ -54,17 +51,15 @@ class DataMonikerClient extends $grpc.Client {
 
   // method descriptors
 
-  static final _$streamRead =
-      $grpc.ClientMethod<$0.MonikerList, $0.MonikerReadResponse>(
-          '/ni.data_monikers.DataMoniker/StreamRead',
-          ($0.MonikerList value) => value.writeToBuffer(),
-          $0.MonikerReadResponse.fromBuffer);
-  static final _$beginSidebandStream = $grpc.ClientMethod<
-          $0.BeginMonikerSidebandStreamRequest,
-          $0.BeginMonikerSidebandStreamResponse>(
-      '/ni.data_monikers.DataMoniker/BeginSidebandStream',
-      ($0.BeginMonikerSidebandStreamRequest value) => value.writeToBuffer(),
-      $0.BeginMonikerSidebandStreamResponse.fromBuffer);
+  static final _$streamRead = $grpc.ClientMethod<$0.MonikerList, $0.MonikerReadResponse>(
+      '/ni.data_monikers.DataMoniker/StreamRead',
+      ($0.MonikerList value) => value.writeToBuffer(),
+      $0.MonikerReadResponse.fromBuffer);
+  static final _$beginSidebandStream =
+      $grpc.ClientMethod<$0.BeginMonikerSidebandStreamRequest, $0.BeginMonikerSidebandStreamResponse>(
+          '/ni.data_monikers.DataMoniker/BeginSidebandStream',
+          ($0.BeginMonikerSidebandStreamRequest value) => value.writeToBuffer(),
+          $0.BeginMonikerSidebandStreamResponse.fromBuffer);
 }
 
 @$pb.GrpcServiceName('ni.data_monikers.DataMoniker')
@@ -79,16 +74,13 @@ abstract class DataMonikerServiceBase extends $grpc.Service {
         true,
         ($core.List<$core.int> value) => $0.MonikerList.fromBuffer(value),
         ($0.MonikerReadResponse value) => value.writeToBuffer()));
-    $addMethod($grpc.ServiceMethod<$0.BeginMonikerSidebandStreamRequest,
-            $0.BeginMonikerSidebandStreamResponse>(
+    $addMethod($grpc.ServiceMethod<$0.BeginMonikerSidebandStreamRequest, $0.BeginMonikerSidebandStreamResponse>(
         'BeginSidebandStream',
         beginSidebandStream_Pre,
         false,
         false,
-        ($core.List<$core.int> value) =>
-            $0.BeginMonikerSidebandStreamRequest.fromBuffer(value),
-        ($0.BeginMonikerSidebandStreamResponse value) =>
-            value.writeToBuffer()));
+        ($core.List<$core.int> value) => $0.BeginMonikerSidebandStreamRequest.fromBuffer(value),
+        ($0.BeginMonikerSidebandStreamResponse value) => value.writeToBuffer()));
   }
 
   $async.Stream<$0.MonikerReadResponse> streamRead_Pre(
@@ -96,12 +88,10 @@ abstract class DataMonikerServiceBase extends $grpc.Service {
     yield* streamRead($call, await $request);
   }
 
-  $async.Stream<$0.MonikerReadResponse> streamRead(
-      $grpc.ServiceCall call, $0.MonikerList request);
+  $async.Stream<$0.MonikerReadResponse> streamRead($grpc.ServiceCall call, $0.MonikerList request);
 
   $async.Future<$0.BeginMonikerSidebandStreamResponse> beginSidebandStream_Pre(
-      $grpc.ServiceCall $call,
-      $async.Future<$0.BeginMonikerSidebandStreamRequest> $request) async {
+      $grpc.ServiceCall $call, $async.Future<$0.BeginMonikerSidebandStreamRequest> $request) async {
     return beginSidebandStream($call, await $request);
   }
 

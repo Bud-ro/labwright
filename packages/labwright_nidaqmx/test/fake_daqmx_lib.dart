@@ -59,15 +59,13 @@ class FakeDaqmxProbe {
   int get lastAiTerm => _i('fake_last_ai_term');
   int get lastAiUnits => _i('fake_last_ai_units');
   String get lastChannel =>
-      _lib.lookupFunction<Pointer<Utf8> Function(), Pointer<Utf8> Function()>('fake_last_chan')()
-          .toDartString();
+      _lib.lookupFunction<Pointer<Utf8> Function(), Pointer<Utf8> Function()>('fake_last_chan')().toDartString();
   double get lastWriteValue => _d('fake_last_write_value');
   double get lastWriteTimeout => _d('fake_last_write_timeout');
   int get lastWriteAutoStart => _i('fake_last_write_autostart');
   double get lastRate => _d('fake_last_rate');
   int get lastSampleMode => _i('fake_last_sample_mode');
-  int get lastInputBuffer =>
-      _lib.lookupFunction<Uint32 Function(), int Function()>('fake_last_input_buffer')();
+  int get lastInputBuffer => _lib.lookupFunction<Uint32 Function(), int Function()>('fake_last_input_buffer')();
 
   double _d(String s) => _lib.lookupFunction<Double Function(), double Function()>(s)();
   int _i(String s) => _lib.lookupFunction<Int32 Function(), int Function()>(s)();

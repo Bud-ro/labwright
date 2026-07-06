@@ -37,8 +37,11 @@ const _structuralTokens = {
 /// OutputVoltage pair is content-exact). Skips when the corpus is not fetched.
 void main() {
   if (!corpusSeqDir.existsSync()) {
-    test('binary type names (skipped: corpus not fetched)', () {},
-        skip: 'corpus absent — run tool/fetch_seq_corpus.dart');
+    test(
+      'binary type names (skipped: corpus not fetched)',
+      () {},
+      skip: 'corpus absent — run tool/fetch_seq_corpus.dart',
+    );
     return;
   }
 
@@ -55,17 +58,17 @@ void main() {
     // the class still must match.
     final intrinsic = got.typeNameEngineIntrinsic;
     expect(
-        intrinsic ? got.className : got.typeName ?? got.className,
-        intrinsic ? want.className : want.typeName ?? want.className,
-        reason: '$path.${got.name}: class/type');
+      intrinsic ? got.className : got.typeName ?? got.className,
+      intrinsic ? want.className : want.typeName ?? want.className,
+      reason: '$path.${got.name}: class/type',
+    );
     expect(got.value, want.scalar, reason: '$path.${got.name}: value');
     // Recurse only into plain declarations: children present, not an
     // override subset, not a typed reference. Then the twin's children
     // must match one-for-one — catches swapped/dropped/fabricated
     // grandchildren the old top-level-only check missed.
     if (got.isPlainDeclaration) {
-      expect(got.children.length, want.subProps.length,
-          reason: '$path.${got.name}: child count');
+      expect(got.children.length, want.subProps.length, reason: '$path.${got.name}: child count');
       for (var i = 0; i < got.children.length; i++) {
         compareField('$path.${got.name}', got.children[i], want.subProps[i]);
       }
@@ -82,13 +85,9 @@ void main() {
     // pair is content-exact — the parse test pins those bytes too).
     final rosetta = Directory('${corpusSeqDir.path}/rosetta');
     var pairs = 0, compared = 0, decodedBodies = 0;
-    for (final bin in rosetta
-        .listSync()
-        .whereType<File>()
-        .where((f) => f.path.endsWith('_BIN.seq'))) {
+    for (final bin in rosetta.listSync().whereType<File>().where((f) => f.path.endsWith('_BIN.seq'))) {
       final name = bin.uri.pathSegments.last;
-      final prefix =
-          name.replaceAll('_labview_BIN.seq', '').replaceAll('_BIN.seq', '');
+      final prefix = name.replaceAll('_labview_BIN.seq', '').replaceAll('_BIN.seq', '');
       File? twin;
       for (final suffix in ['_python_XML.seq', '_XML.seq', '_python.seq']) {
         final f = File('${rosetta.path}/$prefix$suffix');
@@ -112,47 +111,51 @@ void main() {
         final fields = record.fields;
         if (fields != null && fields.isNotEmpty) {
           decodedBodies++;
-          expect(fields.length, expected.subProps.length,
-              reason: '$name ${record.name}: field count');
+          expect(fields.length, expected.subProps.length, reason: '$name ${record.name}: field count');
           for (var i = 0; i < fields.length; i++) {
-            compareField('$name ${record.name}', fields[i],
-                expected.subProps[i]);
+            compareField('$name ${record.name}', fields[i], expected.subProps[i]);
           }
         }
-        expect(record.className, expected.className,
-            reason: '$name ${record.name}: classname');
+        expect(record.className, expected.className, reason: '$name ${record.name}: classname');
         const saveDependent = {
-          'timestamp', 'typeversion', 'typelastmodversion',
+          'timestamp',
+          'typeversion',
+          'typelastmodversion',
           'typeminprodversion',
         };
         record.toAttributes().forEach((key, value) {
           if (saveDependent.contains(key)) return;
-          expect(value, expected.attributes[key],
-              reason: '$name ${record.name}: attribute $key');
+          expect(value, expected.attributes[key], reason: '$name ${record.name}: attribute $key');
         });
       }
     }
     // ignore: avoid_print
-    print('type-record heads: $compared typedefs matched across $pairs '
-        'twin pairs · $decodedBodies bodies decoded field-for-field');
+    print(
+      'type-record heads: $compared typedefs matched across $pairs '
+      'twin pairs · $decodedBodies bodies decoded field-for-field',
+    );
     expect(pairs, greaterThanOrEqualTo(5));
-    expect(compared, greaterThanOrEqualTo(100),
-        reason: 'the rosetta twins carry hundreds of comparable typedefs');
-    expect(decodedBodies, greaterThanOrEqualTo(90),
-        reason: 'the covered body grammar decodes a solid share '
-            '($decodedBodies bodies; 93 at the extdata tier — every '
-            'twinned typedef decodes)');
+    expect(compared, greaterThanOrEqualTo(100), reason: 'the rosetta twins carry hundreds of comparable typedefs');
+    expect(
+      decodedBodies,
+      greaterThanOrEqualTo(90),
+      reason:
+          'the covered body grammar decodes a solid share '
+          '($decodedBodies bodies; 93 at the extdata tier — every '
+          'twinned typedef decodes)',
+    );
   });
 
   test('whole-corpus sweep: no structural tokens, recovery floors hold', () {
     var binaries = 0, withNames = 0, totalNames = 0;
     final offenders = <String>[];
-    final files = corpusSeqDir
-        .listSync(recursive: true)
-        .whereType<File>()
-        .where((f) => f.path.toLowerCase().endsWith('.seq'))
-        .toList()
-      ..sort((a, b) => a.path.compareTo(b.path));
+    final files =
+        corpusSeqDir
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((f) => f.path.toLowerCase().endsWith('.seq'))
+            .toList()
+          ..sort((a, b) => a.path.compareTo(b.path));
     for (final f in files) {
       final bytes = f.readAsBytesSync();
       if (detectSeqFormat(bytes) != SeqFormat.binary) continue;
@@ -167,16 +170,20 @@ void main() {
       }
     }
     // ignore: avoid_print
-    print('binary type names: $withNames/$binaries files yield names · '
-        '$totalNames names total');
-    expect(offenders, isEmpty,
-        reason: 'structural token recovered as a type name:\n'
-            '${offenders.take(5).join('\n')}');
+    print(
+      'binary type names: $withNames/$binaries files yield names · '
+      '$totalNames names total',
+    );
+    expect(
+      offenders,
+      isEmpty,
+      reason:
+          'structural token recovered as a type name:\n'
+          '${offenders.take(5).join('\n')}',
+    );
     expect(binaries, 294, reason: 'binary corpus count drifted');
-    expect(withNames, greaterThanOrEqualTo(280),
-        reason: 'type-name recovery regressed ($withNames files)');
-    expect(totalNames, greaterThanOrEqualTo(7000),
-        reason: 'type-name recovery regressed ($totalNames names)');
+    expect(withNames, greaterThanOrEqualTo(280), reason: 'type-name recovery regressed ($withNames files)');
+    expect(totalNames, greaterThanOrEqualTo(7000), reason: 'type-name recovery regressed ($totalNames names)');
   });
 
   test('whole-corpus sweep: sequence leading subprops never fabricate', () {
@@ -186,10 +193,11 @@ void main() {
     // over the whole corpus, not just the twinned pairs.
     var withLeading = 0, total = 0;
     final offenders = <String>[];
-    for (final f in corpusSeqDir
-        .listSync(recursive: true)
-        .whereType<File>()
-        .where((f) => f.path.toLowerCase().endsWith('.seq'))) {
+    for (final f
+        in corpusSeqDir
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((f) => f.path.toLowerCase().endsWith('.seq'))) {
       final bytes = f.readAsBytesSync();
       if (detectSeqFormat(bytes) != SeqFormat.binary) continue;
       for (final outline in binarySequenceOutlines(bytes)) {
@@ -204,26 +212,39 @@ void main() {
     }
     // ignore: avoid_print
     print('sequence leading subprops: $total across $withLeading sequences');
-    expect(offenders, isEmpty,
-        reason: 'non-leading subprop name emitted:\n'
-            '${offenders.take(5).join('\n')}');
-    expect(withLeading, greaterThanOrEqualTo(80),
-        reason: 'leading-subprop recovery regressed ($withLeading)');
+    expect(
+      offenders,
+      isEmpty,
+      reason:
+          'non-leading subprop name emitted:\n'
+          '${offenders.take(5).join('\n')}',
+    );
+    expect(withLeading, greaterThanOrEqualTo(80), reason: 'leading-subprop recovery regressed ($withLeading)');
   });
 
   test('whole-corpus sweep: step TS subprops never fabricate', () {
     // The per-step TS decode must never emit a structural token as a
     // subprop name — the honesty gate over the whole corpus.
     const structural = {
-      'SequenceFileData', 'Data', 'Seq', 'Objs', 'Obj', 'Step',
-      'Sequence', 'Setup', 'Main', 'Cleanup', 'TS',
+      'SequenceFileData',
+      'Data',
+      'Seq',
+      'Objs',
+      'Obj',
+      'Step',
+      'Sequence',
+      'Setup',
+      'Main',
+      'Cleanup',
+      'TS',
     };
     var withTs = 0, total = 0;
     final offenders = <String>[];
-    for (final f in corpusSeqDir
-        .listSync(recursive: true)
-        .whereType<File>()
-        .where((f) => f.path.toLowerCase().endsWith('.seq'))) {
+    for (final f
+        in corpusSeqDir
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((f) => f.path.toLowerCase().endsWith('.seq'))) {
       final bytes = f.readAsBytesSync();
       if (detectSeqFormat(bytes) != SeqFormat.binary) continue;
       for (final outline in binarySequenceOutlines(bytes)) {
@@ -245,9 +266,13 @@ void main() {
     }
     // ignore: avoid_print
     print('step TS subprops: $total across $withTs steps');
-    expect(offenders, isEmpty,
-        reason: 'structural token emitted as a TS subprop:\n'
-            '${offenders.take(5).join('\n')}');
+    expect(
+      offenders,
+      isEmpty,
+      reason:
+          'structural token emitted as a TS subprop:\n'
+          '${offenders.take(5).join('\n')}',
+    );
   });
 
   test('whole-corpus sweep: post-group scalar subprops never fabricate', () {
@@ -255,10 +280,11 @@ void main() {
     // as an integer Num — the honesty gate over the whole corpus.
     var withRr = 0, withFa = 0;
     final offenders = <String>[];
-    for (final f in corpusSeqDir
-        .listSync(recursive: true)
-        .whereType<File>()
-        .where((f) => f.path.toLowerCase().endsWith('.seq'))) {
+    for (final f
+        in corpusSeqDir
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((f) => f.path.toLowerCase().endsWith('.seq'))) {
       final bytes = f.readAsBytesSync();
       if (detectSeqFormat(bytes) != SeqFormat.binary) continue;
       for (final s in parseSeqFile(bytes).sequences) {
@@ -266,24 +292,26 @@ void main() {
         final fa = s.raw.prop('FailureAction');
         if (rr != null) {
           withRr++;
-          if (rr.className != 'Bool' ||
-              (rr.scalar != 'true' && rr.scalar != 'false')) {
-            offenders.add('${f.uri.pathSegments.last}: RecordResults='
-                '${rr.className}/${rr.scalar}');
+          if (rr.className != 'Bool' || (rr.scalar != 'true' && rr.scalar != 'false')) {
+            offenders.add(
+              '${f.uri.pathSegments.last}: RecordResults='
+              '${rr.className}/${rr.scalar}',
+            );
           }
         }
         if (fa != null) {
           withFa++;
           if (fa.className != 'Num' || int.tryParse(fa.scalar ?? '') == null) {
-            offenders.add('${f.uri.pathSegments.last}: FailureAction='
-                '${fa.className}/${fa.scalar}');
+            offenders.add(
+              '${f.uri.pathSegments.last}: FailureAction='
+              '${fa.className}/${fa.scalar}',
+            );
           }
         }
         // Requirements must hold a Links child; RTS children must never
         // be structural tokens (a coincidental Obj anchor).
         final req = s.raw.prop('Requirements');
-        if (req != null &&
-            !req.subProps.any((c) => c.name == 'Links')) {
+        if (req != null && !req.subProps.any((c) => c.name == 'Links')) {
           offenders.add('${f.uri.pathSegments.last}: Requirements w/o Links');
         }
         for (final c in s.raw.prop('RTS')?.subProps ?? const <SeqProperty>[]) {
@@ -295,11 +323,14 @@ void main() {
     }
     // ignore: avoid_print
     print('post-group scalars: $withRr RecordResults · $withFa FailureAction');
-    expect(offenders, isEmpty,
-        reason: 'post-group scalar decoded wrong:\n'
-            '${offenders.take(5).join('\n')}');
-    expect(withRr, greaterThanOrEqualTo(80),
-        reason: 'RecordResults recovery regressed ($withRr)');
+    expect(
+      offenders,
+      isEmpty,
+      reason:
+          'post-group scalar decoded wrong:\n'
+          '${offenders.take(5).join('\n')}',
+    );
+    expect(withRr, greaterThanOrEqualTo(80), reason: 'RecordResults recovery regressed ($withRr)');
   });
 
   test('rosetta-wide: sequence locals/parameters match every twin', () {
@@ -308,13 +339,9 @@ void main() {
     // decode generalizes past the content-exact OutputVoltage pair.
     final rosetta = Directory('${corpusSeqDir.path}/rosetta');
     var pairs = 0, sequences = 0;
-    for (final bin in rosetta
-        .listSync()
-        .whereType<File>()
-        .where((f) => f.path.endsWith('_BIN.seq'))) {
+    for (final bin in rosetta.listSync().whereType<File>().where((f) => f.path.endsWith('_BIN.seq'))) {
       final name = bin.uri.pathSegments.last;
-      final prefix =
-          name.replaceAll('_labview_BIN.seq', '').replaceAll('_BIN.seq', '');
+      final prefix = name.replaceAll('_labview_BIN.seq', '').replaceAll('_BIN.seq', '');
       File? twin;
       for (final suffix in ['_python_XML.seq', '_XML.seq', '_python.seq']) {
         final f = File('${rosetta.path}/$prefix$suffix');
@@ -332,42 +359,36 @@ void main() {
         final xs = xmlByName[bs.name];
         if (xs == null) continue;
         sequences++;
-        expect(bs.locals.map((l) => '${l.name}:${l.type}').toList(),
-            xs.locals.map((l) => '${l.name}:${l.type}').toList(),
-            reason: '$name ${bs.name}: locals');
-        expect(bs.parameters.map((p) => '${p.name}:${p.type}').toList(),
-            xs.parameters.map((p) => '${p.name}:${p.type}').toList(),
-            reason: '$name ${bs.name}: parameters');
+        expect(
+          bs.locals.map((l) => '${l.name}:${l.type}').toList(),
+          xs.locals.map((l) => '${l.name}:${l.type}').toList(),
+          reason: '$name ${bs.name}: locals',
+        );
+        expect(
+          bs.parameters.map((p) => '${p.name}:${p.type}').toList(),
+          xs.parameters.map((p) => '${p.name}:${p.type}').toList(),
+          reason: '$name ${bs.name}: parameters',
+        );
         // Post-group scalars, where decoded, must match the twin (never
         // a wrong value; absent is honest when not decoded).
         if (bs.recordsResults != null) {
-          expect(bs.recordsResults, xs.recordsResults,
-              reason: '$name ${bs.name}: recordsResults');
+          expect(bs.recordsResults, xs.recordsResults, reason: '$name ${bs.name}: recordsResults');
         }
         if (bs.failureActionCode != null) {
-          expect(bs.failureActionCode, xs.failureActionCode,
-              reason: '$name ${bs.name}: failureActionCode');
+          expect(bs.failureActionCode, xs.failureActionCode, reason: '$name ${bs.name}: failureActionCode');
         }
         // Requirement links and RTS presence, where decoded, match twin.
         if (bs.raw.prop('Requirements') != null) {
-          expect(bs.requirementLinks, xs.requirementLinks,
-              reason: '$name ${bs.name}: requirementLinks');
+          expect(bs.requirementLinks, xs.requirementLinks, reason: '$name ${bs.name}: requirementLinks');
         }
         if (bs.runtimeSettings != null) {
           // Name, class AND value — the RTS Obj declaration stores every
           // field, so all must match the twin.
           expect(
-              bs.raw
-                  .prop('RTS')
-                  ?.subProps
-                  .map((p) => '${p.name}:${p.className}=${p.scalar}')
-                  .toList(),
-              xs.raw
-                  .prop('RTS')
-                  ?.subProps
-                  .map((p) => '${p.name}:${p.className}=${p.scalar}')
-                  .toList(),
-              reason: '$name ${bs.name}: RTS children (name:class=value)');
+            bs.raw.prop('RTS')?.subProps.map((p) => '${p.name}:${p.className}=${p.scalar}').toList(),
+            xs.raw.prop('RTS')?.subProps.map((p) => '${p.name}:${p.className}=${p.scalar}').toList(),
+            reason: '$name ${bs.name}: RTS children (name:class=value)',
+          );
         }
       }
     }

@@ -20,9 +20,13 @@ void main() {
     quotedLiterals: ['"6105A"'],
   );
 
-  testWidgets('BinaryView renders categorized recovered sections', (tester) async {
+  testWidgets('BinaryView renders categorized recovered sections', (
+    tester,
+  ) async {
     await tester.pumpWidget(
-      const MaterialApp(home: Scaffold(body: BinaryView(doc: doc))),
+      const MaterialApp(
+        home: Scaffold(body: BinaryView(doc: doc)),
+      ),
     );
 
     expect(find.text('Module call-targets (1)'), findsOneWidget);

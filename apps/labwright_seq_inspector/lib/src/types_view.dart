@@ -42,8 +42,9 @@ class _TypesViewState extends State<TypesView> {
       return const Center(child: Text('This file defines no types.'));
     }
     final needle = _query.trim().toLowerCase();
-    final shown =
-        needle.isEmpty ? widget.types : widget.types.where((t) => _matches(t, needle)).toList();
+    final shown = needle.isEmpty
+        ? widget.types
+        : widget.types.where((t) => _matches(t, needle)).toList();
 
     return Column(
       children: [
@@ -77,8 +78,9 @@ class _TypesViewState extends State<TypesView> {
                 padding: const EdgeInsets.only(left: 8),
                 child: Text(
                   '${shown.length}/${widget.types.length}',
-                  style: Theme.of(context).textTheme.bodySmall
-                      ?.copyWith(color: Theme.of(context).hintColor),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).hintColor,
+                  ),
                 ),
               ),
             ],

@@ -26,11 +26,11 @@ const SessionInitializationBehavior$json = {
 };
 
 /// Descriptor for `SessionInitializationBehavior`. Decode as a `google.protobuf.EnumDescriptorProto`.
-final $typed_data.Uint8List sessionInitializationBehaviorDescriptor = $convert.base64Decode(
-    'Ch1TZXNzaW9uSW5pdGlhbGl6YXRpb25CZWhhdmlvchIvCitTRVNTSU9OX0lOSVRJQUxJWkFUSU'
-    '9OX0JFSEFWSU9SX1VOU1BFQ0lGSUVEEAASMgouU0VTU0lPTl9JTklUSUFMSVpBVElPTl9CRUhB'
-    'VklPUl9JTklUSUFMSVpFX05FVxABEjYKMlNFU1NJT05fSU5JVElBTElaQVRJT05fQkVIQVZJT1'
-    'JfQVRUQUNIX1RPX0VYSVNUSU5HEAI=');
+final $typed_data.Uint8List sessionInitializationBehaviorDescriptor =
+    $convert.base64Decode('Ch1TZXNzaW9uSW5pdGlhbGl6YXRpb25CZWhhdmlvchIvCitTRVNTSU9OX0lOSVRJQUxJWkFUSU'
+        '9OX0JFSEFWSU9SX1VOU1BFQ0lGSUVEEAASMgouU0VTU0lPTl9JTklUSUFMSVpBVElPTl9CRUhB'
+        'VklPUl9JTklUSUFMSVpFX05FVxABEjYKMlNFU1NJT05fSU5JVElBTElaQVRJT05fQkVIQVZJT1'
+        'JfQVRUQUNIX1RPX0VYSVNUSU5HEAI=');
 
 @$core.Deprecated('Use sessionDescriptor instead')
 const Session$json = {
@@ -41,8 +41,7 @@ const Session$json = {
 };
 
 /// Descriptor for `Session`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List sessionDescriptor =
-    $convert.base64Decode('CgdTZXNzaW9uEhIKBG5hbWUYASABKAlSBG5hbWU=');
+final $typed_data.Uint8List sessionDescriptor = $convert.base64Decode('CgdTZXNzaW9uEhIKBG5hbWUYASABKAlSBG5hbWU=');
 
 @$core.Deprecated('Use enumerateDevicesRequestDescriptor instead')
 const EnumerateDevicesRequest$json = {
@@ -57,21 +56,13 @@ final $typed_data.Uint8List enumerateDevicesRequestDescriptor =
 const EnumerateDevicesResponse$json = {
   '1': 'EnumerateDevicesResponse',
   '2': [
-    {
-      '1': 'devices',
-      '3': 1,
-      '4': 3,
-      '5': 11,
-      '6': '.nidevice_grpc.DeviceProperties',
-      '10': 'devices'
-    },
+    {'1': 'devices', '3': 1, '4': 3, '5': 11, '6': '.nidevice_grpc.DeviceProperties', '10': 'devices'},
   ],
 };
 
 /// Descriptor for `EnumerateDevicesResponse`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List enumerateDevicesResponseDescriptor =
-    $convert.base64Decode(
-        'ChhFbnVtZXJhdGVEZXZpY2VzUmVzcG9uc2USOQoHZGV2aWNlcxgBIAMoCzIfLm5pZGV2aWNlX2'
+    $convert.base64Decode('ChhFbnVtZXJhdGVEZXZpY2VzUmVzcG9uc2USOQoHZGV2aWNlcxgBIAMoCzIfLm5pZGV2aWNlX2'
         'dycGMuRGV2aWNlUHJvcGVydGllc1IHZGV2aWNlcw==');
 
 @$core.Deprecated('Use devicePropertiesDescriptor instead')
@@ -87,7 +78,7 @@ const DeviceProperties$json = {
 };
 
 /// Descriptor for `DeviceProperties`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List devicePropertiesDescriptor = $convert.base64Decode(
-    'ChBEZXZpY2VQcm9wZXJ0aWVzEhIKBG5hbWUYASABKAlSBG5hbWUSFAoFbW9kZWwYAiABKAlSBW'
-    '1vZGVsEhYKBnZlbmRvchgDIAEoCVIGdmVuZG9yEiMKDXNlcmlhbF9udW1iZXIYBCABKAlSDHNl'
-    'cmlhbE51bWJlchIdCgpwcm9kdWN0X2lkGAUgASgNUglwcm9kdWN0SWQ=');
+final $typed_data.Uint8List devicePropertiesDescriptor =
+    $convert.base64Decode('ChBEZXZpY2VQcm9wZXJ0aWVzEhIKBG5hbWUYASABKAlSBG5hbWUSFAoFbW9kZWwYAiABKAlSBW'
+        '1vZGVsEhYKBnZlbmRvchgDIAEoCVIGdmVuZG9yEiMKDXNlcmlhbF9udW1iZXIYBCABKAlSDHNl'
+        'cmlhbE51bWJlchIdCgpwcm9kdWN0X2lkGAUgASgNUglwcm9kdWN0SWQ=');

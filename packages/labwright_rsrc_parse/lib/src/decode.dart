@@ -61,5 +61,6 @@ DecodedSection inflateSection(ViSection section) {
 /// Reads every block section from a `.vi` and inflates the compressed ones.
 /// Container-level corruption throws [ViFormatException] (from [readViSections]);
 /// individual section decode is total.
-List<DecodedSection> decodeSections(Uint8List viBytes) =>
-    [for (final section in readViSections(viBytes)) inflateSection(section)];
+List<DecodedSection> decodeSections(Uint8List viBytes) => [
+  for (final section in readViSections(viBytes)) inflateSection(section),
+];

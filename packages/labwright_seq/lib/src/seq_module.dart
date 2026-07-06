@@ -33,7 +33,7 @@ enum SeqAdapter {
   /// `SData` is present with members, but its adapter record is not yet
   /// recognized (e.g. .NET/HTBasic/an NI plug-in shape not yet decoded). No such
   /// step exists in the current corpus — reserved for shapes we have not seen.
-  unknown;
+  unknown,
 }
 
 /// A step's code-module binding: which adapter and what it targets. Fields are
@@ -78,12 +78,12 @@ class StepModule {
   /// [CallParameter] reads either. Empty when the call passes none, or when an
   /// adapter stores its arguments elsewhere (not yet decoded for other adapters).
   List<CallParameter> get callParameters => _params(
-        raw?.prop('Call')?.prop('Parameters') ??
-            raw?.prop('PythonCall')?.prop('Parameters'),
-      );
+    raw?.prop('Call')?.prop('Parameters') ?? raw?.prop('PythonCall')?.prop('Parameters'),
+  );
 
-  List<CallParameter> _params(SeqProperty? container) =>
-      container == null ? const [] : [for (final element in container.array ?? container.subProps) CallParameter(element)];
+  List<CallParameter> _params(SeqProperty? container) => container == null
+      ? const []
+      : [for (final element in container.array ?? container.subProps) CallParameter(element)];
 
   SeqProperty? get _viCall => raw?.prop('ViCall');
 
@@ -148,8 +148,7 @@ class StepModule {
 
   /// The virtual-environment the call resolves its interpreter from
   /// (`PythonCall.PythonVirtualEnvironmentPath`); null when none is configured.
-  String? get pythonVenvPath =>
-      nonEmpty(_pyCall?.prop('PythonVirtualEnvironmentPath')?.scalar);
+  String? get pythonVenvPath => nonEmpty(_pyCall?.prop('PythonVirtualEnvironmentPath')?.scalar);
 
   /// The on-disk source file backing the step's code module (`SData.ModuleSrcPath`,
   /// e.g. `numericTests.c`, `64BitSupport\64BitSupport.cpp`) — the C/C++ source
@@ -169,7 +168,6 @@ class StepModule {
   String? _dataScalar(String key) => nonEmpty(raw?.prop(key)?.scalar);
   bool? _dataFlag(String key) => parseFlag(raw?.prop(key)?.scalar);
   int? _dataInt(String key) => int.tryParse(raw?.prop(key)?.scalar ?? '');
-
 
   /// For a SequenceCall step that names its target *by expression*, the sequence
   /// name (`SData.SeqNameExpr`) and sequence-file path (`SData.SFPathExpr`)
@@ -197,7 +195,6 @@ class StepModule {
   SeqProperty? get prototype => raw?.prop('Prototype');
   SeqProperty? get actualArguments => raw?.prop('ActualArgs');
 
-
   /// The threading option code (`SData.ThreadOpt`) — run in the same thread, a
   /// new thread, or a new execution. Verbatim; NI-internal code→name not
   /// invented. null when absent.
@@ -223,7 +220,6 @@ class StepModule {
   /// Whether the call ignores a Terminate request while running
   /// (`SData.IgnoreTerminate`). null when absent.
   bool? get ignoresTerminate => _dataFlag('IgnoreTerminate');
-
 
   /// Whether the step executes on a remote host (`SData.RemoteExecution`), and
   /// the host it targets — a literal (`SData.RemoteHost`) or an expression
@@ -253,7 +249,6 @@ class StepModule {
   String? get executionModelPathExpression => _dataScalar('ExecModelPathExpr');
   String? get executionBreakOnEntryExpression => _dataScalar('ExecBreakOnEntryExpr');
 
-
   /// For a VI call deployed to a remote / LabVIEW Real-Time target: the remote VI
   /// path (`ViCall.RemoteVIPath`), the host (`ViCall.RemoteHost`, or by expression
   /// when `ViCall.RemoteHostByExpr`), whether the adapter auto-detects the RT
@@ -263,8 +258,7 @@ class StepModule {
   String? get viRemoteHost => nonEmpty(_viCall?.prop('RemoteHost')?.scalar);
   bool? get viRemoteHostByExpression => parseFlag(_viCall?.prop('RemoteHostByExpr')?.scalar);
   bool? get viAutoDetectRealTime => parseFlag(_viCall?.prop('AutoDetectLVRT')?.scalar);
-  int? get viNodeOperationModeCode =>
-      int.tryParse(_viCall?.prop('NodeOperationMode')?.scalar ?? '');
+  int? get viNodeOperationModeCode => int.tryParse(_viCall?.prop('NodeOperationMode')?.scalar ?? '');
 
   /// The VI-call type / VI type codes (`ViCall.CallType` / `VIType`) classifying
   /// the call (e.g. standard VI vs. malleable/class node) and the LabVIEW class
@@ -291,13 +285,11 @@ class StepModule {
   String? get moduleWorkspacePath => _dataScalar('ModuleWorkspacePath');
   int? get alwaysRunInProcessCode => _dataInt('AlwaysRunInProcess');
 
-
   /// Where the Python interpreter session is located/scoped
   /// (`PythonCall.InterpreterLocation` / `ClassInstanceLocation`); null when
   /// absent or for a non-Python step.
   String? get pythonInterpreterLocation => nonEmpty(_pyCall?.prop('InterpreterLocation')?.scalar);
-  String? get pythonClassInstanceLocation =>
-      nonEmpty(_pyCall?.prop('ClassInstanceLocation')?.scalar);
+  String? get pythonClassInstanceLocation => nonEmpty(_pyCall?.prop('ClassInstanceLocation')?.scalar);
 
   /// Python session option codes — the operation type/scope
   /// (`PythonCall.OperationType` / `OperationScope`) and interpreter-session
@@ -305,15 +297,13 @@ class StepModule {
   /// invented. Each null when absent.
   int? get pythonOperationTypeCode => int.tryParse(_pyCall?.prop('OperationType')?.scalar ?? '');
   int? get pythonOperationScopeCode => int.tryParse(_pyCall?.prop('OperationScope')?.scalar ?? '');
-  int? get pythonInterpreterSessionScopeCode =>
-      int.tryParse(_pyCall?.prop('InterpreterSessionScope')?.scalar ?? '');
+  int? get pythonInterpreterSessionScopeCode => int.tryParse(_pyCall?.prop('InterpreterSessionScope')?.scalar ?? '');
 
   /// Whether the Python adapter creates the interpreter if absent
   /// (`PythonCall.CreateIfInterpreterDoesNotExist`) and uses the adapter's
   /// settings for the session (`UseAdapterSettingsForInterpreterSession`). Each
   /// null when absent.
-  bool? get pythonCreatesInterpreterIfMissing =>
-      parseFlag(_pyCall?.prop('CreateIfInterpreterDoesNotExist')?.scalar);
+  bool? get pythonCreatesInterpreterIfMissing => parseFlag(_pyCall?.prop('CreateIfInterpreterDoesNotExist')?.scalar);
   bool? get pythonUsesAdapterSessionSettings =>
       parseFlag(_pyCall?.prop('UseAdapterSettingsForInterpreterSession')?.scalar);
 
@@ -330,8 +320,7 @@ class StepModule {
 
     final directVi = nonEmpty(sdata.prop('ViPath')?.scalar);
     if (directVi != null) {
-      return StepModule(
-          adapter: SeqAdapter.labView, viPath: directVi, target: directVi, raw: sdata);
+      return StepModule(adapter: SeqAdapter.labView, viPath: directVi, target: directVi, raw: sdata);
     }
 
     final call = sdata.prop('Call');
@@ -389,8 +378,7 @@ class CallParameter {
   /// The ActiveX/C `Parameters` and Python `Parameters` adapters store it as
   /// `Name`; the LabVIEW VI-call connector list (`ViCall.Parms`) stores it as
   /// `Label`. Either is read, falling back to the element name.
-  String get name =>
-      nonEmpty(raw.prop('Name')?.scalar) ?? nonEmpty(raw.prop('Label')?.scalar) ?? raw.name;
+  String get name => nonEmpty(raw.prop('Name')?.scalar) ?? nonEmpty(raw.prop('Label')?.scalar) ?? raw.name;
 
   /// The connector-pane terminal index this parameter wires to
   /// (`ConnectorNumber`), for a LabVIEW VI call (`ViCall.Parms`); null when
@@ -402,8 +390,7 @@ class CallParameter {
   /// `FileGlobals.MeasurementPlugIns.PinMapPath` — or null when the call leaves
   /// it unbound. Stored as `ArgVal` by the ActiveX/C adapter and as
   /// `ArgumentValue` by the Python adapter; either is read.
-  String? get boundExpression =>
-      nonEmpty(raw.prop('ArgVal')?.scalar) ?? nonEmpty(raw.prop('ArgumentValue')?.scalar);
+  String? get boundExpression => nonEmpty(raw.prop('ArgVal')?.scalar) ?? nonEmpty(raw.prop('ArgumentValue')?.scalar);
 
   /// The human-readable parameter type the editor shows (`DisplayType`), e.g.
   /// `String`, `User (Object Reference)`; null when absent.
@@ -420,11 +407,11 @@ class CallParameter {
   /// supplied inputs read `1`). null for an absent or unrecognized code, which
   /// stays available raw in [directionCode] rather than being guessed.
   String? get direction => switch (directionCode) {
-        '1' => 'in',
-        '2' => 'out',
-        '3' => 'in/out',
-        _ => null,
-      };
+    '1' => 'in',
+    '2' => 'out',
+    '3' => 'in/out',
+    _ => null,
+  };
 
   int? _int(String key) => int.tryParse(nonEmpty(raw.prop(key)?.scalar) ?? '');
 
@@ -433,8 +420,7 @@ class CallParameter {
   /// formatted form shown next to the parameter, distinct from the live
   /// [boundExpression]. null when absent.
   String? get displayValue =>
-      nonEmpty(raw.prop('ArgDisplayVal')?.scalar) ??
-      nonEmpty(raw.prop('ArgumentDisplayValue')?.scalar);
+      nonEmpty(raw.prop('ArgDisplayVal')?.scalar) ?? nonEmpty(raw.prop('ArgumentDisplayValue')?.scalar);
 
   /// The editor caption for the parameter/connector terminal (`Caption`), e.g. a
   /// LabVIEW control label; null when absent.
@@ -473,8 +459,7 @@ class CallParameter {
   SeqProperty? get additionalResults => raw.prop('AdditionalResults');
 
   @override
-  String toString() =>
-      'CallParameter($name${boundExpression != null ? ' ← $boundExpression' : ''})';
+  String toString() => 'CallParameter($name${boundExpression != null ? ' ← $boundExpression' : ''})';
 }
 
 /// One formal parameter of a **measurement step** (an NI measurement adapter's

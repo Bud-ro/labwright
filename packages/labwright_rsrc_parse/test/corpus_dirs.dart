@@ -37,13 +37,8 @@ List<File> corpusVis() {
   if (_allVisCache != null) return _allVisCache!;
   final d = corpusViDir;
   if (!d.existsSync()) return _allVisCache = <File>[];
-  final vis =
-      d
-          .listSync(recursive: true)
-          .whereType<File>()
-          .where((f) => f.path.toLowerCase().endsWith('.vi'))
-          .toList()
-        ..sort((a, b) => a.path.compareTo(b.path));
+  final vis = d.listSync(recursive: true).whereType<File>().where((f) => f.path.toLowerCase().endsWith('.vi')).toList()
+    ..sort((a, b) => a.path.compareTo(b.path));
   return _allVisCache = vis;
 }
 
@@ -60,8 +55,7 @@ File corpusSnapshotFile() => File('${_corpusBase().path}/snapshot.json');
 /// an RSRC file"). `parseVi`/`decodeSections` legitimately reject it (the coverage
 /// tool counts it in the sub-100% parseOk), so the totality checks exclude it; any
 /// OTHER unparseable file is a real regression and still fails loudly.
-bool isNonRsrcFixture(String path) =>
-    path.replaceAll(r'\', '/').endsWith('/rust-proxy/test_data/test.vi');
+bool isNonRsrcFixture(String path) => path.replaceAll(r'\', '/').endsWith('/rust-proxy/test_data/test.vi');
 
 /// Worker count for [corpusParallel]: one isolate per core, less a couple so the
 /// machine stays responsive, capped at 16.
@@ -92,9 +86,11 @@ Future<List<R>> corpusParallel<R>(
   }
   final results = await Future.wait(
     chunks.map(
-      (chunk) => Isolate.run(() => [
-        for (final p in chunk) perFile(File(p).readAsBytesSync(), p),
-      ]),
+      (chunk) => Isolate.run(
+        () => [
+          for (final p in chunk) perFile(File(p).readAsBytesSync(), p),
+        ],
+      ),
     ),
   );
   return [for (final r in results) ...r];

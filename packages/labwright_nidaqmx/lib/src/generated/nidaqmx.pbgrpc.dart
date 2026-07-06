@@ -127,68 +127,59 @@ class NiDAQmxClient extends $grpc.Client {
 
   // method descriptors
 
-  static final _$createTask =
-      $grpc.ClientMethod<$0.CreateTaskRequest, $0.CreateTaskResponse>(
-          '/nidaqmx_grpc.NiDAQmx/CreateTask',
-          ($0.CreateTaskRequest value) => value.writeToBuffer(),
-          $0.CreateTaskResponse.fromBuffer);
-  static final _$createAIVoltageChan = $grpc.ClientMethod<
-          $0.CreateAIVoltageChanRequest, $0.CreateAIVoltageChanResponse>(
-      '/nidaqmx_grpc.NiDAQmx/CreateAIVoltageChan',
-      ($0.CreateAIVoltageChanRequest value) => value.writeToBuffer(),
-      $0.CreateAIVoltageChanResponse.fromBuffer);
-  static final _$createAOVoltageChan = $grpc.ClientMethod<
-          $0.CreateAOVoltageChanRequest, $0.CreateAOVoltageChanResponse>(
-      '/nidaqmx_grpc.NiDAQmx/CreateAOVoltageChan',
-      ($0.CreateAOVoltageChanRequest value) => value.writeToBuffer(),
-      $0.CreateAOVoltageChanResponse.fromBuffer);
-  static final _$startTask =
-      $grpc.ClientMethod<$0.StartTaskRequest, $0.StartTaskResponse>(
-          '/nidaqmx_grpc.NiDAQmx/StartTask',
-          ($0.StartTaskRequest value) => value.writeToBuffer(),
-          $0.StartTaskResponse.fromBuffer);
-  static final _$stopTask =
-      $grpc.ClientMethod<$0.StopTaskRequest, $0.StopTaskResponse>(
-          '/nidaqmx_grpc.NiDAQmx/StopTask',
-          ($0.StopTaskRequest value) => value.writeToBuffer(),
-          $0.StopTaskResponse.fromBuffer);
-  static final _$clearTask =
-      $grpc.ClientMethod<$0.ClearTaskRequest, $0.ClearTaskResponse>(
-          '/nidaqmx_grpc.NiDAQmx/ClearTask',
-          ($0.ClearTaskRequest value) => value.writeToBuffer(),
-          $0.ClearTaskResponse.fromBuffer);
-  static final _$readAnalogScalarF64 = $grpc.ClientMethod<
-          $0.ReadAnalogScalarF64Request, $0.ReadAnalogScalarF64Response>(
-      '/nidaqmx_grpc.NiDAQmx/ReadAnalogScalarF64',
-      ($0.ReadAnalogScalarF64Request value) => value.writeToBuffer(),
-      $0.ReadAnalogScalarF64Response.fromBuffer);
-  static final _$writeAnalogScalarF64 = $grpc.ClientMethod<
-          $0.WriteAnalogScalarF64Request, $0.WriteAnalogScalarF64Response>(
-      '/nidaqmx_grpc.NiDAQmx/WriteAnalogScalarF64',
-      ($0.WriteAnalogScalarF64Request value) => value.writeToBuffer(),
-      $0.WriteAnalogScalarF64Response.fromBuffer);
-  static final _$getErrorString =
-      $grpc.ClientMethod<$0.GetErrorStringRequest, $0.GetErrorStringResponse>(
-          '/nidaqmx_grpc.NiDAQmx/GetErrorString',
-          ($0.GetErrorStringRequest value) => value.writeToBuffer(),
-          $0.GetErrorStringResponse.fromBuffer);
-  static final _$cfgSampClkTiming = $grpc.ClientMethod<
-          $0.CfgSampClkTimingRequest, $0.CfgSampClkTimingResponse>(
+  static final _$createTask = $grpc.ClientMethod<$0.CreateTaskRequest, $0.CreateTaskResponse>(
+      '/nidaqmx_grpc.NiDAQmx/CreateTask',
+      ($0.CreateTaskRequest value) => value.writeToBuffer(),
+      $0.CreateTaskResponse.fromBuffer);
+  static final _$createAIVoltageChan =
+      $grpc.ClientMethod<$0.CreateAIVoltageChanRequest, $0.CreateAIVoltageChanResponse>(
+          '/nidaqmx_grpc.NiDAQmx/CreateAIVoltageChan',
+          ($0.CreateAIVoltageChanRequest value) => value.writeToBuffer(),
+          $0.CreateAIVoltageChanResponse.fromBuffer);
+  static final _$createAOVoltageChan =
+      $grpc.ClientMethod<$0.CreateAOVoltageChanRequest, $0.CreateAOVoltageChanResponse>(
+          '/nidaqmx_grpc.NiDAQmx/CreateAOVoltageChan',
+          ($0.CreateAOVoltageChanRequest value) => value.writeToBuffer(),
+          $0.CreateAOVoltageChanResponse.fromBuffer);
+  static final _$startTask = $grpc.ClientMethod<$0.StartTaskRequest, $0.StartTaskResponse>(
+      '/nidaqmx_grpc.NiDAQmx/StartTask',
+      ($0.StartTaskRequest value) => value.writeToBuffer(),
+      $0.StartTaskResponse.fromBuffer);
+  static final _$stopTask = $grpc.ClientMethod<$0.StopTaskRequest, $0.StopTaskResponse>(
+      '/nidaqmx_grpc.NiDAQmx/StopTask',
+      ($0.StopTaskRequest value) => value.writeToBuffer(),
+      $0.StopTaskResponse.fromBuffer);
+  static final _$clearTask = $grpc.ClientMethod<$0.ClearTaskRequest, $0.ClearTaskResponse>(
+      '/nidaqmx_grpc.NiDAQmx/ClearTask',
+      ($0.ClearTaskRequest value) => value.writeToBuffer(),
+      $0.ClearTaskResponse.fromBuffer);
+  static final _$readAnalogScalarF64 =
+      $grpc.ClientMethod<$0.ReadAnalogScalarF64Request, $0.ReadAnalogScalarF64Response>(
+          '/nidaqmx_grpc.NiDAQmx/ReadAnalogScalarF64',
+          ($0.ReadAnalogScalarF64Request value) => value.writeToBuffer(),
+          $0.ReadAnalogScalarF64Response.fromBuffer);
+  static final _$writeAnalogScalarF64 =
+      $grpc.ClientMethod<$0.WriteAnalogScalarF64Request, $0.WriteAnalogScalarF64Response>(
+          '/nidaqmx_grpc.NiDAQmx/WriteAnalogScalarF64',
+          ($0.WriteAnalogScalarF64Request value) => value.writeToBuffer(),
+          $0.WriteAnalogScalarF64Response.fromBuffer);
+  static final _$getErrorString = $grpc.ClientMethod<$0.GetErrorStringRequest, $0.GetErrorStringResponse>(
+      '/nidaqmx_grpc.NiDAQmx/GetErrorString',
+      ($0.GetErrorStringRequest value) => value.writeToBuffer(),
+      $0.GetErrorStringResponse.fromBuffer);
+  static final _$cfgSampClkTiming = $grpc.ClientMethod<$0.CfgSampClkTimingRequest, $0.CfgSampClkTimingResponse>(
       '/nidaqmx_grpc.NiDAQmx/CfgSampClkTiming',
       ($0.CfgSampClkTimingRequest value) => value.writeToBuffer(),
       $0.CfgSampClkTimingResponse.fromBuffer);
-  static final _$beginReadAnalogF64 = $grpc.ClientMethod<
-          $0.BeginReadAnalogF64Request, $0.BeginReadAnalogF64Response>(
+  static final _$beginReadAnalogF64 = $grpc.ClientMethod<$0.BeginReadAnalogF64Request, $0.BeginReadAnalogF64Response>(
       '/nidaqmx_grpc.NiDAQmx/BeginReadAnalogF64',
       ($0.BeginReadAnalogF64Request value) => value.writeToBuffer(),
       $0.BeginReadAnalogF64Response.fromBuffer);
-  static final _$beginReadBinaryI16 = $grpc.ClientMethod<
-          $0.BeginReadBinaryI16Request, $0.BeginReadBinaryI16Response>(
+  static final _$beginReadBinaryI16 = $grpc.ClientMethod<$0.BeginReadBinaryI16Request, $0.BeginReadBinaryI16Response>(
       '/nidaqmx_grpc.NiDAQmx/BeginReadBinaryI16',
       ($0.BeginReadBinaryI16Request value) => value.writeToBuffer(),
       $0.BeginReadBinaryI16Response.fromBuffer);
-  static final _$beginReadBinaryI32 = $grpc.ClientMethod<
-          $0.BeginReadBinaryI32Request, $0.BeginReadBinaryI32Response>(
+  static final _$beginReadBinaryI32 = $grpc.ClientMethod<$0.BeginReadBinaryI32Request, $0.BeginReadBinaryI32Response>(
       '/nidaqmx_grpc.NiDAQmx/BeginReadBinaryI32',
       ($0.BeginReadBinaryI32Request value) => value.writeToBuffer(),
       $0.BeginReadBinaryI32Response.fromBuffer);
@@ -206,23 +197,19 @@ abstract class NiDAQmxServiceBase extends $grpc.Service {
         false,
         ($core.List<$core.int> value) => $0.CreateTaskRequest.fromBuffer(value),
         ($0.CreateTaskResponse value) => value.writeToBuffer()));
-    $addMethod($grpc.ServiceMethod<$0.CreateAIVoltageChanRequest,
-            $0.CreateAIVoltageChanResponse>(
+    $addMethod($grpc.ServiceMethod<$0.CreateAIVoltageChanRequest, $0.CreateAIVoltageChanResponse>(
         'CreateAIVoltageChan',
         createAIVoltageChan_Pre,
         false,
         false,
-        ($core.List<$core.int> value) =>
-            $0.CreateAIVoltageChanRequest.fromBuffer(value),
+        ($core.List<$core.int> value) => $0.CreateAIVoltageChanRequest.fromBuffer(value),
         ($0.CreateAIVoltageChanResponse value) => value.writeToBuffer()));
-    $addMethod($grpc.ServiceMethod<$0.CreateAOVoltageChanRequest,
-            $0.CreateAOVoltageChanResponse>(
+    $addMethod($grpc.ServiceMethod<$0.CreateAOVoltageChanRequest, $0.CreateAOVoltageChanResponse>(
         'CreateAOVoltageChan',
         createAOVoltageChan_Pre,
         false,
         false,
-        ($core.List<$core.int> value) =>
-            $0.CreateAOVoltageChanRequest.fromBuffer(value),
+        ($core.List<$core.int> value) => $0.CreateAOVoltageChanRequest.fromBuffer(value),
         ($0.CreateAOVoltageChanResponse value) => value.writeToBuffer()));
     $addMethod($grpc.ServiceMethod<$0.StartTaskRequest, $0.StartTaskResponse>(
         'StartTask',
@@ -245,82 +232,66 @@ abstract class NiDAQmxServiceBase extends $grpc.Service {
         false,
         ($core.List<$core.int> value) => $0.ClearTaskRequest.fromBuffer(value),
         ($0.ClearTaskResponse value) => value.writeToBuffer()));
-    $addMethod($grpc.ServiceMethod<$0.ReadAnalogScalarF64Request,
-            $0.ReadAnalogScalarF64Response>(
+    $addMethod($grpc.ServiceMethod<$0.ReadAnalogScalarF64Request, $0.ReadAnalogScalarF64Response>(
         'ReadAnalogScalarF64',
         readAnalogScalarF64_Pre,
         false,
         false,
-        ($core.List<$core.int> value) =>
-            $0.ReadAnalogScalarF64Request.fromBuffer(value),
+        ($core.List<$core.int> value) => $0.ReadAnalogScalarF64Request.fromBuffer(value),
         ($0.ReadAnalogScalarF64Response value) => value.writeToBuffer()));
-    $addMethod($grpc.ServiceMethod<$0.WriteAnalogScalarF64Request,
-            $0.WriteAnalogScalarF64Response>(
+    $addMethod($grpc.ServiceMethod<$0.WriteAnalogScalarF64Request, $0.WriteAnalogScalarF64Response>(
         'WriteAnalogScalarF64',
         writeAnalogScalarF64_Pre,
         false,
         false,
-        ($core.List<$core.int> value) =>
-            $0.WriteAnalogScalarF64Request.fromBuffer(value),
+        ($core.List<$core.int> value) => $0.WriteAnalogScalarF64Request.fromBuffer(value),
         ($0.WriteAnalogScalarF64Response value) => value.writeToBuffer()));
-    $addMethod($grpc.ServiceMethod<$0.GetErrorStringRequest,
-            $0.GetErrorStringResponse>(
+    $addMethod($grpc.ServiceMethod<$0.GetErrorStringRequest, $0.GetErrorStringResponse>(
         'GetErrorString',
         getErrorString_Pre,
         false,
         false,
-        ($core.List<$core.int> value) =>
-            $0.GetErrorStringRequest.fromBuffer(value),
+        ($core.List<$core.int> value) => $0.GetErrorStringRequest.fromBuffer(value),
         ($0.GetErrorStringResponse value) => value.writeToBuffer()));
-    $addMethod($grpc.ServiceMethod<$0.CfgSampClkTimingRequest,
-            $0.CfgSampClkTimingResponse>(
+    $addMethod($grpc.ServiceMethod<$0.CfgSampClkTimingRequest, $0.CfgSampClkTimingResponse>(
         'CfgSampClkTiming',
         cfgSampClkTiming_Pre,
         false,
         false,
-        ($core.List<$core.int> value) =>
-            $0.CfgSampClkTimingRequest.fromBuffer(value),
+        ($core.List<$core.int> value) => $0.CfgSampClkTimingRequest.fromBuffer(value),
         ($0.CfgSampClkTimingResponse value) => value.writeToBuffer()));
-    $addMethod($grpc.ServiceMethod<$0.BeginReadAnalogF64Request,
-            $0.BeginReadAnalogF64Response>(
+    $addMethod($grpc.ServiceMethod<$0.BeginReadAnalogF64Request, $0.BeginReadAnalogF64Response>(
         'BeginReadAnalogF64',
         beginReadAnalogF64_Pre,
         false,
         false,
-        ($core.List<$core.int> value) =>
-            $0.BeginReadAnalogF64Request.fromBuffer(value),
+        ($core.List<$core.int> value) => $0.BeginReadAnalogF64Request.fromBuffer(value),
         ($0.BeginReadAnalogF64Response value) => value.writeToBuffer()));
-    $addMethod($grpc.ServiceMethod<$0.BeginReadBinaryI16Request,
-            $0.BeginReadBinaryI16Response>(
+    $addMethod($grpc.ServiceMethod<$0.BeginReadBinaryI16Request, $0.BeginReadBinaryI16Response>(
         'BeginReadBinaryI16',
         beginReadBinaryI16_Pre,
         false,
         false,
-        ($core.List<$core.int> value) =>
-            $0.BeginReadBinaryI16Request.fromBuffer(value),
+        ($core.List<$core.int> value) => $0.BeginReadBinaryI16Request.fromBuffer(value),
         ($0.BeginReadBinaryI16Response value) => value.writeToBuffer()));
-    $addMethod($grpc.ServiceMethod<$0.BeginReadBinaryI32Request,
-            $0.BeginReadBinaryI32Response>(
+    $addMethod($grpc.ServiceMethod<$0.BeginReadBinaryI32Request, $0.BeginReadBinaryI32Response>(
         'BeginReadBinaryI32',
         beginReadBinaryI32_Pre,
         false,
         false,
-        ($core.List<$core.int> value) =>
-            $0.BeginReadBinaryI32Request.fromBuffer(value),
+        ($core.List<$core.int> value) => $0.BeginReadBinaryI32Request.fromBuffer(value),
         ($0.BeginReadBinaryI32Response value) => value.writeToBuffer()));
   }
 
-  $async.Future<$0.CreateTaskResponse> createTask_Pre($grpc.ServiceCall $call,
-      $async.Future<$0.CreateTaskRequest> $request) async {
+  $async.Future<$0.CreateTaskResponse> createTask_Pre(
+      $grpc.ServiceCall $call, $async.Future<$0.CreateTaskRequest> $request) async {
     return createTask($call, await $request);
   }
 
-  $async.Future<$0.CreateTaskResponse> createTask(
-      $grpc.ServiceCall call, $0.CreateTaskRequest request);
+  $async.Future<$0.CreateTaskResponse> createTask($grpc.ServiceCall call, $0.CreateTaskRequest request);
 
   $async.Future<$0.CreateAIVoltageChanResponse> createAIVoltageChan_Pre(
-      $grpc.ServiceCall $call,
-      $async.Future<$0.CreateAIVoltageChanRequest> $request) async {
+      $grpc.ServiceCall $call, $async.Future<$0.CreateAIVoltageChanRequest> $request) async {
     return createAIVoltageChan($call, await $request);
   }
 
@@ -328,41 +299,36 @@ abstract class NiDAQmxServiceBase extends $grpc.Service {
       $grpc.ServiceCall call, $0.CreateAIVoltageChanRequest request);
 
   $async.Future<$0.CreateAOVoltageChanResponse> createAOVoltageChan_Pre(
-      $grpc.ServiceCall $call,
-      $async.Future<$0.CreateAOVoltageChanRequest> $request) async {
+      $grpc.ServiceCall $call, $async.Future<$0.CreateAOVoltageChanRequest> $request) async {
     return createAOVoltageChan($call, await $request);
   }
 
   $async.Future<$0.CreateAOVoltageChanResponse> createAOVoltageChan(
       $grpc.ServiceCall call, $0.CreateAOVoltageChanRequest request);
 
-  $async.Future<$0.StartTaskResponse> startTask_Pre($grpc.ServiceCall $call,
-      $async.Future<$0.StartTaskRequest> $request) async {
+  $async.Future<$0.StartTaskResponse> startTask_Pre(
+      $grpc.ServiceCall $call, $async.Future<$0.StartTaskRequest> $request) async {
     return startTask($call, await $request);
   }
 
-  $async.Future<$0.StartTaskResponse> startTask(
-      $grpc.ServiceCall call, $0.StartTaskRequest request);
+  $async.Future<$0.StartTaskResponse> startTask($grpc.ServiceCall call, $0.StartTaskRequest request);
 
-  $async.Future<$0.StopTaskResponse> stopTask_Pre($grpc.ServiceCall $call,
-      $async.Future<$0.StopTaskRequest> $request) async {
+  $async.Future<$0.StopTaskResponse> stopTask_Pre(
+      $grpc.ServiceCall $call, $async.Future<$0.StopTaskRequest> $request) async {
     return stopTask($call, await $request);
   }
 
-  $async.Future<$0.StopTaskResponse> stopTask(
-      $grpc.ServiceCall call, $0.StopTaskRequest request);
+  $async.Future<$0.StopTaskResponse> stopTask($grpc.ServiceCall call, $0.StopTaskRequest request);
 
-  $async.Future<$0.ClearTaskResponse> clearTask_Pre($grpc.ServiceCall $call,
-      $async.Future<$0.ClearTaskRequest> $request) async {
+  $async.Future<$0.ClearTaskResponse> clearTask_Pre(
+      $grpc.ServiceCall $call, $async.Future<$0.ClearTaskRequest> $request) async {
     return clearTask($call, await $request);
   }
 
-  $async.Future<$0.ClearTaskResponse> clearTask(
-      $grpc.ServiceCall call, $0.ClearTaskRequest request);
+  $async.Future<$0.ClearTaskResponse> clearTask($grpc.ServiceCall call, $0.ClearTaskRequest request);
 
   $async.Future<$0.ReadAnalogScalarF64Response> readAnalogScalarF64_Pre(
-      $grpc.ServiceCall $call,
-      $async.Future<$0.ReadAnalogScalarF64Request> $request) async {
+      $grpc.ServiceCall $call, $async.Future<$0.ReadAnalogScalarF64Request> $request) async {
     return readAnalogScalarF64($call, await $request);
   }
 
@@ -370,8 +336,7 @@ abstract class NiDAQmxServiceBase extends $grpc.Service {
       $grpc.ServiceCall call, $0.ReadAnalogScalarF64Request request);
 
   $async.Future<$0.WriteAnalogScalarF64Response> writeAnalogScalarF64_Pre(
-      $grpc.ServiceCall $call,
-      $async.Future<$0.WriteAnalogScalarF64Request> $request) async {
+      $grpc.ServiceCall $call, $async.Future<$0.WriteAnalogScalarF64Request> $request) async {
     return writeAnalogScalarF64($call, await $request);
   }
 
@@ -379,17 +344,14 @@ abstract class NiDAQmxServiceBase extends $grpc.Service {
       $grpc.ServiceCall call, $0.WriteAnalogScalarF64Request request);
 
   $async.Future<$0.GetErrorStringResponse> getErrorString_Pre(
-      $grpc.ServiceCall $call,
-      $async.Future<$0.GetErrorStringRequest> $request) async {
+      $grpc.ServiceCall $call, $async.Future<$0.GetErrorStringRequest> $request) async {
     return getErrorString($call, await $request);
   }
 
-  $async.Future<$0.GetErrorStringResponse> getErrorString(
-      $grpc.ServiceCall call, $0.GetErrorStringRequest request);
+  $async.Future<$0.GetErrorStringResponse> getErrorString($grpc.ServiceCall call, $0.GetErrorStringRequest request);
 
   $async.Future<$0.CfgSampClkTimingResponse> cfgSampClkTiming_Pre(
-      $grpc.ServiceCall $call,
-      $async.Future<$0.CfgSampClkTimingRequest> $request) async {
+      $grpc.ServiceCall $call, $async.Future<$0.CfgSampClkTimingRequest> $request) async {
     return cfgSampClkTiming($call, await $request);
   }
 
@@ -397,8 +359,7 @@ abstract class NiDAQmxServiceBase extends $grpc.Service {
       $grpc.ServiceCall call, $0.CfgSampClkTimingRequest request);
 
   $async.Future<$0.BeginReadAnalogF64Response> beginReadAnalogF64_Pre(
-      $grpc.ServiceCall $call,
-      $async.Future<$0.BeginReadAnalogF64Request> $request) async {
+      $grpc.ServiceCall $call, $async.Future<$0.BeginReadAnalogF64Request> $request) async {
     return beginReadAnalogF64($call, await $request);
   }
 
@@ -406,8 +367,7 @@ abstract class NiDAQmxServiceBase extends $grpc.Service {
       $grpc.ServiceCall call, $0.BeginReadAnalogF64Request request);
 
   $async.Future<$0.BeginReadBinaryI16Response> beginReadBinaryI16_Pre(
-      $grpc.ServiceCall $call,
-      $async.Future<$0.BeginReadBinaryI16Request> $request) async {
+      $grpc.ServiceCall $call, $async.Future<$0.BeginReadBinaryI16Request> $request) async {
     return beginReadBinaryI16($call, await $request);
   }
 
@@ -415,8 +375,7 @@ abstract class NiDAQmxServiceBase extends $grpc.Service {
       $grpc.ServiceCall call, $0.BeginReadBinaryI16Request request);
 
   $async.Future<$0.BeginReadBinaryI32Response> beginReadBinaryI32_Pre(
-      $grpc.ServiceCall $call,
-      $async.Future<$0.BeginReadBinaryI32Request> $request) async {
+      $grpc.ServiceCall $call, $async.Future<$0.BeginReadBinaryI32Request> $request) async {
     return beginReadBinaryI32($call, await $request);
   }
 

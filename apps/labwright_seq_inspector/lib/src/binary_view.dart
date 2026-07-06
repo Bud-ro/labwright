@@ -33,7 +33,9 @@ class BinaryView extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.tertiaryContainer.withValues(alpha: 0.5),
+                  color: theme.colorScheme.tertiaryContainer.withValues(
+                    alpha: 0.5,
+                  ),
                   borderRadius: BorderRadius.circular(cornerRadius),
                 ),
                 child: Row(
@@ -60,8 +62,10 @@ class BinaryView extends StatelessWidget {
               for (final section in sections)
                 ExpansionTile(
                   dense: true,
-                  title: Text('${section.title} (${section.items.length})',
-                      style: theme.textTheme.titleSmall),
+                  title: Text(
+                    '${section.title} (${section.items.length})',
+                    style: theme.textTheme.titleSmall,
+                  ),
                   children: [
                     for (final item in section.items)
                       ListTile(
@@ -73,20 +77,28 @@ class BinaryView extends StatelessWidget {
                 ),
               ExpansionTile(
                 dense: true,
-                title: Text('All recovered strings (${strings.length})',
-                    style: theme.textTheme.titleSmall),
+                title: Text(
+                  'All recovered strings (${strings.length})',
+                  style: theme.textTheme.titleSmall,
+                ),
                 children: [
                   if (strings.isEmpty)
                     const ListTile(
-                        dense: true, title: Text('No strings recovered.'))
+                      dense: true,
+                      title: Text('No strings recovered.'),
+                    )
                   else
                     for (final entry in strings)
                       ListTile(
                         dense: true,
                         visualDensity: VisualDensity.compact,
-                        leading: Text('0x${entry.offset.toRadixString(16)}',
-                            style: monoStyle.copyWith(
-                                fontSize: 11, color: theme.hintColor)),
+                        leading: Text(
+                          '0x${entry.offset.toRadixString(16)}',
+                          style: monoStyle.copyWith(
+                            fontSize: 11,
+                            color: theme.hintColor,
+                          ),
+                        ),
                         title: SelectableText(entry.text, style: monoStyle),
                       ),
                 ],
@@ -104,18 +116,23 @@ class BinaryView extends StatelessWidget {
       defaultVerticalAlignment: TableCellVerticalAlignment.middle,
       children: [
         for (final (label, value) in rows)
-          TableRow(children: [
-            Padding(
-              padding: const EdgeInsets.only(right: 16, top: 2, bottom: 2),
-              child: Text(label,
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: theme.hintColor)),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Text(value, style: monoStyle),
-            ),
-          ]),
+          TableRow(
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(right: 16, top: 2, bottom: 2),
+                child: Text(
+                  label,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.hintColor,
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Text(value, style: monoStyle),
+              ),
+            ],
+          ),
       ],
     );
   }

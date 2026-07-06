@@ -17,25 +17,17 @@ import 'package:protobuf/protobuf.dart' as $pb;
 /// Sideband transport options. GRPC = in-band (this client). The rest are NI's
 /// higher-throughput transports and require native support (see README "Streaming").
 class SidebandStrategy extends $pb.ProtobufEnum {
-  static const SidebandStrategy UNKNOWN =
-      SidebandStrategy._(0, _omitEnumNames ? '' : 'UNKNOWN');
-  static const SidebandStrategy GRPC =
-      SidebandStrategy._(1, _omitEnumNames ? '' : 'GRPC');
-  static const SidebandStrategy SHARED_MEMORY =
-      SidebandStrategy._(2, _omitEnumNames ? '' : 'SHARED_MEMORY');
+  static const SidebandStrategy UNKNOWN = SidebandStrategy._(0, _omitEnumNames ? '' : 'UNKNOWN');
+  static const SidebandStrategy GRPC = SidebandStrategy._(1, _omitEnumNames ? '' : 'GRPC');
+  static const SidebandStrategy SHARED_MEMORY = SidebandStrategy._(2, _omitEnumNames ? '' : 'SHARED_MEMORY');
   static const SidebandStrategy DOUBLE_BUFFERED_SHARED_MEMORY =
-      SidebandStrategy._(
-          3, _omitEnumNames ? '' : 'DOUBLE_BUFFERED_SHARED_MEMORY');
-  static const SidebandStrategy SOCKETS =
-      SidebandStrategy._(4, _omitEnumNames ? '' : 'SOCKETS');
+      SidebandStrategy._(3, _omitEnumNames ? '' : 'DOUBLE_BUFFERED_SHARED_MEMORY');
+  static const SidebandStrategy SOCKETS = SidebandStrategy._(4, _omitEnumNames ? '' : 'SOCKETS');
   static const SidebandStrategy SOCKETS_LOW_LATENCY =
       SidebandStrategy._(5, _omitEnumNames ? '' : 'SOCKETS_LOW_LATENCY');
-  static const SidebandStrategy HYPERVISOR_SOCKETS =
-      SidebandStrategy._(6, _omitEnumNames ? '' : 'HYPERVISOR_SOCKETS');
-  static const SidebandStrategy RDMA =
-      SidebandStrategy._(7, _omitEnumNames ? '' : 'RDMA');
-  static const SidebandStrategy RDMA_LOW_LATENCY =
-      SidebandStrategy._(8, _omitEnumNames ? '' : 'RDMA_LOW_LATENCY');
+  static const SidebandStrategy HYPERVISOR_SOCKETS = SidebandStrategy._(6, _omitEnumNames ? '' : 'HYPERVISOR_SOCKETS');
+  static const SidebandStrategy RDMA = SidebandStrategy._(7, _omitEnumNames ? '' : 'RDMA');
+  static const SidebandStrategy RDMA_LOW_LATENCY = SidebandStrategy._(8, _omitEnumNames ? '' : 'RDMA_LOW_LATENCY');
 
   static const $core.List<SidebandStrategy> values = <SidebandStrategy>[
     UNKNOWN,
@@ -49,13 +41,10 @@ class SidebandStrategy extends $pb.ProtobufEnum {
     RDMA_LOW_LATENCY,
   ];
 
-  static final $core.List<SidebandStrategy?> _byValue =
-      $pb.ProtobufEnum.$_initByValueList(values, 8);
-  static SidebandStrategy? valueOf($core.int value) =>
-      value < 0 || value >= _byValue.length ? null : _byValue[value];
+  static final $core.List<SidebandStrategy?> _byValue = $pb.ProtobufEnum.$_initByValueList(values, 8);
+  static SidebandStrategy? valueOf($core.int value) => value < 0 || value >= _byValue.length ? null : _byValue[value];
 
   const SidebandStrategy._(super.value, super.name);
 }
 
-const $core.bool _omitEnumNames =
-    $core.bool.fromEnvironment('protobuf.omit_enum_names');
+const $core.bool _omitEnumNames = $core.bool.fromEnvironment('protobuf.omit_enum_names');

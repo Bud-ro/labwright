@@ -28,12 +28,9 @@ bool _printable(Uint8List bytes, int start, int end) {
 
 void main() {
   final dir = Directory('${_corpusBase()}/vi');
-  final vis = dir
-      .listSync(recursive: true)
-      .whereType<File>()
-      .where((f) => f.path.toLowerCase().endsWith('.vi'))
-      .toList()
-    ..sort((a, b) => a.path.compareTo(b.path));
+  final vis =
+      dir.listSync(recursive: true).whereType<File>().where((f) => f.path.toLowerCase().endsWith('.vi')).toList()
+        ..sort((a, b) => a.path.compareTo(b.path));
 
   // VITS hypothesis: [u32 count] then `count` entries of
   //   [u32 nameLen][name][u32 payloadLen][payload]
@@ -83,8 +80,13 @@ void main() {
             if (bytes.length < 2) break;
             final le = bytes[0] | (bytes[1] << 8);
             final be = (bytes[0] << 8) | bytes[1];
-            if (2 + 2 * le == bytes.length) { cpmpLe++; cpmpExact++; }
-            else if (2 + 2 * be == bytes.length) { cpmpBe++; cpmpExact++; }
+            if (2 + 2 * le == bytes.length) {
+              cpmpLe++;
+              cpmpExact++;
+            } else if (2 + 2 * be == bytes.length) {
+              cpmpBe++;
+              cpmpExact++;
+            }
           case 'IPSR':
             ipsrTotal++;
             if (view == null || bytes.length % 4 != 0) break;
@@ -92,7 +94,10 @@ void main() {
             var prev = -1;
             for (var pos = 0; pos < bytes.length; pos += 4) {
               final value = view.getUint32(pos);
-              if (value < prev) { ok = false; break; }
+              if (value < prev) {
+                ok = false;
+                break;
+              }
               prev = value;
             }
             if (ok) ipsrAscending++;
@@ -109,7 +114,7 @@ void main() {
             dsimTotal++;
             if (view != null && view.getUint32(0) == 0) dsimZero++;
             for (var pos = 0; pos + 4 <= bytes.length && pos < 4096; pos++) {
-              if (bytes[pos] == 0x89 && bytes[pos+1] == 0x50 && bytes[pos+2] == 0x4e && bytes[pos+3] == 0x47) {
+              if (bytes[pos] == 0x89 && bytes[pos + 1] == 0x50 && bytes[pos + 2] == 0x4e && bytes[pos + 3] == 0x47) {
                 dsimPng++;
                 break;
               }

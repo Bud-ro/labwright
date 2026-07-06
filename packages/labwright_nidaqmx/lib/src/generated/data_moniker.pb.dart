@@ -41,15 +41,11 @@ class Moniker extends $pb.GeneratedMessage {
   factory Moniker.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromBuffer(data, registry);
-  factory Moniker.fromJson($core.String json,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+  factory Moniker.fromJson($core.String json, [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'Moniker',
-      package:
-          const $pb.PackageName(_omitMessageNames ? '' : 'ni.data_monikers'),
-      createEmptyInstance: create)
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'Moniker',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'ni.data_monikers'), createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'serviceLocation')
     ..aOS(2, _omitFieldNames ? '' : 'dataSource')
     ..aInt64(3, _omitFieldNames ? '' : 'dataInstance')
@@ -69,8 +65,7 @@ class Moniker extends $pb.GeneratedMessage {
   @$core.override
   Moniker createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static Moniker getDefault() =>
-      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<Moniker>(create);
+  static Moniker getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<Moniker>(create);
   static Moniker? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -117,27 +112,20 @@ class MonikerList extends $pb.GeneratedMessage {
   factory MonikerList.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromBuffer(data, registry);
-  factory MonikerList.fromJson($core.String json,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+  factory MonikerList.fromJson($core.String json, [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'MonikerList',
-      package:
-          const $pb.PackageName(_omitMessageNames ? '' : 'ni.data_monikers'),
-      createEmptyInstance: create)
-    ..pPM<Moniker>(2, _omitFieldNames ? '' : 'readMonikers',
-        subBuilder: Moniker.create)
-    ..pPM<Moniker>(3, _omitFieldNames ? '' : 'writeMonikers',
-        subBuilder: Moniker.create)
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'MonikerList',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'ni.data_monikers'), createEmptyInstance: create)
+    ..pPM<Moniker>(2, _omitFieldNames ? '' : 'readMonikers', subBuilder: Moniker.create)
+    ..pPM<Moniker>(3, _omitFieldNames ? '' : 'writeMonikers', subBuilder: Moniker.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   MonikerList clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   MonikerList copyWith(void Function(MonikerList) updates) =>
-      super.copyWith((message) => updates(message as MonikerList))
-          as MonikerList;
+      super.copyWith((message) => updates(message as MonikerList)) as MonikerList;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -147,8 +135,7 @@ class MonikerList extends $pb.GeneratedMessage {
   @$core.override
   MonikerList createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static MonikerList getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<MonikerList>(create);
+  static MonikerList getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<MonikerList>(create);
   static MonikerList? _defaultInstance;
 
   @$pb.TagNumber(2)
@@ -174,15 +161,11 @@ class MonikerValues extends $pb.GeneratedMessage {
   factory MonikerValues.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromBuffer(data, registry);
-  factory MonikerValues.fromJson($core.String json,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+  factory MonikerValues.fromJson($core.String json, [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'MonikerValues',
-      package:
-          const $pb.PackageName(_omitMessageNames ? '' : 'ni.data_monikers'),
-      createEmptyInstance: create)
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'MonikerValues',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'ni.data_monikers'), createEmptyInstance: create)
     ..pPM<$1.Any>(1, _omitFieldNames ? '' : 'values', subBuilder: $1.Any.create)
     ..hasRequiredFields = false;
 
@@ -190,8 +173,7 @@ class MonikerValues extends $pb.GeneratedMessage {
   MonikerValues clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   MonikerValues copyWith(void Function(MonikerValues) updates) =>
-      super.copyWith((message) => updates(message as MonikerValues))
-          as MonikerValues;
+      super.copyWith((message) => updates(message as MonikerValues)) as MonikerValues;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -201,8 +183,7 @@ class MonikerValues extends $pb.GeneratedMessage {
   @$core.override
   MonikerValues createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static MonikerValues getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<MonikerValues>(create);
+  static MonikerValues getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<MonikerValues>(create);
   static MonikerValues? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -227,21 +208,16 @@ class MonikerReadResponse extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'MonikerReadResponse',
-      package:
-          const $pb.PackageName(_omitMessageNames ? '' : 'ni.data_monikers'),
-      createEmptyInstance: create)
-    ..aOM<MonikerValues>(1, _omitFieldNames ? '' : 'data',
-        subBuilder: MonikerValues.create)
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'MonikerReadResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'ni.data_monikers'), createEmptyInstance: create)
+    ..aOM<MonikerValues>(1, _omitFieldNames ? '' : 'data', subBuilder: MonikerValues.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   MonikerReadResponse clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   MonikerReadResponse copyWith(void Function(MonikerReadResponse) updates) =>
-      super.copyWith((message) => updates(message as MonikerReadResponse))
-          as MonikerReadResponse;
+      super.copyWith((message) => updates(message as MonikerReadResponse)) as MonikerReadResponse;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -251,8 +227,8 @@ class MonikerReadResponse extends $pb.GeneratedMessage {
   @$core.override
   MonikerReadResponse createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static MonikerReadResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<MonikerReadResponse>(create);
+  static MonikerReadResponse getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<MonikerReadResponse>(create);
   static MonikerReadResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -280,46 +256,36 @@ class BeginMonikerSidebandStreamRequest extends $pb.GeneratedMessage {
 
   BeginMonikerSidebandStreamRequest._();
 
-  factory BeginMonikerSidebandStreamRequest.fromBuffer(
-          $core.List<$core.int> data,
+  factory BeginMonikerSidebandStreamRequest.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromBuffer(data, registry);
   factory BeginMonikerSidebandStreamRequest.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'BeginMonikerSidebandStreamRequest',
-      package:
-          const $pb.PackageName(_omitMessageNames ? '' : 'ni.data_monikers'),
-      createEmptyInstance: create)
-    ..aE<SidebandStrategy>(1, _omitFieldNames ? '' : 'strategy',
-        enumValues: SidebandStrategy.values)
-    ..aOM<MonikerList>(2, _omitFieldNames ? '' : 'monikers',
-        subBuilder: MonikerList.create)
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'BeginMonikerSidebandStreamRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'ni.data_monikers'), createEmptyInstance: create)
+    ..aE<SidebandStrategy>(1, _omitFieldNames ? '' : 'strategy', enumValues: SidebandStrategy.values)
+    ..aOM<MonikerList>(2, _omitFieldNames ? '' : 'monikers', subBuilder: MonikerList.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   BeginMonikerSidebandStreamRequest clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  BeginMonikerSidebandStreamRequest copyWith(
-          void Function(BeginMonikerSidebandStreamRequest) updates) =>
-      super.copyWith((message) =>
-              updates(message as BeginMonikerSidebandStreamRequest))
+  BeginMonikerSidebandStreamRequest copyWith(void Function(BeginMonikerSidebandStreamRequest) updates) =>
+      super.copyWith((message) => updates(message as BeginMonikerSidebandStreamRequest))
           as BeginMonikerSidebandStreamRequest;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
-  static BeginMonikerSidebandStreamRequest create() =>
-      BeginMonikerSidebandStreamRequest._();
+  static BeginMonikerSidebandStreamRequest create() => BeginMonikerSidebandStreamRequest._();
   @$core.override
   BeginMonikerSidebandStreamRequest createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static BeginMonikerSidebandStreamRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<BeginMonikerSidebandStreamRequest>(
-          create);
+  static BeginMonikerSidebandStreamRequest getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<BeginMonikerSidebandStreamRequest>(create);
   static BeginMonikerSidebandStreamRequest? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -353,57 +319,45 @@ class BeginMonikerSidebandStreamResponse extends $pb.GeneratedMessage {
     final result = create();
     if (strategy != null) result.strategy = strategy;
     if (connectionUrl != null) result.connectionUrl = connectionUrl;
-    if (sidebandIdentifier != null)
-      result.sidebandIdentifier = sidebandIdentifier;
+    if (sidebandIdentifier != null) result.sidebandIdentifier = sidebandIdentifier;
     if (bufferSize != null) result.bufferSize = bufferSize;
     return result;
   }
 
   BeginMonikerSidebandStreamResponse._();
 
-  factory BeginMonikerSidebandStreamResponse.fromBuffer(
-          $core.List<$core.int> data,
+  factory BeginMonikerSidebandStreamResponse.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromBuffer(data, registry);
   factory BeginMonikerSidebandStreamResponse.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'BeginMonikerSidebandStreamResponse',
-      package:
-          const $pb.PackageName(_omitMessageNames ? '' : 'ni.data_monikers'),
-      createEmptyInstance: create)
-    ..aE<SidebandStrategy>(1, _omitFieldNames ? '' : 'strategy',
-        enumValues: SidebandStrategy.values)
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'BeginMonikerSidebandStreamResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'ni.data_monikers'), createEmptyInstance: create)
+    ..aE<SidebandStrategy>(1, _omitFieldNames ? '' : 'strategy', enumValues: SidebandStrategy.values)
     ..aOS(2, _omitFieldNames ? '' : 'connectionUrl')
     ..aOS(3, _omitFieldNames ? '' : 'sidebandIdentifier')
-    ..a<$fixnum.Int64>(
-        4, _omitFieldNames ? '' : 'bufferSize', $pb.PbFieldType.OS6,
-        defaultOrMaker: $fixnum.Int64.ZERO)
+    ..a<$fixnum.Int64>(4, _omitFieldNames ? '' : 'bufferSize', $pb.PbFieldType.OS6, defaultOrMaker: $fixnum.Int64.ZERO)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   BeginMonikerSidebandStreamResponse clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  BeginMonikerSidebandStreamResponse copyWith(
-          void Function(BeginMonikerSidebandStreamResponse) updates) =>
-      super.copyWith((message) =>
-              updates(message as BeginMonikerSidebandStreamResponse))
+  BeginMonikerSidebandStreamResponse copyWith(void Function(BeginMonikerSidebandStreamResponse) updates) =>
+      super.copyWith((message) => updates(message as BeginMonikerSidebandStreamResponse))
           as BeginMonikerSidebandStreamResponse;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
-  static BeginMonikerSidebandStreamResponse create() =>
-      BeginMonikerSidebandStreamResponse._();
+  static BeginMonikerSidebandStreamResponse create() => BeginMonikerSidebandStreamResponse._();
   @$core.override
   BeginMonikerSidebandStreamResponse createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static BeginMonikerSidebandStreamResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<BeginMonikerSidebandStreamResponse>(
-          create);
+  static BeginMonikerSidebandStreamResponse getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<BeginMonikerSidebandStreamResponse>(create);
   static BeginMonikerSidebandStreamResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -443,7 +397,5 @@ class BeginMonikerSidebandStreamResponse extends $pb.GeneratedMessage {
   void clearBufferSize() => $_clearField(4);
 }
 
-const $core.bool _omitFieldNames =
-    $core.bool.fromEnvironment('protobuf.omit_field_names');
-const $core.bool _omitMessageNames =
-    $core.bool.fromEnvironment('protobuf.omit_message_names');
+const $core.bool _omitFieldNames = $core.bool.fromEnvironment('protobuf.omit_field_names');
+const $core.bool _omitMessageNames = $core.bool.fromEnvironment('protobuf.omit_message_names');

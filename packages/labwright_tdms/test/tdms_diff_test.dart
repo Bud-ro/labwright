@@ -7,8 +7,12 @@ TdmsFile _read(List<TdmsChannel> channels) => TdmsReader.read((TdmsWriter()..wri
 
 void main() {
   test('identical files diff to identical=true and encode as JSON', () {
-    final a = _read([TdmsChannel(group: 'M', name: 'v', data: const [1.0, 2.0, 3.0])]);
-    final b = _read([TdmsChannel(group: 'M', name: 'v', data: const [1.0, 2.0, 3.0])]);
+    final a = _read([
+      TdmsChannel(group: 'M', name: 'v', data: const [1.0, 2.0, 3.0]),
+    ]);
+    final b = _read([
+      TdmsChannel(group: 'M', name: 'v', data: const [1.0, 2.0, 3.0]),
+    ]);
     final d = diffTdms(a, b);
     expect(d['identical'], isTrue);
     expect(d['channels'], isEmpty);
@@ -16,8 +20,12 @@ void main() {
   });
 
   test('detects a value difference with first index and max delta', () {
-    final a = _read([TdmsChannel(group: 'M', name: 'v', data: const [1.0, 2.0, 3.0])]);
-    final b = _read([TdmsChannel(group: 'M', name: 'v', data: const [1.0, 2.5, 3.0])]);
+    final a = _read([
+      TdmsChannel(group: 'M', name: 'v', data: const [1.0, 2.0, 3.0]),
+    ]);
+    final b = _read([
+      TdmsChannel(group: 'M', name: 'v', data: const [1.0, 2.5, 3.0]),
+    ]);
     final d = diffTdms(a, b);
     expect(d['identical'], isFalse);
     final ch = (d['channels'] as List).single as Map<String, Object?>;
@@ -27,8 +35,12 @@ void main() {
   });
 
   test('tolerance absorbs small differences', () {
-    final a = _read([TdmsChannel(group: 'M', name: 'v', data: const [1.0, 2.0])]);
-    final b = _read([TdmsChannel(group: 'M', name: 'v', data: const [1.0, 2.05])]);
+    final a = _read([
+      TdmsChannel(group: 'M', name: 'v', data: const [1.0, 2.0]),
+    ]);
+    final b = _read([
+      TdmsChannel(group: 'M', name: 'v', data: const [1.0, 2.05]),
+    ]);
     expect(diffTdms(a, b, tol: 0.1)['identical'], isTrue);
     expect(diffTdms(a, b, tol: 0.01)['identical'], isFalse);
   });

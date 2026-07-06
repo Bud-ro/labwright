@@ -89,8 +89,12 @@ Stream<TypedData> ffiReadStream({
           controller.close();
         } else if (msg is Map) {
           controller.addError(
-              DaqmxException(msg['status'] as int? ?? -1, msg['error'] as String? ?? 'stream error',
-                  operation: msg['op'] as String?));
+            DaqmxException(
+              msg['status'] as int? ?? -1,
+              msg['error'] as String? ?? 'stream error',
+              operation: msg['op'] as String?,
+            ),
+          );
           controller.close();
         }
       });
@@ -196,19 +200,25 @@ Future<void> _streamWorker(_StreamRequest req) async {
     if (s < 0) return fail(s, 'DAQmxCreateTask', errFor(s, 'DAQmxCreateTask') ?? 'create failed');
     task = taskPtr.value;
 
-    s = b.createAIVoltageChan(task, req.channel.toNativeUtf8(allocator: arena), nullptr,
-        req.terminalConfig, req.min, req.max, DaqmxVal.volts, nullptr);
+    s = b.createAIVoltageChan(
+      task,
+      req.channel.toNativeUtf8(allocator: arena),
+      nullptr,
+      req.terminalConfig,
+      req.min,
+      req.max,
+      DaqmxVal.volts,
+      nullptr,
+    );
     if (s < 0) {
-      return fail(
-          s, 'DAQmxCreateAIVoltageChan', errFor(s, 'DAQmxCreateAIVoltageChan') ?? 'channel failed');
+      return fail(s, 'DAQmxCreateAIVoltageChan', errFor(s, 'DAQmxCreateAIVoltageChan') ?? 'channel failed');
     }
 
     final continuous = req.totalSamples == null;
     final mode = continuous ? DaqmxVal.contSamps : DaqmxVal.finiteSamps;
     // Buffer hint: total for finite, a few chunks for continuous.
     final sampsHint = req.totalSamples ?? (req.samplesPerChunk * 4);
-    s = b.cfgSampClkTiming(
-        task, ''.toNativeUtf8(allocator: arena), req.rateHz, DaqmxVal.rising, mode, sampsHint);
+    s = b.cfgSampClkTiming(task, ''.toNativeUtf8(allocator: arena), req.rateHz, DaqmxVal.rising, mode, sampsHint);
     if (s < 0) {
       return fail(s, 'DAQmxCfgSampClkTiming', errFor(s, 'DAQmxCfgSampClkTiming') ?? 'timing failed');
     }
@@ -238,8 +248,7 @@ Future<void> _streamWorker(_StreamRequest req) async {
         if (stop) break;
       }
 
-      final want =
-          continuous ? chunk : (req.totalSamples! - delivered).clamp(0, chunk);
+      final want = continuous ? chunk : (req.totalSamples! - delivered).clamp(0, chunk);
       if (want == 0) break;
 
       final transfer = _readChunk(b, format, task, want, req.readTimeout, sampsRead, reserved, arena);
@@ -273,17 +282,25 @@ Future<void> _streamWorker(_StreamRequest req) async {
 int _lastReadStatus = 0;
 
 String _readOp(DaqSampleFormat f) => switch (f) {
-      DaqSampleFormat.volts => 'DAQmxReadAnalogF64',
-      DaqSampleFormat.rawI16 => 'DAQmxReadBinaryI16',
-      DaqSampleFormat.rawI32 => 'DAQmxReadBinaryI32',
-      DaqSampleFormat.rawU16 => 'DAQmxReadBinaryU16',
-      DaqSampleFormat.rawU32 => 'DAQmxReadBinaryU32',
-    };
+  DaqSampleFormat.volts => 'DAQmxReadAnalogF64',
+  DaqSampleFormat.rawI16 => 'DAQmxReadBinaryI16',
+  DaqSampleFormat.rawI32 => 'DAQmxReadBinaryI32',
+  DaqSampleFormat.rawU16 => 'DAQmxReadBinaryU16',
+  DaqSampleFormat.rawU32 => 'DAQmxReadBinaryU32',
+};
 
 /// Read one block in [format] and package it as transferable bytes, or null on a
 /// negative DAQmx status (status stashed in [_lastReadStatus]).
-TransferableTypedData? _readChunk(NidaqmxBindings b, DaqSampleFormat format, TaskHandle task,
-    int want, double timeout, Pointer<Int32> sampsRead, Pointer<Uint32> reserved, Arena arena) {
+TransferableTypedData? _readChunk(
+  NidaqmxBindings b,
+  DaqSampleFormat format,
+  TaskHandle task,
+  int want,
+  double timeout,
+  Pointer<Int32> sampsRead,
+  Pointer<Uint32> reserved,
+  Arena arena,
+) {
   const fill = DaqmxVal.groupByChannel;
   switch (format) {
     case DaqSampleFormat.volts:

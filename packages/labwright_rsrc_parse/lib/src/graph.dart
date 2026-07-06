@@ -117,9 +117,9 @@ class ViHeapObject {
   /// by the diagram to highlight a structure's members (which the positional
   /// nesting tree does not capture; the two diverge ~72%). May be empty.
   Iterable<int> get memberOids => <int>{
-        ...?typedRefs[HeapRefKind.childRef],
-        ...?typedRefs[HeapRefKind.memberRef],
-      };
+    ...?typedRefs[HeapRefKind.childRef],
+    ...?typedRefs[HeapRefKind.memberRef],
+  };
 
   /// Number of `C4 1F` terminal records attached.
   int termCount = 0;
@@ -615,7 +615,8 @@ enum HeapObjectClass {
 
   /// A class code that is not (yet) catalogued. Its [code] is -1; use
   /// [ViHeapObject.kind] for the actual value.
-  unknown(-1, 'Unknown class', ViObjectKind.unknown, ClassConfidence.kindOnly);
+  unknown(-1, 'Unknown class', ViObjectKind.unknown, ClassConfidence.kindOnly)
+  ;
 
   const HeapObjectClass(this.code, this.label, this.category, this.confidence);
 
@@ -666,8 +667,7 @@ const _objAttrIds = {0x20, 0x21, 0x6c};
 /// enumerating each.
 const int _structureAreaCap = 20000;
 
-String _fmtNum(double v) =>
-    v == v.roundToDouble() && v.abs() < 1e15 ? v.toInt().toString() : v.toString();
+String _fmtNum(double v) => v == v.roundToDouble() && v.abs() < 1e15 ? v.toInt().toString() : v.toString();
 
 /// A human-readable range string for a control's decoded [min]/[max], or null
 /// when there is nothing meaningful to show. Honest: a NaN in either slot means
@@ -805,11 +805,11 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
   for (final span in walkHeapBody(body).spans) {
     final offset = span.offset;
     final lead = span.lead;
-    final isGroupOpen = (_objectHeaderLeads.contains(lead) || lead == 0x13) &&
-        offset + 4 <= length &&
-        _isTypeTag(body[offset + 3]);
+    final isGroupOpen =
+        (_objectHeaderLeads.contains(lead) || lead == 0x13) && offset + 4 <= length && _isTypeTag(body[offset + 3]);
     if (isGroupOpen) {
-      final isObj = _objectHeaderLeads.contains(lead) &&
+      final isObj =
+          _objectHeaderLeads.contains(lead) &&
           offset + 9 <= length &&
           body[offset + 2] == 0x02 &&
           body[offset + 3] == 0xfe &&
@@ -1039,7 +1039,12 @@ void _reanchorScrolledControls(List<ViHeapObject> objects) {
       final object = work.removeLast();
       final bounds = object.absBounds;
       if (bounds != null) {
-        object.absBounds = HeapRect(top: bounds.top + dTop, left: bounds.left + dLeft, bottom: bounds.bottom + dTop, right: bounds.right + dLeft);
+        object.absBounds = HeapRect(
+          top: bounds.top + dTop,
+          left: bounds.left + dLeft,
+          bottom: bounds.bottom + dTop,
+          right: bounds.right + dLeft,
+        );
       }
       if (!expanded.add(object.oid)) continue;
       final cs = kids[object.oid];

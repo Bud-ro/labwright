@@ -72,13 +72,13 @@ class FfiDaqmxBackend implements DaqmxApi {
   }
 
   String _errorInfoSync() => using((arena) {
-        const cap = 2048;
-        final buf = arena<Uint8>(cap);
-        buf[0] = 0; // defensive: never read an uninitialized buffer if the call no-ops
-        final str = buf.cast<Utf8>();
-        _bindings.getExtendedErrorInfo(str, cap);
-        return str.toDartString();
-      });
+    const cap = 2048;
+    final buf = arena<Uint8>(cap);
+    buf[0] = 0; // defensive: never read an uninitialized buffer if the call no-ops
+    final str = buf.cast<Utf8>();
+    _bindings.getExtendedErrorInfo(str, cap);
+    return str.toDartString();
+  });
 
   @override
   Future<String> errorInfo() async {
@@ -121,13 +121,20 @@ class FfiDaqmxBackend implements DaqmxApi {
       DaqLoggers.task.fine('CreateTask (ai)');
       try {
         _check(
-          _bindings.createAIVoltageChan(task.value, physicalChannel.toNativeUtf8(allocator: arena),
-              nullptr, terminalConfig, min, max, DaqmxVal.volts, nullptr),
+          _bindings.createAIVoltageChan(
+            task.value,
+            physicalChannel.toNativeUtf8(allocator: arena),
+            nullptr,
+            terminalConfig,
+            min,
+            max,
+            DaqmxVal.volts,
+            nullptr,
+          ),
           'DAQmxCreateAIVoltageChan',
         );
         final value = arena<Double>();
-        _check(_bindings.readAnalogScalarF64(task.value, timeout, value, nullptr),
-            'DAQmxReadAnalogScalarF64');
+        _check(_bindings.readAnalogScalarF64(task.value, timeout, value, nullptr), 'DAQmxReadAnalogScalarF64');
         DaqLoggers.io.fine('readVoltage($physicalChannel) -> ${value.value}');
         return value.value;
       } finally {
@@ -152,12 +159,21 @@ class FfiDaqmxBackend implements DaqmxApi {
       DaqLoggers.task.fine('CreateTask (ao)');
       try {
         _check(
-          _bindings.createAOVoltageChan(task.value, physicalChannel.toNativeUtf8(allocator: arena),
-              nullptr, min, max, DaqmxVal.volts, nullptr),
+          _bindings.createAOVoltageChan(
+            task.value,
+            physicalChannel.toNativeUtf8(allocator: arena),
+            nullptr,
+            min,
+            max,
+            DaqmxVal.volts,
+            nullptr,
+          ),
           'DAQmxCreateAOVoltageChan',
         );
-        _check(_bindings.writeAnalogScalarF64(task.value, DaqmxVal.boolTrue, timeout, volts, nullptr),
-            'DAQmxWriteAnalogScalarF64');
+        _check(
+          _bindings.writeAnalogScalarF64(task.value, DaqmxVal.boolTrue, timeout, volts, nullptr),
+          'DAQmxWriteAnalogScalarF64',
+        );
         DaqLoggers.io.fine('writeVoltage($physicalChannel, $volts)');
       } finally {
         _bindings.clearTask(task.value);
@@ -178,8 +194,10 @@ class FfiDaqmxBackend implements DaqmxApi {
     int terminalConfig = DaqmxVal.cfgDefault,
   }) {
     _ensureOpen();
-    DaqLoggers.io.fine('readStream($physicalChannel, ${rateHz}Hz, $format, '
-        '${totalSamples == null ? 'continuous' : '$totalSamples samps'})');
+    DaqLoggers.io.fine(
+      'readStream($physicalChannel, ${rateHz}Hz, $format, '
+      '${totalSamples == null ? 'continuous' : '$totalSamples samps'})',
+    );
     return ffiReadStream(
       libraryPath: libraryPath,
       channel: physicalChannel,

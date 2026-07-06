@@ -21,11 +21,17 @@ void main() {
 
     test('decodes UTF-8 leniently and never throws', () {
       final b = Uint8List.fromList([0, 0, 0, 6, 0x41, 0x42, 0x43]);
-      expect(decodeStringBlock(b), 'ABC',
-          reason: 'length prefix says 6 but only 3 body bytes present -> clamps, no throw');
+      expect(
+        decodeStringBlock(b),
+        'ABC',
+        reason: 'length prefix says 6 but only 3 body bytes present -> clamps, no throw',
+      );
       final bad = Uint8List.fromList([0, 0, 0, 1, 0xff]);
-      expect(decodeStringBlock(bad), isNotNull,
-          reason: 'a stray high byte becomes the replacement char rather than throwing');
+      expect(
+        decodeStringBlock(bad),
+        isNotNull,
+        reason: 'a stray high byte becomes the replacement char rather than throwing',
+      );
     });
 
     test('too short for the length prefix yields null', () {

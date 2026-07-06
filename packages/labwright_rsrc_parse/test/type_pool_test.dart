@@ -7,13 +7,15 @@ import 'package:test/test.dart';
 /// (no-corpus) unit tests: a `[u32 count]` header followed by one 4-byte
 /// descriptor per code (`[u16 len=4][flags 0x40][typeCode]`).
 Uint8List _pool(List<int> codes) => Uint8List.fromList([
-      0, 0, 0, codes.length,
-      for (final c in codes) ...[0x00, 0x04, 0x40, c],
-    ]);
+  0,
+  0,
+  0,
+  codes.length,
+  for (final c in codes) ...[0x00, 0x04, 0x40, c],
+]);
 
 /// A VCTP descriptor: a `u16` length (`2 + body.length`) followed by [body].
-List<int> descriptor(List<int> body) =>
-    [((2 + body.length) >> 8) & 0xff, (2 + body.length) & 0xff, ...body];
+List<int> descriptor(List<int> body) => [((2 + body.length) >> 8) & 0xff, (2 + body.length) & 0xff, ...body];
 
 void main() {
   test('decodes well-known type codes to their kinds', () {
@@ -69,7 +71,10 @@ void main() {
     final named = <int>[0x40, 0x50, 2, 0x61, 0x61];
     final unnamed = <int>[0x40, 0x21];
     final b = <int>[
-      0, 0, 0, 2,
+      0,
+      0,
+      0,
+      2,
       ...descriptor(named),
       ...descriptor(unnamed),
     ];
@@ -111,9 +116,12 @@ void main() {
 
   test('decodes enum item labels from an enum descriptor', () {
     final items = <int>[
-      0x00, 0x02,
-      6, ...'Rising'.codeUnits,
-      7, ...'Falling'.codeUnits,
+      0x00,
+      0x02,
+      6,
+      ...'Rising'.codeUnits,
+      7,
+      ...'Falling'.codeUnits,
     ];
     final desc = <int>[0x40, 0x16, ...items];
     final b = Uint8List.fromList([0, 0, 0, 1, ...descriptor(desc)]);
@@ -131,33 +139,59 @@ void main() {
   test('a 2-D array resolves its element index past the dim-size stride', () {
     final type0 = <int>[0x00, 0x04, 0x40, 0x0a];
     final type1 = <int>[
-      0x00, 0x10, 0x40, 0x40,
-      0x00, 0x02,
-      0x00, 0x00, 0x00, 0x03,
-      0x00, 0x00, 0x00, 0x04,
-      0x00, 0x00,
+      0x00,
+      0x10,
+      0x40,
+      0x40,
+      0x00,
+      0x02,
+      0x00,
+      0x00,
+      0x00,
+      0x03,
+      0x00,
+      0x00,
+      0x00,
+      0x04,
+      0x00,
+      0x00,
     ];
     final b = Uint8List.fromList([0, 0, 0, 2, ...type0, ...type1]);
     final types = decodeTypePool(b);
     expect(types[1].kind, ViDataType.array);
-    expect(types[1].elementIndex, 0,
-        reason: 'element index is read past the 2-D dim-size stride, not from a dim-size byte');
+    expect(
+      types[1].elementIndex,
+      0,
+      reason: 'element index is read past the 2-D dim-size stride, not from a dim-size byte',
+    );
     expect(typeLabel(types[1], types), 'array<dbl>');
   });
 
   test('a binary array tail is NOT mis-read as a trailing name', () {
     final type0 = <int>[0x00, 0x04, 0x40, 0x0a];
     final type1 = <int>[
-      0x00, 0x0c, 0x40, 0x40,
-      0x00, 0x01,
-      0x41, 0x42, 0x43, 0x44,
-      0x00, 0x00,
+      0x00,
+      0x0c,
+      0x40,
+      0x40,
+      0x00,
+      0x01,
+      0x41,
+      0x42,
+      0x43,
+      0x44,
+      0x00,
+      0x00,
     ];
     final b = Uint8List.fromList([0, 0, 0, 2, ...type0, ...type1]);
     final types = decodeTypePool(b);
     expect(types[1].elementIndex, 0);
-    expect(types[1].name, isNull,
-        reason: 'dim-size bytes spelling printable "ABCD" are not a name; name scanning is confined to after the element index');
+    expect(
+      types[1].name,
+      isNull,
+      reason:
+          'dim-size bytes spelling printable "ABCD" are not a name; name scanning is confined to after the element index',
+    );
   });
 
   test('a malformed cluster member list yields no members (no throw)', () {
@@ -165,8 +199,7 @@ void main() {
     final b = Uint8List.fromList([0, 0, 0, 1, ...type2]);
     final types = decodeTypePool(b);
     expect(types.single.kind, ViDataType.cluster);
-    expect(types.single.members, isEmpty,
-        reason: 'a member count of 999 (0x03e7) in a tiny descriptor is rejected');
+    expect(types.single.members, isEmpty, reason: 'a member count of 999 (0x03e7) in a tiny descriptor is rejected');
   });
 
   test('typeKindHistogram counts kinds, most-frequent first', () {

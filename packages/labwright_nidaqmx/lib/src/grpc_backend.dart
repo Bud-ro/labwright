@@ -46,9 +46,9 @@ class GrpcDaqmxBackend implements DaqmxApi {
     this.port = defaultPort,
     this.callTimeout = const Duration(seconds: 30),
     this.sideband = SidebandStrategy.inBandGrpc,
-  })  : secure = false,
-        credentials = null,
-        _channel = channel;
+  }) : secure = false,
+       credentials = null,
+       _channel = channel;
 
   /// NI gRPC Device Server's default listen port.
   static const int defaultPort = 31763;
@@ -85,17 +85,21 @@ class GrpcDaqmxBackend implements DaqmxApi {
   int _warnedInsecure = 0;
 
   ClientChannel get _chan => _channel ??= () {
-        final creds = credentials ??
-            (secure ? const ChannelCredentials.secure() : const ChannelCredentials.insecure());
-        if (credentials == null && !secure && _warnedInsecure++ == 0) {
-          DaqLoggers.grpc.warning(
-              'connecting to $host:$port over an INSECURE (cleartext) channel; '
-              'anyone on-path can read or inject DAQ commands. Use secure: true or '
-              'pass credentials for anything beyond a trusted, isolated network.');
-        }
-        DaqLoggers.grpc.fine('opening channel to $host:$port');
-        return ClientChannel(host, port: port, options: ChannelOptions(credentials: creds));
-      }();
+    final creds = credentials ?? (secure ? const ChannelCredentials.secure() : const ChannelCredentials.insecure());
+    if (credentials == null && !secure && _warnedInsecure++ == 0) {
+      DaqLoggers.grpc.warning(
+        'connecting to $host:$port over an INSECURE (cleartext) channel; '
+        'anyone on-path can read or inject DAQ commands. Use secure: true or '
+        'pass credentials for anything beyond a trusted, isolated network.',
+      );
+    }
+    DaqLoggers.grpc.fine('opening channel to $host:$port');
+    return ClientChannel(
+      host,
+      port: port,
+      options: ChannelOptions(credentials: creds),
+    );
+  }();
 
   NiDAQmxClient get _ni => _daqmx ??= NiDAQmxClient(_chan);
   SessionUtilitiesClient get _util => _utilities ??= SessionUtilitiesClient(_chan);
@@ -115,8 +119,7 @@ class GrpcDaqmxBackend implements DaqmxApi {
       return await body();
     } on GrpcError catch (e) {
       DaqLoggers.grpc.warning('$op transport error: ${e.codeName} ${e.message}');
-      throw DaqmxUnavailable(
-          'NI gRPC Device Server at $host:$port failed $op: ${e.codeName} ${e.message ?? ''}');
+      throw DaqmxUnavailable('NI gRPC Device Server at $host:$port failed $op: ${e.codeName} ${e.message ?? ''}');
     }
   }
 
@@ -145,11 +148,11 @@ class GrpcDaqmxBackend implements DaqmxApi {
 
   @override
   Future<List<String>> deviceNames() => _transport('EnumerateDevices', () async {
-        final resp = await _util.enumerateDevices(sess.EnumerateDevicesRequest(), options: _opts);
-        final names = resp.devices.map((d) => d.name).where((n) => n.isNotEmpty).toList();
-        DaqLoggers.grpc.fine('EnumerateDevices -> $names');
-        return names;
-      });
+    final resp = await _util.enumerateDevices(sess.EnumerateDevicesRequest(), options: _opts);
+    final names = resp.devices.map((d) => d.name).where((n) => n.isNotEmpty).toList();
+    DaqLoggers.grpc.fine('EnumerateDevices -> $names');
+    return names;
+  });
 
   @override
   Future<double> readVoltage(
@@ -158,34 +161,34 @@ class GrpcDaqmxBackend implements DaqmxApi {
     double max = 10,
     int terminalConfig = DaqmxVal.cfgDefault,
     double timeout = 10,
-  }) =>
-      _transport('readVoltage', () async {
-        final task = await _createTask();
-        try {
-          await _check(
-            (await _ni.createAIVoltageChan(
-                    pb.CreateAIVoltageChanRequest(
-                      task: task,
-                      physicalChannel: physicalChannel,
-                      terminalConfigRaw: terminalConfig,
-                      minVal: min,
-                      maxVal: max,
-                      unitsRaw: DaqmxVal.volts,
-                    ),
-                    options: _opts))
-                .status,
-            'DAQmxCreateAIVoltageChan',
-          );
-          final r = await _ni.readAnalogScalarF64(
-              pb.ReadAnalogScalarF64Request(task: task, timeout: timeout),
-              options: _opts);
-          await _check(r.status, 'DAQmxReadAnalogScalarF64');
-          DaqLoggers.io.fine('readVoltage($physicalChannel) -> ${r.value}');
-          return r.value;
-        } finally {
-          await _clearTask(task);
-        }
-      });
+  }) => _transport('readVoltage', () async {
+    final task = await _createTask();
+    try {
+      await _check(
+        (await _ni.createAIVoltageChan(
+          pb.CreateAIVoltageChanRequest(
+            task: task,
+            physicalChannel: physicalChannel,
+            terminalConfigRaw: terminalConfig,
+            minVal: min,
+            maxVal: max,
+            unitsRaw: DaqmxVal.volts,
+          ),
+          options: _opts,
+        )).status,
+        'DAQmxCreateAIVoltageChan',
+      );
+      final r = await _ni.readAnalogScalarF64(
+        pb.ReadAnalogScalarF64Request(task: task, timeout: timeout),
+        options: _opts,
+      );
+      await _check(r.status, 'DAQmxReadAnalogScalarF64');
+      DaqLoggers.io.fine('readVoltage($physicalChannel) -> ${r.value}');
+      return r.value;
+    } finally {
+      await _clearTask(task);
+    }
+  });
 
   @override
   Future<void> writeVoltage(
@@ -194,40 +197,39 @@ class GrpcDaqmxBackend implements DaqmxApi {
     double min = -10,
     double max = 10,
     double timeout = 10,
-  }) =>
-      _transport('writeVoltage', () async {
-        final task = await _createTask();
-        try {
-          await _check(
-            (await _ni.createAOVoltageChan(
-                    pb.CreateAOVoltageChanRequest(
-                      task: task,
-                      physicalChannel: physicalChannel,
-                      minVal: min,
-                      maxVal: max,
-                      unitsRaw: DaqmxVal.volts,
-                    ),
-                    options: _opts))
-                .status,
-            'DAQmxCreateAOVoltageChan',
-          );
-          await _check(
-            (await _ni.writeAnalogScalarF64(
-                    pb.WriteAnalogScalarF64Request(
-                      task: task,
-                      autoStart: true,
-                      timeout: timeout,
-                      value: volts,
-                    ),
-                    options: _opts))
-                .status,
-            'DAQmxWriteAnalogScalarF64',
-          );
-          DaqLoggers.io.fine('writeVoltage($physicalChannel, $volts)');
-        } finally {
-          await _clearTask(task);
-        }
-      });
+  }) => _transport('writeVoltage', () async {
+    final task = await _createTask();
+    try {
+      await _check(
+        (await _ni.createAOVoltageChan(
+          pb.CreateAOVoltageChanRequest(
+            task: task,
+            physicalChannel: physicalChannel,
+            minVal: min,
+            maxVal: max,
+            unitsRaw: DaqmxVal.volts,
+          ),
+          options: _opts,
+        )).status,
+        'DAQmxCreateAOVoltageChan',
+      );
+      await _check(
+        (await _ni.writeAnalogScalarF64(
+          pb.WriteAnalogScalarF64Request(
+            task: task,
+            autoStart: true,
+            timeout: timeout,
+            value: volts,
+          ),
+          options: _opts,
+        )).status,
+        'DAQmxWriteAnalogScalarF64',
+      );
+      DaqLoggers.io.fine('writeVoltage($physicalChannel, $volts)');
+    } finally {
+      await _clearTask(task);
+    }
+  });
 
   /// Best-effort: the NI gRPC service exposes no `GetExtendedErrorInfo` RPC and no
   /// per-connection "last error" channel, so — unlike the FFI backend — this cannot
@@ -235,9 +237,9 @@ class GrpcDaqmxBackend implements DaqmxApi {
   /// each [DaqmxException] instead (via GetErrorString). Returns '' when healthy.
   @override
   Future<String> errorInfo() => _transport('GetErrorString', () async {
-        final r = await _ni.getErrorString(pb.GetErrorStringRequest(errorCode: 0), options: _opts);
-        return r.errorString;
-      });
+    final r = await _ni.getErrorString(pb.GetErrorStringRequest(errorCode: 0), options: _opts);
+    return r.errorString;
+  });
 
   @override
   Stream<TypedData> readStream(
@@ -253,9 +255,10 @@ class GrpcDaqmxBackend implements DaqmxApi {
     _ensureOpen();
     if (sideband != SidebandStrategy.inBandGrpc) {
       throw UnsupportedError(
-          'sideband ${sideband.name} streaming needs a native transport; only '
-          'SidebandStrategy.inBandGrpc (DataMoniker.StreamRead) is implemented. '
-          'See README "Streaming".');
+        'sideband ${sideband.name} streaming needs a native transport; only '
+        'SidebandStrategy.inBandGrpc (DataMoniker.StreamRead) is implemented. '
+        'See README "Streaming".',
+      );
     }
 
     late StreamController<TypedData> controller;
@@ -283,35 +286,34 @@ class GrpcDaqmxBackend implements DaqmxApi {
       task = await _createTask();
       await _check(
         (await _ni.createAIVoltageChan(
-                pb.CreateAIVoltageChanRequest(
-                  task: task,
-                  physicalChannel: physicalChannel,
-                  terminalConfigRaw: terminalConfig,
-                  minVal: min,
-                  maxVal: max,
-                  unitsRaw: DaqmxVal.volts,
-                ),
-                options: _opts))
-            .status,
+          pb.CreateAIVoltageChanRequest(
+            task: task,
+            physicalChannel: physicalChannel,
+            terminalConfigRaw: terminalConfig,
+            minVal: min,
+            maxVal: max,
+            unitsRaw: DaqmxVal.volts,
+          ),
+          options: _opts,
+        )).status,
         'DAQmxCreateAIVoltageChan',
       );
       final mode = totalSamples == null ? DaqmxVal.contSamps : DaqmxVal.finiteSamps;
       await _check(
         (await _ni.cfgSampClkTiming(
-                pb.CfgSampClkTimingRequest(
-                  task: task,
-                  source: '',
-                  rate: rateHz,
-                  activeEdgeRaw: DaqmxVal.rising,
-                  sampleModeRaw: mode,
-                  sampsPerChan: Int64(totalSamples ?? samplesPerChunk),
-                ),
-                options: _opts))
-            .status,
+          pb.CfgSampClkTimingRequest(
+            task: task,
+            source: '',
+            rate: rateHz,
+            activeEdgeRaw: DaqmxVal.rising,
+            sampleModeRaw: mode,
+            sampsPerChan: Int64(totalSamples ?? samplesPerChunk),
+          ),
+          options: _opts,
+        )).status,
         'DAQmxCfgSampClkTiming',
       );
-      await _check((await _ni.startTask(pb.StartTaskRequest(task: task), options: _opts)).status,
-          'DAQmxStartTask');
+      await _check((await _ni.startTask(pb.StartTaskRequest(task: task), options: _opts)).status, 'DAQmxStartTask');
 
       final moniker = await _beginRead(format, task!, samplesPerChunk);
       DaqLoggers.grpc.fine('streaming via moniker "${moniker.dataSource}"');
@@ -331,18 +333,20 @@ class GrpcDaqmxBackend implements DaqmxApi {
 
     controller = StreamController<TypedData>(
       onListen: () {
-        run().then((_) async {
-          await cleanup();
-          if (!controller.isClosed) await controller.close();
-        }).catchError((Object e) async {
-          await cleanup();
-          if (!controller.isClosed) {
-            controller.addError(e is GrpcError
-                ? DaqmxUnavailable('stream transport error: ${e.codeName} ${e.message ?? ''}')
-                : e);
-            await controller.close();
-          }
-        });
+        run()
+            .then((_) async {
+              await cleanup();
+              if (!controller.isClosed) await controller.close();
+            })
+            .catchError((Object e) async {
+              await cleanup();
+              if (!controller.isClosed) {
+                controller.addError(
+                  e is GrpcError ? DaqmxUnavailable('stream transport error: ${e.codeName} ${e.message ?? ''}') : e,
+                );
+                await controller.close();
+              }
+            });
       },
       onCancel: cleanup,
     );
@@ -354,41 +358,46 @@ class GrpcDaqmxBackend implements DaqmxApi {
     switch (format) {
       case DaqSampleFormat.volts:
         final r = await _ni.beginReadAnalogF64(
-            pb.BeginReadAnalogF64Request(
-                task: task,
-                numSampsPerChan: chunk,
-                timeout: -1,
-                fillModeRaw: DaqmxVal.groupByChannel,
-                arraySizeInSamps: chunk),
-            options: _opts);
+          pb.BeginReadAnalogF64Request(
+            task: task,
+            numSampsPerChan: chunk,
+            timeout: -1,
+            fillModeRaw: DaqmxVal.groupByChannel,
+            arraySizeInSamps: chunk,
+          ),
+          options: _opts,
+        );
         await _check(r.status, 'BeginReadAnalogF64');
         return r.moniker;
       case DaqSampleFormat.rawI16:
         final r = await _ni.beginReadBinaryI16(
-            pb.BeginReadBinaryI16Request(
-                task: task,
-                numSampsPerChan: chunk,
-                timeout: -1,
-                fillModeRaw: DaqmxVal.groupByChannel,
-                arraySizeInSamps: chunk),
-            options: _opts);
+          pb.BeginReadBinaryI16Request(
+            task: task,
+            numSampsPerChan: chunk,
+            timeout: -1,
+            fillModeRaw: DaqmxVal.groupByChannel,
+            arraySizeInSamps: chunk,
+          ),
+          options: _opts,
+        );
         await _check(r.status, 'BeginReadBinaryI16');
         return r.moniker;
       case DaqSampleFormat.rawI32:
         final r = await _ni.beginReadBinaryI32(
-            pb.BeginReadBinaryI32Request(
-                task: task,
-                numSampsPerChan: chunk,
-                timeout: -1,
-                fillModeRaw: DaqmxVal.groupByChannel,
-                arraySizeInSamps: chunk),
-            options: _opts);
+          pb.BeginReadBinaryI32Request(
+            task: task,
+            numSampsPerChan: chunk,
+            timeout: -1,
+            fillModeRaw: DaqmxVal.groupByChannel,
+            arraySizeInSamps: chunk,
+          ),
+          options: _opts,
+        );
         await _check(r.status, 'BeginReadBinaryI32');
         return r.moniker;
       case DaqSampleFormat.rawU16:
       case DaqSampleFormat.rawU32:
-        throw UnsupportedError(
-            'gRPC streaming supports volts/rawI16/rawI32; $format uses the local FFI path.');
+        throw UnsupportedError('gRPC streaming supports volts/rawI16/rawI32; $format uses the local FFI path.');
     }
   }
 

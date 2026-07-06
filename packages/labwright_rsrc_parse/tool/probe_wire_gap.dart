@@ -26,15 +26,10 @@ String _corpusBase() {
 
 void main(List<String> args) {
   final dir = Directory('${_corpusBase()}/vi');
-  final vis = dir
-      .listSync(recursive: true)
-      .whereType<File>()
-      .where((f) => f.path.toLowerCase().endsWith('.vi'))
-      .toList()
-    ..sort((a, b) => a.path.compareTo(b.path));
-  final sample = args.isNotEmpty
-      ? vis.where((f) => f.path.contains(args[0])).toList()
-      : vis.take(200).toList();
+  final vis =
+      dir.listSync(recursive: true).whereType<File>().where((f) => f.path.toLowerCase().endsWith('.vi')).toList()
+        ..sort((a, b) => a.path.compareTo(b.path));
+  final sample = args.isNotEmpty ? vis.where((f) => f.path.contains(args[0])).toList() : vis.take(200).toList();
 
   var heaps = 0, incompleteWalks = 0;
   final stopLeads = <int, int>{};
@@ -78,8 +73,7 @@ void main(List<String> args) {
             continue;
           }
           degenerateRects++;
-          if (previousEnd != null &&
-              (previousEnd.bottom == rect.top && previousEnd.right == rect.left)) {
+          if (previousEnd != null && (previousEnd.bottom == rect.top && previousEnd.right == rect.left)) {
             chainedSegments++;
             chain++;
           }
@@ -91,12 +85,16 @@ void main(List<String> args) {
   }
 
   stdout.writeln('sample ${sample.length} VIs · $heaps BD heaps');
-  stdout.writeln('incomplete walks: $incompleteWalks · un-walked bytes: $unwalkedBytes '
-      '(walked $walkedBytes)');
+  stdout.writeln(
+    'incomplete walks: $incompleteWalks · un-walked bytes: $unwalkedBytes '
+    '(walked $walkedBytes)',
+  );
   final sortedLeads = stopLeads.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
   for (final entry in sortedLeads.take(8)) {
     stdout.writeln('  stop lead 0x${entry.key.toRadixString(16)}: ${entry.value}');
   }
-  stdout.writeln('rect-shaped C4 records: $rectRecords · degenerate (line-like): $degenerateRects '
-      '· chained end-to-start: $chainedSegments across ${chainsPerHeap.length} heaps');
+  stdout.writeln(
+    'rect-shaped C4 records: $rectRecords · degenerate (line-like): $degenerateRects '
+    '· chained end-to-start: $chainedSegments across ${chainsPerHeap.length} heaps',
+  );
 }
