@@ -20,8 +20,9 @@
 //   --no-viewer        Disable the in-process viewer.
 //   --report out.json  Write the machine-readable run report.
 //   --keep-open,       Keep the viewer serving after the run AND accept its
-//   --interactive      control actions — re-run all/failed, run one, stop
-//                      (two names for one behavior). Bare `dart run`/CI exits.
+//   --interactive      control actions — re-run all/failed, run one, stop,
+//                      buttons, open-in-editor, seed replay, hot reload (starts
+//                      the VM service). Two names for one behavior; CI exits.
 //
 // scan   Lints the plug-in convention: lists .dart files under the dir
 //        (default e2e/) that are NOT reachable from main.dart via local
@@ -68,6 +69,9 @@ Future<int> _run(List<String> args) async {
   final rest = [...args];
   String? target;
   final defines = <String>[];
+  // Lingering (interactive/keep-open) enables the VM service so the viewer's
+  // "hot reload" can reload edited sources in place.
+  var linger = false;
   while (rest.isNotEmpty) {
     final arg = rest.removeAt(0);
     switch (arg) {
@@ -100,8 +104,10 @@ Future<int> _run(List<String> args) async {
         }
       case '--keep-open':
         defines.add('-Dlabwright.keepOpen=true');
+        linger = true;
       case '--interactive':
         defines.add('-Dlabwright.interactive=true');
+        linger = true;
       case '--help' || '-h':
         stdout.writeln(_usage);
         return 0;
@@ -123,7 +129,7 @@ Future<int> _run(List<String> args) async {
   // ONE child, sharing our stdio; signals forward so it is never orphaned.
   final process = await Process.start(
     Platform.resolvedExecutable,
-    ['run', ...defines, path],
+    ['run', if (linger) '--enable-vm-service=0', ...defines, path],
     mode: ProcessStartMode.inheritStdio,
   );
   final signals = [

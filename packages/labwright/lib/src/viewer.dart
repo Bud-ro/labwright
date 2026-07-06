@@ -189,6 +189,7 @@ const _viewerHtml = '''
 <div id="controls" hidden>
   <button id="rerun">Re-run all</button>
   <button id="rerunFailed">Re-run failed</button>
+  <button id="hotReload" title="reload edited sources and re-run">Hot reload</button>
   <button id="stop">Stop</button>
   <span id="userButtons"></span>
   <span id="seedBox">seed <input id="seedInput" type="number" size="10"><button id="reseed">replay</button></span>
@@ -205,6 +206,7 @@ const metaEl = document.getElementById('meta');
 const controlsEl = document.getElementById('controls');
 const btn = { rerun: document.getElementById('rerun'),
               rerunFailed: document.getElementById('rerunFailed'),
+              hotReload: document.getElementById('hotReload'),
               stop: document.getElementById('stop') };
 const userButtonsEl = document.getElementById('userButtons');
 const seedInput = document.getElementById('seedInput');
@@ -244,6 +246,7 @@ async function post(action) {
 }
 btn.rerun.onclick = () => post({ type: 'rerun' });
 btn.rerunFailed.onclick = () => post({ type: 'rerunFailed' });
+btn.hotReload.onclick = () => post({ type: 'hotReload' });
 btn.stop.onclick = () => post({ type: 'stop' });
 // Seed replay: re-run in the order a given seed produces (0 = registration).
 reseedBtn.onclick = () => {
@@ -270,6 +273,7 @@ function render(state) {
   const anyFail = (state.tests || []).some((t) => isFail(t.status));
   btn.rerun.disabled = busy;
   btn.rerunFailed.disabled = busy || !anyFail;
+  btn.hotReload.disabled = busy;
   btn.stop.disabled = !busy;
   // Track the active seed unless the operator is mid-edit; disable while busy.
   if (!seedEdited && document.activeElement !== seedInput) seedInput.value = state.seed;

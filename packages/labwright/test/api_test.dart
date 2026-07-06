@@ -482,4 +482,67 @@ void main() {
       await process.exitCode;
     }
   }, timeout: const Timeout(Duration(minutes: 2)));
+
+  test('hot reload: reloads edited sources and re-runs in place', () async {
+    // A throwaway suite inside the package (so package: resolves) whose body
+    // logs a value returned by a top-level function we then edit + reload.
+    final dir = Directory('$pkgRoot/.hot_tmp')..createSync(recursive: true);
+    final suite = File('${dir.path}/suite.dart');
+    String src(String marker) =>
+        "import 'package:labwright/labwright.dart';\n"
+        "String marker() => '$marker';\n"
+        "void main() {\n  test('marker', () async { log(marker()); });\n}\n";
+    suite.writeAsStringSync(src('MARKER_A'));
+    Process? process;
+    try {
+      process = await Process.start(Platform.resolvedExecutable, [
+        'run',
+        '--enable-vm-service=0',
+        '-Dlabwright.port=0',
+        '-Dlabwright.interactive=true',
+        '.hot_tmp/suite.dart',
+      ], workingDirectory: pkgRoot);
+      final port = Completer<int>();
+      final ready = Completer<void>();
+      process.stdout.transform(utf8.decoder).transform(const LineSplitter()).listen((line) {
+        final m = RegExp(r'viewer on http://localhost:(\d+)').firstMatch(line);
+        if (m != null && !port.isCompleted) port.complete(int.parse(m[1]!));
+        if (line.contains('View results and re-run tests at') && !ready.isCompleted) ready.complete();
+      });
+      final p = await port.future.timeout(const Duration(seconds: 30));
+      await ready.future.timeout(const Duration(seconds: 60));
+      final client = HttpClient();
+
+      Future<List<Object?>?> logsNow() async {
+        final res = await (await client.getUrl(Uri.parse('http://localhost:$p/state.json'))).close();
+        final s = (jsonDecode(await res.transform(utf8.decoder).join()) as Map).cast<String, Object?>();
+        if (s['busy'] == true) return null;
+        return (s['tests'] as List).cast<Map<String, Object?>>().single['logs'] as List<Object?>?;
+      }
+
+      expect(await logsNow(), ['MARKER_A']);
+
+      // Edit the source and hot-reload: the re-run must pick up the new code.
+      suite.writeAsStringSync(src('MARKER_B'));
+      final req = await client.postUrl(Uri.parse('http://localhost:$p/action'));
+      req.headers.contentType = ContentType.json;
+      req.write(jsonEncode({'type': 'hotReload'}));
+      final res = await req.close();
+      expect(res.statusCode, 202, reason: 'reload accepted (VM service is on)');
+      await res.drain<void>();
+
+      List<Object?>? after;
+      for (var i = 0; i < 200; i++) {
+        after = await logsNow();
+        if (after != null && after.contains('MARKER_B')) break;
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+      expect(after, ['MARKER_B'], reason: 'the reloaded code ran on re-run');
+      client.close(force: true);
+    } finally {
+      process?.kill();
+      await process?.exitCode;
+      dir.deleteSync(recursive: true);
+    }
+  }, timeout: const Timeout(Duration(minutes: 2)));
 }

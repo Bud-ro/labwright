@@ -79,10 +79,13 @@ library;
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:math';
 
 import 'package:test_api/hooks_testing.dart';
+import 'package:vm_service/vm_service.dart' as vm;
+import 'package:vm_service/vm_service_io.dart' as vmio;
 
 import 'src/viewer.dart';
 
@@ -526,6 +529,19 @@ Future<Map<String, Object?>> _handleAction(Map<String, Object?> action) async {
     return const {'accepted': false, 'error': 'a run is already in progress'};
   }
   switch (type) {
+    case 'hotReload':
+      // Reload edited sources, then re-run. Held busy across the reload so no
+      // other action slips in; a failed reload frees the gate and reports why.
+      _runInProgress = true;
+      _viewer?.update();
+      final err = await _hotReload();
+      if (err != null) {
+        _runInProgress = false;
+        _viewer?.update();
+        return {'accepted': false, 'error': err};
+      }
+      unawaited(_execute(_selected));
+      return const {'accepted': true};
     case 'reseed':
       // Seed replay: re-shuffle the selection to a chosen seed and re-run, so
       // an operator reproduces a specific fuzz order without a restart.
@@ -586,6 +602,34 @@ Future<void> _runButton(_Button b) async {
   }
   _runInProgress = false;
   _viewer?.update();
+}
+
+/// Self-triggers a Dart hot reload, then leaves the caller to re-run. Edited
+/// test BODIES pick up their new code; ADDED or REMOVED tests still need a
+/// restart (registration does not re-run). Requires the process to be started
+/// with the VM service on (the `labwright` CLI adds `--enable-vm-service` in
+/// interactive mode). Returns null on success, else a human-readable reason.
+Future<String?> _hotReload() async {
+  final serverUri = (await developer.Service.getInfo()).serverUri;
+  if (serverUri == null) {
+    return 'hot reload needs the VM service — start with --enable-vm-service '
+        '(the labwright CLI adds it in --interactive mode)';
+  }
+  final wsUri = serverUri.replace(
+    scheme: serverUri.scheme == 'https' ? 'wss' : 'ws',
+    pathSegments: [...serverUri.pathSegments.where((s) => s.isNotEmpty), 'ws'],
+  );
+  vm.VmService? service;
+  try {
+    service = await vmio.vmServiceConnectUri(wsUri.toString());
+    final isolateId = (await service.getVM()).isolates!.first.id!;
+    final report = await service.reloadSources(isolateId);
+    return report.success == true ? null : 'the VM rejected the reload';
+  } catch (e) {
+    return 'hot reload failed: $e';
+  } finally {
+    await service?.dispose();
+  }
 }
 
 /// Opens [file] at [line] in the operator's editor via [_editorCmd]. Runs

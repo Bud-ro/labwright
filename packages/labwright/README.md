@@ -80,6 +80,12 @@ replay a specific run order. It also **filters** tests (by name/status/requireme
 report or **copies** failures, and **badges** each test's run-to-run change — `new fail`, `now passing`, and
 `flaky` (a test that keeps flipping verdict).
 
+**Hot reload** reloads edited sources and re-runs without restarting the process (`labwright run
+--interactive` starts the VM service for this; running `dart run` directly needs
+`--enable-vm-service`). Code reached through functions your tests call reloads reliably; because
+registration does not re-run, *added or removed* tests — and sometimes an edit made directly inside a
+test's inline body — still need a restart.
+
 ## TestStand Converter
 
 The structure of sequences from a TestStand `.seq` file can be directly converted into Labwright
