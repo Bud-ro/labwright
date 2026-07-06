@@ -296,14 +296,22 @@ int _now() => DateTime.now().millisecondsSinceEpoch;
 /// occurred, and carried in the report.
 void log(String message) {
   stdout.writeln('  - $message');
-  (_running?.logs ?? _actionLogs)?.add(_LogLine(_now(), message));
-  _viewer?.update();
+  final line = _LogLine(_now(), message);
+  (_running?.logs ?? _actionLogs)?.add(line);
+  // A log line goes to the viewer as a small DELTA, never a full-state
+  // broadcast: re-encoding every test's retained logs on every line is
+  // quadratic over a chatty soak. Full snapshots still flow on status
+  // changes, so connected pages stay coherent.
+  final owner = _running?.name ?? _actionName;
+  if (owner != null) _viewer?.pushLog(owner, line.at, line.message);
 }
 
-/// The sink for [log] lines emitted while an operator [button] action runs
-/// (no test is running then) — collected so the action's execution streams to
-/// the viewer's Log feed like a test's, as the docs promise.
+/// The sink and label for [log] lines emitted while an operator [button]
+/// action runs (no test is running then) — collected so the action's
+/// execution streams to the viewer's Log feed like a test's, as the docs
+/// promise.
 List<_LogLine>? _actionLogs;
+String? _actionName;
 
 // ── registry and execution ───────────────────────────────────────────────────
 
@@ -861,6 +869,7 @@ Future<void> _runButton(_Button b) async {
   // Collect the action's log() lines and record the execution into the Log
   // feed — a bench action streams to the viewer just like a test run.
   final logs = _actionLogs = <_LogLine>[];
+  _actionName = 'button: ${b.label}';
   final startedAt = _now();
   final watch = Stopwatch()..start();
   var detail = '';
@@ -871,6 +880,7 @@ Future<void> _runButton(_Button b) async {
   }
   watch.stop();
   _actionLogs = null;
+  _actionName = null;
   final ms = watch.elapsedMilliseconds;
   stdout.writeln('$_tag button "${b.label}" ${detail.isEmpty ? 'done ($ms ms)' : 'failed ($ms ms): $detail'}');
   _pushRecord({

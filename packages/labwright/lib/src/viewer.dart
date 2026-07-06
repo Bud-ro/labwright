@@ -151,6 +151,11 @@ class Viewer {
   void pushHistory(Map<String, Object?> record) =>
       _broadcast('event: hist\ndata: ${jsonEncode({'entry': record})}\n\n');
 
+  /// Pushes one log line as a small `log` delta — `{name, t, m}` — so a
+  /// chatty test streams lines without full-state rebroadcasts per line.
+  void pushLog(String name, int at, String message) =>
+      _broadcast('event: log\ndata: ${jsonEncode({'name': name, 't': at, 'm': message})}\n\n');
+
   void _broadcast(String frame) {
     for (final client in [..._sseClients]) {
       try {
@@ -478,6 +483,18 @@ source.addEventListener('hist', (m) => {
   if (d.reset) { history = (d.entries || []).slice().reverse(); renderLog(); }
   else if (d.entry) { history.unshift(d.entry); prependLog(d.entry); }
   counts();
+});
+// A single log line: update the local model and APPEND to the live row —
+// never a pane rebuild (full snapshots only flow on status changes).
+source.addEventListener('log', (m) => {
+  const d = JSON.parse(m.data);
+  const t = (snap.tests || []).find((x) => x.name === d.name && x.status === 'running');
+  if (t) (t.logs = t.logs || []).push({ t: d.t, m: d.m });
+  const live = byId('logList').querySelector('.live');
+  if (!live || (t && !logMatch(t, filters.log))) return;
+  let l = live.querySelector('.logs');
+  if (!l) { l = document.createElement('div'); l.className = 'logs'; live.appendChild(l); }
+  l.textContent += (l.textContent ? '\\n' : '') + clock(d.t) + '  ' + d.m;
 });
 </script>
 </body>

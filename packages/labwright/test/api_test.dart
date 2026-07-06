@@ -562,20 +562,22 @@ void main() {
       final p = await port.future.timeout(const Duration(seconds: 30));
       await ready.future.timeout(const Duration(seconds: 60));
 
-      // Consume the SSE stream and pull the one-shot `hist` reset frame.
+      // Consume the SSE stream and pull the one-shot `hist` reset frame,
+      // plus any per-line `log` deltas that flow during a re-run.
       final client = HttpClient();
       final res = await (await client.getUrl(Uri.parse('http://localhost:$p/events'))).close();
       final got = Completer<Map<String, Object?>>();
+      final logDelta = Completer<Map<String, Object?>>();
       final buf = StringBuffer();
       final sub = res.transform(utf8.decoder).listen((chunk) {
         buf.write(chunk);
         for (final frame in buf.toString().split('\n\n')) {
-          if (!frame.startsWith('event: hist')) continue;
           final dataLine = frame.split('\n').firstWhere((l) => l.startsWith('data: '), orElse: () => '');
           if (dataLine.isEmpty) continue;
           try {
             final data = (jsonDecode(dataLine.substring(6)) as Map).cast<String, Object?>();
-            if (data['reset'] == true && !got.isCompleted) got.complete(data);
+            if (frame.startsWith('event: hist') && data['reset'] == true && !got.isCompleted) got.complete(data);
+            if (frame.startsWith('event: log') && !logDelta.isCompleted) logDelta.complete(data);
           } catch (_) {
             /* partial frame — wait for more */
           }
@@ -601,6 +603,17 @@ void main() {
       expect(queued, lessThanOrEqualTo(started));
       expect(started, lessThanOrEqualTo(finished));
       expect((rail['logs'] as List).first, containsPair('t', isA<int>()));
+
+      // A log line during a run arrives as a small `log` DELTA ({name, t, m})
+      // rather than a full-state rebroadcast per line.
+      final req = await client.postUrl(Uri.parse('http://localhost:$p/action'));
+      req.headers.contentType = ContentType.json;
+      req.write(jsonEncode({'type': 'rerun'}));
+      await (await req.close()).drain<void>();
+      final delta = await logDelta.future.timeout(const Duration(seconds: 30));
+      expect(delta['name'], 'rail comes up');
+      expect(delta['m'], 'applying power');
+      expect(delta['t'], isA<int>());
       await sub.cancel();
       client.close(force: true);
     } finally {
