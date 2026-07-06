@@ -710,6 +710,32 @@ void main() {
 
         // A reseed without an explicit seed is rejected, not silently seed 0.
         expect(await action({'type': 'reseed'}), 409);
+
+        // The action surface refuses requests that don't look like this
+        // page's own: a cross-site Origin (a drive-by form/fetch always
+        // carries one) or a non-JSON content type is 403, before any action
+        // logic runs. curl-style requests (no Origin, JSON type) stay welcome.
+        Future<int> post({String? origin, ContentType? type}) async {
+          final req = await client.postUrl(Uri.parse('http://localhost:$p/action'));
+          if (type != null) req.headers.contentType = type;
+          if (origin != null) req.headers.set('Origin', origin);
+          req.write(jsonEncode({'type': 'stop'}));
+          final res = await req.close();
+          await res.drain<void>();
+          return res.statusCode;
+        }
+
+        expect(
+          await post(origin: 'https://evil.example', type: ContentType.json),
+          403,
+          reason: 'a cross-origin browser request must never actuate the bench',
+        );
+        expect(await post(type: ContentType.text), 403, reason: 'a no-preflight text/plain post is rejected');
+        expect(
+          await post(origin: 'http://localhost:$p', type: ContentType.json),
+          202,
+          reason: 'the page itself (same-host origin) stays welcome',
+        );
         client.close(force: true);
       } finally {
         process.kill();
@@ -718,6 +744,35 @@ void main() {
     },
     timeout: const Timeout(Duration(minutes: 2)),
   );
+
+  test('a non-interactive viewer is read-only: POST /action answers 503', () async {
+    final process = await Process.start(Platform.resolvedExecutable, [
+      'run',
+      '-Dlabwright.port=0',
+      '-Dlabwright.identity=false',
+      '-Dlabwright.seed=0',
+      'test/fixtures/slow_e2e.dart', // slow: the viewer is up while it runs
+    ], workingDirectory: pkgRoot);
+    try {
+      final port = Completer<int>();
+      process.stdout.transform(utf8.decoder).transform(const LineSplitter()).listen((line) {
+        final m = RegExp(r'viewer on http://localhost:(\d+)').firstMatch(line);
+        if (m != null && !port.isCompleted) port.complete(int.parse(m[1]!));
+      });
+      final p = await port.future.timeout(const Duration(seconds: 30));
+      final client = HttpClient();
+      final req = await client.postUrl(Uri.parse('http://localhost:$p/action'));
+      req.headers.contentType = ContentType.json;
+      req.write(jsonEncode({'type': 'stop'}));
+      final res = await req.close();
+      expect(res.statusCode, 503, reason: 'without --interactive/--keep-open no action is wired at all');
+      await res.drain<void>();
+      client.close(force: true);
+    } finally {
+      process.kill();
+      await process.exitCode;
+    }
+  }, timeout: const Timeout(Duration(minutes: 2)));
 
   test('report identity: per-test hash, setupHash, context + contextHash, all deterministic', () {
     final hex40 = matches(RegExp(r'^[0-9a-f]{40}$'));

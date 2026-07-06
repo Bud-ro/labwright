@@ -97,9 +97,29 @@ class Viewer {
 
   /// Reads a JSON action body, dispatches it to [onAction], and echoes the
   /// result. Status: 202 accepted, 409 rejected (e.g. a run is in progress),
-  /// 400 on a malformed body, 503 when the viewer is read-only (no handler).
+  /// 400 on a malformed body, 403 cross-origin/non-JSON, 503 when the viewer
+  /// is read-only (no handler).
+  ///
+  /// Loopback binding does not protect against the operator's own BROWSER: any
+  /// webpage can fire a no-preflight POST at localhost, and these actions
+  /// actuate bench hardware. So an action must look like it came from this
+  /// page: a JSON content type (a cross-site fetch with that type triggers a
+  /// CORS preflight, which this server never approves) and, when the browser
+  /// attached an Origin header, a localhost one (a cross-site text/plain form
+  /// post always carries the attacker's origin; curl sends none and stays
+  /// welcome).
   Future<void> _handleAction(HttpRequest request) async {
     final response = request.response..headers.contentType = ContentType.json;
+    final origin = request.headers.value('origin');
+    final originHost = origin == null ? null : Uri.tryParse(origin)?.host;
+    final sameHost = originHost == null || originHost == 'localhost' || originHost == '127.0.0.1';
+    final jsonBody = request.headers.contentType?.mimeType == 'application/json';
+    if (!sameHost || !jsonBody) {
+      response.statusCode = HttpStatus.forbidden;
+      response.write('{"accepted":false,"error":"cross-origin or non-JSON action rejected"}');
+      await response.close();
+      return;
+    }
     final handler = onAction;
     if (handler == null) {
       response.statusCode = HttpStatus.serviceUnavailable;

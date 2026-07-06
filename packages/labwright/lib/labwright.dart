@@ -574,9 +574,10 @@ Future<void> _runAll() async {
   if (_viewerEnabled) {
     _viewer = await Viewer.start(_port, _state);
     if (_viewer != null) {
-      // The control plane: the viewer POSTs actions back here. Only reachable
-      // while we linger (an explicit flag), so CI never grows an action surface.
-      _viewer!.onAction = _handleAction;
+      // The control plane: the viewer POSTs actions back here — wired ONLY
+      // under an explicit --interactive/--keep-open, so a plain run's viewer
+      // is genuinely read-only (503) and CI never grows an action surface.
+      if (_linger) _viewer!.onAction = _handleAction;
       _viewer!.report = _report; // GET /report.json for download
       _viewer!.history = () => _history; // Log view feed (batch on connect)
 
