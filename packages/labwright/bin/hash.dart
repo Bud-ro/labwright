@@ -2,11 +2,10 @@
 // identity and prints it as JSON: {"setupHash": "...", "sites": {"<abs
 // path>:<line>": "<test hash>", ...}}.
 //
-// This lives in a bin so the ANALYZER never enters the suite's own import
-// graph: `dart run <path>` recompiles its whole closure every invocation, and
-// dragging the analyzer into every `dart run e2e/main.dart` costs seconds of
-// startup per run. A package executable's kernel is cached instead, and the
-// runtime library spawns this child lazily, off the bench-critical path.
+// For EXTERNAL tooling (skip-unmodified systems comparing reports without
+// running a suite). The runtime itself computes the same identity via an
+// isolate (src/hash_main.dart) so the analyzer never enters the suite's
+// import graph and no `dart run` child is nested under `dart run`.
 import 'dart:convert';
 import 'dart:io';
 

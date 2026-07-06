@@ -82,6 +82,7 @@ import 'dart:collection';
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:math';
 
 import 'package:crypto/crypto.dart';
@@ -168,6 +169,13 @@ const int _historyCap = 2000;
 /// whenever either can consume it. A bare `dart run` with neither pays no
 /// per-registration stack-trace cost.
 const bool _captureLocations = _linger || _reportPath != '';
+
+/// Whether the run computes the suite's CONTENT identity (per-test hashes +
+/// setupHash) for the report and hot reload's modified-test detection. On by
+/// default; `-Dlabwright.identity=false` skips the hasher isolate (~3s, off
+/// the bench path) when nothing consumes the hashes — hot reload then falls
+/// back to re-running everything. The cheap contextHash is always reported.
+const bool _identity = bool.fromEnvironment('labwright.identity', defaultValue: true);
 
 /// The command the viewer's "open in editor" runs, as space-separated argv
 /// with `{file}` / `{line}` placeholders substituted into single args (so
@@ -372,9 +380,9 @@ final List<_Button> _buttons = [];
 final Map<String, Object?> _context = {};
 _SuiteHashes? _suiteHashes;
 
-/// The suite's content identity as computed by `dart run labwright:hash`
-/// (bin/hash.dart): the shared [setupHash] plus a per-registration-site test
-/// hash keyed `<abs path>:<line>`.
+/// The suite's content identity as computed by the hasher isolate
+/// (src/hash_main.dart): the shared [setupHash] plus a per-registration-site
+/// test hash keyed `<abs path>:<line>`.
 class _SuiteHashes {
   _SuiteHashes(this.setupHash, this.sites);
 
@@ -392,26 +400,36 @@ class _SuiteHashes {
 /// the bench" component of the skip-unmodified identity.
 String _contextHash() => sha1.convert(utf8.encode(jsonEncode(SplayTreeMap<String, Object?>.from(_context)))).toString();
 
-/// Computes the suite hashes by spawning `dart run labwright:hash` on the
-/// entry script, or returns null (with a warning) when hashing is unavailable
-/// — a hashing failure must never fail a run. A child process, deliberately:
-/// the hasher needs the analyzer, and importing that into THIS library would
-/// add seconds of kernel-recompile to every `dart run e2e/main.dart` (path
-/// entrypoints are not kernel-cached; package executables are). The spawn
-/// happens off the bench-critical path (after a pass / during a reload).
+/// Computes the suite hashes in a spawned ISOLATE (src/hash_main.dart), or
+/// returns null (with a warning) when hashing is unavailable — a hashing
+/// failure must never fail a run. An isolate keeps the analyzer out of this
+/// library's import graph (importing it costs ~3s of recompile on every
+/// `dart run e2e/main.dart`) without nesting `dart run` under `dart run`,
+/// which contends the dartdev compiler cache and sporadically exits 255 on
+/// Windows. The compile happens lazily, off the bench-critical path.
 Future<_SuiteHashes?> _tryComputeHashes() async {
+  if (!_identity) return null; // opted out — callers fall back conservatively
+  final result = ReceivePort();
+  final errors = ReceivePort();
   try {
-    final result = await Process.run(Platform.resolvedExecutable, [
-      'run',
-      'labwright:hash',
-      Platform.script.toFilePath(),
-    ]);
-    if (result.exitCode != 0) throw ProcessException('labwright:hash', const [], '${result.stderr}');
-    final decoded = (jsonDecode(result.stdout.toString()) as Map).cast<String, Object?>();
+    await Isolate.spawnUri(
+      Uri.parse('package:labwright/src/hash_main.dart'),
+      [Platform.script.toFilePath()],
+      result.sendPort,
+      onError: errors.sendPort,
+    );
+    final raw = await Future.any([
+      result.first,
+      errors.first.then((e) => throw StateError('$e')),
+    ]).timeout(const Duration(minutes: 2));
+    final decoded = (jsonDecode(raw as String) as Map).cast<String, Object?>();
     return _SuiteHashes(decoded['setupHash'] as String, (decoded['sites'] as Map).cast<String, String>());
   } catch (e) {
     stderr.writeln('$_tag source hashing unavailable: $e');
     return null;
+  } finally {
+    result.close();
+    errors.close();
   }
 }
 

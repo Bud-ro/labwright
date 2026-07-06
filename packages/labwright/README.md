@@ -72,6 +72,7 @@ is run using `dart run e2e/main.dart`, then these flags may be provided to `dart
 | `-Dlabwright.viewer=false` | Prevents the viewer from launching |
 | `-Dlabwright.keepOpen=true` OR `-Dlabwright.interactive=true` | Keep serving results after the run, and allow for tests to be (re)-run |
 | `-Dlabwright.editor=CMD` | Command the viewer's "open in editor" runs; `{file}`/`{line}` are substituted (default `code --goto {file}:{line}`, e.g. `vim +{line} {file}`) |
+| `-Dlabwright.identity=false` | Skip the report's content-identity hashes (~3s hasher isolate, off the bench path); hot reload then conservatively re-runs everything |
 | `-Dlabwright.report=out.json` | Write a JSON report (tests, statuses, logs, requirements trace, seed, summary) |
 
 The interactive viewer is a full-screen app with three panes on screen at once, each with its own filter:

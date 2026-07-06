@@ -12,21 +12,27 @@ const _noViewer = '-Dlabwright.viewer=false';
 
 /// Runs a suite the only way suites run — ONE process, `dart run`, all
 /// configuration as Dart defines — and returns (exitCode, stdout, stderr).
-(int, String, String) _run(String file, {List<String> defines = const []}) {
+/// Content-identity hashing is off by default here (the hasher isolate costs
+/// ~3s per child process); the tests that assert on hashes opt back in.
+(int, String, String) _run(String file, {List<String> defines = const [], bool identity = false}) {
   final result = Process.runSync(
     Platform.resolvedExecutable,
-    ['run', _noViewer, ...defines, file],
+    ['run', _noViewer, if (!identity) '-Dlabwright.identity=false', ...defines, file],
     workingDirectory: pkgRoot,
   );
   return (result.exitCode, result.stdout.toString(), result.stderr.toString());
 }
 
 /// Runs [file] with a report define and returns (exitCode, stdout, report).
-(int, String, Map<String, Object?>) _runWithReport(String file, {List<String> defines = const []}) {
+(int, String, Map<String, Object?>) _runWithReport(
+  String file, {
+  List<String> defines = const [],
+  bool identity = false,
+}) {
   final dir = Directory.systemTemp.createTempSync('lw_');
   try {
     final path = '${dir.path}/report.json';
-    final (exit, out, _) = _run(file, defines: ['-Dlabwright.report=$path', ...defines]);
+    final (exit, out, _) = _run(file, defines: ['-Dlabwright.report=$path', ...defines], identity: identity);
     final report = (jsonDecode(File(path).readAsStringSync()) as Map).cast<String, Object?>();
     return (exit, out, report);
   } finally {
@@ -162,6 +168,7 @@ void main() {
         'run',
         '-Dlabwright.port=0',
         '-Dlabwright.keepOpen=true',
+        '-Dlabwright.identity=false', // hashes not asserted here — skip the hasher isolate
         '-Dlabwright.seed=0', // registration order → tests.first is stable
         'test/fixtures/green_e2e.dart',
       ],
@@ -214,6 +221,7 @@ void main() {
         'run',
         '-Dlabwright.port=0',
         '-Dlabwright.interactive=true',
+        '-Dlabwright.identity=false', // hashes not asserted here — skip the hasher isolate
         'test/fixtures/green_e2e.dart',
       ],
       workingDirectory: pkgRoot,
@@ -275,7 +283,13 @@ void main() {
   test('custom buttons: exposed in state and run their action on demand', () async {
     final process = await Process.start(
       Platform.resolvedExecutable,
-      ['run', '-Dlabwright.port=0', '-Dlabwright.interactive=true', 'test/fixtures/green_e2e.dart'],
+      [
+        'run',
+        '-Dlabwright.port=0',
+        '-Dlabwright.interactive=true',
+        '-Dlabwright.identity=false',
+        'test/fixtures/green_e2e.dart',
+      ],
       workingDirectory: pkgRoot,
     );
     try {
@@ -337,6 +351,7 @@ void main() {
         'run',
         '-Dlabwright.port=0',
         '-Dlabwright.interactive=true',
+        '-Dlabwright.identity=false', // hashes not asserted here — skip the hasher isolate
         '-Dlabwright.seed=0',
         if (posix) '-Dlabwright.editor=${rec.path} {file} {line}',
         'test/fixtures/green_e2e.dart',
@@ -418,6 +433,7 @@ void main() {
         'run',
         '-Dlabwright.port=0',
         '-Dlabwright.interactive=true',
+        '-Dlabwright.identity=false', // hashes not asserted here — skip the hasher isolate
         '-Dlabwright.seed=0',
         'test/fixtures/flaky_e2e.dart',
       ],
@@ -495,6 +511,7 @@ void main() {
         'run',
         '-Dlabwright.port=0',
         '-Dlabwright.interactive=true',
+        '-Dlabwright.identity=false', // hashes not asserted here — skip the hasher isolate
         '-Dlabwright.seed=0',
         'test/fixtures/green_e2e.dart',
       ],
@@ -575,6 +592,7 @@ void main() {
         '--enable-vm-service=0',
         '-Dlabwright.port=0',
         '-Dlabwright.interactive=true',
+        '-Dlabwright.identity=false', // hashes not asserted here — skip the hasher isolate
         '.hot_tmp/suite.dart',
       ], workingDirectory: pkgRoot);
       final port = Completer<int>();
@@ -625,8 +643,16 @@ void main() {
 
   test('report identity: per-test hash, setupHash, context + contextHash, all deterministic', () {
     final hex40 = matches(RegExp(r'^[0-9a-f]{40}$'));
-    final (exit1, _, r1) = _runWithReport('test/fixtures/green_e2e.dart', defines: ['-Dlabwright.seed=0']);
-    final (exit2, _, r2) = _runWithReport('test/fixtures/green_e2e.dart', defines: ['-Dlabwright.seed=0']);
+    final (exit1, _, r1) = _runWithReport(
+      'test/fixtures/green_e2e.dart',
+      defines: ['-Dlabwright.seed=0'],
+      identity: true,
+    );
+    final (exit2, _, r2) = _runWithReport(
+      'test/fixtures/green_e2e.dart',
+      defines: ['-Dlabwright.seed=0'],
+      identity: true,
+    );
     expect(exit1, 0);
     expect(exit2, 0);
     expect(r1['setupHash'], hex40);

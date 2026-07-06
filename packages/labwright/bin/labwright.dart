@@ -18,6 +18,8 @@
 //   --shard-index I    index is ≡ I (mod N) — dart test's convention.
 //   --port N           Viewer port (default 1212; 0 = ephemeral).
 //   --no-viewer        Disable the in-process viewer.
+//   --no-identity      Skip the report's content-identity hashes (hot reload
+//                      then conservatively re-runs everything).
 //   --report out.json  Write the machine-readable run report.
 //   --keep-open,       Keep the viewer serving after the run AND accept its
 //   --interactive      control actions — re-run all/failed, run one, stop,
@@ -98,6 +100,8 @@ Future<int> _run(List<String> args) async {
         );
       case '--no-viewer':
         defines.add('-Dlabwright.viewer=false');
+      case '--no-identity':
+        defines.add('-Dlabwright.identity=false');
       case '--report':
         if (rest.isNotEmpty) {
           defines.add('-Dlabwright.report=${rest.removeAt(0)}');

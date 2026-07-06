@@ -33,6 +33,7 @@ void main() {
         'run',
         'test/fixtures/suite',
         '--no-viewer',
+        '--no-identity', // hashes not asserted here — skip the hasher isolate
         '--report',
         reportPath,
       ]);
@@ -62,6 +63,7 @@ void main() {
             'run',
             'test/fixtures/suite',
             '--no-viewer',
+            '--no-identity', // hashes not asserted here — skip the hasher isolate
             '--total-shards',
             '2',
             '--shard-index',
