@@ -242,16 +242,30 @@ void button(String label, FutureOr<void> Function() action) {
   _buttons.add(_Button(label, action));
 }
 
+/// Wall-clock milliseconds since the epoch — the viewer stamps queue/run/log
+/// events with these and formats them client-side in the operator's timezone.
+int _now() => DateTime.now().millisecondsSinceEpoch;
+
 /// Prints a log line, attributed to the currently running test (suite-level
-/// when none is running) — shown in the viewer under its test and carried
-/// in the report.
+/// when none is running) — shown in the viewer under its test with the time it
+/// occurred, and carried in the report.
 void log(String message) {
   stdout.writeln('  - $message');
-  _running?.logs.add(message);
+  _running?.logs.add(_LogLine(_now(), message));
   _viewer?.update();
 }
 
 // ── registry and execution ───────────────────────────────────────────────────
+
+/// One log line with the wall-clock time it was emitted.
+class _LogLine {
+  _LogLine(this.at, this.message);
+
+  final int at;
+  final String message;
+
+  Map<String, Object?> toJson() => {'t': at, 'm': message};
+}
 
 class _TestEntry {
   _TestEntry(this.name, this.body, this.requirements, {required this.skip, this.file, this.line});
@@ -269,7 +283,13 @@ class _TestEntry {
   String status = 'queued';
   String detail = '';
   int? ms;
-  final List<String> logs = [];
+  final List<_LogLine> logs = [];
+
+  /// Wall-clock stamps (epoch ms) for the viewer's timeline: when this entry
+  /// was queued for the current run, when it started, and when it finished.
+  int? queuedAt;
+  int? startedAt;
+  int? finishedAt;
 
   /// Run-to-run diff, recomputed each pass: `newFail` / `newPass` / `changed`
   /// versus the prior run ('' when unchanged or never run before), and a flip
@@ -285,9 +305,12 @@ class _TestEntry {
     if (line != null) 'line': line,
     if (change.isNotEmpty) 'change': change,
     if (flips >= 2) 'flaky': true,
+    if (queuedAt != null) 'queuedAt': queuedAt,
+    if (startedAt != null) 'startedAt': startedAt,
+    if (finishedAt != null) 'finishedAt': finishedAt,
     if (detail.isNotEmpty) 'detail': detail,
     if (ms != null) 'ms': ms,
-    if (logs.isNotEmpty) 'logs': logs,
+    if (logs.isNotEmpty) 'logs': [for (final l in logs) l.toJson()],
   };
 }
 
@@ -336,8 +359,11 @@ void _record(_TestEntry entry) {
     if (entry.file != null) 'file': entry.file,
     if (entry.line != null) 'line': entry.line,
     if (entry.change.isNotEmpty) 'change': entry.change,
+    if (entry.queuedAt != null) 'queuedAt': entry.queuedAt,
+    if (entry.startedAt != null) 'startedAt': entry.startedAt,
+    if (entry.finishedAt != null) 'finishedAt': entry.finishedAt,
     if (entry.detail.isNotEmpty) 'detail': entry.detail,
-    if (entry.logs.isNotEmpty) 'logs': [...entry.logs],
+    if (entry.logs.isNotEmpty) 'logs': [for (final l in entry.logs) l.toJson()],
   };
   _history.add(record);
   if (_history.length > _historyCap) _history.removeAt(0);
@@ -491,15 +517,22 @@ Future<void> _execute(List<_TestEntry> entries) async {
   _runSeq++;
   // Remember each entry's prior verdict so we can diff it the moment it reruns.
   final prior = {for (final e in entries) e: e.status};
-  _viewer?.update();
-  for (final entry in entries) {
-    if (_stopRequested) break;
-    entry
+  // Queue them all up front (same instant) so the Queue pane shows the whole
+  // pending set draining, and each carries the time it was queued.
+  final queuedAt = _now();
+  for (final e in entries) {
+    e
       ..status = 'queued'
       ..detail = ''
       ..ms = null
+      ..startedAt = null
+      ..finishedAt = null
+      ..queuedAt = queuedAt
       ..logs.clear();
-    _viewer?.update();
+  }
+  _viewer?.update();
+  for (final entry in entries) {
+    if (_stopRequested) break;
     await _runOne(entry);
     // Diff against the prior run (independent per test), then snapshot the
     // finished execution into the Log feed — so it pops in as it completes.
@@ -690,19 +723,30 @@ Map<String, Object?> _report() {
       requirements.putIfAbsent(req, () => []).add({'test': t.name, 'status': t.status});
     }
   }
-  return {..._state()..remove('buttons'), 'requirements': requirements};
+  final state = _state()..remove('buttons');
+  // The report keeps logs as plain strings (a stable machine format); the
+  // viewer carries the timestamped {t, m} form.
+  for (final t in (state['tests'] as List).cast<Map<String, Object?>>()) {
+    final logs = t['logs'];
+    if (logs is List) t['logs'] = [for (final l in logs) (l as Map)['m']];
+  }
+  return {...state, 'requirements': requirements};
 }
 
 Future<void> _runOne(_TestEntry entry) async {
   // Requirement IDs live in the report and the viewer, not the console.
   if (entry.skip) {
-    entry.status = 'skipped';
+    entry
+      ..status = 'skipped'
+      ..finishedAt = _now();
     stdout.writeln('${_paint('SKIP', _yellow)} ${entry.name}');
     _viewer?.update();
     return;
   }
   stdout.writeln('${_paint('RUN ', _dim)} ${entry.name}');
-  entry.status = 'running';
+  entry
+    ..status = 'running'
+    ..startedAt = _now();
   _running = entry;
   _viewer?.update();
   // Reset the random stream so this test draws the same sequence every time it
@@ -733,7 +777,9 @@ Future<void> _runOne(_TestEntry entry) async {
       status = errors.every((e) => e.error is TestFailure) ? TestStatus.failed : TestStatus.error;
       entry.detail = errors.map((e) => e.error.toString().trimRight()).join('\n').trim();
   }
-  entry.status = status.name;
+  entry
+    ..status = status.name
+    ..finishedAt = _now();
   if (status == TestStatus.failed || status == TestStatus.error) exitCode = 1;
   final (label, color) = switch (status) {
     TestStatus.passed => ('PASS', _green),

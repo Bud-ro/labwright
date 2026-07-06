@@ -187,7 +187,11 @@ void main() {
       expect(state['done'], true);
       final tests = (state['tests'] as List).cast<Map<String, Object?>>();
       expect(tests, hasLength(3));
-      expect(tests.first['logs'], ['applying power'], reason: 'logs attach to their test for the viewer');
+      expect(
+        (tests.first['logs'] as List).map((l) => (l as Map)['m']),
+        ['applying power'],
+        reason: 'logs (timestamped {t,m}) attach to their test for the viewer',
+      );
 
       final pageRes = await (await client.getUrl(Uri.parse('http://localhost:$p/'))).close();
       expect(pageRes.statusCode, 200);
@@ -534,11 +538,18 @@ void main() {
         'thermal camera sweep',
       }, reason: 'the first run recorded one execution per test');
       expect(entries.every((e) => e['run'] == 1), isTrue, reason: 'all from the first pass');
+      final rail = entries.firstWhere((e) => e['name'] == 'rail comes up');
       expect(
-        entries.firstWhere((e) => e['name'] == 'rail comes up')['logs'],
+        (rail['logs'] as List).map((l) => (l as Map)['m']),
         ['applying power'],
-        reason: 'history carries each execution\'s logs for the Log view',
+        reason: 'history carries each execution\'s timestamped logs for the Log view',
       );
+      // Wall-clock stamps flow through: queued ≤ started ≤ finished, and each
+      // log line is timestamped.
+      final queued = rail['queuedAt'] as int, started = rail['startedAt'] as int, finished = rail['finishedAt'] as int;
+      expect(queued, lessThanOrEqualTo(started));
+      expect(started, lessThanOrEqualTo(finished));
+      expect((rail['logs'] as List).first, containsPair('t', isA<int>()));
       await sub.cancel();
       client.close(force: true);
     } finally {
@@ -577,11 +588,13 @@ void main() {
       await ready.future.timeout(const Duration(seconds: 60));
       final client = HttpClient();
 
+      // The marker messages (state logs are timestamped {t, m}).
       Future<List<Object?>?> logsNow() async {
         final res = await (await client.getUrl(Uri.parse('http://localhost:$p/state.json'))).close();
         final s = (jsonDecode(await res.transform(utf8.decoder).join()) as Map).cast<String, Object?>();
         if (s['busy'] == true) return null;
-        return (s['tests'] as List).cast<Map<String, Object?>>().single['logs'] as List<Object?>?;
+        final logs = (s['tests'] as List).cast<Map<String, Object?>>().single['logs'] as List?;
+        return logs?.map((l) => (l as Map)['m']).toList();
       }
 
       expect(await logsNow(), ['MARKER_A']);

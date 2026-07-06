@@ -210,6 +210,7 @@ const _viewerHtml = '''
   .spacer { flex: 1; }
   .req, .idx { font-family: ui-monospace, monospace; font-size: .78em; opacity: .85;
                border: 1px solid var(--line); border-radius: .6em; padding: 0 .5em; }
+  .time { font-family: ui-monospace, monospace; font-size: .74em; opacity: .5; }
   .chg { font-size: .72em; border-radius: .6em; padding: 0 .5em;
          border: 1px solid var(--line); }
   .chg.newFail { color: #e2574c; } .chg.newPass { color: #4caf6a; }
@@ -275,6 +276,8 @@ let highlight = null;          // {name, run} — the show-log target to spotlig
 const mark = { passed: '✓', failed: '✗', error: '‼', skipped: '○', running: '…', queued: '·' };
 const changeLabel = { newFail: '▲ new fail', newPass: '▼ now passing', changed: 'changed' };
 const isFail = (s) => s === 'failed' || s === 'error';
+// Wall-clock ms → the operator's local HH:MM:SS.
+const clock = (ms) => ms == null ? '' : new Date(ms).toLocaleTimeString([], { hour12: false });
 
 async function post(action) {
   try {
@@ -313,6 +316,8 @@ function renderTests() {
     if (t.ms != null) row.appendChild(badge('req', t.ms + ' ms'));
     if (t.change) row.appendChild(badge('chg ' + t.change, changeLabel[t.change] || t.change));
     if (t.flaky) row.appendChild(badge('chg flaky', 'flaky'));
+    const at = t.status === 'running' ? t.startedAt : t.finishedAt;
+    if (at != null) row.appendChild(badge('time', clock(at)));
     row.appendChild(badge('spacer', ''));
     const lg = document.createElement('button'); lg.className = 'mini'; lg.textContent = 'log';
     lg.title = 'show this test in the Log view'; lg.onclick = () => showLog(t.name);
@@ -341,6 +346,7 @@ function renderQueue() {
     row.appendChild(badge('idx', '' + (i + 1)));
     row.appendChild(nameEl(t));
     for (const r of t.requirements || []) row.appendChild(badge('req', r));
+    if (t.queuedAt != null) row.appendChild(badge('time', 'queued ' + clock(t.queuedAt)));
     list.appendChild(row);
   });
 }
@@ -356,9 +362,16 @@ function logEntryEl(e, live) {
   if (e.run != null) head.appendChild(badge('idx', 'run ' + e.run));
   if (e.ms != null) head.appendChild(badge('req', e.ms + ' ms'));
   if (e.change) head.appendChild(badge('chg ' + e.change, changeLabel[e.change] || e.change));
+  const when = live ? e.startedAt : e.finishedAt;
+  if (when != null) head.appendChild(badge('time', (live ? 'started ' : '') + clock(when)));
   div.appendChild(head);
   if (e.detail) { const d = document.createElement('div'); d.className = 'detail'; d.textContent = e.detail; div.appendChild(d); }
-  if ((e.logs || []).length) { const l = document.createElement('div'); l.className = 'logs'; l.textContent = e.logs.join('\\n'); div.appendChild(l); }
+  if ((e.logs || []).length) {
+    const l = document.createElement('div'); l.className = 'logs';
+    // Each line carries the wall-clock time it was logged.
+    l.textContent = e.logs.map((x) => clock(x.t) + '  ' + x.m).join('\\n');
+    div.appendChild(l);
+  }
   return div;
 }
 function renderLog() {

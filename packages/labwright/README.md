@@ -77,10 +77,11 @@ is run using `dart run e2e/main.dart`, then these flags may be provided to `dart
 The interactive viewer is a full-screen app with three panes on screen at once, each with its own filter:
 a compact **Tests** pane (latest-run status, jump-to-source, a ▶ queue button), a **Queue** pane (what is
 waiting to run), and a large scrollable **Log** pane — an animated history of every execution with its logs,
-newest at top. A test's `log` button spotlights its latest run in the Log pane. Across the top you can re-run
-all/failed/one test, stop after the current test, fire operator `button()`s, **open a test's source** in your
-editor, **download** the JSON report or **copy** failures. Each test badges its run-to-run change — `new fail`,
-`now passing`, and `flaky` (a test that keeps flipping verdict).
+newest at top. Everything is **timestamped** in your local time — when a test was queued, started, and
+finished, and when each log line was emitted. A test's `log` button spotlights its latest run in the Log
+pane. Across the top you can re-run all/failed/one test, stop after the current test, fire operator
+`button()`s, **open a test's source** in your editor, **download** the JSON report or **copy** failures. Each
+test badges its run-to-run change — `new fail`, `now passing`, and `flaky` (a test that keeps flipping verdict).
 
 **Hot reload** reloads edited sources and re-runs without restarting the process (`labwright run
 --interactive` starts the VM service for this; running `dart run` directly needs
