@@ -12,6 +12,8 @@ Future<void> main() async {
   // Setup: BEFORE the first test() registration, then register in one burst.
   await Future<void>.delayed(const Duration(milliseconds: 1));
   _railUp = true;
+  // The bench declares what it is testing — lands in the report + contextHash.
+  context('dut.serial', 'SIM-001');
 
   test('rail comes up', requirement: 'REQ-1', () async {
     log('applying power');

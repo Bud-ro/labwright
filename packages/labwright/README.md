@@ -83,11 +83,35 @@ pane. Across the top you can re-run all/failed/one test, stop after the current 
 `button()`s, **open a test's source** in your editor, **download** the JSON report or **copy** failures. Each
 test badges its run-to-run change — `new fail`, `now passing`, and `flaky` (a test that keeps flipping verdict).
 
-**Hot reload** reloads edited sources and re-runs without restarting the process (`labwright run
+**Hot reload** reloads edited sources and **re-runs only the modified tests** (`labwright run
 --interactive` starts the VM service for this; running `dart run` directly needs
-`--enable-vm-service`). Code reached through functions your tests call reloads reliably; because
-registration does not re-run, *added or removed* tests — and sometimes an edit made directly inside a
-test's inline body — still need a restart.
+`--enable-vm-service`). Modification is detected by content hash: an edit inside one test's body re-runs
+just that test, while an edit to shared setup/helpers conservatively re-runs everything. Code reached
+through functions your tests call reloads reliably; because registration does not re-run, *added or
+removed* tests — and sometimes an edit made directly inside a test's inline body — still need a restart.
+
+## Content identity (skip-unmodified tooling)
+
+The report factors "did anything change?" into three SHA-1 hashes so external tooling can skip tests whose
+inputs are provably unchanged — a prior verdict is reusable only while **all three** match:
+
+| report field | covers |
+|---|---|
+| per-test `hash` | that test's `test(...)` registration call — name, requirements, body — as a token stream (formatting/comments don't shift it) |
+| `setupHash` | every file reachable from the entry script via local imports, with all test bodies factored *out* — shared setup and helpers |
+| `contextHash` | the bench-declared `context` map — what is physically under test |
+
+Labwright cannot know what is on the bench, so the suite declares it during setup:
+
+```dart
+context('dut.serial', await dut.serialNumber());
+context('dut.firmware', await dut.firmwareVersion());
+```
+
+Caveats, stated honestly: the walk follows relative imports only (sources imported by `package:` URI are
+not covered by `setupHash`); a test registered through a tear-off or wrapper has no attributable call site
+and carries **no** `hash` — consumers must treat an absent hash as "assume modified"; and hashes reflect
+the sources as loaded, so a disk edit without a hot reload does not change what the report claims ran.
 
 ## TestStand Converter
 

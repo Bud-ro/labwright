@@ -78,11 +78,13 @@
 library;
 
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:math';
 
+import 'package:crypto/crypto.dart';
 import 'package:test_api/hooks_testing.dart';
 import 'package:vm_service/vm_service.dart' as vm;
 import 'package:vm_service/vm_service_io.dart' as vmio;
@@ -160,6 +162,12 @@ const String _reportPath = String.fromEnvironment('labwright.report');
 /// Cap on the viewer's in-memory execution history (Log view). A long soak
 /// keeps the most recent [_historyCap] records; older ones drop off.
 const int _historyCap = 2000;
+
+/// Whether registrations capture their `file:line` call site: needed by the
+/// viewer's jump-to-source AND by the report's test hashes, so it is on
+/// whenever either can consume it. A bare `dart run` with neither pays no
+/// per-registration stack-trace cost.
+const bool _captureLocations = _linger || _reportPath != '';
 
 /// The command the viewer's "open in editor" runs, as space-separated argv
 /// with `{file}` / `{line}` placeholders substituted into single args (so
@@ -240,6 +248,35 @@ void button(String label, FutureOr<void> Function() action) {
     );
   }
   _buttons.add(_Button(label, action));
+}
+
+/// Declares one key of the suite CONTEXT — the identity of what is on the
+/// bench: DUT serial, firmware revision, fixture version, operator... Call it
+/// during setup, alongside [test] registrations, with a JSON-encodable value
+/// (typically read off the hardware):
+///
+/// ```dart
+/// context('dut.serial', await dut.serialNumber());
+/// context('dut.firmware', await dut.firmwareVersion());
+/// ```
+///
+/// The report carries the map plus its SHA-1 (`contextHash`, canonical
+/// sorted-key JSON), alongside each test's `hash` and the suite `setupHash` —
+/// together the identity a skip-unmodified system needs: a test's outcome is
+/// reusable only while all three match. Labwright cannot derive what is
+/// physically on the bench, so the bench declares it here.
+///
+/// Throws [StateError] if called after the run has started, and
+/// [JsonUnsupportedObjectError] immediately if [value] is not encodable.
+void context(String key, Object? value) {
+  if (_runStarted) {
+    throw StateError(
+      '$_tag context("$key") set after the run started. Declare the bench '
+      'context during setup, before the first test() triggers the run.',
+    );
+  }
+  jsonEncode(value); // fail fast: context values must be JSON-encodable
+  _context[key] = value;
 }
 
 /// Wall-clock milliseconds since the epoch — the viewer stamps queue/run/log
@@ -326,6 +363,58 @@ class _Button {
 }
 
 final List<_Button> _buttons = [];
+
+/// The bench-declared suite context (see [context]) and, once computed, the
+/// suite's content hashes. Hashes are computed lazily off the bench-critical
+/// path — after a pass (when lingering or reporting) and after each hot
+/// reload — and reflect the sources as LOADED, so a disk edit without a
+/// reload correctly does not change what the report claims ran.
+final Map<String, Object?> _context = {};
+_SuiteHashes? _suiteHashes;
+
+/// The suite's content identity as computed by `dart run labwright:hash`
+/// (bin/hash.dart): the shared [setupHash] plus a per-registration-site test
+/// hash keyed `<abs path>:<line>`.
+class _SuiteHashes {
+  _SuiteHashes(this.setupHash, this.sites);
+
+  final String setupHash;
+  final Map<String, String> sites;
+
+  /// The test hash for the registration at [file]:[line], or null when none
+  /// could be attributed (tear-off/wrapper registrations) — callers must
+  /// treat null as "assume modified".
+  String? testHash(String? file, int? line) =>
+      file == null || line == null ? null : sites['${File(file).absolute.uri.normalizePath().toFilePath()}:$line'];
+}
+
+/// SHA-1 of the canonical (sorted-key) JSON of [_context] — the "what was on
+/// the bench" component of the skip-unmodified identity.
+String _contextHash() => sha1.convert(utf8.encode(jsonEncode(SplayTreeMap<String, Object?>.from(_context)))).toString();
+
+/// Computes the suite hashes by spawning `dart run labwright:hash` on the
+/// entry script, or returns null (with a warning) when hashing is unavailable
+/// — a hashing failure must never fail a run. A child process, deliberately:
+/// the hasher needs the analyzer, and importing that into THIS library would
+/// add seconds of kernel-recompile to every `dart run e2e/main.dart` (path
+/// entrypoints are not kernel-cached; package executables are). The spawn
+/// happens off the bench-critical path (after a pass / during a reload).
+Future<_SuiteHashes?> _tryComputeHashes() async {
+  try {
+    final result = await Process.run(Platform.resolvedExecutable, [
+      'run',
+      'labwright:hash',
+      Platform.script.toFilePath(),
+    ]);
+    if (result.exitCode != 0) throw ProcessException('labwright:hash', const [], '${result.stderr}');
+    final decoded = (jsonDecode(result.stdout.toString()) as Map).cast<String, Object?>();
+    return _SuiteHashes(decoded['setupHash'] as String, (decoded['sites'] as Map).cast<String, String>());
+  } catch (e) {
+    stderr.writeln('$_tag source hashing unavailable: $e');
+    return null;
+  }
+}
+
 final List<_TestEntry> _registry = [];
 List<_TestEntry> _selected = const [];
 bool _runScheduled = false;
@@ -383,9 +472,10 @@ void _register(
       'first test() call and register in one synchronous burst.',
     );
   }
-  // Capture the call site only when the viewer will linger — a stack trace per
-  // test is pure waste on a plain `dart run`/CI pass.
-  final (file, line) = _linger ? _callerLocation() : (null, null);
+  // Capture the call site only when something will consume it (the viewer's
+  // jump-to-source or the report's test hashes) — a stack trace per test is
+  // pure waste on a plain `dart run` pass.
+  final (file, line) = _captureLocations ? _callerLocation() : (null, null);
   _registry.add(_TestEntry(name, body, requirements, skip: skip, file: file, line: line));
   if (!_runScheduled) {
     _runScheduled = true;
@@ -492,6 +582,9 @@ Future<void> _runAll() async {
   await _execute(_selected);
 
   if (_linger && _viewer != null) {
+    // Baseline for hot reload's modified-test detection — computed here, off
+    // the bench-critical path, once the first pass is done.
+    _suiteHashes ??= await _tryComputeHashes();
     stdout.writeln(
       '$_tag View results and re-run tests at '
       'http://localhost:${_viewer!.port}. Ctrl + C to exit --interactive '
@@ -549,6 +642,9 @@ Future<void> _execute(List<_TestEntry> entries) async {
     '${s['failed']} failed, ${s['errors']} errors, ${s['skipped']} skipped',
   );
   if (_reportPath.isNotEmpty) {
+    // The report carries the content identity — make sure it exists (a child
+    // spawn, once per process; a reload refreshes it separately).
+    _suiteHashes ??= await _tryComputeHashes();
     File(_reportPath).writeAsStringSync(const JsonEncoder.withIndent('  ').convert(_report()));
     stdout.writeln('$_tag report written to $_reportPath');
   }
@@ -595,18 +691,33 @@ Future<Map<String, Object?>> _handleAction(Map<String, Object?> action) async {
   }
   switch (type) {
     case 'hotReload':
-      // Reload edited sources, then re-run. Held busy across the reload so no
-      // other action slips in; a failed reload frees the gate and reports why.
+      // Reload edited sources, then re-run only what changed (falling back to
+      // the whole selection when hashes can't tell). Held busy across the
+      // reload so no other action slips in; the gate is finally-protected so
+      // no throw can leave the UI locked out.
       _runInProgress = true;
       _viewer?.update();
-      final err = await _hotReload();
-      if (err != null) {
-        _runInProgress = false;
-        _viewer?.update();
-        return {'accepted': false, 'error': err};
+      String? err;
+      List<_TestEntry> modified = const [];
+      try {
+        err = await _hotReload();
+        if (err == null) modified = await _modifiedAfterReload();
+      } catch (e) {
+        err = 'hot reload failed: $e';
+      } finally {
+        if (err != null || modified.isEmpty) {
+          _runInProgress = false;
+          _viewer?.update();
+        }
       }
-      unawaited(_execute(_selected));
-      return const {'accepted': true};
+      if (err != null) return {'accepted': false, 'error': err};
+      if (modified.isEmpty) {
+        stdout.writeln('$_tag hot reload - no modified tests');
+        return const {'accepted': true, 'modified': 0};
+      }
+      stdout.writeln('$_tag hot reload - ${modified.length} modified test(s)');
+      unawaited(_execute(modified));
+      return {'accepted': true, 'modified': modified.length};
     case 'reseed':
       // Seed replay: re-shuffle the selection to a chosen seed and re-run, so
       // an operator reproduces a specific fuzz order without a restart.
@@ -646,6 +757,26 @@ Future<Map<String, Object?>> _handleAction(Map<String, Object?> action) async {
       return {'accepted': false, 'error': 'unknown action "$type"'};
   }
   return const {'accepted': true};
+}
+
+/// Recomputes the suite hashes after a reload and returns the selected tests
+/// whose registration content changed since the previous baseline. Falls back
+/// to the WHOLE selection (conservative) when there is no baseline, hashing is
+/// unavailable, or the shared setup changed; a test with no attributable hash
+/// (tear-off/wrapper registration) always counts as modified. The fresh hashes
+/// become the new baseline, so the report reflects the reloaded sources.
+Future<List<_TestEntry>> _modifiedAfterReload() async {
+  final before = _suiteHashes;
+  final fresh = await _tryComputeHashes();
+  _suiteHashes = fresh;
+  if (before == null || fresh == null || before.setupHash != fresh.setupHash) {
+    return _selected;
+  }
+  return [
+    for (final t in _selected)
+      if (fresh.testHash(t.file, t.line) == null || fresh.testHash(t.file, t.line) != before.testHash(t.file, t.line))
+        t,
+  ];
 }
 
 /// Runs one operator [button]'s action, serialized with test runs via the same
@@ -724,13 +855,27 @@ Map<String, Object?> _report() {
     }
   }
   final state = _state()..remove('buttons');
+  // Content identity, contained to the report: each test's hash, the shared
+  // setupHash, and the bench-declared context + contextHash. A consumer may
+  // reuse a prior verdict only while all three match (see [context]).
+  // Reads the cached identity only — computed at pass end / reload time (a
+  // sync report from the viewer before the first pass ends just omits it).
+  final hashes = _suiteHashes;
   // The report keeps logs as plain strings (a stable machine format); the
   // viewer carries the timestamped {t, m} form.
   for (final t in (state['tests'] as List).cast<Map<String, Object?>>()) {
     final logs = t['logs'];
     if (logs is List) t['logs'] = [for (final l in logs) (l as Map)['m']];
+    final hash = hashes?.testHash(t['file'] as String?, t['line'] as int?);
+    if (hash != null) t['hash'] = hash;
   }
-  return {...state, 'requirements': requirements};
+  return {
+    ...state,
+    if (hashes != null) 'setupHash': hashes.setupHash,
+    if (_context.isNotEmpty) 'context': Map<String, Object?>.of(_context),
+    'contextHash': _contextHash(),
+    'requirements': requirements,
+  };
 }
 
 Future<void> _runOne(_TestEntry entry) async {

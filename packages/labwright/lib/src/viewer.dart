@@ -240,7 +240,7 @@ const _viewerHtml = '''
   <div id="controls" hidden>
     <button id="rerun">Re-run all</button>
     <button id="rerunFailed">Re-run failed</button>
-    <button id="hotReload" title="reload edited sources and re-run">Hot reload</button>
+    <button id="hotReload" title="reload edited sources and re-run the modified tests">Hot reload</button>
     <button id="stop">Stop</button>
     <span id="userButtons"></span>
     <a id="dl" href="/report.json" download="labwright-report.json">download report</a>

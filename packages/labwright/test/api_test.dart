@@ -622,4 +622,120 @@ void main() {
       dir.deleteSync(recursive: true);
     }
   }, timeout: const Timeout(Duration(minutes: 2)));
+
+  test('report identity: per-test hash, setupHash, context + contextHash, all deterministic', () {
+    final hex40 = matches(RegExp(r'^[0-9a-f]{40}$'));
+    final (exit1, _, r1) = _runWithReport('test/fixtures/green_e2e.dart', defines: ['-Dlabwright.seed=0']);
+    final (exit2, _, r2) = _runWithReport('test/fixtures/green_e2e.dart', defines: ['-Dlabwright.seed=0']);
+    expect(exit1, 0);
+    expect(exit2, 0);
+    expect(r1['setupHash'], hex40);
+    expect(r1['context'], {'dut.serial': 'SIM-001'}, reason: 'the bench-declared context lands in the report');
+    expect(r1['contextHash'], hex40);
+    final hashes1 = {for (final t in _tests(r1)) t['name']: t['hash']};
+    expect(hashes1.values, everyElement(hex40), reason: 'every test carries a content hash');
+    expect(hashes1.values.toSet(), hasLength(3), reason: 'distinct tests hash distinctly');
+    // Identity is deterministic: unchanged sources produce identical hashes.
+    expect(r2['setupHash'], r1['setupHash']);
+    expect(r2['contextHash'], r1['contextHash']);
+    expect({for (final t in _tests(r2)) t['name']: t['hash']}, hashes1);
+  });
+
+  test(
+    'hot reload re-runs only modified tests; hashes factor test bodies out of setup',
+    () async {
+      final dir = Directory('$pkgRoot/.hot_tmp')..createSync(recursive: true);
+      final suite = File('${dir.path}/suite.dart');
+      String src({required String alpha, required String helper}) =>
+          "import 'package:labwright/labwright.dart';\n"
+          "String helper() => '$helper';\n"
+          'void main() {\n'
+          "  test('alpha', () async { log('$alpha'); });\n"
+          "  test('beta', () async { log(helper()); });\n"
+          '}\n';
+      suite.writeAsStringSync(src(alpha: 'A1', helper: 'H1'));
+      Process? process;
+      try {
+        process = await Process.start(Platform.resolvedExecutable, [
+          'run',
+          '--enable-vm-service=0',
+          '-Dlabwright.port=0',
+          '-Dlabwright.interactive=true',
+          '-Dlabwright.seed=0',
+          '.hot_tmp/suite.dart',
+        ], workingDirectory: pkgRoot);
+        final port = Completer<int>();
+        final ready = Completer<void>();
+        final consoleLines = <String>[];
+        process.stdout.transform(utf8.decoder).transform(const LineSplitter()).listen((line) {
+          consoleLines.add(line);
+          final m = RegExp(r'viewer on http://localhost:(\d+)').firstMatch(line);
+          if (m != null && !port.isCompleted) port.complete(int.parse(m[1]!));
+          if (line.contains('View results and re-run tests at') && !ready.isCompleted) ready.complete();
+        });
+        final p = await port.future.timeout(const Duration(seconds: 30));
+        await ready.future.timeout(const Duration(seconds: 60));
+        final client = HttpClient();
+
+        Future<Map<String, Object?>> getJson(String path) async {
+          final res = await (await client.getUrl(Uri.parse('http://localhost:$p$path'))).close();
+          return (jsonDecode(await res.transform(utf8.decoder).join()) as Map).cast<String, Object?>();
+        }
+
+        Future<int> reload() async {
+          final req = await client.postUrl(Uri.parse('http://localhost:$p/action'));
+          req.headers.contentType = ContentType.json;
+          req.write(jsonEncode({'type': 'hotReload'}));
+          final res = await req.close();
+          expect(res.statusCode, 202);
+          final body = (jsonDecode(await res.transform(utf8.decoder).join()) as Map).cast<String, Object?>();
+          // Wait for any triggered re-run to settle.
+          for (var i = 0; i < 200; i++) {
+            if ((await getJson('/state.json'))['busy'] == false) break;
+            await Future<void>.delayed(const Duration(milliseconds: 50));
+          }
+          return (body['modified'] as num).toInt();
+        }
+
+        Map<String, Object?> testIn(Map<String, Object?> report, String name) =>
+            (report['tests'] as List).cast<Map<String, Object?>>().firstWhere((t) => t['name'] == name);
+
+        final r1 = await getJson('/report.json');
+
+        // Edit ONLY alpha's body: alpha is modified, beta and the SETUP are not.
+        suite.writeAsStringSync(src(alpha: 'A2', helper: 'H1'));
+        expect(await reload(), 1, reason: 'exactly the edited test counts as modified');
+        expect(consoleLines, contains('[Labwright]: hot reload - 1 modified test(s)'));
+        final r2 = await getJson('/report.json');
+        expect(testIn(r2, 'alpha')['hash'], isNot(testIn(r1, 'alpha')['hash']));
+        expect(testIn(r2, 'beta')['hash'], testIn(r1, 'beta')['hash']);
+        expect(r2['setupHash'], r1['setupHash'], reason: 'test bodies are factored OUT of the setup hash');
+        expect(
+          testIn(r2, 'beta')['finishedAt'],
+          testIn(r1, 'beta')['finishedAt'],
+          reason: 'the unmodified test did not re-run',
+        );
+        expect(
+          testIn(r2, 'alpha')['finishedAt'],
+          isNot(testIn(r1, 'alpha')['finishedAt']),
+          reason: 'the modified test re-ran',
+        );
+
+        // Edit the shared helper (outside any test body): setup changed → all.
+        suite.writeAsStringSync(src(alpha: 'A2', helper: 'H2'));
+        expect(await reload(), 2, reason: 'a setup change conservatively marks every test modified');
+        final r3 = await getJson('/report.json');
+        expect(r3['setupHash'], isNot(r2['setupHash']));
+
+        // No edit at all: nothing to re-run.
+        expect(await reload(), 0, reason: 'an unchanged suite re-runs nothing');
+        client.close(force: true);
+      } finally {
+        process?.kill();
+        await process?.exitCode;
+        dir.deleteSync(recursive: true);
+      }
+    },
+    timeout: const Timeout(Duration(minutes: 2)),
+  );
 }

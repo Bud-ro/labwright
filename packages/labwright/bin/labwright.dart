@@ -22,7 +22,8 @@
 //   --keep-open,       Keep the viewer serving after the run AND accept its
 //   --interactive      control actions — re-run all/failed, run one, stop,
 //                      buttons, open-in-editor, seed replay, hot reload (starts
-//                      the VM service). Two names for one behavior; CI exits.
+//                      the VM service; re-runs only content-modified tests).
+//                      Two names for one behavior; CI exits.
 //
 // scan   Lints the plug-in convention: lists .dart files under the dir
 //        (default e2e/) that are NOT reachable from main.dart via local
@@ -34,8 +35,7 @@
 import 'dart:io';
 import 'dart:math';
 
-import 'package:analyzer/dart/analysis/utilities.dart';
-import 'package:analyzer/dart/ast/ast.dart';
+import 'package:labwright/src/source_hash.dart' show localDirectiveUris;
 
 Future<void> main(List<String> args) async {
   final rest = [...args];
@@ -156,29 +156,6 @@ String? _resolveTarget(String? target) {
 
 // ── scan ─────────────────────────────────────────────────────────────────────
 
-/// The local (non-`package:`/`dart:`) URIs a Dart file's directives point
-/// at, from a real AST parse (syntactic only — no resolution needed).
-/// Comments and string literals containing import-shaped text cannot fool
-/// this, and conditional imports contribute EVERY branch (any of them may
-/// be the one that loads).
-Iterable<String> _localDirectiveUris(String source) sync* {
-  final unit = parseString(content: source, throwIfDiagnostics: false).unit;
-  for (final directive in unit.directives) {
-    if (directive is! UriBasedDirective) continue; // `part of` has no target
-    final uris = [
-      directive.uri.stringValue,
-      if (directive is NamespaceDirective)
-        for (final config in directive.configurations) config.uri.stringValue,
-    ];
-    for (final uri in uris) {
-      if (uri == null || uri.startsWith('package:') || uri.startsWith('dart:')) {
-        continue;
-      }
-      yield uri;
-    }
-  }
-}
-
 int _scan(List<String> args) {
   final dir = args.where((a) => !a.startsWith('-')).firstOrNull ?? 'e2e';
   final mainFile = File('$dir${Platform.pathSeparator}main.dart');
@@ -198,7 +175,7 @@ int _scan(List<String> args) {
   void visit(File file) {
     final path = file.absolute.uri.normalizePath().toFilePath();
     if (!reachable.add(path) || !file.existsSync()) return;
-    for (final uri in _localDirectiveUris(file.readAsStringSync())) {
+    for (final uri in localDirectiveUris(file.readAsStringSync())) {
       visit(File.fromUri(file.absolute.uri.resolve(uri)));
     }
   }
