@@ -97,9 +97,29 @@ class Viewer {
 
   /// Reads a JSON action body, dispatches it to [onAction], and echoes the
   /// result. Status: 202 accepted, 409 rejected (e.g. a run is in progress),
-  /// 400 on a malformed body, 503 when the viewer is read-only (no handler).
+  /// 400 on a malformed body, 403 cross-origin/non-JSON, 503 when the viewer
+  /// is read-only (no handler).
+  ///
+  /// Loopback binding does not protect against the operator's own BROWSER: any
+  /// webpage can fire a no-preflight POST at localhost, and these actions
+  /// actuate bench hardware. So an action must look like it came from this
+  /// page: a JSON content type (a cross-site fetch with that type triggers a
+  /// CORS preflight, which this server never approves) and, when the browser
+  /// attached an Origin header, a localhost one (a cross-site text/plain form
+  /// post always carries the attacker's origin; curl sends none and stays
+  /// welcome).
   Future<void> _handleAction(HttpRequest request) async {
     final response = request.response..headers.contentType = ContentType.json;
+    final origin = request.headers.value('origin');
+    final originHost = origin == null ? null : Uri.tryParse(origin)?.host;
+    final sameHost = originHost == null || originHost == 'localhost' || originHost == '127.0.0.1';
+    final jsonBody = request.headers.contentType?.mimeType == 'application/json';
+    if (!sameHost || !jsonBody) {
+      response.statusCode = HttpStatus.forbidden;
+      response.write('{"accepted":false,"error":"cross-origin or non-JSON action rejected"}');
+      await response.close();
+      return;
+    }
     final handler = onAction;
     if (handler == null) {
       response.statusCode = HttpStatus.serviceUnavailable;
@@ -130,6 +150,11 @@ class Viewer {
   /// view prepends it and animates it in).
   void pushHistory(Map<String, Object?> record) =>
       _broadcast('event: hist\ndata: ${jsonEncode({'entry': record})}\n\n');
+
+  /// Pushes one log line as a small `log` delta — `{name, t, m}` — so a
+  /// chatty test streams lines without full-state rebroadcasts per line.
+  void pushLog(String name, int at, String message) =>
+      _broadcast('event: log\ndata: ${jsonEncode({'name': name, 't': at, 'm': message})}\n\n');
 
   void _broadcast(String frame) {
     for (final client in [..._sseClients]) {
@@ -333,9 +358,13 @@ function renderTests() {
 }
 
 // ── Queue view: tests waiting in the active run ──────────────────────────────
+// The queue is first-class server state (snap.queue, ordered names), NOT
+// derived from statuses — a waiting test keeps showing its previous verdict
+// in the Tests pane until it actually runs.
 function renderQueue() {
   const list = byId('queueList'); list.replaceChildren();
-  const queued = (snap.tests || []).filter((t) => t.status === 'queued');
+  const byName = new Map((snap.tests || []).map((t) => [t.name, t]));
+  const queued = (snap.queue || []).map((n) => byName.get(n)).filter(Boolean);
   const shown = queued.filter((t) => testMatch(t, filters.queue));
   if (!shown.length) {
     list.appendChild(badge('empty', snap.busy ? 'running — nothing else queued' : 'nothing queued'));
@@ -409,7 +438,7 @@ function showLog(name) {
 function counts() {
   byId('cTests').textContent = (snap.tests || []).length || '';
   byId('cLog').textContent = history.length || '';
-  byId('cQueue').textContent = (snap.tests || []).filter((t) => t.status === 'queued').length || '';
+  byId('cQueue').textContent = (snap.queue || []).length || '';
 }
 function controls() {
   byId('controls').hidden = !snap.interactive;
@@ -454,6 +483,18 @@ source.addEventListener('hist', (m) => {
   if (d.reset) { history = (d.entries || []).slice().reverse(); renderLog(); }
   else if (d.entry) { history.unshift(d.entry); prependLog(d.entry); }
   counts();
+});
+// A single log line: update the local model and APPEND to the live row —
+// never a pane rebuild (full snapshots only flow on status changes).
+source.addEventListener('log', (m) => {
+  const d = JSON.parse(m.data);
+  const t = (snap.tests || []).find((x) => x.name === d.name && x.status === 'running');
+  if (t) (t.logs = t.logs || []).push({ t: d.t, m: d.m });
+  const live = byId('logList').querySelector('.live');
+  if (!live || (t && !logMatch(t, filters.log))) return;
+  let l = live.querySelector('.logs');
+  if (!l) { l = document.createElement('div'); l.className = 'logs'; live.appendChild(l); }
+  l.textContent += (l.textContent ? '\\n' : '') + clock(d.t) + '  ' + d.m;
 });
 </script>
 </body>

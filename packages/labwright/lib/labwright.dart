@@ -296,9 +296,22 @@ int _now() => DateTime.now().millisecondsSinceEpoch;
 /// occurred, and carried in the report.
 void log(String message) {
   stdout.writeln('  - $message');
-  _running?.logs.add(_LogLine(_now(), message));
-  _viewer?.update();
+  final line = _LogLine(_now(), message);
+  (_running?.logs ?? _actionLogs)?.add(line);
+  // A log line goes to the viewer as a small DELTA, never a full-state
+  // broadcast: re-encoding every test's retained logs on every line is
+  // quadratic over a chatty soak. Full snapshots still flow on status
+  // changes, so connected pages stay coherent.
+  final owner = _running?.name ?? _actionName;
+  if (owner != null) _viewer?.pushLog(owner, line.at, line.message);
 }
+
+/// The sink and label for [log] lines emitted while an operator [button]
+/// action runs (no test is running then) — collected so the action's
+/// execution streams to the viewer's Log feed like a test's, as the docs
+/// promise.
+List<_LogLine>? _actionLogs;
+String? _actionName;
 
 // ── registry and execution ───────────────────────────────────────────────────
 
@@ -349,7 +362,7 @@ class _TestEntry {
     if (file != null) 'file': file,
     if (line != null) 'line': line,
     if (change.isNotEmpty) 'change': change,
-    if (flips >= 2) 'flaky': true,
+    if (flips >= _flakyFlips) 'flaky': true,
     if (queuedAt != null) 'queuedAt': queuedAt,
     if (startedAt != null) 'startedAt': startedAt,
     if (finishedAt != null) 'finishedAt': finishedAt,
@@ -455,23 +468,14 @@ int _historyId = 0; // unique id per execution record
 int _runSeq = 0; // increments each pass, so records group by run
 
 /// Snapshots [entry]'s just-finished execution into the history feed and pushes
-/// it to the viewer. Capped ([_historyCap]); the oldest record drops first.
-void _record(_TestEntry entry) {
-  final record = {
-    'id': ++_historyId,
-    'run': _runSeq,
-    'name': entry.name,
-    'status': entry.status,
-    if (entry.ms != null) 'ms': entry.ms,
-    if (entry.file != null) 'file': entry.file,
-    if (entry.line != null) 'line': entry.line,
-    if (entry.change.isNotEmpty) 'change': entry.change,
-    if (entry.queuedAt != null) 'queuedAt': entry.queuedAt,
-    if (entry.startedAt != null) 'startedAt': entry.startedAt,
-    if (entry.finishedAt != null) 'finishedAt': entry.finishedAt,
-    if (entry.detail.isNotEmpty) 'detail': entry.detail,
-    if (entry.logs.isNotEmpty) 'logs': [for (final l in entry.logs) l.toJson()],
-  };
+/// it to the viewer. One serializer — the entry's own [toJson] — plus the feed
+/// bookkeeping, so history records can never drift from the Tests pane.
+void _record(_TestEntry entry) => _pushRecord(entry.toJson());
+
+/// Appends one execution record (a test's, or a button action's) to the Log
+/// feed and pushes it live. Capped ([_historyCap]); the oldest drops first.
+void _pushRecord(Map<String, Object?> fields) {
+  final record = {...fields, 'id': ++_historyId, 'run': _runSeq};
   _history.add(record);
   if (_history.length > _historyCap) _history.removeAt(0);
   _viewer?.pushHistory(record);
@@ -514,7 +518,20 @@ void _register(
     if (m == null) continue;
     final uri = m.group(1)!;
     if (uri.endsWith('labwright.dart')) continue; // still inside the framework
-    final path = uri.startsWith('file://') ? Uri.parse(uri).toFilePath() : uri;
+    // A registration reached through a package-imported helper reports a
+    // `package:` URI — resolve it to a real path so the editor can open it;
+    // an unresolvable frame is skipped in favor of a deeper (caller) one.
+    final String? path;
+    if (uri.startsWith('file://')) {
+      path = Uri.parse(uri).toFilePath();
+    } else if (uri.startsWith('package:')) {
+      path = Isolate.resolvePackageUriSync(Uri.parse(uri))?.toFilePath();
+    } else if (uri.startsWith('dart:')) {
+      path = null;
+    } else {
+      path = uri;
+    }
+    if (path == null) continue;
     return (path, int.parse(m.group(2)!));
   }
   return (null, null);
@@ -529,6 +546,9 @@ Map<String, Object?> _state() => {
   'busy': _runInProgress,
   'interactive': _linger,
   if (_buttons.isNotEmpty) 'buttons': [for (final b in _buttons) b.label],
+  // The active run's waiting list, in order — distinct from test statuses so
+  // a queued test still shows its previous verdict in the Tests pane.
+  'queue': [for (final t in _queue) t.name],
   'tests': [for (final t in _selected) t.toJson()],
   'summary': _summary(),
 };
@@ -583,9 +603,10 @@ Future<void> _runAll() async {
   if (_viewerEnabled) {
     _viewer = await Viewer.start(_port, _state);
     if (_viewer != null) {
-      // The control plane: the viewer POSTs actions back here. Only reachable
-      // while we linger (an explicit flag), so CI never grows an action surface.
-      _viewer!.onAction = _handleAction;
+      // The control plane: the viewer POSTs actions back here — wired ONLY
+      // under an explicit --interactive/--keep-open, so a plain run's viewer
+      // is genuinely read-only (503) and CI never grows an action surface.
+      if (_linger) _viewer!.onAction = _handleAction;
       _viewer!.report = _report; // GET /report.json for download
       _viewer!.history = () => _history; // Log view feed (batch on connect)
 
@@ -616,38 +637,53 @@ Future<void> _runAll() async {
   }
 }
 
-/// Runs [entries] as one pass — resetting each first so a re-run starts clean.
-/// Between tests it honors a `stop` request; the in-flight test always
-/// finishes (Stop halts the queue, never a running body). Pushes state to the
-/// viewer throughout, prints the summary, and rewrites the report when
-/// configured. Re-entrancy is the caller's concern (see [_handleAction]).
+/// Tests waiting in the active run — a first-class queue, distinct from each
+/// test's status, so WAITING never destroys a test's previous verdict: a
+/// stopped run leaves unreached tests exactly as their last pass left them
+/// (details, logs, diff continuity, report). The viewer's Queue pane renders
+/// this list.
+final List<_TestEntry> _queue = [];
+
+/// Runs [entries] as one pass. Each entry is reset only at the moment it
+/// actually runs; between tests the loop honors a `stop` request by draining
+/// the queue (the in-flight test always finishes — Stop halts the queue,
+/// never a running body). Pushes state to the viewer throughout, prints the
+/// summary, and rewrites the report when configured. Re-entrancy is the
+/// caller's concern (see [_handleAction]).
 Future<void> _execute(List<_TestEntry> entries) async {
   _runInProgress = true;
-  _stopRequested = false;
   _done = false;
   _runSeq++;
-  // Remember each entry's prior verdict so we can diff it the moment it reruns.
-  final prior = {for (final e in entries) e: e.status};
-  // Queue them all up front (same instant) so the Queue pane shows the whole
-  // pending set draining, and each carries the time it was queued.
+  // Queue the pass without touching results: entries keep their previous
+  // verdict (and logs, and change badge) until they actually run.
   final queuedAt = _now();
+  _queue
+    ..clear()
+    ..addAll(entries);
   for (final e in entries) {
-    e
-      ..status = 'queued'
+    e.queuedAt = queuedAt;
+  }
+  _viewer?.update();
+  while (_queue.isNotEmpty) {
+    if (_stopRequested) {
+      // Stop: drain the queue; unreached entries keep their prior verdicts.
+      _queue.clear();
+      break;
+    }
+    final entry = _queue.removeAt(0);
+    // The prior verdict feeds the run-to-run diff; the reset happens only
+    // NOW, when this entry runs — never for entries that end up unreached.
+    final prior = entry.status;
+    entry
       ..detail = ''
       ..ms = null
       ..startedAt = null
       ..finishedAt = null
-      ..queuedAt = queuedAt
       ..logs.clear();
-  }
-  _viewer?.update();
-  for (final entry in entries) {
-    if (_stopRequested) break;
     await _runOne(entry);
     // Diff against the prior run (independent per test), then snapshot the
     // finished execution into the Log feed — so it pops in as it completes.
-    _diff(entry, prior[entry]!);
+    _diff(entry, prior);
     _record(entry);
   }
   _runInProgress = false;
@@ -678,10 +714,22 @@ void _diff(_TestEntry entry, String priorStatus) {
     entry.change = '';
     return;
   }
+  // A skip is neither a pass nor a failure: a transition into or out of
+  // 'skipped' reads as plain 'changed' — a test that went failed->skipped was
+  // never "now passing", and skips must not count toward flakiness.
+  if (priorStatus == 'skipped' || now == 'skipped') {
+    entry.change = 'changed';
+    return;
+  }
   final wasFail = _isFail(priorStatus), nowFail = _isFail(now);
   entry.change = !wasFail && nowFail ? 'newFail' : (wasFail && !nowFail ? 'newPass' : 'changed');
   if (wasFail != nowFail) entry.flips++;
 }
+
+/// A test is badged flaky once its verdict has crossed the pass/fail line
+/// this many times — one full fail-pass-fail (or inverse) cycle. Skips never
+/// count (see [_diff]).
+const int _flakyFlips = 2;
 
 /// Dispatches a viewer control action. `stop` is always accepted (it just
 /// flips the flag the run loop watches); the re-run family is rejected with
@@ -707,6 +755,11 @@ Future<Map<String, Object?>> _handleAction(Map<String, Object?> action) async {
   if (_runInProgress) {
     return const {'accepted': false, 'error': 'a run is already in progress'};
   }
+  // Every remaining case starts new work, so a stale stop request is consumed
+  // HERE, at accept time — a stop that arrives after this point (e.g. while a
+  // hot reload is still loading sources) must survive into the run loop and
+  // halt it before its first test.
+  _stopRequested = false;
   switch (type) {
     case 'hotReload':
       // Reload edited sources, then re-run only what changed (falling back to
@@ -738,8 +791,14 @@ Future<Map<String, Object?>> _handleAction(Map<String, Object?> action) async {
       return {'accepted': true, 'modified': modified.length};
     case 'reseed':
       // Seed replay: re-shuffle the selection to a chosen seed and re-run, so
-      // an operator reproduces a specific fuzz order without a restart.
-      _activeSeed = (action['seed'] as num?)?.toInt() ?? 0;
+      // an operator reproduces a specific fuzz order without a restart. The
+      // seed must be explicit — silently defaulting would quietly destroy the
+      // reproducibility this action exists for.
+      final requested = action['seed'];
+      if (requested is! num) {
+        return const {'accepted': false, 'error': 'reseed needs an integer seed (0 = registration order)'};
+      }
+      _activeSeed = requested.toInt();
       _selected = _select(_activeSeed);
       unawaited(_execute(_selected));
     case 'rerun':
@@ -747,7 +806,7 @@ Future<Map<String, Object?>> _handleAction(Map<String, Object?> action) async {
     case 'rerunFailed':
       final failed = [
         for (final t in _selected)
-          if (t.status == 'failed' || t.status == 'error') t,
+          if (_isFail(t.status)) t,
       ];
       if (failed.isEmpty) {
         return const {'accepted': false, 'error': 'nothing to re-run'};
@@ -798,22 +857,41 @@ Future<List<_TestEntry>> _modifiedAfterReload() async {
 }
 
 /// Runs one operator [button]'s action, serialized with test runs via the same
-/// `_runInProgress` gate (the bench is singular). A throwing action is caught
-/// and surfaced — a button must never crash the lingering process. Does not
-/// touch test state or the exit code (buttons are viewer-only).
+/// `_runInProgress` gate (the bench is singular). Its [log] lines and outcome
+/// are recorded into the Log feed (as `button: <label>`), so the viewer shows
+/// a bench action like it shows a test. A throwing action is caught and
+/// surfaced — a button must never crash the lingering process — and buttons
+/// never touch test state or the exit code.
 Future<void> _runButton(_Button b) async {
   _runInProgress = true;
   _viewer?.update();
   stdout.writeln('$_tag button "${b.label}"');
+  // Collect the action's log() lines and record the execution into the Log
+  // feed — a bench action streams to the viewer just like a test run.
+  final logs = _actionLogs = <_LogLine>[];
+  _actionName = 'button: ${b.label}';
+  final startedAt = _now();
   final watch = Stopwatch()..start();
+  var detail = '';
   try {
     await b.action();
-    watch.stop();
-    stdout.writeln('$_tag button "${b.label}" done (${watch.elapsedMilliseconds} ms)');
   } catch (e) {
-    watch.stop();
-    stdout.writeln('$_tag button "${b.label}" failed (${watch.elapsedMilliseconds} ms): $e');
+    detail = '$e';
   }
+  watch.stop();
+  _actionLogs = null;
+  _actionName = null;
+  final ms = watch.elapsedMilliseconds;
+  stdout.writeln('$_tag button "${b.label}" ${detail.isEmpty ? 'done ($ms ms)' : 'failed ($ms ms): $detail'}');
+  _pushRecord({
+    'name': 'button: ${b.label}',
+    'status': detail.isEmpty ? 'passed' : 'error',
+    'ms': ms,
+    'startedAt': startedAt,
+    'finishedAt': _now(),
+    if (detail.isNotEmpty) 'detail': detail,
+    if (logs.isNotEmpty) 'logs': [for (final l in logs) l.toJson()],
+  });
   _runInProgress = false;
   _viewer?.update();
 }
@@ -850,16 +928,42 @@ Future<String?> _hotReload() async {
 /// detached with an argv list (no shell), so a path with spaces is one safe
 /// argument; a missing editor is a warning, never a crash.
 Future<void> _openInEditor(String file, int line) async {
-  final argv = [
-    for (final a in _editorCmd.split(' '))
-      if (a.isNotEmpty) a.replaceAll('{file}', file).replaceAll('{line}', '$line'),
-  ];
+  final argv = _editorArgv(_editorCmd, file, line);
   if (argv.isEmpty) return;
   try {
-    await Process.start(argv.first, argv.sublist(1), mode: ProcessStartMode.detached);
+    // runInShell on Windows: the default `code` resolves to code.cmd, a batch
+    // file CreateProcess cannot execute directly.
+    await Process.start(argv.first, argv.sublist(1), mode: ProcessStartMode.detached, runInShell: Platform.isWindows);
   } catch (e) {
     stderr.writeln('$_tag could not open editor (${argv.first}): $e');
   }
+}
+
+/// Splits an editor command template into argv, honoring double-quoted
+/// segments so an executable path containing spaces is expressible —
+/// `-Dlabwright.editor='"C:\Program Files\VS Code\bin\code.cmd" --goto
+/// {file}:{line}'` — then substitutes `{file}`/`{line}` into whole arguments
+/// (never through a shell, so paths stay single arguments).
+List<String> _editorArgv(String template, String file, int line) {
+  final argv = <String>[];
+  final buf = StringBuffer();
+  var quoted = false;
+  var pending = false; // a closed empty quote still yields an argument
+  for (var i = 0; i < template.length; i++) {
+    final c = template[i];
+    if (c == '"') {
+      quoted = !quoted;
+      pending = true;
+    } else if (c == ' ' && !quoted) {
+      if (pending || buf.isNotEmpty) argv.add(buf.toString());
+      buf.clear();
+      pending = false;
+    } else {
+      buf.write(c);
+    }
+  }
+  if (pending || buf.isNotEmpty) argv.add(buf.toString());
+  return [for (final a in argv) a.replaceAll('{file}', file).replaceAll('{line}', '$line')];
 }
 
 /// The report: the suite state plus the requirements trace
@@ -943,7 +1047,7 @@ Future<void> _runOne(_TestEntry entry) async {
   entry
     ..status = status.name
     ..finishedAt = _now();
-  if (status == TestStatus.failed || status == TestStatus.error) exitCode = 1;
+  if (_isFail(status.name)) exitCode = 1;
   final (label, color) = switch (status) {
     TestStatus.passed => ('PASS', _green),
     TestStatus.failed => ('FAIL', _red),

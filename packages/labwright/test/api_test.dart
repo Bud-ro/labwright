@@ -331,6 +331,38 @@ void main() {
       final badRes = await action({'type': 'button', 'index': 9});
       expect(badRes.statusCode, 409);
       await badRes.drain<void>();
+
+      // The action's execution — including its log() lines — landed in the
+      // Log feed, as the button() docs promise. A fresh SSE client replays
+      // the history, so read its `hist` reset frame.
+      final events = await (await client.getUrl(Uri.parse('http://localhost:$p/events'))).close();
+      final got = Completer<List<Map<String, Object?>>>();
+      final buf = StringBuffer();
+      final sub = events.transform(utf8.decoder).listen((chunk) {
+        buf.write(chunk);
+        for (final frame in buf.toString().split('\n\n')) {
+          if (!frame.startsWith('event: hist')) continue;
+          final dataLine = frame.split('\n').firstWhere((l) => l.startsWith('data: '), orElse: () => '');
+          if (dataLine.isEmpty) continue;
+          try {
+            final data = (jsonDecode(dataLine.substring(6)) as Map).cast<String, Object?>();
+            if (data['reset'] == true && !got.isCompleted) {
+              got.complete((data['entries'] as List).cast<Map<String, Object?>>());
+            }
+          } catch (_) {
+            /* partial frame — wait for more */
+          }
+        }
+      });
+      final entries = await got.future.timeout(const Duration(seconds: 30));
+      final record = entries.firstWhere((e) => e['name'] == 'button: reset rig');
+      expect(record['status'], 'passed');
+      expect(
+        (record['logs'] as List).map((l) => (l as Map)['m']),
+        ['rig reset'],
+        reason: 'a button action streams its log() lines to the Log feed',
+      );
+      await sub.cancel();
       client.close(force: true);
     } finally {
       process.kill();
@@ -340,9 +372,11 @@ void main() {
 
   test('open-in-editor + seed replay: source locations, reseed, editor launch', () async {
     final tmp = Directory.systemTemp.createTempSync('lw_');
-    // A recorder standing in for the editor (POSIX only — bash script).
+    // A recorder standing in for the editor (POSIX only — bash script), in a
+    // directory WITH A SPACE: the editor template must express it via quotes.
     final opened = File('${tmp.path}/opened.txt');
-    final rec = File('${tmp.path}/rec.sh')
+    final rec = File('${tmp.path}/editor dir/rec.sh')
+      ..createSync(recursive: true)
       ..writeAsStringSync('#!/usr/bin/env bash\nprintf "%s" "\$*" > "${opened.path}"\n');
     final posix = !Platform.isWindows;
     if (posix) Process.runSync('chmod', ['+x', rec.path]);
@@ -353,7 +387,7 @@ void main() {
         '-Dlabwright.interactive=true',
         '-Dlabwright.identity=false', // hashes not asserted here — skip the hasher isolate
         '-Dlabwright.seed=0',
-        if (posix) '-Dlabwright.editor=${rec.path} {file} {line}',
+        if (posix) '-Dlabwright.editor="${rec.path}" {file} {line}',
         'test/fixtures/green_e2e.dart',
       ], workingDirectory: pkgRoot);
       try {
@@ -528,20 +562,22 @@ void main() {
       final p = await port.future.timeout(const Duration(seconds: 30));
       await ready.future.timeout(const Duration(seconds: 60));
 
-      // Consume the SSE stream and pull the one-shot `hist` reset frame.
+      // Consume the SSE stream and pull the one-shot `hist` reset frame,
+      // plus any per-line `log` deltas that flow during a re-run.
       final client = HttpClient();
       final res = await (await client.getUrl(Uri.parse('http://localhost:$p/events'))).close();
       final got = Completer<Map<String, Object?>>();
+      final logDelta = Completer<Map<String, Object?>>();
       final buf = StringBuffer();
       final sub = res.transform(utf8.decoder).listen((chunk) {
         buf.write(chunk);
         for (final frame in buf.toString().split('\n\n')) {
-          if (!frame.startsWith('event: hist')) continue;
           final dataLine = frame.split('\n').firstWhere((l) => l.startsWith('data: '), orElse: () => '');
           if (dataLine.isEmpty) continue;
           try {
             final data = (jsonDecode(dataLine.substring(6)) as Map).cast<String, Object?>();
-            if (data['reset'] == true && !got.isCompleted) got.complete(data);
+            if (frame.startsWith('event: hist') && data['reset'] == true && !got.isCompleted) got.complete(data);
+            if (frame.startsWith('event: log') && !logDelta.isCompleted) logDelta.complete(data);
           } catch (_) {
             /* partial frame — wait for more */
           }
@@ -567,6 +603,17 @@ void main() {
       expect(queued, lessThanOrEqualTo(started));
       expect(started, lessThanOrEqualTo(finished));
       expect((rail['logs'] as List).first, containsPair('t', isA<int>()));
+
+      // A log line during a run arrives as a small `log` DELTA ({name, t, m})
+      // rather than a full-state rebroadcast per line.
+      final req = await client.postUrl(Uri.parse('http://localhost:$p/action'));
+      req.headers.contentType = ContentType.json;
+      req.write(jsonEncode({'type': 'rerun'}));
+      await (await req.close()).drain<void>();
+      final delta = await logDelta.future.timeout(const Duration(seconds: 30));
+      expect(delta['name'], 'rail comes up');
+      expect(delta['m'], 'applying power');
+      expect(delta['t'], isA<int>());
       await sub.cancel();
       client.close(force: true);
     } finally {
@@ -638,6 +685,139 @@ void main() {
       process?.kill();
       await process?.exitCode;
       dir.deleteSync(recursive: true);
+    }
+  }, timeout: const Timeout(Duration(minutes: 2)));
+
+  test(
+    'stop preserves unreached tests: verdicts, logs and diff survive a halted run',
+    () async {
+      final process = await Process.start(Platform.resolvedExecutable, [
+        'run',
+        '-Dlabwright.port=0',
+        '-Dlabwright.interactive=true',
+        '-Dlabwright.identity=false', // hashes not asserted here — skip the hasher isolate
+        '-Dlabwright.seed=0',
+        'test/fixtures/slow_e2e.dart',
+      ], workingDirectory: pkgRoot);
+      try {
+        final port = Completer<int>();
+        final ready = Completer<void>();
+        process.stdout.transform(utf8.decoder).transform(const LineSplitter()).listen((line) {
+          final m = RegExp(r'viewer on http://localhost:(\d+)').firstMatch(line);
+          if (m != null && !port.isCompleted) port.complete(int.parse(m[1]!));
+          if (line.contains('View results and re-run tests at') && !ready.isCompleted) ready.complete();
+        });
+        final p = await port.future.timeout(const Duration(seconds: 30));
+        await ready.future.timeout(const Duration(seconds: 60));
+        final client = HttpClient();
+
+        Future<Map<String, Object?>> getState() async {
+          final res = await (await client.getUrl(Uri.parse('http://localhost:$p/state.json'))).close();
+          return (jsonDecode(await res.transform(utf8.decoder).join()) as Map).cast<String, Object?>();
+        }
+
+        Future<int> action(Object body) async {
+          final req = await client.postUrl(Uri.parse('http://localhost:$p/action'));
+          req.headers.contentType = ContentType.json;
+          req.write(jsonEncode(body));
+          final res = await req.close();
+          await res.drain<void>();
+          return res.statusCode;
+        }
+
+        Map<String, Object?> testIn(Map<String, Object?> s, String name) =>
+            (s['tests'] as List).cast<Map<String, Object?>>().firstWhere((t) => t['name'] == name);
+
+        final before = await getState();
+        expect(testIn(before, 'fast follower')['status'], 'passed');
+
+        // Re-run, then Stop while the 800ms 'slow gate' is in flight: the slow
+        // test must finish, and 'fast follower' must never be touched.
+        expect(await action({'type': 'rerun'}), 202);
+        expect(await action({'type': 'stop'}), 202);
+        Map<String, Object?> after = const {};
+        for (var i = 0; i < 200; i++) {
+          after = await getState();
+          if (after['busy'] == false && after['done'] == true) break;
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+        }
+        expect(after['busy'], false, reason: 'the stopped run settled');
+        expect(after['queue'] as List, isEmpty, reason: 'stop drains the queue — no phantom entries');
+        final slow = testIn(after, 'slow gate');
+        expect(slow['status'], 'passed', reason: 'the in-flight test always finishes');
+        expect(slow['finishedAt'], isNot(testIn(before, 'slow gate')['finishedAt']), reason: 'it really re-ran');
+        final fast = testIn(after, 'fast follower');
+        expect(fast['status'], 'passed', reason: 'the unreached test keeps its prior verdict, not phantom queued');
+        expect(
+          fast['finishedAt'],
+          testIn(before, 'fast follower')['finishedAt'],
+          reason: 'the unreached test was never touched',
+        );
+        expect((after['summary'] as Map)['passed'], 2, reason: 'the summary still counts the preserved verdict');
+
+        // A reseed without an explicit seed is rejected, not silently seed 0.
+        expect(await action({'type': 'reseed'}), 409);
+
+        // The action surface refuses requests that don't look like this
+        // page's own: a cross-site Origin (a drive-by form/fetch always
+        // carries one) or a non-JSON content type is 403, before any action
+        // logic runs. curl-style requests (no Origin, JSON type) stay welcome.
+        Future<int> post({String? origin, ContentType? type}) async {
+          final req = await client.postUrl(Uri.parse('http://localhost:$p/action'));
+          if (type != null) req.headers.contentType = type;
+          if (origin != null) req.headers.set('Origin', origin);
+          req.write(jsonEncode({'type': 'stop'}));
+          final res = await req.close();
+          await res.drain<void>();
+          return res.statusCode;
+        }
+
+        expect(
+          await post(origin: 'https://evil.example', type: ContentType.json),
+          403,
+          reason: 'a cross-origin browser request must never actuate the bench',
+        );
+        expect(await post(type: ContentType.text), 403, reason: 'a no-preflight text/plain post is rejected');
+        expect(
+          await post(origin: 'http://localhost:$p', type: ContentType.json),
+          202,
+          reason: 'the page itself (same-host origin) stays welcome',
+        );
+        client.close(force: true);
+      } finally {
+        process.kill();
+        await process.exitCode;
+      }
+    },
+    timeout: const Timeout(Duration(minutes: 2)),
+  );
+
+  test('a non-interactive viewer is read-only: POST /action answers 503', () async {
+    final process = await Process.start(Platform.resolvedExecutable, [
+      'run',
+      '-Dlabwright.port=0',
+      '-Dlabwright.identity=false',
+      '-Dlabwright.seed=0',
+      'test/fixtures/slow_e2e.dart', // slow: the viewer is up while it runs
+    ], workingDirectory: pkgRoot);
+    try {
+      final port = Completer<int>();
+      process.stdout.transform(utf8.decoder).transform(const LineSplitter()).listen((line) {
+        final m = RegExp(r'viewer on http://localhost:(\d+)').firstMatch(line);
+        if (m != null && !port.isCompleted) port.complete(int.parse(m[1]!));
+      });
+      final p = await port.future.timeout(const Duration(seconds: 30));
+      final client = HttpClient();
+      final req = await client.postUrl(Uri.parse('http://localhost:$p/action'));
+      req.headers.contentType = ContentType.json;
+      req.write(jsonEncode({'type': 'stop'}));
+      final res = await req.close();
+      expect(res.statusCode, 503, reason: 'without --interactive/--keep-open no action is wired at all');
+      await res.drain<void>();
+      client.close(force: true);
+    } finally {
+      process.kill();
+      await process.exitCode;
     }
   }, timeout: const Timeout(Duration(minutes: 2)));
 
