@@ -54,6 +54,10 @@ void register() {
   via the generated reports.
 - As a test runs, by default nothing is output. The labwright `log('...')` function allows
   for printing messages to the CLI and web viewer.
+- `button('label', () async { ... })`, registered alongside `test()`, adds an operator
+  control to the interactive viewer — a bench action (e.g. `Reset unit`) the user fires on
+  demand. The action runs serialized with test runs, streams its `log()` lines, and is
+  viewer-only (it never runs under a plain `dart run`/CI pass).
 
 ## Configuration
 

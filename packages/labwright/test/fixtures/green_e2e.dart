@@ -28,4 +28,11 @@ Future<void> main() async {
   skipTest('thermal camera sweep', () async {
     throw UnimplementedError('VI call: ThermalSweep.vi');
   });
+
+  // An operator control the viewer renders as a button (viewer-only; never
+  // runs under a plain pass).
+  button('reset rig', () async {
+    _railUp = false;
+    log('rig reset');
+  });
 }

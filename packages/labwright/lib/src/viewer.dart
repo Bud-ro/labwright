@@ -169,6 +169,7 @@ const _viewerHtml = '''
   <button id="rerun">Re-run all</button>
   <button id="rerunFailed">Re-run failed</button>
   <button id="stop">Stop</button>
+  <span id="userButtons"></span>
 </div>
 <div id="tests"></div>
 <script>
@@ -178,6 +179,7 @@ const controlsEl = document.getElementById('controls');
 const btn = { rerun: document.getElementById('rerun'),
               rerunFailed: document.getElementById('rerunFailed'),
               stop: document.getElementById('stop') };
+const userButtonsEl = document.getElementById('userButtons');
 const mark = { passed: '✓', failed: '✗', skipped: '○', error: '‼',
                running: '…', queued: '·' };
 const isFail = (s) => s === 'failed' || s === 'error';
@@ -208,6 +210,15 @@ function render(state) {
   btn.rerun.disabled = busy;
   btn.rerunFailed.disabled = busy || !anyFail;
   btn.stop.disabled = !busy;
+  // Operator-registered bench buttons (labels chosen in the suite).
+  userButtonsEl.replaceChildren();
+  (state.buttons || []).forEach((label, i) => {
+    const b = document.createElement('button');
+    b.textContent = label;
+    b.disabled = busy;
+    b.onclick = () => post({ type: 'button', index: i });
+    userButtonsEl.appendChild(b);
+  });
   testsEl.replaceChildren();
   for (const t of state.tests || []) {
     const div = document.createElement('div');

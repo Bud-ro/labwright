@@ -203,6 +203,25 @@ void skipTest(
   List<String> requirements = const [],
 }) => _register(name, body, skip: true, requirements: [if (requirement != null) requirement, ...requirements]);
 
+/// Registers a labelled control button for the interactive viewer — a bench
+/// action the operator can fire on demand (e.g. `button('Reset unit', () async
+/// { await dut.reset(); })`). Register buttons during setup, alongside [test];
+/// the [action] runs serialized with test runs (the bench is singular) and its
+/// [log] lines stream out like a test's. Narrow by design: a label and an
+/// async action, nothing more. Buttons are viewer-only — they never run under
+/// a plain `dart run`/CI pass.
+///
+/// Throws [StateError] if called after the run has started.
+void button(String label, FutureOr<void> Function() action) {
+  if (_runStarted) {
+    throw StateError(
+      '$_tag button "$label" registered after the run started. Register '
+      'buttons during setup, before the first test() triggers the run.',
+    );
+  }
+  _buttons.add(_Button(label, action));
+}
+
 /// Prints a log line, attributed to the currently running test (suite-level
 /// when none is running) — shown in the viewer under its test and carried
 /// in the report.
@@ -237,6 +256,15 @@ class _TestEntry {
   };
 }
 
+/// One operator-registered control button (see [button]).
+class _Button {
+  _Button(this.label, this.action);
+
+  final String label;
+  final FutureOr<void> Function() action;
+}
+
+final List<_Button> _buttons = [];
 final List<_TestEntry> _registry = [];
 List<_TestEntry> _selected = const [];
 bool _runScheduled = false;
@@ -281,6 +309,7 @@ Map<String, Object?> _state() => {
   // the viewer is lingering with the control plane live (UI shows them).
   'busy': _runInProgress,
   'interactive': _linger,
+  if (_buttons.isNotEmpty) 'buttons': [for (final b in _buttons) b.label],
   'tests': [for (final t in _selected) t.toJson()],
   'summary': _summary(),
 };
@@ -429,14 +458,42 @@ Future<Map<String, Object?>> _handleAction(Map<String, Object?> action) async {
         return {'accepted': false, 'error': 'no test named "${action['test']}"'};
       }
       unawaited(_execute([entry]));
+    case 'button':
+      final i = (action['index'] as num?)?.toInt() ?? -1;
+      if (i < 0 || i >= _buttons.length) {
+        return {'accepted': false, 'error': 'no button #$i'};
+      }
+      unawaited(_runButton(_buttons[i]));
     default:
       return {'accepted': false, 'error': 'unknown action "$type"'};
   }
   return const {'accepted': true};
 }
 
+/// Runs one operator [button]'s action, serialized with test runs via the same
+/// `_runInProgress` gate (the bench is singular). A throwing action is caught
+/// and surfaced — a button must never crash the lingering process. Does not
+/// touch test state or the exit code (buttons are viewer-only).
+Future<void> _runButton(_Button b) async {
+  _runInProgress = true;
+  _viewer?.update();
+  stdout.writeln('$_tag button "${b.label}"');
+  final watch = Stopwatch()..start();
+  try {
+    await b.action();
+    watch.stop();
+    stdout.writeln('$_tag button "${b.label}" done (${watch.elapsedMilliseconds} ms)');
+  } catch (e) {
+    watch.stop();
+    stdout.writeln('$_tag button "${b.label}" failed (${watch.elapsedMilliseconds} ms): $e');
+  }
+  _runInProgress = false;
+  _viewer?.update();
+}
+
 /// The report: the suite state plus the requirements trace
-/// (requirement ID → every test that claims it, with status).
+/// (requirement ID → every test that claims it, with status). Viewer-only
+/// keys (the button labels) are dropped — the report is about run results.
 Map<String, Object?> _report() {
   final requirements = <String, List<Map<String, Object?>>>{};
   for (final t in _selected) {
@@ -444,7 +501,7 @@ Map<String, Object?> _report() {
       requirements.putIfAbsent(req, () => []).add({'test': t.name, 'status': t.status});
     }
   }
-  return {..._state(), 'requirements': requirements};
+  return {..._state()..remove('buttons'), 'requirements': requirements};
 }
 
 Future<void> _runOne(_TestEntry entry) async {

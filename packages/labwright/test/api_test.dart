@@ -266,4 +266,56 @@ void main() {
       await process.exitCode;
     }
   }, timeout: const Timeout(Duration(minutes: 2)));
+
+  test('custom buttons: exposed in state and run their action on demand', () async {
+    final process = await Process.start(
+      Platform.resolvedExecutable,
+      ['run', '-Dlabwright.port=0', '-Dlabwright.interactive=true', 'test/fixtures/green_e2e.dart'],
+      workingDirectory: pkgRoot,
+    );
+    try {
+      final port = Completer<int>();
+      final ready = Completer<void>();
+      final ranButton = Completer<void>();
+      process.stdout.transform(utf8.decoder).transform(const LineSplitter()).listen((line) {
+        final m = RegExp(r'viewer on http://localhost:(\d+)').firstMatch(line);
+        if (m != null && !port.isCompleted) port.complete(int.parse(m[1]!));
+        if (line.contains('View results and re-run tests at') && !ready.isCompleted) {
+          ready.complete();
+        }
+        if (line.contains('button "reset rig" done') && !ranButton.isCompleted) {
+          ranButton.complete();
+        }
+      });
+      final p = await port.future.timeout(const Duration(seconds: 30));
+      await ready.future.timeout(const Duration(seconds: 60));
+
+      final client = HttpClient();
+      final stateRes = await (await client.getUrl(Uri.parse('http://localhost:$p/state.json'))).close();
+      final state = (jsonDecode(await stateRes.transform(utf8.decoder).join()) as Map).cast<String, Object?>();
+      expect(state['buttons'], ['reset rig'], reason: 'registered buttons surface in the viewer state');
+
+      Future<HttpClientResponse> action(Object body) async {
+        final req = await client.postUrl(Uri.parse('http://localhost:$p/action'));
+        req.headers.contentType = ContentType.json;
+        req.write(jsonEncode(body));
+        return req.close();
+      }
+
+      // Firing the button runs its async action (which logs 'rig reset').
+      final runRes = await action({'type': 'button', 'index': 0});
+      expect(runRes.statusCode, 202);
+      await runRes.drain<void>();
+      await ranButton.future.timeout(const Duration(seconds: 30), onTimeout: () => fail('the button action never ran'));
+
+      // An out-of-range button index is a clean rejection, not a crash.
+      final badRes = await action({'type': 'button', 'index': 9});
+      expect(badRes.statusCode, 409);
+      await badRes.drain<void>();
+      client.close(force: true);
+    } finally {
+      process.kill();
+      await process.exitCode;
+    }
+  }, timeout: const Timeout(Duration(minutes: 2)));
 }
