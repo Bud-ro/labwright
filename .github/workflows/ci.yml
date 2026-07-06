@@ -19,8 +19,12 @@ jobs:
         with:
           sdk: stable
 
-      # One workspace resolution, analyze the whole tree, then test each package.
+      # One workspace resolution, check formatting, analyze the whole tree,
+      # then test each package.
       - run: dart pub get
+      - name: check formatting
+        shell: bash
+        run: ./format.sh --check
       - run: dart analyze --fatal-infos
       - name: test all packages
         shell: bash

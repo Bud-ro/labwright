@@ -32,8 +32,10 @@ The RSRC reader and TestStand readers are most pressing here.
 - **Commits:** commit ONLY your own files, by **explicit path**. Never
   `git add -A`/`-u`. Put `git commit` on its own line. 
 - **Cleanliness** Keep `dart analyze` clean and the relevant test suites green
-  before committing. Prefer small, reviewable PRs over large unfocused pushes.
-  Keep note of test run times, and do not allow them to balloon.
+  before committing. Run `./format.sh` (a thin wrapper over `dart format .`)
+  so hand/agent edits match VS Code's format-on-save and diffs stay noise-free.
+  Prefer small, reviewable PRs over large unfocused pushes. Keep note of test
+  run times, and do not allow them to balloon.
 
 ## Code style
 
