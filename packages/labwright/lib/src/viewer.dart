@@ -18,18 +18,21 @@ class Viewer {
   final List<HttpResponse> _sseClients = [];
   Map<String, Object?> Function() _state = () => const {};
 
+  /// Invoked for a control action POSTed to `/action` (`{type, ...}`); returns
+  /// a small result map (`{accepted: bool, error?: String}`) echoed to the
+  /// caller. Null until the run wires it — an un-wired viewer is read-only.
+  Future<Map<String, Object?>> Function(Map<String, Object?>)? onAction;
+
   int get port => _server.port;
 
   /// Binds on localhost:[port] (0 = ephemeral). Returns null — with a
   /// warning, not an error — when the port cannot be bound.
-  static Future<Viewer?> start(
-      int port, Map<String, Object?> Function() state) async {
+  static Future<Viewer?> start(int port, Map<String, Object?> Function() state) async {
     final HttpServer server;
     try {
       server = await HttpServer.bind(InternetAddress.loopbackIPv4, port);
     } on SocketException catch (e) {
-      stderr.writeln(
-          'labwright: viewer disabled — cannot bind port $port (${e.message})');
+      stderr.writeln('[Labwright]: viewer disabled - cannot bind port $port (${e.message})');
       return null;
     }
     final viewer = Viewer._(server).._state = state;
@@ -38,6 +41,10 @@ class Viewer {
   }
 
   void _handle(HttpRequest request) {
+    if (request.method == 'POST' && request.uri.path == '/action') {
+      unawaited(_handleAction(request));
+      return;
+    }
     switch (request.uri.path) {
       case '/':
         request.response
@@ -68,6 +75,34 @@ class Viewer {
     }
   }
 
+  /// Reads a JSON action body, dispatches it to [onAction], and echoes the
+  /// result. Status: 202 accepted, 409 rejected (e.g. a run is in progress),
+  /// 400 on a malformed body, 503 when the viewer is read-only (no handler).
+  Future<void> _handleAction(HttpRequest request) async {
+    final response = request.response..headers.contentType = ContentType.json;
+    final handler = onAction;
+    if (handler == null) {
+      response.statusCode = HttpStatus.serviceUnavailable;
+      response.write('{"accepted":false,"error":"viewer is read-only"}');
+      await response.close();
+      return;
+    }
+    Map<String, Object?> result;
+    int status;
+    try {
+      final body = await utf8.decoder.bind(request).join();
+      final action = (jsonDecode(body.isEmpty ? '{}' : body) as Map).cast<String, Object?>();
+      result = await handler(action);
+      status = result['accepted'] == true ? HttpStatus.accepted : HttpStatus.conflict;
+    } catch (e) {
+      result = {'accepted': false, 'error': 'bad action: $e'};
+      status = HttpStatus.badRequest;
+    }
+    response.statusCode = status;
+    response.write(jsonEncode(result));
+    await response.close();
+  }
+
   /// Pushes the current state to every connected page.
   void update() {
     final frame = 'data: ${jsonEncode(_state())}\n\n';
@@ -91,7 +126,10 @@ class Viewer {
 }
 
 /// The page: one flat suite (single process, single registry), statuses,
-/// requirement chips, per-test logs. No external assets.
+/// requirement chips, per-test logs. When the viewer is interactive (an
+/// explicit `--interactive`/`--keep-open`) it also renders the control plane —
+/// re-run all/failed, stop, and a per-test run button that POST `/action`.
+/// No external assets.
 const _viewerHtml = '''
 <!doctype html>
 <html>
@@ -104,11 +142,18 @@ const _viewerHtml = '''
          max-width: 60rem; padding: 0 1rem; }
   h1 { font-size: 1.1rem; }
   #meta { opacity: .7; font-size: .9em; }
+  #controls { display: flex; gap: .5rem; align-items: center; margin: .6rem 0;
+              flex-wrap: wrap; }
+  #controls[hidden] { display: none; }
+  button { font: inherit; padding: .1rem .6rem; border: 1px solid #8886;
+           border-radius: .5em; background: #8881; cursor: pointer; }
+  button:disabled { opacity: .4; cursor: default; }
   .test { margin: .4rem 0; border-left: 3px solid #8884; padding-left: .8rem; }
   .head { display: flex; gap: .5rem; align-items: baseline; }
   .name { font-weight: 600; }
   .req { font-family: ui-monospace, monospace; font-size: .8em;
          border: 1px solid #8886; border-radius: .6em; padding: 0 .5em; }
+  .run { font-size: .8em; padding: 0 .45em; }
   .detail { white-space: pre-wrap; font-family: ui-monospace, monospace;
             font-size: .85em; opacity: .85; margin: .2rem 0 0 1.2rem; }
   .logs { font-family: ui-monospace, monospace; font-size: .8em; opacity: .7;
@@ -120,16 +165,49 @@ const _viewerHtml = '''
 </head>
 <body>
 <h1>labwright run <span id="meta">connecting…</span></h1>
+<div id="controls" hidden>
+  <button id="rerun">Re-run all</button>
+  <button id="rerunFailed">Re-run failed</button>
+  <button id="stop">Stop</button>
+</div>
 <div id="tests"></div>
 <script>
 const testsEl = document.getElementById('tests');
 const metaEl = document.getElementById('meta');
+const controlsEl = document.getElementById('controls');
+const btn = { rerun: document.getElementById('rerun'),
+              rerunFailed: document.getElementById('rerunFailed'),
+              stop: document.getElementById('stop') };
 const mark = { passed: '✓', failed: '✗', skipped: '○', error: '‼',
                running: '…', queued: '·' };
+const isFail = (s) => s === 'failed' || s === 'error';
+
+// POST a control action; surface a rejection in the meta line.
+async function post(action) {
+  try {
+    const res = await fetch('/action', { method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(action) });
+    if (!res.ok) {
+      const r = await res.json().catch(() => ({}));
+      metaEl.textContent = 'rejected: ' + (r.error || res.status);
+    }
+  } catch (e) { metaEl.textContent = 'action failed: ' + e; }
+}
+btn.rerun.onclick = () => post({ type: 'rerun' });
+btn.rerunFailed.onclick = () => post({ type: 'rerunFailed' });
+btn.stop.onclick = () => post({ type: 'stop' });
 
 function render(state) {
+  const busy = !!state.busy;
+  const interactive = !!state.interactive;
   metaEl.textContent = 'seed ' + state.seed +
-      (state.done ? ' · finished' : ' · live');
+      (busy ? ' · running…' : state.done ? ' · finished' : ' · live');
+  controlsEl.hidden = !interactive;
+  const anyFail = (state.tests || []).some((t) => isFail(t.status));
+  btn.rerun.disabled = busy;
+  btn.rerunFailed.disabled = busy || !anyFail;
+  btn.stop.disabled = !busy;
   testsEl.replaceChildren();
   for (const t of state.tests || []) {
     const div = document.createElement('div');
@@ -149,6 +227,21 @@ function render(state) {
       chip.className = 'req';
       chip.textContent = r;
       head.appendChild(chip);
+    }
+    if (t.ms != null) {
+      const ms = document.createElement('span');
+      ms.className = 'req';
+      ms.textContent = t.ms + ' ms';
+      head.appendChild(ms);
+    }
+    if (interactive) {
+      const run = document.createElement('button');
+      run.className = 'run';
+      run.textContent = '▶';
+      run.title = 'run this test';
+      run.disabled = busy;
+      run.onclick = () => post({ type: 'runOne', test: t.name });
+      head.appendChild(run);
     }
     div.appendChild(head);
     if (t.detail) {

@@ -1,7 +1,8 @@
 // The `labwright` CLI — thin sugar over the single-process test library.
 //
 //   labwright run [target] [--seed N|random] [--total-shards N --shard-index I]
-//                 [--port N] [--no-viewer] [--report out.json] [--keep-open]
+//                 [--port N] [--no-viewer] [--report out.json]
+//                 [--keep-open|--interactive]
 //   labwright scan [dir]
 //   labwright init [dir]
 //
@@ -15,10 +16,12 @@
 //   --seed N|random    Run-order seed (`random` mints one and prints it).
 //   --total-shards N   With --shard-index I: run tests whose registration
 //   --shard-index I    index is ≡ I (mod N) — dart test's convention.
-//   --port N           Viewer port (default 8642; 0 = ephemeral).
+//   --port N           Viewer port (default 1212; 0 = ephemeral).
 //   --no-viewer        Disable the in-process viewer.
 //   --report out.json  Write the machine-readable run report.
-//   --keep-open        Keep the viewer serving after the run.
+//   --keep-open,       Keep the viewer serving after the run AND accept its
+//   --interactive      control actions — re-run all/failed, run one, stop
+//                      (two names for one behavior). Bare `dart run`/CI exits.
 //
 // scan   Lints the plug-in convention: lists .dart files under the dir
 //        (default e2e/) that are NOT reachable from main.dart via local
@@ -54,12 +57,10 @@ Future<void> main(List<String> args) async {
 const _usage = '''
 usage: labwright run [target] [--seed N|random]
                      [--total-shards N --shard-index I]
-                     [--port N] [--no-viewer] [--report out.json] [--keep-open]
+                     [--port N] [--no-viewer] [--report out.json]
+                     [--keep-open|--interactive]
        labwright scan [dir]
-       labwright init [dir]
-The suite is ONE process: `labwright run` is sugar for
-`dart run -Dlabwright.*=... e2e/main.dart`. `scan` lists test files not
-plugged into main.dart; `init` generates the example e2e/ folder.''';
+       labwright init [dir]''';
 
 // ── run ──────────────────────────────────────────────────────────────────────
 
@@ -74,19 +75,23 @@ Future<int> _run(List<String> args) async {
         final raw = rest.isEmpty ? '' : rest.removeAt(0);
         // `random` mints a fresh seed; it prints at the start of every test
         // for reproduction.
-        final seed = raw == 'random'
-            ? Random().nextInt(1 << 31)
-            : int.tryParse(raw) ?? 0;
+        final seed = raw == 'random' ? Random().nextInt(1 << 31) : int.tryParse(raw) ?? 0;
         defines.add('-Dlabwright.seed=$seed');
       case '--total-shards':
-        defines.add('-Dlabwright.totalShards='
-            '${int.tryParse(rest.isEmpty ? '' : rest.removeAt(0)) ?? 1}');
+        defines.add(
+          '-Dlabwright.totalShards='
+          '${int.tryParse(rest.isEmpty ? '' : rest.removeAt(0)) ?? 1}',
+        );
       case '--shard-index':
-        defines.add('-Dlabwright.shardIndex='
-            '${int.tryParse(rest.isEmpty ? '' : rest.removeAt(0)) ?? 0}');
+        defines.add(
+          '-Dlabwright.shardIndex='
+          '${int.tryParse(rest.isEmpty ? '' : rest.removeAt(0)) ?? 0}',
+        );
       case '--port':
-        defines.add('-Dlabwright.port='
-            '${int.tryParse(rest.isEmpty ? '' : rest.removeAt(0)) ?? 8642}');
+        defines.add(
+          '-Dlabwright.port='
+          '${int.tryParse(rest.isEmpty ? '' : rest.removeAt(0)) ?? 1212}',
+        );
       case '--no-viewer':
         defines.add('-Dlabwright.viewer=false');
       case '--report':
@@ -95,6 +100,8 @@ Future<int> _run(List<String> args) async {
         }
       case '--keep-open':
         defines.add('-Dlabwright.keepOpen=true');
+      case '--interactive':
+        defines.add('-Dlabwright.interactive=true');
       case '--help' || '-h':
         stdout.writeln(_usage);
         return 0;
@@ -105,8 +112,10 @@ Future<int> _run(List<String> args) async {
   final path = _resolveTarget(target);
   if (path == null) {
     stderr
-      ..writeln('labwright: no suite found '
-          '(expected ${target ?? 'e2e/main.dart'})')
+      ..writeln(
+        '[Labwright]: no suite found '
+        '(expected ${target ?? 'e2e/main.dart'})',
+      )
       ..writeln('run `labwright init` to generate the example e2e/ folder');
     return 64;
   }
@@ -118,9 +127,7 @@ Future<int> _run(List<String> args) async {
     mode: ProcessStartMode.inheritStdio,
   );
   final signals = [
-    ProcessSignal.sigint
-        .watch()
-        .listen((_) => process.kill(ProcessSignal.sigint)),
+    ProcessSignal.sigint.watch().listen((_) => process.kill(ProcessSignal.sigint)),
     ProcessSignal.sigterm.watch().listen((_) => process.kill()),
   ];
   final code = await process.exitCode;
@@ -149,15 +156,13 @@ String? _resolveTarget(String? target) {
 /// this, and conditional imports contribute EVERY branch (any of them may
 /// be the one that loads).
 Iterable<String> _localDirectiveUris(String source) sync* {
-  final unit =
-      parseString(content: source, throwIfDiagnostics: false).unit;
+  final unit = parseString(content: source, throwIfDiagnostics: false).unit;
   for (final directive in unit.directives) {
     if (directive is! UriBasedDirective) continue; // `part of` has no target
     final uris = [
       directive.uri.stringValue,
       if (directive is NamespaceDirective)
-        for (final config in directive.configurations)
-          config.uri.stringValue,
+        for (final config in directive.configurations) config.uri.stringValue,
     ];
     for (final uri in uris) {
       if (uri == null || uri.startsWith('package:') || uri.startsWith('dart:')) {
@@ -173,8 +178,10 @@ int _scan(List<String> args) {
   final mainFile = File('$dir${Platform.pathSeparator}main.dart');
   if (!mainFile.existsSync()) {
     stderr
-      ..writeln('labwright scan: $dir/main.dart not found — the convention '
-          'is a top-level main.dart every test module is plugged into')
+      ..writeln(
+        'labwright scan: $dir/main.dart not found - the convention '
+        'is a top-level main.dart every test module is plugged into',
+      )
       ..writeln('run `labwright init` to generate the example e2e/ folder');
     return 64;
   }
@@ -192,22 +199,26 @@ int _scan(List<String> args) {
 
   visit(mainFile);
 
-  final unplugged = Directory(dir)
-      .listSync(recursive: true)
-      .whereType<File>()
-      .where((f) => f.path.endsWith('.dart'))
-      .where((f) => !reachable
-          .contains(f.absolute.uri.normalizePath().toFilePath()))
-      .toList()
-    ..sort((a, b) => a.path.compareTo(b.path));
+  final unplugged =
+      Directory(dir)
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((f) => f.path.endsWith('.dart'))
+          .where((f) => !reachable.contains(f.absolute.uri.normalizePath().toFilePath()))
+          .toList()
+        ..sort((a, b) => a.path.compareTo(b.path));
 
   if (unplugged.isEmpty) {
-    stdout.writeln('labwright scan: every .dart file under $dir/ is plugged '
-        'into main.dart');
+    stdout.writeln(
+      'labwright scan: every .dart file under $dir/ is plugged '
+      'into main.dart',
+    );
     return 0;
   }
-  stdout.writeln('labwright scan: ${unplugged.length} file(s) not reachable '
-      'from $dir/main.dart:');
+  stdout.writeln(
+    'labwright scan: ${unplugged.length} file(s) not reachable '
+    'from $dir/main.dart:',
+  );
   for (final f in unplugged) {
     stdout.writeln('  ${f.path}');
   }
@@ -223,8 +234,10 @@ int _init(List<String> args) {
   final module = File('$dir${Platform.pathSeparator}power_rail_test.dart');
   for (final f in [main, module]) {
     if (f.existsSync()) {
-      stderr.writeln('labwright init: ${f.path} already exists — refusing '
-          'to overwrite');
+      stderr.writeln(
+        'labwright init: ${f.path} already exists - refusing '
+        'to overwrite',
+      );
       return 64;
     }
   }
@@ -254,7 +267,9 @@ void register() {
   });
 }
 ''');
-  stdout.writeln('labwright init: wrote ${main.path} and ${module.path}\n'
-      'run it with `labwright run` or `dart run ${main.path}`');
+  stdout.writeln(
+    'labwright init: wrote ${main.path} and ${module.path}\n'
+    'run it with `labwright run` or `dart run ${main.path}`',
+  );
   return 0;
 }
