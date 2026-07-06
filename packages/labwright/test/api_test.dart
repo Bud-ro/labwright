@@ -641,6 +641,84 @@ void main() {
     }
   }, timeout: const Timeout(Duration(minutes: 2)));
 
+  test(
+    'stop preserves unreached tests: verdicts, logs and diff survive a halted run',
+    () async {
+      final process = await Process.start(Platform.resolvedExecutable, [
+        'run',
+        '-Dlabwright.port=0',
+        '-Dlabwright.interactive=true',
+        '-Dlabwright.identity=false', // hashes not asserted here — skip the hasher isolate
+        '-Dlabwright.seed=0',
+        'test/fixtures/slow_e2e.dart',
+      ], workingDirectory: pkgRoot);
+      try {
+        final port = Completer<int>();
+        final ready = Completer<void>();
+        process.stdout.transform(utf8.decoder).transform(const LineSplitter()).listen((line) {
+          final m = RegExp(r'viewer on http://localhost:(\d+)').firstMatch(line);
+          if (m != null && !port.isCompleted) port.complete(int.parse(m[1]!));
+          if (line.contains('View results and re-run tests at') && !ready.isCompleted) ready.complete();
+        });
+        final p = await port.future.timeout(const Duration(seconds: 30));
+        await ready.future.timeout(const Duration(seconds: 60));
+        final client = HttpClient();
+
+        Future<Map<String, Object?>> getState() async {
+          final res = await (await client.getUrl(Uri.parse('http://localhost:$p/state.json'))).close();
+          return (jsonDecode(await res.transform(utf8.decoder).join()) as Map).cast<String, Object?>();
+        }
+
+        Future<int> action(Object body) async {
+          final req = await client.postUrl(Uri.parse('http://localhost:$p/action'));
+          req.headers.contentType = ContentType.json;
+          req.write(jsonEncode(body));
+          final res = await req.close();
+          await res.drain<void>();
+          return res.statusCode;
+        }
+
+        Map<String, Object?> testIn(Map<String, Object?> s, String name) =>
+            (s['tests'] as List).cast<Map<String, Object?>>().firstWhere((t) => t['name'] == name);
+
+        final before = await getState();
+        expect(testIn(before, 'fast follower')['status'], 'passed');
+
+        // Re-run, then Stop while the 800ms 'slow gate' is in flight: the slow
+        // test must finish, and 'fast follower' must never be touched.
+        expect(await action({'type': 'rerun'}), 202);
+        expect(await action({'type': 'stop'}), 202);
+        Map<String, Object?> after = const {};
+        for (var i = 0; i < 200; i++) {
+          after = await getState();
+          if (after['busy'] == false && after['done'] == true) break;
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+        }
+        expect(after['busy'], false, reason: 'the stopped run settled');
+        expect(after['queue'] as List, isEmpty, reason: 'stop drains the queue — no phantom entries');
+        final slow = testIn(after, 'slow gate');
+        expect(slow['status'], 'passed', reason: 'the in-flight test always finishes');
+        expect(slow['finishedAt'], isNot(testIn(before, 'slow gate')['finishedAt']), reason: 'it really re-ran');
+        final fast = testIn(after, 'fast follower');
+        expect(fast['status'], 'passed', reason: 'the unreached test keeps its prior verdict, not phantom queued');
+        expect(
+          fast['finishedAt'],
+          testIn(before, 'fast follower')['finishedAt'],
+          reason: 'the unreached test was never touched',
+        );
+        expect((after['summary'] as Map)['passed'], 2, reason: 'the summary still counts the preserved verdict');
+
+        // A reseed without an explicit seed is rejected, not silently seed 0.
+        expect(await action({'type': 'reseed'}), 409);
+        client.close(force: true);
+      } finally {
+        process.kill();
+        await process.exitCode;
+      }
+    },
+    timeout: const Timeout(Duration(minutes: 2)),
+  );
+
   test('report identity: per-test hash, setupHash, context + contextHash, all deterministic', () {
     final hex40 = matches(RegExp(r'^[0-9a-f]{40}$'));
     final (exit1, _, r1) = _runWithReport(

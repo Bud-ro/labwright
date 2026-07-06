@@ -349,7 +349,7 @@ class _TestEntry {
     if (file != null) 'file': file,
     if (line != null) 'line': line,
     if (change.isNotEmpty) 'change': change,
-    if (flips >= 2) 'flaky': true,
+    if (flips >= _flakyFlips) 'flaky': true,
     if (queuedAt != null) 'queuedAt': queuedAt,
     if (startedAt != null) 'startedAt': startedAt,
     if (finishedAt != null) 'finishedAt': finishedAt,
@@ -455,23 +455,11 @@ int _historyId = 0; // unique id per execution record
 int _runSeq = 0; // increments each pass, so records group by run
 
 /// Snapshots [entry]'s just-finished execution into the history feed and pushes
-/// it to the viewer. Capped ([_historyCap]); the oldest record drops first.
+/// it to the viewer. One serializer — the entry's own [toJson] — plus the feed
+/// bookkeeping, so history records can never drift from the Tests pane.
+/// Capped ([_historyCap]); the oldest record drops first.
 void _record(_TestEntry entry) {
-  final record = {
-    'id': ++_historyId,
-    'run': _runSeq,
-    'name': entry.name,
-    'status': entry.status,
-    if (entry.ms != null) 'ms': entry.ms,
-    if (entry.file != null) 'file': entry.file,
-    if (entry.line != null) 'line': entry.line,
-    if (entry.change.isNotEmpty) 'change': entry.change,
-    if (entry.queuedAt != null) 'queuedAt': entry.queuedAt,
-    if (entry.startedAt != null) 'startedAt': entry.startedAt,
-    if (entry.finishedAt != null) 'finishedAt': entry.finishedAt,
-    if (entry.detail.isNotEmpty) 'detail': entry.detail,
-    if (entry.logs.isNotEmpty) 'logs': [for (final l in entry.logs) l.toJson()],
-  };
+  final record = {...entry.toJson(), 'id': ++_historyId, 'run': _runSeq};
   _history.add(record);
   if (_history.length > _historyCap) _history.removeAt(0);
   _viewer?.pushHistory(record);
@@ -529,6 +517,9 @@ Map<String, Object?> _state() => {
   'busy': _runInProgress,
   'interactive': _linger,
   if (_buttons.isNotEmpty) 'buttons': [for (final b in _buttons) b.label],
+  // The active run's waiting list, in order — distinct from test statuses so
+  // a queued test still shows its previous verdict in the Tests pane.
+  'queue': [for (final t in _queue) t.name],
   'tests': [for (final t in _selected) t.toJson()],
   'summary': _summary(),
 };
@@ -616,38 +607,53 @@ Future<void> _runAll() async {
   }
 }
 
-/// Runs [entries] as one pass — resetting each first so a re-run starts clean.
-/// Between tests it honors a `stop` request; the in-flight test always
-/// finishes (Stop halts the queue, never a running body). Pushes state to the
-/// viewer throughout, prints the summary, and rewrites the report when
-/// configured. Re-entrancy is the caller's concern (see [_handleAction]).
+/// Tests waiting in the active run — a first-class queue, distinct from each
+/// test's status, so WAITING never destroys a test's previous verdict: a
+/// stopped run leaves unreached tests exactly as their last pass left them
+/// (details, logs, diff continuity, report). The viewer's Queue pane renders
+/// this list.
+final List<_TestEntry> _queue = [];
+
+/// Runs [entries] as one pass. Each entry is reset only at the moment it
+/// actually runs; between tests the loop honors a `stop` request by draining
+/// the queue (the in-flight test always finishes — Stop halts the queue,
+/// never a running body). Pushes state to the viewer throughout, prints the
+/// summary, and rewrites the report when configured. Re-entrancy is the
+/// caller's concern (see [_handleAction]).
 Future<void> _execute(List<_TestEntry> entries) async {
   _runInProgress = true;
-  _stopRequested = false;
   _done = false;
   _runSeq++;
-  // Remember each entry's prior verdict so we can diff it the moment it reruns.
-  final prior = {for (final e in entries) e: e.status};
-  // Queue them all up front (same instant) so the Queue pane shows the whole
-  // pending set draining, and each carries the time it was queued.
+  // Queue the pass without touching results: entries keep their previous
+  // verdict (and logs, and change badge) until they actually run.
   final queuedAt = _now();
+  _queue
+    ..clear()
+    ..addAll(entries);
   for (final e in entries) {
-    e
-      ..status = 'queued'
+    e.queuedAt = queuedAt;
+  }
+  _viewer?.update();
+  while (_queue.isNotEmpty) {
+    if (_stopRequested) {
+      // Stop: drain the queue; unreached entries keep their prior verdicts.
+      _queue.clear();
+      break;
+    }
+    final entry = _queue.removeAt(0);
+    // The prior verdict feeds the run-to-run diff; the reset happens only
+    // NOW, when this entry runs — never for entries that end up unreached.
+    final prior = entry.status;
+    entry
       ..detail = ''
       ..ms = null
       ..startedAt = null
       ..finishedAt = null
-      ..queuedAt = queuedAt
       ..logs.clear();
-  }
-  _viewer?.update();
-  for (final entry in entries) {
-    if (_stopRequested) break;
     await _runOne(entry);
     // Diff against the prior run (independent per test), then snapshot the
     // finished execution into the Log feed — so it pops in as it completes.
-    _diff(entry, prior[entry]!);
+    _diff(entry, prior);
     _record(entry);
   }
   _runInProgress = false;
@@ -678,10 +684,22 @@ void _diff(_TestEntry entry, String priorStatus) {
     entry.change = '';
     return;
   }
+  // A skip is neither a pass nor a failure: a transition into or out of
+  // 'skipped' reads as plain 'changed' — a test that went failed->skipped was
+  // never "now passing", and skips must not count toward flakiness.
+  if (priorStatus == 'skipped' || now == 'skipped') {
+    entry.change = 'changed';
+    return;
+  }
   final wasFail = _isFail(priorStatus), nowFail = _isFail(now);
   entry.change = !wasFail && nowFail ? 'newFail' : (wasFail && !nowFail ? 'newPass' : 'changed');
   if (wasFail != nowFail) entry.flips++;
 }
+
+/// A test is badged flaky once its verdict has crossed the pass/fail line
+/// this many times — one full fail-pass-fail (or inverse) cycle. Skips never
+/// count (see [_diff]).
+const int _flakyFlips = 2;
 
 /// Dispatches a viewer control action. `stop` is always accepted (it just
 /// flips the flag the run loop watches); the re-run family is rejected with
@@ -707,6 +725,11 @@ Future<Map<String, Object?>> _handleAction(Map<String, Object?> action) async {
   if (_runInProgress) {
     return const {'accepted': false, 'error': 'a run is already in progress'};
   }
+  // Every remaining case starts new work, so a stale stop request is consumed
+  // HERE, at accept time — a stop that arrives after this point (e.g. while a
+  // hot reload is still loading sources) must survive into the run loop and
+  // halt it before its first test.
+  _stopRequested = false;
   switch (type) {
     case 'hotReload':
       // Reload edited sources, then re-run only what changed (falling back to
@@ -738,8 +761,14 @@ Future<Map<String, Object?>> _handleAction(Map<String, Object?> action) async {
       return {'accepted': true, 'modified': modified.length};
     case 'reseed':
       // Seed replay: re-shuffle the selection to a chosen seed and re-run, so
-      // an operator reproduces a specific fuzz order without a restart.
-      _activeSeed = (action['seed'] as num?)?.toInt() ?? 0;
+      // an operator reproduces a specific fuzz order without a restart. The
+      // seed must be explicit — silently defaulting would quietly destroy the
+      // reproducibility this action exists for.
+      final requested = action['seed'];
+      if (requested is! num) {
+        return const {'accepted': false, 'error': 'reseed needs an integer seed (0 = registration order)'};
+      }
+      _activeSeed = requested.toInt();
       _selected = _select(_activeSeed);
       unawaited(_execute(_selected));
     case 'rerun':
@@ -747,7 +776,7 @@ Future<Map<String, Object?>> _handleAction(Map<String, Object?> action) async {
     case 'rerunFailed':
       final failed = [
         for (final t in _selected)
-          if (t.status == 'failed' || t.status == 'error') t,
+          if (_isFail(t.status)) t,
       ];
       if (failed.isEmpty) {
         return const {'accepted': false, 'error': 'nothing to re-run'};
@@ -943,7 +972,7 @@ Future<void> _runOne(_TestEntry entry) async {
   entry
     ..status = status.name
     ..finishedAt = _now();
-  if (status == TestStatus.failed || status == TestStatus.error) exitCode = 1;
+  if (_isFail(status.name)) exitCode = 1;
   final (label, color) = switch (status) {
     TestStatus.passed => ('PASS', _green),
     TestStatus.failed => ('FAIL', _red),

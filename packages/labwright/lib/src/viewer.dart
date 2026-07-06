@@ -333,9 +333,13 @@ function renderTests() {
 }
 
 // ── Queue view: tests waiting in the active run ──────────────────────────────
+// The queue is first-class server state (snap.queue, ordered names), NOT
+// derived from statuses — a waiting test keeps showing its previous verdict
+// in the Tests pane until it actually runs.
 function renderQueue() {
   const list = byId('queueList'); list.replaceChildren();
-  const queued = (snap.tests || []).filter((t) => t.status === 'queued');
+  const byName = new Map((snap.tests || []).map((t) => [t.name, t]));
+  const queued = (snap.queue || []).map((n) => byName.get(n)).filter(Boolean);
   const shown = queued.filter((t) => testMatch(t, filters.queue));
   if (!shown.length) {
     list.appendChild(badge('empty', snap.busy ? 'running — nothing else queued' : 'nothing queued'));
@@ -409,7 +413,7 @@ function showLog(name) {
 function counts() {
   byId('cTests').textContent = (snap.tests || []).length || '';
   byId('cLog').textContent = history.length || '';
-  byId('cQueue').textContent = (snap.tests || []).filter((t) => t.status === 'queued').length || '';
+  byId('cQueue').textContent = (snap.queue || []).length || '';
 }
 function controls() {
   byId('controls').hidden = !snap.interactive;
