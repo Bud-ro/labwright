@@ -74,11 +74,13 @@ is run using `dart run e2e/main.dart`, then these flags may be provided to `dart
 | `-Dlabwright.editor=CMD` | Command the viewer's "open in editor" runs; `{file}`/`{line}` are substituted (default `code --goto {file}:{line}`, e.g. `vim +{line} {file}`) |
 | `-Dlabwright.report=out.json` | Write a JSON report (tests, statuses, logs, requirements trace, seed, summary) |
 
-In the interactive viewer you can re-run all/failed/one test, stop after the current test, fire any
-operator `button()`s, **click a test name to open its source** at the right line, and type a **seed** to
-replay a specific run order. It also **filters** tests (by name/status/requirement), **downloads** the JSON
-report or **copies** failures, and **badges** each test's run-to-run change — `new fail`, `now passing`, and
-`flaky` (a test that keeps flipping verdict).
+The interactive viewer is a full-screen app with three panes on screen at once, each with its own filter:
+a compact **Tests** pane (latest-run status, jump-to-source, a ▶ queue button), a **Queue** pane (what is
+waiting to run), and a large scrollable **Log** pane — an animated history of every execution with its logs,
+newest at top. A test's `log` button spotlights its latest run in the Log pane. Across the top you can re-run
+all/failed/one test, stop after the current test, fire operator `button()`s, **open a test's source** in your
+editor, **download** the JSON report or **copy** failures. Each test badges its run-to-run change — `new fail`,
+`now passing`, and `flaky` (a test that keeps flipping verdict).
 
 **Hot reload** reloads edited sources and re-runs without restarting the process (`labwright run
 --interactive` starts the VM service for this; running `dart run` directly needs

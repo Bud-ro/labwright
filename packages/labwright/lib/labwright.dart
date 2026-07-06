@@ -157,6 +157,10 @@ const bool _interactive = bool.fromEnvironment('labwright.interactive');
 const bool _linger = _keepOpen || _interactive;
 const String _reportPath = String.fromEnvironment('labwright.report');
 
+/// Cap on the viewer's in-memory execution history (Log view). A long soak
+/// keeps the most recent [_historyCap] records; older ones drop off.
+const int _historyCap = 2000;
+
 /// The command the viewer's "open in editor" runs, as space-separated argv
 /// with `{file}` / `{line}` placeholders substituted into single args (so
 /// paths with spaces are safe — no shell). Defaults to the VS Code CLI; set
@@ -313,6 +317,33 @@ bool _stopRequested = false;
 _TestEntry? _running;
 Viewer? _viewer;
 
+// Chronological record of every test execution (oldest first) for the viewer's
+// Log view. Pushed to clients as deltas — not in the frequently-resent snapshot
+// — and capped so a long soak stays bounded in memory.
+final List<Map<String, Object?>> _history = [];
+int _historyId = 0; // unique id per execution record
+int _runSeq = 0; // increments each pass, so records group by run
+
+/// Snapshots [entry]'s just-finished execution into the history feed and pushes
+/// it to the viewer. Capped ([_historyCap]); the oldest record drops first.
+void _record(_TestEntry entry) {
+  final record = {
+    'id': ++_historyId,
+    'run': _runSeq,
+    'name': entry.name,
+    'status': entry.status,
+    if (entry.ms != null) 'ms': entry.ms,
+    if (entry.file != null) 'file': entry.file,
+    if (entry.line != null) 'line': entry.line,
+    if (entry.change.isNotEmpty) 'change': entry.change,
+    if (entry.detail.isNotEmpty) 'detail': entry.detail,
+    if (entry.logs.isNotEmpty) 'logs': [...entry.logs],
+  };
+  _history.add(record);
+  if (_history.length > _historyCap) _history.removeAt(0);
+  _viewer?.pushHistory(record);
+}
+
 void _register(
   String name,
   FutureOr<void> Function() body, {
@@ -422,6 +453,7 @@ Future<void> _runAll() async {
       // while we linger (an explicit flag), so CI never grows an action surface.
       _viewer!.onAction = _handleAction;
       _viewer!.report = _report; // GET /report.json for download
+      _viewer!.history = () => _history; // Log view feed (batch on connect)
 
       stdout.writeln(
         '$_tag viewer on http://localhost:${_viewer!.port}'
@@ -456,7 +488,8 @@ Future<void> _execute(List<_TestEntry> entries) async {
   _runInProgress = true;
   _stopRequested = false;
   _done = false;
-  // Remember each entry's prior verdict so we can diff after the pass.
+  _runSeq++;
+  // Remember each entry's prior verdict so we can diff it the moment it reruns.
   final prior = {for (final e in entries) e: e.status};
   _viewer?.update();
   for (final entry in entries) {
@@ -468,11 +501,10 @@ Future<void> _execute(List<_TestEntry> entries) async {
       ..logs.clear();
     _viewer?.update();
     await _runOne(entry);
-  }
-  // Run-to-run diff: compare each ran entry's new verdict to its prior one.
-  for (final entry in entries) {
-    if (_stopRequested && entry.status == 'queued') continue; // never ran
+    // Diff against the prior run (independent per test), then snapshot the
+    // finished execution into the Log feed — so it pops in as it completes.
     _diff(entry, prior[entry]!);
+    _record(entry);
   }
   _runInProgress = false;
   _done = true;

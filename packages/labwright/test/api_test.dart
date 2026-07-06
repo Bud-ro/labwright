@@ -192,7 +192,8 @@ void main() {
       final pageRes = await (await client.getUrl(Uri.parse('http://localhost:$p/'))).close();
       expect(pageRes.statusCode, 200);
       final page = await pageRes.transform(utf8.decoder).join();
-      expect(page, contains('labwright run'));
+      expect(page, contains('labwright'));
+      expect(page, contains('id="logList"'), reason: 'the multi-pane app (Tests/Log/Queue)');
       expect(page, contains('EventSource'), reason: 'live SSE viewer');
       client.close(force: true);
     } finally {
@@ -476,6 +477,69 @@ void main() {
       final report = (jsonDecode(await rep.transform(utf8.decoder).join()) as Map).cast<String, Object?>();
       expect(report.containsKey('requirements'), isTrue, reason: 'report carries the requirements trace');
       expect(report.containsKey('buttons'), isFalse, reason: 'buttons are viewer-only');
+      client.close(force: true);
+    } finally {
+      process.kill();
+      await process.exitCode;
+    }
+  }, timeout: const Timeout(Duration(minutes: 2)));
+
+  test('log feed: the run history replays to a new client as a hist event', () async {
+    final process = await Process.start(
+      Platform.resolvedExecutable,
+      [
+        'run',
+        '-Dlabwright.port=0',
+        '-Dlabwright.interactive=true',
+        '-Dlabwright.seed=0',
+        'test/fixtures/green_e2e.dart',
+      ],
+      workingDirectory: pkgRoot,
+    );
+    try {
+      final port = Completer<int>();
+      final ready = Completer<void>();
+      process.stdout.transform(utf8.decoder).transform(const LineSplitter()).listen((line) {
+        final m = RegExp(r'viewer on http://localhost:(\d+)').firstMatch(line);
+        if (m != null && !port.isCompleted) port.complete(int.parse(m[1]!));
+        if (line.contains('View results and re-run tests at') && !ready.isCompleted) ready.complete();
+      });
+      final p = await port.future.timeout(const Duration(seconds: 30));
+      await ready.future.timeout(const Duration(seconds: 60));
+
+      // Consume the SSE stream and pull the one-shot `hist` reset frame.
+      final client = HttpClient();
+      final res = await (await client.getUrl(Uri.parse('http://localhost:$p/events'))).close();
+      final got = Completer<Map<String, Object?>>();
+      final buf = StringBuffer();
+      final sub = res.transform(utf8.decoder).listen((chunk) {
+        buf.write(chunk);
+        for (final frame in buf.toString().split('\n\n')) {
+          if (!frame.startsWith('event: hist')) continue;
+          final dataLine = frame.split('\n').firstWhere((l) => l.startsWith('data: '), orElse: () => '');
+          if (dataLine.isEmpty) continue;
+          try {
+            final data = (jsonDecode(dataLine.substring(6)) as Map).cast<String, Object?>();
+            if (data['reset'] == true && !got.isCompleted) got.complete(data);
+          } catch (_) {
+            /* partial frame — wait for more */
+          }
+        }
+      });
+      final hist = await got.future.timeout(const Duration(seconds: 30));
+      final entries = (hist['entries'] as List).cast<Map<String, Object?>>();
+      expect(entries.map((e) => e['name']).toSet(), {
+        'rail comes up',
+        'ripple in limits',
+        'thermal camera sweep',
+      }, reason: 'the first run recorded one execution per test');
+      expect(entries.every((e) => e['run'] == 1), isTrue, reason: 'all from the first pass');
+      expect(
+        entries.firstWhere((e) => e['name'] == 'rail comes up')['logs'],
+        ['applying power'],
+        reason: 'history carries each execution\'s logs for the Log view',
+      );
+      await sub.cancel();
       client.close(force: true);
     } finally {
       process.kill();
