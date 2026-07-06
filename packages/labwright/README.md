@@ -71,7 +71,12 @@ is run using `dart run e2e/main.dart`, then these flags may be provided to `dart
 | `-Dlabwright.port=N` | viewer port (default 1212, "LAB" : L=12, A=1, B=2) |
 | `-Dlabwright.viewer=false` | Prevents the viewer from launching |
 | `-Dlabwright.keepOpen=true` OR `-Dlabwright.interactive=true` | Keep serving results after the run, and allow for tests to be (re)-run |
+| `-Dlabwright.editor=CMD` | Command the viewer's "open in editor" runs; `{file}`/`{line}` are substituted (default `code --goto {file}:{line}`, e.g. `vim +{line} {file}`) |
 | `-Dlabwright.report=out.json` | Write a JSON report (tests, statuses, logs, requirements trace, seed, summary) |
+
+In the interactive viewer you can re-run all/failed/one test, stop after the current test, fire any
+operator `button()`s, **click a test name to open its source** at the right line, and type a **seed** to
+replay a specific run order.
 
 ## TestStand Converter
 

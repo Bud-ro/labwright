@@ -118,25 +118,29 @@ const int _shardSeed = 0x5EED;
 ///    so repeated local runs surface order-dependent flakiness.
 final int seed = _seedDefine != _seedUnset ? _seedDefine : (totalShards > 1 ? _shardSeed : Random().nextInt(1 << 31));
 
+/// The seed currently driving order + [rand]. Starts at [seed] and is what the
+/// viewer's "seed replay" swaps out (a `reseed` action) so an operator can
+/// reproduce a specific fuzz order on demand without restarting the process.
+int _activeSeed = seed;
+
 Random? _rand;
 
-/// The suite's deterministic random stream. It is reset to [seed] at the
-/// START of every test (when a seed is set), so a test draws the same
-/// sequence whether it runs in a full pass or alone via the viewer's re-run
-/// button — per-test reproducibility, not whole-run. `rand()` draws in
-/// `[0, 1)`; `rand(min, max)` draws in `[min, max)`; within a test the stream
-/// advances on every draw.
+/// The suite's deterministic random stream. It is reset to the active seed at
+/// the START of every test, so a test draws the same sequence whether it runs
+/// in a full pass or alone via the viewer's re-run button — per-test
+/// reproducibility, not whole-run. `rand()` draws in `[0, 1)`; `rand(min, max)`
+/// draws in `[min, max)`; within a test the stream advances on every draw.
 double rand([num? min, num? max]) {
-  final rng = _rand ??= seed != 0 ? Random(seed) : Random();
+  final rng = _rand ??= _activeSeed != 0 ? Random(_activeSeed) : Random();
   final r = rng.nextDouble();
   if (min == null && max == null) return r;
   if (min != null && max != null) return min + r * (max - min);
   throw ArgumentError('rand() takes zero bounds or both');
 }
 
-/// Resets the [rand] stream so the next test starts from the seed — the hook
-/// that makes a single test's random draws reproducible on re-run.
-void _resetRand() => _rand = seed != 0 ? Random(seed) : Random();
+/// Resets the [rand] stream so the next test starts from the active seed — the
+/// hook that makes a single test's random draws reproducible on re-run.
+void _resetRand() => _rand = _activeSeed != 0 ? Random(_activeSeed) : Random();
 
 const int _port = int.fromEnvironment('labwright.port', defaultValue: 1212);
 const bool _viewerEnabled = bool.fromEnvironment('labwright.viewer', defaultValue: true);
@@ -149,6 +153,15 @@ const bool _interactive = bool.fromEnvironment('labwright.interactive');
 /// the run's code, so a pipeline never hangs.
 const bool _linger = _keepOpen || _interactive;
 const String _reportPath = String.fromEnvironment('labwright.report');
+
+/// The command the viewer's "open in editor" runs, as space-separated argv
+/// with `{file}` / `{line}` placeholders substituted into single args (so
+/// paths with spaces are safe — no shell). Defaults to the VS Code CLI; set
+/// `-Dlabwright.editor` for another editor, e.g. `vim +{line} {file}`.
+const String _editorCmd = String.fromEnvironment(
+  'labwright.editor',
+  defaultValue: 'code --goto {file}:{line}',
+);
 
 // ── console styling ───────────────────────────────────────────────────────────
 
@@ -234,12 +247,17 @@ void log(String message) {
 // ── registry and execution ───────────────────────────────────────────────────
 
 class _TestEntry {
-  _TestEntry(this.name, this.body, this.requirements, {required this.skip});
+  _TestEntry(this.name, this.body, this.requirements, {required this.skip, this.file, this.line});
 
   final String name;
   final FutureOr<void> Function() body;
   final List<String> requirements;
   final bool skip;
+
+  /// Where `test()` was called, captured at registration (interactive only) so
+  /// the viewer can open the test's source. Null when not captured / unknown.
+  final String? file;
+  final int? line;
 
   String status = 'queued';
   String detail = '';
@@ -250,6 +268,8 @@ class _TestEntry {
     'name': name,
     'status': status,
     if (requirements.isNotEmpty) 'requirements': requirements,
+    if (file != null) 'file': file,
+    if (line != null) 'line': line,
     if (detail.isNotEmpty) 'detail': detail,
     if (ms != null) 'ms': ms,
     if (logs.isNotEmpty) 'logs': logs,
@@ -292,7 +312,10 @@ void _register(
       'first test() call and register in one synchronous burst.',
     );
   }
-  _registry.add(_TestEntry(name, body, requirements, skip: skip));
+  // Capture the call site only when the viewer will linger — a stack trace per
+  // test is pure waste on a plain `dart run`/CI pass.
+  final (file, line) = _linger ? _callerLocation() : (null, null);
+  _registry.add(_TestEntry(name, body, requirements, skip: skip, file: file, line: line));
   if (!_runScheduled) {
     _runScheduled = true;
     // Fires once the current synchronous burst (typically the rest of main)
@@ -301,9 +324,26 @@ void _register(
   }
 }
 
+/// The first stack frame outside this framework file — the user's `test()`
+/// call site — as (file, line), or (null, null) if it can't be parsed. Lets
+/// the viewer open a test's source at the right spot.
+(String?, int?) _callerLocation() {
+  // VM frames look like `#3  register (file:///abs/foo.dart:30:3)`.
+  final re = RegExp(r'\(([^\s()]+):(\d+):\d+\)');
+  for (final frame in StackTrace.current.toString().split('\n')) {
+    final m = re.firstMatch(frame);
+    if (m == null) continue;
+    final uri = m.group(1)!;
+    if (uri.endsWith('labwright.dart')) continue; // still inside the framework
+    final path = uri.startsWith('file://') ? Uri.parse(uri).toFilePath() : uri;
+    return (path, int.parse(m.group(2)!));
+  }
+  return (null, null);
+}
+
 /// The suite state the viewer and the report share.
 Map<String, Object?> _state() => {
-  'seed': seed,
+  'seed': _activeSeed,
   'done': _done,
   // Whether a run is executing (UI disables re-run controls) and whether
   // the viewer is lingering with the control plane live (UI shows them).
@@ -337,6 +377,18 @@ Map<String, Object?> _summary() {
   };
 }
 
+/// Shard over the one in-process registry (the whole suite), then let
+/// [seedValue] shuffle only the ORDER of the selection — membership is stable
+/// (index `% N == I`), so the seed never changes WHICH tests run, only when.
+List<_TestEntry> _select(int seedValue) {
+  final sel = [
+    for (var i = 0; i < _registry.length; i++)
+      if (i % totalShards == shardIndex) _registry[i],
+  ];
+  if (seedValue != 0) sel.shuffle(Random(seedValue));
+  return sel;
+}
+
 Future<void> _runAll() async {
   _runStarted = true;
   if (totalShards < 1 || shardIndex < 0 || shardIndex >= totalShards) {
@@ -344,16 +396,10 @@ Future<void> _runAll() async {
     exitCode = 64;
     return;
   }
-  // Shard over the one in-process registry (the whole suite), then let the
-  // seed shuffle only the ORDER of the selection — membership is stable.
-  _selected = [
-    for (var i = 0; i < _registry.length; i++)
-      if (i % totalShards == shardIndex) _registry[i],
-  ];
-  if (seed != 0) _selected.shuffle(Random(seed));
+  _selected = _select(_activeSeed);
 
   // The seed prints once, here at suite start (not per test).
-  if (seed != 0) stdout.writeln('$_tag seed $seed');
+  if (_activeSeed != 0) stdout.writeln('$_tag seed $_activeSeed');
 
   if (_viewerEnabled) {
     _viewer = await Viewer.start(_port, _state);
@@ -431,10 +477,26 @@ Future<Map<String, Object?>> _handleAction(Map<String, Object?> action) async {
     _stopRequested = true;
     return const {'accepted': true};
   }
+  if (type == 'open') {
+    // Opening a source file is always allowed — it touches the editor, not the
+    // bench, so it never waits on (or blocks) a run.
+    final file = action['file'] as String?;
+    if (file == null || file.isEmpty) {
+      return const {'accepted': false, 'error': 'no file'};
+    }
+    unawaited(_openInEditor(file, (action['line'] as num?)?.toInt() ?? 1));
+    return const {'accepted': true};
+  }
   if (_runInProgress) {
     return const {'accepted': false, 'error': 'a run is already in progress'};
   }
   switch (type) {
+    case 'reseed':
+      // Seed replay: re-shuffle the selection to a chosen seed and re-run, so
+      // an operator reproduces a specific fuzz order without a restart.
+      _activeSeed = (action['seed'] as num?)?.toInt() ?? 0;
+      _selected = _select(_activeSeed);
+      unawaited(_execute(_selected));
     case 'rerun':
       unawaited(_execute(_selected));
     case 'rerunFailed':
@@ -489,6 +551,22 @@ Future<void> _runButton(_Button b) async {
   }
   _runInProgress = false;
   _viewer?.update();
+}
+
+/// Opens [file] at [line] in the operator's editor via [_editorCmd]. Runs
+/// detached with an argv list (no shell), so a path with spaces is one safe
+/// argument; a missing editor is a warning, never a crash.
+Future<void> _openInEditor(String file, int line) async {
+  final argv = [
+    for (final a in _editorCmd.split(' '))
+      if (a.isNotEmpty) a.replaceAll('{file}', file).replaceAll('{line}', '$line'),
+  ];
+  if (argv.isEmpty) return;
+  try {
+    await Process.start(argv.first, argv.sublist(1), mode: ProcessStartMode.detached);
+  } catch (e) {
+    stderr.writeln('$_tag could not open editor (${argv.first}): $e');
+  }
 }
 
 /// The report: the suite state plus the requirements trace

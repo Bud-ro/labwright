@@ -151,9 +151,12 @@ const _viewerHtml = '''
   .test { margin: .4rem 0; border-left: 3px solid #8884; padding-left: .8rem; }
   .head { display: flex; gap: .5rem; align-items: baseline; }
   .name { font-weight: 600; }
+  .name.link { cursor: pointer; text-decoration: underline dotted; }
   .req { font-family: ui-monospace, monospace; font-size: .8em;
          border: 1px solid #8886; border-radius: .6em; padding: 0 .5em; }
   .run { font-size: .8em; padding: 0 .45em; }
+  #seedBox { font-size: .85em; opacity: .8; }
+  #seedInput { width: 7em; font: inherit; }
   .detail { white-space: pre-wrap; font-family: ui-monospace, monospace;
             font-size: .85em; opacity: .85; margin: .2rem 0 0 1.2rem; }
   .logs { font-family: ui-monospace, monospace; font-size: .8em; opacity: .7;
@@ -170,6 +173,7 @@ const _viewerHtml = '''
   <button id="rerunFailed">Re-run failed</button>
   <button id="stop">Stop</button>
   <span id="userButtons"></span>
+  <span id="seedBox">seed <input id="seedInput" type="number" size="10"><button id="reseed">replay</button></span>
 </div>
 <div id="tests"></div>
 <script>
@@ -180,9 +184,13 @@ const btn = { rerun: document.getElementById('rerun'),
               rerunFailed: document.getElementById('rerunFailed'),
               stop: document.getElementById('stop') };
 const userButtonsEl = document.getElementById('userButtons');
+const seedInput = document.getElementById('seedInput');
+const reseedBtn = document.getElementById('reseed');
 const mark = { passed: '✓', failed: '✗', skipped: '○', error: '‼',
                running: '…', queued: '·' };
 const isFail = (s) => s === 'failed' || s === 'error';
+let seedEdited = false;
+seedInput.oninput = () => { seedEdited = true; };
 
 // POST a control action; surface a rejection in the meta line.
 async function post(action) {
@@ -199,6 +207,11 @@ async function post(action) {
 btn.rerun.onclick = () => post({ type: 'rerun' });
 btn.rerunFailed.onclick = () => post({ type: 'rerunFailed' });
 btn.stop.onclick = () => post({ type: 'stop' });
+// Seed replay: re-run in the order a given seed produces (0 = registration).
+reseedBtn.onclick = () => {
+  seedEdited = false;
+  post({ type: 'reseed', seed: parseInt(seedInput.value, 10) || 0 });
+};
 
 function render(state) {
   const busy = !!state.busy;
@@ -210,6 +223,10 @@ function render(state) {
   btn.rerun.disabled = busy;
   btn.rerunFailed.disabled = busy || !anyFail;
   btn.stop.disabled = !busy;
+  // Track the active seed unless the operator is mid-edit; disable while busy.
+  if (!seedEdited && document.activeElement !== seedInput) seedInput.value = state.seed;
+  seedInput.disabled = busy;
+  reseedBtn.disabled = busy;
   // Operator-registered bench buttons (labels chosen in the suite).
   userButtonsEl.replaceChildren();
   (state.buttons || []).forEach((label, i) => {
@@ -232,6 +249,12 @@ function render(state) {
     const n = document.createElement('span');
     n.className = 'name ' + t.status;
     n.textContent = t.name;
+    // Click a located test to open its source in the operator's editor.
+    if (t.file) {
+      n.classList.add('link');
+      n.title = 'open ' + t.file + ':' + (t.line || 1);
+      n.onclick = () => post({ type: 'open', file: t.file, line: t.line || 1 });
+    }
     head.appendChild(n);
     for (const r of t.requirements || []) {
       const chip = document.createElement('span');
