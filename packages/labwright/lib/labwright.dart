@@ -264,17 +264,28 @@ class _TestEntry {
   int? ms;
   final List<String> logs = [];
 
+  /// Run-to-run diff, recomputed each pass: `newFail` / `newPass` / `changed`
+  /// versus the prior run ('' when unchanged or never run before), and a flip
+  /// count so the viewer can flag a test that keeps changing verdict (flaky).
+  String change = '';
+  int flips = 0;
+
   Map<String, Object?> toJson() => {
     'name': name,
     'status': status,
     if (requirements.isNotEmpty) 'requirements': requirements,
     if (file != null) 'file': file,
     if (line != null) 'line': line,
+    if (change.isNotEmpty) 'change': change,
+    if (flips >= 2) 'flaky': true,
     if (detail.isNotEmpty) 'detail': detail,
     if (ms != null) 'ms': ms,
     if (logs.isNotEmpty) 'logs': logs,
   };
 }
+
+bool _isFail(String s) => s == 'failed' || s == 'error';
+bool _isTerminal(String s) => s == 'passed' || s == 'skipped' || _isFail(s);
 
 /// One operator-registered control button (see [button]).
 class _Button {
@@ -407,6 +418,8 @@ Future<void> _runAll() async {
       // The control plane: the viewer POSTs actions back here. Only reachable
       // while we linger (an explicit flag), so CI never grows an action surface.
       _viewer!.onAction = _handleAction;
+      _viewer!.report = _report; // GET /report.json for download
+
       stdout.writeln(
         '$_tag viewer on http://localhost:${_viewer!.port}'
         '${totalShards > 1 ? ' - shard $shardIndex of $totalShards '
@@ -440,6 +453,8 @@ Future<void> _execute(List<_TestEntry> entries) async {
   _runInProgress = true;
   _stopRequested = false;
   _done = false;
+  // Remember each entry's prior verdict so we can diff after the pass.
+  final prior = {for (final e in entries) e: e.status};
   _viewer?.update();
   for (final entry in entries) {
     if (_stopRequested) break;
@@ -450,6 +465,11 @@ Future<void> _execute(List<_TestEntry> entries) async {
       ..logs.clear();
     _viewer?.update();
     await _runOne(entry);
+  }
+  // Run-to-run diff: compare each ran entry's new verdict to its prior one.
+  for (final entry in entries) {
+    if (_stopRequested && entry.status == 'queued') continue; // never ran
+    _diff(entry, prior[entry]!);
   }
   _runInProgress = false;
   _done = true;
@@ -464,6 +484,21 @@ Future<void> _execute(List<_TestEntry> entries) async {
     File(_reportPath).writeAsStringSync(const JsonEncoder.withIndent('  ').convert(_report()));
     stdout.writeln('$_tag report written to $_reportPath');
   }
+}
+
+/// Records how [entry]'s verdict moved from [priorStatus] to its current one:
+/// `newFail` / `newPass` / `changed` (or clears the badge when unchanged or
+/// there was no prior run), and bumps the flip counter when it crossed the
+/// pass↔fail line — that feeds the viewer's flaky flag.
+void _diff(_TestEntry entry, String priorStatus) {
+  final now = entry.status;
+  if (!_isTerminal(priorStatus) || priorStatus == now) {
+    entry.change = '';
+    return;
+  }
+  final wasFail = _isFail(priorStatus), nowFail = _isFail(now);
+  entry.change = !wasFail && nowFail ? 'newFail' : (wasFail && !nowFail ? 'newPass' : 'changed');
+  if (wasFail != nowFail) entry.flips++;
 }
 
 /// Dispatches a viewer control action. `stop` is always accepted (it just

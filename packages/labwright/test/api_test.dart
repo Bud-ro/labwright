@@ -318,4 +318,168 @@ void main() {
       await process.exitCode;
     }
   }, timeout: const Timeout(Duration(minutes: 2)));
+
+  test('open-in-editor + seed replay: source locations, reseed, editor launch', () async {
+    final tmp = Directory.systemTemp.createTempSync('lw_');
+    // A recorder standing in for the editor (POSIX only — bash script).
+    final opened = File('${tmp.path}/opened.txt');
+    final rec = File('${tmp.path}/rec.sh')
+      ..writeAsStringSync('#!/usr/bin/env bash\nprintf "%s" "\$*" > "${opened.path}"\n');
+    final posix = !Platform.isWindows;
+    if (posix) Process.runSync('chmod', ['+x', rec.path]);
+    try {
+      final process = await Process.start(Platform.resolvedExecutable, [
+        'run',
+        '-Dlabwright.port=0',
+        '-Dlabwright.interactive=true',
+        '-Dlabwright.seed=0',
+        if (posix) '-Dlabwright.editor=${rec.path} {file} {line}',
+        'test/fixtures/green_e2e.dart',
+      ], workingDirectory: pkgRoot);
+      try {
+        final port = Completer<int>();
+        final ready = Completer<void>();
+        process.stdout.transform(utf8.decoder).transform(const LineSplitter()).listen((line) {
+          final m = RegExp(r'viewer on http://localhost:(\d+)').firstMatch(line);
+          if (m != null && !port.isCompleted) port.complete(int.parse(m[1]!));
+          if (line.contains('View results and re-run tests at') && !ready.isCompleted) {
+            ready.complete();
+          }
+        });
+        final p = await port.future.timeout(const Duration(seconds: 30));
+        await ready.future.timeout(const Duration(seconds: 60));
+        final client = HttpClient();
+
+        Future<Map<String, Object?>> getState() async {
+          final res = await (await client.getUrl(Uri.parse('http://localhost:$p/state.json'))).close();
+          return (jsonDecode(await res.transform(utf8.decoder).join()) as Map).cast<String, Object?>();
+        }
+
+        Future<HttpClientResponse> action(Object body) async {
+          final req = await client.postUrl(Uri.parse('http://localhost:$p/action'));
+          req.headers.contentType = ContentType.json;
+          req.write(jsonEncode(body));
+          return req.close();
+        }
+
+        // Each test carries its registration file:line (captured in interactive).
+        final state = await getState();
+        final rail = (state['tests'] as List).cast<Map<String, Object?>>().firstWhere(
+          (t) => t['name'] == 'rail comes up',
+        );
+        expect('${rail['file']}', endsWith('green_e2e.dart'));
+        expect(rail['line'], isA<int>().having((n) => n > 0, 'positive', isTrue));
+
+        // Open the test's source: accepted, and (POSIX) the editor really runs.
+        final openRes = await action({'type': 'open', 'file': rail['file'], 'line': rail['line']});
+        expect(openRes.statusCode, 202);
+        await openRes.drain<void>();
+        if (posix) {
+          for (var i = 0; i < 60 && !opened.existsSync(); i++) {
+            await Future<void>.delayed(const Duration(milliseconds: 50));
+          }
+          expect(
+            opened.readAsStringSync(),
+            contains('green_e2e.dart'),
+            reason: 'the editor command ran with the file:line',
+          );
+        }
+
+        // Seed replay: re-run in a chosen seed's order; state carries the seed.
+        final reseedRes = await action({'type': 'reseed', 'seed': 7});
+        expect(reseedRes.statusCode, 202);
+        await reseedRes.drain<void>();
+        Map<String, Object?> after = const {};
+        for (var i = 0; i < 100; i++) {
+          after = await getState();
+          if (after['busy'] == false && after['seed'] == 7) break;
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+        }
+        expect(after['seed'], 7, reason: 'reseed swapped the active seed');
+        client.close(force: true);
+      } finally {
+        process.kill();
+        await process.exitCode;
+      }
+    } finally {
+      tmp.deleteSync(recursive: true);
+    }
+  }, timeout: const Timeout(Duration(minutes: 2)));
+
+  test('run-to-run diff + report download: newFail/newPass/flaky, /report.json', () async {
+    final process = await Process.start(
+      Platform.resolvedExecutable,
+      [
+        'run',
+        '-Dlabwright.port=0',
+        '-Dlabwright.interactive=true',
+        '-Dlabwright.seed=0',
+        'test/fixtures/flaky_e2e.dart',
+      ],
+      workingDirectory: pkgRoot,
+    );
+    try {
+      final port = Completer<int>();
+      final ready = Completer<void>();
+      process.stdout.transform(utf8.decoder).transform(const LineSplitter()).listen((line) {
+        final m = RegExp(r'viewer on http://localhost:(\d+)').firstMatch(line);
+        if (m != null && !port.isCompleted) port.complete(int.parse(m[1]!));
+        if (line.contains('View results and re-run tests at') && !ready.isCompleted) ready.complete();
+      });
+      final p = await port.future.timeout(const Duration(seconds: 30));
+      await ready.future.timeout(const Duration(seconds: 60));
+      final client = HttpClient();
+
+      Future<Map<String, Object?>> getState() async {
+        final res = await (await client.getUrl(Uri.parse('http://localhost:$p/state.json'))).close();
+        return (jsonDecode(await res.transform(utf8.decoder).join()) as Map).cast<String, Object?>();
+      }
+
+      Map<String, Object?> theTest(Map<String, Object?> s) => (s['tests'] as List).cast<Map<String, Object?>>().single;
+
+      Future<void> action(Object body) async {
+        final req = await client.postUrl(Uri.parse('http://localhost:$p/action'));
+        req.headers.contentType = ContentType.json;
+        req.write(jsonEncode(body));
+        await (await req.close()).drain<void>();
+      }
+
+      // Waits until the single test reaches [status] and the run has settled.
+      Future<Map<String, Object?>> settleAt(String status) async {
+        for (var i = 0; i < 200; i++) {
+          final s = await getState();
+          if (s['busy'] == false && theTest(s)['status'] == status) return s;
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+        }
+        fail('test never settled at $status');
+      }
+
+      // First run: green, no change badge yet.
+      final first = await settleAt('passed');
+      expect(theTest(first)['change'], isNull, reason: 'no prior run to diff against');
+
+      // break the bench, re-run → newFail.
+      await action({'type': 'button', 'index': 0});
+      await action({'type': 'rerun'});
+      expect(theTest(await settleAt('failed'))['change'], 'newFail');
+
+      // fix the bench, re-run → newPass, and now flaky (flipped twice).
+      await action({'type': 'button', 'index': 1});
+      await action({'type': 'rerun'});
+      final fixed = await settleAt('passed');
+      expect(theTest(fixed)['change'], 'newPass');
+      expect(theTest(fixed)['flaky'], true, reason: 'a pass↔fail↔pass test is flaky');
+
+      // The report endpoint serves the machine report, without viewer-only keys.
+      final rep = await (await client.getUrl(Uri.parse('http://localhost:$p/report.json'))).close();
+      expect(rep.headers.value('content-disposition'), contains('labwright-report.json'));
+      final report = (jsonDecode(await rep.transform(utf8.decoder).join()) as Map).cast<String, Object?>();
+      expect(report.containsKey('requirements'), isTrue, reason: 'report carries the requirements trace');
+      expect(report.containsKey('buttons'), isFalse, reason: 'buttons are viewer-only');
+      client.close(force: true);
+    } finally {
+      process.kill();
+      await process.exitCode;
+    }
+  }, timeout: const Timeout(Duration(minutes: 2)));
 }

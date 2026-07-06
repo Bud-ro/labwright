@@ -76,7 +76,9 @@ is run using `dart run e2e/main.dart`, then these flags may be provided to `dart
 
 In the interactive viewer you can re-run all/failed/one test, stop after the current test, fire any
 operator `button()`s, **click a test name to open its source** at the right line, and type a **seed** to
-replay a specific run order.
+replay a specific run order. It also **filters** tests (by name/status/requirement), **downloads** the JSON
+report or **copies** failures, and **badges** each test's run-to-run change — `new fail`, `now passing`, and
+`flaky` (a test that keeps flipping verdict).
 
 ## TestStand Converter
 

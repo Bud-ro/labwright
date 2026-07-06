@@ -23,6 +23,10 @@ class Viewer {
   /// caller. Null until the run wires it — an un-wired viewer is read-only.
   Future<Map<String, Object?>> Function(Map<String, Object?>)? onAction;
 
+  /// Produces the full machine report for `GET /report.json` (the viewer's
+  /// download button). Null until the run wires it.
+  Map<String, Object?> Function()? report;
+
   int get port => _server.port;
 
   /// Binds on localhost:[port] (0 = ephemeral). Returns null — with a
@@ -55,6 +59,12 @@ class Viewer {
         request.response
           ..headers.contentType = ContentType.json
           ..write(jsonEncode(_state()))
+          ..close();
+      case '/report.json':
+        request.response
+          ..headers.contentType = ContentType.json
+          ..headers.set('Content-Disposition', 'attachment; filename="labwright-report.json"')
+          ..write(const JsonEncoder.withIndent('  ').convert(report?.call() ?? _state()))
           ..close();
       case '/events':
         final response = request.response;
@@ -157,6 +167,14 @@ const _viewerHtml = '''
   .run { font-size: .8em; padding: 0 .45em; }
   #seedBox { font-size: .85em; opacity: .8; }
   #seedInput { width: 7em; font: inherit; }
+  #viewbar { display: flex; gap: .6rem; align-items: center; margin: .4rem 0;
+             flex-wrap: wrap; font-size: .85em; }
+  #filter { flex: 1; min-width: 8rem; font: inherit; padding: .1rem .4rem; }
+  .chg { font-size: .75em; border-radius: .6em; padding: 0 .5em;
+         border: 1px solid #8886; }
+  .chg.newFail { color: #c62828; border-color: #c6282866; }
+  .chg.newPass { color: #2e7d32; border-color: #2e7d3266; }
+  .chg.flaky { color: #b28900; border-color: #b2890066; }
   .detail { white-space: pre-wrap; font-family: ui-monospace, monospace;
             font-size: .85em; opacity: .85; margin: .2rem 0 0 1.2rem; }
   .logs { font-family: ui-monospace, monospace; font-size: .8em; opacity: .7;
@@ -175,6 +193,11 @@ const _viewerHtml = '''
   <span id="userButtons"></span>
   <span id="seedBox">seed <input id="seedInput" type="number" size="10"><button id="reseed">replay</button></span>
 </div>
+<div id="viewbar">
+  <input id="filter" placeholder="filter tests…">
+  <a id="dl" href="/report.json" download="labwright-report.json">download report</a>
+  <button id="copyFails">copy failures</button>
+</div>
 <div id="tests"></div>
 <script>
 const testsEl = document.getElementById('tests');
@@ -186,11 +209,26 @@ const btn = { rerun: document.getElementById('rerun'),
 const userButtonsEl = document.getElementById('userButtons');
 const seedInput = document.getElementById('seedInput');
 const reseedBtn = document.getElementById('reseed');
+const filterEl = document.getElementById('filter');
+const copyFailsEl = document.getElementById('copyFails');
 const mark = { passed: '✓', failed: '✗', skipped: '○', error: '‼',
                running: '…', queued: '·' };
+const changeLabel = { newFail: '▲ new fail', newPass: '▼ now passing', changed: 'changed' };
 const isFail = (s) => s === 'failed' || s === 'error';
 let seedEdited = false;
 seedInput.oninput = () => { seedEdited = true; };
+let lastState = {};
+filterEl.oninput = () => render(lastState);
+
+// Copy every failing test (name + detail) to the clipboard for a bug report.
+copyFailsEl.onclick = () => {
+  const text = (lastState.tests || []).filter((t) => isFail(t.status))
+      .map((t) => t.name + (t.detail ? '\\n  ' + t.detail.replace(/\\n/g, '\\n  ') : ''))
+      .join('\\n\\n');
+  navigator.clipboard.writeText(text || 'no failures').then(
+      () => { metaEl.textContent = 'copied ' + (text ? '' : '(none) '); },
+      () => { metaEl.textContent = 'clipboard blocked'; });
+};
 
 // POST a control action; surface a rejection in the meta line.
 async function post(action) {
@@ -213,9 +251,19 @@ reseedBtn.onclick = () => {
   post({ type: 'reseed', seed: parseInt(seedInput.value, 10) || 0 });
 };
 
+// A test matches the filter if the query is empty or occurs in its name,
+// status, requirements, or change badge (case-insensitive).
+function matches(t, q) {
+  if (!q) return true;
+  const hay = [t.name, t.status, t.change, (t.requirements || []).join(' ')].join(' ').toLowerCase();
+  return hay.includes(q);
+}
+
 function render(state) {
+  lastState = state;
   const busy = !!state.busy;
   const interactive = !!state.interactive;
+  const q = filterEl.value.trim().toLowerCase();
   metaEl.textContent = 'seed ' + state.seed +
       (busy ? ' · running…' : state.done ? ' · finished' : ' · live');
   controlsEl.hidden = !interactive;
@@ -238,6 +286,7 @@ function render(state) {
   });
   testsEl.replaceChildren();
   for (const t of state.tests || []) {
+    if (!matches(t, q)) continue;
     const div = document.createElement('div');
     div.className = 'test';
     const head = document.createElement('div');
@@ -256,6 +305,19 @@ function render(state) {
       n.onclick = () => post({ type: 'open', file: t.file, line: t.line || 1 });
     }
     head.appendChild(n);
+    // Run-to-run diff badges: what changed since the previous run, and flaky.
+    if (t.change) {
+      const c = document.createElement('span');
+      c.className = 'chg ' + t.change;
+      c.textContent = changeLabel[t.change] || t.change;
+      head.appendChild(c);
+    }
+    if (t.flaky) {
+      const f = document.createElement('span');
+      f.className = 'chg flaky';
+      f.textContent = 'flaky';
+      head.appendChild(f);
+    }
     for (const r of t.requirements || []) {
       const chip = document.createElement('span');
       chip.className = 'req';
