@@ -138,7 +138,9 @@ Future<int> _run(List<String> args) async {
   );
   final signals = [
     ProcessSignal.sigint.watch().listen((_) => process.kill(ProcessSignal.sigint)),
-    ProcessSignal.sigterm.watch().listen((_) => process.kill()),
+    // SIGTERM does not exist on Windows — watching it fails with an async
+    // SignalException (errno 50) that would kill the CLI with exit 255.
+    if (!Platform.isWindows) ProcessSignal.sigterm.watch().listen((_) => process.kill()),
   ];
   final code = await process.exitCode;
   for (final s in signals) {
