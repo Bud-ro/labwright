@@ -54,6 +54,10 @@ void register() {
   via the generated reports.
 - As a test runs, by default nothing is output. The labwright `log('...')` function allows
   for printing messages to the CLI and web viewer.
+- `button('label', () async { ... })`, registered alongside `test()`, adds an operator
+  control to the interactive viewer — a bench action (e.g. `Reset unit`) the user fires on
+  demand. The action runs serialized with test runs, streams its `log()` lines, and is
+  viewer-only (it never runs under a plain `dart run`/CI pass).
 
 ## Configuration
 
@@ -67,7 +71,48 @@ is run using `dart run e2e/main.dart`, then these flags may be provided to `dart
 | `-Dlabwright.port=N` | viewer port (default 1212, "LAB" : L=12, A=1, B=2) |
 | `-Dlabwright.viewer=false` | Prevents the viewer from launching |
 | `-Dlabwright.keepOpen=true` OR `-Dlabwright.interactive=true` | Keep serving results after the run, and allow for tests to be (re)-run |
+| `-Dlabwright.editor=CMD` | Command the viewer's "open in editor" runs; `{file}`/`{line}` are substituted (default `code --goto {file}:{line}`, e.g. `vim +{line} {file}`) |
+| `-Dlabwright.identity=false` | Skip the report's content-identity hashes (~3s hasher isolate, off the bench path); hot reload then conservatively re-runs everything |
 | `-Dlabwright.report=out.json` | Write a JSON report (tests, statuses, logs, requirements trace, seed, summary) |
+
+The interactive viewer is a full-screen app with three panes on screen at once, each with its own filter:
+a compact **Tests** pane (latest-run status, jump-to-source, a ▶ queue button), a **Queue** pane (what is
+waiting to run), and a large scrollable **Log** pane — an animated history of every execution with its logs,
+newest at top. Everything is **timestamped** in your local time — when a test was queued, started, and
+finished, and when each log line was emitted. A test's `log` button spotlights its latest run in the Log
+pane. Across the top you can re-run all/failed/one test, stop after the current test, fire operator
+`button()`s, **open a test's source** in your editor, **download** the JSON report or **copy** failures. Each
+test badges its run-to-run change — `new fail`, `now passing`, and `flaky` (a test that keeps flipping verdict).
+
+**Hot reload** reloads edited sources and **re-runs only the modified tests** (`labwright run
+--interactive` starts the VM service for this; running `dart run` directly needs
+`--enable-vm-service`). Modification is detected by content hash: an edit inside one test's body re-runs
+just that test, while an edit to shared setup/helpers conservatively re-runs everything. Code reached
+through functions your tests call reloads reliably; because registration does not re-run, *added or
+removed* tests — and sometimes an edit made directly inside a test's inline body — still need a restart.
+
+## Content identity (skip-unmodified tooling)
+
+The report factors "did anything change?" into three SHA-1 hashes so external tooling can skip tests whose
+inputs are provably unchanged — a prior verdict is reusable only while **all three** match:
+
+| report field | covers |
+|---|---|
+| per-test `hash` | that test's `test(...)` registration call — name, requirements, body — as a token stream (formatting/comments don't shift it) |
+| `setupHash` | every file reachable from the entry script via local imports, with all test bodies factored *out* — shared setup and helpers |
+| `contextHash` | the bench-declared `context` map — what is physically under test |
+
+Labwright cannot know what is on the bench, so the suite declares it during setup:
+
+```dart
+context('dut.serial', await dut.serialNumber());
+context('dut.firmware', await dut.firmwareVersion());
+```
+
+Caveats, stated honestly: the walk follows relative imports only (sources imported by `package:` URI are
+not covered by `setupHash`); a test registered through a tear-off or wrapper has no attributable call site
+and carries **no** `hash` — consumers must treat an absent hash as "assume modified"; and hashes reflect
+the sources as loaded, so a disk edit without a hot reload does not change what the report claims ran.
 
 ## TestStand Converter
 

@@ -12,6 +12,8 @@ Future<void> main() async {
   // Setup: BEFORE the first test() registration, then register in one burst.
   await Future<void>.delayed(const Duration(milliseconds: 1));
   _railUp = true;
+  // The bench declares what it is testing — lands in the report + contextHash.
+  context('dut.serial', 'SIM-001');
 
   test('rail comes up', requirement: 'REQ-1', () async {
     log('applying power');
@@ -27,5 +29,12 @@ Future<void> main() async {
   // TODO: port ThermalSweep.vi, then rename skipTest -> test to arm.
   skipTest('thermal camera sweep', () async {
     throw UnimplementedError('VI call: ThermalSweep.vi');
+  });
+
+  // An operator control the viewer renders as a button (viewer-only; never
+  // runs under a plain pass).
+  button('reset rig', () async {
+    _railUp = false;
+    log('rig reset');
   });
 }

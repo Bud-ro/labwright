@@ -18,10 +18,14 @@
 //   --shard-index I    index is ≡ I (mod N) — dart test's convention.
 //   --port N           Viewer port (default 1212; 0 = ephemeral).
 //   --no-viewer        Disable the in-process viewer.
+//   --no-identity      Skip the report's content-identity hashes (hot reload
+//                      then conservatively re-runs everything).
 //   --report out.json  Write the machine-readable run report.
 //   --keep-open,       Keep the viewer serving after the run AND accept its
-//   --interactive      control actions — re-run all/failed, run one, stop
-//                      (two names for one behavior). Bare `dart run`/CI exits.
+//   --interactive      control actions — re-run all/failed, run one, stop,
+//                      buttons, open-in-editor, seed replay, hot reload (starts
+//                      the VM service; re-runs only content-modified tests).
+//                      Two names for one behavior; CI exits.
 //
 // scan   Lints the plug-in convention: lists .dart files under the dir
 //        (default e2e/) that are NOT reachable from main.dart via local
@@ -33,8 +37,7 @@
 import 'dart:io';
 import 'dart:math';
 
-import 'package:analyzer/dart/analysis/utilities.dart';
-import 'package:analyzer/dart/ast/ast.dart';
+import 'package:labwright/src/source_hash.dart' show localDirectiveUris;
 
 Future<void> main(List<String> args) async {
   final rest = [...args];
@@ -68,6 +71,9 @@ Future<int> _run(List<String> args) async {
   final rest = [...args];
   String? target;
   final defines = <String>[];
+  // Lingering (interactive/keep-open) enables the VM service so the viewer's
+  // "hot reload" can reload edited sources in place.
+  var linger = false;
   while (rest.isNotEmpty) {
     final arg = rest.removeAt(0);
     switch (arg) {
@@ -94,14 +100,18 @@ Future<int> _run(List<String> args) async {
         );
       case '--no-viewer':
         defines.add('-Dlabwright.viewer=false');
+      case '--no-identity':
+        defines.add('-Dlabwright.identity=false');
       case '--report':
         if (rest.isNotEmpty) {
           defines.add('-Dlabwright.report=${rest.removeAt(0)}');
         }
       case '--keep-open':
         defines.add('-Dlabwright.keepOpen=true');
+        linger = true;
       case '--interactive':
         defines.add('-Dlabwright.interactive=true');
+        linger = true;
       case '--help' || '-h':
         stdout.writeln(_usage);
         return 0;
@@ -123,12 +133,14 @@ Future<int> _run(List<String> args) async {
   // ONE child, sharing our stdio; signals forward so it is never orphaned.
   final process = await Process.start(
     Platform.resolvedExecutable,
-    ['run', ...defines, path],
+    ['run', if (linger) '--enable-vm-service=0', ...defines, path],
     mode: ProcessStartMode.inheritStdio,
   );
   final signals = [
     ProcessSignal.sigint.watch().listen((_) => process.kill(ProcessSignal.sigint)),
-    ProcessSignal.sigterm.watch().listen((_) => process.kill()),
+    // SIGTERM does not exist on Windows — watching it fails with an async
+    // SignalException (errno 50) that would kill the CLI with exit 255.
+    if (!Platform.isWindows) ProcessSignal.sigterm.watch().listen((_) => process.kill()),
   ];
   final code = await process.exitCode;
   for (final s in signals) {
@@ -150,29 +162,6 @@ String? _resolveTarget(String? target) {
 
 // ── scan ─────────────────────────────────────────────────────────────────────
 
-/// The local (non-`package:`/`dart:`) URIs a Dart file's directives point
-/// at, from a real AST parse (syntactic only — no resolution needed).
-/// Comments and string literals containing import-shaped text cannot fool
-/// this, and conditional imports contribute EVERY branch (any of them may
-/// be the one that loads).
-Iterable<String> _localDirectiveUris(String source) sync* {
-  final unit = parseString(content: source, throwIfDiagnostics: false).unit;
-  for (final directive in unit.directives) {
-    if (directive is! UriBasedDirective) continue; // `part of` has no target
-    final uris = [
-      directive.uri.stringValue,
-      if (directive is NamespaceDirective)
-        for (final config in directive.configurations) config.uri.stringValue,
-    ];
-    for (final uri in uris) {
-      if (uri == null || uri.startsWith('package:') || uri.startsWith('dart:')) {
-        continue;
-      }
-      yield uri;
-    }
-  }
-}
-
 int _scan(List<String> args) {
   final dir = args.where((a) => !a.startsWith('-')).firstOrNull ?? 'e2e';
   final mainFile = File('$dir${Platform.pathSeparator}main.dart');
@@ -192,7 +181,7 @@ int _scan(List<String> args) {
   void visit(File file) {
     final path = file.absolute.uri.normalizePath().toFilePath();
     if (!reachable.add(path) || !file.existsSync()) return;
-    for (final uri in _localDirectiveUris(file.readAsStringSync())) {
+    for (final uri in localDirectiveUris(file.readAsStringSync())) {
       visit(File.fromUri(file.absolute.uri.resolve(uri)));
     }
   }

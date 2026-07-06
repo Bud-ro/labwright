@@ -6,6 +6,10 @@
 pubspec.lock
 doc/api/
 
+# Scratch dirs the labwright CLI/hot-reload tests generate under the package
+.init_tmp/
+.hot_tmp/
+
 # Zig
 zig-out/
 .zig-cache/

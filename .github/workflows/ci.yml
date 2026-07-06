@@ -15,9 +15,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Pinned, not `stable`: `dart format` output changes across SDK releases,
+      # so the format gate below is only reproducible when CI runs the SAME SDK
+      # the repo was formatted with. When upgrading, bump this and run
+      # ./format.sh in the same commit.
       - uses: dart-lang/setup-dart@v1
         with:
-          sdk: stable
+          sdk: 3.11.3
 
       # One workspace resolution, check formatting, analyze the whole tree,
       # then test each package.
