@@ -296,9 +296,14 @@ int _now() => DateTime.now().millisecondsSinceEpoch;
 /// occurred, and carried in the report.
 void log(String message) {
   stdout.writeln('  - $message');
-  _running?.logs.add(_LogLine(_now(), message));
+  (_running?.logs ?? _actionLogs)?.add(_LogLine(_now(), message));
   _viewer?.update();
 }
+
+/// The sink for [log] lines emitted while an operator [button] action runs
+/// (no test is running then) — collected so the action's execution streams to
+/// the viewer's Log feed like a test's, as the docs promise.
+List<_LogLine>? _actionLogs;
 
 // ── registry and execution ───────────────────────────────────────────────────
 
@@ -457,9 +462,12 @@ int _runSeq = 0; // increments each pass, so records group by run
 /// Snapshots [entry]'s just-finished execution into the history feed and pushes
 /// it to the viewer. One serializer — the entry's own [toJson] — plus the feed
 /// bookkeeping, so history records can never drift from the Tests pane.
-/// Capped ([_historyCap]); the oldest record drops first.
-void _record(_TestEntry entry) {
-  final record = {...entry.toJson(), 'id': ++_historyId, 'run': _runSeq};
+void _record(_TestEntry entry) => _pushRecord(entry.toJson());
+
+/// Appends one execution record (a test's, or a button action's) to the Log
+/// feed and pushes it live. Capped ([_historyCap]); the oldest drops first.
+void _pushRecord(Map<String, Object?> fields) {
+  final record = {...fields, 'id': ++_historyId, 'run': _runSeq};
   _history.add(record);
   if (_history.length > _historyCap) _history.removeAt(0);
   _viewer?.pushHistory(record);
@@ -502,7 +510,20 @@ void _register(
     if (m == null) continue;
     final uri = m.group(1)!;
     if (uri.endsWith('labwright.dart')) continue; // still inside the framework
-    final path = uri.startsWith('file://') ? Uri.parse(uri).toFilePath() : uri;
+    // A registration reached through a package-imported helper reports a
+    // `package:` URI — resolve it to a real path so the editor can open it;
+    // an unresolvable frame is skipped in favor of a deeper (caller) one.
+    final String? path;
+    if (uri.startsWith('file://')) {
+      path = Uri.parse(uri).toFilePath();
+    } else if (uri.startsWith('package:')) {
+      path = Isolate.resolvePackageUriSync(Uri.parse(uri))?.toFilePath();
+    } else if (uri.startsWith('dart:')) {
+      path = null;
+    } else {
+      path = uri;
+    }
+    if (path == null) continue;
     return (path, int.parse(m.group(2)!));
   }
   return (null, null);
@@ -828,22 +849,39 @@ Future<List<_TestEntry>> _modifiedAfterReload() async {
 }
 
 /// Runs one operator [button]'s action, serialized with test runs via the same
-/// `_runInProgress` gate (the bench is singular). A throwing action is caught
-/// and surfaced — a button must never crash the lingering process. Does not
-/// touch test state or the exit code (buttons are viewer-only).
+/// `_runInProgress` gate (the bench is singular). Its [log] lines and outcome
+/// are recorded into the Log feed (as `button: <label>`), so the viewer shows
+/// a bench action like it shows a test. A throwing action is caught and
+/// surfaced — a button must never crash the lingering process — and buttons
+/// never touch test state or the exit code.
 Future<void> _runButton(_Button b) async {
   _runInProgress = true;
   _viewer?.update();
   stdout.writeln('$_tag button "${b.label}"');
+  // Collect the action's log() lines and record the execution into the Log
+  // feed — a bench action streams to the viewer just like a test run.
+  final logs = _actionLogs = <_LogLine>[];
+  final startedAt = _now();
   final watch = Stopwatch()..start();
+  var detail = '';
   try {
     await b.action();
-    watch.stop();
-    stdout.writeln('$_tag button "${b.label}" done (${watch.elapsedMilliseconds} ms)');
   } catch (e) {
-    watch.stop();
-    stdout.writeln('$_tag button "${b.label}" failed (${watch.elapsedMilliseconds} ms): $e');
+    detail = '$e';
   }
+  watch.stop();
+  _actionLogs = null;
+  final ms = watch.elapsedMilliseconds;
+  stdout.writeln('$_tag button "${b.label}" ${detail.isEmpty ? 'done ($ms ms)' : 'failed ($ms ms): $detail'}');
+  _pushRecord({
+    'name': 'button: ${b.label}',
+    'status': detail.isEmpty ? 'passed' : 'error',
+    'ms': ms,
+    'startedAt': startedAt,
+    'finishedAt': _now(),
+    if (detail.isNotEmpty) 'detail': detail,
+    if (logs.isNotEmpty) 'logs': [for (final l in logs) l.toJson()],
+  });
   _runInProgress = false;
   _viewer?.update();
 }
@@ -880,16 +918,42 @@ Future<String?> _hotReload() async {
 /// detached with an argv list (no shell), so a path with spaces is one safe
 /// argument; a missing editor is a warning, never a crash.
 Future<void> _openInEditor(String file, int line) async {
-  final argv = [
-    for (final a in _editorCmd.split(' '))
-      if (a.isNotEmpty) a.replaceAll('{file}', file).replaceAll('{line}', '$line'),
-  ];
+  final argv = _editorArgv(_editorCmd, file, line);
   if (argv.isEmpty) return;
   try {
-    await Process.start(argv.first, argv.sublist(1), mode: ProcessStartMode.detached);
+    // runInShell on Windows: the default `code` resolves to code.cmd, a batch
+    // file CreateProcess cannot execute directly.
+    await Process.start(argv.first, argv.sublist(1), mode: ProcessStartMode.detached, runInShell: Platform.isWindows);
   } catch (e) {
     stderr.writeln('$_tag could not open editor (${argv.first}): $e');
   }
+}
+
+/// Splits an editor command template into argv, honoring double-quoted
+/// segments so an executable path containing spaces is expressible —
+/// `-Dlabwright.editor='"C:\Program Files\VS Code\bin\code.cmd" --goto
+/// {file}:{line}'` — then substitutes `{file}`/`{line}` into whole arguments
+/// (never through a shell, so paths stay single arguments).
+List<String> _editorArgv(String template, String file, int line) {
+  final argv = <String>[];
+  final buf = StringBuffer();
+  var quoted = false;
+  var pending = false; // a closed empty quote still yields an argument
+  for (var i = 0; i < template.length; i++) {
+    final c = template[i];
+    if (c == '"') {
+      quoted = !quoted;
+      pending = true;
+    } else if (c == ' ' && !quoted) {
+      if (pending || buf.isNotEmpty) argv.add(buf.toString());
+      buf.clear();
+      pending = false;
+    } else {
+      buf.write(c);
+    }
+  }
+  if (pending || buf.isNotEmpty) argv.add(buf.toString());
+  return [for (final a in argv) a.replaceAll('{file}', file).replaceAll('{line}', '$line')];
 }
 
 /// The report: the suite state plus the requirements trace

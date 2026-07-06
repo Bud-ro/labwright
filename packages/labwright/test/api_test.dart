@@ -331,6 +331,38 @@ void main() {
       final badRes = await action({'type': 'button', 'index': 9});
       expect(badRes.statusCode, 409);
       await badRes.drain<void>();
+
+      // The action's execution — including its log() lines — landed in the
+      // Log feed, as the button() docs promise. A fresh SSE client replays
+      // the history, so read its `hist` reset frame.
+      final events = await (await client.getUrl(Uri.parse('http://localhost:$p/events'))).close();
+      final got = Completer<List<Map<String, Object?>>>();
+      final buf = StringBuffer();
+      final sub = events.transform(utf8.decoder).listen((chunk) {
+        buf.write(chunk);
+        for (final frame in buf.toString().split('\n\n')) {
+          if (!frame.startsWith('event: hist')) continue;
+          final dataLine = frame.split('\n').firstWhere((l) => l.startsWith('data: '), orElse: () => '');
+          if (dataLine.isEmpty) continue;
+          try {
+            final data = (jsonDecode(dataLine.substring(6)) as Map).cast<String, Object?>();
+            if (data['reset'] == true && !got.isCompleted) {
+              got.complete((data['entries'] as List).cast<Map<String, Object?>>());
+            }
+          } catch (_) {
+            /* partial frame — wait for more */
+          }
+        }
+      });
+      final entries = await got.future.timeout(const Duration(seconds: 30));
+      final record = entries.firstWhere((e) => e['name'] == 'button: reset rig');
+      expect(record['status'], 'passed');
+      expect(
+        (record['logs'] as List).map((l) => (l as Map)['m']),
+        ['rig reset'],
+        reason: 'a button action streams its log() lines to the Log feed',
+      );
+      await sub.cancel();
       client.close(force: true);
     } finally {
       process.kill();
@@ -340,9 +372,11 @@ void main() {
 
   test('open-in-editor + seed replay: source locations, reseed, editor launch', () async {
     final tmp = Directory.systemTemp.createTempSync('lw_');
-    // A recorder standing in for the editor (POSIX only — bash script).
+    // A recorder standing in for the editor (POSIX only — bash script), in a
+    // directory WITH A SPACE: the editor template must express it via quotes.
     final opened = File('${tmp.path}/opened.txt');
-    final rec = File('${tmp.path}/rec.sh')
+    final rec = File('${tmp.path}/editor dir/rec.sh')
+      ..createSync(recursive: true)
       ..writeAsStringSync('#!/usr/bin/env bash\nprintf "%s" "\$*" > "${opened.path}"\n');
     final posix = !Platform.isWindows;
     if (posix) Process.runSync('chmod', ['+x', rec.path]);
@@ -353,7 +387,7 @@ void main() {
         '-Dlabwright.interactive=true',
         '-Dlabwright.identity=false', // hashes not asserted here — skip the hasher isolate
         '-Dlabwright.seed=0',
-        if (posix) '-Dlabwright.editor=${rec.path} {file} {line}',
+        if (posix) '-Dlabwright.editor="${rec.path}" {file} {line}',
         'test/fixtures/green_e2e.dart',
       ], workingDirectory: pkgRoot);
       try {
