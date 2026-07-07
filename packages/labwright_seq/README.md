@@ -18,6 +18,20 @@ for (final seq in f.sequences) {
 }
 ```
 
+## Writing
+
+`writeSeqFileXml(SeqFile)` and `writeIniSeq(IniSeqFile)` write the two text
+flavors back out, proven **byte-exact** over the whole corpus (36/36 XML,
+58/58 INI): `write(parse(f)) == f`. Every byte the writer could not reproduce
+was treated as a reader/model bug and fixed, so the model now retains
+elemproto trees, verbatim array bounds, extdata, numeric formats, protected
+typelist blobs, interleaved INI line order, quoting, 120-char continuation
+splits, and per-file line terminators. INI writing works at the
+`IniSeqFile` section level deliberately: the derived property tree is
+inheritance-expanded, and writing it would fabricate lines the source file
+omits. Binary `TOF1` writing is out of scope until the binary model is
+complete.
+
 ## Notes On Development
 
 There are plenty of sequences available online, with paired documentation. 

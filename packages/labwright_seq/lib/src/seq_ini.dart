@@ -43,6 +43,33 @@ import 'seq_step.dart';
 /// (type inheritance, arrays, instance overrides, comments) — **fully decoded**
 /// across the corpus (58/58), feeding the same typed lens as the XML form.
 
+/// One `key = value` line of an INI section, VERBATIM: [key] is the full
+/// left-hand side (member name or `%`-directive), [rawValue] is the exact text
+/// after the ` = ` separator — quoting and C-style escapes intact, `KEY LineNNNN`
+/// continuation fragments already rejoined (see `_reassembleEntryList`). The
+/// ordered entry list is a section's writing source of truth: members and
+/// directives INTERLEAVE freely in real files (e.g. `LoadOpt = "..."`
+/// immediately followed by `%FLG: LoadOpt = ...`; 7184 corpus sections
+/// interleave), which the split [IniSection.members]/[IniSection.directives]
+/// maps cannot represent.
+class IniEntry {
+  const IniEntry(this.key, this.rawValue);
+
+  /// The full left-hand side: a member name (`Version`), a bare directive
+  /// (`%NAME`), or a scoped directive (`%FLG: Seq`).
+  final String key;
+
+  /// The exact right-hand side text: quoted values keep their quotes and
+  /// escapes (`"0.0.0.0"`, `"a\nb"`), bare tokens stay bare (`4194304`).
+  final String rawValue;
+
+  /// True when the entry is a `%`-directive rather than a plain member.
+  bool get isDirective => key.startsWith('%');
+
+  @override
+  String toString() => 'IniEntry($key = $rawValue)';
+}
+
 /// One `[...]` block of an INI `.seq`: a value instance (`[path]`), a type
 /// definition (`[DEF, path]`), or an external-adapter data blob
 /// (`[EXTDATA, path, KIND]`, see [extDataKind]).
@@ -50,10 +77,10 @@ class IniSection {
   IniSection({
     required this.isDef,
     required this.path,
-    required this.members,
-    required this.directives,
+    required this.entries,
     this.extDataKind,
-  });
+  }) : members = _selectEntries(entries, directives: false),
+       directives = _selectEntries(entries, directives: true);
 
   /// True for a `[DEF, path]` section (member→type declarations); false for a
   /// `[path]` value instance (member→value).
@@ -73,12 +100,21 @@ class IniSection {
   /// True for an `[EXTDATA, path, KIND]` section.
   bool get isExtData => extDataKind != null;
 
+  /// EVERY `key = value` line of the section in DOCUMENT ORDER, members and
+  /// directives interleaved exactly as on disk, values verbatim (continuation
+  /// fragments rejoined). The writer's source of truth; [members] and
+  /// [directives] are derived indexes over it.
+  final List<IniEntry> entries;
+
   /// Plain `member = value` (value section) or `member = TypeName` (DEF section)
-  /// lines, excluding the `%`-directives. Insertion order preserved.
+  /// lines, excluding the `%`-directives. Insertion order preserved. Derived
+  /// from [entries] (a duplicate key — unobserved in the corpus — keeps the
+  /// last occurrence here; [entries] retains all).
   final Map<String, String> members;
 
   /// The `%`-directives, keyed by their full left-hand side, e.g.
-  /// `%NAME`, `%FLG: Seq`, `%HI: Main`, `%TYPE: %[0]`, `%[0]`.
+  /// `%NAME`, `%FLG: Seq`, `%HI: Main`, `%TYPE: %[0]`, `%[0]`. Derived from
+  /// [entries] like [members].
   final Map<String, String> directives;
 
   /// This object's display name (`%NAME = "..."`), unquoted, or null.
@@ -88,6 +124,12 @@ class IniSection {
   String toString() =>
       'IniSection(${isDef ? 'DEF ' : ''}$path, ${members.length} members, '
       '${directives.length} directives)';
+
+  /// Splits [entries] into the member/directive index for the derived maps.
+  static Map<String, String> _selectEntries(List<IniEntry> entries, {required bool directives}) => {
+    for (final e in entries)
+      if (e.isDirective == directives) e.key: e.rawValue,
+  };
 }
 
 /// A parsed legacy INI `.seq`: its header plus every section in document order.
@@ -96,6 +138,7 @@ class IniSeqFile {
     required this.header,
     required this.headerFields,
     required this.sections,
+    this.lineTerminator = '\n',
   });
 
   /// Header recovered from `[__Header__]` (format [SeqFormat.ini]).
@@ -104,8 +147,14 @@ class IniSeqFile {
   /// EVERY `[__Header__]` field verbatim (key → raw value, insertion order),
   /// beyond the few [header] surfaces — e.g. `Path`, `ProductVersion`.
   /// Continuation lines (`Path Line0001` …) are reassembled the same way as
-  /// section values.
+  /// section values. Header keys are unique across the corpus, so the ordered
+  /// map is a faithful record of the header block.
   final Map<String, String> headerFields;
+
+  /// The file's line terminator, replayed verbatim by the writer. Corpus:
+  /// 57/58 files use `\n`; exactly one (`KernelTestSequence.seq`) uses `\r\n`;
+  /// none mix terminators.
+  final String lineTerminator;
 
   /// All `[...]` / `[DEF, ...]` / `[EXTDATA, ...]` sections in order (header
   /// section excluded).
@@ -122,11 +171,11 @@ IniSeqFile parseIniSeqBytes(Uint8List bytes) => parseIniSeq(latin1.decode(bytes,
 
 /// Parses the text of a legacy INI `.seq` into its header and sections.
 IniSeqFile parseIniSeq(String text) {
-  final headerFields = <String, String>{};
-  final sections = <IniSection>[];
+  final headerEntries = <IniEntry>[];
+  final rawSections = <_RawSection>[];
 
   bool inHeader = false;
-  IniSection? current;
+  _RawSection? current;
 
   for (final rawLine in const LineSplitter().convert(text)) {
     final line = rawLine.trimRight();
@@ -153,14 +202,8 @@ IniSeqFile parseIniSeq(String text) {
           extDataKind = rest.substring(kindComma + 1).trim();
         }
       }
-      current = IniSection(
-        isDef: isDef,
-        path: path,
-        members: <String, String>{},
-        directives: <String, String>{},
-        extDataKind: extDataKind,
-      );
-      sections.add(current);
+      current = _RawSection(isDef: isDef, path: path, extDataKind: extDataKind);
+      rawSections.add(current);
       continue;
     }
     final eq = line.indexOf(' = ');
@@ -170,62 +213,93 @@ IniSeqFile parseIniSeq(String text) {
     final key = line.substring(0, eq).trim();
     final value = line.substring(eq + ' = '.length);
     if (inHeader) {
-      headerFields[key] = value;
+      headerEntries.add(IniEntry(key, value));
     } else if (current != null) {
-      (key.startsWith('%') ? current.directives : current.members)[key] = value;
+      current.entries.add(IniEntry(key, value));
     }
   }
-  // Header fields split across `KEY LineNNNN` continuation lines (corpus: a
-  // long `Path`) are reassembled exactly like section values.
-  _reassembleContinuations(headerFields);
-  for (final section in sections) {
-    _reassembleContinuations(section.members);
-    _reassembleContinuations(section.directives);
-  }
+  // Values split across `KEY LineNNNN` continuation lines (header fields and
+  // section entries alike) are rejoined in place, at the first fragment's
+  // document position.
+  final headerFields = <String, String>{
+    for (final e in _reassembleEntryList(headerEntries)) e.key: e.rawValue,
+  };
   return IniSeqFile(
     header: _headerFrom(headerFields),
     headerFields: headerFields,
-    sections: sections,
+    sections: [
+      for (final raw in rawSections)
+        IniSection(
+          isDef: raw.isDef,
+          path: raw.path,
+          entries: _reassembleEntryList(raw.entries),
+          extDataKind: raw.extDataKind,
+        ),
+    ],
+    // The corpus never mixes terminators within one file (57 pure-LF, 1 pure
+    // CRLF), so one sniff classifies the whole file.
+    lineTerminator: text.contains('\r\n') ? '\r\n' : '\n',
   );
+}
+
+/// Parser scratch for a section whose entries are still accumulating (the
+/// public [IniSection] derives its member/directive indexes at construction,
+/// so it wants the final, continuation-rejoined entry list).
+class _RawSection {
+  _RawSection({required this.isDef, required this.path, required this.extDataKind});
+
+  final bool isDef;
+  final String path;
+  final String? extDataKind;
+  final List<IniEntry> entries = [];
 }
 
 /// Matches a continuation key: a base key plus a 4-digit ` LineNNNN` suffix.
 final _continuationKey = RegExp(r'^(.+) Line(\d+)$');
 
-/// Reassembles split long values in [map] (a section's members or directives).
+/// Reassembles split long values in an ordered [entries] list (a section's
+/// lines or the header block's), returning a new list with each fragment group
+/// collapsed into one entry at the FIRST fragment's position.
 ///
-/// NI splits a value past a line-length cap across continuation lines named
-/// `KEY Line0001`, `KEY Line0002`, … — the base key with a ` LineNNNN` suffix —
-/// each holding a separately-quoted fragment of the whole. This rejoins them, in
-/// numeric order, into the single base key `KEY` whose value is the fragments'
-/// inner text concatenated with no separator and rewrapped in one pair of quotes.
-/// Verified across the full corpus (19818 fragments, all quoted, all contiguous
-/// from 0001, never coexisting with a bare base key). Single-line values, which
-/// never match the suffix, are left untouched.
-void _reassembleContinuations(Map<String, String> map) {
+/// NI splits a quoted value whose inner (escaped) text exceeds 120 characters
+/// across continuation lines named `KEY Line0001`, `KEY Line0002`, … — the base
+/// key with a ` LineNNNN` suffix — each holding a separately-quoted 120-char
+/// fragment of the escaped text (the last holds the 1–120-char remainder; an
+/// exact multiple of 120 ends with a full 120-char fragment, never an empty
+/// one). The chunking is escape-BLIND: a `\"`/`\\` pair may straddle a fragment
+/// boundary, so fragments are rejoined on the raw escaped text, never unescaped
+/// individually. This rejoins them, in numeric order, into the single base key
+/// `KEY` whose value is the fragments' inner text concatenated with no
+/// separator and rewrapped in one pair of quotes. Verified across the full
+/// corpus (19820 fragments in 1925 groups: all quoted, all contiguous from
+/// 0001, document-adjacent, never coexisting with a bare base key; every
+/// non-final fragment inner exactly 120 chars; no unsplit quoted inner exceeds
+/// 120; the longest bare value is 23 chars). Single-line values, which never
+/// match the suffix, are left untouched. The inverse split lives in the writer
+/// (`writeIniSeq`).
+List<IniEntry> _reassembleEntryList(List<IniEntry> entries) {
   Map<String, List<(int, String)>>? groups;
-  for (final key in map.keys) {
-    final match = _continuationKey.firstMatch(key);
+  for (final entry in entries) {
+    final match = _continuationKey.firstMatch(entry.key);
     if (match == null) continue;
-    (groups ??= {}).putIfAbsent(match.group(1)!, () => []).add((int.parse(match.group(2)!), map[key]!));
+    (groups ??= {}).putIfAbsent(match.group(1)!, () => []).add((int.parse(match.group(2)!), entry.rawValue));
   }
-  if (groups == null) return;
-  final rebuilt = <String, String>{};
-  for (final entry in map.entries) {
+  if (groups == null) return entries;
+  final rebuilt = <IniEntry>[];
+  final joined = <String>{};
+  for (final entry in entries) {
     final match = _continuationKey.firstMatch(entry.key);
     if (match == null) {
-      rebuilt[entry.key] = entry.value;
+      rebuilt.add(entry);
       continue;
     }
     final base = match.group(1)!;
-    if (!rebuilt.containsKey(base)) {
+    if (joined.add(base)) {
       final frags = groups[base]!..sort((a, b) => a.$1.compareTo(b.$1));
-      rebuilt[base] = _joinFragments(frags.map((f) => f.$2));
+      rebuilt.add(IniEntry(base, _joinFragments(frags.map((f) => f.$2))));
     }
   }
-  map
-    ..clear()
-    ..addAll(rebuilt);
+  return rebuilt;
 }
 
 /// Joins quoted continuation [fragments] into one value: strips each fragment's

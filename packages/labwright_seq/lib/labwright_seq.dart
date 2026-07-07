@@ -25,3 +25,4 @@ export 'src/seq_property.dart';
 export 'src/seq_step.dart';
 export 'src/seq_typedefs.dart';
 export 'src/seq_write.dart';
+export 'src/seq_write_ini.dart';
