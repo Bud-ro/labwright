@@ -13,8 +13,16 @@
 ///    applied OUTSIDE string literals only); anything beyond that is preserved
 ///    verbatim in a `ts.eval('…')` call so no logic is silently dropped or
 ///    guessed.
+///  * Sequence-call parameter bindings become real Dart named arguments
+///    against the callee's generated signature (`UseDef` rows are omitted —
+///    exact via the declared default); an argument beyond mechanical
+///    translation rides in a `ts.eval` value, and a scalar bound by
+///    reference to a parameter the callee assigns is stated (writeback is
+///    not exported).
 ///  * Code-module steps become stub invocations; each unique module gets one
 ///    stub function that throws [UnimplementedError] with the original target.
+///    An external-sequence stub carries a typed signature recovered from the
+///    call sites' prototype snapshots.
 ///  * Steps whose type carries no exportable action are kept as comments —
 ///    present, ordered, and labeled, never invented.
 ///
@@ -31,8 +39,10 @@ import 'seq_step.dart';
 import 'seq_typedefs.dart';
 
 /// Exports [file] as self-contained Dart source. [sourceName] labels the
-/// header comment (typically the input file name).
-String exportSeqFileToDart(SeqFile file, {String? sourceName}) => _DartExporter(file, sourceName: sourceName).export();
+/// header comment (typically the input file name). [stats] (optional)
+/// collects the call-parameter translation counters.
+String exportSeqFileToDart(SeqFile file, {String? sourceName, SeqExportStats? stats}) =>
+    _DartExporter(file, sourceName: sourceName, stats: stats).export();
 
 /// Exports [file] as a **labwright E2E program** — the same exported logic as
 /// [exportSeqFileToDart] plus a generated `main()` that turns each **root**
@@ -55,8 +65,45 @@ String exportSeqFileToDart(SeqFile file, {String? sourceName}) => _DartExporter(
 ///  * Requirement tracing IDs (`Requirements.Links`) attach to TESTS: each
 ///    test carries the union of the links declared by every sequence and
 ///    step it reaches — the runner's report traces them.
-String exportSeqFileToLabwright(SeqFile file, {String? sourceName}) =>
-    _DartExporter(file, sourceName: sourceName, asTest: true).export();
+String exportSeqFileToLabwright(SeqFile file, {String? sourceName, SeqExportStats? stats}) =>
+    _DartExporter(file, sourceName: sourceName, asTest: true, stats: stats).export();
+
+/// Counters the exporter fills while translating SequenceCall argument
+/// bindings — the corpus tests print and gate on them. Passing one to
+/// [exportSeqFileToDart] / [exportSeqFileToLabwright] is optional and
+/// purely observational (the same instance can accumulate across files).
+class SeqExportStats {
+  /// SequenceCall sites emitted (every target kind).
+  int callSites = 0;
+
+  /// Sites that bind at least one argument row (excluding the
+  /// expression-form targets, which stay disarmed untranslated).
+  int boundSites = 0;
+
+  /// Bound sites whose target is a sequence in the same file.
+  int localBoundSites = 0;
+
+  /// Local bound sites emitted with NO per-site call-parameter disarm —
+  /// the sites call-parameter export re-arms. (A ts.eval VALUE among the
+  /// arguments may still disarm the owning test via the hazard scan.)
+  int localBoundSitesRearmed = 0;
+
+  /// Argument rows omitted because the call defers to the callee's
+  /// declared default (`UseDef` — exact by omission: the generated
+  /// callee signature carries that default).
+  int argsByOmission = 0;
+
+  /// Argument rows translated to real Dart named arguments.
+  int argsTranslated = 0;
+
+  /// Emitted argument rows whose VALUE is a ts.eval fallback (honest —
+  /// the expression rides verbatim; suite mode disarms the owning test).
+  int argsEvalFallback = 0;
+
+  /// Per-site call-parameter disarms, counted by reason kind
+  /// (`unknown parameter`, `type guard`, `by-ref writeback`, …).
+  final Map<String, int> siteDisarms = {};
+}
 
 /// A multi-file project export: generated sources by output path.
 class SeqProjectExport {
@@ -71,8 +118,9 @@ class SeqProjectExport {
 
 /// Exports several sequence files as ONE labwright E2E project, so an
 /// external SequenceCall whose target file is in the set binds to that
-/// module's real exported function (`await other_module.fn();`) instead
-/// of a stub. [byPath] keys are '/'-separated relative paths (as the
+/// module's real exported function — bound arguments included, against
+/// the callee module's PREDICTED parameter scope
+/// (`await other_module.fn(container: c);`) — instead of a stub. [byPath] keys are '/'-separated relative paths (as the
 /// files reference each other); targets outside the set keep stubs.
 /// Resolution: exact caller-relative path first, then a unique
 /// case-insensitive basename match (TestStand resolves bare basenames
@@ -108,13 +156,24 @@ SeqProjectExport exportSeqProjectToLabwright(Map<String, SeqFile> byPath) {
     for (final key in ordered) key: '${_uniqueName(snake(stemOf(key)), takenStems)}_seq',
   };
 
-  // Each module's sequence → function-name table, computed by the SAME
-  // routine the exporter assigns with ([_sequenceFnTable] over the same
-  // reserved-name seed) — a prediction that cannot drift.
-  final fnOf = {
-    for (final key in ordered)
-      key: _sequenceFnTable(byPath[key]!, _reservedTopLevelNames(asTest: true, registerName: 'register')),
-  };
+  // Each module's sequence → function-name table AND per-sequence scope
+  // (parameter ids + refined types), computed by the SAME routines the
+  // exporter assigns with ([_sequenceFnTable] / [_sequenceScopeTable]
+  // over the same reserved-name seed) — predictions that cannot drift,
+  // so a cross-module call can bind REAL named arguments.
+  final fnOf = <String, Map<String, String>>{};
+  final scopeByNameOf = <String, Map<String, _SeqScope>>{};
+  for (final key in ordered) {
+    final taken = _reservedTopLevelNames(asTest: true, registerName: 'register');
+    final file = byPath[key]!;
+    fnOf[key] = _sequenceFnTable(file, taken);
+    final scopes = _sequenceScopeTable(file, taken, sourceName: key);
+    final byName = <String, _SeqScope>{};
+    for (var i = 0; i < file.sequences.length; i++) {
+      byName.putIfAbsent(file.sequences[i].name, () => scopes[i]);
+    }
+    scopeByNameOf[key] = byName;
+  }
 
   final lowerByBase = <String, List<String>>{};
   for (final key in ordered) {
@@ -159,9 +218,10 @@ SeqProjectExport exportSeqProjectToLabwright(Map<String, SeqFile> byPath) {
     return sameDir.length == 1 ? sameDir.single : null;
   }
 
-  // (callerKey, targetFileRef|seqName) → 'prefix.fn', per-file imports,
-  // and the globally-called sequence set (those are not roots).
-  final resolvedOf = <String, Map<String, String>>{};
+  // (callerKey, targetFileRef|seqName) → the callee's 'prefix.fn' plus
+  // its predicted scope (named-argument binding), per-file imports, and
+  // the globally-called sequence set (those are not roots).
+  final resolvedOf = <String, Map<String, _ResolvedCall>>{};
   final importsOf = <String, Set<String>>{};
   final externallyCalledOf = <String, Set<String>>{};
   for (final key in ordered) {
@@ -178,7 +238,7 @@ SeqProjectExport exportSeqProjectToLabwright(Map<String, SeqFile> byPath) {
         final fn = fnOf[targetKey]![target];
         if (fn == null) continue; // named sequence absent → stub
         final prefix = moduleOf[targetKey]!;
-        (resolvedOf[key] ??= {})['$sf|$target'] = '$prefix.$fn';
+        (resolvedOf[key] ??= {})['$sf|$target'] = (fn: '$prefix.$fn', scope: scopeByNameOf[targetKey]![target]!);
         (importsOf[key] ??= {}).add(targetKey);
         (externallyCalledOf[targetKey] ??= {}).add(target);
       }
@@ -259,7 +319,7 @@ SeqProjectExport exportSeqProjectToLabwright(Map<String, SeqFile> byPath) {
       for (final dep in (importsOf[key] ?? const <String>{}).toList()..sort())
         "import '${moduleOf[dep]!}.dart' as ${moduleOf[dep]!};",
     ];
-    final resolved = resolvedOf[key] ?? const <String, String>{};
+    final resolved = resolvedOf[key] ?? const <String, _ResolvedCall>{};
     files['$module.dart'] = _DartExporter(
       byPath[key]!,
       sourceName: key,
@@ -387,6 +447,640 @@ Map<String, String> _sequenceFnTable(SeqFile file, Set<String> taken) {
     table[sequence.name] = _uniqueName(dartIdentifier(sequence.name), taken);
   }
   return table;
+}
+
+/// Splits [text] into alternating non-string / string-literal segments so
+/// rewrites touch only code, never quoted content (review finding: True/
+/// False and root rewriting corrupted string constants).
+List<(String, bool)> _segments(String text) {
+  final out = <(String, bool)>[];
+  var start = 0;
+  var i = 0;
+  while (i < text.length) {
+    final c = text[i];
+    if (c == '"' || c == "'") {
+      if (i > start) out.add((text.substring(start, i), false));
+      final quote = c;
+      var j = i + 1;
+      while (j < text.length) {
+        if (text[j] == r'\') {
+          j += 2; // consume the escape pair (fixes even-backslash endings)
+          continue;
+        }
+        if (text[j] == quote) break;
+        j++;
+      }
+      j = j < text.length ? j + 1 : text.length;
+      out.add((text.substring(i, j), true));
+      start = j;
+      i = j;
+    } else {
+      i++;
+    }
+  }
+  if (start < text.length) out.add((text.substring(start), false));
+  return out;
+}
+
+/// Strips TestStand `//` and `/* */` comments from code (non-string)
+/// segments — comments are non-semantic, and a surviving `//` would
+/// swallow the generated line tail after newline flattening.
+String _stripComments(String text) {
+  // Single-pass scanner: string literals copy through escape-aware
+  // (a quote INSIDE a /* */ comment must not open a bogus string, and
+  // a /* inside a string must not open a comment — segment-based
+  // stripping got both wrong).
+  final out = StringBuffer();
+  var i = 0;
+  while (i < text.length) {
+    final c = text[i];
+    if (c == '"' || c == "'") {
+      out.write(c);
+      i++;
+      while (i < text.length) {
+        out.write(text[i]);
+        if (text[i] == r'\') {
+          if (i + 1 < text.length) out.write(text[i + 1]);
+          i += 2;
+          continue;
+        }
+        final closed = text[i] == c;
+        i++;
+        if (closed) break;
+      }
+      continue;
+    }
+    if (c == '/' && i + 1 < text.length && text[i + 1] == '/') {
+      while (i < text.length && text[i] != '\n' && text[i] != '\r') {
+        i++;
+      }
+      continue;
+    }
+    if (c == '/' && i + 1 < text.length && text[i + 1] == '*') {
+      final end = text.indexOf('*/', i + 2);
+      out.write(' ');
+      i = end < 0 ? text.length : end + 2;
+      continue;
+    }
+    out.write(c);
+    i++;
+  }
+  return out.toString();
+}
+
+/// Unwraps `#NoValidation(...)`: it suppresses EDIT-TIME expression
+/// validation only — runtime semantics are the identity, so stripping
+/// the wrapper is lossless.
+String _stripNoValidation(String text) {
+  const marker = '#NoValidation(';
+  var result = text;
+  var at = result.indexOf(marker);
+  while (at >= 0) {
+    var depth = 1;
+    var i = at + marker.length;
+    while (i < result.length && depth > 0) {
+      if (result[i] == '(') depth++;
+      if (result[i] == ')') depth--;
+      i++;
+    }
+    if (depth != 0) return text; // unbalanced — leave for the eval fallback
+    result = result.substring(0, at) + result.substring(at + marker.length, i - 1) + result.substring(i);
+    at = result.indexOf(marker);
+  }
+  return result;
+}
+
+/// Splits [text] at every comma that sits at bracket depth ≤ 0 outside
+/// string literals — one part means "no top-level comma". Depth carries
+/// ACROSS string-literal boundaries: in `f(a + "s"), b` the comma's
+/// depth is only correct when the `(` from the first code segment is
+/// still counted after the string (review-class bug: per-segment depth
+/// read `),` as depth -1 and missed the top-level comma). The ONE
+/// comma scanner — `_expr`'s fallback gate and [_rawStmtPieces] share it.
+List<String> _splitTopLevelCommas(String text) {
+  final parts = <String>[];
+  var depth = 0;
+  var start = 0;
+  var consumed = 0;
+  for (final (segment, isString) in _segments(text)) {
+    if (!isString) {
+      for (var i = 0; i < segment.length; i++) {
+        switch (segment[i]) {
+          case '(' || '[' || '{':
+            depth++;
+          case ')' || ']' || '}':
+            depth--;
+          case ',':
+            if (depth <= 0) {
+              parts.add(text.substring(start, consumed + i));
+              start = consumed + i + 1;
+            }
+        }
+      }
+    }
+    consumed += segment.length;
+  }
+  parts.add(text.substring(start));
+  return parts;
+}
+
+/// The comma-split raw pieces of a statement expression (comment/
+/// NoValidation-stripped), or null when a piece is mis-sliced (quotes/
+/// brackets unbalanced) and the whole raw must translate as one.
+List<String>? _rawStmtPieces(String raw) {
+  final cleaned = _stripNoValidation(_stripComments(raw));
+  final parts = _splitTopLevelCommas(cleaned);
+  bool balanced(String p) {
+    var d = 0;
+    for (final (seg, isString) in _segments(p)) {
+      if (isString) continue;
+      for (var i = 0; i < seg.length; i++) {
+        if (seg[i] == '(' || seg[i] == '[' || seg[i] == '{') d++;
+        if (seg[i] == ')' || seg[i] == ']' || seg[i] == '}') d--;
+        if (d < 0) return false;
+      }
+    }
+    // A piece ending inside an unterminated string shows up as a
+    // string segment missing its close quote — _segments absorbs to
+    // the end, so check the piece's own quote parity cheaply.
+    return d == 0 && '"'.allMatches(p.replaceAll(r'\"', '')).length.isEven;
+  }
+
+  if (parts.length > 1 && !parts.every(balanced)) {
+    return null; // a piece mis-sliced — do not split
+  }
+  return parts;
+}
+
+/// The Dart (type, zero-default) for a TestStand value class, or null when
+/// the class has no scalar Dart form (containers/refs stay `dynamic` so
+/// exported member paths compile via dynamic dispatch — `Object?` would
+/// reject `.member` at compile time).
+(String, String)? _scalarType(SeqVariable v) => switch (v.raw.className) {
+  'Num' => ('double', '0'),
+  'Bool' || 'Boolean' => ('bool', 'false'),
+  'Str' || 'ExprValue' || 'PathValue' => ('String', "''"),
+  _ => null,
+};
+
+/// Whether the variable is a TestStand array (`Nums`/`Strs`/`Objs`/
+/// `Containers` — any `s`-suffixed array class or an explicit array value).
+bool _isArrayVar(SeqVariable v) =>
+    v.raw.array != null || const {'Nums', 'Strs', 'Objs', 'Containers'}.contains(v.raw.className);
+
+/// Escapes [s] for a single-quoted generated Dart string literal.
+String _escape(String s) => s
+    .replaceAll(r'\', r'\\')
+    .replaceAll("'", r"\'")
+    .replaceAll(r'$', r'\$')
+    .replaceAll('\n', r'\n')
+    .replaceAll('\r', r'\r');
+
+/// The initializer for a scalar-typed variable: the declared default when
+/// it is a valid literal of the type, else the class zero (with the
+/// original kept in a comment by the caller via `_typeComment` — a default
+/// that is an expression can't be a Dart initializer).
+String _scalarInit(SeqVariable v, String type, String zero) {
+  final value = v.value;
+  if (value == null) return zero;
+  switch (type) {
+    case 'int':
+      // Only reachable for a refined int candidate — integral by
+      // construction ([_refineIntTypes] checked the declared default).
+      final i = num.tryParse(value);
+      return i == null ? zero : i.toInt().toString();
+    case 'double':
+      final n = num.tryParse(value);
+      if (n == null) return zero; // non-literal default; raw kept in comment
+      return _numLiteral(n);
+    case 'bool':
+      final lower = value.toLowerCase();
+      if (lower == 'true') return 'true';
+      if (lower == 'false') return 'false';
+      return zero; // non-literal default; raw kept in comment
+    default:
+      return "'${_escape(value)}'";
+  }
+}
+
+/// The declared Dart type of a stub parameter recovered from a call
+/// site's prototype snapshot ('double' | 'bool' | 'String' | 'List' |
+/// 'dynamic') — no int refinement (the callee's body is not available
+/// to prove integrality).
+String _stubParamType(SeqVariable p) {
+  final scalar = _scalarType(p);
+  if (scalar != null) return scalar.$1;
+  return _isArrayVar(p) ? 'List' : 'dynamic';
+}
+
+/// A stub parameter declaration from a prototype snapshot: scalars are
+/// non-nullable with the snapshot's declared default (or the class zero),
+/// arrays nullable, containers `dynamic` — mirroring the sequence
+/// parameter shape minus the int refinement and the `??=` preamble (a
+/// stub body throws; nothing reads an array default).
+String _stubParamDecl(SeqVariable p, String id) {
+  final scalar = _scalarType(p);
+  if (scalar != null) {
+    final (type, zero) = scalar;
+    return '$type $id = ${_scalarInit(p, type, zero)}';
+  }
+  if (_isArrayVar(p)) return 'List<dynamic>? $id';
+  return 'dynamic $id';
+}
+
+/// Whether a raw TestStand expression is a plain VARIABLE PATH (a
+/// writable location — `Locals.X.Y`, `FileGlobals.Z[2]`) rather than a
+/// computed value: the shape the engine binds BY REFERENCE into a
+/// sequence-call parameter.
+bool _isVariablePath(String raw) => RegExp(
+  r'^(Locals|Parameters|FileGlobals|StationGlobals|RunState)'
+  r'(\.[A-Za-z_][A-Za-z0-9_]*(\[[0-9]+\])?)+$',
+  caseSensitive: false,
+).hasMatch(raw.trim());
+
+/// One generated stub's accumulated call-site knowledge: the minted
+/// function name and, for an external-sequence stub, the parameter
+/// surface recovered from the call sites' prototype snapshots
+/// (`SData.Prototype` — TestStand copies the callee's parameter list
+/// onto each call site) and bound argument rows. The signature renders
+/// once every site is seen: TYPED from the snapshot when every site
+/// carries the same one (1326/1326 external bound corpus sites carry a
+/// prototype; none disagree), else the dynamic name union — so
+/// implementing the stub is implementing a real function.
+class _StubInfo {
+  _StubInfo({
+    required this.name,
+    required this.isSeq,
+    required this.adapter,
+    required this.target,
+    required this.firstStepName,
+  });
+
+  final String name;
+  final bool isSeq;
+  final String adapter;
+  final String target;
+  final String firstStepName;
+
+  /// Lowercased parameter name → claimed Dart id, in first-seen order —
+  /// the signature's parameter union.
+  final Map<String, String> _idOf = {};
+  final Set<String> _takenIds = {};
+
+  /// Lowercased name → the FIRST prototype snapshot declaring it (the
+  /// typed declaration source).
+  final Map<String, SeqVariable> _protoVarOf = {};
+
+  /// The first snapshot's `name|class` list; null until a site carries one.
+  List<String>? _protoShape;
+
+  /// Every snapshot matched [_protoShape] and every arg-binding site
+  /// carried one — the condition for a TYPED signature (a site that
+  /// binds arguments UNTYPED could otherwise pass a value the typed
+  /// signature rejects at compile time).
+  bool _agree = true;
+
+  bool get typed => _agree && _protoShape != null;
+
+  String _claim(String display) =>
+      _idOf.putIfAbsent(display.toLowerCase(), () => _uniqueName(dartIdentifier(display), _takenIds));
+
+  /// Records one call site's parameter knowledge.
+  void note(StepModule module) {
+    final proto = module.prototypeParameters;
+    if (proto.isNotEmpty) {
+      final shape = [for (final p in proto) '${p.name.toLowerCase()}|${p.raw.className}'];
+      if (_protoShape == null) {
+        _protoShape = shape;
+      } else if (_protoShape!.join(' ') != shape.join(' ')) {
+        _agree = false;
+      }
+      for (final p in proto) {
+        _claim(p.name);
+        _protoVarOf.putIfAbsent(p.name.toLowerCase(), () => p);
+      }
+    } else if (module.sequenceArguments.isNotEmpty) {
+      _agree = false; // an arg-binding site with no snapshot: untyped
+    }
+    for (final a in module.sequenceArguments) {
+      _claim(a.name);
+    }
+  }
+
+  /// The site-local binding table for `_renderCallArgs`: this site's own
+  /// snapshot types when it has one — conservative, since the final
+  /// signature is either identically typed or loosened to dynamic —
+  /// else all-dynamic over the site's own rows.
+  Map<String, ({String id, String type})> paramTableFor(StepModule module) {
+    final proto = module.prototypeParameters;
+    if (proto.isNotEmpty) {
+      return {
+        for (final p in proto) p.name.toLowerCase(): (id: _idOf[p.name.toLowerCase()]!, type: _stubParamType(p)),
+      };
+    }
+    return {
+      for (final a in module.sequenceArguments)
+        if (_idOf.containsKey(a.name.toLowerCase()))
+          a.name.toLowerCase(): (id: _idOf[a.name.toLowerCase()]!, type: 'dynamic'),
+    };
+  }
+
+  /// The rendered parameter declarations, in snapshot order when [typed]
+  /// (stale bound names were disarmed at their sites and are NOT added
+  /// to a typed signature), else the observed union as `dynamic`.
+  List<String> signatureDecls() {
+    if (!isSeq || _idOf.isEmpty) return const [];
+    if (typed) {
+      return [
+        for (final key in _protoShape!)
+          _stubParamDecl(
+            _protoVarOf[key.substring(0, key.indexOf('|'))]!,
+            _idOf[key.substring(0, key.indexOf('|'))]!,
+          ),
+      ];
+    }
+    return [for (final id in _idOf.values) 'dynamic $id'];
+  }
+}
+
+/// A project-resolved external SequenceCall: the sibling module's
+/// `prefix.fn` reference plus that sequence's predicted [_SeqScope]
+/// (parameter ids and types — what a bound argument list binds against).
+typedef _ResolvedCall = ({String fn, _SeqScope scope});
+
+/// One sequence's generated Dart scope, computed by [_sequenceScopeTable]
+/// BEFORE any body emits: the deduplicated declarations, their claimed
+/// Dart identifiers, and each identifier's declared type (int refinement
+/// applied file-wide). The exporter emits bodies FROM this table, and a
+/// call site (same file, or a sibling module predicting it) reads callee
+/// parameter ids/types from the SAME table — one routine, so a bound
+/// argument can never drift from the signature actually minted.
+class _SeqScope {
+  _SeqScope({
+    required this.emittedParams,
+    required this.emittedLocals,
+    required this.paramIds,
+    required this.localIds,
+    required this.idTypes,
+    required this.writtenParams,
+  });
+
+  /// Declarations that survive dedup (first declaration wins) and the
+  /// engine's implicit `ResultList` skip, in source order.
+  final List<SeqVariable> emittedParams;
+  final List<SeqVariable> emittedLocals;
+
+  /// TestStand name → generated Dart identifier.
+  final Map<String, String> paramIds;
+  final Map<String, String> localIds;
+
+  /// Generated identifier → its declared Dart type ('double' | 'int' |
+  /// 'bool' | 'String' | 'List' | 'dynamic').
+  final Map<String, String> idTypes;
+
+  /// Lowercased names of parameters the sequence's own raw expressions
+  /// ASSIGN — the callee-side signal for the scalar by-ref writeback
+  /// disarm (a variable-path argument bound to a written scalar
+  /// parameter would write through in the engine; the export passes
+  /// scalars by value).
+  final Set<String> writtenParams;
+
+  /// Callee-parameter lookup by lowercased name (engine names are
+  /// case-insensitive).
+  late final Map<String, String> paramIdOfLower = {
+    for (final e in paramIds.entries) e.key.toLowerCase(): e.value,
+  };
+
+  /// Every identifier the scope claimed (parameters + locals).
+  late final Set<String> allIds = {...paramIds.values, ...localIds.values};
+}
+
+/// Builds every sequence's [_SeqScope] for [file] (parallel to
+/// `file.sequences`), claiming identifiers against a per-sequence COPY of
+/// [taken] (the reserved names + sequence function names — [taken] itself
+/// is not mutated), then refines Num types to int FILE-WIDE
+/// ([_refineIntTypes], sequence-call bindings included). THE callee-scope
+/// table: the exporter emits with it and the project pre-pass predicts
+/// sibling modules' signatures with it. [sourceName] is the file's own
+/// path (local-call resolution).
+List<_SeqScope> _sequenceScopeTable(SeqFile file, Set<String> taken, {String? sourceName}) {
+  final scopes = <_SeqScope>[];
+  for (final sequence in file.sequences) {
+    final used = <String>{...taken};
+    final seenParams = <String>{};
+    final emittedParams = [
+      for (final p in sequence.parameters)
+        if (seenParams.add(p.name)) p, // duplicate names in source: first wins
+    ];
+    final paramIds = {for (final p in emittedParams) p.name: _uniqueName(dartIdentifier(p.name), used)};
+    final seenLocals = <String>{};
+    final emittedLocals = [
+      for (final local in sequence.locals)
+        // ResultList is the engine's implicit result bookkeeping, not user
+        // state — skipped (a reference to it falls back to _eval).
+        if (local.name != 'ResultList' && seenLocals.add(local.name)) local,
+    ];
+    final localIds = {for (final l in emittedLocals) l.name: _uniqueName(dartIdentifier(l.name), used)};
+    String typeOf(SeqVariable v) {
+      final scalar = _scalarType(v);
+      if (scalar != null) return scalar.$1;
+      return _isArrayVar(v) ? 'List' : 'dynamic';
+    }
+
+    scopes.add(
+      _SeqScope(
+        emittedParams: emittedParams,
+        emittedLocals: emittedLocals,
+        paramIds: paramIds,
+        localIds: localIds,
+        idTypes: {
+          for (final p in emittedParams) paramIds[p.name]!: typeOf(p),
+          for (final l in emittedLocals) localIds[l.name]!: typeOf(l),
+        },
+        writtenParams: _writtenParameterNames(sequence),
+      ),
+    );
+  }
+  _refineIntTypes(file, scopes, sourceName);
+  return scopes;
+}
+
+/// The lowercased parameter names [sequence]'s raw expressions assign
+/// (`Parameters.X = …`, compound assigns included), across every stored
+/// expression position. Only a DIRECT scalar assignment counts: a member
+/// or element write (`Parameters.X.Y = …`, `Parameters.X[0] = …`) mutates
+/// an object/array the export already passes by identity.
+Set<String> _writtenParameterNames(Sequence sequence) {
+  final names = <String>{};
+  final re = RegExp(r'Parameters\.([A-Za-z_][A-Za-z0-9_]*)\s*([-+*/]?=)(?!=)', caseSensitive: false);
+  void scan(String? raw) {
+    if (raw == null) return;
+    for (final m in re.allMatches(raw)) {
+      names.add(m.group(1)!.toLowerCase());
+    }
+  }
+
+  for (final step in sequence.steps) {
+    scan(step.settings.precondition);
+    scan(step.settings.preExpression);
+    scan(step.settings.postExpression);
+    scan(step.settings.statusExpression);
+    scan(step.timeoutExpression);
+    scan(step.waitTimeExpression);
+    final flow = step.flowControl;
+    if (flow != null) {
+      scan(flow.condition);
+      scan(flow.initialization);
+      scan(flow.increment);
+      scan(flow.arrayExpr);
+      scan(flow.itemExpression);
+      scan(flow.arrayElement);
+    }
+  }
+  return names;
+}
+
+/// TestStand Num is a double, but a Num the author uses as a counter or
+/// index is an `int` to any Dart reader (`num` would be an anti-pattern
+/// and `double index` reads wrong). Refines each scope's `idTypes` double
+/// → int for a Num local/param whose declared default is integral and
+/// whose every raw assignment keeps it integral: RHS built ONLY of
+/// integer literals (dec/hex), other int-candidate Locals/Parameters
+/// refs, and `+ - *` — anything else (division, function calls, engine
+/// paths, non-integral literals) demotes to double. Sequence-CALL
+/// bindings participate as assigns too (callee parameter ← argument
+/// expression, the RHS read in the CALLER's scope): a parameter bound a
+/// non-integral argument anywhere in the file demotes, and a caller's
+/// candidate bound into a stay-double parameter demotes as well (Dart
+/// does not widen an int EXPRESSION to double) — so a call site can pass
+/// the translated argument straight through. Iterated to fixpoint;
+/// ForEach element targets demote (element types are not pinned). Purely
+/// conservative: a miss just keeps double.
+void _refineIntTypes(SeqFile file, List<_SeqScope> scopes, String? sourceName) {
+  bool integralDefault(SeqVariable v) {
+    final value = v.value;
+    if (value == null) return true; // class zero (0)
+    final n = num.tryParse(value);
+    return n != null && n % 1 == 0 && n.abs() < _maxExactIntDouble;
+  }
+
+  final candidates = <(_SeqScope, String)>{};
+  for (final scope in scopes) {
+    void seed(List<SeqVariable> list, Map<String, String> ids) {
+      for (final v in list) {
+        final id = ids[v.name];
+        if (id != null && scope.idTypes[id] == 'double' && integralDefault(v)) {
+          candidates.add((scope, id));
+        }
+      }
+    }
+
+    seed(scope.emittedParams, scope.paramIds);
+    seed(scope.emittedLocals, scope.localIds);
+  }
+  if (candidates.isEmpty) return;
+
+  // Callee lookup by name — first declaration wins, matching the
+  // function-name table.
+  final scopeByName = <String, _SeqScope>{};
+  for (var i = 0; i < scopes.length; i++) {
+    scopeByName.putIfAbsent(file.sequences[i].name, () => scopes[i]);
+  }
+
+  String? idOf(_SeqScope s, String root, String name) =>
+      root.toLowerCase() == 'locals' ? s.localIds[name] : s.paramIds[name];
+
+  final refRe = RegExp(r'(Locals|Parameters)\.([A-Za-z_][A-Za-z0-9_]*)', caseSensitive: false);
+  // (target scope, target id, raw RHS, scope the RHS reads in); a null
+  // RHS is an unconditional demotion.
+  final assigns = <(_SeqScope, String, String?, _SeqScope)>[];
+  final assignRe = RegExp(
+    r'^\s*(Locals|Parameters)\.([A-Za-z_][A-Za-z0-9_]*)'
+    r'\s*([-+*/]?=)(?!=)\s*(.*)$',
+    caseSensitive: false,
+    dotAll: true,
+  );
+  for (var i = 0; i < scopes.length; i++) {
+    final scope = scopes[i];
+    void scan(String? raw) {
+      if (raw == null) return;
+      for (final piece in _rawStmtPieces(raw) ?? [raw]) {
+        final m = assignRe.firstMatch(piece);
+        if (m == null) continue;
+        final id = idOf(scope, m.group(1)!, m.group(2)!);
+        if (id == null) continue;
+        assigns.add((scope, id, m.group(3) == '/=' ? null : m.group(4)!, scope));
+      }
+    }
+
+    for (final step in file.sequences[i].steps) {
+      scan(step.settings.preExpression);
+      scan(step.settings.postExpression);
+      final flow = step.flowControl;
+      if (flow != null) {
+        scan(flow.initialization);
+        scan(flow.increment);
+        final element = flow.arrayElement;
+        if (element != null) {
+          final m = refRe.firstMatch(element);
+          final id = m != null ? idOf(scope, m.group(1)!, m.group(2)!) : null;
+          if (id != null) candidates.remove((scope, id));
+        }
+      }
+      // Sequence-call bindings: callee parameter ← argument expression.
+      final module = step.module;
+      if (module.adapter == SeqAdapter.sequenceCall &&
+          module.specifiesByExpression != true &&
+          module.resolvesLocalCall(ownFilePath: sourceName)) {
+        final callee = scopeByName[module.sequenceName];
+        if (callee == null) continue;
+        for (final arg in module.sequenceArguments) {
+          if (arg.usesDefault == true) continue;
+          final expr = arg.expression;
+          final id = callee.paramIdOfLower[arg.name.toLowerCase()];
+          if (expr == null || id == null) continue;
+          assigns.add((callee, id, expr, scope));
+        }
+      }
+    }
+  }
+
+  bool intExpr(String rhs, _SeqScope reader) {
+    for (final m in refRe.allMatches(rhs)) {
+      final id = idOf(reader, m.group(1)!, m.group(2)!);
+      if (id == null || !candidates.contains((reader, id))) return false;
+    }
+    final rest = rhs.replaceAll(refRe, '0');
+    return rest.trim().isNotEmpty && RegExp(r'^(?:\s|[()+\-*]|0x[0-9A-Fa-f]+|\d+(?![\d.eE]))+$').hasMatch(rest);
+  }
+
+  var changed = true;
+  while (changed) {
+    changed = false;
+    for (final (target, id, rhs, reader) in assigns) {
+      if (candidates.contains((target, id))) {
+        if (rhs == null || !intExpr(rhs, reader)) {
+          candidates.remove((target, id));
+          changed = true;
+        }
+      } else if (target.idTypes[id] == 'double' && rhs != null) {
+        // A double target with an int-typed RHS would not compile —
+        // unless the RHS is a bare literal (Dart types a literal by
+        // context). Demote the RHS's candidate refs.
+        final refs = [
+          for (final m in refRe.allMatches(rhs)) idOf(reader, m.group(1)!, m.group(2)!),
+        ].whereType<String>();
+        if (refs.isNotEmpty && intExpr(rhs, reader)) {
+          for (final ref in refs) {
+            if (candidates.remove((reader, ref))) changed = true;
+          }
+        }
+      }
+    }
+  }
+  for (final (scope, id) in candidates) {
+    scope.idTypes[id] = 'int';
+  }
 }
 
 /// Drops [importLine] from [source] when nothing else in it matches
@@ -541,7 +1235,11 @@ class _DartExporter {
     this.stationGlobalNames = const {},
     this.hostStationGlobals = true,
     this.stationGlobalsHome = 'lw_runtime.dart',
-  });
+    SeqExportStats? stats,
+  }) : _stats = stats ?? SeqExportStats();
+
+  /// Call-parameter translation counters (see [SeqExportStats]).
+  final SeqExportStats _stats;
 
   /// Globals plumbing: [stationGlobalNames] is the observed StationGlobals
   /// level-1 surface (a project passes the cross-module union; empty means
@@ -560,7 +1258,7 @@ class _DartExporter {
   /// [externallyCalled] are not roots (another module calls them).
   final String? registerName;
   final List<String> extraImports;
-  final String? Function(StepModule module)? resolveExternalCall;
+  final _ResolvedCall? Function(StepModule module)? resolveExternalCall;
   final Set<String> externallyCalled;
 
   final SeqFile file;
@@ -616,8 +1314,12 @@ class _DartExporter {
   /// Sequence name → its (uniquified) generated function name.
   final Map<String, String> _sequenceFnNames = {};
 
-  /// stub key (adapter + target) → generated stub function name.
-  final Map<String, String> _stubs = {};
+  /// stub key (adapter + target) → the stub's accumulated info: minted
+  /// function name plus, for external-sequence stubs, the parameter
+  /// surface gathered from every call site ([_StubInfo]). Declarations
+  /// render in [_emitStubs] AFTER all sites are seen, so the signature
+  /// reflects the whole file.
+  final Map<String, _StubInfo> _stubs = {};
 
   /// Step-type name → the TYPE's default precondition (`<Type>.TS.PreCond`).
   /// A custom step type can carry the condition its instances inherit —
@@ -631,9 +1333,6 @@ class _DartExporter {
       if ((t.raw.prop('TS')?.prop('PreCond')?.scalar ?? '').isNotEmpty)
         t.name: t.raw.prop('TS')!.prop('PreCond')!.scalar!,
   };
-
-  /// Stub declarations, emitted after the sequences.
-  final List<String> _stubDecls = [];
 
   void _line(String text) {
     if (asTest && text.isNotEmpty) _scanHazards(text);
@@ -671,16 +1370,39 @@ class _DartExporter {
     }
   }
 
-  /// Claims a unique top-level identifier derived from [base].
-  String _uniqueTopLevel(String base) => _uniqueName(base, _topLevelNames);
+  /// Claims a unique top-level identifier derived from [base], also
+  /// steering clear of every sequence-scope identifier — a stub named
+  /// like some sequence's local/parameter would be shadowed inside that
+  /// sequence and the generated call would not compile.
+  String _uniqueTopLevel(String base) {
+    var name = _uniqueName(base, _topLevelNames);
+    while (_allScopeIds.contains(name)) {
+      name = _uniqueName(base, _topLevelNames);
+    }
+    return name;
+  }
+
+  /// Per-sequence generated scopes (parallel to `file.sequences`), the
+  /// first-declaration-wins name view (callee lookup), and the union of
+  /// every scope-claimed identifier (stub names must avoid them — a
+  /// local named like a stub would shadow the stub it calls).
+  late final List<_SeqScope> _scopes;
+  late final Map<String, _SeqScope> _scopeByName;
+  late final Set<String> _allScopeIds;
 
   String export() {
     _topLevelNames.addAll(_reservedTopLevelNames(asTest: asTest, registerName: registerName));
     _buildGlobals();
     _emitHeader();
     _sequenceFnNames.addAll(_sequenceFnTable(file, _topLevelNames));
-    for (final sequence in file.sequences) {
-      _emitSequence(sequence);
+    _scopes = _sequenceScopeTable(file, _topLevelNames, sourceName: sourceName);
+    _scopeByName = {};
+    for (var i = 0; i < file.sequences.length; i++) {
+      _scopeByName.putIfAbsent(file.sequences[i].name, () => _scopes[i]);
+    }
+    _allScopeIds = {for (final scope in _scopes) ...scope.allIds};
+    for (var i = 0; i < file.sequences.length; i++) {
+      _emitSequence(file.sequences[i], _scopes[i]);
     }
     _emitStubs();
     _emitRuntime();
@@ -746,107 +1468,6 @@ class _DartExporter {
   }
 
   // ── expressions ────────────────────────────────────────────────────────────
-
-  /// Splits [text] into alternating non-string / string-literal segments so
-  /// rewrites touch only code, never quoted content (review finding: True/
-  /// False and root rewriting corrupted string constants).
-  List<(String, bool)> _segments(String text) {
-    final out = <(String, bool)>[];
-    var start = 0;
-    var i = 0;
-    while (i < text.length) {
-      final c = text[i];
-      if (c == '"' || c == "'") {
-        if (i > start) out.add((text.substring(start, i), false));
-        final quote = c;
-        var j = i + 1;
-        while (j < text.length) {
-          if (text[j] == r'\') {
-            j += 2; // consume the escape pair (fixes even-backslash endings)
-            continue;
-          }
-          if (text[j] == quote) break;
-          j++;
-        }
-        j = j < text.length ? j + 1 : text.length;
-        out.add((text.substring(i, j), true));
-        start = j;
-        i = j;
-      } else {
-        i++;
-      }
-    }
-    if (start < text.length) out.add((text.substring(start), false));
-    return out;
-  }
-
-  /// Strips TestStand `//` and `/* */` comments from code (non-string)
-  /// segments — comments are non-semantic, and a surviving `//` would
-  /// swallow the generated line tail after newline flattening.
-  String _stripComments(String text) {
-    // Single-pass scanner: string literals copy through escape-aware
-    // (a quote INSIDE a /* */ comment must not open a bogus string, and
-    // a /* inside a string must not open a comment — segment-based
-    // stripping got both wrong).
-    final out = StringBuffer();
-    var i = 0;
-    while (i < text.length) {
-      final c = text[i];
-      if (c == '"' || c == "'") {
-        out.write(c);
-        i++;
-        while (i < text.length) {
-          out.write(text[i]);
-          if (text[i] == r'\') {
-            if (i + 1 < text.length) out.write(text[i + 1]);
-            i += 2;
-            continue;
-          }
-          final closed = text[i] == c;
-          i++;
-          if (closed) break;
-        }
-        continue;
-      }
-      if (c == '/' && i + 1 < text.length && text[i + 1] == '/') {
-        while (i < text.length && text[i] != '\n' && text[i] != '\r') {
-          i++;
-        }
-        continue;
-      }
-      if (c == '/' && i + 1 < text.length && text[i + 1] == '*') {
-        final end = text.indexOf('*/', i + 2);
-        out.write(' ');
-        i = end < 0 ? text.length : end + 2;
-        continue;
-      }
-      out.write(c);
-      i++;
-    }
-    return out.toString();
-  }
-
-  /// Unwraps `#NoValidation(...)`: it suppresses EDIT-TIME expression
-  /// validation only — runtime semantics are the identity, so stripping
-  /// the wrapper is lossless.
-  String _stripNoValidation(String text) {
-    const marker = '#NoValidation(';
-    var result = text;
-    var at = result.indexOf(marker);
-    while (at >= 0) {
-      var depth = 1;
-      var i = at + marker.length;
-      while (i < result.length && depth > 0) {
-        if (result[i] == '(') depth++;
-        if (result[i] == ')') depth--;
-        i++;
-      }
-      if (depth != 0) return text; // unbalanced — leave for the eval fallback
-      result = result.substring(0, at) + result.substring(at + marker.length, i - 1) + result.substring(i);
-      at = result.indexOf(marker);
-    }
-    return result;
-  }
 
   /// Translates a TestStand expression to Dart, or wraps it in `_eval`.
   String _expr(String raw) {
@@ -1077,16 +1698,9 @@ class _DartExporter {
     return false;
   }
 
-  String _escape(String s) => s
-      .replaceAll(r'\', r'\\')
-      .replaceAll("'", r"\'")
-      .replaceAll(r'$', r'\$')
-      .replaceAll('\n', r'\n')
-      .replaceAll('\r', r'\r');
-
   // ── sequences ──────────────────────────────────────────────────────────────
 
-  void _emitSequence(Sequence sequence) {
+  void _emitSequence(Sequence sequence, _SeqScope scope) {
     final fnName = _sequenceFnNames[sequence.name]!;
     _out.writeln(
       '/// Sequence `${_comment(sequence.name)}`'
@@ -1094,36 +1708,18 @@ class _DartExporter {
     );
 
     _currentSeq = sequence.name;
-    // Parameter and local identifiers: unique within the function scope and
-    // never colliding with the generated top-level names (state globals,
-    // sequence functions, stubs) — a local named like a sequence would
-    // otherwise shadow the function it calls.
-    _usedIds = <String>{..._topLevelNames};
-    final seenParams = <String>{};
-    final emittedParams = [
-      for (final p in sequence.parameters)
-        if (seenParams.add(p.name)) p, // duplicate names in source: first wins
-    ];
-    _paramIds = {for (final p in emittedParams) p.name: _claimId(dartIdentifier(p.name))};
-    final seenLocals = <String>{};
-    final emittedLocals = [
-      for (final local in sequence.locals)
-        // ResultList is the engine's implicit result bookkeeping, not user
-        // state — skipped (a reference to it falls back to _eval).
-        if (local.name != 'ResultList' && seenLocals.add(local.name)) local,
-    ];
-    _localIds = {for (final l in emittedLocals) l.name: _claimId(dartIdentifier(l.name))};
-    String typeOf(SeqVariable v) {
-      final scalar = _scalarType(v);
-      if (scalar != null) return scalar.$1;
-      return _isArrayVar(v) ? 'List' : 'dynamic';
-    }
-
-    _idTypes = {
-      for (final p in emittedParams) _paramIds[p.name]!: typeOf(p),
-      for (final l in emittedLocals) _localIds[l.name]!: typeOf(l),
-    };
-    _refineIntNums(sequence, emittedParams, emittedLocals);
+    // The sequence's scope comes precomputed ([_sequenceScopeTable]):
+    // identifiers unique within the function and clear of the generated
+    // top-level names (state globals, sequence functions, stubs) — a
+    // local named like a sequence would otherwise shadow the function it
+    // calls. Emission-time scratch names ([_claimId]) claim through the
+    // merged view.
+    _usedIds = <String>{..._topLevelNames, ...scope.allIds};
+    final emittedParams = scope.emittedParams;
+    _paramIds = scope.paramIds;
+    final emittedLocals = scope.emittedLocals;
+    _localIds = scope.localIds;
+    _idTypes = scope.idTypes;
 
     // Parameters: typed where the class is scalar. Scalars with a declared
     // default are non-nullable; containers are `dynamic` so exported member
@@ -1184,132 +1780,6 @@ class _DartExporter {
     _idTypes = const {};
   }
 
-  /// TestStand Num is a double, but a Num the author uses as a counter or
-  /// index is an `int` to any Dart reader (`num` would be an anti-pattern
-  /// and `double index` reads wrong). Refines `_idTypes` double → int for
-  /// each Num local/param whose declared default is integral and whose
-  /// every raw assignment keeps it integral: RHS built ONLY of integer
-  /// literals (dec/hex), other int-candidate Locals/Parameters refs, and
-  /// `+ - *` — anything else (division, function calls, engine paths,
-  /// non-integral literals) demotes to double. Iterated to fixpoint, and
-  /// an int-valued RHS assigned to a var that stays double demotes the
-  /// RHS's candidates too (Dart does not implicitly widen an int
-  /// EXPRESSION to double). ForEach element targets demote — element
-  /// types are not pinned. Purely conservative: a miss just keeps double.
-  void _refineIntNums(Sequence sequence, List<SeqVariable> params, List<SeqVariable> locals) {
-    bool integralDefault(SeqVariable v) {
-      final value = v.value;
-      if (value == null) return true; // class zero (0)
-      final n = num.tryParse(value);
-      return n != null && n % 1 == 0 && n.abs() < _maxExactIntDouble;
-    }
-
-    final candidates = <String>{};
-    void seed(List<SeqVariable> list, Map<String, String> ids) {
-      for (final v in list) {
-        final id = ids[v.name];
-        if (id != null && _idTypes[id] == 'double' && integralDefault(v)) {
-          candidates.add(id);
-        }
-      }
-    }
-
-    seed(params, _paramIds);
-    seed(locals, _localIds);
-    if (candidates.isEmpty) return;
-
-    String? idOf(String scope, String name) => scope.toLowerCase() == 'locals' ? _localIds[name] : _paramIds[name];
-
-    final refRe = RegExp(r'(Locals|Parameters)\.([A-Za-z_][A-Za-z0-9_]*)', caseSensitive: false);
-    // (target id, raw RHS; null RHS = unconditional demotion)
-    final assigns = <(String, String?)>[];
-    final assignRe = RegExp(
-      r'^\s*(Locals|Parameters)\.([A-Za-z_][A-Za-z0-9_]*)'
-      r'\s*([-+*/]?=)(?!=)\s*(.*)$',
-      caseSensitive: false,
-      dotAll: true,
-    );
-    void scan(String? raw) {
-      if (raw == null) return;
-      for (final piece in _rawStmtPieces(raw) ?? [raw]) {
-        final m = assignRe.firstMatch(piece);
-        if (m == null) continue;
-        final id = idOf(m.group(1)!, m.group(2)!);
-        if (id == null) continue;
-        assigns.add((id, m.group(3) == '/=' ? null : m.group(4)!));
-      }
-    }
-
-    for (final step in sequence.steps) {
-      scan(step.settings.preExpression);
-      scan(step.settings.postExpression);
-      final flow = step.flowControl;
-      if (flow != null) {
-        scan(flow.initialization);
-        scan(flow.increment);
-        final element = flow.arrayElement;
-        if (element != null) {
-          final m = refRe.firstMatch(element);
-          final id = m != null ? idOf(m.group(1)!, m.group(2)!) : null;
-          if (id != null) candidates.remove(id);
-        }
-      }
-    }
-
-    bool intExpr(String rhs) {
-      for (final m in refRe.allMatches(rhs)) {
-        final id = idOf(m.group(1)!, m.group(2)!);
-        if (id == null || !candidates.contains(id)) return false;
-      }
-      final rest = rhs.replaceAll(refRe, '0');
-      return rest.trim().isNotEmpty && RegExp(r'^(?:\s|[()+\-*]|0x[0-9A-Fa-f]+|\d+(?![\d.eE]))+$').hasMatch(rest);
-    }
-
-    var changed = true;
-    while (changed) {
-      changed = false;
-      for (final (id, rhs) in assigns) {
-        if (candidates.contains(id)) {
-          if (rhs == null || !intExpr(rhs)) {
-            candidates.remove(id);
-            changed = true;
-          }
-        } else if (_idTypes[id] == 'double' && rhs != null) {
-          // A double target with an int-typed RHS would not compile —
-          // unless the RHS is a bare literal (Dart types a literal by
-          // context). Demote the RHS's candidate refs.
-          final refs = [
-            for (final m in refRe.allMatches(rhs)) idOf(m.group(1)!, m.group(2)!),
-          ].whereType<String>();
-          if (refs.isNotEmpty && intExpr(rhs)) {
-            for (final ref in refs) {
-              if (candidates.remove(ref)) changed = true;
-            }
-          }
-        }
-      }
-    }
-    for (final id in candidates) {
-      _idTypes[id] = 'int';
-    }
-  }
-
-  /// The Dart (type, zero-default) for a TestStand value class, or null when
-  /// the class has no scalar Dart form (containers/refs stay `dynamic` so
-  /// exported member paths compile via dynamic dispatch — `Object?` would
-  /// reject `.member` at compile time).
-  (String, String)? _scalarType(SeqVariable v) => switch (v.raw.className) {
-    'Num' => ('double', '0'),
-    'Bool' || 'Boolean' => ('bool', 'false'),
-    'Str' || 'ExprValue' || 'PathValue' => ('String', "''"),
-    _ => null,
-  };
-
-  /// Whether the variable is a TestStand array (`Nums`/`Strs`/`Objs`/
-  /// `Containers` — any `s`-suffixed array class or an explicit array value).
-  bool _isArrayVar(SeqVariable v) =>
-      v.raw.array != null || const {'Nums', 'Strs', 'Objs', 'Containers'}.contains(v.raw.className);
-
   String _typeComment(SeqVariable v, {String? rawDefault}) {
     final t = v.type;
     final c = v.comment;
@@ -1322,36 +1792,9 @@ class _DartExporter {
     return ' // ${parts.join(' — ')}';
   }
 
-  /// The initializer for a scalar-typed variable: the declared default when
-  /// it is a valid literal of the type, else the class zero (with the
-  /// original kept in a comment by the caller via [_typeComment] — a default
-  /// that is an expression can't be a Dart initializer).
-  String _scalarInit(SeqVariable v, String type, String zero) {
-    final value = v.value;
-    if (value == null) return zero;
-    switch (type) {
-      case 'int':
-        // Only reachable for a refined int candidate — integral by
-        // construction ([_refineIntNums] checked the declared default).
-        final i = num.tryParse(value);
-        return i == null ? zero : i.toInt().toString();
-      case 'double':
-        final n = num.tryParse(value);
-        if (n == null) return zero; // non-literal default; raw kept in comment
-        return _numLiteral(n);
-      case 'bool':
-        final lower = value.toLowerCase();
-        if (lower == 'true') return 'true';
-        if (lower == 'false') return 'false';
-        return zero; // non-literal default; raw kept in comment
-      default:
-        return "'${_escape(value)}'";
-    }
-  }
-
   /// The (type, class zero, initializer) of a scalar-typed declaration for
   /// [v] emitted as [id] — the class scalar type with the int refinement
-  /// ([_refineIntNums], recorded in `_idTypes`) applied. null when [v] has
+  /// ([_refineIntTypes], recorded in `_idTypes`) applied. null when [v] has
   /// no scalar Dart form; [_paramDecl] and [_localDecl] share it.
   (String, String, String)? _scalarDecl(SeqVariable v, String id) {
     final scalar = _scalarType(v);
@@ -1740,22 +2183,51 @@ class _DartExporter {
         'stationGlobals.' => 'dynamic',
         _ => _idTypes[m.group(2)],
       };
-      final rhs = translated.substring(m.end).trim();
-      final looksString =
-          rhs.startsWith("'") || rhs.startsWith('"') || _idTypes[rhs] == 'String' || rhs.startsWith('_str(');
-      final rhsLeadType = _idTypes[RegExp(r'^[A-Za-z_][A-Za-z0-9_]*').firstMatch(rhs)?.group(0) ?? ''];
-      final looksNumericLead = RegExp(r'^[0-9(]').hasMatch(rhs) || rhsLeadType == 'double' || rhsLeadType == 'int';
-      if (lhsType == 'String' && looksNumericLead && !looksString) {
-        return _evalFallback(raw);
-      }
-      if ((lhsType == 'double' || lhsType == 'int') && looksString) {
-        return _evalFallback(raw);
-      }
-      if (lhsType == 'bool' && !_staticallyBool(rhs) && (looksString || looksNumericLead)) {
+      if (_kindMismatch(lhsType, translated.substring(m.end).trim())) {
         return _evalFallback(raw);
       }
     }
     return translated;
+  }
+
+  /// Whether putting [rhs] into a slot of declared Dart type [lhsType] is
+  /// VISIBLY of another kind — the shared lhs-type guard: a statement
+  /// assignment routes such an expression through the eval fallback
+  /// (TestStand's engine coercion there is not pinned), and a sequence-call
+  /// ARGUMENT does the same for its bound expression ([_renderCallArgs]).
+  /// Heuristic and one-sided: `false` means "not visibly wrong", never
+  /// "proven right".
+  bool _kindMismatch(String? lhsType, String rhs) {
+    if (lhsType == null || lhsType == 'dynamic') return false;
+    // `Nothing` (null) has no typed scalar/list slot to land in.
+    if (rhs == 'null') return true;
+    final looksString =
+        rhs.startsWith("'") || rhs.startsWith('"') || _idTypes[rhs] == 'String' || rhs.startsWith('ts.str(');
+    final rhsLeadType = _idTypes[RegExp(r'^[A-Za-z_][A-Za-z0-9_\$]*').firstMatch(rhs)?.group(0) ?? ''];
+    final looksNumericLead = RegExp(r'^[0-9(]').hasMatch(rhs) || rhsLeadType == 'double' || rhsLeadType == 'int';
+    return switch (lhsType) {
+      'String' => (looksNumericLead && !looksString) || _staticallyBool(rhs),
+      'double' || 'int' => looksString || _staticallyBool(rhs),
+      'bool' => !_staticallyBool(rhs) && (looksString || looksNumericLead),
+      'List' => looksString || _staticallyBool(rhs) || (looksNumericLead && !rhs.startsWith('(')),
+      _ => false,
+    };
+  }
+
+  /// Whether translated expression [e] is STATICALLY an `int` in Dart:
+  /// int-typed locals/params, integer literals (dec/hex), and `+ - *`
+  /// grouping only. Drives call-argument int/double adaptation — Dart
+  /// does not widen an int EXPRESSION to a double slot (only a bare
+  /// integer literal is contextually retyped), and an int slot rejects
+  /// anything not provably int.
+  bool _staticallyIntExpr(String e) {
+    if (e.contains("'") || e.contains('"')) return false;
+    final sansHex = e.replaceAll(RegExp('0x[0-9A-Fa-f]+'), '0');
+    for (final m in RegExp(r'[A-Za-z_][A-Za-z0-9_\$]*').allMatches(sansHex)) {
+      if (_idTypes[m.group(0)] != 'int') return false;
+    }
+    final rest = sansHex.replaceAll(RegExp(r'[A-Za-z_][A-Za-z0-9_\$]*'), '0');
+    return rest.trim().isNotEmpty && RegExp(r'^[0-9\s()+\-*]+$').hasMatch(rest);
   }
 
   /// A statement-position expression, split at TOP-LEVEL COMMAS into
@@ -1772,68 +2244,6 @@ class _DartExporter {
         if (p.trim().isNotEmpty) _exprStatement(p),
     ];
     return out.isEmpty ? [_exprStatement(raw)] : out;
-  }
-
-  /// Splits [text] at every comma that sits at bracket depth ≤ 0 outside
-  /// string literals — one part means "no top-level comma". Depth carries
-  /// ACROSS string-literal boundaries: in `f(a + "s"), b` the comma's
-  /// depth is only correct when the `(` from the first code segment is
-  /// still counted after the string (review-class bug: per-segment depth
-  /// read `),` as depth -1 and missed the top-level comma). The ONE
-  /// comma scanner — [_expr]'s fallback gate and [_rawStmtPieces] share it.
-  List<String> _splitTopLevelCommas(String text) {
-    final parts = <String>[];
-    var depth = 0;
-    var start = 0;
-    var consumed = 0;
-    for (final (segment, isString) in _segments(text)) {
-      if (!isString) {
-        for (var i = 0; i < segment.length; i++) {
-          switch (segment[i]) {
-            case '(' || '[' || '{':
-              depth++;
-            case ')' || ']' || '}':
-              depth--;
-            case ',':
-              if (depth <= 0) {
-                parts.add(text.substring(start, consumed + i));
-                start = consumed + i + 1;
-              }
-          }
-        }
-      }
-      consumed += segment.length;
-    }
-    parts.add(text.substring(start));
-    return parts;
-  }
-
-  /// The comma-split raw pieces of a statement expression (comment/
-  /// NoValidation-stripped), or null when a piece is mis-sliced (quotes/
-  /// brackets unbalanced) and the whole raw must translate as one.
-  List<String>? _rawStmtPieces(String raw) {
-    final cleaned = _stripNoValidation(_stripComments(raw));
-    final parts = _splitTopLevelCommas(cleaned);
-    bool balanced(String p) {
-      var d = 0;
-      for (final (seg, isString) in _segments(p)) {
-        if (isString) continue;
-        for (var i = 0; i < seg.length; i++) {
-          if (seg[i] == '(' || seg[i] == '[' || seg[i] == '{') d++;
-          if (seg[i] == ')' || seg[i] == ']' || seg[i] == '}') d--;
-          if (d < 0) return false;
-        }
-      }
-      // A piece ending inside an unterminated string shows up as a
-      // string segment missing its close quote — _segments absorbs to
-      // the end, so check the piece's own quote parity cheaply.
-      return d == 0 && '"'.allMatches(p.replaceAll(r'\"', '')).length.isEven;
-    }
-
-    if (parts.length > 1 && !parts.every(balanced)) {
-      return null; // a piece mis-sliced — do not split
-    }
-    return parts;
   }
 
   /// Emits a statement-position expression, one line per top-level piece.
@@ -1918,6 +2328,7 @@ class _DartExporter {
     switch (module.adapter) {
       case SeqAdapter.sequenceCall:
         final target = module.sequenceName;
+        _stats.callSites++;
         // Bind to a local sequence ONLY when the call targets the current
         // file (UseCurFile, no file named, or the file's own path) —
         // matching by name alone bound external calls to same-named local
@@ -1926,28 +2337,36 @@ class _DartExporter {
         final inFileFn = module.resolvesLocalCall(ownFilePath: sourceName) && target != null
             ? _sequenceFnNames[target]
             : null;
-        // Parameter bindings on the call are not exported yet — the callee
-        // would run on its declared defaults, which is NOT the authored
-        // semantics (it can even change termination: a corpus recursion
-        // walks Parameters.Caller upward and never stops on defaults). A
-        // binding call therefore disarms the owning test; a bare call
-        // (1 in 20 in the corpus) is exact and stays armed.
-        final hasArgs = module.sequenceArguments.isNotEmpty;
-        final caveat = hasArgs ? ' (call parameters not exported yet)' : '';
         if (inFileFn != null) {
-          if (asTest && hasArgs) {
-            _markUnported('call parameters of sequence ${target ?? inFileFn}');
+          // Bound arguments become real named arguments against the
+          // callee's precomputed scope ([_renderCallArgs]); a bare call
+          // is exact as-is.
+          final scope = _scopeByName[target]!;
+          var argsText = '';
+          if (module.sequenceArguments.isNotEmpty) {
+            _stats.boundSites++;
+            _stats.localBoundSites++;
+            final (:text, :disarmed) = _renderCallArgs(
+              module,
+              calleeLabel: target!,
+              params: _scopeParamTable(scope),
+              writtenParams: scope.writtenParams,
+            );
+            argsText = text;
+            if (!disarmed) _stats.localBoundSitesRearmed++;
           }
-          _line('await $inFileFn(); // $name$caveat');
+          _line('await $inFileFn($argsText); // $name');
         } else {
           // An EXTERNAL sequence call is just a function that lives in
           // another file. In PROJECT mode a resolvable target binds to the
-          // sibling module's real exported function; otherwise (or in
-          // single-file mode) it calls a generated stub. Either way it is
-          // counted unported so the harness ships the owning test disarmed
-          // — a resolved callee usually still contains its own stubs, and
-          // v1 does not chase cross-module reachability (conservative,
-          // never a fabricated green).
+          // sibling module's real exported function (named arguments bind
+          // against that module's PREDICTED parameter scope); otherwise
+          // (or in single-file mode) it calls a generated stub typed from
+          // the call sites' prototype snapshots. Either way it is counted
+          // unported so the harness ships the owning test disarmed — a
+          // resolved callee usually still contains its own stubs, and v1
+          // does not chase cross-module reachability (conservative, never
+          // a fabricated green).
           final resolved = resolveExternalCall?.call(module);
           if (resolved != null) {
             if (asTest) {
@@ -1956,13 +2375,36 @@ class _DartExporter {
                 '${_stubTarget(step, module)} (see its module TODOs)',
               );
             }
-            _line('await $resolved(); // $name: external sequence$caveat');
+            var argsText = '';
+            if (module.sequenceArguments.isNotEmpty) {
+              _stats.boundSites++;
+              argsText = _renderCallArgs(
+                module,
+                calleeLabel: target ?? _stubTarget(step, module),
+                params: _scopeParamTable(resolved.scope),
+                writtenParams: resolved.scope.writtenParams,
+              ).text;
+            }
+            _line('await ${resolved.fn}($argsText); // $name: external sequence');
           } else {
             if (asTest) {
               _markUnported('external sequence: ${_stubTarget(step, module)}');
             }
+            final stub = _stubFor(step, module);
+            var argsText = '';
+            // Expression-form targets (SpecifyByExpr) stay untranslated:
+            // the callee is not known statically, so no argument list can
+            // honestly bind (4 corpus sites; already disarmed above).
+            if (module.specifiesByExpression != true && module.sequenceArguments.isNotEmpty) {
+              _stats.boundSites++;
+              argsText = _renderCallArgs(
+                module,
+                calleeLabel: target ?? _stubTarget(step, module),
+                params: stub.paramTableFor(module),
+              ).text;
+            }
             _line(
-              'await ${_stubFor(step, module)}(); // $name: '
+              'await ${stub.name}($argsText); // $name: '
               'external sequence call',
             );
           }
@@ -1973,7 +2415,7 @@ class _DartExporter {
         // stub arms the step (other unported surfaces are inline throws).
         if (asTest) _markUnported(_stubTarget(step, module));
         _line(
-          'await ${_stubFor(step, module)}(); // $name'
+          'await ${_stubFor(step, module).name}(); // $name'
           '${step.type != null ? ' [${_comment(step.type!)}]' : ''}',
         );
       case SeqAdapter.cModule:
@@ -1983,7 +2425,7 @@ class _DartExporter {
           _throwLine(step, '${module.adapter.name} call', _stubTarget(step, module));
         } else {
           _line(
-            'await ${_stubFor(step, module)}(); // $name'
+            'await ${_stubFor(step, module).name}(); // $name'
             '${step.type != null ? ' [${_comment(step.type!)}]' : ''}',
           );
         }
@@ -2029,11 +2471,109 @@ class _DartExporter {
       module.sequenceNameExpression ??
       step.name;
 
-  String _stubFor(Step step, StepModule module) {
+  /// The callee-parameter binding table of [scope]: lowercased TestStand
+  /// name → the generated parameter id and its declared (int-refined) type.
+  Map<String, ({String id, String type})> _scopeParamTable(_SeqScope scope) => {
+    for (final e in scope.paramIds.entries) e.key.toLowerCase(): (id: e.value, type: scope.idTypes[e.value]!),
+  };
+
+  /// Translates one SequenceCall site's bound arguments into Dart named
+  /// arguments against [params] (lowercased callee-parameter name → its
+  /// generated id and declared type). Per row:
+  ///  * `UseDef` → the named argument is OMITTED — exact, the generated
+  ///    callee signature carries that declared default;
+  ///  * a bound expression translates in the CALLER's scope ([_expr]),
+  ///    guarded by the callee parameter's declared type ([_kindMismatch]
+  ///    plus the int/double adaptation — a statically-int value widens
+  ///    losslessly via `.toDouble()`, anything not visibly of the
+  ///    parameter's kind keeps TestStand semantics via eval);
+  ///  * a value beyond mechanical translation rides in `ts.eval(…)` —
+  ///    honest (suite mode's hazard scan disarms the owning test);
+  ///  * an unknown argument name (stale snapshot), a guard rejection, or
+  ///    a scalar by-ref writeback records a per-SITE disarm naming the
+  ///    reason.
+  /// Returns the rendered `id: value` list and whether any per-site
+  /// call-parameter disarm fired.
+  ({String text, bool disarmed}) _renderCallArgs(
+    StepModule module, {
+    required String calleeLabel,
+    required Map<String, ({String id, String type})> params,
+    Set<String> writtenParams = const {},
+  }) {
+    final parts = <String>[];
+    var disarmed = false;
+    final seen = <String>{};
+    void disarm(String kind, String reason) {
+      disarmed = true;
+      _stats.siteDisarms[kind] = (_stats.siteDisarms[kind] ?? 0) + 1;
+      _markUnported('call parameters of sequence $calleeLabel: $reason');
+    }
+
+    for (final arg in module.sequenceArguments) {
+      final lower = arg.name.toLowerCase();
+      if (!seen.add(lower)) {
+        disarm('duplicate binding', 'duplicate binding of ${arg.name}');
+        continue;
+      }
+      final param = params[lower];
+      if (param == null) {
+        disarm('unknown parameter', 'no parameter named ${arg.name} (stale binding)');
+        continue;
+      }
+      if (arg.usesDefault == true) {
+        _stats.argsByOmission++;
+        continue; // exact: omission binds the callee's declared default
+      }
+      final raw = arg.expression;
+      if (raw == null) {
+        // No expression and no UseDef flag — absent from the corpus, so
+        // the engine's behavior there is not pinned: omit and state it.
+        disarm('unbound argument', '${arg.name} binds no expression');
+        continue;
+      }
+      var value = _expr(raw);
+      if (!value.startsWith('ts.eval(')) {
+        if (_kindMismatch(param.type, value) || (param.type == 'int' && !_staticallyIntExpr(value))) {
+          // Not visibly of the parameter's kind — TestStand's coercion is
+          // not pinned, so the raw expression rides in eval rather than a
+          // guessed cast.
+          value = _evalFallback(raw);
+          disarm('type guard', '${arg.name} binding is not visibly ${param.type}-typed');
+        } else if (param.type == 'double' && _staticallyIntExpr(value) && !RegExp(r'^\d+$').hasMatch(value)) {
+          // Lossless: TestStand Num IS a double — the int refinement is
+          // our own representation choice, so widening back is exact.
+          // (Dart contextually retypes only a BARE integer literal.)
+          value = RegExp(r'^[A-Za-z_][A-Za-z0-9_\$]*$').hasMatch(value) ? '$value.toDouble()' : '($value).toDouble()';
+        }
+      }
+      if (value.startsWith('ts.eval(')) {
+        _stats.argsEvalFallback++;
+      } else {
+        _stats.argsTranslated++;
+      }
+      // Scalar by-ref writeback: the engine binds a variable-path
+      // argument BY REFERENCE, so a callee that assigns the parameter
+      // writes through to the caller's variable — the export passes
+      // scalars by value, losing that writeback. Containers/arrays pass
+      // object identity (List/PropObj) and stay correct; a literal-bound
+      // written parameter is safe too (nothing to write back to).
+      if (writtenParams.contains(lower) &&
+          const {'double', 'int', 'bool', 'String'}.contains(param.type) &&
+          _isVariablePath(raw)) {
+        disarmed = true;
+        _stats.siteDisarms['by-ref writeback'] = (_stats.siteDisarms['by-ref writeback'] ?? 0) + 1;
+        _markUnported('by-ref writeback of parameter ${arg.name} of sequence $calleeLabel not exported');
+      }
+      parts.add('${param.id}: $value');
+    }
+    return (text: parts.join(', '), disarmed: disarmed);
+  }
+
+  _StubInfo _stubFor(Step step, StepModule module) {
     final target = _stubTarget(step, module);
     final adapter = module.adapter.name;
     final key = '$adapter|$target';
-    return _stubs.putIfAbsent(key, () {
+    final info = _stubs.putIfAbsent(key, () {
       final isSeq = module.adapter == SeqAdapter.sequenceCall;
       // Strip only a known trailing file extension; a dotted TARGET NAME
       // (UI.TestSocket.SetCaption) keeps every segment — collapsing to the
@@ -2050,36 +2590,56 @@ class _DartExporter {
       final name = _uniqueTopLevel(
         isSeq ? dartIdentifier(lastSegment) : 'call${dartIdentifier(lastSegment, capitalize: true)}',
       );
-      _stubDecls.add(
-        [
-          if (isSeq) ...[
-            '/// External sequence `${_comment(target)}`',
-            '/// (called from step `${_comment(step.name)}`) — lives in another',
-            '/// sequence file. TODO: implement, or delegate to that file\'s',
-            '/// exported function.',
-          ] else ...[
-            '/// Stub for the $adapter module call `${_comment(target)}`',
-            '/// (from step `${_comment(step.name)}`). TODO: implement against '
-                'the real module.',
-          ],
-          'Future<Object?> $name() async =>',
-          "    throw UnimplementedError('"
-              "${_escape(isSeq ? 'external sequence: $target' : '$adapter call: $target')}');",
-        ].join('\n'),
+      return _StubInfo(
+        name: name,
+        isSeq: isSeq,
+        adapter: adapter,
+        target: target,
+        firstStepName: step.name,
       );
-      return name;
     });
+    // An external-sequence site contributes its parameter knowledge (the
+    // prototype snapshot / bound argument names) to the stub's signature.
+    if (module.adapter == SeqAdapter.sequenceCall && module.specifiesByExpression != true) {
+      info.note(module);
+    }
+    return info;
   }
 
   void _emitStubs() {
-    if (_stubDecls.isEmpty) return;
+    if (_stubs.isEmpty) return;
     _out.writeln(
       '// ── code-module stubs '
       '─────────────────────────────────────────────────────',
     );
-    for (final decl in _stubDecls) {
+    for (final info in _stubs.values) {
+      final params = info.signatureDecls();
+      final lines = [
+        if (info.isSeq) ...[
+          '/// External sequence `${_comment(info.target)}`',
+          '/// (called from step `${_comment(info.firstStepName)}`) — lives in another',
+          '/// sequence file. TODO: implement, or delegate to that file\'s',
+          '/// exported function.',
+          if (params.isNotEmpty)
+            info.typed
+                ? "/// Signature: the call sites' prototype snapshot of the callee's"
+                      '\n/// parameters (defaults included; a snapshot can be stale if the'
+                      '\n/// callee changed after binding).'
+                : '/// Parameters: the union of names observed across the call sites\''
+                      '\n/// snapshots and bindings — they disagree or are partly missing,'
+                      '\n/// so no types are claimed (dynamic).',
+        ] else ...[
+          '/// Stub for the ${info.adapter} module call `${_comment(info.target)}`',
+          '/// (from step `${_comment(info.firstStepName)}`). TODO: implement against '
+              'the real module.',
+        ],
+        'Future<Object?> ${info.name}('
+            '${params.isEmpty ? '' : '{${params.join(', ')}}'}) async =>',
+        "    throw UnimplementedError('"
+            "${_escape(info.isSeq ? 'external sequence: ${info.target}' : '${info.adapter} call: ${info.target}')}');",
+      ];
       _out
-        ..writeln(decl)
+        ..writeln(lines.join('\n'))
         ..writeln();
     }
   }

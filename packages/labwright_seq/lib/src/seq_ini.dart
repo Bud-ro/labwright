@@ -555,6 +555,16 @@ class _IniBuilder {
   /// the `%COMMENT` directive; stored unquoted.
   static const commentAttr = '%COMMENT';
 
+  /// The attribute key under which a NON-element section's `%NAME` is
+  /// retained. `%NAME` names the node only for ARRAY ELEMENTS (steps,
+  /// sequences — their section key is `[n]`); on a NAMED member or a
+  /// typedef root it is the current ENUM VALUE's label (`NONE`, `TOP`,
+  /// `BLACK` — all 419 named-member and every non-`Data` root `%NAME`
+  /// across the corpus sit on Enum-classed types), and the property's
+  /// real name is its member key. Treating it as the name mislabeled
+  /// enum-typed prototype parameters after their default values.
+  static const enumValueAttr = '%NAME';
+
   /// Builds the property node for a section, producing members in a
   /// deterministic order: instance `DEF` declarations first (authoritative +
   /// typed), then value-only members, then members implied by deeper sections,
@@ -570,7 +580,12 @@ class _IniBuilder {
     visiting ??= <String>{};
     final def = _defs[path];
     final val = _vals[path];
-    final name = val?.name ?? def?.name ?? displayName;
+    // `%NAME` names ARRAY ELEMENTS only (their key is positional `[n]`);
+    // elsewhere it is an enum value label ([enumValueAttr]) and the node
+    // keeps its member/root key.
+    final isElement = displayName.startsWith('[');
+    final nameOverride = val?.name ?? def?.name;
+    final name = isElement ? (nameOverride ?? displayName) : displayName;
     Map<String, String> memberAttrs(String memberName) {
       final ovr = val?.directives['$instOverrideAttr: $memberName'];
       final flg = val?.directives['$flagsAttr: $memberName'] ?? def?.directives['$flagsAttr: $memberName'];
@@ -657,6 +672,9 @@ class _IniBuilder {
       if (bareInstFlg != null) instFlagsAttr: bareInstFlg,
       if (comment != null && comment.isNotEmpty) commentAttr: comment,
       if (elementType != null && elementType.isNotEmpty) elementTypeAttr: elementType,
+      // The enum value label a non-element `%NAME` carries — retained,
+      // never dropped (see [enumValueAttr]).
+      if (!isElement && nameOverride != null && nameOverride != name) enumValueAttr: nameOverride,
     };
 
     return SeqProperty(

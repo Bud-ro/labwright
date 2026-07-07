@@ -34,6 +34,7 @@ void main() {
   test('every parseable corpus .seq exports a balanced labwright program', () {
     var exported = 0, withViStub = 0, withInlineThrow = 0, withHelpers = 0;
     var withIntLocals = 0, withSkipComments = 0;
+    final stats = SeqExportStats(); // accumulates across every file
     final stubAdapter = RegExp(r'/// Stub for the (\w+) module call');
     for (final f in seqs) {
       final SeqFile file;
@@ -42,8 +43,11 @@ void main() {
       } catch (_) {
         continue; // unparseable files are covered by corpus_seq_test
       }
-      final source = exportSeqFileToLabwright(file, sourceName: f.path);
+      final source = exportSeqFileToLabwright(file, sourceName: f.path, stats: stats);
       exported++;
+      // Call parameters ARE exported now — the old blanket caveat (and its
+      // blanket disarm) must never resurface.
+      expect(source, isNot(contains('(call parameters not exported yet)')), reason: f.path);
       expect('{'.allMatches(source).length, '}'.allMatches(source).length, reason: '${f.path}: unbalanced braces');
       expect('void main() {'.allMatches(source).length, 1, reason: '${f.path}: exactly one generated main');
       // A file with no sequences registers no tests and drops the lw
@@ -92,12 +96,39 @@ void main() {
           'files with called sequences must export them as plain '
           'functions, not tests',
     );
+    // Call-parameter export outcome (corpus recon: 267 local sites, 229
+    // of them bound; ~82% of local bound sites bind only literals /
+    // variable paths — the re-armed floor sits just below that).
+    expect(stats.localBoundSites, greaterThan(200), reason: 'local bound call sites exist throughout the corpus');
+    expect(
+      stats.localBoundSitesRearmed,
+      greaterThan(170),
+      reason:
+          'most local bound sites must lose the per-site call-parameter '
+          'disarm (design expectation: roughly 180-190 of ~229)',
+    );
+    expect(stats.argsTranslated, greaterThan(500), reason: 'bound expressions must translate to real named arguments');
+    expect(
+      stats.argsByOmission,
+      greaterThan(300),
+      reason: 'UseDef rows must be omitted (exact via the callee default)',
+    );
     // ignore: avoid_print
     print(
       'labwright export: $exported programs · $withViStub with VI stubs '
       '· $withInlineThrow with inline throws · $withHelpers with helper '
       'sequences · $withIntLocals with int locals · $withSkipComments '
       'with skip comments',
+    );
+    // ignore: avoid_print
+    print(
+      'call parameters: ${stats.callSites} sites · ${stats.boundSites} bound '
+      '· ${stats.localBoundSites} local bound · '
+      '${stats.localBoundSitesRearmed} re-armed · '
+      '${stats.argsTranslated} args translated · '
+      '${stats.argsByOmission} by omission · '
+      '${stats.argsEvalFallback} eval-fallback · '
+      'site disarms: ${stats.siteDisarms}',
     );
   });
 
@@ -173,10 +204,18 @@ void main() {
     expect(project.files.length, byPath.length + 3);
     expect(project.files.keys, containsAll(['main.dart', 'lw_runtime.dart', 'analysis_options.yaml']));
     // The point of project export: external SequenceCalls bind to the
-    // sibling module's REAL exported function instead of a stub.
+    // sibling module's REAL exported function instead of a stub — and a
+    // bound site passes real named arguments predicted from the callee
+    // module's parameter scope.
     final allSource = project.files.values.join('\n');
-    final crossCalls = RegExp(r'await [a-z0-9_]+_seq\.\w+\(\);').allMatches(allSource).length;
+    final crossCalls = RegExp(r'await [a-z0-9_]+_seq\.\w+\([^;\n]*\);').allMatches(allSource).length;
     expect(crossCalls, greaterThan(100), reason: 'CICDUtility has ~149 resolvable cross-module call sites');
+    final crossCallsWithArgs = RegExp(r'await [a-z0-9_]+_seq\.\w+\([^;\n)][^;\n]*\);').allMatches(allSource).length;
+    expect(
+      crossCallsWithArgs,
+      greaterThan(50),
+      reason: 'most CICDUtility cross-module calls bind arguments',
+    );
 
     // Compile + run gates, from the package root so package:labwright
     // resolves (dev_dep).
