@@ -4,6 +4,8 @@ import 'dart:typed_data';
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
+import 'corpus_base.dart';
+
 /// VI corpus **coverage** report — the honest, complete scorecard for "how much
 /// of a `.vi` do we understand?".
 ///
@@ -33,24 +35,10 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 /// `corpus_coverage_test.dart`) and a gitignored `corpus/vi/REPORT.md` scorecard.
 ///
 /// Run: `dart run tool/coverage.dart [corpusRoot=<package>/corpus/vi]`
-const _heapTags = {'BDHb', 'BDHP', 'FPHb', 'FPHP', 'DTHP'};
-
-/// The gitignored VI corpus checked out by tool/fetch_corpus.dart, under this
-/// package's `corpus/vi/`. Resolved from CWD (the run may start at the repo root
-/// or the package dir) by checking the package-relative and package-local
-/// locations; the committed baseline.json is written next to it.
-String _defaultCorpusRoot() {
-  const pkgRel = 'packages/labwright_rsrc_parse/corpus';
-  var d = Directory.current;
-  for (var i = 0; i < 8; i++) {
-    if (File('${d.path}/$pkgRel/sources.json').existsSync()) return '${d.path}/$pkgRel/vi';
-    if (File('${d.path}/corpus/sources.json').existsSync()) return '${d.path}/corpus/vi';
-    final p = d.parent;
-    if (p.path == d.path) break;
-    d = p;
-  }
-  return 'corpus/vi';
-}
+///
+/// The gitignored corpus checkout lives under the package's `corpus/vi/`
+/// (resolved by the shared [corpusBaseDir]); the committed baseline.json is
+/// written next to it.
 
 class _Stat {
   int vis = 0, parseOk = 0, decOk = 0, containerExact = 0;
@@ -117,22 +105,14 @@ _Stat _measure(List<File> files) {
       s.blockBytes += sec.bytes.length;
       if (blockInfo(sec.tag).isDecoded) s.blockBytesDecoded += sec.bytes.length;
 
-      if (!_heapTags.contains(sec.tag) || sec.bytes.length < 6) continue;
-      final walk = walkHeapBody(sec.bytes);
-      s.framed += walk.coveredBytes;
-      s.body += walk.bodyBytes;
+      if (!kHeapSectionTags.contains(sec.tag) || sec.bytes.length < 6) continue;
+      final tiers = measureHeapTiers(sec.bytes, sec.tag);
+      s.framed += tiers.walk.coveredBytes;
+      s.body += tiers.walk.bodyBytes;
       s.heaps++;
-      if (walk.complete) s.fullHeaps++;
-      for (final span in walk.spans) {
-        switch (heapDecodeTier(sec.bytes, span.offset, span.lead, sec.tag)) {
-          case HeapDecodeTier.semantic:
-            s.semantic += span.length;
-          case HeapDecodeTier.valueKindKnown:
-            s.valueKind += span.length;
-          case HeapDecodeTier.framed:
-            break;
-        }
-      }
+      if (tiers.walk.complete) s.fullHeaps++;
+      s.semantic += tiers.semanticBytes;
+      s.valueKind += tiers.valueKindBytes;
     }
   }
   return s;
@@ -149,17 +129,18 @@ bool _listEq(List<int> a, List<int> b) {
 String _pct(double v) => (v * 100).toStringAsFixed(1);
 
 void main(List<String> args) {
-  final root = args.isNotEmpty ? args[0] : _defaultCorpusRoot();
-  final bySource = <String, List<File>>{};
+  final root = args.isNotEmpty ? args[0] : '${corpusBaseDir().path}/vi';
   final rootDir = Directory(root);
-  if (rootDir.existsSync()) {
-    for (final src in rootDir.listSync().whereType<Directory>()) {
-      final name = src.path.split('/').last;
-      for (final f in src.listSync(recursive: true).whereType<File>()) {
-        if (!f.path.toLowerCase().endsWith('.vi')) continue;
-        (bySource[name] ??= <File>[]).add(f);
-      }
-    }
+  // One recursive, symlink-free enumeration (the same [listCorpusVis] the corpus
+  // tests use), grouped by source = the first path segment under the root. A
+  // `.vi` directly under the root has no source dir and is not counted.
+  final bySource = <String, List<File>>{};
+  final prefix = '${rootDir.path}/';
+  for (final f in listCorpusVis(rootDir)) {
+    final rel = f.path.startsWith(prefix) ? f.path.substring(prefix.length) : f.path;
+    final slash = rel.indexOf('/');
+    if (slash <= 0) continue;
+    (bySource[rel.substring(0, slash)] ??= <File>[]).add(f);
   }
 
   final overall = _Stat();
@@ -170,8 +151,7 @@ void main(List<String> args) {
     ..writeln('|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|');
   stdout.writeln('source             VIs parse% decode% cont% idBlk% decByt% hFram% hSem% hCompl%');
   for (final src in bySource.keys.toList()..sort()) {
-    final files = bySource[src]!..sort((a, b) => a.path.compareTo(b.path));
-    final s = _measure(files);
+    final s = _measure(bySource[src]!);
     overall.add(s);
     stdout.writeln(
       '${src.padRight(16).substring(0, 16)} ${s.vis.toString().padLeft(4)} '
@@ -214,7 +194,7 @@ void main(List<String> args) {
       ..writeln('- **idBlk%** — block instances whose tag is catalogued.')
       ..writeln('- **decBytes%** — block-content bytes in a block type with a decoder.')
       ..writeln('- **heapFramed/heapSemantic/heapComplete%** — heap body framing / typed-meaning / walked-to-EOF.')
-      ..writeln('- Heaps measured: ${_heapTags.join(', ')}.')
+      ..writeln('- Heaps measured: ${kHeapSectionTags.join(', ')}.')
       ..writeln()
       ..writeln(md.toString().trimRight())
       ..writeln()

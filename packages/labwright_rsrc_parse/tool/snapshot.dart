@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
+import 'corpus_base.dart';
+
 /// **Feature-presence snapshot** for the WHOLE VI corpus, grouped by structure.
 ///
 /// For each VI (via the exact app decode path `buildViModel`/`parseVi`) records
@@ -14,33 +16,17 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 /// take a VI "from something to nothing". Gaining features is fine (re-run).
 ///
 /// Run: `dart run tool/snapshot.dart [corpusDir]`  (writes `<pkg>/corpus/snapshot.json`)
-/// Default corpusDir = the whole gitignored corpus fetched by tool/fetch_corpus.dart.
-/// Resolves this package's `corpus/` dir from CWD (the run may start at the repo
-/// root or the package dir), checking the package-relative and package-local
-/// locations. The corpus + its committed JSON live under the package now.
-String _corpusBase() {
-  const pkgRel = 'packages/labwright_rsrc_parse/corpus';
-  var d = Directory.current;
-  for (var i = 0; i < 8; i++) {
-    if (File('${d.path}/$pkgRel/sources.json').existsSync()) return '${d.path}/$pkgRel';
-    if (File('${d.path}/corpus/sources.json').existsSync()) return '${d.path}/corpus';
-    final p = d.parent;
-    if (p.path == d.path) break;
-    d = p;
-  }
-  return 'corpus';
-}
-
+/// Default corpusDir = the whole gitignored corpus fetched by tool/fetch_corpus.dart,
+/// resolved by the shared [corpusBaseDir]; enumeration via [listCorpusVis]
+/// (recursive, symlinks excluded).
 void main(List<String> args) {
-  final base = _corpusBase();
+  final base = corpusBaseDir().path;
   final dir = Directory(args.isNotEmpty ? args[0] : '$base/vi');
   if (!dir.existsSync()) {
     stderr.writeln('corpus dir not found: ${dir.path}');
     exit(1);
   }
-  final vis =
-      dir.listSync(recursive: true).whereType<File>().where((f) => f.path.toLowerCase().endsWith('.vi')).toList()
-        ..sort((a, b) => a.path.compareTo(b.path));
+  final vis = listCorpusVis(dir);
 
   final root = vis.isEmpty ? dir.path : _commonRoot(vis.map((f) => f.path));
   // Group VIs by their resource-block SET, so structurally-similar VIs cluster

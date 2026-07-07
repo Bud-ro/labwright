@@ -2,53 +2,28 @@ import 'dart:io';
 import 'dart:isolate';
 import 'dart:typed_data';
 
-/// Resolves this package's corpus dir (`<pkg>/corpus/`), which holds the committed
-/// JSON indices and the gitignored `vi/` checkout from `tool/fetch_corpus.dart`.
-/// Tests run from either the repo root or the package dir (see the CWD probe), so
-/// walk up from CWD checking both the package-relative location (CWD at/above the
-/// repo root) and the package-local one (CWD == package root). Falls back to a
-/// cwd-relative path.
-Directory _corpusBase() {
-  const pkgRel = 'packages/labwright_rsrc_parse/corpus';
-  var dir = Directory.current;
-  for (var i = 0; i < 8; i++) {
-    for (final rel in const [pkgRel, 'corpus']) {
-      if (File('${dir.path}/$rel/sources.json').existsSync()) {
-        return Directory('${dir.path}/$rel');
-      }
-    }
-    final parent = dir.parent;
-    if (parent.path == dir.path) break;
-    dir = parent;
-  }
-  return Directory('corpus');
-}
+import '../tool/corpus_base.dart';
 
-/// The whole VI corpus directory (every pinned source). Empty/absent until
-/// fetched — corpus tests skip when it does not exist.
-final Directory corpusViDir = Directory('${_corpusBase().path}/vi');
+/// The whole VI corpus directory (every pinned source), resolved by the shared
+/// [corpusBaseDir]. Empty/absent until fetched — corpus tests skip when it does
+/// not exist.
+final Directory corpusViDir = Directory('${corpusBaseDir().path}/vi');
 
 List<File>? _allVisCache;
 
-/// Every `.vi` in the corpus, sorted by path (deterministic), cached per run. The
-/// corpus tests run over ALL of these — there is no sampling tier; the heavy
-/// per-VI work is parallelized across isolates instead (see [corpusParallel]).
-List<File> corpusVis() {
-  if (_allVisCache != null) return _allVisCache!;
-  final d = corpusViDir;
-  if (!d.existsSync()) return _allVisCache = <File>[];
-  final vis = d.listSync(recursive: true).whereType<File>().where((f) => f.path.toLowerCase().endsWith('.vi')).toList()
-    ..sort((a, b) => a.path.compareTo(b.path));
-  return _allVisCache = vis;
-}
+/// Every `.vi` in the corpus, enumerated by the shared [listCorpusVis]
+/// (recursive, symlinks excluded, path-sorted) and cached per run. The corpus
+/// tests run over ALL of these — there is no sampling tier; the heavy per-VI
+/// work is parallelized across isolates instead (see [corpusParallel]).
+List<File> corpusVis() => _allVisCache ??= listCorpusVis(corpusViDir);
 
 /// The coverage baseline written by `tool/coverage.dart`, resolved next to the
 /// package-local corpus (`<pkg>/corpus/baseline.json`).
-File corpusBaselineFile() => File('${_corpusBase().path}/baseline.json');
+File corpusBaselineFile() => File('${corpusBaseDir().path}/baseline.json');
 
 /// The per-VI feature snapshot written by `tool/snapshot.dart`, resolved next to
 /// the package-local corpus (`<pkg>/corpus/snapshot.json`).
-File corpusSnapshotFile() => File('${_corpusBase().path}/snapshot.json');
+File corpusSnapshotFile() => File('${corpusBaseDir().path}/snapshot.json');
 
 /// A corpus entry that is deliberately NOT a valid RSRC/VI file — an upstream test
 /// fixture (G-CLI's `rust-proxy/test_data/test.vi` is a few bytes, "too small to be
