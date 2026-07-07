@@ -353,14 +353,37 @@ enum HeapAttribute {
   coordX(0x00, HeapAttrKind.coordinate, 'coordX', AttrConfidence.inferred),
   coordY(0x01, HeapAttrKind.coordinate, 'coordY', AttrConfidence.inferred),
 
-  /// `0xDF` — **object type / class** (`u8`, 39 distinct values 0..118): a broad
-  /// object-class *attribute*. NOTE: this is a distinct `u8` value space — it is
-  /// NOT the same as the `u16` `HeapObjectClass` header `<kind>` code; the two do
-  /// not index into each other.
-  objectClass(0xdf, HeapAttrKind.enumValue, 'objectClass', AttrConfidence.kindOnly),
+  /// `0xDF` — **part role** (`u8` via the `24` form; the ≥8000 range via the
+  /// `44` u16 form): which *part* of a composite object the enclosing object is.
+  /// Full-corpus evidence (`tool/probe_part_role.dart`, [walkHeapObjects], 7524
+  /// VIs): 1,573,913 records, every one inside an object scope (0 outside), and
+  /// the value→dominant-enclosing-kind mapping holds at **97.14%** purity across
+  /// 88 distinct values. Values **<8000** name common control parts —
+  /// 16→label `0x0A` (335,878/335,898), 66→connector terminal `0x68`
+  /// (280,711/280,747 = 99.99%), 15→control sub-part `0x0B` (100,504/100,507),
+  /// 9→chrome `0x09` (97.5%), 28→chrome `0x09` (98.7%), 10→numeric display
+  /// `0xE0` (74,148/74,167), 22/12→enum item list `0x0D` (100%). Values
+  /// **≥8000** are control-scoped: 8002→numeric control `0x50`
+  /// (12,801/12,817 = 99.9%), 8019→boolean/cluster `0x4F` (2,444/2,444); the
+  /// exception is 8010, which spans 13 control-terminal/container kinds
+  /// (`0x53`/`0x57`/`0x50`/`0x55`/…) — a cross-kind role, not a kind alias.
+  /// The *direction* (value ↔ part role) is thus defensible; the exact LabVIEW
+  /// property name is not, so inferred, not confirmed. NOTE: this is a distinct
+  /// value space — it is NOT the same as the `u16` `HeapObjectClass` header
+  /// `<kind>` code; the two do not index into each other.
+  partRole(0xdf, HeapAttrKind.enumValue, 'partRole', AttrConfidence.inferred),
 
-  /// `0xAF` — **object sub-kind** (`u8`, only ~9 distinct values): a small
-  /// secondary kind enum.
+  /// `0xAF` — **object sub-kind** (`u8`, 19 distinct values): a small secondary
+  /// kind enum. Kept kindOnly — probed on the object-tree axes
+  /// (`tool/probe_part_role.dart`, 918,340 records) and **refuted** for an
+  /// inferred name: value→enclosing-kind purity 42.9%, value→owning-control-kind
+  /// (nearest enclosing control-terminal class) purity 48.0%, value→co-occurring
+  /// [partRole] value purity 28.3%. The dominant value 9 (73% of records)
+  /// spreads across ≥13 enclosing kinds and 4+ owning-control kinds. Isolated
+  /// coherent cells exist — 8010→label-part objects `0x0A` (17,021/17,021),
+  /// 30→numeric control `0x50` (12,801/12,817, mirroring [partRole] 8002),
+  /// 21→owning control `0x4F` (55,701/55,701) — but no corpus-wide axis holds,
+  /// so naming it would overclaim.
   objectSubKind(0xaf, HeapAttrKind.enumValue, 'objectSubKind', AttrConfidence.kindOnly),
 
   /// `0x3A` — **element index / ordinal** (`u8`/`u16`, strictly sequential
@@ -479,8 +502,17 @@ enum HeapAttribute {
   growClusterB(0xe9, HeapAttrKind.numeric, 'growClusterB', AttrConfidence.kindOnly),
   growClusterC(0xde, HeapAttrKind.numeric, 'growClusterC', AttrConfidence.kindOnly),
 
-  /// `0xCB` — **packed value / large numeric** (`u24` values stepping
-  /// `0x10000`..`0x700000`): a packed numeric, not a colour despite the width.
+  /// `0xCB` — **packed value / large numeric** (`u8`/`u16`/`u24` forms; `u24`
+  /// values stepping `0x10000`..`0x700000`): a packed numeric, not a colour
+  /// despite the width. Kept kindOnly — probed on the object-tree axes
+  /// (`tool/probe_part_role.dart`, 3,745,810 records, 2,084 distinct values)
+  /// and no structurally coherent meaning emerged: value→enclosing-kind
+  /// dominant-cell purity is 85.1% but the mass sits in diffuse cells (e.g.
+  /// value 4096 spans 36 kinds; value 1 spans 51); the storage width tracks the
+  /// value's magnitude at 100% (so width carries no independent signal); and
+  /// value→co-occurring [partRole] purity is 79.4% over 690 values with no
+  /// range structure. Individual strong cells (1,511,754→[partRole] 16 at
+  /// 99.2%) do not generalize, so the packed fields remain undecoded.
   packedValue(0xcb, HeapAttrKind.numeric, 'packedValue', AttrConfidence.kindOnly),
 
   /// `0x19` — **scale factor / multiplier** (mixed widths). Same id family as the

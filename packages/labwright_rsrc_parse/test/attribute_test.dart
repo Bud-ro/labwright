@@ -41,11 +41,32 @@ void main() {
   group('decodeHeapAttr — widths', () {
     test('u8 (0x24)', () {
       final a = decodeHeapAttr(Uint8List.fromList([0x24, 0xdf, 0x05]), 0)!;
-      expect(a.attribute, HeapAttribute.objectClass);
+      expect(a.attribute, HeapAttribute.partRole);
       expect(a.width, HeapAttrWidth.u8);
       expect(a.asInt, 5);
       expect(a.kind, HeapAttrKind.enumValue);
       expect(a.length, 3);
+    });
+
+    test('partRole (0xDF) decodes in both its corpus forms and is inferred, not kindOnly', () {
+      // u8 form: value 66 = the connector-terminal part role (kind 0x68 at 99.99%).
+      final u8 = decodeHeapAttr(Uint8List.fromList([0x24, 0xdf, 66]), 0)!;
+      expect(u8.attribute, HeapAttribute.partRole);
+      expect(u8.attribute.attrName, 'partRole');
+      expect(u8.attribute.confidence, AttrConfidence.inferred);
+      expect(u8.asInt, 66);
+      // u16 form: the >=8000 control-scoped range (8002 = numeric-control role).
+      final u16 = decodeHeapAttr(Uint8List.fromList([0x44, 0xdf, 0x1f, 0x42]), 0)!;
+      expect(u16.attribute, HeapAttribute.partRole);
+      expect(u16.width, HeapAttrWidth.u16);
+      expect(u16.asInt, 8002);
+      expect(u16.kind, HeapAttrKind.enumValue);
+    });
+
+    test('objectSubKind (0xAF) stays kindOnly (owning-control purity 48.0% — refuted)', () {
+      final a = decodeHeapAttr(Uint8List.fromList([0x24, 0xaf, 0x09]), 0)!;
+      expect(a.attribute, HeapAttribute.objectSubKind);
+      expect(a.attribute.confidence, AttrConfidence.kindOnly);
     });
 
     test('u16 (0x44)', () {

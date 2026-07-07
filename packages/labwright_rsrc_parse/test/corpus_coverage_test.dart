@@ -44,6 +44,11 @@ class _Cov {
 
   /// Structural node-fallback census.
   final int fallbackNodes, drawableUnknown;
+
+  /// partRole (0xDF) correlation sentinels: occurrences of exemplar values and
+  /// how many sit in their evidence-dominant enclosing kind (see
+  /// [HeapAttribute.partRole]).
+  final int part16, part16InLabel, part66, part66InConnector, part8002, part8002InNumeric;
   const _Cov({
     required this.totalityFail,
     required this.walkFail,
@@ -56,12 +61,19 @@ class _Cov {
     required this.kinds,
     required this.fallbackNodes,
     required this.drawableUnknown,
+    required this.part16,
+    required this.part16InLabel,
+    required this.part66,
+    required this.part66InConnector,
+    required this.part8002,
+    required this.part8002InNumeric,
   });
 }
 
 _Cov _covSumm(Uint8List bytes, String path) {
   var framed = 0, body = 0, semantic = 0;
   var propertyNames = 0, helpStrings = 0, controlF64 = 0;
+  var part16 = 0, part16InLabel = 0, part66 = 0, part66InConnector = 0, part8002 = 0, part8002InNumeric = 0;
   String? walkFail;
   String? totalityFail;
 
@@ -88,6 +100,32 @@ _Cov _covSumm(Uint8List bytes, String path) {
           controlF64++;
         }
       }
+      // partRole (0xDF) correlation sentinels: the value->enclosing-kind evidence
+      // behind the inferred upgrade, re-measured on every run via the shared
+      // object-tree walk so the meaning cannot silently rot.
+      walkHeapObjects<int>(
+        s.bytes,
+        onObjectOpen: (span, kind, oid, parent) => kind,
+        onRecord: (span, enclosingKind) {
+          if (enclosingKind == null) return;
+          // Cheap pre-filter: every attribute form carries its id at offset+1,
+          // so a non-0xDF byte there can never decode to partRole.
+          if (span.length < 3 || s.bytes[span.offset + 1] != 0xdf) return;
+          final a = decodeHeapAttr(s.bytes, span.offset);
+          if (a == null || a.attribute != HeapAttribute.partRole) return;
+          switch (a.asInt) {
+            case 16:
+              part16++;
+              if (enclosingKind == 0x0a) part16InLabel++;
+            case 66:
+              part66++;
+              if (enclosingKind == 0x68) part66InConnector++;
+            case 8002:
+              part8002++;
+              if (enclosingKind == 0x50) part8002InNumeric++;
+          }
+        },
+      );
     }
   } catch (e) {
     if (!isNonRsrcFixture(path)) totalityFail = '$path: $e';
@@ -118,6 +156,12 @@ _Cov _covSumm(Uint8List bytes, String path) {
     kinds: kinds,
     fallbackNodes: fallbackNodes,
     drawableUnknown: drawableUnknown,
+    part16: part16,
+    part16InLabel: part16InLabel,
+    part66: part66,
+    part66InConnector: part66InConnector,
+    part8002: part8002,
+    part8002InNumeric: part8002InNumeric,
   );
 }
 
@@ -178,6 +222,39 @@ void main() {
       reason:
           'semantically-decoded regressed to ${(semanticPct * 100).toStringAsFixed(1)}% '
           '(baseline ${(floor('semanticallyDecoded') * 100).toStringAsFixed(1)}%). Re-run tool/coverage.dart only if this is a real improvement.',
+    );
+  });
+
+  // Pin the corpus correlations behind the partRole (0xDF) inferred upgrade.
+  // The name rests on the value->enclosing-kind evidence in
+  // [HeapAttribute.partRole]; re-assert its exemplar cells over the whole corpus
+  // so the inferred meaning fails loudly if the walker, the decode, or a corpus
+  // refresh breaks the correlation.
+  test('partRole (0xDF) exemplar value->enclosing-kind correlations hold corpus-wide', () {
+    final part16 = C.fold<int>(0, (a, c) => a + c.part16);
+    final part16InLabel = C.fold<int>(0, (a, c) => a + c.part16InLabel);
+    final part66 = C.fold<int>(0, (a, c) => a + c.part66);
+    final part66InConnector = C.fold<int>(0, (a, c) => a + c.part66InConnector);
+    final part8002 = C.fold<int>(0, (a, c) => a + c.part8002);
+    final part8002InNumeric = C.fold<int>(0, (a, c) => a + c.part8002InNumeric);
+
+    expect(part16, greaterThan(100000), reason: 'partRole value 16 population collapsed (evidence: 335,898)');
+    expect(part66, greaterThan(100000), reason: 'partRole value 66 population collapsed (evidence: 280,747)');
+    expect(part8002, greaterThan(5000), reason: 'partRole value 8002 population collapsed (evidence: 12,817)');
+    expect(
+      part16InLabel / part16,
+      greaterThanOrEqualTo(0.999),
+      reason: 'partRole 16 must sit in label objects (kind 0x0A) at >=99.9% (evidence: 335,878/335,898)',
+    );
+    expect(
+      part66InConnector / part66,
+      greaterThanOrEqualTo(0.999),
+      reason: 'partRole 66 must sit in connector terminals (kind 0x68) at >=99.9% (evidence: 280,711/280,747)',
+    );
+    expect(
+      part8002InNumeric / part8002,
+      greaterThanOrEqualTo(0.995),
+      reason: 'partRole 8002 must sit in numeric controls (kind 0x50) at >=99.5% (evidence: 12,801/12,817)',
     );
   });
 

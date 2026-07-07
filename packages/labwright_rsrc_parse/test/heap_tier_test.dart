@@ -79,6 +79,32 @@ void main() {
     );
   });
 
+  test('semantic: partRole (0xDF, inferred) lands in the semantic tier in both widths', () {
+    expect(
+      tier([0x24, 0xdf, 66]),
+      HeapDecodeTier.semantic,
+      reason: 'partRole u8 form (value 66 = connector-terminal role)',
+    );
+    expect(
+      tier([0x44, 0xdf, 0x1f, 0x42]),
+      HeapDecodeTier.semantic,
+      reason: 'partRole u16 form (value 8002 = numeric-control role)',
+    );
+  });
+
+  test('valueKindKnown: 0xAF and 0xCB stay value-kind-known (probed and refuted, not upgraded)', () {
+    expect(
+      tier([0x24, 0xaf, 0x09]),
+      HeapDecodeTier.valueKindKnown,
+      reason: '0xAF objectSubKind is kindOnly (owning-control purity 48.0%)',
+    );
+    expect(
+      tier([0x64, 0xcb, 0x10, 0x00, 0x00]),
+      HeapDecodeTier.valueKindKnown,
+      reason: '0xCB packedValue is kindOnly (no coherent corpus correlation)',
+    );
+  });
+
   test('valueKindKnown: a colour-named id in a NON-colour width is not credited as a colour', () {
     expect(
       tier([0x45, 0x20, 0x02, 0x00]),
