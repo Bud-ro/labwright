@@ -130,7 +130,7 @@ void main() {
     expect(s.refs, [9, 10]);
   });
 
-  test('the full 0x14 typed-ref family is collected (childRef + memberRef) into the object graph', () {
+  test('the full typed-ref family is collected (childRef + dcoRef + ddoRef) into the object graph', () {
     final records = <int>[
       ...open(0x53, 1),
       ...bounds(0, 0, 100, 100),
@@ -163,14 +163,14 @@ void main() {
     final s = buildDiagram(Uint8List.fromList([0, 0, 0, records.length, ...records])).byId[1]!;
     expect(s.refs, [9], reason: 's.refs is the backward-compatible childRef subset');
     expect(s.typedRefs[HeapRefKind.childRef], [9]);
-    expect(s.typedRefs[HeapRefKind.memberRef], [11]);
-    expect(s.typedRefs[HeapRefKind.siblingRef], [12]);
+    expect(s.typedRefs[HeapRefKind.dcoRef], [11]);
+    expect(s.typedRefs[HeapRefKind.dcoAggRef], [12]);
     expect(
-      s.typedRefs.containsKey(HeapRefKind.literal),
-      isFalse,
-      reason: '0x14 0x53 is a literal value, not a typed ref',
+      s.typedRefs[HeapRefKind.ddoRef],
+      [7],
+      reason: '14 53 is a cross-heap display-object reference (resolves in the sibling heap)',
     );
-    expect(s.memberOids.toSet(), {9, 11}, reason: 'memberOids = childRef ∪ memberRef');
+    expect(s.memberOids.toSet(), {9, 11}, reason: 'memberOids = childRef ∪ dcoRef');
   });
 
   test('classifies kinds and infers type from attached C4 records', () {
@@ -418,8 +418,9 @@ void main() {
 
   test('control range (0x20/0x21) + help (0x6C FF) collected ONLY on controls, not decorations', () {
     List<int> f64rec(int id, double v) {
+      // C6 form: raw 0x220/0x221 = stdNumMin/stdNumMax (the corpus carrier).
       final d = ByteData(8)..setFloat64(0, v);
-      return [0xc5, id, 0x08, ...d.buffer.asUint8List()];
+      return [0xc6, id, 0x08, ...d.buffer.asUint8List()];
     }
 
     final records = <int>[

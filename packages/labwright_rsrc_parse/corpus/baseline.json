@@ -21,8 +21,8 @@
     "blocksIdentified": 0.9998,
     "blockBytesDecoded": 0.98,
     "deliberatelyParsed": 0.9751,
-    "semanticallyDecoded": 0.8425,
-    "valueKindKnown": 0.1178,
+    "semanticallyDecoded": 0.9544,
+    "valueKindKnown": 0.0207,
     "fullyParsedHeaps": 0.9971
   }
 }
