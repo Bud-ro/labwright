@@ -181,9 +181,18 @@ byId('filterTests').oninput = (e) => { filters.tests = e.target.value; renderTes
 byId('filterQueue').oninput = (e) => { filters.queue = e.target.value; renderQueue(); };
 byId('filterLog').oninput = (e) => { filters.log = e.target.value; highlight = null; renderLog(); };
 
+// The header dot: green while the SSE stream is open, red the moment it
+// drops (EventSource keeps retrying; the dot flips back on reconnect).
+function setConn(ok) {
+  const c = byId('conn');
+  c.classList.toggle('ok', ok);
+  c.title = ok ? 'connected' : 'disconnected';
+}
+
 const source = new EventSource('/events');
-source.onerror = () => { byId('meta').textContent = ' · disconnected'; };
-source.onmessage = (m) => { snap = JSON.parse(m.data); onSnapshot(); };
+source.onopen = () => setConn(true);
+source.onerror = () => { setConn(false); byId('meta').textContent = ' · disconnected'; };
+source.onmessage = (m) => { setConn(true); snap = JSON.parse(m.data); onSnapshot(); };
 source.addEventListener('hist', (m) => {
   const d = JSON.parse(m.data);
   if (d.reset) { history = (d.entries || []).slice().reverse(); renderLog(); }

@@ -56,6 +56,14 @@ void main() {
     }
   });
 
+  test('the connection dot exists and follows the SSE stream state', () {
+    expect(_site('index.html'), contains('id="conn"'), reason: 'the dot sits top-left in the header');
+    expect(_site('style.css'), contains('.conn.ok'), reason: 'green when connected, red base otherwise');
+    final js = _site('app.js');
+    expect(js, contains('source.onopen'), reason: 'the dot turns green when the stream opens');
+    expect(js, contains('setConn(false)'), reason: 'and red the moment it drops');
+  });
+
   test(
     'the viewer serves the site: right content types, disk-identical bytes, whitelist-only',
     () async {
