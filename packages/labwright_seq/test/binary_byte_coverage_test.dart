@@ -79,11 +79,13 @@ void main() {
       files++;
       total = total + cov;
     }
-    // Measured 2026-07 round 3: 294 binaries, record region 30.2 MB,
-    // semantic 29.8%, structural 7.6% — the campaign scoreboard (round 1
-    // measured 5.9%/1.1%, round 2 13.5%/4.3%). Floors under-pin slightly.
+    // Measured 2026-07: 294 binaries, record region 30.2 MB, semantic
+    // 30.2%, structural 7.7% — the campaign scoreboard (round 1 measured
+    // 5.9%/1.1%, round 2 13.5%/4.3%, round 3 29.8%/7.6%; round 4's
+    // type-index-base rebase unblocked the misaligned cohort's framed
+    // references). Floors under-pin slightly.
     expect(files, greaterThanOrEqualTo(290));
-    expect(total.recordSemanticRatio, greaterThanOrEqualTo(0.28));
-    expect(total.recordAccountedRatio, greaterThanOrEqualTo(0.36));
+    expect(total.recordSemanticRatio, greaterThanOrEqualTo(0.29));
+    expect(total.recordAccountedRatio, greaterThanOrEqualTo(0.37));
   });
 }

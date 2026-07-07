@@ -1169,10 +1169,9 @@ const _typeRecordMinBytes = (3 + _typeVersionTripleWords) * _u32Bytes;
 ///    rosetta bodies break) and per record-prefix layout (0x76
 ///    exemplars regress); they stay bailing until per-field evidence
 ///    exists;
-///  * 19 corpus files whose framed X refs are shifted by a CONSTANT
-///    per-file delta against the recovered type table (the recovery
-///    misses/over-counts records there — the Expression-resolution gate
-///    keeps them bailing instead of fabricating type names);
+///  * framed VALUED scalars of a NON-`Expression` scalar type (e.g. an
+///    enum `ModelType` = `'Sequential'`): the framed-scalar grammar only
+///    covers the `Expression` case, so these bail (1 corpus record);
 ///  * the intrinsic-type id → name map ([BinaryTypeField.
 ///    intrinsicTypeId]: 2 = StepTypeSubstepsArray measured);
 ///  * locals/parameters: thin twin oracle (rosetta declares only the
@@ -1278,7 +1277,8 @@ List<BinaryTypeField>? _typeFieldsAt(
   int recordRegionLength,
   List<BinaryTypeRecord> table, [
   int? endBoundary,
-]) => _TypeBodyParser(view, pool, recordRegionLength, table, endBoundary).parse(after);
+  int? typeIndexBase,
+]) => _TypeBodyParser(view, pool, recordRegionLength, table, endBoundary, typeIndexBase).parse(after);
 
 /// Tooling aid for grammar iteration, not part of the decode API: every
 /// element-type spec the decode ACCEPTED a structural skip for, as
@@ -1304,14 +1304,95 @@ List<(String, int, int)> binaryElementSpecSites(Uint8List seqBytes) {
 /// skips — a wrong value there makes skips bail, never fabricate.
 const _typeRecordPreambleBytes = 17;
 
+/// The field names that are ALWAYS `Expression`-typed across every record
+/// generation and file — the format-expression properties every step type
+/// declares. Their framed valued-scalar sites are the anchor
+/// [deriveTypeIndexBase] uses to recover a file's type-index base: whatever
+/// their `X` resolves to MUST be the table's `Expression` record, so the
+/// base is `X - 1 - exprIndex`. Kept minimal and high-confidence — these two
+/// are the display-format expressions, universally `Expression` (219 aligned
+/// corpus files confirm `X - 1 == exprIndex`, i.e. base 0; the misaligned
+/// cohort resolves them to a wrong record until rebased).
+const _typeIndexAnchorFields = {'DescriptionFormat', 'DefaultNameFormat'};
+
+/// Recovers the per-file type-index base (see [_TypeBodyParser.typeIndexBase]).
+///
+/// A framed 1-based reference `X` names `table[X - 1 - base]`. The recovered
+/// head [table] can differ from TestStand's true type-index space in two
+/// ways, both corpus-observed and both a CONSTANT per-file offset:
+///  * the true space reserves engine-intrinsic types before the first
+///    SERIALIZED record (e.g. `StepTypeSubstepsArray` ahead of `Expression`),
+///    how many varying by record generation — a POSITIVE base;
+///  * the head scan over-detects a record before `Expression` (an
+///    enum/data record matching the type-record shape) — a NEGATIVE base.
+/// The base is derived from the cross-format invariant that
+/// [_typeIndexAnchorFields] are always `Expression`-typed: at each of their
+/// framed valued-scalar sites the base candidates are `{X - 1 - i :
+/// table[i] == 'Expression'}`, and the file's base is the value common to
+/// EVERY anchor site (the one nearest zero when several agree). Returns 0
+/// when no anchor site references the table (the aligned majority — those
+/// sites carry X == 0, the implicit form — or old-generation files with no
+/// framed table refs) or when the anchors disagree (never guessed).
+/// Whole-corpus guard: aligned files derive 0, so resolution is unchanged.
+int deriveTypeIndexBase(ByteData view, List<String> pool, int recordRegionLength, List<BinaryTypeRecord> table) {
+  final exprIdx = <int>[];
+  for (var i = 0; i < table.length; i++) {
+    if (table[i].name == 'Expression') exprIdx.add(i);
+  }
+  if (exprIdx.isEmpty) return 0;
+  const framedValued = 0x82; // 0x80 framed | 0x2 valued
+  Set<int>? common;
+  for (var at = 0; at + 6 * _u32Bytes <= recordRegionLength; at++) {
+    final flags = view.getUint32(at, Endian.little);
+    if (flags & framedValued != framedValued || flags & ~_fieldKnownFlagBits != 0) continue;
+    if (view.getUint32(at + _u32Bytes, Endian.little) != 0) continue;
+    if (view.getUint32(at + 2 * _u32Bytes, Endian.little) != _recordDelimiter) continue;
+    final nameWord = view.getUint32(at + 4 * _u32Bytes, Endian.little);
+    if (nameWord == 0 || nameWord >= pool.length || !_typeIndexAnchorFields.contains(pool[nameWord])) {
+      continue;
+    }
+    final x = view.getUint32(at + 3 * _u32Bytes, Endian.little);
+    if (x < 1) continue;
+    // Each Expression record index yields one base under which this X
+    // resolves to it (always in range: X - 1 - (X - 1 - e) == e).
+    final cands = {for (final e in exprIdx) x - 1 - e};
+    common = common == null ? cands : common.intersection(cands);
+    if (common.isEmpty) return 0;
+  }
+  if (common == null) return 0;
+  return common.reduce((a, b) => a.abs() < b.abs() ? a : b);
+}
+
 /// The recursive typedef-body field parser — see [_typeFieldsAt].
 class _TypeBodyParser {
-  _TypeBodyParser(this.view, this.pool, this.recordRegionLength, this.table, [this.bodyEndBoundary]);
+  _TypeBodyParser(this.view, this.pool, this.recordRegionLength, this.table, [this.bodyEndBoundary, int? typeIndexBase])
+    : typeIndexBase = typeIndexBase ?? deriveTypeIndexBase(view, pool, recordRegionLength, table);
 
   final ByteData view;
   final List<String> pool;
   final int recordRegionLength;
   final List<BinaryTypeRecord> table;
+
+  /// How many engine-intrinsic types precede the first SERIALIZED type
+  /// record in this file's type-index space, so a framed 1-based
+  /// reference `X` names [table]`[X - 1 - typeIndexBase]` (see
+  /// [deriveTypeIndexBase] and [_tableRef]). Zero for the aligned
+  /// majority; nonzero for files whose record generation reserves leading
+  /// intrinsic types (e.g. `StepTypeSubstepsArray` before `Expression`).
+  /// The X == 0 (implicit) and X == 1 !valued (custom instance) forms are
+  /// generation-level sentinels and are NOT rebased.
+  final int typeIndexBase;
+
+  /// Whether [x] is a framed reference that resolves inside [table] under
+  /// the file's [typeIndexBase].
+  bool _validTableX(int x) {
+    final i = x - 1 - typeIndexBase;
+    return i >= 0 && i < table.length;
+  }
+
+  /// The type record a framed 1-based reference [x] names, rebased by
+  /// [typeIndexBase]. Callers gate with [_validTableX] first.
+  BinaryTypeRecord _tableRef(int x) => table[x - 1 - typeIndexBase];
 
   /// Where this body must END — the next type record's head start minus
   /// its preamble ([_typeRecordPreambleBytes]) — or null for the last
@@ -1446,7 +1527,7 @@ class _TypeBodyParser {
       xOmitted = true;
       p += _u32Bytes;
     } else {
-      if (x < 1 || x > table.length) return null;
+      if (!_validTableX(x)) return null;
       p += _u32Bytes;
       if (!_canRead(p) || _u32(p) != _recordDelimiter) return null;
       p += _u32Bytes;
@@ -1735,12 +1816,12 @@ class _TypeBodyParser {
     if (at + 4 * _u32Bytes > recordRegionLength) return null;
     if (_tok(_u32(at)) != 'Step') return null;
     final x = _u32(at + _u32Bytes);
-    if (x < 1 || x > table.length) return null;
+    if (!_validTableX(x)) return null;
     final name = _tok(_u32(at + 2 * _u32Bytes));
     if (name == null) return null;
     final count = _u32(at + 3 * _u32Bytes);
     if (count > _typeMaxFields) return null;
-    final ref = table[x - 1];
+    final ref = _tableRef(x);
     final outerInstance = _inInstance;
     final outerRepr = _numericReprContext;
     _inInstance = true;
@@ -1796,8 +1877,8 @@ class _TypeBodyParser {
     var name = '';
     BinaryTypeRecord? ref;
     if (word3 == _recordDelimiter) {
-      if (x < 1 || x > table.length) return null;
-      ref = table[x - 1];
+      if (!_validTableX(x)) return null;
+      ref = _tableRef(x);
       // Expression-VALUED anonymous element — `[DELIM][X][DELIM]
       // [valueRef][attrs…][0]` where X resolves to the table's
       // `Expression` record (the same resolution gate as the framed
@@ -2330,24 +2411,21 @@ class _TypeBodyParser {
           // inside an instance, where an unvalued field is inherited.
           value = _inInstance ? null : '';
         }
-      } else if (x >= 1 && valued && x - 1 < table.length && table[x - 1].name == 'Expression') {
+      } else if (x >= 1 && valued && _validTableX(x) && _tableRef(x).name == 'Expression') {
         // Framed VALUED scalar with an explicit type-table reference —
         // the newer record generation's encoding of the Expression
         // scalar (the old generation writes X=0 with the type implicit).
         // Corpus-measured: the X of every such field resolves to the
-        // table's `Expression` record (2,580 DescriptionFormat/
-        // DefaultNameFormat sites across 219 files, X-1 == the
-        // Expression record's index in every one, including files where
-        // Expression is not first); the gate requires that resolution,
-        // so a file whose recovered table is misaligned bails instead
-        // of fabricating a type. (A small cohort — 19 files — carries a
-        // CONSTANT per-file off-by-k shift between these refs and the
-        // recovered table: the table recovery misses/over-counts k
-        // records there. Those files keep bailing, honestly — TODO.)
+        // table's `Expression` record (2,619 DescriptionFormat/
+        // DefaultNameFormat sites; X - 1 - typeIndexBase == the Expression
+        // record's index in every one, including files where Expression is
+        // not first and files whose type-index base is nonzero); the gate
+        // requires that resolution, so a file whose base cannot be
+        // recovered bails instead of fabricating a type.
         value = _tok(_u32(next));
         if (value == null) return null;
         next += _u32Bytes;
-      } else if (x >= 2 && !valued && x - 1 < table.length) {
+      } else if (x >= 2 && !valued && _validTableX(x)) {
         // Type table[X-1] (1-based, the same convention as step
         // references), in one of two twin-validated shapes:
         //  * an INLINE OVERRIDE instance — `[name][attr words…]
@@ -2360,7 +2438,7 @@ class _TypeBodyParser {
         //    subset of the materialized twin;
         //  * a default-instance REFERENCE — no inline content, just the
         //    attr-word tail.
-        final ref = table[x - 1];
+        final ref = _tableRef(x);
         // The scan starts past the flags-promised attr floor — a
         // zero-valued attr slot must not read as the ref-only
         // terminator (see [_attrTail]).
@@ -3003,6 +3081,21 @@ class BinaryTypeRecord {
 /// the corpus-pinned table is shared.
 List<BinaryTypeRecord> binaryTypeRecords(Uint8List seqBytes) => _withLayout(seqBytes, _typeRecordsFromBody);
 
+/// The type-index base recovered for [seqBytes] — how far the file's framed
+/// 1-based type references are offset from the recovered head table (see
+/// [deriveTypeIndexBase]). Zero for the aligned majority; nonzero (either
+/// sign) for the misaligned cohort. Returns 0 when [seqBytes] does not frame.
+int binaryTypeIndexBase(Uint8List seqBytes) {
+  final body = inflateBinaryBody(seqBytes);
+  if (body == null) return 0;
+  final recordRegionLength = _recordRegionBoundary(body);
+  if (recordRegionLength == null) return 0;
+  final pool = _orderedStringPool(body, recordRegionLength);
+  if (pool.isEmpty) return 0;
+  final table = _typeRecordsFromBody(body, recordRegionLength, sharedPool: pool, decodeBodies: false);
+  return deriveTypeIndexBase(ByteData.sublistView(body), pool, recordRegionLength, table);
+}
+
 /// Defensive cap on a field's attr-word tail (three is the most any
 /// twin-validated field stores — ffi/iof/vf, e.g. TEInf.Links).
 const _fieldMaxAttrWords = 8;
@@ -3142,11 +3235,15 @@ List<BinaryTypeRecord> _typeRecordsFromBody(
   // REFERENCED type's field count, and the corpus defines element/base
   // types before their use sites.
   final result = List.of(records);
+  // The type-index base is a whole-file property (see [deriveTypeIndexBase]):
+  // compute it once from the complete head table, then rebase every body's
+  // framed references consistently.
+  final typeIndexBase = deriveTypeIndexBase(view, pool, recordRegionLength, result);
   for (var i = 0; i < result.length; i++) {
     final bodyAt = bodyOffsets[i];
     if (bodyAt == null) continue;
     final boundary = i + 1 < headAts.length ? headAts[i + 1] - _u32Bytes - _typeRecordPreambleBytes : null;
-    final fields = _typeFieldsAt(body, view, pool, bodyAt, recordRegionLength, result, boundary);
+    final fields = _typeFieldsAt(body, view, pool, bodyAt, recordRegionLength, result, boundary, typeIndexBase);
     // A body region existed here (bodyAt != null); record whether it
     // decoded so consumers can tell "undecoded" from "declares nothing".
     result[i] = BinaryTypeRecord(
