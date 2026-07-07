@@ -39,3 +39,51 @@ The fetch tool downloads each source repo's tarball but **extracts only the
 `.seq`/config files**, discarding the rest — so a fresh corpus is a fraction of the
 old whole-repo checkout. To reclaim space from a corpus fetched by an older
 whole-repo version of the tool, delete the folder and re-fetch.
+
+## Provenance policy
+
+Every source added to `seq-sources.json` must clear this bar, and existing
+sources are re-screened against it whenever the manifest changes.
+
+**Acceptable sources**
+
+- User-authored sequences published by their author (personal projects, demos,
+  custom steps, plugins, CI examples).
+- Vendor-published examples released deliberately by the vendor (e.g. repos
+  under vendor-owned organizations such as `ni/*`, `NISystemsEngineering/*`,
+  `NIVeriStandAdd-Ons/*`, `NI-Measurement-Plug-Ins/*`).
+- Open-source projects that carry sequences as part of their own codebase.
+
+**Unacceptable sources**
+
+- Mirrored NI-internal or confidential material: internal QA pages, build- or
+  release-validation suites, internal test-report archives, or any file marked
+  confidential.
+- Wholesale re-uploads of NI-shipped product content by third parties, e.g. a
+  product install tree (`Components/`, `Models/`, shipped examples) copied
+  verbatim at scale.
+- Leaked archives, or bulk uploads of employer/institutional material by
+  accounts unrelated to the content's author.
+
+**Screening checklist (per repo)**
+
+1. **Owner plausibility** — organization vs personal account; account age vs
+   upload pattern. A one-shot bulk upload of a complete company/institution
+   test station onto a personal or unrelated account is disqualifying.
+2. **License and fork status** — prefer explicitly licensed repos; identify
+   whether the repo is a fork or an untracked re-upload of another repo.
+3. **Tree shape** — user-project shapes (own sequences, code modules, custom
+   steps, UI work, active commit history) are acceptable; mirrored product
+   install trees, internal-document trees, or third-party proprietary SDK
+   dumps are not.
+4. **Content sampling where suspicious** — "National Instruments Confidential"
+   markings or NI copyright headers in non-shipped file types (internal docs,
+   HTML, spreadsheets) are disqualifying for the whole source.
+
+An NI copyright inside a `.seq` file is **not** by itself disqualifying:
+NI-authored default, process-model, and example sequences ship with the product
+and legitimately appear in user repos in small numbers. The taint test is
+wholesale mirroring and internal-only material — a couple of process-model or
+example files inside a user project are fine; a large verbatim product tree is
+not. Ambiguous cases are recorded for the maintainer's decision rather than
+silently added.

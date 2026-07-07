@@ -69,12 +69,6 @@
       "note": "Discovered via crawl (repo/code search); 1 .seq (1 content-unique at add time)."
     },
     {
-      "repo": "Ighi01/ABB_TestStand",
-      "commit": "33a09384a1465d46c053833949113de22118d2a0",
-      "encoding": "mixed",
-      "note": "Industrial test project: 165 .seq (binary TOF1 + 1 XML), largest single-project binary source found."
-    },
-    {
       "repo": "IronmanMark2/LabView-and-Teststand",
       "commit": "c8bd841188d86c1f5466f7dd9ec27b3f3e759838",
       "encoding": "binary-TOF1",
@@ -255,12 +249,6 @@
       "note": "Discovered via repo-search; 1 .seq (observed bin)."
     },
     {
-      "repo": "SandeepKumarK098/TestStand",
-      "commit": "e092cfc4b350de057c8e40ad2937aa33c606b40a",
-      "encoding": "mixed",
-      "note": "Large mirrored TestStand regression/test-case archive (Tests/CVI Tests 2.0/3.0/... trees): 801 .seq spanning legacy INI, binary TOF1 and XML. Was previously pinned at an early 1-.seq commit; stale corpus dirs must be deleted before re-fetch picks up this commit."
-    },
-    {
       "repo": "ShoutangYang/Labview-TeststandCallbackDLL",
       "commit": "0473efc4339e0ec32e32a0a0a6ceb9ea5b30f306",
       "encoding": "binary-TOF1",
@@ -301,12 +289,6 @@
       "commit": "1ef6cd056cd84be798e7241b01bad6b92f5edf7b",
       "encoding": "binary-TOF1",
       "note": "Discovered via crawl (repo/code search); 1 .seq (1 content-unique at add time)."
-    },
-    {
-      "repo": "caizikun/Teststand_Git",
-      "commit": "9b7088c95cd2c2c34fe187ca1247f0278d47ce6a",
-      "encoding": "binary-TOF1",
-      "note": "Real-world (non-NI) project: 50+ binary TOF1 subsequences (frequency/voltage/current/power), good diversity beyond NI examples."
     },
     {
       "repo": "cbart-dot/Test",
@@ -420,7 +402,7 @@
       "repo": "michael-harhay-arx/CICDUtility",
       "commit": "02c6c678012a49102febc107d962c0c54992b4ee",
       "encoding": "mixed",
-      "note": "CI/CD utility: ~12 .seq incl. DBSeq.seq and DBSeq2019.seq (likely same sequence at different TS versions — candidate revision pair)."
+      "note": "CI/CD utility: ~12 .seq incl. DBSeq.seq and DBSeq2019.seq (likely same sequence at different TS versions \u2014 candidate revision pair)."
     },
     {
       "repo": "michalkozminski93/4FixturesTurntable",
