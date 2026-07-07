@@ -3120,8 +3120,12 @@ class BinaryAnalysis {
 /// returning a [BinaryAnalysis]. Byte-for-byte equivalent to calling the
 /// individual helpers, but decompresses the zlib stream a single time instead of
 /// five-plus. Returns null when [seqBytes] is not an inflatable binary file.
-BinaryAnalysis? analyzeBinary(Uint8List seqBytes) {
-  final body = inflateBinaryBody(seqBytes);
+///
+/// A caller that has already inflated the body (e.g. `SeqDocument.parse`, which
+/// also feeds the partial typed parse) can pass it as [body] to skip even that
+/// one inflate; it must be the inflated body OF [seqBytes].
+BinaryAnalysis? analyzeBinary(Uint8List seqBytes, {Uint8List? body}) {
+  body ??= inflateBinaryBody(seqBytes);
   if (body == null) return null;
   final segments = _segmentsFromBody(body);
   final nameTable = _nameTableFromSegments(segments)?.entries ?? const [];

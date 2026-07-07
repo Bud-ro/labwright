@@ -1501,4 +1501,75 @@ void main() {
     expect(withExpr, greaterThanOrEqualTo((binary * 9) ~/ 10));
     expect(withLit, greaterThanOrEqualTo((binary * 9) ~/ 10));
   });
+
+  group('pinned corpus files (reader correctness)', () {
+    File? pin(String suffix) => seqs.where((f) => f.path.replaceAll(r'\', '/').endsWith(suffix)).firstOrNull;
+
+    // Collects every array element in [p]'s tree carrying an `arrayindex`
+    // attribute (sparse-array elements keep their true index).
+    void collectIndexed(SeqProperty p, List<SeqProperty> out, [int depth = 0]) {
+      if (depth > 60) return;
+      if (p.attributes.containsKey('arrayindex')) out.add(p);
+      for (final c in p.subProps.followedBy(p.array ?? const <SeqProperty>[])) {
+        collectIndexed(c, out, depth + 1);
+      }
+    }
+
+    test('64BitIntegersDLL.seq: sparse XML arrays keep their true arrayindex', () {
+      final f = pin('Media/64BitSupport/64BitIntegersDLL.seq');
+      if (f == null) return; // pinned file absent from this corpus checkout
+      final sf = parseSeqFile(f.readAsBytesSync());
+      final indexed = <SeqProperty>[];
+      collectIndexed(sf.data, indexed);
+      for (final t in sf.types) {
+        collectIndexed(t, indexed);
+      }
+      // The file stores single-element sparse arrays at index [1] (verified by
+      // raw grep: 16 `arrayindex='[1]'` wrappers corpus-wide, 4 in this file).
+      expect(indexed.where((p) => p.attributes['arrayindex'] == '[1]'), isNotEmpty);
+    });
+
+    test('DBSeq.seq: nonzero %LO low bounds yield hi - lo + 1 declared lengths', () {
+      final f = pin('michael-harhay-arx-CICDUtility-02c6c67/DBLog/DBSeq.seq');
+      if (f == null) return; // pinned file absent from this corpus checkout
+      final sf = parseSeqFile(f.readAsBytesSync());
+      final sparse = <SeqProperty>[];
+      void walk(SeqProperty p, [int depth = 0]) {
+        if (depth > 60) return;
+        if (p.name == 'ColumnList' && p.lowIndices?.firstOrNull == 1) sparse.add(p);
+        for (final c in p.subProps.followedBy(p.array ?? const <SeqProperty>[])) {
+          walk(c, depth + 1);
+        }
+      }
+
+      walk(sf.data);
+      expect(sparse, isNotEmpty, reason: 'file declares %LO: ColumnList = [1] (raw grep: 4 lines)');
+      for (final p in sparse) {
+        expect(p.declaredArrayLength, p.highIndices!.single - 1 + 1);
+      }
+      // The known pairing: %LO = [1] with %HI = [2] is a 2-element array.
+      expect(sparse.map((p) => p.declaredArrayLength), contains(2));
+    });
+
+    test('testXNode.seq: EXTDATA sections classify apart from the data tree', () {
+      final f = pin('Media/XNode/testXNode.seq');
+      if (f == null) return; // pinned file absent from this corpus checkout
+      final doc = parseIniSeqBytes(f.readAsBytesSync());
+      final ext = doc.extDataSections.toList();
+      expect(ext, hasLength(12)); // raw grep: 12 [EXTDATA, ...] headers
+      expect(ext.map((s) => s.extDataKind).toSet(), {'STRUCT', 'CLUST', 'DNSTRUCT'});
+      expect(ext.map((s) => s.path).toSet(), {'Error', 'Error.Code', 'Error.Msg', 'Error.Occurred'});
+      expect(ext.every((s) => s.path.isNotEmpty && !s.path.contains(',')), isTrue);
+      // The data tree still assembles, without EXTDATA pseudo-members.
+      expect(iniDataTree(doc), isNotNull);
+    });
+
+    test('TestIVIPowerSupplyReferences.seq: split [__Header__] Path reassembles', () {
+      final f = pin('IVIPowerSupply/TestIVIPowerSupplyReferences.seq');
+      if (f == null) return; // pinned file absent from this corpus checkout
+      final doc = parseIniSeqBytes(f.readAsBytesSync());
+      expect(doc.headerFields.keys.any((k) => RegExp(r' Line\d+$').hasMatch(k)), isFalse);
+      expect(doc.headerFields['Path'], endsWith(r'TestIVIPowerSupplyReferences.seq"'));
+    });
+  });
 }

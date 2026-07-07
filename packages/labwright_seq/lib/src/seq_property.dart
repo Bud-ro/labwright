@@ -79,16 +79,27 @@ class SeqProperty {
   int? get instanceOverrideFlags => _intAttr('%INSTOVRD');
 
   /// The declared array bounds as high-indices, from the legacy INI
-  /// `%HI: <member> = [63]` directive — `[63]` → `[63]` (64 elements),
-  /// multi-dimensional bounds chain as `[31][63]` → `[31, 63]`, and an
-  /// empty array declares `[-1]`. null when the source recorded no
-  /// high-index for this property. The text format stores default-valued
-  /// elements ONLY this way (no members materialize), so a sized array
-  /// with no [array] entries still has a real declared length:
-  /// `declaredArrayLength`. XML (`lbound`/`ubound` on the value node) and
-  /// binary bounds are TODO — not yet surfaced here.
-  List<int>? get highIndices {
-    final raw = attributes['%HI'];
+  /// `%HI: <member> = [63]` directive — `[63]` → `[63]` (64 elements when
+  /// the low bound is 0), multi-dimensional bounds chain as `[31][63]` →
+  /// `[31, 63]`. Every corpus-observed `%HI` bound is ≥ 0; a negative bound
+  /// (unobserved) is treated defensively as an empty dimension by
+  /// [declaredArrayLength]. null when the source recorded no high-index for
+  /// this property. The text format stores default-valued elements ONLY
+  /// this way (no members materialize), so a sized array with no [array]
+  /// entries still has a real declared length: `declaredArrayLength`. XML
+  /// (`lbound`/`ubound` on the value node) and binary bounds are TODO —
+  /// not yet surfaced here.
+  List<int>? get highIndices => _boundsAttr('%HI');
+
+  /// The declared array LOW bounds, from the legacy INI `%LO: <member> = [1]`
+  /// directive — mirrors [highIndices]. null when the source recorded no low
+  /// bound; each dimension then defaults to 0. Nonzero low bounds are real
+  /// (corpus: `%LO: ColumnList = [1]` paired with `%HI: ColumnList = [2]` —
+  /// a 2-element array indexed 1..2).
+  List<int>? get lowIndices => _boundsAttr('%LO');
+
+  List<int>? _boundsAttr(String key) {
+    final raw = attributes[key];
     if (raw == null) return null;
     final bounds = [
       for (final m in RegExp(r'\[(-?\d+)\]').allMatches(raw)) int.parse(m.group(1)!),
@@ -100,15 +111,22 @@ class SeqProperty {
   /// type each default-valued element instantiates. null when absent.
   String? get elementTypeName => attributes['%EPTYPE'];
 
-  /// The declared TOTAL element count from [highIndices] (dimensions
-  /// multiply; a 1-D `[63]` is 64). null when no bounds are declared.
+  /// The declared TOTAL element count from [highIndices] and [lowIndices]:
+  /// per dimension `hi - lo + 1` (lo defaults to 0 when `%LO` is absent),
+  /// dimensions multiply — a 1-D `[63]` is 64; `%LO = [1]` + `%HI = [2]` is
+  /// 2 (indices 1..2, corpus-observed). A non-positive dimension length
+  /// (unobserved in the corpus) reads defensively as an empty array. null
+  /// when no bounds are declared.
   int? get declaredArrayLength {
     final his = highIndices;
     if (his == null) return null;
+    final los = lowIndices;
     var count = 1;
-    for (final hi in his) {
-      if (hi < 0) return 0;
-      count *= hi + 1;
+    for (var dim = 0; dim < his.length; dim++) {
+      final lo = (los != null && dim < los.length) ? los[dim] : 0;
+      final length = his[dim] - lo + 1;
+      if (length <= 0) return 0;
+      count *= length;
     }
     return count;
   }
@@ -154,10 +172,7 @@ SeqProperty buildProperty(XmlElement e) {
     final isArray = valueEl.getAttribute('lbound') != null || valueEl.getAttribute('ubound') != null;
     if (isArray) {
       array = [
-        for (final elementValue in childElementsNamed(valueEl, 'value'))
-          elementValue.childElements.isNotEmpty
-              ? buildProperty(elementValue.childElements.first)
-              : SeqProperty(name: '', scalar: elementValue.innerText),
+        for (final elementValue in childElementsNamed(valueEl, 'value')) _arrayElement(elementValue),
       ];
     } else {
       scalar = valueEl.innerText;
@@ -172,5 +187,34 @@ SeqProperty buildProperty(XmlElement e) {
     scalar: scalar,
     array: array,
     subProps: subProps,
+  );
+}
+
+/// Builds one array element from its `<value>` wrapper, RETAINING the
+/// wrapper's own attributes on the element property. This matters for sparse
+/// scalar arrays, where only non-default elements materialize and each carries
+/// its true index as `arrayindex='[N]'` (corpus: arrays whose single stored
+/// element is `arrayindex='[1]'` under `lbound='[0]' ubound='[2]'`) — dropping
+/// it would silently misread the array as dense from 0. For object elements the
+/// child element's own attributes are kept too; no corpus wrapper attribute
+/// coexists with a child element, and on a (defensive) key clash the child's
+/// value wins.
+SeqProperty _arrayElement(XmlElement wrapper) {
+  final wrapperAttrs = <String, String>{
+    for (final attribute in wrapper.attributes) attribute.name.qualified: attribute.value,
+  };
+  if (wrapper.childElements.isEmpty) {
+    return SeqProperty(name: '', scalar: wrapper.innerText, attributes: wrapperAttrs);
+  }
+  final child = buildProperty(wrapper.childElements.first);
+  if (wrapperAttrs.isEmpty) return child;
+  return SeqProperty(
+    name: child.name,
+    className: child.className,
+    typeName: child.typeName,
+    attributes: {...wrapperAttrs, ...child.attributes},
+    scalar: child.scalar,
+    array: child.array,
+    subProps: child.subProps,
   );
 }

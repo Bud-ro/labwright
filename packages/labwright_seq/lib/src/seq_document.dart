@@ -30,12 +30,20 @@ sealed class SeqDocument {
       case SeqFormat.xml:
         return structured(XmlSeqDocument.new);
       case SeqFormat.binary:
-        final analysis = analyzeBinary(bytes);
+        // One inflate feeds both the recon analysis and the partial typed
+        // parse (each would otherwise inflate the same zlib body again).
+        final body = inflateBinaryBody(bytes);
+        final analysis = body == null ? null : analyzeBinary(bytes, body: body);
         SeqFile? partial;
-        try {
-          partial = parseSeqFile(bytes);
-        } on Exception {
-          partial = null; // header-only / non-inflatable binary: recon only
+        if (body != null) {
+          try {
+            partial = parseBinarySeqFile(bytes, body: body);
+          } catch (_) {
+            // Anything the partial decode throws (Exception OR Error from a
+            // malformed body) degrades to recon-only, honoring the "total,
+            // never throws" contract the text branches already follow.
+            partial = null;
+          }
         }
         return BinarySeqDocument(
           header: detectSeqHeader(bytes),

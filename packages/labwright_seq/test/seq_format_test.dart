@@ -87,6 +87,20 @@ void main() {
       expect(h.fileType, 'SequenceFile');
       expect(h.productName, 'TestStand');
     });
+
+    test('type= is not confused by an attribute merely ending in it (xsi:type=)', () {
+      final b = _bytes(
+        utf8.encode(
+          "<?xml version=\"1.0\"?>\n"
+          "<teststandfileheader xsi:type='Wrong' type='SequenceFile' "
+          "fileversion='920' productname='TestStand'>",
+        ),
+      );
+      final h = detectSeqHeader(b);
+      expect(h.fileType, 'SequenceFile');
+      expect(h.fileVersion, '920');
+      expect(h.productName, 'TestStand');
+    });
   });
 
   group('binaryStrings', () {

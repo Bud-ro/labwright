@@ -914,6 +914,47 @@ void main() {
       expect(() => parseSeqFile(Uint8List.fromList([1, 2, 3])), throwsFormatException);
     });
   });
+
+  group('sparse scalar arrays (arrayindex on element wrappers)', () {
+    // Real shape (corpus: 64BitIntegersDLL.seq): a 3-slot array whose single
+    // materialized element sits at index 1 — only non-default elements are
+    // stored, each tagged with its true index.
+    const sparseXml = '''<?xml version="1.0" encoding="UTF-8"?>
+<teststandfileheader type='SequenceFile' fileversion='920' productname='TestStand'>
+  <typelist/>
+  <Data classname='Obj'><subprops>
+    <Seq classname='Objs'><value lbound='[0]' ubound='[1]'><value>
+      <Sequence name='MainSequence' classname='Obj'><subprops>
+        <Locals classname='Obj'><subprops>
+          <ArrayOfInt64 classname='Nums'>
+            <value lbound='[0]' ubound='[2]' representation='Int64'>
+              <value arrayindex='[1]'>9223372036854775806</value>
+            </value>
+          </ArrayOfInt64>
+        </subprops></Locals>
+      </subprops></Sequence>
+    </value></value></Seq>
+  </subprops></Data>
+</teststandfileheader>''';
+
+    test('the element keeps its arrayindex attribute (true index, not dense-from-0)', () {
+      final f = parseSeqFile(_bytes(sparseXml));
+      final arr = f.sequences.single.raw.at(['Locals', 'ArrayOfInt64'])!;
+      expect(arr.isArray, isTrue);
+      // Only the materialized element — no fabricated placeholders.
+      expect(arr.array, hasLength(1));
+      final element = arr.array!.single;
+      expect(element.scalar, '9223372036854775806');
+      expect(element.attributes['arrayindex'], '[1]');
+    });
+
+    test('elements without wrapper attributes read as before (empty attributes)', () {
+      final f = parseSeqFile(_bytes(_seqXml));
+      final main = f.sequences.single.raw.prop('Main')!;
+      expect(main.array, isNotEmpty);
+      expect(main.array!.first.attributes.containsKey('arrayindex'), isFalse);
+    });
+  });
 }
 
 /// A file declaring a Semiconductor-Test-System resource set under

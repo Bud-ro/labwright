@@ -1271,4 +1271,237 @@ PreCond = "$escaped"
       expect(parse(r'a\qb').precondition, r'a\qb');
     });
   });
+
+  const loHiIni = '''
+[__Header__]
+ProductName = "TestStand"
+Version = 354
+Type = "SequenceFile"
+
+[DEF, %OBJROOT]
+SF = SequenceFileData
+[DEF, SF]
+Seq = Objs
+%NAME = "Data"
+[DEF, SF.Seq]
+%[0] = Sequence
+[DEF, SF.Seq[0]]
+Main = Objs
+%NAME = "MainSequence"
+[DEF, SF.Seq[0].Main]
+%[0] = Step
+%TYPE: %[0] = "NI_Database_ExecuteSQLStatement"
+[DEF, SF.Seq[0].Main[0]]
+ColumnList = Objs
+Parms = Objs
+%NAME = "dbStep"
+[SF.Seq[0].Main[0]]
+%LO: ColumnList = [1]
+%HI: ColumnList = [2]
+%HI: Parms = [63]
+''';
+
+  group('declared array bounds (%LO/%HI)', () {
+    final step = parseIni(loHiIni).sequences.single.main.single.raw;
+
+    test('retains %LO alongside %HI (corpus: DBSeq.seq ColumnList)', () {
+      final cols = step.prop('ColumnList')!;
+      expect(cols.attributes['%LO'], '[1]');
+      expect(cols.attributes['%HI'], '[2]');
+      expect(cols.lowIndices, [1]);
+      expect(cols.highIndices, [2]);
+    });
+
+    test('declared length is hi - lo + 1 per dimension (not hi + 1)', () {
+      expect(step.prop('ColumnList')!.declaredArrayLength, 2);
+    });
+
+    test('low bound defaults to 0 per dimension when %LO is absent', () {
+      final parms = step.prop('Parms')!;
+      expect(parms.lowIndices, isNull);
+      expect(parms.declaredArrayLength, 64);
+    });
+
+    test('bounds arithmetic is total over crafted inputs', () {
+      SeqProperty p(Map<String, String> attrs) => SeqProperty(name: 'x', attributes: attrs);
+      expect(p({'%LO': '[1]', '%HI': '[1]'}).declaredArrayLength, 1); // corpus: 1-element sparse
+      expect(p({'%LO': '[0][0]', '%HI': '[1][7]'}).declaredArrayLength, 16);
+      expect(p({'%LO': '[1]', '%HI': '[2][3]'}).declaredArrayLength, 2 * 4); // short %LO pads with 0
+      expect(p({'%HI': '[-1]'}).declaredArrayLength, 0); // unobserved, defensive
+      expect(p({'%LO': '[2]', '%HI': '[1]'}).declaredArrayLength, 0); // unobserved, defensive
+      expect(p({'%LO': '[1]'}).declaredArrayLength, isNull); // no %HI: no declared length
+      expect(p({}).lowIndices, isNull);
+    });
+  });
+
+  const bareFlagsIni = '''
+[__Header__]
+ProductName = "TestStand"
+Version = 354
+Type = "SequenceFile"
+
+[DEF, %OBJROOT]
+SF = SequenceFileData
+[DEF, SF]
+Seq = Objs
+%NAME = "Data"
+[DEF, SF.Seq]
+%[0] = Sequence
+[DEF, SF.Seq[0]]
+Main = Objs
+%NAME = "MainSequence"
+[DEF, SF.Seq[0].Main]
+%[0] = Step
+%TYPE: %[0] = "Action"
+[DEF, SF.Seq[0].Main[0]]
+TS = Obj
+%NAME = "flagStep"
+[DEF, SF.Seq[0].Main[0].TS]
+Mode = String
+Result = Obj
+[SF.Seq[0].Main[0].TS]
+Mode = "Normal"
+%FLG = 37748760
+%INSTFLG = 524312
+''';
+
+  test('retains bare own-section %FLG and %INSTFLG under their literal keys', () {
+    final step = parseIni(bareFlagsIni).sequences.single.main.single;
+    final ts = step.raw.prop('TS')!;
+    expect(ts.attributes['%FLG'], '37748760');
+    expect(ts.propertyFlags, 37748760);
+    expect(ts.attributes['%INSTFLG'], '524312');
+  });
+
+  test('retains the %INSTFLG member form when no bare form exists', () {
+    const ini = '''
+[__Header__]
+ProductName = "TestStand"
+Version = 354
+Type = "SequenceFile"
+
+[DEF, %OBJROOT]
+SF = SequenceFileData
+[DEF, SF]
+Seq = Objs
+%NAME = "Data"
+[DEF, SF.Seq]
+%[0] = Sequence
+[DEF, SF.Seq[0]]
+Main = Objs
+%NAME = "MainSequence"
+[DEF, SF.Seq[0].Main]
+%[0] = Step
+%TYPE: %[0] = "Action"
+[DEF, SF.Seq[0].Main[0]]
+Result = Obj
+%NAME = "s"
+[DEF, SF.Seq[0].Main[0].Result]
+Status = String
+[SF.Seq[0].Main[0]]
+%INSTFLG: Result = 4194304
+''';
+    final step = parseIni(ini).sequences.single.main.single;
+    expect(step.raw.prop('Result')!.attributes['%INSTFLG'], '4194304');
+  });
+
+  group('[__Header__] continuation lines', () {
+    const headerContIni = '''
+[__Header__]
+ProductName = "TestStand"
+Version = 577
+Type = "SequenceFile"
+Path Line0001 = "C:\\\\Tests\\\\IVIPowerSupply\\\\TestIVIPowerSupplyReferen"
+Path Line0002 = "ces.seq"
+
+[DEF, %OBJROOT]
+SF = SequenceFileData
+''';
+
+    test('reassembles split header fields the same way as section values', () {
+      final f = parseIniSeq(headerContIni);
+      expect(f.headerFields['Path'], r'"C:\\Tests\\IVIPowerSupply\\TestIVIPowerSupplyReferences.seq"');
+      expect(f.headerFields.keys.any((k) => k.contains(' Line')), isFalse);
+    });
+
+    test('headerFields carries every header key verbatim', () {
+      final f = parseIniSeq(headerContIni);
+      expect(f.headerFields['ProductName'], '"TestStand"');
+      expect(f.headerFields['Version'], '577');
+      expect(f.header.fileVersion, '577');
+    });
+  });
+
+  const typesIni = '''
+[__Header__]
+ProductName = "TestStand"
+Version = 354
+Type = "SequenceFile"
+
+[DEF, %OBJROOT]
+SF = SequenceFileData
+Action = StepType
+TEInf = Obj
+[DEF, SF]
+Seq = Objs
+%NAME = "Data"
+[%TYPES]
+Action = "Action"
+TEInf = "TEInf"
+[DEF, Action]
+TS = "TYPE, TEInf"
+[DEF, TEInf]
+Mode = String
+''';
+
+  test('iniTypes carries the root-alias class, not the quoted display name', () {
+    final types = iniTypes(parseIniSeq(typesIni));
+    expect(types.map((t) => t.name), ['Action', 'TEInf']);
+    // The [%TYPES] member VALUE is only a display name ("Action"); the class
+    // the XML flavor would carry lives in the root alias DEF (Action = StepType).
+    expect(types[0].className, 'StepType');
+    expect(types[1].className, 'Obj');
+  });
+
+  group('EXTDATA sections', () {
+    const extIni = '''
+[__Header__]
+ProductName = "TestStand"
+Version = 577
+Type = "SequenceFile"
+
+[DEF, %OBJROOT]
+SF = SequenceFileData
+[DEF, SF]
+Seq = Objs
+%NAME = "Data"
+[EXTDATA, SF.Payload, STRUCT]
+DataVersion = 1
+Type = 6
+[EXTDATA, SF.Payload, CLUST]
+DataVersion = 1
+ClusterMemberLabelName = "code"
+''';
+
+    test('are classified as a distinct section kind, path + kind decomposed', () {
+      final f = parseIniSeq(extIni);
+      final ext = f.extDataSections.toList();
+      expect(ext, hasLength(2));
+      expect(ext[0].isExtData, isTrue);
+      expect(ext[0].isDef, isFalse);
+      expect(ext[0].path, 'SF.Payload');
+      expect(ext[0].extDataKind, 'STRUCT');
+      expect(ext[0].members['Type'], '6');
+      expect(ext[1].extDataKind, 'CLUST');
+      // Ordinary sections are untouched.
+      expect(f.sections.where((s) => !s.isExtData).every((s) => s.extDataKind == null), isTrue);
+    });
+
+    test('do not pollute the data tree with pseudo-members', () {
+      final tree = iniDataTree(parseIniSeq(extIni))!;
+      // A misclassified EXTDATA value section for SF.Payload would surface a
+      // phantom 'Payload' member (with DataVersion/Type children) under SF.
+      expect(tree.subProps.map((p) => p.name), isNot(contains('Payload')));
+    });
+  });
 }
