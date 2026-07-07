@@ -619,7 +619,12 @@ SeqProperty _typeFieldProp(BinaryTypeField field) {
   // the XML parse yields; one whose elements did not decode is marked
   // undecoded rather than presented as falsely empty.
   final elementsDecoded = field.isArray && field.children.isNotEmpty;
-  final representation = field.numericRepresentation != null
+  // A `representation` VALUE attribute needs a `<value>` element to live on;
+  // an UNVALUED field (an instance member whose value is inherited) writes
+  // none, so its code rides the raw-code element attribute below instead —
+  // otherwise the XML write/reparse loop silently drops the hint (caught by
+  // the corpus retention gate).
+  final representation = field.numericRepresentation != null && field.value != null
       ? BinaryNumericRepresentation.of(field.numericRepresentation!)
       : null;
   return SeqProperty(

@@ -79,13 +79,14 @@ void main() {
       files++;
       total = total + cov;
     }
-    // Measured 2026-07: 294 binaries, record region 30.2 MB, semantic
-    // 30.2%, structural 7.7% — the campaign scoreboard (round 1 measured
-    // 5.9%/1.1%, round 2 13.5%/4.3%, round 3 29.8%/7.6%; round 4's
-    // type-index-base rebase unblocked the misaligned cohort's framed
-    // references). Floors under-pin slightly.
-    expect(files, greaterThanOrEqualTo(290));
-    expect(total.recordSemanticRatio, greaterThanOrEqualTo(0.29));
-    expect(total.recordAccountedRatio, greaterThanOrEqualTo(0.37));
+    // Measured 2026-07 on the clean 169-binary corpus: record region
+    // 23.1 MB, semantic 32.4%, structural 8.1% — the campaign scoreboard
+    // (the earlier 294-file corpus measured 30.2%/7.7% before the leaked
+    // SandeepKumarK098 source was purged; the ratios shifted mechanically
+    // with the corpus, not from a decode change). Floors under-pin
+    // slightly.
+    expect(files, greaterThanOrEqualTo(165));
+    expect(total.recordSemanticRatio, greaterThanOrEqualTo(0.32));
+    expect(total.recordAccountedRatio, greaterThanOrEqualTo(0.40));
   });
 }

@@ -206,8 +206,8 @@ void main() {
       'sequences=$totalSeqs steps=$totalSteps withAction=$withAction',
     );
     expect(failures, isEmpty, reason: failures.take(5).join('\n'));
-    expect(xml, 26, reason: 'XML file count drifted');
-    expect(binary, 288, reason: 'binary file count drifted');
+    expect(xml, 25, reason: 'XML file count drifted');
+    expect(binary, 163, reason: 'binary file count drifted');
     // Partial-parse recovery floors (review: the previous check was vacuous —
     // an empty sequences list passed silently). Measured after the root-shape
     // gate: 86 binaries decode >=1 sequence; 32 steps reach the typed model
@@ -238,16 +238,16 @@ void main() {
           'binary per-step module binding regressed '
           '($binaryModuleSteps module steps)',
     );
-    expect(other, 58, reason: 'other (INI) file count drifted');
-    expect(totalSeqs, 33, reason: 'XML sequence count drifted');
-    expect(totalSteps, 214, reason: 'XML step count drifted');
+    expect(other, 43, reason: 'other (INI) file count drifted');
+    expect(totalSeqs, 29, reason: 'XML sequence count drifted');
+    expect(totalSteps, 141, reason: 'XML step count drifted');
     expect(withAction, 141, reason: 'XML pass/fail-action count drifted');
     expect(withMode, greaterThan(0), reason: 'no step run-modes recovered');
-    expect(withModule, 124, reason: 'XML module-binding count drifted');
-    expect(totalLocals, 101, reason: 'XML locals count drifted');
+    expect(withModule, 61, reason: 'XML module-binding count drifted');
+    expect(totalLocals, 34, reason: 'XML locals count drifted');
     expect(withLimits, 10, reason: 'XML limit-test count drifted');
-    expect(resolvedCalls, 7, reason: 'XML intra-file call count drifted');
-    expect(withBinaryBody, 288, reason: 'binary-body inflate count drifted');
+    expect(resolvedCalls, 4, reason: 'XML intra-file call count drifted');
+    expect(withBinaryBody, 163, reason: 'binary-body inflate count drifted');
     expect(withIcon, 59, reason: 'XML step-icon count drifted');
     expect(typedSteps, totalSteps, reason: 'an XML step lost its type in the lens');
     expect(
@@ -913,7 +913,7 @@ void main() {
           'XML left ${cov.unaccounted} node(s) unaccounted; run '
           'tool/gaps.dart xml to classify them',
     );
-    expect(cov.ratio, greaterThan(0.985), reason: 'XML model coverage regressed (${cov.ratio})');
+    expect(cov.ratio, greaterThan(0.984), reason: 'XML model coverage regressed (${cov.ratio})');
   });
 
   test('newly-modeled lens accessors are wired across the corpus', () {
@@ -1035,10 +1035,10 @@ void main() {
       'INI continuations: $reassembled fragments collapsed across '
       '${baseKeys.length} base keys in $ini INI files; $residual residual',
     );
-    expect(ini, 58, reason: 'no INI files in corpus');
+    expect(ini, 43, reason: 'no INI files in corpus');
     expect(residual, 0, reason: 'a ` LineNNNN` fragment survived reassembly');
-    expect(reassembled, 19820, reason: 'continuation-fragment count drifted');
-    expect(baseKeys.length, 28, reason: 'continuation base-key count drifted');
+    expect(reassembled, 4783, reason: 'continuation-fragment count drifted');
+    expect(baseKeys.length, 21, reason: 'continuation base-key count drifted');
   });
 
   test('INI sections assemble into the shared SeqProperty tree', () {
@@ -1164,14 +1164,14 @@ void main() {
     );
     expect(threw, 0, reason: 'an INI file failed to parse into a SeqFile');
     expect(built, ini, reason: 'not every INI file built a SeqFile');
-    expect(ini, 58, reason: 'INI file count drifted');
-    expect(totSeq, 449, reason: 'INI sequence count drifted');
-    expect(totSteps, 5664, reason: 'INI step count drifted');
-    expect(totLocals, 1662, reason: 'INI locals count drifted');
-    expect(totTypes, 2242, reason: 'INI [%TYPES] count drifted');
+    expect(ini, 43, reason: 'INI file count drifted');
+    expect(totSeq, 426, reason: 'INI sequence count drifted');
+    expect(totSteps, 5500, reason: 'INI step count drifted');
+    expect(totLocals, 1561, reason: 'INI locals count drifted');
+    expect(totTypes, 1969, reason: 'INI [%TYPES] count drifted');
     expect(unknownAdapter, 0, reason: 'an INI step has an unrecognized SData adapter');
-    expect(recognized, 2186, reason: 'INI recognized-adapter count drifted');
-    expect(noneAdapter, 3478, reason: 'INI none-adapter count drifted');
+    expect(recognized, 2040, reason: 'INI recognized-adapter count drifted');
+    expect(noneAdapter, 3460, reason: 'INI none-adapter count drifted');
     expect(
       recognized + noneAdapter + unknownAdapter,
       totSteps,
@@ -1180,14 +1180,14 @@ void main() {
     expect(withType, greaterThan(0), reason: 'no INI step types via the lens');
     expect(withMode, greaterThan(0), reason: 'no type-inherited run-mode recovered');
     expect(withLoop, greaterThan(0), reason: 'no type-inherited looping recovered');
-    expect(overrides, 13072, reason: '%INSTOVRD override count drifted');
-    expect(withComment, 667, reason: 'step-comment count drifted');
+    expect(overrides, 12811, reason: '%INSTOVRD override count drifted');
+    expect(withComment, 663, reason: 'step-comment count drifted');
     expect(withSeqComment, 102, reason: 'sequence-comment count drifted');
     expect(varsWithComment, 37, reason: 'variable-comment count drifted');
-    expect(objVarsWithFields, 95, reason: 'object-variable field count drifted');
+    expect(objVarsWithFields, 78, reason: 'object-variable field count drifted');
     expect(withFlowTarget, 58, reason: 'flow-target count drifted');
     expect(resolvedIdTargets, 12, reason: 'resolved ID#: target count drifted');
-    expect(withModuleTiming, 63, reason: 'non-default module load/unload count drifted');
+    expect(withModuleTiming, 62, reason: 'non-default module load/unload count drifted');
   });
 
   test('every binary TOF1 body frames into a record region + string table', () {

@@ -157,12 +157,12 @@ void main() {
       }
     }
     // ignore: avoid_print
-    print('type-index base: $nonzeroBaseFiles/294 misaligned · $anchors anchor fields decoded, all Expression');
+    print('type-index base: $nonzeroBaseFiles/169 misaligned · $anchors anchor fields decoded, all Expression');
     expect(offenders, isEmpty, reason: 'anchor field typed non-Expression:\n${offenders.take(5).join('\n')}');
     expect(anchors, greaterThanOrEqualTo(2000), reason: 'anchor-field decode regressed ($anchors)');
     expect(
       nonzeroBaseFiles,
-      greaterThanOrEqualTo(15),
+      greaterThanOrEqualTo(10),
       reason: 'misaligned-cohort recovery regressed ($nonzeroBaseFiles)',
     );
   });

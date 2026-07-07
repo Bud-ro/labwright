@@ -257,9 +257,9 @@ void main() {
           'structural token recovered as a type name:\n'
           '${offenders.take(5).join('\n')}',
     );
-    expect(binaries, 294, reason: 'binary corpus count drifted');
-    expect(withNames, greaterThanOrEqualTo(280), reason: 'type-name recovery regressed ($withNames files)');
-    expect(totalNames, greaterThanOrEqualTo(7000), reason: 'type-name recovery regressed ($totalNames names)');
+    expect(binaries, 169, reason: 'binary corpus count drifted');
+    expect(withNames, greaterThanOrEqualTo(155), reason: 'type-name recovery regressed ($withNames files)');
+    expect(totalNames, greaterThanOrEqualTo(4900), reason: 'type-name recovery regressed ($totalNames names)');
   });
 
   test('whole-corpus sweep: sequence leading subprops never fabricate', () {
