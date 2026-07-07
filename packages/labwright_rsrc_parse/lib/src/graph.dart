@@ -645,13 +645,6 @@ enum HeapObjectClass {
 /// footprint). Single source of truth.
 const kControlTerminalCodes = {0x50, 0x4f, 0x57, 0x5b, 0x51};
 
-/// The object/group-open header opcodes — the high-nibble-1 lead bytes that open
-/// an object header (`10/11/12 <tag> 02 fe <kind> fd <oid>`) or a typed group.
-const _objectHeaderLeads = {0x10, 0x11, 0x12};
-
-/// The high-nibble-0 group-close opcodes (`08/09/0a/0b`), popped positionally.
-const _groupCloseLeads = {0x08, 0x09, 0x0a, 0x0b};
-
 /// Attribute ids `buildDiagram` surfaces onto [ViHeapObject] (a fast id pre-filter
 /// before the heavier `decodeHeapAttr`): 0x20/0x21 = control range, 0x6c = help
 /// text. (0x31 names were dropped — they sit on non-drawable structural objects.)
@@ -756,8 +749,9 @@ class ViDiagram {
   /// All recovered objects, in heap (pre-order) order.
   final List<ViHeapObject> objects;
 
-  /// Objects indexed by their unique [ViHeapObject.oid].
-  Map<int, ViHeapObject> get byId => {for (final object in objects) object.oid: object};
+  /// Objects indexed by their unique [ViHeapObject.oid]. Built once on first
+  /// access (a repeated oid keeps the last object — see [ViHeapObject.oid]).
+  late final Map<int, ViHeapObject> byId = {for (final object in objects) object.oid: object};
 
   /// The root object(s) of the nesting tree (parentOid == null) — normally the
   /// single diagram root (kind `0x7e`).
@@ -770,8 +764,6 @@ class ViDiagram {
   Iterable<ViHeapObject> get nodes => objects.where((o) => o.absBounds != null);
 }
 
-bool _isTypeTag(int tagByte) => tagByte == 0xfb || tagByte == 0xfe || tagByte == 0xfd;
-
 /// Groups [objects] by their [ViHeapObject.parentOid] (objects with a null parent
 /// are omitted) — the positional child lists used by both the node-fallback pass
 /// and the scrolled-control re-anchor.
@@ -783,112 +775,86 @@ Map<int, List<ViHeapObject>> _childrenByParentOid(List<ViHeapObject> objects) {
   return kids;
 }
 
-/// Recovers the [ViDiagram] from a decompressed heap [body] by walking its record
-/// stream ([walkHeapBody]) as a **balanced typed-group tree**: a group opens at a
-/// high-nibble-1 opcode (`10/11/12/13 <tag>` with a type tag after the count) and
-/// closes at a high-nibble-0 opcode (`08/09/0a/0b`, popped positionally). Object
-/// headers (`10/11/12 <tag> 02 fe <kind> fd <oid>`) become [ViHeapObject]s
-/// parented by the enclosing object; `C4 2D`/`C4 22`/`14 19 01 fd` records attach
-/// to the innermost object; absolute coordinates compose down the object-ancestor
-/// chain. Total/bounds-safe.
+/// Recovers the [ViDiagram] from a decompressed heap [body] by walking its
+/// balanced typed-group tree ([walkHeapObjects]): object headers become
+/// [ViHeapObject]s parented by the enclosing object; `C4 2D`/`C4 22`/
+/// `14 19 01 fd` records attach to the innermost object; absolute coordinates
+/// compose down the object-ancestor chain. Total/bounds-safe.
 ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
   final objects = <ViHeapObject>[];
   final c4ops = <ViHeapObject, Set<int>>{};
   final formatPayloads = <ViHeapObject, List<int>>{};
   final absTop = <ViHeapObject, int>{};
   final absLeft = <ViHeapObject, int>{};
-  final stack = <ViHeapObject?>[];
   final length = body.length;
 
-  ViHeapObject? innermostObject() => stack.lastWhere((e) => e != null, orElse: () => null);
-
-  for (final span in walkHeapBody(body).spans) {
-    final offset = span.offset;
-    final lead = span.lead;
-    final isGroupOpen =
-        (_objectHeaderLeads.contains(lead) || lead == 0x13) && offset + 4 <= length && _isTypeTag(body[offset + 3]);
-    if (isGroupOpen) {
-      final isObj =
-          _objectHeaderLeads.contains(lead) &&
-          offset + 9 <= length &&
-          body[offset + 2] == 0x02 &&
-          body[offset + 3] == 0xfe &&
-          body[offset + 6] == 0xfd;
-      if (isObj) {
-        final cur = ViHeapObject(
-          oid: (body[offset + 7] << 8) | body[offset + 8],
-          kind: (body[offset + 4] << 8) | body[offset + 5],
-          offset: offset,
-        );
-        final parent = innermostObject();
-        cur.parentOid = parent?.oid;
-        absTop[cur] = absTop[parent] ?? 0;
-        absLeft[cur] = absLeft[parent] ?? 0;
-        objects.add(cur);
-        c4ops[cur] = <int>{};
-        stack.add(cur);
-      } else {
-        stack.add(null);
+  walkHeapObjects<ViHeapObject>(
+    body,
+    onObjectOpen: (span, kind, oid, parent) {
+      final cur = ViHeapObject(oid: oid, kind: kind, offset: span.offset);
+      cur.parentOid = parent?.oid;
+      absTop[cur] = absTop[parent] ?? 0;
+      absLeft[cur] = absLeft[parent] ?? 0;
+      objects.add(cur);
+      c4ops[cur] = <int>{};
+      return cur;
+    },
+    onRecord: (span, cur) {
+      if (cur == null) return;
+      final offset = span.offset;
+      final lead = span.lead;
+      if (lead == kHeapRecordPrefix) {
+        final rec = c4FrameAt(body, offset, sectionTag);
+        if (rec == null) return;
+        c4ops[cur]!.add(rec.opcode);
+        switch (rec.opcode) {
+          case 0x2d:
+            if (cur.bounds == null && rec.bounds != null) {
+              final bounds = rec.bounds!;
+              cur.bounds = bounds;
+              final top = (absTop[cur] ?? 0) + bounds.top;
+              final left = (absLeft[cur] ?? 0) + bounds.left;
+              absTop[cur] = top;
+              absLeft[cur] = left;
+              cur.absBounds = HeapRect(top: top, left: left, bottom: top + bounds.height, right: left + bounds.width);
+            }
+          case 0x22:
+            cur.label ??= rec.text;
+          case 0x1f:
+            cur.termCount++;
+          case 0x74:
+            formatPayloads[cur] ??= rec.payload;
+          case 0x2e:
+            if (cur.items.isEmpty) cur.items = _parseEnumItems(rec.payload);
+          case 0x19:
+            cur.helpText ??= rec.descriptionText;
+          case 0x27:
+            {
+              final text = rec.text ?? rec.path ?? rec.descriptionText;
+              if (text != null && text.isNotEmpty) cur.plotNames = [...cur.plotNames, text];
+            }
+        }
+      } else if (lead == 0x14) {
+        final ref = decodeHeapRef(body, offset);
+        if (ref != null) {
+          (cur.typedRefs[ref.kind] ??= <int>[]).add(ref.targetOid);
+          if (ref.kind == HeapRefKind.childRef) cur.refs.add(ref.targetOid);
+        }
+      } else if (offset + 1 < length && _objAttrIds.contains(body[offset + 1])) {
+        final attr = decodeHeapAttr(body, offset);
+        if (attr == null) return;
+        final number = attr.asDouble;
+        if (number != null && kControlTerminalCodes.contains(cur.kind)) {
+          if (attr.attribute == HeapAttribute.foregroundColor) cur.controlMin ??= number;
+          if (attr.attribute == HeapAttribute.foregroundColorB) cur.controlMax ??= number;
+        }
+        if (attr.attribute == HeapAttribute.helpDescription && offset + 2 < length && body[offset + 2] == 0xff) {
+          final text = attr.asString;
+          if (text != null && text.isNotEmpty) cur.helpText ??= text;
+        }
       }
-      continue;
-    }
-    if (_groupCloseLeads.contains(lead)) {
-      if (stack.isNotEmpty) stack.removeLast();
-      continue;
-    }
-    final cur = innermostObject();
-    if (cur == null) continue;
-    if (lead == kHeapRecordPrefix) {
-      final rec = c4FrameAt(body, offset, sectionTag);
-      if (rec == null) continue;
-      c4ops[cur]!.add(rec.opcode);
-      switch (rec.opcode) {
-        case 0x2d:
-          if (cur.bounds == null && rec.bounds != null) {
-            final bounds = rec.bounds!;
-            cur.bounds = bounds;
-            final top = (absTop[cur] ?? 0) + bounds.top;
-            final left = (absLeft[cur] ?? 0) + bounds.left;
-            absTop[cur] = top;
-            absLeft[cur] = left;
-            cur.absBounds = HeapRect(top: top, left: left, bottom: top + bounds.height, right: left + bounds.width);
-          }
-        case 0x22:
-          cur.label ??= rec.text;
-        case 0x1f:
-          cur.termCount++;
-        case 0x74:
-          formatPayloads[cur] ??= rec.payload;
-        case 0x2e:
-          if (cur.items.isEmpty) cur.items = _parseEnumItems(rec.payload);
-        case 0x19:
-          cur.helpText ??= rec.descriptionText;
-        case 0x27:
-          {
-            final text = rec.text ?? rec.path ?? rec.descriptionText;
-            if (text != null && text.isNotEmpty) cur.plotNames = [...cur.plotNames, text];
-          }
-      }
-    } else if (lead == 0x14) {
-      final ref = decodeHeapRef(body, offset);
-      if (ref != null) {
-        (cur.typedRefs[ref.kind] ??= <int>[]).add(ref.targetOid);
-        if (ref.kind == HeapRefKind.childRef) cur.refs.add(ref.targetOid);
-      }
-    } else if (offset + 1 < length && _objAttrIds.contains(body[offset + 1])) {
-      final attr = decodeHeapAttr(body, offset);
-      if (attr == null) continue;
-      final number = attr.asDouble;
-      if (number != null && kControlTerminalCodes.contains(cur.kind)) {
-        if (attr.attribute == HeapAttribute.foregroundColor) cur.controlMin ??= number;
-        if (attr.attribute == HeapAttribute.foregroundColorB) cur.controlMax ??= number;
-      }
-      if (attr.attribute == HeapAttribute.helpDescription && offset + 2 < length && body[offset + 2] == 0xff) {
-        final text = attr.asString;
-        if (text != null && text.isNotEmpty) cur.helpText ??= text;
-      }
-    }
-  }
+    },
+  );
 
   for (final object in objects) {
     object.category = classifyObject(kind: object.kind, termCount: object.termCount);
@@ -953,7 +919,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
     if (caps.isNotEmpty) object.label = caps.first;
   }
 
-  _reanchorScrolledControls(objects);
+  _reanchorScrolledControls(objects, byOid, nodeKids);
   return ViDiagram(sectionTag: sectionTag, objects: objects);
 }
 
@@ -995,10 +961,14 @@ List<String> _parseEnumItems(List<int> payload) {
 /// already in correct absolute coordinates and are left untouched. Validated on a
 /// 398-section sample: control↔control overlap 6.5% → 0.35%,
 /// re-anchored-control-center-inside-its-viewport 12% → 99%.
-void _reanchorScrolledControls(List<ViHeapObject> objects) {
-  final byOid = {for (final object in objects) object.oid: object};
-  final kids = _childrenByParentOid(objects);
-
+///
+/// [byOid] and [kids] are [buildDiagram]'s oid index and positional child
+/// lists; this pass reads them and mutates neither.
+void _reanchorScrolledControls(
+  List<ViHeapObject> objects,
+  Map<int, ViHeapObject> byOid,
+  Map<int, List<ViHeapObject>> kids,
+) {
   /// The viewport to re-anchor [o] to — its nearest `0x11c` ancestor — but null
   /// if any control or other positioned/bounded container sits between them
   /// (those put [o]'s bounds in that container's frame, not the viewport's, so it

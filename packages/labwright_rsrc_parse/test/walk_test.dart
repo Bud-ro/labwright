@@ -101,7 +101,7 @@ void main() {
     final role = decodeHeapPropertyToken(b([0x10, 0x19, 0x01, 0xfe, 0x02, 0x58]), 0);
     expect(
       role!.token,
-      HeapPropertyToken.selfRoleClass,
+      HeapPropertyToken.smallValueProperty,
       reason: 'count==1 makes 10 19 a genuine single-item property token',
     );
     expect(role.value, 0x0258);

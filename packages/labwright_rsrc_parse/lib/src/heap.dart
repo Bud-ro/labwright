@@ -6,6 +6,30 @@ import 'decode.dart';
 /// See [HeapOpcode] for the opcode catalog.
 const int kHeapRecordPrefix = 0xc4;
 
+/// The section tags whose decompressed bodies are opcode-record heaps (walkable
+/// by [walkHeapBody]): the block-diagram and front-panel heaps plus the
+/// data-type heap. The single tag set used by the heap coverage metrics
+/// (`tool/coverage.dart` and its regression test).
+const Set<String> kHeapSectionTags = {'BDHb', 'BDHP', 'FPHb', 'FPHP', 'DTHP'};
+
+/// The object-header lead opcodes: `10/11/12` open an object header
+/// (`<lead> <tag> 02 fe <u16 kind> fd <u16 oid>`). See [heapObjectHeaderAt].
+const Set<int> kHeapObjectHeaderLeads = {0x10, 0x11, 0x12};
+
+/// The group-open lead opcodes of the balanced typed-group tree: a
+/// high-nibble-1 lead (`10/11/12/13`) whose byte after the count is a type tag
+/// ([isHeapTypeTag]) opens a group — an object when the header shape matches
+/// ([heapObjectHeaderAt]), otherwise an anonymous group.
+const Set<int> kHeapGroupOpenLeads = {0x10, 0x11, 0x12, 0x13};
+
+/// The high-nibble-0 group-close opcodes (`08/09/0a/0b`), popped positionally
+/// against the [kHeapGroupOpenLeads] opens.
+const Set<int> kHeapGroupCloseLeads = {0x08, 0x09, 0x0a, 0x0b};
+
+/// Whether [tagByte] is a typed-list type tag (`FB`/`FE`/`FD`) — the byte after
+/// the count in a typed-list record `<op> <subop> <count> <tag> <items>`.
+bool isHeapTypeTag(int tagByte) => tagByte == 0xfb || tagByte == 0xfe || tagByte == 0xfd;
+
 /// The catalog of known LabVIEW heap-record **opcodes** — the byte after
 /// [kHeapRecordPrefix] in a `C4 <op> <u8 len> <payload>` record.
 ///
@@ -688,6 +712,13 @@ const Set<int> _containerPayloadIds = {0xe7};
 /// Whether [c] is a printable ASCII byte (`0x20..0x7e`).
 bool _isPrintableAscii(int byte) => byte >= 0x20 && byte < 0x7f;
 
+/// Value-byte count of the attribute **nibble family** by the opcode's high
+/// nibble (`2x`→1, `4x`→2, `6x`→3, `8x`→4, `Ex`→0); the record is
+/// `2 + value bytes` long. The `Cx` form is length-prefixed and framed
+/// separately. Shared by [decodeHeapAttr] and [recordSkip] so decode and skip
+/// framing cannot drift.
+const Map<int, int> _attrNibbleValueBytes = {0x2: 1, 0x4: 2, 0x6: 3, 0x8: 4, 0xe: 0};
+
 /// Decodes an attribute-style record at [offset] in a heap [body], or returns
 /// null if the byte there does not introduce a known attribute form. Handles the
 /// `2x/4x/6x/8x/Ex` nibble family, `C5 <id> <len>` containers ([_containerPayloadIds]),
@@ -797,8 +828,7 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
 
   final lo = op & 0xf, hi = op >> 4;
   if (lo == 4 || lo == 5 || lo == 6) {
-    const widthBytes = {0x2: 1, 0x4: 2, 0x6: 3, 0x8: 4, 0xe: 0};
-    final valueBytes = widthBytes[hi];
+    final valueBytes = _attrNibbleValueBytes[hi];
     if (valueBytes == null) return null;
     final valEnd = offset + 2 + valueBytes;
     if (valEnd > body.length) return null;
@@ -1158,8 +1188,9 @@ enum HeapPropertyToken {
   /// so it is not mis-read here. What remains (e.g. the `10 19 01 fe <s16>`
   /// single-item form) is a genuine property token, but its meaning is not pinned
   /// (the earlier "≈0x258 / value↔kind 1:1" claim conflated it with the header
-  /// and is false — the header's first u16 is a diverse class code, not 0x258).
-  selfRoleClass(0x10, 0x19, PropTokenForm.taggedList, 'selfRoleClass', AttrConfidence.kindOnly),
+  /// and is false — the header's first u16 is a diverse class code, not 0x258),
+  /// so the name states only the value kind.
+  smallValueProperty(0x10, 0x19, PropTokenForm.taggedList, 'smallValueProperty', AttrConfidence.kindOnly),
 
   /// `10 8d` — **text / appearance feature flag** (`FE`→s16, always 0x258) on
   /// label-bearing parts (chrome, label, numeric display). Co-occurs with the
@@ -1276,10 +1307,19 @@ bool isTypeDescriptorToken(int op) => op == 0x04;
 /// `10/11/12 02 fe <kind> fd <oid>` — an object declaration, not a property.
 bool _isObjectHeader(Uint8List body, int offset) =>
     offset + 9 <= body.length &&
-    (body[offset] == 0x10 || body[offset] == 0x11 || body[offset] == 0x12) &&
+    kHeapObjectHeaderLeads.contains(body[offset]) &&
     body[offset + 2] == 0x02 &&
     body[offset + 3] == 0xfe &&
     body[offset + 6] == 0xfd;
+
+/// Decodes the object header at [offset] — the
+/// `10/11/12 <tag> 02 fe <u16 kind> fd <u16 oid>` shape — into its class code
+/// and object id, or null if the bytes there are not an object header.
+/// Total/bounds-safe.
+({int kind, int oid})? heapObjectHeaderAt(Uint8List body, int offset) {
+  if (!_isObjectHeader(body, offset)) return null;
+  return (kind: (body[offset + 4] << 8) | body[offset + 5], oid: (body[offset + 7] << 8) | body[offset + 8]);
+}
 
 /// A decoded property token at an offset: the catalogued [token] and, for a
 /// [PropTokenForm.taggedList], the first item's [value] (the property value).
@@ -1315,7 +1355,7 @@ HeapPropertyValue? decodeHeapPropertyToken(Uint8List body, int offset) {
   if (token.form == PropTokenForm.selector) {
     return HeapPropertyValue(token: token, value: null, length: 2);
   }
-  if (offset + 4 > body.length || !_isTypeTag(body[offset + 3])) return null;
+  if (offset + 4 > body.length || !isHeapTypeTag(body[offset + 3])) return null;
   final len = _typedList(body, offset);
   if (len == null) return null;
   final count = body[offset + 2];
@@ -1444,10 +1484,8 @@ enum HeapDecodeTier {
 /// drift. Assumes [offset] is a record start as produced by [walkHeapBody].
 HeapDecodeTier heapDecodeTier(Uint8List body, int offset, int lead, String sectionTag) {
   if (_isObjectHeader(body, offset)) return HeapDecodeTier.semantic;
-  if (lead == 0x08 || lead == 0x09 || lead == 0x0a || lead == 0x0b) return HeapDecodeTier.semantic;
-  if ((lead == 0x10 || lead == 0x11 || lead == 0x12 || lead == 0x13) &&
-      offset + 4 <= body.length &&
-      _isTypeTag(body[offset + 3])) {
+  if (kHeapGroupCloseLeads.contains(lead)) return HeapDecodeTier.semantic;
+  if (kHeapGroupOpenLeads.contains(lead) && offset + 4 <= body.length && isHeapTypeTag(body[offset + 3])) {
     return HeapDecodeTier.semantic;
   }
   if (lead == 0x14 && decodeHeapRef(body, offset) != null) return HeapDecodeTier.semantic;
@@ -1474,6 +1512,46 @@ HeapDecodeTier heapDecodeTier(Uint8List body, int offset, int lead, String secti
     return pv.token.confidence == AttrConfidence.kindOnly ? HeapDecodeTier.valueKindKnown : HeapDecodeTier.semantic;
   }
   return HeapDecodeTier.framed;
+}
+
+/// Per-section decode-tier byte totals: the section's [walk] plus the bytes of
+/// its spans classified [HeapDecodeTier.semantic] and
+/// [HeapDecodeTier.valueKindKnown]. Framed-but-uninterpreted bytes are
+/// `walk.coveredBytes - semanticBytes - valueKindBytes`. Produced by
+/// [measureHeapTiers].
+class HeapTierTotals {
+  const HeapTierTotals({required this.walk, required this.semanticBytes, required this.valueKindBytes});
+
+  /// The section walk ([walkHeapBody]) the totals were computed over — carries
+  /// the framed-byte totals ([HeapWalk.coveredBytes] / [HeapWalk.bodyBytes]),
+  /// completeness, and the spans.
+  final HeapWalk walk;
+
+  /// Bytes in spans classified [HeapDecodeTier.semantic].
+  final int semanticBytes;
+
+  /// Bytes in spans classified [HeapDecodeTier.valueKindKnown].
+  final int valueKindBytes;
+}
+
+/// Walks one heap section [body] and totals its bytes per [HeapDecodeTier] —
+/// the per-section arithmetic behind the coverage metrics, shared by
+/// `tool/coverage.dart` and the corpus coverage regression test so the two
+/// cannot drift. Total/bounds-safe.
+HeapTierTotals measureHeapTiers(Uint8List body, String sectionTag) {
+  final walk = walkHeapBody(body);
+  var semantic = 0, valueKind = 0;
+  for (final span in walk.spans) {
+    switch (heapDecodeTier(body, span.offset, span.lead, sectionTag)) {
+      case HeapDecodeTier.semantic:
+        semantic += span.length;
+      case HeapDecodeTier.valueKindKnown:
+        valueKind += span.length;
+      case HeapDecodeTier.framed:
+        break;
+    }
+  }
+  return HeapTierTotals(walk: walk, semanticBytes: semantic, valueKindBytes: valueKind);
 }
 
 /// The byte length of the heap record at [i] in [h], or null if [i] is not a
@@ -1537,29 +1615,16 @@ int? recordSkip(Uint8List heapBytes, int offset) {
   }
   final lo = op & 0x0f;
   if (lo == 4 || lo == 5 || lo == 6) {
-    switch (op >> 4) {
-      case 2:
-        return 3;
-      case 4:
-        return 4;
-      case 6:
-        return 5;
-      case 8:
-        return 6;
-      case 0xe:
-        return 2;
-      case 0xc:
-        return (offset + 3 <= length) ? 3 + heapBytes[offset + 2] : null;
-    }
+    if (op >> 4 == 0xc) return (offset + 3 <= length) ? 3 + heapBytes[offset + 2] : null;
+    final valueBytes = _attrNibbleValueBytes[op >> 4];
+    if (valueBytes != null) return 2 + valueBytes;
   }
   final hi = op >> 4;
   if (hi == 0 || hi == 1) {
-    return (offset + 4 <= length && _isTypeTag(heapBytes[offset + 3])) ? _typedList(heapBytes, offset) : 2;
+    return (offset + 4 <= length && isHeapTypeTag(heapBytes[offset + 3])) ? _typedList(heapBytes, offset) : 2;
   }
   return null;
 }
-
-bool _isTypeTag(int tagByte) => tagByte == 0xfb || tagByte == 0xfe || tagByte == 0xfd;
 
 int? _typedList(Uint8List heapBytes, int offset) {
   final length = heapBytes.length;
@@ -1614,6 +1679,48 @@ HeapWalk walkHeapBody(Uint8List body) {
     i += step;
   }
   return HeapWalk(spans: spans, coveredBytes: covered, bodyBytes: bodyBytes);
+}
+
+/// Walks a decompressed heap [body] as its **balanced typed-group tree**,
+/// tracking which object each record belongs to.
+///
+/// The tree is delimited by group opens — a [kHeapGroupOpenLeads] lead whose
+/// byte after the count is a type tag ([isHeapTypeTag]) — and positional
+/// group closes ([kHeapGroupCloseLeads]). A group open that is an **object
+/// header** ([heapObjectHeaderAt]) opens an object scope: [onObjectOpen] is
+/// called with its span, class code, object id, and the innermost enclosing
+/// object's client value (null at the root), and its return value becomes the
+/// new scope. A non-object group open pushes a **null** scope so the positional
+/// closes stay balanced without changing the enclosing object. Every other
+/// record span is delivered to [onRecord] with the innermost enclosing object's
+/// value (null outside any object); group open/close spans are consumed by the
+/// tree bookkeeping and are not delivered. Total/bounds-safe.
+void walkHeapObjects<T extends Object>(
+  Uint8List body, {
+  required T Function(HeapSpan span, int kind, int oid, T? parent) onObjectOpen,
+  void Function(HeapSpan span, T? enclosing)? onRecord,
+}) {
+  final stack = <T?>[];
+  T? innermost() => stack.lastWhere((scope) => scope != null, orElse: () => null);
+  final length = body.length;
+  for (final span in walkHeapBody(body).spans) {
+    final offset = span.offset;
+    final lead = span.lead;
+    final header = heapObjectHeaderAt(body, offset);
+    if (header != null) {
+      stack.add(onObjectOpen(span, header.kind, header.oid, innermost()));
+      continue;
+    }
+    if (kHeapGroupOpenLeads.contains(lead) && offset + 4 <= length && isHeapTypeTag(body[offset + 3])) {
+      stack.add(null);
+      continue;
+    }
+    if (kHeapGroupCloseLeads.contains(lead)) {
+      if (stack.isNotEmpty) stack.removeLast();
+      continue;
+    }
+    onRecord?.call(span, innermost());
+  }
 }
 
 /// Frequency of each `C4` opcode across a VI's heaps — the opcode census that

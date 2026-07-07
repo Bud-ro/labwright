@@ -14,15 +14,15 @@
     "note": "Each is 0..1; the VI format is fully understood IFF every axis is 1.0."
   },
   "corpus": {
-    "vis": 7584,
+    "vis": 7524,
     "parseOk": 0.9999,
     "decodeOk": 0.9999,
     "containerExact": 0.9999,
     "blocksIdentified": 0.9998,
-    "blockBytesDecoded": 0.9802,
-    "deliberatelyParsed": 0.9756,
-    "semanticallyDecoded": 0.8255,
+    "blockBytesDecoded": 0.98,
+    "deliberatelyParsed": 0.9751,
+    "semanticallyDecoded": 0.825,
     "valueKindKnown": 0.1353,
-    "fullyParsedHeaps": 0.9972
+    "fullyParsedHeaps": 0.9971
   }
 }

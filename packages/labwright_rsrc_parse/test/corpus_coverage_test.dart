@@ -20,7 +20,9 @@ import 'corpus_dirs.dart';
 /// Every VI is summarized ONCE in a worker isolate ([corpusParallel]) and the
 /// tests assert on the aggregate — there is no sampling tier, the heavy per-VI
 /// work (decode + heap walk + model build) is just parallelized across cores.
-const _heapTags = {'BDHb', 'BDHP', 'FPHb', 'FPHP', 'DTHP'};
+/// The measured sections and the per-section tier arithmetic are shared with
+/// the coverage tool ([kHeapSectionTags] / [measureHeapTiers]) so the ratchet
+/// and the baseline generator cannot drift.
 
 /// Per-VI coverage summary. Sendable across isolates (primitives + a small
 /// `Map<int,int>` kind histogram + nullable failure strings).
@@ -66,16 +68,14 @@ _Cov _covSumm(Uint8List bytes, String path) {
   try {
     parseVi(bytes);
     for (final s in decodeSections(bytes)) {
-      if (!_heapTags.contains(s.tag) || s.bytes.length < 6) continue;
-      final w = walkHeapBody(s.bytes);
-      framed += w.coveredBytes;
-      body += w.bodyBytes;
-      for (final span in w.spans) {
+      if (!kHeapSectionTags.contains(s.tag) || s.bytes.length < 6) continue;
+      final tiers = measureHeapTiers(s.bytes, s.tag);
+      framed += tiers.walk.coveredBytes;
+      body += tiers.walk.bodyBytes;
+      semantic += tiers.semanticBytes;
+      for (final span in tiers.walk.spans) {
         if (span.offset + span.length > s.bytes.length) {
           walkFail ??= 'OOB span in $path/${s.tag}';
-        }
-        if (heapDecodeTier(s.bytes, span.offset, span.lead, s.tag) == HeapDecodeTier.semantic) {
-          semantic += span.length;
         }
         final a = decodeHeapAttr(s.bytes, span.offset);
         if (a == null) continue;
