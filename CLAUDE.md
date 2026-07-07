@@ -31,6 +31,9 @@ The RSRC reader and TestStand readers are most pressing here.
   never fabricate data; never overclaim ("not yet recovered/decoded", never "unrecoverable").
 - **Commits:** commit ONLY your own files, by **explicit path**. Never
   `git add -A`/`-u`. Put `git commit` on its own line. 
+- **PR descriptions:** write them with as little knowledge from the viewer
+  required as possible — never reference the conversation that produced the
+  work. Make it objective, non-contextual, pithy, and useful.
 - **Cleanliness** Keep `dart analyze` clean and the relevant test suites green
   before committing. Run `./format.sh` (a thin wrapper over `dart format .`)
   so hand/agent edits match VS Code's format-on-save and diffs stay noise-free.
