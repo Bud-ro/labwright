@@ -34,11 +34,11 @@ void main() {
 
   test('oracle: decoded floors (record-region semantic >= 70%)', () {
     final cov = binaryByteCoverage(Uint8List.fromList(oracle.readAsBytesSync()))!;
-    // Measured 2026-07 round 2 (typedef-body completion: framed X-ref
-    // scalars, substep elements, proto specs, attr floors): semantic
-    // 71.1%, accounted 98.5%. Floors slightly under the measurement.
+    // Measured 2026-07 round 3 (sequence-record walk: group arrays,
+    // scalar/expression array elements, elemproto tails): semantic
+    // 71.5%, accounted 99.0%. Floors slightly under the measurement.
     expect(cov.recordSemanticRatio, greaterThanOrEqualTo(0.70));
-    expect(cov.recordAccountedRatio, greaterThanOrEqualTo(0.97));
+    expect(cov.recordAccountedRatio, greaterThanOrEqualTo(0.985));
   });
 
   test('rosetta binaries: invariants hold and each decodes >= 55% of its record region', () {
@@ -53,9 +53,10 @@ void main() {
         cov.recordRegionBytes,
         reason: f.path,
       );
-      // Round-2 measurement: every rosetta binary decodes >= 59.6% of its
-      // record region semantically.
-      expect(cov.recordSemanticRatio, greaterThanOrEqualTo(0.55), reason: f.path);
+      // Round-3 measurement: every rosetta binary decodes >= 71.5% of its
+      // record region semantically (the full sequence-record walk closed
+      // the step-content gap).
+      expect(cov.recordSemanticRatio, greaterThanOrEqualTo(0.70), reason: f.path);
     }
   });
 
@@ -78,11 +79,11 @@ void main() {
       files++;
       total = total + cov;
     }
-    // Measured 2026-07 round 2: 294 binaries, record region 30.2 MB,
-    // semantic 13.5%, structural 4.3% — the campaign scoreboard (round 1
-    // measured 5.9%/1.1%). Floors under-pin slightly.
+    // Measured 2026-07 round 3: 294 binaries, record region 30.2 MB,
+    // semantic 29.8%, structural 7.6% — the campaign scoreboard (round 1
+    // measured 5.9%/1.1%, round 2 13.5%/4.3%). Floors under-pin slightly.
     expect(files, greaterThanOrEqualTo(290));
-    expect(total.recordSemanticRatio, greaterThanOrEqualTo(0.13));
-    expect(total.recordAccountedRatio, greaterThanOrEqualTo(0.17));
+    expect(total.recordSemanticRatio, greaterThanOrEqualTo(0.28));
+    expect(total.recordAccountedRatio, greaterThanOrEqualTo(0.36));
   });
 }

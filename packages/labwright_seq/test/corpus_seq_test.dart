@@ -121,13 +121,27 @@ void main() {
           final partial = parseSeqFile(bytes);
           if (partial.sequences.isNotEmpty) binaryWithSequences++;
           final partialTypeNames = {for (final t in partial.types) t.name};
+          // A sequence whose record walk decoded its group arrays carries
+          // structural corroboration for its name slot (the fixed-layout
+          // subprop walk cannot complete on a misread head), so such a
+          // name may legitimately collide with a structural token: the
+          // corpus has a sandbox file whose author named a sequence
+          // literally `Sequence` (its Main decodes a real step with an
+          // `ID#:` anchor). Names WITHOUT that corroboration must still
+          // never be structural tokens.
+          final walkBacked = {
+            for (final o in binarySequenceOutlines(bytes))
+              if (o.groupArrays.isNotEmpty) o.name,
+          };
           for (final seq in partial.sequences) {
             expect(seq.name, isNotEmpty);
-            expect(
-              const {'Sequence', 'Calls', 'ResultList', 'Objs', 'Seq', 'Obj', 'Data'},
-              isNot(contains(seq.name)),
-              reason: '${f.path}: structural token as sequence name',
-            );
+            if (!walkBacked.contains(seq.name)) {
+              expect(
+                const {'Sequence', 'Calls', 'ResultList', 'Objs', 'Seq', 'Obj', 'Data'},
+                isNot(contains(seq.name)),
+                reason: '${f.path}: structural token as sequence name',
+              );
+            }
             binaryStepsRecovered += seq.steps.length;
             for (final step in seq.steps) {
               final type = step.type;
