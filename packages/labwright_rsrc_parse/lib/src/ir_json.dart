@@ -47,6 +47,7 @@ Map<String, Object?> _objectToJson(ViHeapObject object) {
     if (object.controlMin?.isFinite ?? false) 'controlMin': object.controlMin,
     if (object.controlMax?.isFinite ?? false) 'controlMax': object.controlMax,
     if (object.helpText != null) 'helpText': object.helpText,
+    if (object.constText != null) 'constText': object.constText,
   };
 }
 

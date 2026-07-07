@@ -51,6 +51,10 @@ List<int> c6blob(int id, String s) => [
   ...s.codeUnits,
 ];
 
+/// Description/help record: `C4 19 <len> <text>` — the genuine help/tooltip
+/// source ([HeapRecord.descriptionText]).
+List<int> help(String s) => [0xc4, 0x19, s.length, ...s.codeUnits];
+
 void main() {
   test('bracket tree: parent/child nesting + absolute coordinates', () {
     final records = <int>[
@@ -430,7 +434,7 @@ void main() {
       ...bounds(0, 0, 17, 80),
       ...f64rec(0x20, -5.0),
       ...f64rec(0x21, 10.0),
-      ...c6blob(0x6c, 'a tooltip'),
+      ...help('a tooltip'),
       ...close(0x1a),
       ...open(0x8f, 3, tag: 0x1b),
       ...bounds(0, 0, 10, 10),
@@ -455,7 +459,7 @@ void main() {
       ...open(0x50, 2, tag: 0x1a),
       ...bounds(10, 10, 30, 100),
       ...open(0xc1, 3, tag: 0x1b),
-      ...c6blob(0x6c, 'hover help'),
+      ...help('hover help'),
       ...close(0x1b),
       ...close(0x1a),
       ...close(),
@@ -473,7 +477,7 @@ void main() {
       ...bounds(10, 10, 30, 100),
       ...open(0x0c, 3, tag: 0x1b),
       ...open(0xc1, 4, tag: 0x1c),
-      ...c6blob(0x6c, 'deep help'),
+      ...help('deep help'),
       ...close(0x1c),
       ...close(0x1b),
       ...close(0x1a),
@@ -490,7 +494,7 @@ void main() {
       ...open(0x53, 1),
       ...bounds(0, 0, 200, 200),
       ...open(0xc1, 2, tag: 0x1a),
-      ...c6blob(0x6c, 'structure help'),
+      ...help('structure help'),
       ...close(0x1a),
       ...close(),
     ];
@@ -502,9 +506,9 @@ void main() {
     final records = <int>[
       ...open(0x50, 1),
       ...bounds(10, 10, 30, 100),
-      ...c6blob(0x6c, 'own help'),
+      ...help('own help'),
       ...open(0xc1, 2, tag: 0x1a),
-      ...c6blob(0x6c, 'child help'),
+      ...help('child help'),
       ...close(0x1a),
       ...close(),
     ];
@@ -555,7 +559,19 @@ void main() {
     expect(d.byId[2]!.label, 'Build Array', reason: 'the caption propagates up to name the 0x2f node');
   });
 
-  test('a 0x6C <u8len> library token does NOT become helpText (only the FF blob does)', () {
+  test('a constValue string (C6 6C FF blob) becomes constText, never helpText', () {
+    final records = <int>[
+      ...open(0x50, 1),
+      ...bounds(0, 0, 17, 80),
+      ...c6blob(0x6c, 'ps2000aRunStreaming'),
+      ...close(),
+    ];
+    final o = buildDiagram(Uint8List.fromList([0, 0, 0, records.length, ...records])).byId[1]!;
+    expect(o.constText, 'ps2000aRunStreaming', reason: 'raw 0x26C is a BD string constant value, not help');
+    expect(o.helpText, isNull, reason: 'a constant value must not be mislabeled as help/description text');
+  });
+
+  test('a 0x6C <u8 len> token is captured by neither constText nor helpText', () {
     List<int> u8tok(String s) => [0xc6, 0x6c, 4 + s.length, 0, 0, 0, s.length, ...s.codeUnits];
     final records = <int>[
       ...open(0x50, 1),
@@ -564,10 +580,11 @@ void main() {
       ...close(),
     ];
     final o = buildDiagram(Uint8List.fromList([0, 0, 0, records.length, ...records])).byId[1]!;
+    expect(o.helpText, isNull);
     expect(
-      o.helpText,
+      o.constText,
       isNull,
-      reason: 'C6 6C <u8 len> <u32 strlen> ascii is a library/format token, not the FF help blob',
+      reason: 'buildDiagram captures only the C6 6C FF blob form of constValue, not the <u8 len> form',
     );
   });
 

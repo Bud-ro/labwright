@@ -235,10 +235,12 @@ SpanInfo classifySpan(Uint8List bytes, HeapSpan span, String tag) {
           'An opaque length-prefixed container (count-like lead byte ${attr.asInt}; e.g. attribute front-panel attribute blob).',
         );
       default:
+        final ascii = attr.asciiText;
         return make(
           spanColorAttr,
           '$hexlead · $name',
-          '${heapAttrKindLabel(attr.kind)} = ${attr.asInt} (${attr.width.name}).',
+          '${heapAttrKindLabel(attr.kind)} = ${attr.asInt} (${attr.width.name})'
+              '${ascii != null ? ' — ASCII "$ascii"' : ''}.',
         );
     }
   }

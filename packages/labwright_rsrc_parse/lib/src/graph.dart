@@ -151,9 +151,15 @@ class ViHeapObject {
   /// sentinel). Use [formatControlRange] to render honestly.
   double? controlMax;
 
-  /// Decoded help / description text for this object (`0x6C` blob / `C4 19`), or
+  /// Decoded help / description text for this object (`C4 19` description), or
   /// null. The VI/control's documentation string.
   String? helpText;
+
+  /// Flattened value of a block-diagram string constant (`bDConstDCO` `0x13`;
+  /// [HeapAttribute.constValue], raw `0x26C`, the `C6 6C FF` blob form) — e.g.
+  /// `"%f"` or `"ps2000aRunStreaming"`, or null. This is the constant's literal
+  /// data, NOT documentation; it is not help text and must not render as such.
+  String? constText;
 
   /// The named, documented class catalog entry for this object's [kind]
   /// (or [HeapObjectClass.unknown] if the code is not catalogued).
@@ -852,7 +858,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
         }
         if (attr.attribute == HeapAttribute.constValue && offset + 2 < length && body[offset + 2] == 0xff) {
           final text = attr.asString;
-          if (text != null && text.isNotEmpty) cur.helpText ??= text;
+          if (text != null && text.isNotEmpty) cur.constText ??= text;
         }
       }
     },

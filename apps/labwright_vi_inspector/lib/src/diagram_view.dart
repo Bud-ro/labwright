@@ -555,7 +555,7 @@ bool _isScaffolding(ViHeapObject o, Map<int, ViHeapObject> byId) {
   return false;
 }
 
-/// The **drawn** objects [o] declares as members (childRef ∪ memberRef from the
+/// The **drawn** objects [o] declares as members (childRef ∪ dcoRef from the
 /// 0x14 ref graph), resolved via [byId] and filtered to objects actually on the
 /// canvas (has bounds, not scaffolding-suppressed, not [o] itself) so a highlight
 /// never floats over empty canvas. In practice members resolve to a drawn object
@@ -973,6 +973,8 @@ class _DetailsCard extends StatelessWidget {
                   if (object.helpText != null &&
                       stripHelpMarkup(object.helpText!).isNotEmpty)
                     _detail('help', stripHelpMarkup(object.helpText!)),
+                  if (object.constText != null && object.constText!.isNotEmpty)
+                    _detail('const', object.constText!),
                   if (members.isNotEmpty)
                     _detail(
                       'contains',

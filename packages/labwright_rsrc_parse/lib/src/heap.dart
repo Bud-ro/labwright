@@ -236,10 +236,10 @@ enum HeapShape {
 
 /// The **value kind** an [HeapAttribute] carries — what the attribute's bytes
 /// *mean*, independent of how wide they are stored. The storage width comes from
-/// the carrying opcode (see [HeapAttrWidth]); a few attributes are *dual-use*
-/// across widths (e.g. [HeapAttribute.sizeOrIncrement] is a `u16` size or an
-/// `f64` increment) — for those, [HeapAttr.kind] resolves the kind from the
-/// width at decode time.
+/// the carrying opcode (see [HeapAttrWidth]); for the length-prefixed `Cx` forms
+/// [HeapAttr.kind] refines the kind from that width at decode time (a
+/// `C5 <id> 08` payload resolves to [controlParam], a `C6 <id> FF` blob to
+/// [stringBlob], and so on).
 enum HeapAttrKind {
   /// A 24-bit RGB colour (carried as `84 <id> <flag><R><G><B>`; flag `0x01` with
   /// `R=G=B=0` is the *transparent* sentinel).
@@ -266,7 +266,7 @@ enum HeapAttrKind {
   numeric,
 
   /// A floating-point numeric-control parameter (range min/max, increment,
-  /// scale), carried as `C5 <id> 08 <f64>`. See [HeapAttribute.controlMin] etc.
+  /// scale), carried as `C5 <id> 08 <f64>`. See [HeapAttribute.stdNumMin] etc.
   controlParam,
 
   /// Inline display text / style field.
@@ -358,8 +358,8 @@ enum AttrConfidence {
 /// value magnitude). NOTE: `C5/C6 <id> 08` is NOT universally an `f64` — the
 /// `08` is a payload-LENGTH byte; the payload is an `f64` only for the
 /// numeric/scale parameter tags, a rectangle for the rect tags, or an opaque
-/// container (see [decodeHeapAttr] / `_f64PayloadRaws` / `_rectPayloadRaws` /
-/// `_containerPayloadRaws`). `C6 <id> FF` is a length-prefixed blob.
+/// container (see [decodeHeapAttr] / `_f64PayloadRaws` / `_rectPayloadRaws`).
+/// `C6 <id> FF` is a length-prefixed blob.
 ///
 /// Each entry documents its [kind], assigned name, [confidence], and the
 /// corpus evidence (measured over the 7,524-VI corpus by
@@ -431,8 +431,7 @@ enum HeapAttribute {
 
   /// Raw `0x13A` — **type-descriptor index** (`u16` via `45 3A`; matches
   /// OF__typeDesc): the object's index into the VI's type table, strictly
-  /// sequential 1..n per heap (the evidence behind the pre-split
-  /// "elementIndex" entry; 771k records, BDHb).
+  /// sequential 1..n per heap (771k records, BDHb).
   typeDescIndex(0x13a, HeapAttrKind.ordinal, 'typeDescIndex', AttrConfidence.inferred),
 
   /// Raw `0x03A` — **clump number** (`u24`/`u32`; matches OF__clumpNum): an
@@ -447,8 +446,8 @@ enum HeapAttribute {
   howGrow(0x089, HeapAttrKind.numeric, 'howGrow', AttrConfidence.inferred),
 
   /// Raw `0x0F8` — **size / extent** (`u16` via the nibble form; values
-  /// cluster on pixel-ish extents). The old "coarse increment" f64 half of
-  /// this entry was a different tag entirely (raw `0x1F8` = [scaleDIncr]).
+  /// cluster on pixel-ish extents). The `C5 F8 08 <f64>` form is a distinct tag
+  /// (raw `0x1F8` = [scaleDIncr]), not a wider reading of this one.
   sizeExtent(0x0f8, HeapAttrKind.size, 'sizeExtent', AttrConfidence.inferred),
 
   /// Raw `0x129` — **terminal bounds rectangle** carried as
@@ -630,14 +629,14 @@ enum HeapAttribute {
   /// Raw `0x0D0` — **origin** (u32 as a packed `(s16 y, s16 x)` point, NOT a
   /// colour; matches OF__origin = 177): scope pane `0x11C` 60% / panel root;
   /// 99.82% decode as plausible small points, mostly small negatives like
-  /// (−4,−4) — a scroll origin. Replaces the earlier "miscColor" reading,
-  /// which the point decomposition refutes.
+  /// (−4,−4) — a scroll origin. The packed-point decomposition (not a colour)
+  /// is what the value shape supports.
   origin(0x0d0, HeapAttrKind.point, 'origin', AttrConfidence.inferred),
 
   /// Raw `0x0B7` — **minimum pane size** (u32 as packed `(s16, s16)`; matches
   /// OF__minPaneSize = 152): scope pane `0x11C` 78% + supC `0x4C` 21%;
   /// dominant value `0x00010001` = (1,1), then (35,35); 82.8% positive size
-  /// pairs. Replaces the earlier "styleColor" reading.
+  /// pairs — a packed size point, not a colour.
   minPaneSize(0x0b7, HeapAttrKind.point, 'minPaneSize', AttrConfidence.inferred),
 
   /// Raw `0x022` — **short label text** (pylabview textHair tag 3 = text):
@@ -993,12 +992,24 @@ class HeapAttr {
   /// The value as a `String`, or null if it is not a blob.
   String? get asString => value is String ? value as String : null;
 
+  /// For a magnitude-encoded **text** tag ([_asciiIntRaws]:
+  /// [HeapAttribute.shortText] / [HeapAttribute.nodeName]), the integer [value]'s
+  /// magnitude bytes read as ASCII (`0x50616765` → `"Page"`), or null when the
+  /// tag is not one of those text tags, the value is not integer-stored, or any
+  /// magnitude byte is non-printable. The numeric [value] / [asInt] is preserved
+  /// — this is a separate reading of a genuinely-numeric record, never an
+  /// overwrite, so a numeric record is never fabricated into text.
+  String? get asciiText => _asciiIntRaws.contains(rawTag) && value is int ? _asciiFromInt(value as int) : null;
+
   /// The value as a [HeapRect], or null if it is not a rectangle-payload id.
   HeapRect? get asRect => value is HeapRect ? value as HeapRect : null;
 
-  /// For a [HeapAttrKind.point] value, the packed `(s16, s16)` halves
-  /// (`(value >> 16, value & 0xFFFF)`, sign-extended); null otherwise.
-  ({int a, int b})? get asPoint => kind == HeapAttrKind.point && value is int
+  /// For a [HeapAttrKind.point] value carried at the full 32-bit
+  /// ([HeapAttrWidth.rgb]) width, the packed `(s16, s16)` halves
+  /// (`(value >> 16, value & 0xFFFF)`, sign-extended); null otherwise. A
+  /// narrower (`u8`/`u16`/`u24`) or truncated record has no full point to
+  /// unpack, so it returns null rather than fabricating one.
+  ({int a, int b})? get asPoint => kind == HeapAttrKind.point && width == HeapAttrWidth.rgb && value is int
       ? (a: ((value as int) >> 16).toSigned(16), b: ((value as int) & 0xffff).toSigned(16))
       : null;
 
@@ -1039,17 +1050,12 @@ const Set<int> _inlineStringRaws = {0x231};
 /// leaves the rest framed — never fabricating a string.
 const Set<int> _u32StringRaws = {0x26c};
 
-/// Raw tag ids whose `C5 <id> <len>` payload is an **opaque length-prefixed
-/// container** (NOT a scalar f64): raw `0x1E7`, the per-signal
-/// [HeapAttribute.compressedWireTable] payload (packed data; only ~38%
-/// re-walks as records, so its interior is NOT decoded). [HeapAttr.value]
-/// exposes the leading byte.
-const Set<int> _containerPayloadRaws = {0x1e7};
-
 /// Raw tag ids whose integer-width values are magnitude-encoded **short ASCII
 /// strings** ([HeapAttribute.shortText], 95.3% of nonzero values all-printable;
-/// [HeapAttribute.nodeName], 5,920/5,920). [decodeHeapAttr] exposes a value as
-/// text only when every magnitude byte is printable; the rest stay numeric.
+/// [HeapAttribute.nodeName], 5,920/5,920). The record keeps its numeric
+/// [HeapAttr.value]; [HeapAttr.asciiText] exposes the ASCII reading separately,
+/// and only when every magnitude byte is printable — a genuinely-numeric record
+/// is never overwritten with a fabricated text token.
 const Set<int> _asciiIntRaws = {0x022, 0x0c4};
 
 /// Whether [c] is a printable ASCII byte (`0x20..0x7e`).
@@ -1078,10 +1084,11 @@ const Map<int, int> _attrNibbleValueBytes = {0x0: 0, 0x2: 1, 0x4: 2, 0x6: 3, 0x8
 /// Decodes an attribute-style record at [offset] in a heap [body], or returns
 /// null if the byte there does not introduce a known attribute form. Handles
 /// the `0x/2x/4x/6x/8x/Ex` nibble family (zero-byte widths decode as booleans:
-/// `0x`→0, `Ex`→1), `C5 <id> <len>` containers ([_containerPayloadRaws]),
-/// `C5`/`C6 …08` (a rectangle for [_rectPayloadRaws], an `f64` for
-/// [_f64PayloadRaws], else undecoded), and `C6 …FF` (string blob). The catalog
-/// key is the 10-bit raw tag id `((op & 3) << 8) | id` ([HeapAttribute.fromRaw]).
+/// `0x`→0, `Ex`→1), `C5`/`C6 …08` (a rectangle for [_rectPayloadRaws], an `f64`
+/// for [_f64PayloadRaws], else undecoded), `C6 …FF` (string blob), and the
+/// generic `C5`/`C6 <id> <len>` container fallback for every other length-
+/// prefixed leaf. The catalog key is the 10-bit raw tag id
+/// `((op & 3) << 8) | id` ([HeapAttribute.fromRaw]).
 HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
   if (offset + 2 > body.length) return null;
   final op = body[offset];
@@ -1098,21 +1105,6 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
         rawTag: raw,
         width: HeapAttrWidth.blob,
         value: text,
-        length: 3 + len,
-      );
-    }
-  }
-
-  if (op == 0xc5 && offset + 3 <= body.length && _containerPayloadRaws.contains(raw)) {
-    final len = body[offset + 2];
-    if (offset + 3 + len <= body.length) {
-      final lead = len > 0 ? body[offset + 3] : 0;
-      return HeapAttr(
-        attribute: HeapAttribute.fromRaw(raw),
-        id: id,
-        rawTag: raw,
-        width: HeapAttrWidth.container,
-        value: lead,
         length: 3 + len,
       );
     }
@@ -1192,10 +1184,13 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
 
   // Generic length-prefixed data fallback for the remaining C5/C6 leaf forms:
   // the tag and the payload boundary are grammar-known even when no typed
-  // reading validates (a [HeapAttribute.constValue]/[HeapAttribute.defaultData]
-  // payload of non-string flattened data, or an uncatalogued tag). Framed
-  // exactly as [recordSkip] frames these leads (a C5 length byte is literal —
-  // only C6 has the FF -> u16 escape); the payload bytes are NOT interpreted.
+  // reading validates — a [HeapAttribute.constValue]/[HeapAttribute.defaultData]
+  // payload of non-string flattened data, an opaque length-prefixed container
+  // (e.g. the raw-`0x1E7` [HeapAttribute.compressedWireTable] packed payload,
+  // whose interior is NOT decoded), or an uncatalogued tag. [HeapAttr.value]
+  // exposes the leading payload byte. Framed exactly as [recordSkip] frames
+  // these leads (a C5 length byte is literal — only C6 has the FF -> u16
+  // escape); the payload bytes are NOT interpreted.
   if (op == 0xc5 || op == 0xc6) {
     if (offset + 3 > body.length) return null;
     var headerLen = 3;
@@ -1249,10 +1244,6 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
       default: // 0xE
         width = HeapAttrWidth.flag;
         value = 1;
-    }
-    if (_asciiIntRaws.contains(raw) && value is int) {
-      final text = _asciiFromInt(value);
-      if (text != null) value = text;
     }
     return HeapAttr(
       attribute: HeapAttribute.fromRaw(raw),
@@ -1597,9 +1588,8 @@ enum HeapPropertyToken {
   /// NOT this token — [decodeHeapPropertyToken] excludes the object-header shape
   /// so it is not mis-read here. What remains (e.g. the `10 19 01 fe <s16>`
   /// single-item form) is a genuine property token, but its meaning is not pinned
-  /// (the earlier "≈0x258 / value↔kind 1:1" claim conflated it with the header
-  /// and is false — the header's first u16 is a diverse class code, not 0x258),
-  /// so the name states only the value kind.
+  /// — it must not be read as the object header's first u16 (a diverse class
+  /// code, not a constant 0x258) — so the name states only the value kind.
   smallValueProperty(0x10, 0x19, PropTokenForm.taggedList, 'smallValueProperty', AttrConfidence.kindOnly),
 
   /// `10 8d` — **text / appearance feature flag** (`FE`→s16, always 0x258) on
@@ -1714,10 +1704,10 @@ enum HeapPropertyToken {
 
 /// Whether a byte is the `op == 0x04` lead of a bare two-byte `04 SS` token.
 /// These appear in FPHb/BDHb (the `SS` subop is dominated by the attribute/
-/// property family `0x1f`/`0x20`/`0x22`); the earlier "`04 SS 00 00` DTHP
-/// type-descriptor grammar" claim was NOT borne out by the corpus, so these are
-/// treated as framed-but-undecoded (NOT credited as semantic). Used only for a
-/// hex-viewer label. Distinct from [HeapPropertyToken].
+/// property family `0x1f`/`0x20`/`0x22`). Their `04 SS 00 00` payload has no
+/// corpus-confirmed grammar, so they are treated as framed-but-undecoded (NOT
+/// credited as semantic). Used only for a hex-viewer label. Distinct from
+/// [HeapPropertyToken].
 bool isTypeDescriptorToken(int op) => op == 0x04;
 
 /// Whether the bytes at [offset] are an object-header signature
@@ -1826,8 +1816,7 @@ enum HeapRefKind {
   /// Raw `0x053` (`14 53`; matches OF__ddo) — **cross-heap display-object
   /// reference**: the uid resolves in the OTHER heap of the same VI at
   /// **100.00%** (2,048/2,048; 0% in its own heap) — a BD node naming its
-  /// front-panel display object. (Supersedes the earlier "literal" reading,
-  /// which had only tested same-heap resolution.)
+  /// front-panel display object.
   ddoRef(0x053, 'ddoRef', AttrConfidence.inferred),
 
   /// Raw `0x113` (`15 13`; matches OF__srcDCO) — **source-DCO reference** on
@@ -2035,39 +2024,30 @@ HeapTierTotals measureHeapTiers(Uint8List body, String sectionTag) {
   final walk = walkHeapBody(body);
   final length = body.length;
   var semantic = 0, valueKind = 0;
-  final stack = <int?>[];
+  // The enclosing innermost-class in effect *before* each currently-open frame.
+  // A close restores its frame's saved value in O(1), so there is no upward
+  // rescan of the group stack (an object frame saves the class it shadowed; a
+  // group-open frame saves the unchanged current class).
+  final enclosingBeforeOpen = <int>[];
   var innermost = -1;
-  void recomputeInnermost() {
-    innermost = -1;
-    for (var i = stack.length - 1; i >= 0; i--) {
-      final kind = stack[i];
-      if (kind != null) {
-        innermost = kind;
-        return;
-      }
-    }
-  }
 
   for (final span in walk.spans) {
     final offset = span.offset;
     final lead = span.lead;
     final header = heapObjectHeaderAt(body, offset);
     if (header != null) {
-      stack.add(header.kind);
+      enclosingBeforeOpen.add(innermost);
       innermost = header.kind;
       semantic += span.length;
       continue;
     }
     if (kHeapGroupOpenLeads.contains(lead) && offset + 4 <= length && isHeapTypeTag(body[offset + 3])) {
-      stack.add(null);
+      enclosingBeforeOpen.add(innermost);
       semantic += span.length;
       continue;
     }
     if (kHeapGroupCloseLeads.contains(lead)) {
-      if (stack.isNotEmpty) {
-        final popped = stack.removeLast();
-        if (popped != null) recomputeInnermost();
-      }
+      if (enclosingBeforeOpen.isNotEmpty) innermost = enclosingBeforeOpen.removeLast();
       semantic += span.length;
       continue;
     }

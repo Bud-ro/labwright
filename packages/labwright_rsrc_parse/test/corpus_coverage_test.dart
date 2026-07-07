@@ -205,7 +205,7 @@ _Cov _covSumm(Uint8List bytes, String path) {
         for (final v in n.afValues ?? const <int>[]) {
           masterTotal++;
           final siblings = n.parent == null ? const <_SentNode>[] : (childrenByParent[n.parent!] ?? const []);
-          if (siblings.any((sib) => sib.dfValues?.contains(v) ?? false)) masterSiblingHit++;
+          if (siblings.any((sib) => !identical(sib, n) && (sib.dfValues?.contains(v) ?? false))) masterSiblingHit++;
         }
         for (final v in n.tllValues ?? const <int>[]) {
           tllTotal++;
@@ -379,7 +379,9 @@ void main() {
     expect(
       masterHit / masterTotal,
       greaterThanOrEqualTo(0.96),
-      reason: 'a sibling part must carry partRole == masterPart value (evidence: 97.29%)',
+      reason:
+          'a *distinct* sibling part (not the node itself) must carry partRole == masterPart value '
+          '(evidence: 97.33%)',
     );
     final sigTotal = sum((c) => c.sigTotal), sigIn = sum((c) => c.sigInSignal);
     expect(sigTotal, greaterThan(700000), reason: 'signal-chain population collapsed (evidence: 854,486)');
