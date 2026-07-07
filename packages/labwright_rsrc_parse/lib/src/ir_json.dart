@@ -17,7 +17,7 @@ import 'ir.dart';
 ///
 /// Honesty note on the two id fields: `parentOid` is the containment tree (the
 /// nesting is rebuilt from it). `memberOids` is the heap's *declared*
-/// childRef/memberRef reflist — NOT containment and NOT wire endpoints; it is
+/// childRef/dcoRef reflist — NOT containment and NOT wire endpoints; it is
 /// orthogonal to `parentOid` and diverges from it ~72% of the time, so a
 /// consumer must not read it as the child list.
 Map<String, Object?> viDiagramToJson(ViDiagram d) => {
@@ -47,6 +47,7 @@ Map<String, Object?> _objectToJson(ViHeapObject object) {
     if (object.controlMin?.isFinite ?? false) 'controlMin': object.controlMin,
     if (object.controlMax?.isFinite ?? false) 'controlMax': object.controlMax,
     if (object.helpText != null) 'helpText': object.helpText,
+    if (object.constText != null) 'constText': object.constText,
   };
 }
 

@@ -113,12 +113,12 @@ class ViHeapObject {
   /// *declared* membership/links, distinct from the positional [parentOid] tree.
   final Map<HeapRefKind, List<int>> typedRefs = <HeapRefKind, List<int>>{};
 
-  /// The oids this object **declares as members** (childRef ∪ memberRef) — used
+  /// The oids this object **declares as members** (childRef ∪ dcoRef) — used
   /// by the diagram to highlight a structure's members (which the positional
   /// nesting tree does not capture; the two diverge ~72%). May be empty.
   Iterable<int> get memberOids => <int>{
     ...?typedRefs[HeapRefKind.childRef],
-    ...?typedRefs[HeapRefKind.memberRef],
+    ...?typedRefs[HeapRefKind.dcoRef],
   };
 
   /// Number of `C4 1F` terminal records attached.
@@ -151,9 +151,15 @@ class ViHeapObject {
   /// sentinel). Use [formatControlRange] to render honestly.
   double? controlMax;
 
-  /// Decoded help / description text for this object (`0x6C` blob / `C4 19`), or
+  /// Decoded help / description text for this object (`C4 19` description), or
   /// null. The VI/control's documentation string.
   String? helpText;
+
+  /// Flattened value of a block-diagram string constant (`bDConstDCO` `0x13`;
+  /// [HeapAttribute.constValue], raw `0x26C`, the `C6 6C FF` blob form) — e.g.
+  /// `"%f"` or `"ps2000aRunStreaming"`, or null. This is the constant's literal
+  /// data, NOT documentation; it is not help text and must not render as such.
+  String? constText;
 
   /// The named, documented class catalog entry for this object's [kind]
   /// (or [HeapObjectClass.unknown] if the code is not catalogued).
@@ -645,9 +651,11 @@ enum HeapObjectClass {
 /// footprint). Single source of truth.
 const kControlTerminalCodes = {0x50, 0x4f, 0x57, 0x5b, 0x51};
 
-/// Attribute ids `buildDiagram` surfaces onto [ViHeapObject] (a fast id pre-filter
-/// before the heavier `decodeHeapAttr`): 0x20/0x21 = control range, 0x6c = help
-/// text. (0x31 names were dropped — they sit on non-drawable structural objects.)
+/// Attribute id bytes `buildDiagram` surfaces onto [ViHeapObject] (a fast
+/// pre-filter on the record's second byte before the heavier `decodeHeapAttr`):
+/// 0x20/0x21 catch the `C6` control-range f64s (raw tags 0x220/0x221,
+/// stdNumMin/stdNumMax), 0x6c the `C6 6C FF` constant-value text (raw 0x26C).
+/// (0x31 names were dropped — they sit on non-drawable structural objects.)
 const _objAttrIds = {0x20, 0x21, 0x6c};
 
 /// Pixel-area threshold (width×height) for the structural node fallback in
@@ -845,12 +853,12 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
         if (attr == null) return;
         final number = attr.asDouble;
         if (number != null && kControlTerminalCodes.contains(cur.kind)) {
-          if (attr.attribute == HeapAttribute.foregroundColor) cur.controlMin ??= number;
-          if (attr.attribute == HeapAttribute.foregroundColorB) cur.controlMax ??= number;
+          if (attr.attribute == HeapAttribute.stdNumMin) cur.controlMin ??= number;
+          if (attr.attribute == HeapAttribute.stdNumMax) cur.controlMax ??= number;
         }
-        if (attr.attribute == HeapAttribute.helpDescription && offset + 2 < length && body[offset + 2] == 0xff) {
+        if (attr.attribute == HeapAttribute.constValue && offset + 2 < length && body[offset + 2] == 0xff) {
           final text = attr.asString;
-          if (text != null && text.isNotEmpty) cur.helpText ??= text;
+          if (text != null && text.isNotEmpty) cur.constText ??= text;
         }
       }
     },

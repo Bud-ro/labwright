@@ -49,6 +49,14 @@ class _Cov {
   /// how many sit in their evidence-dominant enclosing kind (see
   /// [HeapAttribute.partRole]).
   final int part16, part16InLabel, part66, part66InConnector, part8002, part8002InNumeric;
+
+  /// Raw-tag upgrade sentinels: the corpus correlations behind the inferred
+  /// meanings, re-measured on every run (see the [HeapAttribute] evidence notes).
+  final int objFlagsTotal, objFlagsFirst; // 0x0CB: position-0-in-object invariant
+  final int masterTotal, masterSiblingHit; // 0x0AF: sibling part carries partRole == value
+  final int sigTotal, sigInSignal; // 0x1E7/0x09F: enclosing class 0x17 = signal
+  final int tllTotal, tllEqChild; // 0x158: value == direct child-object count
+  final int ddoTotal, ddoCrossResolved; // 14 53: uid resolves in the sibling heap
   const _Cov({
     required this.totalityFail,
     required this.walkFail,
@@ -67,13 +75,39 @@ class _Cov {
     required this.part66InConnector,
     required this.part8002,
     required this.part8002InNumeric,
+    required this.objFlagsTotal,
+    required this.objFlagsFirst,
+    required this.masterTotal,
+    required this.masterSiblingHit,
+    required this.sigTotal,
+    required this.sigInSignal,
+    required this.tllTotal,
+    required this.tllEqChild,
+    required this.ddoTotal,
+    required this.ddoCrossResolved,
   });
+}
+
+/// Per-object scratch for the raw-tag sentinels: enclosing kind, record
+/// position, child count, and the partRole/masterPart values seen.
+class _SentNode {
+  _SentNode(this.kind, this.parent);
+  final int kind;
+  final _SentNode? parent;
+  int records = 0, childCount = 0;
+  List<int>? dfValues;
+  List<int>? afValues;
+  List<int>? tllValues;
 }
 
 _Cov _covSumm(Uint8List bytes, String path) {
   var framed = 0, body = 0, semantic = 0;
   var propertyNames = 0, helpStrings = 0, controlF64 = 0;
   var part16 = 0, part16InLabel = 0, part66 = 0, part66InConnector = 0, part8002 = 0, part8002InNumeric = 0;
+  var objFlagsTotal = 0, objFlagsFirst = 0, masterTotal = 0, masterSiblingHit = 0;
+  var sigTotal = 0, sigInSignal = 0, tllTotal = 0, tllEqChild = 0, ddoTotal = 0, ddoCrossResolved = 0;
+  final oidsBySec = <String, Set<int>>{};
+  final ddoPending = <(String, int)>[];
   String? walkFail;
   String? totalityFail;
 
@@ -91,41 +125,100 @@ _Cov _covSumm(Uint8List bytes, String path) {
         }
         final a = decodeHeapAttr(s.bytes, span.offset);
         if (a == null) continue;
-        if (a.attribute == HeapAttribute.propertyName) propertyNames++;
-        if (a.attribute == HeapAttribute.helpDescription && (a.asString?.isNotEmpty ?? false)) {
+        if (a.attribute == HeapAttribute.propItemName) propertyNames++;
+        if (a.attribute == HeapAttribute.constValue && (a.asString?.isNotEmpty ?? false)) {
           helpStrings++;
         }
-        if ((a.attribute == HeapAttribute.foregroundColor || a.attribute == HeapAttribute.foregroundColorB) &&
+        if ((a.attribute == HeapAttribute.stdNumMin || a.attribute == HeapAttribute.stdNumMax) &&
             a.width == HeapAttrWidth.f64) {
           controlF64++;
         }
       }
-      // partRole (0xDF) correlation sentinels: the value->enclosing-kind evidence
-      // behind the inferred upgrade, re-measured on every run via the shared
-      // object-tree walk so the meaning cannot silently rot.
-      walkHeapObjects<int>(
+      // Correlation sentinels behind the inferred raw-tag meanings (partRole
+      // enclosing kinds, objFlags position-0, masterPart sibling parts, the
+      // signal chain scope, termListLength == child count, ddoRef cross-heap
+      // resolution), re-measured on every run via the shared object-tree walk
+      // so a meaning cannot silently rot.
+      final nodes = <_SentNode>[];
+      final oids = oidsBySec[s.tag] ??= <int>{};
+      walkHeapObjects<_SentNode>(
         s.bytes,
-        onObjectOpen: (span, kind, oid, parent) => kind,
-        onRecord: (span, enclosingKind) {
-          if (enclosingKind == null) return;
-          // Cheap pre-filter: every attribute form carries its id at offset+1,
-          // so a non-0xDF byte there can never decode to partRole.
-          if (span.length < 3 || s.bytes[span.offset + 1] != 0xdf) return;
+        onObjectOpen: (span, kind, oid, parent) {
+          final n = _SentNode(kind, parent);
+          nodes.add(n);
+          parent?.childCount++;
+          oids.add(oid);
+          return n;
+        },
+        onRecord: (span, node) {
+          if (node == null || span.length < 2) return;
+          final lead = s.bytes[span.offset];
+          final idByte = s.bytes[span.offset + 1];
+          node.records++;
+          if (lead == 0x14 && idByte == 0x53 && span.length == 6 && s.bytes[span.offset + 3] == 0xfd) {
+            final ref = decodeHeapRef(s.bytes, span.offset);
+            if (ref != null) {
+              ddoTotal++;
+              ddoPending.add((s.tag, ref.targetOid));
+            }
+            return;
+          }
+          // Cheap pre-filter: every attribute form carries the tag low byte at
+          // offset+1, so other bytes can never decode to the probed tags.
+          if (!const {0xdf, 0xcb, 0xaf, 0xe7, 0x9f, 0x58}.contains(idByte)) return;
           final a = decodeHeapAttr(s.bytes, span.offset);
-          if (a == null || a.attribute != HeapAttribute.partRole) return;
-          switch (a.asInt) {
-            case 16:
-              part16++;
-              if (enclosingKind == 0x0a) part16InLabel++;
-            case 66:
-              part66++;
-              if (enclosingKind == 0x68) part66InConnector++;
-            case 8002:
-              part8002++;
-              if (enclosingKind == 0x50) part8002InNumeric++;
+          if (a == null) return;
+          switch (a.attribute) {
+            case HeapAttribute.partRole:
+              (node.dfValues ??= []).add(a.asInt ?? -1);
+              switch (a.asInt) {
+                case 16:
+                  part16++;
+                  if (node.kind == 0x0a) part16InLabel++;
+                case 66:
+                  part66++;
+                  if (node.kind == 0x68) part66InConnector++;
+                case 8002:
+                  part8002++;
+                  if (node.kind == 0x50) part8002InNumeric++;
+              }
+            case HeapAttribute.objFlags:
+              objFlagsTotal++;
+              if (node.records == 1) objFlagsFirst++;
+            case HeapAttribute.masterPart:
+              if (a.asInt != null) (node.afValues ??= []).add(a.asInt!);
+            case HeapAttribute.compressedWireTable || HeapAttribute.lastSignalKind:
+              sigTotal++;
+              if (node.kind == 0x17) sigInSignal++;
+            case HeapAttribute.termListLength:
+              if (a.asInt != null) (node.tllValues ??= []).add(a.asInt!);
+            default:
+              break;
           }
         },
       );
+      final childrenByParent = <_SentNode, List<_SentNode>>{};
+      for (final n in nodes) {
+        if (n.parent != null) (childrenByParent[n.parent!] ??= []).add(n);
+      }
+      for (final n in nodes) {
+        for (final v in n.afValues ?? const <int>[]) {
+          masterTotal++;
+          final siblings = n.parent == null ? const <_SentNode>[] : (childrenByParent[n.parent!] ?? const []);
+          if (siblings.any((sib) => !identical(sib, n) && (sib.dfValues?.contains(v) ?? false))) masterSiblingHit++;
+        }
+        for (final v in n.tllValues ?? const <int>[]) {
+          tllTotal++;
+          if (v == n.childCount) tllEqChild++;
+        }
+      }
+    }
+    for (final (tag, uid) in ddoPending) {
+      var cross = false;
+      oidsBySec.forEach((t, ids) {
+        if (t != tag && ids.contains(uid)) cross = true;
+      });
+      if (cross) ddoCrossResolved++;
     }
   } catch (e) {
     if (!isNonRsrcFixture(path)) totalityFail = '$path: $e';
@@ -162,6 +255,16 @@ _Cov _covSumm(Uint8List bytes, String path) {
     part66InConnector: part66InConnector,
     part8002: part8002,
     part8002InNumeric: part8002InNumeric,
+    objFlagsTotal: objFlagsTotal,
+    objFlagsFirst: objFlagsFirst,
+    masterTotal: masterTotal,
+    masterSiblingHit: masterSiblingHit,
+    sigTotal: sigTotal,
+    sigInSignal: sigInSignal,
+    tllTotal: tllTotal,
+    tllEqChild: tllEqChild,
+    ddoTotal: ddoTotal,
+    ddoCrossResolved: ddoCrossResolved,
   );
 }
 
@@ -255,6 +358,51 @@ void main() {
       part8002InNumeric / part8002,
       greaterThanOrEqualTo(0.995),
       reason: 'partRole 8002 must sit in numeric controls (kind 0x50) at >=99.5% (evidence: 12,801/12,817)',
+    );
+  });
+
+  // Pin the corpus correlations behind the raw-tag-id upgrades (objFlags,
+  // masterPart, the signal chain, termListLength, ddoRef). Each floor sits just
+  // under its measured full-corpus figure so the inferred meaning fails loudly
+  // if the decode, the walker, or a corpus refresh breaks the correlation.
+  test('raw-tag upgrade correlations hold corpus-wide (objFlags/masterPart/signal/termList/ddoRef)', () {
+    int sum(int Function(_Cov c) f) => C.fold<int>(0, (a, c) => a + f(c));
+    final objTotal = sum((c) => c.objFlagsTotal), objFirst = sum((c) => c.objFlagsFirst);
+    expect(objTotal, greaterThan(3500000), reason: 'objFlags population collapsed (evidence: 3,745,810)');
+    expect(
+      objFirst / objTotal,
+      greaterThanOrEqualTo(0.999),
+      reason: 'objFlags must be the FIRST record of its object scope (evidence: 99.99%)',
+    );
+    final masterTotal = sum((c) => c.masterTotal), masterHit = sum((c) => c.masterSiblingHit);
+    expect(masterTotal, greaterThan(800000), reason: 'masterPart population collapsed (evidence: 918,340)');
+    expect(
+      masterHit / masterTotal,
+      greaterThanOrEqualTo(0.96),
+      reason:
+          'a *distinct* sibling part (not the node itself) must carry partRole == masterPart value '
+          '(evidence: 97.33%)',
+    );
+    final sigTotal = sum((c) => c.sigTotal), sigIn = sum((c) => c.sigInSignal);
+    expect(sigTotal, greaterThan(700000), reason: 'signal-chain population collapsed (evidence: 854,486)');
+    expect(
+      sigIn / sigTotal,
+      greaterThanOrEqualTo(0.999),
+      reason: 'compressedWireTable/lastSignalKind must sit in signal objects, class 0x17 (evidence: ~100%)',
+    );
+    final tllTotal = sum((c) => c.tllTotal), tllEq = sum((c) => c.tllEqChild);
+    expect(tllTotal, greaterThan(30000), reason: 'termListLength population collapsed (evidence: 41,660)');
+    expect(
+      tllEq / tllTotal,
+      greaterThanOrEqualTo(0.96),
+      reason: 'termListLength must equal the direct child-object count (evidence: 97.56%)',
+    );
+    final ddoTotal = sum((c) => c.ddoTotal), ddoCross = sum((c) => c.ddoCrossResolved);
+    expect(ddoTotal, greaterThan(1500), reason: 'ddoRef population collapsed (evidence: 2,048)');
+    expect(
+      ddoCross / ddoTotal,
+      greaterThanOrEqualTo(0.99),
+      reason: 'ddoRef uids must resolve in the sibling heap (evidence: 2,048/2,048)',
     );
   });
 

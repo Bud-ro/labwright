@@ -112,7 +112,7 @@ void main() {
   });
 
   testWidgets(
-    'hex view surfaces the newest decoded forms (property name, help text, control min)',
+    'hex view surfaces the newest decoded forms (prop item name, const value, control min)',
     (tester) async {
       final records = <int>[
         0x10, 0x19, 0x02, 0xfe, 0x00, 0x50, 0xfd, 0x00, 0x01, // object header
@@ -123,7 +123,7 @@ void main() {
         0x63,
         0x61,
         0x6c,
-        0x65, // C6 31 "Scale" (property name)
+        0x65, // C6 31 "Scale" (raw tag 0x231 propItemName)
         0xc6,
         0x6c,
         0xff,
@@ -138,8 +138,8 @@ void main() {
         0x62,
         0x6f,
         0x74,
-        0x21, // C6 6C FF "Robot!"
-        0xc5,
+        0x21, // C6 6C FF "Robot!" (raw tag 0x26C constValue)
+        0xc6,
         0x20,
         0x08,
         0xbf,
@@ -149,7 +149,7 @@ void main() {
         0x00,
         0x00,
         0x00,
-        0x00, // C5 20 08 f64 = -1.0 (control min)
+        0x00, // C6 20 08 f64 = -1.0 (stdNumMin)
         0x08, 0x19,
       ];
       await tester.pumpWidget(
@@ -159,18 +159,16 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.textContaining('propertyName'), findsOneWidget);
-      await tester.tap(find.textContaining('propertyName').first);
+      expect(find.textContaining('propItemName'), findsOneWidget);
+      await tester.tap(find.textContaining('propItemName').first);
       await tester.pump();
       expect(find.text('Scale'), findsOneWidget);
 
-      await tester.tap(find.textContaining('helpDescription').first);
+      await tester.tap(find.textContaining('constValue').first);
       await tester.pump();
       expect(find.text('Robot!'), findsOneWidget);
 
-      await tester.tap(
-        find.textContaining('foregroundColorOrControlMin').first,
-      );
+      await tester.tap(find.textContaining('stdNumMin').first);
       await tester.pump();
       expect(find.textContaining('Numeric-control parameter'), findsOneWidget);
     },

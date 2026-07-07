@@ -22,7 +22,11 @@ void main() {
     expect(recordSkip(b([0x24, 0, 0]), 0), 3);
     expect(recordSkip(b([0x44, 0, 0, 0]), 0), 4);
     expect(recordSkip(b([0x64, 0xcb, 0, 0, 0]), 0), 5);
-    expect(recordSkip(b([0x64, 0xcb, 0x26]), 0), 3);
+    expect(
+      recordSkip(b([0x64, 0xcb, 0x26, 0x84, 0x20]), 0),
+      5,
+      reason: '64 CB is a u24 objFlags leaf; the old 3-byte special case was refuted by the EOF-balance probe',
+    );
     expect(recordSkip(b([0x86, 0x20, 0, 0, 0, 0]), 0), 6);
     expect(recordSkip(b([0xe4, 0x21]), 0), 2);
     expect(recordSkip(b([0x99, 0, 0]), 0), isNull);
@@ -126,34 +130,45 @@ void main() {
       isNull,
       reason: 'an uncatalogued (op,subop) is not a property token',
     );
-    expect(isTypeDescriptorToken(0x04), isTrue, reason: '0x04 fragments are type-descriptor grammar, not properties');
+    expect(isTypeDescriptorToken(0x04), isTrue, reason: '0x04 leads are zero-size false-valued leaf tags');
     expect(isTypeDescriptorToken(0x10), isFalse);
   });
 
-  test('HeapRefKind: subop maps to relationship; 0x53 is a literal, not a ref', () {
-    expect(HeapRefKind.fromSubop(0x19), HeapRefKind.childRef);
-    expect(HeapRefKind.fromSubop(0x4f), HeapRefKind.memberRef);
-    expect(HeapRefKind.fromSubop(0x1f), HeapRefKind.ownerRef);
-    expect(HeapRefKind.fromSubop(0x50), HeapRefKind.siblingRef);
+  test('HeapRefKind: the raw tag id maps to the relationship', () {
+    expect(HeapRefKind.fromRaw(0x019), HeapRefKind.childRef);
+    expect(HeapRefKind.fromRaw(0x04f), HeapRefKind.dcoRef);
+    expect(HeapRefKind.fromRaw(0x01f), HeapRefKind.ownerRef);
+    expect(HeapRefKind.fromRaw(0x050), HeapRefKind.dcoAggRef);
+    expect(HeapRefKind.fromRaw(0x053), HeapRefKind.ddoRef, reason: 'resolves in the sibling heap (2,048/2,048)');
+    expect(HeapRefKind.fromRaw(0x113), HeapRefKind.srcDCORef);
+    expect(HeapRefKind.fromRaw(0x28a), HeapRefKind.attachmentRef);
     expect(
-      HeapRefKind.fromSubop(0x34),
+      HeapRefKind.fromRaw(0x034),
       HeapRefKind.objectRef,
-      reason: 'a resolving but unnamed subop falls back to the generic objectRef',
+      reason: 'a resolving but unnamed raw tag falls back to the generic objectRef',
     );
-    expect(HeapRefKind.fromSubop(0x53), HeapRefKind.literal);
   });
 
-  test('decodeHeapRef decodes typed refs and rejects the 0x53 literal', () {
+  test('decodeHeapRef decodes the 14..17-lead uid-leaf family', () {
     final m = decodeHeapRef(b([0x14, 0x4f, 0x01, 0xfd, 0x00, 0x2a]), 0)!;
-    expect(m.kind, HeapRefKind.memberRef);
+    expect(m.kind, HeapRefKind.dcoRef);
     expect(m.targetOid, 0x2a);
     expect(m.length, 6);
+    final ddo = decodeHeapRef(b([0x14, 0x53, 0x01, 0xfd, 0x00, 0x09]), 0)!;
+    expect(ddo.kind, HeapRefKind.ddoRef, reason: 'cross-heap display-object reference');
+    final attach = decodeHeapRef(b([0x16, 0x8a, 0x01, 0xfd, 0x00, 0x07]), 0)!;
+    expect(attach.kind, HeapRefKind.attachmentRef);
     expect(
-      decodeHeapRef(b([0x14, 0x53, 0x01, 0xfd, 0x00, 0x09]), 0),
+      decodeHeapRef(b([0x14, 0x53, 0x01, 0xfe, 0x00, 0x09]), 0),
       isNull,
-      reason: '14 53 frames as a record but is a literal value, not a reference',
+      reason: 'the fe form carries a class-code literal, not an oid',
     );
-    expect(decodeHeapRef(b([0x10, 0x19, 0x02, 0xfe, 0, 0]), 0), isNull, reason: 'not a 14-family record');
+    expect(
+      decodeHeapRef(b([0x15, 0x77, 0x01, 0xfd, 0x80, 0x00, 0x00, 0x00, 0x01, 0x00]), 0),
+      isNull,
+      reason: 'the 7-byte fd escape is not the compact reference shape',
+    );
+    expect(decodeHeapRef(b([0x10, 0x19, 0x02, 0xfe, 0, 0]), 0), isNull, reason: 'not a leaf-with-attrs record');
   });
 
   test('walkHeapBody and recordSkip are total over arbitrary bytes', () {

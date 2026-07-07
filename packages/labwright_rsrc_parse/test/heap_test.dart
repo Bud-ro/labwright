@@ -19,10 +19,10 @@ void main() {
     expect(HeapOpcode.fromByte(0x2e), HeapOpcode.stringTable);
     expect(HeapOpcode.fromByte(0x22), HeapOpcode.caption);
     expect(HeapOpcode.fromByte(0x19), HeapOpcode.description);
-    expect(HeapOpcode.fromByte(0x5f), HeapOpcode.rect5f);
+    expect(HeapOpcode.fromByte(0x5f), HeapOpcode.docBounds);
     expect(HeapOpcode.fromByte(0xAB), HeapOpcode.unknown, reason: 'uncatalogued byte -> unknown');
     expect(HeapOpcode.bounds.isDecoded, isTrue);
-    expect(HeapOpcode.rect5f.isDecoded, isFalse);
+    expect(HeapOpcode.docBounds.isDecoded, isTrue, reason: 'pane document bounds (corpus-scoped role)');
     expect(HeapOpcode.unknown.isDecoded, isFalse);
     final bytes = HeapOpcode.values.where((o) => o != HeapOpcode.unknown).map((o) => o.byte).toList();
     expect(bytes.toSet().length, bytes.length, reason: 'every catalogued opcode has a unique byte');
@@ -47,9 +47,9 @@ void main() {
 
     final r4c = <int>[0xc4, 0x4c, 0x08, 0xff, 0xdf, 0xff, 0x8e, 0x01, 0xd1, 0x02, 0xad];
     final rec = heapC4RecordsFromDecoded([bdex(r4c)]).single;
-    expect(rec.kind, HeapOpcode.rect4c);
+    expect(rec.kind, HeapOpcode.dBounds);
     expect(rec.kind.shape, HeapShape.rectangle);
-    expect(rec.bounds, isNull, reason: 'rect4c is a structural rect, not the semantic bounds opcode');
+    expect(rec.bounds, isNull, reason: 'dBounds is a root-level rect, not the per-object bounds opcode');
     expect(rec.rect, isNotNull);
     expect([rec.rect!.top, rec.rect!.left], [-33, -114]);
   });
@@ -57,8 +57,8 @@ void main() {
   test('HeapOpcode isDecoded marks semantics vs structural', () {
     expect(HeapOpcode.plotName.isDecoded, isTrue);
     expect(HeapOpcode.formatString.isDecoded, isTrue);
-    expect(HeapOpcode.rect4c.isDecoded, isFalse);
-    expect(HeapOpcode.rectD6.isDecoded, isFalse);
+    expect(HeapOpcode.rect26.isDecoded, isFalse);
+    expect(HeapOpcode.rect23.isDecoded, isFalse);
   });
 
   test('frames C4 length-prefixed records and skips payloads', () {

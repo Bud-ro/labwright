@@ -168,28 +168,15 @@ void main() {
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.reset);
 
-      List<int> c6blob(int id, String s) {
-        final len = 4 + s.length;
-        return [
-          0xc6,
-          id,
-          0xff,
-          len >> 8,
-          len & 0xff,
-          0,
-          0,
-          0,
-          s.length,
-          ...s.codeUnits,
-        ];
-      }
+      // Description/help record: `C4 19 <len> <text>` (via descriptionText).
+      List<int> help(String s) => [0xc4, 0x19, s.length, ...s.codeUnits];
 
       final records = <int>[
         ...open(0x7e, 1),
         ...bounds(0, 0, 400, 400),
         ...open(0x50, 2, tag: 0x1a),
         ...bounds(20, 20, 60, 200),
-        ...c6blob(0x6c, 'help here'),
+        ...help('help here'),
         ...close(0x1a),
         ...close(),
       ];
