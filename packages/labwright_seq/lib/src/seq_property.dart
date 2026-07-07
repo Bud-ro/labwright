@@ -14,11 +14,25 @@ class SeqProperty {
     this.scalar,
     this.array,
     this.subProps = const [],
+    this.xmlTag,
+    this.valueAttributes = const {},
+    this.elemProto,
+    this.extData = const [],
+    this.numericFormat,
   });
 
   /// The property name: the `name=` attribute when present (array elements and
   /// `_NAME_IN_ATTRIBUTE_` placeholders), otherwise the XML element tag.
   final String name;
+
+  /// The literal XML element tag this property was read from, when XML-sourced —
+  /// needed to write the file back, because the tag is NOT derivable from [name]
+  /// when a `name=` attribute exists (the corpus holds both
+  /// `<_NAME_IN_ATTRIBUTE_ name='X'>` and `<FCParameter name='X'>` /
+  /// `<Sequence name='MainSequence'>` forms). null for synthesized properties
+  /// (INI/binary readers, hand-built trees) and for scalar array elements
+  /// (which serialize as bare `<value>` wrappers, no tag).
+  final String? xmlTag;
 
   /// The value-kind (`classname` attr): `Bool`, `Str`, `Number`, `Obj`, `Objs`,
   /// `ExprValue`, `Nums`, `ArrayDimensions`, … null if absent.
@@ -43,6 +57,44 @@ class SeqProperty {
 
   /// Named child properties (from `<subprops>`); empty when there are none.
   final List<SeqProperty> subProps;
+
+  /// Every XML attribute on the property's own `<value>` element, in document
+  /// order. Corpus-observed keys: `lbound`/`ubound` (array bounds, verbatim —
+  /// see [arrayLBound]/[arrayUBound]) and `representation` (numeric storage
+  /// hint, `Int64`/`UInt64`, on scalar AND array values — 748 occurrences).
+  /// Empty when the property has no `<value>` or it carries no attributes.
+  final Map<String, String> valueAttributes;
+
+  /// The declared array LOW bound(s), verbatim from the `<value lbound=…>`
+  /// attribute — `'[0]'`, or a multi-dimensional chain like
+  /// `'[0][0]…[0]'` (16-D observed in the corpus). null when not an array
+  /// (or the file omitted it).
+  String? get arrayLBound => valueAttributes['lbound'];
+
+  /// The declared array HIGH bound(s), verbatim from `<value ubound=…>` —
+  /// `'[]'` (unbounded/empty), `'[4]'`, or a multi-dimensional chain. null
+  /// when not an array (or the file omitted it).
+  String? get arrayUBound => valueAttributes['ubound'];
+
+  /// The array's element PROTOTYPE — the `<elemproto>` child of an array
+  /// `<value>` (its single wrapped property tree), describing the type each
+  /// unstored element instantiates. Corpus: 1649 occurrences across all 36
+  /// XML files, always attribute-less with exactly one child, always FIRST
+  /// among the array value's children. null when absent (or non-array).
+  final SeqProperty? elemProto;
+
+  /// The `<extdata …/>` children of the property element, each an ordered
+  /// attribute map, in document order. Code-module parameter marshalling
+  /// metadata (corpus: 584 occurrences, always self-closed, keysets of 4 or 8
+  /// attrs such as `controllername`/`exclude`/`packingoption`). They sit
+  /// AFTER `<value>` and BEFORE `<subprops>` in every corpus occurrence.
+  /// Empty when the property has none.
+  final List<Map<String, String>> extData;
+
+  /// The `<numericfmt>` child's text, verbatim — the property's display
+  /// format string (corpus: 132 occurrences, `%#x` and `%i`, always AFTER
+  /// `<value>`). null when absent.
+  final String? numericFormat;
 
   bool get isArray => array != null;
   bool get isLeaf => array == null && subProps.isEmpty;
@@ -87,8 +139,8 @@ class SeqProperty {
   /// this property. The text format stores default-valued elements ONLY
   /// this way (no members materialize), so a sized array with no [array]
   /// entries still has a real declared length: `declaredArrayLength`. XML
-  /// (`lbound`/`ubound` on the value node) and binary bounds are TODO —
-  /// not yet surfaced here.
+  /// bounds are kept verbatim instead ([arrayLBound]/[arrayUBound]); binary
+  /// bounds are TODO — not yet surfaced here.
   List<int>? get highIndices => _boundsAttr('%HI');
 
   /// The declared array LOW bounds, from the legacy INI `%LO: <member> = [1]`
@@ -167,10 +219,21 @@ SeqProperty buildProperty(XmlElement e) {
 
   String? scalar;
   List<SeqProperty>? array;
+  SeqProperty? elemProto;
+  var valueAttrs = const <String, String>{};
   final valueEl = childElement(e, 'value');
   if (valueEl != null) {
-    final isArray = valueEl.getAttribute('lbound') != null || valueEl.getAttribute('ubound') != null;
+    valueAttrs = {
+      for (final attribute in valueEl.attributes) attribute.name.qualified: attribute.value,
+    };
+    final isArray = valueAttrs.containsKey('lbound') || valueAttrs.containsKey('ubound');
     if (isArray) {
+      // The element prototype: `<elemproto>` wraps exactly one property tree
+      // (corpus: 1649/1649 attribute-less with one child; a childless wrapper,
+      // unobserved, reads defensively as absent).
+      final protoEl = childElement(valueEl, 'elemproto');
+      final protoChild = protoEl?.childElements.firstOrNull;
+      if (protoChild != null) elemProto = buildProperty(protoChild);
       array = [
         for (final elementValue in childElementsNamed(valueEl, 'value')) _arrayElement(elementValue),
       ];
@@ -187,6 +250,14 @@ SeqProperty buildProperty(XmlElement e) {
     scalar: scalar,
     array: array,
     subProps: subProps,
+    xmlTag: tag,
+    valueAttributes: valueAttrs,
+    elemProto: elemProto,
+    extData: [
+      for (final ext in childElementsNamed(e, 'extdata'))
+        {for (final attribute in ext.attributes) attribute.name.qualified: attribute.value},
+    ],
+    numericFormat: childElement(e, 'numericfmt')?.innerText,
   );
 }
 
@@ -216,5 +287,10 @@ SeqProperty _arrayElement(XmlElement wrapper) {
     scalar: child.scalar,
     array: child.array,
     subProps: child.subProps,
+    xmlTag: child.xmlTag,
+    valueAttributes: child.valueAttributes,
+    elemProto: child.elemProto,
+    extData: child.extData,
+    numericFormat: child.numericFormat,
   );
 }

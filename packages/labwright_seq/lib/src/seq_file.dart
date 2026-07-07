@@ -20,12 +20,28 @@ import 'seq_typedefs.dart';
 /// reconstructed from the decoded record structures (see [binarySequenceOutlines]),
 /// while sequence properties, variables, and step modules are not yet decoded.
 class SeqFile {
-  SeqFile({required this.header, required this.types, required this.data});
+  SeqFile({required this.header, required this.types, required this.data, this.typelistEntries, this.rootAttributes});
 
   final SeqFileHeader header;
 
   /// The `<typelist>` entries (each a type's root property object).
   final List<SeqProperty> types;
+
+  /// The full `<typelist>` entries in document order, INCLUDING each
+  /// `<typedef>` wrapper's own attributes (`alwayssavetype`/
+  /// `additionaltypeflags`/`typelistordernum`, present on all 834 corpus
+  /// typedefs) and the `<protected>` blobs interleaved among them (87 across
+  /// 29 corpus files) — what the XML writer needs, since [types] holds only
+  /// the wrapped plaintext roots. null when the file has no `<typelist>` or
+  /// the source encoding carries no wrappers (INI/binary).
+  final List<SeqTypelistEntry>? typelistEntries;
+
+  /// Every attribute on the root `<teststandfileheader>` element (qualified
+  /// name → value, document order) — beyond the type/fileversion/productname
+  /// trio the header sniffer reads, the corpus carries `productversion`,
+  /// `compatibleversion`, `buildversion`, sometimes `origfilepath`, and the
+  /// two double-quoted `xmlns` declarations. null for non-XML sources.
+  final Map<String, String>? rootAttributes;
 
   /// The `<typelist>` entries as typed [SeqType] wrappers — each type's name,
   /// base class, and declared fields. The raw roots remain available as [types].
@@ -359,23 +375,71 @@ SeqFile parseSeqFile(Uint8List bytes) {
   }
 }
 
+/// One `<typelist>` entry, in document order — either a plaintext `<typedef>`
+/// (its wrapper [attributes] plus the wrapped type [root]) or a `<protected>`
+/// blob ([protectedData]). Kept whole (rather than only the roots, as
+/// [SeqFile.types] does) so the XML writer can re-emit the list byte-exactly:
+/// the corpus interleaves protected blobs among typedefs (e.g.
+/// `…typedef ×19, protected ×3, typedef ×4`), so a split pair of lists would
+/// lose the order. [root] is null for an empty `<typedef/>` wrapper — none
+/// exist in the current corpus, but the shape is retained rather than
+/// silently dropped.
+class SeqTypelistEntry {
+  SeqTypelistEntry({this.attributes = const {}, this.root, this.protectedData});
+
+  /// The `<typedef>` element's own attributes (qualified name → value, document
+  /// order): `alwayssavetype`, `additionaltypeflags`, `typelistordernum` on
+  /// every corpus typedef. Empty for a `<protected>` entry (corpus: all 87
+  /// blobs are attribute-less).
+  final Map<String, String> attributes;
+
+  /// The wrapped type root property; null for a `<protected>` entry or an
+  /// (unobserved) empty `<typedef/>` wrapper.
+  final SeqProperty? root;
+
+  /// The verbatim text of a `<protected>` entry — a password-protected type
+  /// serialized as an obfuscated single-line blob (contents not yet decoded;
+  /// kept byte-faithful, never interpreted). null for a plaintext typedef.
+  final String? protectedData;
+
+  /// Whether this entry is a `<protected>` blob rather than a plaintext typedef.
+  bool get isProtected => protectedData != null;
+}
+
 SeqFile _parseXml(Uint8List bytes) {
   final root = XmlDocument.parse(_stripBom(utf8.decode(bytes))).rootElement;
   if (root.name.local != 'teststandfileheader') {
     throw FormatException('unexpected root element <${root.name.local}>');
   }
   final typelist = childElement(root, 'typelist');
-  final types = [
-    if (typelist != null)
-      for (final typedef in childElementsNamed(typelist, 'typedef'))
-        if (typedef.childElements.isNotEmpty) buildProperty(typedef.childElements.first),
-  ];
+  final entries = typelist == null
+      ? null
+      : [
+          for (final entry in typelist.childElements)
+            if (entry.name.local == 'protected')
+              SeqTypelistEntry(protectedData: entry.innerText)
+            else
+              SeqTypelistEntry(
+                attributes: {
+                  for (final attribute in entry.attributes) attribute.name.qualified: attribute.value,
+                },
+                root: entry.childElements.isEmpty ? null : buildProperty(entry.childElements.first),
+              ),
+        ];
   final dataEl = childElement(root, 'Data');
   if (dataEl == null) throw const FormatException('missing <Data> element');
   return SeqFile(
     header: detectSeqHeader(bytes),
-    types: types,
+    types: [
+      if (entries != null)
+        for (final entry in entries)
+          if (entry.root != null) entry.root!,
+    ],
     data: buildProperty(dataEl),
+    typelistEntries: entries,
+    rootAttributes: {
+      for (final attribute in root.attributes) attribute.name.qualified: attribute.value,
+    },
   );
 }
 

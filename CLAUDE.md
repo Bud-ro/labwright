@@ -33,7 +33,9 @@ The RSRC reader and TestStand readers are most pressing here.
   `git add -A`/`-u`. Put `git commit` on its own line. 
 - **PR descriptions:** write them with as little knowledge from the viewer
   required as possible — never reference the conversation that produced the
-  work. Make it objective, non-contextual, pithy, and useful.
+  work. Make it objective, non-contextual, pithy, and useful. The same rule
+  applies to doc comments and other kinds of comments: they describe the code
+  as it is, never the session, review, or brief that produced it.
 - **Cleanliness** Keep `dart analyze` clean and the relevant test suites green
   before committing. Run `./format.sh` (a thin wrapper over `dart format .`)
   so hand/agent edits match VS Code's format-on-save and diffs stay noise-free.
