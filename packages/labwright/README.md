@@ -71,7 +71,6 @@ is run using `dart run e2e/main.dart`, then these flags may be provided to `dart
 | `-Dlabwright.port=N` | viewer port (default 1212, "LAB" : L=12, A=1, B=2) |
 | `-Dlabwright.viewer=false` | Prevents the viewer from launching |
 | `-Dlabwright.keepOpen=true` OR `-Dlabwright.interactive=true` | Keep serving results after the run, and allow for tests to be (re)-run |
-| `-Dlabwright.editor=CMD` | Command the viewer's "open in editor" runs; `{file}`/`{line}` are substituted (default `code --goto {file}:{line}`, e.g. `vim +{line} {file}`) |
 | `-Dlabwright.identity=false` | Skip the report's content-identity hashes (~3s hasher isolate, off the bench path); hot reload then conservatively re-runs everything |
 | `-Dlabwright.report=out.json` | Write a JSON report (tests, statuses, logs, requirements trace, seed, summary) |
 
@@ -81,8 +80,24 @@ waiting to run), and a large scrollable **Log** pane — an animated history of 
 newest at top. Everything is **timestamped** in your local time — when a test was queued, started, and
 finished, and when each log line was emitted. A test's `log` button spotlights its latest run in the Log
 pane. Across the top you can re-run all/failed/one test, stop after the current test, fire operator
-`button()`s, **open a test's source** in your editor, **download** the JSON report or **copy** failures. Each
+`button()`s, **open a test's source** in VS Code (a plain `vscode://` link — from a Windows browser it
+opens Windows VS Code, including into a WSL suite), **download** the JSON report or **copy** failures. Each
 test badges its run-to-run change — `new fail`, `now passing`, and `flaky` (a test that keeps flipping verdict).
+
+Every viewer control is one `POST /<verb>` with a JSON body (`{}` when the verb takes no arguments),
+served only under `--interactive`/`--keep-open` (503 otherwise) and only for same-origin
+`application/json` requests (403 otherwise): 202 accepted, 409 rejected, 404 unknown verb.
+
+| route | body | effect |
+|---|---|---|
+| `POST /run` | | re-run all selected tests |
+| `POST /run-failed` | | re-run the currently failing tests |
+| `POST /run-one` | `{"test": "<name>"}` | run one test |
+| `POST /stop` | | stop after the current test |
+| `POST /reload` | | hot reload, then re-run the modified tests |
+| `POST /restart` | | hot restart (needs the `labwright run` supervisor) |
+| `POST /reseed` | `{"seed": N}` | re-shuffle to a seed and re-run |
+| `POST /button` | `{"index": i}` | fire an operator `button()` |
 
 **Hot reload** reloads edited sources and **re-runs only the modified tests** (`labwright run
 --interactive` starts the VM service for this; running `dart run` directly needs

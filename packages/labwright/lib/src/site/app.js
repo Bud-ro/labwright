@@ -10,24 +10,36 @@ const isFail = (s) => s === 'failed' || s === 'error';
 // Wall-clock ms → the operator's local HH:MM:SS.
 const clock = (ms) => ms == null ? '' : new Date(ms).toLocaleTimeString([], { hour12: false });
 
-async function post(action) {
+// Every control is one POST to its own verb path (/run, /stop, /run-one…);
+// the body is the verb's arguments, {} when it has none.
+async function post(path, body) {
   try {
-    const res = await fetch('/action', { method: 'POST',
-        headers: { 'content-type': 'application/json' }, body: JSON.stringify(action) });
+    const res = await fetch(path, { method: 'POST',
+        headers: { 'content-type': 'application/json' }, body: JSON.stringify(body || {}) });
     if (!res.ok) { const r = await res.json().catch(() => ({}));
       byId('meta').textContent = ' · rejected: ' + (r.error || res.status); }
   } catch (e) { byId('meta').textContent = ' · action failed: ' + e; }
 }
 
 function badge(cls, text) { const b = document.createElement('span'); b.className = cls; b.textContent = text; return b; }
+// Jump-to-source: substitute the absolute file path and line into the static
+// vscode:// template the server shipped (snap.editorLink) — a plain <a href>,
+// no server round-trip. Path segments are URL-encoded; the / and : separators
+// (and a Windows drive colon) stay intact.
+function gotoHref(file, line) {
+  const path = file.replace(/\\/g, '/').split('/')
+      .map((s) => encodeURIComponent(s).replace(/%3A/gi, ':')).join('/');
+  return snap.editorLink.replace('{file}', path).replace('{line}', line);
+}
 function nameEl(t) {
-  const n = document.createElement('span');
+  const goto = snap.interactive && snap.editorLink && t.file;
+  const n = document.createElement(goto ? 'a' : 'span');
   n.className = 'name ' + (t.status || '');
   n.textContent = t.name;
-  if (snap.interactive && t.file) {
+  if (goto) {
     n.classList.add('link');
+    n.href = gotoHref(t.file, t.line || 1);
     n.title = 'open ' + t.file + ':' + (t.line || 1);
-    n.onclick = () => post({ type: 'open', file: t.file, line: t.line || 1 });
   }
   return n;
 }
@@ -56,7 +68,7 @@ function renderTests() {
     if (snap.interactive) {
       const q = document.createElement('button'); q.className = 'mini'; q.textContent = '▶';
       q.title = 'queue this test'; q.disabled = !!snap.busy;
-      q.onclick = () => post({ type: 'runOne', test: t.name });
+      q.onclick = () => post('/run-one', { test: t.name });
       row.appendChild(q);
     }
     list.appendChild(row);
@@ -150,10 +162,10 @@ function controls() {
   byId('controls').hidden = !snap.interactive;
   const busy = !!snap.busy;
   const anyFail = (snap.tests || []).some((t) => isFail(t.status));
-  byId('rerun').disabled = busy;
-  byId('rerunFailed').disabled = busy || !anyFail;
-  byId('hotReload').disabled = busy;
-  const restart = byId('hotRestart');
+  byId('run').disabled = busy;
+  byId('runFailed').disabled = busy || !anyFail;
+  byId('reload').disabled = busy;
+  const restart = byId('restart');
   restart.disabled = busy || !snap.supervised;
   restart.title = snap.supervised
       ? 'fresh suite process — required for edited test bodies'
@@ -162,7 +174,7 @@ function controls() {
   const ub = byId('userButtons'); ub.replaceChildren();
   (snap.buttons || []).forEach((label, i) => {
     const b = document.createElement('button'); b.textContent = label; b.disabled = busy;
-    b.onclick = () => post({ type: 'button', index: i }); ub.appendChild(b);
+    b.onclick = () => post('/button', { index: i }); ub.appendChild(b);
   });
 }
 function onSnapshot() {
@@ -171,11 +183,11 @@ function onSnapshot() {
   controls(); renderTests(); renderQueue(); refreshLive(); counts();
 }
 
-byId('rerun').onclick = () => post({ type: 'rerun' });
-byId('rerunFailed').onclick = () => post({ type: 'rerunFailed' });
-byId('hotReload').onclick = () => post({ type: 'hotReload' });
-byId('hotRestart').onclick = () => post({ type: 'hotRestart' });
-byId('stop').onclick = () => post({ type: 'stop' });
+byId('run').onclick = () => post('/run');
+byId('runFailed').onclick = () => post('/run-failed');
+byId('reload').onclick = () => post('/reload');
+byId('restart').onclick = () => post('/restart');
+byId('stop').onclick = () => post('/stop');
 byId('copyFails').onclick = () => {
   const text = (snap.tests || []).filter((t) => isFail(t.status))
       .map((t) => t.name + (t.detail ? '\n  ' + t.detail.replace(/\n/g, '\n  ') : '')).join('\n\n');

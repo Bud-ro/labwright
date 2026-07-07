@@ -43,6 +43,9 @@
          flex-wrap: wrap; }
   .name { font-weight: 600; }
   .name.link { cursor: pointer; text-decoration: underline dotted; }
+  /* Goto links are vscode:// anchors: drop the browser's link blue without
+     outranking the status colors below (zero-specificity :where). */
+  :where(.name.link) { color: inherit; }
   .spacer { flex: 1; }
   .req, .idx { font-family: ui-monospace, monospace; font-size: .78em; opacity: .85;
                border: 1px solid var(--line); border-radius: .6em; padding: 0 .5em; }

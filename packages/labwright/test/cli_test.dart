@@ -230,9 +230,9 @@ void main() {
       await first.future.timeout(const Duration(seconds: 60));
 
       final client = HttpClient();
-      final req = await client.postUrl(Uri.parse('http://localhost:$port/action'));
+      final req = await client.postUrl(Uri.parse('http://localhost:$port/restart'));
       req.headers.contentType = ContentType.json;
-      req.write(jsonEncode({'type': 'hotRestart'}));
+      req.write(jsonEncode(const <String, Object?>{}));
       final res = await req.close();
       expect(res.statusCode, 202, reason: 'a supervised suite accepts the restart');
       await res.drain<void>();

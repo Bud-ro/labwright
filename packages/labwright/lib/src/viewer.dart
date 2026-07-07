@@ -20,10 +20,11 @@ class Viewer {
   final List<HttpResponse> _sseClients = [];
   Map<String, Object?> Function() _state = () => const {};
 
-  /// Invoked for a control action POSTed to `/action` (`{type, ...}`); returns
-  /// a small result map (`{accepted: bool, error?: String}`) echoed to the
-  /// caller. Null until the run wires it — an un-wired viewer is read-only.
-  Future<Map<String, Object?>> Function(Map<String, Object?>)? onAction;
+  /// The control-plane route table: one named handler per `POST /<verb>`
+  /// (JSON body in, result map `{accepted: bool, error?: String}` echoed to
+  /// the caller). Null until the run wires it — an un-wired viewer is
+  /// read-only.
+  Map<String, Future<Map<String, Object?>> Function(Map<String, Object?> body)>? actions;
 
   /// Produces the full machine report for `GET /report.json` (the viewer's
   /// download button). Null until the run wires it.
@@ -52,8 +53,8 @@ class Viewer {
   }
 
   void _handle(HttpRequest request) {
-    if (request.method == 'POST' && request.uri.path == '/action') {
-      unawaited(_handleAction(request));
+    if (request.method == 'POST') {
+      unawaited(_handlePost(request));
       return;
     }
     switch (request.uri.path) {
@@ -114,47 +115,53 @@ class Viewer {
       ..close();
   }
 
-  /// Reads a JSON action body, dispatches it to [onAction], and echoes the
-  /// result. Status: 202 accepted, 409 rejected (e.g. a run is in progress),
-  /// 400 on a malformed body, 403 cross-origin/non-JSON, 503 when the viewer
-  /// is read-only (no handler).
-  ///
-  /// Loopback binding does not protect against the operator's own BROWSER: any
-  /// webpage can fire a no-preflight POST at localhost, and these actions
-  /// actuate bench hardware. So an action must look like it came from this
-  /// page: a JSON content type (a cross-site fetch with that type triggers a
-  /// CORS preflight, which this server never approves) and, when the browser
-  /// attached an Origin header, a localhost one (a cross-site text/plain form
-  /// post always carries the attacker's origin; curl sends none and stays
-  /// welcome).
-  Future<void> _handleAction(HttpRequest request) async {
+  /// The control plane: `POST /<verb>` looks the verb up in [actions] and
+  /// invokes its one handler with the JSON body (`{}` when empty). Status:
+  /// 202 accepted, 409 rejected (e.g. a run is in progress), 400 on a
+  /// malformed body, 404 unknown verb, 403 cross-origin/non-JSON, 503 when
+  /// the viewer is read-only (no routes wired).
+  Future<void> _handlePost(HttpRequest request) async {
     final response = request.response..headers.contentType = ContentType.json;
+    // The CSRF defense. Loopback binding does not protect against the
+    // operator's own BROWSER: any webpage can fire a no-preflight POST at
+    // localhost, and these routes actuate bench hardware. So a POST must look
+    // like it came from this page: a JSON content type (a cross-site fetch
+    // with that type triggers a CORS preflight, which this server never
+    // approves) and, when the browser attached an Origin header, a localhost
+    // one (a cross-site text/plain form post always carries the attacker's
+    // origin; curl sends none and stays welcome).
     final origin = request.headers.value('origin');
     final originHost = origin == null ? null : Uri.tryParse(origin)?.host;
     final sameHost = originHost == null || originHost == 'localhost' || originHost == '127.0.0.1';
-    final jsonBody = request.headers.contentType?.mimeType == 'application/json';
-    if (!sameHost || !jsonBody) {
+    if (!sameHost || request.headers.contentType?.mimeType != 'application/json') {
       response.statusCode = HttpStatus.forbidden;
-      response.write('{"accepted":false,"error":"cross-origin or non-JSON action rejected"}');
+      response.write('{"accepted":false,"error":"cross-origin or non-JSON request rejected"}');
       await response.close();
       return;
     }
-    final handler = onAction;
-    if (handler == null) {
+    final routes = actions;
+    if (routes == null) {
       response.statusCode = HttpStatus.serviceUnavailable;
       response.write('{"accepted":false,"error":"viewer is read-only"}');
+      await response.close();
+      return;
+    }
+    final handler = routes[request.uri.path.length > 1 ? request.uri.path.substring(1) : ''];
+    if (handler == null) {
+      response.statusCode = HttpStatus.notFound;
+      response.write(jsonEncode({'accepted': false, 'error': 'unknown route ${request.uri.path}'}));
       await response.close();
       return;
     }
     Map<String, Object?> result;
     int status;
     try {
-      final body = await utf8.decoder.bind(request).join();
-      final action = (jsonDecode(body.isEmpty ? '{}' : body) as Map).cast<String, Object?>();
-      result = await handler(action);
+      final raw = await utf8.decoder.bind(request).join();
+      final body = (jsonDecode(raw.isEmpty ? '{}' : raw) as Map).cast<String, Object?>();
+      result = await handler(body);
       status = result['accepted'] == true ? HttpStatus.accepted : HttpStatus.conflict;
     } catch (e) {
-      result = {'accepted': false, 'error': 'bad action: $e'};
+      result = {'accepted': false, 'error': 'bad request: $e'};
       status = HttpStatus.badRequest;
     }
     response.statusCode = status;
@@ -193,6 +200,21 @@ class Viewer {
     }
     await _server.close();
   }
+}
+
+/// The `vscode://` deep-link template for jump-to-source, computed once at
+/// startup and shipped in the viewer state (`editorLink`). The page
+/// substitutes `{file}` (absolute path) and `{line}` and renders a plain
+/// `<a href>` — opening the editor never touches this server.
+///
+///  * WSL (`WSL_DISTRO_NAME` set): `vscode://vscode-remote/wsl+<distro>` —
+///    the Windows browser hands `vscode://` to Windows VS Code, which owns
+///    the WSL remote, so the link works whatever this process is doing.
+///  * Windows: `vscode://file/` (the page normalizes `\` to `/`).
+///  * Linux/macOS: `vscode://file` (the absolute path supplies the slash).
+String editorLinkTemplate({required bool isWindows, String? wslDistro}) {
+  if (wslDistro != null) return 'vscode://vscode-remote/wsl+$wslDistro{file}:{line}';
+  return isWindows ? 'vscode://file/{file}:{line}' : 'vscode://file{file}:{line}';
 }
 
 /// The page: a full-height app showing three filterable panes at once — Tests
