@@ -1,5 +1,29 @@
 import 'package:xml/xml.dart';
 
+/// The prefix that replaces the leading `%` of a TestStand directive attribute
+/// when a property tree is serialized as XML (`%FLG` → `x-FLG`): `package:xml`
+/// rejects `%` in attribute names. The rename is bijective (`x-` + rest ↔ `%` +
+/// rest) and [SeqProperty.directiveAttribute] resolves both spellings. This is
+/// the single source of truth the cross-flavor writer also writes through
+/// (`ConvKey.directiveAttrPrefix`), so the reader reads exactly what the writer
+/// wrote — the `% ↔ x-` bijection is not hardcoded independently in two files.
+const directiveXmlPrefix = 'x-';
+
+/// The `%`-directive attribute keys [SeqProperty.directiveAttribute] resolves
+/// under both their literal spelling and the [directiveXmlPrefix] XML rename.
+/// Only these cataloged directives get the `x-` fallback, so an arbitrary
+/// `x-…` attribute on a genuine XML model is never mistaken for a directive.
+const knownDirectiveKeys = <String>{
+  '%FLG',
+  '%INSTFLG',
+  '%INSTOVRD',
+  '%BINOVERRIDES',
+  '%HI',
+  '%LO',
+  '%EPTYPE',
+  '%COMMENT',
+};
+
 /// One node in a TestStand **PropertyObject** tree — the universal unit of a
 /// `.seq` file. Sequences, steps, variables, parameters and types are all
 /// property objects; this model captures any of them faithfully (every attribute
@@ -99,13 +123,27 @@ class SeqProperty {
   bool get isArray => array != null;
   bool get isLeaf => array == null && subProps.isEmpty;
 
+  /// Resolves a `%`-directive attribute under EITHER of its two spellings:
+  /// the literal key ([key], e.g. `%FLG` — INI- and binary-sourced trees) or
+  /// the XML-serializable `x-` rename the cross-flavor converter applies
+  /// (`x-FLG` — `%` is not a legal XML attribute-name character, so converted
+  /// models carry the directive renamed; see `ConvKey.directiveAttrPrefix`).
+  /// The typed directive getters below all read through this, so they work
+  /// identically on native and converted models.
+  String? directiveAttribute(String key) {
+    final literal = attributes[key];
+    if (literal != null) return literal;
+    if (!knownDirectiveKeys.contains(key)) return null;
+    return attributes['$directiveXmlPrefix${key.substring(1)}'];
+  }
+
   /// Whether this property is an explicit **instance override** — i.e. the file
   /// marked it as set on this object rather than inherited from its base type.
   /// False for properties that simply take their type's default. Two encodings
   /// carry this: the legacy INI `%INSTOVRD` directive (flags bitmask kept
   /// verbatim), and the binary decoder's `%BINOVERRIDES` marker (its children
   /// are an override subset). Only presence is interpreted so far.
-  bool get isInstanceOverride => attributes.containsKey('%INSTOVRD') || attributes.containsKey('%BINOVERRIDES');
+  bool get isInstanceOverride => directiveAttribute('%INSTOVRD') != null || directiveAttribute('%BINOVERRIDES') != null;
 
   /// The property's type-level **PropertyFlags** bitmask, recovered verbatim from
   /// the legacy INI `%FLG: <member>` directive — null when the source recorded no
@@ -118,7 +156,7 @@ class SeqProperty {
   /// never with fabricated semantics. Kept verbatim in [attributes] under `%FLG`.
   int? get propertyFlags => _intAttr('%FLG');
 
-  int? _intAttr(String key) => int.tryParse(attributes[key]?.trim() ?? '');
+  int? _intAttr(String key) => int.tryParse(directiveAttribute(key)?.trim() ?? '');
 
   /// The bitmask on this property's **instance-override record** (`%INSTOVRD`),
   /// or null when the property is not an instance override. This is the base
@@ -151,7 +189,7 @@ class SeqProperty {
   List<int>? get lowIndices => _boundsAttr('%LO');
 
   List<int>? _boundsAttr(String key) {
-    final raw = attributes[key];
+    final raw = directiveAttribute(key);
     if (raw == null) return null;
     final bounds = [
       for (final m in RegExp(r'\[(-?\d+)\]').allMatches(raw)) int.parse(m.group(1)!),
@@ -161,7 +199,7 @@ class SeqProperty {
 
   /// The array's declared ELEMENT prototype type name (`%EPTYPE`) — the
   /// type each default-valued element instantiates. null when absent.
-  String? get elementTypeName => attributes['%EPTYPE'];
+  String? get elementTypeName => directiveAttribute('%EPTYPE');
 
   /// The declared TOTAL element count from [highIndices] and [lowIndices]:
   /// per dimension `hi - lo + 1` (lo defaults to 0 when `%LO` is absent),
@@ -182,6 +220,39 @@ class SeqProperty {
     }
     return count;
   }
+
+  /// Returns a copy with the given fields replaced, every other field carried
+  /// over verbatim. A new field on [SeqProperty] is therefore preserved by any
+  /// caller that only means to change a subset (unlike a hand-written
+  /// field-by-field rebuild, which silently drops it). Nullable fields cannot
+  /// be reset to null through this — pass the constructor directly for that.
+  SeqProperty copyWith({
+    String? name,
+    String? xmlTag,
+    String? className,
+    String? typeName,
+    Map<String, String>? attributes,
+    String? scalar,
+    List<SeqProperty>? array,
+    List<SeqProperty>? subProps,
+    Map<String, String>? valueAttributes,
+    SeqProperty? elemProto,
+    List<Map<String, String>>? extData,
+    String? numericFormat,
+  }) => SeqProperty(
+    name: name ?? this.name,
+    xmlTag: xmlTag ?? this.xmlTag,
+    className: className ?? this.className,
+    typeName: typeName ?? this.typeName,
+    attributes: attributes ?? this.attributes,
+    scalar: scalar ?? this.scalar,
+    array: array ?? this.array,
+    subProps: subProps ?? this.subProps,
+    valueAttributes: valueAttributes ?? this.valueAttributes,
+    elemProto: elemProto ?? this.elemProto,
+    extData: extData ?? this.extData,
+    numericFormat: numericFormat ?? this.numericFormat,
+  );
 
   SeqProperty? prop(String name) => subProps.where((p) => p.name == name).firstOrNull;
 

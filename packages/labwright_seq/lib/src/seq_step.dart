@@ -27,7 +27,7 @@ class Step {
   /// step's `%COMMENT`; long comments are reassembled from their continuation
   /// fragments. (Carried as a `%COMMENT` attribute by the INI reader; XML steps
   /// in the corpus store none, so this is null for them.)
-  String? get comment => nonEmpty(raw.attributes['%COMMENT']);
+  String? get comment => nonEmpty(raw.directiveAttribute('%COMMENT'));
 
   /// The step's editor description (`Description`) — the one-line summary shown
   /// in the step list, produced from the step type's

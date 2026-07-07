@@ -326,6 +326,13 @@ String _joinFragments(Iterable<String> fragments) {
 /// [SeqFileHeader.fileType], `ProductName` → product, `Version` → fileVersion.
 SeqFileHeader parseIniHeader(String text) => parseIniSeq(text).header;
 
+/// Builds the [SeqFileHeader] a `[__Header__]` field map denotes — the same
+/// mapping [parseIniSeq] applies (`Type` unquoted → fileType, `ProductName`
+/// unquoted → product, `Version` raw → fileVersion). Public so a caller
+/// reconstructing an [IniSeqFile] from retained header fields (the
+/// cross-flavor converter) derives the identical header.
+SeqFileHeader iniHeaderFromFields(Map<String, String> fields) => _headerFrom(fields);
+
 SeqFileHeader _headerFrom(Map<String, String> h) => SeqFileHeader(
   format: SeqFormat.ini,
   fileType: _unquote(h['Type']),
@@ -555,6 +562,13 @@ class _IniBuilder {
   /// the `%COMMENT` directive; stored unquoted.
   static const commentAttr = '%COMMENT';
 
+  /// The attribute key under which a property's numeric display-format string
+  /// is stored, from the bare own-section `%NUMFMT` directive (530 corpus
+  /// lines, all bare — never member-scoped; values `""`, `"%#x"`, `"%i"`).
+  /// Stored unquoted, verbatim (an empty format is kept, not dropped) — the
+  /// INI counterpart of the XML `<numericfmt>` element.
+  static const numericFormatAttr = '%NUMFMT';
+
   /// The attribute key under which a NON-element section's `%NAME` is
   /// retained. `%NAME` names the node only for ARRAY ELEMENTS (steps,
   /// sequences — their section key is `[n]`); on a NAMED member or a
@@ -569,6 +583,12 @@ class _IniBuilder {
   /// deterministic order: instance `DEF` declarations first (authoritative +
   /// typed), then value-only members, then members implied by deeper sections,
   /// then members inherited from the type but never mentioned.
+  ///
+  /// [ownScalar] is the node's scalar value when it lives on the PARENT's
+  /// value section (`member = value`) while the node ALSO has its own section
+  /// — a corpus-real shape (1431 occurrences, e.g. a numeric `Flags` member
+  /// whose own section carries only `%NUMFMT`). Without it the container
+  /// branch dropped the value from the built tree.
   SeqProperty build(
     String path,
     String displayName,
@@ -576,6 +596,7 @@ class _IniBuilder {
     String? declaredTypeName,
     Set<String>? visiting,
     Map<String, String> ownAttributes = const {},
+    String? ownScalar,
   ]) {
     visiting ??= <String>{};
     final def = _defs[path];
@@ -620,6 +641,12 @@ class _IniBuilder {
       final (className, typeName) = _memberType(memberTypeOf(memberName));
       final instPath = '$path.$memberName';
       final typePath = typeRoot == null ? null : '$typeRoot.$memberName';
+      // The member's scalar from THIS object's value section (instance wins)
+      // or the type's — needed by the container branches too, since a member
+      // with its own section can still carry its value on the parent.
+      String? memberScalar() =>
+          _unquote(val?.members[memberName]) ??
+          (typeRoot == null ? null : _unquote(_vals[typeRoot]?.members[memberName]));
       final elems = _elementIndices(instPath);
       if (elems.isNotEmpty) {
         final arrDef = _defs[instPath];
@@ -635,10 +662,24 @@ class _IniBuilder {
         ];
         subs.add(SeqProperty(name: memberName, className: className, array: arr, attributes: memberAttrs(memberName)));
       } else if (_isContainer(instPath)) {
-        subs.add(build(instPath, memberName, className, typeName, visiting, memberAttrs(memberName)));
+        subs.add(build(instPath, memberName, className, typeName, visiting, memberAttrs(memberName), memberScalar()));
       } else if (typePath != null && _isContainer(typePath)) {
+        // Instance-level value entries / member directives are per-instance,
+        // so they must not be baked into the SHARED inherited subtree — the
+        // cache is bypassed when either is present (rare; the common
+        // inherited member has neither and keeps the aliased build).
+        final scalar = memberScalar();
+        final attrs = memberAttrs(memberName);
         subs.add(
-          _inheritCache[_inheritKey(typePath, visiting)] ??= build(typePath, memberName, className, typeName, visiting),
+          scalar == null && attrs.isEmpty
+              ? _inheritCache[_inheritKey(typePath, visiting)] ??= build(
+                  typePath,
+                  memberName,
+                  className,
+                  typeName,
+                  visiting,
+                )
+              : build(typePath, memberName, className, typeName, visiting, attrs, scalar),
         );
       } else {
         subs.add(
@@ -646,9 +687,7 @@ class _IniBuilder {
             name: memberName,
             className: className,
             typeName: typeName,
-            scalar:
-                _unquote(val?.members[memberName]) ??
-                (typeRoot == null ? null : _unquote(_vals[typeRoot]?.members[memberName])),
+            scalar: memberScalar(),
             attributes: memberAttrs(memberName),
           ),
         );
@@ -664,6 +703,7 @@ class _IniBuilder {
     final bareFlg = val?.directives[flagsAttr] ?? def?.directives[flagsAttr];
     final bareInstFlg = val?.directives[instFlagsAttr] ?? def?.directives[instFlagsAttr];
     final comment = _unquote(val?.directives[commentAttr] ?? def?.directives[commentAttr]);
+    final numericFormat = _unquote(val?.directives[numericFormatAttr] ?? def?.directives[numericFormatAttr]);
     final elementType = _unquote(val?.directives[elementTypeAttr] ?? def?.directives[elementTypeAttr]);
     final attrs = <String, String>{
       ...ownAttributes,
@@ -671,6 +711,7 @@ class _IniBuilder {
       if (bareFlg != null) flagsAttr: bareFlg,
       if (bareInstFlg != null) instFlagsAttr: bareInstFlg,
       if (comment != null && comment.isNotEmpty) commentAttr: comment,
+      if (numericFormat != null) numericFormatAttr: numericFormat,
       if (elementType != null && elementType.isNotEmpty) elementTypeAttr: elementType,
       // The enum value label a non-element `%NAME` carries — retained,
       // never dropped (see [enumValueAttr]).
@@ -682,6 +723,7 @@ class _IniBuilder {
       className: declaredType,
       typeName: declaredTypeName,
       attributes: attrs,
+      scalar: ownScalar,
       subProps: subs,
     );
   }
@@ -701,6 +743,14 @@ SeqFile parseIniSeqFile(Uint8List bytes) {
   }
   return SeqFile(header: doc.header, types: iniTypes(doc), data: data);
 }
+
+/// Strips one layer of surrounding double quotes from a raw INI value, if
+/// present, and decodes the C-style escapes TestStand writes *inside* a quoted
+/// value — the exact inverse of `escapeIniQuoted`, and the reader's own
+/// decoding (public alias of the internal helper for value-level consumers
+/// such as the cross-flavor converter). Bare (unquoted) values are trimmed and
+/// returned untouched. Returns null for a null input.
+String? unquoteIni(String? raw) => _unquote(raw);
 
 /// Strips one layer of surrounding double quotes, if present, and decodes the
 /// C-style escapes TestStand writes *inside* a quoted value (see [_unescapeIni]).
