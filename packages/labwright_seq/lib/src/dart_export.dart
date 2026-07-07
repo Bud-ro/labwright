@@ -18,9 +18,10 @@
 ///  * Steps whose type carries no exportable action are kept as comments —
 ///    present, ordered, and labeled, never invented.
 ///
-/// [exportSeqFileToDartTest] layers a generated `package:test` harness on the
-/// same export — one test per sequence, unimplemented surfaces skip instead
-/// of fail — the first (deliberately minimal) cut of the labwright test API.
+/// [exportSeqFileToLabwright] layers a generated labwright harness on the
+/// same export — one test per root sequence, unimplemented surfaces skip
+/// instead of fail — the first (deliberately minimal) cut of the labwright
+/// test API.
 library;
 
 import 'seq_file.dart';
@@ -98,37 +99,22 @@ SeqProjectExport exportSeqProjectToLabwright(Map<String, SeqFile> byPath) {
     return cleaned.isEmpty ? 'module' : cleaned;
   }
 
-  // Module names and import prefixes, uniquified.
+  // Module names and import prefixes: uniquified STEMS (the `_seq` suffix
+  // keeps them clear of `main`/`lw_runtime`), so colliding inputs read
+  // `foo_seq`, `foo2_seq`, ….
   final ordered = byPath.keys.toList()..sort();
-  final moduleOf = <String, String>{};
-  final taken = <String>{'main', 'lw_runtime'};
-  for (final key in ordered) {
-    var name = '${snake(stemOf(key))}_seq';
-    var n = 2;
-    while (!taken.add(name)) {
-      name = '${snake(stemOf(key))}${n++}_seq';
-    }
-    moduleOf[key] = name;
-  }
+  final takenStems = <String>{};
+  final moduleOf = {
+    for (final key in ordered) key: '${_uniqueName(snake(stemOf(key)), takenStems)}_seq',
+  };
 
-  // Predict each module's sequence → function-name table (mirrors the
-  // exporter's own assignment: dartIdentifier per sequence in file
-  // order, uniquified against the pre-claimed harness names).
-  final fnOf = <String, Map<String, String>>{};
-  for (final key in ordered) {
-    final claimed = <String>{'lw', 'main', 'register'};
-    final table = <String, String>{};
-    for (final seq in byPath[key]!.sequences) {
-      if (table.containsKey(seq.name)) continue;
-      var fn = dartIdentifier(seq.name);
-      var n = 2;
-      while (!claimed.add(fn)) {
-        fn = '${dartIdentifier(seq.name)}${n++}';
-      }
-      table[seq.name] = fn;
-    }
-    fnOf[key] = table;
-  }
+  // Each module's sequence → function-name table, computed by the SAME
+  // routine the exporter assigns with ([_sequenceFnTable] over the same
+  // reserved-name seed) — a prediction that cannot drift.
+  final fnOf = {
+    for (final key in ordered)
+      key: _sequenceFnTable(byPath[key]!, _reservedTopLevelNames(asTest: true, registerName: 'register')),
+  };
 
   final lowerByBase = <String, List<String>>{};
   for (final key in ordered) {
@@ -245,10 +231,7 @@ SeqProjectExport exportSeqProjectToLabwright(Map<String, SeqFile> byPath) {
         canon[name.toLowerCase()] = name;
         lines.add('  dynamic $name;');
       } else {
-        lines.add(
-          '  // not a Dart field name — reachable only by porting '
-          'its uses: $name',
-        );
+        lines.add('  ${_unportableFieldLine(name)}');
       }
     }
     files['lw_runtime.dart'] = [
@@ -292,11 +275,11 @@ SeqProjectExport exportSeqProjectToLabwright(Map<String, SeqFile> byPath) {
     // Modules that never touch station-wide state don't need the shared
     // runtime import (the placeholder comment deliberately avoids the
     // lowercase identifier so it can't defeat this check).
-    var src = files['$module.dart']!;
-    if (!RegExp(r'stationGlobals').hasMatch(src.replaceFirst("import 'lw_runtime.dart';\n", ''))) {
-      src = src.replaceFirst("import 'lw_runtime.dart';\n", '');
-      files['$module.dart'] = src;
-    }
+    files['$module.dart'] = _withoutUnusedImport(
+      files['$module.dart']!,
+      "import 'lw_runtime.dart';\n",
+      RegExp(r'stationGlobals'),
+    );
     registers.add(module);
   }
 
@@ -362,11 +345,80 @@ String dartIdentifier(String name, {bool capitalize = false}) {
   return id;
 }
 
-/// The TestStand variable roots the translator rewrites. `FileGlobals`/
-/// `StationGlobals`/`RunState`/`Step` map to generated top-level `dynamic`
-/// state (member paths resolve by dynamic dispatch); `Locals`/`Parameters`
-/// rewrite to the sequence's own typed Dart variables (per-sequence id
-/// maps — see `_localIds`/`_paramIds`), so they are not in this table.
+/// Claims a name derived from [base] that is not yet in [taken] — `base`,
+/// then `base2`, `base3`, … — and records it. The ONE suffix-uniquifying
+/// routine every generated-name registry uses (top-level names, stub
+/// names, per-sequence scope ids, project module names).
+String _uniqueName(String base, Set<String> taken) {
+  var name = base;
+  var n = 2;
+  while (!taken.add(name)) {
+    name = '$base${n++}';
+  }
+  return name;
+}
+
+/// The top-level identifiers the generator itself occupies — the engine
+/// state, the import prefixes, and the harness entry — which no generated
+/// sequence/stub name may take. The SINGLE source both the exporter's own
+/// registry and the project pre-pass seed from, so the pre-pass can never
+/// predict a name the exporter would refuse to mint.
+Set<String> _reservedTopLevelNames({required bool asTest, String? registerName}) => {
+  'ts',
+  'fileGlobals',
+  'stationGlobals',
+  'runState',
+  'step',
+  'FileGlobals',
+  'StationGlobals',
+  if (asTest) ...const {'lw', 'main'},
+  if (registerName != null) registerName,
+};
+
+/// Sequence name → generated function name for [file], in file order
+/// (first declaration wins on duplicate names), claiming through [taken].
+/// THE scope table: the exporter assigns its own names with it, and the
+/// project pre-pass predicts sibling modules' names with it — one routine,
+/// so cross-module bindings cannot drift from the names actually minted.
+Map<String, String> _sequenceFnTable(SeqFile file, Set<String> taken) {
+  final table = <String, String>{};
+  for (final sequence in file.sequences) {
+    if (table.containsKey(sequence.name)) continue;
+    table[sequence.name] = _uniqueName(dartIdentifier(sequence.name), taken);
+  }
+  return table;
+}
+
+/// Drops [importLine] from [source] when nothing else in it matches
+/// [usage] — a generated file must not carry analyzer-noise imports.
+String _withoutUnusedImport(String source, String importLine, RegExp usage) {
+  final stripped = source.replaceFirst(importLine, '');
+  return usage.hasMatch(stripped) ? source : stripped;
+}
+
+/// 2^53 — the largest magnitude below which every integer is exactly
+/// representable as a double. An integral value at or past it cannot be
+/// emitted as a Dart int literal in a double context without silent
+/// precision loss, so numeric-literal emission switches to the double
+/// form there.
+const int _maxExactIntDouble = 9007199254740992;
+
+/// The Dart literal for a parsed TestStand Num in a double-typed position:
+/// the int form while exactly representable (reads like the source), else
+/// the double form.
+String _numLiteral(num n) => n is int && n.abs() < _maxExactIntDouble ? n.toString() : n.toDouble().toString();
+
+/// Text destined for a `//` comment: newlines flattened so nothing spills
+/// out of the comment onto a code line.
+String _comment(String s) => s.replaceAll(RegExp(r'[\r\n]+'), ' | ').trim();
+
+/// The in-class placeholder for a global whose name cannot be a Dart
+/// field ([_validGlobalFieldName] fails) — present, stated, reachable only
+/// by porting its uses. Deliberately avoids the lowercase struct
+/// identifiers so it cannot defeat the unused-import checks.
+String _unportableFieldLine(String name) =>
+    '// not a Dart field name — reachable only by porting its uses: ${_comment(name)}';
+
 /// Whether a global's name can be a generated struct FIELD — a valid
 /// Dart identifier that collides with nothing structural. Names that
 /// fail stay accessible only through eval fallback (stated in the class).
@@ -420,6 +472,11 @@ Set<String> _collectStationGlobalRefs(SeqFile file) {
   return names;
 }
 
+/// The TestStand variable roots the translator rewrites. `FileGlobals`/
+/// `StationGlobals`/`RunState`/`Step` map to generated top-level state
+/// (member paths resolve by dynamic dispatch); `Locals`/`Parameters`
+/// rewrite to the sequence's own typed Dart variables (per-sequence id
+/// maps — see `_localIds`/`_paramIds`), so they are not in this table.
 const _variableRoots = {
   'FileGlobals': 'fileGlobals',
   'StationGlobals': 'stationGlobals',
@@ -462,6 +519,15 @@ const _builtinCalls = {
 /// (`(a || b)`) is fine — only `identifier(` marks a call; the rewritten
 /// `_helper(` calls are exempted by the leading underscore.
 final _testStandOnly = RegExp(r'(?<!\.)\b[A-Za-z][A-Za-z0-9_]*\s*\(|#|->');
+
+/// One open flow block during step emission: its kind plus the state its
+/// closer needs — the For increment (emitted before `}` and before
+/// `continue`), the Do-While condition, and the Select label id.
+typedef _OpenBlock = ({FlowKind kind, String? increment, String? condition, int selectId});
+
+/// An [_OpenBlock] with only the state its [kind] actually carries.
+_OpenBlock _openBlock(FlowKind kind, {String? increment, String? condition, int selectId = 0}) =>
+    (kind: kind, increment: increment, condition: condition, selectId: selectId);
 
 class _DartExporter {
   _DartExporter(
@@ -521,14 +587,7 @@ class _DartExporter {
   Set<String> _usedIds = {};
 
   /// Claims an emission-time identifier in the current sequence's scope.
-  String _claimId(String base) {
-    var id = base;
-    var n = 2;
-    while (!_usedIds.add(id)) {
-      id = '$base${n++}';
-    }
-    return id;
-  }
+  String _claimId(String base) => _uniqueName(base, _usedIds);
 
   /// TestStand name → generated Dart identifier for the current sequence's
   /// locals and parameters (typed top-of-function declarations / named
@@ -613,36 +672,13 @@ class _DartExporter {
   }
 
   /// Claims a unique top-level identifier derived from [base].
-  String _uniqueTopLevel(String base) {
-    var name = base;
-    var n = 2;
-    while (!_topLevelNames.add(name)) {
-      name = '$base$n';
-      n++;
-    }
-    return name;
-  }
+  String _uniqueTopLevel(String base) => _uniqueName(base, _topLevelNames);
 
   String export() {
-    // `lw` is the package:labwright import prefix and `main` the harness
-    // entry — no generated top-level name may shadow either.
-    _topLevelNames.addAll(const {
-      'ts',
-      'fileGlobals',
-      'stationGlobals',
-      'runState',
-      'step',
-      'FileGlobals',
-      'StationGlobals',
-    });
-    if (asTest) _topLevelNames.addAll(const {'lw', 'main'});
+    _topLevelNames.addAll(_reservedTopLevelNames(asTest: asTest, registerName: registerName));
     _buildGlobals();
-    final regName = registerName;
-    if (regName != null) _topLevelNames.add(regName);
     _emitHeader();
-    for (final sequence in file.sequences) {
-      _sequenceFnNames.putIfAbsent(sequence.name, () => _uniqueTopLevel(dartIdentifier(sequence.name)));
-    }
+    _sequenceFnNames.addAll(_sequenceFnTable(file, _topLevelNames));
     for (final sequence in file.sequences) {
       _emitSequence(sequence);
     }
@@ -657,9 +693,7 @@ class _DartExporter {
       ('lw', "import 'package:labwright/labwright.dart' as lw;\n"),
       ('ts', "import 'package:labwright/shims.dart' as ts;\n"),
     ]) {
-      if (!RegExp('(?<![\\w\\\$.])$prefix\\.').hasMatch(source.replaceFirst(import, ''))) {
-        source = source.replaceFirst(import, '');
-      }
+      source = _withoutUnusedImport(source, import, RegExp('(?<![\\w\\\$.])$prefix\\.'));
     }
     return source;
   }
@@ -668,7 +702,7 @@ class _DartExporter {
     _out
       ..writeln(
         '// GENERATED by labwright_seq '
-        'exportSeqFileToDart${asTest ? 'Test' : ''}'
+        '${asTest ? 'exportSeqFileToLabwright' : 'exportSeqFileToDart'}'
         '${sourceName != null ? ' from ${_comment(sourceName!)}' : ''}.',
       )
       ..writeln('//')
@@ -821,24 +855,9 @@ class _DartExporter {
     trimmed = _stripNoValidation(_stripComments(trimmed)).trim();
     if (trimmed.isEmpty) return "''";
 
-    // Comma/paren state must carry ACROSS string-literal boundaries: in
-    // `f(a + "s"), b` the comma's depth is only correct when the `(` from the
-    // first code segment is still counted after the string (review-class bug:
-    // per-segment depth read `),` as depth -1 and missed the top-level comma).
-    var depth = 0;
-    for (final (segment, isString) in _segments(trimmed)) {
-      if (isString) continue;
-      for (var i = 0; i < segment.length; i++) {
-        switch (segment[i]) {
-          case '(' || '[' || '{':
-            depth++;
-          case ')' || ']' || '}':
-            depth--;
-          case ',':
-            if (depth <= 0) return _evalFallback(raw);
-        }
-      }
-    }
+    // A top-level comma is C-heritage sequential evaluation — no single
+    // Dart EXPRESSION form (statement position splits it; see _stmtParts).
+    if (_splitTopLevelCommas(trimmed).length > 1) return _evalFallback(raw);
 
     final rebuilt = StringBuffer();
     for (final (segment, isString) in _segments(trimmed)) {
@@ -1065,10 +1084,6 @@ class _DartExporter {
       .replaceAll('\n', r'\n')
       .replaceAll('\r', r'\r');
 
-  /// Text destined for a `//` comment: newlines flattened so nothing spills
-  /// out of the comment onto a code line.
-  String _comment(String s) => s.replaceAll(RegExp(r'[\r\n]+'), ' | ').trim();
-
   // ── sequences ──────────────────────────────────────────────────────────────
 
   void _emitSequence(Sequence sequence) {
@@ -1083,30 +1098,13 @@ class _DartExporter {
     // never colliding with the generated top-level names (state globals,
     // sequence functions, stubs) — a local named like a sequence would
     // otherwise shadow the function it calls.
-    final used = _usedIds = <String>{
-      'fileGlobals',
-      'stationGlobals',
-      'runState',
-      'step',
-      ..._topLevelNames,
-    };
-    String claim(String name) {
-      final base = dartIdentifier(name);
-      var id = base;
-      var n = 2;
-      while (!used.add(id)) {
-        id = '$base$n';
-        n++;
-      }
-      return id;
-    }
-
+    _usedIds = <String>{..._topLevelNames};
     final seenParams = <String>{};
     final emittedParams = [
       for (final p in sequence.parameters)
         if (seenParams.add(p.name)) p, // duplicate names in source: first wins
     ];
-    _paramIds = {for (final p in emittedParams) p.name: claim(p.name)};
+    _paramIds = {for (final p in emittedParams) p.name: _claimId(dartIdentifier(p.name))};
     final seenLocals = <String>{};
     final emittedLocals = [
       for (final local in sequence.locals)
@@ -1114,7 +1112,7 @@ class _DartExporter {
         // state — skipped (a reference to it falls back to _eval).
         if (local.name != 'ResultList' && seenLocals.add(local.name)) local,
     ];
-    _localIds = {for (final l in emittedLocals) l.name: claim(l.name)};
+    _localIds = {for (final l in emittedLocals) l.name: _claimId(dartIdentifier(l.name))};
     String typeOf(SeqVariable v) {
       final scalar = _scalarType(v);
       if (scalar != null) return scalar.$1;
@@ -1138,6 +1136,20 @@ class _DartExporter {
       '${params.isEmpty ? '' : '{${params.join(', ')}}'}) async {',
     );
     _indent = 1;
+
+    // Array parameters are declared nullable (a Dart named-parameter
+    // default must be const, and a shared const list would alias across
+    // calls and throw on element writes) — the `??=` preamble gives an
+    // omitted argument the sequence's DECLARED default, mutable and
+    // per-call, exactly like a local's initializer.
+    var arrayPreamble = false;
+    for (final p in emittedParams) {
+      if (_scalarType(p) == null && _isArrayVar(p)) {
+        _line('${_paramIds[p.name]!} ??= ${_arrayInit(p)};${_typeComment(p)}');
+        arrayPreamble = true;
+      }
+    }
+    if (arrayPreamble) _line('');
 
     // Locals: real typed Dart declarations, defaults from the sequence file
     // (TestStand's declared defaults) or the class zero.
@@ -1189,7 +1201,7 @@ class _DartExporter {
       final value = v.value;
       if (value == null) return true; // class zero (0)
       final n = num.tryParse(value);
-      return n != null && n % 1 == 0 && n.abs() < 9007199254740992;
+      return n != null && n % 1 == 0 && n.abs() < _maxExactIntDouble;
     }
 
     final candidates = <String>{};
@@ -1326,9 +1338,7 @@ class _DartExporter {
       case 'double':
         final n = num.tryParse(value);
         if (n == null) return zero; // non-literal default; raw kept in comment
-        // Integral magnitudes past 2^53 are imprecise as Dart int literals
-        // in a double context — emit the double form instead.
-        return n is int && n.abs() < 9007199254740992 ? n.toString() : n.toDouble().toString();
+        return _numLiteral(n);
       case 'bool':
         final lower = value.toLowerCase();
         if (lower == 'true') return 'true';
@@ -1339,28 +1349,37 @@ class _DartExporter {
     }
   }
 
+  /// The (type, class zero, initializer) of a scalar-typed declaration for
+  /// [v] emitted as [id] — the class scalar type with the int refinement
+  /// ([_refineIntNums], recorded in `_idTypes`) applied. null when [v] has
+  /// no scalar Dart form; [_paramDecl] and [_localDecl] share it.
+  (String, String, String)? _scalarDecl(SeqVariable v, String id) {
+    final scalar = _scalarType(v);
+    if (scalar == null) return null;
+    var (type, zero) = scalar;
+    if (type == 'double' && _idTypes[id] == 'int') type = 'int';
+    return (type, zero, _scalarInit(v, type, zero));
+  }
+
   /// A typed named-parameter declaration. Scalars are non-nullable with the
   /// declared default (or the class zero — TestStand parameters always have
-  /// a default); containers are `dynamic`.
+  /// a default); arrays are nullable (their declared default is not const —
+  /// the body's `??=` preamble materializes it); containers are `dynamic`.
   String _paramDecl(SeqVariable p, String id) {
-    final scalar = _scalarType(p);
+    final scalar = _scalarDecl(p, id);
     if (scalar != null) {
-      var (type, zero) = scalar;
-      if (type == 'double' && _idTypes[id] == 'int') type = 'int';
-      final init = _scalarInit(p, type, zero);
+      final (type, _, init) = scalar;
       return '$type $id = $init';
     }
-    if (_isArrayVar(p)) return 'List<dynamic> $id = const []';
+    if (_isArrayVar(p)) return 'List<dynamic>? $id';
     return 'dynamic $id';
   }
 
   /// A typed local declaration line: `double loopIndex = 0; // Num`.
   String _localDecl(SeqVariable local, String id) {
-    final scalar = _scalarType(local);
+    final scalar = _scalarDecl(local, id);
     if (scalar != null) {
-      var (type, zero) = scalar;
-      if (type == 'double' && _idTypes[id] == 'int') type = 'int';
-      final init = _scalarInit(local, type, zero);
+      final (type, zero, init) = scalar;
       // A non-literal declared default (expression, NAN, …) initializes to
       // the class zero — the raw text rides in the comment, never dropped.
       final fellBack = local.value != null && init == zero && type != 'String';
@@ -1380,12 +1399,13 @@ class _DartExporter {
         '${_typeComment(local)}';
   }
 
-  /// An array local's initializer: the DECLARED default elements (TestStand
-  /// pre-fills sized arrays — an empty list here would make count-driven
-  /// loops silently run zero times where the engine runs N). Scalars come
-  /// from each element's stored value or the element-class zero; nested
-  /// arrays/objects fall back to null placeholders of the right LENGTH.
-  String _arrayInit(SeqVariable local) => _listInit(local.raw, {});
+  /// An array local's initializer / an array parameter's `??=` default:
+  /// the DECLARED default elements (TestStand pre-fills sized arrays — an
+  /// empty list here would make count-driven loops silently run zero times
+  /// where the engine runs N). Scalars come from each element's stored
+  /// value or the element-class zero; nested arrays/objects fall back to
+  /// null placeholders of the right LENGTH.
+  String _arrayInit(SeqVariable v) => _listInit(v.raw, {});
 
   // ── steps ──────────────────────────────────────────────────────────────────
 
@@ -1393,7 +1413,7 @@ class _DartExporter {
     // Block stack: each opener records its kind plus the state its closer
     // needs — the For increment (emitted before `}` and before `continue`),
     // the Do-While condition, and the Select label id.
-    final open = <({FlowKind kind, String? increment, String? condition, int selectId})>[];
+    final open = <_OpenBlock>[];
     var selectCounter = 0;
     final selectVars = <int, ({String value, String matched})>{};
     const loopKinds = {
@@ -1403,14 +1423,14 @@ class _DartExporter {
       FlowKind.forEach,
     };
 
-    ({FlowKind kind, String? increment, String? condition, int selectId})? innermost(bool Function(FlowKind) test) {
+    _OpenBlock? innermost(bool Function(FlowKind) test) {
       for (var i = open.length - 1; i >= 0; i--) {
         if (test(open[i].kind)) return open[i];
       }
       return null;
     }
 
-    void closeBlock(({FlowKind kind, String? increment, String? condition, int selectId}) opened, {String note = ''}) {
+    void closeBlock(_OpenBlock opened, {String note = ''}) {
       if (opened.kind == FlowKind.forLoop && opened.increment != null) {
         _line('${_exprStatement(opened.increment!)}; // for increment');
       }
@@ -1491,7 +1511,6 @@ class _DartExporter {
       if (modeNote.isNotEmpty) {
         nameNote = nameNote.isEmpty ? ' //$modeNote' : '$nameNote$modeNote';
       }
-      final name = rawName;
       if (flow == null) {
         _emitPlainStep(step);
         continue;
@@ -1500,11 +1519,11 @@ class _DartExporter {
         case FlowKind.ifBlock:
           _line('if (${_cond(flow.condition ?? 'true')}) {$nameNote');
           _indent++;
-          open.add((kind: flow.kind, increment: null, condition: null, selectId: 0));
+          open.add(_openBlock(flow.kind));
         case FlowKind.elseIf:
           if (open.isEmpty || open.last.kind != FlowKind.ifBlock) {
             _line(
-              '// $name: Else-If without an open If (unbalanced source) — '
+              '// $rawName: Else-If without an open If (unbalanced source) — '
               'kept as a comment',
             );
             continue;
@@ -1518,7 +1537,7 @@ class _DartExporter {
         case FlowKind.elseBlock:
           if (open.isEmpty || open.last.kind != FlowKind.ifBlock) {
             _line(
-              '// $name: Else without an open If (unbalanced source) — '
+              '// $rawName: Else without an open If (unbalanced source) — '
               'kept as a comment',
             );
             continue;
@@ -1532,16 +1551,11 @@ class _DartExporter {
             '{$nameNote',
           );
           _indent++;
-          open.add((kind: flow.kind, increment: null, condition: null, selectId: 0));
+          open.add(_openBlock(flow.kind));
         case FlowKind.doWhile:
           _line('do {$nameNote');
           _indent++;
-          open.add((
-            kind: flow.kind,
-            increment: null,
-            condition: flow.condition ?? 'true',
-            selectId: 0,
-          ));
+          open.add(_openBlock(flow.kind, condition: flow.condition ?? 'true'));
         case FlowKind.forLoop:
           final init = flow.initialization;
           final initDart = init != null ? _exprStatement(init) : null;
@@ -1560,12 +1574,7 @@ class _DartExporter {
               '{$nameNote',
             );
             _indent++;
-            open.add((
-              kind: flow.kind,
-              increment: null, // the for statement owns it
-              condition: null,
-              selectId: 0,
-            ));
+            open.add(_openBlock(flow.kind)); // the for statement owns the increment
           } else {
             if (init != null) {
               _line('${initDart!};${nameNote.isEmpty ? ' // init' : '$nameNote (init)'}');
@@ -1575,12 +1584,7 @@ class _DartExporter {
               '{$nameNote',
             );
             _indent++;
-            open.add((
-              kind: flow.kind,
-              increment: flow.increment,
-              condition: null,
-              selectId: 0,
-            ));
+            open.add(_openBlock(flow.kind, increment: flow.increment));
           }
         case FlowKind.forEach:
           final array = flow.arrayExpr ?? '[]';
@@ -1615,7 +1619,7 @@ class _DartExporter {
               _line('${assign.replaceAll('__LWELEMENT__', cast)};');
             }
           }
-          open.add((kind: flow.kind, increment: null, condition: null, selectId: 0));
+          open.add(_openBlock(flow.kind));
         case FlowKind.selectBlock:
           selectCounter++;
           selectVars[selectCounter] = (
@@ -1629,17 +1633,12 @@ class _DartExporter {
             '${_expr(flow.itemExpression ?? 'null')};',
           );
           _line('var ${selectVars[selectCounter]!.matched} = false;');
-          open.add((
-            kind: flow.kind,
-            increment: null,
-            condition: null,
-            selectId: selectCounter,
-          ));
+          open.add(_openBlock(flow.kind, selectId: selectCounter));
         case FlowKind.caseBlock:
           final select = innermost((k) => k == FlowKind.selectBlock)?.selectId ?? 0;
           if (select == 0) {
             _line(
-              '// $name: Case without an open Select (unbalanced source) '
+              '// $rawName: Case without an open Select (unbalanced source) '
               '— kept as a comment',
             );
             continue;
@@ -1655,16 +1654,11 @@ class _DartExporter {
           }
           _indent++;
           _line('${vars.matched} = true;');
-          open.add((
-            kind: flow.kind,
-            increment: null,
-            condition: null,
-            selectId: select,
-          ));
+          open.add(_openBlock(flow.kind, selectId: select));
         case FlowKind.end:
           if (open.isEmpty) {
             _line(
-              '// $name: NI_Flow_End without an open block '
+              '// $rawName: NI_Flow_End without an open block '
               '(unbalanced in source)',
             );
             continue;
@@ -1674,7 +1668,7 @@ class _DartExporter {
           final target = innermost((k) => k == FlowKind.selectBlock || loopKinds.contains(k));
           if (target == null) {
             _line(
-              '// $name: Break with no enclosing loop/select — kept as a '
+              '// $rawName: Break with no enclosing loop/select — kept as a '
               'comment',
             );
           } else {
@@ -1698,7 +1692,7 @@ class _DartExporter {
           final loop = innermost(loopKinds.contains);
           if (loop == null) {
             _line(
-              '// $name: Continue with no enclosing loop — kept as a '
+              '// $rawName: Continue with no enclosing loop — kept as a '
               'comment',
             );
           } else {
@@ -1780,17 +1774,19 @@ class _DartExporter {
     return out.isEmpty ? [_exprStatement(raw)] : out;
   }
 
-  /// The comma-split raw pieces of a statement expression (comment/
-  /// NoValidation-stripped), or null when a piece is mis-sliced (quotes/
-  /// brackets unbalanced) and the whole raw must translate as one.
-  List<String>? _rawStmtPieces(String raw) {
-    final cleaned = _stripNoValidation(_stripComments(raw));
+  /// Splits [text] at every comma that sits at bracket depth ≤ 0 outside
+  /// string literals — one part means "no top-level comma". Depth carries
+  /// ACROSS string-literal boundaries: in `f(a + "s"), b` the comma's
+  /// depth is only correct when the `(` from the first code segment is
+  /// still counted after the string (review-class bug: per-segment depth
+  /// read `),` as depth -1 and missed the top-level comma). The ONE
+  /// comma scanner — [_expr]'s fallback gate and [_rawStmtPieces] share it.
+  List<String> _splitTopLevelCommas(String text) {
     final parts = <String>[];
     var depth = 0;
     var start = 0;
     var consumed = 0;
-    for (final (segment, isString) in _segments(cleaned)) {
-      final base = consumed;
+    for (final (segment, isString) in _segments(text)) {
       if (!isString) {
         for (var i = 0; i < segment.length; i++) {
           switch (segment[i]) {
@@ -1800,15 +1796,24 @@ class _DartExporter {
               depth--;
             case ',':
               if (depth <= 0) {
-                parts.add(cleaned.substring(start, base + i));
-                start = base + i + 1;
+                parts.add(text.substring(start, consumed + i));
+                start = consumed + i + 1;
               }
           }
         }
       }
       consumed += segment.length;
     }
-    parts.add(cleaned.substring(start));
+    parts.add(text.substring(start));
+    return parts;
+  }
+
+  /// The comma-split raw pieces of a statement expression (comment/
+  /// NoValidation-stripped), or null when a piece is mis-sliced (quotes/
+  /// brackets unbalanced) and the whole raw must translate as one.
+  List<String>? _rawStmtPieces(String raw) {
+    final cleaned = _stripNoValidation(_stripComments(raw));
+    final parts = _splitTopLevelCommas(cleaned);
     bool balanced(String p) {
       var d = 0;
       for (final (seg, isString) in _segments(p)) {
@@ -1918,15 +1923,16 @@ class _DartExporter {
         // matching by name alone bound external calls to same-named local
         // sequences, which generated infinite self-recursion (17 corpus
         // sites, e.g. a MainSequence delegating to sibling MainSequences).
-        final inFileFn = _isLocalCall(module) && target != null ? _sequenceFnNames[target] : null;
+        final inFileFn = module.resolvesLocalCall(ownFilePath: sourceName) && target != null
+            ? _sequenceFnNames[target]
+            : null;
         // Parameter bindings on the call are not exported yet — the callee
         // would run on its declared defaults, which is NOT the authored
         // semantics (it can even change termination: a corpus recursion
         // walks Parameters.Caller upward and never stops on defaults). A
         // binding call therefore disarms the owning test; a bare call
         // (1 in 20 in the corpus) is exact and stays armed.
-        final hasArgs =
-            module.actualArguments?.subProps.isNotEmpty == true || module.actualArguments?.array?.isNotEmpty == true;
+        final hasArgs = module.sequenceArguments.isNotEmpty;
         final caveat = hasArgs ? ' (call parameters not exported yet)' : '';
         if (inFileFn != null) {
           if (asTest && hasArgs) {
@@ -2011,26 +2017,6 @@ class _DartExporter {
     );
   }
 
-  /// Whether a SequenceCall targets a sequence in the CURRENT file:
-  /// the UseCurFile flag, no file named at all, or the file's own path.
-  /// Both the emitted call and the root call graph use this — matching
-  /// by name alone bound external calls to same-named local sequences
-  /// (17 corpus sites), generating infinite self-recursion.
-  bool _isLocalCall(StepModule m) =>
-      m.usesCurrentFile == true ||
-      (m.sequenceFile == null && m.sequenceNameExpression == null) ||
-      _isOwnFile(m.sequenceFile);
-
-  /// Whether a SequenceCall's named file is THIS file (by basename,
-  /// case-insensitive, as TestStand resolves it) — one corpus file calls
-  /// itself by its own path rather than the UseCurFile flag.
-  bool _isOwnFile(String? seqFile) {
-    final own = sourceName;
-    if (seqFile == null || own == null) return false;
-    String base(String p) => p.replaceAll(r'\', '/').split('/').last.toLowerCase();
-    return base(seqFile) == base(own);
-  }
-
   /// The module's call target — the path/name a stub or pending marker
   /// records so nothing is silently dropped.
   String _stubTarget(Step step, StepModule module) =>
@@ -2049,13 +2035,15 @@ class _DartExporter {
     final key = '$adapter|$target';
     return _stubs.putIfAbsent(key, () {
       final isSeq = module.adapter == SeqAdapter.sequenceCall;
-      // Strip only a known file extension; a dotted TARGET NAME
+      // Strip only a known trailing file extension; a dotted TARGET NAME
       // (UI.TestSocket.SetCaption) keeps every segment — collapsing to the
-      // first segment minted unreadable uI2…uI8 collision names.
+      // first segment minted unreadable uI2…uI8 collision names. (Review
+      // fix: `\$` in a raw string is a literal '$', not the end anchor, so
+      // the strip never fired and stub names carried the .vi/.seq tail.)
       final lastSegment = target
           .split(RegExp(r'[/\\]'))
           .last
-          .replaceFirst(RegExp(r'\.(vi|seq|dll|py)\$', caseSensitive: false), '');
+          .replaceFirst(RegExp(r'\.(vi|seq|dll|py)$', caseSensitive: false), '');
       // An external sequence call reads as the sequence's own function name
       // (`await loadIniFile();` — implement it, or point it at the other
       // exported file's function); code-module stubs keep the `call` prefix.
@@ -2112,7 +2100,7 @@ class _DartExporter {
       for (final step in sequence.steps) {
         final target = step.module.sequenceName;
         if (step.module.adapter == SeqAdapter.sequenceCall &&
-            _isLocalCall(step.module) &&
+            step.module.resolvesLocalCall(ownFilePath: sourceName) &&
             target != null &&
             _sequenceFnNames.containsKey(target) &&
             target != sequence.name) {
@@ -2228,10 +2216,7 @@ class _DartExporter {
       buf.writeln('  $decl');
     }
     for (final skipped in _fileGlobalSkipped) {
-      buf.writeln(
-        '  // not a Dart field name — reachable only by porting '
-        'its uses: ${_comment(skipped)}',
-      );
+      buf.writeln('  ${_unportableFieldLine(skipped)}');
     }
     buf
       ..writeln('}')
@@ -2259,10 +2244,7 @@ class _DartExporter {
           buf.writeln('  dynamic $name;');
         }
         for (final skipped in _stationGlobalSkipped) {
-          buf.writeln(
-            '  // not a Dart field name — reachable only by '
-            'porting its uses: ${_comment(skipped)}',
-          );
+          buf.writeln('  ${_unportableFieldLine(skipped)}');
         }
         buf
           ..writeln('}')
@@ -2341,8 +2323,7 @@ class _DartExporter {
     switch (c.className) {
       case 'Num':
         final n = num.tryParse(scalar ?? '');
-        final lit = n == null ? '0' : (n is int && n.abs() < 9007199254740992 ? n.toString() : n.toDouble().toString());
-        return ('double', 'double $name = $lit;$note');
+        return ('double', 'double $name = ${n == null ? '0' : _numLiteral(n)};$note');
       case 'Bool' || 'Boolean':
         return ('bool', 'bool $name = ${scalar?.toLowerCase() == 'true'};$note');
       case 'Str' || 'ExprValue' || 'PathValue':

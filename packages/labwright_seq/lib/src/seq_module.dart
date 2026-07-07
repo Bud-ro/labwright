@@ -1,4 +1,5 @@
 import 'scalar_read.dart';
+import 'seq_file.dart';
 import 'seq_property.dart';
 
 /// The module-adapter kinds observed in the corpus — the bridge from a step to
@@ -191,9 +192,50 @@ class StepModule {
 
   /// The called sequence's parameter prototype (`SData.Prototype`) and the actual
   /// arguments this call binds to it (`SData.ActualArgs`), as raw structure; null
-  /// when the step declares none.
+  /// when the step declares none. Typed views: [prototypeParameters] /
+  /// [sequenceArguments].
   SeqProperty? get prototype => raw?.prop('Prototype');
   SeqProperty? get actualArguments => raw?.prop('ActualArgs');
+
+  /// The actual arguments a SequenceCall binds (`SData.ActualArgs`), one
+  /// typed row per callee parameter, in declaration order — the editor's
+  /// "Sequence Call > Parameters" grid. Empty when the call binds none
+  /// (1558 of the corpus's 1631 SequenceCall sites carry rows).
+  List<SequenceCallArgument> get sequenceArguments {
+    final args = actualArguments;
+    if (args == null) return const [];
+    return [
+      for (final row in [...args.subProps, ...?args.array]) SequenceCallArgument(row),
+    ];
+  }
+
+  /// The call site's copy of the callee's parameter declarations
+  /// (`SData.Prototype` children) — TestStand snapshots the target
+  /// sequence's parameter list onto each call so the editor can bind
+  /// arguments without loading the target file (1331 corpus sites carry
+  /// one). Each entry reads like a [Sequence.parameters] entry: name,
+  /// type, declared default. Empty when the call declares no prototype;
+  /// the snapshot can be STALE when the callee changed after binding.
+  List<SeqVariable> get prototypeParameters => [
+    for (final p in prototype?.subProps ?? const <SeqProperty>[]) SeqVariable(p),
+  ];
+
+  /// Whether this SequenceCall resolves to a sequence in the file that
+  /// contains it: the `UseCurFile` flag, no target file named at all (and
+  /// no expression-form target), or a named file that IS the containing
+  /// file — matched by basename, case-insensitive, as TestStand resolves
+  /// it (one corpus file calls itself by its own path rather than the
+  /// flag). [ownFilePath] is the containing file's path/name, when known.
+  /// Matching by sequence name alone bound external calls to same-named
+  /// local sequences (17 corpus sites), generating infinite self-recursion.
+  bool resolvesLocalCall({String? ownFilePath}) {
+    if (usesCurrentFile == true) return true;
+    if (sequenceFile == null && sequenceNameExpression == null) return true;
+    final named = sequenceFile;
+    if (named == null || ownFilePath == null) return false;
+    String base(String p) => p.replaceAll(r'\', '/').split('/').last.toLowerCase();
+    return base(named) == base(ownFilePath);
+  }
 
   /// The threading option code (`SData.ThreadOpt`) — run in the same thread, a
   /// new thread, or a new execution. Verbatim; NI-internal code→name not
@@ -362,6 +404,57 @@ class StepModule {
 
   @override
   String toString() => 'StepModule(${adapter.name}${target != null ? ': $target' : ''})';
+}
+
+/// One actual-argument row of a SequenceCall (`SData.ActualArgs.<Param>`):
+/// the callee parameter it binds (by [name]), whether the call defers to
+/// the callee's declared default ([usesDefault]), and the [expression]
+/// passed otherwise. The corpus-wide row shape is
+/// `UseDef`/`Expr`/`ParamType`/`ParamRepresentation`/`Flags` (+
+/// `AdditionalResults`/`UserData` sub-objects, left raw); a minority of
+/// rows carry only `UseDef`/`Expr`. Codes are surfaced verbatim — the
+/// NI-internal code→name mappings are not invented.
+class SequenceCallArgument {
+  SequenceCallArgument(this.raw);
+
+  /// The underlying row property object — full access to every field.
+  final SeqProperty raw;
+
+  /// The callee parameter this row binds — the row's own name.
+  String get name => raw.name;
+
+  /// Whether the call uses the callee's declared default for this
+  /// parameter (`UseDef`) instead of [expression]. null when the row
+  /// stores no flag.
+  bool? get usesDefault => parseFlag(raw.prop('UseDef')?.scalar);
+
+  /// The TestStand expression bound to the parameter (`Expr`), e.g.
+  /// `Locals.TestSocketName` or `"PowerSupply_" + Locals.TestSocketName`;
+  /// null when unbound (typically alongside `UseDef = True`).
+  String? get expression => nonEmpty(raw.prop('Expr')?.scalar);
+
+  /// The parameter-type code (`ParamType`) — the value kind the prototype
+  /// declares (observed: 2=Str, 4=Num, 16=Bool, 128=Objs, 256=Strs,
+  /// 512=Nums, 2048=Ref). Verbatim; null when absent.
+  int? get parameterTypeCode => _int('ParamType');
+
+  /// The numeric-representation code (`ParamRepresentation`) refining a
+  /// numeric [parameterTypeCode]. Verbatim; null when absent.
+  int? get parameterRepresentationCode => _int('ParamRepresentation');
+
+  /// The row's flags word (`Flags`), verbatim; null when absent.
+  int? get flagsCode => _int('Flags');
+
+  int? _int(String key) => int.tryParse(nonEmpty(raw.prop(key)?.scalar) ?? '');
+
+  @override
+  String toString() =>
+      'SequenceCallArgument($name'
+      '${usesDefault == true
+          ? ' = <default>'
+          : expression != null
+          ? ' ← $expression'
+          : ''})';
 }
 
 /// A single argument a step's code-module call binds — one "Module >
