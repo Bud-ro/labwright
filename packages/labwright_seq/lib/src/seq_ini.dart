@@ -244,7 +244,7 @@ IniSeqFile parseIniSeq(String text) {
 
 /// Parser scratch for a section whose entries are still accumulating (the
 /// public [IniSection] derives its member/directive indexes at construction,
-/// so it wants the final, continuation-rejoined entry list).
+/// so it must be built from the final, continuation-rejoined entry list).
 class _RawSection {
   _RawSection({required this.isDef, required this.path, required this.extDataKind});
 

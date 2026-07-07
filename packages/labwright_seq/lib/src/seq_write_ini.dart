@@ -1,3 +1,8 @@
+/// Byte-exact writer for the legacy INI flavor of TestStand `.seq` files:
+/// [writeIniSeq] serializes a parsed [IniSeqFile] back to the on-disk INI
+/// encoding, and [escapeIniQuoted] builds quoted raw values from logical text.
+library;
+
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -106,40 +111,4 @@ String escapeIniQuoted(String text) {
       .replaceAll('\t', r'\t')
       .replaceAll('\r', r'\r');
   return '"$escaped"';
-}
-
-/// Deep structural equality over two [IniSeqFile] models — the model-level
-/// round-trip gate (`parse(write(parse(f)))` must deep-equal `parse(f)`).
-/// Deliberately ORDER-SENSITIVE on header fields and section entries: order is
-/// document order in this model and the writer re-emits it, so a reordering is
-/// a real fidelity loss, not an equivalent file. The derived [SeqFileHeader]
-/// and [IniSection.members]/[IniSection.directives] indexes are not compared —
-/// they are pure functions of what is.
-bool iniDeepEquals(IniSeqFile a, IniSeqFile b) {
-  if (a.lineTerminator != b.lineTerminator) return false;
-  if (!_orderedMapEquals(a.headerFields, b.headerFields)) return false;
-  if (a.sections.length != b.sections.length) return false;
-  for (var i = 0; i < a.sections.length; i++) {
-    final sa = a.sections[i];
-    final sb = b.sections[i];
-    if (sa.isDef != sb.isDef || sa.path != sb.path || sa.extDataKind != sb.extDataKind) return false;
-    if (sa.entries.length != sb.entries.length) return false;
-    for (var j = 0; j < sa.entries.length; j++) {
-      if (sa.entries[j].key != sb.entries[j].key || sa.entries[j].rawValue != sb.entries[j].rawValue) {
-        return false;
-      }
-    }
-  }
-  return true;
-}
-
-/// Order-sensitive map equality (insertion order == document order here).
-bool _orderedMapEquals(Map<String, String> a, Map<String, String> b) {
-  if (a.length != b.length) return false;
-  final ai = a.entries.iterator;
-  final bi = b.entries.iterator;
-  while (ai.moveNext() && bi.moveNext()) {
-    if (ai.current.key != bi.current.key || ai.current.value != bi.current.value) return false;
-  }
-  return true;
 }

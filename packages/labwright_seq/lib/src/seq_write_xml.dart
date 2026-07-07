@@ -1,3 +1,8 @@
+/// Byte-exact writer for the XML flavor of TestStand `.seq` files:
+/// [writeSeqFileXml] serializes a parsed [SeqFile] back to the on-disk XML
+/// encoding.
+library;
+
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -8,7 +13,7 @@ import 'seq_property.dart';
 /// Serializes an XML-flavor [SeqFile] back to TestStand's on-disk XML encoding,
 /// **byte-exactly**: for every XML `.seq` in the corpus,
 /// `writeSeqFileXml(parseSeqFile(bytes))` reproduces the original bytes
-/// (validated by the corpus round-trip gate in `test/seq_write_test.dart`).
+/// (validated by the corpus round-trip gate in `test/seq_write_xml_test.dart`).
 ///
 /// The serialization constants below are corpus-verified over all 36 XML files
 /// (uniform, no exceptions):
@@ -240,8 +245,9 @@ void _writeAttributes(StringBuffer sb, Map<String, String> attrs) {
   });
 }
 
-/// Indentation strings, cached per depth (corpus trees nest ~20 deep; building
-/// `'\t' * depth` per line was the writer's hottest allocation).
+/// Indentation strings, cached per depth so no `'\t' * depth` string is
+/// allocated per output line (corpus trees nest ~20 deep, so the writer
+/// indents far more lines than it has distinct depths).
 final List<String> _tabCache = [for (var i = 0; i < 32; i++) '\t' * i];
 
 String _tabs(int depth) => depth < _tabCache.length ? _tabCache[depth] : '\t' * depth;
@@ -264,88 +270,4 @@ String _escapeAttribute(String value, {bool doubleQuoted = false}) {
     return value;
   }
   return _escapeText(value).replaceAll(quote, doubleQuoted ? '&quot;' : '&apos;');
-}
-
-/// Deep structural equality over two [SeqFile] models — the model-level
-/// round-trip gate (`parse(write(parse(f)))` must deep-equal `parse(f)`).
-/// Deliberately ORDER-SENSITIVE on attribute maps: attribute order is document
-/// order in this model and the writer re-emits it, so a reordering is a real
-/// fidelity loss, not an equivalent file.
-bool seqFileDeepEquals(SeqFile a, SeqFile b) {
-  if (a.header.format != b.header.format ||
-      a.header.fileType != b.header.fileType ||
-      a.header.productName != b.header.productName ||
-      a.header.fileVersion != b.header.fileVersion) {
-    return false;
-  }
-  if (!_nullableOrderedMapEquals(a.rootAttributes, b.rootAttributes)) return false;
-  final aDefs = a.typelistEntries;
-  final bDefs = b.typelistEntries;
-  if ((aDefs == null) != (bDefs == null)) return false;
-  if (aDefs != null && bDefs != null) {
-    if (aDefs.length != bDefs.length) return false;
-    for (var i = 0; i < aDefs.length; i++) {
-      if (aDefs[i].protectedData != bDefs[i].protectedData) return false;
-      if (!_orderedMapEquals(aDefs[i].attributes, bDefs[i].attributes)) return false;
-      if (!_nullablePropEquals(aDefs[i].root, bDefs[i].root)) return false;
-    }
-  }
-  return seqPropertyDeepEquals(a.data, b.data);
-}
-
-/// Deep structural equality over two [SeqProperty] trees: every model field —
-/// name, tag, class/type names, scalar, attribute maps (order-sensitive),
-/// value attributes, element prototype, array elements, extdata, numeric
-/// format, and sub-properties, recursively.
-bool seqPropertyDeepEquals(SeqProperty a, SeqProperty b) {
-  if (a.name != b.name ||
-      a.className != b.className ||
-      a.typeName != b.typeName ||
-      a.xmlTag != b.xmlTag ||
-      a.scalar != b.scalar ||
-      a.numericFormat != b.numericFormat) {
-    return false;
-  }
-  if (!_orderedMapEquals(a.attributes, b.attributes)) return false;
-  if (!_orderedMapEquals(a.valueAttributes, b.valueAttributes)) return false;
-  if (!_nullablePropEquals(a.elemProto, b.elemProto)) return false;
-  if (a.extData.length != b.extData.length) return false;
-  for (var i = 0; i < a.extData.length; i++) {
-    if (!_orderedMapEquals(a.extData[i], b.extData[i])) return false;
-  }
-  final aArr = a.array;
-  final bArr = b.array;
-  if ((aArr == null) != (bArr == null)) return false;
-  if (aArr != null && bArr != null) {
-    if (aArr.length != bArr.length) return false;
-    for (var i = 0; i < aArr.length; i++) {
-      if (!seqPropertyDeepEquals(aArr[i], bArr[i])) return false;
-    }
-  }
-  if (a.subProps.length != b.subProps.length) return false;
-  for (var i = 0; i < a.subProps.length; i++) {
-    if (!seqPropertyDeepEquals(a.subProps[i], b.subProps[i])) return false;
-  }
-  return true;
-}
-
-bool _nullablePropEquals(SeqProperty? a, SeqProperty? b) {
-  if (a == null || b == null) return identical(a, b) || (a == null && b == null);
-  return seqPropertyDeepEquals(a, b);
-}
-
-bool _nullableOrderedMapEquals(Map<String, String>? a, Map<String, String>? b) {
-  if (a == null || b == null) return a == null && b == null;
-  return _orderedMapEquals(a, b);
-}
-
-/// Order-sensitive map equality (insertion order == document order here).
-bool _orderedMapEquals(Map<String, String> a, Map<String, String> b) {
-  if (a.length != b.length) return false;
-  final ai = a.entries.iterator;
-  final bi = b.entries.iterator;
-  while (ai.moveNext() && bi.moveNext()) {
-    if (ai.current.key != bi.current.key || ai.current.value != bi.current.value) return false;
-  }
-  return true;
 }

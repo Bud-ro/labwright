@@ -284,7 +284,8 @@ void main() {
           mismatches.add(f.path);
         }
       }
-      // The fraction is the campaign's tracked metric — report it even on success.
+      // Print the fraction even on success so every test log records the
+      // corpus coverage.
       print('XML .seq byte-exact round-trip: $exact/$xmlCount');
       expect(xmlCount, _pinnedXmlSeqCount, reason: 'XML corpus population changed — re-verify the writer over it');
       expect(mismatches, isEmpty, reason: 'every XML corpus file must round-trip byte-exactly');

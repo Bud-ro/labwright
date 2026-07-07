@@ -236,7 +236,8 @@ void main() {
           mismatches.add(f.path);
         }
       }
-      // The fraction is the campaign's tracked metric — report it even on success.
+      // Print the fraction even on success so every test log records the
+      // corpus coverage.
       print('INI .seq byte-exact round-trip: $exact/$iniCount');
       expect(iniCount, _pinnedIniSeqCount, reason: 'INI corpus population changed — re-verify the writer over it');
       expect(mismatches, isEmpty, reason: 'every INI corpus file must round-trip byte-exactly');
