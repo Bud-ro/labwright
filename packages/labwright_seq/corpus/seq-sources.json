@@ -9,6 +9,12 @@
   ],
   "sources": [
     {
+      "repo": "425J/LayoutLoader",
+      "commit": "b8ae63b92ec3a8e11d6a1c289dfc2ce2e2c765a8",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via crawl (repo/code search); 2 .seq (2 content-unique at add time)."
+    },
+    {
       "repo": "425J/SeqEditQuickDrop",
       "commit": "94cdf5f7cc0b7b87d9cab369d0461f48e50aba53",
       "encoding": "mixed",
@@ -27,10 +33,22 @@
       "note": "Discovered via repo-search; 5 .seq (observed bin)."
     },
     {
+      "repo": "Aldo633/TestStandLock-API",
+      "commit": "4fd8ab9164b48ba97392448bf61872082ff64431",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via crawl (repo/code search); 1 .seq (1 content-unique at add time)."
+    },
+    {
       "repo": "Andraz23/TestStand",
       "commit": "f5082814d6604ed50f4e782a65a642ffb35e118f",
       "encoding": "binary-TOF1",
       "note": "Discovered via repo-search; 1 .seq (observed bin)."
+    },
+    {
+      "repo": "FloresFelipe/VS-Code-Integration-Demonstrations",
+      "commit": "0adea7643235286ae7958bcde0b907270ef7e5a7",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via crawl (repo/code search); 3 .seq (3 content-unique at add time)."
     },
     {
       "repo": "FloresFelipe/csv-doc-gen-tool-teststand",
@@ -39,10 +57,40 @@
       "note": "Discovered via repo-search; 4 .seq (observed bin)."
     },
     {
+      "repo": "FloresFelipe/custom-teststand-computer-motherboard-example",
+      "commit": "bc41ccbdbb5fb4414eff540dab0da7e72936b000",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via crawl (repo/code search); 2 .seq (2 content-unique at add time)."
+    },
+    {
+      "repo": "HasbunWoodEngineering/Easy-User-Manager",
+      "commit": "5ca7281aa1525eb3046cd68eff9bb84dd921dfb1",
+      "encoding": "xml",
+      "note": "Discovered via crawl (repo/code search); 1 .seq (1 content-unique at add time)."
+    },
+    {
       "repo": "IronmanMark2/LabView-and-Teststand",
       "commit": "c8bd841188d86c1f5466f7dd9ec27b3f3e759838",
       "encoding": "binary-TOF1",
       "note": "Discovered via repo-search; 1 .seq (observed bin)."
+    },
+    {
+      "repo": "ItsMeAshiq/TestStand-OutputMessage",
+      "commit": "2f9922541c1aa68026c8c2b598dd6c143eec854c",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via crawl (repo/code search); 1 .seq (1 content-unique at add time)."
+    },
+    {
+      "repo": "JMETestSolutions/VideoBlog",
+      "commit": "a2e4024f29b0c02ca2f96f904e327d5fe5401526",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via crawl (repo/code search); 6 .seq (6 content-unique at add time)."
+    },
+    {
+      "repo": "JavierABH/Elatch-Bench-Programming",
+      "commit": "46d09e010d1ddac0903b6a5965129da08928a407",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via crawl (repo/code search); 2 .seq (2 content-unique at add time)."
     },
     {
       "repo": "JavierABH/Elatch-Bench-Test",
@@ -51,16 +99,82 @@
       "note": "Discovered via repo-search; 9 .seq (observed bin)."
     },
     {
+      "repo": "JeonghwaLee-TwinDAD/GIP-FCT",
+      "commit": "c4028272ef9137eef1ecf98c98b26bf78b666567",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via crawl (repo/code search); 9 .seq (9 content-unique at add time)."
+    },
+    {
+      "repo": "JeonghwaLee-TwinDAD/TestStand-Manager",
+      "commit": "a006fc8e921511c12e7558a4e5d6064681cdb142",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via crawl (repo/code search); 3 .seq (3 content-unique at add time)."
+    },
+    {
+      "repo": "KMurphs/labview-client-for-micropython",
+      "commit": "73ed86a936033d373e97269290990a6ac748dbb3",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via crawl (repo/code search); 1 .seq (1 content-unique at add time)."
+    },
+    {
       "repo": "KMurphs/teststand-user-interfaces",
       "commit": "3566c35ee134da142bf69b0a9227387c117b26a4",
       "encoding": "mixed",
       "note": "Sample test sequence driving a custom UI."
     },
     {
+      "repo": "KarthikAbiram/tsxml",
+      "commit": "8036672d655e45684f8e34842ead274b8b4f30c5",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via crawl (repo/code search); 1 .seq (1 content-unique at add time)."
+    },
+    {
+      "repo": "LeoDaEsp/DHA_TestStand_Seq",
+      "commit": "39449e178a3cbb06de86fbd8dbaada24fee7030f",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via crawl (repo/code search); 2 .seq (2 content-unique at add time)."
+    },
+    {
+      "repo": "LeonelNietoL/TestStand.Exercises",
+      "commit": "17059afa8a81c24ba7722465079f67b10a255ed9",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via crawl (repo/code search); 2 .seq (2 content-unique at add time)."
+    },
+    {
+      "repo": "MFG-88/TS_LV_ImportValuesToVariables",
+      "commit": "8d45eaaa5ada7cd4d2111a09ecaffdac995424d8",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via crawl (repo/code search); 1 .seq (1 content-unique at add time)."
+    },
+    {
+      "repo": "NEVSTOP-LAB/TestStand-User-Interface-Messages-Demo",
+      "commit": "f4e272d4cb4ef1b47d6323b6d82baec0198e8b03",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via crawl (repo/code search); 6 .seq (6 content-unique at add time)."
+    },
+    {
       "repo": "NI-Measurement-Plug-Ins/abstraction-layer-python",
       "commit": "b1e30c9310bd89fbd60d6a28541790e8ab458dfe",
       "encoding": "xml",
       "note": "NI HAL/FAL abstraction-layer demo sequences (DmmMeasurementHAL/SourceMeasureDCVoltageFAL)."
+    },
+    {
+      "repo": "NI-Measurement-Plug-Ins/class-d-amplifier",
+      "commit": "d86360ab766049f33a3c22e0085d8c053ba8d3ea",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via crawl (repo/code search); 2 .seq (2 content-unique at add time)."
+    },
+    {
+      "repo": "NI-Measurement-Plug-Ins/device-power-sequencer",
+      "commit": "4e7cbe6992d6accae52385b9cec55518967ba7f3",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via crawl (repo/code search); 1 .seq (1 content-unique at add time)."
+    },
+    {
+      "repo": "NI-Measurement-Plug-Ins/digital-microphone",
+      "commit": "bd2adb82877dcb9a04b62cc748573f7d3dc04247",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via crawl (repo/code search); 1 .seq (1 content-unique at add time)."
     },
     {
       "repo": "NI-Measurement-Plug-Ins/pcba-fct",
@@ -73,6 +187,54 @@
       "commit": "ee6f3a50b75698cf394736e3b69157e59b487dc4",
       "encoding": "binary-TOF1",
       "note": "Discovered via repo-search; 2 .seq (observed bin)."
+    },
+    {
+      "repo": "NISystemsEngineering/ni-LunchAndLearn-DesigningTestStandSequencesForReuseExamples",
+      "commit": "56fca82f0863a448178ea9dd08b66bd6d1d89815",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via crawl (repo/code search); 4 .seq (4 content-unique at add time)."
+    },
+    {
+      "repo": "NISystemsEngineering/ni-LunchAndLearn-SystemLinkOverviewExamples",
+      "commit": "f15c1f24654cddc11d17b9e1112dbdfaafcc3ec6",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via crawl (repo/code search); 3 .seq (3 content-unique at add time)."
+    },
+    {
+      "repo": "NISystemsEngineering/rfic-reference-design-libraries-csharp",
+      "commit": "5e318280860f781d6c6f351abb56c684df6e428a",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via crawl (repo/code search); 7 .seq (7 content-unique at add time)."
+    },
+    {
+      "repo": "NISystemsEngineering/rfic-reference-design-libraries-labview",
+      "commit": "d63e58ba90c3af0c27fbe6ccc9365d9b1b1492af",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via crawl (repo/code search); 7 .seq (7 content-unique at add time)."
+    },
+    {
+      "repo": "NIVeriStandAdd-Ons/ECU-HIL-Demo",
+      "commit": "520b957f00e4f93ee06d301b9ebbb78046da84f8",
+      "encoding": "binary-TOF1",
+      "note": "ECU HIL demo: 16 binary .seq."
+    },
+    {
+      "repo": "NIVeriStandAdd-Ons/Real-Time-Test-Automation-RTTA-Demo",
+      "commit": "018a63fd2d67b0ebea8feb592a25ee98d2447fb8",
+      "encoding": "mixed",
+      "note": "Discovered via crawl (repo/code search); 3 .seq (3 content-unique at add time)."
+    },
+    {
+      "repo": "NIVeriStandAdd-Ons/TestStand-Examples-for-HIL",
+      "commit": "aa3288156eebd4f1555c4d78b1b7dca836d83749",
+      "encoding": "binary-TOF1",
+      "note": "HIL example sequences: 22 binary .seq."
+    },
+    {
+      "repo": "NIVeriStandAdd-Ons/UDP-Data-Link-Custom-Device",
+      "commit": "137dcf27ea7eff36cdee0d80ee67452d4d1f6108",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via crawl (repo/code search); 1 .seq (1 content-unique at add time)."
     },
     {
       "repo": "NIVeriStandAdd-Ons/VeriStand-steps-for-TestStand",
@@ -93,6 +255,18 @@
       "note": "Discovered via repo-search; 2 .seq (observed bin)."
     },
     {
+      "repo": "Sub-Zero-Group-Inc/HILisForEveryone",
+      "commit": "0893b9bbf3a187841c8cdbbab1860a6b7bc56814",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via crawl (repo/code search); 1 .seq (1 content-unique at add time)."
+    },
+    {
+      "repo": "amr-salaaah/Auto-Test-Camera",
+      "commit": "b5989ba2a97e7c4ea0301e56495a3e759f56d805",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via crawl (repo/code search); 2 .seq (2 content-unique at add time)."
+    },
+    {
       "repo": "astemes/astemes-csv-report-teststand-plugin",
       "commit": "f13915451f8f874b8a7c34f2d80778d61b509ed8",
       "encoding": "binary-TOF1",
@@ -111,16 +285,34 @@
       "note": "Result-processor plug-in sequence; binary TOF1, TS2019."
     },
     {
-      "repo": "caizikun/Teststand_Git",
-      "commit": "9b7088c95cd2c2c34fe187ca1247f0278d47ce6a",
+      "repo": "bihackercs/BUDLUG2025",
+      "commit": "1ef6cd056cd84be798e7241b01bad6b92f5edf7b",
       "encoding": "binary-TOF1",
-      "note": "Real-world (non-NI) project: 50+ binary TOF1 subsequences (frequency/voltage/current/power), good diversity beyond NI examples."
+      "note": "Discovered via crawl (repo/code search); 1 .seq (1 content-unique at add time)."
+    },
+    {
+      "repo": "cbart-dot/Test",
+      "commit": "876f9e4c293aaf096a795b512cd9866e68765b17",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via crawl (repo/code search); 1 .seq (1 content-unique at add time)."
+    },
+    {
+      "repo": "dfawcett/TestStandPythonAdapter",
+      "commit": "5633c58dc1c655802612df50514fde0fb9d6f62e",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via crawl (repo/code search); 1 .seq (1 content-unique at add time)."
     },
     {
       "repo": "elijah286/TestStand-MAL-API",
       "commit": "c01550b9549dc266cd64b0c4efe39f2eec4efd39",
       "encoding": "binary-TOF1",
       "note": "Discovered via repo-search; 1 .seq (observed bin)."
+    },
+    {
+      "repo": "hagaya/Teststand_UI",
+      "commit": "b1f682d97393a744690145f4a1d4301863bd2139",
+      "encoding": "mixed",
+      "note": "Discovered via crawl (repo/code search); 2 .seq (2 content-unique at add time)."
     },
     {
       "repo": "halsteadrideriver/TestStand_projects",
@@ -135,10 +327,34 @@
       "note": "Discovered via repo-search; 1 .seq (observed bin)."
     },
     {
+      "repo": "illuminated-g/tss",
+      "commit": "8552fa72a15fc9d926fc5a23eaa351e44926335f",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via crawl (repo/code search); 2 .seq (2 content-unique at add time)."
+    },
+    {
+      "repo": "jmcerlean/DTC-Offline-Programmmer",
+      "commit": "69972e7cb6b8f4aab4dccdc7f51a6c2a46b7c32f",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via crawl (repo/code search); 16 .seq (16 content-unique at add time)."
+    },
+    {
+      "repo": "joshuaprewitt/battery-tester",
+      "commit": "5178a92bd1daf6d994ee596a69a7d942b1276f47",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via crawl (repo/code search); 4 .seq (4 content-unique at add time)."
+    },
+    {
       "repo": "joshuaprewitt/teststand-executor",
       "commit": "690241b668927d685f2ddf4bacc95a06059f64ec",
       "encoding": "binary-TOF1",
       "note": "Full NI shipped examples (Computer Motherboard Tests, Power Test) for TS2017/TS2019; binary TOF1."
+    },
+    {
+      "repo": "jplotzke/grpc-labview-teststand-hang",
+      "commit": "f8516ed5241a99d768edccd39b0c94e34db742e8",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via crawl (repo/code search); 2 .seq (2 content-unique at add time)."
     },
     {
       "repo": "levylabpitt/TestStand",
@@ -147,16 +363,52 @@
       "note": "Discovered via repo-search; 1 .seq (observed bin)."
     },
     {
+      "repo": "lhb5883/LabVIEW",
+      "commit": "129c22c55a35e62310bb0143502e3ed50b1e6162",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via crawl (repo/code search); 1 .seq (1 content-unique at add time)."
+    },
+    {
+      "repo": "liyan295/grpc-teststand-api",
+      "commit": "b7da03175e2500ef454871d54232d8741d817e48",
+      "encoding": "xml",
+      "note": "Non-fork copy of ni/grpc-teststand-api carrying 6 XML .seq that differ from the pinned ni commit."
+    },
+    {
       "repo": "marigot/BATL-flight",
       "commit": "8c4dc21c0c52c419ed861460bdbe4eedfaeb6808",
       "encoding": "mixed",
       "note": "Flight project carrying an ExtraPuTTY example 'TestStand sequence.seq' + many config files."
     },
     {
+      "repo": "marrob/Knv.Ethernet",
+      "commit": "c3cf85100d01f17b24c4206d70576089adbfa4ac",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via crawl (repo/code search); 1 .seq (1 content-unique at add time)."
+    },
+    {
+      "repo": "marrob/Knv.Instr",
+      "commit": "dc68c91e46eccca2ddc5a8ca26e6df48145db1ea",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via crawl (repo/code search); 8 .seq (8 content-unique at add time)."
+    },
+    {
+      "repo": "medina818/PopUp-Library",
+      "commit": "342c1cbb03241a87aa84db54e1897ef6c5244ecd",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via crawl (repo/code search); 1 .seq (1 content-unique at add time)."
+    },
+    {
       "repo": "michael-harhay-arx/CICDUtility",
       "commit": "02c6c678012a49102febc107d962c0c54992b4ee",
       "encoding": "mixed",
-      "note": "CI/CD utility: ~12 .seq incl. DBSeq.seq and DBSeq2019.seq (likely same sequence at different TS versions — candidate revision pair)."
+      "note": "CI/CD utility: ~12 .seq incl. DBSeq.seq and DBSeq2019.seq (likely same sequence at different TS versions \u2014 candidate revision pair)."
+    },
+    {
+      "repo": "michalkozminski93/4FixturesTurntable",
+      "commit": "3cf99787ba6a759c579a3016230d0b64da3fea3e",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via crawl (repo/code search); 1 .seq (1 content-unique at add time)."
     },
     {
       "repo": "ni/grpc-teststand-api",
@@ -183,10 +435,22 @@
       "note": "NI measurement-plug-in service-extension example: LabVIEW + Python NIDCPower example sequences (an XML twin pair)."
     },
     {
+      "repo": "ni/nipcbatt-labview",
+      "commit": "9f5e339104d64a374ccf46c4c8caf805d6c23148",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via crawl (repo/code search); 10 .seq (10 content-unique at add time)."
+    },
+    {
       "repo": "ni/nitsm-python",
       "commit": "334552e02b324bf5663e96a4fc31399570c3138a",
       "encoding": "mixed",
       "note": "NI TestStand semiconductor module Python bindings: ~13 system-test .seq (FrontEndCallbacks/SystemTestFixture/custom_instruments)."
+    },
+    {
+      "repo": "ni/semi-test-library-dotnet",
+      "commit": "1bffd0d77c98c7898e73f5e39262749a701170c5",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via crawl (repo/code search); 8 .seq (8 content-unique at add time)."
     },
     {
       "repo": "ni/stsmemsapt",
@@ -207,6 +471,18 @@
       "note": "Discovered via repo-search; 1 .seq (observed bin)."
     },
     {
+      "repo": "prestwick/systemlink-hands-on",
+      "commit": "50dabc8d1f18c22d3cc6af27d8d60391b93f8dcb",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via crawl (repo/code search); 1 .seq (1 content-unique at add time)."
+    },
+    {
+      "repo": "robertsdy/python_labview_teststand",
+      "commit": "981d2048041933a268cb4cec4a73f06133d978c2",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via crawl (repo/code search); 7 .seq (7 content-unique at add time)."
+    },
+    {
       "repo": "schieb2/Testing-Software",
       "commit": "5d8502d1374bbd59b7bd74d2f69938c65a93f9ac",
       "encoding": "binary-TOF1",
@@ -217,6 +493,18 @@
       "commit": "3075c411b17edc3e9dc758230169fd234b92288e",
       "encoding": "mixed",
       "note": "Single KernelTestSequence.seq + config; small but adds an independent author."
+    },
+    {
+      "repo": "yiwang-80/PMIC_ATE_DEMO",
+      "commit": "aabda531753b50fc4eac32b218461e5317166645",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via crawl (repo/code search); 1 .seq (1 content-unique at add time)."
+    },
+    {
+      "repo": "zhongzixingnu/Memory-Monitor",
+      "commit": "b297a60276983c6e63a1ae27aa7b6f0a1d9a1f86",
+      "encoding": "binary-TOF1",
+      "note": "Discovered via crawl (repo/code search); 1 .seq (1 content-unique at add time)."
     }
   ]
 }

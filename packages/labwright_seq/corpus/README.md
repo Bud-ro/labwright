@@ -39,3 +39,15 @@ The fetch tool downloads each source repo's tarball but **extracts only the
 `.seq`/config files**, discarding the rest — so a fresh corpus is a fraction of the
 old whole-repo checkout. To reclaim space from a corpus fetched by an older
 whole-repo version of the tool, delete the folder and re-fetch.
+
+## Provenance policy
+
+Corpus sources must be legitimately public: author-published projects,
+vendor-org publications (e.g. `ni/*`), and open-source repositories.
+Mirrors of NI-internal or NI-confidential material, and wholesale
+re-uploads of NI-shipped product content by third parties, are never
+accepted regardless of how they surfaced. Check candidate repos for NI
+copyright/confidential markers and product-tree shapes before adding
+them to the manifest. An NI copyright inside an individual `.seq` is not
+by itself disqualifying (small numbers of shipped process-model files
+appear legitimately in user projects); the test is wholesale mirroring.
