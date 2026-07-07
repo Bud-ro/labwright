@@ -1504,4 +1504,62 @@ ClusterMemberLabelName = "code"
       expect(tree.subProps.map((p) => p.name), isNot(contains('Payload')));
     });
   });
+
+  group('%NAME scoping (enum value labels vs element names)', () {
+    // Corpus-verified: %NAME names ARRAY ELEMENTS only. On a NAMED member
+    // (all 419 corpus cases sit on Enum-classed types) it is the enum's
+    // current VALUE label — treating it as the name renamed enum-typed
+    // prototype parameters after their default values (`UILEDType` read
+    // as `NONE`).
+    const enumIni = '''
+[__Header__]
+ProductName = "TestStand"
+Version = 577
+Type = "SequenceFile"
+
+[%TYPES]
+ARX_UI_LED = "ARX_UI_LED"
+
+[DEF, ARX_UI_LED]
+%ROOT_TYPE = True
+
+[ARX_UI_LED]
+%NAME = "NONE"
+"NONE" = 0
+"LED_TRACE" = 1
+
+[DEF, %OBJROOT]
+SF = SequenceFileData
+ARX_UI_LED = Enum
+
+[DEF, SF]
+Proto = Obj
+%NAME = "Data"
+
+[DEF, SF.Proto]
+UILEDType = "TYPE, ARX_UI_LED"
+SetValue = Str
+
+[SF.Proto]
+UILEDType = 0
+
+[SF.Proto.UILEDType]
+%NAME = "NONE"
+''';
+
+    test('a named member keeps its member key; the label rides as an attribute', () {
+      final tree = iniDataTree(parseIniSeq(enumIni))!;
+      final proto = tree.subProps.singleWhere((p) => p.name == 'Proto');
+      final led = proto.subProps.firstWhere((p) => p.typeName == 'ARX_UI_LED');
+      expect(led.name, 'UILEDType', reason: 'the property name is the member key, not the enum value label');
+      expect(led.attributes['%NAME'], 'NONE', reason: 'the enum value label is retained, never dropped');
+      expect(proto.subProps.map((p) => p.name), contains('SetValue'));
+    });
+
+    test('an enum typedef root keeps the type name, not its default label', () {
+      final types = iniTypes(parseIniSeq(enumIni));
+      final led = types.singleWhere((t) => t.className == 'Enum');
+      expect(led.name, 'ARX_UI_LED', reason: 'the typedef must not be renamed after its default value (TOP/NONE/…)');
+    });
+  });
 }
