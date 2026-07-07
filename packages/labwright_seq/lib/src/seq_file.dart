@@ -508,6 +508,10 @@ SeqFile parseBinarySeqFile(Uint8List bytes, {Uint8List? body}) {
       typeName: step.typeName,
       subProps: [
         if (tsChildren.isNotEmpty) SeqProperty(name: 'TS', subProps: tsChildren),
+        // The step's own serialized data subprops beyond TS (Measurement
+        // with its decoded parameter elements, PinMapPath) — the same
+        // flat-sibling shape the XML parse yields.
+        for (final field in step.dataSubProps) _typeFieldProp(field),
       ],
     );
   }
@@ -598,27 +602,53 @@ abstract final class BinAttr {
   /// (all-or-nothing bail) — distinguishes it from a type that genuinely
   /// declares no fields.
   static const bodyUndecoded = '%BINBODYUNDECODED';
+
+  /// A `Num` field's raw numeric-representation code when it is NOT one of
+  /// the twin-evidenced [BinaryNumericRepresentation] codes (those map to
+  /// the XML `representation` value attribute instead). Carried verbatim,
+  /// never named.
+  static const numericRep = '%BINNUMERICREP';
 }
 
 /// A decoded typedef field as a [SeqProperty], recursively (nested Obj
 /// declarations carry their children; typed default-instance references
 /// carry none — the binary stores only the reference).
-SeqProperty _typeFieldProp(BinaryTypeField field) => SeqProperty(
-  name: field.name,
-  className: field.className,
-  typeName: field.typeName,
-  scalar: field.value,
-  // An array (empty or populated) is an array; a populated one is
-  // marked undecoded rather than presented as falsely empty.
-  array: field.isArray ? const [] : null,
-  attributes: {
-    if (field.instanceOverrides) BinAttr.overrides: 'true',
-    if (field.elementSpecBytes != null) BinAttr.elementSpec: '${field.elementSpecBytes}',
-    if (field.intrinsicTypeId != null) BinAttr.intrinsic: '${field.intrinsicTypeId}',
-    if (field.isArray && !field.isEmptyArray) BinAttr.arrayUndecoded: field.arrayUBound!,
-  },
-  subProps: [for (final child in field.children) _typeFieldProp(child)],
-);
+SeqProperty _typeFieldProp(BinaryTypeField field) {
+  // A populated array whose ELEMENTS decoded (children present on an
+  // array field) surfaces them as real array elements — the same shape
+  // the XML parse yields; one whose elements did not decode is marked
+  // undecoded rather than presented as falsely empty.
+  final elementsDecoded = field.isArray && field.children.isNotEmpty;
+  final representation = field.numericRepresentation != null
+      ? BinaryNumericRepresentation.of(field.numericRepresentation!)
+      : null;
+  return SeqProperty(
+    name: field.name,
+    className: field.className,
+    typeName: field.typeName,
+    scalar: field.value,
+    array: field.isArray
+        ? (elementsDecoded ? [for (final child in field.children) _typeFieldProp(child)] : const [])
+        : null,
+    valueAttributes: {
+      if (field.arrayLBound != null) 'lbound': field.arrayLBound!,
+      if (field.arrayUBound != null) 'ubound': field.arrayUBound!,
+      if (representation != null) 'representation': representation.xmlName,
+    },
+    attributes: {
+      if (field.instanceOverrides) BinAttr.overrides: 'true',
+      if (field.elementSpecBytes != null) BinAttr.elementSpec: '${field.elementSpecBytes}',
+      if (field.intrinsicTypeId != null) BinAttr.intrinsic: '${field.intrinsicTypeId}',
+      if (field.isArray && !field.isEmptyArray && !elementsDecoded) BinAttr.arrayUndecoded: field.arrayUBound!,
+      if (field.numericRepresentation != null && representation == null)
+        BinAttr.numericRep: '${field.numericRepresentation}',
+    },
+    subProps: [
+      if (!elementsDecoded)
+        for (final child in field.children) _typeFieldProp(child),
+    ],
+  );
+}
 
 /// Removes a leading UTF-8 BOM (`U+FEFF`) so the XML parser sees a clean prolog.
 String _stripBom(String text) => text.isNotEmpty && text.codeUnitAt(0) == 0xFEFF ? text.substring(1) : text;
