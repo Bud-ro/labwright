@@ -166,10 +166,11 @@ class SeqFileHeader {
       'product=$productName, version=$fileVersion)';
 }
 
+/// Header-attribute extractors, left-anchored to whitespace (XML attributes
+/// are always whitespace-separated) so a differently-named attribute merely
+/// ENDING in the name — e.g. `xsi:type=` for `type=` — can never match.
 final _attr = <String, RegExp>{
-  'type': RegExp("type=['\"]([^'\"]*)['\"]"),
-  'fileversion': RegExp("fileversion=['\"]([^'\"]*)['\"]"),
-  'productname': RegExp("productname=['\"]([^'\"]*)['\"]"),
+  for (final name in ['type', 'fileversion', 'productname']) name: RegExp("\\s$name=['\"]([^'\"]*)['\"]"),
 };
 
 /// Reads the header of [bytes] — total over arbitrary input.

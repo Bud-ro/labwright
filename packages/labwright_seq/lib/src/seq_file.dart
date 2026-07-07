@@ -340,7 +340,7 @@ class SeqVariable {
 ///
 /// The **XML** and **INI** encodings parse to the complete typed model. The
 /// binary `TOF1` encoding parses to an explicitly **partial** model — the
-/// decoded sequence/step skeleton only (see [_parseBinary] for the exact
+/// decoded sequence/step skeleton only (see [parseBinarySeqFile] for the exact
 /// scope; `types` carries recovered type NAMES only, step types are bound
 /// from the type table, and `locals` read empty there). Throws
 /// [FormatException] for unrecognized input or a binary header without an
@@ -351,7 +351,7 @@ SeqFile parseSeqFile(Uint8List bytes) {
     case SeqFormat.xml:
       return _parseXml(bytes);
     case SeqFormat.binary:
-      return _parseBinary(bytes);
+      return parseBinarySeqFile(bytes);
     case SeqFormat.ini:
       return parseIniSeqFile(bytes);
     case SeqFormat.unknown:
@@ -391,12 +391,16 @@ SeqFile _parseXml(Uint8List bytes) {
 /// arrays (RTS, Requirements, FailureAction) and the TS subprops of steps
 /// whose data frames in a not-yet-covered shape are **not yet decoded**,
 /// so those lenses read empty/null.
+///
+/// A caller that has already inflated the zlib body (e.g. `SeqDocument.parse`,
+/// which also feeds [analyzeBinary]) can pass it as [body] to skip re-inflating;
+/// it must be the inflated body OF [bytes].
 /// Throws [FormatException] when the body does not inflate (not a TOF1 binary).
-SeqFile _parseBinary(Uint8List bytes) {
+SeqFile parseBinarySeqFile(Uint8List bytes, {Uint8List? body}) {
   // Single inflate: reuse the body for layout + outlines rather than letting
   // each helper re-inflate (review-measured: the previous shape inflated the
   // same zlib body up to three times per document).
-  final body = inflateBinaryBody(bytes);
+  body ??= inflateBinaryBody(bytes);
   if (body == null) {
     throw const FormatException('binary .seq body does not inflate (not TOF1?)');
   }
@@ -499,11 +503,15 @@ SeqFile _parseBinary(Uint8List bytes) {
 
 /// Synthetic attribute keys the binary decoder attaches to a
 /// [SeqProperty] to surface facts the XML encoding carries structurally
-/// but the binary model cannot yet place inline. The `%` prefix marks
-/// them synthetic — NOT real file attributes — so any attribute-diffing
-/// or round-tripping consumer must drop `%`-prefixed keys. Cataloged
-/// here (rather than as inline literals in producer and tests) so there
-/// is one source of truth per the repo's magic-constant rule.
+/// but the binary model cannot yet place inline. The `%BIN` prefix marks
+/// them synthetic — NOT real file attributes — and it is the ONLY
+/// synthetic namespace: an attribute-diffing or round-tripping consumer
+/// must drop exactly the `%BIN*` keys. Other `%`-prefixed keys are REAL
+/// file directives kept verbatim under their literal names (the legacy
+/// INI `%FLG` / `%INSTFLG` / `%INSTOVRD` / `%HI` / `%LO` / `%EPTYPE` /
+/// `%COMMENT`) and must round-trip. Cataloged here (rather than as
+/// inline literals in producer and tests) so there is one source of
+/// truth per the repo's magic-constant rule.
 abstract final class BinAttr {
   /// The property's children are an OVERRIDE SUBSET of the type default
   /// (an inline instance / descriptor node), not the full field list.

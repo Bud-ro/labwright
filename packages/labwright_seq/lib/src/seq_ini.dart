@@ -43,14 +43,16 @@ import 'seq_step.dart';
 /// (type inheritance, arrays, instance overrides, comments) — **fully decoded**
 /// across the corpus (58/58), feeding the same typed lens as the XML form.
 
-/// One `[...]` block of an INI `.seq`: either a value instance (`[path]`) or a
-/// type definition (`[DEF, path]`).
+/// One `[...]` block of an INI `.seq`: a value instance (`[path]`), a type
+/// definition (`[DEF, path]`), or an external-adapter data blob
+/// (`[EXTDATA, path, KIND]`, see [extDataKind]).
 class IniSection {
   IniSection({
     required this.isDef,
     required this.path,
     required this.members,
     required this.directives,
+    this.extDataKind,
   });
 
   /// True for a `[DEF, path]` section (member→type declarations); false for a
@@ -59,6 +61,17 @@ class IniSection {
 
   /// The object path, e.g. `SF`, `SF.Seq[0]`, or the root alias `%OBJROOT`.
   final String path;
+
+  /// For an `[EXTDATA, path, KIND]` section: the adapter-data kind token —
+  /// corpus-observed kinds are `STRUCT`, `CLUST`, `DNSTRUCT`, `BLVCLUSTER`
+  /// (per-adapter representations of the property at [path]). null for value
+  /// and DEF sections. EXTDATA sections are kept reachable here but are NOT
+  /// part of the property-object data tree ([iniDataTree] skips them); wiring
+  /// them into [SeqProperty] is TODO (writer milestone).
+  final String? extDataKind;
+
+  /// True for an `[EXTDATA, path, KIND]` section.
+  bool get isExtData => extDataKind != null;
 
   /// Plain `member = value` (value section) or `member = TypeName` (DEF section)
   /// lines, excluding the `%`-directives. Insertion order preserved.
@@ -81,14 +94,26 @@ class IniSection {
 class IniSeqFile {
   IniSeqFile({
     required this.header,
+    required this.headerFields,
     required this.sections,
   });
 
   /// Header recovered from `[__Header__]` (format [SeqFormat.ini]).
   final SeqFileHeader header;
 
-  /// All `[...]` / `[DEF, ...]` sections in order (header section excluded).
+  /// EVERY `[__Header__]` field verbatim (key → raw value, insertion order),
+  /// beyond the few [header] surfaces — e.g. `Path`, `ProductVersion`.
+  /// Continuation lines (`Path Line0001` …) are reassembled the same way as
+  /// section values.
+  final Map<String, String> headerFields;
+
+  /// All `[...]` / `[DEF, ...]` / `[EXTDATA, ...]` sections in order (header
+  /// section excluded).
   final List<IniSection> sections;
+
+  /// The `[EXTDATA, path, KIND]` sections, in document order — external
+  /// adapter data blobs, kept reachable but not part of the data tree.
+  Iterable<IniSection> get extDataSections => sections.where((s) => s.isExtData);
 }
 
 /// Parses [bytes] of a legacy INI `.seq`. INI files are single-byte (SBCS), so
@@ -115,12 +140,25 @@ IniSeqFile parseIniSeq(String text) {
       }
       inHeader = false;
       final isDef = inner.startsWith('DEF,');
-      final path = isDef ? inner.substring('DEF,'.length).trim() : inner;
+      var path = isDef ? inner.substring('DEF,'.length).trim() : inner;
+      String? extDataKind;
+      if (!isDef && inner.startsWith('EXTDATA,')) {
+        // `[EXTDATA, <path>, <KIND>]` — always exactly three comma-separated
+        // parts across the corpus (1829 sections). A malformed header lacking
+        // the kind comma (unobserved) stays a plain value section, defensively.
+        final rest = inner.substring('EXTDATA,'.length);
+        final kindComma = rest.lastIndexOf(',');
+        if (kindComma >= 0) {
+          path = rest.substring(0, kindComma).trim();
+          extDataKind = rest.substring(kindComma + 1).trim();
+        }
+      }
       current = IniSection(
         isDef: isDef,
         path: path,
         members: <String, String>{},
         directives: <String, String>{},
+        extDataKind: extDataKind,
       );
       sections.add(current);
       continue;
@@ -137,12 +175,16 @@ IniSeqFile parseIniSeq(String text) {
       (key.startsWith('%') ? current.directives : current.members)[key] = value;
     }
   }
+  // Header fields split across `KEY LineNNNN` continuation lines (corpus: a
+  // long `Path`) are reassembled exactly like section values.
+  _reassembleContinuations(headerFields);
   for (final section in sections) {
     _reassembleContinuations(section.members);
     _reassembleContinuations(section.directives);
   }
   return IniSeqFile(
     header: _headerFrom(headerFields),
+    headerFields: headerFields,
     sections: sections,
   );
 }
@@ -239,14 +281,20 @@ SeqProperty? iniDataTree(IniSeqFile doc) {
 /// Reconstructs the type list (`[%TYPES]`) of a parsed INI `.seq` into
 /// [SeqProperty] objects — the INI analogue of XML's `<typelist>`. Each entry of
 /// the `[%TYPES]` section names a top-level type defined by its own
-/// `[DEF, <Type>]`/`[<Type>]` sections. Returns an empty list if absent.
+/// `[DEF, <Type>]`/`[<Type>]` sections. A `[%TYPES]` member VALUE is only the
+/// quoted display name (always equal to the member key across the corpus, 2242
+/// entries); the type's CLASS comes from the root alias DEF (`[DEF, %OBJROOT]`
+/// / `[DEF, %OBJECTS]`, e.g. `Action = StepType`, `TEInf = Obj`) — the same
+/// classname the XML flavor puts on its typedef root. Every corpus `[%TYPES]`
+/// entry resolves there; a missing one (unobserved) yields a null className.
+/// Returns an empty list if `[%TYPES]` is absent.
 List<SeqProperty> iniTypes(IniSeqFile doc) {
   final builder = _IniBuilder(doc);
-  final typeList = doc.sections.where((s) => !s.isDef && s.path == '%TYPES').firstOrNull;
+  final typeList = doc.sections.where((s) => !s.isDef && !s.isExtData && s.path == '%TYPES').firstOrNull;
   if (typeList == null) return const [];
   return [
     for (final typeName in typeList.members.keys)
-      if (builder.hasPath(typeName)) builder.build(typeName, typeName, _unquote(typeList.members[typeName])),
+      if (builder.hasPath(typeName)) builder.build(typeName, typeName, builder.rootAliasClass(typeName)),
   ];
 }
 
@@ -254,6 +302,11 @@ List<SeqProperty> iniTypes(IniSeqFile doc) {
 class _IniBuilder {
   _IniBuilder(IniSeqFile doc) {
     for (final section in doc.sections) {
+      // EXTDATA sections are adapter data blobs, not property-object value
+      // sections — indexing them would alias real property paths (their path
+      // component reuses object paths like `Error.Code`) and pollute the path
+      // index. They stay reachable on IniSeqFile.extDataSections.
+      if (section.isExtData) continue;
       (section.isDef ? _defs : _vals)[section.path] = section;
     }
     _allPaths = {..._defs.keys, ..._vals.keys};
@@ -335,6 +388,18 @@ class _IniBuilder {
     return null;
   }
 
+  /// The declared CLASS of a top-level object [name] from the root alias DEF
+  /// (`SF = SequenceFileData`, `Action = StepType`, `TEInf = Obj`, …), or null
+  /// when no root alias declares it (unobserved for `[%TYPES]` entries: all
+  /// 2242 across the corpus resolve here).
+  String? rootAliasClass(String name) {
+    for (final alias in _rootAliases) {
+      final declared = _defs[alias]?.members[name];
+      if (declared != null) return _unquote(declared);
+    }
+    return null;
+  }
+
   /// Distinct array indices present under a child path C (keys "C[0]", "C[1]"…),
   /// sorted ascending. Sourced from the prebuilt index.
   List<int> _elementIndices(String childPath) => _elemIdx[childPath] ?? const <int>[];
@@ -348,7 +413,26 @@ class _IniBuilder {
   /// the prebuilt index (first-seen order preserved).
   List<String> _discoveredChildren(String path) => _memberChildren[path] ?? const <String>[];
 
+  /// Cache of inherited (type-default) member subtrees. The key is the type
+  /// path PLUS the active recursion-guard set ([build]'s `visiting`): the guard
+  /// truncates inheritance when a type is already being expanded, so the same
+  /// type path can legitimately build to a DIFFERENT subtree under a different
+  /// guard state — a bare-path key would leak a truncated build into contexts
+  /// that deserve the full one (or vice versa).
+  ///
+  /// ALIASING INVARIANT: a cache hit shares ONE [SeqProperty] instance across
+  /// every inheriting parent. That is safe only because the built model is
+  /// immutable (all fields final, never mutated after construction); any future
+  /// mutable decoration of the tree must clone instead of alias.
   final Map<String, SeqProperty> _inheritCache = {};
+
+  /// The sound cache key for an inherited [typePath] built under [visiting] —
+  /// the path alone when no guard is active, else the path plus the guard set
+  /// in sorted (order-insensitive) form. Typical repeated builds (e.g. every
+  /// `Action` step inheriting `Action.TS`) share identical guard states, so
+  /// caching still collapses them.
+  static String _inheritKey(String typePath, Set<String> visiting) =>
+      visiting.isEmpty ? typePath : '$typePath|${(visiting.toList()..sort()).join('|')}';
 
   /// Splits a member's declared type string into (className, typeName). A
   /// `"TYPE, X"` reference is a typed object of type X (className null, typeName
@@ -373,6 +457,19 @@ class _IniBuilder {
   /// bounds are stored (`%HI: <member> = [63]`) — see
   /// [SeqProperty.highIndices].
   static const highIndexAttr = '%HI';
+
+  /// The attribute key under which a member's declared array LOW-index
+  /// bounds are stored (`%LO: <member> = [1]`) — see
+  /// [SeqProperty.lowIndices]. Nonzero low bounds are corpus-real
+  /// (`%LO: ColumnList = [1]` + `%HI: ColumnList = [2]` — 2 elements).
+  static const lowIndexAttr = '%LO';
+
+  /// The attribute key under which a property's INSTANCE-level flags bitmask
+  /// is stored, from the `%INSTFLG: <member>` / bare own-section `%INSTFLG`
+  /// directives (18k+ corpus lines). Kept verbatim; bit meanings are **not
+  /// yet decoded** (distinct from the type-level [flagsAttr] mask and from
+  /// the override marker [instOverrideAttr]).
+  static const instFlagsAttr = '%INSTFLG';
 
   /// The attribute key under which an array's ELEMENT prototype type is
   /// stored (a bare `%EPTYPE = TEResult` directive on the array's own
@@ -403,11 +500,15 @@ class _IniBuilder {
     Map<String, String> memberAttrs(String memberName) {
       final ovr = val?.directives['$instOverrideAttr: $memberName'];
       final flg = val?.directives['$flagsAttr: $memberName'] ?? def?.directives['$flagsAttr: $memberName'];
+      final instFlg = val?.directives['$instFlagsAttr: $memberName'] ?? def?.directives['$instFlagsAttr: $memberName'];
       final hi = val?.directives['$highIndexAttr: $memberName'] ?? def?.directives['$highIndexAttr: $memberName'];
+      final lo = val?.directives['$lowIndexAttr: $memberName'] ?? def?.directives['$lowIndexAttr: $memberName'];
       return {
         if (ovr != null) instOverrideAttr: ovr,
         if (flg != null) flagsAttr: flg,
+        if (instFlg != null) instFlagsAttr: instFlg,
         if (hi != null) highIndexAttr: hi,
+        if (lo != null) lowIndexAttr: lo,
       };
     }
 
@@ -447,7 +548,9 @@ class _IniBuilder {
       } else if (_isContainer(instPath)) {
         subs.add(build(instPath, memberName, className, typeName, visiting, memberAttrs(memberName)));
       } else if (typePath != null && _isContainer(typePath)) {
-        subs.add(_inheritCache[typePath] ??= build(typePath, memberName, className, typeName, visiting));
+        subs.add(
+          _inheritCache[_inheritKey(typePath, visiting)] ??= build(typePath, memberName, className, typeName, visiting),
+        );
       } else {
         subs.add(
           SeqProperty(
@@ -465,11 +568,19 @@ class _IniBuilder {
     if (inheritGuard) visiting.remove(typeRoot);
 
     final bareOvr = val?.directives[instOverrideAttr] ?? def?.directives[instOverrideAttr];
+    // Bare own-section flag masks (`%FLG = N`, `%INSTFLG = N` — value sections
+    // only across the corpus, and never coexisting with the member form on the
+    // owning parent) are retained under the same literal keys as the member
+    // form, so a property's flags read the same either way.
+    final bareFlg = val?.directives[flagsAttr] ?? def?.directives[flagsAttr];
+    final bareInstFlg = val?.directives[instFlagsAttr] ?? def?.directives[instFlagsAttr];
     final comment = _unquote(val?.directives[commentAttr] ?? def?.directives[commentAttr]);
     final elementType = _unquote(val?.directives[elementTypeAttr] ?? def?.directives[elementTypeAttr]);
     final attrs = <String, String>{
       ...ownAttributes,
       if (bareOvr != null) instOverrideAttr: bareOvr,
+      if (bareFlg != null) flagsAttr: bareFlg,
+      if (bareInstFlg != null) instFlagsAttr: bareInstFlg,
       if (comment != null && comment.isNotEmpty) commentAttr: comment,
       if (elementType != null && elementType.isNotEmpty) elementTypeAttr: elementType,
     };

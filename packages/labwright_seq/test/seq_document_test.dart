@@ -111,4 +111,17 @@ void main() {
     expect(doc, isA<UnknownSeqDocument>());
     expect(doc.header.format, SeqFormat.unknown);
   });
+
+  test('a TOF1 header with a non-inflatable body degrades to recon-only (no throw)', () {
+    final header = Uint8List(0x108);
+    header.setAll(0, ascii.encode('TOF1'));
+    header.setAll(0x0a, ascii.encode('SequenceFile'));
+    final bytes = Uint8List.fromList([...header, 0xde, 0xad, 0xbe, 0xef]);
+    final doc = SeqDocument.parse(bytes);
+    expect(doc, isA<BinarySeqDocument>());
+    final bin = doc as BinarySeqDocument;
+    expect(bin.partialFile, isNull);
+    expect(bin.inflatedSize, 0);
+    expect(bin.header.fileType, 'SequenceFile');
+  });
 }

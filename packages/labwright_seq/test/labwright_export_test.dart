@@ -132,11 +132,11 @@ void main() {
             '${result.stdout}\n${result.stderr}',
       );
       final out = result.stdout.toString();
-      expect(out, contains('○ MainSequence (skipped)'), reason: 'unported boilerplate reports skipped, not passed');
+      expect(out, contains('SKIP MainSequence'), reason: 'unported boilerplate reports skipped, not passed');
       expect(
         out,
         contains(
-          '1 test(s) — 0 passed, 0 failed, 0 errors, '
+          '1 test(s) - 0 passed, 0 failed, 0 errors, '
           '1 skipped',
         ),
       );
