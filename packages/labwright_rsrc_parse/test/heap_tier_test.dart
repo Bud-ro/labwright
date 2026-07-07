@@ -3,12 +3,21 @@ import 'dart:typed_data';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
-/// Classifies one crafted record with [heapDecodeTier], the single source of
-/// truth for the 3-tier coverage metric. Each record is tiered standalone so a
+/// Grades one crafted record with [heapDecodeTier], the single source of
+/// truth for the 3-tier coverage metric. Each record is graded standalone so a
 /// mis-tiering can't silently inflate the corpus % and get re-baselined.
 /// [enclosingKind] mirrors the class context [measureHeapTiers] supplies.
-HeapDecodeTier tier(List<int> bytes, {int enclosingKind = -1}) =>
+HeapTierGrade grade(List<int> bytes, {int enclosingKind = -1}) =>
     heapDecodeTier(Uint8List.fromList(bytes), 0, bytes[0], 'BDHb', enclosingKind: enclosingKind);
+
+/// The record's tier, asserting no bytes were split off to a lower tier — the
+/// helper for every non-container form (only role-catalogued container-width
+/// attributes carry a nonzero [HeapTierGrade.valueKindPayloadBytes]).
+HeapDecodeTier tier(List<int> bytes, {int enclosingKind = -1}) {
+  final g = grade(bytes, enclosingKind: enclosingKind);
+  expect(g.valueKindPayloadBytes, 0, reason: 'unexpected payload-byte split');
+  return g.tier;
+}
 
 void main() {
   test('semantic: object header, group open/close, typed ref, decoded C4, named attr', () {
@@ -38,10 +47,16 @@ void main() {
       HeapDecodeTier.semantic,
       reason: 'raw 0x1E7 compressedWireTable, small scalar form',
     );
+    final wireTable = grade([0xc5, 0xe7, 0x06, 0x03, 0, 0, 0, 0, 0]);
     expect(
-      tier([0xc5, 0xe7, 0x06, 0x03, 0, 0, 0, 0, 0]),
+      wireTable.tier,
       HeapDecodeTier.semantic,
-      reason: 'raw 0x1E7 compressedWireTable, container form (record meaning known; interior packing not)',
+      reason: 'raw 0x1E7 compressedWireTable, container form: the 3-byte header/role is known',
+    );
+    expect(
+      wireTable.valueKindPayloadBytes,
+      6,
+      reason: 'the 6 packed payload bytes are NOT decoded — they grade value-kind-known, not semantic',
     );
     expect(tier([0x44, 0x9f, 0x83, 0x50]), HeapDecodeTier.semantic, reason: 'raw 0x09F lastSignalKind (inferred)');
     expect(tier([0x14, 0x53, 0x01, 0xfd, 0x00, 0x07]), HeapDecodeTier.semantic, reason: 'ddoRef (cross-heap, 100%)');
@@ -55,6 +70,24 @@ void main() {
       tier([0xc4, 0x5f, 0x08, 0, 0, 0, 0, 0, 10, 0, 20]),
       HeapDecodeTier.semantic,
       reason: 'C4 5F = docBounds (decoded rect role)',
+    );
+  });
+
+  test('container-width attrs split: header semantic, undecoded payload interior value-kind-known', () {
+    // C6 FF (u16-length escape) container with a non-validating payload:
+    // raw 0x26C constValue is catalogued (inferred), so its 5 header bytes are
+    // semantic while the 4 undecoded payload bytes are not.
+    final constBlob = grade([0xc6, 0x6c, 0xff, 0x00, 0x04, 0xff, 0xff, 0xff, 0xff]);
+    expect(constBlob.tier, HeapDecodeTier.semantic, reason: 'raw 0x26C constValue: role catalogued');
+    expect(constBlob.valueKindPayloadBytes, 4, reason: 'non-string payload interior is not decoded');
+    // An empty catalogued container is all header: nothing to downgrade.
+    expect(grade([0xc5, 0xe7, 0x00]).valueKindPayloadBytes, 0, reason: 'zero-length payload: no interior bytes');
+    // An UNCATALOGUED container tag has no known role at all — the whole
+    // record (header included) stays value-kind-known, not split.
+    expect(
+      tier([0xc5, 0x99, 0x02, 0xaa, 0xbb]),
+      HeapDecodeTier.valueKindKnown,
+      reason: 'uncatalogued raw 0x199 container: extent known, role and content not',
     );
   });
 

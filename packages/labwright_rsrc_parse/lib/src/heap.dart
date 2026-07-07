@@ -1910,17 +1910,21 @@ HeapRef? decodeHeapRef(Uint8List body, int offset) {
   return HeapRef(kind: HeapRefKind.fromRaw(raw), targetOid: (body[offset + 4] << 8) | body[offset + 5], length: 6);
 }
 
-/// How fully a heap record is understood — the basis of the honest three-tier
-/// coverage metric (see `tool/coverage.dart` + `corpus/README.md`).
+/// How fully a heap record's bytes are understood — the basis of the honest
+/// three-tier coverage metric (see `tool/coverage.dart` + `corpus/README.md`).
 enum HeapDecodeTier {
-  /// We know what the record **means**: an object header (`kind`+`oid`), a
-  /// bracket-tree group open/close, a typed object reference, a decoded `C4`
-  /// opcode, or a *named* attribute/property-token of confirmed/inferred
-  /// confidence.
+  /// We know what the bytes **mean AND what they hold**: an object header
+  /// (`kind`+`oid`), a bracket-tree group open/close, a typed object reference,
+  /// a decoded `C4` opcode, or a *named* attribute/property-token of
+  /// confirmed/inferred confidence whose value is decoded. A catalogued role
+  /// alone is NOT enough: a container-width record with a known role but an
+  /// undecoded payload interior grades only its header/framing bytes here (see
+  /// [HeapTierGrade.valueKindPayloadBytes]).
   semantic,
 
-  /// The value's **kind/width** is known but its meaning is not — a `kindOnly`
-  /// catalog entry (a value-kind label, not a decoded role).
+  /// The value's **kind/width/extent** is known but its meaning or content is
+  /// not — a `kindOnly` catalog entry (a value-kind label, not a decoded role)
+  /// or the unpacked payload interior of a role-catalogued container record.
   valueKindKnown,
 
   /// Only the record **boundary** is known (it was framed); its content is not
@@ -1928,70 +1932,101 @@ enum HeapDecodeTier {
   framed,
 }
 
+/// The byte-accounted tier grade of one heap record: every byte of the record
+/// grades [tier], EXCEPT the trailing [valueKindPayloadBytes] payload bytes,
+/// which grade [HeapDecodeTier.valueKindKnown]. Produced by [heapDecodeTier].
+///
+/// [valueKindPayloadBytes] is nonzero only for a container-width attribute
+/// record ([HeapAttrWidth.container]) whose role is catalogued
+/// (confirmed/inferred) but whose length-prefixed payload interior is not
+/// decoded: the header/framing bytes count semantic (the role IS known), the
+/// undecoded interior does not — knowing a record's role never makes its
+/// unpacked payload bytes semantic.
+class HeapTierGrade {
+  const HeapTierGrade(this.tier, {this.valueKindPayloadBytes = 0});
+
+  /// The grade of the record's bytes (minus [valueKindPayloadBytes]).
+  final HeapDecodeTier tier;
+
+  /// Trailing payload bytes downgraded to [HeapDecodeTier.valueKindKnown]
+  /// because their interior is not decoded; 0 for every non-split record.
+  final int valueKindPayloadBytes;
+}
+
 /// The cosm(etic) part classes (`SL__cosm` / `SL__multiCosm` /
 /// `SL__bigMultiCosm`) in whose scope the class-polymorphic colour tags raw
 /// `0x020`/`0x021` carry colours (see [HeapAttribute.cosmFgColor]).
 const Set<int> kCosmClassKinds = {0x09, 0x0b, 0x0c};
 
-/// Classifies the record at [offset] in a heap [body] (whose lead byte is [lead],
-/// living in section [sectionTag]) into a [HeapDecodeTier]. The single source of
-/// truth shared by the coverage tool and its regression test so they cannot
-/// drift. Assumes [offset] is a record start as produced by [walkHeapBody].
+/// Grades the record at [offset] in a heap [body] (whose lead byte is [lead],
+/// living in section [sectionTag]) into a byte-accounted [HeapTierGrade]. The
+/// single source of truth shared by the coverage tool and its regression test
+/// so they cannot drift. Assumes [offset] is a record start as produced by
+/// [walkHeapBody].
 ///
 /// [enclosingKind] is the innermost enclosing object's class code (−1 when
 /// unknown / outside any object); it decides the class-polymorphic colour tags
 /// raw `0x020`/`0x021`, which count as decoded colours only inside
 /// [kCosmClassKinds] (their label/select-class populations carry text-flag
 /// words and indices instead — see [HeapAttribute.cosmFgColor]).
-HeapDecodeTier heapDecodeTier(Uint8List body, int offset, int lead, String sectionTag, {int enclosingKind = -1}) {
-  if (_isObjectHeader(body, offset)) return HeapDecodeTier.semantic;
-  if (kHeapGroupCloseLeads.contains(lead)) return HeapDecodeTier.semantic;
+HeapTierGrade heapDecodeTier(Uint8List body, int offset, int lead, String sectionTag, {int enclosingKind = -1}) {
+  const semantic = HeapTierGrade(HeapDecodeTier.semantic);
+  const valueKindKnown = HeapTierGrade(HeapDecodeTier.valueKindKnown);
+  const framed = HeapTierGrade(HeapDecodeTier.framed);
+  if (_isObjectHeader(body, offset)) return semantic;
+  if (kHeapGroupCloseLeads.contains(lead)) return semantic;
   if (kHeapGroupOpenLeads.contains(lead) && offset + 4 <= body.length && isHeapTypeTag(body[offset + 3])) {
-    return HeapDecodeTier.semantic;
+    return semantic;
   }
   if (lead >= 0x14 && lead <= 0x17) {
-    if (decodeHeapRef(body, offset) != null) return HeapDecodeTier.semantic;
+    if (decodeHeapRef(body, offset) != null) return semantic;
     // A leaf whose system-attribute list parses (`fb`/`fe` literal or the
     // 7-byte `fd` escape): the structure/value is known, the tag meaning not.
-    if (offset + 4 <= body.length && isHeapTypeTag(body[offset + 3])) return HeapDecodeTier.valueKindKnown;
+    if (offset + 4 <= body.length && isHeapTypeTag(body[offset + 3])) return valueKindKnown;
   }
   if (lead == kHeapRecordPrefix) {
     final rec = c4FrameAt(body, offset, sectionTag);
-    if (rec == null) return HeapDecodeTier.framed;
-    if (rec.kind.isDecoded) return HeapDecodeTier.semantic;
+    if (rec == null) return framed;
+    // Every decoded C4 opcode decodes its VALUE (rect/string/string-table/
+    // help-text/path), so the whole record is semantic — there is no
+    // role-known-but-payload-opaque decoded C4 form to split.
+    if (rec.kind.isDecoded) return semantic;
     // A structural or even uncatalogued C4 opcode still has a grammar-known
     // length-prefixed payload — boundary and data extent known, meaning not.
-    return HeapDecodeTier.valueKindKnown;
+    return valueKindKnown;
   }
   final attr = decodeHeapAttr(body, offset);
   if (attr != null) {
     if (attr.width == HeapAttrWidth.container) {
-      return attr.attribute.confidence == AttrConfidence.kindOnly
-          ? HeapDecodeTier.valueKindKnown
-          : HeapDecodeTier.semantic;
+      if (attr.attribute.confidence == AttrConfidence.kindOnly) return valueKindKnown;
+      // Role catalogued (confirmed/inferred) but the length-prefixed payload
+      // interior is NOT decoded: only the header/framing bytes are semantic;
+      // the payload bytes grade value-kind-known (extent known, content not).
+      final headerLen = body[offset] == 0xc6 && body[offset + 2] == 0xff ? 5 : 3;
+      return HeapTierGrade(HeapDecodeTier.semantic, valueKindPayloadBytes: attr.length - headerLen);
     }
     // An uncatalogued tag still has a fully-known value kind/width from the
     // record header grammar — boundary AND value known, meaning not.
-    if (attr.attribute == HeapAttribute.unknown) return HeapDecodeTier.valueKindKnown;
-    if (attr.attribute.confidence == AttrConfidence.kindOnly) return HeapDecodeTier.valueKindKnown;
+    if (attr.attribute == HeapAttribute.unknown) return valueKindKnown;
+    if (attr.attribute.confidence == AttrConfidence.kindOnly) return valueKindKnown;
     if (attr.attribute.kind == HeapAttrKind.color) {
       if (attr.width != HeapAttrWidth.rgb && attr.width != HeapAttrWidth.f64) {
-        return HeapDecodeTier.valueKindKnown;
+        return valueKindKnown;
       }
       if ((attr.rawTag == 0x020 || attr.rawTag == 0x021) && !kCosmClassKinds.contains(enclosingKind)) {
-        return HeapDecodeTier.valueKindKnown;
+        return valueKindKnown;
       }
     }
-    return HeapDecodeTier.semantic;
+    return semantic;
   }
   final pv = decodeHeapPropertyToken(body, offset);
   if (pv != null) {
-    return pv.token.confidence == AttrConfidence.kindOnly ? HeapDecodeTier.valueKindKnown : HeapDecodeTier.semantic;
+    return pv.token.confidence == AttrConfidence.kindOnly ? valueKindKnown : semantic;
   }
   // An uncatalogued bare 2-byte selector (`1x <sub>`, a zero-size leaf slot):
   // boundary and (empty) value known, tag meaning not.
-  if (lead >> 4 == 1 && recordSkip(body, offset) == 2) return HeapDecodeTier.valueKindKnown;
-  return HeapDecodeTier.framed;
+  if (lead >> 4 == 1 && recordSkip(body, offset) == 2) return valueKindKnown;
+  return framed;
 }
 
 /// Per-section decode-tier byte totals: the section's [walk] plus the bytes of
@@ -2007,10 +2042,12 @@ class HeapTierTotals {
   /// completeness, and the spans.
   final HeapWalk walk;
 
-  /// Bytes in spans classified [HeapDecodeTier.semantic].
+  /// Bytes graded [HeapDecodeTier.semantic] (a split container record
+  /// contributes only its header/framing bytes here — see [HeapTierGrade]).
   final int semanticBytes;
 
-  /// Bytes in spans classified [HeapDecodeTier.valueKindKnown].
+  /// Bytes graded [HeapDecodeTier.valueKindKnown], including the undecoded
+  /// payload interiors of role-catalogued container records.
   final int valueKindBytes;
 }
 
@@ -2051,9 +2088,11 @@ HeapTierTotals measureHeapTiers(Uint8List body, String sectionTag) {
       semantic += span.length;
       continue;
     }
-    switch (heapDecodeTier(body, offset, lead, sectionTag, enclosingKind: innermost)) {
+    final grade = heapDecodeTier(body, offset, lead, sectionTag, enclosingKind: innermost);
+    switch (grade.tier) {
       case HeapDecodeTier.semantic:
-        semantic += span.length;
+        semantic += span.length - grade.valueKindPayloadBytes;
+        valueKind += grade.valueKindPayloadBytes;
       case HeapDecodeTier.valueKindKnown:
         valueKind += span.length;
       case HeapDecodeTier.framed:

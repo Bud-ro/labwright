@@ -27,13 +27,19 @@ hand-maintained.
 | `blocksIdentified` | block instances with a catalogued tag / all block instances | every block is identified by type (no unknown tags) | 100.0 % |
 | **`blockBytesDecoded`** | inflated block-content bytes in a block type that has a decoder / all block-content bytes | every block has decode logic (byte-weighted) — **the headline "how much is left"** | **98.0 %** |
 | `heapFramed` *(refines heap blocks)* | heap body bytes inside a deliberately-framed record / heap body bytes | every heap record's boundaries are recognized | 97.5 % |
-| `heapSemantic` *(refines heap blocks)* | heap body bytes in a record with a typed meaning / heap body bytes | every heap record's meaning is decoded | 95.4 % |
+| `heapSemantic` *(refines heap blocks)* | heap body bytes whose meaning **and** value/content are decoded / heap body bytes | every heap byte's meaning is decoded | 94.4 % |
 | `heapComplete` *(refines heap blocks)* | heaps walked exactly to EOF / heaps | no heap has an undecodable tail | 99.7 % |
 
-`valueKindKnown` (2.1 %) is reported alongside `heapSemantic` as an intermediate
-tier — bytes whose value *kind* is known but whose meaning is not. `heapSemantic +
+`heapSemantic` is byte-accounted, not record-accounted: a record with a
+catalogued *role* but an undecoded payload interior (a container-width
+attribute such as the packed `compressedWireTable`) contributes only its
+header/framing bytes — knowing what a container is for does not make its
+unpacked payload bytes understood. `valueKindKnown` (3.1 %) is reported
+alongside `heapSemantic` as an intermediate tier — bytes whose value
+*kind/extent* is known but whose meaning or content is not (kindOnly catalog
+entries plus those undecoded container payload interiors). `heapSemantic +
 valueKindKnown = classified` (97.5 %, exactly the framed fraction: every framed
-byte is now at least value-kind-known) is the "we at least know what shape this
+byte is at least value-kind-known) is the "we at least know what shape this
 is" figure; only `heapSemantic` counts as done.
 
 ## How to read it today
@@ -42,11 +48,12 @@ is" figure; only `heapSemantic` counts as done.
 the **wrapper and inventory are understood**. The remaining work lives entirely in
 **`blockBytesDecoded` (98.0 %)** — the residual block bytes sit in blocks with no
 decoder yet (e.g. `VICD` compiled code) — and, within the decoded heap blocks, in
-**`heapSemantic` (95.4 %)**. Those two are the frontier; everything else is a
+**`heapSemantic` (94.4 %)**. Those two are the frontier; everything else is a
 finished axis to *defend*, not advance. The remaining heap gap decomposes as
-~2.5 % unwalked section tails (`heapFramed`) plus ~2.1 % value-kind-known records
-(class-polymorphic label/cosm style words, narrow-width colour forms, and the
-kindOnly catalog tail — each blocker is documented on its `HeapAttribute` entry).
+~2.5 % unwalked section tails (`heapFramed`) plus ~3.1 % value-kind-known bytes
+(undecoded container payload interiors, class-polymorphic label/cosm style
+words, narrow-width colour forms, and the kindOnly catalog tail — each blocker
+is documented on its `HeapAttribute` entry).
 
 ## Notes / tracked work
 

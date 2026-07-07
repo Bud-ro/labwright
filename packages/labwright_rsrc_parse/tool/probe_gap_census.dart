@@ -196,9 +196,12 @@ void _probeVi(Uint8List bytes, _Agg agg) {
         events.add(_Ev(span.offset, span.length, span.lead, node, key));
         // Census (records only; opens/closes/headers not delivered here are
         // credited semantic by the tier metric anyway).
-        final tier = heapDecodeTier(body, span.offset, span.lead, sec.tag);
-        final tk = '${tier.index}|$key';
-        agg.bump(agg.tierKeyBytes, tk, span.length);
+        final grade = heapDecodeTier(body, span.offset, span.lead, sec.tag);
+        final tk = '${grade.tier.index}|$key';
+        agg.bump(agg.tierKeyBytes, tk, span.length - grade.valueKindPayloadBytes);
+        if (grade.valueKindPayloadBytes > 0) {
+          agg.bump(agg.tierKeyBytes, '${HeapDecodeTier.valueKindKnown.index}|$key', grade.valueKindPayloadBytes);
+        }
         agg.bump(agg.tierKeyCount, tk, 1);
         if (node == null) return;
         node.recordIndex++;

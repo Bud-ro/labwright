@@ -93,9 +93,13 @@ void _probeVi(Uint8List bytes, _Agg agg) {
     final walk = walkHeapBody(body);
     var sawCb26 = false;
     for (final span in walk.spans) {
-      final tier = heapDecodeTier(body, span.offset, span.lead, sec.tag);
-      final tk = '${tier.index}|${_tagKey(body, span.offset, span.lead)}';
-      agg.bump(agg.tierKeyBytes, tk, span.length);
+      final grade = heapDecodeTier(body, span.offset, span.lead, sec.tag);
+      final key = _tagKey(body, span.offset, span.lead);
+      final tk = '${grade.tier.index}|$key';
+      agg.bump(agg.tierKeyBytes, tk, span.length - grade.valueKindPayloadBytes);
+      if (grade.valueKindPayloadBytes > 0) {
+        agg.bump(agg.tierKeyBytes, '${HeapDecodeTier.valueKindKnown.index}|$key', grade.valueKindPayloadBytes);
+      }
       agg.bump(agg.tierKeyCount, tk, 1);
       if (span.lead == 0x64 && span.length == 3) sawCb26 = true;
     }

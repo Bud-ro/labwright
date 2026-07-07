@@ -27,7 +27,11 @@ import 'corpus_base.dart';
 ///                        (byte-weighted). This is the "how much is left" headline.
 ///   Heap internals (refine blockBytesDecoded for the C4 record heaps, the bulk):
 ///   heapFramed%        — heap body bytes inside a deliberately-framed record.
-///   heapSemantic%      — heap body bytes in a record assigned a typed meaning.
+///   heapSemantic%      — heap body bytes whose meaning AND value/content are
+///                        decoded. A record with a catalogued role but an
+///                        undecoded payload interior (a container-width
+///                        attribute) counts only its header/framing bytes here;
+///                        the payload bytes count value-kind-known.
 ///   heapComplete%      — heaps walked exactly to EOF.
 ///
 /// The numbers are never hand-maintained: this tool computes them over the WHOLE
@@ -193,7 +197,9 @@ void main(List<String> args) {
       ..writeln('- **container%** — VIs that serialize back byte-identically (round-trip).')
       ..writeln('- **idBlk%** — block instances whose tag is catalogued.')
       ..writeln('- **decBytes%** — block-content bytes in a block type with a decoder.')
-      ..writeln('- **heapFramed/heapSemantic/heapComplete%** — heap body framing / typed-meaning / walked-to-EOF.')
+      ..writeln(
+        '- **heapFramed/heapSemantic/heapComplete%** — heap body framing / meaning-and-value-decoded / walked-to-EOF.',
+      )
       ..writeln('- Heaps measured: ${kHeapSectionTags.join(', ')}.')
       ..writeln()
       ..writeln(md.toString().trimRight())
@@ -215,8 +221,9 @@ void main(List<String> args) {
         'blocksIdentified': 'block instances with a catalogued tag / all block instances',
         'blockBytesDecoded': 'inflated block bytes in a block type with a decoder / all block bytes',
         'deliberatelyParsed': 'heap body bytes inside a deliberately-framed record / heap body bytes',
-        'semanticallyDecoded': 'heap body bytes with a typed meaning / heap body bytes',
-        'valueKindKnown': 'heap body bytes with known value-kind but unknown meaning / heap body bytes',
+        'semanticallyDecoded': 'heap body bytes whose meaning AND value/content are decoded / heap body bytes',
+        'valueKindKnown':
+            'heap body bytes with known value-kind/extent but undecoded meaning or content / heap body bytes',
         'fullyParsedHeaps': 'heaps walked exactly to EOF / heaps',
         'note': 'Each is 0..1; the VI format is fully understood IFF every axis is 1.0.',
       },
