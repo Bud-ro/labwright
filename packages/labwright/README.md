@@ -87,9 +87,17 @@ test badges its run-to-run change — `new fail`, `now passing`, and `flaky` (a 
 **Hot reload** reloads edited sources and **re-runs only the modified tests** (`labwright run
 --interactive` starts the VM service for this; running `dart run` directly needs
 `--enable-vm-service`). Modification is detected by content hash: an edit inside one test's body re-runs
-just that test, while an edit to shared setup/helpers conservatively re-runs everything. Code reached
-through functions your tests call reloads reliably; because registration does not re-run, *added or
-removed* tests — and sometimes an edit made directly inside a test's inline body — still need a restart.
+just that test, while an edit to shared setup/helpers conservatively re-runs everything. **Reload's honest
+limit:** a registered test body is a *captured closure*, and a VM reload cannot re-map an already-captured
+closure — so code reached *through functions your tests call* reloads reliably, but an edit made directly
+inside a test's inline body runs its OLD code, and added/removed tests don't appear.
+
+**Hot restart** is the full-fidelity answer: the suite exits with a restart sentinel and the `labwright
+run` supervisor spawns a fresh process — fresh registration, new captures, every edit real. The viewer
+page survives (the connection dot goes red, then green as the stream reconnects on the same port) and the
+fresh suite runs from the top. Requires the CLI supervisor; under a bare `dart run` the button explains
+why it is disabled. With `--port 0` the fresh process binds a NEW ephemeral port, so use a fixed port
+(the default 1212 is fine) when you want restart.
 
 ## Content identity (skip-unmodified tooling)
 

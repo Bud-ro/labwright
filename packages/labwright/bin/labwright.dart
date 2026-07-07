@@ -24,8 +24,11 @@
 //   --keep-open,       Keep the viewer serving after the run AND accept its
 //   --interactive      control actions — re-run all/failed, run one, stop,
 //                      buttons, open-in-editor, seed replay, hot reload (starts
-//                      the VM service; re-runs only content-modified tests).
-//                      Two names for one behavior; CI exits.
+//                      the VM service; re-runs only content-modified tests) and
+//                      hot RESTART (fresh process via this supervisor — the fix
+//                      for edited test bodies, which are captured closures a
+//                      reload cannot re-map). Two names for one behavior.
+//                      CI exits.
 //
 // scan   Lints the plug-in convention: lists .dart files under the dir
 //        (default e2e/) that are NOT reachable from main.dart via local
@@ -37,6 +40,7 @@
 import 'dart:io';
 import 'dart:math';
 
+import 'package:labwright/src/restart_code.dart';
 import 'package:labwright/src/source_hash.dart' show localDirectiveUris;
 
 Future<void> main(List<String> args) async {
@@ -131,22 +135,34 @@ Future<int> _run(List<String> args) async {
   }
 
   // ONE child, sharing our stdio; signals forward so it is never orphaned.
-  final process = await Process.start(
-    Platform.resolvedExecutable,
-    ['run', if (linger) '--enable-vm-service=0', ...defines, path],
-    mode: ProcessStartMode.inheritStdio,
-  );
-  final signals = [
-    ProcessSignal.sigint.watch().listen((_) => process.kill(ProcessSignal.sigint)),
-    // SIGTERM does not exist on Windows — watching it fails with an async
-    // SignalException (errno 50) that would kill the CLI with exit 255.
-    if (!Platform.isWindows) ProcessSignal.sigterm.watch().listen((_) => process.kill()),
-  ];
-  final code = await process.exitCode;
-  for (final s in signals) {
-    await s.cancel();
+  // A lingering child may EXIT with the hot-restart sentinel: registered test
+  // bodies are captured closures a VM hot reload cannot re-map, so the viewer's
+  // "Hot restart" asks THIS supervisor for a fresh process (fresh registration,
+  // new captures). The child is told a supervisor is present via a define.
+  while (true) {
+    final process = await Process.start(
+      Platform.resolvedExecutable,
+      [
+        'run',
+        if (linger) ...['--enable-vm-service=0', '-Dlabwright.supervised=true'],
+        ...defines,
+        path,
+      ],
+      mode: ProcessStartMode.inheritStdio,
+    );
+    final signals = [
+      ProcessSignal.sigint.watch().listen((_) => process.kill(ProcessSignal.sigint)),
+      // SIGTERM does not exist on Windows — watching it fails with an async
+      // SignalException (errno 50) that would kill the CLI with exit 255.
+      if (!Platform.isWindows) ProcessSignal.sigterm.watch().listen((_) => process.kill()),
+    ];
+    final code = await process.exitCode;
+    for (final s in signals) {
+      await s.cancel();
+    }
+    if (!linger || code != restartExitCode) return code;
+    stdout.writeln('[Labwright]: hot restart - starting a fresh suite process');
   }
-  return code;
 }
 
 /// Default target: `e2e/main.dart`. A directory means its `main.dart`; a

@@ -90,6 +90,7 @@ import 'package:test_api/hooks_testing.dart';
 import 'package:vm_service/vm_service.dart' as vm;
 import 'package:vm_service/vm_service_io.dart' as vmio;
 
+import 'src/restart_code.dart';
 import 'src/viewer.dart';
 
 export 'package:matcher/expect.dart';
@@ -152,6 +153,13 @@ const int _port = int.fromEnvironment('labwright.port', defaultValue: 1212);
 const bool _viewerEnabled = bool.fromEnvironment('labwright.viewer', defaultValue: true);
 const bool _keepOpen = bool.fromEnvironment('labwright.keepOpen');
 const bool _interactive = bool.fromEnvironment('labwright.interactive');
+
+/// Whether a `labwright run` supervisor is watching our exit code (it sets
+/// this define). Hot restart only works supervised: the suite exits with
+/// [restartExitCode] and the supervisor spawns a fresh process — fresh
+/// registration, so edited test BODIES (captured closures a hot reload cannot
+/// re-map) really run their new code.
+const bool _supervised = bool.fromEnvironment('labwright.supervised');
 
 /// The viewer lingers after the run — serving results and accepting control
 /// actions (re-run, run-one, stop) — only when explicitly asked
@@ -545,6 +553,8 @@ Map<String, Object?> _state() => {
   // the viewer is lingering with the control plane live (UI shows them).
   'busy': _runInProgress,
   'interactive': _linger,
+  // Hot restart needs the labwright run supervisor (see restartExitCode).
+  'supervised': _supervised,
   if (_buttons.isNotEmpty) 'buttons': [for (final b in _buttons) b.label],
   // The active run's waiting list, in order — distinct from test statuses so
   // a queued test still shows its previous verdict in the Tests pane.
@@ -761,6 +771,21 @@ Future<Map<String, Object?>> _handleAction(Map<String, Object?> action) async {
   // halt it before its first test.
   _stopRequested = false;
   switch (type) {
+    case 'hotRestart':
+      // The full-fidelity reload: exit with the restart sentinel and let the
+      // labwright run supervisor spawn a fresh process (fresh registration ->
+      // new body captures). Unsupervised (bare dart run), exiting would just
+      // kill the viewer, so the action is rejected with the reason.
+      if (!_supervised) {
+        return const {
+          'accepted': false,
+          'error': 'hot restart needs the labwright run supervisor (bare dart run cannot respawn itself)',
+        };
+      }
+      stdout.writeln('$_tag hot restart - exiting for a fresh suite process');
+      // Give the 202 response a beat to flush before the process dies.
+      unawaited(Future<void>.delayed(const Duration(milliseconds: 50)).then((_) => exit(restartExitCode)));
+      return const {'accepted': true};
     case 'hotReload':
       // Reload edited sources, then re-run only what changed (falling back to
       // the whole selection when hashes can't tell). Held busy across the

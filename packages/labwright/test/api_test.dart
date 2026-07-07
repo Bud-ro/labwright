@@ -253,6 +253,12 @@ void main() {
       expect(failedRes.statusCode, 409);
       await failedRes.drain<void>();
 
+      // Unsupervised (bare dart run): hot restart is rejected with the reason
+      // (exiting would kill the viewer with nothing to respawn it).
+      final restartRes = await action({'type': 'hotRestart'});
+      expect(restartRes.statusCode, 409);
+      expect((jsonDecode(await restartRes.transform(utf8.decoder).join()) as Map)['error'], contains('supervisor'));
+
       // An unknown action is a clean 409 with an error, not a 500.
       final bogusRes = await action({'type': 'nonsense'});
       expect(bogusRes.statusCode, 409);

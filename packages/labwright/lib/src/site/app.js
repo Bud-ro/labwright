@@ -153,6 +153,11 @@ function controls() {
   byId('rerun').disabled = busy;
   byId('rerunFailed').disabled = busy || !anyFail;
   byId('hotReload').disabled = busy;
+  const restart = byId('hotRestart');
+  restart.disabled = busy || !snap.supervised;
+  restart.title = snap.supervised
+      ? 'fresh suite process — required for edited test bodies'
+      : 'needs the labwright run supervisor (bare dart run cannot respawn itself)';
   byId('stop').disabled = !busy;
   const ub = byId('userButtons'); ub.replaceChildren();
   (snap.buttons || []).forEach((label, i) => {
@@ -169,6 +174,7 @@ function onSnapshot() {
 byId('rerun').onclick = () => post({ type: 'rerun' });
 byId('rerunFailed').onclick = () => post({ type: 'rerunFailed' });
 byId('hotReload').onclick = () => post({ type: 'hotReload' });
+byId('hotRestart').onclick = () => post({ type: 'hotRestart' });
 byId('stop').onclick = () => post({ type: 'stop' });
 byId('copyFails').onclick = () => {
   const text = (snap.tests || []).filter((t) => isFail(t.status))
