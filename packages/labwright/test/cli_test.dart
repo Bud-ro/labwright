@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -194,4 +195,70 @@ void main() {
       if (abs.existsSync()) abs.deleteSync(recursive: true);
     }
   }, timeout: const Timeout(Duration(minutes: 2)));
+
+  test('hot restart: the CLI supervisor respawns a fresh suite on the same port', () async {
+    // A fixed free port: restart must rebind the SAME port so the page's
+    // EventSource reconnects (probe-close race is acceptable in a test).
+    final probe = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+    final port = probe.port;
+    await probe.close();
+    final process = await Process.start(Platform.resolvedExecutable, [
+      'run',
+      'bin/labwright.dart',
+      'run',
+      'test/fixtures/green_e2e.dart',
+      '--interactive',
+      '--no-identity',
+      '--port',
+      '$port',
+    ], workingDirectory: pkgRoot);
+    try {
+      var banners = 0;
+      final first = Completer<void>();
+      final second = Completer<void>();
+      final supervisorLine = Completer<void>();
+      process.stdout.transform(utf8.decoder).transform(const LineSplitter()).listen((line) {
+        if (line.contains('View results and re-run tests at')) {
+          banners++;
+          if (banners == 1 && !first.isCompleted) first.complete();
+          if (banners == 2 && !second.isCompleted) second.complete();
+        }
+        if (line.contains('hot restart - starting a fresh suite process') && !supervisorLine.isCompleted) {
+          supervisorLine.complete();
+        }
+      });
+      await first.future.timeout(const Duration(seconds: 60));
+
+      final client = HttpClient();
+      final req = await client.postUrl(Uri.parse('http://localhost:$port/action'));
+      req.headers.contentType = ContentType.json;
+      req.write(jsonEncode({'type': 'hotRestart'}));
+      final res = await req.close();
+      expect(res.statusCode, 202, reason: 'a supervised suite accepts the restart');
+      await res.drain<void>();
+
+      // The supervisor notices the sentinel exit and a FRESH suite comes up on
+      // the same port (fresh registration = the whole fix for edited bodies).
+      await supervisorLine.future.timeout(const Duration(seconds: 30));
+      await second.future.timeout(const Duration(seconds: 60));
+      Map<String, Object?> state = const {};
+      for (var i = 0; i < 100; i++) {
+        try {
+          final r = await (await client.getUrl(Uri.parse('http://localhost:$port/state.json'))).close();
+          state = (jsonDecode(await r.transform(utf8.decoder).join()) as Map).cast<String, Object?>();
+          if (state['done'] == true) break;
+        } catch (_) {
+          /* rebinding window */
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      }
+      expect(state['done'], true, reason: 'the fresh suite ran to completion on the same port');
+      expect(state['supervised'], true);
+      expect(state['tests'] as List, hasLength(3), reason: 'full fresh registration');
+      client.close(force: true);
+    } finally {
+      process.kill();
+      await process.exitCode;
+    }
+  }, timeout: const Timeout(Duration(minutes: 3)));
 }
