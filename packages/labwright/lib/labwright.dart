@@ -185,13 +185,11 @@ const bool _captureLocations = _linger || _reportPath != '';
 /// back to re-running everything. The cheap contextHash is always reported.
 const bool _identity = bool.fromEnvironment('labwright.identity', defaultValue: true);
 
-/// The command the viewer's "open in editor" runs, as space-separated argv
-/// with `{file}` / `{line}` placeholders substituted into single args (so
-/// paths with spaces are safe — no shell). Defaults to the VS Code CLI; set
-/// `-Dlabwright.editor` for another editor, e.g. `vim +{line} {file}`.
-const String _editorCmd = String.fromEnvironment(
-  'labwright.editor',
-  defaultValue: 'code --goto {file}:{line}',
+/// The static `vscode://` goto template shipped in the viewer state —
+/// jump-to-source is a pure client-side `<a href>` (see [editorLinkTemplate]).
+final String _editorLink = editorLinkTemplate(
+  isWindows: Platform.isWindows,
+  wslDistro: Platform.isLinux ? Platform.environment['WSL_DISTRO_NAME'] : null,
 );
 
 // ── console styling ───────────────────────────────────────────────────────────
@@ -540,7 +538,9 @@ void _register(
       path = uri;
     }
     if (path == null) continue;
-    return (path, int.parse(m.group(2)!));
+    // Absolute always: the viewer's goto link concatenates the path straight
+    // into a vscode:// URL, which has no base to resolve a relative path.
+    return (File(path).absolute.path, int.parse(m.group(2)!));
   }
   return (null, null);
 }
@@ -555,6 +555,9 @@ Map<String, Object?> _state() => {
   'interactive': _linger,
   // Hot restart needs the labwright run supervisor (see restartExitCode).
   'supervised': _supervised,
+  // The static vscode:// goto template; the page substitutes {file}/{line}
+  // and renders jump-to-source as a plain link (see editorLinkTemplate).
+  if (_linger) 'editorLink': _editorLink,
   if (_buttons.isNotEmpty) 'buttons': [for (final b in _buttons) b.label],
   // The active run's waiting list, in order — distinct from test statuses so
   // a queued test still shows its previous verdict in the Tests pane.
@@ -613,10 +616,11 @@ Future<void> _runAll() async {
   if (_viewerEnabled) {
     _viewer = await Viewer.start(_port, _state);
     if (_viewer != null) {
-      // The control plane: the viewer POSTs actions back here — wired ONLY
-      // under an explicit --interactive/--keep-open, so a plain run's viewer
-      // is genuinely read-only (503) and CI never grows an action surface.
-      if (_linger) _viewer!.onAction = _handleAction;
+      // The control plane: the flat route table (POST /<verb> -> one handler
+      // each) — wired ONLY under an explicit --interactive/--keep-open, so a
+      // plain run's viewer is genuinely read-only (503) and CI never grows a
+      // control surface.
+      if (_linger) _viewer!.actions = _actions;
       _viewer!.report = _report; // GET /report.json for download
       _viewer!.history = () => _history; // Log view feed (batch on connect)
 
@@ -741,123 +745,160 @@ void _diff(_TestEntry entry, String priorStatus) {
 /// count (see [_diff]).
 const int _flakyFlips = 2;
 
-/// Dispatches a viewer control action. `stop` is always accepted (it just
-/// flips the flag the run loop watches); the re-run family is rejected with
-/// `accepted: false` while a run is already in progress (the bench is
-/// singular). The actual run is fired-and-forgotten — its progress streams
-/// back over SSE.
-Future<Map<String, Object?>> _handleAction(Map<String, Object?> action) async {
-  final type = action['type'];
-  if (type == 'stop') {
-    _stopRequested = true;
-    return const {'accepted': true};
-  }
-  if (type == 'open') {
-    // Opening a source file is always allowed — it touches the editor, not the
-    // bench, so it never waits on (or blocks) a run.
-    final file = action['file'] as String?;
-    if (file == null || file.isEmpty) {
-      return const {'accepted': false, 'error': 'no file'};
-    }
-    unawaited(_openInEditor(file, (action['line'] as num?)?.toInt() ?? 1));
-    return const {'accepted': true};
-  }
+/// The viewer's control plane — one named handler per `POST /<verb>`, handed
+/// to the viewer as a flat route table (wired only under an explicit
+/// `--interactive`/`--keep-open`, see [_runAll]). This map IS the whole
+/// surface: a UI control POSTs its verb, the viewer's shared guard admits
+/// the request, and exactly one function below runs.
+final Map<String, Future<Map<String, Object?>> Function(Map<String, Object?>)> _actions = {
+  'run': _runAction,
+  'run-failed': _runFailedAction,
+  'run-one': _runOneAction,
+  'stop': _stopAction,
+  'reload': _reloadAction,
+  'restart': _restartAction,
+  'reseed': _reseedAction,
+  'button': _buttonAction,
+};
+
+/// The accept gate every verb except `stop` passes first: rejected while a
+/// run is already in progress (the bench is singular). On accept, a stale
+/// stop request is consumed HERE, at accept time — a stop that arrives after
+/// this point (e.g. while a hot reload is still loading sources) must survive
+/// into the run loop and halt it before its first test. Returns the rejection
+/// map, or null to proceed. Accepted runs are fired-and-forgotten — their
+/// progress streams back over SSE.
+Map<String, Object?>? _rejectUnlessIdle() {
   if (_runInProgress) {
     return const {'accepted': false, 'error': 'a run is already in progress'};
   }
-  // Every remaining case starts new work, so a stale stop request is consumed
-  // HERE, at accept time — a stop that arrives after this point (e.g. while a
-  // hot reload is still loading sources) must survive into the run loop and
-  // halt it before its first test.
   _stopRequested = false;
-  switch (type) {
-    case 'hotRestart':
-      // The full-fidelity reload: exit with the restart sentinel and let the
-      // labwright run supervisor spawn a fresh process (fresh registration ->
-      // new body captures). Unsupervised (bare dart run), exiting would just
-      // kill the viewer, so the action is rejected with the reason.
-      if (!_supervised) {
-        return const {
-          'accepted': false,
-          'error': 'hot restart needs the labwright run supervisor (bare dart run cannot respawn itself)',
-        };
-      }
-      stdout.writeln('$_tag hot restart - exiting for a fresh suite process');
-      // Give the 202 response a beat to flush before the process dies.
-      unawaited(Future<void>.delayed(const Duration(milliseconds: 50)).then((_) => exit(restartExitCode)));
-      return const {'accepted': true};
-    case 'hotReload':
-      // Reload edited sources, then re-run only what changed (falling back to
-      // the whole selection when hashes can't tell). Held busy across the
-      // reload so no other action slips in; the gate is finally-protected so
-      // no throw can leave the UI locked out.
-      _runInProgress = true;
-      _viewer?.update();
-      String? err;
-      List<_TestEntry> modified = const [];
-      try {
-        err = await _hotReload();
-        if (err == null) modified = await _modifiedAfterReload();
-      } catch (e) {
-        err = 'hot reload failed: $e';
-      } finally {
-        if (err != null || modified.isEmpty) {
-          _runInProgress = false;
-          _viewer?.update();
-        }
-      }
-      if (err != null) return {'accepted': false, 'error': err};
-      if (modified.isEmpty) {
-        stdout.writeln('$_tag hot reload - no modified tests');
-        return const {'accepted': true, 'modified': 0};
-      }
-      stdout.writeln('$_tag hot reload - ${modified.length} modified test(s)');
-      unawaited(_execute(modified));
-      return {'accepted': true, 'modified': modified.length};
-    case 'reseed':
-      // Seed replay: re-shuffle the selection to a chosen seed and re-run, so
-      // an operator reproduces a specific fuzz order without a restart. The
-      // seed must be explicit — silently defaulting would quietly destroy the
-      // reproducibility this action exists for.
-      final requested = action['seed'];
-      if (requested is! num) {
-        return const {'accepted': false, 'error': 'reseed needs an integer seed (0 = registration order)'};
-      }
-      _activeSeed = requested.toInt();
-      _selected = _select(_activeSeed);
-      unawaited(_execute(_selected));
-    case 'rerun':
-      unawaited(_execute(_selected));
-    case 'rerunFailed':
-      final failed = [
-        for (final t in _selected)
-          if (_isFail(t.status)) t,
-      ];
-      if (failed.isEmpty) {
-        return const {'accepted': false, 'error': 'nothing to re-run'};
-      }
-      unawaited(_execute(failed));
-    case 'runOne':
-      _TestEntry? entry;
-      for (final t in _selected) {
-        if (t.name == action['test']) {
-          entry = t;
-          break;
-        }
-      }
-      if (entry == null) {
-        return {'accepted': false, 'error': 'no test named "${action['test']}"'};
-      }
-      unawaited(_execute([entry]));
-    case 'button':
-      final i = (action['index'] as num?)?.toInt() ?? -1;
-      if (i < 0 || i >= _buttons.length) {
-        return {'accepted': false, 'error': 'no button #$i'};
-      }
-      unawaited(_runButton(_buttons[i]));
-    default:
-      return {'accepted': false, 'error': 'unknown action "$type"'};
+  return null;
+}
+
+/// `POST /stop`: always accepted — it just flips the flag the run loop
+/// watches between tests. The in-flight test always finishes (never leave the
+/// bench torn mid-test).
+Future<Map<String, Object?>> _stopAction(Map<String, Object?> body) async {
+  _stopRequested = true;
+  return const {'accepted': true};
+}
+
+/// `POST /run`: re-run the whole selection.
+Future<Map<String, Object?>> _runAction(Map<String, Object?> body) async {
+  final rejected = _rejectUnlessIdle();
+  if (rejected != null) return rejected;
+  unawaited(_execute(_selected));
+  return const {'accepted': true};
+}
+
+/// `POST /run-failed`: re-run only the currently failing tests.
+Future<Map<String, Object?>> _runFailedAction(Map<String, Object?> body) async {
+  final rejected = _rejectUnlessIdle();
+  if (rejected != null) return rejected;
+  final failed = [
+    for (final t in _selected)
+      if (_isFail(t.status)) t,
+  ];
+  if (failed.isEmpty) {
+    return const {'accepted': false, 'error': 'nothing to re-run'};
   }
+  unawaited(_execute(failed));
+  return const {'accepted': true};
+}
+
+/// `POST /run-one` (`{test: <name>}`): run one test by name.
+Future<Map<String, Object?>> _runOneAction(Map<String, Object?> body) async {
+  final rejected = _rejectUnlessIdle();
+  if (rejected != null) return rejected;
+  for (final t in _selected) {
+    if (t.name == body['test']) {
+      unawaited(_execute([t]));
+      return const {'accepted': true};
+    }
+  }
+  return {'accepted': false, 'error': 'no test named "${body['test']}"'};
+}
+
+/// `POST /restart`: hot restart, the full-fidelity reload — exit with the
+/// restart sentinel and let the labwright run supervisor spawn a fresh
+/// process (fresh registration -> new body captures). Unsupervised (bare
+/// dart run), exiting would just kill the viewer, so the request is rejected
+/// with the reason.
+Future<Map<String, Object?>> _restartAction(Map<String, Object?> body) async {
+  final rejected = _rejectUnlessIdle();
+  if (rejected != null) return rejected;
+  if (!_supervised) {
+    return const {
+      'accepted': false,
+      'error': 'hot restart needs the labwright run supervisor (bare dart run cannot respawn itself)',
+    };
+  }
+  stdout.writeln('$_tag hot restart - exiting for a fresh suite process');
+  // Give the 202 response a beat to flush before the process dies.
+  unawaited(Future<void>.delayed(const Duration(milliseconds: 50)).then((_) => exit(restartExitCode)));
+  return const {'accepted': true};
+}
+
+/// `POST /reload`: hot reload edited sources, then re-run only what changed
+/// (falling back to the whole selection when hashes can't tell). Held busy
+/// across the reload so no other verb slips in; the gate is finally-protected
+/// so no throw can leave the UI locked out.
+Future<Map<String, Object?>> _reloadAction(Map<String, Object?> body) async {
+  final rejected = _rejectUnlessIdle();
+  if (rejected != null) return rejected;
+  _runInProgress = true;
+  _viewer?.update();
+  String? err;
+  List<_TestEntry> modified = const [];
+  try {
+    err = await _hotReload();
+    if (err == null) modified = await _modifiedAfterReload();
+  } catch (e) {
+    err = 'hot reload failed: $e';
+  } finally {
+    if (err != null || modified.isEmpty) {
+      _runInProgress = false;
+      _viewer?.update();
+    }
+  }
+  if (err != null) return {'accepted': false, 'error': err};
+  if (modified.isEmpty) {
+    stdout.writeln('$_tag hot reload - no modified tests');
+    return const {'accepted': true, 'modified': 0};
+  }
+  stdout.writeln('$_tag hot reload - ${modified.length} modified test(s)');
+  unawaited(_execute(modified));
+  return {'accepted': true, 'modified': modified.length};
+}
+
+/// `POST /reseed` (`{seed: N}`): seed replay — re-shuffle the selection to a
+/// chosen seed and re-run, so an operator reproduces a specific fuzz order
+/// without a restart. The seed must be explicit — silently defaulting would
+/// quietly destroy the reproducibility this verb exists for.
+Future<Map<String, Object?>> _reseedAction(Map<String, Object?> body) async {
+  final rejected = _rejectUnlessIdle();
+  if (rejected != null) return rejected;
+  final requested = body['seed'];
+  if (requested is! num) {
+    return const {'accepted': false, 'error': 'reseed needs an integer seed (0 = registration order)'};
+  }
+  _activeSeed = requested.toInt();
+  _selected = _select(_activeSeed);
+  unawaited(_execute(_selected));
+  return const {'accepted': true};
+}
+
+/// `POST /button` (`{index: i}`): fire the i-th operator [button]. The action
+/// itself runs serialized with test runs (see [_runButton]).
+Future<Map<String, Object?>> _buttonAction(Map<String, Object?> body) async {
+  final rejected = _rejectUnlessIdle();
+  if (rejected != null) return rejected;
+  final i = (body['index'] as num?)?.toInt() ?? -1;
+  if (i < 0 || i >= _buttons.length) {
+    return {'accepted': false, 'error': 'no button #$i'};
+  }
+  unawaited(_runButton(_buttons[i]));
   return const {'accepted': true};
 }
 
@@ -949,51 +990,10 @@ Future<String?> _hotReload() async {
   }
 }
 
-/// Opens [file] at [line] in the operator's editor via [_editorCmd]. Runs
-/// detached with an argv list (no shell), so a path with spaces is one safe
-/// argument; a missing editor is a warning, never a crash.
-Future<void> _openInEditor(String file, int line) async {
-  final argv = _editorArgv(_editorCmd, file, line);
-  if (argv.isEmpty) return;
-  try {
-    // runInShell on Windows: the default `code` resolves to code.cmd, a batch
-    // file CreateProcess cannot execute directly.
-    await Process.start(argv.first, argv.sublist(1), mode: ProcessStartMode.detached, runInShell: Platform.isWindows);
-  } catch (e) {
-    stderr.writeln('$_tag could not open editor (${argv.first}): $e');
-  }
-}
-
-/// Splits an editor command template into argv, honoring double-quoted
-/// segments so an executable path containing spaces is expressible —
-/// `-Dlabwright.editor='"C:\Program Files\VS Code\bin\code.cmd" --goto
-/// {file}:{line}'` — then substitutes `{file}`/`{line}` into whole arguments
-/// (never through a shell, so paths stay single arguments).
-List<String> _editorArgv(String template, String file, int line) {
-  final argv = <String>[];
-  final buf = StringBuffer();
-  var quoted = false;
-  var pending = false; // a closed empty quote still yields an argument
-  for (var i = 0; i < template.length; i++) {
-    final c = template[i];
-    if (c == '"') {
-      quoted = !quoted;
-      pending = true;
-    } else if (c == ' ' && !quoted) {
-      if (pending || buf.isNotEmpty) argv.add(buf.toString());
-      buf.clear();
-      pending = false;
-    } else {
-      buf.write(c);
-    }
-  }
-  if (pending || buf.isNotEmpty) argv.add(buf.toString());
-  return [for (final a in argv) a.replaceAll('{file}', file).replaceAll('{line}', '$line')];
-}
-
 /// The report: the suite state plus the requirements trace
 /// (requirement ID → every test that claims it, with status). Viewer-only
-/// keys (the button labels) are dropped — the report is about run results.
+/// keys (the button labels, the goto link template) are dropped — the report
+/// is about run results.
 Map<String, Object?> _report() {
   final requirements = <String, List<Map<String, Object?>>>{};
   for (final t in _selected) {
@@ -1001,7 +1001,9 @@ Map<String, Object?> _report() {
       requirements.putIfAbsent(req, () => []).add({'test': t.name, 'status': t.status});
     }
   }
-  final state = _state()..remove('buttons');
+  final state = _state()
+    ..remove('buttons')
+    ..remove('editorLink');
   // Content identity, contained to the report: each test's hash, the shared
   // setupHash, and the bench-declared context + contextHash. A consumer may
   // reuse a prior verdict only while all three match (see [context]).

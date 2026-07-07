@@ -22,8 +22,8 @@
 //                      then conservatively re-runs everything).
 //   --report out.json  Write the machine-readable run report.
 //   --keep-open,       Keep the viewer serving after the run AND accept its
-//   --interactive      control actions — re-run all/failed, run one, stop,
-//                      buttons, open-in-editor, seed replay, hot reload (starts
+//   --interactive      control routes — re-run all/failed, run one, stop,
+//                      buttons, seed replay, hot reload (starts
 //                      the VM service; re-runs only content-modified tests) and
 //                      hot RESTART (fresh process via this supervisor — the fix
 //                      for edited test bodies, which are captured closures a

@@ -213,8 +213,8 @@ void main() {
     }
   }, timeout: const Timeout(Duration(minutes: 2)));
 
-  test('interactive control plane: actions re-run, reject when idle/unknown', () async {
-    // --interactive lingers AND wires the POST /action control plane.
+  test('interactive control plane: routes re-run, reject when idle/unknown', () async {
+    // --interactive lingers AND wires the per-verb POST control routes.
     final process = await Process.start(
       Platform.resolvedExecutable,
       [
@@ -241,31 +241,31 @@ void main() {
       await ready.future.timeout(const Duration(seconds: 60));
 
       final client = HttpClient();
-      Future<HttpClientResponse> action(Object body) async {
-        final req = await client.postUrl(Uri.parse('http://localhost:$p/action'));
+      Future<HttpClientResponse> post(String path, [Object body = const <String, Object?>{}]) async {
+        final req = await client.postUrl(Uri.parse('http://localhost:$p$path'));
         req.headers.contentType = ContentType.json;
         req.write(jsonEncode(body));
         return req.close();
       }
 
       // Green fixture has nothing failed → rejected (409), not a crash.
-      final failedRes = await action({'type': 'rerunFailed'});
+      final failedRes = await post('/run-failed');
       expect(failedRes.statusCode, 409);
       await failedRes.drain<void>();
 
       // Unsupervised (bare dart run): hot restart is rejected with the reason
       // (exiting would kill the viewer with nothing to respawn it).
-      final restartRes = await action({'type': 'hotRestart'});
+      final restartRes = await post('/restart');
       expect(restartRes.statusCode, 409);
       expect((jsonDecode(await restartRes.transform(utf8.decoder).join()) as Map)['error'], contains('supervisor'));
 
-      // An unknown action is a clean 409 with an error, not a 500.
-      final bogusRes = await action({'type': 'nonsense'});
-      expect(bogusRes.statusCode, 409);
-      expect((jsonDecode(await bogusRes.transform(utf8.decoder).join()) as Map)['error'], contains('unknown action'));
+      // A verb outside the route table is a clean 404, not a 500.
+      final bogusRes = await post('/nonsense');
+      expect(bogusRes.statusCode, 404);
+      expect((jsonDecode(await bogusRes.transform(utf8.decoder).join()) as Map)['error'], contains('unknown route'));
 
       // Re-run one test: accepted (202), and the suite runs again to done.
-      final runRes = await action({'type': 'runOne', 'test': 'rail comes up'});
+      final runRes = await post('/run-one', {'test': 'rail comes up'});
       expect(runRes.statusCode, 202);
       await runRes.drain<void>();
 
@@ -320,21 +320,21 @@ void main() {
       final state = (jsonDecode(await stateRes.transform(utf8.decoder).join()) as Map).cast<String, Object?>();
       expect(state['buttons'], ['reset rig'], reason: 'registered buttons surface in the viewer state');
 
-      Future<HttpClientResponse> action(Object body) async {
-        final req = await client.postUrl(Uri.parse('http://localhost:$p/action'));
+      Future<HttpClientResponse> post(String path, Object body) async {
+        final req = await client.postUrl(Uri.parse('http://localhost:$p$path'));
         req.headers.contentType = ContentType.json;
         req.write(jsonEncode(body));
         return req.close();
       }
 
       // Firing the button runs its async action (which logs 'rig reset').
-      final runRes = await action({'type': 'button', 'index': 0});
+      final runRes = await post('/button', {'index': 0});
       expect(runRes.statusCode, 202);
       await runRes.drain<void>();
       await ranButton.future.timeout(const Duration(seconds: 30), onTimeout: () => fail('the button action never ran'));
 
       // An out-of-range button index is a clean rejection, not a crash.
-      final badRes = await action({'type': 'button', 'index': 9});
+      final badRes = await post('/button', {'index': 9});
       expect(badRes.statusCode, 409);
       await badRes.drain<void>();
 
@@ -376,24 +376,15 @@ void main() {
     }
   }, timeout: const Timeout(Duration(minutes: 2)));
 
-  test('open-in-editor + seed replay: source locations, reseed, editor launch', () async {
-    final tmp = Directory.systemTemp.createTempSync('lw_');
-    // A recorder standing in for the editor (POSIX only — bash script), in a
-    // directory WITH A SPACE: the editor template must express it via quotes.
-    final opened = File('${tmp.path}/opened.txt');
-    final rec = File('${tmp.path}/editor dir/rec.sh')
-      ..createSync(recursive: true)
-      ..writeAsStringSync('#!/usr/bin/env bash\nprintf "%s" "\$*" > "${opened.path}"\n');
-    final posix = !Platform.isWindows;
-    if (posix) Process.runSync('chmod', ['+x', rec.path]);
-    try {
+  test(
+    'goto link + seed replay: absolute source locations, editorLink template, reseed',
+    () async {
       final process = await Process.start(Platform.resolvedExecutable, [
         'run',
         '-Dlabwright.port=0',
         '-Dlabwright.interactive=true',
         '-Dlabwright.identity=false', // hashes not asserted here — skip the hasher isolate
         '-Dlabwright.seed=0',
-        if (posix) '-Dlabwright.editor="${rec.path}" {file} {line}',
         'test/fixtures/green_e2e.dart',
       ], workingDirectory: pkgRoot);
       try {
@@ -415,38 +406,32 @@ void main() {
           return (jsonDecode(await res.transform(utf8.decoder).join()) as Map).cast<String, Object?>();
         }
 
-        Future<HttpClientResponse> action(Object body) async {
-          final req = await client.postUrl(Uri.parse('http://localhost:$p/action'));
-          req.headers.contentType = ContentType.json;
-          req.write(jsonEncode(body));
-          return req.close();
-        }
-
-        // Each test carries its registration file:line (captured in interactive).
+        // Each test carries its ABSOLUTE registration file:line (captured in
+        // interactive) — the page concatenates it straight into the goto link.
         final state = await getState();
         final rail = (state['tests'] as List).cast<Map<String, Object?>>().firstWhere(
           (t) => t['name'] == 'rail comes up',
         );
-        expect('${rail['file']}', endsWith('green_e2e.dart'));
+        final file = '${rail['file']}';
+        expect(file, endsWith('green_e2e.dart'));
+        expect(
+          file,
+          anyOf(startsWith('/'), matches(RegExp(r'^[A-Za-z]:'))),
+          reason: 'a vscode:// link has no base to resolve a relative path against',
+        );
         expect(rail['line'], isA<int>().having((n) => n > 0, 'positive', isTrue));
 
-        // Open the test's source: accepted, and (POSIX) the editor really runs.
-        final openRes = await action({'type': 'open', 'file': rail['file'], 'line': rail['line']});
-        expect(openRes.statusCode, 202);
-        await openRes.drain<void>();
-        if (posix) {
-          for (var i = 0; i < 60 && !opened.existsSync(); i++) {
-            await Future<void>.delayed(const Duration(milliseconds: 50));
-          }
-          expect(
-            opened.readAsStringSync(),
-            contains('green_e2e.dart'),
-            reason: 'the editor command ran with the file:line',
-          );
-        }
+        // The state ships the static goto template; jump-to-source is a pure
+        // client-side vscode:// link, so there is no server route for it.
+        final link = '${state['editorLink']}';
+        expect(link, startsWith('vscode://'));
+        expect(link, endsWith('{file}:{line}'));
 
         // Seed replay: re-run in a chosen seed's order; state carries the seed.
-        final reseedRes = await action({'type': 'reseed', 'seed': 7});
+        final reseedReq = await client.postUrl(Uri.parse('http://localhost:$p/reseed'));
+        reseedReq.headers.contentType = ContentType.json;
+        reseedReq.write(jsonEncode({'seed': 7}));
+        final reseedRes = await reseedReq.close();
         expect(reseedRes.statusCode, 202);
         await reseedRes.drain<void>();
         Map<String, Object?> after = const {};
@@ -461,10 +446,9 @@ void main() {
         process.kill();
         await process.exitCode;
       }
-    } finally {
-      tmp.deleteSync(recursive: true);
-    }
-  }, timeout: const Timeout(Duration(minutes: 2)));
+    },
+    timeout: const Timeout(Duration(minutes: 2)),
+  );
 
   test('run-to-run diff + report download: newFail/newPass/flaky, /report.json', () async {
     final process = await Process.start(
@@ -498,8 +482,8 @@ void main() {
 
       Map<String, Object?> theTest(Map<String, Object?> s) => (s['tests'] as List).cast<Map<String, Object?>>().single;
 
-      Future<void> action(Object body) async {
-        final req = await client.postUrl(Uri.parse('http://localhost:$p/action'));
+      Future<void> post(String path, [Object body = const <String, Object?>{}]) async {
+        final req = await client.postUrl(Uri.parse('http://localhost:$p$path'));
         req.headers.contentType = ContentType.json;
         req.write(jsonEncode(body));
         await (await req.close()).drain<void>();
@@ -520,13 +504,13 @@ void main() {
       expect(theTest(first)['change'], isNull, reason: 'no prior run to diff against');
 
       // break the bench, re-run → newFail.
-      await action({'type': 'button', 'index': 0});
-      await action({'type': 'rerun'});
+      await post('/button', {'index': 0});
+      await post('/run');
       expect(theTest(await settleAt('failed'))['change'], 'newFail');
 
       // fix the bench, re-run → newPass, and now flaky (flipped twice).
-      await action({'type': 'button', 'index': 1});
-      await action({'type': 'rerun'});
+      await post('/button', {'index': 1});
+      await post('/run');
       final fixed = await settleAt('passed');
       expect(theTest(fixed)['change'], 'newPass');
       expect(theTest(fixed)['flaky'], true, reason: 'a pass↔fail↔pass test is flaky');
@@ -612,9 +596,9 @@ void main() {
 
       // A log line during a run arrives as a small `log` DELTA ({name, t, m})
       // rather than a full-state rebroadcast per line.
-      final req = await client.postUrl(Uri.parse('http://localhost:$p/action'));
+      final req = await client.postUrl(Uri.parse('http://localhost:$p/run'));
       req.headers.contentType = ContentType.json;
-      req.write(jsonEncode({'type': 'rerun'}));
+      req.write(jsonEncode(const <String, Object?>{}));
       await (await req.close()).drain<void>();
       final delta = await logDelta.future.timeout(const Duration(seconds: 30));
       expect(delta['name'], 'rail comes up');
@@ -672,9 +656,9 @@ void main() {
 
       // Edit the source and hot-reload: the re-run must pick up the new code.
       suite.writeAsStringSync(src('MARKER_B'));
-      final req = await client.postUrl(Uri.parse('http://localhost:$p/action'));
+      final req = await client.postUrl(Uri.parse('http://localhost:$p/reload'));
       req.headers.contentType = ContentType.json;
-      req.write(jsonEncode({'type': 'hotReload'}));
+      req.write(jsonEncode(const <String, Object?>{}));
       final res = await req.close();
       expect(res.statusCode, 202, reason: 'reload accepted (VM service is on)');
       await res.drain<void>();
@@ -722,8 +706,8 @@ void main() {
           return (jsonDecode(await res.transform(utf8.decoder).join()) as Map).cast<String, Object?>();
         }
 
-        Future<int> action(Object body) async {
-          final req = await client.postUrl(Uri.parse('http://localhost:$p/action'));
+        Future<int> postVerb(String path, [Object body = const <String, Object?>{}]) async {
+          final req = await client.postUrl(Uri.parse('http://localhost:$p$path'));
           req.headers.contentType = ContentType.json;
           req.write(jsonEncode(body));
           final res = await req.close();
@@ -739,8 +723,8 @@ void main() {
 
         // Re-run, then Stop while the 800ms 'slow gate' is in flight: the slow
         // test must finish, and 'fast follower' must never be touched.
-        expect(await action({'type': 'rerun'}), 202);
-        expect(await action({'type': 'stop'}), 202);
+        expect(await postVerb('/run'), 202);
+        expect(await postVerb('/stop'), 202);
         Map<String, Object?> after = const {};
         for (var i = 0; i < 200; i++) {
           after = await getState();
@@ -762,17 +746,17 @@ void main() {
         expect((after['summary'] as Map)['passed'], 2, reason: 'the summary still counts the preserved verdict');
 
         // A reseed without an explicit seed is rejected, not silently seed 0.
-        expect(await action({'type': 'reseed'}), 409);
+        expect(await postVerb('/reseed'), 409);
 
-        // The action surface refuses requests that don't look like this
+        // The control routes refuse requests that don't look like this
         // page's own: a cross-site Origin (a drive-by form/fetch always
-        // carries one) or a non-JSON content type is 403, before any action
+        // carries one) or a non-JSON content type is 403, before any route
         // logic runs. curl-style requests (no Origin, JSON type) stay welcome.
         Future<int> post({String? origin, ContentType? type}) async {
-          final req = await client.postUrl(Uri.parse('http://localhost:$p/action'));
+          final req = await client.postUrl(Uri.parse('http://localhost:$p/stop'));
           if (type != null) req.headers.contentType = type;
           if (origin != null) req.headers.set('Origin', origin);
-          req.write(jsonEncode({'type': 'stop'}));
+          req.write('{}');
           final res = await req.close();
           await res.drain<void>();
           return res.statusCode;
@@ -798,7 +782,7 @@ void main() {
     timeout: const Timeout(Duration(minutes: 2)),
   );
 
-  test('a non-interactive viewer is read-only: POST /action answers 503', () async {
+  test('a non-interactive viewer is read-only: a control POST answers 503', () async {
     final process = await Process.start(Platform.resolvedExecutable, [
       'run',
       '-Dlabwright.port=0',
@@ -814,11 +798,11 @@ void main() {
       });
       final p = await port.future.timeout(const Duration(seconds: 30));
       final client = HttpClient();
-      final req = await client.postUrl(Uri.parse('http://localhost:$p/action'));
+      final req = await client.postUrl(Uri.parse('http://localhost:$p/stop'));
       req.headers.contentType = ContentType.json;
-      req.write(jsonEncode({'type': 'stop'}));
+      req.write('{}');
       final res = await req.close();
-      expect(res.statusCode, 503, reason: 'without --interactive/--keep-open no action is wired at all');
+      expect(res.statusCode, 503, reason: 'without --interactive/--keep-open no route is wired at all');
       await res.drain<void>();
       client.close(force: true);
     } finally {
@@ -895,9 +879,9 @@ void main() {
         }
 
         Future<int> reload() async {
-          final req = await client.postUrl(Uri.parse('http://localhost:$p/action'));
+          final req = await client.postUrl(Uri.parse('http://localhost:$p/reload'));
           req.headers.contentType = ContentType.json;
-          req.write(jsonEncode({'type': 'hotReload'}));
+          req.write(jsonEncode(const <String, Object?>{}));
           final res = await req.close();
           expect(res.statusCode, 202);
           final body = (jsonDecode(await res.transform(utf8.decoder).join()) as Map).cast<String, Object?>();
