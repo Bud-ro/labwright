@@ -205,7 +205,7 @@ void main() {
       final page = await pageRes.transform(utf8.decoder).join();
       expect(page, contains('labwright'));
       expect(page, contains('id="logList"'), reason: 'the multi-pane app (Tests/Log/Queue)');
-      expect(page, contains('EventSource'), reason: 'live SSE viewer');
+      expect(page, contains('src="app.js"'), reason: 'the app ships as real site files (see site_test.dart)');
       client.close(force: true);
     } finally {
       process.kill();

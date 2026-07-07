@@ -1,0 +1,43 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>labwright</title>
+<link rel="stylesheet" href="style.css">
+<script src="app.js" defer></script>
+</head>
+<body>
+<header>
+  <h1><span id="conn" class="conn" title="disconnected"></span>labwright<span id="meta">connecting…</span></h1>
+  <div id="controls" hidden>
+    <button id="rerun">Re-run all</button>
+    <button id="rerunFailed">Re-run failed</button>
+    <button id="hotReload" title="reload edited sources and re-run the modified tests">Hot reload</button>
+    <button id="stop">Stop</button>
+    <span id="userButtons"></span>
+    <a id="dl" href="/report.json" download="labwright-report.json">download report</a>
+    <button id="copyFails" class="mini">copy failures</button>
+  </div>
+</header>
+<main>
+  <div id="left">
+    <section class="pane" id="tests">
+      <div class="paneHead">Tests <span class="count" id="cTests"></span></div>
+      <input class="filter" id="filterTests" placeholder="filter tests by name / status / requirement…">
+      <div class="scroll" id="testsList"></div>
+    </section>
+    <section class="pane" id="queue">
+      <div class="paneHead">Queue <span class="count" id="cQueue"></span></div>
+      <input class="filter" id="filterQueue" placeholder="filter queue…">
+      <div class="scroll" id="queueList"></div>
+    </section>
+  </div>
+  <section class="pane" id="log">
+    <div class="paneHead">Log <span class="count" id="cLog"></span></div>
+    <input class="filter" id="filterLog" placeholder="filter log by name / status…">
+    <div class="scroll" id="logList"></div>
+  </section>
+</main>
+</body>
+</html>
