@@ -32,16 +32,16 @@ void main() {
     expect(spanTotal, cov.recordUndecodedBytes);
   });
 
-  test('oracle: decoded floors (record-region semantic >= 46%)', () {
+  test('oracle: decoded floors (record-region semantic >= 70%)', () {
     final cov = binaryByteCoverage(Uint8List.fromList(oracle.readAsBytesSync()))!;
-    // Measured 2026-07: semantic 11937/25597 = 46.6%, structural 3580,
-    // undecoded 10080 (NI_Measurement/NI_UpdatePinMap bailed bodies +
-    // Action-step TS/SData regions). Floors slightly under the measurement.
-    expect(cov.recordSemanticRatio, greaterThanOrEqualTo(0.46));
-    expect(cov.recordAccountedRatio, greaterThanOrEqualTo(0.60));
+    // Measured 2026-07 round 2 (typedef-body completion: framed X-ref
+    // scalars, substep elements, proto specs, attr floors): semantic
+    // 71.1%, accounted 98.5%. Floors slightly under the measurement.
+    expect(cov.recordSemanticRatio, greaterThanOrEqualTo(0.70));
+    expect(cov.recordAccountedRatio, greaterThanOrEqualTo(0.97));
   });
 
-  test('rosetta binaries: invariants hold and each decodes >= 40% of its record region', () {
+  test('rosetta binaries: invariants hold and each decodes >= 55% of its record region', () {
     for (final f in Directory('${corpusSeqDir.path}/rosetta').listSync().whereType<File>()) {
       if (!f.path.toLowerCase().endsWith('.seq')) continue;
       final bytes = Uint8List.fromList(f.readAsBytesSync());
@@ -53,7 +53,9 @@ void main() {
         cov.recordRegionBytes,
         reason: f.path,
       );
-      expect(cov.recordSemanticRatio, greaterThanOrEqualTo(0.40), reason: f.path);
+      // Round-2 measurement: every rosetta binary decodes >= 59.6% of its
+      // record region semantically.
+      expect(cov.recordSemanticRatio, greaterThanOrEqualTo(0.55), reason: f.path);
     }
   });
 
@@ -76,10 +78,11 @@ void main() {
       files++;
       total = total + cov;
     }
-    // Measured 2026-07: 294 binaries, record region 30.2 MB, semantic 5.9%,
-    // structural 1.1% — the campaign scoreboard. Floors under-pin slightly.
+    // Measured 2026-07 round 2: 294 binaries, record region 30.2 MB,
+    // semantic 13.5%, structural 4.3% — the campaign scoreboard (round 1
+    // measured 5.9%/1.1%). Floors under-pin slightly.
     expect(files, greaterThanOrEqualTo(290));
-    expect(total.recordSemanticRatio, greaterThanOrEqualTo(0.058));
-    expect(total.recordAccountedRatio, greaterThanOrEqualTo(0.068));
+    expect(total.recordSemanticRatio, greaterThanOrEqualTo(0.13));
+    expect(total.recordAccountedRatio, greaterThanOrEqualTo(0.17));
   });
 }

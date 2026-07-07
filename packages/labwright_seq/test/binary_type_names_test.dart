@@ -146,6 +146,79 @@ void main() {
     );
   });
 
+  test('rosetta-wide: every typedef body decodes (zero bailing bodies)', () {
+    // Round-2 ratchet: the body grammar covers every rosetta binary's
+    // typedef bodies END TO END — including the binary-only
+    // NI_Measurement/NI_UpdatePinMap step types (populated Substeps
+    // arrays of named Step elements), which stayed honestly bailed until
+    // the substep-element grammar landed. A regression that re-bails any
+    // body fails here by name.
+    var records = 0;
+    for (final f in Directory('${corpusSeqDir.path}/rosetta').listSync().whereType<File>()) {
+      if (!f.path.toLowerCase().endsWith('.seq')) continue;
+      final bytes = f.readAsBytesSync();
+      if (detectSeqFormat(bytes) != SeqFormat.binary) continue;
+      for (final extent in binaryTypeBodyExtents(bytes)) {
+        records++;
+        expect(extent.bail, isNull, reason: '${f.path.split('/').last} ${extent.name} bails at ${extent.bail}');
+      }
+    }
+    expect(records, greaterThanOrEqualTo(140), reason: 'rosetta typedef-record count drifted');
+  });
+
+  test('cross-format substep oracle: binary NI_Wait Substeps match the XML typedef', () {
+    // Two INDEPENDENT corpus files materialize the same engine-versioned
+    // NI_Wait step type: TraceExecution.seq stores it as XML,
+    // IronmanMark2's Sequence File 1.seq as binary. The substep decode
+    // ([_stepElement] grammar: ['Step'][X→type][name][count]{fields})
+    // must reproduce the XML side value-for-value — substep names, their
+    // typenames, the engine-assigned substep Ids, and the module
+    // bindings (LibPath/Func) all match across the two encodings.
+    final files = corpusSeqDir.listSync(recursive: true).whereType<File>().toList();
+    File? pin(String suffix) => files.where((f) => f.path.replaceAll(r'\', '/').endsWith(suffix)).firstOrNull;
+    final xmlFile = pin('Server/ExampleFiles/TraceExecution.seq');
+    final binFile = pin('Tests/Sequence File 1.seq');
+    if (xmlFile == null || binFile == null) return; // pinned files absent
+
+    // XML side: the NI_Wait typedef's Substeps array.
+    final xmlWait = parseSeqFile(xmlFile.readAsBytesSync()).types.where((t) => t.name == 'NI_Wait').first;
+    final xmlSubsteps = xmlWait.prop('Substeps')!.array!;
+    // Flattens (name → value) pairs for the compared keys, document
+    // order. VALUE-LESS slots are dropped: the XML side materializes
+    // every member (an unset `<Id><value/></Id>`), while the binary
+    // stores the override subset — only set values exist on both sides.
+    List<String> xmlPairs(SeqProperty p) => [
+      if (const {'Id', 'LibPath', 'Func'}.contains(p.name) && (p.scalar ?? '').isNotEmpty) '${p.name}=${p.scalar}',
+      for (final c in p.subProps.followedBy(p.array ?? const <SeqProperty>[])) ...xmlPairs(c),
+    ];
+
+    // Binary side: the decoded NI_Wait record's Substeps field.
+    final binWait = binaryTypeRecords(binFile.readAsBytesSync()).where((r) => r.name == 'NI_Wait').first;
+    final binSubsteps = binWait.fields!.where((f) => f.name == 'Substeps').first.children;
+    List<String> binPairs(BinaryTypeField f) => [
+      if (const {'Id', 'LibPath', 'Func'}.contains(f.name) && (f.value ?? '').isNotEmpty) '${f.name}=${f.value}',
+      for (final c in f.children) ...binPairs(c),
+    ];
+
+    expect(
+      [for (final s in binSubsteps) '${s.name}:${s.typeName}'],
+      [for (final s in xmlSubsteps) '${s.name}:${s.typeName}'],
+      reason: 'substep names/types differ across the two encodings',
+    );
+    for (var i = 0; i < binSubsteps.length; i++) {
+      // The binary stores an override SUBSET of the materialized XML
+      // side, so every binary pair must appear in the XML pair list —
+      // and the identity keys (Id/LibPath/Func) are all stored, so the
+      // lists match exactly here.
+      expect(
+        binPairs(binSubsteps[i]),
+        xmlPairs(xmlSubsteps[i]),
+        reason: 'substep ${binSubsteps[i].name}: Id/LibPath/Func values',
+      );
+    }
+    expect(binSubsteps, hasLength(3)); // OnNewStep, Post, Edit
+  });
+
   test('whole-corpus sweep: no structural tokens, recovery floors hold', () {
     var binaries = 0, withNames = 0, totalNames = 0;
     final offenders = <String>[];
