@@ -119,7 +119,12 @@ void main() {
       final p = parameters.children[i];
       final tp = twinParameters[i];
       for (final field in ['Name', 'Direction', 'Type', 'ID', 'TypeSpecialization']) {
-        expect(child(p, field)?.value, tp.prop(field)?.scalar, reason: 'parameter $i $field');
+        // Assert the binary decoded the field before comparing: a null-safe
+        // compare of two absent values would pass vacuously and silently
+        // stop testing the decode.
+        final got = child(p, field);
+        expect(got, isNotNull, reason: 'parameter $i missing decoded field $field');
+        expect(got!.value, tp.prop(field)?.scalar, reason: 'parameter $i $field');
       }
     }
   });
@@ -182,6 +187,26 @@ void main() {
               .toList()
         : const <File>[];
     File? pin(String suffix) => seqs.where((f) => f.path.replaceAll(r'\', '/').endsWith(suffix)).firstOrNull;
+
+    const pinnedSuffixes = [
+      'SubSequences/6-H_Akım/Harmonik_Akım.seq',
+      'sandbox/Test Sequence.seq',
+      'SubSequences/5-Reaktif/Reaktif_Güç_1A_PF1.seq',
+      'Very Old/Elatch-bench Backup.seq',
+    ];
+
+    test('pinned corpus files are present (guards silent skips)', () {
+      // Each pinned test below early-returns when ITS file is absent (a
+      // partial checkout may lack an individual file). This aggregate guard
+      // catches the systemic case — a corpus rename/wholesale loss — that
+      // would otherwise disable every pinned assertion silently.
+      final present = pinnedSuffixes.where((s) => pin(s) != null).length;
+      expect(
+        present,
+        pinnedSuffixes.length,
+        reason: 'pinned record-walk corpus files missing — rename/partial checkout?',
+      );
+    });
 
     test('Harmonik_Akım.seq: record-walk-only discovery (no declaration paths)', () {
       final f = pin('SubSequences/6-H_Akım/Harmonik_Akım.seq');

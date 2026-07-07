@@ -37,16 +37,43 @@ void main() {
 
   File? pin(String suffix) => files.where((f) => f.path.replaceAll(r'\', '/').endsWith(suffix)).firstOrNull;
 
-  test('aligned files (rosetta oracle + twins) derive base 0', () {
+  test('aligned files (rosetta oracle + twins) derive base 0 AND resolve their anchors', () {
     // The content-exact oracle and every rosetta binary are aligned: their
     // anchor refs resolve to Expression under base 0, so the base machinery
     // must not perturb them.
+    var binaries = 0, anchors = 0;
     for (final f in Directory('${corpusSeqDir.path}/rosetta').listSync().whereType<File>()) {
       if (!f.path.toLowerCase().endsWith('.seq')) continue;
       final bytes = Uint8List.fromList(f.readAsBytesSync());
       if (detectSeqFormat(bytes) != SeqFormat.binary) continue;
+      binaries++;
       expect(binaryTypeIndexBase(bytes), 0, reason: 'rosetta binary ${f.path.split('/').last} must be aligned');
+      // Base 0 must be a CORRECT alignment, not deriveTypeIndexBase giving
+      // up to 0: every decoded anchor field must still resolve to the
+      // Expression type under it. (A give-up 0 would mis-resolve these to a
+      // wrong record and surface a non-Expression typeName here.)
+      void walk(List<BinaryTypeField> fs) {
+        for (final field in fs) {
+          if ((field.name == 'DescriptionFormat' || field.name == 'DefaultNameFormat') && field.typeName != null) {
+            anchors++;
+            expect(field.typeName, 'Expression', reason: '${f.path.split('/').last} ${field.name}');
+          }
+          walk(field.children);
+        }
+      }
+
+      for (final r in binaryTypeRecords(bytes)) {
+        walk(r.fields ?? const []);
+      }
     }
+    // Aggregate presence guard: the rosetta oracle set must be present, else
+    // a corpus rename/partial checkout has silently disabled the assertion.
+    expect(binaries, greaterThanOrEqualTo(6), reason: 'rosetta binaries missing — partial checkout?');
+    expect(
+      anchors,
+      greaterThanOrEqualTo(6),
+      reason: 'aligned anchor fields did not decode — base-0 resolution regressed',
+    );
   });
 
   test('misaligned cohort recovers its exact per-file base', () {

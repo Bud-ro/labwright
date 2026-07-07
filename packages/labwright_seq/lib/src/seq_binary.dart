@@ -45,6 +45,14 @@ const _u32Bytes = 4;
 /// Bytes per little-endian IEEE-754 double in the record region.
 const _f64Bytes = 8;
 
+/// The smallest positive NORMAL IEEE-754 double (2^-1022). Values below it
+/// (subnormals) are the diagnostic signature of a MIS-FRAMED scalar run:
+/// small-integer / handle data read as an f64 collapses into this denormal
+/// range (e.g. the i64 IDs `1..10` decode as ~5e-324). Genuine f64 array
+/// elements are either exactly zero or human-scale reals, never subnormal,
+/// so rejecting subnormals turns a mis-frame into an honest undecoded read.
+const _smallestNormalF64 = 2.2250738585072014e-308;
+
 /// Minimum printable-run length when scanning the body for strings.
 const _minRunLength = 3;
 
@@ -1342,6 +1350,13 @@ int deriveTypeIndexBase(ByteData view, List<String> pool, int recordRegionLength
   if (exprIdx.isEmpty) return 0;
   const framedValued = 0x82; // 0x80 framed | 0x2 valued
   Set<int>? common;
+  // How many framed anchor sites (X >= 1) actually constrained the base.
+  // The base is the value common to EVERY such site, so all of them agree
+  // with any base in [common]; a nonzero base standing on a SINGLE site is
+  // uncorroborated (one coincidentally anchor-shaped run, or an ambiguous
+  // multi-candidate set reduced by nearest-zero) and could mis-resolve
+  // every framed type reference — so it is not adopted (see below).
+  var anchorSites = 0;
   for (var at = 0; at + 6 * _u32Bytes <= recordRegionLength; at++) {
     final flags = view.getUint32(at, Endian.little);
     if (flags & framedValued != framedValued || flags & ~_fieldKnownFlagBits != 0) continue;
@@ -1358,9 +1373,15 @@ int deriveTypeIndexBase(ByteData view, List<String> pool, int recordRegionLength
     final cands = {for (final e in exprIdx) x - 1 - e};
     common = common == null ? cands : common.intersection(cands);
     if (common.isEmpty) return 0;
+    anchorSites++;
   }
   if (common == null) return 0;
-  return common.reduce((a, b) => a.abs() < b.abs() ? a : b);
+  final base = common.reduce((a, b) => a.abs() < b.abs() ? a : b);
+  // Base 0 is the well-aligned default and always safe; a NONZERO base
+  // demands corroboration — at least two agreeing anchor sites — before it
+  // is trusted to rebase the whole table.
+  if (base != 0 && anchorSites < 2) return 0;
+  return base;
 }
 
 /// The recursive typedef-body field parser — see [_typeFieldsAt].
@@ -1704,7 +1725,13 @@ class _TypeBodyParser {
     var p = at;
     for (var i = 0; i < count; i++, p += _f64Bytes) {
       final value = view.getFloat64(p, Endian.little);
-      if (!value.isFinite) return null; // NaN/Inf: not a plausible run
+      // All-or-nothing per-element gate: reject NaN/Inf AND subnormals. A
+      // single non-value element fails the whole run, so a mis-framed Nums
+      // field (whose integer/handle words collapse into the denormal range)
+      // falls back to the bounds-only undecoded read instead of emitting
+      // fabricated numbers.
+      if (!value.isFinite) return null;
+      if (value != 0 && value.abs() < _smallestNormalF64) return null;
       final text = value == value.truncateToDouble() && value.abs() < 1e15 ? '${value.truncate()}' : '$value';
       elements.add(BinaryTypeField('', className: 'Num', value: text));
     }
@@ -1790,6 +1817,7 @@ class _TypeBodyParser {
     // than falling through, because the compact field form would misread
     // its first two words as `[name][value]` and fabricate a field named
     // `Step` (observed on a Setup array whose Action step's TS bailed).
+    if (!_canRead(at)) return null;
     if (_tok(_u32(at)) == _stepToken) return _stepElement(at);
     // Plain-field element (its own [flags][0][cls][name] head).
     final outer = _inInstance;
@@ -2355,7 +2383,14 @@ class _TypeBodyParser {
       // X=2 while its twin types it StepTypeSubstepsArray — an
       // ENGINE-INTRINSIC type that is never serialized (the table has no
       // such record) — and the newer record generation writes X=0
-      // (corpus-measured; surfaced as no id).
+      // (corpus-measured; surfaced as no id). X is NOT further gated to
+      // intrinsic sentinels: a framed valued ARRAY of Expression elements
+      // (a step's `DataSourceArray`) legitimately carries an X that resolves
+      // to the `Expression` record, so the bound-token PAIR — not X — is the
+      // array discriminant. A genuine framed scalar cannot reach this
+      // branch: its value word is followed by its first attr word, a flag
+      // bitmask that is never a bound-shaped small pool index, so the second
+      // `_isBoundToken` fails on any real scalar.
       final boundPair =
           valued &&
           next + 2 * _u32Bytes <= recordRegionLength &&
@@ -3284,6 +3319,9 @@ List<({String name, int headAt, int bodyAt, int? end, int? bail})> binaryTypeBod
     headOffsetsOut: headOffsets,
   );
   final extents = <({String name, int headAt, int bodyAt, int? end, int? bail})>[];
+  // Whole-file constant — derive once, not per record body (see finding-7
+  // note in [_sequenceOutlinesFromBody]).
+  final typeIndexBase = deriveTypeIndexBase(view, pool, recordRegionLength, records);
   for (var i = 0; i < records.length; i++) {
     final record = records[i];
     final bodyAt = bodyOffsets[record.name];
@@ -3291,7 +3329,7 @@ List<({String name, int headAt, int bodyAt, int? end, int? bail})> binaryTypeBod
     final boundary = i + 1 < records.length
         ? (headOffsets[records[i + 1].name] ?? 0) - _u32Bytes - _typeRecordPreambleBytes
         : null;
-    final parser = _TypeBodyParser(view, pool, recordRegionLength, records, boundary);
+    final parser = _TypeBodyParser(view, pool, recordRegionLength, records, boundary, typeIndexBase);
     final ok = parser.parse(bodyAt) != null;
     extents.add((
       name: record.name,
@@ -3419,9 +3457,23 @@ const _sequenceRecordMaxSubProps = 12;
 /// subprop prefix (each with its end offset, for byte accounting).
 /// [complete] when every declared subprop decoded.
 class _SequenceRecordWalk {
-  const _SequenceRecordWalk(this.offset, this.name, this.comment, this.subpropCount, this.subProps, this.end);
+  const _SequenceRecordWalk(
+    this.offset,
+    this.name,
+    this.comment,
+    this.headWords,
+    this.subpropCount,
+    this.subProps,
+    this.end,
+  );
   final int offset;
   final String name;
+
+  /// The head word count this record framed with — 3 (`[Sequence][name]
+  /// [count]`) or 4 (with the middle comment slot). Tracked independently
+  /// of [comment], which may be null even on a 4-word head when the slot's
+  /// word is not structurally a comment.
+  final int headWords;
 
   /// The record's comment string, from the optional slot between the
   /// name and the count (`[Sequence][name][commentRef][count]` — an
@@ -3461,7 +3513,8 @@ List<_SequenceRecordWalk> _sequenceRecordWalks(
   ByteData view,
   List<String> pool,
   int recordRegionLength,
-  List<BinaryTypeRecord> table, [
+  List<BinaryTypeRecord> table,
+  int typeIndexBase, [
   _SpanSink? spans,
 ]) {
   final seqIdx = <int>{
@@ -3471,7 +3524,7 @@ List<_SequenceRecordWalk> _sequenceRecordWalks(
   if (seqIdx.isEmpty) return const [];
   int u32(int at) => view.getUint32(at, Endian.little);
   String? poolAt(int word) => word > 0 && word < pool.length && pool[word].isNotEmpty ? pool[word] : null;
-  final parser = _TypeBodyParser(view, pool, recordRegionLength, table);
+  final parser = _TypeBodyParser(view, pool, recordRegionLength, table, null, typeIndexBase);
 
   // Walks the subprop run at [from], up to [count] fields, gated by the
   // fixed head order and the closed tail set. Returns the decoded
@@ -3530,13 +3583,19 @@ List<_SequenceRecordWalk> _sequenceRecordWalks(
     for (final withComment in const [false, true]) {
       final countAt = at + (withComment ? 3 : 2) * _u32Bytes;
       if (countAt + _u32Bytes > recordRegionLength) continue;
-      final comment = withComment ? poolAt(u32(at + 2 * _u32Bytes)) : null;
-      if (withComment && comment == null) continue;
       final count = u32(countAt);
       if (count < 1 || count > _sequenceRecordMaxSubProps) continue;
       final (subProps, end) = walkSubProps(countAt + _u32Bytes, count);
       if (subProps.isEmpty || subProps.first.$1.name != 'Parameters') continue;
-      walked = _SequenceRecordWalk(at, name, comment, count, subProps, end);
+      // Positive comment gate: the framing (3- vs 4-word head) is arbitrated
+      // purely by the Parameters-first walk above; the middle slot is
+      // surfaced as an editor comment ONLY when its word cannot ALSO be a
+      // subprop COUNT (a count-shaped word here is a structural word, not a
+      // comment — surfacing it would fabricate a comment). A 4-word record
+      // whose slot is count-shaped still decodes, simply with no comment.
+      final commentWord = withComment ? u32(at + 2 * _u32Bytes) : 0;
+      final comment = withComment && commentWord > _sequenceRecordMaxSubProps ? poolAt(commentWord) : null;
+      walked = _SequenceRecordWalk(at, name, comment, withComment ? 4 : 3, count, subProps, end);
       break;
     }
     if (walked == null) {
@@ -3544,10 +3603,9 @@ List<_SequenceRecordWalk> _sequenceRecordWalks(
       continue;
     }
     walks.add(walked);
-    // Head words (+ comment slot when present) then each decoded field.
-    final headWords = walked.comment != null ? 4 : 3;
-    spans?.mark(at, at + headWords * _u32Bytes, _tierSemantic);
-    var fieldStart = at + headWords * _u32Bytes;
+    // Head words (3, or 4 with the comment slot) then each decoded field.
+    spans?.mark(at, at + walked.headWords * _u32Bytes, _tierSemantic);
+    var fieldStart = at + walked.headWords * _u32Bytes;
     for (final (_, fieldEnd) in walked.subProps) {
       spans?.mark(fieldStart, fieldEnd, _tierSemantic);
       fieldStart = fieldEnd;
@@ -3727,7 +3785,11 @@ List<BinarySequenceOutline> _sequenceOutlinesFromBody(
   // declared in a layout without the `[]/name/Objs/Seq/[i]` path
   // records — sequence DISCOVERY itself.
   final table = sharedTypeRecords ?? _typeRecordsFromBody(body, recordRegionLength, sharedPool: pool);
-  final recordWalks = _sequenceRecordWalks(view, pool, recordRegionLength, table, spans);
+  // The type-index base is a whole-file constant (see [deriveTypeIndexBase]):
+  // derive it ONCE here and thread it into every parser this pass builds,
+  // instead of paying the O(recordRegionLength) anchor scan per construction.
+  final typeIndexBase = deriveTypeIndexBase(view, pool, recordRegionLength, table);
+  final recordWalks = _sequenceRecordWalks(view, pool, recordRegionLength, table, typeIndexBase, spans);
 
   // 1. sequence declarations, with offsets (same root-shape gate as
   // binarySequenceNames — see _isSequenceDeclaration)
@@ -3807,7 +3869,7 @@ List<BinarySequenceOutline> _sequenceOutlinesFromBody(
 
   // The type table (already built for the record walk above) also serves
   // any framed references the step's TS subprops carry.
-  final tsParser = _TypeBodyParser(view, pool, recordRegionLength, table);
+  final tsParser = _TypeBodyParser(view, pool, recordRegionLength, table, null, typeIndexBase);
 
   final steps = <(int, BinaryStepRef)>[];
   for (var i = 0; i < found.length; i++) {
@@ -3891,13 +3953,13 @@ List<BinarySequenceOutline> _sequenceOutlinesFromBody(
   }
 
   // Sequence-record leading subprops (Parameters/Locals/…) per sequence.
-  final leading = _sequenceLeadingSubProps(body, view, pool, recordRegionLength, table, {
+  final leading = _sequenceLeadingSubProps(body, view, pool, recordRegionLength, table, typeIndexBase, {
     for (final (_, name) in sequenceDecls) name,
   }, spans);
 
   // Post-group subprops (RecordResults, FailureAction, Requirements,
   // RTS) — the fields that follow the Main/Setup/Cleanup group arrays.
-  final tail = _sequenceTailSubProps(view, pool, recordRegionLength, table, sequenceDecls, spans);
+  final tail = _sequenceTailSubProps(view, pool, recordRegionLength, table, typeIndexBase, sequenceDecls, spans);
 
   // The decoded GROUP ARRAYS (Main/Setup/Cleanup with their step
   // elements) and head comments from the full-record walk, first record
@@ -3948,6 +4010,7 @@ Map<String, List<BinaryTypeField>> _sequenceTailSubProps(
   List<String> pool,
   int recordRegionLength,
   List<BinaryTypeRecord> table,
+  int typeIndexBase,
   List<(int, String)> sequenceDecls, [
   _SpanSink? spans,
 ]) {
@@ -3969,7 +4032,7 @@ Map<String, List<BinaryTypeField>> _sequenceTailSubProps(
     return owner;
   }
 
-  final parser = _TypeBodyParser(view, pool, recordRegionLength, table);
+  final parser = _TypeBodyParser(view, pool, recordRegionLength, table, null, typeIndexBase);
   final result = <String, List<BinaryTypeField>>{};
   final seenPerOwner = <String, Set<String>>{};
   for (var at = 0; at + 4 * _u32Bytes <= recordRegionLength; at++) {
@@ -4035,6 +4098,7 @@ Map<String, List<BinaryTypeField>> _sequenceLeadingSubProps(
   List<String> pool,
   int recordRegionLength,
   List<BinaryTypeRecord> table,
+  int typeIndexBase,
   Set<String> sequenceNames, [
   _SpanSink? spans,
 ]) {
@@ -4047,7 +4111,7 @@ Map<String, List<BinaryTypeField>> _sequenceLeadingSubProps(
   if (nameIndices.isEmpty) return const {};
   int u32(int at) => view.getUint32(at, Endian.little);
   final result = <String, List<BinaryTypeField>>{};
-  final parser = _TypeBodyParser(view, pool, recordRegionLength, table);
+  final parser = _TypeBodyParser(view, pool, recordRegionLength, table, null, typeIndexBase);
   for (var at = 0; at + 3 * _u32Bytes <= recordRegionLength; at += 1) {
     if (u32(at) != sequenceToken) continue;
     final name = nameIndices[u32(at + _u32Bytes)];
@@ -4477,6 +4541,10 @@ class BinaryByteCoverage {
   final bodyOffsets = <String, int>{};
   final headOffsets = <String, int>{};
   final tripleOffsets = <String, int>{};
+  // Heads and body/head/triple offsets only — the coverage pass RE-PARSES
+  // each body below (with the spec/ext collector armed) to mark its spans,
+  // so decoding bodies here too would parse every body twice. The head
+  // table (names/offsets) is all the span loop and outline pass need.
   final records = _typeRecordsFromBody(
     body,
     recordRegionLength,
@@ -4484,7 +4552,10 @@ class BinaryByteCoverage {
     bodyOffsetsOut: bodyOffsets,
     headOffsetsOut: headOffsets,
     tripleOffsetsOut: tripleOffsets,
+    decodeBodies: false,
   );
+  // Whole-file constant — derive once and thread into every body parse.
+  final typeIndexBase = deriveTypeIndexBase(view, pool, recordRegionLength, records);
   final blobSpans = <(int, int)>[];
   _TypeBodyParser.debugSpecSites.clear();
   _TypeBodyParser.debugExtSpans.clear();
@@ -4514,7 +4585,7 @@ class BinaryByteCoverage {
       }
       if (bodyAt == null) continue;
       final boundary = nextHeadAt != null ? nextHeadAt - _u32Bytes - _typeRecordPreambleBytes : null;
-      final parser = _TypeBodyParser(view, pool, recordRegionLength, records, boundary);
+      final parser = _TypeBodyParser(view, pool, recordRegionLength, records, boundary, typeIndexBase);
       if (parser.parse(bodyAt) != null) {
         sink.mark(bodyAt, _TypeBodyParser.debugLastEndOffset!, _tierSemantic);
       }

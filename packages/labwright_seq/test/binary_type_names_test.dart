@@ -178,10 +178,13 @@ void main() {
     File? pin(String suffix) => files.where((f) => f.path.replaceAll(r'\', '/').endsWith(suffix)).firstOrNull;
     final xmlFile = pin('Server/ExampleFiles/TraceExecution.seq');
     final binFile = pin('Tests/Sequence File 1.seq');
-    if (xmlFile == null || binFile == null) return; // pinned files absent
+    // Loud presence guard: these two files ARE the oracle — if a corpus
+    // rename/partial checkout drops them, fail rather than pass vacuously.
+    expect(xmlFile, isNotNull, reason: 'substep oracle XML pin missing — rename/partial checkout?');
+    expect(binFile, isNotNull, reason: 'substep oracle binary pin missing — rename/partial checkout?');
 
     // XML side: the NI_Wait typedef's Substeps array.
-    final xmlWait = parseSeqFile(xmlFile.readAsBytesSync()).types.where((t) => t.name == 'NI_Wait').first;
+    final xmlWait = parseSeqFile(xmlFile!.readAsBytesSync()).types.where((t) => t.name == 'NI_Wait').first;
     final xmlSubsteps = xmlWait.prop('Substeps')!.array!;
     // Flattens (name → value) pairs for the compared keys, document
     // order. VALUE-LESS slots are dropped: the XML side materializes
@@ -193,7 +196,7 @@ void main() {
     ];
 
     // Binary side: the decoded NI_Wait record's Substeps field.
-    final binWait = binaryTypeRecords(binFile.readAsBytesSync()).where((r) => r.name == 'NI_Wait').first;
+    final binWait = binaryTypeRecords(binFile!.readAsBytesSync()).where((r) => r.name == 'NI_Wait').first;
     final binSubsteps = binWait.fields!.where((f) => f.name == 'Substeps').first.children;
     List<String> binPairs(BinaryTypeField f) => [
       if (const {'Id', 'LibPath', 'Func'}.contains(f.name) && (f.value ?? '').isNotEmpty) '${f.name}=${f.value}',
