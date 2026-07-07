@@ -112,8 +112,9 @@ abstract final class ConvKey {
   /// Prefix replacing the `%` of a directive attribute when a property tree is
   /// serialized as XML (`%FLG` → `x-FLG`): `package:xml` rejects `%` in
   /// attribute names. The rename is bijective (`x-` + rest ↔ `%` + rest) and
-  /// [SeqProperty.directiveAttribute] resolves both spellings.
-  static const directiveAttrPrefix = 'x-';
+  /// [SeqProperty.directiveAttribute] resolves both spellings. Aliased to the
+  /// shared [directiveXmlPrefix] so the reader and writer agree on one constant.
+  static const directiveAttrPrefix = directiveXmlPrefix;
 
   /// The reserved `Data` sub-property carrying an INI file's serialization
   /// state (header fields, line terminator, every section with its ordered
@@ -321,20 +322,7 @@ SeqFile iniToXmlSeqFile(IniSeqFile doc) {
       if (header.fileVersion != null) 'fileversion': header.fileVersion!,
       if (header.productName != null) 'productname': header.productName!,
     },
-    data: SeqProperty(
-      name: readyData.name,
-      xmlTag: readyData.xmlTag,
-      className: readyData.className,
-      typeName: readyData.typeName,
-      attributes: readyData.attributes,
-      scalar: readyData.scalar,
-      array: readyData.array,
-      valueAttributes: readyData.valueAttributes,
-      elemProto: readyData.elemProto,
-      extData: readyData.extData,
-      numericFormat: readyData.numericFormat,
-      subProps: [...readyData.subProps, _iniChannelNode(doc)],
-    ),
+    data: readyData.copyWith(subProps: [...readyData.subProps, _iniChannelNode(doc)]),
   );
 }
 
@@ -362,7 +350,7 @@ SeqFile iniToXmlSeqFile(IniSeqFile doc) {
 /// output partial explicitly.
 IniSeqFile xmlToIniSeqFile(SeqFile file) {
   final channel = file.data.prop(ConvKey.iniChannel);
-  if (channel != null) return _iniFromChannel(channel);
+  if (channel != null && _isIniChannel(channel)) return _iniFromChannel(channel);
   if (file.header.format != SeqFormat.xml) {
     throw ArgumentError(
       'xmlToIniSeqFile converts XML-flavor SeqFiles only; this model came from '
@@ -380,8 +368,8 @@ IniSeqFile xmlToIniSeqFile(SeqFile file) {
 /// more. The output root carries [ConvKey.partialDecodeAttr] so it can never
 /// pass as a complete sequence file, and the `%BIN*` synthetic markers ride
 /// along under the `x-BIN*` rename. Loops through this hop
-/// (XML ↔ INI included) retain that surface deep-equal (corpus-gated over the
-/// 288 inflatable binaries).
+/// (XML ↔ INI included) retain that surface deep-equal (corpus-gated over all
+/// 294 corpus binaries).
 ///
 /// Throws [ArgumentError] when [file] is not a binary-flavor model.
 SeqFile binaryToXmlSeqFile(SeqFile file) {
@@ -589,9 +577,14 @@ SeqProperty _xmlReady(SeqProperty p, Map<SeqProperty, SeqProperty> memo) {
   final array = p.array;
   var valueAttrs = p.valueAttributes;
   if (array != null && !valueAttrs.containsKey('lbound') && !valueAttrs.containsKey('ubound')) {
+    final loRaw = p.attributes['%LO'];
+    // The high index is anchored at the low bound: `hi - lo + 1 == length`, so
+    // a nonzero `%LO` (corpus-real, e.g. `ColumnList` indexed 1..2) shifts the
+    // fallback `%HI` by that low bound rather than assuming a 0 base.
+    final lo = loRaw == null ? 0 : (int.tryParse(RegExp(r'-?\d+').firstMatch(loRaw)?.group(0) ?? '') ?? 0);
     valueAttrs = {
-      'lbound': p.attributes['%LO'] ?? '[0]',
-      'ubound': p.attributes['%HI'] ?? (array.isEmpty ? '[]' : '[${array.length - 1}]'),
+      'lbound': loRaw ?? '[0]',
+      'ubound': p.attributes['%HI'] ?? (array.isEmpty ? '[]' : '[${lo + array.length - 1}]'),
     };
   }
 
@@ -662,6 +655,15 @@ SeqProperty _iniChannelNode(IniSeqFile doc) => SeqProperty(
   ],
 );
 
+/// Whether a `Data` child named [ConvKey.iniChannel] actually has the
+/// structural shape [_iniChannelNode] emits — a [ConvKey.iniChannelHeader] and
+/// a [ConvKey.iniChannelSections] child. Guards against a genuine model member
+/// that merely shares the reserved name (which would otherwise route into the
+/// channel inverse and yield an empty INI), symmetric with the INI → XML side's
+/// [ConvKey.hdrMarker] header marker.
+bool _isIniChannel(SeqProperty channel) =>
+    channel.prop(ConvKey.iniChannelHeader) != null && channel.prop(ConvKey.iniChannelSections) != null;
+
 /// Rebuilds the exact [IniSeqFile] from a [ConvKey.iniChannel] subtree — the
 /// inverse of [_iniChannelNode].
 IniSeqFile _iniFromChannel(SeqProperty channel) {
@@ -728,9 +730,12 @@ List<String> _childSegments(List<SeqProperty> children) {
 
 /// Whether a stored array element serializes as a bare scalar `<value>`
 /// (matching the writer's tag-less rule) rather than an object element with
-/// its own sections.
+/// its own sections. A named element takes the object form instead, so its
+/// name survives the round-trip (the scalar-element encoding carries only the
+/// element's text and attributes, never a name); native XML scalar elements
+/// are always name-less, so this leaves them on the scalar path.
 bool _isScalarElement(SeqProperty element) =>
-    element.xmlTag == null && element.subProps.isEmpty && element.array == null;
+    element.xmlTag == null && element.name.isEmpty && element.subProps.isEmpty && element.array == null;
 
 /// Emits [p]'s sections at [path] in preorder: `[DEF, path]` (child
 /// declarations, one per sub-property, in order), then `[path]` (the reserved
@@ -855,16 +860,20 @@ IniSeqFile _iniFromXml(SeqFile file) {
 
   // Root-objects alias, native shape: the data root plus one cosmetic
   // declaration per plaintext type.
+  // A path per non-protected entry (protected entries carry no path — they
+  // ride the reserved %XP blob), uniquified against every other section path
+  // so the root-less `T$i` fallback can never collide with a real bare-named
+  // type or the data root.
   final typePaths = <String?>[];
   final usedPaths = <String>{ConvKey.dataPath};
   if (entries != null) {
     for (var i = 0; i < entries.length; i++) {
-      final root = entries[i].root;
-      if (entries[i].isProtected || root == null) {
+      if (entries[i].isProtected) {
         typePaths.add(null);
         continue;
       }
-      var candidate = _bareToken.hasMatch(root.name) ? root.name : 'T$i';
+      final root = entries[i].root;
+      var candidate = (root != null && _bareToken.hasMatch(root.name)) ? root.name : 'T$i';
       while (!usedPaths.add(candidate)) {
         candidate = '${candidate}_';
       }
@@ -879,7 +888,7 @@ IniSeqFile _iniFromXml(SeqFile file) {
         const IniEntry(ConvKey.dataPath, 'SequenceFileData'),
         if (entries != null)
           for (var i = 0; i < entries.length; i++)
-            if (typePaths[i] != null) IniEntry(typePaths[i]!, _declText(entries[i].root!)),
+            if (entries[i].root != null && typePaths[i] != null) IniEntry(typePaths[i]!, _declText(entries[i].root!)),
       ],
     ),
   );
@@ -895,19 +904,20 @@ IniSeqFile _iniFromXml(SeqFile file) {
               IniEntry('${ConvKey.typeProtected}: $i', _quotedRaw(armorText(entries[i].protectedData!)))
             else ...[
               IniEntry(
-                typePaths[i] ?? 'T$i',
+                typePaths[i]!,
                 entries[i].root != null && _latin1Clean(entries[i].root!.name)
                     ? escapeIniQuoted(entries[i].root!.name)
                     : '""',
               ),
-              IniEntry('${ConvKey.typeAttrs}: ${typePaths[i] ?? 'T$i'}', _quotedRaw(_armorMap(entries[i].attributes))),
+              IniEntry('${ConvKey.typeAttrs}: ${typePaths[i]!}', _quotedRaw(_armorMap(entries[i].attributes))),
             ],
         ],
       ),
     );
     for (var i = 0; i < entries.length; i++) {
       final root = entries[i].root;
-      if (root != null) _emitNode(root, typePaths[i]!, sections, scalarOnParent: false);
+      final typePath = typePaths[i];
+      if (root != null && typePath != null) _emitNode(root, typePath, sections, scalarOnParent: false);
     }
   }
 

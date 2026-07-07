@@ -1,5 +1,29 @@
 import 'package:xml/xml.dart';
 
+/// The prefix that replaces the leading `%` of a TestStand directive attribute
+/// when a property tree is serialized as XML (`%FLG` → `x-FLG`): `package:xml`
+/// rejects `%` in attribute names. The rename is bijective (`x-` + rest ↔ `%` +
+/// rest) and [SeqProperty.directiveAttribute] resolves both spellings. This is
+/// the single source of truth the cross-flavor writer also writes through
+/// (`ConvKey.directiveAttrPrefix`), so the reader reads exactly what the writer
+/// wrote — the `% ↔ x-` bijection is not hardcoded independently in two files.
+const directiveXmlPrefix = 'x-';
+
+/// The `%`-directive attribute keys [SeqProperty.directiveAttribute] resolves
+/// under both their literal spelling and the [directiveXmlPrefix] XML rename.
+/// Only these cataloged directives get the `x-` fallback, so an arbitrary
+/// `x-…` attribute on a genuine XML model is never mistaken for a directive.
+const knownDirectiveKeys = <String>{
+  '%FLG',
+  '%INSTFLG',
+  '%INSTOVRD',
+  '%BINOVERRIDES',
+  '%HI',
+  '%LO',
+  '%EPTYPE',
+  '%COMMENT',
+};
+
 /// One node in a TestStand **PropertyObject** tree — the universal unit of a
 /// `.seq` file. Sequences, steps, variables, parameters and types are all
 /// property objects; this model captures any of them faithfully (every attribute
@@ -106,7 +130,12 @@ class SeqProperty {
   /// models carry the directive renamed; see `ConvKey.directiveAttrPrefix`).
   /// The typed directive getters below all read through this, so they work
   /// identically on native and converted models.
-  String? directiveAttribute(String key) => attributes[key] ?? attributes['x-${key.substring(1)}'];
+  String? directiveAttribute(String key) {
+    final literal = attributes[key];
+    if (literal != null) return literal;
+    if (!knownDirectiveKeys.contains(key)) return null;
+    return attributes['$directiveXmlPrefix${key.substring(1)}'];
+  }
 
   /// Whether this property is an explicit **instance override** — i.e. the file
   /// marked it as set on this object rather than inherited from its base type.
@@ -191,6 +220,39 @@ class SeqProperty {
     }
     return count;
   }
+
+  /// Returns a copy with the given fields replaced, every other field carried
+  /// over verbatim. A new field on [SeqProperty] is therefore preserved by any
+  /// caller that only means to change a subset (unlike a hand-written
+  /// field-by-field rebuild, which silently drops it). Nullable fields cannot
+  /// be reset to null through this — pass the constructor directly for that.
+  SeqProperty copyWith({
+    String? name,
+    String? xmlTag,
+    String? className,
+    String? typeName,
+    Map<String, String>? attributes,
+    String? scalar,
+    List<SeqProperty>? array,
+    List<SeqProperty>? subProps,
+    Map<String, String>? valueAttributes,
+    SeqProperty? elemProto,
+    List<Map<String, String>>? extData,
+    String? numericFormat,
+  }) => SeqProperty(
+    name: name ?? this.name,
+    xmlTag: xmlTag ?? this.xmlTag,
+    className: className ?? this.className,
+    typeName: typeName ?? this.typeName,
+    attributes: attributes ?? this.attributes,
+    scalar: scalar ?? this.scalar,
+    array: array ?? this.array,
+    subProps: subProps ?? this.subProps,
+    valueAttributes: valueAttributes ?? this.valueAttributes,
+    elemProto: elemProto ?? this.elemProto,
+    extData: extData ?? this.extData,
+    numericFormat: numericFormat ?? this.numericFormat,
+  );
 
   SeqProperty? prop(String name) => subProps.where((p) => p.name == name).firstOrNull;
 

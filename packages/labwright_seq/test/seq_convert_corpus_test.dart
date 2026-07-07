@@ -81,6 +81,36 @@ void main() {
     expect(byteExact, _pinnedIniSeqCount);
   });
 
+  test('iniDataTree keeps instance directives on an inherited container member', () {
+    // The byte-exact INI → XML → INI trip rides the verbatim x-ini-source
+    // channel, which bypasses the decoded data tree — so its inheritance
+    // expansion (iniDataTree) is otherwise checked only for write/reparse
+    // self-consistency, not correctness. This pins the load-bearing case: a
+    // member that is a container ONLY through its type (inherited), carrying an
+    // instance-level directive on the object that inherits it. The expansion
+    // must materialize that member with the instance directive attached; the
+    // shared inherited-subtree cache must NOT be allowed to serve a copy that
+    // has dropped it.
+    final iniFiles = byFormat[SeqFormat.ini] ?? const <File>[];
+    final f = iniFiles.firstWhere(
+      (f) => f.path.endsWith('Non-Hardware Express VIs.seq'),
+      orElse: () => throw StateError('representative inherited-container corpus file missing'),
+    );
+    final root = iniDataTree(parseIniSeqBytes(_read(f)));
+    expect(root, isNotNull, reason: '${f.path}: data root must decode');
+    // Data → Seq[0] (MainSequence) → Locals → signal (typed LabVIEWDynamicData,
+    // a container only via its type) → Element1 (inherited, instance %HI).
+    final signal = root!.prop('Seq')?.array?.first.prop('Locals')?.prop('signal');
+    expect(signal?.typeName, 'LabVIEWDynamicData', reason: '${f.path}: signal must resolve its inherited type');
+    final element1 = signal?.prop('Element1');
+    expect(element1, isNotNull, reason: '${f.path}: inherited container member must materialize');
+    expect(
+      element1!.attributes['%HI'],
+      isNotNull,
+      reason: '${f.path}: the instance %HI directive on the inherited container must survive expansion',
+    );
+  });
+
   test('XML → INI → XML is byte-exact for every XML corpus file (and the INI hop is stable)', () {
     final xmlFiles = byFormat[SeqFormat.xml] ?? const <File>[];
     expect(xmlFiles.length, _pinnedXmlSeqCount, reason: 'XML corpus count drifted');
@@ -133,6 +163,15 @@ void main() {
         ConvKey.partialDecodeBinary,
         reason: '${f.path}: binary-derived output must be marked partial',
       );
+      // Compare the lifted output's decoded surface against the SOURCE decode
+      // directly (not just against its own reparse): a converter that dropped
+      // or fabricated a node/scalar/type would diverge here even while staying
+      // self-consistent through the write/reparse loops below.
+      expect(_surface(xml.data), _surface(bin.data), reason: '${f.path}: lifted data surface must match the decode');
+      expect(xml.types.length, bin.types.length, reason: '${f.path}: type count must match the decode');
+      for (var i = 0; i < bin.types.length; i++) {
+        expect(_surface(xml.types[i]), _surface(bin.types[i]), reason: '${f.path}: type[$i] surface must match');
+      }
       final reparsed = parseSeqFile(writeSeqFileXml(xml));
       expect(seqFileDeepEquals(xml, reparsed), isTrue, reason: '${f.path}: lifted XML must reparse deep-equal');
 
@@ -157,3 +196,21 @@ void main() {
 }
 
 Uint8List _read(File f) => f.readAsBytesSync();
+
+/// A structural fingerprint of a property's DECODED surface — the fields the
+/// binary reader recovers, independent of the XML decoration [binaryToXmlSeqFile]
+/// adds (synthesized tags, the `% → x-` directive rename, array `<value>`
+/// bounds). Equal fingerprints mean the lift neither dropped nor fabricated
+/// content. `%NUMFMT` is normalized because the lift promotes it from an
+/// attribute to the dedicated [SeqProperty.numericFormat] field.
+Object? _surface(SeqProperty p) => [
+  p.name,
+  p.className,
+  p.typeName,
+  p.scalar,
+  p.numericFormat ?? p.attributes['%NUMFMT'],
+  p.extData,
+  [for (final c in p.subProps) _surface(c)],
+  p.array == null ? null : [for (final e in p.array!) _surface(e)],
+  p.elemProto == null ? null : _surface(p.elemProto!),
+];
