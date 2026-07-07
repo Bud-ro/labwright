@@ -99,13 +99,22 @@ class SeqProperty {
   bool get isArray => array != null;
   bool get isLeaf => array == null && subProps.isEmpty;
 
+  /// Resolves a `%`-directive attribute under EITHER of its two spellings:
+  /// the literal key ([key], e.g. `%FLG` — INI- and binary-sourced trees) or
+  /// the XML-serializable `x-` rename the cross-flavor converter applies
+  /// (`x-FLG` — `%` is not a legal XML attribute-name character, so converted
+  /// models carry the directive renamed; see `ConvKey.directiveAttrPrefix`).
+  /// The typed directive getters below all read through this, so they work
+  /// identically on native and converted models.
+  String? directiveAttribute(String key) => attributes[key] ?? attributes['x-${key.substring(1)}'];
+
   /// Whether this property is an explicit **instance override** — i.e. the file
   /// marked it as set on this object rather than inherited from its base type.
   /// False for properties that simply take their type's default. Two encodings
   /// carry this: the legacy INI `%INSTOVRD` directive (flags bitmask kept
   /// verbatim), and the binary decoder's `%BINOVERRIDES` marker (its children
   /// are an override subset). Only presence is interpreted so far.
-  bool get isInstanceOverride => attributes.containsKey('%INSTOVRD') || attributes.containsKey('%BINOVERRIDES');
+  bool get isInstanceOverride => directiveAttribute('%INSTOVRD') != null || directiveAttribute('%BINOVERRIDES') != null;
 
   /// The property's type-level **PropertyFlags** bitmask, recovered verbatim from
   /// the legacy INI `%FLG: <member>` directive — null when the source recorded no
@@ -118,7 +127,7 @@ class SeqProperty {
   /// never with fabricated semantics. Kept verbatim in [attributes] under `%FLG`.
   int? get propertyFlags => _intAttr('%FLG');
 
-  int? _intAttr(String key) => int.tryParse(attributes[key]?.trim() ?? '');
+  int? _intAttr(String key) => int.tryParse(directiveAttribute(key)?.trim() ?? '');
 
   /// The bitmask on this property's **instance-override record** (`%INSTOVRD`),
   /// or null when the property is not an instance override. This is the base
@@ -151,7 +160,7 @@ class SeqProperty {
   List<int>? get lowIndices => _boundsAttr('%LO');
 
   List<int>? _boundsAttr(String key) {
-    final raw = attributes[key];
+    final raw = directiveAttribute(key);
     if (raw == null) return null;
     final bounds = [
       for (final m in RegExp(r'\[(-?\d+)\]').allMatches(raw)) int.parse(m.group(1)!),
@@ -161,7 +170,7 @@ class SeqProperty {
 
   /// The array's declared ELEMENT prototype type name (`%EPTYPE`) — the
   /// type each default-valued element instantiates. null when absent.
-  String? get elementTypeName => attributes['%EPTYPE'];
+  String? get elementTypeName => directiveAttribute('%EPTYPE');
 
   /// The declared TOTAL element count from [highIndices] and [lowIndices]:
   /// per dimension `hi - lo + 1` (lo defaults to 0 when `%LO` is absent),

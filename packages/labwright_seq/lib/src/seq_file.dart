@@ -189,7 +189,7 @@ class Sequence {
   /// comments are reassembled from continuation fragments. (Carried as a
   /// `%COMMENT` attribute by the INI reader; XML sequences in the corpus store
   /// none, so this is null for them.)
-  String? get comment => nonEmpty(raw.attributes['%COMMENT']);
+  String? get comment => nonEmpty(raw.directiveAttribute('%COMMENT'));
 
   /// The steps in [group] (its array property), in declaration order.
   List<Step> stepsIn(StepGroup group) => [
@@ -325,7 +325,7 @@ class SeqVariable {
   /// holds (e.g. `"InfoTableRC: [row][col]"`) — or null when it has none.
   /// Recovered from the variable's `%COMMENT`. (Carried as a `%COMMENT` attribute
   /// by the INI reader; XML variables in the corpus store none.)
-  String? get comment => nonEmpty(raw.attributes['%COMMENT']);
+  String? get comment => nonEmpty(raw.directiveAttribute('%COMMENT'));
 
   /// The scalar default value, or null for container/array variables and empty
   /// values.
