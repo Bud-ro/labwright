@@ -16,9 +16,11 @@ part of 'seq_binary.dart';
 /// The primitive re-serialization op kinds a write plan is built from.
 /// Grouped by scoreboard class: [copy] is a verbatim byte-range copy from the
 /// retained record region; [structU32]/[structByte] re-emit a RETAINED wire
-/// word/byte (flags, attr words, delimiters, zeros, pads — structure the
-/// typed model does not yet carry); the rest re-emit MODEL content (pool
-/// references, counts/type refs/head fields, inline scalar values).
+/// word/byte the typed model does not yet carry; [grammarU32]/[grammarByte]
+/// re-emit a GRAMMAR-DETERMINED constant the decode verified (framing zeros,
+/// record delimiters, terminators, pads, form sentinels); the rest re-emit
+/// MODEL content (pool references, counts/type refs/head fields, flag/attr
+/// words the typed model surfaces, inline scalar values).
 enum _WriteOpKind {
   /// Verbatim copy of `[offset, intValue)` from the retained record region.
   copy,
@@ -28,13 +30,22 @@ enum _WriteOpKind {
   /// entry flows into the written file through the pool region).
   poolRef,
 
-  /// A `u32` structural word re-emitted from its retained value (field
-  /// flags, attr words, record delimiters, framing zeros).
+  /// A `u32` structural word re-emitted from its retained value — a word
+  /// whose value the grammar accepted without decoding it and the typed
+  /// model does not carry.
   structU32,
 
   /// A `u32` carrying model content (child counts, type-table references,
-  /// type category / timestamp head fields, numeric-representation codes).
+  /// type category / timestamp head fields, field-flags/attr words the
+  /// typed model surfaces, numeric-representation codes).
   modelU32,
+
+  /// A `u32` whose value the GRAMMAR fully determines at this position and
+  /// the decode VERIFIED before emitting (a framing zero, a record
+  /// delimiter, an attr-tail/extdata terminator, a form sentinel like the
+  /// framed `X == 1` intrinsic-instance marker). Re-emittable from grammar
+  /// knowledge alone — no retained bytes needed.
+  grammarU32,
 
   /// An inline little-endian IEEE-754 double (`doubleValue`).
   f64,
@@ -45,9 +56,17 @@ enum _WriteOpKind {
   /// A one-byte stored Bool (`intValue` 0/1).
   boolByte,
 
-  /// A structural byte re-emitted from its retained value (alignment pads,
-  /// record lead/flags bytes, terminators).
+  /// A structural byte re-emitted from its retained value (record
+  /// lead/flags bytes the typed model does not yet carry).
   structByte,
+
+  /// A one-byte GRAMMAR-DETERMINED constant the decode verified (alignment
+  /// pads, byte terminators) — the byte analog of [grammarU32].
+  grammarByte,
+
+  /// A byte carrying model content (a leaf property record's lead/flags
+  /// bytes, surfaced on [BinaryPropertyRecord]).
+  modelByte,
 }
 
 /// One primitive write op at an absolute record-region [offset].
@@ -66,9 +85,9 @@ class _WriteOp {
 
   int get length => switch (kind) {
     _WriteOpKind.copy => intValue - offset,
-    _WriteOpKind.poolRef || _WriteOpKind.structU32 || _WriteOpKind.modelU32 => _u32Bytes,
+    _WriteOpKind.poolRef || _WriteOpKind.structU32 || _WriteOpKind.modelU32 || _WriteOpKind.grammarU32 => _u32Bytes,
     _WriteOpKind.f64 || _WriteOpKind.i64 => _f64Bytes,
-    _WriteOpKind.boolByte || _WriteOpKind.structByte => 1,
+    _WriteOpKind.boolByte || _WriteOpKind.structByte || _WriteOpKind.grammarByte || _WriteOpKind.modelByte => 1,
   };
 }
 
@@ -129,10 +148,13 @@ class _DecodeSink {
   void poolRef(int at, int index) => ops.add(_WriteOp(at, _WriteOpKind.poolRef, index));
   void u32(int at, int value) => ops.add(_WriteOp(at, _WriteOpKind.structU32, value));
   void modelU32(int at, int value) => ops.add(_WriteOp(at, _WriteOpKind.modelU32, value));
+  void grammarU32(int at, int value) => ops.add(_WriteOp(at, _WriteOpKind.grammarU32, value));
   void f64(int at, double value) => ops.add(_WriteOp(at, _WriteOpKind.f64, 0, value));
   void i64(int at, int value) => ops.add(_WriteOp(at, _WriteOpKind.i64, value));
   void boolByte(int at, int value) => ops.add(_WriteOp(at, _WriteOpKind.boolByte, value));
   void structByte(int at, int value) => ops.add(_WriteOp(at, _WriteOpKind.structByte, value));
+  void grammarByte(int at, int value) => ops.add(_WriteOp(at, _WriteOpKind.grammarByte, value));
+  void modelByte(int at, int value) => ops.add(_WriteOp(at, _WriteOpKind.modelByte, value));
 }
 
 /// The parsed WRITE MODEL of one binary TOF1 file: the retained container
@@ -257,13 +279,13 @@ class BinarySeqWriteModel {
       switch (op.kind) {
         case _WriteOpKind.copy:
           out.setRange(op.offset, op.intValue, recordRegion, op.offset);
-        case _WriteOpKind.poolRef || _WriteOpKind.structU32 || _WriteOpKind.modelU32:
+        case _WriteOpKind.poolRef || _WriteOpKind.structU32 || _WriteOpKind.modelU32 || _WriteOpKind.grammarU32:
           view.setUint32(op.offset, op.intValue, Endian.little);
         case _WriteOpKind.f64:
           view.setFloat64(op.offset, op.doubleValue, Endian.little);
         case _WriteOpKind.i64:
           view.setInt64(op.offset, op.intValue, Endian.little);
-        case _WriteOpKind.boolByte || _WriteOpKind.structByte:
+        case _WriteOpKind.boolByte || _WriteOpKind.structByte || _WriteOpKind.grammarByte || _WriteOpKind.modelByte:
           out[op.offset] = op.intValue;
       }
     }
@@ -319,19 +341,21 @@ class BinarySeqWriteModel {
 
 /// Emits the write ops of one old-format leaf property record
 /// ([BinaryPropertyRecord]) from its fixed [_PropRecordField] geometry: the
-/// lead/flags bytes and framing zeros as retained structure, the type/name
-/// (and Str-family value) words as pool references, Bool/Num values as
-/// typed value ops. The value/terminator widths are re-derived from
-/// [BinaryPropertyRecord.length], which the decoder set from exactly these
-/// consumption rules.
+/// lead/flags bytes and the kind code from the typed record
+/// ([BinaryPropertyRecord.lead]/[BinaryPropertyRecord.flagsByte]/
+/// [BinaryPropertyRecord.kind]), the verified framing zeros as grammar
+/// constants, the type/name (and Str-family value) words as pool
+/// references, Bool/Num values as typed value ops. The value/terminator
+/// widths are re-derived from [BinaryPropertyRecord.length], which the
+/// decoder set from exactly these consumption rules.
 void _leafPropertyRecordOps(_DecodeSink ops, ByteData view, BinaryPropertyRecord record) {
   final o = record.offset;
-  ops.structByte(o, view.getUint8(o));
-  ops.structByte(o + 1, view.getUint8(o + 1));
-  ops.u32(o + _PropRecordField.zeroA.offset, 0);
-  final kind = view.getUint32(o + _PropRecordField.kind.offset, Endian.little);
-  ops.u32(o + _PropRecordField.kind.offset, kind);
-  ops.u32(o + _PropRecordField.zeroB.offset, 0);
+  ops.modelByte(o, record.lead);
+  ops.modelByte(o + 1, record.flagsByte);
+  ops.grammarU32(o + _PropRecordField.zeroA.offset, 0);
+  final kind = record.kind;
+  ops.modelU32(o + _PropRecordField.kind.offset, kind);
+  ops.grammarU32(o + _PropRecordField.zeroB.offset, 0);
   ops.poolRef(
     o + _PropRecordField.typeNameIndex.offset,
     view.getUint32(o + _PropRecordField.typeNameIndex.offset, Endian.little),
@@ -368,8 +392,9 @@ void _leafPropertyRecordOps(_DecodeSink ops, ByteData view, BinaryPropertyRecord
     }
   }
   if (record.length == consumed + _propTerminatorWidth) {
-    ops.structByte(o + consumed, 0);
-    ops.structByte(o + consumed + 1, 0);
+    // The trailing u16 zero terminator the scan verified byte-for-byte.
+    ops.grammarByte(o + consumed, 0);
+    ops.grammarByte(o + consumed + 1, 0);
   }
 }
 

@@ -340,6 +340,18 @@ SeqProjectExport exportSeqProjectToLabwright(Map<String, SeqFile> byPath) {
       "import 'lw_runtime.dart';\n",
       RegExp(r'stationGlobals'),
     );
+    // A dep import is PREDICTED from the resolved call graph, but emission
+    // can legitimately reference none of it (e.g. every call into the dep
+    // is a Mode=Skip step rendered as a comment) — strip it like the other
+    // imports rather than ship analyzer noise.
+    for (final dep in importsOf[key] ?? const <String>{}) {
+      final depModule = moduleOf[dep]!;
+      files['$module.dart'] = _withoutUnusedImport(
+        files['$module.dart']!,
+        "import '$depModule.dart' as $depModule;\n",
+        RegExp('(?<![\\w\\\$.])$depModule\\.'),
+      );
+    }
     registers.add(module);
   }
 

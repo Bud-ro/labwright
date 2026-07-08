@@ -576,6 +576,26 @@ void main() {
       );
     });
 
+    test('deep Type-node ID slots decode as integers via the subnormal signature', () {
+      // The parameter elements' nested Type descriptors carry their own
+      // i64-stored `ID` Nums with NO representation context in reach (the
+      // element type rides an elemproto the walk does not resolve); the
+      // subnormal-signature read recovers them — the twin stores
+      // `<ID classname='Num'><value representation='Int64'>N</value>`
+      // (small integers), never a subnormal double text (0 subnormal
+      // numeric texts across every XML/INI corpus file).
+      List<String> deepIds(SeqProperty p) => [
+        if (p.name == 'ID' && p.className == 'Num' && p.scalar != null) p.scalar!,
+        for (final c in p.subProps) ...deepIds(c),
+        for (final c in p.array ?? const <SeqProperty>[]) ...deepIds(c),
+      ];
+      final ids = deepIds(stepOf(binFile, 'Output voltage test').raw.prop('Measurement')!);
+      expect(ids.length, greaterThanOrEqualTo(11));
+      for (final id in ids) {
+        expect(int.tryParse(id), isNotNull, reason: 'ID "$id" must decode as an integer, not an f64 mis-read');
+      }
+    });
+
     test('populated EnumDefinition members decode with explicit representations', () {
       final params = stepOf(binFile, 'Output voltage test').raw.prop('Measurement')!.prop('Parameters')!;
       final enumParam = params.array!.firstWhere((el) => el.prop('Name')?.scalar == 'measurement_type');
