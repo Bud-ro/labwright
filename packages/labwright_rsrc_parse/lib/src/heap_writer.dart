@@ -47,6 +47,7 @@ library;
 
 import 'dart:typed_data';
 
+import 'blocks/compiled_code.dart' show compiledCodeFrames, reserializeCompiledCode;
 import 'blocks/type_pool.dart' show reserializeTypePool, typePoolFrames;
 import 'heap.dart';
 
@@ -310,11 +311,18 @@ class HeapContentSplit {
 /// of the same walk.
 ///
 /// [sectionTag] selects the grammar: `VCTP` is a type-pool (a length-prefixed
-/// type-descriptor list + a top-level index list — see [typePoolFrames]); every
-/// other tag (and null) is walked as an object-record heap ([walkHeapBody]).
+/// type-descriptor list + a top-level index list — see [typePoolFrames]); `VICD`
+/// is a compiled-code descriptor (an envelope + a `code` chunk + a `CODE` symbol
+/// table — see [compiledCodeFrames]); every other tag (and null) is walked as an
+/// object-record heap ([walkHeapBody]).
 HeapContentSplit attributeHeapBody(Uint8List body, [String? sectionTag]) {
   if (sectionTag == 'VCTP') {
     return typePoolFrames(body)
+        ? HeapContentSplit(modelBytes: body.length, copiedBytes: 0, modelBugs: 0)
+        : HeapContentSplit(modelBytes: 0, copiedBytes: body.length, modelBugs: 0);
+  }
+  if (sectionTag == 'VICD') {
+    return compiledCodeFrames(body)
         ? HeapContentSplit(modelBytes: body.length, copiedBytes: 0, modelBugs: 0)
         : HeapContentSplit(modelBytes: 0, copiedBytes: body.length, modelBugs: 0);
   }
@@ -358,13 +366,21 @@ int _verifiedModelLength(Uint8List body, int offset, _Modeled m) {
 /// [attributeHeapBody] returns the same split without building [HeapWriteResult.bytes].
 ///
 /// [sectionTag] selects the grammar: `VCTP` re-serializes as a type pool
-/// ([reserializeTypePool]) — its structural words are reconstructed and its
-/// descriptor interiors retained byte-faithfully, so the whole body is
-/// model-sourced when it frames; every other tag (and null) is re-emitted as an
-/// object-record heap.
+/// ([reserializeTypePool]) and `VICD` as a compiled-code descriptor
+/// ([reserializeCompiledCode]) — their structural words are reconstructed and
+/// their opaque interiors (type-descriptor interiors; machine code and symbol
+/// names) retained byte-faithfully, so the whole body is model-sourced when it
+/// frames; every other tag (and null) is re-emitted as an object-record heap.
 HeapWriteResult serializeHeapBody(Uint8List body, [String? sectionTag]) {
   if (sectionTag == 'VCTP') {
     final reserialized = reserializeTypePool(body);
+    if (reserialized != null) {
+      return HeapWriteResult(bytes: reserialized, modelBytes: body.length, copiedBytes: 0, modelBugs: 0);
+    }
+    return HeapWriteResult(bytes: body, modelBytes: 0, copiedBytes: body.length, modelBugs: 0);
+  }
+  if (sectionTag == 'VICD') {
+    final reserialized = reserializeCompiledCode(body);
     if (reserialized != null) {
       return HeapWriteResult(bytes: reserialized, modelBytes: body.length, copiedBytes: 0, modelBugs: 0);
     }
