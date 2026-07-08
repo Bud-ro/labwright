@@ -184,7 +184,7 @@ class BinaryWriteScoreboard {
     required this.bodyBytes,
     required this.poolBytes,
     required this.modelBytes,
-    this.grammarBytes = 0,
+    required this.grammarBytes,
     required this.structuralBytes,
     required this.copiedBytes,
   });
@@ -248,26 +248,29 @@ class BinaryWriteScoreboard {
 }
 
 /// Folds a record-region write [plan] into its [BinaryWriteScoreboard]:
-/// each op's bytes accounted to the model / structural / copied split its
-/// [_WriteOpKind] declares, plus the pool region ([poolBytes], always
-/// model-written) on top of the record region.
+/// each op's bytes accounted by its value provenance ([_OpSource]), plus
+/// the pool region ([poolBytes], always model-written) on top of the
+/// record region.
+///
+/// One wire special case: [_WirePrimitive.copy] ops land in
+/// [BinaryWriteScoreboard.copiedBytes], not
+/// [BinaryWriteScoreboard.structuralBytes] — both carry struct provenance,
+/// but the scoreboard keeps verbatim byte-range copies distinct from struct
+/// values the writer re-emits word-by-word.
 BinaryWriteScoreboard _planScoreboard(List<_WriteOp> plan, {required int recordRegionBytes, required int poolBytes}) {
   var model = 0, grammar = 0, structural = 0, copied = 0;
   for (final op in plan) {
-    switch (op.kind) {
-      case _WriteOpKind.copy:
-        copied += op.length;
-      case _WriteOpKind.structU32 || _WriteOpKind.structByte:
+    if (op.primitive == _WirePrimitive.copy) {
+      copied += op.length;
+      continue;
+    }
+    switch (op.source) {
+      case _OpSource.struct:
         structural += op.length;
-      case _WriteOpKind.grammarU32 || _WriteOpKind.grammarByte:
-        grammar += op.length;
-      case _WriteOpKind.poolRef ||
-          _WriteOpKind.modelU32 ||
-          _WriteOpKind.modelByte ||
-          _WriteOpKind.f64 ||
-          _WriteOpKind.i64 ||
-          _WriteOpKind.boolByte:
+      case _OpSource.model:
         model += op.length;
+      case _OpSource.grammar:
+        grammar += op.length;
     }
   }
   return BinaryWriteScoreboard(
