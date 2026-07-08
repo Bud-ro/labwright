@@ -35,6 +35,18 @@ class ViHistory {
   /// True when the three reserved words (`@12`,`@28`,`@32`) are zero, as in 100%
   /// of the corpus — a cheap integrity signal.
   bool get reservedAreZero => words[3] == 0 && words[7] == 0 && words[8] == 0;
+
+  /// Re-emits the fixed 40-byte record: the ten big-endian u32 [words] in order.
+  /// Byte-identical to the parsed body for the 40-byte record ([decodeHistory]
+  /// reads exactly [_histWords] words).
+  Uint8List serialize() {
+    final out = Uint8List(_histWords * _wordBytes);
+    final data = ByteData.sublistView(out);
+    for (var wordIndex = 0; wordIndex < _histWords; wordIndex++) {
+      data.setUint32(wordIndex * _wordBytes, words[wordIndex]);
+    }
+    return out;
+  }
 }
 
 /// The ten big-endian u32 words that make up a fixed HIST record.

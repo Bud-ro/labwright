@@ -18,3 +18,34 @@ String? decodeStringBlock(Uint8List bytes) {
   final end = (4 + len).clamp(4, bytes.length);
   return utf8.decode(bytes.sublist(4, end), allowMalformed: true);
 }
+
+/// A byte-exact `STRG` model: the `u32` length prefix and the description text
+/// bytes retained verbatim. The `[u32 len][len bytes]` framing is understood
+/// (`len == body.length` across the corpus); the text bytes are a leaf retained
+/// as-is so [serialize] reproduces the body exactly, including any non-UTF-8
+/// bytes the lossy [decodeStringBlock] would fold to U+FFFD.
+class ViStringBlock {
+  const ViStringBlock({required this.declaredLength, required this.body});
+
+  /// The `u32` at offset 0 — the declared body byte length.
+  final int declaredLength;
+
+  /// The description text bytes (`body.length == declaredLength` in the corpus).
+  final Uint8List body;
+
+  /// Re-emits `[u32 declaredLength][body]`.
+  Uint8List serialize() {
+    final out = Uint8List(4 + body.length);
+    ByteData.sublistView(out).setUint32(0, declaredLength);
+    out.setRange(4, 4 + body.length, body);
+    return out;
+  }
+}
+
+/// Decodes a `STRG` body into a byte-exact [ViStringBlock]; null when the buffer
+/// cannot hold the `u32` length prefix. Total.
+ViStringBlock? decodeStringBlockRaw(Uint8List bytes) {
+  if (bytes.length < 4) return null;
+  final declaredLength = ByteData.sublistView(bytes).getUint32(0);
+  return ViStringBlock(declaredLength: declaredLength, body: Uint8List.sublistView(bytes, 4));
+}
