@@ -442,8 +442,19 @@ void main() {
       expect(serializeBlockPayload('LVSR', lvsr), lvsr);
       // A non-word-aligned LVSR body is not modeled, so it stays copied.
       expect(serializeBlockPayload('LVSR', u8([1, 2, 3, 4, 5])), isNull);
-      expect(hasBlockWriter('BDPW'), isFalse, reason: 'opaque password hash, no writer');
+      // BDPW is a whole number of 16-byte digests: a 48-byte body round-trips,
+      // a wrong-sized one is not modeled and stays copied.
+      expect(hasBlockWriter('BDPW'), isTrue);
+      final bdpw = Uint8List.fromList([for (var i = 0; i < 48; i++) (i * 5) & 0xff]);
+      expect(serializeBlockPayload('BDPW', bdpw), bdpw);
       expect(serializeBlockPayload('BDPW', u8([1, 2, 3, 4])), isNull);
+      // MUID is a single u32; a LI* section is model-sourced only when it holds
+      // at most one entry (deterministically bounded) — an empty LIvi round-trips.
+      expect(serializeBlockPayload('MUID', u8([0x12, 0x34, 0x56, 0x78])), u8([0x12, 0x34, 0x56, 0x78]));
+      final emptyLi = u8([0, 1, ...'LVIN'.codeUnits, 0, 0, 0, 0, 0, 3]);
+      expect(serializeBlockPayload('LIvi', emptyLi), emptyLi);
+      // A two-entry LI* section is not deterministically separable, so it stays copied.
+      expect(serializeBlockPayload('LIvi', u8([0, 1, ...'LVIN'.codeUnits, 0, 0, 0, 2, 0, 3])), isNull);
       // Wrong-sized icon body: decode fails, so no model-sourced bytes.
       expect(serializeBlockPayload('icl8', u8([1, 2, 3])), isNull);
       // Id table with trailing bytes past 4+4*count: re-serialization is shorter,

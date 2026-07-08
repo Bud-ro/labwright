@@ -24,12 +24,16 @@ import 'snapshot_check.dart';
 
 /// Block tags whose payload writer re-serializes **every** corpus instance
 /// byte-exact (asserted N/N below).
-const _fullTags = ['icl8', 'icl4', 'ICON', 'NUID', 'SUID', 'BNID', 'vers', 'STRG', 'HIST'];
+const _fullTags = [
+  'icl8', 'icl4', 'ICON', 'NUID', 'SUID', 'BNID', 'vers', 'STRG', 'HIST', //
+  'MUID', 'BDSE', 'FPSE', 'BDEx', 'FPEx', 'IPSR', 'PICC', 'CPMp', 'GCPR', //
+  'RTSG', 'SCSR', 'BDPW',
+];
 
 /// Block tags whose payload writer re-serializes a **subset** of corpus
 /// instances (the modelable form); the rest carry an undecoded interior and
 /// stay copied. The exact/inst split is pinned as a measurement (not a law).
-const _partialTags = ['VITS', 'DTHP', 'CONP', 'CPC2', 'LVSR'];
+const _partialTags = ['VITS', 'DTHP', 'CONP', 'CPC2', 'LVSR', 'LIbd', 'LIvi', 'LIfp', 'LIds'];
 
 (Map<String, int>, List<String>) _writer(Uint8List bytes, String path) {
   final c = <String, int>{};
