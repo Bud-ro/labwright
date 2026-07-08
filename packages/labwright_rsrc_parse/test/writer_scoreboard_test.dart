@@ -22,8 +22,14 @@ import 'snapshot_check.dart';
 ///      ([serializeBlockPayload] non-null). Asserted N/N per tag; the instance
 ///      counts are MEASUREMENTS in the snapshot.
 
-/// Block tags with a byte-exact payload writer, censused per-file below.
-const _writerTags = ['icl8', 'icl4', 'ICON', 'NUID', 'SUID', 'BNID'];
+/// Block tags whose payload writer re-serializes **every** corpus instance
+/// byte-exact (asserted N/N below).
+const _fullTags = ['icl8', 'icl4', 'ICON', 'NUID', 'SUID', 'BNID', 'vers'];
+
+/// Block tags whose payload writer re-serializes a **subset** of corpus
+/// instances (the modelable form); the rest carry an undecoded interior and
+/// stay copied. The exact/inst split is pinned as a measurement (not a law).
+const _partialTags = ['VITS', 'DTHP', 'CONP', 'CPC2'];
 
 (Map<String, int>, List<String>) _writer(Uint8List bytes, String path) {
   final c = <String, int>{};
@@ -68,7 +74,7 @@ const _writerTags = ['icl8', 'icl4', 'ICON', 'NUID', 'SUID', 'BNID'];
       n('${s.tag}.bytes', s.bytes.length);
       if (serializeBlockPayload(s.tag, s.bytes) != null) {
         n('${s.tag}.exact');
-      } else {
+      } else if (_fullTags.contains(s.tag)) {
         bad('rt', '${s.tag}#${s.index} ${s.bytes.length}B did not round-trip');
       }
     }
@@ -112,7 +118,7 @@ void main() {
     expect(cnt('files'), all.length, reason: 'attributeVi did not cover every parseable VI');
   });
 
-  for (final tag in _writerTags) {
+  for (final tag in _fullTags) {
     test('ROUND-TRIP: every $tag payload re-serializes byte-exact from its model', () {
       expect(
         cnt('$tag.exact'),
@@ -120,6 +126,17 @@ void main() {
         reason: '$tag not byte-exact for ${cnt('$tag.inst') - cnt('$tag.exact')} instance(s): ${D('rt')}',
       );
       expect(cnt('$tag.inst'), greaterThan(0), reason: 'no $tag instances found — census stale?');
+    });
+  }
+
+  for (final tag in _partialTags) {
+    test('ROUND-TRIP: $tag re-serializes its modelable form (subset, exact count pinned)', () {
+      expect(cnt('$tag.exact'), greaterThan(0), reason: 'no $tag instance re-serialized — writer broken?');
+      expect(
+        cnt('$tag.exact'),
+        lessThanOrEqualTo(cnt('$tag.inst')),
+        reason: '$tag re-serialized more instances than exist',
+      );
     });
   }
 

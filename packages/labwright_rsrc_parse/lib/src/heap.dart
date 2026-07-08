@@ -2106,7 +2106,7 @@ HeapTierTotals measureHeapTiers(Uint8List body, String sectionTag) {
 /// skip table** — the reverse-engineered framing of every record family known so
 /// far. Coverage across the diverse corpus is measured mechanically (the
 /// "% deliberately parsed" metric — see corpus/ and tool/coverage.dart), not
-/// hand-asserted here; it is the frontier this table extends. Total (never throws).
+/// hand-asserted here. Total (never throws).
 ///
 /// CONTRACT: the returned length is the record's NOMINAL size and may exceed the
 /// remaining buffer for a truncated record — callers MUST validate `i + len <=
