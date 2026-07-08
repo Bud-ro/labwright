@@ -1507,6 +1507,21 @@ class _TypeBodyParser {
   /// null and consumers treat it as not-overridden.
   bool _inInstance = false;
 
+  /// Opt-in: whether a declaration-level POPULATED STEP array whose full
+  /// element run does not frame may be decoded as a PARTIAL prefix (the
+  /// leading steps that DO frame, remainder left undecoded — see
+  /// [_stepElementPrefix]). Set true ONLY on the sequence-record-walk parser,
+  /// where the array is a Main/Setup/Cleanup group of placed steps; false
+  /// everywhere else (typedef bodies, instances) so every other array keeps
+  /// strict all-or-nothing.
+  bool _partialStepArraysOk = false;
+
+  /// Set by [_populatedArrayTail] when it returns a PARTIAL step prefix (see
+  /// [_partialStepArraysOk]); read by [_fieldParse] immediately after the
+  /// call to mark the array field [BinaryTypeField.partialArray]. Reset at
+  /// the start of every [_populatedArrayTail].
+  bool _lastArrayPartial = false;
+
   /// Numeric-representation codes BY FIELD NAME of the instance type
   /// whose children are being parsed, from its typedef's 0x800-flagged
   /// `Num` fields ([_reprsOf]). Inside such an instance a plain valued
@@ -1727,7 +1742,37 @@ class _TypeBodyParser {
   /// Count-gated and terminator-gated, all-or-nothing: any element that
   /// does not frame returns null and the array falls back to the
   /// structural blob walk.
+  /// Decodes the LEADING placed-STEP elements of a populated array whose full
+  /// element run does not frame — the record-walk group-array partial mode
+  /// (see [_partialStepArraysOk]). Decodes step elements one at a time until
+  /// one fails (or the declared [count] is reached), returning the decoded
+  /// prefix and the offset after the last one, or null when not even the
+  /// first element frames as a step. Every element is a fully validated
+  /// placed step (`Step` token, resolvable type, `ID#:`-anchored TS via
+  /// [_stepElement]) — the SAME per-element gate the full run uses, so a
+  /// decoded prefix is exactly as trustworthy as a full array; the elements
+  /// past the prefix stay an explicit undecoded span, nothing fabricated.
+  /// Scoped to STEP arrays: a first element of any other class returns null
+  /// (no partial), so a non-step declaration array never partial-decodes.
+  (List<BinaryTypeField>, int)? _stepElementPrefix(int at, int count) {
+    final elements = <BinaryTypeField>[];
+    var p = at;
+    for (var i = 0; i < count; i++) {
+      final m = ops.mark();
+      final element = _arrayElement(p);
+      if (element == null || element.$1.className != 'Step') {
+        ops.rollback(m);
+        break;
+      }
+      elements.add(element.$1);
+      p = element.$2;
+    }
+    if (elements.isEmpty) return null;
+    return (elements, p);
+  }
+
   (List<BinaryTypeField>, int)? _populatedArrayTail(int at, String lbound, String ubound, {List<int>? attrsOut}) {
+    _lastArrayPartial = false;
     final count = _boundCount(lbound, ubound);
     if (count == null) return null;
     if (_inInstance) {
@@ -1790,6 +1835,25 @@ class _TypeBodyParser {
       // evidence exists.)
       _usedSpec = true;
       return (elements.$1, elements.$2);
+    }
+    // Partial STEP-array decode (record-walk group arrays only): when no
+    // proto candidate frames the FULL element run, decode the leading step
+    // elements that do and surface them as a PARTIAL array — the remaining
+    // bytes stay an explicit undecoded span (no fabrication). The committed
+    // attr-tail/pad ops above are reused; only the proto copy + prefix
+    // elements are added per candidate.
+    if (_partialStepArraysOk && !_inInstance) {
+      for (final start in _protoSpecEnds(tail + 1)) {
+        final m = ops.mark();
+        ops.copy(tail + 1, start); // proto block: extent walked, undecoded
+        final prefix = _stepElementPrefix(start, count);
+        if (prefix != null) {
+          _usedSpec = true;
+          _lastArrayPartial = true;
+          return prefix;
+        }
+        ops.rollback(m);
+      }
     }
     ops.rollback(mDecl);
     if (attrsDeclMark != null) attrsOut!.length = attrsDeclMark;
@@ -3098,6 +3162,7 @@ class _TypeBodyParser {
               children: elements.$1,
               fieldFlags: fieldFlags,
               attrWords: attrs,
+              partialArray: _lastArrayPartial,
             ),
             elements.$2,
           );
@@ -3350,6 +3415,7 @@ class BinaryTypeField {
     this.numericRepresentation,
     this.fieldFlags,
     this.attrWords = const [],
+    this.partialArray = false,
   });
 
   /// The field name (`Code`, `ItemName`, …).
@@ -3472,6 +3538,16 @@ class BinaryTypeField {
   /// surfaced raw, never named. Empty when the field stores none.
   final List<int> attrWords;
 
+  /// Whether this is a POPULATED array whose declared element count exceeds
+  /// the number of decoded [children] — the leading elements framed and the
+  /// remainder uses a shape the grammar does not yet cover. Set only for the
+  /// sequence group arrays (Main/Setup/Cleanup) the record walk decodes as a
+  /// PARTIAL step run ([_TypeBodyParser._stepElementPrefix]): [children] holds
+  /// the decoded prefix STEPS and the bytes past this field stay an explicit
+  /// undecoded span (never fabricated as decoded or empty). False for a fully
+  /// decoded array and for every all-or-nothing array.
+  final bool partialArray;
+
   /// Returns a copy with [elementSpecBytes] set — used when a trailing
   /// element-type spec is walked after the field's own encoding. A
   /// method (not a hand-copied constructor) so a newly added field can
@@ -3490,6 +3566,7 @@ class BinaryTypeField {
     numericRepresentation: numericRepresentation,
     fieldFlags: fieldFlags,
     attrWords: attrWords,
+    partialArray: partialArray,
   );
 }
 
@@ -4005,7 +4082,9 @@ List<_SequenceRecordWalk> _sequenceRecordWalks(
   if (seqIdx.isEmpty) return const [];
   int u32(int at) => view.getUint32(at, Endian.little);
   String? poolAt(int word) => word > 0 && word < pool.length && pool[word].isNotEmpty ? pool[word] : null;
-  final parser = _TypeBodyParser(view, pool, recordRegionLength, table, null, typeIndexBase)..ops = sink;
+  final parser = _TypeBodyParser(view, pool, recordRegionLength, table, null, typeIndexBase)
+    ..ops = sink
+    .._partialStepArraysOk = true;
 
   // Walks the subprop run at [from], up to [count] fields, gated by the
   // fixed head order and the closed tail set. Returns the decoded
@@ -4041,9 +4120,13 @@ List<_SequenceRecordWalk> _sequenceRecordWalks(
       }
       cur = _TypeBodyParser.debugLastEndOffset!;
       subProps.add((field, cur));
-      // A populated group array whose elements did not decode: the walk
-      // cannot cross the undecoded step content that follows.
-      if (_stepGroupNames.contains(field.name) && !field.isEmptyArray && field.children.isEmpty) {
+      // A populated group array the walk cannot cross ends it: either its
+      // elements did not decode at all (children empty), or only a PREFIX
+      // did ([BinaryTypeField.partialArray]) — in both the bytes past the
+      // decoded content are an undecoded span of unknown extent, so no
+      // later subprop can be located.
+      if (_stepGroupNames.contains(field.name) &&
+          ((!field.isEmptyArray && field.children.isEmpty) || field.partialArray)) {
         break;
       }
     }
