@@ -232,6 +232,20 @@ class BinaryBodyLayout {
   /// 43×), and the u32 after a run is a valid name index only ~45% of the time.
   /// They are best explained as `0xffffffff` all-ones *values* (−1 / "not set"
   /// defaults) embedded in the byte-packed records. Kept as a descriptive count.
+  ///
+  /// The largest residual undecoded spans (the populated array/step element
+  /// content that defeats [_populatedArrayTail] and [_stepElementPrefix]) are a
+  /// regular but NON-word-aligned object-reference graph: partitioning a span on
+  /// `ff ff ff ff` byte runs yields variable-length records whose byte lengths
+  /// cluster at a small set of recurring sizes (e.g. 44 / 68 / 129 bytes) and
+  /// which carry a monotonically increasing per-record id word — the object ids
+  /// of a serialized graph. A structural extent walk by delimiter counting is
+  /// NOT sound: 4-byte and 8-byte `ff` runs coexist (8-byte runs are ambiguous
+  /// between two adjacent separators and one separator abutting an all-ones
+  /// null-reference *value*), and record lengths are byte-granular (44 vs 45,
+  /// 129 vs 130), so the word grid gives no alignment to arbitrate the two. The
+  /// record payload grammar is required to walk this region — it is **not yet
+  /// decoded**, and no XML/twin oracle materializes it.
   final int sentinelCount;
 
   /// Number of distinct packed string tables (maximal NUL-adjacent run chains)
