@@ -1,12 +1,11 @@
 /// The **writer scoreboard** — byte attribution for the byte-exact `.vi` writer.
 ///
 /// `ViVi.serialize` re-emits every `.vi` byte-for-byte, but not every byte is
-/// yet *model-sourced*: the container/info-area structs are rebuilt from typed
-/// fields, while section payloads (and a few TODO-raw struct words) are still
-/// copied verbatim from the input. This partitions every byte of a `.vi` into
-/// **model** bytes (emitted from a typed, understood field) and **copied** bytes
-/// (verbatim spans we do not yet model), so a corpus sweep can watch the model
-/// fraction climb as block-payload writers are added — while byte-exactness
+/// *model-sourced*: the container/info-area structs are rebuilt from typed
+/// fields, while section payloads (and a few TODO-raw struct words) are copied
+/// verbatim from the input. This partitions every byte of a `.vi` into **model**
+/// bytes (emitted from a typed, understood field) and **copied** bytes (verbatim
+/// spans), so a corpus sweep measures the model fraction while byte-exactness
 /// stays pinned.
 ///
 /// The partition tiles the whole file (`modelBytes + copiedBytes == fileLength`,
@@ -17,9 +16,8 @@
 /// each section's recomputed `u32` length prefix; and payloads re-emitted by a
 /// block writer ([serializeBlockPayload]). Categories (copied): TODO-raw struct
 /// words (subheader `reservedA`/`reservedB`, name-table header); data-area gaps;
-/// compressed payloads (the zlib heap — a permanent copy-verbatim floor, since
-/// NI's deflate is not bit-reproducible); and uncompressed-but-untyped payloads
-/// (the shrinking frontier).
+/// compressed payloads (the zlib heap — copy-verbatim, since NI's deflate is
+/// not bit-reproducible); and uncompressed-but-untyped payloads.
 library;
 
 import 'dart:typed_data';

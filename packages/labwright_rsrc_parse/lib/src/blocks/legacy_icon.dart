@@ -26,7 +26,7 @@ class ViLegacyIcon {
   final int bpp;
 
   /// Row-major 32×32 = 1024 pixel values. For 1 bpp these are 0/1 (mask); for
-  /// 4/8 bpp they are palette indices (RGB mapping is future work).
+  /// 4/8 bpp they are palette indices (the RGB mapping is not decoded).
   final List<int> pixels;
 
   /// Byte length of the packed bitmap for this [bpp] (`1024·bpp/8`).

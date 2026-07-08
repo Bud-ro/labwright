@@ -1,26 +1,24 @@
 /// The **block-payload writer registry** — the inverse of the block decoders.
 ///
-/// Milestone 1 of the byte-exact `.vi` writer. `ViVi.serialize` already re-emits
-/// every container/info-area struct from its typed model, but each section's
-/// *payload* is copied verbatim from the input. This registry converts a
-/// payload from copied → model-sourced: it decodes the payload with the block's
-/// existing decoder and re-serializes it, returning the reconstructed bytes.
+/// `ViVi.serialize` re-emits every container/info-area struct from its typed
+/// model, but each section's *payload* is copied verbatim from the input. This
+/// registry re-emits a payload from its decoded model instead: it decodes the
+/// payload with the block's decoder and re-serializes it, returning the
+/// reconstructed bytes.
 ///
-/// The registry is deliberately **defensive**: [serializeBlockPayload] returns
-/// null unless the round-trip reproduces the payload byte-for-byte. So a caller
-/// (the writer scoreboard, a future editor) can adopt the model-sourced bytes
-/// when they match and fall back to the verbatim payload otherwise — the whole
-/// file stays byte-exact regardless, while the fraction of payload bytes proven
-/// to be model-sourced climbs as more block writers are added. A mismatch on a
-/// block that *should* round-trip is a model bug (a dropped/lossy field); the
-/// per-block corpus round-trip tests assert N/N so such a regression is loud.
+/// The registry is **defensive**: [serializeBlockPayload] returns null unless
+/// the round-trip reproduces the payload byte-for-byte, so a caller adopts the
+/// model-sourced bytes when they match and falls back to the verbatim payload
+/// otherwise — the file stays byte-exact regardless. A mismatch on a block that
+/// *should* round-trip is a model bug (a dropped/lossy field); the per-block
+/// corpus round-trip tests assert N/N so such a regression is loud.
 ///
-/// Payloads stored **compressed** (the zlib heap sections) are intentionally not
-/// modelable here — NI's deflate is not bit-reproducible by Dart's zlib, so
-/// those payloads must stay copy-verbatim permanently. Only payloads whose
-/// *stored* bytes equal a decoder's re-serialization are model-sourced.
+/// Payloads stored **compressed** (the zlib heap sections) are not modelable
+/// here — NI's deflate is not bit-reproducible by Dart's zlib, so those
+/// payloads stay copy-verbatim. Only payloads whose *stored* bytes equal a
+/// decoder's re-serialization are model-sourced.
 ///
-/// Covered so far (all byte-exact for every corpus instance):
+/// Covered blocks (byte-exact for every corpus instance):
 ///   * `icl8` / `icl4` / `ICON` — legacy 32×32 icon bitmaps ([ViLegacyIcon]).
 ///   * `NUID` / `SUID` / `BNID` — `[u32 count][u32…]` id tables ([ViIdTable]).
 library;
