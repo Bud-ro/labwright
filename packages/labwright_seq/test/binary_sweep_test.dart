@@ -120,7 +120,7 @@ void main() {
   test('whole corpus: nothing fabricates, all invariants hold, censuses match the snapshot', () {
     var binaries = 0, covFiles = 0, withNames = 0, totalNames = 0, nonzeroBaseFiles = 0, anchors = 0;
     var withLeading = 0, leadingTotal = 0, withTs = 0, tsTotal = 0, withRr = 0, withFa = 0;
-    var groupArrays = 0, steps = 0, ids = 0, comments = 0;
+    var groupArrays = 0, steps = 0, ids = 0, comments = 0, partialGroups = 0;
     var elementArrays = 0, elements = 0, dataSubProps = 0;
     var totalCov = const BinaryByteCoverage(
       bodyBytes: 0,
@@ -206,7 +206,25 @@ void main() {
           if (g.className != 'Objs') offenders.add('$base: group class ${g.className}');
           final count = boundCount(g.arrayLBound, g.arrayUBound);
           if (g.children.isNotEmpty) {
-            expect(g.children, hasLength(count), reason: '$base ${outline.name}.${g.name}: bounds vs elements');
+            // A fully decoded group array holds exactly its bound-count
+            // elements; a PARTIAL one (partialArray) holds a nonempty PROPER
+            // prefix — the remainder is an explicit undecoded span, never
+            // padded or fabricated.
+            if (g.partialArray) {
+              partialGroups++;
+              expect(
+                g.children,
+                isNotEmpty,
+                reason: '$base ${outline.name}.${g.name}: partial prefix must be nonempty',
+              );
+              expect(
+                count != null && g.children.length < count,
+                isTrue,
+                reason: '$base ${outline.name}.${g.name}: partial prefix must be shorter than bounds',
+              );
+            } else {
+              expect(g.children, hasLength(count), reason: '$base ${outline.name}.${g.name}: bounds vs elements');
+            }
           }
           for (final s in g.children) {
             steps++;
@@ -276,8 +294,8 @@ void main() {
       'binary sweep: $binaries binaries · $withNames with type names ($totalNames) · '
       '$nonzeroBaseFiles misaligned · $anchors anchors · $leadingTotal leading subprops in $withLeading sequences · '
       '$tsTotal TS subprops in $withTs steps · $withRr RecordResults · $withFa FailureAction · '
-      '$groupArrays group arrays · $steps step elements · $ids Id anchors · $comments comments · '
-      '$elementArrays element arrays · $elements elements · $dataSubProps data subprops',
+      '$groupArrays group arrays ($partialGroups partial) · $steps step elements · $ids Id anchors · '
+      '$comments comments · $elementArrays element arrays · $elements elements · $dataSubProps data subprops',
     );
     expect(
       offenders.toSet(),
@@ -307,6 +325,7 @@ void main() {
       'withRr': withRr,
       'withFa': withFa,
       'groupArrays': groupArrays,
+      'partialGroups': partialGroups,
       'steps': steps,
       'ids': ids,
       'comments': comments,
