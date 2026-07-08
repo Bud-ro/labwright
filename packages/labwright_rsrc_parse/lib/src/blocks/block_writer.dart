@@ -29,14 +29,23 @@
 ///   * `DTHP` — data-type heap ([ViDataTypeHeap]); the 4-byte header-only form.
 ///   * `CONP` / `CPC2` — connector-pane index ([ViConnectorPane]); the 2-byte
 ///     index form (the inline form stays copied).
+///   * `STRG` — VI description string ([ViStringBlock]); `[u32 len][text]`,
+///     every corpus instance.
+///   * `HIST` — revision-history record ([ViHistory]); the fixed 40-byte
+///     ten-word form, every corpus instance.
+///   * `LVSR` — LabVIEW save record ([ViSaveRecordRaw]); the word-aligned
+///     lengths read as a u32 grid (a handful of non-aligned records stay copied).
 library;
 
 import 'dart:typed_data';
 
 import 'connector_pane.dart';
 import 'data_type_heap.dart';
+import 'history.dart';
 import 'id_table.dart';
 import 'legacy_icon.dart';
+import 'save_record.dart';
+import 'string_block.dart';
 import 'tag_store.dart';
 import 'version_word.dart';
 
@@ -44,7 +53,20 @@ import 'version_word.dart';
 /// model can re-emit the stored payload). Independent of any specific payload —
 /// use it to census which block types are model-sourceable.
 bool hasBlockWriter(String tag) => switch (tag) {
-  'icl8' || 'icl4' || 'ICON' || 'NUID' || 'SUID' || 'BNID' || 'vers' || 'VITS' || 'DTHP' || 'CONP' || 'CPC2' => true,
+  'icl8' ||
+  'icl4' ||
+  'ICON' ||
+  'NUID' ||
+  'SUID' ||
+  'BNID' ||
+  'vers' ||
+  'VITS' ||
+  'DTHP' ||
+  'CONP' ||
+  'CPC2' ||
+  'STRG' ||
+  'HIST' ||
+  'LVSR' => true,
   _ => false,
 };
 
@@ -62,6 +84,9 @@ Uint8List? serializeBlockPayload(String tag, Uint8List payload) {
     'VITS' => decodeTagStore(payload)?.serialize(),
     'DTHP' => decodeDataTypeHeap(payload)?.serialize(),
     'CONP' || 'CPC2' => decodeConnectorPane(payload)?.serialize(),
+    'STRG' => decodeStringBlockRaw(payload)?.serialize(),
+    'HIST' => decodeHistory(payload)?.serialize(),
+    'LVSR' => decodeSaveRecordRaw(payload)?.serialize(),
     _ => null,
   };
   if (out == null || out.length != payload.length) return null;

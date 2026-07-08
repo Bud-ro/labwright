@@ -105,6 +105,38 @@ ViSaveRecord? decodeSaveRecord(Uint8List bytes) {
   );
 }
 
+/// A byte-exact `LVSR` model: the record read as its grid of big-endian u32
+/// words. The record is a word-aligned settings/flags table (the [ViSaveRecord]
+/// accessors name the decoded fields — version word `@0`, password hashes
+/// `@96`/`@144`); the remaining flag/count/id words are retained verbatim so
+/// [serialize] reproduces the record exactly without inventing meaning for the
+/// undecoded slots. Only the word-aligned lengths are modeled ([decodeSaveRecordRaw]
+/// returns null otherwise), so a non-aligned record stays copied.
+class ViSaveRecordRaw {
+  const ViSaveRecordRaw({required this.words});
+
+  /// The record's big-endian u32 words, in order (`length ~/ 4` of them).
+  final List<int> words;
+
+  /// Re-emits the words as a big-endian u32 grid — the whole record.
+  Uint8List serialize() {
+    final out = Uint8List(words.length * 4);
+    final data = ByteData.sublistView(out);
+    for (var i = 0; i < words.length; i++) {
+      data.setUint32(i * 4, words[i]);
+    }
+    return out;
+  }
+}
+
+/// Decodes an `LVSR` body into a byte-exact [ViSaveRecordRaw]; null when the
+/// buffer is empty or its length is not a whole number of u32 words. Total.
+ViSaveRecordRaw? decodeSaveRecordRaw(Uint8List bytes) {
+  if (bytes.isEmpty || bytes.length % 4 != 0) return null;
+  final data = ByteData.sublistView(bytes);
+  return ViSaveRecordRaw(words: [for (var i = 0; i < bytes.length; i += 4) data.getUint32(i)]);
+}
+
 /// Finds the `LVSR` section among [sections] and decodes it. Null if absent.
 /// (`LVSR` is uncompressed, so raw [ViSection] bytes suffice.)
 ViSaveRecord? saveRecordFromSections(Iterable<ViSection> sections) {

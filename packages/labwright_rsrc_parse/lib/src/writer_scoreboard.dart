@@ -18,6 +18,12 @@
 /// words (subheader `reservedA`/`reservedB`, name-table header); data-area gaps;
 /// compressed payloads (the zlib heap — copy-verbatim, since NI's deflate is
 /// not bit-reproducible); and uncompressed-but-untyped payloads.
+///
+/// A `VINS` section carries a complete nested RSRC sub-VI. Its bytes are
+/// attributed **recursively**: the sub-VI's own header/struct/prefix/model bytes
+/// join the parent's model categories and its zlib heaps join the compressed
+/// floor, rather than the parent counting the whole opaque sub-VI as one untyped
+/// span. A sub-VI is folded only when it round-trips byte-exact.
 library;
 
 import 'dart:typed_data';
@@ -90,10 +96,17 @@ class WriterAttribution {
 /// the compressed copy-verbatim floor.
 bool _looksCompressed(Uint8List payload) => payload.length >= 6 && payload[4] == 0x78;
 
+/// Recursion bound for nested `VINS` embedded sub-VIs. A VI may embed sub-VIs
+/// that themselves embed sub-VIs; the bound keeps attribution total on any input.
+const int _maxEmbedDepth = 8;
+
 /// Attributes every byte of [bytes] to a model or copied category. Throws
 /// [ViFormatException] (from [ViVi.parse]) on a non-RSRC container; callers that
 /// sweep the corpus should skip the lone non-RSRC fixture.
-WriterAttribution attributeVi(Uint8List bytes) {
+///
+/// [depth] tracks `VINS` embedded-sub-VI recursion (see [_maxEmbedDepth]); the
+/// top-level call uses `0`.
+WriterAttribution attributeVi(Uint8List bytes, {int depth = 0}) {
   final vi = ViVi.parse(bytes);
   final info = vi.infoArea;
 
@@ -104,7 +117,23 @@ WriterAttribution attributeVi(Uint8List bytes) {
     tagBySecRel[s.dataOffset] = s.tag;
   }
 
+  // Info-area struct vs TODO-raw split. subheader: dup header (32) + blockListRel
+  // (4) are struct; reservedA/reservedB are TODO-raw. blockList, preGap, and
+  // descriptors are fully typed structs. name table: header is TODO-raw, the
+  // trailing VI-name record is a typed field. Seeded here and grown by the
+  // embedded sub-VIs a VINS section carries, so a nested VI's own struct/raw
+  // bytes land in the matching category rather than the parent's untyped bucket.
+  var header = 32;
+  var infoStruct =
+      32 +
+      4 +
+      info.blockList.byteLength +
+      (info.preGap == null ? 0 : 20) +
+      20 * info.descriptors.length +
+      info.nameTable.trailingNameRecord.length;
+  var infoRaw = info.subheader.reservedA.length + info.subheader.reservedB.length + info.nameTable.header.length;
   var sectionPrefix = 0, typedPayload = 0, gaps = 0, compressed = 0, untyped = 0;
+
   for (final seg in vi.dataSegments) {
     switch (seg) {
       case ViGap(:final bytes):
@@ -112,34 +141,37 @@ WriterAttribution attributeVi(Uint8List bytes) {
       case ViSectionData(:final secRel, :final payload):
         sectionPrefix += 4;
         final tag = tagBySecRel[secRel];
-        final modeled = tag == null ? null : serializeBlockPayload(tag, payload);
-        if (modeled != null) {
-          typedPayload += payload.length;
-        } else if (_looksCompressed(payload)) {
-          compressed += payload.length;
+        // A VINS section's payload is a complete nested RSRC sub-VI. Attribute it
+        // recursively so its bytes land in the matching category — crucially its
+        // zlib heaps join the compressed floor, not model — instead of the parent
+        // counting the whole opaque sub-VI as one untyped span.
+        final sub = tag == 'VINS' && depth < _maxEmbedDepth ? _attributeEmbedded(payload, depth + 1) : null;
+        if (sub != null) {
+          header += sub.headerBytes;
+          infoStruct += sub.infoStructBytes;
+          infoRaw += sub.infoRawBytes;
+          sectionPrefix += sub.sectionPrefixBytes;
+          typedPayload += sub.typedPayloadBytes;
+          gaps += sub.gapBytes;
+          compressed += sub.compressedPayloadBytes;
+          untyped += sub.untypedPayloadBytes;
         } else {
-          untyped += payload.length;
+          final modeled = tag == null ? null : serializeBlockPayload(tag, payload);
+          if (modeled != null) {
+            typedPayload += payload.length;
+          } else if (_looksCompressed(payload)) {
+            compressed += payload.length;
+          } else {
+            untyped += payload.length;
+          }
         }
     }
   }
 
-  // Info-area struct vs TODO-raw split. subheader: dup header (32) + blockListRel
-  // (4) are struct; reservedA/reservedB are TODO-raw. blockList, preGap, and
-  // descriptors are fully typed structs. name table: header is TODO-raw, the
-  // trailing VI-name record is a typed field.
-  final infoStruct =
-      32 +
-      4 +
-      info.blockList.byteLength +
-      (info.preGap == null ? 0 : 20) +
-      20 * info.descriptors.length +
-      info.nameTable.trailingNameRecord.length;
-  final infoRaw = info.subheader.reservedA.length + info.subheader.reservedB.length + info.nameTable.header.length;
-
   final attribution = WriterAttribution(
     fileLength: bytes.length,
     byteExact: _eq(vi.serialize(), bytes),
-    headerBytes: 32,
+    headerBytes: header,
     infoStructBytes: infoStruct,
     sectionPrefixBytes: sectionPrefix,
     typedPayloadBytes: typedPayload,
@@ -149,6 +181,24 @@ WriterAttribution attributeVi(Uint8List bytes) {
     untypedPayloadBytes: untyped,
   );
   return attribution;
+}
+
+/// Attributes a `VINS` embedded-sub-VI [payload] recursively, returning its
+/// per-category split **iff** [payload] is a nested RSRC container that
+/// round-trips byte-exact (so claiming its model bytes is honest). Returns null
+/// otherwise (a non-RSRC or non-reproducible payload), so the caller keeps it in
+/// the copied categories. Its own bytes tile [payload] exactly, so folding every
+/// category into the parent preserves the parent's tiling law.
+WriterAttribution? _attributeEmbedded(Uint8List payload, int depth) {
+  if (payload.length < 4 || payload[0] != 0x52 || payload[1] != 0x53 || payload[2] != 0x52 || payload[3] != 0x43) {
+    return null;
+  }
+  try {
+    final sub = attributeVi(payload, depth: depth);
+    return sub.byteExact ? sub : null;
+  } catch (_) {
+    return null;
+  }
 }
 
 bool _eq(Uint8List a, Uint8List b) {

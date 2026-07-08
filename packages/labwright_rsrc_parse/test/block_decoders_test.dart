@@ -406,14 +406,44 @@ void main() {
       expect(decodeIdTable(empty)!.serialize(), empty);
     });
 
+    test('ViStringBlock.serialize re-emits [u32 len][text] exactly', () {
+      final body = _strg('This VI does a thing.');
+      expect(decodeStringBlockRaw(body)!.serialize(), body);
+      final empty = _strg('');
+      expect(decodeStringBlockRaw(empty)!.serialize(), empty);
+      // Non-UTF-8 bytes survive verbatim (the lossy text decoder would not).
+      final raw = u8([0, 0, 0, 3, 0xff, 0x00, 0x80]);
+      expect(decodeStringBlockRaw(raw)!.serialize(), raw);
+    });
+
+    test('ViHistory.serialize re-emits the fixed 40-byte ten-word record', () {
+      final body = _lvsr(40, b0: 2); // reuse a 40-byte builder; contents are u32 words
+      expect(decodeHistory(body)!.serialize(), body);
+    });
+
+    test('ViSaveRecordRaw.serialize re-emits the word grid; non-aligned stays copied', () {
+      for (final len in [160, 136, 144, 120, 96, 116]) {
+        final body = _lvsr(len);
+        expect(decodeSaveRecordRaw(body)!.serialize(), body, reason: 'len $len');
+      }
+      expect(decodeSaveRecordRaw(u8([1, 2, 3, 4, 5])), isNull, reason: 'not word-aligned');
+      expect(decodeSaveRecordRaw(u8([])), isNull);
+    });
+
     test('serializeBlockPayload: model-sources covered tags, null otherwise', () {
       final icl8 = Uint8List.fromList([for (var i = 0; i < 1024; i++) (i * 3) & 0xff]);
       expect(serializeBlockPayload('icl8', icl8), icl8);
       final suid = _idtab([7, 8, 9]);
       expect(serializeBlockPayload('SUID', suid), suid);
       expect(hasBlockWriter('BNID'), isTrue);
-      expect(hasBlockWriter('LVSR'), isFalse, reason: 'no writer yet');
-      expect(serializeBlockPayload('LVSR', u8([1, 2, 3, 4])), isNull);
+      // LVSR is a word-aligned record: a whole number of u32 words round-trips.
+      expect(hasBlockWriter('LVSR'), isTrue);
+      final lvsr = u8([1, 2, 3, 4, 5, 6, 7, 8]);
+      expect(serializeBlockPayload('LVSR', lvsr), lvsr);
+      // A non-word-aligned LVSR body is not modeled, so it stays copied.
+      expect(serializeBlockPayload('LVSR', u8([1, 2, 3, 4, 5])), isNull);
+      expect(hasBlockWriter('BDPW'), isFalse, reason: 'opaque password hash, no writer');
+      expect(serializeBlockPayload('BDPW', u8([1, 2, 3, 4])), isNull);
       // Wrong-sized icon body: decode fails, so no model-sourced bytes.
       expect(serializeBlockPayload('icl8', u8([1, 2, 3])), isNull);
       // Id table with trailing bytes past 4+4*count: re-serialization is shorter,
