@@ -9,6 +9,7 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'coverage_view.dart';
 import 'diagram_view.dart';
 import 'hex_view.dart';
+import 'images_view.dart';
 import 'types_view.dart';
 import 'vi_demo.dart';
 
@@ -28,6 +29,7 @@ class ViInspectorScreen extends StatefulWidget {
     this.initialLibraryNames,
     this.initialEmbeddedVis,
     this.initialAttribution,
+    this.initialImages,
   });
 
   /// Optional summary to show on first build (used by tests).
@@ -57,6 +59,9 @@ class ViInspectorScreen extends StatefulWidget {
   /// Optional writer byte-attribution to show on first build (tests).
   final WriterAttribution? initialAttribution;
 
+  /// Optional embedded images to show on first build (tests).
+  final ViImages? initialImages;
+
   @override
   State<ViInspectorScreen> createState() => _ViInspectorScreenState();
 }
@@ -75,6 +80,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
   List<String> _libraryNames = const [];
   List<ViEmbeddedVi> _embeddedVis = const [];
   WriterAttribution? _attribution;
+  ViImages _images = const ViImages();
 
   @override
   void initState() {
@@ -88,6 +94,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
     _libraryNames = widget.initialLibraryNames ?? const [];
     _embeddedVis = widget.initialEmbeddedVis ?? const [];
     _attribution = widget.initialAttribution;
+    _images = widget.initialImages ?? const ViImages();
   }
 
   @override
@@ -108,6 +115,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
     var libraryNames = const <String>[];
     var embeddedVis = const <ViEmbeddedVi>[];
     WriterAttribution? attribution;
+    var images = const ViImages();
     if (load.isOk) {
       try {
         sections = decodeSections(bytes);
@@ -131,6 +139,12 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
       } catch (_) {
         attribution = null;
       }
+      // Image extraction is isolated so a malformed VI still loads other tabs.
+      try {
+        images = extractViImages(sections);
+      } catch (_) {
+        images = const ViImages();
+      }
     }
     setState(() {
       _summary = load.summary;
@@ -144,6 +158,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
       _libraryNames = libraryNames;
       _embeddedVis = embeddedVis;
       _attribution = attribution;
+      _images = images;
     });
   }
 
@@ -265,7 +280,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                       : _summary == null
                       ? _Empty(dragging: _dragging)
                       : DefaultTabController(
-                          length: 5,
+                          length: 6,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
@@ -276,6 +291,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                                   Tab(text: 'Front Panel'),
                                   Tab(text: 'Block Diagram'),
                                   Tab(text: 'Types'),
+                                  Tab(text: 'Images'),
                                   Tab(text: 'Coverage'),
                                 ],
                               ),
@@ -333,6 +349,10 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                                     ViTypesView(
                                       key: ValueKey('types:$_model'),
                                       model: _model,
+                                    ),
+                                    ViImagesView(
+                                      key: ValueKey('img:${_images.count}'),
+                                      images: _images,
                                     ),
                                     ViCoverageView(
                                       key: ValueKey(
