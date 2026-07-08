@@ -286,22 +286,27 @@ void main() {
     );
     expect(binaries, 297, reason: 'binary corpus count drifted');
     expect(covFiles, greaterThanOrEqualTo(297));
-    expect(totalCov.recordSemanticRatio, greaterThanOrEqualTo(0.26));
-    expect(totalCov.recordAccountedRatio, greaterThanOrEqualTo(0.34));
+    // Floors re-based after the pool[0] class-slot decode (the TS 4.x-era
+    // generation references its root 'Obj' token by index 0): measured
+    // 0.312/0.414 record-region coverage, 4546 anchors, 792
+    // leading-subprop sequences, 1142 RecordResults, 1725 group arrays,
+    // 2885 step elements, 6144 element arrays, 15171 elements.
+    expect(totalCov.recordSemanticRatio, greaterThanOrEqualTo(0.31));
+    expect(totalCov.recordAccountedRatio, greaterThanOrEqualTo(0.41));
     expect(withNames, greaterThanOrEqualTo(275), reason: 'type-name recovery regressed ($withNames files)');
     expect(totalNames, greaterThanOrEqualTo(9600), reason: 'type-name recovery regressed ($totalNames names)');
-    expect(anchors, greaterThanOrEqualTo(3700), reason: 'anchor-field decode regressed ($anchors)');
+    expect(anchors, greaterThanOrEqualTo(4500), reason: 'anchor-field decode regressed ($anchors)');
     expect(
       nonzeroBaseFiles,
       greaterThanOrEqualTo(48),
       reason: 'misaligned-cohort recovery regressed ($nonzeroBaseFiles)',
     );
-    expect(withLeading, greaterThanOrEqualTo(475), reason: 'leading-subprop recovery regressed ($withLeading)');
-    expect(withRr, greaterThanOrEqualTo(600), reason: 'RecordResults recovery regressed ($withRr)');
-    expect(groupArrays, greaterThanOrEqualTo(1180));
-    expect(steps, greaterThanOrEqualTo(2260));
-    expect(elementArrays, greaterThanOrEqualTo(5400));
-    expect(elements, greaterThanOrEqualTo(13200));
+    expect(withLeading, greaterThanOrEqualTo(780), reason: 'leading-subprop recovery regressed ($withLeading)');
+    expect(withRr, greaterThanOrEqualTo(1100), reason: 'RecordResults recovery regressed ($withRr)');
+    expect(groupArrays, greaterThanOrEqualTo(1700));
+    expect(steps, greaterThanOrEqualTo(2850));
+    expect(elementArrays, greaterThanOrEqualTo(6100));
+    expect(elements, greaterThanOrEqualTo(15000));
     expect(dataSubProps, greaterThanOrEqualTo(28));
   });
 
@@ -359,6 +364,8 @@ void main() {
       'sandbox/Test Sequence.seq',
       'Bed of Nails Test Stand/BenchmarkTest.seq',
       'Very Old/Elatch-bench Backup.seq',
+      'Sequence/iTAC.seq',
+      'Solar_Panel Controller/Solar_panel_main.seq',
     ];
 
     List<BinarySequenceOutline> outlinesOf(String suffix) => binarySequenceOutlines(pin(suffix)!.readAsBytesSync());
@@ -421,6 +428,57 @@ void main() {
       );
       final load = outlines.firstWhere((o) => o.name == 'Load_Variables');
       expect(load.groupArrays.firstWhere((g) => g.name == 'Main').children, hasLength(6));
+    });
+
+    test('iTAC.seq: pool[0]-`Obj` generation — class-slot-0 subprops and scalar `Ref` parameters decode', () {
+      // This generation's pool leads with the root token `Obj` and its
+      // Obj-classed fields reference it by INDEX 0 (`[flags][0][0][name]`),
+      // which older grammar refused as an unresolvable class slot; and its
+      // `Ref`-classed parameters must take the scalar tail — the count-scan
+      // once misread `[attr 4][0]` as 4 swallowed sibling fields here.
+      if (pin(pinnedSuffixes[4]) == null) return;
+      final outlines = outlinesOf(pinnedSuffixes[4]);
+      expect(outlines.map((o) => o.name), contains('Connect'));
+      final connect = outlines.firstWhere((o) => o.name == 'Connect');
+      final params = connect.leadingSubProps.firstWhere((p) => p.name == 'Parameters');
+      expect(params.className, 'Obj', reason: 'class slot 0 resolves to pool[0]');
+      expect(params.attrWords, [0x440000], reason: 'the twin-known Parameters valueflags word');
+      expect(
+        [for (final c in params.children) c.name],
+        ['Error', 'iTACRef', 'iTACStationID', 'iTACSessionID', 'Errmsg'],
+        reason: 'the true 5-parameter list — nothing swallowed by the Ref',
+      );
+      final ref = params.children[1];
+      expect(ref.className, 'Ref');
+      expect(ref.value, isNull, reason: 'a Ref never persists a value');
+      expect(ref.children, isEmpty);
+      final locals = connect.leadingSubProps.firstWhere((p) => p.name == 'Locals');
+      expect(locals.attrWords, [0x400000], reason: 'the twin-known Locals valueflags word');
+      expect(locals.children.single.name, 'ResultList');
+    });
+
+    test('Solar_panel_main.seq: pool[0]-`Obj` generation — NI_Wait typedef body decodes through its substeps', () {
+      // The class-slot-0 `Result` node inside the substep instances was the
+      // whole-body blocker (all-or-nothing bail) before pool[0] resolved.
+      if (pin(pinnedSuffixes[5]) == null) return;
+      final records = binaryTypeRecords(pin(pinnedSuffixes[5])!.readAsBytesSync());
+      final wait = records.firstWhere((r) => r.name == 'NI_Wait');
+      expect(wait.undecodedBody, isFalse);
+      final substeps = wait.fields!.firstWhere((f) => f.name == 'Substeps');
+      expect([for (final s in substeps.children) s.name], ['OnNewStep', 'Post', 'Edit']);
+      final edit = substeps.children[2];
+      final result = edit.children.firstWhere((f) => f.name == 'Result');
+      expect(result.className, 'Obj', reason: 'class slot 0 resolves to pool[0]');
+      expect([for (final c in result.children) c.name], ['Error', 'ReportText', 'Common']);
+      // The X-less framed-lite children claim NO type (the twin types them
+      // per site: Error/Common are Obj references there).
+      expect(result.children[0].className, isNull);
+      expect(
+        edit.children.firstWhere((f) => f.name == 'MenuName').value,
+        'ResStr("NI_WAIT_STEP_TYPE", "EDIT_STEP_MENU_NAME")',
+      );
+      expect(edit.children.firstWhere((f) => f.name == 'HasEditPanel').value, 'true');
+      expect(records.where((r) => r.undecodedBody).length, lessThanOrEqualTo(4), reason: 'body bails must not regress');
     });
   });
 }

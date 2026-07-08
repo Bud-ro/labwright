@@ -867,6 +867,9 @@ class BinaryPropertyRecord {
     required this.value,
     required this.offset,
     required this.length,
+    this.lead = 0,
+    this.flagsByte = 0,
+    this.kind = 0,
   });
 
   /// The property name, resolved from the ordered string pool.
@@ -886,6 +889,21 @@ class BinaryPropertyRecord {
   /// the trailing `u16` zero terminator. `offset + length` is where the
   /// scan resumed; used by the byte-coverage accounting.
   final int length;
+
+  /// The record's LEAD byte, one of [_propRecordLeads] (`0x40`/`0x44`,
+  /// corpus-observed; which of the two a record carries is not yet
+  /// decoded) — retained typed-but-partially-interpreted.
+  final int lead;
+
+  /// The record's FLAGS byte (byte 1; `0x00`/`0x04` observed, bit
+  /// meanings not yet decoded) — retained typed-but-uninterpreted.
+  final int flagsByte;
+
+  /// The record's KIND code ([_PropRecordField.kind]): a SHAPE
+  /// classifier, not a byte size — `2` empty list, `4` bare (no stored
+  /// value), `6` scalar value present, `14` special string form. A value
+  /// `>= 6` ([_propScalarKind]) is what makes [value] decodable.
+  final int kind;
 }
 
 /// The **ordered NUL-terminated string pool** of a binary TOF1 body: the string
@@ -995,6 +1013,9 @@ List<BinaryPropertyRecord> _propertyRecordsFromBody(
             value: value,
             offset: at,
             length: consumed,
+            lead: body[at + _PropRecordField.lead.offset],
+            flagsByte: body[at + _PropRecordField.lead.offset + 1],
+            kind: kind,
           ),
         );
         at += consumed;
@@ -1440,6 +1461,25 @@ class _TypeBodyParser {
   int _u32(int at) => view.getUint32(at, Endian.little);
   String? _tok(int word) => word > 0 && word < pool.length && pool[word].isNotEmpty ? pool[word] : null;
 
+  /// Identifier shape a pool-index-0 CLASS token must have (see [_clsTok]).
+  static final _rootClassPattern = RegExp(r'^[A-Za-z_][A-Za-z0-9_]{0,39}$');
+
+  /// Resolves a CLASS-SLOT word: like [_tok], but index 0 additionally
+  /// resolves to `pool[0]` — the file's ROOT token. The TS 4.x-era record
+  /// generation puts `Obj` first in the pool (corpus-measured pool[0]
+  /// values over 297 binaries: 221× `SequenceFileData` [newer gen], 47×
+  /// `Obj`, 19× `SemiconductorModule`, 4× `StepType`, 3× `Enum`, 3 other)
+  /// and its `Obj`-classed fields reference it by index 0 — the shape
+  /// `[flags][0][0][name]` that previously bailed as "class slot zero".
+  /// Only an identifier-shaped root resolves ([_rootClassPattern]); word 0
+  /// outside a class slot keeps its framing-zero meaning everywhere else.
+  String? _clsTok(int word) {
+    if (word != 0) return _tok(word);
+    if (pool.isEmpty) return null;
+    final root = pool[0];
+    return _rootClassPattern.hasMatch(root) ? root : null;
+  }
+
   /// Whether [token] is an array-bound token: `'[]'`, `'[<digits>]'`, or
   /// a MULTI-DIMENSIONAL chain `'[<digits>][<digits>]…'` (the XML twin
   /// writes these verbatim as lbound/ubound — corpus arrays store 2-D
@@ -1475,14 +1515,10 @@ class _TypeBodyParser {
   /// stores `ID` as `[0x2][0][Num][ID][i64 7]` (the twin's
   /// `<value representation='Int64'>7</value>`; an f64 read yields a
   /// denormal, not 7). Null outside instances / when the type stores no
-  /// integer-represented Nums.
-  // TODO(numeric-representation reach): 163 decoded Num value slots across
-  // 14 corpus binaries still read as subnormal f64 text — the
-  // i64-read-as-f64 signature (e.g. parameter-element `ID` fields inside
-  // NAMED-form element blocks, whose element type rides the array's
-  // elemproto and is not consulted here). Surfaced by the writer's f64
-  // value census; byte-exact re-serialization is unaffected (the write op
-  // retains the raw bits), but the model TEXT is wrong at those sites.
+  /// integer-represented Nums. Slots this context does not reach (element
+  /// types riding an unresolved elemproto) are covered by the
+  /// subnormal-signature i64 read at the value site — see the plain `Num`
+  /// case in [_fieldParse].
   Map<String, int>? _numericReprContext;
 
   /// The integer-representation map of [ref]'s decoded typedef fields, or
@@ -1519,7 +1555,13 @@ class _TypeBodyParser {
   /// MORE words than the bits promise — `Substep.TS.Result` stores two
   /// 0x400000 where its bits promise one — so the floor is a minimum,
   /// not an exact arity).
-  int? _attrTail(int from, {int minWords = 0}) {
+  /// [attrsOut]: when given, each consumed attr word (not the terminator)
+  /// is collected for the field's typed model surface
+  /// ([BinaryTypeField.attrWords]) and emitted as a MODEL word; without a
+  /// collector (structural probe walks whose ops are rolled back) the
+  /// words stay retained structure. The verified 0 terminator is
+  /// grammar-determined either way.
+  int? _attrTail(int from, {int minWords = 0, List<int>? attrsOut}) {
     final m = ops?.mark();
     var at = from;
     for (var i = 0; i <= _fieldMaxAttrWords; i++) {
@@ -1528,9 +1570,17 @@ class _TypeBodyParser {
         return null;
       }
       final word = _u32(at);
-      ops?.u32(at, word);
+      if (word == 0 && i >= minWords) {
+        ops?.grammarU32(at, 0); // the verified attr-tail terminator
+        return at + _u32Bytes;
+      }
+      if (attrsOut != null) {
+        attrsOut.add(word);
+        ops?.modelU32(at, word);
+      } else {
+        ops?.u32(at, word);
+      }
       at += _u32Bytes;
-      if (word == 0 && i >= minWords) return at;
       // Bits 0x8000/0x800 accompany SOME element-type specs (0x8001/
       // 0x8801/0x801) but are unreliable in both directions (Substep.TS's
       // CustomResults spec follows a plain 0x1; Action.Substeps carries
@@ -1680,7 +1730,7 @@ class _TypeBodyParser {
   /// Count-gated and terminator-gated, all-or-nothing: any element that
   /// does not frame returns null and the array falls back to the
   /// structural blob walk.
-  (List<BinaryTypeField>, int)? _populatedArrayTail(int at, String lbound, String ubound) {
+  (List<BinaryTypeField>, int)? _populatedArrayTail(int at, String lbound, String ubound, {List<int>? attrsOut}) {
     final count = _boundCount(lbound, ubound);
     if (count == null) return null;
     if (_inInstance) {
@@ -1694,19 +1744,21 @@ class _TypeBodyParser {
       if (at < recordRegionLength && view.getUint8(at) == 0) {
         for (final start in _protoSpecEnds(at + 1)) {
           final m = ops?.mark();
-          ops?.structByte(at, 0);
+          final attrsMark = attrsOut?.length;
+          ops?.grammarByte(at, 0); // the verified realignment pad
           ops?.copy(at + 1, start); // proto block: extent walked, undecoded
           final elements = _elementRun(start, count);
           if (elements == null) {
             if (m != null) ops!.rollback(m);
             continue;
           }
-          final after = _attrTail(elements.$2);
+          final after = _attrTail(elements.$2, attrsOut: attrsOut);
           if (after != null) {
             _usedSpec = true;
             return (elements.$1, after);
           }
           if (m != null) ops!.rollback(m);
+          if (attrsMark != null) attrsOut!.length = attrsMark;
         }
       }
     }
@@ -1714,12 +1766,14 @@ class _TypeBodyParser {
     // standard array tail, then the elements chained with no closing
     // terminator (the count bounds the run).
     final mDecl = ops?.mark();
-    final tail = _attrTail(at);
+    final attrsDeclMark = attrsOut?.length;
+    final tail = _attrTail(at, attrsOut: attrsOut);
     if (tail == null || tail >= recordRegionLength || view.getUint8(tail) != 0) {
       if (mDecl != null) ops!.rollback(mDecl);
+      if (attrsDeclMark != null) attrsOut!.length = attrsDeclMark;
       return null;
     }
-    ops?.structByte(tail, 0);
+    ops?.grammarByte(tail, 0); // the verified pad after the array tail
     for (final start in _protoSpecEnds(tail + 1)) {
       final m = ops?.mark();
       ops?.copy(tail + 1, start); // proto block: extent walked, undecoded
@@ -1741,6 +1795,7 @@ class _TypeBodyParser {
       return (elements.$1, elements.$2);
     }
     if (mDecl != null) ops!.rollback(mDecl);
+    if (attrsDeclMark != null) attrsOut!.length = attrsDeclMark;
     return null;
   }
 
@@ -1779,7 +1834,7 @@ class _TypeBodyParser {
   /// anonymous `Num` children (the XML twin writes each as an unnamed
   /// `<value>`), formatted with the same f64 text rule as scalar `Num`
   /// fields. Returns null when the run + tail do not frame.
-  (List<BinaryTypeField>, int)? _scalarArrayTail(int at, String lbound, String ubound) {
+  (List<BinaryTypeField>, int)? _scalarArrayTail(int at, String lbound, String ubound, {List<int>? attrsOut}) {
     final count = _boundCount(lbound, ubound);
     if (count == null) return null;
     if (at + count * _f64Bytes > recordRegionLength) return null;
@@ -1801,9 +1856,11 @@ class _TypeBodyParser {
       final text = value == value.truncateToDouble() && value.abs() < 1e15 ? '${value.truncate()}' : '$value';
       elements.add(BinaryTypeField('', className: 'Num', value: text));
     }
-    final after = _attrTail(p);
+    final attrsMark = attrsOut?.length;
+    final after = _attrTail(p, attrsOut: attrsOut);
     if (after == null) {
       if (m != null) ops!.rollback(m);
+      if (attrsMark != null) attrsOut!.length = attrsMark;
       return null;
     }
     return (elements, after);
@@ -1887,7 +1944,7 @@ class _TypeBodyParser {
     for (final start in [at, if (at < recordRegionLength && view.getUint8(at) == 0) at + 1]) {
       if (!_canRead(start) || _u32(start) != _recordDelimiter) continue;
       final m = ops?.mark();
-      if (start > at) ops?.structByte(at, 0);
+      if (start > at) ops?.grammarByte(at, 0); // the verified realignment pad
       final block = _elementBlock(start);
       if (block == null && m != null) ops!.rollback(m);
       return block;
@@ -1949,7 +2006,8 @@ class _TypeBodyParser {
     }
     // The standard closing attr tail, like [_elementBlock] (measured:
     // `[0x80][0]` after each substep's fields).
-    final after = _attrTail(children.$2);
+    final attrs = <int>[];
+    final after = _attrTail(children.$2, attrsOut: attrs);
     if (after == null) {
       if (m != null) ops!.rollback(m);
       return null;
@@ -1961,6 +2019,7 @@ class _TypeBodyParser {
         typeName: ref.name,
         children: children.$1,
         instanceOverrides: true,
+        attrWords: attrs,
       ),
       after,
     );
@@ -1989,7 +2048,7 @@ class _TypeBodyParser {
   /// anonymous form; the named form has no serialized type to consult).
   (BinaryTypeField, int)? _elementBlock(int at) {
     final m = ops?.mark();
-    ops?.u32(at, _recordDelimiter);
+    ops?.grammarU32(at, _recordDelimiter); // verified by the caller
     var p = at + _u32Bytes;
     if (!_canRead(p)) return _blockBail(m);
     final x = _u32(p);
@@ -2002,7 +2061,7 @@ class _TypeBodyParser {
       if (!_validTableX(x)) return _blockBail(m);
       ref = _tableRef(x);
       ops?.modelU32(at + _u32Bytes, x); // 1-based type-table reference
-      ops?.u32(p, _recordDelimiter);
+      ops?.grammarU32(p, _recordDelimiter); // the verified anonymous-form slot
       // Expression-VALUED anonymous element — `[DELIM][X][DELIM]
       // [valueRef][attrs…][0]` where X resolves to the table's
       // `Expression` record (the same resolution gate as the framed
@@ -2016,10 +2075,11 @@ class _TypeBodyParser {
         final value = _tok(_u32(word4At));
         if (value != null) {
           ops?.poolRef(word4At, _u32(word4At));
-          final after = _attrTail(word4At + _u32Bytes);
+          final attrs = <int>[];
+          final after = _attrTail(word4At + _u32Bytes, attrsOut: attrs);
           if (after != null) {
             return (
-              BinaryTypeField('', className: 'ExprValue', typeName: 'Expression', value: value),
+              BinaryTypeField('', className: 'ExprValue', typeName: 'Expression', value: value, attrWords: attrs),
               after,
             );
           }
@@ -2050,7 +2110,8 @@ class _TypeBodyParser {
     _inInstance = outerInstance;
     _numericReprContext = outerRepr;
     if (children == null) return _blockBail(m);
-    final after = _attrTail(children.$2);
+    final attrs = <int>[];
+    final after = _attrTail(children.$2, attrsOut: attrs);
     if (after == null) return _blockBail(m);
     return (
       BinaryTypeField(
@@ -2059,6 +2120,7 @@ class _TypeBodyParser {
         typeName: ref?.name,
         children: children.$1,
         instanceOverrides: true,
+        attrWords: attrs,
       ),
       after,
     );
@@ -2106,9 +2168,9 @@ class _TypeBodyParser {
             for (var q = from; q < p; q += _u32Bytes) {
               ops!.u32(q, _u32(q)); // attr words before the extdata count
             }
-            ops!.u32(p, count);
+            ops!.u32(p, count); // extdata block count (blocks not modeled)
             ops!.copy(p + _u32Bytes, end); // block payloads: undecoded
-            ops!.u32(end, 0);
+            ops!.grammarU32(end, 0); // the verified extdata terminator
           }
           return end + _u32Bytes;
         }
@@ -2235,9 +2297,11 @@ class _TypeBodyParser {
   /// Returns `[]` unless the node is actually named `TS`.
   List<BinaryTypeField> parseStepTs(int at) {
     lastStepTsEnd = null;
-    // Must be a `TS`-named descriptor node header.
+    // Must be a `TS`-named descriptor node header (both framing zeros
+    // verified — the Id-only fallback below re-emits them as grammar
+    // constants).
     if (at + 5 * _u32Bytes > recordRegionLength) return const [];
-    if (_u32(at) != 0 || _u32(at + 2 * _u32Bytes) != _recordDelimiter) {
+    if (_u32(at) != 0 || _u32(at + _u32Bytes) != 0 || _u32(at + 2 * _u32Bytes) != _recordDelimiter) {
       return const [];
     }
     if (_tok(_u32(at + 3 * _u32Bytes)) != 'TS') return const [];
@@ -2259,9 +2323,9 @@ class _TypeBodyParser {
       if (ops != null) {
         // The descriptor-node header the fallback path validated:
         // `[0][0][DELIM][TS][childCount]`.
-        ops!.u32(at, 0);
-        ops!.u32(at + _u32Bytes, 0);
-        ops!.u32(at + 2 * _u32Bytes, _recordDelimiter);
+        ops!.grammarU32(at, 0);
+        ops!.grammarU32(at + _u32Bytes, 0);
+        ops!.grammarU32(at + 2 * _u32Bytes, _recordDelimiter);
         ops!.poolRef(at + 3 * _u32Bytes, _u32(at + 3 * _u32Bytes));
         ops!.modelU32(at + 4 * _u32Bytes, _u32(at + 4 * _u32Bytes));
       }
@@ -2283,7 +2347,7 @@ class _TypeBodyParser {
     final count = _u32(after + _u32Bytes);
     (List<BinaryTypeField>, int)? parsed;
     if (count <= _typeMaxFields) {
-      ops?.u32(after, 0);
+      ops?.grammarU32(after, 0); // the verified body opener
       ops?.modelU32(after + _u32Bytes, count);
       parsed = _fields(after + 2 * _u32Bytes, count);
       if (parsed == null && m0 != null) ops!.rollback(m0);
@@ -2296,8 +2360,8 @@ class _TypeBodyParser {
       if (extEnd != null && extEnd + _u32Bytes <= recordRegionLength) {
         final subCount = _u32(extEnd);
         if (subCount <= _typeMaxFields) {
-          ops?.u32(after, 0);
-          ops?.u32(after + _u32Bytes, count);
+          ops?.grammarU32(after, 0); // the verified body opener
+          ops?.u32(after + _u32Bytes, count); // extdata block count (blocks not modeled)
           ops?.copy(after + 2 * _u32Bytes, extEnd); // extdata blocks: undecoded
           ops?.modelU32(extEnd, subCount);
           parsed = _fields(extEnd + _u32Bytes, subCount);
@@ -2316,7 +2380,7 @@ class _TypeBodyParser {
       // boundary (the last record) this form stays undecoded.
       final boundary = bodyEndBoundary;
       if (boundary == null) return null;
-      ops?.u32(after, 0);
+      ops?.grammarU32(after, 0); // the verified body opener
       parsed = _fieldsUntil(after + _u32Bytes, boundary);
       if (parsed == null) return _blockBail(m0);
     }
@@ -2474,9 +2538,10 @@ class _TypeBodyParser {
       if (name == null || value == null) return null;
       ops?.poolRef(at, fieldFlags);
       ops?.poolRef(at + _u32Bytes, _u32(at + _u32Bytes));
-      final after = _attrTail(at + 2 * _u32Bytes);
+      final attrs = <int>[];
+      final after = _attrTail(at + 2 * _u32Bytes, attrsOut: attrs);
       if (after == null) return null;
-      return (BinaryTypeField(name, value: value), after);
+      return (BinaryTypeField(name, value: value, attrWords: attrs), after);
     }
     if (fieldFlags & ~_fieldKnownFlagBits != 0) return null;
     final hasExtData = fieldFlags & _fieldHasExtDataBit != 0;
@@ -2508,14 +2573,19 @@ class _TypeBodyParser {
       if (name == null) return null;
       final childCount = _u32(at + 4 * _u32Bytes);
       if (childCount > _typeMaxFields) return null;
-      ops?.u32(at, 0);
-      ops?.u32(at + _u32Bytes, 0);
-      ops?.u32(at + 2 * _u32Bytes, _recordDelimiter);
+      // The verified zero flags word is the FORM discriminator here —
+      // grammar-determined, like the framing zero and delimiter.
+      ops?.grammarU32(at, 0);
+      ops?.grammarU32(at + _u32Bytes, 0);
+      ops?.grammarU32(at + 2 * _u32Bytes, _recordDelimiter);
       ops?.poolRef(at + 3 * _u32Bytes, _u32(at + 3 * _u32Bytes));
       ops?.modelU32(at + 4 * _u32Bytes, childCount);
       final children = _fields(at + 5 * _u32Bytes, childCount);
       if (children == null) return null;
-      return (BinaryTypeField(name, className: 'Obj', children: children.$1, instanceOverrides: true), children.$2);
+      return (
+        BinaryTypeField(name, className: 'Obj', children: children.$1, instanceOverrides: true, fieldFlags: 0),
+        children.$2,
+      );
     }
 
     // Framed form: [flags|0x80][0][DELIM][X][name][value…][attrs…][0].
@@ -2530,11 +2600,12 @@ class _TypeBodyParser {
       // `<ExprValue typename='Expression' name=''>`).
       final name = nameWord == _recordDelimiter && _inInstance ? '' : _tok(nameWord);
       if (name == null) return null;
-      ops?.u32(at, fieldFlags);
-      ops?.u32(at + _u32Bytes, 0);
-      ops?.u32(at + 2 * _u32Bytes, _recordDelimiter);
+      ops?.modelU32(at, fieldFlags); // surfaced: BinaryTypeField.fieldFlags
+      ops?.grammarU32(at + _u32Bytes, 0); // the verified framing zero
+      ops?.grammarU32(at + 2 * _u32Bytes, _recordDelimiter);
       if (nameWord == _recordDelimiter) {
-        ops?.u32(at + 4 * _u32Bytes, nameWord);
+        // The verified anonymous-element sentinel (name == '').
+        ops?.grammarU32(at + 4 * _u32Bytes, _recordDelimiter);
       } else {
         ops?.poolRef(at + 4 * _u32Bytes, nameWord);
       }
@@ -2565,20 +2636,21 @@ class _TypeBodyParser {
       if (boundPair) {
         final lbound = _tok(_u32(next))!;
         final ubound = _tok(_u32(next + _u32Bytes))!;
-        // X here is an intrinsic type id / generation sentinel, not a
-        // table reference — retained structure.
-        ops?.u32(at + 3 * _u32Bytes, x);
+        // X here is an intrinsic type id / generation sentinel, surfaced
+        // as [BinaryTypeField.intrinsicTypeId] (null ↔ 0, bijective).
+        ops?.modelU32(at + 3 * _u32Bytes, x);
         ops?.poolRef(next, _u32(next));
         ops?.poolRef(next + _u32Bytes, _u32(next + _u32Bytes));
         if (ubound == '[]') {
           // EMPTY array: ['[0]']['[]'][attr words…][0][one 0x00 pad byte]
           // — anchor-measured across every rosetta binary.
           if (lbound != '[0]') return null;
-          final tail = _attrTail(next + 2 * _u32Bytes, minWords: minAttrs);
+          final attrs = <int>[];
+          final tail = _attrTail(next + 2 * _u32Bytes, minWords: minAttrs, attrsOut: attrs);
           if (tail == null || tail >= recordRegionLength || view.getUint8(tail) != 0) {
             return null;
           }
-          ops?.structByte(tail, 0);
+          ops?.grammarByte(tail, 0); // the verified trailing pad
           return (
             BinaryTypeField(
               name,
@@ -2586,6 +2658,8 @@ class _TypeBodyParser {
               arrayLBound: lbound,
               arrayUBound: ubound,
               intrinsicTypeId: x == 0 ? null : x,
+              fieldFlags: fieldFlags,
+              attrWords: attrs,
             ),
             tail + 1,
           );
@@ -2594,7 +2668,8 @@ class _TypeBodyParser {
         // tail, count-gated by the bounds ([_populatedArrayTail]) —
         // all-or-nothing; an element run that does not frame bails the
         // body (its extent cannot be measured without decoding it).
-        final elements = _populatedArrayTail(next + 2 * _u32Bytes, lbound, ubound);
+        final attrs = <int>[];
+        final elements = _populatedArrayTail(next + 2 * _u32Bytes, lbound, ubound, attrsOut: attrs);
         if (elements == null) return null;
         return (
           BinaryTypeField(
@@ -2604,12 +2679,14 @@ class _TypeBodyParser {
             arrayUBound: ubound,
             intrinsicTypeId: x == 0 ? null : x,
             children: elements.$1,
+            fieldFlags: fieldFlags,
+            attrWords: attrs,
           ),
           elements.$2,
         );
       }
       if (x == 0) {
-        ops?.u32(at + 3 * _u32Bytes, 0);
+        ops?.grammarU32(at + 3 * _u32Bytes, 0); // verified implicit-type X
         if (valued) {
           value = _tok(_u32(next));
           if (value == null) return null;
@@ -2661,12 +2738,12 @@ class _TypeBodyParser {
           if (word == 0) break; // the ref-only terminator — no instance
           if (word < 1 || word > _typeMaxFields) continue; // attr word
           final mInst = ops?.mark();
-          if (ops != null) {
-            for (var j = 0; j < k; j++) {
-              ops!.u32(next + j * _u32Bytes, _u32(next + j * _u32Bytes));
-            }
-            ops!.modelU32(countAt, word);
+          final instAttrs = <int>[];
+          for (var j = 0; j < k; j++) {
+            instAttrs.add(_u32(next + j * _u32Bytes));
+            ops?.modelU32(next + j * _u32Bytes, instAttrs[j]);
           }
+          ops?.modelU32(countAt, word);
           final outerInstance = _inInstance;
           final outerRepr = _numericReprContext;
           _inInstance = true;
@@ -2682,6 +2759,8 @@ class _TypeBodyParser {
                 typeName: ref.name,
                 children: children.$1,
                 instanceOverrides: true,
+                fieldFlags: fieldFlags,
+                attrWords: instAttrs,
               ),
               children.$2,
             );
@@ -2717,7 +2796,7 @@ class _TypeBodyParser {
         // 0x80018 words) — scan past them, same as the X >= 2 form,
         // starting past the flags-promised attr floor (zero-valued
         // slots must not read as a zero count; see [_attrTail]).
-        ops?.u32(at + 3 * _u32Bytes, 1); // X == 1: intrinsic-instance sentinel
+        ops?.grammarU32(at + 3 * _u32Bytes, 1); // verified X == 1 sentinel
         final attrsFrom = next;
         next += minAttrs * _u32Bytes;
         if (next + _u32Bytes > recordRegionLength) return null;
@@ -2728,25 +2807,46 @@ class _TypeBodyParser {
           overrideCount = _u32(next);
         }
         if (overrideCount > _typeMaxFields) return null;
-        if (ops != null) {
-          for (var q = attrsFrom; q < next; q += _u32Bytes) {
-            ops!.u32(q, _u32(q)); // attr words before the override count
-          }
-          ops!.modelU32(next, overrideCount);
+        final customAttrs = <int>[];
+        for (var q = attrsFrom; q < next; q += _u32Bytes) {
+          customAttrs.add(_u32(q)); // attr words before the override count
+          ops?.modelU32(q, customAttrs.last);
         }
+        ops?.modelU32(next, overrideCount);
         next += _u32Bytes;
         final outer = _inInstance;
         _inInstance = true;
         final overrides = _fields(next, overrideCount);
         _inInstance = outer;
         if (overrides == null) return null;
-        return (BinaryTypeField(name, className: 'Obj', children: overrides.$1, instanceOverrides: true), overrides.$2);
+        return (
+          BinaryTypeField(
+            name,
+            className: 'Obj',
+            children: overrides.$1,
+            instanceOverrides: true,
+            fieldFlags: fieldFlags,
+            attrWords: customAttrs,
+          ),
+          overrides.$2,
+        );
       } else {
         return null;
       }
-      final after = _attrTail(next, minWords: minAttrs);
+      final attrs = <int>[];
+      final after = _attrTail(next, minWords: minAttrs, attrsOut: attrs);
       if (after == null) return null;
-      return (BinaryTypeField(name, className: className, typeName: typeName, value: value), after);
+      return (
+        BinaryTypeField(
+          name,
+          className: className,
+          typeName: typeName,
+          value: value,
+          fieldFlags: fieldFlags,
+          attrWords: attrs,
+        ),
+        after,
+      );
     }
 
     // FRAMED-LITE form: [flags][0][DELIM][name][value?][attrs…][0] — an
@@ -2758,9 +2858,9 @@ class _TypeBodyParser {
       if (hasNumericRep) return null;
       final name = _tok(_u32(at + 3 * _u32Bytes));
       if (name == null) return null;
-      ops?.u32(at, fieldFlags);
-      ops?.u32(at + _u32Bytes, 0);
-      ops?.u32(at + 2 * _u32Bytes, _recordDelimiter);
+      ops?.modelU32(at, fieldFlags); // surfaced: BinaryTypeField.fieldFlags
+      ops?.grammarU32(at + _u32Bytes, 0); // the verified framing zero
+      ops?.grammarU32(at + 2 * _u32Bytes, _recordDelimiter);
       ops?.poolRef(at + 3 * _u32Bytes, _u32(at + 3 * _u32Bytes));
       var next = at + 4 * _u32Bytes;
       if (!valued) {
@@ -2778,19 +2878,26 @@ class _TypeBodyParser {
           if (word == 0) break; // the scalar terminator — not an object
           if (word < 1 || word > _typeMaxFields) continue; // attr word
           final mObj = ops?.mark();
-          if (ops != null) {
-            for (var j = 0; j < k; j++) {
-              ops!.u32(next + j * _u32Bytes, _u32(next + j * _u32Bytes));
-            }
-            ops!.modelU32(countAt, word);
+          final objAttrs = <int>[];
+          for (var j = 0; j < k; j++) {
+            objAttrs.add(_u32(next + j * _u32Bytes));
+            ops?.modelU32(next + j * _u32Bytes, objAttrs[j]);
           }
+          ops?.modelU32(countAt, word);
           final outerInstance = _inInstance;
           _inInstance = true;
           final children = _fields(countAt + _u32Bytes, word);
           _inInstance = outerInstance;
           if (children != null) {
             return (
-              BinaryTypeField(name, className: 'Obj', children: children.$1, instanceOverrides: true),
+              BinaryTypeField(
+                name,
+                className: 'Obj',
+                children: children.$1,
+                instanceOverrides: true,
+                fieldFlags: fieldFlags,
+                attrWords: objAttrs,
+              ),
               children.$2,
             );
           }
@@ -2806,7 +2913,7 @@ class _TypeBodyParser {
         // stores `[0x2][0][DELIM][LoopIncrement][DELIM][0]`), reading
         // like the twin's `<value/>`.
         if (_u32(next) == _recordDelimiter) {
-          ops?.u32(next, _recordDelimiter);
+          ops?.grammarU32(next, _recordDelimiter); // verified unset sentinel
           next += _u32Bytes;
         } else {
           final stored = _tok(_u32(next));
@@ -2816,9 +2923,18 @@ class _TypeBodyParser {
           next += _u32Bytes;
         }
       }
-      final after = _attrTail(next, minWords: minAttrs);
+      final attrs = <int>[];
+      final after = _attrTail(next, minWords: minAttrs, attrsOut: attrs);
       if (after == null) return null;
-      return (BinaryTypeField(name, className: 'ExprValue', typeName: 'Expression', value: value), after);
+      // The X-less framed-lite shape serializes NO type: the twin's type
+      // varies per site (Action's `PassActTarget`/`FailActTarget`
+      // materialize `typename='Expression'`, but an old-generation
+      // substep `Result` stores its `Error`/`Common` OBJECT references in
+      // exactly this shape — `<Error typename='Error' classname='Obj'>`
+      // in the materialized twin), so no class/type is claimed. The
+      // former unconditional `ExprValue`/`Expression` claim is
+      // corpus-refuted by those Result sites.
+      return (BinaryTypeField(name, value: value, fieldFlags: fieldFlags, attrWords: attrs), after);
     }
 
     // Plain form: [flags][0][cls][name][value-part][format?][extras…]
@@ -2826,11 +2942,11 @@ class _TypeBodyParser {
     // CodeTemplates: [Str][name][value][0x480018][0]); with no value part
     // they directly precede the terminator (BlockStartTypes:
     // [Str][name][0x480018][0]).
-    final className = _tok(_u32(at + 2 * _u32Bytes));
+    final className = _clsTok(_u32(at + 2 * _u32Bytes));
     final name = _tok(_u32(at + 3 * _u32Bytes));
     if (className == null || name == null) return null;
-    ops?.u32(at, fieldFlags);
-    ops?.u32(at + _u32Bytes, 0);
+    ops?.modelU32(at, fieldFlags); // surfaced: BinaryTypeField.fieldFlags
+    ops?.grammarU32(at + _u32Bytes, 0); // the verified framing zero
     ops?.poolRef(at + 2 * _u32Bytes, _u32(at + 2 * _u32Bytes));
     ops?.poolRef(at + 3 * _u32Bytes, _u32(at + 3 * _u32Bytes));
     var next = at + 4 * _u32Bytes;
@@ -2842,8 +2958,16 @@ class _TypeBodyParser {
     // word small enough to be a count whose children then parse
     // (Substep.TS's Result stores two 0x400000 attr words where its
     // flag bits promise one — bit arity is not reliable here either).
+    // 'Ref' is a SCALAR value class (an engine object reference): every
+    // XML-corpus site is a childless, valueless self-closing element
+    // (`<EvaluatedConditionExpr classname='Ref'/>`, `<RTSequenceReference
+    // classname='Ref'/>` — 8 sites), so it takes the scalar tail below,
+    // NEVER this count-scan: a Ref tail `[attr 4][0]` misreads as
+    // `[childCount 4]{4 swallowed siblings}` under the scan (measured on
+    // the iTAC `Connect` record, where it ate the sequence's remaining
+    // parameters and its `Locals`).
     if (!valued &&
-        !const {'Bool', 'Str', 'Num', 'Nums', 'Strs', 'Objs', 'ExprValue', 'PathValue'}.contains(className)) {
+        !const {'Bool', 'Str', 'Num', 'Nums', 'Strs', 'Objs', 'ExprValue', 'PathValue', 'Ref'}.contains(className)) {
       if (hasNumericRep) return null;
       // On EXACTLY flags == 0x4, a ZERO count candidate yields to the
       // IMMEDIATELY following word: that shape can store a zero-valued
@@ -2864,33 +2988,52 @@ class _TypeBodyParser {
           final adjacent = _u32(countAt + _u32Bytes);
           if (adjacent >= 1 && adjacent <= _typeMaxFields) {
             final mAdj = ops?.mark();
-            if (ops != null) {
-              for (var j = 0; j < k; j++) {
-                ops!.u32(next + j * _u32Bytes, _u32(next + j * _u32Bytes));
-              }
-              ops!.u32(countAt, 0); // the zero-valued attr slot
-              ops!.modelU32(countAt + _u32Bytes, adjacent);
+            final adjAttrs = <int>[];
+            for (var j = 0; j < k; j++) {
+              adjAttrs.add(_u32(next + j * _u32Bytes));
+              ops?.modelU32(next + j * _u32Bytes, adjAttrs[j]);
             }
+            adjAttrs.add(0); // the zero-valued attr slot
+            ops?.modelU32(countAt, 0);
+            ops?.modelU32(countAt + _u32Bytes, adjacent);
             final children = _fields(countAt + 2 * _u32Bytes, adjacent);
             if (children != null) {
-              return (BinaryTypeField(name, className: className, children: children.$1), children.$2);
+              return (
+                BinaryTypeField(
+                  name,
+                  className: className,
+                  children: children.$1,
+                  fieldFlags: fieldFlags,
+                  attrWords: adjAttrs,
+                ),
+                children.$2,
+              );
             }
             if (mAdj != null) ops!.rollback(mAdj);
           }
         }
         final mDecl = ops?.mark();
-        if (ops != null) {
-          for (var j = 0; j < k; j++) {
-            ops!.u32(next + j * _u32Bytes, _u32(next + j * _u32Bytes));
-          }
-          ops!.modelU32(countAt, childCount);
+        final declAttrs = <int>[];
+        for (var j = 0; j < k; j++) {
+          declAttrs.add(_u32(next + j * _u32Bytes));
+          ops?.modelU32(next + j * _u32Bytes, declAttrs[j]);
         }
+        ops?.modelU32(countAt, childCount);
         final children = _fields(countAt + _u32Bytes, childCount);
         if (children == null) {
           if (mDecl != null) ops!.rollback(mDecl);
           continue;
         }
-        return (BinaryTypeField(name, className: className, children: children.$1), children.$2);
+        return (
+          BinaryTypeField(
+            name,
+            className: className,
+            children: children.$1,
+            fieldFlags: fieldFlags,
+            attrWords: declAttrs,
+          ),
+          children.$2,
+        );
       }
       return null;
     }
@@ -2908,14 +3051,18 @@ class _TypeBodyParser {
         ops?.modelU32(next, repr);
         next += _u32Bytes;
       }
-      final after = hasExtData ? _extTail(next) : _attrTail(next, minWords: minAttrs);
+      final attrs = <int>[];
+      final after = hasExtData ? _extTail(next) : _attrTail(next, minWords: minAttrs, attrsOut: attrs);
       if (after == null) return null;
-      if (!const {'Bool', 'Str', 'Num'}.contains(className)) return null;
+      if (!const {'Bool', 'Str', 'Num', 'Ref'}.contains(className)) return null;
       return (
         BinaryTypeField(
           name,
           className: className,
-          value: _inInstance
+          // A 'Ref' carries no persisted value in ANY context (its XML
+          // twin form is always a self-closing element) — value stays
+          // null rather than a fabricated default.
+          value: _inInstance || className == 'Ref'
               ? null
               : switch (className) {
                   'Bool' => 'false',
@@ -2923,6 +3070,8 @@ class _TypeBodyParser {
                   _ => '',
                 },
           numericRepresentation: repr,
+          fieldFlags: fieldFlags,
+          attrWords: attrs,
         ),
         after,
       );
@@ -2950,7 +3099,8 @@ class _TypeBodyParser {
       // bounds and terminator-gated, all-or-nothing; on failure the array
       // falls back to the structural blob walk in [_fieldsInner].
       if (className == 'Objs' && ubound != '[]') {
-        final elements = _populatedArrayTail(next + 2 * _u32Bytes, lbound, ubound);
+        final attrs = <int>[];
+        final elements = _populatedArrayTail(next + 2 * _u32Bytes, lbound, ubound, attrsOut: attrs);
         if (elements != null) {
           return (
             BinaryTypeField(
@@ -2959,6 +3109,8 @@ class _TypeBodyParser {
               arrayLBound: lbound,
               arrayUBound: ubound,
               children: elements.$1,
+              fieldFlags: fieldFlags,
+              attrWords: attrs,
             ),
             elements.$2,
           );
@@ -2974,7 +3126,8 @@ class _TypeBodyParser {
       // terminator-gated, all-or-nothing; on failure the array falls
       // back to the bounds-only read below (contents stay undecoded).
       if (className == 'Nums' && valued && ubound != '[]') {
-        final run = _scalarArrayTail(next + 2 * _u32Bytes, lbound, ubound);
+        final attrs = <int>[];
+        final run = _scalarArrayTail(next + 2 * _u32Bytes, lbound, ubound, attrsOut: attrs);
         if (run != null) {
           return (
             BinaryTypeField(
@@ -2983,6 +3136,8 @@ class _TypeBodyParser {
               arrayLBound: lbound,
               arrayUBound: ubound,
               children: run.$1,
+              fieldFlags: fieldFlags,
+              attrWords: attrs,
             ),
             run.$2,
           );
@@ -2991,13 +3146,14 @@ class _TypeBodyParser {
       // A populated array whose elements did not decode is NOT claimed
       // empty: its element content rides in the trailing DELIM-led
       // blocks, surfaced undecoded via elementSpecBytes.
-      var after = _attrTail(next + 2 * _u32Bytes, minWords: minAttrs);
+      final attrs = <int>[];
+      var after = _attrTail(next + 2 * _u32Bytes, minWords: minAttrs, attrsOut: attrs);
       if (after == null) return null;
       if (className == 'Objs') {
         if (after >= recordRegionLength || view.getUint8(after) != 0) {
           return null;
         }
-        ops?.structByte(after, 0);
+        ops?.grammarByte(after, 0); // the verified trailing Objs pad
         after += 1;
         // An EMPTY `Objs` array may carry a trailing ELEMENT-TYPE
         // block — `[classRef][DELIM][0][attr words…][0]`, the binary
@@ -3026,22 +3182,37 @@ class _TypeBodyParser {
                 arrayLBound: lbound,
                 arrayUBound: ubound,
                 elementSpecBytes: proto.$2 - after,
+                fieldFlags: fieldFlags,
+                attrWords: attrs,
               ),
               proto.$2,
             );
           }
         }
       }
-      return (BinaryTypeField(name, className: className, arrayLBound: lbound, arrayUBound: ubound), after);
+      return (
+        BinaryTypeField(
+          name,
+          className: className,
+          arrayLBound: lbound,
+          arrayUBound: ubound,
+          fieldFlags: fieldFlags,
+          attrWords: attrs,
+        ),
+        after,
+      );
     }
     switch (className) {
       case 'Str' when !hasNumericRep:
         final value = _tok(_u32(next));
         if (value == null) return null;
         ops?.poolRef(next, _u32(next));
-        final after = hasExtData ? _extTail(next + _u32Bytes) : _attrTail(next + _u32Bytes, minWords: minAttrs);
+        final attrs = <int>[];
+        final after = hasExtData
+            ? _extTail(next + _u32Bytes)
+            : _attrTail(next + _u32Bytes, minWords: minAttrs, attrsOut: attrs);
         if (after == null) return null;
-        return (BinaryTypeField(name, className: 'Str', value: value), after);
+        return (BinaryTypeField(name, className: 'Str', value: value, fieldFlags: fieldFlags, attrWords: attrs), after);
       case 'Bool' when !hasNumericRep:
         // A stored Bool is ONE byte (TEInf's StepFCSeqF=true measured:
         // [01][attr 0x4d0018][terminator]) — the same byte the instance
@@ -3050,9 +3221,19 @@ class _TypeBodyParser {
         final value = view.getUint8(next);
         if (value > 1) return null;
         ops?.boolByte(next, value);
-        final after = hasExtData ? _extTail(next + 1) : _attrTail(next + 1, minWords: minAttrs);
+        final attrs = <int>[];
+        final after = hasExtData ? _extTail(next + 1) : _attrTail(next + 1, minWords: minAttrs, attrsOut: attrs);
         if (after == null) return null;
-        return (BinaryTypeField(name, className: 'Bool', value: value == 1 ? 'true' : 'false'), after);
+        return (
+          BinaryTypeField(
+            name,
+            className: 'Bool',
+            value: value == 1 ? 'true' : 'false',
+            fieldFlags: fieldFlags,
+            attrWords: attrs,
+          ),
+          after,
+        );
       case 'Num':
         // A 0x800-flagged Num stores [representation word][i64 value];
         // a plain one stores an f64 — unless it sits inside an instance
@@ -3067,9 +3248,24 @@ class _TypeBodyParser {
           next += _u32Bytes;
         }
         if (next + 2 * _u32Bytes > recordRegionLength) return null;
-        final integer = repr != null
+        // The stored value is an i64 when the representation says so —
+        // explicitly (bit 0x800), via the instance type's declaration
+        // ([_numericReprContext]), or by the SUBNORMAL signature: an
+        // integer-stored slot read as f64 collapses into the denormal
+        // range (i64 1 ↔ 5e-324), and no corpus text flavor ever stores
+        // a subnormal numeric text (0 hits across all 384 XML/INI files),
+        // while the oracle twin types exactly these slots Int64
+        // (`<ID classname='Num'><value representation='Int64'>1</value>`
+        // — the parameter-element ID runs whose element type rides an
+        // elemproto the walk does not resolve). The same signature
+        // already gates [_scalarArrayTail]'s element runs.
+        var integer = repr != null
             ? BinaryNumericRepresentation.isInteger(repr)
             : _inInstance && _numericReprContext?[name] != null;
+        if (!integer) {
+          final raw = view.getFloat64(next, Endian.little);
+          if (raw != 0 && raw.isFinite && raw.abs() < _smallestNormalF64) integer = true;
+        }
         final String text;
         if (integer) {
           final value = view.getInt64(next, Endian.little);
@@ -3088,9 +3284,20 @@ class _TypeBodyParser {
           ops?.poolRef(next, _u32(next));
           next += _u32Bytes; // display-format ref, e.g. '%#x'
         }
-        final after = hasExtData ? _extTail(next) : _attrTail(next, minWords: minAttrs);
+        final attrs = <int>[];
+        final after = hasExtData ? _extTail(next) : _attrTail(next, minWords: minAttrs, attrsOut: attrs);
         if (after == null) return null;
-        return (BinaryTypeField(name, className: 'Num', value: text, numericRepresentation: repr), after);
+        return (
+          BinaryTypeField(
+            name,
+            className: 'Num',
+            value: text,
+            numericRepresentation: repr,
+            fieldFlags: fieldFlags,
+            attrWords: attrs,
+          ),
+          after,
+        );
       default:
         return null;
     }
@@ -3154,6 +3361,8 @@ class BinaryTypeField {
     this.elementSpecBytes,
     this.intrinsicTypeId,
     this.numericRepresentation,
+    this.fieldFlags,
+    this.attrWords = const [],
   });
 
   /// The field name (`Code`, `ItemName`, …).
@@ -3244,6 +3453,38 @@ class BinaryTypeField {
   /// a twin.
   bool get isPlainDeclaration => children.isNotEmpty && !instanceOverrides && typeName == null;
 
+  /// The raw FIELD-FLAGS word this record serialized (word 1 of the
+  /// `[flags][0]…` field forms), retained typed-but-partially-interpreted.
+  /// The decoded bits are cataloged at [_fieldKnownFlagBits]: 0x2 stored
+  /// value, 0x80 framed form, 0x100 extdata tail, 0x200 display-format
+  /// word, 0x800 numeric-representation word, 0x4/0x8/0x20/0x40
+  /// flag-attribute markers. Corpus bit-population (330,099 flagged of
+  /// 354,117 decoded fields over the 297-binary corpus): 0x2×211,848,
+  /// 0x4×44,411, 0x8×22,692, 0x20×37,498, 0x40×44,361, 0x80×41,084,
+  /// 0x100×1,876, 0x200×1,170, 0x800×143; every set bit falls inside the
+  /// cataloged mask by construction (an unknown bit bails the field), and
+  /// bit 0x2 co-varies with a decoded value/array/child surface on
+  /// 211,676 of 211,848 sites (the 172 without one are the framed-lite
+  /// UNSET sentinel inside instances — a value slot stored, no value).
+  /// The attr-marker bits do NOT reliably predict the stored attr-word
+  /// count (see [_attrTail]) — negative evidence, so they stay grouped
+  /// rather than decoded per-bit. Null for forms that serialize NO flags
+  /// word: the compact `[name][value]` form and the element-block/
+  /// step-element forms (whose heads are DELIM- or class-token-led).
+  final int? fieldFlags;
+
+  /// The field's trailing FLAG-ATTRIBUTE words in serialization order
+  /// (the words between the value part and the 0 terminator, plus any
+  /// attr words preceding an instance/object child count), retained
+  /// typed-but-uninterpreted. At the TYPE-RECORD level the analogous
+  /// words carry the XML `typeflags`/`flagsforinstances`/
+  /// `instanceoverrideflags`/`valueflags` attributes named by COUNT
+  /// ([BinaryTypeRecord.flags]); at the FIELD level the count↔attribute
+  /// mapping is corpus-refuted as unreliable (fields store MORE words
+  /// than their flag bits promise — see [_attrTail]), so the words are
+  /// surfaced raw, never named. Empty when the field stores none.
+  final List<int> attrWords;
+
   /// Returns a copy with [elementSpecBytes] set — used when a trailing
   /// element-type spec is walked after the field's own encoding. A
   /// method (not a hand-copied constructor) so a newly added field can
@@ -3260,6 +3501,8 @@ class BinaryTypeField {
     elementSpecBytes: bytes,
     intrinsicTypeId: intrinsicTypeId,
     numericRepresentation: numericRepresentation,
+    fieldFlags: fieldFlags,
+    attrWords: attrWords,
   );
 }
 
@@ -3444,8 +3687,15 @@ List<BinaryTypeRecord> _typeRecordsFromBody(
     // Head fields are PASSIVE — never part of the detection gate, so the
     // corpus-pinned detection counts cannot shift: class word right before
     // the name, typecategory right after, flags after the triple up to the
-    // record delimiter (trailing zeros dropped).
-    final className = at >= _u32Bytes ? tok(view.getUint32(at - _u32Bytes, Endian.little)) : null;
+    // record delimiter (trailing zeros dropped). A class word of 0
+    // resolves to pool[0] — the file's root token, which the TS 4.x-era
+    // generation references by index 0 (see [_TypeBodyParser._clsTok]).
+    final classWord = at >= _u32Bytes ? view.getUint32(at - _u32Bytes, Endian.little) : null;
+    final className = classWord == null
+        ? null
+        : classWord == 0
+        ? (pool[0].isNotEmpty && _TypeBodyParser._rootClassPattern.hasMatch(pool[0]) ? pool[0] : null)
+        : tok(classWord);
     final typeCategory = view.getUint32(at + _u32Bytes, Endian.little);
     final versions = [
       for (var i = 0; i < _typeVersionTripleWords; i++)
@@ -4074,7 +4324,7 @@ List<BinarySequenceOutline> _sequenceOutlinesFromBody(
       for (var q = at + _PropRecordField.zeroA.offset; q + _u32Bytes <= decl.$2; q += _u32Bytes) {
         final word = view.getUint32(q, Endian.little);
         if (word == 0) {
-          sink.u32(q, 0);
+          sink.grammarU32(q, 0); // the verified path-separator zero
         } else {
           sink.poolRef(q, word);
         }
@@ -4847,18 +5097,32 @@ _BodyDecode? _decodeBody(Uint8List body) {
         final wordAt = headAt + tripleAt + v * _u32Bytes;
         sink.poolRef(wordAt, view.getUint32(wordAt, Endian.little));
       }
-      // Tail: flag words + terminator + delimiter (framed), or the
-      // `[1][idRef]` binary-only generation tail. Both re-read here
-      // exactly as the head scan framed them.
+      // Tail: flag words + trailing zeros + delimiter (framed), or the
+      // `[1][idRef]` binary-only generation tail. The flag words are the
+      // typed model's head attributes ([BinaryTypeRecord.flags], named
+      // typeflags/flagsforinstances/instanceoverrideflags/valueflags by
+      // count — twin-validated); every word past them is a zero the head
+      // scan verified (only TRAILING zeros are dropped from [flags]),
+      // then the verified record delimiter.
       final tailAt = headAt + tripleAt + _typeVersionTripleWords * _u32Bytes;
       if (bodyAt != null &&
           bodyAt >= _u32Bytes &&
           view.getUint32(bodyAt - _u32Bytes, Endian.little) == _recordDelimiter) {
+        final flagsEnd = tailAt + record.flags.length * _u32Bytes;
         for (var q = tailAt; q + _u32Bytes <= headEnd; q += _u32Bytes) {
-          sink.u32(q, view.getUint32(q, Endian.little));
+          final word = view.getUint32(q, Endian.little);
+          if (q < flagsEnd) {
+            sink.modelU32(q, word); // BinaryTypeRecord.flags[...]
+          } else if (word == 0 || word == _recordDelimiter) {
+            sink.grammarU32(q, word);
+          } else {
+            sink.u32(q, word); // unreachable by the scan's construction
+          }
         }
       } else if (bodyAt != null) {
-        sink.u32(tailAt, view.getUint32(tailAt, Endian.little));
+        // The binary-only generation tail `[1][idRef]` — the constant 1
+        // is the scan's verified gate.
+        sink.grammarU32(tailAt, 1);
         sink.poolRef(tailAt + _u32Bytes, view.getUint32(tailAt + _u32Bytes, Endian.little));
       }
       final nextHeadAt = i + 1 < records.length ? headOffsets[records[i + 1].name] : null;

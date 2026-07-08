@@ -22,7 +22,7 @@ void main() {
   }
 
   test('whole corpus: write(parse(f)) reproduces every inflated body byte-exactly', () {
-    var binaries = 0, bodyExact = 0, containerOk = 0, sizeWords = 0;
+    var binaries = 0, bodyExact = 0, containerOk = 0, sizeWords = 0, subnormalSlots = 0;
     var total = const BinaryWriteScoreboard(
       bodyBytes: 0,
       poolBytes: 0,
@@ -45,6 +45,13 @@ void main() {
         failures.add(f.path);
       }
       total = total + model.scoreboard;
+      // An f64 value slot reading as a nonzero SUBNORMAL is an i64 slot
+      // mis-read as a double (no corpus text flavor ever stores a
+      // subnormal numeric text; the oracle twin types such slots Int64) —
+      // the decoder must have taken the i64 read instead.
+      for (final v in model.f64Values) {
+        if (v != 0 && v.isFinite && v.abs() < 2.2250738585072014e-308) subnormalSlots++;
+      }
 
       if (model.headerHasSizeWord) sizeWords++;
       final file = model.writeFile();
@@ -66,17 +73,22 @@ void main() {
     );
     expect(failures, isEmpty, reason: 'body round-trip diverged:\n${failures.take(5).join('\n')}');
     expect(binaries, greaterThanOrEqualTo(297));
+    expect(subnormalSlots, 0, reason: 'i64-stored Num slots mis-read as f64 (was 163 before the signature read)');
     expect(bodyExact, binaries);
     expect(containerOk, binaries);
     expect(sizeWords, binaries, reason: 'a header lost its PMCZ size field');
-    // Scoreboard floors: model + structure tracks the coverage pass's semantic
-    // tier by construction; decode progress must raise them. Re-based to the
-    // 297-binary corpus (the 83-source manifest): the new sources dilute the
-    // modeled fraction (measured 11.9% / 26.3% / 22.9%) without regressing a
-    // single byte-exact round-trip.
-    expect(total.recordModelRatio, greaterThanOrEqualTo(0.118));
-    expect((total.modelBytes + total.structuralBytes) / total.recordRegionBytes, greaterThanOrEqualTo(0.26));
-    expect(total.bodyModelRatio, greaterThanOrEqualTo(0.22));
+    // Scoreboard floors: from-model (model content + verified grammar
+    // constants) tracks the coverage pass's semantic tier by construction;
+    // decode progress must raise them. Measured on the 297-binary corpus
+    // after the retention rounds (field flags/attr words and leaf-record
+    // lead/flags/kind moved into the typed model; verified framing
+    // constants re-emitted from the grammar): recordModel 26.2%,
+    // bodyModel 35.4%, retained structure 21,712 B (extdata counts,
+    // non-comment comment-slot words, out-of-table references,
+    // declaration-record lead bytes).
+    expect(total.recordModelRatio, greaterThanOrEqualTo(0.26));
+    expect(total.bodyModelRatio, greaterThanOrEqualTo(0.35));
+    expect(total.structuralBytes, lessThan(30000), reason: 'retained-structure band must not regrow silently');
   });
 
   test('rosetta binaries: byte-exact bodies with a majority-model record region', () {
@@ -87,7 +99,9 @@ void main() {
       if (detectSeqFormat(bytes) != SeqFormat.binary) continue;
       final model = parseBinarySeqWriteModel(bytes)!;
       expect(model.writeBody(), inflateBinaryBody(bytes), reason: f.path);
-      expect(model.scoreboard.recordModelRatio, greaterThanOrEqualTo(0.25), reason: f.path);
+      // Post-retention floor (measured 70.2%–76.4% per file: field flags,
+      // attr words, and verified grammar constants all write from-model).
+      expect(model.scoreboard.recordModelRatio, greaterThanOrEqualTo(0.70), reason: f.path);
       checked++;
     }
     expect(checked, greaterThanOrEqualTo(6), reason: 'rosetta binaries missing — partial checkout?');
@@ -186,6 +200,76 @@ void main() {
         }
       }
       expect(changed, 1);
+    });
+
+    test('typed flag/attr surfaces are mutation-stable: a value mutation leaves every fieldFlags/attrWords intact', () {
+      // The retention move (field flags + attr words re-serialized from the
+      // typed model) must not entangle those words with unrelated content:
+      // mutating a numeric value slot and re-parsing must reproduce the
+      // exact same flags/attr surface on every decoded field.
+      final bytes = read('rosetta/OutputVoltage_BIN.seq');
+      final model = parseBinarySeqWriteModel(bytes)!;
+      const oldValue = 2953567917.0;
+      expect(model.replaceF64(oldValue, oldValue + 1), 1);
+
+      List<String> flagSurface(Uint8List seq) {
+        final out = <String>[];
+        void walk(String path, BinaryTypeField f) {
+          out.add('$path/${f.name}: flags=${f.fieldFlags} attrs=${f.attrWords}');
+          for (final c in f.children) {
+            walk('$path/${f.name}', c);
+          }
+        }
+
+        for (final rec in binaryTypeRecords(seq)) {
+          for (final f in rec.fields ?? const <BinaryTypeField>[]) {
+            walk(rec.name, f);
+          }
+        }
+        return out;
+      }
+
+      final before = flagSurface(bytes);
+      final after = flagSurface(model.writeFile());
+      expect(before, isNotEmpty);
+      expect(after, before, reason: 'flag/attr surface must be identical after an unrelated value mutation');
+    });
+
+    test('pool[0]-`Obj` generation: a parameter rename mutates exactly its pool entry, decode stays stable', () {
+      // Probes the class-slot-0 decode (pool[0] = 'Obj' generation): after
+      // renaming one parameter via its pool string, the written file must
+      // differ only in that entry, and the re-parsed sequence surface must
+      // show the rename with every other decoded field untouched.
+      final bytes = read('michael-harhay-arx_CICDUtility/michael-harhay-arx-CICDUtility-02c6c67/Sequence/iTAC.seq');
+      final model = parseBinarySeqWriteModel(bytes)!;
+      final body = model.writeBody();
+      const oldName = 'iTACStationID';
+      const newName = 'iTacSTATIONid';
+      final entryIndex = model.pool.indexOf(oldName);
+      expect(entryIndex, greaterThan(0));
+      expect(model.replacePoolEntry(oldName, newName), 1);
+
+      final mutated = model.writeBody();
+      final (start, end) = model.poolEntryRange(entryIndex);
+      expect(mutated.length, body.length);
+      _expectSpansWithin(_diffSpans(body, mutated), start, end);
+
+      List<String> surface(Uint8List seq) => [
+        for (final o in binarySequenceOutlines(seq))
+          for (final p in o.leadingSubProps)
+            for (final c in p.children) '${o.name}/${p.name}/${c.className}:${c.name}=${c.value}',
+      ];
+      final before = surface(bytes);
+      final after = surface(model.writeFile());
+      expect(after.length, before.length);
+      var changed = 0;
+      for (var i = 0; i < before.length; i++) {
+        if (before[i] != after[i]) {
+          changed++;
+          expect(after[i], before[i].replaceAll(oldName, newName), reason: 'only the renamed parameter may differ');
+        }
+      }
+      expect(changed, greaterThanOrEqualTo(1), reason: 'the rename must be visible in the decoded surface');
     });
 
     test('sequence comment via its pool string: delta is the comment alone', () {

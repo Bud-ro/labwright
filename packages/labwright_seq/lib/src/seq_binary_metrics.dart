@@ -184,6 +184,7 @@ class BinaryWriteScoreboard {
     required this.bodyBytes,
     required this.poolBytes,
     required this.modelBytes,
+    this.grammarBytes = 0,
     required this.structuralBytes,
     required this.copiedBytes,
   });
@@ -195,11 +196,19 @@ class BinaryWriteScoreboard {
   final int poolBytes;
 
   /// Record-region bytes emitted from model content (pool references,
-  /// counts, type refs, head fields, inline f64/i64/bool values).
+  /// counts, type refs, head fields, field-flags/attr words the typed
+  /// model surfaces, inline f64/i64/bool values).
   final int modelBytes;
 
-  /// Record-region bytes re-emitted from retained wire structure (flags,
-  /// attr words, delimiters, zeros, pads).
+  /// Record-region bytes emitted as GRAMMAR-DETERMINED constants the
+  /// decode verified (framing zeros, record delimiters, terminators,
+  /// alignment pads, form sentinels) — fully decoded framing, re-emitted
+  /// from grammar knowledge alone.
+  final int grammarBytes;
+
+  /// Record-region bytes re-emitted from retained wire structure — words
+  /// the grammar accepted without decoding and the typed model does not
+  /// yet carry.
   final int structuralBytes;
 
   /// Record-region bytes copied verbatim (undecoded spans, spec/extdata
@@ -208,11 +217,15 @@ class BinaryWriteScoreboard {
 
   int get recordRegionBytes => bodyBytes - poolBytes;
 
-  /// Model-written fraction of the record region.
-  double get recordModelRatio => recordRegionBytes == 0 ? 0 : modelBytes / recordRegionBytes;
+  /// Record-region bytes the writer emits WITHOUT the retained region:
+  /// model content plus grammar-determined constants.
+  int get fromModelBytes => modelBytes + grammarBytes;
 
-  /// Model-written fraction of the whole body (pool counts as model).
-  double get bodyModelRatio => bodyBytes == 0 ? 0 : (modelBytes + poolBytes) / bodyBytes;
+  /// From-model ([fromModelBytes]) fraction of the record region.
+  double get recordModelRatio => recordRegionBytes == 0 ? 0 : fromModelBytes / recordRegionBytes;
+
+  /// From-model fraction of the whole body (pool counts as model).
+  double get bodyModelRatio => bodyBytes == 0 ? 0 : (fromModelBytes + poolBytes) / bodyBytes;
 
   /// Copied-verbatim fraction of the whole body.
   double get bodyCopiedRatio => bodyBytes == 0 ? 0 : copiedBytes / bodyBytes;
@@ -221,6 +234,7 @@ class BinaryWriteScoreboard {
     bodyBytes: bodyBytes + other.bodyBytes,
     poolBytes: poolBytes + other.poolBytes,
     modelBytes: modelBytes + other.modelBytes,
+    grammarBytes: grammarBytes + other.grammarBytes,
     structuralBytes: structuralBytes + other.structuralBytes,
     copiedBytes: copiedBytes + other.copiedBytes,
   );
@@ -228,7 +242,7 @@ class BinaryWriteScoreboard {
   @override
   String toString() =>
       'BinaryWriteScoreboard(body=$bodyBytes, pool=$poolBytes, '
-      'model=$modelBytes, structural=$structuralBytes, copied=$copiedBytes, '
+      'model=$modelBytes, grammar=$grammarBytes, structural=$structuralBytes, copied=$copiedBytes, '
       'recordModel=${(recordModelRatio * 100).toStringAsFixed(1)}%, '
       'bodyModel=${(bodyModelRatio * 100).toStringAsFixed(1)}%)';
 }
@@ -238,15 +252,18 @@ class BinaryWriteScoreboard {
 /// [_WriteOpKind] declares, plus the pool region ([poolBytes], always
 /// model-written) on top of the record region.
 BinaryWriteScoreboard _planScoreboard(List<_WriteOp> plan, {required int recordRegionBytes, required int poolBytes}) {
-  var model = 0, structural = 0, copied = 0;
+  var model = 0, grammar = 0, structural = 0, copied = 0;
   for (final op in plan) {
     switch (op.kind) {
       case _WriteOpKind.copy:
         copied += op.length;
       case _WriteOpKind.structU32 || _WriteOpKind.structByte:
         structural += op.length;
+      case _WriteOpKind.grammarU32 || _WriteOpKind.grammarByte:
+        grammar += op.length;
       case _WriteOpKind.poolRef ||
           _WriteOpKind.modelU32 ||
+          _WriteOpKind.modelByte ||
           _WriteOpKind.f64 ||
           _WriteOpKind.i64 ||
           _WriteOpKind.boolByte:
@@ -257,6 +274,7 @@ BinaryWriteScoreboard _planScoreboard(List<_WriteOp> plan, {required int recordR
     bodyBytes: recordRegionBytes + poolBytes,
     poolBytes: poolBytes,
     modelBytes: model,
+    grammarBytes: grammar,
     structuralBytes: structural,
     copiedBytes: copied,
   );
