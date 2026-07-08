@@ -19,6 +19,7 @@ library;
 
 export 'src/blocks/aux_records.dart';
 export 'src/blocks/block_catalog.dart';
+export 'src/blocks/block_writer.dart';
 export 'src/blocks/connector_pane.dart';
 export 'src/blocks/data_type_heap.dart';
 export 'src/blocks/font_table.dart';
@@ -43,3 +44,4 @@ export 'src/ir.dart';
 export 'src/ir_json.dart';
 export 'src/meta.dart';
 export 'src/viparse.dart';
+export 'src/writer_scoreboard.dart';

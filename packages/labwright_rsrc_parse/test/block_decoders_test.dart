@@ -385,4 +385,68 @@ void main() {
       });
     });
   });
+
+  group('block-payload writers (byte-exact serialize inverses)', () {
+    test('ViLegacyIcon.serialize re-packs 8/4/1 bpp exactly (inverse of decode)', () {
+      // 8 bpp: 1024 palette indices copied verbatim.
+      final icl8 = Uint8List.fromList([for (var i = 0; i < 1024; i++) (i * 7) & 0xff]);
+      expect(decodeLegacyIcon(icl8, 8)!.serialize(), icl8);
+      // 4 bpp: 512 bytes, two nibbles each.
+      final icl4 = Uint8List.fromList([for (var i = 0; i < 512; i++) (i * 13) & 0xff]);
+      expect(decodeLegacyIcon(icl4, 4)!.serialize(), icl4);
+      // 1 bpp: 128 bytes, eight MSB-first bits each.
+      final icon = Uint8List.fromList([for (var i = 0; i < 128; i++) (i * 29) & 0xff]);
+      expect(decodeLegacyIcon(icon, 1)!.serialize(), icon);
+    });
+
+    test('ViIdTable.serialize re-emits [u32 count][entries] exactly', () {
+      final body = _idtab([1, 2, 0xDEADBEEF, 0]);
+      expect(decodeIdTable(body)!.serialize(), body);
+      final empty = _idtab([]);
+      expect(decodeIdTable(empty)!.serialize(), empty);
+    });
+
+    test('serializeBlockPayload: model-sources covered tags, null otherwise', () {
+      final icl8 = Uint8List.fromList([for (var i = 0; i < 1024; i++) (i * 3) & 0xff]);
+      expect(serializeBlockPayload('icl8', icl8), icl8);
+      final suid = _idtab([7, 8, 9]);
+      expect(serializeBlockPayload('SUID', suid), suid);
+      expect(hasBlockWriter('BNID'), isTrue);
+      expect(hasBlockWriter('LVSR'), isFalse, reason: 'no writer yet');
+      expect(serializeBlockPayload('LVSR', u8([1, 2, 3, 4])), isNull);
+      // Wrong-sized icon body: decode fails, so no model-sourced bytes.
+      expect(serializeBlockPayload('icl8', u8([1, 2, 3])), isNull);
+      // Id table with trailing bytes past 4+4*count: re-serialization is shorter,
+      // so the guard rejects it and the payload stays copied.
+      expect(serializeBlockPayload('NUID', u8([0, 0, 0, 1, 0, 0, 0, 5, 0xFF, 0xFF])), isNull);
+    });
+
+    test('MUTATION: editing an id-table entry confines the byte delta to that entry', () {
+      final body = _idtab([10, 20, 30, 40]);
+      final t = decodeIdTable(body)!;
+      final mutated = ViIdTable(rawLength: t.rawLength, count: t.count, entries: [...t.entries]..[2] = 0x11223344);
+      final out = mutated.serialize();
+      // Re-parse confirms the mutation took and nothing else moved.
+      final re = decodeIdTable(out)!;
+      expect(re.entries, [10, 20, 0x11223344, 40]);
+      expect(out.length, body.length);
+      final delta = [
+        for (var i = 0; i < out.length; i++)
+          if (out[i] != body[i]) i,
+      ];
+      expect(delta, [12, 13, 14, 15], reason: 'only entry[2] (bytes 12..15) changed');
+    });
+
+    test('MUTATION: flipping an icon pixel confines the byte delta to its byte', () {
+      final body = Uint8List.fromList([for (var i = 0; i < 1024; i++) (i * 5) & 0xff]);
+      final icon = decodeLegacyIcon(body, 8)!;
+      final pixels = [...icon.pixels]..[100] = 0xAB;
+      final out = ViLegacyIcon(bpp: 8, pixels: pixels).serialize();
+      final delta = [
+        for (var i = 0; i < out.length; i++)
+          if (out[i] != body[i]) i,
+      ];
+      expect(delta, [100], reason: '8 bpp: pixel 100 is byte 100');
+    });
+  });
 }

@@ -51,6 +51,15 @@ class _Stat {
   int blockInstances = 0, blocksIdentified = 0;
   int blockBytes = 0, blockBytesDecoded = 0;
 
+  // Writer scoreboard: whole-file byte attribution (model vs copied) and the
+  // byte-exact re-serialization count, from [attributeVi].
+  int fileBytes = 0, writerExact = 0, writerFiles = 0;
+  int wHeader = 0, wInfoStruct = 0, wSecPrefix = 0, wTypedPayload = 0;
+  int wInfoRaw = 0, wGap = 0, wCompressed = 0, wUntyped = 0;
+
+  int get modelBytes => wHeader + wInfoStruct + wSecPrefix + wTypedPayload;
+  int get copiedBytes => wInfoRaw + wGap + wCompressed + wUntyped;
+
   static double _ratio(int a, int b) => b == 0 ? 0 : a / b;
   double get parseOkPct => _ratio(parseOk, vis);
   double get decodeOkPct => _ratio(decOk, vis);
@@ -62,6 +71,9 @@ class _Stat {
   double get valueKindKnown => _ratio(valueKind, body);
   double get classified => _ratio(semantic + valueKind, body);
   double get fullyParsedHeaps => _ratio(fullHeaps, heaps);
+  double get modelPct => _ratio(modelBytes, fileBytes);
+  double get copiedPct => _ratio(copiedBytes, fileBytes);
+  double get compressedFloorPct => _ratio(wCompressed, fileBytes);
 
   void add(_Stat s) {
     vis += s.vis;
@@ -78,6 +90,17 @@ class _Stat {
     blocksIdentified += s.blocksIdentified;
     blockBytes += s.blockBytes;
     blockBytesDecoded += s.blockBytesDecoded;
+    fileBytes += s.fileBytes;
+    writerExact += s.writerExact;
+    writerFiles += s.writerFiles;
+    wHeader += s.wHeader;
+    wInfoStruct += s.wInfoStruct;
+    wSecPrefix += s.wSecPrefix;
+    wTypedPayload += s.wTypedPayload;
+    wInfoRaw += s.wInfoRaw;
+    wGap += s.wGap;
+    wCompressed += s.wCompressed;
+    wUntyped += s.wUntyped;
   }
 }
 
@@ -95,6 +118,20 @@ _Stat _measure(List<File> files) {
     }
     try {
       if (_listEq(ViContainer.parse(bytes).toBytes(), bytes)) s.containerExact++;
+    } catch (_) {}
+    try {
+      final a = attributeVi(bytes);
+      s.writerFiles++;
+      if (a.byteExact) s.writerExact++;
+      s.fileBytes += a.fileLength;
+      s.wHeader += a.headerBytes;
+      s.wInfoStruct += a.infoStructBytes;
+      s.wSecPrefix += a.sectionPrefixBytes;
+      s.wTypedPayload += a.typedPayloadBytes;
+      s.wInfoRaw += a.infoRawBytes;
+      s.wGap += a.gapBytes;
+      s.wCompressed += a.compressedPayloadBytes;
+      s.wUntyped += a.untypedPayloadBytes;
     } catch (_) {}
     final List<DecodedSection> secs;
     try {
@@ -131,6 +168,13 @@ bool _listEq(List<int> a, List<int> b) {
 }
 
 String _pct(double v) => (v * 100).toStringAsFixed(1);
+
+/// One-line writer-scoreboard summary for stdout.
+String _writerSummary(_Stat s) =>
+    'WRITER ${s.writerExact}/${s.writerFiles} byte-exact · '
+    'model ${_pct(s.modelPct)}% · copied ${_pct(s.copiedPct)}% '
+    '(compressed-floor ${_pct(s.compressedFloorPct)}%) · '
+    'typed-payloads ${s.wTypedPayload}B of ${s.fileBytes}B';
 
 void main(List<String> args) {
   final root = args.isNotEmpty ? args[0] : '${corpusBaseDir().path}/vi';
@@ -182,6 +226,9 @@ void main(List<String> args) {
       'heap-complete ${_pct(overall.fullyParsedHeaps)}%';
   stdout.writeln(total);
 
+  final writer = _writerSummary(overall);
+  stdout.writeln(writer);
+
   if (rootDir.existsSync()) {
     final report = StringBuffer()
       ..writeln('# VI corpus coverage — report card')
@@ -204,7 +251,33 @@ void main(List<String> args) {
       ..writeln()
       ..writeln(md.toString().trimRight())
       ..writeln()
-      ..writeln('**$total**');
+      ..writeln('**$total**')
+      ..writeln()
+      ..writeln('## Writer scoreboard (byte-exact `.vi` writer)')
+      ..writeln()
+      ..writeln(
+        'Whole-file byte attribution from `attributeVi`: every byte is either '
+        '**model** (emitted from a typed field) or **copied** (verbatim). '
+        '`modelBytes + copiedBytes == fileLength` for every file, and '
+        '`byteExact == parseable` (the writer re-emits every `.vi` exactly).',
+      )
+      ..writeln()
+      ..writeln('- byte-exact re-serialization: ${overall.writerExact}/${overall.writerFiles} files.')
+      ..writeln(
+        '- **model** ${_pct(overall.modelPct)}% · **copied** ${_pct(overall.copiedPct)}% of ${overall.fileBytes} bytes.',
+      )
+      ..writeln(
+        '- model = header ${overall.wHeader} + info-structs ${overall.wInfoStruct} + '
+        'section-prefixes ${overall.wSecPrefix} + typed-payloads ${overall.wTypedPayload}.',
+      )
+      ..writeln(
+        '- copied = info-raw(TODO) ${overall.wInfoRaw} + gaps ${overall.wGap} + '
+        'compressed ${overall.wCompressed} + uncompressed-untyped ${overall.wUntyped}.',
+      )
+      ..writeln(
+        '- compressed heap = ${_pct(overall.compressedFloorPct)}% — the permanent copy-verbatim floor '
+        '(NI deflate is not bit-reproducible).',
+      );
     File('$root/REPORT.md').writeAsStringSync('$report\n');
     stdout.writeln('wrote $root/REPORT.md');
   }
