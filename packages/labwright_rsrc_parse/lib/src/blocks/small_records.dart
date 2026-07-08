@@ -8,6 +8,17 @@ import 'dart:typed_data';
 
 String _hexOf(Uint8List bytes) => bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
 
+/// Inverse of [_hexOf]: packs a lowercase hex string back into its bytes. The
+/// digest/signature models store their opaque value as hex, so [serialize]
+/// reconstructs the exact on-disk bytes from that faithful encoding.
+Uint8List _bytesFromHex(String hex) {
+  final out = Uint8List(hex.length ~/ 2);
+  for (var i = 0; i < out.length; i++) {
+    out[i] = int.parse(hex.substring(2 * i, 2 * i + 2), radix: 16);
+  }
+  return out;
+}
+
 /// A decoded `BDPW` **block-diagram password record**: three 16-byte MD5
 /// digests (48 B in 7538/7539 corpus sections; one legacy 32 B = two digests).
 /// The first digest is MD5 of the password (`d41d8cd9…` = MD5("") when no
@@ -24,6 +35,18 @@ class ViPasswordRecord {
 
   /// Whether this is the well-known MD5("") — i.e. no password set.
   bool get isUnprotected => passwordHash == 'd41d8cd98f00b204e9800998ecf8427e';
+
+  /// Re-emits the record: the password digest followed by the derived digests,
+  /// 16 bytes each. Reproduces the stored body exactly (the digests are the
+  /// whole block; each is an opaque identity value retained verbatim).
+  Uint8List serialize() {
+    final digests = [passwordHash, ...extraHashes];
+    final out = Uint8List(digests.length * 16);
+    for (var i = 0; i < digests.length; i++) {
+      out.setRange(i * 16, i * 16 + 16, _bytesFromHex(digests[i]));
+    }
+    return out;
+  }
 }
 
 /// Decodes a `BDPW` record; null unless the body is 2–3 whole digests.
@@ -43,6 +66,9 @@ ViPasswordRecord? decodePasswordRecord(Uint8List bytes) {
 class ViSignature {
   const ViSignature({required this.hex});
   final String hex;
+
+  /// Re-emits the 16 signature bytes (the whole block is this opaque value).
+  Uint8List serialize() => _bytesFromHex(hex);
 }
 
 /// Decodes an `RTSG` signature; null unless exactly 16 bytes (7582/7582).
@@ -54,6 +80,14 @@ class ViScsrRecord {
   const ViScsrRecord({required this.marker, required this.signature});
   final int marker;
   final ViSignature signature;
+
+  /// Re-emits `[u32 marker][16-byte signature]` — the 20-byte record.
+  Uint8List serialize() {
+    final out = Uint8List(20);
+    ByteData.sublistView(out).setUint32(0, marker);
+    out.setRange(4, 20, signature.serialize());
+    return out;
+  }
 }
 
 /// Decodes an `SCSR` record; null unless exactly 20 bytes.
@@ -73,8 +107,18 @@ class ViIconPlacement {
   const ViIconPlacement({required this.words});
 
   /// The six u16 fields: [id, one, top, left, bottom, right] (field roles per
-  /// corpus-sample geometry; not yet confirmed against a rendering).
+  /// corpus-sample geometry; not confirmed against a rendering).
   final List<int> words;
+
+  /// Re-emits the six big-endian u16 fields — the 12-byte record.
+  Uint8List serialize() {
+    final out = Uint8List(12);
+    final d = ByteData.sublistView(out);
+    for (var i = 0; i < 6; i++) {
+      d.setUint16(2 * i, words[i]);
+    }
+    return out;
+  }
 }
 
 /// Decodes a `PICC` record; null unless exactly 12 bytes.
@@ -116,6 +160,17 @@ class ViSectionMarker {
   const ViSectionMarker({required this.value, required this.extraWord});
   final int value;
   final int? extraWord;
+
+  /// Re-emits the marker as one big-endian u32, plus the second word when the
+  /// 8-byte form carries one — reproducing the stored body.
+  Uint8List serialize() {
+    final extra = extraWord;
+    final out = Uint8List(extra == null ? 4 : 8);
+    final d = ByteData.sublistView(out);
+    d.setUint32(0, value);
+    if (extra != null) d.setUint32(4, extra);
+    return out;
+  }
 }
 
 /// Decodes a `BDSE`/`FPSE` marker; null unless 4 or 8 bytes.
@@ -132,6 +187,13 @@ ViSectionMarker? decodeSectionMarker(Uint8List bytes) {
 class ViModifiedUid {
   const ViModifiedUid({required this.value});
   final int value;
+
+  /// Re-emits the 4-byte big-endian u32.
+  Uint8List serialize() {
+    final out = Uint8List(4);
+    ByteData.sublistView(out).setUint32(0, value);
+    return out;
+  }
 }
 
 /// Decodes a `MUID`; null unless exactly 4 bytes.
@@ -144,6 +206,16 @@ ViModifiedUid? decodeModifiedUid(Uint8List bytes) =>
 class ViExtendedState {
   const ViExtendedState({required this.words});
   final List<int> words;
+
+  /// Re-emits the big-endian u32 words in order — the whole record.
+  Uint8List serialize() {
+    final out = Uint8List(words.length * 4);
+    final d = ByteData.sublistView(out);
+    for (var i = 0; i < words.length; i++) {
+      d.setUint32(i * 4, words[i]);
+    }
+    return out;
+  }
 }
 
 /// Decodes a `BDEx`/`FPEx` record; null unless a whole number of u32s.
@@ -175,6 +247,12 @@ class ViConstantRecord {
   const ViConstantRecord({required this.length, required this.matchesCorpusConstant});
   final int length;
   final bool matchesCorpusConstant;
+
+  /// Re-emits the all-zero constant body when this record matched it, else null
+  /// (a never-seen non-zero variant is not reconstructed from this summary).
+  /// [decodeGcprRecord] sets [matchesCorpusConstant] only for an all-zero body,
+  /// so the emitted zeros reproduce it exactly.
+  Uint8List? serialize() => matchesCorpusConstant ? Uint8List(length) : null;
 }
 
 /// Decodes a `GCPR` record (13 zero bytes across the corpus).

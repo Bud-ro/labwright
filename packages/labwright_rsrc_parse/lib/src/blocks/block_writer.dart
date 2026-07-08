@@ -35,16 +35,37 @@
 ///     ten-word form, every corpus instance.
 ///   * `LVSR` — LabVIEW save record ([ViSaveRecordRaw]); the word-aligned
 ///     lengths read as a u32 grid (a handful of non-aligned records stay copied).
+///   * `MUID` — modified-UID ([ViModifiedUid]); the 4-byte u32.
+///   * `BDSE` / `FPSE` — block-diagram/front-panel section markers
+///     ([ViSectionMarker]); the 4- or 8-byte u32 form.
+///   * `BDEx` / `FPEx` — extended-state flag-word grids ([ViExtendedState]).
+///   * `IPSR` — offset table ([ViOffsetTable]); a big-endian u32 grid.
+///   * `PICC` — icon-placement record ([ViIconPlacement]); six u16s.
+///   * `CPMp` — connector-pane map ([ViConnectorPaneMap]); `[u16le count]` +
+///     u16le entries.
+///   * `GCPR` — generated-code property ([ViConstantRecord]); the 13-byte
+///     all-zero constant.
+///   * `RTSG` — run-time signature ([ViSignature]); a 16-byte identity value.
+///   * `SCSR` — source signature ([ViScsrRecord]); `[u32 marker][16-byte sig]`.
+///   * `BDPW` — block-diagram password ([ViPasswordRecord]); two or three
+///     16-byte digests.
+///   * `LIbd` / `LIvi` / `LIfp` / `LIds` — link-info ([ViLinkInfoRaw]); the
+///     header/terminator framing with the entry region retained, for the
+///     deterministically-bounded ≤1-entry sections (many-entry sections stay
+///     copied — see [ViLinkInfoRaw.tiled]).
 library;
 
 import 'dart:typed_data';
 
+import 'aux_records.dart';
 import 'connector_pane.dart';
 import 'data_type_heap.dart';
 import 'history.dart';
 import 'id_table.dart';
 import 'legacy_icon.dart';
+import 'link_info.dart';
 import 'save_record.dart';
+import 'small_records.dart';
 import 'string_block.dart';
 import 'tag_store.dart';
 import 'version_word.dart';
@@ -66,7 +87,23 @@ bool hasBlockWriter(String tag) => switch (tag) {
   'CPC2' ||
   'STRG' ||
   'HIST' ||
-  'LVSR' => true,
+  'LVSR' ||
+  'MUID' ||
+  'BDSE' ||
+  'FPSE' ||
+  'BDEx' ||
+  'FPEx' ||
+  'IPSR' ||
+  'PICC' ||
+  'CPMp' ||
+  'GCPR' ||
+  'RTSG' ||
+  'SCSR' ||
+  'BDPW' ||
+  'LIbd' ||
+  'LIvi' ||
+  'LIfp' ||
+  'LIds' => true,
   _ => false,
 };
 
@@ -87,6 +124,17 @@ Uint8List? serializeBlockPayload(String tag, Uint8List payload) {
     'STRG' => decodeStringBlockRaw(payload)?.serialize(),
     'HIST' => decodeHistory(payload)?.serialize(),
     'LVSR' => decodeSaveRecordRaw(payload)?.serialize(),
+    'MUID' => decodeModifiedUid(payload)?.serialize(),
+    'BDSE' || 'FPSE' => decodeSectionMarker(payload)?.serialize(),
+    'BDEx' || 'FPEx' => decodeExtendedState(payload)?.serialize(),
+    'IPSR' => decodeOffsetTable(payload)?.serialize(),
+    'PICC' => decodeIconPlacement(payload)?.serialize(),
+    'CPMp' => decodeConnectorPaneMap(payload)?.serialize(),
+    'GCPR' => decodeGcprRecord(payload)?.serialize(),
+    'RTSG' => decodeRuntimeSignature(payload)?.serialize(),
+    'SCSR' => decodeScsrRecord(payload)?.serialize(),
+    'BDPW' => decodePasswordRecord(payload)?.serialize(),
+    'LIbd' || 'LIvi' || 'LIfp' || 'LIds' => _serializeLinkInfo(payload),
     _ => null,
   };
   if (out == null || out.length != payload.length) return null;
@@ -94,4 +142,12 @@ Uint8List? serializeBlockPayload(String tag, Uint8List payload) {
     if (out[i] != payload[i]) return null;
   }
   return out;
+}
+
+/// Re-emits a `LI*` payload from [ViLinkInfoRaw] only when the section is
+/// deterministically bounded ([ViLinkInfoRaw.tiled] — a ≤1-entry section);
+/// many-entry sections return null so they stay copied.
+Uint8List? _serializeLinkInfo(Uint8List payload) {
+  final info = decodeLinkInfoRaw(payload);
+  return info != null && info.tiled ? info.serialize() : null;
 }

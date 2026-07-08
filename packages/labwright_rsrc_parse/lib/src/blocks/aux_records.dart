@@ -58,6 +58,20 @@ class ViConnectorPaneMap {
 
   int get terminalCount => terminals.length;
   int get assignedCount => terminals.where((t) => t != null).length;
+
+  /// Re-emits `[u16le terminalCount]` then the little-endian u16 entries
+  /// (`0xFFFF` for an unassigned terminal) — reproducing the stored body.
+  Uint8List serialize() {
+    final out = Uint8List(2 + 2 * terminals.length);
+    out[0] = terminals.length & 0xff;
+    out[1] = (terminals.length >> 8) & 0xff;
+    for (var i = 0; i < terminals.length; i++) {
+      final value = terminals[i] ?? 0xFFFF;
+      out[2 + 2 * i] = value & 0xff;
+      out[3 + 2 * i] = (value >> 8) & 0xff;
+    }
+    return out;
+  }
 }
 
 /// Decodes a `CPMp` map; null when the declared count does not exactly fill
@@ -123,6 +137,16 @@ ViBookmarkList? decodeBookmarkList(Uint8List bytes) {
 class ViOffsetTable {
   const ViOffsetTable({required this.offsets});
   final List<int> offsets;
+
+  /// Re-emits the big-endian u32 offsets in order — the whole table.
+  Uint8List serialize() {
+    final out = Uint8List(offsets.length * 4);
+    final d = ByteData.sublistView(out);
+    for (var i = 0; i < offsets.length; i++) {
+      d.setUint32(i * 4, offsets[i]);
+    }
+    return out;
+  }
 }
 
 /// Decodes an `IPSR` table; null when the body is not a whole number of
