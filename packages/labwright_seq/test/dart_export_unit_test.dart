@@ -1,66 +1,83 @@
 import 'package:labwright_seq/labwright_seq.dart';
 import 'package:test/test.dart';
 
-/// Corpus-free unit pins for exporter behaviors small enough to state
-/// exactly (the whole-corpus batched analyze gate covers everything else):
-///  * stub NAMING strips a known trailing file extension (review fix: the
-///    `\$`-in-raw-string regex never matched, so stub names carried
-///    `.vi`/`.seq` tails);
-///  * the typed SequenceCall argument/prototype lenses on [StepModule];
-///  * CALL-PARAMETER EXPORT, one pin per translation shape: UseDef
-///    omission (exact, armed), literal/varpath/bool/int-widening
-///    translation, eval-fallback values (emitted + hazard-disarmed),
-///    stale argument names, the lhs-type guard, scalar by-ref writeback,
-///    stub signatures from prototype snapshots (typed / dynamic-union),
-///    expression-form targets, and cross-module binding against the
-///    predicted callee scope;
-///  * array parameters export as NULLABLE with a `??=` preamble carrying
-///    the sequence's DECLARED default (a const `[]` default would alias
-///    across calls and throw on element writes).
+SeqProperty _p(String name, {String? cls, String? type, String? value, List<SeqProperty> sub = const []}) =>
+    SeqProperty(name: name, className: cls, typeName: type, scalar: value, subProps: sub);
+
+SeqFile _fileWith(List<SeqProperty> sequenceProps) => SeqFile(
+  header: const SeqFileHeader(format: SeqFormat.xml),
+  types: const [],
+  data: _p(
+    'Data',
+    sub: [SeqProperty(name: 'Seq', className: 'Objs', array: sequenceProps)],
+  ),
+);
+
+SeqProperty _stepWith(String name, {String? typeName, List<SeqProperty> sdata = const []}) => _p(
+  name,
+  type: typeName,
+  sub: [
+    _p('TS', sub: [if (sdata.isNotEmpty) _p('SData', sub: sdata)]),
+  ],
+);
+
+SeqProperty _seqWith(
+  String name, {
+  List<SeqProperty> params = const [],
+  List<SeqProperty> locals = const [],
+  List<SeqProperty> steps = const [],
+}) => _p(
+  name,
+  sub: [
+    if (params.isNotEmpty) _p('Parameters', cls: 'Obj', sub: params),
+    if (locals.isNotEmpty) _p('Locals', cls: 'Obj', sub: locals),
+    SeqProperty(name: 'Main', className: 'Objs', array: steps),
+  ],
+);
+
+SeqProperty _num(String name, [String? value]) => _p(name, cls: 'Num', value: value);
+SeqProperty _str(String name, [String? value]) => _p(name, cls: 'Str', value: value);
+SeqProperty _bool(String name, [String? value]) => _p(name, cls: 'Bool', value: value);
+
+SeqProperty _argRow(String name, {bool useDefault = false, String? expr}) => _p(
+  name,
+  sub: [
+    _p('UseDef', cls: 'Bool', value: useDefault ? 'True' : 'False'),
+    if (expr != null) _p('Expr', value: expr),
+  ],
+);
+
+SeqProperty _callStep(
+  String stepName,
+  String callee, {
+  String? file,
+  List<SeqProperty> args = const [],
+  List<SeqProperty>? prototype,
+}) => _stepWith(
+  stepName,
+  sdata: [
+    _p('SeqName', value: callee),
+    if (file != null) _p('SFPath', value: file),
+    if (args.isNotEmpty) _p('ActualArgs', cls: 'Obj', sub: args),
+    if (prototype != null) _p('Prototype', cls: 'Obj', sub: prototype),
+  ],
+);
+
+/// Corpus-free unit pins for exporter behaviors small enough to state exactly
+/// — stub naming, the typed SequenceCall lenses, one pin per call-parameter
+/// translation shape, and nullable array parameters. The whole-corpus batched
+/// analyze gate (`export_corpus_test.dart`) covers everything else.
 void main() {
-  SeqFile fileWith(List<SeqProperty> sequenceProps) => SeqFile(
-    header: const SeqFileHeader(format: SeqFormat.xml),
-    types: const [],
-    data: SeqProperty(
-      name: 'Data',
-      subProps: [
-        SeqProperty(name: 'Seq', className: 'Objs', array: sequenceProps),
-      ],
-    ),
-  );
-
-  SeqProperty stepWith(String name, {String? typeName, List<SeqProperty> sdata = const []}) => SeqProperty(
-    name: name,
-    typeName: typeName,
-    subProps: [
-      SeqProperty(
-        name: 'TS',
-        subProps: [
-          if (sdata.isNotEmpty) SeqProperty(name: 'SData', subProps: sdata),
-        ],
-      ),
-    ],
-  );
-
   group('stub naming (extension strip)', () {
     test('a VI stub name drops the .vi extension, case-insensitively', () {
-      final file = fileWith([
-        SeqProperty(
-          name: 'MainSequence',
-          subProps: [
-            SeqProperty(
-              name: 'Main',
-              className: 'Objs',
-              array: [
-                stepWith(
-                  'Call VI',
-                  sdata: [
-                    SeqProperty(
-                      name: 'ViCall',
-                      subProps: [SeqProperty(name: 'VIPath', scalar: r'lib\Measure Thing.VI')],
-                    ),
-                  ],
-                ),
+      final file = _fileWith([
+        _seqWith(
+          'MainSequence',
+          steps: [
+            _stepWith(
+              'Call VI',
+              sdata: [
+                _p('ViCall', sub: [_p('VIPath', value: r'lib\Measure Thing.VI')]),
               ],
             ),
           ],
@@ -72,28 +89,22 @@ void main() {
     });
 
     test('an external sequence stub drops .seq; a dotted TARGET NAME keeps its segments', () {
-      final file = fileWith([
-        SeqProperty(
-          name: 'MainSequence',
-          subProps: [
-            SeqProperty(
-              name: 'Main',
-              className: 'Objs',
-              array: [
-                stepWith(
-                  'Call helper',
-                  sdata: [
-                    SeqProperty(name: 'SeqName', scalar: 'Load Ini File'),
-                    SeqProperty(name: 'SFPath', scalar: r'..\Load Ini File.seq'),
-                  ],
-                ),
-                stepWith(
-                  'Set caption',
-                  sdata: [
-                    SeqProperty(name: 'SeqName', scalar: 'UI.TestSocket.SetCaption'),
-                    SeqProperty(name: 'SFPath', scalar: 'ui.seq'),
-                  ],
-                ),
+      final file = _fileWith([
+        _seqWith(
+          'MainSequence',
+          steps: [
+            _stepWith(
+              'Call helper',
+              sdata: [
+                _p('SeqName', value: 'Load Ini File'),
+                _p('SFPath', value: r'..\Load Ini File.seq'),
+              ],
+            ),
+            _stepWith(
+              'Set caption',
+              sdata: [
+                _p('SeqName', value: 'UI.TestSocket.SetCaption'),
+                _p('SFPath', value: 'ui.seq'),
               ],
             ),
           ],
@@ -102,50 +113,45 @@ void main() {
       final source = exportSeqFileToDart(file, sourceName: 'caller.seq');
       expect(source, contains('await loadIniFile();'));
       expect(source, isNot(contains('loadIniFileSeq')));
-      // Only a TRAILING known extension strips — a dotted sequence name is
-      // not a path and keeps every segment in the generated name.
-      expect(source, contains('uiTestSocketSetCaption'));
+      expect(
+        source,
+        contains('uiTestSocketSetCaption'),
+        reason: 'a dotted sequence name is not a path — keeps every segment',
+      );
     });
   });
 
   group('StepModule typed SequenceCall lenses', () {
     final module = StepModule.fromSData(
-      SeqProperty(
-        name: 'SData',
-        subProps: [
-          SeqProperty(name: 'SeqName', scalar: 'Callee'),
-          SeqProperty(name: 'SFPath', scalar: r'other\Callee.seq'),
-          SeqProperty(
-            name: 'ActualArgs',
-            className: 'Obj',
-            subProps: [
-              SeqProperty(
-                name: 'ChannelName',
-                subProps: [
-                  SeqProperty(name: 'UseDef', className: 'Bool', scalar: 'False'),
-                  SeqProperty(name: 'Expr', scalar: '"PowerSupply_" + Locals.TestSocketName'),
-                  SeqProperty(name: 'ParamType', className: 'Num', scalar: '2'),
-                  SeqProperty(name: 'ParamRepresentation', className: 'Num', scalar: '1'),
-                  SeqProperty(name: 'Flags', className: 'Num', scalar: '0'),
+      _p(
+        'SData',
+        sub: [
+          _p('SeqName', value: 'Callee'),
+          _p('SFPath', value: r'other\Callee.seq'),
+          _p(
+            'ActualArgs',
+            cls: 'Obj',
+            sub: [
+              _p(
+                'ChannelName',
+                sub: [
+                  _p('UseDef', cls: 'Bool', value: 'False'),
+                  _p('Expr', value: '"PowerSupply_" + Locals.TestSocketName'),
+                  _p('ParamType', cls: 'Num', value: '2'),
+                  _p('ParamRepresentation', cls: 'Num', value: '1'),
+                  _p('Flags', cls: 'Num', value: '0'),
                 ],
               ),
-              SeqProperty(
-                name: 'VoltageLimit',
-                subProps: [
-                  SeqProperty(name: 'UseDef', className: 'Bool', scalar: 'True'),
-                  SeqProperty(name: 'ParamType', className: 'Num', scalar: '4'),
+              _p(
+                'VoltageLimit',
+                sub: [
+                  _p('UseDef', cls: 'Bool', value: 'True'),
+                  _p('ParamType', cls: 'Num', value: '4'),
                 ],
               ),
             ],
           ),
-          SeqProperty(
-            name: 'Prototype',
-            className: 'Obj',
-            subProps: [
-              SeqProperty(name: 'ChannelName', className: 'Str', scalar: 'dev1'),
-              SeqProperty(name: 'VoltageLimit', className: 'Num', scalar: '5'),
-            ],
-          ),
+          _p('Prototype', cls: 'Obj', sub: [_str('ChannelName', 'dev1'), _num('VoltageLimit', '5')]),
         ],
       ),
     );
@@ -167,32 +173,29 @@ void main() {
 
     test('prototypeParameters reads the call-site parameter snapshot', () {
       final params = module.prototypeParameters;
-      expect([for (final p in params) p.name], ['ChannelName', 'VoltageLimit']);
-      expect(params[0].type, 'Str');
-      expect(params[0].value, 'dev1');
-      expect(params[1].type, 'Num');
-      expect(params[1].value, '5');
+      expect(
+        [for (final p in params) (p.name, p.type, p.value)],
+        [
+          ('ChannelName', 'Str', 'dev1'),
+          ('VoltageLimit', 'Num', '5'),
+        ],
+      );
     });
 
     test('a module with no ActualArgs/Prototype reads empty', () {
-      final bare = StepModule.fromSData(
-        SeqProperty(
-          name: 'SData',
-          subProps: [SeqProperty(name: 'SeqName', scalar: 'Callee')],
-        ),
-      );
+      final bare = StepModule.fromSData(_p('SData', sub: [_p('SeqName', value: 'Callee')]));
       expect(bare.sequenceArguments, isEmpty);
       expect(bare.prototypeParameters, isEmpty);
     });
 
     test('resolvesLocalCall: UseCurFile, no file named, or the file\'s own path', () {
       StepModule call({String? file, String? useCurFile}) => StepModule.fromSData(
-        SeqProperty(
-          name: 'SData',
-          subProps: [
-            SeqProperty(name: 'SeqName', scalar: 'Callee'),
-            if (file != null) SeqProperty(name: 'SFPath', scalar: file),
-            if (useCurFile != null) SeqProperty(name: 'UseCurFile', className: 'Bool', scalar: useCurFile),
+        _p(
+          'SData',
+          sub: [
+            _p('SeqName', value: 'Callee'),
+            if (file != null) _p('SFPath', value: file),
+            if (useCurFile != null) _p('UseCurFile', cls: 'Bool', value: useCurFile),
           ],
         ),
       );
@@ -209,68 +212,15 @@ void main() {
   });
 
   group('call-parameter export', () {
-    SeqProperty num$(String name, [String? value]) => SeqProperty(name: name, className: 'Num', scalar: value);
-    SeqProperty str$(String name, [String? value]) => SeqProperty(name: name, className: 'Str', scalar: value);
-    SeqProperty bool$(String name, [String? value]) => SeqProperty(name: name, className: 'Bool', scalar: value);
-
-    SeqProperty seqWith(
-      String name, {
-      List<SeqProperty> params = const [],
-      List<SeqProperty> locals = const [],
-      List<SeqProperty> steps = const [],
-    }) => SeqProperty(
-      name: name,
-      subProps: [
-        if (params.isNotEmpty) SeqProperty(name: 'Parameters', className: 'Obj', subProps: params),
-        if (locals.isNotEmpty) SeqProperty(name: 'Locals', className: 'Obj', subProps: locals),
-        SeqProperty(name: 'Main', className: 'Objs', array: steps),
-      ],
-    );
-
-    SeqProperty argRow(String name, {bool useDefault = false, String? expr}) => SeqProperty(
-      name: name,
-      subProps: [
-        SeqProperty(name: 'UseDef', className: 'Bool', scalar: useDefault ? 'True' : 'False'),
-        if (expr != null) SeqProperty(name: 'Expr', scalar: expr),
-      ],
-    );
-
-    SeqProperty callStep(
-      String stepName,
-      String callee, {
-      String? file,
-      List<SeqProperty> args = const [],
-      List<SeqProperty>? prototype,
-    }) => stepWith(
-      stepName,
-      sdata: [
-        SeqProperty(name: 'SeqName', scalar: callee),
-        if (file != null) SeqProperty(name: 'SFPath', scalar: file),
-        if (args.isNotEmpty) SeqProperty(name: 'ActualArgs', className: 'Obj', subProps: args),
-        if (prototype != null) SeqProperty(name: 'Prototype', className: 'Obj', subProps: prototype),
-      ],
-    );
-
-    SeqProperty statementStep(String stepName, String postExpr) => SeqProperty(
-      name: stepName,
-      typeName: 'Statement',
-      subProps: [
-        SeqProperty(
-          name: 'TS',
-          subProps: [SeqProperty(name: 'PostExpr', scalar: postExpr)],
-        ),
-      ],
-    );
-
     test('UseDef rows are omitted (exact) and the caller stays ARMED', () {
-      final file = fileWith([
-        seqWith(
+      final file = _fileWith([
+        _seqWith(
           'Caller',
           steps: [
-            callStep('Run it', 'Callee', args: [argRow('Threshold', useDefault: true)]),
+            _callStep('Run it', 'Callee', args: [_argRow('Threshold', useDefault: true)]),
           ],
         ),
-        seqWith('Callee', params: [num$('Threshold', '5')]),
+        _seqWith('Callee', params: [_num('Threshold', '5')]),
       ]);
       final source = exportSeqFileToLabwright(file, sourceName: 'own.seq');
       expect(source, contains('await callee(); // Run it'));
@@ -279,29 +229,28 @@ void main() {
     });
 
     test('literals, variable paths, and bools translate to named arguments', () {
-      final file = fileWith([
-        seqWith(
+      final file = _fileWith([
+        _seqWith(
           'Caller',
-          locals: [num$('Count', '3')],
+          locals: [_num('Count', '3')],
           steps: [
-            callStep(
+            _callStep(
               'Run it',
               'Callee',
               args: [
-                argRow('Label', expr: '"abc"'),
-                argRow('Enabled', expr: 'True'),
-                argRow('Count', expr: 'Locals.Count'),
-                argRow('Gain', expr: '1 + 2'),
+                _argRow('Label', expr: '"abc"'),
+                _argRow('Enabled', expr: 'True'),
+                _argRow('Count', expr: 'Locals.Count'),
+                _argRow('Gain', expr: '1 + 2'),
               ],
             ),
           ],
         ),
-        seqWith('Callee', params: [str$('Label'), bool$('Enabled', 'False'), num$('Count', '0'), num$('Gain', '2.5')]),
+        _seqWith('Callee', params: [_str('Label'), _bool('Enabled', 'False'), _num('Count', '0'), _num('Gain', '2.5')]),
       ]);
       final source = exportSeqFileToLabwright(file, sourceName: 'own.seq');
-      // Count is int in both scopes (integral defaults, int-grammar binding);
-      // Gain declares 2.5 so it stays double, and Dart will not widen the
-      // int EXPRESSION `1 + 2` — the exporter widens it losslessly.
+      // Count refines int in both scopes; Gain declares 2.5 so it stays
+      // double, and the exporter widens the int EXPRESSION `1 + 2` losslessly.
       expect(
         source,
         contains('await callee(label: "abc", enabled: true, count: count, gain: (1 + 2).toDouble()); // Run it'),
@@ -310,14 +259,14 @@ void main() {
     });
 
     test('an eval-fallback VALUE still emits and the hazard scan disarms the test', () {
-      final file = fileWith([
-        seqWith(
+      final file = _fileWith([
+        _seqWith(
           'Caller',
           steps: [
-            callStep('Run it', 'Callee', args: [argRow('Count', expr: 'GetNumSockets()')]),
+            _callStep('Run it', 'Callee', args: [_argRow('Count', expr: 'GetNumSockets()')]),
           ],
         ),
-        seqWith('Callee', params: [num$('Count', '0')]),
+        _seqWith('Callee', params: [_num('Count', '0')]),
       ]);
       final source = exportSeqFileToLabwright(file, sourceName: 'own.seq');
       expect(source, contains("await callee(count: ts.eval('GetNumSockets()')); // Run it"));
@@ -326,21 +275,21 @@ void main() {
     });
 
     test('a stale argument name is omitted and disarms the SITE with its reason', () {
-      final file = fileWith([
-        seqWith(
+      final file = _fileWith([
+        _seqWith(
           'Caller',
           steps: [
-            callStep(
+            _callStep(
               'Run it',
               'Callee',
               args: [
-                argRow('Ghost', expr: '1'),
-                argRow('Real', expr: '2'),
+                _argRow('Ghost', expr: '1'),
+                _argRow('Real', expr: '2'),
               ],
             ),
           ],
         ),
-        seqWith('Callee', params: [num$('Real', '0')]),
+        _seqWith('Callee', params: [_num('Real', '0')]),
       ]);
       final source = exportSeqFileToLabwright(file, sourceName: 'own.seq');
       expect(source, contains('await callee(real: 2); // Run it'));
@@ -349,15 +298,15 @@ void main() {
     });
 
     test('a type-guard rejection keeps the raw expression in eval and states why', () {
-      final file = fileWith([
-        seqWith(
+      final file = _fileWith([
+        _seqWith(
           'Caller',
-          locals: [num$('N', '0')],
+          locals: [_num('N', '0')],
           steps: [
-            callStep('Run it', 'Callee', args: [argRow('Label', expr: 'Locals.N + 1')]),
+            _callStep('Run it', 'Callee', args: [_argRow('Label', expr: 'Locals.N + 1')]),
           ],
         ),
-        seqWith('Callee', params: [str$('Label')]),
+        _seqWith('Callee', params: [_str('Label')]),
       ]);
       final source = exportSeqFileToLabwright(file, sourceName: 'own.seq');
       expect(source, contains("await callee(label: ts.eval('Locals.N + 1')); // Run it"));
@@ -365,17 +314,25 @@ void main() {
     });
 
     test('scalar by-ref writeback disarms a variable-path binding; a literal binding is safe', () {
-      final callee = seqWith(
+      final callee = _seqWith(
         'Callee',
-        params: [num$('X', '0')],
-        steps: [statementStep('Bump', 'Parameters.X = Parameters.X + 1')],
+        params: [_num('X', '0')],
+        steps: [
+          _p(
+            'Bump',
+            type: 'Statement',
+            sub: [
+              _p('TS', sub: [_p('PostExpr', value: 'Parameters.X = Parameters.X + 1')]),
+            ],
+          ),
+        ],
       );
-      final varBound = fileWith([
-        seqWith(
+      final varBound = _fileWith([
+        _seqWith(
           'Caller',
-          locals: [num$('Y', '0')],
+          locals: [_num('Y', '0')],
           steps: [
-            callStep('Run it', 'Callee', args: [argRow('X', expr: 'Locals.Y')]),
+            _callStep('Run it', 'Callee', args: [_argRow('X', expr: 'Locals.Y')]),
           ],
         ),
         callee,
@@ -385,11 +342,11 @@ void main() {
       expect(varSource, contains("lw.skipTest('Caller'"));
       expect(varSource, contains('by-ref writeback of parameter X of sequence Callee not exported'));
 
-      final literalBound = fileWith([
-        seqWith(
+      final literalBound = _fileWith([
+        _seqWith(
           'Caller',
           steps: [
-            callStep('Run it', 'Callee', args: [argRow('X', expr: '5')]),
+            _callStep('Run it', 'Callee', args: [_argRow('X', expr: '5')]),
           ],
         ),
         callee,
@@ -400,14 +357,14 @@ void main() {
     });
 
     test('a call binding demotes an int-refined callee parameter (analyze-safe)', () {
-      final file = fileWith([
-        seqWith(
+      final file = _fileWith([
+        _seqWith(
           'Caller',
           steps: [
-            callStep('Run it', 'Callee', args: [argRow('X', expr: '2.5')]),
+            _callStep('Run it', 'Callee', args: [_argRow('X', expr: '2.5')]),
           ],
         ),
-        seqWith('Callee', params: [num$('X', '0')]),
+        _seqWith('Callee', params: [_num('X', '0')]),
       ]);
       final source = exportSeqFileToDart(file, sourceName: 'own.seq');
       expect(source, contains('Future<void> callee({double x = 0}) async {'));
@@ -416,21 +373,21 @@ void main() {
 
     test('an external stub gets a TYPED signature from the prototype snapshot', () {
       final proto = [
-        str$('ChannelName', 'dev1'),
-        num$('VoltageLimit', '5'),
+        _str('ChannelName', 'dev1'),
+        _num('VoltageLimit', '5'),
         SeqProperty(name: 'Thresholds', className: 'Nums', array: []),
       ];
-      final file = fileWith([
-        seqWith(
+      final file = _fileWith([
+        _seqWith(
           'Caller',
           steps: [
-            callStep(
+            _callStep(
               'Configure',
               'Load Config',
               file: r'..\Load Config.seq',
               args: [
-                argRow('ChannelName', expr: '"ps1"'),
-                argRow('VoltageLimit', useDefault: true),
+                _argRow('ChannelName', expr: '"ps1"'),
+                _argRow('VoltageLimit', useDefault: true),
               ],
               prototype: proto,
             ),
@@ -449,23 +406,23 @@ void main() {
     });
 
     test('disagreeing prototype snapshots yield an honest dynamic-union stub', () {
-      final file = fileWith([
-        seqWith(
+      final file = _fileWith([
+        _seqWith(
           'Caller',
           steps: [
-            callStep(
+            _callStep(
               'First',
               'Helper',
               file: 'other.seq',
-              args: [argRow('A', expr: '1')],
-              prototype: [num$('A', '0')],
+              args: [_argRow('A', expr: '1')],
+              prototype: [_num('A', '0')],
             ),
-            callStep(
+            _callStep(
               'Second',
               'Helper',
               file: 'other.seq',
-              args: [argRow('B', expr: '2')],
-              prototype: [num$('B', '0')],
+              args: [_argRow('B', expr: '2')],
+              prototype: [_num('B', '0')],
             ),
           ],
         ),
@@ -478,21 +435,21 @@ void main() {
     });
 
     test('expression-form targets stay untranslated (no argument list)', () {
-      final file = fileWith([
-        seqWith(
+      final file = _fileWith([
+        _seqWith(
           'Caller',
           steps: [
-            stepWith(
+            _stepWith(
               'Dynamic call',
               sdata: [
-                SeqProperty(name: 'SpecifyByExpr', className: 'Bool', scalar: 'True'),
-                SeqProperty(name: 'SeqNameExpr', scalar: 'Locals.Target'),
-                SeqProperty(name: 'SFPathExpr', scalar: '"x.seq"'),
-                SeqProperty(name: 'SeqName', scalar: ''),
-                SeqProperty(
-                  name: 'ActualArgs',
-                  className: 'Obj',
-                  subProps: [argRow('X', expr: '1')],
+                _p('SpecifyByExpr', cls: 'Bool', value: 'True'),
+                _p('SeqNameExpr', value: 'Locals.Target'),
+                _p('SFPathExpr', value: '"x.seq"'),
+                _p('SeqName', value: ''),
+                _p(
+                  'ActualArgs',
+                  cls: 'Obj',
+                  sub: [_argRow('X', expr: '1')],
                 ),
               ],
             ),
@@ -505,33 +462,32 @@ void main() {
     });
 
     test('project export binds cross-module arguments against the predicted scope', () {
-      final caller = fileWith([
-        seqWith(
+      final caller = _fileWith([
+        _seqWith(
           'MainSequence',
           steps: [
-            callStep(
+            _callStep(
               'Use helper',
               'Helper',
               file: 'b.seq',
-              args: [argRow('X', expr: '3')],
+              args: [_argRow('X', expr: '3')],
             ),
-            callStep(
+            _callStep(
               'Break helper',
               'Helper',
               file: 'b.seq',
-              args: [argRow('X', expr: '3.5')],
+              args: [_argRow('X', expr: '3.5')],
             ),
           ],
         ),
       ]);
-      final calleeFile = fileWith([
-        seqWith('Helper', params: [num$('X', '0')]),
+      final calleeFile = _fileWith([
+        _seqWith('Helper', params: [_num('X', '0')]),
       ]);
       final project = exportSeqProjectToLabwright({'a.seq': caller, 'b.seq': calleeFile});
       final aSource = project.files['a_seq.dart']!;
-      // Helper.X refines int inside b.seq (integral default, no demoting
-      // assigns THERE) — the integral binding passes straight through; the
-      // non-integral one is honest (eval + site disarm), never truncated.
+      // Helper.X refines int inside b.seq — the integral binding passes
+      // straight through; the non-integral one is honest, never truncated.
       expect(project.files['b_seq.dart'], contains('Future<void> helper({int x = 0}) async {'));
       expect(aSource, contains('await b_seq.helper(x: 3); // Use helper: external sequence'));
       expect(aSource, contains("await b_seq.helper(x: ts.eval('3.5')); // Break helper: external sequence"));
@@ -539,35 +495,33 @@ void main() {
     });
   });
 
-  group('array parameters (nullable + ??= preamble)', () {
-    test('an array parameter is nullable and ??= materializes the declared default', () {
-      final file = fileWith([
-        SeqProperty(
-          name: 'MainSequence',
-          subProps: [
-            SeqProperty(
-              name: 'Parameters',
-              className: 'Obj',
-              subProps: [
-                SeqProperty(
-                  name: 'Thresholds',
-                  className: 'Nums',
-                  array: [
-                    SeqProperty(name: '[0]', className: 'Num', scalar: '1.5'),
-                    SeqProperty(name: '[1]', className: 'Num', scalar: '2'),
-                  ],
-                ),
-                SeqProperty(name: 'Names', className: 'Strs', array: []),
-              ],
-            ),
-          ],
-        ),
-      ]);
-      final source = exportSeqFileToDart(file);
-      expect(source, contains('Future<void> mainSequence({List<dynamic>? thresholds, List<dynamic>? names}) async {'));
-      expect(source, contains('thresholds ??= <dynamic>[1.5, 2];'));
-      expect(source, contains('names ??= <dynamic>[];'));
-      expect(source, isNot(contains('const []')), reason: 'a shared const default would alias across calls');
-    });
+  test('array parameters export NULLABLE with a ??= preamble carrying the DECLARED default', () {
+    final file = _fileWith([
+      _p(
+        'MainSequence',
+        sub: [
+          _p(
+            'Parameters',
+            cls: 'Obj',
+            sub: [
+              SeqProperty(
+                name: 'Thresholds',
+                className: 'Nums',
+                array: [
+                  _p('[0]', cls: 'Num', value: '1.5'),
+                  _p('[1]', cls: 'Num', value: '2'),
+                ],
+              ),
+              SeqProperty(name: 'Names', className: 'Strs', array: []),
+            ],
+          ),
+        ],
+      ),
+    ]);
+    final source = exportSeqFileToDart(file);
+    expect(source, contains('Future<void> mainSequence({List<dynamic>? thresholds, List<dynamic>? names}) async {'));
+    expect(source, contains('thresholds ??= <dynamic>[1.5, 2];'));
+    expect(source, contains('names ??= <dynamic>[];'));
+    expect(source, isNot(contains('const []')), reason: 'a shared const default would alias across calls');
   });
 }

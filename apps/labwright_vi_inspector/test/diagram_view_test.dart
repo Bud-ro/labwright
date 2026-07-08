@@ -2,106 +2,68 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:labwright_vi_inspector/src/diagram_view.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
+import 'package:labwright_vi_inspector/src/diagram_view.dart';
 
-// Heap record helpers (mirror the videcode bracket model).
-List<int> open(int kind, int oid, {int tag = 0x19}) => [
-  0x10,
-  tag,
-  0x02,
-  0xfe,
-  kind >> 8,
-  kind & 0xff,
-  0xfd,
-  oid >> 8,
-  oid & 0xff,
-];
-List<int> close([int tag = 0x19]) => [0x08, tag];
-List<int> bounds(int t, int l, int b, int r) => [
-  0xc4,
-  0x2d,
-  0x08,
-  t >> 8,
-  t & 0xff,
-  l >> 8,
-  l & 0xff,
-  b >> 8,
-  b & 0xff,
-  r >> 8,
-  r & 0xff,
-];
-List<int> caption(String s) => [0xc4, 0x22, s.length, ...s.codeUnits];
-List<int> enum2e(List<String> items) {
-  final b = <int>[
-    for (final it in items) ...[it.length, ...it.codeUnits],
-  ];
-  return [0xc4, 0x2e, b.length, ...b];
-}
+import 'util.dart';
 
-ViModel _modelFromRecords(List<int> records) {
-  final body = Uint8List.fromList([0, 0, 0, records.length, ...records]);
-  final sec = DecodedSection(
-    section: ViSection(tag: 'BDHb', index: 0, dataOffset: 0, bytes: body),
-    bytes: body,
-    wasCompressed: false,
-  );
-  return buildViModelFromDecoded([sec]);
-}
-
-// A front-panel-ish model: an enum/ring control (0x57) whose items propagate up
-// from its 0x0d item-list child, plus a plain boolean control (0x4f, no items).
-ViModel _modelWithControls() => _modelFromRecords(<int>[
-  ...open(0x7e, 1), ...bounds(0, 0, 400, 400),
-  ...open(0x57, 2, tag: 0x1a), ...bounds(20, 20, 50, 160), // enum/ring control
+/// An enum/ring control (0x57, items via its 0x0d child) + a plain boolean.
+ViModel modelWithControls() => modelFromRecords(<int>[
+  ...open(0x7e, 1),
+  ...bounds(0, 0, 400, 400),
+  ...open(0x57, 2, tag: 0x1a),
+  ...bounds(20, 20, 50, 160),
   ...open(0x0d, 3, tag: 0x1b),
   ...bounds(22, 22, 48, 158),
   ...enum2e(['Low', 'High']),
   ...close(0x1b),
   ...close(0x1a),
   ...open(0x4f, 4, tag: 0x1c),
-  ...bounds(80, 20, 110, 160), // boolean control, no items
+  ...bounds(80, 20, 110, 160),
   ...close(0x1c),
   ...close(),
 ]);
 
-ViModel _modelWithDiagram() {
-  final records = <int>[
-    ...open(0x7e, 1), ...bounds(0, 0, 400, 400), // root
-    ...open(0x12, 2, tag: 0x1a),
-    ...bounds(10, 20, 40, 160),
-    ...caption('Acquire'), // a node
-    ...close(0x1a),
-    ...open(0x50, 3, tag: 0x1b),
-    ...bounds(60, 20, 77, 120),
-    ...caption('Channel'), // a terminal
-    ...close(0x1b),
-    ...close(),
-  ];
-  final body = Uint8List.fromList([0, 0, 0, records.length, ...records]);
-  final sec = DecodedSection(
-    section: ViSection(tag: 'BDHb', index: 0, dataOffset: 0, bytes: body),
-    bytes: body,
-    wasCompressed: false,
-  );
-  return buildViModelFromDecoded([sec]);
-}
+/// A named node + a labeled terminal under the diagram root.
+ViModel modelWithDiagram() => modelFromRecords(<int>[
+  ...open(0x7e, 1),
+  ...bounds(0, 0, 400, 400),
+  ...open(0x12, 2, tag: 0x1a),
+  ...bounds(10, 20, 40, 160),
+  ...caption('Acquire'),
+  ...close(0x1a),
+  ...open(0x50, 3, tag: 0x1b),
+  ...bounds(60, 20, 77, 120),
+  ...caption('Channel'),
+  ...close(0x1b),
+  ...close(),
+]);
+
+Future<void> pumpView(
+  WidgetTester tester,
+  ViModel model, {
+  List<String> subVis = const [],
+  Size view = const Size(1000, 1000),
+}) => pumpBody(
+  tester,
+  ViDiagramView(diagrams: model.blockDiagrams, subViNames: subVis),
+  view: view,
+);
 
 void main() {
+  test('terminals keep LabVIEW datatype colors; unknown stays neutral', () {
+    const rows = {
+      ViTypeKind.numericFloat: Color(0xFFFF8000),
+      ViTypeKind.numericInt: Color(0xFF0066CC),
+      ViTypeKind.enumRing: Color(0xFF0066CC),
+      ViTypeKind.path: Color(0xFF669900),
+      ViTypeKind.unknown: Color(0xFF8A8A8A),
+    };
+    rows.forEach((k, want) => expect(labviewTypeColor(k), want, reason: '$k'));
+  });
+
   testWidgets('layout view renders objects with a legend', (tester) async {
-    tester.view.physicalSize = const Size(1000, 1000);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.reset);
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: ViDiagramView(diagrams: _modelWithDiagram().blockDiagrams),
-        ),
-      ),
-    );
-    await tester.pump();
-
+    await pumpView(tester, modelWithDiagram());
     expect(find.textContaining('objects'), findsOneWidget);
     expect(find.byType(CustomPaint), findsWidgets);
     expect(find.textContaining('node'), findsWidgets);
@@ -110,19 +72,7 @@ void main() {
   testWidgets('toggles to Faithful mode and renders real controls', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(1000, 1000);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.reset);
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: ViDiagramView(diagrams: _modelWithDiagram().blockDiagrams),
-        ),
-      ),
-    );
-    await tester.pump();
-
+    await pumpView(tester, modelWithDiagram());
     expect(find.text('Wireframe'), findsOneWidget);
     expect(find.text('Faithful'), findsOneWidget);
     await tester.tap(find.text('Faithful'));
@@ -134,11 +84,7 @@ void main() {
   testWidgets('Faithful mode renders decoded enum items and a plain boolean', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(1000, 1000);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.reset);
-
-    final model = _modelWithControls();
+    final model = modelWithControls();
     expect(
       model.diagrams
           .expand((d) => d.objects)
@@ -146,122 +92,79 @@ void main() {
           .items,
       ['Low', 'High'],
     );
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(body: ViDiagramView(diagrams: model.blockDiagrams)),
-      ),
-    );
-    await tester.pump();
+    await pumpView(tester, model);
     await tester.tap(find.text('Faithful'));
     await tester.pump();
-
     expect(tester.takeException(), isNull);
     expect(find.text('Low'), findsOneWidget);
     expect(find.text('OFF'), findsOneWidget);
   });
 
-  testWidgets(
-    'Faithful mode wraps a control carrying decoded help text in a Tooltip',
-    (tester) async {
-      tester.view.physicalSize = const Size(1000, 1000);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.reset);
-
-      // Description/help record: `C4 19 <len> <text>` (via descriptionText).
-      List<int> help(String s) => [0xc4, 0x19, s.length, ...s.codeUnits];
-
-      final records = <int>[
-        ...open(0x7e, 1),
-        ...bounds(0, 0, 400, 400),
-        ...open(0x50, 2, tag: 0x1a),
-        ...bounds(20, 20, 60, 200),
-        ...help('help here'),
-        ...close(0x1a),
-        ...close(),
-      ];
-      final model = _modelFromRecords([0, 0, 0, records.length, ...records]);
-      expect(
-        model.diagrams
-            .expand((d) => d.objects)
-            .firstWhere((o) => o.oid == 2)
-            .helpText,
-        'help here',
-      );
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(body: ViDiagramView(diagrams: model.blockDiagrams)),
-        ),
-      );
-      await tester.pump();
-      await tester.tap(find.text('Faithful'));
-      await tester.pump();
-      expect(tester.takeException(), isNull);
-      expect(find.byTooltip('help here'), findsOneWidget);
-    },
-  );
+  testWidgets('Faithful mode wraps decoded help text in a Tooltip', (
+    tester,
+  ) async {
+    final model = modelFromRecords(<int>[
+      ...open(0x7e, 1),
+      ...bounds(0, 0, 400, 400),
+      ...open(0x50, 2, tag: 0x1a),
+      ...bounds(20, 20, 60, 200),
+      ...helpRecord('help here'),
+      ...close(0x1a),
+      ...close(),
+    ]);
+    expect(
+      model.diagrams
+          .expand((d) => d.objects)
+          .firstWhere((o) => o.oid == 2)
+          .helpText,
+      'help here',
+    );
+    await pumpView(tester, model);
+    await tester.tap(find.text('Faithful'));
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    expect(find.byTooltip('help here'), findsOneWidget);
+  });
 
   test('membersOf resolves declared members to DRAWN objects only', () {
     final records = <int>[
       ...open(0x7e, 1), ...bounds(0, 0, 400, 400),
       ...open(0x53, 2, tag: 0x1a), ...bounds(10, 10, 200, 200),
-      0x14, 0x19, 0x01, 0xfd, 0x00, 0x09, // childRef -> 9 (drawn)
-      0x14, 0x4f, 0x01, 0xfd, 0x00, 0x0a, // memberRef -> 10 (scaffolding)
-      0x14, 0x19, 0x01, 0xfd, 0x00, 0x0b, // childRef -> 11 (never declared)
-      ...open(0x50, 9, tag: 0x1b),
-      ...bounds(20, 20, 37, 100),
-      ...close(0x1b), // a drawn control
-      ...open(0x09, 10, tag: 0x1c),
-      ...bounds(40, 40, 57, 100),
-      ...close(0x1c), // scaffolding (0x09)
+      ...childRef(9),
+      ...memberRef(10), // scaffolding, not drawn
+      ...childRef(11), // never declared
+      ...open(0x50, 9, tag: 0x1b), ...bounds(20, 20, 37, 100), ...close(0x1b),
+      ...open(0x09, 10, tag: 0x1c), ...bounds(40, 40, 57, 100), ...close(0x1c),
       ...close(0x1a),
       ...close(),
     ];
-    final body = Uint8List.fromList([0, 0, 0, records.length, ...records]);
-    final d = buildDiagram(body);
-    final structure = d.byId[2];
-    final members = membersOf(structure, d.byId);
-    expect(members.map((m) => m.oid).toSet(), {9});
+    final d = buildDiagram(
+      Uint8List.fromList([0, 0, 0, records.length, ...records]),
+    );
+    expect(membersOf(d.byId[2], d.byId).map((m) => m.oid).toSet(), {9});
     expect(membersOf(null, d.byId), isEmpty);
   });
 
-  testWidgets(
-    'tapping a structure with members does not crash and highlights',
-    (tester) async {
-      tester.view.physicalSize = const Size(1000, 1000);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.reset);
-
-      final records = <int>[
-        ...open(0x7e, 1),
-        ...bounds(0, 0, 400, 400),
-        ...open(0x53, 2, tag: 0x1a),
-        ...bounds(10, 10, 200, 200),
-        0x14,
-        0x19,
-        0x01,
-        0xfd,
-        0x00,
-        0x09,
-        ...open(0x50, 9, tag: 0x1b),
-        ...bounds(20, 20, 60, 120),
-        ...close(0x1b),
-        ...close(0x1a),
-        ...close(),
-      ];
-      final model = _modelFromRecords([0, 0, 0, records.length, ...records]);
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(body: ViDiagramView(diagrams: model.blockDiagrams)),
-        ),
-      );
-      await tester.pump();
-      await tester.tapAt(const Offset(120, 120));
-      await tester.pump();
-      expect(tester.takeException(), isNull);
-    },
-  );
+  testWidgets('tapping a structure with members highlights, does not crash', (
+    tester,
+  ) async {
+    final model = modelFromRecords(<int>[
+      ...open(0x7e, 1),
+      ...bounds(0, 0, 400, 400),
+      ...open(0x53, 2, tag: 0x1a),
+      ...bounds(10, 10, 200, 200),
+      ...childRef(9),
+      ...open(0x50, 9, tag: 0x1b),
+      ...bounds(20, 20, 60, 120),
+      ...close(0x1b),
+      ...close(0x1a),
+      ...close(),
+    ]);
+    await pumpView(tester, model);
+    await tester.tapAt(const Offset(120, 120));
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('empty model shows an honest placeholder, not a crash', (
     tester,
@@ -273,276 +176,175 @@ void main() {
   });
 
   group('nodesWithin', () {
-    ViHeapObject obj(int oid, ViObjectKind cat, int t, int l, int b, int r) =>
-        ViHeapObject(oid: oid, kind: 0x2f, offset: 0)
-          ..category = cat
-          ..absBounds = HeapRect(top: t, left: l, bottom: b, right: r);
+    ViHeapObject at(int oid, ViObjectKind cat, (int, int, int, int) r) =>
+        heapObj(0x2f, oid: oid, cat: cat, at: r);
 
-    test(
-      'returns logic nodes spatially inside the structure, excluding outsiders/terminals',
-      () {
-        final loop = obj(1, ViObjectKind.structure, 0, 0, 200, 200);
-        final inside = obj(
-          2,
-          ViObjectKind.node,
-          20,
-          20,
-          60,
-          100,
-        ); // a subVI inside
-        final innerLoop = obj(
-          3,
-          ViObjectKind.structure,
-          30,
-          30,
-          90,
-          150,
-        ); // nested structure inside
-        final outside = obj(
-          4,
-          ViObjectKind.node,
-          300,
-          300,
-          340,
-          400,
-        ); // node outside
-        final termInside = obj(
-          5,
-          ViObjectKind.terminal,
-          25,
-          25,
-          35,
-          45,
-        ); // terminal inside (not logic)
-        final within = nodesWithin(loop, [
-          loop,
-          inside,
-          innerLoop,
-          outside,
-          termInside,
-        ]);
-        expect(within, containsAll([inside, innerLoop]));
-        expect(within, isNot(contains(outside)));
-        expect(within, isNot(contains(termInside)));
-        expect(within, isNot(contains(loop)));
-      },
-    );
+    test('keeps logic nodes spatially inside; drops outsiders/terminals', () {
+      final loop = at(1, ViObjectKind.structure, (0, 0, 200, 200));
+      final inside = at(2, ViObjectKind.node, (20, 20, 60, 100));
+      final innerLoop = at(3, ViObjectKind.structure, (30, 30, 90, 150));
+      final outside = at(4, ViObjectKind.node, (300, 300, 340, 400));
+      final termInside = at(5, ViObjectKind.terminal, (25, 25, 35, 45));
+      final within = nodesWithin(loop, [
+        loop,
+        inside,
+        innerLoop,
+        outside,
+        termInside,
+      ]);
+      expect(within, containsAll([inside, innerLoop]));
+      expect(within, isNot(contains(outside)));
+      expect(within, isNot(contains(termInside)));
+      expect(within, isNot(contains(loop)));
+    });
 
     test('a structure with no bounds yields nothing', () {
-      final s = ViHeapObject(oid: 1, kind: 0x53, offset: 0)
-        ..category = ViObjectKind.structure;
+      final s = heapObj(0x53, cat: ViObjectKind.structure);
       expect(nodesWithin(s, const []), isEmpty);
     });
 
     test(
-      'a child that exactly FILLS the parent is included; an exact-bounds clone is excluded',
+      'an exactly-filling child is included; an exact-bounds clone is not',
       () {
-        final frame = obj(1, ViObjectKind.structure, 0, 0, 100, 100);
-        final fillingBody = obj(
-          2,
-          ViObjectKind.structure,
-          0,
-          0,
-          100,
-          100,
-        ); // same bounds, distinct object
-        final insetBody = obj(3, ViObjectKind.structure, 0, 0, 100, 99);
-        final within = nodesWithin(frame, [frame, fillingBody, insetBody]);
+        final frame = at(1, ViObjectKind.structure, (0, 0, 100, 100));
+        final fillingClone = at(2, ViObjectKind.structure, (0, 0, 100, 100));
+        final insetBody = at(3, ViObjectKind.structure, (0, 0, 100, 99));
+        final within = nodesWithin(frame, [frame, fillingClone, insetBody]);
         expect(within, contains(insetBody));
-        expect(within, isNot(contains(fillingBody)));
+        expect(within, isNot(contains(fillingClone)));
       },
     );
   });
 
-  group('wireframeAnnotation', () {
-    test('a structure shows its catalog kind (honest, no fabrication)', () {
-      final whileLoop = ViHeapObject(oid: 1, kind: 0x21, offset: 0)
-        ..category = ViObjectKind.structure;
-      expect(wireframeAnnotation(whileLoop), 'While loop');
-      final caseStruct = ViHeapObject(oid: 2, kind: 0x2c, offset: 0)
-        ..category = ViObjectKind.structure;
-      expect(wireframeAnnotation(caseStruct), 'Case structure');
-      final dual = ViHeapObject(oid: 3, kind: 0x53, offset: 0)
-        ..category = ViObjectKind.structure;
-      expect(wireframeAnnotation(dual), 'Loop (BD) / container (FP)');
-    });
-    test('a node shows its recovered name', () {
-      final node = ViHeapObject(oid: 1, kind: 0x2f, offset: 0)
-        ..category = ViObjectKind.node
-        ..label = 'PicoScope2000aOpen.vi';
-      expect(wireframeAnnotation(node), 'PicoScope2000aOpen.vi');
-    });
-    test('a labeled terminal shows name and type', () {
-      final t = ViHeapObject(oid: 1, kind: 0x50, offset: 0)
-        ..category = ViObjectKind.terminal
-        ..label = 'count'
-        ..typeKind = ViTypeKind.numericInt;
-      expect(wireframeAnnotation(t), 'count · numericInt');
-    });
+  test('wireframeAnnotation: catalog kind, recovered name, terminal type', () {
+    final rows = <(ViHeapObject, String)>[
+      (heapObj(0x21, cat: ViObjectKind.structure), 'While loop'),
+      (heapObj(0x2c, cat: ViObjectKind.structure), 'Case structure'),
+      (
+        heapObj(0x53, cat: ViObjectKind.structure),
+        'Loop (BD) / container (FP)',
+      ),
+      (
+        heapObj(0x2f, cat: ViObjectKind.node, label: 'PicoScope2000aOpen.vi'),
+        'PicoScope2000aOpen.vi',
+      ),
+      (
+        heapObj(
+          0x50,
+          cat: ViObjectKind.terminal,
+          label: 'count',
+          typeKind: ViTypeKind.numericInt,
+        ),
+        'count · numericInt',
+      ),
+    ];
+    for (final (o, want) in rows) {
+      expect(wireframeAnnotation(o), want, reason: want);
+    }
   });
 
-  testWidgets(
-    'toolbar does not overflow on a narrow viewport (user-reported)',
-    (tester) async {
-      tester.view.physicalSize = const Size(600, 900);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.reset);
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: ViDiagramView(diagrams: _modelWithDiagram().blockDiagrams),
-          ),
-        ),
-      );
-      await tester.pump();
-
-      expect(tester.takeException(), isNull);
-      expect(find.textContaining('objects'), findsOneWidget);
-      expect(find.text('Wireframe'), findsOneWidget);
-    },
-  );
+  testWidgets('toolbar does not overflow on a narrow viewport', (tester) async {
+    await pumpView(tester, modelWithDiagram(), view: const Size(600, 900));
+    expect(tester.takeException(), isNull);
+    expect(find.textContaining('objects'), findsOneWidget);
+    expect(find.text('Wireframe'), findsOneWidget);
+  });
 
   group('computeBdOutline', () {
     ViHeapObject struct(int kind) =>
-        ViHeapObject(oid: kind, kind: kind, offset: 0)
-          ..category = ViObjectKind.structure;
-    test(
-      'groups structures by catalog kind and lists labeled-node captions (no fabrication)',
-      () {
-        final objs = [
-          struct(0x21), // While loop
-          struct(0x21), // While loop (×2)
-          struct(0x2c), // Case structure
-          struct(0x7e), // Diagram root -> excluded (not control flow)
-          ViHeapObject(
-              oid: 10,
-              kind: 0x12,
-              offset: 0,
-            ) // a node carrying a caption
-            ..category = ViObjectKind.node
-            ..label = 'Acquire.vi',
-          ViHeapObject(oid: 11, kind: 0x2f, offset: 0)
-            ..category = ViObjectKind.node, // unlabeled primitive -> hint
-        ];
-        final o = computeBdOutline(objs);
-        expect(o.structuresByKind['While loop'], 2);
-        expect(o.structuresByKind['Case structure'], 1);
-        expect(o.structuresByKind.containsKey('Diagram root'), isFalse);
-        expect(o.labeledNodes, ['Acquire.vi']);
-        expect(o.nodeCount, 2);
-        expect(o.confidence.values.fold<int>(0, (a, b) => a + b), 5);
-      },
-    );
+        heapObj(kind, oid: kind, cat: ViObjectKind.structure);
 
-    test(
-      'emits NO wire/edge/dataflow linkage — the no-fabricated-wires honesty contract',
-      () {
-        final objs = [
-          struct(0x21),
-          struct(0x2c),
-          ViHeapObject(oid: 10, kind: 0x12, offset: 0)
-            ..category = ViObjectKind.node
-            ..label = 'Acquire.vi',
-          ViHeapObject(oid: 11, kind: 0x12, offset: 0)
-            ..category = ViObjectKind.node
-            ..label = 'Write.vi',
-        ];
-        final o = computeBdOutline(objs);
-        final text = [
-          ...o.structuresByKind.keys,
-          ...o.labeledNodes,
-        ].join(' ').toLowerCase();
-        for (final banned in [
-          'wire',
-          'edge',
-          'dataflow',
-          'connect',
-          '->',
-          '→',
-          'flows to',
-          'wires to',
-        ]) {
-          expect(
-            text.contains(banned),
-            isFalse,
-            reason: 'outline must not imply a $banned linkage',
-          );
-        }
-      },
-    );
+    test('groups structures by catalog kind; lists labeled-node captions', () {
+      final o = computeBdOutline([
+        struct(0x21),
+        struct(0x21),
+        struct(0x2c),
+        struct(0x7e), // diagram root: excluded (not control flow)
+        heapObj(0x12, oid: 10, cat: ViObjectKind.node, label: 'Acquire.vi'),
+        heapObj(0x2f, oid: 11, cat: ViObjectKind.node), // unlabeled primitive
+      ]);
+      expect(o.structuresByKind['While loop'], 2);
+      expect(o.structuresByKind['Case structure'], 1);
+      expect(o.structuresByKind.containsKey('Diagram root'), isFalse);
+      expect(o.labeledNodes, ['Acquire.vi']);
+      expect(o.nodeCount, 2);
+      expect(o.confidence.values.fold<int>(0, (a, b) => a + b), 5);
+    });
+
+    test('emits NO wire/edge/dataflow linkage (no-fabricated-wires)', () {
+      final o = computeBdOutline([
+        struct(0x21),
+        struct(0x2c),
+        heapObj(0x12, oid: 10, cat: ViObjectKind.node, label: 'Acquire.vi'),
+        heapObj(0x12, oid: 11, cat: ViObjectKind.node, label: 'Write.vi'),
+      ]);
+      final text = [
+        ...o.structuresByKind.keys,
+        ...o.labeledNodes,
+      ].join(' ').toLowerCase();
+      for (final banned in [
+        'wire',
+        'edge',
+        'dataflow',
+        'connect',
+        '->',
+        '→',
+        'flows to',
+        'wires to',
+      ]) {
+        expect(text.contains(banned), isFalse, reason: banned);
+      }
+    });
   });
 
-  testWidgets(
-    'block-diagram view shows a control-flow outline (structures + calls)',
-    (tester) async {
-      tester.view.physicalSize = const Size(1000, 1000);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.reset);
-
-      final model = _modelFromRecords(<int>[
+  testWidgets('BD view shows a control-flow outline (structures + calls)', (
+    tester,
+  ) async {
+    // The no-fabricated-wires contract is enforced by the computeBdOutline
+    // unit test; the view keeps its honest "not dataflow" disclaimer.
+    await pumpView(
+      tester,
+      modelFromRecords(<int>[
         ...open(0x7e, 1),
-        ...bounds(0, 0, 400, 400), // root (excluded from outline)
-        ...open(0x21, 2, tag: 0x1a), ...bounds(10, 10, 200, 200), // While loop
+        ...bounds(0, 0, 400, 400),
+        ...open(0x21, 2, tag: 0x1a),
+        ...bounds(10, 10, 200, 200),
         ...close(0x1a),
         ...open(0x12, 3, tag: 0x1b),
         ...bounds(20, 220, 50, 360),
-        ...caption('Acquire.vi'), // named node
+        ...caption('Acquire.vi'),
         ...close(0x1b),
         ...close(),
-      ]);
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(body: ViDiagramView(diagrams: model.blockDiagrams)),
-        ),
-      );
-      await tester.pump();
+      ]),
+    );
+    expect(find.text('Control flow:'), findsOneWidget);
+    expect(find.text('While loop ×1'), findsOneWidget);
+    expect(
+      find.textContaining('Diagram-labeled nodes (1): Acquire.vi'),
+      findsOneWidget,
+    );
+    expect(find.text('Class confidence:'), findsOneWidget);
+    expect(find.textContaining('not dataflow'), findsOneWidget);
+  });
 
-      expect(find.text('Control flow:'), findsOneWidget);
-      expect(find.text('While loop ×1'), findsOneWidget);
-      expect(
-        find.textContaining('Diagram-labeled nodes (1): Acquire.vi'),
-        findsOneWidget,
-      );
-      expect(find.text('Class confidence:'), findsOneWidget);
-      expect(find.textContaining('not dataflow'), findsOneWidget);
-      // The no-fabricated-wires honesty contract is enforced at the data layer by
-      // the 'computeBdOutline emits NO wire/edge/dataflow linkage' unit test above.
-      // (A blunt rendered-text 'wire' guard would wrongly flag the view's HONEST
-      // disclaimer that signal wires are NOT drawn — which we want to keep.)
-    },
-  );
-
-  testWidgets(
-    'block-diagram outline lists the linked subVIs from the LIbd linker block',
-    (tester) async {
-      tester.view.physicalSize = const Size(1000, 1000);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.reset);
-
-      final model = _modelFromRecords(<int>[
-        ...open(0x7e, 1), ...bounds(0, 0, 400, 400),
+  testWidgets('BD outline lists the linked subVIs from the LIbd block', (
+    tester,
+  ) async {
+    await pumpView(
+      tester,
+      modelFromRecords(<int>[
+        ...open(0x7e, 1),
+        ...bounds(0, 0, 400, 400),
         ...open(0x2f, 2, tag: 0x1a),
-        ...bounds(10, 10, 50, 120), // an UNLABELED primitive node
+        ...bounds(10, 10, 50, 120),
         ...close(0x1a),
         ...close(),
-      ]);
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: ViDiagramView(
-              diagrams: model.blockDiagrams,
-              subViNames: const ['Open.vi', 'Close.vi'],
-            ),
-          ),
-        ),
-      );
-      await tester.pump();
-
-      expect(
-        find.textContaining('Linked subVIs (2): Open.vi, Close.vi'),
-        findsOneWidget,
-      );
-    },
-  );
+      ]),
+      subVis: const ['Open.vi', 'Close.vi'],
+    );
+    expect(
+      find.textContaining('Linked subVIs (2): Open.vi, Close.vi'),
+      findsOneWidget,
+    );
+  });
 }

@@ -1,34 +1,41 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_seq/labwright_seq.dart';
 import 'package:labwright_seq_inspector/src/sequence_outline.dart';
 import 'package:labwright_seq_inspector/src/sequences_view.dart';
 
+import 'util.dart';
+
+SeqOutline outlineWith(StepOutline s, {String seqComment = ''}) => SeqOutline([
+  SequenceOutline(
+    name: 'MainSequence',
+    parameters: const [],
+    locals: const [],
+    groups: [
+      StepGroupOutline('Main', [s]),
+    ],
+    comment: seqComment.isEmpty ? null : seqComment,
+  ),
+]);
+
+Future<void> pump(WidgetTester tester, SeqOutline outline) => tester.pumpWidget(
+  MaterialApp(
+    home: Scaffold(body: SequencesView(outline: outline)),
+  ),
+);
+
 void main() {
   group('adapterColor', () {
-    const fallbackAdapters = {SeqAdapter.none, SeqAdapter.unknown};
+    const fallback = {SeqAdapter.none, SeqAdapter.unknown};
 
-    test('every code-bearing SeqAdapter has a color (catches enum drift)', () {
+    test('keys are exactly the code-bearing SeqAdapter names (enum drift)', () {
       for (final a in SeqAdapter.values) {
-        if (fallbackAdapters.contains(a)) {
-          expect(
-            adapterColors.containsKey(a.name),
-            isFalse,
-            reason: '${a.name} should fall back, not have a color',
-          );
-        } else {
-          expect(
-            adapterColors.containsKey(a.name),
-            isTrue,
-            reason: '${a.name} is missing a chip color',
-          );
-        }
+        expect(
+          adapterColors.containsKey(a.name),
+          !fallback.contains(a),
+          reason: a.name,
+        );
       }
-    });
-
-    test('color keys are exactly SeqAdapter names (no stale/typo keys)', () {
       final names = {for (final a in SeqAdapter.values) a.name};
       expect(names.containsAll(adapterColors.keys), isTrue);
     });
@@ -43,42 +50,101 @@ void main() {
     });
   });
 
-  group('SequencesView step rendering', () {
-    SeqOutline outlineWith(StepOutline step) => SeqOutline([
-      SequenceOutline(
-        name: 'MainSequence',
-        parameters: const [],
-        locals: const [],
-        groups: [
-          StepGroupOutline('Main', [step]),
+  group('step rendering', () {
+    // (name, step, exact texts that must each render exactly once)
+    final rows = <(String, StepOutline, List<String>)>[
+      (
+        'forced run-mode badge for a Skip step',
+        StepOutline(
+          name: 'Skipped',
+          type: 'Statement',
+          runMode: 'Skip',
+          notes: const [],
+        ),
+        ['Main', 'mode: Skip'],
+      ),
+      (
+        'module call arguments mini-table',
+        StepOutline(
+          name: 'Get User',
+          type: 'Action',
+          adapter: SeqAdapter.cModule.name,
+          target: 'Engine.GetUser',
+          callArgs: [
+            CallArgOutline(
+              name: 'LoginName',
+              direction: 'in',
+              boundExpression: 'FileGlobals.UserToAutoLogin',
+              displayType: 'String',
+            ),
+            CallArgOutline(
+              name: 'Return Value',
+              direction: 'out',
+              boundExpression: 'Locals.userToLogin',
+              displayType: 'User (Object Reference)',
+            ),
+          ],
+          notes: const [],
+        ),
+        [
+          'Arguments',
+          'LoginName (in)',
+          'Return Value (out)',
+          'FileGlobals.UserToAutoLogin',
+          'Locals.userToLogin',
         ],
       ),
-    ]);
-
-    Future<void> pump(WidgetTester tester, SeqOutline outline) =>
-        tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(body: SequencesView(outline: outline)),
-          ),
-        );
-
-    testWidgets('renders a forced run-mode badge for a Skip step', (
-      tester,
-    ) async {
-      await pump(
-        tester,
-        outlineWith(
-          StepOutline(
-            name: 'Skipped',
-            type: 'Statement',
-            runMode: 'Skip',
-            notes: const [],
-          ),
+      (
+        'units row inside the limits table',
+        StepOutline(
+          name: 'Check V',
+          type: 'NumericLimitTest',
+          limits: 'GELE [9, 11]',
+          limitsDetail: LimitsOutline(comparison: 'GELE', low: '9', high: '11'),
+          units: 'mA',
+          notes: const [],
         ),
-      );
-      expect(find.text('Main'), findsOneWidget);
-      expect(find.text('mode: Skip'), findsOneWidget);
-    });
+        ['Limits', 'Units', 'mA'],
+      ),
+      (
+        'units chip when the step has no limits',
+        StepOutline(
+          name: 'Measure',
+          type: 'Action',
+          units: 'V',
+          notes: const [],
+        ),
+        ['units V'],
+      ),
+      (
+        'PassFailTest data-source chip',
+        StepOutline(
+          name: 'Motor running',
+          type: 'PassFailTest',
+          dataSource: 'Step.Result.PassFail',
+          notes: const [],
+        ),
+        ['data-source Step.Result.PassFail'],
+      ),
+      (
+        'step free-text comment',
+        StepOutline(
+          name: 'Lock',
+          type: 'Action',
+          comment: 'Lock sequence',
+          notes: const [],
+        ),
+        ['Lock sequence'],
+      ),
+    ];
+    for (final (name, s, texts) in rows) {
+      testWidgets('renders $name', (tester) async {
+        await pump(tester, outlineWith(s));
+        for (final t in texts) {
+          expect(find.text(t), findsOneWidget, reason: t);
+        }
+      });
+    }
 
     testWidgets('a Normal step shows no run-mode badge', (tester) async {
       await pump(
@@ -109,135 +175,18 @@ void main() {
       );
     });
 
-    testWidgets('renders a module call arguments mini-table', (tester) async {
-      await pump(
-        tester,
-        outlineWith(
-          StepOutline(
-            name: 'Get User',
-            type: 'Action',
-            adapter: SeqAdapter.cModule.name,
-            target: 'Engine.GetUser',
-            callArgs: [
-              CallArgOutline(
-                name: 'LoginName',
-                direction: 'in',
-                boundExpression: 'FileGlobals.UserToAutoLogin',
-                displayType: 'String',
-              ),
-              CallArgOutline(
-                name: 'Return Value',
-                direction: 'out',
-                boundExpression: 'Locals.userToLogin',
-                displayType: 'User (Object Reference)',
-              ),
-            ],
-            notes: const [],
-          ),
-        ),
-      );
-      expect(find.text('Arguments'), findsOneWidget);
-      expect(find.text('LoginName (in)'), findsOneWidget);
-      expect(find.text('Return Value (out)'), findsOneWidget);
-      expect(find.text('FileGlobals.UserToAutoLogin'), findsOneWidget);
-      expect(find.text('Locals.userToLogin'), findsOneWidget);
-    });
-
-    testWidgets('shows recorded units as a row in the limits table', (
-      tester,
-    ) async {
-      await pump(
-        tester,
-        outlineWith(
-          StepOutline(
-            name: 'Check V',
-            type: 'NumericLimitTest',
-            limits: 'GELE [9, 11]',
-            limitsDetail: LimitsOutline(
-              comparison: 'GELE',
-              low: '9',
-              high: '11',
-            ),
-            units: 'mA',
-            notes: const [],
-          ),
-        ),
-      );
-      expect(find.text('Limits'), findsOneWidget);
-      expect(find.text('Units'), findsOneWidget);
-      expect(find.text('mA'), findsOneWidget);
-    });
-
-    testWidgets('shows recorded units as a chip when the step has no limits', (
-      tester,
-    ) async {
-      await pump(
-        tester,
-        outlineWith(
-          StepOutline(
-            name: 'Measure',
-            type: 'Action',
-            units: 'V',
-            notes: const [],
-          ),
-        ),
-      );
-      expect(find.text('units V'), findsOneWidget);
-    });
-
-    testWidgets('shows a PassFailTest data-source criterion as a chip', (
-      tester,
-    ) async {
-      await pump(
-        tester,
-        outlineWith(
-          StepOutline(
-            name: 'Motor running',
-            type: 'PassFailTest',
-            dataSource: 'Step.Result.PassFail',
-            notes: const [],
-          ),
-        ),
-      );
-      expect(find.text('data-source Step.Result.PassFail'), findsOneWidget);
-    });
-
-    testWidgets('renders a step free-text comment', (tester) async {
-      await pump(
-        tester,
-        outlineWith(
-          StepOutline(
-            name: 'Lock',
-            type: 'Action',
-            comment: 'Lock sequence',
-            notes: const [],
-          ),
-        ),
-      );
-      expect(find.text('Lock sequence'), findsOneWidget);
-    });
-
     testWidgets('renders a sequence free-text comment', (tester) async {
       await pump(
         tester,
-        SeqOutline([
-          SequenceOutline(
-            name: 'Startup',
-            parameters: const [],
-            locals: const [],
-            groups: [
-              StepGroupOutline('Main', [
-                StepOutline(name: 's', type: 'Action', notes: const []),
-              ]),
-            ],
-            comment: 'Runs once at startup',
-          ),
-        ]),
+        outlineWith(
+          StepOutline(name: 's', type: 'Action', notes: const []),
+          seqComment: 'Runs once at startup',
+        ),
       );
       expect(find.text('Runs once at startup'), findsOneWidget);
     });
 
-    testWidgets('shows a collapsed sequence comment as a subtitle preview', (
+    testWidgets('a collapsed sequence comment shows as a subtitle preview', (
       tester,
     ) async {
       SequenceOutline seq(String name, String? comment) => SequenceOutline(
@@ -264,57 +213,43 @@ void main() {
       final long = 'X${' word' * 200}';
       await pump(
         tester,
-        SeqOutline([
-          SequenceOutline(
-            name: 'Seq',
-            parameters: const [],
-            locals: const [],
-            groups: [
-              StepGroupOutline('Main', [
-                StepOutline(
-                  name: 'Step',
-                  type: 'Action',
-                  comment: long,
-                  expressions: [('Status', long)],
-                  notes: const [],
-                ),
-              ]),
-            ],
+        outlineWith(
+          StepOutline(
+            name: 'Step',
+            type: 'Action',
             comment: long,
+            expressions: [('Status', long)],
+            notes: const [],
           ),
-        ]),
+          seqComment: long,
+        ),
       );
       expect(tester.takeException(), isNull);
     });
   });
 
-  group('flow-control nesting in the outline', () {
-    SeqFile parse(String xml) =>
-        parseSeqFile(Uint8List.fromList([0xef, 0xbb, 0xbf, ...xml.codeUnits]));
-
-    final file = parse('''<?xml version="1.0" encoding="UTF-8"?>
-<teststandfileheader type='SequenceFile' fileversion='920' productname='TestStand'>
-  <typelist/>
-  <Data classname='Obj'><subprops>
-    <Seq classname='Objs'><value lbound='[0]' ubound='[1]'><value>
-      <Sequence name='MainSequence' classname='Obj'><subprops>
-        <Main classname='Objs'><value lbound='[0]' ubound='[6]'>
-          <value><Step typename='NI_Flow_If' name='If'><subprops>
-            <ConditionExpr classname='ExprValue'><value>Locals.X &gt; 0</value></ConditionExpr>
-          </subprops></Step></value>
-          <value><Step typename='Action' name='Do Work'/></value>
-          <value><Step typename='NI_Flow_End' name='End'/></value>
-          <value><Step typename='NI_Flow_ForEach' name='For Each'><subprops>
-            <ArrayExpr classname='ExprValue'><value>Locals.Items</value></ArrayExpr>
-            <ArrayElementExpr classname='ExprValue'><value>Locals.Item</value></ArrayElementExpr>
-          </subprops></Step></value>
-          <value><Step typename='Action' name='Process'/></value>
-          <value><Step typename='NI_Flow_End' name='End'/></value>
-        </value></Main>
-      </subprops></Sequence>
-    </value></value></Seq>
-  </subprops></Data>
-</teststandfileheader>''');
+  group('flow-control nesting', () {
+    final file = parseSeqFile(
+      seqXml(
+        ubound: '[6]',
+        steps:
+            step(
+              'NI_Flow_If',
+              'If',
+              prop('ConditionExpr', 'Locals.X &gt; 0', 'ExprValue'),
+            ) +
+            step('Action', 'Do Work') +
+            step('NI_Flow_End', 'End') +
+            step(
+              'NI_Flow_ForEach',
+              'For Each',
+              prop('ArrayExpr', 'Locals.Items', 'ExprValue') +
+                  prop('ArrayElementExpr', 'Locals.Item', 'ExprValue'),
+            ) +
+            step('Action', 'Process') +
+            step('NI_Flow_End', 'End'),
+      ),
+    );
 
     test('flowHeader + flowDepth are computed for NI_Flow_* steps', () {
       final steps = SeqOutline.of(file).sequences.single.groups.single.steps;
@@ -335,12 +270,8 @@ void main() {
       expect(stepMatches(steps.first, 'if (locals'), isTrue);
     });
 
-    testWidgets('renders the flow-control header chip', (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(body: SequencesView(outline: SeqOutline.of(file))),
-        ),
-      );
+    testWidgets('renders the flow-control header chips', (tester) async {
+      await pump(tester, SeqOutline.of(file));
       expect(find.text('if (Locals.X > 0)'), findsOneWidget);
       expect(
         find.text('for each (Locals.Item in Locals.Items)'),

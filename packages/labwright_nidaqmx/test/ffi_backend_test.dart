@@ -1,7 +1,6 @@
-// Exercises the FFI backend against the compiled C shim (test/native/fake_daqmx.c).
-// This is the real dart:ffi marshalling path end-to-end — a wrong width/sign/pointer
-// in the bindings would surface here — without needing NI-DAQmx installed. The shim
-// returns magic/echo values and captures arguments, so we assert both directions.
+// FfiDaqmxBackend against the compiled C shim (test/native/fake_daqmx.c): the
+// real dart:ffi marshalling path end-to-end, no NI-DAQmx needed. The shim
+// returns magic/echo values and captures arguments, so both directions assert.
 
 @TestOn('!windows')
 library;
@@ -20,7 +19,6 @@ void main() {
     return;
   }
   final probe = FakeDaqmxProbe(lib);
-
   FfiDaqmxBackend open() => FfiDaqmxBackend(libraryPath: lib);
 
   group('scalar path through real FFI', () {
@@ -32,23 +30,21 @@ void main() {
 
     test('readVoltage marshals AI config (int32 term, doubles, units) and returns the value', () async {
       final daq = open();
-      final v = await daq.readVoltage('Dev1/ai0', min: -3, max: 7, terminalConfig: DaqmxVal.diff);
-      expect(v, 4.2); // shim's magic scalar
-      expect(probe.lastAiMin, -3);
-      expect(probe.lastAiMax, 7);
-      expect(probe.lastAiTerm, DaqmxVal.diff);
-      expect(probe.lastAiUnits, DaqmxVal.volts);
-      expect(probe.lastChannel, 'Dev1/ai0');
+      expect(await daq.readVoltage('Dev1/ai0', min: -3, max: 7, terminalConfig: DaqmxVal.diff), 4.2);
+      expect(
+        (probe.lastAiMin, probe.lastAiMax, probe.lastAiTerm, probe.lastAiUnits, probe.lastChannel),
+        (-3.0, 7.0, DaqmxVal.diff, DaqmxVal.volts, 'Dev1/ai0'),
+      );
       await daq.close();
     });
 
     test('writeVoltage marshals value/autostart/timeout', () async {
       final daq = open();
       await daq.writeVoltage('Dev1/ao0', 2.5, timeout: 3);
-      expect(probe.lastWriteValue, 2.5);
-      expect(probe.lastWriteAutoStart, DaqmxVal.boolTrue);
-      expect(probe.lastWriteTimeout, 3);
-      expect(probe.lastChannel, 'Dev1/ao0');
+      expect(
+        (probe.lastWriteValue, probe.lastWriteAutoStart, probe.lastWriteTimeout, probe.lastChannel),
+        (2.5, DaqmxVal.boolTrue, 3.0, 'Dev1/ao0'),
+      );
       await daq.close();
     });
 
@@ -69,51 +65,46 @@ void main() {
   });
 
   group('streaming through real FFI + an isolate', () {
-    test('finite f64 stream yields a continuous ramp of the right length', () async {
+    test('finite f64 stream yields the shim ramp with a short final chunk', () async {
       final daq = open();
       final chunks = await daq
           .readVoltageStream('Dev1/ai0', rateHz: 10000, samplesPerChunk: 100, totalSamples: 250)
           .toList();
-      final all = chunks.expand((c) => c).toList();
-      expect(all.length, 250);
-      expect(all, List.generate(250, (i) => i.toDouble())); // shim ramp 0..249
-      expect(chunks.map((c) => c.length), [100, 100, 50]); // last chunk shorter
-      expect(probe.lastRate, 10000); // sample rate set from Dart reached CfgSampClkTiming
+      expect(chunks.expand((c) => c).toList(), List.generate(250, (i) => i.toDouble()));
+      expect(chunks.map((c) => c.length), [100, 100, 50]);
+      expect(probe.lastRate, 10000, reason: 'the Dart rate reached CfgSampClkTiming');
       expect(probe.lastSampleMode, DaqmxVal.finiteSamps);
       await daq.close();
     });
 
-    test('raw i16 stream yields Int16List chunks (half the bytes of f64)', () async {
-      final daq = open();
-      final chunks = await daq
-          .readRawI16Stream('Dev1/ai0', rateHz: 1000, samplesPerChunk: 50, totalSamples: 100)
-          .toList();
-      expect(chunks, everyElement(isA<Int16List>()));
-      final all = chunks.expand((c) => c).toList();
-      expect(all.length, 100);
-      expect(all, List.generate(100, (i) => i));
-      await daq.close();
-    });
-
-    test('raw i32 stream yields Int32List chunks', () async {
-      final daq = open();
-      final chunks = await daq
-          .readRawI32Stream('Dev1/ai0', rateHz: 1000, samplesPerChunk: 64, totalSamples: 64)
-          .toList();
-      expect(chunks.single, isA<Int32List>());
-      expect(chunks.single, List.generate(64, (i) => i));
-      await daq.close();
-    });
+    // (name, open the stream, per-chunk type, total samples)
+    // dart format off
+    final rawRows = <(String, Stream<List<int>> Function(FfiDaqmxBackend), Matcher, int)>[
+      ('raw i16 stream yields Int16List chunks (half the bytes of f64)',
+          (d) => d.readRawI16Stream('Dev1/ai0', rateHz: 1000, samplesPerChunk: 50, totalSamples: 100), isA<Int16List>(), 100),
+      ('raw i32 stream yields Int32List chunks',
+          (d) => d.readRawI32Stream('Dev1/ai0', rateHz: 1000, samplesPerChunk: 64, totalSamples: 64), isA<Int32List>(), 64),
+    ];
+    // dart format on
+    for (final (name, stream, chunkType, total) in rawRows) {
+      test(name, () async {
+        final daq = open();
+        final chunks = await stream(daq).toList();
+        expect(chunks, everyElement(chunkType));
+        expect(chunks.expand((c) => c).toList(), List.generate(total, (i) => i));
+        await daq.close();
+      });
+    }
 
     test('continuous stream sets contSamps and stops cleanly on cancel', () async {
       final daq = open();
       final got = await daq
           .readStream('Dev1/ai0', rateHz: 100000, samplesPerChunk: 32, format: DaqSampleFormat.rawI16)
-          .take(3)
-          .toList(); // take(3) cancels the subscription -> worker tears down
+          .take(3) // cancel -> worker tears down
+          .toList();
       expect(got, hasLength(3));
       expect(probe.lastSampleMode, DaqmxVal.contSamps);
-      expect(probe.lastInputBuffer, greaterThanOrEqualTo(100000)); // DMA headroom for high rate
+      expect(probe.lastInputBuffer, greaterThanOrEqualTo(100000), reason: 'DMA headroom for the high rate');
       await daq.close();
     });
   });

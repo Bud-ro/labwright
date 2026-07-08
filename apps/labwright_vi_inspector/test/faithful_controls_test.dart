@@ -1,406 +1,175 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:labwright_vi_inspector/src/faithful_controls.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
+import 'package:labwright_vi_inspector/src/faithful_controls.dart';
 
-ViHeapObject _obj({String? help, double? min, double? max}) =>
-    ViHeapObject(oid: 1, kind: 0x50, offset: 0)
-      ..helpText = help
-      ..controlMin = min
-      ..controlMax = max;
+import 'util.dart';
+
+Future<void> pumpLayer(
+  WidgetTester tester,
+  List<ViHeapObject> objects, {
+  bool fp = false,
+  Size size = const Size(400, 400),
+}) => pumpBody(
+  tester,
+  FaithfulLayer(
+    objects: objects,
+    origin: Offset.zero,
+    size: size,
+    isFrontPanel: fp,
+  ),
+  view: const Size(800, 800),
+);
+
+List<double> opacities(WidgetTester tester) => [
+  for (final w in tester.widgetList<Opacity>(find.byType(Opacity))) w.opacity,
+];
+
+Finder tooltipWith(String message) =>
+    find.byWidgetPredicate((w) => w is Tooltip && w.message == message);
 
 void main() {
-  group('controlTooltip', () {
-    test(
-      'help only',
-      () => expect(controlTooltip(_obj(help: 'hover me')), 'hover me'),
-    );
-    test(
-      'range only',
-      () => expect(controlTooltip(_obj(min: -5, max: 10)), 'range: -5 … 10'),
-    );
-    test(
-      'help + range joined',
-      () => expect(
-        controlTooltip(_obj(help: 'doc', min: 0, max: 1)),
-        'doc\nrange: 0 … 1',
-      ),
-    );
-    test('neither -> null', () => expect(controlTooltip(_obj()), isNull));
-    test('NaN/blank suppressed', () {
-      expect(controlTooltip(_obj(min: 0, max: double.nan)), isNull);
-      expect(controlTooltip(_obj(help: '   ')), isNull);
-    });
-    test('node falls back to its name, then its class label', () {
-      final named =
-          ViHeapObject(oid: 1, kind: 0x2f, offset: 0) // a BD node
-            ..category = ViObjectKind.node
-            ..label = 'Build Array';
-      expect(controlTooltip(named), 'Build Array');
-      final nameless = ViHeapObject(oid: 2, kind: 0x2f, offset: 0)
-        ..category = ViObjectKind.node;
-      expect(controlTooltip(nameless), 'Node (primitive)');
-    });
-  });
-
-  testWidgets(
-    'faithful control with a decoded range is wrapped in a range Tooltip',
-    (tester) async {
-      tester.view.physicalSize = const Size(800, 800);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.reset);
-
-      final ctl =
-          ViHeapObject(oid: 2, kind: 0x50, offset: 0) // a numeric control
-            ..absBounds = const HeapRect(
-              top: 10,
-              left: 10,
-              bottom: 40,
-              right: 120,
-            )
-            ..controlMin = -1
-            ..controlMax = 1;
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: FaithfulLayer(
-              objects: [ctl],
-              origin: Offset.zero,
-              size: const Size(200, 200),
-            ),
-          ),
+  test(
+    'controlTooltip joins help + range; suppresses NaN/blank; node names',
+    () {
+      ViHeapObject ctl({String? help, double? min, double? max}) =>
+          heapObj(0x50, help: help, min: min, max: max);
+      final rows = <(String, ViHeapObject, String?)>[
+        ('help only', ctl(help: 'hover me'), 'hover me'),
+        ('range only', ctl(min: -5, max: 10), 'range: -5 … 10'),
+        ('help + range', ctl(help: 'doc', min: 0, max: 1), 'doc\nrange: 0 … 1'),
+        ('no help or range', ctl(), null),
+        ('NaN bound suppressed', ctl(min: 0, max: double.nan), null),
+        ('blank help suppressed', ctl(help: '   '), null),
+        (
+          'named node',
+          heapObj(0x2f, cat: ViObjectKind.node, label: 'Build Array'),
+          'Build Array',
         ),
-      );
-      await tester.pump();
-      expect(find.byTooltip('range: -1 … 1'), findsOneWidget);
-    },
-  );
-
-  testWidgets('faithful controls do not overflow at tiny real-world bounds', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(400, 400);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.reset);
-
-    HeapRect tiny(int i) =>
-        HeapRect(top: i * 8, left: 0, bottom: i * 8 + 6, right: 8); // 8×6 px
-    final objs = [
-      ViHeapObject(oid: 1, kind: 0x50, offset: 0)
-        ..absBounds = tiny(0), // numeric (spinner)
-      ViHeapObject(oid: 2, kind: 0x5b, offset: 0)
-        ..absBounds = tiny(1), // path (folder icon)
-      ViHeapObject(oid: 3, kind: 0x57, offset: 0) // enum/ring (dropdown caret)
-        ..absBounds = tiny(2)
-        ..items = ['Alpha', 'Beta'],
-      ViHeapObject(oid: 4, kind: 0x51, offset: 0)
-        ..absBounds = tiny(3), // string field
-    ];
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: FaithfulLayer(
-            objects: objs,
-            origin: Offset.zero,
-            size: const Size(400, 400),
-          ),
+        (
+          'unnamed node',
+          heapObj(0x2f, oid: 2, cat: ViObjectKind.node),
+          'Node (primitive)',
         ),
-      ),
-    );
-    await tester.pump();
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets(
-    'block-diagram kinds render a non-empty faithful widget (not SizedBox.shrink)',
-    (tester) async {
-      tester.view.physicalSize = const Size(800, 800);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.reset);
-
-      HeapRect box(int i) =>
-          HeapRect(top: i * 40, left: 0, bottom: i * 40 + 32, right: 60);
-      final objs = [
-        ViHeapObject(oid: 1, kind: 0x2f, offset: 0)..absBounds = box(0), // node
-        ViHeapObject(oid: 2, kind: 0x31, offset: 0)
-          ..absBounds = box(1), // named node
-        ViHeapObject(oid: 3, kind: 0x16, offset: 0)
-          ..absBounds = box(2), // terminal/constant leaf
-        ViHeapObject(oid: 4, kind: 0x2c, offset: 0)
-          ..absBounds = box(3), // structure frame
-        ViHeapObject(oid: 5, kind: 0x95, offset: 0) // case selector label
-          ..absBounds = box(4)
-          ..label = 'True',
-        ViHeapObject(oid: 6, kind: 0x177, offset: 0)
-          ..absBounds = box(5), // glyph
       ];
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: FaithfulLayer(
-              objects: objs,
-              origin: Offset.zero,
-              size: const Size(800, 800),
-            ),
-          ),
-        ),
-      );
-      await tester.pump();
-      expect(tester.takeException(), isNull);
-      expect(find.text('True'), findsOneWidget);
-      expect(find.byType(Container), findsWidgets);
+      for (final (name, o, want) in rows) {
+        expect(controlTooltip(o), want, reason: name);
+      }
     },
   );
 
-  group('nodeDisplayLabel', () {
-    test('a named node returns its name (not a hint)', () {
-      final n = ViHeapObject(oid: 1, kind: 0x12, offset: 0)
-        ..category = ViObjectKind.node
-        ..label = 'MySubVI.vi';
-      final r = nodeDisplayLabel(n);
-      expect(r.text, 'MySubVI.vi');
-      expect(r.isHint, isFalse);
-    });
-    test('an unlabeled primitive returns a class hint', () {
-      final n = ViHeapObject(oid: 1, kind: 0x2f, offset: 0)
-        ..category = ViObjectKind.node; // Node (primitive)
-      final r = nodeDisplayLabel(n);
-      expect(r.text, 'primitive');
-      expect(r.isHint, isTrue);
-    });
-    test(
-      'a qualifier-paren class keeps its full label (no misleading fragment)',
-      () {
-        // 0x12 = "Content group (FP)": the parens are a section qualifier, not a kind,
-        // so the hint must be the full label, never "FP".
-        final n = ViHeapObject(oid: 1, kind: 0x12, offset: 0)
-          ..category = ViObjectKind.node;
-        final r = nodeDisplayLabel(n);
-        expect(r.text, isNot('FP'));
-        expect(r.text, n.objectClass.label);
-      },
+  test('nodeDisplayLabel: name beats hint; qualifier parens stay whole', () {
+    final named = nodeDisplayLabel(
+      heapObj(0x12, cat: ViObjectKind.node, label: 'MySubVI.vi'),
     );
+    expect((named.text, named.isHint), ('MySubVI.vi', false));
+    final prim = nodeDisplayLabel(heapObj(0x2f, cat: ViObjectKind.node));
+    expect((prim.text, prim.isHint), ('primitive', true));
+    // 0x12 = "Content group (FP)": parens are a section qualifier, not a
+    // kind, so the hint is the full label — never a "FP" fragment.
+    final grp = nodeDisplayLabel(heapObj(0x12, cat: ViObjectKind.node));
+    expect(grp.text, isNot('FP'));
+    expect(grp.text, heapObj(0x12).objectClass.label);
   });
 
-  testWidgets(
-    'an unlabeled primitive node shows its class hint (not a blank box)',
-    (tester) async {
-      tester.view.physicalSize = const Size(800, 800);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.reset);
-      final prim = ViHeapObject(oid: 1, kind: 0x2f, offset: 0)
-        ..category = ViObjectKind.node
-        ..absBounds = const HeapRect(top: 0, left: 0, bottom: 40, right: 120);
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: FaithfulLayer(
-              objects: [prim],
-              origin: Offset.zero,
-              size: const Size(400, 400),
-            ),
-          ),
-        ),
-      );
-      await tester.pump();
-      expect(find.text('primitive'), findsOneWidget);
-    },
-  );
-
-  testWidgets(
-    'a subVI node is an icon placeholder; name via tooltip, not double-printed',
-    (tester) async {
-      tester.view.physicalSize = const Size(800, 800);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.reset);
-
-      final node = ViHeapObject(oid: 1, kind: 0x2f, offset: 0)
-        ..category = ViObjectKind.node
-        ..absBounds = const HeapRect(top: 10, left: 10, bottom: 60, right: 160)
-        ..label = 'PicoScope2000aOpen.vi';
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: FaithfulLayer(
-              objects: [node],
-              origin: Offset.zero,
-              size: const Size(400, 400),
-            ),
-          ),
-        ),
-      );
-      await tester.pump();
-      expect(find.text('PicoScope2000aOpen.vi'), findsNothing);
-      expect(
-        find.byWidgetPredicate(
-          (w) => w is Tooltip && w.message == 'PicoScope2000aOpen.vi',
-        ),
-        findsOneWidget,
-      );
-    },
-  );
-
-  testWidgets(
-    'noise objects are dimmed while logic objects stay full strength',
-    (tester) async {
-      tester.view.physicalSize = const Size(800, 800);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.reset);
-
-      final node = ViHeapObject(oid: 1, kind: 0x2f, offset: 0)
-        ..category = ViObjectKind.node
-        ..absBounds = const HeapRect(top: 0, left: 0, bottom: 40, right: 120)
-        ..label = 'MySubVI.vi';
-      final decoration = ViHeapObject(oid: 2, kind: 0x88, offset: 0)
-        ..category = ViObjectKind.decoration
-        ..absBounds = const HeapRect(top: 60, left: 0, bottom: 100, right: 120);
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: FaithfulLayer(
-              objects: [node, decoration],
-              origin: Offset.zero,
-              size: const Size(400, 400),
-            ),
-          ),
-        ),
-      );
-      await tester.pump();
-
-      final opacities = tester
-          .widgetList<Opacity>(find.byType(Opacity))
-          .map((w) => w.opacity)
-          .toList();
-      expect(
-        opacities.any((o) => o < 1.0),
-        isTrue,
-        reason: 'decoration should be dimmed',
-      );
-      expect(
-        find.byWidgetPredicate(
-          (w) => w is Tooltip && w.message == 'MySubVI.vi',
-        ),
-        findsOneWidget,
-      );
-    },
-  );
-
-  testWidgets(
-    'front panel renders everything at full strength (no de-emphasis dimming)',
-    (tester) async {
-      tester.view.physicalSize = const Size(800, 800);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.reset);
-
-      final decoration = ViHeapObject(oid: 1, kind: 0x88, offset: 0)
-        ..category = ViObjectKind.decoration
-        ..absBounds = const HeapRect(top: 0, left: 0, bottom: 40, right: 120);
-      final unknown = ViHeapObject(oid: 2, kind: 0x999, offset: 0)
-        ..category = ViObjectKind.unknown
-        ..absBounds = const HeapRect(top: 60, left: 0, bottom: 100, right: 120);
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: FaithfulLayer(
-              objects: [decoration, unknown],
-              origin: Offset.zero,
-              size: const Size(400, 400),
-              isFrontPanel: true,
-            ),
-          ),
-        ),
-      );
-      await tester.pump();
-
-      final opacities = tester
-          .widgetList<Opacity>(find.byType(Opacity))
-          .map((w) => w.opacity)
-          .toList();
-      expect(
-        opacities.any((o) => o < 1.0),
-        isFalse,
-        reason: 'FP objects must not be dimmed',
-      );
-    },
-  );
-
-  test('structureBadge tracks the class catalog (honest, no fabrication)', () {
-    ViHeapObject st(int kind) =>
-        ViHeapObject(oid: 1, kind: kind, offset: 0)
-          ..category = ViObjectKind.structure;
-    expect(structureBadge(st(0x20)), 'For loop');
-    expect(structureBadge(st(0x21)), 'While loop');
-    expect(structureBadge(st(0x2c)), 'Case structure');
-    expect(structureBadge(st(0x53)), 'Loop (BD) / container (FP)');
-    final unknown = ViHeapObject(oid: 2, kind: 0x4242, offset: 0)
-      ..category = ViObjectKind.structure;
-    expect(structureBadge(unknown), 'Structure');
-  });
-
-  testWidgets('a While-loop structure shows its catalog kind badge', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(800, 800);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.reset);
-
-    final loop =
-        ViHeapObject(
-            oid: 1,
-            kind: 0x21,
-            offset: 0,
-          ) // HeapObjectClass.bdWhileLoop
-          ..category = ViObjectKind.structure
-          ..absBounds = const HeapRect(
-            top: 0,
-            left: 0,
-            bottom: 200,
-            right: 200,
-          );
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: FaithfulLayer(
-            objects: [loop],
-            origin: Offset.zero,
-            size: const Size(400, 400),
-          ),
-        ),
+  test('structureBadge tracks the class catalog (no fabrication)', () {
+    const rows = {
+      0x20: 'For loop',
+      0x21: 'While loop',
+      0x2c: 'Case structure',
+      0x53: 'Loop (BD) / container (FP)',
+      0x4242: 'Structure',
+    };
+    rows.forEach(
+      (kind, want) => expect(
+        structureBadge(heapObj(kind, cat: ViObjectKind.structure)),
+        want,
       ),
     );
-    await tester.pump();
-    expect(find.text('While loop'), findsOneWidget);
+  });
+
+  test('structureFrameTitle: BD shows kind badge, FP shows own caption', () {
+    ViHeapObject cluster({String? label}) =>
+        heapObj(0x64, cat: ViObjectKind.structure, label: label);
+    final rows = <(String, ViHeapObject, bool, String?)>[
+      ('BD, no caption', cluster(), false, 'Cluster/array shell'),
+      (
+        'BD, caption ignored',
+        cluster(label: 'Channel B Settings'),
+        false,
+        'Cluster/array shell',
+      ),
+      (
+        'FP, caption shown',
+        cluster(label: 'Channel B Settings'),
+        true,
+        'Channel B Settings',
+      ),
+      ('FP, no caption', cluster(), true, null),
+      ('FP, blank caption', cluster(label: '   '), true, null),
+    ];
+    for (final (name, o, fp, want) in rows) {
+      expect(structureFrameTitle(o, isFrontPanel: fp), want, reason: name);
+    }
+  });
+
+  group('faithful rendering', () {
+    // (name, objects, isFrontPanel, exact texts seen, texts never seen)
+    final rows =
+        <(String, List<ViHeapObject>, bool, List<String>, List<String>)>[
+          (
+            'a While-loop structure shows its catalog kind badge',
+            [heapObj(0x21, cat: ViObjectKind.structure, at: (0, 0, 200, 200))],
+            false,
+            ['While loop'],
+            [],
+          ),
+          (
+            'an unlabeled primitive node shows its class hint, not a blank box',
+            [heapObj(0x2f, cat: ViObjectKind.node, at: (0, 0, 40, 120))],
+            false,
+            ['primitive'],
+            [],
+          ),
+          (
+            'an FP container shows its caption, never its class-kind badge',
+            [
+              heapObj(
+                0x64,
+                cat: ViObjectKind.structure,
+                label: 'Channel B Settings',
+                at: (0, 0, 200, 200),
+              ),
+            ],
+            true,
+            ['Channel B Settings'],
+            ['Cluster/array shell'],
+          ),
+        ];
+    for (final (name, objs, fp, sees, nevers) in rows) {
+      testWidgets(name, (tester) async {
+        await pumpLayer(tester, objs, fp: fp);
+        for (final t in sees) {
+          expect(find.text(t), findsOneWidget, reason: t);
+        }
+        for (final t in nevers) {
+          expect(find.text(t), findsNothing, reason: t);
+        }
+      });
+    }
   });
 
   testWidgets(
-    'a single-item 0x4f renders as a LABELED BOOLEAN, not a 1-option dropdown',
+    'a single-item 0x4f renders as a labeled boolean, not a dropdown',
     (tester) async {
-      tester.view.physicalSize = const Size(800, 800);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.reset);
-
-      final boolCtl =
-          ViHeapObject(oid: 1, kind: 0x4f, offset: 0) // booleanOrClusterControl
-            ..category = ViObjectKind.terminal
-            ..items = ['STOP']
-            ..absBounds = const HeapRect(
-              top: 0,
-              left: 0,
-              bottom: 30,
-              right: 120,
-            );
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: FaithfulLayer(
-              objects: [boolCtl],
-              origin: Offset.zero,
-              size: const Size(400, 400),
-            ),
-          ),
+      await pumpLayer(tester, [
+        heapObj(
+          0x4f,
+          cat: ViObjectKind.terminal,
+          items: ['STOP'],
+          at: (0, 0, 30, 120),
         ),
-      );
-      await tester.pump();
+      ]);
       expect(find.text('STOP'), findsOneWidget);
       expect(find.byIcon(Icons.arrow_drop_down), findsNothing);
     },
@@ -409,173 +178,144 @@ void main() {
   testWidgets('a 0x4f with >= 2 items still renders as a ring/dropdown', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(800, 800);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.reset);
-
-    final ring = ViHeapObject(oid: 1, kind: 0x4f, offset: 0)
-      ..category = ViObjectKind.terminal
-      ..items = ['Level', 'Window']
-      ..absBounds = const HeapRect(top: 0, left: 0, bottom: 30, right: 120);
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: FaithfulLayer(
-            objects: [ring],
-            origin: Offset.zero,
-            size: const Size(400, 400),
-          ),
-        ),
+    await pumpLayer(tester, [
+      heapObj(
+        0x4f,
+        cat: ViObjectKind.terminal,
+        items: ['Level', 'Window'],
+        at: (0, 0, 30, 120),
       ),
-    );
-    await tester.pump();
+    ]);
     expect(find.byIcon(Icons.arrow_drop_down), findsOneWidget);
   });
 
-  testWidgets(
-    'a control sub-part (0x0b) renders as faint scaffolding, not a control box',
-    (tester) async {
-      tester.view.physicalSize = const Size(800, 800);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.reset);
-
-      final sub = ViHeapObject(oid: 1, kind: 0x0b, offset: 0)
-        ..category = ViObjectKind.terminal
-        ..absBounds = const HeapRect(top: 0, left: 0, bottom: 17, right: 6);
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: FaithfulLayer(
-              objects: [sub],
-              origin: Offset.zero,
-              size: const Size(400, 400),
-            ),
-          ),
-        ),
-      );
-      await tester.pump();
-
-      BoxDecoration? deco(Widget w) =>
-          w is Container && w.decoration is BoxDecoration
-          ? w.decoration as BoxDecoration
-          : null;
-      expect(
-        find.byWidgetPredicate(
-          (w) => deco(w)?.color == const Color(0x11000000),
-        ),
-        findsOneWidget,
-      );
-      expect(
-        find.byWidgetPredicate(
-          (w) => deco(w)?.color == const Color(0xFFE3ECF5),
-        ),
-        findsNothing,
-      );
-    },
-  );
-
-  testWidgets(
-    'a graph exposes recovered plot names via tooltip, not a painted legend',
-    (tester) async {
-      tester.view.physicalSize = const Size(800, 800);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.reset);
-
-      final graph =
-          ViHeapObject(oid: 1, kind: 0x5e, offset: 0) // graphIndicator
-            ..category = ViObjectKind.terminal
-            ..plotNames = ['Plot 0', 'Plot 1']
-            ..absBounds = const HeapRect(
-              top: 0,
-              left: 0,
-              bottom: 200,
-              right: 300,
-            );
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: FaithfulLayer(
-              objects: [graph],
-              origin: Offset.zero,
-              size: const Size(400, 400),
-            ),
-          ),
-        ),
-      );
-      await tester.pump();
-      expect(find.text('Plot 0'), findsNothing);
-      final tip = tester.widget<Tooltip>(find.byType(Tooltip));
-      expect(tip.message, contains('Plot 0'));
-      expect(tip.message, contains('Plot 1'));
-    },
-  );
-
-  group('structureFrameTitle', () {
-    ViHeapObject cluster({String? label}) =>
-        ViHeapObject(oid: 1, kind: 0x64, offset: 0) // clusterShell
-          ..category = ViObjectKind.structure
-          ..label = label;
-    test('block diagram: shows the catalog kind badge', () {
-      expect(
-        structureFrameTitle(cluster(), isFrontPanel: false),
-        'Cluster/array shell',
-      );
-      expect(
-        structureFrameTitle(
-          cluster(label: 'Channel B Settings'),
-          isFrontPanel: false,
-        ),
-        'Cluster/array shell',
-      );
-    });
-    test('front panel: shows the own caption, never the class-kind badge', () {
-      expect(
-        structureFrameTitle(
-          cluster(label: 'Channel B Settings'),
-          isFrontPanel: true,
-        ),
-        'Channel B Settings',
-      );
-      expect(structureFrameTitle(cluster(), isFrontPanel: true), isNull);
-      expect(
-        structureFrameTitle(cluster(label: '   '), isFrontPanel: true),
-        isNull,
-      );
-    });
+  testWidgets('a decoded range wraps the control in a range Tooltip', (
+    tester,
+  ) async {
+    await pumpLayer(tester, [
+      heapObj(0x50, oid: 2, at: (10, 10, 40, 120), min: -1, max: 1),
+    ], size: const Size(200, 200));
+    expect(find.byTooltip('range: -1 … 1'), findsOneWidget);
   });
 
-  testWidgets(
-    'FP container does not stamp its class-kind badge over the caption',
-    (tester) async {
-      tester.view.physicalSize = const Size(800, 800);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.reset);
+  testWidgets('faithful controls do not overflow at tiny real-world bounds', (
+    tester,
+  ) async {
+    (int, int, int, int) tiny(int i) => (i * 8, 0, i * 8 + 6, 8); // 8×6 px
+    await pumpLayer(tester, [
+      heapObj(0x50, at: tiny(0)), // numeric (spinner)
+      heapObj(0x5b, oid: 2, at: tiny(1)), // path (folder icon)
+      heapObj(0x57, oid: 3, at: tiny(2), items: ['Alpha', 'Beta']), // enum/ring
+      heapObj(0x51, oid: 4, at: tiny(3)), // string field
+    ]);
+    expect(tester.takeException(), isNull);
+  });
 
-      final clusterBox =
-          ViHeapObject(oid: 1, kind: 0x64, offset: 0) // Cluster/array shell
-            ..category = ViObjectKind.structure
-            ..label = 'Channel B Settings'
-            ..absBounds = const HeapRect(
-              top: 0,
-              left: 0,
-              bottom: 200,
-              right: 200,
-            );
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: FaithfulLayer(
-              objects: [clusterBox],
-              origin: Offset.zero,
-              size: const Size(400, 400),
-              isFrontPanel: true,
-            ),
-          ),
-        ),
-      );
-      await tester.pump();
-      expect(find.text('Cluster/array shell'), findsNothing);
-      expect(find.text('Channel B Settings'), findsOneWidget);
-    },
-  );
+  testWidgets('block-diagram kinds render a non-empty faithful widget', (
+    tester,
+  ) async {
+    (int, int, int, int) box(int i) => (i * 40, 0, i * 40 + 32, 60);
+    await pumpLayer(tester, [
+      heapObj(0x2f, at: box(0)), // node
+      heapObj(0x31, oid: 2, at: box(1)), // named node
+      heapObj(0x16, oid: 3, at: box(2)), // terminal/constant leaf
+      heapObj(0x2c, oid: 4, at: box(3)), // structure frame
+      heapObj(0x95, oid: 5, at: box(4), label: 'True'), // case selector label
+      heapObj(0x177, oid: 6, at: box(5)), // glyph
+    ], size: const Size(800, 800));
+    expect(tester.takeException(), isNull);
+    expect(find.text('True'), findsOneWidget);
+    expect(find.byType(Container), findsWidgets);
+  });
+
+  testWidgets('a subVI node is an icon placeholder; name via tooltip only', (
+    tester,
+  ) async {
+    await pumpLayer(tester, [
+      heapObj(
+        0x2f,
+        cat: ViObjectKind.node,
+        label: 'PicoScope2000aOpen.vi',
+        at: (10, 10, 60, 160),
+      ),
+    ]);
+    expect(find.text('PicoScope2000aOpen.vi'), findsNothing);
+    expect(tooltipWith('PicoScope2000aOpen.vi'), findsOneWidget);
+  });
+
+  testWidgets('BD: noise objects are dimmed, logic stays full strength', (
+    tester,
+  ) async {
+    await pumpLayer(tester, [
+      heapObj(
+        0x2f,
+        cat: ViObjectKind.node,
+        label: 'MySubVI.vi',
+        at: (0, 0, 40, 120),
+      ),
+      heapObj(
+        0x88,
+        oid: 2,
+        cat: ViObjectKind.decoration,
+        at: (60, 0, 100, 120),
+      ),
+    ]);
+    expect(
+      opacities(tester).any((o) => o < 1.0),
+      isTrue,
+      reason: 'decoration should be dimmed',
+    );
+    expect(tooltipWith('MySubVI.vi'), findsOneWidget);
+  });
+
+  testWidgets('FP renders everything at full strength (no dimming)', (
+    tester,
+  ) async {
+    await pumpLayer(tester, [
+      heapObj(0x88, cat: ViObjectKind.decoration, at: (0, 0, 40, 120)),
+      heapObj(0x999, oid: 2, cat: ViObjectKind.unknown, at: (60, 0, 100, 120)),
+    ], fp: true);
+    expect(
+      opacities(tester).any((o) => o < 1.0),
+      isFalse,
+      reason: 'FP objects must not be dimmed',
+    );
+  });
+
+  testWidgets('a control sub-part (0x0b) renders as faint scaffolding', (
+    tester,
+  ) async {
+    await pumpLayer(tester, [
+      heapObj(0x0b, cat: ViObjectKind.terminal, at: (0, 0, 17, 6)),
+    ]);
+    BoxDecoration? deco(Widget w) =>
+        w is Container && w.decoration is BoxDecoration
+        ? w.decoration as BoxDecoration
+        : null;
+    expect(
+      find.byWidgetPredicate((w) => deco(w)?.color == const Color(0x11000000)),
+      findsOneWidget,
+    );
+    expect(
+      find.byWidgetPredicate((w) => deco(w)?.color == const Color(0xFFE3ECF5)),
+      findsNothing,
+    );
+  });
+
+  testWidgets('a graph exposes plot names via tooltip, not a painted legend', (
+    tester,
+  ) async {
+    await pumpLayer(tester, [
+      heapObj(
+        0x5e,
+        cat: ViObjectKind.terminal,
+        plotNames: ['Plot 0', 'Plot 1'],
+        at: (0, 0, 200, 300),
+      ),
+    ]);
+    expect(find.text('Plot 0'), findsNothing);
+    final tip = tester.widget<Tooltip>(find.byType(Tooltip));
+    expect(tip.message, contains('Plot 0'));
+    expect(tip.message, contains('Plot 1'));
+  });
 }

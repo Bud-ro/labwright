@@ -1,41 +1,33 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:labwright_vi_inspector/src/types_view.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
+import 'package:labwright_vi_inspector/src/types_view.dart';
 
-ViModel _modelWithTypes() {
-  final types = <ViType>[
-    const ViType(
-      index: 0,
-      code: 0x21,
-      kind: ViDataType.boolean,
-      name: 'status',
-    ),
-    const ViType(index: 1, code: 0x03, kind: ViDataType.i32, name: 'code'),
-    const ViType(
+ViModel _modelWithTypes() => const ViModel(
+  version: null,
+  title: null,
+  components: const [],
+  stringTables: const [],
+  heapRecords: const [],
+  types: const [
+    ViType(index: 0, code: 0x21, kind: ViDataType.boolean, name: 'status'),
+    ViType(index: 1, code: 0x03, kind: ViDataType.i32, name: 'code'),
+    ViType(
       index: 2,
       code: 0x50,
       kind: ViDataType.cluster,
       name: 'error out',
       members: [0, 1],
     ),
-    const ViType(
+    ViType(
       index: 3,
       code: 0x16,
       kind: ViDataType.enumU16,
       name: 'Direction',
       enumItems: ['Rising', 'Falling'],
     ),
-  ];
-  return ViModel(
-    version: null,
-    title: null,
-    components: const [],
-    stringTables: const [],
-    heapRecords: const [],
-    types: types,
-  );
-}
+  ],
+);
 
 Future<void> _pump(WidgetTester tester, Widget child) =>
     tester.pumpWidget(MaterialApp(home: Scaffold(body: child)));

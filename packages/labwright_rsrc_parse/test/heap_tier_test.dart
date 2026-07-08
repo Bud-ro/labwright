@@ -1,217 +1,115 @@
-import 'dart:typed_data';
-
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
-/// Grades one crafted record with [heapDecodeTier], the single source of
-/// truth for the 3-tier coverage metric. Each record is graded standalone so a
-/// mis-tiering can't silently inflate the corpus % and get re-baselined.
-/// [enclosingKind] mirrors the class context [measureHeapTiers] supplies.
-HeapTierGrade grade(List<int> bytes, {int enclosingKind = -1}) =>
-    heapDecodeTier(Uint8List.fromList(bytes), 0, bytes[0], 'BDHb', enclosingKind: enclosingKind);
-
-/// The record's tier, asserting no bytes were split off to a lower tier — the
-/// helper for every non-container form (only role-catalogued container-width
-/// attributes carry a nonzero [HeapTierGrade.valueKindPayloadBytes]).
-HeapDecodeTier tier(List<int> bytes, {int enclosingKind = -1}) {
-  final g = grade(bytes, enclosingKind: enclosingKind);
-  expect(g.valueKindPayloadBytes, 0, reason: 'unexpected payload-byte split');
-  return g.tier;
-}
+import 'test_util.dart';
 
 void main() {
-  test('semantic: object header, group open/close, typed ref, decoded C4, named attr', () {
-    expect(
-      tier([0x10, 0x19, 0x02, 0xfe, 0x00, 0x50, 0xfd, 0x00, 0x2a]),
+  // Each crafted record is graded standalone by heapDecodeTier (the single source of truth for the
+  // 3-tier coverage metric): (name, bytes, tier, valueKindPayloadBytes, enclosingKind).
+  final rows = <(String, List<int>, HeapDecodeTier, int, int)>[
+    ('object header', hx('10 19 02 fe 0050 fd 002a'), HeapDecodeTier.semantic, 0, -1),
+    ('group close', hx('08 55'), HeapDecodeTier.semantic, 0, -1),
+    ('group open (type tag)', hx('10 e1 01 fb 0007'), HeapDecodeTier.semantic, 0, -1),
+    ('childRef', hx('14 19 01 fd 0009'), HeapDecodeTier.semantic, 0, -1),
+    ('C4 bounds (isDecoded)', hx('c4 2d 08 0000 0000 000a 0014'), HeapDecodeTier.semantic, 0, -1),
+    ('backgroundColor (confirmed)', hx('84 28 ff 123456'), HeapDecodeTier.semantic, 0, -1),
+    ('plotColor (inferred)', hx('84 2a ff ff4242'), HeapDecodeTier.semantic, 0, -1),
+    ('borderColor (inferred)', hx('84 2b ff bcbcbc'), HeapDecodeTier.semantic, 0, -1),
+    ('raw 0x0CB objFlags (inferred)', hx('64 cb 10 0000'), HeapDecodeTier.semantic, 0, -1),
+    ('raw 0x0AF masterPart (inferred)', hx('24 af 09'), HeapDecodeTier.semantic, 0, -1),
+    ('raw 0x1E7 wire table, small scalar form', hx('45 e7 02 08'), HeapDecodeTier.semantic, 0, -1),
+    (
+      'raw 0x1E7 wire table, container: 3-byte header known, 6 payload bytes not decoded',
+      hx('c5 e7 06 03 00 00 00 00 00'),
       HeapDecodeTier.semantic,
-      reason: 'object header',
-    );
-    expect(tier([0x08, 0x55]), HeapDecodeTier.semantic, reason: 'group close');
-    expect(tier([0x10, 0xe1, 0x01, 0xfb, 0x00, 0x07]), HeapDecodeTier.semantic, reason: 'group open (type tag)');
-    expect(tier([0x14, 0x19, 0x01, 0xfd, 0x00, 0x09]), HeapDecodeTier.semantic, reason: 'childRef');
-    expect(
-      tier([0xc4, 0x2d, 0x08, 0, 0, 0, 0, 0, 10, 0, 20]),
-      HeapDecodeTier.semantic,
-      reason: 'C4 bounds (isDecoded)',
-    );
-    expect(tier([0x84, 0x28, 0xff, 0x12, 0x34, 0x56]), HeapDecodeTier.semantic, reason: 'backgroundColor (confirmed)');
-    expect(tier([0x84, 0x2a, 0xff, 0xff, 0x42, 0x42]), HeapDecodeTier.semantic, reason: 'plotColor (inferred)');
-    expect(tier([0x84, 0x2b, 0xff, 0xbc, 0xbc, 0xbc]), HeapDecodeTier.semantic, reason: 'borderColor (inferred)');
-  });
-
-  test('semantic: the raw-tag upgrades (objFlags, masterPart, signal chain, cross-heap ddoRef, refs)', () {
-    expect(tier([0x64, 0xcb, 0x10, 0x00, 0x00]), HeapDecodeTier.semantic, reason: 'raw 0x0CB objFlags (inferred)');
-    expect(tier([0x24, 0xaf, 0x09]), HeapDecodeTier.semantic, reason: 'raw 0x0AF masterPart (inferred)');
-    expect(
-      tier([0x45, 0xe7, 0x02, 0x08]),
-      HeapDecodeTier.semantic,
-      reason: 'raw 0x1E7 compressedWireTable, small scalar form',
-    );
-    final wireTable = grade([0xc5, 0xe7, 0x06, 0x03, 0, 0, 0, 0, 0]);
-    expect(
-      wireTable.tier,
-      HeapDecodeTier.semantic,
-      reason: 'raw 0x1E7 compressedWireTable, container form: the 3-byte header/role is known',
-    );
-    expect(
-      wireTable.valueKindPayloadBytes,
       6,
-      reason: 'the 6 packed payload bytes are NOT decoded — they grade value-kind-known, not semantic',
-    );
-    expect(tier([0x44, 0x9f, 0x83, 0x50]), HeapDecodeTier.semantic, reason: 'raw 0x09F lastSignalKind (inferred)');
-    expect(tier([0x14, 0x53, 0x01, 0xfd, 0x00, 0x07]), HeapDecodeTier.semantic, reason: 'ddoRef (cross-heap, 100%)');
-    expect(tier([0x15, 0x13, 0x01, 0xfd, 0x00, 0x07]), HeapDecodeTier.semantic, reason: 'srcDCORef (15-lead leaf ref)');
-    expect(
-      tier([0x16, 0x8a, 0x01, 0xfd, 0x00, 0x07]),
+      -1,
+    ),
+    ('raw 0x09F lastSignalKind (inferred)', hx('44 9f 83 50'), HeapDecodeTier.semantic, 0, -1),
+    ('ddoRef (cross-heap, 100%)', hx('14 53 01 fd 0007'), HeapDecodeTier.semantic, 0, -1),
+    ('srcDCORef (15-lead leaf ref)', hx('15 13 01 fd 0007'), HeapDecodeTier.semantic, 0, -1),
+    ('attachmentRef (16-lead leaf ref)', hx('16 8a 01 fd 0007'), HeapDecodeTier.semantic, 0, -1),
+    ('C4 5F docBounds (decoded rect role)', hx('c4 5f 08 0000 0000 000a 0014'), HeapDecodeTier.semantic, 0, -1),
+    (
+      'raw 0x26C constValue container: role catalogued, 4 payload bytes not',
+      hx('c6 6c ff 0004 ffffffff'),
       HeapDecodeTier.semantic,
-      reason: 'attachmentRef (16-lead leaf ref)',
-    );
-    expect(
-      tier([0xc4, 0x5f, 0x08, 0, 0, 0, 0, 0, 10, 0, 20]),
+      4,
+      -1,
+    ),
+    ('empty catalogued container: no interior bytes', hx('c5 e7 00'), HeapDecodeTier.semantic, 0, -1),
+    (
+      'uncatalogued raw 0x199 container: extent known, role/content not',
+      hx('c5 99 02 aabb'),
+      HeapDecodeTier.valueKindKnown,
+      0,
+      -1,
+    ),
+    ('C4 44 container44: known shape, contents not decoded', hx('c4 44 00'), HeapDecodeTier.valueKindKnown, 0, -1),
+    (
+      'C4 26 rect26: structural rect, role undetermined',
+      hx('c4 26 08 0000 0000 000a 0014'),
+      HeapDecodeTier.valueKindKnown,
+      0,
+      -1,
+    ),
+    ('uncatalogued tag with grammar-known width', hx('24 99 05'), HeapDecodeTier.valueKindKnown, 0, -1),
+    ('raw 0x023 field23 stays kindOnly', hx('24 23 01'), HeapDecodeTier.valueKindKnown, 0, -1),
+    ('leaf with an fe (class) attribute', hx('14 53 01 fe 0034'), HeapDecodeTier.valueKindKnown, 0, -1),
+    (
+      'fd-escape leaf (7-byte value form): not a compact ref',
+      hx('15 77 01 fd 8000 0000 0100'),
+      HeapDecodeTier.valueKindKnown,
+      0,
+      -1,
+    ),
+    ('uncatalogued bare 2-byte selector', hx('15 99 24 df'), HeapDecodeTier.valueKindKnown, 0, -1),
+    (
+      'raw 0x231 inline property-item-name string',
+      [0xc6, 0x31, 0x05, ...'Scale'.codeUnits],
       HeapDecodeTier.semantic,
-      reason: 'C4 5F = docBounds (decoded rect role)',
-    );
-  });
+      0,
+      -1,
+    ),
+    (
+      'raw 0x26C constant-value text blob',
+      [0xc6, 0x6c, 0xff, 0x00, 0x0a, 0x00, 0x00, 0x00, 0x06, ...'Robot!'.codeUnits],
+      HeapDecodeTier.semantic,
+      0,
+      -1,
+    ),
+    ('raw 0x220 stdNumMin f64', hx('c6 20 08 bff0 0000 0000 0000'), HeapDecodeTier.semantic, 0, -1),
+    ('raw 0x222 stdNumInc f64', hx('c6 22 08 0000 0000 0000 0000'), HeapDecodeTier.semantic, 0, -1),
+    ('partRole u8 (66 = annex part role)', hx('24 df 42'), HeapDecodeTier.semantic, 0, -1),
+    ('partRole u16 (8002 = numeric-control role)', hx('44 df 1f42'), HeapDecodeTier.semantic, 0, -1),
+    ('raw 0x020 u32 inside bigMultiCosm = colour', hx('84 20 ff 101010'), HeapDecodeTier.semantic, 0, 0x0c),
+    (
+      'raw 0x020 u32 inside a label class: text-style word, not colour',
+      hx('84 20 ff 101010'),
+      HeapDecodeTier.valueKindKnown,
+      0,
+      0x0a,
+    ),
+    ('raw 0x021 u32 with no known enclosing class', hx('84 21 00 814404'), HeapDecodeTier.valueKindKnown, 0, -1),
+    ('45 20 is raw 0x120 tableFlags, a different tag', hx('45 20 02 00'), HeapDecodeTier.semantic, 0, -1),
+    ('raw 0x021 as u16: text-mode word, not colour', hx('44 21 1234'), HeapDecodeTier.valueKindKnown, 0, -1),
+    ('raw 0x020 as u8: small index, not colour', hx('24 20 05'), HeapDecodeTier.valueKindKnown, 0, -1),
+    (
+      'raw 0x028 bgColor at u8 width: narrow colour-ness not established',
+      hx('24 28 01'),
+      HeapDecodeTier.valueKindKnown,
+      0,
+      -1,
+    ),
+    ('uncatalogued C4 opcode: framed payload extent known', hx('c4 99 00'), HeapDecodeTier.valueKindKnown, 0, -1),
+    ('unknown lead byte', hx('99 00'), HeapDecodeTier.framed, 0, -1),
+  ];
 
-  test('container-width attrs split: header semantic, undecoded payload interior value-kind-known', () {
-    // C6 FF (u16-length escape) container with a non-validating payload:
-    // raw 0x26C constValue is catalogued (inferred), so its 5 header bytes are
-    // semantic while the 4 undecoded payload bytes are not.
-    final constBlob = grade([0xc6, 0x6c, 0xff, 0x00, 0x04, 0xff, 0xff, 0xff, 0xff]);
-    expect(constBlob.tier, HeapDecodeTier.semantic, reason: 'raw 0x26C constValue: role catalogued');
-    expect(constBlob.valueKindPayloadBytes, 4, reason: 'non-string payload interior is not decoded');
-    // An empty catalogued container is all header: nothing to downgrade.
-    expect(grade([0xc5, 0xe7, 0x00]).valueKindPayloadBytes, 0, reason: 'zero-length payload: no interior bytes');
-    // An UNCATALOGUED container tag has no known role at all — the whole
-    // record (header included) stays value-kind-known, not split.
-    expect(
-      tier([0xc5, 0x99, 0x02, 0xaa, 0xbb]),
-      HeapDecodeTier.valueKindKnown,
-      reason: 'uncatalogued raw 0x199 container: extent known, role and content not',
-    );
-  });
-
-  test('valueKindKnown: kindOnly attrs, unknown tags, and known-shape C4 (rect/container)', () {
-    expect(
-      tier([0xc4, 0x44, 0x00]),
-      HeapDecodeTier.valueKindKnown,
-      reason: 'C4 44 = container44: known container shape, contents not decoded',
-    );
-    expect(
-      tier([0xc4, 0x26, 0x08, 0, 0, 0, 0, 0, 10, 0, 20]),
-      HeapDecodeTier.valueKindKnown,
-      reason: 'C4 26 = rect26: structural rect, role undetermined',
-    );
-    expect(
-      tier([0x24, 0x99, 0x05]),
-      HeapDecodeTier.valueKindKnown,
-      reason: 'uncatalogued tag with a grammar-known width: value known, meaning not',
-    );
-    expect(
-      tier([0x24, 0x23, 0x01]),
-      HeapDecodeTier.valueKindKnown,
-      reason: 'raw 0x023 field23 stays kindOnly (no coherent corpus axis)',
-    );
-    expect(
-      tier([0x14, 0x53, 0x01, 0xfe, 0x00, 0x34]),
-      HeapDecodeTier.valueKindKnown,
-      reason: 'leaf with an fe (class) attribute: structure known, tag meaning not',
-    );
-    expect(
-      tier([0x15, 0x77, 0x01, 0xfd, 0x80, 0x00, 0x00, 0x00, 0x01, 0x00]),
-      HeapDecodeTier.valueKindKnown,
-      reason: 'fd-escape leaf (7-byte value form): structure known, not decoded as a compact ref',
-    );
-    expect(
-      tier([0x15, 0x99, 0x24, 0xdf]),
-      HeapDecodeTier.valueKindKnown,
-      reason: 'uncatalogued bare 2-byte selector: boundary + empty value known',
-    );
-  });
-
-  test('semantic: string/f64 forms (0x231 name, 0x26C const text, 0x220 stdNumMin f64)', () {
-    expect(
-      tier([0xc6, 0x31, 0x05, ...'Scale'.codeUnits]),
-      HeapDecodeTier.semantic,
-      reason: 'raw 0x231 inline property-item-name string',
-    );
-    expect(
-      tier([0xc6, 0x6c, 0xff, 0x00, 0x0a, 0x00, 0x00, 0x00, 0x06, ...'Robot!'.codeUnits]),
-      HeapDecodeTier.semantic,
-      reason: 'raw 0x26C constant-value text blob (C6 6C FF <u16 len> <u32 strlen> ascii)',
-    );
-    expect(
-      tier([0xc6, 0x20, 0x08, 0xbf, 0xf0, 0, 0, 0, 0, 0, 0]),
-      HeapDecodeTier.semantic,
-      reason: 'raw 0x220 stdNumMin f64 (C6 20 08)',
-    );
-    expect(
-      tier([0xc6, 0x22, 0x08, 0, 0, 0, 0, 0, 0, 0, 0]),
-      HeapDecodeTier.semantic,
-      reason: 'raw 0x222 stdNumInc f64 (C6 22 08)',
-    );
-  });
-
-  test('semantic: partRole (0xDF, inferred) lands in the semantic tier in both widths', () {
-    expect(
-      tier([0x24, 0xdf, 66]),
-      HeapDecodeTier.semantic,
-      reason: 'partRole u8 form (value 66 = annex part role)',
-    );
-    expect(
-      tier([0x44, 0xdf, 0x1f, 0x42]),
-      HeapDecodeTier.semantic,
-      reason: 'partRole u16 form (value 8002 = numeric-control role)',
-    );
-  });
-
-  test('class-polymorphic colour tags 0x020/0x021: colour only in the cosm classes', () {
-    expect(
-      tier([0x84, 0x20, 0xff, 0x10, 0x10, 0x10], enclosingKind: 0x0c),
-      HeapDecodeTier.semantic,
-      reason: 'raw 0x020 u32 inside bigMultiCosm = a colour (99.38% of u32 records)',
-    );
-    expect(
-      tier([0x84, 0x20, 0xff, 0x10, 0x10, 0x10], enclosingKind: 0x0a),
-      HeapDecodeTier.valueKindKnown,
-      reason: 'raw 0x020 u32 inside a label class is a text-style word, not credited as colour',
-    );
-    expect(
-      tier([0x84, 0x21, 0x00, 0x81, 0x44, 0x04]),
-      HeapDecodeTier.valueKindKnown,
-      reason: 'raw 0x021 u32 with no known enclosing class stays value-kind-known',
-    );
-    expect(
-      tier([0x45, 0x20, 0x02, 0x00]),
-      HeapDecodeTier.semantic,
-      reason: '45 20 is raw 0x120 = tableFlags (a different tag than 44 20 = raw 0x020)',
-    );
-  });
-
-  test('valueKindKnown: a colour-named tag in a NON-colour width is not credited as a colour', () {
-    expect(
-      tier([0x44, 0x21, 0x12, 0x34]),
-      HeapDecodeTier.valueKindKnown,
-      reason: 'raw 0x021 as u16 carries a text-mode word, not a colour',
-    );
-    expect(
-      tier([0x24, 0x20, 0x05]),
-      HeapDecodeTier.valueKindKnown,
-      reason: 'raw 0x020 as u8 carries a small index, not a colour',
-    );
-    expect(
-      tier([0x24, 0x28, 0x01]),
-      HeapDecodeTier.valueKindKnown,
-      reason: 'raw 0x028 bgColor at u8 width: colour-ness of the narrow form not established',
-    );
-  });
-
-  test('tail tiers: an uncatalogued C4 opcode is valueKind (framed payload); an unknown lead is framed', () {
-    expect(
-      tier([0xc4, 0x99, 0x00]),
-      HeapDecodeTier.valueKindKnown,
-      reason: 'C4 with an uncatalogued opcode: length-prefixed payload extent known, meaning not',
-    );
-    expect(tier([0x99, 0x00]), HeapDecodeTier.framed, reason: 'unknown lead byte');
+  test('heapDecodeTier grades every crafted record into its exact tier and payload split', () {
+    for (final (name, bytes, tier, payload, enclosingKind) in rows) {
+      final g = heapDecodeTier(u8(bytes), 0, bytes[0], 'BDHb', enclosingKind: enclosingKind);
+      expect(g.tier, tier, reason: name);
+      expect(g.valueKindPayloadBytes, payload, reason: '$name: payload-byte split');
+    }
   });
 }
