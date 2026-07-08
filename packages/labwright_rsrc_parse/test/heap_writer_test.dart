@@ -79,6 +79,61 @@ void main() {
     expect(attributeHeapBody(body, 'VCTP').copiedBytes, body.length);
   });
 
+  test('a VICD body re-serializes byte-exact and models the whole descriptor', () {
+    // i386 envelope + a "code" chunk (8 opaque machine-code bytes) + a "CODE"
+    // symbol table with one 4-byte name. codeStart=40, codeSize=8, codeEnd=48.
+    final body = hx(
+      '28000000' // codeStart = 40
+      '69333836' // arch "i386"
+      '08000000' // codeSize = 8
+      '03010000' // reserved = 0x103
+      '00000000' // flags = 0
+      '636f6465' // "code"
+      '000000000000000000000000' // fixup preamble (12 B, opaque)
+      '30000000' // codeEnd = 48
+      '5589e583ec109090' // 8 machine-code bytes (opaque)
+      '434f4445' // "CODE"
+      '000000000000000000000000' // table header z0,z1,z2
+      '30000000' // selfOff = 48 (== codeEnd)
+      '01000000' // count = 1
+      '04000000' // entry nameLen = 4
+      '41424344', // name "ABCD"
+    );
+    final res = serializeHeapBody(body, 'VICD');
+    expect(res.bytes, equals(body));
+    expect(res.modelBytes, body.length, reason: 'the whole descriptor frames: structural words + retained code/name');
+    expect(res.copiedBytes, 0);
+    expect(res.modelBugs, 0);
+
+    final split = attributeHeapBody(body, 'VICD');
+    expect(split.modelBytes, body.length);
+    expect(split.copiedBytes, 0);
+  });
+
+  test('a VICD body whose CODE table does not tile stays copied and byte-exact', () {
+    // count claims 2 entries but only one fits — the grammar rejects it, so the
+    // whole body is copied (byte-exactness preserved).
+    final body = hx(
+      '28000000 69333836 08000000 03010000 00000000 636f6465'
+      '000000000000000000000000 30000000 5589e583ec109090'
+      '434f4445 000000000000000000000000 30000000 02000000 04000000 41424344',
+    );
+    final res = serializeHeapBody(body, 'VICD');
+    expect(res.bytes, equals(body));
+    expect(res.modelBytes, 0);
+    expect(res.copiedBytes, body.length);
+    expect(attributeHeapBody(body, 'VICD').copiedBytes, body.length);
+  });
+
+  test('serializeHeapBody is total and byte-exact on random VICD-tagged buffers', () {
+    expectTotal(11, 2000, 64, (b) {
+      final res = serializeHeapBody(b, 'VICD');
+      expect(res.bytes, equals(b));
+      expect(res.modelBytes + res.copiedBytes, b.length);
+      expect(res.modelBugs, 0);
+    });
+  });
+
   test('serializeHeapBody is total and byte-exact on random VCTP-tagged buffers', () {
     expectTotal(7, 2000, 64, (b) {
       final res = serializeHeapBody(b, 'VCTP');
