@@ -84,7 +84,7 @@ void main() {
         reason: '${f.path}: a skipped/type-gated break emitted bare',
       );
     }
-    expect(exported, greaterThan(300), reason: 'XML+INI+binary corpus should all export');
+    expect(exported, greaterThan(240), reason: 'XML+INI+binary corpus should all export');
     expect(withIntLocals, greaterThan(20), reason: 'counter/index Nums must refine to int locals');
     expect(withSkipComments, greaterThan(5), reason: 'Skip-mode steps must be comments, not active code');
     expect(withViStub, greaterThanOrEqualTo(5), reason: 'the corpus has VI-call files; their stubs must be generated');
@@ -110,7 +110,7 @@ void main() {
     expect(stats.argsTranslated, greaterThan(500), reason: 'bound expressions must translate to real named arguments');
     expect(
       stats.argsByOmission,
-      greaterThan(300),
+      greaterThan(240),
       reason: 'UseDef rows must be omitted (exact via the callee default)',
     );
     // ignore: avoid_print

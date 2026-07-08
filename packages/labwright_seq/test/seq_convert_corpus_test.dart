@@ -13,14 +13,14 @@ import 'corpus_dirs.dart';
 /// of the information its source model carries.
 ///
 /// Equality tiers achieved (asserted below, per file):
-/// - **INI → XML → INI: byte-exact** (58/58). The intermediate XML also
+/// - **INI → XML → INI: byte-exact** (43/43). The intermediate XML also
 ///   writes + reparses to a deep-equal XML-flavor model, and a further
 ///   INI → XML hop is a fixpoint.
-/// - **XML → INI → XML: byte-exact** (36/36) — the rebuilt model deep-equals
+/// - **XML → INI → XML: byte-exact** (35/35) — the rebuilt model deep-equals
 ///   the original parse, so the byte-exact XML writer reproduces the original
 ///   bytes. The intermediate INI also writes + reparses deep-equal
 ///   ([iniDeepEquals]), and a further XML → INI hop is a fixpoint.
-/// - **binary → XML / INI: decoded-surface-exact** (294/294). The binary
+/// - **binary → XML / INI: decoded-surface-exact** (169/169). The binary
 ///   reader is a PARTIAL decoder with no writer, so the gate asserts
 ///   retention of exactly the decoded surface: the lifted model (marked
 ///   partial via its root attribute) survives XML write/reparse and the
@@ -29,9 +29,9 @@ import 'corpus_dirs.dart';
 ///   fabrication is not.
 ///
 /// Counts are pinned so a corpus refresh consciously extends the gates.
-const _pinnedIniSeqCount = 58;
-const _pinnedXmlSeqCount = 36;
-const _pinnedBinarySeqCount = 294;
+const _pinnedIniSeqCount = 43;
+const _pinnedXmlSeqCount = 35;
+const _pinnedBinarySeqCount = 169;
 
 void main() {
   if (!corpusSeqDir.existsSync()) {
@@ -90,25 +90,66 @@ void main() {
     // instance-level directive on the object that inherits it. The expansion
     // must materialize that member with the instance directive attached; the
     // shared inherited-subtree cache must NOT be allowed to serve a copy that
-    // has dropped it.
-    final iniFiles = byFormat[SeqFormat.ini] ?? const <File>[];
-    final f = iniFiles.firstWhere(
-      (f) => f.path.endsWith('Non-Hardware Express VIs.seq'),
-      orElse: () => throw StateError('representative inherited-container corpus file missing'),
-    );
-    final root = iniDataTree(parseIniSeqBytes(_read(f)));
-    expect(root, isNotNull, reason: '${f.path}: data root must decode');
-    // Data → Seq[0] (MainSequence) → Locals → signal (typed LabVIEWDynamicData,
-    // a container only via its type) → Element1 (inherited, instance %HI).
-    final signal = root!.prop('Seq')?.array?.first.prop('Locals')?.prop('signal');
-    expect(signal?.typeName, 'LabVIEWDynamicData', reason: '${f.path}: signal must resolve its inherited type');
-    final element1 = signal?.prop('Element1');
-    expect(element1, isNotNull, reason: '${f.path}: inherited container member must materialize');
-    expect(
-      element1!.attributes['%HI'],
-      isNotNull,
-      reason: '${f.path}: the instance %HI directive on the inherited container must survive expansion',
-    );
+    // has dropped it — `signalA` (no directive) populates the cache before
+    // `signalB` (instance `%HI`) is built, so a bypass regression would hand
+    // `signalB` the directive-less cached subtree.
+    //
+    // Synthetic fixture: the corpus carries no exemplar of this shape (the
+    // one it had was removed in a corpus purge), so the load-bearing case is
+    // pinned inline.
+    const fixture = '''
+[__Header__]
+ProductName = "TestStand"
+ProductVersion = 3.5.0.365
+Version = 354
+Type = "SequenceFile"
+
+[DEF, %OBJROOT]
+SF = SequenceFileData
+
+[DEF, SF]
+Seq = Objs
+%NAME = "Data"
+
+[DEF, SF.Seq]
+%[0] = Sequence
+
+[DEF, SF.Seq[0]]
+Locals = Obj
+%NAME = "MainSequence"
+
+[DEF, SF.Seq[0].Locals]
+signalA = "TYPE, LabVIEWDynamicData"
+signalB = "TYPE, LabVIEWDynamicData"
+
+[SF.Seq[0].Locals.signalA]
+Name = "a"
+
+[SF.Seq[0].Locals.signalB]
+Name = "b"
+%HI: Element1 = [1]
+
+[DEF, LabVIEWDynamicData]
+Name = Str
+Element1 = Obj
+
+[DEF, LabVIEWDynamicData.Element1]
+Attr = Num
+''';
+    final root = iniDataTree(parseIniSeqBytes(Uint8List.fromList(fixture.codeUnits)));
+    expect(root, isNotNull, reason: 'fixture data root must decode');
+    final locals = root!.prop('Seq')?.array?.first.prop('Locals');
+    for (final (name, expectHi) in const [('signalA', false), ('signalB', true)]) {
+      final signal = locals?.prop(name);
+      expect(signal?.typeName, 'LabVIEWDynamicData', reason: '$name must resolve its inherited type');
+      final element1 = signal?.prop('Element1');
+      expect(element1, isNotNull, reason: '$name: inherited container member must materialize');
+      expect(
+        element1!.attributes['%HI'] != null,
+        expectHi,
+        reason: '$name: the instance %HI directive must survive expansion on exactly the instance carrying it',
+      );
+    }
   });
 
   test('XML → INI → XML is byte-exact for every XML corpus file (and the INI hop is stable)', () {

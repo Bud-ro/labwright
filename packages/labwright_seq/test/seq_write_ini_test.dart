@@ -14,7 +14,7 @@ import 'corpus_dirs.dart';
 /// gate asserts ALL of them round-trip, and pins the count so a corpus refresh
 /// that adds INI files consciously extends the gate rather than silently
 /// widening it.
-const _pinnedIniSeqCount = 58;
+const _pinnedIniSeqCount = 43;
 
 /// A document in EXACTLY the writer's serialization (header first line, one
 /// blank line before each section, trailing blank line, single-space ` = `)

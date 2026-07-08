@@ -14,7 +14,7 @@ import 'corpus_dirs.dart';
 /// gate asserts ALL of them round-trip, and pins the count so a corpus refresh
 /// that adds XML files consciously extends the gate rather than silently
 /// widening it.
-const _pinnedXmlSeqCount = 36;
+const _pinnedXmlSeqCount = 35;
 
 /// A document in EXACTLY the writer's serialization (BOM, decl, quoting,
 /// tabs, LF) wrapping [typelist] and [data] — unit inputs are written in this

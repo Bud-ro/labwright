@@ -173,9 +173,9 @@ void main() {
     // Round-3 measurement: 1019 group arrays / 2201 step elements (every
     // one carrying its `ID#:` anchor) across 294 binaries. Floors
     // under-pin slightly.
-    expect(files, greaterThanOrEqualTo(290));
-    expect(groupArrays, greaterThanOrEqualTo(1000));
-    expect(steps, greaterThanOrEqualTo(2100));
+    expect(files, greaterThanOrEqualTo(165));
+    expect(groupArrays, greaterThanOrEqualTo(600));
+    expect(steps, greaterThanOrEqualTo(1650));
   });
 
   group('pinned corpus files (record-walk correctness)', () {

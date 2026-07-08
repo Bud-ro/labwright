@@ -53,7 +53,7 @@ void main() {
         flowHeaviestFile = f;
       }
     }
-    expect(exported, greaterThan(300), reason: 'XML+INI+binary corpus should all export');
+    expect(exported, greaterThan(240), reason: 'XML+INI+binary corpus should all export');
     // ignore: avoid_print
     print(
       'exported $exported files; most flow steps: $flowHeaviest '
@@ -104,7 +104,7 @@ void main() {
         final out = File('${dir.path}/gen_${n++}.dart');
         out.writeAsStringSync(exportSeqFileToDart(file, sourceName: f.uri.pathSegments.last));
       }
-      expect(n, greaterThan(300));
+      expect(n, greaterThan(240));
       final result = Process.runSync('dart', ['analyze', 'test/.export_gen_batch'], workingDirectory: pkgRoot.path);
       expect(
         result.exitCode,
