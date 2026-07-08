@@ -8,7 +8,7 @@ part of 'seq_binary.dart';
 // f64/i64/bool values, counts, type-table references), the string pool is
 // re-emitted from the recovered strings, and only the spans the decoder does
 // not cover are copied verbatim from the retained body. The write ops come
-// from the recorded decode stream ([_decodeBody] into a [_DecodeSink])
+// from the recorded decode stream ([_decodeBody] into a [_RecordingDecodeSink])
 // — never a parallel grammar — and the coverage metrics fold the SAME stream
 // (seq_binary_metrics.dart), so the writer's copy-vs-serialize decision
 // mirrors the coverage tier map by construction.
@@ -96,6 +96,62 @@ class _WriteOp {
   };
 }
 
+/// The decode-stream sink the production decode passes emit into. The sink
+/// is held NON-NULLABLY everywhere: this base class is itself the shared
+/// no-op sink ([_DecodeSink.none]) — every method is an empty body (and
+/// [mark] a constant), so the plain decode paths, which run on every parse,
+/// pay only a trivially inlinable empty call per emit site and the trial
+/// sites' mark/rollback plumbing carries no null checks. A recording run
+/// substitutes a [_RecordingDecodeSink]. Pure additions either way: the
+/// sink never influences parse decisions.
+class _DecodeSink {
+  const _DecodeSink();
+
+  /// The shared non-recording sink — the default everywhere a decode is not
+  /// captured for the writer/metrics.
+  static const _DecodeSink none = _DecodeSink();
+
+  /// Records a coverage tier claim over `[start, end)`. Claims are recorded
+  /// only for committed decodes — commit-only, no rollback path.
+  void claim(int start, int end, int tier) {}
+
+  /// Records a blob demotion over `[start, end)`: an extent a successful
+  /// parse walked whose contents are not decoded — its [_tierSemantic]
+  /// bytes fold down to [_tierStructural] (never up from [_tierUndecoded]).
+  void demote(int start, int end) {}
+
+  /// A rollback point for the ops recorded so far (see [rollback]).
+  int mark() => 0;
+
+  /// Discards every op recorded since mark [m] — a failed trial parse must
+  /// leave no trace.
+  void rollback(int m) {}
+
+  /// Rolls back only the ops recorded at/after mark [m] whose offset is at or
+  /// past [offsetBoundary] — used when a walk keeps a decoded PREFIX and
+  /// discards the fields past it.
+  void rollbackTailFrom(int m, int offsetBoundary) {}
+
+  /// Records a verbatim copy of `[from, to)` (source: struct by definition).
+  void copy(int from, int to) {}
+
+  /// Records a pool reference (source: model by definition — the index
+  /// round-trips through the mutable model pool).
+  void poolRef(int at, int index) {}
+
+  /// Records a `u32` word of the given provenance.
+  void u32(int at, int value, _OpSource source) {}
+
+  /// Records a single byte of the given provenance.
+  void byte(int at, int value, _OpSource source) {}
+
+  /// Records an inline f64 value (source: model by definition).
+  void f64(int at, double value) {}
+
+  /// Records an inline i64 value (source: model by definition).
+  void i64(int at, int value) {}
+}
+
 /// The typed decode stream one production decode pass records — the single
 /// product both the writer and the metrics consume, so they can never
 /// disagree about what is decoded.
@@ -112,32 +168,30 @@ class _WriteOp {
 ///    ([demotions]) — the byte-coverage accounting's raw material, folded
 ///    into the per-byte tier map by [_tiersOfStream]. Claims are recorded
 ///    only for committed decodes (no rollback path).
-class _DecodeSink {
+class _RecordingDecodeSink extends _DecodeSink {
   final List<_WriteOp> ops = [];
 
   /// Committed coverage claims, `(start, end, tier)` over the record region.
   final List<(int, int, int)> claims = [];
 
-  /// Blob demotions, `(start, end)`: extents a successful parse walked whose
-  /// contents are not decoded — their [_tierSemantic] bytes fold down to
-  /// [_tierStructural] (never up from [_tierUndecoded]).
+  /// Blob demotions, `(start, end)` (see [_DecodeSink.demote]).
   final List<(int, int)> demotions = [];
 
-  /// Records a coverage tier claim over `[start, end)`.
+  @override
   void claim(int start, int end, int tier) => claims.add((start, end, tier));
 
-  /// Records a blob demotion over `[start, end)`.
+  @override
   void demote(int start, int end) => demotions.add((start, end));
 
+  @override
   int mark() => ops.length;
 
+  @override
   void rollback(int m) {
     if (ops.length > m) ops.length = m;
   }
 
-  /// Rolls back only the ops recorded at/after mark [m] whose offset is at or
-  /// past [offsetBoundary] — used when a walk keeps a decoded PREFIX and
-  /// discards the fields past it.
+  @override
   void rollbackTailFrom(int m, int offsetBoundary) {
     var w = m;
     for (var r = m; r < ops.length; r++) {
@@ -146,25 +200,24 @@ class _DecodeSink {
     ops.length = w;
   }
 
-  /// Records a verbatim copy of `[from, to)` (source: struct by definition).
+  @override
   void copy(int from, int to) {
     if (to > from) ops.add(_WriteOp.copy(from, to));
   }
 
-  /// Records a pool reference (source: model by definition — the index
-  /// round-trips through the mutable model pool).
+  @override
   void poolRef(int at, int index) => ops.add(_WriteOp(at, _WirePrimitive.poolRef, _OpSource.model, index));
 
-  /// Records a `u32` word of the given provenance.
+  @override
   void u32(int at, int value, _OpSource source) => ops.add(_WriteOp(at, _WirePrimitive.u32, source, value));
 
-  /// Records a single byte of the given provenance.
+  @override
   void byte(int at, int value, _OpSource source) => ops.add(_WriteOp(at, _WirePrimitive.byte, source, value));
 
-  /// Records an inline f64 value (source: model by definition).
+  @override
   void f64(int at, double value) => ops.add(_WriteOp(at, _WirePrimitive.f64, _OpSource.model, 0, value));
 
-  /// Records an inline i64 value (source: model by definition).
+  @override
   void i64(int at, int value) => ops.add(_WriteOp(at, _WirePrimitive.i64, _OpSource.model, value));
 }
 
