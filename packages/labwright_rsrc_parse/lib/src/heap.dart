@@ -948,6 +948,7 @@ class HeapAttr {
     required this.width,
     required this.value,
     required this.length,
+    this.rawValueBytes,
   });
 
   /// The catalog entry (or [HeapAttribute.unknown] for an uncatalogued tag).
@@ -970,6 +971,15 @@ class HeapAttr {
 
   /// The total byte length of the record (so a walker can advance by it).
   final int length;
+
+  /// For the widths whose typed [value] is a **lossy** or partial reading —
+  /// [HeapAttrWidth.blob] (printable-filtered [String]), [HeapAttrWidth.f64]
+  /// (an IEEE-754 [double] whose re-encode is not guaranteed bit-identical), and
+  /// [HeapAttrWidth.container] (only the leading byte is exposed) — the exact
+  /// stored payload bytes after the record's framing header, retained verbatim so
+  /// the record re-emits byte-exact. Null for the integer / rectangle widths,
+  /// whose [value] reconstructs their bytes exactly. Never printable-filtered.
+  final Uint8List? rawValueBytes;
 
   /// The *effective* value kind, resolving width-dependent forms:
   /// `f64`→[HeapAttrKind.controlParam], `blob`→[HeapAttrKind.stringBlob],
@@ -1106,6 +1116,7 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
         width: HeapAttrWidth.blob,
         value: text,
         length: 3 + len,
+        rawValueBytes: Uint8List.sublistView(body, offset + 3, offset + 3 + len),
       );
     }
   }
@@ -1133,6 +1144,7 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
         width: HeapAttrWidth.f64,
         value: value,
         length: 11,
+        rawValueBytes: Uint8List.sublistView(body, offset + 3, offset + 11),
       );
     }
     // Other tags at `…08` fall through to the generic data fallback below.
@@ -1154,6 +1166,7 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
           width: HeapAttrWidth.blob,
           value: String.fromCharCodes(chars),
           length: 5 + len,
+          rawValueBytes: Uint8List.sublistView(body, offset + 5, offset + 5 + len),
         );
       }
     }
@@ -1176,6 +1189,7 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
             width: HeapAttrWidth.blob,
             value: String.fromCharCodes(bytes),
             length: 3 + len,
+            rawValueBytes: Uint8List.sublistView(body, offset + 3, offset + 3 + len),
           );
         }
       }
@@ -1208,6 +1222,7 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
       width: HeapAttrWidth.container,
       value: len > 0 ? body[offset + headerLen] : 0,
       length: headerLen + len,
+      rawValueBytes: Uint8List.sublistView(body, offset + headerLen, offset + headerLen + len),
     );
   }
 
@@ -1325,11 +1340,25 @@ class HeapRecord {
   /// format string, item label, symbol/C-function name, or VI-Server method name),
   /// the payload decoded as text — the whole payload is the string (no inner
   /// prefix); else null. Null when empty or not fully printable ASCII.
+  ///
+  /// This is a **display** reading: it drops the record on any non-printable byte.
+  /// For the exact bytes (re-emission, byte accounting) use [rawText].
   String? get text {
     if (kind.shape != HeapShape.string || payload.isEmpty) return null;
     if (payload.any((b) => b < 32 || b >= 127)) return null;
     return String.fromCharCodes(payload);
   }
+
+  /// If this is any single-string opcode ([HeapShape.string]), the string's
+  /// **byte-faithful** content — the whole payload verbatim, every byte retained;
+  /// else null. The single-string opcodes carry the string as their entire
+  /// payload (no inner prefix), so these bytes are the string itself.
+  ///
+  /// The retention counterpart to the printable-filtered [text]: [text] is for
+  /// display and drops non-printable bytes, [rawText] keeps them, so a record
+  /// with control bytes (e.g. a `%016b` format specifier) re-emits exactly. Never
+  /// filtered, never null for a non-empty string payload.
+  Uint8List? get rawText => kind.shape == HeapShape.string && payload.isNotEmpty ? payload : null;
 
   /// If this is a [HeapOpcode.description] record, the embedded help/tooltip text
   /// (often HTML-ish, multi-line); null if none. The dominant form is raw text
@@ -1384,6 +1413,14 @@ class HeapRecord {
     }
     return parts.isEmpty ? null : parts.join('/');
   }
+
+  /// If this is a [HeapOpcode.path] record, the path's **byte-faithful** bytes —
+  /// the whole `PTH0` payload verbatim (`'PTH0' <u32 len> <u16 type> <u16 nComp>`
+  /// then the packed components); else null. The retention counterpart to the
+  /// printable-filtered [path] (which is a display join and stops at the first
+  /// non-printable component), so a path record re-emits byte-exact regardless of
+  /// its component bytes. Never filtered.
+  Uint8List? get rawPathBytes => kind == HeapOpcode.path && payload.isNotEmpty ? payload : null;
 
   /// If this is a [HeapShape.container] record (e.g. a `C4 44` cluster), the
   /// nested `C4` child records inside its payload (offsets relative to this

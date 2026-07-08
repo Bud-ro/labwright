@@ -16,18 +16,33 @@
 /// verbatim. The re-emitted body is therefore byte-identical to the inflated
 /// input regardless of how much is modeled (the inflate-content byte-exact law).
 ///
-/// Model-sourced record families, all reconstructed losslessly from fields:
+/// A modeled record is emitted as a **reconstructed header** (rebuilt from the
+/// decoded scalar fields and verified against the original bytes) followed, for
+/// records whose interior role is identified, by a **byte-faithful retained
+/// interior** — the record's own content bytes, carried on the decoded model as a
+/// typed field and re-emitted verbatim. Retaining an identified interior verbatim
+/// is a legitimate, honest model: the record's role is known even where its inner
+/// packing is not decoded, and the re-emission is byte-exact by construction. Only
+/// interiors whose role is NOT identified (an unknown-opcode `C4` payload, an
+/// odd-shaped rectangle payload, the tail past a walk stop) stay copied.
+///
+/// Model-sourced record families:
 ///   * object headers `10/11/12 <tag> 02 fe <u16 kind> fd <u16 oid>` (9 bytes);
 ///   * group-close markers `08/09/0a/0b <sub>` (2 bytes);
 ///   * typed references `14..17 <sub> 01 fd <u16 oid>` (6 bytes);
 ///   * the attribute nibble family `0x/2x/4x/6x/8x/Ex <id> <value>` (integer /
 ///     RGB / flag widths) and the `Cx <id> 08 <4× s16>` rectangle form —
 ///     reconstructed from the decoded value;
-///   * `C4 <op> <len>` rectangle opcodes (the 8-byte 4× `s16` payload).
-/// Model-sourced framing only (the interior is copied because it is undecoded or
-/// lossy): the `C4 <op> <len>` header of non-rectangle records; the
-/// `Cx <id> <len>` header of `f64` / blob / container attributes; and the
-/// `<op> <subop> <count>` framing of typed-list property/group-open records.
+///   * `C4 <op> <len>` rectangle opcodes (the 8-byte 4× `s16` payload);
+///   * `C4` string / string-table / help-text / path / container records —
+///     reconstructed `C4 <op> <len>` header plus the retained interior
+///     ([HeapRecord.rawText] / [HeapRecord.rawPathBytes] / [HeapRecord.payload]);
+///   * `Cx <id> <len>` `f64` / blob / container attributes — reconstructed header
+///     plus the retained value bytes ([HeapAttr.rawValueBytes]);
+///   * typed-list property / group-open records `<op> <subop> <count> <tag> …` —
+///     reconstructed 3-byte framing plus the retained typed-item region.
+/// Copied (interior role not identified): unknown-opcode `C4` payloads, odd-shaped
+/// rectangle payloads, the leading `u32` content-length, and any walk tail.
 library;
 
 import 'dart:typed_data';
@@ -75,25 +90,44 @@ void _putS16(Uint8List b, int at, int v) {
   b[at + 1] = v & 0xff;
 }
 
-/// The reconstructed model prefix of a heap record: the first [length] bytes of
-/// the record, rebuilt from decoded fields. The record's remaining bytes (if any)
-/// are an undecoded/lossy interior copied verbatim. [length] 0 ⇒ nothing modeled.
+/// The modeled portion of a heap record: a reconstructed **header** ([prefix],
+/// the first [length] bytes, rebuilt from decoded scalar fields) followed by a
+/// byte-faithful **retained interior** of [retained] more bytes (the record's
+/// identified content, carried on the model and re-emitted verbatim). The bytes
+/// past `length + retained` (if any) are an unidentified interior copied verbatim.
+/// [length] 0 ⇒ nothing modeled.
 class _Modeled {
-  const _Modeled(this.prefix, this.length, {this.expected = false});
+  const _Modeled(this.prefix, this.length, {this.expected = false, this.retained = 0});
 
-  /// The rebuilt bytes for `[0, length)` of the record (null when nothing is
-  /// modeled).
+  /// The rebuilt header bytes for `[0, length)` of the record (null when nothing
+  /// is modeled).
   final Uint8List? prefix;
 
-  /// How many leading record bytes [prefix] reconstructs.
+  /// How many leading record bytes [prefix] reconstructs (the header).
   final int length;
 
-  /// Whether this category is expected to reconstruct losslessly (so a mismatch
-  /// is a model bug, not merely an undecoded span).
+  /// Whether the header is expected to reconstruct losslessly (so a mismatch is a
+  /// model bug, not merely an undecoded span).
   final bool expected;
+
+  /// Bytes immediately after the header that are a byte-faithful retained
+  /// interior — modeled verbatim from the record's own content field, needing no
+  /// comparison (they are the source bytes). Counted as model only when the
+  /// header verifies.
+  final int retained;
 }
 
 const _Modeled _nothing = _Modeled(null, 0);
+
+/// Whether a `C4` record of [shape] has an interior whose role is identified, so
+/// its payload is retained byte-faithfully (modeled) rather than copied: strings
+/// / captions / format strings, string tables, help text, `PTH0` paths, and
+/// composite clusters. An unknown-opcode payload or an odd-shaped rectangle
+/// payload is not identified and stays copied.
+bool _c4RetainsInterior(HeapShape shape) => switch (shape) {
+  HeapShape.string || HeapShape.stringTable || HeapShape.helpText || HeapShape.path || HeapShape.container => true,
+  HeapShape.rectangle || HeapShape.none => false,
+};
 
 /// Reconstructs the model prefix of the record at [offset] (lead byte [lead],
 /// framed length [spanLength]) in [body]. Returns [_nothing] for a record with
@@ -150,8 +184,10 @@ _Modeled _modelRecord(Uint8List body, int offset, int lead, int spanLength) {
           return _Modeled(out, 11, expected: true);
         }
       }
-      // Otherwise only the length-prefixed header is modeled; the payload
-      // interior (string / container / uncatalogued) is copied.
+      // Reconstruct the length-prefixed header. A record whose interior role is
+      // identified ([_c4RetainsInterior]) retains its payload byte-faithfully
+      // (the string / path / help-text / string-table / cluster content); an
+      // unidentified payload (unknown opcode, odd-shaped rectangle) stays copied.
       final out = Uint8List(headerLen);
       out[0] = kHeapRecordPrefix;
       out[1] = rec.opcode;
@@ -161,7 +197,8 @@ _Modeled _modelRecord(Uint8List body, int offset, int lead, int spanLength) {
       } else {
         out[2] = rec.payload.length;
       }
-      return _Modeled(out, headerLen, expected: true);
+      final retained = _c4RetainsInterior(rec.kind.shape) ? rec.payload.length : 0;
+      return _Modeled(out, headerLen, expected: true, retained: retained);
     }
     return _nothing;
   }
@@ -199,12 +236,20 @@ _Modeled _modelRecord(Uint8List body, int offset, int lead, int spanLength) {
         _putS16(out, 9, rect.right);
         return _Modeled(out, 11, expected: true);
       case HeapAttrWidth.f64:
-        // The `Cx <id> 08` header is modeled; the 8-byte f64 payload is copied
-        // (a re-encode of the double is not guaranteed bit-identical).
-        return _Modeled(Uint8List.fromList([body[offset], body[offset + 1], 0x08]), 3, expected: true);
+        // The `Cx <id> 08` header is reconstructed; the 8-byte f64 payload is
+        // retained byte-faithfully ([HeapAttr.rawValueBytes]) — a re-encode of the
+        // double is not guaranteed bit-identical, but the stored bytes are exact.
+        return _Modeled(
+          Uint8List.fromList([body[offset], body[offset + 1], 0x08]),
+          3,
+          expected: true,
+          retained: 8,
+        );
       case HeapAttrWidth.blob:
       case HeapAttrWidth.container:
-        // The length-prefixed header is modeled; the payload interior is copied.
+        // The length-prefixed header is reconstructed; the payload interior is
+        // retained byte-faithfully ([HeapAttr.rawValueBytes]) — a printable-
+        // filtered blob string / opaque container, exact by retention.
         if (body[offset] == 0xc6 && offset + 2 < body.length && body[offset + 2] == 0xff) {
           final len = attr.length - 5;
           final out = Uint8List(5);
@@ -212,18 +257,30 @@ _Modeled _modelRecord(Uint8List body, int offset, int lead, int spanLength) {
           out[1] = body[offset + 1];
           out[2] = 0xff;
           _putU16(out, 3, len);
-          return _Modeled(out, 5, expected: true);
+          return _Modeled(out, 5, expected: true, retained: len);
         }
-        return _Modeled(Uint8List.fromList([body[offset], body[offset + 1], attr.length - 3]), 3, expected: true);
+        return _Modeled(
+          Uint8List.fromList([body[offset], body[offset + 1], attr.length - 3]),
+          3,
+          expected: true,
+          retained: attr.length - 3,
+        );
     }
   }
 
-  // Typed-list property / group-open framing `<op> <subop> <count> <tag> …` on
-  // the group-open leads: the 3-byte `<op> <subop> <count>` framing is modeled;
-  // the item interior is copied. A 2-byte bare selector is modeled whole.
+  // Typed-list property / group-open records `<op> <subop> <count> <tag> …` on
+  // the group-open leads: the 3-byte `<op> <subop> <count>` framing is
+  // reconstructed and the typed-item region (whose per-item stride is understood
+  // by the walk's `_typedList` framing) is retained byte-faithfully. A 2-byte
+  // bare selector is modeled whole.
   if (kHeapGroupOpenLeads.contains(lead)) {
     if (spanLength >= 4 && isHeapTypeTag(body[offset + 3])) {
-      return _Modeled(Uint8List.fromList([body[offset], body[offset + 1], body[offset + 2]]), 3, expected: true);
+      return _Modeled(
+        Uint8List.fromList([body[offset], body[offset + 1], body[offset + 2]]),
+        3,
+        expected: true,
+        retained: spanLength - 3,
+      );
     }
     if (spanLength == 2) {
       return _Modeled(Uint8List.fromList([body[offset], body[offset + 1]]), 2, expected: true);
@@ -270,16 +327,19 @@ HeapContentSplit attributeHeapBody(Uint8List body) {
   return HeapContentSplit(modelBytes: model, copiedBytes: copied, modelBugs: bugs);
 }
 
-/// The modeled length of [m] once verified against the original bytes at
-/// [offset]: [m].length when the reconstruction reproduces the bytes exactly,
-/// else 0 (the record is then copied verbatim, preserving byte-exactness).
+/// The modeled length of [m] once its header is verified against the original
+/// bytes at [offset]: the reconstructed header ([m].length) plus its byte-faithful
+/// retained interior ([m].retained) when the header reproduces the original bytes
+/// exactly, else 0 (the record is then copied verbatim, preserving byte-exactness).
+/// The retained interior needs no comparison — it is the record's own content
+/// bytes, retained verbatim from the model.
 int _verifiedModelLength(Uint8List body, int offset, _Modeled m) {
   final prefix = m.prefix;
   if (prefix == null || m.length == 0) return 0;
   for (var i = 0; i < m.length; i++) {
     if (prefix[i] != body[offset + i]) return 0;
   }
-  return m.length;
+  return m.length + m.retained;
 }
 
 /// Re-serializes an inflated heap [body] from its decoded model, returning the
@@ -309,7 +369,11 @@ HeapWriteResult serializeHeapBody(Uint8List body) {
     if (m.length > 0 && modelLen == 0 && m.expected) bugs++;
 
     if (modelLen > 0) {
-      out.add(m.prefix!);
+      out.add(m.prefix!); // reconstructed header (m.length bytes)
+      if (m.retained > 0) {
+        // Byte-faithful retained interior: the record's own content bytes.
+        out.add(Uint8List.sublistView(body, offset + m.length, offset + m.length + m.retained));
+      }
       model += modelLen;
     }
     final rest = span.length - modelLen;

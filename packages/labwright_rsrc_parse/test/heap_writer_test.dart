@@ -25,13 +25,26 @@ void main() {
     expect(res.modelBytes + res.copiedBytes, res.bytes.length);
   });
 
-  test('a non-rectangle C4 record models only its length-prefixed header', () {
-    // Leading u32 + `C4 22 03 "ABC"` (a caption: string shape, lossy interior).
+  test('a C4 string record models its header plus its retained interior', () {
+    // Leading u32 + `C4 22 03 "ABC"` (a caption: string shape). The header is
+    // reconstructed and the 3-byte string payload is retained byte-faithfully.
     final body = hx('0000000a c42203414243');
     final res = serializeHeapBody(body);
     expect(res.bytes, equals(body));
-    expect(res.modelBytes, 3, reason: 'the C4 <op> <len> header is modeled');
-    expect(res.copiedBytes, 4 + 3, reason: 'leading u32 + the string payload are copied');
+    expect(res.modelBytes, 3 + 3, reason: 'the C4 <op> <len> header + the retained string bytes');
+    expect(res.copiedBytes, 4, reason: 'only the leading u32 content-length is copied');
+    expect(res.modelBugs, 0);
+  });
+
+  test('a C4 string record with non-printable bytes still re-emits byte-exact', () {
+    // `C4 22 04` then a 4-byte payload with a control byte (0x01): the display
+    // decode (HeapRecord.text) drops it, but rawText retains every byte so the
+    // record models whole and re-emits exactly.
+    final body = hx('0000000b c4220441420143');
+    final res = serializeHeapBody(body);
+    expect(res.bytes, equals(body));
+    expect(res.modelBytes, 3 + 4, reason: 'header + the retained (unfiltered) payload');
+    expect(res.copiedBytes, 4);
     expect(res.modelBugs, 0);
   });
 
