@@ -20,9 +20,21 @@ import 'seq_typedefs.dart';
 /// reconstructed from the decoded record structures (see [binarySequenceOutlines]),
 /// while sequence properties, variables, and step modules are not yet decoded.
 class SeqFile {
-  SeqFile({required this.header, required this.types, required this.data, this.typelistEntries, this.rootAttributes});
+  SeqFile({
+    required this.header,
+    required this.types,
+    required this.data,
+    this.typelistEntries,
+    this.rootAttributes,
+    this.newline = '\n',
+  });
 
   final SeqFileHeader header;
+
+  /// The XML flavor's line terminator, `'\n'` or `'\r\n'` — corpus files use
+  /// one uniformly (36 LF, 6 CRLF; none mixed), and the byte-exact writer
+  /// re-emits it. `'\n'` for non-XML sources and hand-built models.
+  final String newline;
 
   /// The `<typelist>` entries (each a type's root property object).
   final List<SeqProperty> types;
@@ -440,7 +452,18 @@ SeqFile _parseXml(Uint8List bytes) {
     rootAttributes: {
       for (final attribute in root.attributes) attribute.name.qualified: attribute.value,
     },
+    newline: _sniffNewline(bytes),
   );
+}
+
+/// The file's line terminator, from its first LF: `'\r\n'` when a CR precedes
+/// it, else `'\n'` (also the LF-less degenerate default). Corpus XML files
+/// are uniformly one or the other — none mixes terminators.
+String _sniffNewline(Uint8List bytes) {
+  for (var i = 0; i < bytes.length; i++) {
+    if (bytes[i] == 0x0A) return (i > 0 && bytes[i - 1] == 0x0D) ? '\r\n' : '\n';
+  }
+  return '\n';
 }
 
 /// Builds the **partial** typed model for a binary `TOF1` file from the decoded

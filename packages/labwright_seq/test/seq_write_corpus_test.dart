@@ -12,8 +12,8 @@ import 'corpus_dirs.dart';
 /// Pinned corpus populations: the byte-exact gates assert ALL files of each
 /// flavor round-trip, and pin the counts so a corpus refresh consciously
 /// extends the gates rather than silently widening them.
-const _pinnedIniSeqCount = 43;
-const _pinnedXmlSeqCount = 35;
+const _pinnedIniSeqCount = 45;
+const _pinnedXmlSeqCount = 42;
 
 void main() {
   if (!corpusSeqDir.existsSync()) {

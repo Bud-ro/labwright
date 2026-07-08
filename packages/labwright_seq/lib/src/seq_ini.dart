@@ -41,7 +41,7 @@ import 'seq_step.dart';
 /// header and section structure (value vs. DEF, path, members, `%`-directives);
 /// [iniDataTree] then assembles the full [SeqProperty] tree from those sections
 /// (type inheritance, arrays, instance overrides, comments) — **fully decoded**
-/// across the corpus (58/58), feeding the same typed lens as the XML form.
+/// across the corpus (45/45), feeding the same typed lens as the XML form.
 
 /// One `key = value` line of an INI section, VERBATIM: [key] is the full
 /// left-hand side (member name or `%`-directive), [rawValue] is the exact text

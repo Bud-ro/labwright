@@ -18,7 +18,7 @@ import 'seq_ini.dart';
 /// - single-byte text (Latin-1; the reader decodes the same way, so every byte
 ///   survives the model round-trip);
 /// - the file's line terminator is uniform per file and replayed from
-///   [IniSeqFile.lineTerminator] (57 LF files, one CRLF file, none mixed);
+///   [IniSeqFile.lineTerminator] (44 LF INI files, one CRLF file, none mixed);
 /// - line 1 is exactly `[__Header__]`, followed by the header entries;
 /// - every section header is preceded by exactly ONE blank line, and the file
 ///   ends with the last entry line plus one blank line;

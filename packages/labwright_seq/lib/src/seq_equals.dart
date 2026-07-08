@@ -19,7 +19,8 @@ bool seqFileDeepEquals(SeqFile a, SeqFile b) {
   if (a.header.format != b.header.format ||
       a.header.fileType != b.header.fileType ||
       a.header.productName != b.header.productName ||
-      a.header.fileVersion != b.header.fileVersion) {
+      a.header.fileVersion != b.header.fileVersion ||
+      a.newline != b.newline) {
     return false;
   }
   if (!_nullableOrderedMapEquals(a.rootAttributes, b.rootAttributes)) return false;
@@ -47,7 +48,8 @@ bool seqPropertyDeepEquals(SeqProperty a, SeqProperty b) {
       a.typeName != b.typeName ||
       a.xmlTag != b.xmlTag ||
       a.scalar != b.scalar ||
-      a.numericFormat != b.numericFormat) {
+      a.numericFormat != b.numericFormat ||
+      a.xmlComment != b.xmlComment) {
     return false;
   }
   if (!_orderedMapEquals(a.attributes, b.attributes)) return false;

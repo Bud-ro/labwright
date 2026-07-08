@@ -21,8 +21,9 @@ dart run packages/labwright_seq/tool/coverage.dart          # -> corpus/seq/REPO
 Every corpus-tagged test iterates the WHOLE corpus — there is no sampling
 tier. The sweeps read one file at a time and keep only counters/summaries, so
 peak data memory ≈ one file's bytes + its parsed model (largest corpus file
-~2.3 MB). Measured 2026-07 (388 `.seq`: 26 XML / 288 binary / 58 INI plus the
-16 rosetta twins): full package suite ~20 s wall, ~0.5 GB peak RSS.
+~2.3 MB). Measured 2026-07 over the 83-source manifest (384 `.seq`: 32 XML /
+45 INI / 291 binary plus the 16 rosetta twins; 574 corpus files including
+`.ini`/`.cfg`/`.tsw`/`.tpj` configs): full package suite ~27 s wall.
 
 Corpus resolution lives in `test/corpus_dirs.dart` (`corpusSeqDir`).
 

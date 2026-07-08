@@ -298,6 +298,12 @@ Set<SeqProperty> _modeledNodes(SeqFile file) {
         // misc per-step instance flags / expressions
         'PulseNotifyOpt', 'AutoClear', 'IsAutoClearExpr', 'IsSetExpr',
         'ByRef', 'DataExpr', 'WhichNotificationExpr',
+        // DIAdem step instance fields (DIAdemStepTypes: connect/show DIAdem,
+        // load data, channel create/read — corpus: the RTTA-Demo
+        // "DIAdem Example.seq")
+        'DIAdemRefExpr', 'ShowEnvironment', 'HostNameExpr', 'SourceDataExpr',
+        'ChannelExpr', 'CreateChannel', 'UseName', 'FirstChannelExpr',
+        'LastChannelExpr', 'PathExpr', 'Synchronous', 'UsePathExpr', 'Path',
       ]);
       // Std stream redirect descriptors + working-dir spec (Source/Dest/Expr/
       // IsExpr/Type/Text) and the limit-string record — raw step structure.

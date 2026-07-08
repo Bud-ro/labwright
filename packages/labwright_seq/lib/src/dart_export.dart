@@ -650,7 +650,7 @@ String _scalarInit(SeqVariable v, String type, String zero) {
       final i = num.tryParse(value);
       return i == null ? zero : i.toInt().toString();
     case 'double':
-      final n = num.tryParse(value);
+      final n = _parseTsNum(value);
       if (n == null) return zero; // non-literal default; raw kept in comment
       return _numLiteral(n);
     case 'bool':
@@ -1085,9 +1085,37 @@ void _refineIntTypes(SeqFile file, List<_SeqScope> scopes, String? sourceName) {
 
 /// Drops [importLine] from [source] when nothing else in it matches
 /// [usage] — a generated file must not carry analyzer-noise imports.
+///
+/// The scan ignores `//` comments (quote-aware): the generated header embeds
+/// the source path verbatim, and a corpus file named e.g. `engine-demo-ts.seq`
+/// would otherwise count as a `ts.` use and keep a genuinely unused import.
 String _withoutUnusedImport(String source, String importLine, RegExp usage) {
   final stripped = source.replaceFirst(importLine, '');
-  return usage.hasMatch(stripped) ? source : stripped;
+  return usage.hasMatch(_withoutLineComments(stripped)) ? source : stripped;
+}
+
+/// [source] with every `//`-to-end-of-line comment removed, treating `//`
+/// inside a single-quoted Dart string literal (escape-aware) as content —
+/// the only string form the generator emits in code position.
+String _withoutLineComments(String source) {
+  final sb = StringBuffer();
+  for (final line in source.split('\n')) {
+    var inString = false;
+    var cut = line.length;
+    for (var i = 0; i < line.length; i++) {
+      final c = line.codeUnitAt(i);
+      if (inString && c == 0x5C /* \ */ ) {
+        i++; // skip the escaped char
+      } else if (c == 0x27 /* ' */ ) {
+        inString = !inString;
+      } else if (!inString && c == 0x2F /* / */ && i + 1 < line.length && line.codeUnitAt(i + 1) == 0x2F) {
+        cut = i;
+        break;
+      }
+    }
+    sb.writeln(line.substring(0, cut));
+  }
+  return sb.toString();
 }
 
 /// 2^53 — the largest magnitude below which every integer is exactly
@@ -1101,6 +1129,25 @@ const int _maxExactIntDouble = 9007199254740992;
 /// the int form while exactly representable (reads like the source), else
 /// the double form.
 String _numLiteral(num n) => n is int && n.abs() < _maxExactIntDouble ? n.toString() : n.toDouble().toString();
+
+/// A TestStand 64-bit integer literal: digits (dec or `0x` hex) plus the
+/// `i64`/`ui64` type suffix (corpus: `0ui64`, `-1ui64`, `1i64`, `40000i64`,
+/// `9600ui64`, …). Group 1 is the suffix-less digits — the identical value.
+final RegExp _i64SuffixLiteral = RegExp(r'(?<![\w.$])(\d+|0[xX][0-9a-fA-F]+)u?i64\b');
+
+/// Parses a TestStand Num scalar, accepting the `i64`/`ui64` 64-bit literal
+/// suffix ([_i64SuffixLiteral]) that `num.tryParse` rejects — a declared
+/// default like `9600ui64` is the plain number it spells. null when the text
+/// is not a numeric literal at all.
+num? _parseTsNum(String text) {
+  final t = text.trim();
+  final direct = num.tryParse(t);
+  if (direct != null) return direct;
+  final m = RegExp(r'^-?(\d+|0[xX][0-9a-fA-F]+)u?i64$').firstMatch(t);
+  if (m == null) return null;
+  final digits = num.tryParse(m.group(1)!);
+  return digits == null ? null : (t.startsWith('-') ? -digits : digits);
+}
 
 /// Text destined for a `//` comment: newlines flattened so nothing spills
 /// out of the comment onto a code line.
@@ -1511,7 +1558,12 @@ class _DartExporter {
       code = code
           .replaceAll(RegExp(r'\bTrue\b'), 'true')
           .replaceAll(RegExp(r'\bFalse\b'), 'false')
-          .replaceAll(RegExp(r'(?<!\.)\bNothing\b'), 'null');
+          .replaceAll(RegExp(r'(?<!\.)\bNothing\b'), 'null')
+          // TestStand 64-bit integer literals carry an `i64` (signed) /
+          // `ui64` (unsigned) suffix (corpus: `0ui64`, `-1ui64`, `40000i64`,
+          // hex-less throughout); Dart has no suffix — the digits alone are
+          // the same value.
+          .replaceAllMapped(_i64SuffixLiteral, (m) => m.group(1)!);
       // Locals/Parameters rewrite to the sequence's own typed Dart
       // variables; a reference to an UNDECLARED name has no variable to
       // land on — _eval fallback, never guessed.
