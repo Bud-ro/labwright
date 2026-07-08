@@ -216,7 +216,7 @@ const Map<String, ViBlockInfo> _catalog = {
     'Default data space',
     _ds,
     _lk,
-    'Compressed serialized default control/indicator values, type-directed by VCTP. Probed + ruled out a simple framing: no count header (first u32==0 only 30%), no length law vs the VCTP pool count (len==H+stride*poolCount <0.5%). Decoding needs a full VCTP type-size walk (future work); not parsed.',
+    'Compressed serialized default control/indicator values, type-directed by VCTP. Probed + ruled out a simple framing: no count header (first u32==0 only 30%), no length law vs the VCTP pool count (len==H+stride*poolCount <0.5%). Decoding needs a full VCTP type-size walk; not parsed.',
   ),
   'DSIM': ViBlockInfo(
     'DSIM',

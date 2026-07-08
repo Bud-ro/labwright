@@ -33,6 +33,7 @@ const _sectionTests = [
   'test/corpus_invariants_test.dart',
   'test/invariants_test.dart',
   'test/aux_blocks_test.dart',
+  'test/writer_scoreboard_test.dart',
 ];
 
 void main(List<String> args) {

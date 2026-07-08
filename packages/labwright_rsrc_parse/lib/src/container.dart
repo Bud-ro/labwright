@@ -762,9 +762,9 @@ class ViContainer {
   Uint8List toBytes() => _concat3(header, dataArea, infoArea);
 }
 
-/// The whole `.vi` file as a **fully-typed model** — the capstone of the
-/// exporter re-architecture. A VI is its [header], an ordered list of data-area
-/// [dataSegments] (length-prefixed sections + padding gaps), and its typed
+/// The whole `.vi` file as a **fully-typed model**. A VI is its [header], an
+/// ordered list of data-area [dataSegments] (length-prefixed sections + padding
+/// gaps), and its typed
 /// [infoArea]. [serialize] reassembles the exact original bytes:
 /// `header.serialize() ++ rebuildDataArea(dataSegments) ++ infoArea.serialize()`.
 ///

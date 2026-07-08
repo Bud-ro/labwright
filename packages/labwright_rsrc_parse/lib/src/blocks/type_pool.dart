@@ -115,8 +115,8 @@ class ViType {
 /// where `descLen` is the descriptor's total byte length (including the length
 /// word) and `typeCode` is the low byte of the type word. The remaining bytes
 /// (numeric sub-info, embedded names, nested element types) are not decoded here
-/// — this recovers the type *kind* inventory honestly; deeper structure is
-/// future work. Total: returns `const []` on a malformed/short pool rather than
+/// — this recovers the type *kind* inventory honestly; deeper structure is not
+/// decoded. Total: returns `const []` on a malformed/short pool rather than
 /// throwing.
 List<ViType> decodeTypePool(Uint8List body) {
   if (body.length < 8) return const [];

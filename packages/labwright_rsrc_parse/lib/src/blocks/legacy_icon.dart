@@ -26,8 +26,37 @@ class ViLegacyIcon {
   final int bpp;
 
   /// Row-major 32×32 = 1024 pixel values. For 1 bpp these are 0/1 (mask); for
-  /// 4/8 bpp they are palette indices (RGB mapping is future work).
+  /// 4/8 bpp they are palette indices (the RGB mapping is not decoded).
   final List<int> pixels;
+
+  /// Byte length of the packed bitmap for this [bpp] (`1024·bpp/8`).
+  int get byteLength => width * height * bpp ~/ 8;
+
+  /// Re-packs the 1024-pixel grid into the stored bitmap bytes — the exact
+  /// inverse of [decodeLegacyIcon]. Byte-identical to the parsed body for an
+  /// unmodified icon (8 bpp copies the indices; 4 bpp packs two nibbles/byte;
+  /// 1 bpp packs eight MSB-first bits/byte), so an `icl8`/`icl4`/`ICON` payload
+  /// re-emits from the typed model rather than being copied verbatim.
+  Uint8List serialize() {
+    final out = Uint8List(byteLength);
+    switch (bpp) {
+      case 8:
+        out.setAll(0, pixels);
+      case 4:
+        for (var j = 0; j < out.length; j++) {
+          out[j] = ((pixels[2 * j] & 0xf) << 4) | (pixels[2 * j + 1] & 0xf);
+        }
+      case 1:
+        for (var j = 0; j < out.length; j++) {
+          var packed = 0;
+          for (var k = 0; k < 8; k++) {
+            packed |= (pixels[8 * j + k] & 1) << (7 - k);
+          }
+          out[j] = packed;
+        }
+    }
+    return out;
+  }
 }
 
 /// Bits-per-pixel for a legacy-icon tag, or null if not a legacy-icon tag.

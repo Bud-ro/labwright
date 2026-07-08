@@ -26,6 +26,24 @@ class ViIdTable {
 
   /// Confidence in the `[u32 count][count u32]` framing (corpus: 100%).
   static const BlockConfidence framingConfidence = BlockConfidence.confirmed;
+
+  /// Re-emits `[u32 count][entries…]` — the exact inverse of [decodeIdTable]
+  /// when the body was the canonical `length == 4 + 4·count` (100% of the
+  /// corpus, where [count] equals `entries.length`). Byte-identical to the
+  /// parsed body, so an `NUID`/`SUID`/`BNID` payload re-emits from the typed
+  /// model rather than being copied verbatim. A body that was truncated (a
+  /// clamped [count] `> entries.length`) or carried trailing bytes re-emits at
+  /// a different length; the writer's round-trip guard keeps such a payload
+  /// copied (see `serializeBlockPayload`).
+  Uint8List serialize() {
+    final out = Uint8List(4 + 4 * entries.length);
+    final bd = ByteData.sublistView(out);
+    bd.setUint32(0, count);
+    for (var i = 0; i < entries.length; i++) {
+      bd.setUint32(4 + 4 * i, entries[i]);
+    }
+    return out;
+  }
 }
 
 /// Decodes an `NUID`/`SUID`/`BNID` body. Total: returns null when too short for
