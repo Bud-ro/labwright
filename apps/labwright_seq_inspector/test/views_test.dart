@@ -92,7 +92,11 @@ void main() {
       ),
     );
     for (final t in ['NI_MultipleNumericLimitTest', 'FlexGStepAdditions']) {
-      expect(find.textContaining(t, findRichText: true), findsOneWidget);
+      expect(
+        find.textContaining(t, findRichText: true),
+        findsOneWidget,
+        reason: t,
+      );
     }
     expect(find.text('2/2'), findsOneWidget);
   });

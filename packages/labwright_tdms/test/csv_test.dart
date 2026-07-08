@@ -36,17 +36,17 @@ void main() {
   // dart format off
   final toCsv = <(String, List<TdmsChannel>, String, bool, String)>[
     ('one column per channel, shorter columns padded with empty cells',
-        [ch('M', 'a', [1, 2, 3]), ch('M', 'b', [9, 8])], ',', true, 'M/a,M/b\n1.0,9.0\n2.0,8.0\n3.0,'),
-    ('header names containing the delimiter are quoted', [ch('a,b', 'v', [1])], ',', true, '"a,b/v"\n1.0'),
-    ('custom delimiter, header omitted', [ch('M', 'v', [1, 2])], ';', false, '1.0\n2.0'),
+        [ch('M', 'a', [1, 2, 3]), ch('M', 'b', [9, 8])], ',', true, 'M/a,M/b\n1.0,9.0\n2.0,8.0\n3.0,\n'),
+    ('header names containing the delimiter are quoted', [ch('a,b', 'v', [1])], ',', true, '"a,b/v"\n1.0\n'),
+    ('custom delimiter, header omitted', [ch('M', 'v', [1, 2])], ';', false, '1.0\n2.0\n'),
     ('channels from different groups share the table',
-        [ch('G1', 'a', [1]), ch('G2', 'b', [2])], ',', true, 'G1/a,G2/b\n1.0,2.0'),
+        [ch('G1', 'a', [1]), ch('G2', 'b', [2])], ',', true, 'G1/a,G2/b\n1.0,2.0\n'),
     ('no numeric channels yields an empty string', [ch('M', 'note', [], props: {'value': 'hi'})], ',', true, ''),
   ];
   // dart format on
   for (final (name, channels, delimiter, header, want) in toCsv) {
     test('tdmsToCsv: $name', () {
-      expect(tdmsToCsv(write(channels), delimiter: delimiter, header: header).trim(), want);
+      expect(tdmsToCsv(write(channels), delimiter: delimiter, header: header), want);
     });
   }
 

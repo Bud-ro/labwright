@@ -84,7 +84,10 @@ void main() {
     // dart format on
     for (final (type, values, tol) in cases) {
       final read = TdmsReader.read(write([ch('M', 'v', values, type: type)])).group('M')!.channel('v')!.data;
-      expect(read, [for (final v in values) tol == 0 ? v : closeTo(v, tol)], reason: '$type');
+      for (var i = 0; i < values.length; i++) {
+        expect(read[i], tol == 0 ? values[i] : closeTo(values[i], tol), reason: '$type[$i]');
+      }
+      expect(read, hasLength(values.length), reason: '$type');
     }
   });
 

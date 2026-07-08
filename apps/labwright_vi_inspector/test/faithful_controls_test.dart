@@ -34,21 +34,26 @@ void main() {
     () {
       ViHeapObject ctl({String? help, double? min, double? max}) =>
           heapObj(0x50, help: help, min: min, max: max);
-      final rows = <(ViHeapObject, String?)>[
-        (ctl(help: 'hover me'), 'hover me'),
-        (ctl(min: -5, max: 10), 'range: -5 … 10'),
-        (ctl(help: 'doc', min: 0, max: 1), 'doc\nrange: 0 … 1'),
-        (ctl(), null),
-        (ctl(min: 0, max: double.nan), null),
-        (ctl(help: '   '), null),
+      final rows = <(String, ViHeapObject, String?)>[
+        ('help only', ctl(help: 'hover me'), 'hover me'),
+        ('range only', ctl(min: -5, max: 10), 'range: -5 … 10'),
+        ('help + range', ctl(help: 'doc', min: 0, max: 1), 'doc\nrange: 0 … 1'),
+        ('no help or range', ctl(), null),
+        ('NaN bound suppressed', ctl(min: 0, max: double.nan), null),
+        ('blank help suppressed', ctl(help: '   '), null),
         (
+          'named node',
           heapObj(0x2f, cat: ViObjectKind.node, label: 'Build Array'),
           'Build Array',
         ),
-        (heapObj(0x2f, oid: 2, cat: ViObjectKind.node), 'Node (primitive)'),
+        (
+          'unnamed node',
+          heapObj(0x2f, oid: 2, cat: ViObjectKind.node),
+          'Node (primitive)',
+        ),
       ];
-      for (final (o, want) in rows) {
-        expect(controlTooltip(o), want);
+      for (final (name, o, want) in rows) {
+        expect(controlTooltip(o), want, reason: name);
       }
     },
   );
@@ -86,15 +91,25 @@ void main() {
   test('structureFrameTitle: BD shows kind badge, FP shows own caption', () {
     ViHeapObject cluster({String? label}) =>
         heapObj(0x64, cat: ViObjectKind.structure, label: label);
-    final rows = <(ViHeapObject, bool, String?)>[
-      (cluster(), false, 'Cluster/array shell'),
-      (cluster(label: 'Channel B Settings'), false, 'Cluster/array shell'),
-      (cluster(label: 'Channel B Settings'), true, 'Channel B Settings'),
-      (cluster(), true, null),
-      (cluster(label: '   '), true, null),
+    final rows = <(String, ViHeapObject, bool, String?)>[
+      ('BD, no caption', cluster(), false, 'Cluster/array shell'),
+      (
+        'BD, caption ignored',
+        cluster(label: 'Channel B Settings'),
+        false,
+        'Cluster/array shell',
+      ),
+      (
+        'FP, caption shown',
+        cluster(label: 'Channel B Settings'),
+        true,
+        'Channel B Settings',
+      ),
+      ('FP, no caption', cluster(), true, null),
+      ('FP, blank caption', cluster(label: '   '), true, null),
     ];
-    for (final (o, fp, want) in rows) {
-      expect(structureFrameTitle(o, isFrontPanel: fp), want);
+    for (final (name, o, fp, want) in rows) {
+      expect(structureFrameTitle(o, isFrontPanel: fp), want, reason: name);
     }
   });
 

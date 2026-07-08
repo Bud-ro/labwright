@@ -239,7 +239,7 @@ void main() {
       ),
     ];
     for (final (o, want) in rows) {
-      expect(wireframeAnnotation(o), want);
+      expect(wireframeAnnotation(o), want, reason: want);
     }
   });
 

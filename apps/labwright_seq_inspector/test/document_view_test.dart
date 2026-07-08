@@ -620,7 +620,7 @@ void main() {
       ),
     ];
     for (final (v, want) in rows) {
-      expect(v.label, want);
+      expect(v.label, want, reason: v.name);
     }
   });
 

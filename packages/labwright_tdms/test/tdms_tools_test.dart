@@ -76,6 +76,7 @@ void main() {
       expect(channelsOf(merged), {'G/v': [1], 'G/v#2': [2], 'G/v#3': [3]});
       // dart format on
       final g = merged.group('G')!;
+      expect(g.channels.map((c) => c.name), ['v', 'v#2', 'v#3']);
       expect(g.channel('v')!.properties['src'], 'a');
       expect(g.channel('v#2')!.properties['src'], 'b');
     });
