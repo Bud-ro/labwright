@@ -1,35 +1,50 @@
-/// The **writer scoreboard** — byte attribution for the byte-exact `.vi` writer.
+/// The **writer scoreboard** — byte attribution for the `.vi` writer, at two
+/// levels: the raw **byte** model (stored file bytes) and the **content** model
+/// (inflated-content bytes).
 ///
 /// `ViVi.serialize` re-emits every `.vi` byte-for-byte, but not every byte is
 /// *model-sourced*: the container/info-area structs are rebuilt from typed
 /// fields, while section payloads (and a few TODO-raw struct words) are copied
-/// verbatim from the input. This partitions every byte of a `.vi` into **model**
-/// bytes (emitted from a typed, understood field) and **copied** bytes (verbatim
-/// spans), so a corpus sweep measures the model fraction while byte-exactness
-/// stays pinned.
+/// verbatim. This partitions every byte of a `.vi` into **model** bytes (emitted
+/// from a typed, understood field) and **copied** bytes (verbatim spans), so a
+/// corpus sweep measures the model fraction while byte-exactness stays pinned.
+/// The byte partition tiles the whole file (`modelBytes + copiedBytes ==
+/// fileLength`, asserted as a law).
 ///
-/// The partition tiles the whole file (`modelBytes + copiedBytes == fileLength`,
-/// asserted as a law), so the two totals are exhaustive and non-overlapping.
+/// **Content level.** A compressed heap section's *stored* bytes are a zlib
+/// stream, but LabVIEW/TestStand read the section THROUGH zlib, so correctness
+/// is defined on the section's **inflated content** (see `content_exact.dart`).
+/// The content scoreboard replaces each compressed section's stored size with
+/// its inflated size and attributes that inflated content via the heap writer
+/// ([serializeHeapBody]): [heapModelBytes] come from a typed heap-record model,
+/// [heapCopiedBytes] are copied verbatim (undecoded / lossy interiors, the
+/// leading `u32`, the walk tail). The content partition tiles the content total
+/// (`contentModelBytes + contentCopiedBytes == contentTotalBytes`), where the
+/// content total is the file length with each compressed section's stored size
+/// swapped for its inflated size.
 ///
-/// Categories (model): the 32-byte header; the info-area structs (dup header,
-/// `blockListRel`, block list, preGap, section descriptors, trailing VI name);
-/// each section's recomputed `u32` length prefix; and payloads re-emitted by a
-/// block writer ([serializeBlockPayload]). Categories (copied): TODO-raw struct
-/// words (subheader `reservedA`/`reservedB`, name-table header); data-area gaps;
-/// compressed payloads (the zlib heap — copy-verbatim, since NI's deflate is
-/// not bit-reproducible); and uncompressed-but-untyped payloads.
+/// Categories (byte model): the 32-byte header; the info-area structs (dup
+/// header, `blockListRel`, block list, preGap, section descriptors, trailing VI
+/// name); each section's recomputed `u32` length prefix; and payloads re-emitted
+/// by a block writer ([serializeBlockPayload]). Categories (byte copied):
+/// TODO-raw struct words (subheader `reservedA`/`reservedB`, name-table header);
+/// data-area gaps; compressed (zlib heap) payloads, kept stored-verbatim by the
+/// byte-exact serialize path; and uncompressed-but-untyped payloads.
 ///
 /// A `VINS` section carries a complete nested RSRC sub-VI. Its bytes are
 /// attributed **recursively**: the sub-VI's own header/struct/prefix/model bytes
-/// join the parent's model categories and its zlib heaps join the compressed
-/// floor, rather than the parent counting the whole opaque sub-VI as one untyped
-/// span. A sub-VI is folded only when it round-trips byte-exact.
+/// join the parent's model categories, its zlib heaps join the compressed
+/// category, and its inflated heap content joins the parent's heap-model/copied
+/// totals, rather than the parent counting the whole opaque sub-VI as one
+/// untyped span. A sub-VI is folded only when it round-trips byte-exact.
 library;
 
 import 'dart:typed_data';
 
 import 'blocks/block_writer.dart';
 import 'container.dart';
+import 'decode.dart' show inflateHeapPayload, isCompressedHeapPayload;
+import 'heap_writer.dart' show attributeHeapBody;
 import 'viparse.dart' show readViSections;
 
 /// A single `.vi`'s byte attribution. Every field is a byte count; the model
@@ -47,6 +62,10 @@ class WriterAttribution {
     required this.gapBytes,
     required this.compressedPayloadBytes,
     required this.untypedPayloadBytes,
+    required this.inflatedContentBytes,
+    required this.heapModelBytes,
+    required this.heapCopiedBytes,
+    required this.heapModelBugs,
   });
 
   /// Total file length in bytes (`modelBytes + copiedBytes`).
@@ -77,24 +96,51 @@ class WriterAttribution {
   /// Data-area padding gaps between/around sections.
   final int gapBytes;
 
-  /// Compressed (zlib heap) payloads — the permanent copy-verbatim floor.
+  /// Compressed (zlib heap) payloads, as *stored* — kept stored-verbatim by the
+  /// byte-exact serialize path. The content scoreboard attributes these sections
+  /// at their inflated size instead (see [heapModelBytes] / [heapCopiedBytes]).
   final int compressedPayloadBytes;
 
   /// Uncompressed payloads with no byte-exact block writer.
   final int untypedPayloadBytes;
 
-  /// Bytes emitted from a typed, understood field.
+  // --- content-level categories (compressed sections at inflated size) ---
+  /// Total inflated size of every compressed heap section (`heapModelBytes +
+  /// heapCopiedBytes`); a section that fails to inflate contributes its stored
+  /// size, kept copied.
+  final int inflatedContentBytes;
+
+  /// Inflated heap-content bytes re-emitted from a typed heap-record model
+  /// ([serializeHeapBody]).
+  final int heapModelBytes;
+
+  /// Inflated heap-content bytes copied verbatim (undecoded / lossy interiors,
+  /// the leading `u32` content-length, the walk tail) plus any section that
+  /// failed to inflate.
+  final int heapCopiedBytes;
+
+  /// Count of heap records the model expected to reconstruct losslessly but did
+  /// not — surfaced as a loud regression signal (0 for a faithful model).
+  final int heapModelBugs;
+
+  /// Bytes emitted from a typed, understood field (byte level).
   int get modelBytes => headerBytes + infoStructBytes + sectionPrefixBytes + typedPayloadBytes;
 
-  /// Bytes copied verbatim from the input.
+  /// Bytes copied verbatim from the input (byte level).
   int get copiedBytes => infoRawBytes + gapBytes + compressedPayloadBytes + untypedPayloadBytes;
-}
 
-/// Whether a stored section payload is a zlib heap stream (`[u32 size][0x78 …]`)
-/// — the same cheap CMF-byte pre-check the decoder uses. Compressed payloads are
-/// never modelable (NI deflate is not reproducible), so they are attributed as
-/// the compressed copy-verbatim floor.
-bool _looksCompressed(Uint8List payload) => payload.length >= 6 && payload[4] == 0x78;
+  /// Content total: the file length with each compressed section's stored size
+  /// swapped for its inflated size (`contentModelBytes + contentCopiedBytes`).
+  int get contentTotalBytes => fileLength - compressedPayloadBytes + inflatedContentBytes;
+
+  /// Content bytes emitted from a typed model — the byte-level model plus the
+  /// inflated heap content re-emitted from the heap model.
+  int get contentModelBytes => modelBytes + heapModelBytes;
+
+  /// Content bytes copied verbatim — the byte-level copied set with the stored
+  /// compressed payloads swapped for their inflated copied content.
+  int get contentCopiedBytes => copiedBytes - compressedPayloadBytes + heapCopiedBytes;
+}
 
 /// Recursion bound for nested `VINS` embedded sub-VIs. A VI may embed sub-VIs
 /// that themselves embed sub-VIs; the bound keeps attribution total on any input.
@@ -133,6 +179,7 @@ WriterAttribution attributeVi(Uint8List bytes, {int depth = 0}) {
       info.nameTable.trailingNameRecord.length;
   var infoRaw = info.subheader.reservedA.length + info.subheader.reservedB.length + info.nameTable.header.length;
   var sectionPrefix = 0, typedPayload = 0, gaps = 0, compressed = 0, untyped = 0;
+  var inflatedContent = 0, heapModel = 0, heapCopied = 0, heapBugs = 0;
 
   for (final seg in vi.dataSegments) {
     switch (seg) {
@@ -143,8 +190,8 @@ WriterAttribution attributeVi(Uint8List bytes, {int depth = 0}) {
         final tag = tagBySecRel[secRel];
         // A VINS section's payload is a complete nested RSRC sub-VI. Attribute it
         // recursively so its bytes land in the matching category — crucially its
-        // zlib heaps join the compressed floor, not model — instead of the parent
-        // counting the whole opaque sub-VI as one untyped span.
+        // zlib heaps join the compressed category, not model — instead of the
+        // parent counting the whole opaque sub-VI as one untyped span.
         final sub = tag == 'VINS' && depth < _maxEmbedDepth ? _attributeEmbedded(payload, depth + 1) : null;
         if (sub != null) {
           header += sub.headerBytes;
@@ -155,12 +202,30 @@ WriterAttribution attributeVi(Uint8List bytes, {int depth = 0}) {
           gaps += sub.gapBytes;
           compressed += sub.compressedPayloadBytes;
           untyped += sub.untypedPayloadBytes;
+          inflatedContent += sub.inflatedContentBytes;
+          heapModel += sub.heapModelBytes;
+          heapCopied += sub.heapCopiedBytes;
+          heapBugs += sub.heapModelBugs;
         } else {
           final modeled = tag == null ? null : serializeBlockPayload(tag, payload);
           if (modeled != null) {
             typedPayload += payload.length;
-          } else if (_looksCompressed(payload)) {
+          } else if (isCompressedHeapPayload(payload)) {
             compressed += payload.length;
+            // Content level: attribute the section's INFLATED content via the
+            // heap writer. A section that fails to inflate contributes its stored
+            // size, all copied, so the content total still tiles.
+            final inflated = inflateHeapPayload(payload);
+            if (inflated != null) {
+              final res = attributeHeapBody(inflated);
+              inflatedContent += inflated.length;
+              heapModel += res.modelBytes;
+              heapCopied += res.copiedBytes;
+              heapBugs += res.modelBugs;
+            } else {
+              inflatedContent += payload.length;
+              heapCopied += payload.length;
+            }
           } else {
             untyped += payload.length;
           }
@@ -179,6 +244,10 @@ WriterAttribution attributeVi(Uint8List bytes, {int depth = 0}) {
     gapBytes: gaps,
     compressedPayloadBytes: compressed,
     untypedPayloadBytes: untyped,
+    inflatedContentBytes: inflatedContent,
+    heapModelBytes: heapModel,
+    heapCopiedBytes: heapCopied,
+    heapModelBugs: heapBugs,
   );
   return attribution;
 }

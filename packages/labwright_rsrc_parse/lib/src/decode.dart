@@ -37,25 +37,40 @@ bool _looksCompressed(Uint8List bytes) => bytes.length >= 6 && bytes[4] == 0x78;
 /// gap above every real section and below the implausible (~GiB) declarations.
 const int _maxDecompressed = 64 * 1024 * 1024;
 
+/// Whether [payload] is a stored heap payload (`[u32 size][zlib stream]`) — the
+/// cheap CMF-byte pre-check ([_looksCompressed]). Public so the writer/scoreboard
+/// share the single compressed-payload predicate with the decoder.
+bool isCompressedHeapPayload(Uint8List payload) => _looksCompressed(payload);
+
+/// Inflates a stored heap payload `[u32 declaredSize][zlib stream]` to its
+/// decompressed content, or returns null when [payload] is not a heap payload,
+/// declares an implausible size (> [_maxDecompressed], a decompression-bomb
+/// guard), is not a valid zlib stream, or inflates to a size other than the
+/// declared one. The returned bytes are the section's logical content (a heap
+/// begins with its own leading `u32` content-length; see [walkHeapBody]).
+/// Never throws.
+Uint8List? inflateHeapPayload(Uint8List payload) {
+  if (!_looksCompressed(payload)) return null;
+  final declared = ByteData.sublistView(payload).getUint32(0);
+  if (declared > _maxDecompressed) return null;
+  try {
+    final out = const ZLibDecoder().decodeBytes(payload.sublist(4));
+    return out.length == declared ? out : null;
+  } catch (_) {
+    return null;
+  }
+}
+
 /// Inflates a single [ViSection] if it is a `[u32 size][zlib]` heap; otherwise
 /// returns it unchanged. Never throws: a malformed/!-matching stream (inflate
 /// error or size mismatch) falls back to the raw bytes, so callers always get a
 /// usable [DecodedSection].
 DecodedSection inflateSection(ViSection section) {
   final bytes = section.bytes;
-  final raw = DecodedSection(section: section, bytes: bytes, wasCompressed: false);
-  if (!_looksCompressed(bytes)) return raw;
-  final declared = ByteData.sublistView(bytes).getUint32(0);
-  if (declared > _maxDecompressed) return raw;
-  try {
-    final out = const ZLibDecoder().decodeBytes(bytes.sublist(4));
-    if (out.length == declared) {
-      return DecodedSection(section: section, bytes: out, wasCompressed: true);
-    }
-  } catch (_) {
-    // Not a valid zlib stream — fall through to the raw bytes.
-  }
-  return raw;
+  final out = inflateHeapPayload(bytes);
+  return out == null
+      ? DecodedSection(section: section, bytes: bytes, wasCompressed: false)
+      : DecodedSection(section: section, bytes: out, wasCompressed: true);
 }
 
 /// Reads every block section from a `.vi` and inflates the compressed ones.
