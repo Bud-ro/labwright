@@ -7,10 +7,11 @@ part of 'seq_binary.dart';
 // ops captured by the SAME production decode passes (pool references, inline
 // f64/i64/bool values, counts, type-table references), the string pool is
 // re-emitted from the recovered strings, and only the spans the decoder does
-// not cover are copied verbatim from the retained body. The write ops are
-// captured by threading an [_OpSink] through the byte-coverage pass
-// ([_byteTiersFromBody]) — never a parallel grammar — so the writer's
-// copy-vs-serialize decision mirrors the coverage tier map by construction.
+// not cover are copied verbatim from the retained body. The write ops come
+// from the recorded decode stream ([_decodeBodyStream] into a [_DecodeSink])
+// — never a parallel grammar — and the coverage metrics fold the SAME stream
+// (seq_binary_metrics.dart), so the writer's copy-vs-serialize decision
+// mirrors the coverage tier map by construction.
 
 /// The primitive re-serialization op kinds a write plan is built from.
 /// Grouped by scoreboard class: [copy] is a verbatim byte-range copy from the
@@ -71,13 +72,38 @@ class _WriteOp {
   };
 }
 
-/// Collects [_WriteOp]s during a decode pass. Trial parses that fail (the
-/// grammar backtracks) roll their ops back by list-truncation marks, so the
-/// surviving ops belong exclusively to committed decodes. Ops may be
-/// recorded out of offset order (a count scan commits its attr words after
-/// the children parsed); the plan builder sorts.
-class _OpSink {
+/// The typed decode stream one production decode pass records — the single
+/// product both the writer and the metrics consume, so they can never
+/// disagree about what is decoded.
+///
+/// Two event kinds are recorded:
+///
+///  * **Write ops** ([ops]) — the re-serialization plan's raw material
+///    ([_buildWritePlan]). Trial parses that fail (the grammar backtracks)
+///    roll their ops back by list-truncation marks, so the surviving ops
+///    belong exclusively to committed decodes. Ops may be recorded out of
+///    offset order (a count scan commits its attr words after the children
+///    parsed); the plan builder sorts.
+///  * **Coverage tier claims** ([claims]) and blob **demotions**
+///    ([demotions]) — the byte-coverage accounting's raw material, folded
+///    into the per-byte tier map by [_tiersOfStream]. Claims are recorded
+///    only for committed decodes (no rollback path).
+class _DecodeSink {
   final List<_WriteOp> ops = [];
+
+  /// Committed coverage claims, `(start, end, tier)` over the record region.
+  final List<(int, int, int)> claims = [];
+
+  /// Blob demotions, `(start, end)`: extents a successful parse walked whose
+  /// contents are not decoded — their [_tierSemantic] bytes fold down to
+  /// [_tierStructural] (never up from [_tierUndecoded]).
+  final List<(int, int)> demotions = [];
+
+  /// Records a coverage tier claim over `[start, end)`.
+  void claim(int start, int end, int tier) => claims.add((start, end, tier));
+
+  /// Records a blob demotion over `[start, end)`.
+  void demote(int start, int end) => demotions.add((start, end));
 
   int mark() => ops.length;
 
@@ -107,64 +133,6 @@ class _OpSink {
   void i64(int at, int value) => ops.add(_WriteOp(at, _WriteOpKind.i64, value));
   void boolByte(int at, int value) => ops.add(_WriteOp(at, _WriteOpKind.boolByte, value));
   void structByte(int at, int value) => ops.add(_WriteOp(at, _WriteOpKind.structByte, value));
-}
-
-/// The writer scoreboard for one file (or, summed with [+], a corpus): how
-/// many inflated-body bytes were written FROM THE MODEL versus re-emitted
-/// from retained structure versus copied verbatim — the writer-side mirror
-/// of [BinaryByteCoverage].
-class BinaryWriteScoreboard {
-  const BinaryWriteScoreboard({
-    required this.bodyBytes,
-    required this.poolBytes,
-    required this.modelBytes,
-    required this.structuralBytes,
-    required this.copiedBytes,
-  });
-
-  /// Total inflated-body size in bytes.
-  final int bodyBytes;
-
-  /// String-region bytes — always written from the model pool.
-  final int poolBytes;
-
-  /// Record-region bytes emitted from model content (pool references,
-  /// counts, type refs, head fields, inline f64/i64/bool values).
-  final int modelBytes;
-
-  /// Record-region bytes re-emitted from retained wire structure (flags,
-  /// attr words, delimiters, zeros, pads).
-  final int structuralBytes;
-
-  /// Record-region bytes copied verbatim (undecoded spans, spec/extdata
-  /// blobs, inter-record preambles).
-  final int copiedBytes;
-
-  int get recordRegionBytes => bodyBytes - poolBytes;
-
-  /// Model-written fraction of the record region.
-  double get recordModelRatio => recordRegionBytes == 0 ? 0 : modelBytes / recordRegionBytes;
-
-  /// Model-written fraction of the whole body (pool counts as model).
-  double get bodyModelRatio => bodyBytes == 0 ? 0 : (modelBytes + poolBytes) / bodyBytes;
-
-  /// Copied-verbatim fraction of the whole body.
-  double get bodyCopiedRatio => bodyBytes == 0 ? 0 : copiedBytes / bodyBytes;
-
-  BinaryWriteScoreboard operator +(BinaryWriteScoreboard other) => BinaryWriteScoreboard(
-    bodyBytes: bodyBytes + other.bodyBytes,
-    poolBytes: poolBytes + other.poolBytes,
-    modelBytes: modelBytes + other.modelBytes,
-    structuralBytes: structuralBytes + other.structuralBytes,
-    copiedBytes: copiedBytes + other.copiedBytes,
-  );
-
-  @override
-  String toString() =>
-      'BinaryWriteScoreboard(body=$bodyBytes, pool=$poolBytes, '
-      'model=$modelBytes, structural=$structuralBytes, copied=$copiedBytes, '
-      'recordModel=${(recordModelRatio * 100).toStringAsFixed(1)}%, '
-      'bodyModel=${(bodyModelRatio * 100).toStringAsFixed(1)}%)';
 }
 
 /// The parsed WRITE MODEL of one binary TOF1 file: the retained container
@@ -337,32 +305,10 @@ class BinarySeqWriteModel {
   }
 
   /// The write-side scoreboard of this model's plan (see
-  /// [BinaryWriteScoreboard]).
-  BinaryWriteScoreboard get scoreboard {
-    var model = 0, structural = 0, copied = 0;
-    for (final op in _plan) {
-      switch (op.kind) {
-        case _WriteOpKind.copy:
-          copied += op.length;
-        case _WriteOpKind.structU32 || _WriteOpKind.structByte:
-          structural += op.length;
-        case _WriteOpKind.poolRef ||
-            _WriteOpKind.modelU32 ||
-            _WriteOpKind.f64 ||
-            _WriteOpKind.i64 ||
-            _WriteOpKind.boolByte:
-          model += op.length;
-      }
-    }
-    final poolBytes = _poolByteLength;
-    return BinaryWriteScoreboard(
-      bodyBytes: recordRegion.length + poolBytes,
-      poolBytes: poolBytes,
-      modelBytes: model,
-      structuralBytes: structural,
-      copiedBytes: copied,
-    );
-  }
+  /// [BinaryWriteScoreboard]; computed by the [_planScoreboard] fold in
+  /// seq_binary_metrics.dart).
+  BinaryWriteScoreboard get scoreboard =>
+      _planScoreboard(_plan, recordRegionBytes: recordRegion.length, poolBytes: _poolByteLength);
 }
 
 /// Emits the write ops of one old-format leaf property record
@@ -372,7 +318,7 @@ class BinarySeqWriteModel {
 /// typed value ops. The value/terminator widths are re-derived from
 /// [BinaryPropertyRecord.length], which the decoder set from exactly these
 /// consumption rules.
-void _leafPropertyRecordOps(_OpSink ops, ByteData view, BinaryPropertyRecord record) {
+void _leafPropertyRecordOps(_DecodeSink ops, ByteData view, BinaryPropertyRecord record) {
   final o = record.offset;
   ops.structByte(o, view.getUint8(o));
   ops.structByte(o + 1, view.getUint8(o + 1));
@@ -441,42 +387,41 @@ void _leafPropertyRecordOps(_OpSink ops, ByteData view, BinaryPropertyRecord rec
 
 /// Parses [seqBytes] into a [BinarySeqWriteModel], or null when it is not an
 /// inflatable binary TOF1 file. The record-region write plan is captured by
-/// the production decode passes ([_byteTiersFromBody] with an op sink);
-/// bytes no decode claims become verbatim copy spans, so [writeBody] is
-/// byte-exact by construction for every file the decoder can inflate —
-/// including bodies that do not frame at all (a single copy span).
+/// the production decode passes (the [_decodeBodyStream] recording); bytes no
+/// decode claims become verbatim copy spans, so [writeBody] is byte-exact by
+/// construction for every file the decoder can inflate — including bodies
+/// that do not frame at all (a single copy span).
 BinarySeqWriteModel? parseBinarySeqWriteModel(Uint8List seqBytes) {
   final located = _locateAndInflateBody(seqBytes);
   if (located == null) return null;
   final (streamAt, body) = located;
-  final header = Uint8List.fromList(Uint8List.sublistView(seqBytes, 0, streamAt));
+  // The header is retained as an owned copy so the model does not pin the
+  // whole input buffer; the body is freshly inflated (exclusively owned).
+  final header = seqBytes.sublist(0, streamAt);
   final hasSizeWord =
       streamAt >= _u32Bytes &&
       ByteData.sublistView(seqBytes).getUint32(streamAt - _u32Bytes, Endian.little) == body.length;
 
-  final boundary = _recordRegionBoundary(body);
-  if (boundary == null) {
+  final decoded = _decodeBodyStream(body);
+  if (decoded == null) {
     // No framed string region: the whole body is one retained copy span.
     return BinarySeqWriteModel._(
       header: header,
       headerHasSizeWord: hasSizeWord,
-      recordRegion: Uint8List.fromList(body),
+      recordRegion: body,
       pool: [],
       poolEndsWithoutNul: false,
       plan: [_WriteOp(0, _WriteOpKind.copy, body.length)],
     );
   }
-
-  final sink = _OpSink();
-  _byteTiersFromBody(body, sink);
-  final recordRegion = Uint8List.fromList(Uint8List.sublistView(body, 0, boundary));
+  final (stream, boundary) = decoded;
   return BinarySeqWriteModel._(
     header: header,
     headerHasSizeWord: hasSizeWord,
-    recordRegion: recordRegion,
+    recordRegion: body.sublist(0, boundary),
     pool: _orderedStringPool(body, boundary),
     poolEndsWithoutNul: body.isNotEmpty && body[body.length - 1] != 0,
-    plan: _buildWritePlan(sink.ops, boundary),
+    plan: _buildWritePlan(stream.ops, boundary),
   );
 }
 
