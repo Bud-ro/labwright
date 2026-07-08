@@ -7,10 +7,11 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
 import 'corpus_dirs.dart';
+import 'snapshot_check.dart';
 
-/// Whole-corpus decode-rate floors for the auxiliary-block decoders. Each floor is the rate measured
-/// when the decoder was written — a drop below it means corpus drift or a decoder break; investigate,
-/// never re-pin.
+/// Whole-corpus decode censuses for the auxiliary-block decoders: per-probe section and decode
+/// counts, asserted EXACTLY against the `aux` section of corpus/snapshot.json (any move — a decoder
+/// break, corpus drift, or a real improvement — is a reviewed snapshot diff).
 void main() {
   final all = corpusVis();
   if (all.isEmpty) {
@@ -18,39 +19,39 @@ void main() {
     return;
   }
 
-  // tag pattern -> (rate key, floor, decode probe)
-  final probes = <String, List<(String, double, bool Function(Uint8List))>>{
-    'CPMp': [('CPMp', 1.0, (b) => decodeConnectorPaneMap(b) != null)],
-    'IPSR': [('IPSR', 1.0, (b) => decodeOffsetTable(b) != null)],
-    'GCDI': [('GCDI', 1.0, (b) => decodeGcdiRecord(b) != null)],
-    'BKMK': [('BKMK', 1.0, (b) => decodeBookmarkList(b) != null)],
+  // tag pattern -> (census key, decode probe)
+  final probes = <String, List<(String, bool Function(Uint8List))>>{
+    'CPMp': [('CPMp', (b) => decodeConnectorPaneMap(b) != null)],
+    'IPSR': [('IPSR', (b) => decodeOffsetTable(b) != null)],
+    'GCDI': [('GCDI', (b) => decodeGcdiRecord(b) != null)],
+    'BKMK': [('BKMK', (b) => decodeBookmarkList(b) != null)],
     'VITS': [
-      ('VITS', 1.0, (b) => decodeTagStore(b) != null),
-      ('VITS-complete', 0.70, (b) => decodeTagStore(b)?.walkComplete ?? false),
+      ('VITS', (b) => decodeTagStore(b) != null),
+      ('VITS-complete', (b) => decodeTagStore(b)?.walkComplete ?? false),
     ],
-    'VICD': [('VICD', 1.0, (b) => decodeCompiledCode(b) != null)],
-    'DSIM': [('DSIM', 1.0, (b) => decodeDataSpaceImage(b) != null)],
-    'MNGI': [('MNGI', 0.99, (b) => decodePngEnvelope(b) != null)], // rare MNG variant returns null
-    'LIbd': [('LI**', 1.0, (b) => decodeLinkInfo(b)?.version == 1)],
-    'LIvi': [('LI**', 1.0, (b) => decodeLinkInfo(b)?.version == 1)],
-    'LIfp': [('LI**', 1.0, (b) => decodeLinkInfo(b)?.version == 1)],
-    'LIds': [('LI**', 1.0, (b) => decodeLinkInfo(b)?.version == 1)],
-    'BDPW': [('BDPW', 1.0, (b) => decodePasswordRecord(b) != null)],
-    'RTSG': [('RTSG', 1.0, (b) => decodeRuntimeSignature(b) != null)],
-    'SCSR': [('SCSR', 1.0, (b) => decodeScsrRecord(b) != null)],
-    'PICC': [('PICC', 1.0, (b) => decodeIconPlacement(b) != null)],
-    'PRT ': [('PRT ', 1.0, (b) => decodePrintRecord(b) != null)],
-    'BDSE': [('xxSE', 0.99, (b) => decodeSectionMarker(b) != null)],
-    'FPSE': [('xxSE', 0.99, (b) => decodeSectionMarker(b) != null)],
-    'MUID': [('MUID', 0.99, (b) => decodeModifiedUid(b) != null)],
-    'BDEx': [('xxEx', 0.99, (b) => decodeExtendedState(b) != null)],
-    'FPEx': [('xxEx', 0.99, (b) => decodeExtendedState(b) != null)],
-    'GCPR': [('GCPR', 1.0, (b) => decodeGcprRecord(b)?.matchesCorpusConstant ?? false)],
-    'DLDR': [('DLDR', 1.0, (b) => decodeDldrRecord(b) != null)],
-    'TRec': [('TRec', 1.0, (b) => decodeTextRecord(b) != null)],
+    'VICD': [('VICD', (b) => decodeCompiledCode(b) != null)],
+    'DSIM': [('DSIM', (b) => decodeDataSpaceImage(b) != null)],
+    'MNGI': [('MNGI', (b) => decodePngEnvelope(b) != null)], // rare MNG variant returns null
+    'LIbd': [('LI**', (b) => decodeLinkInfo(b)?.version == 1)],
+    'LIvi': [('LI**', (b) => decodeLinkInfo(b)?.version == 1)],
+    'LIfp': [('LI**', (b) => decodeLinkInfo(b)?.version == 1)],
+    'LIds': [('LI**', (b) => decodeLinkInfo(b)?.version == 1)],
+    'BDPW': [('BDPW', (b) => decodePasswordRecord(b) != null)],
+    'RTSG': [('RTSG', (b) => decodeRuntimeSignature(b) != null)],
+    'SCSR': [('SCSR', (b) => decodeScsrRecord(b) != null)],
+    'PICC': [('PICC', (b) => decodeIconPlacement(b) != null)],
+    'PRT ': [('PRT ', (b) => decodePrintRecord(b) != null)],
+    'BDSE': [('xxSE', (b) => decodeSectionMarker(b) != null)],
+    'FPSE': [('xxSE', (b) => decodeSectionMarker(b) != null)],
+    'MUID': [('MUID', (b) => decodeModifiedUid(b) != null)],
+    'BDEx': [('xxEx', (b) => decodeExtendedState(b) != null)],
+    'FPEx': [('xxEx', (b) => decodeExtendedState(b) != null)],
+    'GCPR': [('GCPR', (b) => decodeGcprRecord(b)?.matchesCorpusConstant ?? false)],
+    'DLDR': [('DLDR', (b) => decodeDldrRecord(b) != null)],
+    'TRec': [('TRec', (b) => decodeTextRecord(b) != null)],
   };
 
-  test('aux block decoders hold their corpus-measured decode rates', () {
+  test('aux block decoders match their corpus-measured decode censuses', () {
     final total = <String, int>{};
     final decoded = <String, int>{};
     for (final file in all) {
@@ -61,27 +62,19 @@ void main() {
         continue;
       }
       for (final section in sections) {
-        for (final (key, _, probe) in probes[section.tag] ?? const <(String, double, bool Function(Uint8List))>[]) {
+        for (final (key, probe) in probes[section.tag] ?? const <(String, bool Function(Uint8List))>[]) {
           total[key] = (total[key] ?? 0) + 1;
           if (probe(section.bytes)) decoded[key] = (decoded[key] ?? 0) + 1;
         }
       }
     }
-    final floors = {
-      for (final list in probes.values)
-        for (final (key, floor, _) in list) key: floor,
-    };
-    floors.forEach((key, floor) {
-      expect(total[key], isNotNull, reason: 'no $key sections seen in corpus');
-      expect(
-        (decoded[key] ?? 0) / total[key]!,
-        greaterThanOrEqualTo(floor),
-        reason: '$key decode rate ${decoded[key] ?? 0}/${total[key]} fell below $floor',
-      );
+    expectCorpusSnapshot('aux', {
+      for (final e in total.entries) '${e.key}.sections': e.value,
+      for (final e in total.entries) '${e.key}.decoded': decoded[e.key] ?? 0,
     });
   });
 
-  test('link info surfaces real dependency names', () {
+  test('link info surfaces real dependency names (first 400 VIs)', () {
     var linkSections = 0, withNames = 0;
     for (final file in all.take(400)) {
       try {
@@ -93,12 +86,6 @@ void main() {
         }
       } catch (_) {}
     }
-    expect(linkSections, greaterThan(100));
-    // Many VIs have no sub-VI dependencies; just require a healthy fraction.
-    expect(
-      withNames,
-      greaterThan(linkSections ~/ 10),
-      reason: 'dependency-name recovery collapsed ($withNames/$linkSections)',
-    );
+    expectCorpusSnapshot('link_info', {'linkSections': linkSections, 'withNames': withNames});
   });
 }

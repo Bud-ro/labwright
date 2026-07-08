@@ -7,6 +7,7 @@ import 'package:labwright_seq/labwright_seq.dart';
 import 'package:test/test.dart';
 
 import 'corpus_dirs.dart';
+import 'snapshot_check.dart';
 
 /// Corpus gates for BOTH exporters — TestStand → Dart ([exportSeqFileToDart])
 /// and TestStand → labwright E2E ([exportSeqFileToLabwright]): every parseable
@@ -99,22 +100,25 @@ void main() {
         );
       }
 
-      expect(exported, greaterThan(240), reason: 'XML+INI+binary corpus should all export');
-      expect(withIntLocals, greaterThan(20), reason: 'counter/index Nums must refine to int locals');
-      expect(withSkipComments, greaterThan(5), reason: 'Skip-mode steps must be comments, not active code');
-      expect(withViStub, greaterThanOrEqualTo(5), reason: 'the corpus has VI-call files; their stubs must generate');
-      expect(withInlineThrow, greaterThan(50), reason: 'non-VI unported surfaces must be inline throws');
-      expect(withHelpers, greaterThan(10), reason: 'called sequences must export as plain functions, not tests');
-      // Call-parameter export floors (~82% of local bound sites bind only
-      // literals / variable paths; the re-armed floor sits just below that).
-      expect(stats.localBoundSites, greaterThan(200), reason: 'local bound call sites exist throughout the corpus');
-      expect(stats.localBoundSitesRearmed, greaterThan(170), reason: 'most local bound sites lose the per-site disarm');
-      expect(
-        stats.argsTranslated,
-        greaterThan(500),
-        reason: 'bound expressions must translate to real named arguments',
-      );
-      expect(stats.argsByOmission, greaterThan(240), reason: 'UseDef rows must be omitted (exact via callee default)');
+      // Exporter gate counts + call-parameter translation censuses, pinned
+      // exactly (per-reason site disarms included so a new disarm kind or a
+      // re-armed cohort is visible in the diff).
+      expectCorpusSnapshot('export', {
+        'exported': exported,
+        'withViStub': withViStub,
+        'withInlineThrow': withInlineThrow,
+        'withHelpers': withHelpers,
+        'withIntLocals': withIntLocals,
+        'withSkipComments': withSkipComments,
+        'callSites': stats.callSites,
+        'boundSites': stats.boundSites,
+        'localBoundSites': stats.localBoundSites,
+        'localBoundSitesRearmed': stats.localBoundSitesRearmed,
+        'argsTranslated': stats.argsTranslated,
+        'argsByOmission': stats.argsByOmission,
+        'argsEvalFallback': stats.argsEvalFallback,
+        for (final e in stats.siteDisarms.entries) 'siteDisarms:${e.key}': e.value,
+      });
       print(
         'exports: $exported programs · $withViStub VI stubs · $withInlineThrow inline throws · '
         '$withHelpers helper sequences · $withIntLocals int locals · $withSkipComments skip comments · '
@@ -202,8 +206,6 @@ void main() {
           // Unparseable corpus files are the parser suite's concern.
         }
       }
-      expect(byPath.length, greaterThanOrEqualTo(12));
-
       final project = exportSeqProjectToLabwright(byPath);
       expect(project.files.length, byPath.length + 3, reason: 'one module per input + runtime + main + options');
       expect(project.files.keys, containsAll(['main.dart', 'lw_runtime.dart', 'analysis_options.yaml']));
@@ -211,9 +213,12 @@ void main() {
       // function instead of a stub, passing predicted named arguments.
       final allSource = project.files.values.join('\n');
       final crossCalls = RegExp(r'await [a-z0-9_]+_seq\.\w+\([^;\n]*\);').allMatches(allSource).length;
-      expect(crossCalls, greaterThan(100), reason: 'CICDUtility has ~149 resolvable cross-module call sites');
       final crossCallsWithArgs = RegExp(r'await [a-z0-9_]+_seq\.\w+\([^;\n)][^;\n]*\);').allMatches(allSource).length;
-      expect(crossCallsWithArgs, greaterThan(50), reason: 'most CICDUtility cross-module calls bind arguments');
+      expectCorpusSnapshot('export_project', {
+        'modules': byPath.length,
+        'crossCalls': crossCalls,
+        'crossCallsWithArgs': crossCallsWithArgs,
+      });
 
       final genDir = Directory('${pkgRoot.path}/test/.export_gen_proj')..createSync(recursive: true);
       try {

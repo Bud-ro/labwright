@@ -13,10 +13,9 @@ List<File>? _allVisCache;
 /// Corpus tests run over ALL of these — no sampling; per-VI work is parallelized via [corpusParallel].
 List<File> corpusVis() => _allVisCache ??= listCorpusVis(corpusViDir);
 
-/// The coverage baseline written by `tool/coverage.dart`.
-File corpusBaselineFile() => File('${corpusBaseDir().path}/baseline.json');
-
-/// The per-VI feature snapshot written by `tool/snapshot.dart`.
+/// The committed corpus snapshot written by `tool/snapshot.dart`: per-VI
+/// feature groups plus the exact-match metric sections read by
+/// `snapshot_check.dart`.
 File corpusSnapshotFile() => File('${corpusBaseDir().path}/snapshot.json');
 
 /// A corpus entry that is deliberately NOT a valid RSRC file (an upstream few-byte test fixture).

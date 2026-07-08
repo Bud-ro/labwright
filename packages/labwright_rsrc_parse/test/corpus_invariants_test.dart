@@ -7,11 +7,13 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
 import 'corpus_dirs.dart';
+import 'snapshot_check.dart';
 
 /// RSRC-container-layer corpus invariants: cross-consistency between parseVi and readViSections,
 /// byte-exact typed round-trips (container/header/subheader/block list/descriptors/ViVi/data area),
 /// info-area structure laws, and section-edit coherence. All checks for a VI run ONCE in a worker
-/// isolate ([corpusParallel]); each test asserts on the aggregate counters/diagnostics.
+/// isolate ([corpusParallel]); each law test asserts on the aggregate counters/diagnostics, and the
+/// measured censuses are asserted EXACTLY against the `container` section of corpus/snapshot.json.
 
 const _descBaseAfterCount = 8;
 const _sectionDescriptorBytes = 20;
@@ -394,7 +396,6 @@ void main() {
 
   void exactForAll(String name, String key) {
     test(name, () {
-      expect(cnt('$key.files'), greaterThan(0));
       expect(
         cnt('$key.exact'),
         cnt('$key.files'),
@@ -404,13 +405,10 @@ void main() {
   }
 
   test('CROSS-CONSISTENCY: every extracted section tag is in parseVi\'s block inventory', () {
-    expect(cnt('cross.files'), greaterThan(0));
     expect(D('cross'), isEmpty, reason: 'the two RSRC readers desynced');
   });
 
-  test('SECTION: readEmbeddedSections recovers VINS (embedded VIs) and LIBN (library names)', () {
-    expect(cnt('vins'), greaterThan(0), reason: 'no VINS sections recovered');
-    expect(cnt('libn'), greaterThan(0), reason: 'no LIBN sections recovered');
+  test('SECTION: recovered VINS re-parse as VIs and LIBN carries printable names', () {
     expect(cnt('bad:vinsNotRsrc'), 0, reason: 'VINS not a re-parseable RSRC...LVIN VI: ${D('vinsNotRsrc')}');
     expect(cnt('bad:libnNotPrintable'), 0, reason: 'LIBN without printable text: ${D('libnNotPrintable')}');
   });
@@ -424,42 +422,22 @@ void main() {
   exactForAll('IDEMPOTENCY: rebuildDataArea(decomposeDataArea(bytes)) == dataArea for every VI', 'rtData');
 
   test('IDEMPOTENCY: ViSectionDescriptor.serialize() == raw 20 bytes for every descriptor', () {
-    expect(cnt('desc.files'), greaterThan(0));
-    expect(cnt('desc.count'), greaterThan(0));
     expect(D('desc'), isEmpty, reason: 'descriptor round-trip not byte-exact');
   });
 
-  test('INFO-AREA: descriptor table is peeled into typed records for ~all VIs', () {
-    expect(cnt('peel.files'), greaterThan(0));
+  test('INFO-AREA: the descriptor-table peel never mismatches', () {
     expect(D('peel'), isEmpty, reason: 'descriptor peel mismatch');
-    expect(
-      cnt('peel.peeled'),
-      greaterThan((cnt('peel.files') * 0.90).floor()),
-      reason: 'descriptor table not peeled: only ${cnt('peel.peeled')}/${cnt('peel.files')}',
-    );
   });
 
   test('INFO-AREA: preGap is a typed FTAB/VITS record; flags == has-embedded-sections', () {
-    expect(cnt('preGap.files'), greaterThan(0));
     expect(D('preGapMarker'), isEmpty, reason: 'preGap marker not FTAB/VITS');
     expect(D('preGapZero'), isEmpty, reason: 'preGap word1/word3 not zero');
     expect(D('preGapFlags'), isEmpty, reason: 'preGap flags != has-embedded-sections');
-  });
-
-  test('INFO-AREA: preGap marker is the alternate FTAB/VITS block tag (anti-correlated)', () {
-    expect(cnt('anti.checked'), greaterThan(0));
     expect(cnt('bad:antiMarker'), 0, reason: 'preGap marker tag appeared as a block: ${D('antiMarker')}');
-    expect(
-      cnt('anti.opposite'),
-      greaterThan((cnt('anti.checked') * 0.95).floor()),
-      reason: 'opposite FTAB/VITS block missing: only ${cnt('anti.opposite')}/${cnt('anti.checked')}',
-    );
   });
 
   test('INFO-AREA: subheader reservedA == [0,0,0x20]; reservedB == trailing-name offset', () {
-    expect(cnt('sub.files'), greaterThan(0));
     expect(cnt('bad:subReservedA'), 0, reason: 'reservedA not [0,0,0x20]: ${D('subReservedA')}');
-    expect(cnt('nameOff.checked'), greaterThan(1000), reason: 'too few name records checked');
     expect(
       cnt('nameOff.match'),
       cnt('nameOff.checked'),
@@ -468,14 +446,8 @@ void main() {
   });
 
   test('INFO-AREA: name-table header is a fixed 12-byte struct, unrelated to nameRef', () {
-    expect(cnt('nt.files'), greaterThan(0));
     expect(cnt('nt.twelve'), cnt('nt.files'), reason: 'name-table header not always 12 bytes');
     expect(cnt('bad:ntHeaderValue'), 0, reason: 'headerValue != u32@4: ${D('ntHeaderValue')}');
-    expect(
-      cnt('nt.highRefFiles'),
-      greaterThan(0),
-      reason: 'no high-nameRef files to disprove with (maxRef seen: ${cnt('nt.maxRefSeen')})',
-    );
     expect(
       cnt('nt.highRefHeader12'),
       cnt('nt.highRefFiles'),
@@ -486,49 +458,19 @@ void main() {
   });
 
   test('INFO-AREA: name-table headerValue is a data-area offset (< dataSize)', () {
-    expect(cnt('hv.checked'), greaterThan(0));
     expect(D('hvRange'), isEmpty, reason: 'headerValue not < dataSize');
   });
 
-  test('INFO-AREA: descriptor word0 is always 0; word8 nonzero is legacy-only (rare)', () {
-    expect(cnt('nt.files'), greaterThan(0));
+  test('INFO-AREA: descriptor word0 is always 0; @16 is binary (0xFFFFFFFF | 0)', () {
     expect(cnt('bad:word0'), 0, reason: 'word0 not always 0: ${D('word0')}');
-    expect(
-      cnt('word8.files'),
-      lessThan((cnt('nt.files') * 0.02).ceil()),
-      reason: 'word8 nonzero in too many files (${cnt('word8.files')}/${cnt('nt.files')}) — not legacy-only',
-    );
-  });
-
-  test('INFO-AREA: descriptor @16 is binary (0xFFFFFFFF | 0); nameRef is index-like', () {
-    expect(cnt('nt.files'), greaterThan(0));
     expect(D('word16'), isEmpty, reason: 'descriptor @16 not binary');
-    expect(
-      cnt('info.maxLen'),
-      greaterThan(4000),
-      reason: 'corpus lacks large info areas to discriminate (max ${cnt('info.maxLen')})',
-    );
-    expect(
-      cnt('desc.maxNameRef'),
-      lessThan(1000),
-      reason:
-          'nameRef looks like a byte offset, not an index: '
-          'max ${cnt('desc.maxNameRef')} vs info up to ${cnt('info.maxLen')}',
-    );
   });
 
-  test('INFO-AREA: name table recovers the trailing VI name for ~all VIs', () {
-    expect(cnt('tn.files'), greaterThan(0));
+  test('INFO-AREA: the trailing VI name never disagrees between recoveries', () {
     expect(D('tnMismatch'), isEmpty, reason: 'trailing-name disagreement');
-    expect(
-      cnt('tn.withName'),
-      greaterThan((cnt('tn.files') * 0.85).floor()),
-      reason: 'trailing name recovery dropped: ${cnt('tn.withName')}/${cnt('tn.files')}',
-    );
   });
 
   test('TYPED EDIT: ViVi.withSectionEdited grow stays coherent for every VI', () {
-    expect(cnt('edit.files'), greaterThan(0));
     expect(
       cnt('edit.ok'),
       cnt('edit.files'),
@@ -537,7 +479,6 @@ void main() {
   });
 
   test('SECTION-EDIT: editSection no-op is byte-exact; grow/shrink re-parse correctly', () {
-    expect(cnt('sedit.files'), greaterThan(0));
     expect(
       cnt('sedit.noopExact'),
       cnt('sedit.files'),
@@ -556,14 +497,20 @@ void main() {
   });
 
   test('SUBVI: readSubViNames yields clean, deduped, self-excluding .vi names', () {
-    expect(cnt('subvi.files'), greaterThan(0));
     expect(cnt('bad:subviClean'), 0, reason: 'subVI-name cleanliness failures: ${D('subviClean')}');
-    expect(
-      cnt('subvi.withNames'),
-      greaterThan((cnt('subvi.files') * 0.60).floor()),
-      reason:
-          'subVI-name recovery dropped: only ${cnt('subvi.withNames')}/${cnt('subvi.files')} VIs yielded names '
-          '(${cnt('subvi.totalNames')} total)',
-    );
+  });
+
+  test('container-layer censuses match the committed snapshot exactly', () {
+    // Every counter [_inv] accumulates — round-trip populations, info-area
+    // peel/anti-correlation/trailing-name recoveries, subVI-name yields, the
+    // legacy word8 population, and the corpus maxima (`nt.max*`,
+    // `desc.maxNameRef`, `info.maxLen`) — pinned exactly. The former rate
+    // floors (peel ~90%, anti ~95%, trailing-name ~85%, subVI-names ~60%,
+    // word8 <2%) are read straight off the pairs in the diff. `bad:*` keys
+    // are excluded: the law tests above pin them at zero.
+    expectCorpusSnapshot('container', {
+      for (final e in C.entries)
+        if (!e.key.startsWith('bad:')) e.key: e.value,
+    });
   });
 }

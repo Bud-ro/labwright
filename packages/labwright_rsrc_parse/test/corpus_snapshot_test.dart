@@ -8,11 +8,15 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
 import 'corpus_dirs.dart';
+import 'snapshot_check.dart';
 
-/// Per-VI feature-presence ratchet against corpus/snapshot.json (written by tool/snapshot.dart over
-/// the WHOLE corpus): front-panel/block-diagram object counts must not drop and the resource-block
-/// set must stay a superset. Gaining features is fine — re-run the tool to record them. This is what
-/// catches "a VI went from something to nothing". Skips when corpus or snapshot is absent.
+/// Per-VI feature snapshot, EXACT-match, against the `groups`/`errors` of
+/// corpus/snapshot.json (written by tool/snapshot.dart over the WHOLE corpus):
+/// every VI's front-panel/block-diagram object counts and resource-block set
+/// must equal the committed values — a drop is a regression, a gain is an
+/// improvement to regenerate and review as a diff. This is what catches "a VI
+/// went from something to nothing" (and pins "something to more" too). Skips
+/// when corpus or snapshot is absent; skips comparison under the regen tool.
 typedef _Snap = ({String path, bool error, int fp, int bd, List<String> blocks});
 
 _Snap _summarizeVi(Uint8List bytes, String path) {
@@ -31,14 +35,6 @@ _Snap _summarizeVi(Uint8List bytes, String path) {
   }
 }
 
-String _commonRoot(Iterable<String> paths) => paths.reduce((prefix, p) {
-  while (!p.startsWith(prefix)) {
-    prefix = prefix.substring(0, prefix.length - 1);
-    if (prefix.isEmpty) return '';
-  }
-  return prefix;
-});
-
 void main() {
   final all = corpusVis();
   final snapFile = corpusSnapshotFile();
@@ -46,8 +42,14 @@ void main() {
     test('corpus feature snapshot (skipped: corpus/snapshot not present)', () {}, skip: true);
     return;
   }
+  if (snapshotUpdateMode) {
+    // tool/snapshot.dart re-measures the per-file groups itself; comparing
+    // against the stale committed file mid-regeneration would be circular.
+    test('corpus feature snapshot (skipped: snapshot regeneration in progress)', () {}, skip: true);
+    return;
+  }
 
-  final root = _commonRoot(all.map((f) => f.path));
+  final root = '${corpusViDir.path}/';
   final byKey = {for (final f in all) f.path.substring(root.length).replaceAll('\\', '/'): f.path};
   // The snapshot groups files by block-set; flatten back to per-file expectations.
   final snapJson = jsonDecode(snapFile.readAsStringSync()) as Map;
@@ -68,22 +70,38 @@ void main() {
     byPath = {for (final s in res) s.path: s};
   });
 
-  test('no VI loses front-panel/block-diagram objects or resource blocks', () {
-    final regressions = <String>[];
+  test('every VI keeps EXACTLY its snapshotted front-panel/block-diagram counts and block set', () {
+    final diffs = <String>[];
     for (final MapEntry(key: key, value: want) in snap.entries) {
-      if (want.containsKey('error')) continue; // was already failing; not a regression target
       final s = byPath[byKey[key]];
-      if (s == null) continue;
-      if (s.error) {
-        regressions.add('$key: now throws on decode (was decodable)');
+      if (s == null) continue; // partial checkout: absent files are not comparable
+      if (want.containsKey('error')) {
+        if (!s.error) diffs.add('$key: now decodes (was a snapshotted decode error)');
         continue;
       }
-      if (s.fp < ((want['fp'] as int?) ?? 0)) regressions.add('$key: front-panel ${want['fp']} -> ${s.fp}');
-      if (s.bd < ((want['bd'] as int?) ?? 0)) regressions.add('$key: block-diagram ${want['bd']} -> ${s.bd}');
+      if (s.error) {
+        diffs.add('$key: now throws on decode (was decodable)');
+        continue;
+      }
+      if (s.fp != (want['fp'] as int)) diffs.add('$key: front-panel ${want['fp']} -> ${s.fp}');
+      if (s.bd != (want['bd'] as int)) diffs.add('$key: block-diagram ${want['bd']} -> ${s.bd}');
       final have = s.blocks.toSet();
-      final lost = ((want['blocks'] as List?) ?? const []).cast<String>().where((b) => !have.contains(b)).toList();
-      if (lost.isNotEmpty) regressions.add('$key: lost blocks $lost');
+      final wantBlocks = ((want['blocks'] as List?) ?? const []).cast<String>().toSet();
+      final lost = wantBlocks.difference(have).toList()..sort();
+      final gained = have.difference(wantBlocks).toList()..sort();
+      if (lost.isNotEmpty) diffs.add('$key: lost blocks $lost');
+      if (gained.isNotEmpty) diffs.add('$key: gained blocks $gained');
     }
-    expect(regressions, isEmpty, reason: 'feature regressions:\n${regressions.take(20).join('\n')}');
+    for (final key in byKey.keys) {
+      if (!snap.containsKey(key)) diffs.add('$key: corpus VI not in the snapshot');
+    }
+    expect(
+      diffs,
+      isEmpty,
+      reason:
+          'per-VI features diverged from the snapshot (${diffs.length} file(s)):\n'
+          '${diffs.take(20).join('\n')}\n'
+          'If intended, regenerate and commit the diff: $snapshotRegenCommand',
+    );
   });
 }

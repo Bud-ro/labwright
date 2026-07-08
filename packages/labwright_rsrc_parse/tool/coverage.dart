@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -35,14 +34,15 @@ import 'corpus_base.dart';
 ///   heapComplete%      — heaps walked exactly to EOF.
 ///
 /// The numbers are never hand-maintained: this tool computes them over the WHOLE
-/// corpus and writes `corpus/baseline.json` (the regression floor read by
-/// `corpus_coverage_test.dart`) and a gitignored `corpus/vi/REPORT.md` scorecard.
+/// corpus and writes a gitignored `corpus/vi/REPORT.md` scorecard (plus the
+/// stdout table). The committed regression gate for the same axes lives in
+/// `corpus/snapshot.json` as raw counts — regenerate it with
+/// `tool/snapshot.dart`; `corpus_coverage_test.dart` asserts it exactly.
 ///
 /// Run: `dart run tool/coverage.dart [corpusRoot=<package>/corpus/vi]`
 ///
 /// The gitignored corpus checkout lives under the package's `corpus/vi/`
-/// (resolved by the shared [corpusBaseDir]); the committed baseline.json is
-/// written next to it.
+/// (resolved by the shared [corpusBaseDir]).
 
 class _Stat {
   int vis = 0, parseOk = 0, decOk = 0, containerExact = 0;
@@ -207,41 +207,5 @@ void main(List<String> args) {
       ..writeln('**$total**');
     File('$root/REPORT.md').writeAsStringSync('$report\n');
     stdout.writeln('wrote $root/REPORT.md');
-  }
-
-  if (overall.vis > 0) {
-    double round4(double v) => double.parse(v.toStringAsFixed(4));
-    final baseline = {
-      'generatedBy': 'packages/labwright_rsrc_parse/tool/coverage.dart',
-      'scope': 'whole VI corpus (corpus/vi); see COVERAGE.md for the metric taxonomy',
-      'metrics': {
-        'parseOk': 'VIs whose RSRC container parses / total VIs',
-        'decodeOk': 'VIs whose sections all inflate / total VIs',
-        'containerExact': 'VIs whose ViContainer round-trips byte-exactly / total VIs',
-        'blocksIdentified': 'block instances with a catalogued tag / all block instances',
-        'blockBytesDecoded': 'inflated block bytes in a block type with a decoder / all block bytes',
-        'deliberatelyParsed': 'heap body bytes inside a deliberately-framed record / heap body bytes',
-        'semanticallyDecoded': 'heap body bytes whose meaning AND value/content are decoded / heap body bytes',
-        'valueKindKnown':
-            'heap body bytes with known value-kind/extent but undecoded meaning or content / heap body bytes',
-        'fullyParsedHeaps': 'heaps walked exactly to EOF / heaps',
-        'note': 'Each is 0..1; the VI format is fully understood IFF every axis is 1.0.',
-      },
-      'corpus': {
-        'vis': overall.vis,
-        'parseOk': round4(overall.parseOkPct),
-        'decodeOk': round4(overall.decodeOkPct),
-        'containerExact': round4(overall.containerExactPct),
-        'blocksIdentified': round4(overall.blocksIdentifiedPct),
-        'blockBytesDecoded': round4(overall.blockBytesDecodedPct),
-        'deliberatelyParsed': round4(overall.deliberatelyParsed),
-        'semanticallyDecoded': round4(overall.semanticallyDecoded),
-        'valueKindKnown': round4(overall.valueKindKnown),
-        'fullyParsedHeaps': round4(overall.fullyParsedHeaps),
-      },
-    };
-    final out = File('${rootDir.parent.path}/baseline.json');
-    out.writeAsStringSync('${const JsonEncoder.withIndent('  ').convert(baseline)}\n');
-    stdout.writeln('wrote ${out.path}');
   }
 }

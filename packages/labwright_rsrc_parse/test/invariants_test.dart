@@ -8,11 +8,15 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
 import 'corpus_dirs.dart';
+import 'snapshot_check.dart';
 
-/// Whole-corpus invariants over `buildViModel` (determinism, structural sanity, render/naming/layout
-/// ratchets, mutation fuzz) plus per-tag section laws (LVSR/CONP/TM80/STRG/DTHP/HIST/HLPP/FTAB/icons/
-/// vers/signatures/id tables). Everything is computed ONCE per VI in a worker isolate
-/// ([corpusParallel]); the tests assert on the aggregated counters. Skipped when the corpus is absent.
+/// Whole-corpus invariants over `buildViModel` (determinism, structural sanity, mutation fuzz) plus
+/// per-tag section laws (LVSR/CONP/TM80/STRG/DTHP/HIST/HLPP/FTAB/icons/vers/signatures/id tables).
+/// Zero-tolerance laws are asserted directly; every measured census (the former render/naming/layout
+/// and per-tag rate floors, as raw numerator/denominator counts) is asserted EXACTLY against the
+/// `invariants` section of corpus/snapshot.json. Everything is computed ONCE per VI in a worker
+/// isolate ([corpusParallel]); the tests assert on the aggregated counters. Skipped when the corpus
+/// is absent.
 
 const _subviKinds = {0x31, 0x32, 0xc5, 0x104, 0x103};
 const _sigLen = {'RTSG': 16, 'OBSG': 16, 'CCSG': 16, 'SCSR': 20, 'MUID': 4};
@@ -373,70 +377,13 @@ void main() {
   int L(String k) => C[k] ?? 0;
   List<String> D(String key) => diags.where((x) => x.startsWith('$key•')).take(5).toList();
 
-  /// A denominator/numerator floor gate. [strict] uses `>` (the original strictly-greater gates).
-  void ratchet(String name, String den, String num, double floor, String failHint, {bool strict = false}) {
-    test(name, () {
-      expect(L(den), greaterThan(0));
-      final frac = L(num) / L(den);
-      expect(
-        frac,
-        strict ? greaterThan(floor) : greaterThanOrEqualTo(floor),
-        reason: '${L(num)}/${L(den)} = ${(frac * 100).toStringAsFixed(2)}%. $failHint',
-      );
-    });
-  }
-
   test('DETERMINISM: building the same VI twice yields an identical object graph', () {
     expect(L('bad:nondet'), 0, reason: 'non-deterministic decode: ${D('nondet')}');
   });
 
   test('STRUCTURAL INVARIANT: every decoded object has sane (non-wild) bounds', () {
     expect(L('bad:wildBounds'), 0, reason: D('wildBounds').join('; '));
-    expect(L('boundsChecked'), greaterThan(0));
   });
-
-  test('STRUCTURAL INVARIANT: front-panel coords may be negative (parked off-panel) and survive', () {
-    expect(L('fpBounded'), greaterThan(0));
-    expect(L('fpNeg'), greaterThan(0), reason: 'no negative FP coords survived — parked controls may be clamped');
-    expect(L('fpNegFiles'), greaterThan(0));
-  });
-
-  ratchet(
-    'STRUCTURAL INVARIANT: drawn FP objects are distinctly placed (overlap is layout, not a collapse)',
-    'drawn',
-    'distinct',
-    0.55,
-    'drawn FP objects collapsed to shared rects.',
-    strict: true,
-  );
-  ratchet(
-    'RENDER RATCHET: visible block-diagram objects classify to a typed widget (>= floor)',
-    'bdVisible',
-    'bdTyped',
-    0.99,
-    'BD render-typed fraction dropped below the 99% floor.',
-  );
-  ratchet(
-    'RENDER RATCHET: visible FRONT-PANEL objects classify to a typed widget (>= floor)',
-    'fpVisible',
-    'fpTyped',
-    0.99,
-    'FP render-typed fraction dropped below the 99% floor.',
-  );
-  ratchet(
-    'NAMING RATCHET: subVI-call nodes recover their called-VI name (>= floor)',
-    'subviTotal',
-    'subviNamed',
-    0.99,
-    'subVI-call name recovery dropped below 99% — the 0xa-caption propagation likely regressed.',
-  );
-  ratchet(
-    'LAYOUT RATCHET: BD nodes sit inside their enclosing structure frame (>= floor)',
-    'layoutPairs',
-    'layoutContained',
-    0.98,
-    'node-in-structure containment dropped below 98% — coordinate composition/re-anchor likely regressed.',
-  );
 
   test('MUTATION-FUZZ: byte-flipped VIs decode without hanging and never emit wild bounds', () {
     expect(L('bad:fuzzWild'), 0, reason: D('fuzzWild').join('; '));
@@ -455,190 +402,40 @@ void main() {
     }
   });
 
-  test('BLOCK CATALOG: every catalogued record-heap section really is a C4 heap (and only those)', () {
-    expect(L('catHeapSections'), greaterThan(0));
+  test('BLOCK CATALOG: every catalogued record-heap section really is a C4 heap', () {
     expect(
       L('catHeapStructural'),
       L('catHeapSections'),
       reason: 'a catalogued record-heap section was NOT a structural C4 heap — the recordHeap set is wrong.',
     );
     expect(headTags, containsAll(<String>{'FPHb', 'BDHb'}));
-    expect(L('structuralSections'), greaterThan(0));
-    expect(
-      L('structuralCatalogued') / L('structuralSections'),
-      greaterThan(0.97),
-      reason:
-          'structural heaps not catalogued as recordHeap: ${L('structuralCatalogued')}/${L('structuralSections')} — '
-          'a real heap tag may be missing from the catalog.',
-    );
   });
 
-  test('LVSR: decoded version matches vers, and the @96 hash mirrors BDPW', () {
-    expect(L('lvsrSeen'), greaterThan(0));
-    expect(L('verTotal'), greaterThan(0));
-    expect(
-      L('verMatch') / L('verTotal'),
-      greaterThan(0.99),
-      reason: 'LVSR version major disagreed with vers in too many VIs (${L('verMatch')}/${L('verTotal')}).',
-    );
-    expect(L('pwTotal'), greaterThan(0));
-    expect(
-      L('pwMatch') / L('pwTotal'),
-      greaterThan(0.99),
-      reason: 'LVSR @96 hash did not mirror BDPW in too many VIs (${L('pwMatch')}/${L('pwTotal')}).',
-    );
+  test('LVSR stage byte is always 0x80; TM80 short form is self-consistent', () {
     expect(L('stageNon80'), 0, reason: 'an LVSR stage byte != 0x80 appeared — re-probe the stage claim.');
-  });
-
-  ratchet(
-    'CONP: the 2-byte connector-pane index resolves in-range against VCTP',
-    'conpTotal',
-    'conpInRange',
-    0.999,
-    'CONP index out of VCTP range (corpus 100%) — the index base/encoding may have drifted.',
-    strict: true,
-  );
-
-  test('TM80: the short-form layout covers most type maps and is self-consistent', () {
-    expect(L('tmTotal'), greaterThan(0));
     expect(L('tmShortBad'), 0, reason: 'a short-form TM80 whose entries.length != count');
-    expect(
-      L('tmShort') / L('tmTotal'),
-      greaterThan(0.65),
-      reason: 'TM80 short-form coverage dropped to ${L('tmShort')}/${L('tmTotal')} (<65%).',
-    );
   });
 
-  ratchet(
-    'STRG: every description block is [u32 len][printable text]',
-    'strgTotal',
-    'strgOk',
-    0.99,
-    'STRG length-law/printability regressed.',
-    strict: true,
-  );
-
-  test('DTHP: the 4-byte form dominates, decode is total, extended blocks recover printable names', () {
-    expect(L('dthpTotal'), greaterThan(0));
+  test('DTHP decode is total and extended blocks recover printable names', () {
     expect(L('dthpDecoded'), L('dthpTotal'), reason: 'decodeDataTypeHeap returned null for a >=4-byte DTHP');
-    expect(
-      L('dthpFour') / L('dthpTotal'),
-      greaterThan(0.97),
-      reason: 'DTHP 4-byte dominance dropped to ${L('dthpFour')}/${L('dthpTotal')} (<97%).',
-    );
-    expect(L('dthpExt'), greaterThan(0), reason: 'no extended DTHP found — corpus changed?');
     expect(L('dthpExtNamed'), L('dthpExt'), reason: 'an extended DTHP recovered no names — _scanNames regressed');
     expect(L('dthpExtPrintable'), L('dthpExt'), reason: 'an extended DTHP recovered a non-printable name');
   });
 
-  test('HIST: fixed 40-byte record, version 2, reserved words zero', () {
-    final total = L('histTotal');
-    expect(total, greaterThan(0));
-    expect(L('histSized') / total, greaterThan(0.99), reason: 'HIST not 40 bytes in ${L('histSized')}/$total');
-    expect(L('histVer2') / total, greaterThan(0.99), reason: 'HIST @0 != 2 in too many (${L('histVer2')}/$total)');
-    expect(
-      L('histReservedZero') / total,
-      greaterThan(0.99),
-      reason: 'HIST reserved words non-zero in too many (${L('histReservedZero')}/$total)',
-    );
+  test('section-law and model censuses match the committed snapshot exactly', () {
+    // Every counter [_summarize] accumulates (render/naming/layout pairs,
+    // per-tag law numerators/denominators, heap-catalog populations) plus the
+    // per-tag distinct-body counts and the object-kind/head-tag population
+    // sizes — pinned exactly. The former floor gates (bdTyped/bdVisible,
+    // subviNamed/subviTotal, verMatch/verTotal, sized:*/cnt:*, …) are read
+    // straight off the numerator/denominator pairs in the diff. `bad:*` keys
+    // are excluded: the law tests above pin them at zero.
+    expectCorpusSnapshot('invariants', {
+      for (final e in C.entries)
+        if (!e.key.startsWith('bad:')) e.key: e.value,
+      for (final e in bodies.entries) 'distinctBodies:${e.key}': e.value.length,
+      'kindsSeen': kindsSeen.length,
+      'headTags': headTags.length,
+    });
   });
-
-  ratchet(
-    'HLPP is a parseable PTH0 path',
-    'hlppTot',
-    'hlppOk',
-    0.99,
-    'HLPP PTH0 parse regressed.',
-    strict: true,
-  );
-  ratchet(
-    'HLPT is [u32 len][printable text]',
-    'hlptTot',
-    'hlptOk',
-    0.99,
-    'HLPT length-law/printability regressed.',
-    strict: true,
-  );
-
-  test('FTAB: version 1 and the font-name table is self-consistent', () {
-    final total = L('ftabTotal');
-    expect(total, greaterThan(0));
-    expect(L('ftabVer1') / total, greaterThan(0.99), reason: 'FTAB version != 1 in too many (${L('ftabVer1')}/$total)');
-    expect(
-      L('ftabConsistent') / total,
-      greaterThan(0.95),
-      reason: 'FTAB recovered-names != fontCount in too many (${L('ftabConsistent')}/$total) — framing drift.',
-    );
-    expect(
-      L('ftabPrintable') / total,
-      greaterThan(0.95),
-      reason: 'FTAB names not printable in too many (${L('ftabPrintable')}/$total)',
-    );
-  });
-
-  test('icl8/icl4/ICON are exact 32x32 bitmaps decoding to 1024 pixels', () {
-    final tot = L('iconTot');
-    expect(tot, greaterThan(0));
-    expect(L('iconSized') / tot, greaterThan(0.99), reason: 'legacy icon not its exact size in ${L('iconSized')}/$tot');
-    expect(
-      L('iconDecoded') / tot,
-      greaterThan(0.99),
-      reason: 'legacy icon did not decode to 1024 px in ${L('iconDecoded')}/$tot',
-    );
-  });
-
-  test('vers binary version word matches the ASCII string and the LVSR word', () {
-    expect(L('vwStrTot'), greaterThan(0));
-    expect(
-      L('vwStrEq') / L('vwStrTot'),
-      greaterThan(0.99),
-      reason: 'vers word major != ASCII major in too many (${L('vwStrEq')}/${L('vwStrTot')})',
-    );
-    expect(L('vwLvsrTot'), greaterThan(0));
-    expect(
-      L('vwLvsrEq') / L('vwLvsrTot'),
-      greaterThan(0.999),
-      reason: 'vers word major != LVSR major in too many (${L('vwLvsrEq')}/${L('vwLvsrTot')}; corpus 100%)',
-    );
-  });
-
-  test('signature blocks: fixed sizes + the varied-vs-constant split holds', () {
-    for (final tag in _sigLen.keys) {
-      expect(L('cnt:$tag'), greaterThan(0), reason: '$tag absent from corpus');
-      expect(
-        L('sized:$tag') / L('cnt:$tag'),
-        greaterThan(0.99),
-        reason: '$tag not its fixed size in ${L('sized:$tag')}/${L('cnt:$tag')}',
-      );
-    }
-    expect(bodies['RTSG']!.length / L('cnt:RTSG'), greaterThan(0.5), reason: 'RTSG should be per-VI varied');
-    expect(bodies['OBSG']!.length / L('cnt:OBSG'), greaterThan(0.5), reason: 'OBSG should be per-VI varied');
-    expect(bodies['CCSG']!.length, lessThan(50), reason: 'CCSG should be near-constant (shared signature)');
-    expect(bodies['SCSR']!.length, lessThan(50), reason: 'SCSR should be near-constant');
-  });
-
-  test('VPDP/DLDR/GCPR are fixed-size, byte-constant records', () {
-    for (final tag in _constLen.keys) {
-      expect(L('cnt:$tag'), greaterThan(0), reason: '$tag absent');
-      expect(
-        L('sized:$tag') / L('cnt:$tag'),
-        greaterThan(0.99),
-        reason: '$tag not its fixed size (${L('sized:$tag')}/${L('cnt:$tag')})',
-      );
-      expect(
-        bodies[tag]!.length,
-        lessThan(5),
-        reason: '$tag is no longer byte-constant (${bodies[tag]!.length} distinct) — may be decodable now',
-      );
-    }
-  });
-
-  ratchet(
-    'NUID/SUID/BNID are [u32 count][count u32] id tables',
-    'idTot',
-    'idFramed',
-    0.99,
-    'id-table framing regressed.',
-    strict: true,
-  );
 }

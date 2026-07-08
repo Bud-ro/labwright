@@ -23,3 +23,7 @@ Directory _corpusSeqRoot() {
 /// The fetched TestStand corpus (every pinned source). Empty/absent until
 /// fetched — corpus tests skip when it does not exist.
 final Directory corpusSeqDir = _corpusSeqRoot();
+
+/// The committed corpus metrics snapshot (written by `tool/snapshot.dart`,
+/// asserted exactly by the corpus tests via `snapshot_check.dart`).
+File corpusSeqSnapshotFile() => File('${corpusSeqDir.parent.path}/snapshot.json');

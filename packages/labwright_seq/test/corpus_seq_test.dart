@@ -8,6 +8,7 @@ import 'package:labwright_seq/labwright_seq.dart';
 import 'package:test/test.dart';
 
 import 'corpus_dirs.dart';
+import 'snapshot_check.dart';
 
 /// Counts the instance-override markers (`%INSTOVRD`) anywhere in a tree.
 int _countOverrides(SeqProperty p, [int depth = 0]) {
@@ -432,68 +433,25 @@ void main() {
     );
     expect(failures, isEmpty, reason: failures.take(5).join('\n'));
 
-    final pins = <(String, Object?, Object)>[
-      // XML lens (exact counts pin the corpus + recovery together).
-      ('XML file count', xml, 32),
-      ('INI file count', ini, 45),
+    // Format LAWS — relations between quantities computed in the same pass
+    // (a broken lens, not a corpus change, is the only way these move).
+    final laws = <(String, Object?, Object)>[
       ('unknown-format file count', seqs.length - xml - ini - binary, 0),
-      ('XML sequence count', xmlSeqs, 41),
-      ('XML step count', xmlSteps, 216),
-      ('XML steps with pass/fail actions', withAction, 216),
       ('XML typed steps (none lost in the lens)', typedSteps, xmlSteps),
-      ('XML steps with run-mode', withMode, greaterThan(0)),
-      ('XML module bindings', withModule, 85),
-      ('XML locals', xmlLocals, 53),
-      ('XML limit tests', withLimits, 20),
-      ('XML intra-file calls resolved', resolvedCalls, 8),
-      ('XML step icons', withIcon, 89),
       ('XML unknown adapters', unknownAdapters, 0),
       ('XML coverage: unaccounted nodes', xmlCov.unaccounted, 0),
-      ('XML coverage ratio', xmlCov.ratio, greaterThan(0.983)),
-      // Measurement plug-ins.
-      ('files with a MeasurementPlugIns block', mpBlocks, greaterThanOrEqualTo(12)),
-      ('files with a pin map', mpPinMaps, greaterThanOrEqualTo(1)),
-      // Python descriptors + call params.
-      ('python steps', pySteps, greaterThanOrEqualTo(33)),
       ('python steps naming a function', pyFn, pySteps),
       ('python steps with a module path', pyModule, pySteps),
       ('python steps with a version', pyVersion, pySteps),
-      ('python call params', pyParams, greaterThanOrEqualTo(56)),
       ('python params named', pyNamed, pyParams),
-      ('python params with a bound value', pyBound, greaterThan(0)),
-      ('python param steps', pyParamSteps, greaterThan(0)),
-      // VI calls.
-      ('VI-call steps with params', viSteps, greaterThanOrEqualTo(26)),
-      ('VI connector params', viParams, greaterThanOrEqualTo(112)),
       ('VI params with DisplayType', viDisplayType, viParams),
       ('VI params with connector#', viConnector, viParams),
-      // Typelist.
-      ('XML files scanned for typedefs', typedefFiles, greaterThanOrEqualTo(32)),
-      ('typedefs recovered', totalTypes, greaterThanOrEqualTo(731)),
-      ('typedefs with fields', typesWithFields, greaterThanOrEqualTo(571)),
-      ('typedef base classes', baseClasses, isNotEmpty),
-      ('first XML file typeDefs mirror types', firstXmlTypeDefs, greaterThan(0)),
-      // Additional results / step results / custom conditions.
-      ('files with additional-results specs', arFiles, greaterThanOrEqualTo(21)),
-      ('additional-results entries', arEntries, greaterThanOrEqualTo(168)),
       ('additional-results kinds', arKinds, everyElement(anyOf(contains('ParameterResult'), isNotEmpty))),
-      ('steps with a Result slot', withResult, greaterThan(0)),
       ('Results keeping their Error sub-object', withError, withResult),
       ('recorded (non-default) outcomes in sequence files', recordedOutcomes, 0),
-      ('custom-condition true actions', custTrueAct, greaterThan(0)),
-      ('custom-condition false actions', custFalseAct, greaterThan(0)),
-      // Measurement parameters.
-      ('measurement params', measParams, greaterThanOrEqualTo(159)),
       ('measurement params typed', measTyped, measParams),
       ('measurement param types', measTypes, contains('TypeDouble')),
-      ('measurement params with direction', measDirected, greaterThan(0)),
-      ('measurement params specialized', measSpecialized, greaterThan(0)),
       ('measurement specializations', measSpecs, contains('IOResource')),
-      ('measurement params not logged', measNotLogged, greaterThan(0)),
-      ('measurement enum params', measEnumParams, greaterThan(0)),
-      ('measurement enum values cover their params', measEnumValues, greaterThanOrEqualTo(measEnumParams)),
-      // Flow control (XML+INI).
-      ('flow-control openers', flowOpeners, greaterThan(0)),
       ('flow ends match openers', flowEnds, flowOpeners),
       ('flow-bearing sequences balanced', balancedSeqs, totalFlowSeqs),
       ('if/while/for conditions', conds, ifWhile + forLoops),
@@ -501,32 +459,11 @@ void main() {
       ('for increments', forIncr, forLoops),
       ('for-each array expressions', eachArr, eachLoops),
       ('for-each element bindings', eachElem, eachLoops),
-      ('sequences with flow', seqsWithFlow, greaterThan(0)),
-      // Logic-export annotations.
-      ('pass/fail jump steps', jumpSteps, greaterThan(0)),
       ('files annotating jumps in the export', exportsWithJump, filesWithJump),
-      ('looping non-flow steps', loopSteps, greaterThan(0)),
       ('files annotating loops in the export', exportsWithLoop, filesWithLoop),
-      ('external seq-calls', externalCalls, greaterThan(0)),
       ('files marking external calls with a file', exportsMarked, filesWithExternal),
-      ('sequence parameters', sigParams, greaterThan(0)),
       ('parameters carrying a type', sigTyped, sigParams),
       ('files rendering signatures in the export', exportsSigned, filesWithParams),
-      // Newly-modeled lens accessors.
-      ('adapter names surfaced', adapterName, greaterThan(0)),
-      ('step descriptions surfaced', stepDesc, greaterThan(0)),
-      ('code templates surfaced', codeTemplates, greaterThan(0)),
-      ('RTS entry-point names surfaced', runtimeEP, greaterThan(0)),
-      ('switch/edit settings surfaced', switchSettings, greaterThan(0)),
-      ('SequenceCall expressions surfaced', seqCallExpr, greaterThan(0)),
-      ('threading settings surfaced', threading, greaterThan(0)),
-      ('python interpreter settings surfaced', pyInterp, greaterThan(0)),
-      ('param type descriptors surfaced', clusterEls, greaterThan(0)),
-      ('database step fields surfaced', dbStep, greaterThan(0)),
-      ('limit expressions surfaced', limitExpr, greaterThan(0)),
-      ('file-level settings surfaced', fileSettings, greaterThan(0)),
-      ('file globals surfaced', fileGlobals, greaterThan(0)),
-      // INI document layer.
       ('INI headers typed SequenceFile', iniSeqType, ini),
       ('INI files defining SF=SequenceFileData', iniSfRoot, ini),
       ('INI files naming an object "Data"', iniDataNamed, ini),
@@ -536,40 +473,114 @@ void main() {
       ('INI Seq arrays exposing named sequences', iniNamedSeqs, iniWithSeqArray),
       ('INI in-section lines without " = "', iniSkippedLines, 0),
       ('INI residual ` LineNNNN` keys', iniResidual, 0),
-      ('INI continuation fragments', iniFragments, 4828),
-      ('INI continuation base keys', iniFragmentKeys.length, 21),
-      // INI typed lens (exact pins).
       ('INI files that threw', iniThrew, 0),
       ('INI files built into SeqFiles', iniBuilt, ini),
-      ('INI sequence count', iniSeqCount, 430),
-      ('INI step count', iniStepCount, 5514),
-      ('INI locals count', iniLocals, 1571),
-      ('INI [%TYPES] count', iniTypes, 2019),
       ('INI unknown adapters', iniUnknown, 0),
-      ('INI recognized adapters', iniRecognized, 2044),
-      ('INI none adapters', iniNone, 3470),
       ('INI adapter partition', iniRecognized + iniNone + iniUnknown, iniStepCount),
-      ('INI typed steps', iniWithType, greaterThan(0)),
-      ('INI type-inherited run-modes', iniWithMode, greaterThan(0)),
-      ('INI type-inherited looping', iniWithLoop, greaterThan(0)),
-      ('%INSTOVRD overrides', overrides, 12836),
-      ('INI step comments', stepComments, 663),
-      ('INI sequence comments', seqComments, 102),
-      ('INI variable comments', varComments, 37),
-      ('INI object variables with fields', objVarsWithFields, 78),
-      ('INI flow targets', withFlowTarget, 58),
-      ('INI resolved ID#: targets', resolvedIdTargets, 12),
-      ('INI non-default module load/unload', withModuleTiming, 63),
-      // INI coverage.
-      ('INI files covered', iniCovFiles, greaterThanOrEqualTo(45)),
-      ('INI covered steps', iniCovSteps, greaterThanOrEqualTo(5514)),
-      ('INI covered steps with a module', iniCovModule, greaterThanOrEqualTo(2044)),
       ('INI coverage: unaccounted nodes', iniCov.unaccounted, 0),
-      ('INI coverage ratio', iniCov.ratio, greaterThan(0.995)),
     ];
-    for (final (label, actual, want) in pins) {
+    for (final (label, actual, want) in laws) {
       expect(actual, want, reason: label);
     }
+
+    // MEASUREMENTS — every recovery/census count, pinned exactly against the
+    // committed snapshot (coverage as raw node counts, not rounded ratios).
+    expectCorpusSnapshot('xml_ini', {
+      'xmlFiles': xml,
+      'iniFiles': ini,
+      'binaryFiles': binary,
+      'xmlSeqs': xmlSeqs,
+      'xmlSteps': xmlSteps,
+      'withAction': withAction,
+      'withMode': withMode,
+      'withModule': withModule,
+      'xmlLocals': xmlLocals,
+      'withLimits': withLimits,
+      'resolvedCalls': resolvedCalls,
+      'withIcon': withIcon,
+      'xmlCovTotal': xmlCov.total,
+      'xmlCovModeled': xmlCov.modeled,
+      'xmlCovPlumbing': xmlCov.plumbing,
+      'mpBlocks': mpBlocks,
+      'mpPinMaps': mpPinMaps,
+      'pySteps': pySteps,
+      'pyParams': pyParams,
+      'pyParamSteps': pyParamSteps,
+      'pyBound': pyBound,
+      'viSteps': viSteps,
+      'viParams': viParams,
+      'typedefFiles': typedefFiles,
+      'totalTypes': totalTypes,
+      'typesWithFields': typesWithFields,
+      'baseClasses': baseClasses.length,
+      'firstXmlTypeDefs': firstXmlTypeDefs ?? -1,
+      'arFiles': arFiles,
+      'arEntries': arEntries,
+      'arKinds': arKinds.length,
+      'withResult': withResult,
+      'custTrueAct': custTrueAct,
+      'custFalseAct': custFalseAct,
+      'measParams': measParams,
+      'measDirected': measDirected,
+      'measSpecialized': measSpecialized,
+      'measNotLogged': measNotLogged,
+      'measEnumParams': measEnumParams,
+      'measEnumValues': measEnumValues,
+      'measTypes': measTypes.length,
+      'measSpecs': measSpecs.length,
+      'flowOpeners': flowOpeners,
+      'ifWhile': ifWhile,
+      'forLoops': forLoops,
+      'eachLoops': eachLoops,
+      'seqsWithFlow': seqsWithFlow,
+      'jumpSteps': jumpSteps,
+      'filesWithJump': filesWithJump,
+      'loopSteps': loopSteps,
+      'filesWithLoop': filesWithLoop,
+      'externalCalls': externalCalls,
+      'filesWithExternal': filesWithExternal,
+      'sigParams': sigParams,
+      'filesWithParams': filesWithParams,
+      'adapterName': adapterName,
+      'stepDesc': stepDesc,
+      'codeTemplates': codeTemplates,
+      'runtimeEP': runtimeEP,
+      'switchSettings': switchSettings,
+      'seqCallExpr': seqCallExpr,
+      'threading': threading,
+      'pyInterp': pyInterp,
+      'clusterEls': clusterEls,
+      'dbStep': dbStep,
+      'limitExpr': limitExpr,
+      'fileSettings': fileSettings,
+      'fileGlobals': fileGlobals,
+      'iniFragments': iniFragments,
+      'iniFragmentKeys': iniFragmentKeys.length,
+      'iniSeqCount': iniSeqCount,
+      'iniStepCount': iniStepCount,
+      'iniLocals': iniLocals,
+      'iniTypes': iniTypes,
+      'iniRecognized': iniRecognized,
+      'iniNone': iniNone,
+      'iniWithType': iniWithType,
+      'iniWithMode': iniWithMode,
+      'iniWithLoop': iniWithLoop,
+      'overrides': overrides,
+      'filesWithOverride': filesWithOverride,
+      'stepComments': stepComments,
+      'seqComments': seqComments,
+      'varComments': varComments,
+      'objVarsWithFields': objVarsWithFields,
+      'withFlowTarget': withFlowTarget,
+      'resolvedIdTargets': resolvedIdTargets,
+      'withModuleTiming': withModuleTiming,
+      'iniCovFiles': iniCovFiles,
+      'iniCovSteps': iniCovSteps,
+      'iniCovModule': iniCovModule,
+      'iniCovTotal': iniCov.total,
+      'iniCovModeled': iniCov.modeled,
+      'iniCovPlumbing': iniCov.plumbing,
+    });
   });
 
   test('binary corpus (single pass): partial model is honest, recon lenses never fabricate', () {
@@ -804,46 +815,50 @@ void main() {
     );
     expect(failures, isEmpty, reason: failures.take(8).join('\n'));
 
-    final pins = <(String, Object?, Object)>[
-      ('binary file count', binary, 291),
-      ('bodies inflated', withBinaryBody, 291),
-      // Partial-parse recovery floors: steps laid out before their group
-      // markers are honestly kept OUT of the typed tree — raising these is
-      // the grouping-decode roadmap, not a tuning knob.
-      ('binaries decoding ≥1 sequence', binaryWithSequences, greaterThanOrEqualTo(222)),
-      ('binary steps in the typed model', binaryStepsRecovered, greaterThanOrEqualTo(301)),
-      ('binary typed steps', binaryTypedSteps, greaterThanOrEqualTo(301)),
-      ('binary module-bound steps', binaryModuleSteps, greaterThanOrEqualTo(20)),
+    // Format LAWS: framing/naming shapes that must hold for EVERY binary (or
+    // every rooted pool) — a miss is a lens break, not a corpus change.
+    final laws = <(String, Object?, Object)>[
+      ('bodies inflated', withBinaryBody, binary),
       ('bodies framed', framed, binary),
       ('leadingWords[2] == 1', word2Is1, binary),
       ('name tables found', nameFound, binary),
       ('name tables with core tokens', hasModelTokens, binary),
-      ('name table not the largest segment', notLargest / binary, greaterThan(0.95)),
       ('expressions outside the name table', valuesOutsideName, binary),
-      ('pools rooted at SequenceFileData', rooted, greaterThanOrEqualTo(213)),
       ('rooted pools opening [.., Data]', prefix2Ok, rooted),
-      ('rooted pools with the full scaffold', scaffold5Ok / rooted, greaterThan(0.95)),
       ('record word[2] indexes name[1]==Data', recordIndexesData, rooted),
       ('rooted files exposing object names', objNamesOk, rooted),
       ('analyzeBinary consistency checks', analyzeChecked, binary),
-      // Re-based to the 83-source corpus: the new binaries carry far larger
-      // name pools, so the raw triplet hit rate dilutes (measured 37.2% vs a
-      // 16.4% control) while remaining a >2x separation from noise.
-      ('triplet real-name hit rate', realRate, greaterThan(0.36)),
-      ('triplet real-vs-control separation', realRate - fakeRate, greaterThan(0.20)),
-      ('real-name triplet samples', realTot, greaterThan(0)),
-      ('files with ≥1 module path', withPath, greaterThanOrEqualTo(binary ~/ 2)),
-      // The corpus currently has no non-ASCII module path (the exemplars left
-      // with the provenance-rejected caizikun source) — pinned at the measured
-      // 0 so a future source restoring the shape consciously re-arms the check.
-      ('non-ASCII module paths', nonAsciiPaths, 0),
-      ('files with ≥1 ID#: ref', withId, greaterThanOrEqualTo((binary * 9) ~/ 10)),
-      ('files with ≥1 expression', withExpr, greaterThanOrEqualTo((binary * 9) ~/ 10)),
-      ('files with ≥1 quoted literal', withLit, greaterThanOrEqualTo((binary * 9) ~/ 10)),
     ];
-    for (final (label, actual, want) in pins) {
+    for (final (label, actual, want) in laws) {
       expect(actual, want, reason: label);
     }
+
+    // MEASUREMENTS — recovery censuses and the triplet-signal counts, pinned
+    // exactly (the real-vs-control separation is reviewable straight from the
+    // realHit/realTot vs fakeHit/fakeTot numbers).
+    expectCorpusSnapshot('binary_recon', {
+      'binary': binary,
+      'binaryWithSequences': binaryWithSequences,
+      'binaryStepsRecovered': binaryStepsRecovered,
+      'binaryTypedSteps': binaryTypedSteps,
+      'binaryModuleSteps': binaryModuleSteps,
+      'withSentinels': withSentinels,
+      'totalStrings': totalStrings,
+      'notLargest': notLargest,
+      'isFirst': isFirst,
+      'rooted': rooted,
+      'scaffold5Ok': scaffold5Ok,
+      'realTot': realTot,
+      'realHit': realHit,
+      'fakeTot': fakeTot,
+      'fakeHit': fakeHit,
+      'withPath': withPath,
+      'totalPaths': totalPaths,
+      'nonAsciiPaths': nonAsciiPaths,
+      'withId': withId,
+      'withExpr': withExpr,
+      'withLit': withLit,
+    });
   });
 
   group('pinned corpus files (reader correctness)', () {
