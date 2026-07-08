@@ -217,7 +217,7 @@ WriterAttribution attributeVi(Uint8List bytes, {int depth = 0}) {
             // size, all copied, so the content total still tiles.
             final inflated = inflateHeapPayload(payload);
             if (inflated != null) {
-              final res = attributeHeapBody(inflated);
+              final res = attributeHeapBody(inflated, tag);
               inflatedContent += inflated.length;
               heapModel += res.modelBytes;
               heapCopied += res.copiedBytes;

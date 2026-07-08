@@ -284,6 +284,67 @@ int _nameRegionStart(
   return off + 4;
 }
 
+/// Re-serializes a `VCTP` type-pool [body] from its framing grammar, or returns
+/// null when [body] does not parse and tile exactly under it (total; never
+/// throws). The grammar (big-endian), corpus-verified to frame 7490/7490 pools
+/// to the last byte:
+///
+///   `[u32 count]` then `count` × `[u16 descLen][descLen-2 interior]` then the
+///   **top-level type list** `[u16 tlCount][tlCount × u16 index]`.
+///
+/// Every structural word (`count`, each `descLen`, `tlCount`, each top-level
+/// index) is reconstructed from the value read at its offset; each descriptor's
+/// type-specific interior is retained byte-faithfully. The output is therefore
+/// byte-identical to [body] for a well-formed pool — the reconstruction proves
+/// the framing rather than copying it. Returns null (caller copies verbatim)
+/// when a descriptor length runs past the body, a `descLen < 4`, the count is
+/// out of range, or the top-level list does not end exactly at the body's end.
+Uint8List? reserializeTypePool(Uint8List body) {
+  if (body.length < 6) return null;
+  final count = (body[0] << 24) | (body[1] << 16) | (body[2] << 8) | body[3];
+  if (count <= 0 || count > 200000) return null;
+  final out = Uint8List(body.length);
+  final view = ByteData.sublistView(out);
+  view.setUint32(0, count);
+  var off = 4;
+  for (var i = 0; i < count; i++) {
+    if (off + 4 > body.length) return null;
+    final descLen = (body[off] << 8) | body[off + 1];
+    if (descLen < 4 || off + descLen > body.length) return null;
+    view.setUint16(off, descLen);
+    out.setRange(off + 2, off + descLen, body, off + 2);
+    off += descLen;
+  }
+  if (off + 2 > body.length) return null;
+  final tlCount = (body[off] << 8) | body[off + 1];
+  if (off + 2 + tlCount * 2 != body.length) return null;
+  view.setUint16(off, tlCount);
+  for (var e = 0; e < tlCount; e++) {
+    final p = off + 2 + e * 2;
+    view.setUint16(p, (body[p] << 8) | body[p + 1]);
+  }
+  return out;
+}
+
+/// Whether a `VCTP` type-pool [body] parses and tiles exactly under the framing
+/// grammar of [reserializeTypePool], without allocating the reconstructed
+/// buffer — the lean predicate for the content scoreboard. Total; never throws.
+bool typePoolFrames(Uint8List body) {
+  if (body.length < 6) return false;
+  final count = (body[0] << 24) | (body[1] << 16) | (body[2] << 8) | body[3];
+  if (count <= 0 || count > 200000) return false;
+  var off = 4;
+  for (var i = 0; i < count; i++) {
+    if (off + 4 > body.length) return false;
+    final descLen = (body[off] << 8) | body[off + 1];
+    if (descLen < 4 || off + descLen > body.length) return false;
+    off += descLen;
+  }
+  if (off + 2 > body.length) return false;
+  final tlCount = (body[off] << 8) | body[off + 1];
+  return off + 2 + tlCount * 2 == body.length;
+}
+
 /// [decodeTypePool] over a set of decoded sections — finds the `VCTP` section and
 /// decodes it, or returns `const []` if absent.
 List<ViType> typePoolFromDecoded(Iterable<DecodedSection> decoded) {

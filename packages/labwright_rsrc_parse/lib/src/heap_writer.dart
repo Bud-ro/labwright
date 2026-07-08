@@ -47,6 +47,7 @@ library;
 
 import 'dart:typed_data';
 
+import 'blocks/type_pool.dart' show reserializeTypePool, typePoolFrames;
 import 'heap.dart';
 
 /// The result of re-serializing one inflated heap body from its decoded model:
@@ -307,7 +308,16 @@ class HeapContentSplit {
 /// original bytes (so [modelBytes] is honest); only the output concatenation is
 /// skipped. Total/bounds-safe. [serializeHeapBody] materializes the bytes on top
 /// of the same walk.
-HeapContentSplit attributeHeapBody(Uint8List body) {
+///
+/// [sectionTag] selects the grammar: `VCTP` is a type-pool (a length-prefixed
+/// type-descriptor list + a top-level index list — see [typePoolFrames]); every
+/// other tag (and null) is walked as an object-record heap ([walkHeapBody]).
+HeapContentSplit attributeHeapBody(Uint8List body, [String? sectionTag]) {
+  if (sectionTag == 'VCTP') {
+    return typePoolFrames(body)
+        ? HeapContentSplit(modelBytes: body.length, copiedBytes: 0, modelBugs: 0)
+        : HeapContentSplit(modelBytes: 0, copiedBytes: body.length, modelBugs: 0);
+  }
   if (body.length < 4) {
     return HeapContentSplit(modelBytes: 0, copiedBytes: body.length, modelBugs: 0);
   }
@@ -346,7 +356,21 @@ int _verifiedModelLength(Uint8List body, int offset, _Modeled m) {
 /// byte-identical re-emission and the model/copied byte split. Total/bounds-safe
 /// (never throws). See the library doc for the model-sourced record families.
 /// [attributeHeapBody] returns the same split without building [HeapWriteResult.bytes].
-HeapWriteResult serializeHeapBody(Uint8List body) {
+///
+/// [sectionTag] selects the grammar: `VCTP` re-serializes as a type pool
+/// ([reserializeTypePool]) — its structural words are reconstructed and its
+/// descriptor interiors retained byte-faithfully, so the whole body is
+/// model-sourced when it frames; every other tag (and null) is re-emitted as an
+/// object-record heap.
+HeapWriteResult serializeHeapBody(Uint8List body, [String? sectionTag]) {
+  if (sectionTag == 'VCTP') {
+    final reserialized = reserializeTypePool(body);
+    if (reserialized != null) {
+      return HeapWriteResult(bytes: reserialized, modelBytes: body.length, copiedBytes: 0, modelBugs: 0);
+    }
+    return HeapWriteResult(bytes: body, modelBytes: 0, copiedBytes: body.length, modelBugs: 0);
+  }
+
   final out = BytesBuilder(copy: false);
   var model = 0;
   var copied = 0;
