@@ -8,7 +8,7 @@ part of 'seq_binary.dart';
 // f64/i64/bool values, counts, type-table references), the string pool is
 // re-emitted from the recovered strings, and only the spans the decoder does
 // not cover are copied verbatim from the retained body. The write ops come
-// from the recorded decode stream ([_decodeBodyStream] into a [_DecodeSink])
+// from the recorded decode stream ([_decodeBody] into a [_DecodeSink])
 // — never a parallel grammar — and the coverage metrics fold the SAME stream
 // (seq_binary_metrics.dart), so the writer's copy-vs-serialize decision
 // mirrors the coverage tier map by construction.
@@ -166,6 +166,8 @@ class BinarySeqWriteModel {
 
   /// The retained record-region bytes — the copy source for the plan's
   /// verbatim spans. Not written directly; the plan re-emits the region.
+  /// A view over the model's freshly inflated body (exclusively owned by
+  /// this model), so retaining it copies nothing.
   final Uint8List recordRegion;
 
   /// The ordered NUL string pool ([_orderedStringPool] of the body) — the
@@ -294,7 +296,11 @@ class BinarySeqWriteModel {
   /// stream (CMF/FLG 0x78 0x9C), and EOF exactly at the adler32 trailer.
   Uint8List writeFile() {
     final body = writeBody();
-    final compressed = ZLibCodec().encode(body);
+    // The codec's static type is `List<int>`; in practice it yields a
+    // `Uint8List` — normalize once so [Uint8List.setRange] takes the
+    // typed-data fast path instead of an element-by-element copy.
+    final deflated = ZLibCodec().encode(body);
+    final compressed = deflated is Uint8List ? deflated : Uint8List.fromList(deflated);
     final out = Uint8List(header.length + compressed.length);
     out.setRange(0, header.length, header);
     if (headerHasSizeWord) {
@@ -387,7 +393,7 @@ void _leafPropertyRecordOps(_DecodeSink ops, ByteData view, BinaryPropertyRecord
 
 /// Parses [seqBytes] into a [BinarySeqWriteModel], or null when it is not an
 /// inflatable binary TOF1 file. The record-region write plan is captured by
-/// the production decode passes (the [_decodeBodyStream] recording); bytes no
+/// the production decode passes (the [_decodeBody] recording); bytes no
 /// decode claims become verbatim copy spans, so [writeBody] is byte-exact by
 /// construction for every file the decoder can inflate — including bodies
 /// that do not frame at all (a single copy span).
@@ -402,7 +408,9 @@ BinarySeqWriteModel? parseBinarySeqWriteModel(Uint8List seqBytes) {
       streamAt >= _u32Bytes &&
       ByteData.sublistView(seqBytes).getUint32(streamAt - _u32Bytes, Endian.little) == body.length;
 
-  final decoded = _decodeBodyStream(body);
+  // One decode bundle: boundary, pool, and write ops come from the same
+  // [_decodeBody] pass (no second pool split, no second decode walk).
+  final decoded = _decodeBody(body);
   if (decoded == null) {
     // No framed string region: the whole body is one retained copy span.
     return BinarySeqWriteModel._(
@@ -414,14 +422,15 @@ BinarySeqWriteModel? parseBinarySeqWriteModel(Uint8List seqBytes) {
       plan: [_WriteOp(0, _WriteOpKind.copy, body.length)],
     );
   }
-  final (stream, boundary) = decoded;
   return BinarySeqWriteModel._(
     header: header,
     headerHasSizeWord: hasSizeWord,
-    recordRegion: body.sublist(0, boundary),
-    pool: _orderedStringPool(body, boundary),
+    // A view, not a copy: the freshly inflated body is exclusively owned by
+    // this model (nothing else retains it), so the record region borrows it.
+    recordRegion: Uint8List.sublistView(body, 0, decoded.boundary),
+    pool: decoded.pool,
     poolEndsWithoutNul: body.isNotEmpty && body[body.length - 1] != 0,
-    plan: _buildWritePlan(stream.ops, boundary),
+    plan: _buildWritePlan(decoded.stream.ops, decoded.boundary),
   );
 }
 

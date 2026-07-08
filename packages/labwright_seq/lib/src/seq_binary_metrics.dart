@@ -5,7 +5,7 @@ part of 'seq_binary.dart';
 // Every binary-decode metric — the byte-coverage tier accounting, the
 // undecoded-span census, and the writer scoreboard — is computed HERE, as a
 // pure fold of the typed decode stream one production pass records into a
-// [_DecodeSink] (see [_decodeBodyStream]). The parsers emit only that stream;
+// [_DecodeSink] (see [_decodeBody]). The parsers emit only that stream;
 // nothing in this file re-reads body bytes. The writer serializes from the
 // SAME stream ([_buildWritePlan] over [_DecodeSink.ops]), so the coverage
 // tiers and the writer's copy-vs-serialize splits cannot drift apart.
@@ -132,12 +132,9 @@ class BinaryByteCoverage {
 /// recorded decode stream. Returns null when [seqBytes] is not an inflatable
 /// binary file or the body does not frame.
 BinaryByteCoverage? binaryByteCoverage(Uint8List seqBytes) {
-  final body = inflateBinaryBody(seqBytes);
-  if (body == null) return null;
-  final decoded = _decodeBodyStream(body);
+  final decoded = _decodeSeq(seqBytes);
   if (decoded == null) return null;
-  final (stream, recordRegionLength) = decoded;
-  final tiers = _tiersOfStream(stream, recordRegionLength);
+  final tiers = _tiersOfStream(decoded.stream, decoded.boundary);
   var semantic = 0;
   var structural = 0;
   for (final tier in tiers) {
@@ -148,8 +145,8 @@ BinaryByteCoverage? binaryByteCoverage(Uint8List seqBytes) {
     }
   }
   return BinaryByteCoverage(
-    bodyBytes: body.length,
-    poolBytes: body.length - recordRegionLength,
+    bodyBytes: decoded.body.length,
+    poolBytes: decoded.body.length - decoded.boundary,
     recordSemanticBytes: semantic,
     recordStructuralBytes: structural,
   );
@@ -161,12 +158,9 @@ BinaryByteCoverage? binaryByteCoverage(Uint8List seqBytes) {
 /// mass sits (point the prober at the biggest spans). Returns `[]` when the
 /// file is not an inflatable binary or does not frame.
 List<(int, int)> binaryUndecodedSpans(Uint8List seqBytes, {int max = 50}) {
-  final body = inflateBinaryBody(seqBytes);
-  if (body == null) return const [];
-  final decoded = _decodeBodyStream(body);
+  final decoded = _decodeSeq(seqBytes);
   if (decoded == null) return const [];
-  final (stream, recordRegionLength) = decoded;
-  final tiers = _tiersOfStream(stream, recordRegionLength);
+  final tiers = _tiersOfStream(decoded.stream, decoded.boundary);
   final spans = <(int, int)>[];
   var start = -1;
   for (var i = 0; i <= tiers.length; i++) {

@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:labwright_seq/labwright_seq.dart';
 import 'package:test/test.dart';
@@ -28,7 +27,7 @@ void main() {
     }
 
     IniSeqFile roundTrips(String text) {
-      final original = Uint8List.fromList(latin1.encode(text));
+      final original = latin1.encode(text);
       final file = parseIniSeqBytes(original);
       expect(writeIniSeq(file), original, reason: 'write(parse(doc)) must be byte-identical');
       return file;
@@ -149,19 +148,17 @@ void main() {
 
     test('model deep-equals: write→parse preserves the model; mutation/reorder is detected', () {
       final text = doc(['[SF]\nVersion = "0.0.0.0"\n%FLG: Seq = 4194304']);
-      final file = parseIniSeqBytes(Uint8List.fromList(latin1.encode(text)));
+      final file = parseIniSeqBytes(latin1.encode(text));
       expect(iniDeepEquals(file, parseIniSeqBytes(writeIniSeq(file))), isTrue);
       final mutated = parseIniSeqBytes(
-        Uint8List.fromList(latin1.encode(text.replaceFirst('"0.0.0.0"', '"0.0.0.1"'))),
+        latin1.encode(text.replaceFirst('"0.0.0.0"', '"0.0.0.1"')),
       );
       expect(iniDeepEquals(file, mutated), isFalse);
       final reordered = parseIniSeqBytes(
-        Uint8List.fromList(
-          latin1.encode(
-            text.replaceFirst(
-              'Version = "0.0.0.0"\n%FLG: Seq = 4194304',
-              '%FLG: Seq = 4194304\nVersion = "0.0.0.0"',
-            ),
+        latin1.encode(
+          text.replaceFirst(
+            'Version = "0.0.0.0"\n%FLG: Seq = 4194304',
+            '%FLG: Seq = 4194304\nVersion = "0.0.0.0"',
           ),
         ),
       );

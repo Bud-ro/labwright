@@ -2,7 +2,6 @@
 library;
 
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:labwright_seq/labwright_seq.dart';
 import 'package:test/test.dart';
@@ -119,7 +118,7 @@ void main() {
 
     for (final bin in binaries) {
       final name = bin.uri.pathSegments.last;
-      final bytes = Uint8List.fromList(bin.readAsBytesSync());
+      final bytes = bin.readAsBytesSync();
       final twin = _twin(rosetta, name)!;
       final twinFile = parseSeqFile(twin.readAsBytesSync());
       pairs++;
@@ -267,7 +266,7 @@ void main() {
   });
 
   // ── Content-exact oracle: OutputVoltage_{BIN,XML} ──
-  final binBytes = Uint8List.fromList(oracleBinFile.readAsBytesSync());
+  final binBytes = oracleBinFile.readAsBytesSync();
   final binFile = parseSeqFile(binBytes);
   final xmlFile = parseSeqFile(oracleXmlFile.readAsBytesSync());
 

@@ -33,7 +33,7 @@ void main() {
     final failures = <String>[];
     for (final f in corpusSeqDir.listSync(recursive: true).whereType<File>()) {
       if (!f.path.toLowerCase().endsWith('.seq')) continue;
-      final bytes = Uint8List.fromList(f.readAsBytesSync());
+      final bytes = f.readAsBytesSync();
       if (detectSeqFormat(bytes) != SeqFormat.binary) continue;
       final model = parseBinarySeqWriteModel(bytes);
       if (model == null) continue;
@@ -80,7 +80,7 @@ void main() {
     var checked = 0;
     for (final f in Directory('${corpusSeqDir.path}/rosetta').listSync().whereType<File>()) {
       if (!f.path.toLowerCase().endsWith('.seq')) continue;
-      final bytes = Uint8List.fromList(f.readAsBytesSync());
+      final bytes = f.readAsBytesSync();
       if (detectSeqFormat(bytes) != SeqFormat.binary) continue;
       final model = parseBinarySeqWriteModel(bytes)!;
       expect(model.writeBody(), inflateBinaryBody(bytes), reason: f.path);
@@ -91,7 +91,7 @@ void main() {
   });
 
   group('mutation probes', () {
-    Uint8List read(String relative) => Uint8List.fromList(File('${corpusSeqDir.path}/$relative').readAsBytesSync());
+    Uint8List read(String relative) => File('${corpusSeqDir.path}/$relative').readAsBytesSync();
 
     test('step rename via its pool string (same length): delta is the pool entry alone', () {
       final bytes = read('rosetta/OutputVoltage_BIN.seq');

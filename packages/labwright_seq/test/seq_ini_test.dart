@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:labwright_seq/labwright_seq.dart';
 import 'package:test/test.dart';
@@ -32,7 +31,7 @@ String _tsIni(List<String> tsKeys, [List<String>? values]) => _stepIni(
       '[$_p.TS]\n${List.generate(tsKeys.length, (i) => '${tsKeys[i]} = "${values?[i] ?? 'v'}"').join('\n')}\n',
 );
 
-SeqFile _parse(String ini) => parseSeqFile(Uint8List.fromList(latin1.encode(ini)));
+SeqFile _parse(String ini) => parseSeqFile(latin1.encode(ini));
 Step _step(String ini) => _parse(ini).sequences.single.main.single;
 
 final _ini = _doc(
@@ -56,7 +55,7 @@ void main() {
           '354',
         ),
       );
-      final bytes = Uint8List.fromList(latin1.encode(_ini));
+      final bytes = latin1.encode(_ini);
       expect(detectSeqFormat(bytes), SeqFormat.ini);
       final h = detectSeqHeader(bytes);
       expect((h.fileType, h.productName, h.fileVersion), ('SequenceFile', 'TestStand', '354'));
