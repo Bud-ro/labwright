@@ -1,8 +1,8 @@
 import 'dart:io';
 
 /// Resolves this package's corpus dir (`<pkg>/corpus/`), which holds the
-/// committed JSON indices (`sources.json`, `baseline.json`, `snapshot.json`) and
-/// the gitignored `vi/` checkout from `tool/fetch_corpus.dart`.
+/// committed JSON indices (`sources.json`, `snapshot.json`) and the
+/// gitignored `vi/` checkout from `tool/fetch_corpus.dart`.
 ///
 /// Callers (the corpus tools and the corpus tests) may run from the repo root or
 /// the package dir, so walk up from CWD checking both the package-relative

@@ -7,6 +7,7 @@ import 'package:labwright_seq/labwright_seq.dart';
 import 'package:test/test.dart';
 
 import 'corpus_dirs.dart';
+import 'snapshot_check.dart';
 
 /// Structural scaffold/model tokens that must never be recovered as TYPE names.
 const _typeNameTokens = {
@@ -72,8 +73,9 @@ const _knownOffenders = {
 /// Whole-corpus honesty sweep over every binary (one streaming pass): the
 /// decoders must never fabricate (no structural tokens, types from the file's
 /// own table, `ID#:` anchors, bounds == element counts, byte-coverage
-/// invariants) and the recovery floors must not silently regress. The
-/// per-value twin validation lives in `binary_oracle_test.dart`.
+/// invariants) and the recovery censuses must match the committed snapshot
+/// exactly (see `snapshot_check.dart`). The per-value twin validation lives
+/// in `binary_oracle_test.dart`.
 void main() {
   if (!corpusSeqDir.existsSync()) {
     test(
@@ -115,7 +117,7 @@ void main() {
     return count;
   }
 
-  test('whole corpus: nothing fabricates, all invariants hold, floors ratchet', () {
+  test('whole corpus: nothing fabricates, all invariants hold, censuses match the snapshot', () {
     var binaries = 0, covFiles = 0, withNames = 0, totalNames = 0, nonzeroBaseFiles = 0, anchors = 0;
     var withLeading = 0, leadingTotal = 0, withTs = 0, tsTotal = 0, withRr = 0, withFa = 0;
     var groupArrays = 0, steps = 0, ids = 0, comments = 0;
@@ -284,30 +286,34 @@ void main() {
           'fabrication/honesty offenders beyond (or missing from) the pinned '
           'known counterexamples:\n${offenders.take(10).join('\n')}',
     );
-    expect(binaries, 297, reason: 'binary corpus count drifted');
-    expect(covFiles, greaterThanOrEqualTo(297));
-    // Floors re-based after the pool[0] class-slot decode (the TS 4.x-era
-    // generation references its root 'Obj' token by index 0): measured
-    // 0.312/0.414 record-region coverage, 4546 anchors, 792
-    // leading-subprop sequences, 1142 RecordResults, 1725 group arrays,
-    // 2885 step elements, 6144 element arrays, 15171 elements.
-    expect(totalCov.recordSemanticRatio, greaterThanOrEqualTo(0.31));
-    expect(totalCov.recordAccountedRatio, greaterThanOrEqualTo(0.41));
-    expect(withNames, greaterThanOrEqualTo(275), reason: 'type-name recovery regressed ($withNames files)');
-    expect(totalNames, greaterThanOrEqualTo(9600), reason: 'type-name recovery regressed ($totalNames names)');
-    expect(anchors, greaterThanOrEqualTo(4500), reason: 'anchor-field decode regressed ($anchors)');
-    expect(
-      nonzeroBaseFiles,
-      greaterThanOrEqualTo(48),
-      reason: 'misaligned-cohort recovery regressed ($nonzeroBaseFiles)',
-    );
-    expect(withLeading, greaterThanOrEqualTo(780), reason: 'leading-subprop recovery regressed ($withLeading)');
-    expect(withRr, greaterThanOrEqualTo(1100), reason: 'RecordResults recovery regressed ($withRr)');
-    expect(groupArrays, greaterThanOrEqualTo(1700));
-    expect(steps, greaterThanOrEqualTo(2850));
-    expect(elementArrays, greaterThanOrEqualTo(6100));
-    expect(elements, greaterThanOrEqualTo(15000));
-    expect(dataSubProps, greaterThanOrEqualTo(28));
+    // Recovery censuses + the byte-coverage scoreboard, pinned exactly as raw
+    // counts (record-region coverage is reviewable straight from the byte
+    // totals: semantic/(body−pool), accounted adds structural).
+    expectCorpusSnapshot('binary_sweep', {
+      'binaries': binaries,
+      'covFiles': covFiles,
+      'bodyBytes': totalCov.bodyBytes,
+      'poolBytes': totalCov.poolBytes,
+      'recordSemanticBytes': totalCov.recordSemanticBytes,
+      'recordStructuralBytes': totalCov.recordStructuralBytes,
+      'withNames': withNames,
+      'totalNames': totalNames,
+      'anchors': anchors,
+      'nonzeroBaseFiles': nonzeroBaseFiles,
+      'withLeading': withLeading,
+      'leadingTotal': leadingTotal,
+      'withTs': withTs,
+      'tsTotal': tsTotal,
+      'withRr': withRr,
+      'withFa': withFa,
+      'groupArrays': groupArrays,
+      'steps': steps,
+      'ids': ids,
+      'comments': comments,
+      'elementArrays': elementArrays,
+      'elements': elements,
+      'dataSubProps': dataSubProps,
+    });
   });
 
   test('misaligned cohort recovers its exact per-file base, and the rebase is semantic', () {
@@ -478,7 +484,10 @@ void main() {
         'ResStr("NI_WAIT_STEP_TYPE", "EDIT_STEP_MENU_NAME")',
       );
       expect(edit.children.firstWhere((f) => f.name == 'HasEditPanel').value, 'true');
-      expect(records.where((r) => r.undecodedBody).length, lessThanOrEqualTo(4), reason: 'body bails must not regress');
+      // The remaining all-or-nothing body bails in this file, pinned exactly.
+      expectCorpusSnapshot('binary_pins', {
+        'solarPanelMainUndecodedBodies': records.where((r) => r.undecodedBody).length,
+      });
     });
   });
 }

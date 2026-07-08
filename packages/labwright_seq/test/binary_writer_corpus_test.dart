@@ -8,6 +8,7 @@ import 'package:labwright_seq/labwright_seq.dart';
 import 'package:test/test.dart';
 
 import 'corpus_dirs.dart';
+import 'snapshot_check.dart';
 
 /// The binary TOF1 writer's corpus gates (`write(parse(x)) == x` over every
 /// corpus binary) and its mutation probes (one targeted model mutation must
@@ -72,39 +73,40 @@ void main() {
       '$sizeWords size words · $total',
     );
     expect(failures, isEmpty, reason: 'body round-trip diverged:\n${failures.take(5).join('\n')}');
-    expect(binaries, greaterThanOrEqualTo(297));
     expect(subnormalSlots, 0, reason: 'i64-stored Num slots mis-read as f64 (was 163 before the signature read)');
     expect(bodyExact, binaries);
     expect(containerOk, binaries);
     expect(sizeWords, binaries, reason: 'a header lost its PMCZ size field');
-    // Scoreboard floors: from-model (model content + verified grammar
-    // constants) tracks the coverage pass's semantic tier by construction;
-    // decode progress must raise them. Measured on the 297-binary corpus
-    // after the retention rounds (field flags/attr words and leaf-record
-    // lead/flags/kind moved into the typed model; verified framing
-    // constants re-emitted from the grammar): recordModel 26.2%,
-    // bodyModel 35.4%, retained structure 21,712 B (extdata counts,
-    // non-comment comment-slot words, out-of-table references,
-    // declaration-record lead bytes).
-    expect(total.recordModelRatio, greaterThanOrEqualTo(0.26));
-    expect(total.bodyModelRatio, greaterThanOrEqualTo(0.35));
-    expect(total.structuralBytes, lessThan(30000), reason: 'retained-structure band must not regrow silently');
+    // Scoreboard buckets, pinned exactly as raw byte totals: modelBytes +
+    // grammarBytes is the from-model band (should grow), structuralBytes the
+    // retained-structure band and copiedBytes the verbatim band (both should
+    // shrink) — decode progress reads directly off the diff.
+    expectCorpusSnapshot('writer', {
+      'binaries': binaries,
+      'bodyBytes': total.bodyBytes,
+      'poolBytes': total.poolBytes,
+      'modelBytes': total.modelBytes,
+      'grammarBytes': total.grammarBytes,
+      'structuralBytes': total.structuralBytes,
+      'copiedBytes': total.copiedBytes,
+    });
   });
 
-  test('rosetta binaries: byte-exact bodies with a majority-model record region', () {
-    var checked = 0;
-    for (final f in Directory('${corpusSeqDir.path}/rosetta').listSync().whereType<File>()) {
+  test('rosetta binaries: byte-exact bodies with per-file model coverage pinned', () {
+    // Per-file record-region model coverage in permille, pinned exactly —
+    // retention/decode moves on the rosetta oracles show up file by file.
+    final metrics = <String, int>{};
+    final files = Directory('${corpusSeqDir.path}/rosetta').listSync().whereType<File>().toList()
+      ..sort((a, b) => a.path.compareTo(b.path));
+    for (final f in files) {
       if (!f.path.toLowerCase().endsWith('.seq')) continue;
       final bytes = f.readAsBytesSync();
       if (detectSeqFormat(bytes) != SeqFormat.binary) continue;
       final model = parseBinarySeqWriteModel(bytes)!;
       expect(model.writeBody(), inflateBinaryBody(bytes), reason: f.path);
-      // Post-retention floor (measured 70.2%–76.4% per file: field flags,
-      // attr words, and verified grammar constants all write from-model).
-      expect(model.scoreboard.recordModelRatio, greaterThanOrEqualTo(0.70), reason: f.path);
-      checked++;
+      metrics['recordModelPermille:${f.uri.pathSegments.last}'] = (model.scoreboard.recordModelRatio * 1000).round();
     }
-    expect(checked, greaterThanOrEqualTo(6), reason: 'rosetta binaries missing — partial checkout?');
+    expectCorpusSnapshot('writer_rosetta', metrics);
   });
 
   group('mutation probes', () {
