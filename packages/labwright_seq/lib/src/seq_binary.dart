@@ -1148,9 +1148,11 @@ const _typeRecordMinBytes = (3 + _typeVersionTripleWords) * _u32Bytes;
 /// types the XML stores on steps (`NI_Measurement`, `NI_UpdatePinMap`,
 /// `NI_MeasurementParameter`, ...); every recovered name appears in the twin
 /// as a typedef element or a `typename`/`xsi:type` reference (pinned by
-/// `binary_parse_seq_file_test.dart`). Whole-corpus sweep: 283/294 binaries
-/// yield names with zero structural-token fabrications (pinned by
-/// `binary_type_names_test.dart`). De-duplicated, in file order. Returns `[]`
+/// `binary_parse_seq_file_test.dart`). Whole-corpus sweep: 275/297 binaries
+/// yield names, with zero structural-token fabrications beyond the three
+/// pinned `Obj` counterexamples (a fully-framed record window named `Obj` in
+/// one HIL project — genuine record vs over-detected head not yet decided;
+/// see `binary_sweep_test.dart`). De-duplicated, in file order. Returns `[]`
 /// when [seqBytes] is not an inflatable binary file or does not frame.
 ///
 /// RESOLVED (the differential sweep found it — see [BinaryStepRef]): the

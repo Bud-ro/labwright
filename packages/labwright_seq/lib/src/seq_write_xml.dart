@@ -15,14 +15,16 @@ import 'seq_property.dart';
 /// `writeSeqFileXml(parseSeqFile(bytes))` reproduces the original bytes
 /// (validated by the corpus round-trip gate in `test/seq_write_xml_test.dart`).
 ///
-/// The serialization constants below are corpus-verified over all 36 XML files
+/// The serialization constants below are corpus-verified over all 42 XML files
 /// (uniform, no exceptions):
 /// - UTF-8 with a BOM (`EF BB BF`);
 /// - declaration exactly `<?xml version="1.0" encoding="UTF-8"?>` (the only
 ///   double-quoted line besides the root's `xmlns` attributes);
 /// - element attributes single-quoted, EXCEPT the root's `xmlns`/`xmlns:*`
 ///   declarations which are double-quoted;
-/// - LF line endings only; TAB indentation, one element per line;
+/// - the source file's line terminator throughout ([SeqFile.newline]: LF for
+///   36 corpus files, CRLF for the 6 CRLF-terminated ones — each is uniform,
+///   no corpus file mixes terminators); TAB indentation, one element per line;
 /// - childless elements self-closed (`<value/>`, `<SData/>`, `<extdata …/>`);
 /// - an empty `<subprops>` is never written (the corpus never contains one);
 /// - text/attribute escaping is exactly `&amp;` `&lt;` `&gt;` (the corpus uses
@@ -76,7 +78,18 @@ Uint8List writeSeqFileXml(SeqFile file) {
   }
   _writeProperty(sb, file.data, 1);
   sb.write('</teststandfileheader>\n');
-  return utf8.encode(sb.toString());
+  var text = sb.toString();
+  if (file.newline != '\n') {
+    // The writer builds with LF; a CRLF source expands every line break to
+    // the file's terminator. Text content that already carries literal CRLFs
+    // (multiline `<value>`/`<comment>` text is kept verbatim by the parser)
+    // is normalized first so it cannot double-expand — exact because every
+    // CRLF corpus file is uniformly CRLF (a bare LF inside a text node of a
+    // CRLF file, unobserved in the corpus, would be widened; the byte-exact
+    // round-trip gates would catch such a file loudly).
+    text = text.replaceAll('\r\n', '\n').replaceAll('\n', file.newline);
+  }
+  return utf8.encode(text);
 }
 
 /// Root attributes, with the corpus's mixed quoting: single quotes everywhere
@@ -105,8 +118,10 @@ void _writeRootAttributes(StringBuffer sb, SeqFile file) {
 }
 
 /// One property element at [depth] tabs: tag + attributes, then its children in
-/// the corpus-invariant order `<value>` → `<numericfmt>` → `<extdata/>`* →
-/// `<subprops>` (verified over every co-occurrence in all 36 files); childless
+/// the corpus-invariant order `<comment>` → `<value>` → `<numericfmt>` →
+/// `<extdata/>`* → `<subprops>` (verified over every co-occurrence in all 42
+/// files; both corpus `<comment>` occurrences are the element's FIRST child,
+/// before `<subprops>`, and never co-occur with the others); childless
 /// elements self-close.
 void _writeProperty(StringBuffer sb, SeqProperty p, int depth) {
   final indent = _tabs(depth);
@@ -117,11 +132,18 @@ void _writeProperty(StringBuffer sb, SeqProperty p, int depth) {
     ..write(tag);
   _writeAttributes(sb, p.attributes);
   final hasValue = p.array != null || p.scalar != null;
-  if (!hasValue && p.numericFormat == null && p.extData.isEmpty && p.subProps.isEmpty) {
+  if (!hasValue && p.xmlComment == null && p.numericFormat == null && p.extData.isEmpty && p.subProps.isEmpty) {
     sb.write('/>\n');
     return;
   }
   sb.write('>\n');
+  if (p.xmlComment != null) {
+    sb
+      ..write(indent)
+      ..write('\t<comment>')
+      ..write(_escapeText(p.xmlComment!))
+      ..write('</comment>\n');
+  }
   if (hasValue) _writeValue(sb, p, depth + 1);
   if (p.numericFormat != null) {
     sb

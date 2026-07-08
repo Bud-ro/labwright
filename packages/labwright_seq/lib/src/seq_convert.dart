@@ -18,7 +18,7 @@
 ///   type-elision concept), so it is recorded losslessly as a reserved
 ///   property subtree ([ConvKey.iniChannel]) rather than dropped.
 ///   [xmlToIniSeqFile] inverts the channel, reproducing the original INI
-///   **byte-exactly** (58/58 corpus INI files; gate:
+///   **byte-exactly** (45/45 corpus INI files; gate:
 ///   `test/seq_convert_corpus_test.dart`).
 /// - **XML → INI** emits real INI `[DEF, path]`/`[path]` sections for the
 ///   whole property tree (every node written explicitly — the INI flavor
@@ -30,7 +30,7 @@
 ///   own-section, quoted — the same fact in both flavors). [iniToXmlSeqFile]
 ///   inverts this encoding, reproducing the original XML model deep-equal and
 ///   therefore (via the byte-exact XML writer) the original file byte-exactly
-///   (36/36 corpus XML files).
+///   (42/42 corpus XML files).
 ///
 /// Both conversions are deterministic pure functions of their input models, so
 /// longer loops (`XML → INI → XML → INI → …`) are fixpoints after the first
@@ -84,7 +84,7 @@
 /// a complete file; there is deliberately NO binary writer, and
 /// [xmlToIniSeqFile] refuses binary-flavor models directly (convert via
 /// [binaryToXmlSeqFile], which keeps the partial marking). Loops through the
-/// binary hop retain exactly the decoded surface (gated over all 294 corpus
+/// binary hop retain exactly the decoded surface (gated over all 297 corpus
 /// binaries — every one currently inflates and converts; a body that does not
 /// inflate refuses with [FormatException] at parse, never fabricating
 /// output).
@@ -131,7 +131,7 @@ abstract final class ConvKey {
   static const iniChannelSections = 'sections';
 
   /// Attribute on [iniChannel] recording a `\r\n` line terminator (value
-  /// `crlf`); absent for `\n` (corpus: 57 LF files, one CRLF).
+  /// `crlf`); absent for `\n` (corpus: 44 LF INI files, one CRLF).
   static const iniEolAttr = 'eol';
 
   /// Value of [iniEolAttr] for a CRLF-terminated source file.
@@ -174,6 +174,11 @@ abstract final class ConvKey {
   /// Header key holding the armored ordered [SeqFile.rootAttributes] map;
   /// absent when the model carries none (null).
   static const hdrRootAttrs = '%XROOTA';
+
+  /// Header key recording a `\r\n` XML line terminator ([SeqFile.newline];
+  /// value [iniEolCrlf]); absent for `\n` — the mirror of [iniEolAttr] for
+  /// the opposite direction (corpus: 36 LF XML files, 6 CRLF).
+  static const hdrEol = '%XEOL';
 
   /// Header key marking the typelist shape: `1` = [SeqFile.typelistEntries]
   /// was non-null (rebuilt as-is, empty included), `2` = entries were
@@ -268,6 +273,12 @@ abstract final class ConvKey {
   /// defensive).
   static const numericFmtArmored = '%XNFA';
 
+  /// Bare directive: the node's armored `<comment>` element text
+  /// ([SeqProperty.xmlComment]); absent when the property carries none.
+  /// Reserved (armored) rather than folded into the native INI `%COMMENT`
+  /// directive: no corpus twin proves the two encodings are the same fact.
+  static const nodeComment = '%XCMT';
+
   /// Scoped directive: `<extdata>` element `j`'s armored ordered attribute
   /// map, keyed by position.
   static const nodeExtData = '%XX';
@@ -286,7 +297,7 @@ abstract final class ConvKey {
 /// flavor materializes natively), whose typelist is the decoded `[%TYPES]`
 /// list, and whose header/root attributes carry the INI header trio. The INI
 /// serialization state rides in the reserved [ConvKey.iniChannel] subtree so
-/// that [xmlToIniSeqFile] reproduces the original file byte-exactly (58/58
+/// that [xmlToIniSeqFile] reproduces the original file byte-exactly (45/45
 /// corpus INI files — see `test/seq_convert_corpus_test.dart`).
 ///
 /// For an INI produced by [xmlToIniSeqFile] (recognized by the
@@ -341,7 +352,7 @@ SeqFile iniToXmlSeqFile(IniSeqFile doc) {
 /// (tags, verbatim ordered attribute maps, value attributes, elemproto trees,
 /// extdata maps, typedef wrappers, protected blobs, root attributes) under
 /// the reserved `%X*` keys cataloged in [ConvKey]. [iniToXmlSeqFile] inverts
-/// the encoding deep-equal (36/36 corpus XML files byte-exactly through the
+/// the encoding deep-equal (42/42 corpus XML files byte-exactly through the
 /// XML writer).
 ///
 /// Throws [ArgumentError] for a binary- or INI-flavor [SeqFile]: those models
@@ -369,7 +380,7 @@ IniSeqFile xmlToIniSeqFile(SeqFile file) {
 /// pass as a complete sequence file, and the `%BIN*` synthetic markers ride
 /// along under the `x-BIN*` rename. Loops through this hop
 /// (XML ↔ INI included) retain that surface deep-equal (corpus-gated over all
-/// 294 corpus binaries).
+/// 297 corpus binaries).
 ///
 /// Throws [ArgumentError] when [file] is not a binary-flavor model.
 SeqFile binaryToXmlSeqFile(SeqFile file) {
@@ -601,6 +612,7 @@ SeqProperty _xmlReady(SeqProperty p, Map<SeqProperty, SeqProperty> memo) {
     elemProto: p.elemProto == null ? null : _xmlReady(p.elemProto!, memo),
     extData: p.extData,
     numericFormat: numericFormat,
+    xmlComment: p.xmlComment,
   );
   memo[p] = out;
   return out;
@@ -768,6 +780,9 @@ void _emitNode(SeqProperty p, String path, List<IniSection> out, {required bool 
           : IniEntry(ConvKey.numericFmtArmored, _quotedRaw(armorText(numericFormat))),
     );
   }
+  if (p.xmlComment != null) {
+    valueEntries.add(IniEntry(ConvKey.nodeComment, _quotedRaw(armorText(p.xmlComment!))));
+  }
   final array = p.array;
   if (array != null) {
     valueEntries.add(IniEntry(ConvKey.nodeArrayLength, '${array.length}'));
@@ -854,6 +869,7 @@ IniSeqFile _iniFromXml(SeqFile file) {
     ),
     if (file.rootAttributes != null) ConvKey.hdrRootAttrs: _quotedRaw(_armorMap(file.rootAttributes!)),
     if (typelistMark != null) ConvKey.hdrTypelist: typelistMark,
+    if (file.newline == '\r\n') ConvKey.hdrEol: ConvKey.iniEolCrlf,
   };
 
   final sections = <IniSection>[];
@@ -984,6 +1000,7 @@ SeqFile _xmlFromReservedIni(IniSeqFile doc) {
     typelistEntries: typelistEntries,
     rootAttributes: rootAttrsRaw == null ? null : _unarmorMap(unquoteIni(rootAttrsRaw)!),
     data: _rebuildNode(ConvKey.dataPath, null, defs, vals),
+    newline: doc.headerFields[ConvKey.hdrEol] == ConvKey.iniEolCrlf ? '\r\n' : '\n',
   );
 }
 
@@ -1064,5 +1081,6 @@ SeqProperty _rebuildNode(String path, String? scalarRaw, Map<String, IniSection>
         : null,
     extData: extData,
     numericFormat: numericFormat,
+    xmlComment: armored(ConvKey.nodeComment),
   );
 }

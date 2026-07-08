@@ -18,9 +18,9 @@ import 'corpus_dirs.dart';
 ///    body that does not inflate refuses with [FormatException] — refusal is
 ///    honest, fabrication is not.
 /// Counts are pinned so a corpus refresh consciously extends the gates.
-const _pinnedIniSeqCount = 43;
-const _pinnedXmlSeqCount = 35;
-const _pinnedBinarySeqCount = 169;
+const _pinnedIniSeqCount = 45;
+const _pinnedXmlSeqCount = 42;
+const _pinnedBinarySeqCount = 297;
 
 void main() {
   if (!corpusSeqDir.existsSync()) {

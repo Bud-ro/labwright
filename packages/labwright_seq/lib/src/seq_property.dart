@@ -43,6 +43,7 @@ class SeqProperty {
     this.elemProto,
     this.extData = const [],
     this.numericFormat,
+    this.xmlComment,
   });
 
   /// The property name: the `name=` attribute when present (array elements and
@@ -119,6 +120,15 @@ class SeqProperty {
   /// format string (corpus: 132 occurrences, `%#x` and `%i`, always AFTER
   /// `<value>`). null when absent.
   final String? numericFormat;
+
+  /// The `<comment>` child element's text, verbatim — the editor's free-text
+  /// note on the property (corpus: 2 occurrences, both on `<Step>` elements,
+  /// each a single `<comment>` written as the FIRST child, before
+  /// `<subprops>`; neither co-occurs with `<value>`/`<numericfmt>`/
+  /// `<extdata>`). Kept as its own field rather than folded into the INI
+  /// `%COMMENT` directive: no corpus twin proves the two encodings are the
+  /// same fact. null when absent.
+  final String? xmlComment;
 
   bool get isArray => array != null;
   bool get isLeaf => array == null && subProps.isEmpty;
@@ -239,6 +249,7 @@ class SeqProperty {
     SeqProperty? elemProto,
     List<Map<String, String>>? extData,
     String? numericFormat,
+    String? xmlComment,
   }) => SeqProperty(
     name: name ?? this.name,
     xmlTag: xmlTag ?? this.xmlTag,
@@ -252,6 +263,7 @@ class SeqProperty {
     elemProto: elemProto ?? this.elemProto,
     extData: extData ?? this.extData,
     numericFormat: numericFormat ?? this.numericFormat,
+    xmlComment: xmlComment ?? this.xmlComment,
   );
 
   SeqProperty? prop(String name) => subProps.where((p) => p.name == name).firstOrNull;
@@ -329,6 +341,7 @@ SeqProperty buildProperty(XmlElement e) {
         {for (final attribute in ext.attributes) attribute.name.qualified: attribute.value},
     ],
     numericFormat: childElement(e, 'numericfmt')?.innerText,
+    xmlComment: childElement(e, 'comment')?.innerText,
   );
 }
 
@@ -363,5 +376,6 @@ SeqProperty _arrayElement(XmlElement wrapper) {
     elemProto: child.elemProto,
     extData: child.extData,
     numericFormat: child.numericFormat,
+    xmlComment: child.xmlComment,
   );
 }
