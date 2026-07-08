@@ -363,7 +363,11 @@ void main() {
       'decodeModifiedUid': decodeModifiedUid,
       'decodeExtendedState': decodeExtendedState,
       'decodeGcprRecord': decodeGcprRecord,
+      'decodeVpdpRecord': decodeVpdpRecord,
       'decodeDldrRecord': decodeDldrRecord,
+      'decodeWordGrid': decodeWordGrid,
+      'decodeCpd2Record': decodeCpd2Record,
+      'decodeTitleRaw': decodeTitleRaw,
       'decodeTextRecord': decodeTextRecord,
       'decodeHelpPath+fields': (b) {
         final p = decodeHelpPath(b);
@@ -428,6 +432,36 @@ void main() {
       }
       expect(decodeSaveRecordRaw(u8([1, 2, 3, 4, 5])), isNull, reason: 'not word-aligned');
       expect(decodeSaveRecordRaw(u8([])), isNull);
+    });
+
+    test('ViWordGrid/ViTitleRaw/constant/signature writers re-emit their bodies exactly', () {
+      // DLDR: fixed seven-word u32 grid; off-size stays copied.
+      final dldr = u8([0, 0, 0, 1, ...List.filled(24, 0)]);
+      expect(decodeDldrRecord(dldr)!.serialize(), dldr);
+      expect(decodeDldrRecord(u8([0, 0, 0, 1])), isNull, reason: 'not seven words');
+      // CNST/LPIN: variable u32 grids (multiples of 4); a non-multiple stays copied.
+      final grid = u8([0, 0, 3, 0xae, 0, 0, 3, 0xc4, 0, 0, 5, 9]);
+      expect(decodeWordGrid(grid)!.serialize(), grid);
+      expect(decodeWordGrid(u8([1, 2, 3])), isNull);
+      expect(decodeWordGrid(u8([])), isNull);
+      // VPDP: 4-byte all-zero constant; a non-zero body is not modeled.
+      expect(decodeVpdpRecord(u8([0, 0, 0, 0]))!.serialize(), u8([0, 0, 0, 0]));
+      expect(decodeVpdpRecord(u8([0, 0, 0, 1]))!.serialize(), isNull);
+      // TITL: [u8 len][text]; non-printable text survives, a length mismatch is rejected.
+      final titl = u8([3, 0xff, 0x00, 0x41]);
+      expect(decodeTitleRaw(titl)!.serialize(), titl);
+      expect(decodeTitleRaw(u8([5, 1, 2])), isNull, reason: 'length overruns');
+      // OBSG/CCSG: a 16-byte opaque identity value.
+      final sig = Uint8List.fromList([for (var i = 0; i < 16; i++) (i * 11) & 0xff]);
+      expect(serializeBlockPayload('OBSG', sig), sig);
+      expect(serializeBlockPayload('CCSG', sig), sig);
+      expect(serializeBlockPayload('OBSG', u8([1, 2, 3])), isNull);
+      // COUT: fixed three-word u32 grid; CPD2: a fixed 2-byte u16.
+      final cout = u8([0, 0, 0, 1, 0xe2, 0x4d, 0x4e, 0x32, 0xb4, 0x55, 0xad, 0xf7]);
+      expect(serializeBlockPayload('COUT', cout), cout);
+      expect(serializeBlockPayload('COUT', u8([0, 0, 0, 1])), isNull, reason: 'not three words');
+      expect(decodeCpd2Record(u8([0, 7]))!.serialize(), u8([0, 7]));
+      expect(decodeCpd2Record(u8([0, 7, 0])), isNull);
     });
 
     test('serializeBlockPayload: model-sources covered tags, null otherwise', () {

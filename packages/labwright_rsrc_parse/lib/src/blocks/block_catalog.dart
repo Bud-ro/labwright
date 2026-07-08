@@ -343,7 +343,15 @@ const Map<String, ViBlockInfo> _catalog = {
     'u16 ver=1 + "VIDS" + u32 entry count + linkage entries. See decodeLinkInfo.',
     decoder: 'decodeLinkInfo',
   ),
-  'LPIN': ViBlockInfo('LPIN', 'Linked-instance info', _li, _tt, 'Format not yet decoded.'),
+  'LPIN': ViBlockInfo(
+    'LPIN',
+    'Linked-instance info',
+    _li,
+    _tt,
+    'Per-VI big-endian u32 word grid (multiples of 4 B, 8–804 B); values are '
+        'offset-like pairs. Word semantics not decoded. See decodeWordGrid.',
+    decoder: 'decodeWordGrid',
+  ),
   'DLLP': ViBlockInfo(
     'DLLP',
     'DLL/library path',
@@ -492,14 +500,17 @@ const Map<String, ViBlockInfo> _catalog = {
     'Object signature',
     _id,
     _cf,
-    '16-byte signature, varied per VI (99%); opaque value, role=identity.',
+    '16-byte signature, varied per VI (99%); opaque value, role=identity. See decodeRuntimeSignature.',
+    decoder: 'decodeRuntimeSignature',
   ),
   'CCSG': ViBlockInfo(
     'CCSG',
     'Compiled-code signature',
     _id,
     _cf,
-    '16-byte signature, near-CONSTANT (4 distinct/528) — shared toolchain signature, not per-VI.',
+    '16-byte signature, near-CONSTANT (4 distinct/528) — shared toolchain '
+        'signature, not per-VI. See decodeRuntimeSignature.',
+    decoder: 'decodeRuntimeSignature',
   ),
   'SCSR': ViBlockInfo(
     'SCSR',
@@ -568,14 +579,17 @@ const Map<String, ViBlockInfo> _catalog = {
     'VI property data',
     _un,
     _cf,
-    'Fixed 4-byte record, constant (all-zero) across the corpus.',
+    'Fixed 4-byte record, constant (all-zero) across the corpus. See decodeVpdpRecord.',
+    decoder: 'decodeVpdpRecord',
   ),
   'PRT ': ViBlockInfo(
     'PRT ',
     'Print settings',
     _un,
     _cf,
-    'Fixed 128 B (rarely 132/136) print record: version byte 0x01 @4; all-zero in the default form (3737/3840); field semantics not yet decoded. See decodePrintRecord.',
+    'Fixed 128 B (rarely 132/136) print record: version byte 0x01 @4; the '
+        'default form is a fixed non-zero 128-byte record (1734/3818, 125 '
+        'distinct values overall); field semantics not decoded. See decodePrintRecord.',
     decoder: 'decodePrintRecord',
   ),
   'DLDR': ViBlockInfo(
@@ -583,7 +597,9 @@ const Map<String, ViBlockInfo> _catalog = {
     'Default-data loader',
     _un,
     _cf,
-    'Fixed 28-byte record, constant across the corpus. See decodeDldrRecord.',
+    'Fixed 28-byte body = a seven-word big-endian u32 grid (NOT constant: 2 '
+        'distinct/3471). The first word is 1 in 3470/3471; the remaining words '
+        'are per-VI. Word semantics not decoded. See decodeDldrRecord.',
     decoder: 'decodeDldrRecord',
   ),
   'TRec': ViBlockInfo(
@@ -615,7 +631,10 @@ const Map<String, ViBlockInfo> _catalog = {
     'Constants',
     _un,
     _tt,
-    'Per-VI table of u32 pairs (8/16/24… B, multiples of 8); meaning not yet decoded.',
+    'Per-VI big-endian u32 word grid (multiples of 4 B, 4–452 B; 24/903 are '
+        'multiples of 4 but not 8, so not strictly u32 pairs). Values are '
+        'offset-like; meaning not decoded. See decodeWordGrid.',
+    decoder: 'decodeWordGrid',
   ),
   'IPSR': ViBlockInfo('IPSR', 'IP source record', _un, _tt, 'Format not yet decoded.', decoder: 'decodeOffsetTable'),
   'CPST': ViBlockInfo(
@@ -632,7 +651,14 @@ const Map<String, ViBlockInfo> _catalog = {
     _lk,
     '[u32 len] + Pascal strings of boolean labels ("True","False").',
   ),
-  'CPD2': ViBlockInfo('CPD2', 'Connector-pane data v2', _cp, _lk, 'Fixed 2-byte u16.'),
+  'CPD2': ViBlockInfo(
+    'CPD2',
+    'Connector-pane data v2',
+    _cp,
+    _lk,
+    'Fixed 2-byte big-endian u16; value semantics not decoded. See decodeCpd2Record.',
+    decoder: 'decodeCpd2Record',
+  ),
   'CPTM': ViBlockInfo('CPTM', 'Connector-pane TM', _un, _tt, 'Format not yet decoded.'),
   'GTMI': ViBlockInfo('GTMI', 'Get-TM info', _un, _tt, 'Format not yet decoded.'),
   'HBIN': ViBlockInfo('HBIN', 'Heap bin', _un, _tt, 'Format not yet decoded.'),
@@ -642,7 +668,9 @@ const Map<String, ViBlockInfo> _catalog = {
     'Compiled output',
     _un,
     _lk,
-    'Fixed 12-byte per-VI value (opaque; likely a hash/id). Rare (n=7).',
+    'Fixed 12-byte per-VI value = a three-word big-endian u32 grid (opaque; '
+        'likely a hash/id). Rare (n=7). See decodeWordGrid.',
+    decoder: 'decodeWordGrid',
   ),
   'RTMP': ViBlockInfo(
     'RTMP',
