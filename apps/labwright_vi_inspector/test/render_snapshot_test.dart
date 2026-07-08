@@ -11,12 +11,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:labwright_vi_inspector/src/diagram_view.dart';
 
-/// Renders real corpus VIs through [ViDiagramView] (block diagram + front
-/// panel, both modes) and writes the pixels to PNG files under
-/// `build/render_snapshots/`, so the rendering can be *looked at* — the only
-/// honest check of visual fidelity. Skips when the corpus is not fetched.
-///
-/// Run: `flutter test test/render_snapshot_test.dart`
+/// Renders real corpus VIs through [ViDiagramView] (BD + FP) to PNGs under
+/// `build/render_snapshots/` so fidelity can be *looked at*. Skips when the
+/// corpus is not fetched. Run: `flutter test test/render_snapshot_test.dart`
 Directory? _corpusDir() {
   var dir = Directory.current;
   for (var i = 0; i < 8; i++) {
@@ -36,10 +33,8 @@ const _curatedVis = [
   'NEVSTOP-LAB_Communicable-State-Machine/NEVSTOP-LAB-Communicable-State-Machine-afe7d4d/src/_TEST/test message before initialize.vi',
 ];
 
-/// Sweep mode renders ~100 diverse corpus VIs instead of the curated two:
-/// `flutter test test/render_snapshot_test.dart --dart-define=RENDER_SWEEP=true`
-/// Diversity = round-robin across corpus sources with a per-source size
-/// spread, deterministically (sorted paths, evenly-spaced picks).
+/// `--dart-define=RENDER_SWEEP=true` renders ~100 diverse VIs instead of the
+/// curated two (round-robin across sources, deterministic size spread).
 const bool _sweep = bool.fromEnvironment('RENDER_SWEEP');
 const int _sweepTarget = 100;
 
@@ -70,9 +65,8 @@ List<String> _diverseSample(Directory corpus) {
   return picks;
 }
 
-/// Loads a real font so snapshot text is legible (the test default renders
-
-/// every glyph as a solid box). Uses the Roboto shipped in the Flutter SDK.
+/// Loads the SDK Roboto so snapshot text is legible (the test default renders
+/// every glyph as a solid box).
 Future<void> _loadRealFont() async {
   final sdkFont = File(
     '${Platform.environment['FLUTTER_ROOT'] ?? '/home/carson/develop/flutter'}/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf',

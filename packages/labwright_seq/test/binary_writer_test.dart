@@ -4,15 +4,11 @@ import 'dart:typed_data';
 import 'package:labwright_seq/labwright_seq.dart';
 import 'package:test/test.dart';
 
-/// Unit tests for the binary TOF1 writer primitives on SYNTHETIC containers
-/// (no corpus needed): container location/patching, pool re-emission from the
-/// model, copy-plan coverage, and the pool mutation path. The corpus gates
-/// (169/169 byte-exact bodies, scoreboard floors, mutation probes) live in
-/// `binary_writer_corpus_test.dart` / `binary_writer_mutation_test.dart`.
+/// Binary TOF1 writer primitives on SYNTHETIC containers; the corpus gates and
+/// mutation probes live in `binary_writer_corpus_test.dart`.
 void main() {
-  /// A minimal TOF1 container around [body]: `TOF1` magic, a zero-padded
-  /// header whose final u32 is the inflated-body size (the corpus layout —
-  /// `PMCZ` + size + stream), then one zlib stream to EOF.
+  /// A minimal TOF1 container: magic, zero-padded header whose final u32 is the
+  /// inflated-body size (`PMCZ` + size), then one zlib stream to EOF.
   Uint8List synthetic(Uint8List body) {
     const headerLen = 64;
     final compressed = ZLibCodec().encode(body);
@@ -24,12 +20,10 @@ void main() {
     return out;
   }
 
-  /// An unframed body: no packed string table, so the writer's plan must be
-  /// a single verbatim copy.
+  /// No packed string table: the writer's plan must be a single verbatim copy.
   final unframedBody = Uint8List.fromList([for (var i = 0; i < 96; i++) (i * 7 + 1) & 0x3f]);
 
-  /// A framed body: an undecodable record region then a five-entry packed
-  /// NUL string pool (the [_recordRegionBoundary] minimum chain).
+  /// An undecodable 40-byte record region then a five-entry packed NUL pool.
   final framedBody = Uint8List.fromList([
     for (var i = 0; i < 40; i++) 0x11,
     ...'alpha\x00beta\x00gamma\x00delta\x00epsilon\x00'.codeUnits,
@@ -47,7 +41,7 @@ void main() {
     expect(inflateBinaryBody(rewritten), unframedBody);
   });
 
-  test('framed body: pool is model-sourced and re-emits byte-exactly', () {
+  test('framed body: pool is model-sourced, re-emits byte-exactly, scoreboard accounts all', () {
     final model = parseBinarySeqWriteModel(synthetic(framedBody))!;
     expect(model.pool, ['alpha', 'beta', 'gamma', 'delta', 'epsilon']);
     expect(model.poolEndsWithoutNul, isFalse);
@@ -56,8 +50,7 @@ void main() {
     final score = model.scoreboard;
     expect(score.bodyBytes, framedBody.length);
     expect(score.poolBytes, framedBody.length - 40);
-    // Nothing decodes in the synthetic record region: all copied.
-    expect(score.copiedBytes, 40);
+    expect(score.copiedBytes, 40, reason: 'nothing decodes in the synthetic record region: all copied');
     expect(score.modelBytes + score.structuralBytes, 0);
   });
 
@@ -66,7 +59,6 @@ void main() {
     expect(model.replacePoolEntry('gamma', 'gamma-longer'), 1);
     expect(model.replacePoolEntry('absent', 'x'), 0);
     final written = model.writeBody();
-    // Record region identical; pool region re-emitted around the new entry.
     expect(Uint8List.sublistView(written, 0, 40), Uint8List.sublistView(framedBody, 0, 40));
     expect(
       String.fromCharCodes(Uint8List.sublistView(written, 40)),
@@ -78,10 +70,7 @@ void main() {
   });
 
   test('a body ending without a NUL re-emits without a trailing NUL', () {
-    final body = Uint8List.fromList([
-      for (var i = 0; i < 40; i++) 0x11,
-      ...'alpha\x00beta\x00gamma\x00delta\x00epsilon\x00tail'.codeUnits,
-    ]);
+    final body = Uint8List.fromList([...framedBody, ...'tail'.codeUnits]);
     final model = parseBinarySeqWriteModel(synthetic(body))!;
     expect(model.poolEndsWithoutNul, isTrue);
     expect(model.pool.last, 'tail');

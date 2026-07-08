@@ -1,16 +1,16 @@
 @Tags(['corpus'])
 library;
 
+import 'dart:typed_data';
+
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
 import 'corpus_dirs.dart';
 
-/// Whole-corpus invariants for the auxiliary-block decoders (link info, tag
-/// store, compiled-code envelope, connector-pane map, bookmarks, offsets,
-/// images, small records). Each floor is the rate measured when the decoder
-/// was written — a regression below it means either corpus drift or a decoder
-/// break, and must be investigated rather than re-pinned.
+/// Whole-corpus decode-rate floors for the auxiliary-block decoders. Each floor is the rate measured
+/// when the decoder was written — a drop below it means corpus drift or a decoder break; investigate,
+/// never re-pin.
 void main() {
   final all = corpusVis();
   if (all.isEmpty) {
@@ -18,15 +18,41 @@ void main() {
     return;
   }
 
-  late final Map<String, ({int total, int decoded})> rates;
-  setUpAll(() {
-    final counts = <String, List<int>>{};
-    void tally(String tag, bool ok) {
-      final entry = counts.putIfAbsent(tag, () => [0, 0]);
-      entry[0]++;
-      if (ok) entry[1]++;
-    }
+  // tag pattern -> (rate key, floor, decode probe)
+  final probes = <String, List<(String, double, bool Function(Uint8List))>>{
+    'CPMp': [('CPMp', 1.0, (b) => decodeConnectorPaneMap(b) != null)],
+    'IPSR': [('IPSR', 1.0, (b) => decodeOffsetTable(b) != null)],
+    'GCDI': [('GCDI', 1.0, (b) => decodeGcdiRecord(b) != null)],
+    'BKMK': [('BKMK', 1.0, (b) => decodeBookmarkList(b) != null)],
+    'VITS': [
+      ('VITS', 1.0, (b) => decodeTagStore(b) != null),
+      ('VITS-complete', 0.70, (b) => decodeTagStore(b)?.walkComplete ?? false),
+    ],
+    'VICD': [('VICD', 1.0, (b) => decodeCompiledCode(b) != null)],
+    'DSIM': [('DSIM', 1.0, (b) => decodeDataSpaceImage(b) != null)],
+    'MNGI': [('MNGI', 0.99, (b) => decodePngEnvelope(b) != null)], // rare MNG variant returns null
+    'LIbd': [('LI**', 1.0, (b) => decodeLinkInfo(b)?.version == 1)],
+    'LIvi': [('LI**', 1.0, (b) => decodeLinkInfo(b)?.version == 1)],
+    'LIfp': [('LI**', 1.0, (b) => decodeLinkInfo(b)?.version == 1)],
+    'LIds': [('LI**', 1.0, (b) => decodeLinkInfo(b)?.version == 1)],
+    'BDPW': [('BDPW', 1.0, (b) => decodePasswordRecord(b) != null)],
+    'RTSG': [('RTSG', 1.0, (b) => decodeRuntimeSignature(b) != null)],
+    'SCSR': [('SCSR', 1.0, (b) => decodeScsrRecord(b) != null)],
+    'PICC': [('PICC', 1.0, (b) => decodeIconPlacement(b) != null)],
+    'PRT ': [('PRT ', 1.0, (b) => decodePrintRecord(b) != null)],
+    'BDSE': [('xxSE', 0.99, (b) => decodeSectionMarker(b) != null)],
+    'FPSE': [('xxSE', 0.99, (b) => decodeSectionMarker(b) != null)],
+    'MUID': [('MUID', 0.99, (b) => decodeModifiedUid(b) != null)],
+    'BDEx': [('xxEx', 0.99, (b) => decodeExtendedState(b) != null)],
+    'FPEx': [('xxEx', 0.99, (b) => decodeExtendedState(b) != null)],
+    'GCPR': [('GCPR', 1.0, (b) => decodeGcprRecord(b)?.matchesCorpusConstant ?? false)],
+    'DLDR': [('DLDR', 1.0, (b) => decodeDldrRecord(b) != null)],
+    'TRec': [('TRec', 1.0, (b) => decodeTextRecord(b) != null)],
+  };
 
+  test('aux block decoders hold their corpus-measured decode rates', () {
+    final total = <String, int>{};
+    final decoded = <String, int>{};
     for (final file in all) {
       final Iterable<DecodedSection> sections;
       try {
@@ -35,100 +61,28 @@ void main() {
         continue;
       }
       for (final section in sections) {
-        final bytes = section.bytes;
-        switch (section.tag) {
-          case 'CPMp':
-            tally('CPMp', decodeConnectorPaneMap(bytes) != null);
-          case 'IPSR':
-            tally('IPSR', decodeOffsetTable(bytes) != null);
-          case 'GCDI':
-            tally('GCDI', decodeGcdiRecord(bytes) != null);
-          case 'BKMK':
-            tally('BKMK', decodeBookmarkList(bytes) != null);
-          case 'VITS':
-            final store = decodeTagStore(bytes);
-            tally('VITS', store != null);
-            tally('VITS-complete', store?.walkComplete ?? false);
-          case 'VICD':
-            tally('VICD', decodeCompiledCode(bytes) != null);
-          case 'DSIM':
-            tally('DSIM', decodeDataSpaceImage(bytes) != null);
-          case 'MNGI':
-            tally('MNGI', decodePngEnvelope(bytes) != null);
-          case 'LIbd' || 'LIvi' || 'LIfp' || 'LIds':
-            final info = decodeLinkInfo(bytes);
-            tally('LI**', info != null && info.version == 1);
-          case 'BDPW':
-            tally('BDPW', decodePasswordRecord(bytes) != null);
-          case 'RTSG':
-            tally('RTSG', decodeRuntimeSignature(bytes) != null);
-          case 'SCSR':
-            tally('SCSR', decodeScsrRecord(bytes) != null);
-          case 'PICC':
-            tally('PICC', decodeIconPlacement(bytes) != null);
-          case 'PRT ':
-            tally('PRT ', decodePrintRecord(bytes) != null);
-          case 'BDSE' || 'FPSE':
-            tally('xxSE', decodeSectionMarker(bytes) != null);
-          case 'MUID':
-            tally('MUID', decodeModifiedUid(bytes) != null);
-          case 'BDEx' || 'FPEx':
-            tally('xxEx', decodeExtendedState(bytes) != null);
-          case 'GCPR':
-            final record = decodeGcprRecord(bytes);
-            tally('GCPR', record != null && record.matchesCorpusConstant);
-          case 'DLDR':
-            tally('DLDR', decodeDldrRecord(bytes) != null);
-          case 'TRec':
-            tally('TRec', decodeTextRecord(bytes) != null);
+        for (final (key, _, probe) in probes[section.tag] ?? const <(String, double, bool Function(Uint8List))>[]) {
+          total[key] = (total[key] ?? 0) + 1;
+          if (probe(section.bytes)) decoded[key] = (decoded[key] ?? 0) + 1;
         }
       }
     }
-    rates = {
-      for (final entry in counts.entries) entry.key: (total: entry.value[0], decoded: entry.value[1]),
+    final floors = {
+      for (final list in probes.values)
+        for (final (key, floor, _) in list) key: floor,
     };
-  });
-
-  void expectFloor(String tag, double floor) {
-    final rate = rates[tag];
-    expect(rate, isNotNull, reason: 'no $tag sections seen in corpus');
-    final fraction = rate!.decoded / rate.total;
-    expect(
-      fraction,
-      greaterThanOrEqualTo(floor),
-      reason: '$tag decode rate ${rate.decoded}/${rate.total} fell below $floor',
-    );
-  }
-
-  test('aux block decoders hold their corpus-measured decode rates', () {
-    expectFloor('CPMp', 1.0); // 3531/3531 when written
-    expectFloor('IPSR', 1.0); // 549/549
-    expectFloor('GCDI', 1.0); // 868/868
-    expectFloor('BKMK', 1.0);
-    expectFloor('VITS', 1.0); // header always decodable
-    expectFloor('VITS-complete', 0.70); // 5219/7203 full walks
-    expectFloor('VICD', 1.0);
-    expectFloor('DSIM', 1.0); // u32@0==0 was 18654/18654
-    expectFloor('MNGI', 0.99); // rare MNG variant returns null
-    expectFloor('LI**', 1.0);
-    expectFloor('BDPW', 1.0);
-    expectFloor('RTSG', 1.0);
-    expectFloor('SCSR', 1.0);
-    expectFloor('PICC', 1.0);
-    expectFloor('PRT ', 1.0);
-    expectFloor('xxSE', 0.99);
-    expectFloor('MUID', 0.99);
-    expectFloor('xxEx', 0.99);
-    expectFloor('GCPR', 1.0);
-    expectFloor('DLDR', 1.0);
-    expectFloor('TRec', 1.0);
-    // ignore: avoid_print
-    print('aux decoders: ${rates.entries.map((e) => '${e.key} ${e.value.decoded}/${e.value.total}').join(' · ')}');
+    floors.forEach((key, floor) {
+      expect(total[key], isNotNull, reason: 'no $key sections seen in corpus');
+      expect(
+        (decoded[key] ?? 0) / total[key]!,
+        greaterThanOrEqualTo(floor),
+        reason: '$key decode rate ${decoded[key] ?? 0}/${total[key]} fell below $floor',
+      );
+    });
   });
 
   test('link info surfaces real dependency names', () {
-    var linkSections = 0;
-    var withNames = 0;
+    var linkSections = 0, withNames = 0;
     for (final file in all.take(400)) {
       try {
         for (final section in decodeSections(file.readAsBytesSync())) {

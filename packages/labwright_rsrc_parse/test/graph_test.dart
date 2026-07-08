@@ -3,6 +3,8 @@ import 'dart:typed_data';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
+import 'test_util.dart';
+
 /// Object/group open record: `10 <tag> 02 fe <u16 kind> fd <u16 oid>`.
 List<int> open(int kind, int oid, {int tag = 0x19}) => [
   0x10,
@@ -30,14 +32,12 @@ List<int> bounds(int t, int l, int b, int r) => [
   r & 0xff,
 ];
 List<int> caption(String s) => [0xc4, 0x22, s.length, ...s.codeUnits];
-List<int> fmt74(String s) => [0xc4, 0x74, s.length, ...s.codeUnits];
 List<int> enum2e(List<String> items) {
-  final b = <int>[
-    for (final it in items) ...[it.length, ...it.codeUnits],
-  ];
+  final b = [for (final it in items) ...pascal(it)];
   return [0xc4, 0x2e, b.length, ...b];
 }
 
+/// `C6 <id> FF <u16 len> <u32 strlen> <text>` string blob.
 List<int> c6blob(int id, String s) => [
   0xc6,
   id,
@@ -51,13 +51,14 @@ List<int> c6blob(int id, String s) => [
   ...s.codeUnits,
 ];
 
-/// Description/help record: `C4 19 <len> <text>` — the genuine help/tooltip
-/// source ([HeapRecord.descriptionText]).
+/// Description/help record `C4 19 <len> <text>` ([HeapRecord.descriptionText]).
 List<int> help(String s) => [0xc4, 0x19, s.length, ...s.codeUnits];
 
+ViDiagram dia(List<int> records) => buildDiagram(u8([0, 0, 0, records.length, ...records]));
+
 void main() {
-  test('bracket tree: parent/child nesting + absolute coordinates', () {
-    final records = <int>[
+  test('bracket tree: parent/child nesting, roots, children(), absolute coordinates', () {
+    final d = dia([
       ...open(0x7e, 1),
       ...bounds(0, 0, 500, 500),
       ...open(0x50, 2, tag: 0x1a),
@@ -65,25 +66,18 @@ void main() {
       ...caption('Trigger'),
       ...close(0x1a),
       ...close(),
-    ];
-    final body = Uint8List.fromList([0, 0, 0, records.length, ...records]);
-    final d = buildDiagram(body);
-
+    ]);
     expect(d.objects.length, 2);
     expect(d.roots.map((o) => o.oid), [1]);
     final child = d.byId[2]!;
-    expect(child.parentOid, 1);
-    expect(child.label, 'Trigger');
-    expect(
-      [child.absBounds!.top, child.absBounds!.left, child.absBounds!.bottom, child.absBounds!.right],
-      [10, 20, 30, 40],
-      reason: 'abs = parent origin (0,0) + local bounds',
-    );
+    expect((child.parentOid, child.label), (1, 'Trigger'));
+    final r = child.absBounds!;
+    expect([r.top, r.left, r.bottom, r.right], [10, 20, 30, 40], reason: 'abs = parent origin (0,0) + local');
     expect(d.children(1).map((o) => o.oid), [2]);
   });
 
   test('absolute coordinates compose down the object-ancestor chain', () {
-    final records = <int>[
+    final leaf = dia([
       ...open(0x7e, 1),
       ...bounds(100, 200, 900, 900),
       ...open(0x53, 2, tag: 0x1a),
@@ -93,92 +87,45 @@ void main() {
       ...close(0x1b),
       ...close(0x1a),
       ...close(),
-    ];
-    final body = Uint8List.fromList([0, 0, 0, records.length, ...records]);
-    final leaf = buildDiagram(body).byId[3]!;
-    expect(
-      [leaf.absBounds!.top, leaf.absBounds!.left],
-      [106, 207],
-      reason: 'abs composes down origins: top 100+5+1, left 200+5+2',
-    );
+    ]).byId[3]!;
+    expect([leaf.absBounds!.top, leaf.absBounds!.left], [106, 207], reason: 'top 100+5+1, left 200+5+2');
   });
 
-  test('structure child-membership refs attach to the structure, not terminals', () {
-    final records = <int>[
+  test('typed-ref family collected; membership refs attach to the structure, not terminals', () {
+    final s = dia([
       ...open(0x53, 1),
       ...bounds(0, 0, 100, 100),
-      0x10,
-      0x55,
-      0x01,
-      0xfb,
-      0x00,
-      0x02,
-      0x14,
-      0x19,
-      0x01,
-      0xfd,
-      0x00,
-      0x09,
-      0x14,
-      0x19,
-      0x01,
-      0xfd,
-      0x00,
-      0x0a,
+      ...hx('10 55 01 fb 0002'),
+      ...hx('14 19 01 fd 0009'),
+      ...hx('14 4f 01 fd 000b'),
+      ...hx('14 50 01 fd 000c'),
+      ...hx('14 53 01 fd 0007'),
       ...close(0x55),
       ...close(),
-    ];
-    final body = Uint8List.fromList([0, 0, 0, records.length, ...records]);
-    final s = buildDiagram(body).byId[1]!;
+    ]).byId[1]!;
     expect(s.category, ViObjectKind.structure);
-    expect(s.refs, [9, 10]);
-  });
-
-  test('the full typed-ref family is collected (childRef + dcoRef + ddoRef) into the object graph', () {
-    final records = <int>[
-      ...open(0x53, 1),
-      ...bounds(0, 0, 100, 100),
-      0x14,
-      0x19,
-      0x01,
-      0xfd,
-      0x00,
-      0x09,
-      0x14,
-      0x4f,
-      0x01,
-      0xfd,
-      0x00,
-      0x0b,
-      0x14,
-      0x50,
-      0x01,
-      0xfd,
-      0x00,
-      0x0c,
-      0x14,
-      0x53,
-      0x01,
-      0xfd,
-      0x00,
-      0x07,
-      ...close(),
-    ];
-    final s = buildDiagram(Uint8List.fromList([0, 0, 0, records.length, ...records])).byId[1]!;
     expect(s.refs, [9], reason: 's.refs is the backward-compatible childRef subset');
     expect(s.typedRefs[HeapRefKind.childRef], [9]);
     expect(s.typedRefs[HeapRefKind.dcoRef], [11]);
     expect(s.typedRefs[HeapRefKind.dcoAggRef], [12]);
-    expect(
-      s.typedRefs[HeapRefKind.ddoRef],
-      [7],
-      reason: '14 53 is a cross-heap display-object reference (resolves in the sibling heap)',
-    );
+    expect(s.typedRefs[HeapRefKind.ddoRef], [7], reason: '14 53 is a cross-heap display-object reference');
     expect(s.memberOids.toSet(), {9, 11}, reason: 'memberOids = childRef ∪ dcoRef');
+
+    final multi = dia([
+      ...open(0x53, 1),
+      ...bounds(0, 0, 100, 100),
+      ...hx('10 55 01 fb 0002'),
+      ...hx('14 19 01 fd 0009'),
+      ...hx('14 19 01 fd 000a'),
+      ...close(0x55),
+      ...close(),
+    ]).byId[1]!;
+    expect(multi.refs, [9, 10], reason: 'child-membership refs inside the 0x55 group attach to the structure');
   });
 
   test('classifies kinds and infers type from attached C4 records', () {
-    final records = <int>[
+    List<int> fmt74(String s) => [0xc4, 0x74, s.length, ...s.codeUnits];
+    final d = dia([
       ...open(0x68, 1),
       ...bounds(0, 0, 17, 17),
       ...close(),
@@ -197,8 +144,7 @@ void main() {
       ...bounds(0, 0, 17, 80),
       ...enum2e(['Low', 'High']),
       ...close(),
-    ];
-    final d = buildDiagram(Uint8List.fromList([0, 0, 0, records.length, ...records]));
+    ]);
     expect(d.byId[1]!.category, ViObjectKind.terminal);
     expect(d.byId[2]!.category, ViObjectKind.node);
     expect(d.byId[3]!.typeKind, ViTypeKind.numericFloat);
@@ -207,7 +153,7 @@ void main() {
   });
 
   test('scrolled-cluster control terminals are re-anchored to their viewport', () {
-    final records = <int>[
+    final d = dia([
       ...open(0x7e, 1),
       ...bounds(0, 0, 500, 500),
       ...open(0x53, 2),
@@ -233,28 +179,18 @@ void main() {
       ...bounds(300, 300, 320, 350),
       ...close(),
       ...close(),
-    ];
-    final d = buildDiagram(Uint8List.fromList([0, 0, 0, records.length, ...records]));
+    ]);
     final vp = d.byId[3]!.absBounds!;
     final c4 = d.byId[4]!.absBounds!, c5 = d.byId[5]!.absBounds!;
-
     expect([c4.top, c4.left], [210, 55], reason: '#4 re-anchored to the viewport origin');
     expect(c5.top, 248, reason: '#5 sits 38px below #4 (-262 vs -300) -> 210+38');
     for (final c in [c4, c5]) {
       final cy = (c.top + c.bottom) ~/ 2;
       expect(cy >= vp.top && cy <= vp.bottom, isTrue, reason: 'control center inside viewport');
     }
-    expect(d.byId[6]!.absBounds!.top, 210, reason: "#4's label subtree rides along with the re-anchor");
-    expect(
-      [d.byId[8]!.absBounds!.top, d.byId[8]!.absBounds!.left],
-      [215, 65],
-      reason: 'a control nested inside #4 rides along with its parent, not re-anchored to the viewport',
-    );
-    expect(
-      [d.byId[7]!.absBounds!.top, d.byId[7]!.absBounds!.left],
-      [300, 300],
-      reason: 'a direct on-diagram terminal (not under a 0x11c) is left untouched',
-    );
+    expect(d.byId[6]!.absBounds!.top, 210, reason: "#4's label subtree rides along");
+    expect([d.byId[8]!.absBounds!.top, d.byId[8]!.absBounds!.left], [215, 65], reason: 'nested control rides parent');
+    expect([d.byId[7]!.absBounds!.top, d.byId[7]!.absBounds!.left], [300, 300], reason: 'not under 0x11c: untouched');
   });
 
   test('HeapObjectClass catalog: unique codes, round-trip, category agreement', () {
@@ -267,69 +203,28 @@ void main() {
     }
     expect(HeapObjectClass.fromCode(0xabcd), HeapObjectClass.unknown);
     expect(HeapObjectClass.fromCode(0x50).label, 'Numeric control');
-    expect(classifyObject(kind: 0x68, termCount: 0), ViObjectKind.terminal);
-    expect(classifyObject(kind: 0x12, termCount: 0), ViObjectKind.node);
-    expect(classifyObject(kind: 0x53, termCount: 0), ViObjectKind.structure);
-    expect(
-      classifyObject(kind: 0x2f, termCount: 0),
-      ViObjectKind.node,
-      reason: 'newly catalogued block-diagram node (32×32 icon footprint under 0x1b)',
-    );
-    expect(
-      classifyObject(kind: 0x31, termCount: 0),
-      ViObjectKind.node,
-      reason: 'newly catalogued block-diagram node (32×32 icon footprint under 0x1b)',
-    );
-    expect(classifyObject(kind: 0x16, termCount: 0), ViObjectKind.terminal, reason: '0x16 = free-standing BD leaf');
-    expect(classifyObject(kind: 0x2c, termCount: 0), ViObjectKind.structure, reason: '0x2c = BD structure frame');
-    expect(classifyObject(kind: 0x95, termCount: 0), ViObjectKind.terminal, reason: '0x95 = case selector label');
-    expect(classifyObject(kind: 0x177, termCount: 0), ViObjectKind.decoration, reason: '0x177 = node glyph');
-    expect(classifyObject(kind: 0x63, termCount: 0), ViObjectKind.node, reason: '0x63 = growable node');
-    for (final k in [
-      0x8c,
-      0x3a,
-      0xd6,
-      0x32,
-      0xc5,
-      0x104,
-      0x44,
-      0x3e,
-      0x34,
-      0xa9,
-      0x93,
-      0x172,
-      0x6c,
-      0x36,
-      0x153,
-      0x6a,
-      0xbd,
-      0x114,
-      0xb6,
-      0xb9,
-      0x48,
-      0xeb,
-      0x103,
-      0x14a,
-    ]) {
-      expect(classifyObject(kind: k, termCount: 0), ViObjectKind.node, reason: 'BD nodes (caption- or icon-confirmed)');
-    }
-    for (final k in [0x55, 0x4e, 0x10c, 0xc2]) {
-      expect(classifyObject(kind: k, termCount: 0), ViObjectKind.terminal, reason: 'control terminal / constant');
-    }
-    for (final k in [0xca, 0x29, 0xd5, 0x121]) {
-      expect(classifyObject(kind: k, termCount: 0), ViObjectKind.structure, reason: 'sequence/event/frame structures');
-    }
-    for (final k in [0x20, 0x21, 0xcd, 0x14d]) {
-      expect(
-        classifyObject(kind: k, termCount: 0),
-        ViObjectKind.structure,
-        reason: 'loop/case/disable/in-place frames',
-      );
-    }
+
+    const byCategory = <ViObjectKind, List<int>>{
+      // BD nodes (caption- or icon-confirmed) + growable/icon-footprint nodes
+      ViObjectKind.node: [
+        0x12, 0x2f, 0x31, 0x63, 0x8c, 0x3a, 0xd6, 0x32, 0xc5, 0x104, 0x44, 0x3e, 0x34, 0xa9, 0x93, 0x172, //
+        0x6c, 0x36, 0x153, 0x6a, 0xbd, 0x114, 0xb6, 0xb9, 0x48, 0xeb, 0x103, 0x14a,
+      ],
+      // free-standing leaves, case selector label, control terminals / constants
+      ViObjectKind.terminal: [0x68, 0x16, 0x95, 0x55, 0x4e, 0x10c, 0xc2],
+      // sequence/event/frame + loop/case/disable/in-place structures
+      ViObjectKind.structure: [0x53, 0x2c, 0xca, 0x29, 0xd5, 0x121, 0x20, 0x21, 0xcd, 0x14d],
+      ViObjectKind.decoration: [0x177],
+    };
+    byCategory.forEach((category, kinds) {
+      for (final k in kinds) {
+        expect(classifyObject(kind: k, termCount: 0), category, reason: '0x${k.toRadixString(16)}');
+      }
+    });
     expect(
       classifyObject(kind: 0x50, termCount: 2),
       ViObjectKind.terminalCluster,
-      reason: 'the C4-1F terminal signal still wins over the catalog category',
+      reason: 'the C4-1F terminal signal wins over the catalog category',
     );
   });
 
@@ -337,11 +232,7 @@ void main() {
     final loop = HeapObjectClass.fromCode(0x53).label;
     expect(loop, contains('(BD)'), reason: '0x53 is genuinely dual-role: BD loops + FP containers');
     expect(loop, contains('(FP)'));
-    expect(
-      loop,
-      isNot('Loop (while/for)'),
-      reason: 'a section-blind label would mislabel the FP-container occurrences',
-    );
+    expect(loop, isNot('Loop (while/for)'), reason: 'a section-blind label would mislabel FP containers');
     for (final code in [0x12, 0x4c]) {
       final label = HeapObjectClass.fromCode(code).label;
       expect(label, contains('(FP)'), reason: '0x${code.toRadixString(16)} lost its FP-role tag');
@@ -352,8 +243,8 @@ void main() {
     expect(c52, isNot(contains('Case')));
   });
 
-  test('enum/ring items are parsed and propagated up to the enclosing control', () {
-    final records = <int>[
+  test('enum/ring items parse and propagate up to the enclosing control', () {
+    final d = dia([
       ...open(0x7e, 1),
       ...bounds(0, 0, 400, 400),
       ...open(0x57, 2, tag: 0x1a),
@@ -364,19 +255,14 @@ void main() {
       ...close(0x1b),
       ...close(0x1a),
       ...close(),
-    ];
-    final d = buildDiagram(Uint8List.fromList([0, 0, 0, records.length, ...records]));
+    ]);
     expect(d.byId[3]!.items, ['Low', 'Med', 'High']);
-    expect(
-      d.byId[2]!.items,
-      ['Low', 'Med', 'High'],
-      reason: 'items propagate up from the 0x0d item-list to the enclosing 0x57 control (used by faithful mode)',
-    );
+    expect(d.byId[2]!.items, ['Low', 'Med', 'High'], reason: 'items propagate up to the enclosing 0x57 control');
   });
 
-  test('graph plot names (C4 27) attach to the 0x5E graph object', () {
+  test('graph plot names (C4 27) attach to the 0x5E graph object, in heap order', () {
     List<int> plot(String s) => [0xc4, 0x27, s.length, ...s.codeUnits];
-    final records = <int>[
+    final d = dia([
       ...open(0x7e, 1),
       ...bounds(0, 0, 400, 400),
       ...open(0x5e, 2, tag: 0x1a),
@@ -385,49 +271,35 @@ void main() {
       ...plot('Plot 1'),
       ...close(0x1a),
       ...close(),
-    ];
-    final d = buildDiagram(Uint8List.fromList([0, 0, 0, records.length, ...records]));
-    expect(d.byId[2]!.plotNames, ['Plot 0', 'Plot 1'], reason: 'recovered in heap order');
+    ]);
+    expect(d.byId[2]!.plotNames, ['Plot 0', 'Plot 1']);
     expect(d.byId[1]!.plotNames, isEmpty, reason: 'plot names attach to the graph, not the root');
   });
 
   test('enum item parsing rejects the WHOLE table on overrun or non-printable bytes', () {
-    List<int> rawEnum(List<int> payload) => [0xc4, 0x2e, payload.length, ...payload];
-    List<int> build(List<int> enumRec) {
-      final records = <int>[
-        ...open(0x7e, 1),
-        ...bounds(0, 0, 100, 100),
-        ...open(0x0d, 2, tag: 0x1b),
-        ...bounds(0, 0, 17, 80),
-        ...enumRec,
-        ...close(0x1b),
-        ...close(),
-      ];
-      return [0, 0, 0, records.length, ...records];
-    }
-
-    final overrun = buildDiagram(Uint8List.fromList(build(rawEnum([0x0a, 0x41, 0x42, 0x43]))));
-    expect(
-      overrun.byId[2]!.items,
-      isEmpty,
-      reason: 'first item claims length 10 but only 3 bytes follow -> overrun -> reject all',
-    );
-    final nonPrintable = buildDiagram(Uint8List.fromList(build(rawEnum([0x03, 0x41, 0x00, 0x43]))));
-    expect(
-      nonPrintable.byId[2]!.items,
-      isEmpty,
-      reason: 'an embedded non-printable byte (0x00) rejects the whole table',
-    );
+    ViDiagram build(List<int> payload) => dia([
+      ...open(0x7e, 1),
+      ...bounds(0, 0, 100, 100),
+      ...open(0x0d, 2, tag: 0x1b),
+      ...bounds(0, 0, 17, 80),
+      0xc4,
+      0x2e,
+      payload.length,
+      ...payload,
+      ...close(0x1b),
+      ...close(),
+    ]);
+    expect(build([0x0a, 0x41, 0x42, 0x43]).byId[2]!.items, isEmpty, reason: 'item claims 10 bytes, 3 follow');
+    expect(build([0x03, 0x41, 0x00, 0x43]).byId[2]!.items, isEmpty, reason: 'embedded 0x00 rejects the table');
   });
 
-  test('control range (0x20/0x21) + help (0x6C FF) collected ONLY on controls, not decorations', () {
+  test('control range (C6 20/21 f64) + help (C4 19) collect ONLY on controls, not decorations', () {
     List<int> f64rec(int id, double v) {
-      // C6 form: raw 0x220/0x221 = stdNumMin/stdNumMax (the corpus carrier).
       final d = ByteData(8)..setFloat64(0, v);
       return [0xc6, id, 0x08, ...d.buffer.asUint8List()];
     }
 
-    final records = <int>[
+    final d = dia([
       ...open(0x7e, 1),
       ...bounds(0, 0, 400, 400),
       ...open(0x50, 2, tag: 0x1a),
@@ -442,18 +314,15 @@ void main() {
       ...f64rec(0x21, -1.0),
       ...close(0x1b),
       ...close(),
-    ];
-    final d = buildDiagram(Uint8List.fromList([0, 0, 0, records.length, ...records]));
+    ]);
     final ctl = d.byId[2]!, deco = d.byId[3]!;
-    expect(ctl.controlMin, -5.0);
-    expect(ctl.controlMax, 10.0);
-    expect(ctl.helpText, 'a tooltip');
-    expect(deco.controlMin, isNull, reason: 'range must not attach to a 0x8f decoration (non-control)');
-    expect(deco.controlMax, isNull);
+    expect((ctl.controlMin, ctl.controlMax, ctl.helpText), (-5.0, 10.0, 'a tooltip'));
+    expect((deco.controlMin, deco.controlMax), (null, null), reason: 'range must not attach to a 0x8f decoration');
   });
 
-  test('help text propagates up from a non-drawable child to its nearest drawable control', () {
-    final records = <int>[
+  test('help text propagates up to the nearest DRAWABLE ancestor, first-wins, structures included', () {
+    // carrier 0xc1 directly under a control
+    final direct = dia([
       ...open(0x7e, 1),
       ...bounds(0, 0, 400, 400),
       ...open(0x50, 2, tag: 0x1a),
@@ -463,14 +332,12 @@ void main() {
       ...close(0x1b),
       ...close(0x1a),
       ...close(),
-    ];
-    final d = buildDiagram(Uint8List.fromList([0, 0, 0, records.length, ...records]));
-    expect(d.byId[3]!.absBounds, isNull, reason: 'the 0xc1 tip-strip carries help but is not drawable');
-    expect(d.byId[2]!.helpText, 'hover help', reason: 'help propagates up to the drawn control');
-  });
+    ]);
+    expect(direct.byId[3]!.absBounds, isNull, reason: 'the 0xc1 tip-strip is not drawable');
+    expect(direct.byId[2]!.helpText, 'hover help');
 
-  test('help propagation skips a non-drawable intermediate to reach the nearest drawable', () {
-    final records = <int>[
+    // skips a non-drawable 0x0c intermediate
+    final skip = dia([
       ...open(0x7e, 1),
       ...bounds(0, 0, 400, 400),
       ...open(0x50, 2, tag: 0x1a),
@@ -482,28 +349,24 @@ void main() {
       ...close(0x1b),
       ...close(0x1a),
       ...close(),
-    ];
-    final d = buildDiagram(Uint8List.fromList([0, 0, 0, records.length, ...records]));
-    expect(d.byId[3]!.absBounds, isNull, reason: 'the 0x0c intermediate (terminal cluster) is not drawn');
-    expect(d.byId[3]!.helpText, isNull, reason: 'help does not land on the skipped non-drawable intermediate');
-    expect(d.byId[2]!.helpText, 'deep help', reason: 'help reaches the nearest drawable ancestor');
-  });
+    ]);
+    expect(skip.byId[3]!.absBounds, isNull);
+    expect(skip.byId[3]!.helpText, isNull, reason: 'help does not land on the skipped intermediate');
+    expect(skip.byId[2]!.helpText, 'deep help');
 
-  test('help propagation lands on a 0x53 structure when that is the nearest drawable ancestor', () {
-    final records = <int>[
+    // lands on a 0x53 structure when that is the nearest drawable
+    final struct = dia([
       ...open(0x53, 1),
       ...bounds(0, 0, 200, 200),
       ...open(0xc1, 2, tag: 0x1a),
       ...help('structure help'),
       ...close(0x1a),
       ...close(),
-    ];
-    final d = buildDiagram(Uint8List.fromList([0, 0, 0, records.length, ...records]));
-    expect(d.byId[1]!.helpText, 'structure help', reason: 'a 0x53 structure can legitimately own help too');
-  });
+    ]);
+    expect(struct.byId[1]!.helpText, 'structure help');
 
-  test('help propagation never overwrites an ancestor that already carries its own help (??=)', () {
-    final records = <int>[
+    // never overwrites an ancestor's own help (??=)
+    final own = dia([
       ...open(0x50, 1),
       ...bounds(10, 10, 30, 100),
       ...help('own help'),
@@ -511,17 +374,12 @@ void main() {
       ...help('child help'),
       ...close(0x1a),
       ...close(),
-    ];
-    final d = buildDiagram(Uint8List.fromList([0, 0, 0, records.length, ...records]));
-    expect(
-      d.byId[1]!.helpText,
-      'own help',
-      reason: "first-wins (??=): the control's own help is preserved over a child's",
-    );
+    ]);
+    expect(own.byId[1]!.helpText, 'own help', reason: "first-wins: the control's own help is preserved");
   });
 
-  test('structural node fallback: an unknown drawable kind under 0x1b with only 0x15 children -> node', () {
-    final records = <int>[
+  test('structural node fallback: unknown drawable under 0x1b with only 0x15 children -> node', () {
+    final d = dia([
       ...open(0x7e, 1),
       ...bounds(0, 0, 400, 400),
       ...open(0x1b, 2, tag: 0x1a),
@@ -532,18 +390,13 @@ void main() {
       ...close(0x1b),
       ...close(0x1a),
       ...close(),
-    ];
-    final d = buildDiagram(Uint8List.fromList([0, 0, 0, records.length, ...records]));
+    ]);
     expect(d.byId[3]!.objectClass, HeapObjectClass.unknown, reason: '0x150 is not catalogued by code');
-    expect(
-      d.byId[3]!.category,
-      ViObjectKind.node,
-      reason: 'an uncatalogued drawable under 0x1b with only 0x15 children classifies as a node',
-    );
+    expect(d.byId[3]!.category, ViObjectKind.node);
   });
 
-  test('a BD node inherits its name from its child 0xa caption (for details/tooltip)', () {
-    final records = <int>[
+  test('a BD node inherits its name from its child 0xa caption', () {
+    final d = dia([
       ...open(0x7e, 1),
       ...bounds(0, 0, 400, 400),
       ...open(0x2f, 2, tag: 0x1a),
@@ -553,76 +406,75 @@ void main() {
       ...close(0x1b),
       ...close(0x1a),
       ...close(),
-    ];
-    final d = buildDiagram(Uint8List.fromList([0, 0, 0, records.length, ...records]));
+    ]);
     expect(d.byId[3]!.label, 'Build Array', reason: 'the child 0xa carries the C4 22 caption');
     expect(d.byId[2]!.label, 'Build Array', reason: 'the caption propagates up to name the 0x2f node');
   });
 
-  test('a constValue string (C6 6C FF blob) becomes constText, never helpText', () {
-    final records = <int>[
+  test('constValue strings: the C6 6C FF blob becomes constText (never helpText); the u8-len token neither', () {
+    final blob = dia([
       ...open(0x50, 1),
       ...bounds(0, 0, 17, 80),
       ...c6blob(0x6c, 'ps2000aRunStreaming'),
       ...close(),
-    ];
-    final o = buildDiagram(Uint8List.fromList([0, 0, 0, records.length, ...records])).byId[1]!;
-    expect(o.constText, 'ps2000aRunStreaming', reason: 'raw 0x26C is a BD string constant value, not help');
-    expect(o.helpText, isNull, reason: 'a constant value must not be mislabeled as help/description text');
-  });
+    ]).byId[1]!;
+    expect(blob.constText, 'ps2000aRunStreaming', reason: 'raw 0x26C is a BD string constant value, not help');
+    expect(blob.helpText, isNull);
 
-  test('a 0x6C <u8 len> token is captured by neither constText nor helpText', () {
-    List<int> u8tok(String s) => [0xc6, 0x6c, 4 + s.length, 0, 0, 0, s.length, ...s.codeUnits];
-    final records = <int>[
+    const s = 'ps2000aRunStreaming';
+    final u8tok = dia([
       ...open(0x50, 1),
       ...bounds(0, 0, 17, 80),
-      ...u8tok('ps2000aRunStreaming'),
+      0xc6,
+      0x6c,
+      4 + s.length,
+      0,
+      0,
+      0,
+      s.length,
+      ...s.codeUnits,
       ...close(),
-    ];
-    final o = buildDiagram(Uint8List.fromList([0, 0, 0, records.length, ...records])).byId[1]!;
-    expect(o.helpText, isNull);
-    expect(
-      o.constText,
-      isNull,
-      reason: 'buildDiagram captures only the C6 6C FF blob form of constValue, not the <u8 len> form',
-    );
+    ]).byId[1]!;
+    expect((u8tok.helpText, u8tok.constText), (null, null), reason: 'only the FF blob form is captured');
   });
 
   test('formatControlRange renders honestly (finite-only, inverted/±∞/NaN suppressed)', () {
-    expect(formatControlRange(-5.0, 10.0), '-5 … 10');
-    expect(formatControlRange(0.0, 2.5), '0 … 2.5');
-    expect(formatControlRange(5.0, double.infinity), '≥ 5', reason: '+∞ max -> one-sided');
-    expect(formatControlRange(double.negativeInfinity, 10.0), '≤ 10');
-    expect(formatControlRange(double.negativeInfinity, double.infinity), isNull, reason: 'both ±∞ -> nothing');
-    expect(formatControlRange(null, null), isNull);
-    expect(formatControlRange(1.0, -1.0), isNull, reason: 'inverted finite pair -> nothing');
-    expect(formatControlRange(5.0, 5.0), isNull, reason: 'degenerate equal pair -> noise, not a range');
-    expect(formatControlRange(0.0, -0.0), isNull, reason: '0 vs -0.0 (lo >= hi) -> nothing');
-    expect(formatControlRange(0.0, double.nan), isNull, reason: 'NaN max -> untrustworthy pair');
-    expect(formatControlRange(double.nan, 10.0), isNull);
+    const rows = <(double?, double?, String?)>[
+      (-5.0, 10.0, '-5 … 10'),
+      (0.0, 2.5, '0 … 2.5'),
+      (5.0, double.infinity, '≥ 5'),
+      (double.negativeInfinity, 10.0, '≤ 10'),
+      (double.negativeInfinity, double.infinity, null),
+      (null, null, null),
+      (1.0, -1.0, null), // inverted finite pair
+      (5.0, 5.0, null), // degenerate equal pair
+      (0.0, -0.0, null), // lo >= hi
+      (0.0, double.nan, null),
+      (double.nan, 10.0, null),
+    ];
+    for (final (lo, hi, want) in rows) {
+      expect(formatControlRange(lo, hi), want, reason: '$lo … $hi');
+    }
   });
 
-  test('stripHelpMarkup removes LabVIEW markup tags for display but keeps real text', () {
-    expect(stripHelpMarkup('<B>error out</B> contains error information.'), 'error out contains error information.');
-    expect(stripHelpMarkup('<B>code</B> is 0.'), 'code is 0.');
-    expect(stripHelpMarkup('line one\n<I>line</I> two'), 'line one\nline two', reason: 'newlines kept');
-    expect(stripHelpMarkup('plain help, no tags'), 'plain help, no tags');
-    expect(stripHelpMarkup('threshold a < 5 > 0 holds'), 'threshold a < 5 > 0 holds', reason: 'math not eaten');
-    expect(
-      stripHelpMarkup('<register>'),
-      '<register>',
-      reason: 'a bare angle-bracket token is real data, not markup -> must not collapse to empty',
-    );
-    expect(stripHelpMarkup('<default>'), '<default>');
-    expect(
-      stripHelpMarkup('See <B>error in</B>  for details'),
-      'See error in for details',
-      reason: 'removing an inline tag must not leave a double space',
-    );
+  test('stripHelpMarkup removes LabVIEW markup tags but keeps real text', () {
+    const rows = <(String, String)>[
+      ('<B>error out</B> contains error information.', 'error out contains error information.'),
+      ('<B>code</B> is 0.', 'code is 0.'),
+      ('line one\n<I>line</I> two', 'line one\nline two'),
+      ('plain help, no tags', 'plain help, no tags'),
+      ('threshold a < 5 > 0 holds', 'threshold a < 5 > 0 holds'), // math not eaten
+      ('<register>', '<register>'), // bare token is data, must not collapse to empty
+      ('<default>', '<default>'),
+      ('See <B>error in</B>  for details', 'See error in for details'), // no double space left behind
+    ];
+    for (final (input, want) in rows) {
+      expect(stripHelpMarkup(input), want, reason: input);
+    }
   });
 
-  test('buildDiagram terminates on a parentOid cycle (reanchorViewport guard)', () {
-    final records = <int>[
+  test('buildDiagram terminates on parentOid cycles and dup-oid viewport children; total over junk', () {
+    final cycle = [
       ...open(0x7e, 100),
       ...bounds(0, 0, 400, 400),
       ...open(0xaa, 1, tag: 0x1a),
@@ -636,30 +488,7 @@ void main() {
       ...close(0x1a),
       ...close(),
     ];
-    final body = Uint8List.fromList([0, 0, 0, records.length, ...records]);
-    final sw = Stopwatch()..start();
-    expect(() => buildDiagram(body), returnsNormally);
-    expect(
-      sw.elapsedMilliseconds,
-      lessThan(2000),
-      reason: 'duplicate oids cross-link the parent chain (1->2->1); reanchorViewport must not loop',
-    );
-  });
-
-  test('buildDiagram is total over arbitrary bytes', () {
-    final junk = Uint8List.fromList([for (var i = 0; i < 400; i++) (i * 17 + 3) & 0xff]);
-    expect(() {
-      final d = buildDiagram(junk);
-      for (final o in d.objects) {
-        o.absBounds;
-        o.category;
-        o.typeKind;
-      }
-    }, returnsNormally);
-  });
-
-  test('buildDiagram terminates on a duplicate-oid control under a viewport (no infinite loop)', () {
-    final records = <int>[
+    final dupUnderViewport = [
       ...open(0x7e, 100),
       ...bounds(0, 0, 500, 500),
       ...open(0x11c, 1, tag: 0x1a),
@@ -673,13 +502,17 @@ void main() {
       ...close(0x1a),
       ...close(),
     ];
-    final body = Uint8List.fromList([0, 0, 0, records.length, ...records]);
-    final sw = Stopwatch()..start();
-    expect(() => buildDiagram(body), returnsNormally);
-    expect(
-      sw.elapsedMilliseconds,
-      lessThan(2000),
-      reason: 'a dup-oid control under a 0x11c viewport makes kids[oid] contain itself; shiftSubtree must not loop',
-    );
+    for (final records in [cycle, dupUnderViewport]) {
+      final sw = Stopwatch()..start();
+      expect(() => dia(records), returnsNormally);
+      expect(sw.elapsedMilliseconds, lessThan(2000), reason: 'reanchorViewport/shiftSubtree must not loop');
+    }
+    final junk = Uint8List.fromList([for (var i = 0; i < 400; i++) (i * 17 + 3) & 0xff]);
+    final d = buildDiagram(junk);
+    for (final o in d.objects) {
+      o.absBounds;
+      o.category;
+      o.typeKind;
+    }
   });
 }

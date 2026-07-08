@@ -9,87 +9,26 @@ import 'package:test/test.dart';
 
 import 'corpus_dirs.dart';
 
-/// Mechanical regression guard over the pinned diverse corpus (corpus/README.md).
-///
-/// Skipped automatically when the corpus is not fetched (so it never breaks CI);
-/// run locally after `tool/fetch_corpus.dart`. The "% deliberately parsed" floor
-/// is NOT hand-maintained: `tool/coverage.dart` measures it over the WHOLE corpus
-/// and writes `corpus/baseline.json`; this test reads that figure and asserts the
-/// current run is at or above it — so the metric can only ratchet UP.
-///
-/// Every VI is summarized ONCE in a worker isolate ([corpusParallel]) and the
-/// tests assert on the aggregate — there is no sampling tier, the heavy per-VI
-/// work (decode + heap walk + model build) is just parallelized across cores.
-/// The measured sections and the per-section tier arithmetic are shared with
-/// the coverage tool ([kHeapSectionTags] / [measureHeapTiers]) so the ratchet
-/// and the baseline generator cannot drift.
+/// Mechanical regression guard over the pinned corpus. The "% deliberately parsed" and
+/// "% semantically decoded" floors come from corpus/baseline.json (written by tool/coverage.dart over
+/// the WHOLE corpus) so the metric can only ratchet UP; the per-section tier arithmetic is shared with
+/// the tool ([kHeapSectionTags]/[measureHeapTiers]) so ratchet and generator cannot drift. Each VI is
+/// summarized ONCE in a worker isolate; tests assert on the aggregate.
+typedef _Cov = ({
+  String? totalityFail, // parseVi/decodeSections/walk threw on a real VI
+  String? walkFail, // a framed span ran past the section body
+  int framed,
+  int body,
+  int semantic,
+  int propertyNames, // decoder-presence sentinels: a count drop = silently dropped decoder
+  int helpStrings,
+  int controlF64,
+  int fallbackNodes,
+  int drawableUnknown,
+  Map<String, int> sent, // correlation sentinels behind the inferred raw-tag upgrades
+});
 
-/// Per-VI coverage summary. Sendable across isolates (primitives + a small
-/// `Map<int,int>` kind histogram + nullable failure strings).
-class _Cov {
-  /// parseVi/decodeSections/walk threw on a real VI.
-  final String? totalityFail;
-
-  /// A framed span ran past the section body.
-  final String? walkFail;
-
-  /// Heap-byte coverage numerator/denominators (framed and semantic over body).
-  final int framed, body, semantic;
-
-  /// Decoder-presence sentinels (a count drop signals a silently dropped decoder).
-  final int propertyNames, helpStrings, controlF64;
-
-  /// BD object-kind histogram for this VI.
-  final Map<int, int> kinds;
-
-  /// Structural node-fallback census.
-  final int fallbackNodes, drawableUnknown;
-
-  /// partRole (0xDF) correlation sentinels: occurrences of exemplar values and
-  /// how many sit in their evidence-dominant enclosing kind (see
-  /// [HeapAttribute.partRole]).
-  final int part16, part16InLabel, part66, part66InConnector, part8002, part8002InNumeric;
-
-  /// Raw-tag upgrade sentinels: the corpus correlations behind the inferred
-  /// meanings, re-measured on every run (see the [HeapAttribute] evidence notes).
-  final int objFlagsTotal, objFlagsFirst; // 0x0CB: position-0-in-object invariant
-  final int masterTotal, masterSiblingHit; // 0x0AF: sibling part carries partRole == value
-  final int sigTotal, sigInSignal; // 0x1E7/0x09F: enclosing class 0x17 = signal
-  final int tllTotal, tllEqChild; // 0x158: value == direct child-object count
-  final int ddoTotal, ddoCrossResolved; // 14 53: uid resolves in the sibling heap
-  const _Cov({
-    required this.totalityFail,
-    required this.walkFail,
-    required this.framed,
-    required this.body,
-    required this.semantic,
-    required this.propertyNames,
-    required this.helpStrings,
-    required this.controlF64,
-    required this.kinds,
-    required this.fallbackNodes,
-    required this.drawableUnknown,
-    required this.part16,
-    required this.part16InLabel,
-    required this.part66,
-    required this.part66InConnector,
-    required this.part8002,
-    required this.part8002InNumeric,
-    required this.objFlagsTotal,
-    required this.objFlagsFirst,
-    required this.masterTotal,
-    required this.masterSiblingHit,
-    required this.sigTotal,
-    required this.sigInSignal,
-    required this.tllTotal,
-    required this.tllEqChild,
-    required this.ddoTotal,
-    required this.ddoCrossResolved,
-  });
-}
-
-/// Per-object scratch for the raw-tag sentinels: enclosing kind, record
-/// position, child count, and the partRole/masterPart values seen.
+/// Per-object scratch for the raw-tag sentinels.
 class _SentNode {
   _SentNode(this.kind, this.parent);
   final int kind;
@@ -103,9 +42,8 @@ class _SentNode {
 _Cov _covSumm(Uint8List bytes, String path) {
   var framed = 0, body = 0, semantic = 0;
   var propertyNames = 0, helpStrings = 0, controlF64 = 0;
-  var part16 = 0, part16InLabel = 0, part66 = 0, part66InConnector = 0, part8002 = 0, part8002InNumeric = 0;
-  var objFlagsTotal = 0, objFlagsFirst = 0, masterTotal = 0, masterSiblingHit = 0;
-  var sigTotal = 0, sigInSignal = 0, tllTotal = 0, tllEqChild = 0, ddoTotal = 0, ddoCrossResolved = 0;
+  final sent = <String, int>{};
+  void n(String k) => sent[k] = (sent[k] ?? 0) + 1;
   final oidsBySec = <String, Set<int>>{};
   final ddoPending = <(String, int)>[];
   String? walkFail;
@@ -120,35 +58,28 @@ _Cov _covSumm(Uint8List bytes, String path) {
       body += tiers.walk.bodyBytes;
       semantic += tiers.semanticBytes;
       for (final span in tiers.walk.spans) {
-        if (span.offset + span.length > s.bytes.length) {
-          walkFail ??= 'OOB span in $path/${s.tag}';
-        }
+        if (span.offset + span.length > s.bytes.length) walkFail ??= 'OOB span in $path/${s.tag}';
         final a = decodeHeapAttr(s.bytes, span.offset);
         if (a == null) continue;
         if (a.attribute == HeapAttribute.propItemName) propertyNames++;
-        if (a.attribute == HeapAttribute.constValue && (a.asString?.isNotEmpty ?? false)) {
-          helpStrings++;
-        }
+        if (a.attribute == HeapAttribute.constValue && (a.asString?.isNotEmpty ?? false)) helpStrings++;
         if ((a.attribute == HeapAttribute.stdNumMin || a.attribute == HeapAttribute.stdNumMax) &&
             a.width == HeapAttrWidth.f64) {
           controlF64++;
         }
       }
-      // Correlation sentinels behind the inferred raw-tag meanings (partRole
-      // enclosing kinds, objFlags position-0, masterPart sibling parts, the
-      // signal chain scope, termListLength == child count, ddoRef cross-heap
-      // resolution), re-measured on every run via the shared object-tree walk
-      // so a meaning cannot silently rot.
+      // Sentinels: partRole enclosing kinds, objFlags position-0, masterPart sibling parts, the
+      // signal chain scope, termListLength == child count, ddoRef cross-heap resolution.
       final nodes = <_SentNode>[];
       final oids = oidsBySec[s.tag] ??= <int>{};
       walkHeapObjects<_SentNode>(
         s.bytes,
         onObjectOpen: (span, kind, oid, parent) {
-          final n = _SentNode(kind, parent);
-          nodes.add(n);
+          final node = _SentNode(kind, parent);
+          nodes.add(node);
           parent?.childCount++;
           oids.add(oid);
-          return n;
+          return node;
         },
         onRecord: (span, node) {
           if (node == null || span.length < 2) return;
@@ -158,13 +89,12 @@ _Cov _covSumm(Uint8List bytes, String path) {
           if (lead == 0x14 && idByte == 0x53 && span.length == 6 && s.bytes[span.offset + 3] == 0xfd) {
             final ref = decodeHeapRef(s.bytes, span.offset);
             if (ref != null) {
-              ddoTotal++;
+              n('ddoTotal');
               ddoPending.add((s.tag, ref.targetOid));
             }
             return;
           }
-          // Cheap pre-filter: every attribute form carries the tag low byte at
-          // offset+1, so other bytes can never decode to the probed tags.
+          // Every attribute form carries the tag low byte at offset+1 — cheap pre-filter.
           if (!const {0xdf, 0xcb, 0xaf, 0xe7, 0x9f, 0x58}.contains(idByte)) return;
           final a = decodeHeapAttr(s.bytes, span.offset);
           if (a == null) return;
@@ -173,23 +103,23 @@ _Cov _covSumm(Uint8List bytes, String path) {
               (node.dfValues ??= []).add(a.asInt ?? -1);
               switch (a.asInt) {
                 case 16:
-                  part16++;
-                  if (node.kind == 0x0a) part16InLabel++;
+                  n('part16');
+                  if (node.kind == 0x0a) n('part16InLabel');
                 case 66:
-                  part66++;
-                  if (node.kind == 0x68) part66InConnector++;
+                  n('part66');
+                  if (node.kind == 0x68) n('part66InConnector');
                 case 8002:
-                  part8002++;
-                  if (node.kind == 0x50) part8002InNumeric++;
+                  n('part8002');
+                  if (node.kind == 0x50) n('part8002InNumeric');
               }
             case HeapAttribute.objFlags:
-              objFlagsTotal++;
-              if (node.records == 1) objFlagsFirst++;
+              n('objTotal');
+              if (node.records == 1) n('objFirst');
             case HeapAttribute.masterPart:
               if (a.asInt != null) (node.afValues ??= []).add(a.asInt!);
             case HeapAttribute.compressedWireTable || HeapAttribute.lastSignalKind:
-              sigTotal++;
-              if (node.kind == 0x17) sigInSignal++;
+              n('sigTotal');
+              if (node.kind == 0x17) n('sigInSignal');
             case HeapAttribute.termListLength:
               if (a.asInt != null) (node.tllValues ??= []).add(a.asInt!);
             default:
@@ -198,18 +128,20 @@ _Cov _covSumm(Uint8List bytes, String path) {
         },
       );
       final childrenByParent = <_SentNode, List<_SentNode>>{};
-      for (final n in nodes) {
-        if (n.parent != null) (childrenByParent[n.parent!] ??= []).add(n);
+      for (final node in nodes) {
+        if (node.parent != null) (childrenByParent[node.parent!] ??= []).add(node);
       }
-      for (final n in nodes) {
-        for (final v in n.afValues ?? const <int>[]) {
-          masterTotal++;
-          final siblings = n.parent == null ? const <_SentNode>[] : (childrenByParent[n.parent!] ?? const []);
-          if (siblings.any((sib) => !identical(sib, n) && (sib.dfValues?.contains(v) ?? false))) masterSiblingHit++;
+      for (final node in nodes) {
+        for (final v in node.afValues ?? const <int>[]) {
+          n('masterTotal');
+          final siblings = node.parent == null ? const <_SentNode>[] : (childrenByParent[node.parent!] ?? const []);
+          if (siblings.any((sib) => !identical(sib, node) && (sib.dfValues?.contains(v) ?? false))) {
+            n('masterSiblingHit');
+          }
         }
-        for (final v in n.tllValues ?? const <int>[]) {
-          tllTotal++;
-          if (v == n.childCount) tllEqChild++;
+        for (final v in node.tllValues ?? const <int>[]) {
+          n('tllTotal');
+          if (v == node.childCount) n('tllEqChild');
         }
       }
     }
@@ -218,18 +150,16 @@ _Cov _covSumm(Uint8List bytes, String path) {
       oidsBySec.forEach((t, ids) {
         if (t != tag && ids.contains(uid)) cross = true;
       });
-      if (cross) ddoCrossResolved++;
+      if (cross) n('ddoCrossResolved');
     }
   } catch (e) {
     if (!isNonRsrcFixture(path)) totalityFail = '$path: $e';
   }
 
-  final kinds = <int, int>{};
   var fallbackNodes = 0, drawableUnknown = 0;
   try {
     final vi = buildViModel(bytes);
     for (final o in vi.blockDiagrams.expand((x) => x.objects)) {
-      kinds[o.kind] = (kinds[o.kind] ?? 0) + 1;
       final b = o.absBounds;
       if (b == null || b.width <= 1 || b.height <= 1) continue;
       if (o.category == ViObjectKind.node && o.objectClass == HeapObjectClass.unknown) fallbackNodes++;
@@ -237,7 +167,7 @@ _Cov _covSumm(Uint8List bytes, String path) {
     }
   } catch (_) {}
 
-  return _Cov(
+  return (
     totalityFail: totalityFail,
     walkFail: walkFail,
     framed: framed,
@@ -246,25 +176,9 @@ _Cov _covSumm(Uint8List bytes, String path) {
     propertyNames: propertyNames,
     helpStrings: helpStrings,
     controlF64: controlF64,
-    kinds: kinds,
     fallbackNodes: fallbackNodes,
     drawableUnknown: drawableUnknown,
-    part16: part16,
-    part16InLabel: part16InLabel,
-    part66: part66,
-    part66InConnector: part66InConnector,
-    part8002: part8002,
-    part8002InNumeric: part8002InNumeric,
-    objFlagsTotal: objFlagsTotal,
-    objFlagsFirst: objFlagsFirst,
-    masterTotal: masterTotal,
-    masterSiblingHit: masterSiblingHit,
-    sigTotal: sigTotal,
-    sigInSignal: sigInSignal,
-    tllTotal: tllTotal,
-    tllEqChild: tllEqChild,
-    ddoTotal: ddoTotal,
-    ddoCrossResolved: ddoCrossResolved,
+    sent: sent,
   );
 }
 
@@ -275,8 +189,10 @@ void main() {
     return;
   }
   late final List<_Cov> C;
+  late final int Function(String) S;
   setUpAll(() async {
     C = await corpusParallel(all, _covSumm);
+    S = (k) => C.fold(0, (a, c) => a + (c.sent[k] ?? 0));
   });
 
   test('every corpus VI parses, decodes, and walks without throwing (totality)', () {
@@ -284,23 +200,15 @@ void main() {
     final oob = C.map((c) => c.walkFail).whereType<String>().toList();
     expect(fails, isEmpty, reason: 'VIs failed to parse/decode/walk: ${fails.take(8).toList()}');
     expect(oob, isEmpty, reason: 'framed heap spans ran past the section body: ${oob.take(8).toList()}');
-    expect(C.fold<int>(0, (a, c) => a + c.propertyNames), greaterThan(0), reason: 'propertyName (0x31) decode dropped');
-    expect(
-      C.fold<int>(0, (a, c) => a + c.helpStrings),
-      greaterThan(0),
-      reason: 'helpDescription (0x6c) string decode dropped',
-    );
-    expect(
-      C.fold<int>(0, (a, c) => a + c.controlF64),
-      greaterThan(0),
-      reason: '0x20/0x21 control-min/max f64 decode dropped',
-    );
+    expect(C.fold(0, (a, c) => a + c.propertyNames), greaterThan(0), reason: 'propertyName (0x31) decode dropped');
+    expect(C.fold(0, (a, c) => a + c.helpStrings), greaterThan(0), reason: 'helpDescription (0x6c) decode dropped');
+    expect(C.fold(0, (a, c) => a + c.controlF64), greaterThan(0), reason: '0x20/0x21 min/max f64 decode dropped');
   });
 
   test('"% deliberately parsed" AND "% semantically decoded" hold at or above baseline', () {
-    final framed = C.fold<int>(0, (a, c) => a + c.framed);
-    final body = C.fold<int>(0, (a, c) => a + c.body);
-    final semantic = C.fold<int>(0, (a, c) => a + c.semantic);
+    final framed = C.fold(0, (a, c) => a + c.framed);
+    final body = C.fold(0, (a, c) => a + c.body);
+    final semantic = C.fold(0, (a, c) => a + c.semantic);
     expect(body, greaterThan(0));
 
     final baselineFile = corpusBaselineFile();
@@ -309,123 +217,89 @@ void main() {
         : const <String, Object?>{};
     num floor(String k) => (base[k] as num?) ?? 0.0;
 
-    final framedPct = framed / body;
-    expect(
-      framedPct,
-      greaterThanOrEqualTo(floor('deliberatelyParsed') - 0.001),
-      reason:
-          'deliberately-parsed regressed to ${(framedPct * 100).toStringAsFixed(1)}% '
-          '(baseline ${(floor('deliberatelyParsed') * 100).toStringAsFixed(1)}%). Re-run tool/coverage.dart only if this is a real improvement.',
-    );
-
-    final semanticPct = semantic / body;
-    expect(
-      semanticPct,
-      greaterThanOrEqualTo(floor('semanticallyDecoded') - 0.001),
-      reason:
-          'semantically-decoded regressed to ${(semanticPct * 100).toStringAsFixed(1)}% '
-          '(baseline ${(floor('semanticallyDecoded') * 100).toStringAsFixed(1)}%). Re-run tool/coverage.dart only if this is a real improvement.',
-    );
+    for (final (label, pct, key) in [
+      ('deliberately-parsed', framed / body, 'deliberatelyParsed'),
+      ('semantically-decoded', semantic / body, 'semanticallyDecoded'),
+    ]) {
+      expect(
+        pct,
+        greaterThanOrEqualTo(floor(key) - 0.001),
+        reason:
+            '$label regressed to ${(pct * 100).toStringAsFixed(1)}% '
+            '(baseline ${(floor(key) * 100).toStringAsFixed(1)}%). '
+            'Re-run tool/coverage.dart only if this is a real improvement.',
+      );
+    }
   });
 
-  // Pin the corpus correlations behind the partRole (0xDF) inferred upgrade.
-  // The name rests on the value->enclosing-kind evidence in
-  // [HeapAttribute.partRole]; re-assert its exemplar cells over the whole corpus
-  // so the inferred meaning fails loudly if the walker, the decode, or a corpus
-  // refresh breaks the correlation.
   test('partRole (0xDF) exemplar value->enclosing-kind correlations hold corpus-wide', () {
-    final part16 = C.fold<int>(0, (a, c) => a + c.part16);
-    final part16InLabel = C.fold<int>(0, (a, c) => a + c.part16InLabel);
-    final part66 = C.fold<int>(0, (a, c) => a + c.part66);
-    final part66InConnector = C.fold<int>(0, (a, c) => a + c.part66InConnector);
-    final part8002 = C.fold<int>(0, (a, c) => a + c.part8002);
-    final part8002InNumeric = C.fold<int>(0, (a, c) => a + c.part8002InNumeric);
-
-    expect(part16, greaterThan(100000), reason: 'partRole value 16 population collapsed (evidence: 335,898)');
-    expect(part66, greaterThan(100000), reason: 'partRole value 66 population collapsed (evidence: 280,747)');
-    expect(part8002, greaterThan(5000), reason: 'partRole value 8002 population collapsed (evidence: 12,817)');
+    expect(S('part16'), greaterThan(100000), reason: 'partRole value 16 population collapsed');
+    expect(S('part66'), greaterThan(100000), reason: 'partRole value 66 population collapsed');
+    expect(S('part8002'), greaterThan(5000), reason: 'partRole value 8002 population collapsed');
     expect(
-      part16InLabel / part16,
+      S('part16InLabel') / S('part16'),
       greaterThanOrEqualTo(0.999),
-      reason: 'partRole 16 must sit in label objects (kind 0x0A) at >=99.9% (evidence: 335,878/335,898)',
+      reason: 'partRole 16 must sit in label objects (kind 0x0A) at >=99.9%',
     );
     expect(
-      part66InConnector / part66,
+      S('part66InConnector') / S('part66'),
       greaterThanOrEqualTo(0.999),
-      reason: 'partRole 66 must sit in connector terminals (kind 0x68) at >=99.9% (evidence: 280,711/280,747)',
+      reason: 'partRole 66 must sit in connector terminals (kind 0x68) at >=99.9%',
     );
     expect(
-      part8002InNumeric / part8002,
+      S('part8002InNumeric') / S('part8002'),
       greaterThanOrEqualTo(0.995),
-      reason: 'partRole 8002 must sit in numeric controls (kind 0x50) at >=99.5% (evidence: 12,801/12,817)',
+      reason: 'partRole 8002 must sit in numeric controls (kind 0x50) at >=99.5%',
     );
   });
 
-  // Pin the corpus correlations behind the raw-tag-id upgrades (objFlags,
-  // masterPart, the signal chain, termListLength, ddoRef). Each floor sits just
-  // under its measured full-corpus figure so the inferred meaning fails loudly
-  // if the decode, the walker, or a corpus refresh breaks the correlation.
   test('raw-tag upgrade correlations hold corpus-wide (objFlags/masterPart/signal/termList/ddoRef)', () {
-    int sum(int Function(_Cov c) f) => C.fold<int>(0, (a, c) => a + f(c));
-    final objTotal = sum((c) => c.objFlagsTotal), objFirst = sum((c) => c.objFlagsFirst);
-    expect(objTotal, greaterThan(3500000), reason: 'objFlags population collapsed (evidence: 3,745,810)');
+    expect(S('objTotal'), greaterThan(3500000), reason: 'objFlags population collapsed');
     expect(
-      objFirst / objTotal,
+      S('objFirst') / S('objTotal'),
       greaterThanOrEqualTo(0.999),
-      reason: 'objFlags must be the FIRST record of its object scope (evidence: 99.99%)',
+      reason: 'objFlags must be the FIRST record of its object scope',
     );
-    final masterTotal = sum((c) => c.masterTotal), masterHit = sum((c) => c.masterSiblingHit);
-    expect(masterTotal, greaterThan(800000), reason: 'masterPart population collapsed (evidence: 918,340)');
+    expect(S('masterTotal'), greaterThan(800000), reason: 'masterPart population collapsed');
     expect(
-      masterHit / masterTotal,
+      S('masterSiblingHit') / S('masterTotal'),
       greaterThanOrEqualTo(0.96),
-      reason:
-          'a *distinct* sibling part (not the node itself) must carry partRole == masterPart value '
-          '(evidence: 97.33%)',
+      reason: 'a DISTINCT sibling part must carry partRole == masterPart value',
     );
-    final sigTotal = sum((c) => c.sigTotal), sigIn = sum((c) => c.sigInSignal);
-    expect(sigTotal, greaterThan(700000), reason: 'signal-chain population collapsed (evidence: 854,486)');
+    expect(S('sigTotal'), greaterThan(700000), reason: 'signal-chain population collapsed');
     expect(
-      sigIn / sigTotal,
+      S('sigInSignal') / S('sigTotal'),
       greaterThanOrEqualTo(0.999),
-      reason: 'compressedWireTable/lastSignalKind must sit in signal objects, class 0x17 (evidence: ~100%)',
+      reason: 'compressedWireTable/lastSignalKind must sit in signal objects (class 0x17)',
     );
-    final tllTotal = sum((c) => c.tllTotal), tllEq = sum((c) => c.tllEqChild);
-    expect(tllTotal, greaterThan(30000), reason: 'termListLength population collapsed (evidence: 41,660)');
+    expect(S('tllTotal'), greaterThan(30000), reason: 'termListLength population collapsed');
     expect(
-      tllEq / tllTotal,
+      S('tllEqChild') / S('tllTotal'),
       greaterThanOrEqualTo(0.96),
-      reason: 'termListLength must equal the direct child-object count (evidence: 97.56%)',
+      reason: 'termListLength must equal the direct child-object count',
     );
-    final ddoTotal = sum((c) => c.ddoTotal), ddoCross = sum((c) => c.ddoCrossResolved);
-    expect(ddoTotal, greaterThan(1500), reason: 'ddoRef population collapsed (evidence: 2,048)');
+    expect(S('ddoTotal'), greaterThan(1500), reason: 'ddoRef population collapsed');
     expect(
-      ddoCross / ddoTotal,
+      S('ddoCrossResolved') / S('ddoTotal'),
       greaterThanOrEqualTo(0.99),
-      reason: 'ddoRef uids must resolve in the sibling heap (evidence: 2,048/2,048)',
+      reason: 'ddoRef uids must resolve in the sibling heap',
     );
   });
 
-  // Pin the STRUCTURAL NODE-FALLBACK output (category==node while objectClass is
-  // uncatalogued) so the headline render improvement can't silently regress to 0
-  // if the 0x1b-container code or the gate conditions drift. Also cap the total
-  // still-unknown drawable tail so a NEW uncatalogued bucket surfaces loudly.
   test('structural node-fallback keeps classifying the BD node tail (anti-regression)', () {
-    final fallbackNodes = C.fold<int>(0, (a, c) => a + c.fallbackNodes);
-    final drawableUnknown = C.fold<int>(0, (a, c) => a + c.drawableUnknown);
+    final fallbackNodes = C.fold(0, (a, c) => a + c.fallbackNodes);
+    final drawableUnknown = C.fold(0, (a, c) => a + c.drawableUnknown);
     expect(
       fallbackNodes,
       inInclusiveRange(1500, 2600),
       reason:
-          'node-fallback output ($fallbackNodes) drifted — the gate (parent 0x1b + 0x15 child '
-          '+ no 0x68 + size cap) may have broken; the tail would revert to unknown boxes.',
+          'node-fallback output drifted — the gate (parent 0x1b + 0x15 child + no 0x68 + size cap) '
+          'may have broken; the tail would revert to unknown boxes.',
     );
     expect(
       drawableUnknown,
       lessThan(1600),
-      reason:
-          'still-unknown drawable BD objects ($drawableUnknown) exceeded the ceiling — '
-          'a new uncatalogued kind likely appeared; probe and classify it.',
+      reason: 'still-unknown drawable BD objects exceeded the ceiling — probe and classify the new kind.',
     );
   });
 }

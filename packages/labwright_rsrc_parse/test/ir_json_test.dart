@@ -9,194 +9,94 @@ import 'package:test/test.dart';
 
 import 'corpus_dirs.dart';
 
-/// Tests for the JSON IR export ([viModelToJson]) — the serializable VI→IR→Dart
-/// artifact. Three properties across the WHOLE corpus:
-///   (1) DETERMINISM — encoding the same VI twice yields byte-identical JSON;
-///   (2) JSON-SAFETY — every VI's IR round-trips through jsonEncode/jsonDecode
-///       (no non-finite numbers, no cycles, no non-encodable values);
-///   (3) COVERAGE — every drawable diagram object (one with absolute bounds)
-///       appears in the emitted node list (the IR loses no drawable object).
-///
-/// All of these need `buildViModel`, so each VI is summarized ONCE in a worker
-/// isolate (see [corpusParallel]) and the tests assert on the aggregate — there is
-/// no sampling, the heavy work is just parallelized.
+/// JSON IR export ([viModelToJson]) over the WHOLE corpus: determinism, jsonEncode-safety, drawable
+/// coverage, and VCTP type/name/cluster/array/enum recovery. One worker-isolate summary per VI:
+/// summed counters + capped `key•`-prefixed failure diagnostics.
 
 bool _hasNonPrintable(String s) => s.runes.any((c) => c < 0x20 || c >= 0x7f);
 
-/// Per-VI summary covering every test below. Sendable (primitives + nullable
-/// strings). A VI whose model build throws returns a neutral summary (`built`
-/// false), affecting no aggregate.
-class _ViSummary {
-  final String path;
-  final bool built;
-  final int diagrams;
-  final String? jsonFail;
-  final String? drawableFail;
-  final int typesCount, unknownTypes;
-  final bool withTypes;
-  final int namedCount;
-  final bool hasNames;
-  final String? badName;
-  final int clusters, clustersWithMembers, totalFields;
-  final String? oobMember;
-  final int arrays, arraysWithElem;
-  final String? oobElem;
-  final int enums, enumsWithItems;
-  final String? badEnum;
-  const _ViSummary({
-    required this.path,
-    required this.built,
-    required this.diagrams,
-    required this.jsonFail,
-    required this.drawableFail,
-    required this.typesCount,
-    required this.unknownTypes,
-    required this.withTypes,
-    required this.namedCount,
-    required this.hasNames,
-    required this.badName,
-    required this.clusters,
-    required this.clustersWithMembers,
-    required this.totalFields,
-    required this.oobMember,
-    required this.arrays,
-    required this.arraysWithElem,
-    required this.oobElem,
-    required this.enums,
-    required this.enumsWithItems,
-    required this.badEnum,
-  });
-  factory _ViSummary.neutral(String path) => _ViSummary(
-    path: path,
-    built: false,
-    diagrams: 0,
-    jsonFail: null,
-    drawableFail: null,
-    typesCount: 0,
-    unknownTypes: 0,
-    withTypes: false,
-    namedCount: 0,
-    hasNames: false,
-    badName: null,
-    clusters: 0,
-    clustersWithMembers: 0,
-    totalFields: 0,
-    oobMember: null,
-    arrays: 0,
-    arraysWithElem: 0,
-    oobElem: null,
-    enums: 0,
-    enumsWithItems: 0,
-    badEnum: null,
-  );
-}
+(Map<String, int>, List<String>) _summarizeVi(Uint8List bytes, String path) {
+  final c = <String, int>{};
+  final diags = <String>[];
+  void n(String k, [int by = 1]) => c[k] = (c[k] ?? 0) + by;
+  void bad(String key, String msg) {
+    n('bad:$key');
+    if (diags.length < 4) diags.add('$key• $msg');
+  }
 
-_ViSummary _summarizeVi(Uint8List bytes, String path) {
   final ViModel model;
   try {
     model = buildViModel(Uint8List.fromList(bytes));
   } catch (_) {
-    return _ViSummary.neutral(path);
+    return (c, diags);
   }
+  n('built');
   final name = path.split('/').last;
 
-  String? jsonFail;
   try {
     final a = jsonEncode(viModelToJson(model));
     final b = jsonEncode(viModelToJson(buildViModel(Uint8List.fromList(bytes))));
     if (a != b) {
-      jsonFail = 'NONDET $name';
+      bad('json', 'NONDET $name');
     } else {
       final decoded = jsonDecode(a);
-      if (decoded is! Map || !decoded.containsKey('blockDiagrams')) jsonFail = 'BADROOT $name';
+      if (decoded is! Map || !decoded.containsKey('blockDiagrams')) bad('json', 'BADROOT $name');
     }
   } catch (e) {
-    jsonFail = 'THREW $name: $e';
+    bad('json', 'THREW $name: $e');
   }
 
-  var diagrams = 0;
-  String? drawableFail;
   for (final d in [...model.blockDiagrams, ...model.frontPanelDiagrams]) {
-    diagrams++;
+    n('diagrams');
     final json = viDiagramToJson(d);
     final emitted = (json['objects'] as List).map((o) => (o as Map)['oid'] as int).toSet();
     final missing = d.nodes.where((o) => !emitted.contains(o.oid));
     if (missing.isNotEmpty) {
-      drawableFail = 'MISSING ${missing.first.oid} in $name/${d.sectionTag}';
+      bad('drawable', 'MISSING ${missing.first.oid} in $name/${d.sectionTag}');
       break;
     }
   }
 
-  final typesCount = model.types.length;
-  final unknownTypes = model.types.where((t) => t.kind == ViDataType.unknown).length;
+  n('types', model.types.length);
+  if (model.types.isNotEmpty) n('withTypes');
+  n('unknownTypes', model.types.where((t) => t.kind == ViDataType.unknown).length);
   final named = namedTypes(model.types);
-  String? badName;
+  n('named', named.length);
+  if (named.isNotEmpty) n('hasNames');
   for (final t in named) {
-    final n = t.name!;
-    if (n.isEmpty || _hasNonPrintable(n) || !RegExp(r'[A-Za-z]').hasMatch(n)) {
-      badName = '"$n" in $name';
-      break;
-    }
+    final x = t.name!;
+    if (x.isEmpty || _hasNonPrintable(x) || !RegExp(r'[A-Za-z]').hasMatch(x)) bad('name', '"$x" in $name');
   }
 
-  var clusters = 0, clustersWithMembers = 0, totalFields = 0;
-  String? oobMember;
-  var arrays = 0, arraysWithElem = 0;
-  String? oobElem;
-  var enums = 0, enumsWithItems = 0;
-  String? badEnum;
   for (final t in model.types) {
     if (t.kind == ViDataType.cluster) {
-      clusters++;
+      n('clusters');
       if (t.members.isNotEmpty) {
-        clustersWithMembers++;
+        n('clustersWithMembers');
         for (final i in t.members) {
-          if (i < 0 || i >= model.types.length) oobMember ??= 'OOB member $i in $name';
+          if (i < 0 || i >= model.types.length) bad('oobMember', 'OOB member $i in $name');
         }
-        totalFields += clusterFields(t, model.types).length;
+        n('fields', clusterFields(t, model.types).length);
       }
     } else if (t.kind == ViDataType.array) {
-      arrays++;
+      n('arrays');
       if (t.elementIndex != null) {
-        arraysWithElem++;
+        n('arraysWithElem');
         if (t.elementIndex! < 0 || t.elementIndex! >= model.types.length) {
-          oobElem ??= 'OOB elem ${t.elementIndex} in $name';
+          bad('oobElem', 'OOB elem ${t.elementIndex} in $name');
         }
       }
     } else if (const {ViDataType.enumU8, ViDataType.enumU16, ViDataType.enumU32}.contains(t.kind)) {
-      enums++;
+      n('enums');
       if (t.enumItems.isNotEmpty) {
-        enumsWithItems++;
+        n('enumsWithItems');
         for (final it in t.enumItems) {
-          if (it.isEmpty || _hasNonPrintable(it)) badEnum ??= '"$it" in $name';
+          if (it.isEmpty || _hasNonPrintable(it)) bad('enum', '"$it" in $name');
         }
       }
     }
   }
-
-  return _ViSummary(
-    path: path,
-    built: true,
-    diagrams: diagrams,
-    jsonFail: jsonFail,
-    drawableFail: drawableFail,
-    typesCount: typesCount,
-    unknownTypes: unknownTypes,
-    withTypes: model.types.isNotEmpty,
-    namedCount: named.length,
-    hasNames: named.isNotEmpty,
-    badName: badName,
-    clusters: clusters,
-    clustersWithMembers: clustersWithMembers,
-    totalFields: totalFields,
-    oobMember: oobMember,
-    arrays: arrays,
-    arraysWithElem: arraysWithElem,
-    oobElem: oobElem,
-    enums: enums,
-    enumsWithItems: enumsWithItems,
-    badEnum: badEnum,
-  );
+  return (c, diags);
 }
 
 void main() {
@@ -205,96 +105,85 @@ void main() {
     test('IR JSON corpus tests (skipped: corpus not fetched)', () {}, skip: true);
     return;
   }
-  late final List<_ViSummary> summaries;
-  late final int filesBuilt;
+  late final Map<String, int> C;
+  late final List<String> diags;
   setUpAll(() async {
-    summaries = await corpusParallel(all, _summarizeVi);
-    filesBuilt = summaries.where((j) => j.built).length;
+    C = {};
+    diags = [];
+    for (final (counts, d) in await corpusParallel(all, _summarizeVi)) {
+      counts.forEach((k, v) => C[k] = (C[k] ?? 0) + v);
+      diags.addAll(d);
+    }
   });
 
+  int L(String k) => C[k] ?? 0;
+  List<String> D(String key) => diags.where((x) => x.startsWith('$key•')).take(8).toList();
+
   test('viModelToJson is deterministic and jsonEncode-safe for every VI', () {
-    final fails = summaries.map((j) => j.jsonFail).whereType<String>().toList();
-    expect(filesBuilt, greaterThan(0));
-    expect(fails, isEmpty, reason: 'IR JSON determinism/safety failures: ${fails.take(8).toList()}');
+    expect(L('built'), greaterThan(0));
+    expect(L('bad:json'), 0, reason: 'IR JSON determinism/safety failures: ${D('json')}');
   });
 
   test('IR JSON represents every drawable object (no drawable lost)', () {
-    final fails = summaries.map((j) => j.drawableFail).whereType<String>().toList();
-    expect(filesBuilt, greaterThan(0));
-    expect(summaries.fold<int>(0, (a, j) => a + j.diagrams), greaterThan(0));
-    expect(fails, isEmpty, reason: 'IR JSON dropped drawable object(s): ${fails.take(8).toList()}');
+    expect(L('built'), greaterThan(0));
+    expect(L('diagrams'), greaterThan(0));
+    expect(L('bad:drawable'), 0, reason: 'IR JSON dropped drawable object(s): ${D('drawable')}');
   });
 
   test('VCTP type pool recovers a type inventory for the vast majority of VIs', () {
-    final withTypes = summaries.where((j) => j.withTypes).length;
-    final totalTypes = summaries.fold<int>(0, (a, j) => a + j.typesCount);
-    final totalUnknown = summaries.fold<int>(0, (a, j) => a + j.unknownTypes);
-    expect(filesBuilt, greaterThan(0));
-    expect(totalTypes, greaterThan(0));
+    expect(L('built'), greaterThan(0));
+    expect(L('types'), greaterThan(0));
     expect(
-      withTypes,
-      greaterThan((filesBuilt * 0.90).floor()),
-      reason: 'type-pool recovery dropped: only $withTypes/$filesBuilt VIs yielded types',
+      L('withTypes'),
+      greaterThan((L('built') * 0.90).floor()),
+      reason: 'type-pool recovery dropped: only ${L('withTypes')}/${L('built')} VIs yielded types',
     );
     expect(
-      totalUnknown,
-      lessThan(totalTypes * 0.6),
-      reason: 'too many uncatalogued type codes: $totalUnknown/$totalTypes',
+      L('unknownTypes'),
+      lessThan(L('types') * 0.6),
+      reason: 'too many uncatalogued type codes: ${L('unknownTypes')}/${L('types')}',
     );
   });
 
   test('VCTP named typedefs are recovered and look like real identifiers', () {
-    final vIsWithNames = summaries.where((j) => j.hasNames).length;
-    final totalNames = summaries.fold<int>(0, (a, j) => a + j.namedCount);
-    final badNames = summaries.map((j) => j.badName).whereType<String>().toList();
-    expect(filesBuilt, greaterThan(0));
-    expect(totalNames, greaterThan(0));
-    expect(badNames, isEmpty, reason: 'malformed recovered type names: ${badNames.take(8).toList()}');
+    expect(L('built'), greaterThan(0));
+    expect(L('named'), greaterThan(0));
+    expect(L('bad:name'), 0, reason: 'malformed recovered type names: ${D('name')}');
     expect(
-      vIsWithNames,
-      greaterThan((filesBuilt * 0.40).floor()),
-      reason: 'named-type recovery dropped: only $vIsWithNames/$filesBuilt VIs yielded names',
+      L('hasNames'),
+      greaterThan((L('built') * 0.40).floor()),
+      reason: 'named-type recovery dropped: only ${L('hasNames')}/${L('built')} VIs yielded names',
     );
   });
 
   test('cluster member structures resolve into valid fields', () {
-    final clusters = summaries.fold<int>(0, (a, j) => a + j.clusters);
-    final clustersWithMembers = summaries.fold<int>(0, (a, j) => a + j.clustersWithMembers);
-    final totalFields = summaries.fold<int>(0, (a, j) => a + j.totalFields);
-    final fails = summaries.map((j) => j.oobMember).whereType<String>().toList();
-    expect(clusters, greaterThan(0));
-    expect(fails, isEmpty, reason: 'cluster members out of range: ${fails.take(8).toList()}');
-    expect(totalFields, greaterThan(0));
+    expect(L('clusters'), greaterThan(0));
+    expect(L('bad:oobMember'), 0, reason: 'cluster members out of range: ${D('oobMember')}');
+    expect(L('fields'), greaterThan(0));
     expect(
-      clustersWithMembers,
-      greaterThan((clusters * 0.80).floor()),
-      reason: 'cluster member recovery dropped: $clustersWithMembers/$clusters',
+      L('clustersWithMembers'),
+      greaterThan((L('clusters') * 0.80).floor()),
+      reason: 'cluster member recovery dropped: ${L('clustersWithMembers')}/${L('clusters')}',
     );
   });
 
   test('array element types resolve into valid in-range indices', () {
-    final arrays = summaries.fold<int>(0, (a, j) => a + j.arrays);
-    final arraysWithElem = summaries.fold<int>(0, (a, j) => a + j.arraysWithElem);
-    final fails = summaries.map((j) => j.oobElem).whereType<String>().toList();
-    expect(arrays, greaterThan(0));
-    expect(fails, isEmpty, reason: 'array element index out of range: ${fails.take(8).toList()}');
+    expect(L('arrays'), greaterThan(0));
+    expect(L('bad:oobElem'), 0, reason: 'array element index out of range: ${D('oobElem')}');
     expect(
-      arraysWithElem,
-      greaterThan((arrays * 0.80).floor()),
-      reason: 'array element recovery dropped: $arraysWithElem/$arrays',
+      L('arraysWithElem'),
+      greaterThan((L('arrays') * 0.80).floor()),
+      reason: 'array element recovery dropped: ${L('arraysWithElem')}/${L('arrays')}',
     );
   });
 
   test('enum item labels are recovered and printable', () {
-    final enums = summaries.fold<int>(0, (a, j) => a + j.enums);
-    final enumsWithItems = summaries.fold<int>(0, (a, j) => a + j.enumsWithItems);
-    final fails = summaries.map((j) => j.badEnum).whereType<String>().toList();
-    expect(enums, greaterThan(0));
-    expect(fails, isEmpty, reason: 'malformed enum items: ${fails.take(8).toList()}');
+    expect(L('enums'), greaterThan(0));
+    expect(L('bad:enum'), 0, reason: 'malformed enum items: ${D('enum')}');
     expect(
-      enumsWithItems,
-      greaterThan((enums * 0.80).floor()),
-      reason: 'enum item recovery dropped: $enumsWithItems/$enums',
+      L('enumsWithItems'),
+      greaterThan((L('enums') * 0.80).floor()),
+      reason: 'enum item recovery dropped: ${L('enumsWithItems')}/${L('enums')}',
     );
   });
 }

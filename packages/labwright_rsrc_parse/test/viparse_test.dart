@@ -1,22 +1,22 @@
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
-/// Builds a minimal big-endian RSRC (.vi) container with the given resource
-/// block tags and a trailing VI name, matching the layout [parseVi] reads.
-///
-/// Layout: a 32-byte header (`RSRC\r\n`, u16 format version = 3, 4-byte file
-/// type, 4-byte creator `LBVW`, then u32 info-offset / info-size / data-offset /
-/// data-size — only the info-offset is read). The info section repeats the
-/// header, then a sub-header of five u32 whose 4th word is the offset (0x34) to
-/// the block-info list, a u32 block count, two u32 per block entry, and finally a
-/// length-prefixed VI name.
-Uint8List _buildVi({required String fileType, required List<String> blocks, required String name}) {
+const _magic = [0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a];
+
+/// Minimal big-endian RSRC (.vi): 32-byte header stored twice, five-u32 sub-header whose 4th word
+/// points at the block list (0x34), u32 block count, 12 bytes per block entry, trailing Pascal name.
+Uint8List _buildVi({
+  String fileType = 'LVIN',
+  List<String> blocks = const ['CONP', 'BDHb', 'vers'],
+  String name = 'demo.vi',
+}) {
   void be16(BytesBuilder b, int v) => b.add((ByteData(2)..setUint16(0, v)).buffer.asUint8List());
   void be32(BytesBuilder b, int v) => b.add((ByteData(4)..setUint32(0, v)).buffer.asUint8List());
 
-  final header = BytesBuilder()..add([0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a]);
+  final header = BytesBuilder()..add(_magic);
   be16(header, 3);
   header
     ..add(fileType.codeUnits)
@@ -49,32 +49,110 @@ Uint8List _buildVi({required String fileType, required List<String> blocks, requ
       .toBytes();
 }
 
+/// The core invariant: `parseVi` is TOTAL — for ANY bytes it either returns a usable [ViSummary] or
+/// throws [ViFormatException]. Anything else would crash the viewer on a real internet VI.
+void _mustBeTotal(Uint8List b) {
+  try {
+    final s = parseVi(b);
+    s
+      ..describe()
+      ..toJson();
+    expect(s.blocks.length, lessThanOrEqualTo(100002));
+  } on ViFormatException {
+    // acceptable: a clean, catchable rejection
+  } catch (e, st) {
+    fail('parseVi leaked ${e.runtimeType} on ${b.length} bytes: $e\n$st');
+  }
+}
+
 void main() {
-  test('parses header, block inventory, capability flags, and name', () {
-    final vi = parseVi(_buildVi(fileType: 'LVIN', blocks: ['CONP', 'BDHb', 'vers'], name: 'demo.vi'));
-    expect(vi.isVi, isTrue);
-    expect(vi.creator, 'LBVW');
-    expect(vi.formatVersion, 3);
+  test('parses header, block inventory, capability flags, and name; deterministic', () {
+    final vi = parseVi(_buildVi());
+    expect((vi.isVi, vi.creator, vi.formatVersion, vi.name), (true, 'LBVW', 3, 'demo.vi'));
     expect(vi.blocks, ['CONP', 'BDHb', 'vers']);
-    expect(vi.hasConnectorPane, isTrue);
-    expect(vi.hasBlockDiagram, isTrue);
-    expect(vi.hasFrontPanel, isFalse);
-    expect(vi.hasSubViLinks, isFalse);
-    expect(vi.name, 'demo.vi');
+    expect((vi.hasConnectorPane, vi.hasBlockDiagram, vi.hasFrontPanel, vi.hasSubViLinks), (true, true, false, false));
+
+    final full = _buildVi(blocks: const ['FPHb', 'BDHb', 'CONP', 'LIvi'], name: 'top.vi');
+    final v2 = parseVi(full);
+    expect((v2.hasFrontPanel, v2.hasSubViLinks), (true, true));
+    expect(v2.describe(), contains('sub-VI links'));
+    expect(parseVi(full).toJson(), parseVi(full).toJson(), reason: 'deterministic for a given input');
   });
 
-  test('detects front panel and sub-VI links', () {
-    final vi = parseVi(_buildVi(fileType: 'LVIN', blocks: ['FPHb', 'BDHb', 'CONP', 'LIvi'], name: 'top.vi'));
-    expect(vi.hasFrontPanel, isTrue);
-    expect(vi.hasSubViLinks, isTrue);
-    expect(vi.describe(), contains('sub-VI links'));
+  test('rejects non-RSRC and truncated files', () {
+    expect(() => parseVi(Uint8List(64)), throwsA(isA<ViFormatException>()));
+    expect(() => parseVi(Uint8List.fromList(_magic)), throwsA(isA<ViFormatException>()));
   });
 
-  test('rejects non-RSRC bytes', () {
-    expect(() => parseVi(Uint8List.fromList(List.filled(64, 0))), throwsA(isA<ViFormatException>()));
+  test('arbitrary random bytes (0..4KB) never crash the parser', () {
+    final rng = Random(99);
+    for (var i = 0; i < 20000; i++) {
+      final n = rng.nextInt(i < 200 ? 40 : 4096);
+      _mustBeTotal(Uint8List.fromList([for (var j = 0; j < n; j++) rng.nextInt(256)]));
+    }
   });
 
-  test('rejects truncated files', () {
-    expect(() => parseVi(Uint8List.fromList([0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a])), throwsA(isA<ViFormatException>()));
+  test('random bytes that start with the RSRC magic never crash', () {
+    final rng = Random(5);
+    for (var i = 0; i < 20000; i++) {
+      final b = Uint8List(6 + rng.nextInt(2048));
+      b.setRange(0, 6, _magic);
+      for (var j = 6; j < b.length; j++) {
+        b[j] = rng.nextInt(256);
+      }
+      _mustBeTotal(b);
+    }
+  });
+
+  test('bit-flips and random u32 overwrites of a valid VI fail cleanly', () {
+    final valid = _buildVi();
+    final rng = Random(7);
+    for (var i = 0; i < 20000; i++) {
+      final b = Uint8List.fromList(valid);
+      final muts = 1 + rng.nextInt(6);
+      for (var m = 0; m < muts; m++) {
+        if (rng.nextBool() && b.length >= 4) {
+          ByteData.sublistView(b).setUint32(rng.nextInt(b.length - 3), rng.nextInt(0xFFFFFFFF));
+        } else {
+          b[rng.nextInt(b.length)] = rng.nextInt(256);
+        }
+      }
+      _mustBeTotal(b);
+    }
+  });
+
+  test('extreme structural fields (huge offsets/counts) fail cleanly', () {
+    final rng = Random(11);
+    const extremes = [0, 1, 2, 0x20, 0x7f, 0x80, 0xffff, 0x7fffffff, 0xfffffffe, 0xffffffff];
+    for (var i = 0; i < 20000; i++) {
+      final b = Uint8List.fromList(_buildVi());
+      final view = ByteData.sublistView(b);
+      view.setUint32(16, extremes[rng.nextInt(extremes.length)]);
+      for (var k = 0; k < 3; k++) {
+        final at = rng.nextInt(b.length ~/ 4) * 4;
+        if (at + 4 <= b.length) view.setUint32(at, extremes[rng.nextInt(extremes.length)]);
+      }
+      _mustBeTotal(b);
+    }
+  });
+
+  test('valid VI with many blocks + megabytes of trailing garbage stays total + fast', () {
+    final rng = Random(13);
+    final base = _buildVi(blocks: [for (var i = 0; i < 5000; i++) 'B${(i % 100).toString().padLeft(3, '0')}']);
+    final big =
+        (BytesBuilder()
+              ..add(base)
+              ..add(Uint8List.fromList([for (var i = 0; i < 2 * 1024 * 1024; i++) rng.nextInt(256)])))
+            .toBytes();
+    final sw = Stopwatch()..start();
+    _mustBeTotal(big);
+    expect(sw.elapsedMilliseconds, lessThan(2000), reason: 'parser should not hang on big files');
+  });
+
+  test('every truncation of a valid VI fails cleanly', () {
+    final valid = _buildVi();
+    for (var cut = 0; cut <= valid.length; cut++) {
+      _mustBeTotal(Uint8List.sublistView(valid, 0, cut));
+    }
   });
 }

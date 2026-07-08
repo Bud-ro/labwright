@@ -1,0 +1,388 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
+import 'package:test/test.dart';
+
+import 'test_util.dart';
+
+Uint8List _strg(String text) {
+  final body = utf8.encode(text);
+  return u8([0, 0, 0, body.length, ...body]);
+}
+
+Uint8List _lvsr(int len, {int b0 = 0x20, int b1 = 0, List<int>? hash96, List<int>? hash144}) {
+  final b = Uint8List(len);
+  b[0] = b0;
+  b[1] = b1;
+  b[2] = 0x80;
+  if (len >= 112) b.setAll(96, hash96 ?? emptyPasswordHash);
+  if (len >= 160) b.setAll(144, hash144 ?? emptyPasswordHash);
+  return b;
+}
+
+Uint8List _pth0(List<String> comps, {int type = 0}) {
+  final body = [for (final c in comps) ...pascal(c)];
+  return u8([...'PTH0'.codeUnits, 0, 0, 0, 4 + body.length, type >> 8, type & 0xff, 0, comps.length, ...body]);
+}
+
+Uint8List _idtab(List<int> entries) {
+  final b = ByteData(4 * (entries.length + 1))..setUint32(0, entries.length);
+  for (var i = 0; i < entries.length; i++) {
+    b.setUint32(4 * (i + 1), entries[i]);
+  }
+  return b.buffer.asUint8List();
+}
+
+/// A 2×2 24-bpp icon section in the validated header form (flags 0, w/h 2, depth 24, doubled rect 2×2).
+Uint8List _iconSection(List<int> pixels) {
+  final b = Uint8List(40 + pixels.length);
+  b[5] = 2;
+  b[7] = 2;
+  b[9] = 24;
+  b[31] = 2;
+  b[33] = 2;
+  b.setRange(b.length - pixels.length, b.length, pixels);
+  return b;
+}
+
+void main() {
+  test('decodeStringBlock (STRG/HLPT): [u32 len][text], lying lengths clamp, lenient UTF-8, null when short', () {
+    expect(decodeStringBlock(_strg('This VI does X')), 'This VI does X');
+    expect(decodeStringBlock(_strg('')), '');
+    expect(decodeStringBlock(_strg('### Foo.vi')), '### Foo.vi', reason: 'HLPT reuses the STRG layout');
+    expect(decodeStringBlock(u8([0, 0, 0, 6, 0x41, 0x42, 0x43])), 'ABC', reason: 'len 6 > 3 body bytes clamps');
+    expect(decodeStringBlock(u8([0, 0, 0, 1, 0xff])), isNotNull, reason: 'bad UTF-8 -> replacement, no throw');
+    expect(decodeStringBlock(u8([0, 0, 0])), isNull);
+  });
+
+  test('decodeHistory: 40-byte record fields, reserved-zero flag, null when short', () {
+    final b = Uint8List(40);
+    ByteData.sublistView(b)
+      ..setUint32(0, 2)
+      ..setUint32(4, 0x400)
+      ..setUint32(8, 11);
+    final h = decodeHistory(b)!;
+    expect((h.formatVersion, h.flags, h.entryCount, h.rawLength), (2, 0x400, 11, 40));
+    expect(h.reservedAreZero, isTrue);
+    expect(h.words, hasLength(10));
+    ByteData.sublistView(b).setUint32(12, 7);
+    expect(decodeHistory(b)!.reservedAreZero, isFalse, reason: 'offset 12 is a reserved word');
+    expect(decodeHistory(Uint8List(20)), isNull);
+  });
+
+  test('decodeFontTable: version/count/offset + packed names, bogus offset safe, null when short', () {
+    final b = u8([0, 1, 0, 2, 0, 3, 0, 2, 0, 0, 0, 16, 0, 0, 0, 0, ...pascal('Segoe UI'), ...pascal('Tahoma')]);
+    final t = decodeFontTable(b)!;
+    expect((t.version, t.fontCount, t.nameTableOffset), (1, 2, 16));
+    expect(t.names, ['Segoe UI', 'Tahoma']);
+    final bogus = Uint8List(12);
+    ByteData.sublistView(bogus)
+      ..setUint16(0, 1)
+      ..setUint16(6, 3)
+      ..setUint32(8, 9999);
+    expect(decodeFontTable(bogus)!.names, isEmpty, reason: 'bogus name offset yields fewer names, no throw');
+    expect(decodeFontTable(Uint8List(8)), isNull);
+  });
+
+  test('decodeDataTypeHeap: dominant 4-byte header form; extended form recovers 40xx names; null when short', () {
+    final h = decodeDataTypeHeap(hx('00170004'))!;
+    expect((h.field0, h.field1, h.isExtended, h.rawLength), (0x17, 4, false, 4));
+    expect(h.names, isEmpty);
+    final e = decodeDataTypeHeap(u8([...hx('00000040 000e 4021 09'), ...'Auto Stop'.codeUnits]))!;
+    expect(e.isExtended, isTrue);
+    expect(e.names, contains('Auto Stop'));
+    expect(decodeDataTypeHeap(hx('000102')), isNull);
+  });
+
+  test('decodeVersionWord: [BCD major][minor<<4|patch][stage][build]', () {
+    const rows = <(String, int, int, int, String)>[
+      ('08508002', 8, 5, 0, '8.5'),
+      ('20008000', 20, 0, 0, '20.0'),
+      ('10008000', 10, 0, 0, '10.0'),
+      ('09008000', 9, 0, 0, '9.0'),
+      ('21138005', 21, 1, 3, '21.1.3'),
+    ];
+    for (final (bytes, major, minor, patch, version) in rows) {
+      final v = decodeVersionWord(hx(bytes))!;
+      expect((v.major, v.minor, v.patch, v.version), (major, minor, patch, version), reason: bytes);
+    }
+    final v = decodeVersionWord(hx('08508002'))!;
+    expect((v.stage, v.build), (0x80, 2));
+    expect(v.minor, 5, reason: 'minor is the high nibble of byte 1, not BCD(0x50)=50');
+    expect(decodeVersionWord(hx('010203')), isNull);
+  });
+
+  group('decodeSaveRecord (LVSR)', () {
+    test('decodes the BCD version word (same decode as vers)', () {
+      final r = decodeSaveRecord(_lvsr(160))!;
+      expect((r.versionMajor, r.versionMinor, r.stage, r.version, r.rawLength), (20, 0, 0x80, '20.0', 160));
+      expect(decodeSaveRecord(_lvsr(160, b0: 0x09))!.versionMajor, 9);
+      final v85 = decodeSaveRecord(_lvsr(160, b0: 0x08, b1: 0x50))!;
+      expect((v85.versionMajor, v85.versionMinor, v85.version), (8, 5, '8.5'), reason: 'minor guard: not BCD(0x50)');
+    });
+
+    test('reads the @96 password hash and the independent @144 secondary hash', () {
+      final unset = decodeSaveRecord(_lvsr(160))!;
+      expect(unset.blockDiagramPasswordHash, emptyPasswordHash);
+      expect(unset.isBlockDiagramPasswordProtected, isFalse);
+      final protectedHash = List<int>.generate(16, (i) => i + 1);
+      final prot = decodeSaveRecord(_lvsr(160, hash96: protectedHash))!;
+      expect(prot.blockDiagramPasswordHash, protectedHash);
+      expect(prot.isBlockDiagramPasswordProtected, isTrue);
+      final hash144 = List<int>.generate(16, (i) => 100 + i);
+      final r = decodeSaveRecord(_lvsr(160, hash144: hash144))!;
+      expect(r.secondaryHash, hash144);
+      expect(r.blockDiagramPasswordHash, emptyPasswordHash, reason: '@96 is independent of the @144 slot');
+      expect(() => r.secondaryHash!.add(0), throwsUnsupportedError, reason: 'hash slots are read-only');
+    });
+
+    test('hash slots are gated on record length', () {
+      final r112 = decodeSaveRecord(_lvsr(112, b0: 0x12))!;
+      expect(r112.blockDiagramPasswordHash, isNotNull, reason: '112 bytes reaches @96');
+      expect(r112.secondaryHash, isNull, reason: '112 bytes does not reach @144');
+      final tiny = decodeSaveRecord(hx('16008000'))!;
+      expect((tiny.versionMajor, tiny.blockDiagramPasswordHash, tiny.secondaryHash), (16, null, null));
+      expect(decodeSaveRecord(hx('0102')), isNull, reason: 'too short for even the version word');
+    });
+  });
+
+  test('decodeTypeMap (TM80): short form entries, large-form flag, null when short', () {
+    final m = decodeTypeMap(hx('00040002 1000 1001 2000 1000'))!;
+    expect((m.isShortForm, m.count, m.field1, m.rawLength), (true, 4, 2, 12));
+    expect(m.entries, [0x1000, 0x1001, 0x2000, 0x1000]);
+    final large = decodeTypeMap(hx('00320060 01020304'))!;
+    expect((large.isShortForm, large.rawLength), (false, 8), reason: 'count=50 but len != 4+2*count -> large form');
+    expect(large.entries, isEmpty);
+    expect(decodeTypeMap(hx('0001')), isNull);
+  });
+
+  test('decodeConnectorPane (CONP): 2-byte big-endian VCTP index; longer blocks flagged inline; null when empty', () {
+    final p = decodeConnectorPane(hx('002a'))!;
+    expect((p.typeIndex, p.isInline, p.rawLength), (0x2a, false, 2));
+    expect(decodeConnectorPane(hx('0105'))!.typeIndex, 0x105);
+    final inline = decodeConnectorPane(Uint8List(28))!;
+    expect((inline.isInline, inline.typeIndex, inline.rawLength), (true, null, 28));
+    expect(decodeConnectorPane(Uint8List(0)), isNull);
+  });
+
+  test('cpc2Description: u32-length-prefixed ASCII; non-description variants and wrong tags yield null', () {
+    const text = 'Calls SetETS';
+    expect(
+      cpc2Description([
+        sec('CPC2', [0, 0, 0, text.length, ...text.codeUnits]),
+      ]),
+      text,
+    );
+    expect(cpc2Description([sec('CPC2', hx('ffffffff 80000001'))]), isNull);
+    expect(
+      cpc2Description([
+        sec('vers', [1, 2, 3]),
+      ]),
+      isNull,
+    );
+    final junk = [for (var i = 0; i < 256; i++) (i * 37 + 5) & 0xff];
+    expect(() => cpc2Description([sec('CPC2', junk)]), returnsNormally);
+  });
+
+  test('decodeHelpPath (HLPP): PTH0 components + joined path; non-PTH0 flagged; lying counts safe', () {
+    final p = decodeHelpPath(_pth0(['<helpdir>', 'JKI', 'Caraya', 'README.html']))!;
+    expect((p.isPth0, p.pathType), (true, 0));
+    expect(p.components, ['<helpdir>', 'JKI', 'Caraya', 'README.html']);
+    expect(p.path, '<helpdir>/JKI/Caraya/README.html');
+    final flat = decodeHelpPath(u8(List.filled(16, 0x41)))!;
+    expect(flat.isPth0, isFalse, reason: 'non-PTH0 bytes are flagged, not guessed');
+    expect(flat.components, isEmpty);
+    expect(decodeHelpPath(Uint8List(8)), isNull);
+    final lying = _pth0(['a']);
+    ByteData.sublistView(lying).setUint16(10, 9999);
+    expect(decodeHelpPath(lying)!.components.length, lessThanOrEqualTo(1), reason: 'huge count bails at buffer end');
+  });
+
+  test('decodeIdTable (NUID/SUID/BNID): [u32 count][count u32], over-large counts never over-read', () {
+    final t = decodeIdTable(_idtab([0x1234, 0, 0x7]))!;
+    expect((t.count, t.rawLength), (3, 16));
+    expect(t.entries, [0x1234, 0, 0x7]);
+    final lying = Uint8List(12);
+    ByteData.sublistView(lying).setUint32(0, 9999);
+    final l = decodeIdTable(lying)!;
+    expect((l.count, l.entries.length), (9999, 2), reason: 'min(count, available)');
+    final empty = decodeIdTable(_idtab([]))!;
+    expect(empty.count, 0);
+    expect(empty.entries, isEmpty);
+    expect(decodeIdTable(u8([0, 1])), isNull);
+  });
+
+  group('icons', () {
+    const px = [255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 0];
+
+    test('extractRgbIcon decodes the validated 2×2 RGB form and rejects everything else', () {
+      final icon = extractRgbIcon(_iconSection(px))!;
+      expect((icon.width, icon.height), (2, 2));
+      expect(icon.rgb, px);
+      expect(extractRgbIcon(_iconSection(px)..[9] = 8), isNull, reason: 'wrong depth');
+      expect(extractRgbIcon(_iconSection(px)..[31] = 9), isNull, reason: 'rect not doubled');
+      expect(extractRgbIcon(_iconSection(px)..[0] = 1), isNull, reason: 'nonzero flags');
+      expect(extractRgbIcon(Uint8List(10)), isNull, reason: 'too short');
+      expect(extractRgbIcon(u8(List.filled(60, 0x41))), isNull, reason: 'arbitrary bytes');
+    });
+
+    test('decodeViIcon finds the icon across sections regardless of tag', () {
+      final icon = decodeViIcon([dsec(List.filled(20, 0), tag: 'LVSR'), dsec(_iconSection(px), tag: 'PICC')])!;
+      expect(icon.width, 2);
+      expect(icon.rgb, px);
+      expect(decodeViIcon([dsec(List.filled(8, 0), tag: 'LVSR')]), isNull);
+    });
+
+    test('decodeLegacyIcon: bpp by tag, exact-size 32×32 bitmaps, wrong sizes rejected', () {
+      expect(
+        [legacyIconBpp('icl8'), legacyIconBpp('icl4'), legacyIconBpp('ICON'), legacyIconBpp('STRG')],
+        [
+          8,
+          4,
+          1,
+          null,
+        ],
+      );
+      final mono = decodeLegacyIcon(Uint8List(128)..[0] = 0xA0, 1)!;
+      expect((mono.bpp, mono.pixels.length), (1, 1024));
+      expect(mono.pixels.sublist(0, 8), [1, 0, 1, 0, 0, 0, 0, 0], reason: 'MSB-first bit expansion');
+      final nib = decodeLegacyIcon(Uint8List(512)..[0] = 0x3C, 4)!;
+      expect((nib.pixels.length, nib.pixels[0], nib.pixels[1]), (1024, 3, 12), reason: 'two nibbles per byte');
+      final byte = decodeLegacyIcon(Uint8List(1024)..[5] = 200, 8)!;
+      expect((byte.pixels.length, byte.pixels[5]), (1024, 200));
+      expect(decodeLegacyIcon(Uint8List(100), 1), isNull, reason: '1-bpp must be exactly 128 bytes');
+      expect(decodeLegacyIcon(Uint8List(1024), 4), isNull, reason: '4-bpp must be exactly 512 bytes');
+    });
+  });
+
+  group('block catalog', () {
+    test('category/confidence table; every catalogued row has a name and note', () {
+      const rows = <(String, ViBlockCategory?, BlockConfidence?)>[
+        ('FPHb', ViBlockCategory.recordHeap, null),
+        ('BDHb', ViBlockCategory.recordHeap, null),
+        ('FPHc', ViBlockCategory.recordHeap, null),
+        ('BDHc', ViBlockCategory.recordHeap, null),
+        ('VCTP', ViBlockCategory.typeInfo, BlockConfidence.confirmed),
+        ('VICD', ViBlockCategory.compiledCode, BlockConfidence.confirmed),
+        ('MNGI', ViBlockCategory.image, BlockConfidence.confirmed),
+        ('BDPW', ViBlockCategory.security, BlockConfidence.confirmed),
+        ('HLPP', ViBlockCategory.helpPath, BlockConfidence.confirmed),
+        ('HLPT', ViBlockCategory.text, BlockConfidence.confirmed),
+        ('VINS', ViBlockCategory.embeddedVi, BlockConfidence.confirmed),
+        ('vers', null, BlockConfidence.confirmed),
+        ('RTSG', ViBlockCategory.identifier, BlockConfidence.confirmed),
+        ('OBSG', ViBlockCategory.identifier, BlockConfidence.confirmed),
+        ('CCSG', ViBlockCategory.identifier, BlockConfidence.confirmed),
+        ('SCSR', ViBlockCategory.identifier, BlockConfidence.confirmed),
+        ('MUID', ViBlockCategory.identifier, BlockConfidence.confirmed),
+        ('NUID', ViBlockCategory.identifier, BlockConfidence.confirmed),
+        ('SUID', ViBlockCategory.identifier, BlockConfidence.confirmed),
+        ('BNID', ViBlockCategory.identifier, BlockConfidence.confirmed),
+        ('VPDP', null, BlockConfidence.confirmed),
+        ('DLDR', null, BlockConfidence.confirmed),
+        ('GCPR', null, BlockConfidence.confirmed),
+        ('CPST', ViBlockCategory.text, null),
+        ('CPSP', ViBlockCategory.text, null),
+        ('DLLP', ViBlockCategory.helpPath, null),
+        ('STRG', ViBlockCategory.text, BlockConfidence.confirmed),
+        ('HIST', ViBlockCategory.history, BlockConfidence.confirmed),
+        ('FTAB', ViBlockCategory.nameTable, BlockConfidence.confirmed),
+        ('DTHP', ViBlockCategory.typeInfo, null),
+        ('TM80', ViBlockCategory.typeInfo, null),
+        ('CONP', ViBlockCategory.connectorPane, BlockConfidence.confirmed),
+        ('CPC2', ViBlockCategory.connectorPane, null),
+        ('LVSR', ViBlockCategory.settings, BlockConfidence.confirmed),
+        ('icl8', ViBlockCategory.icon, BlockConfidence.confirmed),
+        ('icl4', ViBlockCategory.icon, BlockConfidence.confirmed),
+        ('ICON', ViBlockCategory.icon, BlockConfidence.confirmed),
+        ('LIvi', null, null),
+      ];
+      for (final (tag, category, confidence) in rows) {
+        final info = blockInfo(tag);
+        if (category != null) expect(info.category, category, reason: tag);
+        if (confidence != null) expect(info.confidence, confidence, reason: tag);
+        expect(info.tag, tag);
+        expect(info.name, isNotEmpty, reason: tag);
+        expect(info.note, isNotEmpty, reason: tag);
+      }
+    });
+
+    test('the C4 record-heap set is exactly the four heap tags', () {
+      for (final t in ['FPHb', 'BDHb', 'FPHc', 'BDHc']) {
+        expect(isRecordHeapTag(t), isTrue, reason: t);
+      }
+      for (final t in ['VCTP', 'VICD', 'DFDS', 'TM80', 'GCDI', 'STRG', 'ZZZZ']) {
+        expect(isRecordHeapTag(t), isFalse, reason: '$t must not be walked as a heap');
+      }
+    });
+
+    test('specials: PRT trailing-space tag, byte-constant notes, honest unknown', () {
+      expect(blockInfo('PRT ').name, 'Print settings');
+      expect(blockInfo('PRT').category, ViBlockCategory.unknown, reason: "the real tag is 'PRT ' with a space");
+      for (final t in ['VPDP', 'DLDR', 'GCPR']) {
+        expect(blockInfo(t).note, contains('constant'), reason: t);
+      }
+      final z = blockInfo('ZZZZ');
+      expect((z.category, z.confidence), (ViBlockCategory.unknown, BlockConfidence.tentative));
+      expect(z.name, contains('ZZZZ'));
+    });
+  });
+
+  test('every fixed-block decoder is total over random small buffers', () {
+    final decoders = <String, Object? Function(Uint8List)>{
+      'decodeStringBlock': decodeStringBlock,
+      'decodeHistory': decodeHistory,
+      'decodeFontTable': decodeFontTable,
+      'decodeDataTypeHeap': decodeDataTypeHeap,
+      'decodeVersionWord': decodeVersionWord,
+      'decodeSaveRecord': decodeSaveRecord,
+      'decodeTypeMap': decodeTypeMap,
+      'decodeConnectorPane': decodeConnectorPane,
+      'decodeHelpPath': decodeHelpPath,
+      'decodeIdTable': decodeIdTable,
+      'extractRgbIcon': extractRgbIcon,
+      'icl8': (b) => decodeLegacyIcon(b, 8),
+      'icl4': (b) => decodeLegacyIcon(b, 4),
+      'ICON': (b) => decodeLegacyIcon(b, 1),
+      'decodeConnectorPaneMap': decodeConnectorPaneMap,
+      'decodeOffsetTable': decodeOffsetTable,
+      'decodeGcdiRecord': decodeGcdiRecord,
+      'decodeBookmarkList': decodeBookmarkList,
+      'decodeTagStore': decodeTagStore,
+      'decodeCompiledCode': decodeCompiledCode,
+      'decodeDataSpaceImage': decodeDataSpaceImage,
+      'decodePngEnvelope': decodePngEnvelope,
+      'decodeLinkInfo': decodeLinkInfo,
+      'decodePasswordRecord': decodePasswordRecord,
+      'decodeRuntimeSignature': decodeRuntimeSignature,
+      'decodeScsrRecord': decodeScsrRecord,
+      'decodeIconPlacement': decodeIconPlacement,
+      'decodePrintRecord': decodePrintRecord,
+      'decodeSectionMarker': decodeSectionMarker,
+      'decodeModifiedUid': decodeModifiedUid,
+      'decodeExtendedState': decodeExtendedState,
+      'decodeGcprRecord': decodeGcprRecord,
+      'decodeDldrRecord': decodeDldrRecord,
+      'decodeTextRecord': decodeTextRecord,
+      'decodeHelpPath+fields': (b) {
+        final p = decodeHelpPath(b);
+        p?.components;
+        return p?.path;
+      },
+    };
+    var seed = 0;
+    decoders.forEach((name, decode) {
+      seed++;
+      expectTotal(seed, 250, 96, (b) {
+        try {
+          decode(b);
+        } on ViFormatException {
+          rethrow;
+        } catch (e) {
+          fail('$name leaked ${e.runtimeType} on ${b.length} bytes: $e');
+        }
+      });
+    });
+  });
+}

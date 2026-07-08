@@ -3,95 +3,63 @@ import 'dart:typed_data';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
+import 'test_util.dart';
+
 void main() {
-  Uint8List b(List<int> x) => Uint8List.fromList(x);
-  test('recordSkip frames the known record families', () {
-    expect(recordSkip(b([0xc4, 0x2d, 0x08, 0, 0, 0, 0, 0, 0, 0, 0]), 0), 11);
-    expect(recordSkip(b([0xc4, 0x19, 0xff, 0x01, 0x02, ...List.filled(258, 0)]), 0), 263);
-    expect(recordSkip(b([0x84, 1, 2, 3, 4, 5]), 0), 6);
-    expect(recordSkip(b([0x10, 0x18, 0x02, 0xfe, 0, 0, 0, 0, 0]), 0), 9);
-    expect(recordSkip(b([0x10, 0xe1, 0x01, 0xfb, 0, 0]), 0), 6);
-    expect(recordSkip(b([0x14, 0x19, 0x01, 0xfd, 0, 0]), 0), 6);
-    expect(
-      recordSkip(b([0x14, 0x19, 0x01, 0xfd, 0x80, 0x00, 0x00, 0x00, 0x84, 0x6f]), 0),
-      10,
-      reason:
-          'FD value-escape (fd 80 00 <u32>) makes a 10-byte record, not a hardcoded 6 (heap record-size desync fix)',
-    );
-    expect(recordSkip(b([0x08, 0x55]), 0), 2);
-    expect(recordSkip(b([0x24, 0, 0]), 0), 3);
-    expect(recordSkip(b([0x44, 0, 0, 0]), 0), 4);
-    expect(recordSkip(b([0x64, 0xcb, 0, 0, 0]), 0), 5);
-    expect(
-      recordSkip(b([0x64, 0xcb, 0x26, 0x84, 0x20]), 0),
-      5,
-      reason: '64 CB is a u24 objFlags leaf; the old 3-byte special case was refuted by the EOF-balance probe',
-    );
-    expect(recordSkip(b([0x86, 0x20, 0, 0, 0, 0]), 0), 6);
-    expect(recordSkip(b([0xe4, 0x21]), 0), 2);
-    expect(recordSkip(b([0x99, 0, 0]), 0), isNull);
-    expect(
-      recordSkip(b([0x25, 0x2d, 0x03, 0x08, 0x19]), 0),
-      3,
-      reason: '0x25 is a fixed 3-byte record; the 25 2d form is NOT a counted list',
-    );
-    expect(
-      recordSkip(b([0x10, 0x19, 0x01, 0xfd, 0x80, 0x00, 0x00, 0x01, 0x36, 0xde]), 0),
-      10,
-      reason: 'FD value-escape (fd 80 00 <u32>) inside a typed list is a 7-byte item',
-    );
-    expect(
-      recordSkip(b([0xc6, 0x5a, 0xff, 0x00, 0x04, 1, 2, 3, 4]), 0),
-      9,
-      reason: '0xC6 extended-length record (C4-style FF -> u16 escape)',
-    );
-  });
-
-  test('walkHeapBody walks a well-formed body to exact EOF', () {
-    final records = <int>[
-      0x84,
-      1,
-      2,
-      3,
-      4,
-      5,
-      0xc4,
-      0x2d,
-      0x08,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0x08,
-      0x55,
-      0x14,
-      0x19,
-      0x01,
-      0xfd,
-      0x00,
-      0x10,
+  test('recordSkip frames every known record family (null for an unknown lead)', () {
+    final rows = <(List<int>, int?)>[
+      (hx('c4 2d 08 0000 0000 0000 0000'), 11),
+      ([0xc4, 0x19, 0xff, 0x01, 0x02, ...List.filled(258, 0)], 263),
+      (hx('84 01 02 03 04 05'), 6),
+      (hx('10 18 02 fe 0000 0000 00'), 9),
+      (hx('10 e1 01 fb 0000'), 6),
+      (hx('14 19 01 fd 0000'), 6),
+      // FD value-escape (fd 80 00 <u32>) makes a 10-byte record (heap record-size desync fix)
+      (hx('14 19 01 fd 8000 0000 846f'), 10),
+      (hx('10 19 01 fd 8000 0001 36de'), 10),
+      (hx('08 55'), 2),
+      (hx('24 00 00'), 3),
+      (hx('24 df 05'), 3),
+      (hx('44 00 00 00'), 4),
+      (hx('45 e7 02 08'), 4),
+      (hx('64 cb 00 00 00'), 5),
+      // 64 CB is a u24 objFlags leaf; the 3-byte special case was refuted by the EOF-balance probe
+      (hx('64 cb 26 84 20'), 5),
+      (hx('86 20 00 00 00 00'), 6),
+      (hx('85 14 db 3d 11 75'), 6),
+      (hx('e4 21'), 2),
+      (hx('04 59'), 2),
+      (hx('99 00 00'), null),
+      // 0x25 is a fixed 3-byte record; the 25 2d form is NOT a counted list
+      (hx('25 2d 03 08 19'), 3),
+      (hx('c6 5a ff 0004 01020304'), 9),
+      ([0xc6, 0x31, 0x05, ...'Scale'.codeUnits], 8),
     ];
-    final body = Uint8List.fromList([0, 0, 0, records.length, ...records]);
-    final w = walkHeapBody(body);
+    for (final (bytes, want) in rows) {
+      expect(recordSkip(u8(bytes), 0), want, reason: bytes.map((x) => x.toRadixString(16)).join(' '));
+    }
+  });
+
+  test('walkHeapBody walks a well-formed body to exact EOF and stops at an unknown opcode', () {
+    final records = [
+      ...hx('84 01 02 03 04 05'),
+      ...hx('c4 2d 08 0000 0000 0000 0000'),
+      ...hx('08 55'),
+      ...hx('14 19 01 fd 0010'),
+    ];
+    final w = walkHeapBody(u8([0, 0, 0, records.length, ...records]));
     expect(w.complete, isTrue);
-    expect(w.coverage, 1.0, reason: 'walker covers every record; the leading [u32 contentLen] header value is ignored');
-    expect(w.spans.map((s) => s.lead).toList(), [0x84, 0xc4, 0x08, 0x14]);
+    expect(w.coverage, 1.0, reason: 'the leading [u32 contentLen] header value is ignored');
+    expect(w.spans.map((s) => s.lead), [0x84, 0xc4, 0x08, 0x14]);
     expect(w.spans.firstWhere((s) => s.lead == 0xc4).isC4Record, isTrue);
+
+    final stopped = walkHeapBody(u8([0, 0, 0, 4, ...hx('84 01 02 03 04 05'), 0x99, 0x00]));
+    expect(stopped.complete, isFalse);
+    expect(stopped.stoppedLead, 0x99);
+    expect(stopped.spans.single.lead, 0x84);
   });
 
-  test('walkHeapBody stops and reports at an unknown opcode', () {
-    final body = Uint8List.fromList([0, 0, 0, 4, 0x84, 1, 2, 3, 4, 5, 0x99, 0x00]);
-    final w = walkHeapBody(body);
-    expect(w.complete, isFalse);
-    expect(w.stoppedLead, 0x99);
-    expect(w.spans.single.lead, 0x84);
-  });
-
-  test('HeapPropertyToken catalog: unique keys, round-trip via lookup', () {
+  test('HeapPropertyToken catalog: unique (op,subop) keys, round-trip via lookup', () {
     final seen = <int>{};
     for (final t in HeapPropertyToken.values) {
       expect(seen.add((t.op << 8) | t.subop), isTrue, reason: 'duplicate (op,subop) for ${t.tokenName}');
@@ -102,86 +70,57 @@ void main() {
   });
 
   test('decodeHeapPropertyToken decodes tagged-list values and bare selectors', () {
-    final role = decodeHeapPropertyToken(b([0x10, 0x19, 0x01, 0xfe, 0x02, 0x58]), 0);
+    final role = decodeHeapPropertyToken(hx('10 19 01 fe 0258'), 0)!;
+    expect(role.token, HeapPropertyToken.smallValueProperty, reason: 'count==1 -> a single-item property token');
+    expect((role.value, role.length), (0x0258, 6));
     expect(
-      role!.token,
-      HeapPropertyToken.smallValueProperty,
-      reason: 'count==1 makes 10 19 a genuine single-item property token',
-    );
-    expect(role.value, 0x0258);
-    expect(role.length, 6);
-    expect(
-      decodeHeapPropertyToken(b([0x10, 0x19, 0x02, 0xfe, 0x00, 0x50, 0xfd, 0x00, 0x2a]), 0),
+      decodeHeapPropertyToken(hx('10 19 02 fe 0050 fd 002a'), 0),
       isNull,
       reason: 'the 10 19 02 fe <kind> fd <oid> object header is not a property token',
     );
-    final esc = decodeHeapPropertyToken(b([0x10, 0x19, 0x01, 0xfd, 0x80, 0x00, 0x00, 0x01, 0x36, 0xde]), 0);
-    expect(esc!.value, 0x000136de, reason: 'FD 7-byte escape (fd 80 00 <u32>): value is the u32, not the 0x8000 bytes');
-    expect(esc.length, 10);
-    final style = decodeHeapPropertyToken(b([0x10, 0xe1, 0x01, 0xfb, 0x00, 0x07]), 0);
-    expect(style!.token, HeapPropertyToken.controlStyleCount, reason: 'tagged FB u16 sub-list');
-    expect(style.value, 7);
-    final slot = decodeHeapPropertyToken(b([0x11, 0x10, 0x44, 0x89]), 0);
-    expect(slot!.token, HeapPropertyToken.viewportSlot1);
-    expect(slot.value, isNull, reason: 'bare 2-byte selector, no inline value');
-    expect(slot.length, 2);
-    expect(
-      decodeHeapPropertyToken(b([0x10, 0x77, 0x01, 0xfe, 0, 0]), 0),
-      isNull,
-      reason: 'an uncatalogued (op,subop) is not a property token',
-    );
+    final esc = decodeHeapPropertyToken(hx('10 19 01 fd 8000 0001 36de'), 0)!;
+    expect((esc.value, esc.length), (0x000136de, 10), reason: 'FD 7-byte escape: the value is the u32');
+    final style = decodeHeapPropertyToken(hx('10 e1 01 fb 0007'), 0)!;
+    expect((style.token, style.value), (HeapPropertyToken.controlStyleCount, 7), reason: 'tagged FB u16 sub-list');
+    final slot = decodeHeapPropertyToken(hx('11 10 44 89'), 0)!;
+    expect((slot.token, slot.value, slot.length), (HeapPropertyToken.viewportSlot1, null, 2), reason: 'bare selector');
+    expect(decodeHeapPropertyToken(hx('10 77 01 fe 0000'), 0), isNull, reason: 'uncatalogued (op,subop)');
     expect(isTypeDescriptorToken(0x04), isTrue, reason: '0x04 leads are zero-size false-valued leaf tags');
     expect(isTypeDescriptorToken(0x10), isFalse);
   });
 
-  test('HeapRefKind: the raw tag id maps to the relationship', () {
-    expect(HeapRefKind.fromRaw(0x019), HeapRefKind.childRef);
-    expect(HeapRefKind.fromRaw(0x04f), HeapRefKind.dcoRef);
-    expect(HeapRefKind.fromRaw(0x01f), HeapRefKind.ownerRef);
-    expect(HeapRefKind.fromRaw(0x050), HeapRefKind.dcoAggRef);
-    expect(HeapRefKind.fromRaw(0x053), HeapRefKind.ddoRef, reason: 'resolves in the sibling heap (2,048/2,048)');
-    expect(HeapRefKind.fromRaw(0x113), HeapRefKind.srcDCORef);
-    expect(HeapRefKind.fromRaw(0x28a), HeapRefKind.attachmentRef);
-    expect(
-      HeapRefKind.fromRaw(0x034),
-      HeapRefKind.objectRef,
-      reason: 'a resolving but unnamed raw tag falls back to the generic objectRef',
-    );
-  });
-
-  test('decodeHeapRef decodes the 14..17-lead uid-leaf family', () {
-    final m = decodeHeapRef(b([0x14, 0x4f, 0x01, 0xfd, 0x00, 0x2a]), 0)!;
-    expect(m.kind, HeapRefKind.dcoRef);
-    expect(m.targetOid, 0x2a);
-    expect(m.length, 6);
-    final ddo = decodeHeapRef(b([0x14, 0x53, 0x01, 0xfd, 0x00, 0x09]), 0)!;
-    expect(ddo.kind, HeapRefKind.ddoRef, reason: 'cross-heap display-object reference');
-    final attach = decodeHeapRef(b([0x16, 0x8a, 0x01, 0xfd, 0x00, 0x07]), 0)!;
-    expect(attach.kind, HeapRefKind.attachmentRef);
-    expect(
-      decodeHeapRef(b([0x14, 0x53, 0x01, 0xfe, 0x00, 0x09]), 0),
-      isNull,
-      reason: 'the fe form carries a class-code literal, not an oid',
-    );
-    expect(
-      decodeHeapRef(b([0x15, 0x77, 0x01, 0xfd, 0x80, 0x00, 0x00, 0x00, 0x01, 0x00]), 0),
-      isNull,
-      reason: 'the 7-byte fd escape is not the compact reference shape',
-    );
-    expect(decodeHeapRef(b([0x10, 0x19, 0x02, 0xfe, 0, 0]), 0), isNull, reason: 'not a leaf-with-attrs record');
+  test('HeapRefKind maps raw tag ids to relationships; decodeHeapRef decodes the 14..17-lead uid-leaf family', () {
+    const kinds = <(int, HeapRefKind)>[
+      (0x019, HeapRefKind.childRef),
+      (0x04f, HeapRefKind.dcoRef),
+      (0x01f, HeapRefKind.ownerRef),
+      (0x050, HeapRefKind.dcoAggRef),
+      (0x053, HeapRefKind.ddoRef),
+      (0x113, HeapRefKind.srcDCORef),
+      (0x28a, HeapRefKind.attachmentRef),
+      (0x034, HeapRefKind.objectRef), // resolving-but-unnamed raw tag falls back to the generic objectRef
+    ];
+    for (final (raw, kind) in kinds) {
+      expect(HeapRefKind.fromRaw(raw), kind, reason: '0x${raw.toRadixString(16)}');
+    }
+    final m = decodeHeapRef(hx('14 4f 01 fd 002a'), 0)!;
+    expect((m.kind, m.targetOid, m.length), (HeapRefKind.dcoRef, 0x2a, 6));
+    expect(decodeHeapRef(hx('14 53 01 fd 0009'), 0)!.kind, HeapRefKind.ddoRef, reason: 'cross-heap display ref');
+    expect(decodeHeapRef(hx('16 8a 01 fd 0007'), 0)!.kind, HeapRefKind.attachmentRef);
+    expect(decodeHeapRef(hx('14 53 01 fe 0009'), 0), isNull, reason: 'fe carries a class-code literal, not an oid');
+    expect(decodeHeapRef(hx('15 77 01 fd 8000 0000 0100'), 0), isNull, reason: '7-byte fd escape is not compact');
+    expect(decodeHeapRef(hx('10 19 02 fe 0000'), 0), isNull, reason: 'not a leaf-with-attrs record');
   });
 
   test('walkHeapBody and recordSkip are total over arbitrary bytes', () {
     for (var seed = 0; seed < 1500; seed++) {
       final len = (seed * 7) % 200;
       final body = Uint8List.fromList([for (var j = 0; j < len; j++) (seed * 13 + j * 31) & 0xff]);
-      expect(() {
-        final w = walkHeapBody(body);
-        expect(w.coverage, inInclusiveRange(0.0, 1.0));
-        for (final s in w.spans) {
-          expect(s.offset + s.length, lessThanOrEqualTo(body.length));
-        }
-      }, returnsNormally);
+      final w = walkHeapBody(body);
+      expect(w.coverage, inInclusiveRange(0.0, 1.0));
+      for (final s in w.spans) {
+        expect(s.offset + s.length, lessThanOrEqualTo(body.length));
+      }
     }
   });
 }

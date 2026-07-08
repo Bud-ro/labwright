@@ -9,8 +9,7 @@ import 'package:test/test.dart';
 
 import 'corpus_dirs.dart';
 
-/// Counts the instance-override markers (`%INSTOVRD`) recovered anywhere in a
-/// property tree — see [SeqProperty.isInstanceOverride].
+/// Counts the instance-override markers (`%INSTOVRD`) anywhere in a tree.
 int _countOverrides(SeqProperty p, [int depth = 0]) {
   if (depth > 50) return 0;
   return p.subProps
@@ -19,7 +18,7 @@ int _countOverrides(SeqProperty p, [int depth = 0]) {
 }
 
 /// Byte-level ASCII substring search — avoids materializing a whole inflated
-/// body as a String just to probe for a token (peak memory in corpus sweeps).
+/// body as a String (peak memory in corpus sweeps).
 bool _bodyContains(List<int> body, String ascii) {
   final pat = ascii.codeUnits;
   outer:
@@ -32,25 +31,25 @@ bool _bodyContains(List<int> body, String ascii) {
   return false;
 }
 
-/// Per-file size ceiling for the heavier corpus probes. This is a **runtime**
-/// bound, not an OOM guard: the INI reader handles the full corpus fine (the
-/// largest file, ~2.3MB, parses in ~120ms since the O(paths²) blowup was fixed
-/// in the path-index pass). Set well above every real corpus file so coverage is
-/// measured over everything; it only fires for a hypothetical pathological giant.
+/// Per-file size ceiling on coverage accumulation — a runtime bound for a
+/// hypothetical pathological giant, set well above every real corpus file.
 const _maxProbeBytes = 8 * 1024 * 1024;
 
-/// Validates the M1 XML reader against the real fetched corpus: every XML `.seq`
-/// must parse without throwing, and the typed lens must recover sequences and
-/// steps. Binary `TOF1` files parse to the honest PARTIAL model (sequence/step
-/// skeleton; properties/modules not yet decoded). Self-skips when the corpus is
-/// absent.
+bool _isExprLike(String s) =>
+    (s.contains('.') && RegExp(r'[A-Za-z]\.[A-Za-z]').hasMatch(s)) ||
+    s.contains('(') ||
+    s.contains(')') ||
+    s.contains('"') ||
+    (RegExp(r'[+\-*/=<>!]').hasMatch(s) && RegExp(r'[A-Za-z0-9]').hasMatch(s));
+
+/// Validates the readers against the real fetched corpus (rosetta excluded —
+/// the twin oracles have their own suite): every XML/INI `.seq` parses into
+/// the shared typed model with pinned recovery counts, every binary `.seq`
+/// parses to the honest PARTIAL model, and the binary recon lenses never
+/// fabricate. Self-skips when the corpus is absent.
 void main() {
   if (!corpusSeqDir.existsSync()) {
-    test(
-      'teststand corpus',
-      () {},
-      skip: 'corpus absent — run tool/fetch_seq_corpus.dart',
-    );
+    test('teststand corpus', () {}, skip: 'corpus absent — run tool/fetch_seq_corpus.dart');
     return;
   }
 
@@ -65,363 +64,334 @@ void main() {
 
   test('corpus has .seq files', () => expect(seqs, isNotEmpty));
 
-  test('every XML .seq parses; binary .seq is classified, not mis-parsed', () {
-    var xml = 0,
-        binary = 0,
-        other = 0,
-        totalSeqs = 0,
-        totalSteps = 0,
-        withAction = 0,
-        withModule = 0,
-        totalLocals = 0,
-        withLimits = 0,
-        withBinaryBody = 0,
-        resolvedCalls = 0,
-        withMode = 0,
-        withIcon = 0,
-        typedSteps = 0,
-        unknownAdapters = 0,
-        binaryWithSequences = 0,
-        binaryStepsRecovered = 0,
-        binaryTypedSteps = 0,
-        binaryModuleSteps = 0;
+  test('XML+INI corpus (single pass): typed-lens recovery counts are pinned, nothing fabricates', () {
+    var xml = 0, ini = 0, binary = 0;
     final failures = <String>[];
-    for (final f in seqs) {
-      final bytes = f.readAsBytesSync();
-      switch (detectSeqFormat(bytes)) {
-        case SeqFormat.xml:
-          xml++;
-          try {
-            final sf = parseSeqFile(bytes);
-            totalSeqs += sf.sequences.length;
-            for (final s in sf.sequences) {
-              totalLocals += s.locals.length;
-              for (final step in s.steps) {
-                totalSteps++;
-                if (step.type != null) typedSteps++;
-                if (step.settings.passAction != null) withAction++;
-                if (step.settings.mode != null) withMode++;
-                if (step.settings.icon != null) withIcon++;
-                if (step.module.adapter == SeqAdapter.unknown) unknownAdapters++;
-                if (step.module.adapter != SeqAdapter.none && step.module.adapter != SeqAdapter.unknown) {
-                  withModule++;
-                }
-                if (step.limits != null) withLimits++;
-                if (sf.resolveCall(step) != null) resolvedCalls++;
-              }
-            }
-          } catch (e) {
-            failures.add('${f.path}: $e');
-          }
-        case SeqFormat.binary:
-          binary++;
-          // Binary now parses to a PARTIAL typed model (sequence/step skeleton
-          // from the decoded record structures); it must not throw, and the
-          // root-shape gate must never emit structural tokens as names.
-          final partial = parseSeqFile(bytes);
-          if (partial.sequences.isNotEmpty) binaryWithSequences++;
-          final partialTypeNames = {for (final t in partial.types) t.name};
-          // A sequence whose record walk decoded its group arrays carries
-          // structural corroboration for its name slot (the fixed-layout
-          // subprop walk cannot complete on a misread head), so such a
-          // name may legitimately collide with a structural token: the
-          // corpus has a sandbox file whose author named a sequence
-          // literally `Sequence` (its Main decodes a real step with an
-          // `ID#:` anchor). Names WITHOUT that corroboration must still
-          // never be structural tokens.
-          final walkBacked = {
-            for (final o in binarySequenceOutlines(bytes))
-              if (o.groupArrays.isNotEmpty) o.name,
-          };
-          for (final seq in partial.sequences) {
-            expect(seq.name, isNotEmpty);
-            if (!walkBacked.contains(seq.name)) {
-              expect(
-                const {'Sequence', 'Calls', 'ResultList', 'Objs', 'Seq', 'Obj', 'Data'},
-                isNot(contains(seq.name)),
-                reason: '${f.path}: structural token as sequence name',
-              );
-            }
-            binaryStepsRecovered += seq.steps.length;
-            for (final step in seq.steps) {
-              final type = step.type;
-              if (type != null) {
-                binaryTypedSteps++;
-                // A bound type must come from the file's own recovered type
-                // table — anything else would be fabrication.
-                expect(
-                  partialTypeNames,
-                  contains(type),
-                  reason:
-                      '${f.path}: step ${step.name} bound to a type '
-                      'outside the recovered table',
-                );
-              }
-              final m = step.module;
-              if (m.adapter != SeqAdapter.none && m.adapter != SeqAdapter.unknown) {
-                binaryModuleSteps++;
-                // Recovered module targets must look like targets.
-                if (m.viPath != null) {
-                  expect(m.viPath, contains('.vi'), reason: '${f.path}: ${step.name} VIPath ${m.viPath}');
-                }
-                if (m.pythonModulePath != null) {
-                  expect(
-                    m.pythonModulePath,
-                    endsWith('.py'),
-                    reason:
-                        '${f.path}: ${step.name} python module '
-                        '${m.pythonModulePath}',
-                  );
-                }
-              }
-            }
-          }
-          final bh = detectSeqHeader(bytes);
-          expect(bh.fileType, 'SequenceFile');
-          expect(bh.productName, 'TestStand');
-          final body = inflateBinaryBody(bytes);
-          expect(body, isNotNull, reason: '${f.path}: no inflatable body');
-          if (body != null) {
-            withBinaryBody++;
-            expect(_bodyContains(body, 'Sequence'), isTrue, reason: '${f.path}: body lacks the Sequence token');
-            final names = binaryBodyStrings(bytes).map((s) => s.text).toSet();
-            expect(
-              ['Sequence', 'Step', 'Locals'].any(names.contains),
-              isTrue,
-              reason: '${f.path}: body strings missing all core model names',
-            );
-            expect(
-              binaryStringTable(bytes).length,
-              greaterThanOrEqualTo(5),
-              reason: '${f.path}: no contiguous string table',
-            );
-          }
-        case SeqFormat.ini:
-        case SeqFormat.unknown:
-          other++;
-      }
-    }
-    printOnFailure(
-      'xml=$xml binary=$binary other=$other '
-      'sequences=$totalSeqs steps=$totalSteps withAction=$withAction',
-    );
-    expect(failures, isEmpty, reason: failures.take(5).join('\n'));
-    expect(xml, 25, reason: 'XML file count drifted');
-    expect(binary, 163, reason: 'binary file count drifted');
-    // Partial-parse recovery floors (review: the previous check was vacuous —
-    // an empty sequences list passed silently). Measured after the root-shape
-    // gate: 86 binaries decode >=1 sequence; 32 steps reach the typed model
-    // (steps laid out before their group markers are reported ungrouped and
-    // honestly kept OUT of the typed tree — raising this floor is the
-    // grouping-decode roadmap, not a tuning knob).
-    expect(
-      binaryWithSequences,
-      greaterThanOrEqualTo(80),
-      reason: 'binary sequence recovery regressed ($binaryWithSequences files)',
-    );
-    expect(
-      binaryStepsRecovered,
-      greaterThanOrEqualTo(30),
-      reason: 'binary step recovery regressed ($binaryStepsRecovered steps)',
-    );
-    expect(
-      binaryTypedSteps,
-      greaterThanOrEqualTo(25),
-      reason:
-          'binary per-step type binding regressed '
-          '($binaryTypedSteps typed steps)',
-    );
-    expect(
-      binaryModuleSteps,
-      greaterThanOrEqualTo(10),
-      reason:
-          'binary per-step module binding regressed '
-          '($binaryModuleSteps module steps)',
-    );
-    expect(other, 43, reason: 'other (INI) file count drifted');
-    expect(totalSeqs, 29, reason: 'XML sequence count drifted');
-    expect(totalSteps, 141, reason: 'XML step count drifted');
-    expect(withAction, 141, reason: 'XML pass/fail-action count drifted');
-    expect(withMode, greaterThan(0), reason: 'no step run-modes recovered');
-    expect(withModule, 61, reason: 'XML module-binding count drifted');
-    expect(totalLocals, 34, reason: 'XML locals count drifted');
-    expect(withLimits, 10, reason: 'XML limit-test count drifted');
-    expect(resolvedCalls, 4, reason: 'XML intra-file call count drifted');
-    expect(withBinaryBody, 163, reason: 'binary-body inflate count drifted');
-    expect(withIcon, 59, reason: 'XML step-icon count drifted');
-    expect(typedSteps, totalSteps, reason: 'an XML step lost its type in the lens');
-    expect(
-      unknownAdapters,
-      0,
-      reason: 'an XML step has an unrecognized module adapter',
-    );
-    // ignore: avoid_print
-    print(
-      'teststand corpus: $xml XML / $binary binary / $other other · '
-      '$binaryTypedSteps binary typed steps · '
-      '$binaryModuleSteps binary module steps · '
-      '$totalSeqs sequences · $totalSteps steps ($typedSteps typed) · '
-      '$withAction with pass/fail actions · $withModule with module bindings '
-      '($unknownAdapters unknown) · $totalLocals locals · $withLimits limit tests · '
-      '$withIcon with icon · '
-      '$withBinaryBody binary bodies inflated · $resolvedCalls intra-file calls',
-    );
-  });
 
-  test('recovers measurement plug-in resource sets across XML corpus', () {
-    var withBlock = 0, withPinMap = 0, withAnyFiles = 0;
-    final pinMaps = <String>{};
-    for (final f in seqs) {
-      if (f.lengthSync() > _maxProbeBytes) continue;
-      final bytes = f.readAsBytesSync();
-      if (detectSeqFormat(bytes) != SeqFormat.xml) continue;
-      final mp = parseSeqFile(bytes).measurementPlugIns;
-      if (mp == null) continue;
-      withBlock++;
-      if (mp.pinMapPath != null) {
-        withPinMap++;
-        pinMaps.add(mp.pinMapPath!);
-      }
-      if (mp.specificationFiles.isNotEmpty ||
-          mp.levelsFiles.isNotEmpty ||
-          mp.timingFiles.isNotEmpty ||
-          mp.patternFiles.isNotEmpty) {
-        withAnyFiles++;
-      }
-    }
-    // ignore: avoid_print
-    print(
-      'measurement plug-ins: $withBlock files with the block · $withPinMap with a '
-      'pin map · $withAnyFiles with STS file lists · ${pinMaps.length} distinct pin maps',
-    );
-    expect(withBlock, greaterThanOrEqualTo(5));
-    expect(withPinMap, greaterThanOrEqualTo(1));
-  });
+    // XML lens counters.
+    var xmlSeqs = 0, xmlSteps = 0, withAction = 0, withModule = 0, xmlLocals = 0, withLimits = 0;
+    var resolvedCalls = 0, withMode = 0, withIcon = 0, typedSteps = 0, unknownAdapters = 0;
+    var xmlCov = const SeqCoverage(total: 0, modeled: 0);
+    // Measurement plug-ins.
+    var mpBlocks = 0, mpPinMaps = 0;
+    // Python descriptors + call params.
+    var pySteps = 0, pyFn = 0, pyModule = 0, pyVersion = 0, pyParamSteps = 0, pyParams = 0, pyNamed = 0, pyBound = 0;
+    // VI calls.
+    var viSteps = 0, viParams = 0, viDisplayType = 0, viConnector = 0;
+    // Typelist typedefs.
+    var typedefFiles = 0, totalTypes = 0, typesWithFields = 0;
+    int? firstXmlTypeDefs;
+    final baseClasses = <String>{};
+    // Additional results / step results / custom condition.
+    var arFiles = 0, arEntries = 0;
+    final arKinds = <String>{};
+    var withResult = 0, withError = 0, recordedOutcomes = 0;
+    var custTrueAct = 0, custFalseAct = 0;
+    // Measurement parameters.
+    var measParams = 0, measTyped = 0, measDirected = 0, measSpecialized = 0, measNotLogged = 0;
+    var measEnumParams = 0, measEnumValues = 0;
+    final measTypes = <String>{}, measSpecs = <String>{};
 
-  test('recovers Python call descriptors across XML corpus', () {
-    var pySteps = 0, withFn = 0, withModule = 0, withVersion = 0, withVenv = 0;
-    final fns = <String>{};
-    for (final f in seqs) {
-      if (f.lengthSync() > _maxProbeBytes) continue;
-      final bytes = f.readAsBytesSync();
-      if (detectSeqFormat(bytes) != SeqFormat.xml) continue;
-      final sf = parseSeqFile(bytes);
-      for (final s in sf.sequences) {
-        for (final step in s.steps) {
-          final m = step.module;
-          if (m.adapter != SeqAdapter.python) continue;
-          pySteps++;
-          if (m.pythonFunction != null) {
-            withFn++;
-            fns.add(m.pythonFunction!);
-          }
-          if (m.pythonModulePath != null) withModule++;
-          if (m.pythonVersion != null) withVersion++;
-          if (m.pythonVenvPath != null) withVenv++;
-        }
-      }
-    }
-    // ignore: avoid_print
-    print(
-      'python: $pySteps steps · $withFn with function · $withModule with module · '
-      '$withVersion with version · $withVenv with venv · ${fns.length} distinct fns',
-    );
-    expect(pySteps, greaterThanOrEqualTo(20));
-    expect(withFn, equals(pySteps), reason: 'every Python step names a function');
-    expect(withModule, equals(pySteps), reason: 'every Python step has a module path');
-    expect(withVersion, equals(pySteps), reason: 'every Python step has a version');
-  });
+    // Shared XML+INI logic-export counters.
+    var flowOpeners = 0, flowEnds = 0, conds = 0, forInit = 0, forIncr = 0, eachArr = 0, eachElem = 0;
+    var ifWhile = 0, forLoops = 0, eachLoops = 0, seqsWithFlow = 0, balancedSeqs = 0, totalFlowSeqs = 0;
+    var jumpSteps = 0, filesWithJump = 0, exportsWithJump = 0;
+    var loopSteps = 0, filesWithLoop = 0, exportsWithLoop = 0;
+    var externalCalls = 0, filesWithExternal = 0, exportsMarked = 0;
+    var sigParams = 0, sigTyped = 0, filesWithParams = 0, exportsSigned = 0;
+    // Newly-modeled lens accessors (XML+INI).
+    var adapterName = 0, stepDesc = 0, codeTemplates = 0, runtimeEP = 0;
+    var switchSettings = 0, seqCallExpr = 0, threading = 0, pyInterp = 0;
+    var clusterEls = 0, dbStep = 0, limitExpr = 0, fileSettings = 0, fileGlobals = 0;
 
-  test('recovers LabVIEW VI-call connector params across XML corpus', () {
-    var viSteps = 0, params = 0, withDisplayType = 0, withConnector = 0, withNamespace = 0, withBound = 0;
-    for (final f in seqs) {
-      if (f.lengthSync() > _maxProbeBytes) continue;
-      final bytes = f.readAsBytesSync();
-      if (detectSeqFormat(bytes) != SeqFormat.xml) continue;
-      final sf = parseSeqFile(bytes);
-      for (final s in sf.sequences) {
-        for (final step in s.steps) {
-          final m = step.module;
-          if (m.adapter != SeqAdapter.labView) continue;
-          final ps = m.viParameters;
-          if (ps.isEmpty) continue;
-          viSteps++;
-          if (m.viNamespace != null) withNamespace++;
-          for (final p in ps) {
-            params++;
-            if (p.displayType != null) withDisplayType++;
-            if (p.connectorNumber != null) withConnector++;
-            if (p.boundExpression != null) withBound++;
-          }
-        }
-      }
-    }
-    // ignore: avoid_print
-    print(
-      'VI-call: $viSteps steps · $params connector params · '
-      '$withDisplayType with display-type · $withConnector with connector# · '
-      '$withBound bound · $withNamespace steps with a library namespace',
-    );
-    expect(viSteps, greaterThanOrEqualTo(5));
-    expect(params, greaterThanOrEqualTo(20));
-    expect(withDisplayType, equals(params), reason: 'every VI param has a DisplayType');
-    expect(withConnector, equals(params), reason: 'every VI param has a connector#');
-  });
+    // INI lens counters.
+    var iniCovFiles = 0, iniCovSteps = 0, iniCovModule = 0;
+    var iniCov = const SeqCoverage(total: 0, modeled: 0);
+    var iniSeqType = 0, iniSfRoot = 0, iniDataNamed = 0, iniTreeBuilt = 0, iniDataRoot = 0;
+    var iniWithSeqArray = 0, iniNamedSeqs = 0;
+    var iniThrew = 0, iniBuilt = 0, iniSeqCount = 0, iniStepCount = 0, iniLocals = 0, iniWithType = 0, iniTypes = 0;
+    var iniRecognized = 0, iniNone = 0, iniUnknown = 0, iniWithMode = 0, iniWithLoop = 0;
+    var overrides = 0, filesWithOverride = 0, stepComments = 0, seqComments = 0, varComments = 0;
+    var objVarsWithFields = 0, withFlowTarget = 0, resolvedIdTargets = 0, withModuleTiming = 0;
+    var iniSkippedLines = 0, iniFragments = 0, iniResidual = 0;
+    final iniFragmentKeys = <String>{};
 
-  test('recovers structured flow-control logic across the corpus', () {
-    var openers = 0,
-        ends = 0,
-        conds = 0,
-        forInit = 0,
-        forIncr = 0,
-        eachArr = 0,
-        eachElem = 0,
-        ifWhile = 0,
-        forLoops = 0,
-        eachLoops = 0;
-    var seqsWithFlow = 0, balancedSeqs = 0, totalFlowSeqs = 0;
     for (final f in seqs) {
-      if (f.lengthSync() > _maxProbeBytes) continue;
       final bytes = f.readAsBytesSync();
       final fmt = detectSeqFormat(bytes);
+      if (fmt == SeqFormat.binary) {
+        binary++;
+        continue; // the binary recon sweep below owns these
+      }
       if (fmt != SeqFormat.xml && fmt != SeqFormat.ini) continue;
+
+      // ── INI document layer (sections, continuations, raw-line audit) ──
+      if (fmt == SeqFormat.ini) {
+        ini++;
+        final doc = parseIniSeqBytes(bytes);
+        if (doc.header.fileType == 'SequenceFile') iniSeqType++;
+        if (doc.sections.any((s) => s.isDef && s.members['SF'] == 'SequenceFileData')) iniSfRoot++;
+        if (doc.sections.any((s) => s.name == 'Data')) iniDataNamed++;
+        final residualRe = RegExp(r' Line\d+$');
+        for (final s in doc.sections) {
+          for (final k in [...s.members.keys, ...s.directives.keys]) {
+            if (residualRe.hasMatch(k)) iniResidual++;
+          }
+        }
+        final tree = iniDataTree(doc);
+        if (tree != null) {
+          iniTreeBuilt++;
+          if (tree.name == 'Data') iniDataRoot++;
+          final seq = tree.subProps.where((p) => p.name == 'Seq' && p.isArray).firstOrNull;
+          if (seq != null && seq.array!.isNotEmpty) {
+            iniWithSeqArray++;
+            if (seq.array!.any((s) => s.name.isNotEmpty && s.name != '[0]')) iniNamedSeqs++;
+          }
+        }
+        // Raw text: every in-section data line is `key = value`, and every
+        // ` LineNNNN` continuation fragment is reassembled.
+        final text = latin1.decode(bytes, allowInvalid: true);
+        var inSection = false;
+        for (final raw in const LineSplitter().convert(text)) {
+          final line = raw.trimRight();
+          if (line.isEmpty) continue;
+          if (line.startsWith('[') && line.endsWith(']')) {
+            inSection = true;
+            continue;
+          }
+          if (inSection && !line.contains(' = ')) iniSkippedLines++;
+        }
+        for (final m in RegExp(r'^(.+) Line(\d+)\s*=', multiLine: true).allMatches(text)) {
+          iniFragments++;
+          iniFragmentKeys.add(m.group(1)!.trim());
+        }
+      }
+
+      // ── shared typed model ──
       final SeqFile sf;
       try {
         sf = parseSeqFile(bytes);
-      } catch (_) {
+      } on FormatException catch (e) {
+        if (fmt == SeqFormat.ini) {
+          iniThrew++;
+        } else {
+          failures.add('${f.path}: $e');
+        }
         continue;
       }
+
+      if (fmt == SeqFormat.xml) {
+        xml++;
+        xmlCov += measureCoverage(sf);
+        final mp = sf.measurementPlugIns;
+        if (mp != null) {
+          mpBlocks++;
+          if (mp.pinMapPath != null) mpPinMaps++;
+        }
+        typedefFiles++;
+        firstXmlTypeDefs ??= sf.typeDefs.length;
+        for (final t in sf.typeDefs) {
+          totalTypes++;
+          if (t.baseClass != null) baseClasses.add(t.baseClass!);
+          if (t.fields.isNotEmpty) typesWithFields++;
+        }
+      } else {
+        iniBuilt++;
+        iniTypes += sf.types.length;
+        final ovr = _countOverrides(sf.data);
+        overrides += ovr;
+        if (ovr > 0) filesWithOverride++;
+        if (bytes.length <= _maxProbeBytes) {
+          iniCovFiles++;
+          iniCov += measureCoverage(sf);
+        }
+      }
+
+      // New-accessor file-level counters.
+      if (sf.modelFile != null || sf.contentVersion != null || sf.fileTypeCode != null) fileSettings++;
+      if (sf.fileGlobals.isNotEmpty) fileGlobals++;
+
+      var arAny = false;
+      var fileJump = false, fileLoop = false, fileExternal = false, fileParams = false;
       for (final q in sf.sequences) {
+        if (q.runtimeSettings?.entryPointNameExpression != null) runtimeEP++;
+        if (fmt == SeqFormat.xml) {
+          xmlSeqs++;
+          xmlLocals += q.locals.length;
+        } else {
+          iniSeqCount++;
+          iniLocals += q.locals.length;
+          if (q.comment != null) seqComments++;
+          for (final v in [...q.locals, ...q.parameters]) {
+            if (!v.isArray && v.containerCount != null && v.containerCount! > 0) objVarsWithFields++;
+            if (v.comment != null) varComments++;
+          }
+        }
+        if (q.parameters.isNotEmpty) {
+          fileParams = true;
+          for (final p in q.parameters) {
+            sigParams++;
+            if (p.type != null) sigTyped++;
+          }
+        }
+
         var depth = 0, minDepth = 0, localFlow = 0;
         for (final step in q.steps) {
-          final fc = step.flowControl;
-          if (fc == null) continue;
-          localFlow++;
-          if (fc.kind.opensBlock) {
-            openers++;
-            depth++;
-          } else if (fc.kind == FlowKind.end) {
-            ends++;
-            depth--;
-            if (depth < minDepth) minDepth = depth;
+          final set = step.settings;
+          final m = step.module;
+
+          if (fmt == SeqFormat.xml) {
+            xmlSteps++;
+            if (step.type != null) typedSteps++;
+            if (set.passAction != null) withAction++;
+            if (set.mode != null) withMode++;
+            if (set.icon != null) withIcon++;
+            if (m.adapter == SeqAdapter.unknown) unknownAdapters++;
+            if (m.adapter != SeqAdapter.none && m.adapter != SeqAdapter.unknown) withModule++;
+            if (step.limits != null) withLimits++;
+            if (sf.resolveCall(step) != null) resolvedCalls++;
+
+            if (m.adapter == SeqAdapter.python) {
+              pySteps++;
+              if (m.pythonFunction != null) pyFn++;
+              if (m.pythonModulePath != null) pyModule++;
+              if (m.pythonVersion != null) pyVersion++;
+              final args = m.callParameters;
+              if (args.isNotEmpty) {
+                pyParamSteps++;
+                for (final a in args) {
+                  pyParams++;
+                  if (a.name.isNotEmpty) pyNamed++;
+                  if (a.boundExpression != null) pyBound++;
+                }
+              }
+            }
+            if (m.adapter == SeqAdapter.labView && m.viParameters.isNotEmpty) {
+              viSteps++;
+              for (final p in m.viParameters) {
+                viParams++;
+                if (p.displayType != null) viDisplayType++;
+                if (p.connectorNumber != null) viConnector++;
+              }
+            }
+            for (final a in step.additionalResults) {
+              arAny = true;
+              arEntries++;
+              if (a.kind != null) arKinds.add(a.kind!);
+            }
+            final r = step.result;
+            if (r != null) {
+              withResult++;
+              if (r.errorOccurred != null) withError++;
+              if (r.hasRecordedOutcome) recordedOutcomes++;
+            }
+            if (set.customTrueAction != null) custTrueAct++;
+            if (set.customFalseAction != null) custFalseAct++;
+            for (final p in step.measurementParameters) {
+              measParams++;
+              if (p.dataType != null) {
+                measTyped++;
+                measTypes.add(p.dataType!);
+              }
+              if (p.direction != null) measDirected++;
+              if (p.typeSpecialization != null) {
+                measSpecialized++;
+                measSpecs.add(p.typeSpecialization!);
+              }
+              if (p.logged == false) measNotLogged++;
+              if (p.dataType == 'TypeEnum') {
+                measEnumParams++;
+                measEnumValues += p.enumValues.length;
+              }
+            }
+          } else {
+            iniStepCount++;
+            if (step.type != null) iniWithType++;
+            switch (m.adapter) {
+              case SeqAdapter.none:
+                iniNone++;
+              case SeqAdapter.unknown:
+                iniUnknown++;
+              default:
+                iniRecognized++;
+            }
+            if (set.mode != null) iniWithMode++;
+            if (set.loopType != null) iniWithLoop++;
+            if (step.comment != null) stepComments++;
+            if (set.passActionTarget != null || set.failActionTarget != null) withFlowTarget++;
+            for (final t in [set.customTrueTarget, set.customFalseTarget]) {
+              if (t != null && t.startsWith('ID#:') && sf.stepNameForId(t) != null) resolvedIdTargets++;
+            }
+            final lo = set.loadOption, uo = set.unloadOption;
+            if ((lo != null && lo != 'PreloadWhenExecuted') || (uo != null && uo != 'UnloadWithFile')) {
+              withModuleTiming++;
+            }
+            if (bytes.length <= _maxProbeBytes) {
+              iniCovSteps++;
+              if (m.adapter != SeqAdapter.none) iniCovModule++;
+            }
           }
-          switch (fc.kind) {
-            case FlowKind.ifBlock:
-            case FlowKind.elseIf:
-            case FlowKind.whileLoop:
-              ifWhile++;
-              if (fc.condition != null) conds++;
-            case FlowKind.forLoop:
-              forLoops++;
-              if (fc.initialization != null) forInit++;
-              if (fc.condition != null) conds++;
-              if (fc.increment != null) forIncr++;
-            case FlowKind.forEach:
-              eachLoops++;
-              if (fc.arrayExpr != null) eachArr++;
-              if (fc.arrayElement != null) eachElem++;
-            default:
-              break;
+
+          // Shared: new-accessor counters.
+          if (set.adapterName != null) adapterName++;
+          if (set.switchEnabled != null || set.canEditCode != null) switchSettings++;
+          if (step.description != null) stepDesc++;
+          if (step.typeInfo.codeTemplates.isNotEmpty) codeTemplates++;
+          if (m.sequenceNameExpression != null || m.specifiesByExpression != null) seqCallExpr++;
+          if (m.threadOptionCode != null) threading++;
+          if (m.pythonInterpreterLocation != null || m.pythonOperationTypeCode != null) pyInterp++;
+          for (final p in [...m.viParameters, ...m.callParameters]) {
+            if (p.caption != null || p.typeCode != null) clusterEls++;
+          }
+          if (step.sqlStatement != null || step.statementHandle != null) dbStep++;
+          if (step.limits?.lowExpression != null || step.limits?.comparisonExpression != null) limitExpr++;
+
+          // Shared: structured flow control.
+          final fc = step.flowControl;
+          if (fc != null) {
+            localFlow++;
+            if (fc.kind.opensBlock) {
+              flowOpeners++;
+              depth++;
+            } else if (fc.kind == FlowKind.end) {
+              flowEnds++;
+              depth--;
+              if (depth < minDepth) minDepth = depth;
+            }
+            switch (fc.kind) {
+              case FlowKind.ifBlock:
+              case FlowKind.elseIf:
+              case FlowKind.whileLoop:
+                ifWhile++;
+                if (fc.condition != null) conds++;
+              case FlowKind.forLoop:
+                forLoops++;
+                if (fc.initialization != null) forInit++;
+                if (fc.condition != null) conds++;
+                if (fc.increment != null) forIncr++;
+              case FlowKind.forEach:
+                eachLoops++;
+                if (fc.arrayExpr != null) eachArr++;
+                if (fc.arrayElement != null) eachElem++;
+              default:
+                break;
+            }
+          }
+          // Shared: logic-export annotation triggers.
+          if ((set.passAction != null && set.passAction != 'Next') ||
+              (set.failAction != null && set.failAction != 'Next')) {
+            jumpSteps++;
+            fileJump = true;
+          }
+          if (fc == null && set.isLooping) {
+            loopSteps++;
+            fileLoop = true;
+          }
+          if (m.adapter == SeqAdapter.sequenceCall &&
+              sf.resolveCall(step) == null &&
+              (m.sequenceFile ?? '').isNotEmpty) {
+            externalCalls++;
+            fileExternal = true;
           }
         }
         if (localFlow > 0) {
@@ -430,992 +400,356 @@ void main() {
           if (depth == 0 && minDepth == 0) balancedSeqs++;
         }
       }
-    }
-    // ignore: avoid_print
-    print(
-      'flow-control: $openers openers / $ends ends · $ifWhile if/while ($conds cond) · '
-      '$forLoops for ($forInit init,$forIncr incr) · '
-      '$eachLoops foreach ($eachArr arr,$eachElem elem) · '
-      '$balancedSeqs/$totalFlowSeqs sequences balanced',
-    );
-    expect(openers, greaterThan(0), reason: 'no flow-control steps found');
-    expect(ends, openers, reason: 'every opener must have a matching NI_Flow_End');
-    expect(balancedSeqs, totalFlowSeqs, reason: 'every flow-bearing sequence nests cleanly (balanced blocks)');
-    expect(conds, ifWhile + forLoops, reason: 'every if/while/for has a condition');
-    expect(forInit, forLoops, reason: 'every for has an initialization');
-    expect(forIncr, forLoops, reason: 'every for has an increment');
-    expect(eachArr, eachLoops, reason: 'every for-each has an array expression');
-    expect(eachElem, eachLoops, reason: 'every for-each has an element binding');
-    expect(seqsWithFlow, greaterThan(0));
-  });
+      if (arAny) arFiles++;
 
-  test('logic export annotates pass/fail jumps across the corpus', () {
-    var jumpSteps = 0, filesWithJump = 0, exportsWithJump = 0;
-    for (final f in seqs) {
-      if (f.lengthSync() > _maxProbeBytes) continue;
-      final bytes = f.readAsBytesSync();
-      final fmt = detectSeqFormat(bytes);
-      if (fmt != SeqFormat.xml && fmt != SeqFormat.ini) continue;
-      final SeqFile sf;
-      try {
-        sf = parseSeqFile(bytes);
-      } catch (_) {
-        continue;
-      }
-      var fileHas = false;
-      for (final q in sf.sequences) {
-        for (final s in q.steps) {
-          final set = s.settings;
-          if ((set.passAction != null && set.passAction != 'Next') ||
-              (set.failAction != null && set.failAction != 'Next')) {
-            jumpSteps++;
-            fileHas = true;
-          }
+      // One logic export per file covers all four annotation gates.
+      if (fileJump || fileLoop || fileExternal || fileParams) {
+        final logic = exportSequenceLogic(sf);
+        if (fileJump) {
+          filesWithJump++;
+          if (logic.contains(RegExp(r'\[on (pass|fail)'))) exportsWithJump++;
         }
-      }
-      if (fileHas) {
-        filesWithJump++;
-        if (exportSequenceLogic(sf).contains(RegExp(r'\[on (pass|fail)'))) {
-          exportsWithJump++;
+        if (fileLoop) {
+          filesWithLoop++;
+          if (logic.contains('[loop ')) exportsWithLoop++;
+        }
+        if (fileExternal) {
+          filesWithExternal++;
+          if (logic.contains(RegExp(r' in \S+\.seq'))) exportsMarked++;
+        }
+        if (fileParams) {
+          filesWithParams++;
+          if (logic.contains(RegExp(r'^sequence .+\([^)]', multiLine: true))) exportsSigned++;
         }
       }
     }
-    // ignore: avoid_print
-    print(
-      'jumps: $jumpSteps non-default pass/fail actions in $filesWithJump '
-      'files; $exportsWithJump exports annotate them',
-    );
-    expect(jumpSteps, greaterThan(0), reason: 'no pass/fail jumps in corpus');
-    expect(exportsWithJump, filesWithJump, reason: 'every file with a jump must annotate it in the logic export');
-  });
 
-  test('logic export annotates looping non-flow steps across the corpus', () {
-    var loopSteps = 0, filesWithLoop = 0, exportsWithLoop = 0;
-    for (final f in seqs) {
-      if (f.lengthSync() > _maxProbeBytes) continue;
-      final bytes = f.readAsBytesSync();
-      final fmt = detectSeqFormat(bytes);
-      if (fmt != SeqFormat.xml && fmt != SeqFormat.ini) continue;
-      final SeqFile sf;
-      try {
-        sf = parseSeqFile(bytes);
-      } catch (_) {
-        continue;
-      }
-      var fileHas = false;
-      for (final q in sf.sequences) {
-        for (final s in q.steps) {
-          if (s.flowControl == null && s.settings.isLooping) {
-            loopSteps++;
-            fileHas = true;
-          }
-        }
-      }
-      if (fileHas) {
-        filesWithLoop++;
-        if (exportSequenceLogic(sf).contains('[loop ')) exportsWithLoop++;
-      }
-    }
-    // ignore: avoid_print
     print(
-      'loops: $loopSteps looping non-flow steps in $filesWithLoop files; '
-      '$exportsWithLoop exports annotate them',
-    );
-    expect(loopSteps, greaterThan(0), reason: 'no looping steps in corpus');
-    expect(exportsWithLoop, filesWithLoop, reason: 'every file with a looping step must annotate it in the export');
-  });
-
-  test('logic export marks external SequenceCalls with their file', () {
-    var external = 0, filesWithExternal = 0, exportsMarked = 0;
-    for (final f in seqs) {
-      if (f.lengthSync() > _maxProbeBytes) continue;
-      final bytes = f.readAsBytesSync();
-      final fmt = detectSeqFormat(bytes);
-      if (fmt != SeqFormat.xml && fmt != SeqFormat.ini) continue;
-      final SeqFile sf;
-      try {
-        sf = parseSeqFile(bytes);
-      } catch (_) {
-        continue;
-      }
-      var fileHas = false;
-      for (final q in sf.sequences) {
-        for (final s in q.steps) {
-          if (s.module.adapter == SeqAdapter.sequenceCall &&
-              sf.resolveCall(s) == null &&
-              (s.module.sequenceFile ?? '').isNotEmpty) {
-            external++;
-            fileHas = true;
-          }
-        }
-      }
-      if (fileHas) {
-        filesWithExternal++;
-        if (exportSequenceLogic(sf).contains(RegExp(r' in \S+\.seq'))) {
-          exportsMarked++;
-        }
-      }
-    }
-    // ignore: avoid_print
-    print(
-      'external seq-calls: $external in $filesWithExternal files; '
-      '$exportsMarked exports mark them with a file',
-    );
-    expect(external, greaterThan(0), reason: 'no external seq-calls in corpus');
-    expect(exportsMarked, filesWithExternal, reason: 'every file with an external call must mark it in the export');
-  });
-
-  test('logic export renders typed parameter signatures across the corpus', () {
-    var seqsWithParams = 0, params = 0, typed = 0, filesWithParams = 0, exportsSigned = 0;
-    for (final f in seqs) {
-      if (f.lengthSync() > _maxProbeBytes) continue;
-      final bytes = f.readAsBytesSync();
-      final fmt = detectSeqFormat(bytes);
-      if (fmt != SeqFormat.xml && fmt != SeqFormat.ini) continue;
-      final SeqFile sf;
-      try {
-        sf = parseSeqFile(bytes);
-      } catch (_) {
-        continue;
-      }
-      var fileHas = false;
-      for (final q in sf.sequences) {
-        if (q.parameters.isEmpty) continue;
-        seqsWithParams++;
-        fileHas = true;
-        for (final p in q.parameters) {
-          params++;
-          if (p.type != null) typed++;
-        }
-      }
-      if (fileHas) {
-        filesWithParams++;
-        if (exportSequenceLogic(sf).contains(RegExp(r'^sequence .+\([^)]', multiLine: true))) {
-          exportsSigned++;
-        }
-      }
-    }
-    // ignore: avoid_print
-    print(
-      'signatures: $seqsWithParams seqs with params ($params params, '
-      '$typed typed) in $filesWithParams files; $exportsSigned exports signed',
-    );
-    expect(params, greaterThan(0), reason: 'no parameterized sequences in corpus');
-    expect(typed, params, reason: 'every recovered parameter carries a type');
-    expect(exportsSigned, filesWithParams, reason: 'every file with params must render a signature in the export');
-  });
-
-  test('recovers <typelist> type definitions across XML corpus', () {
-    var files = 0, totalTypes = 0, withFields = 0, totalFields = 0;
-    final baseClasses = <String>{};
-    final sampleNames = <String>{};
-    for (final f in seqs) {
-      if (f.lengthSync() > _maxProbeBytes) continue;
-      final bytes = f.readAsBytesSync();
-      if (detectSeqFormat(bytes) != SeqFormat.xml) continue;
-      files++;
-      final sf = parseSeqFile(bytes);
-      for (final t in sf.typeDefs) {
-        totalTypes++;
-        if (t.baseClass != null) baseClasses.add(t.baseClass!);
-        if (sampleNames.length < 12) sampleNames.add(t.name);
-        if (t.fields.isNotEmpty) {
-          withFields++;
-          totalFields += t.fields.length;
-        }
-      }
-    }
-    // ignore: avoid_print
-    print(
-      'typelist: $files files · $totalTypes typedefs · $withFields with fields · '
-      '$totalFields fields · baseClasses=${baseClasses.length} · sample=$sampleNames',
-    );
-    expect(files, greaterThanOrEqualTo(20));
-    expect(totalTypes, greaterThanOrEqualTo(300));
-    expect(withFields, greaterThanOrEqualTo(1));
-    expect(baseClasses, isNotEmpty);
-    final first = parseSeqFile(
-      seqs
-          .firstWhere((f) => f.lengthSync() <= _maxProbeBytes && detectSeqFormat(f.readAsBytesSync()) == SeqFormat.xml)
-          .readAsBytesSync(),
-    ).typeDefs;
-    expect(first.map((t) => t.name).toList(), isNotEmpty, reason: 'typeDefs should mirror types 1:1');
-  });
-
-  test('recovers the "Additional Results" recording spec across XML corpus', () {
-    var filesWithSpec = 0, entries = 0, withCondition = 0;
-    final kinds = <String>{};
-    for (final f in seqs) {
-      if (f.lengthSync() > _maxProbeBytes) continue;
-      final bytes = f.readAsBytesSync();
-      if (detectSeqFormat(bytes) != SeqFormat.xml) continue;
-      final sf = parseSeqFile(bytes);
-      var any = false;
-      for (final s in sf.sequences) {
-        for (final step in s.steps) {
-          for (final a in step.additionalResults) {
-            any = true;
-            entries++;
-            if (a.kind != null) kinds.add(a.kind!);
-            if (a.condition != null) withCondition++;
-          }
-        }
-      }
-      if (any) filesWithSpec++;
-    }
-    // ignore: avoid_print
-    print(
-      'additional-results: $filesWithSpec files · $entries entries · '
-      '$withCondition with a gating condition · kinds=$kinds',
-    );
-    expect(filesWithSpec, greaterThanOrEqualTo(10));
-    expect(entries, greaterThanOrEqualTo(100));
-    expect(
-      kinds,
-      everyElement(anyOf(contains('ParameterResult'), isNotEmpty)),
-    );
-  });
-
-  test('recovers the step Result outcome record across XML corpus', () {
-    var withResult = 0, withError = 0, recorded = 0;
-    for (final f in seqs) {
-      if (f.lengthSync() > _maxProbeBytes) continue;
-      final bytes = f.readAsBytesSync();
-      if (detectSeqFormat(bytes) != SeqFormat.xml) continue;
-      final sf = parseSeqFile(bytes);
-      for (final s in sf.sequences) {
-        for (final step in s.steps) {
-          final r = step.result;
-          if (r == null) continue;
-          withResult++;
-          if (r.errorOccurred != null) withError++;
-          if (r.hasRecordedOutcome) recorded++;
-        }
-      }
-    }
-    // ignore: avoid_print
-    print(
-      'step results: $withResult with Result · $withError with Error · '
-      '$recorded with a recorded (non-default) outcome',
-    );
-    expect(withResult, greaterThan(0), reason: 'no step Result slots recovered');
-    expect(withError, withResult, reason: 'a Result lost its Error sub-object');
-    expect(recorded, 0, reason: 'a sequence file unexpectedly carries a recorded run outcome');
-  });
-
-  test('recovers custom-condition flow fields across XML corpus', () {
-    var withTrueAct = 0, withFalseAct = 0, withCustExpr = 0;
-    final trueActs = <String>{};
-    for (final f in seqs) {
-      if (f.lengthSync() > _maxProbeBytes) continue;
-      final bytes = f.readAsBytesSync();
-      if (detectSeqFormat(bytes) != SeqFormat.xml) continue;
-      final sf = parseSeqFile(bytes);
-      for (final s in sf.sequences) {
-        for (final step in s.steps) {
-          final st = step.settings;
-          if (st.customTrueAction != null) {
-            withTrueAct++;
-            trueActs.add(st.customTrueAction!);
-          }
-          if (st.customFalseAction != null) withFalseAct++;
-          if (st.customExpression != null) withCustExpr++;
-        }
-      }
-    }
-    // ignore: avoid_print
-    print(
-      'custom-condition: $withTrueAct trueAct · $withFalseAct falseAct · '
-      '$withCustExpr custExpr · trueActs=$trueActs',
-    );
-    expect(withTrueAct, greaterThan(0), reason: 'no CustTrueAct recovered');
-    expect(withFalseAct, greaterThan(0), reason: 'no CustFalseAct recovered');
-  });
-
-  test('recovers Python-adapter call parameters across XML corpus', () {
-    var pySteps = 0, params = 0, named = 0, bound = 0;
-    for (final f in seqs) {
-      if (f.lengthSync() > _maxProbeBytes) continue;
-      final bytes = f.readAsBytesSync();
-      if (detectSeqFormat(bytes) != SeqFormat.xml) continue;
-      final sf = parseSeqFile(bytes);
-      for (final s in sf.sequences) {
-        for (final step in s.steps) {
-          if (step.module.adapter != SeqAdapter.python) continue;
-          final args = step.module.callParameters;
-          if (args.isEmpty) continue;
-          pySteps++;
-          for (final a in args) {
-            params++;
-            if (a.name.isNotEmpty) named++;
-            if (a.boundExpression != null) bound++;
-          }
-        }
-      }
-    }
-    // ignore: avoid_print
-    print(
-      'python call params: $pySteps steps · $params params · '
-      '$named named · $bound with a bound value',
-    );
-    expect(params, greaterThanOrEqualTo(45));
-    expect(named, params, reason: 'a Python param lost its Name');
-    expect(bound, greaterThan(0), reason: 'no Python param bound value recovered');
-  });
-
-  test('recovers measurement-step typed parameters across XML corpus', () {
-    var filesWithParams = 0, params = 0, withType = 0, withDirection = 0;
-    var specialized = 0, notLogged = 0, enumParams = 0, enumValues = 0;
-    final types = <String>{};
-    final specs = <String>{};
-    for (final f in seqs) {
-      if (f.lengthSync() > _maxProbeBytes) continue;
-      final bytes = f.readAsBytesSync();
-      if (detectSeqFormat(bytes) != SeqFormat.xml) continue;
-      final sf = parseSeqFile(bytes);
-      var any = false;
-      for (final s in sf.sequences) {
-        for (final step in s.steps) {
-          for (final p in step.measurementParameters) {
-            any = true;
-            params++;
-            if (p.dataType != null) {
-              withType++;
-              types.add(p.dataType!);
-            }
-            if (p.direction != null) withDirection++;
-            if (p.typeSpecialization != null) {
-              specialized++;
-              specs.add(p.typeSpecialization!);
-            }
-            if (p.logged == false) notLogged++;
-            if (p.dataType == 'TypeEnum') {
-              enumParams++;
-              enumValues += p.enumValues.length;
-            }
-          }
-        }
-      }
-      if (any) filesWithParams++;
-    }
-    // ignore: avoid_print
-    print(
-      'measurement params: $filesWithParams files · $params params · '
-      '$withType typed · $withDirection with direction · '
-      '$specialized specialized $specs · $notLogged not-logged · '
-      '$enumParams enum params / $enumValues values · types=$types',
-    );
-    expect(params, greaterThanOrEqualTo(120));
-    expect(withType, params, reason: 'a measurement param lost its Type');
-    expect(types, contains('TypeDouble'));
-    expect(withDirection, greaterThan(0));
-    expect(specialized, greaterThan(0), reason: 'no TypeSpecialization recovered');
-    expect(specs, contains('IOResource'));
-    expect(notLogged, greaterThan(0), reason: 'Log flag never varies');
-    expect(enumParams, greaterThan(0), reason: 'no TypeEnum params found');
-    expect(enumValues, greaterThanOrEqualTo(enumParams), reason: 'an enum param lost its allowed-value list');
-  });
-
-  test('every INI .seq parses into a header + sections (Rosetta form)', () {
-    var ini = 0, parsed = 0, sfRoot = 0, dataNamed = 0, seqType = 0;
-    final failures = <String>[];
-    for (final f in seqs) {
-      final bytes = f.readAsBytesSync();
-      if (detectSeqFormat(bytes) != SeqFormat.ini) continue;
-      ini++;
-      try {
-        final doc = parseIniSeqBytes(bytes);
-        parsed++;
-        if (doc.header.fileType == 'SequenceFile') seqType++;
-        if (doc.sections.any(
-          (s) => s.isDef && s.members['SF'] == 'SequenceFileData',
-        )) {
-          sfRoot++;
-        }
-        if (doc.sections.any((s) => s.name == 'Data')) dataNamed++;
-      } catch (e) {
-        failures.add('${f.path}: $e');
-      }
-    }
-    // ignore: avoid_print
-    print(
-      'INI corpus: $parsed/$ini parsed · $seqType SequenceFile header · '
-      '$sfRoot define SF=SequenceFileData · $dataNamed name an object "Data"',
+      'teststand corpus: $xml XML / $ini INI / $binary binary · '
+      '$xmlSeqs+$iniSeqCount sequences · $xmlSteps+$iniStepCount steps · '
+      'XML modeled ${(xmlCov.ratio * 100).toStringAsFixed(1)}% · INI modeled ${(iniCov.ratio * 100).toStringAsFixed(1)}% · '
+      '$overrides overrides in $filesWithOverride files · $iniFragments INI fragments / ${iniFragmentKeys.length} keys',
     );
     expect(failures, isEmpty, reason: failures.take(5).join('\n'));
-    expect(ini, greaterThan(0), reason: 'no INI files in corpus');
-    expect(parsed, ini, reason: 'some INI file failed to parse');
-    expect(seqType, ini, reason: 'an INI header lacks Type=SequenceFile');
-    expect(sfRoot, ini, reason: 'an INI lacks the SF=SequenceFileData root');
-    expect(dataNamed, ini, reason: 'an INI names no object "Data"');
+
+    final pins = <(String, Object?, Object)>[
+      // XML lens (exact counts pin the corpus + recovery together).
+      ('XML file count', xml, 25),
+      ('INI file count', ini, 43),
+      ('unknown-format file count', seqs.length - xml - ini - binary, 0),
+      ('XML sequence count', xmlSeqs, 29),
+      ('XML step count', xmlSteps, 141),
+      ('XML steps with pass/fail actions', withAction, 141),
+      ('XML typed steps (none lost in the lens)', typedSteps, xmlSteps),
+      ('XML steps with run-mode', withMode, greaterThan(0)),
+      ('XML module bindings', withModule, 61),
+      ('XML locals', xmlLocals, 34),
+      ('XML limit tests', withLimits, 10),
+      ('XML intra-file calls resolved', resolvedCalls, 4),
+      ('XML step icons', withIcon, 59),
+      ('XML unknown adapters', unknownAdapters, 0),
+      ('XML coverage: unaccounted nodes', xmlCov.unaccounted, 0),
+      ('XML coverage ratio', xmlCov.ratio, greaterThan(0.984)),
+      // Measurement plug-ins.
+      ('files with a MeasurementPlugIns block', mpBlocks, greaterThanOrEqualTo(5)),
+      ('files with a pin map', mpPinMaps, greaterThanOrEqualTo(1)),
+      // Python descriptors + call params.
+      ('python steps', pySteps, greaterThanOrEqualTo(20)),
+      ('python steps naming a function', pyFn, pySteps),
+      ('python steps with a module path', pyModule, pySteps),
+      ('python steps with a version', pyVersion, pySteps),
+      ('python call params', pyParams, greaterThanOrEqualTo(45)),
+      ('python params named', pyNamed, pyParams),
+      ('python params with a bound value', pyBound, greaterThan(0)),
+      ('python param steps', pyParamSteps, greaterThan(0)),
+      // VI calls.
+      ('VI-call steps with params', viSteps, greaterThanOrEqualTo(5)),
+      ('VI connector params', viParams, greaterThanOrEqualTo(20)),
+      ('VI params with DisplayType', viDisplayType, viParams),
+      ('VI params with connector#', viConnector, viParams),
+      // Typelist.
+      ('XML files scanned for typedefs', typedefFiles, greaterThanOrEqualTo(20)),
+      ('typedefs recovered', totalTypes, greaterThanOrEqualTo(300)),
+      ('typedefs with fields', typesWithFields, greaterThanOrEqualTo(1)),
+      ('typedef base classes', baseClasses, isNotEmpty),
+      ('first XML file typeDefs mirror types', firstXmlTypeDefs, greaterThan(0)),
+      // Additional results / step results / custom conditions.
+      ('files with additional-results specs', arFiles, greaterThanOrEqualTo(10)),
+      ('additional-results entries', arEntries, greaterThanOrEqualTo(100)),
+      ('additional-results kinds', arKinds, everyElement(anyOf(contains('ParameterResult'), isNotEmpty))),
+      ('steps with a Result slot', withResult, greaterThan(0)),
+      ('Results keeping their Error sub-object', withError, withResult),
+      ('recorded (non-default) outcomes in sequence files', recordedOutcomes, 0),
+      ('custom-condition true actions', custTrueAct, greaterThan(0)),
+      ('custom-condition false actions', custFalseAct, greaterThan(0)),
+      // Measurement parameters.
+      ('measurement params', measParams, greaterThanOrEqualTo(120)),
+      ('measurement params typed', measTyped, measParams),
+      ('measurement param types', measTypes, contains('TypeDouble')),
+      ('measurement params with direction', measDirected, greaterThan(0)),
+      ('measurement params specialized', measSpecialized, greaterThan(0)),
+      ('measurement specializations', measSpecs, contains('IOResource')),
+      ('measurement params not logged', measNotLogged, greaterThan(0)),
+      ('measurement enum params', measEnumParams, greaterThan(0)),
+      ('measurement enum values cover their params', measEnumValues, greaterThanOrEqualTo(measEnumParams)),
+      // Flow control (XML+INI).
+      ('flow-control openers', flowOpeners, greaterThan(0)),
+      ('flow ends match openers', flowEnds, flowOpeners),
+      ('flow-bearing sequences balanced', balancedSeqs, totalFlowSeqs),
+      ('if/while/for conditions', conds, ifWhile + forLoops),
+      ('for initializations', forInit, forLoops),
+      ('for increments', forIncr, forLoops),
+      ('for-each array expressions', eachArr, eachLoops),
+      ('for-each element bindings', eachElem, eachLoops),
+      ('sequences with flow', seqsWithFlow, greaterThan(0)),
+      // Logic-export annotations.
+      ('pass/fail jump steps', jumpSteps, greaterThan(0)),
+      ('files annotating jumps in the export', exportsWithJump, filesWithJump),
+      ('looping non-flow steps', loopSteps, greaterThan(0)),
+      ('files annotating loops in the export', exportsWithLoop, filesWithLoop),
+      ('external seq-calls', externalCalls, greaterThan(0)),
+      ('files marking external calls with a file', exportsMarked, filesWithExternal),
+      ('sequence parameters', sigParams, greaterThan(0)),
+      ('parameters carrying a type', sigTyped, sigParams),
+      ('files rendering signatures in the export', exportsSigned, filesWithParams),
+      // Newly-modeled lens accessors.
+      ('adapter names surfaced', adapterName, greaterThan(0)),
+      ('step descriptions surfaced', stepDesc, greaterThan(0)),
+      ('code templates surfaced', codeTemplates, greaterThan(0)),
+      ('RTS entry-point names surfaced', runtimeEP, greaterThan(0)),
+      ('switch/edit settings surfaced', switchSettings, greaterThan(0)),
+      ('SequenceCall expressions surfaced', seqCallExpr, greaterThan(0)),
+      ('threading settings surfaced', threading, greaterThan(0)),
+      ('python interpreter settings surfaced', pyInterp, greaterThan(0)),
+      ('param type descriptors surfaced', clusterEls, greaterThan(0)),
+      ('database step fields surfaced', dbStep, greaterThan(0)),
+      ('limit expressions surfaced', limitExpr, greaterThan(0)),
+      ('file-level settings surfaced', fileSettings, greaterThan(0)),
+      ('file globals surfaced', fileGlobals, greaterThan(0)),
+      // INI document layer.
+      ('INI headers typed SequenceFile', iniSeqType, ini),
+      ('INI files defining SF=SequenceFileData', iniSfRoot, ini),
+      ('INI files naming an object "Data"', iniDataNamed, ini),
+      ('INI data trees built', iniTreeBuilt, ini),
+      ('INI trees rooted at "Data"', iniDataRoot, iniTreeBuilt),
+      ('INI trees with a non-empty Seq array', iniWithSeqArray, iniTreeBuilt),
+      ('INI Seq arrays exposing named sequences', iniNamedSeqs, iniWithSeqArray),
+      ('INI in-section lines without " = "', iniSkippedLines, 0),
+      ('INI residual ` LineNNNN` keys', iniResidual, 0),
+      ('INI continuation fragments', iniFragments, 4783),
+      ('INI continuation base keys', iniFragmentKeys.length, 21),
+      // INI typed lens (exact pins).
+      ('INI files that threw', iniThrew, 0),
+      ('INI files built into SeqFiles', iniBuilt, ini),
+      ('INI sequence count', iniSeqCount, 426),
+      ('INI step count', iniStepCount, 5500),
+      ('INI locals count', iniLocals, 1561),
+      ('INI [%TYPES] count', iniTypes, 1969),
+      ('INI unknown adapters', iniUnknown, 0),
+      ('INI recognized adapters', iniRecognized, 2040),
+      ('INI none adapters', iniNone, 3460),
+      ('INI adapter partition', iniRecognized + iniNone + iniUnknown, iniStepCount),
+      ('INI typed steps', iniWithType, greaterThan(0)),
+      ('INI type-inherited run-modes', iniWithMode, greaterThan(0)),
+      ('INI type-inherited looping', iniWithLoop, greaterThan(0)),
+      ('%INSTOVRD overrides', overrides, 12811),
+      ('INI step comments', stepComments, 663),
+      ('INI sequence comments', seqComments, 102),
+      ('INI variable comments', varComments, 37),
+      ('INI object variables with fields', objVarsWithFields, 78),
+      ('INI flow targets', withFlowTarget, 58),
+      ('INI resolved ID#: targets', resolvedIdTargets, 12),
+      ('INI non-default module load/unload', withModuleTiming, 62),
+      // INI coverage.
+      ('INI files covered', iniCovFiles, greaterThanOrEqualTo(30)),
+      ('INI covered steps', iniCovSteps, greaterThanOrEqualTo(1000)),
+      ('INI covered steps with a module', iniCovModule, greaterThanOrEqualTo(500)),
+      ('INI coverage: unaccounted nodes', iniCov.unaccounted, 0),
+      ('INI coverage ratio', iniCov.ratio, greaterThan(0.995)),
+    ];
+    for (final (label, actual, want) in pins) {
+      expect(actual, want, reason: label);
+    }
   });
 
-  test('the typed lens + coverage metric apply to INI (shared model)', () {
-    var ini = 0, steps = 0, withModule = 0, withAddl = 0;
-    var cov = const SeqCoverage(total: 0, modeled: 0);
-    for (final f in seqs) {
-      if (f.lengthSync() > _maxProbeBytes) continue;
-      final bytes = f.readAsBytesSync();
-      if (detectSeqFormat(bytes) != SeqFormat.ini) continue;
-      ini++;
-      final sf = parseSeqFile(bytes);
-      cov += measureCoverage(sf);
-      for (final seq in sf.sequences) {
-        for (final step in seq.steps) {
-          steps++;
-          if (step.module.adapter != SeqAdapter.none) withModule++;
-          if (step.additionalResults.isNotEmpty) withAddl++;
-        }
-      }
-    }
-    // ignore: avoid_print
-    print(
-      'INI lens: $ini files · $steps steps · $withModule with a module '
-      'adapter · $withAddl with additional-results · '
-      'accounted ${(cov.accountedRatio * 100).toStringAsFixed(1)}% · '
-      'modeled ${(cov.ratio * 100).toStringAsFixed(1)}% · '
-      'plumbing ${cov.plumbing} · unaccounted ${cov.unaccounted}',
-    );
-    expect(ini, greaterThanOrEqualTo(30));
-    expect(steps, greaterThanOrEqualTo(1000));
-    expect(withModule, greaterThanOrEqualTo(500));
-    expect(
-      cov.unaccounted,
-      0,
-      reason:
-          'INI left ${cov.unaccounted} node(s) unaccounted; run '
-          'tool/gaps.dart ini to classify them',
-    );
-    expect(cov.ratio, greaterThan(0.995), reason: 'INI model coverage regressed (${cov.ratio})');
-  });
-
-  test('the typed lens models the bulk of every XML Data tree', () {
-    var xml = 0;
-    var cov = const SeqCoverage(total: 0, modeled: 0);
-    for (final f in seqs) {
-      final bytes = f.readAsBytesSync();
-      if (detectSeqFormat(bytes) != SeqFormat.xml) continue;
-      xml++;
-      cov += measureCoverage(parseSeqFile(bytes));
-    }
-    // ignore: avoid_print
-    print(
-      'XML lens: $xml files · '
-      'accounted ${(cov.accountedRatio * 100).toStringAsFixed(1)}% · '
-      'modeled ${(cov.ratio * 100).toStringAsFixed(1)}% · '
-      'plumbing ${cov.plumbing} · unaccounted ${cov.unaccounted}',
-    );
-    expect(xml, greaterThanOrEqualTo(20));
-    expect(
-      cov.unaccounted,
-      0,
-      reason:
-          'XML left ${cov.unaccounted} node(s) unaccounted; run '
-          'tool/gaps.dart xml to classify them',
-    );
-    expect(cov.ratio, greaterThan(0.984), reason: 'XML model coverage regressed (${cov.ratio})');
-  });
-
-  test('newly-modeled lens accessors are wired across the corpus', () {
-    var adapterName = 0, stepDesc = 0, codeTemplates = 0, runtimeEP = 0;
-    var switchSettings = 0, seqCallExpr = 0, threading = 0, pyInterp = 0;
-    var clusterEls = 0, dbStep = 0, limitExpr = 0, fileSettings = 0, fileGlobals = 0;
-    for (final f in seqs) {
-      final bytes = f.readAsBytesSync();
-      final fmt = detectSeqFormat(bytes);
-      if (fmt != SeqFormat.xml && fmt != SeqFormat.ini) continue;
-      if (fmt == SeqFormat.ini && f.lengthSync() > _maxProbeBytes) continue;
-      final sf = parseSeqFile(bytes);
-      if (sf.modelFile != null || sf.contentVersion != null || sf.fileTypeCode != null) {
-        fileSettings++;
-      }
-      if (sf.fileGlobals.isNotEmpty) fileGlobals++;
-      for (final seq in sf.sequences) {
-        if (seq.runtimeSettings?.entryPointNameExpression != null) runtimeEP++;
-        for (final step in seq.steps) {
-          final s = step.settings;
-          if (s.adapterName != null) adapterName++;
-          if (s.switchEnabled != null || s.canEditCode != null) switchSettings++;
-          if (step.description != null) stepDesc++;
-          if (step.typeInfo.codeTemplates.isNotEmpty) codeTemplates++;
-          final m = step.module;
-          if (m.sequenceNameExpression != null || m.specifiesByExpression != null) {
-            seqCallExpr++;
-          }
-          if (m.threadOptionCode != null) threading++;
-          if (m.pythonInterpreterLocation != null || m.pythonOperationTypeCode != null) {
-            pyInterp++;
-          }
-          for (final p in [...m.viParameters, ...m.callParameters]) {
-            if (p.caption != null || p.typeCode != null) clusterEls++;
-          }
-          if (step.sqlStatement != null || step.statementHandle != null) dbStep++;
-          if (step.limits?.lowExpression != null || step.limits?.comparisonExpression != null) {
-            limitExpr++;
-          }
-        }
-      }
-    }
-    // ignore: avoid_print
-    print(
-      'new lens accessors: adapterName=$adapterName stepDesc=$stepDesc '
-      'codeTemplates=$codeTemplates runtimeEP=$runtimeEP switch=$switchSettings '
-      'seqCallExpr=$seqCallExpr threading=$threading py=$pyInterp '
-      'paramDescriptor=$clusterEls db=$dbStep limitExpr=$limitExpr '
-      'fileSettings=$fileSettings fileGlobals=$fileGlobals',
-    );
-    expect(adapterName, greaterThan(0), reason: 'no Adapter names surfaced');
-    expect(stepDesc, greaterThan(0), reason: 'no step Descriptions surfaced');
-    expect(codeTemplates, greaterThan(0), reason: 'no CodeTemplates surfaced');
-    expect(runtimeEP, greaterThan(0), reason: 'no RTS entry-point names surfaced');
-    expect(switchSettings, greaterThan(0), reason: 'no switch/edit settings surfaced');
-    expect(seqCallExpr, greaterThan(0), reason: 'no SequenceCall expressions surfaced');
-    expect(threading, greaterThan(0), reason: 'no threading settings surfaced');
-    expect(pyInterp, greaterThan(0), reason: 'no Python interpreter settings surfaced');
-    expect(clusterEls, greaterThan(0), reason: 'no param type descriptors surfaced');
-    expect(dbStep, greaterThan(0), reason: 'no database step fields surfaced');
-    expect(limitExpr, greaterThan(0), reason: 'no limit expressions surfaced');
-    expect(fileSettings, greaterThan(0), reason: 'no file-level settings surfaced');
-    expect(fileGlobals, greaterThan(0), reason: 'no file globals surfaced');
-  });
-
-  test('INI parser drops no in-section data lines (every line is key = value)', () {
-    var ini = 0, skipped = 0;
-    final samples = <String>[];
-    for (final f in seqs) {
-      final bytes = f.readAsBytesSync();
-      if (detectSeqFormat(bytes) != SeqFormat.ini) continue;
-      ini++;
-      final text = latin1.decode(bytes, allowInvalid: true);
-      var inSection = false;
-      for (final raw in const LineSplitter().convert(text)) {
-        final line = raw.trimRight();
-        if (line.isEmpty) continue;
-        if (line.startsWith('[') && line.endsWith(']')) {
-          inSection = true;
-          continue;
-        }
-        if (!inSection || line.contains(' = ')) continue;
-        skipped++;
-        if (samples.length < 5) samples.add(line);
-      }
-    }
-    // ignore: avoid_print
-    print('INI line audit: $ini files, $skipped in-section lines without " = "');
-    expect(ini, greaterThan(0));
-    expect(skipped, 0, reason: 'INI parser silently skips data line(s): ${samples.join(' | ')}');
-  });
-
-  test('INI multi-line values are reassembled (no residual ` LineNNNN` keys)', () {
-    var ini = 0, reassembled = 0, residual = 0;
-    final baseKeys = <String>{};
-    for (final f in seqs) {
-      final bytes = f.readAsBytesSync();
-      if (detectSeqFormat(bytes) != SeqFormat.ini) continue;
-      ini++;
-      final doc = parseIniSeqBytes(bytes);
-      final residualRe = RegExp(r' Line\d+$');
-      for (final s in doc.sections) {
-        for (final k in [...s.members.keys, ...s.directives.keys]) {
-          if (residualRe.hasMatch(k)) residual++;
-        }
-      }
-    }
-    final contRe = RegExp(r'^(.+) Line(\d+)\s*=', multiLine: true);
-    for (final f in seqs) {
-      final bytes = f.readAsBytesSync();
-      if (detectSeqFormat(bytes) != SeqFormat.ini) continue;
-      for (final m in contRe.allMatches(latin1.decode(bytes, allowInvalid: true))) {
-        reassembled++;
-        baseKeys.add(m.group(1)!.trim());
-      }
-    }
-    // ignore: avoid_print
-    print(
-      'INI continuations: $reassembled fragments collapsed across '
-      '${baseKeys.length} base keys in $ini INI files; $residual residual',
-    );
-    expect(ini, 43, reason: 'no INI files in corpus');
-    expect(residual, 0, reason: 'a ` LineNNNN` fragment survived reassembly');
-    expect(reassembled, 4783, reason: 'continuation-fragment count drifted');
-    expect(baseKeys.length, 21, reason: 'continuation base-key count drifted');
-  });
-
-  test('INI sections assemble into the shared SeqProperty tree', () {
-    var ini = 0, built = 0, dataRoot = 0, withSeqArray = 0, namedSeqs = 0;
+  test('binary corpus (single pass): partial model is honest, recon lenses never fabricate', () {
+    var binary = 0, withBinaryBody = 0, binaryWithSequences = 0, binaryStepsRecovered = 0;
+    var binaryTypedSteps = 0, binaryModuleSteps = 0;
+    var framed = 0, withSentinels = 0, totalStrings = 0, word2Is1 = 0;
+    var nameFound = 0, hasModelTokens = 0, notLargest = 0, isFirst = 0, valuesOutsideName = 0;
+    var rooted = 0, prefix2Ok = 0, scaffold5Ok = 0, recordIndexesData = 0, objNamesOk = 0;
+    var analyzeChecked = 0;
+    var withPath = 0, withId = 0, withExpr = 0, withLit = 0, totalPaths = 0, nonAsciiPaths = 0;
+    var realTot = 0, realHit = 0, fakeTot = 0, fakeHit = 0;
     final failures = <String>[];
-    for (final f in seqs) {
-      final bytes = f.readAsBytesSync();
-      if (detectSeqFormat(bytes) != SeqFormat.ini) continue;
-      ini++;
-      try {
-        final tree = iniDataTree(parseIniSeqBytes(bytes));
-        if (tree == null) continue;
-        built++;
-        if (tree.name == 'Data') dataRoot++;
-        final seq = tree.subProps.where((p) => p.name == 'Seq' && p.isArray).firstOrNull;
-        if (seq != null && seq.array!.isNotEmpty) {
-          withSeqArray++;
-          if (seq.array!.any((s) => s.name.isNotEmpty && s.name != '[0]')) {
-            namedSeqs++;
-          }
-        }
-      } catch (e) {
-        failures.add('${f.path}: $e');
-      }
-    }
-    // ignore: avoid_print
-    print(
-      'INI tree: $built/$ini built · $dataRoot named "Data" · '
-      '$withSeqArray have a non-empty Seq array · $namedSeqs name their sequences',
-    );
-    expect(failures, isEmpty, reason: failures.take(5).join('\n'));
-    expect(ini, greaterThan(0));
-    expect(built, ini, reason: 'an INI file built no data tree');
-    expect(dataRoot, built, reason: 'a built INI tree is not rooted at "Data"');
-    expect(withSeqArray, built, reason: 'a built INI tree has no Seq array');
-    expect(namedSeqs, withSeqArray, reason: 'a Seq array exposes no named sequence');
-  });
 
-  test('INI files parse through parseSeqFile into the typed lens', () {
-    var ini = 0, built = 0, threw = 0;
-    var totSeq = 0, totSteps = 0, totLocals = 0, withType = 0;
-    var totTypes = 0;
-    var recognized = 0, noneAdapter = 0, unknownAdapter = 0;
-    var withMode = 0, withLoop = 0;
-    var overrides = 0, filesWithOverride = 0;
-    var withComment = 0;
-    var withSeqComment = 0;
-    var objVarsWithFields = 0;
-    var varsWithComment = 0;
-    var withFlowTarget = 0;
-    var resolvedIdTargets = 0;
-    var withModuleTiming = 0;
-    for (final f in seqs) {
-      final bytes = f.readAsBytesSync();
-      if (detectSeqFormat(bytes) != SeqFormat.ini) continue;
-      ini++;
-      try {
-        final sf = parseSeqFile(bytes);
-        built++;
-        final ovr = _countOverrides(sf.data);
-        overrides += ovr;
-        if (ovr > 0) filesWithOverride++;
-        totTypes += sf.types.length;
-        totSeq += sf.sequences.length;
-        for (final s in sf.sequences) {
-          totLocals += s.locals.length;
-          if (s.comment != null) withSeqComment++;
-          for (final v in [...s.locals, ...s.parameters]) {
-            if (!v.isArray && v.containerCount != null && v.containerCount! > 0) {
-              objVarsWithFields++;
-            }
-            if (v.comment != null) varsWithComment++;
-          }
-          for (final st in s.steps) {
-            totSteps++;
-            if (st.type != null) withType++;
-            switch (st.module.adapter) {
-              case SeqAdapter.none:
-                noneAdapter++;
-              case SeqAdapter.unknown:
-                unknownAdapter++;
-              default:
-                recognized++;
-            }
-            if (st.settings.mode != null) withMode++;
-            if (st.settings.loopType != null) withLoop++;
-            if (st.comment != null) withComment++;
-            if (st.settings.passActionTarget != null || st.settings.failActionTarget != null) {
-              withFlowTarget++;
-            }
-            for (final t in [
-              st.settings.customTrueTarget,
-              st.settings.customFalseTarget,
-            ]) {
-              if (t != null && t.startsWith('ID#:') && sf.stepNameForId(t) != null) {
-                resolvedIdTargets++;
-              }
-            }
-            final lo = st.settings.loadOption, uo = st.settings.unloadOption;
-            if ((lo != null && lo != 'PreloadWhenExecuted') || (uo != null && uo != 'UnloadWithFile')) {
-              withModuleTiming++;
-            }
-          }
-        }
-      } on FormatException {
-        threw++;
+    int u32(List<int> b, int i) => b[i] | b[i + 1] << 8 | b[i + 2] << 16 | b[i + 3] << 24;
+    bool tripletExists(List<int> body, int rr, int idx) {
+      for (var i = 0; i + 12 <= rr; i++) {
+        if (u32(body, i) != idx) continue;
+        final field = u32(body, i + 4);
+        final count = u32(body, i + 8);
+        if (field < 1 || field > 100000) continue;
+        if (count < 1 || count > 1000) continue;
+        if (i < 4 || u32(body, i - 4) == 0 || u32(body, i - 4) == 0xffffffff) return true;
       }
+      return false;
     }
-    // ignore: avoid_print
-    print(
-      'INI lens: $built/$ini parsed via parseSeqFile ($threw threw) · '
-      '$totSeq sequences · $totSteps steps · $totLocals locals · '
-      '$withType typed steps · $totTypes types · '
-      '$recognized recognized adapters / $noneAdapter none / $unknownAdapter unknown · '
-      '$withMode with run-mode · $withLoop with looping · '
-      '$withComment steps + $withSeqComment seqs with comment · '
-      '$objVarsWithFields object vars with fields · '
-      '$varsWithComment vars with comment · '
-      '$withFlowTarget steps with flow target · '
-      '$resolvedIdTargets resolved ID#: targets · '
-      '$withModuleTiming steps non-default load/unload · '
-      '$overrides instance-overrides in $filesWithOverride files',
-    );
-    expect(threw, 0, reason: 'an INI file failed to parse into a SeqFile');
-    expect(built, ini, reason: 'not every INI file built a SeqFile');
-    expect(ini, 43, reason: 'INI file count drifted');
-    expect(totSeq, 426, reason: 'INI sequence count drifted');
-    expect(totSteps, 5500, reason: 'INI step count drifted');
-    expect(totLocals, 1561, reason: 'INI locals count drifted');
-    expect(totTypes, 1969, reason: 'INI [%TYPES] count drifted');
-    expect(unknownAdapter, 0, reason: 'an INI step has an unrecognized SData adapter');
-    expect(recognized, 2040, reason: 'INI recognized-adapter count drifted');
-    expect(noneAdapter, 3460, reason: 'INI none-adapter count drifted');
-    expect(
-      recognized + noneAdapter + unknownAdapter,
-      totSteps,
-      reason: 'adapter classification must partition all steps',
-    );
-    expect(withType, greaterThan(0), reason: 'no INI step types via the lens');
-    expect(withMode, greaterThan(0), reason: 'no type-inherited run-mode recovered');
-    expect(withLoop, greaterThan(0), reason: 'no type-inherited looping recovered');
-    expect(overrides, 12811, reason: '%INSTOVRD override count drifted');
-    expect(withComment, 663, reason: 'step-comment count drifted');
-    expect(withSeqComment, 102, reason: 'sequence-comment count drifted');
-    expect(varsWithComment, 37, reason: 'variable-comment count drifted');
-    expect(objVarsWithFields, 78, reason: 'object-variable field count drifted');
-    expect(withFlowTarget, 58, reason: 'flow-target count drifted');
-    expect(resolvedIdTargets, 12, reason: 'resolved ID#: target count drifted');
-    expect(withModuleTiming, 62, reason: 'non-default module load/unload count drifted');
-  });
 
-  test('every binary TOF1 body frames into a record region + string table', () {
-    var binary = 0, framed = 0, withSentinels = 0, totalStrings = 0;
-    var word2Is1 = 0;
-    final word1Values = <int, int>{};
-    final failures = <String>[];
     for (final f in seqs) {
       final bytes = f.readAsBytesSync();
       if (detectSeqFormat(bytes) != SeqFormat.binary) continue;
       binary++;
+
+      // Partial typed model: never throws, no structural tokens as names,
+      // step types from the file's own table, module targets look like
+      // targets. (A sequence whose record walk decoded its group arrays is
+      // walk-corroborated and MAY collide with a structural token — the
+      // corpus has a sandbox sequence literally named `Sequence`.)
+      final partial = parseSeqFile(bytes);
+      if (partial.sequences.isNotEmpty) binaryWithSequences++;
+      final partialTypeNames = {for (final t in partial.types) t.name};
+      final walkBacked = {
+        for (final o in binarySequenceOutlines(bytes))
+          if (o.groupArrays.isNotEmpty) o.name,
+      };
+      for (final seq in partial.sequences) {
+        expect(seq.name, isNotEmpty);
+        if (!walkBacked.contains(seq.name)) {
+          expect(
+            const {'Sequence', 'Calls', 'ResultList', 'Objs', 'Seq', 'Obj', 'Data'},
+            isNot(contains(seq.name)),
+            reason: '${f.path}: structural token as sequence name',
+          );
+        }
+        binaryStepsRecovered += seq.steps.length;
+        for (final step in seq.steps) {
+          if (step.type != null) {
+            binaryTypedSteps++;
+            expect(
+              partialTypeNames,
+              contains(step.type),
+              reason: '${f.path}: step ${step.name} type outside the table',
+            );
+          }
+          final m = step.module;
+          if (m.adapter != SeqAdapter.none && m.adapter != SeqAdapter.unknown) {
+            binaryModuleSteps++;
+            if (m.viPath != null) {
+              expect(m.viPath, contains('.vi'), reason: '${f.path}: ${step.name} VIPath ${m.viPath}');
+            }
+            if (m.pythonModulePath != null) {
+              expect(m.pythonModulePath, endsWith('.py'), reason: '${f.path}: ${step.name} python module');
+            }
+          }
+        }
+      }
+      final bh = detectSeqHeader(bytes);
+      expect(bh.fileType, 'SequenceFile');
+      expect(bh.productName, 'TestStand');
+      final body = inflateBinaryBody(bytes);
+      expect(body, isNotNull, reason: '${f.path}: no inflatable body');
+      if (body != null) {
+        withBinaryBody++;
+        expect(_bodyContains(body, 'Sequence'), isTrue, reason: '${f.path}: body lacks the Sequence token');
+        final bodyNames = binaryBodyStrings(bytes).map((s) => s.text).toSet();
+        expect(
+          ['Sequence', 'Step', 'Locals'].any(bodyNames.contains),
+          isTrue,
+          reason: '${f.path}: body strings missing all core model names',
+        );
+        expect(
+          binaryStringTable(bytes).length,
+          greaterThanOrEqualTo(5),
+          reason: '${f.path}: no contiguous string table',
+        );
+      }
+
+      // Framing: record region + ≥2 string segments + leading-word pins.
       final layout = analyzeBinaryBody(bytes);
       if (layout == null) {
         failures.add('${f.path}: no layout');
-        continue;
-      }
-      framed++;
-      totalStrings += layout.stringCount;
-      if (layout.sentinelCount > 0) withSentinels++;
-      if (layout.recordRegionLength <= 0 ||
-          layout.recordRegionLength >= layout.inflatedSize ||
-          layout.stringCount < 5) {
-        failures.add('${f.path}: $layout');
-      }
-      final w = layout.leadingWords;
-      if (w.length >= 3 && w[2] == 1) word2Is1++;
-      if (w.length >= 2) word1Values[w[1]] = (word1Values[w[1]] ?? 0) + 1;
-      final segments = binaryStringSegments(bytes);
-      if (layout.segmentCount != segments.length || layout.segmentCount < 2) {
-        failures.add('${f.path}: ${layout.segmentCount} segments');
-      }
-    }
-    // ignore: avoid_print
-    print(
-      'binary framing: $framed/$binary framed · '
-      '$withSentinels with ff-sentinels · $totalStrings strings total · '
-      'word2==1 $word2Is1/$binary · word1 spread $word1Values · '
-      'all ≥2 string segments',
-    );
-    expect(framed, binary, reason: 'some binary bodies did not frame');
-    expect(failures, isEmpty, reason: failures.join('\n'));
-    expect(word2Is1, binary, reason: 'leadingWords[2] != 1 in some files');
-  });
-
-  bool isExprLike(String s) =>
-      (s.contains('.') && RegExp(r'[A-Za-z]\.[A-Za-z]').hasMatch(s)) ||
-      s.contains('(') ||
-      s.contains(')') ||
-      s.contains('"') ||
-      (RegExp(r'[+\-*/=<>!]').hasMatch(s) && RegExp(r'[A-Za-z0-9]').hasMatch(s));
-
-  test('binary string region has a content-identified property-name table', () {
-    var binary = 0, nameFound = 0, hasModelTokens = 0, notLargest = 0, isFirst = 0, valuesOutsideName = 0;
-    final failures = <String>[];
-    for (final f in seqs) {
-      final bytes = f.readAsBytesSync();
-      if (detectSeqFormat(bytes) != SeqFormat.binary) continue;
-      binary++;
-      final segs = binaryStringSegments(bytes);
-      final name = binaryNameTable(bytes);
-      if (name == null) {
-        failures.add('${f.path}: no name table');
-        continue;
-      }
-      nameFound++;
-      final texts = {for (final e in name.entries) e.text};
-      if (['Step', 'Sequence', 'Locals'].any(texts.contains)) {
-        hasModelTokens++;
       } else {
-        failures.add('${f.path}: name table lacks core model tokens');
-      }
-      if (segs.any((s) => s.entries.length > name.entries.length)) notLargest++;
-      if (segs.isNotEmpty && name.offset == segs.first.offset) isFirst++;
-      if (segs.any(
-        (s) => s.offset != name.offset && s.entries.any((e) => isExprLike(e.text)),
-      )) {
-        valuesOutsideName++;
-      }
-    }
-    // ignore: avoid_print
-    print(
-      'binary name table: $nameFound/$binary found · '
-      '$hasModelTokens/$binary carry core tokens · '
-      '$notLargest/$binary smaller than another segment · '
-      '$isFirst/$binary are the first segment · '
-      '$valuesOutsideName/$binary have expressions outside the name table',
-    );
-    expect(failures, isEmpty, reason: failures.join('\n'));
-    expect(
-      nameFound,
-      binary,
-      reason: 'no content-identified name table somewhere',
-    );
-    expect(hasModelTokens, binary, reason: 'name table missing core tokens');
-    expect(
-      notLargest / binary,
-      greaterThan(0.95),
-      reason: 'name table is the largest segment too often ($notLargest/$binary)',
-    );
-    expect(
-      valuesOutsideName,
-      binary,
-      reason: 'a file has no expressions outside its name table',
-    );
-  });
-
-  test('binary name table is the ordered pool opening with a fixed scaffold', () {
-    var binary = 0, rooted = 0, prefix2Ok = 0, scaffold5Ok = 0, recordIndexesData = 0;
-    final failures = <String>[];
-    for (final f in seqs) {
-      final bytes = f.readAsBytesSync();
-      if (detectSeqFormat(bytes) != SeqFormat.binary) continue;
-      binary++;
-      final name = binaryNameTable(bytes);
-      if (name == null) {
-        failures.add('${f.path}: no name table');
-        continue;
-      }
-      final names = [for (final e in name.entries) e.text];
-      if (names.isEmpty || names.first != 'SequenceFileData') continue;
-      rooted++;
-      if (names.length >= 2 && names[1] == 'Data') {
-        prefix2Ok++;
-      } else {
-        failures.add('${f.path}: prefix ${names.take(2).toList()} != [SequenceFileData, Data]');
-      }
-      final n = binaryNameScaffold.length;
-      final matches = names.length >= n && Iterable<int>.generate(n).every((i) => names[i] == binaryNameScaffold[i]);
-      if (matches) scaffold5Ok++;
-      final words = binaryRecordWords(bytes);
-      if (words.length >= 3 && words[2] == 1 && names[1] == 'Data') {
-        recordIndexesData++;
-      }
-    }
-    // ignore: avoid_print
-    print(
-      'binary name pool: $rooted/$binary rooted at SequenceFileData · '
-      '$prefix2Ok/$rooted open with [SequenceFileData, Data] · '
-      '$scaffold5Ok/$rooted with the full 5-entry scaffold · '
-      '$recordIndexesData/$rooted record word[2]==1 -> name[1]==Data',
-    );
-    expect(failures, isEmpty, reason: failures.join('\n'));
-    expect(rooted, greaterThanOrEqualTo(80), reason: 'few files are rooted');
-    expect(prefix2Ok, rooted, reason: 'a rooted file lacks the [..,Data] prefix');
-    expect(
-      scaffold5Ok / rooted,
-      greaterThan(0.95),
-      reason: 'the 5-entry scaffold is rarer than expected ($scaffold5Ok/$rooted)',
-    );
-    expect(
-      recordIndexesData,
-      rooted,
-      reason: 'record word[2] does not index name[1]==Data',
-    );
-  });
-
-  int u32(List<int> b, int i) => b[i] | b[i + 1] << 8 | b[i + 2] << 16 | b[i + 3] << 24;
-  bool tripletExists(List<int> body, int rr, int idx) {
-    for (var i = 0; i + 12 <= rr; i++) {
-      if (u32(body, i) != idx) continue;
-      final field = u32(body, i + 4);
-      final count = u32(body, i + 8);
-      if (field < 1 || field > 100000) continue;
-      if (count < 1 || count > 1000) continue;
-      final preOk = i < 4 || u32(body, i - 4) == 0 || u32(body, i - 4) == 0xffffffff;
-      if (preOk) return true;
-    }
-    return false;
-  }
-
-  test('object-record triplet is a real signal (real names >> control)', () {
-    var realTot = 0, realHit = 0, fakeTot = 0, fakeHit = 0;
-    for (final f in seqs) {
-      final bytes = f.readAsBytesSync();
-      if (detectSeqFormat(bytes) != SeqFormat.binary) continue;
-      final body = inflateBinaryBody(bytes);
-      final layout = analyzeBinaryBody(bytes);
-      final name = binaryNameTable(bytes);
-      if (body == null || layout == null || name == null) continue;
-      final nameLen = name.entries.length;
-      if (nameLen <= 5) continue;
-      final rr = layout.recordRegionLength.clamp(0, body.length);
-      final span = nameLen - 5;
-      for (var idx = 5; idx < nameLen; idx++) {
-        realTot++;
-        if (tripletExists(body, rr, idx)) realHit++;
-      }
-      for (var k = 0; k < span; k++) {
-        fakeTot++;
-        if (tripletExists(body, rr, nameLen + 1 + k)) fakeHit++;
-      }
-    }
-    final realRate = realHit / realTot;
-    final fakeRate = fakeHit / fakeTot;
-    // ignore: avoid_print
-    print(
-      'object-record triplet: real names ${(realRate * 100).toStringAsFixed(1)}% '
-      '($realHit/$realTot) vs control ${(fakeRate * 100).toStringAsFixed(1)}% '
-      '($fakeHit/$fakeTot)',
-    );
-    expect(realTot, greaterThan(0));
-    expect(
-      realRate,
-      greaterThan(0.8),
-      reason: 'real-name triplet rate too low ($realRate)',
-    );
-    expect(
-      realRate - fakeRate,
-      greaterThan(0.25),
-      reason: 'triplet not distinguishable from control',
-    );
-  });
-
-  test(
-    'analyzeBinary matches the individual helpers (single-inflate path)',
-    () {
-      var binary = 0, checked = 0;
-      final failures = <String>[];
-      for (final f in seqs) {
-        final bytes = f.readAsBytesSync();
-        if (detectSeqFormat(bytes) != SeqFormat.binary) continue;
-        binary++;
-        final a = analyzeBinary(bytes);
-        if (a == null) {
-          failures.add('${f.path}: analyzeBinary null');
-          continue;
+        framed++;
+        totalStrings += layout.stringCount;
+        if (layout.sentinelCount > 0) withSentinels++;
+        if (layout.recordRegionLength <= 0 ||
+            layout.recordRegionLength >= layout.inflatedSize ||
+            layout.stringCount < 5) {
+          failures.add('${f.path}: $layout');
         }
-        checked++;
+        final w = layout.leadingWords;
+        if (w.length >= 3 && w[2] == 1) word2Is1++;
+        final segments = binaryStringSegments(bytes);
+        if (layout.segmentCount != segments.length || layout.segmentCount < 2) {
+          failures.add('${f.path}: ${layout.segmentCount} segments');
+        }
+
+        // Content-identified name table: carries the core model tokens, is
+        // not (usually) the largest segment, and expressions live outside it.
+        final name = binaryNameTable(bytes);
+        if (name == null) {
+          failures.add('${f.path}: no name table');
+        } else {
+          nameFound++;
+          final texts = {for (final e in name.entries) e.text};
+          if (['Step', 'Sequence', 'Locals'].any(texts.contains)) {
+            hasModelTokens++;
+          } else {
+            failures.add('${f.path}: name table lacks core model tokens');
+          }
+          if (segments.any((s) => s.entries.length > name.entries.length)) notLargest++;
+          if (segments.isNotEmpty && name.offset == segments.first.offset) isFirst++;
+          if (segments.any((s) => s.offset != name.offset && s.entries.any((e) => _isExprLike(e.text)))) {
+            valuesOutsideName++;
+          }
+
+          // Ordered pool opening with the fixed scaffold.
+          final names = [for (final e in name.entries) e.text];
+          if (names.isNotEmpty && names.first == 'SequenceFileData') {
+            rooted++;
+            if (names.length >= 2 && names[1] == 'Data') {
+              prefix2Ok++;
+            } else {
+              failures.add('${f.path}: prefix ${names.take(2).toList()} != [SequenceFileData, Data]');
+            }
+            final n = binaryNameScaffold.length;
+            if (names.length >= n && Iterable<int>.generate(n).every((i) => names[i] == binaryNameScaffold[i])) {
+              scaffold5Ok++;
+            }
+            final words = binaryRecordWords(bytes);
+            if (words.length >= 3 && words[2] == 1 && names[1] == 'Data') recordIndexesData++;
+            final objNames = binaryObjectNames(bytes);
+            if (objNames.isNotEmpty && objNames.first != 'SequenceFileData') {
+              objNamesOk++;
+            } else if (objNames.isNotEmpty) {
+              failures.add('${f.path}: scaffold prefix not dropped ($objNames)');
+            }
+          }
+
+          // Object-record triplet: real name indexes hit far above a control
+          // band of fake indexes (a real signal, not noise).
+          final nameLen = name.entries.length;
+          if (body != null && nameLen > 5) {
+            final rr = layout.recordRegionLength.clamp(0, body.length);
+            for (var idx = 5; idx < nameLen; idx++) {
+              realTot++;
+              if (tripletExists(body, rr, idx)) realHit++;
+            }
+            for (var k = 0; k < nameLen - 5; k++) {
+              fakeTot++;
+              if (tripletExists(body, rr, nameLen + 1 + k)) fakeHit++;
+            }
+          }
+        }
+      }
+
+      // analyzeBinary matches every individual helper (single-inflate path).
+      final a = analyzeBinary(bytes);
+      if (a == null) {
+        failures.add('${f.path}: analyzeBinary null');
+      } else {
+        analyzeChecked++;
         final ok =
             a.inflatedSize == (inflateBinaryBody(bytes)?.length ?? 0) &&
             a.strings.length == binaryBodyStrings(bytes).length &&
@@ -1432,64 +766,21 @@ void main() {
             a.namedRecords.length == binaryNamedRecords(bytes).length;
         if (!ok) failures.add('${f.path}: analyzeBinary != helpers');
       }
-      expect(failures, isEmpty, reason: failures.take(5).join('\n'));
-      expect(
-        checked,
-        binary,
-        reason: 'analyzeBinary failed on some binary file',
-      );
-    },
-  );
 
-  test('binaryObjectNames recovers names past the scaffold', () {
-    var binary = 0, rooted = 0, withNames = 0;
-    final failures = <String>[];
-    for (final f in seqs) {
-      final bytes = f.readAsBytesSync();
-      if (detectSeqFormat(bytes) != SeqFormat.binary) continue;
-      binary++;
-      final table = binaryNameTable(bytes);
-      final rootedHere = table != null && table.entries.isNotEmpty && table.entries.first.text == 'SequenceFileData';
-      if (!rootedHere) continue;
-      rooted++;
-      final names = binaryObjectNames(bytes);
-      if (names.isNotEmpty && names.first != 'SequenceFileData') withNames++;
-      if (names.isNotEmpty && names.first == 'SequenceFileData') {
-        failures.add('${f.path}: scaffold prefix not dropped ($names)');
-      }
-    }
-    // ignore: avoid_print
-    print(
-      'binaryObjectNames: $withNames/$rooted rooted files expose ≥1 '
-      'recovered object name (of $binary binary)',
-    );
-    expect(failures, isEmpty, reason: failures.take(5).join('\n'));
-    expect(rooted, greaterThanOrEqualTo(80));
-    expect(withNames, rooted, reason: 'a rooted file exposed no object names');
-  });
-
-  test('binary files expose call-targets, step refs, expressions, literals', () {
-    var binary = 0, withPath = 0, withId = 0, withExpr = 0, withLit = 0;
-    var totalPaths = 0, nonAsciiPaths = 0;
-    final bad = <String>[];
-    for (final f in seqs) {
-      final bytes = f.readAsBytesSync();
-      if (detectSeqFormat(bytes) != SeqFormat.binary) continue;
-      binary++;
+      // Recovered call-targets, step refs, expressions, literals: each pool
+      // entry satisfies its own predicate and never overlaps another class.
       final paths = binaryModulePaths(bytes);
       for (final p in paths) {
-        if (!isBinaryModulePath(p)) bad.add('${f.path}: path $p');
+        if (!isBinaryModulePath(p)) failures.add('${f.path}: path $p');
       }
       for (final e in binaryExpressions(bytes)) {
-        if (!isBinaryExpression(e)) bad.add('${f.path}: expr $e');
-        if (isBinaryModulePath(e) || e.startsWith('ID#:')) {
-          bad.add('${f.path}: expr overlaps path/id $e');
-        }
+        if (!isBinaryExpression(e)) failures.add('${f.path}: expr $e');
+        if (isBinaryModulePath(e) || e.startsWith('ID#:')) failures.add('${f.path}: expr overlaps path/id $e');
       }
       for (final l in binaryQuotedLiterals(bytes)) {
-        if (!isBinaryQuotedLiteral(l)) bad.add('${f.path}: lit $l');
+        if (!isBinaryQuotedLiteral(l)) failures.add('${f.path}: lit $l');
         if (isBinaryExpression(l) || isBinaryModulePath(l) || l.startsWith('ID#:')) {
-          bad.add('${f.path}: literal overlaps expr/path/id $l');
+          failures.add('${f.path}: literal overlaps expr/path/id $l');
         }
       }
       if (paths.isNotEmpty) {
@@ -1501,26 +792,57 @@ void main() {
       if (binaryExpressions(bytes).isNotEmpty) withExpr++;
       if (binaryQuotedLiterals(bytes).isNotEmpty) withLit++;
     }
-    // ignore: avoid_print
+
+    final realRate = realHit / realTot;
+    final fakeRate = fakeHit / fakeTot;
     print(
-      'binary recovered: $withPath/$binary files ≥1 module path '
-      '($totalPaths total, $nonAsciiPaths non-ASCII) · $withId/$binary ≥1 ID#: '
-      'ref · $withExpr/$binary ≥1 expression · $withLit/$binary ≥1 literal',
+      'binary recon: $binary binaries · $binaryWithSequences with sequences · $binaryStepsRecovered steps '
+      '($binaryTypedSteps typed, $binaryModuleSteps with modules) · $framed framed ($withSentinels sentinels, '
+      '$totalStrings strings) · $rooted rooted ($scaffold5Ok scaffold, $isFirst first-segment) · '
+      'triplet ${(realRate * 100).toStringAsFixed(1)}% vs control ${(fakeRate * 100).toStringAsFixed(1)}% · '
+      '$withPath with paths ($totalPaths, $nonAsciiPaths non-ASCII)',
     );
-    expect(bad, isEmpty, reason: bad.take(5).join('\n'));
-    expect(binary, greaterThanOrEqualTo(80));
-    expect(nonAsciiPaths, greaterThan(0));
-    expect(withPath, greaterThanOrEqualTo(binary ~/ 2));
-    expect(withId, greaterThanOrEqualTo((binary * 9) ~/ 10));
-    expect(withExpr, greaterThanOrEqualTo((binary * 9) ~/ 10));
-    expect(withLit, greaterThanOrEqualTo((binary * 9) ~/ 10));
+    expect(failures, isEmpty, reason: failures.take(8).join('\n'));
+
+    final pins = <(String, Object?, Object)>[
+      ('binary file count', binary, 163),
+      ('bodies inflated', withBinaryBody, 163),
+      // Partial-parse recovery floors: steps laid out before their group
+      // markers are honestly kept OUT of the typed tree — raising these is
+      // the grouping-decode roadmap, not a tuning knob.
+      ('binaries decoding ≥1 sequence', binaryWithSequences, greaterThanOrEqualTo(80)),
+      ('binary steps in the typed model', binaryStepsRecovered, greaterThanOrEqualTo(30)),
+      ('binary typed steps', binaryTypedSteps, greaterThanOrEqualTo(25)),
+      ('binary module-bound steps', binaryModuleSteps, greaterThanOrEqualTo(10)),
+      ('bodies framed', framed, binary),
+      ('leadingWords[2] == 1', word2Is1, binary),
+      ('name tables found', nameFound, binary),
+      ('name tables with core tokens', hasModelTokens, binary),
+      ('name table not the largest segment', notLargest / binary, greaterThan(0.95)),
+      ('expressions outside the name table', valuesOutsideName, binary),
+      ('pools rooted at SequenceFileData', rooted, greaterThanOrEqualTo(80)),
+      ('rooted pools opening [.., Data]', prefix2Ok, rooted),
+      ('rooted pools with the full scaffold', scaffold5Ok / rooted, greaterThan(0.95)),
+      ('record word[2] indexes name[1]==Data', recordIndexesData, rooted),
+      ('rooted files exposing object names', objNamesOk, rooted),
+      ('analyzeBinary consistency checks', analyzeChecked, binary),
+      ('triplet real-name hit rate', realRate, greaterThan(0.8)),
+      ('triplet real-vs-control separation', realRate - fakeRate, greaterThan(0.25)),
+      ('real-name triplet samples', realTot, greaterThan(0)),
+      ('files with ≥1 module path', withPath, greaterThanOrEqualTo(binary ~/ 2)),
+      ('non-ASCII module paths', nonAsciiPaths, greaterThan(0)),
+      ('files with ≥1 ID#: ref', withId, greaterThanOrEqualTo((binary * 9) ~/ 10)),
+      ('files with ≥1 expression', withExpr, greaterThanOrEqualTo((binary * 9) ~/ 10)),
+      ('files with ≥1 quoted literal', withLit, greaterThanOrEqualTo((binary * 9) ~/ 10)),
+    ];
+    for (final (label, actual, want) in pins) {
+      expect(actual, want, reason: label);
+    }
   });
 
   group('pinned corpus files (reader correctness)', () {
     File? pin(String suffix) => seqs.where((f) => f.path.replaceAll(r'\', '/').endsWith(suffix)).firstOrNull;
 
-    // Collects every array element in [p]'s tree carrying an `arrayindex`
-    // attribute (sparse-array elements keep their true index).
     void collectIndexed(SeqProperty p, List<SeqProperty> out, [int depth = 0]) {
       if (depth > 60) return;
       if (p.attributes.containsKey('arrayindex')) out.add(p);
@@ -1538,14 +860,13 @@ void main() {
       for (final t in sf.types) {
         collectIndexed(t, indexed);
       }
-      // The file stores single-element sparse arrays at index [1] (verified by
-      // raw grep: 16 `arrayindex='[1]'` wrappers corpus-wide, 4 in this file).
+      // The file stores single-element sparse arrays at index [1].
       expect(indexed.where((p) => p.attributes['arrayindex'] == '[1]'), isNotEmpty);
     });
 
     test('DBSeq.seq: nonzero %LO low bounds yield hi - lo + 1 declared lengths', () {
       final f = pin('michael-harhay-arx-CICDUtility-02c6c67/DBLog/DBSeq.seq');
-      if (f == null) return; // pinned file absent from this corpus checkout
+      if (f == null) return;
       final sf = parseSeqFile(f.readAsBytesSync());
       final sparse = <SeqProperty>[];
       void walk(SeqProperty p, [int depth = 0]) {
@@ -1557,30 +878,28 @@ void main() {
       }
 
       walk(sf.data);
-      expect(sparse, isNotEmpty, reason: 'file declares %LO: ColumnList = [1] (raw grep: 4 lines)');
+      expect(sparse, isNotEmpty, reason: 'file declares %LO: ColumnList = [1]');
       for (final p in sparse) {
         expect(p.declaredArrayLength, p.highIndices!.single - 1 + 1);
       }
-      // The known pairing: %LO = [1] with %HI = [2] is a 2-element array.
-      expect(sparse.map((p) => p.declaredArrayLength), contains(2));
+      expect(sparse.map((p) => p.declaredArrayLength), contains(2), reason: '%LO [1] with %HI [2] is 2 elements');
     });
 
     test('testXNode.seq: EXTDATA sections classify apart from the data tree', () {
       final f = pin('Media/XNode/testXNode.seq');
-      if (f == null) return; // pinned file absent from this corpus checkout
+      if (f == null) return;
       final doc = parseIniSeqBytes(f.readAsBytesSync());
       final ext = doc.extDataSections.toList();
-      expect(ext, hasLength(12)); // raw grep: 12 [EXTDATA, ...] headers
+      expect(ext, hasLength(12));
       expect(ext.map((s) => s.extDataKind).toSet(), {'STRUCT', 'CLUST', 'DNSTRUCT'});
       expect(ext.map((s) => s.path).toSet(), {'Error', 'Error.Code', 'Error.Msg', 'Error.Occurred'});
       expect(ext.every((s) => s.path.isNotEmpty && !s.path.contains(',')), isTrue);
-      // The data tree still assembles, without EXTDATA pseudo-members.
-      expect(iniDataTree(doc), isNotNull);
+      expect(iniDataTree(doc), isNotNull, reason: 'the data tree still assembles without EXTDATA pseudo-members');
     });
 
     test('TestIVIPowerSupplyReferences.seq: split [__Header__] Path reassembles', () {
       final f = pin('IVIPowerSupply/TestIVIPowerSupplyReferences.seq');
-      if (f == null) return; // pinned file absent from this corpus checkout
+      if (f == null) return;
       final doc = parseIniSeqBytes(f.readAsBytesSync());
       expect(doc.headerFields.keys.any((k) => RegExp(r' Line\d+$').hasMatch(k)), isFalse);
       expect(doc.headerFields['Path'], endsWith(r'TestIVIPowerSupplyReferences.seq"'));

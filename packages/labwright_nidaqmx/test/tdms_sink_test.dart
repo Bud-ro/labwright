@@ -1,7 +1,5 @@
-// Verifies the DAQ-stream -> TDMS bridge: chunks become segments, raw integer
-// formats are stored as their compact TdsType, and the bytes round-trip through the
-// TDMS reader. The synthetic test needs no native toolchain; the end-to-end test
-// drives a real FFI i16 stream from the C shim into TDMS.
+// DAQ-stream -> TDMS bridge: chunks become segments, raw integer formats keep
+// their compact TdsType, and the bytes round-trip through the TDMS reader.
 
 @TestOn('!windows')
 library;
@@ -16,7 +14,6 @@ import 'fake_daqmx_lib.dart';
 
 void main() {
   test('records an i16 stream as compact i16 TDMS segments that round-trip', () async {
-    // Three chunks of a continuous ramp 0..249.
     final chunks = <Int16List>[
       Int16List.fromList(List.generate(100, (i) => i)),
       Int16List.fromList(List.generate(100, (i) => 100 + i)),
@@ -29,19 +26,21 @@ void main() {
       channel: 'Dev1/ai0',
       rateHz: 1000,
     );
-
-    final file = TdmsReader.read(bytes);
-    final ch = file.group('AI')!.channel('Dev1/ai0')!;
-    expect(ch.data, List.generate(250, (i) => i.toDouble())); // segments concatenated
-    expect(ch.properties['wf_increment'], closeTo(0.001, 1e-12)); // 1/rate
+    final ch = TdmsReader.read(bytes).group('AI')!.channel('Dev1/ai0')!;
+    expect(ch.data, List.generate(250, (i) => i.toDouble()), reason: 'segments concatenate');
+    expect(ch.properties['wf_increment'], closeTo(0.001, 1e-12), reason: '1/rate');
   });
 
   test('maps every format to its compact on-disk TdsType', () {
-    expect(tdsTypeFor(DaqSampleFormat.volts), TdsType.doubleFloat);
-    expect(tdsTypeFor(DaqSampleFormat.rawI16), TdsType.i16);
-    expect(tdsTypeFor(DaqSampleFormat.rawI32), TdsType.i32);
-    expect(tdsTypeFor(DaqSampleFormat.rawU16), TdsType.u16);
-    expect(tdsTypeFor(DaqSampleFormat.rawU32), TdsType.u32);
+    const want = {
+      DaqSampleFormat.volts: TdsType.doubleFloat,
+      DaqSampleFormat.rawI16: TdsType.i16,
+      DaqSampleFormat.rawI32: TdsType.i32,
+      DaqSampleFormat.rawU16: TdsType.u16,
+      DaqSampleFormat.rawU32: TdsType.u32,
+    };
+    expect(want.keys.toSet(), DaqSampleFormat.values.toSet(), reason: 'every format has a row');
+    want.forEach((format, type) => expect(tdsTypeFor(format), type, reason: '$format'));
   });
 
   group('end-to-end: FFI shim stream -> TDMS', () {
@@ -58,7 +57,6 @@ void main() {
         rateHz: 5000,
       );
       await daq.close();
-
       final ch = TdmsReader.read(bytes).group('AI')!.channel('ai0')!;
       expect(ch.data, List.generate(200, (i) => i.toDouble()));
       expect(ch.properties['wf_increment'], closeTo(1 / 5000, 1e-12));

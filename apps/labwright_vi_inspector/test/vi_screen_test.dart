@@ -1,24 +1,33 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:labwright_vi_inspector/src/vi_demo.dart';
 import 'package:labwright_vi_inspector/src/vi_screen.dart';
-import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
+
+Future<void> _pump(WidgetTester tester, Widget home) async {
+  tester.view.physicalSize = const Size(1000, 2000);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.reset);
+  await tester.pumpWidget(MaterialApp(home: home));
+}
+
+ViSummary _summary(List<String> blocks, String name) => ViSummary(
+  fileType: 'LVIN',
+  creator: 'LBVW',
+  formatVersion: 3,
+  blocks: blocks,
+  name: name,
+);
 
 void main() {
   testWidgets('starts empty, loads the demo VI, and shows its details', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(1000, 2000);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.reset);
-
-    await tester.pumpWidget(const MaterialApp(home: ViInspectorScreen()));
-
+    await _pump(tester, const ViInspectorScreen());
     expect(find.textContaining('Drag a .vi here'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('demo')));
     await tester.pump();
-
     expect(find.text('demo.vi'), findsOneWidget);
     expect(find.text('Block diagram (logic)'), findsOneWidget);
     expect(find.text('BDHb'), findsOneWidget);
@@ -28,46 +37,34 @@ void main() {
   testWidgets('shows decoded version/title and a searchable string list', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(1000, 2000);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.reset);
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: ViInspectorScreen(
-          initial: ViSummary(
-            fileType: 'LVIN',
-            creator: 'LBVW',
-            formatVersion: 3,
-            blocks: const ['BDHb', 'vers'],
-            name: 'My VI.vi',
-          ),
-          initialSource: 'test',
-          initialVersion: const ViVersionInfo(
-            version: '10.0',
-            title: 'My Example',
-          ),
-          initialStrings: const ['Conversion time', 'error out', 'Range Volts'],
-          initialComponents: const [
-            BlockComponent(
-              tag: 'BDEx',
-              sectionCount: 1,
-              rawBytes: 5000,
-              decompressedBytes: 78000,
-              compressed: true,
-            ),
-            BlockComponent(
-              tag: 'FPHb',
-              sectionCount: 1,
-              rawBytes: 1200,
-              decompressedBytes: 1200,
-              compressed: false,
-            ),
-          ],
+    await _pump(
+      tester,
+      ViInspectorScreen(
+        initial: _summary(const ['BDHb', 'vers'], 'My VI.vi'),
+        initialSource: 'test',
+        initialVersion: const ViVersionInfo(
+          version: '10.0',
+          title: 'My Example',
         ),
+        initialStrings: const ['Conversion time', 'error out', 'Range Volts'],
+        initialComponents: const [
+          BlockComponent(
+            tag: 'BDEx',
+            sectionCount: 1,
+            rawBytes: 5000,
+            decompressedBytes: 78000,
+            compressed: true,
+          ),
+          BlockComponent(
+            tag: 'FPHb',
+            sectionCount: 1,
+            rawBytes: 1200,
+            decompressedBytes: 1200,
+            compressed: false,
+          ),
+        ],
       ),
     );
-
     expect(find.text('LabVIEW version'), findsOneWidget);
     expect(find.text('10.0'), findsOneWidget);
     expect(find.text('My Example'), findsOneWidget);
@@ -76,7 +73,6 @@ void main() {
     expect(find.text('Components (by decompressed size)'), findsOneWidget);
     expect(find.text('BDEx'), findsOneWidget);
     expect(find.textContaining('76.2 KB'), findsWidgets);
-
     expect(find.text('Block inventory (by category)'), findsOneWidget);
     expect(find.text('recordHeap'), findsOneWidget);
     expect(find.textContaining('Front-panel heap'), findsOneWidget);
@@ -90,31 +86,19 @@ void main() {
   testWidgets('surfaces owning library (LIBN) and embedded sub-VIs (VINS)', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(1000, 2000);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.reset);
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: ViInspectorScreen(
-          initial: ViSummary(
-            fileType: 'LVIN',
-            creator: 'LBVW',
-            formatVersion: 3,
-            blocks: const ['LIBN', 'VINS'],
-            name: 'Library Member.vi',
-          ),
-          initialSource: 'test',
-          initialLibraryNames: const ['MQTT Server.lvlib'],
-          initialEmbeddedVis: [
-            ViEmbeddedVi(name: 'abc12345-0000.vi', sizeBytes: 10170),
-            ViEmbeddedVi(name: 'UMLEditor Main .vi', sizeBytes: 25638),
-            ViEmbeddedVi(name: null, sizeBytes: 1234),
-          ],
-        ),
+    await _pump(
+      tester,
+      ViInspectorScreen(
+        initial: _summary(const ['LIBN', 'VINS'], 'Library Member.vi'),
+        initialSource: 'test',
+        initialLibraryNames: const ['MQTT Server.lvlib'],
+        initialEmbeddedVis: [
+          ViEmbeddedVi(name: 'abc12345-0000.vi', sizeBytes: 10170),
+          ViEmbeddedVi(name: 'UMLEditor Main .vi', sizeBytes: 25638),
+          ViEmbeddedVi(name: null, sizeBytes: 1234),
+        ],
       ),
     );
-
     expect(find.text('Owning library'), findsOneWidget);
     expect(find.text('MQTT Server.lvlib'), findsOneWidget);
     expect(find.text('Embedded VIs (3)'), findsOneWidget);
@@ -125,39 +109,26 @@ void main() {
   testWidgets('tapping an embedded sub-VI opens it in the inspector', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(1000, 2000);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.reset);
-
     final nested = demoViBytes(name: 'NestedDemo.vi');
-    await tester.pumpWidget(
-      MaterialApp(
-        home: ViInspectorScreen(
-          initial: ViSummary(
-            fileType: 'LVIN',
-            creator: 'LBVW',
-            formatVersion: 3,
-            blocks: const ['VINS'],
-            name: 'Outer.vi',
+    await _pump(
+      tester,
+      ViInspectorScreen(
+        initial: _summary(const ['VINS'], 'Outer.vi'),
+        initialSource: 'test',
+        initialEmbeddedVis: [
+          ViEmbeddedVi(
+            name: 'inner.vi',
+            sizeBytes: nested.length,
+            bytes: nested,
           ),
-          initialSource: 'test',
-          initialEmbeddedVis: [
-            ViEmbeddedVi(
-              name: 'inner.vi',
-              sizeBytes: nested.length,
-              bytes: nested,
-            ),
-          ],
-        ),
+        ],
       ),
     );
-
     expect(find.text('Embedded VIs (1)'), findsOneWidget);
     expect(find.text('inner.vi'), findsOneWidget);
 
     await tester.tap(find.text('inner.vi'));
     await tester.pump();
-
     expect(find.textContaining('embedded: inner.vi'), findsOneWidget);
     expect(find.text('NestedDemo.vi'), findsWidgets);
   });
@@ -166,11 +137,9 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(const MaterialApp(home: ViInspectorScreen()));
-
     await tester.enterText(find.byKey(const Key('path')), '/no/such/file.vi');
     await tester.tap(find.byKey(const Key('open')));
     await tester.pump();
-
     expect(find.textContaining('No such file'), findsOneWidget);
   });
 }

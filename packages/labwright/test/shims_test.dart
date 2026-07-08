@@ -1,21 +1,18 @@
+// The compatibility-shim contract exported sequence programs rely on: engine
+// built-ins with pinned semantics, always-throwing eval/cond (the honesty
+// contract), and PropObj's engine-object surface via dynamic dispatch.
 import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 import 'package:test/test.dart';
 
-/// The compatibility-shim contract exported sequence programs rely on:
-/// engine built-ins with pinned semantics, always-throwing [ts.eval]/
-/// [ts.cond] (the honesty contract), and [ts.PropObj]'s engine-object
-/// surface via dynamic dispatch.
 void main() {
   test('eval and cond always throw, naming the expression', () {
-    expect(
-      () => ts.eval('RunState.Foo'),
-      throwsA(isA<UnimplementedError>().having((e) => e.message, 'message', contains('RunState.Foo'))),
-    );
-    expect(
-      () => ts.cond('Locals.X > 1'),
-      throwsA(isA<UnimplementedError>().having((e) => e.message, 'message', contains('Locals.X > 1'))),
-    );
+    for (final (Function fn, expr) in [(ts.eval, 'RunState.Foo'), (ts.cond, 'Locals.X > 1')]) {
+      expect(
+        () => fn(expr),
+        throwsA(isA<UnimplementedError>().having((e) => e.message, 'message', contains(expr))),
+      );
+    }
   });
 
   test('truthy: engine boolean coercion where pinned, loud elsewhere', () {
@@ -25,20 +22,28 @@ void main() {
     expect(() => ts.truthy('yes'), throwsUnimplementedError);
   });
 
-  test('string built-ins: Len/Str/Left/Right/Mid/Find', () {
-    expect(ts.len('abcd'), 4.0);
-    expect(ts.len([1, 2, 3]), 3.0);
-    expect(ts.str(3.0), '3');
-    expect(ts.str(2.5), '2.5');
-    expect(ts.left('sequence', 3), 'seq');
-    expect(ts.right('sequence', 4), 'ence');
-    expect(ts.left('ab', 99), 'ab', reason: 'counts clamp');
-    expect(ts.mid('sequence', 3, 2), 'ue');
-    expect(ts.find('sequence', 'que'), 2.0);
-    expect(ts.find('sequence', 'zzz'), -1.0);
+  test('string built-ins pin engine semantics: Len/Str/Left/Right/Mid/Find', () {
+    // dart format off
+    final rows = <(String, Object?, Object?)>[
+      ('Len(str)', ts.len('abcd'), 4.0),
+      ('Len(array)', ts.len([1, 2, 3]), 3.0),
+      ('Str(3.0) drops .0', ts.str(3.0), '3'),
+      ('Str(2.5)', ts.str(2.5), '2.5'),
+      ('Left', ts.left('sequence', 3), 'seq'),
+      ('Left clamps', ts.left('ab', 99), 'ab'),
+      ('Right', ts.right('sequence', 4), 'ence'),
+      ('Right clamps', ts.right('ab', 99), 'ab'),
+      ('Mid', ts.mid('sequence', 3, 2), 'ue'),
+      ('Find hit', ts.find('sequence', 'que'), 2.0),
+      ('Find miss', ts.find('sequence', 'zzz'), -1.0),
+    ];
+    // dart format on
+    for (final (name, got, want) in rows) {
+      expect(got, want, reason: name);
+    }
   });
 
-  test('array built-ins: GetNumElements/SetNumElements', () {
+  test('array built-ins: GetNumElements/SetNumElements grow with null, shrink', () {
     final list = <dynamic>[1, 2, 3];
     expect(ts.getNumElements(list), 3.0);
     ts.setNumElements(list, 5);
@@ -53,8 +58,7 @@ void main() {
       'A': 1.0,
       'B': ts.PropObj({'C': true}),
     });
-    final names = [for (final dynamic e in ts.iterate(bag)) e.Name];
-    expect(names, ['A', 'B']);
+    expect([for (final dynamic e in ts.iterate(bag)) e.Name], ['A', 'B']);
   });
 
   test('PropObj: case-insensitive member get/set via dynamic dispatch', () {
@@ -89,8 +93,7 @@ void main() {
 
   test('lw.rand: bounded draws; ts.rand mirrors for plain exports', () {
     for (var i = 0; i < 100; i++) {
-      final v = lw.rand(2, 4);
-      expect(v, inInclusiveRange(2, 4));
+      expect(lw.rand(2, 4), inInclusiveRange(2, 4));
       expect(ts.rand(), inInclusiveRange(0, 1));
     }
     // Unseeded here (lw.seed == 0): the stream must still advance.

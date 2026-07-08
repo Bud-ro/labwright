@@ -1,7 +1,5 @@
-// Runtime-free tests: these do NOT require NI-DAQmx, a gRPC server, or any hardware,
-// so they pass in CI and on dev boxes. The gRPC wire path is covered separately in
-// grpc_backend_test.dart against an in-process fake server.
-
+// Runtime-free tests: no NI-DAQmx, gRPC server, or hardware required. The gRPC
+// wire path is covered in grpc_backend_test.dart against an in-process fake.
 import 'dart:io' show Platform;
 
 import 'package:labwright_nidaqmx/labwright_nidaqmx.dart';
@@ -9,30 +7,26 @@ import 'package:logging/logging.dart';
 import 'package:test/test.dart';
 
 void main() {
-  group('DaqmxVal constants match the documented NI-DAQmx C API', () {
-    test('values', () {
-      // Same canonical DAQmx_Val_* integers the qdaq backend uses — a typo here
-      // would silently misconfigure real hardware.
-      expect(DaqmxVal.cfgDefault, -1);
-      expect(DaqmxVal.rse, 10083);
-      expect(DaqmxVal.nrse, 10078);
-      expect(DaqmxVal.diff, 10106);
-      expect(DaqmxVal.pseudoDiff, 12529);
-      expect(DaqmxVal.volts, 10348);
-      expect(DaqmxVal.rising, 10280);
-      expect(DaqmxVal.falling, 10171);
-      expect(DaqmxVal.finiteSamps, 10178);
-      expect(DaqmxVal.contSamps, 10123);
-      expect(DaqmxVal.groupByChannel, 0);
-      expect(DaqmxVal.groupByScanNumber, 1);
-    });
+  test('DaqmxVal constants match the documented NI-DAQmx C API values', () {
+    // A typo here would silently misconfigure real hardware.
+    // dart format off
+    const vals = <(String, int, int)>[
+      ('cfgDefault', DaqmxVal.cfgDefault, -1), ('rse', DaqmxVal.rse, 10083), ('nrse', DaqmxVal.nrse, 10078),
+      ('diff', DaqmxVal.diff, 10106), ('pseudoDiff', DaqmxVal.pseudoDiff, 12529), ('volts', DaqmxVal.volts, 10348),
+      ('rising', DaqmxVal.rising, 10280), ('falling', DaqmxVal.falling, 10171),
+      ('finiteSamps', DaqmxVal.finiteSamps, 10178), ('contSamps', DaqmxVal.contSamps, 10123),
+      ('groupByChannel', DaqmxVal.groupByChannel, 0), ('groupByScanNumber', DaqmxVal.groupByScanNumber, 1),
+      ('boolTrue', DaqmxVal.boolTrue, 1), ('boolFalse', DaqmxVal.boolFalse, 0),
+    ];
+    // dart format on
+    for (final (name, got, want) in vals) {
+      expect(got, want, reason: name);
+    }
   });
 
   group('Daqmx.local() — transport selection', () {
     test('macOS has no local transport; elsewhere it yields the FFI backend', () {
       if (Platform.isMacOS) {
-        // There is no local NI-DAQmx runtime on macOS, so a local connection is
-        // impossible by construction — callers must use Daqmx.remote(...).
         expect(Daqmx.local, throwsA(isA<UnsupportedError>()));
       } else {
         expect(Daqmx.local(), isA<FfiDaqmxBackend>());
@@ -42,13 +36,10 @@ void main() {
     test('construction is lazy — the runtime is only needed on first call', () async {
       if (Platform.isMacOS) return; // covered above
       final daq = Daqmx.local(); // must not throw even with no runtime installed
-      // First real call either succeeds (runtime present) or fails cleanly with
-      // DaqmxUnavailable — never an opaque crash.
       try {
-        final names = await daq.deviceNames();
-        expect(names, isA<List<String>>());
+        expect(await daq.deviceNames(), isA<List<String>>());
       } on DaqmxUnavailable catch (e) {
-        expect(e.message, isNotEmpty);
+        expect(e.message, isNotEmpty, reason: 'no runtime fails cleanly, never an opaque crash');
       }
       await daq.close();
     }, testOn: '!browser');
@@ -76,8 +67,7 @@ void main() {
     });
 
     test('secure: true is carried onto the backend', () {
-      final daq = Daqmx.remote(host: 'localhost', secure: true) as GrpcDaqmxBackend;
-      expect(daq.secure, isTrue);
+      expect((Daqmx.remote(host: 'localhost', secure: true) as GrpcDaqmxBackend).secure, isTrue);
     });
   });
 
@@ -90,7 +80,6 @@ void main() {
     });
 
     test('the package never installs handlers or sets levels (host owns config)', () {
-      // A library that configures logging fights its host. We only create loggers.
       expect(DaqLoggers.root.level, Logger.root.level);
     });
   });
