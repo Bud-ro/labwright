@@ -18,21 +18,33 @@
 /// payloads stay copy-verbatim. Only payloads whose *stored* bytes equal a
 /// decoder's re-serialization are model-sourced.
 ///
-/// Covered blocks (byte-exact for every corpus instance):
+/// Covered blocks:
 ///   * `icl8` / `icl4` / `ICON` — legacy 32×32 icon bitmaps ([ViLegacyIcon]).
 ///   * `NUID` / `SUID` / `BNID` — `[u32 count][u32…]` id tables ([ViIdTable]).
+///   * `vers` — version block ([ViVersBlock]); every corpus instance.
+///   * `VITS` — VI tag store ([ViTagStore]); the sections whose entry walk
+///     consumes the whole body (the flat `[nameLen][name][payloadLen][payload]`
+///     grammar). Sections carrying a nested per-entry interior (notably the
+///     `NI_IconEditor` editor-state entry) do not re-serialize and stay copied.
+///   * `DTHP` — data-type heap ([ViDataTypeHeap]); the 4-byte header-only form.
+///   * `CONP` / `CPC2` — connector-pane index ([ViConnectorPane]); the 2-byte
+///     index form (the inline form stays copied).
 library;
 
 import 'dart:typed_data';
 
+import 'connector_pane.dart';
+import 'data_type_heap.dart';
 import 'id_table.dart';
 import 'legacy_icon.dart';
+import 'tag_store.dart';
+import 'version_word.dart';
 
 /// Whether [tag] has a byte-exact payload writer registered (i.e. its decoded
 /// model can re-emit the stored payload). Independent of any specific payload —
 /// use it to census which block types are model-sourceable.
 bool hasBlockWriter(String tag) => switch (tag) {
-  'icl8' || 'icl4' || 'ICON' || 'NUID' || 'SUID' || 'BNID' => true,
+  'icl8' || 'icl4' || 'ICON' || 'NUID' || 'SUID' || 'BNID' || 'vers' || 'VITS' || 'DTHP' || 'CONP' || 'CPC2' => true,
   _ => false,
 };
 
@@ -46,6 +58,10 @@ Uint8List? serializeBlockPayload(String tag, Uint8List payload) {
   final out = switch (tag) {
     'icl8' || 'icl4' || 'ICON' => decodeLegacyIcon(payload, legacyIconBpp(tag)!)?.serialize(),
     'NUID' || 'SUID' || 'BNID' => decodeIdTable(payload)?.serialize(),
+    'vers' => decodeVersBlock(payload)?.serialize(),
+    'VITS' => decodeTagStore(payload)?.serialize(),
+    'DTHP' => decodeDataTypeHeap(payload)?.serialize(),
+    'CONP' || 'CPC2' => decodeConnectorPane(payload)?.serialize(),
     _ => null,
   };
   if (out == null || out.length != payload.length) return null;

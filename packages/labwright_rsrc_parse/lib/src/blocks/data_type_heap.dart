@@ -47,6 +47,20 @@ class ViDataTypeHeap {
 
   /// Confidence in the 4-byte header *framing* (corpus: 99.45%).
   static const BlockConfidence framingConfidence = BlockConfidence.confirmed;
+
+  /// Re-emits the `[u16 field0][u16 field1]` header — the inverse of
+  /// [decodeDataTypeHeap] for the dominant 4-byte header-only form, which it
+  /// reproduces byte-exactly. The rare [isExtended] form carries an undecoded
+  /// named-item table after the header, so this emits only the 4-byte header;
+  /// it is shorter than the input there and the writer's round-trip guard keeps
+  /// such a section copied (see `serializeBlockPayload`).
+  Uint8List serialize() {
+    final out = Uint8List(4);
+    final bd = ByteData.sublistView(out);
+    bd.setUint16(0, field0);
+    bd.setUint16(2, field1);
+    return out;
+  }
 }
 
 /// Decodes a `DTHP` body. Null when too short for the header.

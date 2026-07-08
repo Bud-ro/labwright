@@ -43,6 +43,18 @@ class ViConnectorPane {
   /// True for the rare older ≥28-byte layout that stores the descriptor inline
   /// instead of as a pool index. Its internal structure is not yet decoded.
   final bool isInline;
+
+  /// Re-emits the 2-byte big-endian [typeIndex] — the inverse of
+  /// [decodeConnectorPane] for the common index form, which it reproduces
+  /// byte-exactly. Null for the [isInline] form (its interior is not decoded),
+  /// so the writer keeps that section copied (see `serializeBlockPayload`).
+  Uint8List? serialize() {
+    final index = typeIndex;
+    if (isInline || index == null) return null;
+    final out = Uint8List(2);
+    ByteData.sublistView(out).setUint16(0, index);
+    return out;
+  }
 }
 
 /// Decodes a `CONP`/`CPC2` block body. Total: returns null on an empty buffer.

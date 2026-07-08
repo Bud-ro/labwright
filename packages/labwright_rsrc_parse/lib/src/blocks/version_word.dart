@@ -68,7 +68,88 @@ ViVersionWord? decodeVersionWord(Uint8List bytes) {
 /// (`vers` is uncompressed, so raw [ViSection] bytes suffice.)
 ViVersionWord? versionWordFromSections(Iterable<ViSection> sections) {
   for (final section in sections) {
-    if (section.tag == 'vers') return decodeVersionWord(section.bytes);
+    if (section.tag == 'vers') return decodeVersBlock(section.bytes)?.versionWord;
   }
   return null;
+}
+
+/// A decoded `vers` block body.
+///
+/// Layout (corpus-confirmed, accounts for every byte of every corpus `vers`):
+/// `[u32 version word][u16 flags][Pascal versionText][Pascal infoText]`, where a
+/// Pascal string is `[u8 len][len bytes]`. The block length equals
+/// `8 + versionText.length + infoText.length`. `versionText` is the ASCII
+/// version (`"16.0"`, `"13.0.1"`); `infoText` is a usually-empty descriptive
+/// string (e.g. `"Oldest compatible LabVIEW."`). The [flags] u16 is `0` across
+/// the corpus; its meaning is not decoded.
+class ViVersBlock {
+  const ViVersBlock({
+    required this.rawLength,
+    required this.versionWordBytes,
+    required this.flags,
+    required this.versionText,
+    required this.infoText,
+  });
+
+  /// The block length in bytes.
+  final int rawLength;
+
+  /// The raw 4 bytes of the version word `@0`, re-emitted verbatim (so the
+  /// re-serialization is exact regardless of the BCD interpretation).
+  final Uint8List versionWordBytes;
+
+  /// The decoded version word (`@0`).
+  ViVersionWord get versionWord => decodeVersionWord(versionWordBytes)!;
+
+  /// The `u16 @4` field (`0` across the corpus; meaning not decoded).
+  final int flags;
+
+  /// The ASCII version string (Pascal-encoded `@6`), e.g. `"16.0"`.
+  final String versionText;
+
+  /// The trailing Pascal string, usually empty; e.g. `"Oldest compatible
+  /// LabVIEW."`.
+  final String infoText;
+
+  /// Re-emits `[version word][u16 flags][Pascal versionText][Pascal infoText]`
+  /// — the exact inverse of [decodeVersBlock]. Byte-identical to the parsed
+  /// body for every corpus `vers`.
+  Uint8List serialize() {
+    final t = versionText.codeUnits;
+    final i = infoText.codeUnits;
+    final out = Uint8List(8 + t.length + i.length);
+    final bd = ByteData.sublistView(out);
+    out.setRange(0, 4, versionWordBytes);
+    bd.setUint16(4, flags);
+    out[6] = t.length;
+    out.setRange(7, 7 + t.length, t);
+    out[7 + t.length] = i.length;
+    out.setRange(8 + t.length, 8 + t.length + i.length, i);
+    return out;
+  }
+}
+
+/// Decodes a `vers` block body ([ViVersBlock]); null when the bytes do not fit
+/// the `[u32][u16][Pascal][Pascal]` grammar exactly (too short, a Pascal length
+/// overruns, or trailing bytes remain past the second string). Total.
+ViVersBlock? decodeVersBlock(Uint8List bytes) {
+  if (bytes.length < 8) return null;
+  final view = ByteData.sublistView(bytes);
+  final flags = view.getUint16(4);
+  final len1 = bytes[6];
+  final pos = 7 + len1;
+  if (pos >= bytes.length) return null;
+  final versionText = String.fromCharCodes(bytes, 7, pos);
+  final len2 = bytes[pos];
+  final infoStart = pos + 1;
+  final end = infoStart + len2;
+  if (end != bytes.length) return null;
+  final infoText = String.fromCharCodes(bytes, infoStart, end);
+  return ViVersBlock(
+    rawLength: bytes.length,
+    versionWordBytes: Uint8List.sublistView(bytes, 0, 4),
+    flags: flags,
+    versionText: versionText,
+    infoText: infoText,
+  );
 }

@@ -65,7 +65,7 @@ class WriterAttribution {
 
   // --- copied categories ---
   /// TODO-raw info-area struct spans (subheader `reservedA`/`reservedB`,
-  /// name-table header) — named but not yet decoded, kept verbatim.
+  /// name-table header) — named but not decoded, kept verbatim.
   final int infoRawBytes;
 
   /// Data-area padding gaps between/around sections.
@@ -74,7 +74,7 @@ class WriterAttribution {
   /// Compressed (zlib heap) payloads — the permanent copy-verbatim floor.
   final int compressedPayloadBytes;
 
-  /// Uncompressed payloads with no byte-exact block writer yet (the frontier).
+  /// Uncompressed payloads with no byte-exact block writer.
   final int untypedPayloadBytes;
 
   /// Bytes emitted from a typed, understood field.
