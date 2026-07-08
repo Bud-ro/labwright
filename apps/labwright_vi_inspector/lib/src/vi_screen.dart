@@ -6,6 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
+import 'coverage_view.dart';
 import 'diagram_view.dart';
 import 'hex_view.dart';
 import 'types_view.dart';
@@ -26,6 +27,7 @@ class ViInspectorScreen extends StatefulWidget {
     this.initialModel,
     this.initialLibraryNames,
     this.initialEmbeddedVis,
+    this.initialAttribution,
   });
 
   /// Optional summary to show on first build (used by tests).
@@ -52,6 +54,9 @@ class ViInspectorScreen extends StatefulWidget {
   /// Optional embedded sub-VIs (from VINS) to show on first build (tests).
   final List<ViEmbeddedVi>? initialEmbeddedVis;
 
+  /// Optional writer byte-attribution to show on first build (tests).
+  final WriterAttribution? initialAttribution;
+
   @override
   State<ViInspectorScreen> createState() => _ViInspectorScreenState();
 }
@@ -69,6 +74,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
   List<DecodedSection> _sections = const [];
   List<String> _libraryNames = const [];
   List<ViEmbeddedVi> _embeddedVis = const [];
+  WriterAttribution? _attribution;
 
   @override
   void initState() {
@@ -81,6 +87,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
     _model = widget.initialModel;
     _libraryNames = widget.initialLibraryNames ?? const [];
     _embeddedVis = widget.initialEmbeddedVis ?? const [];
+    _attribution = widget.initialAttribution;
   }
 
   @override
@@ -100,6 +107,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
     var sections = const <DecodedSection>[];
     var libraryNames = const <String>[];
     var embeddedVis = const <ViEmbeddedVi>[];
+    WriterAttribution? attribution;
     if (load.isOk) {
       try {
         sections = decodeSections(bytes);
@@ -116,6 +124,13 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
         sections = const [];
         model = null;
       }
+      // Byte attribution is independent of heap decode; compute it separately so
+      // a heap-decode failure still leaves the writer-fidelity view populated.
+      try {
+        attribution = attributeVi(bytes);
+      } catch (_) {
+        attribution = null;
+      }
     }
     setState(() {
       _summary = load.summary;
@@ -128,6 +143,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
       _sections = sections;
       _libraryNames = libraryNames;
       _embeddedVis = embeddedVis;
+      _attribution = attribution;
     });
   }
 
@@ -249,7 +265,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                       : _summary == null
                       ? _Empty(dragging: _dragging)
                       : DefaultTabController(
-                          length: 4,
+                          length: 5,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
@@ -260,6 +276,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                                   Tab(text: 'Front Panel'),
                                   Tab(text: 'Block Diagram'),
                                   Tab(text: 'Types'),
+                                  Tab(text: 'Coverage'),
                                 ],
                               ),
                               const SizedBox(height: 8),
@@ -316,6 +333,12 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                                     ViTypesView(
                                       key: ValueKey('types:$_model'),
                                       model: _model,
+                                    ),
+                                    ViCoverageView(
+                                      key: ValueKey(
+                                        'cov:${_attribution?.fileLength}',
+                                      ),
+                                      attribution: _attribution,
                                     ),
                                   ],
                                 ),

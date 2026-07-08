@@ -45,6 +45,49 @@ void main() {
     expect(find.text('Locals.x == 1'), findsOneWidget);
   });
 
+  testWidgets('BinaryView surfaces the decode-coverage tiers when given them', (
+    tester,
+  ) async {
+    const doc = BinarySeqDocument(
+      header: SeqFileHeader(format: SeqFormat.binary),
+      inflatedSize: 1000,
+      strings: [],
+      stringTable: [],
+    );
+    // body 1000 = pool 400 + record region 600 (semantic 300, structural 100,
+    // so undecoded 200). Record region: 50% decoded, 66.7% accounted.
+    const cov = BinaryByteCoverage(
+      bodyBytes: 1000,
+      poolBytes: 400,
+      recordSemanticBytes: 300,
+      recordStructuralBytes: 100,
+    );
+    await pump(tester, const BinaryView(doc: doc, coverage: cov));
+    expect(find.text('Binary body coverage'), findsOneWidget);
+    expect(
+      find.textContaining('record · semantic  300 B · 30.0%'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('record · undecoded  200 B · 20.0%'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('50.0% decoded'), findsOneWidget);
+  });
+
+  testWidgets('BinaryView omits the coverage panel when coverage is null', (
+    tester,
+  ) async {
+    const doc = BinarySeqDocument(
+      header: SeqFileHeader(format: SeqFormat.binary),
+      inflatedSize: 0,
+      strings: [],
+      stringTable: [],
+    );
+    await pump(tester, const BinaryView(doc: doc));
+    expect(find.text('Binary body coverage'), findsNothing);
+  });
+
   testWidgets('PropertiesView marks %INSTOVRD nodes; plain nodes unmarked', (
     tester,
   ) async {

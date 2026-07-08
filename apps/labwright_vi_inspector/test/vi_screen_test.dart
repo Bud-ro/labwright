@@ -34,6 +34,19 @@ void main() {
     expect(find.textContaining('Read-only viewer'), findsOneWidget);
   });
 
+  testWidgets('the Coverage tab surfaces writer fidelity for the demo VI', (
+    tester,
+  ) async {
+    await _pump(tester, const ViInspectorScreen());
+    await tester.tap(find.byKey(const Key('demo')));
+    await tester.pump();
+    await tester.tap(find.text('Coverage'));
+    await tester.pumpAndSettle();
+    expect(find.text('Writer fidelity'), findsOneWidget);
+    expect(find.text('Content model'), findsOneWidget);
+    expect(find.text('Round-trip'), findsOneWidget);
+  });
+
   testWidgets('shows decoded version/title and a searchable string list', (
     tester,
   ) async {
