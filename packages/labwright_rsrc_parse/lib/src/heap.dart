@@ -363,7 +363,7 @@ enum AttrConfidence {
 ///
 /// Each entry documents its [kind], assigned name, [confidence], and the
 /// corpus evidence (measured over the 7,524-VI corpus by
-/// `tool/probe_tag_census.dart` / `tool/probe_tag_verify.dart` unless noted).
+/// `tool/probe_tag_census.dart` unless noted).
 /// A tag not catalogued maps to [HeapAttribute.unknown]; resolve a raw tag id
 /// with [HeapAttribute.fromRaw] and decode a record with [decodeHeapAttr].
 ///
@@ -420,7 +420,7 @@ enum HeapAttribute {
 
   /// Raw `0x0AF` — **master part id** (`u8`/`u16`; matches OF__masterPart):
   /// the [partRole] value of the part this part is slaved to. Corpus evidence
-  /// (`tool/probe_tag_verify.dart`, 918,340 records): values live in the
+  /// (corpus-wide, 918,340 records): values live in the
   /// partRole value space (9/28/21/8010/30…), scope is the part classes
   /// (label/cosm/multiCosm 85%+), and for **97.29%** an object in the same
   /// parent scope carries a [partRole] equal to the value (own-object equality
@@ -607,7 +607,7 @@ enum HeapAttribute {
   /// not colours); on select structures at u8 it is a small index (0..3,
   /// consistent with OF__activeDiag). [heapDecodeTier] counts only the
   /// cosm-scoped u32 form as a decoded colour; the narrow/label forms stay
-  /// value-kind-only. (`tool/probe_tag_verify2.dart`.)
+  /// value-kind-only.
   cosmFgColor(0x020, HeapAttrKind.color, 'cosmFgColor', AttrConfidence.inferred),
 
   /// Raw `0x021` — **class-polymorphic** like [cosmFgColor] (pylabview tag 2):
@@ -642,7 +642,7 @@ enum HeapAttribute {
   /// Raw `0x022` — **short label text** (pylabview textHair tag 3 = text):
   /// scope label `0x0A` at 79.7%; the integer widths carry the text BYTES
   /// magnitude-encoded ("y", "x", "Page", "Name" — 95.3% of nonzero values
-  /// decode as all-printable ASCII, `tool/probe_tag_verify2.dart`; 0 = empty).
+  /// decode as all-printable ASCII; 0 = empty).
   /// [decodeHeapAttr] exposes the printable ones as strings and leaves the
   /// rest numeric. Long captions ride the `C4 22` opcode ([HeapOpcode.caption],
   /// same tag, lp width). Distinct from raw `0x222` ([stdNumInc]).
@@ -656,7 +656,7 @@ enum HeapAttribute {
   /// Raw `0x158` — **terminal-list length** (`u8`; matches
   /// OF__termListLength): scope fPDCO `0x12` at 99.98%, and the value equals
   /// the enclosing object's direct child-object count at **97.56%**
-  /// (40,644/41,660, `tool/probe_tag_verify.dart`) — a structural identity.
+  /// (40,644/41,660) — a structural identity.
   termListLength(0x158, HeapAttrKind.ordinal, 'termListLength', AttrConfidence.confirmed),
 
   /// Raw `0x044` — **connector-pane terminal number** (`u8`; matches
@@ -1788,8 +1788,7 @@ HeapPropertyValue? decodeHeapPropertyToken(Uint8List body, int offset) {
 /// a typed link from the current object to another object (by id); the 10-bit
 /// raw tag id `((lead & 3) << 8) | sub` selects the *relationship*.
 ///
-/// Corpus-validated resolve rates (`tool/probe_tag_verify.dart` /
-/// `probe_tag_verify2.dart`): [childRef]/[ownerRef] ~100% in the same heap;
+/// Corpus-validated resolve rates: [childRef]/[ownerRef] ~100% in the same heap;
 /// [dcoRef] 90.1% same heap + 9.8% in the sibling heap (≈100% total — BD
 /// terminals referencing FP DCOs cross the heap boundary); [ddoRef] **100%
 /// (2,048/2,048) in the sibling heap** (0% same heap — it links a BD node to
@@ -2124,7 +2123,7 @@ HeapTierTotals measureHeapTiers(Uint8List body, String sectionTag) {
 /// - `24` → 3 bytes; `44` → 4 bytes; `64` → 5 bytes. (An earlier `64 cb 26`→3
 ///   special case was refuted corpus-wide: under it only 42.7% of affected
 ///   sections stay open/close-balanced at EOF, vs 99.95% with the uniform
-///   5-byte reading — `tool/probe_tag_census.dart`/`probe_tag_verify.dart`.)
+///   5-byte reading — `tool/probe_tag_census.dart`.)
 /// - `02` (with `FE`) — fixed 7 bytes.
 /// - `25` — a fixed **3-byte** record (the `25 2d` form is NOT a counted list).
 /// - attribute nibble-family (opcode low nibble in {4,5,6}): the high nibble sets

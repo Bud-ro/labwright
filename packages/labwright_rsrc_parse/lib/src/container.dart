@@ -89,6 +89,21 @@ class ViHeader {
     );
   }
 
+  /// Returns a copy with the data-area size set to [dataSize] and [infoOffset]
+  /// re-derived from it (`dataOffset + dataSize`, the RSRC region-order
+  /// invariant). The single place the header's cross-region offsets are computed
+  /// from a data-area edit.
+  ViHeader withDataSize(int dataSize) => ViHeader(
+    magic: magic,
+    formatVersion: formatVersion,
+    fileTypeBytes: fileTypeBytes,
+    creatorBytes: creatorBytes,
+    infoOffset: dataOffset + dataSize,
+    infoSize: infoSize,
+    dataOffset: dataOffset,
+    dataSize: dataSize,
+  );
+
   /// Re-emits the 32 header bytes. Byte-identical to the input for a parsed,
   /// unmodified header — the per-field serialize() contract.
   Uint8List serialize() {
@@ -339,6 +354,16 @@ class ViSectionDescriptor {
       word16: view.getUint32(at + 16),
     );
   }
+
+  /// Returns a copy with [secRel] replaced — used when a data-area edit shifts
+  /// the section this descriptor points at.
+  ViSectionDescriptor withSecRel(int secRel) => ViSectionDescriptor(
+    word0: word0,
+    secRel: secRel,
+    word8: word8,
+    nameRef: nameRef,
+    word16: word16,
+  );
 
   /// Re-emits the 20 bytes (five `u32`s), byte-identical to the parsed record.
   Uint8List serialize() {
@@ -625,6 +650,28 @@ class ViInfoArea {
     );
   }
 
+  /// Returns a copy in which every VI-own descriptor ([ViSectionDescriptor.word16]
+  /// `== commonWord16`) whose `secRel` is a key of [newSecRelByOld] is rebound to
+  /// the mapped value. LIBN/VINS descriptors (`word16 == 0`) and secRels absent
+  /// from the map are left unchanged. An identity map returns equivalent
+  /// descriptors, so an unmodified model re-serializes byte-for-byte.
+  ViInfoArea withRemappedSecRels(Map<int, int> newSecRelByOld) {
+    if (newSecRelByOld.isEmpty) return this;
+    return ViInfoArea(
+      subheader: subheader,
+      blockList: blockList,
+      preGap: preGap,
+      descriptors: [
+        for (final descriptor in descriptors)
+          if (descriptor.word16 == ViSectionDescriptor.commonWord16 && newSecRelByOld.containsKey(descriptor.secRel))
+            descriptor.withSecRel(newSecRelByOld[descriptor.secRel]!)
+          else
+            descriptor,
+      ],
+      nameTable: nameTable,
+    );
+  }
+
   Uint8List serialize() =>
       (BytesBuilder()
             ..add(subheader.serialize())
@@ -727,12 +774,14 @@ class ViContainer {
 /// ([ViSectionData.payload]) — whose *contents* are modeled separately in
 /// `labwright_rsrc_parse`.
 ///
-/// NOTE: [serialize] does NOT recompute cross-region offsets — it re-emits the
-/// fields as-is. So a section-length change must go through [ViExport.editSection]
-/// (which fixes the header `dataSize`/`infoOffset` and shifts later descriptor
-/// `secRel`s); mutating [dataSegments]/[ViSectionData.payload] directly and then
-/// serializing would emit an internally-inconsistent file. // TODO(labwright):
-/// add a ViVi-level edit that recomputes those offsets so direct edits are safe.
+/// [serialize] is the single source of truth for the file's cross-region offset
+/// math: it recomputes each section's `u32` length prefix, the header
+/// `dataSize@28`/`infoOffset@16`, and every VI-own descriptor's `secRel@4` from
+/// the current [dataSegments], so editing a [ViSectionData.payload] in place and
+/// re-serializing yields a coherent file. For an unmodified parsed model the
+/// recompute is the identity (the running section positions equal the stored
+/// `secRel`s and the data-area length is unchanged), preserving the byte-exact
+/// round-trip. [ViExport.editSection] is a thin wrapper over this path.
 class ViVi {
   ViVi({required this.header, required this.dataSegments, required this.infoArea});
 
@@ -766,7 +815,31 @@ class ViVi {
   ViVi withSectionEdited({required int secRel, required Uint8List newPayload}) =>
       ViVi.parse(ViExport.editSection(serialize(), secRel: secRel, newPayload: newPayload));
 
-  Uint8List serialize() => _concat3(header.serialize(), ViExport.rebuildDataArea(dataSegments), infoArea.serialize());
+  /// Reassembles the `.vi` bytes, recomputing all cross-region offsets from the
+  /// current model state (see the class doc): the data area is rebuilt with fresh
+  /// section length prefixes, the header's `dataSize`/`infoOffset` are derived
+  /// from its length, and each VI-own descriptor's `secRel` is rebound to its
+  /// section's new data-area position. Byte-identical to the input for an
+  /// unmodified parsed model.
+  Uint8List serialize() {
+    final data = ViExport.rebuildDataArea(dataSegments);
+    final newSecRelByOld = <int, int>{};
+    var pos = 0;
+    for (final segment in dataSegments) {
+      switch (segment) {
+        case ViGap(:final bytes):
+          pos += bytes.length;
+        case ViSectionData(:final secRel, :final payload):
+          newSecRelByOld[secRel] = pos;
+          pos += 4 + payload.length;
+      }
+    }
+    return _concat3(
+      header.withDataSize(data.length).serialize(),
+      data,
+      infoArea.withRemappedSecRels(newSecRelByOld).serialize(),
+    );
+  }
 }
 
 /// One piece of the data area in storage order: either a [ViSectionData] (a
@@ -865,52 +938,15 @@ abstract final class ViExport {
     return out.toBytes();
   }
 
-  /// Walks the section descriptors inside an info-area buffer, yielding each
-  /// real descriptor's position (relative to the info-area start) and its
-  /// `secRel`. Mirrors `readViSections` but operates on the isolated info area
-  /// (so offsets are info-relative): `blockListRel@0x2c` → block list
-  /// (`u32 count` + `count` × 12-byte entries) → 20-byte descriptors, keeping
-  /// only the VI's own data sections (`+16` word `0xFFFFFFFF`) and skipping the
-  /// LIBN/VINS sections (`+16` word `0`) — their bytes are still preserved raw as
-  /// data-area gaps, so the byte-exact round-trip is unaffected.
-  static List<({int dpos, int secRel})> _infoDescriptors(Uint8List info) {
-    final out = <({int dpos, int secRel})>[];
-    if (info.length < 0x30) return out;
-    final ibd = ByteData.sublistView(info);
-    final blockListRel = ibd.getUint32(0x2c);
-    if (blockListRel + 4 > info.length) return out;
-    final count = ibd.getUint32(blockListRel);
-    if (count > _maxPlausibleBlockCount) return out;
-    final descBase = blockListRel + 8;
-    var entryPos = blockListRel + 4;
-    for (var i = 0; i < count && entryPos + ViBlockListEntry.byteSize <= info.length; i++) {
-      final sectionCount = ibd.getUint32(entryPos + 4) + 1;
-      final descRel = ibd.getUint32(entryPos + 8);
-      entryPos += ViBlockListEntry.byteSize;
-      for (var sectionIndex = 0; sectionIndex < sectionCount; sectionIndex++) {
-        final dpos = descBase + descRel + sectionIndex * ViSectionDescriptor.byteSize;
-        if (dpos + ViSectionDescriptor.byteSize > info.length) break;
-        if (ibd.getUint32(dpos + 16) != ViSectionDescriptor.commonWord16) continue;
-        out.add((dpos: dpos, secRel: ibd.getUint32(dpos + 4)));
-      }
-    }
-    return out;
-  }
-
   /// Replaces the payload of the section at [secRel] with [newPayload] and
   /// re-serializes the whole `.vi`, applying every offset fixup so the result is
   /// a valid container that re-parses to the edited content. This is the core of
   /// the VI editor: change one section's bytes, get back a coherent file.
   ///
-  /// Fixups, given `delta = newPayload.length - oldPayload.length`:
-  /// - the section's own `u32` length prefix → `newPayload.length`;
-  /// - every later data-area section shifts by `delta` (handled by rebuilding
-  ///   from [decomposeDataArea]);
-  /// - every info-area descriptor whose `secRel` is **strictly past** [secRel]
-  ///   gets `delta` added (descriptors at or before the edit, incl. ones sharing
-  ///   [secRel], are unchanged);
-  /// - the header's `infoOffset@16` and `dataSize@28` grow by `delta`
-  ///   (`dataOffset@24` is unaffected — the data area still starts at 32).
+  /// A raw-bytes API surface over [ViVi]: it decomposes the input, swaps the
+  /// target payload, and delegates all offset math to [ViVi.serialize] (the
+  /// single source of truth), which recomputes the section length prefix, the
+  /// header `dataSize@28`/`infoOffset@16`, and the shifted descriptor `secRel`s.
   ///
   /// A no-op edit (`newPayload` equal to the current payload) reproduces the
   /// input byte-for-byte. Corpus-validated across 7583 VIs (no-op byte-exact;
@@ -925,12 +961,9 @@ abstract final class ViExport {
     if (!_listEquals(rebuildDataArea(segs), container.dataArea)) {
       throw ViFormatException('data area does not cleanly decompose; refusing to edit');
     }
-    final target = segs.whereType<ViSectionData>().firstWhere(
-      (s) => s.secRel == secRel,
-      orElse: () => throw ViFormatException('no section at secRel $secRel to edit'),
-    );
-    final delta = newPayload.length - target.payload.length;
-
+    if (!segs.whereType<ViSectionData>().any((s) => s.secRel == secRel)) {
+      throw ViFormatException('no section at secRel $secRel to edit');
+    }
     final newSegs = [
       for (final segment in segs)
         if (segment is ViSectionData && segment.secRel == secRel)
@@ -938,22 +971,10 @@ abstract final class ViExport {
         else
           segment,
     ];
-    final newData = rebuildDataArea(newSegs);
-
-    final newInfo = Uint8List.fromList(container.infoArea);
-    if (delta != 0) {
-      final ibd = ByteData.sublistView(newInfo);
-      for (final dsc in _infoDescriptors(newInfo)) {
-        if (dsc.secRel > secRel) ibd.setUint32(dsc.dpos + 4, dsc.secRel + delta);
-      }
-    }
-
-    final newHeader = Uint8List.fromList(container.header);
-    final hbd = ByteData.sublistView(newHeader);
-    hbd
-      ..setUint32(16, hbd.getUint32(16) + delta)
-      ..setUint32(28, hbd.getUint32(28) + delta);
-
-    return _concat3(newHeader, newData, newInfo);
+    return ViVi(
+      header: ViHeader.parse(container.header),
+      dataSegments: newSegs,
+      infoArea: ViInfoArea.parse(container.infoArea),
+    ).serialize();
   }
 }

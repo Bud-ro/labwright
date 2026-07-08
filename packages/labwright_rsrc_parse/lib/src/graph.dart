@@ -248,8 +248,7 @@ enum HeapObjectClass {
   /// show some runs composing outside the diagram when treated like object
   /// bounds, so wire coords may be relative to a different ancestor frame.
   /// (Refuted encodings, corpus-probed: terminal typed-refs 0/2699; framed C4
-  /// point-list payloads 0/22557; binary blob attributes — see
-  /// tool/probe_wires.dart, tool/probe_wire_blobs.dart.)
+  /// point-list payloads 0/22557; binary blob attributes carry no geometry.)
   bdWire(0x1d, 'Wire segment (BD)', ViObjectKind.wire, ClassConfidence.inferred),
 
   /// `0x101` — a root **auxiliary** record; purpose undetermined.
