@@ -140,7 +140,7 @@ class _DecodeSink {
 /// plan whose typed ops re-serialize every decoded span from the model.
 ///
 /// Obtained via [parseBinarySeqWriteModel]; [writeBody] re-emits the inflated
-/// body (byte-exact for an unmutated model — corpus-gated 294/294) and
+/// body (byte-exact for an unmutated model — corpus-gated 169/169) and
 /// [writeFile] the whole TOF1 container. Mutations go through the model:
 /// [replacePoolEntry] rewrites string content (names, expressions, comments —
 /// the record region references the pool by index, so the references stay
@@ -161,7 +161,7 @@ class BinarySeqWriteModel {
   final Uint8List header;
 
   /// Whether the header's final `u32` held the inflated-body length
-  /// (corpus-measured: 294/294, right after the `PMCZ` marker).
+  /// (corpus-measured: 169/169, right after the `PMCZ` marker).
   final bool headerHasSizeWord;
 
   /// The retained record-region bytes — the copy source for the plan's
