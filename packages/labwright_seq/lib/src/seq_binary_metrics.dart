@@ -5,10 +5,11 @@ part of 'seq_binary.dart';
 // Every binary-decode metric — the byte-coverage tier accounting, the
 // undecoded-span census, and the writer scoreboard — is computed HERE, as a
 // pure fold of the typed decode stream one production pass records into a
-// [_DecodeSink] (see [_decodeBody]). The parsers emit only that stream;
-// nothing in this file re-reads body bytes. The writer serializes from the
-// SAME stream ([_buildWritePlan] over [_DecodeSink.ops]), so the coverage
-// tiers and the writer's copy-vs-serialize splits cannot drift apart.
+// [_RecordingDecodeSink] (see [_decodeBody]). The parsers emit only that
+// stream; nothing in this file re-reads body bytes. The writer serializes
+// from the SAME stream ([_buildWritePlan] over [_RecordingDecodeSink.ops]),
+// so the coverage tiers and the writer's copy-vs-serialize splits cannot
+// drift apart.
 
 /// Per-byte accounting tiers for the record region (see [BinaryByteCoverage]).
 /// Higher wins when decode claims overlap.
@@ -32,7 +33,7 @@ const _tierSemantic = 2;
 /// Bytes outside any committed claim stay [_tierUndecoded]: a blob demotion
 /// can never upgrade bytes nothing accounts for. Spans are clamped to the
 /// region, so an oversized claim cannot mark past it.
-Uint8List _tiersOfStream(_DecodeSink stream, int recordRegionLength) {
+Uint8List _tiersOfStream(_RecordingDecodeSink stream, int recordRegionLength) {
   final tiers = Uint8List(recordRegionLength);
   for (final (start, end, tier) in stream.claims) {
     final from = start < 0 ? 0 : start;

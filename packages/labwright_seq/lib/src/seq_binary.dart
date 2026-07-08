@@ -1422,12 +1422,13 @@ class _TypeBodyParser {
   final int recordRegionLength;
   final List<BinaryTypeRecord> table;
 
-  /// Optional write-op capture (the writer's re-serialization plan — see
-  /// `seq_binary_write.dart`). Null on plain decode runs; when set, every
-  /// COMMITTED parse records the typed ops that re-emit its bytes, and
-  /// every failed trial rolls its ops back. Pure additions: the sink never
-  /// influences parse decisions.
-  _DecodeSink? ops;
+  /// Write-op capture (the writer's re-serialization plan — see
+  /// `seq_binary_write.dart`). The shared no-op sink ([_DecodeSink.none])
+  /// on plain decode runs; under a recording sink every COMMITTED parse
+  /// records the typed ops that re-emit its bytes, and every failed trial
+  /// rolls its ops back. Pure additions: the sink never influences parse
+  /// decisions.
+  _DecodeSink ops = _DecodeSink.none;
 
   /// How many engine-intrinsic types precede the first SERIALIZED type
   /// record in this file's type-index space, so a framed 1-based
@@ -1562,23 +1563,20 @@ class _TypeBodyParser {
   /// words stay retained structure. The verified 0 terminator is
   /// grammar-determined either way.
   int? _attrTail(int from, {int minWords = 0, List<int>? attrsOut}) {
-    final m = ops?.mark();
+    final m = ops.mark();
     var at = from;
     for (var i = 0; i <= _fieldMaxAttrWords; i++) {
-      if (at + _u32Bytes > recordRegionLength) {
-        if (m != null) ops!.rollback(m);
-        return null;
-      }
+      if (at + _u32Bytes > recordRegionLength) return _blockBail(m);
       final word = _u32(at);
       if (word == 0 && i >= minWords) {
-        ops?.u32(at, 0, _OpSource.grammar); // the verified attr-tail terminator
+        ops.u32(at, 0, _OpSource.grammar); // the verified attr-tail terminator
         return at + _u32Bytes;
       }
       if (attrsOut != null) {
         attrsOut.add(word);
-        ops?.u32(at, word, _OpSource.model);
+        ops.u32(at, word, _OpSource.model);
       } else {
-        ops?.u32(at, word, _OpSource.struct);
+        ops.u32(at, word, _OpSource.struct);
       }
       at += _u32Bytes;
       // Bits 0x8000/0x800 accompany SOME element-type specs (0x8001/
@@ -1587,8 +1585,7 @@ class _TypeBodyParser {
       // 0x8001800 with no spec at all) — specs are detected by their
       // DELIM-led frame instead (see [_fields]).
     }
-    if (m != null) ops!.rollback(m);
-    return null;
+    return _blockBail(m);
   }
 
   /// Walks a full ELEMENT-TYPE SPEC structurally and returns the offset
@@ -1609,9 +1606,9 @@ class _TypeBodyParser {
   /// extent verbatim, mirroring the coverage pass's structural demotion
   /// of spec blobs.
   int? _elementSpec(int at) {
-    final m = ops?.mark();
+    final m = ops.mark();
     final end = _elementSpecWalk(at);
-    if (m != null) ops!.rollback(m);
+    ops.rollback(m);
     return end;
   }
 
@@ -1677,8 +1674,8 @@ class _TypeBodyParser {
 
   /// Bails a parse that already recorded write ops: rolls back to mark [m]
   /// and returns null — the shared failure exit of the op-emitting parsers.
-  Null _blockBail(int? m) {
-    if (m != null) ops!.rollback(m);
+  Null _blockBail(int m) {
+    ops.rollback(m);
     return null;
   }
 
@@ -1743,13 +1740,13 @@ class _TypeBodyParser {
       // count, the terminators, and the body-end boundary gate.
       if (at < recordRegionLength && view.getUint8(at) == 0) {
         for (final start in _protoSpecEnds(at + 1)) {
-          final m = ops?.mark();
+          final m = ops.mark();
           final attrsMark = attrsOut?.length;
-          ops?.byte(at, 0, _OpSource.grammar); // the verified realignment pad
-          ops?.copy(at + 1, start); // proto block: extent walked, undecoded
+          ops.byte(at, 0, _OpSource.grammar); // the verified realignment pad
+          ops.copy(at + 1, start); // proto block: extent walked, undecoded
           final elements = _elementRun(start, count);
           if (elements == null) {
-            if (m != null) ops!.rollback(m);
+            ops.rollback(m);
             continue;
           }
           final after = _attrTail(elements.$2, attrsOut: attrsOut);
@@ -1757,7 +1754,7 @@ class _TypeBodyParser {
             _usedSpec = true;
             return (elements.$1, after);
           }
-          if (m != null) ops!.rollback(m);
+          ops.rollback(m);
           if (attrsMark != null) attrsOut!.length = attrsMark;
         }
       }
@@ -1765,21 +1762,21 @@ class _TypeBodyParser {
     // Declaration layout: `[attrs…][0][pad][proto?]{elements}` — the
     // standard array tail, then the elements chained with no closing
     // terminator (the count bounds the run).
-    final mDecl = ops?.mark();
+    final mDecl = ops.mark();
     final attrsDeclMark = attrsOut?.length;
     final tail = _attrTail(at, attrsOut: attrsOut);
     if (tail == null || tail >= recordRegionLength || view.getUint8(tail) != 0) {
-      if (mDecl != null) ops!.rollback(mDecl);
+      ops.rollback(mDecl);
       if (attrsDeclMark != null) attrsOut!.length = attrsDeclMark;
       return null;
     }
-    ops?.byte(tail, 0, _OpSource.grammar); // the verified pad after the array tail
+    ops.byte(tail, 0, _OpSource.grammar); // the verified pad after the array tail
     for (final start in _protoSpecEnds(tail + 1)) {
-      final m = ops?.mark();
-      ops?.copy(tail + 1, start); // proto block: extent walked, undecoded
+      final m = ops.mark();
+      ops.copy(tail + 1, start); // proto block: extent walked, undecoded
       final elements = _elementRun(start, count);
       if (elements == null) {
-        if (m != null) ops!.rollback(m);
+        ops.rollback(m);
         continue;
       }
       // Element decode is boundary-sensitive like a spec walk — arm the
@@ -1794,7 +1791,7 @@ class _TypeBodyParser {
       _usedSpec = true;
       return (elements.$1, elements.$2);
     }
-    if (mDecl != null) ops!.rollback(mDecl);
+    ops.rollback(mDecl);
     if (attrsDeclMark != null) attrsOut!.length = attrsDeclMark;
     return null;
   }
@@ -1838,7 +1835,7 @@ class _TypeBodyParser {
     final count = _boundCount(lbound, ubound);
     if (count == null) return null;
     if (at + count * _f64Bytes > recordRegionLength) return null;
-    final m = ops?.mark();
+    final m = ops.mark();
     final elements = <BinaryTypeField>[];
     var p = at;
     for (var i = 0; i < count; i++, p += _f64Bytes) {
@@ -1849,17 +1846,16 @@ class _TypeBodyParser {
       // falls back to the bounds-only undecoded read instead of emitting
       // fabricated numbers.
       if (!value.isFinite || (value != 0 && value.abs() < _smallestNormalF64)) {
-        if (m != null) ops!.rollback(m);
-        return null;
+        return _blockBail(m);
       }
-      ops?.f64(p, value);
+      ops.f64(p, value);
       final text = value == value.truncateToDouble() && value.abs() < 1e15 ? '${value.truncate()}' : '$value';
       elements.add(BinaryTypeField('', className: 'Num', value: text));
     }
     final attrsMark = attrsOut?.length;
     final after = _attrTail(p, attrsOut: attrsOut);
     if (after == null) {
-      if (m != null) ops!.rollback(m);
+      ops.rollback(m);
       if (attrsMark != null) attrsOut!.length = attrsMark;
       return null;
     }
@@ -1879,24 +1875,21 @@ class _TypeBodyParser {
     if (_u32(at + 2 * _u32Bytes) != 0) return null;
     // Probe for the writer: the block is surfaced as an undecoded spec
     // blob, so the caller copies its extent — no lasting attr-tail ops.
-    final m = ops?.mark();
+    final m = ops.mark();
     final after = _attrTail(at + 3 * _u32Bytes);
-    if (m != null) ops!.rollback(m);
+    ops.rollback(m);
     if (after == null) return null;
     return (cls, after);
   }
 
   /// Exactly [count] chained array elements starting at [at].
   (List<BinaryTypeField>, int)? _elementRun(int at, int count) {
-    final m = ops?.mark();
+    final m = ops.mark();
     var p = at;
     final elements = <BinaryTypeField>[];
     for (var i = 0; i < count; i++) {
       final element = _arrayElement(p);
-      if (element == null) {
-        if (m != null) ops!.rollback(m);
-        return null;
-      }
+      if (element == null) return _blockBail(m);
       elements.add(element.$1);
       p = element.$2;
     }
@@ -1943,10 +1936,10 @@ class _TypeBodyParser {
     // A block may carry one realignment pad byte before its delimiter.
     for (final start in [at, if (at < recordRegionLength && view.getUint8(at) == 0) at + 1]) {
       if (!_canRead(start) || _u32(start) != _recordDelimiter) continue;
-      final m = ops?.mark();
-      if (start > at) ops?.byte(at, 0, _OpSource.grammar); // the verified realignment pad
+      final m = ops.mark();
+      if (start > at) ops.byte(at, 0, _OpSource.grammar); // the verified realignment pad
       final block = _elementBlock(start);
-      if (block == null && m != null) ops!.rollback(m);
+      if (block == null) ops.rollback(m);
       return block;
     }
     // Named STEP element (a `Substeps` array's substep, or a sequence
@@ -1988,11 +1981,11 @@ class _TypeBodyParser {
     final count = _u32(at + 3 * _u32Bytes);
     if (count > _typeMaxFields) return null;
     final ref = _tableRef(x);
-    final m = ops?.mark();
-    ops?.poolRef(at, _u32(at)); // the 'Step' class token
-    ops?.u32(at + _u32Bytes, x, _OpSource.model); // 1-based type-table reference
-    ops?.poolRef(at + 2 * _u32Bytes, _u32(at + 2 * _u32Bytes));
-    ops?.u32(at + 3 * _u32Bytes, count, _OpSource.model);
+    final m = ops.mark();
+    ops.poolRef(at, _u32(at)); // the 'Step' class token
+    ops.u32(at + _u32Bytes, x, _OpSource.model); // 1-based type-table reference
+    ops.poolRef(at + 2 * _u32Bytes, _u32(at + 2 * _u32Bytes));
+    ops.u32(at + 3 * _u32Bytes, count, _OpSource.model);
     final outerInstance = _inInstance;
     final outerRepr = _numericReprContext;
     _inInstance = true;
@@ -2000,18 +1993,12 @@ class _TypeBodyParser {
     final children = _fields(at + 4 * _u32Bytes, count);
     _inInstance = outerInstance;
     _numericReprContext = outerRepr;
-    if (children == null) {
-      if (m != null) ops!.rollback(m);
-      return null;
-    }
+    if (children == null) return _blockBail(m);
     // The standard closing attr tail, like [_elementBlock] (measured:
     // `[0x80][0]` after each substep's fields).
     final attrs = <int>[];
     final after = _attrTail(children.$2, attrsOut: attrs);
-    if (after == null) {
-      if (m != null) ops!.rollback(m);
-      return null;
-    }
+    if (after == null) return _blockBail(m);
     return (
       BinaryTypeField(
         name,
@@ -2047,8 +2034,8 @@ class _TypeBodyParser {
   /// integer-representation map ([_numericReprContext]) in scope (the
   /// anonymous form; the named form has no serialized type to consult).
   (BinaryTypeField, int)? _elementBlock(int at) {
-    final m = ops?.mark();
-    ops?.u32(at, _recordDelimiter, _OpSource.grammar); // verified by the caller
+    final m = ops.mark();
+    ops.u32(at, _recordDelimiter, _OpSource.grammar); // verified by the caller
     var p = at + _u32Bytes;
     if (!_canRead(p)) return _blockBail(m);
     final x = _u32(p);
@@ -2060,8 +2047,8 @@ class _TypeBodyParser {
     if (word3 == _recordDelimiter) {
       if (!_validTableX(x)) return _blockBail(m);
       ref = _tableRef(x);
-      ops?.u32(at + _u32Bytes, x, _OpSource.model); // 1-based type-table reference
-      ops?.u32(p, _recordDelimiter, _OpSource.grammar); // the verified anonymous-form slot
+      ops.u32(at + _u32Bytes, x, _OpSource.model); // 1-based type-table reference
+      ops.u32(p, _recordDelimiter, _OpSource.grammar); // the verified anonymous-form slot
       // Expression-VALUED anonymous element — `[DELIM][X][DELIM]
       // [valueRef][attrs…][0]` where X resolves to the table's
       // `Expression` record (the same resolution gate as the framed
@@ -2074,7 +2061,7 @@ class _TypeBodyParser {
       if (ref.name == 'Expression' && _canRead(word4At) && _u32(word4At) > _typeMaxFields) {
         final value = _tok(_u32(word4At));
         if (value != null) {
-          ops?.poolRef(word4At, _u32(word4At));
+          ops.poolRef(word4At, _u32(word4At));
           final attrs = <int>[];
           final after = _attrTail(word4At + _u32Bytes, attrsOut: attrs);
           if (after != null) {
@@ -2093,14 +2080,14 @@ class _TypeBodyParser {
       // frame.
       if (named == null || x == 0 || _tok(x) == null) return _blockBail(m);
       name = named;
-      ops?.poolRef(at + _u32Bytes, x); // module-data slot, a pool ref
-      ops?.poolRef(p, word3);
+      ops.poolRef(at + _u32Bytes, x); // module-data slot, a pool ref
+      ops.poolRef(p, word3);
     }
     p += _u32Bytes;
     if (!_canRead(p)) return _blockBail(m);
     final count = _u32(p);
     if (count > _typeMaxFields) return _blockBail(m);
-    ops?.u32(p, count, _OpSource.model);
+    ops.u32(p, count, _OpSource.model);
     p += _u32Bytes;
     final outerInstance = _inInstance;
     final outerRepr = _numericReprContext;
@@ -2164,14 +2151,12 @@ class _TypeBodyParser {
         final end = _extBlocksFrom(p + _u32Bytes, count);
         if (end != null && end + _u32Bytes <= recordRegionLength && _u32(end) == 0) {
           if (debugCollectSpecs) debugExtSpans.add((p, end));
-          if (ops != null) {
-            for (var q = from; q < p; q += _u32Bytes) {
-              ops!.u32(q, _u32(q), _OpSource.struct); // attr words before the extdata count
-            }
-            ops!.u32(p, count, _OpSource.struct); // extdata block count (blocks not modeled)
-            ops!.copy(p + _u32Bytes, end); // block payloads: undecoded
-            ops!.u32(end, 0, _OpSource.grammar); // the verified extdata terminator
+          for (var q = from; q < p; q += _u32Bytes) {
+            ops.u32(q, _u32(q), _OpSource.struct); // attr words before the extdata count
           }
+          ops.u32(p, count, _OpSource.struct); // extdata block count (blocks not modeled)
+          ops.copy(p + _u32Bytes, end); // block payloads: undecoded
+          ops.u32(end, 0, _OpSource.grammar); // the verified extdata terminator
           return end + _u32Bytes;
         }
       }
@@ -2305,34 +2290,32 @@ class _TypeBodyParser {
       return const [];
     }
     if (_tok(_u32(at + 3 * _u32Bytes)) != 'TS') return const [];
-    final mFull = ops?.mark();
+    final mFull = ops.mark();
     final full = parseFieldAt(at);
     if (full != null && full.name == 'TS' && full.children.isNotEmpty) {
       lastStepTsEnd = debugLastEndOffset;
       return full.children;
     }
-    if (mFull != null) ops!.rollback(mFull);
+    ops.rollback(mFull);
     // Fallback: extract just child 1 (the Id) from after the 5-word
     // descriptor header.
-    final mId = ops?.mark();
+    final mId = ops.mark();
     final idField = parseFieldAt(at + 5 * _u32Bytes);
     if (idField != null &&
         idField.className == 'Str' &&
         idField.name == 'Id' &&
         (idField.value?.startsWith('ID#:') ?? false)) {
-      if (ops != null) {
-        // The descriptor-node header the fallback path validated:
-        // `[0][0][DELIM][TS][childCount]`.
-        ops!.u32(at, 0, _OpSource.grammar);
-        ops!.u32(at + _u32Bytes, 0, _OpSource.grammar);
-        ops!.u32(at + 2 * _u32Bytes, _recordDelimiter, _OpSource.grammar);
-        ops!.poolRef(at + 3 * _u32Bytes, _u32(at + 3 * _u32Bytes));
-        ops!.u32(at + 4 * _u32Bytes, _u32(at + 4 * _u32Bytes), _OpSource.model);
-      }
+      // The descriptor-node header the fallback path validated:
+      // `[0][0][DELIM][TS][childCount]`.
+      ops.u32(at, 0, _OpSource.grammar);
+      ops.u32(at + _u32Bytes, 0, _OpSource.grammar);
+      ops.u32(at + 2 * _u32Bytes, _recordDelimiter, _OpSource.grammar);
+      ops.poolRef(at + 3 * _u32Bytes, _u32(at + 3 * _u32Bytes));
+      ops.u32(at + 4 * _u32Bytes, _u32(at + 4 * _u32Bytes), _OpSource.model);
       lastStepTsEnd = debugLastEndOffset;
       return [idField];
     }
-    if (mId != null) ops!.rollback(mId);
+    ops.rollback(mId);
     return const [];
   }
 
@@ -2343,14 +2326,14 @@ class _TypeBodyParser {
     if (after + 2 * _u32Bytes > recordRegionLength || _u32(after) != 0) {
       return null;
     }
-    final m0 = ops?.mark();
+    final m0 = ops.mark();
     final count = _u32(after + _u32Bytes);
     (List<BinaryTypeField>, int)? parsed;
     if (count <= _typeMaxFields) {
-      ops?.u32(after, 0, _OpSource.grammar); // the verified body opener
-      ops?.u32(after + _u32Bytes, count, _OpSource.model);
+      ops.u32(after, 0, _OpSource.grammar); // the verified body opener
+      ops.u32(after + _u32Bytes, count, _OpSource.model);
       parsed = _fields(after + 2 * _u32Bytes, count);
-      if (parsed == null && m0 != null) ops!.rollback(m0);
+      if (parsed == null) ops.rollback(m0);
     }
     if (parsed == null && count >= 1 && count <= _typeMaxExtBlocks) {
       // EXTDATA-OPENER body (Error): `[0][extCount]{extdata blocks}
@@ -2360,12 +2343,12 @@ class _TypeBodyParser {
       if (extEnd != null && extEnd + _u32Bytes <= recordRegionLength) {
         final subCount = _u32(extEnd);
         if (subCount <= _typeMaxFields) {
-          ops?.u32(after, 0, _OpSource.grammar); // the verified body opener
-          ops?.u32(after + _u32Bytes, count, _OpSource.struct); // extdata block count (blocks not modeled)
-          ops?.copy(after + 2 * _u32Bytes, extEnd); // extdata blocks: undecoded
-          ops?.u32(extEnd, subCount, _OpSource.model);
+          ops.u32(after, 0, _OpSource.grammar); // the verified body opener
+          ops.u32(after + _u32Bytes, count, _OpSource.struct); // extdata block count (blocks not modeled)
+          ops.copy(after + 2 * _u32Bytes, extEnd); // extdata blocks: undecoded
+          ops.u32(extEnd, subCount, _OpSource.model);
           parsed = _fields(extEnd + _u32Bytes, subCount);
-          if (parsed == null && m0 != null) ops!.rollback(m0);
+          if (parsed == null) ops.rollback(m0);
           if (parsed != null && debugCollectSpecs) {
             debugExtSpans.add((after + _u32Bytes, extEnd));
           }
@@ -2380,7 +2363,7 @@ class _TypeBodyParser {
       // boundary (the last record) this form stays undecoded.
       final boundary = bodyEndBoundary;
       if (boundary == null) return null;
-      ops?.u32(after, 0, _OpSource.grammar); // the verified body opener
+      ops.u32(after, 0, _OpSource.grammar); // the verified body opener
       parsed = _fieldsUntil(after + _u32Bytes, boundary);
       if (parsed == null) return _blockBail(m0);
     }
@@ -2390,9 +2373,7 @@ class _TypeBodyParser {
     // short of the boundary is normal: some records trail undecoded
     // inter-record content.)
     final boundary = bodyEndBoundary;
-    if (_usedSpec && boundary != null && parsed.$2 > boundary) {
-      return _blockBail(m0);
-    }
+    if (_usedSpec && boundary != null && parsed.$2 > boundary) return _blockBail(m0);
     debugLastEndOffset = parsed.$2;
     return parsed.$1;
   }
@@ -2400,7 +2381,7 @@ class _TypeBodyParser {
   /// Parses fields until the walk lands EXACTLY on [boundary] — the
   /// count-less body form. Any misparse, overshoot, or runaway bails.
   (List<BinaryTypeField>, int)? _fieldsUntil(int from, int boundary) {
-    final m = ops?.mark();
+    final m = ops.mark();
     var at = from;
     final fields = <BinaryTypeField>[];
     while (at < boundary && fields.length <= _typeMaxFields) {
@@ -2413,16 +2394,25 @@ class _TypeBodyParser {
     return (fields, at);
   }
 
+  /// Runs one trial parse [body] under a fresh mark: a null return (the
+  /// trial failed) rolls back every op it recorded. The scoped twin of the
+  /// explicit mark/rollback pairs — used where a whole attempt is one call;
+  /// sites with partial rollbacks or predicate-gated rejection (a PARSED
+  /// field the layout gates refuse) keep explicit marks.
+  T? _trial<T>(T? Function() body) {
+    final m = ops.mark();
+    final parsed = body();
+    if (parsed == null) ops.rollback(m);
+    return parsed;
+  }
+
   (List<BinaryTypeField>, int)? _fields(int from, int count) {
     // Every recursion (_field → nested declaration/instance/spec →
     // _fields) routes through here, so one depth guard covers them all.
     if (_depth >= _maxFieldDepth) return null;
     _depth++;
-    final m = ops?.mark();
     try {
-      final parsed = _fieldsInner(from, count);
-      if (parsed == null && m != null) ops!.rollback(m);
-      return parsed;
+      return _trial(() => _fieldsInner(from, count));
     } finally {
       _depth--;
     }
@@ -2472,7 +2462,7 @@ class _TypeBodyParser {
           // Spec blob: extent walked, contents undecoded — the writer
           // copies it verbatim (mirrors the coverage pass's structural
           // demotion of spec sites).
-          ops?.copy(at, specEnd);
+          ops.copy(at, specEnd);
           specBytes += specEnd - at;
           at = specEnd;
           _usedSpec = true;
@@ -2513,10 +2503,7 @@ class _TypeBodyParser {
   /// load-bearing (one word each; twin-validated on Requirements).
   (BinaryTypeField, int)? _field(int at) {
     debugLastFieldOffset = at;
-    final m = ops?.mark();
-    final parsed = _fieldParse(at);
-    if (parsed == null && m != null) ops!.rollback(m);
-    return parsed;
+    return _trial(() => _fieldParse(at));
   }
 
   (BinaryTypeField, int)? _fieldParse(int at) {
@@ -2536,8 +2523,8 @@ class _TypeBodyParser {
       final name = _tok(fieldFlags);
       final value = _tok(_u32(at + _u32Bytes));
       if (name == null || value == null) return null;
-      ops?.poolRef(at, fieldFlags);
-      ops?.poolRef(at + _u32Bytes, _u32(at + _u32Bytes));
+      ops.poolRef(at, fieldFlags);
+      ops.poolRef(at + _u32Bytes, _u32(at + _u32Bytes));
       final attrs = <int>[];
       final after = _attrTail(at + 2 * _u32Bytes, attrsOut: attrs);
       if (after == null) return null;
@@ -2575,11 +2562,11 @@ class _TypeBodyParser {
       if (childCount > _typeMaxFields) return null;
       // The verified zero flags word is the FORM discriminator here —
       // grammar-determined, like the framing zero and delimiter.
-      ops?.u32(at, 0, _OpSource.grammar);
-      ops?.u32(at + _u32Bytes, 0, _OpSource.grammar);
-      ops?.u32(at + 2 * _u32Bytes, _recordDelimiter, _OpSource.grammar);
-      ops?.poolRef(at + 3 * _u32Bytes, _u32(at + 3 * _u32Bytes));
-      ops?.u32(at + 4 * _u32Bytes, childCount, _OpSource.model);
+      ops.u32(at, 0, _OpSource.grammar);
+      ops.u32(at + _u32Bytes, 0, _OpSource.grammar);
+      ops.u32(at + 2 * _u32Bytes, _recordDelimiter, _OpSource.grammar);
+      ops.poolRef(at + 3 * _u32Bytes, _u32(at + 3 * _u32Bytes));
+      ops.u32(at + 4 * _u32Bytes, childCount, _OpSource.model);
       final children = _fields(at + 5 * _u32Bytes, childCount);
       if (children == null) return null;
       return (
@@ -2600,14 +2587,14 @@ class _TypeBodyParser {
       // `<ExprValue typename='Expression' name=''>`).
       final name = nameWord == _recordDelimiter && _inInstance ? '' : _tok(nameWord);
       if (name == null) return null;
-      ops?.u32(at, fieldFlags, _OpSource.model); // surfaced: BinaryTypeField.fieldFlags
-      ops?.u32(at + _u32Bytes, 0, _OpSource.grammar); // the verified framing zero
-      ops?.u32(at + 2 * _u32Bytes, _recordDelimiter, _OpSource.grammar);
+      ops.u32(at, fieldFlags, _OpSource.model); // surfaced: BinaryTypeField.fieldFlags
+      ops.u32(at + _u32Bytes, 0, _OpSource.grammar); // the verified framing zero
+      ops.u32(at + 2 * _u32Bytes, _recordDelimiter, _OpSource.grammar);
       if (nameWord == _recordDelimiter) {
         // The verified anonymous-element sentinel (name == '').
-        ops?.u32(at + 4 * _u32Bytes, _recordDelimiter, _OpSource.grammar);
+        ops.u32(at + 4 * _u32Bytes, _recordDelimiter, _OpSource.grammar);
       } else {
-        ops?.poolRef(at + 4 * _u32Bytes, nameWord);
+        ops.poolRef(at + 4 * _u32Bytes, nameWord);
       }
       var next = at + 5 * _u32Bytes;
       String? value;
@@ -2638,9 +2625,9 @@ class _TypeBodyParser {
         final ubound = _tok(_u32(next + _u32Bytes))!;
         // X here is an intrinsic type id / generation sentinel, surfaced
         // as [BinaryTypeField.intrinsicTypeId] (null ↔ 0, bijective).
-        ops?.u32(at + 3 * _u32Bytes, x, _OpSource.model);
-        ops?.poolRef(next, _u32(next));
-        ops?.poolRef(next + _u32Bytes, _u32(next + _u32Bytes));
+        ops.u32(at + 3 * _u32Bytes, x, _OpSource.model);
+        ops.poolRef(next, _u32(next));
+        ops.poolRef(next + _u32Bytes, _u32(next + _u32Bytes));
         if (ubound == '[]') {
           // EMPTY array: ['[0]']['[]'][attr words…][0][one 0x00 pad byte]
           // — anchor-measured across every rosetta binary.
@@ -2650,7 +2637,7 @@ class _TypeBodyParser {
           if (tail == null || tail >= recordRegionLength || view.getUint8(tail) != 0) {
             return null;
           }
-          ops?.byte(tail, 0, _OpSource.grammar); // the verified trailing pad
+          ops.byte(tail, 0, _OpSource.grammar); // the verified trailing pad
           return (
             BinaryTypeField(
               name,
@@ -2686,11 +2673,11 @@ class _TypeBodyParser {
         );
       }
       if (x == 0) {
-        ops?.u32(at + 3 * _u32Bytes, 0, _OpSource.grammar); // verified implicit-type X
+        ops.u32(at + 3 * _u32Bytes, 0, _OpSource.grammar); // verified implicit-type X
         if (valued) {
           value = _tok(_u32(next));
           if (value == null) return null;
-          ops?.poolRef(next, _u32(next));
+          ops.poolRef(next, _u32(next));
           next += _u32Bytes;
         } else {
           // The twin's `<value/>` reads as an empty string — unless
@@ -2710,8 +2697,8 @@ class _TypeBodyParser {
         // recovered bails instead of fabricating a type.
         value = _tok(_u32(next));
         if (value == null) return null;
-        ops?.u32(at + 3 * _u32Bytes, x, _OpSource.model); // 1-based type-table reference
-        ops?.poolRef(next, _u32(next));
+        ops.u32(at + 3 * _u32Bytes, x, _OpSource.model); // 1-based type-table reference
+        ops.poolRef(next, _u32(next));
         next += _u32Bytes;
       } else if (x >= 2 && !valued && _validTableX(x)) {
         // Type table[X-1] (1-based, the same convention as step
@@ -2727,7 +2714,7 @@ class _TypeBodyParser {
         //  * a default-instance REFERENCE — no inline content, just the
         //    attr-word tail.
         final ref = _tableRef(x);
-        ops?.u32(at + 3 * _u32Bytes, x, _OpSource.model); // 1-based type-table reference
+        ops.u32(at + 3 * _u32Bytes, x, _OpSource.model); // 1-based type-table reference
         // The scan starts past the flags-promised attr floor — a
         // zero-valued attr slot must not read as the ref-only
         // terminator (see [_attrTail]).
@@ -2737,13 +2724,13 @@ class _TypeBodyParser {
           final word = _u32(countAt);
           if (word == 0) break; // the ref-only terminator — no instance
           if (word < 1 || word > _typeMaxFields) continue; // attr word
-          final mInst = ops?.mark();
+          final mInst = ops.mark();
           final instAttrs = <int>[];
           for (var j = 0; j < k; j++) {
             instAttrs.add(_u32(next + j * _u32Bytes));
-            ops?.u32(next + j * _u32Bytes, instAttrs[j], _OpSource.model);
+            ops.u32(next + j * _u32Bytes, instAttrs[j], _OpSource.model);
           }
-          ops?.u32(countAt, word, _OpSource.model);
+          ops.u32(countAt, word, _OpSource.model);
           final outerInstance = _inInstance;
           final outerRepr = _numericReprContext;
           _inInstance = true;
@@ -2765,7 +2752,7 @@ class _TypeBodyParser {
               children.$2,
             );
           }
-          if (mInst != null) ops!.rollback(mInst);
+          ops.rollback(mInst);
         }
         className = ref.className ?? 'Obj';
         typeName = ref.name;
@@ -2796,7 +2783,7 @@ class _TypeBodyParser {
         // 0x80018 words) — scan past them, same as the X >= 2 form,
         // starting past the flags-promised attr floor (zero-valued
         // slots must not read as a zero count; see [_attrTail]).
-        ops?.u32(at + 3 * _u32Bytes, 1, _OpSource.grammar); // verified X == 1 sentinel
+        ops.u32(at + 3 * _u32Bytes, 1, _OpSource.grammar); // verified X == 1 sentinel
         final attrsFrom = next;
         next += minAttrs * _u32Bytes;
         if (next + _u32Bytes > recordRegionLength) return null;
@@ -2810,9 +2797,9 @@ class _TypeBodyParser {
         final customAttrs = <int>[];
         for (var q = attrsFrom; q < next; q += _u32Bytes) {
           customAttrs.add(_u32(q)); // attr words before the override count
-          ops?.u32(q, customAttrs.last, _OpSource.model);
+          ops.u32(q, customAttrs.last, _OpSource.model);
         }
-        ops?.u32(next, overrideCount, _OpSource.model);
+        ops.u32(next, overrideCount, _OpSource.model);
         next += _u32Bytes;
         final outer = _inInstance;
         _inInstance = true;
@@ -2858,10 +2845,10 @@ class _TypeBodyParser {
       if (hasNumericRep) return null;
       final name = _tok(_u32(at + 3 * _u32Bytes));
       if (name == null) return null;
-      ops?.u32(at, fieldFlags, _OpSource.model); // surfaced: BinaryTypeField.fieldFlags
-      ops?.u32(at + _u32Bytes, 0, _OpSource.grammar); // the verified framing zero
-      ops?.u32(at + 2 * _u32Bytes, _recordDelimiter, _OpSource.grammar);
-      ops?.poolRef(at + 3 * _u32Bytes, _u32(at + 3 * _u32Bytes));
+      ops.u32(at, fieldFlags, _OpSource.model); // surfaced: BinaryTypeField.fieldFlags
+      ops.u32(at + _u32Bytes, 0, _OpSource.grammar); // the verified framing zero
+      ops.u32(at + 2 * _u32Bytes, _recordDelimiter, _OpSource.grammar);
+      ops.poolRef(at + 3 * _u32Bytes, _u32(at + 3 * _u32Bytes));
       var next = at + 4 * _u32Bytes;
       if (!valued) {
         // Framed-lite OBJECT form: `[flags][0][DELIM][name][attrs…]
@@ -2877,13 +2864,13 @@ class _TypeBodyParser {
           final word = _u32(countAt);
           if (word == 0) break; // the scalar terminator — not an object
           if (word < 1 || word > _typeMaxFields) continue; // attr word
-          final mObj = ops?.mark();
+          final mObj = ops.mark();
           final objAttrs = <int>[];
           for (var j = 0; j < k; j++) {
             objAttrs.add(_u32(next + j * _u32Bytes));
-            ops?.u32(next + j * _u32Bytes, objAttrs[j], _OpSource.model);
+            ops.u32(next + j * _u32Bytes, objAttrs[j], _OpSource.model);
           }
-          ops?.u32(countAt, word, _OpSource.model);
+          ops.u32(countAt, word, _OpSource.model);
           final outerInstance = _inInstance;
           _inInstance = true;
           final children = _fields(countAt + _u32Bytes, word);
@@ -2901,7 +2888,7 @@ class _TypeBodyParser {
               children.$2,
             );
           }
-          if (mObj != null) ops!.rollback(mObj);
+          ops.rollback(mObj);
         }
       }
       // The twin's `<value/>` reads as an empty string — unless inside
@@ -2913,13 +2900,13 @@ class _TypeBodyParser {
         // stores `[0x2][0][DELIM][LoopIncrement][DELIM][0]`), reading
         // like the twin's `<value/>`.
         if (_u32(next) == _recordDelimiter) {
-          ops?.u32(next, _recordDelimiter, _OpSource.grammar); // verified unset sentinel
+          ops.u32(next, _recordDelimiter, _OpSource.grammar); // verified unset sentinel
           next += _u32Bytes;
         } else {
           final stored = _tok(_u32(next));
           if (stored == null) return null;
           value = stored;
-          ops?.poolRef(next, _u32(next));
+          ops.poolRef(next, _u32(next));
           next += _u32Bytes;
         }
       }
@@ -2945,10 +2932,10 @@ class _TypeBodyParser {
     final className = _clsTok(_u32(at + 2 * _u32Bytes));
     final name = _tok(_u32(at + 3 * _u32Bytes));
     if (className == null || name == null) return null;
-    ops?.u32(at, fieldFlags, _OpSource.model); // surfaced: BinaryTypeField.fieldFlags
-    ops?.u32(at + _u32Bytes, 0, _OpSource.grammar); // the verified framing zero
-    ops?.poolRef(at + 2 * _u32Bytes, _u32(at + 2 * _u32Bytes));
-    ops?.poolRef(at + 3 * _u32Bytes, _u32(at + 3 * _u32Bytes));
+    ops.u32(at, fieldFlags, _OpSource.model); // surfaced: BinaryTypeField.fieldFlags
+    ops.u32(at + _u32Bytes, 0, _OpSource.grammar); // the verified framing zero
+    ops.poolRef(at + 2 * _u32Bytes, _u32(at + 2 * _u32Bytes));
+    ops.poolRef(at + 3 * _u32Bytes, _u32(at + 3 * _u32Bytes));
     var next = at + 4 * _u32Bytes;
     // Nested object DECLARATION — class word 'Obj' or a CLASS NAME
     // string (PythonStepAdditions.PythonCall declares class
@@ -2987,15 +2974,15 @@ class _TypeBodyParser {
         if (childCount == 0 && fieldFlags == 0x4 && countAt + 2 * _u32Bytes <= recordRegionLength) {
           final adjacent = _u32(countAt + _u32Bytes);
           if (adjacent >= 1 && adjacent <= _typeMaxFields) {
-            final mAdj = ops?.mark();
+            final mAdj = ops.mark();
             final adjAttrs = <int>[];
             for (var j = 0; j < k; j++) {
               adjAttrs.add(_u32(next + j * _u32Bytes));
-              ops?.u32(next + j * _u32Bytes, adjAttrs[j], _OpSource.model);
+              ops.u32(next + j * _u32Bytes, adjAttrs[j], _OpSource.model);
             }
             adjAttrs.add(0); // the zero-valued attr slot
-            ops?.u32(countAt, 0, _OpSource.model);
-            ops?.u32(countAt + _u32Bytes, adjacent, _OpSource.model);
+            ops.u32(countAt, 0, _OpSource.model);
+            ops.u32(countAt + _u32Bytes, adjacent, _OpSource.model);
             final children = _fields(countAt + 2 * _u32Bytes, adjacent);
             if (children != null) {
               return (
@@ -3009,19 +2996,19 @@ class _TypeBodyParser {
                 children.$2,
               );
             }
-            if (mAdj != null) ops!.rollback(mAdj);
+            ops.rollback(mAdj);
           }
         }
-        final mDecl = ops?.mark();
+        final mDecl = ops.mark();
         final declAttrs = <int>[];
         for (var j = 0; j < k; j++) {
           declAttrs.add(_u32(next + j * _u32Bytes));
-          ops?.u32(next + j * _u32Bytes, declAttrs[j], _OpSource.model);
+          ops.u32(next + j * _u32Bytes, declAttrs[j], _OpSource.model);
         }
-        ops?.u32(countAt, childCount, _OpSource.model);
+        ops.u32(countAt, childCount, _OpSource.model);
         final children = _fields(countAt + _u32Bytes, childCount);
         if (children == null) {
-          if (mDecl != null) ops!.rollback(mDecl);
+          ops.rollback(mDecl);
           continue;
         }
         return (
@@ -3048,7 +3035,7 @@ class _TypeBodyParser {
       if (hasNumericRep) {
         if (className != 'Num' || !_canRead(next)) return null;
         repr = _u32(next);
-        ops?.u32(next, repr, _OpSource.model);
+        ops.u32(next, repr, _OpSource.model);
         next += _u32Bytes;
       }
       final attrs = <int>[];
@@ -3089,8 +3076,8 @@ class _TypeBodyParser {
       // '[0]' = a populated one-element array — PythonCall.Parameters).
       final lbound = _tok(_u32(next))!;
       final ubound = _tok(_u32(next + _u32Bytes))!;
-      ops?.poolRef(next, _u32(next));
-      ops?.poolRef(next + _u32Bytes, _u32(next + _u32Bytes));
+      ops.poolRef(next, _u32(next));
+      ops.poolRef(next + _u32Bytes, _u32(next + _u32Bytes));
       // POPULATED Objs array: `[lb][ub][one 0x00 pad]{elements}[attrs][0]`
       // — the elements follow the bounds directly (anchor-measured on the
       // oracle: the placed step's Measurement.Parameters '[0]' '[10]'
@@ -3153,7 +3140,7 @@ class _TypeBodyParser {
         if (after >= recordRegionLength || view.getUint8(after) != 0) {
           return null;
         }
-        ops?.byte(after, 0, _OpSource.grammar); // the verified trailing Objs pad
+        ops.byte(after, 0, _OpSource.grammar); // the verified trailing Objs pad
         after += 1;
         // An EMPTY `Objs` array may carry a trailing ELEMENT-TYPE
         // block — `[classRef][DELIM][0][attr words…][0]`, the binary
@@ -3174,7 +3161,7 @@ class _TypeBodyParser {
             if (debugCollectSpecs) debugSpecSites.add((name, after, proto.$2 - after));
             // Element-type block: extent walked, contents undecoded —
             // copied verbatim like the other spec blobs.
-            ops?.copy(after, proto.$2);
+            ops.copy(after, proto.$2);
             return (
               BinaryTypeField(
                 name,
@@ -3206,7 +3193,7 @@ class _TypeBodyParser {
       case 'Str' when !hasNumericRep:
         final value = _tok(_u32(next));
         if (value == null) return null;
-        ops?.poolRef(next, _u32(next));
+        ops.poolRef(next, _u32(next));
         final attrs = <int>[];
         final after = hasExtData
             ? _extTail(next + _u32Bytes)
@@ -3220,7 +3207,7 @@ class _TypeBodyParser {
         // every validated stored Bool was false.
         final value = view.getUint8(next);
         if (value > 1) return null;
-        ops?.byte(next, value, _OpSource.model);
+        ops.byte(next, value, _OpSource.model);
         final attrs = <int>[];
         final after = hasExtData ? _extTail(next + 1) : _attrTail(next + 1, minWords: minAttrs, attrsOut: attrs);
         if (after == null) return null;
@@ -3244,7 +3231,7 @@ class _TypeBodyParser {
         if (hasNumericRep) {
           if (!_canRead(next)) return null;
           repr = _u32(next);
-          ops?.u32(next, repr, _OpSource.model);
+          ops.u32(next, repr, _OpSource.model);
           next += _u32Bytes;
         }
         if (next + 2 * _u32Bytes > recordRegionLength) return null;
@@ -3269,11 +3256,11 @@ class _TypeBodyParser {
         final String text;
         if (integer) {
           final value = view.getInt64(next, Endian.little);
-          ops?.i64(next, value);
+          ops.i64(next, value);
           text = '$value';
         } else {
           final value = view.getFloat64(next, Endian.little);
-          ops?.f64(next, value);
+          ops.f64(next, value);
           text = value == value.truncateToDouble() && value.abs() < 1e15 ? '${value.truncate()}' : '$value';
         }
         next += 2 * _u32Bytes;
@@ -3281,7 +3268,7 @@ class _TypeBodyParser {
           if (next + _u32Bytes > recordRegionLength || _tok(_u32(next)) == null) {
             return null;
           }
-          ops?.poolRef(next, _u32(next));
+          ops.poolRef(next, _u32(next));
           next += _u32Bytes; // display-format ref, e.g. '%#x'
         }
         final attrs = <int>[];
@@ -4009,7 +3996,7 @@ List<_SequenceRecordWalk> _sequenceRecordWalks(
   int recordRegionLength,
   List<BinaryTypeRecord> table,
   int typeIndexBase, [
-  _DecodeSink? sink,
+  _DecodeSink sink = _DecodeSink.none,
 ]) {
   final seqIdx = <int>{
     for (var i = 1; i < pool.length; i++)
@@ -4029,7 +4016,7 @@ List<_SequenceRecordWalk> _sequenceRecordWalks(
     var cur = from;
     while (subProps.length < count) {
       final i = subProps.length;
-      final mField = sink?.mark();
+      final mField = sink.mark();
       final field = parser.parseFieldAt(cur);
       if (field == null) break;
       var gated = false;
@@ -4049,7 +4036,7 @@ List<_SequenceRecordWalk> _sequenceRecordWalks(
       }
       if (gated) {
         // A parsed field the layout gates reject: its ops are not trusted.
-        if (mField != null) sink!.rollback(mField);
+        sink.rollback(mField);
         break;
       }
       cur = _TypeBodyParser.debugLastEndOffset!;
@@ -4086,10 +4073,10 @@ List<_SequenceRecordWalk> _sequenceRecordWalks(
       if (countAt + _u32Bytes > recordRegionLength) continue;
       final count = u32(countAt);
       if (count < 1 || count > _sequenceRecordMaxSubProps) continue;
-      final mCand = sink?.mark();
+      final mCand = sink.mark();
       final (subProps, end) = walkSubProps(countAt + _u32Bytes, count);
       if (subProps.isEmpty || subProps.first.$1.name != 'Parameters') {
-        if (mCand != null) sink!.rollback(mCand);
+        sink.rollback(mCand);
         continue;
       }
       // Positive comment gate: the framing (3- vs 4-word head) is arbitrated
@@ -4100,18 +4087,16 @@ List<_SequenceRecordWalk> _sequenceRecordWalks(
       // whose slot is count-shaped still decodes, simply with no comment.
       final commentWord = withComment ? u32(at + 2 * _u32Bytes) : 0;
       final comment = withComment && commentWord > _sequenceRecordMaxSubProps ? poolAt(commentWord) : null;
-      if (sink != null) {
-        sink.poolRef(at, u32(at)); // the 'Sequence' class token
-        sink.poolRef(at + _u32Bytes, u32(at + _u32Bytes)); // sequence name
-        if (withComment) {
-          if (comment != null) {
-            sink.poolRef(at + 2 * _u32Bytes, commentWord);
-          } else {
-            sink.u32(at + 2 * _u32Bytes, commentWord, _OpSource.struct);
-          }
+      sink.poolRef(at, u32(at)); // the 'Sequence' class token
+      sink.poolRef(at + _u32Bytes, u32(at + _u32Bytes)); // sequence name
+      if (withComment) {
+        if (comment != null) {
+          sink.poolRef(at + 2 * _u32Bytes, commentWord);
+        } else {
+          sink.u32(at + 2 * _u32Bytes, commentWord, _OpSource.struct);
         }
-        sink.u32(countAt, count, _OpSource.model);
       }
+      sink.u32(countAt, count, _OpSource.model);
       walked = _SequenceRecordWalk(at, name, comment, withComment ? 4 : 3, count, subProps, end);
       break;
     }
@@ -4121,10 +4106,10 @@ List<_SequenceRecordWalk> _sequenceRecordWalks(
     }
     walks.add(walked);
     // Head words (3, or 4 with the comment slot) then each decoded field.
-    sink?.claim(at, at + walked.headWords * _u32Bytes, _tierSemantic);
+    sink.claim(at, at + walked.headWords * _u32Bytes, _tierSemantic);
     var fieldStart = at + walked.headWords * _u32Bytes;
     for (final (_, fieldEnd) in walked.subProps) {
-      sink?.claim(fieldStart, fieldEnd, _tierSemantic);
+      sink.claim(fieldStart, fieldEnd, _tierSemantic);
       fieldStart = fieldEnd;
     }
     at = walked.end > at ? walked.end : at + 1;
@@ -4288,7 +4273,7 @@ List<BinarySequenceOutline> _sequenceOutlinesFromBody(
   List<String>? sharedPool,
   List<String>? sharedTypeNames,
   List<BinaryTypeRecord>? sharedTypeRecords,
-  _DecodeSink? sink,
+  _DecodeSink sink = _DecodeSink.none,
 ]) {
   final pool = sharedPool ?? _orderedStringPool(body, recordRegionLength);
   if (pool.isEmpty) return const [];
@@ -4315,19 +4300,17 @@ List<BinarySequenceOutline> _sequenceOutlinesFromBody(
     final decl = _objectDeclarationPath(body, view, pool, at, recordRegionLength);
     if (decl == null || !_isSequenceDeclaration(decl.$1)) continue;
     sequenceDecls.add((at, decl.$1[1]));
-    sink?.claim(at, decl.$2, _tierSemantic);
-    if (sink != null) {
-      // Record lead + flags byte, then the path words: pool references
-      // with zero separators (see [_objectDeclarationPath]).
-      sink.byte(at, body[at], _OpSource.struct);
-      sink.byte(at + 1, body[at + 1], _OpSource.struct);
-      for (var q = at + _PropRecordField.zeroA.offset; q + _u32Bytes <= decl.$2; q += _u32Bytes) {
-        final word = view.getUint32(q, Endian.little);
-        if (word == 0) {
-          sink.u32(q, 0, _OpSource.grammar); // the verified path-separator zero
-        } else {
-          sink.poolRef(q, word);
-        }
+    sink.claim(at, decl.$2, _tierSemantic);
+    // Record lead + flags byte, then the path words: pool references
+    // with zero separators (see [_objectDeclarationPath]).
+    sink.byte(at, body[at], _OpSource.struct);
+    sink.byte(at + 1, body[at + 1], _OpSource.struct);
+    for (var q = at + _PropRecordField.zeroA.offset; q + _u32Bytes <= decl.$2; q += _u32Bytes) {
+      final word = view.getUint32(q, Endian.little);
+      if (word == 0) {
+        sink.u32(q, 0, _OpSource.grammar); // the verified path-separator zero
+      } else {
+        sink.poolRef(q, word);
       }
     }
   }
@@ -4391,9 +4374,9 @@ List<BinarySequenceOutline> _sequenceOutlinesFromBody(
       if (!nameIdx.contains(wordAt(at))) continue;
       final value = poolAt(wordAt(at + _u32Bytes));
       if (value != null) {
-        sink?.claim(at, at + 2 * _u32Bytes, _tierSemantic);
-        sink?.poolRef(at, wordAt(at));
-        sink?.poolRef(at + _u32Bytes, wordAt(at + _u32Bytes));
+        sink.claim(at, at + 2 * _u32Bytes, _tierSemantic);
+        sink.poolRef(at, wordAt(at));
+        sink.poolRef(at + _u32Bytes, wordAt(at + _u32Bytes));
         return value;
       }
     }
@@ -4413,21 +4396,19 @@ List<BinarySequenceOutline> _sequenceOutlinesFromBody(
     // [children…]`, which the field grammar decodes as a descriptor
     // node. Its children are the step's TS subprops (Id, …).
     final tsSubProps = _stepTsSubProps(tsParser, at + 4 * _u32Bytes);
-    sink?.claim(at, at + 4 * _u32Bytes, _tierSemantic);
-    if (sink != null) {
-      // The four-word step reference `[Step][type X][name][container]`.
-      sink.poolRef(at, wordAt(at));
-      final typeWord = wordAt(at + _u32Bytes);
-      if (typeIndex >= 0 && typeIndex < typeNames.length) {
-        sink.u32(at + _u32Bytes, typeWord, _OpSource.model); // 1-based type-table index
-      } else {
-        sink.u32(at + _u32Bytes, typeWord, _OpSource.struct); // out-of-table: retained raw
-      }
-      sink.poolRef(at + 2 * _u32Bytes, wordAt(at + 2 * _u32Bytes));
-      sink.poolRef(at + 3 * _u32Bytes, wordAt(at + 3 * _u32Bytes));
+    sink.claim(at, at + 4 * _u32Bytes, _tierSemantic);
+    // The four-word step reference `[Step][type X][name][container]`.
+    sink.poolRef(at, wordAt(at));
+    final typeWord = wordAt(at + _u32Bytes);
+    if (typeIndex >= 0 && typeIndex < typeNames.length) {
+      sink.u32(at + _u32Bytes, typeWord, _OpSource.model); // 1-based type-table index
+    } else {
+      sink.u32(at + _u32Bytes, typeWord, _OpSource.struct); // out-of-table: retained raw
     }
+    sink.poolRef(at + 2 * _u32Bytes, wordAt(at + 2 * _u32Bytes));
+    sink.poolRef(at + 3 * _u32Bytes, wordAt(at + 3 * _u32Bytes));
     if (tsSubProps.isNotEmpty && tsParser.lastStepTsEnd != null) {
-      sink?.claim(at + 4 * _u32Bytes, tsParser.lastStepTsEnd!, _tierSemantic);
+      sink.claim(at + 4 * _u32Bytes, tsParser.lastStepTsEnd!, _tierSemantic);
     }
     // After the TS node, the step's own DATA subprops follow as plain
     // fields (Measurement, PinMapPath) — walked with the same grammar and
@@ -4436,17 +4417,17 @@ List<BinarySequenceOutline> _sequenceOutlinesFromBody(
     if (tsSubProps.isNotEmpty && tsParser.lastStepTsEnd != null) {
       var cur = tsParser.lastStepTsEnd!;
       while (cur < spanEnd) {
-        final mData = sink?.mark();
+        final mData = sink.mark();
         final field = tsParser.parseFieldAt(cur);
         if (field == null) break;
         final fieldEnd = _TypeBodyParser.debugLastEndOffset!;
         if (!_stepDataSubPropNames.contains(field.name) || fieldEnd > spanEnd) {
           // Parsed but rejected by the honesty gates — ops not trusted.
-          if (mData != null) sink!.rollback(mData);
+          sink.rollback(mData);
           break;
         }
         dataSubProps.add(field);
-        sink?.claim(cur, fieldEnd, _tierSemantic);
+        sink.claim(cur, fieldEnd, _tierSemantic);
         cur = fieldEnd;
       }
     }
@@ -4571,7 +4552,7 @@ Map<String, List<BinaryTypeField>> _sequenceTailSubProps(
   List<BinaryTypeRecord> table,
   int typeIndexBase,
   List<(int, String)> sequenceDecls, [
-  _DecodeSink? sink,
+  _DecodeSink sink = _DecodeSink.none,
 ]) {
   if (sequenceDecls.isEmpty) return const {};
   int u32(int at) => view.getUint32(at, Endian.little);
@@ -4599,18 +4580,18 @@ Map<String, List<BinaryTypeField>> _sequenceTailSubProps(
       if (u32(at + _u32Bytes) != 0) continue; // the field's zero slot
       if (!classIdx.contains(u32(at + 2 * _u32Bytes))) continue;
       if (!nameIdx.contains(u32(at + 3 * _u32Bytes))) continue;
-      final mAnchor = sink?.mark();
+      final mAnchor = sink.mark();
       final field = parser.parseFieldAt(at);
       if (field == null) continue;
       final owner = ownerOf(at);
       final seen = seenPerOwner.putIfAbsent(owner, () => <String>{});
       if (!spec.accepts(field) || !seen.add(spec.name)) {
         // Parsed but rejected (shape gate / duplicate) — ops not trusted.
-        if (mAnchor != null) sink!.rollback(mAnchor);
+        sink.rollback(mAnchor);
         continue;
       }
       final fieldEnd = _TypeBodyParser.debugLastEndOffset;
-      if (fieldEnd != null) sink?.claim(at, fieldEnd, _tierSemantic);
+      if (fieldEnd != null) sink.claim(at, fieldEnd, _tierSemantic);
       result.putIfAbsent(owner, () => <BinaryTypeField>[]).add(field);
     }
   }
@@ -4664,7 +4645,7 @@ Map<String, List<BinaryTypeField>> _sequenceLeadingSubProps(
   List<BinaryTypeRecord> table,
   int typeIndexBase,
   Set<String> sequenceNames, [
-  _DecodeSink? sink,
+  _DecodeSink sink = _DecodeSink.none,
 ]) {
   final sequenceToken = pool.indexOf('Sequence');
   if (sequenceToken <= 0) return const {};
@@ -4682,7 +4663,7 @@ Map<String, List<BinaryTypeField>> _sequenceLeadingSubProps(
     if (name == null || result.containsKey(name)) continue;
     final count = u32(at + 2 * _u32Bytes);
     if (count < 1 || count > _typeMaxFields) continue;
-    final mWalk = sink?.mark();
+    final mWalk = sink.mark();
     final decoded = parser.parseLeadingSubProps(at + 3 * _u32Bytes, count, _stepGroupNames);
     // Keep only the KNOWN pre-Main subprops (Parameters, Locals — the
     // only two the sequence layout places before the Main group array),
@@ -4699,19 +4680,17 @@ Map<String, List<BinaryTypeField>> _sequenceLeadingSubProps(
       keptEnd = fieldEnd;
     }
     if (subProps.isEmpty) {
-      if (mWalk != null) sink!.rollback(mWalk);
+      sink.rollback(mWalk);
       continue;
     }
-    if (sink != null) {
-      // Drop the ops of the fields past the kept prefix, then emit the
-      // `[Sequence][name][count]` record head.
-      sink.rollbackTailFrom(mWalk!, keptEnd);
-      sink.poolRef(at, u32(at));
-      sink.poolRef(at + _u32Bytes, u32(at + _u32Bytes));
-      sink.u32(at + 2 * _u32Bytes, count, _OpSource.model);
-    }
+    // Drop the ops of the fields past the kept prefix, then emit the
+    // `[Sequence][name][count]` record head.
+    sink.rollbackTailFrom(mWalk, keptEnd);
+    sink.poolRef(at, u32(at));
+    sink.poolRef(at + _u32Bytes, u32(at + _u32Bytes));
+    sink.u32(at + 2 * _u32Bytes, count, _OpSource.model);
     // The `[Sequence][name][count]` record head plus the kept subprop run.
-    sink?.claim(at, keptEnd, _tierSemantic);
+    sink.claim(at, keptEnd, _tierSemantic);
     result[name] = subProps;
   }
   return result;
@@ -4999,7 +4978,7 @@ class _BodyDecode {
   final List<String> pool;
 
   /// The recorded decode stream: write ops plus coverage claims/demotions.
-  final _DecodeSink stream;
+  final _RecordingDecodeSink stream;
 }
 
 /// Inflates and decodes a whole binary TOF1 container once —
@@ -5026,7 +5005,7 @@ _BodyDecode? _decodeSeq(Uint8List seqBytes) {
 _BodyDecode? _decodeBody(Uint8List body) {
   final recordRegionLength = _recordRegionBoundary(body);
   if (recordRegionLength == null) return null;
-  final sink = _DecodeSink();
+  final sink = _RecordingDecodeSink();
   final pool = _orderedStringPool(body, recordRegionLength);
   if (pool.isEmpty) return _BodyDecode(body, recordRegionLength, pool, sink);
   final view = ByteData.sublistView(body);
