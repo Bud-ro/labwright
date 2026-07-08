@@ -60,9 +60,10 @@ ViPasswordRecord? decodePasswordRecord(Uint8List bytes) {
   );
 }
 
-/// A decoded 16-byte signature block (`RTSG` run-time signature, and the
-/// signature half of `SCSR`): an opaque identity value, varied per VI. The
-/// *format* (a single 16-byte digest/GUID) is decoded; the derivation is not.
+/// A decoded 16-byte signature block (`RTSG` run-time signature, `OBSG` object
+/// signature, `CCSG` compiled-code signature, and the signature half of
+/// `SCSR`): an opaque identity value. The *format* (a single 16-byte
+/// digest/GUID) is decoded; the derivation is not.
 class ViSignature {
   const ViSignature({required this.hex});
   final String hex;
@@ -71,7 +72,8 @@ class ViSignature {
   Uint8List serialize() => _bytesFromHex(hex);
 }
 
-/// Decodes an `RTSG` signature; null unless exactly 16 bytes (7582/7582).
+/// Decodes a 16-byte signature block (`RTSG`, `OBSG`, `CCSG`); null unless
+/// exactly 16 bytes.
 ViSignature? decodeRuntimeSignature(Uint8List bytes) => bytes.length == 16 ? ViSignature(hex: _hexOf(bytes)) : null;
 
 /// A decoded `SCSR` record: a u32 marker (0x01000000 across the corpus) plus a
@@ -239,10 +241,34 @@ String? decodeTitle(Uint8List bytes) {
   return String.fromCharCodes(bytes.sublist(1, 1 + len));
 }
 
-/// A decoded `DLDR`/`GCPR` constant record: fixed-size bodies that are
-/// byte-constant across the whole corpus (28 B / 13 B respectively). Decoding
-/// = verifying the expected constant; [matchesCorpusConstant] is false for a
-/// never-seen variant so drift is loud, not silent.
+/// A decoded `TITL` VI-title record retained losslessly: a `u8` length prefix
+/// followed by exactly that many text bytes (the record is `1 + length` bytes).
+/// Unlike [decodeTitle] the [text] bytes are kept verbatim — non-printable bytes
+/// survive — so [serialize] reproduces the record exactly.
+class ViTitleRaw {
+  const ViTitleRaw({required this.text});
+  final Uint8List text;
+
+  /// Re-emits `[u8 length][text]` — the whole record.
+  Uint8List serialize() {
+    final out = Uint8List(1 + text.length);
+    out[0] = text.length;
+    out.setRange(1, out.length, text);
+    return out;
+  }
+}
+
+/// Decodes a `TITL` record losslessly; null unless the `u8` length prefix names
+/// exactly the remaining bytes (`1 + length == body length`).
+ViTitleRaw? decodeTitleRaw(Uint8List bytes) {
+  if (bytes.isEmpty || 1 + bytes[0] != bytes.length) return null;
+  return ViTitleRaw(text: Uint8List.sublistView(bytes, 1));
+}
+
+/// A decoded fixed-size all-zero constant record (`GCPR` 13 B, `VPDP` 4 B):
+/// bodies that are byte-constant (all zero) across the whole corpus. Decoding =
+/// verifying the expected constant; [matchesCorpusConstant] is false for a
+/// never-seen non-zero variant so drift is loud, not silent.
 class ViConstantRecord {
   const ViConstantRecord({required this.length, required this.matchesCorpusConstant});
   final int length;
@@ -250,8 +276,8 @@ class ViConstantRecord {
 
   /// Re-emits the all-zero constant body when this record matched it, else null
   /// (a never-seen non-zero variant is not reconstructed from this summary).
-  /// [decodeGcprRecord] sets [matchesCorpusConstant] only for an all-zero body,
-  /// so the emitted zeros reproduce it exactly.
+  /// The decoders set [matchesCorpusConstant] only for an all-zero body, so the
+  /// emitted zeros reproduce it exactly.
   Uint8List? serialize() => matchesCorpusConstant ? Uint8List(length) : null;
 }
 
@@ -264,11 +290,69 @@ ViConstantRecord? decodeGcprRecord(Uint8List bytes) {
   );
 }
 
-/// Decodes a `DLDR` record (fixed 28 bytes, constant across the corpus).
-ViConstantRecord? decodeDldrRecord(Uint8List bytes) {
-  if (bytes.length != 28) return null;
-  return const ViConstantRecord(length: 28, matchesCorpusConstant: true);
+/// Decodes a `VPDP` record (4 zero bytes across the corpus).
+ViConstantRecord? decodeVpdpRecord(Uint8List bytes) {
+  if (bytes.length != 4) return null;
+  return ViConstantRecord(
+    length: 4,
+    matchesCorpusConstant: bytes.every((b) => b == 0),
+  );
 }
+
+/// A decoded big-endian `u32` **word grid**: the block body read as a run of
+/// big-endian `u32` words. `DLDR`, `CNST`, and `LPIN` bodies are word grids —
+/// `DLDR` a fixed seven-word grid (its first word is 1 in 3470/3471 corpus
+/// instances, the remaining words are per-VI), `CNST` and `LPIN` variable-length
+/// grids of offset-like values. The words' semantics are not decoded; retaining
+/// them re-emits the body exactly.
+class ViWordGrid {
+  const ViWordGrid({required this.words});
+  final List<int> words;
+
+  /// Re-emits the big-endian `u32` words in order — the whole body.
+  Uint8List serialize() {
+    final out = Uint8List(words.length * 4);
+    final d = ByteData.sublistView(out);
+    for (var i = 0; i < words.length; i++) {
+      d.setUint32(i * 4, words[i]);
+    }
+    return out;
+  }
+}
+
+/// Decodes a big-endian `u32` word grid; null unless the body is a non-empty
+/// whole number of `u32` words. When [words] is non-null the body must be
+/// exactly that many words, so an off-size variant stays copied rather than
+/// silently reshaped.
+ViWordGrid? decodeWordGrid(Uint8List bytes, {int? words}) {
+  if (bytes.isEmpty || bytes.length % 4 != 0) return null;
+  if (words != null && bytes.length != words * 4) return null;
+  final view = ByteData.sublistView(bytes);
+  return ViWordGrid(words: [for (var at = 0; at < bytes.length; at += 4) view.getUint32(at)]);
+}
+
+/// Decodes a `DLDR` record as its fixed seven-word `u32` grid; null unless
+/// exactly 28 bytes.
+ViWordGrid? decodeDldrRecord(Uint8List bytes) => decodeWordGrid(bytes, words: 7);
+
+/// A decoded `CPD2` connector-pane-data record: a single big-endian `u16` (a
+/// fixed 2-byte body across the corpus). Its meaning is not decoded; retaining
+/// the value re-emits the body.
+class ViU16Record {
+  const ViU16Record({required this.value});
+  final int value;
+
+  /// Re-emits the 2-byte big-endian `u16`.
+  Uint8List serialize() {
+    final out = Uint8List(2);
+    ByteData.sublistView(out).setUint16(0, value);
+    return out;
+  }
+}
+
+/// Decodes a `CPD2` record; null unless exactly 2 bytes.
+ViU16Record? decodeCpd2Record(Uint8List bytes) =>
+    bytes.length == 2 ? ViU16Record(value: ByteData.sublistView(bytes).getUint16(0)) : null;
 
 /// A decoded `TRec` **text record**: a 13-byte header (leading zero words +
 /// small type bytes) followed by u16-length-prefixed text runs — step-by-step

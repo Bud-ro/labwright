@@ -53,6 +53,17 @@
 ///     header/terminator framing with the entry region retained, for the
 ///     deterministically-bounded ≤1-entry sections (many-entry sections stay
 ///     copied — see [ViLinkInfoRaw.tiled]).
+///   * `DLDR` — default-data loader ([ViWordGrid] via [decodeDldrRecord]); the
+///     fixed seven-word `u32` grid.
+///   * `CNST` / `LPIN` — constants table / linked-instance info ([ViWordGrid]);
+///     variable-length `u32` word grids.
+///   * `VPDP` — VI property data ([ViConstantRecord]); the 4-byte all-zero
+///     constant, every corpus instance.
+///   * `TITL` — VI title ([ViTitleRaw]); the `[u8 len][text]` Pascal string.
+///   * `OBSG` / `CCSG` — object / compiled-code signature ([ViSignature]); a
+///     16-byte opaque identity value.
+///   * `COUT` — compiled output ([ViWordGrid]); the fixed three-word `u32` grid.
+///   * `CPD2` — connector-pane data ([ViU16Record]); the fixed 2-byte `u16`.
 library;
 
 import 'dart:typed_data';
@@ -103,7 +114,16 @@ bool hasBlockWriter(String tag) => switch (tag) {
   'LIbd' ||
   'LIvi' ||
   'LIfp' ||
-  'LIds' => true,
+  'LIds' ||
+  'DLDR' ||
+  'CNST' ||
+  'LPIN' ||
+  'VPDP' ||
+  'TITL' ||
+  'OBSG' ||
+  'CCSG' ||
+  'COUT' ||
+  'CPD2' => true,
   _ => false,
 };
 
@@ -135,6 +155,13 @@ Uint8List? serializeBlockPayload(String tag, Uint8List payload) {
     'SCSR' => decodeScsrRecord(payload)?.serialize(),
     'BDPW' => decodePasswordRecord(payload)?.serialize(),
     'LIbd' || 'LIvi' || 'LIfp' || 'LIds' => _serializeLinkInfo(payload),
+    'DLDR' => decodeDldrRecord(payload)?.serialize(),
+    'CNST' || 'LPIN' => decodeWordGrid(payload)?.serialize(),
+    'VPDP' => decodeVpdpRecord(payload)?.serialize(),
+    'TITL' => decodeTitleRaw(payload)?.serialize(),
+    'OBSG' || 'CCSG' => decodeRuntimeSignature(payload)?.serialize(),
+    'COUT' => decodeWordGrid(payload, words: 3)?.serialize(),
+    'CPD2' => decodeCpd2Record(payload)?.serialize(),
     _ => null,
   };
   if (out == null || out.length != payload.length) return null;

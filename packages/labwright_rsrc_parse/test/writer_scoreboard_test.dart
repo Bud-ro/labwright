@@ -27,7 +27,8 @@ import 'snapshot_check.dart';
 const _fullTags = [
   'icl8', 'icl4', 'ICON', 'NUID', 'SUID', 'BNID', 'vers', 'STRG', 'HIST', //
   'MUID', 'BDSE', 'FPSE', 'BDEx', 'FPEx', 'IPSR', 'PICC', 'CPMp', 'GCPR', //
-  'RTSG', 'SCSR', 'BDPW',
+  'RTSG', 'SCSR', 'BDPW', 'DLDR', 'CNST', 'LPIN', 'VPDP', 'TITL', 'OBSG', 'CCSG', //
+  'COUT', 'CPD2',
 ];
 
 /// Block tags whose payload writer re-serializes a **subset** of corpus
