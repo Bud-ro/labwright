@@ -28,6 +28,7 @@ void main() {
       bodyBytes: 0,
       poolBytes: 0,
       modelBytes: 0,
+      grammarBytes: 0,
       structuralBytes: 0,
       copiedBytes: 0,
     );

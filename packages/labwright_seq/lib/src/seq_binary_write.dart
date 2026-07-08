@@ -13,15 +13,11 @@ part of 'seq_binary.dart';
 // (seq_binary_metrics.dart), so the writer's copy-vs-serialize decision
 // mirrors the coverage tier map by construction.
 
-/// The primitive re-serialization op kinds a write plan is built from.
-/// Grouped by scoreboard class: [copy] is a verbatim byte-range copy from the
-/// retained record region; [structU32]/[structByte] re-emit a RETAINED wire
-/// word/byte the typed model does not yet carry; [grammarU32]/[grammarByte]
-/// re-emit a GRAMMAR-DETERMINED constant the decode verified (framing zeros,
-/// record delimiters, terminators, pads, form sentinels); the rest re-emit
-/// MODEL content (pool references, counts/type refs/head fields, flag/attr
-/// words the typed model surfaces, inline scalar values).
-enum _WriteOpKind {
+/// HOW a write op's bytes go on the wire — the encoding and width. The
+/// WRITER dispatches on this dimension alone ([BinarySeqWriteModel.writeBody]
+/// switches over it); it says nothing about where the value came from
+/// (that is [_OpSource]).
+enum _WirePrimitive {
   /// Verbatim copy of `[offset, intValue)` from the retained record region.
   copy,
 
@@ -30,22 +26,8 @@ enum _WriteOpKind {
   /// entry flows into the written file through the pool region).
   poolRef,
 
-  /// A `u32` structural word re-emitted from its retained value — a word
-  /// whose value the grammar accepted without decoding it and the typed
-  /// model does not carry.
-  structU32,
-
-  /// A `u32` carrying model content (child counts, type-table references,
-  /// type category / timestamp head fields, field-flags/attr words the
-  /// typed model surfaces, numeric-representation codes).
-  modelU32,
-
-  /// A `u32` whose value the GRAMMAR fully determines at this position and
-  /// the decode VERIFIED before emitting (a framing zero, a record
-  /// delimiter, an attr-tail/extdata terminator, a form sentinel like the
-  /// framed `X == 1` intrinsic-instance marker). Re-emittable from grammar
-  /// knowledge alone — no retained bytes needed.
-  grammarU32,
+  /// A little-endian `u32` word (`intValue`).
+  u32,
 
   /// An inline little-endian IEEE-754 double (`doubleValue`).
   f64,
@@ -53,41 +35,64 @@ enum _WriteOpKind {
   /// An inline little-endian i64 (`intValue`).
   i64,
 
-  /// A one-byte stored Bool (`intValue` 0/1).
-  boolByte,
-
-  /// A structural byte re-emitted from its retained value (record
-  /// lead/flags bytes the typed model does not yet carry).
-  structByte,
-
-  /// A one-byte GRAMMAR-DETERMINED constant the decode verified (alignment
-  /// pads, byte terminators) — the byte analog of [grammarU32].
-  grammarByte,
-
-  /// A byte carrying model content (a leaf property record's lead/flags
-  /// bytes, surfaced on [BinaryPropertyRecord]).
-  modelByte,
+  /// A single byte (`intValue`).
+  byte,
 }
 
-/// One primitive write op at an absolute record-region [offset].
+/// WHERE a write op's value comes from — its provenance. The SCOREBOARD
+/// buckets on this dimension alone ([_planScoreboard]); it says nothing
+/// about the wire encoding (that is [_WirePrimitive]).
+///
+/// Two primitives have a fixed source by definition: [_WirePrimitive.copy]
+/// is [struct] (retained bytes the decode does not interpret is exactly what
+/// a verbatim copy re-emits), and [_WirePrimitive.poolRef] is [model] (the
+/// index round-trips through the mutable model pool). Inline scalar values
+/// ([_WirePrimitive.f64]/[_WirePrimitive.i64]) are decoded values the typed
+/// model carries, so they are [model] by definition too.
+enum _OpSource {
+  /// Re-emitted from its RETAINED wire value — a span the grammar accepted
+  /// without decoding and the typed model does not yet carry.
+  struct,
+
+  /// Emitted from MODEL content (pool references, counts, type refs, head
+  /// fields, flag/attr words the typed model surfaces, inline scalar values).
+  model,
+
+  /// A GRAMMAR-DETERMINED constant the decode VERIFIED before emitting
+  /// (framing zeros, record delimiters, terminators, alignment pads, form
+  /// sentinels). Re-emittable from grammar knowledge alone — no retained
+  /// bytes needed.
+  grammar,
+}
+
+/// One primitive write op at an absolute record-region [offset]: a wire
+/// [primitive] (how the bytes are encoded, what the writer switches on) and
+/// a value [source] (where the value came from, what the scoreboard folds).
 class _WriteOp {
-  _WriteOp(this.offset, this.kind, this.intValue, [this.doubleValue = 0]);
+  _WriteOp(this.offset, this.primitive, this.source, this.intValue, [this.doubleValue = 0]);
+
+  _WriteOp.copy(this.offset, int end)
+    : primitive = _WirePrimitive.copy,
+      source = _OpSource.struct,
+      intValue = end,
+      doubleValue = 0;
 
   final int offset;
-  final _WriteOpKind kind;
+  final _WirePrimitive primitive;
+  final _OpSource source;
 
-  /// Kind-dependent payload: the copy END offset, a pool index, a raw or
-  /// model `u32`, an i64 value, or a byte value.
+  /// Primitive-dependent payload: the copy END offset, a pool index, a
+  /// `u32` word, an i64 value, or a byte value.
   int intValue;
 
-  /// The f64 payload (kind [_WriteOpKind.f64] only).
+  /// The f64 payload ([_WirePrimitive.f64] only).
   double doubleValue;
 
-  int get length => switch (kind) {
-    _WriteOpKind.copy => intValue - offset,
-    _WriteOpKind.poolRef || _WriteOpKind.structU32 || _WriteOpKind.modelU32 || _WriteOpKind.grammarU32 => _u32Bytes,
-    _WriteOpKind.f64 || _WriteOpKind.i64 => _f64Bytes,
-    _WriteOpKind.boolByte || _WriteOpKind.structByte || _WriteOpKind.grammarByte || _WriteOpKind.modelByte => 1,
+  int get length => switch (primitive) {
+    _WirePrimitive.copy => intValue - offset,
+    _WirePrimitive.poolRef || _WirePrimitive.u32 => _u32Bytes,
+    _WirePrimitive.f64 || _WirePrimitive.i64 => _f64Bytes,
+    _WirePrimitive.byte => 1,
   };
 }
 
@@ -141,20 +146,26 @@ class _DecodeSink {
     ops.length = w;
   }
 
+  /// Records a verbatim copy of `[from, to)` (source: struct by definition).
   void copy(int from, int to) {
-    if (to > from) ops.add(_WriteOp(from, _WriteOpKind.copy, to));
+    if (to > from) ops.add(_WriteOp.copy(from, to));
   }
 
-  void poolRef(int at, int index) => ops.add(_WriteOp(at, _WriteOpKind.poolRef, index));
-  void u32(int at, int value) => ops.add(_WriteOp(at, _WriteOpKind.structU32, value));
-  void modelU32(int at, int value) => ops.add(_WriteOp(at, _WriteOpKind.modelU32, value));
-  void grammarU32(int at, int value) => ops.add(_WriteOp(at, _WriteOpKind.grammarU32, value));
-  void f64(int at, double value) => ops.add(_WriteOp(at, _WriteOpKind.f64, 0, value));
-  void i64(int at, int value) => ops.add(_WriteOp(at, _WriteOpKind.i64, value));
-  void boolByte(int at, int value) => ops.add(_WriteOp(at, _WriteOpKind.boolByte, value));
-  void structByte(int at, int value) => ops.add(_WriteOp(at, _WriteOpKind.structByte, value));
-  void grammarByte(int at, int value) => ops.add(_WriteOp(at, _WriteOpKind.grammarByte, value));
-  void modelByte(int at, int value) => ops.add(_WriteOp(at, _WriteOpKind.modelByte, value));
+  /// Records a pool reference (source: model by definition — the index
+  /// round-trips through the mutable model pool).
+  void poolRef(int at, int index) => ops.add(_WriteOp(at, _WirePrimitive.poolRef, _OpSource.model, index));
+
+  /// Records a `u32` word of the given provenance.
+  void u32(int at, int value, _OpSource source) => ops.add(_WriteOp(at, _WirePrimitive.u32, source, value));
+
+  /// Records a single byte of the given provenance.
+  void byte(int at, int value, _OpSource source) => ops.add(_WriteOp(at, _WirePrimitive.byte, source, value));
+
+  /// Records an inline f64 value (source: model by definition).
+  void f64(int at, double value) => ops.add(_WriteOp(at, _WirePrimitive.f64, _OpSource.model, 0, value));
+
+  /// Records an inline i64 value (source: model by definition).
+  void i64(int at, int value) => ops.add(_WriteOp(at, _WirePrimitive.i64, _OpSource.model, value));
 }
 
 /// The parsed WRITE MODEL of one binary TOF1 file: the retained container
@@ -247,7 +258,7 @@ class BinarySeqWriteModel {
   int replaceF64(double from, double to) {
     var replaced = 0;
     for (final op in _plan) {
-      if (op.kind == _WriteOpKind.f64 && op.doubleValue == from) {
+      if (op.primitive == _WirePrimitive.f64 && op.doubleValue == from) {
         op.doubleValue = to;
         replaced++;
       }
@@ -259,14 +270,14 @@ class BinarySeqWriteModel {
   /// [value] (mutation-probe diagnostics).
   List<int> f64Sites(double value) => [
     for (final op in _plan)
-      if (op.kind == _WriteOpKind.f64 && op.doubleValue == value) op.offset,
+      if (op.primitive == _WirePrimitive.f64 && op.doubleValue == value) op.offset,
   ];
 
   /// Every inline f64 value in the plan, in plan order (mutation-target
   /// scouting).
   List<double> get f64Values => [
     for (final op in _plan)
-      if (op.kind == _WriteOpKind.f64) op.doubleValue,
+      if (op.primitive == _WirePrimitive.f64) op.doubleValue,
   ];
 
   /// Re-serializes the inflated body: the record region from the write plan
@@ -276,16 +287,17 @@ class BinarySeqWriteModel {
     final out = Uint8List(recordRegion.length + _poolByteLength);
     final view = ByteData.sublistView(out);
     for (final op in _plan) {
-      switch (op.kind) {
-        case _WriteOpKind.copy:
+      // Wire dimension only: how the op's value is encoded, never why.
+      switch (op.primitive) {
+        case _WirePrimitive.copy:
           out.setRange(op.offset, op.intValue, recordRegion, op.offset);
-        case _WriteOpKind.poolRef || _WriteOpKind.structU32 || _WriteOpKind.modelU32 || _WriteOpKind.grammarU32:
+        case _WirePrimitive.poolRef || _WirePrimitive.u32:
           view.setUint32(op.offset, op.intValue, Endian.little);
-        case _WriteOpKind.f64:
+        case _WirePrimitive.f64:
           view.setFloat64(op.offset, op.doubleValue, Endian.little);
-        case _WriteOpKind.i64:
+        case _WirePrimitive.i64:
           view.setInt64(op.offset, op.intValue, Endian.little);
-        case _WriteOpKind.boolByte || _WriteOpKind.structByte || _WriteOpKind.grammarByte || _WriteOpKind.modelByte:
+        case _WirePrimitive.byte:
           out[op.offset] = op.intValue;
       }
     }
@@ -350,12 +362,12 @@ class BinarySeqWriteModel {
 /// decoder set from exactly these consumption rules.
 void _leafPropertyRecordOps(_DecodeSink ops, ByteData view, BinaryPropertyRecord record) {
   final o = record.offset;
-  ops.modelByte(o, record.lead);
-  ops.modelByte(o + 1, record.flagsByte);
-  ops.grammarU32(o + _PropRecordField.zeroA.offset, 0);
+  ops.byte(o, record.lead, _OpSource.model);
+  ops.byte(o + 1, record.flagsByte, _OpSource.model);
+  ops.u32(o + _PropRecordField.zeroA.offset, 0, _OpSource.grammar);
   final kind = record.kind;
-  ops.modelU32(o + _PropRecordField.kind.offset, kind);
-  ops.grammarU32(o + _PropRecordField.zeroB.offset, 0);
+  ops.u32(o + _PropRecordField.kind.offset, kind, _OpSource.model);
+  ops.u32(o + _PropRecordField.zeroB.offset, 0, _OpSource.grammar);
   ops.poolRef(
     o + _PropRecordField.typeNameIndex.offset,
     view.getUint32(o + _PropRecordField.typeNameIndex.offset, Endian.little),
@@ -375,13 +387,13 @@ void _leafPropertyRecordOps(_DecodeSink ops, ByteData view, BinaryPropertyRecord
           if (record.value != null) {
             ops.poolRef(valueAt, word);
           } else {
-            ops.u32(valueAt, word); // unresolvable index: retained raw
+            ops.u32(valueAt, word, _OpSource.struct); // unresolvable index: retained raw
           }
           consumed += _u32Bytes;
         }
       case 'Bool':
         if (rem == 1 || rem == 1 + _propTerminatorWidth) {
-          ops.boolByte(valueAt, view.getUint8(valueAt));
+          ops.byte(valueAt, view.getUint8(valueAt), _OpSource.model);
           consumed += 1;
         }
       case 'Num':
@@ -393,8 +405,8 @@ void _leafPropertyRecordOps(_DecodeSink ops, ByteData view, BinaryPropertyRecord
   }
   if (record.length == consumed + _propTerminatorWidth) {
     // The trailing u16 zero terminator the scan verified byte-for-byte.
-    ops.grammarByte(o + consumed, 0);
-    ops.grammarByte(o + consumed + 1, 0);
+    ops.byte(o + consumed, 0, _OpSource.grammar);
+    ops.byte(o + consumed + 1, 0, _OpSource.grammar);
   }
 }
 
@@ -444,7 +456,7 @@ BinarySeqWriteModel? parseBinarySeqWriteModel(Uint8List seqBytes) {
       recordRegion: body,
       pool: [],
       poolEndsWithoutNul: false,
-      plan: [_WriteOp(0, _WriteOpKind.copy, body.length)],
+      plan: [_WriteOp.copy(0, body.length)],
     );
   }
   return BinarySeqWriteModel._(
@@ -478,10 +490,10 @@ List<_WriteOp> _buildWritePlan(List<_WriteOp> ops, int boundary) {
     if (op.offset < cursor) continue; // overlaps a committed op — duplicate
     final end = op.offset + op.length;
     if (end > boundary) continue;
-    if (op.offset > cursor) plan.add(_WriteOp(cursor, _WriteOpKind.copy, op.offset));
+    if (op.offset > cursor) plan.add(_WriteOp.copy(cursor, op.offset));
     plan.add(op);
     cursor = end;
   }
-  if (cursor < boundary) plan.add(_WriteOp(cursor, _WriteOpKind.copy, boundary));
+  if (cursor < boundary) plan.add(_WriteOp.copy(cursor, boundary));
   return plan;
 }
