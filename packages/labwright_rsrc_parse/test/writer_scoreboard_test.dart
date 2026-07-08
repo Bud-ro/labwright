@@ -125,7 +125,7 @@ bool _bytesEqual(Uint8List a, Uint8List b) {
       // verified-model prefixes ++ original-copied slices — equals the body.
       // (The explicit bytes == body proof over serializeHeapBody is the unit
       // test; here the allocation-free split keeps the corpus sweep lean.)
-      final split = attributeHeapBody(inflated);
+      final split = attributeHeapBody(inflated, s.tag);
       if (split.modelBytes + split.copiedBytes == inflated.length && split.modelBugs == 0) {
         n('heapByteExact');
       } else {

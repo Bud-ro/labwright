@@ -48,6 +48,46 @@ void main() {
     expect(res.modelBugs, 0);
   });
 
+  test('a VCTP body re-serializes byte-exact and models the whole pool', () {
+    // count=2, TD0 (descLen 6), TD1 (descLen 8), top-level list [2](0,1).
+    final body = hx(
+      '00000002' // u32 count = 2
+      '0006 0005 1122' // TD0: descLen 6, interior <flags 00><code 05> 11 22
+      '0008 0040 aabbccdd' // TD1: descLen 8, interior <00><40 array> aa bb cc dd
+      '0002 0000 0001', // top-level list: count 2, indices 0 and 1
+    );
+    final res = serializeHeapBody(body, 'VCTP');
+    expect(res.bytes, equals(body));
+    expect(res.modelBytes, body.length, reason: 'the whole pool frames: structural words + retained interiors');
+    expect(res.copiedBytes, 0);
+    expect(res.modelBugs, 0);
+
+    final split = attributeHeapBody(body, 'VCTP');
+    expect(split.modelBytes, body.length);
+    expect(split.copiedBytes, 0);
+    expect(split.modelBugs, 0);
+  });
+
+  test('a VCTP body that does not tile stays copied and byte-exact', () {
+    // count claims 3 descriptors but the body holds only one — the grammar
+    // rejects it, so the whole body is copied (byte-exactness preserved).
+    final body = hx('00000003 0006 0005 1122');
+    final res = serializeHeapBody(body, 'VCTP');
+    expect(res.bytes, equals(body));
+    expect(res.modelBytes, 0);
+    expect(res.copiedBytes, body.length);
+    expect(attributeHeapBody(body, 'VCTP').copiedBytes, body.length);
+  });
+
+  test('serializeHeapBody is total and byte-exact on random VCTP-tagged buffers', () {
+    expectTotal(7, 2000, 64, (b) {
+      final res = serializeHeapBody(b, 'VCTP');
+      expect(res.bytes, equals(b));
+      expect(res.modelBytes + res.copiedBytes, b.length);
+      expect(res.modelBugs, 0);
+    });
+  });
+
   test('serializeHeapBody is total and always byte-exact on random buffers', () {
     expectTotal(1, 4000, 64, (b) {
       final res = serializeHeapBody(b);
