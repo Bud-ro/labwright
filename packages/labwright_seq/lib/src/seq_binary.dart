@@ -277,8 +277,10 @@ BinaryBodyLayout? analyzeBinaryBody(Uint8List seqBytes) {
   return _layoutFromBody(body);
 }
 
-BinaryBodyLayout? _layoutFromBody(Uint8List body) {
-  final runs = binaryStrings(body, minLength: _minRunLength);
+BinaryBodyLayout? _layoutFromBody(Uint8List body) =>
+    _layoutFromRuns(body, binaryStrings(body, minLength: _minRunLength));
+
+BinaryBodyLayout? _layoutFromRuns(Uint8List body, List<BinaryString> runs) {
   final boundary = _firstTableOffset(runs);
   if (boundary == null) return null;
   final stringCount = runs.where((r) => r.offset >= boundary).length;
@@ -317,8 +319,12 @@ List<BinaryStringSegment> binaryStringSegments(
 List<BinaryStringSegment> _segmentsFromBody(
   Uint8List body, {
   int minChain = _minSegmentChain,
+}) => _segmentsFromRuns(binaryStrings(body, minLength: _minRunLength), minChain: minChain);
+
+List<BinaryStringSegment> _segmentsFromRuns(
+  List<BinaryString> runs, {
+  int minChain = _minSegmentChain,
 }) {
-  final runs = binaryStrings(body, minLength: _minRunLength);
   final boundary = _firstTableOffset(runs);
   if (boundary == null) return const [];
   return [
@@ -921,8 +927,12 @@ List<String> _orderedStringPool(Uint8List body, int recordRegionLength) {
 /// inflatable binary file or does not frame.
 List<BinaryPropertyRecord> binaryPropertyRecords(Uint8List seqBytes) => _withLayout(seqBytes, _propertyRecordsFromBody);
 
-List<BinaryPropertyRecord> _propertyRecordsFromBody(Uint8List body, int recordRegionLength) {
-  final pool = _orderedStringPool(body, recordRegionLength);
+List<BinaryPropertyRecord> _propertyRecordsFromBody(
+  Uint8List body,
+  int recordRegionLength, [
+  List<String>? sharedPool,
+]) {
+  final pool = sharedPool ?? _orderedStringPool(body, recordRegionLength);
   if (pool.isEmpty) return const [];
   final view = ByteData.sublistView(body);
 
@@ -4595,8 +4605,9 @@ List<BinaryString> binaryStringTable(
 List<BinaryString> _stringTableFromBody(
   Uint8List body, {
   int minLength = _minRunLength,
-}) {
-  final runs = binaryStrings(body, minLength: minLength);
+}) => _stringTableFromRuns(binaryStrings(body, minLength: minLength));
+
+List<BinaryString> _stringTableFromRuns(List<BinaryString> runs) {
   var best = const <BinaryString>[];
   for (final chain in _segmentsFrom(runs, 0, minChain: 1)) {
     if (chain.length > best.length) best = chain;
@@ -4683,13 +4694,23 @@ class BinaryAnalysis {
 BinaryAnalysis? analyzeBinary(Uint8List seqBytes, {Uint8List? body}) {
   body ??= inflateBinaryBody(seqBytes);
   if (body == null) return null;
-  final segments = _segmentsFromBody(body);
+  // One printable-run scan feeds every recon view. The pool-grade runs
+  // (min length [_poolMinRunLength]) are scanned once; the table-grade
+  // list (min length [_minRunLength]) is a filter of them — a run's extent
+  // does not depend on the threshold, so the filtered list is identical to
+  // a second scan at the higher minimum.
+  final strings = binaryStrings(body, minLength: _poolMinRunLength);
+  final runs = [
+    for (final run in strings)
+      if (run.text.length >= _minRunLength) run,
+  ];
+  final segments = _segmentsFromRuns(runs);
   final nameTable = _nameTableFromSegments(segments)?.entries ?? const [];
-  final layout = _layoutFromBody(body);
+  final layout = _layoutFromRuns(body, runs);
   return BinaryAnalysis(
     inflatedSize: body.length,
-    strings: binaryStrings(body, minLength: _poolMinRunLength),
-    stringTable: _stringTableFromBody(body),
+    strings: strings,
+    stringTable: _stringTableFromRuns(runs),
     layout: layout,
     nameTable: nameTable,
     objectNames: _objectNamesFrom([for (final entry in nameTable) entry.text]),
@@ -4705,23 +4726,57 @@ BinaryAnalysis? analyzeBinary(Uint8List seqBytes, {Uint8List? body}) {
 
 // ───────────────────────── the recorded decode stream ─────────────────────────
 
+/// The single-decode bundle of one inflated binary TOF1 body: the body's
+/// bytes, its record/string boundary, the ordered string pool, and the
+/// recorded decode stream. Produced ONCE by [_decodeBody] (or [_decodeSeq]
+/// from the container bytes); every downstream fold — the byte-coverage
+/// accounting, the undecoded-span census, and the write-model builder —
+/// consumes the same instance, so none re-inflates the container, re-splits
+/// the pool, or re-runs the decode passes.
+class _BodyDecode {
+  const _BodyDecode(this.body, this.boundary, this.pool, this.stream);
+
+  /// The inflated body the decode walked.
+  final Uint8List body;
+
+  /// The record-region length (the record/string boundary).
+  final int boundary;
+
+  /// The ordered NUL string pool of the string region ([_orderedStringPool]
+  /// over `body[boundary..]`).
+  final List<String> pool;
+
+  /// The recorded decode stream: write ops plus coverage claims/demotions.
+  final _DecodeSink stream;
+}
+
+/// Inflates and decodes a whole binary TOF1 container once —
+/// [inflateBinaryBody] then [_decodeBody]. Returns null when [seqBytes] is
+/// not an inflatable binary file or its body does not frame.
+_BodyDecode? _decodeSeq(Uint8List seqBytes) {
+  final body = inflateBinaryBody(seqBytes);
+  if (body == null) return null;
+  return _decodeBody(body);
+}
+
 /// Runs the production decode passes over [body]'s record region and records
 /// their typed decode stream — write ops plus coverage tier claims — into one
-/// [_DecodeSink]. Returns the sink and the record-region length, or null when
-/// the body does not frame. Never a parallel grammar: every op and claim
-/// comes from the same scan/parser the decode lenses use.
+/// [_DecodeSink], returned as a [_BodyDecode] bundle alongside the boundary
+/// and the string pool it already built. Returns null when the body does not
+/// frame. Never a parallel grammar: every op and claim comes from the same
+/// scan/parser the decode lenses use.
 ///
 /// The stream is the single product both downstream consumers fold:
 /// the writer's re-serialization plan ([_buildWritePlan] over the ops — see
 /// `seq_binary_write.dart`) and the byte-coverage metrics ([_tiersOfStream]
 /// over the claims — see `seq_binary_metrics.dart`). They can never disagree
 /// about what is decoded, because one pass records both.
-(_DecodeSink, int)? _decodeBodyStream(Uint8List body) {
+_BodyDecode? _decodeBody(Uint8List body) {
   final recordRegionLength = _recordRegionBoundary(body);
   if (recordRegionLength == null) return null;
   final sink = _DecodeSink();
   final pool = _orderedStringPool(body, recordRegionLength);
-  if (pool.isEmpty) return (sink, recordRegionLength);
+  if (pool.isEmpty) return _BodyDecode(body, recordRegionLength, pool, sink);
   final view = ByteData.sublistView(body);
 
   // Leading recon words: measured invariants (`leadingWords[2] == 1`, the
@@ -4848,7 +4903,7 @@ BinaryAnalysis? analyzeBinary(Uint8List seqBytes, {Uint8List? body}) {
 
   // Old-format (TS 4.x/5.0) leaf property records — includes the group
   // markers the outline pass anchors on.
-  for (final record in _propertyRecordsFromBody(body, recordRegionLength)) {
+  for (final record in _propertyRecordsFromBody(body, recordRegionLength, pool)) {
     sink.claim(record.offset, record.offset + record.length, _tierSemantic);
     _leafPropertyRecordOps(sink, view, record);
   }
@@ -4860,7 +4915,7 @@ BinaryAnalysis? analyzeBinary(Uint8List seqBytes, {Uint8List? body}) {
   for (final (start, end) in blobSpans) {
     sink.demote(start, end);
   }
-  return (sink, recordRegionLength);
+  return _BodyDecode(body, recordRegionLength, pool, sink);
 }
 
 /// Tooling aid for grammar iteration, not part of the decode API: parses a

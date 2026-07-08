@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:labwright_seq/labwright_seq.dart';
 import 'package:test/test.dart';
@@ -211,7 +210,7 @@ void main() {
     ]);
 
     test('fidelity directives cross natively; the loop is byte-exact', () {
-      final bytes = Uint8List.fromList(latin1.encode(source));
+      final bytes = latin1.encode(source);
       final ini = parseIniSeqBytes(bytes);
       final xml = iniToXmlSeqFile(ini);
 
@@ -257,7 +256,7 @@ void main() {
 
     test('a CRLF-terminated INI round-trips byte-exactly through XML', () {
       final crlfDoc = doc(['[DEF, %OBJROOT]\nSF = SequenceFileData', '[SF]\nVersion = "1.0"'], nl: '\r\n');
-      final bytes = Uint8List.fromList(latin1.encode(crlfDoc));
+      final bytes = latin1.encode(crlfDoc);
       final ini = parseIniSeqBytes(bytes);
       expect(ini.lineTerminator, '\r\n');
       final back = xmlToIniSeqFile(parseSeqFile(writeSeqFileXml(iniToXmlSeqFile(ini))));

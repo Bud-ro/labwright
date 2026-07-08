@@ -89,7 +89,7 @@ void main(List<String> args) {
     // shape at the bail offset → (count, mass, example)
     final byShape = <String, (int, int, String)>{};
     for (final f in files) {
-      final bytes = Uint8List.fromList(f.readAsBytesSync());
+      final bytes = f.readAsBytesSync();
       if (detectSeqFormat(bytes) != SeqFormat.binary) continue;
       final body = inflateBinaryBody(bytes);
       final layout = analyzeBinaryBody(bytes);
@@ -127,7 +127,7 @@ void main(List<String> args) {
     final byName = <String, (int, int)>{};
     var totalMass = 0, totalCount = 0;
     for (final f in files) {
-      final bytes = Uint8List.fromList(f.readAsBytesSync());
+      final bytes = f.readAsBytesSync();
       if (detectSeqFormat(bytes) != SeqFormat.binary) continue;
       final extents = binaryTypeBodyExtents(bytes);
       for (var i = 0; i < extents.length; i++) {
@@ -153,7 +153,7 @@ void main(List<String> args) {
   final byShape = <String, (int, int)>{};
   var totalMass = 0, totalSpans = 0;
   for (final f in files) {
-    final bytes = Uint8List.fromList(f.readAsBytesSync());
+    final bytes = f.readAsBytesSync();
     if (detectSeqFormat(bytes) != SeqFormat.binary) continue;
     final body = inflateBinaryBody(bytes);
     final layout = analyzeBinaryBody(bytes);

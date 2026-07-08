@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:labwright_seq/labwright_seq.dart';
 
@@ -66,7 +65,7 @@ void main(List<String> args) {
     for (final f in bySource[src]!..sort((a, b) => a.path.compareTo(b.path))) {
       final bytes = f.readAsBytesSync();
       if (detectSeqFormat(bytes) != SeqFormat.binary) continue;
-      final cov = binaryByteCoverage(Uint8List.fromList(bytes));
+      final cov = binaryByteCoverage(bytes);
       if (cov == null) {
         unframed++;
         continue;
@@ -108,7 +107,7 @@ void main(List<String> args) {
 
   if (gaps > 0 && worstFile != null) {
     stdout.writeln('\nlargest-gap file: ${worstFile.path} ($worstGap undecoded B)');
-    final spans = binaryUndecodedSpans(Uint8List.fromList(worstFile.readAsBytesSync()), max: gaps);
+    final spans = binaryUndecodedSpans(worstFile.readAsBytesSync(), max: gaps);
     for (final (start, end) in spans) {
       stdout.writeln('  [$start, $end) ${end - start} B');
     }

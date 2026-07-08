@@ -79,7 +79,7 @@ void main() {
     test('every lens returns null/empty on non-binary or hostile input, never throws', () {
       final hostile = [
         Uint8List(0),
-        Uint8List.fromList(ascii.encode('<?xml?>')),
+        ascii.encode('<?xml?>'),
         Uint8List.fromList([0x54, 0x4f, 0x46, 0x31, 1, 2, 3]),
         Uint8List.fromList([1, 2, 3, 4, 5]),
       ];
@@ -177,7 +177,7 @@ void main() {
       expect(text, contains('=== Named scalar values (1) ==='));
       expect(text, contains('Parameters = 42.0  (raw type 99, not modeled)'));
       expect(text, contains('record links not yet decoded'));
-      expect(dumpBinaryRecon(Uint8List.fromList(ascii.encode('<?xml?>'))), '(not a binary TOF1 file)');
+      expect(dumpBinaryRecon(ascii.encode('<?xml?>')), '(not a binary TOF1 file)');
     });
   });
 

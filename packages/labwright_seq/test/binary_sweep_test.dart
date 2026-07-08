@@ -2,7 +2,6 @@
 library;
 
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:labwright_seq/labwright_seq.dart';
 import 'package:test/test.dart';
@@ -107,7 +106,7 @@ void main() {
     final offenders = <String>[];
 
     for (final f in files) {
-      final bytes = Uint8List.fromList(f.readAsBytesSync());
+      final bytes = f.readAsBytesSync();
       if (detectSeqFormat(bytes) != SeqFormat.binary) continue;
       binaries++;
       final base = f.uri.pathSegments.last;
@@ -295,7 +294,7 @@ void main() {
       final f = pin(suffix);
       if (f == null) return; // pinned file absent — do not fail the sweep
       checked++;
-      expect(binaryTypeIndexBase(Uint8List.fromList(f.readAsBytesSync())), base, reason: '$suffix type-index base');
+      expect(binaryTypeIndexBase(f.readAsBytesSync()), base, reason: '$suffix type-index base');
     });
     expect(checked, greaterThanOrEqualTo(4), reason: 'too few cohort files present to guard the recovery');
 
@@ -303,7 +302,7 @@ void main() {
     // typeName 'Expression' — direct evidence the rebase lands right.
     final f = pin('teststand/Sequence File 1.seq');
     if (f == null) return;
-    final bytes = Uint8List.fromList(f.readAsBytesSync());
+    final bytes = f.readAsBytesSync();
     var anchors = 0;
     void walk(List<BinaryTypeField> fs) {
       for (final field in fs) {
@@ -329,8 +328,7 @@ void main() {
       'Very Old/Elatch-bench Backup.seq',
     ];
 
-    List<BinarySequenceOutline> outlinesOf(String suffix) =>
-        binarySequenceOutlines(Uint8List.fromList(pin(suffix)!.readAsBytesSync()));
+    List<BinarySequenceOutline> outlinesOf(String suffix) => binarySequenceOutlines(pin(suffix)!.readAsBytesSync());
 
     test('pinned files are present (guards silent skips after a corpus rename)', () {
       expect(pinnedSuffixes.where((s) => pin(s) != null).length, pinnedSuffixes.length);
