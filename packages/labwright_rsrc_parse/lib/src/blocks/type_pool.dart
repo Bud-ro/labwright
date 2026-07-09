@@ -7,6 +7,9 @@ import '../decode.dart';
 /// these; clean-room RE, so well-attested codes are named and everything else is
 /// [unknown] (the raw code is preserved on [ViType] regardless).
 enum ViDataType {
+  /// No data (`0x00`). Zero-length descriptor interior; contributes 0 bytes to a
+  /// serialized default value.
+  voidType,
   i8,
   i16,
   i32,
@@ -26,11 +29,71 @@ enum ViDataType {
   enumU32,
   boolean,
   string,
+
+  /// A NUL-terminated C string (`0x33`); descriptor mirrors [string]
+  /// (`ffffffff` sentinel + optional name).
+  cString,
+
+  /// A length-prefixed Pascal string (`0x34`).
+  pascalString,
+
+  /// A substring view type (`0x3f`); descriptor mirrors [string].
+  subString,
   path,
   picture,
+
+  /// A "tag" type (`0x37`) — an enumerated tag carrying a small fixed record
+  /// after the `ffffffff` sentinel.
+  tag,
   array,
+
+  /// An array-data-pointer type (`0x41`); same `[u16 numDims][dims][u16 elem]`
+  /// interior shape as [array].
+  arrayDataPointer,
+
+  /// A sub-array view type (`0x4f`); `[u16 numDims][u16 elem]` interior.
+  subArray,
   cluster,
+
+  /// The LabVIEW variant type (`0x53`, `LVVariant`) — a self-describing value;
+  /// carries only an optional name in its descriptor.
+  variant,
+
+  /// Measurement/waveform data (`0x54`) — `[u16 subKind]` selecting timestamp /
+  /// waveform / digital-waveform, then an optional name.
+  measureData,
+
+  /// Complex fixed-point (`0x5e`) and fixed-point (`0x5f`) numeric types.
+  complexFixedPoint,
+  fixedPoint,
   refnum,
+
+  /// Internal storage-block descriptors used inside the data-space type tree:
+  /// `Block` (`0x60`, `[u32 size]`), `TypeBlock` (`0x61`), `VoidBlock` (`0x62`,
+  /// `[u16]`), `AlignedBlock` (`0x63`, `[u32][u16]`), `RepeatedBlock` (`0x64`,
+  /// `[u32 count][u16 elem]`), and an `AlignmentMarker` (`0x65`, `[u16]`). These
+  /// carry no directly-serialized default value.
+  block,
+  typeBlock,
+  voidBlock,
+  alignedBlock,
+  repeatedBlock,
+  alignmentMarker,
+
+  /// A pointer-to type (`0x73`) and external-data handle (`0x74`).
+  pointerTo,
+  extData,
+
+  /// A VI/function connector type (`0xf0`) — a connector-pane signature, not a
+  /// data value; contributes 0 bytes to a serialized default.
+  function,
+
+  /// A named type definition (`0xf1`) that wraps exactly one base type inline
+  /// (see [ViType.typedefBase]); its serialized default is the base's.
+  typeDef,
+
+  /// A polymorphic-VI reference (`0xf2`).
+  polyVi,
 
   /// A type code not (yet) catalogued — see [ViType.code] for the raw byte.
   unknown,
@@ -40,6 +103,7 @@ enum ViDataType {
 /// descriptor's type word). Corpus-validated against the `VCTP` histogram; codes
 /// absent here decode to [ViDataType.unknown] rather than being guessed.
 const Map<int, ViDataType> _typeCodes = {
+  0x00: ViDataType.voidType,
   0x01: ViDataType.i8,
   0x02: ViDataType.i16,
   0x03: ViDataType.i32,
@@ -61,9 +125,30 @@ const Map<int, ViDataType> _typeCodes = {
   0x30: ViDataType.string,
   0x31: ViDataType.path,
   0x32: ViDataType.picture,
+  0x33: ViDataType.cString,
+  0x34: ViDataType.pascalString,
+  0x37: ViDataType.tag,
+  0x3f: ViDataType.subString,
   0x40: ViDataType.array,
+  0x41: ViDataType.arrayDataPointer,
+  0x4f: ViDataType.subArray,
   0x50: ViDataType.cluster,
+  0x53: ViDataType.variant,
+  0x54: ViDataType.measureData,
+  0x5e: ViDataType.complexFixedPoint,
+  0x5f: ViDataType.fixedPoint,
+  0x60: ViDataType.block,
+  0x61: ViDataType.typeBlock,
+  0x62: ViDataType.voidBlock,
+  0x63: ViDataType.alignedBlock,
+  0x64: ViDataType.repeatedBlock,
+  0x65: ViDataType.alignmentMarker,
   0x70: ViDataType.refnum,
+  0x73: ViDataType.pointerTo,
+  0x74: ViDataType.extData,
+  0xf0: ViDataType.function,
+  0xf1: ViDataType.typeDef,
+  0xf2: ViDataType.polyVi,
 };
 
 /// One entry in the VI's type pool: its position [index], the raw type
@@ -185,6 +270,77 @@ int? _arrayElement(Uint8List bytes, int off, int descLen, int poolCount) {
   if (idx >= poolCount) return null;
   return idx;
 }
+
+/// The **serialized default-value size**, in bytes, of a type's value as it is
+/// flattened into the data-space image (`DFDS`) — or null when the size is not
+/// derivable from the type alone (a variable-length or not-yet-catalogued type).
+///
+/// Fixed-width types return their flattened width: the integers (1/2/4/8 by
+/// width), `SGL`/`DBL`/`EXT` (4/8/16), the complex pair (8/16/32), enums
+/// (1/2/4 by tag width), boolean (1), void (0), and a simple refnum (4). A
+/// [ViDataType.cluster] is the sum of its members' sizes (resolved against
+/// [pool]). Anything whose flattened length depends on runtime content —
+/// [ViDataType.string], [ViDataType.path], [ViDataType.array],
+/// [ViDataType.variant], the block family, a tag-carrying refnum, `unknown` —
+/// returns null, as does a [ViDataType.typeDef] (`0xf1`): its inline nested base
+/// descriptor's framing is not decoded, so its width is not derivable here.
+/// Total; never throws.
+///
+/// This mirrors LabVIEW's documented flat-data widths and is corpus-anchored by
+/// the `DFDS` data-space image, whose leading fixed region is the 51-word
+/// [kDataSpaceInitTableBytes] init table.
+int? serializedDefaultSize(ViType t, List<ViType> pool, [int depth = 0]) {
+  if (depth > 64) return null;
+  switch (t.code) {
+    case 0x00:
+      return 0;
+    case 0x01:
+    case 0x05:
+    case 0x15:
+    case 0x21:
+      return 1;
+    case 0x02:
+    case 0x06:
+    case 0x16:
+      return 2;
+    case 0x03:
+    case 0x07:
+    case 0x09:
+    case 0x17:
+      return 4;
+    case 0x04:
+    case 0x08:
+    case 0x0a:
+    case 0x0c:
+      return 8;
+    case 0x0b:
+    case 0x0d:
+      return 16;
+    case 0x0e:
+      return 32;
+    case 0x70:
+      return 4;
+    case 0x50:
+      if (t.members.isEmpty) return null;
+      var total = 0;
+      for (final m in t.members) {
+        if (m < 0 || m >= pool.length) return null;
+        final s = serializedDefaultSize(pool[m], pool, depth + 1);
+        if (s == null) return null;
+        total += s;
+      }
+      return total;
+    default:
+      return null;
+  }
+}
+
+/// The size in bytes of the **data-space init table** — a fixed block of 51
+/// big-endian `u32` words that leads every `DFDS` default-data-space image
+/// before the per-DCO default values. Corpus-anchored: across the whole corpus
+/// every `DFDS` body is at least this long, and the shortest (a data space with
+/// no non-default control/indicator values) is exactly this long.
+const int kDataSpaceInitTableBytes = 51 * 4;
 
 /// Parses an enum/ring descriptor's item labels: `[u16 numItems]` then
 /// `numItems` × `[u8 len][label]` Pascal strings, after flags+code. Returns the

@@ -216,7 +216,7 @@ const Map<String, ViBlockInfo> _catalog = {
     'Default data space',
     _ds,
     _lk,
-    'Compressed default data space: the serialized default value of each data item, laid out per its VCTP type. 3567 corpus instances (~7.4 MB); 723 share one byte-identical 204-byte empty form. No simple framing (leading u32==0 in only 28%, no length law vs the VCTP pool count). A byte-exact type-directed layout needs per-type serialized sizes for the whole VCTP type pool, but the pool is only partially catalogued: 0 of 3534 DFDS-paired pools consist solely of catalogued type codes (0x00/0x53/0x60/0x62/0x80/0xf1-typedef and others carry no size rule), so no walk tiles it and the body is retained verbatim.',
+    'Compressed default data-space image: a fixed 204-byte (51 u32) data-space init table, then the flattened default values of the VI\'s data-control objects (DCOs) laid out per their VCTP types. 3567 corpus instances (~7.4 MB, 3566 zlib-stored so re-emission stays in the copy-verbatim floor). Corpus-anchored: every body is >=204 bytes and the shortest is exactly 204 (726 instances; 723 byte-identical) — an empty data space that is the init table alone. The per-DCO region is NOT a plain concatenation of the VCTP top-level type list (walking it tiles no VI) nor one top-level type (tiles 4/3534); the DCO values are placed by offset via the data-space Type Map (TM80/DSTM), which is not decoded, so full tiling is blocked on that block, not only on per-type sizes. serializedDefaultSize catalogues the per-type flattened widths; the body is retained verbatim.',
   ),
   'DSIM': ViBlockInfo(
     'DSIM',
