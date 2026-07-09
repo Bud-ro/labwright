@@ -31,8 +31,26 @@ void main() {
     expect(types.map((t) => t.kind), [for (final (_, kind) in rows) kind]);
     expect((types.first.index, types.first.code), (0, 0x21));
 
-    final unknown = decodeTypePool(_pool([0x80])).single;
-    expect((unknown.kind, unknown.code), (ViDataType.unknown, 0x80));
+    final unknown = decodeTypePool(_pool([0x31])).single;
+    expect((unknown.kind, unknown.code), (ViDataType.unknown, 0x31));
+  });
+
+  test('string/path/picture family and pointer codes map to their DFDS-proven kinds', () {
+    // Corpus-anchored and cross-referenced from pylabview (not LabVIEW-verified);
+    // the flattened widths of these codes are proven by exact DFDS tiling. 0x31
+    // does not appear in the corpus, so it stays uncatalogued.
+    const rows = <(int, ViDataType)>[
+      (0x30, ViDataType.string),
+      (0x31, ViDataType.unknown),
+      (0x32, ViDataType.path),
+      (0x33, ViDataType.picture),
+      (0x34, ViDataType.cString),
+      (0x35, ViDataType.pascalString),
+      (0x80, ViDataType.ptr),
+      (0x83, ViDataType.ptrTo),
+    ];
+    final types = decodeTypePool(_pool([for (final (code, _) in rows) code]));
+    expect(types.map((t) => (t.code, t.kind)), [for (final (code, kind) in rows) (code, kind)]);
   });
 
   test('total on short/empty pools; a truncated descriptor stops cleanly, keeping what parsed', () {
@@ -132,7 +150,7 @@ void main() {
         4, // refnum
       ],
     );
-    // string, array, variant, unknown 0x80, typedef 0xf1 — not derivable.
+    // string, array, variant, ptr 0x80, typedef 0xf1 — not derivable.
     expect([for (var i = 13; i < 18; i++) sz(i)], [null, null, null, null, null]);
 
     // Cluster{boolean, i32, dbl} = 1 + 4 + 8 = 13.

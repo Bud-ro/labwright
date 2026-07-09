@@ -30,11 +30,11 @@ enum ViDataType {
   boolean,
   string,
 
-  /// A NUL-terminated C string (`0x33`); descriptor mirrors [string]
+  /// A NUL-terminated C string (`0x34`); descriptor mirrors [string]
   /// (`ffffffff` sentinel + optional name).
   cString,
 
-  /// A length-prefixed Pascal string (`0x34`).
+  /// A length-prefixed Pascal string (`0x35`).
   pascalString,
 
   /// A substring view type (`0x3f`); descriptor mirrors [string].
@@ -80,9 +80,12 @@ enum ViDataType {
   repeatedBlock,
   alignmentMarker,
 
-  /// A pointer-to type (`0x73`) and external-data handle (`0x74`).
-  pointerTo,
-  extData,
+  /// A generic pointer (`0x80`, `Ptr`): a modern LabVIEW (≥ 8.6) reference that
+  /// flattens to zero bytes in the data-space image.
+  ptr,
+
+  /// A pointer-to-type (`0x83`, `PtrTo`) that flattens as a 4-byte value.
+  ptrTo,
 
   /// A VI/function connector type (`0xf0`) — a connector-pane signature, not a
   /// data value; contributes 0 bytes to a serialized default.
@@ -99,56 +102,120 @@ enum ViDataType {
   unknown,
 }
 
-/// The documented LabVIEW type-descriptor enumerators (the low byte of each
-/// descriptor's type word). Corpus-validated against the `VCTP` histogram; codes
-/// absent here decode to [ViDataType.unknown] rather than being guessed.
+/// The VCTP type-descriptor enumerator bytes — the low byte of each descriptor's
+/// type word. This is the package's single catalogue of type-code **identity**:
+/// the kind map [_typeCodes] here and the `DFDS` flattened-value walk
+/// (`dfds.dart`) both key off these constants, so the two cannot disagree on what
+/// a code means. Codes and names are cross-referenced from the pylabview project
+/// (not LabVIEW-verified) and corpus-anchored by descriptor frequency and — for
+/// the flattened widths in `dfds.dart` — exact `DFDS` byte tiling. Codes with no
+/// constant here decode to [ViDataType.unknown] rather than being guessed.
+abstract final class TypeCode {
+  static const int voidType = 0x00;
+  static const int i8 = 0x01;
+  static const int i16 = 0x02;
+  static const int i32 = 0x03;
+  static const int i64 = 0x04;
+  static const int u8 = 0x05;
+  static const int u16 = 0x06;
+  static const int u32 = 0x07;
+  static const int u64 = 0x08;
+  static const int sgl = 0x09;
+  static const int dbl = 0x0a;
+  static const int ext = 0x0b;
+  static const int complexSgl = 0x0c;
+  static const int complexDbl = 0x0d;
+  static const int complexExt = 0x0e;
+  static const int enumU8 = 0x15;
+  static const int enumU16 = 0x16;
+  static const int enumU32 = 0x17;
+  static const int unitSgl = 0x19;
+  static const int unitDbl = 0x1a;
+  static const int unitExt = 0x1b;
+  static const int unitComplexSgl = 0x1c;
+  static const int unitComplexDbl = 0x1d;
+  static const int unitComplexExt = 0x1e;
+  static const int booleanU16 = 0x20;
+  static const int boolean = 0x21;
+  static const int string = 0x30;
+  static const int path = 0x32;
+  static const int picture = 0x33;
+  static const int cString = 0x34;
+  static const int pascalString = 0x35;
+  static const int tag = 0x37;
+  static const int subString = 0x3f;
+  static const int array = 0x40;
+  static const int arrayDataPointer = 0x41;
+  static const int subArray = 0x4f;
+  static const int cluster = 0x50;
+  static const int variant = 0x53;
+  static const int measureData = 0x54;
+  static const int complexFixedPoint = 0x5e;
+  static const int fixedPoint = 0x5f;
+  static const int block = 0x60;
+  static const int typeBlock = 0x61;
+  static const int voidBlock = 0x62;
+  static const int alignedBlock = 0x63;
+  static const int repeatedBlock = 0x64;
+  static const int alignmentMarker = 0x65;
+  static const int refnum = 0x70;
+  static const int ptr = 0x80;
+  static const int ptrTo = 0x83;
+  static const int function = 0xf0;
+  static const int typeDef = 0xf1;
+  static const int polyVi = 0xf2;
+}
+
+/// The catalogued LabVIEW type-descriptor enumerators, keyed by [TypeCode].
+/// Corpus-validated against the `VCTP` histogram; codes absent here decode to
+/// [ViDataType.unknown] rather than being guessed.
 const Map<int, ViDataType> _typeCodes = {
-  0x00: ViDataType.voidType,
-  0x01: ViDataType.i8,
-  0x02: ViDataType.i16,
-  0x03: ViDataType.i32,
-  0x04: ViDataType.i64,
-  0x05: ViDataType.u8,
-  0x06: ViDataType.u16,
-  0x07: ViDataType.u32,
-  0x08: ViDataType.u64,
-  0x09: ViDataType.sgl,
-  0x0a: ViDataType.dbl,
-  0x0b: ViDataType.ext,
-  0x0c: ViDataType.complexSgl,
-  0x0d: ViDataType.complexDbl,
-  0x0e: ViDataType.complexExt,
-  0x15: ViDataType.enumU8,
-  0x16: ViDataType.enumU16,
-  0x17: ViDataType.enumU32,
-  0x21: ViDataType.boolean,
-  0x30: ViDataType.string,
-  0x31: ViDataType.path,
-  0x32: ViDataType.picture,
-  0x33: ViDataType.cString,
-  0x34: ViDataType.pascalString,
-  0x37: ViDataType.tag,
-  0x3f: ViDataType.subString,
-  0x40: ViDataType.array,
-  0x41: ViDataType.arrayDataPointer,
-  0x4f: ViDataType.subArray,
-  0x50: ViDataType.cluster,
-  0x53: ViDataType.variant,
-  0x54: ViDataType.measureData,
-  0x5e: ViDataType.complexFixedPoint,
-  0x5f: ViDataType.fixedPoint,
-  0x60: ViDataType.block,
-  0x61: ViDataType.typeBlock,
-  0x62: ViDataType.voidBlock,
-  0x63: ViDataType.alignedBlock,
-  0x64: ViDataType.repeatedBlock,
-  0x65: ViDataType.alignmentMarker,
-  0x70: ViDataType.refnum,
-  0x73: ViDataType.pointerTo,
-  0x74: ViDataType.extData,
-  0xf0: ViDataType.function,
-  0xf1: ViDataType.typeDef,
-  0xf2: ViDataType.polyVi,
+  TypeCode.voidType: ViDataType.voidType,
+  TypeCode.i8: ViDataType.i8,
+  TypeCode.i16: ViDataType.i16,
+  TypeCode.i32: ViDataType.i32,
+  TypeCode.i64: ViDataType.i64,
+  TypeCode.u8: ViDataType.u8,
+  TypeCode.u16: ViDataType.u16,
+  TypeCode.u32: ViDataType.u32,
+  TypeCode.u64: ViDataType.u64,
+  TypeCode.sgl: ViDataType.sgl,
+  TypeCode.dbl: ViDataType.dbl,
+  TypeCode.ext: ViDataType.ext,
+  TypeCode.complexSgl: ViDataType.complexSgl,
+  TypeCode.complexDbl: ViDataType.complexDbl,
+  TypeCode.complexExt: ViDataType.complexExt,
+  TypeCode.enumU8: ViDataType.enumU8,
+  TypeCode.enumU16: ViDataType.enumU16,
+  TypeCode.enumU32: ViDataType.enumU32,
+  TypeCode.boolean: ViDataType.boolean,
+  TypeCode.string: ViDataType.string,
+  TypeCode.path: ViDataType.path,
+  TypeCode.picture: ViDataType.picture,
+  TypeCode.cString: ViDataType.cString,
+  TypeCode.pascalString: ViDataType.pascalString,
+  TypeCode.tag: ViDataType.tag,
+  TypeCode.subString: ViDataType.subString,
+  TypeCode.array: ViDataType.array,
+  TypeCode.arrayDataPointer: ViDataType.arrayDataPointer,
+  TypeCode.subArray: ViDataType.subArray,
+  TypeCode.cluster: ViDataType.cluster,
+  TypeCode.variant: ViDataType.variant,
+  TypeCode.measureData: ViDataType.measureData,
+  TypeCode.complexFixedPoint: ViDataType.complexFixedPoint,
+  TypeCode.fixedPoint: ViDataType.fixedPoint,
+  TypeCode.block: ViDataType.block,
+  TypeCode.typeBlock: ViDataType.typeBlock,
+  TypeCode.voidBlock: ViDataType.voidBlock,
+  TypeCode.alignedBlock: ViDataType.alignedBlock,
+  TypeCode.repeatedBlock: ViDataType.repeatedBlock,
+  TypeCode.alignmentMarker: ViDataType.alignmentMarker,
+  TypeCode.refnum: ViDataType.refnum,
+  TypeCode.ptr: ViDataType.ptr,
+  TypeCode.ptrTo: ViDataType.ptrTo,
+  TypeCode.function: ViDataType.function,
+  TypeCode.typeDef: ViDataType.typeDef,
+  TypeCode.polyVi: ViDataType.polyVi,
 };
 
 /// One entry in the VI's type pool: its position [index], the raw type

@@ -36,6 +36,7 @@ library;
 import 'dart:typed_data';
 
 import 'type_map.dart';
+import 'type_pool.dart' show TypeCode;
 
 /// The `VCTP` context a `DFDS` walk needs: the (decompressed) `VCTP` and `TM80`
 /// section bodies and whether the VI's LabVIEW major version is ≥ 10 (selects one
@@ -148,52 +149,52 @@ int? _fixedExtent(_Pool pool, int o, int depth) {
   if (depth > 200 || o < 0 || o + 4 > pool.body.length) return null;
   final b = pool.body;
   switch (b[o + 3]) {
-    case 0x00: // void
-    case 0x62: // VoidBlock
-    case 0x65: // AlignmentMarker
-    case 0x80: // Ptr (modern LV >= 8.6: no bytes)
+    case TypeCode.voidType:
+    case TypeCode.voidBlock:
+    case TypeCode.alignmentMarker:
+    case TypeCode.ptr: // Ptr (modern LV >= 8.6: no bytes)
       return 0;
-    case 0x01: // i8
-    case 0x05: // u8
-    case 0x15: // enum u8
-    case 0x21: // boolean
+    case TypeCode.i8:
+    case TypeCode.u8:
+    case TypeCode.enumU8:
+    case TypeCode.boolean:
       return 1;
-    case 0x02: // i16
-    case 0x06: // u16
-    case 0x16: // enum u16
-    case 0x20: // boolean u16
+    case TypeCode.i16:
+    case TypeCode.u16:
+    case TypeCode.enumU16:
+    case TypeCode.booleanU16:
       return 2;
-    case 0x03: // i32
-    case 0x07: // u32
-    case 0x09: // sgl
-    case 0x17: // enum u32
-    case 0x19: // unit sgl
-    case 0x34: // CString (a fixed 4-byte value)
-    case 0x35: // PasString (a fixed 4-byte value)
-    case 0x41: // ArrayDataPtr
-    case 0x70: // simple refnum
-    case 0x83: // PtrTo
+    case TypeCode.i32:
+    case TypeCode.u32:
+    case TypeCode.sgl:
+    case TypeCode.enumU32:
+    case TypeCode.unitSgl:
+    case TypeCode.cString: // a fixed 4-byte value
+    case TypeCode.pascalString: // a fixed 4-byte value
+    case TypeCode.arrayDataPointer:
+    case TypeCode.refnum: // simple refnum
+    case TypeCode.ptrTo:
       return 4;
-    case 0x04: // i64
-    case 0x08: // u64
-    case 0x0a: // dbl
-    case 0x0c: // complex sgl
-    case 0x1a: // unit dbl
-    case 0x1c: // unit complex sgl
+    case TypeCode.i64:
+    case TypeCode.u64:
+    case TypeCode.dbl:
+    case TypeCode.complexSgl:
+    case TypeCode.unitDbl:
+    case TypeCode.unitComplexSgl:
       return 8;
-    case 0x0b: // ext
-    case 0x0d: // complex dbl
-    case 0x1b: // unit ext
-    case 0x1d: // unit complex dbl
+    case TypeCode.ext:
+    case TypeCode.complexDbl:
+    case TypeCode.unitExt:
+    case TypeCode.unitComplexDbl:
       return 16;
-    case 0x0e: // complex ext
-    case 0x1e: // unit complex ext
+    case TypeCode.complexExt:
+    case TypeCode.unitComplexExt:
       return 32;
-    case 0x60: // Block
-    case 0x63: // AlignedBlock (reads blkSize bytes; the client index is ignored)
+    case TypeCode.block:
+    case TypeCode.alignedBlock: // reads blkSize bytes; the client index is ignored
       if (o + 8 > b.length) return null;
       return _u32(b, o + 4);
-    case 0x64: // RepeatedBlock: numRepeats x fixed element
+    case TypeCode.repeatedBlock: // numRepeats x fixed element
       {
         if (o + 10 > b.length) return null;
         final n = _u32(b, o + 4);
@@ -201,7 +202,7 @@ int? _fixedExtent(_Pool pool, int o, int depth) {
         if (cf == null || n > 0x7fffffff) return null;
         return n * cf;
       }
-    case 0x50: // Cluster: sum of member fixed widths
+    case TypeCode.cluster: // sum of member fixed widths
       {
         if (o + 6 > b.length) return null;
         final n = _u16(b, o + 4);
@@ -214,7 +215,7 @@ int? _fixedExtent(_Pool pool, int o, int depth) {
         }
         return total;
       }
-    case 0xf1: // TypeDef: fixed width of the inline base type
+    case TypeCode.typeDef: // fixed width of the inline base type
       {
         final nested = _typedefNested(pool, o);
         return nested == null ? null : _fixedExtent(pool, nested, depth + 1);
@@ -234,15 +235,15 @@ int? _extent(_Pool pool, int o, Uint8List dfds, int dfdsOff, int depth) {
   if (fixed != null) return fixed;
   final b = pool.body;
   switch (b[o + 3]) {
-    case 0x30: // String
-    case 0x33: // Picture
-    case 0x37: // Tag
+    case TypeCode.string:
+    case TypeCode.picture:
+    case TypeCode.tag:
       if (dfdsOff + 4 > dfds.length) return null;
       return 4 + _u32(dfds, dfdsOff);
-    case 0x32: // Path (PTH0/PTH1/PTH2): ident(4) + totlen(4) + totlen bytes
+    case TypeCode.path: // PTH0/PTH1/PTH2: ident(4) + totlen(4) + totlen bytes
       if (dfdsOff + 8 > dfds.length) return null;
       return 8 + _u32(dfds, dfdsOff + 4);
-    case 0x40: // Array
+    case TypeCode.array:
       {
         if (o + 6 > b.length) return null;
         final ndim = _u16(b, o + 4);
@@ -272,7 +273,7 @@ int? _extent(_Pool pool, int o, Uint8List dfds, int dfdsOff, int depth) {
         }
         return consumed;
       }
-    case 0x50: // Cluster with at least one variable-width member
+    case TypeCode.cluster: // with at least one variable-width member
       {
         if (o + 6 > b.length) return null;
         final n = _u16(b, o + 4);
@@ -287,7 +288,7 @@ int? _extent(_Pool pool, int o, Uint8List dfds, int dfdsOff, int depth) {
         }
         return consumed;
       }
-    case 0x64: // RepeatedBlock with a variable-width element
+    case TypeCode.repeatedBlock: // with a variable-width element
       {
         if (o + 10 > b.length) return null;
         final n = _u32(b, o + 4);
@@ -301,7 +302,7 @@ int? _extent(_Pool pool, int o, Uint8List dfds, int dfdsOff, int depth) {
         }
         return consumed;
       }
-    case 0xf1: // TypeDef with a variable-width base type
+    case TypeCode.typeDef: // with a variable-width base type
       {
         final nested = _typedefNested(pool, o);
         return nested == null ? null : _extent(pool, nested, dfds, dfdsOff, depth + 1);
@@ -354,7 +355,7 @@ int? _walk(Uint8List dfds, DfdsContext ctx) {
       final e = _extent(pool, descOff, dfds, off, 0);
       if (e == null || off + e > dfds.length) return null;
       off += e;
-    } else if (pool.body[descOff + 3] == 0x50 && (flags & _tmSpecial) != 0) {
+    } else if (pool.body[descOff + 3] == TypeCode.cluster && (flags & _tmSpecial) != 0) {
       // A "special DSTM cluster": only selected members carry a default value,
       // with the first selected member skipped when bit 9 is set.
       if (descOff + 6 > pool.body.length) return null;
