@@ -9,6 +9,8 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
+import 'mac_icon_palette.dart';
+
 /// One parsed record for display.
 class SpanInfo {
   SpanInfo({
@@ -413,9 +415,13 @@ class StringPreview extends StatelessWidget {
   );
 }
 
-/// Paints a 32×32 [ViLegacyIcon] scaled to fill the given size. 1-bit pixels are
-/// drawn black/white (mask); 4/8-bit pixels are shaded by their palette index
-/// (grayscale) — an honest stand-in, since the true LabVIEW palette is not mapped.
+/// Paints a 32×32 [ViLegacyIcon] scaled to fill the given size, mapping each
+/// stored pixel index through the standard Macintosh icon palette for the icon's
+/// bit depth (see [macIconArgb]): `ICON` (1-bit) → black/white, `icl4` (4-bit) →
+/// the 16-color system palette, `icl8` (8-bit) → the 256-color system palette.
+/// `ICON`/`icl4`/`icl8` store palette indices, not a mask, so a color icon draws
+/// its actual colours. These formats carry no alpha here, so every pixel is drawn
+/// opaque (index 0 is white, the classic icon background).
 class LegacyIconPainter extends CustomPainter {
   LegacyIconPainter(this.icon);
   final ViLegacyIcon icon;
@@ -425,17 +431,10 @@ class LegacyIconPainter extends CustomPainter {
     const dim = 32;
     final cw = size.width / dim;
     final ch = size.height / dim;
-    final maxIdx = (1 << icon.bpp) - 1;
     final paint = Paint();
     for (var y = 0; y < dim; y++) {
       for (var x = 0; x < dim; x++) {
-        final pixel = icon.pixels[y * dim + x];
-        if (icon.bpp == 1) {
-          paint.color = pixel == 0 ? Colors.white : Colors.black;
-        } else {
-          final gray = maxIdx == 0 ? 0 : (255 * pixel ~/ maxIdx).clamp(0, 255);
-          paint.color = Color.fromARGB(255, gray, gray, gray);
-        }
+        paint.color = Color(macIconArgb(icon.bpp, icon.pixels[y * dim + x]));
         canvas.drawRect(
           Rect.fromLTWH(x * cw, y * ch, cw + 0.5, ch + 0.5),
           paint,

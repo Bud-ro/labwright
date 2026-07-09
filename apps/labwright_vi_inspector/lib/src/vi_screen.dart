@@ -6,8 +6,10 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
+import 'coverage_view.dart';
 import 'diagram_view.dart';
 import 'hex_view.dart';
+import 'images_view.dart';
 import 'types_view.dart';
 import 'vi_demo.dart';
 
@@ -26,6 +28,8 @@ class ViInspectorScreen extends StatefulWidget {
     this.initialModel,
     this.initialLibraryNames,
     this.initialEmbeddedVis,
+    this.initialAttribution,
+    this.initialImages,
   });
 
   /// Optional summary to show on first build (used by tests).
@@ -52,6 +56,12 @@ class ViInspectorScreen extends StatefulWidget {
   /// Optional embedded sub-VIs (from VINS) to show on first build (tests).
   final List<ViEmbeddedVi>? initialEmbeddedVis;
 
+  /// Optional writer byte-attribution to show on first build (tests).
+  final WriterAttribution? initialAttribution;
+
+  /// Optional embedded images to show on first build (tests).
+  final ViImages? initialImages;
+
   @override
   State<ViInspectorScreen> createState() => _ViInspectorScreenState();
 }
@@ -69,6 +79,8 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
   List<DecodedSection> _sections = const [];
   List<String> _libraryNames = const [];
   List<ViEmbeddedVi> _embeddedVis = const [];
+  WriterAttribution? _attribution;
+  ViImages _images = const ViImages();
 
   @override
   void initState() {
@@ -81,6 +93,8 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
     _model = widget.initialModel;
     _libraryNames = widget.initialLibraryNames ?? const [];
     _embeddedVis = widget.initialEmbeddedVis ?? const [];
+    _attribution = widget.initialAttribution;
+    _images = widget.initialImages ?? const ViImages();
   }
 
   @override
@@ -100,6 +114,8 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
     var sections = const <DecodedSection>[];
     var libraryNames = const <String>[];
     var embeddedVis = const <ViEmbeddedVi>[];
+    WriterAttribution? attribution;
+    var images = const ViImages();
     if (load.isOk) {
       try {
         sections = decodeSections(bytes);
@@ -116,6 +132,19 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
         sections = const [];
         model = null;
       }
+      // Byte attribution is independent of heap decode; compute it separately so
+      // a heap-decode failure still leaves the writer-fidelity view populated.
+      try {
+        attribution = attributeVi(bytes);
+      } catch (_) {
+        attribution = null;
+      }
+      // Image extraction is isolated so a malformed VI still loads other tabs.
+      try {
+        images = extractViImages(sections);
+      } catch (_) {
+        images = const ViImages();
+      }
     }
     setState(() {
       _summary = load.summary;
@@ -128,7 +157,18 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
       _sections = sections;
       _libraryNames = libraryNames;
       _embeddedVis = embeddedVis;
+      _attribution = attribution;
+      _images = images;
     });
+  }
+
+  /// The decompressed `VCTP` section body, or null when the VI carries none —
+  /// feeds the Types tab's bytes↔types correlation view.
+  Uint8List? _vctpBytes() {
+    for (final section in _sections) {
+      if (section.tag == 'VCTP') return section.bytes;
+    }
+    return null;
   }
 
   void _openPath() => _loadPath(_pathCtrl.text.trim());
@@ -249,7 +289,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                       : _summary == null
                       ? _Empty(dragging: _dragging)
                       : DefaultTabController(
-                          length: 4,
+                          length: 6,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
@@ -260,6 +300,8 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                                   Tab(text: 'Front Panel'),
                                   Tab(text: 'Block Diagram'),
                                   Tab(text: 'Types'),
+                                  Tab(text: 'Images'),
+                                  Tab(text: 'Coverage'),
                                 ],
                               ),
                               const SizedBox(height: 8),
@@ -316,6 +358,17 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                                     ViTypesView(
                                       key: ValueKey('types:$_model'),
                                       model: _model,
+                                      vctpBytes: _vctpBytes(),
+                                    ),
+                                    ViImagesView(
+                                      key: ValueKey('img:${_images.count}'),
+                                      images: _images,
+                                    ),
+                                    ViCoverageView(
+                                      key: ValueKey(
+                                        'cov:${_attribution?.fileLength}',
+                                      ),
+                                      attribution: _attribution,
                                     ),
                                   ],
                                 ),

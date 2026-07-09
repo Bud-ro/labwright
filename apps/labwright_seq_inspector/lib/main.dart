@@ -51,6 +51,10 @@ class _InspectorPageState extends State<InspectorPage> {
   String? _error;
   List<String> _recent = const [];
 
+  /// Per-byte decode coverage of a loaded binary `TOF1` body (null for text
+  /// encodings and files whose body does not frame).
+  BinaryByteCoverage? _binaryCoverage;
+
   /// Owned here so Ctrl/Cmd+F can focus the active tab's search field; each is
   /// passed down into its view's TextField.
   final _sequencesSearchFocus = FocusNode();
@@ -109,8 +113,12 @@ class _InspectorPageState extends State<InspectorPage> {
       _error = null;
       try {
         _doc = SeqDocument.parse(bytes);
+        _binaryCoverage = _doc is BinarySeqDocument
+            ? binaryByteCoverage(bytes)
+            : null;
       } catch (e) {
         _doc = null;
+        _binaryCoverage = null;
         _error = '$e';
       }
       if (remember && File(path).existsSync()) {
@@ -129,6 +137,7 @@ class _InspectorPageState extends State<InspectorPage> {
       // while the body shows this error (review finding).
       setState(() {
         _doc = null;
+        _binaryCoverage = null;
         _path = path;
         _error = '$e';
       });
@@ -341,7 +350,7 @@ class _InspectorPageState extends State<InspectorPage> {
           child: TabBarView(
             children: [
               if (doc is BinarySeqDocument)
-                BinaryView(doc: doc)
+                BinaryView(doc: doc, coverage: _binaryCoverage)
               else
                 _dumpTab(doc),
               if (file != null) _logicTab(file),

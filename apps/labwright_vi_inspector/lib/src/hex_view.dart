@@ -597,11 +597,11 @@ class _BlockHexViewState extends State<BlockHexView> {
               ),
             ),
             const SizedBox(height: 10),
-            Text(
-              bpp == 1
-                  ? '1-bit mask: black = set pixel.'
-                  : 'Shown as palette indices (shaded by index) — the true LabVIEW colour palette is not yet mapped.',
-              style: const TextStyle(
+            const Text(
+              'Index mask: pixel index 0 is background, any nonzero index is '
+              'foreground — the true LabVIEW colour palette is not resolved, so '
+              'indices are shown as foreground/background, not colours.',
+              style: TextStyle(
                 fontSize: 11,
                 color: Colors.grey,
                 fontStyle: FontStyle.italic,

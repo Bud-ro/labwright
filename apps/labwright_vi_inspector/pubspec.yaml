@@ -12,8 +12,10 @@ dependencies:
   file_picker: ^11.0.2
   flutter:
     sdk: flutter
+  image: ^4.8.0
   labwright_rsrc_parse:
     path: ../../packages/labwright_rsrc_parse
+  super_clipboard: ^0.9.1
 
 dev_dependencies:
   flutter_test:
