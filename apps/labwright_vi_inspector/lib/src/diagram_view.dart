@@ -1,7 +1,11 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 import 'faithful_controls.dart';
+import 'images_view.dart';
+import 'span_annotations.dart';
 
 /// How the diagram is drawn: a debug **wireframe** (colored boxes + labels,
 /// click-to-inspect) or a **faithful** render (real-looking interactive controls).
@@ -19,10 +23,15 @@ const int kFaithfulMaxObjects = 1500;
 /// structure frames, labels, click-to-inspect, pan/zoom and auto-fit.
 ///
 /// Backed entirely by the clean-room `labwright_rsrc_parse` decode
-/// (`buildViModel` → `blockDiagrams`/`frontPanelDiagrams`). Honest by construction: only objects
-/// with recovered absolute bounds are drawn, and **signal wires are not shown** —
-/// LabVIEW does not persist wire geometry (it re-routes wires at draw time), so
-/// drawing them would be fabrication. This is a faithful object/position view,
+/// (`buildViModel` → `blockDiagrams`/`frontPanelDiagrams`). Honest by
+/// construction: only objects with recovered absolute bounds are drawn.
+/// Dataflow wires are drawn from the decoded signal (`0x17`) endpoint binding
+/// ([ViDiagram.wires]) — routed as synthesized right-angle runs between each
+/// endpoint's anchor (the nearest bounded owner of the endpoint; LabVIEW does
+/// not persist wire path geometry) — but the wire **datatype is not decoded**, so
+/// runs are a
+/// neutral tone (only tinted where an anchor coincides with a typed terminal),
+/// never a fabricated per-type colour. This is a faithful object/position view,
 /// not a re-render of LabVIEW's canvas.
 class ViDiagramView extends StatefulWidget {
   const ViDiagramView({
@@ -31,6 +40,8 @@ class ViDiagramView extends StatefulWidget {
     this.emptyHint = 'No decodable layout in this file.',
     this.subViNames = const [],
     this.isFrontPanel = false,
+    this.viImages = const ViImages(),
+    this.subViIconLoader,
   });
 
   /// The diagrams to render (block-diagram or front-panel heap trees); the
@@ -53,6 +64,22 @@ class ViDiagramView extends StatefulWidget {
   /// the badge never obscures the control's label; the BD keeps kind badges.
   final bool isFrontPanel;
 
+  /// The VI's own recovered images — its 32×32 icon (`icl8`/`icl4`/`ICON`) and
+  /// any embedded diagram PNGs (`MNGI`/`DSIM`). Rendered as an identity strip
+  /// above the diagram: the icon is what a *caller's* subVI node would display
+  /// for this VI. (This diagram's own subVI-call nodes are stamped with their
+  /// targets' icons when a [subViIconLoader] resolves the called VIs' files.)
+  /// Empty by default.
+  final ViImages viImages;
+
+  /// Optional `filename → bytes` lookup used to stamp each **subVI-call node**
+  /// with the icon of the VI it targets (see [resolveSubViIcons]): the node's
+  /// `.vi`/`.vim` caption is loaded and its icon decoded. Only meaningful for the
+  /// block diagram (subVI nodes live there); a node whose target the loader can't
+  /// find keeps the neutral connector-pane plate. Null (the default) draws no
+  /// on-node icons.
+  final Uint8List? Function(String fileName)? subViIconLoader;
+
   @override
   State<ViDiagramView> createState() => _ViDiagramViewState();
 }
@@ -68,32 +95,25 @@ class _ViDiagramViewState extends State<ViDiagramView> {
 
   late final ViDiagram? _diagram = _largestDiagram(widget.diagrams);
   late final Map<int, ViHeapObject> _byId = _diagram?.byId ?? const {};
+  // SubVI-call node icons resolved from the called VIs' own files (block diagram
+  // only). Empty when no loader is supplied or nothing resolves.
+  late final Map<int, ViLegacyIcon> _subViIcons =
+      (_diagram == null ||
+          widget.isFrontPanel ||
+          widget.subViIconLoader == null)
+      ? const {}
+      : resolveSubViIcons(_diagram, widget.subViIconLoader!);
   late final List<ViHeapObject> _drawable = _diagram == null
       ? const []
-      : [
-          for (final object in _diagram.objects)
-            // Wires are degenerate rects (a zero-height/width Manhattan
-            // run), so the positive-area gate exempts them.
-            if (object.absBounds != null &&
-                object.absBounds!.isValid &&
-                (object.category == ViObjectKind.wire ||
-                    (object.absBounds!.width > 0 &&
-                        object.absBounds!.height > 0)) &&
-                object.absBounds!.width < 8000 &&
-                object.absBounds!.height < 8000 &&
-                !_isScaffolding(object, _byId))
-              object,
-        ];
-  late final List<ViHeapObject> _ordered = [..._drawable]
-    ..sort((a, b) => _depth(a, _byId).compareTo(_depth(b, _byId)));
+      : bdDrawableObjects(_diagram);
+  late final List<ViHeapObject> _ordered = bdPaintOrder(_drawable, _byId);
+  // Decoded dataflow wires (empty on a front-panel heap). Drawn under the nodes.
+  late final List<ViWire> _wires = _diagram?.wires ?? const [];
   // Wires are excluded from the fit: their absolute anchoring is not yet
   // verified (a misanchored run must not blow up the zoom-to-fit envelope).
   late final Rect _content = _drawable.isEmpty
       ? Rect.zero
-      : _contentRect([
-          for (final object in _drawable)
-            if (object.category != ViObjectKind.wire) object,
-        ]);
+      : bdContentRect(_drawable, includeWires: false);
   late final Map<ViObjectKind, int> _counts = _computeCounts();
 
   Map<ViObjectKind, int> _computeCounts() {
@@ -140,6 +160,8 @@ class _ViDiagramViewState extends State<ViDiagramView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (!widget.isFrontPanel && !widget.viImages.isEmpty)
+          _ViImageStrip(widget.viImages),
         _toolbar(_drawable.length, _counts),
         _BdOutline(
           outline: computeBdOutline(_drawable),
@@ -192,9 +214,11 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                                   ),
                                   child: CustomPaint(
                                     size: Size(content.width, content.height),
-                                    painter: _DiagramPainter(
+                                    painter: BdDiagramPainter(
                                       objects: ordered,
                                       origin: content.topLeft,
+                                      wires: _wires,
+                                      subViIcons: _subViIcons,
                                     ),
                                     foregroundPainter: _OverlayPainter(
                                       origin: content.topLeft,
@@ -251,9 +275,11 @@ class _ViDiagramViewState extends State<ViDiagramView> {
         const Padding(
           padding: EdgeInsets.only(top: 6),
           child: Text(
-            'Object layout decoded clean-room. Wire segments (class 0x1d) are drawn '
-            'from their stored Manhattan runs; wire datatype and terminal binding '
-            'are not yet decoded.',
+            'Object layout decoded clean-room. Dataflow wires (signal 0x17) are '
+            'routed between their decoded endpoint anchors; the wire datatype is '
+            'not decoded, so runs are neutral unless an anchor meets a typed '
+            'terminal. Visual wire segments (class 0x1d) are drawn from their '
+            'stored Manhattan runs.',
             style: TextStyle(color: Colors.grey, fontSize: 11),
           ),
         ),
@@ -277,16 +303,14 @@ class _ViDiagramViewState extends State<ViDiagramView> {
         ),
       const Tooltip(
         message:
-            'Wire segments are decoded (class 0x1d: stored Manhattan runs,\n'
-            '61396/61396 line-like across the corpus) and drawn with their\n'
-            'implicit connectors. Not yet decoded: wire datatype (for per-type\n'
-            'colors) and endpoint-to-terminal binding.',
+            'Dataflow wires (signal 0x17) are routed between their decoded\n'
+            'endpoint anchors. Visual segments (0x1d: stored Manhattan runs) are\n'
+            'also drawn. Not decoded: the wire datatype (for per-type colors) —\n'
+            'runs stay neutral unless an anchor meets a terminal whose type was\n'
+            'recovered.',
         child: Chip(
           avatar: Icon(Icons.linear_scale, size: 14),
-          label: Text(
-            'wires: segments decoded',
-            style: TextStyle(fontSize: 11),
-          ),
+          label: Text('wires: dataflow routed', style: TextStyle(fontSize: 11)),
           visualDensity: VisualDensity.compact,
         ),
       ),
@@ -375,36 +399,6 @@ class _ViDiagramViewState extends State<ViDiagramView> {
     _fitted = true;
   }
 
-  static Rect _contentRect(List<ViHeapObject> drawable) {
-    var minX = 1 << 30, minY = 1 << 30, maxX = -(1 << 30), maxY = -(1 << 30);
-    for (final object in drawable) {
-      final bounds = object.absBounds!;
-      if (bounds.left < minX) minX = bounds.left;
-      if (bounds.top < minY) minY = bounds.top;
-      if (bounds.right > maxX) maxX = bounds.right;
-      if (bounds.bottom > maxY) maxY = bounds.bottom;
-    }
-    const margin = 40;
-    return Rect.fromLTRB(
-      (minX - margin).toDouble(),
-      (minY - margin).toDouble(),
-      (maxX + margin).toDouble(),
-      (maxY + margin).toDouble(),
-    );
-  }
-
-  static int _depth(ViHeapObject object, Map<int, ViHeapObject> byId) {
-    var depth = 0;
-    var cur = object;
-    while (cur.parentOid != null && depth < 64) {
-      final parent = byId[cur.parentOid];
-      if (parent == null) break;
-      cur = parent;
-      depth++;
-    }
-    return depth;
-  }
-
   static ViDiagram? _largestDiagram(List<ViDiagram>? diagrams) {
     if (diagrams == null || diagrams.isEmpty) return null;
     ViDiagram? best;
@@ -459,6 +453,109 @@ Color labviewTypeColor(ViTypeKind kind) => switch (kind) {
   ViTypeKind.clnNode => const Color(0xFFE8C547),
   ViTypeKind.unknown => const Color(0xFF8A8A8A),
 };
+
+/// The block-diagram canvas fill — pure white. The render and the oracle
+/// letterbox/registration share it so the empty margin matches a white reference
+/// screenshot instead of reading as a grey plate.
+const Color kBdCanvas = Color(0xFFFFFFFF);
+
+/// The faint alignment-grid dot color on [kBdCanvas] — low enough contrast that a
+/// dot pixel stays within the oracle's per-channel match threshold of the canvas.
+const Color kBdGridDot = Color(0x0C000000);
+
+/// Block-diagram node class codes that are **subVI call** nodes (they carry a
+/// called-VI filename caption). LabVIEW draws these as a plain connector-pane
+/// **icon plate** — commonly light grey — distinct from the pale-gold primitive
+/// function nodes. Any node class not listed renders as a generic primitive
+/// plate; the node's specific icon is not recovered, so it is never guessed.
+const Set<int> kSubViCallNodeCodes = {0x31, 0x32, 0xc5, 0x104, 0x103, 0x8c};
+
+/// Fill for a subVI-call node icon plate (light grey, per LabVIEW's default
+/// connector-pane icon background).
+const Color kBdSubViNodeFill = Color(0xFFECECEC);
+
+/// Fill for a non-subVI node plate — a pale gold. A generic default for every
+/// node that is not a recognised subVI call (the specific primitive is not
+/// decoded, so one neutral plate colour is used rather than a per-function one).
+const Color kBdPrimitiveNodeFill = Color(0xFFFBEEC2);
+
+/// Fill for a terminal whose datatype is not recovered — a neutral light grey
+/// (no datatype colour is guessed). Datatype-known terminals use
+/// [labviewTypeColor] instead.
+const Color kBdUnknownTerminalFill = Color(0xFFD8D8D8);
+
+/// Neutral dataflow-wire colour — a thin dark run. A [ViWire] (signal `0x17`)
+/// carries endpoint binding but **no decoded datatype**, so a wire is drawn in
+/// this neutral tone rather than a fabricated per-type colour; a wire is only
+/// tinted when one of its endpoint anchors coincides with a terminal whose
+/// datatype *was* recovered (see [bdWireColor]).
+const Color kBdWireColor = Color(0xFF2B2B2B);
+
+/// The opaque [Color] of a decoded 24-bit `0xRRGGBB` object colour ([rgb]), or
+/// null when the object carried no such colour. Used to fill a decoration or
+/// control in its own stored LabVIEW colour instead of a generic category tint.
+Color? bdDecodedColor(int? rgb) =>
+    rgb == null ? null : Color(0xFF000000 | (rgb & 0xFFFFFF));
+
+/// The decoded **fill** colour for [object] when one was recovered: a control's
+/// interior [ViHeapObject.contentRgb] if present, else its
+/// [ViHeapObject.bgRgb]. Null when neither was decoded (the object keeps its
+/// neutral category fill — no colour is guessed). See the corpus placement
+/// probe: these colours sit on the drawable object itself.
+Color? bdFillColor(ViHeapObject object) =>
+    bdDecodedColor(object.contentRgb) ?? bdDecodedColor(object.bgRgb);
+
+/// A synthesized Manhattan (right-angle) route between two endpoint-anchor
+/// rectangles, as an ordered polyline in the anchors' own coordinate space: it
+/// leaves [source] on the horizontal side facing [sink], turns at the mid-x
+/// column, then enters [sink] on its facing side (an H–V–H elbow). LabVIEW does
+/// not persist wire path geometry, so this route is generated from the decoded
+/// endpoints, not recovered. Pure + public so the routing is unit-testable
+/// independent of the canvas.
+List<Offset> bdWireRoute(Rect source, Rect sink) {
+  final sinkRight = sink.center.dx >= source.center.dx;
+  final start = Offset(
+    sinkRight ? source.right : source.left,
+    source.center.dy,
+  );
+  final end = Offset(sinkRight ? sink.left : sink.right, sink.center.dy);
+  final midX = (start.dx + end.dx) / 2;
+  return [start, Offset(midX, start.dy), Offset(midX, end.dy), end];
+}
+
+/// The colour a [wire] is drawn in: [kBdWireColor] unless one of its endpoint
+/// anchors exactly matches a terminal whose datatype was recovered, in which
+/// case that terminal's [labviewTypeColor] is used. [typedTerminalColors] maps a
+/// packed endpoint-anchor rectangle (`t,l,b,r`) to that terminal's colour. The
+/// wire's own datatype is not decoded, so no colour is ever guessed from the
+/// signal itself. Pure + public for testing.
+Color bdWireColor(ViWire wire, Map<int, Color> typedTerminalColors) {
+  for (final anchor in wire.endpointAnchors) {
+    if (anchor == null) continue;
+    final color =
+        typedTerminalColors[_packRect(
+          anchor.top,
+          anchor.left,
+          anchor.bottom,
+          anchor.right,
+        )];
+    if (color != null) return color;
+  }
+  return kBdWireColor;
+}
+
+/// Packs a rectangle's four `s16` edges into one int key for anchor↔terminal
+/// matching (each edge is offset into a non-negative 16-bit lane).
+int _packRect(int top, int left, int bottom, int right) =>
+    ((top + 0x8000) << 48) |
+    ((left + 0x8000) << 32) |
+    ((bottom + 0x8000) << 16) |
+    (right + 0x8000);
+
+/// Class codes LabVIEW draws as **free text** on the canvas, not as a filled
+/// part: the control caption / free-label (`0x0a`) and the case-selector label
+/// (`0x95`). The painter renders only their recovered caption text, never a box.
+const Set<int> kBdTextLabelCodes = {0x0a, 0x95};
 
 /// The label drawn on a wireframe object. Structures (never text-labeled) show
 /// their catalog kind via [structureBadge] (so the wireframe reads as logic too,
@@ -537,6 +634,59 @@ computeBdOutline(Iterable<ViHeapObject> objects) {
 /// - subVI-node internal display sub-parts (`0xe5`) — corpus: 947, all under a
 ///   `0xc5` node; they overlap the parent node and would otherwise paint a stray
 ///   unknown rectangle over it.
+/// The control/indicator terminal classes that, when they appear as a **named**
+/// leaf inside a block-diagram constant/structural subtree, are a called subVI's
+/// own connector-pane controls spliced into the caller's heap (an inlined/
+/// malleable subVI stores its panel controls here), NOT a top-level diagram
+/// object LabVIEW draws. See [_isInlinedSubViControl].
+const Set<int> _controlTerminalDrawCodes = {
+  0x50,
+  0x4f,
+  0x57,
+  0x5b,
+  0x51,
+  0x55,
+  0x10c,
+  0xc2,
+  0x56,
+};
+
+/// Whether [o] is a **subVI connector-pane control spliced into this heap** by an
+/// inlined/malleable subVI call — a control-terminal class ([_controlTerminalDrawCodes])
+/// that (a) nests inside a block-diagram constant/structural subtree (a `0x13`
+/// `bDConstDCO` or `0x15` structural record ancestor) and (b) carries a named
+/// `0x0a` caption child (the subVI control's data name, e.g. `Requirement ID`,
+/// `Label (VI Title)`). LabVIEW draws the subVI as a single icon node, not its
+/// inlined internal controls, so these are not part of *this* VI's top-level
+/// block diagram and are excluded from the drawn/fit set. A bare unnamed constant
+/// terminal (a numeric/string diagram constant) has no such named caption child
+/// and is kept. [childrenByOid] is the positional child index.
+bool _isInlinedSubViControl(
+  ViHeapObject o,
+  Map<int, ViHeapObject> byId,
+  Map<int, List<ViHeapObject>> childrenByOid,
+) {
+  if (!_controlTerminalDrawCodes.contains(o.kind)) return false;
+  var parentOid = o.parentOid;
+  final seen = <int>{};
+  var underConstOrStruct = false;
+  while (parentOid != null && seen.add(parentOid)) {
+    final po = byId[parentOid];
+    if (po == null) break;
+    if (po.kind == 0x13 || po.kind == 0x15) {
+      underConstOrStruct = true;
+      break;
+    }
+    parentOid = po.parentOid;
+  }
+  if (!underConstOrStruct) return false;
+  final kids = childrenByOid[o.oid];
+  if (kids == null) return false;
+  return kids.any(
+    (c) => c.kind == 0x0a && (c.label?.trim().isNotEmpty ?? false),
+  );
+}
+
 bool _isScaffolding(ViHeapObject o, Map<int, ViHeapObject> byId) {
   if (o.kind == 0x09 || o.kind == 0x11c) return true;
   if (o.kind == 0xe5) return true;
@@ -609,21 +759,159 @@ Set<ViHeapObject> nodesWithin(
   return out;
 }
 
+/// The **drawable** objects of [diagram] — the layout layer the BD/FP view and
+/// the [BdOracle] both paint: objects with a valid absolute rectangle, excluding
+/// the scaffolding parts ([_isScaffolding]) and implausibly large boxes. Wires
+/// (degenerate zero-area Manhattan runs) are kept via the wire exemption. Single
+/// source of truth so the on-screen view and the off-screen oracle render the
+/// same object set. Pure + public for the oracle and tests.
+List<ViHeapObject> bdDrawableObjects(ViDiagram diagram) {
+  final byId = diagram.byId;
+  final childrenByOid = <int, List<ViHeapObject>>{};
+  for (final object in diagram.objects) {
+    if (object.parentOid != null) {
+      (childrenByOid[object.parentOid!] ??= <ViHeapObject>[]).add(object);
+    }
+  }
+  return [
+    for (final object in diagram.objects)
+      if (object.absBounds != null &&
+          object.absBounds!.isValid &&
+          (object.category == ViObjectKind.wire ||
+              (object.absBounds!.width > 0 && object.absBounds!.height > 0)) &&
+          object.absBounds!.width < 8000 &&
+          object.absBounds!.height < 8000 &&
+          // An inlined/malleable subVI splices its own connector-pane controls
+          // into this heap; LabVIEW draws the subVI as one icon node, not those
+          // internal controls, so they are not this diagram's top-level content.
+          !_isInlinedSubViControl(object, byId, childrenByOid) &&
+          !_isScaffolding(object, byId))
+        object,
+  ];
+}
+
+/// Resolves the **on-node subVI icons** for [diagram]: for each subVI-call node
+/// (a [kSubViCallNodeCodes] class whose caption is a `.vi`/`.vim` filename), its
+/// target VI is fetched by name via [loadByName] and that VI's richest legacy
+/// icon (icl8 → icl4 → ICON) is decoded. Returns an [ViHeapObject.oid] → icon map
+/// for the nodes that resolved; a node whose target is not found is absent from
+/// the map and keeps the neutral connector-pane plate (the icon is never
+/// guessed). [loadByName] maps a bare filename to that file's bytes (or null) —
+/// the file I/O lives in the caller's callback so this stays pure and testable.
+Map<int, ViLegacyIcon> resolveSubViIcons(
+  ViDiagram diagram,
+  Uint8List? Function(String fileName) loadByName,
+) {
+  final out = <int, ViLegacyIcon>{};
+  final cache = <String, ViLegacyIcon?>{};
+  for (final object in diagram.objects) {
+    if (!kSubViCallNodeCodes.contains(object.kind)) continue;
+    final name = object.label?.trim();
+    if (name == null || !_isViFileName(name)) continue;
+    final icon = cache.putIfAbsent(name, () {
+      final bytes = loadByName(name);
+      if (bytes == null) return null;
+      try {
+        return bestLegacyIcon(extractViImages(decodeSections(bytes)));
+      } catch (_) {
+        return null;
+      }
+    });
+    if (icon != null) out[object.oid] = icon;
+  }
+  return out;
+}
+
+/// Whether [name] is a LabVIEW VI filename a subVI node targets (`.vi`/`.vim`).
+bool _isViFileName(String name) {
+  final lower = name.toLowerCase();
+  return lower.endsWith('.vi') || lower.endsWith('.vim');
+}
+
+/// [drawable] sorted by nesting depth (shallowest first) — the paint order that
+/// puts containers behind the nodes/controls they hold. Public for the oracle.
+List<ViHeapObject> bdPaintOrder(
+  List<ViHeapObject> drawable,
+  Map<int, ViHeapObject> byId,
+) =>
+    [...drawable]
+      ..sort((a, b) => _depthOf(a, byId).compareTo(_depthOf(b, byId)));
+
+/// The content rectangle enclosing every object in [objects] (plus a fixed
+/// margin) — the canvas extent the view fits to and the oracle rasterises.
+/// [includeWires] is false for the view's zoom-to-fit (a misanchored wire run
+/// must not blow up the envelope) and true when a caller wants the full extent.
+/// Returns [Rect.zero] for an empty input. Pure + public.
+Rect bdContentRect(
+  Iterable<ViHeapObject> objects, {
+  bool includeWires = true,
+  int margin = 40,
+}) {
+  var minX = 1 << 30, minY = 1 << 30, maxX = -(1 << 30), maxY = -(1 << 30);
+  var any = false;
+  for (final object in objects) {
+    if (!includeWires && object.category == ViObjectKind.wire) continue;
+    final bounds = object.absBounds;
+    if (bounds == null) continue;
+    any = true;
+    if (bounds.left < minX) minX = bounds.left;
+    if (bounds.top < minY) minY = bounds.top;
+    if (bounds.right > maxX) maxX = bounds.right;
+    if (bounds.bottom > maxY) maxY = bounds.bottom;
+  }
+  if (!any) return Rect.zero;
+  return Rect.fromLTRB(
+    (minX - margin).toDouble(),
+    (minY - margin).toDouble(),
+    (maxX + margin).toDouble(),
+    (maxY + margin).toDouble(),
+  );
+}
+
+/// The nesting depth of [object] in the positional [byId] tree (root == 0),
+/// capped so a malformed parent cycle cannot loop.
+int _depthOf(ViHeapObject object, Map<int, ViHeapObject> byId) {
+  var depth = 0;
+  var cur = object;
+  while (cur.parentOid != null && depth < 64) {
+    final parent = byId[cur.parentOid];
+    if (parent == null) break;
+    cur = parent;
+    depth++;
+  }
+  return depth;
+}
+
 /// The **static** diagram layer: grid, objects, and labels. Depends only on the
 /// (memoized, stable) object list + origin, so a selection tap never repaints it
-/// — the cheap [_OverlayPainter] handles highlights instead.
-class _DiagramPainter extends CustomPainter {
-  _DiagramPainter({required this.objects, required this.origin});
+/// — the cheap [_OverlayPainter] handles highlights instead. Public so the
+/// off-screen [BdOracle] rasterises with the exact same drawing as the view.
+class BdDiagramPainter extends CustomPainter {
+  BdDiagramPainter({
+    required this.objects,
+    required this.origin,
+    this.wires = const [],
+    this.subViIcons = const {},
+  });
 
   final List<ViHeapObject> objects;
   final Offset origin;
 
+  /// The decoded dataflow wires ([ViDiagram.wires], one per `0x17` signal),
+  /// routed under the nodes/structures between their endpoint anchors. Empty
+  /// leaves the diagram wire-free. See [_drawWires].
+  final List<ViWire> wires;
+
+  /// Resolved subVI-call node icons, keyed by [ViHeapObject.oid] — the 32×32
+  /// icon of the VI a subVI-call node targets, loaded from that VI's own file
+  /// (see [resolveSubViIcons]). A node with an entry here stamps the real icon on
+  /// its plate; a node without one keeps the neutral connector-pane plate (the
+  /// icon is never guessed).
+  final Map<int, ViLegacyIcon> subViIcons;
+
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.drawRect(
-      Offset.zero & size,
-      Paint()..color = const Color(0xFFE9E9E9),
-    );
+    canvas.drawRect(Offset.zero & size, Paint()..color = kBdCanvas);
     _drawDotGrid(canvas, size);
 
     Rect rectOf(ViHeapObject o) {
@@ -660,18 +948,45 @@ class _DiagramPainter extends CustomPainter {
             ),
           );
 
+    // Decorations are the backmost layer (a coloured free-label backing, box or
+    // separator sits behind the logic), so they paint before the dataflow wires
+    // and every node — a decoration drawn opaque in its decoded colour must not
+    // occlude the wires routed across it.
     for (final object in decorations) {
+      // Drawn in its own decoded LabVIEW colour when one was recovered, else a
+      // faint category tint so its extent still reads without inventing a colour.
+      final decoded =
+          bdDecodedColor(object.bgRgb) ?? bdDecodedColor(object.contentRgb);
       canvas.drawRect(
         rectOf(object),
-        Paint()..color = _kindColor(object.category).withValues(alpha: 0.10),
+        decoded != null
+            ? (Paint()..color = decoded)
+            : (Paint()
+                ..color = _kindColor(object.category).withValues(alpha: 0.10)),
       );
     }
+    // Dataflow wires paint over the canvas/decorations but under every
+    // structure/node, so nodes and terminals always sit on top of the runs that
+    // reach them.
+    _drawWires(canvas);
     for (final object in structures) {
       // LabVIEW draws structures as a double-line frame; the badge tab at the
       // top-left names the construct (While/For/Case) like the original's
-      // border furniture does.
+      // border furniture does. When the structure's own colour was decoded
+      // (structColor — the LabVIEW structure greys, or the pale sequence/timed
+      // tint) the frame is drawn in it, over a faint fill of the same colour so
+      // the construct reads as itself; structures nest heavily, so the fill
+      // stays light to avoid a muddy stack. Undecoded structures keep the
+      // neutral category frame — no colour is guessed.
       final rect = rectOf(object);
-      final frame = _kindColor(ViObjectKind.structure);
+      final structColor = bdDecodedColor(object.structRgb);
+      final frame = structColor ?? _kindColor(ViObjectKind.structure);
+      if (structColor != null) {
+        canvas.drawRect(
+          rect,
+          Paint()..color = structColor.withValues(alpha: 0.12),
+        );
+      }
       canvas.drawRect(
         rect,
         Paint()
@@ -715,12 +1030,20 @@ class _DiagramPainter extends CustomPainter {
 
     for (final object in solids) {
       final rect = rectOf(object);
+      // Free-text label parts (control caption 0x0a, case selector 0x95) are drawn
+      // by LabVIEW as plain text on the canvas, not as a filled box — painting a
+      // plate here would stamp a solid rectangle where the reference shows only
+      // text (or nothing, when the caption is empty). The text pass below renders
+      // any recovered caption.
+      if (kBdTextLabelCodes.contains(object.kind)) continue;
       switch (object.category) {
         case ViObjectKind.terminal:
           // LabVIEW terminal: sharp rect, datatype fill, thin dark border, and
           // the inner double-border that marks a control/indicator terminal.
+          // A recovered datatype drives the fill (blue int, orange float, …); an
+          // unrecovered one stays a neutral grey rather than guessing a colour.
           final fill = object.typeKind == ViTypeKind.unknown
-              ? _kindColor(ViObjectKind.terminal)
+              ? kBdUnknownTerminalFill
               : labviewTypeColor(object.typeKind);
           canvas.drawRect(rect, Paint()..color = fill.withValues(alpha: 0.9));
           canvas.drawRect(
@@ -740,31 +1063,52 @@ class _DiagramPainter extends CustomPainter {
             );
           }
         case ViObjectKind.node:
-          // LabVIEW subVI/function node: pale icon plate with a firm border.
-          final rr = RRect.fromRectAndRadius(rect, const Radius.circular(1.5));
-          canvas.drawRRect(rr, Paint()..color = const Color(0xFFF6EDC8));
-          canvas.drawRRect(
-            rr,
+          // LabVIEW node icon plate: subVI calls get a light-grey connector-pane
+          // plate, primitive/function nodes the pale-gold numeric-palette plate.
+          // A raised bevel (light top/left, dark bottom/right) mimics the icon's
+          // 3-D edge. When the subVI's real icon has been resolved from its own
+          // file ([subViIcons]) it is stamped on the plate; otherwise no icon
+          // glyph is drawn (it is never guessed).
+          final isSubVi = kSubViCallNodeCodes.contains(object.kind);
+          final icon = subViIcons[object.oid];
+          if (icon != null) {
+            paintLegacyIcon(canvas, icon, rect);
+          } else {
+            final fill = isSubVi ? kBdSubViNodeFill : kBdPrimitiveNodeFill;
+            canvas.drawRect(rect, Paint()..color = fill);
+            if (rect.width > 6 && rect.height > 6) {
+              canvas.drawLine(
+                rect.topLeft,
+                rect.topRight,
+                Paint()
+                  ..color = Colors.white.withValues(alpha: 0.85)
+                  ..strokeWidth = 1.0,
+              );
+              canvas.drawLine(
+                rect.topLeft,
+                rect.bottomLeft,
+                Paint()
+                  ..color = Colors.white.withValues(alpha: 0.85)
+                  ..strokeWidth = 1.0,
+              );
+            }
+          }
+          canvas.drawRect(
+            rect,
             Paint()
-              ..color = Colors.black.withValues(alpha: 0.75)
+              ..color = isSubVi
+                  ? const Color(0xFF8C8C8C)
+                  : const Color(0xFF9A8730)
               ..style = PaintingStyle.stroke
               ..strokeWidth = 1.0,
           );
-          if (rect.width > 10 && rect.height > 10) {
-            canvas.drawRect(
-              rect.deflate(2.5),
-              Paint()
-                ..color = const Color(0x33805B10)
-                ..style = PaintingStyle.stroke
-                ..strokeWidth = 0.8,
-            );
-          }
         default:
           final rr = RRect.fromRectAndRadius(rect, const Radius.circular(2.5));
-          canvas.drawRRect(
-            rr,
-            Paint()..color = _objectColor(object).withValues(alpha: 0.92),
-          );
+          // A control/indicator is filled with its decoded interior colour when
+          // recovered (the field/background LabVIEW stored), else its neutral
+          // category colour — never a guessed tint.
+          final fill = bdFillColor(object) ?? _objectColor(object);
+          canvas.drawRRect(rr, Paint()..color = fill.withValues(alpha: 0.92));
           canvas.drawRRect(
             rr,
             Paint()
@@ -774,21 +1118,53 @@ class _DiagramPainter extends CustomPainter {
           );
       }
     }
+    // Text pass: LabVIEW shows a structure's construct name on its frame and a
+    // control/subVI's own caption, but not per-terminal datatype annotations.
+    // Only a structure badge or a genuine recovered caption is drawn (the
+    // wireframe's debug "name · type" suffix is omitted so the render stays as
+    // close to LabVIEW's sparse on-canvas text as the decode allows).
     for (final object in objects) {
-      final text = wireframeAnnotation(object);
+      // Standalone label sub-parts (0x0a/0x95) are not stamped on the canvas:
+      // their bounds are often origin-pinned (a node's name label anchors at the
+      // diagram origin, not above the node), so drawing them scatters mislocated
+      // text. Their captions remain reachable through the inspector.
+      if (kBdTextLabelCodes.contains(object.kind)) continue;
+      final onFrame = object.category == ViObjectKind.structure;
+      // A node's identity is carried by its icon plate (and a separate free
+      // label), never by stamping its subVI-filename/function label inside the
+      // icon box — LabVIEW draws no text there. A constant/terminal shows the
+      // recovered literal value ([ViHeapObject.constText]) when one exists — e.g.
+      // a string constant's `"report.txt"` — falling back to its recovered label;
+      // a value that was not decoded renders no text (never guessed).
+      final String? text;
+      if (onFrame) {
+        text = structureBadge(object);
+      } else if (object.category == ViObjectKind.node) {
+        text = null;
+      } else {
+        final literal = object.constText?.trim();
+        final label = object.label?.trim();
+        text = (literal != null && literal.isNotEmpty)
+            ? literal
+            : (label != null && label.isNotEmpty ? label : null);
+      }
       if (text == null) continue;
       final rect = rectOf(object);
       if (rect.width < 26 || rect.height < 11) continue;
-      final onFrame = object.category == ViObjectKind.structure;
+      // A caption/constant is inked in the object's decoded foreground colour
+      // when one was recovered (fgColor is the LabVIEW text/line colour), else a
+      // neutral near-black. A structure badge keeps its frame-chrome colour.
+      final textColor = onFrame
+          ? const Color(0xCC4A2E00)
+          : (bdDecodedColor(object.fgRgb) ??
+                Colors.black.withValues(alpha: 0.75));
       final tp = TextPainter(
         text: TextSpan(
           text: text,
           style: TextStyle(
-            color: onFrame
-                ? const Color(0xCC4A2E00)
-                : Colors.black.withValues(alpha: 0.85),
+            color: textColor,
             fontSize: 10,
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w400,
             fontFamily: 'Roboto',
           ),
         ),
@@ -800,27 +1176,89 @@ class _DiagramPainter extends CustomPainter {
     }
   }
 
+  /// Routes each decoded [ViWire] as a Manhattan run between its endpoint anchor
+  /// rectangles (index-aligned nearest-bounded-owner bounds). A wire is drawn in
+  /// the neutral [kBdWireColor] unless an endpoint anchor coincides with a
+  /// terminal whose datatype was recovered — then that terminal's LabVIEW colour
+  /// is used ([bdWireColor]). Multi-endpoint (branch) wires route from the first
+  /// endpoint to each other endpoint. The wire datatype itself is not decoded, so
+  /// no per-wire colour is fabricated.
+  void _drawWires(Canvas canvas) {
+    if (wires.isEmpty) return;
+    // Endpoint-anchor rectangle → recovered terminal colour, for honest tinting.
+    final typedTerminalColors = <int, Color>{};
+    for (final object in objects) {
+      if (object.category != ViObjectKind.terminal) continue;
+      if (object.typeKind == ViTypeKind.unknown) continue;
+      final bounds = object.absBounds;
+      if (bounds == null) continue;
+      typedTerminalColors[_packRect(
+        bounds.top,
+        bounds.left,
+        bounds.bottom,
+        bounds.right,
+      )] = labviewTypeColor(
+        object.typeKind,
+      );
+    }
+    for (final wire in wires) {
+      final anchors = <Rect>[];
+      for (final anchor in wire.endpointAnchors) {
+        if (anchor == null) continue;
+        anchors.add(
+          Rect.fromLTRB(
+            anchor.left - origin.dx,
+            anchor.top - origin.dy,
+            anchor.right - origin.dx,
+            anchor.bottom - origin.dy,
+          ),
+        );
+      }
+      if (anchors.length < 2) continue;
+      final paint = Paint()
+        ..color = bdWireColor(wire, typedTerminalColors)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4
+        ..strokeJoin = StrokeJoin.miter
+        ..strokeCap = StrokeCap.butt;
+      final source = anchors.first;
+      for (var i = 1; i < anchors.length; i++) {
+        final points = bdWireRoute(source, anchors[i]);
+        final path = Path()..moveTo(points.first.dx, points.first.dy);
+        for (final point in points.skip(1)) {
+          path.lineTo(point.dx, point.dy);
+        }
+        canvas.drawPath(path, paint);
+      }
+    }
+  }
+
   void _drawDotGrid(Canvas canvas, Size size) {
     const stepPx = 12.0;
     const maxDots = 20000;
     final cells = (size.width / stepPx) * (size.height / stepPx);
     final step = cells > maxDots ? stepPx * (cells / maxDots) : stepPx;
-    final dot = Paint()..color = const Color(0x22000000);
+    // LabVIEW's alignment grid is a faint dot lattice on the near-white canvas;
+    // kept very low-contrast so it reads as texture, not content.
+    final dot = Paint()..color = kBdGridDot;
     for (var x = 0.0; x < size.width; x += step) {
       for (var y = 0.0; y < size.height; y += step) {
-        canvas.drawCircle(Offset(x, y), 0.6, dot);
+        canvas.drawCircle(Offset(x, y), 0.5, dot);
       }
     }
   }
 
   @override
-  bool shouldRepaint(covariant _DiagramPainter old) =>
-      !identical(old.objects, objects) || old.origin != origin;
+  bool shouldRepaint(covariant BdDiagramPainter old) =>
+      !identical(old.objects, objects) ||
+      !identical(old.wires, wires) ||
+      !identical(old.subViIcons, subViIcons) ||
+      old.origin != origin;
 }
 
 /// The **overlay** layer: just the selection + declared-member highlight strokes.
 /// A few `drawRect`s, so a selection tap repaints this (not the static object
-/// layer). Shares the object→canvas mapping with [_DiagramPainter].
+/// layer). Shares the object→canvas mapping with [BdDiagramPainter].
 class _OverlayPainter extends CustomPainter {
   _OverlayPainter({
     required this.origin,
@@ -1107,6 +1545,99 @@ class _BdOutline extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// The VI-identity image strip shown above the block diagram: the VI's own icon
+/// (richest available depth) and any embedded diagram PNGs (`MNGI`/`DSIM`), each
+/// captioned with its source tag. Scope: this is *this* VI's icon (what a caller
+/// renders on a subVI node); the icons of the subVIs this diagram *calls* are
+/// stamped on their nodes instead when their files resolve (see
+/// [ViDiagramView.subViIconLoader]).
+class _ViImageStrip extends StatelessWidget {
+  const _ViImageStrip(this.images);
+  final ViImages images;
+
+  /// The single richest-depth icon (icl8 → icl4 → ICON), or null.
+  EmbeddedLegacyIcon? get _bestIcon {
+    const order = {'icl8': 0, 'icl4': 1, 'ICON': 2};
+    if (images.icons.isEmpty) return null;
+    return ([
+      ...images.icons,
+    ]..sort((a, b) => (order[a.tag] ?? 9).compareTo(order[b.tag] ?? 9))).first;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = _bestIcon;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        children: [
+          if (icon != null)
+            _tile(
+              'VI icon (${icon.tag})',
+              CustomPaint(
+                size: const Size(36, 36),
+                painter: LegacyIconPainter(icon.icon),
+              ),
+              tooltip:
+                  "This VI's own 32×32 icon — what a caller's subVI node shows "
+                  'for it.',
+            ),
+          for (final png in images.pngs.take(4))
+            _tile(
+              '${png.tag} ${png.width}×${png.height}',
+              Image.memory(
+                png.bytes,
+                width: 36,
+                height: 36,
+                fit: BoxFit.contain,
+                filterQuality: FilterQuality.none,
+                gaplessPlayback: true,
+                errorBuilder: (_, _, _) =>
+                    const Icon(Icons.broken_image_outlined, size: 20),
+              ),
+            ),
+          const Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(left: 8),
+              child: Text(
+                "The VI's own recovered images. A subVI-call node on the diagram "
+                "shows the called VI's icon when that file resolves.",
+                style: TextStyle(fontSize: 11, color: Colors.grey),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _tile(String caption, Widget child, {String? tooltip}) {
+    final tile = Padding(
+      padding: const EdgeInsets.only(right: 10),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFAFAFA),
+              border: Border.all(color: const Color(0xFFBDBDBD)),
+              borderRadius: BorderRadius.circular(3),
+            ),
+            child: child,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            caption,
+            style: const TextStyle(fontSize: 9, color: Colors.grey),
+          ),
+        ],
+      ),
+    );
+    return tooltip == null ? tile : Tooltip(message: tooltip, child: tile);
   }
 }
 

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:labwright_vi_inspector/src/diagram_view.dart';
+import 'package:labwright_vi_inspector/src/images_view.dart';
 
 import 'util.dart';
 
@@ -50,7 +51,44 @@ Future<void> pumpView(
   view: view,
 );
 
+/// A block diagram whose subVI-call node's connector-pane control has been
+/// spliced into the heap (an inlined/malleable subVI): a `0x51` control terminal
+/// nested under a `0x13` const-DCO inside a `0x15` structural record, carrying a
+/// named `0x0a` caption child — plus a bare unnamed `0x50` constant terminal in
+/// the same subtree. Only the bare constant is a top-level diagram object.
+ViModel modelWithInlinedSubViControl() => modelFromRecords(<int>[
+  ...open(0x7e, 1),
+  ...bounds(0, 0, 400, 400),
+  ...open(0x1b, 2, tag: 0x1a),
+  ...open(0x15, 3, tag: 0x1b),
+  ...open(0x13, 4, tag: 0x1c),
+  ...open(0x51, 5, tag: 0x1d), // named inlined subVI connector control
+  ...bounds(200, 200, 220, 300),
+  ...open(0x0a, 6, tag: 0x1e),
+  ...bounds(180, 200, 197, 285),
+  ...caption('Requirement ID'),
+  ...close(0x1e),
+  ...close(0x1d),
+  ...open(0x50, 7, tag: 0x1d), // bare unnamed diagram constant
+  ...bounds(120, 120, 140, 160),
+  ...close(0x1d),
+  ...close(0x1c),
+  ...close(0x1b),
+  ...close(0x1a),
+  ...close(),
+]);
+
 void main() {
+  test('inlined subVI connector controls are excluded; bare constants kept', () {
+    final diagram = modelWithInlinedSubViControl().blockDiagrams.first;
+    final oids = bdDrawableObjects(diagram).map((o) => o.oid).toSet();
+    // The named 0x51 connector-pane control (spliced from an inlined subVI) is
+    // not this diagram's top-level object and is dropped from the drawn set.
+    expect(oids, isNot(contains(5)));
+    // The bare unnamed numeric constant is a real diagram object and is kept.
+    expect(oids, contains(7));
+  });
+
   test('terminals keep LabVIEW datatype colors; unknown stays neutral', () {
     const rows = {
       ViTypeKind.numericFloat: Color(0xFFFF8000),
@@ -164,6 +202,38 @@ void main() {
     await tester.tapAt(const Offset(120, 120));
     await tester.pump();
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('BD view shows the VI-image strip when an icon is present', (
+    tester,
+  ) async {
+    final images = ViImages(
+      icons: [
+        EmbeddedLegacyIcon(
+          tag: 'icl8',
+          icon: ViLegacyIcon(bpp: 8, pixels: List.filled(1024, 0)),
+        ),
+      ],
+    );
+    await pumpBody(
+      tester,
+      ViDiagramView(
+        diagrams: modelWithDiagram().blockDiagrams,
+        viImages: images,
+      ),
+    );
+    expect(tester.takeException(), isNull);
+    expect(find.textContaining('VI icon'), findsOneWidget);
+    // The front panel never shows the identity strip.
+    await pumpBody(
+      tester,
+      ViDiagramView(
+        diagrams: modelWithDiagram().blockDiagrams,
+        viImages: images,
+        isFrontPanel: true,
+      ),
+    );
+    expect(find.textContaining('VI icon'), findsNothing);
   });
 
   testWidgets('empty model shows an honest placeholder, not a crash', (

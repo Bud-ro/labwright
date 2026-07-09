@@ -318,4 +318,43 @@ void main() {
     expect(tip.message, contains('Plot 0'));
     expect(tip.message, contains('Plot 1'));
   });
+
+  test('decoded control colours map fields to opaque colours', () {
+    final o = ViHeapObject(oid: 1, kind: 0x50, offset: 0)
+      ..bgRgb = 0x111111
+      ..contentRgb = 0x222222
+      ..fgRgb = 0x333333
+      ..borderRgb = 0x444444;
+    // Fill prefers the interior (content) colour over the background.
+    expect(decodedControlFill(o), const Color(0xFF222222));
+    expect(decodedInk(o), const Color(0xFF333333));
+    expect(decodedBorder(o), const Color(0xFF444444));
+    // Fill falls back to background when there is no content colour.
+    final bgOnly = ViHeapObject(oid: 2, kind: 0x50, offset: 0)
+      ..bgRgb = 0x111111;
+    expect(decodedControlFill(bgOnly), const Color(0xFF111111));
+    // No decoded colour → null (the control keeps its neutral default).
+    final bare = ViHeapObject(oid: 3, kind: 0x50, offset: 0);
+    expect(decodedControlFill(bare), isNull);
+    expect(decodedInk(bare), isNull);
+    expect(decodedBorder(bare), isNull);
+  });
+
+  testWidgets('a graph with recovered plot colours paints without error', (
+    tester,
+  ) async {
+    await pumpLayer(tester, [
+      heapObj(
+        0x5e,
+        cat: ViObjectKind.terminal,
+        plotNames: ['Plot 0', 'Plot 1'],
+        plotColors: const [0xFF4242, 0x0EFF00],
+        at: (0, 0, 200, 300),
+      ),
+    ]);
+    // The graph mounts a CustomPaint (its painter draws one trace per recovered
+    // colour); the render completes without throwing.
+    expect(find.byType(CustomPaint), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
 }

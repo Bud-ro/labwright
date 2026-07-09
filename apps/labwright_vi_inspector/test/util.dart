@@ -81,6 +81,7 @@ ViHeapObject heapObj(
   String? label,
   List<String>? items,
   List<String>? plotNames,
+  List<int>? plotColors,
   double? min,
   double? max,
   String? help,
@@ -88,6 +89,7 @@ ViHeapObject heapObj(
 }) {
   final o = ViHeapObject(oid: oid, kind: kind, offset: 0);
   if (cat != null) o.category = cat;
+  if (plotColors != null) o.plotColors = plotColors;
   if (at != null) {
     o.absBounds = HeapRect(
       top: at.$1,

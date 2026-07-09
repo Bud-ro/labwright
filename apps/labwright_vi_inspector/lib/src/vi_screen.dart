@@ -10,6 +10,7 @@ import 'coverage_view.dart';
 import 'diagram_view.dart';
 import 'hex_view.dart';
 import 'images_view.dart';
+import 'subvi_icon_resolver.dart';
 import 'types_view.dart';
 import 'vi_demo.dart';
 
@@ -82,6 +83,12 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
   WriterAttribution? _attribution;
   ViImages _images = const ViImages();
 
+  /// Resolves a subVI-call node's target `.vi` to its bytes so the block diagram
+  /// can stamp the node with the called VI's icon. Set only when a file was
+  /// opened from disk (drag/browse/path) — demo and embedded VIs have no project
+  /// directory to search, so their nodes keep the neutral plate.
+  Uint8List? Function(String fileName)? _subViIconLoader;
+
   @override
   void initState() {
     super.initState();
@@ -105,7 +112,11 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
 
   /// Parse + decode a VI from its bytes, then show it. Decoding is total, so the
   /// UI never crashes on a file from the wild.
-  void _loadBytes(Uint8List bytes, String source) {
+  void _loadBytes(
+    Uint8List bytes,
+    String source, {
+    Uint8List? Function(String fileName)? subViIconLoader,
+  }) {
     final load = summarize(bytes);
     ViVersionInfo? version;
     var strings = const <String>[];
@@ -159,6 +170,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
       _embeddedVis = embeddedVis;
       _attribution = attribution;
       _images = images;
+      _subViIconLoader = subViIconLoader;
     });
   }
 
@@ -199,7 +211,17 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
       });
       return;
     }
-    _loadBytes(bytes, path);
+    // The linker's sub-VI dependency names let the loader stop as soon as the
+    // VIs this file actually calls are located, instead of indexing the whole
+    // project tree — keeping drag-and-drop responsive on large/slow filesystems.
+    _loadBytes(
+      bytes,
+      path,
+      subViIconLoader: buildProjectViLoader(
+        path,
+        wantedNames: readSubViNames(bytes).toSet(),
+      ),
+    );
   }
 
   /// Opens the OS file-open dialog and inspects the chosen file.
@@ -351,6 +373,8 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                                                 'No block-diagram objects recovered in this file.',
                                             subViNames:
                                                 _model?.subViNames ?? const [],
+                                            viImages: _images,
+                                            subViIconLoader: _subViIconLoader,
                                           ),
                                         ),
                                       ],

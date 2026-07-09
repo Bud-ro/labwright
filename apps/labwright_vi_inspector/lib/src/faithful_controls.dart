@@ -171,14 +171,22 @@ Widget _faithfulFor(ViHeapObject object, {bool isFrontPanel = false}) {
       );
     case HeapObjectClass.controlLabel:
     case HeapObjectClass.bdSelectorLabel:
-      return _LabelText(object.label);
+      return _LabelText(object.label, ink: decodedInk(object));
     case HeapObjectClass.bdGlyph:
       return const _Glyph();
     case HeapObjectClass.numericControl:
     case HeapObjectClass.numericControlVariant:
-      return const _ControlWidget(form: _Form.numeric);
+      return _ControlWidget(
+        form: _Form.numeric,
+        fill: decodedControlFill(object),
+        border: decodedBorder(object),
+      );
     case HeapObjectClass.enumRingControl:
-      return _ControlWidget(form: _Form.enumRing, items: object.items);
+      return _ControlWidget(
+        form: _Form.enumRing,
+        items: object.items,
+        border: decodedBorder(object),
+      );
     case HeapObjectClass.booleanOrClusterControl:
       return object.items.length >= 2
           ? _ControlWidget(form: _Form.enumRing, items: object.items)
@@ -189,13 +197,24 @@ Widget _faithfulFor(ViHeapObject object, {bool isFrontPanel = false}) {
                   : object.label,
             );
     case HeapObjectClass.stringOrArrayControl:
-      return const _ControlWidget(form: _Form.string);
+      return _ControlWidget(
+        form: _Form.string,
+        fill: decodedControlFill(object),
+        border: decodedBorder(object),
+      );
     case HeapObjectClass.pathControl:
-      return const _ControlWidget(form: _Form.path);
+      return _ControlWidget(
+        form: _Form.path,
+        fill: decodedControlFill(object),
+        border: decodedBorder(object),
+      );
     case HeapObjectClass.bdLeaf:
       return const _LeafBox();
     case HeapObjectClass.graphIndicator:
-      return _GraphPlaceholder(plotNames: object.plotNames);
+      return _GraphPlaceholder(
+        plotNames: object.plotNames,
+        plotColors: object.plotColors,
+      );
     case HeapObjectClass.controlSubPart:
       return const _UnknownBox();
     default:
@@ -209,7 +228,11 @@ Widget _faithfulFor(ViHeapObject object, {bool isFrontPanel = false}) {
         );
       }
       if (object.category == ViObjectKind.terminal)
-        return const _ControlWidget(form: _Form.generic);
+        return _ControlWidget(
+          form: _Form.generic,
+          fill: decodedControlFill(object),
+          border: decodedBorder(object),
+        );
       return const _UnknownBox();
   }
 }
@@ -217,6 +240,33 @@ Widget _faithfulFor(ViHeapObject object, {bool isFrontPanel = false}) {
 const _kBorder = Color(0xFF7A7A7A);
 const _kField = Color(0xFFFAFAFA);
 const _kInk = Color(0xFF1A1A1A);
+
+/// The decoded interior fill colour for a control — its
+/// [ViHeapObject.contentRgb] (the field colour LabVIEW stored) if present, else
+/// its [ViHeapObject.bgRgb] — as an opaque colour, or null when neither was
+/// decoded (the control then keeps its neutral field colour). See the corpus
+/// placement probe: these colours sit on the drawable control itself.
+Color? decodedControlFill(ViHeapObject object) {
+  final rgb = object.contentRgb ?? object.bgRgb;
+  return rgb == null ? null : Color(0xFF000000 | (rgb & 0xFFFFFF));
+}
+
+/// The decoded foreground/ink colour for a label ([ViHeapObject.fgRgb], the
+/// LabVIEW text colour) as an opaque colour, or null when it was not decoded
+/// (the label then keeps its neutral ink). Confirmed and, per the corpus probe,
+/// carried on the drawable object itself.
+Color? decodedInk(ViHeapObject object) {
+  final rgb = object.fgRgb;
+  return rgb == null ? null : Color(0xFF000000 | (rgb & 0xFFFFFF));
+}
+
+/// The decoded border colour for a control ([ViHeapObject.borderRgb], the
+/// front-panel control/graph border) as an opaque colour, or null when it was
+/// not decoded (the control then keeps its neutral border).
+Color? decodedBorder(ViHeapObject object) {
+  final rgb = object.borderRgb;
+  return rgb == null ? null : Color(0xFF000000 | (rgb & 0xFFFFFF));
+}
 
 /// The text to show on a node box: its recovered name when present (e.g. a subVI
 /// filename), otherwise an honest class HINT derived from its classification
@@ -322,8 +372,12 @@ class _NodeBox extends StatelessWidget {
 }
 
 class _LabelText extends StatelessWidget {
-  const _LabelText(this.label);
+  const _LabelText(this.label, {this.ink});
   final String? label;
+
+  /// The decoded foreground/ink colour for this label, or null for the neutral
+  /// default (see [decodedInk]).
+  final Color? ink;
   @override
   Widget build(BuildContext context) => Container(
     alignment: Alignment.centerLeft,
@@ -332,10 +386,10 @@ class _LabelText extends StatelessWidget {
       label ?? '',
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
-      style: const TextStyle(
+      style: TextStyle(
         fontSize: 10,
-        color: _kInk,
-        shadows: [
+        color: ink ?? _kInk,
+        shadows: const [
           Shadow(color: Color(0xCCFFFFFF), blurRadius: 1.5),
           Shadow(color: Color(0x88FFFFFF), blurRadius: 2.5),
         ],
@@ -394,7 +448,10 @@ class _Glyph extends StatelessWidget {
 }
 
 class _GraphPlaceholder extends StatelessWidget {
-  const _GraphPlaceholder({this.plotNames = const []});
+  const _GraphPlaceholder({
+    this.plotNames = const [],
+    this.plotColors = const [],
+  });
 
   /// Recovered plot/curve names (`C4 27`, e.g. "Plot 0"). NOT painted as an
   /// on-graph legend: the file already carries the real plot legend as its own
@@ -403,6 +460,12 @@ class _GraphPlaceholder extends StatelessWidget {
   /// are exposed only as a tooltip — an inspector affordance, not VI chrome.
   final List<String> plotNames;
 
+  /// Recovered per-curve plot colours ([ViHeapObject.plotColors]). The graph
+  /// draws one trace per recovered colour in that colour, so the plot *count* and
+  /// *colours* are the VI's real values; the trace *waveform* is a placeholder
+  /// (the file carries no sampled plot data). Empty → one neutral default trace.
+  final List<int> plotColors;
+
   @override
   Widget build(BuildContext context) {
     final graph = Container(
@@ -410,7 +473,7 @@ class _GraphPlaceholder extends StatelessWidget {
         color: const Color(0xFF0F1A0F),
         border: Border.all(color: _kBorder),
       ),
-      child: CustomPaint(painter: _GraphPainter()),
+      child: CustomPaint(painter: _GraphPainter(plotColors)),
     );
     if (plotNames.isEmpty) return graph;
     return Tooltip(
@@ -421,6 +484,11 @@ class _GraphPlaceholder extends StatelessWidget {
 }
 
 class _GraphPainter extends CustomPainter {
+  _GraphPainter(this.plotColors);
+
+  /// Recovered per-curve colours; one placeholder trace is drawn per colour.
+  final List<int> plotColors;
+
   @override
   void paint(Canvas canvas, Size size) {
     final grid = Paint()
@@ -432,18 +500,28 @@ class _GraphPainter extends CustomPainter {
     for (var y = 0.0; y < size.height; y += size.height / 4) {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), grid);
     }
-    final trace = Paint()
-      ..color = const Color(0xFF63D663)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2;
-    final path = Path();
-    for (var i = 0; i <= 48; i++) {
-      final x = size.width * i / 48;
-      final y =
-          size.height / 2 - (size.height / 2.6) * _sin(i / 48 * 6.283 * 2);
-      i == 0 ? path.moveTo(x, y) : path.lineTo(x, y);
+    // One trace per recovered plot colour (real colour + count; placeholder
+    // waveform, phase-shifted so overlapping curves stay distinguishable). With
+    // no recovered colour, a single neutral default trace is drawn.
+    final colors = plotColors.isEmpty
+        ? const [0xFF63D663]
+        : [for (final rgb in plotColors) 0xFF000000 | (rgb & 0xFFFFFF)];
+    for (var c = 0; c < colors.length; c++) {
+      final trace = Paint()
+        ..color = Color(colors[c])
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2;
+      final phase = colors.length == 1 ? 0.0 : c / colors.length;
+      final path = Path();
+      for (var i = 0; i <= 48; i++) {
+        final x = size.width * i / 48;
+        final y =
+            size.height / 2 -
+            (size.height / 2.6) * _sin((i / 48 + phase) * 6.283 * 2);
+        i == 0 ? path.moveTo(x, y) : path.lineTo(x, y);
+      }
+      canvas.drawPath(path, trace);
     }
-    canvas.drawPath(path, trace);
   }
 
   /// Bhaskara I sine approximation — plenty for a decorative trace, and keeps the
@@ -458,20 +536,41 @@ class _GraphPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _GraphPainter oldDelegate) {
+    final old = oldDelegate.plotColors;
+    if (old.length != plotColors.length) return true;
+    for (var i = 0; i < plotColors.length; i++) {
+      if (old[i] != plotColors[i]) return true;
+    }
+    return false;
+  }
 }
 
 enum _Form { numeric, enumRing, boolean, string, path, generic }
 
 /// A single interactive (but unwired) control rendered to fit its object bounds.
 class _ControlWidget extends StatefulWidget {
-  const _ControlWidget({required this.form, this.items = const [], this.label});
+  const _ControlWidget({
+    required this.form,
+    this.items = const [],
+    this.label,
+    this.fill,
+    this.border,
+  });
   final _Form form;
   final List<String> items;
 
   /// For a boolean: the control's caption (its single 0x0d string), shown on the
   /// button so a labeled boolean ("STOP", "Channel A") reads as itself. Null → ON/OFF.
   final String? label;
+
+  /// The decoded interior fill colour (see [decodedControlFill]), or null to use
+  /// the neutral default field colour.
+  final Color? fill;
+
+  /// The decoded border colour (see [decodedBorder]), or null to use the neutral
+  /// default border.
+  final Color? border;
   @override
   State<_ControlWidget> createState() => _ControlWidgetState();
 }
@@ -491,8 +590,8 @@ class _ControlWidgetState extends State<_ControlWidget> {
   }
 
   BoxDecoration get _box => BoxDecoration(
-    color: _kField,
-    border: Border.all(color: _kBorder),
+    color: widget.fill ?? _kField,
+    border: Border.all(color: widget.border ?? _kBorder),
     borderRadius: BorderRadius.circular(2),
   );
 
