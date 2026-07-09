@@ -211,7 +211,17 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
       });
       return;
     }
-    _loadBytes(bytes, path, subViIconLoader: buildProjectViLoader(path));
+    // The linker's sub-VI dependency names let the loader stop as soon as the
+    // VIs this file actually calls are located, instead of indexing the whole
+    // project tree — keeping drag-and-drop responsive on large/slow filesystems.
+    _loadBytes(
+      bytes,
+      path,
+      subViIconLoader: buildProjectViLoader(
+        path,
+        wantedNames: readSubViNames(bytes).toSet(),
+      ),
+    );
   }
 
   /// Opens the OS file-open dialog and inspects the chosen file.
