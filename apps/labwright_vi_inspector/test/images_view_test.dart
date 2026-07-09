@@ -1,8 +1,10 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:labwright_vi_inspector/src/image_clipboard.dart';
 import 'package:labwright_vi_inspector/src/images_view.dart';
@@ -21,6 +23,21 @@ class _FakeImageClipboard implements ImageClipboard {
     writes.add(pngBytes);
     return result;
   }
+}
+
+/// The corpus root, or null when it is not fetched (corpus-guarded tests skip).
+Directory? _corpusDir() {
+  var dir = Directory.current;
+  for (var i = 0; i < 8; i++) {
+    final candidate = Directory(
+      '${dir.path}/packages/labwright_rsrc_parse/corpus/vi',
+    );
+    if (candidate.existsSync()) return candidate;
+    final parent = dir.parent;
+    if (parent.path == dir.path) break;
+    dir = parent;
+  }
+  return null;
 }
 
 ViLegacyIcon _icon(int fill, int bpp) => decodeLegacyIcon(
@@ -172,6 +189,52 @@ void main() {
       _section('vers', const [1, 2, 3, 4]),
     ]);
     expect(images.isEmpty, isTrue);
+  });
+
+  test('encodeQuickTimeRasterPng maps 24-bit RGB and 32-bit xRGB pixels', () {
+    // 2×1 at 24-bit: a red pixel then a green pixel.
+    final rgb = encodeQuickTimeRasterPng(
+      ViQuickTimeRaster(
+        width: 2,
+        height: 1,
+        depth: 24,
+        pixels: Uint8List.fromList([255, 0, 0, 0, 255, 0]),
+      ),
+    );
+    final decodedRgb = img.decodePng(rgb)!;
+    expect(decodedRgb.getPixel(0, 0).r, 255);
+    expect(decodedRgb.getPixel(1, 0).g, 255);
+    // 1×1 at 32-bit xRGB: the leading pad byte is skipped, not read as red.
+    final xrgb = encodeQuickTimeRasterPng(
+      ViQuickTimeRaster(
+        width: 1,
+        height: 1,
+        depth: 32,
+        pixels: Uint8List.fromList([0x99, 0, 0, 255]),
+      ),
+    );
+    final decodedXrgb = img.decodePng(xrgb)!;
+    expect(decodedXrgb.getPixel(0, 0).r, 0);
+    expect(decodedXrgb.getPixel(0, 0).b, 255);
+  });
+
+  test('a corpus PICT VI yields a decoded metafile image', () {
+    final corpus = _corpusDir();
+    if (corpus == null) return;
+    final file = File(
+      '${corpus.path}/tuftsBaxter_ROS-for-LabVIEW-Software/'
+      'tuftsBaxter-ROS-for-LabVIEW-Software-cef95f1/ROS for LabVIEW Software/'
+      'PlayArea/Controls/OriginalTest.vi',
+    );
+    if (!file.existsSync()) return;
+    final images = extractViImages(decodeSections(file.readAsBytesSync()));
+    expect(images.metafiles, hasLength(1));
+    final metafile = images.metafiles.single;
+    expect((metafile.tag, metafile.width, metafile.height), ('PICT', 411, 489));
+    expect(metafile.depth, 24);
+    // The encoded PNG round-trips through a PNG decoder at the same size.
+    final decoded = img.decodePng(metafile.png);
+    expect((decoded!.width, decoded.height), (411, 489));
   });
 
   testWidgets('empty images show the empty state', (tester) async {
