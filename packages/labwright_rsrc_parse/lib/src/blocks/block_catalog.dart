@@ -440,7 +440,7 @@ const Map<String, ViBlockInfo> _catalog = {
     'VI tag store',
     _nt,
     _cf,
-    '[u32 count] + count x [u32 nameLen][name][u32 payloadLen][payload] (5219/7203 walk exactly; the rest carry a trailing variant, flagged walkComplete=false). See decodeTagStore.',
+    '[u32 count] + count entries, each flat [u32 nameLen][name][u32 payloadLen][payload] or a nested self-delimiting record stream (marker 0x13008000, count==1); 6056/7143 walk exactly, the rest are multi-entry stores with a leading nested entry, flagged walkComplete=false. See decodeTagStore.',
     decoder: 'decodeTagStore',
   ),
 
