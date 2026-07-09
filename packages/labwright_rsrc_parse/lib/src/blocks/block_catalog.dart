@@ -641,7 +641,17 @@ const Map<String, ViBlockInfo> _catalog = {
     _lk,
     'Usually a 4-byte all-zero record (2583/2617); occasionally larger.',
   ),
-  'BFAL': ViBlockInfo('BFAL', 'BF align table', _un, _tt, 'Format not yet decoded.'),
+  'BFAL': ViBlockInfo(
+    'BFAL',
+    'Align table',
+    _un,
+    _cf,
+    'Body = [u32 count] + count fixed 9-byte records [u32 offset][u32 value]'
+        '[u8 kind]; length == 4 + 9*count on 2028/2028. offset rises monotonically '
+        '(a heap position the entry aligns to); value/kind carry the alignment '
+        'payload (finer semantics open). See decodeAlignTable.',
+    decoder: 'decodeAlignTable',
+  ),
   'BKMK': ViBlockInfo(
     'BKMK',
     'Bookmarks',

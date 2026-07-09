@@ -223,6 +223,23 @@ void main() {
     expect(decodeIdTable(u8([0, 1])), isNull);
   });
 
+  test('decodeAlignTable (BFAL): [u32 count][count × 9B record], serialize is exact, no over-read', () {
+    final body = u8([
+      0, 0, 0, 2, // count = 2
+      0, 0, 0, 0x41, 0, 0, 0, 9, 1, // offset 0x41, value 9, kind 1
+      0, 0, 1, 0x18, 0, 0, 0, 0x10, 3, // offset 0x118, value 0x10, kind 3
+    ]);
+    final t = decodeAlignTable(body)!;
+    expect((t.count, t.entries.length), (2, 2));
+    expect((t.entries[0].offset, t.entries[0].value, t.entries[0].kind), (0x41, 9, 1));
+    expect((t.entries[1].offset, t.entries[1].value, t.entries[1].kind), (0x118, 0x10, 3));
+    expect(t.serialize(), body, reason: 'byte-exact inverse');
+    // Over-large count reads only what is available (never over-reads).
+    final lying = Uint8List(4 + 9)..[3] = 99;
+    expect(decodeAlignTable(lying)!.entries.length, 1);
+    expect(decodeAlignTable(u8([0, 1])), isNull);
+  });
+
   group('icons', () {
     const px = [255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 0];
 
@@ -307,6 +324,7 @@ void main() {
         ('icl4', ViBlockCategory.icon, BlockConfidence.confirmed),
         ('ICON', ViBlockCategory.icon, BlockConfidence.confirmed),
         ('LIvi', null, null),
+        ('BFAL', ViBlockCategory.unknown, BlockConfidence.confirmed),
       ];
       for (final (tag, category, confidence) in rows) {
         final info = blockInfo(tag);
@@ -351,6 +369,7 @@ void main() {
       'decodeConnectorPane': decodeConnectorPane,
       'decodeHelpPath': decodeHelpPath,
       'decodeIdTable': decodeIdTable,
+      'decodeAlignTable': decodeAlignTable,
       'extractRgbIcon': extractRgbIcon,
       'icl8': (b) => decodeLegacyIcon(b, 8),
       'icl4': (b) => decodeLegacyIcon(b, 4),

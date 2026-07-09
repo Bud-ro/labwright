@@ -17,6 +17,7 @@
 /// Recovering full block-diagram *logic* is ongoing work.
 library;
 
+export 'src/blocks/align_table.dart';
 export 'src/blocks/aux_records.dart';
 export 'src/blocks/block_catalog.dart';
 export 'src/blocks/block_writer.dart';
