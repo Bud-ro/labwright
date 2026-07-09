@@ -87,7 +87,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
   /// can stamp the node with the called VI's icon. Set only when a file was
   /// opened from disk (drag/browse/path) — demo and embedded VIs have no project
   /// directory to search, so their nodes keep the neutral plate.
-  Uint8List? Function(String fileName)? _subViIconLoader;
+  Future<Uint8List? Function(String fileName)>? _subViIconLoader;
 
   @override
   void initState() {
@@ -115,7 +115,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
   void _loadBytes(
     Uint8List bytes,
     String source, {
-    Uint8List? Function(String fileName)? subViIconLoader,
+    Future<Uint8List? Function(String fileName)>? subViIconLoader,
   }) {
     final load = summarize(bytes);
     ViVersionInfo? version;
@@ -211,17 +211,10 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
       });
       return;
     }
-    // The linker's sub-VI dependency names let the loader stop as soon as the
-    // VIs this file actually calls are located, instead of indexing the whole
-    // project tree — keeping drag-and-drop responsive on large/slow filesystems.
-    _loadBytes(
-      bytes,
-      path,
-      subViIconLoader: buildProjectViLoader(
-        path,
-        wantedNames: readSubViNames(bytes).toSet(),
-      ),
-    );
+    // The project index is built off the UI isolate, so a large or slow project
+    // tree never blocks the load; the on-node subVI icons appear once it
+    // resolves. The future is passed straight through to the diagram view.
+    _loadBytes(bytes, path, subViIconLoader: buildProjectViLoader(path));
   }
 
   /// Opens the OS file-open dialog and inspects the chosen file.
