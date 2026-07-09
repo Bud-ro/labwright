@@ -108,7 +108,10 @@ void main() {
     expect(decodeHeapRef(hx('14 53 01 fd 0009'), 0)!.kind, HeapRefKind.ddoRef, reason: 'cross-heap display ref');
     expect(decodeHeapRef(hx('16 8a 01 fd 0007'), 0)!.kind, HeapRefKind.attachmentRef);
     expect(decodeHeapRef(hx('14 53 01 fe 0009'), 0), isNull, reason: 'fe carries a class-code literal, not an oid');
-    expect(decodeHeapRef(hx('15 77 01 fd 8000 0000 0100'), 0), isNull, reason: '7-byte fd escape is not compact');
+    // The 32-bit oid escape `fd 80 00 <u32>` decodes to a 10-byte ref carrying
+    // the full u32 oid (0x8000+ ids that would overflow the compact u16 slot).
+    final esc = decodeHeapRef(hx('15 77 01 fd 8000 0000 0100'), 0)!;
+    expect((esc.kind, esc.targetOid, esc.length), (HeapRefKind.fromRaw(0x177), 0x100, 10));
     expect(decodeHeapRef(hx('10 19 02 fe 0000'), 0), isNull, reason: 'not a leaf-with-attrs record');
   });
 

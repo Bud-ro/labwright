@@ -27,9 +27,11 @@
 /// odd-shaped rectangle payload, the tail past a walk stop) stay copied.
 ///
 /// Model-sourced record families:
-///   * object headers `10/11/12 <tag> 02 fe <u16 kind> fd <u16 oid>` (9 bytes);
+///   * object headers `10/11/12 <tag> 02 fe <u16 kind> fd <oid>` — 9 bytes for a
+///     `u16` oid, 13 bytes for the `fd 80 00 <u32 oid>` escape;
 ///   * group-close markers `08/09/0a/0b <sub>` (2 bytes);
-///   * typed references `14..17 <sub> 01 fd <u16 oid>` (6 bytes);
+///   * typed references `14..17 <sub> 01 fd <oid>` — 6 bytes for a `u16` oid,
+///     10 bytes for the `fd 80 00 <u32 oid>` escape;
 ///   * the attribute nibble family `0x/2x/4x/6x/8x/Ex <id> <value>` (integer /
 ///     RGB / flag widths) and the `Cx <id> 08 <4× s16>` rectangle form —
 ///     reconstructed from the decoded value;
@@ -94,6 +96,13 @@ void _putS16(Uint8List b, int at, int v) {
   b[at + 1] = v & 0xff;
 }
 
+void _putU32(Uint8List b, int at, int v) {
+  b[at] = (v >> 24) & 0xff;
+  b[at + 1] = (v >> 16) & 0xff;
+  b[at + 2] = (v >> 8) & 0xff;
+  b[at + 3] = v & 0xff;
+}
+
 /// The modeled portion of a heap record: a reconstructed **header** ([prefix],
 /// the first [length] bytes, rebuilt from decoded scalar fields) followed by a
 /// byte-faithful **retained interior** of [retained] more bytes (the record's
@@ -137,9 +146,24 @@ bool _c4RetainsInterior(HeapShape shape) => switch (shape) {
 /// framed length [spanLength]) in [body]. Returns [_nothing] for a record with
 /// no modeled framing.
 _Modeled _modelRecord(Uint8List body, int offset, int lead, int spanLength) {
-  // Object header — 9 bytes, every one a field or a structural constant.
+  // Object header — every byte a field or a structural constant. The compact
+  // `10/11/12 <tag> 02 fe <u16 kind> fd <u16 oid>` is 9 bytes; the 32-bit
+  // oid escape `… fd 80 00 <u32 oid>` is 13 bytes ([heapObjectHeaderAt]).
   final header = heapObjectHeaderAt(body, offset);
   if (header != null) {
+    if (header.length == 13) {
+      final out = Uint8List(13);
+      out[0] = body[offset];
+      out[1] = body[offset + 1];
+      out[2] = 0x02;
+      out[3] = 0xfe;
+      _putU16(out, 4, header.kind);
+      out[6] = 0xfd;
+      out[7] = 0x80;
+      out[8] = 0x00;
+      _putU32(out, 9, header.oid);
+      return _Modeled(out, 13, expected: true);
+    }
     final out = Uint8List(9);
     out[0] = body[offset];
     out[1] = body[offset + 1];
@@ -151,9 +175,21 @@ _Modeled _modelRecord(Uint8List body, int offset, int lead, int spanLength) {
     return _Modeled(out, 9, expected: true);
   }
 
-  // Typed reference `14..17 <sub> 01 fd <u16 oid>` — 6 bytes.
+  // Typed reference `14..17 <sub> 01 fd <oid>` — 6 bytes for the compact `u16`
+  // oid, 10 bytes for the `fd 80 00 <u32 oid>` escape ([decodeHeapRef]).
   final ref = decodeHeapRef(body, offset);
   if (ref != null) {
+    if (ref.length == 10) {
+      final out = Uint8List(10);
+      out[0] = body[offset];
+      out[1] = body[offset + 1];
+      out[2] = 0x01;
+      out[3] = 0xfd;
+      out[4] = 0x80;
+      out[5] = 0x00;
+      _putU32(out, 6, ref.targetOid);
+      return _Modeled(out, 10, expected: true);
+    }
     final out = Uint8List(6);
     out[0] = body[offset];
     out[1] = body[offset + 1];
