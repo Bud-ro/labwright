@@ -26,8 +26,10 @@ const int kFaithfulMaxObjects = 1500;
 /// (`buildViModel` → `blockDiagrams`/`frontPanelDiagrams`). Honest by
 /// construction: only objects with recovered absolute bounds are drawn.
 /// Dataflow wires are drawn from the decoded signal (`0x17`) endpoint binding
-/// ([ViDiagram.wires]) — routed as right-angle runs between each signal's real
-/// endpoint anchors — but the wire **datatype is not decoded**, so runs are a
+/// ([ViDiagram.wires]) — routed as synthesized right-angle runs between each
+/// endpoint's anchor (the nearest bounded owner of the endpoint; LabVIEW does
+/// not persist wire path geometry) — but the wire **datatype is not decoded**, so
+/// runs are a
 /// neutral tone (only tinted where an anchor coincides with a typed terminal),
 /// never a fabricated per-type colour. This is a faithful object/position view,
 /// not a re-render of LabVIEW's canvas.
@@ -302,10 +304,10 @@ class _ViDiagramViewState extends State<ViDiagramView> {
       const Tooltip(
         message:
             'Dataflow wires (signal 0x17) are routed between their decoded\n'
-            'endpoint anchors (100% resolve; 91% source+sink). Visual segments\n'
-            '(0x1d: stored Manhattan runs) are also drawn. Not decoded: the wire\n'
-            'datatype (for per-type colors) — runs stay neutral unless an anchor\n'
-            'meets a terminal whose type was recovered.',
+            'endpoint anchors. Visual segments (0x1d: stored Manhattan runs) are\n'
+            'also drawn. Not decoded: the wire datatype (for per-type colors) —\n'
+            'runs stay neutral unless an anchor meets a terminal whose type was\n'
+            'recovered.',
         child: Chip(
           avatar: Icon(Icons.linear_scale, size: 14),
           label: Text('wires: dataflow routed', style: TextStyle(fontSize: 11)),
@@ -452,9 +454,9 @@ Color labviewTypeColor(ViTypeKind kind) => switch (kind) {
   ViTypeKind.unknown => const Color(0xFF8A8A8A),
 };
 
-/// LabVIEW's block-diagram canvas is a near-white field (the default panel is a
-/// hair off pure white). The reference renders and the letterbox share this so
-/// the empty margin matches instead of reading as a grey plate.
+/// The block-diagram canvas fill — pure white. The render and the oracle
+/// letterbox/registration share it so the empty margin matches a white reference
+/// screenshot instead of reading as a grey plate.
 const Color kBdCanvas = Color(0xFFFFFFFF);
 
 /// The faint alignment-grid dot color on [kBdCanvas] — low enough contrast that a
@@ -472,8 +474,9 @@ const Set<int> kSubViCallNodeCodes = {0x31, 0x32, 0xc5, 0x104, 0x103, 0x8c};
 /// connector-pane icon background).
 const Color kBdSubViNodeFill = Color(0xFFECECEC);
 
-/// Fill for a primitive/function node plate — LabVIEW's numeric-function palette
-/// pale gold. Used for every node that is not a recognised subVI call.
+/// Fill for a non-subVI node plate — a pale gold. A generic default for every
+/// node that is not a recognised subVI call (the specific primitive is not
+/// decoded, so one neutral plate colour is used rather than a per-function one).
 const Color kBdPrimitiveNodeFill = Color(0xFFFBEEC2);
 
 /// Fill for a terminal whose datatype is not recovered — a neutral light grey
@@ -502,11 +505,13 @@ Color? bdDecodedColor(int? rgb) =>
 Color? bdFillColor(ViHeapObject object) =>
     bdDecodedColor(object.contentRgb) ?? bdDecodedColor(object.bgRgb);
 
-/// The Manhattan (right-angle) route between two endpoint-anchor rectangles, as
-/// an ordered polyline in the anchors' own coordinate space: it leaves [source]
-/// on the horizontal side facing [sink], turns at the mid-x column, then enters
-/// [sink] on its facing side (the LabVIEW H–V–H elbow). Pure + public so the
-/// routing is unit-testable independent of the canvas.
+/// A synthesized Manhattan (right-angle) route between two endpoint-anchor
+/// rectangles, as an ordered polyline in the anchors' own coordinate space: it
+/// leaves [source] on the horizontal side facing [sink], turns at the mid-x
+/// column, then enters [sink] on its facing side (an H–V–H elbow). LabVIEW does
+/// not persist wire path geometry, so this route is generated from the decoded
+/// endpoints, not recovered. Pure + public so the routing is unit-testable
+/// independent of the canvas.
 List<Offset> bdWireRoute(Rect source, Rect sink) {
   final sinkRight = sink.center.dx >= source.center.dx;
   final start = Offset(
@@ -908,9 +913,6 @@ class BdDiagramPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     canvas.drawRect(Offset.zero & size, Paint()..color = kBdCanvas);
     _drawDotGrid(canvas, size);
-    // Dataflow wires paint first (over the canvas, under every structure/node)
-    // so nodes and terminals always sit on top of the runs that reach them.
-    _drawWires(canvas);
 
     Rect rectOf(ViHeapObject o) {
       final bounds = o.absBounds!;
@@ -946,11 +948,13 @@ class BdDiagramPainter extends CustomPainter {
             ),
           );
 
+    // Decorations are the backmost layer (a coloured free-label backing, box or
+    // separator sits behind the logic), so they paint before the dataflow wires
+    // and every node — a decoration drawn opaque in its decoded colour must not
+    // occlude the wires routed across it.
     for (final object in decorations) {
-      // A decoration (coloured free-label backing, box, separator) is drawn in
-      // its own decoded LabVIEW colour when one was recovered — decorations
-      // paint first, under every node/wire — and otherwise a faint category
-      // tint so its extent still reads without inventing a colour.
+      // Drawn in its own decoded LabVIEW colour when one was recovered, else a
+      // faint category tint so its extent still reads without inventing a colour.
       final decoded =
           bdDecodedColor(object.bgRgb) ?? bdDecodedColor(object.contentRgb);
       canvas.drawRect(
@@ -961,6 +965,10 @@ class BdDiagramPainter extends CustomPainter {
                 ..color = _kindColor(object.category).withValues(alpha: 0.10)),
       );
     }
+    // Dataflow wires paint over the canvas/decorations but under every
+    // structure/node, so nodes and terminals always sit on top of the runs that
+    // reach them.
+    _drawWires(canvas);
     for (final object in structures) {
       // LabVIEW draws structures as a double-line frame; the badge tab at the
       // top-left names the construct (While/For/Case) like the original's
@@ -1244,6 +1252,7 @@ class BdDiagramPainter extends CustomPainter {
   bool shouldRepaint(covariant BdDiagramPainter old) =>
       !identical(old.objects, objects) ||
       !identical(old.wires, wires) ||
+      !identical(old.subViIcons, subViIcons) ||
       old.origin != origin;
 }
 

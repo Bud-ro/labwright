@@ -75,6 +75,14 @@ Future<BdRaster?> rasteriseBlockDiagram(
     recorder,
     Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()),
   );
+  // Fill the whole pixel raster with the canvas colour before scaling: the
+  // painter fills only content.size*scale, but the image is ceil()'d, so without
+  // this the <1px right/bottom remainder stays transparent and every ink/luma
+  // comparison would read that transparent strip as ink.
+  canvas.drawRect(
+    Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()),
+    Paint()..color = kBdCanvas,
+  );
   canvas.scale(scale);
   BdDiagramPainter(
     objects: ordered,
@@ -495,7 +503,7 @@ Future<ui.Image> _placeByInkBounds(
   int width,
   int height, {
   Color background = const Color(0xFFFFFFFF),
-}) {
+}) async {
   final recorder = ui.PictureRecorder();
   final canvas = Canvas(
     recorder,
@@ -519,7 +527,12 @@ Future<ui.Image> _placeByInkBounds(
     Rect.fromLTWH(left, top, src.width * scale, src.height * scale),
     Paint()..filterQuality = FilterQuality.medium,
   );
-  return recorder.endRecording().toImage(width, height);
+  final picture = recorder.endRecording();
+  try {
+    return await picture.toImage(width, height);
+  } finally {
+    picture.dispose();
+  }
 }
 
 /// Redraws [src] centred and aspect-preserved into a [width]×[height] canvas over
@@ -530,7 +543,7 @@ Future<ui.Image> _letterbox(
   int width,
   int height, {
   Color background = const Color(0xFFFFFFFF),
-}) {
+}) async {
   final recorder = ui.PictureRecorder();
   final canvas = Canvas(
     recorder,
@@ -554,7 +567,12 @@ Future<ui.Image> _letterbox(
     ),
     Paint()..filterQuality = FilterQuality.medium,
   );
-  return recorder.endRecording().toImage(width, height);
+  final picture = recorder.endRecording();
+  try {
+    return await picture.toImage(width, height);
+  } finally {
+    picture.dispose();
+  }
 }
 
 /// A visual block-diagram oracle panel: the clean-room render on the left, an
@@ -598,8 +616,32 @@ class _BdOracleViewState extends State<BdOracleView> {
     super.didUpdateWidget(old);
     if (!identical(old.diagram, widget.diagram) ||
         !identical(old.referenceBytes, widget.referenceBytes)) {
+      _retire(_future);
       _future = _build();
     }
+  }
+
+  @override
+  void dispose() {
+    _retire(_future);
+    super.dispose();
+  }
+
+  /// Frees a (possibly still-pending) render's images once it resolves. When the
+  /// widget is still mounted the free is deferred to after the current frame, so
+  /// a `RawImage` that was showing them is out of the tree first.
+  void _retire(Future<_OracleData> data) {
+    data
+        .then((resolved) {
+          if (mounted) {
+            WidgetsBinding.instance.addPostFrameCallback(
+              (_) => resolved.dispose(),
+            );
+          } else {
+            resolved.dispose();
+          }
+        })
+        .catchError((_) {});
   }
 
   Future<_OracleData> _build() async {
@@ -716,4 +758,22 @@ class _OracleData {
   const _OracleData({this.rendered, this.result});
   final ui.Image? rendered;
   final BdOracleResult? result;
+
+  /// Releases the GPU-backed images this render holds (each at most once — the
+  /// result's `rendered` and same-size `fitted` alias other fields).
+  void dispose() {
+    final seen = <ui.Image>{};
+    void disp(ui.Image? image) {
+      if (image != null && seen.add(image)) image.dispose();
+    }
+
+    disp(rendered);
+    final r = result;
+    if (r != null) {
+      disp(r.rendered);
+      disp(r.fitted);
+      disp(r.reference);
+      disp(r.diffImage);
+    }
+  }
 }
