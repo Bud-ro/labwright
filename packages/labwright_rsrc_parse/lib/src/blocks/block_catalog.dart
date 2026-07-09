@@ -216,7 +216,7 @@ const Map<String, ViBlockInfo> _catalog = {
     'Default data space',
     _ds,
     _lk,
-    'Compressed serialized default control/indicator values, type-directed by VCTP. Probed + ruled out a simple framing: no count header (first u32==0 only 30%), no length law vs the VCTP pool count (len==H+stride*poolCount <0.5%). Decoding needs a full VCTP type-size walk; not parsed.',
+    'Compressed default data space: the serialized default value of each data item, laid out per its VCTP type. 3567 corpus instances (~7.4 MB); 723 share one byte-identical 204-byte empty form. No simple framing (leading u32==0 in only 28%, no length law vs the VCTP pool count). A byte-exact type-directed layout needs per-type serialized sizes for the whole VCTP type pool, but the pool is only partially catalogued: 0 of 3534 DFDS-paired pools consist solely of catalogued type codes (0x00/0x53/0x60/0x62/0x80/0xf1-typedef and others carry no size rule), so no walk tiles it and the body is retained verbatim.',
   ),
   'DSIM': ViBlockInfo(
     'DSIM',
