@@ -147,14 +147,24 @@ void main() {
     });
   });
 
-  test('decodeTypeMap (TM80): short form entries, large-form flag, null when short', () {
-    final m = decodeTypeMap(hx('00040002 1000 1001 2000 1000'))!;
-    expect((m.isShortForm, m.count, m.field1, m.rawLength), (true, 4, 2, 12));
-    expect(m.entries, [0x1000, 0x1001, 0x2000, 0x1000]);
-    final large = decodeTypeMap(hx('00320060 01020304'))!;
-    expect((large.isShortForm, large.rawLength), (false, 8), reason: 'count=50 but len != 4+2*count -> large form');
-    expect(large.entries, isEmpty);
-    expect(decodeTypeMap(hx('0001')), isNull);
+  test('decodeTypeMap (TM80): variable-field [count][indexShift][flags] walk + byte-exact re-emit', () {
+    // count=3, indexShift=4. Flags 0xd000/0xd001 have bit15 set so they use the
+    // 4-byte u2p2 form (8000_xxxx); 0x2000 fits the 2-byte form.
+    const body = '0003 0004 8000d000 2000 8000d001';
+    final m = decodeTypeMap(hx(body))!;
+    expect((m.framesExactly, m.indexShift, m.rawLength), (true, 4, 14));
+    expect(m.entries, [0xd000, 0x2000, 0xd001]);
+    expect(reserializeTypeMap(hx(body)), hx(body));
+    expect(typeMapFrames(hx(body)), isTrue);
+
+    // count==0 -> no indexShift/entries; trailing bytes leave it unframed (the
+    // older inline-TD form starts with 0x0000), so it does not re-emit.
+    final inline = decodeTypeMap(hx('0000 0021 0008'))!;
+    expect(inline.framesExactly, isFalse);
+    expect(inline.entries, isEmpty);
+    expect(reserializeTypeMap(hx('0000 0021 0008')), isNull);
+
+    expect(decodeTypeMap(hx('00')), isNull);
   });
 
   test('decodeConnectorPane (CONP): 2-byte big-endian VCTP index; longer blocks flagged inline; null when empty', () {
