@@ -72,13 +72,15 @@ class ViDiagramView extends StatefulWidget {
   /// Empty by default.
   final ViImages viImages;
 
-  /// Optional `filename → bytes` lookup used to stamp each **subVI-call node**
-  /// with the icon of the VI it targets (see [resolveSubViIcons]): the node's
-  /// `.vi`/`.vim` caption is loaded and its icon decoded. Only meaningful for the
-  /// block diagram (subVI nodes live there); a node whose target the loader can't
-  /// find keeps the neutral connector-pane plate. Null (the default) draws no
-  /// on-node icons.
-  final Uint8List? Function(String fileName)? subViIconLoader;
+  /// Optional future of a `filename → bytes` lookup used to stamp each
+  /// **subVI-call node** with the icon of the VI it targets (see
+  /// [resolveSubViIcons]): the node's `.vi`/`.vim` caption is loaded and its icon
+  /// decoded. The loader is a future because its project-directory index is built
+  /// off the UI isolate (see `buildProjectViLoader`) so the load never blocks;
+  /// icons appear once it resolves. Only meaningful for the block diagram (subVI
+  /// nodes live there); a node whose target the loader can't find keeps the
+  /// neutral connector-pane plate. Null (the default) draws no on-node icons.
+  final Future<Uint8List? Function(String fileName)>? subViIconLoader;
 
   @override
   State<ViDiagramView> createState() => _ViDiagramViewState();
@@ -96,13 +98,9 @@ class _ViDiagramViewState extends State<ViDiagramView> {
   late final ViDiagram? _diagram = _largestDiagram(widget.diagrams);
   late final Map<int, ViHeapObject> _byId = _diagram?.byId ?? const {};
   // SubVI-call node icons resolved from the called VIs' own files (block diagram
-  // only). Empty when no loader is supplied or nothing resolves.
-  late final Map<int, ViLegacyIcon> _subViIcons =
-      (_diagram == null ||
-          widget.isFrontPanel ||
-          widget.subViIconLoader == null)
-      ? const {}
-      : resolveSubViIcons(_diagram, widget.subViIconLoader!);
+  // only). Populated asynchronously once the project-index loader resolves (see
+  // [_resolveIcons]); empty until then, and when no loader is supplied.
+  Map<int, ViLegacyIcon> _subViIcons = const {};
   late final List<ViHeapObject> _drawable = _diagram == null
       ? const []
       : bdDrawableObjects(_diagram);
@@ -122,6 +120,25 @@ class _ViDiagramViewState extends State<ViDiagramView> {
       countsByKind[object.category] = (countsByKind[object.category] ?? 0) + 1;
     }
     return countsByKind;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _resolveIcons();
+  }
+
+  /// Awaits the project-index loader (built off the UI isolate) and resolves the
+  /// subVI-call node icons, then repaints. A no-op on the front panel or when no
+  /// loader is supplied; guarded against a resolution that lands after unmount.
+  Future<void> _resolveIcons() async {
+    final diagram = _diagram;
+    final loaderFuture = widget.subViIconLoader;
+    if (diagram == null || widget.isFrontPanel || loaderFuture == null) return;
+    final loader = await loaderFuture;
+    if (!mounted) return;
+    final icons = resolveSubViIcons(diagram, loader);
+    if (icons.isNotEmpty) setState(() => _subViIcons = icons);
   }
 
   @override
