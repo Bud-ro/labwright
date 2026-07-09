@@ -58,9 +58,10 @@ class ViModel {
   /// The recovered **block-diagram** object tree(s) — from the `BDHb`/`BDHP`
   /// block-diagram heaps: objects (structures / nodes / control terminals /
   /// labels) with bounds, labels, classified [HeapObjectClass], and parent/child
-  /// nesting (`parentOid` + child-membership refs). **Scope**: dataflow
-  /// wires/edges are not decoded — LabVIEW stores wires as geometry — so
-  /// [ViDiagram] exposes nesting only.
+  /// nesting (`parentOid` + child-membership refs), plus the dataflow **wires**
+  /// ([ViDiagram.wires]): signal (`0x17`) objects with resolved oid endpoint
+  /// binding + endpoint anchors. **Scope**: wire datatype and packed route
+  /// geometry are not decoded (see [ViWire]).
   final List<ViDiagram> blockDiagrams;
 
   /// The recovered **front-panel** object tree(s) — from the `FPHb`/`FPHP`

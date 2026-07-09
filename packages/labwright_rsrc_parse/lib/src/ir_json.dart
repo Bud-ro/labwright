@@ -17,9 +17,10 @@ import 'ir.dart';
 ///
 /// Honesty note on the two id fields: `parentOid` is the containment tree (the
 /// nesting is rebuilt from it). `memberOids` is the heap's *declared*
-/// childRef/dcoRef reflist — NOT containment and NOT wire endpoints; it is
-/// orthogonal to `parentOid` and diverges from it ~72% of the time, so a
-/// consumer must not read it as the child list.
+/// childRef/dcoRef reflist — orthogonal to `parentOid` and diverging from it
+/// ~72% of the time, so a consumer must not read it as the child list. For a
+/// structure it is child membership (not containment); for a **signal** (`0x17`,
+/// a dataflow wire) it is the wire's endpoint objects (see [ViWire]).
 Map<String, Object?> viDiagramToJson(ViDiagram d) => {
   'sectionTag': d.sectionTag,
   'objects': d.objects.map(_objectToJson).toList(),
@@ -64,10 +65,12 @@ Map<String, Object?> _rectToJson(HeapRect r) => {
 /// translator must bind), and the recovered block-diagram + front-panel object
 /// trees ([viDiagramToJson]).
 ///
-/// Scope note carried from [ViModel]: dataflow wires/edges are **not yet
-/// decoded** (LabVIEW stores wires as geometry), so the IR is currently a typed,
-/// nested object graph rather than a dataflow graph. Deterministic and
-/// `jsonEncode`-safe (no non-finite numbers, no cycles).
+/// Scope note carried from [ViModel]: dataflow **wire endpoint binding** is
+/// decoded — each signal (`0x17`) object emits its endpoint objects as
+/// `memberOids` (see [ViWire] / [ViDiagram.wires]) — but wire **datatype** and
+/// packed **route geometry** are not decoded, so the IR is a typed, nested
+/// object graph with wire endpoints rather than a fully typed dataflow graph.
+/// Deterministic and `jsonEncode`-safe (no non-finite numbers, no cycles).
 /// The connector-pane terminals (kind + recovered name) resolved from the VI's
 /// VCTP type pool, or null when no in-range conpane index is present. A cluster's
 /// members are the terminals; otherwise the conpane type is a single terminal.
