@@ -27,6 +27,10 @@ WriterAttribution _attr({bool byteExact = true, int bugs = 0}) =>
       inflatedContentBytes: 80,
       heapModelBytes: 60,
       heapCopiedBytes: 20,
+      imageCompressedBytes: 0,
+      imageInflatedBytes: 0,
+      imageInflatedModelBytes: 0,
+      imageInflatedCopiedBytes: 0,
       heapModelBugs: bugs,
     );
 
