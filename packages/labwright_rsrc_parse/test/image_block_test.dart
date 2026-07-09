@@ -178,6 +178,48 @@ void main() {
     });
   });
 
+  group('ancillary chunks (iCCP / iTXt)', () {
+    // iCCP data: [name][0][method(1=0)][zlib profile]; iTXt uncompressed data:
+    // [keyword][0][compFlag(0)][compMethod(0)][langtag][0][transKw][0][text].
+    List<int> iccp(List<int> profile) {
+      final z = const ZLibEncoder().encodeBytes(Uint8List.fromList(profile));
+      return _chunk('iCCP', [...'ICC'.codeUnits, 0, 0, ...z]);
+    }
+
+    List<int> itxtPlain(String keyword, String text) =>
+        _chunk('iTXt', [...keyword.codeUnits, 0, 0, 0, 0, 0, ...text.codeUnits]);
+
+    Uint8List pngWith(List<int> extra) {
+      final ihdr = _chunk('IHDR', [0, 0, 0, 4, 0, 0, 0, 4, 8, 2, 0, 0, 0]);
+      final idat = _chunk('IDAT', [0xde, 0xad, 0xbe, 0xef]); // opaque IDAT stand-in
+      final iend = _chunk('IEND', const []);
+      return u8([..._pngSig, ...ihdr, ...extra, ...idat, ...iend]);
+    }
+
+    test('iCCP: prefix modeled, zlib copied, inflated profile counts as content', () {
+      final profile = List.generate(200, (i) => (i * 13 + 5) & 0xff);
+      final png = pngWith(iccp(profile));
+      final img = decodeImageBlock('MNGI', png)!;
+      expect(img.bytes, png, reason: 're-emit stays byte-exact');
+      // The inflated profile is added to the content total, all modeled.
+      expect(img.inflatedContentBytes, profile.length);
+      expect(img.inflatedModelBytes, profile.length);
+      expect(img.compressedContentBytes, greaterThan(0));
+      final rt = imageAncillaryRoundTrips('MNGI', png);
+      expect(rt.count, 1);
+      expect(rt.ok, 1, reason: 'the iCCP profile round-trips through standard zlib');
+    });
+
+    test('uncompressed iTXt is modeled whole, carries no ancillary stream', () {
+      final png = pngWith(itxtPlain('Comment', 'hello world'));
+      final img = decodeImageBlock('MNGI', png)!;
+      expect(img.bytes, png);
+      // Only the 4-byte opaque IDAT is copied; the uncompressed iTXt is model.
+      expect(img.copiedBytes, 4);
+      expect(imageAncillaryRoundTrips('MNGI', png).count, 0);
+    });
+  });
+
   test('an unrelated tag is not an image block', () {
     expect(decodeImageBlock('STRG', _png()), isNull);
   });

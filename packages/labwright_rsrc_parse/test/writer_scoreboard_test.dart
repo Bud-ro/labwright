@@ -33,12 +33,14 @@ import 'snapshot_check.dart';
 ///      whole container and requires it to re-parse and stay content-exact
 ///      ([viContentExact]) — the identity and re-deflated writer are both proven
 ///      content-exact there.
-///   4. **Image raster (nested content)** — every PNG-bearing DSIM/MNGI image
-///      inflates its IDAT to a raster that survives a standard-zlib round-trip
-///      ([imageRasterRoundTrips], N/N LAW). The content scoreboard counts that
-///      inflated raster in place of the compressed IDAT (see the
-///      [WriterAttribution] `image*` categories), so the content total reaches
-///      one level deeper than the container's zlib heaps.
+///   4. **Image nested content** — every PNG-bearing DSIM/MNGI image inflates
+///      its IDAT to a raster ([imageRasterRoundTrips]) and its compressed
+///      ancillary chunks (iCCP/zTXt/iTXt) to their profiles/text
+///      ([imageAncillaryRoundTrips]); each survives a standard-zlib round-trip
+///      (N/N LAWs). The content scoreboard counts that inflated content in place
+///      of the compressed streams (see the [WriterAttribution] `image*`
+///      categories), so the content total reaches one level deeper than the
+///      container's zlib heaps.
 
 /// Block tags whose payload writer re-serializes **every** corpus instance
 /// byte-exact (asserted N/N below).
@@ -109,7 +111,7 @@ bool _bytesEqual(Uint8List a, Uint8List b) {
     n('heap.model', a.heapModelBytes);
     n('heap.copied', a.heapCopiedBytes);
     n('heapModelBugs', a.heapModelBugs);
-    // Image PNG raster content level (compressed IDAT swapped for inflated raster).
+    // Image PNG content level (compressed IDAT + ancillary streams swapped for inflated content).
     n('image.compressed', a.imageCompressedBytes);
     n('image.inflated', a.imageInflatedBytes);
     n('image.inflatedModel', a.imageInflatedModelBytes);
@@ -231,6 +233,14 @@ bool _bytesEqual(Uint8List a, Uint8List b) {
       // raster that survives a standard-zlib round-trip (the "compatible zlib"
       // evidence, one level deeper than the container heap). Counts pinned; the
       // round-trip census is asserted N/N as a LAW below.
+      // Ancillary nested-deflate streams (iCCP/zTXt/compressed iTXt): each
+      // inflates and re-deflates to the same content through standard zlib.
+      final anc = imageAncillaryRoundTrips(s.tag, s.bytes);
+      n('img.ancillary', anc.count);
+      n('img.ancillaryRoundTrip', anc.ok);
+      if (anc.ok != anc.count) {
+        bad('anc', '${s.tag}#${s.index} an ancillary stream did not round-trip through standard zlib');
+      }
       final rt = imageRasterRoundTrips(s.tag, s.bytes);
       if (rt == null) continue;
       n('${s.tag}.png');
@@ -396,6 +406,18 @@ void main() {
       reason: 'raster did not round-trip for ${cnt('img.pngRaster') - cnt('img.rasterRoundTrip')}: ${D('raster')}',
     );
     expect(cnt('img.pngRaster'), greaterThan(0), reason: 'no PNG rasters inflated — census stale?');
+  });
+
+  test('PROOF: every PNG ancillary stream (iCCP/zTXt/iTXt) round-trips through standard zlib', () {
+    // Nested content-exact proof for the compressed ancillary chunks, parallel
+    // to the raster proof above: inflate(deflate(inflate(stream))) == inflate.
+    expect(
+      cnt('img.ancillaryRoundTrip'),
+      cnt('img.ancillary'),
+      reason:
+          'an ancillary stream lost content for ${cnt('img.ancillary') - cnt('img.ancillaryRoundTrip')}: ${D('anc')}',
+    );
+    expect(cnt('img.ancillary'), greaterThan(0), reason: 'no ancillary streams inflated — census stale?');
   });
 
   test('LAW: contentModel counts the inflated raster in place of the compressed IDAT', () {

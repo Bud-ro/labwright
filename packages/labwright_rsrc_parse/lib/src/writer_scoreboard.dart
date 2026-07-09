@@ -25,13 +25,15 @@
 ///
 /// The same reframe reaches one level deeper into the `DSIM`/`MNGI` image
 /// sections — uncompressed container sections whose stored bytes carry a PNG
-/// whose `IDAT` chunks hold a nested zlib stream. At the content level a PNG
-/// image's compressed `IDAT` stored size ([imageCompressedBytes]) is swapped for
-/// its inflated raster ([imageInflatedBytes], via [inflateImageRaster]), which
-/// is modeled ([imageInflatedModelBytes]): a raster leaf that re-deflates to a
-/// standard zlib stream carrying the same pixel content. The compressed `IDAT`
-/// across the corpus is replaced in the content total by its larger inflated
-/// raster, nearly all modeled.
+/// whose `IDAT` and compressed ancillary chunks (`iCCP`/`zTXt`/compressed
+/// `iTXt`) hold nested zlib streams. At the content level a PNG image's
+/// compressed nested-deflate stored size ([imageCompressedBytes]) is swapped for
+/// its inflated content ([imageInflatedBytes], the raster via
+/// [inflateImageRaster] plus the inflated ancillary profiles/text), which is
+/// modeled ([imageInflatedModelBytes]): leaves that re-deflate to a standard
+/// zlib stream carrying the same content. The compressed streams across the
+/// corpus are replaced in the content total by their larger inflated content,
+/// nearly all modeled.
 ///
 /// Categories (byte model): the 32-byte header; the info-area structs (dup
 /// header, `blockListRel`, block list, preGap, section descriptors, trailing VI
@@ -145,24 +147,26 @@ class WriterAttribution {
   /// not — surfaced as a loud regression signal (0 for a faithful model).
   final int heapModelBugs;
 
-  // --- content-level categories (image PNG rasters at inflated size) ---
-  /// Compressed `IDAT` stored bytes swapped out of the content total for the
-  /// inflated raster. These bytes are also in [untypedPayloadBytes] at the byte
-  /// level (a DSIM/MNGI section is an uncompressed container section); at the
-  /// content level they are replaced by [imageInflatedBytes].
+  // --- content-level categories (image PNG nested-deflate at inflated size) ---
+  /// Compressed PNG nested-deflate stored bytes (the `IDAT` pixel stream plus the
+  /// compressed ancillary chunks' zlib streams) swapped out of the content total
+  /// for their inflated content. These bytes are also in [untypedPayloadBytes] at
+  /// the byte level (a DSIM/MNGI section is an uncompressed container section); at
+  /// the content level they are replaced by [imageInflatedBytes].
   final int imageCompressedBytes;
 
-  /// Total inflated raster size for every PNG-bearing image section
-  /// (`imageInflatedModelBytes + imageInflatedCopiedBytes`), swapped in for
+  /// Total inflated content size for every PNG-bearing image section (the raster
+  /// plus the inflated ancillary profiles/text;
+  /// `imageInflatedModelBytes + imageInflatedCopiedBytes`), swapped in for
   /// [imageCompressedBytes] in the content total.
   final int imageInflatedBytes;
 
-  /// Inflated raster bytes modeled as content — the raster leaf that re-deflates
-  /// to a standard zlib stream carrying the same pixel content.
+  /// Inflated PNG content bytes modeled as content — leaves that re-deflate to a
+  /// standard zlib stream carrying the same content.
   final int imageInflatedModelBytes;
 
-  /// Inflated raster bytes not modeled as content (0 for rasters that inflate
-  /// cleanly).
+  /// Inflated PNG content bytes not modeled as content (0 when every stream
+  /// inflates cleanly).
   final int imageInflatedCopiedBytes;
 
   /// Bytes emitted from a typed, understood field (byte level).
@@ -172,18 +176,20 @@ class WriterAttribution {
   int get copiedBytes => infoRawBytes + gapBytes + compressedPayloadBytes + untypedPayloadBytes;
 
   /// Content total: the file length with each compressed heap section's stored
-  /// size swapped for its inflated size and each PNG image's compressed `IDAT`
-  /// swapped for its inflated raster (`contentModelBytes + contentCopiedBytes`).
+  /// size swapped for its inflated size and each PNG image's compressed
+  /// nested-deflate streams swapped for their inflated content
+  /// (`contentModelBytes + contentCopiedBytes`).
   int get contentTotalBytes =>
       fileLength - compressedPayloadBytes + inflatedContentBytes - imageCompressedBytes + imageInflatedBytes;
 
   /// Content bytes emitted from a typed model — the byte-level model plus the
-  /// inflated heap content and the inflated image rasters re-emitted from a model.
+  /// inflated heap content and the inflated image content re-emitted from a model.
   int get contentModelBytes => modelBytes + heapModelBytes + imageInflatedModelBytes;
 
   /// Content bytes copied verbatim — the byte-level copied set with the stored
   /// compressed heap payloads swapped for their inflated copied content and the
-  /// compressed `IDAT` swapped for the raster's copied fraction.
+  /// compressed PNG nested-deflate streams swapped for their inflated copied
+  /// fraction.
   int get contentCopiedBytes =>
       copiedBytes - compressedPayloadBytes + heapCopiedBytes - imageCompressedBytes + imageInflatedCopiedBytes;
 }
@@ -296,10 +302,11 @@ WriterAttribution attributeVi(Uint8List bytes, {int depth = 0}) {
           } else if (image != null && _eq(image.bytes, payload)) {
             typedPayload += image.modelBytes;
             untyped += image.copiedBytes;
-            // Content level: the compressed IDAT stored bytes (part of the byte-
-            // level copied set) are swapped for the inflated raster, modeled as
-            // content. A raster that fails to inflate leaves these zero, so its
-            // compressed IDAT stays counted in the copied set at the content level.
+            // Content level: the compressed PNG nested-deflate stored bytes (the
+            // IDAT raster + ancillary streams, part of the byte-level copied set)
+            // are swapped for their inflated content, modeled as content. A stream
+            // that fails to inflate leaves its bytes counted copied at the content
+            // level.
             imageCompressed += image.compressedContentBytes;
             imageInflated += image.inflatedContentBytes;
             imageInflatedModel += image.inflatedModelBytes;
