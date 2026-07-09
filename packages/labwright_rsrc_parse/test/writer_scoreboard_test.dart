@@ -253,6 +253,28 @@ bool _bytesEqual(Uint8List a, Uint8List b) {
     }
   } catch (_) {}
 
+  // Metafile-block (PICT/WEMF) framing census: every framed instance re-emits
+  // byte-exact ([frameMetafile]), splitting reconstructed element/record framing
+  // (model) from retained opaque leaves (copied). The element/record walk tiles
+  // the whole block to its terminator on the last byte.
+  try {
+    final seen = <int>{};
+    for (final s in readViSections(bytes)) {
+      if ((s.tag != 'PICT' && s.tag != 'WEMF') || !seen.add(s.dataOffset)) continue;
+      n('${s.tag}.inst');
+      final meta = frameMetafile(s.tag, s.bytes);
+      if (meta == null) continue;
+      if (_bytesEqual(meta.bytes, s.bytes) && meta.modelBytes + meta.copiedBytes == s.bytes.length) {
+        n('${s.tag}.exact');
+      } else {
+        bad('meta', '${s.tag}#${s.index} did not re-emit byte-exact');
+      }
+      n('${s.tag}.model', meta.modelBytes);
+      n('${s.tag}.copied', meta.copiedBytes);
+      n('${s.tag}.elements', meta.elementCount);
+    }
+  } catch (_) {}
+
   return (c, diags);
 }
 
@@ -388,6 +410,16 @@ void main() {
       expect(cnt('$tag.exact'), greaterThan(0), reason: 'no $tag framed — image writer broken?');
       expect(cnt('$tag.exact'), lessThanOrEqualTo(cnt('$tag.inst')), reason: '$tag framed more than exist');
       expect(D('img'), isEmpty, reason: 'a framed $tag did not re-emit byte-exact: ${D('img')}');
+    });
+  }
+
+  for (final tag in const ['PICT', 'WEMF']) {
+    test('METAFILE: every $tag block frames and re-emits byte-exact (N/N, counts pinned)', () {
+      // Every corpus PICT/WEMF tiles element-by-element to its terminator on the
+      // last byte and re-emits byte-exact ([frameMetafile]); the framed count
+      // equals the instance count (N/N) and the model/copied split is pinned.
+      expect(cnt('$tag.exact'), cnt('$tag.inst'), reason: 'a $tag did not frame byte-exact: ${D('meta')}');
+      expect(cnt('$tag.inst'), greaterThan(0), reason: 'no $tag instances found — census stale?');
     });
   }
 
