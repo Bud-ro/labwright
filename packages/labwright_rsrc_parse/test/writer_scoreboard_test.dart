@@ -158,6 +158,28 @@ bool _bytesEqual(Uint8List a, Uint8List b) {
     }
   } catch (_) {}
 
+  // Image-block (DSIM/MNGI) framing census: every framed instance re-emits
+  // byte-exact ([decodeImageBlock]), splitting reproduced framing/geometry +
+  // uncompressed interiors (model) from compressed streams + trailer (copied).
+  try {
+    final seen = <int>{};
+    for (final s in readViSections(bytes)) {
+      if ((s.tag != 'DSIM' && s.tag != 'MNGI') || !seen.add(s.dataOffset)) continue;
+      n('${s.tag}.inst');
+      final img = decodeImageBlock(s.tag, s.bytes);
+      if (img == null) continue;
+      if (_bytesEqual(img.bytes, s.bytes)) {
+        n('${s.tag}.exact');
+      } else {
+        bad('img', '${s.tag}#${s.index} did not re-emit byte-exact');
+      }
+      n('${s.tag}.model', img.modelBytes);
+      n('${s.tag}.copied', img.copiedBytes);
+      n('img.chunks', img.pngChunks);
+      n('img.crcVerified', img.crcVerified);
+    }
+  } catch (_) {}
+
   return (c, diags);
 }
 
@@ -281,6 +303,19 @@ void main() {
       );
     });
   }
+
+  for (final tag in const ['DSIM', 'MNGI']) {
+    test('IMAGE: every framed $tag re-emits byte-exact (framed subset, counts pinned)', () {
+      expect(cnt('$tag.exact'), greaterThan(0), reason: 'no $tag framed — image writer broken?');
+      expect(cnt('$tag.exact'), lessThanOrEqualTo(cnt('$tag.inst')), reason: '$tag framed more than exist');
+      expect(D('img'), isEmpty, reason: 'a framed $tag did not re-emit byte-exact: ${D('img')}');
+    });
+  }
+
+  test('IMAGE: every framed PNG chunk CRC-32 verifies', () {
+    expect(cnt('img.crcVerified'), cnt('img.chunks'), reason: 'a framed PNG chunk failed CRC-32 verification');
+    expect(cnt('img.chunks'), greaterThan(0), reason: 'no PNG chunks framed — census stale?');
+  });
 
   test('writer scoreboard measurements match the committed snapshot exactly', () {
     // MEASUREMENTS: whole-corpus byte totals per model/copied category, the

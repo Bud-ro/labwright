@@ -223,7 +223,7 @@ const Map<String, ViBlockInfo> _catalog = {
     'Data-space image',
     _ds,
     _cf,
-    'Leading u32==0 (18654/18654) + u16 geometry words; 15620/18654 embed the colour-icon PNG (envelope decoded). Remaining header semantics not yet decoded. See decodeDataSpaceImage.',
+    'Leading u32==0 + u16 geometry (repeated at offset 30); the body is either a colour-icon PNG or a raw width*height*bpp raster (u32@22 = pixel byte count), optionally trailed by a palette. Byte-faithfully framed: PNG chunk envelope + verified CRC-32 as model, compressed IDAT retained opaque (decodeImageBlock); envelope dimensions via decodeDataSpaceImage.',
     decoder: 'decodeDataSpaceImage',
   ),
   'DSTM': ViBlockInfo('DSTM', 'Data-space (TM)', _ds, _tt, 'Format not yet decoded.'),
@@ -299,7 +299,7 @@ const Map<String, ViBlockInfo> _catalog = {
     'PNG image',
     _im,
     _cf,
-    'PNG (magic 89 50 4E 47; rare MNG variant): envelope + IHDR dimensions decoded; pixel data is standard PNG. See decodePngEnvelope.',
+    'A bare PNG stream (magic 89 50 4E 47) run to IEND; the rare MNG variant stays copied. Byte-faithfully framed: signature + chunk length/type/verified-CRC-32 as model, compressed IDAT retained opaque (decodeImageBlock); envelope dimensions via decodePngEnvelope.',
     decoder: 'decodePngEnvelope',
   ),
   'WEMF': ViBlockInfo(
