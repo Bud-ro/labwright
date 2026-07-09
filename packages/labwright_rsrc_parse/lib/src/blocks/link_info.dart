@@ -99,11 +99,12 @@ ViLinkInfo? decodeLinkInfo(Uint8List bytes) {
 /// A byte-exact `LI*` model: the header/terminator framing plus the entry region
 /// retained verbatim so [serialize] reproduces the section body.
 ///
-/// The framing — [version] u16, [rootKind] 4cc, then either an entry `count`
-/// (u32) or a library self-name followed by a count, then the entries, then a u16
-/// [terminator] — holds on every corpus section (26136/26136, 0 desyncs). The
-/// entry region is retained in [entryRegion] and re-emitted verbatim, so
-/// [serialize] round-trips regardless of the interior grammar.
+/// The framing — [version] u16, [rootKind] 4cc, then (on pre-14.0 files) a
+/// self-name `PStr` and an `[u16 wordlen][2·wordlen]` header, then an entry
+/// `count` (u32), then the entries, then a u16 [terminator] — holds on every
+/// corpus section (26136/26136, 0 desyncs). The entry region is retained in
+/// [entryRegion] and re-emitted verbatim, so [serialize] round-trips regardless
+/// of the interior grammar.
 ///
 /// [tiled] records whether the interior entry boundaries are *recovered*, which
 /// is what lets the writer credit the region as model-sourced rather than an
@@ -118,13 +119,15 @@ ViLinkInfo? decodeLinkInfo(Uint8List bytes) {
 ///
 /// The per-entry grammar (reference: pylabview `LVlinkinfo`, corpus-verified):
 /// each entry is `[u16 0x0002][4cc kind][body]`. Bodies for the covered kinds
-/// (`VILB`/`VIVI`/`VICC`/`IUVI`/`TDCC`/`DSDS`/`FPPI`/`DDPI`/`VIPI`) are built
-/// from self-delimiting records — a length-prefixed qualified name, a `PTH0`
-/// path (`[u32 len]`-framed), an offset list (`[u32 count][u32…]`), a type-id,
-/// version-gated link-save flags, and a `VILinkRefInfo` block whose
-/// library-identity/GUID bytes are retained opaque. Sections whose entries use a
-/// kind outside that set, or a version variant the walk does not reproduce, do
-/// not reach the terminator and stay copied.
+/// (`VILB`/`VIVI`/`VICC`/`VIPV`/`VIPR`/`VIAV`/`BSVR`/`IUVI`/`PUPV`/`SVVI`/
+/// `TDCC`/`DSDS`/`DSSV`/`DSEF`/`NEXF`/`XNXI`/`VIXN`/`FPPI`/`DDPI`/`VRPI`/`DyOM`/
+/// `PNOM`/`DRPI`/`DOPI`/`VIPI`) are built from self-delimiting records — a
+/// length-prefixed qualified name, a `PTH0` path (`[u32 len]`-framed), an offset
+/// list (`[u32 count][u32…]`), a type-id, version-gated link-save flags, an
+/// external-function / GObject-interface / UDClass-API-cache record, and a
+/// `VILinkRefInfo` block whose library-identity/GUID bytes are retained opaque.
+/// Sections whose entries use a kind outside that set, or a version variant the
+/// walk does not reproduce, do not reach the terminator and stay copied.
 class ViLinkInfoRaw {
   const ViLinkInfoRaw({
     required this.version,
@@ -198,8 +201,33 @@ ViLinkInfoRaw? decodeLinkInfoRaw(Uint8List bytes, {ViVersionWord? version}) {
 /// forward walk consumes all `count` entries to exactly the terminator. Total.
 bool _tilesLinkInfo(Uint8List bytes, ViVersionWord? version) {
   final termOff = bytes.length - 2;
-  final u32at6 = ByteData.sublistView(bytes).getUint32(6);
+  final view = ByteData.sublistView(bytes);
+  final u32at6 = view.getUint32(6);
 
+  // Header form V (version-gated, pylabview `LinkObjRefs`): `[u16 1][4cc root]`,
+  // then on pre-14.0 files a `PStr` (pad-to-2) self-name + `[u16 wordlen][2·
+  // wordlen bytes]` header, then `[u32 count]`, then entries. Needs the file
+  // version to size the pre-14 header and the ≥ 2-entry walk.
+  if (version != null) {
+    var pos = 6;
+    var ok = true;
+    if (version.major < 14) {
+      final nameLen = bytes[6];
+      pos = 7 + nameLen;
+      if ((nameLen + 1).isOdd) pos += 1; // pad-to-2
+      if (pos + 2 > bytes.length) {
+        ok = false;
+      } else {
+        pos += 2 + 2 * view.getUint16(pos);
+      }
+    }
+    if (ok && pos + 4 <= bytes.length) {
+      final countV = view.getUint32(pos);
+      if (countV <= 0x10000 && _tilesFrom(bytes, version, countV, pos + 4, termOff)) {
+        return true;
+      }
+    }
+  }
   // Header form A: `[u32 count]` at offset 6, entries at 10.
   if (u32at6 <= 0x10000 && _tilesFrom(bytes, version, u32at6, 10, termOff)) {
     return true;
@@ -211,7 +239,7 @@ bool _tilesLinkInfo(Uint8List bytes, ViVersionWord? version) {
     if (pos % 4 != 0) pos += 4 - (pos % 4);
     pos += 2;
     if (pos + 4 <= bytes.length) {
-      final countB = ByteData.sublistView(bytes).getUint32(pos);
+      final countB = view.getUint32(pos);
       if (countB <= 0x10000 && _tilesFrom(bytes, version, countB, pos + 4, termOff)) {
         return true;
       }
@@ -451,6 +479,36 @@ void _liTrailer(_LiCursor c) {
   if (c.major >= 14) _liOffList(c);
 }
 
+/// A boolean flag: 1 byte at version ≥ 4.5, else 2 (pylabview `parseBool`).
+void _liBool(_LiCursor c) => c.skip(c.ge(4, 5, 0) ? 1 : 2);
+
+/// External-function link save info (`DSEF`/`NEXF`): basic link-save info + an
+/// offset list + a `PStr` name + two flag bytes + a version-gated boolean; a
+/// plain offset-save on pre-8.0 files.
+void _liExtFunc(_LiCursor c) {
+  if (c.ge(8, 0, 3)) {
+    _liBasic(c);
+    if (!c.ok) return;
+    _liOffList(c);
+    if (!c.ok) return;
+    _liPStr(c);
+    if (!c.ok) return;
+    c.skip(2); // prop3 + prop4
+    if (c.ge(11, 0, 3)) _liBool(c);
+  } else {
+    _liOffsetSave(c);
+  }
+}
+
+/// GObject-interface link save info (`VIXN`): basic link-save info (or an
+/// offset-save on pre-8.0 files) followed by the five interface property words
+/// (`u16`×4 + `u32`).
+void _liGiSave(_LiCursor c) {
+  c.ge(8, 0, 0) ? _liBasic(c) : _liOffsetSave(c);
+  if (!c.ok) return;
+  c.skip(12);
+}
+
 /// Consumes one entry body for [kind] (the `0x0002` marker and 4cc already
 /// read). An unhandled kind clears [c.ok] so the section stays copied.
 void _liEntry(_LiCursor c, String kind) {
@@ -466,28 +524,51 @@ void _liEntry(_LiCursor c, String kind) {
       _liTyped(c);
       if (!c.ok) return;
       if (c.ge(10, 0, 0) && c.u8() != 0) c.skip(36); // stdViGUID
-    case 'VICC':
+    case 'VICC': // VI → custom-control link
+    case 'VIPV': // VI → poly link
+    case 'VIPR': // VI → programmatic-return link
+    case 'VIAV': // VI → adaptive-VI link
       _liTyped(c);
+    case 'BSVR': // VI → static-VI link
+      _liTyped(c);
+      if (!c.ok) return;
+      c.skip(4); // viLinkProp2
     case 'TDCC':
       _liHeapToVi(c);
       if (!c.ok) return;
       _liTrailer(c);
+    case 'PUPV': // poly-instance-use → poly link
+    case 'SVVI': // static-VI-ref → VI link
+      _liHeapToVi(c);
     case 'DSDS':
       _liOffsetSave(c);
       if (!c.ok) return;
       if (c.ge(8, 6, 0)) _liOffList(c);
       if (!c.ok) return;
       _liTrailer(c);
+    case 'DSSV': // data-space → static-VI link
+      _liOffsetSave(c);
+    case 'DSEF': // data-space → external-function link
+    case 'NEXF': // node → external-function link
+      _liExtFunc(c);
+    case 'XNXI': // XNode → XInterface link
+      _liOffsetSave(c);
+      if (!c.ok) return;
+      if (c.ge(8, 6, 0)) c.skip(12); // GILinkInfo
+    case 'VIXN': // VI → XNode-interface link
+      _liGiSave(c);
     case 'FPPI':
     case 'DDPI':
     case 'VRPI':
+    case 'DyOM': // dynamic-info → UDClass-API link
+    case 'PNOM': // property-node-item → UDClass-API link
+    case 'DRPI': // create/destroy-ref → UDClass-API link
+    case 'DOPI': // data-display-object → UDClass-API link
       _liUdHeapApi(c);
       if (!c.ok) return;
       _liTrailer(c);
     case 'VIPI':
-      _liUdViApi(c);
-      if (!c.ok) return;
-      _liTrailer(c);
+      _liUdViApi(c); // no trailer: UDClass VI-API save info has no offset list
     default:
       c.ok = false;
   }
