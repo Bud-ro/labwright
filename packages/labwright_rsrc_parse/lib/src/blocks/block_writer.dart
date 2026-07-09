@@ -71,10 +71,13 @@
 ///   * `TM80` — data-space type map ([ViTypeMap]); the variable-field
 ///     `[count][indexShift][flags…]` form (the uncompressed instances; the
 ///     compressed ones re-emit through the heap-content writer instead).
+///   * `BFAL` — align table ([ViAlignTable]); `[u32 count][count × 9-byte
+///     record]`, every corpus instance.
 library;
 
 import 'dart:typed_data';
 
+import 'align_table.dart';
 import 'aux_records.dart';
 import 'connector_pane.dart';
 import 'data_type_heap.dart';
@@ -132,7 +135,8 @@ bool hasBlockWriter(String tag) => switch (tag) {
   'CCSG' ||
   'COUT' ||
   'CPD2' ||
-  'TM80' => true,
+  'TM80' ||
+  'BFAL' => true,
   _ => false,
 };
 
@@ -176,6 +180,7 @@ Uint8List? serializeBlockPayload(String tag, Uint8List payload, {ViVersionWord? 
     'COUT' => decodeWordGrid(payload, words: 3)?.serialize(),
     'CPD2' => decodeCpd2Record(payload)?.serialize(),
     'TM80' => reserializeTypeMap(payload),
+    'BFAL' => decodeAlignTable(payload)?.serialize(),
     _ => null,
   };
   if (out == null || out.length != payload.length) return null;

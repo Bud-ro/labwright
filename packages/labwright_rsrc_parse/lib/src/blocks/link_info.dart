@@ -120,10 +120,11 @@ ViLinkInfo? decodeLinkInfo(Uint8List bytes) {
 /// The per-entry grammar (reference: pylabview `LVlinkinfo`, corpus-verified):
 /// each entry is `[u16 0x0002][4cc kind][body]`. Bodies for the covered kinds
 /// (`VILB`/`VIVI`/`VICC`/`VIPV`/`VIPR`/`VIAV`/`BSVR`/`IUVI`/`PUPV`/`SVVI`/
-/// `TDCC`/`DSDS`/`DSSV`/`DSEF`/`NEXF`/`XNXI`/`VIXN`/`FPPI`/`DDPI`/`VRPI`/`DyOM`/
-/// `PNOM`/`DRPI`/`DOPI`/`VIPI`) are built from self-delimiting records — a
+/// `TDCC`/`V2CC`/`DSDS`/`DSSV`/`DSEF`/`NEXF`/`XNXI`/`VIXN`/`FPPI`/`DDPI`/`VRPI`/
+/// `DyOM`/`PNOM`/`DRPI`/`DOPI`/`VIPI`) are built from self-delimiting records — a
 /// length-prefixed qualified name, a `PTH0` path (`[u32 len]`-framed), an offset
-/// list (`[u32 count][u32…]`), a type-id, version-gated link-save flags, an
+/// list (`[u32 count][u32…]`), a type-id, version-gated link-save flags, a
+/// conditional-disable-symbol record (symbol/value `LStr`s + bool), an
 /// external-function / GObject-interface / UDClass-API-cache record, and a
 /// `VILinkRefInfo` block whose library-identity/GUID bytes are retained opaque.
 /// Sections whose entries use a kind outside that set, or a version variant the
@@ -503,6 +504,20 @@ void _liTrailer(_LiCursor c) {
 /// A boolean flag: 1 byte at version ≥ 4.5, else 2 (pylabview `parseBool`).
 void _liBool(_LiCursor c) => c.skip(c.ge(4, 5, 0) ? 1 : 2);
 
+/// Conditional-disable-symbol link ref info (`V2CC`): an `LStr` symbol-string
+/// (empty across the corpus), the conditional-disable symbol name as an `LStr`,
+/// the symbol value as an `LStr` string datafill, then a boolean (pylabview
+/// `readLStr` + `parseCCSymbolLinkRefInfo`'s String-datafill + bool).
+void _liCcSymbol(_LiCursor c) {
+  _liLStr(c); // ccSymbolStr (empty across the corpus)
+  if (!c.ok) return;
+  _liLStr(c); // conditional-disable symbol name
+  if (!c.ok) return;
+  _liLStr(c); // conditional-disable symbol value string datafill
+  if (!c.ok) return;
+  _liBool(c);
+}
+
 /// External-function link save info (`DSEF`/`NEXF`): basic link-save info + an
 /// offset list + a `PStr` name + two flag bytes + a version-gated boolean; a
 /// plain offset-save on pre-8.0 files.
@@ -564,6 +579,10 @@ void _liEntry(_LiCursor c, String kind) {
     case 'PUPV': // poly-instance-use → poly link
     case 'SVVI': // static-VI-ref → VI link
       _liHeapToVi(c);
+    case 'V2CC': // VI → conditional-disable-symbol link
+      _liBasic(c);
+      if (!c.ok) return;
+      _liCcSymbol(c);
     case 'DSDS':
       _liOffsetSave(c);
       if (!c.ok) return;
