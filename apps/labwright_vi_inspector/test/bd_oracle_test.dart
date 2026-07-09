@@ -172,6 +172,56 @@ void main() {
     expect(find.textContaining('mean abs diff'), findsOneWidget);
   });
 
+  group('LabVIEW block-diagram styling', () {
+    test('canvas is near-white and the grid dot stays within match threshold', () {
+      // The reference oracle letterboxes over white; a near-white canvas keeps the
+      // empty margin matching instead of reading as a grey plate.
+      expect(kBdCanvas, const Color(0xFFFFFFFF));
+      // Grid alpha low enough that a dot pixel over white differs by < the 16/255
+      // comparison threshold (so the faint grid is never counted as content).
+      expect(kBdGridDot.a * 255, lessThan(16));
+    });
+
+    test('subVI-call node codes are the caption-bearing call classes', () {
+      // Corpus subVI-call classes (they carry a called-VI filename caption) get
+      // the grey icon plate; a primitive class must not be in the set.
+      expect(kSubViCallNodeCodes, contains(0x31));
+      expect(kSubViCallNodeCodes, contains(0xc5));
+      expect(kSubViCallNodeCodes.contains(0x2f), isFalse);
+    });
+
+    test('label-part classes are the free-text sub-parts', () {
+      // 0x0a control caption + 0x95 case selector — drawn as text elsewhere, never
+      // as a filled part on the canvas.
+      expect(kBdTextLabelCodes, containsAll(<int>[0x0a, 0x95]));
+    });
+
+    // A diagram carrying a subVI-call node and a standalone label part rasterises
+    // without error (exercises the node-plate + label-skip paths).
+    testWidgets('renders a subVI-call node and a label part without error', (
+      tester,
+    ) async {
+      await tester.runAsync(() async {
+        final diagram = modelFromRecords(<int>[
+          ...open(0x7e, 1),
+          ...bounds(0, 0, 300, 200),
+          ...open(0x31, 2, tag: 0x1b), // subVI call node
+          ...bounds(40, 40, 72, 72),
+          ...caption('Do Thing.vi'),
+          ...close(0x1b),
+          ...open(0x0a, 3, tag: 0x1c), // standalone label part
+          ...bounds(40, 20, 130, 37),
+          ...caption('Do Thing.vi'),
+          ...close(0x1c),
+          ...close(),
+        ]).blockDiagrams.first;
+        final raster = await rasteriseBlockDiagram(diagram);
+        expect(raster, isNotNull);
+        expect((await imageToPng(raster!.image)).length, greaterThan(0));
+      });
+    });
+  });
+
   test('synthetic diagram objects fall within the content rect', () {
     final diagram = _synthDiagram();
     final drawable = bdDrawableObjects(diagram);

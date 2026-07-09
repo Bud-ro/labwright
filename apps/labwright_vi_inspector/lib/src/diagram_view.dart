@@ -426,6 +426,40 @@ Color labviewTypeColor(ViTypeKind kind) => switch (kind) {
   ViTypeKind.unknown => const Color(0xFF8A8A8A),
 };
 
+/// LabVIEW's block-diagram canvas is a near-white field (the default panel is a
+/// hair off pure white). The reference renders and the letterbox share this so
+/// the empty margin matches instead of reading as a grey plate.
+const Color kBdCanvas = Color(0xFFFFFFFF);
+
+/// The faint alignment-grid dot color on [kBdCanvas] — low enough contrast that a
+/// dot pixel stays within the oracle's per-channel match threshold of the canvas.
+const Color kBdGridDot = Color(0x0C000000);
+
+/// Block-diagram node class codes that are **subVI call** nodes (they carry a
+/// called-VI filename caption). LabVIEW draws these as a plain connector-pane
+/// **icon plate** — commonly light grey — distinct from the pale-gold primitive
+/// function nodes. Any node class not listed renders as a generic primitive
+/// plate; the node's specific icon is not recovered, so it is never guessed.
+const Set<int> kSubViCallNodeCodes = {0x31, 0x32, 0xc5, 0x104, 0x103, 0x8c};
+
+/// Fill for a subVI-call node icon plate (light grey, per LabVIEW's default
+/// connector-pane icon background).
+const Color kBdSubViNodeFill = Color(0xFFECECEC);
+
+/// Fill for a primitive/function node plate — LabVIEW's numeric-function palette
+/// pale gold. Used for every node that is not a recognised subVI call.
+const Color kBdPrimitiveNodeFill = Color(0xFFFBEEC2);
+
+/// Fill for a terminal whose datatype is not recovered — a neutral light grey
+/// (no datatype colour is guessed). Datatype-known terminals use
+/// [labviewTypeColor] instead.
+const Color kBdUnknownTerminalFill = Color(0xFFD8D8D8);
+
+/// Class codes LabVIEW draws as **free text** on the canvas, not as a filled
+/// part: the control caption / free-label (`0x0a`) and the case-selector label
+/// (`0x95`). The painter renders only their recovered caption text, never a box.
+const Set<int> kBdTextLabelCodes = {0x0a, 0x95};
+
 /// The label drawn on a wireframe object. Structures (never text-labeled) show
 /// their catalog kind via [structureBadge] (so the wireframe reads as logic too,
 /// honestly tracking the class catalog — e.g. "For loop", "Case structure",
@@ -662,10 +696,7 @@ class BdDiagramPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.drawRect(
-      Offset.zero & size,
-      Paint()..color = const Color(0xFFE9E9E9),
-    );
+    canvas.drawRect(Offset.zero & size, Paint()..color = kBdCanvas);
     _drawDotGrid(canvas, size);
 
     Rect rectOf(ViHeapObject o) {
@@ -757,12 +788,20 @@ class BdDiagramPainter extends CustomPainter {
 
     for (final object in solids) {
       final rect = rectOf(object);
+      // Free-text label parts (control caption 0x0a, case selector 0x95) are drawn
+      // by LabVIEW as plain text on the canvas, not as a filled box — painting a
+      // plate here would stamp a solid rectangle where the reference shows only
+      // text (or nothing, when the caption is empty). The text pass below renders
+      // any recovered caption.
+      if (kBdTextLabelCodes.contains(object.kind)) continue;
       switch (object.category) {
         case ViObjectKind.terminal:
           // LabVIEW terminal: sharp rect, datatype fill, thin dark border, and
           // the inner double-border that marks a control/indicator terminal.
+          // A recovered datatype drives the fill (blue int, orange float, …); an
+          // unrecovered one stays a neutral grey rather than guessing a colour.
           final fill = object.typeKind == ViTypeKind.unknown
-              ? _kindColor(ViObjectKind.terminal)
+              ? kBdUnknownTerminalFill
               : labviewTypeColor(object.typeKind);
           canvas.drawRect(rect, Paint()..color = fill.withValues(alpha: 0.9));
           canvas.drawRect(
@@ -782,25 +821,38 @@ class BdDiagramPainter extends CustomPainter {
             );
           }
         case ViObjectKind.node:
-          // LabVIEW subVI/function node: pale icon plate with a firm border.
-          final rr = RRect.fromRectAndRadius(rect, const Radius.circular(1.5));
-          canvas.drawRRect(rr, Paint()..color = const Color(0xFFF6EDC8));
-          canvas.drawRRect(
-            rr,
+          // LabVIEW node icon plate: subVI calls get a light-grey connector-pane
+          // plate, primitive/function nodes the pale-gold numeric-palette plate.
+          // A raised bevel (light top/left, dark bottom/right) mimics the icon's
+          // 3-D edge; the specific icon glyph is not recovered so none is drawn.
+          final isSubVi = kSubViCallNodeCodes.contains(object.kind);
+          final fill = isSubVi ? kBdSubViNodeFill : kBdPrimitiveNodeFill;
+          canvas.drawRect(rect, Paint()..color = fill);
+          if (rect.width > 6 && rect.height > 6) {
+            canvas.drawLine(
+              rect.topLeft,
+              rect.topRight,
+              Paint()
+                ..color = Colors.white.withValues(alpha: 0.85)
+                ..strokeWidth = 1.0,
+            );
+            canvas.drawLine(
+              rect.topLeft,
+              rect.bottomLeft,
+              Paint()
+                ..color = Colors.white.withValues(alpha: 0.85)
+                ..strokeWidth = 1.0,
+            );
+          }
+          canvas.drawRect(
+            rect,
             Paint()
-              ..color = Colors.black.withValues(alpha: 0.75)
+              ..color = isSubVi
+                  ? const Color(0xFF8C8C8C)
+                  : const Color(0xFF9A8730)
               ..style = PaintingStyle.stroke
               ..strokeWidth = 1.0,
           );
-          if (rect.width > 10 && rect.height > 10) {
-            canvas.drawRect(
-              rect.deflate(2.5),
-              Paint()
-                ..color = const Color(0x33805B10)
-                ..style = PaintingStyle.stroke
-                ..strokeWidth = 0.8,
-            );
-          }
         default:
           final rr = RRect.fromRectAndRadius(rect, const Radius.circular(2.5));
           canvas.drawRRect(
@@ -816,21 +868,35 @@ class BdDiagramPainter extends CustomPainter {
           );
       }
     }
+    // Text pass: LabVIEW shows a structure's construct name on its frame and a
+    // control/subVI's own caption, but not per-terminal datatype annotations.
+    // Only a structure badge or a genuine recovered caption is drawn (the
+    // wireframe's debug "name · type" suffix is omitted so the render stays as
+    // close to LabVIEW's sparse on-canvas text as the decode allows).
     for (final object in objects) {
-      final text = wireframeAnnotation(object);
+      // Standalone label sub-parts (0x0a/0x95) are not stamped on the canvas:
+      // their bounds are often origin-pinned (a node's name label anchors at the
+      // diagram origin, not above the node), so drawing them scatters mislocated
+      // text. Their captions remain reachable through the inspector.
+      if (kBdTextLabelCodes.contains(object.kind)) continue;
+      final onFrame = object.category == ViObjectKind.structure;
+      final text = onFrame
+          ? structureBadge(object)
+          : (object.label?.trim().isNotEmpty ?? false)
+          ? object.label!.trim()
+          : null;
       if (text == null) continue;
       final rect = rectOf(object);
       if (rect.width < 26 || rect.height < 11) continue;
-      final onFrame = object.category == ViObjectKind.structure;
       final tp = TextPainter(
         text: TextSpan(
           text: text,
           style: TextStyle(
             color: onFrame
                 ? const Color(0xCC4A2E00)
-                : Colors.black.withValues(alpha: 0.85),
+                : Colors.black.withValues(alpha: 0.75),
             fontSize: 10,
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w400,
             fontFamily: 'Roboto',
           ),
         ),
@@ -847,10 +913,12 @@ class BdDiagramPainter extends CustomPainter {
     const maxDots = 20000;
     final cells = (size.width / stepPx) * (size.height / stepPx);
     final step = cells > maxDots ? stepPx * (cells / maxDots) : stepPx;
-    final dot = Paint()..color = const Color(0x22000000);
+    // LabVIEW's alignment grid is a faint dot lattice on the near-white canvas;
+    // kept very low-contrast so it reads as texture, not content.
+    final dot = Paint()..color = kBdGridDot;
     for (var x = 0.0; x < size.width; x += step) {
       for (var y = 0.0; y < size.height; y += step) {
-        canvas.drawCircle(Offset(x, y), 0.6, dot);
+        canvas.drawCircle(Offset(x, y), 0.5, dot);
       }
     }
   }
