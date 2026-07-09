@@ -54,10 +54,10 @@ class _Stat {
   // Writer scoreboard: whole-file byte attribution (model vs copied) and the
   // byte-exact re-serialization count, from [attributeVi].
   int fileBytes = 0, writerExact = 0, writerFiles = 0;
-  int wHeader = 0, wInfoStruct = 0, wSecPrefix = 0, wTypedPayload = 0;
+  int wHeader = 0, wInfoStruct = 0, wSecPrefix = 0, wTypedPayload = 0, wAlignPad = 0;
   int wInfoRaw = 0, wGap = 0, wCompressed = 0, wUntyped = 0;
 
-  int get modelBytes => wHeader + wInfoStruct + wSecPrefix + wTypedPayload;
+  int get modelBytes => wHeader + wInfoStruct + wSecPrefix + wTypedPayload + wAlignPad;
   int get copiedBytes => wInfoRaw + wGap + wCompressed + wUntyped;
 
   static double _ratio(int a, int b) => b == 0 ? 0 : a / b;
@@ -97,6 +97,7 @@ class _Stat {
     wInfoStruct += s.wInfoStruct;
     wSecPrefix += s.wSecPrefix;
     wTypedPayload += s.wTypedPayload;
+    wAlignPad += s.wAlignPad;
     wInfoRaw += s.wInfoRaw;
     wGap += s.wGap;
     wCompressed += s.wCompressed;
@@ -128,6 +129,7 @@ _Stat _measure(List<File> files) {
       s.wInfoStruct += a.infoStructBytes;
       s.wSecPrefix += a.sectionPrefixBytes;
       s.wTypedPayload += a.typedPayloadBytes;
+      s.wAlignPad += a.alignPadBytes;
       s.wInfoRaw += a.infoRawBytes;
       s.wGap += a.gapBytes;
       s.wCompressed += a.compressedPayloadBytes;
@@ -268,7 +270,8 @@ void main(List<String> args) {
       )
       ..writeln(
         '- model = header ${overall.wHeader} + info-structs ${overall.wInfoStruct} + '
-        'section-prefixes ${overall.wSecPrefix} + typed-payloads ${overall.wTypedPayload}.',
+        'section-prefixes ${overall.wSecPrefix} + typed-payloads ${overall.wTypedPayload} + '
+        'align-pad ${overall.wAlignPad}.',
       )
       ..writeln(
         '- copied = info-raw(TODO) ${overall.wInfoRaw} + gaps ${overall.wGap} + '

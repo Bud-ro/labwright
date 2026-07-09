@@ -131,6 +131,7 @@ class ViCoverageView extends StatelessWidget {
           a.contentTotalBytes,
         ),
         _catRow('Heap content (model)', a.heapModelBytes, a.contentTotalBytes),
+        _catRow('Alignment padding', a.alignPadBytes, a.contentTotalBytes),
         const SizedBox(height: 12),
 
         const Text(

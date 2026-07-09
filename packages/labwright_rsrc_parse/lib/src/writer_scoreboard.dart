@@ -37,11 +37,14 @@
 ///
 /// Categories (byte model): the 32-byte header; the info-area structs (dup
 /// header, `blockListRel`, block list, preGap, section descriptors, trailing VI
-/// name); each section's recomputed `u32` length prefix; and payloads re-emitted
-/// by a block writer ([serializeBlockPayload]). Categories (byte copied):
-/// TODO-raw struct words (subheader `reservedA`/`reservedB`, name-table header);
-/// data-area gaps; compressed (zlib heap) payloads, kept stored-verbatim by the
-/// byte-exact serialize path; and uncompressed-but-untyped payloads.
+/// name); each section's recomputed `u32` length prefix; payloads re-emitted
+/// by a block writer ([serializeBlockPayload]); and the inter-section alignment
+/// padding a writer regenerates from the 4-byte-align rule ([alignPadBytes]).
+/// Categories (byte copied): TODO-raw struct words (subheader
+/// `reservedA`/`reservedB`, name-table header); the residual data-area gaps
+/// (non-zero/over-long stale bytes and the trailing gap); compressed (zlib heap)
+/// payloads, kept stored-verbatim by the byte-exact serialize path; and
+/// uncompressed-but-untyped payloads.
 ///
 /// A `VINS` section carries a complete nested RSRC sub-VI. Its bytes are
 /// attributed **recursively**: the sub-VI's own header/struct/prefix/model bytes
@@ -74,6 +77,7 @@ class WriterAttribution {
     required this.infoStructBytes,
     required this.sectionPrefixBytes,
     required this.typedPayloadBytes,
+    required this.alignPadBytes,
     required this.infoRawBytes,
     required this.gapBytes,
     required this.compressedPayloadBytes,
@@ -111,12 +115,23 @@ class WriterAttribution {
   /// interiors; its compressed streams land in [untypedPayloadBytes]).
   final int typedPayloadBytes;
 
+  /// Data-area inter-section **alignment padding** emitted from a rule: the
+  /// zero-fill that pads a section's start to the next 4-byte boundary. Each such
+  /// gap is exactly `(4 - start%4) % 4` zero bytes before a section, so a writer
+  /// regenerates it from the alignment rule (`pad to 4, fill 0`) rather than
+  /// copying — model-derivable. Non-minimal or non-zero gaps (stale/dead data)
+  /// and the trailing data-area gap are NOT this; they stay in [gapBytes].
+  final int alignPadBytes;
+
   // --- copied categories ---
   /// TODO-raw info-area struct spans (subheader `reservedA`/`reservedB`,
   /// name-table header) — named but not decoded, kept verbatim.
   final int infoRawBytes;
 
-  /// Data-area padding gaps between/around sections.
+  /// Data-area padding gaps kept verbatim: non-zero or over-long inter-section
+  /// gaps (stale/dead bytes not derivable from an alignment rule) and the
+  /// trailing gap after the last section. The rule-derivable zero alignment pad
+  /// is counted in [alignPadBytes] (model) instead.
   final int gapBytes;
 
   /// Compressed (zlib heap) payloads, as *stored* — kept stored-verbatim by the
@@ -170,8 +185,8 @@ class WriterAttribution {
   /// inflates cleanly).
   final int imageInflatedCopiedBytes;
 
-  /// Bytes emitted from a typed, understood field (byte level).
-  int get modelBytes => headerBytes + infoStructBytes + sectionPrefixBytes + typedPayloadBytes;
+  /// Bytes emitted from a typed, understood field or rule (byte level).
+  int get modelBytes => headerBytes + infoStructBytes + sectionPrefixBytes + typedPayloadBytes + alignPadBytes;
 
   /// Bytes copied verbatim from the input (byte level).
   int get copiedBytes => infoRawBytes + gapBytes + compressedPayloadBytes + untypedPayloadBytes;
@@ -258,15 +273,27 @@ WriterAttribution attributeVi(Uint8List bytes, {int depth = 0}) {
       20 * info.descriptors.length +
       info.nameTable.trailingNameRecord.length;
   var infoRaw = info.subheader.reservedA.length + info.subheader.reservedB.length + info.nameTable.header.length;
-  var sectionPrefix = 0, typedPayload = 0, gaps = 0, compressed = 0, untyped = 0;
+  var sectionPrefix = 0, typedPayload = 0, alignPad = 0, gaps = 0, compressed = 0, untyped = 0;
   var inflatedContent = 0, heapModel = 0, heapCopied = 0, heapBugs = 0;
   var imageCompressed = 0, imageInflated = 0, imageInflatedModel = 0, imageInflatedCopied = 0;
 
-  for (final seg in vi.dataSegments) {
+  // Running data-area offset, so an inter-section gap can be tested against the
+  // 4-byte-alignment rule (its start offset determines the minimal pad length).
+  var dataPos = 0;
+  final segs = vi.dataSegments;
+  for (var i = 0; i < segs.length; i++) {
+    final seg = segs[i];
     switch (seg) {
       case ViGap(:final bytes):
-        gaps += bytes.length;
+        final hasNextSection = i + 1 < segs.length && segs[i + 1] is ViSectionData;
+        if (_isDerivableAlignPad(bytes, dataPos, hasNextSection)) {
+          alignPad += bytes.length;
+        } else {
+          gaps += bytes.length;
+        }
+        dataPos += bytes.length;
       case ViSectionData(:final secRel, :final payload):
+        dataPos += 4 + payload.length;
         sectionPrefix += 4;
         final tag = tagBySecRel[secRel];
         // A VINS section's payload is a complete nested RSRC sub-VI. Attribute it
@@ -280,6 +307,7 @@ WriterAttribution attributeVi(Uint8List bytes, {int depth = 0}) {
           infoRaw += sub.infoRawBytes;
           sectionPrefix += sub.sectionPrefixBytes;
           typedPayload += sub.typedPayloadBytes;
+          alignPad += sub.alignPadBytes;
           gaps += sub.gapBytes;
           compressed += sub.compressedPayloadBytes;
           untyped += sub.untypedPayloadBytes;
@@ -353,6 +381,7 @@ WriterAttribution attributeVi(Uint8List bytes, {int depth = 0}) {
     infoStructBytes: infoStruct,
     sectionPrefixBytes: sectionPrefix,
     typedPayloadBytes: typedPayload,
+    alignPadBytes: alignPad,
     infoRawBytes: infoRaw,
     gapBytes: gaps,
     compressedPayloadBytes: compressed,
@@ -385,6 +414,22 @@ WriterAttribution? _attributeEmbedded(Uint8List payload, int depth) {
   } catch (_) {
     return null;
   }
+}
+
+/// Whether a data-area [gap] is rule-derivable inter-section alignment padding:
+/// it precedes a section ([hasNextSection]), is all-zero, and its length is
+/// exactly the minimal pad that aligns the next section's start to a 4-byte
+/// boundary (`(4 - gapStart%4) % 4`). Such a gap is regenerated from the
+/// alignment rule, so it is attributed to model rather than copied. A non-zero,
+/// over-long, or trailing gap fails this test and stays copied.
+bool _isDerivableAlignPad(Uint8List gap, int gapStart, bool hasNextSection) {
+  if (!hasNextSection) return false;
+  final need = (4 - (gapStart & 3)) & 3;
+  if (need == 0 || gap.length != need) return false;
+  for (var i = 0; i < gap.length; i++) {
+    if (gap[i] != 0) return false;
+  }
+  return true;
 }
 
 bool _eq(Uint8List a, Uint8List b) {

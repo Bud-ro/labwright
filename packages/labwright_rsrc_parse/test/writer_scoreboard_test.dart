@@ -91,6 +91,7 @@ bool _bytesEqual(Uint8List a, Uint8List b) {
     n('cat.infoStruct', a.infoStructBytes);
     n('cat.secPrefix', a.sectionPrefixBytes);
     n('cat.typedPayload', a.typedPayloadBytes);
+    n('cat.alignPad', a.alignPadBytes);
     n('cat.infoRaw', a.infoRawBytes);
     n('cat.gap', a.gapBytes);
     n('cat.compressed', a.compressedPayloadBytes);
