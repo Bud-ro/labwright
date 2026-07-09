@@ -161,6 +161,24 @@ class ViHeapObject {
   /// data, NOT documentation; it is not help text and must not render as such.
   String? constText;
 
+  /// Decoded 24-bit `0xRRGGBB` **background** colour of this object
+  /// ([HeapAttribute.backgroundColor], raw `0x028`, confirmed), or null when the
+  /// object carries no such record. The colour belongs to the object that owns
+  /// the record — often a control's cosmetic/part sub-object, not the drawable
+  /// control itself — so a renderer must decide the part→owner mapping; this
+  /// field asserts only the decoded value on its own object.
+  int? bgRgb;
+
+  /// Decoded 24-bit `0xRRGGBB` **foreground** colour of this object
+  /// ([HeapAttribute.fgColor], raw `0x06f`, confirmed), or null. Same
+  /// part-ownership caveat as [bgRgb].
+  int? fgRgb;
+
+  /// Decoded 24-bit `0xRRGGBB` **content** colour of this object
+  /// ([HeapAttribute.contentColor], raw `0x024`, confirmed) — the interior/field
+  /// fill of a control — or null. Same part-ownership caveat as [bgRgb].
+  int? contentRgb;
+
   /// The named, documented class catalog entry for this object's [kind]
   /// (or [HeapObjectClass.unknown] if the code is not catalogued).
   HeapObjectClass get objectClass => HeapObjectClass.fromCode(kind);
@@ -677,7 +695,7 @@ const kControlTerminalCodes = {0x50, 0x4f, 0x57, 0x5b, 0x51};
 /// 0x20/0x21 catch the `C6` control-range f64s (raw tags 0x220/0x221,
 /// stdNumMin/stdNumMax), 0x6c the `C6 6C FF` constant-value text (raw 0x26C).
 /// (0x31 names were dropped — they sit on non-drawable structural objects.)
-const _objAttrIds = {0x20, 0x21, 0x6c};
+const _objAttrIds = {0x20, 0x21, 0x6c, 0x24, 0x28, 0x6f};
 
 /// Pixel-area threshold (width×height) for the structural node fallback in
 /// `buildDiagram`. A still-`unknown` object that otherwise matches the BD-node
@@ -951,6 +969,19 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
         if (attr.attribute == HeapAttribute.constValue && offset + 2 < length && body[offset + 2] == 0xff) {
           final text = attr.asString;
           if (text != null && text.isNotEmpty) cur.constText ??= text;
+        }
+        final rgb = attr.rgb;
+        if (rgb != null) {
+          switch (attr.attribute) {
+            case HeapAttribute.backgroundColor:
+              cur.bgRgb ??= rgb;
+            case HeapAttribute.fgColor:
+              cur.fgRgb ??= rgb;
+            case HeapAttribute.contentColor:
+              cur.contentRgb ??= rgb;
+            default:
+              break;
+          }
         }
       }
     },
