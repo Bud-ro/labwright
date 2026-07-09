@@ -23,9 +23,12 @@
 ///   * `NUID` / `SUID` / `BNID` — `[u32 count][u32…]` id tables ([ViIdTable]).
 ///   * `vers` — version block ([ViVersBlock]); every corpus instance.
 ///   * `VITS` — VI tag store ([ViTagStore]); the sections whose entry walk
-///     consumes the whole body (the flat `[nameLen][name][payloadLen][payload]`
-///     grammar). Sections carrying a nested per-entry interior (notably the
-///     `NI_IconEditor` editor-state entry) do not re-serialize and stay copied.
+///     consumes the whole body — the flat `[nameLen][name][payloadLen][payload]`
+///     grammar and the nested flattened-variant entries (the `NI_IconEditor`
+///     icon image, `_ni_LastKnownOwningLVClassCluster`, `SourceOnly`,
+///     `VILastSavedTarget`, `Localized`) framed by their variant length. Sections
+///     carrying a nested shape not framed there (a non-final multi-field
+///     `goodSyntaxTargets`) stop the walk early and stay copied.
 ///   * `DTHP` — data-type heap ([ViDataTypeHeap]); the 4-byte header-only form.
 ///   * `CONP` / `CPC2` — connector-pane index ([ViConnectorPane]); the 2-byte
 ///     index form (the inline form stays copied).
