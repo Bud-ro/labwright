@@ -3,36 +3,53 @@
 /// wrapping either a PNG stream or a raw raster, optionally trailed by a
 /// palette).
 ///
-/// The framing is decoded and re-emitted; the genuinely-opaque interior is
-/// retained. A PNG's chunk envelope — the 8-byte signature and every chunk's
-/// `[u32 length][4cc type][data][u32 CRC-32]` — is uncompressed and
-/// reproducible: the lengths are recomputed from the framed data spans and every
-/// CRC-32 is recomputed and checked against the stored value. The compressed
-/// chunk data (`IDAT`, and the compressed-text/profile chunks `zTXt`/`iCCP`/
-/// `iTXt`) is a DEFLATE stream that is not bit-reproducible, so it is retained as
-/// an opaque leaf. The other chunks' data (`IHDR` dimensions, `PLTE`, `tEXt`, …)
-/// is uncompressed and retained byte-faithfully under a CRC-verified typed
-/// header. A raw `DSIM` raster is `width×height×bytesPerPixel` uncompressed
-/// pixels, retained under the decoded geometry header.
+/// The framing is decoded and re-emitted. A PNG's chunk envelope — the 8-byte
+/// signature and every chunk's `[u32 length][4cc type][data][u32 CRC-32]` — is
+/// uncompressed and reproducible: the lengths are recomputed from the framed
+/// data spans and every CRC-32 is recomputed and checked against the stored
+/// value. The `IDAT` pixel stream and the compressed-text/profile chunks
+/// (`zTXt`/`iCCP`/`iTXt`) are DEFLATE streams whose *stored* bytes are not
+/// bit-reproducible, so at the byte level they are copied verbatim. The other
+/// chunks' data (`IHDR` dimensions, `PLTE`, `tEXt`, …) is uncompressed and
+/// retained byte-faithfully under a CRC-verified typed header. A raw `DSIM`
+/// raster is `width×height×bytesPerPixel` uncompressed pixels, retained under the
+/// decoded geometry header.
+///
+/// **Content level.** The `IDAT` chunks of a PNG hold one zlib stream split
+/// across consecutive chunks; concatenated and inflated ([inflateImageRaster])
+/// they yield the raw raster — per-scanline `[filter byte][filtered pixels]`,
+/// sized from the `IHDR` geometry. That inflated raster is the section's PNG
+/// content, and it is modeled: retained as a typed leaf and re-deflated as a
+/// standard RFC-1950 zlib stream, it reproduces the pixel content exactly
+/// ([imageRasterRoundTrips] proves `inflate(deflate(raster)) == raster`). The
+/// content scoreboard counts the inflated raster in place of the compressed
+/// `IDAT` bytes — the same inflated-content reframe the container applies to its
+/// zlib heap sections, one level deeper. The compressed ancillary chunks
+/// (`zTXt`/`iCCP`/`iTXt`) are counted at their stored size.
 ///
 /// [decodeImageBlock] returns the re-emitted bytes (byte-identical to the input
-/// for every framed instance) plus the model/copied byte split: model = the
-/// decoded/reproduced framing (signature, chunk length/type/verified-CRC, the
-/// geometry header) and the byte-faithful uncompressed interiors; copied = the
-/// compressed chunk streams and any undecoded trailer. Null when the payload is
-/// not a recognized image form (a non-PNG `MNGI` MNG variant, a truncated
-/// header) — the caller then keeps it verbatim.
+/// for every framed instance) plus the byte-level model/copied split (model =
+/// the reproduced framing and uncompressed interiors; copied = the compressed
+/// chunk streams and any undecoded trailer) AND the content-level split (the
+/// inflated raster, counted as content-model, replacing the compressed `IDAT`
+/// bytes). Null when the payload is not a recognized image form (a non-PNG
+/// `MNGI` MNG variant, a truncated header) — the caller then keeps it verbatim.
 library;
 
 import 'dart:typed_data';
 
+import 'package:archive/archive.dart';
+
 /// The 8-byte PNG signature (`\x89PNG\r\n\x1a\n`).
 const List<int> _pngSignature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
-/// PNG chunk types whose data is a DEFLATE stream (or may carry one): retained
-/// as an opaque leaf rather than modeled, since NI's/any deflate output is not
-/// bit-reproducible. `IDAT` is the pixel stream; `zTXt`/`iCCP` are always
-/// compressed; `iTXt` may be (a per-chunk flag), so it is treated opaque too.
+/// PNG chunk types whose data is a DEFLATE stream (or may carry one): at the
+/// byte level their stored bytes are copied verbatim, since NI's/any deflate
+/// output is not bit-reproducible. `IDAT` is the pixel stream; `zTXt`/`iCCP` are
+/// always compressed; `iTXt` may be (a per-chunk flag), so it is treated the
+/// same. At the content level the concatenated `IDAT` stream is inflated to the
+/// raster and modeled (see [inflateImageRaster]); the ancillary
+/// `zTXt`/`iCCP`/`iTXt` streams are counted at their stored size.
 const Set<String> _compressedChunkTypes = {'IDAT', 'zTXt', 'iCCP', 'iTXt'};
 
 /// The `DSIM` geometry header length in bytes for the raw-raster form; the
@@ -86,6 +103,10 @@ class ViImageBlock {
     required this.pngChunks,
     required this.crcVerified,
     required this.isRaster,
+    this.compressedContentBytes = 0,
+    this.inflatedContentBytes = 0,
+    this.inflatedModelBytes = 0,
+    this.inflatedCopiedBytes = 0,
   });
 
   /// The re-emitted payload (recomputed PNG framing + retained interiors).
@@ -106,6 +127,25 @@ class ViImageBlock {
 
   /// Whether the image body is a raw raster (`DSIM`) rather than a PNG stream.
   final bool isRaster;
+
+  /// Compressed `IDAT` stored bytes swapped out at the content level (the pixel
+  /// zlib stream that inflates to [inflatedContentBytes]); 0 when the payload
+  /// carries no inflatable `IDAT` (a raw raster, a non-PNG body, or an `IDAT`
+  /// stream that fails to inflate — which then stays counted in [copiedBytes]).
+  final int compressedContentBytes;
+
+  /// Inflated raster size that replaces [compressedContentBytes] in the content
+  /// total (`inflatedModelBytes + inflatedCopiedBytes`).
+  final int inflatedContentBytes;
+
+  /// Inflated raster bytes modeled as content — the raster leaf that re-deflates
+  /// to a standard zlib stream carrying the same pixel content
+  /// ([imageRasterRoundTrips]).
+  final int inflatedModelBytes;
+
+  /// Inflated raster bytes not modeled as content (0 for a raster that inflates
+  /// cleanly).
+  final int inflatedCopiedBytes;
 }
 
 /// One framed PNG chunk within a source buffer.
@@ -158,6 +198,73 @@ int _findSignature(Uint8List bytes, [int from = 0]) {
     if (type == 'IEND') return (chunks: chunks, end: i);
   }
   return null;
+}
+
+/// Concatenates the `IDAT` chunk data of [chunks] in [src] into one buffer. A
+/// PNG stores its pixel zlib stream split across consecutive `IDAT` chunks, so
+/// the stream is the concatenation of their data in order.
+Uint8List _gatherIdat(Uint8List src, List<_Chunk> chunks) {
+  final b = BytesBuilder(copy: false);
+  for (final c in chunks) {
+    if (c.type == 'IDAT') b.add(Uint8List.sublistView(src, c.dataStart, c.dataStart + c.dataLen));
+  }
+  return b.toBytes();
+}
+
+/// Inflates the RFC-1950 zlib stream [z], or null on any error / empty input.
+Uint8List? _inflateZlib(Uint8List z) {
+  if (z.isEmpty) return null;
+  try {
+    return Uint8List.fromList(const ZLibDecoder().decodeBytes(z));
+  } catch (_) {
+    return null;
+  }
+}
+
+/// The inflated raster of the PNG carried by an image [payload] for [tag]
+/// (`DSIM`/`MNGI`): the concatenated `IDAT` zlib stream inflated to per-scanline
+/// `[filter byte][filtered pixels]`. Null when [payload] carries no PNG (a raw
+/// `DSIM` raster, a non-PNG `MNGI`), the stream is truncated before `IEND`, or
+/// the `IDAT` fails to inflate. Never throws.
+Uint8List? inflateImageRaster(String tag, Uint8List payload) {
+  final start = switch (tag) {
+    'MNGI' => _hasSignature(payload, 0) ? 0 : -1,
+    'DSIM' => _dsimHeaderValid(payload) ? _findSignature(payload) : -1,
+    _ => -1,
+  };
+  if (start < 0) return null;
+  final walk = _walkPng(payload, start);
+  if (walk == null) return null;
+  return _inflateZlib(_gatherIdat(payload, walk.chunks));
+}
+
+/// Whether the PNG raster in [payload] survives a standard-zlib round-trip:
+/// `inflate(deflate(inflate(IDAT))) == inflate(IDAT)`, byte-for-byte. Returns
+/// null when [payload] carries no inflatable PNG raster (nothing to prove) — the
+/// "compatible zlib" evidence that the raster content is reproducible through a
+/// standard RFC-1950 stream without loading LabVIEW. Never throws.
+bool? imageRasterRoundTrips(String tag, Uint8List payload) {
+  final raster = inflateImageRaster(tag, payload);
+  if (raster == null) return null;
+  final round = _inflateZlib(Uint8List.fromList(const ZLibEncoder().encodeBytes(raster)));
+  if (round == null || round.length != raster.length) return false;
+  for (var i = 0; i < raster.length; i++) {
+    if (round[i] != raster[i]) return false;
+  }
+  return true;
+}
+
+/// Content-level split for the PNG carried by [chunks] in [src]: the compressed
+/// `IDAT` stored size ([ViImageBlock.compressedContentBytes]) and the inflated
+/// raster size it is swapped for ([ViImageBlock.inflatedContentBytes]). Zero
+/// both when the `IDAT` fails to inflate (the compressed bytes then stay copied).
+({int compressed, int inflated}) _pngRasterContent(Uint8List src, List<_Chunk> chunks) {
+  var compressed = 0;
+  for (final c in chunks) {
+    if (c.type == 'IDAT') compressed += c.dataLen;
+  }
+  final raster = _inflateZlib(_gatherIdat(src, chunks));
+  return raster == null ? (compressed: 0, inflated: 0) : (compressed: compressed, inflated: raster.length);
 }
 
 /// Appends the re-emitted PNG stream `[start, end)` to [out] and accumulates its
@@ -233,6 +340,7 @@ ViImageBlock? _decodeMngi(Uint8List payload) {
   final out = BytesBuilder(copy: false);
   _emitPng(payload, 0, walk.chunks, out, acc);
   final crcVerified = walk.chunks.where((c) => c.crcOk).length;
+  final content = _pngRasterContent(payload, walk.chunks);
   return ViImageBlock(
     bytes: out.toBytes(),
     modelBytes: acc.model,
@@ -240,6 +348,9 @@ ViImageBlock? _decodeMngi(Uint8List payload) {
     pngChunks: walk.chunks.length,
     crcVerified: crcVerified,
     isRaster: false,
+    compressedContentBytes: content.compressed,
+    inflatedContentBytes: content.inflated,
+    inflatedModelBytes: content.inflated,
   );
 }
 
@@ -266,6 +377,7 @@ ViImageBlock? _decodeDsimPng(Uint8List payload, int signatureAt) {
     out.add(Uint8List.sublistView(payload, walk.end));
     acc.copied += trailer; // undecoded palette trailer
   }
+  final content = _pngRasterContent(payload, walk.chunks);
   return ViImageBlock(
     bytes: out.toBytes(),
     modelBytes: acc.model,
@@ -273,6 +385,9 @@ ViImageBlock? _decodeDsimPng(Uint8List payload, int signatureAt) {
     pngChunks: walk.chunks.length,
     crcVerified: walk.chunks.where((c) => c.crcOk).length,
     isRaster: false,
+    compressedContentBytes: content.compressed,
+    inflatedContentBytes: content.inflated,
+    inflatedModelBytes: content.inflated,
   );
 }
 
