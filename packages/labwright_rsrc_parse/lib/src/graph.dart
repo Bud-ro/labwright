@@ -191,6 +191,16 @@ class ViHeapObject {
   /// control/graph border — or null. Corpus: FPHb-only.
   int? borderRgb;
 
+  /// Decoded 24-bit `0xRRGGBB` **plot** colours ([HeapAttribute.plotColor], raw
+  /// `0x02a`, inferred), in heap order — the per-curve colours of a graph/chart's
+  /// plot list. Empty when the object carries none. Corpus: FPHb-only, and all
+  /// 234 carriers are the drawable `0x5E` graph object itself
+  /// ([HeapObjectClass.graphIndicator], 234/234 bounded), so a renderer colours a
+  /// graph's curves directly from its own list; a multi-plot graph holds one
+  /// entry per curve (commonly 8–9). Index-parallel to [plotNames] where both
+  /// were recovered.
+  List<int> plotColors = const [];
+
   /// The named, documented class catalog entry for this object's [kind]
   /// (or [HeapObjectClass.unknown] if the code is not catalogued).
   HeapObjectClass get objectClass => HeapObjectClass.fromCode(kind);
@@ -713,7 +723,7 @@ const kControlTerminalCodes = {0x50, 0x4f, 0x57, 0x5b, 0x51};
 // (e.g. 0x19 shared by structColor 0x119 and any 0xN19) is harmless — the
 // capture switch acts only on the exact decoded [HeapAttribute]. 0x19/0x2b are
 // the structColor/borderColor low bytes.
-const _objAttrIds = {0x20, 0x21, 0x6c, 0x24, 0x28, 0x6f, 0x19, 0x2b};
+const _objAttrIds = {0x20, 0x21, 0x6c, 0x24, 0x28, 0x6f, 0x19, 0x2b, 0x2a};
 
 /// Pixel-area threshold (width×height) for the structural node fallback in
 /// `buildDiagram`. A still-`unknown` object that otherwise matches the BD-node
@@ -1001,6 +1011,8 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
               cur.structRgb ??= rgb;
             case HeapAttribute.borderColor:
               cur.borderRgb ??= rgb;
+            case HeapAttribute.plotColor:
+              (cur.plotColors.isEmpty ? (cur.plotColors = <int>[]) : cur.plotColors).add(rgb);
             default:
               break;
           }
