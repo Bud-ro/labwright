@@ -270,6 +270,40 @@ void main() {
       });
     });
 
+    testWidgets('a decoded structure colour changes the frame render', (
+      tester,
+    ) async {
+      ViDiagram build({int? struct}) {
+        final root = ViHeapObject(oid: 1, kind: 0x7e, offset: 0)
+          ..category = ViObjectKind.decoration
+          ..absBounds = const HeapRect(
+            top: 0,
+            left: 0,
+            bottom: 120,
+            right: 160,
+          );
+        final loop = ViHeapObject(oid: 2, kind: 0x21, offset: 0)
+          ..parentOid = 1
+          ..category = ViObjectKind.structure
+          ..absBounds = const HeapRect(
+            top: 16,
+            left: 16,
+            bottom: 104,
+            right: 144,
+          )
+          ..structRgb = struct;
+        return ViDiagram(sectionTag: 'BDHb', objects: [root, loop]);
+      }
+
+      await tester.runAsync(() async {
+        // 0xffffcc — the recovered LabVIEW sequence/timed structure tint.
+        final colored = await rasteriseBlockDiagram(build(struct: 0xFFFFCC));
+        final plain = await rasteriseBlockDiagram(build());
+        final cmp = await compareToReference(colored!.image, plain!.image);
+        expect(cmp.comparison.meanAbsDiff, greaterThan(0));
+      });
+    });
+
     testWidgets('a decoded object colour changes the render', (tester) async {
       ViDiagram build({int? bg}) {
         final root = ViHeapObject(oid: 1, kind: 0x7e, offset: 0)

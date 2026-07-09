@@ -179,9 +179,14 @@ Widget _faithfulFor(ViHeapObject object, {bool isFrontPanel = false}) {
       return _ControlWidget(
         form: _Form.numeric,
         fill: decodedControlFill(object),
+        border: decodedBorder(object),
       );
     case HeapObjectClass.enumRingControl:
-      return _ControlWidget(form: _Form.enumRing, items: object.items);
+      return _ControlWidget(
+        form: _Form.enumRing,
+        items: object.items,
+        border: decodedBorder(object),
+      );
     case HeapObjectClass.booleanOrClusterControl:
       return object.items.length >= 2
           ? _ControlWidget(form: _Form.enumRing, items: object.items)
@@ -195,9 +200,14 @@ Widget _faithfulFor(ViHeapObject object, {bool isFrontPanel = false}) {
       return _ControlWidget(
         form: _Form.string,
         fill: decodedControlFill(object),
+        border: decodedBorder(object),
       );
     case HeapObjectClass.pathControl:
-      return _ControlWidget(form: _Form.path, fill: decodedControlFill(object));
+      return _ControlWidget(
+        form: _Form.path,
+        fill: decodedControlFill(object),
+        border: decodedBorder(object),
+      );
     case HeapObjectClass.bdLeaf:
       return const _LeafBox();
     case HeapObjectClass.graphIndicator:
@@ -218,6 +228,7 @@ Widget _faithfulFor(ViHeapObject object, {bool isFrontPanel = false}) {
         return _ControlWidget(
           form: _Form.generic,
           fill: decodedControlFill(object),
+          border: decodedBorder(object),
         );
       return const _UnknownBox();
   }
@@ -243,6 +254,14 @@ Color? decodedControlFill(ViHeapObject object) {
 /// carried on the drawable object itself.
 Color? decodedInk(ViHeapObject object) {
   final rgb = object.fgRgb;
+  return rgb == null ? null : Color(0xFF000000 | (rgb & 0xFFFFFF));
+}
+
+/// The decoded border colour for a control ([ViHeapObject.borderRgb], the
+/// front-panel control/graph border) as an opaque colour, or null when it was
+/// not decoded (the control then keeps its neutral border).
+Color? decodedBorder(ViHeapObject object) {
+  final rgb = object.borderRgb;
   return rgb == null ? null : Color(0xFF000000 | (rgb & 0xFFFFFF));
 }
 
@@ -502,6 +521,7 @@ class _ControlWidget extends StatefulWidget {
     this.items = const [],
     this.label,
     this.fill,
+    this.border,
   });
   final _Form form;
   final List<String> items;
@@ -513,6 +533,10 @@ class _ControlWidget extends StatefulWidget {
   /// The decoded interior fill colour (see [decodedControlFill]), or null to use
   /// the neutral default field colour.
   final Color? fill;
+
+  /// The decoded border colour (see [decodedBorder]), or null to use the neutral
+  /// default border.
+  final Color? border;
   @override
   State<_ControlWidget> createState() => _ControlWidgetState();
 }
@@ -533,7 +557,7 @@ class _ControlWidgetState extends State<_ControlWidget> {
 
   BoxDecoration get _box => BoxDecoration(
     color: widget.fill ?? _kField,
-    border: Border.all(color: _kBorder),
+    border: Border.all(color: widget.border ?? _kBorder),
     borderRadius: BorderRadius.circular(2),
   );
 

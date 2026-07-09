@@ -964,9 +964,21 @@ class BdDiagramPainter extends CustomPainter {
     for (final object in structures) {
       // LabVIEW draws structures as a double-line frame; the badge tab at the
       // top-left names the construct (While/For/Case) like the original's
-      // border furniture does.
+      // border furniture does. When the structure's own colour was decoded
+      // (structColor — the LabVIEW structure greys, or the pale sequence/timed
+      // tint) the frame is drawn in it, over a faint fill of the same colour so
+      // the construct reads as itself; structures nest heavily, so the fill
+      // stays light to avoid a muddy stack. Undecoded structures keep the
+      // neutral category frame — no colour is guessed.
       final rect = rectOf(object);
-      final frame = _kindColor(ViObjectKind.structure);
+      final structColor = bdDecodedColor(object.structRgb);
+      final frame = structColor ?? _kindColor(ViObjectKind.structure);
+      if (structColor != null) {
+        canvas.drawRect(
+          rect,
+          Paint()..color = structColor.withValues(alpha: 0.12),
+        );
+      }
       canvas.drawRect(
         rect,
         Paint()
