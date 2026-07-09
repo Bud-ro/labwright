@@ -46,6 +46,7 @@ Future<BdRaster?> rasteriseBlockDiagram(
   ViDiagram diagram, {
   int maxDimension = 2000,
   double pixelRatio = 1.0,
+  Map<int, ViLegacyIcon> subViIcons = const {},
 }) async {
   final drawable = bdDrawableObjects(diagram);
   if (drawable.isEmpty) return null;
@@ -67,6 +68,7 @@ Future<BdRaster?> rasteriseBlockDiagram(
   BdDiagramPainter(
     objects: ordered,
     origin: content.topLeft,
+    subViIcons: subViIcons,
   ).paint(canvas, content.size);
   final picture = recorder.endRecording();
   try {
@@ -281,6 +283,7 @@ class BdOracleView extends StatefulWidget {
     required this.diagram,
     this.referenceBytes,
     this.maxDimension = 1400,
+    this.subViIcons = const {},
   });
 
   /// The block diagram to render.
@@ -291,6 +294,10 @@ class BdOracleView extends StatefulWidget {
 
   /// Longer-side cap for the off-screen raster.
   final int maxDimension;
+
+  /// SubVI-call node icons (oid → icon) to stamp on the render, matching the
+  /// on-screen block-diagram view (see `resolveSubViIcons`). Empty by default.
+  final Map<int, ViLegacyIcon> subViIcons;
 
   @override
   State<BdOracleView> createState() => _BdOracleViewState();
@@ -314,6 +321,7 @@ class _BdOracleViewState extends State<BdOracleView> {
     final raster = await rasteriseBlockDiagram(
       diagram,
       maxDimension: widget.maxDimension,
+      subViIcons: widget.subViIcons,
     );
     if (raster == null) return const _OracleData();
     final bytes = widget.referenceBytes;

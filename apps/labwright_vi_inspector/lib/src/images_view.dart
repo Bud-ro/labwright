@@ -110,6 +110,18 @@ ViImages extractViImages(List<DecodedSection> sections) {
   return ViImages(pngs: pngs, icons: icons);
 }
 
+/// The single richest-depth legacy icon of [images] (icl8 → icl4 → ICON), or
+/// null when the VI carries none. The depth order matches [_ViImageStrip] /
+/// [ViImagesView] so every surface picks the same icon for a VI.
+ViLegacyIcon? bestLegacyIcon(ViImages images) {
+  if (images.icons.isEmpty) return null;
+  const order = {'icl8': 0, 'icl4': 1, 'ICON': 2};
+  return ([...images.icons]
+        ..sort((a, b) => (order[a.tag] ?? 9).compareTo(order[b.tag] ?? 9)))
+      .first
+      .icon;
+}
+
 /// A short bit-depth label for a legacy-icon tag (`icl8` → `8-bit`).
 String legacyIconDepthLabel(int bpp) => '$bpp-bit';
 

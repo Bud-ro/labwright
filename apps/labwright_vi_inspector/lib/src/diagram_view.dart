@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
@@ -34,6 +36,7 @@ class ViDiagramView extends StatefulWidget {
     this.subViNames = const [],
     this.isFrontPanel = false,
     this.viImages = const ViImages(),
+    this.subViIconLoader,
   });
 
   /// The diagrams to render (block-diagram or front-panel heap trees); the
@@ -59,10 +62,18 @@ class ViDiagramView extends StatefulWidget {
   /// The VI's own recovered images — its 32×32 icon (`icl8`/`icl4`/`ICON`) and
   /// any embedded diagram PNGs (`MNGI`/`DSIM`). Rendered as an identity strip
   /// above the diagram: the icon is what a *caller's* subVI node would display
-  /// for this VI (the per-node subVI icons themselves live in the called VIs'
-  /// own files and are not available here, so nodes are not stamped with them).
+  /// for this VI. (This diagram's own subVI-call nodes are stamped with their
+  /// targets' icons when a [subViIconLoader] resolves the called VIs' files.)
   /// Empty by default.
   final ViImages viImages;
+
+  /// Optional `filename → bytes` lookup used to stamp each **subVI-call node**
+  /// with the icon of the VI it targets (see [resolveSubViIcons]): the node's
+  /// `.vi`/`.vim` caption is loaded and its icon decoded. Only meaningful for the
+  /// block diagram (subVI nodes live there); a node whose target the loader can't
+  /// find keeps the neutral connector-pane plate. Null (the default) draws no
+  /// on-node icons.
+  final Uint8List? Function(String fileName)? subViIconLoader;
 
   @override
   State<ViDiagramView> createState() => _ViDiagramViewState();
@@ -79,6 +90,14 @@ class _ViDiagramViewState extends State<ViDiagramView> {
 
   late final ViDiagram? _diagram = _largestDiagram(widget.diagrams);
   late final Map<int, ViHeapObject> _byId = _diagram?.byId ?? const {};
+  // SubVI-call node icons resolved from the called VIs' own files (block diagram
+  // only). Empty when no loader is supplied or nothing resolves.
+  late final Map<int, ViLegacyIcon> _subViIcons =
+      (_diagram == null ||
+          widget.isFrontPanel ||
+          widget.subViIconLoader == null)
+      ? const {}
+      : resolveSubViIcons(_diagram, widget.subViIconLoader!);
   late final List<ViHeapObject> _drawable = _diagram == null
       ? const []
       : bdDrawableObjects(_diagram);
@@ -191,6 +210,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                                     painter: BdDiagramPainter(
                                       objects: ordered,
                                       origin: content.topLeft,
+                                      subViIcons: _subViIcons,
                                     ),
                                     foregroundPainter: _OverlayPainter(
                                       origin: content.topLeft,
@@ -537,6 +557,59 @@ computeBdOutline(Iterable<ViHeapObject> objects) {
 /// - subVI-node internal display sub-parts (`0xe5`) — corpus: 947, all under a
 ///   `0xc5` node; they overlap the parent node and would otherwise paint a stray
 ///   unknown rectangle over it.
+/// The control/indicator terminal classes that, when they appear as a **named**
+/// leaf inside a block-diagram constant/structural subtree, are a called subVI's
+/// own connector-pane controls spliced into the caller's heap (an inlined/
+/// malleable subVI stores its panel controls here), NOT a top-level diagram
+/// object LabVIEW draws. See [_isInlinedSubViControl].
+const Set<int> _controlTerminalDrawCodes = {
+  0x50,
+  0x4f,
+  0x57,
+  0x5b,
+  0x51,
+  0x55,
+  0x10c,
+  0xc2,
+  0x56,
+};
+
+/// Whether [o] is a **subVI connector-pane control spliced into this heap** by an
+/// inlined/malleable subVI call — a control-terminal class ([_controlTerminalDrawCodes])
+/// that (a) nests inside a block-diagram constant/structural subtree (a `0x13`
+/// `bDConstDCO` or `0x15` structural record ancestor) and (b) carries a named
+/// `0x0a` caption child (the subVI control's data name, e.g. `Requirement ID`,
+/// `Label (VI Title)`). LabVIEW draws the subVI as a single icon node, not its
+/// inlined internal controls, so these are not part of *this* VI's top-level
+/// block diagram and are excluded from the drawn/fit set. A bare unnamed constant
+/// terminal (a numeric/string diagram constant) has no such named caption child
+/// and is kept. [childrenByOid] is the positional child index.
+bool _isInlinedSubViControl(
+  ViHeapObject o,
+  Map<int, ViHeapObject> byId,
+  Map<int, List<ViHeapObject>> childrenByOid,
+) {
+  if (!_controlTerminalDrawCodes.contains(o.kind)) return false;
+  var parentOid = o.parentOid;
+  final seen = <int>{};
+  var underConstOrStruct = false;
+  while (parentOid != null && seen.add(parentOid)) {
+    final po = byId[parentOid];
+    if (po == null) break;
+    if (po.kind == 0x13 || po.kind == 0x15) {
+      underConstOrStruct = true;
+      break;
+    }
+    parentOid = po.parentOid;
+  }
+  if (!underConstOrStruct) return false;
+  final kids = childrenByOid[o.oid];
+  if (kids == null) return false;
+  return kids.any(
+    (c) => c.kind == 0x0a && (c.label?.trim().isNotEmpty ?? false),
+  );
+}
+
 bool _isScaffolding(ViHeapObject o, Map<int, ViHeapObject> byId) {
   if (o.kind == 0x09 || o.kind == 0x11c) return true;
   if (o.kind == 0xe5) return true;
@@ -617,6 +690,12 @@ Set<ViHeapObject> nodesWithin(
 /// same object set. Pure + public for the oracle and tests.
 List<ViHeapObject> bdDrawableObjects(ViDiagram diagram) {
   final byId = diagram.byId;
+  final childrenByOid = <int, List<ViHeapObject>>{};
+  for (final object in diagram.objects) {
+    if (object.parentOid != null) {
+      (childrenByOid[object.parentOid!] ??= <ViHeapObject>[]).add(object);
+    }
+  }
   return [
     for (final object in diagram.objects)
       if (object.absBounds != null &&
@@ -625,9 +704,51 @@ List<ViHeapObject> bdDrawableObjects(ViDiagram diagram) {
               (object.absBounds!.width > 0 && object.absBounds!.height > 0)) &&
           object.absBounds!.width < 8000 &&
           object.absBounds!.height < 8000 &&
+          // An inlined/malleable subVI splices its own connector-pane controls
+          // into this heap; LabVIEW draws the subVI as one icon node, not those
+          // internal controls, so they are not this diagram's top-level content.
+          !_isInlinedSubViControl(object, byId, childrenByOid) &&
           !_isScaffolding(object, byId))
         object,
   ];
+}
+
+/// Resolves the **on-node subVI icons** for [diagram]: for each subVI-call node
+/// (a [kSubViCallNodeCodes] class whose caption is a `.vi`/`.vim` filename), its
+/// target VI is fetched by name via [loadByName] and that VI's richest legacy
+/// icon (icl8 → icl4 → ICON) is decoded. Returns an [ViHeapObject.oid] → icon map
+/// for the nodes that resolved; a node whose target is not found is absent from
+/// the map and keeps the neutral connector-pane plate (the icon is never
+/// guessed). [loadByName] maps a bare filename to that file's bytes (or null) —
+/// the file I/O lives in the caller's callback so this stays pure and testable.
+Map<int, ViLegacyIcon> resolveSubViIcons(
+  ViDiagram diagram,
+  Uint8List? Function(String fileName) loadByName,
+) {
+  final out = <int, ViLegacyIcon>{};
+  final cache = <String, ViLegacyIcon?>{};
+  for (final object in diagram.objects) {
+    if (!kSubViCallNodeCodes.contains(object.kind)) continue;
+    final name = object.label?.trim();
+    if (name == null || !_isViFileName(name)) continue;
+    final icon = cache.putIfAbsent(name, () {
+      final bytes = loadByName(name);
+      if (bytes == null) return null;
+      try {
+        return bestLegacyIcon(extractViImages(decodeSections(bytes)));
+      } catch (_) {
+        return null;
+      }
+    });
+    if (icon != null) out[object.oid] = icon;
+  }
+  return out;
+}
+
+/// Whether [name] is a LabVIEW VI filename a subVI node targets (`.vi`/`.vim`).
+bool _isViFileName(String name) {
+  final lower = name.toLowerCase();
+  return lower.endsWith('.vi') || lower.endsWith('.vim');
 }
 
 /// [drawable] sorted by nesting depth (shallowest first) — the paint order that
@@ -689,10 +810,21 @@ int _depthOf(ViHeapObject object, Map<int, ViHeapObject> byId) {
 /// — the cheap [_OverlayPainter] handles highlights instead. Public so the
 /// off-screen [BdOracle] rasterises with the exact same drawing as the view.
 class BdDiagramPainter extends CustomPainter {
-  BdDiagramPainter({required this.objects, required this.origin});
+  BdDiagramPainter({
+    required this.objects,
+    required this.origin,
+    this.subViIcons = const {},
+  });
 
   final List<ViHeapObject> objects;
   final Offset origin;
+
+  /// Resolved subVI-call node icons, keyed by [ViHeapObject.oid] — the 32×32
+  /// icon of the VI a subVI-call node targets, loaded from that VI's own file
+  /// (see [resolveSubViIcons]). A node with an entry here stamps the real icon on
+  /// its plate; a node without one keeps the neutral connector-pane plate (the
+  /// icon is never guessed).
+  final Map<int, ViLegacyIcon> subViIcons;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -824,25 +956,32 @@ class BdDiagramPainter extends CustomPainter {
           // LabVIEW node icon plate: subVI calls get a light-grey connector-pane
           // plate, primitive/function nodes the pale-gold numeric-palette plate.
           // A raised bevel (light top/left, dark bottom/right) mimics the icon's
-          // 3-D edge; the specific icon glyph is not recovered so none is drawn.
+          // 3-D edge. When the subVI's real icon has been resolved from its own
+          // file ([subViIcons]) it is stamped on the plate; otherwise no icon
+          // glyph is drawn (it is never guessed).
           final isSubVi = kSubViCallNodeCodes.contains(object.kind);
-          final fill = isSubVi ? kBdSubViNodeFill : kBdPrimitiveNodeFill;
-          canvas.drawRect(rect, Paint()..color = fill);
-          if (rect.width > 6 && rect.height > 6) {
-            canvas.drawLine(
-              rect.topLeft,
-              rect.topRight,
-              Paint()
-                ..color = Colors.white.withValues(alpha: 0.85)
-                ..strokeWidth = 1.0,
-            );
-            canvas.drawLine(
-              rect.topLeft,
-              rect.bottomLeft,
-              Paint()
-                ..color = Colors.white.withValues(alpha: 0.85)
-                ..strokeWidth = 1.0,
-            );
+          final icon = subViIcons[object.oid];
+          if (icon != null) {
+            paintLegacyIcon(canvas, icon, rect);
+          } else {
+            final fill = isSubVi ? kBdSubViNodeFill : kBdPrimitiveNodeFill;
+            canvas.drawRect(rect, Paint()..color = fill);
+            if (rect.width > 6 && rect.height > 6) {
+              canvas.drawLine(
+                rect.topLeft,
+                rect.topRight,
+                Paint()
+                  ..color = Colors.white.withValues(alpha: 0.85)
+                  ..strokeWidth = 1.0,
+              );
+              canvas.drawLine(
+                rect.topLeft,
+                rect.bottomLeft,
+                Paint()
+                  ..color = Colors.white.withValues(alpha: 0.85)
+                  ..strokeWidth = 1.0,
+              );
+            }
           }
           canvas.drawRect(
             rect,
@@ -880,11 +1019,24 @@ class BdDiagramPainter extends CustomPainter {
       // text. Their captions remain reachable through the inspector.
       if (kBdTextLabelCodes.contains(object.kind)) continue;
       final onFrame = object.category == ViObjectKind.structure;
-      final text = onFrame
-          ? structureBadge(object)
-          : (object.label?.trim().isNotEmpty ?? false)
-          ? object.label!.trim()
-          : null;
+      // A node's identity is carried by its icon plate (and a separate free
+      // label), never by stamping its subVI-filename/function label inside the
+      // icon box — LabVIEW draws no text there. A constant/terminal shows the
+      // recovered literal value ([ViHeapObject.constText]) when one exists — e.g.
+      // a string constant's `"report.txt"` — falling back to its recovered label;
+      // a value that was not decoded renders no text (never guessed).
+      final String? text;
+      if (onFrame) {
+        text = structureBadge(object);
+      } else if (object.category == ViObjectKind.node) {
+        text = null;
+      } else {
+        final literal = object.constText?.trim();
+        final label = object.label?.trim();
+        text = (literal != null && literal.isNotEmpty)
+            ? literal
+            : (label != null && label.isNotEmpty ? label : null);
+      }
       if (text == null) continue;
       final rect = rectOf(object);
       if (rect.width < 26 || rect.height < 11) continue;
@@ -1222,9 +1374,10 @@ class _BdOutline extends StatelessWidget {
 
 /// The VI-identity image strip shown above the block diagram: the VI's own icon
 /// (richest available depth) and any embedded diagram PNGs (`MNGI`/`DSIM`), each
-/// captioned with its source tag. Honest scope: this is *this* VI's icon (what a
-/// caller renders on a subVI node), not the icons of the subVIs this diagram
-/// calls — those are stored in the called VIs' files, which are not loaded here.
+/// captioned with its source tag. Scope: this is *this* VI's icon (what a caller
+/// renders on a subVI node); the icons of the subVIs this diagram *calls* are
+/// stamped on their nodes instead when their files resolve (see
+/// [ViDiagramView.subViIconLoader]).
 class _ViImageStrip extends StatelessWidget {
   const _ViImageStrip(this.images);
   final ViImages images;
@@ -1274,8 +1427,8 @@ class _ViImageStrip extends StatelessWidget {
             child: Padding(
               padding: EdgeInsets.only(left: 8),
               child: Text(
-                "The VI's own recovered images. SubVI nodes are not stamped with "
-                'their icons — those live in the called VIs, not this file.',
+                "The VI's own recovered images. A subVI-call node on the diagram "
+                "shows the called VI's icon when that file resolves.",
                 style: TextStyle(fontSize: 11, color: Colors.grey),
               ),
             ),

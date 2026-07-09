@@ -428,19 +428,7 @@ class LegacyIconPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    const dim = 32;
-    final cw = size.width / dim;
-    final ch = size.height / dim;
-    final paint = Paint();
-    for (var y = 0; y < dim; y++) {
-      for (var x = 0; x < dim; x++) {
-        paint.color = Color(macIconArgb(icon.bpp, icon.pixels[y * dim + x]));
-        canvas.drawRect(
-          Rect.fromLTWH(x * cw, y * ch, cw + 0.5, ch + 0.5),
-          paint,
-        );
-      }
-    }
+    paintLegacyIcon(canvas, icon, Offset.zero & size);
     canvas.drawRect(
       Offset.zero & size,
       Paint()
@@ -451,4 +439,30 @@ class LegacyIconPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(LegacyIconPainter old) => !identical(old.icon, icon);
+}
+
+/// Draws [icon]'s 32×32 index grid scaled to fill [rect] (each stored index
+/// mapped through [macIconArgb] for the icon's bit depth), without any border —
+/// so a caller (e.g. a block-diagram subVI node plate) can stamp the icon into an
+/// arbitrary rectangle. Shared with [LegacyIconPainter] so on-canvas subVI icons
+/// and the images gallery draw identical pixels.
+void paintLegacyIcon(Canvas canvas, ViLegacyIcon icon, Rect rect) {
+  const dim = 32;
+  final cw = rect.width / dim;
+  final ch = rect.height / dim;
+  final paint = Paint();
+  for (var y = 0; y < dim; y++) {
+    for (var x = 0; x < dim; x++) {
+      paint.color = Color(macIconArgb(icon.bpp, icon.pixels[y * dim + x]));
+      canvas.drawRect(
+        Rect.fromLTWH(
+          rect.left + x * cw,
+          rect.top + y * ch,
+          cw + 0.5,
+          ch + 0.5,
+        ),
+        paint,
+      );
+    }
+  }
 }

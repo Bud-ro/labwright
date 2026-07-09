@@ -277,6 +277,114 @@ void main() {
     });
   });
 
+  // A constant carrying a recovered literal ([ViHeapObject.constText]) draws that
+  // text on its plate; the identical constant without a recovered value draws a
+  // bare plate. The two renders must therefore differ (the literal is real
+  // decoded content, only rendered where recovered).
+  testWidgets('a recovered constant literal renders (vs a blank plate)', (
+    tester,
+  ) async {
+    ViDiagram build(String? literal) {
+      final root = ViHeapObject(oid: 1, kind: 0x7e, offset: 0)
+        ..category = ViObjectKind.structure
+        ..absBounds = const HeapRect(top: 0, left: 0, bottom: 80, right: 220);
+      final constObj = ViHeapObject(oid: 2, kind: 0x51, offset: 0)
+        ..parentOid = 1
+        ..category = ViObjectKind.terminal
+        ..absBounds = const HeapRect(top: 24, left: 24, bottom: 44, right: 150)
+        ..constText = literal;
+      return ViDiagram(sectionTag: 'BDHb', objects: [root, constObj]);
+    }
+
+    await tester.runAsync(() async {
+      final withLiteral = await rasteriseBlockDiagram(build('report.txt'));
+      final withoutLiteral = await rasteriseBlockDiagram(build(null));
+      final cmp = await compareToReference(
+        withLiteral!.image,
+        withoutLiteral!.image,
+      );
+      // Same geometry, so any difference is the rendered literal text.
+      expect(cmp.comparison.meanAbsDiff, greaterThan(0));
+    });
+  });
+
+  group('subVI icon resolution', () {
+    // resolveSubViIcons resolves ONLY subVI-call nodes whose `.vi` target the
+    // loader can supply; other nodes and unresolved targets keep the neutral
+    // plate (no icon in the map). Uses a real corpus VI as the known target.
+    test('resolves a subVI-call node icon from its target VI file', () {
+      final corpus = _corpusDir();
+      if (corpus == null) return;
+      final target = File(
+        '${corpus.path}/vipm-io_caraya/vipm-io-caraya-ca35333/'
+        'src/classes/Test/Define Test.vi',
+      );
+      if (!target.existsSync()) return;
+
+      final call = ViHeapObject(oid: 5, kind: 0x31, offset: 0)
+        ..category = ViObjectKind.node
+        ..label = 'Define Test.vi'
+        ..absBounds = const HeapRect(top: 10, left: 10, bottom: 42, right: 42);
+      final unresolved = ViHeapObject(oid: 6, kind: 0x31, offset: 0)
+        ..category = ViObjectKind.node
+        ..label = 'Not In Corpus.vi'
+        ..absBounds = const HeapRect(top: 10, left: 60, bottom: 42, right: 92);
+      final primitive = ViHeapObject(oid: 7, kind: 0x2f, offset: 0)
+        ..category = ViObjectKind.node
+        ..label = 'Add'
+        ..absBounds = const HeapRect(
+          top: 10,
+          left: 110,
+          bottom: 42,
+          right: 142,
+        );
+      final diagram = ViDiagram(
+        sectionTag: 'BDHb',
+        objects: [call, unresolved, primitive],
+      );
+
+      final bytes = target.readAsBytesSync();
+      Uint8List? load(String name) => name == 'Define Test.vi' ? bytes : null;
+      final icons = resolveSubViIcons(diagram, load);
+
+      // The subVI-call node whose target resolved carries a decoded icon.
+      expect(icons.keys, contains(5));
+      // A subVI-call node whose target the loader can't supply keeps no icon.
+      expect(icons.containsKey(6), isFalse);
+      // A primitive node (not a subVI-call class) is never resolved.
+      expect(icons.containsKey(7), isFalse);
+    });
+
+    // A diagram rendered with resolved icons differs from the neutral-plate
+    // render, and rasterises without error.
+    testWidgets('rasterising with subVI icons stamps the node', (tester) async {
+      final corpus = _corpusDir();
+      if (corpus == null) return;
+      final target = File(
+        '${corpus.path}/vipm-io_caraya/vipm-io-caraya-ca35333/'
+        'src/classes/Test/Define Test.vi',
+      );
+      if (!target.existsSync()) return;
+
+      final call = ViHeapObject(oid: 5, kind: 0x31, offset: 0)
+        ..category = ViObjectKind.node
+        ..label = 'Define Test.vi'
+        ..absBounds = const HeapRect(top: 20, left: 20, bottom: 52, right: 52);
+      final diagram = ViDiagram(sectionTag: 'BDHb', objects: [call]);
+      final bytes = target.readAsBytesSync();
+      final icons = resolveSubViIcons(diagram, (n) => bytes);
+      expect(icons, isNotEmpty);
+
+      await tester.runAsync(() async {
+        final iconed = await rasteriseBlockDiagram(diagram, subViIcons: icons);
+        final plain = await rasteriseBlockDiagram(diagram);
+        expect(iconed, isNotNull);
+        final cmp = await compareToReference(iconed!.image, plain!.image);
+        expect(cmp.comparison.meanAbsDiff, greaterThan(0));
+      });
+    });
+  });
+
   // Optional reference-oracle dump: run with
   //   flutter test test/bd_oracle_test.dart \
   //     --dart-define=BD_VI=/abs/path/foo.vi \
