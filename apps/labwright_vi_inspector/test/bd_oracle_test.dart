@@ -242,6 +242,34 @@ void main() {
       expect(bdFillColor(ViHeapObject(oid: 3, kind: 0x50, offset: 0)), isNull);
     });
 
+    testWidgets('a decoded foreground colour inks a caption', (tester) async {
+      ViDiagram build({int? fg}) {
+        final root = ViHeapObject(oid: 1, kind: 0x7e, offset: 0)
+          ..category = ViObjectKind.structure
+          ..absBounds = const HeapRect(top: 0, left: 0, bottom: 80, right: 220);
+        final constObj = ViHeapObject(oid: 2, kind: 0x51, offset: 0)
+          ..parentOid = 1
+          ..category = ViObjectKind.terminal
+          ..absBounds = const HeapRect(
+            top: 24,
+            left: 24,
+            bottom: 44,
+            right: 200,
+          )
+          ..constText = 'report.txt'
+          ..fgRgb = fg;
+        return ViDiagram(sectionTag: 'BDHb', objects: [root, constObj]);
+      }
+
+      await tester.runAsync(() async {
+        final inked = await rasteriseBlockDiagram(build(fg: 0x1040E0));
+        final plain = await rasteriseBlockDiagram(build());
+        final cmp = await compareToReference(inked!.image, plain!.image);
+        // Same caption text/geometry; only the decoded ink colour differs.
+        expect(cmp.comparison.meanAbsDiff, greaterThan(0));
+      });
+    });
+
     testWidgets('a decoded object colour changes the render', (tester) async {
       ViDiagram build({int? bg}) {
         final root = ViHeapObject(oid: 1, kind: 0x7e, offset: 0)

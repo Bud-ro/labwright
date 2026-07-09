@@ -1131,13 +1131,18 @@ class BdDiagramPainter extends CustomPainter {
       if (text == null) continue;
       final rect = rectOf(object);
       if (rect.width < 26 || rect.height < 11) continue;
+      // A caption/constant is inked in the object's decoded foreground colour
+      // when one was recovered (fgColor is the LabVIEW text/line colour), else a
+      // neutral near-black. A structure badge keeps its frame-chrome colour.
+      final textColor = onFrame
+          ? const Color(0xCC4A2E00)
+          : (bdDecodedColor(object.fgRgb) ??
+                Colors.black.withValues(alpha: 0.75));
       final tp = TextPainter(
         text: TextSpan(
           text: text,
           style: TextStyle(
-            color: onFrame
-                ? const Color(0xCC4A2E00)
-                : Colors.black.withValues(alpha: 0.75),
+            color: textColor,
             fontSize: 10,
             fontWeight: FontWeight.w400,
             fontFamily: 'Roboto',

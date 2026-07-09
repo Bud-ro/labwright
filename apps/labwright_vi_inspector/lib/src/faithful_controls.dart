@@ -171,7 +171,7 @@ Widget _faithfulFor(ViHeapObject object, {bool isFrontPanel = false}) {
       );
     case HeapObjectClass.controlLabel:
     case HeapObjectClass.bdSelectorLabel:
-      return _LabelText(object.label);
+      return _LabelText(object.label, ink: decodedInk(object));
     case HeapObjectClass.bdGlyph:
       return const _Glyph();
     case HeapObjectClass.numericControl:
@@ -234,6 +234,15 @@ const _kInk = Color(0xFF1A1A1A);
 /// placement probe: these colours sit on the drawable control itself.
 Color? decodedControlFill(ViHeapObject object) {
   final rgb = object.contentRgb ?? object.bgRgb;
+  return rgb == null ? null : Color(0xFF000000 | (rgb & 0xFFFFFF));
+}
+
+/// The decoded foreground/ink colour for a label ([ViHeapObject.fgRgb], the
+/// LabVIEW text colour) as an opaque colour, or null when it was not decoded
+/// (the label then keeps its neutral ink). Confirmed and, per the corpus probe,
+/// carried on the drawable object itself.
+Color? decodedInk(ViHeapObject object) {
+  final rgb = object.fgRgb;
   return rgb == null ? null : Color(0xFF000000 | (rgb & 0xFFFFFF));
 }
 
@@ -341,8 +350,12 @@ class _NodeBox extends StatelessWidget {
 }
 
 class _LabelText extends StatelessWidget {
-  const _LabelText(this.label);
+  const _LabelText(this.label, {this.ink});
   final String? label;
+
+  /// The decoded foreground/ink colour for this label, or null for the neutral
+  /// default (see [decodedInk]).
+  final Color? ink;
   @override
   Widget build(BuildContext context) => Container(
     alignment: Alignment.centerLeft,
@@ -351,10 +364,10 @@ class _LabelText extends StatelessWidget {
       label ?? '',
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
-      style: const TextStyle(
+      style: TextStyle(
         fontSize: 10,
-        color: _kInk,
-        shadows: [
+        color: ink ?? _kInk,
+        shadows: const [
           Shadow(color: Color(0xCCFFFFFF), blurRadius: 1.5),
           Shadow(color: Color(0x88FFFFFF), blurRadius: 2.5),
         ],
