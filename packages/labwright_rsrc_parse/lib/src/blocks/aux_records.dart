@@ -92,43 +92,123 @@ ViConnectorPaneMap? decodeConnectorPaneMap(Uint8List bytes) {
 /// carrying `#tag` texts. An empty list is the 8-byte all-zero body
 /// (743/988 in corpus). The per-record grammar beyond the texts is not yet
 /// decoded; [texts] recovers the length-prefixed printable strings.
-class ViBookmarkList {
-  const ViBookmarkList({required this.declaredCount, required this.texts});
+/// One `BKMK` entry: two leading u32 words ([wordA] present only in the first
+/// table) plus a length-prefixed [text] run. The word semantics (a bookmark's
+/// object id / position within the diagram) are not decoded; the values and the
+/// text bytes are retained so the entry re-emits exactly.
+class ViBookmarkEntry {
+  const ViBookmarkEntry({required this.wordA, required this.wordB, required this.text});
 
-  final int declaredCount;
+  /// The first u32 (`tableA` entries only; null for `tableB` entries).
+  final int? wordA;
 
-  /// The bookmark texts recovered from the records (`#TODO: …`).
-  final List<String> texts;
+  /// The second u32 (present on every entry).
+  final int wordB;
 
-  bool get isEmpty => declaredCount == 0;
+  /// The length-prefixed text bytes (a `#`-anchor bookmark string).
+  final Uint8List text;
 }
 
-/// Decodes a `BKMK` list; null when [bytes] cannot hold the count. Total.
-ViBookmarkList? decodeBookmarkList(Uint8List bytes) {
-  if (bytes.length < 4) return null;
-  final view = ByteData.sublistView(bytes);
-  final declaredCount = view.getUint32(0);
-  final texts = <String>[];
-  // Scan for [u32 len][printable text] runs — the bookmark strings.
-  for (var pos = 4; pos + 4 <= bytes.length && texts.length < 4096; pos++) {
-    final len = view.getUint32(pos);
-    if (len < 2 || len > 4096 || pos + 4 + len > bytes.length) continue;
-    var printable = true;
-    for (var i = pos + 4; i < pos + 4 + len; i++) {
-      final byte = bytes[i];
-      if ((byte < 0x20 && byte != 0x09 && byte != 0x0a && byte != 0x0d) || byte >= 0x7f) {
-        printable = false;
-        break;
-      }
+/// A byte-exact `BKMK` bookmark block: two back-to-back record tables. Table A
+/// is `[u32 countA]` then `countA × (u32 a, u32 b, u32 len, text[len])`; table B
+/// is `[u32 countB]` then `countB × (u32 b, u32 len, text[len])` (no leading
+/// `a`). The empty block is `[u32 0][u32 0]` (743/988). The walk tiles the body
+/// exactly for every corpus instance (988/988), so [serialize] reproduces it.
+class ViBookmarkList {
+  const ViBookmarkList({required this.tableA, required this.tableB});
+
+  /// The first table's entries (each carries [ViBookmarkEntry.wordA]).
+  final List<ViBookmarkEntry> tableA;
+
+  /// The second table's entries.
+  final List<ViBookmarkEntry> tableB;
+
+  /// Count of first-table entries (the `u32 @0`).
+  int get declaredCount => tableA.length;
+
+  bool get isEmpty => tableA.isEmpty && tableB.isEmpty;
+
+  /// The printable bookmark strings from both tables (diagnostic; [serialize]
+  /// re-emits the retained bytes).
+  List<String> get texts => [
+    for (final e in [...tableA, ...tableB])
+      if (_printable(e.text)) String.fromCharCodes(e.text),
+  ];
+
+  /// Re-emits `[u32 countA] tableA [u32 countB] tableB` — the whole block.
+  Uint8List serialize() {
+    var n = 8;
+    for (final e in tableA) {
+      n += 12 + e.text.length;
     }
-    if (!printable) continue;
-    final text = String.fromCharCodes(bytes.sublist(pos + 4, pos + 4 + len));
-    if (text.contains('#') || text.length >= 8) {
-      texts.add(text);
-      pos += 3 + len;
+    for (final e in tableB) {
+      n += 8 + e.text.length;
     }
+    final out = Uint8List(n);
+    final d = ByteData.sublistView(out);
+    var pos = 0;
+    d.setUint32(pos, tableA.length);
+    pos += 4;
+    for (final e in tableA) {
+      d.setUint32(pos, e.wordA ?? 0);
+      d.setUint32(pos + 4, e.wordB);
+      d.setUint32(pos + 8, e.text.length);
+      pos += 12;
+      out.setRange(pos, pos + e.text.length, e.text);
+      pos += e.text.length;
+    }
+    d.setUint32(pos, tableB.length);
+    pos += 4;
+    for (final e in tableB) {
+      d.setUint32(pos, e.wordB);
+      d.setUint32(pos + 4, e.text.length);
+      pos += 8;
+      out.setRange(pos, pos + e.text.length, e.text);
+      pos += e.text.length;
+    }
+    return out;
   }
-  return ViBookmarkList(declaredCount: declaredCount, texts: texts);
+}
+
+bool _printable(Uint8List b) {
+  if (b.isEmpty) return false;
+  for (final c in b) {
+    if ((c < 0x20 && c != 0x09 && c != 0x0a && c != 0x0d) || c >= 0x7f) return false;
+  }
+  return true;
+}
+
+/// Decodes a `BKMK` block into a byte-exact [ViBookmarkList]; null when the
+/// two-table walk does not tile the body exactly to its end. Total.
+ViBookmarkList? decodeBookmarkList(Uint8List bytes) {
+  if (bytes.length < 8) return null;
+  final view = ByteData.sublistView(bytes);
+  var pos = 0;
+  List<ViBookmarkEntry>? readTable(bool withWordA) {
+    if (pos + 4 > bytes.length) return null;
+    final count = view.getUint32(pos);
+    pos += 4;
+    if (count > 100000) return null;
+    final entries = <ViBookmarkEntry>[];
+    for (var i = 0; i < count; i++) {
+      final head = withWordA ? 12 : 8;
+      if (pos + head > bytes.length) return null;
+      final int? a = withWordA ? view.getUint32(pos) : null;
+      final b = view.getUint32(pos + (withWordA ? 4 : 0));
+      final len = view.getUint32(pos + head - 4);
+      pos += head;
+      if (len > bytes.length - pos) return null;
+      entries.add(ViBookmarkEntry(wordA: a, wordB: b, text: Uint8List.sublistView(bytes, pos, pos + len)));
+      pos += len;
+    }
+    return entries;
+  }
+
+  final tableA = readTable(true);
+  if (tableA == null) return null;
+  final tableB = readTable(false);
+  if (tableB == null || pos != bytes.length) return null;
+  return ViBookmarkList(tableA: tableA, tableB: tableB);
 }
 
 /// A decoded `IPSR` **offset table**: the body is a monotonically ascending
@@ -248,4 +328,120 @@ ViGcdiRecord? decodeGcdiRecord(Uint8List bytes) {
     value: ByteData.sublistView(bytes).getUint32(0),
     payloadLength: bytes.length - 5,
   );
+}
+
+/// A byte-exact `CCST` **compiled-code-state** key/value table: `[u32 count]`
+/// then `count × ([u32 keyLen][key][u32 valLen][value])`. The dominant 4-byte
+/// all-zero body is `count == 0` (2977/3011); the larger bodies carry build
+/// settings (`TARGET_TYPE=Windows`, `RUN_TIME_ENGINE=False`). Both key and value
+/// are length-prefixed byte runs retained verbatim; the walk tiles the body
+/// exactly (3011/3011), so [serialize] reproduces it.
+class ViKeyValueTable {
+  const ViKeyValueTable({required this.entries});
+
+  /// The `(key, value)` byte-run pairs, in order.
+  final List<(Uint8List, Uint8List)> entries;
+
+  /// Re-emits `[u32 count]` then each `[u32 keyLen][key][u32 valLen][value]`.
+  Uint8List serialize() {
+    var n = 4;
+    for (final (k, v) in entries) {
+      n += 8 + k.length + v.length;
+    }
+    final out = Uint8List(n);
+    final d = ByteData.sublistView(out);
+    d.setUint32(0, entries.length);
+    var pos = 4;
+    for (final (k, v) in entries) {
+      d.setUint32(pos, k.length);
+      pos += 4;
+      out.setRange(pos, pos + k.length, k);
+      pos += k.length;
+      d.setUint32(pos, v.length);
+      pos += 4;
+      out.setRange(pos, pos + v.length, v);
+      pos += v.length;
+    }
+    return out;
+  }
+}
+
+/// Decodes a `CCST` body into a byte-exact [ViKeyValueTable]; null when the
+/// key/value walk does not tile the body exactly to its end. Total.
+ViKeyValueTable? decodeKeyValueTable(Uint8List bytes) {
+  if (bytes.length < 4) return null;
+  final d = ByteData.sublistView(bytes);
+  final count = d.getUint32(0);
+  if (count > 100000) return null;
+  var pos = 4;
+  final entries = <(Uint8List, Uint8List)>[];
+  for (var i = 0; i < count; i++) {
+    final runs = <Uint8List>[];
+    for (var f = 0; f < 2; f++) {
+      if (pos + 4 > bytes.length) return null;
+      final len = d.getUint32(pos);
+      pos += 4;
+      if (len > bytes.length - pos) return null;
+      runs.add(Uint8List.sublistView(bytes, pos, pos + len));
+      pos += len;
+    }
+    entries.add((runs[0], runs[1]));
+  }
+  if (pos != bytes.length) return null;
+  return ViKeyValueTable(entries: entries);
+}
+
+/// A byte-exact `CPST`/`CPSP` **caption/boolean-text table**: `[u32 count]` then
+/// `count ×` packed Pascal strings `[u8 len][text]` (the True/False strings and
+/// comparison-mode captions of a polymorphic node). The walk tiles the body
+/// exactly (CPST 56/56, CPSP 53/53), so [serialize] reproduces it.
+class ViPascalStringTable {
+  const ViPascalStringTable({required this.strings});
+
+  /// The string byte runs, in order (each `<= 255` bytes).
+  final List<Uint8List> strings;
+
+  /// The printable strings decoded as text (diagnostic; [serialize] uses the
+  /// retained bytes).
+  List<String> get texts => [
+    for (final s in strings)
+      if (_printable(s)) String.fromCharCodes(s),
+  ];
+
+  /// Re-emits `[u32 count]` then each `[u8 len][text]`.
+  Uint8List serialize() {
+    var n = 4;
+    for (final s in strings) {
+      n += 1 + s.length;
+    }
+    final out = Uint8List(n);
+    ByteData.sublistView(out).setUint32(0, strings.length);
+    var pos = 4;
+    for (final s in strings) {
+      out[pos++] = s.length & 0xff;
+      out.setRange(pos, pos + s.length, s);
+      pos += s.length;
+    }
+    return out;
+  }
+}
+
+/// Decodes a `CPST`/`CPSP` body into a byte-exact [ViPascalStringTable]; null
+/// when a string length runs past the buffer, a string exceeds 255 bytes, or the
+/// walk does not tile the body exactly to its end. Total.
+ViPascalStringTable? decodePascalStringTable(Uint8List bytes) {
+  if (bytes.length < 4) return null;
+  final count = ByteData.sublistView(bytes).getUint32(0);
+  if (count > 100000) return null;
+  var pos = 4;
+  final strings = <Uint8List>[];
+  for (var i = 0; i < count; i++) {
+    if (pos >= bytes.length) return null;
+    final len = bytes[pos++];
+    if (pos + len > bytes.length) return null;
+    strings.add(Uint8List.sublistView(bytes, pos, pos + len));
+    pos += len;
+  }
+  if (pos != bytes.length) return null;
+  return ViPascalStringTable(strings: strings);
 }

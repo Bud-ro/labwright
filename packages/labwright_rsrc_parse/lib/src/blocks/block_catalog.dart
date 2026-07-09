@@ -204,7 +204,10 @@ const Map<String, ViBlockInfo> _catalog = {
     'Front-panel type descriptors',
     _ti,
     _lk,
-    'Usually 2 bytes (u16, 3499/3531); occasionally a larger table. Likely a type-descriptor index/count.',
+    'Big-endian u16 word grid: a single u16 index in the common 2-byte form '
+        '(3843/3879), a longer table otherwise; every instance a whole number of '
+        'u16 words. Word semantics open. See decodeU16Grid.',
+    decoder: 'decodeU16Grid',
   ),
 
   'VICD': ViBlockInfo(
@@ -456,7 +459,9 @@ const Map<String, ViBlockInfo> _catalog = {
     'Font table',
     _nt,
     _cf,
-    'u16 ver@0=1, u16 fontCount@6, u32 nameOffset@8 -> packed Pascal font-name strings. See decodeFontTable.',
+    'u16 ver@0=1, u16 fontCount@6, u32 nameOffset@8; per-font metric records '
+        '[12..nameOffset) (retained leaf) then fontCount packed Pascal name '
+        'strings tiling to the end (322/322). See decodeFontTable.',
     decoder: 'decodeFontTable',
   ),
   'VITS': ViBlockInfo(
@@ -594,7 +599,15 @@ const Map<String, ViBlockInfo> _catalog = {
     decoder: 'decodeExtendedState',
   ),
   'FPTS': ViBlockInfo('FPTS', 'Front-panel TS', _un, _tt, 'Format not yet decoded.'),
-  'BDTS': ViBlockInfo('BDTS', 'Block-diagram TS', _un, _tt, 'Format not yet decoded.'),
+  'BDTS': ViBlockInfo(
+    'BDTS',
+    'Block-diagram TS',
+    _un,
+    _tt,
+    'Big-endian u32 word grid ([u32 count] + count word pairs); every instance a '
+        'whole number of u32 words (35/35). Word semantics open. See decodeWordGrid.',
+    decoder: 'decodeWordGrid',
+  ),
   'FPHP': ViBlockInfo('FPHP', 'Front-panel heap (legacy?)', _un, _tt, 'Rare; not a confirmed C4 heap in corpus.'),
   'BDHP': ViBlockInfo('BDHP', 'Block-diagram heap (legacy?)', _un, _tt, 'Rare; not a confirmed C4 heap in corpus.'),
 
@@ -611,9 +624,9 @@ const Map<String, ViBlockInfo> _catalog = {
     'Print settings',
     _un,
     _cf,
-    'Fixed 128 B (rarely 132/136) print record: version byte 0x01 @4; the '
-        'default form is a fixed non-zero 128-byte record (1734/3818, 125 '
-        'distinct values overall); field semantics not decoded. See decodePrintRecord.',
+    'Fixed-length print record (128 B, rarely 132/136) read as a big-endian u32 '
+        'word grid; version byte 0x01 @4. Every instance a whole number of words '
+        '(3859/3859). Print-setting field semantics open. See decodePrintRecord.',
     decoder: 'decodePrintRecord',
   ),
   'DLDR': ViBlockInfo(
@@ -631,7 +644,8 @@ const Map<String, ViBlockInfo> _catalog = {
     'Type record',
     _un,
     _cf,
-    '13-byte header (semantics not yet decoded) + u16-prefixed text runs (descriptions/tips). See decodeTextRecord.',
+    'Fixed 72-byte header (bounding-rect + flag words, semantics open) + packed '
+        '[u32 len][text] description/tip runs to the block end (3144/3144). See decodeTextRecord.',
     decoder: 'decodeTextRecord',
   ),
   'CCST': ViBlockInfo(
@@ -639,7 +653,11 @@ const Map<String, ViBlockInfo> _catalog = {
     'Compiled-code state',
     _un,
     _lk,
-    'Usually a 4-byte all-zero record (2583/2617); occasionally larger.',
+    'Key/value table: [u32 count] then count × [u32 keyLen][key][u32 valLen]'
+        '[value]; the 4-byte body is count 0 (2977/3011), larger bodies carry '
+        'build settings (TARGET_TYPE=Windows, RUN_TIME_ENGINE=False). Tiles the '
+        'body exactly (3011/3011). See decodeKeyValueTable.',
+    decoder: 'decodeKeyValueTable',
   ),
   'BFAL': ViBlockInfo(
     'BFAL',
@@ -657,7 +675,9 @@ const Map<String, ViBlockInfo> _catalog = {
     'Bookmarks',
     _un,
     _lk,
-    'Bookmark list; an 8-byte empty record when there are none (743/988), larger with bookmark text.',
+    'Two back-to-back record tables: [u32 countA] (u32 a, u32 b, [u32 len][text])'
+        '×A then [u32 countB] (u32 b, [u32 len][text])×B; the 8-byte [0][0] form '
+        'when empty (743/988). Tiles the body exactly (988/988). See decodeBookmarkList.',
     decoder: 'decodeBookmarkList',
   ),
   'CNST': ViBlockInfo(
@@ -676,14 +696,20 @@ const Map<String, ViBlockInfo> _catalog = {
     'Boolean-text table',
     _tx,
     _lk,
-    '[u32 len] + Pascal strings of boolean labels (e.g. "True/False:"). Decodable via the string framing.',
+    '[u32 count] + count packed Pascal strings [u8 len][text] (boolean/compare '
+        'labels, e.g. "True/False:True"). Tiles the body exactly (56/56). See '
+        'decodePascalStringTable.',
+    decoder: 'decodePascalStringTable',
   ),
   'CPSP': ViBlockInfo(
     'CPSP',
     'Boolean-text table (spec)',
     _tx,
     _lk,
-    '[u32 len] + Pascal strings of boolean labels ("True","False").',
+    '[u32 count] + count packed Pascal strings [u8 len][text] (boolean/compare '
+        'captions, e.g. "True", "Equal (Value)"). Tiles the body exactly (53/53). '
+        'See decodePascalStringTable.',
+    decoder: 'decodePascalStringTable',
   ),
   'CPD2': ViBlockInfo(
     'CPD2',

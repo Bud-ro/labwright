@@ -73,6 +73,28 @@
 ///     compressed ones re-emit through the heap-content writer instead).
 ///   * `BFAL` — align table ([ViAlignTable]); `[u32 count][count × 9-byte
 ///     record]`, every corpus instance.
+///   * `PRT ` — print settings ([ViPrintRecord]); the fixed-length record read
+///     as a big-endian u32 word grid (version byte `@4`; every corpus instance a
+///     whole number of words).
+///   * `FPTD` — front-panel type descriptors ([ViU16Grid]); a big-endian u16
+///     word grid (every corpus instance a whole number of u16 words).
+///   * `HLPT` — help text ([ViStringBlock]); the `[u32 len][text]` framing, the
+///     same as `STRG`, every corpus instance.
+///   * `HLPP` — help path ([ViHelpPath]); the `PTH0` path record (magic +
+///     `innerLen` + `pathType` + component count + Pascal-string components).
+///   * `FTAB` — font table ([ViFontTable]); the fixed header + per-font metric
+///     records (retained leaf) + packed Pascal-string name table.
+///   * `BKMK` — bookmarks ([ViBookmarkList]); two back-to-back record tables of
+///     `(word…, [u32 len][text])` entries, every corpus instance.
+///   * `TRec` — text record ([ViTextRecord]); a fixed 72-byte header + packed
+///     `[u32 len][text]` description/tip runs, every corpus instance.
+///   * `CCST` — compiled-code state ([ViKeyValueTable]); `[u32 count]` then
+///     `count × ([u32 keyLen][key][u32 valLen][value])` (the 4-byte body is
+///     count 0), every corpus instance.
+///   * `CPST` / `CPSP` — caption / boolean-text tables ([ViPascalStringTable]);
+///     `[u32 count]` then packed `[u8 len][text]` strings, every corpus instance.
+///   * `BDTS` — block-diagram terminal-state grid ([ViWordGrid]); a big-endian
+///     u32 word grid, every corpus instance.
 library;
 
 import 'dart:typed_data';
@@ -81,6 +103,8 @@ import 'align_table.dart';
 import 'aux_records.dart';
 import 'connector_pane.dart';
 import 'data_type_heap.dart';
+import 'font_table.dart';
+import 'help_path.dart';
 import 'history.dart';
 import 'id_table.dart';
 import 'legacy_icon.dart';
@@ -136,7 +160,18 @@ bool hasBlockWriter(String tag) => switch (tag) {
   'COUT' ||
   'CPD2' ||
   'TM80' ||
-  'BFAL' => true,
+  'BFAL' ||
+  'PRT ' ||
+  'FPTD' ||
+  'HLPT' ||
+  'HLPP' ||
+  'FTAB' ||
+  'BKMK' ||
+  'TRec' ||
+  'CCST' ||
+  'CPST' ||
+  'CPSP' ||
+  'BDTS' => true,
   _ => false,
 };
 
@@ -181,6 +216,16 @@ Uint8List? serializeBlockPayload(String tag, Uint8List payload, {ViVersionWord? 
     'CPD2' => decodeCpd2Record(payload)?.serialize(),
     'TM80' => reserializeTypeMap(payload),
     'BFAL' => decodeAlignTable(payload)?.serialize(),
+    'PRT ' => decodePrintRecord(payload)?.serialize(),
+    'FPTD' => decodeU16Grid(payload)?.serialize(),
+    'HLPT' => decodeStringBlockRaw(payload)?.serialize(),
+    'HLPP' => decodeHelpPath(payload)?.serialize(),
+    'FTAB' => _serializeFontTable(payload),
+    'BKMK' => decodeBookmarkList(payload)?.serialize(),
+    'TRec' => decodeTextRecord(payload)?.serialize(),
+    'CCST' => decodeKeyValueTable(payload)?.serialize(),
+    'CPST' || 'CPSP' => decodePascalStringTable(payload)?.serialize(),
+    'BDTS' => decodeWordGrid(payload)?.serialize(),
     _ => null,
   };
   if (out == null || out.length != payload.length) return null;
@@ -188,6 +233,14 @@ Uint8List? serializeBlockPayload(String tag, Uint8List payload, {ViVersionWord? 
     if (out[i] != payload[i]) return null;
   }
   return out;
+}
+
+/// Re-emits an `FTAB` payload only when its header + metrics + name-table frame
+/// the block cleanly ([ViFontTable.nameTableComplete]); otherwise null so the
+/// block stays copied rather than emitting a clamped reconstruction.
+Uint8List? _serializeFontTable(Uint8List payload) {
+  final ft = decodeFontTable(payload);
+  return ft != null && ft.nameTableComplete ? ft.serialize() : null;
 }
 
 /// Re-emits a `LI*` payload from [ViLinkInfoRaw] only when its entry boundaries
