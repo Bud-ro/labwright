@@ -10,6 +10,7 @@ import 'coverage_view.dart';
 import 'diagram_view.dart';
 import 'hex_view.dart';
 import 'images_view.dart';
+import 'representative_vis.dart';
 import 'subvi_icon_resolver.dart';
 import 'types_view.dart';
 import 'vi_demo.dart';
@@ -31,7 +32,12 @@ class ViInspectorScreen extends StatefulWidget {
     this.initialEmbeddedVis,
     this.initialAttribution,
     this.initialImages,
+    this.fetchBytes = fetchViBytes,
   });
+
+  /// Fetches a representative VI's bytes from its URL. Defaults to [fetchViBytes]
+  /// (a real HTTPS GET); overridable in tests to avoid network I/O.
+  final Future<Uint8List> Function(Uri) fetchBytes;
 
   /// Optional summary to show on first build (used by tests).
   final ViSummary? initial;
@@ -82,6 +88,10 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
   List<ViEmbeddedVi> _embeddedVis = const [];
   WriterAttribution? _attribution;
   ViImages _images = const ViImages();
+
+  /// The representative VI currently being fetched from GitHub, or null. Drives
+  /// the per-chip spinner on the landing screen.
+  String? _fetchingRep;
 
   /// Resolves a subVI-call node's target `.vi` to its bytes so the block diagram
   /// can stamp the node with the called VI's icon. Set only when a file was
@@ -224,6 +234,28 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
     );
   }
 
+  /// Fetches a curated representative VI from GitHub and inspects it. Network
+  /// failures surface as a clean error. The fetched bytes have no local project
+  /// directory, so on-node subVI icons are not resolved (like an embedded VI).
+  Future<void> _openRepresentative(RepresentativeVi vi) async {
+    if (_fetchingRep != null) return;
+    setState(() => _fetchingRep = vi.name);
+    try {
+      final bytes = await widget.fetchBytes(vi.rawUrl);
+      if (!mounted) return;
+      _loadBytes(bytes, 'GitHub: ${vi.repo} · ${vi.name}');
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _summary = null;
+        _error = 'Could not fetch ${vi.name}: $e';
+        _source = vi.rawUrl.toString();
+      });
+    } finally {
+      if (mounted) setState(() => _fetchingRep = null);
+    }
+  }
+
   /// Opens the OS file-open dialog and inspects the chosen file.
   Future<void> _browse() async {
     final result = await FilePicker.pickFiles(
@@ -309,7 +341,11 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                   child: _error != null
                       ? _ErrorCard(_error!)
                       : _summary == null
-                      ? _Empty(dragging: _dragging)
+                      ? _Empty(
+                          dragging: _dragging,
+                          fetching: _fetchingRep,
+                          onOpenRepresentative: _openRepresentative,
+                        )
                       : DefaultTabController(
                           length: 6,
                           child: Column(
@@ -411,27 +447,96 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
 }
 
 class _Empty extends StatelessWidget {
-  const _Empty({required this.dragging});
+  const _Empty({
+    required this.dragging,
+    required this.onOpenRepresentative,
+    this.fetching,
+  });
   final bool dragging;
+
+  /// Called when a representative VI is chosen (the screen fetches + loads it).
+  final void Function(RepresentativeVi) onOpenRepresentative;
+
+  /// The name of the representative VI currently being fetched (shows a spinner
+  /// on its chip), or null when none is in flight.
+  final String? fetching;
 
   @override
   Widget build(BuildContext context) => Center(
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          dragging ? Icons.file_download : Icons.upload_file,
-          size: 48,
-          color: dragging ? Theme.of(context).colorScheme.primary : Colors.grey,
-        ),
-        const SizedBox(height: 12),
-        Text(
-          dragging
-              ? 'Drop the .vi to inspect it'
-              : 'Drag a .vi here, or use Browse… / Load demo VI',
-          style: const TextStyle(color: Colors.grey),
-        ),
-      ],
+    child: SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            dragging ? Icons.file_download : Icons.upload_file,
+            size: 48,
+            color: dragging
+                ? Theme.of(context).colorScheme.primary
+                : Colors.grey,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            dragging
+                ? 'Drop the .vi to inspect it'
+                : 'Drag a .vi here, or use Browse… / Load demo VI',
+            style: const TextStyle(color: Colors.grey),
+          ),
+          const SizedBox(height: 28),
+          const Text(
+            'Representative VIs — fetched from GitHub on open',
+            style: TextStyle(color: Colors.grey, fontSize: 12),
+          ),
+          const SizedBox(height: 10),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 720),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.center,
+              children: [
+                for (final vi in kRepresentativeVis)
+                  _RepChip(
+                    vi: vi,
+                    busy: fetching == vi.name,
+                    enabled: fetching == null,
+                    onTap: () => onOpenRepresentative(vi),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+/// A tappable chip for one [RepresentativeVi]: its name, a tooltip describing the
+/// feature, and a spinner while it is being fetched.
+class _RepChip extends StatelessWidget {
+  const _RepChip({
+    required this.vi,
+    required this.busy,
+    required this.enabled,
+    required this.onTap,
+  });
+  final RepresentativeVi vi;
+  final bool busy;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Tooltip(
+    message: '${vi.feature}\n${vi.repo}',
+    child: ActionChip(
+      avatar: busy
+          ? const SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.cloud_download_outlined, size: 16),
+      label: Text(vi.name, style: const TextStyle(fontSize: 12)),
+      onPressed: enabled ? onTap : null,
     ),
   );
 }
