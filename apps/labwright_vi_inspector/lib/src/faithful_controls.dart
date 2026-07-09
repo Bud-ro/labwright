@@ -211,7 +211,10 @@ Widget _faithfulFor(ViHeapObject object, {bool isFrontPanel = false}) {
     case HeapObjectClass.bdLeaf:
       return const _LeafBox();
     case HeapObjectClass.graphIndicator:
-      return _GraphPlaceholder(plotNames: object.plotNames);
+      return _GraphPlaceholder(
+        plotNames: object.plotNames,
+        plotColors: object.plotColors,
+      );
     case HeapObjectClass.controlSubPart:
       return const _UnknownBox();
     default:
@@ -445,7 +448,10 @@ class _Glyph extends StatelessWidget {
 }
 
 class _GraphPlaceholder extends StatelessWidget {
-  const _GraphPlaceholder({this.plotNames = const []});
+  const _GraphPlaceholder({
+    this.plotNames = const [],
+    this.plotColors = const [],
+  });
 
   /// Recovered plot/curve names (`C4 27`, e.g. "Plot 0"). NOT painted as an
   /// on-graph legend: the file already carries the real plot legend as its own
@@ -454,6 +460,12 @@ class _GraphPlaceholder extends StatelessWidget {
   /// are exposed only as a tooltip — an inspector affordance, not VI chrome.
   final List<String> plotNames;
 
+  /// Recovered per-curve plot colours ([ViHeapObject.plotColors]). The graph
+  /// draws one trace per recovered colour in that colour, so the plot *count* and
+  /// *colours* are the VI's real values; the trace *waveform* is a placeholder
+  /// (the file carries no sampled plot data). Empty → one neutral default trace.
+  final List<int> plotColors;
+
   @override
   Widget build(BuildContext context) {
     final graph = Container(
@@ -461,7 +473,7 @@ class _GraphPlaceholder extends StatelessWidget {
         color: const Color(0xFF0F1A0F),
         border: Border.all(color: _kBorder),
       ),
-      child: CustomPaint(painter: _GraphPainter()),
+      child: CustomPaint(painter: _GraphPainter(plotColors)),
     );
     if (plotNames.isEmpty) return graph;
     return Tooltip(
@@ -472,6 +484,11 @@ class _GraphPlaceholder extends StatelessWidget {
 }
 
 class _GraphPainter extends CustomPainter {
+  _GraphPainter(this.plotColors);
+
+  /// Recovered per-curve colours; one placeholder trace is drawn per colour.
+  final List<int> plotColors;
+
   @override
   void paint(Canvas canvas, Size size) {
     final grid = Paint()
@@ -483,18 +500,28 @@ class _GraphPainter extends CustomPainter {
     for (var y = 0.0; y < size.height; y += size.height / 4) {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), grid);
     }
-    final trace = Paint()
-      ..color = const Color(0xFF63D663)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2;
-    final path = Path();
-    for (var i = 0; i <= 48; i++) {
-      final x = size.width * i / 48;
-      final y =
-          size.height / 2 - (size.height / 2.6) * _sin(i / 48 * 6.283 * 2);
-      i == 0 ? path.moveTo(x, y) : path.lineTo(x, y);
+    // One trace per recovered plot colour (real colour + count; placeholder
+    // waveform, phase-shifted so overlapping curves stay distinguishable). With
+    // no recovered colour, a single neutral default trace is drawn.
+    final colors = plotColors.isEmpty
+        ? const [0xFF63D663]
+        : [for (final rgb in plotColors) 0xFF000000 | (rgb & 0xFFFFFF)];
+    for (var c = 0; c < colors.length; c++) {
+      final trace = Paint()
+        ..color = Color(colors[c])
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2;
+      final phase = colors.length == 1 ? 0.0 : c / colors.length;
+      final path = Path();
+      for (var i = 0; i <= 48; i++) {
+        final x = size.width * i / 48;
+        final y =
+            size.height / 2 -
+            (size.height / 2.6) * _sin((i / 48 + phase) * 6.283 * 2);
+        i == 0 ? path.moveTo(x, y) : path.lineTo(x, y);
+      }
+      canvas.drawPath(path, trace);
     }
-    canvas.drawPath(path, trace);
   }
 
   /// Bhaskara I sine approximation — plenty for a decorative trace, and keeps the
@@ -509,7 +536,14 @@ class _GraphPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _GraphPainter oldDelegate) {
+    final old = oldDelegate.plotColors;
+    if (old.length != plotColors.length) return true;
+    for (var i = 0; i < plotColors.length; i++) {
+      if (old[i] != plotColors[i]) return true;
+    }
+    return false;
+  }
 }
 
 enum _Form { numeric, enumRing, boolean, string, path, generic }

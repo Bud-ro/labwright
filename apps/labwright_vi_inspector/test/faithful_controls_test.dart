@@ -318,4 +318,22 @@ void main() {
     expect(tip.message, contains('Plot 0'));
     expect(tip.message, contains('Plot 1'));
   });
+
+  testWidgets('a graph with recovered plot colours paints without error', (
+    tester,
+  ) async {
+    await pumpLayer(tester, [
+      heapObj(
+        0x5e,
+        cat: ViObjectKind.terminal,
+        plotNames: ['Plot 0', 'Plot 1'],
+        plotColors: const [0xFF4242, 0x0EFF00],
+        at: (0, 0, 200, 300),
+      ),
+    ]);
+    // The graph mounts a CustomPaint (its painter draws one trace per recovered
+    // colour); the render completes without throwing.
+    expect(find.byType(CustomPaint), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
 }
