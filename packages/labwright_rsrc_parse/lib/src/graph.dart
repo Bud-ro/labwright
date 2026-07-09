@@ -249,7 +249,29 @@ enum HeapObjectClass {
   /// bounds, so wire coords may be relative to a different ancestor frame.
   /// (Refuted encodings, corpus-probed: terminal typed-refs 0/2699; framed C4
   /// point-list payloads 0/22557; binary blob attributes carry no geometry.)
+  /// The **logical** dataflow connection — with resolvable oid endpoints — is a
+  /// separate class, the [signal] `0x17`; see [ViWire].
   bdWire(0x1d, 'Wire segment (BD)', ViObjectKind.wire, ClassConfidence.inferred),
+
+  /// `0x17` — a **signal**: the block diagram's *logical* dataflow wire (the
+  /// connection LabVIEW routes and colours between terminals). Corpus (7524
+  /// VIs): 428,043 instances, BD-only. Each carries the per-signal record chain
+  /// `signalState 0x115 → compressedWireTable 0x1e7 → lastSignalKind 0x9f`
+  /// (~100% each) and, decisively, **its endpoint binding**: `14 19` childRefs
+  /// naming the data-connection objects it joins — 902,107 refs that resolve
+  /// **100.00%** within the BD heap, 91.2% of signals holding exactly 2
+  /// (source + sink), 7.5% holding 3, the remainder branching further. The
+  /// endpoints are DCO objects (`0x15` 95.6% / `0x16` 4.4%); each has a bounded
+  /// owner object (**100%** — the node or `0x1d` wire-segment it attaches to),
+  /// so the endpoints are spatially locatable (see [ViWire.endpointAnchors]).
+  /// The signal itself carries no bounds; its packed route lives in the
+  /// compressedWireTable payload (interior undecoded). Its **datatype is not
+  /// recovered**: neither the signal nor its endpoints carry a type, and the
+  /// per-object [HeapAttribute.typeDescIndex] reachable from ~8.7% of signals
+  /// (via an endpoint's `14 4f` dcoRef) is an object ordinal that agrees across
+  /// a signal's endpoints in 0.0% of cases, so it cannot identify a shared wire
+  /// type without resolving VCTP type content (see [ViWire]).
+  signal(0x17, 'Signal / dataflow wire (BD)', ViObjectKind.wire, ClassConfidence.inferred),
 
   /// `0x101` — a root **auxiliary** record; purpose undetermined.
   rootAux(0x101, 'Root auxiliary', ViObjectKind.unknown, ClassConfidence.kindOnly),
@@ -741,12 +763,55 @@ ViTypeKind inferTypeKind(Set<int> c4ops, List<int>? formatPayload) {
   return ViTypeKind.unknown;
 }
 
+/// A recovered block-diagram **dataflow wire** — a LabVIEW *signal*
+/// ([HeapObjectClass.signal], class `0x17`), the logical connection drawn
+/// between terminals.
+///
+/// Unlike the visual [HeapObjectClass.bdWire] `0x1d` segments (Manhattan-run
+/// geometry with no oid endpoints), a signal carries **oid endpoint binding**:
+/// [endpointOids] are the data-connection objects it joins (`14 19` childRefs;
+/// resolving 100% within the BD heap corpus-wide, 91% of signals holding two =
+/// source + sink). Each endpoint is resolved to an [endpointAnchor] — the
+/// absolute bounds of the endpoint's nearest bounded owner (the node or wire
+/// segment it attaches to; 100% have one) — so a consumer can route the wire
+/// between anchors. [endpointOids] and [endpointAnchors] are index-aligned; an
+/// anchor is null only if that endpoint oid does not resolve (0% corpus-wide).
+///
+/// The wire's **datatype is not exposed**, because it is not corpus-provable
+/// from the signal: neither the signal nor its endpoint objects carry a type,
+/// and the per-object [HeapAttribute.typeDescIndex] reachable from ~8.7% of
+/// signals (via an endpoint's `14 4f` dcoRef) is an object ordinal that agrees
+/// across a signal's endpoints in 0.0% of cases — identifying a shared wire type
+/// would require resolving the VCTP type table's flattened content, which this
+/// model does not do. A consumer that wants to colour a wire can read the type
+/// of a bounded endpoint owner it recognises; this model does not assert one.
+class ViWire {
+  ViWire({required this.signalOid, required this.endpointOids, required this.endpointAnchors});
+
+  /// The [ViHeapObject.oid] of the signal (`0x17`) object this wire is.
+  final int signalOid;
+
+  /// The oids of the endpoint data-connection objects the signal joins (its
+  /// `14 19` childRefs), in heap order. Two for 91% of signals (source + sink);
+  /// three or more where the signal branches. Direction (which endpoint is the
+  /// source) is not recovered, so the order is not asserted to be source-first.
+  final List<int> endpointOids;
+
+  /// The absolute bounds anchoring each endpoint — the [ViHeapObject.absBounds]
+  /// of the endpoint's nearest bounded owner (itself or a positional ancestor:
+  /// the node or `0x1d` wire segment it attaches to). Index-aligned with
+  /// [endpointOids]; an entry is null only when the endpoint oid does not
+  /// resolve (not observed in the corpus).
+  final List<HeapRect?> endpointAnchors;
+}
+
 /// A recovered block-diagram (or other heap) as a **nesting tree** of
 /// [ViHeapObject]s with absolute coordinates. The `14 19 01 fd` references are
-/// child-membership (structure → contained oids), **not** signal wires: actual
-/// dataflow wires are stored as geometry (no oid endpoints) and so do not appear
-/// as resolvable edges here. Partial/honest: object class codes and wire
-/// direction are not fully decoded.
+/// child-membership (structure → contained oids). LabVIEW's *logical* dataflow
+/// wires are the **signal** objects (class `0x17`), which DO carry resolvable
+/// oid endpoints — surfaced as [ViWire] via [wires]; the visual `0x1d` wire
+/// segments are geometry-only (no oid endpoints). Partial/honest: object class
+/// codes and wire direction/datatype are not fully decoded.
 class ViDiagram {
   ViDiagram({required this.sectionTag, required this.objects});
 
@@ -769,6 +834,34 @@ class ViDiagram {
 
   /// The bounded objects (have an absolute rectangle) — the drawable layout layer.
   Iterable<ViHeapObject> get nodes => objects.where((o) => o.absBounds != null);
+
+  /// The **dataflow wires** — one [ViWire] per signal (`0x17`) object, with its
+  /// endpoint oids ([ViHeapObject.refs], the `14 19` childRefs) resolved to
+  /// anchor rectangles. Built once on first access. Empty on a heap with no
+  /// signals (e.g. a front panel). See [ViWire].
+  late final List<ViWire> wires = [
+    for (final object in objects)
+      if (object.kind == 0x17)
+        ViWire(
+          signalOid: object.oid,
+          endpointOids: List<int>.of(object.refs),
+          endpointAnchors: [for (final oid in object.refs) _boundedOwnerBounds(oid)],
+        ),
+  ];
+
+  /// The [ViHeapObject.absBounds] of [oid]'s nearest bounded owner — the object
+  /// itself if bounded, else the nearest positional ancestor with bounds — or
+  /// null if none (and if [oid] does not resolve). Guards a repeated-oid cycle.
+  HeapRect? _boundedOwnerBounds(int oid) {
+    var object = byId[oid];
+    final seen = <int>{};
+    while (object != null && seen.add(object.oid)) {
+      if (object.absBounds != null) return object.absBounds;
+      final parentOid = object.parentOid;
+      object = parentOid == null ? null : byId[parentOid];
+    }
+    return null;
+  }
 }
 
 /// Groups [objects] by their [ViHeapObject.parentOid] (objects with a null parent

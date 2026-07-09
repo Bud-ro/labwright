@@ -13,7 +13,8 @@
 ///    aggregates everything into the read-only [ViModel] IR. The known
 ///    heap-record opcodes live in one place: the [HeapOpcode] enhanced enum.
 ///
-/// Honest/total throughout; documented limits (e.g. geometry-only signal wires).
+/// Honest/total throughout; documented limits (e.g. signal wires expose
+/// endpoint binding + geometry but not datatype — see [ViWire]).
 /// Recovering full block-diagram *logic* is ongoing work.
 library;
 
