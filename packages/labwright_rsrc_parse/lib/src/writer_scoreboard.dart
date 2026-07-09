@@ -189,7 +189,8 @@ WriterAttribution attributeVi(Uint8List bytes, {int depth = 0}) {
       tm80BySection[s.index] = body;
     }
   }
-  final verGe10 = (versionWordFromSections(sections)?.major ?? 0) >= 10;
+  final versionWord = versionWordFromSections(sections);
+  final verGe10 = (versionWord?.major ?? 0) >= 10;
   DfdsContext? dfdsContextFor(int secRel) {
     final vctp = vctpBody;
     if (vctp == null || tm80BySection.isEmpty) return null;
@@ -241,7 +242,7 @@ WriterAttribution attributeVi(Uint8List bytes, {int depth = 0}) {
           heapCopied += sub.heapCopiedBytes;
           heapBugs += sub.heapModelBugs;
         } else {
-          final modeled = tag == null ? null : serializeBlockPayload(tag, payload);
+          final modeled = tag == null ? null : serializeBlockPayload(tag, payload, version: versionWord);
           // An image block (DSIM/MNGI) is PARTIALLY modeled: its decoded/reproduced
           // framing (PNG signature + chunk length/type/verified-CRC, the geometry
           // header) and byte-faithful uncompressed interiors are model; its

@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import 'version_word.dart';
+
 /// A decoded `LIbd`/`LIvi`/`LIfp`/`LIds` **link-info** block: the linkage list
 /// binding this VI to what its block diagram / VI / front panel / data space
 /// reference — sub-VIs, classes, type definitions, and paths.
@@ -94,19 +96,35 @@ ViLinkInfo? decodeLinkInfo(Uint8List bytes) {
   );
 }
 
-/// A byte-exact `LI*` model: the proven header/terminator framing plus the
-/// entry region retained verbatim so [serialize] reproduces the section body.
+/// A byte-exact `LI*` model: the header/terminator framing plus the entry region
+/// retained verbatim so [serialize] reproduces the section body.
 ///
-/// The framing — [version] u16, [rootKind] 4cc, [entryCount] u32, [entryRegion],
-/// [terminator] u16 — holds on every corpus section (26136/26136, 0 desyncs).
-/// An entry's byte length is not separable from the region alone (its trailer is
-/// variable and data-dependent — see [ViLinkInfo]), so the region is
-/// deterministically bounded only when it holds at most one entry: [tiled] is
-/// true for [entryCount] 0 (the region is empty) or 1 (the single entry occupies
-/// the whole region up to [terminator]). For those the region is a leaf of known
-/// extent and [serialize] round-trips; for [entryCount] ≥ 2 the interior record
-/// boundaries are not recovered, so [tiled] is false and the writer keeps the
-/// section copied.
+/// The framing — [version] u16, [rootKind] 4cc, then either an entry `count`
+/// (u32) or a library self-name followed by a count, then the entries, then a u16
+/// [terminator] — holds on every corpus section (26136/26136, 0 desyncs). The
+/// entry region is retained in [entryRegion] and re-emitted verbatim, so
+/// [serialize] round-trips regardless of the interior grammar.
+///
+/// [tiled] records whether the interior entry boundaries are *recovered*, which
+/// is what lets the writer credit the region as model-sourced rather than an
+/// opaque copy:
+///  * `count` 0 or 1 — the region is empty or a single entry whose boundary is
+///    the whole region up to [terminator]; [tiled] is true.
+///  * `count` ≥ 2 — [tiled] is true only when a forward walk of the per-entry
+///    grammar consumes every entry to exactly the [terminator] with each entry
+///    opening on the `0x0002` marker (the boundary checksum). The walk is
+///    version-gated (many field widths depend on the LabVIEW save version, which
+///    is not in the block), so a null version leaves ≥ 2-entry sections untiled.
+///
+/// The per-entry grammar (reference: pylabview `LVlinkinfo`, corpus-verified):
+/// each entry is `[u16 0x0002][4cc kind][body]`. Bodies for the covered kinds
+/// (`VILB`/`VIVI`/`VICC`/`IUVI`/`TDCC`/`DSDS`/`FPPI`/`DDPI`/`VIPI`) are built
+/// from self-delimiting records — a length-prefixed qualified name, a `PTH0`
+/// path (`[u32 len]`-framed), an offset list (`[u32 count][u32…]`), a type-id,
+/// version-gated link-save flags, and a `VILinkRefInfo` block whose
+/// library-identity/GUID bytes are retained opaque. Sections whose entries use a
+/// kind outside that set, or a version variant the walk does not reproduce, do
+/// not reach the terminator and stay copied.
 class ViLinkInfoRaw {
   const ViLinkInfoRaw({
     required this.version,
@@ -123,18 +141,21 @@ class ViLinkInfoRaw {
   /// The 4-char linked-section tag (`BDHP`/`LVIN`/`FPHP`/`VIDS`).
   final String rootKind;
 
-  /// Declared entry count (u32 at offset 6).
+  /// The u32 at offset 6, retained verbatim so [serialize] is exact. This is the
+  /// entry count only for the count-first header form; for a library self-name
+  /// header it is the leading bytes of that name.
   final int entryCount;
 
   /// The entry bytes between the header and the terminator (`[10, len-2)`),
-  /// retained verbatim. Empty when [entryCount] is 0.
+  /// retained verbatim. Empty when the section carries no entries.
   final Uint8List entryRegion;
 
   /// The trailing u16 (3 across the corpus).
   final int terminator;
 
-  /// Whether the section is deterministically bounded ([entryCount] ≤ 1 and a
-  /// well-formed terminator), i.e. [serialize] reproduces it byte-for-byte.
+  /// Whether the interior entry boundaries are recovered (see the class doc), so
+  /// [serialize] reproducing the section is a model-sourced round-trip rather
+  /// than an opaque copy. [serialize] is byte-exact either way.
   final bool tiled;
 
   /// Re-emits `[u16 version][rootKind][u32 entryCount][entryRegion][u16
@@ -153,7 +174,11 @@ class ViLinkInfoRaw {
 
 /// Decodes a `LI*` body into a byte-exact [ViLinkInfoRaw]; null when [bytes]
 /// cannot hold the 12-byte header+terminator. Total.
-ViLinkInfoRaw? decodeLinkInfoRaw(Uint8List bytes) {
+///
+/// [version] is the file's LabVIEW save version (from `vers`), used to size the
+/// version-gated per-entry fields when recovering ≥ 2-entry boundaries; without
+/// it only the 0/1-entry forms tile (see [ViLinkInfoRaw.tiled]).
+ViLinkInfoRaw? decodeLinkInfoRaw(Uint8List bytes, {ViVersionWord? version}) {
   if (bytes.length < 12) return null;
   final view = ByteData.sublistView(bytes);
   final entryCount = view.getUint32(6);
@@ -164,6 +189,306 @@ ViLinkInfoRaw? decodeLinkInfoRaw(Uint8List bytes) {
     entryCount: entryCount,
     entryRegion: Uint8List.sublistView(bytes, 10, bytes.length - 2),
     terminator: terminator,
-    tiled: entryCount <= 1 && terminator == 3,
+    tiled: terminator == 3 && _tilesLinkInfo(bytes, version),
   );
+}
+
+/// Whether the `LI*` body [bytes] tiles: the header resolves to a `count` and
+/// entry-list start, and either the count is ≤ 1 (a known-extent leaf) or a
+/// forward walk consumes all `count` entries to exactly the terminator. Total.
+bool _tilesLinkInfo(Uint8List bytes, ViVersionWord? version) {
+  final termOff = bytes.length - 2;
+  final u32at6 = ByteData.sublistView(bytes).getUint32(6);
+
+  // Header form A: `[u32 count]` at offset 6, entries at 10.
+  if (u32at6 <= 0x10000 && _tilesFrom(bytes, version, u32at6, 10, termOff)) {
+    return true;
+  }
+  // Header form B (library-owned VI): `[u8 nameLen][name]` padded to 4, a u16,
+  // then `[u32 count]`, then entries.
+  if (bytes[6] != 0) {
+    var pos = 7 + bytes[6];
+    if (pos % 4 != 0) pos += 4 - (pos % 4);
+    pos += 2;
+    if (pos + 4 <= bytes.length) {
+      final countB = ByteData.sublistView(bytes).getUint32(pos);
+      if (countB <= 0x10000 && _tilesFrom(bytes, version, countB, pos + 4, termOff)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/// Tiles [count] entries starting at [start]; true iff they consume to exactly
+/// [termOff]. A 0/1-entry region is a known-extent leaf (true without walking);
+/// ≥ 2 entries require the version-gated walk to certify the boundaries.
+bool _tilesFrom(Uint8List bytes, ViVersionWord? version, int count, int start, int termOff) {
+  if (count <= 1) return start <= termOff;
+  if (version == null) return false;
+  final c = _LiCursor(bytes, version.major, version.minor, version.patch)..p = start;
+  for (var i = 0; i < count; i++) {
+    if (c.p + 6 > termOff || c.u16() != 2) return false;
+    final kind = c.tag4();
+    c.skip(4);
+    _liEntry(c, kind);
+    if (!c.ok) return false;
+  }
+  return c.ok && c.p == termOff;
+}
+
+/// A forward cursor over a `LI*` body with the absolute-offset alignment the
+/// entry grammar uses. Any out-of-bounds read clears [ok] and stops the walk.
+class _LiCursor {
+  _LiCursor(this.b, this.major, this.minor, this.patch);
+  final Uint8List b;
+  final int major, minor, patch;
+  int p = 0;
+  bool ok = true;
+
+  /// Whether the file version is ≥ `a.c.d` (release stage always satisfies the
+  /// small stage thresholds pylabview uses, so a major/minor/patch compare is
+  /// sufficient across the corpus).
+  bool ge(int a, int c, int d) {
+    if (major != a) return major > a;
+    if (minor != c) return minor > c;
+    return patch >= d;
+  }
+
+  int u8() {
+    if (p + 1 > b.length) {
+      ok = false;
+      return 0;
+    }
+    return b[p++];
+  }
+
+  int u16() {
+    if (p + 2 > b.length) {
+      ok = false;
+      return 0;
+    }
+    final v = (b[p] << 8) | b[p + 1];
+    p += 2;
+    return v;
+  }
+
+  int u32() {
+    if (p + 4 > b.length) {
+      ok = false;
+      return 0;
+    }
+    final v = (b[p] << 24) | (b[p + 1] << 16) | (b[p + 2] << 8) | b[p + 3];
+    p += 4;
+    return v;
+  }
+
+  void skip(int n) {
+    if (n < 0 || p + n > b.length) {
+      ok = false;
+      return;
+    }
+    p += n;
+  }
+
+  void pad(int align) {
+    final m = p % align;
+    if (m > 0) skip(align - m);
+  }
+
+  String tag4() {
+    if (p + 4 > b.length) {
+      ok = false;
+      return '';
+    }
+    return String.fromCharCodes(b, p, p + 4);
+  }
+}
+
+// The per-entry grammar. Each helper consumes one self-delimiting record; an
+// over-read clears the cursor's `ok`. Reference: pylabview `LVlinkinfo`.
+
+/// `[u32 count][count × [u8 len][bytes]]`.
+void _liQualName(_LiCursor c) {
+  final count = c.u32();
+  if (!c.ok || count > 4096) {
+    c.ok = false;
+    return;
+  }
+  for (var i = 0; i < count; i++) {
+    c.skip(c.u8());
+    if (!c.ok) return;
+  }
+}
+
+/// `PTH0`/`PTH1`/`PTH2` path: 4cc ident + `[u32 len]` + `len` self-framed bytes.
+void _liPathRef(_LiCursor c) {
+  final id = c.tag4();
+  if (!c.ok) return;
+  if (id != 'PTH0' && id != 'PTH1' && id != 'PTH2') {
+    c.ok = false;
+    return;
+  }
+  c.skip(4);
+  c.skip(c.u32());
+}
+
+/// `[u8 len][bytes]` padded so `(len+1)` is even (pylabview `readPStr` padto 2).
+void _liPStr(_LiCursor c) {
+  final n = c.u8();
+  c.skip(n);
+  if ((n + 1).isOdd) c.skip(1);
+}
+
+/// `[u32 len][bytes]` (pylabview `readLStr` padto 1 — no trailing pad).
+void _liLStr(_LiCursor c) {
+  final n = c.u32();
+  if (!c.ok || n > 0x20000000) {
+    c.ok = false;
+    return;
+  }
+  c.skip(n);
+}
+
+/// Variable-size type id: a u16, extended by a second u16 when the high bit set.
+void _liU2p2(_LiCursor c) {
+  if ((c.u16() & 0x8000) != 0) c.u16();
+}
+
+/// Qualified name + `PTH0` path + a version-gated link-save flag.
+void _liBasic(_LiCursor c) {
+  c.pad(4);
+  _liQualName(c);
+  if (!c.ok) return;
+  c.pad(2);
+  _liPathRef(c);
+  if (!c.ok) return;
+  if (c.ge(8, 6, 0)) {
+    c.skip(4);
+  } else if (c.ge(8, 5, 0)) {
+    c.skip(1);
+  }
+}
+
+/// VI-link reference info: a version-gated flag byte selecting an inline form or
+/// an expanded form whose library-version/identity words are retained opaque.
+void _liViLinkRef(_LiCursor c) {
+  var flagBt = 0xff;
+  if (c.ge(14, 0, 0)) flagBt = c.u8();
+  if (!c.ok || flagBt != 0xff) return;
+  if (c.ge(8, 0, 0)) c.skip(12); // field4(4) + libVersion(8)
+  if (c.ge(6, 0, 0)) c.skip(12); // three identity words (opaque)
+}
+
+/// Basic link-save info + a type id + VI-link ref info + version-gated flags.
+void _liTyped(_LiCursor c) {
+  if (!c.ge(8, 0, 0)) {
+    c.ok = false;
+    return;
+  }
+  _liBasic(c);
+  if (!c.ok) return;
+  _liU2p2(c);
+  if (!c.ok) return;
+  _liViLinkRef(c);
+  if (!c.ok) return;
+  if (c.ge(12, 0, 0)) c.skip(4);
+}
+
+/// `[u32 count][count × u32]` offset list.
+void _liOffList(_LiCursor c) {
+  final n = c.u32();
+  if (!c.ok || n > 1 << 20) {
+    c.ok = false;
+    return;
+  }
+  c.skip(4 * n);
+}
+
+void _liOffsetSave(_LiCursor c) {
+  _liTyped(c);
+  if (!c.ok) return;
+  if (c.ge(8, 2, 0)) _liOffList(c);
+}
+
+void _liHeapToVi(_LiCursor c) {
+  _liOffsetSave(c);
+  if (!c.ok) return;
+  if (c.ge(8, 2, 0)) _liPathRef(c);
+}
+
+/// UDClass API link cache: a version-gated library-version word, a few booleans,
+/// and an `LStr` content blob.
+void _liUdApiCache(_LiCursor c) {
+  c.pad(4);
+  c.skip(c.ge(8, 0, 0) ? 8 : 4);
+  if (!c.ge(8, 0, 4)) c.skip(4);
+  c.skip(1);
+  if (c.ge(8, 1, 0)) c.skip(1);
+  if (c.ge(9, 0, 0)) c.skip(1);
+  _liLStr(c);
+}
+
+void _liUdHeapApi(_LiCursor c) {
+  _liBasic(c);
+  if (!c.ok) return;
+  if (c.ge(8, 0, 3)) _liUdApiCache(c);
+  if (!c.ok) return;
+  c.pad(4);
+  _liOffList(c);
+}
+
+void _liUdViApi(_LiCursor c) {
+  _liBasic(c);
+  if (!c.ok) return;
+  _liUdApiCache(c);
+}
+
+/// An observed version-gated trailing offset-list on the offset-list/UDClass
+/// kinds (present at major ≥ 14, beyond pylabview's version coverage). Retained
+/// as a self-framed `[u32 count][u32…]`; the terminator checksum certifies it.
+void _liTrailer(_LiCursor c) {
+  if (c.major >= 14) _liOffList(c);
+}
+
+/// Consumes one entry body for [kind] (the `0x0002` marker and 4cc already
+/// read). An unhandled kind clears [c.ok] so the section stays copied.
+void _liEntry(_LiCursor c, String kind) {
+  switch (kind) {
+    case 'VILB':
+      _liBasic(c);
+    case 'IUVI':
+      c.ge(8, 2, 0) ? _liHeapToVi(c) : _liOffsetSave(c);
+      if (!c.ok) return;
+      if (c.ge(8, 0, 0)) _liPStr(c);
+      _liTrailer(c);
+    case 'VIVI':
+      _liTyped(c);
+      if (!c.ok) return;
+      if (c.ge(10, 0, 0) && c.u8() != 0) c.skip(36); // stdViGUID
+    case 'VICC':
+      _liTyped(c);
+    case 'TDCC':
+      _liHeapToVi(c);
+      if (!c.ok) return;
+      _liTrailer(c);
+    case 'DSDS':
+      _liOffsetSave(c);
+      if (!c.ok) return;
+      if (c.ge(8, 6, 0)) _liOffList(c);
+      if (!c.ok) return;
+      _liTrailer(c);
+    case 'FPPI':
+    case 'DDPI':
+    case 'VRPI':
+      _liUdHeapApi(c);
+      if (!c.ok) return;
+      _liTrailer(c);
+    case 'VIPI':
+      _liUdViApi(c);
+      if (!c.ok) return;
+      _liTrailer(c);
+    default:
+      c.ok = false;
+  }
 }

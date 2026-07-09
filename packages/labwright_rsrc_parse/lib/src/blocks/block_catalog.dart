@@ -340,7 +340,7 @@ const Map<String, ViBlockInfo> _catalog = {
     'Link info: VI',
     _li,
     _cf,
-    'u16 ver=1 + "LVIN" + u32 entry count + linkage entries (VILB/VICC/...); dependency names + PTH0 paths recovered; full entry grammar not yet decoded. See decodeLinkInfo.',
+    'u16 ver=1 + "LVIN" + u32 entry count + linkage entries (VILB/VICC/...); dependency names + PTH0 paths recovered; entry grammar walked for boundary tiling on the covered link kinds. See decodeLinkInfo.',
     decoder: 'decodeLinkInfo',
   ),
   'LIfp': ViBlockInfo(

@@ -53,9 +53,10 @@
 ///   * `BDPW` — block-diagram password ([ViPasswordRecord]); two or three
 ///     16-byte digests.
 ///   * `LIbd` / `LIvi` / `LIfp` / `LIds` — link-info ([ViLinkInfoRaw]); the
-///     header/terminator framing with the entry region retained, for the
-///     deterministically-bounded ≤1-entry sections (many-entry sections stay
-///     copied — see [ViLinkInfoRaw.tiled]).
+///     header/terminator framing with the entry region retained. The 0/1-entry
+///     forms and the multi-entry sections whose version-gated entry walk tiles
+///     to the terminator model-source; sections using an unhandled link kind or
+///     version variant stay copied (see [ViLinkInfoRaw.tiled]).
 ///   * `DLDR` — default-data loader ([ViWordGrid] via [decodeDldrRecord]); the
 ///     fixed seven-word `u32` grid.
 ///   * `CNST` / `LPIN` — constants table / linked-instance info ([ViWordGrid]);
@@ -141,7 +142,11 @@ bool hasBlockWriter(String tag) => switch (tag) {
 /// check makes adoption safe: model-source the payload when non-null, else keep
 /// it verbatim. `serializeBlockPayload(tag, p) == p` for every corpus instance
 /// of a covered [tag].
-Uint8List? serializeBlockPayload(String tag, Uint8List payload) {
+///
+/// [version] is the file's LabVIEW save version; the `LI*` link-info writer uses
+/// it to recover multi-entry boundaries (its per-entry field widths are
+/// version-gated). Absent it, only the 0/1-entry link-info forms model-source.
+Uint8List? serializeBlockPayload(String tag, Uint8List payload, {ViVersionWord? version}) {
   final out = switch (tag) {
     'icl8' || 'icl4' || 'ICON' => decodeLegacyIcon(payload, legacyIconBpp(tag)!)?.serialize(),
     'NUID' || 'SUID' || 'BNID' => decodeIdTable(payload)?.serialize(),
@@ -162,7 +167,7 @@ Uint8List? serializeBlockPayload(String tag, Uint8List payload) {
     'RTSG' => decodeRuntimeSignature(payload)?.serialize(),
     'SCSR' => decodeScsrRecord(payload)?.serialize(),
     'BDPW' => decodePasswordRecord(payload)?.serialize(),
-    'LIbd' || 'LIvi' || 'LIfp' || 'LIds' => _serializeLinkInfo(payload),
+    'LIbd' || 'LIvi' || 'LIfp' || 'LIds' => _serializeLinkInfo(payload, version),
     'DLDR' => decodeDldrRecord(payload)?.serialize(),
     'CNST' || 'LPIN' => decodeWordGrid(payload)?.serialize(),
     'VPDP' => decodeVpdpRecord(payload)?.serialize(),
@@ -180,10 +185,11 @@ Uint8List? serializeBlockPayload(String tag, Uint8List payload) {
   return out;
 }
 
-/// Re-emits a `LI*` payload from [ViLinkInfoRaw] only when the section is
-/// deterministically bounded ([ViLinkInfoRaw.tiled] — a ≤1-entry section);
-/// many-entry sections return null so they stay copied.
-Uint8List? _serializeLinkInfo(Uint8List payload) {
-  final info = decodeLinkInfoRaw(payload);
+/// Re-emits a `LI*` payload from [ViLinkInfoRaw] only when its entry boundaries
+/// are recovered ([ViLinkInfoRaw.tiled]): the 0/1-entry forms, plus multi-entry
+/// sections whose version-gated entry walk tiles to the terminator. Sections
+/// using an unhandled link kind or version variant return null and stay copied.
+Uint8List? _serializeLinkInfo(Uint8List payload, ViVersionWord? version) {
+  final info = decodeLinkInfoRaw(payload, version: version);
   return info != null && info.tiled ? info.serialize() : null;
 }
