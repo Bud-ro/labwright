@@ -197,12 +197,18 @@ bool _bytesEqual(Uint8List a, Uint8List b) {
   // Per-block round-trip census. Dedup by secRel (a payload referenced by
   // several descriptors is one span in the data area).
   try {
+    final secs = readViSections(bytes);
+    // The `LI*` link-info writer sizes its version-gated per-entry fields from
+    // the file's save version (see [serializeBlockPayload]); pass it so the
+    // census credits the version-dependent tiling forms, matching the
+    // scoreboard's attribution path.
+    final ver = versionWordFromSections(secs);
     final seen = <int>{};
-    for (final s in readViSections(bytes)) {
+    for (final s in secs) {
       if (!hasBlockWriter(s.tag) || !seen.add(s.dataOffset)) continue;
       n('${s.tag}.inst');
       n('${s.tag}.bytes', s.bytes.length);
-      if (serializeBlockPayload(s.tag, s.bytes) != null) {
+      if (serializeBlockPayload(s.tag, s.bytes, version: ver) != null) {
         n('${s.tag}.exact');
       } else if (_fullTags.contains(s.tag)) {
         bad('rt', '${s.tag}#${s.index} ${s.bytes.length}B did not round-trip');
