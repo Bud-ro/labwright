@@ -41,6 +41,34 @@ class ViHelpPath {
   final List<String> components;
 
   String get path => components.join('/');
+
+  /// Re-emits `"PTH0" [i32 innerLen == rawLength-8][i16 pathType][i16 count]`
+  /// then each component as `[u8 len][chars]`. The `innerLen` is regenerated
+  /// from the block length (`== rawLength-8` for every corpus `HLPP`). Null for a
+  /// non-`PTH0` body (nothing to reconstruct). A component whose chars are not
+  /// single-byte re-encodes lossily; the writer's byte-exact re-check keeps such
+  /// a block copied rather than emitting a wrong path.
+  Uint8List? serialize() {
+    if (!isPth0) return null;
+    var body = _pth0HeaderLen;
+    for (final c in components) {
+      body += 1 + c.length;
+    }
+    final out = Uint8List(body);
+    final bd = ByteData.sublistView(out);
+    out.setRange(0, 4, _pth0Magic);
+    bd.setUint32(4, rawLength - 8);
+    bd.setUint16(8, pathType);
+    bd.setUint16(10, components.length);
+    var pos = _pth0HeaderLen;
+    for (final c in components) {
+      out[pos++] = c.length & 0xff;
+      for (var i = 0; i < c.length; i++) {
+        out[pos++] = c.codeUnitAt(i) & 0xff;
+      }
+    }
+    return out;
+  }
 }
 
 /// Decodes an `HLPP` (`PTH0`) body. Null when too short for the header; returns

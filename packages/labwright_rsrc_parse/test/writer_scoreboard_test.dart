@@ -48,7 +48,8 @@ const _fullTags = [
   'icl8', 'icl4', 'ICON', 'NUID', 'SUID', 'BNID', 'vers', 'STRG', 'HIST', //
   'MUID', 'BDSE', 'FPSE', 'BDEx', 'FPEx', 'IPSR', 'PICC', 'CPMp', 'GCPR', //
   'RTSG', 'SCSR', 'BDPW', 'DLDR', 'CNST', 'LPIN', 'VPDP', 'TITL', 'OBSG', 'CCSG', //
-  'COUT', 'CPD2',
+  'COUT', 'CPD2', 'PRT ', 'FPTD', 'HLPT', 'HLPP', 'FTAB', 'BKMK', 'TRec', //
+  'CCST', 'CPST', 'CPSP', 'BDTS',
 ];
 
 /// Block tags whose payload writer re-serializes a **subset** of corpus

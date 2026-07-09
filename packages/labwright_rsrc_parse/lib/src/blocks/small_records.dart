@@ -130,30 +130,52 @@ ViIconPlacement? decodeIconPlacement(Uint8List bytes) {
   return ViIconPlacement(words: [for (var i = 0; i < 6; i++) view.getUint16(2 * i)]);
 }
 
-/// A decoded `PRT ` **print record**: a fixed 128-byte (rarely 132/136)
-/// layout with a version byte 0x01 at offset 4; the remaining fields are zero
-/// in the default (3737/3840) form. Field semantics are not yet decoded —
-/// [isDefaultLayout] distinguishes the all-default record from a customized
-/// print setup.
+/// A byte-exact `PRT ` **print record**: a fixed-length print-settings record
+/// (128 B, rarely 132/136; every corpus instance a whole number of big-endian
+/// u32 words, 3859/3859) read as its word grid. The version byte is at offset 4
+/// — the high byte of `words[1]` (0x01 in the default form); [isDefaultLayout]
+/// flags the all-default record (every word but that version byte zero). The
+/// print-setting fields (margins, orientation, scale) are retained verbatim as
+/// grid words — their semantics are not decoded — so [serialize] reproduces the
+/// record exactly.
 class ViPrintRecord {
-  const ViPrintRecord({required this.version, required this.isDefaultLayout, required this.length});
-  final int version;
-  final bool isDefaultLayout;
-  final int length;
+  const ViPrintRecord({required this.words});
+
+  /// The record's big-endian u32 words, in order (`length ~/ 4` of them).
+  final List<int> words;
+
+  /// The record length in bytes.
+  int get length => words.length * 4;
+
+  /// The version byte at offset 4 (the high byte of `words[1]`; 0x01 default).
+  int get version => words.length > 1 ? (words[1] >> 24) & 0xff : 0;
+
+  /// True when every word but the offset-4 version byte is zero.
+  bool get isDefaultLayout {
+    for (var i = 0; i < words.length; i++) {
+      final w = i == 1 ? words[i] & 0x00ffffff : words[i];
+      if (w != 0) return false;
+    }
+    return true;
+  }
+
+  /// Re-emits the big-endian u32 words in order — the whole record.
+  Uint8List serialize() {
+    final out = Uint8List(words.length * 4);
+    final d = ByteData.sublistView(out);
+    for (var i = 0; i < words.length; i++) {
+      d.setUint32(i * 4, words[i]);
+    }
+    return out;
+  }
 }
 
-/// Decodes a `PRT ` record; null when shorter than 8 bytes.
+/// Decodes a `PRT ` record as its big-endian u32 word grid; null when the body
+/// is empty or not a whole number of u32 words. Total.
 ViPrintRecord? decodePrintRecord(Uint8List bytes) {
-  if (bytes.length < 8) return null;
-  var nonZero = 0;
-  for (var i = 0; i < bytes.length; i++) {
-    if (i != 4 && bytes[i] != 0) nonZero++;
-  }
-  return ViPrintRecord(
-    version: bytes[4],
-    isDefaultLayout: nonZero == 0,
-    length: bytes.length,
-  );
+  if (bytes.isEmpty || bytes.length % 4 != 0) return null;
+  final view = ByteData.sublistView(bytes);
+  return ViPrintRecord(words: [for (var i = 0; i < bytes.length; i += 4) view.getUint32(i)]);
 }
 
 /// A decoded `BDSE`/`FPSE` section marker: a single big-endian u32
@@ -354,37 +376,110 @@ class ViU16Record {
 ViU16Record? decodeCpd2Record(Uint8List bytes) =>
     bytes.length == 2 ? ViU16Record(value: ByteData.sublistView(bytes).getUint16(0)) : null;
 
-/// A decoded `TRec` **text record**: a 13-byte header (leading zero words +
-/// small type bytes) followed by u16-length-prefixed text runs — step-by-step
-/// descriptions/tip text in corpus samples. Header field semantics are not
-/// yet decoded; [texts] recovers the embedded strings.
-class ViTextRecord {
-  const ViTextRecord({required this.texts, required this.length});
-  final List<String> texts;
-  final int length;
+/// A decoded big-endian `u16` **word grid**: the block body read as a run of
+/// big-endian `u16` words. `FPTD` (front-panel type descriptors) bodies are u16
+/// grids — a single `u16` index in the common 2-byte form, a longer table in the
+/// larger form; every corpus instance is a whole number of u16 words
+/// (3879/3879). The words' semantics are not decoded; retaining them re-emits
+/// the body exactly.
+class ViU16Grid {
+  const ViU16Grid({required this.words});
+  final List<int> words;
+
+  /// Re-emits the big-endian `u16` words in order — the whole body.
+  Uint8List serialize() {
+    final out = Uint8List(words.length * 2);
+    final d = ByteData.sublistView(out);
+    for (var i = 0; i < words.length; i++) {
+      d.setUint16(i * 2, words[i]);
+    }
+    return out;
+  }
 }
 
-/// Decodes a `TRec`; null when shorter than its 13-byte header.
-ViTextRecord? decodeTextRecord(Uint8List bytes) {
-  if (bytes.length < 13) return null;
-  final texts = <String>[];
+/// Decodes a big-endian `u16` word grid; null unless the body is a non-empty
+/// whole number of `u16` words. Total.
+ViU16Grid? decodeU16Grid(Uint8List bytes) {
+  if (bytes.isEmpty || bytes.length % 2 != 0) return null;
   final view = ByteData.sublistView(bytes);
-  for (var pos = 13; pos + 2 <= bytes.length && texts.length < 256; pos++) {
-    final len = view.getUint16(pos);
-    if (len < 4 || len > 4096 || pos + 2 + len > bytes.length) continue;
-    var printable = true;
-    for (var i = pos + 2; i < pos + 2 + len; i++) {
-      final byte = bytes[i];
-      if ((byte < 0x20 && byte != 0x09 && byte != 0x0a && byte != 0x0d) || byte >= 0x7f) {
-        printable = false;
-        break;
+  return ViU16Grid(words: [for (var at = 0; at < bytes.length; at += 2) view.getUint16(at)]);
+}
+
+/// The fixed `TRec` header length: 72 bytes precede the text-run region on every
+/// corpus instance (3144/3144). Its coordinate/flag words (bounding rects, type
+/// bytes) are not decoded; they are retained verbatim.
+const _trecHeaderLen = 72;
+
+/// A byte-exact `TRec` **text record**: a fixed 72-byte header followed by zero
+/// or more `[u32 len][len bytes]` text runs (the front-panel object's
+/// description and tip strings) packed to the block end. The 72-byte header
+/// (leading flag words + bounding-rect coordinates) is retained verbatim as an
+/// opaque leaf; the run region is framed by its length prefixes. Reading runs
+/// from offset 72 lands exactly on the block end for every corpus instance
+/// (3144/3144), so [serialize] reproduces the record exactly.
+class ViTextRecord {
+  const ViTextRecord({required this.header, required this.runs});
+
+  /// The fixed 72-byte header bytes, retained verbatim.
+  final Uint8List header;
+
+  /// Each length-prefixed run's payload bytes, in order (the `[u32 len]` prefix
+  /// is regenerated on [serialize]).
+  final List<Uint8List> runs;
+
+  /// The record length in bytes.
+  int get length => header.length + runs.fold(0, (a, r) => a + 4 + r.length);
+
+  /// The printable run payloads decoded as text (the description/tip strings);
+  /// a binary run is skipped. Diagnostic — [serialize] uses [runs] verbatim.
+  List<String> get texts {
+    final out = <String>[];
+    for (final r in runs) {
+      var printable = r.isNotEmpty;
+      for (final b in r) {
+        if ((b < 0x20 && b != 0x09 && b != 0x0a && b != 0x0d) || b >= 0x7f) {
+          printable = false;
+          break;
+        }
       }
+      if (printable) out.add(String.fromCharCodes(r));
     }
-    if (!printable) continue;
-    texts.add(String.fromCharCodes(bytes.sublist(pos + 2, pos + 2 + len)));
-    pos += 1 + len;
+    return out;
   }
-  return ViTextRecord(texts: texts, length: bytes.length);
+
+  /// Re-emits `[header][ (u32 len, payload) … ]` — the whole record.
+  Uint8List serialize() {
+    final out = Uint8List(length);
+    out.setRange(0, header.length, header);
+    final d = ByteData.sublistView(out);
+    var pos = header.length;
+    for (final r in runs) {
+      d.setUint32(pos, r.length);
+      pos += 4;
+      out.setRange(pos, pos + r.length, r);
+      pos += r.length;
+    }
+    return out;
+  }
+}
+
+/// Decodes a `TRec` into a byte-exact [ViTextRecord]; null when shorter than the
+/// 72-byte header or the `[u32 len][bytes]` run walk does not tile the body
+/// exactly to its end. Total.
+ViTextRecord? decodeTextRecord(Uint8List bytes) {
+  if (bytes.length < _trecHeaderLen) return null;
+  final view = ByteData.sublistView(bytes);
+  final runs = <Uint8List>[];
+  var pos = _trecHeaderLen;
+  while (pos < bytes.length) {
+    if (pos + 4 > bytes.length) return null;
+    final len = view.getUint32(pos);
+    pos += 4;
+    if (len > bytes.length - pos) return null;
+    runs.add(Uint8List.sublistView(bytes, pos, pos + len));
+    pos += len;
+  }
+  return ViTextRecord(header: Uint8List.sublistView(bytes, 0, _trecHeaderLen), runs: runs);
 }
 
 /// A decoded QuickDraw `PICT` (version 2) envelope: the picture bounds rect
