@@ -31,8 +31,8 @@ void main() {
     expect(types.map((t) => t.kind), [for (final (_, kind) in rows) kind]);
     expect((types.first.index, types.first.code), (0, 0x21));
 
-    final unknown = decodeTypePool(_pool([0xf0])).single;
-    expect((unknown.kind, unknown.code), (ViDataType.unknown, 0xf0));
+    final unknown = decodeTypePool(_pool([0x80])).single;
+    expect((unknown.kind, unknown.code), (ViDataType.unknown, 0x80));
   });
 
   test('total on short/empty pools; a truncated descriptor stops cleanly, keeping what parsed', () {
@@ -87,6 +87,75 @@ void main() {
     final bad = decodeTypePool(u8([0, 0, 0, 1, 0x00, 0x06, 0x40, 0x50, 0x03, 0xe7])).single;
     expect(bad.kind, ViDataType.cluster);
     expect(bad.members, isEmpty, reason: 'member count 999 in a tiny descriptor is rejected');
+  });
+
+  test('serializedDefaultSize: fixed-width leaves, cluster is the member sum, variable/unknown are null', () {
+    // One descriptor per code; check the flattened default width of each.
+    final types = decodeTypePool(
+      _pool([
+        0x00,
+        0x01,
+        0x02,
+        0x03,
+        0x04,
+        0x0a,
+        0x0b,
+        0x0e,
+        0x15,
+        0x16,
+        0x17,
+        0x21,
+        0x70,
+        0x30,
+        0x40,
+        0x53,
+        0x80,
+        0xf1,
+      ]),
+    );
+    int? sz(int i) => serializedDefaultSize(types[i], types);
+    expect(
+      [for (var i = 0; i < 13; i++) sz(i)],
+      [
+        0, // void
+        1, // i8
+        2, // i16
+        4, // i32
+        8, // i64
+        8, // dbl
+        16, // ext
+        32, // complexExt
+        1, // enumU8
+        2, // enumU16
+        4, // enumU32
+        1, // boolean
+        4, // refnum
+      ],
+    );
+    // string, array, variant, unknown 0x80, typedef 0xf1 — not derivable.
+    expect([for (var i = 13; i < 18; i++) sz(i)], [null, null, null, null, null]);
+
+    // Cluster{boolean, i32, dbl} = 1 + 4 + 8 = 13.
+    final cl = decodeTypePool(
+      u8([
+        0, 0, 0, 4, //
+        0x00, 0x04, 0x40, 0x21, // 0: boolean
+        0x00, 0x04, 0x40, 0x03, // 1: i32
+        0x00, 0x04, 0x40, 0x0a, // 2: dbl
+        0x00, 0x0c, 0x40, 0x50, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01, 0x00, 0x02, // 3: cluster{0,1,2}
+      ]),
+    );
+    expect(serializedDefaultSize(cl[3], cl), 13);
+
+    // A cluster with a variable member (string) is not derivable.
+    final clv = decodeTypePool(
+      u8([
+        0, 0, 0, 2, //
+        0x00, 0x04, 0x40, 0x30, // 0: string
+        0x00, 0x08, 0x40, 0x50, 0x00, 0x01, 0x00, 0x00, // 1: cluster{0}
+      ]),
+    );
+    expect(serializedDefaultSize(clv[1], clv), isNull);
   });
 
   test('array descriptors: element type, array<elem> label, 2-D dim stride, binary tail not a name', () {
