@@ -27,6 +27,7 @@ export 'src/blocks/help_path.dart';
 export 'src/blocks/history.dart';
 export 'src/blocks/icon.dart';
 export 'src/blocks/id_table.dart';
+export 'src/blocks/image_block.dart';
 export 'src/blocks/legacy_icon.dart';
 export 'src/blocks/link_info.dart';
 export 'src/blocks/save_record.dart';
