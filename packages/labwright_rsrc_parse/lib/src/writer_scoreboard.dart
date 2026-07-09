@@ -23,6 +23,16 @@
 /// content total is the file length with each compressed section's stored size
 /// swapped for its inflated size.
 ///
+/// The same reframe reaches one level deeper into the `DSIM`/`MNGI` image
+/// sections — uncompressed container sections whose stored bytes carry a PNG
+/// whose `IDAT` chunks hold a nested zlib stream. At the content level a PNG
+/// image's compressed `IDAT` stored size ([imageCompressedBytes]) is swapped for
+/// its inflated raster ([imageInflatedBytes], via [inflateImageRaster]), which
+/// is modeled ([imageInflatedModelBytes]): a raster leaf that re-deflates to a
+/// standard zlib stream carrying the same pixel content. The compressed `IDAT`
+/// across the corpus is replaced in the content total by its larger inflated
+/// raster, nearly all modeled.
+///
 /// Categories (byte model): the 32-byte header; the info-area structs (dup
 /// header, `blockListRel`, block list, preGap, section descriptors, trailing VI
 /// name); each section's recomputed `u32` length prefix; and payloads re-emitted
@@ -69,6 +79,10 @@ class WriterAttribution {
     required this.heapModelBytes,
     required this.heapCopiedBytes,
     required this.heapModelBugs,
+    required this.imageCompressedBytes,
+    required this.imageInflatedBytes,
+    required this.imageInflatedModelBytes,
+    required this.imageInflatedCopiedBytes,
   });
 
   /// Total file length in bytes (`modelBytes + copiedBytes`).
@@ -131,23 +145,47 @@ class WriterAttribution {
   /// not — surfaced as a loud regression signal (0 for a faithful model).
   final int heapModelBugs;
 
+  // --- content-level categories (image PNG rasters at inflated size) ---
+  /// Compressed `IDAT` stored bytes swapped out of the content total for the
+  /// inflated raster. These bytes are also in [untypedPayloadBytes] at the byte
+  /// level (a DSIM/MNGI section is an uncompressed container section); at the
+  /// content level they are replaced by [imageInflatedBytes].
+  final int imageCompressedBytes;
+
+  /// Total inflated raster size for every PNG-bearing image section
+  /// (`imageInflatedModelBytes + imageInflatedCopiedBytes`), swapped in for
+  /// [imageCompressedBytes] in the content total.
+  final int imageInflatedBytes;
+
+  /// Inflated raster bytes modeled as content — the raster leaf that re-deflates
+  /// to a standard zlib stream carrying the same pixel content.
+  final int imageInflatedModelBytes;
+
+  /// Inflated raster bytes not modeled as content (0 for rasters that inflate
+  /// cleanly).
+  final int imageInflatedCopiedBytes;
+
   /// Bytes emitted from a typed, understood field (byte level).
   int get modelBytes => headerBytes + infoStructBytes + sectionPrefixBytes + typedPayloadBytes;
 
   /// Bytes copied verbatim from the input (byte level).
   int get copiedBytes => infoRawBytes + gapBytes + compressedPayloadBytes + untypedPayloadBytes;
 
-  /// Content total: the file length with each compressed section's stored size
-  /// swapped for its inflated size (`contentModelBytes + contentCopiedBytes`).
-  int get contentTotalBytes => fileLength - compressedPayloadBytes + inflatedContentBytes;
+  /// Content total: the file length with each compressed heap section's stored
+  /// size swapped for its inflated size and each PNG image's compressed `IDAT`
+  /// swapped for its inflated raster (`contentModelBytes + contentCopiedBytes`).
+  int get contentTotalBytes =>
+      fileLength - compressedPayloadBytes + inflatedContentBytes - imageCompressedBytes + imageInflatedBytes;
 
   /// Content bytes emitted from a typed model — the byte-level model plus the
-  /// inflated heap content re-emitted from the heap model.
-  int get contentModelBytes => modelBytes + heapModelBytes;
+  /// inflated heap content and the inflated image rasters re-emitted from a model.
+  int get contentModelBytes => modelBytes + heapModelBytes + imageInflatedModelBytes;
 
   /// Content bytes copied verbatim — the byte-level copied set with the stored
-  /// compressed payloads swapped for their inflated copied content.
-  int get contentCopiedBytes => copiedBytes - compressedPayloadBytes + heapCopiedBytes;
+  /// compressed heap payloads swapped for their inflated copied content and the
+  /// compressed `IDAT` swapped for the raster's copied fraction.
+  int get contentCopiedBytes =>
+      copiedBytes - compressedPayloadBytes + heapCopiedBytes - imageCompressedBytes + imageInflatedCopiedBytes;
 }
 
 /// Recursion bound for nested `VINS` embedded sub-VIs. A VI may embed sub-VIs
@@ -215,6 +253,7 @@ WriterAttribution attributeVi(Uint8List bytes, {int depth = 0}) {
   var infoRaw = info.subheader.reservedA.length + info.subheader.reservedB.length + info.nameTable.header.length;
   var sectionPrefix = 0, typedPayload = 0, gaps = 0, compressed = 0, untyped = 0;
   var inflatedContent = 0, heapModel = 0, heapCopied = 0, heapBugs = 0;
+  var imageCompressed = 0, imageInflated = 0, imageInflatedModel = 0, imageInflatedCopied = 0;
 
   for (final seg in vi.dataSegments) {
     switch (seg) {
@@ -241,6 +280,10 @@ WriterAttribution attributeVi(Uint8List bytes, {int depth = 0}) {
           heapModel += sub.heapModelBytes;
           heapCopied += sub.heapCopiedBytes;
           heapBugs += sub.heapModelBugs;
+          imageCompressed += sub.imageCompressedBytes;
+          imageInflated += sub.imageInflatedBytes;
+          imageInflatedModel += sub.imageInflatedModelBytes;
+          imageInflatedCopied += sub.imageInflatedCopiedBytes;
         } else {
           final modeled = tag == null ? null : serializeBlockPayload(tag, payload, version: versionWord);
           // An image block (DSIM/MNGI) is PARTIALLY modeled: its decoded/reproduced
@@ -253,6 +296,14 @@ WriterAttribution attributeVi(Uint8List bytes, {int depth = 0}) {
           } else if (image != null && _eq(image.bytes, payload)) {
             typedPayload += image.modelBytes;
             untyped += image.copiedBytes;
+            // Content level: the compressed IDAT stored bytes (part of the byte-
+            // level copied set) are swapped for the inflated raster, modeled as
+            // content. A raster that fails to inflate leaves these zero, so its
+            // compressed IDAT stays counted in the copied set at the content level.
+            imageCompressed += image.compressedContentBytes;
+            imageInflated += image.inflatedContentBytes;
+            imageInflatedModel += image.inflatedModelBytes;
+            imageInflatedCopied += image.inflatedCopiedBytes;
           } else if (isCompressedHeapPayload(payload)) {
             compressed += payload.length;
             // Content level: attribute the section's INFLATED content via the
@@ -291,6 +342,10 @@ WriterAttribution attributeVi(Uint8List bytes, {int depth = 0}) {
     heapModelBytes: heapModel,
     heapCopiedBytes: heapCopied,
     heapModelBugs: heapBugs,
+    imageCompressedBytes: imageCompressed,
+    imageInflatedBytes: imageInflated,
+    imageInflatedModelBytes: imageInflatedModel,
+    imageInflatedCopiedBytes: imageInflatedCopied,
   );
   return attribution;
 }

@@ -33,6 +33,12 @@ import 'snapshot_check.dart';
 ///      whole container and requires it to re-parse and stay content-exact
 ///      ([viContentExact]) — the identity and re-deflated writer are both proven
 ///      content-exact there.
+///   4. **Image raster (nested content)** — every PNG-bearing DSIM/MNGI image
+///      inflates its IDAT to a raster that survives a standard-zlib round-trip
+///      ([imageRasterRoundTrips], N/N LAW). The content scoreboard counts that
+///      inflated raster in place of the compressed IDAT (see the
+///      [WriterAttribution] `image*` categories), so the content total reaches
+///      one level deeper than the container's zlib heaps.
 
 /// Block tags whose payload writer re-serializes **every** corpus instance
 /// byte-exact (asserted N/N below).
@@ -103,6 +109,11 @@ bool _bytesEqual(Uint8List a, Uint8List b) {
     n('heap.model', a.heapModelBytes);
     n('heap.copied', a.heapCopiedBytes);
     n('heapModelBugs', a.heapModelBugs);
+    // Image PNG raster content level (compressed IDAT swapped for inflated raster).
+    n('image.compressed', a.imageCompressedBytes);
+    n('image.inflated', a.imageInflatedBytes);
+    n('image.inflatedModel', a.imageInflatedModelBytes);
+    n('image.inflatedCopied', a.imageInflatedCopiedBytes);
   } catch (_) {}
 
   // Heap-writer byte-exactness + the re-deflate "compatible zlib" proof, per
@@ -216,6 +227,19 @@ bool _bytesEqual(Uint8List a, Uint8List b) {
       n('${s.tag}.copied', img.copiedBytes);
       n('img.chunks', img.pngChunks);
       n('img.crcVerified', img.crcVerified);
+      // Nested-content raster proof: a PNG-bearing image inflates its IDAT to a
+      // raster that survives a standard-zlib round-trip (the "compatible zlib"
+      // evidence, one level deeper than the container heap). Counts pinned; the
+      // round-trip census is asserted N/N as a LAW below.
+      final rt = imageRasterRoundTrips(s.tag, s.bytes);
+      if (rt == null) continue;
+      n('${s.tag}.png');
+      n('img.pngRaster');
+      if (rt) {
+        n('img.rasterRoundTrip');
+      } else {
+        bad('raster', '${s.tag}#${s.index} raster did not round-trip through standard zlib');
+      }
     }
   } catch (_) {}
 
@@ -360,6 +384,36 @@ void main() {
   test('IMAGE: every framed PNG chunk CRC-32 verifies', () {
     expect(cnt('img.crcVerified'), cnt('img.chunks'), reason: 'a framed PNG chunk failed CRC-32 verification');
     expect(cnt('img.chunks'), greaterThan(0), reason: 'no PNG chunks framed — census stale?');
+  });
+
+  test('IMAGE: every PNG-bearing image raster round-trips through standard zlib (compatible zlib)', () {
+    // Nested content-exact proof: inflate(deflate(inflate(IDAT))) == inflate(IDAT)
+    // for every DSIM/MNGI PNG. The inflated raster is the modeled content that
+    // replaces the compressed IDAT in the content total.
+    expect(
+      cnt('img.rasterRoundTrip'),
+      cnt('img.pngRaster'),
+      reason: 'raster did not round-trip for ${cnt('img.pngRaster') - cnt('img.rasterRoundTrip')}: ${D('raster')}',
+    );
+    expect(cnt('img.pngRaster'), greaterThan(0), reason: 'no PNG rasters inflated — census stale?');
+  });
+
+  test('LAW: contentModel counts the inflated raster in place of the compressed IDAT', () {
+    // The compressed IDAT swapped out of the content total equals the summed
+    // per-image compressedContentBytes; the inflated raster swapped in is all
+    // modeled (imageInflated == imageInflatedModel, no copied raster fraction).
+    expect(cnt('image.inflatedCopied'), 0, reason: 'a PNG raster was counted copied at the content level');
+    expect(
+      cnt('image.inflated'),
+      cnt('image.inflatedModel'),
+      reason: 'inflated raster not fully modeled at the content level',
+    );
+    expect(cnt('image.compressed'), greaterThan(0), reason: 'no compressed IDAT swapped for a raster — census stale?');
+    expect(
+      cnt('image.inflated'),
+      greaterThan(cnt('image.compressed')),
+      reason: 'inflated raster mass should exceed the compressed IDAT it replaces',
+    );
   });
 
   test('writer scoreboard measurements match the committed snapshot exactly', () {

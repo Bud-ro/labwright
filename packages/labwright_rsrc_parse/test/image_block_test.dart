@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:archive/archive.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
@@ -26,6 +27,26 @@ Uint8List _png() {
   final idat = _chunk('IDAT', [0xde, 0xad, 0xbe, 0xef, 0x01, 0x02]); // opaque stream stand-in
   final iend = _chunk('IEND', const []);
   return u8([..._pngSig, ...ihdr, ...idat, ...iend]);
+}
+
+/// A 4x4 RGB PNG whose IDAT is a real zlib stream over a per-scanline raster
+/// `[filter byte][row pixels]`, optionally split across [idatParts] IDAT chunks.
+/// Returns the PNG bytes and the raster the IDAT inflates to.
+({Uint8List png, Uint8List raster}) _pngRealIdat({int idatParts = 1}) {
+  const w = 4, h = 4;
+  final raster = Uint8List((1 + w * 3) * h);
+  for (var i = 0; i < raster.length; i++) {
+    raster[i] = (i * 7 + 3) & 0xff;
+  }
+  final z = Uint8List.fromList(const ZLibEncoder().encodeBytes(raster));
+  final ihdr = _chunk('IHDR', [0, 0, 0, w, 0, 0, 0, h, 8, 2, 0, 0, 0]);
+  final iend = _chunk('IEND', const []);
+  final idats = <int>[];
+  final part = (z.length / idatParts).ceil();
+  for (var off = 0; off < z.length; off += part) {
+    idats.addAll(_chunk('IDAT', z.sublist(off, off + part > z.length ? z.length : off + part)));
+  }
+  return (png: u8([..._pngSig, ...ihdr, ...idats, ...iend]), raster: raster);
 }
 
 /// A raw-raster DSIM header: leading zero u32, geometry at 4 and 30, length
@@ -72,6 +93,37 @@ void main() {
     test('a non-PNG MNG variant is not framed', () {
       expect(decodeImageBlock('MNGI', u8([0x8a, 0x4d, 0x4e, 0x47, 0, 1, 2, 3])), isNull);
     });
+
+    test('an unrecoverable IDAT stream leaves the content-level split zero', () {
+      // _png()'s IDAT is not a valid zlib stream, so nothing is swapped in at the
+      // content level: the 6 IDAT bytes stay in the byte-level copied set.
+      final img = decodeImageBlock('MNGI', _png())!;
+      expect(img.compressedContentBytes, 0);
+      expect(img.inflatedContentBytes, 0);
+      expect(img.inflatedModelBytes, 0);
+      expect(imageRasterRoundTrips('MNGI', _png()), isNull);
+    });
+
+    test('a real IDAT inflates to the raster and counts as content-model', () {
+      final made = _pngRealIdat();
+      final img = decodeImageBlock('MNGI', made.png)!;
+      expect(img.bytes, made.png, reason: 're-emit must stay byte-exact');
+      expect(inflateImageRaster('MNGI', made.png), made.raster);
+      // The compressed IDAT is swapped for the inflated raster, all modeled.
+      expect(img.inflatedContentBytes, made.raster.length);
+      expect(img.inflatedModelBytes, made.raster.length);
+      expect(img.inflatedCopiedBytes, 0);
+      expect(img.compressedContentBytes, greaterThan(0));
+      expect(imageRasterRoundTrips('MNGI', made.png), isTrue);
+    });
+
+    test('a raster split across multiple IDAT chunks concatenates and inflates', () {
+      final made = _pngRealIdat(idatParts: 3);
+      expect(inflateImageRaster('MNGI', made.png), made.raster);
+      expect(imageRasterRoundTrips('MNGI', made.png), isTrue);
+      final img = decodeImageBlock('MNGI', made.png)!;
+      expect(img.inflatedModelBytes, made.raster.length);
+    });
   });
 
   group('DSIM', () {
@@ -83,6 +135,10 @@ void main() {
       expect(img.isRaster, isTrue);
       expect(img.modelBytes, 46 + pixels.length);
       expect(img.copiedBytes, 4); // trailer
+      // A raw raster carries no PNG, so there is no IDAT to inflate.
+      expect(img.inflatedContentBytes, 0);
+      expect(img.compressedContentBytes, 0);
+      expect(inflateImageRaster('DSIM', dsim), isNull);
     });
 
     test('raw raster with a mismatched pixel-count field is not framed', () {
