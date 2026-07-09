@@ -48,6 +48,7 @@ library;
 import 'dart:typed_data';
 
 import 'blocks/compiled_code.dart' show compiledCodeFrames, reserializeCompiledCode;
+import 'blocks/dfds.dart' show DfdsContext, dataSpaceFrames, reserializeDataSpace;
 import 'blocks/type_map.dart' show reserializeTypeMap, typeMapFrames;
 import 'blocks/type_pool.dart' show reserializeTypePool, typePoolFrames;
 import 'heap.dart';
@@ -316,8 +317,15 @@ class HeapContentSplit {
 /// is a compiled-code descriptor (an envelope + a `code` chunk + a `CODE` symbol
 /// table — see [compiledCodeFrames]); `TM80` is the data-space type map (a
 /// variable-field `[count][indexShift][flags…]` list — see [typeMapFrames]);
+/// `DFDS` is the default data-space fill, framed by a flattened-value walk over
+/// its `VCTP`/`TM80` context ([dataSpaceFrames]) when [dfdsContext] is supplied;
 /// every other tag (and null) is walked as an object-record heap ([walkHeapBody]).
-HeapContentSplit attributeHeapBody(Uint8List body, [String? sectionTag]) {
+HeapContentSplit attributeHeapBody(Uint8List body, [String? sectionTag, DfdsContext? dfdsContext]) {
+  if (sectionTag == 'DFDS' && dfdsContext != null) {
+    return dataSpaceFrames(body, dfdsContext)
+        ? HeapContentSplit(modelBytes: body.length, copiedBytes: 0, modelBugs: 0)
+        : HeapContentSplit(modelBytes: 0, copiedBytes: body.length, modelBugs: 0);
+  }
   if (sectionTag == 'VCTP') {
     return typePoolFrames(body)
         ? HeapContentSplit(modelBytes: body.length, copiedBytes: 0, modelBugs: 0)
@@ -374,12 +382,21 @@ int _verifiedModelLength(Uint8List body, int offset, _Modeled m) {
 ///
 /// [sectionTag] selects the grammar: `VCTP` re-serializes as a type pool
 /// ([reserializeTypePool]), `VICD` as a compiled-code descriptor
-/// ([reserializeCompiledCode]), and `TM80` as a data-space type map
-/// ([reserializeTypeMap]) — their structural words are reconstructed and their
-/// opaque interiors (type-descriptor interiors; machine code and symbol names)
-/// retained byte-faithfully, so the whole body is model-sourced when it frames;
-/// every other tag (and null) is re-emitted as an object-record heap.
-HeapWriteResult serializeHeapBody(Uint8List body, [String? sectionTag]) {
+/// ([reserializeCompiledCode]), `TM80` as a data-space type map
+/// ([reserializeTypeMap]), and `DFDS` as a default data-space fill
+/// ([reserializeDataSpace], when [dfdsContext] is supplied) — their structural
+/// words are reconstructed and their opaque interiors (type-descriptor interiors;
+/// machine code and symbol names; flattened default-value bytes) retained
+/// byte-faithfully, so the whole body is model-sourced when it frames; every
+/// other tag (and null) is re-emitted as an object-record heap.
+HeapWriteResult serializeHeapBody(Uint8List body, [String? sectionTag, DfdsContext? dfdsContext]) {
+  if (sectionTag == 'DFDS' && dfdsContext != null) {
+    final reserialized = reserializeDataSpace(body, dfdsContext);
+    if (reserialized != null) {
+      return HeapWriteResult(bytes: reserialized, modelBytes: body.length, copiedBytes: 0, modelBugs: 0);
+    }
+    return HeapWriteResult(bytes: body, modelBytes: 0, copiedBytes: body.length, modelBugs: 0);
+  }
   if (sectionTag == 'VCTP') {
     final reserialized = reserializeTypePool(body);
     if (reserialized != null) {

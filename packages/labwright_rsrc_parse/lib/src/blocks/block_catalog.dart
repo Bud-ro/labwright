@@ -222,18 +222,17 @@ const Map<String, ViBlockInfo> _catalog = {
     _ds,
     _lk,
     'Compressed default data-space image: the flattened default values of the '
-        'data-control objects (DCOs) whose TM80/DSTM entry is flagged HasSaveData '
-        '(bit13) / IsDSAlignPadding (bit0), concatenated in type-map order, each '
-        'value laid out per its VCTP type. 3567 corpus instances (~7.4 MB, 3566 '
-        'zlib-stored). There is NO offset table: each value\'s extent is implied '
-        'by its type\'s flattened width read sequentially, so tiling DFDS needs '
-        'full type-aware flattened-value parsing (inline array/string/cluster '
-        'lengths), not just the type map. The leading region is the first mapped '
-        'entry\'s flattened default (a large data-space-init cluster; 726 bodies '
-        'are exactly that 204-byte cluster alone). serializedDefaultSize gives the '
-        'fixed-width per-type sizes, but a selected variable-width type appears in '
-        'every corpus DFDS, so none tile on fixed sizes alone; the body is '
-        'retained verbatim. The type map itself (TM80) is decoded and framed.',
+        'data-space entries selected by their TM80/DSTM role flags (HasSaveData '
+        'bit13 / IsDSAlignPadding bit0, plus the special-DSTM-cluster roles), '
+        'concatenated in type-map order, each value laid out per its VCTP type. '
+        'There is NO offset table: each value\'s extent is implied by its type\'s '
+        'flattened width read sequentially, so tiling DFDS needs full type-aware '
+        'flattened-value parsing (inline array/string/path lengths, block-family '
+        'and cluster/typedef recursion) driven by the VCTP pool + TM80 map. '
+        'dataSpaceFrames walks and tiles 3477/3534 corpus DFDS exactly (~94% of '
+        'DFDS bytes), re-emitting each byte-exact; the untiled remainder (LVVariant '
+        'and MeasureData default values) stays copied. See dfds.dart.',
+    decoder: 'dataSpaceFrames',
   ),
   'DSIM': ViBlockInfo(
     'DSIM',

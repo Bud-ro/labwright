@@ -152,6 +152,30 @@ void main() {
     });
   });
 
+  test('DFDS framing is total on random buffers/contexts and byte-exact when it frames', () {
+    expectTotal(3, 3000, 64, (b) {
+      final ctx = DfdsContext(vctp: b, tm80: b, verGe10: b.isNotEmpty && b[0].isEven);
+      // Never throws; the split always tiles the body regardless of framing.
+      final split = attributeHeapBody(b, 'DFDS', ctx);
+      expect(split.modelBytes + split.copiedBytes, b.length);
+      expect(split.modelBugs, 0);
+      final res = serializeHeapBody(b, 'DFDS', ctx);
+      expect(res.bytes, equals(b));
+      expect(res.modelBytes + res.copiedBytes, b.length);
+      // When it frames, the whole body is model-sourced; a garbage context tiles
+      // to nothing and the body is copied — either way the re-emission is exact.
+      expect(dataSpaceFrames(b, ctx) ? res.copiedBytes : res.modelBytes, 0);
+    });
+  });
+
+  test('DFDS without a context is copied (generic heap walk stays byte-exact)', () {
+    expectTotal(5, 3000, 64, (b) {
+      final res = serializeHeapBody(b, 'DFDS');
+      expect(res.bytes, equals(b));
+      expect(res.modelBytes + res.copiedBytes, b.length);
+    });
+  });
+
   test('deflate/inflate heap payload round-trips the content', () {
     final content = u8([for (var i = 0; i < 500; i++) (i * 7) & 0xff]);
     final payload = deflateHeapPayload(content);
