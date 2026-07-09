@@ -179,6 +179,18 @@ class ViHeapObject {
   /// fill of a control — or null. Same part-ownership caveat as [bgRgb].
   int? contentRgb;
 
+  /// Decoded 24-bit `0xRRGGBB` **structure** colour of this object
+  /// ([HeapAttribute.structColor], raw `0x119`, inferred) — a block-diagram
+  /// structure's frame colour (loop / case / sequence / timed) — or null.
+  /// Corpus: BDHb-only, 8 recurring values (the LabVIEW structure greys and the
+  /// pale sequence/timed tint), so it is a real per-structure colour.
+  int? structRgb;
+
+  /// Decoded 24-bit `0xRRGGBB` **border** colour of this object
+  /// ([HeapAttribute.borderColor], raw `0x02b`, inferred) — a front-panel
+  /// control/graph border — or null. Corpus: FPHb-only.
+  int? borderRgb;
+
   /// The named, documented class catalog entry for this object's [kind]
   /// (or [HeapObjectClass.unknown] if the code is not catalogued).
   HeapObjectClass get objectClass => HeapObjectClass.fromCode(kind);
@@ -695,7 +707,13 @@ const kControlTerminalCodes = {0x50, 0x4f, 0x57, 0x5b, 0x51};
 /// 0x20/0x21 catch the `C6` control-range f64s (raw tags 0x220/0x221,
 /// stdNumMin/stdNumMax), 0x6c the `C6 6C FF` constant-value text (raw 0x26C).
 /// (0x31 names were dropped — they sit on non-drawable structural objects.)
-const _objAttrIds = {0x20, 0x21, 0x6c, 0x24, 0x28, 0x6f};
+// Low bytes of the object-attribute raw tags the graph builder captures. The
+// gate is a fast prefilter on `body[offset+1]` (the raw tag's low 8 bits);
+// `decodeHeapAttr` disambiguates the full 10-bit tag, so a low-byte collision
+// (e.g. 0x19 shared by structColor 0x119 and any 0xN19) is harmless — the
+// capture switch acts only on the exact decoded [HeapAttribute]. 0x19/0x2b are
+// the structColor/borderColor low bytes.
+const _objAttrIds = {0x20, 0x21, 0x6c, 0x24, 0x28, 0x6f, 0x19, 0x2b};
 
 /// Pixel-area threshold (width×height) for the structural node fallback in
 /// `buildDiagram`. A still-`unknown` object that otherwise matches the BD-node
@@ -979,6 +997,10 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
               cur.fgRgb ??= rgb;
             case HeapAttribute.contentColor:
               cur.contentRgb ??= rgb;
+            case HeapAttribute.structColor:
+              cur.structRgb ??= rgb;
+            case HeapAttribute.borderColor:
+              cur.borderRgb ??= rgb;
             default:
               break;
           }
