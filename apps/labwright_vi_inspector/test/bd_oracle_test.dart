@@ -155,6 +155,74 @@ void main() {
     });
   });
 
+  group('content-bounds registration', () {
+    // A white RGBA canvas with one black rectangle painted (LTRB).
+    Uint8List canvasWith(int w, int h, int l, int t, int r, int b) {
+      final out = Uint8List(w * h * 4)..fillRange(0, w * h * 4, 0xff);
+      for (var y = t; y < b; y++) {
+        for (var x = l; x < r; x++) {
+          final i = (y * w + x) * 4;
+          out[i] = 0;
+          out[i + 1] = 0;
+          out[i + 2] = 0;
+        }
+      }
+      return out;
+    }
+
+    test('inkBoundsOf finds the tight ink rectangle', () {
+      final rgba = canvasWith(20, 10, 5, 3, 12, 7);
+      final bounds = inkBoundsOf(rgba, 20, 10);
+      expect(bounds, isNotNull);
+      // Half-open box: right/bottom are one past the last inked column/row.
+      expect(bounds!.left, 5);
+      expect(bounds.top, 3);
+      expect(bounds.right, 12);
+      expect(bounds.bottom, 7);
+    });
+
+    test('inkBoundsOf returns null for a blank canvas', () {
+      final rgba = canvasWith(8, 8, 0, 0, 0, 0);
+      expect(inkBoundsOf(rgba, 8, 8), isNull);
+    });
+
+    testWidgets('registration aligns a shifted, rescaled render', (
+      tester,
+    ) async {
+      await tester.runAsync(() async {
+        // Render: a 20×10 mark near the top-left of a small canvas.
+        final render = await imageFromRgba(
+          canvasWith(60, 60, 10, 10, 30, 20),
+          60,
+          60,
+        );
+        // Reference: the same mark at twice the size, off-centre in a larger,
+        // differently-shaped canvas — a correct render, framed differently.
+        final reference = await imageFromRgba(
+          canvasWith(200, 120, 140, 80, 180, 100),
+          200,
+          120,
+        );
+        final result = await compareToReference(render, reference);
+        expect(result.registered, isTrue);
+        // Aligning the ink boxes recovers a strong structural overlap that a
+        // naive centred letterbox (different crop/scale) would not.
+        expect(result.structural.inkIoU, greaterThan(0.5));
+      });
+    });
+
+    testWidgets('same-size pair takes the fast path (no registration)', (
+      tester,
+    ) async {
+      await tester.runAsync(() async {
+        final a = await imageFromRgba(canvasWith(40, 40, 8, 8, 24, 24), 40, 40);
+        final result = await compareToReference(a, a);
+        expect(result.registered, isFalse);
+        expect(result.comparison.meanAbsDiff, 0);
+      });
+    });
+  });
+
   group('dataflow wire rendering', () {
     // A diagram with two bounded nodes joined by one signal (0x17) wire, plus an
     // optional third node [midNode] sitting on the wire's horizontal run (used to

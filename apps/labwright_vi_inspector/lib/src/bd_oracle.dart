@@ -9,11 +9,14 @@
 /// drawn content can *raise* it. The [StructuralComparison] corrects for that: it
 /// credits drawn structure by comparing the two images' ink and Sobel-edge masks
 /// as intersection-over-union, so drawing the nodes/wires correctly scores
-/// better, not worse. Both are *coarse* signals — the render is not pixel-perfect
-/// and the two images have different origins, scales and anti-aliasing — so they
-/// are progress metrics, not a pass/fail gate, and the side-by-side + diff
-/// visualisation is the primary output for a human to judge fidelity. No claim of
-/// LabVIEW equivalence is made or implied.
+/// better, not worse. Before either comparison the render is registered onto the
+/// reference by aligning their drawn-ink bounding boxes (see [inkBoundsOf]), so a
+/// correct render framed at a different crop or scale than the screenshot is not
+/// penalised for the framing. Both are still *coarse* signals — the render is not
+/// pixel-perfect, registration aligns only extents, and the two images differ in
+/// anti-aliasing — so they are progress metrics, not a pass/fail gate, and the
+/// side-by-side + diff visualisation is the primary output for a human to judge
+/// fidelity. No claim of LabVIEW equivalence is made or implied.
 library;
 
 import 'dart:async';
@@ -293,6 +296,7 @@ class BdOracleResult {
     required this.comparison,
     required this.structural,
     required this.diffImage,
+    required this.registered,
   });
 
   final ui.Image rendered;
@@ -304,6 +308,15 @@ class BdOracleResult {
   /// content over emptiness (see [StructuralComparison]).
   final StructuralComparison structural;
   final ui.Image diffImage;
+
+  /// True when [fitted] was placed by **content-bounds registration** (the
+  /// render's ink bounding box scaled + centred onto the reference's, see
+  /// [inkBoundsOf]) rather than a naive centred letterbox. Registration cancels
+  /// the crop/margin/scale mismatch between a clean-room render and a
+  /// documentation screenshot, so a correct render is not penalised for being
+  /// framed differently. False on the same-size fast path or when either image
+  /// has no ink to register on.
+  final bool registered;
 }
 
 /// Compares a [rendered] block diagram against a [reference] image: the render is
@@ -317,14 +330,34 @@ Future<BdOracleResult> compareToReference(
 }) async {
   final width = reference.width;
   final height = reference.height;
+  final referenceRgba = await _rgbaOf(reference);
   // Skip the resample when the render already matches the reference exactly, so
   // an identical pair diffs to a true zero (a same-size letterbox still applies
   // a sub-pixel filter).
-  final fitted = (rendered.width == width && rendered.height == height)
-      ? rendered
-      : await _letterbox(rendered, width, height);
+  ui.Image fitted;
+  var registered = false;
+  if (rendered.width == width && rendered.height == height) {
+    fitted = rendered;
+  } else {
+    // Register the render onto the reference by aligning their drawn-ink
+    // bounding boxes (aspect-preserved scale + centre), so a correct render at
+    // a different crop/scale is credited instead of penalised. Falls back to a
+    // centred letterbox when either image has no ink to register on.
+    final renderedOwnRgba = await _rgbaOf(rendered);
+    final srcInk = inkBoundsOf(
+      renderedOwnRgba,
+      rendered.width,
+      rendered.height,
+    );
+    final dstInk = inkBoundsOf(referenceRgba, width, height);
+    if (srcInk != null && dstInk != null) {
+      fitted = await _placeByInkBounds(rendered, srcInk, dstInk, width, height);
+      registered = true;
+    } else {
+      fitted = await _letterbox(rendered, width, height);
+    }
+  }
   final renderedRgba = await _rgbaOf(fitted);
-  final referenceRgba = await _rgbaOf(reference);
   final comparison = compareRgba(
     renderedRgba,
     referenceRgba,
@@ -346,6 +379,7 @@ Future<BdOracleResult> compareToReference(
     comparison: comparison,
     structural: structural,
     diffImage: diffImage,
+    registered: registered,
   );
 }
 
@@ -379,6 +413,113 @@ Future<Uint8List> imageToPng(ui.Image image) async {
 Future<Uint8List> _rgbaOf(ui.Image image) async {
   final data = await image.toByteData();
   return data!.buffer.asUint8List();
+}
+
+/// The tight bounding rectangle of the **ink** (non-background) pixels in an
+/// RGBA buffer, robust to a small fraction of stray outlier ink. A pixel is ink
+/// when it is darker than white by more than [inkThreshold] (the same test the
+/// [StructuralComparison] uses). Each axis is trimmed to the span that holds all
+/// but [trim] of that axis's ink mass from each end, so an isolated speck — a
+/// screenshot's window chrome, a stray anti-aliased pixel — does not stretch the
+/// box. Returns null when the buffer holds no ink. Pure + total; O(pixels).
+Rect? inkBoundsOf(
+  Uint8List rgba,
+  int width,
+  int height, {
+  int inkThreshold = 12,
+  double trim = 0.01,
+}) {
+  assert(rgba.length == width * height * 4, 'buffer is not width*height*4');
+  final cols = Uint32List(width);
+  final rows = Uint32List(height);
+  var total = 0;
+  for (var y = 0; y < height; y++) {
+    final rowBase = y * width;
+    for (var x = 0; x < width; x++) {
+      final j = (rowBase + x) * 4;
+      final lum = (rgba[j] * 77 + rgba[j + 1] * 150 + rgba[j + 2] * 29) >> 8;
+      if (255 - lum > inkThreshold) {
+        cols[x]++;
+        rows[y]++;
+        total++;
+      }
+    }
+  }
+  if (total == 0) return null;
+  final cut = (total * trim).floor();
+  final left = _trimStart(cols, cut);
+  final right = _trimEnd(cols, cut);
+  final top = _trimStart(rows, cut);
+  final bottom = _trimEnd(rows, cut);
+  if (right < left || bottom < top) return null;
+  return Rect.fromLTRB(
+    left.toDouble(),
+    top.toDouble(),
+    (right + 1).toDouble(),
+    (bottom + 1).toDouble(),
+  );
+}
+
+/// The first index of [hist] at which the cumulative sum from the start first
+/// exceeds [cut] (the trimmed lower bound).
+int _trimStart(Uint32List hist, int cut) {
+  var acc = 0;
+  for (var i = 0; i < hist.length; i++) {
+    acc += hist[i];
+    if (acc > cut) return i;
+  }
+  return hist.length - 1;
+}
+
+/// The last index of [hist] at which the cumulative sum from the end first
+/// exceeds [cut] (the trimmed upper bound).
+int _trimEnd(Uint32List hist, int cut) {
+  var acc = 0;
+  for (var i = hist.length - 1; i >= 0; i--) {
+    acc += hist[i];
+    if (acc > cut) return i;
+  }
+  return 0;
+}
+
+/// Redraws [src] into a [width]×[height] canvas so its ink bounding box [srcInk]
+/// is scaled (aspect-preserved) and centred onto the reference ink box [dstInk]
+/// over a white background — a coarse **content-bounds registration** that lets
+/// a correct render drawn at a different crop, margin or scale than the
+/// reference line up with it before diffing. Not feature-level registration; it
+/// aligns extents and centres, nothing finer.
+Future<ui.Image> _placeByInkBounds(
+  ui.Image src,
+  Rect srcInk,
+  Rect dstInk,
+  int width,
+  int height, {
+  Color background = const Color(0xFFFFFFFF),
+}) {
+  final recorder = ui.PictureRecorder();
+  final canvas = Canvas(
+    recorder,
+    Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()),
+  );
+  canvas.drawRect(
+    Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()),
+    Paint()..color = background,
+  );
+  // Aspect-preserved scale that fits the render's ink extent to the reference's.
+  final scale = math.min(
+    dstInk.width / srcInk.width,
+    dstInk.height / srcInk.height,
+  );
+  // Position the whole src image so srcInk's centre maps onto dstInk's centre.
+  final left = dstInk.center.dx - scale * srcInk.center.dx;
+  final top = dstInk.center.dy - scale * srcInk.center.dy;
+  canvas.drawImageRect(
+    src,
+    Rect.fromLTWH(0, 0, src.width.toDouble(), src.height.toDouble()),
+    Rect.fromLTWH(left, top, src.width * scale, src.height * scale),
+    Paint()..filterQuality = FilterQuality.medium,
+  );
+  return recorder.endRecording().toImage(width, height);
 }
 
 /// Redraws [src] centred and aspect-preserved into a [width]×[height] canvas over
@@ -521,8 +662,9 @@ class _BdOracleViewState extends State<BdOracleView> {
                       'edge IoU ${(result.structural.edgeIoU * 100).toStringAsFixed(1)}%; '
                       'ink render ${(result.structural.inkFractionRender * 100).toStringAsFixed(1)}% '
                       'vs ref ${(result.structural.inkFractionReference * 100).toStringAsFixed(1)}%) — '
-                      'credits drawn structure over emptiness. Coarse progress '
-                      'signals (origins/scales differ) — not a fidelity claim.',
+                      'credits drawn structure over emptiness. '
+                      '${result.registered ? 'Content-bounds registered' : 'Centred letterbox'}. '
+                      'Coarse progress signals — not a fidelity claim.',
                       style: const TextStyle(color: Colors.grey, fontSize: 12),
                     ),
             ),
