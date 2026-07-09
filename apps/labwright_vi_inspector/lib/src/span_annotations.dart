@@ -413,33 +413,36 @@ class StringPreview extends StatelessWidget {
   );
 }
 
-/// Paints a 32×32 [ViLegacyIcon] scaled to fill the given size. 1-bit pixels are
-/// drawn black/white (mask); 4/8-bit pixels are shaded by their palette index
-/// (grayscale) — an honest stand-in, since the true LabVIEW palette is not mapped.
+/// Paints a 32×32 [ViLegacyIcon] scaled to fill the given size as a two-tone
+/// index mask: pixel index 0 is [background], every nonzero index is
+/// [foreground]. The LabVIEW icon colour palette is not resolved, so the stored
+/// palette indices are not real colours — drawing zero-vs-nonzero makes the icon
+/// SHAPE visible at any bit depth (1/4/8 bpp) without a palette, instead of
+/// mapping a raw index to a colour (which can render a high-index icon as a blank
+/// field on a matching background). The indices are shown as foreground/background,
+/// not true colours.
 class LegacyIconPainter extends CustomPainter {
   LegacyIconPainter(this.icon);
   final ViLegacyIcon icon;
 
+  static const background = Color(0xFF1E1E1E);
+  static const foreground = Color(0xFFE0E0E0);
+
   @override
   void paint(Canvas canvas, Size size) {
     const dim = 32;
+    canvas.drawRect(Offset.zero & size, Paint()..color = background);
     final cw = size.width / dim;
     final ch = size.height / dim;
-    final maxIdx = (1 << icon.bpp) - 1;
-    final paint = Paint();
+    final paint = Paint()..color = foreground;
     for (var y = 0; y < dim; y++) {
       for (var x = 0; x < dim; x++) {
-        final pixel = icon.pixels[y * dim + x];
-        if (icon.bpp == 1) {
-          paint.color = pixel == 0 ? Colors.white : Colors.black;
-        } else {
-          final gray = maxIdx == 0 ? 0 : (255 * pixel ~/ maxIdx).clamp(0, 255);
-          paint.color = Color.fromARGB(255, gray, gray, gray);
+        if (icon.pixels[y * dim + x] != 0) {
+          canvas.drawRect(
+            Rect.fromLTWH(x * cw, y * ch, cw + 0.5, ch + 0.5),
+            paint,
+          );
         }
-        canvas.drawRect(
-          Rect.fromLTWH(x * cw, y * ch, cw + 0.5, ch + 0.5),
-          paint,
-        );
       }
     }
     canvas.drawRect(

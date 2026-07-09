@@ -162,6 +162,15 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
     });
   }
 
+  /// The decompressed `VCTP` section body, or null when the VI carries none —
+  /// feeds the Types tab's bytes↔types correlation view.
+  Uint8List? _vctpBytes() {
+    for (final section in _sections) {
+      if (section.tag == 'VCTP') return section.bytes;
+    }
+    return null;
+  }
+
   void _openPath() => _loadPath(_pathCtrl.text.trim());
 
   /// Reads and inspects the file at [path] (shared by the text field, the
@@ -349,6 +358,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                                     ViTypesView(
                                       key: ValueKey('types:$_model'),
                                       model: _model,
+                                      vctpBytes: _vctpBytes(),
                                     ),
                                     ViImagesView(
                                       key: ValueKey('img:${_images.count}'),

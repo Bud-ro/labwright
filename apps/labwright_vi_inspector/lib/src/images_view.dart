@@ -1,8 +1,10 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:image/image.dart' as img;
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
+import 'image_clipboard.dart';
 import 'span_annotations.dart';
 
 /// The eight-byte PNG signature `\x89PNG\r\n\x1a\n`. A block payload is scanned
@@ -107,14 +109,84 @@ ViImages extractViImages(List<DecodedSection> sections) {
   return ViImages(pngs: pngs, icons: icons);
 }
 
+/// A short bit-depth label for a legacy-icon tag (`icl8` → `8-bit`).
+String legacyIconDepthLabel(int bpp) => '$bpp-bit';
+
+/// Encodes a decoded [ViLegacyIcon]'s 32×32 index grid to PNG bytes, using the
+/// same two-tone index mask [LegacyIconPainter] displays: pixel index 0 →
+/// [LegacyIconPainter.background], any nonzero index → [LegacyIconPainter.foreground].
+/// The LabVIEW icon colour palette is not resolved, so the copied PNG carries the
+/// icon SHAPE (foreground/background), not resolved colours.
+Uint8List encodeLegacyIconPng(ViLegacyIcon icon) {
+  const dim = ViLegacyIcon.width;
+  final image = img.Image(width: dim, height: dim);
+  // Channel values mirror LegacyIconPainter.background (0x1E) / .foreground (0xE0).
+  const bg = 0x1E, fg = 0xE0;
+  for (var y = 0; y < dim; y++) {
+    for (var x = 0; x < dim; x++) {
+      final v = icon.pixels[y * dim + x] != 0 ? fg : bg;
+      image.setPixelRgb(x, y, v, v, v);
+    }
+  }
+  return img.encodePng(image);
+}
+
+/// Whether two decoded icons carry the identical pixel grid (byte-for-byte across
+/// their index arrays) — used to note honestly when a depth variant happens to
+/// match another, rather than assuming the depths are equal.
+bool _sameGrid(ViLegacyIcon a, ViLegacyIcon b) {
+  if (a.pixels.length != b.pixels.length) return false;
+  for (var i = 0; i < a.pixels.length; i++) {
+    if (a.pixels[i] != b.pixels[i]) return false;
+  }
+  return true;
+}
+
 /// A gallery of the VI's embedded images: PNGs (`MNGI`/`DSIM` and any other
 /// carrier) rendered via `Image.memory`, and legacy 32×32 icon bitmaps
 /// (`icl8`/`icl4`/`ICON`) drawn from their pixel grids. Each tile is captioned
 /// with its source block tag, dimensions, and byte size; a per-image failure
 /// renders a placeholder rather than crashing the tab.
 class ViImagesView extends StatelessWidget {
-  const ViImagesView({super.key, required this.images});
+  const ViImagesView({
+    super.key,
+    required this.images,
+    this.clipboard = const SystemImageClipboard(),
+  });
   final ViImages images;
+
+  /// Sink for the per-tile "copy as image" action — the OS clipboard in
+  /// production, a fake in tests.
+  final ImageClipboard clipboard;
+
+  /// Copies [pngBytes] to the clipboard as an image and shows a brief
+  /// confirmation (or an honest failure notice). The messenger is captured
+  /// before the await so the async gap does not touch a stale context.
+  Future<void> _copy(
+    BuildContext context,
+    Uint8List pngBytes,
+    String what,
+  ) async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final ok = await clipboard.copyPng(pngBytes);
+    messenger?.showSnackBar(
+      SnackBar(
+        content: Text(
+          ok ? 'Copied $what to clipboard' : 'Could not copy $what',
+        ),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  /// The legacy icons ordered by depth (icl8 → icl4 → ICON), so the richest
+  /// depth leads the "VI icon" group.
+  List<EmbeddedLegacyIcon> get _orderedIcons {
+    const order = {'icl8': 0, 'icl4': 1, 'ICON': 2};
+    final sorted = [...images.icons]
+      ..sort((a, b) => (order[a.tag] ?? 9).compareTo(order[b.tag] ?? 9));
+    return sorted;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -129,6 +201,7 @@ class ViImagesView extends StatelessWidget {
         ),
       );
     }
+    final icons = _orderedIcons;
     return ListView(
       padding: const EdgeInsets.all(12),
       children: [
@@ -143,24 +216,73 @@ class ViImagesView extends StatelessWidget {
           style: TextStyle(color: Colors.grey, fontSize: 12),
         ),
         const SizedBox(height: 12),
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: [
-            for (final png in images.pngs) _PngTile(png),
-            for (final icon in images.icons) _LegacyIconTile(icon),
-          ],
-        ),
+        if (images.pngs.isNotEmpty)
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              for (final png in images.pngs)
+                _PngTile(
+                  png,
+                  onCopy: () => _copy(context, png.bytes, '${png.tag} image'),
+                ),
+            ],
+          ),
+        if (icons.isNotEmpty) ...[
+          if (images.pngs.isNotEmpty) const SizedBox(height: 20),
+          const Text('VI icon', style: TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 4),
+          const Text(
+            'The VI\'s 32×32 icon at different colour depths — icl8 (8-bit), '
+            'icl4 (4-bit) and ICON (1-bit) are stored independently, not '
+            'guaranteed identical. The colour palette is not resolved, so each is '
+            'drawn as an index mask (foreground/background), not true colours.',
+            style: TextStyle(color: Colors.grey, fontSize: 12),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              for (final icon in icons)
+                _LegacyIconTile(
+                  icon,
+                  sameAs: _matchNote(icon, icons),
+                  onCopy: () => _copy(
+                    context,
+                    encodeLegacyIconPng(icon.icon),
+                    '${icon.tag} icon',
+                  ),
+                ),
+            ],
+          ),
+        ],
       ],
     );
   }
+
+  /// The tag of an earlier-listed depth variant whose decoded pixel grid is
+  /// byte-identical to [icon]'s, or null when [icon]'s grid is unique. Only a
+  /// proven match is noted — depths are never assumed equal.
+  String? _matchNote(EmbeddedLegacyIcon icon, List<EmbeddedLegacyIcon> icons) {
+    for (final other in icons) {
+      if (identical(other, icon)) break;
+      if (_sameGrid(other.icon, icon.icon)) return other.tag;
+    }
+    return null;
+  }
 }
 
-/// A framed image tile with a two-line caption (tag · dimensions · size).
+/// A framed image tile with a caption and a per-tile "copy as image" button.
 class _ImageTile extends StatelessWidget {
-  const _ImageTile({required this.caption, required this.child});
+  const _ImageTile({
+    required this.caption,
+    required this.child,
+    required this.onCopy,
+  });
   final String caption;
   final Widget child;
+  final VoidCallback onCopy;
 
   @override
   Widget build(BuildContext context) => SizedBox(
@@ -169,16 +291,38 @@ class _ImageTile extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: 176,
-          height: 176,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.25),
-            border: Border.all(color: const Color(0x33FFFFFF)),
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: child,
+        Stack(
+          children: [
+            Container(
+              width: 176,
+              height: 176,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.25),
+                border: Border.all(color: const Color(0x33FFFFFF)),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: child,
+            ),
+            Positioned(
+              top: 2,
+              right: 2,
+              child: Material(
+                type: MaterialType.transparency,
+                child: IconButton(
+                  tooltip: 'Copy image to clipboard',
+                  visualDensity: VisualDensity.compact,
+                  iconSize: 18,
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.black.withValues(alpha: 0.45),
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: onCopy,
+                  icon: const Icon(Icons.content_copy),
+                ),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 6),
         Text(caption, style: const TextStyle(fontSize: 11, color: Colors.grey)),
@@ -188,11 +332,13 @@ class _ImageTile extends StatelessWidget {
 }
 
 class _PngTile extends StatelessWidget {
-  const _PngTile(this.png);
+  const _PngTile(this.png, {required this.onCopy});
   final EmbeddedPng png;
+  final VoidCallback onCopy;
 
   @override
   Widget build(BuildContext context) => _ImageTile(
+    onCopy: onCopy,
     caption:
         '${png.tag} · ${png.width}×${png.height} · ${_fmtSize(png.bytes.length)}',
     child: Image.memory(
@@ -206,12 +352,20 @@ class _PngTile extends StatelessWidget {
 }
 
 class _LegacyIconTile extends StatelessWidget {
-  const _LegacyIconTile(this.entry);
+  const _LegacyIconTile(this.entry, {required this.onCopy, this.sameAs});
   final EmbeddedLegacyIcon entry;
+  final VoidCallback onCopy;
+
+  /// The tag of an earlier depth variant with an identical decoded grid, noted
+  /// in the caption when proven; null otherwise.
+  final String? sameAs;
 
   @override
   Widget build(BuildContext context) => _ImageTile(
-    caption: '${entry.tag} · 32×32 · ${entry.icon.bpp}bpp icon',
+    onCopy: onCopy,
+    caption:
+        'VI icon · ${legacyIconDepthLabel(entry.icon.bpp)} (${entry.tag})'
+        '${sameAs != null ? ' · identical grid to $sameAs' : ''}',
     child: CustomPaint(
       size: const Size(128, 128),
       painter: LegacyIconPainter(entry.icon),

@@ -1,19 +1,31 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
+import 'vctp_view.dart';
+
 /// Read-only view of the VI's recovered **data-type dictionary** (the VCTP type
 /// pool): named typedefs rendered structurally — enums with their item values,
-/// clusters with their typed fields, others as `kind name`.
+/// clusters with their typed fields, others as `kind name`. When the raw `VCTP`
+/// body is supplied, a toggle switches to a byte↔decode correlation view
+/// ([VctpCorrelationView]) that matches raw bytes to the descriptors they decode
+/// as and vice-versa.
 class ViTypesView extends StatefulWidget {
-  const ViTypesView({super.key, required this.model});
+  const ViTypesView({super.key, required this.model, this.vctpBytes});
 
   final ViModel? model;
+
+  /// The decompressed `VCTP` section body, when available — enables the
+  /// bytes↔types correlation toggle.
+  final Uint8List? vctpBytes;
 
   @override
   State<ViTypesView> createState() => _ViTypesViewState();
 }
 
 class _ViTypesViewState extends State<ViTypesView> {
+  bool _showBytes = false;
   static const int _typeCap = 500;
   static const int _itemCap = 64;
 
@@ -71,6 +83,9 @@ class _ViTypesViewState extends State<ViTypesView> {
         child: Text('No data types recovered (VCTP) for this file.'),
       );
     }
+    final vctpBytes = widget.vctpBytes;
+    final canCorrelate =
+        vctpBytes != null && vctpTypeSpans(vctpBytes).isNotEmpty;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -78,40 +93,58 @@ class _ViTypesViewState extends State<ViTypesView> {
           padding: const EdgeInsets.symmetric(vertical: 4),
           child: Row(
             children: [
-              IconButton(
-                tooltip: 'Smaller text',
-                visualDensity: VisualDensity.compact,
-                onPressed: _fontSize <= _minFont ? null : () => _bumpFont(-1),
-                icon: const Icon(Icons.text_decrease, size: 18),
-              ),
-              Text(
-                '${_fontSize.round()}',
-                style: const TextStyle(fontSize: 12),
-              ),
-              IconButton(
-                tooltip: 'Larger text',
-                visualDensity: VisualDensity.compact,
-                onPressed: _fontSize >= _maxFont ? null : () => _bumpFont(1),
-                icon: const Icon(Icons.text_increase, size: 18),
-              ),
+              if (!_showBytes) ...[
+                IconButton(
+                  tooltip: 'Smaller text',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: _fontSize <= _minFont ? null : () => _bumpFont(-1),
+                  icon: const Icon(Icons.text_decrease, size: 18),
+                ),
+                Text(
+                  '${_fontSize.round()}',
+                  style: const TextStyle(fontSize: 12),
+                ),
+                IconButton(
+                  tooltip: 'Larger text',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: _fontSize >= _maxFont ? null : () => _bumpFont(1),
+                  icon: const Icon(Icons.text_increase, size: 18),
+                ),
+              ],
+              const Spacer(),
+              if (canCorrelate)
+                SegmentedButton<bool>(
+                  style: SegmentedButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  segments: const [
+                    ButtonSegment(value: false, label: Text('Listing')),
+                    ButtonSegment(value: true, label: Text('Bytes ↔ types')),
+                  ],
+                  selected: {_showBytes},
+                  onSelectionChanged: (s) =>
+                      setState(() => _showBytes = s.first),
+                ),
             ],
           ),
         ),
         Expanded(
-          child: Scrollbar(
-            child: SingleChildScrollView(
-              primary: true,
-              padding: const EdgeInsets.all(8),
-              child: SelectableText(
-                _render(viModel),
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  fontSize: _fontSize,
-                  height: 1.4,
+          child: _showBytes && vctpBytes != null
+              ? VctpCorrelationView(body: vctpBytes)
+              : Scrollbar(
+                  child: SingleChildScrollView(
+                    primary: true,
+                    padding: const EdgeInsets.all(8),
+                    child: SelectableText(
+                      _render(viModel),
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: _fontSize,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-            ),
-          ),
         ),
       ],
     );
