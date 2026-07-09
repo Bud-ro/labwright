@@ -247,6 +247,69 @@ int? _pictOpcodeDataLength(int op, ByteData v, int dataStart) {
 /// [ImageDescription]'s `cType` field.
 const int _qtRawCodec = 0x72617720; // 'raw '
 
+/// The decoded pixel raster of a PICT's uncompressed (`raw ` codec)
+/// `CompressedQuickTime` image: QuickDraw-packed scanlines with no row padding
+/// (`rowBytes = width·depth/8`). At [depth] 24 each pixel is 3 bytes `R G B`;
+/// at [depth] 32 each pixel is 4 bytes `pad/alpha R G B` (QuickDraw xRGB — the
+/// leading byte is typically 0 and not an alpha channel).
+class ViQuickTimeRaster {
+  const ViQuickTimeRaster({
+    required this.width,
+    required this.height,
+    required this.depth,
+    required this.pixels,
+  });
+
+  final int width;
+  final int height;
+
+  /// Bits per pixel (24 or 32 in the corpus).
+  final int depth;
+
+  /// The packed scanlines, exactly `width·depth/8 × height` bytes.
+  final Uint8List pixels;
+}
+
+/// Decodes the first uncompressed-QuickTime image raster out of a version-2
+/// `PICT` [payload], or null when the picture does not frame or carries no
+/// matte-free/mask-free `raw `-codec `CompressedQuickTime` opcode. Walks the same
+/// opcode stream as [framePictV2] and applies the same gates as the byte
+/// accounting ([_quickTimeRawExtent]), so a raster is returned only when its
+/// declared geometry tiles the opcode exactly.
+ViQuickTimeRaster? decodePictQuickTimeRaster(Uint8List payload) {
+  if (payload.length < 14) return null;
+  final v = ByteData.sublistView(payload);
+  if (v.getUint16(10) != _pictVersionOp || v.getUint16(12) != _pictVersion2) {
+    return null;
+  }
+  var pos = 14;
+  while (pos + 2 <= payload.length) {
+    final op = v.getUint16(pos);
+    final dataStart = pos + 2;
+    final dataLen = _pictOpcodeDataLength(op, v, dataStart);
+    if (dataLen == null || dataStart + dataLen > payload.length) return null;
+    if (op == 0x8200 && _quickTimeRawExtent(v, dataStart, dataLen) != null) {
+      final idStart = dataStart + 4 + 68;
+      final idSize = v.getUint32(idStart);
+      final width = v.getUint16(idStart + 32);
+      final height = v.getUint16(idStart + 34);
+      final depth = v.getUint16(idStart + 82);
+      final rasterStart = idStart + idSize;
+      final rasterLen = (width * depth ~/ 8) * height;
+      return ViQuickTimeRaster(
+        width: width,
+        height: height,
+        depth: depth,
+        pixels: Uint8List.sublistView(payload, rasterStart, rasterStart + rasterLen),
+      );
+    }
+    pos = dataStart + dataLen;
+    if ((pos & 1) != 0) pos++;
+    if (op == _pictOpEndPic) return null;
+  }
+  return null;
+}
+
 /// For a `CompressedQuickTime` opcode (`0x8200`) whose payload is an uncompressed
 /// (`raw `) image, the number of its [dataStart]-relative data bytes that are
 /// understood: the QuickTime framing (version/matrix/matte/mask fields), the

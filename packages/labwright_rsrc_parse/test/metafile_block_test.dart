@@ -146,6 +146,19 @@ void main() {
       // (framing + ImageDescription + raster, ~170 B here) stays an opaque leaf.
       expect(f.copiedBytes, greaterThan(100));
     });
+
+    test('decodePictQuickTimeRaster extracts the packed pixels', () {
+      final p = _pictWithRawQuickTime(3, 2, 24);
+      final r = decodePictQuickTimeRaster(p);
+      expect(r, isNotNull);
+      expect((r!.width, r.height, r.depth), (3, 2, 24));
+      // 3px × 24-bit = 9 B/row × 2 rows; the synthetic raster is i & 0xff.
+      expect(r.pixels, List<int>.generate(18, (i) => i & 0xff));
+      // A non-raw codec yields no raster.
+      const cTypeAt = 14 + 26 + 2 + 4 + 68 + 4;
+      final q = Uint8List.fromList(p)..setRange(cTypeAt, cTypeAt + 4, 'jpeg'.codeUnits);
+      expect(decodePictQuickTimeRaster(q), isNull);
+    });
   });
 
   group('EMF framer', () {
