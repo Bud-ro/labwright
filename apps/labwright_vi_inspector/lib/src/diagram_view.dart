@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 import 'faithful_controls.dart';
+import 'images_view.dart';
+import 'span_annotations.dart';
 
 /// How the diagram is drawn: a debug **wireframe** (colored boxes + labels,
 /// click-to-inspect) or a **faithful** render (real-looking interactive controls).
@@ -31,6 +33,7 @@ class ViDiagramView extends StatefulWidget {
     this.emptyHint = 'No decodable layout in this file.',
     this.subViNames = const [],
     this.isFrontPanel = false,
+    this.viImages = const ViImages(),
   });
 
   /// The diagrams to render (block-diagram or front-panel heap trees); the
@@ -53,6 +56,14 @@ class ViDiagramView extends StatefulWidget {
   /// the badge never obscures the control's label; the BD keeps kind badges.
   final bool isFrontPanel;
 
+  /// The VI's own recovered images — its 32×32 icon (`icl8`/`icl4`/`ICON`) and
+  /// any embedded diagram PNGs (`MNGI`/`DSIM`). Rendered as an identity strip
+  /// above the diagram: the icon is what a *caller's* subVI node would display
+  /// for this VI (the per-node subVI icons themselves live in the called VIs'
+  /// own files and are not available here, so nodes are not stamped with them).
+  /// Empty by default.
+  final ViImages viImages;
+
   @override
   State<ViDiagramView> createState() => _ViDiagramViewState();
 }
@@ -70,30 +81,13 @@ class _ViDiagramViewState extends State<ViDiagramView> {
   late final Map<int, ViHeapObject> _byId = _diagram?.byId ?? const {};
   late final List<ViHeapObject> _drawable = _diagram == null
       ? const []
-      : [
-          for (final object in _diagram.objects)
-            // Wires are degenerate rects (a zero-height/width Manhattan
-            // run), so the positive-area gate exempts them.
-            if (object.absBounds != null &&
-                object.absBounds!.isValid &&
-                (object.category == ViObjectKind.wire ||
-                    (object.absBounds!.width > 0 &&
-                        object.absBounds!.height > 0)) &&
-                object.absBounds!.width < 8000 &&
-                object.absBounds!.height < 8000 &&
-                !_isScaffolding(object, _byId))
-              object,
-        ];
-  late final List<ViHeapObject> _ordered = [..._drawable]
-    ..sort((a, b) => _depth(a, _byId).compareTo(_depth(b, _byId)));
+      : bdDrawableObjects(_diagram);
+  late final List<ViHeapObject> _ordered = bdPaintOrder(_drawable, _byId);
   // Wires are excluded from the fit: their absolute anchoring is not yet
   // verified (a misanchored run must not blow up the zoom-to-fit envelope).
   late final Rect _content = _drawable.isEmpty
       ? Rect.zero
-      : _contentRect([
-          for (final object in _drawable)
-            if (object.category != ViObjectKind.wire) object,
-        ]);
+      : bdContentRect(_drawable, includeWires: false);
   late final Map<ViObjectKind, int> _counts = _computeCounts();
 
   Map<ViObjectKind, int> _computeCounts() {
@@ -140,6 +134,8 @@ class _ViDiagramViewState extends State<ViDiagramView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (!widget.isFrontPanel && !widget.viImages.isEmpty)
+          _ViImageStrip(widget.viImages),
         _toolbar(_drawable.length, _counts),
         _BdOutline(
           outline: computeBdOutline(_drawable),
@@ -192,7 +188,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                                   ),
                                   child: CustomPaint(
                                     size: Size(content.width, content.height),
-                                    painter: _DiagramPainter(
+                                    painter: BdDiagramPainter(
                                       objects: ordered,
                                       origin: content.topLeft,
                                     ),
@@ -373,36 +369,6 @@ class _ViDiagramViewState extends State<ViDiagramView> {
       ..translateByDouble(tx, ty, 0, 1)
       ..scaleByDouble(scale, scale, 1, 1);
     _fitted = true;
-  }
-
-  static Rect _contentRect(List<ViHeapObject> drawable) {
-    var minX = 1 << 30, minY = 1 << 30, maxX = -(1 << 30), maxY = -(1 << 30);
-    for (final object in drawable) {
-      final bounds = object.absBounds!;
-      if (bounds.left < minX) minX = bounds.left;
-      if (bounds.top < minY) minY = bounds.top;
-      if (bounds.right > maxX) maxX = bounds.right;
-      if (bounds.bottom > maxY) maxY = bounds.bottom;
-    }
-    const margin = 40;
-    return Rect.fromLTRB(
-      (minX - margin).toDouble(),
-      (minY - margin).toDouble(),
-      (maxX + margin).toDouble(),
-      (maxY + margin).toDouble(),
-    );
-  }
-
-  static int _depth(ViHeapObject object, Map<int, ViHeapObject> byId) {
-    var depth = 0;
-    var cur = object;
-    while (cur.parentOid != null && depth < 64) {
-      final parent = byId[cur.parentOid];
-      if (parent == null) break;
-      cur = parent;
-      depth++;
-    }
-    return depth;
   }
 
   static ViDiagram? _largestDiagram(List<ViDiagram>? diagrams) {
@@ -609,11 +575,87 @@ Set<ViHeapObject> nodesWithin(
   return out;
 }
 
+/// The **drawable** objects of [diagram] — the layout layer the BD/FP view and
+/// the [BdOracle] both paint: objects with a valid absolute rectangle, excluding
+/// the scaffolding parts ([_isScaffolding]) and implausibly large boxes. Wires
+/// (degenerate zero-area Manhattan runs) are kept via the wire exemption. Single
+/// source of truth so the on-screen view and the off-screen oracle render the
+/// same object set. Pure + public for the oracle and tests.
+List<ViHeapObject> bdDrawableObjects(ViDiagram diagram) {
+  final byId = diagram.byId;
+  return [
+    for (final object in diagram.objects)
+      if (object.absBounds != null &&
+          object.absBounds!.isValid &&
+          (object.category == ViObjectKind.wire ||
+              (object.absBounds!.width > 0 && object.absBounds!.height > 0)) &&
+          object.absBounds!.width < 8000 &&
+          object.absBounds!.height < 8000 &&
+          !_isScaffolding(object, byId))
+        object,
+  ];
+}
+
+/// [drawable] sorted by nesting depth (shallowest first) — the paint order that
+/// puts containers behind the nodes/controls they hold. Public for the oracle.
+List<ViHeapObject> bdPaintOrder(
+  List<ViHeapObject> drawable,
+  Map<int, ViHeapObject> byId,
+) =>
+    [...drawable]
+      ..sort((a, b) => _depthOf(a, byId).compareTo(_depthOf(b, byId)));
+
+/// The content rectangle enclosing every object in [objects] (plus a fixed
+/// margin) — the canvas extent the view fits to and the oracle rasterises.
+/// [includeWires] is false for the view's zoom-to-fit (a misanchored wire run
+/// must not blow up the envelope) and true when a caller wants the full extent.
+/// Returns [Rect.zero] for an empty input. Pure + public.
+Rect bdContentRect(
+  Iterable<ViHeapObject> objects, {
+  bool includeWires = true,
+  int margin = 40,
+}) {
+  var minX = 1 << 30, minY = 1 << 30, maxX = -(1 << 30), maxY = -(1 << 30);
+  var any = false;
+  for (final object in objects) {
+    if (!includeWires && object.category == ViObjectKind.wire) continue;
+    final bounds = object.absBounds;
+    if (bounds == null) continue;
+    any = true;
+    if (bounds.left < minX) minX = bounds.left;
+    if (bounds.top < minY) minY = bounds.top;
+    if (bounds.right > maxX) maxX = bounds.right;
+    if (bounds.bottom > maxY) maxY = bounds.bottom;
+  }
+  if (!any) return Rect.zero;
+  return Rect.fromLTRB(
+    (minX - margin).toDouble(),
+    (minY - margin).toDouble(),
+    (maxX + margin).toDouble(),
+    (maxY + margin).toDouble(),
+  );
+}
+
+/// The nesting depth of [object] in the positional [byId] tree (root == 0),
+/// capped so a malformed parent cycle cannot loop.
+int _depthOf(ViHeapObject object, Map<int, ViHeapObject> byId) {
+  var depth = 0;
+  var cur = object;
+  while (cur.parentOid != null && depth < 64) {
+    final parent = byId[cur.parentOid];
+    if (parent == null) break;
+    cur = parent;
+    depth++;
+  }
+  return depth;
+}
+
 /// The **static** diagram layer: grid, objects, and labels. Depends only on the
 /// (memoized, stable) object list + origin, so a selection tap never repaints it
-/// — the cheap [_OverlayPainter] handles highlights instead.
-class _DiagramPainter extends CustomPainter {
-  _DiagramPainter({required this.objects, required this.origin});
+/// — the cheap [_OverlayPainter] handles highlights instead. Public so the
+/// off-screen [BdOracle] rasterises with the exact same drawing as the view.
+class BdDiagramPainter extends CustomPainter {
+  BdDiagramPainter({required this.objects, required this.origin});
 
   final List<ViHeapObject> objects;
   final Offset origin;
@@ -814,13 +856,13 @@ class _DiagramPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _DiagramPainter old) =>
+  bool shouldRepaint(covariant BdDiagramPainter old) =>
       !identical(old.objects, objects) || old.origin != origin;
 }
 
 /// The **overlay** layer: just the selection + declared-member highlight strokes.
 /// A few `drawRect`s, so a selection tap repaints this (not the static object
-/// layer). Shares the object→canvas mapping with [_DiagramPainter].
+/// layer). Shares the object→canvas mapping with [BdDiagramPainter].
 class _OverlayPainter extends CustomPainter {
   _OverlayPainter({
     required this.origin,
@@ -1107,6 +1149,98 @@ class _BdOutline extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// The VI-identity image strip shown above the block diagram: the VI's own icon
+/// (richest available depth) and any embedded diagram PNGs (`MNGI`/`DSIM`), each
+/// captioned with its source tag. Honest scope: this is *this* VI's icon (what a
+/// caller renders on a subVI node), not the icons of the subVIs this diagram
+/// calls — those are stored in the called VIs' files, which are not loaded here.
+class _ViImageStrip extends StatelessWidget {
+  const _ViImageStrip(this.images);
+  final ViImages images;
+
+  /// The single richest-depth icon (icl8 → icl4 → ICON), or null.
+  EmbeddedLegacyIcon? get _bestIcon {
+    const order = {'icl8': 0, 'icl4': 1, 'ICON': 2};
+    if (images.icons.isEmpty) return null;
+    return ([
+      ...images.icons,
+    ]..sort((a, b) => (order[a.tag] ?? 9).compareTo(order[b.tag] ?? 9))).first;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = _bestIcon;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        children: [
+          if (icon != null)
+            _tile(
+              'VI icon (${icon.tag})',
+              CustomPaint(
+                size: const Size(36, 36),
+                painter: LegacyIconPainter(icon.icon),
+              ),
+              tooltip:
+                  "This VI's own 32×32 icon — what a caller's subVI node shows "
+                  'for it.',
+            ),
+          for (final png in images.pngs.take(4))
+            _tile(
+              '${png.tag} ${png.width}×${png.height}',
+              Image.memory(
+                png.bytes,
+                width: 36,
+                height: 36,
+                fit: BoxFit.contain,
+                filterQuality: FilterQuality.none,
+                gaplessPlayback: true,
+                errorBuilder: (_, _, _) =>
+                    const Icon(Icons.broken_image_outlined, size: 20),
+              ),
+            ),
+          const Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(left: 8),
+              child: Text(
+                "The VI's own recovered images. SubVI nodes are not stamped with "
+                'their icons — those live in the called VIs, not this file.',
+                style: TextStyle(fontSize: 11, color: Colors.grey),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _tile(String caption, Widget child, {String? tooltip}) {
+    final tile = Padding(
+      padding: const EdgeInsets.only(right: 10),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFAFAFA),
+              border: Border.all(color: const Color(0xFFBDBDBD)),
+              borderRadius: BorderRadius.circular(3),
+            ),
+            child: child,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            caption,
+            style: const TextStyle(fontSize: 9, color: Colors.grey),
+          ),
+        ],
+      ),
+    );
+    return tooltip == null ? tile : Tooltip(message: tooltip, child: tile);
   }
 }
 

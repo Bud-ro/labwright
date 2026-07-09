@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:labwright_vi_inspector/src/diagram_view.dart';
+import 'package:labwright_vi_inspector/src/images_view.dart';
 
 import 'util.dart';
 
@@ -164,6 +165,38 @@ void main() {
     await tester.tapAt(const Offset(120, 120));
     await tester.pump();
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('BD view shows the VI-image strip when an icon is present', (
+    tester,
+  ) async {
+    final images = ViImages(
+      icons: [
+        EmbeddedLegacyIcon(
+          tag: 'icl8',
+          icon: ViLegacyIcon(bpp: 8, pixels: List.filled(1024, 0)),
+        ),
+      ],
+    );
+    await pumpBody(
+      tester,
+      ViDiagramView(
+        diagrams: modelWithDiagram().blockDiagrams,
+        viImages: images,
+      ),
+    );
+    expect(tester.takeException(), isNull);
+    expect(find.textContaining('VI icon'), findsOneWidget);
+    // The front panel never shows the identity strip.
+    await pumpBody(
+      tester,
+      ViDiagramView(
+        diagrams: modelWithDiagram().blockDiagrams,
+        viImages: images,
+        isFrontPanel: true,
+      ),
+    );
+    expect(find.textContaining('VI icon'), findsNothing);
   });
 
   testWidgets('empty model shows an honest placeholder, not a crash', (

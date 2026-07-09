@@ -351,6 +351,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                                                 'No block-diagram objects recovered in this file.',
                                             subViNames:
                                                 _model?.subViNames ?? const [],
+                                            viImages: _images,
                                           ),
                                         ),
                                       ],
