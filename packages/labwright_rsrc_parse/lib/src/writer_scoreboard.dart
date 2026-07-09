@@ -42,6 +42,7 @@ library;
 import 'dart:typed_data';
 
 import 'blocks/block_writer.dart';
+import 'blocks/image_block.dart' show decodeImageBlock;
 import 'container.dart';
 import 'decode.dart' show inflateHeapPayload, isCompressedHeapPayload;
 import 'heap_writer.dart' show attributeHeapBody;
@@ -85,7 +86,10 @@ class WriterAttribution {
   /// Recomputed `u32` section-length prefixes (4 bytes per data-area section).
   final int sectionPrefixBytes;
 
-  /// Payload bytes re-emitted by a block writer ([serializeBlockPayload]).
+  /// Payload bytes re-emitted from a typed model: a whole-payload block writer
+  /// ([serializeBlockPayload]), plus the modeled fraction of a partially-modeled
+  /// image block ([decodeImageBlock] — PNG/geometry framing and uncompressed
+  /// interiors; its compressed streams land in [untypedPayloadBytes]).
   final int typedPayloadBytes;
 
   // --- copied categories ---
@@ -101,7 +105,9 @@ class WriterAttribution {
   /// at their inflated size instead (see [heapModelBytes] / [heapCopiedBytes]).
   final int compressedPayloadBytes;
 
-  /// Uncompressed payloads with no byte-exact block writer.
+  /// Uncompressed payloads with no byte-exact block writer, plus the opaque
+  /// fraction of a partially-modeled image block (compressed PNG chunk streams
+  /// and any undecoded trailer — see [typedPayloadBytes]).
   final int untypedPayloadBytes;
 
   // --- content-level categories (compressed sections at inflated size) ---
@@ -208,8 +214,16 @@ WriterAttribution attributeVi(Uint8List bytes, {int depth = 0}) {
           heapBugs += sub.heapModelBugs;
         } else {
           final modeled = tag == null ? null : serializeBlockPayload(tag, payload);
+          // An image block (DSIM/MNGI) is PARTIALLY modeled: its decoded/reproduced
+          // framing (PNG signature + chunk length/type/verified-CRC, the geometry
+          // header) and byte-faithful uncompressed interiors are model; its
+          // compressed chunk streams (IDAT/…) and undecoded trailer stay copied.
+          final image = tag == null ? null : decodeImageBlock(tag, payload);
           if (modeled != null) {
             typedPayload += payload.length;
+          } else if (image != null && _eq(image.bytes, payload)) {
+            typedPayload += image.modelBytes;
+            untyped += image.copiedBytes;
           } else if (isCompressedHeapPayload(payload)) {
             compressed += payload.length;
             // Content level: attribute the section's INFLATED content via the
