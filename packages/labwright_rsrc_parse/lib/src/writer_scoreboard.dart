@@ -42,7 +42,9 @@ library;
 import 'dart:typed_data';
 
 import 'blocks/block_writer.dart';
+import 'blocks/dfds.dart' show DfdsContext;
 import 'blocks/image_block.dart' show decodeImageBlock;
+import 'blocks/version_word.dart' show versionWordFromSections;
 import 'container.dart';
 import 'decode.dart' show inflateHeapPayload, isCompressedHeapPayload;
 import 'heap_writer.dart' show attributeHeapBody;
@@ -164,9 +166,35 @@ WriterAttribution attributeVi(Uint8List bytes, {int depth = 0}) {
 
   // secRel -> block tag, so each data-area section payload is dispatched to its
   // block writer. decomposeDataArea keys sections by these same offsets.
+  final sections = readViSections(bytes);
   final tagBySecRel = <int, String>{};
-  for (final s in readViSections(bytes)) {
+  final secIndexBySecRel = <int, int>{};
+  for (final s in sections) {
     tagBySecRel[s.dataOffset] = s.tag;
+    secIndexBySecRel[s.dataOffset] = s.index;
+  }
+
+  // DFDS default-data-space framing needs the VI's VCTP type pool and TM80 type
+  // map (see [DfdsContext]). Inflate the VCTP (single) and each TM80 by its
+  // section index once, so a DFDS section can be paired with the TM80 of the same
+  // index (falling back to the first). Absent context leaves DFDS copied.
+  Uint8List? vctpBody;
+  final tm80BySection = <int, Uint8List>{};
+  for (final s in sections) {
+    if (s.tag != 'VCTP' && s.tag != 'TM80') continue;
+    final body = inflateHeapPayload(s.bytes) ?? s.bytes;
+    if (s.tag == 'VCTP') {
+      vctpBody ??= body;
+    } else {
+      tm80BySection[s.index] = body;
+    }
+  }
+  final verGe10 = (versionWordFromSections(sections)?.major ?? 0) >= 10;
+  DfdsContext? dfdsContextFor(int secRel) {
+    final vctp = vctpBody;
+    if (vctp == null || tm80BySection.isEmpty) return null;
+    final tm80 = tm80BySection[secIndexBySecRel[secRel]] ?? tm80BySection.values.first;
+    return DfdsContext(vctp: vctp, tm80: tm80, verGe10: verGe10);
   }
 
   // Info-area struct vs TODO-raw split. subheader: dup header (32) + blockListRel
@@ -231,7 +259,7 @@ WriterAttribution attributeVi(Uint8List bytes, {int depth = 0}) {
             // size, all copied, so the content total still tiles.
             final inflated = inflateHeapPayload(payload);
             if (inflated != null) {
-              final res = attributeHeapBody(inflated, tag);
+              final res = attributeHeapBody(inflated, tag, tag == 'DFDS' ? dfdsContextFor(secRel) : null);
               inflatedContent += inflated.length;
               heapModel += res.modelBytes;
               heapCopied += res.copiedBytes;

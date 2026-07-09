@@ -22,6 +22,7 @@ export 'src/blocks/block_catalog.dart';
 export 'src/blocks/block_writer.dart';
 export 'src/blocks/connector_pane.dart';
 export 'src/blocks/data_type_heap.dart';
+export 'src/blocks/dfds.dart';
 export 'src/blocks/font_table.dart';
 export 'src/blocks/help_path.dart';
 export 'src/blocks/history.dart';

@@ -142,6 +142,45 @@ bool _bytesEqual(Uint8List a, Uint8List b) {
     }
   } catch (_) {}
 
+  // DFDS default-data-space framing census: how many DFDS sections tile exactly
+  // under the flattened-value walk ([dataSpaceFrames]) with the VI's VCTP/TM80
+  // context, and how many DFDS bytes that covers. The framed subset re-emits
+  // byte-exact via the same walk ([serializeHeapBody] with the context); the
+  // rest (LVVariant / MeasureData default values) stay copied. Counts pinned.
+  try {
+    final secs = readViSections(bytes);
+    Uint8List? vctp;
+    final tm80 = <int, Uint8List>{};
+    for (final s in secs) {
+      if (s.tag == 'VCTP') {
+        vctp ??= inflateHeapPayload(s.bytes) ?? s.bytes;
+      } else if (s.tag == 'TM80') {
+        tm80[s.index] = inflateHeapPayload(s.bytes) ?? s.bytes;
+      }
+    }
+    final verGe10 = (versionWordFromSections(secs)?.major ?? 0) >= 10;
+    final seen = <int>{};
+    for (final s in secs) {
+      if (s.tag != 'DFDS' || !seen.add(s.dataOffset)) continue;
+      final inflated = inflateHeapPayload(s.bytes);
+      if (inflated == null || vctp == null || tm80.isEmpty) continue;
+      n('dfds.inst');
+      n('dfds.bytes', inflated.length);
+      final ctx = DfdsContext(vctp: vctp, tm80: tm80[s.index] ?? tm80.values.first, verGe10: verGe10);
+      if (dataSpaceFrames(inflated, ctx)) {
+        n('dfds.frames');
+        n('dfds.framedBytes', inflated.length);
+        // The framed walk re-emits byte-exact (the retained flattened values).
+        final res = serializeHeapBody(inflated, 'DFDS', ctx);
+        if (_bytesEqual(res.bytes, inflated) && res.copiedBytes == 0) {
+          n('dfds.exact');
+        } else {
+          bad('dfds', 'DFDS framed walk did not re-emit byte-exact');
+        }
+      }
+    }
+  } catch (_) {}
+
   // Per-block round-trip census. Dedup by secRel (a payload referenced by
   // several descriptors is one span in the data area).
   try {
@@ -244,6 +283,12 @@ void main() {
       inflatable,
       reason: 're-deflate lost content for ${inflatable - cnt('reDeflateOk')}: ${D('rd')}',
     );
+  });
+
+  test('LAW: every DFDS that frames re-emits byte-exact from the flattened-value walk', () {
+    expect(cnt('dfds.exact'), cnt('dfds.frames'), reason: 'DFDS framed walk not byte-exact: ${D('dfds')}');
+    expect(cnt('dfds.frames'), greaterThan(0), reason: 'no DFDS framed — flattened-value walk broken?');
+    expect(cnt('dfds.frames'), lessThanOrEqualTo(cnt('dfds.inst')), reason: 'framed more DFDS than exist');
   });
 
   test('WIRING: a compressed section re-emitted from re-deflated content stays valid and content-exact', () {
