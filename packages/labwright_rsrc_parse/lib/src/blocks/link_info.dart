@@ -120,15 +120,17 @@ ViLinkInfo? decodeLinkInfo(Uint8List bytes) {
 /// The per-entry grammar (reference: pylabview `LVlinkinfo`, corpus-verified):
 /// each entry is `[u16 0x0002][4cc kind][body]`. Bodies for the covered kinds
 /// (`VILB`/`VIVI`/`VICC`/`VIPV`/`VIPR`/`VIAV`/`BSVR`/`IUVI`/`PUPV`/`SVVI`/
-/// `TDCC`/`V2CC`/`DSDS`/`DSSV`/`DSEF`/`NEXF`/`XNXI`/`VIXN`/`FPPI`/`DDPI`/`VRPI`/
-/// `DyOM`/`PNOM`/`DRPI`/`DOPI`/`VIPI`) are built from self-delimiting records — a
-/// length-prefixed qualified name, a `PTH0` path (`[u32 len]`-framed), an offset
-/// list (`[u32 count][u32…]`), a type-id, version-gated link-save flags, a
-/// conditional-disable-symbol record (symbol/value `LStr`s + bool), an
+/// `TDCC`/`V2CC`/`H2CC`/`DSDS`/`DSSV`/`DSEF`/`NEXF`/`XNXI`/`VIXN`/`FPPI`/`DDPI`/
+/// `VRPI`/`TCPI`/`DyOM`/`PNOM`/`DRPI`/`DOPI`/`VIPI`) are built from self-delimiting
+/// records — a length-prefixed qualified name, a `PTH0` path (`[u32 len]`-framed),
+/// an offset list (`[u32 count][u32…]`), a type-id, version-gated link-save flags,
+/// a conditional-disable-symbol record (symbol/value `LStr`s + bool), an
 /// external-function / GObject-interface / UDClass-API-cache record, and a
 /// `VILinkRefInfo` block whose library-identity/GUID bytes are retained opaque.
-/// Sections whose entries use a kind outside that set, or a version variant the
-/// walk does not reproduce, do not reach the terminator and stay copied.
+/// Sections whose entries use a kind outside that set (`RCFL` VISA resource-config,
+/// `RVPI`, `DNDA`), a UDClass-API cache holding an ancestor chain, or a version
+/// variant the walk does not reproduce, do not reach the terminator and stay
+/// copied.
 class ViLinkInfoRaw {
   const ViLinkInfoRaw({
     required this.version,
@@ -456,6 +458,8 @@ void _liHeapToVi(_LiCursor c) {
   c.heapPathEmpty = false;
   _liOffsetSave(c);
   if (!c.ok) return;
+  if (!c.ge(8, 6, 0)) _liOffList(c); // pre-8.6 carries an extra heap offset list
+  if (!c.ok) return;
   if (c.ge(8, 2, 0)) {
     _liPathRef(c);
     c.heapPathEmpty = c.lastPathLen == 0;
@@ -463,10 +467,18 @@ void _liHeapToVi(_LiCursor c) {
 }
 
 /// UDClass API link cache: a version-gated library-version word, a few booleans,
-/// an `LStr` content blob, then a version-gated fixed trailing field (5 bytes at
-/// major ≥ 16, a further 4 at major ≥ 20; corpus-derived, beyond pylabview's
-/// version coverage). The trailing bytes are 0 across the corpus for an empty
-/// cache; retained verbatim by the serializer, certified by the terminator gate.
+/// an `LStr` content blob, then (at major ≥ 16) a provider list and a further
+/// version-gated fixed trailing field (a byte, plus 4 more at major ≥ 20;
+/// corpus-derived, beyond pylabview's version coverage).
+///
+/// The provider list is `[u32 count][count × [qualName][PTH0][u8 flag]]`, naming
+/// each UDClass whose API this link caches with its qualified name and library
+/// path. An empty cache carries `count` 0 and no provider records, so its trailing
+/// bytes are 0; a populated cache holds one provider record per cached class. The
+/// count-first framing consumes exactly to the entry boundary, certified by the
+/// terminator gate. A cache whose provider records extend into an ancestor chain
+/// (a multi-level class-inheritance cache) is outside this flat framing and its
+/// section stays copied.
 void _liUdApiCache(_LiCursor c) {
   c.pad(4);
   c.skip(c.ge(8, 0, 0) ? 8 : 4);
@@ -475,7 +487,21 @@ void _liUdApiCache(_LiCursor c) {
   if (c.ge(8, 1, 0)) c.skip(1);
   if (c.ge(9, 0, 0)) c.skip(1);
   _liLStr(c);
-  if (c.major >= 16) c.skip(5);
+  if (c.major >= 16) {
+    final count = c.u32();
+    if (!c.ok || count > 4096) {
+      c.ok = false;
+      return;
+    }
+    for (var i = 0; i < count; i++) {
+      _liQualName(c);
+      if (!c.ok) return;
+      _liPathRef(c);
+      if (!c.ok) return;
+      c.skip(1); // per-provider flag
+    }
+    c.skip(1); // provider-list trailer
+  }
   if (c.major >= 20) c.skip(4);
 }
 
@@ -494,11 +520,11 @@ void _liUdViApi(_LiCursor c) {
   _liUdApiCache(c);
 }
 
-/// An observed version-gated trailing offset-list on the data-space `DSDS` link
-/// (present at major ≥ 14, beyond pylabview's version coverage). Retained as a
+/// A trailing offset-list on the data-space `DSDS` link, present alongside the
+/// `≥ 8.6` heap offset list (beyond pylabview's version coverage). Retained as a
 /// self-framed `[u32 count][u32…]`; the terminator checksum certifies it.
 void _liTrailer(_LiCursor c) {
-  if (c.major >= 14) _liOffList(c);
+  if (c.ge(8, 6, 0)) _liOffList(c);
 }
 
 /// A boolean flag: 1 byte at version ≥ 4.5, else 2 (pylabview `parseBool`).
@@ -579,10 +605,23 @@ void _liEntry(_LiCursor c, String kind) {
     case 'PUPV': // poly-instance-use → poly link
     case 'SVVI': // static-VI-ref → VI link
       _liHeapToVi(c);
+      if (!c.ok) return;
+      // An empty heap-to-VI path is replaced by a heap offset list.
+      if (c.heapPathEmpty) _liOffList(c);
     case 'V2CC': // VI → conditional-disable-symbol link
       _liBasic(c);
       if (!c.ok) return;
       _liCcSymbol(c);
+    case 'H2CC': // heap → conditional-disable-symbol link
+      _liOffsetSave(c);
+      if (!c.ok) return;
+      _liOffList(c);
+      if (!c.ok) return;
+      _liLStr(c); // conditional-disable symbol name
+      if (!c.ok) return;
+      _liLStr(c); // conditional-disable symbol value string datafill
+      if (!c.ok) return;
+      _liBool(c);
     case 'DSDS':
       _liOffsetSave(c);
       if (!c.ok) return;
@@ -591,6 +630,8 @@ void _liEntry(_LiCursor c, String kind) {
       _liTrailer(c);
     case 'DSSV': // data-space → static-VI link
       _liOffsetSave(c);
+      if (!c.ok) return;
+      if (c.ge(8, 6, 0)) _liOffList(c);
     case 'DSEF': // data-space → external-function link
     case 'NEXF': // node → external-function link
       _liExtFunc(c);
@@ -603,6 +644,7 @@ void _liEntry(_LiCursor c, String kind) {
     case 'FPPI':
     case 'DDPI':
     case 'VRPI':
+    case 'TCPI': // typedef-control-item → UDClass-API link
     case 'DyOM': // dynamic-info → UDClass-API link
     case 'PNOM': // property-node-item → UDClass-API link
     case 'DRPI': // create/destroy-ref → UDClass-API link
