@@ -57,9 +57,9 @@ void main() {
     ('raw 0x023 field23 stays kindOnly', hx('24 23 01'), HeapDecodeTier.valueKindKnown, 0, -1),
     ('leaf with an fe (class) attribute', hx('14 53 01 fe 0034'), HeapDecodeTier.valueKindKnown, 0, -1),
     (
-      'fd-escape leaf (7-byte value form): not a compact ref',
+      'fd-escape ref (32-bit oid form) decodes as a semantic typed reference',
       hx('15 77 01 fd 8000 0000 0100'),
-      HeapDecodeTier.valueKindKnown,
+      HeapDecodeTier.semantic,
       0,
       -1,
     ),

@@ -1749,6 +1749,9 @@ bool isTypeDescriptorToken(int op) => op == 0x04;
 
 /// Whether the bytes at [offset] are an object-header signature
 /// `10/11/12 02 fe <kind> fd <oid>` — an object declaration, not a property.
+/// The `<oid>` field is a `u16` for object ids below `0x8000` and a 32-bit
+/// escape `80 00 <u32>` for ids at/above it (see [heapObjectHeaderAt]); both
+/// share this 7-byte prefix (`… fd`).
 bool _isObjectHeader(Uint8List body, int offset) =>
     offset + 9 <= body.length &&
     kHeapObjectHeaderLeads.contains(body[offset]) &&
@@ -1757,12 +1760,28 @@ bool _isObjectHeader(Uint8List body, int offset) =>
     body[offset + 6] == 0xfd;
 
 /// Decodes the object header at [offset] — the
-/// `10/11/12 <tag> 02 fe <u16 kind> fd <u16 oid>` shape — into its class code
-/// and object id, or null if the bytes there are not an object header.
-/// Total/bounds-safe.
-({int kind, int oid})? heapObjectHeaderAt(Uint8List body, int offset) {
+/// `10/11/12 <tag> 02 fe <u16 kind> fd <oid>` shape — into its class code,
+/// object id, and total byte [length], or null if the bytes there are not an
+/// object header. Total/bounds-safe.
+///
+/// The `SL__uid` field after `fd` carries the object id in one of two forms,
+/// the same `u16`/`u32`-escape split the [_typedList] framing applies to an
+/// `fd` item: the **compact** `fd <u16 oid>` (9-byte record, ids `< 0x8000`),
+/// and the **32-bit escape** `fd 80 00 <u32 oid>` (13-byte record) used once the
+/// id reaches `0x8000` and the high bit would otherwise collide with the escape
+/// marker. [length] is 9 or 13 accordingly; [oid] is the full id in both forms.
+/// Corpus: 80,177 escaped headers, every one `fd 80 00 <u32>` with an id up to
+/// `0x3a0bd`, reconstructing byte-exact from ([kind], [oid]).
+({int kind, int oid, int length})? heapObjectHeaderAt(Uint8List body, int offset) {
   if (!_isObjectHeader(body, offset)) return null;
-  return (kind: (body[offset + 4] << 8) | body[offset + 5], oid: (body[offset + 7] << 8) | body[offset + 8]);
+  final kind = (body[offset + 4] << 8) | body[offset + 5];
+  // A `u16` oid slot with the high bit set is the 32-bit escape `80 00 <u32>`
+  // ([_typedList] frames the record at 13 bytes to match).
+  if ((body[offset + 7] & 0x80) != 0 && offset + 13 <= body.length) {
+    final oid = (body[offset + 9] << 24) | (body[offset + 10] << 16) | (body[offset + 11] << 8) | body[offset + 12];
+    return (kind: kind, oid: oid, length: 13);
+  }
+  return (kind: kind, oid: (body[offset + 7] << 8) | body[offset + 8], length: 9);
 }
 
 /// A decoded property token at an offset: the catalogued [token] and, for a
@@ -1924,25 +1943,36 @@ class HeapRef {
   /// not the heap the record lives in.
   final int targetOid;
 
-  /// Total bytes the record occupies (always 6).
+  /// Total bytes the record occupies: 6 for the compact `fd <u16 oid>` form,
+  /// 10 for the 32-bit escape `fd 80 00 <u32 oid>` form.
   final int length;
 }
 
-/// Decodes the `14..17 <sub> 01 fd <u16 oid>` typed reference at [offset], or
+/// Decodes the `14..17 <sub> 01 fd <oid>` typed reference at [offset], or
 /// null if the bytes there are not such a record. The lead may be any of the
 /// leaf-with-attribute-list forms `0x14..0x17` (tag high bits ride the lead's
 /// low 2 bits); only the single-`fd`-attribute shape is a reference — the
 /// `… 01 fe` form carries a class-code literal, not an oid. Mirrors
 /// [recordSkip]'s framing of the family.
+///
+/// The `SL__uid` oid takes the same `u16`/`u32`-escape split as an object
+/// header ([heapObjectHeaderAt]): the compact `fd <u16 oid>` (6-byte record)
+/// for ids `< 0x8000`, and the 32-bit escape `fd 80 00 <u32 oid>` (10-byte
+/// record) at/above it. Corpus: 45,599 escaped refs across leads
+/// `0x14`/`0x15`/`0x16`, all `fd 80 00 <u32>`, reconstructing byte-exact.
 HeapRef? decodeHeapRef(Uint8List body, int offset) {
   if (offset + 6 > body.length) return null;
   final lead = body[offset];
   if (lead < 0x14 || lead > 0x17) return null;
   if (body[offset + 2] != 0x01 || body[offset + 3] != 0xfd) return null;
-  // An fd item with the value high bit set is the 7-byte u32 escape — not the
-  // compact reference shape decoded here.
-  if ((body[offset + 4] & 0x80) != 0) return null;
   final raw = ((lead & 3) << 8) | body[offset + 1];
+  // An fd item with the value high bit set is the 10-byte `fd 80 00 <u32>`
+  // escape ([_typedList] frames it at 10 bytes to match).
+  if ((body[offset + 4] & 0x80) != 0) {
+    if (offset + 10 > body.length) return null;
+    final oid = (body[offset + 6] << 24) | (body[offset + 7] << 16) | (body[offset + 8] << 8) | body[offset + 9];
+    return HeapRef(kind: HeapRefKind.fromRaw(raw), targetOid: oid, length: 10);
+  }
   return HeapRef(kind: HeapRefKind.fromRaw(raw), targetOid: (body[offset + 4] << 8) | body[offset + 5], length: 6);
 }
 
