@@ -3,13 +3,17 @@
 /// uses, then measures how far that render is from a supplied reference
 /// screenshot (a documentation image of the same VI's LabVIEW block diagram).
 ///
-/// The comparison is a straight per-pixel absolute difference after the rendered
-/// image is letterboxed into the reference's dimensions. It is a *coarse* signal
-/// — the render is not pixel-perfect and the two images have different origins,
-/// scales and anti-aliasing — so [ImageComparison.meanAbsDiff] /
-/// [ImageComparison.diffFraction] are progress metrics, not a pass/fail gate, and
-/// the side-by-side + diff visualisation is the primary output for a human to
-/// judge fidelity. No claim of LabVIEW equivalence is made or implied.
+/// Two comparisons are reported. The [ImageComparison] is a straight per-pixel
+/// absolute difference after the render is letterboxed into the reference's
+/// dimensions — but that metric is minimised by a blank (white) render, so more
+/// drawn content can *raise* it. The [StructuralComparison] corrects for that: it
+/// credits drawn structure by comparing the two images' ink and Sobel-edge masks
+/// as intersection-over-union, so drawing the nodes/wires correctly scores
+/// better, not worse. Both are *coarse* signals — the render is not pixel-perfect
+/// and the two images have different origins, scales and anti-aliasing — so they
+/// are progress metrics, not a pass/fail gate, and the side-by-side + diff
+/// visualisation is the primary output for a human to judge fidelity. No claim of
+/// LabVIEW equivalence is made or implied.
 library;
 
 import 'dart:async';
@@ -47,12 +51,16 @@ Future<BdRaster?> rasteriseBlockDiagram(
   int maxDimension = 2000,
   double pixelRatio = 1.0,
   Map<int, ViLegacyIcon> subViIcons = const {},
+  List<ViWire>? wires,
 }) async {
   final drawable = bdDrawableObjects(diagram);
   if (drawable.isEmpty) return null;
   final content = bdContentRect(drawable, includeWires: false);
   if (content.width <= 0 || content.height <= 0) return null;
   final ordered = bdPaintOrder(drawable, diagram.byId);
+  // Defaults to the diagram's decoded dataflow wires; pass `const []` to
+  // rasterise the wire-free layout (used to measure the before/after delta).
+  final wireList = wires ?? diagram.wires;
 
   final longSide = math.max(content.width, content.height);
   final scale = (maxDimension / longSide).clamp(0.01, 8.0) * pixelRatio;
@@ -68,6 +76,7 @@ Future<BdRaster?> rasteriseBlockDiagram(
   BdDiagramPainter(
     objects: ordered,
     origin: content.topLeft,
+    wires: wireList,
     subViIcons: subViIcons,
   ).paint(canvas, content.size);
   final picture = recorder.endRecording();
@@ -148,6 +157,131 @@ ImageComparison compareRgba(
   );
 }
 
+/// A **structural** comparison of two equal-sized RGBA buffers that credits
+/// drawn content over emptiness — unlike [compareRgba], whose per-pixel diff is
+/// minimised by a blank (white) render.
+///
+/// It derives two masks per image and compares them spatially:
+/// - an **ink** mask: pixels darker than the near-white canvas by more than a
+///   threshold (the drawn boxes, wires, terminals, text);
+/// - an **edge** mask: strong Sobel luminance gradients (the outlines of that
+///   same drawn structure).
+///
+/// The agreement of each mask is reported as intersection-over-union (IoU). More
+/// *correct* drawn structure (nodes in the right place, wires between them)
+/// raises the overlap and therefore the score, so the metric rewards drawing —
+/// the opposite of the whiteness-rewarding pixel diff. It is still a coarse,
+/// origin/scale-approximate progress signal, not a claim of LabVIEW fidelity.
+class StructuralComparison {
+  const StructuralComparison({
+    required this.inkFractionRender,
+    required this.inkFractionReference,
+    required this.inkIoU,
+    required this.edgeIoU,
+  });
+
+  /// Fraction (0..1) of the render's pixels that are ink (non-background).
+  final double inkFractionRender;
+
+  /// Fraction (0..1) of the reference's pixels that are ink (non-background).
+  final double inkFractionReference;
+
+  /// Intersection-over-union of the two ink masks (1 == the drawn regions
+  /// coincide exactly; 0 == they never overlap; 1 when both images are blank).
+  final double inkIoU;
+
+  /// Intersection-over-union of the two Sobel edge masks.
+  final double edgeIoU;
+
+  /// Combined structural score (0..1, higher = more structurally alike): the
+  /// mean of [inkIoU] and [edgeIoU]. 1.0 for identical images; ~0 when the two
+  /// share no drawn content (e.g. a blank render vs a populated reference).
+  double get score => (inkIoU + edgeIoU) / 2;
+}
+
+/// Computes the [StructuralComparison] of two equal-length RGBA buffers
+/// ([width]×[height]×4 bytes each). A pixel is **ink** when its luminance is
+/// darker than white by more than [inkThreshold]; an **edge** when its Sobel
+/// gradient magnitude exceeds [edgeThreshold]. Pure + total (asserts matching
+/// sizes).
+StructuralComparison compareStructural(
+  Uint8List a,
+  Uint8List b,
+  int width,
+  int height, {
+  int inkThreshold = 12,
+  int edgeThreshold = 64,
+}) {
+  assert(a.length == b.length, 'buffers differ in length');
+  assert(a.length == width * height * 4, 'buffer is not width*height*4');
+  final pixels = width * height;
+  final lumA = _luma(a, pixels);
+  final lumB = _luma(b, pixels);
+
+  var inkA = 0, inkB = 0, inkInter = 0, inkUnion = 0;
+  for (var i = 0; i < pixels; i++) {
+    final ia = 255 - lumA[i] > inkThreshold;
+    final ib = 255 - lumB[i] > inkThreshold;
+    if (ia) inkA++;
+    if (ib) inkB++;
+    if (ia || ib) {
+      inkUnion++;
+      if (ia && ib) inkInter++;
+    }
+  }
+
+  final edgeA = _sobelMask(lumA, width, height, edgeThreshold);
+  final edgeB = _sobelMask(lumB, width, height, edgeThreshold);
+  var edgeInter = 0, edgeUnion = 0;
+  for (var i = 0; i < pixels; i++) {
+    final ea = edgeA[i] != 0;
+    final eb = edgeB[i] != 0;
+    if (ea || eb) {
+      edgeUnion++;
+      if (ea && eb) edgeInter++;
+    }
+  }
+
+  return StructuralComparison(
+    inkFractionRender: pixels == 0 ? 0 : inkA / pixels,
+    inkFractionReference: pixels == 0 ? 0 : inkB / pixels,
+    inkIoU: inkUnion == 0 ? 1 : inkInter / inkUnion,
+    edgeIoU: edgeUnion == 0 ? 1 : edgeInter / edgeUnion,
+  );
+}
+
+/// Per-pixel Rec.601 luminance (0..255) of an RGBA buffer, [pixels] long.
+Uint8List _luma(Uint8List rgba, int pixels) {
+  final out = Uint8List(pixels);
+  for (var i = 0; i < pixels; i++) {
+    final j = i * 4;
+    out[i] = (rgba[j] * 77 + rgba[j + 1] * 150 + rgba[j + 2] * 29) >> 8;
+  }
+  return out;
+}
+
+/// A binary Sobel edge mask (1 where the gradient magnitude exceeds
+/// [threshold]) over a [width]×[height] luminance plane; the 1-px border is 0.
+Uint8List _sobelMask(Uint8List lum, int width, int height, int threshold) {
+  final out = Uint8List(width * height);
+  for (var y = 1; y < height - 1; y++) {
+    for (var x = 1; x < width - 1; x++) {
+      final i = y * width + x;
+      final tl = lum[i - width - 1],
+          tt = lum[i - width],
+          tr = lum[i - width + 1];
+      final ll = lum[i - 1], rr = lum[i + 1];
+      final bl = lum[i + width - 1],
+          bb = lum[i + width],
+          br = lum[i + width + 1];
+      final gx = (tr + 2 * rr + br) - (tl + 2 * ll + bl);
+      final gy = (bl + 2 * bb + br) - (tl + 2 * tt + tr);
+      if (gx.abs() + gy.abs() > threshold) out[i] = 1;
+    }
+  }
+  return out;
+}
+
 /// The full output of comparing a rendered block diagram to a reference image:
 /// the rendered raster, the rendered raster letterboxed into the reference's
 /// dimensions, the reference, the [comparison] metrics, and a diff image.
@@ -157,6 +291,7 @@ class BdOracleResult {
     required this.fitted,
     required this.reference,
     required this.comparison,
+    required this.structural,
     required this.diffImage,
   });
 
@@ -164,6 +299,10 @@ class BdOracleResult {
   final ui.Image fitted;
   final ui.Image reference;
   final ImageComparison comparison;
+
+  /// The structural (ink + edge IoU) comparison — the metric that credits drawn
+  /// content over emptiness (see [StructuralComparison]).
+  final StructuralComparison structural;
   final ui.Image diffImage;
 }
 
@@ -193,12 +332,19 @@ Future<BdOracleResult> compareToReference(
     height,
     threshold: threshold,
   );
+  final structural = compareStructural(
+    renderedRgba,
+    referenceRgba,
+    width,
+    height,
+  );
   final diffImage = await imageFromRgba(comparison.diff, width, height);
   return BdOracleResult(
     rendered: rendered,
     fitted: fitted,
     reference: reference,
     comparison: comparison,
+    structural: structural,
     diffImage: diffImage,
   );
 }
@@ -365,12 +511,18 @@ class _BdOracleViewState extends State<BdOracleView> {
                       style: TextStyle(color: Colors.grey, fontSize: 12),
                     )
                   : Text(
-                      'Absolute-difference oracle · mean abs diff '
+                      'Pixel diff · mean abs '
                       '${result.comparison.meanAbsDiff.toStringAsFixed(1)}/255 · '
                       '${(result.comparison.diffFraction * 100).toStringAsFixed(1)}% '
-                      'of pixels differ. Coarse progress signal (render is not '
-                      'pixel-perfect and origins/scales differ) — not a fidelity '
-                      'claim.',
+                      'of pixels differ (rewards whiteness).   '
+                      'Structural · score '
+                      '${(result.structural.score * 100).toStringAsFixed(1)}% '
+                      '(ink IoU ${(result.structural.inkIoU * 100).toStringAsFixed(1)}%, '
+                      'edge IoU ${(result.structural.edgeIoU * 100).toStringAsFixed(1)}%; '
+                      'ink render ${(result.structural.inkFractionRender * 100).toStringAsFixed(1)}% '
+                      'vs ref ${(result.structural.inkFractionReference * 100).toStringAsFixed(1)}%) — '
+                      'credits drawn structure over emptiness. Coarse progress '
+                      'signals (origins/scales differ) — not a fidelity claim.',
                       style: const TextStyle(color: Colors.grey, fontSize: 12),
                     ),
             ),

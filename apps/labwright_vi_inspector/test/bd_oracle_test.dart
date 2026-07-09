@@ -100,6 +100,186 @@ void main() {
     });
   });
 
+  group('structural comparison (pure)', () {
+    // A white RGBA canvas with the given black rectangles (x0,y0,x1,y1) painted.
+    Uint8List canvasWith(int w, int h, List<(int, int, int, int)> darkRects) {
+      final out = Uint8List(w * h * 4);
+      for (var i = 0; i < out.length; i += 4) {
+        out[i] = 0xff;
+        out[i + 1] = 0xff;
+        out[i + 2] = 0xff;
+        out[i + 3] = 0xff;
+      }
+      for (final r in darkRects) {
+        for (var y = r.$2; y < r.$4; y++) {
+          for (var x = r.$1; x < r.$3; x++) {
+            final i = (y * w + x) * 4;
+            out[i] = 0;
+            out[i + 1] = 0;
+            out[i + 2] = 0;
+          }
+        }
+      }
+      return out;
+    }
+
+    test('identical images score a perfect 1.0', () {
+      final a = canvasWith(16, 16, [(3, 3, 10, 10)]);
+      final s = compareStructural(a, Uint8List.fromList(a), 16, 16);
+      expect(s.inkIoU, 1.0);
+      expect(s.edgeIoU, 1.0);
+      expect(s.score, 1.0);
+      // The same content on both sides has equal ink coverage.
+      expect(s.inkFractionRender, s.inkFractionReference);
+    });
+
+    test('disjoint drawn regions score near zero', () {
+      final a = canvasWith(16, 16, [(1, 1, 6, 6)]);
+      final b = canvasWith(16, 16, [(10, 10, 15, 15)]);
+      final s = compareStructural(a, b, 16, 16);
+      // Non-overlapping ink and non-overlapping edges → no structural overlap.
+      expect(s.inkIoU, 0.0);
+      expect(s.edgeIoU, 0.0);
+      expect(s.score, lessThan(0.05));
+    });
+
+    test('drawing more of the reference content raises the structural score', () {
+      // A reference with two boxes; a sparse render that draws only one of them
+      // must score lower than a fuller render that draws both.
+      final reference = canvasWith(24, 24, [(2, 2, 9, 9), (14, 14, 21, 21)]);
+      final sparse = canvasWith(24, 24, [(2, 2, 9, 9)]);
+      final full = canvasWith(24, 24, [(2, 2, 9, 9), (14, 14, 21, 21)]);
+      final sparseScore = compareStructural(sparse, reference, 24, 24).score;
+      final fullScore = compareStructural(full, reference, 24, 24).score;
+      expect(fullScore, greaterThan(sparseScore));
+    });
+  });
+
+  group('dataflow wire rendering', () {
+    // A diagram with two bounded nodes joined by one signal (0x17) wire, plus an
+    // optional third node [midNode] sitting on the wire's horizontal run (used to
+    // prove paint order). Endpoint anchors resolve to the two joined nodes.
+    ViDiagram wireDiagram({bool midNode = false}) {
+      final root = ViHeapObject(oid: 1, kind: 0x7e, offset: 0)
+        ..category = ViObjectKind.structure
+        ..absBounds = const HeapRect(top: 0, left: 0, bottom: 160, right: 420);
+      final a = ViHeapObject(oid: 2, kind: 0x2f, offset: 0)
+        ..parentOid = 1
+        ..category = ViObjectKind.node
+        ..absBounds = const HeapRect(
+          top: 100,
+          left: 20,
+          bottom: 140,
+          right: 60,
+        );
+      final b = ViHeapObject(oid: 3, kind: 0x2f, offset: 0)
+        ..parentOid = 1
+        ..category = ViObjectKind.node
+        ..absBounds = const HeapRect(
+          top: 100,
+          left: 360,
+          bottom: 140,
+          right: 400,
+        );
+      final signal = ViHeapObject(oid: 4, kind: 0x17, offset: 0)..parentOid = 1;
+      signal.refs
+        ..add(2)
+        ..add(3);
+      final objects = <ViHeapObject>[root, a, b];
+      if (midNode) {
+        objects.add(
+          ViHeapObject(oid: 5, kind: 0x2f, offset: 0)
+            ..parentOid = 1
+            ..category = ViObjectKind.node
+            ..absBounds = const HeapRect(
+              top: 100,
+              left: 180,
+              bottom: 140,
+              right: 240,
+            ),
+        );
+      }
+      objects.add(signal);
+      return ViDiagram(sectionTag: 'BDHb', objects: objects);
+    }
+
+    test('bdWireRoute is an axis-aligned H–V–H run between facing edges', () {
+      final route = bdWireRoute(
+        const Rect.fromLTWH(0, 0, 20, 20),
+        const Rect.fromLTWH(100, 0, 20, 20),
+      );
+      expect(route.length, 4);
+      // Leaves the source's right edge at its vertical centre, enters the sink's
+      // left edge at its centre (sink is to the right).
+      expect(route.first, const Offset(20, 10));
+      expect(route.last, const Offset(100, 10));
+      // Every segment is horizontal or vertical (a right-angle route).
+      for (var i = 1; i < route.length; i++) {
+        final p = route[i - 1], q = route[i];
+        expect(p.dx == q.dx || p.dy == q.dy, isTrue);
+      }
+    });
+
+    test('a diagram exposes one ViWire with two resolved endpoint anchors', () {
+      final wires = wireDiagram().wires;
+      expect(wires.length, 1);
+      expect(wires.single.endpointAnchors.whereType<HeapRect>().length, 2);
+    });
+
+    testWidgets('a wire changes the render (vs the same diagram wire-free)', (
+      tester,
+    ) async {
+      await tester.runAsync(() async {
+        final diagram = wireDiagram();
+        final withWire = await rasteriseBlockDiagram(diagram);
+        final wireFree = await rasteriseBlockDiagram(diagram, wires: const []);
+        final cmp = await compareToReference(withWire!.image, wireFree!.image);
+        // Same objects; the only difference is the routed wire.
+        expect(cmp.comparison.meanAbsDiff, greaterThan(0));
+      });
+    });
+
+    testWidgets('wires paint under nodes (a node covers a wire it crosses)', (
+      tester,
+    ) async {
+      await tester.runAsync(() async {
+        // The A→B wire's horizontal run passes through the mid node's centre
+        // (midX = (60+360)/2 = 210, at y = 120). With the mid node present the
+        // centre pixel is its light plate fill; without it, the dark wire shows.
+        int centrePixel(BdRaster raster) {
+          final px = ((210 - raster.content.left) * raster.scale).round();
+          final py = ((120 - raster.content.top) * raster.scale).round();
+          return (py * raster.image.width + px) * 4;
+        }
+
+        final withNode = await rasteriseBlockDiagram(
+          wireDiagram(midNode: true),
+        );
+        final withoutNode = await rasteriseBlockDiagram(wireDiagram());
+        // Content extent is identical (the mid node lies within the existing
+        // bounds), so the centre maps to the same pixel in both renders.
+        expect(withNode!.content, withoutNode!.content);
+
+        final nodeBytes = (await withNode.image.toByteData())!.buffer
+            .asUint8List();
+        final wireBytes = (await withoutNode.image.toByteData())!.buffer
+            .asUint8List();
+        final i = centrePixel(withNode);
+        // Node present → light plate fill over the wire (node on top).
+        expect(nodeBytes[i], greaterThan(150));
+        // Node absent → the dark wire run shows at that same pixel.
+        expect(wireBytes[i], lessThan(120));
+      });
+    });
+
+    test('bdWireColor stays neutral without a typed-terminal anchor', () {
+      final wire = wireDiagram().wires.single;
+      // No endpoint anchor matches a typed terminal → the neutral wire colour
+      // (datatype is not decoded, so no colour is fabricated).
+      expect(bdWireColor(wire, const {}), kBdWireColor);
+    });
+  });
+
   testWidgets('rasterises a synthetic block diagram to a non-empty image', (
     tester,
   ) async {
@@ -169,7 +349,9 @@ void main() {
     expect(find.text('Rendered (clean-room)'), findsOneWidget);
     expect(find.text('Reference'), findsOneWidget);
     expect(find.text('Absolute diff'), findsOneWidget);
-    expect(find.textContaining('mean abs diff'), findsOneWidget);
+    expect(find.textContaining('mean abs'), findsOneWidget);
+    // The structural metric is surfaced alongside the pixel diff.
+    expect(find.textContaining('Structural'), findsOneWidget);
   });
 
   group('LabVIEW block-diagram styling', () {

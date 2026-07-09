@@ -23,10 +23,13 @@ const int kFaithfulMaxObjects = 1500;
 /// structure frames, labels, click-to-inspect, pan/zoom and auto-fit.
 ///
 /// Backed entirely by the clean-room `labwright_rsrc_parse` decode
-/// (`buildViModel` → `blockDiagrams`/`frontPanelDiagrams`). Honest by construction: only objects
-/// with recovered absolute bounds are drawn, and **signal wires are not shown** —
-/// LabVIEW does not persist wire geometry (it re-routes wires at draw time), so
-/// drawing them would be fabrication. This is a faithful object/position view,
+/// (`buildViModel` → `blockDiagrams`/`frontPanelDiagrams`). Honest by
+/// construction: only objects with recovered absolute bounds are drawn.
+/// Dataflow wires are drawn from the decoded signal (`0x17`) endpoint binding
+/// ([ViDiagram.wires]) — routed as right-angle runs between each signal's real
+/// endpoint anchors — but the wire **datatype is not decoded**, so runs are a
+/// neutral tone (only tinted where an anchor coincides with a typed terminal),
+/// never a fabricated per-type colour. This is a faithful object/position view,
 /// not a re-render of LabVIEW's canvas.
 class ViDiagramView extends StatefulWidget {
   const ViDiagramView({
@@ -102,6 +105,8 @@ class _ViDiagramViewState extends State<ViDiagramView> {
       ? const []
       : bdDrawableObjects(_diagram);
   late final List<ViHeapObject> _ordered = bdPaintOrder(_drawable, _byId);
+  // Decoded dataflow wires (empty on a front-panel heap). Drawn under the nodes.
+  late final List<ViWire> _wires = _diagram?.wires ?? const [];
   // Wires are excluded from the fit: their absolute anchoring is not yet
   // verified (a misanchored run must not blow up the zoom-to-fit envelope).
   late final Rect _content = _drawable.isEmpty
@@ -210,6 +215,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                                     painter: BdDiagramPainter(
                                       objects: ordered,
                                       origin: content.topLeft,
+                                      wires: _wires,
                                       subViIcons: _subViIcons,
                                     ),
                                     foregroundPainter: _OverlayPainter(
@@ -267,9 +273,11 @@ class _ViDiagramViewState extends State<ViDiagramView> {
         const Padding(
           padding: EdgeInsets.only(top: 6),
           child: Text(
-            'Object layout decoded clean-room. Wire segments (class 0x1d) are drawn '
-            'from their stored Manhattan runs; wire datatype and terminal binding '
-            'are not yet decoded.',
+            'Object layout decoded clean-room. Dataflow wires (signal 0x17) are '
+            'routed between their decoded endpoint anchors; the wire datatype is '
+            'not decoded, so runs are neutral unless an anchor meets a typed '
+            'terminal. Visual wire segments (class 0x1d) are drawn from their '
+            'stored Manhattan runs.',
             style: TextStyle(color: Colors.grey, fontSize: 11),
           ),
         ),
@@ -293,16 +301,14 @@ class _ViDiagramViewState extends State<ViDiagramView> {
         ),
       const Tooltip(
         message:
-            'Wire segments are decoded (class 0x1d: stored Manhattan runs,\n'
-            '61396/61396 line-like across the corpus) and drawn with their\n'
-            'implicit connectors. Not yet decoded: wire datatype (for per-type\n'
-            'colors) and endpoint-to-terminal binding.',
+            'Dataflow wires (signal 0x17) are routed between their decoded\n'
+            'endpoint anchors (100% resolve; 91% source+sink). Visual segments\n'
+            '(0x1d: stored Manhattan runs) are also drawn. Not decoded: the wire\n'
+            'datatype (for per-type colors) — runs stay neutral unless an anchor\n'
+            'meets a terminal whose type was recovered.',
         child: Chip(
           avatar: Icon(Icons.linear_scale, size: 14),
-          label: Text(
-            'wires: segments decoded',
-            style: TextStyle(fontSize: 11),
-          ),
+          label: Text('wires: dataflow routed', style: TextStyle(fontSize: 11)),
           visualDensity: VisualDensity.compact,
         ),
       ),
@@ -474,6 +480,58 @@ const Color kBdPrimitiveNodeFill = Color(0xFFFBEEC2);
 /// (no datatype colour is guessed). Datatype-known terminals use
 /// [labviewTypeColor] instead.
 const Color kBdUnknownTerminalFill = Color(0xFFD8D8D8);
+
+/// Neutral dataflow-wire colour — a thin dark run. A [ViWire] (signal `0x17`)
+/// carries endpoint binding but **no decoded datatype**, so a wire is drawn in
+/// this neutral tone rather than a fabricated per-type colour; a wire is only
+/// tinted when one of its endpoint anchors coincides with a terminal whose
+/// datatype *was* recovered (see [bdWireColor]).
+const Color kBdWireColor = Color(0xFF2B2B2B);
+
+/// The Manhattan (right-angle) route between two endpoint-anchor rectangles, as
+/// an ordered polyline in the anchors' own coordinate space: it leaves [source]
+/// on the horizontal side facing [sink], turns at the mid-x column, then enters
+/// [sink] on its facing side (the LabVIEW H–V–H elbow). Pure + public so the
+/// routing is unit-testable independent of the canvas.
+List<Offset> bdWireRoute(Rect source, Rect sink) {
+  final sinkRight = sink.center.dx >= source.center.dx;
+  final start = Offset(
+    sinkRight ? source.right : source.left,
+    source.center.dy,
+  );
+  final end = Offset(sinkRight ? sink.left : sink.right, sink.center.dy);
+  final midX = (start.dx + end.dx) / 2;
+  return [start, Offset(midX, start.dy), Offset(midX, end.dy), end];
+}
+
+/// The colour a [wire] is drawn in: [kBdWireColor] unless one of its endpoint
+/// anchors exactly matches a terminal whose datatype was recovered, in which
+/// case that terminal's [labviewTypeColor] is used. [typedTerminalColors] maps a
+/// packed endpoint-anchor rectangle (`t,l,b,r`) to that terminal's colour. The
+/// wire's own datatype is not decoded, so no colour is ever guessed from the
+/// signal itself. Pure + public for testing.
+Color bdWireColor(ViWire wire, Map<int, Color> typedTerminalColors) {
+  for (final anchor in wire.endpointAnchors) {
+    if (anchor == null) continue;
+    final color =
+        typedTerminalColors[_packRect(
+          anchor.top,
+          anchor.left,
+          anchor.bottom,
+          anchor.right,
+        )];
+    if (color != null) return color;
+  }
+  return kBdWireColor;
+}
+
+/// Packs a rectangle's four `s16` edges into one int key for anchor↔terminal
+/// matching (each edge is offset into a non-negative 16-bit lane).
+int _packRect(int top, int left, int bottom, int right) =>
+    ((top + 0x8000) << 48) |
+    ((left + 0x8000) << 32) |
+    ((bottom + 0x8000) << 16) |
+    (right + 0x8000);
 
 /// Class codes LabVIEW draws as **free text** on the canvas, not as a filled
 /// part: the control caption / free-label (`0x0a`) and the case-selector label
@@ -813,11 +871,17 @@ class BdDiagramPainter extends CustomPainter {
   BdDiagramPainter({
     required this.objects,
     required this.origin,
+    this.wires = const [],
     this.subViIcons = const {},
   });
 
   final List<ViHeapObject> objects;
   final Offset origin;
+
+  /// The decoded dataflow wires ([ViDiagram.wires], one per `0x17` signal),
+  /// routed under the nodes/structures between their endpoint anchors. Empty
+  /// leaves the diagram wire-free. See [_drawWires].
+  final List<ViWire> wires;
 
   /// Resolved subVI-call node icons, keyed by [ViHeapObject.oid] — the 32×32
   /// icon of the VI a subVI-call node targets, loaded from that VI's own file
@@ -830,6 +894,9 @@ class BdDiagramPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     canvas.drawRect(Offset.zero & size, Paint()..color = kBdCanvas);
     _drawDotGrid(canvas, size);
+    // Dataflow wires paint first (over the canvas, under every structure/node)
+    // so nodes and terminals always sit on top of the runs that reach them.
+    _drawWires(canvas);
 
     Rect rectOf(ViHeapObject o) {
       final bounds = o.absBounds!;
@@ -1060,6 +1127,63 @@ class BdDiagramPainter extends CustomPainter {
     }
   }
 
+  /// Routes each decoded [ViWire] as a Manhattan run between its endpoint anchor
+  /// rectangles (index-aligned nearest-bounded-owner bounds). A wire is drawn in
+  /// the neutral [kBdWireColor] unless an endpoint anchor coincides with a
+  /// terminal whose datatype was recovered — then that terminal's LabVIEW colour
+  /// is used ([bdWireColor]). Multi-endpoint (branch) wires route from the first
+  /// endpoint to each other endpoint. The wire datatype itself is not decoded, so
+  /// no per-wire colour is fabricated.
+  void _drawWires(Canvas canvas) {
+    if (wires.isEmpty) return;
+    // Endpoint-anchor rectangle → recovered terminal colour, for honest tinting.
+    final typedTerminalColors = <int, Color>{};
+    for (final object in objects) {
+      if (object.category != ViObjectKind.terminal) continue;
+      if (object.typeKind == ViTypeKind.unknown) continue;
+      final bounds = object.absBounds;
+      if (bounds == null) continue;
+      typedTerminalColors[_packRect(
+        bounds.top,
+        bounds.left,
+        bounds.bottom,
+        bounds.right,
+      )] = labviewTypeColor(
+        object.typeKind,
+      );
+    }
+    for (final wire in wires) {
+      final anchors = <Rect>[];
+      for (final anchor in wire.endpointAnchors) {
+        if (anchor == null) continue;
+        anchors.add(
+          Rect.fromLTRB(
+            anchor.left - origin.dx,
+            anchor.top - origin.dy,
+            anchor.right - origin.dx,
+            anchor.bottom - origin.dy,
+          ),
+        );
+      }
+      if (anchors.length < 2) continue;
+      final paint = Paint()
+        ..color = bdWireColor(wire, typedTerminalColors)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4
+        ..strokeJoin = StrokeJoin.miter
+        ..strokeCap = StrokeCap.butt;
+      final source = anchors.first;
+      for (var i = 1; i < anchors.length; i++) {
+        final points = bdWireRoute(source, anchors[i]);
+        final path = Path()..moveTo(points.first.dx, points.first.dy);
+        for (final point in points.skip(1)) {
+          path.lineTo(point.dx, point.dy);
+        }
+        canvas.drawPath(path, paint);
+      }
+    }
+  }
+
   void _drawDotGrid(Canvas canvas, Size size) {
     const stepPx = 12.0;
     const maxDots = 20000;
@@ -1077,7 +1201,9 @@ class BdDiagramPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant BdDiagramPainter old) =>
-      !identical(old.objects, objects) || old.origin != origin;
+      !identical(old.objects, objects) ||
+      !identical(old.wires, wires) ||
+      old.origin != origin;
 }
 
 /// The **overlay** layer: just the selection + declared-member highlight strokes.
