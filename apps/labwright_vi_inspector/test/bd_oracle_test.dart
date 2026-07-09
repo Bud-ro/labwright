@@ -223,6 +223,53 @@ void main() {
     });
   });
 
+  group('decoded object colours', () {
+    test('bdDecodedColor maps 24-bit rgb to an opaque colour, null to null', () {
+      expect(bdDecodedColor(null), isNull);
+      expect(bdDecodedColor(0x123456), const Color(0xFF123456));
+      // High bits beyond 24 are dropped (the flag byte the model already strips).
+      expect(bdDecodedColor(0xAB010203), const Color(0xFF010203));
+    });
+
+    test('bdFillColor prefers the content colour over the background', () {
+      final o = ViHeapObject(oid: 1, kind: 0x50, offset: 0)
+        ..bgRgb = 0x111111
+        ..contentRgb = 0x222222;
+      expect(bdFillColor(o), const Color(0xFF222222));
+      final bgOnly = ViHeapObject(oid: 2, kind: 0x50, offset: 0)
+        ..bgRgb = 0x111111;
+      expect(bdFillColor(bgOnly), const Color(0xFF111111));
+      expect(bdFillColor(ViHeapObject(oid: 3, kind: 0x50, offset: 0)), isNull);
+    });
+
+    testWidgets('a decoded object colour changes the render', (tester) async {
+      ViDiagram build({int? bg}) {
+        final root = ViHeapObject(oid: 1, kind: 0x7e, offset: 0)
+          ..category = ViObjectKind.structure
+          ..absBounds = const HeapRect(top: 0, left: 0, bottom: 80, right: 120);
+        final deco = ViHeapObject(oid: 2, kind: 0x15, offset: 0)
+          ..parentOid = 1
+          ..category = ViObjectKind.decoration
+          ..absBounds = const HeapRect(
+            top: 20,
+            left: 20,
+            bottom: 60,
+            right: 100,
+          )
+          ..bgRgb = bg;
+        return ViDiagram(sectionTag: 'BDHb', objects: [root, deco]);
+      }
+
+      await tester.runAsync(() async {
+        final colored = await rasteriseBlockDiagram(build(bg: 0xE01010));
+        final plain = await rasteriseBlockDiagram(build());
+        final cmp = await compareToReference(colored!.image, plain!.image);
+        // Same geometry; the only difference is the decoded decoration colour.
+        expect(cmp.comparison.meanAbsDiff, greaterThan(0));
+      });
+    });
+  });
+
   group('dataflow wire rendering', () {
     // A diagram with two bounded nodes joined by one signal (0x17) wire, plus an
     // optional third node [midNode] sitting on the wire's horizontal run (used to

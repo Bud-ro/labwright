@@ -176,7 +176,10 @@ Widget _faithfulFor(ViHeapObject object, {bool isFrontPanel = false}) {
       return const _Glyph();
     case HeapObjectClass.numericControl:
     case HeapObjectClass.numericControlVariant:
-      return const _ControlWidget(form: _Form.numeric);
+      return _ControlWidget(
+        form: _Form.numeric,
+        fill: decodedControlFill(object),
+      );
     case HeapObjectClass.enumRingControl:
       return _ControlWidget(form: _Form.enumRing, items: object.items);
     case HeapObjectClass.booleanOrClusterControl:
@@ -189,9 +192,12 @@ Widget _faithfulFor(ViHeapObject object, {bool isFrontPanel = false}) {
                   : object.label,
             );
     case HeapObjectClass.stringOrArrayControl:
-      return const _ControlWidget(form: _Form.string);
+      return _ControlWidget(
+        form: _Form.string,
+        fill: decodedControlFill(object),
+      );
     case HeapObjectClass.pathControl:
-      return const _ControlWidget(form: _Form.path);
+      return _ControlWidget(form: _Form.path, fill: decodedControlFill(object));
     case HeapObjectClass.bdLeaf:
       return const _LeafBox();
     case HeapObjectClass.graphIndicator:
@@ -209,7 +215,10 @@ Widget _faithfulFor(ViHeapObject object, {bool isFrontPanel = false}) {
         );
       }
       if (object.category == ViObjectKind.terminal)
-        return const _ControlWidget(form: _Form.generic);
+        return _ControlWidget(
+          form: _Form.generic,
+          fill: decodedControlFill(object),
+        );
       return const _UnknownBox();
   }
 }
@@ -217,6 +226,16 @@ Widget _faithfulFor(ViHeapObject object, {bool isFrontPanel = false}) {
 const _kBorder = Color(0xFF7A7A7A);
 const _kField = Color(0xFFFAFAFA);
 const _kInk = Color(0xFF1A1A1A);
+
+/// The decoded interior fill colour for a control — its
+/// [ViHeapObject.contentRgb] (the field colour LabVIEW stored) if present, else
+/// its [ViHeapObject.bgRgb] — as an opaque colour, or null when neither was
+/// decoded (the control then keeps its neutral field colour). See the corpus
+/// placement probe: these colours sit on the drawable control itself.
+Color? decodedControlFill(ViHeapObject object) {
+  final rgb = object.contentRgb ?? object.bgRgb;
+  return rgb == null ? null : Color(0xFF000000 | (rgb & 0xFFFFFF));
+}
 
 /// The text to show on a node box: its recovered name when present (e.g. a subVI
 /// filename), otherwise an honest class HINT derived from its classification
@@ -465,13 +484,22 @@ enum _Form { numeric, enumRing, boolean, string, path, generic }
 
 /// A single interactive (but unwired) control rendered to fit its object bounds.
 class _ControlWidget extends StatefulWidget {
-  const _ControlWidget({required this.form, this.items = const [], this.label});
+  const _ControlWidget({
+    required this.form,
+    this.items = const [],
+    this.label,
+    this.fill,
+  });
   final _Form form;
   final List<String> items;
 
   /// For a boolean: the control's caption (its single 0x0d string), shown on the
   /// button so a labeled boolean ("STOP", "Channel A") reads as itself. Null → ON/OFF.
   final String? label;
+
+  /// The decoded interior fill colour (see [decodedControlFill]), or null to use
+  /// the neutral default field colour.
+  final Color? fill;
   @override
   State<_ControlWidget> createState() => _ControlWidgetState();
 }
@@ -491,7 +519,7 @@ class _ControlWidgetState extends State<_ControlWidget> {
   }
 
   BoxDecoration get _box => BoxDecoration(
-    color: _kField,
+    color: widget.fill ?? _kField,
     border: Border.all(color: _kBorder),
     borderRadius: BorderRadius.circular(2),
   );

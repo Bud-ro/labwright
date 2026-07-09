@@ -488,6 +488,20 @@ const Color kBdUnknownTerminalFill = Color(0xFFD8D8D8);
 /// datatype *was* recovered (see [bdWireColor]).
 const Color kBdWireColor = Color(0xFF2B2B2B);
 
+/// The opaque [Color] of a decoded 24-bit `0xRRGGBB` object colour ([rgb]), or
+/// null when the object carried no such colour. Used to fill a decoration or
+/// control in its own stored LabVIEW colour instead of a generic category tint.
+Color? bdDecodedColor(int? rgb) =>
+    rgb == null ? null : Color(0xFF000000 | (rgb & 0xFFFFFF));
+
+/// The decoded **fill** colour for [object] when one was recovered: a control's
+/// interior [ViHeapObject.contentRgb] if present, else its
+/// [ViHeapObject.bgRgb]. Null when neither was decoded (the object keeps its
+/// neutral category fill — no colour is guessed). See the corpus placement
+/// probe: these colours sit on the drawable object itself.
+Color? bdFillColor(ViHeapObject object) =>
+    bdDecodedColor(object.contentRgb) ?? bdDecodedColor(object.bgRgb);
+
 /// The Manhattan (right-angle) route between two endpoint-anchor rectangles, as
 /// an ordered polyline in the anchors' own coordinate space: it leaves [source]
 /// on the horizontal side facing [sink], turns at the mid-x column, then enters
@@ -933,9 +947,18 @@ class BdDiagramPainter extends CustomPainter {
           );
 
     for (final object in decorations) {
+      // A decoration (coloured free-label backing, box, separator) is drawn in
+      // its own decoded LabVIEW colour when one was recovered — decorations
+      // paint first, under every node/wire — and otherwise a faint category
+      // tint so its extent still reads without inventing a colour.
+      final decoded =
+          bdDecodedColor(object.bgRgb) ?? bdDecodedColor(object.contentRgb);
       canvas.drawRect(
         rectOf(object),
-        Paint()..color = _kindColor(object.category).withValues(alpha: 0.10),
+        decoded != null
+            ? (Paint()..color = decoded)
+            : (Paint()
+                ..color = _kindColor(object.category).withValues(alpha: 0.10)),
       );
     }
     for (final object in structures) {
@@ -1061,10 +1084,11 @@ class BdDiagramPainter extends CustomPainter {
           );
         default:
           final rr = RRect.fromRectAndRadius(rect, const Radius.circular(2.5));
-          canvas.drawRRect(
-            rr,
-            Paint()..color = _objectColor(object).withValues(alpha: 0.92),
-          );
+          // A control/indicator is filled with its decoded interior colour when
+          // recovered (the field/background LabVIEW stored), else its neutral
+          // category colour — never a guessed tint.
+          final fill = bdFillColor(object) ?? _objectColor(object);
+          canvas.drawRRect(rr, Paint()..color = fill.withValues(alpha: 0.92));
           canvas.drawRRect(
             rr,
             Paint()
