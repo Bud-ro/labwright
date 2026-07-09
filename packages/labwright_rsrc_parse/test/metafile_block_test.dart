@@ -78,7 +78,11 @@ void main() {
       expect(f.bytes, orderedEquals(e));
       expect(f.modelBytes + f.copiedBytes, e.length);
       expect(f.elementCount, 2); // EMR_HEADER, EMR_EOF
-      expect(f.modelBytes, 16); // two 8-byte record headers
+      // Two 8-byte record headers (16) + EMR_HEADER's fixed base (capped at this
+      // synthetic's 40 param bytes) + EMR_EOF's 8-byte fixed prefix = 64. Only
+      // EMR_EOF's trailing nSizeLast word (4 B) is the copied leaf.
+      expect(f.modelBytes, 64);
+      expect(f.copiedBytes, 4);
     });
 
     test('rejects a non-EMF magic / missing signature', () {

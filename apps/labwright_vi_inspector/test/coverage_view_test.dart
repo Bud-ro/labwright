@@ -20,6 +20,7 @@ WriterAttribution _attr({bool byteExact = true, int bugs = 0}) =>
       infoStructBytes: 10,
       sectionPrefixBytes: 4,
       typedPayloadBytes: 4,
+      alignPadBytes: 0,
       infoRawBytes: 6,
       gapBytes: 4,
       compressedPayloadBytes: 20,

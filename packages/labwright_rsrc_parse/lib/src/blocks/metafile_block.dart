@@ -27,8 +27,13 @@
 /// **WEMF** (Windows Enhanced Metafile / EMF, little-endian). A pure sequence of
 /// records `[u32 iType][u32 nSize][params]` where `nSize` is the whole record's
 /// byte count (a multiple of 4, including the 8-byte header); the stream is fully
-/// self-describing and ends at `EMR_EOF` (iType 14). Each record's parameter
-/// block is retained verbatim as an opaque leaf.
+/// self-describing and ends at `EMR_EOF` (iType 14). The 8-byte record header is
+/// reconstructed for every record; a record type with a documented fixed
+/// parameter layout ([_emfModelParamBytes], MS-EMF section 2.3) additionally
+/// reconstructs that fixed-field prefix (model), and the genuinely-variable tail
+/// — a DIB bitmap buffer, a region's `RgnData`, a palette's entries, a comment's
+/// private data, a font's `LogFont`, the header's description string — is retained
+/// verbatim as an opaque leaf (copied).
 ///
 /// [frameMetafile] returns the re-emitted bytes (byte-identical to the input for
 /// every framed instance) plus the model/copied byte split (`modelBytes +
@@ -360,6 +365,68 @@ const int _emfSignature = 0x464D4520;
 /// model for every record.
 const int _emfRecordHeaderLen = 8;
 
+/// The number of documented **fixed-layout** parameter bytes an EMF record of
+/// type [iType] carries, capped at the record's actual [paramLen] (`nSize - 8`).
+/// These bytes are reconstructed from typed fields (**model**); any bytes past
+/// the fixed prefix are the record's variable leaf (a DIB, region data, palette
+/// entries, comment data, a `LogFont`, the header description) and stay copied.
+/// Returns 0 for a record type whose parameters are not a documented fixed
+/// layout, leaving its whole parameter block copied.
+///
+/// Field sizes are from the MS-EMF record definitions (section 2.3): every
+/// fully-fixed record's prefix equals its entire parameter block; a record with
+/// a variable tail contributes only its leading fixed fields. Verified against
+/// the corpus (each type's `nSize` is at least the prefix returned here).
+int _emfModelParamBytes(int iType, int paramLen) {
+  // Fully-fixed parameter blocks (the whole block is documented fixed fields).
+  const fixed = <int, int>{
+    0x09: 8, // EMR_SETWINDOWEXTEX     — Extent (SizeL)
+    0x0A: 8, // EMR_SETWINDOWORGEX     — Origin (PointL)
+    0x0B: 8, // EMR_SETVIEWPORTEXTEX   — Extent (SizeL)
+    0x0C: 8, // EMR_SETVIEWPORTORGEX   — Origin (PointL)
+    0x0D: 8, // EMR_SETBRUSHORGEX      — Origin (PointL)
+    0x11: 4, // EMR_SETMAPMODE         — MapMode
+    0x12: 4, // EMR_SETBKMODE          — BackgroundMode
+    0x13: 4, // EMR_SETPOLYFILLMODE    — PolygonFillMode
+    0x14: 4, // EMR_SETROP2            — ROP2Mode
+    0x15: 4, // EMR_SETSTRETCHBLTMODE  — StretchMode
+    0x16: 4, // EMR_SETTEXTALIGN       — TextAlignmentMode
+    0x18: 4, // EMR_SETTEXTCOLOR       — Color (ColorRef)
+    0x19: 4, // EMR_SETBKCOLOR         — Color (ColorRef)
+    0x25: 4, // EMR_SELECTOBJECT       — ihObject
+    0x26: 20, // EMR_CREATEPEN         — ihPen + LogPen (16)
+    0x28: 4, // EMR_DELETEOBJECT       — ihObject
+    0x30: 4, // EMR_SELECTPALETTE      — ihPal
+    0x34: 0, // EMR_REALIZEPALETTE     — (no parameters)
+  };
+  final f = fixed[iType];
+  if (f != null) return f <= paramLen ? f : paramLen;
+
+  // Fixed prefix + a variable leaf (DIB / region / palette / comment / font /
+  // description). The prefix is the leading fixed fields; the leaf stays copied.
+  final prefix = switch (iType) {
+    0x01 => 80, // EMR_HEADER: EmfMetafileHeader base (Bounds16+Frame16+sig4+ver4+
+    // bytes4+records4+handles2+reserved2+nDesc4+offDesc4+nPal4+Device8+Millimeters8);
+    // header extensions + the Description string follow.
+    0x0E => 8, // EMR_EOF: nPalEntries + offPalEntries; palette + nSizeLast follow.
+    0x31 => 8, // EMR_CREATEPALETTE: ihPal + LogPalette{Version2 + NumberOfEntries2};
+    // the PaletteEntries array follows.
+    0x46 => 4, // EMR_COMMENT: DataSize; the private comment data follows.
+    0x4B => 8, // EMR_EXTSELECTCLIPRGN: RgnDataSize + RegionMode; RgnData follows.
+    0x4C => 92, // EMR_BITBLT: Bounds16 + xyDest/cxyDest16 + ROP4 + xySrc8 +
+    // XformSrc24 + BkColorSrc4 + UsageSrc4 + off/cb Bmi/Bits16; the DIB follows.
+    0x51 => 72, // EMR_STRETCHDIBITS: Bounds16 + xyDest8 + xySrc8 + cxySrc8 +
+    // off/cb Bmi/Bits16 + UsageSrc4 + ROP4 + cxyDest8; the DIB follows.
+    0x52 => 4, // EMR_EXTCREATEFONTINDIRECTW: ihFont; the LogFont (with its
+    // name strings) follows and is retained verbatim.
+    0x72 => 100, // EMR_ALPHABLEND: Bounds16 + xyDest8 + cxyDest8 + BlendFunc4 +
+    // xySrc8 + XformSrc24 + BkColorSrc4 + UsageSrc4 + off/cb Bmi/Bits16 + cxySrc8;
+    // the DIB follows.
+    _ => 0, // undocumented / not-fixed here — whole parameter block stays copied.
+  };
+  return prefix <= paramLen ? prefix : paramLen;
+}
+
 /// Frames a `WEMF` [payload] as a Windows Enhanced Metafile, or null when it is
 /// not a cleanly-tiling EMF (a non-EMF magic, a record whose size is out of
 /// range or not 4-aligned, or a stream that does not end at `EMR_EOF` on the last
@@ -385,16 +452,18 @@ ViMetafileFrame? frameEmf(Uint8List payload) {
     // valid record boundary.
     if (nSize < _emfRecordHeaderLen || (nSize & 3) != 0 || pos + nSize > payload.length) return null;
 
-    // Reconstruct the record header (iType + nSize); retain the parameter block
-    // verbatim as an opaque leaf.
+    // Reconstruct the record header (iType + nSize) and each record type's
+    // documented fixed-field parameter prefix; retain the variable leaf verbatim.
     final hdr = Uint8List(_emfRecordHeaderLen);
     final hv = ByteData.sublistView(hdr);
     hv.setUint32(0, iType, Endian.little);
     hv.setUint32(4, nSize, Endian.little);
     out.add(hdr);
     out.add(Uint8List.sublistView(payload, pos + _emfRecordHeaderLen, pos + nSize));
-    model += _emfRecordHeaderLen;
-    copied += nSize - _emfRecordHeaderLen;
+    final paramLen = nSize - _emfRecordHeaderLen;
+    final modelParam = _emfModelParamBytes(iType, paramLen);
+    model += _emfRecordHeaderLen + modelParam;
+    copied += paramLen - modelParam;
     pos += nSize;
     records++;
 
