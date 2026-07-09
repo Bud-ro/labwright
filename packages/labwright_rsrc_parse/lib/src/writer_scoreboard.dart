@@ -56,6 +56,7 @@ import 'dart:typed_data';
 import 'blocks/block_writer.dart';
 import 'blocks/dfds.dart' show DfdsContext;
 import 'blocks/image_block.dart' show decodeImageBlock;
+import 'blocks/metafile_block.dart' show frameMetafile;
 import 'blocks/version_word.dart' show versionWordFromSections;
 import 'container.dart';
 import 'decode.dart' show inflateHeapPayload, isCompressedHeapPayload;
@@ -297,8 +298,19 @@ WriterAttribution attributeVi(Uint8List bytes, {int depth = 0}) {
           // header) and byte-faithful uncompressed interiors are model; its
           // compressed chunk streams (IDAT/…) and undecoded trailer stay copied.
           final image = tag == null ? null : decodeImageBlock(tag, payload);
+          // A PICT/WEMF metafile block is framed element-by-element: its
+          // opcode/record headers, length prefixes, and picture/metafile header
+          // are reconstructed (model), and each element's opaque payload interior
+          // (a compressed QuickTime image, an EMF record's parameter block) is
+          // retained verbatim (copied). No nested-deflate reframe applies — a
+          // metafile's opaque leaves are not zlib streams — so its model bytes
+          // count identically at the byte and content levels.
+          final meta = tag == null ? null : frameMetafile(tag, payload);
           if (modeled != null) {
             typedPayload += payload.length;
+          } else if (meta != null && _eq(meta.bytes, payload)) {
+            typedPayload += meta.modelBytes;
+            untyped += meta.copiedBytes;
           } else if (image != null && _eq(image.bytes, payload)) {
             typedPayload += image.modelBytes;
             untyped += image.copiedBytes;

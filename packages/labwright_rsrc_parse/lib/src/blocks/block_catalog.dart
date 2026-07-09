@@ -314,8 +314,8 @@ const Map<String, ViBlockInfo> _catalog = {
     'Mac PICT image',
     _im,
     _cf,
-    'QuickDraw PICT v2: bounds rect + 00 11 02 FF version opcode; stream is standard PICT. See decodePictEnvelope.',
-    decoder: 'decodePictEnvelope',
+    'QuickDraw PICT v2: [u16 size][picFrame rect][00 11 VersionOp][02 FF version] then a big-endian u16 opcode stream ending at OpEndPic (00 FF). frameMetafile tiles the opcode stream to the last byte (2/2 corpus, byte-exact), reconstructing opcode/length framing and retaining opaque leaves (the CompressedQuickTime image) byte-faithfully; envelope bounds via decodePictEnvelope.',
+    decoder: 'frameMetafile',
   ),
 
   'MNGI': ViBlockInfo(
@@ -331,8 +331,8 @@ const Map<String, ViBlockInfo> _catalog = {
     'Windows enhanced metafile',
     _im,
     _cf,
-    'EMF: EMR_HEADER (le) + " EMF" signature @40; bounds decoded, stream is standard EMF. See decodeEmfEnvelope.',
-    decoder: 'decodeEmfEnvelope',
+    'EMF: EMR_HEADER (le, iType 1) + " EMF" signature @40, then self-describing records [u32 iType][u32 nSize][params] ending at EMR_EOF (iType 14). frameMetafile tiles the record stream to the last byte (9/9 corpus, byte-exact), reconstructing each 8-byte record header and retaining the parameter block as an opaque leaf; envelope bounds via decodeEmfEnvelope.',
+    decoder: 'frameMetafile',
   ),
 
   'LIvi': ViBlockInfo(
