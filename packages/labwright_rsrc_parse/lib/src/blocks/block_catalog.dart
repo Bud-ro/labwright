@@ -317,7 +317,7 @@ const Map<String, ViBlockInfo> _catalog = {
     'Mac PICT image',
     _im,
     _cf,
-    'QuickDraw PICT v2: [u16 size][picFrame rect][00 11 VersionOp][02 FF version] then a big-endian u16 opcode stream ending at OpEndPic (00 FF). frameMetafile tiles the opcode stream to the last byte (2/2 corpus, byte-exact), reconstructing opcode/length framing and retaining opaque leaves (the CompressedQuickTime image) byte-faithfully; envelope bounds via decodePictEnvelope.',
+    'QuickDraw PICT v2: [u16 size][picFrame rect][00 11 VersionOp][02 FF version] then a big-endian u16 opcode stream ending at OpEndPic (00 FF). frameMetafile tiles the opcode stream to the last byte (2/2 corpus, byte-exact), reconstructing opcode/length framing. A CompressedQuickTime opcode (0x8200) carrying an uncompressed raw codec image is modeled through its QuickTime framing, ImageDescription and raw RGB/RGBA raster (rowBytes x height); other opaque leaves are retained byte-faithfully. Envelope bounds via decodePictEnvelope.',
     decoder: 'frameMetafile',
   ),
 

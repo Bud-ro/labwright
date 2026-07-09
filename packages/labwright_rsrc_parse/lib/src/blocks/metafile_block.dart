@@ -243,11 +243,48 @@ int? _pictOpcodeDataLength(int op, ByteData v, int dataStart) {
   return null;
 }
 
+/// The QuickDraw `raw ` (uncompressed) codec 4CC, big-endian, in a QuickTime
+/// [ImageDescription]'s `cType` field.
+const int _qtRawCodec = 0x72617720; // 'raw '
+
+/// For a `CompressedQuickTime` opcode (`0x8200`) whose payload is an uncompressed
+/// (`raw `) image, the number of its [dataStart]-relative data bytes that are
+/// understood: the QuickTime framing (version/matrix/matte/mask fields), the
+/// [ImageDescription], and the raw pixel raster (`rowBytes × height`, with
+/// `rowBytes = width·depth/8`). Returns null when the opcode is not a clean,
+/// matte-free/mask-free `raw ` image that fits within [dataLen] — leaving it an
+/// opaque leaf. `v` is the whole-payload view; the data span
+/// `[dataStart, dataStart+dataLen)` is guaranteed in-bounds by the caller.
+int? _quickTimeRawExtent(ByteData v, int dataStart, int dataLen) {
+  // [u32 opcodeSize][version u16][matrix 36][matteSize u32][matteRect 8]
+  // [mode u16][srcRect 8][accuracy u32][maskSize u32] then ImageDescription.
+  final qt = dataStart + 4;
+  final idStart = qt + 68;
+  if (idStart + 84 > dataStart + dataLen) return null;
+  final matteSize = v.getUint32(qt + 38);
+  final maskSize = v.getUint32(qt + 64);
+  if (matteSize != 0 || maskSize != 0) return null; // matte/mask not handled
+  final idSize = v.getUint32(idStart);
+  final cType = v.getUint32(idStart + 4);
+  if (cType != _qtRawCodec) return null;
+  final width = v.getUint16(idStart + 32);
+  final height = v.getUint16(idStart + 34);
+  final dataSize = v.getUint32(idStart + 44);
+  final depth = v.getUint16(idStart + 82);
+  if (width == 0 || height == 0 || (width * depth) % 8 != 0) return null;
+  final rowBytes = (width * depth) ~/ 8;
+  if (dataSize != rowBytes * height) return null; // not a bare raster
+  final understood = (idStart - dataStart) + idSize + dataSize;
+  if (understood > dataLen) return null; // does not fit the opcode
+  return understood;
+}
+
 /// The model-byte fraction of an [op]'s framing: the length-determining fields
 /// (size/length/count words) and understood fixed operands are model; a variable
 /// trailing payload is copied. Given the opcode's total [dataLen] (excluding
-/// pad), returns how many of those data bytes are model (the rest are copied).
-int _pictOpcodeModelData(int op, int dataLen) {
+/// pad) and the whole-payload view [v] at the opcode's [dataStart], returns how
+/// many of those data bytes are model (the rest are copied).
+int _pictOpcodeModelData(int op, ByteData v, int dataStart, int dataLen) {
   // Region / polygon: `[u16 size][Rect bounds (8)][rgnData]` — the size word and
   // bounds rect are model, the region interior is the opaque leaf.
   if (op == 0x0001 || (op >= 0x0070 && op <= 0x0087)) {
@@ -268,13 +305,18 @@ int _pictOpcodeModelData(int op, int dataLen) {
       (op >= 0x00A2 && op <= 0x00AF)) {
     return dataLen >= 2 ? 2 : dataLen;
   }
+  // CompressedQuickTime carrying an uncompressed (`raw `) image: the QuickTime
+  // framing, ImageDescription, and raw pixel raster are all understood (the
+  // "compressed" data is a bare RGB/RGBA raster). A non-raw or matte/mask-bearing
+  // image stays an opaque leaf (only the length long is model).
+  if (op == 0x8200) {
+    final understood = _quickTimeRawExtent(v, dataStart, dataLen);
+    if (understood != null) return understood;
+    return dataLen >= 4 ? 4 : dataLen;
+  }
   // Reserved / QuickTime `[u32 dataLen][data]`: the length long is model, the
   // compressed image / private data is the opaque leaf.
-  if ((op >= 0x00D0 && op <= 0x00FE) ||
-      (op >= 0x8100 && op <= 0x81FF) ||
-      op == 0x8200 ||
-      op == 0x8201 ||
-      op == 0xFFFF) {
+  if ((op >= 0x00D0 && op <= 0x00FE) || (op >= 0x8100 && op <= 0x81FF) || op == 0x8201 || op == 0xFFFF) {
     return dataLen >= 4 ? 4 : dataLen;
   }
   // Every other opcode carries a fixed, fully-understood operand block — all
@@ -315,7 +357,7 @@ ViMetafileFrame? framePictV2(Uint8List payload) {
     out.add(opw);
     out.add(Uint8List.sublistView(payload, dataStart, dataEnd));
     model += 2;
-    final modelData = _pictOpcodeModelData(op, dataLen);
+    final modelData = _pictOpcodeModelData(op, v, dataStart, dataLen);
     model += modelData;
     copied += dataLen - modelData;
     pos = dataEnd;

@@ -8,6 +8,61 @@ import 'test_util.dart';
 /// Big-endian u16 bytes (QuickDraw PICT byte order).
 List<int> _be16(int v) => [(v >> 8) & 0xff, v & 0xff];
 
+/// A QuickTime ImageDescription (86 B, big-endian) for an uncompressed `raw `
+/// image of [w]x[h] at [depth] bits; its raster is `w*depth/8 * h` bytes.
+Uint8List _rawImageDesc(int w, int h, int depth) {
+  final id = ByteData(86);
+  id.setUint32(0, 86); // idSize
+  id.setUint32(4, 0x72617720); // cType 'raw '
+  id.setUint16(32, w);
+  id.setUint16(34, h);
+  id.setUint32(44, (w * depth ~/ 8) * h); // dataSize
+  id.setUint16(82, depth);
+  return id.buffer.asUint8List();
+}
+
+/// A minimal version-2 PICT holding one CompressedQuickTime (0x8200) opcode that
+/// carries an uncompressed `raw ` [w]x[h]x[depth] image, ending at OpEndPic. The
+/// opcode data is a 68-byte QuickTime header (version/matrix/matte/mask, all
+/// zero), the [ImageDescription], then the raster; the u32 size word after the
+/// opcode counts all of that.
+Uint8List _pictWithRawQuickTime(int w, int h, int depth) {
+  final imageDesc = _rawImageDesc(w, h, depth);
+  final rasterLen = (w * depth ~/ 8) * h;
+  final qtLen = 68 + imageDesc.length + rasterLen;
+  final total = 14 + 26 + 2 + 4 + qtLen + 2;
+  final b = ByteData(total);
+  final out = b.buffer.asUint8List();
+  var o = 0;
+  void u16(int value) {
+    b.setUint16(o, value);
+    o += 2;
+  }
+
+  void u32(int value) {
+    b.setUint32(o, value);
+    o += 4;
+  }
+
+  u16(0); // size
+  o += 8; // picFrame rect (zeros)
+  u16(0x0011); // VersionOp
+  u16(0x02ff); // version 2
+  u16(0x0c00); // HeaderOp
+  o += 24; // header (zeros)
+  u16(0x8200); // CompressedQuickTime
+  u32(qtLen); // opcode data size (everything after this word)
+  o += 68; // QuickTime version/matrix/matte/mask fields (zeros → matte/mask 0)
+  out.setRange(o, o + imageDesc.length, imageDesc);
+  o += imageDesc.length;
+  for (var i = 0; i < rasterLen; i++) {
+    out[o + i] = i & 0xff; // raster
+  }
+  o += rasterLen;
+  u16(0x00ff); // OpEndPic
+  return out;
+}
+
 /// Little-endian u32 bytes (EMF byte order).
 List<int> _le32(int v) => [v & 0xff, (v >> 8) & 0xff, (v >> 16) & 0xff, (v >> 24) & 0xff];
 
@@ -66,6 +121,30 @@ void main() {
     test('dispatches through frameMetafile by tag', () {
       expect(frameMetafile('PICT', _pict())?.kind, ViMetafileKind.pictV2);
       expect(frameMetafile('XXXX', _pict()), isNull);
+    });
+
+    test('a CompressedQuickTime raw image is fully modeled, byte-exact', () {
+      final p = _pictWithRawQuickTime(2, 2, 32);
+      final f = framePictV2(p);
+      expect(f, isNotNull);
+      expect(f!.bytes, orderedEquals(p)); // byte-exact re-emission
+      expect(f.modelBytes + f.copiedBytes, p.length); // tiling law
+      // The raw raster + its QuickTime framing are understood — nothing opaque.
+      expect(f.copiedBytes, 0);
+    });
+
+    test('a non-raw CompressedQuickTime codec stays an opaque leaf', () {
+      final p = _pictWithRawQuickTime(2, 2, 32);
+      // The cType 4CC sits at: header(14) + HeaderOp(2+24) + QT opcode(2) +
+      // size(4) + QT header(68) + idSize(4) = 118.
+      const cTypeAt = 14 + 26 + 2 + 4 + 68 + 4;
+      final q = Uint8List.fromList(p)..setRange(cTypeAt, cTypeAt + 4, 'jpeg'.codeUnits);
+      final f = framePictV2(q);
+      expect(f, isNotNull);
+      expect(f!.bytes, orderedEquals(q)); // still byte-exact
+      // An unrecognised codec is not modeled as a raster — its QuickTime data
+      // (framing + ImageDescription + raster, ~170 B here) stays an opaque leaf.
+      expect(f.copiedBytes, greaterThan(100));
     });
   });
 
