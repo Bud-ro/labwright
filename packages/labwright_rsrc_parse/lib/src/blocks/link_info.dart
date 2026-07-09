@@ -274,6 +274,16 @@ class _LiCursor {
   int p = 0;
   bool ok = true;
 
+  /// Byte length of the most recent `PTH0` path read by [_liPathRef] (-1 before
+  /// any). A `HeapToVI` link stores its target either as a non-empty path or as
+  /// an empty path followed by a heap offset list; [_liHeapToVi] reads this to
+  /// tell the two apart.
+  int lastPathLen = -1;
+
+  /// Whether the trailing `viLSPathRef` of the last [_liHeapToVi] was empty, so
+  /// the entry carries a heap offset list in its place.
+  bool heapPathEmpty = false;
+
   /// Whether the file version is ≥ `a.c.d` (release stage always satisfies the
   /// small stage thresholds pylabview uses, so a major/minor/patch compare is
   /// sufficient across the corpus).
@@ -358,7 +368,9 @@ void _liPathRef(_LiCursor c) {
     return;
   }
   c.skip(4);
-  c.skip(c.u32());
+  final len = c.u32();
+  c.lastPathLen = len;
+  c.skip(len);
 }
 
 /// `[u8 len][bytes]` padded so `(len+1)` is even (pylabview `readPStr` padto 2).
@@ -440,13 +452,20 @@ void _liOffsetSave(_LiCursor c) {
 }
 
 void _liHeapToVi(_LiCursor c) {
+  c.heapPathEmpty = false;
   _liOffsetSave(c);
   if (!c.ok) return;
-  if (c.ge(8, 2, 0)) _liPathRef(c);
+  if (c.ge(8, 2, 0)) {
+    _liPathRef(c);
+    c.heapPathEmpty = c.lastPathLen == 0;
+  }
 }
 
 /// UDClass API link cache: a version-gated library-version word, a few booleans,
-/// and an `LStr` content blob.
+/// an `LStr` content blob, then a version-gated fixed trailing field (5 bytes at
+/// major ≥ 16, a further 4 at major ≥ 20; corpus-derived, beyond pylabview's
+/// version coverage). The trailing bytes are 0 across the corpus for an empty
+/// cache; retained verbatim by the serializer, certified by the terminator gate.
 void _liUdApiCache(_LiCursor c) {
   c.pad(4);
   c.skip(c.ge(8, 0, 0) ? 8 : 4);
@@ -455,6 +474,8 @@ void _liUdApiCache(_LiCursor c) {
   if (c.ge(8, 1, 0)) c.skip(1);
   if (c.ge(9, 0, 0)) c.skip(1);
   _liLStr(c);
+  if (c.major >= 16) c.skip(5);
+  if (c.major >= 20) c.skip(4);
 }
 
 void _liUdHeapApi(_LiCursor c) {
@@ -472,9 +493,9 @@ void _liUdViApi(_LiCursor c) {
   _liUdApiCache(c);
 }
 
-/// An observed version-gated trailing offset-list on the offset-list/UDClass
-/// kinds (present at major ≥ 14, beyond pylabview's version coverage). Retained
-/// as a self-framed `[u32 count][u32…]`; the terminator checksum certifies it.
+/// An observed version-gated trailing offset-list on the data-space `DSDS` link
+/// (present at major ≥ 14, beyond pylabview's version coverage). Retained as a
+/// self-framed `[u32 count][u32…]`; the terminator checksum certifies it.
 void _liTrailer(_LiCursor c) {
   if (c.major >= 14) _liOffList(c);
 }
@@ -516,10 +537,13 @@ void _liEntry(_LiCursor c, String kind) {
     case 'VILB':
       _liBasic(c);
     case 'IUVI':
-      c.ge(8, 2, 0) ? _liHeapToVi(c) : _liOffsetSave(c);
+      final heapForm = c.ge(8, 2, 0);
+      heapForm ? _liHeapToVi(c) : _liOffsetSave(c);
       if (!c.ok) return;
       if (c.ge(8, 0, 0)) _liPStr(c);
-      _liTrailer(c);
+      if (!c.ok) return;
+      // An empty heap-to-VI path is replaced by a heap offset list.
+      if (heapForm && c.heapPathEmpty) _liOffList(c);
     case 'VIVI':
       _liTyped(c);
       if (!c.ok) return;
@@ -536,7 +560,7 @@ void _liEntry(_LiCursor c, String kind) {
     case 'TDCC':
       _liHeapToVi(c);
       if (!c.ok) return;
-      _liTrailer(c);
+      if (c.heapPathEmpty) _liOffList(c);
     case 'PUPV': // poly-instance-use → poly link
     case 'SVVI': // static-VI-ref → VI link
       _liHeapToVi(c);
@@ -565,8 +589,6 @@ void _liEntry(_LiCursor c, String kind) {
     case 'DRPI': // create/destroy-ref → UDClass-API link
     case 'DOPI': // data-display-object → UDClass-API link
       _liUdHeapApi(c);
-      if (!c.ok) return;
-      _liTrailer(c);
     case 'VIPI':
       _liUdViApi(c); // no trailer: UDClass VI-API save info has no offset list
     default:
