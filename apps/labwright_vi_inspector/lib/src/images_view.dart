@@ -5,6 +5,7 @@ import 'package:image/image.dart' as img;
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 import 'image_clipboard.dart';
+import 'mac_icon_palette.dart';
 import 'span_annotations.dart';
 
 /// The eight-byte PNG signature `\x89PNG\r\n\x1a\n`. A block payload is scanned
@@ -112,20 +113,23 @@ ViImages extractViImages(List<DecodedSection> sections) {
 /// A short bit-depth label for a legacy-icon tag (`icl8` → `8-bit`).
 String legacyIconDepthLabel(int bpp) => '$bpp-bit';
 
-/// Encodes a decoded [ViLegacyIcon]'s 32×32 index grid to PNG bytes, using the
-/// same two-tone index mask [LegacyIconPainter] displays: pixel index 0 →
-/// [LegacyIconPainter.background], any nonzero index → [LegacyIconPainter.foreground].
-/// The LabVIEW icon colour palette is not resolved, so the copied PNG carries the
-/// icon SHAPE (foreground/background), not resolved colours.
+/// Encodes a decoded [ViLegacyIcon]'s 32×32 index grid to PNG bytes, mapping each
+/// stored pixel index through the standard Macintosh icon palette for the icon's
+/// bit depth ([macIconArgb]) — the same palette [LegacyIconPainter] displays, so
+/// the copied-to-clipboard PNG matches what is shown on screen.
 Uint8List encodeLegacyIconPng(ViLegacyIcon icon) {
   const dim = ViLegacyIcon.width;
   final image = img.Image(width: dim, height: dim);
-  // Channel values mirror LegacyIconPainter.background (0x1E) / .foreground (0xE0).
-  const bg = 0x1E, fg = 0xE0;
   for (var y = 0; y < dim; y++) {
     for (var x = 0; x < dim; x++) {
-      final v = icon.pixels[y * dim + x] != 0 ? fg : bg;
-      image.setPixelRgb(x, y, v, v, v);
+      final argb = macIconArgb(icon.bpp, icon.pixels[y * dim + x]);
+      image.setPixelRgb(
+        x,
+        y,
+        (argb >> 16) & 0xff,
+        (argb >> 8) & 0xff,
+        argb & 0xff,
+      );
     }
   }
   return img.encodePng(image);
@@ -235,8 +239,8 @@ class ViImagesView extends StatelessWidget {
           const Text(
             'The VI\'s 32×32 icon at different colour depths — icl8 (8-bit), '
             'icl4 (4-bit) and ICON (1-bit) are stored independently, not '
-            'guaranteed identical. The colour palette is not resolved, so each is '
-            'drawn as an index mask (foreground/background), not true colours.',
+            'guaranteed identical. Each pixel index is mapped through the '
+            'standard Macintosh icon palette for its depth.',
             style: TextStyle(color: Colors.grey, fontSize: 12),
           ),
           const SizedBox(height: 12),

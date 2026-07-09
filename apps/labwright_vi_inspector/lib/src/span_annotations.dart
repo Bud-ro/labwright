@@ -9,6 +9,8 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
+import 'mac_icon_palette.dart';
+
 /// One parsed record for display.
 class SpanInfo {
   SpanInfo({
@@ -413,36 +415,30 @@ class StringPreview extends StatelessWidget {
   );
 }
 
-/// Paints a 32×32 [ViLegacyIcon] scaled to fill the given size as a two-tone
-/// index mask: pixel index 0 is [background], every nonzero index is
-/// [foreground]. The LabVIEW icon colour palette is not resolved, so the stored
-/// palette indices are not real colours — drawing zero-vs-nonzero makes the icon
-/// SHAPE visible at any bit depth (1/4/8 bpp) without a palette, instead of
-/// mapping a raw index to a colour (which can render a high-index icon as a blank
-/// field on a matching background). The indices are shown as foreground/background,
-/// not true colours.
+/// Paints a 32×32 [ViLegacyIcon] scaled to fill the given size, mapping each
+/// stored pixel index through the standard Macintosh icon palette for the icon's
+/// bit depth (see [macIconArgb]): `ICON` (1-bit) → black/white, `icl4` (4-bit) →
+/// the 16-color system palette, `icl8` (8-bit) → the 256-color system palette.
+/// `ICON`/`icl4`/`icl8` store palette indices, not a mask, so a color icon draws
+/// its actual colours. These formats carry no alpha here, so every pixel is drawn
+/// opaque (index 0 is white, the classic icon background).
 class LegacyIconPainter extends CustomPainter {
   LegacyIconPainter(this.icon);
   final ViLegacyIcon icon;
 
-  static const background = Color(0xFF1E1E1E);
-  static const foreground = Color(0xFFE0E0E0);
-
   @override
   void paint(Canvas canvas, Size size) {
     const dim = 32;
-    canvas.drawRect(Offset.zero & size, Paint()..color = background);
     final cw = size.width / dim;
     final ch = size.height / dim;
-    final paint = Paint()..color = foreground;
+    final paint = Paint();
     for (var y = 0; y < dim; y++) {
       for (var x = 0; x < dim; x++) {
-        if (icon.pixels[y * dim + x] != 0) {
-          canvas.drawRect(
-            Rect.fromLTWH(x * cw, y * ch, cw + 0.5, ch + 0.5),
-            paint,
-          );
-        }
+        paint.color = Color(macIconArgb(icon.bpp, icon.pixels[y * dim + x]));
+        canvas.drawRect(
+          Rect.fromLTWH(x * cw, y * ch, cw + 0.5, ch + 0.5),
+          paint,
+        );
       }
     }
     canvas.drawRect(

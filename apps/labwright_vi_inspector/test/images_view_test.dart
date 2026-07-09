@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:labwright_vi_inspector/src/image_clipboard.dart';
 import 'package:labwright_vi_inspector/src/images_view.dart';
+import 'package:labwright_vi_inspector/src/mac_icon_palette.dart';
 import 'package:labwright_vi_inspector/src/span_annotations.dart';
 import 'package:labwright_vi_inspector/src/vi_screen.dart';
 
@@ -29,9 +30,16 @@ ViLegacyIcon _icon(int fill, int bpp) => decodeLegacyIcon(
   bpp,
 )!;
 
-/// Counts foreground pixels (≈0xE0 grey) in a [LegacyIconPainter] render — the
-/// icon SHAPE is non-blank when this is > 0, regardless of bit depth.
-Future<int> _foregroundPixels(WidgetTester tester, ViLegacyIcon icon) async {
+/// Renders a [LegacyIconPainter] to a raw RGBA buffer with each 32×32 icon pixel
+/// scaled to a [cell]×[cell] block, so a cell centre can be sampled clear of the
+/// 1px grid-border stroke. Returns the buffer and its row stride (in pixels).
+Future<({Uint8List rgba, int stride})> _renderIcon(
+  WidgetTester tester,
+  ViLegacyIcon icon, {
+  int cell = 8,
+}) async {
+  const dim = 32;
+  final side = (dim * cell).toDouble();
   final key = GlobalKey();
   await tester.pumpWidget(
     MaterialApp(
@@ -40,7 +48,7 @@ Future<int> _foregroundPixels(WidgetTester tester, ViLegacyIcon icon) async {
           child: RepaintBoundary(
             key: key,
             child: CustomPaint(
-              size: const Size(32, 32),
+              size: Size(side, side),
               painter: LegacyIconPainter(icon),
             ),
           ),
@@ -49,19 +57,53 @@ Future<int> _foregroundPixels(WidgetTester tester, ViLegacyIcon icon) async {
     ),
   );
   await tester.pump();
-  var count = 0;
+  late Uint8List rgba;
   await tester.runAsync(() async {
     final boundary =
         key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
-    final image = await boundary.toImage();
-    final data = await image.toByteData(); // defaults to rawRgba
-    final bytes = data!.buffer.asUint8List();
-    for (var i = 0; i + 3 < bytes.length; i += 4) {
-      if (bytes[i] > 0xB0 && bytes[i + 1] > 0xB0 && bytes[i + 2] > 0xB0)
-        count++;
+    final image = await boundary.toImage(); // pixelRatio 1.0 → side×side px
+    final data = await image.toByteData(); // rawRgba
+    rgba = data!.buffer.asUint8List();
+  });
+  return (rgba: rgba, stride: dim * cell);
+}
+
+/// The colour at the centre of icon cell ([cx], [cy]) in a [_renderIcon] buffer.
+Color _cellColor(
+  ({Uint8List rgba, int stride}) render,
+  int cx,
+  int cy, {
+  int cell = 8,
+}) {
+  final px = cx * cell + cell ~/ 2, py = cy * cell + cell ~/ 2;
+  final i = (py * render.stride + px) * 4;
+  return Color.fromARGB(
+    render.rgba[i + 3],
+    render.rgba[i],
+    render.rgba[i + 1],
+    render.rgba[i + 2],
+  );
+}
+
+/// A legacy icon whose interior cell ([cx],[cy]) carries palette [index], on an
+/// index-0 field, at [bpp] bits/pixel. Used to sample a known index's colour.
+ViLegacyIcon _iconWithCells(int bpp, Map<int, int> cellIndexByLinear) {
+  final byteLen = bpp == 8 ? 1024 : (bpp == 4 ? 512 : 128);
+  final body = Uint8List(byteLen);
+  cellIndexByLinear.forEach((pixel, index) {
+    switch (bpp) {
+      case 8:
+        body[pixel] = index;
+      case 4:
+        final b = body[pixel >> 1];
+        body[pixel >> 1] = (pixel & 1) == 0
+            ? (b & 0x0f) | ((index & 0x0f) << 4)
+            : (b & 0xf0) | (index & 0x0f);
+      case 1:
+        if ((index & 1) != 0) body[pixel >> 3] |= 1 << (7 - (pixel & 7));
     }
   });
-  return count;
+  return decodeLegacyIcon(body, bpp)!;
 }
 
 /// A real 1×1 PNG (67 bytes): decodable by `Image.memory`, and its IHDR reports
@@ -266,16 +308,72 @@ void main() {
     expect(find.byTooltip('Copy image to clipboard'), findsNWidgets(3));
   });
 
-  testWidgets('an all-nonzero-index icon renders non-blank at 8-bit', (
+  test('macIconArgb maps ICON (1-bit): 1=black, 0=white', () {
+    expect(macIconArgb(1, 1), 0xFF000000);
+    expect(macIconArgb(1, 0), 0xFFFFFFFF);
+  });
+
+  test('macIconArgb maps icl4 indices to the Mac 16-colour palette', () {
+    expect(macIconArgb(4, 0), 0xFFFFFFFF); // white
+    expect(macIconArgb(4, 3), 0xFFDD0806); // red
+    expect(macIconArgb(4, 6), 0xFF0000D4); // blue
+    expect(macIconArgb(4, 15), 0xFF000000); // black
+  });
+
+  test('macIconArgb maps icl8 indices to the Mac 256-colour palette', () {
+    expect(macIconArgb(8, 0), 0xFFFFFFFF); // white (cube corner)
+    expect(macIconArgb(8, 5), 0xFFFFFF00); // yellow (cube)
+    expect(macIconArgb(8, 35), 0xFFFF0000); // pure red (cube)
+    expect(macIconArgb(8, 215), 0xFFEE0000); // red ramp head
+    expect(macIconArgb(8, 245), 0xFFEEEEEE); // gray ramp head
+    expect(macIconArgb(8, 255), 0xFF000000); // black
+  });
+
+  testWidgets('icl8 painter draws each index in its palette colour', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(64, 64);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.reset);
-    final filled = await _foregroundPixels(tester, _icon(0xff, 8));
-    final blank = await _foregroundPixels(tester, _icon(0, 8));
-    expect(filled, greaterThan(0));
-    expect(blank, 0);
+    // Four interior cells carry indices 0/35/5/255 on an index-0 field.
+    final icon = _iconWithCells(8, {
+      5 * 32 + 5: 0, // white
+      5 * 32 + 6: 35, // pure red
+      5 * 32 + 7: 5, // yellow
+      5 * 32 + 8: 255, // black
+    });
+    final render = await _renderIcon(tester, icon);
+    expect(_cellColor(render, 5, 5), const Color(0xFFFFFFFF));
+    expect(_cellColor(render, 6, 5), const Color(0xFFFF0000));
+    expect(_cellColor(render, 7, 5), const Color(0xFFFFFF00));
+    expect(_cellColor(render, 8, 5), const Color(0xFF000000));
+  });
+
+  testWidgets('a multi-index icl8 icon renders many distinct colours', (
+    tester,
+  ) async {
+    // A palette-index gradient across the top rows → many distinct colours,
+    // proving the render is not a two-tone mask.
+    final icon = _iconWithCells(8, {
+      for (var i = 0; i < 32 * 8; i++) i: i % 256,
+    });
+    final render = await _renderIcon(tester, icon);
+    final colours = <int>{};
+    for (var cy = 0; cy < 8; cy++) {
+      for (var cx = 0; cx < 32; cx++) {
+        colours.add(_cellColor(render, cx, cy).toARGB32());
+      }
+    }
+    expect(colours.length, greaterThan(2));
+  });
+
+  testWidgets('ICON painter renders index 1 as black on a white field', (
+    tester,
+  ) async {
+    final icon = _iconWithCells(1, {5 * 32 + 5: 1});
+    final render = await _renderIcon(tester, icon);
+    expect(
+      _cellColor(render, 5, 5),
+      const Color(0xFF000000),
+    ); // set bit → black
+    expect(_cellColor(render, 5, 6), const Color(0xFFFFFFFF)); // clear → white
   });
 
   test('encodeLegacyIconPng emits a decodable PNG carrying the shape', () {
