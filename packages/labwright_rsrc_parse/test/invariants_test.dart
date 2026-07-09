@@ -18,6 +18,14 @@ import 'snapshot_check.dart';
 /// isolate ([corpusParallel]); the tests assert on the aggregated counters. Skipped when the corpus
 /// is absent.
 
+bool _bytesEq(Uint8List a, Uint8List b) {
+  if (a.length != b.length) return false;
+  for (var i = 0; i < a.length; i++) {
+    if (a[i] != b[i]) return false;
+  }
+  return true;
+}
+
 const _subviKinds = {0x31, 0x32, 0xc5, 0x104, 0x103};
 const _sigLen = {'RTSG': 16, 'OBSG': 16, 'CCSG': 16, 'SCSR': 20, 'MUID': 4};
 const _constLen = {'VPDP': 4, 'DLDR': 28, 'GCPR': 13};
@@ -193,9 +201,11 @@ _Summ _summarize(Uint8List bytes, String path) {
         final m = decodeTypeMap(d.bytes);
         if (m == null) continue;
         n('tmTotal');
-        if (m.isShortForm) {
-          n('tmShort');
-          if (m.entries.length != m.count) n('tmShortBad');
+        if (m.framesExactly) {
+          n('tmFramed');
+          // A framed map must re-emit byte-exact from its decoded fields.
+          final re = reserializeTypeMap(d.bytes);
+          if (re == null || re.length != d.bytes.length || !_bytesEq(re, d.bytes)) n('tmReemitBad');
         }
       } else if (d.tag == 'STRG' && d.bytes.length >= 4) {
         n('strgTotal');
@@ -411,9 +421,9 @@ void main() {
     expect(headTags, containsAll(<String>{'FPHb', 'BDHb'}));
   });
 
-  test('LVSR stage byte is always 0x80; TM80 short form is self-consistent', () {
+  test('LVSR stage byte is always 0x80; every framed TM80 re-emits byte-exact', () {
     expect(L('stageNon80'), 0, reason: 'an LVSR stage byte != 0x80 appeared — re-probe the stage claim.');
-    expect(L('tmShortBad'), 0, reason: 'a short-form TM80 whose entries.length != count');
+    expect(L('tmReemitBad'), 0, reason: 'a framed TM80 did not re-emit byte-exact from its decoded fields');
   });
 
   test('DTHP decode is total and extended blocks recover printable names', () {

@@ -48,6 +48,7 @@ library;
 import 'dart:typed_data';
 
 import 'blocks/compiled_code.dart' show compiledCodeFrames, reserializeCompiledCode;
+import 'blocks/type_map.dart' show reserializeTypeMap, typeMapFrames;
 import 'blocks/type_pool.dart' show reserializeTypePool, typePoolFrames;
 import 'heap.dart';
 
@@ -313,8 +314,9 @@ class HeapContentSplit {
 /// [sectionTag] selects the grammar: `VCTP` is a type-pool (a length-prefixed
 /// type-descriptor list + a top-level index list — see [typePoolFrames]); `VICD`
 /// is a compiled-code descriptor (an envelope + a `code` chunk + a `CODE` symbol
-/// table — see [compiledCodeFrames]); every other tag (and null) is walked as an
-/// object-record heap ([walkHeapBody]).
+/// table — see [compiledCodeFrames]); `TM80` is the data-space type map (a
+/// variable-field `[count][indexShift][flags…]` list — see [typeMapFrames]);
+/// every other tag (and null) is walked as an object-record heap ([walkHeapBody]).
 HeapContentSplit attributeHeapBody(Uint8List body, [String? sectionTag]) {
   if (sectionTag == 'VCTP') {
     return typePoolFrames(body)
@@ -323,6 +325,11 @@ HeapContentSplit attributeHeapBody(Uint8List body, [String? sectionTag]) {
   }
   if (sectionTag == 'VICD') {
     return compiledCodeFrames(body)
+        ? HeapContentSplit(modelBytes: body.length, copiedBytes: 0, modelBugs: 0)
+        : HeapContentSplit(modelBytes: 0, copiedBytes: body.length, modelBugs: 0);
+  }
+  if (sectionTag == 'TM80') {
+    return typeMapFrames(body)
         ? HeapContentSplit(modelBytes: body.length, copiedBytes: 0, modelBugs: 0)
         : HeapContentSplit(modelBytes: 0, copiedBytes: body.length, modelBugs: 0);
   }
@@ -366,11 +373,12 @@ int _verifiedModelLength(Uint8List body, int offset, _Modeled m) {
 /// [attributeHeapBody] returns the same split without building [HeapWriteResult.bytes].
 ///
 /// [sectionTag] selects the grammar: `VCTP` re-serializes as a type pool
-/// ([reserializeTypePool]) and `VICD` as a compiled-code descriptor
-/// ([reserializeCompiledCode]) — their structural words are reconstructed and
-/// their opaque interiors (type-descriptor interiors; machine code and symbol
-/// names) retained byte-faithfully, so the whole body is model-sourced when it
-/// frames; every other tag (and null) is re-emitted as an object-record heap.
+/// ([reserializeTypePool]), `VICD` as a compiled-code descriptor
+/// ([reserializeCompiledCode]), and `TM80` as a data-space type map
+/// ([reserializeTypeMap]) — their structural words are reconstructed and their
+/// opaque interiors (type-descriptor interiors; machine code and symbol names)
+/// retained byte-faithfully, so the whole body is model-sourced when it frames;
+/// every other tag (and null) is re-emitted as an object-record heap.
 HeapWriteResult serializeHeapBody(Uint8List body, [String? sectionTag]) {
   if (sectionTag == 'VCTP') {
     final reserialized = reserializeTypePool(body);
@@ -381,6 +389,13 @@ HeapWriteResult serializeHeapBody(Uint8List body, [String? sectionTag]) {
   }
   if (sectionTag == 'VICD') {
     final reserialized = reserializeCompiledCode(body);
+    if (reserialized != null) {
+      return HeapWriteResult(bytes: reserialized, modelBytes: body.length, copiedBytes: 0, modelBugs: 0);
+    }
+    return HeapWriteResult(bytes: body, modelBytes: 0, copiedBytes: body.length, modelBugs: 0);
+  }
+  if (sectionTag == 'TM80') {
+    final reserialized = reserializeTypeMap(body);
     if (reserialized != null) {
       return HeapWriteResult(bytes: reserialized, modelBytes: body.length, copiedBytes: 0, modelBugs: 0);
     }

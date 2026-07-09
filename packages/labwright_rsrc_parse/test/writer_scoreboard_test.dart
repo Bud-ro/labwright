@@ -46,7 +46,7 @@ const _fullTags = [
 /// Block tags whose payload writer re-serializes a **subset** of corpus
 /// instances (the modelable form); the rest carry an undecoded interior and
 /// stay copied. The exact/inst split is pinned as a measurement (not a law).
-const _partialTags = ['VITS', 'DTHP', 'CONP', 'CPC2', 'LVSR', 'LIbd', 'LIvi', 'LIfp', 'LIds'];
+const _partialTags = ['VITS', 'DTHP', 'CONP', 'CPC2', 'LVSR', 'LIbd', 'LIvi', 'LIfp', 'LIds', 'TM80'];
 
 bool _bytesEqual(Uint8List a, Uint8List b) {
   if (a.length != b.length) return false;

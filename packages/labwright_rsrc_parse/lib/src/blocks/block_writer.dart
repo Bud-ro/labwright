@@ -67,6 +67,9 @@
 ///     16-byte opaque identity value.
 ///   * `COUT` — compiled output ([ViWordGrid]); the fixed three-word `u32` grid.
 ///   * `CPD2` — connector-pane data ([ViU16Record]); the fixed 2-byte `u16`.
+///   * `TM80` — data-space type map ([ViTypeMap]); the variable-field
+///     `[count][indexShift][flags…]` form (the uncompressed instances; the
+///     compressed ones re-emit through the heap-content writer instead).
 library;
 
 import 'dart:typed_data';
@@ -82,6 +85,7 @@ import 'save_record.dart';
 import 'small_records.dart';
 import 'string_block.dart';
 import 'tag_store.dart';
+import 'type_map.dart';
 import 'version_word.dart';
 
 /// Whether [tag] has a byte-exact payload writer registered (i.e. its decoded
@@ -126,7 +130,8 @@ bool hasBlockWriter(String tag) => switch (tag) {
   'OBSG' ||
   'CCSG' ||
   'COUT' ||
-  'CPD2' => true,
+  'CPD2' ||
+  'TM80' => true,
   _ => false,
 };
 
@@ -165,6 +170,7 @@ Uint8List? serializeBlockPayload(String tag, Uint8List payload) {
     'OBSG' || 'CCSG' => decodeRuntimeSignature(payload)?.serialize(),
     'COUT' => decodeWordGrid(payload, words: 3)?.serialize(),
     'CPD2' => decodeCpd2Record(payload)?.serialize(),
+    'TM80' => reserializeTypeMap(payload),
     _ => null,
   };
   if (out == null || out.length != payload.length) return null;

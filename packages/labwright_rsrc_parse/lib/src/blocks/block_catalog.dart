@@ -180,10 +180,15 @@ const Map<String, ViBlockInfo> _catalog = {
   ),
   'TM80': ViBlockInfo(
     'TM80',
-    'Type map (LV 8.0+)',
+    'Data-space type map (LV 8.0+)',
     _ti,
-    _lk,
-    'Compressed. Short form (~71%) = [u16 count][u16 field1][count u16 entries]; entry semantics not yet decoded. See decodeTypeMap.',
+    _cf,
+    'Compressed (LV10+) / uncompressed (8.0-9.x). Variable-field u2p2 list '
+        '[count][indexShift][count x flags]; entry i maps VCTP top-type '
+        '(indexShift+i), flags mark its data-space role (bit13 HasSaveData -> '
+        'default value in DFDS). Frames+re-emits byte-exact for 7408/7408 '
+        'compressed + 93/125 uncompressed bodies (rest are the older inline-TD '
+        'form, leading u16 0x0000). See decodeTypeMap.',
     decoder: 'decodeTypeMap',
   ),
   'DTHP': ViBlockInfo(
@@ -216,7 +221,19 @@ const Map<String, ViBlockInfo> _catalog = {
     'Default data space',
     _ds,
     _lk,
-    'Compressed default data-space image: a fixed 204-byte (51 u32) data-space init table, then the flattened default values of the VI\'s data-control objects (DCOs) laid out per their VCTP types. 3567 corpus instances (~7.4 MB, 3566 zlib-stored so re-emission stays in the copy-verbatim floor). Corpus-anchored: every body is >=204 bytes and the shortest is exactly 204 (726 instances; 723 byte-identical) — an empty data space that is the init table alone. The per-DCO region is NOT a plain concatenation of the VCTP top-level type list (walking it tiles no VI) nor one top-level type (tiles 4/3534); the DCO values are placed by offset via the data-space Type Map (TM80/DSTM), which is not decoded, so full tiling is blocked on that block, not only on per-type sizes. serializedDefaultSize catalogues the per-type flattened widths; the body is retained verbatim.',
+    'Compressed default data-space image: the flattened default values of the '
+        'data-control objects (DCOs) whose TM80/DSTM entry is flagged HasSaveData '
+        '(bit13) / IsDSAlignPadding (bit0), concatenated in type-map order, each '
+        'value laid out per its VCTP type. 3567 corpus instances (~7.4 MB, 3566 '
+        'zlib-stored). There is NO offset table: each value\'s extent is implied '
+        'by its type\'s flattened width read sequentially, so tiling DFDS needs '
+        'full type-aware flattened-value parsing (inline array/string/cluster '
+        'lengths), not just the type map. The leading region is the first mapped '
+        'entry\'s flattened default (a large data-space-init cluster; 726 bodies '
+        'are exactly that 204-byte cluster alone). serializedDefaultSize gives the '
+        'fixed-width per-type sizes, but a selected variable-width type appears in '
+        'every corpus DFDS, so none tile on fixed sizes alone; the body is '
+        'retained verbatim. The type map itself (TM80) is decoded and framed.',
   ),
   'DSIM': ViBlockInfo(
     'DSIM',
@@ -226,7 +243,15 @@ const Map<String, ViBlockInfo> _catalog = {
     'Leading u32==0 + u16 geometry (repeated at offset 30); the body is either a colour-icon PNG or a raw width*height*bpp raster (u32@22 = pixel byte count), optionally trailed by a palette. Byte-faithfully framed: PNG chunk envelope + verified CRC-32 as model, compressed IDAT retained opaque (decodeImageBlock); envelope dimensions via decodeDataSpaceImage.',
     decoder: 'decodeDataSpaceImage',
   ),
-  'DSTM': ViBlockInfo('DSTM', 'Data-space (TM)', _ds, _tt, 'Format not yet decoded.'),
+  'DSTM': ViBlockInfo(
+    'DSTM',
+    'Data-space type map (pre-LV 8.0)',
+    _ti,
+    _tt,
+    'Predecessor of TM80 (before the LV8.0 type consolidation): the type '
+        'descriptors were defined inline here rather than referencing VCTP. Rare '
+        '(n=1 in corpus). Inline-TD form not decoded.',
+  ),
 
   'CONP': ViBlockInfo(
     'CONP',
