@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
@@ -95,6 +93,10 @@ class _ViDiagramViewState extends State<ViDiagramView> {
   bool _fitted = false;
   DiagramRenderMode _mode = DiagramRenderMode.wireframe;
 
+  /// Whether the recovery-detail shelf (images / legend / outline) is shown
+  /// beside the diagram.
+  bool _shelfOpen = true;
+
   late final ViDiagram? _diagram = _largestDiagram(widget.diagrams);
   late final Map<int, ViHeapObject> _byId = _diagram?.byId ?? const {};
   // SubVI-call node icons resolved from the called VIs' own files (block diagram
@@ -184,140 +186,161 @@ class _ViDiagramViewState extends State<ViDiagramView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (!widget.isFrontPanel && !widget.viImages.isEmpty)
-          _ViImageStrip(widget.viImages),
-        _toolbar(_drawable.length, _counts),
-        _BdOutline(
-          outline: computeBdOutline(_drawable),
-          linkedSubVis: widget.subViNames,
-        ),
-        const SizedBox(height: 6),
+        _toolbar(_drawable.length),
+        const SizedBox(height: 4),
         Expanded(
-          child: Stack(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Positioned.fill(
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final viewport = Size(
-                      constraints.maxWidth,
-                      constraints.maxHeight,
-                    );
-                    if (viewport != _lastViewport) {
-                      _lastViewport = viewport;
-                      _fitted = false;
-                    }
-                    if (!_fitted) {
-                      WidgetsBinding.instance.addPostFrameCallback(
-                        (_) => _fit(),
-                      );
-                    }
-                    return ClipRect(
-                      child: ColoredBox(
-                        color: const Color(0xFFE9E9E9),
-                        child: InteractiveViewer(
-                          transformationController: _transform,
-                          constrained: false,
-                          minScale: 0.02,
-                          maxScale: 16,
-                          boundaryMargin: const EdgeInsets.all(2000),
-                          // The boundary isolates the diagram into its own
-                          // layer, so pan/zoom only re-composites the cached
-                          // painting instead of re-running the whole painter
-                          // (per-label text layout included) every frame.
-                          child: RepaintBoundary(
-                            child:
-                                (_mode == DiagramRenderMode.faithful &&
-                                    ordered.length <= kFaithfulMaxObjects)
-                                ? FaithfulLayer(
-                                    objects: ordered,
-                                    origin: content.topLeft,
-                                    size: content.size,
-                                    isFrontPanel: widget.isFrontPanel,
-                                  )
-                                : GestureDetector(
-                                    behavior: HitTestBehavior.opaque,
-                                    onTapDown: (d) => _selectAt(
-                                      d.localPosition,
-                                      ordered,
-                                      content,
-                                    ),
-                                    child: CustomPaint(
-                                      size: Size(content.width, content.height),
-                                      painter: BdDiagramPainter(
-                                        objects: ordered,
-                                        origin: content.topLeft,
-                                        wires: _wires,
-                                        subViIcons: _subViIcons,
-                                      ),
-                                      foregroundPainter: _OverlayPainter(
-                                        origin: content.topLeft,
-                                        selected: _selected,
-                                        members: _members,
-                                      ),
-                                    ),
-                                  ),
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-              if (_mode == DiagramRenderMode.wireframe && _selected != null)
-                Positioned(
-                  left: 8,
-                  right: 8,
-                  bottom: 8,
-                  child: _DetailsCard(
-                    object: _selected!,
-                    members: _members,
-                    onClose: () => setState(() {
-                      _selected = null;
-                      _members = const {};
-                    }),
-                  ),
-                ),
-              if (_mode == DiagramRenderMode.faithful &&
-                  _ordered.length > kFaithfulMaxObjects)
-                Positioned(
-                  left: 8,
-                  right: 8,
-                  top: 8,
-                  child: Material(
-                    color: const Color(0xFFFFF3CD),
-                    borderRadius: BorderRadius.circular(4),
-                    child: Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Text(
-                        'Faithful mode is disabled for large diagrams '
-                        '(${_ordered.length} objects > $kFaithfulMaxObjects) — showing wireframe.',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF7A5B00),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
+              Expanded(child: _diagramStack(content, ordered)),
+              if (_shelfOpen) _shelf(),
             ],
-          ),
-        ),
-        const Padding(
-          padding: EdgeInsets.only(top: 6),
-          child: Text(
-            'Object layout decoded clean-room. Dataflow wires (signal 0x17) are '
-            'routed between their decoded endpoint anchors; the wire datatype is '
-            'not decoded, so runs are neutral unless an anchor meets a typed '
-            'terminal. Visual wire segments (class 0x1d) are drawn from their '
-            'stored Manhattan runs.',
-            style: TextStyle(color: Colors.grey, fontSize: 11),
           ),
         ),
       ],
     );
   }
 
-  Widget _toolbar(int objectCount, Map<ViObjectKind, int> counts) => Wrap(
+  /// The recovery-detail shelf beside the diagram: the VI's own images, the
+  /// object-kind legend, and the outline summaries (control flow / recovered
+  /// features / class confidence / linked subVIs) — off the diagram's vertical
+  /// space so the canvas gets the room.
+  Widget _shelf() => SizedBox(
+    width: 250,
+    child: ListView(
+      padding: const EdgeInsets.only(left: 8),
+      children: [
+        if (!widget.isFrontPanel && !widget.viImages.isEmpty) ...[
+          _ViImageStrip(widget.viImages),
+          const SizedBox(height: 8),
+        ],
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            for (final entry in _counts.entries)
+              _LegendChip(
+                color: _kindColor(entry.key),
+                label: '${entry.key.name} ${entry.value}',
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        _BdOutline(
+          outline: computeBdOutline(_drawable),
+          linkedSubVis: widget.subViNames,
+        ),
+      ],
+    ),
+  );
+
+  Widget _diagramStack(Rect content, List<ViHeapObject> ordered) {
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final viewport = Size(
+                constraints.maxWidth,
+                constraints.maxHeight,
+              );
+              if (viewport != _lastViewport) {
+                _lastViewport = viewport;
+                _fitted = false;
+              }
+              if (!_fitted) {
+                WidgetsBinding.instance.addPostFrameCallback((_) => _fit());
+              }
+              return ClipRect(
+                child: ColoredBox(
+                  color: const Color(0xFFE9E9E9),
+                  child: InteractiveViewer(
+                    transformationController: _transform,
+                    constrained: false,
+                    minScale: 0.02,
+                    maxScale: 16,
+                    boundaryMargin: const EdgeInsets.all(2000),
+                    // The boundary isolates the diagram into its own
+                    // layer, so pan/zoom only re-composites the cached
+                    // painting instead of re-running the whole painter
+                    // (per-label text layout included) every frame.
+                    child: RepaintBoundary(
+                      child:
+                          (_mode == DiagramRenderMode.faithful &&
+                              ordered.length <= kFaithfulMaxObjects)
+                          ? FaithfulLayer(
+                              objects: ordered,
+                              origin: content.topLeft,
+                              size: content.size,
+                              isFrontPanel: widget.isFrontPanel,
+                            )
+                          : GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTapDown: (d) =>
+                                  _selectAt(d.localPosition, ordered, content),
+                              child: CustomPaint(
+                                size: Size(content.width, content.height),
+                                painter: BdDiagramPainter(
+                                  objects: ordered,
+                                  origin: content.topLeft,
+                                  wires: _wires,
+                                  subViIcons: _subViIcons,
+                                ),
+                                foregroundPainter: _OverlayPainter(
+                                  origin: content.topLeft,
+                                  selected: _selected,
+                                  members: _members,
+                                ),
+                              ),
+                            ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        if (_mode == DiagramRenderMode.wireframe && _selected != null)
+          Positioned(
+            left: 8,
+            right: 8,
+            bottom: 8,
+            child: _DetailsCard(
+              object: _selected!,
+              members: _members,
+              onClose: () => setState(() {
+                _selected = null;
+                _members = const {};
+              }),
+            ),
+          ),
+        if (_mode == DiagramRenderMode.faithful &&
+            _ordered.length > kFaithfulMaxObjects)
+          Positioned(
+            left: 8,
+            right: 8,
+            top: 8,
+            child: Material(
+              color: const Color(0xFFFFF3CD),
+              borderRadius: BorderRadius.circular(4),
+              child: Padding(
+                padding: const EdgeInsets.all(8),
+                child: Text(
+                  'Faithful mode is disabled for large diagrams '
+                  '(${_ordered.length} objects > $kFaithfulMaxObjects) — showing wireframe.',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF7A5B00),
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _toolbar(int objectCount) => Wrap(
     spacing: 12,
     runSpacing: 4,
     crossAxisAlignment: WrapCrossAlignment.center,
@@ -325,24 +348,6 @@ class _ViDiagramViewState extends State<ViDiagramView> {
       Text(
         '$objectCount objects',
         style: const TextStyle(fontWeight: FontWeight.bold),
-      ),
-      for (final entry in counts.entries)
-        _LegendChip(
-          color: _kindColor(entry.key),
-          label: '${entry.key.name} ${entry.value}',
-        ),
-      const Tooltip(
-        message:
-            'Dataflow wires (signal 0x17) are routed between their decoded\n'
-            'endpoint anchors. Visual segments (0x1d: stored Manhattan runs) are\n'
-            'also drawn. Not decoded: the wire datatype (for per-type colors) —\n'
-            'runs stay neutral unless an anchor meets a terminal whose type was\n'
-            'recovered.',
-        child: Chip(
-          avatar: Icon(Icons.linear_scale, size: 14),
-          label: Text('wires: dataflow routed', style: TextStyle(fontSize: 11)),
-          visualDensity: VisualDensity.compact,
-        ),
       ),
       SegmentedButton<DiagramRenderMode>(
         style: const ButtonStyle(visualDensity: VisualDensity.compact),
@@ -371,6 +376,15 @@ class _ViDiagramViewState extends State<ViDiagramView> {
         tooltip: 'Fit to view',
         onPressed: _fit,
         icon: const Icon(Icons.fit_screen),
+      ),
+      IconButton(
+        // The shelf is the right-hand panel; the icon reads as that panel being
+        // filled (open) or empty (hidden).
+        tooltip: _shelfOpen ? 'Hide details panel' : 'Show details panel',
+        onPressed: () => setState(() => _shelfOpen = !_shelfOpen),
+        icon: Icon(
+          _shelfOpen ? Icons.view_sidebar : Icons.view_sidebar_outlined,
+        ),
       ),
     ],
   );
@@ -604,9 +618,9 @@ String? wireframeAnnotation(ViHeapObject o) {
 /// structures grouped by catalog kind (e.g. `While loop`, `Case structure`), the
 /// distinct **labeled-node captions** (a node's `C4 22` caption — for a subVI
 /// usually its name, but NOT a proven call; many node kinds carry captions), and
-/// the total node count. Conveys the diagram's control-flow shape at a glance
-/// without claiming any dataflow edges (LabVIEW stores wires as geometry, with no
-/// recoverable node→node endpoints). Pure + public so it is unit-testable.
+/// the total node count. A text summary of the diagram's control-flow shape; it
+/// lists no dataflow edges (those are drawn on the canvas from the decoded
+/// signal endpoints, see [ViDiagramView]). Pure + public so it is unit-testable.
 ({
   Map<String, int> structuresByKind,
   List<String> labeledNodes,
@@ -820,38 +834,6 @@ List<ViHeapObject> bdDrawableObjects(ViDiagram diagram) {
   ];
 }
 
-/// Resolves the **on-node subVI icons** for [diagram]: for each subVI-call node
-/// (a [kSubViCallNodeCodes] class whose caption is a `.vi`/`.vim` filename), its
-/// target VI is fetched by name via [loadByName] and that VI's richest legacy
-/// icon (icl8 → icl4 → ICON) is decoded. Returns an [ViHeapObject.oid] → icon map
-/// for the nodes that resolved; a node whose target is not found is absent from
-/// the map and keeps the neutral connector-pane plate (the icon is never
-/// guessed). [loadByName] maps a bare filename to that file's bytes (or null) —
-/// the file I/O lives in the caller's callback so this stays pure and testable.
-Map<int, ViLegacyIcon> resolveSubViIcons(
-  ViDiagram diagram,
-  Uint8List? Function(String fileName) loadByName,
-) {
-  final out = <int, ViLegacyIcon>{};
-  final cache = <String, ViLegacyIcon?>{};
-  for (final object in diagram.objects) {
-    if (!kSubViCallNodeCodes.contains(object.kind)) continue;
-    final name = object.label?.trim();
-    if (name == null || !_isViFileName(name)) continue;
-    final icon = cache.putIfAbsent(name, () {
-      final bytes = loadByName(name);
-      if (bytes == null) return null;
-      try {
-        return bestLegacyIcon(extractViImages(decodeSections(bytes)));
-      } catch (_) {
-        return null;
-      }
-    });
-    if (icon != null) out[object.oid] = icon;
-  }
-  return out;
-}
-
 /// The `.vi`/`.vim` filenames [diagram]'s subVI-call nodes target — the wanted
 /// set an icon resolver receives (see [ViDiagramView.subViIconResolver]).
 Set<String> subViWantedNames(ViDiagram diagram) => {
@@ -944,9 +926,9 @@ class BdDiagramPainter extends CustomPainter {
 
   /// Resolved subVI-call node icons, keyed by [ViHeapObject.oid] — the 32×32
   /// icon of the VI a subVI-call node targets, loaded from that VI's own file
-  /// (see [resolveSubViIcons]). A node with an entry here stamps the real icon on
-  /// its plate; a node without one keeps the neutral connector-pane plate (the
-  /// icon is never guessed).
+  /// (resolved by `resolveSubViIconsFor`). A node with an entry here stamps the
+  /// real icon on its plate; a node without one keeps the neutral
+  /// connector-pane plate (the icon is never guessed).
   final Map<int, ViLegacyIcon> subViIcons;
 
   @override
@@ -1234,6 +1216,12 @@ class BdDiagramPainter extends CustomPainter {
       final anchors = <Rect>[];
       for (final anchor in wire.endpointAnchors) {
         if (anchor == null) continue;
+        // A zero-area anchor is an endpoint whose nearest bounded owner is a
+        // degenerate wire-segment stub (often at the diagram origin or a
+        // far-off point) — its real location is not decoded, and routing to it
+        // draws strokes into empty space. Such a leg is skipped rather than
+        // drawn wrong.
+        if (anchor.width <= 0 && anchor.height <= 0) continue;
         anchors.add(
           Rect.fromLTRB(
             anchor.left - origin.dx,
