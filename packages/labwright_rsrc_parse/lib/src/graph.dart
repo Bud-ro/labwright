@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'blocks/type_pool.dart';
 import 'heap.dart';
 
 /// The structural category of a heap object, from its class code + signals
@@ -48,6 +49,21 @@ enum ViTypeKind {
 
   /// A Call-Library node (`C4 C4` symbol + `C4 A4` library path).
   clnNode,
+
+  /// A string (resolved from the VCTP data-space type).
+  string,
+
+  /// A boolean (resolved from the VCTP data-space type).
+  boolean,
+
+  /// A cluster/struct (resolved from the VCTP data-space type).
+  cluster,
+
+  /// An array (resolved from the VCTP data-space type).
+  array,
+
+  /// A refnum (resolved from the VCTP data-space type).
+  refnum,
 
   /// No data-type signal present.
   unknown,
@@ -200,6 +216,20 @@ class ViHeapObject {
   /// `0x128`; corpus pairing: lCnt `i`→1, lMax `N`→2, lTst stop→192, shift
   /// registers →3/4, case selector →5) — or null.
   int? termBmp;
+
+  /// The object's data-space slot ([HeapAttribute.typeDescIndex], raw
+  /// `0x13a`) — an index into the VCTP top-level type table carrying a
+  /// per-VI base (see `resolveDataSpaceTypes`) — or null.
+  int? typeDescIdx;
+
+  /// The resolved VCTP type's embedded name (`action`, `data in`, …) — the
+  /// VI's own identifier for this data item — or null when the type is
+  /// unresolved or unnamed. Set by `resolveDataSpaceTypes`.
+  String? typeName;
+
+  /// The resolved VCTP data type (finer than [typeKind]: `dbl` vs `i32`) —
+  /// or null when unresolved. Set by `resolveDataSpaceTypes`.
+  ViDataType? dataType;
 
   /// Decoded 24-bit `0xRRGGBB` **plot** colours ([HeapAttribute.plotColor], raw
   /// `0x02a`, inferred), in heap order — the per-curve colours of a graph/chart's
@@ -735,7 +765,7 @@ const kControlTerminalCodes = {0x50, 0x4f, 0x57, 0x5b, 0x51};
 // the structColor/borderColor low bytes.
 // 0x29 also catches termBounds 0x129; 0x28 (already present for
 // backgroundColor 0x028) catches termBMPs 0x128.
-const _objAttrIds = {0x20, 0x21, 0x6c, 0x24, 0x28, 0x6f, 0x19, 0x2b, 0x2a, 0x29};
+const _objAttrIds = {0x20, 0x21, 0x6c, 0x24, 0x28, 0x6f, 0x19, 0x2b, 0x2a, 0x29, 0x3a};
 
 /// Pixel-area threshold (width×height) for the structural node fallback in
 /// `buildDiagram`. A still-`unknown` object that otherwise matches the BD-node
@@ -1012,6 +1042,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
         }
         if (attr.attribute == HeapAttribute.termBounds) cur.termBounds ??= attr.asRect;
         if (attr.attribute == HeapAttribute.termBMPs) cur.termBmp ??= attr.asInt;
+        if (attr.attribute == HeapAttribute.typeDescIndex) cur.typeDescIdx ??= attr.asInt;
         // The transparent sentinel (flag 0x01, RGB 0) is "no colour", not
         // black — capturing it would paint transparent label backings and
         // fills as solid black. Raw value 0x00000001 is likewise a flag, not

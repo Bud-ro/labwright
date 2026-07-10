@@ -251,9 +251,18 @@ ViModel buildViModelFromDecoded(Iterable<DecodedSection> decoded, {List<String> 
       if (tags.contains(decodedSection.tag) && decodedSection.bytes.length >= 6)
         buildDiagram(decodedSection.bytes, sectionTag: decodedSection.tag),
   ];
+  final blockDiagrams = diagramsFor(const {'BDHb', 'BDHP', 'BDEx'});
+  final frontPanelDiagrams = diagramsFor(const {'FPHb', 'FPHP', 'FPEx'});
+  final types = typePoolFromDecoded(list);
+  resolveDataSpaceTypes(
+    pool: types,
+    table: typeTableFromDecoded(list),
+    blockDiagrams: blockDiagrams,
+    frontPanelDiagrams: frontPanelDiagrams,
+  );
   return ViModel(
     subViNames: subViNames,
-    types: typePoolFromDecoded(list),
+    types: types,
     connectorPaneTypeIndex: connectorPaneFromSections(sections)?.typeIndex,
     version: ver.version,
     title: ver.title,
@@ -261,7 +270,152 @@ ViModel buildViModelFromDecoded(Iterable<DecodedSection> decoded, {List<String> 
     components: componentsFromDecoded(list),
     stringTables: heapStringTablesFromDecoded(list),
     heapRecords: heapC4RecordsFromDecoded(list),
-    blockDiagrams: diagramsFor(const {'BDHb', 'BDHP', 'BDEx'}),
-    frontPanelDiagrams: diagramsFor(const {'FPHb', 'FPHP', 'FPEx'}),
+    blockDiagrams: blockDiagrams,
+    frontPanelDiagrams: frontPanelDiagrams,
   );
 }
+
+/// The VCTP top-level type index table from [decoded], or empty.
+List<int> typeTableFromDecoded(List<DecodedSection> decoded) {
+  for (final section in decoded) {
+    if (section.tag == 'VCTP') return decodeTypeTable(section.bytes);
+  }
+  return const [];
+}
+
+/// The [ViTypeKind] a resolved pool [type] renders as, or null for kinds the
+/// renderer has no signal for.
+ViTypeKind? _typeKindOf(ViDataType type) => switch (type) {
+  ViDataType.i8 ||
+  ViDataType.i16 ||
+  ViDataType.i32 ||
+  ViDataType.i64 ||
+  ViDataType.u8 ||
+  ViDataType.u16 ||
+  ViDataType.u32 ||
+  ViDataType.u64 => ViTypeKind.numericInt,
+  ViDataType.sgl ||
+  ViDataType.dbl ||
+  ViDataType.ext ||
+  ViDataType.complexSgl ||
+  ViDataType.complexDbl ||
+  ViDataType.complexExt => ViTypeKind.numericFloat,
+  ViDataType.enumU8 || ViDataType.enumU16 || ViDataType.enumU32 => ViTypeKind.enumRing,
+  ViDataType.boolean => ViTypeKind.boolean,
+  ViDataType.string || ViDataType.cString => ViTypeKind.string,
+  ViDataType.path => ViTypeKind.path,
+  ViDataType.cluster => ViTypeKind.cluster,
+  ViDataType.array => ViTypeKind.array,
+  ViDataType.refnum => ViTypeKind.refnum,
+  _ => null,
+};
+
+/// Resolves every heap object's `typeDescIndex` through the VCTP top-level
+/// [table] into the [pool], setting [ViHeapObject.typeKind] and
+/// [ViHeapObject.typeName]; an object without its own index (a BD terminal
+/// `0x16`) inherits through its `dcoRef` (the paired front-panel DCO).
+///
+/// The heap's indices carry a **per-VI base**: where that base is stored has
+/// not been found, so it is **self-calibrated** per VI — the offset that
+/// maximises agreement between known-class anchors and their resolved kinds
+/// (string constant `0x51` → string, boolean constant `0x4f` / loop
+/// conditional `0x25` → boolean, loop count/maximum `0x24`/`0x26` →
+/// integer). Calibration demands at least 2 anchors and 90% agreement
+/// (corpus: 31/32 snippet VIs calibrate, base values 0..9); otherwise every
+/// type stays unresolved rather than guessed.
+void resolveDataSpaceTypes({
+  required List<ViType> pool,
+  required List<int> table,
+  required List<ViDiagram> blockDiagrams,
+  required List<ViDiagram> frontPanelDiagrams,
+}) {
+  if (pool.isEmpty || table.isEmpty) return;
+  final all = <ViHeapObject>[
+    for (final d in blockDiagrams) ...d.objects,
+    for (final d in frontPanelDiagrams) ...d.objects,
+  ];
+
+  ViType? resolve(int base, int index) {
+    final ti = base + index;
+    if (ti < 0 || ti >= table.length) return null;
+    final pi = table[ti];
+    return pi >= 0 && pi < pool.length ? pool[pi] : null;
+  }
+
+  bool expects(int kind, ViDataType type) => switch (kind) {
+    0x51 => type == ViDataType.string || type == ViDataType.cString,
+    0x4f || 0x25 => type == ViDataType.boolean,
+    0x24 || 0x26 => _typeKindOf(type) == ViTypeKind.numericInt,
+    _ => false,
+  };
+  final anchors = <(int, int)>[
+    for (final d in blockDiagrams)
+      for (final o in d.objects)
+        if (o.typeDescIdx != null && const {0x51, 0x4f, 0x25, 0x24, 0x26}.contains(o.kind)) (o.kind, o.typeDescIdx!),
+  ];
+  if (anchors.length < 2) return;
+  int? base;
+  var bestHits = 0;
+  for (var k = -8; k <= 48; k++) {
+    var hits = 0;
+    for (final (kind, index) in anchors) {
+      final type = resolve(k, index);
+      if (type != null && expects(kind, type.kind)) hits++;
+    }
+    if (hits > bestHits) {
+      bestHits = hits;
+      base = k;
+    }
+  }
+  if (base == null || bestHits < anchors.length * 0.9) return;
+
+  final byOid = <int, ViHeapObject>{for (final o in all) o.oid: o};
+  for (final o in all) {
+    final index = o.typeDescIdx;
+    if (index == null) continue;
+    final type = resolve(base, index);
+    if (type == null) continue;
+    final kind = _typeKindOf(type.kind);
+    if (kind != null && o.typeKind == ViTypeKind.unknown) o.typeKind = kind;
+    o.dataType ??= type.kind;
+    if (type.name != null && type.name!.trim().isNotEmpty) {
+      o.typeName ??= type.name!.trim();
+    }
+  }
+  // A BD terminal inherits its paired DCO's resolved type.
+  for (final o in all) {
+    if (o.typeDescIdx != null) continue;
+    final dcoRefs = o.typedRefs[HeapRefKind.dcoRef];
+    if (dcoRefs == null || dcoRefs.isEmpty) continue;
+    final dco = byOid[dcoRefs.first];
+    if (dco == null) continue;
+    if (o.typeKind == ViTypeKind.unknown && dco.typeKind != ViTypeKind.unknown) {
+      o.typeKind = dco.typeKind;
+    }
+    o.dataType ??= dco.dataType;
+    o.typeName ??= dco.typeName;
+  }
+}
+
+/// LabVIEW's short on-terminal label for a resolved [type] (`DBL`, `I32`,
+/// `TF`, `abc`, …), or null for kinds LabVIEW shows as art this reader does
+/// not reproduce.
+String? dataTypeGlyph(ViDataType type) => switch (type) {
+  ViDataType.i8 => 'I8',
+  ViDataType.i16 => 'I16',
+  ViDataType.i32 => 'I32',
+  ViDataType.i64 => 'I64',
+  ViDataType.u8 => 'U8',
+  ViDataType.u16 => 'U16',
+  ViDataType.u32 => 'U32',
+  ViDataType.u64 => 'U64',
+  ViDataType.sgl => 'SGL',
+  ViDataType.dbl => 'DBL',
+  ViDataType.ext => 'EXT',
+  ViDataType.complexSgl => 'CSG',
+  ViDataType.complexDbl => 'CDB',
+  ViDataType.complexExt => 'CXT',
+  ViDataType.boolean => 'TF',
+  ViDataType.string || ViDataType.cString => 'abc',
+  _ => null,
+};

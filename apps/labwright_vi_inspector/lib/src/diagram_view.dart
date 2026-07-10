@@ -410,6 +410,11 @@ Color _typeColor(ViTypeKind t) => switch (t) {
   ViTypeKind.numericFloat => const Color(0xFFE8732A),
   ViTypeKind.numericInt => const Color(0xFF1F6FE0),
   ViTypeKind.enumRing => const Color(0xFF1FA0C0),
+  ViTypeKind.string => const Color(0xFFDD00DD),
+  ViTypeKind.boolean => const Color(0xFF2A8A2A),
+  ViTypeKind.cluster => const Color(0xFF8A6B3A),
+  ViTypeKind.array => const Color(0xFF4A6BB0),
+  ViTypeKind.refnum => const Color(0xFF3A8A8A),
   ViTypeKind.path => const Color(0xFF3FA64B),
   ViTypeKind.clnNode => const Color(0xFFE8C547),
   ViTypeKind.unknown => const Color(0xFF707070),
@@ -436,10 +441,20 @@ Color _objectColor(ViHeapObject object) =>
 /// path, yellow = call-library node. Unknown stays neutral (never guessed).
 Color labviewTypeColor(ViTypeKind kind) => switch (kind) {
   ViTypeKind.numericFloat => const Color(0xFFFF8000),
-  ViTypeKind.numericInt => const Color(0xFF0066CC),
-  ViTypeKind.enumRing => const Color(0xFF0066CC),
+  // Integer/enum blue and string magenta are sampled from LabVIEW's own
+  // snippet renders (terminal borders (0,0,255) and (255,0,255)); boolean
+  // green matches the decoded constant foreground (0x007F00).
+  ViTypeKind.numericInt => const Color(0xFF0000FF),
+  ViTypeKind.enumRing => const Color(0xFF0000FF),
+  ViTypeKind.string => const Color(0xFFFF00FF),
+  ViTypeKind.boolean => const Color(0xFF007F00),
   ViTypeKind.path => const Color(0xFF669900),
   ViTypeKind.clnNode => const Color(0xFFE8C547),
+  // Cluster/array/refnum borders are not yet colour-sampled from a
+  // reference; they keep the neutral grey rather than a guessed hue.
+  ViTypeKind.cluster ||
+  ViTypeKind.array ||
+  ViTypeKind.refnum => const Color(0xFF8A8A8A),
   ViTypeKind.unknown => const Color(0xFF8A8A8A),
 };
 
@@ -1514,6 +1529,14 @@ class BdDiagramPainter extends CustomPainter {
                 ..strokeWidth = 1.0,
             );
           }
+          // The resolved data type's short label (DBL / I32 / TF / abc),
+          // as LabVIEW stamps on the terminal.
+          final glyph = object.dataType == null
+              ? null
+              : dataTypeGlyph(object.dataType!);
+          if (glyph != null && rect.width >= 22 && rect.height >= 12) {
+            _drawGlyphText(canvas, rect, glyph, border);
+          }
         case ViObjectKind.node:
           // LabVIEW node icon plate: subVI calls get a light-grey connector-pane
           // plate, primitive/function nodes the pale-gold numeric-palette plate.
@@ -1570,6 +1593,8 @@ class BdDiagramPainter extends CustomPainter {
           );
       }
     }
+    // The drawn-object index for owner lookups in the text pass.
+    final byOid = {for (final o in objects) o.oid: o};
     // Text pass: LabVIEW shows a structure's construct name on its frame and a
     // control/subVI's own caption, but not per-terminal datatype annotations.
     // Only a structure badge or a genuine recovered caption is drawn (the
@@ -1582,7 +1607,13 @@ class BdDiagramPainter extends CustomPainter {
       // plausible non-origin box, so the text lands where LabVIEW put it.
       // Degenerate boxes (origin-pinned or sub-glyph-sized) are skipped.
       if (kBdTextLabelCodes.contains(object.kind)) {
-        final text = object.label?.trim();
+        var text = object.label?.trim();
+        if (text == null || text.isEmpty) {
+          // An owned label with no recovered caption shows its owner's
+          // resolved data-space name (the VCTP type name, e.g. `data in`) —
+          // the identifier LabVIEW displays in that label.
+          text = byOid[object.parentOid]?.typeName;
+        }
         if (text == null || text.isEmpty) continue;
         final rect = rectOf(object);
         if (rect.width < 8 || rect.height < 8) continue;
