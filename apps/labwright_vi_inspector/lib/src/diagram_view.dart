@@ -102,6 +102,10 @@ class _ViDiagramViewState extends State<ViDiagramView> {
     null => const [],
     final diagram => bdVisibleWires(diagram),
   };
+  late final Map<int, Set<int>> _loopTerminals = switch (_diagram) {
+    null => const {},
+    final diagram => bdLoopTerminalKinds(diagram),
+  };
   // Wires are excluded from the fit: their absolute anchoring is not yet
   // verified (a misanchored run must not blow up the zoom-to-fit envelope).
   late final Rect _content = _drawable.isEmpty
@@ -269,6 +273,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                             origin: content.topLeft,
                             wires: _wires,
                             subViIcons: _subViIcons,
+                            loopTerminals: _loopTerminals,
                           ),
                           foregroundPainter: _OverlayPainter(
                             origin: content.topLeft,
@@ -970,6 +975,26 @@ List<ViWire> bdVisibleWires(ViDiagram diagram) {
   return out;
 }
 
+/// Per structure oid, the **loop-terminal child kinds** present in [diagram]:
+/// iteration count `lCnt 0x24`, conditional `lTst 0x25`, loop maximum
+/// `lMax 0x26` (the for-loop N). These terminals exist as heap objects but
+/// carry no decoded bounds anywhere in the snippet corpus (0 of 509), so the
+/// painter draws each present terminal's glyph at LabVIEW's default corner —
+/// presence is model-driven, only the position is the documented default.
+/// Shift registers (`lSR 0x27`/`rSR 0x28`) sit at undecoded heights on the
+/// borders and are not drawn.
+Map<int, Set<int>> bdLoopTerminalKinds(ViDiagram diagram) {
+  final byId = diagram.byId;
+  final out = <int, Set<int>>{};
+  for (final object in diagram.objects) {
+    if (object.kind < 0x24 || object.kind > 0x26) continue;
+    final parent = byId[object.parentOid ?? -1];
+    if (parent == null || parent.category != ViObjectKind.structure) continue;
+    (out[parent.oid] ??= <int>{}).add(object.kind);
+  }
+  return out;
+}
+
 /// The **drawable** objects of [diagram] — the layout layer the BD/FP view and
 /// the [BdOracle] both paint: objects with a valid absolute rectangle, excluding
 /// the scaffolding parts ([_isScaffolding]), implausibly large boxes, and the
@@ -1191,10 +1216,15 @@ class BdDiagramPainter extends CustomPainter {
     required this.origin,
     this.wires = const [],
     this.subViIcons = const {},
+    this.loopTerminals = const {},
   });
 
   final List<ViHeapObject> objects;
   final Offset origin;
+
+  /// Per structure oid, which loop-terminal children exist (see
+  /// [bdLoopTerminalKinds]) — drives which corner glyphs a loop shows.
+  final Map<int, Set<int>> loopTerminals;
 
   /// The decoded dataflow wires ([ViDiagram.wires], one per `0x17` signal),
   /// routed under the nodes/structures between their endpoint anchors. Empty
@@ -1313,15 +1343,18 @@ class BdDiagramPainter extends CustomPainter {
       // the neutral double-line frame.
       final rect = rectOf(object);
       final structColor = bdDecodedColor(object.structRgb);
+      // Corner glyphs are gated on the MODELED loop-terminal children (see
+      // [bdLoopTerminalKinds]): lCnt 0x24 → the iteration `i`, lMax 0x26 →
+      // the for-loop `N`, lTst 0x25 → the conditional stop. The terminals'
+      // positions are not decoded (0 of 509 corpus instances carry bounds),
+      // so each present glyph draws at LabVIEW's default corner.
+      final terminals = loopTerminals[object.oid] ?? const <int>{};
       switch (object.kind) {
-        case 0x21: // While loop: band + i (bottom-left) + stop (bottom-right).
+        case 0x21 || 0x20: // While / for loop: rounded band + terminals.
           _drawLoopBand(canvas, rect, structColor);
-          _drawIterationTerminal(canvas, rect);
-          _drawConditionalTerminal(canvas, rect);
-        case 0x20: // For loop: band + N (top-left) + i (bottom-left).
-          _drawLoopBand(canvas, rect, structColor);
-          _drawCountTerminal(canvas, rect);
-          _drawIterationTerminal(canvas, rect);
+          if (terminals.contains(0x26)) _drawCountTerminal(canvas, rect);
+          if (terminals.contains(0x24)) _drawIterationTerminal(canvas, rect);
+          if (terminals.contains(0x25)) _drawConditionalTerminal(canvas, rect);
         case 0x2c: // Case structure: the same band, un-rounded.
           _drawLoopBand(canvas, rect, structColor, rounded: false);
         default:
@@ -1799,6 +1832,7 @@ class BdDiagramPainter extends CustomPainter {
       !identical(old.objects, objects) ||
       !identical(old.wires, wires) ||
       !identical(old.subViIcons, subViIcons) ||
+      !identical(old.loopTerminals, loopTerminals) ||
       old.origin != origin;
 }
 

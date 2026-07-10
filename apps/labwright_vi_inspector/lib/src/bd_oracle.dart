@@ -108,6 +108,7 @@ Future<BdRaster?> rasteriseBlockDiagram(
     origin: content.topLeft,
     wires: wireList,
     subViIcons: subViIcons,
+    loopTerminals: bdLoopTerminalKinds(diagram),
   ).paint(canvas, content.size);
   final picture = recorder.endRecording();
   try {
