@@ -58,6 +58,29 @@ ViDiagram dia(List<int> records) => buildDiagram(u8([0, 0, 0, records.length, ..
 
 void main() {
   group('resolveDataSpaceTypes', resolveTypesTests);
+  test('primResId: captured off the 0xEA attribute and named through PrimOp', () {
+    final d = dia([
+      ...open(0x2f, 1),
+      ...bounds(10, 10, 36, 42),
+      0x44,
+      0xea,
+      1051 >> 8,
+      1051 & 0xff,
+      ...close(),
+      ...open(0x2f, 2),
+      0x44,
+      0xea,
+      9999 >> 8,
+      9999 & 0xff,
+      ...close(),
+    ]);
+    expect((d.byId[1]!.primResId, d.byId[1]!.primName), (1051, 'Subtract'));
+    expect((d.byId[2]!.primResId, d.byId[2]!.primName), (9999, null), reason: 'uncatalogued ids stay unnamed');
+    expect(PrimOp.fromId(1516)?.opName, 'Select');
+    final ids = PrimOp.values.map((op) => op.id).toSet();
+    expect(ids.length, PrimOp.values.length, reason: 'catalog ids are unique');
+  });
+
   test('bracket tree: parent/child nesting, roots, children(), absolute coordinates', () {
     final d = dia([
       ...open(0x7e, 1),

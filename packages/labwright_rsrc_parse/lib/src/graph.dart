@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'blocks/prim_ops.dart';
 import 'blocks/type_pool.dart';
 import 'heap.dart';
 
@@ -234,6 +235,15 @@ class ViHeapObject {
   /// The object's packed flags word ([HeapAttribute.objFlags], raw `0x0cb`)
   /// — or null when the record is absent.
   int? objFlags;
+
+  /// Which built-in operation a primitive node performs
+  /// ([HeapAttribute.primResID], raw `0x0ea`; scope class `0x2F` at 99.95%)
+  /// — or null when the record is absent. Named via [PrimOp.fromId].
+  int? primResId;
+
+  /// LabVIEW's default node name for [primResId] (`Subtract`, `Select`, …),
+  /// or null when the id is absent or uncatalogued (see [PrimOp]).
+  String? get primName => primResId == null ? null : primOpName(primResId!);
 
   /// Whether this data item is an **indicator** (an output) rather than a
   /// control: bit 0 of the owning DCO's [objFlags] (corpus-validated on
@@ -775,8 +785,8 @@ const kControlTerminalCodes = {0x50, 0x4f, 0x57, 0x5b, 0x51};
 // capture switch acts only on the exact decoded [HeapAttribute]. 0x19/0x2b are
 // the structColor/borderColor low bytes.
 // 0x29 also catches termBounds 0x129; 0x28 (already present for
-// backgroundColor 0x028) catches termBMPs 0x128.
-const _objAttrIds = {0x20, 0x21, 0x6c, 0x24, 0x28, 0x6f, 0x19, 0x2b, 0x2a, 0x29, 0x3a, 0xcb};
+// backgroundColor 0x028) catches termBMPs 0x128. 0xea is primResID.
+const _objAttrIds = {0x20, 0x21, 0x6c, 0x24, 0x28, 0x6f, 0x19, 0x2b, 0x2a, 0x29, 0x3a, 0xcb, 0xea};
 
 /// Pixel-area threshold (width×height) for the structural node fallback in
 /// `buildDiagram`. A still-`unknown` object that otherwise matches the BD-node
@@ -1055,6 +1065,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
         if (attr.attribute == HeapAttribute.termBMPs) cur.termBmp ??= attr.asInt;
         if (attr.attribute == HeapAttribute.typeDescIndex) cur.typeDescIdx ??= attr.asInt;
         if (attr.attribute == HeapAttribute.objFlags) cur.objFlags ??= attr.asInt;
+        if (attr.attribute == HeapAttribute.primResID) cur.primResId ??= attr.asInt;
         // The transparent sentinel (flag 0x01, RGB 0) is "no colour", not
         // black — capturing it would paint transparent label backings and
         // fills as solid black. Raw value 0x00000001 is likewise a flag, not

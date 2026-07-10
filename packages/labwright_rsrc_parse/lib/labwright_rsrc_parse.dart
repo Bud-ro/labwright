@@ -35,6 +35,7 @@ export 'src/blocks/legacy_icon.dart';
 export 'src/blocks/link_info.dart';
 export 'src/blocks/metafile_block.dart';
 export 'src/blocks/png_snippet.dart';
+export 'src/blocks/prim_ops.dart';
 export 'src/blocks/save_record.dart';
 export 'src/blocks/small_records.dart';
 export 'src/blocks/string_block.dart';
