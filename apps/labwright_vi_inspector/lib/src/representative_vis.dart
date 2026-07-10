@@ -60,6 +60,8 @@ class RepresentativeVi {
 /// Pinned commit SHAs of the source repositories.
 const _tuftsBaxter = 'cef95f1742ad6ce9ef6b733523317750b7a81296';
 const _picotech = 'dceb711c8a7878d64ef5993dc5706644ef397ad0';
+const _viSnippets = '1662bd7365317b0af87bf9f71f2431131231f03d';
+const _labviewViSnippet = '017ab352e24e251c786ad6ff598eacb214e06d05';
 
 /// The tuftsBaxter repo's top folder (spaces intact; encoded by [rawUrlOf]).
 const _ros = 'ROS for LabVIEW Software';
@@ -221,6 +223,27 @@ const List<RepresentativeVi> kRepresentativeVis = [
       'ps2000a/PicoScope2000aLib/PicoScope2000aUnitInfo.vi',
       'ps2000a/PicoScope2000aLib/PicoScope2000aWrapSettings.vi',
     ],
+  ),
+  // VI-snippet PNGs: the fetched PNG embeds its source .vi in a niVI chunk
+  // beside LabVIEW's own render of that VI's block diagram, so opening one
+  // also arms the Oracle tab with the paired reference image.
+  RepresentativeVi(
+    name: 'crc8.png (VI snippet)',
+    feature:
+        'CRC-8 snippet: for-loop, primitives and dense wiring, with '
+        'LabVIEW\'s own render as the Oracle reference',
+    repo: 'rcpacini/VI-Snippets',
+    commit: _viSnippets,
+    path: 'crc8.png',
+  ),
+  RepresentativeVi(
+    name: 'fg.png (VI snippet)',
+    feature:
+        'Small case-structure snippet: nested structures + typed terminals, '
+        'with LabVIEW\'s own render as the Oracle reference',
+    repo: 'rcpacini/LabVIEW-VI-Snippet',
+    commit: _labviewViSnippet,
+    path: 'Examples/Snippets/fg.png',
   ),
 ];
 

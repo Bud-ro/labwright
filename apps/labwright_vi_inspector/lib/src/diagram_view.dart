@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
@@ -550,19 +552,40 @@ Color? bdFillColor(ViHeapObject object) =>
     bdDecodedColor(object.contentRgb) ?? bdDecodedColor(object.bgRgb);
 
 /// A synthesized Manhattan (right-angle) route between two endpoint-anchor
-/// rectangles, as an ordered polyline in the anchors' own coordinate space: it
-/// leaves [source] on the horizontal side facing [sink], turns at the mid-x
-/// column, then enters [sink] on its facing side (an H–V–H elbow). LabVIEW does
-/// not persist wire path geometry, so this route is generated from the decoded
-/// endpoints, not recovered. Pure + public so the routing is unit-testable
-/// independent of the canvas.
+/// rectangles, as an ordered polyline in the anchors' own coordinate space.
+/// LabVIEW does not persist recoverable wire path geometry, so this route is
+/// generated from the decoded endpoints, not recovered.
+///
+/// When one endpoint's horizontal centre-line crosses the other's vertical
+/// span, the run is a single **straight horizontal** at that centre-line,
+/// entering the partner's facing edge at that y — the common LabVIEW shape of
+/// a terminal wired level into a structure border or an aligned partner
+/// (routing to the partner's own midpoint instead dove a level wire to the
+/// centre of a tall loop frame). When both centre-lines cross (nested or
+/// overlapping spans), the smaller endpoint — the terminal-like one whose
+/// centre a LabVIEW wire actually leaves from — sets the y. Otherwise the
+/// route leaves [source] on the side facing [sink], turns at the mid-x column,
+/// and enters [sink] on its facing side (an H–V–H elbow). Pure + public so
+/// the routing is unit-testable independent of the canvas.
 List<Offset> bdWireRoute(Rect source, Rect sink) {
   final sinkRight = sink.center.dx >= source.center.dx;
-  final start = Offset(
-    sinkRight ? source.right : source.left,
-    source.center.dy,
-  );
-  final end = Offset(sinkRight ? sink.left : sink.right, sink.center.dy);
+  final startX = sinkRight ? source.right : source.left;
+  final endX = sinkRight ? sink.left : sink.right;
+  final sourceLevel =
+      source.center.dy > sink.top && source.center.dy < sink.bottom;
+  final sinkLevel =
+      sink.center.dy > source.top && sink.center.dy < source.bottom;
+  if (sourceLevel || sinkLevel) {
+    final double y;
+    if (sourceLevel && sinkLevel) {
+      y = (source.height <= sink.height ? source : sink).center.dy;
+    } else {
+      y = sourceLevel ? source.center.dy : sink.center.dy;
+    }
+    return [Offset(startX, y), Offset(endX, y)];
+  }
+  final start = Offset(startX, source.center.dy);
+  final end = Offset(endX, sink.center.dy);
   final midX = (start.dx + end.dx) / 2;
   return [start, Offset(midX, start.dy), Offset(midX, end.dy), end];
 }
@@ -596,9 +619,11 @@ int _packRect(int top, int left, int bottom, int right) =>
     ((bottom + 0x8000) << 16) |
     (right + 0x8000);
 
-/// Class codes LabVIEW draws as **free text** on the canvas, not as a filled
-/// part: the control caption / free-label (`0x0a`) and the case-selector label
-/// (`0x95`). The painter renders only their recovered caption text, never a box.
+/// Class codes LabVIEW draws as **free text** on the canvas: the control
+/// caption / free-label (`0x0a`) and the case-selector label (`0x95`). The
+/// painter renders their recovered caption text within the label's own bounds,
+/// backed by a bordered fill only when the label's background colour was
+/// decoded (a comment's yellow backing) — never a guessed box.
 const Set<int> kBdTextLabelCodes = {0x0a, 0x95};
 
 /// The label drawn on a wireframe object. Structures (never text-labeled) show
@@ -825,6 +850,15 @@ List<ViHeapObject> bdDrawableObjects(ViDiagram diagram) {
               (object.absBounds!.width > 0 && object.absBounds!.height > 0)) &&
           object.absBounds!.width < 8000 &&
           object.absBounds!.height < 8000 &&
+          // An owned name-label whose position was not composed lands glued to
+          // the origin, extending upward (left == 0, bottom == 0) — 13 of the
+          // snippet corpus's 1849 label parts, every one duplicating text that
+          // belongs elsewhere. Drawing it stamps mislocated text AND inflates
+          // the content rect above the diagram; labels anywhere else
+          // (including legitimately negative coordinates) are kept.
+          !(kBdTextLabelCodes.contains(object.kind) &&
+              object.absBounds!.left == 0 &&
+              object.absBounds!.bottom == 0) &&
           // An inlined/malleable subVI splices its own connector-pane controls
           // into this heap; LabVIEW draws the subVI as one icon node, not those
           // internal controls, so they are not this diagram's top-level content.
@@ -1041,12 +1075,25 @@ class BdDiagramPainter extends CustomPainter {
 
     for (final object in solids) {
       final rect = rectOf(object);
-      // Free-text label parts (control caption 0x0a, case selector 0x95) are drawn
-      // by LabVIEW as plain text on the canvas, not as a filled box — painting a
-      // plate here would stamp a solid rectangle where the reference shows only
-      // text (or nothing, when the caption is empty). The text pass below renders
-      // any recovered caption.
-      if (kBdTextLabelCodes.contains(object.kind)) continue;
+      // Free-text label parts (control caption 0x0a, case selector 0x95) are
+      // drawn by LabVIEW as text, backed by a bordered fill only when the
+      // label has its own colour (a comment's yellow backing). So: a decoded
+      // background colour paints that backing; no colour paints no box (never
+      // guessed). The text pass below renders any recovered caption.
+      if (kBdTextLabelCodes.contains(object.kind)) {
+        final backing = bdDecodedColor(object.bgRgb);
+        if (backing != null) {
+          canvas.drawRect(rect, Paint()..color = backing);
+          canvas.drawRect(
+            rect,
+            Paint()
+              ..color = Colors.black.withValues(alpha: 0.6)
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 0.8,
+          );
+        }
+        continue;
+      }
       switch (object.category) {
         case ViObjectKind.terminal:
           // LabVIEW terminal: sharp rect, datatype fill, thin dark border, and
@@ -1135,11 +1182,34 @@ class BdDiagramPainter extends CustomPainter {
     // wireframe's debug "name · type" suffix is omitted so the render stays as
     // close to LabVIEW's sparse on-canvas text as the decode allows).
     for (final object in objects) {
-      // Standalone label sub-parts (0x0a/0x95) are not stamped on the canvas:
-      // their bounds are often origin-pinned (a node's name label anchors at the
-      // diagram origin, not above the node), so drawing them scatters mislocated
-      // text. Their captions remain reachable through the inspector.
-      if (kBdTextLabelCodes.contains(object.kind)) continue;
+      // Standalone label parts (0x0a free label / control caption, 0x95 case
+      // selector) draw their recovered caption as multi-line text within their
+      // own bounds — across the snippet corpus 1819/1849 such labels carry a
+      // plausible non-origin box, so the text lands where LabVIEW put it.
+      // Degenerate boxes (origin-pinned or sub-glyph-sized) are skipped.
+      if (kBdTextLabelCodes.contains(object.kind)) {
+        final text = object.label?.trim();
+        if (text == null || text.isEmpty) continue;
+        final rect = rectOf(object);
+        if (rect.width < 8 || rect.height < 8) continue;
+        final tp = TextPainter(
+          text: TextSpan(
+            text: text,
+            style: TextStyle(
+              color:
+                  bdDecodedColor(object.fgRgb) ??
+                  Colors.black.withValues(alpha: 0.85),
+              fontSize: 10.5,
+              fontFamily: 'Roboto',
+            ),
+          ),
+          maxLines: math.max(1, rect.height ~/ 12),
+          ellipsis: '…',
+          textDirection: TextDirection.ltr,
+        )..layout(maxWidth: math.max(8, rect.width - 4));
+        tp.paint(canvas, rect.topLeft + const Offset(2, 1));
+        continue;
+      }
       final onFrame = object.category == ViObjectKind.structure;
       // A node's identity is carried by its icon plate (and a separate free
       // label), never by stamping its subVI-filename/function label inside the

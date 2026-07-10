@@ -1,7 +1,7 @@
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
@@ -31,6 +31,24 @@ Future<void> pumpBody(
   addTearDown(tester.view.reset);
   await tester.pumpWidget(MaterialApp(home: Scaffold(body: body)));
   await tester.pump();
+}
+
+/// Loads the Flutter SDK's Roboto into the test binding under the family the
+/// diagram painter uses, so canvas text rasterises with real glyphs. Without
+/// this every glyph is the test binding's Ahem block — solid squares that
+/// swamp the oracle's ink/edge masks and drag its registration. No-op when
+/// the SDK font cache isn't locatable (oracle scores are only asserted where
+/// the corpus is fetched, which implies a full checkout with an SDK).
+Future<void> loadRealTextFont() async {
+  final root = Platform.environment['FLUTTER_ROOT'];
+  if (root == null) return;
+  final file = File(
+    '$root/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf',
+  );
+  if (!file.existsSync()) return;
+  final loader = FontLoader('Roboto')
+    ..addFont(Future.value(ByteData.sublistView(file.readAsBytesSync())));
+  await loader.load();
 }
 
 /// Splices a `niVI` chunk carrying [vi] into the PNG [png] (before `IEND`),

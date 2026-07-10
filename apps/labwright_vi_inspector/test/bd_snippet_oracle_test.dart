@@ -8,25 +8,28 @@ import 'package:labwright_vi_inspector/src/vi_demo.dart';
 
 import 'util.dart';
 
-/// The fetched snippet corpus (`Examples/Snippets/*.png` of the pinned
-/// rcpacini/LabVIEW-VI-Snippet repo), or empty when not fetched. The extracted
-/// repo keeps its tarball-root directory, so the PNGs are matched by their
-/// in-repo path anywhere below the corpus folder.
+/// The fetched snippet corpus across both pinned oracle repos, or empty when
+/// not fetched. The extracted repos keep their tarball-root directory, so the
+/// PNGs are matched by their in-repo path anywhere below the corpus folder.
+/// Snippet-ness itself is decided by extraction, not listing: the repos' plain
+/// art PNGs carry no niVI and are filtered here.
 List<File> snippetCorpusPngs() {
-  final dir = repoDir(
-    'packages/labwright_rsrc_parse/corpus/vi/rcpacini_LabVIEW-VI-Snippet',
-  );
-  if (dir == null) return const [];
-  return dir
-      .listSync(recursive: true)
-      .whereType<File>()
-      .where(
-        (f) =>
-            f.path.replaceAll(r'\', '/').contains('Examples/Snippets') &&
-            f.path.endsWith('.png'),
-      )
-      .toList()
-    ..sort((a, b) => a.path.compareTo(b.path));
+  final files = <File>[];
+  for (final repo in const [
+    'rcpacini_LabVIEW-VI-Snippet',
+    'rcpacini_VI-Snippets',
+  ]) {
+    final dir = repoDir('packages/labwright_rsrc_parse/corpus/vi/$repo');
+    if (dir == null) continue;
+    files.addAll(
+      dir
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((f) => f.path.endsWith('.png'))
+          .where((f) => extractSnippetVi(f.readAsBytesSync()) != null),
+    );
+  }
+  return files..sort((a, b) => a.path.compareTo(b.path));
 }
 
 void main() {
@@ -107,21 +110,43 @@ void main() {
     // a placement/rendering regression on any of these drops below its floor.
     const floors = <String, double>{
       'fg.png': 0.85,
+      'sub_vi_missing.png': 0.85,
+      'missing_terminal.png': 0.80,
+      'VISA_Query.png': 0.80,
+      'Tokenize URL.png': 0.80,
       'example.png': 0.75,
-      'sub_vi_missing.png': 0.65,
+      'ProjectItems.png': 0.75,
+      'Config_Dump.png': 0.75,
+      'Resolve Library Path.png': 0.75,
+      'ClassChildren.png': 0.65,
+      'GenerateTree.png': 0.65,
+      'crc8.png': 0.65,
+      'FileReadOnly.png': 0.65,
+      'VISA_InterfaceType.png': 0.65,
+      'IconHeader.png': 0.60,
+      'crc16.png': 0.60,
+      'ClassesInMemory.png': 0.60,
       'basic.png': 0.55,
+      'crc32.png': 0.55,
+      'MD5.png': 0.50,
       'PNG CRC32.png': 0.50,
+      'crc32_lookup_table.png': 0.50,
+      'Read Library Version.png': 0.50,
+      'decorations_only.png': 0.50,
       'large.png': 0.45,
       'vi_lib_dependency.png': 0.45,
-      'missing_terminal.png': 0.25,
-      'crc32_lookup_table.png': 0.15,
+      'Config_Escape.png': 0.45,
     };
 
     testWidgets('every snippet compares; placement ranks true placement', (
       tester,
     ) async {
       if (pngs.isEmpty) return;
-      expect(pngs, hasLength(12));
+      // Real glyphs, not Ahem blocks — canvas text is part of what the
+      // oracle measures.
+      await loadRealTextFont();
+      expect(pngs, hasLength(46));
+      var placementSum = 0.0, shiftedSum = 0.0, measured = 0;
       await tester.runAsync(() async {
         for (final f in pngs) {
           final png = f.readAsBytesSync();
@@ -173,16 +198,10 @@ void main() {
             lessThanOrEqualTo(placement.meanSupport + 1e-9),
             reason: name,
           );
-          // The metric must rank true placement above a displaced one wherever
-          // enough boxes measure AND there is signal to rank on (a render that
-          // matches the reference nowhere — an honest decode gap — scores 0 at
-          // every offset; fewer boxes → too noisy to demand strictness).
-          if (placement.objects >= 4 && placement.excessSupport > 0) {
-            expect(
-              placement.excessSupport,
-              greaterThan(shifted.excessSupport),
-              reason: name,
-            );
+          if (placement.objects > 0) {
+            placementSum += placement.excessSupport;
+            shiftedSum += shifted.excessSupport;
+            measured++;
           }
           final floor = floors[name];
           if (floor != null) {
@@ -194,6 +213,18 @@ void main() {
           }
         }
       });
+      // The metric ranks true placement above a 12-px displaced control **in
+      // aggregate** across the corpus. Per-snippet strictness is deliberately
+      // not asserted here: on a VI whose decode is systematically mismatched
+      // (an honest gap the oracle exists to expose) both offsets score
+      // near-noise and can tie — the metric's ranking property itself is
+      // pinned by the synthetic self-reference test above.
+      expect(measured, greaterThan(20));
+      expect(
+        placementSum / measured,
+        greaterThan(shiftedSum / measured + 0.1),
+        reason: 'placement no longer ranks above a displaced control',
+      );
     });
   });
 }

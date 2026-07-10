@@ -872,7 +872,7 @@ BdRegistration _translationRegistration(
   Uint8List referenceEdges,
   int width,
   int height, {
-  int searchRadius = 12,
+  int searchRadius = 48,
   int edgeThreshold = kBdEdgeThreshold,
 }) {
   // Whole-pixel offsets only: at the locked (typically 1:1) scale a
@@ -906,21 +906,42 @@ BdRegistration _translationRegistration(
   }
   if (points.isEmpty) return base;
   final nearEdges = _dilate(referenceEdges, width, height, 1);
+  int hitsAt(double dx, double dy) {
+    var hits = 0;
+    for (var i = 0; i < points.length; i += 2) {
+      final x = (points[i] + dx).round();
+      final y = (points[i + 1] + dy).round();
+      if (x < 0 || y < 0 || x >= width || y >= height) continue;
+      hits += nearEdges[y * width + x];
+    }
+    return hits;
+  }
+
+  // Coarse-to-fine: a stride-4 sweep over the full window finds the basin
+  // (content the ink-centre start misses by tens of px — e.g. a render whose
+  // label text stretches its ink box asymmetrically), then a 1-px refine
+  // lands the peak. Same evaluation budget as a 1-px sweep of a quarter the
+  // radius.
   var bestDx = base.dx, bestDy = base.dy, bestHits = -1;
-  for (var oy = -searchRadius; oy <= searchRadius; oy++) {
-    for (var ox = -searchRadius; ox <= searchRadius; ox++) {
-      final dx = base.dx + ox, dy = base.dy + oy;
-      var hits = 0;
-      for (var i = 0; i < points.length; i += 2) {
-        final x = (points[i] + dx).round();
-        final y = (points[i + 1] + dy).round();
-        if (x < 0 || y < 0 || x >= width || y >= height) continue;
-        hits += nearEdges[y * width + x];
-      }
+  for (var oy = -searchRadius; oy <= searchRadius; oy += 4) {
+    for (var ox = -searchRadius; ox <= searchRadius; ox += 4) {
+      final hits = hitsAt(base.dx + ox, base.dy + oy);
       if (hits > bestHits) {
         bestHits = hits;
-        bestDx = dx;
-        bestDy = dy;
+        bestDx = base.dx + ox;
+        bestDy = base.dy + oy;
+      }
+    }
+  }
+  final coarseDx = bestDx, coarseDy = bestDy;
+  for (var oy = -4; oy <= 4; oy++) {
+    for (var ox = -4; ox <= 4; ox++) {
+      if (ox == 0 && oy == 0) continue;
+      final hits = hitsAt(coarseDx + ox, coarseDy + oy);
+      if (hits > bestHits) {
+        bestHits = hits;
+        bestDx = coarseDx + ox;
+        bestDy = coarseDy + oy;
       }
     }
   }

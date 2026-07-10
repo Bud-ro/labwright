@@ -2,9 +2,12 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:labwright_vi_inspector/src/bd_oracle.dart';
 import 'package:labwright_vi_inspector/src/representative_vis.dart';
 import 'package:labwright_vi_inspector/src/vi_demo.dart';
 import 'package:labwright_vi_inspector/src/vi_screen.dart';
+
+import 'util.dart';
 
 void main() {
   group('RepresentativeVi.rawUrl', () {
@@ -118,5 +121,38 @@ void main() {
 
     // The menu is still reachable after the load.
     expect(find.byKey(const Key('examples')), findsOneWidget);
+  });
+
+  testWidgets('a snippet-PNG example loads its embedded VI + Oracle tab', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1400, 1000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    // A synthetic snippet PNG: a real PNG with the demo VI spliced in as
+    // niVI. Built inside runAsync — the engine-backed image encode never
+    // completes under the widget test's fake event loop.
+    final snippetPng = (await tester.runAsync(() async {
+      final rgba = Uint8List(60 * 60 * 4)..fillRange(0, 60 * 60 * 4, 0xff);
+      final png = await imageToPng(await imageFromRgba(rgba, 60, 60));
+      return spliceNiVi(png, demoViBytes());
+    }))!;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ViInspectorScreen(fetchBytes: (url) async => snippetPng),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('examples')));
+    await tester.pumpAndSettle();
+    expect(find.text('crc8.png (VI snippet)'), findsOneWidget);
+
+    await tester.tap(find.text('crc8.png (VI snippet)'));
+    await tester.pumpAndSettle();
+    // The embedded demo VI loaded and the paired reference armed the Oracle.
+    expect(find.text('demo.vi'), findsWidgets);
+    expect(find.text('Oracle'), findsOneWidget);
   });
 }
