@@ -253,20 +253,34 @@ class ViHeapObject {
 
   /// A multi-frame structure's raw diagram-index word ([HeapAttribute.dIdx],
   /// raw `0x04d`) — which stacked frame LabVIEW displays — or null when the
-  /// record is absent (the first frame is displayed). Bit 31 is a flag, not
-  /// part of the index (corpus: every out-of-range raw value but one is
-  /// `0x80000000 | index`); read [visibleFrameIndex].
+  /// record is absent (the first frame is displayed). Read through
+  /// [visibleFrameIndex], which strips the bit-31 flag and owns the corpus
+  /// census.
   int? dIdx;
 
   /// The stacked frame index LabVIEW displays for this multi-frame structure
-  /// (case/event/stacked-sequence): [dIdx] with the bit-31 flag stripped, or
-  /// 0 when the record is absent. Snippet-validated against the in-box
-  /// content heuristic: 106/117 agreement, with the disagreements in VIs
-  /// whose content geometry the heuristic is known to mislocate, and every
-  /// heuristic-undecidable structure resolved. Corpus: 8,070 of 16,959
-  /// multi-frame structures carry the record; 8,069 are in range after the
-  /// mask (one true outlier — callers must range-check against the actual
-  /// frame count).
+  /// (see [kMultiFrameStructureKinds]): [dIdx] with the bit-31 flag stripped
+  /// (every out-of-range raw corpus value but one is `0x80000000 | index`),
+  /// or 0 when the record is absent. The index counts the structure's `0x1b`
+  /// frame children in heap order. Only meaningful on the gated structure
+  /// kinds — elsewhere the capture is dropped and this reads 0.
+  ///
+  /// Evidence: the absent-record default is render-verified directly (the
+  /// GetCurrentDirectory snippet's two dIdx-absent structures both hold the
+  /// rendered content in frame 0); heap-order indexing is pinned by event
+  /// structures whose stored selector text carries the frame number — the
+  /// Pages snippet's `[6] "Reload": Value Change` selector rides dIdx=6 of
+  /// seven frames; the index semantics agree with the app-layer
+  /// content-placement heuristic on 106/117 snippet structures
+  /// (heuristic agreement, not a per-structure render comparison — the
+  /// disagreements sit in VIs with known content-geometry defects and every
+  /// heuristic-undecidable structure gets an answer). Corpus: 8,070 records
+  /// on exactly the four gated kinds (case 7,325 / disable 431 / event 300 /
+  /// stacked sequence 14); 8,069 in range after the mask (one true outlier —
+  /// callers must range-check against the actual frame count); one object
+  /// corpus-wide carries a second record (first-wins capture). 97 further
+  /// `0x4d` records ride part kinds (`0x20`/`0x21`/`0x121`/`0x1b`/`0x105`)
+  /// where the meaning is not decoded; the kind gate drops them.
   int get visibleFrameIndex => (dIdx ?? 0) & 0x7fffffff;
 
   /// Whether this **label part** (class `0xa`) is hidden in LabVIEW's
@@ -832,13 +846,19 @@ const kControlTerminalCodes = {0x50, 0x4f, 0x57, 0x5b, 0x51};
 // 0x1EA/0x2EA are uncatalogued today and decode to [HeapAttribute.unknown],
 // which no capture below acts on — recheck this gate if one is catalogued).
 // 0xe7 is the compressedWireTable container (capture gated to signal 0x17).
-// 0x4d is dIdx (gated to the multi-frame structure kinds).
+// 0x4d is dIdx (gated to the multi-frame structure kinds; raws 0x14d/0x24d
+// are uncatalogued today and decode to [HeapAttribute.unknown], which no
+// capture acts on — recheck this gate if one is catalogued).
 const _objAttrIds = {0x20, 0x21, 0x6c, 0x24, 0x28, 0x6f, 0x19, 0x2b, 0x2a, 0x29, 0x3a, 0xcb, 0xea, 0xe7, 0x4d};
 
-/// The structure classes that stack multiple `0x1b` frames and display one
-/// (case `0x2c`, event `0xcd`, stacked/timed variants `0xd5`/`0x29`) —
-/// corpus multi-frame census 15,332 / 1,214 / 390 / 23. The displayed frame
-/// comes from [ViHeapObject.visibleFrameIndex].
+/// The structure classes that stack multiple `0x1b` frames and display one —
+/// case [HeapObjectClass.bdStructureFrame] `0x2c`, disable
+/// [HeapObjectClass.bdDisableStructure] `0xcd`, event
+/// [HeapObjectClass.bdEventStructure] `0xd5`, stacked sequence
+/// [HeapObjectClass.bdStackedSequence] `0x29`. Flat sequences are a
+/// different class (`0xca`, with `0x121` subframes, all drawn side by side)
+/// and never enter this set. The displayed frame comes from
+/// [ViHeapObject.visibleFrameIndex], which owns the corpus census.
 const kMultiFrameStructureKinds = {0x2c, 0xcd, 0xd5, 0x29};
 
 /// Pixel-area threshold (width×height) for the structural node fallback in
