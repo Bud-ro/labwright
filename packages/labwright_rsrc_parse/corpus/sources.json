@@ -21,6 +21,7 @@
     {"repo": "CrossTheRoadElec/FRC-Examples-STEAMWORKS", "branch": "master", "commit": "e525de6aeceab62b8e2ff753adda321ad88ecc53", "viCount": 132, "category": "robotics", "note": "FRC 2017 robotics examples"},
     {"repo": "REVrobotics/SPARK-MAX-Examples", "branch": "master", "commit": "b519a006fbc2ce769eaba191db442e59714e255a", "viCount": 112, "category": "robotics", "note": "SPARK MAX motor controller examples"},
     {"repo": "tuftsBaxter/ROS-for-LabVIEW-Software", "branch": "master", "commit": "cef95f1742ad6ce9ef6b733523317750b7a81296", "viCount": 562, "category": "robotics", "note": "ROS-for-LabVIEW (academic, robotics)"},
-    {"repo": "G-CLI/G-CLI", "branch": "main", "commit": "662f75a78cef656359a2312910a85cd142b77bab", "viCount": 77, "category": "tooling", "note": "Command-line proxy for LabVIEW"}
+    {"repo": "G-CLI/G-CLI", "branch": "main", "commit": "662f75a78cef656359a2312910a85cd142b77bab", "viCount": 77, "category": "tooling", "note": "Command-line proxy for LabVIEW"},
+    {"repo": "rcpacini/LabVIEW-VI-Snippet", "branch": "master", "commit": "017ab352e24e251c786ad6ff598eacb214e06d05", "viCount": 0, "category": "oracle", "keep": [".png"], "note": "VI-snippet PNGs (MIT): each embeds its source .vi in a niVI chunk beside LabVIEW's own render of that VI's block diagram — a paired render oracle. Only .png files are kept (the .vi is read from the chunk), so the .vi sweep + snapshot are unaffected."}
   ]
 }
