@@ -1341,8 +1341,41 @@ void resolveDataSpaceTypes({
   required List<ViDiagram> blockDiagrams,
   required List<ViDiagram> frontPanelDiagrams,
 }) {
-  if (pool.isEmpty || table.isEmpty) return;
   final diagrams = [...blockDiagrams, ...frontPanelDiagrams];
+
+  ViHeapObject? findDco(ViDiagram own, int oid) {
+    final local = own.byId[oid];
+    if (local != null) return local;
+    for (final d in diagrams) {
+      if (identical(d, own)) continue;
+      final hit = d.byId[oid];
+      if (hit != null) return hit;
+    }
+    return null;
+  }
+
+  // Direction needs no type table or base: a panel DCO's objFlags bit 0 set
+  // = indicator (output); clear or absent on a typed DCO = control. A BD
+  // terminal inherits it through its dcoRef (same-heap match first — the
+  // corpus splits targets ~90/10 across heaps and oids repeat between
+  // heaps).
+  for (final d in diagrams) {
+    for (final o in d.objects) {
+      if (o.kind == 0x12 && o.typeDescIdx != null) {
+        o.isIndicator = ((o.objFlags ?? 0) & 1) != 0;
+      }
+    }
+  }
+  for (final d in diagrams) {
+    for (final o in d.objects) {
+      if (o.isIndicator != null) continue;
+      final dcoRefs = o.typedRefs[HeapRefKind.dcoRef];
+      if (dcoRefs == null || dcoRefs.isEmpty) continue;
+      o.isIndicator = findDco(d, dcoRefs.first)?.isIndicator;
+    }
+  }
+
+  if (pool.isEmpty || table.isEmpty) return;
 
   ViType? resolve(int base, int index) {
     final ti = base + index;
@@ -1386,28 +1419,8 @@ void resolveDataSpaceTypes({
       }
     }
   }
-  // A panel DCO's direction: objFlags bit 0 set = indicator (output);
-  // clear or absent on a typed DCO = control.
-  for (final d in diagrams) {
-    for (final o in d.objects) {
-      if (o.kind == 0x12 && o.typeDescIdx != null) {
-        o.isIndicator = ((o.objFlags ?? 0) & 1) != 0;
-      }
-    }
-  }
-  // A BD terminal inherits its paired DCO's resolved type and direction:
-  // same-heap match first, then the sibling heaps in diagram order.
-  ViHeapObject? findDco(ViDiagram own, int oid) {
-    final local = own.byId[oid];
-    if (local != null) return local;
-    for (final d in diagrams) {
-      if (identical(d, own)) continue;
-      final hit = d.byId[oid];
-      if (hit != null) return hit;
-    }
-    return null;
-  }
-
+  // A BD terminal inherits its paired DCO's resolved type: same-heap match
+  // first, then the sibling heaps in diagram order.
   for (final d in diagrams) {
     for (final o in d.objects) {
       if (o.typeDescIdx != null) continue;
@@ -1418,7 +1431,6 @@ void resolveDataSpaceTypes({
       if (dco.typeKind != ViTypeKind.unknown) o.typeKind = dco.typeKind;
       o.dataType ??= dco.dataType;
       o.typeName ??= dco.typeName;
-      o.isIndicator ??= dco.isIndicator;
     }
   }
 }
