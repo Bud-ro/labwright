@@ -45,6 +45,7 @@ Map<String, Object?> _objectToJson(ViHeapObject object) {
     if (primName != null) 'primName': primName,
     if (object.parentOid != null) 'parentOid': object.parentOid,
     if (object.label != null) 'label': object.label,
+    if (object.isLabelHidden) 'labelHidden': true,
     if (object.bounds != null) 'bounds': _rectToJson(object.bounds!),
     if (object.absBounds != null) 'absBounds': _rectToJson(object.absBounds!),
     if (object.items.isNotEmpty) 'items': object.items,
