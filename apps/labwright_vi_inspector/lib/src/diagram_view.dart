@@ -509,10 +509,74 @@ Color? bdDecodedColor(int? rgb) =>
 Color? bdFillColor(ViHeapObject object) =>
     bdDecodedColor(object.contentRgb) ?? bdDecodedColor(object.bgRgb);
 
+/// The signal's **stored** route (its decoded `0x1e7` table) as absolute
+/// points from [source] to [sink]: segments alternate axes starting
+/// horizontal from the source connection point (anchor centre), the first
+/// segment aims toward the sink, interior-joint signs come from the table,
+/// and the trailing segment(s) close on the sink connection point (the
+/// stored route lands within the destination anchor for nearly all
+/// two-endpoint signals — census on [ViWireRoute]; the square-in below
+/// covers the miss tail). The first point is clipped to the source edge so
+/// the stroke does not cross the source icon. Null when the table's
+/// segments are empty or a sign byte is missing for an interior joint.
+/// Pure + public for testing.
+List<Offset>? bdStoredWireRoute(Rect source, Rect sink, ViWireRoute route) {
+  final lengths = route.segmentLengths;
+  final signs = route.jointSigns;
+  if (lengths.isEmpty) return null;
+  var x = source.center.dx;
+  var y = source.center.dy;
+  final points = <Offset>[Offset(x, y)];
+  var horiz = true;
+  for (var i = 0; i < lengths.length; i++) {
+    final double sign;
+    if (i == 0) {
+      sign = sink.center.dx >= source.center.dx ? 1 : -1;
+    } else {
+      if (i - 1 >= signs.length) return null;
+      sign = signs[i - 1].toDouble();
+    }
+    if (horiz) {
+      x += sign * lengths[i];
+    } else {
+      y += sign * lengths[i];
+    }
+    points.add(Offset(x, y));
+    horiz = !horiz;
+  }
+  // Close along the alternated axis: the stored route already fixed the
+  // perpendicular coordinate (that IS the sink connection row/column), so
+  // the trailing segment just runs to the sink. Square in with one extra
+  // elbow only when the landing misses the sink rect entirely (the rare
+  // fit-miss tail keeps an orthogonal path rather than a diagonal).
+  if (horiz) {
+    if ((sink.center.dx - x).abs() > 0.5) points.add(Offset(sink.center.dx, y));
+    if (y < sink.top || y > sink.bottom) {
+      points.add(Offset(sink.center.dx, sink.center.dy));
+    }
+  } else {
+    if ((sink.center.dy - y).abs() > 0.5) points.add(Offset(x, sink.center.dy));
+    if (x < sink.left || x > sink.right) {
+      points.add(Offset(sink.center.dx, sink.center.dy));
+    }
+  }
+  // Clip the leading run to the source box edge (LabVIEW stops the stroke at
+  // the icon; the stored length still measures from the connection point).
+  if (points.length >= 2 && points[1].dy == points[0].dy) {
+    final rightward = points[1].dx >= points[0].dx;
+    final edge = rightward ? source.right : source.left;
+    if ((rightward && points[1].dx > edge) ||
+        (!rightward && points[1].dx < edge)) {
+      points[0] = Offset(edge, points[0].dy);
+    }
+  }
+  return points;
+}
+
 /// A synthesized Manhattan (right-angle) route between two endpoint-anchor
-/// rectangles, as an ordered polyline in the anchors' own coordinate space.
-/// LabVIEW does not persist recoverable wire path geometry, so this route is
-/// generated from the decoded endpoints, not recovered.
+/// rectangles, as an ordered polyline in the anchors' own coordinate space —
+/// the fallback for wires whose stored `0x1e7` route is not decoded
+/// (branching junction tables) or absent.
 ///
 /// When one endpoint's horizontal centre-line crosses the other's vertical
 /// span, the run is a single **straight horizontal** at that centre-line,
@@ -959,6 +1023,7 @@ List<ViWire> bdVisibleWires(ViDiagram diagram) {
   for (final wire in diagram.wires) {
     if (hidden.contains(wire.signalOid)) continue;
     var patched = false;
+    var sourcePatched = false;
     final anchors = <HeapRect?>[];
     for (var i = 0; i < wire.endpointAnchors.length; i++) {
       final anchor = wire.endpointAnchors[i];
@@ -968,7 +1033,10 @@ List<ViWire> bdVisibleWires(ViDiagram diagram) {
       }
       final resolved = reanchor(wire.endpointOids[i]);
       anchors.add(resolved);
-      if (resolved != null) patched = true;
+      if (resolved != null) {
+        patched = true;
+        if (i == 0) sourcePatched = true;
+      }
     }
     final boxes = anchors.whereType<HeapRect>().toList();
     if (boxes.length < 2) continue;
@@ -990,6 +1058,12 @@ List<ViWire> bdVisibleWires(ViDiagram diagram) {
               signalOid: wire.signalOid,
               endpointOids: wire.endpointOids,
               endpointAnchors: anchors,
+              // The stored route replays from endpoint 0's connection point:
+              // it survives a re-anchored SINK (the route already targets the
+              // border the sink was re-anchored to) but not a re-anchored
+              // source, whose original connection point is what the lengths
+              // measure from.
+              route: sourcePatched ? null : wire.route,
             )
           : wire,
     );
@@ -1764,8 +1838,15 @@ class BdDiagramPainter extends CustomPainter {
         ..strokeJoin = StrokeJoin.miter
         ..strokeCap = StrokeCap.butt;
       final source = anchors.first;
+      final route = wire.route;
+      final storedApplies =
+          route != null && anchors.length == 2 && wire.endpointOids.length == 2;
       for (var i = 1; i < anchors.length; i++) {
-        final points = bdWireRoute(source, anchors[i]);
+        final points =
+            (storedApplies
+                ? bdStoredWireRoute(source, anchors[i], route)
+                : null) ??
+            bdWireRoute(source, anchors[i]);
         final path = Path()..moveTo(points.first.dx, points.first.dy);
         for (final point in points.skip(1)) {
           path.lineTo(point.dx, point.dy);

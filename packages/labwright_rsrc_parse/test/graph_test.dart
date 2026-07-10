@@ -57,6 +57,9 @@ List<int> help(String s) => [0xc4, 0x19, s.length, ...s.codeUnits];
 /// Two-byte-BE numeric attribute record `44 <id> <u16 value>`.
 List<int> attrU16(int id, int v) => [0x44, id, v >> 8, v & 0xff];
 
+/// Length-prefixed container attribute record `C5 <id> <u8 len> <payload>`.
+List<int> c5(int id, List<int> payload) => [0xc5, id, payload.length, ...payload];
+
 ViDiagram dia(List<int> records) => buildDiagram(u8([0, 0, 0, records.length, ...records]));
 
 void main() {
@@ -87,6 +90,40 @@ void main() {
     ]);
     expect(d.byId[1]!.primResId, isNull, reason: 'off-class carriers are not primitive identities');
     expect(d.byId[2]!.primResId, 1051, reason: 'the u16 record wins; the flag form is inert');
+  });
+
+  test('decodeWireRoute: both headers, FF length escape, junction codes reject', () {
+    // basic.png's x-input wire: 4 points, jogs down then right, H 28 / V 12.
+    final r1 = decodeWireRoute(u8([0x04, 0x08, 0x00, 0x00, 28, 12]))!;
+    expect(r1.pointCount, 4);
+    expect(r1.segmentLengths, [28, 12]);
+    expect(r1.jointSigns, [1, 1]);
+    // basic.png's y-input wire: same lengths, first joint jogs up.
+    expect(decodeWireRoute(u8([0x04, 0x08, 0x01, 0x00, 28, 12]))!.jointSigns, [-1, 1]);
+    // FF escape: a 256-unit segment.
+    final r2 = decodeWireRoute(u8([0x03, 0x08, 0x01, 0xff, 0x01, 0x00]))!;
+    expect(r2.segmentLengths, [256]);
+    expect(r2.jointSigns, [-1]);
+    // Extended header stores pointCount-1 lengths.
+    final r3 = decodeWireRoute(u8([0x05, 0x00, 0x08, 0x00, 0x01, 0x00, 5, 6, 7, 8]))!;
+    expect((r3.pointCount, r3.segmentLengths.length), (5, 4));
+    // Branching junction codes are not decoded: null, never a guess.
+    expect(decodeWireRoute(u8([0x05, 0x00, 0x08, 0x05, 0x00, 0x03, 13, 66, 11, 247])), isNull);
+    expect(decodeWireRoute(u8([0x04])), isNull);
+  });
+
+  test('a signal object captures its container wire table onto the wire model', () {
+    final d = dia([
+      ...open(0x17, 9),
+      ...hx('14 19 01 fd 0002'),
+      ...hx('14 19 01 fd 0003'),
+      ...c5(0xe7, [0x04, 0x08, 0x00, 0x00, 28, 12]),
+      ...close(),
+    ]);
+    final route = d.wires.single.route!;
+    expect(route.pointCount, 4);
+    expect(route.segmentLengths, [28, 12]);
+    expect(route.jointSigns, [1, 1]);
   });
 
   test('PrimOp catalog: unique ids, lookup round-trip', () {
