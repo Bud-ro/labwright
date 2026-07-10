@@ -906,16 +906,68 @@ Set<int> bdHiddenFrameOids(ViDiagram diagram) {
   return hidden;
 }
 
-/// [diagram]'s dataflow wires minus those whose signal lives in a hidden
-/// frame of a stacked multi-frame structure (see [bdHiddenFrameOids]) — a
-/// hidden case's wires must not draw across the visible one.
+/// [diagram]'s dataflow wires prepared for drawing: signals living in a
+/// hidden frame of a stacked multi-frame structure are dropped (a hidden
+/// case's wires must not draw across the visible one, see
+/// [bdHiddenFrameOids]), and an endpoint whose anchor did not resolve to a
+/// positioned box (a structure tunnel — its border-crossing point carries no
+/// decoded bounds) is re-anchored to the endpoint's nearest drawable bounded
+/// ancestor, so the run reaches the structure's border the way LabVIEW's
+/// tunnel wires do. A leg that only resolves to the diagram root stays
+/// unanchored (drawing to the canvas edge would be wrong), and a wire whose
+/// remaining anchors collapse onto one identical box is dropped as
+/// degenerate.
 List<ViWire> bdVisibleWires(ViDiagram diagram) {
   final hidden = bdHiddenFrameOids(diagram);
-  if (hidden.isEmpty) return diagram.wires;
-  return [
-    for (final wire in diagram.wires)
-      if (!hidden.contains(wire.signalOid)) wire,
-  ];
+  final byId = diagram.byId;
+
+  HeapRect? reanchor(int endpointOid) {
+    var cur = byId[endpointOid];
+    var depth = 0;
+    while (cur != null && depth++ < 64) {
+      final b = cur.absBounds;
+      if (!hidden.contains(cur.oid) &&
+          b != null &&
+          b.width > 0 &&
+          b.height > 0) {
+        // The diagram root's box is the whole canvas — not an anchor.
+        return cur.parentOid == null ? null : b;
+      }
+      cur = cur.parentOid == null ? null : byId[cur.parentOid!];
+    }
+    return null;
+  }
+
+  final out = <ViWire>[];
+  for (final wire in diagram.wires) {
+    if (hidden.contains(wire.signalOid)) continue;
+    var patched = false;
+    final anchors = <HeapRect?>[];
+    for (var i = 0; i < wire.endpointAnchors.length; i++) {
+      final anchor = wire.endpointAnchors[i];
+      if (anchor != null && anchor.width > 0 && anchor.height > 0) {
+        anchors.add(anchor);
+        continue;
+      }
+      final resolved = reanchor(wire.endpointOids[i]);
+      anchors.add(resolved);
+      if (resolved != null) patched = true;
+    }
+    final boxes = anchors.whereType<HeapRect>().toList();
+    if (boxes.length < 2) continue;
+    // All legs on one identical box: nothing to route.
+    if (boxes.every((b) => b == boxes.first)) continue;
+    out.add(
+      patched
+          ? ViWire(
+              signalOid: wire.signalOid,
+              endpointOids: wire.endpointOids,
+              endpointAnchors: anchors,
+            )
+          : wire,
+    );
+  }
+  return out;
 }
 
 /// The **drawable** objects of [diagram] — the layout layer the BD/FP view and
