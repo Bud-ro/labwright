@@ -68,6 +68,7 @@ Future<BdRaster?> rasteriseBlockDiagram(
   double? scale,
   int margin = 40,
   Map<int, ViLegacyIcon> subViIcons = const {},
+  Map<int, ui.Image> primIcons = const {},
   List<ViWire>? wires,
   List<ViHeapObject>? drawable,
 }) async {
@@ -106,6 +107,7 @@ Future<BdRaster?> rasteriseBlockDiagram(
   );
   canvas.scale(pxScale);
   BdDiagramPainter(
+    primIcons: primIcons,
     objects: ordered,
     origin: content.topLeft,
     wires: wireList,
@@ -1170,6 +1172,18 @@ class _BdOracleViewState extends State<BdOracleView>
     with AutomaticKeepAliveClientMixin {
   late Future<_OracleData> _future = _build();
 
+  @override
+  void initState() {
+    super.initState();
+    // Rebuild the raster once the bundled primitive icons decode; the first
+    // build proceeds without them rather than blocking on asset IO.
+    if (primIconsLoaded().isEmpty) {
+      loadPrimIcons().then((icons) {
+        if (mounted && icons.isNotEmpty) setState(() => _future = _build());
+      });
+    }
+  }
+
   /// Wipe mode: the registered render and the reference overlaid, split at a
   /// draggable divider (ours left, LabVIEW right).
   bool _wipe = false;
@@ -1237,6 +1251,7 @@ class _BdOracleViewState extends State<BdOracleView>
     // dimensions, not just matched scale.
     final raster = await rasteriseBlockDiagram(
       diagram,
+      primIcons: primIconsLoaded(),
       maxDimension: widget.maxDimension,
       scale: snippet ? 1.0 : null,
       margin: snippet ? 2 : 40,

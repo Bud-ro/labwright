@@ -1,4 +1,7 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
+
+import 'package:flutter/services.dart' show AssetManifest, rootBundle;
 
 import 'package:flutter/material.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
@@ -93,6 +96,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
   // only). Populated asynchronously once the project-index loader resolves (see
   // [_resolveIcons]); empty until then, and when no loader is supplied.
   Map<int, ViLegacyIcon> _subViIcons = const {};
+  Map<int, ui.Image> _primIcons = const {};
   late final List<ViHeapObject> _drawable = _diagram == null
       ? const []
       : bdDrawableObjects(_diagram);
@@ -126,6 +130,9 @@ class _ViDiagramViewState extends State<ViDiagramView> {
   void initState() {
     super.initState();
     _resolveIcons();
+    loadPrimIcons().then((icons) {
+      if (mounted && icons.isNotEmpty) setState(() => _primIcons = icons);
+    });
   }
 
   /// Resolves the subVI-call node icons (one fast await — linker-path
@@ -274,6 +281,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                             origin: content.topLeft,
                             wires: _wires,
                             subViIcons: _subViIcons,
+                            primIcons: _primIcons,
                             structureTerminals: _structureTerminals,
                           ),
                           foregroundPainter: _OverlayPainter(
@@ -1415,12 +1423,37 @@ int _depthOf(ViHeapObject object, Map<int, ViHeapObject> byId) {
 /// (memoized, stable) object list + origin, so a selection tap never repaints it
 /// — the cheap [_OverlayPainter] handles highlights instead. Public so the
 /// off-screen [BdOracle] rasterises with the exact same drawing as the view.
+/// The bundled primitive icon assets (assets/prim_icons/prim<id>.png —
+/// LabVIEW's icon art harvested from the snippet references, transparent
+/// exterior, hand-editable), decoded once and keyed by primResID. Empty when
+/// the bundle carries none.
+Future<Map<int, ui.Image>> loadPrimIcons() => _primIcons ??= () async {
+  final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
+  final icons = <int, ui.Image>{};
+  for (final asset in manifest.listAssets()) {
+    final m = RegExp(r'assets/prim_icons/prim(\d+)\.png$').firstMatch(asset);
+    if (m == null) continue;
+    final bytes = await rootBundle.load(asset);
+    final codec = await ui.instantiateImageCodec(bytes.buffer.asUint8List());
+    icons[int.parse(m.group(1)!)] = (await codec.getNextFrame()).image;
+  }
+  return _primIconsSync = icons;
+}();
+Future<Map<int, ui.Image>>? _primIcons;
+Map<int, ui.Image> _primIconsSync = const {};
+
+/// The already-decoded primitive icons, or empty while [loadPrimIcons] is
+/// still in flight — for callers that must not block (the oracle's first
+/// build under the test framework's fake async).
+Map<int, ui.Image> primIconsLoaded() => _primIconsSync;
+
 class BdDiagramPainter extends CustomPainter {
   BdDiagramPainter({
     required this.objects,
     required this.origin,
     this.wires = const [],
     this.subViIcons = const {},
+    this.primIcons = const {},
     this.structureTerminals = const {},
   });
 
@@ -1442,6 +1475,11 @@ class BdDiagramPainter extends CustomPainter {
   /// real icon on its plate; a node without one keeps the neutral
   /// connector-pane plate (the icon is never guessed).
   final Map<int, ViLegacyIcon> subViIcons;
+
+  /// Bundled primitive icon art keyed by primResID (see [loadPrimIcons]);
+  /// stamped at natural size on primitive plates. A node without an entry
+  /// keeps the plate + operator glyph.
+  final Map<int, ui.Image> primIcons;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1716,15 +1754,36 @@ class BdDiagramPainter extends CustomPainter {
             tp.paint(canvas, rect.center - Offset(tp.width / 2, tp.height / 2));
           }
         case ViObjectKind.node:
-          // LabVIEW node icon plate: subVI calls get a light-grey connector-pane
-          // plate, primitive/function nodes the pale-gold numeric-palette plate.
-          // A raised bevel (light top/left, dark bottom/right) mimics the icon's
-          // 3-D edge. When the subVI's real icon has been resolved from its own
-          // file ([subViIcons]) it is stamped on the plate; otherwise no icon
-          // glyph is drawn (it is never guessed).
+          // LabVIEW node icon plate: a verified primitive icon (the bundled
+          // art harvested from LabVIEW's own renders) stamps at natural
+          // size; a subVI call stamps the icon resolved from its own file
+          // ([subViIcons]). Without either, subVI calls get a light-grey
+          // connector-pane plate and primitive/function nodes the pale-gold
+          // numeric-palette plate with the operator glyph — an icon is never
+          // guessed. Everything gets the 1 px pure-black border LabVIEW
+          // draws around node icons.
           final isSubVi = kSubViCallNodeCodes.contains(object.kind);
           final icon = subViIcons[object.oid];
-          if (icon != null) {
+          final primIcon = object.primResId == null
+              ? null
+              : primIcons[object.primResId!];
+          Rect borderRect = rect;
+          if (primIcon != null) {
+            final w = primIcon.width.toDouble(), h = primIcon.height.toDouble();
+            final dst = Rect.fromCenter(
+              center: rect.center,
+              width: w,
+              height: h,
+            );
+            canvas.drawRect(dst, Paint()..color = Colors.white);
+            canvas.drawImageRect(
+              primIcon,
+              Rect.fromLTWH(0, 0, w, h),
+              dst,
+              Paint()..filterQuality = FilterQuality.none,
+            );
+            borderRect = dst;
+          } else if (icon != null) {
             paintLegacyIcon(canvas, icon, rect);
           } else {
             final fill = isSubVi ? kBdSubViNodeFill : kBdPrimitiveNodeFill;
@@ -1747,19 +1806,18 @@ class BdDiagramPainter extends CustomPainter {
             }
           }
           canvas.drawRect(
-            rect,
+            borderRect.deflate(0.5),
             Paint()
-              ..color = isSubVi
-                  ? const Color(0xFF8C8C8C)
-                  : const Color(0xFF9A8730)
+              ..color = Colors.black
               ..style = PaintingStyle.stroke
               ..strokeWidth = 1.0,
           );
           // A decoded primitive identity draws its operator glyph on the
-          // plate (LabVIEW draws icon art this reader does not reproduce;
-          // the glyph is the recognisable core of that art). Nothing is
-          // drawn for uncatalogued ids or when no glyph reads naturally.
-          final glyph = icon == null && object.primResId != null
+          // plate when no icon asset exists (LabVIEW draws icon art; the
+          // glyph is the recognisable core of that art). Nothing is drawn
+          // for uncatalogued ids or when no glyph reads naturally.
+          final glyph =
+              icon == null && primIcon == null && object.primResId != null
               ? primOpGlyph(PrimOp.fromId(object.primResId!))
               : null;
           if (glyph != null && rect.width >= 14 && rect.height >= 12) {
@@ -1793,23 +1851,10 @@ class BdDiagramPainter extends CustomPainter {
           );
       }
     }
-    // Tunnel squares: a wire leg that crosses a structure border lands on
-    // the border; LabVIEW marks the crossing with a small square in the
-    // wire's colour. Drawn after the structure chrome so the square sits on
-    // the band. A landing inside a modeled structure terminal box (the case
-    // selector) recoloured that terminal instead (see
-    // [_drawStructureTerminals]) and was consumed there.
-    for (final (point, color) in tunnelLandings) {
-      final square = Rect.fromCenter(center: point, width: 7, height: 7);
-      canvas.drawRect(square, Paint()..color = color);
-      canvas.drawRect(
-        square,
-        Paint()
-          ..color = Colors.black.withValues(alpha: 0.55)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 0.8,
-      );
-    }
+    // Wire landings on structure borders feed ONLY the structure-terminal
+    // recolour above (the case selector [?] takes its wire's colour);
+    // free-standing tunnel squares at every landing looked wrong — the real
+    // tunnel positions are not yet decoded, so none are guessed.
     // The drawn-object index for owner lookups in the text pass.
     final byOid = {for (final o in objects) o.oid: o};
     // Text pass: LabVIEW shows a structure's construct name on its frame and a
