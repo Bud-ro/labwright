@@ -108,7 +108,7 @@ Future<BdRaster?> rasteriseBlockDiagram(
     origin: content.topLeft,
     wires: wireList,
     subViIcons: subViIcons,
-    loopTerminals: bdLoopTerminalKinds(diagram),
+    structureTerminals: bdStructureTerminals(diagram),
   ).paint(canvas, content.size);
   final picture = recorder.endRecording();
   try {
@@ -1137,8 +1137,16 @@ class BdOracleView extends StatefulWidget {
   State<BdOracleView> createState() => _BdOracleViewState();
 }
 
-class _BdOracleViewState extends State<BdOracleView> {
+class _BdOracleViewState extends State<BdOracleView>
+    with AutomaticKeepAliveClientMixin {
   late Future<_OracleData> _future = _build();
+
+  // The comparison (rasterise + decode + multi-peak registration) costs a
+  // noticeable fraction of a second on large VIs; keep the tab's state alive
+  // so revisiting the Oracle tab shows the cached result instead of
+  // recomputing it.
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void didUpdateWidget(BdOracleView old) {
@@ -1223,6 +1231,7 @@ class _BdOracleViewState extends State<BdOracleView> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     return FutureBuilder<_OracleData>(
       future: _future,
       builder: (context, snapshot) {

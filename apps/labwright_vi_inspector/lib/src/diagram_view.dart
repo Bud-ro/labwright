@@ -102,10 +102,11 @@ class _ViDiagramViewState extends State<ViDiagramView> {
     null => const [],
     final diagram => bdVisibleWires(diagram),
   };
-  late final Map<int, Set<int>> _loopTerminals = switch (_diagram) {
-    null => const {},
-    final diagram => bdLoopTerminalKinds(diagram),
-  };
+  late final Map<int, List<({HeapRect box, int bmp})>> _structureTerminals =
+      switch (_diagram) {
+        null => const {},
+        final diagram => bdStructureTerminals(diagram),
+      };
   // Wires are excluded from the fit: their absolute anchoring is not yet
   // verified (a misanchored run must not blow up the zoom-to-fit envelope).
   late final Rect _content = _drawable.isEmpty
@@ -273,7 +274,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                             origin: content.topLeft,
                             wires: _wires,
                             subViIcons: _subViIcons,
-                            loopTerminals: _loopTerminals,
+                            structureTerminals: _structureTerminals,
                           ),
                           foregroundPainter: _OverlayPainter(
                             origin: content.topLeft,
@@ -1003,22 +1004,32 @@ Set<int> bdInlinedInstanceOids(ViDiagram diagram) {
   return out;
 }
 
-/// Per structure oid, the **loop-terminal child kinds** present in [diagram]:
-/// iteration count `lCnt 0x24`, conditional `lTst 0x25`, loop maximum
-/// `lMax 0x26` (the for-loop N). These terminals exist as heap objects but
-/// carry no decoded bounds anywhere in the snippet corpus (0 of 509), so the
-/// painter draws each present terminal's glyph at LabVIEW's default corner —
-/// presence is model-driven, only the position is the documented default.
-/// Shift registers (`lSR 0x27`/`rSR 0x28`) sit at undecoded heights on the
-/// borders and are not drawn.
-Map<int, Set<int>> bdLoopTerminalKinds(ViDiagram diagram) {
+/// Per structure oid, the **modeled structure terminals** of [diagram]: a
+/// loop's iteration/count/conditional terminals, its shift registers, and a
+/// case's selector tunnel — each with its decoded frame-relative box
+/// ([ViHeapObject.termBounds]) and glyph selector ([ViHeapObject.termBmp]:
+/// `i`→1, `N`→2, stop→192, shift registers→3/4, case selector→5). Terminals
+/// without a decoded box are omitted (nothing is placed by guesswork).
+Map<int, List<({HeapRect box, int bmp})>> bdStructureTerminals(
+  ViDiagram diagram,
+) {
   final byId = diagram.byId;
-  final out = <int, Set<int>>{};
+  final out = <int, List<({HeapRect box, int bmp})>>{};
   for (final object in diagram.objects) {
-    if (object.kind < 0x24 || object.kind > 0x26) continue;
-    final parent = byId[object.parentOid ?? -1];
-    if (parent == null || parent.category != ViObjectKind.structure) continue;
-    (out[parent.oid] ??= <int>{}).add(object.kind);
+    final box = object.termBounds;
+    final bmp = object.termBmp;
+    if (box == null || bmp == null) continue;
+    if (box.width <= 0 || box.height <= 0) continue;
+    // The owning structure: the nearest structure-category ancestor.
+    var cur = byId[object.parentOid ?? -1];
+    var depth = 0;
+    while (cur != null &&
+        cur.category != ViObjectKind.structure &&
+        depth++ < 8) {
+      cur = byId[cur.parentOid ?? -1];
+    }
+    if (cur == null || cur.category != ViObjectKind.structure) continue;
+    (out[cur.oid] ??= []).add((box: box, bmp: bmp));
   }
   return out;
 }
@@ -1049,6 +1060,13 @@ List<ViHeapObject> bdDrawableObjects(ViDiagram diagram) {
           object.absBounds!.width < 8000 &&
           object.absBounds!.height < 8000 &&
           !hidden.contains(object.oid) &&
+          // A node-glyph part (0x177) composed at negative coordinates is a
+          // node's icon art in glyph space, not canvas space (crc8's floats
+          // at (-8,-13) parented to the root frame) — drawing it stamps a
+          // stray box and stretches the content extent. Positive-positioned
+          // 0x177s are real drawn glyphs (VI Tree's icon row) and stay.
+          !(object.kind == 0x177 &&
+              (object.absBounds!.left < 0 || object.absBounds!.top < 0)) &&
           !_escapesConstantBox(object, byId) &&
           !_escapesStructureBox(object, byId) &&
           // An owned name-label whose position was not composed lands glued to
@@ -1245,15 +1263,15 @@ class BdDiagramPainter extends CustomPainter {
     required this.origin,
     this.wires = const [],
     this.subViIcons = const {},
-    this.loopTerminals = const {},
+    this.structureTerminals = const {},
   });
 
   final List<ViHeapObject> objects;
   final Offset origin;
 
-  /// Per structure oid, which loop-terminal children exist (see
-  /// [bdLoopTerminalKinds]) — drives which corner glyphs a loop shows.
-  final Map<int, Set<int>> loopTerminals;
+  /// Per structure oid, its modeled terminals (frame-relative box + glyph
+  /// selector; see [bdStructureTerminals]).
+  final Map<int, List<({HeapRect box, int bmp})>> structureTerminals;
 
   /// The decoded dataflow wires ([ViDiagram.wires], one per `0x17` signal),
   /// routed under the nodes/structures between their endpoint anchors. Empty
@@ -1372,20 +1390,19 @@ class BdDiagramPainter extends CustomPainter {
       // the neutral double-line frame.
       final rect = rectOf(object);
       final structColor = bdDecodedColor(object.structRgb);
-      // Corner glyphs are gated on the MODELED loop-terminal children (see
-      // [bdLoopTerminalKinds]): lCnt 0x24 → the iteration `i`, lMax 0x26 →
-      // the for-loop `N`, lTst 0x25 → the conditional stop. The terminals'
-      // positions are not decoded (0 of 509 corpus instances carry bounds),
-      // so each present glyph draws at LabVIEW's default corner.
-      final terminals = loopTerminals[object.oid] ?? const <int>{};
+      // Structure terminals (iteration/count/conditional, shift registers,
+      // case selector tunnel) draw at their MODELED frame-relative positions
+      // with their MODELED glyph (see [bdStructureTerminals]); a terminal
+      // without a decoded box is not placed.
+      final terminals =
+          structureTerminals[object.oid] ?? const <({HeapRect box, int bmp})>[];
       switch (object.kind) {
         case 0x21 || 0x20: // While / for loop: rounded band + terminals.
           _drawLoopBand(canvas, rect, structColor);
-          if (terminals.contains(0x26)) _drawCountTerminal(canvas, rect);
-          if (terminals.contains(0x24)) _drawIterationTerminal(canvas, rect);
-          if (terminals.contains(0x25)) _drawConditionalTerminal(canvas, rect);
+          _drawStructureTerminals(canvas, rect, terminals);
         case 0x2c: // Case structure: the same band, un-rounded.
           _drawLoopBand(canvas, rect, structColor, rounded: false);
+          _drawStructureTerminals(canvas, rect, terminals);
         default:
           final frame = structColor ?? _kindColor(ViObjectKind.structure);
           if (structColor != null) {
@@ -1713,21 +1730,6 @@ class BdDiagramPainter extends CustomPainter {
     );
   }
 
-  /// A loop's 16×16 corner-terminal box (white plate, coloured border) at the
-  /// given inside-corner [origin]; returns the box for glyph drawing.
-  Rect _cornerBox(Canvas canvas, Offset origin, Color border) {
-    final box = Rect.fromLTWH(origin.dx, origin.dy, 16, 16);
-    canvas.drawRect(box, Paint()..color = Colors.white);
-    canvas.drawRect(
-      box,
-      Paint()
-        ..color = border
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4,
-    );
-    return box;
-  }
-
   static const _loopBlue = Color(0xFF0033CC);
 
   void _drawGlyphText(Canvas canvas, Rect box, String glyph, Color color) {
@@ -1747,53 +1749,74 @@ class BdDiagramPainter extends CustomPainter {
     tp.paint(canvas, box.center - Offset(tp.width / 2, tp.height / 2));
   }
 
-  /// The loop iteration terminal (the blue `i` box, LabVIEW's default
-  /// bottom-left placement inside the band).
-  void _drawIterationTerminal(Canvas canvas, Rect rect) {
-    if (rect.width < 48 || rect.height < 48) return;
-    final box = _cornerBox(
-      canvas,
-      Offset(rect.left + 6, rect.bottom - 22),
-      _loopBlue,
-    );
-    _drawGlyphText(canvas, box, 'i', _loopBlue);
-  }
-
-  /// The for-loop count terminal (the blue `N` box, top-left).
-  void _drawCountTerminal(Canvas canvas, Rect rect) {
-    if (rect.width < 48 || rect.height < 48) return;
-    final box = _cornerBox(
-      canvas,
-      Offset(rect.left + 6, rect.top + 6),
-      _loopBlue,
-    );
-    _drawGlyphText(canvas, box, 'N', _loopBlue);
-  }
-
-  /// The while-loop conditional terminal (green box holding the red stop
-  /// octagon, LabVIEW's default bottom-right placement inside the band).
-  void _drawConditionalTerminal(Canvas canvas, Rect rect) {
-    if (rect.width < 48 || rect.height < 48) return;
-    final box = _cornerBox(
-      canvas,
-      Offset(rect.right - 22, rect.bottom - 22),
-      const Color(0xFF007F00),
-    );
-    // Red stop octagon.
-    final c = box.center;
-    const r = 5.0;
-    final path = Path();
-    for (var k = 0; k < 8; k++) {
-      final a = (k * 45 + 22.5) * math.pi / 180;
-      final p = Offset(c.dx + r * math.cos(a), c.dy + r * math.sin(a));
-      if (k == 0) {
-        path.moveTo(p.dx, p.dy);
-      } else {
-        path.lineTo(p.dx, p.dy);
+  /// Draws a structure's modeled terminals at their frame-relative boxes,
+  /// each with its modeled glyph (`termBMPs`): `i`→1, `N`→2, conditional
+  /// stop→192, shift registers→3 (left ▼) / 4 (right ▲), case selector→5.
+  void _drawStructureTerminals(
+    Canvas canvas,
+    Rect frame,
+    List<({HeapRect box, int bmp})> terminals,
+  ) {
+    for (final t in terminals) {
+      final box = Rect.fromLTWH(
+        frame.left + t.box.left,
+        frame.top + t.box.top,
+        t.box.width.toDouble(),
+        t.box.height.toDouble(),
+      );
+      final border = switch (t.bmp) {
+        192 => const Color(0xFF007F00),
+        _ => _loopBlue,
+      };
+      canvas.drawRect(box, Paint()..color = Colors.white);
+      canvas.drawRect(
+        box,
+        Paint()
+          ..color = border
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.4,
+      );
+      switch (t.bmp) {
+        case 1:
+          _drawGlyphText(canvas, box, 'i', _loopBlue);
+        case 2:
+          _drawGlyphText(canvas, box, 'N', _loopBlue);
+        case 5:
+          _drawGlyphText(canvas, box, '?', _loopBlue);
+        case 3 || 4:
+          // Shift register: ▼ delivers on the left border, ▲ stores on
+          // the right.
+          final c = box.center;
+          final tri = t.bmp == 3
+              ? (Path()
+                  ..moveTo(c.dx - 4, c.dy - 3)
+                  ..lineTo(c.dx + 4, c.dy - 3)
+                  ..lineTo(c.dx, c.dy + 4)
+                  ..close())
+              : (Path()
+                  ..moveTo(c.dx - 4, c.dy + 3)
+                  ..lineTo(c.dx + 4, c.dy + 3)
+                  ..lineTo(c.dx, c.dy - 4)
+                  ..close());
+          canvas.drawPath(tri, Paint()..color = Colors.black87);
+        case 192:
+          // Red stop octagon.
+          final c = box.center;
+          const r = 5.0;
+          final path = Path();
+          for (var k = 0; k < 8; k++) {
+            final a = (k * 45 + 22.5) * math.pi / 180;
+            final p = Offset(c.dx + r * math.cos(a), c.dy + r * math.sin(a));
+            if (k == 0) {
+              path.moveTo(p.dx, p.dy);
+            } else {
+              path.lineTo(p.dx, p.dy);
+            }
+          }
+          path.close();
+          canvas.drawPath(path, Paint()..color = const Color(0xFFCC0000));
       }
     }
-    path.close();
-    canvas.drawPath(path, Paint()..color = const Color(0xFFCC0000));
   }
 
   /// Case-selector chrome at the decoded `0x95` label [rect]: a white value
@@ -1861,7 +1884,7 @@ class BdDiagramPainter extends CustomPainter {
       !identical(old.objects, objects) ||
       !identical(old.wires, wires) ||
       !identical(old.subViIcons, subViIcons) ||
-      !identical(old.loopTerminals, loopTerminals) ||
+      !identical(old.structureTerminals, structureTerminals) ||
       old.origin != origin;
 }
 
