@@ -85,7 +85,11 @@ void main() {
     final diagram = ViDiagram(sectionTag: 'BDHb', objects: [root, loop, node]);
 
     await tester.runAsync(() async {
-      final raster = (await rasteriseBlockDiagram(diagram, scale: 1.0))!;
+      final raster = (await rasteriseBlockDiagram(
+        diagram,
+        scale: 1.0,
+        margin: 2,
+      ))!;
       final rgba = (await raster.image.toByteData())!.buffer.asUint8List();
       PlacementComparison at(double dx) => comparePlacement(
         diagram: diagram,
@@ -111,31 +115,45 @@ void main() {
     const floors = <String, double>{
       'fg.png': 0.85,
       'sub_vi_missing.png': 0.85,
-      'missing_terminal.png': 0.80,
+      'missing_terminal.png': 0.85,
       'VISA_Query.png': 0.80,
       'Tokenize URL.png': 0.80,
       'example.png': 0.75,
-      'ProjectItems.png': 0.75,
+      'ProjectItems.png': 0.85,
       'Config_Dump.png': 0.75,
-      'Resolve Library Path.png': 0.75,
-      'ClassChildren.png': 0.65,
-      'GenerateTree.png': 0.65,
+      'Resolve Library Path.png': 0.90,
+      'ClassChildren.png': 0.80,
+      'Config_Dump2.png': 0.75,
+      'Export Palette Image WMF.png': 0.70,
+      'GenerateTree.png': 0.70,
+      'Page1.png': 0.40,
       'crc8.png': 0.65,
       'FileReadOnly.png': 0.65,
       'VISA_InterfaceType.png': 0.65,
       'IconHeader.png': 0.60,
       'crc16.png': 0.60,
-      'ClassesInMemory.png': 0.60,
+      'ClassesInMemory.png': 0.75,
       'basic.png': 0.55,
       'crc32.png': 0.55,
-      'MD5.png': 0.50,
+      'MD5.png': 0.55,
       'PNG CRC32.png': 0.50,
       'crc32_lookup_table.png': 0.50,
-      'Read Library Version.png': 0.50,
+      'Read Library Version.png': 0.70,
       'decorations_only.png': 0.50,
-      'large.png': 0.45,
-      'vi_lib_dependency.png': 0.45,
-      'Config_Escape.png': 0.45,
+      'large.png': 0.65,
+      'vi_lib_dependency.png': 0.85,
+      'Config_Escape.png': 0.60,
+      'Excel_Cell_to_Value.png': 0.75,
+      'GetCurrentDirectory.png': 0.65,
+      'Excel_Variant_Elements.png': 0.60,
+      'WriteConsole.png': 0.60,
+      'VISA_Open2.png': 0.65,
+      'Excel_Cell_to_RowCol.png': 0.50,
+      'ReverseBitsVim.png': 0.50,
+      'Config_Load.png': 0.60,
+      'Config_Load2.png': 0.60,
+      'Pages.png': 0.65,
+      'Symbols1Bit.png': 0.80,
     };
 
     testWidgets('every snippet compares; placement ranks true placement', (
@@ -154,13 +172,19 @@ void main() {
           expect(vi, isNotNull, reason: f.path);
           final diagram = bestBlockDiagram(buildViModel(vi!));
           expect(diagram, isNotNull, reason: f.path);
-          final raster = (await rasteriseBlockDiagram(diagram!, scale: 1.0))!;
+          final raster = (await rasteriseBlockDiagram(
+            diagram!,
+            scale: 1.0,
+            // The same ink+2px crop the production Oracle tab renders with.
+            margin: 2,
+          ))!;
           final reference = await decodeReferenceImage(png);
           expect(reference.snippetCropped, isTrue, reason: f.path);
           final result = await compareToReference(
             raster.image,
             reference.image,
             lockScale: 1.0 / raster.scale,
+            anchorRects: bdStructureAnchorRects(diagram, raster),
           );
           PlacementComparison at(BdRegistration registration) =>
               comparePlacement(

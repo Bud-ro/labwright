@@ -191,6 +191,16 @@ class ViHeapObject {
   /// control/graph border — or null. Corpus: FPHb-only.
   int? borderRgb;
 
+  /// A structure terminal's box **relative to its structure's frame**
+  /// ([HeapAttribute.termBounds], raw `0x129`) — where a loop's iteration /
+  /// count / conditional terminal (or shift register) sits — or null.
+  HeapRect? termBounds;
+
+  /// Which glyph the structure terminal shows ([HeapAttribute.termBMPs], raw
+  /// `0x128`; corpus pairing: lCnt `i`→1, lMax `N`→2, lTst stop→192, shift
+  /// registers →3/4, case selector →5) — or null.
+  int? termBmp;
+
   /// Decoded 24-bit `0xRRGGBB` **plot** colours ([HeapAttribute.plotColor], raw
   /// `0x02a`, inferred), in heap order — the per-curve colours of a graph/chart's
   /// plot list. Empty when the object carries none. Corpus: FPHb-only, and all
@@ -723,7 +733,9 @@ const kControlTerminalCodes = {0x50, 0x4f, 0x57, 0x5b, 0x51};
 // (e.g. 0x19 shared by structColor 0x119 and any 0xN19) is harmless — the
 // capture switch acts only on the exact decoded [HeapAttribute]. 0x19/0x2b are
 // the structColor/borderColor low bytes.
-const _objAttrIds = {0x20, 0x21, 0x6c, 0x24, 0x28, 0x6f, 0x19, 0x2b, 0x2a};
+// 0x29 also catches termBounds 0x129; 0x28 (already present for
+// backgroundColor 0x028) catches termBMPs 0x128.
+const _objAttrIds = {0x20, 0x21, 0x6c, 0x24, 0x28, 0x6f, 0x19, 0x2b, 0x2a, 0x29};
 
 /// Pixel-area threshold (width×height) for the structural node fallback in
 /// `buildDiagram`. A still-`unknown` object that otherwise matches the BD-node
@@ -998,10 +1010,16 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
           final text = attr.asString;
           if (text != null && text.isNotEmpty) cur.constText ??= text;
         }
+        if (attr.attribute == HeapAttribute.termBounds) cur.termBounds ??= attr.asRect;
+        if (attr.attribute == HeapAttribute.termBMPs) cur.termBmp ??= attr.asInt;
         // The transparent sentinel (flag 0x01, RGB 0) is "no colour", not
         // black — capturing it would paint transparent label backings and
-        // fills as solid black.
-        final rgb = attr.isTransparent ? null : attr.rgb;
+        // fills as solid black. Raw value 0x00000001 is likewise a flag, not
+        // a colour: every label part carries a trailing backgroundColor
+        // record of exactly 0x1 after its real (often transparent) colour,
+        // and RGB 0x000001 as a deliberate near-black is implausible.
+        final rawColor = attr.kind == HeapAttrKind.color && attr.value is int ? attr.value as int : null;
+        final rgb = attr.isTransparent || rawColor == 0x1 ? null : attr.rgb;
         if (rgb != null) {
           switch (attr.attribute) {
             case HeapAttribute.backgroundColor:

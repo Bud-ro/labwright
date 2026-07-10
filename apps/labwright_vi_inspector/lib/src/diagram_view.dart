@@ -3,19 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
-import 'faithful_controls.dart';
 import 'images_view.dart';
 import 'span_annotations.dart';
-
-/// How the diagram is drawn: a debug **wireframe** (colored boxes + labels,
-/// click-to-inspect) or a **faithful** render (real-looking interactive controls).
-enum DiagramRenderMode { wireframe, faithful }
-
-/// Faithful mode mounts one live (stateful) Flutter control per object, so it is
-/// capped: diagrams with more drawable objects than this fall back to the cheap
-/// single-CustomPaint wireframe (a few corpus VIs reach several thousand objects,
-/// which would otherwise mount thousands of controllers/render objects at once).
-const int kFaithfulMaxObjects = 1500;
 
 /// A read-only **layout view** of a decoded VI block diagram, rendered to a
 /// faithful, LabVIEW-like canvas: every recovered object drawn at its absolute
@@ -93,7 +82,6 @@ class _ViDiagramViewState extends State<ViDiagramView> {
   Size? _lastViewport;
   Rect? _lastContent;
   bool _fitted = false;
-  DiagramRenderMode _mode = DiagramRenderMode.wireframe;
 
   /// Whether the recovery-detail shelf (images / legend / outline) is shown
   /// beside the diagram.
@@ -110,7 +98,15 @@ class _ViDiagramViewState extends State<ViDiagramView> {
       : bdDrawableObjects(_diagram);
   late final List<ViHeapObject> _ordered = bdPaintOrder(_drawable, _byId);
   // Decoded dataflow wires (empty on a front-panel heap). Drawn under the nodes.
-  late final List<ViWire> _wires = _diagram?.wires ?? const [];
+  late final List<ViWire> _wires = switch (_diagram) {
+    null => const [],
+    final diagram => bdVisibleWires(diagram),
+  };
+  late final Map<int, List<({HeapRect box, int bmp})>> _structureTerminals =
+      switch (_diagram) {
+        null => const {},
+        final diagram => bdStructureTerminals(diagram),
+      };
   // Wires are excluded from the fit: their absolute anchoring is not yet
   // verified (a misanchored run must not blow up the zoom-to-fit envelope).
   late final Rect _content = _drawable.isEmpty
@@ -267,34 +263,26 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                     // painting instead of re-running the whole painter
                     // (per-label text layout included) every frame.
                     child: RepaintBoundary(
-                      child:
-                          (_mode == DiagramRenderMode.faithful &&
-                              ordered.length <= kFaithfulMaxObjects)
-                          ? FaithfulLayer(
-                              objects: ordered,
-                              origin: content.topLeft,
-                              size: content.size,
-                              isFrontPanel: widget.isFrontPanel,
-                            )
-                          : GestureDetector(
-                              behavior: HitTestBehavior.opaque,
-                              onTapDown: (d) =>
-                                  _selectAt(d.localPosition, ordered, content),
-                              child: CustomPaint(
-                                size: Size(content.width, content.height),
-                                painter: BdDiagramPainter(
-                                  objects: ordered,
-                                  origin: content.topLeft,
-                                  wires: _wires,
-                                  subViIcons: _subViIcons,
-                                ),
-                                foregroundPainter: _OverlayPainter(
-                                  origin: content.topLeft,
-                                  selected: _selected,
-                                  members: _members,
-                                ),
-                              ),
-                            ),
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTapDown: (d) =>
+                            _selectAt(d.localPosition, ordered, content),
+                        child: CustomPaint(
+                          size: Size(content.width, content.height),
+                          painter: BdDiagramPainter(
+                            objects: ordered,
+                            origin: content.topLeft,
+                            wires: _wires,
+                            subViIcons: _subViIcons,
+                            structureTerminals: _structureTerminals,
+                          ),
+                          foregroundPainter: _OverlayPainter(
+                            origin: content.topLeft,
+                            selected: _selected,
+                            members: _members,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -302,7 +290,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
             },
           ),
         ),
-        if (_mode == DiagramRenderMode.wireframe && _selected != null)
+        if (_selected != null)
           Positioned(
             left: 8,
             right: 8,
@@ -314,28 +302,6 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                 _selected = null;
                 _members = const {};
               }),
-            ),
-          ),
-        if (_mode == DiagramRenderMode.faithful &&
-            _ordered.length > kFaithfulMaxObjects)
-          Positioned(
-            left: 8,
-            right: 8,
-            top: 8,
-            child: Material(
-              color: const Color(0xFFFFF3CD),
-              borderRadius: BorderRadius.circular(4),
-              child: Padding(
-                padding: const EdgeInsets.all(8),
-                child: Text(
-                  'Faithful mode is disabled for large diagrams '
-                  '(${_ordered.length} objects > $kFaithfulMaxObjects) — showing wireframe.',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF7A5B00),
-                  ),
-                ),
-              ),
             ),
           ),
       ],
@@ -350,29 +316,6 @@ class _ViDiagramViewState extends State<ViDiagramView> {
       Text(
         '$objectCount objects',
         style: const TextStyle(fontWeight: FontWeight.bold),
-      ),
-      SegmentedButton<DiagramRenderMode>(
-        style: const ButtonStyle(visualDensity: VisualDensity.compact),
-        segments: const [
-          ButtonSegment(
-            value: DiagramRenderMode.wireframe,
-            icon: Icon(Icons.grid_4x4, size: 16),
-            label: Text('Wireframe'),
-          ),
-          ButtonSegment(
-            value: DiagramRenderMode.faithful,
-            icon: Icon(Icons.widgets_outlined, size: 16),
-            label: Text('Faithful'),
-          ),
-        ],
-        selected: {_mode},
-        onSelectionChanged: (s) => setState(() {
-          _mode = s.first;
-          if (_mode == DiagramRenderMode.faithful) {
-            _selected = null;
-            _members = const {};
-          }
-        }),
       ),
       IconButton(
         tooltip: 'Fit to view',
@@ -626,6 +569,30 @@ int _packRect(int top, int left, int bottom, int right) =>
 /// decoded (a comment's yellow backing) — never a guessed box.
 const Set<int> kBdTextLabelCodes = {0x0a, 0x95};
 
+/// The text to show on a node box: its recovered name when present (e.g. a subVI
+/// filename), otherwise an honest class HINT derived from its classification
+/// (`primitive`, `growable`, `Call Library node`) so the box isn't blank.
+/// `isHint` is true for the class-derived fallback so it can be styled apart from
+/// a real name. Pure + public for testing.
+({String text, bool isHint}) nodeDisplayLabel(ViHeapObject object) {
+  final label = object.label?.trim();
+  if (label != null && label.isNotEmpty) return (text: label, isHint: false);
+  final cls = object.objectClass.label;
+  final match = RegExp(r'^Node \((.+)\)$').firstMatch(cls);
+  return (text: match != null ? match.group(1)! : cls, isHint: true);
+}
+
+/// The badge text for a structure object — taken from the videcode CLASS CATALOG
+/// ([HeapObjectClass.label]) rather than a hand-maintained table, so the inspector
+/// can't drift from / contradict the catalog's honest, hedged names (e.g. 0x53 =
+/// "Loop (BD) / container (FP)", 0x2c = "Case structure", 0x20 = "For loop").
+/// Falls back to "Structure" only when the class is uncatalogued. Public for
+/// testing + shared with the wireframe annotation.
+String structureBadge(ViHeapObject object) =>
+    object.objectClass == HeapObjectClass.unknown
+    ? 'Structure'
+    : object.objectClass.label;
+
 /// The label drawn on a wireframe object. Structures (never text-labeled) show
 /// their catalog kind via [structureBadge] (so the wireframe reads as logic too,
 /// honestly tracking the class catalog — e.g. "For loop", "Case structure",
@@ -828,20 +795,269 @@ Set<ViHeapObject> nodesWithin(
   return out;
 }
 
-/// The **drawable** objects of [diagram] — the layout layer the BD/FP view and
-/// the [BdOracle] both paint: objects with a valid absolute rectangle, excluding
-/// the scaffolding parts ([_isScaffolding]) and implausibly large boxes. Wires
-/// (degenerate zero-area Manhattan runs) are kept via the wire exemption. Single
-/// source of truth so the on-screen view and the off-screen oracle render the
-/// same object set. Pure + public for the oracle and tests.
-List<ViHeapObject> bdDrawableObjects(ViDiagram diagram) {
+/// The oids of every object inside a **hidden frame** of a stacked
+/// multi-frame structure (a case/event structure holds one `0x1b` frame per
+/// case, all at overlapping coordinates, but LabVIEW draws only the visible
+/// one — drawing them all stacks every case's contents on top of each other).
+///
+/// Which frame is visible is not decoded (frames carry no recovered name to
+/// match against the structure's selector label), so the frame with the most
+/// content positioned inside the structure's own box is kept — the frames
+/// LabVIEW is not showing compose partly outside it or hold less in-box
+/// content. Structures whose frames' in-box contents are pairwise disjoint
+/// (a flat sequence tiling its frames side by side) keep every frame. Pure +
+/// public for testing; shared by [bdDrawableObjects] and [bdVisibleWires].
+Set<int> bdHiddenFrameOids(ViDiagram diagram) {
+  final childrenByOid = bdChildrenByOid(diagram);
+  final hidden = <int>{};
+
+  void hideSubtree(ViHeapObject root) {
+    hidden.add(root.oid);
+    for (final child in childrenByOid[root.oid] ?? const <ViHeapObject>[]) {
+      hideSubtree(child);
+    }
+  }
+
+  for (final structure in diagram.objects) {
+    if (structure.category != ViObjectKind.structure) continue;
+    final box = structure.absBounds;
+    if (box == null || box.width <= 0 || box.height <= 0) continue;
+    final frames = (childrenByOid[structure.oid] ?? const <ViHeapObject>[])
+        .where((c) => c.kind == 0x1b)
+        .toList();
+    if (frames.length < 2) continue;
+
+    // Per frame: how much positioned content sits inside the structure's box
+    // (slack for tunnels/labels on the border), and that content's bbox.
+    final inBoxCounts = <int>[];
+    final inBoxBoxes = <Rect?>[];
+    for (final frame in frames) {
+      var count = 0;
+      var l = 1 << 30, t = 1 << 30, r = -(1 << 30), b = -(1 << 30);
+      void visit(ViHeapObject o) {
+        final bb = o.absBounds;
+        if (bb != null && bb.width > 0 && bb.height > 0) {
+          final cx = (bb.left + bb.right) / 2, cy = (bb.top + bb.bottom) / 2;
+          if (cx >= box.left - 8 &&
+              cx <= box.right + 8 &&
+              cy >= box.top - 8 &&
+              cy <= box.bottom + 8) {
+            count++;
+            if (bb.left < l) l = bb.left;
+            if (bb.top < t) t = bb.top;
+            if (bb.right > r) r = bb.right;
+            if (bb.bottom > b) b = bb.bottom;
+          }
+        }
+        for (final child in childrenByOid[o.oid] ?? const <ViHeapObject>[]) {
+          visit(child);
+        }
+      }
+
+      visit(frame);
+      inBoxCounts.add(count);
+      inBoxBoxes.add(
+        count == 0
+            ? null
+            : Rect.fromLTRB(
+                l.toDouble(),
+                t.toDouble(),
+                r.toDouble(),
+                b.toDouble(),
+              ),
+      );
+    }
+    final candidates = [
+      for (var i = 0; i < frames.length; i++)
+        if (inBoxCounts[i] > 0) i,
+    ];
+    if (candidates.length < 2) {
+      // One (or no) frame holds in-box content: LabVIEW shows exactly one
+      // frame, so any other frame's content is not on this canvas.
+      for (var i = 0; i < frames.length; i++) {
+        if (candidates.isEmpty ? i > 0 : i != candidates.single) {
+          hideSubtree(frames[i]);
+        }
+      }
+      continue;
+    }
+    // Disjoint in-box contents = side-by-side frames (flat sequence): keep all.
+    var overlapping = false;
+    for (var i = 0; i < candidates.length && !overlapping; i++) {
+      for (var j = i + 1; j < candidates.length; j++) {
+        final a = inBoxBoxes[candidates[i]]!, b = inBoxBoxes[candidates[j]]!;
+        final inter = a.intersect(b);
+        if (inter.width <= 0 || inter.height <= 0) continue;
+        final minArea = math.min(a.width * a.height, b.width * b.height);
+        if (minArea > 0 && inter.width * inter.height / minArea > 0.2) {
+          overlapping = true;
+          break;
+        }
+      }
+    }
+    if (!overlapping) continue;
+    var visible = candidates.first;
+    for (final i in candidates) {
+      if (inBoxCounts[i] > inBoxCounts[visible]) visible = i;
+    }
+    for (var i = 0; i < frames.length; i++) {
+      if (i != visible) hideSubtree(frames[i]);
+    }
+  }
+  return hidden;
+}
+
+/// [diagram]'s dataflow wires prepared for drawing: signals living in a
+/// hidden frame of a stacked multi-frame structure are dropped (a hidden
+/// case's wires must not draw across the visible one, see
+/// [bdHiddenFrameOids]), and an endpoint whose anchor did not resolve to a
+/// positioned box (a structure tunnel — its border-crossing point carries no
+/// decoded bounds) is re-anchored to the endpoint's nearest drawable bounded
+/// ancestor, so the run reaches the structure's border the way LabVIEW's
+/// tunnel wires do. A leg that only resolves to the diagram root stays
+/// unanchored (drawing to the canvas edge would be wrong), and a wire whose
+/// remaining anchors collapse onto one identical box is dropped as
+/// degenerate.
+List<ViWire> bdVisibleWires(ViDiagram diagram) {
+  final hidden = bdHiddenFrameOids(diagram)
+    ..addAll(bdInlinedInstanceOids(diagram));
   final byId = diagram.byId;
+
+  HeapRect? reanchor(int endpointOid) {
+    var cur = byId[endpointOid];
+    var depth = 0;
+    while (cur != null && depth++ < 64) {
+      final b = cur.absBounds;
+      if (!hidden.contains(cur.oid) &&
+          b != null &&
+          b.width > 0 &&
+          b.height > 0) {
+        // The diagram root's box is the whole canvas — not an anchor.
+        return cur.parentOid == null ? null : b;
+      }
+      cur = cur.parentOid == null ? null : byId[cur.parentOid!];
+    }
+    return null;
+  }
+
+  final out = <ViWire>[];
+  for (final wire in diagram.wires) {
+    if (hidden.contains(wire.signalOid)) continue;
+    var patched = false;
+    final anchors = <HeapRect?>[];
+    for (var i = 0; i < wire.endpointAnchors.length; i++) {
+      final anchor = wire.endpointAnchors[i];
+      if (anchor != null && anchor.width > 0 && anchor.height > 0) {
+        anchors.add(anchor);
+        continue;
+      }
+      final resolved = reanchor(wire.endpointOids[i]);
+      anchors.add(resolved);
+      if (resolved != null) patched = true;
+    }
+    final boxes = anchors.whereType<HeapRect>().toList();
+    if (boxes.length < 2) continue;
+    // All legs on one identical box: nothing to route. (HeapRect has no
+    // operator==, so compare edges.)
+    final first = boxes.first;
+    if (boxes.every(
+      (b) =>
+          b.left == first.left &&
+          b.top == first.top &&
+          b.right == first.right &&
+          b.bottom == first.bottom,
+    )) {
+      continue;
+    }
+    out.add(
+      patched
+          ? ViWire(
+              signalOid: wire.signalOid,
+              endpointOids: wire.endpointOids,
+              endpointAnchors: anchors,
+            )
+          : wire,
+    );
+  }
+  return out;
+}
+
+/// [diagram]'s parent-oid → children map — the walk index every grouping
+/// helper below shares.
+Map<int, List<ViHeapObject>> bdChildrenByOid(ViDiagram diagram) {
   final childrenByOid = <int, List<ViHeapObject>>{};
   for (final object in diagram.objects) {
     if (object.parentOid != null) {
       (childrenByOid[object.parentOid!] ??= <ViHeapObject>[]).add(object);
     }
   }
+  return childrenByOid;
+}
+
+/// The oids of every object inside an **inlined sub-VI instance** (`0x105`):
+/// an express/inlined call splices the called VI's whole internal diagram
+/// into this heap under the instance node, in the sub-VI's own coordinate
+/// space (its subtree re-bases toward the diagram origin). LabVIEW draws
+/// only the instance node — which carries proper caller-space bounds — never
+/// the internals, so the subtree is excluded from the drawable set and the
+/// wire list.
+Set<int> bdInlinedInstanceOids(ViDiagram diagram) {
+  final childrenByOid = bdChildrenByOid(diagram);
+  final out = <int>{};
+  void collect(ViHeapObject root) {
+    for (final child in childrenByOid[root.oid] ?? const <ViHeapObject>[]) {
+      if (out.add(child.oid)) collect(child);
+    }
+  }
+
+  for (final object in diagram.objects) {
+    if (object.kind == 0x105) collect(object);
+  }
+  return out;
+}
+
+/// Per structure oid, the **modeled structure terminals** of [diagram]: a
+/// loop's iteration/count/conditional terminals, its shift registers, and a
+/// case's selector tunnel — each with its decoded frame-relative box
+/// ([ViHeapObject.termBounds]) and glyph selector ([ViHeapObject.termBmp]:
+/// `i`→1, `N`→2, stop→192, shift registers→3/4, case selector→5). Terminals
+/// without a decoded box are omitted (nothing is placed by guesswork).
+Map<int, List<({HeapRect box, int bmp})>> bdStructureTerminals(
+  ViDiagram diagram,
+) {
+  final byId = diagram.byId;
+  final out = <int, List<({HeapRect box, int bmp})>>{};
+  for (final object in diagram.objects) {
+    final box = object.termBounds;
+    final bmp = object.termBmp;
+    if (box == null || bmp == null) continue;
+    if (box.width <= 0 || box.height <= 0) continue;
+    // The owning structure: the nearest structure-category ancestor.
+    var cur = byId[object.parentOid ?? -1];
+    var depth = 0;
+    while (cur != null &&
+        cur.category != ViObjectKind.structure &&
+        depth++ < 8) {
+      cur = byId[cur.parentOid ?? -1];
+    }
+    if (cur == null || cur.category != ViObjectKind.structure) continue;
+    (out[cur.oid] ??= []).add((box: box, bmp: bmp));
+  }
+  return out;
+}
+
+/// The **drawable** objects of [diagram] — the layout layer the BD/FP view and
+/// the [BdOracle] both paint: objects with a valid absolute rectangle, excluding
+/// the scaffolding parts ([_isScaffolding]), implausibly large boxes, and the
+/// hidden frames of stacked multi-frame structures ([bdHiddenFrameOids]). Wires
+/// (degenerate zero-area Manhattan runs) are kept via the wire exemption. Single
+/// source of truth so the on-screen view and the off-screen oracle render the
+/// same object set. Pure + public for the oracle and tests.
+List<ViHeapObject> bdDrawableObjects(ViDiagram diagram) {
+  final byId = diagram.byId;
+  final hidden = bdHiddenFrameOids(diagram)
+    ..addAll(bdInlinedInstanceOids(diagram));
+  final childrenByOid = bdChildrenByOid(diagram);
   return [
     for (final object in diagram.objects)
       if (object.absBounds != null &&
@@ -850,6 +1066,16 @@ List<ViHeapObject> bdDrawableObjects(ViDiagram diagram) {
               (object.absBounds!.width > 0 && object.absBounds!.height > 0)) &&
           object.absBounds!.width < 8000 &&
           object.absBounds!.height < 8000 &&
+          !hidden.contains(object.oid) &&
+          // A node-glyph part (0x177) composed at negative coordinates is a
+          // node's icon art in glyph space, not canvas space (crc8's floats
+          // at (-8,-13) parented to the root frame) — drawing it stamps a
+          // stray box and stretches the content extent. Positive-positioned
+          // 0x177s are real drawn glyphs (VI Tree's icon row) and stay.
+          !(object.kind == 0x177 &&
+              (object.absBounds!.left < 0 || object.absBounds!.top < 0)) &&
+          !_escapesConstantBox(object, byId) &&
+          !_escapesStructureBox(object, byId) &&
           // An owned name-label whose position was not composed lands glued to
           // the origin, extending upward (left == 0, bottom == 0) — 13 of the
           // snippet corpus's 1849 label parts, every one duplicating text that
@@ -866,6 +1092,102 @@ List<ViHeapObject> bdDrawableObjects(ViDiagram diagram) {
           !_isScaffolding(object, byId))
         object,
   ];
+}
+
+/// Whether [object] is a constant's internal part composed **entirely outside
+/// the constant's own box** — undrawable either way: LabVIEW clips a
+/// constant's data view strictly to its box, so a part outside it is a
+/// scrolled-out element or one whose coordinate frame the composition does
+/// not yet decode (observed on cluster-in-cluster constants, whose whole
+/// inner subtree re-bases near the diagram origin and wrecks the content
+/// extent). The constant's box is the outermost bounded shell below the
+/// `0x13` const-DCO record on [object]'s parent chain; the test is
+/// **subtree-wide** — a part is undrawable when it, or ANY ancestor between
+/// it and that shell, lies entirely outside the box (a part "inside" an
+/// escaped ancestor is junk at a junk location). A free-text label is exempt
+/// only when no ancestor escaped — a constant's own name label legitimately
+/// hangs outside the box.
+bool _escapesConstantBox(ViHeapObject object, Map<int, ViHeapObject> byId) {
+  // Parent chain from [object] up to (exclusive) the 0x13 const-DCO record.
+  final chain = <ViHeapObject>[];
+  var cur = object;
+  var depth = 0;
+  var underConst = false;
+  while (cur.parentOid != null && depth++ < 64) {
+    final parent = byId[cur.parentOid];
+    if (parent == null) break;
+    if (parent.kind == 0x13) {
+      underConst = true;
+      break;
+    }
+    chain.add(parent);
+    cur = parent;
+  }
+  if (!underConst) return false;
+  // Anchor: the outermost bounded shell just below the const record.
+  HeapRect? anchor;
+  for (final shell in chain.reversed) {
+    final b = shell.absBounds;
+    if (b != null && b.width > 0 && b.height > 0) {
+      anchor = b;
+      break;
+    }
+  }
+  final box = anchor;
+  if (box == null) return false;
+  bool outside(HeapRect b) =>
+      b.right <= box.left ||
+      b.left >= box.right ||
+      b.bottom <= box.top ||
+      b.top >= box.bottom;
+  for (final ancestor in chain) {
+    final b = ancestor.absBounds;
+    if (b == null || b.width <= 0 || b.height <= 0) continue;
+    if (identical(b, box)) continue;
+    if (outside(b)) return true;
+  }
+  if (kBdTextLabelCodes.contains(object.kind)) return false;
+  final b = object.absBounds;
+  return b != null && b.width > 0 && b.height > 0 && outside(b);
+}
+
+/// Whether [object] is composed **entirely outside** its nearest bounded
+/// structure ancestor's box (inflated by [slack] px, so tunnels and owned
+/// labels overhanging a border stay) — with **no wire (0x1d) on the chain**
+/// between them: a wire-parented subtree legitimately escapes its heap
+/// container (heap-nesting ≠ visual containment for wires), but a directly
+/// nested part outside its frame is mis-composed (a coordinate frame the
+/// origin composition does not yet decode) and drawing it stamps content at
+/// junk positions and stretches the content extent. Free-text labels are
+/// exempt.
+bool _escapesStructureBox(
+  ViHeapObject object,
+  Map<int, ViHeapObject> byId, {
+  int slack = 32,
+}) {
+  if (kBdTextLabelCodes.contains(object.kind)) return false;
+  if (object.category == ViObjectKind.wire) return false;
+  final bounds = object.absBounds;
+  if (bounds == null || bounds.width <= 0 || bounds.height <= 0) return false;
+  var cur = object;
+  var depth = 0;
+  while (cur.parentOid != null && depth++ < 64) {
+    final parent = byId[cur.parentOid];
+    if (parent == null) return false;
+    if (parent.kind == 0x1d) return false;
+    final box = parent.absBounds;
+    if (parent.category == ViObjectKind.structure &&
+        box != null &&
+        box.width > 0 &&
+        box.height > 0) {
+      return bounds.right <= box.left - slack ||
+          bounds.left >= box.right + slack ||
+          bounds.bottom <= box.top - slack ||
+          bounds.top >= box.bottom + slack;
+    }
+    cur = parent;
+  }
+  return false;
 }
 
 /// The `.vi`/`.vim` filenames [diagram]'s subVI-call nodes target — the wanted
@@ -948,10 +1270,15 @@ class BdDiagramPainter extends CustomPainter {
     required this.origin,
     this.wires = const [],
     this.subViIcons = const {},
+    this.structureTerminals = const {},
   });
 
   final List<ViHeapObject> objects;
   final Offset origin;
+
+  /// Per structure oid, its modeled terminals (frame-relative box + glyph
+  /// selector; see [bdStructureTerminals]).
+  final Map<int, List<({HeapRect box, int bmp})>> structureTerminals;
 
   /// The decoded dataflow wires ([ViDiagram.wires], one per `0x17` signal),
   /// routed under the nodes/structures between their endpoint anchors. Empty
@@ -1008,55 +1335,106 @@ class BdDiagramPainter extends CustomPainter {
     // separator sits behind the logic), so they paint before the dataflow wires
     // and every node — a decoration drawn opaque in its decoded colour must not
     // occlude the wires routed across it.
+    // Whether a decoration encloses other drawn logic — then it is a backdrop
+    // (a structure interior, a user grouping box) whose interior LabVIEW shows
+    // as plain canvas, not a plated leaf box.
+    final backdropCandidates = [
+      for (final other in objects)
+        if (other.category == ViObjectKind.node ||
+            other.category == ViObjectKind.structure ||
+            other.category == ViObjectKind.terminal)
+          other,
+    ];
+    bool isBackdrop(ViHeapObject deco) {
+      final bounds = deco.absBounds!;
+      for (final other in backdropCandidates) {
+        if (identical(other, deco)) continue;
+        final b = other.absBounds!;
+        if (b.left >= bounds.left &&
+            b.top >= bounds.top &&
+            b.right <= bounds.right &&
+            b.bottom <= bounds.bottom) {
+          return true;
+        }
+      }
+      return false;
+    }
+
     for (final object in decorations) {
-      // Drawn in its own decoded LabVIEW colour when one was recovered, else a
-      // faint category tint so its extent still reads without inventing a colour.
+      // Drawn in its own decoded LabVIEW colour when one was recovered. An
+      // undecoded decoration is still a visible drawn element (a box,
+      // separator or backing with an outline), so it gets a thin border and —
+      // when it is a leaf box, not a backdrop enclosing other logic — a
+      // neutral near-canvas plate, the same honest treatment as an unresolved
+      // node's plate (LabVIEW shows a backdrop's
+      // interior as plain canvas, and a barely-visible tint would hide a
+      // decoration-only diagram entirely).
+      final rect = rectOf(object);
       final decoded =
           bdDecodedColor(object.bgRgb) ?? bdDecodedColor(object.contentRgb);
-      canvas.drawRect(
-        rectOf(object),
-        decoded != null
-            ? (Paint()..color = decoded)
-            : (Paint()
-                ..color = _kindColor(object.category).withValues(alpha: 0.10)),
-      );
+      if (decoded != null) {
+        canvas.drawRect(rect, Paint()..color = decoded);
+      } else if (!isBackdrop(object)) {
+        canvas.drawRect(rect, Paint()..color = const Color(0xFFF4F4F4));
+        canvas.drawRect(
+          rect,
+          Paint()
+            ..color = Colors.black.withValues(alpha: 0.45)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 0.8,
+        );
+      }
     }
     // Dataflow wires paint over the canvas/decorations but under every
     // structure/node, so nodes and terminals always sit on top of the runs that
     // reach them.
     _drawWires(canvas);
     for (final object in structures) {
-      // LabVIEW draws structures as a double-line frame; the badge tab at the
-      // top-left names the construct (While/For/Case) like the original's
-      // border furniture does. When the structure's own colour was decoded
-      // (structColor — the LabVIEW structure greys, or the pale sequence/timed
-      // tint) the frame is drawn in it, over a faint fill of the same colour so
-      // the construct reads as itself; structures nest heavily, so the fill
-      // stays light to avoid a muddy stack. Undecoded structures keep the
-      // neutral category frame — no colour is guessed.
+      // Class-accurate structure chrome (no badge text — LabVIEW names a
+      // construct by its border furniture, not a label). Loops get the thick
+      // rounded grey band with the iteration / conditional corner terminals;
+      // case structures get their band plus selector chrome (drawn at the
+      // decoded 0x95 label, see the label pass). A decoded structColor tints
+      // the band (the pale sequence/timed tint); other structure kinds keep
+      // the neutral double-line frame.
       final rect = rectOf(object);
       final structColor = bdDecodedColor(object.structRgb);
-      final frame = structColor ?? _kindColor(ViObjectKind.structure);
-      if (structColor != null) {
-        canvas.drawRect(
-          rect,
-          Paint()..color = structColor.withValues(alpha: 0.12),
-        );
+      // Structure terminals (iteration/count/conditional, shift registers,
+      // case selector tunnel) draw at their MODELED frame-relative positions
+      // with their MODELED glyph (see [bdStructureTerminals]); a terminal
+      // without a decoded box is not placed.
+      final terminals =
+          structureTerminals[object.oid] ?? const <({HeapRect box, int bmp})>[];
+      switch (object.kind) {
+        case 0x21 || 0x20: // While / for loop: rounded band + terminals.
+          _drawLoopBand(canvas, rect, structColor);
+          _drawStructureTerminals(canvas, rect, terminals);
+        case 0x2c: // Case structure: the same band, un-rounded.
+          _drawLoopBand(canvas, rect, structColor, rounded: false);
+          _drawStructureTerminals(canvas, rect, terminals);
+        default:
+          final frame = structColor ?? _kindColor(ViObjectKind.structure);
+          if (structColor != null) {
+            canvas.drawRect(
+              rect,
+              Paint()..color = structColor.withValues(alpha: 0.12),
+            );
+          }
+          canvas.drawRect(
+            rect,
+            Paint()
+              ..color = frame
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 2.0,
+          );
+          canvas.drawRect(
+            rect.deflate(3),
+            Paint()
+              ..color = frame.withValues(alpha: 0.55)
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 1.0,
+          );
       }
-      canvas.drawRect(
-        rect,
-        Paint()
-          ..color = frame
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.0,
-      );
-      canvas.drawRect(
-        rect.deflate(3),
-        Paint()
-          ..color = frame.withValues(alpha: 0.55)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.0,
-      );
     }
     // Wires: each 0x1d object is one stored Manhattan run, drawn exactly as
     // its own segment. Runs of the same wire already meet at their bend
@@ -1070,6 +1448,9 @@ class BdDiagramPainter extends CustomPainter {
       ..strokeCap = StrokeCap.square;
     for (final object in wires) {
       final rect = rectOf(object);
+      // A zero-area segment is an unanchored stub (often at the diagram
+      // origin) — a point, not a run, so there is nothing to draw.
+      if (rect.width == 0 && rect.height == 0) continue;
       canvas.drawLine(rect.topLeft, rect.bottomRight, wirePaint);
     }
 
@@ -1081,6 +1462,12 @@ class BdDiagramPainter extends CustomPainter {
       // background colour paints that backing; no colour paints no box (never
       // guessed). The text pass below renders any recovered caption.
       if (kBdTextLabelCodes.contains(object.kind)) {
+        if (object.kind == 0x95) {
+          // Case selector chrome: the label ring on the case's top border —
+          // white value box with a ▼, flanked by ◄/► pager boxes.
+          _drawCaseSelector(canvas, rect);
+          continue;
+        }
         final backing = bdDecodedColor(object.bgRgb);
         if (backing != null) {
           canvas.drawRect(rect, Paint()..color = backing);
@@ -1096,28 +1483,35 @@ class BdDiagramPainter extends CustomPainter {
       }
       switch (object.category) {
         case ViObjectKind.terminal:
-          // LabVIEW terminal: sharp rect, datatype fill, thin dark border, and
-          // the inner double-border that marks a control/indicator terminal.
-          // A recovered datatype drives the fill (blue int, orange float, …); an
-          // unrecovered one stays a neutral grey rather than guessing a colour.
-          final fill = object.typeKind == ViTypeKind.unknown
-              ? kBdUnknownTerminalFill
-              : labviewTypeColor(object.typeKind);
-          canvas.drawRect(rect, Paint()..color = fill.withValues(alpha: 0.9));
+          // LabVIEW terminal: datatype-coloured double border — a 2 px outer
+          // border, a 1 px white gap, a 1 px inner border — over a lightly
+          // tinted plate. A recovered datatype (or a decoded foreground
+          // colour, e.g. a boolean constant's green) drives the colour; an
+          // unrecovered one stays a neutral grey rather than guessing.
+          final typed =
+              object.typeKind != ViTypeKind.unknown || object.fgRgb != null;
+          final tint = object.typeKind != ViTypeKind.unknown
+              ? labviewTypeColor(object.typeKind)
+              : (bdDecodedColor(object.fgRgb) ?? kBdUnknownTerminalFill);
+          // An unknown-type terminal keeps a dark neutral border — the light
+          // "unknown" grey as a border is invisible to the eye and the edge
+          // masks alike.
+          final border = typed ? tint : const Color(0xFF5A5A5A);
+          canvas.drawRect(rect, Paint()..color = tint.withValues(alpha: 0.25));
           canvas.drawRect(
-            rect,
+            rect.deflate(1),
             Paint()
-              ..color = Colors.black.withValues(alpha: 0.65)
+              ..color = border
               ..style = PaintingStyle.stroke
-              ..strokeWidth = 0.8,
+              ..strokeWidth = 2.0,
           );
-          if (rect.width > 8 && rect.height > 8) {
+          if (rect.width > 10 && rect.height > 10) {
             canvas.drawRect(
-              rect.deflate(2),
+              rect.deflate(3.5),
               Paint()
-                ..color = Colors.white.withValues(alpha: 0.7)
+                ..color = border
                 ..style = PaintingStyle.stroke
-                ..strokeWidth = 0.8,
+                ..strokeWidth = 1.0,
             );
           }
         case ViObjectKind.node:
@@ -1210,17 +1604,16 @@ class BdDiagramPainter extends CustomPainter {
         tp.paint(canvas, rect.topLeft + const Offset(2, 1));
         continue;
       }
-      final onFrame = object.category == ViObjectKind.structure;
-      // A node's identity is carried by its icon plate (and a separate free
-      // label), never by stamping its subVI-filename/function label inside the
-      // icon box — LabVIEW draws no text there. A constant/terminal shows the
-      // recovered literal value ([ViHeapObject.constText]) when one exists — e.g.
-      // a string constant's `"report.txt"` — falling back to its recovered label;
-      // a value that was not decoded renders no text (never guessed).
+      // A structure is identified by its border chrome (LabVIEW draws no
+      // construct name); a node's identity is carried by its icon plate (and
+      // a separate free label), never by stamping its subVI-filename/function
+      // label inside the icon box. A constant/terminal shows the recovered
+      // literal value ([ViHeapObject.constText]) when one exists — e.g. a
+      // string constant's `"report.txt"` — falling back to its recovered
+      // label; a value that was not decoded renders no text (never guessed).
       final String? text;
-      if (onFrame) {
-        text = structureBadge(object);
-      } else if (object.category == ViObjectKind.node) {
+      if (object.category == ViObjectKind.structure ||
+          object.category == ViObjectKind.node) {
         text = null;
       } else {
         final literal = object.constText?.trim();
@@ -1233,12 +1626,10 @@ class BdDiagramPainter extends CustomPainter {
       final rect = rectOf(object);
       if (rect.width < 26 || rect.height < 11) continue;
       // A caption/constant is inked in the object's decoded foreground colour
-      // when one was recovered (fgColor is the LabVIEW text/line colour), else a
-      // neutral near-black. A structure badge keeps its frame-chrome colour.
-      final textColor = onFrame
-          ? const Color(0xCC4A2E00)
-          : (bdDecodedColor(object.fgRgb) ??
-                Colors.black.withValues(alpha: 0.75));
+      // when one was recovered (fgColor is the LabVIEW text/line colour), else
+      // a neutral near-black.
+      final textColor =
+          bdDecodedColor(object.fgRgb) ?? Colors.black.withValues(alpha: 0.75);
       final tp = TextPainter(
         text: TextSpan(
           text: text,
@@ -1320,6 +1711,185 @@ class BdDiagramPainter extends CustomPainter {
     }
   }
 
+  /// The thick grey structure band LabVIEW draws for loops and cases: a
+  /// ~3.5 px mid-grey band with a 1 px darker outline, rounded on loops.
+  /// [tint] (a decoded structColor, e.g. the pale sequence colour) replaces
+  /// the band grey when present.
+  void _drawLoopBand(
+    Canvas canvas,
+    Rect rect,
+    Color? tint, {
+    bool rounded = true,
+  }) {
+    final band = tint ?? const Color(0xFF9C9C9C);
+    final radius = rounded ? const Radius.circular(4) : Radius.zero;
+    // A decoded structure colour (the pale sequence/timed tint) also washes
+    // the interior, as LabVIEW's coloured structures do.
+    if (tint != null) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(rect, radius),
+        Paint()..color = tint.withValues(alpha: 0.12),
+      );
+    }
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect.deflate(1.75), radius),
+      Paint()
+        ..color = band
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3.5,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, radius),
+      Paint()
+        ..color = const Color(0xFF606060)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.0,
+    );
+  }
+
+  static const _loopBlue = Color(0xFF0033CC);
+
+  /// `termBMPs` glyph selectors (corpus pairing, see the package's
+  /// [HeapAttribute.termBMPs] doc).
+  static const _bmpIteration = 1; // the loop `i`
+  static const _bmpCount = 2; // the for-loop `N`
+  static const _bmpLeftShiftRegister = 3; // ▼ delivers
+  static const _bmpRightShiftRegister = 4; // ▲ stores
+  static const _bmpCaseSelector = 5; // the case `?` tunnel
+  static const _bmpConditional = 192; // the while-loop stop
+
+  void _drawGlyphText(Canvas canvas, Rect box, String glyph, Color color) {
+    final tp = TextPainter(
+      text: TextSpan(
+        text: glyph,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          fontStyle: FontStyle.italic,
+          fontFamily: 'Roboto',
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas, box.center - Offset(tp.width / 2, tp.height / 2));
+  }
+
+  /// Draws a structure's modeled terminals at their frame-relative boxes,
+  /// each with its modeled glyph (`termBMPs`): `i`→1, `N`→2, conditional
+  /// stop→192, shift registers→3 (left ▼) / 4 (right ▲), case selector→5.
+  void _drawStructureTerminals(
+    Canvas canvas,
+    Rect frame,
+    List<({HeapRect box, int bmp})> terminals,
+  ) {
+    for (final t in terminals) {
+      final box = Rect.fromLTWH(
+        frame.left + t.box.left,
+        frame.top + t.box.top,
+        t.box.width.toDouble(),
+        t.box.height.toDouble(),
+      );
+      final border = switch (t.bmp) {
+        _bmpConditional => const Color(0xFF007F00),
+        _ => _loopBlue,
+      };
+      canvas.drawRect(box, Paint()..color = Colors.white);
+      canvas.drawRect(
+        box,
+        Paint()
+          ..color = border
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.4,
+      );
+      switch (t.bmp) {
+        case _bmpIteration:
+          _drawGlyphText(canvas, box, 'i', _loopBlue);
+        case _bmpCount:
+          _drawGlyphText(canvas, box, 'N', _loopBlue);
+        case _bmpCaseSelector:
+          _drawGlyphText(canvas, box, '?', _loopBlue);
+        case _bmpLeftShiftRegister || _bmpRightShiftRegister:
+          // Shift register: ▼ delivers on the left border, ▲ stores on
+          // the right.
+          final c = box.center;
+          final tri = t.bmp == _bmpLeftShiftRegister
+              ? (Path()
+                  ..moveTo(c.dx - 4, c.dy - 3)
+                  ..lineTo(c.dx + 4, c.dy - 3)
+                  ..lineTo(c.dx, c.dy + 4)
+                  ..close())
+              : (Path()
+                  ..moveTo(c.dx - 4, c.dy + 3)
+                  ..lineTo(c.dx + 4, c.dy + 3)
+                  ..lineTo(c.dx, c.dy - 4)
+                  ..close());
+          canvas.drawPath(tri, Paint()..color = Colors.black87);
+        case _bmpConditional:
+          // Red stop octagon.
+          final c = box.center;
+          const r = 5.0;
+          final path = Path();
+          for (var k = 0; k < 8; k++) {
+            final a = (k * 45 + 22.5) * math.pi / 180;
+            final p = Offset(c.dx + r * math.cos(a), c.dy + r * math.sin(a));
+            if (k == 0) {
+              path.moveTo(p.dx, p.dy);
+            } else {
+              path.lineTo(p.dx, p.dy);
+            }
+          }
+          path.close();
+          canvas.drawPath(path, Paint()..color = const Color(0xFFCC0000));
+      }
+    }
+  }
+
+  /// Case-selector chrome at the decoded `0x95` label [rect]: a white value
+  /// box with a black border and ▼, flanked by the ◄/► case-pager boxes that
+  /// sit on the case's top border. The selector STRING is drawn by the text
+  /// pass; only the furniture is drawn here.
+  void _drawCaseSelector(Canvas canvas, Rect rect) {
+    final border = Paint()
+      ..color = Colors.black.withValues(alpha: 0.8)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+    canvas.drawRect(rect, Paint()..color = Colors.white);
+    canvas.drawRect(rect, border);
+    // ▼ on the value box's right edge.
+    final dc = Offset(rect.right - 7, rect.center.dy);
+    final down = Path()
+      ..moveTo(dc.dx - 3.5, dc.dy - 2)
+      ..lineTo(dc.dx + 3.5, dc.dy - 2)
+      ..lineTo(dc.dx, dc.dy + 3)
+      ..close();
+    canvas.drawPath(down, Paint()..color = Colors.black87);
+    // ◄ / ► pager boxes flanking the value box.
+    void pager(Rect box, bool left) {
+      canvas.drawRect(box, Paint()..color = Colors.white);
+      canvas.drawRect(box, border);
+      final c = box.center;
+      final tri = left
+          ? (Path()
+              ..moveTo(c.dx + 2, c.dy - 3.5)
+              ..lineTo(c.dx + 2, c.dy + 3.5)
+              ..lineTo(c.dx - 2.5, c.dy)
+              ..close())
+          : (Path()
+              ..moveTo(c.dx - 2, c.dy - 3.5)
+              ..lineTo(c.dx - 2, c.dy + 3.5)
+              ..lineTo(c.dx + 2.5, c.dy)
+              ..close());
+      canvas.drawPath(tri, Paint()..color = Colors.black87);
+    }
+
+    pager(
+      Rect.fromLTWH(rect.left - 10, rect.top + 2, 10, rect.height - 4),
+      true,
+    );
+    pager(Rect.fromLTWH(rect.right, rect.top + 2, 10, rect.height - 4), false);
+  }
+
   void _drawDotGrid(Canvas canvas, Size size) {
     const stepPx = 12.0;
     const maxDots = 20000;
@@ -1340,6 +1910,7 @@ class BdDiagramPainter extends CustomPainter {
       !identical(old.objects, objects) ||
       !identical(old.wires, wires) ||
       !identical(old.subViIcons, subViIcons) ||
+      !identical(old.structureTerminals, structureTerminals) ||
       old.origin != origin;
 }
 

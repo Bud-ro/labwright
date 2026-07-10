@@ -65,17 +65,20 @@ Future<BdRaster?> rasteriseBlockDiagram(
   int maxDimension = 2000,
   double pixelRatio = 1.0,
   double? scale,
+  int margin = 40,
   Map<int, ViLegacyIcon> subViIcons = const {},
   List<ViWire>? wires,
+  List<ViHeapObject>? drawable,
 }) async {
-  final drawable = bdDrawableObjects(diagram);
+  drawable ??= bdDrawableObjects(diagram);
   if (drawable.isEmpty) return null;
-  final content = bdContentRect(drawable, includeWires: false);
+  final content = bdContentRect(drawable, includeWires: false, margin: margin);
   if (content.width <= 0 || content.height <= 0) return null;
   final ordered = bdPaintOrder(drawable, diagram.byId);
-  // Defaults to the diagram's decoded dataflow wires; pass `const []` to
-  // rasterise the wire-free layout (used to measure the before/after delta).
-  final wireList = wires ?? diagram.wires;
+  // Defaults to the diagram's visible dataflow wires (hidden multi-frame
+  // structure cases excluded); pass `const []` to rasterise the wire-free
+  // layout (used to measure the before/after delta).
+  final wireList = wires ?? bdVisibleWires(diagram);
 
   final longSide = math.max(content.width, content.height);
   var pxScale =
@@ -106,6 +109,7 @@ Future<BdRaster?> rasteriseBlockDiagram(
     origin: content.topLeft,
     wires: wireList,
     subViIcons: subViIcons,
+    structureTerminals: bdStructureTerminals(diagram),
   ).paint(canvas, content.size);
   final picture = recorder.endRecording();
   try {
@@ -398,15 +402,20 @@ class BdOracleResult {
 ///
 /// Pass [lockScale] when the render→reference pixel scale is **known** (a
 /// snippet reference at 1 px per model unit compared against a unit-scale
-/// render: 1.0). Registration then only *translates* — first aligning the two
-/// ink bounding-box centres, then refining by ink overlap — instead of deriving
-/// a scale from the ink extents, which a sparse render (e.g. a diagram whose
-/// only content is undrawn text labels) can distort arbitrarily.
+/// render: 1.0). Registration then only *translates* — a multi-start,
+/// multi-peak edge-overlap search — instead of deriving a scale from the ink
+/// extents, which a sparse render (e.g. a diagram whose only content is
+/// undrawn text labels) can distort arbitrarily. [anchorRects] (render-space
+/// boxes of the diagram's structures) disambiguate between competing peaks:
+/// repetitive texture (hatched structure borders) can out-score the true
+/// alignment on raw edge hits, but the large, unique structure boxes do not
+/// alias.
 Future<BdOracleResult> compareToReference(
   ui.Image rendered,
   ui.Image reference, {
   int threshold = 16,
   double? lockScale,
+  List<Rect> anchorRects = const [],
 }) async {
   final width = reference.width;
   final height = reference.height;
@@ -456,6 +465,7 @@ Future<BdOracleResult> compareToReference(
               referenceEdges,
               width,
               height,
+              anchorRects: anchorRects,
             )
           : _inkBoundsRegistration(srcInk, dstInk);
       fitted = await _redrawRegistered(rendered, registration, width, height);
@@ -493,6 +503,36 @@ Future<BdOracleResult> compareToReference(
     registered: registered,
     registration: registration,
   );
+}
+
+/// Render-space boxes of [diagram]'s drawable structures (excluding the
+/// whole-extent root and sub-glyph frames) — the large, unique anchors that
+/// disambiguate the locked-scale registration between competing edge peaks.
+List<Rect> bdStructureAnchorRects(
+  ViDiagram diagram,
+  BdRaster raster, {
+  List<ViHeapObject>? drawable,
+}) {
+  drawable ??= bdDrawableObjects(diagram);
+  final extent = bdContentRect(drawable, includeWires: false, margin: 0);
+  final out = <Rect>[];
+  for (final object in drawable) {
+    if (object.category != ViObjectKind.structure) continue;
+    final b = object.absBounds!;
+    if (b.width < 24 || b.height < 24) continue;
+    if (b.width >= extent.width * 0.95 && b.height >= extent.height * 0.95) {
+      continue;
+    }
+    out.add(
+      Rect.fromLTRB(
+        (b.left - raster.content.left) * raster.scale,
+        (b.top - raster.content.top) * raster.scale,
+        (b.right - raster.content.left) * raster.scale,
+        (b.bottom - raster.content.top) * raster.scale,
+      ),
+    );
+  }
+  return out;
 }
 
 /// The block diagram of [model] with the most positioned objects — the one
@@ -669,6 +709,7 @@ PlacementComparison comparePlacement({
   required int width,
   required int height,
   Uint8List? referenceEdges,
+  List<ViHeapObject>? drawable,
   int tolerance = 2,
   int edgeThreshold = kBdEdgeThreshold,
   int minSide = 6,
@@ -687,7 +728,7 @@ PlacementComparison comparePlacement({
   }
   final chance = pixels == 0 ? 0.0 : edgePixels / pixels;
 
-  final drawable = bdDrawableObjects(diagram);
+  drawable ??= bdDrawableObjects(diagram);
   final extent = bdContentRect(drawable, includeWires: false, margin: 0);
   final perObject = <({int oid, double support})>[];
   for (final object in drawable) {
@@ -853,15 +894,16 @@ BdRegistration _inkBoundsRegistration(Rect srcInk, Rect dstInk) {
 }
 
 /// A **translation-only** registration at the fixed render→reference [scale]:
-/// starts from aligning the ink bounding-box centres ([srcInk] onto [dstInk]),
-/// then refines the offset over a ±[searchRadius] px window to maximise how
-/// many of the render's Sobel-edge pixels land on (near) reference edges — the
-/// same agreement [comparePlacement] samples, so the metric is measured at the
-/// globally best alignment. Used when the scale is known by construction
-/// (snippet pairs), where fitting a scale from ink extents would mis-scale the
-/// whole frame whenever one side draws content the other lacks, and where
-/// centre-alignment alone inherits a bias from any ink one side draws beyond
-/// the other's crop.
+/// a coarse-to-fine offset search maximising how many of the render's
+/// Sobel-edge pixels land on (near) reference edges — the same agreement
+/// [comparePlacement] samples, so the metric is measured at the globally best
+/// alignment. The search runs from THREE starts — the ink bounding boxes'
+/// centre, top-left and bottom-right alignments — because each start's bias
+/// fails differently: extra ink the other side lacks drags the centre, while
+/// a missing corner element drags one corner but rarely both. Used when the
+/// scale is known by construction (snippet pairs), where fitting a scale from
+/// ink extents would mis-scale the whole frame whenever one side draws
+/// content the other lacks.
 BdRegistration _translationRegistration(
   double scale,
   Rect srcInk,
@@ -872,8 +914,9 @@ BdRegistration _translationRegistration(
   Uint8List referenceEdges,
   int width,
   int height, {
-  int searchRadius = 48,
+  int searchRadius = 96,
   int edgeThreshold = kBdEdgeThreshold,
+  List<Rect> anchorRects = const [],
 }) {
   // Whole-pixel offsets only: at the locked (typically 1:1) scale a
   // fractional translation would sub-pixel-blur the redraw, betraying the
@@ -917,35 +960,100 @@ BdRegistration _translationRegistration(
     return hits;
   }
 
-  // Coarse-to-fine: a stride-4 sweep over the full window finds the basin
-  // (content the ink-centre start misses by tens of px — e.g. a render whose
-  // label text stretches its ink box asymmetrically), then a 1-px refine
-  // lands the peak. Same evaluation budget as a 1-px sweep of a quarter the
-  // radius.
-  var bestDx = base.dx, bestDy = base.dy, bestHits = -1;
-  for (var oy = -searchRadius; oy <= searchRadius; oy += 4) {
-    for (var ox = -searchRadius; ox <= searchRadius; ox += 4) {
-      final hits = hitsAt(base.dx + ox, base.dy + oy);
-      if (hits > bestHits) {
-        bestHits = hits;
-        bestDx = base.dx + ox;
-        bestDy = base.dy + oy;
+  // Multi-start, multi-peak coarse-to-fine. A stride-6 sweep around each
+  // start collects candidate cells; non-maximum suppression keeps the
+  // strongest well-separated PEAKS (repetitive texture — hatched structure
+  // borders — makes edge overlap multi-modal, and the false mode can carry
+  // more raw hits than the true alignment); each peak is refined at 1 px.
+  final starts = <(double, double)>{
+    (base.dx, base.dy),
+    (
+      (dstInk.left - scale * srcInk.left).roundToDouble(),
+      (dstInk.top - scale * srcInk.top).roundToDouble(),
+    ),
+    (
+      (dstInk.right - scale * srcInk.right).roundToDouble(),
+      (dstInk.bottom - scale * srcInk.bottom).roundToDouble(),
+    ),
+  };
+  final cells = <(double, double, int)>[];
+  for (final (sx, sy) in starts) {
+    for (var oy = -searchRadius; oy <= searchRadius; oy += 6) {
+      for (var ox = -searchRadius; ox <= searchRadius; ox += 6) {
+        cells.add((sx + ox, sy + oy, hitsAt(sx + ox, sy + oy)));
       }
     }
   }
-  final coarseDx = bestDx, coarseDy = bestDy;
-  for (var oy = -4; oy <= 4; oy++) {
-    for (var ox = -4; ox <= 4; ox++) {
-      if (ox == 0 && oy == 0) continue;
-      final hits = hitsAt(coarseDx + ox, coarseDy + oy);
-      if (hits > bestHits) {
-        bestHits = hits;
-        bestDx = coarseDx + ox;
-        bestDy = coarseDy + oy;
+  cells.sort((a, b) => b.$3.compareTo(a.$3));
+  final peaks = <(double, double, int)>[];
+  for (final cell in cells) {
+    if (peaks.length >= 8) break;
+    final farEnough = peaks.every(
+      (p) => math.max((p.$1 - cell.$1).abs(), (p.$2 - cell.$2).abs()) >= 12,
+    );
+    if (farEnough) peaks.add(cell);
+  }
+  final candidates = <(double, double, int)>[];
+  for (final (px, py, ph) in peaks) {
+    var bestDx = px, bestDy = py, bestHits = ph;
+    for (var oy = -5; oy <= 5; oy++) {
+      for (var ox = -5; ox <= 5; ox++) {
+        if (ox == 0 && oy == 0) continue;
+        final hits = hitsAt(px + ox, py + oy);
+        if (hits > bestHits) {
+          bestHits = hits;
+          bestDx = px + ox;
+          bestDy = py + oy;
+        }
       }
     }
+    candidates.add((bestDx, bestDy, bestHits));
   }
-  return BdRegistration(scale: scale, dx: bestDx, dy: bestDy);
+  if (candidates.isEmpty) return base;
+  // Final selection: the diagram's structure boxes are large and unique, so
+  // their perimeter edge support discriminates the true peak where raw hits
+  // cannot. Without anchors, raw hits decide.
+  if (anchorRects.length >= 2) {
+    double anchorSupport(double dx, double dy) {
+      var hits = 0, samples = 0;
+      void sample(double fx, double fy) {
+        final x = (fx * scale + dx).round(), y = (fy * scale + dy).round();
+        if (x < 0 || y < 0 || x >= width || y >= height) return;
+        samples++;
+        hits += nearEdges[y * width + x];
+      }
+
+      for (final r in anchorRects) {
+        for (var x = r.left; x <= r.right; x += 2) {
+          sample(x, r.top);
+          sample(x, r.bottom);
+        }
+        for (var y = r.top + 2; y < r.bottom; y += 2) {
+          sample(r.left, y);
+          sample(r.right, y);
+        }
+      }
+      return samples == 0 ? 0 : hits / samples;
+    }
+
+    var best = candidates.first;
+    var bestScore = anchorSupport(best.$1, best.$2);
+    for (final c in candidates.skip(1)) {
+      final score = anchorSupport(c.$1, c.$2);
+      if (score > bestScore + 1e-9 ||
+          (score > bestScore - 1e-9 && c.$3 > best.$3)) {
+        best = c;
+        bestScore = score;
+      }
+    }
+    return BdRegistration(scale: scale, dx: best.$1, dy: best.$2);
+  }
+  candidates.sort((a, b) => b.$3.compareTo(a.$3));
+  return BdRegistration(
+    scale: scale,
+    dx: candidates.first.$1,
+    dy: candidates.first.$2,
+  );
 }
 
 /// The centred aspect-preserved letterbox of [src] into [width]×[height], as a
@@ -1035,8 +1143,16 @@ class BdOracleView extends StatefulWidget {
   State<BdOracleView> createState() => _BdOracleViewState();
 }
 
-class _BdOracleViewState extends State<BdOracleView> {
+class _BdOracleViewState extends State<BdOracleView>
+    with AutomaticKeepAliveClientMixin {
   late Future<_OracleData> _future = _build();
+
+  // The comparison (rasterise + decode + multi-peak registration) costs a
+  // noticeable fraction of a second on large VIs; keep the tab's state alive
+  // so revisiting the Oracle tab shows the cached result instead of
+  // recomputing it.
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void didUpdateWidget(BdOracleView old) {
@@ -1082,11 +1198,23 @@ class _BdOracleViewState extends State<BdOracleView> {
     // decodeReferenceImage's snippetCropped flag drives BOTH decisions, so an
     // uncroppable snippet falls back to the generic comparison whole.
     final snippet = reference?.snippetCropped ?? false;
+    // The drawable set and visible wires are deterministic per diagram;
+    // computed once and threaded through the rasterise / anchor / placement
+    // stages (each would otherwise redo the full hidden-frame and
+    // inlined-instance analysis).
+    final drawable = bdDrawableObjects(diagram);
+    final visibleWires = bdVisibleWires(diagram);
+    // A snippet reference is LabVIEW's crop of the diagram's ink plus a 2 px
+    // margin, so the unit-scale render uses the same margin — matched
+    // dimensions, not just matched scale.
     final raster = await rasteriseBlockDiagram(
       diagram,
       maxDimension: widget.maxDimension,
       scale: snippet ? 1.0 : null,
+      margin: snippet ? 2 : 40,
       subViIcons: widget.subViIcons,
+      wires: visibleWires,
+      drawable: drawable,
     );
     if (raster == null) {
       reference?.image.dispose();
@@ -1097,6 +1225,9 @@ class _BdOracleViewState extends State<BdOracleView> {
       raster.image,
       reference.image,
       lockScale: snippet ? 1.0 / raster.scale : null,
+      anchorRects: snippet
+          ? bdStructureAnchorRects(diagram, raster, drawable: drawable)
+          : const [],
     );
     final placement = comparePlacement(
       diagram: diagram,
@@ -1104,6 +1235,7 @@ class _BdOracleViewState extends State<BdOracleView> {
       registration: result.registration,
       referenceRgba: result.referenceRgba,
       referenceEdges: result.referenceEdges,
+      drawable: drawable,
       width: reference.image.width,
       height: reference.image.height,
     );
@@ -1116,6 +1248,7 @@ class _BdOracleViewState extends State<BdOracleView> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     return FutureBuilder<_OracleData>(
       future: _future,
       builder: (context, snapshot) {
