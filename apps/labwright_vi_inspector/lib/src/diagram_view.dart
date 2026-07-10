@@ -1513,12 +1513,17 @@ class BdDiagramPainter extends CustomPainter {
           // masks alike.
           final border = typed ? tint : const Color(0xFF5A5A5A);
           canvas.drawRect(rect, Paint()..color = tint.withValues(alpha: 0.25));
+          // Border weight encodes direction, as LabVIEW draws it: a CONTROL
+          // has the thick outer border (2 px, 1 px gap), an INDICATOR the
+          // thin one (1 px, 2 px gap). Unknown direction keeps the control
+          // weights.
+          final indicator = object.isIndicator == true;
           canvas.drawRect(
-            rect.deflate(1),
+            rect.deflate(indicator ? 0.5 : 1),
             Paint()
               ..color = border
               ..style = PaintingStyle.stroke
-              ..strokeWidth = 2.0,
+              ..strokeWidth = indicator ? 1.0 : 2.0,
           );
           if (rect.width > 10 && rect.height > 10) {
             canvas.drawRect(
@@ -1528,6 +1533,19 @@ class BdDiagramPainter extends CustomPainter {
                 ..style = PaintingStyle.stroke
                 ..strokeWidth = 1.0,
             );
+          }
+          // The dataflow arrow: a control feeds rightward out of its right
+          // edge; an indicator receives at its left edge. Only drawn when
+          // the direction is decoded.
+          if (object.isIndicator != null && rect.height >= 10) {
+            final cy = rect.center.dy;
+            final ax = indicator ? rect.left : rect.right;
+            final tri = Path()
+              ..moveTo(ax - 3, cy - 4)
+              ..lineTo(ax + 3, cy)
+              ..lineTo(ax - 3, cy + 4)
+              ..close();
+            canvas.drawPath(tri, Paint()..color = Colors.black87);
           }
           // The resolved data type's short label (DBL / I32 / TF / abc),
           // as LabVIEW stamps on the terminal — sized to sit inside the
