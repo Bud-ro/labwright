@@ -28,10 +28,11 @@ void main() {
 
     await tester.tap(find.byKey(const Key('demo')));
     await tester.pump();
-    expect(find.text('demo.vi'), findsOneWidget);
+    expect(find.text('demo.vi'), findsWidgets);
     expect(find.text('Block diagram (logic)'), findsOneWidget);
     expect(find.text('BDHb'), findsOneWidget);
-    expect(find.textContaining('Read-only viewer'), findsOneWidget);
+    // The loaded VI's path is copyable from the header.
+    expect(find.byKey(const Key('copy-path')), findsOneWidget);
   });
 
   testWidgets('the Coverage tab surfaces writer fidelity for the demo VI', (
@@ -142,17 +143,7 @@ void main() {
 
     await tester.tap(find.text('inner.vi'));
     await tester.pump();
-    expect(find.textContaining('embedded: inner.vi'), findsOneWidget);
+    // Opening the embedded sub-VI loads it (its own name shows in the header).
     expect(find.text('NestedDemo.vi'), findsWidgets);
-  });
-
-  testWidgets('a non-existent path shows a clean error, not a crash', (
-    tester,
-  ) async {
-    await tester.pumpWidget(const MaterialApp(home: ViInspectorScreen()));
-    await tester.enterText(find.byKey(const Key('path')), '/no/such/file.vi');
-    await tester.tap(find.byKey(const Key('open')));
-    await tester.pump();
-    expect(find.textContaining('No such file'), findsOneWidget);
   });
 }

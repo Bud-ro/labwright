@@ -1,9 +1,9 @@
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 import 'coverage_view.dart';
@@ -17,9 +17,11 @@ import 'types_view.dart';
 import 'vi_demo.dart';
 
 /// Imports a LabVIEW `.vi`/`.ctl` file and shows what it is and does — type,
-/// version, capability flags, and the resource-block inventory — via the
-/// clean-room `labwright_rsrc_parse` reader. A read-only viewer (block-diagram
-/// logic decode, and therefore editing, is future work).
+/// version, capability flags, the resource-block inventory, the recovered
+/// front-panel and block-diagram object layout (structures, nodes, wires,
+/// per-object colours, subVI icons), embedded images, and writer coverage —
+/// via the clean-room `labwright_rsrc_parse` reader. A read-only viewer
+/// (editing is future work).
 class ViInspectorScreen extends StatefulWidget {
   const ViInspectorScreen({
     super.key,
@@ -76,7 +78,6 @@ class ViInspectorScreen extends StatefulWidget {
 }
 
 class _ViInspectorScreenState extends State<ViInspectorScreen> {
-  final _pathCtrl = TextEditingController();
   ViSummary? _summary;
   String? _error;
   String _source = '';
@@ -122,7 +123,6 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
 
   @override
   void dispose() {
-    _pathCtrl.dispose();
     super.dispose();
   }
 
@@ -199,14 +199,11 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
     return null;
   }
 
-  void _openPath() => _loadPath(_pathCtrl.text.trim());
-
   /// Reads and inspects the file at [path] (shared by the text field, the
   /// Browse dialog, and drag-and-drop). Surfaces missing/unreadable files as a
   /// clean error rather than throwing.
   void _loadPath(String path) {
     if (path.isEmpty) return;
-    _pathCtrl.text = path;
     final file = File(path);
     if (!file.existsSync()) {
       setState(() {
@@ -314,12 +311,25 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
               runSpacing: 8,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                if (icon != null)
-                  SizedBox(
-                    width: 28,
-                    height: 28,
-                    child: CustomPaint(painter: LegacyIconPainter(icon)),
-                  ),
+                // The VI-icon slot is always present: a neutral placeholder
+                // until a file with an icon loads, then the real 32x32 icon.
+                SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: icon != null
+                      ? CustomPaint(painter: LegacyIconPainter(icon))
+                      : DecoratedBox(
+                          decoration: BoxDecoration(
+                            border: Border.all(color: const Color(0xFF666666)),
+                            color: const Color(0x14000000),
+                          ),
+                          child: const Icon(
+                            Icons.memory_outlined,
+                            size: 16,
+                            color: Color(0xFF888888),
+                          ),
+                        ),
+                ),
                 if (_summary?.name != null)
                   Text(
                     _summary!.name!,
@@ -328,33 +338,27 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    minWidth: 260,
-                    maxWidth: 460,
+                if (_source.isNotEmpty)
+                  IconButton(
+                    key: const Key('copy-path'),
+                    tooltip: 'Copy path\n$_source',
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: _source));
+                      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+                        const SnackBar(
+                          content: Text('Path copied'),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.copy_outlined, size: 18),
                   ),
-                  child: TextField(
-                    key: const Key('path'),
-                    controller: _pathCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Path to a .vi / .ctl file',
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                    ),
-                    onSubmitted: (_) => _openPath(),
-                  ),
-                ),
                 FilledButton.icon(
                   key: const Key('browse'),
                   onPressed: _browse,
                   icon: const Icon(Icons.folder_open),
                   label: const Text('Browse…'),
-                ),
-                OutlinedButton.icon(
-                  key: const Key('open'),
-                  onPressed: _openPath,
-                  icon: const Icon(Icons.subdirectory_arrow_right),
-                  label: const Text('Open path'),
                 ),
                 OutlinedButton.icon(
                   key: const Key('demo'),
@@ -662,11 +666,6 @@ class _SummaryViewState extends State<_SummaryView> {
     return ListView(
       children: [
         Text(summary.describe(), style: const TextStyle(color: Colors.grey)),
-        const SizedBox(height: 4),
-        Text(
-          'source: ${widget.source}',
-          style: const TextStyle(color: Colors.grey, fontSize: 12),
-        ),
         const SizedBox(height: 16),
 
         _Section('Identity', [
@@ -939,32 +938,6 @@ class _SummaryViewState extends State<_SummaryView> {
           if (filtered.isEmpty)
             const Text('(no match)', style: TextStyle(color: Colors.grey)),
         ],
-
-        const SizedBox(height: 20),
-        Card(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          child: const Padding(
-            padding: EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Read-only viewer',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                SizedBox(height: 6),
-                Text(
-                  'Shows the RSRC container, decoded version/title, embedded strings, and — '
-                  'in the Diagram tab — the recovered block-diagram object layout (each '
-                  'object at its absolute position, colored by kind, with its label and data '
-                  'type). Decoded clean-room from the heap; honest by construction — signal '
-                  'wires are not drawn yet (geometry decoded, endpoints not yet), and '
-                  'function-vs-subVI is not yet distinguished from the block diagram alone.',
-                ),
-              ],
-            ),
-          ),
-        ),
       ],
     );
   }
@@ -1160,8 +1133,9 @@ class _Section extends StatelessWidget {
 }
 
 /// An honest "what we recovered vs what's still unknown" strip for the Block
-/// Diagram tab, derived entirely from real model counts — never fabricated,
-/// and explicit that only STRUCTURE is recovered (dataflow/wires are not).
+/// Diagram tab, derived entirely from real model counts — never fabricated. It
+/// states what is recovered (objects, structures, nodes, dataflow wires) and
+/// what is not (the wire datatype and packed route geometry).
 class _RecoverySummary extends StatelessWidget {
   const _RecoverySummary(this.model);
   final ViModel model;
@@ -1200,7 +1174,8 @@ class _RecoverySummary extends StatelessWidget {
           ),
           const SizedBox(height: 2),
           const Text(
-            'Structure only — node→node dataflow / wires are not recovered.',
+            'Dataflow wires are drawn from decoded signal endpoints; the wire '
+            'datatype and packed route geometry are not decoded.',
             style: TextStyle(fontSize: 11, color: Colors.grey),
           ),
         ],

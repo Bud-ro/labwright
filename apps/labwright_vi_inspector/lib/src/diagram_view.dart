@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
@@ -380,9 +378,13 @@ class _ViDiagramViewState extends State<ViDiagramView> {
         icon: const Icon(Icons.fit_screen),
       ),
       IconButton(
-        tooltip: _shelfOpen ? 'Hide details shelf' : 'Show details shelf',
+        // The shelf is the right-hand panel; the icon reads as that panel being
+        // filled (open) or empty (hidden).
+        tooltip: _shelfOpen ? 'Hide details panel' : 'Show details panel',
         onPressed: () => setState(() => _shelfOpen = !_shelfOpen),
-        icon: Icon(_shelfOpen ? Icons.last_page : Icons.first_page),
+        icon: Icon(
+          _shelfOpen ? Icons.view_sidebar : Icons.view_sidebar_outlined,
+        ),
       ),
     ],
   );
@@ -616,9 +618,9 @@ String? wireframeAnnotation(ViHeapObject o) {
 /// structures grouped by catalog kind (e.g. `While loop`, `Case structure`), the
 /// distinct **labeled-node captions** (a node's `C4 22` caption — for a subVI
 /// usually its name, but NOT a proven call; many node kinds carry captions), and
-/// the total node count. Conveys the diagram's control-flow shape at a glance
-/// without claiming any dataflow edges (LabVIEW stores wires as geometry, with no
-/// recoverable node→node endpoints). Pure + public so it is unit-testable.
+/// the total node count. A text summary of the diagram's control-flow shape; it
+/// lists no dataflow edges (those are drawn on the canvas from the decoded
+/// signal endpoints, see [ViDiagramView]). Pure + public so it is unit-testable.
 ({
   Map<String, int> structuresByKind,
   List<String> labeledNodes,
@@ -832,38 +834,6 @@ List<ViHeapObject> bdDrawableObjects(ViDiagram diagram) {
   ];
 }
 
-/// Resolves the **on-node subVI icons** for [diagram]: for each subVI-call node
-/// (a [kSubViCallNodeCodes] class whose caption is a `.vi`/`.vim` filename), its
-/// target VI is fetched by name via [loadByName] and that VI's richest legacy
-/// icon (icl8 → icl4 → ICON) is decoded. Returns an [ViHeapObject.oid] → icon map
-/// for the nodes that resolved; a node whose target is not found is absent from
-/// the map and keeps the neutral connector-pane plate (the icon is never
-/// guessed). [loadByName] maps a bare filename to that file's bytes (or null) —
-/// the file I/O lives in the caller's callback so this stays pure and testable.
-Map<int, ViLegacyIcon> resolveSubViIcons(
-  ViDiagram diagram,
-  Uint8List? Function(String fileName) loadByName,
-) {
-  final out = <int, ViLegacyIcon>{};
-  final cache = <String, ViLegacyIcon?>{};
-  for (final object in diagram.objects) {
-    if (!kSubViCallNodeCodes.contains(object.kind)) continue;
-    final name = object.label?.trim();
-    if (name == null || !_isViFileName(name)) continue;
-    final icon = cache.putIfAbsent(name, () {
-      final bytes = loadByName(name);
-      if (bytes == null) return null;
-      try {
-        return bestLegacyIcon(extractViImages(decodeSections(bytes)));
-      } catch (_) {
-        return null;
-      }
-    });
-    if (icon != null) out[object.oid] = icon;
-  }
-  return out;
-}
-
 /// The `.vi`/`.vim` filenames [diagram]'s subVI-call nodes target — the wanted
 /// set an icon resolver receives (see [ViDiagramView.subViIconResolver]).
 Set<String> subViWantedNames(ViDiagram diagram) => {
@@ -956,9 +926,9 @@ class BdDiagramPainter extends CustomPainter {
 
   /// Resolved subVI-call node icons, keyed by [ViHeapObject.oid] — the 32×32
   /// icon of the VI a subVI-call node targets, loaded from that VI's own file
-  /// (see [resolveSubViIcons]). A node with an entry here stamps the real icon on
-  /// its plate; a node without one keeps the neutral connector-pane plate (the
-  /// icon is never guessed).
+  /// (resolved by `resolveSubViIconsFor`). A node with an entry here stamps the
+  /// real icon on its plate; a node without one keeps the neutral
+  /// connector-pane plate (the icon is never guessed).
   final Map<int, ViLegacyIcon> subViIcons;
 
   @override

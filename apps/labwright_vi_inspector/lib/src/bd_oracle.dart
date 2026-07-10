@@ -601,7 +601,8 @@ class BdOracleView extends StatefulWidget {
   final int maxDimension;
 
   /// SubVI-call node icons (oid → icon) to stamp on the render, matching the
-  /// on-screen block-diagram view (see `resolveSubViIcons`). Empty by default.
+  /// on-screen block-diagram view (resolved by `resolveSubViIconsFor`). Empty by
+  /// default.
   final Map<int, ViLegacyIcon> subViIcons;
 
   @override
