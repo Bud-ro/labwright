@@ -136,6 +136,7 @@ void main() {
       'large.png': 0.45,
       'vi_lib_dependency.png': 0.45,
       'Config_Escape.png': 0.45,
+      'Pages.png': 0.40,
     };
 
     testWidgets('every snippet compares; placement ranks true placement', (

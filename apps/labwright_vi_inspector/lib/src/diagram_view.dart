@@ -808,6 +808,7 @@ List<ViHeapObject> bdDrawableObjects(ViDiagram diagram) {
               (object.absBounds!.width > 0 && object.absBounds!.height > 0)) &&
           object.absBounds!.width < 8000 &&
           object.absBounds!.height < 8000 &&
+          !_escapesConstantBox(object, byId) &&
           // An owned name-label whose position was not composed lands glued to
           // the origin, extending upward (left == 0, bottom == 0) — 13 of the
           // snippet corpus's 1849 label parts, every one duplicating text that
@@ -824,6 +825,44 @@ List<ViHeapObject> bdDrawableObjects(ViDiagram diagram) {
           !_isScaffolding(object, byId))
         object,
   ];
+}
+
+/// Whether [object] is a constant's internal part composed **entirely outside
+/// the constant's own box** — undrawable either way: LabVIEW clips a
+/// constant's data view strictly to its box, so a part outside it is a
+/// scrolled-out element or one whose coordinate frame the composition does
+/// not yet decode (observed on cluster-in-cluster constants, where such parts
+/// land near the diagram origin and wreck the content extent). The constant's
+/// box is the first bounded object below the `0x13` const-DCO record on
+/// [object]'s parent chain. Free-text labels are exempt — a constant's name
+/// label legitimately hangs outside the box.
+bool _escapesConstantBox(ViHeapObject object, Map<int, ViHeapObject> byId) {
+  if (kBdTextLabelCodes.contains(object.kind)) return false;
+  final bounds = object.absBounds;
+  if (bounds == null) return false;
+  // Walk up: remember the last bounded ancestor seen below each parent; when a
+  // 0x13 const-DCO is reached, that ancestor is the constant's box.
+  HeapRect? anchor;
+  var cur = object;
+  var depth = 0;
+  while (cur.parentOid != null && depth++ < 64) {
+    final parent = byId[cur.parentOid];
+    if (parent == null) return false;
+    if (parent.kind == 0x13) {
+      if (anchor == null) return false;
+      return bounds.right <= anchor.left ||
+          bounds.left >= anchor.right ||
+          bounds.bottom <= anchor.top ||
+          bounds.top >= anchor.bottom;
+    }
+    if (parent.absBounds != null &&
+        parent.absBounds!.width > 0 &&
+        parent.absBounds!.height > 0) {
+      anchor = parent.absBounds;
+    }
+    cur = parent;
+  }
+  return false;
 }
 
 /// The `.vi`/`.vim` filenames [diagram]'s subVI-call nodes target — the wanted
