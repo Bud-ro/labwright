@@ -217,6 +217,28 @@ void main() {
     expect(bad.single.enumItems, isEmpty);
   });
 
+  test('decodeTypeTable reads the top-level index table after the pool', () {
+    // Two descriptors, then a 3-entry table referencing them.
+    final body = u8([
+      0, 0, 0, 2, //
+      0x00, 0x04, 0x40, 0x30, // string
+      0x00, 0x04, 0x40, 0x21, // boolean
+      0x00, 0x03, // table count 3
+      0x00, 0x01, 0x00, 0x00, 0x00, 0x01, // entries: 1, 0, 1
+    ]);
+    expect(decodeTypeTable(body), [1, 0, 1]);
+    // No tail after the descriptors → no table.
+    expect(decodeTypeTable(_pool([0x30, 0x21])), isEmpty);
+    // An out-of-range entry invalidates the table.
+    final bad = u8([
+      0, 0, 0, 1, //
+      0x00, 0x04, 0x40, 0x30, //
+      0x00, 0x01, 0x00, 0x05,
+    ]);
+    expect(decodeTypeTable(bad), isEmpty);
+    expect(decodeTypeTable(Uint8List(0)), isEmpty);
+  });
+
   test('typeKindHistogram counts kinds, most-frequent first', () {
     final h = typeKindHistogram(decodeTypePool(_pool([0x50, 0x50, 0x30, 0x50, 0x21])));
     expect((h['cluster'], h['string'], h['boolean'], h.keys.first), (3, 1, 1, 'cluster'));
