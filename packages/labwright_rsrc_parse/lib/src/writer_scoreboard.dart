@@ -328,11 +328,12 @@ WriterAttribution attributeVi(Uint8List bytes, {int depth = 0}) {
           final image = tag == null ? null : decodeImageBlock(tag, payload);
           // A PICT/WEMF metafile block is framed element-by-element: its
           // opcode/record headers, length prefixes, and picture/metafile header
-          // are reconstructed (model), and each element's opaque payload interior
-          // (a compressed QuickTime image, an EMF record's parameter block) is
-          // retained verbatim (copied). No nested-deflate reframe applies — a
-          // metafile's opaque leaves are not zlib streams — so its model bytes
-          // count identically at the byte and content levels.
+          // are reconstructed (model), a PICT's uncompressed (`raw` codec)
+          // QuickTime raster is modeled, and an element's still-undecoded opaque
+          // interior (a non-`raw` QuickTime image, an EMF record's parameter
+          // block) is retained verbatim (copied). No nested-deflate reframe
+          // applies — a metafile's opaque leaves are not zlib streams — so its
+          // model bytes count identically at the byte and content levels.
           final meta = tag == null ? null : frameMetafile(tag, payload);
           if (modeled != null) {
             typedPayload += payload.length;
