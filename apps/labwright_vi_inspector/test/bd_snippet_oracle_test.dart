@@ -115,11 +115,7 @@ void main() {
     const floors = <String, double>{
       'fg.png': 0.85,
       'sub_vi_missing.png': 0.85,
-      // 0.80 until the raw==0x1 colour-flag fix removed a bogus black label
-      // backing that had (perversely) anchored registration; the honest
-      // render scores lower on this 2-anchor snippet. Its owned label is
-      // drawn where LabVIEW hides it (label visibility is not yet decoded).
-      'missing_terminal.png': 0.50,
+      'missing_terminal.png': 0.85,
       'VISA_Query.png': 0.80,
       'Tokenize URL.png': 0.80,
       'example.png': 0.75,
@@ -136,10 +132,7 @@ void main() {
       'VISA_InterfaceType.png': 0.65,
       'IconHeader.png': 0.60,
       'crc16.png': 0.60,
-      // 0.60 until the chrome round: the render visibly improved (loop band,
-      // selector chrome) but this snippet's registration optimum shifted;
-      // its 16-anchor placement now reads 54 vs a 30 displaced control.
-      'ClassesInMemory.png': 0.50,
+      'ClassesInMemory.png': 0.75,
       'basic.png': 0.55,
       'crc32.png': 0.55,
       'MD5.png': 0.55,
@@ -147,11 +140,16 @@ void main() {
       'crc32_lookup_table.png': 0.50,
       'Read Library Version.png': 0.70,
       'decorations_only.png': 0.50,
-      'large.png': 0.60,
-      'vi_lib_dependency.png': 0.45,
-      'Config_Escape.png': 0.45,
+      'large.png': 0.65,
+      'vi_lib_dependency.png': 0.85,
+      'Config_Escape.png': 0.60,
       'Excel_Cell_to_Value.png': 0.75,
-      'GetCurrentDirectory.png': 0.60,
+      'GetCurrentDirectory.png': 0.65,
+      'Excel_Variant_Elements.png': 0.60,
+      'WriteConsole.png': 0.60,
+      'VISA_Open2.png': 0.65,
+      'Excel_Cell_to_RowCol.png': 0.50,
+      'ReverseBitsVim.png': 0.50,
       'Pages.png': 0.65,
       'Symbols1Bit.png': 0.80,
     };

@@ -855,15 +855,16 @@ BdRegistration _inkBoundsRegistration(Rect srcInk, Rect dstInk) {
 }
 
 /// A **translation-only** registration at the fixed render→reference [scale]:
-/// starts from aligning the ink bounding-box centres ([srcInk] onto [dstInk]),
-/// then refines the offset over a ±[searchRadius] px window to maximise how
-/// many of the render's Sobel-edge pixels land on (near) reference edges — the
-/// same agreement [comparePlacement] samples, so the metric is measured at the
-/// globally best alignment. Used when the scale is known by construction
-/// (snippet pairs), where fitting a scale from ink extents would mis-scale the
-/// whole frame whenever one side draws content the other lacks, and where
-/// centre-alignment alone inherits a bias from any ink one side draws beyond
-/// the other's crop.
+/// a coarse-to-fine offset search maximising how many of the render's
+/// Sobel-edge pixels land on (near) reference edges — the same agreement
+/// [comparePlacement] samples, so the metric is measured at the globally best
+/// alignment. The search runs from THREE starts — the ink bounding boxes'
+/// centre, top-left and bottom-right alignments — because each start's bias
+/// fails differently: extra ink the other side lacks drags the centre, while
+/// a missing corner element drags one corner but rarely both. Used when the
+/// scale is known by construction (snippet pairs), where fitting a scale from
+/// ink extents would mis-scale the whole frame whenever one side draws
+/// content the other lacks.
 BdRegistration _translationRegistration(
   double scale,
   Rect srcInk,
@@ -919,19 +920,30 @@ BdRegistration _translationRegistration(
     return hits;
   }
 
-  // Coarse-to-fine: a stride-4 sweep over the full window finds the basin
-  // (content the ink-centre start misses by tens of px — e.g. a render whose
-  // label text stretches its ink box asymmetrically), then a 1-px refine
-  // lands the peak. Same evaluation budget as a 1-px sweep of a quarter the
-  // radius.
+  // Multi-start coarse-to-fine: a stride-4 sweep around each start finds the
+  // basin (content one start's bias misses by tens of px), then a 1-px refine
+  // around the global best lands the peak.
+  final starts = <(double, double)>{
+    (base.dx, base.dy),
+    (
+      (dstInk.left - scale * srcInk.left).roundToDouble(),
+      (dstInk.top - scale * srcInk.top).roundToDouble(),
+    ),
+    (
+      (dstInk.right - scale * srcInk.right).roundToDouble(),
+      (dstInk.bottom - scale * srcInk.bottom).roundToDouble(),
+    ),
+  };
   var bestDx = base.dx, bestDy = base.dy, bestHits = -1;
-  for (var oy = -searchRadius; oy <= searchRadius; oy += 4) {
-    for (var ox = -searchRadius; ox <= searchRadius; ox += 4) {
-      final hits = hitsAt(base.dx + ox, base.dy + oy);
-      if (hits > bestHits) {
-        bestHits = hits;
-        bestDx = base.dx + ox;
-        bestDy = base.dy + oy;
+  for (final (sx, sy) in starts) {
+    for (var oy = -searchRadius; oy <= searchRadius; oy += 4) {
+      for (var ox = -searchRadius; ox <= searchRadius; ox += 4) {
+        final hits = hitsAt(sx + ox, sy + oy);
+        if (hits > bestHits) {
+          bestHits = hits;
+          bestDx = sx + ox;
+          bestDy = sy + oy;
+        }
       }
     }
   }
