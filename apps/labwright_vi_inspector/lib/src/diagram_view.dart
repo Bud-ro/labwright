@@ -98,7 +98,10 @@ class _ViDiagramViewState extends State<ViDiagramView> {
       : bdDrawableObjects(_diagram);
   late final List<ViHeapObject> _ordered = bdPaintOrder(_drawable, _byId);
   // Decoded dataflow wires (empty on a front-panel heap). Drawn under the nodes.
-  late final List<ViWire> _wires = _diagram?.wires ?? const [];
+  late final List<ViWire> _wires = switch (_diagram) {
+    null => const [],
+    final diagram => bdVisibleWires(diagram),
+  };
   // Wires are excluded from the fit: their absolute anchoring is not yet
   // verified (a misanchored run must not blow up the zoom-to-fit envelope).
   late final Rect _content = _drawable.isEmpty
@@ -786,14 +789,145 @@ Set<ViHeapObject> nodesWithin(
   return out;
 }
 
+/// The oids of every object inside a **hidden frame** of a stacked
+/// multi-frame structure (a case/event structure holds one `0x1b` frame per
+/// case, all at overlapping coordinates, but LabVIEW draws only the visible
+/// one — drawing them all stacks every case's contents on top of each other).
+///
+/// Which frame is visible is not decoded (frames carry no recovered name to
+/// match against the structure's selector label), so the frame with the most
+/// content positioned inside the structure's own box is kept — the frames
+/// LabVIEW is not showing compose partly outside it or hold less in-box
+/// content. Structures whose frames' in-box contents are pairwise disjoint
+/// (a flat sequence tiling its frames side by side) keep every frame. Pure +
+/// public for testing; shared by [bdDrawableObjects] and [bdVisibleWires].
+Set<int> bdHiddenFrameOids(ViDiagram diagram) {
+  final childrenByOid = <int, List<ViHeapObject>>{};
+  for (final object in diagram.objects) {
+    if (object.parentOid != null) {
+      (childrenByOid[object.parentOid!] ??= <ViHeapObject>[]).add(object);
+    }
+  }
+  final hidden = <int>{};
+
+  void hideSubtree(ViHeapObject root) {
+    hidden.add(root.oid);
+    for (final child in childrenByOid[root.oid] ?? const <ViHeapObject>[]) {
+      hideSubtree(child);
+    }
+  }
+
+  for (final structure in diagram.objects) {
+    if (structure.category != ViObjectKind.structure) continue;
+    final box = structure.absBounds;
+    if (box == null || box.width <= 0 || box.height <= 0) continue;
+    final frames = (childrenByOid[structure.oid] ?? const <ViHeapObject>[])
+        .where((c) => c.kind == 0x1b)
+        .toList();
+    if (frames.length < 2) continue;
+
+    // Per frame: how much positioned content sits inside the structure's box
+    // (slack for tunnels/labels on the border), and that content's bbox.
+    final inBoxCounts = <int>[];
+    final inBoxBoxes = <Rect?>[];
+    for (final frame in frames) {
+      var count = 0;
+      var l = 1 << 30, t = 1 << 30, r = -(1 << 30), b = -(1 << 30);
+      void visit(ViHeapObject o) {
+        final bb = o.absBounds;
+        if (bb != null && bb.width > 0 && bb.height > 0) {
+          final cx = (bb.left + bb.right) / 2, cy = (bb.top + bb.bottom) / 2;
+          if (cx >= box.left - 8 &&
+              cx <= box.right + 8 &&
+              cy >= box.top - 8 &&
+              cy <= box.bottom + 8) {
+            count++;
+            if (bb.left < l) l = bb.left;
+            if (bb.top < t) t = bb.top;
+            if (bb.right > r) r = bb.right;
+            if (bb.bottom > b) b = bb.bottom;
+          }
+        }
+        for (final child in childrenByOid[o.oid] ?? const <ViHeapObject>[]) {
+          visit(child);
+        }
+      }
+
+      visit(frame);
+      inBoxCounts.add(count);
+      inBoxBoxes.add(
+        count == 0
+            ? null
+            : Rect.fromLTRB(
+                l.toDouble(),
+                t.toDouble(),
+                r.toDouble(),
+                b.toDouble(),
+              ),
+      );
+    }
+    final candidates = [
+      for (var i = 0; i < frames.length; i++)
+        if (inBoxCounts[i] > 0) i,
+    ];
+    if (candidates.length < 2) {
+      // One (or no) frame holds in-box content: LabVIEW shows exactly one
+      // frame, so any other frame's content is not on this canvas.
+      for (var i = 0; i < frames.length; i++) {
+        if (candidates.isEmpty ? i > 0 : i != candidates.single) {
+          hideSubtree(frames[i]);
+        }
+      }
+      continue;
+    }
+    // Disjoint in-box contents = side-by-side frames (flat sequence): keep all.
+    var overlapping = false;
+    for (var i = 0; i < candidates.length && !overlapping; i++) {
+      for (var j = i + 1; j < candidates.length; j++) {
+        final a = inBoxBoxes[candidates[i]]!, b = inBoxBoxes[candidates[j]]!;
+        final inter = a.intersect(b);
+        if (inter.width <= 0 || inter.height <= 0) continue;
+        final minArea = math.min(a.width * a.height, b.width * b.height);
+        if (minArea > 0 && inter.width * inter.height / minArea > 0.2) {
+          overlapping = true;
+          break;
+        }
+      }
+    }
+    if (!overlapping) continue;
+    var visible = candidates.first;
+    for (final i in candidates) {
+      if (inBoxCounts[i] > inBoxCounts[visible]) visible = i;
+    }
+    for (var i = 0; i < frames.length; i++) {
+      if (i != visible) hideSubtree(frames[i]);
+    }
+  }
+  return hidden;
+}
+
+/// [diagram]'s dataflow wires minus those whose signal lives in a hidden
+/// frame of a stacked multi-frame structure (see [bdHiddenFrameOids]) — a
+/// hidden case's wires must not draw across the visible one.
+List<ViWire> bdVisibleWires(ViDiagram diagram) {
+  final hidden = bdHiddenFrameOids(diagram);
+  if (hidden.isEmpty) return diagram.wires;
+  return [
+    for (final wire in diagram.wires)
+      if (!hidden.contains(wire.signalOid)) wire,
+  ];
+}
+
 /// The **drawable** objects of [diagram] — the layout layer the BD/FP view and
 /// the [BdOracle] both paint: objects with a valid absolute rectangle, excluding
-/// the scaffolding parts ([_isScaffolding]) and implausibly large boxes. Wires
+/// the scaffolding parts ([_isScaffolding]), implausibly large boxes, and the
+/// hidden frames of stacked multi-frame structures ([bdHiddenFrameOids]). Wires
 /// (degenerate zero-area Manhattan runs) are kept via the wire exemption. Single
 /// source of truth so the on-screen view and the off-screen oracle render the
 /// same object set. Pure + public for the oracle and tests.
 List<ViHeapObject> bdDrawableObjects(ViDiagram diagram) {
   final byId = diagram.byId;
+  final hidden = bdHiddenFrameOids(diagram);
   final childrenByOid = <int, List<ViHeapObject>>{};
   for (final object in diagram.objects) {
     if (object.parentOid != null) {
@@ -808,6 +942,7 @@ List<ViHeapObject> bdDrawableObjects(ViDiagram diagram) {
               (object.absBounds!.width > 0 && object.absBounds!.height > 0)) &&
           object.absBounds!.width < 8000 &&
           object.absBounds!.height < 8000 &&
+          !hidden.contains(object.oid) &&
           !_escapesConstantBox(object, byId) &&
           // An owned name-label whose position was not composed lands glued to
           // the origin, extending upward (left == 0, bottom == 0) — 13 of the

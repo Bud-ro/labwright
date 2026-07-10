@@ -73,9 +73,10 @@ Future<BdRaster?> rasteriseBlockDiagram(
   final content = bdContentRect(drawable, includeWires: false);
   if (content.width <= 0 || content.height <= 0) return null;
   final ordered = bdPaintOrder(drawable, diagram.byId);
-  // Defaults to the diagram's decoded dataflow wires; pass `const []` to
-  // rasterise the wire-free layout (used to measure the before/after delta).
-  final wireList = wires ?? diagram.wires;
+  // Defaults to the diagram's visible dataflow wires (hidden multi-frame
+  // structure cases excluded); pass `const []` to rasterise the wire-free
+  // layout (used to measure the before/after delta).
+  final wireList = wires ?? bdVisibleWires(diagram);
 
   final longSide = math.max(content.width, content.height);
   var pxScale =
