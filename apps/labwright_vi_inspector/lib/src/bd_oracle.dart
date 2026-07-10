@@ -78,8 +78,12 @@ Future<BdRaster?> rasteriseBlockDiagram(
   final wireList = wires ?? diagram.wires;
 
   final longSide = math.max(content.width, content.height);
-  final pxScale =
+  var pxScale =
       scale ?? (maxDimension / longSide).clamp(0.01, 8.0) * pixelRatio;
+  // The raster is capped at 8192 px a side; an explicit scale that would
+  // overflow it is reduced so ALL content stays on the canvas (the returned
+  // [BdRaster.scale] is always the factor actually drawn at).
+  if (longSide * pxScale > 8192) pxScale = 8192 / longSide;
   final width = (content.width * pxScale).ceil().clamp(1, 8192);
   final height = (content.height * pxScale).ceil().clamp(1, 8192);
 
@@ -223,18 +227,25 @@ class StructuralComparison {
   double get score => (inkIoU + edgeIoU) / 2;
 }
 
+/// The default Sobel gradient-magnitude threshold above which a pixel counts
+/// as an **edge** — shared by the structural comparison, the translation
+/// refinement and the placement metric so their edge masks agree.
+const int kBdEdgeThreshold = 64;
+
 /// Computes the [StructuralComparison] of two equal-length RGBA buffers
 /// ([width]×[height]×4 bytes each). A pixel is **ink** when its luminance is
 /// darker than white by more than [inkThreshold]; an **edge** when its Sobel
-/// gradient magnitude exceeds [edgeThreshold]. Pure + total (asserts matching
-/// sizes).
+/// gradient magnitude exceeds [edgeThreshold]. Pass [referenceEdges] when
+/// [b]'s Sobel mask (same threshold) is already computed, to skip that pass.
+/// Pure + total (asserts matching sizes).
 StructuralComparison compareStructural(
   Uint8List a,
   Uint8List b,
   int width,
   int height, {
   int inkThreshold = 12,
-  int edgeThreshold = 64,
+  int edgeThreshold = kBdEdgeThreshold,
+  Uint8List? referenceEdges,
 }) {
   assert(a.length == b.length, 'buffers differ in length');
   assert(a.length == width * height * 4, 'buffer is not width*height*4');
@@ -255,7 +266,8 @@ StructuralComparison compareStructural(
   }
 
   final edgeA = _sobelMask(lumA, width, height, edgeThreshold);
-  final edgeB = _sobelMask(lumB, width, height, edgeThreshold);
+  final edgeB =
+      referenceEdges ?? _sobelMask(lumB, width, height, edgeThreshold);
   var edgeInter = 0, edgeUnion = 0;
   for (var i = 0; i < pixels; i++) {
     final ea = edgeA[i] != 0;
@@ -339,6 +351,8 @@ class BdOracleResult {
     required this.rendered,
     required this.fitted,
     required this.reference,
+    required this.referenceRgba,
+    required this.referenceEdges,
     required this.comparison,
     required this.structural,
     required this.diffImage,
@@ -349,6 +363,13 @@ class BdOracleResult {
   final ui.Image rendered;
   final ui.Image fitted;
   final ui.Image reference;
+
+  /// The reference's raw RGBA (already read back from the GPU once) and its
+  /// Sobel edge mask at [kBdEdgeThreshold] — shared with [comparePlacement]
+  /// so a caller never re-reads or re-derives them.
+  final Uint8List referenceRgba;
+  final Uint8List referenceEdges;
+
   final ImageComparison comparison;
 
   /// The structural (ink + edge IoU) comparison — the metric that credits drawn
@@ -390,13 +411,26 @@ Future<BdOracleResult> compareToReference(
   final width = reference.width;
   final height = reference.height;
   final referenceRgba = await _rgbaOf(reference);
+  // The reference's Sobel edge mask, computed once and shared by the
+  // translation refinement, the structural comparison, and (via the result)
+  // the placement metric — three consumers, one O(pixels) pass.
+  final referenceEdges = _sobelMask(
+    _luma(referenceRgba, width * height),
+    width,
+    height,
+    kBdEdgeThreshold,
+  );
   // Skip the resample when the render already matches the reference exactly, so
   // an identical pair diffs to a true zero (a same-size letterbox still applies
-  // a sub-pixel filter).
+  // a sub-pixel filter). Never taken under [lockScale]: equal dimensions do
+  // not imply aligned content, and the locked path owes the caller a real
+  // translation search.
   ui.Image fitted;
   var registered = false;
   var registration = BdRegistration.identity;
-  if (rendered.width == width && rendered.height == height) {
+  if (lockScale == null &&
+      rendered.width == width &&
+      rendered.height == height) {
     fitted = rendered;
   } else {
     // Register the render onto the reference by aligning their drawn-ink
@@ -419,7 +453,7 @@ Future<BdOracleResult> compareToReference(
               renderedOwnRgba,
               rendered.width,
               rendered.height,
-              referenceRgba,
+              referenceEdges,
               width,
               height,
             )
@@ -444,18 +478,37 @@ Future<BdOracleResult> compareToReference(
     referenceRgba,
     width,
     height,
+    referenceEdges: referenceEdges,
   );
   final diffImage = await imageFromRgba(comparison.diff, width, height);
   return BdOracleResult(
     rendered: rendered,
     fitted: fitted,
     reference: reference,
+    referenceRgba: referenceRgba,
+    referenceEdges: referenceEdges,
     comparison: comparison,
     structural: structural,
     diffImage: diffImage,
     registered: registered,
     registration: registration,
   );
+}
+
+/// The block diagram of [model] with the most positioned objects — the one
+/// the Oracle tab renders against a snippet reference (and the corpus sweep
+/// measures). Null when no diagram has a positioned object.
+ViDiagram? bestBlockDiagram(ViModel model) {
+  ViDiagram? best;
+  var bestCount = 0;
+  for (final diagram in model.blockDiagrams) {
+    final count = diagram.objects.where((o) => o.absBounds != null).length;
+    if (count > bestCount) {
+      best = diagram;
+      bestCount = count;
+    }
+  }
+  return best;
 }
 
 /// Decodes PNG/other-encoded image [bytes] to a [ui.Image].
@@ -495,13 +548,22 @@ Future<Uint8List> _rgbaOf(ui.Image image) async {
 /// VI-snippet PNG — the remaining pixels are exactly LabVIEW's block-diagram
 /// render of the embedded VI, at 1 diagram unit == 1 px. Non-snippet bytes
 /// decode unchanged.
-Future<ui.Image> decodeReferenceImage(Uint8List bytes) async {
+///
+/// [snippetCropped] is the single source of truth for whether the returned
+/// image is such a unit-scale diagram: a caller must gate its unit-scale
+/// render + locked-scale registration on it, never on re-detecting the
+/// snippet itself — a snippet too small to crop safely comes back uncropped
+/// (chrome still present) and must be compared generically.
+Future<({ui.Image image, bool snippetCropped})> decodeReferenceImage(
+  Uint8List bytes,
+) async {
   final image = await decodeImage(bytes);
-  if (extractSnippetVi(bytes) == null) return image;
+  if (extractSnippetVi(bytes) == null)
+    return (image: image, snippetCropped: false);
   final interior = snippetDiagramInterior(image.width, image.height);
   if (interior.right - interior.left < 8 ||
       interior.bottom - interior.top < 8) {
-    return image;
+    return (image: image, snippetCropped: false);
   }
   final cropped = await _cropImage(
     image,
@@ -513,7 +575,7 @@ Future<ui.Image> decodeReferenceImage(Uint8List bytes) async {
     ),
   );
   image.dispose();
-  return cropped;
+  return (image: cropped, snippetCropped: true);
 }
 
 /// Redraws the [src] pixels inside [crop] as their own image (1:1, no filter).
@@ -606,13 +668,15 @@ PlacementComparison comparePlacement({
   required Uint8List referenceRgba,
   required int width,
   required int height,
+  Uint8List? referenceEdges,
   int tolerance = 2,
-  int edgeThreshold = 64,
+  int edgeThreshold = kBdEdgeThreshold,
   int minSide = 6,
 }) {
   final pixels = width * height;
   final edges = _dilate(
-    _sobelMask(_luma(referenceRgba, pixels), width, height, edgeThreshold),
+    referenceEdges ??
+        _sobelMask(_luma(referenceRgba, pixels), width, height, edgeThreshold),
     width,
     height,
     tolerance,
@@ -805,16 +869,19 @@ BdRegistration _translationRegistration(
   Uint8List renderRgba,
   int renderWidth,
   int renderHeight,
-  Uint8List referenceRgba,
+  Uint8List referenceEdges,
   int width,
   int height, {
   int searchRadius = 12,
-  int edgeThreshold = 64,
+  int edgeThreshold = kBdEdgeThreshold,
 }) {
+  // Whole-pixel offsets only: at the locked (typically 1:1) scale a
+  // fractional translation would sub-pixel-blur the redraw, betraying the
+  // no-resampling contract the locked path exists for.
   final base = BdRegistration(
     scale: scale,
-    dx: dstInk.center.dx - scale * srcInk.center.dx,
-    dy: dstInk.center.dy - scale * srcInk.center.dy,
+    dx: (dstInk.center.dx - scale * srcInk.center.dx).roundToDouble(),
+    dy: (dstInk.center.dy - scale * srcInk.center.dy).roundToDouble(),
   );
   // Sparse render edge samples (strided to a bounded count), pre-scaled.
   final renderPixels = renderWidth * renderHeight;
@@ -838,17 +905,7 @@ BdRegistration _translationRegistration(
     }
   }
   if (points.isEmpty) return base;
-  final referenceEdges = _dilate(
-    _sobelMask(
-      _luma(referenceRgba, width * height),
-      width,
-      height,
-      edgeThreshold,
-    ),
-    width,
-    height,
-    1,
-  );
+  final nearEdges = _dilate(referenceEdges, width, height, 1);
   var bestDx = base.dx, bestDy = base.dy, bestHits = -1;
   for (var oy = -searchRadius; oy <= searchRadius; oy++) {
     for (var ox = -searchRadius; ox <= searchRadius; ox++) {
@@ -858,7 +915,7 @@ BdRegistration _translationRegistration(
         final x = (points[i] + dx).round();
         final y = (points[i + 1] + dy).round();
         if (x < 0 || y < 0 || x >= width || y >= height) continue;
-        hits += referenceEdges[y * width + x];
+        hits += nearEdges[y * width + x];
       }
       if (hits > bestHits) {
         bestHits = hits;
@@ -900,13 +957,20 @@ Future<ui.Image> _redrawRegistered(
     Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()),
     Paint()..color = background,
   );
+  // A unit-scale, whole-pixel map (the locked snippet path) is a pure blit:
+  // filtering would sub-pixel-blur a render the caller compares losslessly.
+  final lossless =
+      registration.scale == 1.0 &&
+      registration.dx == registration.dx.roundToDouble() &&
+      registration.dy == registration.dy.roundToDouble();
   canvas.drawImageRect(
     src,
     Rect.fromLTWH(0, 0, src.width.toDouble(), src.height.toDouble()),
     registration.mapRect(
       Rect.fromLTWH(0, 0, src.width.toDouble(), src.height.toDouble()),
     ),
-    Paint()..filterQuality = FilterQuality.medium,
+    Paint()
+      ..filterQuality = lossless ? FilterQuality.none : FilterQuality.medium,
   );
   final picture = recorder.endRecording();
   try {
@@ -990,34 +1054,37 @@ class _BdOracleViewState extends State<BdOracleView> {
     final diagram = widget.diagram;
     if (diagram == null) return const _OracleData();
     final bytes = widget.referenceBytes;
-    // A snippet reference is LabVIEW's own render at 1 model unit == 1 px, so
-    // the render is rasterised at that exact scale — no resampling loss.
-    final snippet = bytes != null && extractSnippetVi(bytes) != null;
+    final reference = bytes == null ? null : await decodeReferenceImage(bytes);
+    // A cropped snippet reference is LabVIEW's own render at 1 model unit ==
+    // 1 px, so the render is rasterised at that exact scale and registered at
+    // the locked render→reference scale — translation-only, never fitted.
+    // decodeReferenceImage's snippetCropped flag drives BOTH decisions, so an
+    // uncroppable snippet falls back to the generic comparison whole.
+    final snippet = reference?.snippetCropped ?? false;
     final raster = await rasteriseBlockDiagram(
       diagram,
       maxDimension: widget.maxDimension,
       scale: snippet ? 1.0 : null,
       subViIcons: widget.subViIcons,
     );
-    if (raster == null) return const _OracleData();
-    if (bytes == null) return _OracleData(rendered: raster.image);
-    final reference = await decodeReferenceImage(bytes);
-    // Snippet raster and unit-scale render are both 1 px per model unit, so
-    // the registration scale is known — translation-only, never fitted.
+    if (raster == null) {
+      reference?.image.dispose();
+      return const _OracleData();
+    }
+    if (reference == null) return _OracleData(rendered: raster.image);
     final result = await compareToReference(
       raster.image,
-      reference,
-      lockScale: snippet ? 1.0 : null,
+      reference.image,
+      lockScale: snippet ? 1.0 / raster.scale : null,
     );
     final placement = comparePlacement(
       diagram: diagram,
       raster: raster,
       registration: result.registration,
-      referenceRgba: await reference.toByteData().then(
-        (d) => d!.buffer.asUint8List(),
-      ),
-      width: reference.width,
-      height: reference.height,
+      referenceRgba: result.referenceRgba,
+      referenceEdges: result.referenceEdges,
+      width: reference.image.width,
+      height: reference.image.height,
     );
     return _OracleData(
       rendered: raster.image,
@@ -1047,6 +1114,13 @@ class _BdOracleViewState extends State<BdOracleView> {
           );
         }
         final result = data.result;
+        final placement = data.placement;
+        final placementLine = placement == null || placement.objects == 0
+            ? ''
+            : 'Placement · '
+                  '${(placement.excessSupport * 100).toStringAsFixed(1)}% '
+                  'excess perimeter edge support over ${placement.objects} '
+                  'boxes — where the boxes are, not how they are filled.   ';
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -1071,10 +1145,7 @@ class _BdOracleViewState extends State<BdOracleView> {
                       'ink render ${(result.structural.inkFractionRender * 100).toStringAsFixed(1)}% '
                       'vs ref ${(result.structural.inkFractionReference * 100).toStringAsFixed(1)}%) — '
                       'credits drawn structure over emptiness.   '
-                      '${data.placement == null || data.placement!.objects == 0 ? '' : 'Placement · '
-                                '${(data.placement!.meanSupport * 100).toStringAsFixed(1)}% '
-                                'perimeter edge support over ${data.placement!.objects} boxes — '
-                                'where the boxes are, not how they are filled.   '}'
+                      '$placementLine'
                       '${result.registered ? 'Content-bounds registered' : 'Centred letterbox'}. '
                       'Coarse progress signals — not a fidelity claim.',
                       style: const TextStyle(color: Colors.grey, fontSize: 12),

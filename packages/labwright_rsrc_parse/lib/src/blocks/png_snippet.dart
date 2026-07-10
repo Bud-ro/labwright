@@ -67,12 +67,26 @@ Uint8List? extractSnippetVi(Uint8List png) {
   return null;
 }
 
+/// The snippet chrome's header-strip height: the toolbar glyphs + version-year
+/// band above the dashed frame's top line, which sits at `y ==` this value.
+/// Measured uniform across every snippet in the pinned corpus.
+const int snippetHeaderHeight = 25;
+
+/// The dashed chrome frame's inset from the raster edge on the left, right and
+/// bottom sides (the frame lines sit at `x ∈ {1, width-2}`, `y == height-2`).
+/// Measured uniform across every snippet in the pinned corpus.
+const int snippetFrameInset = 1;
+
 /// The diagram-pixel interior of a [width]×[height] snippet raster: everything
-/// inside the 1-px dashed chrome frame, excluding the frame line itself and the
-/// header strip above it. Half-open `[left, right) × [top, bottom)`. The frame
-/// sits at `x ∈ {1, width-2}`, `y ∈ {25, height-2}` in every corpus snippet, so
-/// the interior is `[2, width-2) × [26, height-2)`.
+/// inside the 1-px dashed chrome frame ([snippetFrameInset]), excluding the
+/// frame line itself and the header strip above it ([snippetHeaderHeight]).
+/// Half-open `[left, right) × [top, bottom)`.
 ({int left, int top, int right, int bottom}) snippetDiagramInterior(
   int width,
   int height,
-) => (left: 2, top: 26, right: width - 2, bottom: height - 2);
+) => (
+  left: snippetFrameInset + 1,
+  top: snippetHeaderHeight + 1,
+  right: width - 1 - snippetFrameInset,
+  bottom: height - 1 - snippetFrameInset,
+);

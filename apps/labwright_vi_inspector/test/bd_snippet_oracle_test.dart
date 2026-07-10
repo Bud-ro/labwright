@@ -13,42 +13,20 @@ import 'util.dart';
 /// repo keeps its tarball-root directory, so the PNGs are matched by their
 /// in-repo path anywhere below the corpus folder.
 List<File> snippetCorpusPngs() {
-  var dir = Directory.current;
-  for (var i = 0; i < 8; i++) {
-    final candidate = Directory(
-      '${dir.path}/packages/labwright_rsrc_parse/corpus/vi/'
-      'rcpacini_LabVIEW-VI-Snippet',
-    );
-    if (candidate.existsSync()) {
-      return candidate
-          .listSync(recursive: true)
-          .whereType<File>()
-          .where(
-            (f) =>
-                f.path.replaceAll(r'\', '/').contains('Examples/Snippets') &&
-                f.path.endsWith('.png'),
-          )
-          .toList()
-        ..sort((a, b) => a.path.compareTo(b.path));
-    }
-    final parent = dir.parent;
-    if (parent.path == dir.path) break;
-    dir = parent;
-  }
-  return const [];
-}
-
-ViDiagram? bestBlockDiagram(ViModel model) {
-  ViDiagram? best;
-  var bestCount = 0;
-  for (final diagram in model.blockDiagrams) {
-    final count = diagram.objects.where((o) => o.absBounds != null).length;
-    if (count > bestCount) {
-      best = diagram;
-      bestCount = count;
-    }
-  }
-  return best;
+  final dir = repoDir(
+    'packages/labwright_rsrc_parse/corpus/vi/rcpacini_LabVIEW-VI-Snippet',
+  );
+  if (dir == null) return const [];
+  return dir
+      .listSync(recursive: true)
+      .whereType<File>()
+      .where(
+        (f) =>
+            f.path.replaceAll(r'\', '/').contains('Examples/Snippets') &&
+            f.path.endsWith('.png'),
+      )
+      .toList()
+    ..sort((a, b) => a.path.compareTo(b.path));
 }
 
 void main() {
@@ -74,11 +52,13 @@ void main() {
       final rgba = Uint8List(60 * 60 * 4)..fillRange(0, 60 * 60 * 4, 0xff);
       final plain = await imageToPng(await imageFromRgba(rgba, 60, 60));
       final asIs = await decodeReferenceImage(plain);
-      expect((asIs.width, asIs.height), (60, 60));
+      expect(asIs.snippetCropped, isFalse);
+      expect((asIs.image.width, asIs.image.height), (60, 60));
       final snippet = spliceNiVi(plain, demoViBytes());
       final cropped = await decodeReferenceImage(snippet);
       // Interior [2, 58) × [26, 58) — header strip and dashed frame removed.
-      expect((cropped.width, cropped.height), (56, 32));
+      expect(cropped.snippetCropped, isTrue);
+      expect((cropped.image.width, cropped.image.height), (56, 32));
     });
   });
 
@@ -151,20 +131,21 @@ void main() {
           expect(diagram, isNotNull, reason: f.path);
           final raster = (await rasteriseBlockDiagram(diagram!, scale: 1.0))!;
           final reference = await decodeReferenceImage(png);
+          expect(reference.snippetCropped, isTrue, reason: f.path);
           final result = await compareToReference(
             raster.image,
-            reference,
-            lockScale: 1.0,
+            reference.image,
+            lockScale: 1.0 / raster.scale,
           );
-          final refRgba = (await reference.toByteData())!.buffer.asUint8List();
           PlacementComparison at(BdRegistration registration) =>
               comparePlacement(
                 diagram: diagram,
                 raster: raster,
                 registration: registration,
-                referenceRgba: refRgba,
-                width: reference.width,
-                height: reference.height,
+                referenceRgba: result.referenceRgba,
+                referenceEdges: result.referenceEdges,
+                width: reference.image.width,
+                height: reference.image.height,
               );
           final placement = at(result.registration);
           final shifted = at(

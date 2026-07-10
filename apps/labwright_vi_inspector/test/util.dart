@@ -1,8 +1,24 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
+
+/// The repo-relative directory [relative] (e.g. the fetched corpus), found by
+/// walking up from the test working directory; null when absent (corpus-backed
+/// tests then skip). One walk shared by every corpus-backed test in the app.
+Directory? repoDir(String relative) {
+  var dir = Directory.current;
+  for (var i = 0; i < 8; i++) {
+    final candidate = Directory('${dir.path}/$relative');
+    if (candidate.existsSync()) return candidate;
+    final parent = dir.parent;
+    if (parent.path == dir.path) break;
+    dir = parent;
+  }
+  return null;
+}
 
 /// Pumps [body] inside MaterialApp/Scaffold at a fixed [view] size.
 Future<void> pumpBody(

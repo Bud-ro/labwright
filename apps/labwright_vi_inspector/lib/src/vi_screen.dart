@@ -153,6 +153,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
               'This PNG carries no embedded VI (no niVI chunk) — only '
               'VI-snippet PNGs can be opened.';
           _source = source;
+          _snippetPng = null;
         });
         return;
       }
@@ -216,21 +217,6 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
       _snippetPng = snippetPng;
       _subViIconResolver = subViIconResolver;
     });
-  }
-
-  /// The loaded model's block diagram with the most positioned objects (what
-  /// the Oracle tab renders against the snippet reference), or null.
-  ViDiagram? _bestBlockDiagram() {
-    ViDiagram? best;
-    var bestCount = 0;
-    for (final diagram in _model?.blockDiagrams ?? const <ViDiagram>[]) {
-      final count = diagram.objects.where((o) => o.absBounds != null).length;
-      if (count > bestCount) {
-        best = diagram;
-        bestCount = count;
-      }
-    }
-    return best;
   }
 
   /// The decompressed `VCTP` section body, or null when the VI carries none —
@@ -589,7 +575,9 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                                     if (_snippetPng != null)
                                       BdOracleView(
                                         key: ValueKey('oracle:$_model'),
-                                        diagram: _bestBlockDiagram(),
+                                        diagram: _model == null
+                                            ? null
+                                            : bestBlockDiagram(_model!),
                                         referenceBytes: _snippetPng,
                                       ),
                                   ],
