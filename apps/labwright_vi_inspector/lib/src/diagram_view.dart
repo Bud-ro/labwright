@@ -573,6 +573,51 @@ List<Offset>? bdStoredWireRoute(Rect source, Rect sink, ViWireRoute route) {
   return points;
 }
 
+/// The short operator glyph drawn on a primitive node's plate for a decoded
+/// [PrimOp] — the recognisable core of LabVIEW's icon art (the `+` of Add,
+/// the type name of a conversion). Null for ops whose icon has no natural
+/// short reading; the plate then stays blank rather than guessing art.
+String? primOpGlyph(PrimOp? op) => switch (op) {
+  PrimOp.add => '+',
+  PrimOp.subtract => '−',
+  PrimOp.multiply => '×',
+  PrimOp.divide => '÷',
+  PrimOp.increment => '+1',
+  PrimOp.decrement => '−1',
+  PrimOp.squareRoot => 'sqrt',
+  PrimOp.and => '&',
+  PrimOp.or => 'or',
+  PrimOp.exclusiveOr => 'xor',
+  PrimOp.not => '!',
+  PrimOp.equal => '=',
+  PrimOp.notEqual => '≠',
+  PrimOp.greater => '>',
+  PrimOp.less => '<',
+  PrimOp.equalToZero => '=0',
+  PrimOp.notEqualToZero => '≠0',
+  PrimOp.greaterThanZero => '>0',
+  PrimOp.lessThanZero => '<0',
+  PrimOp.greaterOrEqualToZero => '≥0',
+  PrimOp.lessOrEqualToZero => '≤0',
+  PrimOp.select => 'sel',
+  PrimOp.toByteInteger => 'I8',
+  PrimOp.toWordInteger => 'I16',
+  PrimOp.toLongInteger => 'I32',
+  PrimOp.toUnsignedByteInteger => 'U8',
+  PrimOp.toUnsignedWordInteger => 'U16',
+  PrimOp.toUnsignedLongInteger => 'U32',
+  PrimOp.toSinglePrecisionFloat => 'SGL',
+  PrimOp.toDoublePrecisionFloat => 'DBL',
+  PrimOp.typeCast => 'cast',
+  PrimOp.logicalShift => 'shl',
+  PrimOp.rotateLeftWithCarry => 'rlc',
+  PrimOp.rotateRightWithCarry => 'rrc',
+  PrimOp.arraySize => 'siz',
+  PrimOp.buildPath => 'pth',
+  PrimOp.stringLength => 'len',
+  _ => null,
+};
+
 /// A synthesized Manhattan (right-angle) route between two endpoint-anchor
 /// rectangles, as an ordered polyline in the anchors' own coordinate space —
 /// the fallback for wires whose stored `0x1e7` route is not decoded
@@ -1704,6 +1749,28 @@ class BdDiagramPainter extends CustomPainter {
               ..style = PaintingStyle.stroke
               ..strokeWidth = 1.0,
           );
+          // A decoded primitive identity draws its operator glyph on the
+          // plate (LabVIEW draws icon art this reader does not reproduce;
+          // the glyph is the recognisable core of that art). Nothing is
+          // drawn for uncatalogued ids or when no glyph reads naturally.
+          final glyph = icon == null && object.primResId != null
+              ? primOpGlyph(PrimOp.fromId(object.primResId!))
+              : null;
+          if (glyph != null && rect.width >= 14 && rect.height >= 12) {
+            final tp = TextPainter(
+              text: TextSpan(
+                text: glyph,
+                style: TextStyle(
+                  color: Colors.black.withValues(alpha: 0.75),
+                  fontSize: glyph.length > 2 ? 8.0 : 12,
+                  fontFamily: 'Roboto',
+                ),
+              ),
+              maxLines: 1,
+              textDirection: TextDirection.ltr,
+            )..layout();
+            tp.paint(canvas, rect.center - Offset(tp.width / 2, tp.height / 2));
+          }
         default:
           final rr = RRect.fromRectAndRadius(rect, const Radius.circular(2.5));
           // A control/indicator is filled with its decoded interior colour when

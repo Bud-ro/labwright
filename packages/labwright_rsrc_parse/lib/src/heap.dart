@@ -1348,8 +1348,12 @@ class HeapRecord {
   /// For the exact bytes (re-emission, byte accounting) use [rawText].
   String? get text {
     if (kind.shape != HeapShape.string || payload.isEmpty) return null;
-    if (payload.any((b) => b < 32 || b >= 127)) return null;
-    return String.fromCharCodes(payload);
+    // Multi-line captions (free-standing comments) carry CR/LF; tabs occur in
+    // aligned comment text. Any other control byte marks a non-text payload.
+    if (payload.any((b) => (b < 32 && b != 0x09 && b != 0x0a && b != 0x0d) || b >= 127)) {
+      return null;
+    }
+    return String.fromCharCodes(payload).replaceAll('\r\n', '\n').replaceAll('\r', '\n');
   }
 
   /// If this is any single-string opcode ([HeapShape.string]), the string's
