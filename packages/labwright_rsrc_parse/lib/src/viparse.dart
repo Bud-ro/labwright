@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import 'blocks/help_path.dart';
+
 /// Thrown when bytes are not a valid LabVIEW RSRC (`.vi`) container. The parser
 /// bounds-checks every read, so it raises this rather than `RangeError`.
 class ViFormatException implements Exception {
@@ -406,6 +408,103 @@ List<String> readSubViNames(Uint8List bytes) {
     final key = base.toLowerCase();
     if (self.contains(key)) continue;
     if (seen.add(key)) out.add(base);
+  }
+  return out;
+}
+
+/// How a [ViSubViPath] locates its target, from the `PTH0` record's type word
+/// and first component.
+enum ViSubViPathKind {
+  /// `pathType 1`, leading empty component(s): a path **relative to the calling
+  /// VI's directory** — one leading empty marks relative, each additional
+  /// leading empty steps up one directory. Resolvable directly on disk.
+  relative,
+
+  /// `pathType 0` headed by `<vilib>`: a file of LabVIEW's own vi.lib — not
+  /// part of the project on disk.
+  viLib,
+
+  /// `pathType 0` headed by another `<...>` symbolic root (`<userlib>`,
+  /// `<instrlib>`, …): an installed-library location when the VI was saved; the
+  /// file may still live in the project tree under a different layout.
+  symbolic,
+
+  /// Any other form (an absolute or unrecognized path).
+  other,
+}
+
+/// One dependency path from the block-diagram link-info block: the `PTH0`
+/// components plus the classification a resolver needs. [fileName] is the last
+/// component.
+class ViSubViPath {
+  const ViSubViPath({required this.kind, required this.components});
+
+  final ViSubViPathKind kind;
+
+  /// The `PTH0` components verbatim (for [ViSubViPathKind.relative] the leading
+  /// empties are included — see [upLevels]).
+  final List<String> components;
+
+  String get fileName => components.isEmpty ? '' : components.last;
+
+  /// For a [ViSubViPathKind.relative] path: how many directories above the
+  /// calling VI's own the path starts (0 = the VI's own directory).
+  int get upLevels {
+    var empties = 0;
+    while (empties < components.length && components[empties].isEmpty) {
+      empties++;
+    }
+    return empties == 0 ? 0 : empties - 1;
+  }
+
+  /// The path segments after the leading empties / symbolic root.
+  List<String> get segments => [
+    for (final component in components)
+      if (component.isNotEmpty && !component.startsWith('<')) component,
+  ];
+}
+
+/// Reads the **dependency paths** stored in the block-diagram link-info block
+/// (`LIbd`): every parseable `PTH0` record, classified by [ViSubViPathKind].
+/// Empty-component records (placeholder paths) are dropped; duplicate filenames
+/// keep the first record. Total: a VI without an `LIbd`, or one whose records
+/// do not parse, yields an empty list.
+List<ViSubViPath> readSubViPaths(Uint8List bytes) {
+  List<ViSection> secs;
+  try {
+    secs = readViSections(bytes);
+  } catch (_) {
+    return const [];
+  }
+  Uint8List? libd;
+  for (final section in secs) {
+    if (section.tag == 'LIbd') {
+      libd = section.bytes;
+      break;
+    }
+  }
+  if (libd == null || libd.isEmpty) return const [];
+
+  final out = <ViSubViPath>[];
+  final seen = <String>{};
+  for (var i = 0; i + 12 <= libd.length; i++) {
+    if (libd[i] != 0x50 || libd[i + 1] != 0x54 || libd[i + 2] != 0x48 || libd[i + 3] != 0x30) {
+      continue; // not "PTH0"
+    }
+    final path = decodeHelpPath(Uint8List.sublistView(libd, i));
+    if (path == null || !path.isPth0 || path.components.isEmpty) continue;
+    final components = path.components;
+    final first = components.first;
+    final kind = path.pathType == 1 && first.isEmpty
+        ? ViSubViPathKind.relative
+        : first == '<vilib>'
+        ? ViSubViPathKind.viLib
+        : first.startsWith('<') && first.endsWith('>')
+        ? ViSubViPathKind.symbolic
+        : ViSubViPathKind.other;
+    final record = ViSubViPath(kind: kind, components: components);
+    if (record.fileName.isEmpty) continue;
+    if (seen.add(record.fileName.toLowerCase())) out.add(record);
   }
   return out;
 }
