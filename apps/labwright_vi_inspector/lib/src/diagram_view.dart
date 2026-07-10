@@ -923,7 +923,8 @@ Set<int> bdHiddenFrameOids(ViDiagram diagram) {
 /// remaining anchors collapse onto one identical box is dropped as
 /// degenerate.
 List<ViWire> bdVisibleWires(ViDiagram diagram) {
-  final hidden = bdHiddenFrameOids(diagram);
+  final hidden = bdHiddenFrameOids(diagram)
+    ..addAll(bdInlinedInstanceOids(diagram));
   final byId = diagram.byId;
 
   HeapRect? reanchor(int endpointOid) {
@@ -975,6 +976,33 @@ List<ViWire> bdVisibleWires(ViDiagram diagram) {
   return out;
 }
 
+/// The oids of every object inside an **inlined sub-VI instance** (`0x105`):
+/// an express/inlined call splices the called VI's whole internal diagram
+/// into this heap under the instance node, in the sub-VI's own coordinate
+/// space (its subtree re-bases toward the diagram origin). LabVIEW draws
+/// only the instance node — which carries proper caller-space bounds — never
+/// the internals, so the subtree is excluded from the drawable set and the
+/// wire list.
+Set<int> bdInlinedInstanceOids(ViDiagram diagram) {
+  final childrenByOid = <int, List<ViHeapObject>>{};
+  for (final object in diagram.objects) {
+    if (object.parentOid != null) {
+      (childrenByOid[object.parentOid!] ??= <ViHeapObject>[]).add(object);
+    }
+  }
+  final out = <int>{};
+  void collect(ViHeapObject root) {
+    for (final child in childrenByOid[root.oid] ?? const <ViHeapObject>[]) {
+      if (out.add(child.oid)) collect(child);
+    }
+  }
+
+  for (final object in diagram.objects) {
+    if (object.kind == 0x105) collect(object);
+  }
+  return out;
+}
+
 /// Per structure oid, the **loop-terminal child kinds** present in [diagram]:
 /// iteration count `lCnt 0x24`, conditional `lTst 0x25`, loop maximum
 /// `lMax 0x26` (the for-loop N). These terminals exist as heap objects but
@@ -1004,7 +1032,8 @@ Map<int, Set<int>> bdLoopTerminalKinds(ViDiagram diagram) {
 /// same object set. Pure + public for the oracle and tests.
 List<ViHeapObject> bdDrawableObjects(ViDiagram diagram) {
   final byId = diagram.byId;
-  final hidden = bdHiddenFrameOids(diagram);
+  final hidden = bdHiddenFrameOids(diagram)
+    ..addAll(bdInlinedInstanceOids(diagram));
   final childrenByOid = <int, List<ViHeapObject>>{};
   for (final object in diagram.objects) {
     if (object.parentOid != null) {
