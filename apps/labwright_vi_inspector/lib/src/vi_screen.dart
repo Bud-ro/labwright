@@ -11,6 +11,7 @@ import 'diagram_view.dart';
 import 'hex_view.dart';
 import 'images_view.dart';
 import 'representative_vis.dart';
+import 'span_annotations.dart';
 import 'subvi_icon_resolver.dart';
 import 'types_view.dart';
 import 'vi_demo.dart';
@@ -298,20 +299,35 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final icon = bestLegacyIcon(_images);
     return Scaffold(
-      appBar: AppBar(title: const Text('Labwright · VI Inspector')),
       body: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // A Wrap (not a Row) so the toolbar flows to a second line instead
-            // of overflowing when the window is narrower than the buttons.
+            // One compact header row: the loaded VI's icon + name, then the
+            // load affordances. A Wrap so a narrow window flows to a second
+            // line instead of overflowing.
             Wrap(
               spacing: 8,
               runSpacing: 8,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
+                if (icon != null)
+                  SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: CustomPaint(painter: LegacyIconPainter(icon)),
+                  ),
+                if (_summary?.name != null)
+                  Text(
+                    _summary!.name!,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ConstrainedBox(
                   constraints: const BoxConstraints(
                     minWidth: 260,
@@ -645,11 +661,6 @@ class _SummaryViewState extends State<_SummaryView> {
 
     return ListView(
       children: [
-        Text(
-          summary.name ?? '(unnamed)',
-          style: Theme.of(context).textTheme.headlineSmall,
-        ),
-        const SizedBox(height: 4),
         Text(summary.describe(), style: const TextStyle(color: Colors.grey)),
         const SizedBox(height: 4),
         Text(
