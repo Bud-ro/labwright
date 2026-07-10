@@ -3,19 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
-import 'faithful_controls.dart';
 import 'images_view.dart';
 import 'span_annotations.dart';
-
-/// How the diagram is drawn: a debug **wireframe** (colored boxes + labels,
-/// click-to-inspect) or a **faithful** render (real-looking interactive controls).
-enum DiagramRenderMode { wireframe, faithful }
-
-/// Faithful mode mounts one live (stateful) Flutter control per object, so it is
-/// capped: diagrams with more drawable objects than this fall back to the cheap
-/// single-CustomPaint wireframe (a few corpus VIs reach several thousand objects,
-/// which would otherwise mount thousands of controllers/render objects at once).
-const int kFaithfulMaxObjects = 1500;
 
 /// A read-only **layout view** of a decoded VI block diagram, rendered to a
 /// faithful, LabVIEW-like canvas: every recovered object drawn at its absolute
@@ -93,7 +82,6 @@ class _ViDiagramViewState extends State<ViDiagramView> {
   Size? _lastViewport;
   Rect? _lastContent;
   bool _fitted = false;
-  DiagramRenderMode _mode = DiagramRenderMode.wireframe;
 
   /// Whether the recovery-detail shelf (images / legend / outline) is shown
   /// beside the diagram.
@@ -267,34 +255,25 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                     // painting instead of re-running the whole painter
                     // (per-label text layout included) every frame.
                     child: RepaintBoundary(
-                      child:
-                          (_mode == DiagramRenderMode.faithful &&
-                              ordered.length <= kFaithfulMaxObjects)
-                          ? FaithfulLayer(
-                              objects: ordered,
-                              origin: content.topLeft,
-                              size: content.size,
-                              isFrontPanel: widget.isFrontPanel,
-                            )
-                          : GestureDetector(
-                              behavior: HitTestBehavior.opaque,
-                              onTapDown: (d) =>
-                                  _selectAt(d.localPosition, ordered, content),
-                              child: CustomPaint(
-                                size: Size(content.width, content.height),
-                                painter: BdDiagramPainter(
-                                  objects: ordered,
-                                  origin: content.topLeft,
-                                  wires: _wires,
-                                  subViIcons: _subViIcons,
-                                ),
-                                foregroundPainter: _OverlayPainter(
-                                  origin: content.topLeft,
-                                  selected: _selected,
-                                  members: _members,
-                                ),
-                              ),
-                            ),
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTapDown: (d) =>
+                            _selectAt(d.localPosition, ordered, content),
+                        child: CustomPaint(
+                          size: Size(content.width, content.height),
+                          painter: BdDiagramPainter(
+                            objects: ordered,
+                            origin: content.topLeft,
+                            wires: _wires,
+                            subViIcons: _subViIcons,
+                          ),
+                          foregroundPainter: _OverlayPainter(
+                            origin: content.topLeft,
+                            selected: _selected,
+                            members: _members,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -302,7 +281,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
             },
           ),
         ),
-        if (_mode == DiagramRenderMode.wireframe && _selected != null)
+        if (_selected != null)
           Positioned(
             left: 8,
             right: 8,
@@ -314,28 +293,6 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                 _selected = null;
                 _members = const {};
               }),
-            ),
-          ),
-        if (_mode == DiagramRenderMode.faithful &&
-            _ordered.length > kFaithfulMaxObjects)
-          Positioned(
-            left: 8,
-            right: 8,
-            top: 8,
-            child: Material(
-              color: const Color(0xFFFFF3CD),
-              borderRadius: BorderRadius.circular(4),
-              child: Padding(
-                padding: const EdgeInsets.all(8),
-                child: Text(
-                  'Faithful mode is disabled for large diagrams '
-                  '(${_ordered.length} objects > $kFaithfulMaxObjects) — showing wireframe.',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF7A5B00),
-                  ),
-                ),
-              ),
             ),
           ),
       ],
@@ -350,29 +307,6 @@ class _ViDiagramViewState extends State<ViDiagramView> {
       Text(
         '$objectCount objects',
         style: const TextStyle(fontWeight: FontWeight.bold),
-      ),
-      SegmentedButton<DiagramRenderMode>(
-        style: const ButtonStyle(visualDensity: VisualDensity.compact),
-        segments: const [
-          ButtonSegment(
-            value: DiagramRenderMode.wireframe,
-            icon: Icon(Icons.grid_4x4, size: 16),
-            label: Text('Wireframe'),
-          ),
-          ButtonSegment(
-            value: DiagramRenderMode.faithful,
-            icon: Icon(Icons.widgets_outlined, size: 16),
-            label: Text('Faithful'),
-          ),
-        ],
-        selected: {_mode},
-        onSelectionChanged: (s) => setState(() {
-          _mode = s.first;
-          if (_mode == DiagramRenderMode.faithful) {
-            _selected = null;
-            _members = const {};
-          }
-        }),
       ),
       IconButton(
         tooltip: 'Fit to view',
@@ -625,6 +559,30 @@ int _packRect(int top, int left, int bottom, int right) =>
 /// backed by a bordered fill only when the label's background colour was
 /// decoded (a comment's yellow backing) — never a guessed box.
 const Set<int> kBdTextLabelCodes = {0x0a, 0x95};
+
+/// The text to show on a node box: its recovered name when present (e.g. a subVI
+/// filename), otherwise an honest class HINT derived from its classification
+/// (`primitive`, `growable`, `Call Library node`) so the box isn't blank.
+/// `isHint` is true for the class-derived fallback so it can be styled apart from
+/// a real name. Pure + public for testing.
+({String text, bool isHint}) nodeDisplayLabel(ViHeapObject object) {
+  final label = object.label?.trim();
+  if (label != null && label.isNotEmpty) return (text: label, isHint: false);
+  final cls = object.objectClass.label;
+  final match = RegExp(r'^Node \((.+)\)$').firstMatch(cls);
+  return (text: match != null ? match.group(1)! : cls, isHint: true);
+}
+
+/// The badge text for a structure object — taken from the videcode CLASS CATALOG
+/// ([HeapObjectClass.label]) rather than a hand-maintained table, so the inspector
+/// can't drift from / contradict the catalog's honest, hedged names (e.g. 0x53 =
+/// "Loop (BD) / container (FP)", 0x2c = "Case structure", 0x20 = "For loop").
+/// Falls back to "Structure" only when the class is uncatalogued. Public for
+/// testing + shared with the wireframe annotation.
+String structureBadge(ViHeapObject object) =>
+    object.objectClass == HeapObjectClass.unknown
+    ? 'Structure'
+    : object.objectClass.label;
 
 /// The label drawn on a wireframe object. Structures (never text-labeled) show
 /// their catalog kind via [structureBadge] (so the wireframe reads as logic too,

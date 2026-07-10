@@ -107,61 +107,20 @@ void main() {
     expect(find.textContaining('node'), findsWidgets);
   });
 
-  testWidgets('toggles to Faithful mode and renders real controls', (
-    tester,
-  ) async {
-    await pumpView(tester, modelWithDiagram());
-    expect(find.text('Wireframe'), findsOneWidget);
-    expect(find.text('Faithful'), findsOneWidget);
-    await tester.tap(find.text('Faithful'));
-    await tester.pump();
-    expect(find.textContaining('objects'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
+  test(
+    'nodeDisplayLabel prefers a real name, hints from the class catalog',
+    () {
+      final named = heapObj(0x31, cat: ViObjectKind.node, label: 'Do Thing.vi');
+      expect(nodeDisplayLabel(named), (text: 'Do Thing.vi', isHint: false));
+      final bare = heapObj(0x2f, cat: ViObjectKind.node);
+      expect(nodeDisplayLabel(bare).isHint, isTrue);
+      expect(nodeDisplayLabel(bare).text, isNotEmpty);
+    },
+  );
 
-  testWidgets('Faithful mode renders decoded enum items and a plain boolean', (
-    tester,
-  ) async {
-    final model = modelWithControls();
-    expect(
-      model.diagrams
-          .expand((d) => d.objects)
-          .firstWhere((o) => o.oid == 2)
-          .items,
-      ['Low', 'High'],
-    );
-    await pumpView(tester, model);
-    await tester.tap(find.text('Faithful'));
-    await tester.pump();
-    expect(tester.takeException(), isNull);
-    expect(find.text('Low'), findsOneWidget);
-    expect(find.text('OFF'), findsOneWidget);
-  });
-
-  testWidgets('Faithful mode wraps decoded help text in a Tooltip', (
-    tester,
-  ) async {
-    final model = modelFromRecords(<int>[
-      ...open(0x7e, 1),
-      ...bounds(0, 0, 400, 400),
-      ...open(0x50, 2, tag: 0x1a),
-      ...bounds(20, 20, 60, 200),
-      ...helpRecord('help here'),
-      ...close(0x1a),
-      ...close(),
-    ]);
-    expect(
-      model.diagrams
-          .expand((d) => d.objects)
-          .firstWhere((o) => o.oid == 2)
-          .helpText,
-      'help here',
-    );
-    await pumpView(tester, model);
-    await tester.tap(find.text('Faithful'));
-    await tester.pump();
-    expect(tester.takeException(), isNull);
-    expect(find.byTooltip('help here'), findsOneWidget);
+  test('structureBadge names catalogued structures, hedges unknown ones', () {
+    expect(structureBadge(heapObj(0x2c)), 'Case structure');
+    expect(structureBadge(heapObj(0x7523)), 'Structure');
   });
 
   test('membersOf resolves declared members to DRAWN objects only', () {
@@ -317,7 +276,6 @@ void main() {
     await pumpView(tester, modelWithDiagram(), view: const Size(600, 900));
     expect(tester.takeException(), isNull);
     expect(find.textContaining('objects'), findsOneWidget);
-    expect(find.text('Wireframe'), findsOneWidget);
   });
 
   group('computeBdOutline', () {
