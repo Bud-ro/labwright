@@ -41,7 +41,7 @@ class ViDiagramView extends StatefulWidget {
     this.subViNames = const [],
     this.isFrontPanel = false,
     this.viImages = const ViImages(),
-    this.subViIconLoader,
+    this.subViIconResolver,
   });
 
   /// The diagrams to render (block-diagram or front-panel heap trees); the
@@ -68,19 +68,19 @@ class ViDiagramView extends StatefulWidget {
   /// any embedded diagram PNGs (`MNGI`/`DSIM`). Rendered as an identity strip
   /// above the diagram: the icon is what a *caller's* subVI node would display
   /// for this VI. (This diagram's own subVI-call nodes are stamped with their
-  /// targets' icons when a [subViIconLoader] resolves the called VIs' files.)
+  /// targets' icons when a [subViIconResolver] resolves the called VIs.)
   /// Empty by default.
   final ViImages viImages;
 
-  /// Optional future of a `filename → bytes` lookup used to stamp each
-  /// **subVI-call node** with the icon of the VI it targets (see
-  /// [resolveSubViIcons]): the node's `.vi`/`.vim` caption is loaded and its icon
-  /// decoded. The loader is a future because its project-directory index is built
-  /// off the UI isolate (see `buildProjectViLoader`) so the load never blocks;
-  /// icons appear once it resolves. Only meaningful for the block diagram (subVI
-  /// nodes live there); a node whose target the loader can't find keeps the
-  /// neutral connector-pane plate. Null (the default) draws no on-node icons.
-  final Future<Uint8List? Function(String fileName)>? subViIconLoader;
+  /// Optional icon resolver used to stamp each **subVI-call node** with the
+  /// icon of the VI it targets: given the set of `.vi`/`.vim` filenames this
+  /// diagram calls ([subViWantedNames]), it returns a `filename → icon` map
+  /// (see `resolveSubViIconsFor` — linker-path resolution, so it completes in
+  /// moments). Only meaningful for the block diagram (subVI nodes live there);
+  /// a node whose target is not found keeps the neutral connector-pane plate.
+  /// Null (the default) draws no on-node icons.
+  final Future<Map<String, ViLegacyIcon>> Function(Set<String> wantedNames)?
+  subViIconResolver;
 
   @override
   State<ViDiagramView> createState() => _ViDiagramViewState();
@@ -128,16 +128,23 @@ class _ViDiagramViewState extends State<ViDiagramView> {
     _resolveIcons();
   }
 
-  /// Awaits the project-index loader (built off the UI isolate) and resolves the
-  /// subVI-call node icons, then repaints. A no-op on the front panel or when no
-  /// loader is supplied; guarded against a resolution that lands after unmount.
+  /// Resolves the subVI-call node icons (one fast await — linker-path
+  /// resolution needs no searching) and repaints once. A no-op on the front
+  /// panel, without a resolver, or when the diagram calls no subVIs.
   Future<void> _resolveIcons() async {
     final diagram = _diagram;
-    final loaderFuture = widget.subViIconLoader;
-    if (diagram == null || widget.isFrontPanel || loaderFuture == null) return;
-    final loader = await loaderFuture;
-    if (!mounted) return;
-    final icons = resolveSubViIcons(diagram, loader);
+    final resolver = widget.subViIconResolver;
+    if (diagram == null || widget.isFrontPanel || resolver == null) return;
+    final wanted = subViWantedNames(diagram);
+    if (wanted.isEmpty) return;
+    final byName = await resolver(wanted);
+    if (!mounted || byName.isEmpty) return;
+    final icons = <int, ViLegacyIcon>{};
+    for (final object in diagram.objects) {
+      if (!kSubViCallNodeCodes.contains(object.kind)) continue;
+      final icon = byName[object.label?.trim()];
+      if (icon != null) icons[object.oid] = icon;
+    }
     if (icons.isNotEmpty) setState(() => _subViIcons = icons);
   }
 
@@ -844,6 +851,16 @@ Map<int, ViLegacyIcon> resolveSubViIcons(
   }
   return out;
 }
+
+/// The `.vi`/`.vim` filenames [diagram]'s subVI-call nodes target — the wanted
+/// set an icon resolver receives (see [ViDiagramView.subViIconResolver]).
+Set<String> subViWantedNames(ViDiagram diagram) => {
+  for (final object in diagram.objects)
+    if (kSubViCallNodeCodes.contains(object.kind))
+      if (object.label?.trim() case final name?
+          when name.isNotEmpty && _isViFileName(name))
+        name,
+};
 
 /// Whether [name] is a LabVIEW VI filename a subVI node targets (`.vi`/`.vim`).
 bool _isViFileName(String name) {
@@ -1565,7 +1582,7 @@ class _BdOutline extends StatelessWidget {
 /// captioned with its source tag. Scope: this is *this* VI's icon (what a caller
 /// renders on a subVI node); the icons of the subVIs this diagram *calls* are
 /// stamped on their nodes instead when their files resolve (see
-/// [ViDiagramView.subViIconLoader]).
+/// [ViDiagramView.subViIconResolver]).
 class _ViImageStrip extends StatelessWidget {
   const _ViImageStrip(this.images);
   final ViImages images;

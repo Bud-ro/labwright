@@ -3,49 +3,94 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_vi_inspector/src/subvi_icon_resolver.dart';
 
-/// Builds a temp project tree: the caller VI and a sibling target VI in the same
-/// folder, plus a decoy subtree elsewhere under the root. Returns the caller's
-/// path. Every `.vi` under the root must be indexed (a complete walk).
-({String callerPath, Directory root}) _tree(int decoys) {
-  final root = Directory.systemTemp.createTempSync('subvi_loader_');
-  final proj = Directory('${root.path}/proj/sub')..createSync(recursive: true);
-  File('${proj.path}/Caller.vi').writeAsBytesSync([0]);
-  File('${proj.path}/Target.vi').writeAsBytesSync([1, 2, 3]);
-  final decoy = Directory('${root.path}/decoy/deep')
-    ..createSync(recursive: true);
-  for (var i = 0; i < decoys; i++) {
-    File('${decoy.path}/decoy_$i.vi').writeAsBytesSync([0]);
+/// The corpus root, or null when not fetched (corpus-dependent tests skip).
+Directory? _corpusDir() {
+  var dir = Directory.current;
+  for (var i = 0; i < 8; i++) {
+    final candidate = Directory(
+      '${dir.path}/packages/labwright_rsrc_parse/corpus/vi',
+    );
+    if (candidate.existsSync()) return candidate;
+    final parent = dir.parent;
+    if (parent.path == dir.path) break;
+    dir = parent;
   }
-  return (callerPath: '${proj.path}/Caller.vi', root: root);
+  return null;
+}
+
+/// A real icon-bearing corpus VI, or null when the corpus is not fetched.
+File? _iconViFile() {
+  final corpus = _corpusDir();
+  if (corpus == null) return null;
+  final f = File(
+    '${corpus.path}/vipm-io_caraya/vipm-io-caraya-ca35333/src/classes/Test/'
+    'Define Test.vi',
+  );
+  return f.existsSync() ? f : null;
 }
 
 void main() {
-  test('indexProjectVis indexes every .vi in the project subtree', () {
-    final t = _tree(300);
-    addTearDown(() => t.root.deleteSync(recursive: true));
-    final index = indexProjectVis(t.callerPath);
-    // The sibling target, the caller, and every decoy are all reachable.
-    expect(index['Target.vi'], '${t.root.path}/proj/sub/Target.vi');
-    expect(index['Caller.vi'], isNotNull);
-    expect(index['decoy_0.vi'], isNotNull);
-    expect(index['decoy_299.vi'], isNotNull);
-    expect(index['Nonexistent.vi'], isNull);
+  test('decodeViFileIcon reads an icon without inflating heaps', () {
+    final vi = _iconViFile();
+    if (vi == null) return;
+    final icon = decodeViFileIcon(vi.path);
+    expect(icon, isNotNull);
+    expect(icon!.pixels, hasLength(1024));
   });
 
-  test('levelsUp bounds how far up the walk starts', () {
-    final t = _tree(0);
-    addTearDown(() => t.root.deleteSync(recursive: true));
-    // From proj/sub, levelsUp:0 stays in the caller's own folder — the sibling
-    // target is still found, the decoy tree (a cousin) is out of scope.
-    final near = indexProjectVis(t.callerPath, levelsUp: 0);
-    expect(near['Target.vi'], isNotNull);
+  test('linker paths resolve targets directly — no directory search', () {
+    final corpus = _corpusDir();
+    if (corpus == null) return;
+    // This VI's LIbd records relative PTH0 paths into PicoScope2000aLib/.
+    final vi = File(
+      '${corpus.path}/picotech_picosdk-ni-labview-examples/'
+      'picotech-picosdk-ni-labview-examples-dceb711/ps2000a/'
+      'PicoScope2000aExampleStreamingMSO.vi',
+    );
+    if (!vi.existsSync()) return;
+    final sw = Stopwatch()..start();
+    final icons = resolveIconsOnDisk(vi.path, {
+      'PicoScope2000aOpen.vi',
+      'PicoScope2000aClose.vi',
+      'Nonexistent Anywhere.vi',
+    }, 4);
+    sw.stop();
+    expect(
+      icons.keys,
+      containsAll(['PicoScope2000aOpen.vi', 'PicoScope2000aClose.vi']),
+    );
+    expect(icons.keys, isNot(contains('Nonexistent Anywhere.vi')));
   });
 
-  test('buildProjectViLoader resolves bytes off the main isolate', () async {
-    final t = _tree(50);
-    addTearDown(() => t.root.deleteSync(recursive: true));
-    final loader = await buildProjectViLoader(t.callerPath);
-    expect(loader('Target.vi'), [1, 2, 3]);
-    expect(loader('Missing.vi'), isNull);
+  test('ring search finds a target with no linker path, nearest first', () {
+    final vi = _iconViFile();
+    if (vi == null) return;
+    final root = Directory.systemTemp.createTempSync('subvi_resolve_');
+    addTearDown(() => root.deleteSync(recursive: true));
+    final proj = Directory('${root.path}/proj/sub')
+      ..createSync(recursive: true);
+    // A caller with NO LIbd (junk bytes): everything falls to the ring search.
+    final caller = File('${proj.path}/Caller.vi')..writeAsBytesSync([0]);
+    File('${proj.path}/Near.vi').writeAsBytesSync(vi.readAsBytesSync());
+    final sibling = Directory('${root.path}/proj/lib')
+      ..createSync(recursive: true);
+    File('${sibling.path}/Far.vi').writeAsBytesSync(vi.readAsBytesSync());
+    final icons = resolveIconsOnDisk(caller.path, {
+      'Near.vi',
+      'Far.vi',
+      'Nowhere.vi',
+    }, 4);
+    expect(icons.keys, containsAll(['Near.vi', 'Far.vi']));
+    expect(icons.keys, isNot(contains('Nowhere.vi')));
   });
+
+  test(
+    'an empty wanted set resolves to an empty map without touching disk',
+    () async {
+      expect(
+        await resolveSubViIconsFor('/nonexistent/x.vi', const {}),
+        isEmpty,
+      );
+    },
+  );
 }

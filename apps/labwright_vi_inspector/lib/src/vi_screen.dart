@@ -102,7 +102,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
   /// can stamp the node with the called VI's icon. Set only when a file was
   /// opened from disk (drag/browse/path) — demo and embedded VIs have no project
   /// directory to search, so their nodes keep the neutral plate.
-  Future<Uint8List? Function(String fileName)>? _subViIconLoader;
+  Future<Map<String, ViLegacyIcon>> Function(Set<String>)? _subViIconResolver;
 
   @override
   void initState() {
@@ -130,7 +130,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
   void _loadBytes(
     Uint8List bytes,
     String source, {
-    Future<Uint8List? Function(String fileName)>? subViIconLoader,
+    Future<Map<String, ViLegacyIcon>> Function(Set<String>)? subViIconResolver,
   }) {
     final load = summarize(bytes);
     ViVersionInfo? version;
@@ -185,7 +185,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
       _embeddedVis = embeddedVis;
       _attribution = attribution;
       _images = images;
-      _subViIconLoader = subViIconLoader;
+      _subViIconResolver = subViIconResolver;
     });
   }
 
@@ -229,7 +229,11 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
     // The project index is built off the UI isolate, so a large or slow project
     // tree never blocks the load; the on-node subVI icons appear once it
     // resolves. The future is passed straight through to the diagram view.
-    _loadBytes(bytes, path, subViIconLoader: buildProjectViLoader(path));
+    _loadBytes(
+      bytes,
+      path,
+      subViIconResolver: (wanted) => resolveSubViIconsFor(path, wanted),
+    );
   }
 
   /// Fetches a curated representative VI — the main file plus its in-repo subVI
@@ -250,17 +254,17 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
           ? ''
           : ' (+${fetched.fetchedDeps} subVIs'
                 '${fetched.failedDeps > 0 ? ', ${fetched.failedDeps} failed' : ''})';
-      // Clamp the icon walk's root to the temp project directory: the main
-      // file sits vi.path-segments deep inside it, so walking up one fewer
-      // level than that lands exactly on the project dir (never the system
-      // temp directory above it).
+      // Clamp the icon search's outermost ring to the temp project directory:
+      // the main file sits vi.path-segments deep inside it, so searching up one
+      // fewer level than that lands exactly on the project dir (never the
+      // system temp directory above it).
+      final mainPath = fetched.mainPath;
+      final levelsUp = vi.path.split('/').length - 1;
       _loadBytes(
         fetched.bytes,
-        'GitHub: ${vi.repo} · ${vi.name}$deps',
-        subViIconLoader: buildProjectViLoader(
-          fetched.mainPath,
-          levelsUp: vi.path.split('/').length - 1,
-        ),
+        'GitHub: ${vi.repo} · ${vi.name}${deps}',
+        subViIconResolver: (wanted) =>
+            resolveSubViIconsFor(mainPath, wanted, levelsUp: levelsUp),
       );
     } catch (e) {
       if (!mounted) return;
@@ -493,7 +497,8 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                                             subViNames:
                                                 _model?.subViNames ?? const [],
                                             viImages: _images,
-                                            subViIconLoader: _subViIconLoader,
+                                            subViIconResolver:
+                                                _subViIconResolver,
                                           ),
                                         ),
                                       ],
