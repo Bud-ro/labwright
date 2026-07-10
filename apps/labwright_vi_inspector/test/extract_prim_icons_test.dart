@@ -255,16 +255,48 @@ void main() {
           }
         }
       }
-      // Trim to ink.
+      // Trim to ink; a consensus that erased everything (heavily disagreeing
+      // samples) falls back to the cleanest single sample so every identity
+      // keeps an icon.
       int l = w0, t = h0, r = -1, btm = -1;
-      for (var y = 0; y < h0; y++) {
-        for (var x = 0; x < w0; x++) {
-          if (!inky(consensus, w0, x, y)) continue;
-          if (x < l) l = x;
-          if (x > r) r = x;
-          if (y < t) t = y;
-          if (y > btm) btm = y;
+      void measure(Uint8List rgba) {
+        l = w0;
+        t = h0;
+        r = -1;
+        btm = -1;
+        for (var y = 0; y < h0; y++) {
+          for (var x = 0; x < w0; x++) {
+            if (!inky(rgba, w0, x, y)) continue;
+            if (x < l) l = x;
+            if (x > r) r = x;
+            if (y < t) t = y;
+            if (y > btm) btm = y;
+          }
         }
+      }
+
+      measure(consensus);
+      if (r < 0 || (r - l + 1) * (btm - t + 1) < 24) {
+        // Valid fallback candidates keep ink over the crop centre (a
+        // wire-only crop's ink hugs an edge) and are at least icon-sized;
+        // the smallest such box carries the least neighbour junk.
+        var bestArea2 = 1 << 30;
+        Uint8List? single;
+        for (final s in group) {
+          measure(s.rgba);
+          if (r < 0) continue;
+          final cx = w0 ~/ 2, cy = h0 ~/ 2;
+          if (l > cx || r < cx || t > cy || btm < cy) continue;
+          final area = (r - l + 1) * (btm - t + 1);
+          if (area < 100) continue;
+          if (area < bestArea2) {
+            bestArea2 = area;
+            single = s.rgba;
+          }
+        }
+        if (single == null) continue;
+        consensus.setAll(0, single);
+        measure(consensus);
       }
       if (r < 0) continue;
       final w = r - l + 1, h = btm - t + 1;
