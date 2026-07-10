@@ -744,8 +744,11 @@ enum HeapAttribute {
   /// the connector-pane pattern resource id.
   conId(0x043, HeapAttrKind.numeric, 'conId', AttrConfidence.inferred),
 
-  /// Raw `0x04D` — **diagram index** (`u8`, 1..n with a high-bit flag form;
-  /// matches OF__dIdx): scope select `0x2C` at 89.7% (case structures, BDHb).
+  /// Raw `0x04D` — **displayed frame index** of a stacked multi-frame
+  /// structure (`u8`..`u32` with bit 31 as a flag; matches OF__dIdx): scope
+  /// select `0x2C` at 89.7% (case structures, BDHb), the remainder on the
+  /// other stacked kinds. Captured onto `ViHeapObject.dIdx` and read via
+  /// `visibleFrameIndex` (absent = frame 0).
   dIdx(0x04d, HeapAttrKind.ordinal, 'dIdx', AttrConfidence.inferred),
 
   /// Raw `0x051` — a `u16`/`u8` word on structure classes (lpTun/selTun/lCnt…;

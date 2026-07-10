@@ -63,6 +63,12 @@ List<int> c5(int id, List<int> payload) => [0xc5, id, payload.length, ...payload
 /// Three-byte-BE numeric attribute record `64 <id> <u24 value>`.
 List<int> attrU24(int id, int v) => [0x64, id, (v >> 16) & 0xff, (v >> 8) & 0xff, v & 0xff];
 
+/// One-byte numeric attribute record `24 <id> <u8 value>`.
+List<int> attrU8(int id, int v) => [0x24, id, v & 0xff];
+
+/// Four-byte-BE numeric attribute record `84 <id> <u32 value>`.
+List<int> attrU32(int id, int v) => [0x84, id, (v >> 24) & 0xff, (v >> 16) & 0xff, (v >> 8) & 0xff, v & 0xff];
+
 ViDiagram dia(List<int> records) => buildDiagram(u8([0, 0, 0, records.length, ...records]));
 
 void main() {
@@ -150,6 +156,26 @@ void main() {
       isFalse,
       reason: 'the getter is scoped to label parts; the bit is undecoded elsewhere',
     );
+  });
+
+  test('visibleFrameIndex: dIdx on multi-frame structure kinds, bit-31 masked', () {
+    final d = dia([
+      ...open(0x2c, 1),
+      ...attrU8(0x4d, 1),
+      ...close(),
+      ...open(0x2c, 2),
+      ...attrU32(0x4d, 0x80000002), // the bit-31 flag form
+      ...close(),
+      ...open(0x2c, 3),
+      ...close(),
+      ...open(0x50, 4),
+      ...attrU8(0x4d, 1),
+      ...close(),
+    ]);
+    expect(d.byId[1]!.visibleFrameIndex, 1);
+    expect(d.byId[2]!.visibleFrameIndex, 2, reason: 'bit 31 is a flag, not index');
+    expect(d.byId[3]!.visibleFrameIndex, 0, reason: 'absent record displays the first frame');
+    expect(d.byId[4]!.dIdx, isNull, reason: 'capture is gated to the multi-frame structure kinds');
   });
 
   test('PrimOp catalog: unique ids, lookup round-trip', () {

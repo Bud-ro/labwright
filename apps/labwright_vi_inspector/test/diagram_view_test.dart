@@ -78,7 +78,74 @@ ViModel modelWithInlinedSubViControl() => modelFromRecords(<int>[
   ...close(),
 ]);
 
+/// A stacked case structure (`0x2c`) with three overlapping `0x1b` frames,
+/// each holding one node at the same in-box spot, plus the given attribute
+/// records on the structure itself.
+ViModel stackedCaseModel(List<int> structAttrs) => modelFromRecords(<int>[
+  ...open(0x7e, 1),
+  ...bounds(0, 0, 400, 400),
+  ...open(0x2c, 10, tag: 0x1a),
+  ...bounds(50, 50, 250, 250),
+  ...structAttrs,
+  ...open(0x1b, 11, tag: 0x1b),
+  ...open(0x12, 21, tag: 0x1c),
+  ...bounds(60, 60, 90, 90),
+  ...close(0x1c),
+  ...close(0x1b),
+  ...open(0x1b, 12, tag: 0x1b),
+  ...open(0x12, 22, tag: 0x1c),
+  ...bounds(60, 60, 90, 90),
+  ...close(0x1c),
+  ...open(0x12, 32, tag: 0x1c),
+  ...bounds(100, 100, 130, 130),
+  ...close(0x1c),
+  ...close(0x1b),
+  ...open(0x1b, 13, tag: 0x1b),
+  ...open(0x12, 23, tag: 0x1c),
+  ...bounds(60, 60, 90, 90),
+  ...close(0x1c),
+  ...close(0x1b),
+  ...close(0x1a),
+  ...close(),
+]);
+
 void main() {
+  group('bdHiddenFrameOids', () {
+    test('the decoded index hides every other frame', () {
+      final bd = stackedCaseModel([0x24, 0x4d, 0x02]).blockDiagrams.first;
+      final hidden = bdHiddenFrameOids(bd);
+      expect(hidden.contains(11), isTrue);
+      expect(hidden.contains(12), isTrue);
+      expect(
+        hidden.contains(13),
+        isFalse,
+        reason: 'dIdx=2 keeps the third frame',
+      );
+    });
+
+    test('an absent record displays the first frame', () {
+      final hidden = bdHiddenFrameOids(
+        stackedCaseModel(const []).blockDiagrams.first,
+      );
+      expect(hidden.contains(11), isFalse);
+      expect(hidden.contains(12), isTrue);
+      expect(hidden.contains(13), isTrue);
+    });
+
+    test('an out-of-range index falls through to the content heuristic', () {
+      final hidden = bdHiddenFrameOids(
+        stackedCaseModel([0x24, 0x4d, 0x09]).blockDiagrams.first,
+      );
+      expect(
+        hidden.contains(12),
+        isFalse,
+        reason: 'the heuristic keeps the frame with most in-box content',
+      );
+      expect(hidden.contains(11), isTrue);
+      expect(hidden.contains(13), isTrue);
+    });
+  });
+
   test('inlined subVI connector controls are excluded; bare constants kept', () {
     final diagram = modelWithInlinedSubViControl().blockDiagrams.first;
     final oids = bdDrawableObjects(diagram).map((o) => o.oid).toSet();

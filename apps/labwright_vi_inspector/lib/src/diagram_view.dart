@@ -879,13 +879,15 @@ Set<ViHeapObject> nodesWithin(
 /// case, all at overlapping coordinates, but LabVIEW draws only the visible
 /// one — drawing them all stacks every case's contents on top of each other).
 ///
-/// Which frame is visible is not decoded (frames carry no recovered name to
-/// match against the structure's selector label), so the frame with the most
-/// content positioned inside the structure's own box is kept — the frames
-/// LabVIEW is not showing compose partly outside it or hold less in-box
-/// content. Structures whose frames' in-box contents are pairwise disjoint
-/// (a flat sequence tiling its frames side by side) keep every frame. Pure +
-/// public for testing; shared by [bdDrawableObjects] and [bdVisibleWires].
+/// For the stacked structure kinds ([kMultiFrameStructureKinds]) the decoded
+/// [ViHeapObject.visibleFrameIndex] decides which frame draws. Elsewhere —
+/// and for the rare out-of-range index — the content heuristic remains: the
+/// frame with the most content positioned inside the structure's own box is
+/// kept (the frames LabVIEW is not showing compose partly outside it or
+/// hold less in-box content), and structures whose frames' in-box contents
+/// are pairwise disjoint (a flat sequence tiling its frames side by side)
+/// keep every frame. Pure + public for testing; shared by
+/// [bdDrawableObjects] and [bdVisibleWires].
 Set<int> bdHiddenFrameOids(ViDiagram diagram) {
   final childrenByOid = bdChildrenByOid(diagram);
   final hidden = <int>{};
@@ -905,6 +907,21 @@ Set<int> bdHiddenFrameOids(ViDiagram diagram) {
         .where((c) => c.kind == 0x1b)
         .toList();
     if (frames.length < 2) continue;
+
+    // The stored display index decides outright for the stacked structure
+    // kinds — including an absent record, which is render-verified to mean
+    // frame 0. Out-of-range (one corpus outlier) falls through to the
+    // content heuristic below. Flat sequences never reach here: they are a
+    // different class (0xca) whose 0x121 subframes fail the 0x1b filter.
+    if (kMultiFrameStructureKinds.contains(structure.kind)) {
+      final visible = structure.visibleFrameIndex;
+      if (visible < frames.length) {
+        for (var i = 0; i < frames.length; i++) {
+          if (i != visible) hideSubtree(frames[i]);
+        }
+        continue;
+      }
+    }
 
     // Per frame: how much positioned content sits inside the structure's box
     // (slack for tunnels/labels on the border), and that content's bbox.
@@ -2206,6 +2223,7 @@ class _DetailsCard extends StatelessWidget {
                   Text(
                     '${cls.label}$conf · class 0x${object.kind.toRadixString(16)} · oid ${object.oid}'
                     '${object.isLabelHidden ? ' · hidden' : ''}'
+                    '${kMultiFrameStructureKinds.contains(object.kind) ? ' · shows frame ${object.visibleFrameIndex + 1}' : ''}'
                     '${object.typeKind != ViTypeKind.unknown ? ' · type ${object.typeKind.name}' : ''}'
                     '${bounds != null ? ' · ${bounds.width}×${bounds.height} @(${bounds.left},${bounds.top})' : ''}'
                     '${object.parentOid != null ? ' · parent ${object.parentOid}' : ''}',
