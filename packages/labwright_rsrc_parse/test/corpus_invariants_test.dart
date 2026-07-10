@@ -364,6 +364,24 @@ bool _eqRange(List<int> a, int aStart, List<int> b, int bStart, int len) {
     }
   }
 
+  final subViPaths = readSubViPaths(bytes);
+  if (subViPaths.isNotEmpty) n('subvipath.withPaths');
+  final pathNames = <String>{};
+  for (final path in subViPaths) {
+    n('subvipath.records');
+    n('subvipath.${path.kind.name}');
+    if (path.fileName.isEmpty) bad('subviPathClean', 'EMPTY FILENAME');
+    if (!pathNames.add(path.fileName.toLowerCase())) {
+      bad('subviPathClean', 'DUPLICATE: "${path.fileName}"');
+    }
+    if (path.kind == ViSubViPathKind.relative && path.segments.isEmpty) {
+      bad('subviPathClean', 'RELATIVE WITHOUT SEGMENTS');
+    }
+    if (path.kind == ViSubViPathKind.relative && path.upLevels > 20) {
+      bad('subviPathClean', 'IMPLAUSIBLE UP-LEVELS ${path.upLevels}');
+    }
+  }
+
   return (c, diags);
 }
 
@@ -498,6 +516,10 @@ void main() {
 
   test('SUBVI: readSubViNames yields clean, deduped, self-excluding .vi names', () {
     expect(cnt('bad:subviClean'), 0, reason: 'subVI-name cleanliness failures: ${D('subviClean')}');
+  });
+
+  test('SUBVI PATHS: readSubViPaths yields named, deduped, plausible records', () {
+    expect(cnt('bad:subviPathClean'), 0, reason: 'subVI-path failures: ${D('subviPathClean')}');
   });
 
   test('container-layer censuses match the committed snapshot exactly', () {
