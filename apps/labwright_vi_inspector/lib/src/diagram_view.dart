@@ -1005,18 +1005,53 @@ class BdDiagramPainter extends CustomPainter {
     // separator sits behind the logic), so they paint before the dataflow wires
     // and every node — a decoration drawn opaque in its decoded colour must not
     // occlude the wires routed across it.
+    // Whether a decoration encloses other drawn logic — then it is a backdrop
+    // (a structure interior, a user grouping box) whose interior LabVIEW shows
+    // as plain canvas, not a plated leaf box.
+    bool isBackdrop(ViHeapObject deco) {
+      final bounds = deco.absBounds!;
+      for (final other in objects) {
+        if (identical(other, deco)) continue;
+        if (other.category != ViObjectKind.node &&
+            other.category != ViObjectKind.structure &&
+            other.category != ViObjectKind.terminal) {
+          continue;
+        }
+        final b = other.absBounds!;
+        if (b.left >= bounds.left &&
+            b.top >= bounds.top &&
+            b.right <= bounds.right &&
+            b.bottom <= bounds.bottom) {
+          return true;
+        }
+      }
+      return false;
+    }
+
     for (final object in decorations) {
-      // Drawn in its own decoded LabVIEW colour when one was recovered, else a
-      // faint category tint so its extent still reads without inventing a colour.
+      // Drawn in its own decoded LabVIEW colour when one was recovered. An
+      // undecoded decoration is still a visible drawn element (a box,
+      // separator or backing with an outline), so it gets a thin border and —
+      // when it is a leaf box, not a backdrop enclosing other logic — a
+      // neutral near-canvas plate, the same honest treatment as an unresolved
+      // node's plate (a 10%-alpha tint left decoration-only diagrams
+      // effectively blank; a plated backdrop buried a structure interior the
+      // reference shows as plain canvas).
+      final rect = rectOf(object);
       final decoded =
           bdDecodedColor(object.bgRgb) ?? bdDecodedColor(object.contentRgb);
-      canvas.drawRect(
-        rectOf(object),
-        decoded != null
-            ? (Paint()..color = decoded)
-            : (Paint()
-                ..color = _kindColor(object.category).withValues(alpha: 0.10)),
-      );
+      if (decoded != null) {
+        canvas.drawRect(rect, Paint()..color = decoded);
+      } else if (!isBackdrop(object)) {
+        canvas.drawRect(rect, Paint()..color = const Color(0xFFF4F4F4));
+        canvas.drawRect(
+          rect,
+          Paint()
+            ..color = Colors.black.withValues(alpha: 0.45)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 0.8,
+        );
+      }
     }
     // Dataflow wires paint over the canvas/decorations but under every
     // structure/node, so nodes and terminals always sit on top of the runs that
