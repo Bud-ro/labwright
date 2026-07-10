@@ -150,6 +150,8 @@ void main() {
       'VISA_Open2.png': 0.65,
       'Excel_Cell_to_RowCol.png': 0.50,
       'ReverseBitsVim.png': 0.50,
+      'Config_Load.png': 0.60,
+      'Config_Load2.png': 0.60,
       'Pages.png': 0.65,
       'Symbols1Bit.png': 0.80,
     };
@@ -177,6 +179,7 @@ void main() {
             raster.image,
             reference.image,
             lockScale: 1.0 / raster.scale,
+            anchorRects: bdStructureAnchorRects(diagram, raster),
           );
           PlacementComparison at(BdRegistration registration) =>
               comparePlacement(

@@ -401,15 +401,20 @@ class BdOracleResult {
 ///
 /// Pass [lockScale] when the render→reference pixel scale is **known** (a
 /// snippet reference at 1 px per model unit compared against a unit-scale
-/// render: 1.0). Registration then only *translates* — first aligning the two
-/// ink bounding-box centres, then refining by ink overlap — instead of deriving
-/// a scale from the ink extents, which a sparse render (e.g. a diagram whose
-/// only content is undrawn text labels) can distort arbitrarily.
+/// render: 1.0). Registration then only *translates* — a multi-start,
+/// multi-peak edge-overlap search — instead of deriving a scale from the ink
+/// extents, which a sparse render (e.g. a diagram whose only content is
+/// undrawn text labels) can distort arbitrarily. [anchorRects] (render-space
+/// boxes of the diagram's structures) disambiguate between competing peaks:
+/// repetitive texture (hatched structure borders) can out-score the true
+/// alignment on raw edge hits, but the large, unique structure boxes do not
+/// alias.
 Future<BdOracleResult> compareToReference(
   ui.Image rendered,
   ui.Image reference, {
   int threshold = 16,
   double? lockScale,
+  List<Rect> anchorRects = const [],
 }) async {
   final width = reference.width;
   final height = reference.height;
@@ -459,6 +464,7 @@ Future<BdOracleResult> compareToReference(
               referenceEdges,
               width,
               height,
+              anchorRects: anchorRects,
             )
           : _inkBoundsRegistration(srcInk, dstInk);
       fitted = await _redrawRegistered(rendered, registration, width, height);
@@ -496,6 +502,32 @@ Future<BdOracleResult> compareToReference(
     registered: registered,
     registration: registration,
   );
+}
+
+/// Render-space boxes of [diagram]'s drawable structures (excluding the
+/// whole-extent root and sub-glyph frames) — the large, unique anchors that
+/// disambiguate the locked-scale registration between competing edge peaks.
+List<Rect> bdStructureAnchorRects(ViDiagram diagram, BdRaster raster) {
+  final drawable = bdDrawableObjects(diagram);
+  final extent = bdContentRect(drawable, includeWires: false, margin: 0);
+  final out = <Rect>[];
+  for (final object in drawable) {
+    if (object.category != ViObjectKind.structure) continue;
+    final b = object.absBounds!;
+    if (b.width < 24 || b.height < 24) continue;
+    if (b.width >= extent.width * 0.95 && b.height >= extent.height * 0.95) {
+      continue;
+    }
+    out.add(
+      Rect.fromLTRB(
+        (b.left - raster.content.left) * raster.scale,
+        (b.top - raster.content.top) * raster.scale,
+        (b.right - raster.content.left) * raster.scale,
+        (b.bottom - raster.content.top) * raster.scale,
+      ),
+    );
+  }
+  return out;
 }
 
 /// The block diagram of [model] with the most positioned objects — the one
@@ -876,8 +908,9 @@ BdRegistration _translationRegistration(
   Uint8List referenceEdges,
   int width,
   int height, {
-  int searchRadius = 48,
+  int searchRadius = 96,
   int edgeThreshold = kBdEdgeThreshold,
+  List<Rect> anchorRects = const [],
 }) {
   // Whole-pixel offsets only: at the locked (typically 1:1) scale a
   // fractional translation would sub-pixel-blur the redraw, betraying the
@@ -921,9 +954,11 @@ BdRegistration _translationRegistration(
     return hits;
   }
 
-  // Multi-start coarse-to-fine: a stride-4 sweep around each start finds the
-  // basin (content one start's bias misses by tens of px), then a 1-px refine
-  // around the global best lands the peak.
+  // Multi-start, multi-peak coarse-to-fine. A stride-6 sweep around each
+  // start collects candidate cells; non-maximum suppression keeps the
+  // strongest well-separated PEAKS (repetitive texture — hatched structure
+  // borders — makes edge overlap multi-modal, and the false mode can carry
+  // more raw hits than the true alignment); each peak is refined at 1 px.
   final starts = <(double, double)>{
     (base.dx, base.dy),
     (
@@ -935,32 +970,84 @@ BdRegistration _translationRegistration(
       (dstInk.bottom - scale * srcInk.bottom).roundToDouble(),
     ),
   };
-  var bestDx = base.dx, bestDy = base.dy, bestHits = -1;
+  final cells = <(double, double, int)>[];
   for (final (sx, sy) in starts) {
-    for (var oy = -searchRadius; oy <= searchRadius; oy += 4) {
-      for (var ox = -searchRadius; ox <= searchRadius; ox += 4) {
-        final hits = hitsAt(sx + ox, sy + oy);
+    for (var oy = -searchRadius; oy <= searchRadius; oy += 6) {
+      for (var ox = -searchRadius; ox <= searchRadius; ox += 6) {
+        cells.add((sx + ox, sy + oy, hitsAt(sx + ox, sy + oy)));
+      }
+    }
+  }
+  cells.sort((a, b) => b.$3.compareTo(a.$3));
+  final peaks = <(double, double, int)>[];
+  for (final cell in cells) {
+    if (peaks.length >= 8) break;
+    final farEnough = peaks.every(
+      (p) => math.max((p.$1 - cell.$1).abs(), (p.$2 - cell.$2).abs()) >= 12,
+    );
+    if (farEnough) peaks.add(cell);
+  }
+  final candidates = <(double, double, int)>[];
+  for (final (px, py, ph) in peaks) {
+    var bestDx = px, bestDy = py, bestHits = ph;
+    for (var oy = -5; oy <= 5; oy++) {
+      for (var ox = -5; ox <= 5; ox++) {
+        if (ox == 0 && oy == 0) continue;
+        final hits = hitsAt(px + ox, py + oy);
         if (hits > bestHits) {
           bestHits = hits;
-          bestDx = sx + ox;
-          bestDy = sy + oy;
+          bestDx = px + ox;
+          bestDy = py + oy;
         }
       }
     }
+    candidates.add((bestDx, bestDy, bestHits));
   }
-  final coarseDx = bestDx, coarseDy = bestDy;
-  for (var oy = -4; oy <= 4; oy++) {
-    for (var ox = -4; ox <= 4; ox++) {
-      if (ox == 0 && oy == 0) continue;
-      final hits = hitsAt(coarseDx + ox, coarseDy + oy);
-      if (hits > bestHits) {
-        bestHits = hits;
-        bestDx = coarseDx + ox;
-        bestDy = coarseDy + oy;
+  if (candidates.isEmpty) return base;
+  // Final selection: the diagram's structure boxes are large and unique, so
+  // their perimeter edge support discriminates the true peak where raw hits
+  // cannot. Without anchors, raw hits decide.
+  if (anchorRects.length >= 2) {
+    double anchorSupport(double dx, double dy) {
+      var hits = 0, samples = 0;
+      void sample(double fx, double fy) {
+        final x = (fx * scale + dx).round(), y = (fy * scale + dy).round();
+        if (x < 0 || y < 0 || x >= width || y >= height) return;
+        samples++;
+        hits += nearEdges[y * width + x];
+      }
+
+      for (final r in anchorRects) {
+        for (var x = r.left; x <= r.right; x += 2) {
+          sample(x, r.top);
+          sample(x, r.bottom);
+        }
+        for (var y = r.top + 2; y < r.bottom; y += 2) {
+          sample(r.left, y);
+          sample(r.right, y);
+        }
+      }
+      return samples == 0 ? 0 : hits / samples;
+    }
+
+    var best = candidates.first;
+    var bestScore = anchorSupport(best.$1, best.$2);
+    for (final c in candidates.skip(1)) {
+      final score = anchorSupport(c.$1, c.$2);
+      if (score > bestScore + 1e-9 ||
+          (score > bestScore - 1e-9 && c.$3 > best.$3)) {
+        best = c;
+        bestScore = score;
       }
     }
+    return BdRegistration(scale: scale, dx: best.$1, dy: best.$2);
   }
-  return BdRegistration(scale: scale, dx: bestDx, dy: bestDy);
+  candidates.sort((a, b) => b.$3.compareTo(a.$3));
+  return BdRegistration(
+    scale: scale,
+    dx: candidates.first.$1,
+    dy: candidates.first.$2,
+  );
 }
 
 /// The centred aspect-preserved letterbox of [src] into [width]×[height], as a
@@ -1116,6 +1203,7 @@ class _BdOracleViewState extends State<BdOracleView> {
       raster.image,
       reference.image,
       lockScale: snippet ? 1.0 / raster.scale : null,
+      anchorRects: snippet ? bdStructureAnchorRects(diagram, raster) : const [],
     );
     final placement = comparePlacement(
       diagram: diagram,
