@@ -57,6 +57,7 @@ List<int> help(String s) => [0xc4, 0x19, s.length, ...s.codeUnits];
 ViDiagram dia(List<int> records) => buildDiagram(u8([0, 0, 0, records.length, ...records]));
 
 void main() {
+  group('resolveDataSpaceTypes', resolveTypesTests);
   test('bracket tree: parent/child nesting, roots, children(), absolute coordinates', () {
     final d = dia([
       ...open(0x7e, 1),
@@ -514,5 +515,83 @@ void main() {
       o.category;
       o.typeKind;
     }
+  });
+}
+
+/// resolveDataSpaceTypes: synthetic pool + table + heaps exercising the
+/// self-calibration, the agreement gate, and the dcoRef inheritance.
+void resolveTypesTests() {
+  ViType type(int i, ViDataType k, [String? name]) => ViType(index: i, code: 0, kind: k, name: name);
+  // Pool: [0]=void, [1]=string "data in", [2]=boolean, [3]=i32.
+  final pool = [
+    type(0, ViDataType.voidType),
+    type(1, ViDataType.string, 'data in'),
+    type(2, ViDataType.boolean),
+    type(3, ViDataType.i32),
+  ];
+  // Table with the true base at +2: entries 2..5 hold the data items.
+  const table = [0, 0, 1, 2, 3, 1];
+
+  ViHeapObject obj(int oid, int kind, {int? tdi}) {
+    final o = ViHeapObject(oid: oid, kind: kind, offset: 0);
+    if (tdi != null) o.typeDescIdx = tdi;
+    return o;
+  }
+
+  test('calibrates the base from anchors and resolves kinds + names', () {
+    final strConst = obj(1, 0x51, tdi: 0); // table[2]=1 → string ✓
+    final boolConst = obj(2, 0x4f, tdi: 1); // table[3]=2 → boolean ✓
+    final loopCount = obj(3, 0x24, tdi: 2); // table[4]=3 → i32 ✓
+    final dco = obj(10, 0x12, tdi: 3); // table[5]=1 → string "data in"
+    final terminal = obj(11, 0x16);
+    terminal.typedRefs[HeapRefKind.dcoRef] = [10];
+    resolveDataSpaceTypes(
+      pool: pool,
+      table: table,
+      blockDiagrams: [
+        ViDiagram(
+          sectionTag: 'BDHb',
+          objects: [strConst, boolConst, loopCount, terminal],
+        ),
+      ],
+      frontPanelDiagrams: [
+        ViDiagram(sectionTag: 'FPHb', objects: [dco]),
+      ],
+    );
+    expect(strConst.typeKind, ViTypeKind.string);
+    expect(boolConst.typeKind, ViTypeKind.boolean);
+    expect(loopCount.dataType, ViDataType.i32);
+    // The 0x16 inherited kind + name through its dcoRef.
+    expect(terminal.typeKind, ViTypeKind.string);
+    expect(terminal.typeName, 'data in');
+  });
+
+  test('below the agreement gate nothing resolves', () {
+    // Two anchors whose expectations can never both hold at one base.
+    final a = obj(1, 0x51, tdi: 0);
+    final b = obj(2, 0x4f, tdi: 0); // same slot: string ≠ boolean
+    resolveDataSpaceTypes(
+      pool: pool,
+      table: table,
+      blockDiagrams: [
+        ViDiagram(sectionTag: 'BDHb', objects: [a, b]),
+      ],
+      frontPanelDiagrams: const [],
+    );
+    expect(a.typeKind, ViTypeKind.unknown);
+    expect(b.typeKind, ViTypeKind.unknown);
+  });
+
+  test('fewer than two anchors leaves types unresolved', () {
+    final only = obj(1, 0x51, tdi: 0);
+    resolveDataSpaceTypes(
+      pool: pool,
+      table: table,
+      blockDiagrams: [
+        ViDiagram(sectionTag: 'BDHb', objects: [only]),
+      ],
+      frontPanelDiagrams: const [],
+    );
+    expect(only.typeKind, ViTypeKind.unknown);
   });
 }

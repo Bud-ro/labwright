@@ -303,6 +303,40 @@ List<ViType> decodeTypePool(Uint8List body) {
   return out;
 }
 
+/// Decodes the **top-level type index table** that follows the descriptor
+/// list in a `VCTP` body: `[u16 count]` then `count` × `[u16 poolIndex]` —
+/// the VI's ordered list of top-level data items, each referencing a
+/// descriptor in the pool (the list `TM80` map entries and the heap's
+/// `typeDescIndex` records index into; the heap's indices carry a per-VI
+/// base, see the graph builder). Returns `const []` when the body ends at
+/// the descriptors, the count word is truncated, or any entry is out of
+/// pool range. Unlike [decodeTypePool] (which keeps the descriptors decoded
+/// before a malformed one), a partially-decodable pool yields NO table: the
+/// table sits after the last descriptor, so its offset is only known when
+/// every descriptor framed.
+List<int> decodeTypeTable(Uint8List body) {
+  if (body.length < 8) return const [];
+  final count = (body[0] << 24) | (body[1] << 16) | (body[2] << 8) | body[3];
+  if (count <= 0 || count > 200000) return const [];
+  var off = 4;
+  for (var i = 0; i < count; i++) {
+    if (off + 2 > body.length) return const [];
+    final descLen = (body[off] << 8) | body[off + 1];
+    if (descLen < 4 || off + descLen > body.length) return const [];
+    off += descLen;
+  }
+  if (off + 2 > body.length) return const [];
+  final n = (body[off] << 8) | body[off + 1];
+  if (n <= 0 || off + 2 + n * 2 > body.length) return const [];
+  final out = <int>[];
+  for (var i = 0; i < n; i++) {
+    final idx = (body[off + 2 + i * 2] << 8) | body[off + 3 + i * 2];
+    if (idx >= count) return const [];
+    out.add(idx);
+  }
+  return out;
+}
+
 /// Parses a cluster descriptor's member list: `[u16 numMembers][u16 typeIndex]*`
 /// at body offset `off+4` (right after the length word + flags + code), each
 /// index pointing into the same pool. Returns the member indices, or `const []`

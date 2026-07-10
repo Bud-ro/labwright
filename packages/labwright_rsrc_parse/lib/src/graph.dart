@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'blocks/type_pool.dart';
 import 'heap.dart';
 
 /// The structural category of a heap object, from its class code + signals
@@ -48,6 +49,21 @@ enum ViTypeKind {
 
   /// A Call-Library node (`C4 C4` symbol + `C4 A4` library path).
   clnNode,
+
+  /// A string (resolved from the VCTP data-space type).
+  string,
+
+  /// A boolean (resolved from the VCTP data-space type).
+  boolean,
+
+  /// A cluster/struct (resolved from the VCTP data-space type).
+  cluster,
+
+  /// An array (resolved from the VCTP data-space type).
+  array,
+
+  /// A refnum (resolved from the VCTP data-space type).
+  refnum,
 
   /// No data-type signal present.
   unknown,
@@ -200,6 +216,20 @@ class ViHeapObject {
   /// `0x128`; corpus pairing: lCnt `i`→1, lMax `N`→2, lTst stop→192, shift
   /// registers →3/4, case selector →5) — or null.
   int? termBmp;
+
+  /// The object's data-space slot ([HeapAttribute.typeDescIndex], raw
+  /// `0x13a`) — an index into the VCTP top-level type table carrying a
+  /// per-VI base (see `resolveDataSpaceTypes`) — or null.
+  int? typeDescIdx;
+
+  /// The resolved VCTP type's embedded name (`action`, `data in`, …) — the
+  /// VI's own identifier for this data item — or null when the type is
+  /// unresolved or unnamed. Set by `resolveDataSpaceTypes`.
+  String? typeName;
+
+  /// The resolved VCTP data type (finer than [typeKind]: `dbl` vs `i32`) —
+  /// or null when unresolved. Set by `resolveDataSpaceTypes`.
+  ViDataType? dataType;
 
   /// Decoded 24-bit `0xRRGGBB` **plot** colours ([HeapAttribute.plotColor], raw
   /// `0x02a`, inferred), in heap order — the per-curve colours of a graph/chart's
@@ -735,7 +765,7 @@ const kControlTerminalCodes = {0x50, 0x4f, 0x57, 0x5b, 0x51};
 // the structColor/borderColor low bytes.
 // 0x29 also catches termBounds 0x129; 0x28 (already present for
 // backgroundColor 0x028) catches termBMPs 0x128.
-const _objAttrIds = {0x20, 0x21, 0x6c, 0x24, 0x28, 0x6f, 0x19, 0x2b, 0x2a, 0x29};
+const _objAttrIds = {0x20, 0x21, 0x6c, 0x24, 0x28, 0x6f, 0x19, 0x2b, 0x2a, 0x29, 0x3a};
 
 /// Pixel-area threshold (width×height) for the structural node fallback in
 /// `buildDiagram`. A still-`unknown` object that otherwise matches the BD-node
@@ -1012,6 +1042,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
         }
         if (attr.attribute == HeapAttribute.termBounds) cur.termBounds ??= attr.asRect;
         if (attr.attribute == HeapAttribute.termBMPs) cur.termBmp ??= attr.asInt;
+        if (attr.attribute == HeapAttribute.typeDescIndex) cur.typeDescIdx ??= attr.asInt;
         // The transparent sentinel (flag 0x01, RGB 0) is "no colour", not
         // black — capturing it would paint transparent label backings and
         // fills as solid black. Raw value 0x00000001 is likewise a flag, not
@@ -1221,6 +1252,151 @@ void _reanchorScrolledControls(
       final newTop = viewport!.absBounds!.top + (control.bounds!.top - minTop);
       final newLeft = viewport.absBounds!.left + (control.bounds!.left - minLeft);
       shiftSubtree(control, newTop - control.absBounds!.top, newLeft - control.absBounds!.left);
+    }
+  }
+}
+
+/// The [ViTypeKind] a resolved pool type kind renders as, or null for kinds
+/// the renderer has no signal for.
+ViTypeKind? _typeKindOf(ViDataType type) => switch (type) {
+  ViDataType.i8 ||
+  ViDataType.i16 ||
+  ViDataType.i32 ||
+  ViDataType.i64 ||
+  ViDataType.u8 ||
+  ViDataType.u16 ||
+  ViDataType.u32 ||
+  ViDataType.u64 => ViTypeKind.numericInt,
+  ViDataType.sgl ||
+  ViDataType.dbl ||
+  ViDataType.ext ||
+  ViDataType.complexSgl ||
+  ViDataType.complexDbl ||
+  ViDataType.complexExt => ViTypeKind.numericFloat,
+  ViDataType.enumU8 || ViDataType.enumU16 || ViDataType.enumU32 => ViTypeKind.enumRing,
+  ViDataType.boolean => ViTypeKind.boolean,
+  ViDataType.string || ViDataType.cString || ViDataType.pascalString || ViDataType.subString => ViTypeKind.string,
+  ViDataType.path => ViTypeKind.path,
+  ViDataType.cluster => ViTypeKind.cluster,
+  ViDataType.array || ViDataType.subArray || ViDataType.arrayDataPointer => ViTypeKind.array,
+  ViDataType.refnum => ViTypeKind.refnum,
+  _ => null,
+};
+
+/// The calibration anchors: BD object classes whose data kind the class
+/// catalog pins down, keyed by class code — the single source for both the
+/// anchor filter and the expectation test. Codes follow [HeapObjectClass]:
+/// `0x51` string/array control, `0x4f` boolean/cluster control, `0x25`
+/// loop conditional, `0x24`/`0x26` loop count/maximum.
+final Map<int, bool Function(ViDataType)> _typeAnchors = {
+  0x51: (t) {
+    final kind = _typeKindOf(t);
+    return kind == ViTypeKind.string || kind == ViTypeKind.array || kind == ViTypeKind.refnum;
+  },
+  0x4f: (t) => t == ViDataType.boolean || t == ViDataType.cluster,
+  0x25: (t) => t == ViDataType.boolean,
+  0x24: (t) => _typeKindOf(t) == ViTypeKind.numericInt,
+  0x26: (t) => _typeKindOf(t) == ViTypeKind.numericInt,
+};
+
+/// Resolves every heap object's `typeDescIndex` through the VCTP top-level
+/// [table] into the [pool], setting [ViHeapObject.typeKind],
+/// [ViHeapObject.dataType] and [ViHeapObject.typeName]; an object without
+/// its own index (a BD terminal `0x16`) inherits through its `dcoRef` (the
+/// paired front-panel DCO), resolved same-heap first (the corpus splits
+/// dcoRef targets ~90% same heap / ~10% sibling heap, and oids repeat
+/// across heaps).
+///
+/// The heap's indices carry a **per-VI base**: where that base is stored
+/// has not been found, so it is **self-calibrated** per VI — the offset
+/// that maximises agreement between the [_typeAnchors] classes and their
+/// resolved kinds. Calibration demands at least 2 anchors and 90%
+/// agreement; otherwise every type stays unresolved rather than guessed.
+/// The search window (−8..48) is wider than the bases observed on the
+/// snippet corpus (0..9 over 31/32 calibrating VIs) to cover larger VIs;
+/// a wrong window cannot mis-resolve silently because the agreement gate
+/// still applies. Calibration uses block-diagram anchors and applies the
+/// base to both heaps: the data space is VI-global (verified on the corpus
+/// by the resolved panel names and reference-render colours agreeing).
+///
+/// A successful resolution **overwrites** a heuristically inferred
+/// [ViHeapObject.typeKind] — the pool descriptor is the VI's own type
+/// declaration, where the `C4 74` format inference is a guess — so colour
+/// and glyph can never disagree.
+void resolveDataSpaceTypes({
+  required List<ViType> pool,
+  required List<int> table,
+  required List<ViDiagram> blockDiagrams,
+  required List<ViDiagram> frontPanelDiagrams,
+}) {
+  if (pool.isEmpty || table.isEmpty) return;
+  final diagrams = [...blockDiagrams, ...frontPanelDiagrams];
+
+  ViType? resolve(int base, int index) {
+    final ti = base + index;
+    if (ti < 0 || ti >= table.length) return null;
+    final pi = table[ti];
+    return pi >= 0 && pi < pool.length ? pool[pi] : null;
+  }
+
+  final anchors = <(int, int)>[
+    for (final d in blockDiagrams)
+      for (final o in d.objects)
+        if (o.typeDescIdx != null && _typeAnchors.containsKey(o.kind)) (o.kind, o.typeDescIdx!),
+  ];
+  if (anchors.length < 2) return;
+  int? base;
+  var bestHits = 0;
+  for (var k = -8; k <= 48; k++) {
+    var hits = 0;
+    for (final (kind, index) in anchors) {
+      final type = resolve(k, index);
+      if (type != null && _typeAnchors[kind]!(type.kind)) hits++;
+    }
+    if (hits > bestHits) {
+      bestHits = hits;
+      base = k;
+    }
+  }
+  if (base == null || bestHits < anchors.length * 0.9) return;
+
+  for (final d in diagrams) {
+    for (final o in d.objects) {
+      final index = o.typeDescIdx;
+      if (index == null) continue;
+      final type = resolve(base, index);
+      if (type == null) continue;
+      final kind = _typeKindOf(type.kind);
+      if (kind != null) o.typeKind = kind;
+      o.dataType = type.kind;
+      if (type.name != null && type.name!.trim().isNotEmpty) {
+        o.typeName ??= type.name!.trim();
+      }
+    }
+  }
+  // A BD terminal inherits its paired DCO's resolved type: same-heap match
+  // first, then the sibling heaps in diagram order.
+  ViHeapObject? findDco(ViDiagram own, int oid) {
+    final local = own.byId[oid];
+    if (local != null) return local;
+    for (final d in diagrams) {
+      if (identical(d, own)) continue;
+      final hit = d.byId[oid];
+      if (hit != null) return hit;
+    }
+    return null;
+  }
+
+  for (final d in diagrams) {
+    for (final o in d.objects) {
+      if (o.typeDescIdx != null) continue;
+      final dcoRefs = o.typedRefs[HeapRefKind.dcoRef];
+      if (dcoRefs == null || dcoRefs.isEmpty) continue;
+      final dco = findDco(d, dcoRefs.first);
+      if (dco == null) continue;
+      if (dco.typeKind != ViTypeKind.unknown) o.typeKind = dco.typeKind;
+      o.dataType ??= dco.dataType;
+      o.typeName ??= dco.typeName;
     }
   }
 }

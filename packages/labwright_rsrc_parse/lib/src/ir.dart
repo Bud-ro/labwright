@@ -251,9 +251,26 @@ ViModel buildViModelFromDecoded(Iterable<DecodedSection> decoded, {List<String> 
       if (tags.contains(decodedSection.tag) && decodedSection.bytes.length >= 6)
         buildDiagram(decodedSection.bytes, sectionTag: decodedSection.tag),
   ];
+  final blockDiagrams = diagramsFor(const {'BDHb', 'BDHP', 'BDEx'});
+  final frontPanelDiagrams = diagramsFor(const {'FPHb', 'FPHP', 'FPEx'});
+  // Pool and top-level table come from the same located VCTP section.
+  Uint8List? vctp;
+  for (final section in list) {
+    if (section.tag == 'VCTP') {
+      vctp = section.bytes;
+      break;
+    }
+  }
+  final types = vctp == null ? const <ViType>[] : decodeTypePool(vctp);
+  resolveDataSpaceTypes(
+    pool: types,
+    table: vctp == null ? const [] : decodeTypeTable(vctp),
+    blockDiagrams: blockDiagrams,
+    frontPanelDiagrams: frontPanelDiagrams,
+  );
   return ViModel(
     subViNames: subViNames,
-    types: typePoolFromDecoded(list),
+    types: types,
     connectorPaneTypeIndex: connectorPaneFromSections(sections)?.typeIndex,
     version: ver.version,
     title: ver.title,
@@ -261,7 +278,30 @@ ViModel buildViModelFromDecoded(Iterable<DecodedSection> decoded, {List<String> 
     components: componentsFromDecoded(list),
     stringTables: heapStringTablesFromDecoded(list),
     heapRecords: heapC4RecordsFromDecoded(list),
-    blockDiagrams: diagramsFor(const {'BDHb', 'BDHP', 'BDEx'}),
-    frontPanelDiagrams: diagramsFor(const {'FPHb', 'FPHP', 'FPEx'}),
+    blockDiagrams: blockDiagrams,
+    frontPanelDiagrams: frontPanelDiagrams,
   );
 }
+
+/// LabVIEW's short on-terminal label for a resolved [type] (`DBL`, `I32`,
+/// `TF`, `abc`, …), or null for kinds LabVIEW shows as art this reader does
+/// not reproduce.
+String? dataTypeGlyph(ViDataType type) => switch (type) {
+  ViDataType.i8 => 'I8',
+  ViDataType.i16 => 'I16',
+  ViDataType.i32 => 'I32',
+  ViDataType.i64 => 'I64',
+  ViDataType.u8 => 'U8',
+  ViDataType.u16 => 'U16',
+  ViDataType.u32 => 'U32',
+  ViDataType.u64 => 'U64',
+  ViDataType.sgl => 'SGL',
+  ViDataType.dbl => 'DBL',
+  ViDataType.ext => 'EXT',
+  ViDataType.complexSgl => 'CSG',
+  ViDataType.complexDbl => 'CDB',
+  ViDataType.complexExt => 'CXT',
+  ViDataType.boolean => 'TF',
+  ViDataType.string || ViDataType.cString => 'abc',
+  _ => null,
+};
