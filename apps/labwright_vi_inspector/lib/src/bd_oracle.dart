@@ -65,12 +65,13 @@ Future<BdRaster?> rasteriseBlockDiagram(
   int maxDimension = 2000,
   double pixelRatio = 1.0,
   double? scale,
+  int margin = 40,
   Map<int, ViLegacyIcon> subViIcons = const {},
   List<ViWire>? wires,
 }) async {
   final drawable = bdDrawableObjects(diagram);
   if (drawable.isEmpty) return null;
-  final content = bdContentRect(drawable, includeWires: false);
+  final content = bdContentRect(drawable, includeWires: false, margin: margin);
   if (content.width <= 0 || content.height <= 0) return null;
   final ordered = bdPaintOrder(drawable, diagram.byId);
   // Defaults to the diagram's visible dataflow wires (hidden multi-frame
@@ -1083,10 +1084,14 @@ class _BdOracleViewState extends State<BdOracleView> {
     // decodeReferenceImage's snippetCropped flag drives BOTH decisions, so an
     // uncroppable snippet falls back to the generic comparison whole.
     final snippet = reference?.snippetCropped ?? false;
+    // A snippet reference is LabVIEW's crop of the diagram's ink plus a 2 px
+    // margin, so the unit-scale render uses the same margin — matched
+    // dimensions, not just matched scale.
     final raster = await rasteriseBlockDiagram(
       diagram,
       maxDimension: widget.maxDimension,
       scale: snippet ? 1.0 : null,
+      margin: snippet ? 2 : 40,
       subViIcons: widget.subViIcons,
     );
     if (raster == null) {

@@ -1252,37 +1252,49 @@ class BdDiagramPainter extends CustomPainter {
     // reach them.
     _drawWires(canvas);
     for (final object in structures) {
-      // LabVIEW draws structures as a double-line frame; the badge tab at the
-      // top-left names the construct (While/For/Case) like the original's
-      // border furniture does. When the structure's own colour was decoded
-      // (structColor — the LabVIEW structure greys, or the pale sequence/timed
-      // tint) the frame is drawn in it, over a faint fill of the same colour so
-      // the construct reads as itself; structures nest heavily, so the fill
-      // stays light to avoid a muddy stack. Undecoded structures keep the
-      // neutral category frame — no colour is guessed.
+      // Class-accurate structure chrome (no badge text — LabVIEW names a
+      // construct by its border furniture, not a label). Loops get the thick
+      // rounded grey band with the iteration / conditional corner terminals;
+      // case structures get their band plus selector chrome (drawn at the
+      // decoded 0x95 label, see the label pass). A decoded structColor tints
+      // the band (the pale sequence/timed tint); other structure kinds keep
+      // the neutral double-line frame.
       final rect = rectOf(object);
       final structColor = bdDecodedColor(object.structRgb);
-      final frame = structColor ?? _kindColor(ViObjectKind.structure);
-      if (structColor != null) {
-        canvas.drawRect(
-          rect,
-          Paint()..color = structColor.withValues(alpha: 0.12),
-        );
+      switch (object.kind) {
+        case 0x21: // While loop: band + i (bottom-left) + stop (bottom-right).
+          _drawLoopBand(canvas, rect, structColor);
+          _drawIterationTerminal(canvas, rect);
+          _drawConditionalTerminal(canvas, rect);
+        case 0x20: // For loop: band + N (top-left) + i (bottom-left).
+          _drawLoopBand(canvas, rect, structColor);
+          _drawCountTerminal(canvas, rect);
+          _drawIterationTerminal(canvas, rect);
+        case 0x2c: // Case structure: the same band, un-rounded.
+          _drawLoopBand(canvas, rect, structColor, rounded: false);
+        default:
+          final frame = structColor ?? _kindColor(ViObjectKind.structure);
+          if (structColor != null) {
+            canvas.drawRect(
+              rect,
+              Paint()..color = structColor.withValues(alpha: 0.12),
+            );
+          }
+          canvas.drawRect(
+            rect,
+            Paint()
+              ..color = frame
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 2.0,
+          );
+          canvas.drawRect(
+            rect.deflate(3),
+            Paint()
+              ..color = frame.withValues(alpha: 0.55)
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 1.0,
+          );
       }
-      canvas.drawRect(
-        rect,
-        Paint()
-          ..color = frame
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.0,
-      );
-      canvas.drawRect(
-        rect.deflate(3),
-        Paint()
-          ..color = frame.withValues(alpha: 0.55)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.0,
-      );
     }
     // Wires: each 0x1d object is one stored Manhattan run, drawn exactly as
     // its own segment. Runs of the same wire already meet at their bend
@@ -1296,6 +1308,9 @@ class BdDiagramPainter extends CustomPainter {
       ..strokeCap = StrokeCap.square;
     for (final object in wires) {
       final rect = rectOf(object);
+      // A zero-area segment is an unanchored stub (often at the diagram
+      // origin) — a point, not a run; drawing it stamped stray dots.
+      if (rect.width == 0 && rect.height == 0) continue;
       canvas.drawLine(rect.topLeft, rect.bottomRight, wirePaint);
     }
 
@@ -1307,6 +1322,12 @@ class BdDiagramPainter extends CustomPainter {
       // background colour paints that backing; no colour paints no box (never
       // guessed). The text pass below renders any recovered caption.
       if (kBdTextLabelCodes.contains(object.kind)) {
+        if (object.kind == 0x95) {
+          // Case selector chrome: the label ring on the case's top border —
+          // white value box with a ▼, flanked by ◄/► pager boxes.
+          _drawCaseSelector(canvas, rect);
+          continue;
+        }
         final backing = bdDecodedColor(object.bgRgb);
         if (backing != null) {
           canvas.drawRect(rect, Paint()..color = backing);
@@ -1322,28 +1343,35 @@ class BdDiagramPainter extends CustomPainter {
       }
       switch (object.category) {
         case ViObjectKind.terminal:
-          // LabVIEW terminal: sharp rect, datatype fill, thin dark border, and
-          // the inner double-border that marks a control/indicator terminal.
-          // A recovered datatype drives the fill (blue int, orange float, …); an
-          // unrecovered one stays a neutral grey rather than guessing a colour.
-          final fill = object.typeKind == ViTypeKind.unknown
-              ? kBdUnknownTerminalFill
-              : labviewTypeColor(object.typeKind);
-          canvas.drawRect(rect, Paint()..color = fill.withValues(alpha: 0.9));
+          // LabVIEW terminal: datatype-coloured double border — a 2 px outer
+          // border, a 1 px white gap, a 1 px inner border — over a lightly
+          // tinted plate. A recovered datatype (or a decoded foreground
+          // colour, e.g. a boolean constant's green) drives the colour; an
+          // unrecovered one stays a neutral grey rather than guessing.
+          final typed =
+              object.typeKind != ViTypeKind.unknown || object.fgRgb != null;
+          final tint = object.typeKind != ViTypeKind.unknown
+              ? labviewTypeColor(object.typeKind)
+              : (bdDecodedColor(object.fgRgb) ?? kBdUnknownTerminalFill);
+          // An unknown-type terminal keeps a dark neutral border — the light
+          // "unknown" grey as a border is invisible to the eye and the edge
+          // masks alike.
+          final border = typed ? tint : const Color(0xFF5A5A5A);
+          canvas.drawRect(rect, Paint()..color = tint.withValues(alpha: 0.25));
           canvas.drawRect(
-            rect,
+            rect.deflate(1),
             Paint()
-              ..color = Colors.black.withValues(alpha: 0.65)
+              ..color = border
               ..style = PaintingStyle.stroke
-              ..strokeWidth = 0.8,
+              ..strokeWidth = 2.0,
           );
-          if (rect.width > 8 && rect.height > 8) {
+          if (rect.width > 10 && rect.height > 10) {
             canvas.drawRect(
-              rect.deflate(2),
+              rect.deflate(3.5),
               Paint()
-                ..color = Colors.white.withValues(alpha: 0.7)
+                ..color = border
                 ..style = PaintingStyle.stroke
-                ..strokeWidth = 0.8,
+                ..strokeWidth = 1.0,
             );
           }
         case ViObjectKind.node:
@@ -1436,17 +1464,16 @@ class BdDiagramPainter extends CustomPainter {
         tp.paint(canvas, rect.topLeft + const Offset(2, 1));
         continue;
       }
-      final onFrame = object.category == ViObjectKind.structure;
-      // A node's identity is carried by its icon plate (and a separate free
-      // label), never by stamping its subVI-filename/function label inside the
-      // icon box — LabVIEW draws no text there. A constant/terminal shows the
-      // recovered literal value ([ViHeapObject.constText]) when one exists — e.g.
-      // a string constant's `"report.txt"` — falling back to its recovered label;
-      // a value that was not decoded renders no text (never guessed).
+      // A structure is identified by its border chrome (LabVIEW draws no
+      // construct name); a node's identity is carried by its icon plate (and
+      // a separate free label), never by stamping its subVI-filename/function
+      // label inside the icon box. A constant/terminal shows the recovered
+      // literal value ([ViHeapObject.constText]) when one exists — e.g. a
+      // string constant's `"report.txt"` — falling back to its recovered
+      // label; a value that was not decoded renders no text (never guessed).
       final String? text;
-      if (onFrame) {
-        text = structureBadge(object);
-      } else if (object.category == ViObjectKind.node) {
+      if (object.category == ViObjectKind.structure ||
+          object.category == ViObjectKind.node) {
         text = null;
       } else {
         final literal = object.constText?.trim();
@@ -1459,12 +1486,10 @@ class BdDiagramPainter extends CustomPainter {
       final rect = rectOf(object);
       if (rect.width < 26 || rect.height < 11) continue;
       // A caption/constant is inked in the object's decoded foreground colour
-      // when one was recovered (fgColor is the LabVIEW text/line colour), else a
-      // neutral near-black. A structure badge keeps its frame-chrome colour.
-      final textColor = onFrame
-          ? const Color(0xCC4A2E00)
-          : (bdDecodedColor(object.fgRgb) ??
-                Colors.black.withValues(alpha: 0.75));
+      // when one was recovered (fgColor is the LabVIEW text/line colour), else
+      // a neutral near-black.
+      final textColor =
+          bdDecodedColor(object.fgRgb) ?? Colors.black.withValues(alpha: 0.75);
       final tp = TextPainter(
         text: TextSpan(
           text: text,
@@ -1544,6 +1569,162 @@ class BdDiagramPainter extends CustomPainter {
         canvas.drawPath(path, paint);
       }
     }
+  }
+
+  /// The thick grey structure band LabVIEW draws for loops and cases: a
+  /// ~3.5 px mid-grey band with a 1 px darker outline, rounded on loops.
+  /// [tint] (a decoded structColor, e.g. the pale sequence colour) replaces
+  /// the band grey when present.
+  void _drawLoopBand(
+    Canvas canvas,
+    Rect rect,
+    Color? tint, {
+    bool rounded = true,
+  }) {
+    final band = tint ?? const Color(0xFF9C9C9C);
+    final radius = rounded ? const Radius.circular(4) : Radius.zero;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect.deflate(1.75), radius),
+      Paint()
+        ..color = band
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3.5,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, radius),
+      Paint()
+        ..color = const Color(0xFF606060)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.0,
+    );
+  }
+
+  /// A loop's 16×16 corner-terminal box (white plate, coloured border) at the
+  /// given inside-corner [origin]; returns the box for glyph drawing.
+  Rect _cornerBox(Canvas canvas, Offset origin, Color border) {
+    final box = Rect.fromLTWH(origin.dx, origin.dy, 16, 16);
+    canvas.drawRect(box, Paint()..color = Colors.white);
+    canvas.drawRect(
+      box,
+      Paint()
+        ..color = border
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4,
+    );
+    return box;
+  }
+
+  static const _loopBlue = Color(0xFF0033CC);
+
+  void _drawGlyphText(Canvas canvas, Rect box, String glyph, Color color) {
+    final tp = TextPainter(
+      text: TextSpan(
+        text: glyph,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          fontStyle: FontStyle.italic,
+          fontFamily: 'Roboto',
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas, box.center - Offset(tp.width / 2, tp.height / 2));
+  }
+
+  /// The loop iteration terminal (the blue `i` box, LabVIEW's default
+  /// bottom-left placement inside the band).
+  void _drawIterationTerminal(Canvas canvas, Rect rect) {
+    if (rect.width < 48 || rect.height < 48) return;
+    final box = _cornerBox(
+      canvas,
+      Offset(rect.left + 6, rect.bottom - 22),
+      _loopBlue,
+    );
+    _drawGlyphText(canvas, box, 'i', _loopBlue);
+  }
+
+  /// The for-loop count terminal (the blue `N` box, top-left).
+  void _drawCountTerminal(Canvas canvas, Rect rect) {
+    if (rect.width < 48 || rect.height < 48) return;
+    final box = _cornerBox(
+      canvas,
+      Offset(rect.left + 6, rect.top + 6),
+      _loopBlue,
+    );
+    _drawGlyphText(canvas, box, 'N', _loopBlue);
+  }
+
+  /// The while-loop conditional terminal (green box holding the red stop
+  /// octagon, LabVIEW's default bottom-right placement inside the band).
+  void _drawConditionalTerminal(Canvas canvas, Rect rect) {
+    if (rect.width < 48 || rect.height < 48) return;
+    final box = _cornerBox(
+      canvas,
+      Offset(rect.right - 22, rect.bottom - 22),
+      const Color(0xFF007F00),
+    );
+    // Red stop octagon.
+    final c = box.center;
+    const r = 5.0;
+    final path = Path();
+    for (var k = 0; k < 8; k++) {
+      final a = (k * 45 + 22.5) * math.pi / 180;
+      final p = Offset(c.dx + r * math.cos(a), c.dy + r * math.sin(a));
+      if (k == 0) {
+        path.moveTo(p.dx, p.dy);
+      } else {
+        path.lineTo(p.dx, p.dy);
+      }
+    }
+    path.close();
+    canvas.drawPath(path, Paint()..color = const Color(0xFFCC0000));
+  }
+
+  /// Case-selector chrome at the decoded `0x95` label [rect]: a white value
+  /// box with a black border and ▼, flanked by the ◄/► case-pager boxes that
+  /// sit on the case's top border. The selector STRING is drawn by the text
+  /// pass; only the furniture is drawn here.
+  void _drawCaseSelector(Canvas canvas, Rect rect) {
+    final border = Paint()
+      ..color = Colors.black.withValues(alpha: 0.8)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+    canvas.drawRect(rect, Paint()..color = Colors.white);
+    canvas.drawRect(rect, border);
+    // ▼ on the value box's right edge.
+    final dc = Offset(rect.right - 7, rect.center.dy);
+    final down = Path()
+      ..moveTo(dc.dx - 3.5, dc.dy - 2)
+      ..lineTo(dc.dx + 3.5, dc.dy - 2)
+      ..lineTo(dc.dx, dc.dy + 3)
+      ..close();
+    canvas.drawPath(down, Paint()..color = Colors.black87);
+    // ◄ / ► pager boxes flanking the value box.
+    void pager(Rect box, bool left) {
+      canvas.drawRect(box, Paint()..color = Colors.white);
+      canvas.drawRect(box, border);
+      final c = box.center;
+      final tri = left
+          ? (Path()
+              ..moveTo(c.dx + 2, c.dy - 3.5)
+              ..lineTo(c.dx + 2, c.dy + 3.5)
+              ..lineTo(c.dx - 2.5, c.dy)
+              ..close())
+          : (Path()
+              ..moveTo(c.dx - 2, c.dy - 3.5)
+              ..lineTo(c.dx - 2, c.dy + 3.5)
+              ..lineTo(c.dx + 2.5, c.dy)
+              ..close());
+      canvas.drawPath(tri, Paint()..color = Colors.black87);
+    }
+
+    pager(
+      Rect.fromLTWH(rect.left - 10, rect.top + 2, 10, rect.height - 4),
+      true,
+    );
+    pager(Rect.fromLTWH(rect.right, rect.top + 2, 10, rect.height - 4), false);
   }
 
   void _drawDotGrid(Canvas canvas, Size size) {

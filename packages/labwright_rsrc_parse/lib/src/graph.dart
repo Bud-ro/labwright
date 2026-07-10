@@ -1000,8 +1000,12 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
         }
         // The transparent sentinel (flag 0x01, RGB 0) is "no colour", not
         // black — capturing it would paint transparent label backings and
-        // fills as solid black.
-        final rgb = attr.isTransparent ? null : attr.rgb;
+        // fills as solid black. Raw value 0x00000001 is likewise a flag, not
+        // a colour: every label part carries a trailing backgroundColor
+        // record of exactly 0x1 after its real (often transparent) colour,
+        // and RGB 0x000001 as a deliberate near-black is implausible.
+        final rawColor = attr.kind == HeapAttrKind.color && attr.value is int ? attr.value as int : null;
+        final rgb = attr.isTransparent || rawColor == 0x1 ? null : attr.rgb;
         if (rgb != null) {
           switch (attr.attribute) {
             case HeapAttribute.backgroundColor:
