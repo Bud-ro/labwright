@@ -102,7 +102,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
   /// can stamp the node with the called VI's icon. Set only when a file was
   /// opened from disk (drag/browse/path) — demo and embedded VIs have no project
   /// directory to search, so their nodes keep the neutral plate.
-  Stream<Map<String, ViLegacyIcon>> Function(Set<String>)? _subViIconStream;
+  Future<Map<String, ViLegacyIcon>> Function(Set<String>)? _subViIconResolver;
 
   @override
   void initState() {
@@ -130,7 +130,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
   void _loadBytes(
     Uint8List bytes,
     String source, {
-    Stream<Map<String, ViLegacyIcon>> Function(Set<String>)? subViIconStream,
+    Future<Map<String, ViLegacyIcon>> Function(Set<String>)? subViIconResolver,
   }) {
     final load = summarize(bytes);
     ViVersionInfo? version;
@@ -185,7 +185,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
       _embeddedVis = embeddedVis;
       _attribution = attribution;
       _images = images;
-      _subViIconStream = subViIconStream;
+      _subViIconResolver = subViIconResolver;
     });
   }
 
@@ -232,7 +232,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
     _loadBytes(
       bytes,
       path,
-      subViIconStream: (wanted) => streamSubViIcons(path, wanted),
+      subViIconResolver: (wanted) => resolveSubViIconsFor(path, wanted),
     );
   }
 
@@ -263,8 +263,8 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
       _loadBytes(
         fetched.bytes,
         'GitHub: ${vi.repo} · ${vi.name}${deps}',
-        subViIconStream: (wanted) =>
-            streamSubViIcons(mainPath, wanted, levelsUp: levelsUp),
+        subViIconResolver: (wanted) =>
+            resolveSubViIconsFor(mainPath, wanted, levelsUp: levelsUp),
       );
     } catch (e) {
       if (!mounted) return;
@@ -497,7 +497,8 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                                             subViNames:
                                                 _model?.subViNames ?? const [],
                                             viImages: _images,
-                                            subViIconStream: _subViIconStream,
+                                            subViIconResolver:
+                                                _subViIconResolver,
                                           ),
                                         ),
                                       ],

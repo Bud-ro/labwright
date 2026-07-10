@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -42,7 +41,7 @@ class ViDiagramView extends StatefulWidget {
     this.subViNames = const [],
     this.isFrontPanel = false,
     this.viImages = const ViImages(),
-    this.subViIconStream,
+    this.subViIconResolver,
   });
 
   /// The diagrams to render (block-diagram or front-panel heap trees); the
@@ -69,20 +68,19 @@ class ViDiagramView extends StatefulWidget {
   /// any embedded diagram PNGs (`MNGI`/`DSIM`). Rendered as an identity strip
   /// above the diagram: the icon is what a *caller's* subVI node would display
   /// for this VI. (This diagram's own subVI-call nodes are stamped with their
-  /// targets' icons when a [subViIconStream] search resolves the called VIs.)
+  /// targets' icons when a [subViIconResolver] resolves the called VIs.)
   /// Empty by default.
   final ViImages viImages;
 
-  /// Optional icon search used to stamp each **subVI-call node** with the icon
-  /// of the VI it targets: given the set of `.vi`/`.vim` filenames this diagram
-  /// calls ([subViWantedNames]), it streams `filename → icon` batches as they
-  /// are found — the view repaints per batch, so nearby finds render within
-  /// moments while farther ones keep searching (see `streamSubViIcons`). Only
-  /// meaningful for the block diagram (subVI nodes live there); a node whose
-  /// target is never found keeps the neutral connector-pane plate. Null (the
-  /// default) draws no on-node icons.
-  final Stream<Map<String, ViLegacyIcon>> Function(Set<String> wantedNames)?
-  subViIconStream;
+  /// Optional icon resolver used to stamp each **subVI-call node** with the
+  /// icon of the VI it targets: given the set of `.vi`/`.vim` filenames this
+  /// diagram calls ([subViWantedNames]), it returns a `filename → icon` map
+  /// (see `resolveSubViIconsFor` — linker-path resolution, so it completes in
+  /// moments). Only meaningful for the block diagram (subVI nodes live there);
+  /// a node whose target is not found keeps the neutral connector-pane plate.
+  /// Null (the default) draws no on-node icons.
+  final Future<Map<String, ViLegacyIcon>> Function(Set<String> wantedNames)?
+  subViIconResolver;
 
   @override
   State<ViDiagramView> createState() => _ViDiagramViewState();
@@ -124,48 +122,34 @@ class _ViDiagramViewState extends State<ViDiagramView> {
     return countsByKind;
   }
 
-  StreamSubscription<Map<String, ViLegacyIcon>>? _iconSubscription;
-
   @override
   void initState() {
     super.initState();
-    _subscribeIcons();
+    _resolveIcons();
   }
 
-  /// Subscribes to the subVI icon search and repaints per found batch, so the
-  /// nearest icons render within moments of the load while farther rings keep
-  /// searching. A no-op on the front panel, without a search, or when the
-  /// diagram calls no subVIs.
-  void _subscribeIcons() {
+  /// Resolves the subVI-call node icons (one fast await — linker-path
+  /// resolution needs no searching) and repaints once. A no-op on the front
+  /// panel, without a resolver, or when the diagram calls no subVIs.
+  Future<void> _resolveIcons() async {
     final diagram = _diagram;
-    final search = widget.subViIconStream;
-    if (diagram == null || widget.isFrontPanel || search == null) return;
+    final resolver = widget.subViIconResolver;
+    if (diagram == null || widget.isFrontPanel || resolver == null) return;
     final wanted = subViWantedNames(diagram);
     if (wanted.isEmpty) return;
-    // Map each wanted filename to the node oids that call it (a name can be
-    // called from several nodes), so a batch applies without re-scanning.
-    final oidsByName = <String, List<int>>{};
+    final byName = await resolver(wanted);
+    if (!mounted || byName.isEmpty) return;
+    final icons = <int, ViLegacyIcon>{};
     for (final object in diagram.objects) {
       if (!kSubViCallNodeCodes.contains(object.kind)) continue;
-      final name = object.label?.trim();
-      if (name == null || !_isViFileName(name)) continue;
-      (oidsByName[name] ??= <int>[]).add(object.oid);
+      final icon = byName[object.label?.trim()];
+      if (icon != null) icons[object.oid] = icon;
     }
-    _iconSubscription = search(wanted).listen((batch) {
-      if (!mounted) return;
-      final merged = {..._subViIcons};
-      batch.forEach((name, icon) {
-        for (final oid in oidsByName[name] ?? const <int>[]) {
-          merged[oid] = icon;
-        }
-      });
-      setState(() => _subViIcons = merged);
-    });
+    if (icons.isNotEmpty) setState(() => _subViIcons = icons);
   }
 
   @override
   void dispose() {
-    _iconSubscription?.cancel();
     _transform.dispose();
     super.dispose();
   }
@@ -869,7 +853,7 @@ Map<int, ViLegacyIcon> resolveSubViIcons(
 }
 
 /// The `.vi`/`.vim` filenames [diagram]'s subVI-call nodes target — the wanted
-/// set an icon search resolves (see [ViDiagramView.subViIconStream]).
+/// set an icon resolver receives (see [ViDiagramView.subViIconResolver]).
 Set<String> subViWantedNames(ViDiagram diagram) => {
   for (final object in diagram.objects)
     if (kSubViCallNodeCodes.contains(object.kind))
@@ -1598,7 +1582,7 @@ class _BdOutline extends StatelessWidget {
 /// captioned with its source tag. Scope: this is *this* VI's icon (what a caller
 /// renders on a subVI node); the icons of the subVIs this diagram *calls* are
 /// stamped on their nodes instead when their files resolve (see
-/// [ViDiagramView.subViIconStream]).
+/// [ViDiagramView.subViIconResolver]).
 class _ViImageStrip extends StatelessWidget {
   const _ViImageStrip(this.images);
   final ViImages images;
