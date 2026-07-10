@@ -1,8 +1,15 @@
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
+import 'package:labwright_vi_inspector/src/bd_oracle.dart';
 import 'package:labwright_vi_inspector/src/vi_demo.dart';
 import 'package:labwright_vi_inspector/src/vi_screen.dart';
+
+import 'util.dart';
 
 Future<void> _pump(WidgetTester tester, Widget home) async {
   tester.view.physicalSize = const Size(1000, 2000);
@@ -24,7 +31,10 @@ void main() {
     tester,
   ) async {
     await _pump(tester, const ViInspectorScreen());
-    expect(find.textContaining('Drag a .vi here'), findsOneWidget);
+    expect(
+      find.textContaining('Drag a .vi or a VI-snippet .png'),
+      findsOneWidget,
+    );
 
     await tester.tap(find.byKey(const Key('demo')));
     await tester.pump();
@@ -145,5 +155,51 @@ void main() {
     await tester.pump();
     // Opening the embedded sub-VI loads it (its own name shows in the header).
     expect(find.text('NestedDemo.vi'), findsWidgets);
+  });
+
+  testWidgets('dropping a VI-snippet PNG loads its embedded VI + Oracle tab', (
+    tester,
+  ) async {
+    await _pump(tester, const ViInspectorScreen());
+    // A synthetic snippet: a real PNG with the demo VI spliced in as niVI.
+    // Sync IO only: a real dart:io future awaited outside runAsync never
+    // completes under the widget test's fake event loop.
+    final dir = Directory.systemTemp.createTempSync('snippet_test');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final snippetPath = '${dir.path}/demo_snippet.png';
+    final plainPath = '${dir.path}/plain.png';
+    await tester.runAsync(() async {
+      final rgba = Uint8List(60 * 60 * 4)..fillRange(0, 60 * 60 * 4, 0xff);
+      final png = await imageToPng(await imageFromRgba(rgba, 60, 60));
+      File(snippetPath).writeAsBytesSync(spliceNiVi(png, demoViBytes()));
+      File(plainPath).writeAsBytesSync(png);
+    });
+
+    void drop(String path) =>
+        tester.widget<DropTarget>(find.byType(DropTarget)).onDragDone!(
+          DropDoneDetails(
+            files: [DropItemFile(path)],
+            localPosition: Offset.zero,
+            globalPosition: Offset.zero,
+          ),
+        );
+
+    drop(snippetPath);
+    await tester.pump();
+    // The embedded demo VI loads; the snippet reference adds the Oracle tab.
+    expect(find.text('demo.vi'), findsWidgets);
+    expect(find.text('Oracle'), findsOneWidget);
+    expect(
+      tester
+          .widget<IconButton>(find.byKey(const Key('copy-path')))
+          .tooltip!
+          .contains('snippet:'),
+      isTrue,
+    );
+
+    // A PNG without an embedded VI is a clean error, not a crash.
+    drop(plainPath);
+    await tester.pump();
+    expect(find.textContaining('no embedded VI'), findsOneWidget);
   });
 }

@@ -17,6 +17,23 @@ Future<void> pumpBody(
   await tester.pump();
 }
 
+/// Splices a `niVI` chunk carrying [vi] into the PNG [png] (before `IEND`),
+/// CRC framed — a synthetic VI-snippet built without LabVIEW.
+Uint8List spliceNiVi(Uint8List png, Uint8List vi) {
+  final chunk = Uint8List(12 + vi.length);
+  final d = ByteData.sublistView(chunk);
+  d.setUint32(0, vi.length);
+  chunk.setAll(4, 'niVI'.codeUnits);
+  chunk.setAll(8, vi);
+  d.setUint32(8 + vi.length, crc32(chunk, 4, 8 + vi.length));
+  final iend = png.length - 12; // [len=0][IEND][crc]
+  return Uint8List.fromList([
+    ...png.sublist(0, iend),
+    ...chunk,
+    ...png.sublist(iend),
+  ]);
+}
+
 // Heap record builders (mirror the videcode bracket model).
 List<int> open(int kind, int oid, {int tag = 0x19}) => [
   0x10,
