@@ -831,38 +831,57 @@ List<ViHeapObject> bdDrawableObjects(ViDiagram diagram) {
 /// the constant's own box** — undrawable either way: LabVIEW clips a
 /// constant's data view strictly to its box, so a part outside it is a
 /// scrolled-out element or one whose coordinate frame the composition does
-/// not yet decode (observed on cluster-in-cluster constants, where such parts
-/// land near the diagram origin and wreck the content extent). The constant's
-/// box is the first bounded object below the `0x13` const-DCO record on
-/// [object]'s parent chain. Free-text labels are exempt — a constant's name
-/// label legitimately hangs outside the box.
+/// not yet decode (observed on cluster-in-cluster constants, whose whole
+/// inner subtree re-bases near the diagram origin and wrecks the content
+/// extent). The constant's box is the outermost bounded shell below the
+/// `0x13` const-DCO record on [object]'s parent chain; the test is
+/// **subtree-wide** — a part is undrawable when it, or ANY ancestor between
+/// it and that shell, lies entirely outside the box (a part "inside" an
+/// escaped ancestor is junk at a junk location). A free-text label is exempt
+/// only when no ancestor escaped — a constant's own name label legitimately
+/// hangs outside the box.
 bool _escapesConstantBox(ViHeapObject object, Map<int, ViHeapObject> byId) {
-  if (kBdTextLabelCodes.contains(object.kind)) return false;
-  final bounds = object.absBounds;
-  if (bounds == null) return false;
-  // Walk up: remember the last bounded ancestor seen below each parent; when a
-  // 0x13 const-DCO is reached, that ancestor is the constant's box.
-  HeapRect? anchor;
+  // Parent chain from [object] up to (exclusive) the 0x13 const-DCO record.
+  final chain = <ViHeapObject>[];
   var cur = object;
   var depth = 0;
+  var underConst = false;
   while (cur.parentOid != null && depth++ < 64) {
     final parent = byId[cur.parentOid];
-    if (parent == null) return false;
+    if (parent == null) break;
     if (parent.kind == 0x13) {
-      if (anchor == null) return false;
-      return bounds.right <= anchor.left ||
-          bounds.left >= anchor.right ||
-          bounds.bottom <= anchor.top ||
-          bounds.top >= anchor.bottom;
+      underConst = true;
+      break;
     }
-    if (parent.absBounds != null &&
-        parent.absBounds!.width > 0 &&
-        parent.absBounds!.height > 0) {
-      anchor = parent.absBounds;
-    }
+    chain.add(parent);
     cur = parent;
   }
-  return false;
+  if (!underConst) return false;
+  // Anchor: the outermost bounded shell just below the const record.
+  HeapRect? anchor;
+  for (final shell in chain.reversed) {
+    final b = shell.absBounds;
+    if (b != null && b.width > 0 && b.height > 0) {
+      anchor = b;
+      break;
+    }
+  }
+  final box = anchor;
+  if (box == null) return false;
+  bool outside(HeapRect b) =>
+      b.right <= box.left ||
+      b.left >= box.right ||
+      b.bottom <= box.top ||
+      b.top >= box.bottom;
+  for (final ancestor in chain) {
+    final b = ancestor.absBounds;
+    if (b == null || b.width <= 0 || b.height <= 0) continue;
+    if (identical(b, box)) continue;
+    if (outside(b)) return true;
+  }
+  if (kBdTextLabelCodes.contains(object.kind)) return false;
+  final b = object.absBounds;
+  return b != null && b.width > 0 && b.height > 0 && outside(b);
 }
 
 /// The `.vi`/`.vim` filenames [diagram]'s subVI-call nodes target — the wanted
