@@ -940,11 +940,13 @@ class ViWire {
 /// Corpus validation (7,524 VIs): on all 49,404 two-endpoint container
 /// signals with bounded anchors, the decoded displacement lands the implied
 /// final segment on the destination anchor (interval test, 8 px slack) for
-/// **99.66%** with the horizontal-first reading (H-only fits 38,559 vs
-/// V-only 38, both 10,640); interior-joint sign bytes are `0`/`1` at
-/// 105,632/105,633 records. Ground truth pinned pixel-exact on the
-/// `basic.png` snippet (bend at x=102, input row y=21 measured in LabVIEW's
-/// own render).
+/// **99.59%** under the horizontal-first reading (H-only fits 38,559,
+/// either-orientation 10,640, V-only 38, no fit 166 — 99.66% counting the
+/// V-only contradictions); interior-joint sign bytes are `0`/`1` at
+/// 105,632 of 105,633 records (a single 2-endpoint exception). Ground
+/// truth: consistent within 1 px of LabVIEW's own render of the
+/// `basic.png` snippet (bend column measured at x=102-103 vs the decoded
+/// 102; input row y=21).
 class ViWireRoute {
   ViWireRoute({required this.pointCount, required this.segmentLengths, required this.jointSigns});
 
@@ -967,10 +969,13 @@ class ViWireRoute {
 /// `[u8 pointCount] [0x08 | 0x00 0x08] [(pointCount-2) sign bytes]
 /// [length values]` where a length ≥ 255 is stored as `FF` + u16be. The
 /// short header carries `pointCount-2` lengths (trailing segment implied);
-/// the extended `00 08` header carries `pointCount-1`. Returns null for a
-/// malformed table or one using the undecoded branching junction codes
-/// (sign bytes outside `0`/`1` — observed only on signals with 3+
-/// endpoints).
+/// the extended `00 08` header carries `pointCount-1` — a length-accounting
+/// observation only: the extended form never occurs on two-endpoint signals,
+/// so its geometry is not yet validated (TODO: validate once the branching
+/// junction codes are decoded). Returns null for a malformed table or one
+/// using the undecoded branching junction codes (sign bytes outside
+/// `0`/`1` — observed almost exclusively on signals with 3+ endpoints; one
+/// two-endpoint exception in the corpus).
 ViWireRoute? decodeWireRoute(Uint8List table) {
   if (table.length < 2 || table[0] < 2) return null;
   final n = table[0];
@@ -1000,7 +1005,10 @@ ViWireRoute? decodeWireRoute(Uint8List table) {
     }
     lengths.add(v);
   }
-  if (lengths.length != n - 2 && lengths.length != n - 1) return null;
+  // The header determines the count: the short form stores pointCount-2
+  // lengths, the extended form pointCount-1 — a mismatch is a malformed
+  // table, not the other family.
+  if (lengths.length != (dataStart == 2 ? n - 2 : n - 1)) return null;
   return ViWireRoute(pointCount: n, segmentLengths: lengths, jointSigns: signs);
 }
 
@@ -1162,7 +1170,12 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
         if (attr.attribute == HeapAttribute.primResID && cur.kind == 0x2f && attr.width == HeapAttrWidth.u16) {
           cur.primResId ??= attr.asInt;
         }
-        if (attr.rawTag == 0x1e7 && cur.kind == 0x17 && attr.width == HeapAttrWidth.container) {
+        // First-wins is safe: no signal in the corpus carries more than one
+        // container-width table (155,158 container-bearing signals, 0 with a
+        // second record).
+        if (attr.attribute == HeapAttribute.compressedWireTable &&
+            cur.kind == 0x17 &&
+            attr.width == HeapAttrWidth.container) {
           cur.wireTableRaw ??= attr.rawValueBytes;
         }
         // The transparent sentinel (flag 0x01, RGB 0) is "no colour", not

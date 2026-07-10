@@ -57,6 +57,9 @@ List<int> help(String s) => [0xc4, 0x19, s.length, ...s.codeUnits];
 /// Two-byte-BE numeric attribute record `44 <id> <u16 value>`.
 List<int> attrU16(int id, int v) => [0x44, id, v >> 8, v & 0xff];
 
+/// Length-prefixed container attribute record `C5 <id> <u8 len> <payload>`.
+List<int> c5(int id, List<int> payload) => [0xc5, id, payload.length, ...payload];
+
 ViDiagram dia(List<int> records) => buildDiagram(u8([0, 0, 0, records.length, ...records]));
 
 void main() {
@@ -114,15 +117,7 @@ void main() {
       ...open(0x17, 9),
       ...hx('14 19 01 fd 0002'),
       ...hx('14 19 01 fd 0003'),
-      0xc5,
-      0xe7,
-      0x06,
-      0x04,
-      0x08,
-      0x00,
-      0x00,
-      28,
-      12,
+      ...c5(0xe7, [0x04, 0x08, 0x00, 0x00, 28, 12]),
       ...close(),
     ]);
     final route = d.wires.single.route!;

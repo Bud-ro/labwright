@@ -1,9 +1,11 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/widgets.dart' show Offset, Rect;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:labwright_vi_inspector/src/bd_oracle.dart';
+import 'package:labwright_vi_inspector/src/diagram_view.dart';
 import 'package:labwright_vi_inspector/src/vi_demo.dart';
 
 import 'util.dart';
@@ -33,6 +35,35 @@ List<File> snippetCorpusPngs() {
 }
 
 void main() {
+  test('basic.png stored routes replay to the reference-measured joints', () {
+    final png = snippetCorpusPngs()
+        .where((f) => f.path.endsWith('/basic.png'))
+        .toList();
+    if (png.isEmpty) {
+      markTestSkipped('snippet corpus not fetched');
+      return;
+    }
+    final model = buildViModel(extractSnippetVi(png.single.readAsBytesSync())!);
+    final bd = bestBlockDiagram(model)!;
+    // The Add node's two input wires: bends measured in LabVIEW's own render
+    // at x=102, rows y=21 (x input, jog down) and y=31 (y input, jog up).
+    final joints = <Offset>[];
+    for (final wire in bd.wires) {
+      final route = wire.route;
+      if (route == null) continue;
+      final a0 = wire.endpointAnchors[0]!, a1 = wire.endpointAnchors[1]!;
+      Rect rect(HeapRect r) => Rect.fromLTRB(
+        r.left.toDouble(),
+        r.top.toDouble(),
+        r.right.toDouble(),
+        r.bottom.toDouble(),
+      );
+      final points = bdStoredWireRoute(rect(a0), rect(a1), route)!;
+      joints.add(points[points.length - 2]);
+    }
+    expect(joints, unorderedEquals(const [Offset(102, 21), Offset(102, 31)]));
+  });
+
   test('excessSupport rescales support against the chance rate', () {
     const cmp = PlacementComparison(
       perObject: [(oid: 1, support: 0.6), (oid: 2, support: 0.2)],
