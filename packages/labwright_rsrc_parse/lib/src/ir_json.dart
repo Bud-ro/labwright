@@ -38,6 +38,8 @@ Map<String, Object?> _objectToJson(ViHeapObject object) {
     },
     'objectKind': object.category.name,
     'typeKind': object.typeKind.name,
+    if (object.dataType != null) 'dataType': object.dataType!.name,
+    if (object.typeName != null) 'typeName': object.typeName,
     if (object.parentOid != null) 'parentOid': object.parentOid,
     if (object.label != null) 'label': object.label,
     if (object.bounds != null) 'bounds': _rectToJson(object.bounds!),

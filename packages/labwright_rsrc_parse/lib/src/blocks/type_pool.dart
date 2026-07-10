@@ -310,7 +310,10 @@ List<ViType> decodeTypePool(Uint8List body) {
 /// `typeDescIndex` records index into; the heap's indices carry a per-VI
 /// base, see the graph builder). Returns `const []` when the body ends at
 /// the descriptors, the count word is truncated, or any entry is out of
-/// pool range.
+/// pool range. Unlike [decodeTypePool] (which keeps the descriptors decoded
+/// before a malformed one), a partially-decodable pool yields NO table: the
+/// table sits after the last descriptor, so its offset is only known when
+/// every descriptor framed.
 List<int> decodeTypeTable(Uint8List body) {
   if (body.length < 8) return const [];
   final count = (body[0] << 24) | (body[1] << 16) | (body[2] << 8) | body[3];

@@ -1530,12 +1530,27 @@ class BdDiagramPainter extends CustomPainter {
             );
           }
           // The resolved data type's short label (DBL / I32 / TF / abc),
-          // as LabVIEW stamps on the terminal.
+          // as LabVIEW stamps on the terminal — sized to sit inside the
+          // double border even on a 16 px terminal.
           final glyph = object.dataType == null
               ? null
               : dataTypeGlyph(object.dataType!);
-          if (glyph != null && rect.width >= 22 && rect.height >= 12) {
-            _drawGlyphText(canvas, rect, glyph, border);
+          if (glyph != null &&
+              rect.width >= 6.0 * glyph.length + 10 &&
+              rect.height >= 13) {
+            final tp = TextPainter(
+              text: TextSpan(
+                text: glyph,
+                style: TextStyle(
+                  color: border,
+                  fontSize: 8.5,
+                  fontWeight: FontWeight.w700,
+                  fontFamily: 'Roboto',
+                ),
+              ),
+              textDirection: TextDirection.ltr,
+            )..layout();
+            tp.paint(canvas, rect.center - Offset(tp.width / 2, tp.height / 2));
           }
         case ViObjectKind.node:
           // LabVIEW node icon plate: subVI calls get a light-grey connector-pane
