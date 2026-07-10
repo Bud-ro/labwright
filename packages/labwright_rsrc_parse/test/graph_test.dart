@@ -54,10 +54,51 @@ List<int> c6blob(int id, String s) => [
 /// Description/help record `C4 19 <len> <text>` ([HeapRecord.descriptionText]).
 List<int> help(String s) => [0xc4, 0x19, s.length, ...s.codeUnits];
 
+/// Two-byte-BE numeric attribute record `44 <id> <u16 value>`.
+List<int> attrU16(int id, int v) => [0x44, id, v >> 8, v & 0xff];
+
 ViDiagram dia(List<int> records) => buildDiagram(u8([0, 0, 0, records.length, ...records]));
 
 void main() {
   group('resolveDataSpaceTypes', resolveTypesTests);
+  test('primResId: captured off the 0xEA attribute and named through PrimOp', () {
+    final d = dia([
+      ...open(0x2f, 1),
+      ...bounds(10, 10, 36, 42),
+      ...attrU16(0xea, 1051),
+      ...close(),
+      ...open(0x2f, 2),
+      ...attrU16(0xea, 9999),
+      ...close(),
+    ]);
+    expect((d.byId[1]!.primResId, d.byId[1]!.primName), (1051, 'Subtract'));
+    expect((d.byId[2]!.primResId, d.byId[2]!.primName), (9999, null), reason: 'uncatalogued ids stay unnamed');
+  });
+
+  test('primResId capture is gated to class 0x2F and the u16 width', () {
+    final d = dia([
+      ...open(0x50, 1),
+      ...attrU16(0xea, 1051),
+      ...close(),
+      ...open(0x2f, 2),
+      0xe4, 0xea, // flag-width 0xEA form: must not lock in primResId=1
+      ...attrU16(0xea, 1051),
+      ...close(),
+    ]);
+    expect(d.byId[1]!.primResId, isNull, reason: 'off-class carriers are not primitive identities');
+    expect(d.byId[2]!.primResId, 1051, reason: 'the u16 record wins; the flag form is inert');
+  });
+
+  test('PrimOp catalog: unique ids, lookup round-trip', () {
+    final ids = PrimOp.values.map((op) => op.id).toSet();
+    expect(ids.length, PrimOp.values.length, reason: 'catalog ids are unique');
+    for (final op in PrimOp.values) {
+      expect(PrimOp.fromId(op.id), op);
+      expect(op.opName, isNotEmpty);
+    }
+    expect(PrimOp.fromId(9999), isNull);
+  });
+
   test('bracket tree: parent/child nesting, roots, children(), absolute coordinates', () {
     final d = dia([
       ...open(0x7e, 1),

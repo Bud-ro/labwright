@@ -28,6 +28,7 @@ Map<String, Object?> viDiagramToJson(ViDiagram d) => {
 
 Map<String, Object?> _objectToJson(ViHeapObject object) {
   final cls = object.objectClass;
+  final primName = object.primName;
   return {
     'oid': object.oid,
     'kindCode': object.kind,
@@ -40,6 +41,8 @@ Map<String, Object?> _objectToJson(ViHeapObject object) {
     'typeKind': object.typeKind.name,
     if (object.dataType != null) 'dataType': object.dataType!.name,
     if (object.typeName != null) 'typeName': object.typeName,
+    if (object.primResId != null) 'primResId': object.primResId,
+    if (primName != null) 'primName': primName,
     if (object.parentOid != null) 'parentOid': object.parentOid,
     if (object.label != null) 'label': object.label,
     if (object.bounds != null) 'bounds': _rectToJson(object.bounds!),

@@ -15,7 +15,8 @@ void main() {
       ..termCount = 2
       ..controlMin = 0.0
       ..controlMax = 10.0
-      ..helpText = 'help';
+      ..helpText = 'help'
+      ..primResId = 1051;
     node.typedRefs[HeapRefKind.childRef] = [1];
 
     final model = ViModel(
@@ -60,6 +61,8 @@ void main() {
         'controlMin',
         'controlMax',
         'helpText',
+        'primResId',
+        'primName',
       },
       reason: 'node key set changed (IR shape) — update this golden expectation',
     );
