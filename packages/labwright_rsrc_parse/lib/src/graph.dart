@@ -251,6 +251,25 @@ class ViHeapObject {
   /// [decodeWireRoute].
   Uint8List? wireTableRaw;
 
+  /// Whether this **label part** (class `0xa`) is hidden in LabVIEW's
+  /// block-diagram render: bit `0x08` of its [objFlags] (absent objFlags
+  /// reads as shown). Render-verified against the snippet oracles' embedded
+  /// BD renders; the minimal pair is GetCurrentDirectory's shown
+  /// `kernel32.dll:…` label (flags `0x171142`) vs its hidden labels
+  /// (`0x17114A` ×7, differing in bit `0x08` alone within one VI; the hidden
+  /// subVI label's `0x26154B` shares only that bit across otherwise
+  /// different flags). The hidden direction has eight direct samples; the
+  /// shown direction rests on that one texted bit-clear sample plus five
+  /// untexted bit-clear labels drawn via the type-name fill. The corpus
+  /// split — 94,690 of 115,337 texted BD label parts set the bit vs 9,956
+  /// of 101,790 on front panels — is consistent with terminal/constant
+  /// labels defaulting hidden and panel labels shown, but is not itself
+  /// render-verified, and no front-panel render oracle exists, so the FP
+  /// reading is consistency-only. False for every other class: 0 of 17,018
+  /// case-selector (`0x95`) labels set the bit, and the bit's meaning off
+  /// label parts is not decoded.
+  bool get isLabelHidden => kind == HeapObjectClass.controlLabel.code && ((objFlags ?? 0) & 0x08) != 0;
+
   /// Whether this data item is an **indicator** (an output) rather than a
   /// control: bit 0 of the owning DCO's [objFlags] (corpus-validated on
   /// named panels — "CRC-8"/"Sum"/"Elements"/"concatenated string" set it,

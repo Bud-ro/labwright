@@ -1557,7 +1557,10 @@ class BdDiagramPainter extends CustomPainter {
           _drawCaseSelector(canvas, rect);
           continue;
         }
-        final backing = bdDecodedColor(object.bgRgb);
+        // A hidden label paints nothing — neither backing nor (below) text.
+        final backing = object.isLabelHidden
+            ? null
+            : bdDecodedColor(object.bgRgb);
         if (backing != null) {
           canvas.drawRect(rect, Paint()..color = backing);
           canvas.drawRect(
@@ -1714,6 +1717,11 @@ class BdDiagramPainter extends CustomPainter {
       // plausible non-origin box, so the text lands where LabVIEW put it.
       // Degenerate boxes (origin-pinned or sub-glyph-sized) are skipped.
       if (kBdTextLabelCodes.contains(object.kind)) {
+        // LabVIEW hides a label whose part sets objFlags bit 0x08 (see
+        // [ViHeapObject.isLabelHidden]; false for 0x95 by its class gate —
+        // the case selector's value text is structure furniture and never
+        // hides). Drawing hidden text would add ink the reference lacks.
+        if (object.isLabelHidden) continue;
         var text = object.label?.trim();
         if (text == null || text.isEmpty) {
           // An owned label with no recovered caption shows its owner's
@@ -2197,6 +2205,7 @@ class _DetailsCard extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     '${cls.label}$conf · class 0x${object.kind.toRadixString(16)} · oid ${object.oid}'
+                    '${object.isLabelHidden ? ' · hidden' : ''}'
                     '${object.typeKind != ViTypeKind.unknown ? ' · type ${object.typeKind.name}' : ''}'
                     '${bounds != null ? ' · ${bounds.width}×${bounds.height} @(${bounds.left},${bounds.top})' : ''}'
                     '${object.parentOid != null ? ' · parent ${object.parentOid}' : ''}',

@@ -60,6 +60,9 @@ List<int> attrU16(int id, int v) => [0x44, id, v >> 8, v & 0xff];
 /// Length-prefixed container attribute record `C5 <id> <u8 len> <payload>`.
 List<int> c5(int id, List<int> payload) => [0xc5, id, payload.length, ...payload];
 
+/// Three-byte-BE numeric attribute record `64 <id> <u24 value>`.
+List<int> attrU24(int id, int v) => [0x64, id, (v >> 16) & 0xff, (v >> 8) & 0xff, v & 0xff];
+
 ViDiagram dia(List<int> records) => buildDiagram(u8([0, 0, 0, records.length, ...records]));
 
 void main() {
@@ -124,6 +127,29 @@ void main() {
     expect(route.pointCount, 4);
     expect(route.segmentLengths, [28, 12]);
     expect(route.jointSigns, [1, 1]);
+  });
+
+  test('isLabelHidden: objFlags bit 0x08 on label parts only', () {
+    final d = dia([
+      ...open(0xa, 1),
+      ...caption('hidden'),
+      ...attrU24(0xcb, 0x17114a), // objFlags with the hidden bit 0x08 set
+      ...close(),
+      ...open(0xa, 2),
+      ...caption('shown'),
+      ...attrU24(0xcb, 0x171142),
+      ...close(),
+      ...open(0x95, 3),
+      ...attrU24(0xcb, 0x17114a),
+      ...close(),
+    ]);
+    expect(d.byId[1]!.isLabelHidden, isTrue);
+    expect(d.byId[2]!.isLabelHidden, isFalse);
+    expect(
+      d.byId[3]!.isLabelHidden,
+      isFalse,
+      reason: 'the getter is scoped to label parts; the bit is undecoded elsewhere',
+    );
   });
 
   test('PrimOp catalog: unique ids, lookup round-trip', () {
