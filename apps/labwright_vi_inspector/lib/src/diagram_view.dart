@@ -550,19 +550,40 @@ Color? bdFillColor(ViHeapObject object) =>
     bdDecodedColor(object.contentRgb) ?? bdDecodedColor(object.bgRgb);
 
 /// A synthesized Manhattan (right-angle) route between two endpoint-anchor
-/// rectangles, as an ordered polyline in the anchors' own coordinate space: it
-/// leaves [source] on the horizontal side facing [sink], turns at the mid-x
-/// column, then enters [sink] on its facing side (an H–V–H elbow). LabVIEW does
-/// not persist wire path geometry, so this route is generated from the decoded
-/// endpoints, not recovered. Pure + public so the routing is unit-testable
-/// independent of the canvas.
+/// rectangles, as an ordered polyline in the anchors' own coordinate space.
+/// LabVIEW does not persist recoverable wire path geometry, so this route is
+/// generated from the decoded endpoints, not recovered.
+///
+/// When one endpoint's horizontal centre-line crosses the other's vertical
+/// span, the run is a single **straight horizontal** at that centre-line,
+/// entering the partner's facing edge at that y — the common LabVIEW shape of
+/// a terminal wired level into a structure border or an aligned partner
+/// (routing to the partner's own midpoint instead dove a level wire to the
+/// centre of a tall loop frame). When both centre-lines cross (nested or
+/// overlapping spans), the smaller endpoint — the terminal-like one whose
+/// centre a LabVIEW wire actually leaves from — sets the y. Otherwise the
+/// route leaves [source] on the side facing [sink], turns at the mid-x column,
+/// and enters [sink] on its facing side (an H–V–H elbow). Pure + public so
+/// the routing is unit-testable independent of the canvas.
 List<Offset> bdWireRoute(Rect source, Rect sink) {
   final sinkRight = sink.center.dx >= source.center.dx;
-  final start = Offset(
-    sinkRight ? source.right : source.left,
-    source.center.dy,
-  );
-  final end = Offset(sinkRight ? sink.left : sink.right, sink.center.dy);
+  final startX = sinkRight ? source.right : source.left;
+  final endX = sinkRight ? sink.left : sink.right;
+  final sourceLevel =
+      source.center.dy > sink.top && source.center.dy < sink.bottom;
+  final sinkLevel =
+      sink.center.dy > source.top && sink.center.dy < source.bottom;
+  if (sourceLevel || sinkLevel) {
+    final double y;
+    if (sourceLevel && sinkLevel) {
+      y = (source.height <= sink.height ? source : sink).center.dy;
+    } else {
+      y = sourceLevel ? source.center.dy : sink.center.dy;
+    }
+    return [Offset(startX, y), Offset(endX, y)];
+  }
+  final start = Offset(startX, source.center.dy);
+  final end = Offset(endX, sink.center.dy);
   final midX = (start.dx + end.dx) / 2;
   return [start, Offset(midX, start.dy), Offset(midX, end.dy), end];
 }

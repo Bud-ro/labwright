@@ -381,19 +381,33 @@ void main() {
       return ViDiagram(sectionTag: 'BDHb', objects: objects);
     }
 
-    test('bdWireRoute is an axis-aligned H–V–H run between facing edges', () {
-      final route = bdWireRoute(
+    test('bdWireRoute: aligned endpoints run straight, offset ones elbow', () {
+      // Level partners: one straight horizontal segment between facing edges.
+      final straight = bdWireRoute(
         const Rect.fromLTWH(0, 0, 20, 20),
         const Rect.fromLTWH(100, 0, 20, 20),
       );
-      expect(route.length, 4);
-      // Leaves the source's right edge at its vertical centre, enters the sink's
-      // left edge at its centre (sink is to the right).
-      expect(route.first, const Offset(20, 10));
-      expect(route.last, const Offset(100, 10));
-      // Every segment is horizontal or vertical (a right-angle route).
-      for (var i = 1; i < route.length; i++) {
-        final p = route[i - 1], q = route[i];
+      expect(straight, const [Offset(20, 10), Offset(100, 10)]);
+
+      // A terminal level with a tall structure border: straight at the
+      // TERMINAL's y, entering the frame's edge there (never the frame's own
+      // vertical midpoint).
+      final intoFrame = bdWireRoute(
+        const Rect.fromLTWH(0, 40, 20, 20), // terminal at y-centre 50
+        const Rect.fromLTWH(100, 0, 200, 300), // loop frame, centre 150
+      );
+      expect(intoFrame, const [Offset(20, 50), Offset(100, 50)]);
+
+      // Vertically offset small partners: the H–V–H elbow at the mid-x column.
+      final elbow = bdWireRoute(
+        const Rect.fromLTWH(0, 0, 20, 20),
+        const Rect.fromLTWH(100, 60, 20, 20),
+      );
+      expect(elbow.length, 4);
+      expect(elbow.first, const Offset(20, 10));
+      expect(elbow.last, const Offset(100, 70));
+      for (var i = 1; i < elbow.length; i++) {
+        final p = elbow[i - 1], q = elbow[i];
         expect(p.dx == q.dx || p.dy == q.dy, isTrue);
       }
     });
