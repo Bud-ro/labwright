@@ -95,26 +95,42 @@ void main() {
   });
 
   group('corpus snippets', () {
-    final dir = Directory('${corpusViDir.path}/rcpacini_LabVIEW-VI-Snippet');
+    // Both pinned oracle repos: (corpus dir, is-a-snippet predicate by path,
+    // expected snippet count). Non-matching PNGs are the repos' plain art /
+    // screenshots and must extract to nothing.
+    final repos = <(String, bool Function(String), int)>[
+      (
+        'rcpacini_LabVIEW-VI-Snippet',
+        (p) => p.contains('Examples/Snippets'),
+        12,
+      ),
+      (
+        'rcpacini_VI-Snippets',
+        (p) => !p.endsWith('VI_Anatomy.png') && !p.endsWith('isometric.png'),
+        34,
+      ),
+    ];
 
     test('every snippet PNG extracts to a parseable VI with a positioned BD', () {
-      if (!dir.existsSync()) return;
-      final pngs = dir.listSync(recursive: true).whereType<File>().where((f) => f.path.endsWith('.png')).toList();
-      bool inSnippets(File f) => f.path.replaceAll(r'\', '/').contains('Examples/Snippets');
-      final snippets = pngs.where(inSnippets).toList();
-      expect(snippets, hasLength(12));
-      for (final f in snippets) {
-        final vi = extractSnippetVi(f.readAsBytesSync());
-        expect(vi, isNotNull, reason: f.path);
-        final model = buildViModel(vi!);
-        final positioned = [
-          for (final d in model.blockDiagrams) d.objects.where((o) => o.absBounds != null).length,
-        ];
-        expect(positioned.any((n) => n > 0), isTrue, reason: f.path);
-      }
-      // The repo's plain screenshots carry no niVI — extraction must say so.
-      for (final f in pngs.where((f) => !inSnippets(f))) {
-        expect(extractSnippetVi(f.readAsBytesSync()), isNull, reason: f.path);
+      for (final (repoDir, isSnippet, count) in repos) {
+        final dir = Directory('${corpusViDir.path}/$repoDir');
+        if (!dir.existsSync()) continue;
+        final pngs = dir.listSync(recursive: true).whereType<File>().where((f) => f.path.endsWith('.png')).toList();
+        bool inSnippets(File f) => isSnippet(f.path.replaceAll(r'\', '/'));
+        final snippets = pngs.where(inSnippets).toList();
+        expect(snippets, hasLength(count), reason: repoDir);
+        for (final f in snippets) {
+          final vi = extractSnippetVi(f.readAsBytesSync());
+          expect(vi, isNotNull, reason: f.path);
+          final model = buildViModel(vi!);
+          final positioned = [
+            for (final d in model.blockDiagrams) d.objects.where((o) => o.absBounds != null).length,
+          ];
+          expect(positioned.any((n) => n > 0), isTrue, reason: f.path);
+        }
+        for (final f in pngs.where((f) => !inSnippets(f))) {
+          expect(extractSnippetVi(f.readAsBytesSync()), isNull, reason: f.path);
+        }
       }
     });
   });

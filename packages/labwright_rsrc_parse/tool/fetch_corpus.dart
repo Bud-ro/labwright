@@ -80,7 +80,7 @@ Future<void> main(List<String> args) async {
   ).listSync(recursive: true).whereType<File>().where((f) => f.path.toLowerCase().endsWith('.vi')).length;
   stdout.writeln(
     'done: fetched=$fetched skipped=$skipped failed=$failed '
-    '(this run +$viTotal .vi); corpus now holds $grandTotal .vi at $dest',
+    '(this run +$viTotal files); corpus now holds $grandTotal .vi at $dest',
   );
   if (failed > 0) exitCode = 1;
 }
