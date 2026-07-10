@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
+import 'bd_oracle.dart';
 import 'coverage_view.dart';
 import 'diagram_view.dart';
 import 'hex_view.dart';
@@ -92,6 +93,11 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
   WriterAttribution? _attribution;
   ViImages _images = const ViImages();
 
+  /// The VI-snippet PNG the loaded VI was extracted from, or null. Doubles as
+  /// the Oracle tab's reference image: the snippet's visible raster is
+  /// LabVIEW's own render of this very VI's block diagram.
+  Uint8List? _snippetPng;
+
   /// The representative VI currently being fetched from GitHub, or null. Drives
   /// the Examples menu's busy state.
   String? _fetchingRep;
@@ -128,11 +134,33 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
 
   /// Parse + decode a VI from its bytes, then show it. Decoding is total, so the
   /// UI never crashes on a file from the wild.
+  ///
+  /// A VI-snippet PNG is accepted directly: the embedded `.vi` (its `niVI`
+  /// chunk) is what loads, and the PNG itself is kept as the Oracle tab's
+  /// reference render. A PNG without an embedded VI is a clean error.
   void _loadBytes(
     Uint8List bytes,
     String source, {
     Future<Map<String, ViLegacyIcon>> Function(Set<String>)? subViIconResolver,
   }) {
+    Uint8List? snippetPng;
+    if (isPngBytes(bytes)) {
+      final embedded = extractSnippetVi(bytes);
+      if (embedded == null) {
+        setState(() {
+          _summary = null;
+          _error =
+              'This PNG carries no embedded VI (no niVI chunk) — only '
+              'VI-snippet PNGs can be opened.';
+          _source = source;
+          _snippetPng = null;
+        });
+        return;
+      }
+      snippetPng = bytes;
+      bytes = embedded;
+      source = 'snippet: $source';
+    }
     final load = summarize(bytes);
     ViVersionInfo? version;
     var strings = const <String>[];
@@ -186,6 +214,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
       _embeddedVis = embeddedVis;
       _attribution = attribution;
       _images = images;
+      _snippetPng = snippetPng;
       _subViIconResolver = subViIconResolver;
     });
   }
@@ -284,9 +313,9 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
   /// Opens the OS file-open dialog and inspects the chosen file.
   Future<void> _browse() async {
     final result = await FilePicker.pickFiles(
-      dialogTitle: 'Open a LabVIEW VI',
+      dialogTitle: 'Open a LabVIEW VI (or a VI-snippet PNG)',
       type: FileType.custom,
-      allowedExtensions: const ['vi', 'ctl', 'llb'],
+      allowedExtensions: const ['vi', 'ctl', 'llb', 'png'],
     );
     if (!mounted) return;
     final files = result?.files ?? const [];
@@ -454,19 +483,24 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                       : _summary == null
                       ? _Empty(dragging: _dragging)
                       : DefaultTabController(
-                          length: 6,
+                          length: _snippetPng == null ? 6 : 7,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              const TabBar(
+                              TabBar(
                                 isScrollable: true,
                                 tabs: [
-                                  Tab(text: 'Inspect'),
-                                  Tab(text: 'Front Panel'),
-                                  Tab(text: 'Block Diagram'),
-                                  Tab(text: 'Types'),
-                                  Tab(text: 'Images'),
-                                  Tab(text: 'Coverage'),
+                                  const Tab(text: 'Inspect'),
+                                  const Tab(text: 'Front Panel'),
+                                  const Tab(text: 'Block Diagram'),
+                                  const Tab(text: 'Types'),
+                                  const Tab(text: 'Images'),
+                                  const Tab(text: 'Coverage'),
+                                  // A snippet load carries LabVIEW's own render
+                                  // of this VI — the reference the oracle
+                                  // compares the clean-room render against.
+                                  if (_snippetPng != null)
+                                    const Tab(text: 'Oracle'),
                                 ],
                               ),
                               const SizedBox(height: 8),
@@ -538,6 +572,14 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                                       ),
                                       attribution: _attribution,
                                     ),
+                                    if (_snippetPng != null)
+                                      BdOracleView(
+                                        key: ValueKey('oracle:$_model'),
+                                        diagram: _model == null
+                                            ? null
+                                            : bestBlockDiagram(_model!),
+                                        referenceBytes: _snippetPng,
+                                      ),
                                   ],
                                 ),
                               ),
@@ -572,7 +614,8 @@ class _Empty extends StatelessWidget {
         Text(
           dragging
               ? 'Drop the .vi to inspect it'
-              : 'Drag a .vi here, or use Browse… / Load demo VI / Examples',
+              : 'Drag a .vi or a VI-snippet .png here, or use '
+                    'Browse… / Load demo VI / Examples',
           style: const TextStyle(color: Colors.grey),
         ),
       ],

@@ -1,8 +1,24 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
+
+/// The repo-relative directory [relative] (e.g. the fetched corpus), found by
+/// walking up from the test working directory; null when absent (corpus-backed
+/// tests then skip). One walk shared by every corpus-backed test in the app.
+Directory? repoDir(String relative) {
+  var dir = Directory.current;
+  for (var i = 0; i < 8; i++) {
+    final candidate = Directory('${dir.path}/$relative');
+    if (candidate.existsSync()) return candidate;
+    final parent = dir.parent;
+    if (parent.path == dir.path) break;
+    dir = parent;
+  }
+  return null;
+}
 
 /// Pumps [body] inside MaterialApp/Scaffold at a fixed [view] size.
 Future<void> pumpBody(
@@ -15,6 +31,23 @@ Future<void> pumpBody(
   addTearDown(tester.view.reset);
   await tester.pumpWidget(MaterialApp(home: Scaffold(body: body)));
   await tester.pump();
+}
+
+/// Splices a `niVI` chunk carrying [vi] into the PNG [png] (before `IEND`),
+/// CRC framed — a synthetic VI-snippet built without LabVIEW.
+Uint8List spliceNiVi(Uint8List png, Uint8List vi) {
+  final chunk = Uint8List(12 + vi.length);
+  final d = ByteData.sublistView(chunk);
+  d.setUint32(0, vi.length);
+  chunk.setAll(4, 'niVI'.codeUnits);
+  chunk.setAll(8, vi);
+  d.setUint32(8 + vi.length, crc32(chunk, 4, 8 + vi.length));
+  final iend = png.length - 12; // [len=0][IEND][crc]
+  return Uint8List.fromList([
+    ...png.sublist(0, iend),
+    ...chunk,
+    ...png.sublist(iend),
+  ]);
 }
 
 // Heap record builders (mirror the videcode bracket model).

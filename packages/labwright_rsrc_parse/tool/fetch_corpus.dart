@@ -22,6 +22,9 @@ import 'dart:io';
 /// test/corpus_dirs.dart). Each
 /// repo extracts to `<destRoot>/<owner>_<name>/`; already-populated dirs are
 /// skipped, so re-running only fetches what's missing.
+/// Default extensions kept from each source tarball; a source entry can
+/// override with its own `keep` list (e.g. the VI-snippet PNGs, whose `.vi`
+/// payload is embedded in the PNG rather than stored as a file).
 const _keepExts = ['.vi'];
 
 Future<void> main(List<String> args) async {
@@ -60,7 +63,8 @@ Future<void> main(List<String> args) async {
       if (File(tar).existsSync()) File(tar).deleteSync();
       continue;
     }
-    final extracted = await _extractSelected(tar, out.path, _keepExts);
+    final keep = (s['keep'] as List?)?.cast<String>() ?? _keepExts;
+    final extracted = await _extractSelected(tar, out.path, keep);
     File(tar).deleteSync();
     if (extracted < 0) {
       failed++;
@@ -68,7 +72,7 @@ Future<void> main(List<String> args) async {
     }
     fetched++;
     viTotal += extracted;
-    stdout.writeln('  ok ($extracted .vi)');
+    stdout.writeln('  ok ($extracted files)');
   }
 
   final grandTotal = Directory(
