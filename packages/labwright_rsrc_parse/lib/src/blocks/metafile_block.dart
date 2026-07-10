@@ -6,9 +6,11 @@
 /// opcodes / EMF records) element-by-element, tiling the whole block to the last
 /// byte, and re-emits it byte-for-byte. The structural framing (opcode/record
 /// headers, length prefixes, the picture/metafile header) is reconstructed from
-/// typed fields (**model**); the variable payload interiors an element carries —
-/// a compressed QuickTime image, an EMF record's parameter block — are retained
-/// verbatim as opaque leaves (**copied**). A block is framed only when its
+/// typed fields (**model**); a variable payload interior an element carries that
+/// is not decoded — a compressed/non-`raw` QuickTime image, an EMF record's
+/// parameter block — is retained verbatim as an opaque leaf (**copied**). An
+/// uncompressed (`raw ` codec) QuickTime image is the exception: its raster is
+/// modeled (see below). A block is framed only when its
 /// element walk terminates exactly at the end-of-picture / end-of-metafile
 /// element sitting at the block's last byte; anything that does not tile cleanly
 /// (a version this walk does not model, an element whose length is not
@@ -21,8 +23,11 @@
 /// fixed per the opcode (Inside Macintosh: Imaging With QuickDraw, Appendix A) or
 /// self-describing via a leading length/size/count field; odd-size data is
 /// followed by a word-alignment pad byte. The stream ends at `OpEndPic` (0x00FF).
-/// The bulk of a picture's bytes is the opaque leaf of the `CompressedQuickTime`
-/// opcode (0x8200) — a QuickTime-compressed image, retained byte-faithfully.
+/// The bulk of a picture's bytes is the `CompressedQuickTime` opcode (0x8200)
+/// image. When its codec is `raw ` (uncompressed) the QuickTime framing,
+/// ImageDescription, and RGB/RGBA raster are modeled ([_quickTimeRawExtent],
+/// [decodePictQuickTimeRaster]); any other codec, or a matte/mask-bearing image,
+/// stays an opaque leaf retained byte-faithfully.
 ///
 /// **WEMF** (Windows Enhanced Metafile / EMF, little-endian). A pure sequence of
 /// records `[u32 iType][u32 nSize][params]` where `nSize` is the whole record's
@@ -74,9 +79,10 @@ class ViMetafileFrame {
   /// length prefixes, fixed operands, and the picture/metafile header.
   final int modelBytes;
 
-  /// Bytes retained verbatim as opaque leaves — the variable payload interiors
-  /// (a `CompressedQuickTime` image, an EMF record's parameter block, a region's
-  /// interior, a text/comment run) plus any word-alignment pad.
+  /// Bytes retained verbatim as opaque leaves — the undecoded variable payload
+  /// interiors (a non-`raw` `CompressedQuickTime` image, an EMF record's
+  /// parameter block, a region's interior, a text/comment run) plus any
+  /// word-alignment pad. A `raw`-codec QuickTime raster is modeled, not here.
   final int copiedBytes;
 
   /// The number of opcodes walked (`PICT`) or records walked (`WEMF`).
