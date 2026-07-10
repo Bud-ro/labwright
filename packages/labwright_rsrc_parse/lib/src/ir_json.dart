@@ -72,9 +72,10 @@ Map<String, Object?> _rectToJson(HeapRect r) => {
 ///
 /// Scope note carried from [ViModel]: dataflow **wire endpoint binding** is
 /// decoded — each signal (`0x17`) object emits its endpoint objects as
-/// `memberOids` (see [ViWire] / [ViDiagram.wires]) — but wire **datatype** and
-/// packed **route geometry** are not decoded, so the IR is a typed, nested
-/// object graph with wire endpoints rather than a fully typed dataflow graph.
+/// `memberOids` (see [ViWire] / [ViDiagram.wires]) — but wire **datatype** is
+/// not, so the IR is a typed, nested object graph with wire endpoints rather
+/// than a fully typed dataflow graph. Stored route geometry is decoded on the
+/// object model ([ViWire.route]) and not yet emitted here.
 /// Deterministic and `jsonEncode`-safe (no non-finite numbers, no cycles).
 /// The connector-pane terminals (kind + recovered name) resolved from the VI's
 /// VCTP type pool, or null when no in-range conpane index is present. A cluster's

@@ -245,6 +245,12 @@ class ViHeapObject {
   /// or null when the id is absent or uncatalogued (see [PrimOp]).
   String? get primName => primResId == null ? null : PrimOp.fromId(primResId!)?.opName;
 
+  /// A signal's raw packed wire-route table ([HeapAttribute
+  /// .compressedWireTable], raw `0x1e7`, container form) — or null for the
+  /// scalar trivial forms and non-signal objects. Decoded by
+  /// [decodeWireRoute].
+  Uint8List? wireTableRaw;
+
   /// Whether this data item is an **indicator** (an output) rather than a
   /// control: bit 0 of the owning DCO's [objFlags] (corpus-validated on
   /// named panels — "CRC-8"/"Sum"/"Elements"/"concatenated string" set it,
@@ -788,7 +794,8 @@ const kControlTerminalCodes = {0x50, 0x4f, 0x57, 0x5b, 0x51};
 // backgroundColor 0x028) catches termBMPs 0x128. 0xea is primResID (raws
 // 0x1EA/0x2EA are uncatalogued today and decode to [HeapAttribute.unknown],
 // which no capture below acts on — recheck this gate if one is catalogued).
-const _objAttrIds = {0x20, 0x21, 0x6c, 0x24, 0x28, 0x6f, 0x19, 0x2b, 0x2a, 0x29, 0x3a, 0xcb, 0xea};
+// 0xe7 is the compressedWireTable container (capture gated to signal 0x17).
+const _objAttrIds = {0x20, 0x21, 0x6c, 0x24, 0x28, 0x6f, 0x19, 0x2b, 0x2a, 0x29, 0x3a, 0xcb, 0xea, 0xe7};
 
 /// Pixel-area threshold (width×height) for the structural node fallback in
 /// `buildDiagram`. A still-`unknown` object that otherwise matches the BD-node
@@ -897,7 +904,7 @@ ViTypeKind inferTypeKind(Set<int> c4ops, List<int>? formatPayload) {
 /// model does not do. A consumer that wants to colour a wire can read the type
 /// of a bounded endpoint owner it recognises; this model does not assert one.
 class ViWire {
-  ViWire({required this.signalOid, required this.endpointOids, required this.endpointAnchors});
+  ViWire({required this.signalOid, required this.endpointOids, required this.endpointAnchors, this.route});
 
   /// The [ViHeapObject.oid] of the signal (`0x17`) object this wire is.
   final int signalOid;
@@ -914,6 +921,87 @@ class ViWire {
   /// [endpointOids]; an entry is null only when the endpoint oid does not
   /// resolve (not observed in the corpus).
   final List<HeapRect?> endpointAnchors;
+
+  /// The decoded stored route shape (see [ViWireRoute] / [decodeWireRoute]),
+  /// or null when the signal carries the trivial scalar table (a straight
+  /// wire), or a form not yet decoded (branching junction codes).
+  final ViWireRoute? route;
+}
+
+/// The decoded shape of a signal's stored wire route (its `0x1e7` packed
+/// table): [pointCount] route points as **alternating-axis segments starting
+/// horizontal**, where [segmentLengths] are the unsigned lengths of the
+/// leading segments and [jointSigns] the sign (+1 down/right, −1 up/left) of
+/// the segment *leaving* each interior joint. The first segment's sign and
+/// the trailing segment(s) are not stored — they are implied by the
+/// endpoints, so a renderer aims the first segment toward the destination
+/// and closes the route on the destination's connection point.
+///
+/// Corpus validation (7,524 VIs): on all 49,404 two-endpoint container
+/// signals with bounded anchors, the decoded displacement lands the implied
+/// final segment on the destination anchor (interval test, 8 px slack) for
+/// **99.66%** with the horizontal-first reading (H-only fits 38,559 vs
+/// V-only 38, both 10,640); interior-joint sign bytes are `0`/`1` at
+/// 105,632/105,633 records. Ground truth pinned pixel-exact on the
+/// `basic.png` snippet (bend at x=102, input row y=21 measured in LabVIEW's
+/// own render).
+class ViWireRoute {
+  ViWireRoute({required this.pointCount, required this.segmentLengths, required this.jointSigns});
+
+  /// The stored route point count (the table's leading byte).
+  final int pointCount;
+
+  /// Unsigned lengths of the stored leading segments, axis-alternating
+  /// starting horizontal. `pointCount - 2` entries in the common form;
+  /// `pointCount - 1` in the extended header form.
+  final List<int> segmentLengths;
+
+  /// Sign of the segment leaving interior joint i (+1 = down/right,
+  /// −1 = up/left), aligned with the segment of the same index + 1.
+  final List<int> jointSigns;
+}
+
+/// Decodes a signal's packed `0x1e7` container [table] into a [ViWireRoute].
+///
+/// Layout (derived + corpus-validated, see [ViWireRoute]):
+/// `[u8 pointCount] [0x08 | 0x00 0x08] [(pointCount-2) sign bytes]
+/// [length values]` where a length ≥ 255 is stored as `FF` + u16be. The
+/// short header carries `pointCount-2` lengths (trailing segment implied);
+/// the extended `00 08` header carries `pointCount-1`. Returns null for a
+/// malformed table or one using the undecoded branching junction codes
+/// (sign bytes outside `0`/`1` — observed only on signals with 3+
+/// endpoints).
+ViWireRoute? decodeWireRoute(Uint8List table) {
+  if (table.length < 2 || table[0] < 2) return null;
+  final n = table[0];
+  final int dataStart;
+  if (table[1] == 0x08) {
+    dataStart = 2;
+  } else if (table.length > 2 && table[1] == 0x00 && table[2] == 0x08) {
+    dataStart = 3;
+  } else {
+    return null;
+  }
+  var i = dataStart;
+  final signs = <int>[];
+  for (var k = 0; k < n - 2; k++) {
+    if (i >= table.length) return null;
+    final m = table[i++];
+    if (m != 0 && m != 1) return null;
+    signs.add(m == 0 ? 1 : -1);
+  }
+  final lengths = <int>[];
+  while (i < table.length) {
+    var v = table[i++];
+    if (v == 0xff) {
+      if (i + 1 >= table.length) return null;
+      v = (table[i] << 8) | table[i + 1];
+      i += 2;
+    }
+    lengths.add(v);
+  }
+  if (lengths.length != n - 2 && lengths.length != n - 1) return null;
+  return ViWireRoute(pointCount: n, segmentLengths: lengths, jointSigns: signs);
 }
 
 /// A recovered block-diagram (or other heap) as a **nesting tree** of
@@ -957,6 +1045,7 @@ class ViDiagram {
           signalOid: object.oid,
           endpointOids: List<int>.of(object.refs),
           endpointAnchors: [for (final oid in object.refs) _boundedOwnerBounds(oid)],
+          route: object.wireTableRaw == null ? null : decodeWireRoute(object.wireTableRaw!),
         ),
   ];
 
@@ -1072,6 +1161,9 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
         // identities, so they must not fabricate a primName.
         if (attr.attribute == HeapAttribute.primResID && cur.kind == 0x2f && attr.width == HeapAttrWidth.u16) {
           cur.primResId ??= attr.asInt;
+        }
+        if (attr.rawTag == 0x1e7 && cur.kind == 0x17 && attr.width == HeapAttrWidth.container) {
+          cur.wireTableRaw ??= attr.rawValueBytes;
         }
         // The transparent sentinel (flag 0x01, RGB 0) is "no colour", not
         // black — capturing it would paint transparent label backings and

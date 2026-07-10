@@ -525,6 +525,68 @@ Color? bdFillColor(ViHeapObject object) =>
 /// route leaves [source] on the side facing [sink], turns at the mid-x column,
 /// and enters [sink] on its facing side (an H–V–H elbow). Pure + public so
 /// the routing is unit-testable independent of the canvas.
+/// The signal's **stored** route (its decoded `0x1e7` table) as absolute
+/// points from [source] to [sink]: segments alternate axes starting
+/// horizontal from the source connection point (anchor centre), the first
+/// segment aims toward the sink, interior-joint signs come from the table,
+/// and the trailing segment(s) close on the sink connection point (the
+/// stored route guarantees the perpendicular landing — 99.66% corpus-wide;
+/// see [ViWireRoute]). The first point is clipped to the source edge so the
+/// stroke does not cross the source icon. Null when the table's segments are
+/// empty. Pure + public for testing.
+List<Offset>? bdStoredWireRoute(Rect source, Rect sink, ViWireRoute route) {
+  final lengths = route.segmentLengths;
+  final signs = route.jointSigns;
+  if (lengths.isEmpty) return null;
+  var x = source.center.dx;
+  var y = source.center.dy;
+  final points = <Offset>[Offset(x, y)];
+  var horiz = true;
+  for (var i = 0; i < lengths.length; i++) {
+    final double sign;
+    if (i == 0) {
+      sign = sink.center.dx >= source.center.dx ? 1 : -1;
+    } else {
+      if (i - 1 >= signs.length) return null;
+      sign = signs[i - 1].toDouble();
+    }
+    if (horiz) {
+      x += sign * lengths[i];
+    } else {
+      y += sign * lengths[i];
+    }
+    points.add(Offset(x, y));
+    horiz = !horiz;
+  }
+  // Close along the alternated axis: the stored route already fixed the
+  // perpendicular coordinate (that IS the sink connection row/column), so
+  // the trailing segment just runs to the sink. Square in with one extra
+  // elbow only when the landing misses the sink rect entirely (the rare
+  // fit-miss tail keeps an orthogonal path rather than a diagonal).
+  if (horiz) {
+    if ((sink.center.dx - x).abs() > 0.5) points.add(Offset(sink.center.dx, y));
+    if (y < sink.top || y > sink.bottom) {
+      points.add(Offset(sink.center.dx, sink.center.dy));
+    }
+  } else {
+    if ((sink.center.dy - y).abs() > 0.5) points.add(Offset(x, sink.center.dy));
+    if (x < sink.left || x > sink.right) {
+      points.add(Offset(sink.center.dx, sink.center.dy));
+    }
+  }
+  // Clip the leading run to the source box edge (LabVIEW stops the stroke at
+  // the icon; the stored length still measures from the connection point).
+  if (points.length >= 2 && points[1].dy == points[0].dy) {
+    final rightward = points[1].dx >= points[0].dx;
+    final edge = rightward ? source.right : source.left;
+    if ((rightward && points[1].dx > edge) ||
+        (!rightward && points[1].dx < edge)) {
+      points[0] = Offset(edge, points[0].dy);
+    }
+  }
+  return points;
+}
+
 List<Offset> bdWireRoute(Rect source, Rect sink) {
   final sinkRight = sink.center.dx >= source.center.dx;
   final startX = sinkRight ? source.right : source.left;
@@ -1764,8 +1826,13 @@ class BdDiagramPainter extends CustomPainter {
         ..strokeJoin = StrokeJoin.miter
         ..strokeCap = StrokeCap.butt;
       final source = anchors.first;
+      final route = wire.route;
       for (var i = 1; i < anchors.length; i++) {
-        final points = bdWireRoute(source, anchors[i]);
+        final points =
+            (anchors.length == 2 && route != null
+                ? bdStoredWireRoute(source, anchors[i], route)
+                : null) ??
+            bdWireRoute(source, anchors[i]);
         final path = Path()..moveTo(points.first.dx, points.first.dy);
         for (final point in points.skip(1)) {
           path.lineTo(point.dx, point.dy);
