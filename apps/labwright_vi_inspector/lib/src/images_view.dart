@@ -53,15 +53,44 @@ class EmbeddedLegacyIcon {
   final ViLegacyIcon icon;
 }
 
-/// The renderable images recovered from a VI: embedded PNGs plus legacy icon
-/// bitmaps. Both lists are empty when the VI carries no images.
+/// An image decoded out of a metafile block — a `PICT`'s uncompressed QuickTime
+/// raster — converted to PNG for display. Unlike [EmbeddedPng.bytes] (an exact
+/// byte slice of the file), [png] is *encoded here* from the decoded pixels.
+class DecodedMetafileImage {
+  const DecodedMetafileImage({
+    required this.tag,
+    required this.width,
+    required this.height,
+    required this.depth,
+    required this.png,
+  });
+
+  final String tag;
+  final int width;
+  final int height;
+
+  /// Source bits per pixel (24 = packed RGB, 32 = QuickDraw xRGB).
+  final int depth;
+
+  /// PNG bytes encoded from the decoded raster.
+  final Uint8List png;
+}
+
+/// The renderable images recovered from a VI: embedded PNGs, legacy icon
+/// bitmaps, and images decoded out of metafile blocks. All lists are empty when
+/// the VI carries no images.
 class ViImages {
-  const ViImages({this.pngs = const [], this.icons = const []});
+  const ViImages({
+    this.pngs = const [],
+    this.icons = const [],
+    this.metafiles = const [],
+  });
   final List<EmbeddedPng> pngs;
   final List<EmbeddedLegacyIcon> icons;
+  final List<DecodedMetafileImage> metafiles;
 
-  bool get isEmpty => pngs.isEmpty && icons.isEmpty;
-  int get count => pngs.length + icons.length;
+  bool get isEmpty => pngs.isEmpty && icons.isEmpty && metafiles.isEmpty;
+  int get count => pngs.length + icons.length + metafiles.length;
 }
 
 /// Whether the PNG signature begins at [start] in [bytes].
@@ -81,6 +110,7 @@ bool _pngSignatureAt(Uint8List bytes, int start) {
 ViImages extractViImages(List<DecodedSection> sections) {
   final pngs = <EmbeddedPng>[];
   final icons = <EmbeddedLegacyIcon>[];
+  final metafiles = <DecodedMetafileImage>[];
   for (final section in sections) {
     final payload = section.bytes;
     final bpp = legacyIconBpp(section.tag);
@@ -88,6 +118,20 @@ ViImages extractViImages(List<DecodedSection> sections) {
       final icon = decodeLegacyIcon(payload, bpp);
       if (icon != null) {
         icons.add(EmbeddedLegacyIcon(tag: section.tag, icon: icon));
+      }
+    }
+    if (section.tag == 'PICT') {
+      final raster = decodePictQuickTimeRaster(payload);
+      if (raster != null) {
+        metafiles.add(
+          DecodedMetafileImage(
+            tag: section.tag,
+            width: raster.width,
+            height: raster.height,
+            depth: raster.depth,
+            png: encodeQuickTimeRasterPng(raster),
+          ),
+        );
       }
     }
     for (var off = 0; off + _pngSignature.length <= payload.length; off++) {
@@ -107,7 +151,35 @@ ViImages extractViImages(List<DecodedSection> sections) {
       );
     }
   }
-  return ViImages(pngs: pngs, icons: icons);
+  return ViImages(pngs: pngs, icons: icons, metafiles: metafiles);
+}
+
+/// Encodes a decoded QuickTime raster to PNG. Depth 24 pixels are packed
+/// `R G B`; depth 32 are QuickDraw xRGB (the leading byte is a pad, not alpha —
+/// the image is rendered opaque). Other depths are not present in the corpus and
+/// yield a 1×1 placeholder rather than a guessed decode.
+Uint8List encodeQuickTimeRasterPng(ViQuickTimeRaster raster) {
+  if (raster.depth != 24 && raster.depth != 32) {
+    return img.encodePng(img.Image(width: 1, height: 1));
+  }
+  final bytesPerPixel = raster.depth ~/ 8;
+  final image = img.Image(width: raster.width, height: raster.height);
+  final rowBytes = raster.width * bytesPerPixel;
+  for (var y = 0; y < raster.height; y++) {
+    final row = y * rowBytes;
+    for (var x = 0; x < raster.width; x++) {
+      // 32-bit pixels lead with the pad byte; 24-bit start at the red byte.
+      final p = row + x * bytesPerPixel + (bytesPerPixel - 3);
+      image.setPixelRgb(
+        x,
+        y,
+        raster.pixels[p],
+        raster.pixels[p + 1],
+        raster.pixels[p + 2],
+      );
+    }
+  }
+  return img.encodePng(image);
 }
 
 /// The single richest-depth legacy icon of [images] (icl8 → icl4 → ICON), or
@@ -244,6 +316,44 @@ class ViImagesView extends StatelessWidget {
                 ),
             ],
           ),
+        if (images.metafiles.isNotEmpty) ...[
+          if (images.pngs.isNotEmpty) const SizedBox(height: 20),
+          const Text(
+            'Metafile images',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Pixel rasters decoded out of metafile blocks — a PICT\'s '
+            'uncompressed QuickTime image — re-encoded as PNG for display.',
+            style: TextStyle(color: Colors.grey, fontSize: 12),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              for (final metafile in images.metafiles)
+                _ImageTile(
+                  caption:
+                      '${metafile.tag} · ${metafile.width}×${metafile.height} '
+                      '· ${metafile.depth}-bit QuickTime raw',
+                  onCopy: () =>
+                      _copy(context, metafile.png, '${metafile.tag} image'),
+                  child: Image.memory(
+                    metafile.png,
+                    width: 320,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, _, _) => const SizedBox(
+                      width: 120,
+                      height: 80,
+                      child: Center(child: Icon(Icons.broken_image_outlined)),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
         if (icons.isNotEmpty) ...[
           if (images.pngs.isNotEmpty) const SizedBox(height: 20),
           const Text('VI icon', style: TextStyle(fontWeight: FontWeight.bold)),
