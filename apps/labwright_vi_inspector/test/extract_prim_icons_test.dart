@@ -67,6 +67,19 @@ void main() {
           if (key == null || b == null || b.width <= 0 || b.height <= 0) {
             continue;
           }
+          // A node inside a disable structure renders greyed — its washed
+          // colours would poison the palette.
+          var anc = bd.byId[o.parentOid ?? -1];
+          var hops = 0;
+          var disabled = false;
+          while (anc != null && hops++ < 12) {
+            if (anc.kind == 0xcd) {
+              disabled = true;
+              break;
+            }
+            anc = bd.byId[anc.parentOid ?? -1];
+          }
+          if (disabled) continue;
           if ((samples[key]?.length ?? 0) >= 8) continue;
           final left =
               ((b.left - raster.content.left) * raster.scale * reg.scale +
@@ -101,6 +114,38 @@ void main() {
       return rgba[i] < 240 || rgba[i + 1] < 240 || rgba[i + 2] < 240;
     }
 
+    // Erases wire tails: ink connected to the left/right crop edge through
+    // pixels whose vertical ink run stays wire-thin (<= 3 px). The walk
+    // stops where the tail meets icon art (outlines run taller), so a wire
+    // fused to a gate erases up to the gate and no further.
+    void erodeWireTails(Uint8List rgba, int w, int h) {
+      int vrun(int x, int y) {
+        var t = y, b = y;
+        while (t > 0 && inky(rgba, w, x, t - 1)) {
+          t--;
+        }
+        while (b < h - 1 && inky(rgba, w, x, b + 1)) {
+          b++;
+        }
+        return b - t + 1;
+      }
+
+      final queue = <(int, int)>[];
+      for (var y = 0; y < h; y++) {
+        for (final x in [0, w - 1]) {
+          if (inky(rgba, w, x, y) && vrun(x, y) <= 3) queue.add((x, y));
+        }
+      }
+      while (queue.isNotEmpty) {
+        final (x, y) = queue.removeLast();
+        if (x < 0 || y < 0 || x >= w || y >= h) continue;
+        if (!inky(rgba, w, x, y) || vrun(x, y) > 3) continue;
+        final i = (y * w + x) * 4;
+        rgba[i] = rgba[i + 1] = rgba[i + 2] = 255;
+        queue.addAll([(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)]);
+      }
+    }
+
     final manifest = StringBuffer(
       '# Primitive icon assets\n\n'
       'Generated from LabVIEW\'s own renders in the snippet corpus (see\n'
@@ -113,9 +158,13 @@ void main() {
       '| asset | op | size | sources |\n|---|---|---|---|\n',
     );
     var written = 0;
+    final pending = <String, ({img.Image icon, String sources})>{};
     final keys = samples.keys.toList()..sort();
     for (final key in keys) {
       final all = samples[key]!;
+      for (final smp in all) {
+        erodeWireTails(smp.rgba, smp.w, smp.h);
+      }
       // Consensus base: the modal sample dimensions (identities render at a
       // fixed size; a divergent box is a mis-registered crop).
       final dims = <String, int>{};
@@ -334,6 +383,80 @@ void main() {
         icon.setPixelRgba(x, y, 0, 0, 0, 0);
         stack.addAll([(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)]);
       }
+      pending[key] = (
+        icon: icon,
+        sources: group.map((s) => s.source).toSet().join(', '),
+      );
+    }
+
+    // Master palette: the exact colours that dominate the harvested art —
+    // per 4-bit RGB bucket, the modal exact colour, kept when the bucket
+    // covers at least 0.2% of all opaque pixels; black and white always.
+    // Every pixel snaps to its nearest palette entry: LabVIEW's icon art is
+    // flat-colour, so the snap erases the reference render's anti-aliased
+    // fringe and gives the renderer a closed colour set to remap (an
+    // "inactive" palette later swaps entry-for-entry).
+    final bucketCounts = <int, int>{};
+    final bucketModal = <int, Map<int, int>>{};
+    var opaque = 0;
+    for (final e in pending.values) {
+      for (final px in e.icon) {
+        if (px.a == 0) continue;
+        opaque++;
+        final rgb = (px.r.toInt() << 16) | (px.g.toInt() << 8) | px.b.toInt();
+        final bucket =
+            ((px.r.toInt() >> 4) << 8) |
+            ((px.g.toInt() >> 4) << 4) |
+            (px.b.toInt() >> 4);
+        bucketCounts[bucket] = (bucketCounts[bucket] ?? 0) + 1;
+        final modal = bucketModal[bucket] ??= {};
+        modal[rgb] = (modal[rgb] ?? 0) + 1;
+      }
+    }
+    final palette = <int>{0x000000, 0xffffff};
+    for (final e in bucketCounts.entries) {
+      if (e.value * 500 < opaque) continue;
+      palette.add(
+        (bucketModal[e.key]!.entries.toList()
+              ..sort((a, b) => b.value - a.value))
+            .first
+            .key,
+      );
+    }
+    final paletteList = palette.toList()..sort();
+    int snap(int r, int g, int b) {
+      var best = 0, bd = 1 << 30;
+      for (final c in paletteList) {
+        final dr = r - ((c >> 16) & 0xff),
+            dg = g - ((c >> 8) & 0xff),
+            db = b - (c & 0xff);
+        final d = dr * dr + dg * dg + db * db;
+        if (d < bd) {
+          bd = d;
+          best = c;
+        }
+      }
+      return best;
+    }
+
+    manifest.writeln(
+      '\nPalette (${paletteList.length} colours — every icon pixel is one of '
+      'these): ${paletteList.map((c) => '#${c.toRadixString(16).padLeft(6, '0')}').join(' ')}\n',
+    );
+    for (final key in pending.keys.toList()..sort()) {
+      final e = pending[key]!;
+      for (final px in e.icon) {
+        if (px.a == 0) continue;
+        final c = snap(px.r.toInt(), px.g.toInt(), px.b.toInt());
+        e.icon.setPixelRgba(
+          px.x,
+          px.y,
+          (c >> 16) & 0xff,
+          (c >> 8) & 0xff,
+          c & 0xff,
+          255,
+        );
+      }
       final primId = key.startsWith('prim')
           ? int.parse(key.substring(4))
           : null;
@@ -341,14 +464,15 @@ void main() {
       final classCode = key.startsWith('class')
           ? int.parse(key.substring(5))
           : null;
-      File('${outDir.path}/$key.png').writeAsBytesSync(img.encodePng(icon));
+      File('${outDir.path}/$key.png').writeAsBytesSync(img.encodePng(e.icon));
       final label =
           op?.opName ??
           (classCode != null
               ? 'class 0x${classCode.toRadixString(16)}'
               : '(uncatalogued)');
-      final sources = group.map((s) => s.source).toSet().join(', ');
-      manifest.writeln('| $key.png | $label | ${w}x$h | $sources |');
+      manifest.writeln(
+        '| $key.png | $label | ${e.icon.width}x${e.icon.height} | ${e.sources} |',
+      );
       written++;
     }
     File('${outDir.path}/MANIFEST.md').writeAsStringSync(manifest.toString());

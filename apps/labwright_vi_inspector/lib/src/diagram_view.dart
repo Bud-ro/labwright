@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -1512,6 +1513,37 @@ Future<Map<int, ui.Image>> loadPrimIcons() => _primIcons ??= () async {
 }();
 Future<Map<int, ui.Image>>? _primIcons;
 Map<int, ui.Image> _primIconsSync = const {};
+
+/// Recolours a primitive icon by exact palette substitution: every pixel
+/// whose RGB appears in [rgbMapping] (0xRRGGBB → 0xRRGGBB) is replaced,
+/// alpha preserved. The bundled icons are quantised to a closed master
+/// palette (listed in assets/prim_icons/MANIFEST.md), so a full-palette
+/// mapping recolours the art losslessly — the hook for an inactive/greyed
+/// rendering of nodes inside disable structures.
+Future<ui.Image> remapPrimIcon(ui.Image icon, Map<int, int> rgbMapping) async {
+  final data = await icon.toByteData();
+  if (data == null) return icon;
+  final rgba = Uint8List.fromList(data.buffer.asUint8List());
+  for (var i = 0; i + 3 < rgba.length; i += 4) {
+    if (rgba[i + 3] == 0) continue;
+    final mapped =
+        rgbMapping[(rgba[i] << 16) | (rgba[i + 1] << 8) | rgba[i + 2]];
+    if (mapped == null) continue;
+    rgba[i] = (mapped >> 16) & 0xff;
+    rgba[i + 1] = (mapped >> 8) & 0xff;
+    rgba[i + 2] = mapped & 0xff;
+  }
+  final completer = Completer<ui.Image>();
+  ui.decodeImageFromPixels(
+    rgba,
+    icon.width,
+    icon.height,
+    ui.PixelFormat.rgba8888,
+    completer.complete,
+  );
+  return completer.future;
+}
+
 final Map<int, ({int w, int h, Uint8List alpha})> _primIconMasks = {};
 
 /// Whether the diagram-space point ([x],[y]) lands on an opaque pixel of the
