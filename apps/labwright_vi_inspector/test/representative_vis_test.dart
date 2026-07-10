@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_vi_inspector/src/representative_vis.dart';
@@ -18,29 +20,82 @@ void main() {
       expect(url.pathSegments.last, 'OriginalTest.vi');
     });
 
-    test('every curated VI has a well-formed pinned URL', () {
+    test('every curated VI has a well-formed pinned URL and dep paths', () {
       expect(kRepresentativeVis, isNotEmpty);
       for (final vi in kRepresentativeVis) {
         expect(vi.rawUrl.host, 'raw.githubusercontent.com');
         expect(vi.rawUrl.pathSegments, isNotEmpty);
         expect(vi.commit.length, 40, reason: '${vi.name} needs a full SHA');
+        for (final dep in vi.dependencies) {
+          expect(
+            dep.toLowerCase(),
+            endsWith('.vi'),
+            reason: '$dep in ${vi.name}',
+          );
+          expect(vi.rawUrlOf(dep).pathSegments.last, dep.split('/').last);
+        }
       }
     });
   });
 
-  testWidgets('tapping a representative VI fetches and loads it', (
+  test(
+    'fetchRepresentativeVi writes the closure into a temp project dir',
+    () async {
+      final vi = kRepresentativeVis.firstWhere(
+        (v) => v.name == 'USBDrDAQExampleStreaming.vi',
+      );
+      final urls = <Uri>[];
+      final fetched = await fetchRepresentativeVi(
+        vi,
+        fetch: (url) async {
+          urls.add(url);
+          return Uint8List.fromList([1, 2, 3]);
+        },
+      );
+      addTearDown(() => fetched.projectDir.deleteSync(recursive: true));
+      // Main file + every dependency fetched; all written under the project dir.
+      expect(urls.length, 1 + vi.dependencies.length);
+      expect(fetched.fetchedDeps, vi.dependencies.length);
+      expect(fetched.failedDeps, 0);
+      expect(fetched.mainPath, startsWith(fetched.projectDir.path));
+      expect(fetched.bytes, [1, 2, 3]);
+    },
+  );
+
+  test('a failing dependency is tolerated (icon-only cost)', () async {
+    final vi = kRepresentativeVis.firstWhere(
+      (v) => v.name == 'USBDrDAQExampleStreaming.vi',
+    );
+    var calls = 0;
+    final fetched = await fetchRepresentativeVi(
+      vi,
+      fetch: (url) async {
+        calls++;
+        if (url.pathSegments.last == 'USBDrDAQClose.vi') {
+          throw Exception('boom');
+        }
+        return Uint8List.fromList([0]);
+      },
+    );
+    addTearDown(() => fetched.projectDir.deleteSync(recursive: true));
+    expect(calls, 1 + vi.dependencies.length);
+    expect(fetched.failedDeps, 1);
+    expect(fetched.fetchedDeps, vi.dependencies.length - 1);
+  });
+
+  testWidgets('the Examples menu fetches and loads a representative VI', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(1200, 1000);
+    tester.view.physicalSize = const Size(1400, 1000);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
-    Uri? fetched;
+    final urls = <Uri>[];
     await tester.pumpWidget(
       MaterialApp(
         home: ViInspectorScreen(
           fetchBytes: (url) async {
-            fetched = url;
+            urls.add(url);
             return demoViBytes();
           },
         ),
@@ -48,15 +103,20 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // The landing screen lists the curated VIs.
-    expect(find.text('OriginalTest.vi'), findsOneWidget);
+    // The examples live in a toolbar menu (reachable before AND after a load).
+    await tester.tap(find.byKey(const Key('examples')));
+    await tester.pumpAndSettle();
+    expect(find.text('3DBaxter.vi'), findsOneWidget);
 
-    await tester.tap(find.text('OriginalTest.vi'));
+    await tester.tap(find.text('3DBaxter.vi'));
     await tester.pumpAndSettle();
 
-    // The injected fetch was called with that VI's raw URL, and it loaded.
-    expect(fetched, isNotNull);
-    expect(fetched!.pathSegments.last, 'OriginalTest.vi');
-    expect(find.text('Block Diagram'), findsOneWidget); // loaded → tabs shown
+    // 3DBaxter has no in-repo deps: exactly one fetch, and the VI loaded.
+    expect(urls, hasLength(1));
+    expect(urls.single.pathSegments.last, '3DBaxter.vi');
+    expect(find.text('Block Diagram'), findsOneWidget);
+
+    // The menu is still reachable after the load.
+    expect(find.byKey(const Key('examples')), findsOneWidget);
   });
 }

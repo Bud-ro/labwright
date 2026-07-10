@@ -5,15 +5,21 @@ import 'dart:typed_data';
 /// demand (not bundled) so the viewer has quick access to rare/interesting files.
 ///
 /// The file lives in a pinned public repo at [repo] (`owner/name`), commit
-/// [commit]; [pathSegments] is its repo-relative path split into segments (so
-/// spaces and other characters are percent-encoded correctly). See [rawUrl].
+/// [commit]; [path] is its repo-relative path. [dependencies] is the VI's
+/// **in-repo transitive subVI closure** (discovered once against the corpus by
+/// following each VI's linker dependency names) — fetched alongside the main
+/// file so subVI icons resolve. Dependencies on NI's own vi.lib / vendor-installed
+/// libraries are not in the repo and cannot be fetched (clean-room); when a VI
+/// has such deps, [missingNote] says so honestly.
 class RepresentativeVi {
   const RepresentativeVi({
     required this.name,
     required this.feature,
     required this.repo,
     required this.commit,
-    required this.pathSegments,
+    required this.path,
+    this.dependencies = const [],
+    this.missingNote,
   });
 
   /// Display name (the file's basename).
@@ -28,49 +34,152 @@ class RepresentativeVi {
   /// The pinned commit SHA the file is fetched at.
   final String commit;
 
-  /// The file's repo-relative path, split into segments.
-  final List<String> pathSegments;
+  /// The file's repo-relative path (`/`-separated).
+  final String path;
 
-  /// The `raw.githubusercontent.com` URL of the file at its pinned commit. Path
-  /// segments are percent-encoded (the paths contain spaces).
-  Uri get rawUrl => Uri.https(
+  /// Repo-relative paths of the in-repo transitive subVI closure (not including
+  /// [path] itself), fetched so on-node subVI icons resolve.
+  final List<String> dependencies;
+
+  /// Honest note about dependencies that are NOT in the repo (NI vi.lib /
+  /// vendor-installed libraries) and therefore cannot be fetched, or null when
+  /// the in-repo closure is complete.
+  final String? missingNote;
+
+  /// The `raw.githubusercontent.com` URL of a repo-relative [relPath] at this
+  /// VI's pinned commit. Path segments are percent-encoded (paths have spaces).
+  Uri rawUrlOf(String relPath) => Uri.https(
     'raw.githubusercontent.com',
-    [repo, commit, ...pathSegments].join('/'),
+    [repo, commit, ...relPath.split('/')].join('/'),
   );
+
+  /// The main file's raw URL.
+  Uri get rawUrl => rawUrlOf(path);
 }
 
 /// Pinned commit SHAs of the source repositories.
 const _tuftsBaxter = 'cef95f1742ad6ce9ef6b733523317750b7a81296';
 const _picotech = 'dceb711c8a7878d64ef5993dc5706644ef397ad0';
 
+/// The tuftsBaxter repo's top folder (spaces intact; encoded by [rawUrlOf]).
+const _ros = 'ROS for LabVIEW Software';
+
 /// The curated set of representative VIs, chosen for distinctive, verified
 /// features (an embedded raw QuickTime image; graphs with many recovered plot
-/// colours; a large block diagram).
+/// colours; a large block diagram). Dependency closures were discovered once by
+/// walking each VI's linker subVI names against its repo's files.
 const List<RepresentativeVi> kRepresentativeVis = [
   RepresentativeVi(
     name: 'OriginalTest.vi',
     feature:
-        'Embedded QuickTime raw image (411×489, 24-bit) in a QuickDraw PICT',
+        'Embedded QuickTime raw image (411×489, 24-bit) in a QuickDraw PICT; '
+        '89-file subVI closure',
     repo: 'tuftsBaxter/ROS-for-LabVIEW-Software',
     commit: _tuftsBaxter,
-    pathSegments: [
-      'ROS for LabVIEW Software',
-      'PlayArea',
-      'Controls',
-      'OriginalTest.vi',
+    path: '$_ros/PlayArea/Controls/OriginalTest.vi',
+    missingNote:
+        '3 deps are NI vi.lib files (Check if File or Folder Exists.vi, '
+        'Dflt Data Dir.vi, Trim Whitespace.vi) — not fetchable',
+    dependencies: [
+      '$_ros/Devices/Baxter/BaxterVIs/AssemblyState.vi',
+      '$_ros/Devices/Baxter/BaxterVIs/Calibrate Gripper.vi',
+      '$_ros/Devices/Baxter/BaxterVIs/CheckBaxterEnabled.vi',
+      '$_ros/Devices/Baxter/BaxterVIs/Command_Joint_Angles.vi',
+      '$_ros/Devices/Baxter/BaxterVIs/Enable_Baxter.vi',
+      '$_ros/Devices/Baxter/BaxterVIs/MovePosition_Primitive.vi',
+      '$_ros/Devices/Baxter/BaxterVIs/Read_Joint_States.vi',
+      '$_ros/PlayArea/Controls/ReadSingleJoint.vi',
+      '$_ros/PlayArea/Controls/WriteSingleJoint.vi',
+      '$_ros/ROS/Code/Console/GetAllPaths.vi',
+      '$_ros/ROS/Code/Console/Servers/ServerSubs/ROSToQueue.vi',
+      '$_ros/ROS/Code/ROS_Topic_Close.vi',
+      '$_ros/ROS/Code/ROS_Topic_Close_Primitive.vi',
+      '$_ros/ROS/Code/ROS_Topic_Init.vi',
+      '$_ros/ROS/Code/ROS_Topic_Read.vi',
+      '$_ros/ROS/Code/ROS_Topic_Read_Primative.vi',
+      '$_ros/ROS/Code/ROS_Topic_Repeat.vi',
+      '$_ros/ROS/Code/ROS_Topic_Write.vi',
+      '$_ros/ROS/Code/ROS_Topic_Write_Continuous_Primitive.vi',
+      '$_ros/ROS/Code/ROS_Topic_Write_Primitive.vi',
+      '$_ros/ROS/Code/ROS_Topic_Write_Stop_Continuous_Primitive.vi',
+      '$_ros/ROS/Code/SubVIs/AddToOldMasters.vi',
+      '$_ros/ROS/Code/SubVIs/AddToQueue.vi',
+      '$_ros/ROS/Code/SubVIs/CheckBuildFolder.vi',
+      '$_ros/ROS/Code/SubVIs/CheckForNewTopic.vi',
+      '$_ros/ROS/Code/SubVIs/CheckMasterConnection.vi',
+      '$_ros/ROS/Code/SubVIs/CheckNodeName.vi',
+      '$_ros/ROS/Code/SubVIs/CleanupString.vi',
+      '$_ros/ROS/Code/SubVIs/ConvertVItoHTML.vi',
+      '$_ros/ROS/Code/SubVIs/GetErrCodes.vi',
+      '$_ros/ROS/Code/SubVIs/GetFIFOQueue.vi',
+      '$_ros/ROS/Code/SubVIs/GetQueueValue.vi',
+      '$_ros/ROS/Code/SubVIs/GetROSfromTopic.vi',
+      '$_ros/ROS/Code/SubVIs/GetServerVIName.vi',
+      '$_ros/ROS/Code/SubVIs/GetTagsForPreferences.vi',
+      '$_ros/ROS/Code/SubVIs/GetTopicNode_etc.vi',
+      '$_ros/ROS/Code/SubVIs/GetURI&Port.vi',
+      '$_ros/ROS/Code/SubVIs/GetWriteQueue.vi',
+      '$_ros/ROS/Code/SubVIs/LogFileCodes/GetLogFilePath.vi',
+      '$_ros/ROS/Code/SubVIs/NodifyROS.vi',
+      '$_ros/ROS/Code/SubVIs/RedefineMasterIP.vi',
+      '$_ros/ROS/Code/SubVIs/SaveReadPrefs.vi',
+      '$_ros/ROS/Code/SubVIs/StartSeparateServer.vi',
+      '$_ros/ROS/Code/SubVIs/WaitForStartup.vi',
+      '$_ros/ROS/Code/SubVIs/getOpenPort.vi',
+      '$_ros/ROS/Code/_ROSDefinition.vi',
+      '$_ros/ROS/MessageBuilding/baxter_core_msgs/add_EndEffectorCommand.vi',
+      '$_ros/ROS/MessageBuilding/baxter_core_msgs/add_JointCommand.vi',
+      '$_ros/ROS/MessageBuilding/prependLength.vi',
+      '$_ros/ROS/MessageBuilding/std_msgs/add_bool.vi',
+      '$_ros/ROS/MessageBuilding/std_msgs/add_float64.vi',
+      '$_ros/ROS/MessageBuilding/std_msgs/add_int32.vi',
+      '$_ros/ROS/MessageBuilding/std_msgs/add_string.vi',
+      '$_ros/ROS/MessageBuilding/std_msgs/add_uint32.vi',
+      '$_ros/ROS/MessageBuilding/std_msgs/subs/boolArray.vi',
+      '$_ros/ROS/MessageBuilding/std_msgs/subs/boolScalar.vi',
+      '$_ros/ROS/MessageBuilding/std_msgs/subs/float64Array.vi',
+      '$_ros/ROS/MessageBuilding/std_msgs/subs/float64Scalar.vi',
+      '$_ros/ROS/MessageBuilding/std_msgs/subs/i32Array.vi',
+      '$_ros/ROS/MessageBuilding/std_msgs/subs/i32Scalar.vi',
+      '$_ros/ROS/MessageBuilding/std_msgs/subs/stringArray.vi',
+      '$_ros/ROS/MessageBuilding/std_msgs/subs/stringScalar.vi',
+      '$_ros/ROS/MessageBuilding/std_msgs/subs/u32Array.vi',
+      '$_ros/ROS/MessageBuilding/std_msgs/subs/u32Scalar.vi',
+      '$_ros/ROS/MessageBuilding/subs/wrap_JointPositions.vi',
+      '$_ros/ROS/MessageParsing/baxter_core_messages/parse_assembly_state.vi',
+      '$_ros/ROS/MessageParsing/sensor_msgs/parse_joint_state.vi',
+      '$_ros/ROS/MessageParsing/std_msgs/parse_bool.vi',
+      '$_ros/ROS/MessageParsing/std_msgs/parse_float64.vi',
+      '$_ros/ROS/MessageParsing/std_msgs/parse_header.vi',
+      '$_ros/ROS/MessageParsing/std_msgs/parse_string.vi',
+      '$_ros/ROS/MessageParsing/std_msgs/parse_time.vi',
+      '$_ros/ROS/MessageParsing/std_msgs/parse_uint32.vi',
+      '$_ros/ROS/MessageParsing/std_msgs/parse_uint8.vi',
+      '$_ros/ROS/MessageParsing/std_msgs/subs/parse_bool_array.vi',
+      '$_ros/ROS/MessageParsing/std_msgs/subs/parse_bool_scalar.vi',
+      '$_ros/ROS/MessageParsing/std_msgs/subs/parse_float64_array.vi',
+      '$_ros/ROS/MessageParsing/std_msgs/subs/parse_float64_scalar.vi',
+      '$_ros/ROS/MessageParsing/std_msgs/subs/parse_string_array.vi',
+      '$_ros/ROS/MessageParsing/std_msgs/subs/parse_string_scalar.vi',
+      '$_ros/ROS/MessageParsing/std_msgs/subs/parse_time_array.vi',
+      '$_ros/ROS/MessageParsing/std_msgs/subs/parse_time_scalar.vi',
+      '$_ros/ROS/MessageParsing/std_msgs/subs/parse_u32_array.vi',
+      '$_ros/ROS/MessageParsing/std_msgs/subs/parse_u32_scalar.vi',
+      '$_ros/ROS/MessageParsing/std_msgs/subs/parse_u8_array.vi',
+      '$_ros/ROS/MessageParsing/std_msgs/subs/parse_u8_scalar.vi',
+      '$_ros/ROS/MessageParsing/subs/jointStatesUnits.vi',
+      '$_ros/ROS/MessageParsing/subs/parseErrorCheck.vi',
     ],
   ),
   RepresentativeVi(
     name: '3DBaxter.vi',
-    feature: 'Embedded QuickTime raw image (912×504, 32-bit RGBA) in a PICT',
+    feature: 'Embedded QuickTime raw image (912×504, 32-bit) in a PICT',
     repo: 'tuftsBaxter/ROS-for-LabVIEW-Software',
     commit: _tuftsBaxter,
-    pathSegments: [
-      'ROS for LabVIEW Software',
-      'PlayArea',
-      'subsForTest',
-      '3DBaxter.vi',
-    ],
+    path: '$_ros/PlayArea/subsForTest/3DBaxter.vi',
+    missingNote:
+        'All 6 subVIs (Rotate Object.vi et al.) are NI vi.lib 3D Picture '
+        'Control files — not in the repo, not fetchable',
   ),
   RepresentativeVi(
     name: 'USBDrDAQExampleStreaming.vi',
@@ -78,7 +187,20 @@ const List<RepresentativeVi> kRepresentativeVis = [
         'Streaming DAQ front panel with a many-plot graph (74 plot colours)',
     repo: 'picotech/picosdk-ni-labview-examples',
     commit: _picotech,
-    pathSegments: ['usbdrdaq', 'USBDrDAQExampleStreaming.vi'],
+    path: 'usbdrdaq/USBDrDAQExampleStreaming.vi',
+    missingNote:
+        '4 deps are NI vi.lib / PicoSDK-installed files (not fetchable)',
+    dependencies: [
+      'usbdrdaq/USBDrDAQLib/USBDrDAQChannelScaling.vi',
+      'usbdrdaq/USBDrDAQLib/USBDrDAQClose.vi',
+      'usbdrdaq/USBDrDAQLib/USBDrDAQGPIO.vi',
+      'usbdrdaq/USBDrDAQLib/USBDrDAQGetStreamingData.vi',
+      'usbdrdaq/USBDrDAQLib/USBDrDAQLEDControl.vi',
+      'usbdrdaq/USBDrDAQLib/USBDrDAQOpen.vi',
+      'usbdrdaq/USBDrDAQLib/USBDrDAQSettings.vi',
+      'usbdrdaq/USBDrDAQLib/USBDrDAQSigGen.vi',
+      'usbdrdaq/USBDrDAQLib/USBDrDAQStartStreaming.vi',
+    ],
   ),
   RepresentativeVi(
     name: 'PicoScope2000aExampleStreamingMSO.vi',
@@ -86,27 +208,117 @@ const List<RepresentativeVi> kRepresentativeVis = [
         'Mixed-signal scope example: multi-plot graph + large block diagram',
     repo: 'picotech/picosdk-ni-labview-examples',
     commit: _picotech,
-    pathSegments: ['ps2000a', 'PicoScope2000aExampleStreamingMSO.vi'],
+    path: 'ps2000a/PicoScope2000aExampleStreamingMSO.vi',
+    missingNote:
+        '12 deps are NI vi.lib / PicoSDK-installed files (not fetchable)',
+    dependencies: [
+      'ps2000a/PicoScope2000aLib/PicoScope2000aClose.vi',
+      'ps2000a/PicoScope2000aLib/PicoScope2000aGetStreamingValues.vi',
+      'ps2000a/PicoScope2000aLib/PicoScope2000aOpen.vi',
+      'ps2000a/PicoScope2000aLib/PicoScope2000aSettings.vi',
+      'ps2000a/PicoScope2000aLib/PicoScope2000aSetupStreaming.vi',
+      'ps2000a/PicoScope2000aLib/PicoScope2000aStop.vi',
+      'ps2000a/PicoScope2000aLib/PicoScope2000aUnitInfo.vi',
+      'ps2000a/PicoScope2000aLib/PicoScope2000aWrapSettings.vi',
+    ],
   ),
 ];
 
-/// Fetches the bytes of a `.vi` at [url] over HTTPS (no caching — a fresh GET each
-/// time). Throws [HttpException] on a non-200 response. Uses [dart:io]'s
+/// Fetches the bytes at [url] over HTTPS using [client]. Throws [HttpException]
+/// on a non-200 response.
+Future<Uint8List> _get(HttpClient client, Uri url) async {
+  final request = await client.getUrl(url);
+  final response = await request.close();
+  if (response.statusCode != 200) {
+    throw HttpException('HTTP ${response.statusCode} for $url');
+  }
+  final builder = BytesBuilder(copy: false);
+  await for (final chunk in response) {
+    builder.add(chunk);
+  }
+  return builder.takeBytes();
+}
+
+/// Fetches the bytes of a `.vi` at [url] over HTTPS (no caching — a fresh GET
+/// each time). Throws [HttpException] on a non-200 response. Uses [dart:io]'s
 /// [HttpClient] so no HTTP package dependency is needed.
 Future<Uint8List> fetchViBytes(Uri url) async {
   final client = HttpClient();
   try {
-    final request = await client.getUrl(url);
-    final response = await request.close();
-    if (response.statusCode != 200) {
-      throw HttpException('HTTP ${response.statusCode} for $url');
-    }
-    final builder = BytesBuilder(copy: false);
-    await for (final chunk in response) {
-      builder.add(chunk);
-    }
-    return builder.takeBytes();
+    return await _get(client, url);
   } finally {
     client.close();
+  }
+}
+
+/// A fetched representative VI: the main file's [bytes] plus the on-disk
+/// [projectDir] its dependency closure was written into (mirroring the repo's
+/// relative layout), so a project-directory walk resolves subVI icons exactly as
+/// for a locally-opened file. [fetchedDeps] / [failedDeps] report the closure
+/// outcome honestly.
+class FetchedRepresentativeVi {
+  const FetchedRepresentativeVi({
+    required this.bytes,
+    required this.mainPath,
+    required this.projectDir,
+    required this.fetchedDeps,
+    required this.failedDeps,
+  });
+
+  final Uint8List bytes;
+
+  /// Absolute path of the main VI inside [projectDir].
+  final String mainPath;
+
+  final Directory projectDir;
+  final int fetchedDeps;
+  final int failedDeps;
+}
+
+/// Fetches [vi] and its in-repo dependency closure into a fresh temp directory
+/// (no caching): the main file first (its failure is the caller's error), then
+/// the dependencies concurrently ([concurrency] at a time; an individual
+/// dependency failure is tolerated — it only costs that subVI's icon). [fetch]
+/// GETs one URL (injectable for tests; defaults to a shared-client GET).
+Future<FetchedRepresentativeVi> fetchRepresentativeVi(
+  RepresentativeVi vi, {
+  Future<Uint8List> Function(Uri)? fetch,
+  int concurrency = 8,
+}) async {
+  final client = fetch == null ? HttpClient() : null;
+  final get = fetch ?? (url) => _get(client!, url);
+  try {
+    final bytes = await get(vi.rawUrl);
+    final dir = Directory.systemTemp.createTempSync('labwright_rep_vi_');
+    File('${dir.path}/${vi.path}')
+      ..parent.createSync(recursive: true)
+      ..writeAsBytesSync(bytes);
+    var ok = 0, failed = 0;
+    final pending = [...vi.dependencies];
+    Future<void> worker() async {
+      while (pending.isNotEmpty) {
+        final rel = pending.removeLast();
+        try {
+          final dep = await get(vi.rawUrlOf(rel));
+          File('${dir.path}/$rel')
+            ..parent.createSync(recursive: true)
+            ..writeAsBytesSync(dep);
+          ok++;
+        } catch (_) {
+          failed++; // enhancement only: a missing dep costs its subVI icon
+        }
+      }
+    }
+
+    await Future.wait([for (var i = 0; i < concurrency; i++) worker()]);
+    return FetchedRepresentativeVi(
+      bytes: bytes,
+      mainPath: '${dir.path}/${vi.path}',
+      projectDir: dir,
+      fetchedDeps: ok,
+      failedDeps: failed,
+    );
+  } finally {
+    client?.close();
   }
 }
