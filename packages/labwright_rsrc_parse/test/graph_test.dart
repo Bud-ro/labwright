@@ -178,6 +178,26 @@ void main() {
     expect(d.byId[4]!.dIdx, isNull, reason: 'capture is gated to the multi-frame structure kinds');
   });
 
+  test('an owned label composes against its owner even when the owner bounds record trails it', () {
+    // A case structure whose label child (stored at (-17,0), directly above
+    // the case) serialises BEFORE the structure's own bounds record — the
+    // shape that mis-anchored crc8's "Reflect Input?" to the enclosing loop.
+    final d = dia([
+      ...open(0x20, 1),
+      ...bounds(100, 200, 400, 700),
+      ...open(0x2c, 2, tag: 0x1a),
+      ...open(0xa, 3, tag: 0x1b),
+      ...bounds(-17, 0, 0, 75),
+      ...caption('Reflect Input?'),
+      ...close(0x1b),
+      ...bounds(50, 40, 120, 130), // the owner's bounds arrive after the label
+      ...close(0x1a),
+      ...close(),
+    ]);
+    final label = d.byId[3]!.absBounds!;
+    expect([label.top, label.left], [133, 240], reason: 'owner abs (150,240) + local (-17,0)');
+  });
+
   test('PrimOp catalog: unique ids, lookup round-trip', () {
     final ids = PrimOp.values.map((op) => op.id).toSet();
     expect(ids.length, PrimOp.values.length, reason: 'catalog ids are unique');

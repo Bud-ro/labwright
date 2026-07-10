@@ -1539,7 +1539,13 @@ class BdDiagramPainter extends CustomPainter {
     // Dataflow wires paint over the canvas/decorations but under every
     // structure/node, so nodes and terminals always sit on top of the runs that
     // reach them.
-    _drawWires(canvas);
+    final structureRects = {for (final o in structures) rectOf(o)};
+    final tunnelLandings = <(Offset, Color)>[];
+    _drawWires(
+      canvas,
+      structureRects: structureRects,
+      tunnelLandings: tunnelLandings,
+    );
     for (final object in structures) {
       // Class-accurate structure chrome (no badge text — LabVIEW names a
       // construct by its border furniture, not a label). Loops get the thick
@@ -1559,10 +1565,10 @@ class BdDiagramPainter extends CustomPainter {
       switch (object.kind) {
         case 0x21 || 0x20: // While / for loop: rounded band + terminals.
           _drawLoopBand(canvas, rect, structColor);
-          _drawStructureTerminals(canvas, rect, terminals);
+          _drawStructureTerminals(canvas, rect, terminals, tunnelLandings);
         case 0x2c: // Case structure: the same band, un-rounded.
           _drawLoopBand(canvas, rect, structColor, rounded: false);
-          _drawStructureTerminals(canvas, rect, terminals);
+          _drawStructureTerminals(canvas, rect, terminals, tunnelLandings);
         default:
           final frame = structColor ?? _kindColor(ViObjectKind.structure);
           if (structColor != null) {
@@ -1787,6 +1793,23 @@ class BdDiagramPainter extends CustomPainter {
           );
       }
     }
+    // Tunnel squares: a wire leg that crosses a structure border lands on
+    // the border; LabVIEW marks the crossing with a small square in the
+    // wire's colour. Drawn after the structure chrome so the square sits on
+    // the band. A landing inside a modeled structure terminal box (the case
+    // selector) recoloured that terminal instead (see
+    // [_drawStructureTerminals]) and was consumed there.
+    for (final (point, color) in tunnelLandings) {
+      final square = Rect.fromCenter(center: point, width: 7, height: 7);
+      canvas.drawRect(square, Paint()..color = color);
+      canvas.drawRect(
+        square,
+        Paint()
+          ..color = Colors.black.withValues(alpha: 0.55)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 0.8,
+      );
+    }
     // The drawn-object index for owner lookups in the text pass.
     final byOid = {for (final o in objects) o.oid: o};
     // Text pass: LabVIEW shows a structure's construct name on its frame and a
@@ -1885,7 +1908,11 @@ class BdDiagramPainter extends CustomPainter {
   /// is used ([bdWireColor]). Multi-endpoint (branch) wires route from the first
   /// endpoint to each other endpoint. The wire datatype itself is not decoded, so
   /// no per-wire colour is fabricated.
-  void _drawWires(Canvas canvas) {
+  void _drawWires(
+    Canvas canvas, {
+    Set<Rect>? structureRects,
+    List<(Offset, Color)>? tunnelLandings,
+  }) {
     if (wires.isEmpty) return;
     // Endpoint-anchor rectangle → recovered terminal colour, for honest tinting.
     final typedTerminalColors = <int, Color>{};
@@ -1944,6 +1971,16 @@ class BdDiagramPainter extends CustomPainter {
           path.lineTo(point.dx, point.dy);
         }
         canvas.drawPath(path, paint);
+        // A leg whose anchor is a structure's own box is a border crossing —
+        // the landing point is where LabVIEW draws the tunnel square.
+        if (structureRects != null && tunnelLandings != null) {
+          if (structureRects.contains(source)) {
+            tunnelLandings.add((points.first, paint.color));
+          }
+          if (structureRects.contains(anchors[i])) {
+            tunnelLandings.add((points.last, paint.color));
+          }
+        }
       }
     }
   }
@@ -2018,8 +2055,9 @@ class BdDiagramPainter extends CustomPainter {
   void _drawStructureTerminals(
     Canvas canvas,
     Rect frame,
-    List<({HeapRect box, int bmp})> terminals,
-  ) {
+    List<({HeapRect box, int bmp})> terminals, [
+    List<(Offset, Color)>? tunnelLandings,
+  ]) {
     for (final t in terminals) {
       final box = Rect.fromLTWH(
         frame.left + t.box.left,
@@ -2027,9 +2065,22 @@ class BdDiagramPainter extends CustomPainter {
         t.box.width.toDouble(),
         t.box.height.toDouble(),
       );
+      // A wire landing inside this terminal's box takes over its colour —
+      // LabVIEW paints the case selector [?] in the selector wire's datatype
+      // colour (green for a boolean selector). The landing is consumed so no
+      // separate tunnel square draws over the terminal.
+      Color? wireColor;
+      if (tunnelLandings != null) {
+        final inflated = box.inflate(3);
+        for (var i = tunnelLandings.length - 1; i >= 0; i--) {
+          if (inflated.contains(tunnelLandings[i].$1)) {
+            wireColor = tunnelLandings.removeAt(i).$2;
+          }
+        }
+      }
       final border = switch (t.bmp) {
         _bmpConditional => const Color(0xFF007F00),
-        _ => _loopBlue,
+        _ => wireColor ?? _loopBlue,
       };
       canvas.drawRect(box, Paint()..color = Colors.white);
       canvas.drawRect(
@@ -2045,7 +2096,7 @@ class BdDiagramPainter extends CustomPainter {
         case _bmpCount:
           _drawGlyphText(canvas, box, 'N', _loopBlue);
         case _bmpCaseSelector:
-          _drawGlyphText(canvas, box, '?', _loopBlue);
+          _drawGlyphText(canvas, box, '?', border);
         case _bmpLeftShiftRegister || _bmpRightShiftRegister:
           // Shift register: ▼ delivers on the left border, ▲ stores on
           // the right.

@@ -28,6 +28,7 @@
 library;
 
 import 'dart:async';
+import 'dart:isolate';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -419,16 +420,60 @@ Future<BdOracleResult> compareToReference(
 }) async {
   final width = reference.width;
   final height = reference.height;
+  final renderedWidth = rendered.width;
+  final renderedHeight = rendered.height;
   final referenceRgba = await _rgbaOf(reference);
-  // The reference's Sobel edge mask, computed once and shared by the
-  // translation refinement, the structural comparison, and (via the result)
-  // the placement metric — three consumers, one O(pixels) pass.
-  final referenceEdges = _sobelMask(
-    _luma(referenceRgba, width * height),
-    width,
-    height,
-    kBdEdgeThreshold,
-  );
+  // The render's own pixels are needed for registration whenever a resample
+  // can happen (see below); read them up front so every pure pixel pass can
+  // run off the UI isolate — the O(pixels) loops (Sobel mask, the
+  // translation search, the RGBA + structural diffs) caused a visible jank
+  // spike when the oracle first opened.
+  final skipResample =
+      lockScale == null && renderedWidth == width && renderedHeight == height;
+  final renderedOwnRgba = skipResample ? null : await _rgbaOf(rendered);
+  final reg = await Isolate.run(() {
+    // The reference's Sobel edge mask, computed once and shared by the
+    // translation refinement, the structural comparison, and (via the
+    // result) the placement metric — three consumers, one O(pixels) pass.
+    final referenceEdges = _sobelMask(
+      _luma(referenceRgba, width * height),
+      width,
+      height,
+      kBdEdgeThreshold,
+    );
+    BdRegistration? registration;
+    if (renderedOwnRgba != null) {
+      // Register the render onto the reference by aligning their drawn-ink
+      // bounding boxes (aspect-preserved scale + centre), so a correct
+      // render at a different crop/scale is credited instead of penalised.
+      // Null when either image has no ink to register on (the caller falls
+      // back to a centred letterbox).
+      final srcInk = inkBoundsOf(
+        renderedOwnRgba,
+        renderedWidth,
+        renderedHeight,
+      );
+      final dstInk = inkBoundsOf(referenceRgba, width, height);
+      if (srcInk != null && dstInk != null) {
+        registration = lockScale != null
+            ? _translationRegistration(
+                lockScale,
+                srcInk,
+                dstInk,
+                renderedOwnRgba,
+                renderedWidth,
+                renderedHeight,
+                referenceEdges,
+                width,
+                height,
+                anchorRects: anchorRects,
+              )
+            : _inkBoundsRegistration(srcInk, dstInk);
+      }
+    }
+    return (referenceEdges: referenceEdges, registration: registration);
+  });
+  final referenceEdges = reg.referenceEdges;
   // Skip the resample when the render already matches the reference exactly, so
   // an identical pair diffs to a true zero (a same-size letterbox still applies
   // a sub-pixel filter). Never taken under [lockScale]: equal dimensions do
@@ -437,59 +482,37 @@ Future<BdOracleResult> compareToReference(
   ui.Image fitted;
   var registered = false;
   var registration = BdRegistration.identity;
-  if (lockScale == null &&
-      rendered.width == width &&
-      rendered.height == height) {
+  if (skipResample) {
     fitted = rendered;
+  } else if (reg.registration != null) {
+    registration = reg.registration!;
+    fitted = await _redrawRegistered(rendered, registration, width, height);
+    registered = true;
   } else {
-    // Register the render onto the reference by aligning their drawn-ink
-    // bounding boxes (aspect-preserved scale + centre), so a correct render at
-    // a different crop/scale is credited instead of penalised. Falls back to a
-    // centred letterbox when either image has no ink to register on.
-    final renderedOwnRgba = await _rgbaOf(rendered);
-    final srcInk = inkBoundsOf(
-      renderedOwnRgba,
-      rendered.width,
-      rendered.height,
-    );
-    final dstInk = inkBoundsOf(referenceRgba, width, height);
-    if (srcInk != null && dstInk != null) {
-      registration = lockScale != null
-          ? _translationRegistration(
-              lockScale,
-              srcInk,
-              dstInk,
-              renderedOwnRgba,
-              rendered.width,
-              rendered.height,
-              referenceEdges,
-              width,
-              height,
-              anchorRects: anchorRects,
-            )
-          : _inkBoundsRegistration(srcInk, dstInk);
-      fitted = await _redrawRegistered(rendered, registration, width, height);
-      registered = true;
-    } else {
-      registration = _letterboxRegistration(rendered, width, height);
-      fitted = await _redrawRegistered(rendered, registration, width, height);
-    }
+    registration = _letterboxRegistration(rendered, width, height);
+    fitted = await _redrawRegistered(rendered, registration, width, height);
   }
   final renderedRgba = await _rgbaOf(fitted);
-  final comparison = compareRgba(
-    renderedRgba,
-    referenceRgba,
-    width,
-    height,
-    threshold: threshold,
+  final cmp = await Isolate.run(
+    () => (
+      comparison: compareRgba(
+        renderedRgba,
+        referenceRgba,
+        width,
+        height,
+        threshold: threshold,
+      ),
+      structural: compareStructural(
+        renderedRgba,
+        referenceRgba,
+        width,
+        height,
+        referenceEdges: referenceEdges,
+      ),
+    ),
   );
-  final structural = compareStructural(
-    renderedRgba,
-    referenceRgba,
-    width,
-    height,
-    referenceEdges: referenceEdges,
-  );
+  final comparison = cmp.comparison;
+  final structural = cmp.structural;
   final diffImage = await imageFromRgba(comparison.diff, width, height);
   return BdOracleResult(
     rendered: rendered,
@@ -1147,6 +1170,11 @@ class _BdOracleViewState extends State<BdOracleView>
     with AutomaticKeepAliveClientMixin {
   late Future<_OracleData> _future = _build();
 
+  /// Wipe mode: the registered render and the reference overlaid, split at a
+  /// draggable divider (ours left, LabVIEW right).
+  bool _wipe = false;
+  double _wipeFraction = 0.5;
+
   // The comparison (rasterise + decode + multi-peak registration) costs a
   // noticeable fraction of a second on large VIs; keep the tab's state alive
   // so revisiting the Oracle tab shows the cached result instead of
@@ -1305,23 +1333,104 @@ class _BdOracleViewState extends State<BdOracleView>
                       style: const TextStyle(color: Colors.grey, fontSize: 12),
                     ),
             ),
-            Expanded(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(
-                    child: _pane('Rendered (clean-room)', data.rendered!),
-                  ),
-                  if (result != null) ...[
-                    Expanded(child: _pane('Reference', result.reference)),
-                    Expanded(child: _pane('Absolute diff', result.diffImage)),
+            if (result != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Row(
+                  children: [
+                    TextButton.icon(
+                      onPressed: () => setState(() => _wipe = !_wipe),
+                      icon: Icon(
+                        _wipe ? Icons.view_column : Icons.compare,
+                        size: 16,
+                      ),
+                      label: Text(_wipe ? 'Side-by-side' : 'Wipe compare'),
+                    ),
+                    if (_wipe)
+                      const Text(
+                        'drag the divider — ours left, LabVIEW right',
+                        style: TextStyle(color: Colors.grey, fontSize: 11),
+                      ),
                   ],
-                ],
+                ),
               ),
+            Expanded(
+              child: _wipe && result != null
+                  ? _wipePane(result)
+                  : Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(
+                          child: _pane('Rendered (clean-room)', data.rendered!),
+                        ),
+                        if (result != null) ...[
+                          Expanded(child: _pane('Reference', result.reference)),
+                          Expanded(
+                            child: _pane('Absolute diff', result.diffImage),
+                          ),
+                        ],
+                      ],
+                    ),
             ),
           ],
         );
       },
+    );
+  }
+
+  /// The wipe comparator: the reference fills the pane and the registered
+  /// render covers it up to [_wipeFraction] of the image width, with a
+  /// draggable divider. Both images share the reference frame, so features
+  /// line up across the divider.
+  Widget _wipePane(BdOracleResult result) {
+    final w = result.reference.width.toDouble();
+    final h = result.reference.height.toDouble();
+    return Padding(
+      padding: const EdgeInsets.all(4),
+      child: ColoredBox(
+        color: const Color(0xFF202020),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final scale = math.min(
+              constraints.maxWidth / w,
+              constraints.maxHeight / h,
+            );
+            final dispW = w * scale;
+            final offsetX = (constraints.maxWidth - dispW) / 2;
+            void follow(Offset local) => setState(() {
+              _wipeFraction = ((local.dx - offsetX) / dispW).clamp(0.0, 1.0);
+            });
+            return GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTapDown: (d) => follow(d.localPosition),
+              onHorizontalDragUpdate: (d) => follow(d.localPosition),
+              child: FittedBox(
+                child: SizedBox(
+                  width: w,
+                  height: h,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      RawImage(image: result.reference, fit: BoxFit.fill),
+                      ClipRect(
+                        clipper: _LeftFractionClipper(_wipeFraction),
+                        child: RawImage(image: result.fitted, fit: BoxFit.fill),
+                      ),
+                      Positioned(
+                        left: (w * _wipeFraction - 1).clamp(0.0, w - 2),
+                        width: 2,
+                        top: 0,
+                        bottom: 0,
+                        child: const ColoredBox(color: Colors.orangeAccent),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
     );
   }
 
@@ -1372,4 +1481,20 @@ class _OracleData {
       disp(r.diffImage);
     }
   }
+}
+
+/// Clips its child to the leftmost [fraction] of its width — the moving half
+/// of the oracle's wipe comparator.
+class _LeftFractionClipper extends CustomClipper<Rect> {
+  const _LeftFractionClipper(this.fraction);
+
+  final double fraction;
+
+  @override
+  Rect getClip(Size size) =>
+      Rect.fromLTRB(0, 0, size.width * fraction, size.height);
+
+  @override
+  bool shouldReclip(_LeftFractionClipper oldClipper) =>
+      oldClipper.fraction != fraction;
 }
