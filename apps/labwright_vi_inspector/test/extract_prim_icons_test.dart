@@ -81,17 +81,18 @@ void main() {
           }
           if (disabled) continue;
           if ((samples[key]?.length ?? 0) >= 8) continue;
+          const pad = 5;
           final left =
               ((b.left - raster.content.left) * raster.scale * reg.scale +
                       reg.dx)
                   .round() -
-              1;
+              pad;
           final top =
               ((b.top - raster.content.top) * raster.scale * reg.scale + reg.dy)
                   .round() -
-              1;
-          final w = (b.width * raster.scale * reg.scale).round() + 2;
-          final h = (b.height * raster.scale * reg.scale).round() + 2;
+              pad;
+          final w = (b.width * raster.scale * reg.scale).round() + 2 * pad;
+          final h = (b.height * raster.scale * reg.scale).round() + 2 * pad;
           if (left < 0 || top < 0 || left + w > refW || top + h > refH)
             continue;
           final crop = Uint8List(w * h * 4);
@@ -130,19 +131,62 @@ void main() {
         return b - t + 1;
       }
 
-      final queue = <(int, int)>[];
+      int hrun(int x, int y) {
+        var l = x, r = x;
+        while (l > 0 && inky(rgba, w, l - 1, y)) {
+          l--;
+        }
+        while (r < w - 1 && inky(rgba, w, r + 1, y)) {
+          r++;
+        }
+        return r - l + 1;
+      }
+
+      // Horizontal wires come in at the left/right edges (wire-thin
+      // vertically); vertical wires at the top/bottom (wire-thin
+      // horizontally).
+      final queue = <(int, int, bool)>[];
       for (var y = 0; y < h; y++) {
         for (final x in [0, w - 1]) {
-          if (inky(rgba, w, x, y) && vrun(x, y) <= 3) queue.add((x, y));
+          if (inky(rgba, w, x, y) && vrun(x, y) <= 3) queue.add((x, y, true));
+        }
+      }
+      for (var x = 0; x < w; x++) {
+        for (final y in [0, h - 1]) {
+          if (inky(rgba, w, x, y) && hrun(x, y) <= 3) queue.add((x, y, false));
         }
       }
       while (queue.isNotEmpty) {
-        final (x, y) = queue.removeLast();
+        final (x, y, horiz) = queue.removeLast();
         if (x < 0 || y < 0 || x >= w || y >= h) continue;
-        if (!inky(rgba, w, x, y) || vrun(x, y) > 3) continue;
+        if (!inky(rgba, w, x, y)) continue;
+        if (horiz ? vrun(x, y) > 3 : hrun(x, y) > 3) continue;
         final i = (y * w + x) * 4;
         rgba[i] = rgba[i + 1] = rgba[i + 2] = 255;
-        queue.addAll([(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)]);
+        queue.addAll([
+          (x + 1, y, horiz),
+          (x - 1, y, horiz),
+          (x, y + 1, horiz),
+          (x, y - 1, horiz),
+          // Dashed wires (boolean) alternate ink and gaps: jump up to 3 px
+          // of background along the travel axis so a dash train erases as
+          // one tail; the thinness guard still stops at real art.
+          if (horiz) ...[
+            (x + 2, y, horiz),
+            (x + 3, y, horiz),
+            (x - 2, y, horiz),
+            (x - 3, y, horiz),
+            (x + 2, y + 1, horiz),
+            (x + 2, y - 1, horiz),
+            (x - 2, y + 1, horiz),
+            (x - 2, y - 1, horiz),
+          ] else ...[
+            (x, y + 2, horiz),
+            (x, y + 3, horiz),
+            (x, y - 2, horiz),
+            (x, y - 3, horiz),
+          ],
+        ]);
       }
     }
 
@@ -206,8 +250,8 @@ void main() {
       final aligned = <({Uint8List rgba, int w, int h, int dx, int dy})>[];
       for (final s in group) {
         var bd = 1 << 62, bx = 0, by = 0;
-        for (var dy = -3; dy <= 3; dy++) {
-          for (var dx = -3; dx <= 3; dx++) {
+        for (var dy = -5; dy <= 5; dy++) {
+          for (var dx = -5; dx <= 5; dx++) {
             final d = diffAt(s, dx, dy);
             if (d < bd) {
               bd = d;
@@ -304,6 +348,94 @@ void main() {
           }
         }
       }
+      // Keep only the main ink cluster: the largest connected component
+      // plus components whose 3 px-dilated bounding box touches the kept
+      // cluster (multi-part glyphs chain in; dashed-wire fragments and far
+      // junk in the padded crop drop out).
+      void keepMainCluster(Uint8List rgba) {
+        final compOf = List<int>.filled(w0 * h0, -1);
+        final comps = <({List<int> px, int l, int t, int r, int b})>[];
+        for (var y = 0; y < h0; y++) {
+          for (var x = 0; x < w0; x++) {
+            if (compOf[y * w0 + x] != -1 || !inky(rgba, w0, x, y)) continue;
+            final id = comps.length;
+            final pixels = <int>[];
+            int cl = x, ct = y, cr = x, cb = y;
+            final queue = <(int, int)>[(x, y)];
+            while (queue.isNotEmpty) {
+              final (px, py) = queue.removeLast();
+              if (px < 0 || py < 0 || px >= w0 || py >= h0) continue;
+              final idx = py * w0 + px;
+              if (compOf[idx] != -1 || !inky(rgba, w0, px, py)) continue;
+              compOf[idx] = id;
+              pixels.add(idx);
+              if (px < cl) cl = px;
+              if (px > cr) cr = px;
+              if (py < ct) ct = py;
+              if (py > cb) cb = py;
+              queue.addAll([
+                (px + 1, py),
+                (px - 1, py),
+                (px, py + 1),
+                (px, py - 1),
+                (px + 1, py + 1),
+                (px - 1, py - 1),
+                (px + 1, py - 1),
+                (px - 1, py + 1),
+              ]);
+            }
+            comps.add((px: pixels, l: cl, t: ct, r: cr, b: cb));
+          }
+        }
+        if (comps.length < 2) return;
+        var main = 0;
+        for (var i = 1; i < comps.length; i++) {
+          if (comps[i].px.length > comps[main].px.length) main = i;
+        }
+        final kept = <int>{main};
+        var kl = comps[main].l,
+            kt = comps[main].t,
+            kr = comps[main].r,
+            kb = comps[main].b;
+        var grew = true;
+        while (grew) {
+          grew = false;
+          for (var i = 0; i < comps.length; i++) {
+            if (kept.contains(i)) continue;
+            final c = comps[i];
+            // Inside the cluster: always keep (glyph dots, inner marks).
+            final inside =
+                c.l >= kl - 1 &&
+                c.r <= kr + 1 &&
+                c.t >= kt - 1 &&
+                c.b <= kb + 1;
+            // Adjacent AND not wire-like: a dash chain (2-3 px tall) never
+            // joins, so dashed wires cannot ladder into the cluster.
+            final adjacent =
+                c.l - 2 <= kr &&
+                c.r + 2 >= kl &&
+                c.t - 2 <= kb &&
+                c.b + 2 >= kt;
+            final wireLike = (c.b - c.t + 1) <= 3 || (c.r - c.l + 1) <= 1;
+            if (inside || (adjacent && !wireLike)) {
+              kept.add(i);
+              if (c.l < kl) kl = c.l;
+              if (c.t < kt) kt = c.t;
+              if (c.r > kr) kr = c.r;
+              if (c.b > kb) kb = c.b;
+              grew = true;
+            }
+          }
+        }
+        for (var i = 0; i < comps.length; i++) {
+          if (kept.contains(i)) continue;
+          for (final idx in comps[i].px) {
+            rgba[idx * 4] = rgba[idx * 4 + 1] = rgba[idx * 4 + 2] = 255;
+          }
+        }
+      }
+
+      keepMainCluster(consensus);
       // Trim to ink; a consensus that erased everything (heavily disagreeing
       // samples) falls back to the cleanest single sample so every identity
       // keeps an icon.
@@ -326,24 +458,31 @@ void main() {
 
       measure(consensus);
       if (r < 0 || (r - l + 1) * (btm - t + 1) < 24) {
-        // Valid fallback candidates keep ink over the crop centre (a
-        // wire-only crop's ink hugs an edge) and are at least icon-sized;
-        // the smallest such box carries the least neighbour junk.
-        var bestArea2 = 1 << 30;
+        // Fallback: per sample, clean it the same way (erosion already ran;
+        // cluster it), then pick the sample whose surviving ink is largest
+        // AND covers the crop centre — a sliver or an off-centre fragment
+        // never wins.
+        var bestInk = 0;
         Uint8List? single;
         for (final s in group) {
-          measure(s.rgba);
+          final copy = Uint8List.fromList(s.rgba);
+          keepMainCluster(copy);
+          measure(copy);
           if (r < 0) continue;
           final cx = w0 ~/ 2, cy = h0 ~/ 2;
           if (l > cx || r < cx || t > cy || btm < cy) continue;
-          final area = (r - l + 1) * (btm - t + 1);
-          if (area < 100) continue;
-          if (area < bestArea2) {
-            bestArea2 = area;
-            single = s.rgba;
+          var ink = 0;
+          for (var y = t; y <= btm; y++) {
+            for (var x = l; x <= r; x++) {
+              if (inky(copy, w0, x, y)) ink++;
+            }
+          }
+          if (ink > bestInk) {
+            bestInk = ink;
+            single = copy;
           }
         }
-        if (single == null) continue;
+        if (single == null || bestInk < 60) continue;
         consensus.setAll(0, single);
         measure(consensus);
       }
@@ -464,14 +603,15 @@ void main() {
       final classCode = key.startsWith('class')
           ? int.parse(key.substring(5))
           : null;
-      File('${outDir.path}/$key.png').writeAsBytesSync(img.encodePng(e.icon));
+      final file = op != null ? '${key}_${op.slug}.png' : '$key.png';
+      File('${outDir.path}/$file').writeAsBytesSync(img.encodePng(e.icon));
       final label =
           op?.opName ??
           (classCode != null
               ? 'class 0x${classCode.toRadixString(16)}'
               : '(uncatalogued)');
       manifest.writeln(
-        '| $key.png | $label | ${e.icon.width}x${e.icon.height} | ${e.sources} |',
+        '| $file | $label | ${e.icon.width}x${e.icon.height} | ${e.sources} |',
       );
       written++;
     }

@@ -206,6 +206,13 @@ void main() {
       expect(op.opName, isNotEmpty);
     }
     expect(PrimOp.fromId(9999), isNull);
+    // The icon-asset naming contract: prim<id>_<slug>.png.
+    expect(PrimOp.add.slug, 'add');
+    expect(PrimOp.toLongInteger.slug, 'to-long-integer');
+    expect(PrimOp.greaterOrEqualToZero.slug, 'greater-or-equal-to-0');
+    for (final op in PrimOp.values) {
+      expect(RegExp(r'^[a-z0-9-]+$').hasMatch(op.slug), isTrue, reason: op.opName);
+    }
   });
 
   test('bracket tree: parent/child nesting, roots, children(), absolute coordinates', () {

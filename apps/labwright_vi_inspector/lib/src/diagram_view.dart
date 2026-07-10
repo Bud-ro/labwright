@@ -1487,7 +1487,7 @@ Future<Map<int, ui.Image>> loadPrimIcons() => _primIcons ??= () async {
   final icons = <int, ui.Image>{};
   for (final asset in manifest.listAssets()) {
     final m = RegExp(
-      r'assets/prim_icons/(prim|class)(\d+)\.png$',
+      r'assets/prim_icons/(prim|class)(\d+)(?:_[a-z0-9-]+)?\.png$',
     ).firstMatch(asset);
     if (m == null) continue;
     final bytes = await rootBundle.load(asset);

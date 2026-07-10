@@ -420,6 +420,11 @@ enum PrimOp {
   /// The evidence behind [opName] (see the library doc).
   final PrimNameBasis basis;
 
+  /// [opName] as a filename-safe slug (`add`, `to-long-integer`,
+  /// `greater-or-equal-to-0`) — the naming half of the icon-asset contract
+  /// `prim<id>_<slug>.png`.
+  String get slug => opName.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-').replaceAll(RegExp(r'^-+|-+$'), '');
+
   static final Map<int, PrimOp> _byId = {for (final op in values) op.id: op};
 
   /// The catalogued primitive for a raw primResID [id], or null when the
