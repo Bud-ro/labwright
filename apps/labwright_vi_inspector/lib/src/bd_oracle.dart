@@ -1426,10 +1426,18 @@ class _BdOracleViewState extends State<BdOracleView>
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
-                      RawImage(image: result.reference, fit: BoxFit.fill),
+                      RawImage(
+                        image: result.reference,
+                        fit: BoxFit.fill,
+                        filterQuality: FilterQuality.none,
+                      ),
                       ClipRect(
                         clipper: _LeftFractionClipper(_wipeFraction),
-                        child: RawImage(image: result.fitted, fit: BoxFit.fill),
+                        child: RawImage(
+                          image: result.fitted,
+                          fit: BoxFit.fill,
+                          filterQuality: FilterQuality.none,
+                        ),
                       ),
                       Positioned(
                         left: (w * _wipeFraction - 1).clamp(0.0, w - 2),
@@ -1463,7 +1471,11 @@ class _BdOracleViewState extends State<BdOracleView>
               child: SizedBox(
                 width: image.width.toDouble(),
                 height: image.height.toDouble(),
-                child: RawImage(image: image, fit: BoxFit.contain),
+                child: RawImage(
+                  image: image,
+                  fit: BoxFit.contain,
+                  filterQuality: FilterQuality.none,
+                ),
               ),
             ),
           ),

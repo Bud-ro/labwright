@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/services.dart' show AssetManifest, rootBundle;
@@ -353,6 +354,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
           x <= bounds.right &&
           y >= bounds.top &&
           y <= bounds.bottom) {
+        if (!primIconHit(object, x, y)) continue;
         final area = (bounds.width * bounds.height).toDouble();
         if (area <= bestArea) {
           bestArea = area;
@@ -1186,6 +1188,25 @@ Map<int, List<({HeapRect box, int bmp})>> bdStructureTerminals(
 ) {
   final byId = diagram.byId;
   final out = <int, List<({HeapRect box, int bmp})>>{};
+  // A for loop's N part (the 0x15 parent of the bmp-2 carrier) hides the
+  // N/i corner pair when its objFlags clear bit 0x8000 — render-verified
+  // both ways on crc8's four loops (571 hides both with the bit clear;
+  // 86/164/3042 show both with it set).
+  final hiddenCountLoops = <int>{};
+  for (final object in diagram.objects) {
+    if (object.termBmp != 2) continue;
+    final part = byId[object.parentOid ?? -1];
+    if (part == null || part.kind != 0x15) continue;
+    if (((part.objFlags ?? 0) & 0x8000) != 0) continue;
+    var cur = byId[part.parentOid ?? -1];
+    var depth = 0;
+    while (cur != null &&
+        cur.category != ViObjectKind.structure &&
+        depth++ < 8) {
+      cur = byId[cur.parentOid ?? -1];
+    }
+    if (cur != null) hiddenCountLoops.add(cur.oid);
+  }
   for (final object in diagram.objects) {
     final box = object.termBounds;
     final bmp = object.termBmp;
@@ -1200,9 +1221,27 @@ Map<int, List<({HeapRect box, int bmp})>> bdStructureTerminals(
       cur = byId[cur.parentOid ?? -1];
     }
     if (cur == null || cur.category != ViObjectKind.structure) continue;
+    if ((bmp == 1 || bmp == 2) && hiddenCountLoops.contains(cur.oid)) continue;
     (out[cur.oid] ??= []).add((box: box, bmp: bmp));
   }
   return out;
+}
+
+/// Whether [object]'s positional ancestry crosses a structure — node-glyph
+/// art belongs to a node, and inside a structure frame it is never canvas
+/// content.
+bool _nestedInStructure(ViHeapObject object, Map<int, ViHeapObject> byId) {
+  var cur = byId[object.parentOid ?? -1];
+  var depth = 0;
+  while (cur != null && depth++ < 16) {
+    // The diagram root (0x7e, no parent) is not a structure for this test —
+    // top-level glyphs are exactly the ones LabVIEW draws.
+    if (cur.category == ViObjectKind.structure && cur.parentOid != null) {
+      return true;
+    }
+    cur = byId[cur.parentOid ?? -1];
+  }
+  return false;
 }
 
 /// The **drawable** objects of [diagram] — the layout layer the BD/FP view and
@@ -1229,10 +1268,15 @@ List<ViHeapObject> bdDrawableObjects(ViDiagram diagram) {
           // A node-glyph part (0x177) composed at negative coordinates is a
           // node's icon art in glyph space, not canvas space (crc8's floats
           // at (-8,-13) parented to the root frame) — drawing it stamps a
-          // stray box and stretches the content extent. Positive-positioned
-          // 0x177s are real drawn glyphs (VI Tree's icon row) and stay.
+          // stray box and stretches the content extent. One nested inside a
+          // structure frame is likewise node-icon art LabVIEW's canvas never
+          // shows (crc8's 12x12 at (224,669) under a loop frame). Top-level
+          // positive-positioned 0x177s are real drawn glyphs (VI Tree's icon
+          // row) and stay.
           !(object.kind == 0x177 &&
-              (object.absBounds!.left < 0 || object.absBounds!.top < 0)) &&
+              (object.absBounds!.left < 0 ||
+                  object.absBounds!.top < 0 ||
+                  _nestedInStructure(object, byId))) &&
           !_escapesConstantBox(object, byId) &&
           !_escapesStructureBox(object, byId) &&
           // An owned name-label whose position was not composed lands glued to
@@ -1427,20 +1471,65 @@ int _depthOf(ViHeapObject object, Map<int, ViHeapObject> byId) {
 /// LabVIEW's icon art harvested from the snippet references, transparent
 /// exterior, hand-editable), decoded once and keyed by primResID. Empty when
 /// the bundle carries none.
+/// The primitive classes that ARE a single operation (no primResID record —
+/// the class code is the identity); their icons are keyed as `-code`.
+const kSingleOpPrimClasses = {0x3a, 0x34, 0x3e, 0x44, 0x6c, 0x93, 0x172};
+
+/// The icon-map key for [object]: its primResID when present, else the
+/// negated class code for the single-op primitive classes, else null.
+int? primIconKeyOf(ViHeapObject object) =>
+    object.primResId ??
+    (kSingleOpPrimClasses.contains(object.kind) ? -object.kind : null);
+
 Future<Map<int, ui.Image>> loadPrimIcons() => _primIcons ??= () async {
   final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
   final icons = <int, ui.Image>{};
   for (final asset in manifest.listAssets()) {
-    final m = RegExp(r'assets/prim_icons/prim(\d+)\.png$').firstMatch(asset);
+    final m = RegExp(
+      r'assets/prim_icons/(prim|class)(\d+)\.png$',
+    ).firstMatch(asset);
     if (m == null) continue;
     final bytes = await rootBundle.load(asset);
     final codec = await ui.instantiateImageCodec(bytes.buffer.asUint8List());
-    icons[int.parse(m.group(1)!)] = (await codec.getNextFrame()).image;
+    final image = (await codec.getNextFrame()).image;
+    final id = m.group(1) == 'prim'
+        ? int.parse(m.group(2)!)
+        : -int.parse(m.group(2)!);
+    icons[id] = image;
+    // The alpha mask backs pixel-precise hit testing: a stamped icon's
+    // transparent surround must not swallow clicks meant for the wire or
+    // canvas behind it.
+    final rgba = await image.toByteData();
+    if (rgba != null) {
+      final alpha = Uint8List(image.width * image.height);
+      for (var i = 0; i < alpha.length; i++) {
+        alpha[i] = rgba.getUint8(i * 4 + 3);
+      }
+      _primIconMasks[id] = (w: image.width, h: image.height, alpha: alpha);
+    }
   }
   return _primIconsSync = icons;
 }();
 Future<Map<int, ui.Image>>? _primIcons;
 Map<int, ui.Image> _primIconsSync = const {};
+final Map<int, ({int w, int h, Uint8List alpha})> _primIconMasks = {};
+
+/// Whether the diagram-space point ([x],[y]) lands on an opaque pixel of the
+/// primitive icon stamped on [object] (natural size, centred in its bounds).
+/// True when no icon is stamped — the plain bounds hit stands. Pixel-precise
+/// so an icon's transparent surround does not swallow clicks.
+bool primIconHit(ViHeapObject object, double x, double y) {
+  final id = primIconKeyOf(object);
+  final mask = id == null ? null : _primIconMasks[id];
+  if (mask == null || _primIconsSync[id] == null) return true;
+  final b = object.absBounds!;
+  final left = (b.left + b.right - mask.w) / 2;
+  final top = (b.top + b.bottom - mask.h) / 2;
+  final ix = (x - left).floor();
+  final iy = (y - top).floor();
+  if (ix < 0 || iy < 0 || ix >= mask.w || iy >= mask.h) return false;
+  return mask.alpha[iy * mask.w + ix] > 0;
+}
 
 /// The already-decoded primitive icons, or empty while [loadPrimIcons] is
 /// still in flight — for callers that must not block (the oracle's first
@@ -1577,6 +1666,10 @@ class BdDiagramPainter extends CustomPainter {
     // Dataflow wires paint over the canvas/decorations but under every
     // structure/node, so nodes and terminals always sit on top of the runs that
     // reach them.
+    final arrayShellOids = {
+      for (final o in objects)
+        if (o.kind == 0x50 && o.parentOid != null) o.parentOid!,
+    };
     final structureRects = {for (final o in structures) rectOf(o)};
     final tunnelLandings = <(Offset, Color)>[];
     _drawWires(
@@ -1600,6 +1693,14 @@ class BdDiagramPainter extends CustomPainter {
       // without a decoded box is not placed.
       final terminals =
           structureTerminals[object.oid] ?? const <({HeapRect box, int bmp})>[];
+      // An array constant shell (a 0x52 container holding a 0x50 index box)
+      // is not a drawn frame — LabVIEW shows only its parts (the index box,
+      // the element, the label); crc8's LUT constant renders frameless. A
+      // 0x52 without an index box keeps its generic frame (decorations_only
+      // scores on one).
+      if (object.kind == 0x52 && arrayShellOids.contains(object.oid)) {
+        continue;
+      }
       switch (object.kind) {
         case 0x21 || 0x20: // While / for loop: rounded band + terminals.
           _drawLoopBand(canvas, rect, structColor);
@@ -1682,10 +1783,14 @@ class BdDiagramPainter extends CustomPainter {
       switch (object.category) {
         case ViObjectKind.terminal:
           // LabVIEW terminal: datatype-coloured double border — a 2 px outer
-          // border, a 1 px white gap, a 1 px inner border — over a lightly
-          // tinted plate. A recovered datatype (or a decoded foreground
-          // colour, e.g. a boolean constant's green) drives the colour; an
-          // unrecovered one stays a neutral grey rather than guessing.
+          // border, a 1 px white gap, a 1 px inner border — over a plate
+          // shaded only around the dataflow arrow. A recovered datatype (or
+          // a decoded foreground colour, e.g. a boolean constant's green)
+          // drives the colour; an unrecovered one stays a neutral grey
+          // rather than guessing. NI draws indicators with a thinner 1 px
+          // outer border; both directions unify on the control weights here
+          // (deliberate divergence — the reference-measured indicator border
+          // reads as an engraving artefact, not a meaningful distinction).
           final typed =
               object.typeKind != ViTypeKind.unknown || object.fgRgb != null;
           final tint = object.typeKind != ViTypeKind.unknown
@@ -1695,18 +1800,13 @@ class BdDiagramPainter extends CustomPainter {
           // "unknown" grey as a border is invisible to the eye and the edge
           // masks alike.
           final border = typed ? tint : const Color(0xFF5A5A5A);
-          canvas.drawRect(rect, Paint()..color = tint.withValues(alpha: 0.25));
-          // Border weight encodes direction, as LabVIEW draws it: a CONTROL
-          // has the thick outer border (2 px, 1 px gap), an INDICATOR the
-          // thin one (1 px, 2 px gap). Unknown direction keeps the control
-          // weights.
-          final indicator = object.isIndicator == true;
+          canvas.drawRect(rect, Paint()..color = Colors.white);
           canvas.drawRect(
-            rect.deflate(indicator ? 0.5 : 1),
+            rect.deflate(1),
             Paint()
               ..color = border
               ..style = PaintingStyle.stroke
-              ..strokeWidth = indicator ? 1.0 : 2.0,
+              ..strokeWidth = 2.0,
           );
           if (rect.width > 10 && rect.height > 10) {
             canvas.drawRect(
@@ -1717,16 +1817,40 @@ class BdDiagramPainter extends CustomPainter {
                 ..strokeWidth = 1.0,
             );
           }
-          // The dataflow arrow: a control feeds rightward out of its right
-          // edge; an indicator receives at its left edge. Only drawn when
-          // the direction is decoded.
-          if (object.isIndicator != null && rect.height >= 10) {
+          // The dataflow arrow lives INSIDE the box (reference-measured on
+          // the snippet renders): a right-pointing triangle 3 px deep and
+          // ~7 px tall. Data leaving (a control): the tip touches the 2 px
+          // outer border, the base intrudes 1 px past the inner border.
+          // Data arriving (an indicator): the base sits on the inner border.
+          // The plate shading hugs the arrow region only, leaving the 1 px
+          // whitespace gap beside the borders — same size both directions.
+          if (object.isIndicator != null &&
+              rect.height >= 12 &&
+              rect.width >= 12) {
+            final indicator = object.isIndicator == true;
             final cy = rect.center.dy;
-            final ax = indicator ? rect.left : rect.right;
+            final double tipX;
+            if (indicator) {
+              // Wire enters at the left: base on the inner border.
+              tipX = rect.left + 7;
+            } else {
+              // Data leaves at the right: tip touching the outer border.
+              tipX = rect.right - 3;
+            }
+            final shade = Rect.fromLTRB(
+              indicator ? rect.left + 3 : rect.right - 10,
+              rect.top + 4,
+              indicator ? rect.left + 10 : rect.right - 3,
+              rect.bottom - 4,
+            );
+            canvas.drawRect(
+              shade,
+              Paint()..color = tint.withValues(alpha: 0.25),
+            );
             final tri = Path()
-              ..moveTo(ax - 3, cy - 4)
-              ..lineTo(ax + 3, cy)
-              ..lineTo(ax - 3, cy + 4)
+              ..moveTo(tipX - 3, cy - 3.5)
+              ..lineTo(tipX, cy)
+              ..lineTo(tipX - 3, cy + 3.5)
               ..close();
             canvas.drawPath(tri, Paint()..color = Colors.black87);
           }
@@ -1764,25 +1888,23 @@ class BdDiagramPainter extends CustomPainter {
           // draws around node icons.
           final isSubVi = kSubViCallNodeCodes.contains(object.kind);
           final icon = subViIcons[object.oid];
-          final primIcon = object.primResId == null
-              ? null
-              : primIcons[object.primResId!];
-          Rect borderRect = rect;
+          final iconKey = primIconKeyOf(object);
+          final primIcon = iconKey == null ? null : primIcons[iconKey];
           if (primIcon != null) {
+            // The harvested art carries its own borders and transparency —
+            // no plate, backing, or extra frame around it.
             final w = primIcon.width.toDouble(), h = primIcon.height.toDouble();
             final dst = Rect.fromCenter(
               center: rect.center,
               width: w,
               height: h,
             );
-            canvas.drawRect(dst, Paint()..color = Colors.white);
             canvas.drawImageRect(
               primIcon,
               Rect.fromLTWH(0, 0, w, h),
               dst,
               Paint()..filterQuality = FilterQuality.none,
             );
-            borderRect = dst;
           } else if (icon != null) {
             paintLegacyIcon(canvas, icon, rect);
           } else {
@@ -1805,13 +1927,15 @@ class BdDiagramPainter extends CustomPainter {
               );
             }
           }
-          canvas.drawRect(
-            borderRect.deflate(0.5),
-            Paint()
-              ..color = Colors.black
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 1.0,
-          );
+          if (primIcon == null) {
+            canvas.drawRect(
+              rect.deflate(0.5),
+              Paint()
+                ..color = Colors.black
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 1.0,
+            );
+          }
           // A decoded primitive identity draws its operator glyph on the
           // plate when no icon asset exists (LabVIEW draws icon art; the
           // glyph is the recognisable core of that art). Nothing is drawn
@@ -1882,8 +2006,19 @@ class BdDiagramPainter extends CustomPainter {
           text = byOid[object.parentOid]?.typeName;
         }
         if (text == null || text.isEmpty) continue;
-        final rect = rectOf(object);
-        if (rect.width < 8 || rect.height < 8) continue;
+        final rect0 = rectOf(object);
+        if (rect0.width < 8 || rect0.height < 8) continue;
+        // The case selector's value text sits between the inset pager boxes
+        // (see [_drawCaseSelector]) and is centred like LabVIEW's.
+        final selector = object.kind == 0x95;
+        final rect = selector
+            ? Rect.fromLTRB(
+                rect0.left + 9,
+                rect0.top,
+                rect0.right - 9,
+                rect0.bottom,
+              )
+            : rect0;
         final tp = TextPainter(
           text: TextSpan(
             text: text,
@@ -1891,15 +2026,23 @@ class BdDiagramPainter extends CustomPainter {
               color:
                   bdDecodedColor(object.fgRgb) ??
                   Colors.black.withValues(alpha: 0.85),
-              fontSize: 10.5,
+              fontSize: selector ? 9.5 : 10.5,
               fontFamily: 'Roboto',
             ),
           ),
           maxLines: math.max(1, rect.height ~/ 12),
           ellipsis: '…',
           textDirection: TextDirection.ltr,
-        )..layout(maxWidth: math.max(8, rect.width - 4));
-        tp.paint(canvas, rect.topLeft + const Offset(2, 1));
+        )..layout(maxWidth: math.max(8, rect.width - (selector ? 1 : 4)));
+        tp.paint(
+          canvas,
+          selector
+              ? Offset(
+                  rect.center.dx - tp.width / 2,
+                  rect.center.dy - tp.height / 2,
+                )
+              : rect0.topLeft + const Offset(2, 1),
+        );
         continue;
       }
       // A structure is identified by its border chrome (LabVIEW draws no
@@ -2183,44 +2326,39 @@ class BdDiagramPainter extends CustomPainter {
   /// sit on the case's top border. The selector STRING is drawn by the text
   /// pass; only the furniture is drawn here.
   void _drawCaseSelector(Canvas canvas, Rect rect) {
+    // Reference-measured chrome (the snippet renders): the selector strip is
+    // the modeled 0x95 label bounds; the pager boxes sit INSIDE its two ends
+    // at full height, 9 px wide, sharing the strip's border; the pager
+    // triangles are 4 px deep and 7 px tall; the dropdown is 7 px wide and
+    // 4 px tall against the value box's right edge.
     final border = Paint()
       ..color = Colors.black.withValues(alpha: 0.8)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.0;
     canvas.drawRect(rect, Paint()..color = Colors.white);
-    canvas.drawRect(rect, border);
-    // ▼ on the value box's right edge.
-    final dc = Offset(rect.right - 7, rect.center.dy);
-    final down = Path()
-      ..moveTo(dc.dx - 3.5, dc.dy - 2)
-      ..lineTo(dc.dx + 3.5, dc.dy - 2)
-      ..lineTo(dc.dx, dc.dy + 3)
-      ..close();
-    canvas.drawPath(down, Paint()..color = Colors.black87);
-    // ◄ / ► pager boxes flanking the value box.
+    canvas.drawRect(rect.deflate(0.5), border);
+    final cy = rect.center.dy;
     void pager(Rect box, bool left) {
-      canvas.drawRect(box, Paint()..color = Colors.white);
-      canvas.drawRect(box, border);
-      final c = box.center;
-      final tri = left
-          ? (Path()
-              ..moveTo(c.dx + 2, c.dy - 3.5)
-              ..lineTo(c.dx + 2, c.dy + 3.5)
-              ..lineTo(c.dx - 2.5, c.dy)
-              ..close())
-          : (Path()
-              ..moveTo(c.dx - 2, c.dy - 3.5)
-              ..lineTo(c.dx - 2, c.dy + 3.5)
-              ..lineTo(c.dx + 2.5, c.dy)
-              ..close());
+      canvas.drawRect(box.deflate(0.5), border);
+      final tipX = left ? box.center.dx - 2 : box.center.dx + 2;
+      final baseX = left ? box.center.dx + 2 : box.center.dx - 2;
+      final tri = Path()
+        ..moveTo(baseX, cy - 3.5)
+        ..lineTo(baseX, cy + 3.5)
+        ..lineTo(tipX, cy)
+        ..close();
       canvas.drawPath(tri, Paint()..color = Colors.black87);
     }
 
-    pager(
-      Rect.fromLTWH(rect.left - 10, rect.top + 2, 10, rect.height - 4),
-      true,
-    );
-    pager(Rect.fromLTWH(rect.right, rect.top + 2, 10, rect.height - 4), false);
+    pager(Rect.fromLTWH(rect.left, rect.top, 9, rect.height), true);
+    pager(Rect.fromLTWH(rect.right - 9, rect.top, 9, rect.height), false);
+    final dx = rect.right - 15;
+    final down = Path()
+      ..moveTo(dx - 3.5, cy - 2)
+      ..lineTo(dx + 3.5, cy - 2)
+      ..lineTo(dx, cy + 2)
+      ..close();
+    canvas.drawPath(down, Paint()..color = Colors.black87);
   }
 
   void _drawDotGrid(Canvas canvas, Size size) {
@@ -2243,6 +2381,7 @@ class BdDiagramPainter extends CustomPainter {
       !identical(old.objects, objects) ||
       !identical(old.wires, wires) ||
       !identical(old.subViIcons, subViIcons) ||
+      !identical(old.primIcons, primIcons) ||
       !identical(old.structureTerminals, structureTerminals) ||
       old.origin != origin;
 }
