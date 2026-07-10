@@ -110,30 +110,41 @@ void main() {
     // a placement/rendering regression on any of these drops below its floor.
     const floors = <String, double>{
       'fg.png': 0.85,
+      'sub_vi_missing.png': 0.85,
+      'missing_terminal.png': 0.80,
+      'VISA_Query.png': 0.80,
+      'Tokenize URL.png': 0.80,
       'example.png': 0.75,
-      'sub_vi_missing.png': 0.65,
+      'ProjectItems.png': 0.75,
+      'Config_Dump.png': 0.75,
+      'Resolve Library Path.png': 0.75,
+      'ClassChildren.png': 0.65,
+      'GenerateTree.png': 0.65,
+      'crc8.png': 0.65,
+      'FileReadOnly.png': 0.65,
+      'VISA_InterfaceType.png': 0.65,
+      'IconHeader.png': 0.60,
+      'crc16.png': 0.60,
+      'ClassesInMemory.png': 0.60,
       'basic.png': 0.55,
+      'crc32.png': 0.55,
+      'MD5.png': 0.50,
       'PNG CRC32.png': 0.50,
+      'crc32_lookup_table.png': 0.50,
+      'Read Library Version.png': 0.50,
+      'decorations_only.png': 0.50,
       'large.png': 0.45,
       'vi_lib_dependency.png': 0.45,
-      'missing_terminal.png': 0.25,
-      'crc32_lookup_table.png': 0.15,
-      'ProjectItems.png': 0.75,
-      'Config_Dump.png': 0.65,
-      'IconHeader.png': 0.60,
-      'ClassesInMemory.png': 0.60,
-      'crc8.png': 0.65,
-      'crc16.png': 0.60,
-      'crc32.png': 0.55,
-      'GenerateTree.png': 0.50,
       'Config_Escape.png': 0.45,
-      'ClassChildren.png': 0.40,
     };
 
     testWidgets('every snippet compares; placement ranks true placement', (
       tester,
     ) async {
       if (pngs.isEmpty) return;
+      // Real glyphs, not Ahem blocks — canvas text is part of what the
+      // oracle measures.
+      await loadRealTextFont();
       expect(pngs, hasLength(46));
       var placementSum = 0.0, shiftedSum = 0.0, measured = 0;
       await tester.runAsync(() async {

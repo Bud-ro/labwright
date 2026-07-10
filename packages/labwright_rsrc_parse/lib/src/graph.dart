@@ -998,7 +998,10 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
           final text = attr.asString;
           if (text != null && text.isNotEmpty) cur.constText ??= text;
         }
-        final rgb = attr.rgb;
+        // The transparent sentinel (flag 0x01, RGB 0) is "no colour", not
+        // black — capturing it would paint transparent label backings and
+        // fills as solid black.
+        final rgb = attr.isTransparent ? null : attr.rgb;
         if (rgb != null) {
           switch (attr.attribute) {
             case HeapAttribute.backgroundColor:
