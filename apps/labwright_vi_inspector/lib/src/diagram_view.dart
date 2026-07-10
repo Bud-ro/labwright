@@ -944,6 +944,7 @@ List<ViHeapObject> bdDrawableObjects(ViDiagram diagram) {
           object.absBounds!.height < 8000 &&
           !hidden.contains(object.oid) &&
           !_escapesConstantBox(object, byId) &&
+          !_escapesStructureBox(object, byId) &&
           // An owned name-label whose position was not composed lands glued to
           // the origin, extending upward (left == 0, bottom == 0) — 13 of the
           // snippet corpus's 1849 label parts, every one duplicating text that
@@ -1017,6 +1018,45 @@ bool _escapesConstantBox(ViHeapObject object, Map<int, ViHeapObject> byId) {
   if (kBdTextLabelCodes.contains(object.kind)) return false;
   final b = object.absBounds;
   return b != null && b.width > 0 && b.height > 0 && outside(b);
+}
+
+/// Whether [object] is composed **entirely outside** its nearest bounded
+/// structure ancestor's box (inflated by [slack] px, so tunnels and owned
+/// labels overhanging a border stay) — with **no wire (0x1d) on the chain**
+/// between them: a wire-parented subtree legitimately escapes its heap
+/// container (heap-nesting ≠ visual containment for wires), but a directly
+/// nested part outside its frame is mis-composed (a coordinate frame the
+/// origin composition does not yet decode) and drawing it stamps content at
+/// junk positions and stretches the content extent. Free-text labels are
+/// exempt.
+bool _escapesStructureBox(
+  ViHeapObject object,
+  Map<int, ViHeapObject> byId, {
+  int slack = 32,
+}) {
+  if (kBdTextLabelCodes.contains(object.kind)) return false;
+  if (object.category == ViObjectKind.wire) return false;
+  final bounds = object.absBounds;
+  if (bounds == null || bounds.width <= 0 || bounds.height <= 0) return false;
+  var cur = object;
+  var depth = 0;
+  while (cur.parentOid != null && depth++ < 64) {
+    final parent = byId[cur.parentOid];
+    if (parent == null) return false;
+    if (parent.kind == 0x1d) return false;
+    final box = parent.absBounds;
+    if (parent.category == ViObjectKind.structure &&
+        box != null &&
+        box.width > 0 &&
+        box.height > 0) {
+      return bounds.right <= box.left - slack ||
+          bounds.left >= box.right + slack ||
+          bounds.bottom <= box.top - slack ||
+          bounds.top >= box.bottom + slack;
+    }
+    cur = parent;
+  }
+  return false;
 }
 
 /// The `.vi`/`.vim` filenames [diagram]'s subVI-call nodes target — the wanted
