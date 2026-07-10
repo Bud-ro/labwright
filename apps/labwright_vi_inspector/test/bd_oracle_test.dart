@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:labwright_vi_inspector/src/bd_oracle.dart';
 import 'package:labwright_vi_inspector/src/diagram_view.dart';
+import 'package:labwright_vi_inspector/src/subvi_icon_resolver.dart';
 
 import 'util.dart';
 
@@ -667,55 +668,28 @@ void main() {
     });
   });
 
-  group('subVI icon resolution', () {
-    // resolveSubViIcons resolves ONLY subVI-call nodes whose `.vi` target the
-    // loader can supply; other nodes and unresolved targets keep the neutral
-    // plate (no icon in the map). Uses a real corpus VI as the known target.
-    test('resolves a subVI-call node icon from its target VI file', () {
-      final corpus = _corpusDir();
-      if (corpus == null) return;
-      final target = File(
-        '${corpus.path}/vipm-io_caraya/vipm-io-caraya-ca35333/'
-        'src/classes/Test/Define Test.vi',
-      );
-      if (!target.existsSync()) return;
-
+  group('subVI icon rendering', () {
+    // subViWantedNames selects ONLY subVI-call nodes whose caption is a
+    // `.vi`/`.vim` filename; other nodes are not searched for.
+    test('subViWantedNames picks subVI-call node filenames only', () {
       final call = ViHeapObject(oid: 5, kind: 0x31, offset: 0)
         ..category = ViObjectKind.node
-        ..label = 'Define Test.vi'
-        ..absBounds = const HeapRect(top: 10, left: 10, bottom: 42, right: 42);
-      final unresolved = ViHeapObject(oid: 6, kind: 0x31, offset: 0)
+        ..label = 'Define Test.vi';
+      final another = ViHeapObject(oid: 6, kind: 0x31, offset: 0)
         ..category = ViObjectKind.node
-        ..label = 'Not In Corpus.vi'
-        ..absBounds = const HeapRect(top: 10, left: 60, bottom: 42, right: 92);
+        ..label = 'Not In Corpus.vi';
       final primitive = ViHeapObject(oid: 7, kind: 0x2f, offset: 0)
         ..category = ViObjectKind.node
-        ..label = 'Add'
-        ..absBounds = const HeapRect(
-          top: 10,
-          left: 110,
-          bottom: 42,
-          right: 142,
-        );
+        ..label = 'Add'; // not a subVI-call class → not wanted
       final diagram = ViDiagram(
         sectionTag: 'BDHb',
-        objects: [call, unresolved, primitive],
+        objects: [call, another, primitive],
       );
-
-      final bytes = target.readAsBytesSync();
-      Uint8List? load(String name) => name == 'Define Test.vi' ? bytes : null;
-      final icons = resolveSubViIcons(diagram, load);
-
-      // The subVI-call node whose target resolved carries a decoded icon.
-      expect(icons.keys, contains(5));
-      // A subVI-call node whose target the loader can't supply keeps no icon.
-      expect(icons.containsKey(6), isFalse);
-      // A primitive node (not a subVI-call class) is never resolved.
-      expect(icons.containsKey(7), isFalse);
+      expect(subViWantedNames(diagram), {'Define Test.vi', 'Not In Corpus.vi'});
     });
 
-    // A diagram rendered with resolved icons differs from the neutral-plate
-    // render, and rasterises without error.
+    // A diagram rendered with icons stamped on a node differs from the
+    // neutral-plate render, and rasterises without error.
     testWidgets('rasterising with subVI icons stamps the node', (tester) async {
       final corpus = _corpusDir();
       if (corpus == null) return;
@@ -730,9 +704,9 @@ void main() {
         ..label = 'Define Test.vi'
         ..absBounds = const HeapRect(top: 20, left: 20, bottom: 52, right: 52);
       final diagram = ViDiagram(sectionTag: 'BDHb', objects: [call]);
-      final bytes = target.readAsBytesSync();
-      final icons = resolveSubViIcons(diagram, (n) => bytes);
-      expect(icons, isNotEmpty);
+      final icon = decodeViFileIcon(target.path);
+      expect(icon, isNotNull);
+      final icons = {5: icon!};
 
       await tester.runAsync(() async {
         final iconed = await rasteriseBlockDiagram(diagram, subViIcons: icons);
