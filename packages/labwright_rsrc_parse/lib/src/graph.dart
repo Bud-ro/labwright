@@ -251,6 +251,18 @@ class ViHeapObject {
   /// [decodeWireRoute].
   Uint8List? wireTableRaw;
 
+  /// Whether this **label part** (class `0xa`) is hidden in LabVIEW's render:
+  /// bit `0x08` of its [objFlags]. Ground truth from the snippet oracles —
+  /// GetCurrentDirectory's seven bit-set labels (constant fields and a
+  /// subVI's name) are all absent from LabVIEW's own render while its one
+  /// bit-clear label shows, missing_terminal's hidden "string" sets the bit
+  /// while its shown labels clear it, and fg's three shown labels clear it.
+  /// Corpus-wide the split matches LabVIEW practice: 94,690 of 115,337
+  /// texted BD label parts set the bit (terminal/constant labels are usually
+  /// hidden) vs 9,956 of 101,790 on front panels (control labels are usually
+  /// shown). False for non-label classes.
+  bool get isLabelHidden => kind == 0xa && ((objFlags ?? 0) & 8) != 0;
+
   /// Whether this data item is an **indicator** (an output) rather than a
   /// control: bit 0 of the owning DCO's [objFlags] (corpus-validated on
   /// named panels — "CRC-8"/"Sum"/"Elements"/"concatenated string" set it,

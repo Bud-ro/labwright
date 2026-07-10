@@ -1714,6 +1714,10 @@ class BdDiagramPainter extends CustomPainter {
       // plausible non-origin box, so the text lands where LabVIEW put it.
       // Degenerate boxes (origin-pinned or sub-glyph-sized) are skipped.
       if (kBdTextLabelCodes.contains(object.kind)) {
+        // LabVIEW hides a label whose part sets objFlags bit 0x08 (see
+        // [ViHeapObject.isLabelHidden]) — drawing it would add text the
+        // reference render does not have.
+        if (object.isLabelHidden) continue;
         var text = object.label?.trim();
         if (text == null || text.isEmpty) {
           // An owned label with no recovered caption shows its owner's

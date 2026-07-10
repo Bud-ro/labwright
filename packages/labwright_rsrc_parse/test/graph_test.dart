@@ -126,6 +126,25 @@ void main() {
     expect(route.jointSigns, [1, 1]);
   });
 
+  test('isLabelHidden: objFlags bit 0x08 on label parts only', () {
+    final d = dia([
+      ...open(0xa, 1),
+      ...caption('hidden'),
+      0x64, 0xcb, 0x17, 0x11, 0x4a, // u24 objFlags with bit 0x08 set
+      ...close(),
+      ...open(0xa, 2),
+      ...caption('shown'),
+      0x64, 0xcb, 0x17, 0x11, 0x42,
+      ...close(),
+      ...open(0x50, 3),
+      0x64, 0xcb, 0x17, 0x11, 0x4a,
+      ...close(),
+    ]);
+    expect(d.byId[1]!.isLabelHidden, isTrue);
+    expect(d.byId[2]!.isLabelHidden, isFalse);
+    expect(d.byId[3]!.isLabelHidden, isFalse, reason: 'the bit only means hidden on label parts');
+  });
+
   test('PrimOp catalog: unique ids, lookup round-trip', () {
     final ids = PrimOp.values.map((op) => op.id).toSet();
     expect(ids.length, PrimOp.values.length, reason: 'catalog ids are unique');
