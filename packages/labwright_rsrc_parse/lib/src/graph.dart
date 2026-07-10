@@ -237,13 +237,13 @@ class ViHeapObject {
   int? objFlags;
 
   /// Which built-in operation a primitive node performs
-  /// ([HeapAttribute.primResID], raw `0x0ea`; scope class `0x2F` at 99.95%)
-  /// — or null when the record is absent. Named via [PrimOp.fromId].
+  /// ([HeapAttribute.primResID], raw `0x0ea`) — or null when the record is
+  /// absent. Named via [PrimOp.fromId].
   int? primResId;
 
   /// LabVIEW's default node name for [primResId] (`Subtract`, `Select`, …),
   /// or null when the id is absent or uncatalogued (see [PrimOp]).
-  String? get primName => primResId == null ? null : primOpName(primResId!);
+  String? get primName => primResId == null ? null : PrimOp.fromId(primResId!)?.opName;
 
   /// Whether this data item is an **indicator** (an output) rather than a
   /// control: bit 0 of the owning DCO's [objFlags] (corpus-validated on
@@ -785,7 +785,9 @@ const kControlTerminalCodes = {0x50, 0x4f, 0x57, 0x5b, 0x51};
 // capture switch acts only on the exact decoded [HeapAttribute]. 0x19/0x2b are
 // the structColor/borderColor low bytes.
 // 0x29 also catches termBounds 0x129; 0x28 (already present for
-// backgroundColor 0x028) catches termBMPs 0x128. 0xea is primResID.
+// backgroundColor 0x028) catches termBMPs 0x128. 0xea is primResID (raws
+// 0x1EA/0x2EA are uncatalogued today and decode to [HeapAttribute.unknown],
+// which no capture below acts on — recheck this gate if one is catalogued).
 const _objAttrIds = {0x20, 0x21, 0x6c, 0x24, 0x28, 0x6f, 0x19, 0x2b, 0x2a, 0x29, 0x3a, 0xcb, 0xea};
 
 /// Pixel-area threshold (width×height) for the structural node fallback in
@@ -1065,7 +1067,12 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
         if (attr.attribute == HeapAttribute.termBMPs) cur.termBmp ??= attr.asInt;
         if (attr.attribute == HeapAttribute.typeDescIndex) cur.typeDescIdx ??= attr.asInt;
         if (attr.attribute == HeapAttribute.objFlags) cur.objFlags ??= attr.asInt;
-        if (attr.attribute == HeapAttribute.primResID) cur.primResId ??= attr.asInt;
+        // primResID is class-scoped (0x2F at 99.95%) and u16-encoded in the
+        // corpus; the rare off-class or off-width carriers are not primitive
+        // identities, so they must not fabricate a primName.
+        if (attr.attribute == HeapAttribute.primResID && cur.kind == 0x2f && attr.width == HeapAttrWidth.u16) {
+          cur.primResId ??= attr.asInt;
+        }
         // The transparent sentinel (flag 0x01, RGB 0) is "no colour", not
         // black — capturing it would paint transparent label backings and
         // fills as solid black. Raw value 0x00000001 is likewise a flag, not

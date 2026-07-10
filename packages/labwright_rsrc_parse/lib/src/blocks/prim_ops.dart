@@ -1,6 +1,7 @@
 /// Built-in primitive operation names, keyed by the `0x0EA` **primResID**
 /// heap attribute ([HeapAttribute.primResID]) carried by primitive nodes
-/// (class `0x2F`, 46,458 corpus records at 99.95% scope purity).
+/// (class `0x2F`; see [HeapAttribute.primResID] for the corpus census —
+/// the stats live there once, not here).
 ///
 /// Naming evidence, per entry:
 ///
@@ -13,11 +14,19 @@
 ///   contiguous run whose neighbours are corpus-pinned and whose palette
 ///   order the run reproduces (e.g. the To-Integer conversion run
 ///   1140..1147), or it is the documented pair of a corpus-pinned entry.
-///   The doc comment states the specific basis.
+///   The doc comment states the specific basis, plus corroborating
+///   measurements where the run alone underdetermines the name (terminal
+///   arity via positional child count, corpus node frequency, or exhaustion
+///   over a snippet's complete id set).
 ///
-/// Ids observed in the corpus without either kind of evidence (134 of 242)
-/// are deliberately absent — callers get null from [primOpName] and must
-/// render/report the numeric id, never a guessed name.
+/// Ids observed in the corpus without either kind of evidence (126 of 242)
+/// are deliberately absent — callers get null from [PrimOp.fromId] and must
+/// render/report the numeric id, never a guessed name. That includes ids
+/// with merely *suggestive* evidence: 1170/1171 read as Split/Join Numbers
+/// from CRC-snippet wiring, but 1170 pairs the pinned [clusterToArray] just
+/// as naturally as Array To Cluster, so neither is named.
+///
+/// @docImport '../heap.dart';
 library;
 
 /// The kind of evidence behind a [PrimOp]'s name (see the library doc).
@@ -35,7 +44,10 @@ enum PrimNameBasis {
 /// node name.
 enum PrimOp {
   /// Heads the arithmetic run whose tail is corpus-pinned ([subtract],
-  /// [multiply], [divide]).
+  /// [multiply], [divide]). Measured binary (3 positional children on
+  /// 1,267/1,298 corpus nodes, matching [subtract]'s 1,617/1,646), and the
+  /// preceding id 1049 is measured *unary* (2 children, n=3), so the run
+  /// cannot start there.
   add(1050, 'Add', PrimNameBasis.adjacency),
 
   /// ×24 corpus labels.
@@ -57,8 +69,7 @@ enum PrimOp {
   squareRoot(1060, 'Square Root', PrimNameBasis.corpusLabel),
 
   /// Opens the boolean run And/Or/Exclusive Or/Not around the corpus-pinned
-  /// [exclusiveOr]; the CRC-lookup snippet uses 1061 exactly where its
-  /// algorithm masks with And.
+  /// [exclusiveOr].
   and(1061, 'And', PrimNameBasis.adjacency),
 
   /// Second of the boolean run around the corpus-pinned [exclusiveOr].
@@ -68,7 +79,9 @@ enum PrimOp {
   exclusiveOr(1063, 'Exclusive Or', PrimNameBasis.corpusLabel),
 
   /// Closes the boolean run And/Or/Exclusive Or/Not around the corpus-pinned
-  /// [exclusiveOr].
+  /// [exclusiveOr]. Measured unary (2 positional children on 759/788 corpus
+  /// nodes) — the only unary op in the run; 1061/1062/1063 all measure
+  /// binary (3 children).
   not(1064, 'Not', PrimNameBasis.adjacency),
 
   /// ×3 corpus labels.
@@ -170,13 +183,6 @@ enum PrimOp {
   /// ×4 corpus labels.
   clusterToArray(1169, 'Cluster To Array', PrimNameBasis.corpusLabel),
 
-  /// Paired with [joinNumbers]; the CRC-16/32 snippets use the pair to split
-  /// and repack accumulator bytes.
-  splitNumber(1170, 'Split Number', PrimNameBasis.adjacency),
-
-  /// Paired with [splitNumber] (see there).
-  joinNumbers(1171, 'Join Numbers', PrimNameBasis.adjacency),
-
   /// ×2 corpus labels.
   numberToDecimalString(1180, 'Number To Decimal String', PrimNameBasis.corpusLabel),
 
@@ -240,8 +246,9 @@ enum PrimOp {
   /// ×2 corpus labels.
   arrayToSpreadsheetString(1540, 'Array To Spreadsheet String', PrimNameBasis.corpusLabel),
 
-  /// Pairs the corpus-pinned [rotateRightWithCarry]; the CRC snippets rotate
-  /// left through it.
+  /// Pairs the corpus-pinned [rotateRightWithCarry] with the same measured
+  /// with-carry arity (4 positional children — value+carry in and out — on
+  /// all snippet instances, matching 1607; the plain rotates are 3-terminal).
   rotateLeftWithCarry(1606, 'Rotate Left With Carry', PrimNameBasis.adjacency),
 
   /// ×1 corpus label.
@@ -256,8 +263,11 @@ enum PrimOp {
   /// ×19 corpus labels.
   arraySize(1809, 'Array Size', PrimNameBasis.corpusLabel),
 
-  /// Pairs the corpus-pinned [booleanArrayToNumber]; the bit-reversal and CRC
-  /// snippets use the pair to unpack and repack bits.
+  /// Pairs the corpus-pinned [booleanArrayToNumber], by exhaustion over the
+  /// bit-reversal snippet's complete prim set {1142, 1143, 1166, 1814, 1815,
+  /// 1900}: reversing bits needs Number→Boolean Array upstream of the
+  /// pinned Reverse 1D Array and Boolean Array To Number, and every other
+  /// id in the set is corpus-pinned to a different op.
   numberToBooleanArray(1814, 'Number To Boolean Array', PrimNameBasis.adjacency),
 
   /// ×3 corpus labels.
@@ -336,7 +346,7 @@ enum PrimOp {
   createFolder(8055, 'Create Folder', PrimNameBasis.corpusLabel),
 
   /// ×6 corpus labels.
-  deleteFile(8056, 'Delete', PrimNameBasis.corpusLabel),
+  delete(8056, 'Delete', PrimNameBasis.corpusLabel),
 
   /// ×3 corpus labels.
   fileDialog(8058, 'File Dialog', PrimNameBasis.corpusLabel),
@@ -416,7 +426,3 @@ enum PrimOp {
   /// corpus gives no name (callers must show the numeric id, never guess).
   static PrimOp? fromId(int id) => _byId[id];
 }
-
-/// LabVIEW's default node name for a raw primResID [id], or null when
-/// uncatalogued.
-String? primOpName(int id) => PrimOp.fromId(id)?.opName;
