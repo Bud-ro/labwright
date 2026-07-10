@@ -251,6 +251,24 @@ class ViHeapObject {
   /// [decodeWireRoute].
   Uint8List? wireTableRaw;
 
+  /// A multi-frame structure's raw diagram-index word ([HeapAttribute.dIdx],
+  /// raw `0x04d`) — which stacked frame LabVIEW displays — or null when the
+  /// record is absent (the first frame is displayed). Bit 31 is a flag, not
+  /// part of the index (corpus: every out-of-range raw value but one is
+  /// `0x80000000 | index`); read [visibleFrameIndex].
+  int? dIdx;
+
+  /// The stacked frame index LabVIEW displays for this multi-frame structure
+  /// (case/event/stacked-sequence): [dIdx] with the bit-31 flag stripped, or
+  /// 0 when the record is absent. Snippet-validated against the in-box
+  /// content heuristic: 106/117 agreement, with the disagreements in VIs
+  /// whose content geometry the heuristic is known to mislocate, and every
+  /// heuristic-undecidable structure resolved. Corpus: 8,070 of 16,959
+  /// multi-frame structures carry the record; 8,069 are in range after the
+  /// mask (one true outlier — callers must range-check against the actual
+  /// frame count).
+  int get visibleFrameIndex => (dIdx ?? 0) & 0x7fffffff;
+
   /// Whether this **label part** (class `0xa`) is hidden in LabVIEW's
   /// block-diagram render: bit `0x08` of its [objFlags] (absent objFlags
   /// reads as shown). Render-verified against the snippet oracles' embedded
@@ -814,7 +832,14 @@ const kControlTerminalCodes = {0x50, 0x4f, 0x57, 0x5b, 0x51};
 // 0x1EA/0x2EA are uncatalogued today and decode to [HeapAttribute.unknown],
 // which no capture below acts on — recheck this gate if one is catalogued).
 // 0xe7 is the compressedWireTable container (capture gated to signal 0x17).
-const _objAttrIds = {0x20, 0x21, 0x6c, 0x24, 0x28, 0x6f, 0x19, 0x2b, 0x2a, 0x29, 0x3a, 0xcb, 0xea, 0xe7};
+// 0x4d is dIdx (gated to the multi-frame structure kinds).
+const _objAttrIds = {0x20, 0x21, 0x6c, 0x24, 0x28, 0x6f, 0x19, 0x2b, 0x2a, 0x29, 0x3a, 0xcb, 0xea, 0xe7, 0x4d};
+
+/// The structure classes that stack multiple `0x1b` frames and display one
+/// (case `0x2c`, event `0xcd`, stacked/timed variants `0xd5`/`0x29`) —
+/// corpus multi-frame census 15,332 / 1,214 / 390 / 23. The displayed frame
+/// comes from [ViHeapObject.visibleFrameIndex].
+const kMultiFrameStructureKinds = {0x2c, 0xcd, 0xd5, 0x29};
 
 /// Pixel-area threshold (width×height) for the structural node fallback in
 /// `buildDiagram`. A still-`unknown` object that otherwise matches the BD-node
@@ -1188,6 +1213,9 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
         // identities, so they must not fabricate a primName.
         if (attr.attribute == HeapAttribute.primResID && cur.kind == 0x2f && attr.width == HeapAttrWidth.u16) {
           cur.primResId ??= attr.asInt;
+        }
+        if (attr.attribute == HeapAttribute.dIdx && kMultiFrameStructureKinds.contains(cur.kind)) {
+          cur.dIdx ??= attr.asInt;
         }
         // First-wins is safe: no signal in the corpus carries more than one
         // container-width table (155,158 container-bearing signals, 0 with a

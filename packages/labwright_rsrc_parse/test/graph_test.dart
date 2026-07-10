@@ -152,6 +152,26 @@ void main() {
     );
   });
 
+  test('visibleFrameIndex: dIdx on multi-frame structure kinds, bit-31 masked', () {
+    final d = dia([
+      ...open(0x2c, 1),
+      0x24, 0x4d, 0x01, // u8 dIdx = 1
+      ...close(),
+      ...open(0x2c, 2),
+      0x84, 0x4d, 0x80, 0x00, 0x00, 0x02, // flag form 0x80000002
+      ...close(),
+      ...open(0x2c, 3),
+      ...close(),
+      ...open(0x50, 4),
+      0x24, 0x4d, 0x01,
+      ...close(),
+    ]);
+    expect(d.byId[1]!.visibleFrameIndex, 1);
+    expect(d.byId[2]!.visibleFrameIndex, 2, reason: 'bit 31 is a flag, not index');
+    expect(d.byId[3]!.visibleFrameIndex, 0, reason: 'absent record displays the first frame');
+    expect(d.byId[4]!.dIdx, isNull, reason: 'capture is gated to the multi-frame structure kinds');
+  });
+
   test('PrimOp catalog: unique ids, lookup round-trip', () {
     final ids = PrimOp.values.map((op) => op.id).toSet();
     expect(ids.length, PrimOp.values.length, reason: 'catalog ids are unique');

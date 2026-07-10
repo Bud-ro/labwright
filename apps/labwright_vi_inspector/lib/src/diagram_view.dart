@@ -906,6 +906,20 @@ Set<int> bdHiddenFrameOids(ViDiagram diagram) {
         .toList();
     if (frames.length < 2) continue;
 
+    // The stored display index decides outright for the stacked structure
+    // kinds (case/event/stacked-sequence). Out-of-range (one corpus outlier)
+    // falls through to the content heuristic below; flat sequences are not
+    // in the kind set and keep all frames via the disjointness test.
+    if (kMultiFrameStructureKinds.contains(structure.kind)) {
+      final visible = structure.visibleFrameIndex;
+      if (visible < frames.length) {
+        for (var i = 0; i < frames.length; i++) {
+          if (i != visible) hideSubtree(frames[i]);
+        }
+        continue;
+      }
+    }
+
     // Per frame: how much positioned content sits inside the structure's box
     // (slack for tunnels/labels on the border), and that content's bbox.
     final inBoxCounts = <int>[];
