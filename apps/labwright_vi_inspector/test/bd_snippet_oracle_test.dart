@@ -172,7 +172,12 @@ void main() {
           expect(vi, isNotNull, reason: f.path);
           final diagram = bestBlockDiagram(buildViModel(vi!));
           expect(diagram, isNotNull, reason: f.path);
-          final raster = (await rasteriseBlockDiagram(diagram!, scale: 1.0))!;
+          final raster = (await rasteriseBlockDiagram(
+            diagram!,
+            scale: 1.0,
+            // The same ink+2px crop the production Oracle tab renders with.
+            margin: 2,
+          ))!;
           final reference = await decodeReferenceImage(png);
           expect(reference.snippetCropped, isTrue, reason: f.path);
           final result = await compareToReference(

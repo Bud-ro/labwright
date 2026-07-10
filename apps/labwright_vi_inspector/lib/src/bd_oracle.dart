@@ -68,8 +68,9 @@ Future<BdRaster?> rasteriseBlockDiagram(
   int margin = 40,
   Map<int, ViLegacyIcon> subViIcons = const {},
   List<ViWire>? wires,
+  List<ViHeapObject>? drawable,
 }) async {
-  final drawable = bdDrawableObjects(diagram);
+  drawable ??= bdDrawableObjects(diagram);
   if (drawable.isEmpty) return null;
   final content = bdContentRect(drawable, includeWires: false, margin: margin);
   if (content.width <= 0 || content.height <= 0) return null;
@@ -507,8 +508,12 @@ Future<BdOracleResult> compareToReference(
 /// Render-space boxes of [diagram]'s drawable structures (excluding the
 /// whole-extent root and sub-glyph frames) — the large, unique anchors that
 /// disambiguate the locked-scale registration between competing edge peaks.
-List<Rect> bdStructureAnchorRects(ViDiagram diagram, BdRaster raster) {
-  final drawable = bdDrawableObjects(diagram);
+List<Rect> bdStructureAnchorRects(
+  ViDiagram diagram,
+  BdRaster raster, {
+  List<ViHeapObject>? drawable,
+}) {
+  drawable ??= bdDrawableObjects(diagram);
   final extent = bdContentRect(drawable, includeWires: false, margin: 0);
   final out = <Rect>[];
   for (final object in drawable) {
@@ -704,6 +709,7 @@ PlacementComparison comparePlacement({
   required int width,
   required int height,
   Uint8List? referenceEdges,
+  List<ViHeapObject>? drawable,
   int tolerance = 2,
   int edgeThreshold = kBdEdgeThreshold,
   int minSide = 6,
@@ -722,7 +728,7 @@ PlacementComparison comparePlacement({
   }
   final chance = pixels == 0 ? 0.0 : edgePixels / pixels;
 
-  final drawable = bdDrawableObjects(diagram);
+  drawable ??= bdDrawableObjects(diagram);
   final extent = bdContentRect(drawable, includeWires: false, margin: 0);
   final perObject = <({int oid, double support})>[];
   for (final object in drawable) {
@@ -1192,6 +1198,12 @@ class _BdOracleViewState extends State<BdOracleView>
     // decodeReferenceImage's snippetCropped flag drives BOTH decisions, so an
     // uncroppable snippet falls back to the generic comparison whole.
     final snippet = reference?.snippetCropped ?? false;
+    // The drawable set and visible wires are deterministic per diagram;
+    // computed once and threaded through the rasterise / anchor / placement
+    // stages (each would otherwise redo the full hidden-frame and
+    // inlined-instance analysis).
+    final drawable = bdDrawableObjects(diagram);
+    final visibleWires = bdVisibleWires(diagram);
     // A snippet reference is LabVIEW's crop of the diagram's ink plus a 2 px
     // margin, so the unit-scale render uses the same margin — matched
     // dimensions, not just matched scale.
@@ -1201,6 +1213,8 @@ class _BdOracleViewState extends State<BdOracleView>
       scale: snippet ? 1.0 : null,
       margin: snippet ? 2 : 40,
       subViIcons: widget.subViIcons,
+      wires: visibleWires,
+      drawable: drawable,
     );
     if (raster == null) {
       reference?.image.dispose();
@@ -1211,7 +1225,9 @@ class _BdOracleViewState extends State<BdOracleView>
       raster.image,
       reference.image,
       lockScale: snippet ? 1.0 / raster.scale : null,
-      anchorRects: snippet ? bdStructureAnchorRects(diagram, raster) : const [],
+      anchorRects: snippet
+          ? bdStructureAnchorRects(diagram, raster, drawable: drawable)
+          : const [],
     );
     final placement = comparePlacement(
       diagram: diagram,
@@ -1219,6 +1235,7 @@ class _BdOracleViewState extends State<BdOracleView>
       registration: result.registration,
       referenceRgba: result.referenceRgba,
       referenceEdges: result.referenceEdges,
+      drawable: drawable,
       width: reference.image.width,
       height: reference.image.height,
     );

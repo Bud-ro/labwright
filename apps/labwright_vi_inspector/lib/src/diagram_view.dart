@@ -808,12 +808,7 @@ Set<ViHeapObject> nodesWithin(
 /// (a flat sequence tiling its frames side by side) keep every frame. Pure +
 /// public for testing; shared by [bdDrawableObjects] and [bdVisibleWires].
 Set<int> bdHiddenFrameOids(ViDiagram diagram) {
-  final childrenByOid = <int, List<ViHeapObject>>{};
-  for (final object in diagram.objects) {
-    if (object.parentOid != null) {
-      (childrenByOid[object.parentOid!] ??= <ViHeapObject>[]).add(object);
-    }
-  }
+  final childrenByOid = bdChildrenByOid(diagram);
   final hidden = <int>{};
 
   void hideSubtree(ViHeapObject root) {
@@ -962,8 +957,18 @@ List<ViWire> bdVisibleWires(ViDiagram diagram) {
     }
     final boxes = anchors.whereType<HeapRect>().toList();
     if (boxes.length < 2) continue;
-    // All legs on one identical box: nothing to route.
-    if (boxes.every((b) => b == boxes.first)) continue;
+    // All legs on one identical box: nothing to route. (HeapRect has no
+    // operator==, so compare edges.)
+    final first = boxes.first;
+    if (boxes.every(
+      (b) =>
+          b.left == first.left &&
+          b.top == first.top &&
+          b.right == first.right &&
+          b.bottom == first.bottom,
+    )) {
+      continue;
+    }
     out.add(
       patched
           ? ViWire(
@@ -977,6 +982,18 @@ List<ViWire> bdVisibleWires(ViDiagram diagram) {
   return out;
 }
 
+/// [diagram]'s parent-oid → children map — the walk index every grouping
+/// helper below shares.
+Map<int, List<ViHeapObject>> bdChildrenByOid(ViDiagram diagram) {
+  final childrenByOid = <int, List<ViHeapObject>>{};
+  for (final object in diagram.objects) {
+    if (object.parentOid != null) {
+      (childrenByOid[object.parentOid!] ??= <ViHeapObject>[]).add(object);
+    }
+  }
+  return childrenByOid;
+}
+
 /// The oids of every object inside an **inlined sub-VI instance** (`0x105`):
 /// an express/inlined call splices the called VI's whole internal diagram
 /// into this heap under the instance node, in the sub-VI's own coordinate
@@ -985,12 +1002,7 @@ List<ViWire> bdVisibleWires(ViDiagram diagram) {
 /// the internals, so the subtree is excluded from the drawable set and the
 /// wire list.
 Set<int> bdInlinedInstanceOids(ViDiagram diagram) {
-  final childrenByOid = <int, List<ViHeapObject>>{};
-  for (final object in diagram.objects) {
-    if (object.parentOid != null) {
-      (childrenByOid[object.parentOid!] ??= <ViHeapObject>[]).add(object);
-    }
-  }
+  final childrenByOid = bdChildrenByOid(diagram);
   final out = <int>{};
   void collect(ViHeapObject root) {
     for (final child in childrenByOid[root.oid] ?? const <ViHeapObject>[]) {
@@ -1045,12 +1057,7 @@ List<ViHeapObject> bdDrawableObjects(ViDiagram diagram) {
   final byId = diagram.byId;
   final hidden = bdHiddenFrameOids(diagram)
     ..addAll(bdInlinedInstanceOids(diagram));
-  final childrenByOid = <int, List<ViHeapObject>>{};
-  for (final object in diagram.objects) {
-    if (object.parentOid != null) {
-      (childrenByOid[object.parentOid!] ??= <ViHeapObject>[]).add(object);
-    }
-  }
+  final childrenByOid = bdChildrenByOid(diagram);
   return [
     for (final object in diagram.objects)
       if (object.absBounds != null &&
@@ -1331,15 +1338,17 @@ class BdDiagramPainter extends CustomPainter {
     // Whether a decoration encloses other drawn logic — then it is a backdrop
     // (a structure interior, a user grouping box) whose interior LabVIEW shows
     // as plain canvas, not a plated leaf box.
+    final backdropCandidates = [
+      for (final other in objects)
+        if (other.category == ViObjectKind.node ||
+            other.category == ViObjectKind.structure ||
+            other.category == ViObjectKind.terminal)
+          other,
+    ];
     bool isBackdrop(ViHeapObject deco) {
       final bounds = deco.absBounds!;
-      for (final other in objects) {
+      for (final other in backdropCandidates) {
         if (identical(other, deco)) continue;
-        if (other.category != ViObjectKind.node &&
-            other.category != ViObjectKind.structure &&
-            other.category != ViObjectKind.terminal) {
-          continue;
-        }
         final b = other.absBounds!;
         if (b.left >= bounds.left &&
             b.top >= bounds.top &&
@@ -1357,9 +1366,9 @@ class BdDiagramPainter extends CustomPainter {
       // separator or backing with an outline), so it gets a thin border and —
       // when it is a leaf box, not a backdrop enclosing other logic — a
       // neutral near-canvas plate, the same honest treatment as an unresolved
-      // node's plate (a 10%-alpha tint left decoration-only diagrams
-      // effectively blank; a plated backdrop buried a structure interior the
-      // reference shows as plain canvas).
+      // node's plate (LabVIEW shows a backdrop's
+      // interior as plain canvas, and a barely-visible tint would hide a
+      // decoration-only diagram entirely).
       final rect = rectOf(object);
       final decoded =
           bdDecodedColor(object.bgRgb) ?? bdDecodedColor(object.contentRgb);
@@ -1440,7 +1449,7 @@ class BdDiagramPainter extends CustomPainter {
     for (final object in wires) {
       final rect = rectOf(object);
       // A zero-area segment is an unanchored stub (often at the diagram
-      // origin) — a point, not a run; drawing it stamped stray dots.
+      // origin) — a point, not a run, so there is nothing to draw.
       if (rect.width == 0 && rect.height == 0) continue;
       canvas.drawLine(rect.topLeft, rect.bottomRight, wirePaint);
     }
@@ -1714,6 +1723,14 @@ class BdDiagramPainter extends CustomPainter {
   }) {
     final band = tint ?? const Color(0xFF9C9C9C);
     final radius = rounded ? const Radius.circular(4) : Radius.zero;
+    // A decoded structure colour (the pale sequence/timed tint) also washes
+    // the interior, as LabVIEW's coloured structures do.
+    if (tint != null) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(rect, radius),
+        Paint()..color = tint.withValues(alpha: 0.12),
+      );
+    }
     canvas.drawRRect(
       RRect.fromRectAndRadius(rect.deflate(1.75), radius),
       Paint()
@@ -1731,6 +1748,15 @@ class BdDiagramPainter extends CustomPainter {
   }
 
   static const _loopBlue = Color(0xFF0033CC);
+
+  /// `termBMPs` glyph selectors (corpus pairing, see the package's
+  /// [HeapAttribute.termBMPs] doc).
+  static const _bmpIteration = 1; // the loop `i`
+  static const _bmpCount = 2; // the for-loop `N`
+  static const _bmpLeftShiftRegister = 3; // ▼ delivers
+  static const _bmpRightShiftRegister = 4; // ▲ stores
+  static const _bmpCaseSelector = 5; // the case `?` tunnel
+  static const _bmpConditional = 192; // the while-loop stop
 
   void _drawGlyphText(Canvas canvas, Rect box, String glyph, Color color) {
     final tp = TextPainter(
@@ -1765,7 +1791,7 @@ class BdDiagramPainter extends CustomPainter {
         t.box.height.toDouble(),
       );
       final border = switch (t.bmp) {
-        192 => const Color(0xFF007F00),
+        _bmpConditional => const Color(0xFF007F00),
         _ => _loopBlue,
       };
       canvas.drawRect(box, Paint()..color = Colors.white);
@@ -1777,17 +1803,17 @@ class BdDiagramPainter extends CustomPainter {
           ..strokeWidth = 1.4,
       );
       switch (t.bmp) {
-        case 1:
+        case _bmpIteration:
           _drawGlyphText(canvas, box, 'i', _loopBlue);
-        case 2:
+        case _bmpCount:
           _drawGlyphText(canvas, box, 'N', _loopBlue);
-        case 5:
+        case _bmpCaseSelector:
           _drawGlyphText(canvas, box, '?', _loopBlue);
-        case 3 || 4:
+        case _bmpLeftShiftRegister || _bmpRightShiftRegister:
           // Shift register: ▼ delivers on the left border, ▲ stores on
           // the right.
           final c = box.center;
-          final tri = t.bmp == 3
+          final tri = t.bmp == _bmpLeftShiftRegister
               ? (Path()
                   ..moveTo(c.dx - 4, c.dy - 3)
                   ..lineTo(c.dx + 4, c.dy - 3)
@@ -1799,7 +1825,7 @@ class BdDiagramPainter extends CustomPainter {
                   ..lineTo(c.dx, c.dy - 4)
                   ..close());
           canvas.drawPath(tri, Paint()..color = Colors.black87);
-        case 192:
+        case _bmpConditional:
           // Red stop octagon.
           final c = box.center;
           const r = 5.0;
