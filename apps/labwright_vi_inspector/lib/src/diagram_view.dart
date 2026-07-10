@@ -213,37 +213,43 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                           minScale: 0.02,
                           maxScale: 16,
                           boundaryMargin: const EdgeInsets.all(2000),
-                          child:
-                              (_mode == DiagramRenderMode.faithful &&
-                                  ordered.length <= kFaithfulMaxObjects)
-                              ? FaithfulLayer(
-                                  objects: ordered,
-                                  origin: content.topLeft,
-                                  size: content.size,
-                                  isFrontPanel: widget.isFrontPanel,
-                                )
-                              : GestureDetector(
-                                  behavior: HitTestBehavior.opaque,
-                                  onTapDown: (d) => _selectAt(
-                                    d.localPosition,
-                                    ordered,
-                                    content,
-                                  ),
-                                  child: CustomPaint(
-                                    size: Size(content.width, content.height),
-                                    painter: BdDiagramPainter(
-                                      objects: ordered,
-                                      origin: content.topLeft,
-                                      wires: _wires,
-                                      subViIcons: _subViIcons,
+                          // The boundary isolates the diagram into its own
+                          // layer, so pan/zoom only re-composites the cached
+                          // painting instead of re-running the whole painter
+                          // (per-label text layout included) every frame.
+                          child: RepaintBoundary(
+                            child:
+                                (_mode == DiagramRenderMode.faithful &&
+                                    ordered.length <= kFaithfulMaxObjects)
+                                ? FaithfulLayer(
+                                    objects: ordered,
+                                    origin: content.topLeft,
+                                    size: content.size,
+                                    isFrontPanel: widget.isFrontPanel,
+                                  )
+                                : GestureDetector(
+                                    behavior: HitTestBehavior.opaque,
+                                    onTapDown: (d) => _selectAt(
+                                      d.localPosition,
+                                      ordered,
+                                      content,
                                     ),
-                                    foregroundPainter: _OverlayPainter(
-                                      origin: content.topLeft,
-                                      selected: _selected,
-                                      members: _members,
+                                    child: CustomPaint(
+                                      size: Size(content.width, content.height),
+                                      painter: BdDiagramPainter(
+                                        objects: ordered,
+                                        origin: content.topLeft,
+                                        wires: _wires,
+                                        subViIcons: _subViIcons,
+                                      ),
+                                      foregroundPainter: _OverlayPainter(
+                                        origin: content.topLeft,
+                                        selected: _selected,
+                                        members: _members,
+                                      ),
                                     ),
                                   ),
-                                ),
+                          ),
                         ),
                       ),
                     );
@@ -1019,30 +1025,19 @@ class BdDiagramPainter extends CustomPainter {
           ..strokeWidth = 1.0,
       );
     }
-    // Wires: each 0x1d object is one Manhattan run; consecutive runs in heap
-    // order that share an endpoint x get their implicit vertical connector.
+    // Wires: each 0x1d object is one stored Manhattan run, drawn exactly as
+    // its own segment. Runs of the same wire already meet at their bend
+    // corners (corpus: 79% of consecutive segment pairs share an exact
+    // endpoint), so a bent wire connects by geometry alone; no connector is
+    // synthesized between runs that do not touch — a gap is a different wire,
+    // and bridging it drew false strokes across the diagram.
     final wirePaint = Paint()
       ..color = _kindColor(ViObjectKind.wire)
       ..strokeWidth = 1.6
       ..strokeCap = StrokeCap.square;
-    Offset startOf(Rect r) => Offset(r.left, r.top);
-    Offset endOf(Rect r) => Offset(r.right, r.bottom);
-    Rect? previousWire;
     for (final object in wires) {
       final rect = rectOf(object);
-      canvas.drawLine(startOf(rect), endOf(rect), wirePaint);
-      if (previousWire != null) {
-        final gapStart = endOf(previousWire);
-        final gapEnd = startOf(rect);
-        // implicit connector: same column (or row) continuation between runs
-        final connects =
-            (gapStart.dx - gapEnd.dx).abs() < 0.5 ||
-            (gapStart.dy - gapEnd.dy).abs() < 0.5;
-        if (connects && (gapStart - gapEnd).distance <= 400) {
-          canvas.drawLine(gapStart, gapEnd, wirePaint);
-        }
-      }
-      previousWire = rect;
+      canvas.drawLine(rect.topLeft, rect.bottomRight, wirePaint);
     }
 
     for (final object in solids) {
