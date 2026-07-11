@@ -265,7 +265,15 @@ void main() {
       ).readAsStringSync();
       final verifiedKeys = {
         for (final m in RegExp(
-          r"'([a-z0-9]+)': PrimIconStatus\.verified",
+          r"'([a-z0-9]+)': PrimIconStatus\.verified,",
+        ).allMatches(catalogNow))
+          m.group(1)!,
+      };
+      // Hand-finished verified art: kept authoritative, never byte-compared
+      // (the pipeline cannot reproduce hand cleanup), never rewritten.
+      final handKeys = {
+        for (final m in RegExp(
+          r"'([a-z0-9]+)': PrimIconStatus\.verifiedHand,",
         ).allMatches(catalogNow))
           m.group(1)!,
       };
@@ -819,9 +827,10 @@ void main() {
 
       for (final key in pending.keys.toList()..sort()) {
         final e = pending[key]!;
-        if (verifiedKeys.contains(key)) {
-          // The committed verified asset stays authoritative (identical bytes
-          // proven above); nothing to write.
+        if (verifiedKeys.contains(key) || handKeys.contains(key)) {
+          // The committed verified asset stays authoritative (byte-identity
+          // proven above for pipeline-verified keys; hand-finished art is
+          // authoritative by definition); nothing to write.
           manifest.writeln(
             '| $key | (verified — committed asset authoritative) | | ${e.sources} |',
           );
@@ -877,7 +886,9 @@ void main() {
         ).firstMatch(f.path);
         if (m == null) continue;
         final key = m.group(1)!;
-        if (!pending.containsKey(key) && !verifiedKeys.contains(key)) {
+        if (!pending.containsKey(key) &&
+            !verifiedKeys.contains(key) &&
+            !handKeys.contains(key)) {
           f.deleteSync();
         }
       }

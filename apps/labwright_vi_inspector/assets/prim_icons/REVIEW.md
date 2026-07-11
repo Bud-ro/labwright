@@ -249,7 +249,7 @@ generation time; regenerate with
 - `prim1058` (Decrement)
 - `prim1061` (And)
 - `prim1062` (Or)
-- `prim1063` (Exclusive Or)
+- `prim1063` (Exclusive Or) ✓
 - `prim1064` (Not)
 - `prim1081` (Logical Shift)
 - `prim1082`
@@ -272,7 +272,7 @@ generation time; regenerate with
 
 - `class68` ✓
 - `prim1061` (And)
-- `prim1063` (Exclusive Or)
+- `prim1063` (Exclusive Or) ✓
 - `prim1081` (Logical Shift)
 - `prim1142` (To Long Integer)
 - `prim1145` (To Unsigned Long Integer)
@@ -425,7 +425,7 @@ generation time; regenerate with
 
 - `class185`
 - `class68` ✓
-- `prim1063` (Exclusive Or)
+- `prim1063` (Exclusive Or) ✓
 - `prim1081` (Logical Shift)
 - `prim1142` (To Long Integer)
 - `prim1143` (To Unsigned Byte Integer)
@@ -441,7 +441,7 @@ generation time; regenerate with
 
 - `class185`
 - `class68` ✓
-- `prim1063` (Exclusive Or)
+- `prim1063` (Exclusive Or) ✓
 - `prim1081` (Logical Shift)
 - `prim1142` (To Long Integer)
 - `prim1143` (To Unsigned Byte Integer)
@@ -456,7 +456,7 @@ generation time; regenerate with
 ## crc32_lookup_table.png
 
 - `prim1061` (And)
-- `prim1063` (Exclusive Or)
+- `prim1063` (Exclusive Or) ✓
 - `prim1081` (Logical Shift)
 - `prim1113` (Equal To 0?)
 - `prim1145` (To Unsigned Long Integer)
@@ -466,7 +466,7 @@ generation time; regenerate with
 
 - `class185`
 - `class68` ✓
-- `prim1063` (Exclusive Or)
+- `prim1063` (Exclusive Or) ✓
 - `prim1142` (To Long Integer)
 - `prim1143` (To Unsigned Byte Integer)
 - `prim1606` (Rotate Left With Carry)

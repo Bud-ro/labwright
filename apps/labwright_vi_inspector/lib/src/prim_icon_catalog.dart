@@ -6,6 +6,10 @@
 /// maintainer's incremental verdicts:
 ///
 /// - [PrimIconStatus.verified] — eyeballed against a VI render; stamped.
+/// - [PrimIconStatus.verifiedHand] — eyeballed and confirmed, but the pixels
+///   are hand-finished (wires shaved, junk cleared) rather than raw pipeline
+///   output, so the reproducibility contract keeps the committed asset
+///   authoritative instead of byte-comparing it against a fresh extraction.
 /// - [PrimIconStatus.unverified] — extracted but not yet reviewed; stamped
 ///   (that is how it gets reviewed in context) and labelled in the detail
 ///   card.
@@ -16,7 +20,7 @@
 /// The generator (`test/extract_prim_icons_test.dart`) rewrites the entry
 /// list when assets regenerate but PRESERVES the statuses recorded here;
 /// only new keys default to [PrimIconStatus.unverified].
-enum PrimIconStatus { verified, unverified, rejected }
+enum PrimIconStatus { verified, verifiedHand, unverified, rejected }
 
 // GENERATED-ENTRIES-BEGIN (extract_prim_icons_test.dart rewrites this block;
 // statuses are preserved — edit them freely.)
@@ -37,7 +41,7 @@ const Map<String, PrimIconStatus> kPrimIconStatus = {
   'prim1058': PrimIconStatus.unverified,
   'prim1061': PrimIconStatus.unverified,
   'prim1062': PrimIconStatus.unverified,
-  'prim1063': PrimIconStatus.unverified,
+  'prim1063': PrimIconStatus.verifiedHand,
   'prim1064': PrimIconStatus.unverified,
   'prim1069': PrimIconStatus.unverified,
   'prim1070': PrimIconStatus.unverified,
@@ -141,3 +145,74 @@ const Map<String, PrimIconStatus> kPrimIconStatus = {
   'prim8205': PrimIconStatus.unverified,
 };
 // GENERATED-ENTRIES-END
+
+/// Where each icon's art sits within its node box, as the art top-left's
+/// offset from the box top-left — MEASURED, not derived: each entry is the
+/// unanimous position at which the asset's opaque pixels byte-match
+/// LabVIEW's own reference render, censused across every snippet instance
+/// (the trailing count). Placement is a fixed per-primitive property; no
+/// centering rule reproduces it (25x11 art sits at x=3 in `prim1608` but
+/// x=4 in `prim1142`). A negative offset is art overhanging the box
+/// (`prim1162`'s 32x37 rises 5 px above it). Keys without an entry fall
+/// back to floor-centring until an instance appears in the corpus to
+/// measure.
+///
+/// Regenerate with
+/// `flutter test test/placement_census_test.dart --dart-define=PRIM_PLACEMENT_CENSUS=1`.
+// GENERATED-PLACEMENT-BEGIN
+const Map<String, ({int dx, int dy})> kPrimIconPlacement = {
+  'class58': (dx: 0, dy: 0), // x8
+  'class62': (dx: 0, dy: 0), // x11
+  'class68': (dx: 0, dy: 0), // x23
+  'class147': (dx: 0, dy: 0), // x1
+  'class185': (dx: 0, dy: 0), // x3
+  'class370': (dx: 0, dy: 0), // x3
+  'prim1061': (dx: -2, dy: 4), // x1
+  'prim1063': (dx: 4, dy: 8), // x11
+  'prim1081': (dx: -6, dy: 3), // x1
+  'prim1082': (dx: -2, dy: 9), // x1
+  'prim1120': (dx: 0, dy: 0), // x1
+  'prim1142': (dx: 4, dy: 11), // x12
+  'prim1143': (dx: 4, dy: 11), // x12
+  'prim1156': (dx: 4, dy: 11), // x1
+  'prim1162': (dx: 0, dy: -5), // x3
+  'prim1163': (dx: 0, dy: -5), // x3
+  'prim1166': (dx: 0, dy: 0), // x16
+  'prim1171': (dx: -3, dy: 7), // x1
+  'prim1180': (dx: 0, dy: 0), // x2
+  'prim1181': (dx: 0, dy: -5), // x3
+  'prim1185': (dx: 0, dy: 0), // x1
+  'prim1302': (dx: 0, dy: 0), // x1
+  'prim1420': (dx: 0, dy: 0), // x1
+  'prim1502': (dx: 0, dy: 7), // x3
+  'prim1503': (dx: 0, dy: -5), // x1
+  'prim1534': (dx: 0, dy: 0), // x1
+  'prim1535': (dx: 0, dy: 0), // x38
+  'prim1539': (dx: 0, dy: 0), // x1
+  'prim1606': (dx: 4, dy: 8), // x3
+  'prim1608': (dx: 3, dy: 11), // x6
+  'prim1809': (dx: 0, dy: 5), // x9
+  'prim1814': (dx: 3, dy: 11), // x4
+  'prim1815': (dx: 3, dy: 11), // x5
+  'prim1900': (dx: 0, dy: 5), // x4
+  'prim1901': (dx: 0, dy: 0), // x9
+  'prim1907': (dx: 0, dy: 0), // x1
+  'prim1922': (dx: 0, dy: 0), // x1
+  'prim1925': (dx: 0, dy: 0), // x1
+  'prim1926': (dx: 0, dy: 0), // x1
+  'prim1927': (dx: 0, dy: 0), // x1
+  'prim2308': (dx: 0, dy: 0), // x1
+  'prim2452': (dx: 0, dy: 0), // x2
+  'prim8010': (dx: 0, dy: 0), // x1
+  'prim8018': (dx: 0, dy: 0), // x1
+  'prim8050': (dx: 0, dy: 0), // x2
+  'prim8051': (dx: 0, dy: 0), // x2
+  'prim8052': (dx: 0, dy: 0), // x2
+  'prim8056': (dx: 0, dy: 0), // x1
+  'prim8065': (dx: 0, dy: 0), // x1
+  'prim8076': (dx: 0, dy: 0), // x1
+  'prim8101': (dx: 0, dy: 0), // x1
+  'prim8203': (dx: 0, dy: 0), // x1
+  'prim8204': (dx: 0, dy: 0), // x2
+};
+// GENERATED-PLACEMENT-END

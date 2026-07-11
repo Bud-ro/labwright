@@ -149,6 +149,7 @@ void main() {
             ),
             art.base.width,
             art.base.height,
+            key: key,
           );
           for (final v in [stamp.left, stamp.top, stamp.width, stamp.height]) {
             expect(
@@ -227,56 +228,54 @@ void main() {
         final display = await boxDownscale(fitted3, ss * n);
         final out = (await display.toByteData())!.buffer.asUint8List();
         int lum(int x, int y) => out[(y * display.width + x) * 4];
-        // oid 894 (the U8 conversion) at diag (264,465)-(296,497); locate the
-        // icon's border rows EMPIRICALLY: within a window around the node
-        // centre, the first and last rows holding a long dark run are the
-        // icon's top and bottom borders.
+        // oid 894 (the U8 conversion): its stamp is KNOWN geometry
+        // ([kPrimIconPlacement]), so the display rows holding its 1 px top
+        // and bottom borders are computable exactly. At n=2 each display row
+        // is the box mean of two logical rows — the border blends with its
+        // neighbour, but UNIFORMLY: any spread along the row is phase error.
         final o = bd.byId[894]!.absBounds!;
         final reg = result.registration;
-        final cx = (((o.left + o.right) / 2 + reg.dx) / n).round();
-        final cy = (((o.top + o.bottom) / 2 + reg.dy) / n).round();
-        List<int>? runAt(int y) {
-          final xs = <int>[];
-          for (var x = cx - 12; x <= cx + 12; x++) {
-            if (lum(x, y) < 140) xs.add(x);
-          }
-          return xs.length >= 6 ? xs : null;
-        }
-
-        int? topRow, botRow;
-        for (var y = cy - 8; y <= cy + 8; y++) {
-          if (runAt(y) != null) {
-            topRow ??= y;
-            botRow = y;
-          }
-        }
-        expect(topRow, isNotNull, reason: 'icon not found near ($cx,$cy)');
-        // The run's endpoints are the icon's corner brackets (legitimately
-        // denser ink) — uniformity is asserted over the border interior.
-        final topXs = runAt(topRow!)!.sublist(1, runAt(topRow)!.length - 1);
-        final botXs = runAt(botRow!)!.sublist(1, runAt(botRow)!.length - 1);
-        final top = [for (final x in topXs) lum(x, topRow)];
-        final bottom = [for (final x in botXs) lum(x, botRow)];
-        // ignore: avoid_print
-        print('U8 top border row y=$topRow: $top');
+        final art1608b = icons[1608]!.base;
+        final stampRef = primIconStampRect(
+          ui.Rect.fromLTRB(
+            o.left - raster.content.left + reg.dx,
+            o.top - raster.content.top + reg.dy,
+            o.right - raster.content.left + reg.dx,
+            o.bottom - raster.content.top + reg.dy,
+          ),
+          art1608b.width,
+          art1608b.height,
+          key: 1608,
+        );
+        final topRow = stampRef.top.toInt() ~/ n;
+        final botRow = (stampRef.bottom.toInt() - 1) ~/ n;
+        final xs = [
+          for (
+            // Clear the chamfered corners (borders descend through the top
+            // rows for ~5 columns each side) so only the flat border mixes.
+            var x = (stampRef.left.toInt() + 6 + n - 1) ~/ n;
+            x <= (stampRef.right.toInt() - 7) ~/ n;
+            x++
+          )
+            x,
+        ];
+        // Only the BOTTOM border blends with a uniform neighbour (canvas
+        // white below); the top border mixes with the icon's own checker
+        // content, so its display row varies legitimately. The synthetic
+        // test above pins the both-parity 1 px line invariant; this pins it
+        // in the real pipeline.
+        final bottom = [for (final x in xs) lum(x, botRow)];
         // ignore: avoid_print
         print('U8 bottom border row y=$botRow: $bottom');
-        final topSpread =
-            top.reduce((a, b) => a > b ? a : b) -
-            top.reduce((a, b) => a < b ? a : b);
         final botSpread =
             bottom.reduce((a, b) => a > b ? a : b) -
             bottom.reduce((a, b) => a < b ? a : b);
-        expect(
-          topSpread,
-          lessThanOrEqualTo(2),
-          reason: 'top border not uniform: $top',
-        );
         expect(
           botSpread,
           lessThanOrEqualTo(2),
           reason: 'bottom border not uniform: $bottom',
         );
+        expect(topRow * n, stampRef.top.toInt(), reason: 'row bookkeeping');
 
         // At the wipe's default integer zooms the display IS the 1:1 raster
         // (or its whole-pixel upscale), so exactness reduces to the stamp
@@ -289,10 +288,10 @@ void main() {
         final rasterPx = (await raster.image.toByteData())!.buffer
             .asUint8List();
         final greyIcons = primIconsGreyLoaded();
-        for (final (label, oid, art) in [
-          ('prim1608', 894, icons[1608]!.base),
-          ('prim1900 disabled', 3081, greyIcons[1900]!.base),
-          ('class185', 3306, icons[-185]!.base),
+        for (final (label, key, oid, art) in [
+          ('prim1608', 1608, 894, icons[1608]!.base),
+          ('prim1900 disabled', 1900, 3081, greyIcons[1900]!.base),
+          ('class185', -185, 3306, icons[-185]!.base),
         ]) {
           final b = bd.byId[oid]!.absBounds!;
           final stamp = primIconStampRect(
@@ -304,6 +303,7 @@ void main() {
             ),
             art.width,
             art.height,
+            key: key,
           );
           final artPx = (await art.toByteData())!.buffer.asUint8List();
           var opaque = 0, mismatched = 0;
@@ -351,6 +351,7 @@ void main() {
           ),
           art1608.width,
           art1608.height,
+          key: 1608,
         );
         Set<String> colorsAt(int x, List<int> ys) => {
           for (final y in ys)
@@ -372,6 +373,14 @@ void main() {
           rightOf,
           contains('0,0,255'),
           reason: 'exit wire must touch the icon and be integer blue',
+        );
+        // 1 px crispness: nothing but pure wire colour and canvas white may
+        // appear in the sampled band — a stroked centreline at integer
+        // coordinates half-covers two rows (solid core + half-tones).
+        expect(
+          rightOf.difference({'0,0,255', '255,255,255'}),
+          isEmpty,
+          reason: 'exit wire must be a crisp 1px fill, no half-tones',
         );
         expect(
           leftOf,

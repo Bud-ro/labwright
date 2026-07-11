@@ -1570,9 +1570,9 @@ String? _primDetail(ViHeapObject object) {
 String _iconStatusSuffix(ViHeapObject object) {
   final key = primIconKeyOf(object);
   if (key == null) return '';
-  final name = key >= 0 ? 'prim\$key' : 'class\${-key}';
+  final name = key >= 0 ? 'prim$key' : 'class${-key}';
   final status = kPrimIconStatus[name];
-  return status == null ? '' : ' · icon \${status.name}';
+  return status == null ? '' : ' · icon ${status.name}';
 }
 
 /// The icon-map key for [object]: its primResID when present, else the
@@ -1736,20 +1736,32 @@ final Map<int, ({int w, int h, Uint8List alpha})> _primIconMasks = {};
 /// primitive icon stamped on [object] (natural size, centred in its bounds).
 /// True when no icon is stamped — the plain bounds hit stands. Pixel-precise
 /// so an icon's transparent surround does not swallow clicks.
-/// Where icon art lands within a node's box: centred, snapped to the logical
-/// pixel grid. Odd-sized art on an integer node centre (25x11 in a 32-wide
-/// box) otherwise sits at x.5 — a half-pixel offset that splits border ink
-/// across resample boundaries and shifts glyphs into their neighbours. The
-/// half-pixel case FLOORS (top-left bias): rounding up put prim1608 one
-/// logical pixel right of LabVIEW's own placement in the crc8 reference.
-/// The stamp, the selection outline, and the alpha hitbox all share this
-/// rect.
-Rect primIconStampRect(Rect nodeRect, int artW, int artH) => Rect.fromLTWH(
-  (nodeRect.center.dx - artW / 2).floorToDouble(),
-  (nodeRect.center.dy - artH / 2).floorToDouble(),
-  artW.toDouble(),
-  artH.toDouble(),
-);
+/// Where icon art lands within a node's box. Placement is a fixed
+/// per-primitive property measured against LabVIEW's own renders
+/// ([kPrimIconPlacement]) — no centring rule reproduces it. Unmeasured keys
+/// centre with the half-pixel floored; the offsets stay whole logical
+/// pixels either way (a fractional stamp splits border ink across resample
+/// boundaries and shifts glyphs into their neighbours). The stamp, the
+/// selection outline, and the alpha hitbox all share this rect.
+Rect primIconStampRect(Rect nodeRect, int artW, int artH, {int? key}) {
+  final placed = key == null
+      ? null
+      : kPrimIconPlacement[key >= 0 ? 'prim$key' : 'class${-key}'];
+  if (placed != null) {
+    return Rect.fromLTWH(
+      nodeRect.left + placed.dx,
+      nodeRect.top + placed.dy,
+      artW.toDouble(),
+      artH.toDouble(),
+    );
+  }
+  return Rect.fromLTWH(
+    (nodeRect.center.dx - artW / 2).floorToDouble(),
+    (nodeRect.center.dy - artH / 2).floorToDouble(),
+    artW.toDouble(),
+    artH.toDouble(),
+  );
+}
 
 bool primIconHit(ViHeapObject object, double x, double y) {
   final id = primIconKeyOf(object);
@@ -2215,6 +2227,7 @@ class BdDiagramPainter extends CustomPainter {
               rect,
               primIcon.base.width,
               primIcon.base.height,
+              key: iconKey,
             );
             canvas.drawImageRect(
               art,
@@ -2420,12 +2433,12 @@ class BdDiagramPainter extends CustomPainter {
   }) {
     if (wires.isEmpty) return;
     // Endpoint-anchor rectangle → recovered terminal colour, for honest
-    // tinting; plus, for icon-stamped nodes, the anchor → stamp-rect
-    // substitution (wires touch the drawn art, not the wider model box) and
-    // the node's catalogued output colour ([PrimOp.output]).
+    // tinting; the icon-stamped node rects (wires route under them, to the
+    // box centre, so the art's own ink decides the visible meeting point);
+    // and each node's catalogued output colour ([PrimOp.output]).
     final typedTerminalColors = <int, Color>{};
     final sourceOutputColors = <int, Color>{};
-    final iconAnchorStamps = <int, Rect>{};
+    final iconNodeRects = <Rect>{};
     for (final object in objects) {
       final bounds = object.absBounds;
       if (bounds == null) continue;
@@ -2439,18 +2452,14 @@ class BdDiagramPainter extends CustomPainter {
           object.typeKind != ViTypeKind.unknown) {
         typedTerminalColors[packed] = labviewTypeColor(object.typeKind);
       }
-      final key = primIconKeyOf(object);
-      final art = key == null ? null : primIconsLoaded()[key];
-      if (art != null) {
-        iconAnchorStamps[packed] = primIconStampRect(
+      if (primIconKeyOf(object) != null) {
+        iconNodeRects.add(
           Rect.fromLTRB(
-            bounds.left.toDouble(),
-            bounds.top.toDouble(),
-            bounds.right.toDouble(),
-            bounds.bottom.toDouble(),
+            bounds.left - origin.dx,
+            bounds.top - origin.dy,
+            bounds.right - origin.dx,
+            bounds.bottom - origin.dy,
           ),
-          art.base.width,
-          art.base.height,
         );
       }
       final output = object.primResId == null
@@ -2470,22 +2479,13 @@ class BdDiagramPainter extends CustomPainter {
         // draws strokes into empty space. Such a leg is skipped rather than
         // drawn wrong.
         if (anchor.width <= 0 && anchor.height <= 0) continue;
-        final stamp =
-            iconAnchorStamps[_packRect(
-              anchor.top,
-              anchor.left,
-              anchor.bottom,
-              anchor.right,
-            )];
         anchors.add(
-          stamp != null
-              ? stamp.shift(-origin)
-              : Rect.fromLTRB(
-                  anchor.left - origin.dx,
-                  anchor.top - origin.dy,
-                  anchor.right - origin.dx,
-                  anchor.bottom - origin.dy,
-                ),
+          Rect.fromLTRB(
+            anchor.left - origin.dx,
+            anchor.top - origin.dy,
+            anchor.right - origin.dx,
+            anchor.bottom - origin.dy,
+          ),
         );
       }
       if (anchors.length < 2) continue;
@@ -2509,11 +2509,42 @@ class BdDiagramPainter extends CustomPainter {
                 ? bdStoredWireRoute(source, anchors[i], route)
                 : null) ??
             bdWireRoute(source, anchors[i]);
-        final path = Path()..moveTo(points.first.dx, points.first.dy);
-        for (final point in points.skip(1)) {
-          path.lineTo(point.dx, point.dy);
+        // A leg ending on an icon-stamped node runs on UNDER it to the box
+        // centre: LabVIEW draws wires beneath nodes, so the art's own opaque
+        // pixels decide exactly where the wire visibly meets the icon
+        // (through a chamfer notch, up to a border — whatever the art says).
+        if (points.length >= 2) {
+          if (iconNodeRects.contains(source)) {
+            final p0 = points.first, p1 = points[1];
+            points[0] = p0.dy == p1.dy
+                ? Offset(source.center.dx, p0.dy)
+                : Offset(p0.dx, source.center.dy);
+          }
+          if (iconNodeRects.contains(anchors[i])) {
+            final pn = points.last, pm = points[points.length - 2];
+            points[points.length - 1] = pn.dy == pm.dy
+                ? Offset(anchors[i].center.dx, pn.dy)
+                : Offset(pn.dx, anchors[i].center.dy);
+          }
         }
-        canvas.drawPath(path, paint);
+        // Each Manhattan segment fills whole 1 px pixel rows/columns
+        // (endpoints inclusive): a STROKED centreline at integer coordinates
+        // half-covers two rows — the solid-core-with-half-tone artefact.
+        final fill = Paint()
+          ..color = paint.color
+          ..isAntiAlias = false;
+        for (var j = 1; j < points.length; j++) {
+          final a = points[j - 1], b = points[j];
+          canvas.drawRect(
+            Rect.fromLTRB(
+              math.min(a.dx, b.dx).floorToDouble(),
+              math.min(a.dy, b.dy).floorToDouble(),
+              math.max(a.dx, b.dx).floorToDouble() + 1,
+              math.max(a.dy, b.dy).floorToDouble() + 1,
+            ),
+            fill,
+          );
+        }
         // A leg whose anchor is a structure's own box is a border crossing —
         // the landing point is where LabVIEW draws the tunnel square.
         if (structureRects != null && tunnelLandings != null) {
@@ -2775,7 +2806,7 @@ class _OverlayPainter extends CustomPainter {
     final art = key == null ? null : primIconsLoaded()[key];
     return art == null
         ? rect
-        : primIconStampRect(rect, art.base.width, art.base.height);
+        : primIconStampRect(rect, art.base.width, art.base.height, key: key);
   }
 
   @override

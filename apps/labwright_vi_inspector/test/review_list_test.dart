@@ -55,7 +55,7 @@ void main() {
       return '`$key`${op != null ? ' (${op.opName})' : ''}'
           '${status == null
               ? ' — no asset'
-              : status == PrimIconStatus.verified
+              : status == PrimIconStatus.verified || status == PrimIconStatus.verifiedHand
               ? ' ✓'
               : ''}';
     }
