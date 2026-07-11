@@ -249,7 +249,7 @@ ViModel buildViModelFromDecoded(Iterable<DecodedSection> decoded, {List<String> 
   List<ViDiagram> diagramsFor(Set<String> tags) => [
     for (final decodedSection in list)
       if (tags.contains(decodedSection.tag) && decodedSection.bytes.length >= 6)
-        buildDiagram(decodedSection.bytes, sectionTag: decodedSection.tag),
+        buildDiagram(decodedSection.bytes, sectionTag: decodedSection.tag, version: ver.version),
   ];
   final blockDiagrams = diagramsFor(const {'BDHb', 'BDHP', 'BDEx'});
   final frontPanelDiagrams = diagramsFor(const {'FPHb', 'FPHP', 'FPEx'});
