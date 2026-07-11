@@ -1194,7 +1194,7 @@ class _BdOracleViewState extends State<BdOracleView>
   /// draggable divider (ours left, LabVIEW right).
   bool _wipe = false;
   double _wipeFraction = 0.5;
-  int _wipeTargetWidth = 0;
+  int _wipeBoxK = -1;
   ui.Image? _wipeReference;
   ui.Image? _wipeFitted;
 
@@ -1416,6 +1416,9 @@ class _BdOracleViewState extends State<BdOracleView>
                           child: _pane(
                             'Rendered (clean-room)',
                             data.displayRendered ?? data.rendered!,
+                            supersample: data.displayRendered != null
+                                ? kOracleDisplaySupersample
+                                : 1,
                           ),
                         ),
                         if (result != null) ...[
@@ -1423,6 +1426,9 @@ class _BdOracleViewState extends State<BdOracleView>
                             child: _pane(
                               'Reference',
                               data.displayReference ?? result.reference,
+                              supersample: data.displayReference != null
+                                  ? kOracleDisplaySupersample
+                                  : 1,
                             ),
                           ),
                           Expanded(
@@ -1443,63 +1449,71 @@ class _BdOracleViewState extends State<BdOracleView>
   /// draggable divider. Both images share the reference frame, so features
   /// line up across the divider.
   Widget _wipePane(BdOracleResult result, _OracleData data) {
-    // The supersampled display pair (see [kOracleDisplaySupersample]) is the
-    // wipe's source material: real 3x vector detail on our side, honest 3x
-    // blocks on the reference's — minified through one shared halving path.
+    // Source pair: our side supersampled (real vector detail), the reference
+    // nearest-upscaled to match — both at kOracleDisplaySupersample x the
+    // 1:1 comparison images.
     final refImage = data.displayReference ?? result.reference;
     final fitImage = data.displayFitted ?? result.fitted;
-    final w = refImage.width.toDouble();
-    final h = refImage.height.toDouble();
+    const ss = kOracleDisplaySupersample;
+    final logicalW = result.reference.width.toDouble();
+    final logicalH = result.reference.height.toDouble();
     return Padding(
       padding: const EdgeInsets.all(4),
       child: ColoredBox(
         color: const Color(0xFF202020),
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final scale = math.min(
-              constraints.maxWidth / w,
-              constraints.maxHeight / h,
+            // Display ONLY at integer ratios of the 1:1 image — the sole
+            // scales at which every logical pixel maps to the same number of
+            // device pixels (uniform lines, even checkerboards). The fit
+            // snaps DOWN to n:1 nearest, or 1:n via an exact box-average of
+            // the supersampled pair; the remainder letterboxes.
+            final dpr = MediaQuery.devicePixelRatioOf(context);
+            final fitPhys = math.min(
+              constraints.maxWidth * dpr / logicalW,
+              constraints.maxHeight * dpr / logicalH,
             );
-            final dispW = w * scale;
+            final double dispPhysW;
+            final double dispPhysH;
+            if (fitPhys >= 1) {
+              final n = fitPhys.floor();
+              dispPhysW = logicalW * n;
+              dispPhysH = logicalH * n;
+              _wipeBoxK = 0;
+            } else {
+              final n = (1 / fitPhys).ceil();
+              final k = ss * n;
+              if (k != _wipeBoxK) {
+                _wipeBoxK = k;
+                Future.wait([
+                  boxDownscale(refImage, k),
+                  boxDownscale(fitImage, k),
+                ]).then((imgs) {
+                  if (mounted && _wipeBoxK == k) {
+                    setState(() {
+                      _wipeReference = imgs[0];
+                      _wipeFitted = imgs[1];
+                    });
+                  }
+                });
+              }
+              dispPhysW = (refImage.width ~/ k).toDouble();
+              dispPhysH = (refImage.height ~/ k).toDouble();
+            }
+            final showRef = fitPhys >= 1 ? result.reference : _wipeReference;
+            final showFit = fitPhys >= 1 ? result.fitted : _wipeFitted;
+            if (showRef == null || showFit == null) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            final dispW = dispPhysW / dpr;
+            final dispH = dispPhysH / dpr;
             final offsetX = (constraints.maxWidth - dispW) / 2;
             void follow(Offset local) => setState(() {
               _wipeFraction = ((local.dx - offsetX) / dispW).clamp(0.0, 1.0);
             });
-            // Both wipe halves minify through the same iterative-halving
-            // downscale (see [downscaleForDisplay]) so they stay aligned
-            // and equally crisp; at >= 1x they draw 1:1 nearest.
-            final dpr = MediaQuery.devicePixelRatioOf(context);
-            final targetWidth = scale >= 1
-                ? null
-                : (w * scale * dpr).round().clamp(1, w.toInt());
-            if (targetWidth != null && targetWidth != _wipeTargetWidth) {
-              _wipeTargetWidth = targetWidth;
-              Future.wait([
-                downscaleForDisplay(refImage, targetWidth),
-                downscaleForDisplay(fitImage, targetWidth),
-              ]).then((imgs) {
-                if (mounted && _wipeTargetWidth == targetWidth) {
-                  setState(() {
-                    _wipeReference = imgs[0];
-                    _wipeFitted = imgs[1];
-                  });
-                }
-              });
-            }
-            final showRef = targetWidth == null
-                ? refImage
-                : (_wipeReference ?? refImage);
-            final showFit = targetWidth == null
-                ? fitImage
-                : (_wipeFitted ?? fitImage);
-            const wipeFilter = FilterQuality.none;
-            // The stack is laid out at the FINAL display size and the
-            // images are drawn into it exactly once: the minified pair is
-            // already at physical display resolution (one nearest 1:1 blit),
-            // and the magnified case nearest-stretches the originals. A
-            // round-trip (stretch to native size, then compositor-shrink)
-            // resampled twice and aliased.
-            final dispH = h * scale;
+            // Laid out at physical-size / dpr, so each image blits exactly
+            // once, 1:1 physical (nearest for the integer upscale; the
+            // box-averaged pair is already at target resolution).
             return GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTapDown: (d) => follow(d.localPosition),
@@ -1514,14 +1528,14 @@ class _BdOracleViewState extends State<BdOracleView>
                       RawImage(
                         image: showRef,
                         fit: BoxFit.fill,
-                        filterQuality: wipeFilter,
+                        filterQuality: FilterQuality.none,
                       ),
                       ClipRect(
                         clipper: _LeftFractionClipper(_wipeFraction),
                         child: RawImage(
                           image: showFit,
                           fit: BoxFit.fill,
-                          filterQuality: wipeFilter,
+                          filterQuality: FilterQuality.none,
                         ),
                       ),
                       Positioned(
@@ -1542,22 +1556,26 @@ class _BdOracleViewState extends State<BdOracleView>
     );
   }
 
-  Widget _pane(String caption, ui.Image image) => Padding(
-    padding: const EdgeInsets.all(4),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(caption, style: const TextStyle(fontSize: 11, color: Colors.grey)),
-        const SizedBox(height: 4),
-        Expanded(
-          child: ColoredBox(
-            color: const Color(0xFF202020),
-            child: CrispImage(image),
-          ),
+  Widget _pane(String caption, ui.Image image, {int supersample = 1}) =>
+      Padding(
+        padding: const EdgeInsets.all(4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              caption,
+              style: const TextStyle(fontSize: 11, color: Colors.grey),
+            ),
+            const SizedBox(height: 4),
+            Expanded(
+              child: ColoredBox(
+                color: const Color(0xFF202020),
+                child: CrispImage(image, supersample: supersample),
+              ),
+            ),
+          ],
         ),
-      ],
-    ),
-  );
+      );
 }
 
 class _OracleData {
@@ -1653,7 +1671,12 @@ Future<ui.Image> redrawRegisteredSupersampled(
     ui.Paint()..color = const ui.Color(0xFFFFFFFF),
   );
   canvas.scale(factor.toDouble());
-  canvas.translate(registration.dx, registration.dy);
+  // The translate must land on whole 1:1 pixels: a fractional offset slices
+  // logical pixels across box-average boundaries and breaks uniformity.
+  canvas.translate(
+    registration.dx.roundToDouble(),
+    registration.dy.roundToDouble(),
+  );
   canvas.scale(registration.scale);
   // The rendered image is itself [factor]x: draw it at logical (1:1) size —
   // net 1:1 pixels on the supersampled canvas, sampled exactly.
@@ -1671,36 +1694,49 @@ Future<ui.Image> redrawRegisteredSupersampled(
   return recorder.endRecording().toImage(width * factor, height * factor);
 }
 
-/// Downscales [src] to exactly [targetWidth] px wide by iterative 2x
-/// halving with linear sampling, then one final linear step — the standard
-/// high-quality minification for line art. Single-step GPU filtering
-/// (bilinear or mipmapped) either drops pixels (aliasing) or muddies 1 px
-/// strokes (blur); halving never skips a source pixel and keeps contrast.
-Future<ui.Image> downscaleForDisplay(ui.Image src, int targetWidth) async {
-  var current = src;
-  Future<ui.Image> step(ui.Image from, int w, int h) async {
-    final recorder = ui.PictureRecorder();
-    ui.Canvas(recorder).drawImageRect(
-      from,
-      ui.Rect.fromLTWH(0, 0, from.width.toDouble(), from.height.toDouble()),
-      ui.Rect.fromLTWH(0, 0, w.toDouble(), h.toDouble()),
-      ui.Paint()..filterQuality = ui.FilterQuality.low,
-    );
-    return recorder.endRecording().toImage(w, h);
+/// Exact integer box-average downscale by [k]: every destination pixel is
+/// the unweighted mean of one k x k source block. Phase-free by
+/// construction — a 1 px feature lands identically wherever it sits, so
+/// lines keep one thickness and checkerboards stay even. (Any NON-integer
+/// resample ratio is phase-dependent: some source columns get one
+/// destination pixel and some get two, which is exactly the uneven
+/// checkerboard and the 1.25/0.75 split-line artefact.)
+Future<ui.Image> boxDownscale(ui.Image src, int k) async {
+  final data = (await src.toByteData())!;
+  final sw = src.width, sh = src.height;
+  final dw = sw ~/ k, dh = sh ~/ k;
+  final bytes = data.buffer.asUint8List();
+  final out = Uint8List(dw * dh * 4);
+  final n = k * k;
+  for (var y = 0; y < dh; y++) {
+    for (var x = 0; x < dw; x++) {
+      var r = 0, g = 0, b = 0, a = 0;
+      for (var sy = y * k; sy < y * k + k; sy++) {
+        var i = (sy * sw + x * k) * 4;
+        for (var sx = 0; sx < k; sx++) {
+          r += bytes[i];
+          g += bytes[i + 1];
+          b += bytes[i + 2];
+          a += bytes[i + 3];
+          i += 4;
+        }
+      }
+      final j = (y * dw + x) * 4;
+      out[j] = r ~/ n;
+      out[j + 1] = g ~/ n;
+      out[j + 2] = b ~/ n;
+      out[j + 3] = a ~/ n;
+    }
   }
-
-  while (current.width >= targetWidth * 2) {
-    current = await step(
-      current,
-      (current.width / 2).ceil(),
-      (current.height / 2).ceil(),
-    );
-  }
-  if (current.width != targetWidth) {
-    final h = (src.height * targetWidth / src.width).round().clamp(1, 1 << 14);
-    current = await step(current, targetWidth, h);
-  }
-  return current;
+  final completer = Completer<ui.Image>();
+  ui.decodeImageFromPixels(
+    out,
+    dw,
+    dh,
+    ui.PixelFormat.rgba8888,
+    completer.complete,
+  );
+  return completer.future;
 }
 
 /// Shows [image] crisp at any pane size: at native size or larger it draws
@@ -1709,9 +1745,15 @@ Future<ui.Image> downscaleForDisplay(ui.Image src, int targetWidth) async {
 /// iteratively-halved downscale at the EXACT display width, so the
 /// compositor never rescales anything.
 class CrispImage extends StatefulWidget {
-  const CrispImage(this.image, {super.key});
+  /// [image] displays only at integer ratios of its logical size (see
+  /// [boxDownscale] — the sole phase-free scales): n:1 nearest upscale, or
+  /// 1:n via exact box-averaging, letterboxing the remainder. When the image
+  /// is a supersample of the logical content, pass the factor so ratios
+  /// snap against LOGICAL pixels.
+  const CrispImage(this.image, {this.supersample = 1, super.key});
 
   final ui.Image image;
+  final int supersample;
 
   @override
   State<CrispImage> createState() => _CrispImageState();
@@ -1719,56 +1761,45 @@ class CrispImage extends StatefulWidget {
 
 class _CrispImageState extends State<CrispImage> {
   ui.Image? _scaled;
-  int _scaledWidth = 0;
+  int _boxK = -1;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
       final dpr = MediaQuery.devicePixelRatioOf(context);
-      final scale = math.min(
-        constraints.maxWidth / widget.image.width,
-        constraints.maxHeight / widget.image.height,
+      final logicalW = widget.image.width / widget.supersample;
+      final logicalH = widget.image.height / widget.supersample;
+      final fitPhys = math.min(
+        constraints.maxWidth * dpr / logicalW,
+        constraints.maxHeight * dpr / logicalH,
       );
-      if (scale >= 1) {
-        return FittedBox(
-          child: SizedBox(
-            width: widget.image.width.toDouble(),
-            height: widget.image.height.toDouble(),
-            child: RawImage(
-              image: widget.image,
-              fit: BoxFit.contain,
-              filterQuality: FilterQuality.none,
-            ),
-          ),
-        );
+      final double dispPhysW;
+      final double dispPhysH;
+      ui.Image? shown;
+      if (fitPhys >= 1) {
+        final n = fitPhys.floor();
+        dispPhysW = logicalW * n;
+        dispPhysH = logicalH * n;
+        shown = widget.image;
+      } else {
+        final k = widget.supersample * (1 / fitPhys).ceil();
+        if (k != _boxK) {
+          _boxK = k;
+          boxDownscale(widget.image, k).then((img) {
+            if (mounted && _boxK == k) setState(() => _scaled = img);
+          });
+        }
+        dispPhysW = (widget.image.width ~/ k).toDouble();
+        dispPhysH = (widget.image.height ~/ k).toDouble();
+        shown = _scaled;
       }
-      final targetWidth = (widget.image.width * scale * dpr).round().clamp(
-        1,
-        widget.image.width,
-      );
-      if (targetWidth != _scaledWidth) {
-        _scaledWidth = targetWidth;
-        downscaleForDisplay(widget.image, targetWidth).then((img) {
-          if (mounted && _scaledWidth == targetWidth)
-            setState(() => _scaled = img);
-        });
-      }
-      final shown = _scaled;
       if (shown == null) {
-        return RawImage(
-          image: widget.image,
-          fit: BoxFit.contain,
-          filterQuality: FilterQuality.low,
-        );
+        return const Center(child: CircularProgressIndicator());
       }
-      // The downscale is at PHYSICAL display resolution: lay it out at
-      // physical-size / dpr logical pixels so the compositor blits it 1:1 —
-      // letting BoxFit shrink it by 1/dpr would resample it a second time
-      // and re-introduce the aliasing the halving removed.
       return Center(
         child: SizedBox(
-          width: shown.width / dpr,
-          height: shown.height / dpr,
+          width: dispPhysW / dpr,
+          height: dispPhysH / dpr,
           child: RawImage(
             image: shown,
             fit: BoxFit.fill,
