@@ -98,6 +98,8 @@ Palette (13 colours — every icon pixel is one of these): #000000 #0000ff #3333
 | prim8082_file-directory-info.png | File/Directory Info | 32x32 | large — single-sample fallback (0/1 agreeing) |
 | prim8083.png | (uncatalogued) | 32x32 | large — pair-seeded consensus (2/2 agreeing) |
 | prim8101.png | (uncatalogued) | 32x32 | Tokenize URL — single-sample fallback (0/1 agreeing) |
+| prim1814_number-to-boolean-array.png | Number To Boolean Array | 26x11 | crc8 — lifted from LabVIEW's own reference render (its only corpus instances sit in disabled/malleable diagrams, drawn grey-on-white); shape exact, palette mapped to the documented sibling prim1815's (ink 68, fill cream) pending an enabled-instance check |
+| class185.png | (single-op class 0xb9) | 32x33 | crc8 — lifted from LabVIEW's own reference render at the node's exact bounds, normal palette |
 | prim8203_variant-to-flattened-string.png | Variant To Flattened String | 32x23 | Excel_Variant_Elements — pair-seeded consensus (2/3 agreeing) |
 | prim8204_set-variant-attribute.png | Set Variant Attribute | 32x32 | Pages, Page1 — pair-seeded consensus (2/3 agreeing) |
 
@@ -122,7 +124,6 @@ Palette (13 colours — every icon pixel is one of these): #000000 #0000ff #3333
 - prim1435: every sample came from a low-registration snippet
 - prim1537: every sample came from a low-registration snippet
 - prim1609: no agreeing consensus and no centred sample survived cleaning (4 samples)
-- prim1814: every sample came from a low-registration snippet
 - prim1904: no agreeing consensus and no centred sample survived cleaning (1 samples)
 - prim1908: every sample came from a low-registration snippet
 - prim2075: no agreeing consensus and no centred sample survived cleaning (4 samples)

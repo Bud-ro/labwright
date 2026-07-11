@@ -108,6 +108,8 @@ Future<BdRaster?> rasteriseBlockDiagram(
   canvas.scale(pxScale);
   BdDiagramPainter(
     primIcons: primIcons,
+    primIconsGrey: primIconsGreyLoaded(),
+    disabledOids: bdDisabledObjectOids(diagram),
     objects: ordered,
     origin: content.topLeft,
     wires: wireList,
@@ -1201,7 +1203,7 @@ class _BdOracleViewState extends State<BdOracleView>
   /// Wipe zoom: 0 = fit (box-averaged overview), else an integer physical
   /// scale — the only scales at which single-pixel features render without
   /// parity-dependent splitting, so pixel inspection defaults to 1:1.
-  int _wipeZoom = 1;
+  int _wipeZoom = 3;
   final ScrollController _wipeH = ScrollController();
   final ScrollController _wipeV = ScrollController();
 

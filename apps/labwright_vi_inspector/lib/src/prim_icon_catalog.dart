@@ -23,6 +23,7 @@ enum PrimIconStatus { verified, unverified, rejected }
 const Map<String, PrimIconStatus> kPrimIconStatus = {
   'class108': PrimIconStatus.unverified,
   'class147': PrimIconStatus.unverified,
+  'class185': PrimIconStatus.unverified,
   'class370': PrimIconStatus.unverified,
   'class52': PrimIconStatus.unverified,
   'class58': PrimIconStatus.unverified,

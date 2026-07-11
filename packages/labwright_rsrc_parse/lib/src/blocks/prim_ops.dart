@@ -29,6 +29,8 @@
 /// @docImport '../heap.dart';
 library;
 
+import '../graph.dart' show ViTypeKind;
+
 /// The kind of evidence behind a [PrimOp]'s name (see the library doc).
 enum PrimNameBasis {
   /// LabVIEW's default node name read off corpus node labels.
@@ -254,8 +256,9 @@ enum PrimOp {
   /// ×1 corpus label.
   rotateRightWithCarry(1607, 'Rotate Right With Carry', PrimNameBasis.corpusLabel),
 
-  /// ×3 corpus labels.
-  stringToByteArray(1608, 'String To Byte Array', PrimNameBasis.corpusLabel),
+  /// ×3 corpus labels. Output: a `[u8]` byte array by definition (the op is
+  /// named by its output), so its wire draws in the integer-numeric colour.
+  stringToByteArray(1608, 'String To Byte Array', PrimNameBasis.corpusLabel, output: ViTypeKind.numericInt),
 
   /// ×1 corpus label.
   byteArrayToString(1609, 'Byte Array To String', PrimNameBasis.corpusLabel),
@@ -409,7 +412,7 @@ enum PrimOp {
   flattenToJson(24201, 'Flatten To JSON', PrimNameBasis.corpusLabel)
   ;
 
-  const PrimOp(this.id, this.opName, this.basis);
+  const PrimOp(this.id, this.opName, this.basis, {this.output});
 
   /// The raw primResID value (the `0x0EA` attribute payload).
   final int id;
@@ -419,6 +422,12 @@ enum PrimOp {
 
   /// The evidence behind [opName] (see the library doc).
   final PrimNameBasis basis;
+
+  /// The wire-colour family of the op's output, set ONLY where the op's
+  /// documented semantics fix it (e.g. a conversion named by its output
+  /// type). An array output carries its element family — LabVIEW draws the
+  /// wire in the element colour. Null means not asserted, never guessed.
+  final ViTypeKind? output;
 
   /// [opName] as a filename-safe slug (`add`, `to-long-integer`,
   /// `greater-or-equal-to-0`) — the naming half of the icon-asset contract

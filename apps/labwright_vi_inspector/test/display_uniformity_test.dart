@@ -114,6 +114,62 @@ void main() {
     },
   );
 
+  testWidgets('all icon-stamp geometry lands on whole logical pixels', (
+    tester,
+  ) async {
+    final dir = repoDir(
+      'packages/labwright_rsrc_parse/corpus/vi/rcpacini_VI-Snippets',
+    );
+    if (dir == null) {
+      markTestSkipped('corpus not fetched');
+      return;
+    }
+    await tester.runAsync(() async {
+      final icons = await loadPrimIcons();
+      var stamps = 0;
+      for (final f in dir.listSync(recursive: true).whereType<File>()) {
+        if (!f.path.endsWith('.png')) continue;
+        final vi = extractSnippetVi(f.readAsBytesSync());
+        if (vi == null) continue;
+        final bd = bestBlockDiagram(buildViModel(vi));
+        if (bd == null) continue;
+        for (final o in bdDrawableObjects(bd)) {
+          final b = o.absBounds;
+          if (b == null) continue;
+          final key = primIconKeyOf(o);
+          final art = key == null ? null : icons[key];
+          if (art == null) continue;
+          stamps++;
+          final stamp = primIconStampRect(
+            ui.Rect.fromLTRB(
+              b.left.toDouble(),
+              b.top.toDouble(),
+              b.right.toDouble(),
+              b.bottom.toDouble(),
+            ),
+            art.base.width,
+            art.base.height,
+          );
+          for (final v in [stamp.left, stamp.top, stamp.width, stamp.height]) {
+            expect(
+              v,
+              v.truncateToDouble(),
+              reason: 'fractional stamp geometry for $key in ${f.path}: $stamp',
+            );
+          }
+          expect(
+            stamp.width * stamp.height,
+            greaterThan(0),
+            reason: 'empty stamp for $key in ${f.path}',
+          );
+        }
+      }
+      // ignore: avoid_print
+      print('checked $stamps icon stamps across the snippet corpus');
+      expect(stamps, greaterThan(100));
+    });
+  });
+
   testWidgets(
     'crc8 display pipeline: the U8 icon renders with uniform borders',
     (tester) async {
@@ -222,49 +278,105 @@ void main() {
           reason: 'bottom border not uniform: $bottom',
         );
 
-        // At the wipe's default 1x zoom the display IS the 1:1 raster, so
-        // exactness reduces to the stamp itself: every opaque pixel of the
-        // prim1608 asset must appear in the raster byte-for-byte at the
-        // grid-aligned stamp rect. Zero tolerance.
-        final art = icons[1608]!.base;
-        final stamp = primIconStampRect(
-          ui.Rect.fromLTRB(
-            o.left - raster.content.left,
-            o.top - raster.content.top,
-            o.right - raster.content.left,
-            o.bottom - raster.content.top,
-          ),
-          art.width,
-          art.height,
-        );
-        final artPx = (await art.toByteData())!.buffer.asUint8List();
+        // At the wipe's default integer zooms the display IS the 1:1 raster
+        // (or its whole-pixel upscale), so exactness reduces to the stamp
+        // itself: every opaque pixel of the art must appear in the raster
+        // byte-for-byte at the grid-aligned stamp rect. Zero tolerance.
+        // Three stamps cover the three paths: a normal primitive (prim1608),
+        // a node in a DISABLED frame drawn with the grey-palette variant
+        // (prim1900, oid 3081), and a single-op class icon (class185,
+        // oid 3306).
         final rasterPx = (await raster.image.toByteData())!.buffer
             .asUint8List();
-        var opaque = 0, mismatched = 0;
-        for (var y = 0; y < art.height; y++) {
-          for (var x = 0; x < art.width; x++) {
-            final a = (y * art.width + x) * 4;
-            if (artPx[a + 3] == 0) continue;
-            opaque++;
-            final rx = stamp.left.toInt() + x;
-            final ry = stamp.top.toInt() + y;
-            final r = (ry * raster.image.width + rx) * 4;
-            if (artPx[a] != rasterPx[r] ||
-                artPx[a + 1] != rasterPx[r + 1] ||
-                artPx[a + 2] != rasterPx[r + 2]) {
-              mismatched++;
+        final greyIcons = primIconsGreyLoaded();
+        for (final (label, oid, art) in [
+          ('prim1608', 894, icons[1608]!.base),
+          ('prim1900 disabled', 3081, greyIcons[1900]!.base),
+          ('class185', 3306, icons[-185]!.base),
+        ]) {
+          final b = bd.byId[oid]!.absBounds!;
+          final stamp = primIconStampRect(
+            ui.Rect.fromLTRB(
+              b.left - raster.content.left,
+              b.top - raster.content.top,
+              b.right - raster.content.left,
+              b.bottom - raster.content.top,
+            ),
+            art.width,
+            art.height,
+          );
+          final artPx = (await art.toByteData())!.buffer.asUint8List();
+          var opaque = 0, mismatched = 0;
+          for (var y = 0; y < art.height; y++) {
+            for (var x = 0; x < art.width; x++) {
+              final a = (y * art.width + x) * 4;
+              if (artPx[a + 3] == 0) continue;
+              opaque++;
+              final rx = stamp.left.toInt() + x;
+              final ry = stamp.top.toInt() + y;
+              final r = (ry * raster.image.width + rx) * 4;
+              if (artPx[a] != rasterPx[r] ||
+                  artPx[a + 1] != rasterPx[r + 1] ||
+                  artPx[a + 2] != rasterPx[r + 2]) {
+                mismatched++;
+              }
             }
           }
+          // ignore: avoid_print
+          print(
+            '$label stamp at 1:1: $opaque opaque asset px, '
+            '$mismatched mismatched',
+          );
+          expect(opaque, greaterThan(100));
+          expect(
+            mismatched,
+            0,
+            reason: '$label: the 1:1 stamp must reproduce the art exactly',
+          );
         }
-        // ignore: avoid_print
-        print(
-          'U8 stamp at 1:1: $opaque opaque asset px, $mismatched mismatched',
+
+        // The U8 conversion's wires: both must TOUCH the stamped icon (the
+        // route anchors substitute the stamp rect for the model box), and
+        // the exit wire carries the op's catalogued output colour — integer
+        // blue, from [PrimOp.output] — while the input stays string pink
+        // from its typed source terminal.
+        final u8 = bd.byId[894]!.absBounds!;
+        final art1608 = icons[1608]!.base;
+        final stamp1608 = primIconStampRect(
+          ui.Rect.fromLTRB(
+            u8.left - raster.content.left,
+            u8.top - raster.content.top,
+            u8.right - raster.content.left,
+            u8.bottom - raster.content.top,
+          ),
+          art1608.width,
+          art1608.height,
         );
-        expect(opaque, greaterThan(100));
+        Set<String> colorsAt(int x, List<int> ys) => {
+          for (final y in ys)
+            [
+              for (var c = 0; c < 3; c++)
+                rasterPx[(y * raster.image.width + x) * 4 + c],
+            ].join(','),
+        };
+        final wireYs = [
+          stamp1608.center.dy.floor() - 1,
+          stamp1608.center.dy.floor(),
+          stamp1608.center.dy.ceil(),
+        ];
+        final rightOf = colorsAt(stamp1608.right.toInt(), wireYs);
+        final leftOf = colorsAt(stamp1608.left.toInt() - 1, wireYs);
+        // ignore: avoid_print
+        print('U8 wire px right of icon: $rightOf, left of icon: $leftOf');
         expect(
-          mismatched,
-          0,
-          reason: 'the 1:1 stamp must reproduce the asset exactly',
+          rightOf,
+          contains('0,0,255'),
+          reason: 'exit wire must touch the icon and be integer blue',
+        );
+        expect(
+          leftOf,
+          contains('255,0,255'),
+          reason: 'input wire must touch the icon and be string pink',
         );
       });
     },

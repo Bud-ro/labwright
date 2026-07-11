@@ -138,6 +138,7 @@ generation time; regenerate with
 
 - `class108`
 - `class147`
+- `class185`
 - `class370`
 - `class58`
 - `class68` ✓
@@ -422,6 +423,7 @@ generation time; regenerate with
 
 ## crc16.png
 
+- `class185`
 - `class68` ✓
 - `prim1063` (Exclusive Or)
 - `prim1081` (Logical Shift)
@@ -437,6 +439,7 @@ generation time; regenerate with
 
 ## crc32.png
 
+- `class185`
 - `class68` ✓
 - `prim1063` (Exclusive Or)
 - `prim1081` (Logical Shift)
@@ -461,6 +464,7 @@ generation time; regenerate with
 
 ## crc8.png
 
+- `class185`
 - `class68` ✓
 - `prim1063` (Exclusive Or)
 - `prim1142` (To Long Integer)
