@@ -1477,6 +1477,32 @@ int _depthOf(ViHeapObject object, Map<int, ViHeapObject> byId) {
 /// the class code is the identity); their icons are keyed as `-code`.
 const kSingleOpPrimClasses = {0x3a, 0x34, 0x3e, 0x44, 0x6c, 0x93, 0x172};
 
+/// The detail-card row describing a primitive's decoded identity: the
+/// primResID and its evidence-based name (with the evidence kind), or the
+/// class-identity for the single-op classes, plus the icon asset key and its
+/// review status. Null for non-primitive objects. Two nodes of the same
+/// single-op class that look different in LabVIEW mean that class carries a
+/// further identity the model has not decoded yet — the card says exactly
+/// what IS known.
+String? _primDetail(ViHeapObject object) {
+  final key = primIconKeyOf(object);
+  if (key == null) return null;
+  final name = key >= 0 ? 'prim$key' : 'class${-key}';
+  final status = kPrimIconStatus[name];
+  final iconPart =
+      'icon $name${status == null ? ' (no asset)' : ' ${status.name}'}';
+  if (object.primResId != null) {
+    final op = PrimOp.fromId(object.primResId!);
+    final opPart = op == null
+        ? 'primResID ${object.primResId} (uncatalogued — numeric id only)'
+        : 'primResID ${object.primResId} = ${op.opName} (${op.basis == PrimNameBasis.corpusLabel ? 'corpus-labelled' : 'adjacency-inferred'})';
+    return '$opPart · $iconPart';
+  }
+  return 'class 0x${object.kind.toRadixString(16)} single-op identity '
+      '(no primResID record — nodes of this class share one operation; a '
+      'visible difference between two of them is undecoded state) · $iconPart';
+}
+
 /// The detail-card suffix naming a primitive icon's review status
 /// ([kPrimIconStatus]) — empty for objects that stamp no icon.
 String _iconStatusSuffix(ViHeapObject object) {
@@ -2575,6 +2601,8 @@ class _DetailsCard extends StatelessWidget {
                     '${object.parentOid != null ? ' · parent ${object.parentOid}' : ''}',
                     style: const TextStyle(color: Colors.grey, fontSize: 12),
                   ),
+                  if (_primDetail(object) case final prim?)
+                    _detail('primitive', prim),
                   if (object.items.isNotEmpty)
                     _detail(
                       'values',

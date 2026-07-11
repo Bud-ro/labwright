@@ -27,7 +27,7 @@ const Map<String, PrimIconStatus> kPrimIconStatus = {
   'class52': PrimIconStatus.unverified,
   'class58': PrimIconStatus.verified,
   'class62': PrimIconStatus.unverified,
-  'class68': PrimIconStatus.unverified,
+  'class68': PrimIconStatus.verified,
   'prim1050': PrimIconStatus.unverified,
   'prim1051': PrimIconStatus.unverified,
   'prim1052': PrimIconStatus.unverified,
