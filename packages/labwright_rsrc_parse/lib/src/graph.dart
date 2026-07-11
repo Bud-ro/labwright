@@ -208,9 +208,15 @@ class ViHeapObject {
   /// control/graph border — or null. Corpus: FPHb-only.
   int? borderRgb;
 
-  /// A structure terminal's box **relative to its structure's frame**
-  /// ([HeapAttribute.termBounds], raw `0x129`) — where a loop's iteration /
-  /// count / conditional terminal (or shift register) sits — or null.
+  /// A terminal's box **relative to its enclosing frame** — the nearest
+  /// bounded positional ancestor's top-left ([HeapAttribute.termBounds], raw
+  /// `0x129`) — where a structure's tunnel / shift register / selector /
+  /// count / conditional terminal (or a node's growable terminal) sits — or
+  /// null. When the object also names a signal-endpoint DCO in its `14 19`
+  /// childRefs, this rect is that wire endpoint's attach point (resolved
+  /// absolutely by [ViDiagram.endpointTerminalBounds], which owns the corpus
+  /// census). LabVIEW < 8.6 files store the rect in that era's absolute
+  /// space instead (see [ViDiagram.endpointTerminalBounds]).
   HeapRect? termBounds;
 
   /// Which glyph the structure terminal shows ([HeapAttribute.termBMPs], raw
@@ -422,6 +428,11 @@ enum HeapObjectClass {
   /// endpoints are DCO objects (`0x15` 95.6% / `0x16` 4.4%); each has a bounded
   /// owner object (**100%** — the node or `0x1d` wire-segment it attaches to),
   /// so the endpoints are spatially locatable (see [ViWire.endpointAnchors]).
+  /// A sub-population of endpoints — the structure tunnels / border
+  /// terminals and the growable-node terminals — additionally resolves an
+  /// **attach rectangle** via the terminal object that names the endpoint in
+  /// its own `14 19` childRefs and carries the `0x129` termBounds rect;
+  /// [ViDiagram.endpointTerminalBounds] owns that census.
   /// The signal itself carries no bounds; its packed route lives in the
   /// compressedWireTable payload (interior undecoded). Its **datatype is not
   /// recovered**: neither the signal nor its endpoints carry a type, and the
@@ -830,6 +841,14 @@ enum HeapObjectClass {
 /// footprint). Single source of truth.
 const kControlTerminalCodes = {0x50, 0x4f, 0x57, 0x5b, 0x51};
 
+/// The block-diagram **wire-endpoint DCO** class codes — the bounds-less
+/// data-connection objects a signal's `14 19` childRefs bind (corpus: 902,107
+/// endpoint refs across 7,524 VIs; `0x15` 862,159 / `0x16` 39,948; see
+/// [HeapObjectClass.signal]). An endpoint's attach rectangle is resolved via
+/// the terminal object that declares it a member —
+/// [ViDiagram.endpointTerminalBounds], which owns the resolution census.
+const kSignalEndpointDcoKinds = {0x15, 0x16};
+
 /// Attribute id bytes `buildDiagram` surfaces onto [ViHeapObject] (a fast
 /// pre-filter on the record's second byte before the heavier `decodeHeapAttr`):
 /// 0x20/0x21 catch the `C6` control-range f64s (raw tags 0x220/0x221,
@@ -958,6 +977,8 @@ ViTypeKind inferTypeKind(Set<int> c4ops, List<int>? formatPayload) {
 /// segment it attaches to; 100% have one) — so a consumer can route the wire
 /// between anchors. [endpointOids] and [endpointAnchors] are index-aligned; an
 /// anchor is null only if that endpoint oid does not resolve (0% corpus-wide).
+/// Where the endpoint is a structure tunnel / border terminal, the exact
+/// attach rectangle is also decoded — [endpointAttachRects].
 ///
 /// The wire's **datatype is not exposed**, because it is not corpus-provable
 /// from the signal: neither the signal nor its endpoint objects carry a type,
@@ -968,7 +989,13 @@ ViTypeKind inferTypeKind(Set<int> c4ops, List<int>? formatPayload) {
 /// model does not do. A consumer that wants to colour a wire can read the type
 /// of a bounded endpoint owner it recognises; this model does not assert one.
 class ViWire {
-  ViWire({required this.signalOid, required this.endpointOids, required this.endpointAnchors, this.route});
+  ViWire({
+    required this.signalOid,
+    required this.endpointOids,
+    required this.endpointAnchors,
+    List<HeapRect?>? endpointAttachRects,
+    this.route,
+  }) : endpointAttachRects = endpointAttachRects ?? List<HeapRect?>.filled(endpointOids.length, null);
 
   /// The [ViHeapObject.oid] of the signal (`0x17`) object this wire is.
   final int signalOid;
@@ -985,6 +1012,19 @@ class ViWire {
   /// [endpointOids]; an entry is null only when the endpoint oid does not
   /// resolve (not observed in the corpus).
   final List<HeapRect?> endpointAnchors;
+
+  /// The **attach rectangle** of each endpoint in absolute diagram
+  /// coordinates — the structure tunnel square / shift-register box /
+  /// selector glyph the wire visually connects to — index-aligned with
+  /// [endpointOids]. Structure-framed rects are border-exact; node-framed
+  /// (growable-node terminal) rects are approximate. Null where the endpoint
+  /// has no termBounds-carrying terminal (a plain node's connection point) or
+  /// the file predates the frame-relative coordinate space; the coarse
+  /// [endpointAnchors] owner rect still locates those. Decoded by
+  /// [ViDiagram.endpointTerminalBounds], which owns the corpus census;
+  /// defaults to all-null when constructed without a list (external callers
+  /// re-deriving anchors keep their alignment guarantee).
+  final List<HeapRect?> endpointAttachRects;
 
   /// The decoded stored route shape (see [ViWireRoute] / [decodeWireRoute]),
   /// or null when the signal carries the trivial scalar table (a straight
@@ -1076,6 +1116,24 @@ ViWireRoute? decodeWireRoute(Uint8List table) {
   return ViWireRoute(pointCount: n, segmentLengths: lengths, jointSigns: signs);
 }
 
+/// Whether a `vers` string predates the **frame-relative termBounds
+/// coordinate space** — true iff it parses as a `major.minor` below 8.6.
+/// LabVIEW < 8.6 heaps store termBounds (and `C4 2D` bounds) in an absolute
+/// space the composed coordinate model does not cover (see
+/// [ViDiagram.endpointTerminalBounds]). A null or unparseable version reads
+/// false — treated as current-era (every corpus VI carries a parseable
+/// version; a bare heap body without container context has no version and
+/// gets the current-era reading).
+bool _predatesFrameRelativeTermBounds(String? version) {
+  if (version == null) return false;
+  final parts = version.split('.');
+  if (parts.length < 2) return false;
+  final major = int.tryParse(parts[0]);
+  final minor = int.tryParse(parts[1]);
+  if (major == null || minor == null) return false;
+  return major < 8 || (major == 8 && minor < 6);
+}
+
 /// A recovered block-diagram (or other heap) as a **nesting tree** of
 /// [ViHeapObject]s with absolute coordinates. The `14 19 01 fd` references are
 /// child-membership (structure → contained oids). LabVIEW's *logical* dataflow
@@ -1084,10 +1142,15 @@ ViWireRoute? decodeWireRoute(Uint8List table) {
 /// segments are geometry-only (no oid endpoints). Partial/honest: object class
 /// codes and wire direction/datatype are not fully decoded.
 class ViDiagram {
-  ViDiagram({required this.sectionTag, required this.objects});
+  ViDiagram({required this.sectionTag, required this.objects, this.version});
 
   /// The section this diagram came from (`BDHb` = block diagram, `FPHb` = front panel).
   final String sectionTag;
+
+  /// The LabVIEW version the VI was saved in (the `vers` string, e.g. `20.0`),
+  /// or null when unknown (a bare heap body with no container context). Gates
+  /// the version-dependent coordinate decodes ([endpointTerminalBounds]).
+  final String? version;
 
   /// All recovered objects, in heap (pre-order) order.
   final List<ViHeapObject> objects;
@@ -1117,9 +1180,96 @@ class ViDiagram {
           signalOid: object.oid,
           endpointOids: List<int>.of(object.refs),
           endpointAnchors: [for (final oid in object.refs) _boundedOwnerBounds(oid)],
+          endpointAttachRects: [for (final oid in object.refs) endpointTerminalBounds(oid)],
           route: object.wireTableRaw == null ? null : decodeWireRoute(object.wireTableRaw!),
         ),
   ];
+
+  /// Member oid → the oid of the **terminal object** that declares it in its
+  /// own `14 19` childRefs *and* carries a [ViHeapObject.termBounds] rect (a
+  /// structure tunnel / shift register / selector / count terminal, or a
+  /// node's growable terminal). The mapping is single-valued in the corpus
+  /// (see [endpointTerminalBounds]); a target two distinct terminals claim is
+  /// mapped to the [_ambiguousTerminal] sentinel and never guessed at. Built
+  /// once on first access.
+  late final Map<int, int> _terminalOidByMemberOid = _buildTerminalIndex();
+
+  /// Sentinel in [_terminalOidByMemberOid] for a member oid that two distinct
+  /// terminals claim (0 corpus instances; unseen input only). Oids are
+  /// non-negative in both header forms, so -1 cannot collide.
+  static const int _ambiguousTerminal = -1;
+
+  Map<int, int> _buildTerminalIndex() {
+    final index = <int, int>{};
+    for (final object in objects) {
+      if (object.termBounds == null) continue;
+      for (final target in object.typedRefs[HeapRefKind.childRef] ?? const <int>[]) {
+        final prev = index[target];
+        index[target] = (prev == null || prev == object.oid) ? object.oid : _ambiguousTerminal;
+      }
+    }
+    return index;
+  }
+
+  /// The **terminal object** a signal-endpoint DCO ([kSignalEndpointDcoKinds])
+  /// attaches through — the object that names [oid] in its `14 19` childRefs
+  /// and carries the endpoint's [ViHeapObject.termBounds] attach rect (plus
+  /// its [ViHeapObject.termBmp] glyph where present) — or null when [oid] is
+  /// not an endpoint DCO, no such terminal exists (a plain node's connection
+  /// point), or the claim is ambiguous. See [endpointTerminalBounds] for the
+  /// corpus census.
+  ViHeapObject? endpointTerminal(int oid) {
+    final endpoint = byId[oid];
+    if (endpoint == null || !kSignalEndpointDcoKinds.contains(endpoint.kind)) return null;
+    final terminalOid = _terminalOidByMemberOid[oid];
+    return terminalOid == null || terminalOid == _ambiguousTerminal ? null : byId[terminalOid];
+  }
+
+  /// The **absolute attach rectangle** of the signal-endpoint DCO [oid] — the
+  /// structure tunnel square / shift-register box / selector glyph the wire
+  /// visually connects to: [endpointTerminal]'s termBounds offset by the
+  /// terminal's enclosing frame origin (its nearest bounded strict ancestor's
+  /// top-left) — or null when no terminal resolves, no ancestor is bounded,
+  /// or [version] predates the frame-relative coordinate space (LabVIEW
+  /// < 8.6 — returning those would emit wrongly-composed rects).
+  ///
+  /// Corpus evidence (7,524 VIs; 902,107 signal endpoints — the single owner
+  /// of this census, referenced by the related docs): 404,885 endpoints
+  /// (44.88%) resolve a terminal; the endpoint→terminal mapping is unique
+  /// (0 endpoints with two distinct claimants) and no resolving terminal
+  /// carries own `C4 2D` bounds (0/404,885), so the nearest bounded strict
+  /// ancestor is exactly the enclosing frame. Split by that frame:
+  /// **structure** 382,691, **node** 20,052 (growable-node terminals),
+  /// none/other 2,142. Structure-framed, LabVIEW **≥ 8.6** (381,505): the
+  /// rect touches the frame's border ring exactly (0 px slack) for **99.09%**
+  /// (378,016) and the remaining 0.91% (3,489 — interior terminals such as a
+  /// loop's conditional terminal) land fully inside the frame — **100.00%**
+  /// on-or-inside, 0 outliers. The boundary version itself is thin: 8.6 is
+  /// the only pre-9.0 version above it with resolved endpoints (4, all
+  /// border-exact). Node-framed rects are **approximate**: 91.92% inside the
+  /// node ± 2 px — TODO: decode the 8.08% off-node residual. Structure-framed
+  /// endpoints in **< 8.6** files (1,186, all v8.5) store termBounds in that
+  /// era's absolute coordinate space (their `C4 2D` bounds records are
+  /// absolute too, so the composed [ViHeapObject.absBounds] this offsets
+  /// against is equally affected) — gated to null here; TODO: decode the
+  /// < 8.6 absolute-coordinate heap convention as a whole. The unresolved
+  /// 55.12% are dominated by plain-node endpoints (397,730 — node connection
+  /// points do not use this record; their coarse anchor is the node itself).
+  HeapRect? endpointTerminalBounds(int oid) {
+    if (_predatesFrameRelativeTermBounds(version)) return null;
+    final terminal = endpointTerminal(oid);
+    final rel = terminal?.termBounds;
+    if (terminal == null || rel == null) return null;
+    final parentOid = terminal.parentOid;
+    final frame = parentOid == null ? null : _boundedOwnerBounds(parentOid);
+    if (frame == null) return null;
+    return HeapRect(
+      top: frame.top + rel.top,
+      left: frame.left + rel.left,
+      bottom: frame.top + rel.bottom,
+      right: frame.left + rel.right,
+    );
+  }
 
   /// The [ViHeapObject.absBounds] of [oid]'s nearest bounded owner — the object
   /// itself if bounded, else the nearest positional ancestor with bounds — or
@@ -1151,8 +1301,10 @@ Map<int, List<ViHeapObject>> _childrenByParentOid(List<ViHeapObject> objects) {
 /// balanced typed-group tree ([walkHeapObjects]): object headers become
 /// [ViHeapObject]s parented by the enclosing object; `C4 2D`/`C4 22`/
 /// `14 19 01 fd` records attach to the innermost object; absolute coordinates
-/// compose down the object-ancestor chain. Total/bounds-safe.
-ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
+/// compose down the object-ancestor chain. Total/bounds-safe. [version] is
+/// the VI's `vers` string when the caller has container context — it gates
+/// the version-dependent coordinate decodes (see [ViDiagram.version]).
+ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? version}) {
   final objects = <ViHeapObject>[];
   final c4ops = <ViHeapObject, Set<int>>{};
   final formatPayloads = <ViHeapObject, List<int>>{};
@@ -1339,7 +1491,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
   }
 
   _reanchorScrolledControls(objects, byOid, nodeKids);
-  return ViDiagram(sectionTag: sectionTag, objects: objects);
+  return ViDiagram(sectionTag: sectionTag, objects: objects, version: version);
 }
 
 /// Parses a `C4 2E` string-table payload into its ordered enum/ring item labels
