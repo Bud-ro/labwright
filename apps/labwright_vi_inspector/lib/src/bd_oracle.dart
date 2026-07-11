@@ -1291,10 +1291,38 @@ class _BdOracleViewState extends State<BdOracleView>
       width: reference.image.width,
       height: reference.image.height,
     );
+    // Display pair: our side re-rendered as vectors at the supersample (real
+    // detail for the downscale), the reference nearest-upscaled to match.
+    const ss = kOracleDisplaySupersample;
+    final raster3 = await rasteriseBlockDiagram(
+      diagram,
+      primIcons: primIconsLoaded(),
+      maxDimension: widget.maxDimension * ss,
+      scale: raster.scale * ss,
+      margin: snippet ? 2 : 40,
+      subViIcons: widget.subViIcons,
+      wires: visibleWires,
+      drawable: drawable,
+    );
+    ui.Image? displayFitted;
+    ui.Image? displayReference;
+    if (raster3 != null) {
+      displayFitted = await redrawRegisteredSupersampled(
+        raster3.image,
+        result.registration,
+        reference.image.width,
+        reference.image.height,
+        ss,
+      );
+      displayReference = await upscaleNearest(reference.image, ss);
+    }
     return _OracleData(
       rendered: raster.image,
       result: result,
       placement: placement,
+      displayRendered: raster3?.image,
+      displayFitted: displayFitted,
+      displayReference: displayReference,
     );
   }
 
@@ -1380,15 +1408,23 @@ class _BdOracleViewState extends State<BdOracleView>
               ),
             Expanded(
               child: _wipe && result != null
-                  ? _wipePane(result)
+                  ? _wipePane(result, data)
                   : Row(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Expanded(
-                          child: _pane('Rendered (clean-room)', data.rendered!),
+                          child: _pane(
+                            'Rendered (clean-room)',
+                            data.displayRendered ?? data.rendered!,
+                          ),
                         ),
                         if (result != null) ...[
-                          Expanded(child: _pane('Reference', result.reference)),
+                          Expanded(
+                            child: _pane(
+                              'Reference',
+                              data.displayReference ?? result.reference,
+                            ),
+                          ),
                           Expanded(
                             child: _pane('Absolute diff', result.diffImage),
                           ),
@@ -1406,9 +1442,14 @@ class _BdOracleViewState extends State<BdOracleView>
   /// render covers it up to [_wipeFraction] of the image width, with a
   /// draggable divider. Both images share the reference frame, so features
   /// line up across the divider.
-  Widget _wipePane(BdOracleResult result) {
-    final w = result.reference.width.toDouble();
-    final h = result.reference.height.toDouble();
+  Widget _wipePane(BdOracleResult result, _OracleData data) {
+    // The supersampled display pair (see [kOracleDisplaySupersample]) is the
+    // wipe's source material: real 3x vector detail on our side, honest 3x
+    // blocks on the reference's — minified through one shared halving path.
+    final refImage = data.displayReference ?? result.reference;
+    final fitImage = data.displayFitted ?? result.fitted;
+    final w = refImage.width.toDouble();
+    final h = refImage.height.toDouble();
     return Padding(
       padding: const EdgeInsets.all(4),
       child: ColoredBox(
@@ -1434,8 +1475,8 @@ class _BdOracleViewState extends State<BdOracleView>
             if (targetWidth != null && targetWidth != _wipeTargetWidth) {
               _wipeTargetWidth = targetWidth;
               Future.wait([
-                downscaleForDisplay(result.reference, targetWidth),
-                downscaleForDisplay(result.fitted, targetWidth),
+                downscaleForDisplay(refImage, targetWidth),
+                downscaleForDisplay(fitImage, targetWidth),
               ]).then((imgs) {
                 if (mounted && _wipeTargetWidth == targetWidth) {
                   setState(() {
@@ -1446,11 +1487,11 @@ class _BdOracleViewState extends State<BdOracleView>
               });
             }
             final showRef = targetWidth == null
-                ? result.reference
-                : (_wipeReference ?? result.reference);
+                ? refImage
+                : (_wipeReference ?? refImage);
             final showFit = targetWidth == null
-                ? result.fitted
-                : (_wipeFitted ?? result.fitted);
+                ? fitImage
+                : (_wipeFitted ?? fitImage);
             const wipeFilter = FilterQuality.none;
             // The stack is laid out at the FINAL display size and the
             // images are drawn into it exactly once: the minified pair is
@@ -1520,10 +1561,23 @@ class _BdOracleViewState extends State<BdOracleView>
 }
 
 class _OracleData {
-  const _OracleData({this.rendered, this.result, this.placement});
+  const _OracleData({
+    this.rendered,
+    this.result,
+    this.placement,
+    this.displayRendered,
+    this.displayFitted,
+    this.displayReference,
+  });
   final ui.Image? rendered;
   final BdOracleResult? result;
   final PlacementComparison? placement;
+
+  /// The wipe/pane images at [kOracleDisplaySupersample]x (see there); the
+  /// 1:1 [result] images remain the metric inputs.
+  final ui.Image? displayRendered;
+  final ui.Image? displayFitted;
+  final ui.Image? displayReference;
 
   /// Releases the GPU-backed images this render holds (each at most once — the
   /// result's `rendered` and same-size `fitted` alias other fields).
@@ -1534,6 +1588,9 @@ class _OracleData {
     }
 
     disp(rendered);
+    disp(displayRendered);
+    disp(displayFitted);
+    disp(displayReference);
     final r = result;
     if (r != null) {
       disp(r.rendered);
@@ -1542,6 +1599,76 @@ class _OracleData {
       disp(r.diffImage);
     }
   }
+}
+
+/// The oracle's DISPLAY images are rendered at this integer multiple of the
+/// comparison scale and downscaled to the pane — a 1:1 raster minified to a
+/// pane simply has too few source pixels for any filter to save (a 22 px
+/// icon shown at 13 px is destroyed information). Our side re-renders as
+/// vectors at 3x (real detail); the reference bitmap nearest-upscales 3x
+/// (honest block replication) so both wipe halves share one resolution and
+/// one downscale path. The 1:1 images remain the metric inputs.
+const kOracleDisplaySupersample = 3;
+
+/// [src] nearest-upscaled by the integer [factor] — exact block replication.
+Future<ui.Image> upscaleNearest(ui.Image src, int factor) async {
+  final recorder = ui.PictureRecorder();
+  ui.Canvas(recorder).drawImageRect(
+    src,
+    ui.Rect.fromLTWH(0, 0, src.width.toDouble(), src.height.toDouble()),
+    ui.Rect.fromLTWH(
+      0,
+      0,
+      (src.width * factor).toDouble(),
+      (src.height * factor).toDouble(),
+    ),
+    ui.Paint()..filterQuality = ui.FilterQuality.none,
+  );
+  return recorder.endRecording().toImage(
+    src.width * factor,
+    src.height * factor,
+  );
+}
+
+/// Redraws a supersampled render into the supersampled reference frame under
+/// the 1:1 [registration]: the [factor]-scaled canvas applies the same
+/// logical transform, so the display image aligns with the upscaled
+/// reference exactly where the 1:1 fitted aligns with the 1:1 reference.
+Future<ui.Image> redrawRegisteredSupersampled(
+  ui.Image rendered,
+  BdRegistration registration,
+  int width,
+  int height,
+  int factor,
+) async {
+  final recorder = ui.PictureRecorder();
+  final canvas = ui.Canvas(recorder);
+  canvas.drawRect(
+    ui.Rect.fromLTWH(
+      0,
+      0,
+      (width * factor).toDouble(),
+      (height * factor).toDouble(),
+    ),
+    ui.Paint()..color = const ui.Color(0xFFFFFFFF),
+  );
+  canvas.scale(factor.toDouble());
+  canvas.translate(registration.dx, registration.dy);
+  canvas.scale(registration.scale);
+  // The rendered image is itself [factor]x: draw it at logical (1:1) size —
+  // net 1:1 pixels on the supersampled canvas, sampled exactly.
+  canvas.drawImageRect(
+    rendered,
+    ui.Rect.fromLTWH(
+      0,
+      0,
+      rendered.width.toDouble(),
+      rendered.height.toDouble(),
+    ),
+    ui.Rect.fromLTWH(0, 0, rendered.width / factor, rendered.height / factor),
+    ui.Paint()..filterQuality = ui.FilterQuality.none,
+  );
+  return recorder.endRecording().toImage(width * factor, height * factor);
 }
 
 /// Downscales [src] to exactly [targetWidth] px wide by iterative 2x
