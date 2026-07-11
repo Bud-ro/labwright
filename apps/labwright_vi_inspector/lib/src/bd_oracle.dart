@@ -1198,6 +1198,13 @@ class _BdOracleViewState extends State<BdOracleView>
   ui.Image? _wipeReference;
   ui.Image? _wipeFitted;
 
+  /// Wipe zoom: 0 = fit (box-averaged overview), else an integer physical
+  /// scale — the only scales at which single-pixel features render without
+  /// parity-dependent splitting, so pixel inspection defaults to 1:1.
+  int _wipeZoom = 1;
+  final ScrollController _wipeH = ScrollController();
+  final ScrollController _wipeV = ScrollController();
+
   // The comparison (rasterise + decode + multi-peak registration) costs a
   // noticeable fraction of a second on large VIs; keep the tab's state alive
   // so revisiting the Oracle tab shows the cached result instead of
@@ -1217,6 +1224,8 @@ class _BdOracleViewState extends State<BdOracleView>
 
   @override
   void dispose() {
+    _wipeH.dispose();
+    _wipeV.dispose();
     _retire(_future);
     super.dispose();
   }
@@ -1398,11 +1407,30 @@ class _BdOracleViewState extends State<BdOracleView>
                       ),
                       label: Text(_wipe ? 'Side-by-side' : 'Wipe compare'),
                     ),
-                    if (_wipe)
+                    if (_wipe) ...[
+                      for (final z in const [0, 1, 2, 3])
+                        Padding(
+                          padding: const EdgeInsets.only(right: 2),
+                          child: TextButton(
+                            style: TextButton.styleFrom(
+                              minimumSize: const Size(34, 28),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                              ),
+                              backgroundColor: _wipeZoom == z
+                                  ? Colors.orange.withValues(alpha: 0.25)
+                                  : null,
+                            ),
+                            onPressed: () => setState(() => _wipeZoom = z),
+                            child: Text(z == 0 ? 'Fit' : '${z}x'),
+                          ),
+                        ),
                       const Text(
-                        'drag the divider — ours left, LabVIEW right',
+                        'drag the divider — ours left, LabVIEW right; '
+                        'integer zooms are pixel-exact, Fit is a box-averaged overview',
                         style: TextStyle(color: Colors.grey, fontSize: 11),
                       ),
+                    ],
                   ],
                 ),
               ),
@@ -1475,11 +1503,24 @@ class _BdOracleViewState extends State<BdOracleView>
             );
             final double dispPhysW;
             final double dispPhysH;
-            if (fitPhys >= 1) {
+            ui.Image? showRef;
+            ui.Image? showFit;
+            if (_wipeZoom > 0) {
+              // Integer zoom: the pristine 1:1 pair at z:1 physical —
+              // bit-exact by construction; the pane scrolls to reach the
+              // rest of the diagram.
+              dispPhysW = logicalW * _wipeZoom;
+              dispPhysH = logicalH * _wipeZoom;
+              _wipeBoxK = 0;
+              showRef = result.reference;
+              showFit = result.fitted;
+            } else if (fitPhys >= 1) {
               final n = fitPhys.floor();
               dispPhysW = logicalW * n;
               dispPhysH = logicalH * n;
               _wipeBoxK = 0;
+              showRef = result.reference;
+              showFit = result.fitted;
             } else {
               final n = (1 / fitPhys).ceil();
               final k = ss * n;
@@ -1499,53 +1540,72 @@ class _BdOracleViewState extends State<BdOracleView>
               }
               dispPhysW = (refImage.width ~/ k).toDouble();
               dispPhysH = (refImage.height ~/ k).toDouble();
+              showRef = _wipeReference;
+              showFit = _wipeFitted;
             }
-            final showRef = fitPhys >= 1 ? result.reference : _wipeReference;
-            final showFit = fitPhys >= 1 ? result.fitted : _wipeFitted;
             if (showRef == null || showFit == null) {
               return const Center(child: CircularProgressIndicator());
             }
             final dispW = dispPhysW / dpr;
             final dispH = dispPhysH / dpr;
-            final offsetX = (constraints.maxWidth - dispW) / 2;
             void follow(Offset local) => setState(() {
-              _wipeFraction = ((local.dx - offsetX) / dispW).clamp(0.0, 1.0);
+              _wipeFraction = (local.dx / dispW).clamp(0.0, 1.0);
             });
             // Laid out at physical-size / dpr, so each image blits exactly
             // once, 1:1 physical (nearest for the integer upscale; the
             // box-averaged pair is already at target resolution).
-            return GestureDetector(
+            final content = GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTapDown: (d) => follow(d.localPosition),
               onHorizontalDragUpdate: (d) => follow(d.localPosition),
-              child: Center(
-                child: SizedBox(
-                  width: dispW,
-                  height: dispH,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      RawImage(
-                        image: showRef,
+              child: SizedBox(
+                width: dispW,
+                height: dispH,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    RawImage(
+                      image: showRef,
+                      fit: BoxFit.fill,
+                      filterQuality: FilterQuality.none,
+                    ),
+                    ClipRect(
+                      clipper: _LeftFractionClipper(_wipeFraction),
+                      child: RawImage(
+                        image: showFit,
                         fit: BoxFit.fill,
                         filterQuality: FilterQuality.none,
                       ),
-                      ClipRect(
-                        clipper: _LeftFractionClipper(_wipeFraction),
-                        child: RawImage(
-                          image: showFit,
-                          fit: BoxFit.fill,
-                          filterQuality: FilterQuality.none,
-                        ),
-                      ),
-                      Positioned(
-                        left: (dispW * _wipeFraction - 1).clamp(0.0, dispW - 2),
-                        width: 2,
-                        top: 0,
-                        bottom: 0,
-                        child: const ColoredBox(color: Colors.orangeAccent),
-                      ),
-                    ],
+                    ),
+                    Positioned(
+                      left: (dispW * _wipeFraction - 1).clamp(0.0, dispW - 2),
+                      width: 2,
+                      top: 0,
+                      bottom: 0,
+                      child: const ColoredBox(color: Colors.orangeAccent),
+                    ),
+                  ],
+                ),
+              ),
+            );
+            if (dispW <= constraints.maxWidth &&
+                dispH <= constraints.maxHeight) {
+              return Center(child: content);
+            }
+            // Oversized (zoom): scroll on both axes — the divider drag owns
+            // horizontal gestures, so scrolling rides the bars and the wheel.
+            return Scrollbar(
+              controller: _wipeH,
+              thumbVisibility: true,
+              child: SingleChildScrollView(
+                controller: _wipeH,
+                scrollDirection: Axis.horizontal,
+                child: Scrollbar(
+                  controller: _wipeV,
+                  thumbVisibility: true,
+                  child: SingleChildScrollView(
+                    controller: _wipeV,
+                    child: content,
                   ),
                 ),
               ),

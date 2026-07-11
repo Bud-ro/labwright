@@ -221,6 +221,51 @@ void main() {
           lessThanOrEqualTo(2),
           reason: 'bottom border not uniform: $bottom',
         );
+
+        // At the wipe's default 1x zoom the display IS the 1:1 raster, so
+        // exactness reduces to the stamp itself: every opaque pixel of the
+        // prim1608 asset must appear in the raster byte-for-byte at the
+        // grid-aligned stamp rect. Zero tolerance.
+        final art = icons[1608]!.base;
+        final stamp = primIconStampRect(
+          ui.Rect.fromLTRB(
+            o.left - raster.content.left,
+            o.top - raster.content.top,
+            o.right - raster.content.left,
+            o.bottom - raster.content.top,
+          ),
+          art.width,
+          art.height,
+        );
+        final artPx = (await art.toByteData())!.buffer.asUint8List();
+        final rasterPx = (await raster.image.toByteData())!.buffer
+            .asUint8List();
+        var opaque = 0, mismatched = 0;
+        for (var y = 0; y < art.height; y++) {
+          for (var x = 0; x < art.width; x++) {
+            final a = (y * art.width + x) * 4;
+            if (artPx[a + 3] == 0) continue;
+            opaque++;
+            final rx = stamp.left.toInt() + x;
+            final ry = stamp.top.toInt() + y;
+            final r = (ry * raster.image.width + rx) * 4;
+            if (artPx[a] != rasterPx[r] ||
+                artPx[a + 1] != rasterPx[r + 1] ||
+                artPx[a + 2] != rasterPx[r + 2]) {
+              mismatched++;
+            }
+          }
+        }
+        // ignore: avoid_print
+        print(
+          'U8 stamp at 1:1: $opaque opaque asset px, $mismatched mismatched',
+        );
+        expect(opaque, greaterThan(100));
+        expect(
+          mismatched,
+          0,
+          reason: 'the 1:1 stamp must reproduce the asset exactly',
+        );
       });
     },
   );

@@ -1665,13 +1665,35 @@ final Map<int, ({int w, int h, Uint8List alpha})> _primIconMasks = {};
 /// primitive icon stamped on [object] (natural size, centred in its bounds).
 /// True when no icon is stamped — the plain bounds hit stands. Pixel-precise
 /// so an icon's transparent surround does not swallow clicks.
+/// Where icon art lands within a node's box: centred, snapped to the logical
+/// pixel grid. Odd-sized art on an integer node centre (25x11 in a 32-wide
+/// box) otherwise sits at x.5 — a half-pixel offset that splits border ink
+/// across resample boundaries and shifts glyphs into their neighbours. The
+/// stamp, the selection outline, and the alpha hitbox all share this rect.
+Rect primIconStampRect(Rect nodeRect, int artW, int artH) => Rect.fromLTWH(
+  (nodeRect.center.dx - artW / 2).roundToDouble(),
+  (nodeRect.center.dy - artH / 2).roundToDouble(),
+  artW.toDouble(),
+  artH.toDouble(),
+);
+
 bool primIconHit(ViHeapObject object, double x, double y) {
   final id = primIconKeyOf(object);
   final mask = id == null ? null : _primIconMasks[id];
   if (mask == null || _primIconsSync[id] == null) return true;
   final b = object.absBounds!;
-  final left = (b.left + b.right - mask.w) / 2;
-  final top = (b.top + b.bottom - mask.h) / 2;
+  final stamp = primIconStampRect(
+    Rect.fromLTRB(
+      b.left.toDouble(),
+      b.top.toDouble(),
+      b.right.toDouble(),
+      b.bottom.toDouble(),
+    ),
+    mask.w,
+    mask.h,
+  );
+  final left = stamp.left;
+  final top = stamp.top;
   final ix = (x - left).floor();
   final iy = (y - top).floor();
   if (ix < 0 || iy < 0 || ix >= mask.w || iy >= mask.h) return false;
@@ -2072,12 +2094,10 @@ class BdDiagramPainter extends CustomPainter {
             final art = filter == FilterQuality.none
                 ? primIcon.base
                 : primIcon.sharp;
-            final w = primIcon.base.width.toDouble();
-            final h = primIcon.base.height.toDouble();
-            final dst = Rect.fromCenter(
-              center: rect.center,
-              width: w,
-              height: h,
+            final dst = primIconStampRect(
+              rect,
+              primIcon.base.width,
+              primIcon.base.height,
             );
             canvas.drawImageRect(
               art,
@@ -2588,12 +2608,19 @@ class _OverlayPainter extends CustomPainter {
 
   Rect _rectOf(ViHeapObject o) {
     final bounds = o.absBounds!;
-    return Rect.fromLTRB(
+    final rect = Rect.fromLTRB(
       bounds.left - origin.dx,
       bounds.top - origin.dy,
       bounds.right - origin.dx,
       bounds.bottom - origin.dy,
     );
+    // Icon-stamped nodes outline the stamped art, not the (often square)
+    // model box — matching what is drawn and what the alpha hitbox accepts.
+    final key = primIconKeyOf(o);
+    final art = key == null ? null : primIconsLoaded()[key];
+    return art == null
+        ? rect
+        : primIconStampRect(rect, art.base.width, art.base.height);
   }
 
   @override
