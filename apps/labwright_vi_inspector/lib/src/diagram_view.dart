@@ -2011,6 +2011,20 @@ class BdDiagramPainter extends CustomPainter {
               width: w,
               height: h,
             );
+            // Sampling by effective scale, read off the canvas transform:
+            // once the display magnifies the prescaled bitmap itself
+            // (scale >= kPrimIconPrescale), LINEAR's interpolation band
+            // spans a whole display pixel and reads as fuzz — NEAREST gives
+            // the crisp blocks; below that the band stays sub-pixel and
+            // LINEAR is the sharp-bilinear that kills minification
+            // aliasing. NEAREST also stays exact for the 1:1 oracle raster.
+            final t = canvas.getTransform();
+            final effScale = math.sqrt(t[0] * t[0] + t[1] * t[1]);
+            final filter =
+                iconFilterQuality == FilterQuality.none ||
+                    effScale >= kPrimIconPrescale
+                ? FilterQuality.none
+                : iconFilterQuality;
             canvas.drawImageRect(
               primIcon,
               Rect.fromLTWH(
@@ -2020,7 +2034,7 @@ class BdDiagramPainter extends CustomPainter {
                 primIcon.height.toDouble(),
               ),
               dst,
-              Paint()..filterQuality = iconFilterQuality,
+              Paint()..filterQuality = filter,
             );
           } else if (icon != null) {
             paintLegacyIcon(canvas, icon, rect);
@@ -2841,27 +2855,19 @@ class _ViImageStrip extends StatelessWidget {
                   "This VI's own 32×32 icon — what a caller's subVI node shows "
                   'for it.',
             ),
-          for (final png in images.pngs.take(4))
-            _tile(
-              '${png.tag} ${png.width}×${png.height}',
-              Image.memory(
-                png.bytes,
-                width: 36,
-                height: 36,
-                fit: BoxFit.contain,
-                filterQuality: FilterQuality.none,
-                gaplessPlayback: true,
-                errorBuilder: (_, _, _) =>
-                    const Icon(Icons.broken_image_outlined, size: 20),
-              ),
-            ),
-          const Expanded(
+          // Only the VI icon shows here: the other recovered image resources
+          // (e.g. Excel_Read_XLSX carries a stack of DSIM entries that decode
+          // to blank canvases) belong to the Images tab, and a strip of them
+          // overflowed this row.
+          Expanded(
             child: Padding(
-              padding: EdgeInsets.only(left: 8),
+              padding: const EdgeInsets.only(left: 8),
               child: Text(
-                "The VI's own recovered images. A subVI-call node on the diagram "
-                "shows the called VI's icon when that file resolves.",
-                style: TextStyle(fontSize: 11, color: Colors.grey),
+                "The VI's own icon — what a caller's subVI node shows for it."
+                '${images.pngs.isEmpty ? '' : ' ${images.pngs.length} more recovered image(s) in the Images tab.'}',
+                style: const TextStyle(fontSize: 11, color: Colors.grey),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 2,
               ),
             ),
           ),
