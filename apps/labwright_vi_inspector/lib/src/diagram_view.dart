@@ -127,6 +127,10 @@ class _ViDiagramViewState extends State<ViDiagramView> {
     null => const {},
     final diagram => bdDisabledObjectOids(diagram),
   };
+  late final Set<HeapRect> _loopTunnelRects = switch (_diagram) {
+    null => const {},
+    final diagram => bdLoopTunnelAttachRects(diagram),
+  };
   late final Map<int, List<({HeapRect box, int bmp})>> _structureTerminals =
       switch (_diagram) {
         null => const {},
@@ -325,6 +329,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                               primIcons: _primIcons,
                               primIconsGrey: primIconsGreyLoaded(),
                               disabledOids: _disabledOids,
+                              loopTunnelRects: _loopTunnelRects,
                               iconFilterQuality: FilterQuality.low,
                               canvasScale: _anchorScale,
                               structureTerminals: _structureTerminals,
@@ -568,6 +573,11 @@ const Color kBdUnknownTerminalFill = Color(0xFFD8D8D8);
 /// tinted when one of its endpoint anchors coincides with a terminal whose
 /// datatype *was* recovered (see [bdWireColor]).
 const Color kBdWireColor = Color(0xFF2B2B2B);
+
+/// The 1 px border LabVIEW draws around a structure tunnel square (sampled
+/// from the crc8 snippet reference at a decoded tunnel rect; the fill is the
+/// wire's own colour).
+const Color kBdTunnelBorder = Color(0xFF444444);
 
 /// The opaque [Color] of a decoded 24-bit `0xRRGGBB` object colour ([rgb]), or
 /// null when the object carried no such colour. Used to fill a decoration or
@@ -1829,6 +1839,27 @@ bool primIconHit(ViHeapObject object, double x, double y) {
 /// build under the test framework's fake async).
 Map<int, PrimIconArt> primIconsLoaded() => _primIconsSync;
 
+/// The attach rects of PLAIN LOOP TUNNELS — wire endpoints whose resolving
+/// terminal is the loop-tunnel class `0x22`. Only this kind draws the
+/// wire-colour-filled square (verified against crc8's reference at a
+/// decoded rect); shift registers (`0x27`/`0x28`), selector and other
+/// border terminals carry their own chrome and are TODO until each is
+/// reference-verified.
+Set<HeapRect> bdLoopTunnelAttachRects(ViDiagram diagram) {
+  final out = <HeapRect>{};
+  for (final wire in bdVisibleWires(diagram)) {
+    for (var e = 0; e < wire.endpointOids.length; e++) {
+      final attach = e < wire.endpointAttachRects.length
+          ? wire.endpointAttachRects[e]
+          : null;
+      if (attach == null) continue;
+      final terminal = diagram.endpointTerminal(wire.endpointOids[e]);
+      if (terminal?.kind == 0x22) out.add(attach);
+    }
+  }
+  return out;
+}
+
 /// The oids of drawable objects sitting under a disable structure's
 /// DISPLAYED frame when that frame is a disabled one — LabVIEW renders their
 /// icons as grey line-work on white (see [_greyDisabledPalette]). The
@@ -1868,6 +1899,7 @@ class BdDiagramPainter extends CustomPainter {
     this.primIcons = const {},
     this.primIconsGrey = const {},
     this.disabledOids = const {},
+    this.loopTunnelRects = const {},
     this.structureTerminals = const {},
     this.iconFilterQuality = FilterQuality.none,
     this.canvasScale = 1,
@@ -1903,6 +1935,10 @@ class BdDiagramPainter extends CustomPainter {
 
   /// Objects under a disabled displayed frame ([bdDisabledObjectOids]).
   final Set<int> disabledOids;
+
+  /// Attach rects of plain loop tunnels ([bdLoopTunnelAttachRects]) — the
+  /// only endpoints drawn as wire-colour squares.
+  final Set<HeapRect> loopTunnelRects;
 
   /// Sampling for stamped icons: nearest (the default) is pixel-exact in the
   /// 1:1 oracle raster; the interactive view passes [FilterQuality.low]
@@ -2023,10 +2059,12 @@ class BdDiagramPainter extends CustomPainter {
     };
     final structureRects = {for (final o in structures) rectOf(o)};
     final tunnelLandings = <(Offset, Color)>[];
+    final tunnelSquares = <(Rect, Color)>[];
     _drawWires(
       canvas,
       structureRects: structureRects,
       tunnelLandings: tunnelLandings,
+      tunnelSquares: tunnelSquares,
     );
     for (final object in structures) {
       // Class-accurate structure chrome (no badge text — LabVIEW names a
@@ -2082,6 +2120,9 @@ class BdDiagramPainter extends CustomPainter {
               ..strokeWidth = 1.0,
           );
       }
+    }
+    for (final (rect, color) in tunnelSquares) {
+      _drawTunnelSquare(canvas, rect, color);
     }
     // Wires: each 0x1d object is one stored Manhattan run, drawn exactly as
     // its own segment. Runs of the same wire already meet at their bend
@@ -2344,9 +2385,9 @@ class BdDiagramPainter extends CustomPainter {
       }
     }
     // Wire landings on structure borders feed ONLY the structure-terminal
-    // recolour above (the case selector [?] takes its wire's colour). No
-    // free-standing tunnel squares are drawn: the real tunnel positions are
-    // not yet decoded, and a square at a wire landing would be a guess.
+    // recolour above (the case selector [?] takes its wire's colour).
+    // Tunnel squares are drawn in [_drawWires] at the DECODED attach rects
+    // ([ViWire.endpointAttachRects]), never guessed from a landing point.
     // The drawn-object index for owner lookups in the text pass.
     final byOid = {for (final o in objects) o.oid: o};
     // Text pass: LabVIEW shows a structure's construct name on its frame and a
@@ -2468,6 +2509,7 @@ class BdDiagramPainter extends CustomPainter {
     Canvas canvas, {
     Set<Rect>? structureRects,
     List<(Offset, Color)>? tunnelLandings,
+    List<(Rect, Color)>? tunnelSquares,
   }) {
     if (wires.isEmpty) return;
     // Endpoint-anchor rectangle → recovered terminal colour, for honest
@@ -2509,7 +2551,12 @@ class BdDiagramPainter extends CustomPainter {
     }
     for (final wire in wires) {
       final anchors = <Rect>[];
-      for (final anchor in wire.endpointAnchors) {
+      // Structure-anchored endpoints with a DECODED attach rect (the
+      // tunnel/border-terminal position, [ViWire.endpointAttachRects]) get a
+      // tunnel square drawn at it.
+      final tunnels = <Rect>[];
+      for (var e = 0; e < wire.endpointAnchors.length; e++) {
+        final anchor = wire.endpointAnchors[e];
         if (anchor == null) continue;
         // A zero-area anchor is an endpoint whose nearest bounded owner is a
         // degenerate wire-segment stub (often at the diagram origin or a
@@ -2517,16 +2564,31 @@ class BdDiagramPainter extends CustomPainter {
         // draws strokes into empty space. Such a leg is skipped rather than
         // drawn wrong.
         if (anchor.width <= 0 && anchor.height <= 0) continue;
-        anchors.add(
-          Rect.fromLTRB(
-            anchor.left - origin.dx,
-            anchor.top - origin.dy,
-            anchor.right - origin.dx,
-            anchor.bottom - origin.dy,
-          ),
+        final anchorRect = Rect.fromLTRB(
+          anchor.left - origin.dx,
+          anchor.top - origin.dy,
+          anchor.right - origin.dx,
+          anchor.bottom - origin.dy,
         );
+        // The decoded terminal attach rect pins the endpoint exactly (the
+        // tunnel on a structure border, a growable node's terminal) — the
+        // owner box is only the fallback.
+        final attach = e < wire.endpointAttachRects.length
+            ? wire.endpointAttachRects[e]
+            : null;
+        if (attach != null) {
+          final attachRect = Rect.fromLTRB(
+            attach.left - origin.dx,
+            attach.top - origin.dy,
+            attach.right - origin.dx,
+            attach.bottom - origin.dy,
+          );
+          anchors.add(attachRect);
+          if (loopTunnelRects.contains(attach)) tunnels.add(attachRect);
+        } else {
+          anchors.add(anchorRect);
+        }
       }
-      if (anchors.length < 2) continue;
       final paint = Paint()
         ..color = bdWireColor(
           wire,
@@ -2537,6 +2599,12 @@ class BdDiagramPainter extends CustomPainter {
         ..strokeWidth = 1.4
         ..strokeJoin = StrokeJoin.miter
         ..strokeCap = StrokeCap.butt;
+      // The squares are collected whenever their position is decoded — even
+      // when the wire's OTHER endpoint is unresolvable and no route can be
+      // drawn — and painted AFTER the structure chrome (LabVIEW draws the
+      // tunnel over the band).
+      tunnelSquares?.addAll([for (final t in tunnels) (t, paint.color)]);
+      if (anchors.length < 2) continue;
       final source = anchors.first;
       final route = wire.route;
       final storedApplies =
@@ -2595,6 +2663,26 @@ class BdDiagramPainter extends CustomPainter {
         }
       }
     }
+  }
+
+  /// One tunnel square: LabVIEW draws a 1 px [kBdTunnelBorder] ring filled
+  /// with the wire's colour, over the structure border (crc8's loop tunnel
+  /// at (158,499)-(167,508) reads exactly this from the reference render).
+  void _drawTunnelSquare(Canvas canvas, Rect t, Color wireColor) {
+    canvas.drawRect(
+      t,
+      Paint()
+        ..color = wireColor
+        ..isAntiAlias = false,
+    );
+    canvas.drawRect(
+      Rect.fromLTRB(t.left + 0.5, t.top + 0.5, t.right - 0.5, t.bottom - 0.5),
+      Paint()
+        ..color = kBdTunnelBorder
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1
+        ..isAntiAlias = false,
+    );
   }
 
   /// The thick grey structure band LabVIEW draws for loops and cases: a

@@ -114,6 +114,7 @@ Future<BdRaster?> rasteriseBlockDiagram(
     primIcons: primIcons,
     primIconsGrey: primIconsGreyLoaded(),
     disabledOids: disabledOids,
+    loopTunnelRects: bdLoopTunnelAttachRects(diagram),
     objects: ordered,
     origin: content.topLeft,
     wires: wireList,

@@ -433,6 +433,44 @@ void main() {
           contains('255,0,255'),
           reason: 'input wire must touch the icon and be string pink',
         );
+
+        // Tunnel squares: every structure tunnel with a decoded attach rect
+        // must draw at EXACTLY that rect — a 1 px (68,68,68) ring (the
+        // border LabVIEW renders, read from the crc8 reference) filled with
+        // the wire's colour. The ring is asserted per pixel in our raster.
+        var tunnelCount = 0;
+        for (final w in wires) {
+          for (var e = 0; e < w.endpointAttachRects.length; e++) {
+            final attach = w.endpointAttachRects[e];
+            final anchor = w.endpointAnchors[e];
+            if (attach == null || anchor == null) continue;
+            // Only PLAIN LOOP TUNNELS (terminal class 0x22) draw the
+            // square; shift registers and other border terminals carry
+            // their own chrome.
+            final terminal = bd.endpointTerminal(w.endpointOids[e]);
+            if (terminal?.kind != 0x22) continue;
+            tunnelCount++;
+            final l = (attach.left - raster.content.left).toInt();
+            final t = (attach.top - raster.content.top).toInt();
+            final r = (attach.right - raster.content.left).toInt();
+            final b = (attach.bottom - raster.content.top).toInt();
+            for (var x = l; x < r; x++) {
+              for (final y in [t, b - 1]) {
+                final i = (y * raster.image.width + x) * 4;
+                expect(
+                  [rasterPx[i], rasterPx[i + 1], rasterPx[i + 2]],
+                  [68, 68, 68],
+                  reason:
+                      'tunnel ring pixel ($x,$y) of ${attach.left},'
+                      '${attach.top} not the border colour',
+                );
+              }
+            }
+          }
+        }
+        // ignore: avoid_print
+        print('verified $tunnelCount tunnel rings at decoded rects');
+        expect(tunnelCount, greaterThan(3));
       });
     },
   );
