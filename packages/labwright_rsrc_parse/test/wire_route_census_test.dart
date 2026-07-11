@@ -1,6 +1,7 @@
 @Tags(['corpus'])
 library;
 
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
@@ -45,10 +46,19 @@ Map<String, int> _census(Uint8List bytes, String path) {
     for (final w in d.wires) {
       final raw = d.byId[w.signalOid]?.wireTableRaw;
       final eps = w.endpointOids.length;
+      // Law: the 0x15 node endpoints are bounds-less (the own-bounds attach
+      // fallback belongs to 0x16 alone).
+      for (final oid in w.endpointOids) {
+        final ep = d.byId[oid];
+        if (ep != null && ep.kind == 0x15 && ep.absBounds != null) bump('bounded15Endpoints');
+      }
       if (raw == null) {
         bump(eps == 2 ? 'noTable2ep' : 'noTableMulti');
         continue;
       }
+      // Law: the grammar has no 3-byte table, so the u24 capture width is
+      // never exercised.
+      if (raw.length == 3) bump('tables3Byte');
       if (eps != 2) {
         bump(raw.length >= 2 && raw[1] == 0 ? 'multiExtTable' : 'multiShortTable');
         continue;
@@ -58,6 +68,7 @@ Map<String, int> _census(Uint8List bytes, String path) {
       final route = w.route;
       if (route == null) {
         bump('undecoded2ep');
+        bump('undecoded2epHdr${raw.length < 2 ? 'None' : raw[1].toRadixString(16)}');
         continue;
       }
       switch (route.direction) {
@@ -77,9 +88,25 @@ Map<String, int> _census(Uint8List bytes, String path) {
       final points = w.routePoints;
       if (points != null) {
         bump('shipped');
+        // A zero-length closing run ships pointCount-1 points (the walk
+        // ends ON the far attach point; no duplicate terminal vertex). Its
+        // stored closing sign is uncheckable — census its split anyway.
+        if (points.length == route.pointCount - 1) {
+          bump('shippedZeroClose');
+          final closingSign = route.jointSigns.isEmpty ? null : route.jointSigns.last;
+          bump(
+            'zeroCloseSign${closingSign == null
+                ? 'None'
+                : closingSign > 0
+                ? 'Pos'
+                : 'Neg'}',
+          );
+        }
         // Law: a shipped polyline is anchored at both attach points and
-        // carries exactly the stored point count.
-        if (points.length != route.pointCount || points.first != s || points.last != t) {
+        // carries the stored point count (one fewer for a zero closure).
+        if (points.first != s ||
+            points.last != t ||
+            (points.length != route.pointCount && points.length != route.pointCount - 1)) {
           bump('shippedBad');
         }
       } else if (s == null && t == null) {
@@ -87,14 +114,21 @@ Map<String, int> _census(Uint8List bytes, String path) {
       } else if (s == null || t == null) {
         bump('oneAnchor');
       } else if (route.pointCount == 1) {
-        bump('closeMiss'); // 1-point table whose endpoints do not coincide
+        bump('closeMissOnePoint'); // 1-point table, endpoints do not coincide
       } else {
-        final land = _openLanding(route, s);
-        if (land == null) {
-          bump('closeMalformed');
-        } else {
-          final miss = land.horizontal ? (land.y - t.y).abs() : (land.x - t.x).abs();
-          bump(miss == 0 ? 'closeSignBad' : (miss <= 1 ? 'closeOff1' : 'closeMiss'));
+        final land = _openLanding(route, s)!;
+        final miss = land.horizontal ? (land.y - t.y).abs() : (land.x - t.x).abs();
+        bump(miss == 0 ? 'closeSignBad' : (miss <= 1 ? 'closeOff1' : 'closeMiss'));
+        if (miss > 1) {
+          // How many misses press against an elongated attach rect (a grown
+          // border-terminal stack: narrow dimension ≤ 9, other ≥ 2×).
+          final elongated = [w.endpointAttachRects[0], w.endpointAttachRects[1]].any((r) {
+            if (r == null) return false;
+            final w2 = r.right - r.left, h = r.bottom - r.top;
+            final lo = w2 < h ? w2 : h, hi = w2 < h ? h : w2;
+            return lo <= 9 && hi >= 2 * lo;
+          });
+          if (elongated) bump('closeMissElongated');
         }
       }
 
@@ -197,7 +231,7 @@ Map<String, int> _foldLandings(Map<String, int> c) {
   return out;
 }
 
-const _lawKeys = {'ext2ep', 'shippedBad', 'closeMalformed'};
+const _lawKeys = {'ext2ep', 'shippedBad', 'bounded15Endpoints', 'tables3Byte'};
 
 void main() {
   final all = corpusVis();
@@ -219,7 +253,8 @@ void main() {
   test('wire route laws: no extended two-endpoint tables, shipped polylines anchored', () {
     expect(C['ext2ep'] ?? 0, 0, reason: 'the extended [n][00] form is multi-endpoint only');
     expect(C['shippedBad'] ?? 0, 0, reason: 'every shipped polyline spans attach point to attach point');
-    expect(C['closeMalformed'] ?? 0, 0, reason: 'a decoded route always walks');
+    expect(C['bounded15Endpoints'] ?? 0, 0, reason: '0x15 node endpoints are bounds-less corpus-wide');
+    expect(C['tables3Byte'] ?? 0, 0, reason: 'the grammar has no 3-byte table (u24 width unused)');
   });
 
   test('wire route census matches the committed snapshot exactly', () {
@@ -227,5 +262,41 @@ void main() {
       for (final e in C.entries)
         if (!_lawKeys.contains(e.key)) e.key: e.value,
     });
+  });
+
+  test('basic.png ground truth: decoded routes reproduce the reference render geometry', () {
+    // The snippet's raster is LabVIEW's own render of the embedded VI (see
+    // png_snippet.dart): terminal boxes (58,1)-(90,17) / (58,35)-(90,51),
+    // the add primitive at (106,10)-(138,42), bend column drawn at
+    // x=102-103, input rows drawn at y=21 / y=31.
+    final candidates = corpusViDir
+        .listSync(recursive: true, followLinks: false)
+        .whereType<File>()
+        .where((f) => f.path.replaceAll(r'\', '/').endsWith('/Snippets/basic.png'))
+        .toList();
+    expect(candidates, hasLength(1));
+    final vi = extractSnippetVi(candidates.single.readAsBytesSync())!;
+    final d = buildViModelFromDecoded(decodeSections(vi)).blockDiagrams.single;
+    // Select the two routed wires by their source terminal's attach point
+    // (the 32x16 boxes' floored centres).
+    ViWire wireAt(ViPoint p) => d.wires.singleWhere((w) => d.wireAttachPoint(w.endpointOids[0]) == p);
+    final x = wireAt((x: 74, y: 9)), y = wireAt((x: 74, y: 43));
+    expect(x.route!.direction, WireRouteDirection.right);
+    expect(x.route!.segmentLengths, [28, 12]);
+    expect(x.route!.jointSigns, [1, 1]);
+    expect(y.route!.jointSigns, [-1, 1]);
+    // The walked bends land on the drawn bend column and input rows.
+    final landX = _openLanding(x.route!, (x: 74, y: 9))!;
+    expect((landX.x, landX.y, landX.horizontal, landX.sign), (102, 21, true, 1));
+    final landY = _openLanding(y.route!, (x: 74, y: 43))!;
+    expect((landY.x, landY.y), (102, 31));
+    // Their far endpoints are plain-node DCOs: no attach point, so the
+    // closed polyline honestly does not ship.
+    expect(x.routePoints, isNull);
+    expect(d.wireAttachPoint(x.endpointOids[1]), isNull);
+    // The third wire (add output -> indicator terminal) stored the trivial
+    // straight table.
+    final straight = d.wires.singleWhere((w) => w.signalOid != x.signalOid && w.signalOid != y.signalOid);
+    expect((straight.route!.pointCount, straight.route!.direction), (2, WireRouteDirection.right));
   });
 }

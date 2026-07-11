@@ -203,6 +203,140 @@ void main() {
     expect(dia(records([0x04, 0x08, 0x00, 0x00, 20, 30]), version: '8.5').wires.single.routePoints, isNull);
   });
 
+  test('routePoints: every first-segment direction closes; zero closures drop the duplicate vertex', () {
+    // The same two tunnels — attach (9,14) and (54,44) — wired in either
+    // direction, with the signal's endpoint order picking the walk origin.
+    List<int> records(List<int> table, {bool reversed = false}) => [
+      ...open(0x20, 1),
+      ...bounds(0, 0, 100, 100),
+      ...open(0x22, 2, tag: 0x1a),
+      ...hx('14 19 01 fd 0003'),
+      ...c5(0x29, [0, 10, 0, 5, 0, 19, 0, 14]), // attach (9, 14)
+      ...close(0x1a),
+      ...open(0x15, 3, tag: 0x1a),
+      ...close(0x1a),
+      ...open(0x22, 4, tag: 0x1a),
+      ...hx('14 19 01 fd 0005'),
+      ...c5(0x29, [0, 40, 0, 50, 0, 49, 0, 59]), // attach (54, 44)
+      ...close(0x1a),
+      ...open(0x15, 5, tag: 0x1a),
+      ...close(0x1a),
+      ...close(),
+      ...open(0x17, 9),
+      ...hx(reversed ? '14 19 01 fd 0005' : '14 19 01 fd 0003'),
+      ...hx(reversed ? '14 19 01 fd 0003' : '14 19 01 fd 0005'),
+      ...c5(0xe7, table),
+      ...close(),
+    ];
+    // Down-first, and the walk ends ON the far attach point: the implied
+    // closing run is zero-length, so the duplicate terminal vertex is
+    // dropped (3 points for a 4-point table).
+    expect(dia(records([0x04, 0x04, 0x00, 0x00, 30, 45])).wires.single.routePoints, [
+      (x: 9, y: 14),
+      (x: 9, y: 44),
+      (x: 54, y: 44),
+    ]);
+    // Up-first from the far tunnel back to the near one (same shape).
+    expect(dia(records([0x04, 0x01, 0x01, 0x01, 30, 45], reversed: true)).wires.single.routePoints, [
+      (x: 54, y: 44),
+      (x: 54, y: 14),
+      (x: 9, y: 14),
+    ]);
+    // Left-first with a real (nonzero) closing run.
+    expect(dia(records([0x03, 0x02, 0x01, 45], reversed: true)).wires.single.routePoints, [
+      (x: 54, y: 44),
+      (x: 9, y: 44),
+      (x: 9, y: 14),
+    ]);
+    // A 1-point table ships iff the two attach points coincide.
+    expect(dia(records([0x01])).wires.single.routePoints, isNull);
+  });
+
+  test('routePoints: 1-point coincident endpoints ship a single-point route', () {
+    final d = dia([
+      ...open(0x20, 1),
+      ...bounds(0, 0, 100, 100),
+      ...open(0x22, 2, tag: 0x1a),
+      ...hx('14 19 01 fd 0003'),
+      ...c5(0x29, [0, 10, 0, 5, 0, 19, 0, 14]),
+      ...close(0x1a),
+      ...open(0x15, 3, tag: 0x1a),
+      ...close(0x1a),
+      ...open(0x22, 4, tag: 0x1a), // a second terminal over the same rect
+      ...hx('14 19 01 fd 0005'),
+      ...c5(0x29, [0, 10, 0, 5, 0, 19, 0, 14]),
+      ...close(0x1a),
+      ...open(0x15, 5, tag: 0x1a),
+      ...close(0x1a),
+      ...close(),
+      ...open(0x17, 9),
+      ...hx('14 19 01 fd 0003'),
+      ...hx('14 19 01 fd 0005'),
+      0x25, 0xe7, 0x01, // the u8-scalar 1-point table
+      ...close(),
+    ]);
+    expect(d.wires.single.routePoints, [(x: 9, y: 14)]);
+  });
+
+  test('wireAttachPoint: own-bounds fallback is the 0x16 endpoints alone', () {
+    // A tunnel-anchored straight wire into a bounded endpoint: with a 0x16
+    // it attaches at the box's floored centre and the route ships; the same
+    // shape with a (hypothetical) bounded 0x15 ships nothing — node
+    // endpoints never anchor at their own box.
+    List<int> records(int endpointKind) => [
+      ...open(0x20, 1),
+      ...bounds(0, 0, 100, 100),
+      ...open(0x22, 2, tag: 0x1a),
+      ...hx('14 19 01 fd 0003'),
+      ...c5(0x29, [0, 10, 0, 5, 0, 19, 0, 14]), // attach (9, 14)
+      ...close(0x1a),
+      ...open(0x15, 3, tag: 0x1a),
+      ...close(0x1a),
+      ...close(),
+      ...open(endpointKind, 5),
+      ...bounds(6, 100, 22, 132), // floored centre (116, 14)
+      ...close(),
+      ...open(0x17, 9),
+      ...hx('14 19 01 fd 0003'),
+      ...hx('14 19 01 fd 0005'),
+      0x45, 0xe7, 0x02, 0x08, // [02][right]: straight table
+      ...close(),
+    ];
+    final leaf = dia(records(0x16));
+    expect(leaf.wireAttachPoint(5), (x: 116, y: 14));
+    expect(leaf.wires.single.routePoints, [(x: 9, y: 14), (x: 116, y: 14)]);
+    final node = dia(records(0x15));
+    expect(node.wireAttachPoint(5), isNull);
+    expect(node.wires.single.routePoints, isNull);
+  });
+
+  test('routePoints: a 3+-endpoint signal ships nothing even when its table decodes', () {
+    final d = dia([
+      ...open(0x20, 1),
+      ...bounds(0, 0, 100, 100),
+      ...open(0x22, 2, tag: 0x1a),
+      ...hx('14 19 01 fd 0003'),
+      ...c5(0x29, [0, 10, 0, 5, 0, 19, 0, 14]),
+      ...close(0x1a),
+      ...open(0x15, 3, tag: 0x1a),
+      ...close(0x1a),
+      ...open(0x15, 5, tag: 0x1a),
+      ...close(0x1a),
+      ...open(0x15, 7, tag: 0x1a),
+      ...close(0x1a),
+      ...close(),
+      ...open(0x17, 9),
+      ...hx('14 19 01 fd 0003'),
+      ...hx('14 19 01 fd 0005'),
+      ...hx('14 19 01 fd 0007'),
+      ...c5(0xe7, [0x03, 0x08, 0x00, 0x14]),
+      ...close(),
+    ]);
+    final wire = d.wires.single;
+    expect(wire.route, isNotNull, reason: 'the short-form table itself decodes');
+    expect(wire.routePoints, isNull, reason: 'closure is only defined for two endpoints');
+  });
+
   test('endpointTerminalBounds: attach rect = termBounds + enclosing frame origin', () {
     final records = [
       ...open(0x20, 1), // loop structure at (100, 50)

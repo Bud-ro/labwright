@@ -340,7 +340,9 @@
       "signals": 428043
     },
     "wire_routes": {
-      "closeMiss": 3718,
+      "closeMiss": 3714,
+      "closeMissElongated": 1798,
+      "closeMissOnePoint": 4,
       "closeOff1": 3,
       "closeSignBad": 54,
       "dirDown": 27120,
@@ -365,8 +367,15 @@
       "oneAnchor": 156683,
       "onePoint": 560,
       "shipped": 113337,
+      "shippedZeroClose": 5,
       "tables2ep": 388828,
-      "undecoded2ep": 482
+      "undecoded2ep": 482,
+      "undecoded2epHdr1": 479,
+      "undecoded2epHdr2": 1,
+      "undecoded2epHdr4": 1,
+      "undecoded2epHdr8": 1,
+      "zeroCloseSignNeg": 4,
+      "zeroCloseSignNone": 1
     },
     "writer": {
       "BDEx.bytes": 90832,
