@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' show max, min;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -483,6 +484,139 @@ void main() {
         '${chromeCounts.entries.map((e) => '0x${e.key.toRadixString(16)} x${e.value}').join(', ')}',
       );
       expect(chromeCounts.keys.toSet(), {0x22, 0x2d, 0x27, 0x28, 0x2e});
+
+      // Routed-wire pixels: wires with a PROVEN absolute polyline
+      // ([ViWire.routePoints]) must reproduce the reference BYTE-FOR-BYTE
+      // along the stroke band (route row ±2), away from the endpoints
+      // (chrome and the stylised structure bands, which are not
+      // byte-faithful) and outside every leaf object's box (icons and
+      // terminals legitimately overdraw the runs). The three probes cover the three
+      // stroke laws: sig 403 (scalar boolean — dotted checkerboard), sig
+      // 1831 (scalar int — solid 1 px), sig 921 (dotted with a bend, both
+      // orientations); 403 and 921 also cross sig 917's 2 px vertical, so
+      // the crossing gaps are inside the compared band.
+      final leafRects = [
+        for (final o in drawable)
+          if (o.category != ViObjectKind.structure && o.absBounds != null)
+            o.absBounds!,
+        for (final w in wires) ...w.endpointAttachRects.whereType<HeapRect>(),
+      ];
+      bool covered(int x, int y) => leafRects.any(
+        (r) => x >= r.left && x < r.right && y >= r.top && y < r.bottom,
+      );
+      int mismatchesAlong(ViWire w, {required int minCompared}) {
+        final rp = w.routePoints!;
+        var compared = 0, mismatched = 0;
+        for (var i = 0; i + 1 < rp.length; i++) {
+          final a = rp[i], b = rp[i + 1];
+          final horizontal = a.y == b.y;
+          final lo = (horizontal ? min(a.x, b.x) : min(a.y, b.y)) + 12;
+          final hi = (horizontal ? max(a.x, b.x) : max(a.y, b.y)) - 12;
+          final cross = horizontal ? a.y : a.x;
+          for (var v = lo; v <= hi; v++) {
+            for (var d = -2; d <= 2; d++) {
+              final (x, y) = horizontal ? (v, cross + d) : (cross + d, v);
+              if (covered(x, y)) continue;
+              final ri =
+                  (((y - raster.content.top).toInt()) * raster.image.width +
+                      (x - raster.content.left).toInt()) *
+                  4;
+              final fi =
+                  ((y - raster.content.top + reg.dy).toInt() *
+                          reference.image.width +
+                      (x - raster.content.left + reg.dx).toInt()) *
+                  4;
+              compared++;
+              if (rasterPx[ri] != refPx[fi] ||
+                  rasterPx[ri + 1] != refPx[fi + 1] ||
+                  rasterPx[ri + 2] != refPx[fi + 2]) {
+                mismatched++;
+              }
+            }
+          }
+        }
+        expect(
+          compared,
+          greaterThan(minCompared),
+          reason: 'sig ${w.signalOid}',
+        );
+        // ignore: avoid_print
+        print(
+          'wire sig ${w.signalOid}: $compared band px byte-compared, '
+          '$mismatched mismatched',
+        );
+        return mismatched;
+      }
+
+      for (final sig in [403, 1831, 921]) {
+        final w = wires.singleWhere((w) => w.signalOid == sig);
+        expect(w.routePoints, isNotNull, reason: 'sig $sig must ship a route');
+        expect(
+          mismatchesAlong(w, minCompared: 500),
+          0,
+          reason: 'sig $sig: routed wire must reproduce the reference bytes',
+        );
+      }
+
+      // Crossing rule at a concrete crossing: sig 403 (earlier-serialized,
+      // dotted green, row 297) × sig 917 (later, 2 px blue vertical whose
+      // route column is 503 — ink columns 502-503). The LATER wire breaks
+      // with a 1 px gap either side of the earlier wire's row; the dot on
+      // (503,297) survives ((x+y) even). Byte-identical to the reference
+      // over the crossing neighbourhood, and the gap shape is asserted
+      // explicitly so a regression names itself.
+      String at(
+        Uint8List px,
+        int imgW,
+        int x,
+        int y, {
+        int dx = 0,
+        int dy = 0,
+      }) {
+        final i = ((y + dy) * imgW + x + dx) * 4;
+        return '${px[i]},${px[i + 1]},${px[i + 2]}';
+      }
+
+      var crossCompared = 0;
+      for (var y = 293; y <= 301; y++) {
+        for (var x = 500; x <= 505; x++) {
+          final ours = at(
+            rasterPx,
+            raster.image.width,
+            (x - raster.content.left).toInt(),
+            (y - raster.content.top).toInt(),
+          );
+          final ref = at(
+            refPx,
+            reference.image.width,
+            (x - raster.content.left + reg.dx).toInt(),
+            (y - raster.content.top + reg.dy).toInt(),
+          );
+          crossCompared++;
+          expect(ours, ref, reason: 'crossing pixel ($x,$y)');
+        }
+      }
+      expect(crossCompared, 54);
+      String ours(int x, int y) => at(
+        rasterPx,
+        raster.image.width,
+        (x - raster.content.left).toInt(),
+        (y - raster.content.top).toInt(),
+      );
+      const blue = '0,0,255', green = '0,102,0', white = '255,255,255';
+      // The later 2 px vertical runs solid above and below ...
+      expect(ours(502, 295), blue);
+      expect(ours(503, 295), blue);
+      expect(ours(502, 299), blue);
+      expect(ours(503, 299), blue);
+      // ... breaks for one row either side of the survivor ...
+      expect(ours(502, 296), white);
+      expect(ours(503, 296), white);
+      expect(ours(502, 298), white);
+      expect(ours(503, 298), white);
+      // ... and the earlier wire's checkerboard dot survives on the row.
+      expect(ours(503, 297), green);
+      expect(ours(502, 297), white);
     });
   });
 }

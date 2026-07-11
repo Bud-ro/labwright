@@ -381,55 +381,6 @@ void main() {
       return ViDiagram(sectionTag: 'BDHb', objects: objects);
     }
 
-    test(
-      'bdStoredWireRoute replays the decoded table (basic.png geometry)',
-      () {
-        // basic.png x-input: terminal box (58,1)-(90,17), Add node (106,10)-
-        // (138,42); table H 28 / V +12 from the connection point (centre x=74,
-        // y=9) puts the bend at x=102, the input row at y=21.
-        final source = const Rect.fromLTRB(58, 1, 90, 17);
-        final sink = const Rect.fromLTRB(106, 10, 138, 42);
-        final route = ViWireRoute(
-          pointCount: 4,
-          segmentLengths: const [28, 12],
-          jointSigns: const [1, 1],
-        );
-        final points = bdStoredWireRoute(source, sink, route)!;
-        expect(
-          points.first,
-          const Offset(90, 9),
-          reason: 'leading run clipped to the source edge',
-        );
-        expect(
-          points[1],
-          const Offset(102, 9),
-          reason: 'bend column from the stored length',
-        );
-        expect(
-          points[2],
-          const Offset(102, 21),
-          reason: 'stored V jog lands on the input row',
-        );
-        expect(
-          points.last.dx,
-          sink.center.dx,
-          reason: 'implied trailing segment closes on the sink',
-        );
-        expect(points.last.dy, 21);
-        // The y-input twin jogs up instead (sign −1).
-        final up = bdStoredWireRoute(
-          const Rect.fromLTRB(58, 35, 90, 51),
-          sink,
-          ViWireRoute(
-            pointCount: 4,
-            segmentLengths: const [28, 12],
-            jointSigns: const [-1, 1],
-          ),
-        )!;
-        expect(up[2], const Offset(102, 31));
-      },
-    );
-
     test('bdWireRoute: aligned endpoints run straight, offset ones elbow', () {
       // Level partners: one straight horizontal segment between facing edges.
       final straight = bdWireRoute(

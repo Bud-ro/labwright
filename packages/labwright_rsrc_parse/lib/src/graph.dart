@@ -1278,21 +1278,21 @@ class ViWire {
   /// force-closed: a walk that misses returns null and the census counts it.
   ///
   /// The polyline carries [ViWireRoute.pointCount] points — one fewer when
-  /// the closing run is zero-length (5 corpus routes): the walk already
-  /// ends ON the far attach point, and a degenerate duplicate vertex is
-  /// never emitted. A zero-length closure has no drawn run to check the
-  /// stored final sign against, so that one check is skipped there
-  /// (censused: `shippedZeroClose` / `zeroCloseSign*`).
+  /// the closing run is zero-length: the walk already ends ON the far
+  /// attach point, and a degenerate duplicate vertex is never emitted. A
+  /// zero-length closure has no drawn run to check the stored final sign
+  /// against, so that one check is skipped there (censused:
+  /// `shippedZeroClose`; zero corpus routes land it since the `0x28`
+  /// connection-point decode — the sole earlier hits were its artefact).
   ///
   /// Corpus census (7,524 VIs; pinned by `wire_route_census_test`): of the
   /// 117,112 two-endpoint signals whose BOTH endpoints resolve an attach
-  /// point, **113,337 (96.78%) close exactly** and ship here. The rest:
-  /// 3,714 walked misses — 1,798 of them press against an elongated attach
+  /// point, **114,082 (97.41%) close exactly** and ship here. The rest:
+  /// 2,977 walked misses — 1,796 of them press against an elongated attach
   /// rect (the grown border-terminal stacks, narrow-side ≤ 9 px and ≥ 2×
   /// as long, whose per-element attach points are not yet decoded; the
-  /// other 1,916 are unattributed; TODO both) — plus 4 one-point tables
-  /// whose endpoints do not coincide, 3 off-by-1 landings, and 54
-  /// closures contradicting the stored final sign. The closure is a
+  /// other 1,181 are unattributed; TODO both) — plus 3 off-by-1 landings
+  /// and 50 closures contradicting the stored final sign. The closure is a
   /// zero-slack integrity check against independently decoded geometry
   /// (the attach rects), so a shipped polyline is proven at both ends,
   /// not fitted.
@@ -1694,11 +1694,13 @@ class ViDiagram {
   /// tunnels / border terminals), else the endpoint object's OWN bounds when
   /// it is bounded (the `0x16` front-panel-terminal endpoints — e.g. a 32×16
   /// terminal at (58,1) attaches at its centre (74,9), which LabVIEW's own
-  /// render of that wire confirms). Null for the plain-node `0x15` endpoints
-  /// (no attach geometry is stored; the wire meets the node at a
-  /// per-terminal point the route's closing segment implies — see
-  /// [ViWire.routePoints]) and for pre-8.6 files (the old coordinate space,
-  /// same gate as [endpointTerminalBounds]).
+  /// render of that wire confirms). One measured exception: a right shift
+  /// register (`0x28`) connects 4 px left of its rect centre — see
+  /// [_attachPointFrom] for the render-oracle evidence. Null for the
+  /// plain-node `0x15` endpoints (no attach geometry is stored; the wire
+  /// meets the node at a per-terminal point the route's closing segment
+  /// implies — see [ViWire.routePoints]) and for pre-8.6 files (the old
+  /// coordinate space, same gate as [endpointTerminalBounds]).
   ViPoint? wireAttachPoint(int oid) => _attachPointFrom(endpointTerminalBounds(oid), oid);
 
   /// [wireAttachPoint] with the endpoint's attach rect already resolved
@@ -1707,6 +1709,20 @@ class ViDiagram {
   /// [HeapObjectClass.bdLeaf] endpoints alone. The `0x15` node endpoints
   /// are bounds-less corpus-wide (0 of 862,159 carry bounds, a pinned
   /// law), and a bounded one would not make its box an attach rect.
+  ///
+  /// **Right shift register (`0x28`) exception**: the stored-route
+  /// connection column sits 4 px LEFT of the 16-px register rect's centre.
+  /// Measured against the snippet render oracle: every x-testable routed
+  /// walk from an `0x28` endpoint (4 walks across 3 distinct VIs —
+  /// ClassChildren, the crc8/crc16 pair, crc32) lands its full interior
+  /// leg on reference ink at exactly `centre.x - 4` (support ≥ 0.96; the
+  /// centre column scores ≤ 0.03), and crc8's reference reproduces the
+  /// whole polyline pixel-for-pixel only under this origin. The y
+  /// coordinate stays the floored centre (pinned by the vertical-first
+  /// MD5 walk and by every crossing row). The left register `0x27` keeps
+  /// the plain centre: the corpus offers no x-testable `0x27` walk yet
+  /// (its one routed sample is vertical-first, so its connection column
+  /// is unobservable — TODO: revisit when one appears).
   ViPoint? _attachPointFrom(HeapRect? attachRect, int oid) {
     var rect = attachRect;
     if (rect == null) {
@@ -1716,7 +1732,9 @@ class ViDiagram {
       rect = endpoint.absBounds;
       if (rect == null) return null;
     }
-    return (x: rect.left + (rect.right - rect.left) ~/ 2, y: rect.top + (rect.bottom - rect.top) ~/ 2);
+    var x = rect.left + (rect.right - rect.left) ~/ 2;
+    if (attachRect != null && endpointTerminal(oid)?.kind == 0x28) x -= 4;
+    return (x: x, y: rect.top + (rect.bottom - rect.top) ~/ 2);
   }
 
   /// Walks [route] from attach point [s] and closes it onto attach point
