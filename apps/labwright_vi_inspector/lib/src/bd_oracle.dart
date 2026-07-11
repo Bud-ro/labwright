@@ -28,6 +28,7 @@
 library;
 
 import 'dart:async';
+import 'dart:isolate';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -67,6 +68,7 @@ Future<BdRaster?> rasteriseBlockDiagram(
   double? scale,
   int margin = 40,
   Map<int, ViLegacyIcon> subViIcons = const {},
+  Map<int, PrimIconArt> primIcons = const {},
   List<ViWire>? wires,
   List<ViHeapObject>? drawable,
 }) async {
@@ -90,6 +92,10 @@ Future<BdRaster?> rasteriseBlockDiagram(
   final width = (content.width * pxScale).ceil().clamp(1, 8192);
   final height = (content.height * pxScale).ceil().clamp(1, 8192);
 
+  // The raster must be exact on first paint, so a diagram holding a
+  // disabled frame waits for the grey variants (built once, lazily).
+  final disabledOids = bdDisabledObjectOids(diagram);
+  if (disabledOids.isNotEmpty) await ensurePrimIconsGrey();
   final recorder = ui.PictureRecorder();
   final canvas = Canvas(
     recorder,
@@ -105,6 +111,10 @@ Future<BdRaster?> rasteriseBlockDiagram(
   );
   canvas.scale(pxScale);
   BdDiagramPainter(
+    primIcons: primIcons,
+    primIconsGrey: primIconsGreyLoaded(),
+    disabledOids: disabledOids,
+    loopTunnelRects: bdLoopTunnelAttachRects(diagram),
     objects: ordered,
     origin: content.topLeft,
     wires: wireList,
@@ -419,16 +429,60 @@ Future<BdOracleResult> compareToReference(
 }) async {
   final width = reference.width;
   final height = reference.height;
+  final renderedWidth = rendered.width;
+  final renderedHeight = rendered.height;
   final referenceRgba = await _rgbaOf(reference);
-  // The reference's Sobel edge mask, computed once and shared by the
-  // translation refinement, the structural comparison, and (via the result)
-  // the placement metric — three consumers, one O(pixels) pass.
-  final referenceEdges = _sobelMask(
-    _luma(referenceRgba, width * height),
-    width,
-    height,
-    kBdEdgeThreshold,
-  );
+  // The render's own pixels are needed for registration whenever a resample
+  // can happen (see below); read them up front so every pure pixel pass can
+  // run off the UI isolate — the O(pixels) loops (Sobel mask, the
+  // translation search, the RGBA + structural diffs) caused a visible jank
+  // spike when the oracle first opened.
+  final skipResample =
+      lockScale == null && renderedWidth == width && renderedHeight == height;
+  final renderedOwnRgba = skipResample ? null : await _rgbaOf(rendered);
+  final reg = await Isolate.run(() {
+    // The reference's Sobel edge mask, computed once and shared by the
+    // translation refinement, the structural comparison, and (via the
+    // result) the placement metric — three consumers, one O(pixels) pass.
+    final referenceEdges = _sobelMask(
+      _luma(referenceRgba, width * height),
+      width,
+      height,
+      kBdEdgeThreshold,
+    );
+    BdRegistration? registration;
+    if (renderedOwnRgba != null) {
+      // Register the render onto the reference by aligning their drawn-ink
+      // bounding boxes (aspect-preserved scale + centre), so a correct
+      // render at a different crop/scale is credited instead of penalised.
+      // Null when either image has no ink to register on (the caller falls
+      // back to a centred letterbox).
+      final srcInk = inkBoundsOf(
+        renderedOwnRgba,
+        renderedWidth,
+        renderedHeight,
+      );
+      final dstInk = inkBoundsOf(referenceRgba, width, height);
+      if (srcInk != null && dstInk != null) {
+        registration = lockScale != null
+            ? _translationRegistration(
+                lockScale,
+                srcInk,
+                dstInk,
+                renderedOwnRgba,
+                renderedWidth,
+                renderedHeight,
+                referenceEdges,
+                width,
+                height,
+                anchorRects: anchorRects,
+              )
+            : _inkBoundsRegistration(srcInk, dstInk);
+      }
+    }
+    return (referenceEdges: referenceEdges, registration: registration);
+  });
+  final referenceEdges = reg.referenceEdges;
   // Skip the resample when the render already matches the reference exactly, so
   // an identical pair diffs to a true zero (a same-size letterbox still applies
   // a sub-pixel filter). Never taken under [lockScale]: equal dimensions do
@@ -437,59 +491,37 @@ Future<BdOracleResult> compareToReference(
   ui.Image fitted;
   var registered = false;
   var registration = BdRegistration.identity;
-  if (lockScale == null &&
-      rendered.width == width &&
-      rendered.height == height) {
+  if (skipResample) {
     fitted = rendered;
+  } else if (reg.registration != null) {
+    registration = reg.registration!;
+    fitted = await _redrawRegistered(rendered, registration, width, height);
+    registered = true;
   } else {
-    // Register the render onto the reference by aligning their drawn-ink
-    // bounding boxes (aspect-preserved scale + centre), so a correct render at
-    // a different crop/scale is credited instead of penalised. Falls back to a
-    // centred letterbox when either image has no ink to register on.
-    final renderedOwnRgba = await _rgbaOf(rendered);
-    final srcInk = inkBoundsOf(
-      renderedOwnRgba,
-      rendered.width,
-      rendered.height,
-    );
-    final dstInk = inkBoundsOf(referenceRgba, width, height);
-    if (srcInk != null && dstInk != null) {
-      registration = lockScale != null
-          ? _translationRegistration(
-              lockScale,
-              srcInk,
-              dstInk,
-              renderedOwnRgba,
-              rendered.width,
-              rendered.height,
-              referenceEdges,
-              width,
-              height,
-              anchorRects: anchorRects,
-            )
-          : _inkBoundsRegistration(srcInk, dstInk);
-      fitted = await _redrawRegistered(rendered, registration, width, height);
-      registered = true;
-    } else {
-      registration = _letterboxRegistration(rendered, width, height);
-      fitted = await _redrawRegistered(rendered, registration, width, height);
-    }
+    registration = _letterboxRegistration(rendered, width, height);
+    fitted = await _redrawRegistered(rendered, registration, width, height);
   }
   final renderedRgba = await _rgbaOf(fitted);
-  final comparison = compareRgba(
-    renderedRgba,
-    referenceRgba,
-    width,
-    height,
-    threshold: threshold,
+  final cmp = await Isolate.run(
+    () => (
+      comparison: compareRgba(
+        renderedRgba,
+        referenceRgba,
+        width,
+        height,
+        threshold: threshold,
+      ),
+      structural: compareStructural(
+        renderedRgba,
+        referenceRgba,
+        width,
+        height,
+        referenceEdges: referenceEdges,
+      ),
+    ),
   );
-  final structural = compareStructural(
-    renderedRgba,
-    referenceRgba,
-    width,
-    height,
-    referenceEdges: referenceEdges,
-  );
+  final comparison = cmp.comparison;
+  final structural = cmp.structural;
   final diffImage = await imageFromRgba(comparison.diff, width, height);
   return BdOracleResult(
     rendered: rendered,
@@ -1147,6 +1179,40 @@ class _BdOracleViewState extends State<BdOracleView>
     with AutomaticKeepAliveClientMixin {
   late Future<_OracleData> _future = _build();
 
+  @override
+  void initState() {
+    super.initState();
+    // Rebuild the raster once the bundled primitive icons decode; the first
+    // build proceeds without them rather than blocking on asset IO.
+    if (primIconsLoaded().isEmpty) {
+      loadPrimIcons().then((icons) {
+        if (!mounted || icons.isEmpty) return;
+        // _build() returns a Future — start it outside setState (a setState
+        // callback must not return one) and swap the field synchronously.
+        _retire(_future);
+        final rebuilt = _build();
+        setState(() {
+          _future = rebuilt;
+        });
+      });
+    }
+  }
+
+  /// Wipe mode: the registered render and the reference overlaid, split at a
+  /// draggable divider (ours left, LabVIEW right).
+  bool _wipe = false;
+  double _wipeFraction = 0.5;
+  int _wipeBoxK = -1;
+  ui.Image? _wipeReference;
+  ui.Image? _wipeFitted;
+
+  /// Wipe zoom: 0 = fit (box-averaged overview), else an integer physical
+  /// scale — the only scales at which single-pixel features render without
+  /// parity-dependent splitting, so pixel inspection defaults to 1:1.
+  int _wipeZoom = 3;
+  final ScrollController _wipeH = ScrollController();
+  final ScrollController _wipeV = ScrollController();
+
   // The comparison (rasterise + decode + multi-peak registration) costs a
   // noticeable fraction of a second on large VIs; keep the tab's state alive
   // so revisiting the Oracle tab shows the cached result instead of
@@ -1160,12 +1226,26 @@ class _BdOracleViewState extends State<BdOracleView>
     if (!identical(old.diagram, widget.diagram) ||
         !identical(old.referenceBytes, widget.referenceBytes)) {
       _retire(_future);
+      _resetWipeDownscales();
       _future = _build();
     }
   }
 
+  /// Frees and clears the fit-mode box-downscaled pair — on replacement, on
+  /// diagram change (they belong to the old diagram), and at teardown.
+  void _resetWipeDownscales() {
+    _wipeBoxK = -1;
+    _wipeReference?.dispose();
+    _wipeFitted?.dispose();
+    _wipeReference = null;
+    _wipeFitted = null;
+  }
+
   @override
   void dispose() {
+    _wipeH.dispose();
+    _wipeV.dispose();
+    _resetWipeDownscales();
     _retire(_future);
     super.dispose();
   }
@@ -1209,6 +1289,7 @@ class _BdOracleViewState extends State<BdOracleView>
     // dimensions, not just matched scale.
     final raster = await rasteriseBlockDiagram(
       diagram,
+      primIcons: primIconsLoaded(),
       maxDimension: widget.maxDimension,
       scale: snippet ? 1.0 : null,
       margin: snippet ? 2 : 40,
@@ -1239,10 +1320,38 @@ class _BdOracleViewState extends State<BdOracleView>
       width: reference.image.width,
       height: reference.image.height,
     );
+    // Display pair: our side re-rendered as vectors at the supersample (real
+    // detail for the downscale), the reference nearest-upscaled to match.
+    const ss = kOracleDisplaySupersample;
+    final raster3 = await rasteriseBlockDiagram(
+      diagram,
+      primIcons: primIconsLoaded(),
+      maxDimension: widget.maxDimension * ss,
+      scale: raster.scale * ss,
+      margin: snippet ? 2 : 40,
+      subViIcons: widget.subViIcons,
+      wires: visibleWires,
+      drawable: drawable,
+    );
+    ui.Image? displayFitted;
+    ui.Image? displayReference;
+    if (raster3 != null) {
+      displayFitted = await redrawRegisteredSupersampled(
+        raster3.image,
+        result.registration,
+        reference.image.width,
+        reference.image.height,
+        ss,
+      );
+      displayReference = await upscaleNearest(reference.image, ss);
+    }
     return _OracleData(
       rendered: raster.image,
       result: result,
       placement: placement,
+      displayRendered: raster3?.image,
+      displayFitted: displayFitted,
+      displayReference: displayReference,
     );
   }
 
@@ -1305,19 +1414,77 @@ class _BdOracleViewState extends State<BdOracleView>
                       style: const TextStyle(color: Colors.grey, fontSize: 12),
                     ),
             ),
-            Expanded(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(
-                    child: _pane('Rendered (clean-room)', data.rendered!),
-                  ),
-                  if (result != null) ...[
-                    Expanded(child: _pane('Reference', result.reference)),
-                    Expanded(child: _pane('Absolute diff', result.diffImage)),
+            if (result != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Row(
+                  children: [
+                    TextButton.icon(
+                      onPressed: () => setState(() => _wipe = !_wipe),
+                      icon: Icon(
+                        _wipe ? Icons.view_column : Icons.compare,
+                        size: 16,
+                      ),
+                      label: Text(_wipe ? 'Side-by-side' : 'Wipe compare'),
+                    ),
+                    if (_wipe) ...[
+                      for (final z in const [0, 1, 2, 3])
+                        Padding(
+                          padding: const EdgeInsets.only(right: 2),
+                          child: TextButton(
+                            style: TextButton.styleFrom(
+                              minimumSize: const Size(34, 28),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                              ),
+                              backgroundColor: _wipeZoom == z
+                                  ? Colors.orange.withValues(alpha: 0.25)
+                                  : null,
+                            ),
+                            onPressed: () => setState(() => _wipeZoom = z),
+                            child: Text(z == 0 ? 'Fit' : '${z}x'),
+                          ),
+                        ),
+                      const Text(
+                        'drag the divider — ours left, LabVIEW right; '
+                        'integer zooms are pixel-exact, Fit is a box-averaged overview',
+                        style: TextStyle(color: Colors.grey, fontSize: 11),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
+            Expanded(
+              child: _wipe && result != null
+                  ? _wipePane(result, data)
+                  : Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(
+                          child: _pane(
+                            'Rendered (clean-room)',
+                            data.displayRendered ?? data.rendered!,
+                            supersample: data.displayRendered != null
+                                ? kOracleDisplaySupersample
+                                : 1,
+                          ),
+                        ),
+                        if (result != null) ...[
+                          Expanded(
+                            child: _pane(
+                              'Reference',
+                              data.displayReference ?? result.reference,
+                              supersample: data.displayReference != null
+                                  ? kOracleDisplaySupersample
+                                  : 1,
+                            ),
+                          ),
+                          Expanded(
+                            child: _pane('Absolute diff', result.diffImage),
+                          ),
+                        ],
+                      ],
+                    ),
             ),
           ],
         );
@@ -1325,35 +1492,204 @@ class _BdOracleViewState extends State<BdOracleView>
     );
   }
 
-  Widget _pane(String caption, ui.Image image) => Padding(
-    padding: const EdgeInsets.all(4),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(caption, style: const TextStyle(fontSize: 11, color: Colors.grey)),
-        const SizedBox(height: 4),
-        Expanded(
-          child: ColoredBox(
-            color: const Color(0xFF202020),
-            child: FittedBox(
+  /// The wipe comparator: the reference fills the pane and the registered
+  /// render covers it up to [_wipeFraction] of the image width, with a
+  /// draggable divider. Both images share the reference frame, so features
+  /// line up across the divider.
+  Widget _wipePane(BdOracleResult result, _OracleData data) {
+    // Source pair: our side supersampled (real vector detail), the reference
+    // nearest-upscaled to match — both at kOracleDisplaySupersample x the
+    // 1:1 comparison images.
+    final refImage = data.displayReference ?? result.reference;
+    final fitImage = data.displayFitted ?? result.fitted;
+    const ss = kOracleDisplaySupersample;
+    final logicalW = result.reference.width.toDouble();
+    final logicalH = result.reference.height.toDouble();
+    return Padding(
+      padding: const EdgeInsets.all(4),
+      child: ColoredBox(
+        color: const Color(0xFF202020),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            // Display ONLY at integer ratios of the 1:1 image — the sole
+            // scales at which every logical pixel maps to the same number of
+            // device pixels (uniform lines, even checkerboards). The fit
+            // snaps DOWN to n:1 nearest, or 1:n via an exact box-average of
+            // the supersampled pair; the remainder letterboxes.
+            final dpr = MediaQuery.devicePixelRatioOf(context);
+            final fitPhys = math.min(
+              constraints.maxWidth * dpr / logicalW,
+              constraints.maxHeight * dpr / logicalH,
+            );
+            // A collapsed pane makes the minify maths degenerate
+            // ((1/0).ceil() throws); nothing is visible at that size anyway.
+            if (fitPhys <= 0 || !fitPhys.isFinite) {
+              return const SizedBox.shrink();
+            }
+            final double dispPhysW;
+            final double dispPhysH;
+            ui.Image? showRef;
+            ui.Image? showFit;
+            if (_wipeZoom > 0) {
+              // Integer zoom: the pristine 1:1 pair at z:1 physical —
+              // bit-exact by construction; the pane scrolls to reach the
+              // rest of the diagram.
+              dispPhysW = logicalW * _wipeZoom;
+              dispPhysH = logicalH * _wipeZoom;
+              _wipeBoxK = 0;
+              showRef = result.reference;
+              showFit = result.fitted;
+            } else if (fitPhys >= 1) {
+              final n = fitPhys.floor();
+              dispPhysW = logicalW * n;
+              dispPhysH = logicalH * n;
+              _wipeBoxK = 0;
+              showRef = result.reference;
+              showFit = result.fitted;
+            } else {
+              final k = boxDownscaleFactor(refImage, ss, fitPhys);
+              if (k != _wipeBoxK) {
+                _wipeBoxK = k;
+                Future.wait([
+                  boxDownscale(refImage, k),
+                  boxDownscale(fitImage, k),
+                ]).then((imgs) {
+                  if (mounted && _wipeBoxK == k) {
+                    _wipeReference?.dispose();
+                    _wipeFitted?.dispose();
+                    setState(() {
+                      _wipeReference = imgs[0];
+                      _wipeFitted = imgs[1];
+                    });
+                  } else {
+                    // The ratio moved on (or the view is gone) before this
+                    // pair resolved — free it, nothing will show it.
+                    imgs[0].dispose();
+                    imgs[1].dispose();
+                  }
+                });
+              }
+              dispPhysW = (refImage.width ~/ k).toDouble();
+              dispPhysH = (refImage.height ~/ k).toDouble();
+              showRef = _wipeReference;
+              showFit = _wipeFitted;
+            }
+            if (showRef == null || showFit == null) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            final dispW = dispPhysW / dpr;
+            final dispH = dispPhysH / dpr;
+            void follow(Offset local) => setState(() {
+              _wipeFraction = (local.dx / dispW).clamp(0.0, 1.0);
+            });
+            // Laid out at physical-size / dpr, so each image blits exactly
+            // once, 1:1 physical (nearest for the integer upscale; the
+            // box-averaged pair is already at target resolution).
+            final content = GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTapDown: (d) => follow(d.localPosition),
+              onHorizontalDragUpdate: (d) => follow(d.localPosition),
               child: SizedBox(
-                width: image.width.toDouble(),
-                height: image.height.toDouble(),
-                child: RawImage(image: image, fit: BoxFit.contain),
+                width: dispW,
+                height: dispH,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    RawImage(
+                      image: showRef,
+                      fit: BoxFit.fill,
+                      filterQuality: FilterQuality.none,
+                    ),
+                    ClipRect(
+                      clipper: _LeftFractionClipper(_wipeFraction),
+                      child: RawImage(
+                        image: showFit,
+                        fit: BoxFit.fill,
+                        filterQuality: FilterQuality.none,
+                      ),
+                    ),
+                    Positioned(
+                      left: (dispW * _wipeFraction - 1).clamp(
+                        0.0,
+                        math.max(0.0, dispW - 2),
+                      ),
+                      width: 2,
+                      top: 0,
+                      bottom: 0,
+                      child: const ColoredBox(color: Colors.orangeAccent),
+                    ),
+                  ],
+                ),
+              ),
+            );
+            if (dispW <= constraints.maxWidth &&
+                dispH <= constraints.maxHeight) {
+              return Center(child: content);
+            }
+            // Oversized (zoom): scroll on both axes — the divider drag owns
+            // horizontal gestures, so scrolling rides the bars and the wheel.
+            return Scrollbar(
+              controller: _wipeH,
+              thumbVisibility: true,
+              child: SingleChildScrollView(
+                controller: _wipeH,
+                scrollDirection: Axis.horizontal,
+                child: Scrollbar(
+                  controller: _wipeV,
+                  thumbVisibility: true,
+                  child: SingleChildScrollView(
+                    controller: _wipeV,
+                    child: content,
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _pane(String caption, ui.Image image, {int supersample = 1}) =>
+      Padding(
+        padding: const EdgeInsets.all(4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              caption,
+              style: const TextStyle(fontSize: 11, color: Colors.grey),
+            ),
+            const SizedBox(height: 4),
+            Expanded(
+              child: ColoredBox(
+                color: const Color(0xFF202020),
+                child: CrispImage(image, supersample: supersample),
               ),
             ),
-          ),
+          ],
         ),
-      ],
-    ),
-  );
+      );
 }
 
 class _OracleData {
-  const _OracleData({this.rendered, this.result, this.placement});
+  const _OracleData({
+    this.rendered,
+    this.result,
+    this.placement,
+    this.displayRendered,
+    this.displayFitted,
+    this.displayReference,
+  });
   final ui.Image? rendered;
   final BdOracleResult? result;
   final PlacementComparison? placement;
+
+  /// The wipe/pane images at [kOracleDisplaySupersample]x (see there); the
+  /// 1:1 [result] images remain the metric inputs.
+  final ui.Image? displayRendered;
+  final ui.Image? displayFitted;
+  final ui.Image? displayReference;
 
   /// Releases the GPU-backed images this render holds (each at most once — the
   /// result's `rendered` and same-size `fitted` alias other fields).
@@ -1364,6 +1700,9 @@ class _OracleData {
     }
 
     disp(rendered);
+    disp(displayRendered);
+    disp(displayFitted);
+    disp(displayReference);
     final r = result;
     if (r != null) {
       disp(r.rendered);
@@ -1372,4 +1711,250 @@ class _OracleData {
       disp(r.diffImage);
     }
   }
+}
+
+/// The oracle's DISPLAY images are rendered at this integer multiple of the
+/// comparison scale and downscaled to the pane — a 1:1 raster minified to a
+/// pane simply has too few source pixels for any filter to save (a 22 px
+/// icon shown at 13 px is destroyed information). Our side re-renders as
+/// vectors at 3x (real detail); the reference bitmap nearest-upscales 3x
+/// (honest block replication) so both wipe halves share one resolution and
+/// one downscale path. The 1:1 images remain the metric inputs.
+const kOracleDisplaySupersample = 3;
+
+/// [src] nearest-upscaled by the integer [factor] — exact block replication.
+Future<ui.Image> upscaleNearest(ui.Image src, int factor) async {
+  final recorder = ui.PictureRecorder();
+  ui.Canvas(recorder).drawImageRect(
+    src,
+    ui.Rect.fromLTWH(0, 0, src.width.toDouble(), src.height.toDouble()),
+    ui.Rect.fromLTWH(
+      0,
+      0,
+      (src.width * factor).toDouble(),
+      (src.height * factor).toDouble(),
+    ),
+    ui.Paint()..filterQuality = ui.FilterQuality.none,
+  );
+  return recorder.endRecording().toImage(
+    src.width * factor,
+    src.height * factor,
+  );
+}
+
+/// Redraws a supersampled render into the supersampled reference frame under
+/// the 1:1 [registration]: the [factor]-scaled canvas applies the same
+/// logical transform, so the display image aligns with the upscaled
+/// reference exactly where the 1:1 fitted aligns with the 1:1 reference.
+Future<ui.Image> redrawRegisteredSupersampled(
+  ui.Image rendered,
+  BdRegistration registration,
+  int width,
+  int height,
+  int factor,
+) async {
+  final recorder = ui.PictureRecorder();
+  final canvas = ui.Canvas(recorder);
+  canvas.drawRect(
+    ui.Rect.fromLTWH(
+      0,
+      0,
+      (width * factor).toDouble(),
+      (height * factor).toDouble(),
+    ),
+    ui.Paint()..color = const ui.Color(0xFFFFFFFF),
+  );
+  canvas.scale(factor.toDouble());
+  // The translate must land on whole 1:1 pixels: a fractional offset slices
+  // logical pixels across box-average boundaries and breaks uniformity.
+  canvas.translate(
+    registration.dx.roundToDouble(),
+    registration.dy.roundToDouble(),
+  );
+  canvas.scale(registration.scale);
+  // The rendered image is itself [factor]x: draw it at logical (1:1) size —
+  // net 1:1 pixels on the supersampled canvas, sampled exactly.
+  canvas.drawImageRect(
+    rendered,
+    ui.Rect.fromLTWH(
+      0,
+      0,
+      rendered.width.toDouble(),
+      rendered.height.toDouble(),
+    ),
+    ui.Rect.fromLTWH(0, 0, rendered.width / factor, rendered.height / factor),
+    ui.Paint()..filterQuality = ui.FilterQuality.none,
+  );
+  return recorder.endRecording().toImage(width * factor, height * factor);
+}
+
+/// Exact integer box-average downscale by [k]: every destination pixel is
+/// the unweighted mean of one k x k source block. Phase-free by
+/// construction — a 1 px feature lands identically wherever it sits, so
+/// lines keep one thickness and checkerboards stay even. (Any NON-integer
+/// resample ratio is phase-dependent: some source columns get one
+/// destination pixel and some get two, which is exactly the uneven
+/// checkerboard and the 1.25/0.75 split-line artefact.)
+/// The box factor for showing a [supersample]x [src] at a pane fit of
+/// [fitPhys] (< 1): `supersample * ceil(1/fitPhys)`, clamped so the result
+/// keeps at least one pixel per axis — an extreme squeeze must degrade to a
+/// tiny image, never a zero-dimension one.
+int boxDownscaleFactor(ui.Image src, int supersample, double fitPhys) {
+  final k = supersample * (1 / fitPhys).ceil();
+  return k.clamp(1, math.min(src.width, src.height));
+}
+
+Future<ui.Image> boxDownscale(ui.Image src, int k) async {
+  final data = (await src.toByteData())!;
+  final sw = src.width, sh = src.height;
+  // A factor beyond a source dimension would truncate to zero; every caller
+  // clamps via [boxDownscaleFactor], and this floor keeps a direct call from
+  // ever asking the engine for a 0x0 image.
+  // A factor beyond a source dimension is clamped (every caller already
+  // clamps via [boxDownscaleFactor]); the floor below then keeps the block
+  // reads in bounds AND the output at least 1x1.
+  final ke = math.min(k, math.min(sw, sh));
+  final dw = math.max(1, sw ~/ ke), dh = math.max(1, sh ~/ ke);
+  final bytes = data.buffer.asUint8List();
+  // The averaging is O(source pixels) on multi-megapixel supersampled
+  // rasters — off the UI isolate so pane resizes don't jank.
+  final out = await Isolate.run(() {
+    final out = Uint8List(dw * dh * 4);
+    final n = ke * ke;
+    for (var y = 0; y < dh; y++) {
+      for (var x = 0; x < dw; x++) {
+        var r = 0, g = 0, b = 0, a = 0;
+        for (var sy = y * ke; sy < y * ke + ke; sy++) {
+          var i = (sy * sw + x * ke) * 4;
+          for (var sx = 0; sx < ke; sx++) {
+            r += bytes[i];
+            g += bytes[i + 1];
+            b += bytes[i + 2];
+            a += bytes[i + 3];
+            i += 4;
+          }
+        }
+        final j = (y * dw + x) * 4;
+        out[j] = r ~/ n;
+        out[j + 1] = g ~/ n;
+        out[j + 2] = b ~/ n;
+        out[j + 3] = a ~/ n;
+      }
+    }
+    return out;
+  });
+  final completer = Completer<ui.Image>();
+  ui.decodeImageFromPixels(
+    out,
+    dw,
+    dh,
+    ui.PixelFormat.rgba8888,
+    completer.complete,
+  );
+  return completer.future;
+}
+
+/// Shows [image] crisp at any pane size: at native size or larger it draws
+/// 1:1 with nearest sampling (the raster matches the reference pixel for
+/// pixel — filtering would only blur it); minified it draws an
+/// iteratively-halved downscale at the EXACT display width, so the
+/// compositor never rescales anything.
+class CrispImage extends StatefulWidget {
+  /// [image] displays only at integer ratios of its logical size (see
+  /// [boxDownscale] — the sole phase-free scales): n:1 nearest upscale, or
+  /// 1:n via exact box-averaging, letterboxing the remainder. When the image
+  /// is a supersample of the logical content, pass the factor so ratios
+  /// snap against LOGICAL pixels.
+  const CrispImage(this.image, {this.supersample = 1, super.key});
+
+  final ui.Image image;
+  final int supersample;
+
+  @override
+  State<CrispImage> createState() => _CrispImageState();
+}
+
+class _CrispImageState extends State<CrispImage> {
+  ui.Image? _scaled;
+  int _boxK = -1;
+
+  @override
+  void dispose() {
+    _scaled?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final dpr = MediaQuery.devicePixelRatioOf(context);
+      final logicalW = widget.image.width / widget.supersample;
+      final logicalH = widget.image.height / widget.supersample;
+      final fitPhys = math.min(
+        constraints.maxWidth * dpr / logicalW,
+        constraints.maxHeight * dpr / logicalH,
+      );
+      // A collapsed pane (zero constraint axis) makes fitPhys 0 and the
+      // minify maths degenerate ((1/0).ceil() throws); nothing is visible
+      // at that size anyway.
+      if (fitPhys <= 0 || !fitPhys.isFinite) return const SizedBox.shrink();
+      final double dispPhysW;
+      final double dispPhysH;
+      ui.Image? shown;
+      if (fitPhys >= 1) {
+        final n = fitPhys.floor();
+        dispPhysW = logicalW * n;
+        dispPhysH = logicalH * n;
+        shown = widget.image;
+      } else {
+        final k = boxDownscaleFactor(widget.image, widget.supersample, fitPhys);
+        if (k != _boxK) {
+          _boxK = k;
+          boxDownscale(widget.image, k).then((img) {
+            if (!mounted) {
+              img.dispose();
+            } else if (_boxK == k) {
+              _scaled?.dispose();
+              setState(() => _scaled = img);
+            } else {
+              img.dispose();
+            }
+          });
+        }
+        dispPhysW = (widget.image.width ~/ k).toDouble();
+        dispPhysH = (widget.image.height ~/ k).toDouble();
+        shown = _scaled;
+      }
+      if (shown == null) {
+        return const Center(child: CircularProgressIndicator());
+      }
+      return Center(
+        child: SizedBox(
+          width: dispPhysW / dpr,
+          height: dispPhysH / dpr,
+          child: RawImage(
+            image: shown,
+            fit: BoxFit.fill,
+            filterQuality: FilterQuality.none,
+          ),
+        ),
+      );
+    },
+  );
+}
+
+/// Clips its child to the leftmost [fraction] of its width — the moving half
+/// of the oracle's wipe comparator.
+class _LeftFractionClipper extends CustomClipper<Rect> {
+  const _LeftFractionClipper(this.fraction);
+
+  final double fraction;
+
+  @override
+  Rect getClip(Size size) =>
+      Rect.fromLTRB(0, 0, size.width * fraction, size.height);
+
+  @override
+  bool shouldReclip(_LeftFractionClipper oldClipper) =>
+      oldClipper.fraction != fraction;
 }

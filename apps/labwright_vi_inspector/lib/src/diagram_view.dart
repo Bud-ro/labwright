@@ -1,9 +1,16 @@
+import 'dart:async';
 import 'dart:math' as math;
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 
+import 'package:flutter/services.dart' show AssetManifest, rootBundle;
+
+import 'package:flutter/foundation.dart' show setEquals;
 import 'package:flutter/material.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 import 'images_view.dart';
+import 'prim_icon_catalog.dart';
 import 'span_annotations.dart';
 
 /// A read-only **layout view** of a decoded VI block diagram, rendered to a
@@ -77,6 +84,19 @@ class ViDiagramView extends StatefulWidget {
 
 class _ViDiagramViewState extends State<ViDiagramView> {
   final _transform = TransformationController();
+
+  /// The zoom the diagram layer is currently rasterised at. Pan/zoom scales
+  /// the cached layer (cheap, transiently soft); when a gesture settles at a
+  /// meaningfully different zoom the layer re-rasterises crisp at it.
+  double _anchorScale = 1;
+
+  void _reanchor() {
+    final scale = _transform.value.getMaxScaleOnAxis();
+    if (scale / _anchorScale > 1.25 || scale / _anchorScale < 0.8) {
+      setState(() => _anchorScale = scale.clamp(0.02, 16.0));
+    }
+  }
+
   ViHeapObject? _selected;
   Set<ViHeapObject> _members = const {};
   Size? _lastViewport;
@@ -93,6 +113,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
   // only). Populated asynchronously once the project-index loader resolves (see
   // [_resolveIcons]); empty until then, and when no loader is supplied.
   Map<int, ViLegacyIcon> _subViIcons = const {};
+  Map<int, PrimIconArt> _primIcons = const {};
   late final List<ViHeapObject> _drawable = _diagram == null
       ? const []
       : bdDrawableObjects(_diagram);
@@ -101,6 +122,14 @@ class _ViDiagramViewState extends State<ViDiagramView> {
   late final List<ViWire> _wires = switch (_diagram) {
     null => const [],
     final diagram => bdVisibleWires(diagram),
+  };
+  late final Set<int> _disabledOids = switch (_diagram) {
+    null => const {},
+    final diagram => bdDisabledObjectOids(diagram),
+  };
+  late final Set<HeapRect> _loopTunnelRects = switch (_diagram) {
+    null => const {},
+    final diagram => bdLoopTunnelAttachRects(diagram),
   };
   late final Map<int, List<({HeapRect box, int bmp})>> _structureTerminals =
       switch (_diagram) {
@@ -126,6 +155,14 @@ class _ViDiagramViewState extends State<ViDiagramView> {
   void initState() {
     super.initState();
     _resolveIcons();
+    loadPrimIcons().then((icons) {
+      if (mounted && icons.isNotEmpty) setState(() => _primIcons = icons);
+    });
+    if (_disabledOids.isNotEmpty) {
+      ensurePrimIconsGrey().then((grey) {
+        if (mounted && grey.isNotEmpty) setState(() {});
+      });
+    }
   }
 
   /// Resolves the subVI-call node icons (one fast await — linker-path
@@ -258,28 +295,51 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                     minScale: 0.02,
                     maxScale: 16,
                     boundaryMargin: const EdgeInsets.all(2000),
+                    onInteractionEnd: (_) => _reanchor(),
                     // The boundary isolates the diagram into its own
                     // layer, so pan/zoom only re-composites the cached
                     // painting instead of re-running the whole painter
-                    // (per-label text layout included) every frame.
-                    child: RepaintBoundary(
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTapDown: (d) =>
-                            _selectAt(d.localPosition, ordered, content),
-                        child: CustomPaint(
-                          size: Size(content.width, content.height),
-                          painter: BdDiagramPainter(
-                            objects: ordered,
-                            origin: content.topLeft,
-                            wires: _wires,
-                            subViIcons: _subViIcons,
-                            structureTerminals: _structureTerminals,
+                    // (per-label text layout included) every frame. The
+                    // layer rasterises at the SETTLED zoom (_anchorScale,
+                    // via _reanchor) and the Transform.scale cancels that
+                    // factor, so at rest the compositor shows the layer 1:1
+                    // — vector-crisp at any zoom — and only mid-gesture
+                    // scaling stretches a stale raster.
+                    child: Transform.scale(
+                      scale: 1 / _anchorScale,
+                      alignment: Alignment.topLeft,
+                      child: RepaintBoundary(
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTapDown: (d) => _selectAt(
+                            d.localPosition / _anchorScale,
+                            ordered,
+                            content,
                           ),
-                          foregroundPainter: _OverlayPainter(
-                            origin: content.topLeft,
-                            selected: _selected,
-                            members: _members,
+                          child: CustomPaint(
+                            size: Size(
+                              content.width * _anchorScale,
+                              content.height * _anchorScale,
+                            ),
+                            painter: BdDiagramPainter(
+                              objects: ordered,
+                              origin: content.topLeft,
+                              wires: _wires,
+                              subViIcons: _subViIcons,
+                              primIcons: _primIcons,
+                              primIconsGrey: primIconsGreyLoaded(),
+                              disabledOids: _disabledOids,
+                              loopTunnelRects: _loopTunnelRects,
+                              iconFilterQuality: FilterQuality.low,
+                              canvasScale: _anchorScale,
+                              structureTerminals: _structureTerminals,
+                            ),
+                            foregroundPainter: _OverlayPainter(
+                              origin: content.topLeft,
+                              selected: _selected,
+                              members: _members,
+                              canvasScale: _anchorScale,
+                            ),
                           ),
                         ),
                       ),
@@ -341,10 +401,27 @@ class _ViDiagramViewState extends State<ViDiagramView> {
     var bestArea = double.infinity;
     for (final object in objects) {
       final bounds = object.absBounds!;
-      if (x >= bounds.left &&
-          x <= bounds.right &&
-          y >= bounds.top &&
-          y <= bounds.bottom) {
+      // Icon art can overhang its model box (a measured placement like
+      // prim1162's dy: -5), so the coarse gate is the box UNION the stamp;
+      // the alpha mask then decides precisely.
+      var left = bounds.left.toDouble(), top = bounds.top.toDouble();
+      var right = bounds.right.toDouble(), bottom = bounds.bottom.toDouble();
+      final key = primIconKeyOf(object);
+      final art = key == null ? null : _primIconsSync[key];
+      if (art != null) {
+        final stamp = primIconStampRect(
+          Rect.fromLTRB(left, top, right, bottom),
+          art.base.width,
+          art.base.height,
+          key: key,
+        );
+        left = math.min(left, stamp.left);
+        top = math.min(top, stamp.top);
+        right = math.max(right, stamp.right);
+        bottom = math.max(bottom, stamp.bottom);
+      }
+      if (x >= left && x <= right && y >= top && y <= bottom) {
+        if (!primIconHit(object, x, y)) continue;
         final area = (bounds.width * bounds.height).toDouble();
         if (area <= bestArea) {
           bestArea = area;
@@ -385,6 +462,8 @@ class _ViDiagramViewState extends State<ViDiagramView> {
     _transform.value = Matrix4.identity()
       ..translateByDouble(tx, ty, 0, 1)
       ..scaleByDouble(scale, scale, 1, 1);
+    // The layer rasterises at the fitted zoom from the first frame.
+    setState(() => _anchorScale = scale.clamp(0.02, 16.0));
     _fitted = true;
   }
 
@@ -495,6 +574,11 @@ const Color kBdUnknownTerminalFill = Color(0xFFD8D8D8);
 /// datatype *was* recovered (see [bdWireColor]).
 const Color kBdWireColor = Color(0xFF2B2B2B);
 
+/// The 1 px border LabVIEW draws around a structure tunnel square (sampled
+/// from the crc8 snippet reference at a decoded tunnel rect; the fill is the
+/// wire's own colour).
+const Color kBdTunnelBorder = Color(0xFF444444);
+
 /// The opaque [Color] of a decoded 24-bit `0xRRGGBB` object colour ([rgb]), or
 /// null when the object carried no such colour. Used to fill a decoration or
 /// control in its own stored LabVIEW colour instead of a generic category tint.
@@ -573,6 +657,51 @@ List<Offset>? bdStoredWireRoute(Rect source, Rect sink, ViWireRoute route) {
   return points;
 }
 
+/// The short operator glyph drawn on a primitive node's plate for a decoded
+/// [PrimOp] — the recognisable core of LabVIEW's icon art (the `+` of Add,
+/// the type name of a conversion). Null for ops whose icon has no natural
+/// short reading; the plate then stays blank rather than guessing art.
+String? primOpGlyph(PrimOp? op) => switch (op) {
+  PrimOp.add => '+',
+  PrimOp.subtract => '−',
+  PrimOp.multiply => '×',
+  PrimOp.divide => '÷',
+  PrimOp.increment => '+1',
+  PrimOp.decrement => '−1',
+  PrimOp.squareRoot => 'sqrt',
+  PrimOp.and => '&',
+  PrimOp.or => 'or',
+  PrimOp.exclusiveOr => 'xor',
+  PrimOp.not => '!',
+  PrimOp.equal => '=',
+  PrimOp.notEqual => '≠',
+  PrimOp.greater => '>',
+  PrimOp.less => '<',
+  PrimOp.equalToZero => '=0',
+  PrimOp.notEqualToZero => '≠0',
+  PrimOp.greaterThanZero => '>0',
+  PrimOp.lessThanZero => '<0',
+  PrimOp.greaterOrEqualToZero => '≥0',
+  PrimOp.lessOrEqualToZero => '≤0',
+  PrimOp.select => 'sel',
+  PrimOp.toByteInteger => 'I8',
+  PrimOp.toWordInteger => 'I16',
+  PrimOp.toLongInteger => 'I32',
+  PrimOp.toUnsignedByteInteger => 'U8',
+  PrimOp.toUnsignedWordInteger => 'U16',
+  PrimOp.toUnsignedLongInteger => 'U32',
+  PrimOp.toSinglePrecisionFloat => 'SGL',
+  PrimOp.toDoublePrecisionFloat => 'DBL',
+  PrimOp.typeCast => 'cast',
+  PrimOp.logicalShift => 'shl',
+  PrimOp.rotateLeftWithCarry => 'rlc',
+  PrimOp.rotateRightWithCarry => 'rrc',
+  PrimOp.arraySize => 'siz',
+  PrimOp.buildPath => 'pth',
+  PrimOp.stringLength => 'len',
+  _ => null,
+};
+
 /// A synthesized Manhattan (right-angle) route between two endpoint-anchor
 /// rectangles, as an ordered polyline in the anchors' own coordinate space —
 /// the fallback for wires whose stored `0x1e7` route is not decoded
@@ -618,7 +747,11 @@ List<Offset> bdWireRoute(Rect source, Rect sink) {
 /// packed endpoint-anchor rectangle (`t,l,b,r`) to that terminal's colour. The
 /// wire's own datatype is not decoded, so no colour is ever guessed from the
 /// signal itself. Pure + public for testing.
-Color bdWireColor(ViWire wire, Map<int, Color> typedTerminalColors) {
+Color bdWireColor(
+  ViWire wire,
+  Map<int, Color> typedTerminalColors, {
+  Map<int, Color> sourceOutputColors = const {},
+}) {
   for (final anchor in wire.endpointAnchors) {
     if (anchor == null) continue;
     final color =
@@ -627,6 +760,24 @@ Color bdWireColor(ViWire wire, Map<int, Color> typedTerminalColors) {
           anchor.left,
           anchor.bottom,
           anchor.right,
+        )];
+    if (color != null) return color;
+  }
+  // No typed terminal on the wire: if its FIRST endpoint (the route source)
+  // is a primitive whose catalogued op fixes its output type, the wire
+  // carries that output — [PrimOp.output], asserted only from documented
+  // semantics, never guessed from the signal.
+  final source = wire.endpointAnchors.firstWhere(
+    (a) => a != null,
+    orElse: () => null,
+  );
+  if (source != null) {
+    final color =
+        sourceOutputColors[_packRect(
+          source.top,
+          source.left,
+          source.bottom,
+          source.right,
         )];
     if (color != null) return color;
   }
@@ -1133,6 +1284,25 @@ Map<int, List<({HeapRect box, int bmp})>> bdStructureTerminals(
 ) {
   final byId = diagram.byId;
   final out = <int, List<({HeapRect box, int bmp})>>{};
+  // A for loop's N part (the 0x15 parent of the bmp-2 carrier) hides the
+  // N/i corner pair when its objFlags clear bit 0x8000 — render-verified
+  // both ways on crc8's four loops (571 hides both with the bit clear;
+  // 86/164/3042 show both with it set).
+  final hiddenCountLoops = <int>{};
+  for (final object in diagram.objects) {
+    if (object.termBmp != 2) continue;
+    final part = byId[object.parentOid ?? -1];
+    if (part == null || part.kind != 0x15) continue;
+    if (((part.objFlags ?? 0) & 0x8000) != 0) continue;
+    var cur = byId[part.parentOid ?? -1];
+    var depth = 0;
+    while (cur != null &&
+        cur.category != ViObjectKind.structure &&
+        depth++ < 8) {
+      cur = byId[cur.parentOid ?? -1];
+    }
+    if (cur != null) hiddenCountLoops.add(cur.oid);
+  }
   for (final object in diagram.objects) {
     final box = object.termBounds;
     final bmp = object.termBmp;
@@ -1147,9 +1317,27 @@ Map<int, List<({HeapRect box, int bmp})>> bdStructureTerminals(
       cur = byId[cur.parentOid ?? -1];
     }
     if (cur == null || cur.category != ViObjectKind.structure) continue;
+    if ((bmp == 1 || bmp == 2) && hiddenCountLoops.contains(cur.oid)) continue;
     (out[cur.oid] ??= []).add((box: box, bmp: bmp));
   }
   return out;
+}
+
+/// Whether [object]'s positional ancestry crosses a structure — node-glyph
+/// art belongs to a node, and inside a structure frame it is never canvas
+/// content.
+bool _nestedInStructure(ViHeapObject object, Map<int, ViHeapObject> byId) {
+  var cur = byId[object.parentOid ?? -1];
+  var depth = 0;
+  while (cur != null && depth++ < 16) {
+    // The diagram root (0x7e, no parent) is not a structure for this test —
+    // top-level glyphs are exactly the ones LabVIEW draws.
+    if (cur.category == ViObjectKind.structure && cur.parentOid != null) {
+      return true;
+    }
+    cur = byId[cur.parentOid ?? -1];
+  }
+  return false;
 }
 
 /// The **drawable** objects of [diagram] — the layout layer the BD/FP view and
@@ -1176,10 +1364,17 @@ List<ViHeapObject> bdDrawableObjects(ViDiagram diagram) {
           // A node-glyph part (0x177) composed at negative coordinates is a
           // node's icon art in glyph space, not canvas space (crc8's floats
           // at (-8,-13) parented to the root frame) — drawing it stamps a
-          // stray box and stretches the content extent. Positive-positioned
-          // 0x177s are real drawn glyphs (VI Tree's icon row) and stay.
+          // stray box and stretches the content extent. One nested inside a
+          // structure frame is likewise suppressed — evidence so far is
+          // crc8's single case (a 12x12 at (224,669) under a loop frame,
+          // absent from the reference render); TODO: revisit if a corpus
+          // reference ever shows a structure-nested 0x177 drawn. Top-level
+          // positive-positioned 0x177s are real drawn glyphs (VI Tree's icon
+          // row) and stay.
           !(object.kind == 0x177 &&
-              (object.absBounds!.left < 0 || object.absBounds!.top < 0)) &&
+              (object.absBounds!.left < 0 ||
+                  object.absBounds!.top < 0 ||
+                  _nestedInStructure(object, byId))) &&
           !_escapesConstantBox(object, byId) &&
           !_escapesStructureBox(object, byId) &&
           // An owned name-label whose position was not composed lands glued to
@@ -1370,13 +1565,344 @@ int _depthOf(ViHeapObject object, Map<int, ViHeapObject> byId) {
 /// (memoized, stable) object list + origin, so a selection tap never repaints it
 /// — the cheap [_OverlayPainter] handles highlights instead. Public so the
 /// off-screen [BdOracle] rasterises with the exact same drawing as the view.
+/// The bundled primitive icon assets (assets/prim_icons/prim<id>.png —
+/// LabVIEW's icon art harvested from the snippet references, transparent
+/// exterior, hand-editable), decoded once and keyed by primResID. Empty when
+/// the bundle carries none.
+/// The primitive classes that ARE a single operation (no primResID record —
+/// the class code is the identity); their icons are keyed as `-code`.
+const kSingleOpPrimClasses = {0x3a, 0x34, 0x3e, 0x44, 0x6c, 0x93, 0x172, 0xb9};
+
+/// The detail-card row describing a primitive's decoded identity: the
+/// primResID and its evidence-based name (with the evidence kind), or the
+/// class-identity for the single-op classes, plus the icon asset key and its
+/// review status. Null for non-primitive objects. Two nodes of the same
+/// single-op class that look different in LabVIEW mean that class carries a
+/// further identity the model has not decoded yet — the card says exactly
+/// what IS known.
+String? _primDetail(ViHeapObject object) {
+  final key = primIconKeyOf(object);
+  if (key == null) return null;
+  final name = key >= 0 ? 'prim$key' : 'class${-key}';
+  final status = kPrimIconStatus[name];
+  final iconPart =
+      'icon $name${status == null ? ' (no asset)' : ' ${status.name}'}';
+  if (object.primResId != null) {
+    final op = PrimOp.fromId(object.primResId!);
+    final opPart = op == null
+        ? 'primResID ${object.primResId} (uncatalogued — numeric id only)'
+        : 'primResID ${object.primResId} = ${op.opName} (${op.basis == PrimNameBasis.corpusLabel ? 'corpus-labelled' : 'adjacency-inferred'})';
+    return '$opPart · $iconPart';
+  }
+  return 'class 0x${object.kind.toRadixString(16)} single-op identity '
+      '(no primResID record — nodes of this class share one operation; a '
+      'visible difference between two of them is undecoded state) · $iconPart';
+}
+
+/// The detail-card suffix naming a primitive icon's review status
+/// ([kPrimIconStatus]) — empty for objects that stamp no icon.
+String _iconStatusSuffix(ViHeapObject object) {
+  final key = primIconKeyOf(object);
+  if (key == null) return '';
+  final name = key >= 0 ? 'prim$key' : 'class${-key}';
+  final status = kPrimIconStatus[name];
+  return status == null ? '' : ' · icon ${status.name}';
+}
+
+/// The icon-map key for [object]: its primResID when present, else the
+/// negated class code for the single-op primitive classes, else null.
+int? primIconKeyOf(ViHeapObject object) =>
+    object.primResId ??
+    (kSingleOpPrimClasses.contains(object.kind) ? -object.kind : null);
+
+/// Integer prescale applied to every bundled icon at load: the stored image
+/// is the asset replicated [kPrimIconPrescale]x with nearest sampling —
+/// bit-exact blocks. Drawing it back at logical size with NEAREST recovers
+/// the original pixels exactly (each destination pixel's centre lands inside
+/// its own source block), so the 1:1 oracle raster stays bit-perfect;
+/// drawing it with LINEAR is "sharp bilinear": crisp pixel edges at any
+/// non-integer zoom, because the interpolation band is only
+/// 1/[kPrimIconPrescale] of a source pixel wide.
+const kPrimIconPrescale = 4;
+
+/// A bundled icon at both resolutions: [base] is the asset's own pixels —
+/// the ONLY image nearest sampling may touch (nearest at any integer device
+/// scale replicates it uniformly; nearest on the prescale at a mismatched
+/// scale, e.g. 4x art on a 3x canvas, doubles some columns and drops others).
+/// [sharp] is the [kPrimIconPrescale]x nearest prescale for the
+/// sharp-bilinear interactive path.
+typedef PrimIconArt = ({ui.Image base, ui.Image sharp});
+
+Future<Map<int, PrimIconArt>> loadPrimIcons() => _primIcons ??= () async {
+  final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
+  final icons = <int, PrimIconArt>{};
+  for (final asset in manifest.listAssets()) {
+    final m = RegExp(
+      r'assets/prim_icons/(prim|class)(\d+)(?:_[a-z0-9-]+)?\.png$',
+    ).firstMatch(asset);
+    if (m == null) continue;
+    // A rejected icon never stamps — the node falls back to the plate +
+    // operator glyph until a better extraction or hand-drawn art lands.
+    if (kPrimIconStatus['${m.group(1)}${m.group(2)}'] ==
+        PrimIconStatus.rejected) {
+      continue;
+    }
+    final bytes = await rootBundle.load(asset);
+    final codec = await ui.instantiateImageCodec(bytes.buffer.asUint8List());
+    final image = (await codec.getNextFrame()).image;
+    final id = m.group(1) == 'prim'
+        ? int.parse(m.group(2)!)
+        : -int.parse(m.group(2)!);
+    // The alpha mask backs pixel-precise hit testing at LOGICAL resolution:
+    // a stamped icon's transparent surround must not swallow clicks meant
+    // for the wire or canvas behind it.
+    final rgba = await image.toByteData();
+    if (rgba != null) {
+      final alpha = Uint8List(image.width * image.height);
+      for (var i = 0; i < alpha.length; i++) {
+        alpha[i] = rgba.getUint8(i * 4 + 3);
+      }
+      _primIconMasks[id] = (w: image.width, h: image.height, alpha: alpha);
+    }
+    icons[id] = await _prescaledArt(image);
+  }
+  return _primIconsSync = icons;
+}();
+
+/// Pairs [image] with its sharp-bilinear prescale (see [kPrimIconPrescale]).
+Future<PrimIconArt> _prescaledArt(ui.Image image) async {
+  final recorder = ui.PictureRecorder();
+  final canvas = ui.Canvas(recorder);
+  canvas.drawImageRect(
+    image,
+    ui.Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
+    ui.Rect.fromLTWH(
+      0,
+      0,
+      (image.width * kPrimIconPrescale).toDouble(),
+      (image.height * kPrimIconPrescale).toDouble(),
+    ),
+    ui.Paint()..filterQuality = ui.FilterQuality.none,
+  );
+  return (
+    base: image,
+    sharp: await recorder.endRecording().toImage(
+      image.width * kPrimIconPrescale,
+      image.height * kPrimIconPrescale,
+    ),
+  );
+}
+
+Future<Map<int, PrimIconArt>>? _primIcons;
+Map<int, PrimIconArt> _primIconsSync = const {};
+Map<int, PrimIconArt> _primIconsGreySync = const {};
+
+/// The disabled-diagram rendering of [rgba] in place: LabVIEW draws a
+/// disabled frame's icons as grey line-work on white. Evidence — crc8's
+/// disabled-frame `Reverse 1D Array` against the normal asset maps
+/// (255,255,204)→(255,255,255) and (76,76,61)→(170,170,170) on every one of
+/// its 736 opaque pixels, and its `Number To Boolean Array` shows the same
+/// two output colours. Light fills go white, everything else goes the
+/// uniform grey; the 204-average threshold between them is the one
+/// assumption (no corpus pair exercises a mid tone yet — TODO: recheck when
+/// one appears). Alpha is preserved.
+void _greyDisabledPalette(Uint8List rgba) {
+  for (var i = 0; i < rgba.length; i += 4) {
+    if (rgba[i + 3] == 0) continue;
+    final light = (rgba[i] + rgba[i + 1] + rgba[i + 2]) >= 3 * 204;
+    final v = light ? 255 : 170;
+    rgba[i] = rgba[i + 1] = rgba[i + 2] = v;
+  }
+}
+
+/// The already-decoded disabled-palette icon variants (see
+/// [_greyDisabledPalette]), keyed like [primIconsLoaded]. Empty until
+/// [ensurePrimIconsGrey] runs — the variants are built only when a diagram
+/// actually contains a disabled frame, not for every icon at startup.
+Map<int, PrimIconArt> primIconsGreyLoaded() => _primIconsGreySync;
+
+/// Builds the disabled-palette variants of every loaded icon, once, on
+/// first demand (a diagram with a non-empty [bdDisabledObjectOids] set).
+Future<Map<int, PrimIconArt>> ensurePrimIconsGrey() =>
+    _primIconsGrey ??= () async {
+      final icons = await loadPrimIcons();
+      final grey = <int, PrimIconArt>{};
+      for (final e in icons.entries) {
+        final rgba = await e.value.base.toByteData();
+        if (rgba == null) continue;
+        final greyPx = Uint8List.fromList(rgba.buffer.asUint8List());
+        _greyDisabledPalette(greyPx);
+        final completer = Completer<ui.Image>();
+        ui.decodeImageFromPixels(
+          greyPx,
+          e.value.base.width,
+          e.value.base.height,
+          ui.PixelFormat.rgba8888,
+          completer.complete,
+        );
+        grey[e.key] = await _prescaledArt(await completer.future);
+      }
+      return _primIconsGreySync = grey;
+    }();
+Future<Map<int, PrimIconArt>>? _primIconsGrey;
+
+/// Recolours a primitive icon by exact palette substitution: every pixel
+/// whose RGB appears in [rgbMapping] (0xRRGGBB → 0xRRGGBB) is replaced,
+/// alpha preserved; pixels outside the mapping keep their colour
+/// (hand-finished assets carry reference-sampled tones beyond the
+/// extraction pipeline's master palette). The disabled-frame rendering
+/// uses the value-based [_greyDisabledPalette] instead — this exact-match
+/// remap serves themed recolouring where the target colours are known.
+Future<ui.Image> remapPrimIcon(ui.Image icon, Map<int, int> rgbMapping) async {
+  final data = await icon.toByteData();
+  if (data == null) return icon;
+  final rgba = Uint8List.fromList(data.buffer.asUint8List());
+  for (var i = 0; i + 3 < rgba.length; i += 4) {
+    if (rgba[i + 3] == 0) continue;
+    final mapped =
+        rgbMapping[(rgba[i] << 16) | (rgba[i + 1] << 8) | rgba[i + 2]];
+    if (mapped == null) continue;
+    rgba[i] = (mapped >> 16) & 0xff;
+    rgba[i + 1] = (mapped >> 8) & 0xff;
+    rgba[i + 2] = mapped & 0xff;
+  }
+  final completer = Completer<ui.Image>();
+  ui.decodeImageFromPixels(
+    rgba,
+    icon.width,
+    icon.height,
+    ui.PixelFormat.rgba8888,
+    completer.complete,
+  );
+  return completer.future;
+}
+
+final Map<int, ({int w, int h, Uint8List alpha})> _primIconMasks = {};
+
+/// Whether the diagram-space point ([x],[y]) lands on an opaque pixel of the
+/// primitive icon stamped on [object] (natural size, centred in its bounds).
+/// True when no icon is stamped — the plain bounds hit stands. Pixel-precise
+/// so an icon's transparent surround does not swallow clicks.
+/// Where icon art lands within a node's box. Placement is a fixed
+/// per-primitive property measured against LabVIEW's own renders
+/// ([kPrimIconPlacement]) — no centring rule reproduces it. Unmeasured keys
+/// centre with the half-pixel floored; the offsets stay whole logical
+/// pixels either way (a fractional stamp splits border ink across resample
+/// boundaries and shifts glyphs into their neighbours). The stamp, the
+/// selection outline, and the alpha hitbox all share this rect.
+Rect primIconStampRect(Rect nodeRect, int artW, int artH, {int? key}) {
+  final placed = key == null
+      ? null
+      : kPrimIconPlacement[key >= 0 ? 'prim$key' : 'class${-key}'];
+  if (placed != null) {
+    return Rect.fromLTWH(
+      nodeRect.left + placed.dx,
+      nodeRect.top + placed.dy,
+      artW.toDouble(),
+      artH.toDouble(),
+    );
+  }
+  return Rect.fromLTWH(
+    (nodeRect.center.dx - artW / 2).floorToDouble(),
+    (nodeRect.center.dy - artH / 2).floorToDouble(),
+    artW.toDouble(),
+    artH.toDouble(),
+  );
+}
+
+bool primIconHit(ViHeapObject object, double x, double y) {
+  final id = primIconKeyOf(object);
+  final mask = id == null ? null : _primIconMasks[id];
+  if (mask == null || _primIconsSync[id] == null) return true;
+  final b = object.absBounds!;
+  final stamp = primIconStampRect(
+    Rect.fromLTRB(
+      b.left.toDouble(),
+      b.top.toDouble(),
+      b.right.toDouble(),
+      b.bottom.toDouble(),
+    ),
+    mask.w,
+    mask.h,
+    key: id,
+  );
+  final left = stamp.left;
+  final top = stamp.top;
+  final ix = (x - left).floor();
+  final iy = (y - top).floor();
+  if (ix < 0 || iy < 0 || ix >= mask.w || iy >= mask.h) return false;
+  return mask.alpha[iy * mask.w + ix] > 0;
+}
+
+/// The already-decoded primitive icons, or empty while [loadPrimIcons] is
+/// still in flight — for callers that must not block (the oracle's first
+/// build under the test framework's fake async).
+Map<int, PrimIconArt> primIconsLoaded() => _primIconsSync;
+
+/// The attach rects of PLAIN LOOP TUNNELS — wire endpoints whose resolving
+/// terminal is the loop-tunnel class `0x22`. Only this kind draws the
+/// wire-colour-filled square (verified against crc8's reference at a
+/// decoded rect); shift registers (`0x27`/`0x28`), selector and other
+/// border terminals carry their own chrome and are TODO until each is
+/// reference-verified.
+Set<HeapRect> bdLoopTunnelAttachRects(ViDiagram diagram) {
+  final out = <HeapRect>{};
+  for (final wire in bdVisibleWires(diagram)) {
+    for (var e = 0; e < wire.endpointOids.length; e++) {
+      final attach = e < wire.endpointAttachRects.length
+          ? wire.endpointAttachRects[e]
+          : null;
+      if (attach == null) continue;
+      final terminal = diagram.endpointTerminal(wire.endpointOids[e]);
+      if (terminal?.kind == 0x22) out.add(attach);
+    }
+  }
+  return out;
+}
+
+/// The oids of drawable objects sitting under a disable structure's
+/// DISPLAYED frame when that frame is a disabled one — LabVIEW renders their
+/// icons as grey line-work on white (see [_greyDisabledPalette]). The
+/// disabled-ness signal is the structure's own `0x95` selector label (the
+/// displayed frame's name, e.g. " Disabled"): the label is drawn from the
+/// file, never inferred from frame order.
+Set<int> bdDisabledObjectOids(ViDiagram diagram) {
+  final out = <int>{};
+  for (final o in diagram.objects) {
+    if (o.kind != 0xcd) continue;
+    final kids = diagram.children(o.oid).toList();
+    final selector = kids.firstWhere((k) => k.kind == 0x95, orElse: () => o);
+    if (identical(selector, o) ||
+        selector.label?.trim().toLowerCase() != 'disabled') {
+      continue;
+    }
+    final frames = kids.where((k) => k.kind == 0x1b).toList();
+    final shown = o.visibleFrameIndex;
+    if (shown >= frames.length) continue;
+    final stack = [frames[shown].oid];
+    while (stack.isNotEmpty) {
+      final oid = stack.removeLast();
+      for (final kid in diagram.children(oid)) {
+        if (out.add(kid.oid)) stack.add(kid.oid);
+      }
+    }
+  }
+  return out;
+}
+
 class BdDiagramPainter extends CustomPainter {
   BdDiagramPainter({
     required this.objects,
     required this.origin,
     this.wires = const [],
     this.subViIcons = const {},
+    this.primIcons = const {},
+    this.primIconsGrey = const {},
+    this.disabledOids = const {},
+    this.loopTunnelRects = const {},
     this.structureTerminals = const {},
+    this.iconFilterQuality = FilterQuality.none,
+    this.canvasScale = 1,
   });
 
   final List<ViHeapObject> objects;
@@ -1398,8 +1924,41 @@ class BdDiagramPainter extends CustomPainter {
   /// connector-pane plate (the icon is never guessed).
   final Map<int, ViLegacyIcon> subViIcons;
 
+  /// Bundled primitive icon art keyed by primResID (see [loadPrimIcons]);
+  /// stamped at natural size on primitive plates. A node without an entry
+  /// keeps the plate + operator glyph.
+  final Map<int, PrimIconArt> primIcons;
+
+  /// Disabled-palette variants of [primIcons] (see [primIconsGreyLoaded]),
+  /// stamped for nodes in [disabledOids].
+  final Map<int, PrimIconArt> primIconsGrey;
+
+  /// Objects under a disabled displayed frame ([bdDisabledObjectOids]).
+  final Set<int> disabledOids;
+
+  /// Attach rects of plain loop tunnels ([bdLoopTunnelAttachRects]) — the
+  /// only endpoints drawn as wire-colour squares.
+  final Set<HeapRect> loopTunnelRects;
+
+  /// Sampling for stamped icons: nearest (the default) is pixel-exact in the
+  /// 1:1 oracle raster; the interactive view passes [FilterQuality.low]
+  /// because its zoom is arbitrary and nearest minification drops pixels.
+  final FilterQuality iconFilterQuality;
+
+  /// The zoom this layer rasterises at. The interactive view re-anchors the
+  /// layer to the settled zoom after each gesture, so the cached raster the
+  /// compositor scales is already crisp at the zoom being viewed — vector
+  /// content re-renders sharp at ANY zoom, and only the transient gesture
+  /// magnifies a stale raster.
+  final double canvasScale;
+
   @override
   void paint(Canvas canvas, Size size) {
+    // The layer rasterises at [canvasScale]; everything below draws in
+    // logical diagram units under one canvas scale, so strokes, text, and
+    // icons all render at the zoom's real resolution.
+    canvas.scale(canvasScale);
+    size = Size(size.width / canvasScale, size.height / canvasScale);
     canvas.drawRect(Offset.zero & size, Paint()..color = kBdCanvas);
     _drawDotGrid(canvas, size);
 
@@ -1494,7 +2053,19 @@ class BdDiagramPainter extends CustomPainter {
     // Dataflow wires paint over the canvas/decorations but under every
     // structure/node, so nodes and terminals always sit on top of the runs that
     // reach them.
-    _drawWires(canvas);
+    final arrayShellOids = {
+      for (final o in objects)
+        if (o.kind == 0x50 && o.parentOid != null) o.parentOid!,
+    };
+    final structureRects = {for (final o in structures) rectOf(o)};
+    final tunnelLandings = <(Offset, Color)>[];
+    final tunnelSquares = <(Rect, Color)>[];
+    _drawWires(
+      canvas,
+      structureRects: structureRects,
+      tunnelLandings: tunnelLandings,
+      tunnelSquares: tunnelSquares,
+    );
     for (final object in structures) {
       // Class-accurate structure chrome (no badge text — LabVIEW names a
       // construct by its border furniture, not a label). Loops get the thick
@@ -1511,13 +2082,21 @@ class BdDiagramPainter extends CustomPainter {
       // without a decoded box is not placed.
       final terminals =
           structureTerminals[object.oid] ?? const <({HeapRect box, int bmp})>[];
+      // An array constant shell (a 0x52 container holding a 0x50 index box)
+      // is not a drawn frame — LabVIEW shows only its parts (the index box,
+      // the element, the label); crc8's LUT constant renders frameless. A
+      // 0x52 without an index box keeps its generic frame (decorations_only
+      // scores on one).
+      if (object.kind == 0x52 && arrayShellOids.contains(object.oid)) {
+        continue;
+      }
       switch (object.kind) {
         case 0x21 || 0x20: // While / for loop: rounded band + terminals.
           _drawLoopBand(canvas, rect, structColor);
-          _drawStructureTerminals(canvas, rect, terminals);
+          _drawStructureTerminals(canvas, rect, terminals, tunnelLandings);
         case 0x2c: // Case structure: the same band, un-rounded.
           _drawLoopBand(canvas, rect, structColor, rounded: false);
-          _drawStructureTerminals(canvas, rect, terminals);
+          _drawStructureTerminals(canvas, rect, terminals, tunnelLandings);
         default:
           final frame = structColor ?? _kindColor(ViObjectKind.structure);
           if (structColor != null) {
@@ -1541,6 +2120,9 @@ class BdDiagramPainter extends CustomPainter {
               ..strokeWidth = 1.0,
           );
       }
+    }
+    for (final (rect, color) in tunnelSquares) {
+      _drawTunnelSquare(canvas, rect, color);
     }
     // Wires: each 0x1d object is one stored Manhattan run, drawn exactly as
     // its own segment. Runs of the same wire already meet at their bend
@@ -1593,10 +2175,14 @@ class BdDiagramPainter extends CustomPainter {
       switch (object.category) {
         case ViObjectKind.terminal:
           // LabVIEW terminal: datatype-coloured double border — a 2 px outer
-          // border, a 1 px white gap, a 1 px inner border — over a lightly
-          // tinted plate. A recovered datatype (or a decoded foreground
-          // colour, e.g. a boolean constant's green) drives the colour; an
-          // unrecovered one stays a neutral grey rather than guessing.
+          // border, a 1 px white gap, a 1 px inner border — over a plate
+          // shaded only around the dataflow arrow. A recovered datatype (or
+          // a decoded foreground colour, e.g. a boolean constant's green)
+          // drives the colour; an unrecovered one stays a neutral grey
+          // rather than guessing. NI draws indicators with a thinner 1 px
+          // outer border; both directions unify on the control weights here
+          // (deliberate divergence — the reference-measured indicator border
+          // reads as an engraving artefact, not a meaningful distinction).
           final typed =
               object.typeKind != ViTypeKind.unknown || object.fgRgb != null;
           final tint = object.typeKind != ViTypeKind.unknown
@@ -1606,18 +2192,13 @@ class BdDiagramPainter extends CustomPainter {
           // "unknown" grey as a border is invisible to the eye and the edge
           // masks alike.
           final border = typed ? tint : const Color(0xFF5A5A5A);
-          canvas.drawRect(rect, Paint()..color = tint.withValues(alpha: 0.25));
-          // Border weight encodes direction, as LabVIEW draws it: a CONTROL
-          // has the thick outer border (2 px, 1 px gap), an INDICATOR the
-          // thin one (1 px, 2 px gap). Unknown direction keeps the control
-          // weights.
-          final indicator = object.isIndicator == true;
+          canvas.drawRect(rect, Paint()..color = Colors.white);
           canvas.drawRect(
-            rect.deflate(indicator ? 0.5 : 1),
+            rect.deflate(1),
             Paint()
               ..color = border
               ..style = PaintingStyle.stroke
-              ..strokeWidth = indicator ? 1.0 : 2.0,
+              ..strokeWidth = 2.0,
           );
           if (rect.width > 10 && rect.height > 10) {
             canvas.drawRect(
@@ -1628,16 +2209,40 @@ class BdDiagramPainter extends CustomPainter {
                 ..strokeWidth = 1.0,
             );
           }
-          // The dataflow arrow: a control feeds rightward out of its right
-          // edge; an indicator receives at its left edge. Only drawn when
-          // the direction is decoded.
-          if (object.isIndicator != null && rect.height >= 10) {
+          // The dataflow arrow lives INSIDE the box (reference-measured on
+          // the snippet renders): a right-pointing triangle 3 px deep and
+          // ~7 px tall. Data leaving (a control): the tip touches the 2 px
+          // outer border, the base intrudes 1 px past the inner border.
+          // Data arriving (an indicator): the base sits on the inner border.
+          // The plate shading hugs the arrow region only, leaving the 1 px
+          // whitespace gap beside the borders — same size both directions.
+          if (object.isIndicator != null &&
+              rect.height >= 12 &&
+              rect.width >= 12) {
+            final indicator = object.isIndicator == true;
             final cy = rect.center.dy;
-            final ax = indicator ? rect.left : rect.right;
+            final double tipX;
+            if (indicator) {
+              // Wire enters at the left: base on the inner border.
+              tipX = rect.left + 7;
+            } else {
+              // Data leaves at the right: tip touching the outer border.
+              tipX = rect.right - 3;
+            }
+            final shade = Rect.fromLTRB(
+              indicator ? rect.left + 3 : rect.right - 10,
+              rect.top + 4,
+              indicator ? rect.left + 10 : rect.right - 3,
+              rect.bottom - 4,
+            );
+            canvas.drawRect(
+              shade,
+              Paint()..color = tint.withValues(alpha: 0.25),
+            );
             final tri = Path()
-              ..moveTo(ax - 3, cy - 4)
-              ..lineTo(ax + 3, cy)
-              ..lineTo(ax - 3, cy + 4)
+              ..moveTo(tipX - 3, cy - 3.5)
+              ..lineTo(tipX, cy)
+              ..lineTo(tipX - 3, cy + 3.5)
               ..close();
             canvas.drawPath(tri, Paint()..color = Colors.black87);
           }
@@ -1665,15 +2270,51 @@ class BdDiagramPainter extends CustomPainter {
             tp.paint(canvas, rect.center - Offset(tp.width / 2, tp.height / 2));
           }
         case ViObjectKind.node:
-          // LabVIEW node icon plate: subVI calls get a light-grey connector-pane
-          // plate, primitive/function nodes the pale-gold numeric-palette plate.
-          // A raised bevel (light top/left, dark bottom/right) mimics the icon's
-          // 3-D edge. When the subVI's real icon has been resolved from its own
-          // file ([subViIcons]) it is stamped on the plate; otherwise no icon
-          // glyph is drawn (it is never guessed).
+          // LabVIEW node icon plate: a verified primitive icon (the bundled
+          // art harvested from LabVIEW's own renders) stamps at natural
+          // size; a subVI call stamps the icon resolved from its own file
+          // ([subViIcons]). Without either, subVI calls get a light-grey
+          // connector-pane plate and primitive/function nodes the pale-gold
+          // numeric-palette plate with the operator glyph — an icon is never
+          // guessed. Everything gets the 1 px pure-black border LabVIEW
+          // draws around node icons.
           final isSubVi = kSubViCallNodeCodes.contains(object.kind);
           final icon = subViIcons[object.oid];
-          if (icon != null) {
+          final iconKey = primIconKeyOf(object);
+          final disabled = disabledOids.contains(object.oid);
+          final primIcon = iconKey == null
+              ? null
+              : (disabled ? primIconsGrey[iconKey] : null) ??
+                    primIcons[iconKey];
+          if (primIcon != null) {
+            // The harvested art carries its own borders and transparency —
+            // no plate, backing, or extra frame around it. Exactness paths
+            // (NEAREST) sample the asset's own pixels: at any integer device
+            // scale that replicates uniformly, where nearest on the 4x
+            // prescale at a mismatched scale (a 3x supersampled raster)
+            // doubled some columns and dropped others. The sharp-bilinear
+            // interactive path samples the prescale with LINEAR.
+            final filter =
+                iconFilterQuality == FilterQuality.none ||
+                    canvasScale >= kPrimIconPrescale
+                ? FilterQuality.none
+                : iconFilterQuality;
+            final art = filter == FilterQuality.none
+                ? primIcon.base
+                : primIcon.sharp;
+            final dst = primIconStampRect(
+              rect,
+              primIcon.base.width,
+              primIcon.base.height,
+              key: iconKey,
+            );
+            canvas.drawImageRect(
+              art,
+              Rect.fromLTWH(0, 0, art.width.toDouble(), art.height.toDouble()),
+              dst,
+              Paint()..filterQuality = filter,
+            );
+          } else if (icon != null) {
             paintLegacyIcon(canvas, icon, rect);
           } else {
             final fill = isSubVi ? kBdSubViNodeFill : kBdPrimitiveNodeFill;
@@ -1695,15 +2336,38 @@ class BdDiagramPainter extends CustomPainter {
               );
             }
           }
-          canvas.drawRect(
-            rect,
-            Paint()
-              ..color = isSubVi
-                  ? const Color(0xFF8C8C8C)
-                  : const Color(0xFF9A8730)
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 1.0,
-          );
+          if (primIcon == null) {
+            canvas.drawRect(
+              rect.deflate(0.5),
+              Paint()
+                ..color = Colors.black
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 1.0,
+            );
+          }
+          // A decoded primitive identity draws its operator glyph on the
+          // plate when no icon asset exists (LabVIEW draws icon art; the
+          // glyph is the recognisable core of that art). Nothing is drawn
+          // for uncatalogued ids or when no glyph reads naturally.
+          final glyph =
+              icon == null && primIcon == null && object.primResId != null
+              ? primOpGlyph(PrimOp.fromId(object.primResId!))
+              : null;
+          if (glyph != null && rect.width >= 14 && rect.height >= 12) {
+            final tp = TextPainter(
+              text: TextSpan(
+                text: glyph,
+                style: TextStyle(
+                  color: Colors.black.withValues(alpha: 0.75),
+                  fontSize: glyph.length > 2 ? 8.0 : 12,
+                  fontFamily: 'Roboto',
+                ),
+              ),
+              maxLines: 1,
+              textDirection: TextDirection.ltr,
+            )..layout();
+            tp.paint(canvas, rect.center - Offset(tp.width / 2, tp.height / 2));
+          }
         default:
           final rr = RRect.fromRectAndRadius(rect, const Radius.circular(2.5));
           // A control/indicator is filled with its decoded interior colour when
@@ -1720,6 +2384,10 @@ class BdDiagramPainter extends CustomPainter {
           );
       }
     }
+    // Wire landings on structure borders feed ONLY the structure-terminal
+    // recolour above (the case selector [?] takes its wire's colour).
+    // Tunnel squares are drawn in [_drawWires] at the DECODED attach rects
+    // ([ViWire.endpointAttachRects]), never guessed from a landing point.
     // The drawn-object index for owner lookups in the text pass.
     final byOid = {for (final o in objects) o.oid: o};
     // Text pass: LabVIEW shows a structure's construct name on its frame and a
@@ -1747,8 +2415,19 @@ class BdDiagramPainter extends CustomPainter {
           text = byOid[object.parentOid]?.typeName;
         }
         if (text == null || text.isEmpty) continue;
-        final rect = rectOf(object);
-        if (rect.width < 8 || rect.height < 8) continue;
+        final rect0 = rectOf(object);
+        if (rect0.width < 8 || rect0.height < 8) continue;
+        // The case selector's value text sits between the inset pager boxes
+        // (see [_drawCaseSelector]) and is centred like LabVIEW's.
+        final selector = object.kind == 0x95;
+        final rect = selector
+            ? Rect.fromLTRB(
+                rect0.left + 9,
+                rect0.top,
+                rect0.right - 9,
+                rect0.bottom,
+              )
+            : rect0;
         final tp = TextPainter(
           text: TextSpan(
             text: text,
@@ -1756,15 +2435,23 @@ class BdDiagramPainter extends CustomPainter {
               color:
                   bdDecodedColor(object.fgRgb) ??
                   Colors.black.withValues(alpha: 0.85),
-              fontSize: 10.5,
+              fontSize: selector ? 9.5 : 10.5,
               fontFamily: 'Roboto',
             ),
           ),
           maxLines: math.max(1, rect.height ~/ 12),
           ellipsis: '…',
           textDirection: TextDirection.ltr,
-        )..layout(maxWidth: math.max(8, rect.width - 4));
-        tp.paint(canvas, rect.topLeft + const Offset(2, 1));
+        )..layout(maxWidth: math.max(8, rect.width - (selector ? 1 : 4)));
+        tp.paint(
+          canvas,
+          selector
+              ? Offset(
+                  rect.center.dx - tp.width / 2,
+                  rect.center.dy - tp.height / 2,
+                )
+              : rect0.topLeft + const Offset(2, 1),
+        );
         continue;
       }
       // A structure is identified by its border chrome (LabVIEW draws no
@@ -1818,27 +2505,58 @@ class BdDiagramPainter extends CustomPainter {
   /// is used ([bdWireColor]). Multi-endpoint (branch) wires route from the first
   /// endpoint to each other endpoint. The wire datatype itself is not decoded, so
   /// no per-wire colour is fabricated.
-  void _drawWires(Canvas canvas) {
+  void _drawWires(
+    Canvas canvas, {
+    Set<Rect>? structureRects,
+    List<(Offset, Color)>? tunnelLandings,
+    List<(Rect, Color)>? tunnelSquares,
+  }) {
     if (wires.isEmpty) return;
-    // Endpoint-anchor rectangle → recovered terminal colour, for honest tinting.
+    // Endpoint-anchor rectangle → recovered terminal colour, for honest
+    // tinting; the icon-stamped node rects (wires route under them, to the
+    // box centre, so the art's own ink decides the visible meeting point);
+    // and each node's catalogued output colour ([PrimOp.output]).
     final typedTerminalColors = <int, Color>{};
+    final sourceOutputColors = <int, Color>{};
+    final iconNodeRects = <Rect>{};
     for (final object in objects) {
-      if (object.category != ViObjectKind.terminal) continue;
-      if (object.typeKind == ViTypeKind.unknown) continue;
       final bounds = object.absBounds;
       if (bounds == null) continue;
-      typedTerminalColors[_packRect(
+      final packed = _packRect(
         bounds.top,
         bounds.left,
         bounds.bottom,
         bounds.right,
-      )] = labviewTypeColor(
-        object.typeKind,
       );
+      if (object.category == ViObjectKind.terminal &&
+          object.typeKind != ViTypeKind.unknown) {
+        typedTerminalColors[packed] = labviewTypeColor(object.typeKind);
+      }
+      if (primIconKeyOf(object) != null) {
+        iconNodeRects.add(
+          Rect.fromLTRB(
+            bounds.left - origin.dx,
+            bounds.top - origin.dy,
+            bounds.right - origin.dx,
+            bounds.bottom - origin.dy,
+          ),
+        );
+      }
+      final output = object.primResId == null
+          ? null
+          : PrimOp.fromId(object.primResId!)?.output;
+      if (output != null) {
+        sourceOutputColors[packed] = labviewTypeColor(output);
+      }
     }
     for (final wire in wires) {
       final anchors = <Rect>[];
-      for (final anchor in wire.endpointAnchors) {
+      // Structure-anchored endpoints with a DECODED attach rect (the
+      // tunnel/border-terminal position, [ViWire.endpointAttachRects]) get a
+      // tunnel square drawn at it.
+      final tunnels = <Rect>[];
+      for (var e = 0; e < wire.endpointAnchors.length; e++) {
+        final anchor = wire.endpointAnchors[e];
         if (anchor == null) continue;
         // A zero-area anchor is an endpoint whose nearest bounded owner is a
         // degenerate wire-segment stub (often at the diagram origin or a
@@ -1846,22 +2564,47 @@ class BdDiagramPainter extends CustomPainter {
         // draws strokes into empty space. Such a leg is skipped rather than
         // drawn wrong.
         if (anchor.width <= 0 && anchor.height <= 0) continue;
-        anchors.add(
-          Rect.fromLTRB(
-            anchor.left - origin.dx,
-            anchor.top - origin.dy,
-            anchor.right - origin.dx,
-            anchor.bottom - origin.dy,
-          ),
+        final anchorRect = Rect.fromLTRB(
+          anchor.left - origin.dx,
+          anchor.top - origin.dy,
+          anchor.right - origin.dx,
+          anchor.bottom - origin.dy,
         );
+        // The decoded terminal attach rect pins the endpoint exactly (the
+        // tunnel on a structure border, a growable node's terminal) — the
+        // owner box is only the fallback.
+        final attach = e < wire.endpointAttachRects.length
+            ? wire.endpointAttachRects[e]
+            : null;
+        if (attach != null) {
+          final attachRect = Rect.fromLTRB(
+            attach.left - origin.dx,
+            attach.top - origin.dy,
+            attach.right - origin.dx,
+            attach.bottom - origin.dy,
+          );
+          anchors.add(attachRect);
+          if (loopTunnelRects.contains(attach)) tunnels.add(attachRect);
+        } else {
+          anchors.add(anchorRect);
+        }
       }
-      if (anchors.length < 2) continue;
       final paint = Paint()
-        ..color = bdWireColor(wire, typedTerminalColors)
+        ..color = bdWireColor(
+          wire,
+          typedTerminalColors,
+          sourceOutputColors: sourceOutputColors,
+        )
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.4
         ..strokeJoin = StrokeJoin.miter
         ..strokeCap = StrokeCap.butt;
+      // The squares are collected whenever their position is decoded — even
+      // when the wire's OTHER endpoint is unresolvable and no route can be
+      // drawn — and painted AFTER the structure chrome (LabVIEW draws the
+      // tunnel over the band).
+      tunnelSquares?.addAll([for (final t in tunnels) (t, paint.color)]);
+      if (anchors.length < 2) continue;
       final source = anchors.first;
       final route = wire.route;
       final storedApplies =
@@ -1872,13 +2615,74 @@ class BdDiagramPainter extends CustomPainter {
                 ? bdStoredWireRoute(source, anchors[i], route)
                 : null) ??
             bdWireRoute(source, anchors[i]);
-        final path = Path()..moveTo(points.first.dx, points.first.dy);
-        for (final point in points.skip(1)) {
-          path.lineTo(point.dx, point.dy);
+        // A leg ending on an icon-stamped node runs on UNDER it to the box
+        // centre: LabVIEW draws wires beneath nodes, so the art's own opaque
+        // pixels decide exactly where the wire visibly meets the icon
+        // (through a chamfer notch, up to a border — whatever the art says).
+        if (points.length >= 2) {
+          if (iconNodeRects.contains(source)) {
+            final p0 = points.first, p1 = points[1];
+            points[0] = p0.dy == p1.dy
+                ? Offset(source.center.dx, p0.dy)
+                : Offset(p0.dx, source.center.dy);
+          }
+          if (iconNodeRects.contains(anchors[i])) {
+            final pn = points.last, pm = points[points.length - 2];
+            points[points.length - 1] = pn.dy == pm.dy
+                ? Offset(anchors[i].center.dx, pn.dy)
+                : Offset(pn.dx, anchors[i].center.dy);
+          }
         }
-        canvas.drawPath(path, paint);
+        // Each Manhattan segment fills whole 1 px pixel rows/columns
+        // (endpoints inclusive): a STROKED centreline at integer coordinates
+        // half-covers two rows — the solid-core-with-half-tone artefact.
+        final fill = Paint()
+          ..color = paint.color
+          ..isAntiAlias = false;
+        for (var j = 1; j < points.length; j++) {
+          final a = points[j - 1], b = points[j];
+          canvas.drawRect(
+            Rect.fromLTRB(
+              math.min(a.dx, b.dx).floorToDouble(),
+              math.min(a.dy, b.dy).floorToDouble(),
+              math.max(a.dx, b.dx).floorToDouble() + 1,
+              math.max(a.dy, b.dy).floorToDouble() + 1,
+            ),
+            fill,
+          );
+        }
+        // A leg whose anchor is a structure's own box is a border crossing —
+        // the landing point is where LabVIEW draws the tunnel square.
+        if (structureRects != null && tunnelLandings != null) {
+          if (structureRects.contains(source)) {
+            tunnelLandings.add((points.first, paint.color));
+          }
+          if (structureRects.contains(anchors[i])) {
+            tunnelLandings.add((points.last, paint.color));
+          }
+        }
       }
     }
+  }
+
+  /// One tunnel square: LabVIEW draws a 1 px [kBdTunnelBorder] ring filled
+  /// with the wire's colour, over the structure border (crc8's loop tunnel
+  /// at (158,499)-(167,508) reads exactly this from the reference render).
+  void _drawTunnelSquare(Canvas canvas, Rect t, Color wireColor) {
+    canvas.drawRect(
+      t,
+      Paint()
+        ..color = wireColor
+        ..isAntiAlias = false,
+    );
+    canvas.drawRect(
+      Rect.fromLTRB(t.left + 0.5, t.top + 0.5, t.right - 0.5, t.bottom - 0.5),
+      Paint()
+        ..color = kBdTunnelBorder
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1
+        ..isAntiAlias = false,
+    );
   }
 
   /// The thick grey structure band LabVIEW draws for loops and cases: a
@@ -1951,8 +2755,9 @@ class BdDiagramPainter extends CustomPainter {
   void _drawStructureTerminals(
     Canvas canvas,
     Rect frame,
-    List<({HeapRect box, int bmp})> terminals,
-  ) {
+    List<({HeapRect box, int bmp})> terminals, [
+    List<(Offset, Color)>? tunnelLandings,
+  ]) {
     for (final t in terminals) {
       final box = Rect.fromLTWH(
         frame.left + t.box.left,
@@ -1960,9 +2765,22 @@ class BdDiagramPainter extends CustomPainter {
         t.box.width.toDouble(),
         t.box.height.toDouble(),
       );
+      // A wire landing inside this terminal's box takes over its colour —
+      // LabVIEW paints the case selector [?] in the selector wire's datatype
+      // colour (green for a boolean selector). The landing is consumed so no
+      // separate tunnel square draws over the terminal.
+      Color? wireColor;
+      if (tunnelLandings != null) {
+        final inflated = box.inflate(3);
+        for (var i = tunnelLandings.length - 1; i >= 0; i--) {
+          if (inflated.contains(tunnelLandings[i].$1)) {
+            wireColor = tunnelLandings.removeAt(i).$2;
+          }
+        }
+      }
       final border = switch (t.bmp) {
         _bmpConditional => const Color(0xFF007F00),
-        _ => _loopBlue,
+        _ => wireColor ?? _loopBlue,
       };
       canvas.drawRect(box, Paint()..color = Colors.white);
       canvas.drawRect(
@@ -1978,7 +2796,7 @@ class BdDiagramPainter extends CustomPainter {
         case _bmpCount:
           _drawGlyphText(canvas, box, 'N', _loopBlue);
         case _bmpCaseSelector:
-          _drawGlyphText(canvas, box, '?', _loopBlue);
+          _drawGlyphText(canvas, box, '?', border);
         case _bmpLeftShiftRegister || _bmpRightShiftRegister:
           // Shift register: ▼ delivers on the left border, ▲ stores on
           // the right.
@@ -2020,44 +2838,39 @@ class BdDiagramPainter extends CustomPainter {
   /// sit on the case's top border. The selector STRING is drawn by the text
   /// pass; only the furniture is drawn here.
   void _drawCaseSelector(Canvas canvas, Rect rect) {
+    // Reference-measured chrome (the snippet renders): the selector strip is
+    // the modeled 0x95 label bounds; the pager boxes sit INSIDE its two ends
+    // at full height, 9 px wide, sharing the strip's border; the pager
+    // triangles are 4 px deep and 7 px tall; the dropdown is 7 px wide and
+    // 4 px tall against the value box's right edge.
     final border = Paint()
       ..color = Colors.black.withValues(alpha: 0.8)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.0;
     canvas.drawRect(rect, Paint()..color = Colors.white);
-    canvas.drawRect(rect, border);
-    // ▼ on the value box's right edge.
-    final dc = Offset(rect.right - 7, rect.center.dy);
-    final down = Path()
-      ..moveTo(dc.dx - 3.5, dc.dy - 2)
-      ..lineTo(dc.dx + 3.5, dc.dy - 2)
-      ..lineTo(dc.dx, dc.dy + 3)
-      ..close();
-    canvas.drawPath(down, Paint()..color = Colors.black87);
-    // ◄ / ► pager boxes flanking the value box.
+    canvas.drawRect(rect.deflate(0.5), border);
+    final cy = rect.center.dy;
     void pager(Rect box, bool left) {
-      canvas.drawRect(box, Paint()..color = Colors.white);
-      canvas.drawRect(box, border);
-      final c = box.center;
-      final tri = left
-          ? (Path()
-              ..moveTo(c.dx + 2, c.dy - 3.5)
-              ..lineTo(c.dx + 2, c.dy + 3.5)
-              ..lineTo(c.dx - 2.5, c.dy)
-              ..close())
-          : (Path()
-              ..moveTo(c.dx - 2, c.dy - 3.5)
-              ..lineTo(c.dx - 2, c.dy + 3.5)
-              ..lineTo(c.dx + 2.5, c.dy)
-              ..close());
+      canvas.drawRect(box.deflate(0.5), border);
+      final tipX = left ? box.center.dx - 2 : box.center.dx + 2;
+      final baseX = left ? box.center.dx + 2 : box.center.dx - 2;
+      final tri = Path()
+        ..moveTo(baseX, cy - 3.5)
+        ..lineTo(baseX, cy + 3.5)
+        ..lineTo(tipX, cy)
+        ..close();
       canvas.drawPath(tri, Paint()..color = Colors.black87);
     }
 
-    pager(
-      Rect.fromLTWH(rect.left - 10, rect.top + 2, 10, rect.height - 4),
-      true,
-    );
-    pager(Rect.fromLTWH(rect.right, rect.top + 2, 10, rect.height - 4), false);
+    pager(Rect.fromLTWH(rect.left, rect.top, 9, rect.height), true);
+    pager(Rect.fromLTWH(rect.right - 9, rect.top, 9, rect.height), false);
+    final dx = rect.right - 15;
+    final down = Path()
+      ..moveTo(dx - 3.5, cy - 2)
+      ..lineTo(dx + 3.5, cy - 2)
+      ..lineTo(dx, cy + 2)
+      ..close();
+    canvas.drawPath(down, Paint()..color = Colors.black87);
   }
 
   void _drawDotGrid(Canvas canvas, Size size) {
@@ -2080,6 +2893,11 @@ class BdDiagramPainter extends CustomPainter {
       !identical(old.objects, objects) ||
       !identical(old.wires, wires) ||
       !identical(old.subViIcons, subViIcons) ||
+      !identical(old.primIcons, primIcons) ||
+      !identical(old.primIconsGrey, primIconsGrey) ||
+      !setEquals(old.disabledOids, disabledOids) ||
+      old.iconFilterQuality != iconFilterQuality ||
+      old.canvasScale != canvasScale ||
       !identical(old.structureTerminals, structureTerminals) ||
       old.origin != origin;
 }
@@ -2092,24 +2910,36 @@ class _OverlayPainter extends CustomPainter {
     required this.origin,
     required this.selected,
     required this.members,
+    this.canvasScale = 1,
   });
 
   final Offset origin;
   final ViHeapObject? selected;
   final Set<ViHeapObject> members;
 
+  /// Matches [BdDiagramPainter.canvasScale] — the overlay shares the layer.
+  final double canvasScale;
+
   Rect _rectOf(ViHeapObject o) {
     final bounds = o.absBounds!;
-    return Rect.fromLTRB(
+    final rect = Rect.fromLTRB(
       bounds.left - origin.dx,
       bounds.top - origin.dy,
       bounds.right - origin.dx,
       bounds.bottom - origin.dy,
     );
+    // Icon-stamped nodes outline the stamped art, not the (often square)
+    // model box — matching what is drawn and what the alpha hitbox accepts.
+    final key = primIconKeyOf(o);
+    final art = key == null ? null : primIconsLoaded()[key];
+    return art == null
+        ? rect
+        : primIconStampRect(rect, art.base.width, art.base.height, key: key);
   }
 
   @override
   void paint(Canvas canvas, Size size) {
+    canvas.scale(canvasScale);
     if (members.isNotEmpty) {
       final mp = Paint()
         ..color = const Color(0xFFEF6C00)
@@ -2137,23 +2967,27 @@ class _OverlayPainter extends CustomPainter {
       old.origin != origin ||
       !identical(old.selected, selected) ||
       old.members.length != members.length ||
-      !old.members.containsAll(members);
+      !old.members.containsAll(members) ||
+      old.canvasScale != canvasScale;
 }
 
 /// A "label: value" detail row for the selected-object card (decoded semantics).
 Widget _detail(String label, String value) => Padding(
   padding: const EdgeInsets.only(top: 3),
-  child: RichText(
+  // Text.rich (not RichText) so the body inherits the ambient theme colour —
+  // a fixed dark grey was unreadable on the dark theme; the label blue reads
+  // on both.
+  child: Text.rich(
     maxLines: 3,
     overflow: TextOverflow.ellipsis,
-    text: TextSpan(
-      style: const TextStyle(fontSize: 12, color: Color(0xFF333333)),
+    TextSpan(
+      style: const TextStyle(fontSize: 12),
       children: [
         TextSpan(
           text: '$label: ',
           style: const TextStyle(
             fontWeight: FontWeight.w600,
-            color: Color(0xFF1565C0),
+            color: Color(0xFF5B9BD5),
           ),
         ),
         TextSpan(text: value),
@@ -2224,11 +3058,14 @@ class _DetailsCard extends StatelessWidget {
                     '${cls.label}$conf · class 0x${object.kind.toRadixString(16)} · oid ${object.oid}'
                     '${object.isLabelHidden ? ' · hidden' : ''}'
                     '${kMultiFrameStructureKinds.contains(object.kind) ? ' · shows frame ${object.visibleFrameIndex + 1}' : ''}'
+                    '${_iconStatusSuffix(object)}'
                     '${object.typeKind != ViTypeKind.unknown ? ' · type ${object.typeKind.name}' : ''}'
                     '${bounds != null ? ' · ${bounds.width}×${bounds.height} @(${bounds.left},${bounds.top})' : ''}'
                     '${object.parentOid != null ? ' · parent ${object.parentOid}' : ''}',
                     style: const TextStyle(color: Colors.grey, fontSize: 12),
                   ),
+                  if (_primDetail(object) case final prim?)
+                    _detail('primitive', prim),
                   if (object.items.isNotEmpty)
                     _detail(
                       'values',
@@ -2415,27 +3252,19 @@ class _ViImageStrip extends StatelessWidget {
                   "This VI's own 32×32 icon — what a caller's subVI node shows "
                   'for it.',
             ),
-          for (final png in images.pngs.take(4))
-            _tile(
-              '${png.tag} ${png.width}×${png.height}',
-              Image.memory(
-                png.bytes,
-                width: 36,
-                height: 36,
-                fit: BoxFit.contain,
-                filterQuality: FilterQuality.none,
-                gaplessPlayback: true,
-                errorBuilder: (_, _, _) =>
-                    const Icon(Icons.broken_image_outlined, size: 20),
-              ),
-            ),
-          const Expanded(
+          // Only the VI icon shows here: the other recovered image resources
+          // (e.g. Excel_Read_XLSX carries a stack of DSIM entries that decode
+          // to blank canvases) belong to the Images tab; this row stays a
+          // single fixed-size icon so it can never overflow.
+          Expanded(
             child: Padding(
-              padding: EdgeInsets.only(left: 8),
+              padding: const EdgeInsets.only(left: 8),
               child: Text(
-                "The VI's own recovered images. A subVI-call node on the diagram "
-                "shows the called VI's icon when that file resolves.",
-                style: TextStyle(fontSize: 11, color: Colors.grey),
+                "The VI's own icon — what a caller's subVI node shows for it."
+                '${images.pngs.isEmpty ? '' : ' ${images.pngs.length} more recovered image(s) in the Images tab.'}',
+                style: const TextStyle(fontSize: 11, color: Colors.grey),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 2,
               ),
             ),
           ),
