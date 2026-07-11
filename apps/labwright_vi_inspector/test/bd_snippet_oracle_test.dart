@@ -50,7 +50,9 @@ void main() {
     final joints = <Offset>[];
     for (final wire in bd.wires) {
       final route = wire.route;
-      if (route == null) continue;
+      // Only the bend-carrying tables replay joints: the third wire's
+      // trivial straight table (2 points, no stored lengths) has none.
+      if (route == null || route.segmentLengths.isEmpty) continue;
       final a0 = wire.endpointAnchors[0]!, a1 = wire.endpointAnchors[1]!;
       Rect rect(HeapRect r) => Rect.fromLTRB(
         r.left.toDouble(),
