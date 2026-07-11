@@ -173,10 +173,24 @@ class ViHeapObject {
   String? helpText;
 
   /// Flattened value of a block-diagram string constant (`bDConstDCO` `0x13`;
-  /// [HeapAttribute.constValue], raw `0x26C`, the `C6 6C FF` blob form) — e.g.
-  /// `"%f"` or `"ps2000aRunStreaming"`, or null. This is the constant's literal
-  /// data, NOT documentation; it is not help text and must not render as such.
+  /// [HeapAttribute.constValue], raw `0x26C`, the validated `C6 6C FF` blob and
+  /// short `C6 6C <u8len>` u32-string forms) — e.g. `"%f"` or `"Test Status"`,
+  /// or null. This is the constant's literal data, NOT documentation; it is not
+  /// help text and must not render as such.
   String? constText;
+
+  /// Decoded **numeric value** of a block-diagram constant (`bDConstDCO`
+  /// `0x13`): an [int] for integer/enum payloads, a [double] for an 8-byte
+  /// IEEE-754 payload — or null when the object is not a constant, carries no
+  /// `0x26C` value record, or the payload does not pass the type-independent
+  /// gates of [decodeBdConstantValue] (which owns the corpus census). Enum/ring
+  /// constants decode to their stored integer; the item labels ride [items].
+  num? constNumeric;
+
+  /// Decoded **boolean value** of a block-diagram constant (`bDConstDCO`
+  /// `0x13` whose value carrier is a `0x4f` boolean control), or null. See
+  /// [decodeBdConstantValue] for the gate and census.
+  bool? constBool;
 
   /// Decoded 24-bit `0xRRGGBB` **background** colour of this object
   /// ([HeapAttribute.backgroundColor], raw `0x028`, confirmed), or null when the
@@ -1147,6 +1161,109 @@ Map<int, List<ViHeapObject>> _childrenByParentOid(List<ViHeapObject> objects) {
   return kids;
 }
 
+/// Scalar value-byte count of an attribute record's stored width, or null for
+/// the length-prefixed forms (`blob`/`container`/`f64`/`rect`).
+int? _attrScalarBytes(HeapAttrWidth width) => switch (width) {
+  HeapAttrWidth.flag => 0,
+  HeapAttrWidth.u8 => 1,
+  HeapAttrWidth.u16 => 2,
+  HeapAttrWidth.u24 => 3,
+  HeapAttrWidth.rgb => 4,
+  _ => null,
+};
+
+/// A stored 4-byte scalar whose bits read as an IEEE-754 single of magnitude at
+/// least this is *plausibly* an SGL constant, so its integer reading is not
+/// certain and the decode declines. Below it the single reading is a denormal /
+/// deep-subnormal magnitude no one types into a constant, so the integer
+/// reading is safe. (All corpus-ground-truthed sgl constants sit far above this
+/// bound; see [decodeBdConstantValue].)
+const double _sglPlausibleFloor = 1e-20;
+
+/// The sane-magnitude window for reading an 8-byte constant payload as an
+/// IEEE-754 double. Bit patterns outside it (tiny denormal-region magnitudes)
+/// are how small **i64/u64** payloads read when misinterpreted as doubles, so
+/// they are declined rather than fabricated. NaN is rejected for the same
+/// reason: i64 −1 (`FF…FF`) reads as NaN.
+const double _dblSaneFloor = 1e-300, _dblSaneCeil = 1e300;
+
+/// Decodes the **value of a block-diagram constant** from its `0x26C`
+/// ([HeapAttribute.constValue]) [record] without resolving the constant's VCTP
+/// type — the payload is typed by the constant's value-carrier class
+/// [innerKind] (the `0x13` DCO's first nested child) plus payload-shape gates,
+/// and every gate declines rather than guessing. Returns a [bool], [int],
+/// [double], or null (not decoded).
+///
+/// Gates (all corpus numbers over 54,801 `0x26C`-bearing `0x13` constants,
+/// 7,524 VIs; "ground truth" = the 2,419 gate-decoded constants whose payload
+/// uniquely byte-matches a value slot of a tiled `DFDS` data space, typed by
+/// that slot's VCTP descriptor):
+///
+///   * **boolean** — carrier `0x4f`, scalar of ≤ 2 value bytes, value in
+///     {0, 1} → the bool. Every corpus `0x4f` constant payload is binary
+///     (5,149 one-byte + 2,355 two-byte); 7,504 decode.
+///   * **integer** — carrier `0x50`, or `0x57`/`0x64` carrying an enum item
+///     table; scalar payload; certain only when non-negative in every integer
+///     reading (leading stored byte < `0x80` — `FF FF FF FF` is i32 −1 or u32
+///     4,294,967,295 depending on the unresolved type, so it is declined) and,
+///     for 4-byte scalars, implausible as SGL bits ([_sglPlausibleFloor]) →
+///     the zero-extended magnitude. 12,771 decode; ground truth: 1,845/1,846
+///     resolve to integer-family types (i32/u32/i16/u16/enum/typeDef), one
+///     outlier byte-matching an sgl-typed slot. 1,089 ambiguous scalars are
+///     declined.
+///   * **zero** — carrier `0x50`, all-zero length-prefixed payload (the
+///     containered zero of a wider type; corpus lengths cluster on 5 and 9)
+///     → 0. 2,878 decode.
+///   * **double** — carrier `0x50`, 8-byte payload whose f64 reading is sane
+///     (0, ±∞, or magnitude within [_dblSaneFloor]..[_dblSaneCeil]; NaN
+///     declined) → the double. 860 decode; ground truth 179/179 dbl. The 94
+///     non-sane 8-byte payloads (dbl-vs-i64 ambiguous) are declined.
+///
+/// String constants (carrier `0x51`; ground truth 4,956/4,956 string) are
+/// decoded by the existing [ViHeapObject.constText] path. Compound payloads
+/// (arrays `0x52`, clusters `0x53`, paths `0x5b`, 16-byte extendeds, …) are
+/// framed but not value-decoded here.
+Object? decodeBdConstantValue({required int? innerKind, required HeapAttr record, bool hasEnumItems = false}) {
+  final scalarBytes = _attrScalarBytes(record.width);
+  final v = record.asInt;
+  final raw = record.width == HeapAttrWidth.container ? record.rawValueBytes : null;
+  switch (innerKind) {
+    case 0x4f: // booleanOrClusterControl
+      if (scalarBytes != null && scalarBytes <= 2 && (v == 0 || v == 1)) return v == 1;
+      return null;
+    case 0x57 when hasEnumItems: // enumRingControl
+    case 0x64 when hasEnumItems: // clusterShell hosting an enum typedef
+    case 0x50: // numericControl
+      if (scalarBytes != null && v != null) {
+        if (v == 0 || scalarBytes == 0) return v;
+        final leading = (v >>> (8 * (scalarBytes - 1))) & 0xff;
+        if (leading >= 0x80) return null;
+        if (scalarBytes == 4) {
+          final asSgl = (ByteData(4)..setUint32(0, v)).getFloat32(0).abs();
+          if (asSgl >= _sglPlausibleFloor) return null;
+        }
+        return v;
+      }
+      if (innerKind != 0x50 || raw == null) return null;
+      var allZero = true;
+      for (final b in raw) {
+        if (b != 0) {
+          allZero = false;
+          break;
+        }
+      }
+      if (allZero) return 0;
+      if (raw.length == 8) {
+        final d = ByteData.sublistView(raw).getFloat64(0);
+        if (d.isNaN) return null;
+        if (d == 0 || d.isInfinite || (d.abs() >= _dblSaneFloor && d.abs() <= _dblSaneCeil)) return d;
+      }
+      return null;
+    default:
+      return null;
+  }
+}
+
 /// Recovers the [ViDiagram] from a decompressed heap [body] by walking its
 /// balanced typed-group tree ([walkHeapObjects]): object headers become
 /// [ViHeapObject]s parented by the enclosing object; `C4 2D`/`C4 22`/
@@ -1156,6 +1273,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
   final objects = <ViHeapObject>[];
   final c4ops = <ViHeapObject, Set<int>>{};
   final formatPayloads = <ViHeapObject, List<int>>{};
+  final constRecs = <ViHeapObject, HeapAttr>{};
   final absTop = <ViHeapObject, int>{};
   final absLeft = <ViHeapObject, int>{};
   final length = body.length;
@@ -1220,9 +1338,20 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
           if (attr.attribute == HeapAttribute.stdNumMin) cur.controlMin ??= number;
           if (attr.attribute == HeapAttribute.stdNumMax) cur.controlMax ??= number;
         }
-        if (attr.attribute == HeapAttribute.constValue && offset + 2 < length && body[offset + 2] == 0xff) {
+        // Both validated string forms of the record decode to asString: the
+        // `C6 6C FF <u16len>` blob and the short `C6 6C <u8len>` u32-string
+        // (see [decodeHeapAttr]); non-validating payloads decode as container
+        // and stay off this path.
+        if (attr.attribute == HeapAttribute.constValue) {
           final text = attr.asString;
           if (text != null && text.isNotEmpty) cur.constText ??= text;
+        }
+        // A BD constant's flattened value record scopes to the 0x13 DCO itself
+        // (99.45% of the 54,801 corpus records; the rest ride other classes and
+        // are not constant values). First-wins is trivially safe: no corpus
+        // object carries a second record.
+        if (attr.attribute == HeapAttribute.constValue && cur.kind == 0x13) {
+          constRecs[cur] ??= attr;
         }
         if (attr.attribute == HeapAttribute.termBounds) cur.termBounds ??= attr.asRect;
         if (attr.attribute == HeapAttribute.termBMPs) cur.termBmp ??= attr.asInt;
@@ -1314,6 +1443,36 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
   }
 
   final nodeKids = _childrenByParentOid(objects);
+
+  // Decode BD constant values: the value carrier class is the 0x13's first
+  // nested child (numeric `0x50` / boolean `0x4f` / enum-ring `0x57` / cluster
+  // shell `0x64`; strings `0x51` ride [ViHeapObject.constText]); enum items may
+  // sit on any descendant, so the item probe walks the whole subtree.
+  if (constRecs.isNotEmpty) {
+    // Depth-capped: the positional tree is stack-balanced, but oids are not
+    // guaranteed unique, so an oid-keyed descent must not trust acyclicity.
+    bool subtreeHasItems(ViHeapObject o, [int depth = 0]) {
+      if (o.items.isNotEmpty) return true;
+      if (depth >= 16) return false;
+      for (final kid in nodeKids[o.oid] ?? const <ViHeapObject>[]) {
+        if (subtreeHasItems(kid, depth + 1)) return true;
+      }
+      return false;
+    }
+
+    for (final entry in constRecs.entries) {
+      final object = entry.key;
+      final kids = nodeKids[object.oid];
+      if (kids == null || kids.isEmpty) continue;
+      final value = decodeBdConstantValue(
+        innerKind: kids.first.kind,
+        record: entry.value,
+        hasEnumItems: subtreeHasItems(object),
+      );
+      if (value is bool) object.constBool = value;
+      if (value is num) object.constNumeric = value;
+    }
+  }
 
   for (final object in objects) {
     if (object.category != ViObjectKind.unknown) continue;
