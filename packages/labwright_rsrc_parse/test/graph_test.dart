@@ -103,37 +103,104 @@ void main() {
   });
 
   test('decodeWireRoute: both headers, FF length escape, junction codes reject', () {
-    // basic.png's x-input wire: 4 points, jogs down then right, H 28 / V 12.
+    // basic.png's x-input wire: 4 points, right then down, H 28 / V 12.
     final r1 = decodeWireRoute(u8([0x04, 0x08, 0x00, 0x00, 28, 12]))!;
     expect(r1.pointCount, 4);
+    expect(r1.direction, WireRouteDirection.right);
     expect(r1.segmentLengths, [28, 12]);
     expect(r1.jointSigns, [1, 1]);
-    // basic.png's y-input wire: same lengths, first joint jogs up.
+    // basic.png's y-input wire: same lengths, second segment runs up.
     expect(decodeWireRoute(u8([0x04, 0x08, 0x01, 0x00, 28, 12]))!.jointSigns, [-1, 1]);
+    // Every one-hot direction code decodes; anything else is no direction.
+    expect(decodeWireRoute(u8([0x02, 0x01]))!.direction, WireRouteDirection.up);
+    expect(decodeWireRoute(u8([0x02, 0x02]))!.direction, WireRouteDirection.left);
+    expect(decodeWireRoute(u8([0x02, 0x04]))!.direction, WireRouteDirection.down);
+    expect(decodeWireRoute(u8([0x02, 0x08]))!.direction, WireRouteDirection.right);
+    expect(decodeWireRoute(u8([0x02, 0x03])), isNull);
+    // The 1-point table (coincident endpoints) is the single byte 01.
+    expect(decodeWireRoute(u8([0x01]))!.pointCount, 1);
+    expect(decodeWireRoute(u8([0x01, 0x08])), isNull);
     // FF escape: a 256-unit segment.
     final r2 = decodeWireRoute(u8([0x03, 0x08, 0x01, 0xff, 0x01, 0x00]))!;
     expect(r2.segmentLengths, [256]);
     expect(r2.jointSigns, [-1]);
-    // Extended header stores pointCount-1 lengths.
-    final r3 = decodeWireRoute(u8([0x05, 0x00, 0x08, 0x00, 0x01, 0x00, 5, 6, 7, 8]))!;
-    expect((r3.pointCount, r3.segmentLengths.length), (5, 4));
-    // Branching junction codes are not decoded: null, never a guess.
+    // The extended `[n][00]…` multi-endpoint branching form is not decoded:
+    // null, never a guess.
     expect(decodeWireRoute(u8([0x05, 0x00, 0x08, 0x05, 0x00, 0x03, 13, 66, 11, 247])), isNull);
+    // Length-count mismatches and trailing junk are malformed, not guessed.
+    expect(decodeWireRoute(u8([0x02, 0x01, 0x00, 0x04])), isNull);
     expect(decodeWireRoute(u8([0x04])), isNull);
   });
 
-  test('a signal object captures its container wire table onto the wire model', () {
+  test('a signal captures its wire table at every width onto the wire model', () {
     final d = dia([
-      ...open(0x17, 9),
+      ...open(0x17, 9), // container width
       ...hx('14 19 01 fd 0002'),
       ...hx('14 19 01 fd 0003'),
       ...c5(0xe7, [0x04, 0x08, 0x00, 0x00, 28, 12]),
       ...close(),
+      ...open(0x17, 10), // u16 scalar (op 45 = raw 0x1E7) = the 2-byte straight table [02][dir]
+      0x45, 0xe7, 0x02, 0x04,
+      ...close(),
+      ...open(0x17, 11), // 4-byte scalar (op 85) = the one-bend table [03][dir][sign][len]
+      0x85, 0xe7, 0x03, 0x08, 0x01, 0x17,
+      ...close(),
+      ...open(0x17, 12), // u8 scalar (op 25) = the 1-point table [01]
+      0x25, 0xe7, 0x01,
+      ...close(),
     ]);
-    final route = d.wires.single.route!;
+    final route = d.wires[0].route!;
     expect(route.pointCount, 4);
+    expect(route.direction, WireRouteDirection.right);
     expect(route.segmentLengths, [28, 12]);
     expect(route.jointSigns, [1, 1]);
+    final straight = d.wires[1].route!;
+    expect((straight.pointCount, straight.direction), (2, WireRouteDirection.down));
+    final bend = d.wires[2].route!;
+    expect((bend.pointCount, bend.direction), (3, WireRouteDirection.right));
+    expect(bend.segmentLengths, [0x17]);
+    expect(bend.jointSigns, [-1]);
+    expect(d.wires[3].route!.pointCount, 1);
+  });
+
+  test('routePoints: the walked route closes exactly onto the far attach point or ships nothing', () {
+    // Two structure tunnels on one frame; the signal's stored route walks
+    // right 20 from the first tunnel's attach centre (9,14), turns down 30,
+    // and the implied closing segment lands on the second tunnel's attach
+    // centre (54,44).
+    List<int> records(List<int> table) => [
+      ...open(0x20, 1),
+      ...bounds(0, 0, 100, 100),
+      ...open(0x22, 2, tag: 0x1a),
+      ...hx('14 19 01 fd 0003'),
+      ...c5(0x29, [0, 10, 0, 5, 0, 19, 0, 14]), // attach (9, 14)
+      ...close(0x1a),
+      ...open(0x15, 3, tag: 0x1a),
+      ...close(0x1a),
+      ...open(0x22, 4, tag: 0x1a),
+      ...hx('14 19 01 fd 0005'),
+      ...c5(0x29, [0, 40, 0, 50, 0, 49, 0, 59]), // attach (54, 44)
+      ...close(0x1a),
+      ...open(0x15, 5, tag: 0x1a),
+      ...close(0x1a),
+      ...close(),
+      ...open(0x17, 9),
+      ...hx('14 19 01 fd 0003'),
+      ...hx('14 19 01 fd 0005'),
+      ...c5(0xe7, table),
+      ...close(),
+    ];
+    final good = dia(records([0x04, 0x08, 0x00, 0x00, 20, 30]));
+    expect(good.wireAttachPoint(3), (x: 9, y: 14));
+    expect(good.wireAttachPoint(5), (x: 54, y: 44));
+    expect(good.wires.single.routePoints, [(x: 9, y: 14), (x: 29, y: 14), (x: 29, y: 44), (x: 54, y: 44)]);
+    // A walk whose perpendicular lands 1 px off the far attach point ships
+    // nothing — never force-closed.
+    expect(dia(records([0x04, 0x08, 0x00, 0x00, 20, 29])).wires.single.routePoints, isNull);
+    // A closing segment contradicting the stored final sign ships nothing.
+    expect(dia(records([0x04, 0x08, 0x00, 0x01, 20, 30])).wires.single.routePoints, isNull);
+    // Pre-8.6 files stay null (old coordinate space).
+    expect(dia(records([0x04, 0x08, 0x00, 0x00, 20, 30]), version: '8.5').wires.single.routePoints, isNull);
   });
 
   test('endpointTerminalBounds: attach rect = termBounds + enclosing frame origin', () {

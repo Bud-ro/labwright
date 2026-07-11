@@ -461,7 +461,9 @@ enum HeapObjectClass {
   /// its own `14 19` childRefs and carries the `0x129` termBounds rect;
   /// [ViDiagram.endpointTerminalBounds] owns that census.
   /// The signal itself carries no bounds; its packed route lives in the
-  /// compressedWireTable payload (route decoded, remaining interior not). Its
+  /// compressedWireTable payload — decoded to an absolute polyline for
+  /// two-endpoint signals ([ViWire.routePoints]; the multi-endpoint
+  /// branching form is framed but not decoded, see [decodeWireRoute]). Its
   /// **datatype is decoded — with measured agreement, not certainty — from
   /// its own lastSignalKind record** (element type code + array depth +
   /// flags, carried by all but 14 corpus signals): the decoded family
@@ -1226,6 +1228,7 @@ class ViWire {
     required this.endpointAnchors,
     List<HeapRect?>? endpointAttachRects,
     this.route,
+    this.routePoints,
     this.signalType,
   }) : endpointAttachRects = endpointAttachRects ?? List<HeapRect?>.filled(endpointOids.length, null);
 
@@ -1259,9 +1262,31 @@ class ViWire {
   final List<HeapRect?> endpointAttachRects;
 
   /// The decoded stored route shape (see [ViWireRoute] / [decodeWireRoute]),
-  /// or null when the signal carries the trivial scalar table (a straight
-  /// wire), or a form not yet decoded (branching junction codes).
+  /// or null when the signal carries no table record, or a form not yet
+  /// decoded (the extended multi-endpoint branching form).
   final ViWireRoute? route;
+
+  /// The wire's **absolute stored polyline** in diagram coordinates — the
+  /// exact Manhattan route LabVIEW saved — or null when it is not provable.
+  /// Non-null only when the signal has exactly two endpoints, both resolve
+  /// an attach point (see [ViDiagram.wireAttachPoint]), the stored table
+  /// decodes, and the walked route **closes exactly**: starting at the
+  /// first endpoint's attach point and walking [ViWireRoute.direction] +
+  /// the stored signs/lengths, the implied final segment must land on the
+  /// second endpoint's attach point dead-on (perpendicular coordinate equal,
+  /// closing direction agreeing with the stored final sign). Nothing is
+  /// force-closed: a walk that misses returns null and the census counts it.
+  ///
+  /// Corpus census (7,524 VIs; pinned by `wire_route_census_test`): of the
+  /// 117,112 two-endpoint signals whose BOTH endpoints resolve an attach
+  /// point, **113,337 (96.78%) close exactly** and ship here; 3,718 miss
+  /// (dominated by wires against grown shift-register stacks — elongated
+  /// 8×N attach rects whose per-element attach points are not yet decoded;
+  /// TODO), 3 land off by 1 px, 54 close with a contradicted final sign.
+  /// The closure is a zero-slack integrity check against independently
+  /// decoded geometry (the attach rects), so a shipped polyline is proven
+  /// at both ends, not fitted.
+  final List<ViPoint>? routePoints;
 
   /// The wire's decoded type word ([HeapAttribute.lastSignalKind]) — element
   /// type code, array depth, flags — or null for the 14 corpus signals with
@@ -1296,66 +1321,157 @@ class ViWire {
   ViTypeKind? get elementTypeKind => signalType?.elementKind;
 }
 
-/// The decoded shape of a signal's stored wire route (its `0x1e7` packed
-/// table): [pointCount] route points as **alternating-axis segments starting
-/// horizontal**, where [segmentLengths] are the unsigned lengths of the
-/// leading segments and [jointSigns] the sign (+1 down/right, −1 up/left) of
-/// the segment *leaving* each interior joint. The first segment's sign and
-/// the trailing segment(s) are not stored — they are implied by the
-/// endpoints, so a renderer aims the first segment toward the destination
-/// and closes the route on the destination's connection point.
-///
-/// Corpus validation (7,524 VIs): on all 49,404 two-endpoint container
-/// signals with bounded anchors, the decoded displacement lands the implied
-/// final segment on the destination anchor (interval test, 8 px slack) for
-/// **99.59%** under the horizontal-first reading (H-only fits 38,559,
-/// either-orientation 10,640, V-only 38, no fit 166 — 99.66% counting the
-/// V-only contradictions); interior-joint sign bytes are `0`/`1` at
-/// 105,632 of 105,633 records (a single 2-endpoint exception). Ground
-/// truth: consistent within 1 px of LabVIEW's own render of the
-/// `basic.png` snippet (bend column measured at x=102-103 vs the decoded
-/// 102; input row y=21).
-class ViWireRoute {
-  ViWireRoute({required this.pointCount, required this.segmentLengths, required this.jointSigns});
+/// An absolute block-diagram point (LabVIEW diagram coordinates, y down).
+typedef ViPoint = ({int x, int y});
 
-  /// The stored route point count (the table's leading byte).
+/// The **initial-direction code** of a stored wire route — the packed
+/// `0x1e7` table's second byte, naming the axis AND sign of the route's
+/// first segment. Corpus (7,524 VIs; 388,828 two-endpoint signal tables,
+/// census pinned by `wire_route_census_test`): 387,786 decode under one of
+/// these four one-hot codes — `right` 326,073 / `up` 27,372 / `down`
+/// 27,120 / `left` 7,221 — plus 560 direction-less 1-point tables and 482
+/// undecoded residue tables. `0x00` opens the extended multi-endpoint
+/// (branching) form instead and appears on NO two-endpoint signal (a
+/// pinned law).
+enum WireRouteDirection {
+  /// `0x01` — the first segment runs **up** (−y).
+  up(0x01, 0, -1),
+
+  /// `0x02` — the first segment runs **left** (−x).
+  left(0x02, -1, 0),
+
+  /// `0x04` — the first segment runs **down** (+y).
+  down(0x04, 0, 1),
+
+  /// `0x08` — the first segment runs **right** (+x) — the dominant code
+  /// (LabVIEW dataflow runs left-to-right).
+  right(0x08, 1, 0)
+  ;
+
+  const WireRouteDirection(this.code, this.dx, this.dy);
+
+  /// The stored byte value.
+  final int code;
+
+  /// Unit x step of the first segment (−1, 0, +1).
+  final int dx;
+
+  /// Unit y step of the first segment (−1, 0, +1).
+  final int dy;
+
+  /// Whether the first segment runs along the x axis.
+  bool get isHorizontal => dy == 0;
+
+  /// The catalog entry for a stored direction byte, or null for any other
+  /// value (the `0x00` extended-form opener included).
+  static WireRouteDirection? fromCode(int code) => switch (code) {
+    0x01 => up,
+    0x02 => left,
+    0x04 => down,
+    0x08 => right,
+    _ => null,
+  };
+}
+
+/// The decoded shape of a signal's stored wire route (its `0x1e7` packed
+/// table): a Manhattan polyline of [pointCount] points whose segments
+/// alternate axis. The stored fields split the polyline's degrees of
+/// freedom exactly:
+///
+///  * [direction] — the first segment's axis and sign (the table's second
+///    byte, see [WireRouteDirection]);
+///  * [jointSigns] — the sign of every LATER segment (segments
+///    `1..pointCount-2`; the axis alternates so only the sign is stored);
+///  * [segmentLengths] — the unsigned length of every segment EXCEPT the
+///    last (segments `0..pointCount-3`).
+///
+/// The one missing quantity — the final segment's length — is implied by
+/// the destination: the route starts at the first endpoint's attach point
+/// and the final segment closes onto the second endpoint's attach point
+/// ([ViWire.routePoints] performs that closure and owns the corpus census;
+/// the walked perpendicular must land exactly, so nothing is fabricated).
+/// A 2-point route stores no signs/lengths (one implied straight segment);
+/// a 1-point table (both endpoints on one spot) stores no direction byte.
+///
+/// Ground truth: the walked geometry reproduces LabVIEW's own render of
+/// the `basic.png` snippet — its upper wire walks the terminal's attach
+/// centre (74,9) → bend (102,9) → bend (102,21), matching the drawn bend
+/// column measured at x=102-103 and the drawn add-input row y=21; the
+/// lower wire mirrors it onto the y=31 input row. The corpus-wide proof is
+/// the closure census on [ViWire.routePoints]: walked routes land on the
+/// far endpoint's independently decoded attach rect with zero slack.
+class ViWireRoute {
+  ViWireRoute({
+    required this.pointCount,
+    required this.direction,
+    required this.segmentLengths,
+    required this.jointSigns,
+  });
+
+  /// The stored route point count (the table's leading byte), including
+  /// both endpoint attach points.
   final int pointCount;
 
-  /// Unsigned lengths of the stored leading segments, axis-alternating
-  /// starting horizontal. `pointCount - 2` entries in the common form;
-  /// `pointCount - 1` in the extended header form.
+  /// The first segment's direction, or null only for the 1-point table
+  /// (which stores no direction byte).
+  final WireRouteDirection? direction;
+
+  /// Unsigned lengths of segments `0..pointCount-3` (every segment except
+  /// the final closing one): `pointCount - 2` entries (empty for 1/2-point
+  /// routes).
   final List<int> segmentLengths;
 
-  /// Sign of the segment leaving interior joint i (+1 = down/right,
-  /// −1 = up/left), aligned with the segment of the same index + 1.
+  /// Sign (+1 = down/right, −1 = up/left) of segments `1..pointCount-2`
+  /// (every segment except the first, whose sign rides [direction]):
+  /// `pointCount - 2` entries, index i = segment i+1. The LAST entry is the
+  /// closing segment's stored sign — its length is implied but its
+  /// direction is written, giving the closure an integrity check.
   final List<int> jointSigns;
 }
 
-/// Decodes a signal's packed `0x1e7` container [table] into a [ViWireRoute].
+/// Decodes a signal's packed `0x1e7` wire-table bytes into a [ViWireRoute].
 ///
-/// Layout (derived + corpus-validated, see [ViWireRoute]):
-/// `[u8 pointCount] [0x08 | 0x00 0x08] [(pointCount-2) sign bytes]
-/// [length values]` where a length ≥ 255 is stored as `FF` + u16be. The
-/// short header carries `pointCount-2` lengths (trailing segment implied);
-/// the extended `00 08` header carries `pointCount-1` — a length-accounting
-/// observation only: the extended form never occurs on two-endpoint signals,
-/// so its geometry is not yet validated (TODO: validate once the branching
-/// junction codes are decoded). Returns null for a malformed table or one
-/// using the undecoded branching junction codes (sign bytes outside
-/// `0`/`1` — observed almost exclusively on signals with 3+ endpoints; one
-/// two-endpoint exception in the corpus).
+/// Layout (corpus-validated, census pinned by `wire_route_census_test`):
+/// `[u8 pointCount] [u8 direction] [(pointCount-2) sign bytes]
+/// [(pointCount-2) length values]` where sign bytes are `00` (+, down/right)
+/// or `01` (−, up/left), a length ≥ 255 is stored as `FF` + u16be, and
+/// [direction] is a one-hot [WireRouteDirection] code. The 1-point table is
+/// the single byte `01`; the 2-point table is `[02][direction]`.
+///
+/// Returns null (not decoded) for:
+///  * the extended `[n][00]…` **multi-endpoint branching form** (35,970
+///    corpus tables, on 3+-endpoint signals only). Its framing is
+///    established — `[u8 n][00][(n-1) mode bytes][(n-1) length values]`,
+///    all `n-1` tree-edge lengths stored — and the mode stream is a
+///    branch-tree program: a leading `1/2/4/8` is a plain
+///    [WireRouteDirection] code, `05`/`06`/`07` push the current point as
+///    a junction and start a branch, and `03` returns to the pushed
+///    junction and continues (branch endpoints land on the signal's later
+///    endpoint attach points; walked samples close exactly, junction dots
+///    fall on the pushed points). What is NOT yet decoded is the
+///    axis/sign selection rule of the post-push and post-return segments:
+///    with those left free, a constraint search closes 1,431 of 1,858
+///    fully-anchored 3-6-endpoint corpus tables onto every endpoint with
+///    a unique walk, but no candidate per-code rule explains all of them.
+///    TODO: pin the branch axis rule and ship branching routes;
+///  * a second byte that is no direction code;
+///  * sign bytes outside `00`/`01`, or a length count that disagrees with
+///    the point count (malformed / not this grammar). The two-endpoint
+///    residue is 482 of 388,828 corpus tables (censused as
+///    `undecoded2ep`), dominated by short `dir=01` tables carrying two
+///    trailing bytes this grammar does not explain (e.g. `02 01 00 08`);
+///    TODO.
 ViWireRoute? decodeWireRoute(Uint8List table) {
-  if (table.length < 2 || table[0] < 2) return null;
+  if (table.isEmpty) return null;
   final n = table[0];
-  final int dataStart;
-  if (table[1] == 0x08) {
-    dataStart = 2;
-  } else if (table.length > 2 && table[1] == 0x00 && table[2] == 0x08) {
-    dataStart = 3;
-  } else {
-    return null;
+  if (n == 1) {
+    if (table.length != 1) return null;
+    return ViWireRoute(pointCount: 1, direction: null, segmentLengths: const [], jointSigns: const []);
   }
-  var i = dataStart;
+  if (n < 2 || table.length < 2) return null;
+  final direction = WireRouteDirection.fromCode(table[1]);
+  if (direction == null) return null;
+  var i = 2;
   final signs = <int>[];
   for (var k = 0; k < n - 2; k++) {
     if (i >= table.length) return null;
@@ -1373,11 +1489,8 @@ ViWireRoute? decodeWireRoute(Uint8List table) {
     }
     lengths.add(v);
   }
-  // The header determines the count: the short form stores pointCount-2
-  // lengths, the extended form pointCount-1 — a mismatch is a malformed
-  // table, not the other family.
-  if (lengths.length != (dataStart == 2 ? n - 2 : n - 1)) return null;
-  return ViWireRoute(pointCount: n, segmentLengths: lengths, jointSigns: signs);
+  if (lengths.length != n - 2) return null;
+  return ViWireRoute(pointCount: n, direction: direction, segmentLengths: lengths, jointSigns: signs);
 }
 
 /// Whether a `vers` string predates the **frame-relative termBounds
@@ -1440,16 +1553,23 @@ class ViDiagram {
   /// signals (e.g. a front panel). See [ViWire].
   late final List<ViWire> wires = [
     for (final object in objects)
-      if (object.kind == 0x17)
-        ViWire(
-          signalOid: object.oid,
-          endpointOids: List<int>.of(object.refs),
-          endpointAnchors: [for (final oid in object.refs) _boundedOwnerBounds(oid)],
-          endpointAttachRects: [for (final oid in object.refs) endpointTerminalBounds(oid)],
-          route: object.wireTableRaw == null ? null : decodeWireRoute(object.wireTableRaw!),
-          signalType: object.lastSignalKind == null ? null : ViSignalType(object.lastSignalKind!),
-        ),
+      if (object.kind == 0x17) _buildWire(object),
   ];
+
+  ViWire _buildWire(ViHeapObject object) {
+    final route = object.wireTableRaw == null ? null : decodeWireRoute(object.wireTableRaw!);
+    return ViWire(
+      signalOid: object.oid,
+      endpointOids: List<int>.of(object.refs),
+      endpointAnchors: [for (final oid in object.refs) _boundedOwnerBounds(oid)],
+      endpointAttachRects: [for (final oid in object.refs) endpointTerminalBounds(oid)],
+      route: route,
+      routePoints: route == null || object.refs.length != 2
+          ? null
+          : _closedRoutePoints(route, wireAttachPoint(object.refs[0]), wireAttachPoint(object.refs[1])),
+      signalType: object.lastSignalKind == null ? null : ViSignalType(object.lastSignalKind!),
+    );
+  }
 
   /// Member oid → the oid of the **terminal object** that declares it in its
   /// own `14 19` childRefs *and* carries a [ViHeapObject.termBounds] rect (a
@@ -1535,6 +1655,67 @@ class ViDiagram {
       bottom: frame.top + rel.bottom,
       right: frame.left + rel.right,
     );
+  }
+
+  /// The **attach point** of the signal-endpoint DCO [oid] — the absolute
+  /// diagram point stored wire routes anchor to — or null when no attach
+  /// geometry resolves. The point is the centre (halves floored, matching
+  /// LabVIEW's integer grid) of the endpoint's attach rectangle:
+  /// [endpointTerminalBounds] where a terminal resolves one (structure
+  /// tunnels / border terminals), else the endpoint object's OWN bounds when
+  /// it is bounded (the `0x16` front-panel-terminal endpoints — e.g. a 32×16
+  /// terminal at (58,1) attaches at its centre (74,9), which LabVIEW's own
+  /// render of that wire confirms). Null for the plain-node `0x15` endpoints
+  /// (no attach geometry is stored; the wire meets the node at a
+  /// per-terminal point the route's closing segment implies — see
+  /// [ViWire.routePoints]) and for pre-8.6 files (the old coordinate space,
+  /// same gate as [endpointTerminalBounds]).
+  ViPoint? wireAttachPoint(int oid) {
+    var rect = endpointTerminalBounds(oid);
+    if (rect == null) {
+      if (_predatesFrameRelativeTermBounds(version)) return null;
+      final endpoint = byId[oid];
+      if (endpoint == null || !kSignalEndpointDcoKinds.contains(endpoint.kind)) return null;
+      rect = endpoint.absBounds;
+      if (rect == null) return null;
+    }
+    return (x: rect.left + (rect.right - rect.left) ~/ 2, y: rect.top + (rect.bottom - rect.top) ~/ 2);
+  }
+
+  /// Walks [route] from attach point [s] and closes it onto attach point
+  /// [t], returning the absolute polyline — exactly [ViWireRoute.pointCount]
+  /// points — or null when either anchor is unknown or the closure is not
+  /// exact (see [ViWire.routePoints]; never force-closed).
+  static List<ViPoint>? _closedRoutePoints(ViWireRoute route, ViPoint? s, ViPoint? t) {
+    if (s == null || t == null) return null;
+    final n = route.pointCount;
+    if (n == 1) return s == t ? [s] : null;
+    final direction = route.direction;
+    if (direction == null) return null;
+    var x = s.x, y = s.y;
+    var horizontal = direction.isHorizontal;
+    var sign = direction.dx + direction.dy;
+    final points = <ViPoint>[s];
+    final lengths = route.segmentLengths;
+    for (var k = 0; k < lengths.length; k++) {
+      if (k > 0) sign = route.jointSigns[k - 1];
+      if (horizontal) {
+        x += lengths[k] * sign;
+      } else {
+        y += lengths[k] * sign;
+      }
+      points.add((x: x, y: y));
+      horizontal = !horizontal;
+    }
+    // The closing segment: its length is implied by [t], so the walk must
+    // already agree on the perpendicular axis, and the closing direction
+    // must match the stored final sign (a zero-length closure has none).
+    if (horizontal ? y != t.y : x != t.x) return null;
+    final along = horizontal ? t.x - x : t.y - y;
+    final closingSign = route.jointSigns.isEmpty ? sign : route.jointSigns.last;
+    if (along != 0 && (along > 0 ? 1 : -1) != closingSign) return null;
+    points.add(t);
+    return points;
   }
 
   /// The [ViHeapObject.absBounds] of [oid]'s nearest bounded owner — the object
@@ -1791,13 +1972,27 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
         if (attr.attribute == HeapAttribute.dIdx && kMultiFrameStructureKinds.contains(cur.kind)) {
           cur.dIdx ??= attr.asInt;
         }
-        // First-wins is safe: no signal in the corpus carries more than one
-        // container-width table (155,158 container-bearing signals, 0 with a
-        // second record).
-        if (attr.attribute == HeapAttribute.compressedWireTable &&
-            cur.kind == 0x17 &&
-            attr.width == HeapAttrWidth.container) {
-          cur.wireTableRaw ??= attr.rawValueBytes;
+        // The wire table rides every attribute width: long tables use the
+        // length-prefixed container; tables of 1/2/4 bytes ride the scalar
+        // u8/u16/rgb widths (a 2-byte straight-wire table `[02][dir]` is a
+        // u16 scalar, a 4-byte one-bend table `[03][dir][sign][len]` a 4-byte
+        // scalar). Scalars are re-serialised big-endian so [wireTableRaw] is
+        // the table bytes in every case. First-wins is safe: no corpus signal
+        // carries a second table record.
+        if (attr.attribute == HeapAttribute.compressedWireTable && cur.kind == 0x17) {
+          if (attr.width == HeapAttrWidth.container) {
+            cur.wireTableRaw ??= attr.rawValueBytes;
+          } else {
+            final scalarBytes = _attrScalarBytes(attr.width);
+            final value = attr.asInt;
+            if (scalarBytes != null && scalarBytes > 0 && value != null) {
+              final table = Uint8List(scalarBytes);
+              for (var b = 0; b < scalarBytes; b++) {
+                table[b] = (value >> (8 * (scalarBytes - 1 - b))) & 0xff;
+              }
+              cur.wireTableRaw ??= table;
+            }
+          }
         }
         // Kind-gated to the signal class (the record census puts the tag on
         // 0x17 at 99.99% — the stray off-class carriers are not wire types)

@@ -505,9 +505,12 @@ enum HeapAttribute {
   /// OF__compressedWireTable): scope signal `0x17` at **100.00%** (426,397
   /// records, BDHb only), in the per-signal chain `25 15 → C5 E7 → 44 9F`
   /// ([signalState] → this → [lastSignalKind]). The `C5 E7 <len>` form is the
-  /// packed table payload (framed container; only ~38% re-walks as records —
-  /// it is packed data, not a record stream; interior packing not yet
-  /// decoded); small tables ride the scalar `45 E7`/`85 E7` widths.
+  /// packed table payload (framed container — packed data, not a record
+  /// stream); tables of 1/2/4 bytes ride the scalar `25 E7`/`45 E7`/`85 E7`
+  /// widths (a 2-byte straight-wire table is a u16 scalar). The packed
+  /// layout IS decoded for two-endpoint signals — the stored wire route
+  /// polyline; see `decodeWireRoute`/`ViWireRoute` (graph.dart), which own
+  /// the grammar and the corpus census.
   compressedWireTable(0x1e7, HeapAttrKind.numeric, 'compressedWireTable', AttrConfidence.inferred),
 
   /// Raw `0x09F` — **last signal kind**: the signal's **wire-type word**
