@@ -255,12 +255,38 @@ void main() {
       '| asset | op | size | sources |\n|---|---|---|---|\n',
     );
     var written = 0;
+    // A VERIFIED icon is the maintainer's ground truth: the generator never
+    // re-extracts or deletes it, whatever the pipeline thinks of its
+    // sources.
+    final catalogNow = File(
+      '$appDir/lib/src/prim_icon_catalog.dart',
+    ).readAsStringSync();
+    final verifiedKeys = {
+      for (final m in RegExp(
+        r"'([a-z0-9]+)': PrimIconStatus\.verified",
+      ).allMatches(catalogNow))
+        m.group(1)!,
+    };
     final pending = <String, ({img.Image icon, String sources})>{};
     // Extraction NEVER silently drops an identity: failures land here and in
     // the manifest with their reason.
     final failed = <String, String>{};
     final keys = samples.keys.toList()..sort();
     for (final key in keys) {
+      if (verifiedKeys.contains(key)) {
+        final existing = Directory(outDir.path)
+            .listSync()
+            .whereType<File>()
+            .where(
+              (f) => RegExp('/$key(?:_[a-z0-9-]+)?\\.png\$').hasMatch(f.path),
+            );
+        if (existing.isNotEmpty) {
+          manifest.writeln(
+            '| ${existing.first.uri.pathSegments.last} | (verified — kept, not regenerated) | | |',
+          );
+          continue;
+        }
+      }
       final all = samples[key]!;
       for (final smp in all) {
         erodeWireTails(smp.rgba, smp.w, smp.h);
@@ -776,6 +802,19 @@ void main() {
         '\nSnippets excluded from harvesting (registration below the 0.7 '
         'placement gate): ${skippedLowQuality.toSet().join(', ')}\n',
       );
+    }
+    // A stale asset for a key that no longer extracts (and is not
+    // verified) would stamp silently with no manifest row — remove it. The
+    // removal is loud: it lands in the manifest's failure list above.
+    for (final f in Directory(outDir.path).listSync().whereType<File>()) {
+      final m = RegExp(
+        r'((?:prim|class)\d+)(?:_[a-z0-9-]+)?\.png$',
+      ).firstMatch(f.path);
+      if (m == null) continue;
+      final key = m.group(1)!;
+      if (!pending.containsKey(key) && !verifiedKeys.contains(key)) {
+        f.deleteSync();
+      }
     }
     File('${outDir.path}/MANIFEST.md').writeAsStringSync(manifest.toString());
 

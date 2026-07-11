@@ -10,13 +10,15 @@ natural size.
 
 | asset | op | size | sources |
 |---|---|---|---|
+| class58.png | (verified — kept, not regenerated) | | |
+| prim1534.png | (verified — kept, not regenerated) | | |
+| prim1535_match-pattern.png | (verified — kept, not regenerated) | | |
 
 Palette (13 colours — every icon pixel is one of these): #000000 #0000ff #333333 #444444 #4c4c3d #666666 #777777 #999966 #aaaaaa #ff00ff #ff6600 #ffffcc #ffffff
 
 | class147.png | class 0x93 | 32x29 | Excel_Variant_Elements, example, Page1, Config_Escape — single-sample fallback (0/6 agreeing) |
 | class370.png | class 0x172 | 32x18 | Excel_Variant_Elements, Excel_Cell_to_Value — single-sample retry after oversized consensus (2/7 agreeing) |
 | class52.png | class 0x34 | 32x41 | Excel_Variant_Elements — single-sample fallback (0/1 agreeing) |
-| class58.png | class 0x3a | 32x17 | ClassesInMemory, ClassChildren, large — pair-seeded consensus (5/5 agreeing) |
 | class62.png | class 0x3e | 32x17 | missing_terminal, ClassesInMemory, ClassChildren, Config_Dump — pair-seeded consensus (5/5 agreeing) |
 | class68.png | class 0x44 | 32x27 | ClassChildren, Config_Dump2 — pair-seeded consensus (7/7 agreeing) |
 | prim1050_add.png | Add | 29x28 | GenerateTree, IconHeader, basic, MD5 — single-sample fallback (0/8 agreeing) |
@@ -63,8 +65,6 @@ Palette (13 colours — every icon pixel is one of these): #000000 #0000ff #3333
 | prim1502_string-length.png | String Length | 32x17 | Config_Load, Config_Load2, MD5 — pair-seeded consensus (2/8 agreeing) |
 | prim1503_string-subset.png | String Subset | 32x37 | Config_Load, Config_Load2, Excel_Variant_Elements — single-sample retry after oversized consensus (2/8 agreeing) |
 | prim1516_select.png | Select | 27x27 | Excel_Variant_Elements, Config_Dump, Config_Dump2, large — pair-seeded consensus (8/8 agreeing) |
-| prim1534.png | (uncatalogued) | 32x32 | Excel_Cell_to_Value — pair-seeded consensus (8/8 agreeing) |
-| prim1535_match-pattern.png | Match Pattern | 32x32 | ClassesInMemory, ClassChildren, Config_Dump, Config_Dump2 — pair-seeded consensus (8/8 agreeing) |
 | prim1539_spreadsheet-string-to-array.png | Spreadsheet String To Array | 32x32 | Excel_Variant_Elements — single-sample fallback (0/1 agreeing) |
 | prim1606_rotate-left-with-carry.png | Rotate Left With Carry | 27x17 | crc8, crc16 — pair-seeded consensus (2/2 agreeing) |
 | prim1608_string-to-byte-array.png | String To Byte Array | 34x11 | Read Library Version, Config_Escape, crc8, MD5, crc16 — pair-seeded consensus (4/6 agreeing) |
@@ -104,6 +104,7 @@ Palette (13 colours — every icon pixel is one of these): #000000 #0000ff #3333
 ## Identities without a usable asset (kept visible, never hidden)
 
 - class108: no agreeing consensus and no centred sample survived cleaning (4 samples)
+- class58: every sample came from a low-registration snippet
 - prim1069: no agreeing consensus and no centred sample survived cleaning (1 samples)
 - prim1078: no agreeing consensus and no centred sample survived cleaning (1 samples)
 - prim1108: no agreeing consensus and no centred sample survived cleaning (1 samples)
@@ -120,6 +121,8 @@ Palette (13 colours — every icon pixel is one of these): #000000 #0000ff #3333
 - prim1303: no agreeing consensus and no centred sample survived cleaning (1 samples)
 - prim1421: every sample came from a low-registration snippet
 - prim1435: every sample came from a low-registration snippet
+- prim1534: every sample came from a low-registration snippet
+- prim1535: every sample came from a low-registration snippet
 - prim1537: every sample came from a low-registration snippet
 - prim1609: no agreeing consensus and no centred sample survived cleaning (4 samples)
 - prim1814: every sample came from a low-registration snippet
