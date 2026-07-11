@@ -217,261 +217,272 @@ void main() {
     });
   });
 
-  testWidgets(
-    'crc8 display pipeline: the U8 icon renders with uniform borders',
-    (tester) async {
-      final dir = repoDir(
-        'packages/labwright_rsrc_parse/corpus/vi/rcpacini_VI-Snippets',
+  testWidgets('crc8 display pipeline: the U8 icon renders with uniform borders', (
+    tester,
+  ) async {
+    final dir = repoDir(
+      'packages/labwright_rsrc_parse/corpus/vi/rcpacini_VI-Snippets',
+    );
+    if (dir == null) {
+      markTestSkipped('corpus not fetched');
+      return;
+    }
+    await loadRealTextFont();
+    final f = dir
+        .listSync(recursive: true)
+        .whereType<File>()
+        .firstWhere((f) => f.path.endsWith('/crc8.png'));
+    await tester.runAsync(() async {
+      final bytes = f.readAsBytesSync();
+      final bd = bestBlockDiagram(buildViModel(extractSnippetVi(bytes)!))!;
+      final drawable = bdDrawableObjects(bd);
+      final wires = bdVisibleWires(bd);
+      final icons = await loadPrimIcons();
+      final raster = (await rasteriseBlockDiagram(
+        bd,
+        primIcons: icons,
+        scale: 1.0,
+        margin: 2,
+        wires: wires,
+        drawable: drawable,
+      ))!;
+      final reference = await decodeReferenceImage(bytes);
+      final result = await compareToReference(
+        raster.image,
+        reference.image,
+        lockScale: 1.0 / raster.scale,
+        anchorRects: bdStructureAnchorRects(bd, raster, drawable: drawable),
       );
-      if (dir == null) {
-        markTestSkipped('corpus not fetched');
-        return;
-      }
-      await loadRealTextFont();
-      final f = dir
-          .listSync(recursive: true)
-          .whereType<File>()
-          .firstWhere((f) => f.path.endsWith('/crc8.png'));
-      await tester.runAsync(() async {
-        final bytes = f.readAsBytesSync();
-        final bd = bestBlockDiagram(buildViModel(extractSnippetVi(bytes)!))!;
-        final drawable = bdDrawableObjects(bd);
-        final wires = bdVisibleWires(bd);
-        final icons = await loadPrimIcons();
-        final raster = (await rasteriseBlockDiagram(
-          bd,
-          primIcons: icons,
-          scale: 1.0,
-          margin: 2,
-          wires: wires,
-          drawable: drawable,
-        ))!;
-        final reference = await decodeReferenceImage(bytes);
-        final result = await compareToReference(
-          raster.image,
-          reference.image,
-          lockScale: 1.0 / raster.scale,
-          anchorRects: bdStructureAnchorRects(bd, raster, drawable: drawable),
-        );
-        const ss = kOracleDisplaySupersample;
-        final raster3 = (await rasteriseBlockDiagram(
-          bd,
-          primIcons: icons,
-          scale: ss.toDouble(),
-          margin: 2,
-          wires: wires,
-          drawable: drawable,
-        ))!;
-        final fitted3 = await redrawRegisteredSupersampled(
-          raster3.image,
-          result.registration,
-          reference.image.width,
-          reference.image.height,
-          ss,
-        );
-        // Simulate a pane at half logical scale: n=2 -> k = 3*2.
-        const n = 2;
-        final display = await boxDownscale(fitted3, ss * n);
-        final out = (await display.toByteData())!.buffer.asUint8List();
-        int lum(int x, int y) => out[(y * display.width + x) * 4];
-        // oid 894 (the U8 conversion): its stamp is KNOWN geometry
-        // ([kPrimIconPlacement]), so the display rows holding its 1 px top
-        // and bottom borders are computable exactly. At n=2 each display row
-        // is the box mean of two logical rows — the border blends with its
-        // neighbour, but UNIFORMLY: any spread along the row is phase error.
-        final o = bd.byId[894]!.absBounds!;
-        final reg = result.registration;
-        final art1608b = icons[1608]!.base;
-        final stampRef = primIconStampRect(
-          ui.Rect.fromLTRB(
-            o.left - raster.content.left + reg.dx,
-            o.top - raster.content.top + reg.dy,
-            o.right - raster.content.left + reg.dx,
-            o.bottom - raster.content.top + reg.dy,
-          ),
-          art1608b.width,
-          art1608b.height,
-          key: 1608,
-        );
-        final topRow = stampRef.top.toInt() ~/ n;
-        final botRow = (stampRef.bottom.toInt() - 1) ~/ n;
-        final xs = [
-          for (
-            // Clear the chamfered corners (borders descend through the top
-            // rows for ~5 columns each side) so only the flat border mixes.
-            var x = (stampRef.left.toInt() + 6 + n - 1) ~/ n;
-            x <= (stampRef.right.toInt() - 7) ~/ n;
-            x++
-          )
-            x,
-        ];
-        // Only the BOTTOM border blends with a uniform neighbour (canvas
-        // white below); the top border mixes with the icon's own checker
-        // content, so its display row varies legitimately. The synthetic
-        // test above pins the both-parity 1 px line invariant; this pins it
-        // in the real pipeline.
-        final bottom = [for (final x in xs) lum(x, botRow)];
-        // ignore: avoid_print
-        print('U8 bottom border row y=$botRow: $bottom');
-        final botSpread =
-            bottom.reduce((a, b) => a > b ? a : b) -
-            bottom.reduce((a, b) => a < b ? a : b);
-        expect(
-          botSpread,
-          lessThanOrEqualTo(2),
-          reason: 'bottom border not uniform: $bottom',
-        );
-        expect(topRow * n, stampRef.top.toInt(), reason: 'row bookkeeping');
+      const ss = kOracleDisplaySupersample;
+      final raster3 = (await rasteriseBlockDiagram(
+        bd,
+        primIcons: icons,
+        scale: ss.toDouble(),
+        margin: 2,
+        wires: wires,
+        drawable: drawable,
+      ))!;
+      final fitted3 = await redrawRegisteredSupersampled(
+        raster3.image,
+        result.registration,
+        reference.image.width,
+        reference.image.height,
+        ss,
+      );
+      // Simulate a pane at half logical scale: n=2 -> k = 3*2.
+      const n = 2;
+      final display = await boxDownscale(fitted3, ss * n);
+      final out = (await display.toByteData())!.buffer.asUint8List();
+      int lum(int x, int y) => out[(y * display.width + x) * 4];
+      // oid 894 (the U8 conversion): its stamp is KNOWN geometry
+      // ([kPrimIconPlacement]), so the display rows holding its 1 px top
+      // and bottom borders are computable exactly. At n=2 each display row
+      // is the box mean of two logical rows — the border blends with its
+      // neighbour, but UNIFORMLY: any spread along the row is phase error.
+      final o = bd.byId[894]!.absBounds!;
+      final reg = result.registration;
+      final art1608b = icons[1608]!.base;
+      final stampRef = primIconStampRect(
+        ui.Rect.fromLTRB(
+          o.left - raster.content.left + reg.dx,
+          o.top - raster.content.top + reg.dy,
+          o.right - raster.content.left + reg.dx,
+          o.bottom - raster.content.top + reg.dy,
+        ),
+        art1608b.width,
+        art1608b.height,
+        key: 1608,
+      );
+      final topRow = stampRef.top.toInt() ~/ n;
+      final botRow = (stampRef.bottom.toInt() - 1) ~/ n;
+      final xs = [
+        for (
+          // Clear the chamfered corners (borders descend through the top
+          // rows for ~5 columns each side) so only the flat border mixes.
+          var x = (stampRef.left.toInt() + 6 + n - 1) ~/ n;
+          x <= (stampRef.right.toInt() - 7) ~/ n;
+          x++
+        )
+          x,
+      ];
+      // Only the BOTTOM border blends with a uniform neighbour (canvas
+      // white below); the top border mixes with the icon's own checker
+      // content, so its display row varies legitimately. The synthetic
+      // test above pins the both-parity 1 px line invariant; this pins it
+      // in the real pipeline.
+      final bottom = [for (final x in xs) lum(x, botRow)];
+      // ignore: avoid_print
+      print('U8 bottom border row y=$botRow: $bottom');
+      final botSpread =
+          bottom.reduce((a, b) => a > b ? a : b) -
+          bottom.reduce((a, b) => a < b ? a : b);
+      expect(
+        botSpread,
+        lessThanOrEqualTo(2),
+        reason: 'bottom border not uniform: $bottom',
+      );
+      expect(topRow * n, stampRef.top.toInt(), reason: 'row bookkeeping');
 
-        // At the wipe's default integer zooms the display IS the 1:1 raster
-        // (or its whole-pixel upscale), so exactness reduces to the stamp
-        // itself: every opaque pixel of the art must appear in the raster
-        // byte-for-byte at the grid-aligned stamp rect. Zero tolerance.
-        // Three stamps cover the three paths: a normal primitive (prim1608),
-        // a node in a DISABLED frame drawn with the grey-palette variant
-        // (prim1900, oid 3081), and a single-op class icon (class185,
-        // oid 3306).
-        final rasterPx = (await raster.image.toByteData())!.buffer
-            .asUint8List();
-        final greyIcons = primIconsGreyLoaded();
-        for (final (label, key, oid, art) in [
-          ('prim1608', 1608, 894, icons[1608]!.base),
-          ('prim1900 disabled', 1900, 3081, greyIcons[1900]!.base),
-          ('class185', -185, 3306, icons[-185]!.base),
-        ]) {
-          final b = bd.byId[oid]!.absBounds!;
-          final stamp = primIconStampRect(
-            ui.Rect.fromLTRB(
-              b.left - raster.content.left,
-              b.top - raster.content.top,
-              b.right - raster.content.left,
-              b.bottom - raster.content.top,
-            ),
-            art.width,
-            art.height,
-            key: key,
-          );
-          final artPx = (await art.toByteData())!.buffer.asUint8List();
-          var opaque = 0, mismatched = 0;
-          for (var y = 0; y < art.height; y++) {
-            for (var x = 0; x < art.width; x++) {
-              final a = (y * art.width + x) * 4;
-              if (artPx[a + 3] == 0) continue;
-              opaque++;
-              final rx = stamp.left.toInt() + x;
-              final ry = stamp.top.toInt() + y;
-              final r = (ry * raster.image.width + rx) * 4;
-              if (artPx[a] != rasterPx[r] ||
-                  artPx[a + 1] != rasterPx[r + 1] ||
-                  artPx[a + 2] != rasterPx[r + 2]) {
+      // At the wipe's default integer zooms the display IS the 1:1 raster
+      // (or its whole-pixel upscale), so exactness reduces to the stamp
+      // itself: every opaque pixel of the art must appear in the raster
+      // byte-for-byte at the grid-aligned stamp rect. Zero tolerance.
+      // Three stamps cover the three paths: a normal primitive (prim1608),
+      // a node in a DISABLED frame drawn with the grey-palette variant
+      // (prim1900, oid 3081), and a single-op class icon (class185,
+      // oid 3306).
+      final rasterPx = (await raster.image.toByteData())!.buffer.asUint8List();
+      final greyIcons = primIconsGreyLoaded();
+      for (final (label, key, oid, art) in [
+        ('prim1608', 1608, 894, icons[1608]!.base),
+        ('prim1900 disabled', 1900, 3081, greyIcons[1900]!.base),
+        ('class185', -185, 3306, icons[-185]!.base),
+      ]) {
+        final b = bd.byId[oid]!.absBounds!;
+        final stamp = primIconStampRect(
+          ui.Rect.fromLTRB(
+            b.left - raster.content.left,
+            b.top - raster.content.top,
+            b.right - raster.content.left,
+            b.bottom - raster.content.top,
+          ),
+          art.width,
+          art.height,
+          key: key,
+        );
+        final artPx = (await art.toByteData())!.buffer.asUint8List();
+        var opaque = 0, mismatched = 0;
+        for (var y = 0; y < art.height; y++) {
+          for (var x = 0; x < art.width; x++) {
+            final a = (y * art.width + x) * 4;
+            if (artPx[a + 3] == 0) continue;
+            opaque++;
+            final rx = stamp.left.toInt() + x;
+            final ry = stamp.top.toInt() + y;
+            final r = (ry * raster.image.width + rx) * 4;
+            if (artPx[a] != rasterPx[r] ||
+                artPx[a + 1] != rasterPx[r + 1] ||
+                artPx[a + 2] != rasterPx[r + 2]) {
+              mismatched++;
+            }
+          }
+        }
+        // ignore: avoid_print
+        print(
+          '$label stamp at 1:1: $opaque opaque asset px, '
+          '$mismatched mismatched',
+        );
+        expect(opaque, greaterThan(100));
+        expect(
+          mismatched,
+          0,
+          reason: '$label: the 1:1 stamp must reproduce the art exactly',
+        );
+      }
+
+      // The U8 conversion's wires: both must TOUCH the stamped icon (the
+      // route anchors substitute the stamp rect for the model box), and
+      // the exit wire carries the op's catalogued output colour — integer
+      // blue, from [PrimOp.output] — while the input stays string pink
+      // from its typed source terminal.
+      final u8 = bd.byId[894]!.absBounds!;
+      final art1608 = icons[1608]!.base;
+      final stamp1608 = primIconStampRect(
+        ui.Rect.fromLTRB(
+          u8.left - raster.content.left,
+          u8.top - raster.content.top,
+          u8.right - raster.content.left,
+          u8.bottom - raster.content.top,
+        ),
+        art1608.width,
+        art1608.height,
+        key: 1608,
+      );
+      Set<String> colorsAt(int x, List<int> ys) => {
+        for (final y in ys)
+          [
+            for (var c = 0; c < 3; c++)
+              rasterPx[(y * raster.image.width + x) * 4 + c],
+          ].join(','),
+      };
+      final wireYs = [
+        stamp1608.center.dy.floor() - 1,
+        stamp1608.center.dy.floor(),
+        stamp1608.center.dy.ceil(),
+      ];
+      final rightOf = colorsAt(stamp1608.right.toInt(), wireYs);
+      final leftOf = colorsAt(stamp1608.left.toInt() - 1, wireYs);
+      // ignore: avoid_print
+      print('U8 wire px right of icon: $rightOf, left of icon: $leftOf');
+      expect(
+        rightOf,
+        contains('0,0,255'),
+        reason: 'exit wire must touch the icon and be integer blue',
+      );
+      // 1 px crispness: nothing but pure wire colour and canvas white may
+      // appear in the sampled band — a stroked centreline at integer
+      // coordinates half-covers two rows (solid core + half-tones).
+      expect(
+        rightOf.difference({'0,0,255', '255,255,255'}),
+        isEmpty,
+        reason: 'exit wire must be a crisp 1px fill, no half-tones',
+      );
+      expect(
+        leftOf,
+        contains('255,0,255'),
+        reason: 'input wire must touch the icon and be string pink',
+      );
+
+      // Border-terminal chrome: every verified-kind terminal (tunnels,
+      // select tunnels, both shift registers, the selector) must render
+      // BYTE-IDENTICAL to LabVIEW's reference at its decoded rect —
+      // borders, fills, glyphs, and wire colours all at once.
+      final refPx = (await reference.image.toByteData())!.buffer.asUint8List();
+      final chromeCounts = <int, int>{};
+      for (final w in wires) {
+        for (var e = 0; e < w.endpointAttachRects.length; e++) {
+          final attach = w.endpointAttachRects[e];
+          if (attach == null) continue;
+          final terminal = bd.endpointTerminal(w.endpointOids[e]);
+          final kind = terminal?.kind;
+          if (kind == null || !kVerifiedBorderTerminalKinds.contains(kind)) {
+            continue;
+          }
+          chromeCounts[kind] = (chromeCounts[kind] ?? 0) + 1;
+          var mismatched = 0;
+          for (var y = attach.top; y < attach.bottom; y++) {
+            for (var x = attach.left; x < attach.right; x++) {
+              final ri =
+                  ((y - raster.content.top).toInt() * raster.image.width +
+                      (x - raster.content.left).toInt()) *
+                  4;
+              final fi =
+                  ((y - raster.content.top + reg.dy).toInt() *
+                          reference.image.width +
+                      (x - raster.content.left + reg.dx).toInt()) *
+                  4;
+              if (rasterPx[ri] != refPx[fi] ||
+                  rasterPx[ri + 1] != refPx[fi + 1] ||
+                  rasterPx[ri + 2] != refPx[fi + 2]) {
                 mismatched++;
               }
             }
           }
-          // ignore: avoid_print
-          print(
-            '$label stamp at 1:1: $opaque opaque asset px, '
-            '$mismatched mismatched',
-          );
-          expect(opaque, greaterThan(100));
           expect(
             mismatched,
             0,
-            reason: '$label: the 1:1 stamp must reproduce the art exactly',
+            reason:
+                'terminal 0x${kind.toRadixString(16)} at (${attach.left},'
+                '${attach.top}) differs from the reference in $mismatched px',
           );
         }
-
-        // The U8 conversion's wires: both must TOUCH the stamped icon (the
-        // route anchors substitute the stamp rect for the model box), and
-        // the exit wire carries the op's catalogued output colour — integer
-        // blue, from [PrimOp.output] — while the input stays string pink
-        // from its typed source terminal.
-        final u8 = bd.byId[894]!.absBounds!;
-        final art1608 = icons[1608]!.base;
-        final stamp1608 = primIconStampRect(
-          ui.Rect.fromLTRB(
-            u8.left - raster.content.left,
-            u8.top - raster.content.top,
-            u8.right - raster.content.left,
-            u8.bottom - raster.content.top,
-          ),
-          art1608.width,
-          art1608.height,
-          key: 1608,
-        );
-        Set<String> colorsAt(int x, List<int> ys) => {
-          for (final y in ys)
-            [
-              for (var c = 0; c < 3; c++)
-                rasterPx[(y * raster.image.width + x) * 4 + c],
-            ].join(','),
-        };
-        final wireYs = [
-          stamp1608.center.dy.floor() - 1,
-          stamp1608.center.dy.floor(),
-          stamp1608.center.dy.ceil(),
-        ];
-        final rightOf = colorsAt(stamp1608.right.toInt(), wireYs);
-        final leftOf = colorsAt(stamp1608.left.toInt() - 1, wireYs);
-        // ignore: avoid_print
-        print('U8 wire px right of icon: $rightOf, left of icon: $leftOf');
-        expect(
-          rightOf,
-          contains('0,0,255'),
-          reason: 'exit wire must touch the icon and be integer blue',
-        );
-        // 1 px crispness: nothing but pure wire colour and canvas white may
-        // appear in the sampled band — a stroked centreline at integer
-        // coordinates half-covers two rows (solid core + half-tones).
-        expect(
-          rightOf.difference({'0,0,255', '255,255,255'}),
-          isEmpty,
-          reason: 'exit wire must be a crisp 1px fill, no half-tones',
-        );
-        expect(
-          leftOf,
-          contains('255,0,255'),
-          reason: 'input wire must touch the icon and be string pink',
-        );
-
-        // Tunnel squares: every structure tunnel with a decoded attach rect
-        // must draw at EXACTLY that rect — a 1 px (68,68,68) ring (the
-        // border LabVIEW renders, read from the crc8 reference) filled with
-        // the wire's colour. The ring is asserted per pixel in our raster.
-        var tunnelCount = 0;
-        for (final w in wires) {
-          for (var e = 0; e < w.endpointAttachRects.length; e++) {
-            final attach = w.endpointAttachRects[e];
-            final anchor = w.endpointAnchors[e];
-            if (attach == null || anchor == null) continue;
-            // Only PLAIN LOOP TUNNELS (terminal class 0x22) draw the
-            // square; shift registers and other border terminals carry
-            // their own chrome.
-            final terminal = bd.endpointTerminal(w.endpointOids[e]);
-            if (terminal?.kind != 0x22) continue;
-            tunnelCount++;
-            final l = (attach.left - raster.content.left).toInt();
-            final t = (attach.top - raster.content.top).toInt();
-            final r = (attach.right - raster.content.left).toInt();
-            final b = (attach.bottom - raster.content.top).toInt();
-            for (var x = l; x < r; x++) {
-              for (final y in [t, b - 1]) {
-                final i = (y * raster.image.width + x) * 4;
-                expect(
-                  [rasterPx[i], rasterPx[i + 1], rasterPx[i + 2]],
-                  [68, 68, 68],
-                  reason:
-                      'tunnel ring pixel ($x,$y) of ${attach.left},'
-                      '${attach.top} not the border colour',
-                );
-              }
-            }
-          }
-        }
-        // ignore: avoid_print
-        print('verified $tunnelCount tunnel rings at decoded rects');
-        expect(tunnelCount, greaterThan(3));
-      });
-    },
-  );
+      }
+      // ignore: avoid_print
+      print(
+        'chrome byte-verified vs reference: '
+        '${chromeCounts.entries.map((e) => '0x${e.key.toRadixString(16)} x${e.value}').join(', ')}',
+      );
+      expect(chromeCounts.keys.toSet(), {0x22, 0x2d, 0x27, 0x28, 0x2e});
+    });
+  });
 }

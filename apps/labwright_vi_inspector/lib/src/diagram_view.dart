@@ -127,10 +127,11 @@ class _ViDiagramViewState extends State<ViDiagramView> {
     null => const {},
     final diagram => bdDisabledObjectOids(diagram),
   };
-  late final Set<HeapRect> _loopTunnelRects = switch (_diagram) {
-    null => const {},
-    final diagram => bdLoopTunnelAttachRects(diagram),
-  };
+  late final Map<HeapRect, ({int kind, bool hollow})> _borderTerminalKinds =
+      switch (_diagram) {
+        null => const {},
+        final diagram => bdBorderTerminalKinds(diagram),
+      };
   late final Map<int, List<({HeapRect box, int bmp})>> _structureTerminals =
       switch (_diagram) {
         null => const {},
@@ -329,7 +330,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                               primIcons: _primIcons,
                               primIconsGrey: primIconsGreyLoaded(),
                               disabledOids: _disabledOids,
-                              loopTunnelRects: _loopTunnelRects,
+                              borderTerminalKinds: _borderTerminalKinds,
                               iconFilterQuality: FilterQuality.low,
                               canvasScale: _anchorScale,
                               structureTerminals: _structureTerminals,
@@ -522,11 +523,13 @@ Color labviewTypeColor(ViTypeKind kind) => switch (kind) {
   ViTypeKind.numericFloat => const Color(0xFFFF8000),
   // Integer/enum blue and string magenta are sampled from LabVIEW's own
   // snippet renders (terminal borders (0,0,255) and (255,0,255)); boolean
-  // green matches the decoded constant foreground (0x007F00).
+  // green (0,102,0) is sampled from crc8's boolean WIRE dots and selector
+  // border at decoded rects (the decoded constant FOREGROUND is a
+  // different green, 0x007F00 — constants are not wires).
   ViTypeKind.numericInt => const Color(0xFF0000FF),
   ViTypeKind.enumRing => const Color(0xFF0000FF),
   ViTypeKind.string => const Color(0xFFFF00FF),
-  ViTypeKind.boolean => const Color(0xFF007F00),
+  ViTypeKind.boolean => const Color(0xFF006600),
   ViTypeKind.path => const Color(0xFF669900),
   ViTypeKind.clnNode => const Color(0xFFE8C547),
   // Cluster/array/refnum borders are not yet colour-sampled from a
@@ -578,6 +581,11 @@ const Color kBdWireColor = Color(0xFF2B2B2B);
 /// from the crc8 snippet reference at a decoded tunnel rect; the fill is the
 /// wire's own colour).
 const Color kBdTunnelBorder = Color(0xFF444444);
+
+/// The cream fill inside shift-register and selector border terminals
+/// (sampled (255,255,204) from the crc8 reference at decoded rects — the
+/// same cream as primitive icon bodies).
+const Color kBdTerminalFill = Color(0xFFFFFFCC);
 
 /// The opaque [Color] of a decoded 24-bit `0xRRGGBB` object colour ([rgb]), or
 /// null when the object carried no such colour. Used to fill a decoration or
@@ -780,6 +788,14 @@ Color bdWireColor(
           source.right,
         )];
     if (color != null) return color;
+  }
+  // Last: the signal's own decoded type word — an ESTIMATE (89.9% family
+  // agreement corpus-wide; see [ViSignalType]), which is why every
+  // terminal-derived source above outranks it. Arrays colour by ELEMENT
+  // kind, as LabVIEW does.
+  final wordKind = wire.elementTypeKind;
+  if (wordKind != null && wordKind != ViTypeKind.unknown) {
+    return labviewTypeColor(wordKind);
   }
   return kBdWireColor;
 }
@@ -1839,14 +1855,33 @@ bool primIconHit(ViHeapObject object, double x, double y) {
 /// build under the test framework's fake async).
 Map<int, PrimIconArt> primIconsLoaded() => _primIconsSync;
 
-/// The attach rects of PLAIN LOOP TUNNELS — wire endpoints whose resolving
-/// terminal is the loop-tunnel class `0x22`. Only this kind draws the
-/// wire-colour-filled square (verified against crc8's reference at a
-/// decoded rect); shift registers (`0x27`/`0x28`), selector and other
-/// border terminals carry their own chrome and are TODO until each is
-/// reference-verified.
-Set<HeapRect> bdLoopTunnelAttachRects(ViDiagram diagram) {
-  final out = <HeapRect>{};
+/// Terminal class codes whose border chrome is REFERENCE-VERIFIED (each
+/// spec below was read from crc8/crc16/crc32 reference pixels at decoded
+/// attach rects): plain loop tunnel `0x22` and select tunnel `0x2d` (a
+/// wire-colour-filled square under a 1 px [kBdTunnelBorder] ring), left /
+/// right shift registers `0x27`/`0x28` (2 px wire-colour border, cream
+/// fill, wire-colour down-/up-arrow glyph), selector terminal `0x2e`
+/// (1 px wire-colour border, cream fill, wire-colour `?` glyph). Other
+/// border-terminal kinds stay undrawn until reference-verified.
+const Set<int> kVerifiedBorderTerminalKinds = {0x22, 0x2d, 0x27, 0x28, 0x2e};
+
+/// The terminal [ViHeapObject.objFlags] bit marking a HOLLOW tunnel square
+/// (cream interior with a wire-colour ring — LabVIEW's use-default look)
+/// instead of the solid wire-colour fill. Corpus census over both snippet
+/// repos, classifying each 0x22/0x2d's reference interior: bit set → 71/72
+/// hollow; bit clear → 289/296 solid. The 8 outliers (7 cream-dominant
+/// without the bit — a bracket-style look whose trigger is not yet
+/// decoded — and 1 set-but-solid) are drawn by the flag until that third
+/// look is decoded (TODO).
+const int kTunnelHollowFlag = 0x1000000;
+
+/// Per decoded attach rect, its resolving terminal's class code and hollow
+/// bit — for the border-terminal chrome pass (only
+/// [kVerifiedBorderTerminalKinds] draw).
+Map<HeapRect, ({int kind, bool hollow})> bdBorderTerminalKinds(
+  ViDiagram diagram,
+) {
+  final out = <HeapRect, ({int kind, bool hollow})>{};
   for (final wire in bdVisibleWires(diagram)) {
     for (var e = 0; e < wire.endpointOids.length; e++) {
       final attach = e < wire.endpointAttachRects.length
@@ -1854,7 +1889,13 @@ Set<HeapRect> bdLoopTunnelAttachRects(ViDiagram diagram) {
           : null;
       if (attach == null) continue;
       final terminal = diagram.endpointTerminal(wire.endpointOids[e]);
-      if (terminal?.kind == 0x22) out.add(attach);
+      if (terminal != null &&
+          kVerifiedBorderTerminalKinds.contains(terminal.kind)) {
+        out[attach] = (
+          kind: terminal.kind,
+          hollow: ((terminal.objFlags ?? 0) & kTunnelHollowFlag) != 0,
+        );
+      }
     }
   }
   return out;
@@ -1899,7 +1940,7 @@ class BdDiagramPainter extends CustomPainter {
     this.primIcons = const {},
     this.primIconsGrey = const {},
     this.disabledOids = const {},
-    this.loopTunnelRects = const {},
+    this.borderTerminalKinds = const {},
     this.structureTerminals = const {},
     this.iconFilterQuality = FilterQuality.none,
     this.canvasScale = 1,
@@ -1936,9 +1977,9 @@ class BdDiagramPainter extends CustomPainter {
   /// Objects under a disabled displayed frame ([bdDisabledObjectOids]).
   final Set<int> disabledOids;
 
-  /// Attach rects of plain loop tunnels ([bdLoopTunnelAttachRects]) — the
-  /// only endpoints drawn as wire-colour squares.
-  final Set<HeapRect> loopTunnelRects;
+  /// Attach rect → terminal class for reference-verified border-terminal
+  /// chrome ([bdBorderTerminalKinds]).
+  final Map<HeapRect, ({int kind, bool hollow})> borderTerminalKinds;
 
   /// Sampling for stamped icons: nearest (the default) is pixel-exact in the
   /// 1:1 oracle raster; the interactive view passes [FilterQuality.low]
@@ -2059,7 +2100,7 @@ class BdDiagramPainter extends CustomPainter {
     };
     final structureRects = {for (final o in structures) rectOf(o)};
     final tunnelLandings = <(Offset, Color)>[];
-    final tunnelSquares = <(Rect, Color)>[];
+    final tunnelSquares = <(Rect, ({int kind, bool hollow}), Color)>[];
     _drawWires(
       canvas,
       structureRects: structureRects,
@@ -2121,8 +2162,14 @@ class BdDiagramPainter extends CustomPainter {
           );
       }
     }
-    for (final (rect, color) in tunnelSquares) {
-      _drawTunnelSquare(canvas, rect, color);
+    // Overlapping border terminals stack: the reference draws a selector
+    // OVER the select tunnel sharing its edge (crc8's 0x2e/0x2d pair
+    // overlaps by two rows), so squares first, registers, then selectors.
+    tunnelSquares.sort(
+      (a, b) => _chromeZOrder(a.$2.kind).compareTo(_chromeZOrder(b.$2.kind)),
+    );
+    for (final (rect, info, color) in tunnelSquares) {
+      _drawBorderTerminalChrome(canvas, rect, info, color);
     }
     // Wires: each 0x1d object is one stored Manhattan run, drawn exactly as
     // its own segment. Runs of the same wire already meet at their bend
@@ -2509,7 +2556,7 @@ class BdDiagramPainter extends CustomPainter {
     Canvas canvas, {
     Set<Rect>? structureRects,
     List<(Offset, Color)>? tunnelLandings,
-    List<(Rect, Color)>? tunnelSquares,
+    List<(Rect, ({int kind, bool hollow}), Color)>? tunnelSquares,
   }) {
     if (wires.isEmpty) return;
     // Endpoint-anchor rectangle → recovered terminal colour, for honest
@@ -2551,10 +2598,9 @@ class BdDiagramPainter extends CustomPainter {
     }
     for (final wire in wires) {
       final anchors = <Rect>[];
-      // Structure-anchored endpoints with a DECODED attach rect (the
-      // tunnel/border-terminal position, [ViWire.endpointAttachRects]) get a
-      // tunnel square drawn at it.
-      final tunnels = <Rect>[];
+      // Endpoints with a DECODED attach rect get their border-terminal
+      // chrome drawn at it (kind-specific, reference-verified only).
+      final tunnels = <(Rect, ({int kind, bool hollow}))>[];
       for (var e = 0; e < wire.endpointAnchors.length; e++) {
         final anchor = wire.endpointAnchors[e];
         if (anchor == null) continue;
@@ -2584,7 +2630,8 @@ class BdDiagramPainter extends CustomPainter {
             attach.bottom - origin.dy,
           );
           anchors.add(attachRect);
-          if (loopTunnelRects.contains(attach)) tunnels.add(attachRect);
+          final info = borderTerminalKinds[attach];
+          if (info != null) tunnels.add((attachRect, info));
         } else {
           anchors.add(anchorRect);
         }
@@ -2599,11 +2646,13 @@ class BdDiagramPainter extends CustomPainter {
         ..strokeWidth = 1.4
         ..strokeJoin = StrokeJoin.miter
         ..strokeCap = StrokeCap.butt;
-      // The squares are collected whenever their position is decoded — even
-      // when the wire's OTHER endpoint is unresolvable and no route can be
+      // Chrome is collected whenever its position is decoded — even when
+      // the wire's OTHER endpoint is unresolvable and no route can be
       // drawn — and painted AFTER the structure chrome (LabVIEW draws the
-      // tunnel over the band).
-      tunnelSquares?.addAll([for (final t in tunnels) (t, paint.color)]);
+      // terminal over the band).
+      tunnelSquares?.addAll([
+        for (final (t, info) in tunnels) (t, info, paint.color),
+      ]);
       if (anchors.length < 2) continue;
       final source = anchors.first;
       final route = wire.route;
@@ -2633,23 +2682,50 @@ class BdDiagramPainter extends CustomPainter {
                 : Offset(pn.dx, anchors[i].center.dy);
           }
         }
-        // Each Manhattan segment fills whole 1 px pixel rows/columns
-        // (endpoints inclusive): a STROKED centreline at integer coordinates
+        // Each Manhattan segment fills whole pixel rows/columns (endpoints
+        // inclusive): a STROKED centreline at integer coordinates
         // half-covers two rows — the solid-core-with-half-tone artefact.
+        // Measured wire laws (crc8/crc16/crc32 references at decoded
+        // rects): a scalar wire is 1 px; a 1-D array wire is 2 px straddling
+        // the centre row; a scalar boolean is dotted 1 px on / 1 px off.
         final fill = Paint()
           ..color = paint.color
           ..isAntiAlias = false;
+        final dims = wire.signalType?.arrayDims ?? 0;
+        final thick = dims >= 1 ? 2 : 1;
+        final dotted = wire.elementTypeKind == ViTypeKind.boolean && dims == 0;
         for (var j = 1; j < points.length; j++) {
           final a = points[j - 1], b = points[j];
-          canvas.drawRect(
-            Rect.fromLTRB(
-              math.min(a.dx, b.dx).floorToDouble(),
-              math.min(a.dy, b.dy).floorToDouble(),
-              math.max(a.dx, b.dx).floorToDouble() + 1,
-              math.max(a.dy, b.dy).floorToDouble() + 1,
-            ),
-            fill,
-          );
+          final horizontal = a.dy == b.dy;
+          final lo = horizontal
+              ? math.min(a.dx, b.dx).floorToDouble()
+              : math.min(a.dy, b.dy).floorToDouble();
+          final hi = horizontal
+              ? math.max(a.dx, b.dx).floorToDouble()
+              : math.max(a.dy, b.dy).floorToDouble();
+          final cross = horizontal
+              ? a.dy.floorToDouble()
+              : a.dx.floorToDouble();
+          final c0 = thick == 2 ? cross - 1 : cross;
+          if (!dotted) {
+            canvas.drawRect(
+              horizontal
+                  ? Rect.fromLTRB(lo, c0, hi + 1, cross + 1)
+                  : Rect.fromLTRB(c0, lo, cross + 1, hi + 1),
+              fill,
+            );
+          } else {
+            // Dot phase anchors on the absolute coordinate so collinear
+            // segments of one wire keep a continuous pattern.
+            for (var v = lo; v <= hi; v += 2) {
+              canvas.drawRect(
+                horizontal
+                    ? Rect.fromLTWH(v, cross, 1, 1)
+                    : Rect.fromLTWH(cross, v, 1, 1),
+                fill,
+              );
+            }
+          }
         }
         // A leg whose anchor is a structure's own box is a border crossing —
         // the landing point is where LabVIEW draws the tunnel square.
@@ -2665,24 +2741,137 @@ class BdDiagramPainter extends CustomPainter {
     }
   }
 
-  /// One tunnel square: LabVIEW draws a 1 px [kBdTunnelBorder] ring filled
-  /// with the wire's colour, over the structure border (crc8's loop tunnel
-  /// at (158,499)-(167,508) reads exactly this from the reference render).
-  void _drawTunnelSquare(Canvas canvas, Rect t, Color wireColor) {
-    canvas.drawRect(
-      t,
-      Paint()
-        ..color = wireColor
-        ..isAntiAlias = false,
-    );
-    canvas.drawRect(
-      Rect.fromLTRB(t.left + 0.5, t.top + 0.5, t.right - 0.5, t.bottom - 0.5),
-      Paint()
-        ..color = kBdTunnelBorder
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1
-        ..isAntiAlias = false,
-    );
+  /// The stacking order for overlapping border-terminal chrome (see the
+  /// paint site): tunnels/select squares under registers under selectors.
+  static int _chromeZOrder(int kind) => switch (kind) {
+    0x22 || 0x2d => 0,
+    0x27 || 0x28 => 1,
+    _ => 2,
+  };
+
+  /// Border-terminal chrome at a DECODED attach rect, per terminal class —
+  /// every spec read from reference pixels (crc8/crc16/crc32):
+  ///
+  /// - tunnel `0x22` / select `0x2d`: the rect filled with the wire's
+  ///   colour under a 1 px [kBdTunnelBorder] ring, over the structure band
+  ///   (crc8's loop tunnel at (158,499)-(167,508)).
+  /// - shift registers `0x27`/`0x28` (16x12): a 2 px wire-colour border,
+  ///   cream fill, and a wire-colour 5-row triangle glyph — down (10,8,6,
+  ///   4,2 wide) on the left register, up on the right.
+  /// - selector `0x2e` (8x12): a 1 px wire-colour border, cream fill, and
+  ///   the 6x10 `?` glyph.
+  ///
+  /// A register/selector whose rect differs from the measured size draws
+  /// border + fill only (the glyph layout is pinned to the measured
+  /// geometry, never scaled by guesswork).
+  void _drawBorderTerminalChrome(
+    Canvas canvas,
+    Rect t,
+    ({int kind, bool hollow}) info,
+    Color wireColor,
+  ) {
+    final kind = info.kind;
+    final noAa = Paint()
+      ..color = wireColor
+      ..isAntiAlias = false;
+    switch (kind) {
+      case 0x22 || 0x2d:
+        // Hollow ([kTunnelHollowFlag]): cream interior with a 5x5
+        // wire-colour ring (open at the middle of its top/bottom edges),
+        // read from crc8's reference at (520,276). Solid: wire-colour fill.
+        if (info.hollow) {
+          canvas.drawRect(
+            t,
+            Paint()
+              ..color = kBdTerminalFill
+              ..isAntiAlias = false,
+          );
+          if (t.width == 9 && t.height == 9) {
+            const ring = ['xx.xx', 'x...x', 'x...x', 'x...x', 'xx.xx'];
+            for (var y = 0; y < 5; y++) {
+              for (var x = 0; x < 5; x++) {
+                if (ring[y][x] != 'x') continue;
+                canvas.drawRect(
+                  Rect.fromLTWH(t.left + 2 + x, t.top + 2 + y, 1, 1),
+                  noAa,
+                );
+              }
+            }
+          }
+        } else {
+          canvas.drawRect(t, noAa);
+        }
+        canvas.drawRect(
+          Rect.fromLTRB(
+            t.left + 0.5,
+            t.top + 0.5,
+            t.right - 0.5,
+            t.bottom - 0.5,
+          ),
+          Paint()
+            ..color = kBdTunnelBorder
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1
+            ..isAntiAlias = false,
+        );
+      case 0x27 || 0x28:
+        canvas.drawRect(t, noAa);
+        canvas.drawRect(
+          t.deflate(2),
+          Paint()
+            ..color = kBdTerminalFill
+            ..isAntiAlias = false,
+        );
+        if (t.width == 16 && t.height == 12) {
+          // Triangle rows within the 12x8 interior: row index 2..6 for the
+          // down arrow, 1..5 for the up arrow, widths 10/8/6/4/2 centred.
+          final down = kind == 0x27;
+          for (var i = 0; i < 5; i++) {
+            final width = down ? 10 - 2 * i : 2 + 2 * i;
+            final row = (down ? 2 + i : 1 + i).toDouble();
+            canvas.drawRect(
+              Rect.fromLTWH(
+                t.left + 2 + (12 - width) / 2,
+                t.top + 2 + row,
+                width.toDouble(),
+                1,
+              ),
+              noAa,
+            );
+          }
+        }
+      case 0x2e:
+        canvas.drawRect(t, noAa);
+        canvas.drawRect(
+          t.deflate(1),
+          Paint()
+            ..color = kBdTerminalFill
+            ..isAntiAlias = false,
+        );
+        if (t.width == 8 && t.height == 12) {
+          const glyph = [
+            '......',
+            '..xx..',
+            '.x..x.',
+            '....x.',
+            '...x..',
+            '..x...',
+            '..x...',
+            '......',
+            '..x...',
+            '......',
+          ];
+          for (var y = 0; y < glyph.length; y++) {
+            for (var x = 0; x < 6; x++) {
+              if (glyph[y][x] != 'x') continue;
+              canvas.drawRect(
+                Rect.fromLTWH(t.left + 1 + x, t.top + 1 + y, 1, 1),
+                noAa,
+              );
+            }
+          }
+        }
+    }
   }
 
   /// The thick grey structure band LabVIEW draws for loops and cases: a
