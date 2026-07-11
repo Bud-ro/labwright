@@ -422,7 +422,7 @@ void sampleRun(WireRun run, Raster raster, Interior interior, Registration reg) 
     run.style = 'unsampled';
     return;
   }
-  run.style = classifyCycle(masks);
+  run.style = classifyCycle(masks, coverage: clean / total);
 }
 
 /// The recognized column cycles (rotation-canonical, 5-bit masks low-row
@@ -454,7 +454,17 @@ const recognizedCycles = <String, String>{
 /// positional agreement is ≥95%, canonicalizes the cycle by rotation, and
 /// maps recognized cycles to their style names ([recognizedCycles]); an
 /// unrecognized cycle reads `unclassified:<cycle>`, no period `aperiodic`.
-String classifyCycle(Map<int, int> masks) {
+///
+/// [coverage] is the run's clean-column fraction. A multi-column cycle
+/// (period ≥ 2) is only trusted at coverage ≥ 0.8: contamination drops whole
+/// columns, and PHASE-CORRELATED drops (a crossing or overlap recurring on
+/// the cycle's pitch) can erase one phase of a longer cycle and alias it
+/// onto a shorter one — e.g. a chain-link run whose single-dot phase is
+/// gone reads as the dense braid. Such a run returns `lowcover:<verdict>`
+/// and is tallied by the census, never styled. Period-1 cycles are
+/// drop-immune (every surviving column shows the full mask) and classify at
+/// any coverage the caller admits.
+String classifyCycle(Map<int, int> masks, {double coverage = 1.0}) {
   final xs = masks.keys.toList()..sort();
   int? period;
   for (final p in const [1, 2, 3, 4, 5, 6, 7, 8]) {
@@ -492,5 +502,7 @@ String classifyCycle(Map<int, int> masks) {
   }
   if (best.every((m) => m == 0)) return 'blank';
   final key = 'p$period:${best.map((m) => m.toRadixString(2).padLeft(5, '0')).join(',')}';
-  return recognizedCycles[key] ?? 'unclassified:$key';
+  final verdict = recognizedCycles[key] ?? 'unclassified:$key';
+  if (period >= 2 && coverage < 0.8) return 'lowcover:$verdict';
+  return verdict;
 }

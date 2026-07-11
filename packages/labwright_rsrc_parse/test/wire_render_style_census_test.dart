@@ -19,21 +19,43 @@ import 'wire_style_oracle.dart';
 /// * **style = f(type word)**: every style cell (measured style ×
 ///   code+depth) with ≥3 sampled runs matches the shipped
 ///   [ViSignalTypeRenderStyle.renderStyle] mapping exactly;
-/// * the wire-word **flag nibble does not restyle**: within every
-///   (code+depth) cell sampled under ≥2 flag values, the measured style set
-///   is identical across the flag values;
+/// * the wire-word **flag nibble**, `signalState 0x115`, the `0x1e7`
+///   header byte, and the signal's **objFlags** do not restyle: within
+///   every (code+depth) cell sampled under ≥2 values of the field, the
+///   majority style is identical across the values;
 /// * **crossing rule**: every attributed crossing gap breaks the
 ///   later-serialized signal (the earlier one runs continuous) — zero
 ///   later-survivor counterexamples;
 /// * **disabled palette**: every disabled-frame wire colour equals
 ///   [dimDisabledFrameRgb] of the same (code+depth)'s enabled modal colour,
 ///   ditto the loop-border chrome pair.
+///
+/// **Independence caveat**: these laws re-derive from the same oracle
+/// pipeline that produced the shipped mapping, so a pipeline bias would
+/// bias both sides — they pin regressions, not independent truth. The
+/// independent leg is the synthetic-input unit suite in
+/// `wire_render_style_test.dart` (classifier cycles, the phase-drop
+/// aliasing case, the registration scorer).
+///
+/// **Registration-quality choice**: snippets registered in leaf mode (no
+/// structure frames; weaker 0.60 verification ceiling) contribute to the
+/// same census buckets as frame-registered ones; their run volume is kept
+/// visible via `runs_under_leaf_reg` rather than filtered, because every
+/// leaf-registered sample that classifies must still land a full clean
+/// periodic cycle — misregistration reads blank/aperiodic, not a wrong
+/// style.
 
 /// Census keys per snippet (merged across the corpus):
-/// `style|<style>|<code>_d<depth>`, `flag|<code>_d<depth>_f<flags>|<style>`,
-/// `state|<style>|s<hex>`, `hdr|<style>|<hdr>`, `ena|<code>_d<depth>|<hex>`,
-/// `dis|<code>_d<depth>|<hex>`, `chrome[E|D]|loopBorder|<hex>`,
-/// `cross|…`, and the pipeline tallies (`reg_ok`, `reg_failed`, …).
+/// `style|<style>|<cell>|<H|V>` with `<cell>` = `<code>_d<depth>`; the
+/// per-field cross-tabs `flag|<cell><H|V>@f<flags>|<style>`,
+/// `state|<cell><H|V>@s<hex>|<style>`, `hdr|<cell><H|V>@<hdr>|<style>`,
+/// `objf|<cell><H|V>@o<hex|->|<style>` (axis-tagged so an
+/// orientation-dependent stroke cannot read as a field effect); the colour
+/// censuses `ena|<cell>|<hex>` / `dis|<cell>|<hex>` and
+/// `chrome[E|D]|loopBorder|<hex>` / `chrome[E|D]|labelBg|<hex>`; `cross|…`;
+/// and the pipeline/evidence-loss tallies (`reg_ok`, `reg_failed`,
+/// `run_blank`, `run_unsampled`, `run_aperiodic`, `run_lowCoverage`,
+/// `runs_under_leaf_reg`, …).
 Map<String, int> _censusSnippet(Uint8List png, String path) {
   final c = <String, int>{};
   void bump(String k, [int n = 1]) => c[k] = (c[k] ?? 0) + n;
@@ -141,24 +163,51 @@ Map<String, int> _censusSnippet(Uint8List png, String path) {
       if (style != null) bump('run_$style');
       continue;
     }
+    if (style.startsWith('lowcover')) {
+      // Evidence loss stays visible: a periodic cycle below the phase-drop
+      // coverage gate is tallied, never styled (see classifyCycle).
+      bump('run_lowCoverage');
+      continue;
+    }
     final name = style.startsWith('unclassified') ? 'unclassified' : style;
-    bump('style|$name|$cell');
-    bump('flag|${cell}_f${(k >> 12) & 0xf}|$name');
-    bump('state|$name|s${(state[run.sigOid] ?? -1).toRadixString(16)}');
+    if (reg.leafMode) bump('runs_under_leaf_reg');
+    // The axis tag keeps orientation-dependent strokes visible: the multi-row
+    // patterned cycles are catalogued from HORIZONTAL runs, and the corpus's
+    // one sampled vertical 1-D-string-array run draws a DIFFERENT cycle than
+    // its horizontal siblings (the dense p2 braid instead of the chain-link).
+    // The field cross-tabs carry the axis in their cell for the same reason:
+    // the no-restyle laws must not read an orientation split as a field
+    // effect.
+    final axis = run.horizontal ? 'H' : 'V';
+    bump('style|$name|$cell|$axis');
+    bump('flag|$cell$axis@f${(k >> 12) & 0xf}|$name');
+    bump('state|$cell$axis@s${(state[run.sigOid] ?? -1).toRadixString(16)}|$name');
     bump(
-      'hdr|$name|${o.wireTableRaw != null ? 'c${o.wireTableRaw![1].toRadixString(16)}' : (hdrOf[run.sigOid] ?? '-')}',
+      'hdr|$cell$axis@${o.wireTableRaw != null ? 'c${o.wireTableRaw![1].toRadixString(16)}' : (hdrOf[run.sigOid] ?? '-')}|$name',
     );
+    bump('objf|$cell$axis@o${o.objFlags?.toRadixString(16) ?? '-'}|$name');
   }
 
-  // Chrome pair for the disabled palette: loop border colours.
+  // Chrome pairs for the disabled palette: loop-border colours (modal
+  // black enabled — the law-asserted pair) and label-backing colours (kept
+  // as raw counts only: enabled backings split between boxed yellow and
+  // transparent-on-white, so no modal law holds).
   for (final o in bd.objects) {
     final r = o.absBounds;
     if (r == null || r.width < 12 || r.height < 12) continue;
-    if (!const {0x20, 0x21}.contains(o.kind)) continue;
     if (!objectVisibleInRender(bd, o.oid)) continue;
+    String? chromeKey;
+    int rowY = r.top;
+    if (const {0x20, 0x21}.contains(o.kind)) {
+      chromeKey = 'loopBorder';
+    } else if (o.kind == 0x0a && !o.isLabelHidden && o.label != null && o.label!.isNotEmpty) {
+      chromeKey = 'labelBg';
+      rowY = r.top + r.height ~/ 2;
+    }
+    if (chromeKey == null) continue;
     final votes = <int, int>{};
     for (var x = r.left + r.width ~/ 3; x < r.right - r.width ~/ 3; x++) {
-      final px = x - reg.dx + interior.left, py = r.top - reg.dy + interior.top;
+      final px = x - reg.dx + interior.left, py = rowY - reg.dy + interior.top;
       if (px < interior.left || px >= interior.right || py < interior.top || py >= interior.bottom) continue;
       final i = (py * raster.width + px) * 4;
       final rgb = (raster.rgba[i] << 16) | (raster.rgba[i + 1] << 8) | raster.rgba[i + 2];
@@ -166,7 +215,7 @@ Map<String, int> _censusSnippet(Uint8List png, String path) {
     }
     if (votes.isEmpty) continue;
     final top = (votes.entries.toList()..sort((a, b) => b.value.compareTo(a.value))).first.key;
-    bump('chrome${inDisabledFrame(o.oid) ? 'D' : 'E'}|loopBorder|${top.toRadixString(16).padLeft(6, '0')}');
+    bump('chrome${inDisabledFrame(o.oid) ? 'D' : 'E'}|$chromeKey|${top.toRadixString(16).padLeft(6, '0')}');
   }
 
   // Crossing-gap scan: a run of a wire colour broken by a 1-px background
@@ -210,14 +259,16 @@ Map<String, int> _censusSnippet(Uint8List png, String path) {
     // (an off column overdrawn by the crossing wire), so a patterned broken
     // candidate is not evidence of a cut. When the run's own pixels did not
     // classify (blank/unsampled: connection points are estimates), the
-    // word-predicted style stands in; unknown stays excluded.
+    // word-predicted style stands in — the estimate tier, since the
+    // question here is only solid-vs-patterned soundness, not measurement;
+    // unknown stays excluded.
     bool patterned(WireRun r) {
       const solid = {'solid1px', 'solid2px', 'hollowDouble'};
       final s = r.style;
       if (s != null && solid.contains(s)) return false;
       if (s != null && !const {'blank', 'unsampled', 'aperiodic'}.contains(s)) return true;
       final word = bd.byId[r.sigOid]?.lastSignalKind;
-      final pred = word == null ? null : ViSignalType(word).renderStyle?.name;
+      final pred = word == null ? null : ViSignalType(word).renderStyleEstimate?.name;
       return pred == null || !solid.contains(pred);
     }
 
@@ -292,13 +343,20 @@ void main() {
     }
   });
 
-  test('style is a function of the wire-type word: cells with >=3 runs match renderStyle', () {
+  test('style is a function of the wire-type word: H cells with >=3 runs match renderStyle', () {
+    // Horizontal runs only: the catalogue names the horizontal strokes.
+    // Vertical runs of the transpose-symmetric strokes classify to the same
+    // names and are pinned by the `|V` snapshot keys; the one measured
+    // orientation-DEPENDENT rendition (a vertical 1-D string array drawing
+    // the dense p2 cycle where horizontals draw the chain-link) stays a
+    // snapshot fact rather than a mapping claim.
     final violations = <String>[];
     var checked = 0;
     C.forEach((k, n) {
       if (!k.startsWith('style|') || n < 3) return;
       final parts = k.split('|');
       final measured = parts[1], cell = parts[2];
+      if (parts[3] != 'H') return;
       if (measured == 'unclassified') return; // cycle catalogued in snapshot only
       final predicted = _predictedName(cell);
       if (predicted == null) return; // cell deliberately unclaimed (see renderStyle doc)
@@ -309,32 +367,53 @@ void main() {
     expect(violations, isEmpty);
   });
 
-  test('the wire-word flag nibble does not restyle a wire', () {
-    // cell -> flag value -> style -> count; compared by MAJORITY style so a
-    // single classifier artifact (a period-subsampled cycle) cannot fail the
-    // law that the counts themselves pin in the snapshot.
+  // The no-restyle law shared by the four ruled-out fields: within every
+  // (code+depth) cell sampled under >=2 values of the field, the MAJORITY
+  // style is identical across the values (majority, so a single classifier
+  // artifact cannot fail the law the raw counts pin in the snapshot).
+  // Returns how many multi-value cells the corpus exercised.
+  int expectNoRestyle(Map<String, int> C, String prefix) {
     final byCell = <String, Map<String, Map<String, int>>>{};
     C.forEach((k, n) {
-      if (!k.startsWith('flag|')) return;
+      if (!k.startsWith(prefix)) return;
       final parts = k.split('|');
-      final cellFlag = parts[1], style = parts[2];
+      final cellValue = parts[1], style = parts[2];
       if (style == 'unclassified') return; // uncatalogued cycles stay in the snapshot only
-      final cell = cellFlag.substring(0, cellFlag.lastIndexOf('_f'));
-      final flag = cellFlag.substring(cellFlag.lastIndexOf('_f'));
-      ((byCell[cell] ??= {})[flag] ??= {})[style] = (byCell[cell]![flag]![style] ?? 0) + n;
+      final at = cellValue.lastIndexOf('@');
+      final cell = cellValue.substring(0, at), value = cellValue.substring(at + 1);
+      ((byCell[cell] ??= {})[value] ??= {})[style] = (byCell[cell]![value]![style] ?? 0) + n;
     });
     final violations = <String>[];
-    var multiFlagCells = 0;
-    byCell.forEach((cell, byFlag) {
-      if (byFlag.length < 2) return;
-      multiFlagCells++;
+    var multiValueCells = 0;
+    byCell.forEach((cell, byValue) {
+      if (byValue.length < 2) return;
+      multiValueCells++;
+      // Deterministic majority: count descending, then name — a tie must
+      // not flap with map insertion order.
       String majority(Map<String, int> styles) =>
-          (styles.entries.toList()..sort((a, b) => b.value.compareTo(a.value))).first.key;
-      final majorities = byFlag.values.map(majority).toSet();
-      if (majorities.length != 1) violations.add('$cell majority styles differ across flag values: $byFlag');
+          (styles.entries.toList()
+                ..sort((a, b) => b.value != a.value ? b.value.compareTo(a.value) : a.key.compareTo(b.key)))
+              .first
+              .key;
+      final majorities = byValue.values.map(majority).toSet();
+      if (majorities.length != 1) violations.add('$prefix$cell majority styles differ across values: $byValue');
     });
-    expect(multiFlagCells, greaterThanOrEqualTo(2), reason: 'need cells sampled under multiple flag values');
     expect(violations, isEmpty);
+    return multiValueCells;
+  }
+
+  test('the wire-word flag nibble does not restyle a wire', () {
+    final cells = expectNoRestyle(C, 'flag|');
+    expect(cells, greaterThanOrEqualTo(2), reason: 'need cells sampled under multiple flag values');
+  });
+
+  test('signalState 0x115, the 0x1e7 header byte and objFlags do not restyle a wire', () {
+    // No minimum-cell precondition: how many multi-value cells exist is the
+    // corpus's business (pinned by the snapshot keys); the law is that none
+    // of them splits.
+    expectNoRestyle(C, 'state|');
+    expectNoRestyle(C, 'hdr|');
+    expectNoRestyle(C, 'objf|');
   });
 
   test('crossing rule: the later-serialized signal breaks, the earlier survives', () {
@@ -383,6 +462,8 @@ void main() {
     }
 
     final enaBorder = modal('chromeE|loopBorder|'), disBorder = modal('chromeD|loopBorder|');
+    expect(enaBorder, isNot(-1), reason: 'no enabled loop-border chrome sampled');
+    expect(disBorder, isNot(-1), reason: 'no disabled loop-border chrome sampled');
     expect(disBorder, dimDisabledFrameRgb(enaBorder), reason: 'loop-border chrome pair');
   });
 
