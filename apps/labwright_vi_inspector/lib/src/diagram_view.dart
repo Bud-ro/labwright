@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/services.dart' show AssetManifest, rootBundle;
 
+import 'package:flutter/foundation.dart' show setEquals;
 import 'package:flutter/material.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
@@ -153,6 +154,11 @@ class _ViDiagramViewState extends State<ViDiagramView> {
     loadPrimIcons().then((icons) {
       if (mounted && icons.isNotEmpty) setState(() => _primIcons = icons);
     });
+    if (_disabledOids.isNotEmpty) {
+      ensurePrimIconsGrey().then((grey) {
+        if (mounted && grey.isNotEmpty) setState(() {});
+      });
+    }
   }
 
   /// Resolves the subVI-call node icons (one fast await — linker-path
@@ -390,10 +396,26 @@ class _ViDiagramViewState extends State<ViDiagramView> {
     var bestArea = double.infinity;
     for (final object in objects) {
       final bounds = object.absBounds!;
-      if (x >= bounds.left &&
-          x <= bounds.right &&
-          y >= bounds.top &&
-          y <= bounds.bottom) {
+      // Icon art can overhang its model box (a measured placement like
+      // prim1162's dy: -5), so the coarse gate is the box UNION the stamp;
+      // the alpha mask then decides precisely.
+      var left = bounds.left.toDouble(), top = bounds.top.toDouble();
+      var right = bounds.right.toDouble(), bottom = bounds.bottom.toDouble();
+      final key = primIconKeyOf(object);
+      final art = key == null ? null : _primIconsSync[key];
+      if (art != null) {
+        final stamp = primIconStampRect(
+          Rect.fromLTRB(left, top, right, bottom),
+          art.base.width,
+          art.base.height,
+          key: key,
+        );
+        left = math.min(left, stamp.left);
+        top = math.min(top, stamp.top);
+        right = math.max(right, stamp.right);
+        bottom = math.max(bottom, stamp.bottom);
+      }
+      if (x >= left && x <= right && y >= top && y <= bottom) {
         if (!primIconHit(object, x, y)) continue;
         final area = (bounds.width * bounds.height).toDouble();
         if (area <= bestArea) {
@@ -1333,8 +1355,10 @@ List<ViHeapObject> bdDrawableObjects(ViDiagram diagram) {
           // node's icon art in glyph space, not canvas space (crc8's floats
           // at (-8,-13) parented to the root frame) — drawing it stamps a
           // stray box and stretches the content extent. One nested inside a
-          // structure frame is likewise node-icon art LabVIEW's canvas never
-          // shows (crc8's 12x12 at (224,669) under a loop frame). Top-level
+          // structure frame is likewise suppressed — evidence so far is
+          // crc8's single case (a 12x12 at (224,669) under a loop frame,
+          // absent from the reference render); TODO: revisit if a corpus
+          // reference ever shows a structure-nested 0x177 drawn. Top-level
           // positive-positioned 0x177s are real drawn glyphs (VI Tree's icon
           // row) and stay.
           !(object.kind == 0x177 &&
@@ -1602,7 +1626,6 @@ typedef PrimIconArt = ({ui.Image base, ui.Image sharp});
 Future<Map<int, PrimIconArt>> loadPrimIcons() => _primIcons ??= () async {
   final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
   final icons = <int, PrimIconArt>{};
-  final grey = <int, PrimIconArt>{};
   for (final asset in manifest.listAssets()) {
     final m = RegExp(
       r'assets/prim_icons/(prim|class)(\d+)(?:_[a-z0-9-]+)?\.png$',
@@ -1632,21 +1655,7 @@ Future<Map<int, PrimIconArt>> loadPrimIcons() => _primIcons ??= () async {
       _primIconMasks[id] = (w: image.width, h: image.height, alpha: alpha);
     }
     icons[id] = await _prescaledArt(image);
-    if (rgba != null) {
-      final greyPx = Uint8List.fromList(rgba.buffer.asUint8List());
-      _greyDisabledPalette(greyPx);
-      final completer = Completer<ui.Image>();
-      ui.decodeImageFromPixels(
-        greyPx,
-        image.width,
-        image.height,
-        ui.PixelFormat.rgba8888,
-        completer.complete,
-      );
-      grey[id] = await _prescaledArt(await completer.future);
-    }
   }
-  _primIconsGreySync = grey;
   return _primIconsSync = icons;
 }();
 
@@ -1697,15 +1706,43 @@ void _greyDisabledPalette(Uint8List rgba) {
 }
 
 /// The already-decoded disabled-palette icon variants (see
-/// [_greyDisabledPalette]), keyed like [primIconsLoaded].
+/// [_greyDisabledPalette]), keyed like [primIconsLoaded]. Empty until
+/// [ensurePrimIconsGrey] runs — the variants are built only when a diagram
+/// actually contains a disabled frame, not for every icon at startup.
 Map<int, PrimIconArt> primIconsGreyLoaded() => _primIconsGreySync;
+
+/// Builds the disabled-palette variants of every loaded icon, once, on
+/// first demand (a diagram with a non-empty [bdDisabledObjectOids] set).
+Future<Map<int, PrimIconArt>> ensurePrimIconsGrey() =>
+    _primIconsGrey ??= () async {
+      final icons = await loadPrimIcons();
+      final grey = <int, PrimIconArt>{};
+      for (final e in icons.entries) {
+        final rgba = await e.value.base.toByteData();
+        if (rgba == null) continue;
+        final greyPx = Uint8List.fromList(rgba.buffer.asUint8List());
+        _greyDisabledPalette(greyPx);
+        final completer = Completer<ui.Image>();
+        ui.decodeImageFromPixels(
+          greyPx,
+          e.value.base.width,
+          e.value.base.height,
+          ui.PixelFormat.rgba8888,
+          completer.complete,
+        );
+        grey[e.key] = await _prescaledArt(await completer.future);
+      }
+      return _primIconsGreySync = grey;
+    }();
+Future<Map<int, PrimIconArt>>? _primIconsGrey;
 
 /// Recolours a primitive icon by exact palette substitution: every pixel
 /// whose RGB appears in [rgbMapping] (0xRRGGBB → 0xRRGGBB) is replaced,
-/// alpha preserved. The bundled icons are quantised to a closed master
-/// palette (listed in assets/prim_icons/MANIFEST.md), so a full-palette
-/// mapping recolours the art losslessly — the hook for an inactive/greyed
-/// rendering of nodes inside disable structures.
+/// alpha preserved; pixels outside the mapping keep their colour
+/// (hand-finished assets carry reference-sampled tones beyond the
+/// extraction pipeline's master palette). The disabled-frame rendering
+/// uses the value-based [_greyDisabledPalette] instead — this exact-match
+/// remap serves themed recolouring where the target colours are known.
 Future<ui.Image> remapPrimIcon(ui.Image icon, Map<int, int> rgbMapping) async {
   final data = await icon.toByteData();
   if (data == null) return icon;
@@ -2307,9 +2344,9 @@ class BdDiagramPainter extends CustomPainter {
       }
     }
     // Wire landings on structure borders feed ONLY the structure-terminal
-    // recolour above (the case selector [?] takes its wire's colour);
-    // free-standing tunnel squares at every landing looked wrong — the real
-    // tunnel positions are not yet decoded, so none are guessed.
+    // recolour above (the case selector [?] takes its wire's colour). No
+    // free-standing tunnel squares are drawn: the real tunnel positions are
+    // not yet decoded, and a square at a wire landing would be a guess.
     // The drawn-object index for owner lookups in the text pass.
     final byOid = {for (final o in objects) o.oid: o};
     // Text pass: LabVIEW shows a structure's construct name on its frame and a
@@ -2769,6 +2806,8 @@ class BdDiagramPainter extends CustomPainter {
       !identical(old.wires, wires) ||
       !identical(old.subViIcons, subViIcons) ||
       !identical(old.primIcons, primIcons) ||
+      !identical(old.primIconsGrey, primIconsGrey) ||
+      !setEquals(old.disabledOids, disabledOids) ||
       old.iconFilterQuality != iconFilterQuality ||
       old.canvasScale != canvasScale ||
       !identical(old.structureTerminals, structureTerminals) ||
@@ -3127,8 +3166,8 @@ class _ViImageStrip extends StatelessWidget {
             ),
           // Only the VI icon shows here: the other recovered image resources
           // (e.g. Excel_Read_XLSX carries a stack of DSIM entries that decode
-          // to blank canvases) belong to the Images tab, and a strip of them
-          // overflowed this row.
+          // to blank canvases) belong to the Images tab; this row stays a
+          // single fixed-size icon so it can never overflow.
           Expanded(
             child: Padding(
               padding: const EdgeInsets.only(left: 8),

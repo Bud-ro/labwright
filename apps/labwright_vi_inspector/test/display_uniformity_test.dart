@@ -163,24 +163,52 @@ void main() {
             greaterThan(0),
             reason: 'empty stamp for $key in ${f.path}',
           );
-          // The alpha hitbox must sit exactly on the stamp: a hit on the
-          // stamp's first opaque top-row pixel, a miss one pixel above it.
+          // The alpha hitbox must sit exactly on the stamp: find the
+          // topmost opaque pixel (whatever row it is on) — a hit at its
+          // centre, a miss one pixel above it; and the same for the
+          // leftmost opaque pixel on the horizontal axis.
           final mask = (await art.base.toByteData())!.buffer.asUint8List();
-          for (var x = 0; x < art.base.width; x++) {
-            if (mask[x * 4 + 3] == 0) continue;
-            final hx = stamp.left + x + 0.5;
-            expect(
-              primIconHit(o, hx, stamp.top + 0.5),
-              isTrue,
-              reason: 'hitbox misaligned with stamp for $key in ${f.path}',
-            );
-            expect(
-              primIconHit(o, hx, stamp.top - 0.5),
-              isFalse,
-              reason: 'hitbox extends above stamp for $key in ${f.path}',
-            );
-            break;
+          final aw = art.base.width, ah = art.base.height;
+          (int, int)? top, leftmost;
+          for (var y = 0; y < ah && top == null; y++) {
+            for (var x = 0; x < aw; x++) {
+              if (mask[(y * aw + x) * 4 + 3] != 0) {
+                top = (x, y);
+                break;
+              }
+            }
           }
+          for (var x = 0; x < aw && leftmost == null; x++) {
+            for (var y = 0; y < ah; y++) {
+              if (mask[(y * aw + x) * 4 + 3] != 0) {
+                leftmost = (x, y);
+                break;
+              }
+            }
+          }
+          expect(top, isNotNull, reason: 'fully transparent asset $key');
+          final (tx, ty) = top!;
+          final (lx, ly) = leftmost!;
+          expect(
+            primIconHit(o, stamp.left + tx + 0.5, stamp.top + ty + 0.5),
+            isTrue,
+            reason: 'hitbox misaligned with stamp for $key in ${f.path}',
+          );
+          expect(
+            primIconHit(o, stamp.left + tx + 0.5, stamp.top + ty - 0.5),
+            isFalse,
+            reason: 'hitbox extends above stamp ink for $key in ${f.path}',
+          );
+          expect(
+            primIconHit(o, stamp.left + lx + 0.5, stamp.top + ly + 0.5),
+            isTrue,
+            reason: 'hitbox misaligned (x) with stamp for $key in ${f.path}',
+          );
+          expect(
+            primIconHit(o, stamp.left + lx - 0.5, stamp.top + ly + 0.5),
+            isFalse,
+            reason: 'hitbox extends left of stamp ink for $key in ${f.path}',
+          );
         }
       }
       // ignore: avoid_print

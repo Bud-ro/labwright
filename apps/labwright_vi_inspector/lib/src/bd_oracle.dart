@@ -92,6 +92,10 @@ Future<BdRaster?> rasteriseBlockDiagram(
   final width = (content.width * pxScale).ceil().clamp(1, 8192);
   final height = (content.height * pxScale).ceil().clamp(1, 8192);
 
+  // The raster must be exact on first paint, so a diagram holding a
+  // disabled frame waits for the grey variants (built once, lazily).
+  final disabledOids = bdDisabledObjectOids(diagram);
+  if (disabledOids.isNotEmpty) await ensurePrimIconsGrey();
   final recorder = ui.PictureRecorder();
   final canvas = Canvas(
     recorder,
@@ -109,7 +113,7 @@ Future<BdRaster?> rasteriseBlockDiagram(
   BdDiagramPainter(
     primIcons: primIcons,
     primIconsGrey: primIconsGreyLoaded(),
-    disabledOids: bdDisabledObjectOids(diagram),
+    disabledOids: disabledOids,
     objects: ordered,
     origin: content.topLeft,
     wires: wireList,
@@ -1184,6 +1188,7 @@ class _BdOracleViewState extends State<BdOracleView>
         if (!mounted || icons.isEmpty) return;
         // _build() returns a Future — start it outside setState (a setState
         // callback must not return one) and swap the field synchronously.
+        _retire(_future);
         final rebuilt = _build();
         setState(() {
           _future = rebuilt;
@@ -1220,14 +1225,26 @@ class _BdOracleViewState extends State<BdOracleView>
     if (!identical(old.diagram, widget.diagram) ||
         !identical(old.referenceBytes, widget.referenceBytes)) {
       _retire(_future);
+      _resetWipeDownscales();
       _future = _build();
     }
+  }
+
+  /// Frees and clears the fit-mode box-downscaled pair — on replacement, on
+  /// diagram change (they belong to the old diagram), and at teardown.
+  void _resetWipeDownscales() {
+    _wipeBoxK = -1;
+    _wipeReference?.dispose();
+    _wipeFitted?.dispose();
+    _wipeReference = null;
+    _wipeFitted = null;
   }
 
   @override
   void dispose() {
     _wipeH.dispose();
     _wipeV.dispose();
+    _resetWipeDownscales();
     _retire(_future);
     super.dispose();
   }
@@ -1503,6 +1520,11 @@ class _BdOracleViewState extends State<BdOracleView>
               constraints.maxWidth * dpr / logicalW,
               constraints.maxHeight * dpr / logicalH,
             );
+            // A collapsed pane makes the minify maths degenerate
+            // ((1/0).ceil() throws); nothing is visible at that size anyway.
+            if (fitPhys <= 0 || !fitPhys.isFinite) {
+              return const SizedBox.shrink();
+            }
             final double dispPhysW;
             final double dispPhysH;
             ui.Image? showRef;
@@ -1524,8 +1546,7 @@ class _BdOracleViewState extends State<BdOracleView>
               showRef = result.reference;
               showFit = result.fitted;
             } else {
-              final n = (1 / fitPhys).ceil();
-              final k = ss * n;
+              final k = boxDownscaleFactor(refImage, ss, fitPhys);
               if (k != _wipeBoxK) {
                 _wipeBoxK = k;
                 Future.wait([
@@ -1533,10 +1554,17 @@ class _BdOracleViewState extends State<BdOracleView>
                   boxDownscale(fitImage, k),
                 ]).then((imgs) {
                   if (mounted && _wipeBoxK == k) {
+                    _wipeReference?.dispose();
+                    _wipeFitted?.dispose();
                     setState(() {
                       _wipeReference = imgs[0];
                       _wipeFitted = imgs[1];
                     });
+                  } else {
+                    // The ratio moved on (or the view is gone) before this
+                    // pair resolved — free it, nothing will show it.
+                    imgs[0].dispose();
+                    imgs[1].dispose();
                   }
                 });
               }
@@ -1580,7 +1608,10 @@ class _BdOracleViewState extends State<BdOracleView>
                       ),
                     ),
                     Positioned(
-                      left: (dispW * _wipeFraction - 1).clamp(0.0, dispW - 2),
+                      left: (dispW * _wipeFraction - 1).clamp(
+                        0.0,
+                        math.max(0.0, dispW - 2),
+                      ),
                       width: 2,
                       top: 0,
                       bottom: 0,
@@ -1763,33 +1794,54 @@ Future<ui.Image> redrawRegisteredSupersampled(
 /// resample ratio is phase-dependent: some source columns get one
 /// destination pixel and some get two, which is exactly the uneven
 /// checkerboard and the 1.25/0.75 split-line artefact.)
+/// The box factor for showing a [supersample]x [src] at a pane fit of
+/// [fitPhys] (< 1): `supersample * ceil(1/fitPhys)`, clamped so the result
+/// keeps at least one pixel per axis — an extreme squeeze must degrade to a
+/// tiny image, never a zero-dimension one.
+int boxDownscaleFactor(ui.Image src, int supersample, double fitPhys) {
+  final k = supersample * (1 / fitPhys).ceil();
+  return k.clamp(1, math.min(src.width, src.height));
+}
+
 Future<ui.Image> boxDownscale(ui.Image src, int k) async {
   final data = (await src.toByteData())!;
   final sw = src.width, sh = src.height;
-  final dw = sw ~/ k, dh = sh ~/ k;
+  // A factor beyond a source dimension would truncate to zero; every caller
+  // clamps via [boxDownscaleFactor], and this floor keeps a direct call from
+  // ever asking the engine for a 0x0 image.
+  // A factor beyond a source dimension is clamped (every caller already
+  // clamps via [boxDownscaleFactor]); the floor below then keeps the block
+  // reads in bounds AND the output at least 1x1.
+  final ke = math.min(k, math.min(sw, sh));
+  final dw = math.max(1, sw ~/ ke), dh = math.max(1, sh ~/ ke);
   final bytes = data.buffer.asUint8List();
-  final out = Uint8List(dw * dh * 4);
-  final n = k * k;
-  for (var y = 0; y < dh; y++) {
-    for (var x = 0; x < dw; x++) {
-      var r = 0, g = 0, b = 0, a = 0;
-      for (var sy = y * k; sy < y * k + k; sy++) {
-        var i = (sy * sw + x * k) * 4;
-        for (var sx = 0; sx < k; sx++) {
-          r += bytes[i];
-          g += bytes[i + 1];
-          b += bytes[i + 2];
-          a += bytes[i + 3];
-          i += 4;
+  // The averaging is O(source pixels) on multi-megapixel supersampled
+  // rasters — off the UI isolate so pane resizes don't jank.
+  final out = await Isolate.run(() {
+    final out = Uint8List(dw * dh * 4);
+    final n = ke * ke;
+    for (var y = 0; y < dh; y++) {
+      for (var x = 0; x < dw; x++) {
+        var r = 0, g = 0, b = 0, a = 0;
+        for (var sy = y * ke; sy < y * ke + ke; sy++) {
+          var i = (sy * sw + x * ke) * 4;
+          for (var sx = 0; sx < ke; sx++) {
+            r += bytes[i];
+            g += bytes[i + 1];
+            b += bytes[i + 2];
+            a += bytes[i + 3];
+            i += 4;
+          }
         }
+        final j = (y * dw + x) * 4;
+        out[j] = r ~/ n;
+        out[j + 1] = g ~/ n;
+        out[j + 2] = b ~/ n;
+        out[j + 3] = a ~/ n;
       }
-      final j = (y * dw + x) * 4;
-      out[j] = r ~/ n;
-      out[j + 1] = g ~/ n;
-      out[j + 2] = b ~/ n;
-      out[j + 3] = a ~/ n;
     }
-  }
+    return out;
+  });
   final completer = Completer<ui.Image>();
   ui.decodeImageFromPixels(
     out,
@@ -1826,6 +1878,12 @@ class _CrispImageState extends State<CrispImage> {
   int _boxK = -1;
 
   @override
+  void dispose() {
+    _scaled?.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
       final dpr = MediaQuery.devicePixelRatioOf(context);
@@ -1835,6 +1893,10 @@ class _CrispImageState extends State<CrispImage> {
         constraints.maxWidth * dpr / logicalW,
         constraints.maxHeight * dpr / logicalH,
       );
+      // A collapsed pane (zero constraint axis) makes fitPhys 0 and the
+      // minify maths degenerate ((1/0).ceil() throws); nothing is visible
+      // at that size anyway.
+      if (fitPhys <= 0 || !fitPhys.isFinite) return const SizedBox.shrink();
       final double dispPhysW;
       final double dispPhysH;
       ui.Image? shown;
@@ -1844,11 +1906,18 @@ class _CrispImageState extends State<CrispImage> {
         dispPhysH = logicalH * n;
         shown = widget.image;
       } else {
-        final k = widget.supersample * (1 / fitPhys).ceil();
+        final k = boxDownscaleFactor(widget.image, widget.supersample, fitPhys);
         if (k != _boxK) {
           _boxK = k;
           boxDownscale(widget.image, k).then((img) {
-            if (mounted && _boxK == k) setState(() => _scaled = img);
+            if (!mounted) {
+              img.dispose();
+            } else if (_boxK == k) {
+              _scaled?.dispose();
+              setState(() => _scaled = img);
+            } else {
+              img.dispose();
+            }
           });
         }
         dispPhysW = (widget.image.width ~/ k).toDouble();

@@ -11,7 +11,7 @@ natural size.
 | asset | op | size | sources |
 |---|---|---|---|
 
-Palette (13 colours — every icon pixel is one of these): #000000 #0000ff #333333 #444444 #4c4c3d #666666 #777777 #999966 #aaaaaa #ff00ff #ff6600 #ffffcc #ffffff
+Palette (13 colours — every PIPELINE-extracted pixel is one of these; hand-finished assets may also carry reference-sampled tones, e.g. prim1110's anti-alias ring): #000000 #0000ff #333333 #444444 #4c4c3d #666666 #777777 #999966 #aaaaaa #ff00ff #ff6600 #ffffcc #ffffff
 
 | class147.png | class 0x93 | 32x29 | Excel_Variant_Elements, example, Page1, Config_Escape — single-sample fallback (0/6 agreeing) |
 | class370.png | class 0x172 | 32x18 | Excel_Variant_Elements, Excel_Cell_to_Value — single-sample retry after oversized consensus (2/7 agreeing) |
@@ -27,7 +27,7 @@ Palette (13 colours — every icon pixel is one of these): #000000 #0000ff #3333
 | prim1058_decrement.png | Decrement | 16x31 | Pages, Config_Load, Config_Load2, MD5 — pair-seeded consensus (2/6 agreeing) |
 | prim1061_and.png | And | 30x20 | large, MD5 — pair-seeded consensus (3/5 agreeing) |
 | prim1062_or.png | Or | 22x16 | hand-cleaned (adjacent object + wires removed); byte-matches the reference at 4 instances |
-| prim1063_exclusive-or.png | Exclusive Or | 34x27 | crc8, MD5, crc16 — pair-seeded consensus (2/8 agreeing) |
+| prim1063_exclusive-or.png | Exclusive Or | 24x16 | crc8, MD5, crc16 — pair-seeded consensus (2/8 agreeing) |
 | prim1064_not.png | Not | 35x31 | ClassChildren, GenerateTree, MD5 — single-sample fallback (0/6 agreeing) |
 | prim1070_random-number-0-1.png | Random Number (0-1) | 28x32 | IconHeader — single-sample fallback (0/3 agreeing) |
 | prim1077_path-to-string.png | Path To String | 25x11 | Export Palette Image WMF, large — single-sample fallback (0/3 agreeing) |
@@ -44,8 +44,8 @@ Palette (13 colours — every icon pixel is one of these): #000000 #0000ff #3333
 | prim1124.png | (uncatalogued) | 20x22 | Read Library Version — single-sample fallback (0/1 agreeing) |
 | prim1127_in-range-and-coerce.png | In Range and Coerce | 32x24 | Read VI Blocks, IconHeader — single-sample fallback (0/2 agreeing) |
 | prim1128_not-a-number-path-refnum.png | Not A Number/Path/Refnum? | 23x31 | Read VI Blocks — single-sample fallback (0/1 agreeing) |
-| prim1142_to-long-integer.png | To Long Integer | 35x11 | Read VI Blocks, Page1, MD5, crc16 — single-sample fallback (0/8 agreeing) |
-| prim1143_to-unsigned-byte-integer.png | To Unsigned Byte Integer | 35x16 | Page1, IconHeader, crc8, crc16 — single-sample fallback (0/7 agreeing) |
+| prim1142_to-long-integer.png | To Long Integer | 25x11 | Read VI Blocks, Page1, MD5, crc16 — single-sample fallback (0/8 agreeing) |
+| prim1143_to-unsigned-byte-integer.png | To Unsigned Byte Integer | 25x11 | Page1, IconHeader, crc8, crc16 — single-sample fallback (0/7 agreeing) |
 | prim1156.png | (uncatalogued) | 25x11 | MD5 — single-sample fallback (0/1 agreeing) |
 | prim1162.png | (uncatalogued) | 32x37 | MD5 — single-sample retry after oversized consensus (4/5 agreeing) |
 | prim1163.png | (uncatalogued) | 32x37 | MD5 — single-sample retry after oversized consensus (4/5 agreeing) |
@@ -66,10 +66,10 @@ Palette (13 colours — every icon pixel is one of these): #000000 #0000ff #3333
 | prim1534 | (verified — committed asset authoritative) | | Excel_Cell_to_Value — pair-seeded consensus (8/8 agreeing) |
 | prim1535 | (verified — committed asset authoritative) | | ClassesInMemory, ClassChildren, Config_Dump, Config_Dump2 — pair-seeded consensus (8/8 agreeing) |
 | prim1539_spreadsheet-string-to-array.png | Spreadsheet String To Array | 32x32 | Excel_Variant_Elements — single-sample fallback (0/1 agreeing) |
-| prim1606_rotate-left-with-carry.png | Rotate Left With Carry | 27x17 | crc8, crc16 — pair-seeded consensus (2/2 agreeing) |
-| prim1608_string-to-byte-array.png | String To Byte Array | 34x11 | Read Library Version, Config_Escape, crc8, MD5, crc16 — pair-seeded consensus (4/6 agreeing) |
+| prim1606_rotate-left-with-carry.png | Rotate Left With Carry | 25x17 | crc8, crc16 — pair-seeded consensus (2/2 agreeing) |
+| prim1608_string-to-byte-array.png | String To Byte Array | 25x11 | Read Library Version, Config_Escape, crc8, MD5, crc16 — pair-seeded consensus (4/6 agreeing) |
 | prim1809_array-size.png | Array Size | 32x21 | Config_Load, Config_Load2, ClassChildren, large, Config_Escape — pair-seeded consensus (5/8 agreeing) |
-| prim1815_boolean-array-to-number.png | Boolean Array To Number | 35x11 | Config_Dump2 — single-sample fallback (0/1 agreeing) |
+| prim1815_boolean-array-to-number.png | Boolean Array To Number | 26x11 | Config_Dump2 — single-sample fallback (0/1 agreeing) |
 | prim1900_reverse-1d-array.png | Reverse 1D Array | 32x23 | large, MD5 — pair-seeded consensus (2/2 agreeing) |
 | prim1901_search-1d-array.png | Search 1D Array | 32x32 | ClassesInMemory, ClassChildren, Config_Dump2, Excel_Cell_to_Value, large — pair-seeded consensus (7/8 agreeing) |
 | prim1907_array-max-min.png | Array Max & Min | 37x32 | ClassChildren — single-sample fallback (0/1 agreeing) |

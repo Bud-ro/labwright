@@ -1285,7 +1285,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
   // owner's final origin is identical when the owner's bounds came first
   // (the common order) and fixes the late-bounds owners.
   for (final object in objects) {
-    if (object.kind != 0x0a) continue;
+    if (object.kind != HeapObjectClass.controlLabel.code) continue;
     final parent = liveParent[object];
     final local = object.bounds;
     final ownerBounds = parent?.bounds;
@@ -1356,7 +1356,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
   for (final object in objects) {
     if (object.category != ViObjectKind.node || object.label != null) continue;
     final caps = (nodeKids[object.oid] ?? const <ViHeapObject>[])
-        .where((c) => c.kind == 0x0a)
+        .where((c) => c.kind == HeapObjectClass.controlLabel.code)
         .map((c) => c.label?.trim())
         .where((cap) => cap != null && cap.isNotEmpty);
     if (caps.isNotEmpty) object.label = caps.first;

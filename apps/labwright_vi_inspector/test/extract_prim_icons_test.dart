@@ -277,6 +277,15 @@ void main() {
         ).allMatches(catalogNow))
           m.group(1)!,
       };
+      // A refactor of the catalog file that broke these regexes would
+      // silently disable the whole contract — the parse must see the map.
+      expect(
+        RegExp(
+          r"'([a-z0-9]+)': PrimIconStatus\.",
+        ).allMatches(catalogNow).length,
+        greaterThan(50),
+        reason: 'kPrimIconStatus parse came back (near-)empty',
+      );
       final pending = <String, ({img.Image icon, String sources})>{};
       // Extraction NEVER silently drops an identity: failures land here and in
       // the manifest with their reason.
@@ -788,9 +797,11 @@ void main() {
         final committed = img.decodePng(files.first.readAsBytesSync())!;
         final fresh = pending[key]?.icon;
         if (fresh == null) {
-          // ignore: avoid_print
-          print(
-            'verified $key: kept — not reproducible by the current pipeline '
+          // A verified key is pipeline-pinned (hand-finished art is
+          // verifiedHand instead): the pipeline no longer extracting it at
+          // all IS a reproducibility regression.
+          reproErrors.add(
+            '$key is verified but the pipeline produced no extraction '
             '(${failed[key] ?? 'no extraction output'})',
           );
           continue;

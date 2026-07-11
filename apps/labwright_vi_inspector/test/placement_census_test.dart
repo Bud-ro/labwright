@@ -175,6 +175,13 @@ void main() {
             "  '$kn': (dx: ${e.key.$1}, dy: ${e.key.$2}), // x${e.value}",
           );
         }
+        // A sweep that silently found almost nothing (corpus missing, a
+        // matcher regression) must not overwrite the committed table.
+        expect(
+          entries.length,
+          greaterThan(40),
+          reason: 'census found too few placements to trust a rewrite',
+        );
         expect(
           conflicts,
           isEmpty,
