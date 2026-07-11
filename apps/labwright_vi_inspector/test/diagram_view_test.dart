@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -109,7 +111,29 @@ ViModel stackedCaseModel(List<int> structAttrs) => modelFromRecords(<int>[
   ...close(),
 ]);
 
+Future<ui.Image> _tinyIcon() {
+  final completer = Completer<ui.Image>();
+  // 2x1: a black pixel and a transparent one.
+  final rgba = Uint8List.fromList([0, 0, 0, 255, 0, 0, 0, 0]);
+  ui.decodeImageFromPixels(
+    rgba,
+    2,
+    1,
+    ui.PixelFormat.rgba8888,
+    completer.complete,
+  );
+  return completer.future;
+}
+
 void main() {
+  test('remapPrimIcon substitutes palette colours, preserves alpha', () async {
+    final icon = await _tinyIcon();
+    final remapped = await remapPrimIcon(icon, {0x000000: 0x777777});
+    final data = (await remapped.toByteData())!.buffer.asUint8List();
+    expect(data.sublist(0, 4), [0x77, 0x77, 0x77, 255]);
+    expect(data[7], 0, reason: 'transparent pixel stays transparent');
+  });
+
   group('bdHiddenFrameOids', () {
     test('the decoded index hides every other frame', () {
       final bd = stackedCaseModel([0x24, 0x4d, 0x02]).blockDiagrams.first;

@@ -1310,6 +1310,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
   final formatPayloads = <ViHeapObject, List<int>>{};
   final absTop = <ViHeapObject, int>{};
   final absLeft = <ViHeapObject, int>{};
+  final liveParent = <ViHeapObject, ViHeapObject?>{};
   final length = body.length;
 
   walkHeapObjects<ViHeapObject>(
@@ -1317,6 +1318,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
     onObjectOpen: (span, kind, oid, parent) {
       final cur = ViHeapObject(oid: oid, kind: kind, offset: span.offset);
       cur.parentOid = parent?.oid;
+      liveParent[cur] = parent;
       absTop[cur] = absTop[parent] ?? 0;
       absLeft[cur] = absLeft[parent] ?? 0;
       objects.add(cur);
@@ -1427,6 +1429,28 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
     },
   );
 
+  // A label part composes against its OWNER's final origin. The walk-time
+  // accumulator misses exactly one case: an owner whose own bounds record
+  // serialises after the label child (a structure label stored at (-17,0),
+  // directly above its case) — the label then composed against the
+  // grandparent frame. Recomposing every bounded-owner label against the
+  // owner's final origin is identical when the owner's bounds came first
+  // (the common order) and fixes the late-bounds owners.
+  for (final object in objects) {
+    if (object.kind != HeapObjectClass.controlLabel.code) continue;
+    final parent = liveParent[object];
+    final local = object.bounds;
+    final ownerBounds = parent?.bounds;
+    final ownerAbs = parent?.absBounds;
+    if (local == null || ownerBounds == null || ownerAbs == null) continue;
+    object.absBounds = HeapRect(
+      top: ownerAbs.top + local.top,
+      left: ownerAbs.left + local.left,
+      bottom: ownerAbs.top + local.top + local.height,
+      right: ownerAbs.left + local.left + local.width,
+    );
+  }
+
   for (final object in objects) {
     object.category = classifyObject(kind: object.kind, termCount: object.termCount);
     object.typeKind = inferTypeKind(c4ops[object] ?? const <int>{}, formatPayloads[object]);
@@ -1484,7 +1508,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
   for (final object in objects) {
     if (object.category != ViObjectKind.node || object.label != null) continue;
     final caps = (nodeKids[object.oid] ?? const <ViHeapObject>[])
-        .where((c) => c.kind == 0x0a)
+        .where((c) => c.kind == HeapObjectClass.controlLabel.code)
         .map((c) => c.label?.trim())
         .where((cap) => cap != null && cap.isNotEmpty);
     if (caps.isNotEmpty) object.label = caps.first;
