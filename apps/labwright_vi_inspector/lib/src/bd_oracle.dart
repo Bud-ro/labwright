@@ -1452,14 +1452,21 @@ class _BdOracleViewState extends State<BdOracleView>
                 ? result.fitted
                 : (_wipeFitted ?? result.fitted);
             const wipeFilter = FilterQuality.none;
+            // The stack is laid out at the FINAL display size and the
+            // images are drawn into it exactly once: the minified pair is
+            // already at physical display resolution (one nearest 1:1 blit),
+            // and the magnified case nearest-stretches the originals. A
+            // round-trip (stretch to native size, then compositor-shrink)
+            // resampled twice and aliased.
+            final dispH = h * scale;
             return GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTapDown: (d) => follow(d.localPosition),
               onHorizontalDragUpdate: (d) => follow(d.localPosition),
-              child: FittedBox(
+              child: Center(
                 child: SizedBox(
-                  width: w,
-                  height: h,
+                  width: dispW,
+                  height: dispH,
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
@@ -1477,7 +1484,7 @@ class _BdOracleViewState extends State<BdOracleView>
                         ),
                       ),
                       Positioned(
-                        left: (w * _wipeFraction - 1).clamp(0.0, w - 2),
+                        left: (dispW * _wipeFraction - 1).clamp(0.0, dispW - 2),
                         width: 2,
                         top: 0,
                         bottom: 0,
@@ -1627,13 +1634,20 @@ class _CrispImageState extends State<CrispImage> {
           filterQuality: FilterQuality.low,
         );
       }
-      // The downscale is at physical resolution; RawImage draws it at the
-      // logical fit size — an exact 1/dpr mapping the compositor renders
-      // pixel-for-pixel on screen.
-      return RawImage(
-        image: shown,
-        fit: BoxFit.contain,
-        filterQuality: FilterQuality.none,
+      // The downscale is at PHYSICAL display resolution: lay it out at
+      // physical-size / dpr logical pixels so the compositor blits it 1:1 —
+      // letting BoxFit shrink it by 1/dpr would resample it a second time
+      // and re-introduce the aliasing the halving removed.
+      return Center(
+        child: SizedBox(
+          width: shown.width / dpr,
+          height: shown.height / dpr,
+          child: RawImage(
+            image: shown,
+            fit: BoxFit.fill,
+            filterQuality: FilterQuality.none,
+          ),
+        ),
       );
     },
   );
