@@ -54,4 +54,5 @@ export 'src/ir.dart';
 export 'src/ir_json.dart';
 export 'src/meta.dart';
 export 'src/viparse.dart';
+export 'src/wire_render.dart';
 export 'src/writer_scoreboard.dart';
