@@ -601,32 +601,39 @@ void main() {
     expect(d.byId[2]!.label, 'Build Array', reason: 'the caption propagates up to name the 0x2f node');
   });
 
-  test('constValue strings: the C6 6C FF blob becomes constText (never helpText); the u8-len token neither', () {
-    final blob = dia([
-      ...open(0x50, 1),
-      ...bounds(0, 0, 17, 80),
-      ...c6blob(0x6c, 'ps2000aRunStreaming'),
-      ...close(),
-    ]).byId[1]!;
-    expect(blob.constText, 'ps2000aRunStreaming', reason: 'raw 0x26C is a BD string constant value, not help');
-    expect(blob.helpText, isNull);
+  test(
+    'constValue strings: both validated forms (C6 6C FF blob, short u8-len u32-string) become constText, never helpText',
+    () {
+      final blob = dia([
+        ...open(0x50, 1),
+        ...bounds(0, 0, 17, 80),
+        ...c6blob(0x6c, 'ps2000aRunStreaming'),
+        ...close(),
+      ]).byId[1]!;
+      expect(blob.constText, 'ps2000aRunStreaming', reason: 'raw 0x26C is a BD string constant value, not help');
+      expect(blob.helpText, isNull);
 
-    const s = 'ps2000aRunStreaming';
-    final u8tok = dia([
-      ...open(0x50, 1),
-      ...bounds(0, 0, 17, 80),
-      0xc6,
-      0x6c,
-      4 + s.length,
-      0,
-      0,
-      0,
-      s.length,
-      ...s.codeUnits,
-      ...close(),
-    ]).byId[1]!;
-    expect((u8tok.helpText, u8tok.constText), (null, null), reason: 'only the FF blob form is captured');
-  });
+      const s = 'ps2000aRunStreaming';
+      final u8tok = dia([
+        ...open(0x50, 1),
+        ...bounds(0, 0, 17, 80),
+        0xc6,
+        0x6c,
+        4 + s.length,
+        0,
+        0,
+        0,
+        s.length,
+        ...s.codeUnits,
+        ...close(),
+      ]).byId[1]!;
+      expect(
+        (u8tok.helpText, u8tok.constText),
+        (null, s),
+        reason: 'the short validated u32-string form is a constant value too',
+      );
+    },
+  );
 
   test('formatControlRange renders honestly (finite-only, inverted/±∞/NaN suppressed)', () {
     const rows = <(double?, double?, String?)>[
