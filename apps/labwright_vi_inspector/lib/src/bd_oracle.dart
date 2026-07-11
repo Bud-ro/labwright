@@ -68,7 +68,7 @@ Future<BdRaster?> rasteriseBlockDiagram(
   double? scale,
   int margin = 40,
   Map<int, ViLegacyIcon> subViIcons = const {},
-  Map<int, ui.Image> primIcons = const {},
+  Map<int, PrimIconArt> primIcons = const {},
   List<ViWire>? wires,
   List<ViHeapObject>? drawable,
 }) async {

@@ -112,7 +112,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
   // only). Populated asynchronously once the project-index loader resolves (see
   // [_resolveIcons]); empty until then, and when no loader is supplied.
   Map<int, ViLegacyIcon> _subViIcons = const {};
-  Map<int, ui.Image> _primIcons = const {};
+  Map<int, PrimIconArt> _primIcons = const {};
   late final List<ViHeapObject> _drawable = _diagram == null
       ? const []
       : bdDrawableObjects(_diagram);
@@ -1563,9 +1563,17 @@ int? primIconKeyOf(ViHeapObject object) =>
 /// 1/[kPrimIconPrescale] of a source pixel wide.
 const kPrimIconPrescale = 4;
 
-Future<Map<int, ui.Image>> loadPrimIcons() => _primIcons ??= () async {
+/// A bundled icon at both resolutions: [base] is the asset's own pixels —
+/// the ONLY image nearest sampling may touch (nearest at any integer device
+/// scale replicates it uniformly; nearest on the prescale at a mismatched
+/// scale, e.g. 4x art on a 3x canvas, doubles some columns and drops others).
+/// [sharp] is the [kPrimIconPrescale]x nearest prescale for the
+/// sharp-bilinear interactive path.
+typedef PrimIconArt = ({ui.Image base, ui.Image sharp});
+
+Future<Map<int, PrimIconArt>> loadPrimIcons() => _primIcons ??= () async {
   final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
-  final icons = <int, ui.Image>{};
+  final icons = <int, PrimIconArt>{};
   for (final asset in manifest.listAssets()) {
     final m = RegExp(
       r'assets/prim_icons/(prim|class)(\d+)(?:_[a-z0-9-]+)?\.png$',
@@ -1608,15 +1616,18 @@ Future<Map<int, ui.Image>> loadPrimIcons() => _primIcons ??= () async {
       ),
       ui.Paint()..filterQuality = ui.FilterQuality.none,
     );
-    icons[id] = await recorder.endRecording().toImage(
-      image.width * kPrimIconPrescale,
-      image.height * kPrimIconPrescale,
+    icons[id] = (
+      base: image,
+      sharp: await recorder.endRecording().toImage(
+        image.width * kPrimIconPrescale,
+        image.height * kPrimIconPrescale,
+      ),
     );
   }
   return _primIconsSync = icons;
 }();
-Future<Map<int, ui.Image>>? _primIcons;
-Map<int, ui.Image> _primIconsSync = const {};
+Future<Map<int, PrimIconArt>>? _primIcons;
+Map<int, PrimIconArt> _primIconsSync = const {};
 
 /// Recolours a primitive icon by exact palette substitution: every pixel
 /// whose RGB appears in [rgbMapping] (0xRRGGBB → 0xRRGGBB) is replaced,
@@ -1670,7 +1681,7 @@ bool primIconHit(ViHeapObject object, double x, double y) {
 /// The already-decoded primitive icons, or empty while [loadPrimIcons] is
 /// still in flight — for callers that must not block (the oracle's first
 /// build under the test framework's fake async).
-Map<int, ui.Image> primIconsLoaded() => _primIconsSync;
+Map<int, PrimIconArt> primIconsLoaded() => _primIconsSync;
 
 class BdDiagramPainter extends CustomPainter {
   BdDiagramPainter({
@@ -1706,7 +1717,7 @@ class BdDiagramPainter extends CustomPainter {
   /// Bundled primitive icon art keyed by primResID (see [loadPrimIcons]);
   /// stamped at natural size on primitive plates. A node without an entry
   /// keeps the plate + operator glyph.
-  final Map<int, ui.Image> primIcons;
+  final Map<int, PrimIconArt> primIcons;
 
   /// Sampling for stamped icons: nearest (the default) is pixel-exact in the
   /// 1:1 oracle raster; the interactive view passes [FilterQuality.low]
@@ -2047,36 +2058,30 @@ class BdDiagramPainter extends CustomPainter {
           final primIcon = iconKey == null ? null : primIcons[iconKey];
           if (primIcon != null) {
             // The harvested art carries its own borders and transparency —
-            // no plate, backing, or extra frame around it. The image is the
-            // asset prescaled [kPrimIconPrescale]x (see there); the dst rect
-            // is the LOGICAL size.
-            final w = primIcon.width / kPrimIconPrescale;
-            final h = primIcon.height / kPrimIconPrescale;
-            final dst = Rect.fromCenter(
-              center: rect.center,
-              width: w,
-              height: h,
-            );
-            // Sampling by the layer's rasterisation scale: once it
-            // magnifies the prescaled bitmap itself (canvasScale >=
-            // kPrimIconPrescale), LINEAR's interpolation band spans a whole
-            // display pixel and reads as fuzz — NEAREST gives the crisp
-            // blocks; below that the band stays sub-pixel and LINEAR is the
-            // sharp-bilinear that kills minification aliasing. NEAREST also
-            // stays exact for the 1:1 oracle raster.
+            // no plate, backing, or extra frame around it. Exactness paths
+            // (NEAREST) sample the asset's own pixels: at any integer device
+            // scale that replicates uniformly, where nearest on the 4x
+            // prescale at a mismatched scale (a 3x supersampled raster)
+            // doubled some columns and dropped others. The sharp-bilinear
+            // interactive path samples the prescale with LINEAR.
             final filter =
                 iconFilterQuality == FilterQuality.none ||
                     canvasScale >= kPrimIconPrescale
                 ? FilterQuality.none
                 : iconFilterQuality;
+            final art = filter == FilterQuality.none
+                ? primIcon.base
+                : primIcon.sharp;
+            final w = primIcon.base.width.toDouble();
+            final h = primIcon.base.height.toDouble();
+            final dst = Rect.fromCenter(
+              center: rect.center,
+              width: w,
+              height: h,
+            );
             canvas.drawImageRect(
-              primIcon,
-              Rect.fromLTWH(
-                0,
-                0,
-                primIcon.width.toDouble(),
-                primIcon.height.toDouble(),
-              ),
+              art,
+              Rect.fromLTWH(0, 0, art.width.toDouble(), art.height.toDouble()),
               dst,
               Paint()..filterQuality = filter,
             );
