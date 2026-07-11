@@ -16,9 +16,10 @@ import '../labwright_rsrc_parse.dart';
 /// tree IS now recovered into [diagrams] (objects with bounds, labels, class
 /// codes and parent/child nesting — see `buildDiagram`), including the
 /// dataflow **wires** ([ViDiagram.wires]: endpoint binding, route geometry,
-/// datatype). Not *yet* decoded is wire **direction** (which endpoint is the
-/// source); function-vs-subVI is likewise not yet distinguished from the
-/// block diagram alone.
+/// and a datatype ESTIMATE that agrees with typed endpoints ~9-in-10 — see
+/// [ViWire.typeKind]). Not *yet* decoded is wire **direction** (which
+/// endpoint is the source); function-vs-subVI is likewise not yet
+/// distinguished from the block diagram alone.
 class ViModel {
   const ViModel({
     required this.version,
@@ -62,8 +63,9 @@ class ViModel {
   /// nesting (`parentOid` + child-membership refs), plus the dataflow **wires**
   /// ([ViDiagram.wires]): signal (`0x17`) objects with resolved oid endpoint
   /// binding + endpoint anchors, stored route geometry, and the decoded wire
-  /// datatype ([ViWire.signalType]). **Scope**: wire direction is not
-  /// decoded (see [ViWire]).
+  /// datatype ([ViWire.signalType] — an estimate with measured ~90% family
+  /// agreement against typed endpoints, see [ViWire.typeKind]). **Scope**:
+  /// wire direction is not decoded (see [ViWire]).
   final List<ViDiagram> blockDiagrams;
 
   /// The recovered **front-panel** object tree(s) — from the `FPHb`/`FPHP`

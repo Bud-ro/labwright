@@ -14,7 +14,8 @@
 ///    heap-record opcodes live in one place: the [HeapOpcode] enhanced enum.
 ///
 /// Honest/total throughout; documented limits (e.g. signal wires expose
-/// endpoint binding, geometry and datatype but not direction — see [ViWire]).
+/// endpoint binding, geometry and a measured-agreement datatype estimate,
+/// but not direction — see [ViWire]).
 /// Recovering full block-diagram *logic* is ongoing work.
 library;
 

@@ -252,6 +252,12 @@ class ViHeapObject {
   /// or null when unresolved. Set by `resolveDataSpaceTypes`.
   ViDataType? dataType;
 
+  /// The full resolved VCTP descriptor behind [dataType] ([ViType]: raw
+  /// code, cluster members, array element index + [ViType.dimCount]) — or
+  /// null when unresolved. Set by `resolveDataSpaceTypes` alongside
+  /// [dataType]; resolve member/element indices against `ViModel.types`.
+  ViType? resolvedType;
+
   /// The object's packed flags word ([HeapAttribute.objFlags], raw `0x0cb`)
   /// — or null when the record is absent.
   int? objFlags;
@@ -456,10 +462,13 @@ enum HeapObjectClass {
   /// [ViDiagram.endpointTerminalBounds] owns that census.
   /// The signal itself carries no bounds; its packed route lives in the
   /// compressedWireTable payload (route decoded, remaining interior not). Its
-  /// **datatype is decoded from its own lastSignalKind record** — element
-  /// type code + array depth + flags, see [ViSignalType] — carried by all
-  /// but 14 corpus signals. (The refuted alternative, kept for the record:
-  /// the per-object [HeapAttribute.typeDescIndex] reachable from ~8.7% of
+  /// **datatype is decoded — with measured agreement, not certainty — from
+  /// its own lastSignalKind record** (element type code + array depth +
+  /// flags, carried by all but 14 corpus signals): the decoded family
+  /// agrees with VCTP-typed endpoints on 89.9% of the 144,668 signals that
+  /// have one; [ViSignalType] owns the census and the disagreement
+  /// partition. (The refuted alternative, kept for the record: the
+  /// per-object [HeapAttribute.typeDescIndex] reachable from ~8.7% of
   /// signals via an endpoint's `14 4f` dcoRef is an object ordinal that
   /// agrees across a signal's endpoints in 0.0% of cases.)
   signal(0x17, 'Signal / dataflow wire (BD)', ViObjectKind.wire, ClassConfidence.inferred),
@@ -1033,23 +1042,46 @@ ViTypeKind inferTypeKind(Set<int> c4ops, List<int>? formatPayload) {
 ///   they vary freely within one type and their meaning is not decoded
 ///   (TODO: pin the two flag bits' semantics).
 ///
-/// Validation (7,524-VI corpus; the census is pinned by the `signal_types`
-/// snapshot section, owned by `signal_type_census_test.dart`): against the
-/// 144,668 signals whose endpoints carry an unambiguous VCTP-resolved type
-/// family (the oracle), the family predicted from this word agrees **89.9%**
-/// overall — per oracle family: string 95.6%, cluster 94.9%, refnum 93.4%,
-/// path 90.2%, int 88.8%, bool 86.0%, float 83.5%, array 76.4% — plus the
-/// 1,474 enum-labeled wires reading as int **by design** (the flatten
-/// above; 94.4% land exactly there). The array row's misses are dominated
-/// by wires the word calls the *element* type where the typed endpoint is
-/// the *array* side (loop-boundary/indexing endpoints) and by arrays of
-/// refnums (dims undecidable, see [arrayDims]); array-dimension agreement
-/// on family-agreeing pairs against exact VCTP dims: 0 dims 99.7%, 1D
-/// 85.8%, 2D 91.3%, 3D 95.8%. Disagreements concentrate on oracle noise
-/// (an endpoint typed by a neighbouring object), so the word — the
-/// signal's own record — is treated as the wire's type, with the census
-/// above as its honest error bar. 98.8% of all corpus signals resolve a
-/// non-null [typeKind].
+/// Validation (7,524-VI corpus; every figure below is pinned by the
+/// `signal_types` snapshot section, owned by `signal_type_census_test.dart`):
+/// against the 144,668 signals whose endpoints carry an unambiguous
+/// VCTP-resolved type family (the oracle), the family predicted from this
+/// word agrees **89.9%** overall — per oracle family: string 95.6%,
+/// cluster 94.9%, refnum 93.4%, path 90.2%, int 88.8%, bool 86.0%, float
+/// 83.5%, array 76.4% — plus the 1,474 enum-labeled wires reading as int
+/// **by design** (the flatten above; 94.4% land exactly there).
+///
+/// The 14,657 disagreements are **partitioned by measured cause**
+/// (`miss_<family>_element/nearby/other`):
+///
+/// * 34.0% (4,986) are *element-matches* — the word names the endpoint
+///   array's ELEMENT family (or an array OF the endpoint's scalar family):
+///   the loop-boundary/indexing-tunnel signature, where the typed endpoint
+///   sits on the array side of the boundary the wire crosses. This
+///   explains 81% (4,663/5,757) of the array row's misses.
+/// * 0.0% (exactly 0) are explained by a different-family type elsewhere
+///   in the endpoint neighbourhood — the ancestors/terminals beyond the
+///   first typed object carry no second resolved type, so "the oracle
+///   picked an adjacent object's type" is measured OFF the table.
+/// * 66.0% (9,671 = 6.7% of all labeled wires) are an **unexplained
+///   residual**, largest on bool (14.0% of its labeled wires) and float
+///   (16.2%), smallest on string (4.2%) and array (4.5%). Whether the
+///   word or the oracle is wrong in these is not attributable with the
+///   decoded evidence; no family is gated to null over it — instead the
+///   value is surfaced as an estimate with this census as its error bar,
+///   and [ViWire.typeKind] documents the recommended precedence (a typed
+///   terminal outranks the word).
+///
+/// Array-dimension agreement ([arrayDims] vs the exact VCTP dim count, on
+/// wires whose element families agree so arrayness mismatches stay
+/// visible): 0 dims 99.7% (94,756), 1D 85.7% (14,745), 2D 87.3% (1,203),
+/// 3D 23/40. 98.8% of all corpus signals resolve a non-null [typeKind].
+///
+/// Rejected per-signal type carriers, measured on the same labeled set
+/// (majority-family purity, pinned as `ruledOut*`): signalState `0x115`
+/// 28.4% (146,142 records), the scalar `0x1e7` wire-table forms 33.8%
+/// (97,885), the signal's objFlags 50.0% (3,348) — versus this word's
+/// 89.9%; none of them is a type field.
 class ViSignalType {
   const ViSignalType(this.raw);
 
@@ -1116,21 +1148,40 @@ class ViSignalType {
     return dims < 0 ? null : dims;
   }
 
-  /// Whether the wire carries an array (any [arrayDims] > 0). False when
-  /// dims are unresolved — refnum wires never read as arrays here.
-  bool get isArray => (arrayDims ?? 0) > 0;
+  /// Whether the wire carries an array — or **null when undecidable**
+  /// ([arrayDims] null: the refnum codes and the uncatalogued codes), kept
+  /// tristate so an array-of-refnum wire reads as *unknown* array-ness
+  /// rather than a fabricated false.
+  bool? get isArray {
+    final dims = arrayDims;
+    return dims == null ? null : dims > 0;
+  }
 
-  /// The wire-level type family: [ViTypeKind.array] for an array wire,
-  /// else the [elementKind] — the single value a renderer colours by.
-  /// Null when the element family is unresolved.
-  ViTypeKind? get typeKind => isArray ? ViTypeKind.array : elementKind;
+  /// The wire-level type family: [ViTypeKind.array] when [isArray] is
+  /// true, else the [elementKind]. Null when the element family is
+  /// unresolved. Note the collapse: a renderer needs [elementKind] (LabVIEW
+  /// colours an array wire by its ELEMENT type) plus [arrayDims] (stroke
+  /// width), not this value alone; and a refnum wire reads as refnum here
+  /// even when the underlying type is an array of refnums ([isArray] null,
+  /// never false, in that case — the depth base is inner-type-dependent).
+  ViTypeKind? get typeKind => isArray == true ? ViTypeKind.array : elementKind;
+
+  /// Value equality on the raw word (the only state).
+  @override
+  bool operator ==(Object other) => other is ViSignalType && other.raw == raw;
+
+  @override
+  int get hashCode => raw.hashCode;
 }
 
 /// The corpus-pinned scalar depth base of a signal type code (see
 /// [ViSignalType.depth]): the depth a non-array wire of that family carries.
 /// Null for the refnum codes (depth varies 1..6 with the referenced inner
-/// type) and for codes never censused in the wire-type word — callers treat
-/// null as "array-ness undecidable", never as scalar.
+/// type) and for codes never censused in the wire-type word — including the
+/// packed-string codes `0x34`/`0x35`/`0x3f`, which appear 0 times corpus-wide
+/// (substring wires flatten to the plain `0x30`), so no scalar base is
+/// derivable for them. Callers treat null as "array-ness undecidable",
+/// never as scalar.
 int? _signalScalarDepth(int code) {
   if (code >= TypeCode.i8 && code <= TypeCode.complexExt) return 1;
   if (code >= TypeCode.enumU8 && code <= TypeCode.enumU32) return 1;
@@ -1220,7 +1271,29 @@ class ViWire {
   /// The wire-level type family ([ViSignalType.typeKind]:
   /// [ViTypeKind.array] for array wires, else the element family), or null
   /// when the record is absent or its code unresolved.
+  ///
+  /// **This is an estimate.** Against endpoints with a VCTP-resolved type
+  /// it agrees 89.9% overall — a resolved value disagrees with a typed
+  /// endpoint roughly 1-in-10 — and worse on the weakest families (float
+  /// 83.5%, bool 86.0%; array 76.4%, mostly the word naming the element
+  /// across a loop boundary). The full measured census, including the
+  /// disagreement partition, lives on [ViSignalType]. A renderer that has
+  /// a typed terminal at an endpoint
+  /// should let the terminal's resolved type OUTRANK this word for that
+  /// wire; use this as the fallback for the majority of wires that touch no
+  /// typed terminal. Null here means honest absence — deliberately unlike
+  /// [ViHeapObject.typeKind]'s [ViTypeKind.unknown] sentinel, because a
+  /// wire has exactly one record-backed source (absent record = no claim),
+  /// where an object's kind is a fusion of signals that can merely fail to
+  /// fire. For rendering, pair [elementTypeKind] (colour) with
+  /// [ViSignalType.arrayDims] (stroke width) rather than this collapsed
+  /// value.
   ViTypeKind? get typeKind => signalType?.typeKind;
+
+  /// The wire's scalar/element type family ([ViSignalType.elementKind]) —
+  /// what LabVIEW colours the wire by, arrays included — or null when the
+  /// record is absent or its code unresolved.
+  ViTypeKind? get elementTypeKind => signalType?.elementKind;
 }
 
 /// The decoded shape of a signal's stored wire route (its `0x1e7` packed
@@ -1725,9 +1798,13 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
           cur.wireTableRaw ??= attr.rawValueBytes;
         }
         // Kind-gated to the signal class (the record census puts the tag on
-        // 0x17 at 99.99% — the stray off-class carriers are not wire types).
+        // 0x17 at 99.99% — the stray off-class carriers are not wire types)
+        // and width-gated to the documented u16 layout: an over-wide value
+        // is not a wire-type word and is dropped rather than masked (the
+        // census law `oversizedTypeWord == 0` pins that none exist).
         if (attr.attribute == HeapAttribute.lastSignalKind && cur.kind == 0x17) {
-          cur.lastSignalKind ??= attr.asInt;
+          final word = attr.asInt;
+          if (word != null && word <= 0xffff) cur.lastSignalKind ??= word;
         }
         // The transparent sentinel (flag 0x01, RGB 0) is "no colour", not
         // black — capturing it would paint transparent label backings and
@@ -2121,6 +2198,7 @@ void resolveDataSpaceTypes({
       final kind = _typeKindOf(type.kind);
       if (kind != null) o.typeKind = kind;
       o.dataType = type.kind;
+      o.resolvedType = type;
       if (type.name != null && type.name!.trim().isNotEmpty) {
         o.typeName ??= type.name!.trim();
       }
@@ -2137,6 +2215,7 @@ void resolveDataSpaceTypes({
       if (dco == null) continue;
       if (dco.typeKind != ViTypeKind.unknown) o.typeKind = dco.typeKind;
       o.dataType ??= dco.dataType;
+      o.resolvedType ??= dco.resolvedType;
       o.typeName ??= dco.typeName;
     }
   }

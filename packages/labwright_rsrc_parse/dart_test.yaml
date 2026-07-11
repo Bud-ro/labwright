@@ -12,3 +12,9 @@ tags:
     # RSS, 1.7x slower) because the parallelism that matters is the per-suite
     # isolate pool. Keep sweeps streaming (no whole-corpus byte/model
     # accumulation) and the pool bound intact — see corpus/README.md.
+    #
+    # Timeout is scaled, not absolute: every suite sweeps the same corpus
+    # concurrently, so one suite's wall time moves with how many corpus
+    # suites the run loads — the default 30 s flakes under full-suite
+    # contention (observed on object_color_test).
+    timeout: 3x

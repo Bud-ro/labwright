@@ -36,8 +36,16 @@ void main() {
       expect(t.elementKind, elementKind, reason: label);
       expect(t.arrayDims, dims, reason: label);
       expect(t.typeKind, kind, reason: label);
-      expect(t.isArray, (dims ?? 0) > 0, reason: label);
+      // Tristate arrayness: unknown dims (refnum / uncatalogued codes) stay
+      // an honest null, never false.
+      expect(t.isArray, dims == null ? null : dims > 0, reason: label);
     }
+  });
+
+  test('value equality on the raw word', () {
+    expect(const ViSignalType(0x8350), const ViSignalType(0x8350));
+    expect(const ViSignalType(0x8350).hashCode, const ViSignalType(0x8350).hashCode);
+    expect(const ViSignalType(0x8350), isNot(const ViSignalType(0x0350)));
   });
 
   test('a signal heap object surfaces its wire-type word on the wire', () {
@@ -57,6 +65,40 @@ void main() {
     expect(wires, hasLength(1));
     expect(wires.single.signalType?.raw, 0x0203);
     expect(wires.single.typeKind, ViTypeKind.array);
-    expect(wires.single.signalType?.elementKind, ViTypeKind.numericInt);
+    expect(wires.single.elementTypeKind, ViTypeKind.numericInt);
+  });
+
+  test('a signal with no wire-type record yields honest nulls', () {
+    // Same minimal heap, no `44 9F` record on the signal.
+    final body = Uint8List.fromList([
+      0, 0, 0, 0,
+      0x10, 0x19, 0x02, 0xfe, 0x00, 0x7e, 0xfd, 0x00, 0x01, // root
+      0x10, 0x19, 0x02, 0xfe, 0x00, 0x17, 0xfd, 0x00, 0x02, // signal
+      0x14, 0x19, 0x01, 0xfd, 0x00, 0x03, // endpoint ref
+      0x08, 0x19, // close signal
+      0x08, 0x19, // close root
+    ]);
+    final wire = buildDiagram(body).wires.single;
+    expect(wire.signalType, isNull);
+    expect(wire.typeKind, isNull);
+    expect(wire.elementTypeKind, isNull);
+  });
+
+  test('an uncatalogued code yields a word but no family', () {
+    // `44 9F` with 0x83FF: framed and surfaced raw, family honestly null.
+    final body = Uint8List.fromList([
+      0, 0, 0, 0,
+      0x10, 0x19, 0x02, 0xfe, 0x00, 0x7e, 0xfd, 0x00, 0x01, // root
+      0x10, 0x19, 0x02, 0xfe, 0x00, 0x17, 0xfd, 0x00, 0x02, // signal
+      0x44, 0x9f, 0x83, 0xff, // lastSignalKind = 0x83ff
+      0x14, 0x19, 0x01, 0xfd, 0x00, 0x03, // endpoint ref
+      0x08, 0x19, // close signal
+      0x08, 0x19, // close root
+    ]);
+    final wire = buildDiagram(body).wires.single;
+    expect(wire.signalType?.raw, 0x83ff);
+    expect(wire.typeKind, isNull);
+    expect(wire.elementTypeKind, isNull);
+    expect(wire.signalType?.isArray, isNull);
   });
 }
