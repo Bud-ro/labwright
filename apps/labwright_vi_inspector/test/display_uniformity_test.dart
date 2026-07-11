@@ -163,6 +163,24 @@ void main() {
             greaterThan(0),
             reason: 'empty stamp for $key in ${f.path}',
           );
+          // The alpha hitbox must sit exactly on the stamp: a hit on the
+          // stamp's first opaque top-row pixel, a miss one pixel above it.
+          final mask = (await art.base.toByteData())!.buffer.asUint8List();
+          for (var x = 0; x < art.base.width; x++) {
+            if (mask[x * 4 + 3] == 0) continue;
+            final hx = stamp.left + x + 0.5;
+            expect(
+              primIconHit(o, hx, stamp.top + 0.5),
+              isTrue,
+              reason: 'hitbox misaligned with stamp for $key in ${f.path}',
+            );
+            expect(
+              primIconHit(o, hx, stamp.top - 0.5),
+              isFalse,
+              reason: 'hitbox extends above stamp for $key in ${f.path}',
+            );
+            break;
+          }
         }
       }
       // ignore: avoid_print

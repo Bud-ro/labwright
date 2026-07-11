@@ -6,6 +6,7 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:labwright_vi_inspector/src/bd_oracle.dart';
 import 'package:labwright_vi_inspector/src/diagram_view.dart';
 
+import 'bd_snippet_oracle_test.dart' show snippetCorpusPngs;
 import 'util.dart';
 
 /// Measures where LabVIEW places each primitive's icon art within its node
@@ -32,10 +33,8 @@ void main() {
         );
         return;
       }
-      final dir = repoDir(
-        'packages/labwright_rsrc_parse/corpus/vi/rcpacini_VI-Snippets',
-      );
-      if (dir == null) return;
+      final pngs = snippetCorpusPngs();
+      if (pngs.isEmpty) return;
       await loadRealTextFont();
       await tester.runAsync(() async {
         final icons = await loadPrimIcons();
@@ -52,8 +51,7 @@ void main() {
         }
         // key -> in-box placement -> instance count
         final census = <String, Map<(int, int), int>>{};
-        for (final f in dir.listSync(recursive: true).whereType<File>()) {
-          if (!f.path.endsWith('.png')) continue;
+        for (final f in pngs) {
           final bytes = f.readAsBytesSync();
           final vi = extractSnippetVi(bytes);
           if (vi == null) continue;
@@ -137,12 +135,16 @@ void main() {
           }
           reference.image.dispose();
           raster.image.dispose();
-          if (bias.isEmpty) continue;
-          final snipBias =
-              (bias.entries.toList()
-                    ..sort((a, b) => b.value.compareTo(a.value)))
-                  .first
-                  .key;
+          // No art-fills-box anchor in a snippet: its hits enter the
+          // census unnormalised (bias 0,0) — a registration bias there
+          // would surface as a placement conflict with anchored snippets
+          // and fail the run.
+          final snipBias = bias.isEmpty
+              ? (0, 0)
+              : (bias.entries.toList()
+                      ..sort((a, b) => b.value.compareTo(a.value)))
+                    .first
+                    .key;
           // An exact opaque-pixel match of a whole icon is never accidental:
           // every hit is a real placement (a junk-laden crop simply records
           // where its junk-laden pixels sit, which is where they must render

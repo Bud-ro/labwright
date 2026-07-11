@@ -1777,6 +1777,7 @@ bool primIconHit(ViHeapObject object, double x, double y) {
     ),
     mask.w,
     mask.h,
+    key: id,
   );
   final left = stamp.left;
   final top = stamp.top;

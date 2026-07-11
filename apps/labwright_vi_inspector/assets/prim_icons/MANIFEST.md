@@ -26,7 +26,7 @@ Palette (13 colours — every icon pixel is one of these): #000000 #0000ff #3333
 | prim1057_increment.png | Increment | 35x32 | Config_Escape — pair-seeded consensus (7/8 agreeing) |
 | prim1058_decrement.png | Decrement | 16x31 | Pages, Config_Load, Config_Load2, MD5 — pair-seeded consensus (2/6 agreeing) |
 | prim1061_and.png | And | 30x20 | large, MD5 — pair-seeded consensus (3/5 agreeing) |
-| prim1062_or.png | Or | 33x25 | Config_Load, Config_Load2, Read Library Version, Read VI Blocks, MD5 — pair-seeded consensus (2/8 agreeing) |
+| prim1062_or.png | Or | 22x16 | hand-cleaned (adjacent object + wires removed); byte-matches the reference at 4 instances |
 | prim1063_exclusive-or.png | Exclusive Or | 34x27 | crc8, MD5, crc16 — pair-seeded consensus (2/8 agreeing) |
 | prim1064_not.png | Not | 35x31 | ClassChildren, GenerateTree, MD5 — single-sample fallback (0/6 agreeing) |
 | prim1070_random-number-0-1.png | Random Number (0-1) | 28x32 | IconHeader — single-sample fallback (0/3 agreeing) |
@@ -36,7 +36,7 @@ Palette (13 colours — every icon pixel is one of these): #000000 #0000ff #3333
 | prim1102_equal.png | Equal? | 21x21 | ClassChildren, GenerateTree — single-sample fallback (0/3 agreeing) |
 | prim1103.png | (uncatalogued) | 21x21 | Read VI Blocks, Config_Escape — single-sample fallback (0/2 agreeing) |
 | prim1105_not-equal.png | Not Equal? | 31x31 | large — single-sample fallback (0/2 agreeing) |
-| prim1110_greater.png | Greater? | 32x25 | example — single-sample fallback (0/1 agreeing) |
+| prim1110_greater.png | Greater? | 22x21 | hand-cleaned (float wire removed); outer anti-alias ring re-sampled from the example.png reference (the sole corpus render over plain canvas); the output-tip corner pixel is TRANSPARENT — wire-covered in every corpus instance, value not yet recovered |
 | prim1112_empty-string-path.png | Empty String/Path? | 22x29 | Config_Load, Config_Load2, Config_Dump, Config_Dump2 — pair-seeded consensus (2/8 agreeing) |
 | prim1114_greater-or-equal-to-0.png | Greater Or Equal To 0? | 32x29 | Config_Load, Config_Load2, ClassChildren, Read Library Version — pair-seeded consensus (2/4 agreeing) |
 | prim1118_less-than-0.png | Less Than 0? | 32x31 | Tokenize URL, Excel_Cell_to_Value — single-sample fallback (0/2 agreeing) |
