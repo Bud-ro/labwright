@@ -56,9 +56,10 @@ Map<String, Object?> _objectToJson(ViHeapObject object) {
     if (object.controlMax?.isFinite ?? false) 'controlMax': object.controlMax,
     if (object.helpText != null) 'helpText': object.helpText,
     if (object.constText != null) 'constText': object.constText,
-    // ±∞ doubles are decodable constants but not legal JSON, so only finite
-    // numerics are emitted (the controlMin/controlMax policy above).
-    if (object.constNumeric?.isFinite ?? false) 'constNumeric': object.constNumeric,
+    // Always finite (the decode declines non-finite f64 readings -- see
+    // decodeBdConstantValue), so unlike controlMin/controlMax no infinity
+    // guard is needed for JSON safety.
+    if (object.constNumeric != null) 'constNumeric': object.constNumeric,
     if (object.constBool != null) 'constBool': object.constBool,
   };
 }

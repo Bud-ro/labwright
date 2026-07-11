@@ -14,8 +14,10 @@ List<int> close() => [0x08, 0x19];
 /// `0x26C` constValue records at each stored width (`x6` ops carry tag bit 9).
 List<int> cvU8(int v) => [0x26, 0x6c, v];
 List<int> cvU16(int v) => [0x46, 0x6c, v >> 8, v & 0xff];
+List<int> cvU24(int v) => [0x66, 0x6c, (v >> 16) & 0xff, (v >> 8) & 0xff, v & 0xff];
 List<int> cvU32(int v) => [0x86, 0x6c, (v >> 24) & 0xff, (v >> 16) & 0xff, (v >> 8) & 0xff, v & 0xff];
 List<int> cvRaw(List<int> payload) => [0xc6, 0x6c, payload.length, ...payload];
+List<int> f64(double v) => (ByteData(8)..setFloat64(0, v)).buffer.asUint8List();
 
 /// Enum/ring item table `C4 2E <len> <pascal items>`.
 List<int> items2e(List<String> items) {
@@ -37,38 +39,57 @@ List<int> constant(int oid, int inner, List<int> rec, {List<int> innerBody = con
 ViDiagram dia(List<int> records) => buildDiagram(u8([0, 0, 0, records.length, ...records]));
 
 void main() {
-  test('decodeBdConstantValue gates: booleans, integers, doubles, zeros', () {
+  test('decodeBdConstantValue gates: accept and decline sides of each', () {
     final rows = <(List<int>, Object?)>[
-      // Booleans: 0x4f carrier, {0,1} at <=2 bytes.
+      // Booleans: 0x4f carrier, {0,1} at <= 2 bytes.
       (constant(1, 0x4f, cvU8(1)), true),
       (constant(1, 0x4f, cvU16(0)), false),
       (constant(1, 0x4f, cvU8(2)), null), // out of domain
-      // Integers: 0x50 carrier, non-negative in every reading.
+      (constant(1, 0x4f, cvU24(1)), null), // width > 2 declines
+      (constant(1, 0x4f, cvU32(1)), null), // width > 2 declines
+      // Integers: 0x50 carrier, non-negative in every reading, below 2^23.
       (constant(1, 0x50, cvU32(256)), 256),
       (constant(1, 0x50, cvU8(0)), 0),
-      (constant(1, 0x50, cvU32(100000000)), 100000000), // SGL reading is denormal
+      (constant(1, 0x50, cvU32(0x7fffff)), 0x7fffff), // last certain value
+      (constant(1, 0x50, cvU32(0x800000)), null), // reads as a normal SGL too
+      (constant(1, 0x50, cvU32(100000000)), null), // ditto
       (constant(1, 0x50, cvU32(0xffffffff)), null), // i32 -1 vs u32 max
       (constant(1, 0x50, cvU8(0xff)), null), // i8 -1 vs 255
-      (constant(1, 0x50, cvU32(0x3f800000)), null), // plausible SGL 1.0 bits
-      // Doubles: 8-byte payload, sane f64 only.
-      (constant(1, 0x50, cvRaw([0x40, 0, 0, 0, 0, 0, 0, 0])), 2.0),
-      (constant(1, 0x50, cvRaw([0xc0, 0x5e, 0xdc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcd])), -123.45),
+      (constant(1, 0x50, cvU32(0x3f800000)), null), // SGL 1.0 bits
+      // Doubles: 8-byte payload, finite f64 within the magnitude window.
+      (constant(1, 0x50, cvRaw(f64(2.0))), 2.0),
+      (constant(1, 0x50, cvRaw(f64(-123.45))), -123.45),
+      (constant(1, 0x50, cvRaw(f64(1e-9))), 1e-9),
+      (constant(1, 0x50, cvRaw(f64(1e13))), null), // above the window ceiling
+      (constant(1, 0x50, cvRaw(f64(1e-13))), null), // below the window floor
+      (constant(1, 0x50, cvRaw(f64(double.infinity))), null), // plausible i64 bits
+      (constant(1, 0x50, cvRaw(f64(double.negativeInfinity))), null),
       (constant(1, 0x50, cvRaw(List.filled(8, 0xff))), null), // NaN = i64 -1
       (constant(1, 0x50, cvRaw([0, 0, 0, 0, 0, 0, 0, 5])), null), // denormal = small i64
-      // Containered zero of a wider type.
+      (constant(1, 0x50, cvRaw(List.filled(8, 0))), 0.0), // +0.0
+      // Containered zero of a 4/8-byte type — and only those widths.
       (constant(1, 0x50, cvRaw(List.filled(5, 0))), 0),
       (constant(1, 0x50, cvRaw(List.filled(9, 0))), 0),
+      (constant(1, 0x50, cvRaw(List.filled(4, 0))), null),
+      (constant(1, 0x50, cvRaw(List.filled(17, 0))), null), // extended-width zero
+      (constant(1, 0x50, cvRaw(const [])), null),
       // Enums/rings decode their stored integer only with an item table.
       (constant(1, 0x57, cvU16(3), innerBody: items2e(['a', 'b', 'c', 'd'])), 3),
       (constant(1, 0x57, cvU16(3)), null),
       (constant(1, 0x64, cvU8(1), innerBody: items2e(['off', 'on'])), 1),
+      (constant(1, 0x64, cvU8(1)), null),
       // Unhandled carriers decline.
-      (constant(1, 0x52, cvRaw([0, 0, 0, 0, 0, 0, 0, 1])), null), // array shell
+      (constant(1, 0x52, cvRaw(f64(2.0))), null), // array shell
       (constant(1, 0x51, cvU32(1)), null), // string carrier is constText's
     ];
     for (final (records, want) in rows) {
       final o = dia(records).byId[1]!;
-      expect(o.constBool ?? o.constNumeric, want, reason: records.map((b) => b.toRadixString(16)).join(' '));
+      // Exactly one field carries the decode; the others stay null.
+      expect(
+        (o.constBool, o.constNumeric, o.constText),
+        (want is bool ? want : null, want is num ? want : null, null),
+        reason: records.map((b) => b.toRadixString(16)).join(' '),
+      );
     }
   });
 
@@ -90,7 +111,7 @@ void main() {
       expect(o.constBool ?? o.constNumeric, want, reason: 'crc8 oid $oid');
     });
 
-    // A DFDS-bearing LV17 VI: doubles, u32s, strings, and declined ambiguity.
+    // A DFDS-bearing LV17 VI: ints, bools, strings, and declined ambiguity.
     final test5 = File(
       '${corpusViDir.path}/NEVSTOP-LAB_Communicable-State-Machine/'
       'NEVSTOP-LAB-Communicable-State-Machine-afe7d4d/testcases/testcase-CSMGlobalLog/test5-Broadcast_Queue.vi',
@@ -103,9 +124,10 @@ void main() {
       expect(bd5.byId[2692]!.constText, 'Test Status');
       expect(bd5.byId[2924]!.constNumeric, isNull, reason: '0xFFFFFFFF is i32 -1 or u32 max: declined');
 
-      // The same VI's tiled data space carries the constants' values: the
+      // The same VI's tiled data space carries the constants' values — the
       // ground-truth mechanism behind the decode census (see
-      // decodeBdConstantValue). "Test Status" sits in a 15-byte string slot.
+      // decodeBdConstantValue): "Test Status" sits in a 15-byte string slot,
+      // and the decoded 10 byte-matches its 4-byte slot.
       final decoded = decodeSections(bytes);
       Uint8List? vctp, tm80, dfds;
       for (final d in decoded) {
@@ -115,11 +137,18 @@ void main() {
       }
       final slots = dataSpaceSlots(dfds!, DfdsContext(vctp: vctp!, tm80: tm80!, verGe10: true))!;
       expect(slots, hasLength(37));
-      final slot = slots.singleWhere((s) => s.offset == 1947);
-      expect((slot.topLevelIndex, slot.length), (324, 15));
+      final strSlot = slots.singleWhere((s) => s.offset == 1947);
+      expect((strSlot.topLevelIndex, strSlot.length), (324, 15));
       expect(
-        String.fromCharCodes(Uint8List.sublistView(dfds, slot.offset + 4, slot.offset + slot.length)),
+        String.fromCharCodes(Uint8List.sublistView(dfds, strSlot.offset + 4, strSlot.offset + strSlot.length)),
         'Test Status',
+      );
+      final numSlot = slots.singleWhere((s) => s.offset == 2104);
+      expect(numSlot.length, 4);
+      expect(
+        ByteData.sublistView(dfds, numSlot.offset, numSlot.offset + 4).getUint32(0),
+        bd5.byId[1148]!.constNumeric,
+        reason: 'decoded constant value byte-matches its data-space slot',
       );
     }
   });

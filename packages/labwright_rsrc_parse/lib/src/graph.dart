@@ -565,6 +565,17 @@ enum HeapObjectClass {
   /// [ViObjectKind.node] — an undrawn grouping bucket; it is never rendered.)
   node(0x12, 'Content group (FP)', ViObjectKind.node, ClassConfidence.confirmed),
 
+  /// `0x13` — a **block-diagram constant DCO** (`bDConstDCO`): the owner of a
+  /// diagram constant's `0x26C` flattened-value record (record census on
+  /// [HeapAttribute.constValue]) and of its `typeDescIndex`, wrapping one
+  /// value-carrier control child ([numericControl] / [booleanOrClusterControl]
+  /// / [stringOrArrayControl] / [enumRingControl]; arrays and clusters under
+  /// their shells). Decoded values ride [ViHeapObject.constNumeric] /
+  /// [ViHeapObject.constBool] / [ViHeapObject.constText]. Category stays
+  /// [ViObjectKind.unknown]: the DCO is an undrawn wrapper — its drawable parts
+  /// classify on their own classes.
+  bdConstDco(0x13, 'Constant DCO (BD)', ViObjectKind.unknown, ClassConfidence.inferred),
+
   /// `0x2F` — a **built-in primitive node**. Corpus: 44395 BD instances, 0 FP, a
   /// uniform **32×32** icon footprint (LabVIEW's default node-icon size), parented
   /// to the node container `0x1b`, holding the structural `0x15` records. Only ~717
@@ -1172,79 +1183,98 @@ int? _attrScalarBytes(HeapAttrWidth width) => switch (width) {
   _ => null,
 };
 
-/// A stored 4-byte scalar whose bits read as an IEEE-754 single of magnitude at
-/// least this is *plausibly* an SGL constant, so its integer reading is not
-/// certain and the decode declines. Below it the single reading is a denormal /
-/// deep-subnormal magnitude no one types into a constant, so the integer
-/// reading is safe. (All corpus-ground-truthed sgl constants sit far above this
-/// bound; see [decodeBdConstantValue].)
-const double _sglPlausibleFloor = 1e-20;
+/// An integer scalar is certain only below this (2²³): a 4-byte scalar at or
+/// above it has a nonzero SGL exponent field, i.e. its bits also read as a
+/// **representable normal single** (≥ ~1.2e-38), so the integer reading is not
+/// certain and the decode declines — in both directions: 16 corpus constants
+/// in `[2²³, 2³¹)` with a low leading byte are declined as possible SGL bits,
+/// and an SGL **subnormal** (< ~1.2e-38, bits < 2²³) would decode as its small
+/// integer bit value — corpus ground truth shows zero subnormal-sgl constants,
+/// so the integer reading is taken there.
+const int _intCertainCeil = 0x800000;
 
-/// The sane-magnitude window for reading an 8-byte constant payload as an
-/// IEEE-754 double. Bit patterns outside it (tiny denormal-region magnitudes)
-/// are how small **i64/u64** payloads read when misinterpreted as doubles, so
-/// they are declined rather than fabricated. NaN is rejected for the same
-/// reason: i64 −1 (`FF…FF`) reads as NaN.
-const double _dblSaneFloor = 1e-300, _dblSaneCeil = 1e300;
+/// The magnitude window in which an 8-byte constant payload is accepted as an
+/// IEEE-754 double. Corpus-separated: every f64 reading of a `0x50` 8-byte
+/// payload is either in `[1e-9, 3.2e9]` (real doubles — the DFDS-ground-truthed
+/// values all sit here) or below `1e-309` (denormal-region readings — how
+/// i64/u64 payloads under 2⁵² read when misinterpreted), with **nothing
+/// between**; the window takes the real-double band plus margin. An aliasing
+/// integer inside the window must lie in the narrow non-round band
+/// `[0x3D7 << 52, 0x427 << 52]` ≈ `[4.43e18, 4.79e18]` (or its negative
+/// mirror near −2⁶³) — round large integers (e.g. 10¹⁸) read below `1e-241`
+/// and are declined. NaN (i64 −1 = `FF…FF`) and ±∞ (`0x7FF0…`/`0xFFF0…`,
+/// plausible i64 bit patterns) are declined outright.
+const double _dblWindowFloor = 1e-12, _dblWindowCeil = 1e12;
+
+/// The all-zero length-prefixed payload lengths accepted as a numeric zero:
+/// the containered zero of a 4-byte (`4+1`) or 8-byte (`8+1`) type. The corpus
+/// also holds 7 all-zero extended-width forms (`16+1`, `32+1`) which are
+/// declined with the rest of the EXT family, and no other all-zero lengths.
+const Set<int> _zeroPayloadLengths = {5, 9};
 
 /// Decodes the **value of a block-diagram constant** from its `0x26C`
 /// ([HeapAttribute.constValue]) [record] without resolving the constant's VCTP
 /// type — the payload is typed by the constant's value-carrier class
-/// [innerKind] (the `0x13` DCO's first nested child) plus payload-shape gates,
-/// and every gate declines rather than guessing. Returns a [bool], [int],
-/// [double], or null (not decoded).
+/// [innerKind] (the `0x13` [HeapObjectClass.bdConstDco]'s first nested child)
+/// plus payload-shape gates, and every gate declines rather than guessing.
+/// Returns a [bool], [int], finite [double], or null (not decoded).
 ///
-/// Gates (all corpus numbers over 54,801 `0x26C`-bearing `0x13` constants,
-/// 7,524 VIs; "ground truth" = the 2,419 gate-decoded constants whose payload
-/// uniquely byte-matches a value slot of a tiled `DFDS` data space, typed by
-/// that slot's VCTP descriptor):
+/// Corpus (7,524 VIs; 54,801 constants, each carrying exactly one value record
+/// — census on [HeapAttribute.constValue]); "ground truth" = decoded constants
+/// whose payload uniquely byte-matches a value slot of a tiled `DFDS` data
+/// space ([dataSpaceSlots]), typed by that slot's VCTP descriptor. Every
+/// number below is recomputed and pinned exactly by the `bd_const_values`
+/// corpus-snapshot census (`const_value_census_test.dart`):
 ///
-///   * **boolean** — carrier `0x4f`, scalar of ≤ 2 value bytes, value in
-///     {0, 1} → the bool. Every corpus `0x4f` constant payload is binary
-///     (5,149 one-byte + 2,355 two-byte); 7,504 decode.
-///   * **integer** — carrier `0x50`, or `0x57`/`0x64` carrying an enum item
-///     table; scalar payload; certain only when non-negative in every integer
-///     reading (leading stored byte < `0x80` — `FF FF FF FF` is i32 −1 or u32
-///     4,294,967,295 depending on the unresolved type, so it is declined) and,
-///     for 4-byte scalars, implausible as SGL bits ([_sglPlausibleFloor]) →
-///     the zero-extended magnitude. 12,771 decode; ground truth: 1,845/1,846
-///     resolve to integer-family types (i32/u32/i16/u16/enum/typeDef), one
-///     outlier byte-matching an sgl-typed slot. 1,089 ambiguous scalars are
-///     declined.
-///   * **zero** — carrier `0x50`, all-zero length-prefixed payload (the
-///     containered zero of a wider type; corpus lengths cluster on 5 and 9)
-///     → 0. 2,878 decode.
-///   * **double** — carrier `0x50`, 8-byte payload whose f64 reading is sane
-///     (0, ±∞, or magnitude within [_dblSaneFloor]..[_dblSaneCeil]; NaN
-///     declined) → the double. 860 decode; ground truth 179/179 dbl. The 94
-///     non-sane 8-byte payloads (dbl-vs-i64 ambiguous) are declined.
+///   * **boolean** — carrier [HeapObjectClass.booleanOrClusterControl], scalar
+///     of ≤ 2 value bytes, value in {0, 1} → the bool. 7,504 decode; every
+///     corpus `0x4f` constant payload is binary (5,149 one-byte + 2,355
+///     two-byte; the two-byte form matches the legacy 2-byte boolean type the
+///     VCTP catalogs as `booleanU16`). DFDS cannot ground-truth booleans
+///     (their {0,1} payloads zero-extend onto any same-valued slot width), so
+///     this gate rests on the class catalog and the all-binary domain.
+///   * **integer** — carrier [HeapObjectClass.numericControl] (or
+///     [HeapObjectClass.enumRingControl] / [HeapObjectClass.clusterShell]
+///     carrying an enum item table); scalar payload; certain only when
+///     non-negative in every integer reading (leading stored byte < `0x80` —
+///     `FF FF FF FF` is i32 −1 or u32 4,294,967,295 depending on the
+///     unresolved type) **and** below [_intCertainCeil] (else the bits also
+///     read as a normal SGL); plus the [_zeroPayloadLengths] containered zero
+///     → the zero-extended magnitude. 15,611 decode (2,871 of them containered
+///     zeros); ground truth 1,840/1,840 integer-family
+///     (i8..u64/enum/typeDef). The cost of the two-sided declines:
+///     high-leading-byte scalars (legitimate large unsigned values among
+///     them) and `[2²³, 2³¹)` integers stay undecoded.
+///   * **double** — carrier `0x50`, 8-byte payload whose f64 reading is finite
+///     with magnitude 0 or within [_dblWindowFloor]..[_dblWindowCeil] → the
+///     double (see the window's alias analysis). 860 decode; ground truth
+///     179/179 `dbl`.
 ///
-/// String constants (carrier `0x51`; ground truth 4,956/4,956 string) are
-/// decoded by the existing [ViHeapObject.constText] path. Compound payloads
-/// (arrays `0x52`, clusters `0x53`, paths `0x5b`, 16-byte extendeds, …) are
-/// framed but not value-decoded here.
+/// String constants (carrier [HeapObjectClass.stringOrArrayControl]) are
+/// decoded by the [ViHeapObject.constText] path: 14,813 constants; ground
+/// truth 4,342 matched → 4,264 `string` + 55 `typeDef` (named string
+/// wrappers) + 23 composite-slot byte-coincidences. The remaining 16,013
+/// constants (compound arrays/clusters/paths, 16/32-byte extendeds, ambiguous
+/// scalars and 8-byte payloads) are framed but not value-decoded.
 Object? decodeBdConstantValue({required int? innerKind, required HeapAttr record, bool hasEnumItems = false}) {
   final scalarBytes = _attrScalarBytes(record.width);
   final v = record.asInt;
   final raw = record.width == HeapAttrWidth.container ? record.rawValueBytes : null;
-  switch (innerKind) {
-    case 0x4f: // booleanOrClusterControl
+  final carrier = innerKind == null ? HeapObjectClass.unknown : HeapObjectClass.fromCode(innerKind);
+  switch (carrier) {
+    case HeapObjectClass.booleanOrClusterControl:
       if (scalarBytes != null && scalarBytes <= 2 && (v == 0 || v == 1)) return v == 1;
       return null;
-    case 0x57 when hasEnumItems: // enumRingControl
-    case 0x64 when hasEnumItems: // clusterShell hosting an enum typedef
-    case 0x50: // numericControl
+    case HeapObjectClass.enumRingControl when hasEnumItems:
+    case HeapObjectClass.clusterShell when hasEnumItems:
+    case HeapObjectClass.numericControl:
       if (scalarBytes != null && v != null) {
         if (v == 0 || scalarBytes == 0) return v;
         final leading = (v >>> (8 * (scalarBytes - 1))) & 0xff;
-        if (leading >= 0x80) return null;
-        if (scalarBytes == 4) {
-          final asSgl = (ByteData(4)..setUint32(0, v)).getFloat32(0).abs();
-          if (asSgl >= _sglPlausibleFloor) return null;
-        }
+        if (leading >= 0x80 || v >= _intCertainCeil) return null;
         return v;
       }
-      if (innerKind != 0x50 || raw == null) return null;
+      if (carrier != HeapObjectClass.numericControl || raw == null) return null;
       var allZero = true;
       for (final b in raw) {
         if (b != 0) {
@@ -1252,11 +1282,12 @@ Object? decodeBdConstantValue({required int? innerKind, required HeapAttr record
           break;
         }
       }
-      if (allZero) return 0;
+      if (allZero && _zeroPayloadLengths.contains(raw.length)) return 0;
       if (raw.length == 8) {
+        // An all-zero 8-byte payload lands here as +0.0.
         final d = ByteData.sublistView(raw).getFloat64(0);
-        if (d.isNaN) return null;
-        if (d == 0 || d.isInfinite || (d.abs() >= _dblSaneFloor && d.abs() <= _dblSaneCeil)) return d;
+        if (!d.isFinite) return null;
+        if (d == 0 || (d.abs() >= _dblWindowFloor && d.abs() <= _dblWindowCeil)) return d;
       }
       return null;
     default:
@@ -1347,10 +1378,9 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
           if (text != null && text.isNotEmpty) cur.constText ??= text;
         }
         // A BD constant's flattened value record scopes to the 0x13 DCO itself
-        // (99.45% of the 54,801 corpus records; the rest ride other classes and
-        // are not constant values). First-wins is trivially safe: no corpus
-        // object carries a second record.
-        if (attr.attribute == HeapAttribute.constValue && cur.kind == 0x13) {
+        // (record census on [HeapAttribute.constValue]). First-wins is
+        // trivially safe: no corpus constant carries a second record.
+        if (attr.attribute == HeapAttribute.constValue && cur.kind == HeapObjectClass.bdConstDco.code) {
           constRecs[cur] ??= attr;
         }
         if (attr.attribute == HeapAttribute.termBounds) cur.termBounds ??= attr.asRect;
@@ -1444,10 +1474,10 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
 
   final nodeKids = _childrenByParentOid(objects);
 
-  // Decode BD constant values: the value carrier class is the 0x13's first
-  // nested child (numeric `0x50` / boolean `0x4f` / enum-ring `0x57` / cluster
-  // shell `0x64`; strings `0x51` ride [ViHeapObject.constText]); enum items may
-  // sit on any descendant, so the item probe walks the whole subtree.
+  // Decode BD constant values: the value carrier class is the constant DCO's
+  // first nested child (see [HeapObjectClass.bdConstDco]); enum items may sit
+  // on any descendant, so the item probe walks the whole subtree — but only
+  // for the enum-shaped carriers that consume it.
   if (constRecs.isNotEmpty) {
     // Depth-capped: the positional tree is stack-balanced, but oids are not
     // guaranteed unique, so an oid-keyed descent must not trust acyclicity.
@@ -1464,10 +1494,13 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb'}) {
       final object = entry.key;
       final kids = nodeKids[object.oid];
       if (kids == null || kids.isEmpty) continue;
+      final carrierKind = kids.first.kind;
+      final wantsItems =
+          carrierKind == HeapObjectClass.enumRingControl.code || carrierKind == HeapObjectClass.clusterShell.code;
       final value = decodeBdConstantValue(
-        innerKind: kids.first.kind,
+        innerKind: carrierKind,
         record: entry.value,
-        hasEnumItems: subtreeHasItems(object),
+        hasEnumItems: wantsItems && subtreeHasItems(object),
       );
       if (value is bool) object.constBool = value;
       if (value is num) object.constNumeric = value;
