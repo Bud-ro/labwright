@@ -271,6 +271,12 @@ class ViHeapObject {
   /// [decodeWireRoute].
   Uint8List? wireTableRaw;
 
+  /// A signal's raw wire-type word ([HeapAttribute.lastSignalKind], raw
+  /// `0x09f`, first-wins) — or null for non-signal objects and the rare
+  /// record-less signal (14 of 428,043 corpus signals). Decoded by
+  /// [ViSignalType]; surfaced as [ViWire.signalType].
+  int? lastSignalKind;
+
   /// A multi-frame structure's raw diagram-index word ([HeapAttribute.dIdx],
   /// raw `0x04d`) — which stacked frame LabVIEW displays — or null when the
   /// record is absent (the first frame is displayed). Read through
@@ -420,8 +426,9 @@ enum HeapObjectClass {
   /// (top == bottom, a horizontal run; a zero-length run marks a joint); a
   /// multi-segment wire is a run of consecutive `0x1d` siblings whose
   /// endpoints chain (verified 4741 exact end-to-start links in one source),
-  /// with the vertical connector implicit between consecutive runs. The wire's
-  /// datatype and its endpoint binding to terminals are not yet decoded, and
+  /// with the vertical connector implicit between consecutive runs. A segment
+  /// carries no datatype or terminal binding of its own (both live on the
+  /// [signal] `0x17` — see [ViWire.signalType]), and
   /// the **absolute-coordinate anchoring is unverified** — rendered samples
   /// show some runs composing outside the diagram when treated like object
   /// bounds, so wire coords may be relative to a different ancestor frame.
@@ -448,12 +455,13 @@ enum HeapObjectClass {
   /// its own `14 19` childRefs and carries the `0x129` termBounds rect;
   /// [ViDiagram.endpointTerminalBounds] owns that census.
   /// The signal itself carries no bounds; its packed route lives in the
-  /// compressedWireTable payload (interior undecoded). Its **datatype is not
-  /// recovered**: neither the signal nor its endpoints carry a type, and the
-  /// per-object [HeapAttribute.typeDescIndex] reachable from ~8.7% of signals
-  /// (via an endpoint's `14 4f` dcoRef) is an object ordinal that agrees across
-  /// a signal's endpoints in 0.0% of cases, so it cannot identify a shared wire
-  /// type without resolving VCTP type content (see [ViWire]).
+  /// compressedWireTable payload (route decoded, remaining interior not). Its
+  /// **datatype is decoded from its own lastSignalKind record** — element
+  /// type code + array depth + flags, see [ViSignalType] — carried by all
+  /// but 14 corpus signals. (The refuted alternative, kept for the record:
+  /// the per-object [HeapAttribute.typeDescIndex] reachable from ~8.7% of
+  /// signals via an endpoint's `14 4f` dcoRef is an object ordinal that
+  /// agrees across a signal's endpoints in 0.0% of cases.)
   signal(0x17, 'Signal / dataflow wire (BD)', ViObjectKind.wire, ClassConfidence.inferred),
 
   /// `0x101` — a root **auxiliary** record; purpose undetermined.
@@ -893,7 +901,10 @@ const kSignalEndpointDcoKinds = {0x15, 0x16};
 // 0x4d is dIdx (gated to the multi-frame structure kinds; raws 0x14d/0x24d
 // are uncatalogued today and decode to [HeapAttribute.unknown], which no
 // capture acts on — recheck this gate if one is catalogued).
-const _objAttrIds = {0x20, 0x21, 0x6c, 0x24, 0x28, 0x6f, 0x19, 0x2b, 0x2a, 0x29, 0x3a, 0xcb, 0xea, 0xe7, 0x4d};
+// 0x9f is lastSignalKind, the wire-type word (gated to signal 0x17; raws
+// 0x19f/0x29f are uncatalogued today and decode to [HeapAttribute.unknown],
+// which no capture acts on — recheck this gate if one is catalogued).
+const _objAttrIds = {0x20, 0x21, 0x6c, 0x24, 0x28, 0x6f, 0x19, 0x2b, 0x2a, 0x29, 0x3a, 0xcb, 0xea, 0xe7, 0x4d, 0x9f};
 
 /// The structure classes that stack multiple `0x1b` frames and display one —
 /// case [HeapObjectClass.bdStructureFrame] `0x2c`, disable
@@ -989,6 +1000,151 @@ ViTypeKind inferTypeKind(Set<int> c4ops, List<int>? formatPayload) {
   return ViTypeKind.unknown;
 }
 
+/// A signal's decoded **wire-type word** — the value of the per-signal
+/// [HeapAttribute.lastSignalKind] record (raw `0x09f`), which encodes the
+/// datatype LabVIEW last routed/coloured the wire as. Carried by 428,029 of
+/// the corpus's 428,043 signals (14 record-less). Layout (u16):
+///
+///   `[bits 12-15: flags] [bits 8-11: structural depth] [bits 0-7: type code]`
+///
+/// * **type code** (low byte) — the wire's scalar/element type in the VCTP
+///   [TypeCode] space ([dataType]): `0x03` i32, `0x21` boolean, `0x30`
+///   string, `0x32` path, `0x50` cluster, `0x70` refnum, … The code is the
+///   **flattened element** type: an array-of-X wire carries X's code (the
+///   array-ness lives in the depth field), an enum wire carries its
+///   underlying integer code (`0x15..0x17` never appear), a typedef wire its
+///   resolved base code, a substring wire the plain string code. Two codes
+///   are wire-word-only (absent from VCTP descriptors), both family
+///   variants: [clusterVariantCode] `0x51` and [typedRefnumCode] `0x71`.
+///   Corpus census (all decoded signals): 28 distinct codes; 0x50 124,068 /
+///   0x30 86,254 / 0x70 60,771 / 0x21 38,168 / 0x03 33,591 / 0x32 13,994 /
+///   …; only `0xff` (519) and `0x74` (18) resolve no catalogued type.
+/// * **depth** (bits 8-11) — the type's structural depth: a per-family
+///   scalar base (**1** numeric/enum/boolean, **2** string/path/picture,
+///   **3** cluster/variant/waveform) **plus one per array dimension** — so
+///   i32 = 1, array-of-i32 = 2, 2D-array-of-string = 4 (2+2),
+///   array-of-cluster = 4. Corpus range 1..6 (1: 138,606 / 2: 102,054 /
+///   3: 168,343 / 4: 14,453 / 5: 4,384 / 6: 189; 0 outside). Refnum wires
+///   have **no fixed base** (observed 1..6): a refnum embedding an inner
+///   type (queue/notifier/DVR/event-registration) rides deeper with that
+///   type, so [arrayDims] stays null for the refnum codes.
+/// * **flags** (bits 12-15) — only `0x4` and `0x8` observed (0x0 204,394 /
+///   0x8 148,758 / 0x4 65,604 / 0xc 9,273; bits 12-13 zero corpus-wide);
+///   they vary freely within one type and their meaning is not decoded
+///   (TODO: pin the two flag bits' semantics).
+///
+/// Validation (7,524-VI corpus; the census is pinned by the `signal_types`
+/// snapshot section, owned by `signal_type_census_test.dart`): against the
+/// 144,668 signals whose endpoints carry an unambiguous VCTP-resolved type
+/// family (the oracle), the family predicted from this word agrees **89.9%**
+/// overall — per oracle family: string 95.6%, cluster 94.9%, refnum 93.4%,
+/// path 90.2%, int 88.8%, bool 86.0%, float 83.5%, array 76.4% — plus the
+/// 1,474 enum-labeled wires reading as int **by design** (the flatten
+/// above; 94.4% land exactly there). The array row's misses are dominated
+/// by wires the word calls the *element* type where the typed endpoint is
+/// the *array* side (loop-boundary/indexing endpoints) and by arrays of
+/// refnums (dims undecidable, see [arrayDims]); array-dimension agreement
+/// on family-agreeing pairs against exact VCTP dims: 0 dims 99.7%, 1D
+/// 85.8%, 2D 91.3%, 3D 95.8%. Disagreements concentrate on oracle noise
+/// (an endpoint typed by a neighbouring object), so the word — the
+/// signal's own record — is treated as the wire's type, with the census
+/// above as its honest error bar. 98.8% of all corpus signals resolve a
+/// non-null [typeKind].
+class ViSignalType {
+  const ViSignalType(this.raw);
+
+  /// The raw u16 record value.
+  final int raw;
+
+  /// `0x51` — a wire-word-only **cluster-family** code. Corpus carriers
+  /// (9,038 signals) are typedef'd / class-typed clusters (endpoint type
+  /// names like `Class info`, `Coords`, object-oriented class wires), while
+  /// plain and error clusters ride `0x50`; the exact 0x50/0x51 distinction
+  /// is not pinned (TODO), but the family is: oracle carriers resolve to
+  /// cluster/typedef descriptors, not to any other family.
+  static const int clusterVariantCode = 0x51;
+
+  /// `0x71` — a wire-word-only **refnum-family** code. Corpus carriers
+  /// (5,702 signals) are refnums embedding an inner data type — endpoint
+  /// names like `queue out`, `notifier out`, `data value reference` — where
+  /// plain references (VI refs, occurrences, files) ride `0x70`; the split
+  /// is consistent with inner-typed vs plain refnums but not pinned (TODO).
+  static const int typedRefnumCode = 0x71;
+
+  /// The scalar/element type code (low byte), in the VCTP [TypeCode] space
+  /// plus the two wire-word-only codes above.
+  int get typeCode => raw & 0xff;
+
+  /// The structural depth (bits 8-11): the element family's scalar base
+  /// (see the class doc) plus one per array dimension. Corpus range 1..6.
+  int get depth => (raw >> 8) & 0xf;
+
+  /// The flag nibble (bits 12-15): only `0x0/0x4/0x8/0xc` observed;
+  /// meaning not decoded.
+  int get flags => (raw >> 12) & 0xf;
+
+  /// The wire's scalar/element datatype: [typeCode] resolved through the
+  /// VCTP catalogue ([dataTypeOfCode]), with the two wire-word-only codes
+  /// mapped to their families ([clusterVariantCode] → cluster,
+  /// [typedRefnumCode] → refnum). Null for uncatalogued codes (`0xff`,
+  /// `0x74`: 537 of 428k corpus signals). Enum/typedef/substring wires
+  /// carry their flattened code, so those kinds never surface here.
+  ViDataType? get dataType => switch (typeCode) {
+    clusterVariantCode => ViDataType.cluster,
+    typedRefnumCode => ViDataType.refnum,
+    _ => dataTypeOfCode(typeCode),
+  };
+
+  /// The scalar/element type family of the wire, or null when [dataType]
+  /// is missing or has no [ViTypeKind] rendering (tag `0x37`, picture
+  /// `0x33`, variant `0x53`, waveform `0x54`, void `0x00`).
+  ViTypeKind? get elementKind {
+    final t = dataType;
+    return t == null ? null : _typeKindOf(t);
+  }
+
+  /// The wire's array dimension count: [depth] minus the element family's
+  /// corpus-pinned scalar base — 0 for a scalar wire, 1 for `array of X`,
+  /// 2 for a 2D array. Null when the base is unknown for [typeCode]: the
+  /// refnum codes (their depth rides the referenced inner type), the
+  /// uncatalogued codes, and the never-observed-below-base combinations
+  /// (kept null rather than clamped, so a contradiction is visible).
+  int? get arrayDims {
+    final base = _signalScalarDepth(typeCode);
+    if (base == null) return null;
+    final dims = depth - base;
+    return dims < 0 ? null : dims;
+  }
+
+  /// Whether the wire carries an array (any [arrayDims] > 0). False when
+  /// dims are unresolved — refnum wires never read as arrays here.
+  bool get isArray => (arrayDims ?? 0) > 0;
+
+  /// The wire-level type family: [ViTypeKind.array] for an array wire,
+  /// else the [elementKind] — the single value a renderer colours by.
+  /// Null when the element family is unresolved.
+  ViTypeKind? get typeKind => isArray ? ViTypeKind.array : elementKind;
+}
+
+/// The corpus-pinned scalar depth base of a signal type code (see
+/// [ViSignalType.depth]): the depth a non-array wire of that family carries.
+/// Null for the refnum codes (depth varies 1..6 with the referenced inner
+/// type) and for codes never censused in the wire-type word — callers treat
+/// null as "array-ness undecidable", never as scalar.
+int? _signalScalarDepth(int code) {
+  if (code >= TypeCode.i8 && code <= TypeCode.complexExt) return 1;
+  if (code >= TypeCode.enumU8 && code <= TypeCode.enumU32) return 1;
+  if (code == TypeCode.booleanU16 || code == TypeCode.boolean) return 1;
+  if (code == TypeCode.string || code == TypeCode.path || code == TypeCode.picture) return 2;
+  if (code == TypeCode.cluster ||
+      code == ViSignalType.clusterVariantCode ||
+      code == TypeCode.variant ||
+      code == TypeCode.measureData) {
+    return 3;
+  }
+  return null;
+}
+
 /// A recovered block-diagram **dataflow wire** — a LabVIEW *signal*
 /// ([HeapObjectClass.signal], class `0x17`), the logical connection drawn
 /// between terminals.
@@ -1005,14 +1161,13 @@ ViTypeKind inferTypeKind(Set<int> c4ops, List<int>? formatPayload) {
 /// Where the endpoint is a structure tunnel / border terminal, the exact
 /// attach rectangle is also decoded — [endpointAttachRects].
 ///
-/// The wire's **datatype is not exposed**, because it is not corpus-provable
-/// from the signal: neither the signal nor its endpoint objects carry a type,
-/// and the per-object [HeapAttribute.typeDescIndex] reachable from ~8.7% of
-/// signals (via an endpoint's `14 4f` dcoRef) is an object ordinal that agrees
-/// across a signal's endpoints in 0.0% of cases — identifying a shared wire type
-/// would require resolving the VCTP type table's flattened content, which this
-/// model does not do. A consumer that wants to colour a wire can read the type
-/// of a bounded endpoint owner it recognises; this model does not assert one.
+/// The wire's **datatype** is decoded from the signal's own
+/// [HeapAttribute.lastSignalKind] record — [signalType] / [typeKind] (see
+/// [ViSignalType] for the byte layout and the corpus validation). The
+/// per-object [HeapAttribute.typeDescIndex] route was refuted instead: the
+/// index reachable from ~8.7% of signals (via an endpoint's `14 4f` dcoRef)
+/// is an object ordinal that agrees across a signal's endpoints in 0.0% of
+/// cases, so it cannot identify a shared wire type.
 class ViWire {
   ViWire({
     required this.signalOid,
@@ -1020,6 +1175,7 @@ class ViWire {
     required this.endpointAnchors,
     List<HeapRect?>? endpointAttachRects,
     this.route,
+    this.signalType,
   }) : endpointAttachRects = endpointAttachRects ?? List<HeapRect?>.filled(endpointOids.length, null);
 
   /// The [ViHeapObject.oid] of the signal (`0x17`) object this wire is.
@@ -1055,6 +1211,16 @@ class ViWire {
   /// or null when the signal carries the trivial scalar table (a straight
   /// wire), or a form not yet decoded (branching junction codes).
   final ViWireRoute? route;
+
+  /// The wire's decoded type word ([HeapAttribute.lastSignalKind]) — element
+  /// type code, array depth, flags — or null for the 14 corpus signals with
+  /// no record. See [ViSignalType].
+  final ViSignalType? signalType;
+
+  /// The wire-level type family ([ViSignalType.typeKind]:
+  /// [ViTypeKind.array] for array wires, else the element family), or null
+  /// when the record is absent or its code unresolved.
+  ViTypeKind? get typeKind => signalType?.typeKind;
 }
 
 /// The decoded shape of a signal's stored wire route (its `0x1e7` packed
@@ -1165,7 +1331,8 @@ bool _predatesFrameRelativeTermBounds(String? version) {
 /// wires are the **signal** objects (class `0x17`), which DO carry resolvable
 /// oid endpoints — surfaced as [ViWire] via [wires]; the visual `0x1d` wire
 /// segments are geometry-only (no oid endpoints). Partial/honest: object class
-/// codes and wire direction/datatype are not fully decoded.
+/// codes and wire direction are not fully decoded (wire datatype is — see
+/// [ViWire.signalType]).
 class ViDiagram {
   ViDiagram({required this.sectionTag, required this.objects, this.version});
 
@@ -1207,6 +1374,7 @@ class ViDiagram {
           endpointAnchors: [for (final oid in object.refs) _boundedOwnerBounds(oid)],
           endpointAttachRects: [for (final oid in object.refs) endpointTerminalBounds(oid)],
           route: object.wireTableRaw == null ? null : decodeWireRoute(object.wireTableRaw!),
+          signalType: object.lastSignalKind == null ? null : ViSignalType(object.lastSignalKind!),
         ),
   ];
 
@@ -1555,6 +1723,11 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
             cur.kind == 0x17 &&
             attr.width == HeapAttrWidth.container) {
           cur.wireTableRaw ??= attr.rawValueBytes;
+        }
+        // Kind-gated to the signal class (the record census puts the tag on
+        // 0x17 at 99.99% — the stray off-class carriers are not wire types).
+        if (attr.attribute == HeapAttribute.lastSignalKind && cur.kind == 0x17) {
+          cur.lastSignalKind ??= attr.asInt;
         }
         // The transparent sentinel (flag 0x01, RGB 0) is "no colour", not
         // black — capturing it would paint transparent label backings and

@@ -218,6 +218,13 @@ const Map<int, ViDataType> _typeCodes = {
   TypeCode.polyVi: ViDataType.polyVi,
 };
 
+/// The catalogued [ViDataType] for a raw type-enumerator byte in the
+/// [TypeCode] space, or null for an uncatalogued code. The lookup behind
+/// [decodeTypePool]'s kind assignment, exposed for the other decoders that
+/// read values from the same code space (e.g. a signal's wire-type word,
+/// `ViSignalType` in graph.dart).
+ViDataType? dataTypeOfCode(int code) => _typeCodes[code];
+
 /// One entry in the VI's type pool: its position [index], the raw type
 /// enumerator byte [code], the catalogued [kind] (or [ViDataType.unknown]), and
 /// the recovered [name] (a typedef/control name like `Serial Number`) when the

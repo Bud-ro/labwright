@@ -14,10 +14,11 @@ import '../labwright_rsrc_parse.dart';
 ///
 /// Fidelity is deliberately **partial and honest**. The heap's nested object
 /// tree IS now recovered into [diagrams] (objects with bounds, labels, class
-/// codes and parent/child nesting — see `buildDiagram`). Not *yet* decoded is the
-/// dataflow **wire graph**: LabVIEW stores wires as geometry, so this model has
-/// no edges yet and never fabricates them; function-vs-subVI is likewise not yet
-/// distinguished from the block diagram alone.
+/// codes and parent/child nesting — see `buildDiagram`), including the
+/// dataflow **wires** ([ViDiagram.wires]: endpoint binding, route geometry,
+/// datatype). Not *yet* decoded is wire **direction** (which endpoint is the
+/// source); function-vs-subVI is likewise not yet distinguished from the
+/// block diagram alone.
 class ViModel {
   const ViModel({
     required this.version,
@@ -60,8 +61,9 @@ class ViModel {
   /// labels) with bounds, labels, classified [HeapObjectClass], and parent/child
   /// nesting (`parentOid` + child-membership refs), plus the dataflow **wires**
   /// ([ViDiagram.wires]): signal (`0x17`) objects with resolved oid endpoint
-  /// binding + endpoint anchors. **Scope**: wire datatype and packed route
-  /// geometry are not decoded (see [ViWire]).
+  /// binding + endpoint anchors, stored route geometry, and the decoded wire
+  /// datatype ([ViWire.signalType]). **Scope**: wire direction is not
+  /// decoded (see [ViWire]).
   final List<ViDiagram> blockDiagrams;
 
   /// The recovered **front-panel** object tree(s) — from the `FPHb`/`FPHP`
