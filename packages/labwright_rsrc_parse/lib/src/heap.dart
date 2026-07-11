@@ -457,7 +457,7 @@ enum HeapAttribute {
   /// 8×16, 9×9); the f64 reading is decisively garbage (0% sane doubles).
   /// Exactly 0/1 per object. ~1.0M records, the highest-volume `Cx` tag.
   /// The rect is **relative to the carrier's enclosing frame** (its nearest
-  /// bounded positional ancestor; LabVIEW ≤ 8.5 stores that era's absolute
+  /// bounded positional ancestor; LabVIEW < 8.6 stores that era's absolute
   /// space instead), and on a carrier whose `14 19` childRefs name a
   /// signal-endpoint DCO it is the wire's attach point — a structure tunnel /
   /// shift register / selector terminal square; the anchoring census lives on

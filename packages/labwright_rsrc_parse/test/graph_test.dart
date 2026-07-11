@@ -69,7 +69,8 @@ List<int> attrU8(int id, int v) => [0x24, id, v & 0xff];
 /// Four-byte-BE numeric attribute record `84 <id> <u32 value>`.
 List<int> attrU32(int id, int v) => [0x84, id, (v >> 24) & 0xff, (v >> 16) & 0xff, (v >> 8) & 0xff, v & 0xff];
 
-ViDiagram dia(List<int> records) => buildDiagram(u8([0, 0, 0, records.length, ...records]));
+ViDiagram dia(List<int> records, {String? version}) =>
+    buildDiagram(u8([0, 0, 0, records.length, ...records]), version: version);
 
 void main() {
   group('resolveDataSpaceTypes', resolveTypesTests);
@@ -136,12 +137,12 @@ void main() {
   });
 
   test('endpointTerminalBounds: attach rect = termBounds + enclosing frame origin', () {
-    final d = dia([
+    final records = [
       ...open(0x20, 1), // loop structure at (100, 50)
       ...bounds(100, 50, 200, 150),
       ...open(0x22, 2, tag: 0x1a), // tunnel terminal: childRefs the endpoint, carries termBounds
       ...hx('14 19 01 fd 0003'),
-      ...c5(0x29, [0, 10, 0, 0, 0, 19, 0, 9]), // t:10 l:0 b:19 r:9 — on the left border
+      ...c5(0x29, [0, 10, 0, 5, 0, 19, 0, 14]), // t:10 l:5 b:19 r:14
       ...close(0x1a),
       ...open(0x15, 3, tag: 0x1a), // the wire-endpoint DCO (bounds-less)
       ...close(0x1a),
@@ -152,15 +153,45 @@ void main() {
       ...hx('14 19 01 fd 0003'),
       ...hx('14 19 01 fd 0004'),
       ...close(),
-    ]);
+    ];
+    final d = dia(records);
     expect(d.endpointTerminal(3)!.oid, 2);
     final pos = d.endpointTerminalBounds(3)!;
-    expect((pos.top, pos.left, pos.bottom, pos.right), (110, 50, 119, 59));
+    expect((pos.top, pos.left, pos.bottom, pos.right), (110, 55, 119, 64));
     final wire = d.wires.single;
-    expect(wire.endpointTerminalBounds.first!.top, 110);
-    expect(wire.endpointTerminalBounds.last, isNull, reason: 'no terminal names endpoint 4');
+    expect((wire.endpointAttachRects.first!.top, wire.endpointAttachRects.first!.left), (110, 55));
+    expect(wire.endpointAttachRects.last, isNull, reason: 'no terminal names endpoint 4');
     expect(d.endpointTerminalBounds(2), isNull, reason: 'gated to the endpoint DCO kinds');
     expect(d.endpointTerminal(1), isNull);
+    // The version gate: < 8.6 heaps store a different (absolute) space, so
+    // the composed rect would be wrong — null, never fabricated.
+    expect(dia(records, version: '8.5').endpointTerminalBounds(3), isNull);
+    expect(dia(records, version: '8.6').endpointTerminalBounds(3), isNotNull);
+    // A ViWire constructed without an attach list defaults to aligned nulls.
+    expect(ViWire(signalOid: 9, endpointOids: [3, 4], endpointAnchors: [null, null]).endpointAttachRects, [
+      null,
+      null,
+    ]);
+  });
+
+  test('endpointTerminal: an endpoint two terminals claim resolves to nothing', () {
+    final d = dia([
+      ...open(0x20, 1),
+      ...bounds(0, 0, 100, 100),
+      ...open(0x22, 2, tag: 0x1a),
+      ...hx('14 19 01 fd 0003'),
+      ...c5(0x29, [0, 0, 0, 0, 0, 9, 0, 9]),
+      ...close(0x1a),
+      ...open(0x22, 5, tag: 0x1a),
+      ...hx('14 19 01 fd 0003'),
+      ...c5(0x29, [0, 1, 0, 1, 0, 9, 0, 9]),
+      ...close(0x1a),
+      ...open(0x15, 3, tag: 0x1a),
+      ...close(0x1a),
+      ...close(),
+    ]);
+    expect(d.endpointTerminal(3), isNull, reason: 'ambiguous claims are dropped, never guessed (corpus: 0)');
+    expect(d.endpointTerminalBounds(3), isNull);
   });
 
   test('isLabelHidden: objFlags bit 0x08 on label parts only', () {

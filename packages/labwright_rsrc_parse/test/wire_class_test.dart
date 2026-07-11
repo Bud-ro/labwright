@@ -93,7 +93,10 @@ void main() {
 
   test('endpoint terminal bounds: crc8 tunnels pin to their structure borders', () {
     final crc8 = File('${corpusViDir.path}/rcpacini_VI-Snippets/rcpacini-VI-Snippets-1662bd7/crc8.png');
-    if (!crc8.existsSync()) return;
+    if (!crc8.existsSync()) {
+      markTestSkipped('crc8 snippet not fetched');
+      return;
+    }
     final diagram = buildViModel(extractSnippetVi(crc8.readAsBytesSync())!).blockDiagrams.single;
     // endpoint oid -> absolute attach rect (t, l, b, r): the for-loop N terminal
     // (top-left corner), left-border tunnels of the outer and inner loops, the
@@ -114,8 +117,10 @@ void main() {
     expect(diagram.endpointTerminalBounds(904), isNull, reason: 'plain node endpoints carry no terminal record');
   });
 
-  test('endpoint terminal bounds land on or inside their structure frame', () {
-    var structFramed = 0, onOrInside = 0;
+  test('endpoint attach rects: border-exact on the frame ring, interior minority inside', () {
+    // The < 8.6 legacy coordinate space returns null attach rects at the API
+    // level, so 8.6+ v8 files are exercised and pre-8.6 contribute nothing.
+    var structFramed = 0, onBorder = 0, interior = 0;
     for (final file in all.take(300)) {
       final ViModel model;
       try {
@@ -123,24 +128,33 @@ void main() {
       } catch (_) {
         continue;
       }
-      // LabVIEW <= 8.5 heaps store termBounds (and bounds) in an absolute
-      // space this decode does not cover — see ViDiagram.endpointTerminalBounds.
-      if ((int.tryParse(model.version?.split('.').first ?? '') ?? 0) < 9) continue;
       for (final diagram in model.blockDiagrams) {
         for (final wire in diagram.wires) {
-          for (final oid in wire.endpointOids) {
-            final terminal = diagram.endpointTerminal(oid);
-            if (terminal == null) continue;
-            final frame = _boundedOwner(diagram, terminal.oid);
+          for (var i = 0; i < wire.endpointOids.length; i++) {
+            final pos = wire.endpointAttachRects[i];
+            if (pos == null) continue;
+            final frame = _boundedOwner(diagram, diagram.endpointTerminal(wire.endpointOids[i])!.oid);
             if (frame == null || frame.objectClass.category != ViObjectKind.structure) continue;
             structFramed++;
-            if (_onOrInsideFrame(diagram.endpointTerminalBounds(oid)!, frame.absBounds!)) onOrInside++;
+            final f = frame.absBounds!;
+            if (_touchesRing(pos, f)) {
+              onBorder++;
+            } else if (pos.left >= f.left && pos.top >= f.top && pos.right <= f.right && pos.bottom <= f.bottom) {
+              interior++;
+            }
           }
         }
       }
     }
     expect(structFramed, greaterThan(500), reason: 'sample should contain structure tunnels');
-    expect(onOrInside, structFramed, reason: 'attach rects sit on/inside the frame ($onOrInside/$structFramed)');
+    expect(
+      onBorder + interior,
+      structFramed,
+      reason: 'every rect on the ring or fully inside ($onBorder + $interior / $structFramed)',
+    );
+    // Corpus-wide the border-exact share is 99.09%; the remainder are interior
+    // terminals (e.g. a loop's conditional terminal).
+    expect(onBorder, greaterThan(structFramed * 0.95), reason: 'border-exact dominates ($onBorder/$structFramed)');
   });
 }
 
@@ -155,12 +169,11 @@ ViHeapObject? _boundedOwner(ViDiagram d, int oid) {
   return null;
 }
 
-/// Whether [pos] crosses [frame]'s border ring or lies fully within it.
-bool _onOrInsideFrame(HeapRect pos, HeapRect frame) {
+/// Whether [pos] crosses [frame]'s border ring (an edge line passes through it).
+bool _touchesRing(HeapRect pos, HeapRect frame) {
   bool spans(int line, int lo, int hi) => line >= lo && line <= hi;
   return spans(frame.left, pos.left, pos.right) ||
       spans(frame.right, pos.left, pos.right) ||
       spans(frame.top, pos.top, pos.bottom) ||
-      spans(frame.bottom, pos.top, pos.bottom) ||
-      (pos.left >= frame.left && pos.top >= frame.top && pos.right <= frame.right && pos.bottom <= frame.bottom);
+      spans(frame.bottom, pos.top, pos.bottom);
 }
