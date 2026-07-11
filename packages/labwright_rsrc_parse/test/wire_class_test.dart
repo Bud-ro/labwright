@@ -1,6 +1,8 @@
 @Tags(['corpus'])
 library;
 
+import 'dart:io';
+
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
@@ -88,4 +90,77 @@ void main() {
     // 91% of signals hold exactly two endpoints (source + sink).
     expect(twoEndpoints, greaterThan(signals * 0.7), reason: 'most wires are two-endpoint ($twoEndpoints/$signals)');
   });
+
+  test('endpoint terminal bounds: crc8 tunnels pin to their structure borders', () {
+    final crc8 = File('${corpusViDir.path}/rcpacini_VI-Snippets/rcpacini-VI-Snippets-1662bd7/crc8.png');
+    if (!crc8.existsSync()) return;
+    final diagram = buildViModel(extractSnippetVi(crc8.readAsBytesSync())!).blockDiagrams.single;
+    // endpoint oid -> absolute attach rect (t, l, b, r): the for-loop N terminal
+    // (top-left corner), left-border tunnels of the outer and inner loops, the
+    // case selector, and both shift registers — six distinct positions on the
+    // outer loop (158,375..495,543), the inner loop, and the case frame.
+    const wants = {
+      88: (375, 158, 391, 174),
+      98: (499, 158, 508, 167),
+      179: (499, 263, 508, 272),
+      223: (473, 341, 485, 349),
+      2357: (403, 479, 415, 495),
+      2360: (403, 158, 415, 174),
+    };
+    wants.forEach((oid, want) {
+      final r = diagram.endpointTerminalBounds(oid)!;
+      expect((r.top, r.left, r.bottom, r.right), want, reason: 'endpoint $oid');
+    });
+    expect(diagram.endpointTerminalBounds(904), isNull, reason: 'plain node endpoints carry no terminal record');
+  });
+
+  test('endpoint terminal bounds land on or inside their structure frame', () {
+    var structFramed = 0, onOrInside = 0;
+    for (final file in all.take(300)) {
+      final ViModel model;
+      try {
+        model = buildViModel(file.readAsBytesSync());
+      } catch (_) {
+        continue;
+      }
+      // LabVIEW <= 8.5 heaps store termBounds (and bounds) in an absolute
+      // space this decode does not cover — see ViDiagram.endpointTerminalBounds.
+      if ((int.tryParse(model.version?.split('.').first ?? '') ?? 0) < 9) continue;
+      for (final diagram in model.blockDiagrams) {
+        for (final wire in diagram.wires) {
+          for (final oid in wire.endpointOids) {
+            final terminal = diagram.endpointTerminal(oid);
+            if (terminal == null) continue;
+            final frame = _boundedOwner(diagram, terminal.oid);
+            if (frame == null || frame.objectClass.category != ViObjectKind.structure) continue;
+            structFramed++;
+            if (_onOrInsideFrame(diagram.endpointTerminalBounds(oid)!, frame.absBounds!)) onOrInside++;
+          }
+        }
+      }
+    }
+    expect(structFramed, greaterThan(500), reason: 'sample should contain structure tunnels');
+    expect(onOrInside, structFramed, reason: 'attach rects sit on/inside the frame ($onOrInside/$structFramed)');
+  });
+}
+
+/// The nearest positional ancestor of [oid] (itself included) with bounds.
+ViHeapObject? _boundedOwner(ViDiagram d, int oid) {
+  var object = d.byId[oid];
+  final seen = <int>{};
+  while (object != null && seen.add(object.oid)) {
+    if (object.absBounds != null) return object;
+    object = object.parentOid == null ? null : d.byId[object.parentOid!];
+  }
+  return null;
+}
+
+/// Whether [pos] crosses [frame]'s border ring or lies fully within it.
+bool _onOrInsideFrame(HeapRect pos, HeapRect frame) {
+  bool spans(int line, int lo, int hi) => line >= lo && line <= hi;
+  return spans(frame.left, pos.left, pos.right) ||
+      spans(frame.right, pos.left, pos.right) ||
+      spans(frame.top, pos.top, pos.bottom) ||
+      spans(frame.bottom, pos.top, pos.bottom) ||
+      (pos.left >= frame.left && pos.top >= frame.top && pos.right <= frame.right && pos.bottom <= frame.bottom);
 }

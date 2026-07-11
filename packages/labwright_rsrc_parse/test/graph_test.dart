@@ -135,6 +135,34 @@ void main() {
     expect(route.jointSigns, [1, 1]);
   });
 
+  test('endpointTerminalBounds: attach rect = termBounds + enclosing frame origin', () {
+    final d = dia([
+      ...open(0x20, 1), // loop structure at (100, 50)
+      ...bounds(100, 50, 200, 150),
+      ...open(0x22, 2, tag: 0x1a), // tunnel terminal: childRefs the endpoint, carries termBounds
+      ...hx('14 19 01 fd 0003'),
+      ...c5(0x29, [0, 10, 0, 0, 0, 19, 0, 9]), // t:10 l:0 b:19 r:9 — on the left border
+      ...close(0x1a),
+      ...open(0x15, 3, tag: 0x1a), // the wire-endpoint DCO (bounds-less)
+      ...close(0x1a),
+      ...open(0x16, 4, tag: 0x1a), // an endpoint no terminal names
+      ...close(0x1a),
+      ...close(),
+      ...open(0x17, 9), // the signal binding both endpoints
+      ...hx('14 19 01 fd 0003'),
+      ...hx('14 19 01 fd 0004'),
+      ...close(),
+    ]);
+    expect(d.endpointTerminal(3)!.oid, 2);
+    final pos = d.endpointTerminalBounds(3)!;
+    expect((pos.top, pos.left, pos.bottom, pos.right), (110, 50, 119, 59));
+    final wire = d.wires.single;
+    expect(wire.endpointTerminalBounds.first!.top, 110);
+    expect(wire.endpointTerminalBounds.last, isNull, reason: 'no terminal names endpoint 4');
+    expect(d.endpointTerminalBounds(2), isNull, reason: 'gated to the endpoint DCO kinds');
+    expect(d.endpointTerminal(1), isNull);
+  });
+
   test('isLabelHidden: objFlags bit 0x08 on label parts only', () {
     final d = dia([
       ...open(0xa, 1),
