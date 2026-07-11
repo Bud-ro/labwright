@@ -332,11 +332,33 @@ int? _typedefNested(_Pool pool, int o) {
   return p;
 }
 
+/// One value the `DFDS` walk tiles: the byte run `[offset, offset + length)` in
+/// the `DFDS` body holding the flattened default value of the data-space entry
+/// whose `VCTP` **top-level index** is [topLevelIndex] (its position in the
+/// top-level index list — the same index space `TM80` entries and the heap's
+/// resolved `typeDescIndex` address). Only whole-entry values (the
+/// `HasSaveData`/`IsDSAlignPadding` roles) are surfaced; the member-wise
+/// "special DSTM cluster" values are walked but not indexed here.
+class DataSpaceSlot {
+  const DataSpaceSlot({required this.topLevelIndex, required this.offset, required this.length});
+
+  /// Position in the `VCTP` top-level index list this value belongs to.
+  final int topLevelIndex;
+
+  /// Byte offset of the flattened value within the `DFDS` body.
+  final int offset;
+
+  /// Flattened byte length of the value.
+  final int length;
+}
+
 /// Walks the whole `DFDS` body [dfds] under [ctx], returning the total number of
 /// bytes the type-driven walk consumes (which equals [dfds] `.length` exactly iff
 /// it tiles), or null when any entry's type is not tiled here, a read runs out of
-/// bounds, or the `VCTP`/`TM80` context does not frame. Total; never throws.
-int? _walk(Uint8List dfds, DfdsContext ctx) {
+/// bounds, or the `VCTP`/`TM80` context does not frame. [onValue] (when given)
+/// observes each whole-entry `HasSaveData`/`IsDSAlignPadding` value as
+/// `(topLevelIndex, offset, length)`. Total; never throws.
+int? _walk(Uint8List dfds, DfdsContext ctx, [void Function(int tlPos, int off, int len)? onValue]) {
   final pool = _parsePool(ctx.vctp);
   if (pool == null) return null;
   final tm = decodeTypeMap(ctx.tm80);
@@ -354,6 +376,7 @@ int? _walk(Uint8List dfds, DfdsContext ctx) {
     if (_hasSave(flags)) {
       final e = _extent(pool, descOff, dfds, off, 0);
       if (e == null || off + e > dfds.length) return null;
+      onValue?.call(tlPos, off, e);
       off += e;
     } else if (pool.body[descOff + 3] == TypeCode.cluster && (flags & _tmSpecial) != 0) {
       // A "special DSTM cluster": only selected members carry a default value,
@@ -395,4 +418,18 @@ bool dataSpaceFrames(Uint8List body, DfdsContext ctx) => _walk(body, ctx) == bod
 /// recovers its extent, which is what tiling the data space requires.
 Uint8List? reserializeDataSpace(Uint8List body, DfdsContext ctx) {
   return _walk(body, ctx) == body.length ? body : null;
+}
+
+/// Tiles a `DFDS` [body] under [ctx] and returns the whole-entry value slots
+/// (see [DataSpaceSlot]), or null when the body does not tile exactly to the
+/// last byte — a partial walk proves nothing about slot boundaries, so no slots
+/// are surfaced from one. Total; never throws.
+List<DataSpaceSlot>? dataSpaceSlots(Uint8List body, DfdsContext ctx) {
+  final slots = <DataSpaceSlot>[];
+  final walked = _walk(
+    body,
+    ctx,
+    (tlPos, off, len) => slots.add(DataSpaceSlot(topLevelIndex: tlPos, offset: off, length: len)),
+  );
+  return walked == body.length ? slots : null;
 }

@@ -29,6 +29,7 @@ import 'corpus_base.dart';
 
 /// The corpus test files that own metric sections.
 const _sectionTests = [
+  'test/const_value_census_test.dart',
   'test/corpus_coverage_test.dart',
   'test/corpus_invariants_test.dart',
   'test/invariants_test.dart',

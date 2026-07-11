@@ -46,6 +46,26 @@
       "xxSE.decoded": 15044,
       "xxSE.sections": 15044
     },
+    "bd_const_values": {
+      "bool1Byte": 5149,
+      "bool2Byte": 2355,
+      "constants": 54801,
+      "decodedBool": 7504,
+      "decodedDouble": 860,
+      "decodedInt": 15611,
+      "decodedText": 14813,
+      "gtDouble": 179,
+      "gtDoubleDbl": 179,
+      "gtInt": 1840,
+      "gtIntIntFamily": 1840,
+      "gtText": 4342,
+      "gtTextOther:array": 1,
+      "gtTextOther:cluster": 22,
+      "gtTextOther:typeDef": 55,
+      "gtTextString": 4264,
+      "records": 54801,
+      "undecoded": 16013
+    },
     "container": {
       "anti.checked": 7523,
       "anti.opposite": 7465,

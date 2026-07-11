@@ -482,14 +482,16 @@ enum HeapAttribute {
   /// ("AllObjs[]", "Panes[]", "Diagram", "OwningVI").
   propItemName(0x231, HeapAttrKind.stringBlob, 'propItemName', AttrConfidence.confirmed),
 
-  /// Raw `0x26C` — **BD constant value** (matches OF__ConstValue): scope
-  /// bDConstDCO `0x13` at **99.45%** (54,801 records, BDHb only). The value is
-  /// the constant's flattened data: small ints ride the `u8..u32` widths
-  /// (1/0/2/−1…), strings ride the `C6 6C <u8len> <u32 strlen><ascii>` form
-  /// ("%f", "ps2000aRunStreaming"; validity-gated per record — see
-  /// [_u32StringRaws]) and the `C6 6C FF` blob (gated at ≥90% printable);
-  /// non-validating payloads are type-dependent flattened data and stay
-  /// framed-inside-the-record rather than fabricated.
+  /// Raw `0x26C` — **BD constant value** (matches OF__ConstValue). This entry
+  /// owns the record census (pinned by the `bd_const_values` corpus-snapshot
+  /// section): the corpus' decoded top-level FP/BD heaps hold **54,801**
+  /// records, every one innermost-scoped to a `0x13` bDConstDCO (BDHb only),
+  /// exactly one per constant. The value is the constant's flattened data:
+  /// small ints ride the `u8..u32` widths (1/0/2/−1…), strings ride the
+  /// `C6 6C <u8len> <u32 strlen><ascii>` form ("%f", "ps2000aRunStreaming";
+  /// validity-gated per record — see [_u32StringRaws]) and the `C6 6C FF` blob
+  /// (gated at ≥90% printable); non-validating payloads are type-dependent
+  /// flattened data and stay framed-inside-the-record rather than fabricated.
   constValue(0x26c, HeapAttrKind.stringBlob, 'constValue', AttrConfidence.inferred),
 
   /// Raw `0x163` / `0x164` — a **paired rectangle block** carried as
