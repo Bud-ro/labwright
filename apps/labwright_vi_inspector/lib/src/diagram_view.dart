@@ -285,7 +285,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                             wires: _wires,
                             subViIcons: _subViIcons,
                             primIcons: _primIcons,
-                            iconFilterQuality: FilterQuality.medium,
+                            iconFilterQuality: FilterQuality.low,
                             structureTerminals: _structureTerminals,
                           ),
                           foregroundPainter: _OverlayPainter(
@@ -1520,6 +1520,16 @@ int? primIconKeyOf(ViHeapObject object) =>
     object.primResId ??
     (kSingleOpPrimClasses.contains(object.kind) ? -object.kind : null);
 
+/// Integer prescale applied to every bundled icon at load: the stored image
+/// is the asset replicated [kPrimIconPrescale]x with nearest sampling —
+/// bit-exact blocks. Drawing it back at logical size with NEAREST recovers
+/// the original pixels exactly (each destination pixel's centre lands inside
+/// its own source block), so the 1:1 oracle raster stays bit-perfect;
+/// drawing it with LINEAR is "sharp bilinear": crisp pixel edges at any
+/// non-integer zoom, because the interpolation band is only
+/// 1/[kPrimIconPrescale] of a source pixel wide.
+const kPrimIconPrescale = 4;
+
 Future<Map<int, ui.Image>> loadPrimIcons() => _primIcons ??= () async {
   final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
   final icons = <int, ui.Image>{};
@@ -1528,16 +1538,21 @@ Future<Map<int, ui.Image>> loadPrimIcons() => _primIcons ??= () async {
       r'assets/prim_icons/(prim|class)(\d+)(?:_[a-z0-9-]+)?\.png$',
     ).firstMatch(asset);
     if (m == null) continue;
+    // A rejected icon never stamps — the node falls back to the plate +
+    // operator glyph until a better extraction or hand-drawn art lands.
+    if (kPrimIconStatus['${m.group(1)}${m.group(2)}'] ==
+        PrimIconStatus.rejected) {
+      continue;
+    }
     final bytes = await rootBundle.load(asset);
     final codec = await ui.instantiateImageCodec(bytes.buffer.asUint8List());
     final image = (await codec.getNextFrame()).image;
     final id = m.group(1) == 'prim'
         ? int.parse(m.group(2)!)
         : -int.parse(m.group(2)!);
-    icons[id] = image;
-    // The alpha mask backs pixel-precise hit testing: a stamped icon's
-    // transparent surround must not swallow clicks meant for the wire or
-    // canvas behind it.
+    // The alpha mask backs pixel-precise hit testing at LOGICAL resolution:
+    // a stamped icon's transparent surround must not swallow clicks meant
+    // for the wire or canvas behind it.
     final rgba = await image.toByteData();
     if (rgba != null) {
       final alpha = Uint8List(image.width * image.height);
@@ -1546,6 +1561,24 @@ Future<Map<int, ui.Image>> loadPrimIcons() => _primIcons ??= () async {
       }
       _primIconMasks[id] = (w: image.width, h: image.height, alpha: alpha);
     }
+    // Sharp-bilinear prescale (see [kPrimIconPrescale]).
+    final recorder = ui.PictureRecorder();
+    final canvas = ui.Canvas(recorder);
+    canvas.drawImageRect(
+      image,
+      ui.Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
+      ui.Rect.fromLTWH(
+        0,
+        0,
+        (image.width * kPrimIconPrescale).toDouble(),
+        (image.height * kPrimIconPrescale).toDouble(),
+      ),
+      ui.Paint()..filterQuality = ui.FilterQuality.none,
+    );
+    icons[id] = await recorder.endRecording().toImage(
+      image.width * kPrimIconPrescale,
+      image.height * kPrimIconPrescale,
+    );
   }
   return _primIconsSync = icons;
 }();
@@ -1968,8 +2001,11 @@ class BdDiagramPainter extends CustomPainter {
           final primIcon = iconKey == null ? null : primIcons[iconKey];
           if (primIcon != null) {
             // The harvested art carries its own borders and transparency —
-            // no plate, backing, or extra frame around it.
-            final w = primIcon.width.toDouble(), h = primIcon.height.toDouble();
+            // no plate, backing, or extra frame around it. The image is the
+            // asset prescaled [kPrimIconPrescale]x (see there); the dst rect
+            // is the LOGICAL size.
+            final w = primIcon.width / kPrimIconPrescale;
+            final h = primIcon.height / kPrimIconPrescale;
             final dst = Rect.fromCenter(
               center: rect.center,
               width: w,
@@ -1977,7 +2013,12 @@ class BdDiagramPainter extends CustomPainter {
             );
             canvas.drawImageRect(
               primIcon,
-              Rect.fromLTWH(0, 0, w, h),
+              Rect.fromLTWH(
+                0,
+                0,
+                primIcon.width.toDouble(),
+                primIcon.height.toDouble(),
+              ),
               dst,
               Paint()..filterQuality = iconFilterQuality,
             );
