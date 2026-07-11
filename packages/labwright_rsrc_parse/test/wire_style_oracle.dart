@@ -282,9 +282,12 @@ class WireRun {
 }
 
 /// The straight runs of every visible 2-endpoint signal: aligned-endpoint
-/// straight wires plus the segments of stored `0x1e7` routes reconstructed
-/// from an attach-rect endpoint (dropped when the route fails to close on
-/// the far endpoint within tolerance).
+/// bend-less wires plus the segments of stored `0x1e7` routes walked from
+/// the first endpoint's attach rect with the stored [ViWireRoute.direction]
+/// (dropped when the route fails to close on the far endpoint within
+/// tolerance). Routes are walkable from the FIRST endpoint only — the walk
+/// origin the table encodes — so a wire whose sole attach rect sits on the
+/// second endpoint contributes no runs.
 List<WireRun> wireRuns(ViDiagram bd) {
   final runs = <WireRun>[];
   for (final w in bd.wires) {
@@ -293,7 +296,9 @@ List<WireRun> wireRuns(ViDiagram bd) {
     final rects = [for (var i = 0; i < 2; i++) w.endpointAttachRects[i] ?? w.endpointAnchors[i]];
     if (rects.any((r) => r == null || r.width <= 0 || r.height <= 0)) continue;
     final a = rects[0]!, b = rects[1]!;
-    if (w.route == null) {
+    if (w.route == null || w.route!.segmentLengths.isEmpty) {
+      // No stored bends (no table, or the 1/2-point straight tables): a
+      // single run between aligned attach centres.
       final cyA = a.top + a.height ~/ 2, cyB = b.top + b.height ~/ 2;
       final cxA = a.left + a.width ~/ 2, cxB = b.left + b.width ~/ 2;
       if (cyA == cyB) {
@@ -307,34 +312,39 @@ List<WireRun> wireRuns(ViDiagram bd) {
       }
       continue;
     }
-    final routed = w.endpointAttachRects[0] != null
-        ? _routeRuns(w, a, b)
-        : (w.endpointAttachRects[1] != null ? _routeRuns(w, b, a) : null);
+    final routed = w.endpointAttachRects[0] != null ? _routeRuns(w, a, b) : null;
     if (routed != null) runs.addAll(routed);
   }
   return runs;
 }
 
 /// Reconstructs a routed wire's polyline from attach-rect centre [a] toward
-/// [b] (alternating axes starting horizontal, joint signs from the stored
-/// route, final leg implied), returning its runs — or null when the implied
-/// closing leg misses [b]'s centre row/column by more than 3 units.
+/// [b] — first segment per the stored [ViWireRoute.direction], axes
+/// alternating, joint signs from the stored route, final leg implied —
+/// returning its runs, or null when the implied closing leg misses [b]'s
+/// centre row/column by more than 3 units (attach rects here may be coarse
+/// owner boxes, so exact closure is not demanded).
 List<WireRun>? _routeRuns(ViWire w, HeapRect a, HeapRect b) {
   final route = w.route!;
+  final direction = route.direction;
+  if (direction == null) return null;
   var x = a.left + a.width ~/ 2, y = a.top + a.height ~/ 2;
   final bx = b.left + b.width ~/ 2, by = b.top + b.height ~/ 2;
+  var horizontal = direction.isHorizontal;
+  var sign = direction.dx + direction.dy;
   final pts = <(int, int)>[(x, y)];
   for (var i = 0; i < route.segmentLengths.length; i++) {
     final len = route.segmentLengths[i];
-    final sign = i == 0 ? (bx >= x ? 1 : -1) : route.jointSigns[i - 1];
-    if (i.isEven) {
+    if (i > 0) sign = route.jointSigns[i - 1];
+    if (horizontal) {
       x += sign * len;
     } else {
       y += sign * len;
     }
     pts.add((x, y));
+    horizontal = !horizontal;
   }
-  if (route.segmentLengths.length.isEven) {
+  if (horizontal) {
     if ((y - by).abs() > 3) return null;
     pts.add((bx, y));
   } else {

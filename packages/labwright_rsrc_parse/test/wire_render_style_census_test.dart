@@ -183,7 +183,9 @@ Map<String, int> _censusSnippet(Uint8List png, String path) {
     bump('flag|$cell$axis@f${(k >> 12) & 0xf}|$name');
     bump('state|$cell$axis@s${(state[run.sigOid] ?? -1).toRadixString(16)}|$name');
     bump(
-      'hdr|$cell$axis@${o.wireTableRaw != null ? 'c${o.wireTableRaw![1].toRadixString(16)}' : (hdrOf[run.sigOid] ?? '-')}|$name',
+      // Tables of every width are captured on the model now; the 1-byte
+      // 1-point table has no second byte to tag.
+      'hdr|$cell$axis@${o.wireTableRaw != null && o.wireTableRaw!.length > 1 ? 'c${o.wireTableRaw![1].toRadixString(16)}' : (hdrOf[run.sigOid] ?? '-')}|$name',
     );
     bump('objf|$cell$axis@o${o.objFlags?.toRadixString(16) ?? '-'}|$name');
   }
