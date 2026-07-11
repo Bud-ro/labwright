@@ -285,6 +285,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                             wires: _wires,
                             subViIcons: _subViIcons,
                             primIcons: _primIcons,
+                            iconFilterQuality: FilterQuality.medium,
                             structureTerminals: _structureTerminals,
                           ),
                           foregroundPainter: _OverlayPainter(
@@ -1613,6 +1614,7 @@ class BdDiagramPainter extends CustomPainter {
     this.subViIcons = const {},
     this.primIcons = const {},
     this.structureTerminals = const {},
+    this.iconFilterQuality = FilterQuality.none,
   });
 
   final List<ViHeapObject> objects;
@@ -1638,6 +1640,11 @@ class BdDiagramPainter extends CustomPainter {
   /// stamped at natural size on primitive plates. A node without an entry
   /// keeps the plate + operator glyph.
   final Map<int, ui.Image> primIcons;
+
+  /// Sampling for stamped icons: nearest (the default) is pixel-exact in the
+  /// 1:1 oracle raster; the interactive view passes [FilterQuality.medium]
+  /// because its zoom is arbitrary and nearest minification drops pixels.
+  final FilterQuality iconFilterQuality;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1972,7 +1979,7 @@ class BdDiagramPainter extends CustomPainter {
               primIcon,
               Rect.fromLTWH(0, 0, w, h),
               dst,
-              Paint()..filterQuality = FilterQuality.none,
+              Paint()..filterQuality = iconFilterQuality,
             );
           } else if (icon != null) {
             paintLegacyIcon(canvas, icon, rect);
@@ -2451,6 +2458,7 @@ class BdDiagramPainter extends CustomPainter {
       !identical(old.wires, wires) ||
       !identical(old.subViIcons, subViIcons) ||
       !identical(old.primIcons, primIcons) ||
+      old.iconFilterQuality != iconFilterQuality ||
       !identical(old.structureTerminals, structureTerminals) ||
       old.origin != origin;
 }
@@ -2514,17 +2522,20 @@ class _OverlayPainter extends CustomPainter {
 /// A "label: value" detail row for the selected-object card (decoded semantics).
 Widget _detail(String label, String value) => Padding(
   padding: const EdgeInsets.only(top: 3),
-  child: RichText(
+  // Text.rich (not RichText) so the body inherits the ambient theme colour —
+  // a fixed dark grey was unreadable on the dark theme; the label blue reads
+  // on both.
+  child: Text.rich(
     maxLines: 3,
     overflow: TextOverflow.ellipsis,
-    text: TextSpan(
-      style: const TextStyle(fontSize: 12, color: Color(0xFF333333)),
+    TextSpan(
+      style: const TextStyle(fontSize: 12),
       children: [
         TextSpan(
           text: '$label: ',
           style: const TextStyle(
             fontWeight: FontWeight.w600,
-            color: Color(0xFF1565C0),
+            color: Color(0xFF5B9BD5),
           ),
         ),
         TextSpan(text: value),

@@ -1421,6 +1421,7 @@ class _BdOracleViewState extends State<BdOracleView>
             void follow(Offset local) => setState(() {
               _wipeFraction = ((local.dx - offsetX) / dispW).clamp(0.0, 1.0);
             });
+            final wipeFilter = _fitFilter(result.reference, constraints);
             return GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTapDown: (d) => follow(d.localPosition),
@@ -1435,14 +1436,14 @@ class _BdOracleViewState extends State<BdOracleView>
                       RawImage(
                         image: result.reference,
                         fit: BoxFit.fill,
-                        filterQuality: FilterQuality.none,
+                        filterQuality: wipeFilter,
                       ),
                       ClipRect(
                         clipper: _LeftFractionClipper(_wipeFraction),
                         child: RawImage(
                           image: result.fitted,
                           fit: BoxFit.fill,
-                          filterQuality: FilterQuality.none,
+                          filterQuality: wipeFilter,
                         ),
                       ),
                       Positioned(
@@ -1473,14 +1474,16 @@ class _BdOracleViewState extends State<BdOracleView>
         Expanded(
           child: ColoredBox(
             color: const Color(0xFF202020),
-            child: FittedBox(
-              child: SizedBox(
-                width: image.width.toDouble(),
-                height: image.height.toDouble(),
-                child: RawImage(
-                  image: image,
-                  fit: BoxFit.contain,
-                  filterQuality: FilterQuality.none,
+            child: LayoutBuilder(
+              builder: (context, constraints) => FittedBox(
+                child: SizedBox(
+                  width: image.width.toDouble(),
+                  height: image.height.toDouble(),
+                  child: RawImage(
+                    image: image,
+                    fit: BoxFit.contain,
+                    filterQuality: _fitFilter(image, constraints),
+                  ),
                 ),
               ),
             ),
@@ -1514,6 +1517,18 @@ class _OracleData {
       disp(r.diffImage);
     }
   }
+}
+
+/// Nearest-neighbour when the image displays at native size or larger (the
+/// raster is 1:1 with the reference — filtering would only blur it) and
+/// bilinear when minified, where naive nearest sampling drops pixels and
+/// reads as aliasing.
+FilterQuality _fitFilter(ui.Image image, BoxConstraints constraints) {
+  final scale = math.min(
+    constraints.maxWidth / image.width,
+    constraints.maxHeight / image.height,
+  );
+  return scale >= 1 ? FilterQuality.none : FilterQuality.medium;
 }
 
 /// Clips its child to the leftmost [fraction] of its width — the moving half
