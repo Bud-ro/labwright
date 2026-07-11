@@ -1179,7 +1179,13 @@ class _BdOracleViewState extends State<BdOracleView>
     // build proceeds without them rather than blocking on asset IO.
     if (primIconsLoaded().isEmpty) {
       loadPrimIcons().then((icons) {
-        if (mounted && icons.isNotEmpty) setState(() => _future = _build());
+        if (!mounted || icons.isEmpty) return;
+        // _build() returns a Future — start it outside setState (a setState
+        // callback must not return one) and swap the field synchronously.
+        final rebuilt = _build();
+        setState(() {
+          _future = rebuilt;
+        });
       });
     }
   }

@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 import 'images_view.dart';
+import 'prim_icon_catalog.dart';
 import 'span_annotations.dart';
 
 /// A read-only **layout view** of a decoded VI block diagram, rendered to a
@@ -1476,6 +1477,16 @@ int _depthOf(ViHeapObject object, Map<int, ViHeapObject> byId) {
 /// the class code is the identity); their icons are keyed as `-code`.
 const kSingleOpPrimClasses = {0x3a, 0x34, 0x3e, 0x44, 0x6c, 0x93, 0x172};
 
+/// The detail-card suffix naming a primitive icon's review status
+/// ([kPrimIconStatus]) — empty for objects that stamp no icon.
+String _iconStatusSuffix(ViHeapObject object) {
+  final key = primIconKeyOf(object);
+  if (key == null) return '';
+  final name = key >= 0 ? 'prim\$key' : 'class\${-key}';
+  final status = kPrimIconStatus[name];
+  return status == null ? '' : ' · icon \${status.name}';
+}
+
 /// The icon-map key for [object]: its primResID when present, else the
 /// negated class code for the single-op primitive classes, else null.
 int? primIconKeyOf(ViHeapObject object) =>
@@ -2558,6 +2569,7 @@ class _DetailsCard extends StatelessWidget {
                     '${cls.label}$conf · class 0x${object.kind.toRadixString(16)} · oid ${object.oid}'
                     '${object.isLabelHidden ? ' · hidden' : ''}'
                     '${kMultiFrameStructureKinds.contains(object.kind) ? ' · shows frame ${object.visibleFrameIndex + 1}' : ''}'
+                    '${_iconStatusSuffix(object)}'
                     '${object.typeKind != ViTypeKind.unknown ? ' · type ${object.typeKind.name}' : ''}'
                     '${bounds != null ? ' · ${bounds.width}×${bounds.height} @(${bounds.left},${bounds.top})' : ''}'
                     '${object.parentOid != null ? ' · parent ${object.parentOid}' : ''}',

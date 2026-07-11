@@ -38,7 +38,12 @@ void main() {
     // primResID (their class IS the identity — 0x44 etc.).
     const primClasses = {0x3a, 0x34, 0x3e, 0x44, 0x6c, 0x93, 0x172};
     final samples =
-        <String, List<({Uint8List rgba, int w, int h, String source})>>{};
+        <
+          String,
+          List<({Uint8List rgba, int w, int h, String source, double quality})>
+        >{};
+    final skippedLowQuality = <String>[];
+    final observedKeys = <String>{};
     await tester.runAsync(() async {
       for (final f in pngs) {
         final vi = extractSnippetVi(f.readAsBytesSync());
@@ -57,6 +62,20 @@ void main() {
         );
         if (!result.registered) continue;
         final reg = result.registration;
+        // Only well-registered snippets contribute: a global registration a
+        // few pixels off lands every crop on the wrong pixels.
+        final placement = comparePlacement(
+          diagram: bd,
+          raster: raster,
+          registration: reg,
+          referenceRgba: result.referenceRgba,
+          width: reference.image.width,
+          height: reference.image.height,
+        );
+        final lowQuality =
+            placement.objects > 0 && placement.excessSupport < 0.7;
+        if (lowQuality) skippedLowQuality.add(f.uri.pathSegments.last);
+        final quality = placement.objects == 0 ? 0.0 : placement.excessSupport;
         final refW = reference.image.width, refH = reference.image.height;
         final name = f.uri.pathSegments.last.replaceAll('.png', '');
         for (final o in bd.objects) {
@@ -67,6 +86,10 @@ void main() {
           if (key == null || b == null || b.width <= 0 || b.height <= 0) {
             continue;
           }
+          // Every observed identity stays visible even when no snippet can
+          // contribute pixels for it.
+          observedKeys.add(key);
+          if (lowQuality) continue;
           // A node inside a disable structure renders greyed — its washed
           // colours would poison the palette.
           var anc = bd.byId[o.parentOid ?? -1];
@@ -105,7 +128,13 @@ void main() {
               src,
             );
           }
-          (samples[key] ??= []).add((rgba: crop, w: w, h: h, source: name));
+          (samples[key] ??= []).add((
+            rgba: crop,
+            w: w,
+            h: h,
+            source: name,
+            quality: quality,
+          ));
         }
       }
     });
@@ -113,6 +142,30 @@ void main() {
     bool inky(Uint8List rgba, int w, int x, int y) {
       final i = (y * w + x) * 4;
       return rgba[i] < 240 || rgba[i + 1] < 240 || rgba[i + 2] < 240;
+    }
+
+    // Exterior background -> transparent: flood near-white from the image
+    // border inward (interior whites — an icon's fill — stay opaque).
+    void floodTransparent(img.Image icon) {
+      bool nearWhite(img.Pixel p) => p.r >= 240 && p.g >= 240 && p.b >= 240;
+      final iw = icon.width, ih = icon.height;
+      final stack = <(int, int)>[];
+      for (var x = 0; x < iw; x++) {
+        stack.add((x, 0));
+        stack.add((x, ih - 1));
+      }
+      for (var y = 0; y < ih; y++) {
+        stack.add((0, y));
+        stack.add((iw - 1, y));
+      }
+      while (stack.isNotEmpty) {
+        final (x, y) = stack.removeLast();
+        if (x < 0 || y < 0 || x >= iw || y >= ih) continue;
+        final p = icon.getPixel(x, y);
+        if (p.a == 0 || !nearWhite(p)) continue;
+        icon.setPixelRgba(x, y, 0, 0, 0, 0);
+        stack.addAll([(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)]);
+      }
     }
 
     // Erases wire tails: ink connected to the left/right crop edge through
@@ -203,6 +256,9 @@ void main() {
     );
     var written = 0;
     final pending = <String, ({img.Image icon, String sources})>{};
+    // Extraction NEVER silently drops an identity: failures land here and in
+    // the manifest with their reason.
+    final failed = <String, String>{};
     final keys = samples.keys.toList()..sort();
     for (final key in keys) {
       final all = samples[key]!;
@@ -217,50 +273,88 @@ void main() {
       }
       final modal =
           (dims.entries.toList()..sort((a, b) => b.value - a.value)).first.key;
-      final group = all.where((s) => '${s.w}x${s.h}' == modal).toList();
-      final base = group.first;
-      final w0 = base.w, h0 = base.h;
+      final group = all.where((s) => '${s.w}x${s.h}' == modal).toList()
+        ..sort((a, b) => b.quality.compareTo(a.quality));
+      final w0 = group.first.w, h0 = group.first.h;
 
-      int diffAt(
-        ({Uint8List rgba, int w, int h, String source}) s,
-        int dx,
-        int dy,
+      // Align candidate [b] onto anchor [a]; returns (dx, dy, agreement)
+      // where agreement is the matched fraction of the ink union. Two
+      // independently CORRECT crops of the same icon agree; a crop that
+      // landed on a label or a wire (a displaced model box) agrees with
+      // nothing — so the seed is the best-agreeing pair, never a lone
+      // anchor that might itself be junk.
+      (int, int, double) alignOnto(
+        ({Uint8List rgba, int w, int h, String source, double quality}) a,
+        ({Uint8List rgba, int w, int h, String source, double quality}) b,
       ) {
-        var d = 0;
-        for (var y = 0; y < h0; y++) {
-          for (var x = 0; x < w0; x++) {
-            final sx = x + dx, sy = y + dy;
-            if (sx < 0 || sy < 0 || sx >= s.w || sy >= s.h) {
-              d += 128;
-              continue;
-            }
-            final i = (y * w0 + x) * 4, j = (sy * s.w + sx) * 4;
-            d +=
-                (base.rgba[i] - s.rgba[j]).abs() +
-                (base.rgba[i + 1] - s.rgba[j + 1]).abs() +
-                (base.rgba[i + 2] - s.rgba[j + 2]).abs();
-          }
-        }
-        return d;
-      }
-
-      // Align each sample to the base (small translation search), then vote
-      // per pixel: the modal quantised colour wins; without a majority the
-      // pixel reads as background.
-      final aligned = <({Uint8List rgba, int w, int h, int dx, int dy})>[];
-      for (final s in group) {
-        var bd = 1 << 62, bx = 0, by = 0;
+        var bestD = 1 << 62, bx = 0, by = 0;
         for (var dy = -5; dy <= 5; dy++) {
           for (var dx = -5; dx <= 5; dx++) {
-            final d = diffAt(s, dx, dy);
-            if (d < bd) {
-              bd = d;
+            var d = 0;
+            for (var y = 0; y < h0; y += 2) {
+              for (var x = 0; x < w0; x += 2) {
+                final sx = x + dx, sy = y + dy;
+                if (sx < 0 || sy < 0 || sx >= b.w || sy >= b.h) {
+                  d += 128;
+                  continue;
+                }
+                final i = (y * w0 + x) * 4, j = (sy * b.w + sx) * 4;
+                d +=
+                    (a.rgba[i] - b.rgba[j]).abs() +
+                    (a.rgba[i + 1] - b.rgba[j + 1]).abs() +
+                    (a.rgba[i + 2] - b.rgba[j + 2]).abs();
+              }
+            }
+            if (d < bestD) {
+              bestD = d;
               bx = dx;
               by = dy;
             }
           }
         }
-        aligned.add((rgba: s.rgba, w: s.w, h: s.h, dx: bx, dy: by));
+        var match = 0, union = 0;
+        for (var y = 0; y < h0; y++) {
+          for (var x = 0; x < w0; x++) {
+            final sx = x + bx, sy = y + by;
+            final aInk = inky(a.rgba, w0, x, y);
+            final bInk =
+                sx >= 0 &&
+                sy >= 0 &&
+                sx < b.w &&
+                sy < b.h &&
+                inky(b.rgba, b.w, sx, sy);
+            if (!aInk && !bInk) continue;
+            union++;
+            if (aInk && bInk) match++;
+          }
+        }
+        return (bx, by, union == 0 ? 0 : match / union);
+      }
+
+      // Seed: the pair with the highest mutual agreement (quality-ordered
+      // tiebreak); singletons fall through to the centred-sample fallback.
+      var base = group.first;
+      var seeded = false;
+      if (group.length >= 2) {
+        var bestAgree = 0.0;
+        for (var i = 0; i < group.length; i++) {
+          for (var j = i + 1; j < group.length; j++) {
+            final (_, _, agree) = alignOnto(group[i], group[j]);
+            if (agree > bestAgree) {
+              bestAgree = agree;
+              base = group[i];
+            }
+          }
+        }
+        seeded = bestAgree >= 0.8;
+      }
+      final aligned = <({Uint8List rgba, int w, int h, int dx, int dy})>[];
+      if (seeded) {
+        for (final s in group) {
+          final (dx, dy, agree) = alignOnto(base, s);
+          if (agree < 0.8) continue;
+          aligned.add((rgba: s.rgba, w: s.w, h: s.h, dx: dx, dy: dy));
+        }
       }
       final consensus = Uint8List(w0 * h0 * 4);
       for (var y = 0; y < h0; y++) {
@@ -456,12 +550,12 @@ void main() {
         }
       }
 
-      measure(consensus);
-      if (r < 0 || (r - l + 1) * (btm - t + 1) < 24) {
-        // Fallback: per sample, clean it the same way (erosion already ran;
-        // cluster it), then pick the sample whose surviving ink is largest
-        // AND covers the crop centre — a sliver or an off-centre fragment
-        // never wins.
+      // Fallback selector: per sample, clean it the same way (erosion
+      // already ran; cluster it), then pick the sample whose surviving ink
+      // is largest, covers the crop centre, AND fits the node box (+6 px
+      // growable slack) — a sliver, an off-centre fragment, or a label
+      // crop from a displaced model box never wins.
+      Uint8List? centredSingle() {
         var bestInk = 0;
         Uint8List? single;
         for (final s in group) {
@@ -471,6 +565,7 @@ void main() {
           if (r < 0) continue;
           final cx = w0 ~/ 2, cy = h0 ~/ 2;
           if (l > cx || r < cx || t > cy || btm < cy) continue;
+          if (r - l + 1 > w0 - 4 || btm - t + 1 > h0 - 4) continue;
           var ink = 0;
           for (var y = t; y <= btm; y++) {
             for (var x = l; x <= r; x++) {
@@ -482,11 +577,27 @@ void main() {
             single = copy;
           }
         }
-        if (single == null || bestInk < 60) continue;
+        return bestInk < 60 ? null : single;
+      }
+
+      var method = seeded ? 'pair-seeded consensus' : 'single-sample fallback';
+      measure(consensus);
+      if (r < 0 || (r - l + 1) * (btm - t + 1) < 24) {
+        final single = centredSingle();
+        if (single == null) {
+          failed[key] =
+              'no agreeing consensus and no centred sample survived cleaning '
+              '(${group.length} samples)';
+          continue;
+        }
+        method = 'single-sample fallback';
         consensus.setAll(0, single);
         measure(consensus);
       }
-      if (r < 0) continue;
+      if (r < 0) {
+        failed[key] = 'no ink after cleaning (${group.length} samples)';
+        continue;
+      }
       final w = r - l + 1, h = btm - t + 1;
       final icon = img.Image(width: w, height: h, numChannels: 4);
       for (var y = 0; y < h; y++) {
@@ -502,29 +613,59 @@ void main() {
           );
         }
       }
-      // Exterior background -> transparent: flood near-white from the trimmed
-      // border inward (interior whites — an icon's fill — stay opaque).
-      bool nearWhite(img.Pixel p) => p.r >= 240 && p.g >= 240 && p.b >= 240;
-      final stack = <(int, int)>[];
-      for (var x = 0; x < w; x++) {
-        stack.add((x, 0));
-        stack.add((x, h - 1));
-      }
-      for (var y = 0; y < h; y++) {
-        stack.add((0, y));
-        stack.add((w - 1, y));
-      }
-      while (stack.isNotEmpty) {
-        final (x, y) = stack.removeLast();
-        if (x < 0 || y < 0 || x >= w || y >= h) continue;
-        final p = icon.getPixel(x, y);
-        if (p.a == 0 || !nearWhite(p)) continue;
-        icon.setPixelRgba(x, y, 0, 0, 0, 0);
-        stack.addAll([(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)]);
+      floodTransparent(icon);
+      // Physical prior: an icon cannot exceed the node box that draws it
+      // (+6 px for growable-node overflow). A crop that agreed on a LABEL
+      // (near-duplicate VIs share the same displaced model box, so their
+      // identical wrong crops agree perfectly) fails this and is recorded,
+      // never shipped.
+      final maxW = w0 - 2 * 5 + 6, maxH = h0 - 2 * 5 + 6;
+      var finalIcon = icon;
+      if (finalIcon.width > maxW || finalIcon.height > maxH) {
+        // The agreeing configuration was junk (near-duplicate VIs share the
+        // same displaced model box, so identical wrong crops agree): retry
+        // with the strictest single-sample selection before failing.
+        final single = centredSingle();
+        img.Image? rebuilt;
+        if (single != null) {
+          measure(single);
+          if (r >= 0 && r - l + 1 <= maxW && btm - t + 1 <= maxH) {
+            rebuilt = img.Image(
+              width: r - l + 1,
+              height: btm - t + 1,
+              numChannels: 4,
+            );
+            for (var y = 0; y < rebuilt.height; y++) {
+              for (var x = 0; x < rebuilt.width; x++) {
+                final i = ((t + y) * w0 + l + x) * 4;
+                rebuilt.setPixelRgba(
+                  x,
+                  y,
+                  single[i],
+                  single[i + 1],
+                  single[i + 2],
+                  255,
+                );
+              }
+            }
+            floodTransparent(rebuilt);
+            method = 'single-sample retry after oversized consensus';
+          }
+        }
+        if (rebuilt == null) {
+          failed[key] =
+              'extracted ink ${finalIcon.width}x${finalIcon.height} exceeds '
+              'the node box (${w0 - 10}x${h0 - 10}) — displaced model bounds '
+              'suspected (sources: ${group.map((s) => s.source).toSet().join(', ')})';
+          continue;
+        }
+        finalIcon = rebuilt;
       }
       pending[key] = (
-        icon: icon,
-        sources: group.map((s) => s.source).toSet().join(', '),
+        icon: finalIcon,
+        sources:
+            '${group.map((s) => s.source).toSet().join(', ')} — $method '
+            '(${aligned.length}/${group.length} agreeing)',
       );
     }
 
@@ -615,7 +756,58 @@ void main() {
       );
       written++;
     }
+    for (final key in observedKeys) {
+      if (!pending.containsKey(key) && !failed.containsKey(key)) {
+        failed[key] = 'every sample came from a low-registration snippet';
+      }
+    }
+    if (failed.isNotEmpty) {
+      manifest.writeln(
+        '\n## Identities without a usable asset (kept visible, never hidden)\n',
+      );
+      for (final e
+          in (failed.entries.toList()
+            ..sort((a, b) => a.key.compareTo(b.key)))) {
+        manifest.writeln('- ${e.key}: ${e.value}');
+      }
+    }
+    if (skippedLowQuality.isNotEmpty) {
+      manifest.writeln(
+        '\nSnippets excluded from harvesting (registration below the 0.7 '
+        'placement gate): ${skippedLowQuality.toSet().join(', ')}\n',
+      );
+    }
     File('${outDir.path}/MANIFEST.md').writeAsStringSync(manifest.toString());
+
+    // Regenerate the review catalog, preserving the maintainer's statuses.
+    final catalogFile = File('$appDir/lib/src/prim_icon_catalog.dart');
+    final existing = catalogFile.readAsStringSync();
+    final oldStatus = {
+      for (final m in RegExp(
+        r"'([a-z0-9]+)': PrimIconStatus\.(\w+)",
+      ).allMatches(existing))
+        m.group(1)!: m.group(2)!,
+    };
+    final allKeys = {...pending.keys, ...failed.keys}.toList()..sort();
+    final entries = StringBuffer(
+      'const Map<String, PrimIconStatus> kPrimIconStatus = {\n',
+    );
+    for (final key in allKeys) {
+      entries.writeln(
+        "  '$key': PrimIconStatus.${oldStatus[key] ?? 'unverified'},",
+      );
+    }
+    entries.writeln('};');
+    final begin = existing.indexOf(
+      '// statuses are preserved — edit them freely.)',
+    );
+    final beginEnd = existing.indexOf('\n', begin) + 1;
+    final end = existing.indexOf('// GENERATED-ENTRIES-END');
+    catalogFile.writeAsStringSync(
+      existing.substring(0, beginEnd) +
+          entries.toString() +
+          existing.substring(end),
+    );
     // ignore: avoid_print
     print('wrote $written icon assets to ${outDir.path}');
   });
