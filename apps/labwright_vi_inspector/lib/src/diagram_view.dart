@@ -83,6 +83,19 @@ class ViDiagramView extends StatefulWidget {
 
 class _ViDiagramViewState extends State<ViDiagramView> {
   final _transform = TransformationController();
+
+  /// The zoom the diagram layer is currently rasterised at. Pan/zoom scales
+  /// the cached layer (cheap, transiently soft); when a gesture settles at a
+  /// meaningfully different zoom the layer re-rasterises crisp at it.
+  double _anchorScale = 1;
+
+  void _reanchor() {
+    final scale = _transform.value.getMaxScaleOnAxis();
+    if (scale / _anchorScale > 1.25 || scale / _anchorScale < 0.8) {
+      setState(() => _anchorScale = scale.clamp(0.02, 16.0));
+    }
+  }
+
   ViHeapObject? _selected;
   Set<ViHeapObject> _members = const {};
   Size? _lastViewport;
@@ -268,30 +281,48 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                     minScale: 0.02,
                     maxScale: 16,
                     boundaryMargin: const EdgeInsets.all(2000),
+                    onInteractionEnd: (_) => _reanchor(),
                     // The boundary isolates the diagram into its own
                     // layer, so pan/zoom only re-composites the cached
                     // painting instead of re-running the whole painter
-                    // (per-label text layout included) every frame.
-                    child: RepaintBoundary(
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTapDown: (d) =>
-                            _selectAt(d.localPosition, ordered, content),
-                        child: CustomPaint(
-                          size: Size(content.width, content.height),
-                          painter: BdDiagramPainter(
-                            objects: ordered,
-                            origin: content.topLeft,
-                            wires: _wires,
-                            subViIcons: _subViIcons,
-                            primIcons: _primIcons,
-                            iconFilterQuality: FilterQuality.low,
-                            structureTerminals: _structureTerminals,
+                    // (per-label text layout included) every frame. The
+                    // layer rasterises at the SETTLED zoom (_anchorScale,
+                    // via _reanchor) and the Transform.scale cancels that
+                    // factor, so at rest the compositor shows the layer 1:1
+                    // — vector-crisp at any zoom — and only mid-gesture
+                    // scaling stretches a stale raster.
+                    child: Transform.scale(
+                      scale: 1 / _anchorScale,
+                      alignment: Alignment.topLeft,
+                      child: RepaintBoundary(
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTapDown: (d) => _selectAt(
+                            d.localPosition / _anchorScale,
+                            ordered,
+                            content,
                           ),
-                          foregroundPainter: _OverlayPainter(
-                            origin: content.topLeft,
-                            selected: _selected,
-                            members: _members,
+                          child: CustomPaint(
+                            size: Size(
+                              content.width * _anchorScale,
+                              content.height * _anchorScale,
+                            ),
+                            painter: BdDiagramPainter(
+                              objects: ordered,
+                              origin: content.topLeft,
+                              wires: _wires,
+                              subViIcons: _subViIcons,
+                              primIcons: _primIcons,
+                              iconFilterQuality: FilterQuality.low,
+                              canvasScale: _anchorScale,
+                              structureTerminals: _structureTerminals,
+                            ),
+                            foregroundPainter: _OverlayPainter(
+                              origin: content.topLeft,
+                              selected: _selected,
+                              members: _members,
+                              canvasScale: _anchorScale,
+                            ),
                           ),
                         ),
                       ),
@@ -398,6 +429,8 @@ class _ViDiagramViewState extends State<ViDiagramView> {
     _transform.value = Matrix4.identity()
       ..translateByDouble(tx, ty, 0, 1)
       ..scaleByDouble(scale, scale, 1, 1);
+    // The layer rasterises at the fitted zoom from the first frame.
+    setState(() => _anchorScale = scale.clamp(0.02, 16.0));
     _fitted = true;
   }
 
@@ -1648,6 +1681,7 @@ class BdDiagramPainter extends CustomPainter {
     this.primIcons = const {},
     this.structureTerminals = const {},
     this.iconFilterQuality = FilterQuality.none,
+    this.canvasScale = 1,
   });
 
   final List<ViHeapObject> objects;
@@ -1675,12 +1709,24 @@ class BdDiagramPainter extends CustomPainter {
   final Map<int, ui.Image> primIcons;
 
   /// Sampling for stamped icons: nearest (the default) is pixel-exact in the
-  /// 1:1 oracle raster; the interactive view passes [FilterQuality.medium]
+  /// 1:1 oracle raster; the interactive view passes [FilterQuality.low]
   /// because its zoom is arbitrary and nearest minification drops pixels.
   final FilterQuality iconFilterQuality;
 
+  /// The zoom this layer rasterises at. The interactive view re-anchors the
+  /// layer to the settled zoom after each gesture, so the cached raster the
+  /// compositor scales is already crisp at the zoom being viewed — vector
+  /// content re-renders sharp at ANY zoom, and only the transient gesture
+  /// magnifies a stale raster.
+  final double canvasScale;
+
   @override
   void paint(Canvas canvas, Size size) {
+    // The layer rasterises at [canvasScale]; everything below draws in
+    // logical diagram units under one canvas scale, so strokes, text, and
+    // icons all render at the zoom's real resolution.
+    canvas.scale(canvasScale);
+    size = Size(size.width / canvasScale, size.height / canvasScale);
     canvas.drawRect(Offset.zero & size, Paint()..color = kBdCanvas);
     _drawDotGrid(canvas, size);
 
@@ -2011,18 +2057,16 @@ class BdDiagramPainter extends CustomPainter {
               width: w,
               height: h,
             );
-            // Sampling by effective scale, read off the canvas transform:
-            // once the display magnifies the prescaled bitmap itself
-            // (scale >= kPrimIconPrescale), LINEAR's interpolation band
-            // spans a whole display pixel and reads as fuzz — NEAREST gives
-            // the crisp blocks; below that the band stays sub-pixel and
-            // LINEAR is the sharp-bilinear that kills minification
-            // aliasing. NEAREST also stays exact for the 1:1 oracle raster.
-            final t = canvas.getTransform();
-            final effScale = math.sqrt(t[0] * t[0] + t[1] * t[1]);
+            // Sampling by the layer's rasterisation scale: once it
+            // magnifies the prescaled bitmap itself (canvasScale >=
+            // kPrimIconPrescale), LINEAR's interpolation band spans a whole
+            // display pixel and reads as fuzz — NEAREST gives the crisp
+            // blocks; below that the band stays sub-pixel and LINEAR is the
+            // sharp-bilinear that kills minification aliasing. NEAREST also
+            // stays exact for the 1:1 oracle raster.
             final filter =
                 iconFilterQuality == FilterQuality.none ||
-                    effScale >= kPrimIconPrescale
+                    canvasScale >= kPrimIconPrescale
                 ? FilterQuality.none
                 : iconFilterQuality;
             canvas.drawImageRect(
@@ -2514,6 +2558,7 @@ class BdDiagramPainter extends CustomPainter {
       !identical(old.subViIcons, subViIcons) ||
       !identical(old.primIcons, primIcons) ||
       old.iconFilterQuality != iconFilterQuality ||
+      old.canvasScale != canvasScale ||
       !identical(old.structureTerminals, structureTerminals) ||
       old.origin != origin;
 }
@@ -2526,11 +2571,15 @@ class _OverlayPainter extends CustomPainter {
     required this.origin,
     required this.selected,
     required this.members,
+    this.canvasScale = 1,
   });
 
   final Offset origin;
   final ViHeapObject? selected;
   final Set<ViHeapObject> members;
+
+  /// Matches [BdDiagramPainter.canvasScale] — the overlay shares the layer.
+  final double canvasScale;
 
   Rect _rectOf(ViHeapObject o) {
     final bounds = o.absBounds!;
@@ -2544,6 +2593,7 @@ class _OverlayPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    canvas.scale(canvasScale);
     if (members.isNotEmpty) {
       final mp = Paint()
         ..color = const Color(0xFFEF6C00)
@@ -2571,7 +2621,8 @@ class _OverlayPainter extends CustomPainter {
       old.origin != origin ||
       !identical(old.selected, selected) ||
       old.members.length != members.length ||
-      !old.members.containsAll(members);
+      !old.members.containsAll(members) ||
+      old.canvasScale != canvasScale;
 }
 
 /// A "label: value" detail row for the selected-object card (decoded semantics).

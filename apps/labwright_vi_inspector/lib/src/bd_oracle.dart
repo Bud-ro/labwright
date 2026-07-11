@@ -1194,6 +1194,9 @@ class _BdOracleViewState extends State<BdOracleView>
   /// draggable divider (ours left, LabVIEW right).
   bool _wipe = false;
   double _wipeFraction = 0.5;
+  int _wipeTargetWidth = 0;
+  ui.Image? _wipeReference;
+  ui.Image? _wipeFitted;
 
   // The comparison (rasterise + decode + multi-peak registration) costs a
   // noticeable fraction of a second on large VIs; keep the tab's state alive
@@ -1421,7 +1424,34 @@ class _BdOracleViewState extends State<BdOracleView>
             void follow(Offset local) => setState(() {
               _wipeFraction = ((local.dx - offsetX) / dispW).clamp(0.0, 1.0);
             });
-            final wipeFilter = _fitFilter(result.reference, constraints);
+            // Both wipe halves minify through the same iterative-halving
+            // downscale (see [downscaleForDisplay]) so they stay aligned
+            // and equally crisp; at >= 1x they draw 1:1 nearest.
+            final dpr = MediaQuery.devicePixelRatioOf(context);
+            final targetWidth = scale >= 1
+                ? null
+                : (w * scale * dpr).round().clamp(1, w.toInt());
+            if (targetWidth != null && targetWidth != _wipeTargetWidth) {
+              _wipeTargetWidth = targetWidth;
+              Future.wait([
+                downscaleForDisplay(result.reference, targetWidth),
+                downscaleForDisplay(result.fitted, targetWidth),
+              ]).then((imgs) {
+                if (mounted && _wipeTargetWidth == targetWidth) {
+                  setState(() {
+                    _wipeReference = imgs[0];
+                    _wipeFitted = imgs[1];
+                  });
+                }
+              });
+            }
+            final showRef = targetWidth == null
+                ? result.reference
+                : (_wipeReference ?? result.reference);
+            final showFit = targetWidth == null
+                ? result.fitted
+                : (_wipeFitted ?? result.fitted);
+            const wipeFilter = FilterQuality.none;
             return GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTapDown: (d) => follow(d.localPosition),
@@ -1434,14 +1464,14 @@ class _BdOracleViewState extends State<BdOracleView>
                     fit: StackFit.expand,
                     children: [
                       RawImage(
-                        image: result.reference,
+                        image: showRef,
                         fit: BoxFit.fill,
                         filterQuality: wipeFilter,
                       ),
                       ClipRect(
                         clipper: _LeftFractionClipper(_wipeFraction),
                         child: RawImage(
-                          image: result.fitted,
+                          image: showFit,
                           fit: BoxFit.fill,
                           filterQuality: wipeFilter,
                         ),
@@ -1474,19 +1504,7 @@ class _BdOracleViewState extends State<BdOracleView>
         Expanded(
           child: ColoredBox(
             color: const Color(0xFF202020),
-            child: LayoutBuilder(
-              builder: (context, constraints) => FittedBox(
-                child: SizedBox(
-                  width: image.width.toDouble(),
-                  height: image.height.toDouble(),
-                  child: RawImage(
-                    image: image,
-                    fit: BoxFit.contain,
-                    filterQuality: _fitFilter(image, constraints),
-                  ),
-                ),
-              ),
-            ),
+            child: CrispImage(image),
           ),
         ),
       ],
@@ -1519,16 +1537,106 @@ class _OracleData {
   }
 }
 
-/// Nearest-neighbour when the image displays at native size or larger (the
-/// raster is 1:1 with the reference — filtering would only blur it) and
-/// bilinear when minified, where naive nearest sampling drops pixels and
-/// reads as aliasing.
-FilterQuality _fitFilter(ui.Image image, BoxConstraints constraints) {
-  final scale = math.min(
-    constraints.maxWidth / image.width,
-    constraints.maxHeight / image.height,
+/// Downscales [src] to exactly [targetWidth] px wide by iterative 2x
+/// halving with linear sampling, then one final linear step — the standard
+/// high-quality minification for line art. Single-step GPU filtering
+/// (bilinear or mipmapped) either drops pixels (aliasing) or muddies 1 px
+/// strokes (blur); halving never skips a source pixel and keeps contrast.
+Future<ui.Image> downscaleForDisplay(ui.Image src, int targetWidth) async {
+  var current = src;
+  Future<ui.Image> step(ui.Image from, int w, int h) async {
+    final recorder = ui.PictureRecorder();
+    ui.Canvas(recorder).drawImageRect(
+      from,
+      ui.Rect.fromLTWH(0, 0, from.width.toDouble(), from.height.toDouble()),
+      ui.Rect.fromLTWH(0, 0, w.toDouble(), h.toDouble()),
+      ui.Paint()..filterQuality = ui.FilterQuality.low,
+    );
+    return recorder.endRecording().toImage(w, h);
+  }
+
+  while (current.width >= targetWidth * 2) {
+    current = await step(
+      current,
+      (current.width / 2).ceil(),
+      (current.height / 2).ceil(),
+    );
+  }
+  if (current.width != targetWidth) {
+    final h = (src.height * targetWidth / src.width).round().clamp(1, 1 << 14);
+    current = await step(current, targetWidth, h);
+  }
+  return current;
+}
+
+/// Shows [image] crisp at any pane size: at native size or larger it draws
+/// 1:1 with nearest sampling (the raster matches the reference pixel for
+/// pixel — filtering would only blur it); minified it draws an
+/// iteratively-halved downscale at the EXACT display width, so the
+/// compositor never rescales anything.
+class CrispImage extends StatefulWidget {
+  const CrispImage(this.image, {super.key});
+
+  final ui.Image image;
+
+  @override
+  State<CrispImage> createState() => _CrispImageState();
+}
+
+class _CrispImageState extends State<CrispImage> {
+  ui.Image? _scaled;
+  int _scaledWidth = 0;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final dpr = MediaQuery.devicePixelRatioOf(context);
+      final scale = math.min(
+        constraints.maxWidth / widget.image.width,
+        constraints.maxHeight / widget.image.height,
+      );
+      if (scale >= 1) {
+        return FittedBox(
+          child: SizedBox(
+            width: widget.image.width.toDouble(),
+            height: widget.image.height.toDouble(),
+            child: RawImage(
+              image: widget.image,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.none,
+            ),
+          ),
+        );
+      }
+      final targetWidth = (widget.image.width * scale * dpr).round().clamp(
+        1,
+        widget.image.width,
+      );
+      if (targetWidth != _scaledWidth) {
+        _scaledWidth = targetWidth;
+        downscaleForDisplay(widget.image, targetWidth).then((img) {
+          if (mounted && _scaledWidth == targetWidth)
+            setState(() => _scaled = img);
+        });
+      }
+      final shown = _scaled;
+      if (shown == null) {
+        return RawImage(
+          image: widget.image,
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.low,
+        );
+      }
+      // The downscale is at physical resolution; RawImage draws it at the
+      // logical fit size — an exact 1/dpr mapping the compositor renders
+      // pixel-for-pixel on screen.
+      return RawImage(
+        image: shown,
+        fit: BoxFit.contain,
+        filterQuality: FilterQuality.none,
+      );
+    },
   );
-  return scale >= 1 ? FilterQuality.none : FilterQuality.medium;
 }
 
 /// Clips its child to the leftmost [fraction] of its width — the moving half
