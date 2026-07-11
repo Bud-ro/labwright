@@ -510,10 +510,13 @@ enum HeapAttribute {
   /// decoded); small tables ride the scalar `45 E7`/`85 E7` widths.
   compressedWireTable(0x1e7, HeapAttrKind.numeric, 'compressedWireTable', AttrConfidence.inferred),
 
-  /// Raw `0x09F` — **last signal kind** (`u16`, bitfield-shaped values
-  /// 33616/560/16944; matches OF__lastSignalKind): scope signal `0x17` at
-  /// **99.99%** (428,089 records, BDHb only), closing the signal chain. The
-  /// per-bit meaning is not decoded.
+  /// Raw `0x09F` — **last signal kind**: the signal's **wire-type word**
+  /// (`u16`; matches OF__lastSignalKind): scope signal `0x17` at **99.99%**
+  /// (428,089 records, BDHb only), closing the signal chain. Decoded —
+  /// `[flags][structural depth][element type code]` in the VCTP TypeCode
+  /// space (e.g. 33616 = `0x8350` a cluster wire, 560 = `0x230` a string
+  /// wire, 16944 = `0x4230` string with flag bit 14); layout, census and
+  /// oracle validation live on `ViSignalType` (graph.dart).
   lastSignalKind(0x09f, HeapAttrKind.numeric, 'lastSignalKind', AttrConfidence.inferred),
 
   /// Raw `0x115` — **signal state** (`u8` bit-flag values 1/33/17/49; matches

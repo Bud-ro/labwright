@@ -218,6 +218,13 @@ const Map<int, ViDataType> _typeCodes = {
   TypeCode.polyVi: ViDataType.polyVi,
 };
 
+/// The catalogued [ViDataType] for a raw type-enumerator byte in the
+/// [TypeCode] space, or null for an uncatalogued code. The lookup behind
+/// [decodeTypePool]'s kind assignment, exposed for the other decoders that
+/// read values from the same code space (e.g. a signal's wire-type word,
+/// `ViSignalType` in graph.dart).
+ViDataType? dataTypeOfCode(int code) => _typeCodes[code];
+
 /// One entry in the VI's type pool: its position [index], the raw type
 /// enumerator byte [code], the catalogued [kind] (or [ViDataType.unknown]), and
 /// the recovered [name] (a typedef/control name like `Serial Number`) when the
@@ -230,6 +237,7 @@ class ViType {
     this.name,
     this.members = const [],
     this.elementIndex,
+    this.dimCount,
     this.enumItems = const [],
   });
   final int index;
@@ -250,6 +258,12 @@ class ViType {
   /// For a [ViDataType.array], the VCTP index of its element type (resolve
   /// against the pool), or null for non-arrays / unparseable descriptors.
   final int? elementIndex;
+
+  /// For a [ViDataType.array], the descriptor's stored dimension count (the
+  /// `[u16 numDims]` word its interior opens with, 1..8 by the same gate as
+  /// [elementIndex]) — 1 for a 1D array, 2 for a 2D array — or null for
+  /// non-arrays / unparseable descriptors.
+  final int? dimCount;
 
   /// For an enum/ring type ([ViDataType.enumU8]/[enumU16]/[enumU32]), the ordered
   /// item labels (`Channel A`, `Channel B`, …), or empty when unparseable. These
@@ -284,6 +298,7 @@ List<ViType> decodeTypePool(Uint8List body) {
     final kind = _typeCodes[code] ?? ViDataType.unknown;
     final members = kind == ViDataType.cluster ? _clusterMembers(body, off, descLen, count) : const <int>[];
     final elementIndex = kind == ViDataType.array ? _arrayElement(body, off, descLen, count) : null;
+    final dimCount = elementIndex == null || off + 6 > body.length ? null : (body[off + 4] << 8) | body[off + 5];
     final isEnum = kind == ViDataType.enumU8 || kind == ViDataType.enumU16 || kind == ViDataType.enumU32;
     final enumItems = isEnum ? _enumItems(body, off, descLen) : const <String>[];
     final nameStart = _nameRegionStart(body, off, kind, members, elementIndex, enumItems);
@@ -295,6 +310,7 @@ List<ViType> decodeTypePool(Uint8List body) {
         name: _trailingName(body, nameStart, off + descLen),
         members: members,
         elementIndex: elementIndex,
+        dimCount: dimCount,
         enumItems: enumItems,
       ),
     );

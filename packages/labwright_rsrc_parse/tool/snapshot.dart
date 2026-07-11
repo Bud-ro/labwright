@@ -35,6 +35,7 @@ const _sectionTests = [
   'test/invariants_test.dart',
   'test/aux_blocks_test.dart',
   'test/writer_scoreboard_test.dart',
+  'test/signal_type_census_test.dart',
 ];
 
 void main(List<String> args) {
