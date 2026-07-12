@@ -1,8 +1,10 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
+import 'corpus_dirs.dart';
 import 'test_util.dart';
 
 /// Object/group open record: `10 <tag> 02 fe <u16 kind> fd <u16 oid>`.
@@ -100,6 +102,33 @@ void main() {
     ]);
     expect(d.byId[1]!.primResId, isNull, reason: 'off-class carriers are not primitive identities');
     expect(d.byId[2]!.primResId, 1051, reason: 'the u16 record wins; the flag form is inert');
+  });
+
+  test('scalar-width 0x22 records decode as labels; non-printable payloads never do', () {
+    final rows = <(List<int>, String?)>[
+      (attrU32(0x22, 0x584f523f), 'XOR?'), // big-endian reading order
+      (attrU24(0x22, 0x496478), 'Idx'),
+      (attrU16(0x22, 0x4f4b), 'OK'),
+      (attrU8(0x22, 0x79), 'y'),
+      (attrU16(0x22, 0x0102), null), // non-printable magnitude stays numeric
+      (attrU8(0x22, 0), null), // zero = empty
+      ([0xe4, 0x22], null), // flag width carries no text bytes
+      ([...caption('Trigger'), ...attrU32(0x22, 0x584f523f)], 'Trigger'), // first-wins
+    ];
+    for (final (records, want) in rows) {
+      final d = dia([...open(0x0a, 1), ...records, ...close()]);
+      expect(d.byId[1]!.label, want, reason: records.map((b) => b.toRadixString(16)).join(' '));
+    }
+  });
+
+  test('corpus pin: crc8 scalar-width caption', () {
+    if (!corpusViDir.existsSync()) return;
+    // crc8.png stores oid221's label as `84 22 58 4F 52 3F` — the 4-byte
+    // scalar form of raw 0x022 — on a label part under a case structure.
+    final crc8 = File('${corpusViDir.path}/rcpacini_VI-Snippets/rcpacini-VI-Snippets-1662bd7/crc8.png');
+    final vi = extractSnippetVi(crc8.readAsBytesSync())!;
+    final o = buildViModel(vi).blockDiagrams.single.byId[221]!;
+    expect((o.kind, o.label, o.parentOid), (0x0a, 'XOR?', 220));
   });
 
   test('decodeWireRoute: both headers, FF length escape, junction codes reject', () {
