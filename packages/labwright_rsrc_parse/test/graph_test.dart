@@ -1,8 +1,10 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
+import 'corpus_dirs.dart';
 import 'test_util.dart';
 
 /// Object/group open record: `10 <tag> 02 fe <u16 kind> fd <u16 oid>`.
@@ -100,6 +102,39 @@ void main() {
     ]);
     expect(d.byId[1]!.primResId, isNull, reason: 'off-class carriers are not primitive identities');
     expect(d.byId[2]!.primResId, 1051, reason: 'the u16 record wins; the flag form is inert');
+  });
+
+  test('scalar-width 0x22: printable full-width tokens are labels, everything else stays numeric', () {
+    final rows = <(List<int>, String?)>[
+      (attrU32(0x22, 0x584f523f), 'XOR?'), // big-endian reading order, width 4
+      (attrU24(0x22, 0x496478), 'Idx'), // width 3
+      (attrU16(0x22, 0x4f4b), 'OK'), // width 2
+      (attrU8(0x22, 0x79), 'y'), // width 1
+      (attrU16(0x22, 0x0102), null), // leading byte printable? no: first byte non-printable
+      (attrU16(0x22, 0x0179), null), // low byte 'y' printable, high byte 0x01 not: stays numeric
+      (attrU16(0x22, 0xc0e9), null), // high-bit Latin-1 bytes are not ASCII glyphs
+      (attrU32(0x22, 0x00424242), null), // width-inconsistent: "BBB" (3) in a 4-byte field is a number
+      (attrU8(0x22, 0), null), // zero = empty
+      ([0xe4, 0x22], null), // flag width carries no text bytes
+      ([...caption('Trigger'), ...attrU32(0x22, 0x584f523f)], 'Trigger'), // first-wins over the scalar form
+    ];
+    for (final (records, want) in rows) {
+      final d = dia([...open(0x0a, 1), ...records, ...close()]);
+      expect(d.byId[1]!.label, want, reason: records.map((b) => b.toRadixString(16)).join(' '));
+    }
+  });
+
+  test('corpus pin: crc8 scalar-width caption', () {
+    if (!corpusViDir.existsSync()) {
+      markTestSkipped('corpus not fetched');
+      return;
+    }
+    // crc8.png stores oid221's label as `84 22 58 4F 52 3F` — the 4-byte
+    // scalar form of raw 0x022 — on a label part under a case structure.
+    final crc8 = File('${corpusViDir.path}/rcpacini_VI-Snippets/rcpacini-VI-Snippets-1662bd7/crc8.png');
+    final vi = extractSnippetVi(crc8.readAsBytesSync())!;
+    final o = buildViModel(vi).blockDiagrams.single.byId[221]!;
+    expect((o.kind, o.label, o.parentOid), (0x0a, 'XOR?', 220));
   });
 
   test('decodeWireRoute: both headers, FF length escape, junction codes reject', () {

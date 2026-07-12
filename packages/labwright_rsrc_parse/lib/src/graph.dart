@@ -117,7 +117,9 @@ class ViHeapObject {
   /// diagram/faithful layers currently group by this positional tree.
   int? parentOid;
 
-  /// The object's label/caption (from a `C4 22` record), or null.
+  /// The object's label/caption — from a `C4 22` record, or from the same
+  /// raw-0x022 tag stored at a scalar width when the text fits in 4 bytes
+  /// ([HeapAttribute.shortText] via [HeapAttr.asciiText]) — or null.
   String? label;
 
   /// Child-membership object-id references from `14 19 01 fd <id>` records (the
@@ -928,7 +930,13 @@ const int kTerminalGlyphHiddenFlag = 0x800000;
 // 0x9f is lastSignalKind, the wire-type word (gated to signal 0x17; raws
 // 0x19f/0x29f are uncatalogued today and decode to [HeapAttribute.unknown],
 // which no capture acts on — recheck this gate if one is catalogued).
-const _objAttrIds = {0x20, 0x21, 0x6c, 0x24, 0x28, 0x6f, 0x19, 0x2b, 0x2a, 0x29, 0x3a, 0xcb, 0xea, 0xe7, 0x4d, 0x9f};
+// 0x22 is shortText (raw 0x022), the scalar-width caption; raw 0x122 is
+// uncatalogued today ([HeapAttribute.unknown], no capture acts on it —
+// recheck this gate if it is catalogued) and raw 0x222 is the stdNumInc f64,
+// which no capture acts on.
+const _objAttrIds = {
+  0x20, 0x21, 0x6c, 0x24, 0x28, 0x6f, 0x19, 0x2b, 0x2a, 0x29, 0x3a, 0xcb, 0xea, 0xe7, 0x4d, 0x9f, 0x22, //
+};
 
 /// The structure classes that stack multiple `0x1b` frames and display one —
 /// case [HeapObjectClass.bdStructureFrame] `0x2c`, disable
@@ -2515,6 +2523,30 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
         if (attr.attribute == HeapAttribute.constValue) {
           final text = attr.asString;
           if (text != null && text.isNotEmpty) cur.constText ??= text;
+        }
+        // A caption of 1-4 characters stored at a scalar attribute width:
+        // raw 0x022 ([HeapAttribute.shortText]) is the same tag as the
+        // `C4 22` caption container, with the text bytes magnitude-encoded
+        // big-endian in reading order (`84 22 58 4F 52 3F` = "XOR?"). It is
+        // the dedicated short-label tag: 96.9% of the captured records sit on
+        // the label class 0x0A (98% across the text-label classes 0x0A/0x95),
+        // the rest on the enum/selector text carriers. A record becomes a
+        // caption only when every stored byte is a printable ASCII glyph AND
+        // the decoded text fills the whole stored width — a genuine N-char
+        // caption uses the N-byte width, so a value whose leading byte is null
+        // (a shorter string than the width, e.g. `00 42 42 42` at u32) is a
+        // number, not text, and stays numeric ([HeapAttr.asciiText] length <
+        // width). Non-printable bytes — control codes AND high-bit Latin-1
+        // alike — likewise stay numeric. Corpus (7,524 VIs, all heap
+        // sections): 148,449 scalar-width records — 72,537 captured, 72,359
+        // zero (empty), 2 width-inconsistent and 3,551 non-printable (550
+        // high-bit, 3,001 control) left numeric. First-wins against `C4 22`
+        // is trivially safe: no corpus object carries both forms.
+        if (attr.attribute == HeapAttribute.shortText) {
+          final text = attr.asciiText;
+          if (text != null && text.length == _attrScalarBytes(attr.width)) {
+            cur.label ??= text;
+          }
         }
         // A BD constant's flattened value record scopes to the 0x13 DCO itself
         // (record census on [HeapAttribute.constValue]). First-wins is

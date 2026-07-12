@@ -80,6 +80,37 @@ ViModel modelWithInlinedSubViControl() => modelFromRecords(<int>[
   ...close(),
 ]);
 
+/// objFlags (raw `0x0cb`) as a `u32` attribute record; bit `0x08` hides a label.
+List<int> objFlags(int v) => [
+  0x84,
+  0xcb,
+  (v >> 24) & 0xff,
+  (v >> 16) & 0xff,
+  (v >> 8) & 0xff,
+  v & 0xff,
+];
+
+/// A scalar numeric diagram constant: a `0x50` value carrier under a `0x13`
+/// `bDConstDCO`, whose `0x0a` name child carries a caption but is HIDDEN
+/// (objFlags bit `0x08`) — the profile of an `x`/`y` constant. LabVIEW paints
+/// the constant box (the hidden name is not drawn), so it must stay in the
+/// drawn set even though its caption is now decoded.
+ViModel modelWithHiddenLabeledConstant() => modelFromRecords(<int>[
+  ...open(0x7e, 1),
+  ...bounds(0, 0, 400, 400),
+  ...open(0x13, 2, tag: 0x1a),
+  ...open(0x50, 3, tag: 0x1b),
+  ...bounds(120, 120, 140, 160),
+  ...open(0x0a, 4, tag: 0x1c),
+  ...bounds(100, 120, 117, 130),
+  ...caption('x'),
+  ...objFlags(0x08),
+  ...close(0x1c),
+  ...close(0x1b),
+  ...close(0x1a),
+  ...close(),
+]);
+
 /// A stacked case structure (`0x2c`) with three overlapping `0x1b` frames,
 /// each holding one node at the same in-box spot, plus the given attribute
 /// records on the structure itself.
@@ -179,6 +210,24 @@ void main() {
     // The bare unnamed numeric constant is a real diagram object and is kept.
     expect(oids, contains(7));
   });
+
+  test(
+    'a numeric constant with a hidden name label is kept, not treated as inlined',
+    () {
+      // The exclusion keys on a *visible* connector-pane name; a diagram
+      // constant's own name is hidden by default, so the decoded scalar caption
+      // must not delete the constant (regression: `x`/`y` constants).
+      final diagram = modelWithHiddenLabeledConstant().blockDiagrams.first;
+      final namePart = diagram.byId[4]!;
+      expect(
+        namePart.label,
+        'x',
+        reason: 'the scalar caption is decoded on the name part',
+      );
+      expect(namePart.isLabelHidden, isTrue, reason: 'the name part is hidden');
+      expect(bdDrawableObjects(diagram).map((o) => o.oid), contains(3));
+    },
+  );
 
   test('terminals keep LabVIEW datatype colors; unknown stays neutral', () {
     const rows = {
