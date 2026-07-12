@@ -3419,16 +3419,20 @@ class BdDiagramPainter extends CustomPainter {
     );
   }
 
-  /// Draws a for-loop's border pixel-exact to LabVIEW's own render: a crisp
-  /// 1px-black rectangle carrying a stacked-page decoration. No
-  /// anti-aliasing, no translucent interior wash.
+  /// Draws a for-loop's border pixel-exact to LabVIEW's own render: crisp
+  /// 1px-black chrome shaped as a stack of three pages, the top page's
+  /// bottom-right corner turned up in a dog-ear. No anti-aliasing, no
+  /// translucent interior wash. The stack is fixed decoration — its geometry
+  /// does not vary with the loop's `N`.
   ///
-  /// Measured from LabVIEW's raster (crc8's outer for loop): the back page is
-  /// the full rectangle `[left, top]..[right-5, bottom-5]`, sharing single
-  /// top and left edges. Two further bottom+right corners peek out below and
-  /// to the right at +2 and +4, staircased at the bottom-left and top-right
-  /// so the loop reads as a stack of pages. The stack depth is fixed
-  /// decoration — it does not vary with the loop's `N`.
+  /// Measured from LabVIEW's raster (crc8's for loops). The BACK page is the
+  /// full rectangle `[left, top]..[right-5, bottom-5]`, but its bottom-right
+  /// corner is folded: the right and bottom edges stop [_kForLoopFold] px
+  /// short and an 8×8 triangular flap (top + left + diagonal hypotenuse)
+  /// stands in for the square corner. Two more pages peek out below-and-right
+  /// at +2 and +4 px, each contributing only its bottom edge, right edge, and
+  /// the short corner steps that tie it to the page behind — a 3px horizontal
+  /// at the top-right and a 1px vertical at the bottom-left.
   void _drawForLoopBorder(Canvas canvas, Rect rect, {bool disabled = false}) {
     final ink = disabled
         ? bdDimDisabled(const Color(0xFF000000))
@@ -3441,20 +3445,41 @@ class BdDiagramPainter extends CustomPainter {
     final r = rect.right.roundToDouble();
     final b = rect.bottom.roundToDouble();
     // 1px fills spanning inclusive integer pixel endpoints.
+    void px(double x, double y) =>
+        canvas.drawRect(Rect.fromLTRB(x, y, x + 1, y + 1), paint);
     void hline(double x0, double x1, double y) =>
         canvas.drawRect(Rect.fromLTRB(x0, y, x1 + 1, y + 1), paint);
     void vline(double x, double y0, double y1) =>
         canvas.drawRect(Rect.fromLTRB(x, y0, x + 1, y1 + 1), paint);
-    // Back page: full rectangle whose top and left edges the stack shares.
-    hline(l, r - 5, t);
-    vline(l, t, b - 5);
-    // Back (offset 0) through front (offset 4): each an L of bottom + right
-    // edges, staircased 2px down-and-right from the one behind it.
-    for (final o in const [0, 2, 4]) {
-      vline(r - 5 + o, t + o, b - 5 + o);
-      hline(l + o, r - 5 + o, b - 5 + o);
+
+    const fold = _kForLoopFold;
+    final backRight = r - 5, backBottom = b - 5; // back page's corner
+    // Back page: top and left run full; right and bottom stop short of the
+    // dog-ear that replaces the bottom-right corner.
+    hline(l, backRight, t);
+    vline(l, t, backBottom);
+    vline(backRight, t, backBottom - fold);
+    hline(l, backRight - fold, backBottom);
+    // Dog-ear flap: top edge, left edge, and the diagonal hypotenuse joining
+    // the shortened right and bottom edges.
+    hline(backRight - fold, backRight, backBottom - fold);
+    vline(backRight - fold, backBottom - fold, backBottom);
+    for (var i = 1; i < fold; i++) {
+      px(backRight - i, backBottom - fold + i);
+    }
+    // Middle (+2) and front (+4) pages: bottom edge, right edge, and the two
+    // corner steps connecting each to the page behind it.
+    for (final o in const [2.0, 4.0]) {
+      hline(l + o, backRight + o, backBottom + o);
+      vline(backRight + o, t + o, backBottom + o);
+      hline(backRight + o - 2, backRight + o, t + o); // top-right step
+      px(l + o, backBottom + o - 1); // bottom-left step
     }
   }
+
+  /// Side length (px) of the for-loop's dog-ear corner fold — fixed chrome,
+  /// measured from LabVIEW's raster.
+  static const _kForLoopFold = 8.0;
 
   static const _loopBlue = Color(0xFF0033CC);
 
