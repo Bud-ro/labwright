@@ -205,7 +205,11 @@ void main() {
     expect(C['oa2_ship_qlo'] ?? 0, 0, reason: 'no shipped two-endpoint walk overlays below 50% ink');
     // Path overlay stays at the proven closed-tier's own snippet level.
     final shipPx = C['oa2_ship_runpx'] ?? 0, shipInk = C['oa2_ship_runink'] ?? 0;
-    expect(shipInk * 100, greaterThanOrEqualTo(93 * shipPx), reason: 'shipped walked paths overlay reference ink >= 93%');
+    expect(
+      shipInk * 100,
+      greaterThanOrEqualTo(93 * shipPx),
+      reason: 'shipped walked paths overlay reference ink >= 93%',
+    );
     expect(
       _pct(C, 'oa2_ship'),
       greaterThanOrEqualTo(_pct(C, 'oa2_closed') - 3),
@@ -223,7 +227,11 @@ void main() {
     if (shipPx == 0) return;
     // Walked branch trees are DECODED LabVIEW geometry (not fabricated) placed
     // from the origin; overall they overlay well.
-    expect(shipInk * 100, greaterThanOrEqualTo(85 * shipPx), reason: 'shipped walked trees overlay reference ink >= 85%');
+    expect(
+      shipInk * 100,
+      greaterThanOrEqualTo(85 * shipPx),
+      reason: 'shipped walked trees overlay reference ink >= 85%',
+    );
     // A residue overlays below 50%: junction-catalog drift on a plain-node arm
     // that no resolved leaf can close against — the drift the closed tier
     // rejects via leaf closure but the walked tier cannot detect at decode
@@ -231,7 +239,11 @@ void main() {
     // -risk gates were measured and do not separate it). Bounded as a
     // regression guard; the exact count is pinned by the snapshot.
     final qlo = C['oab_ship_qlo'] ?? 0, wires = C['oab_ship_wires'] ?? 1;
-    expect(qlo * 20, lessThanOrEqualTo(wires), reason: 'walked-branch gross-miss residue stays under 5% (drift on plain-node arms)');
+    expect(
+      qlo * 20,
+      lessThanOrEqualTo(wires),
+      reason: 'walked-branch gross-miss residue stays under 5% (drift on plain-node arms)',
+    );
   });
 
   test('one-anchored oracle census matches the committed snapshot exactly', () {

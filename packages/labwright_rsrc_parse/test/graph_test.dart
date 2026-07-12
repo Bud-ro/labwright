@@ -670,7 +670,12 @@ void main() {
         r(2, WireRouteDirection.right, const [], const []),
         anchor: (x: 30, y: 50),
         anchoredIndex: 1,
-        farBox: const HeapRect(top: 40, left: 100, bottom: 60, right: 120), // box is RIGHT of the anchor; dir=right departs right
+        farBox: const HeapRect(
+          top: 40,
+          left: 100,
+          bottom: 60,
+          right: 120,
+        ), // box is RIGHT of the anchor; dir=right departs right
       ),
       isNull,
     );

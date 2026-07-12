@@ -2159,7 +2159,9 @@ class ViDiagram {
     final anchors = [
       for (var i = 0; i < object.refs.length; i++) constantBounds[i] ?? _boundedOwnerBounds(object.refs[i]),
     ];
-    final points = route == null || object.refs.length != 2 ? null : _routePointsFor(route, object.refs, attachPoints, anchors);
+    final points = route == null || object.refs.length != 2
+        ? null
+        : _routePointsFor(route, object.refs, attachPoints, anchors);
     return ViWire(
       signalOid: object.oid,
       endpointOids: List<int>.of(object.refs),
@@ -2213,7 +2215,12 @@ class ViDiagram {
     if (route.segmentLengths.isNotEmpty && _isShiftRegisterTerminal(refs[anchoredIndex])) return null;
     final farBox = anchors[1 - anchoredIndex];
     if (farBox == null) return null;
-    final walked = walkOneAnchoredRoute(route, anchor: attachPoints[anchoredIndex]!, anchoredIndex: anchoredIndex, farBox: farBox);
+    final walked = walkOneAnchoredRoute(
+      route,
+      anchor: attachPoints[anchoredIndex]!,
+      anchoredIndex: anchoredIndex,
+      farBox: farBox,
+    );
     return walked == null ? null : (points: walked, fidelity: WireRouteFidelity.walked);
   }
 
