@@ -335,6 +335,222 @@ void main() {
     final wire = d.wires.single;
     expect(wire.route, isNotNull, reason: 'the short-form table itself decodes');
     expect(wire.routePoints, isNull, reason: 'closure is only defined for two endpoints');
+    expect(wire.branchRoute, isNull, reason: 'the short form is not the extended grammar');
+  });
+
+  test('decodeWireBranchRoute: framing, FF escape, and grammar rejections', () {
+    final r = decodeWireBranchRoute(u8([0x05, 0x00, 0x08, 0x05, 0x00, 0x03, 13, 66, 11, 247]))!;
+    expect(r.pointCount, 5);
+    expect(r.modes, [0x08, 0x05, 0x00, 0x03]);
+    expect(r.segmentLengths, [13, 66, 11, 247]);
+    // FF escape in a length.
+    expect(decodeWireBranchRoute(u8([0x04, 0x00, 0x08, 0x05, 0x03, 0xff, 0x01, 0x00, 20, 30]))!.segmentLengths, [
+      256,
+      20,
+      30,
+    ]);
+    // The two-endpoint form (direction code, not 00) is not this grammar.
+    expect(decodeWireBranchRoute(u8([0x04, 0x08, 0x00, 0x00, 28, 12])), isNull);
+    // A later mode byte outside sign/pop/junction is malformed.
+    expect(decodeWireBranchRoute(u8([0x04, 0x00, 0x08, 0x09, 0x03, 10, 20, 30])), isNull);
+    // Pop balance: a pop with no pending junction direction, and a junction
+    // whose pending direction is never consumed.
+    expect(decodeWireBranchRoute(u8([0x03, 0x00, 0x08, 0x03, 10, 20])), isNull);
+    expect(decodeWireBranchRoute(u8([0x03, 0x00, 0x08, 0x05, 10, 20])), isNull);
+    // Length-count mismatch.
+    expect(decodeWireBranchRoute(u8([0x04, 0x00, 0x08, 0x05, 0x03, 10, 20])), isNull);
+    // A zero or out-of-range first mode byte carries no direction bits.
+    expect(decodeWireBranchRoute(u8([0x03, 0x00, 0x00, 0x03, 10, 20])), isNull);
+    expect(decodeWireBranchRoute(u8([0x03, 0x00, 0x10, 0x03, 10, 20])), isNull);
+    // The junction catalog is exactly 04..07.
+    expect(WireRouteJunction.fromCode(0x04), WireRouteJunction.cross);
+    expect(WireRouteJunction.fromCode(0x07), WireRouteJunction.upDown);
+    expect(WireRouteJunction.fromCode(0x03), isNull);
+    expect(WireRouteJunction.fromCode(0x08), isNull);
+  });
+
+  test('walkWireBranchRoute: each junction code branches and resumes on its catalog directions', () {
+    const start = (x: 0, y: 0);
+    ViWireRouteTree walk(List<int> table) => walkWireBranchRoute(decodeWireBranchRoute(u8(table))!, start);
+    // downRight (05): branch down, sign bend, pop resumes right from the dot.
+    final t5 = walk([0x05, 0x00, 0x08, 0x05, 0x00, 0x03, 10, 20, 15, 30]);
+    expect(t5.polylines, [
+      [(x: 0, y: 0), (x: 10, y: 0), (x: 10, y: 20), (x: 25, y: 20)],
+      [(x: 10, y: 0), (x: 40, y: 0)],
+    ]);
+    expect(t5.junctions, [(x: 10, y: 0)]);
+    expect(t5.leaves, [(x: 25, y: 20), (x: 40, y: 0)]);
+    // upRight (06): branch up, resume right.
+    final t6 = walk([0x04, 0x00, 0x08, 0x06, 0x03, 10, 20, 30]);
+    expect(t6.polylines, [
+      [(x: 0, y: 0), (x: 10, y: 0), (x: 10, y: -20)],
+      [(x: 10, y: 0), (x: 40, y: 0)],
+    ]);
+    // upDown (07): branch up, resume down.
+    final t7 = walk([0x04, 0x00, 0x08, 0x07, 0x03, 10, 20, 30]);
+    expect(t7.leaves, [(x: 10, y: -20), (x: 10, y: 30)]);
+    // cross (04): three outgoing — up, then down, then right (two pops).
+    final t4 = walk([0x05, 0x00, 0x08, 0x04, 0x03, 0x03, 10, 20, 30, 40]);
+    expect(t4.leaves, [(x: 10, y: -20), (x: 10, y: 30), (x: 50, y: 0)]);
+    expect(t4.junctions, [(x: 10, y: 0)]);
+  });
+
+  test('walkWireBranchRoute: start masks, blocked-direction substitution, negative bends', () {
+    const start = (x: 0, y: 0);
+    ViWireRouteTree walk(List<int> table) => walkWireBranchRoute(decodeWireBranchRoute(u8(table))!, start);
+    // A multi-bit first mode forks at the origin: mask 0x0C = {down, right},
+    // walked in ascending code order, with the dot on the origin itself.
+    final tMask = walk([0x03, 0x00, 0x0c, 0x03, 15, 25]);
+    expect(tMask.polylines, [
+      [(x: 0, y: 0), (x: 0, y: 15)],
+      [(x: 0, y: 0), (x: 25, y: 0)],
+    ]);
+    expect(tMask.junctions, [(x: 0, y: 0)]);
+    // Substitution: entering an upRight junction travelling DOWN blocks its
+    // nominal up-branch (it would walk back along the incoming edge), so the
+    // branch goes left; the resume right is untouched. The bend after the
+    // horizontal branch alternates onto the vertical axis.
+    final tSub = walk([0x05, 0x00, 0x04, 0x06, 0x00, 0x03, 10, 20, 15, 30]);
+    expect(tSub.polylines, [
+      [(x: 0, y: 0), (x: 0, y: 10), (x: -20, y: 10), (x: -20, y: 25)],
+      [(x: 0, y: 10), (x: 30, y: 10)],
+    ]);
+    // A negative bend after a vertical branch runs left.
+    final tNeg = walk([0x05, 0x00, 0x08, 0x05, 0x01, 0x03, 10, 20, 15, 30]);
+    expect(tNeg.polylines.first.last, (x: -5, y: 20));
+  });
+
+  test('walkWireBranchRoute: nested (depth-2) junctions resume LIFO past an exhausted junction', () {
+    const start = (x: 0, y: 0);
+    // right, then two stacked downRight junctions, then two pops: the first
+    // pop resumes the INNER junction (LIFO), the second must skip the now
+    // empty inner and resume the OUTER — the stack-exhaustion path.
+    final t = walkWireBranchRoute(
+      decodeWireBranchRoute(u8([0x06, 0x00, 0x08, 0x05, 0x05, 0x03, 0x03, 10, 20, 15, 30, 40]))!,
+      start,
+    );
+    expect(t.junctions, [(x: 10, y: 0), (x: 10, y: 20)]);
+    expect(t.polylines, [
+      [(x: 0, y: 0), (x: 10, y: 0), (x: 10, y: 20), (x: 10, y: 35)],
+      [(x: 10, y: 20), (x: 40, y: 20)], // inner junction resumes right
+      [(x: 10, y: 0), (x: 50, y: 0)], // outer junction resumes right
+    ]);
+    expect(t.leaves, [(x: 10, y: 35), (x: 40, y: 20), (x: 50, y: 0)]);
+  });
+
+  test('walkWireBranchRoute: 3-bit start mask forks three arms; substitution across codes and axes', () {
+    const start = (x: 0, y: 0);
+    ViWireRouteTree walk(List<int> table) => walkWireBranchRoute(decodeWireBranchRoute(u8(table))!, start);
+    // Mask 0x0D = {up, down, right} (ascending code order): first arm up, two
+    // pops walk down then right. Three leaves, one origin dot.
+    final t3 = walk([0x04, 0x00, 0x0d, 0x03, 0x03, 10, 20, 30]);
+    expect(t3.junctions, [(x: 0, y: 0)]);
+    expect(t3.leaves, [(x: 0, y: -10), (x: 0, y: 20), (x: 30, y: 0)]);
+    // Mask 0x0E = {left, down, right}.
+    expect(walk([0x04, 0x00, 0x0e, 0x03, 0x03, 10, 20, 30]).leaves, [(x: -10, y: 0), (x: 0, y: 20), (x: 30, y: 0)]);
+    // cross entered travelling UP: reverse is down, so the catalog's DOWN
+    // arm substitutes to left; up-branch and right-resume are untouched.
+    final tCross = walk([0x05, 0x00, 0x01, 0x04, 0x03, 0x03, 10, 20, 30, 40]);
+    expect(tCross.junctions, [(x: 0, y: -10)]);
+    expect(tCross.leaves, [(x: 0, y: -30), (x: -30, y: -10), (x: 40, y: -10)]);
+    // upDown entered travelling UP: reverse is down, so the DOWN resume
+    // substitutes to left — the second arm runs left, not down.
+    final tUpDown = walk([0x04, 0x00, 0x01, 0x07, 0x03, 10, 20, 30]);
+    expect(tUpDown.leaves, [(x: 0, y: -30), (x: -30, y: -10)]);
+  });
+
+  test('routeTree gate: origin-unanchored and leaf-count-mismatch ship nothing', () {
+    // Three anchored tunnels (oids 3/5/7) plus a bare 0x15 node (oid 8) that
+    // no terminal claims — it resolves no attach point.
+    List<int> records(List<int> firstRef, List<int> table) => [
+      ...open(0x20, 1),
+      ...bounds(0, 0, 100, 100),
+      ...open(0x22, 2, tag: 0x1a),
+      ...hx('14 19 01 fd 0003'),
+      ...c5(0x29, [0, 10, 0, 5, 0, 19, 0, 14]),
+      ...close(0x1a),
+      ...open(0x15, 3, tag: 0x1a),
+      ...close(0x1a),
+      ...open(0x22, 4, tag: 0x1a),
+      ...hx('14 19 01 fd 0005'),
+      ...c5(0x29, [0, 40, 0, 25, 0, 49, 0, 34]),
+      ...close(0x1a),
+      ...open(0x15, 5, tag: 0x1a),
+      ...close(0x1a),
+      ...open(0x22, 6, tag: 0x1a),
+      ...hx('14 19 01 fd 0007'),
+      ...c5(0x29, [0, 10, 0, 50, 0, 19, 0, 59]),
+      ...close(0x1a),
+      ...open(0x15, 7, tag: 0x1a),
+      ...close(0x1a),
+      ...open(0x15, 8, tag: 0x1a), // bare node, no terminal — no attach point
+      ...close(0x1a),
+      ...close(),
+      ...open(0x17, 9),
+      ...firstRef,
+      ...hx('14 19 01 fd 0005'),
+      ...hx('14 19 01 fd 0007'),
+      ...c5(0xe7, table),
+      ...close(),
+    ];
+    // A valid 3-endpoint tree whose first endpoint (the bare node) resolves
+    // no attach point: the branch program decodes but the tree cannot anchor.
+    final noOrigin = dia(records(hx('14 19 01 fd 0008'), [0x04, 0x00, 0x08, 0x05, 0x03, 20, 30, 25])).wires.single;
+    expect(noOrigin.branchRoute, isNotNull);
+    expect(noOrigin.routeTree, isNull);
+    // A table with too few leaves for the endpoint count (one straight run,
+    // no pops -> a single leaf vs three endpoints): the gate rejects it.
+    final fewLeaves = dia(records(hx('14 19 01 fd 0003'), [0x03, 0x00, 0x08, 0x00, 20, 30])).wires.single;
+    expect(fewLeaves.branchRoute, isNotNull);
+    expect(fewLeaves.routeTree, isNull);
+  });
+
+  test('routeTree: a fully-anchored branching signal ships exactly-closing trees only', () {
+    // Three structure tunnels; the stored tree walks right 20 from the first
+    // tunnel's attach centre (9,14), forks at (29,14) down 30 onto the second
+    // tunnel (29,44), and resumes right 25 onto the third (54,14).
+    List<int> records({required int thirdLeft}) => [
+      ...open(0x20, 1),
+      ...bounds(0, 0, 100, 100),
+      ...open(0x22, 2, tag: 0x1a),
+      ...hx('14 19 01 fd 0003'),
+      ...c5(0x29, [0, 10, 0, 5, 0, 19, 0, 14]), // attach (9, 14)
+      ...close(0x1a),
+      ...open(0x15, 3, tag: 0x1a),
+      ...close(0x1a),
+      ...open(0x22, 4, tag: 0x1a),
+      ...hx('14 19 01 fd 0005'),
+      ...c5(0x29, [0, 40, 0, 25, 0, 49, 0, 34]), // attach (29, 44)
+      ...close(0x1a),
+      ...open(0x15, 5, tag: 0x1a),
+      ...close(0x1a),
+      ...open(0x22, 6, tag: 0x1a),
+      ...hx('14 19 01 fd 0007'),
+      ...c5(0x29, [0, 10, 0, thirdLeft, 0, 19, 0, thirdLeft + 9]), // attach (thirdLeft+4, 14)
+      ...close(0x1a),
+      ...open(0x15, 7, tag: 0x1a),
+      ...close(0x1a),
+      ...close(),
+      ...open(0x17, 9),
+      ...hx('14 19 01 fd 0003'),
+      ...hx('14 19 01 fd 0005'),
+      ...hx('14 19 01 fd 0007'),
+      ...c5(0xe7, [0x04, 0x00, 0x08, 0x05, 0x03, 20, 30, 25]),
+      ...close(),
+    ];
+    final good = dia(records(thirdLeft: 50)).wires.single;
+    expect(good.route, isNull, reason: 'the extended form is not the two-endpoint grammar');
+    expect(good.branchRoute, isNotNull);
+    expect(good.routeTree!.polylines, [
+      [(x: 9, y: 14), (x: 29, y: 14), (x: 29, y: 44)],
+      [(x: 29, y: 14), (x: 54, y: 14)],
+    ]);
+    expect(good.routeTree!.junctions, [(x: 29, y: 14)]);
+    // A leaf landing 1 px off its attach point ships nothing — never
+    // force-closed; the decoded program still ships.
+    final miss = dia(records(thirdLeft: 51)).wires.single;
+    expect(miss.branchRoute, isNotNull);
+    expect(miss.routeTree, isNull);
   });
 
   test('endpointTerminalBounds: attach rect = termBounds + enclosing frame origin', () {
