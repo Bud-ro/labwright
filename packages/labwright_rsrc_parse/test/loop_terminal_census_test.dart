@@ -125,9 +125,14 @@ Map<String, int> _census(Uint8List bytes, String path) {
 }
 
 void main() {
+  final all = corpusVis();
+  if (all.isEmpty) {
+    test('loop terminal census (skipped: corpus not fetched)', () {}, skip: true);
+    return;
+  }
   test('structure-terminal glyph + constant-endpoint corpus census', () async {
     final merged = <String, int>{};
-    for (final c in await corpusParallel(corpusVis(), _census)) {
+    for (final c in await corpusParallel(all, _census)) {
       c.forEach((k, v) => merged[k] = (merged[k] ?? 0) + v);
     }
     expectCorpusSnapshot('structure_terminals', merged);
