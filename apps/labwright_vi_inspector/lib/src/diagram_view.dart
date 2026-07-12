@@ -3492,6 +3492,65 @@ class BdDiagramPainter extends CustomPainter {
   static const _bmpCaseSelector = 5; // the case `?` tunnel
   static const _bmpConditional = 192; // the while-loop stop
 
+  /// The for-loop count `N` and iteration `i` glyphs exactly as LabVIEW
+  /// rasters them inside a 16×16 border terminal — 1px cells at box-relative
+  /// (col,row) from [origin]. Blue ink on a cream field with a 2px blue
+  /// border, reproduced pixel-for-pixel like the selector/tunnel chrome
+  /// rather than approximated with a font.
+  static const _forLoopNGlyph = (
+    origin: (4, 3),
+    rows: [
+      '#.....#',
+      '##....#',
+      '###...#',
+      '####..#',
+      '#.###.#',
+      '#..####',
+      '#...###',
+      '#....##',
+      '#.....#',
+    ],
+  );
+  static const _forLoopIGlyph = (
+    origin: (7, 4),
+    rows: ['##', '..', '##', '##', '##', '##', '##', '##', '##'],
+  );
+
+  /// Draws a 16×16 loop count/iteration terminal pixel-exact: cream field,
+  /// 2px blue border, and the [glyph] bitmap in blue. Colours route through
+  /// the measured disabled-frame transform when [disabled].
+  void _drawLoopGlyphTerminal(
+    Canvas canvas,
+    Rect box,
+    ({(int, int) origin, List<String> rows}) glyph, {
+    bool disabled = false,
+  }) {
+    Color dim(Color c) => disabled ? bdDimDisabled(c) : c;
+    final ink = Paint()
+      ..color = dim(const Color(0xFF0000FF))
+      ..isAntiAlias = false;
+    final l = box.left.roundToDouble(), t = box.top.roundToDouble();
+    canvas.drawRect(
+      box,
+      Paint()
+        ..color = dim(kBdTerminalFill)
+        ..isAntiAlias = false,
+    );
+    // 2px blue border as four bands.
+    canvas.drawRect(Rect.fromLTWH(l, t, 16, 2), ink);
+    canvas.drawRect(Rect.fromLTWH(l, t + 14, 16, 2), ink);
+    canvas.drawRect(Rect.fromLTWH(l, t, 2, 16), ink);
+    canvas.drawRect(Rect.fromLTWH(l + 14, t, 2, 16), ink);
+    final (ox, oy) = glyph.origin;
+    for (var gy = 0; gy < glyph.rows.length; gy++) {
+      final row = glyph.rows[gy];
+      for (var gx = 0; gx < row.length; gx++) {
+        if (row[gx] != '#') continue;
+        canvas.drawRect(Rect.fromLTWH(l + ox + gx, t + oy + gy, 1, 1), ink);
+      }
+    }
+  }
+
   void _drawGlyphText(Canvas canvas, Rect box, String glyph, Color color) {
     final tp = TextPainter(
       text: TextSpan(
@@ -3548,6 +3607,20 @@ class BdDiagramPainter extends CustomPainter {
             wireColor = tunnelLandings.removeAt(i).$2;
           }
         }
+      }
+      // Count `N` / iteration `i` terminals: LabVIEW draws a 16×16 blue box
+      // with a cream field and a bitmap glyph — reproduced pixel-exact, the
+      // same reference-verified chrome treatment as the selector and tunnels.
+      if (box.width == 16 &&
+          box.height == 16 &&
+          (t.bmp == _bmpCount || t.bmp == _bmpIteration)) {
+        _drawLoopGlyphTerminal(
+          canvas,
+          box,
+          t.bmp == _bmpCount ? _forLoopNGlyph : _forLoopIGlyph,
+          disabled: disabled,
+        );
+        continue;
       }
       final border = switch (t.bmp) {
         _bmpConditional => dim(const Color(0xFF007F00)),
