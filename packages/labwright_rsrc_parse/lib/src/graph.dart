@@ -1296,6 +1296,7 @@ class ViWire {
     this.route,
     this.routePoints,
     this.routePointsFidelity,
+    this.routeClosingStep,
     this.branchRoute,
     ViWireRouteTree? routeTree,
     WireRouteFidelity? routeTreeFidelity,
@@ -1459,7 +1460,11 @@ class ViWire {
   ///    ([kRightShiftRegisterClass]) ships, its offset decoded. The
   ///    far end is snapped to the owner box edge, so the exact terminal pin
   ///    inside a multi-terminal node is not independently verified; the walked
-  ///    PATH is what the oracle validates.
+  ///    PATH is what the oracle validates. When the last decoded bend already
+  ///    lies INSIDE the far box (the implied run enters the node rather than
+  ///    reaching its edge), the polyline stops at that bend and
+  ///    [routeClosingStep] carries the run's direction — the parse ships no
+  ///    fabricated terminus at the node's undecoded input-pin depth.
   ///
   /// Nothing is force-closed: a walk that misses, drifts out of the far box, or
   /// falls in an unshippable class returns null and the census counts it. The
@@ -1491,6 +1496,19 @@ class ViWire {
   /// but not closure-verified; the far plain-node terminal pin is snapped to
   /// the owner box edge) — or null when [routePoints] is null.
   final WireRouteFidelity? routePointsFidelity;
+
+  /// The unit direction of an **implied closing run into the far plain node**,
+  /// when [routePoints]' last point is the final DECODED bend and the run that
+  /// enters the node has an undecoded length (the node's input-pin depth) — a
+  /// forward one-anchored walk whose last bend already lies inside the far box
+  /// (see [walkOneAnchoredRoute]). Null for every other route: closed routes,
+  /// reverse walks, and forward walks whose closing run reached the far box
+  /// edge (already [routePoints]' last point). A renderer extends the polyline
+  /// from its last point along this step to the node's drawn ink edge at the
+  /// arrival row (the last point's cross-axis coordinate), where the wire
+  /// visibly meets the icon — the parse ships no fabricated terminus at a
+  /// guessed depth.
+  final ViStep? routeClosingStep;
 
   /// The wire's decoded type word ([HeapAttribute.lastSignalKind]) — element
   /// type code, array depth, flags — or null for the 14 corpus signals with
@@ -1527,6 +1545,11 @@ class ViWire {
 
 /// An absolute block-diagram point (LabVIEW diagram coordinates, y down).
 typedef ViPoint = ({int x, int y});
+
+/// A unit step along one diagram axis (exactly one of `dx`/`dy` is ±1, the
+/// other 0) — the direction of a wire's implied **closing run into a plain
+/// node** (see [ViWire.routeClosingStep] and [walkOneAnchoredRoute]).
+typedef ViStep = ({int dx, int dy});
 
 /// The **initial-direction code** of a stored wire route — the packed
 /// `0x1e7` table's second byte, naming the axis AND sign of the route's
@@ -1987,8 +2010,8 @@ WireRouteDirection _reverse(WireRouteDirection d) => switch (d) {
 /// attach point instead of closed between two.
 ///
 /// [anchoredIndex] selects the anchored end: `0` walks **forward** from the
-/// route's first endpoint ([anchor]) through the stored bends, then extends the
-/// implied closing run to the near edge of [farBox] (the second endpoint's
+/// route's first endpoint ([anchor]) through the stored bends, then closes the
+/// implied final run onto the near edge of [farBox] (the second endpoint's
 /// connection point). `1` walks **reverse** from the second endpoint: the
 /// stored bends are exact off [anchor], and the first endpoint rides the far
 /// edge of [farBox]. The stored table implies only the closing run's length,
@@ -1998,11 +2021,21 @@ WireRouteDirection _reverse(WireRouteDirection d) => switch (d) {
 /// count); an odd count leaves the far endpoint's along-run position unpinned
 /// and returns null.
 ///
-/// Returns the absolute polyline (anchor end to plain-node terminus, in
-/// storage order) — [ViWireRoute.pointCount] points, one fewer when the closing
-/// run is zero-length — or null when the reverse geometry is underdetermined
-/// (above) or the derived closing run would double back against the stored
-/// final sign (an inconsistent [farBox] placement). Total on any decoded route.
+/// A forward walk whose LAST decoded bend already lies at or past the near edge
+/// — inside [farBox] — is an **into-node** close: the implied run enters the
+/// plain node instead of reaching its edge, and its length (the node's
+/// input-pin depth) is not decoded. Such a walk ships the polyline to the last
+/// bend and reports `closingStep` = the run's unit direction, so a renderer can
+/// extend it to the node's drawn ink edge at the arrival row without the parse
+/// fabricating a terminus at a guessed depth.
+///
+/// Returns `(points, closingStep)`: the absolute polyline (anchor end to the
+/// far connection, in storage order) — [ViWireRoute.pointCount] points, one
+/// fewer when the closing run is zero-length OR enters the node — with
+/// `closingStep` non-null only for the into-node case. Null when the reverse
+/// geometry is underdetermined (above), the derived closing run would double
+/// back against the stored final sign (an inconsistent [farBox] placement), or
+/// an into-node bend falls beyond the box entirely. Total on any decoded route.
 ///
 /// This is pure geometry: [ViWire.routePoints] applies the shipping gate (exact
 /// anchor, forward or reverse-straight, cross-axis containment, no
@@ -2010,7 +2043,7 @@ WireRouteDirection _reverse(WireRouteDirection d) => switch (d) {
 /// (`wire_one_anchored_oracle`, which pins the shipped-tier overlay and the
 /// worse withheld-walk overlay). Reverse walks WITH bends and coarse anchors
 /// are computed here so the oracle can measure them, but are not shipped.
-List<ViPoint>? walkOneAnchoredRoute(
+({List<ViPoint> points, ViStep? closingStep})? walkOneAnchoredRoute(
   ViWireRoute route, {
   required ViPoint anchor,
   required int anchoredIndex,
@@ -2042,8 +2075,8 @@ List<ViPoint>? walkOneAnchoredRoute(
   final lastBend = local.last;
 
   if (anchoredIndex == 0) {
-    // Forward: translate the local frame onto the anchor, then extend the
-    // closing run to the near edge of the far box.
+    // Forward: translate the local frame onto the anchor, then close the
+    // implied final run onto — or into — the far box.
     final pts = [for (final p in local) (x: p.x + anchor.x, y: p.y + anchor.y)];
     final tail = pts.last;
     final ViPoint terminus;
@@ -2054,16 +2087,30 @@ List<ViPoint>? walkOneAnchoredRoute(
       // would have rejected.
       if (tail.y < farBox.top || tail.y > farBox.bottom) return null;
       final tx = closingSign > 0 ? farBox.left : farBox.right - 1;
-      if ((tx - tail.x) * closingSign < 0) return null;
+      if ((tx - tail.x) * closingSign < 0) {
+        // The last decoded bend already sits at or past the near edge, INSIDE
+        // the far node: the implied closing run ENTERS the node rather than
+        // reaching its edge. Its length is the plain-node input-pin depth
+        // (undecoded), so ship the polyline to the last bend and expose the
+        // run's direction — a renderer extends it to the node's drawn ink edge
+        // at the arrival row. Reject only when the bend lies beyond the box
+        // entirely (no node to enter).
+        if (tail.x < farBox.left || tail.x > farBox.right) return null;
+        return (points: pts, closingStep: (dx: closingSign, dy: 0));
+      }
       terminus = (x: tx, y: tail.y);
     } else {
       if (tail.x < farBox.left || tail.x > farBox.right) return null;
       final ty = closingSign > 0 ? farBox.top : farBox.bottom - 1;
-      if ((ty - tail.y) * closingSign < 0) return null;
+      if ((ty - tail.y) * closingSign < 0) {
+        // Into-node closing run (see the horizontal branch).
+        if (tail.y < farBox.top || tail.y > farBox.bottom) return null;
+        return (points: pts, closingStep: (dx: 0, dy: closingSign));
+      }
       terminus = (x: tail.x, y: ty);
     }
     if (terminus != tail) pts.add(terminus);
-    return pts;
+    return (points: pts, closingStep: null);
   }
 
   // Reverse: the anchored second endpoint pins the perpendicular-to-closing
@@ -2091,7 +2138,7 @@ List<ViPoint>? walkOneAnchoredRoute(
     if (tail.x != anchor.x || (anchor.y - tail.y) * closingSign < 0) return null;
   }
   if (anchor != tail) pts.add(anchor);
-  return pts;
+  return (points: pts, closingStep: null);
 }
 
 /// Whether a `vers` string predates the **frame-relative termBounds
@@ -2188,6 +2235,7 @@ class ViDiagram {
       route: route,
       routePoints: points?.points,
       routePointsFidelity: points?.fidelity,
+      routeClosingStep: points?.closingStep,
       branchRoute: branchRoute,
       // Lazy: the walk + closure runs only when a consumer reads routeTree.
       routeTreeBuilder: branchRoute == null ? null : () => _shippableRouteTree(branchRoute, attachPoints),
@@ -2215,14 +2263,16 @@ class ViDiagram {
   /// ([kRightShiftRegisterClass]) is not withheld — its column offset IS decoded
   /// ([kShiftRegisterColumnLeftOffset]), so the anchor lands on the drawn
   /// column and the bent walk overlays the ink.
-  ({List<ViPoint> points, WireRouteFidelity fidelity})? _routePointsFor(
+  ({List<ViPoint> points, WireRouteFidelity fidelity, ViStep? closingStep})? _routePointsFor(
     ViWireRoute route,
     List<int> refs,
     List<ViPoint?> attachPoints,
     List<HeapRect?> anchors,
   ) {
     final closed = _closedRoutePoints(route, attachPoints[0], attachPoints[1]);
-    if (closed != null) return (points: closed, fidelity: WireRouteFidelity.closed);
+    if (closed != null) {
+      return (points: closed, fidelity: WireRouteFidelity.closed, closingStep: null);
+    }
     final int anchoredIndex;
     if (attachPoints[0] != null && attachPoints[1] == null) {
       anchoredIndex = 0;
@@ -2244,7 +2294,9 @@ class ViDiagram {
       anchoredIndex: anchoredIndex,
       farBox: farBox,
     );
-    return walked == null ? null : (points: walked, fidelity: WireRouteFidelity.walked);
+    return walked == null
+        ? null
+        : (points: walked.points, fidelity: WireRouteFidelity.walked, closingStep: walked.closingStep);
   }
 
   /// Whether [oid]'s attach terminal is a **left shift-register**

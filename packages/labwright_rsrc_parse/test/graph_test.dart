@@ -652,15 +652,15 @@ void main() {
 
     // Forward, one bend: anchor (10, 20) walks right 30, then the implied
     // closing run drops onto the box's top edge (y = 40) at the bend column.
-    expect(
-      walkOneAnchoredRoute(
-        r(3, WireRouteDirection.right, [1], [30]),
-        anchor: (x: 10, y: 20),
-        anchoredIndex: 0,
-        farBox: box,
-      ),
-      [(x: 10, y: 20), (x: 40, y: 20), (x: 40, y: 40)],
+    final oneBend = walkOneAnchoredRoute(
+      r(3, WireRouteDirection.right, [1], [30]),
+      anchor: (x: 10, y: 20),
+      anchoredIndex: 0,
+      farBox: box,
     );
+    expect(oneBend?.points, [(x: 10, y: 20), (x: 40, y: 20), (x: 40, y: 40)]);
+    // Reaching the box EDGE (not entering it) reports no into-node step.
+    expect(oneBend?.closingStep, isNull);
     // Forward, straight (no bends): the whole run is the closing run, ending
     // on the box's near (left) edge.
     expect(
@@ -669,7 +669,7 @@ void main() {
         anchor: (x: 5, y: 50),
         anchoredIndex: 0,
         farBox: box,
-      ),
+      )?.points,
       [(x: 5, y: 50), (x: 40, y: 50)],
     );
     // Reverse, straight: the anchor is the SECOND endpoint (100, 50); the
@@ -680,7 +680,7 @@ void main() {
         anchor: (x: 100, y: 50),
         anchoredIndex: 1,
         farBox: box,
-      ),
+      )?.points,
       [(x: 59, y: 50), (x: 100, y: 50)],
     );
     // Reverse with an odd point count leaves the far endpoint's along-run
@@ -741,8 +741,41 @@ void main() {
         anchor: (x: 10, y: 40),
         anchoredIndex: 0,
         farBox: box, // bend lands at (40, 40) == box top-left; closing run length 0
-      ),
+      )?.points,
       [(x: 10, y: 40), (x: 40, y: 40)],
+    );
+    // Into-node close (horizontal): the last decoded bend lands INSIDE the box
+    // (x = 45, past the left edge 40), so the implied run enters the node. The
+    // polyline stops at the bend and the +x step is reported — no fabricated
+    // terminus at the node's undecoded input-pin depth.
+    final intoH = walkOneAnchoredRoute(
+      r(4, WireRouteDirection.right, [1], [35, 5]),
+      anchor: (x: 10, y: 50),
+      anchoredIndex: 0,
+      farBox: box, // walks right 35 to x=45 (inside), down 5 to (45,55)
+    );
+    expect(intoH?.points, [(x: 10, y: 50), (x: 45, y: 50), (x: 45, y: 55)]);
+    expect(intoH?.closingStep, (dx: 1, dy: 0));
+    // Into-node close (vertical): last bend inside the box, implied run enters
+    // downward (+y).
+    final intoV = walkOneAnchoredRoute(
+      r(4, WireRouteDirection.down, [1], [15, 5]),
+      anchor: (x: 50, y: 35),
+      anchoredIndex: 0,
+      farBox: box, // down 15 to y=50 (inside), right 5 to (55,50)
+    );
+    expect(intoV?.points, [(x: 50, y: 35), (x: 50, y: 50), (x: 55, y: 50)]);
+    expect(intoV?.closingStep, (dx: 0, dy: 1));
+    // An into-node bend that lands BEYOND the far edge (x = 70 > right 60) has
+    // no node to enter — null.
+    expect(
+      walkOneAnchoredRoute(
+        r(4, WireRouteDirection.right, [1], [60, 5]),
+        anchor: (x: 10, y: 50),
+        anchoredIndex: 0,
+        farBox: box,
+      ),
+      isNull,
     );
   });
 

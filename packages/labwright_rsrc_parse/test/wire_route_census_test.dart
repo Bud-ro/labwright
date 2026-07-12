@@ -113,10 +113,17 @@ Map<String, int> _census(Uint8List bytes, String path) {
         // ends resolve, walked otherwise).
         final wantFid = walked ? WireRouteFidelity.walked : WireRouteFidelity.closed;
         if (w.routePointsFidelity != wantFid) bump('fidelityBad');
-        // A zero-length closing/derived run ships pointCount-1 points (the
-        // walk ends ON the far point; no duplicate terminal vertex). Its
-        // stored closing sign is uncheckable — census its split anyway.
-        if (points.length == route.pointCount - 1) {
+        // A forward walk whose last decoded bend enters the far node ships the
+        // polyline to that bend (pointCount-1 points) with an into-node closing
+        // step; the length that would carry it to the node's connection is the
+        // undecoded input-pin depth. Counted apart from a genuine zero-length
+        // closing run.
+        if (w.routeClosingStep != null) {
+          bump('shippedWalkedIntoNode');
+        } else if (points.length == route.pointCount - 1) {
+          // A zero-length closing/derived run ships pointCount-1 points (the
+          // walk ends ON the far point; no duplicate terminal vertex). Its
+          // stored closing sign is uncheckable — census its split anyway.
           bump('shippedZeroClose');
           final closingSign = route.jointSigns.isEmpty ? null : route.jointSigns.last;
           bump(

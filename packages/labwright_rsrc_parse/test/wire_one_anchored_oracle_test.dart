@@ -154,7 +154,7 @@ Map<String, int> _census(Uint8List png, String path) {
         final farBox = w.endpointAnchors[1 - ai];
         if (farBox == null) continue;
         final poly = walkOneAnchoredRoute(w.route!, anchor: (a0 ?? a1)!, anchoredIndex: ai, farBox: farBox);
-        if (poly != null) record('oa2_held', [poly]);
+        if (poly != null) record('oa2_held', [poly.points]);
       }
     } else if (w.endpointOids.length >= 3 && w.branchRoute != null) {
       if (w.routeTreeFidelity == WireRouteFidelity.walked) {
