@@ -824,6 +824,279 @@ void main() {
         expect(compared, greaterThan(70), reason: label);
         expect(mismatched, 0, reason: '$label must match the reference');
       }
+
+      // The XOR? caption (oid 221) decodes from the scalar-width 0x022 caption
+      // record and renders as text ink above the case structure. LabVIEW's
+      // font differs from the test's Roboto, so a glyph byte-match is
+      // impossible; the caption is asserted by ink presence in its decoded box
+      // and by its ink mass tracking the reference's "XOR?" ink there.
+      bool isDark(String rgb) {
+        final c = rgb.split(',').map(int.parse).toList();
+        return c[0] < 160 && c[1] < 160 && c[2] < 160;
+      }
+
+      final xorLabel = bd.byId[221]!;
+      expect(xorLabel.label, 'XOR?');
+      final xbox = xorLabel.absBounds!;
+      var xorInk = 0, xorRefInk = 0;
+      for (var y = xbox.top; y < xbox.bottom; y++) {
+        for (var x = xbox.left; x < xbox.right; x++) {
+          if (isDark(oursAt(x, y))) xorInk++;
+          if (isDark(refAt(x, y))) xorRefInk++;
+        }
+      }
+      // ignore: avoid_print
+      print('XOR? caption ink: raster=$xorInk ref=$xorRefInk');
+      expect(
+        xorInk,
+        greaterThan(20),
+        reason: 'the XOR? caption must render as text ink',
+      );
+      expect(
+        (xorInk - xorRefInk).abs(),
+        lessThan(25),
+        reason: 'the XOR? ink mass must track the reference caption',
+      );
+
+      // Constant feeders (the decoded endpoint constant shells): the
+      // loop-count wires resolve their far endpoint to the DRAWN constant box
+      // (the "8" and two "256" numeric constants) and route to it, not to the
+      // structure edge. Each is a short horizontal span from the constant box
+      // to the count terminal; the reference wires it continuously, and so
+      // does the render.
+      bool isInk(String rgb) => rgb != '255,255,255';
+      for (final (sig, value) in [(375, 8), (3126, 256), (399, 256)]) {
+        final w = wires.firstWhere((w) => w.signalOid == sig);
+        expect(
+          bd.endpointConstant(w.endpointOids[0])?.constNumeric,
+          value,
+          reason: 'feeder $sig must wrap the $value constant',
+        );
+        final box = w.endpointAnchors[0]!;
+        final term = w.endpointAttachRects[1]!;
+        final row = (box.top + box.bottom) ~/ 2;
+        var span = 0, refInkSpan = 0, rasterInkSpan = 0;
+        for (var x = box.right.toInt(); x <= term.left.toInt(); x++) {
+          span++;
+          var refHit = false, rasterHit = false;
+          for (var dy = -1; dy <= 1; dy++) {
+            if (isInk(refAt(x, row + dy))) refHit = true;
+            if (isInk(oursAt(x, row + dy))) rasterHit = true;
+          }
+          if (refHit) refInkSpan++;
+          if (rasterHit) rasterInkSpan++;
+        }
+        // ignore: avoid_print
+        print(
+          'feeder $sig (const $value) span=$span '
+          'refInk=$refInkSpan rasterInk=$rasterInkSpan',
+        );
+        expect(
+          refInkSpan,
+          span,
+          reason: 'the reference wires the $value constant box to its terminal',
+        );
+        expect(
+          rasterInkSpan,
+          span,
+          reason: 'the render must route the $value feeder to the constant box',
+        );
+      }
     });
+  });
+
+  // Branching wires with a proven junction tree ([ViWire.routeTree]) draw
+  // their decoded absolute geometry: every run as an exact origin-relative
+  // polyline (feeding the same stroke and crossing-gap machinery as any leg)
+  // plus a filled disc at each junction. No corpus snippet holds two VISIBLE
+  // closed trees at once (the rest sit in hidden frames), so the branch-wire
+  // verification aggregates across the snippets that each carry one —
+  // Excel_Read_XLSX (a screenshot target) and Read VI Blocks. Every drawn run
+  // pixel and every junction-dot pixel not covered by a node/structure box
+  // must land on wire ink in LabVIEW's own render (masking node overlaps, ±1
+  // row for the reference's anti-aliasing — the colour-presence law the
+  // wire-band checks use, since an anti-aliased reference cannot be
+  // byte-matched by the crisp render).
+  testWidgets('branch-wire routeTree runs + junction dots land on ref ink', (
+    tester,
+  ) async {
+    final root = repoDir('packages/labwright_rsrc_parse/corpus/vi');
+    if (root == null) {
+      markTestSkipped('corpus not fetched');
+      return;
+    }
+    await loadRealTextFont();
+    var branchWires = 0, junctionDots = 0, runPixels = 0;
+    await tester.runAsync(() async {
+      final icons = await loadPrimIcons();
+      for (final name in ['Excel_Read_XLSX', 'Read VI Blocks']) {
+        final file = root
+            .listSync(recursive: true)
+            .whereType<File>()
+            .firstWhere((f) => f.path.endsWith('/$name.png'));
+        final bytes = file.readAsBytesSync();
+        final bd = bestBlockDiagram(buildViModel(extractSnippetVi(bytes)!))!;
+        final drawable = bdDrawableObjects(bd);
+        final wires = bdVisibleWires(bd);
+        final raster = (await rasteriseBlockDiagram(
+          bd,
+          primIcons: icons,
+          scale: 1.0,
+          margin: 2,
+          wires: wires,
+          drawable: drawable,
+        ))!;
+        final reference = await decodeReferenceImage(bytes);
+        final result = await compareToReference(
+          raster.image,
+          reference.image,
+          lockScale: 1.0 / raster.scale,
+          anchorRects: bdStructureAnchorRects(bd, raster, drawable: drawable),
+        );
+        final reg = result.registration;
+        final refPx = (await reference.image.toByteData())!.buffer
+            .asUint8List();
+        final rasterPx = (await raster.image.toByteData())!.buffer
+            .asUint8List();
+        final rw = reference.image.width;
+        final aw = raster.image.width, ah = raster.image.height;
+
+        // Node/structure/text mask: any drawable box, inflated to cover chrome
+        // borders and icon overhang.
+        final maskRects = <ui.Rect>[
+          for (final o in drawable)
+            if (o.absBounds != null)
+              ui.Rect.fromLTRB(
+                o.absBounds!.left - raster.content.left - 3,
+                o.absBounds!.top - raster.content.top - 3,
+                o.absBounds!.right - raster.content.left + 3,
+                o.absBounds!.bottom - raster.content.top + 3,
+              ),
+        ];
+        bool masked(int x, int y) {
+          final p = Offset(x.toDouble(), y.toDouble());
+          for (final r in maskRects) {
+            if (r.contains(p)) return true;
+          }
+          return false;
+        }
+
+        // Ink at content pixel (x,y), ±1 row for the reference's anti-aliased
+        // wire edges.
+        bool ink(Uint8List px, int stride, int ox, int oy, int x, int y) {
+          for (var dy = -1; dy <= 1; dy++) {
+            final xx = x + ox, yy = y + oy + dy;
+            if (xx < 0 || yy < 0) continue;
+            final i = (yy * stride + xx) * 4;
+            if (i < 0 || i + 2 >= px.length) continue;
+            if (!(px[i] > 210 && px[i + 1] > 210 && px[i + 2] > 210))
+              return true;
+          }
+          return false;
+        }
+
+        for (final w in wires) {
+          final tree = w.routeTree;
+          if (tree == null) continue;
+          branchWires++;
+          final run = <(int, int)>{};
+          for (final poly in tree.polylines) {
+            for (var i = 1; i < poly.length; i++) {
+              final a = poly[i - 1], b = poly[i];
+              if (a.y == b.y) {
+                final lo = a.x < b.x ? a.x : b.x, hi = a.x < b.x ? b.x : a.x;
+                for (var x = lo; x <= hi; x++) {
+                  run.add((
+                    (x - raster.content.left).toInt(),
+                    (a.y - raster.content.top).toInt(),
+                  ));
+                }
+              } else {
+                final lo = a.y < b.y ? a.y : b.y, hi = a.y < b.y ? b.y : a.y;
+                for (var y = lo; y <= hi; y++) {
+                  run.add((
+                    (a.x - raster.content.left).toInt(),
+                    (y - raster.content.top).toInt(),
+                  ));
+                }
+              }
+            }
+          }
+          var runExposed = 0, runRefInk = 0, runRasterInk = 0;
+          for (final (x, y) in run) {
+            if (x < 0 || y < 0 || x >= aw || y >= ah) continue;
+            if (masked(x, y)) continue;
+            runExposed++;
+            if (ink(refPx, rw, reg.dx.toInt(), reg.dy.toInt(), x, y)) {
+              runRefInk++;
+            }
+            if (ink(rasterPx, aw, 0, 0, x, y)) runRasterInk++;
+          }
+          runPixels += runExposed;
+          // ignore: avoid_print
+          print(
+            '$name branch ${w.signalOid}: run exposed=$runExposed '
+            'refInk=$runRefInk rasterInk=$runRasterInk',
+          );
+          expect(runExposed, greaterThan(200));
+          expect(
+            runRefInk / runExposed,
+            greaterThanOrEqualTo(0.98),
+            reason:
+                '$name ${w.signalOid}: runs must land on reference wire ink',
+          );
+          expect(
+            runRasterInk / runExposed,
+            greaterThanOrEqualTo(0.98),
+            reason: '$name ${w.signalOid}: the render must draw every run',
+          );
+          // Junction dots: the filled 5x5 disc (corners clipped) at each
+          // junction. Every EXPOSED disc pixel must be inked in BOTH images —
+          // this catches the off-run cap pixels that only exist because
+          // LabVIEW stamps a dot, not merely because two runs cross.
+          for (final j in tree.junctions) {
+            var dotExposed = 0, dotRefInk = 0, dotRasterInk = 0;
+            for (var dy = -2; dy <= 2; dy++) {
+              for (var dx = -2; dx <= 2; dx++) {
+                if (dx.abs() == 2 && dy.abs() == 2) continue;
+                final x = (j.x + dx - raster.content.left).toInt();
+                final y = (j.y + dy - raster.content.top).toInt();
+                if (x < 0 || y < 0 || x >= aw || y >= ah) continue;
+                if (masked(x, y)) continue;
+                dotExposed++;
+                if (ink(refPx, rw, reg.dx.toInt(), reg.dy.toInt(), x, y)) {
+                  dotRefInk++;
+                }
+                if (ink(rasterPx, aw, 0, 0, x, y)) dotRasterInk++;
+              }
+            }
+            junctionDots++;
+            // ignore: avoid_print
+            print(
+              '$name junction (${j.x},${j.y}): exposed=$dotExposed '
+              'refInk=$dotRefInk rasterInk=$dotRasterInk',
+            );
+            expect(dotExposed, greaterThan(12));
+            expect(
+              dotRefInk,
+              dotExposed,
+              reason: 'junction dot must land wholly on reference wire ink',
+            );
+            expect(
+              dotRasterInk,
+              dotExposed,
+              reason: 'the render must stamp the whole junction dot',
+            );
+          }
+        }
+      }
+    });
+    // ignore: avoid_print
+    print(
+      'branch wires verified: $branchWires (with $junctionDots junction dots, '
+      '$runPixels run px)',
+    );
+    expect(branchWires, greaterThanOrEqualTo(2));
+    expect(junctionDots, greaterThanOrEqualTo(2));
   });
 }

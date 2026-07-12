@@ -1296,6 +1296,7 @@ List<ViWire> bdVisibleWires(ViDiagram diagram) {
               // type word are independent of the anchor patch and ride along.
               route: sourcePatched ? null : wire.route,
               routePoints: wire.routePoints,
+              routeTree: wire.routeTree,
               signalType: wire.signalType,
             )
           : wire,
@@ -2894,8 +2895,26 @@ class BdDiagramPainter extends CustomPainter {
       // else synthesized Manhattan legs from the first anchor to each other
       // anchor.
       final routePoints = wire.routePoints;
+      final routeTree = wire.routeTree;
       final legs = <List<Offset>>[];
-      if (routePoints != null) {
+      final junctions = <Offset>[];
+      if (routeTree != null) {
+        // A proven branching tree ([ViWire.routeTree]): every run drawn
+        // exactly (origin-relative, no extension or clipping) and a branch
+        // dot stamped at each junction. The runs feed the same stroke and
+        // crossing-gap machinery as any other leg, so a branch wire obeys the
+        // measured render laws. Its endpoints are decoded attach points (the
+        // closure gate requires them), so — like a routePoints leg — the
+        // attach-rect pass owns their chrome and no tunnel landing is added.
+        for (final run in routeTree.polylines) {
+          legs.add([
+            for (final p in run) Offset(p.x - origin.dx, p.y - origin.dy),
+          ]);
+        }
+        for (final j in routeTree.junctions) {
+          junctions.add(Offset(j.x - origin.dx, j.y - origin.dy));
+        }
+      } else if (routePoints != null) {
         legs.add([
           for (final p in routePoints) Offset(p.x - origin.dx, p.y - origin.dy),
         ]);
@@ -3042,6 +3061,29 @@ class BdDiagramPainter extends CustomPainter {
         }
       }
       drawn.addAll(mine);
+      // Branch dots sit on top of the wire's own runs (same colour); they are
+      // terminal features, not crossing segments, so they are not recorded in
+      // [drawn].
+      for (final junction in junctions) {
+        _drawWireJunctionDot(canvas, junction, fill);
+      }
+    }
+  }
+
+  /// The branch-junction dot LabVIEW stamps where a wire forks — a filled
+  /// 5x5 disc with the four corner pixels clipped (row widths 3/5/5/5/3),
+  /// centred on the junction pixel, in the wire's colour ([fill]). Measured
+  /// from reference snippets (Excel_Read_XLSX, Read VI Blocks, large,
+  /// ProjectItems) on 1 px scalar wires; the thick-wire dot size is not
+  /// separately sampled (TODO: measure a thick-wire junction).
+  void _drawWireJunctionDot(Canvas canvas, Offset center, Paint fill) {
+    final cx = center.dx.floorToDouble();
+    final cy = center.dy.floorToDouble();
+    for (var dy = -2; dy <= 2; dy++) {
+      for (var dx = -2; dx <= 2; dx++) {
+        if (dx.abs() == 2 && dy.abs() == 2) continue;
+        canvas.drawRect(Rect.fromLTWH(cx + dx, cy + dy, 1, 1), fill);
+      }
     }
   }
 
