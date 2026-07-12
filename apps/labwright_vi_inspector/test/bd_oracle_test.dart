@@ -381,36 +381,20 @@ void main() {
       return ViDiagram(sectionTag: 'BDHb', objects: objects);
     }
 
-    test('bdWireRoute: aligned endpoints run straight, offset ones elbow', () {
-      // Level partners: one straight horizontal segment between facing edges.
-      final straight = bdWireRoute(
-        const Rect.fromLTWH(0, 0, 20, 20),
-        const Rect.fromLTWH(100, 0, 20, 20),
-      );
-      expect(straight, const [Offset(20, 10), Offset(100, 10)]);
-
-      // A terminal level with a tall structure border: straight at the
-      // TERMINAL's y, entering the frame's edge there (never the frame's own
-      // vertical midpoint).
-      final intoFrame = bdWireRoute(
-        const Rect.fromLTWH(0, 40, 20, 20), // terminal at y-centre 50
-        const Rect.fromLTWH(100, 0, 200, 300), // loop frame, centre 150
-      );
-      expect(intoFrame, const [Offset(20, 50), Offset(100, 50)]);
-
-      // Vertically offset small partners: the H–V–H elbow at the mid-x column.
-      final elbow = bdWireRoute(
-        const Rect.fromLTWH(0, 0, 20, 20),
-        const Rect.fromLTWH(100, 60, 20, 20),
-      );
-      expect(elbow.length, 4);
-      expect(elbow.first, const Offset(20, 10));
-      expect(elbow.last, const Offset(100, 70));
-      for (var i = 1; i < elbow.length; i++) {
-        final p = elbow[i - 1], q = elbow[i];
-        expect(p.dx == q.dx || p.dy == q.dy, isTrue);
-      }
-    });
+    // The A→B signal's DECODED route: a straight horizontal run at the node
+    // centre row (y = 120), from A's right edge to B's left edge. Supplied to
+    // the rasteriser directly (the synthetic signal carries no stored route
+    // table); a wire with no decoded route is not drawn at all.
+    ViWire straightWire() => ViWire(
+      signalOid: 4,
+      endpointOids: const [2, 3],
+      endpointAnchors: const [
+        HeapRect(top: 100, left: 20, bottom: 140, right: 60),
+        HeapRect(top: 100, left: 360, bottom: 140, right: 400),
+      ],
+      routePoints: const [(x: 60, y: 120), (x: 360, y: 120)],
+      routePointsFidelity: WireRouteFidelity.walked,
+    );
 
     test('a diagram exposes one ViWire with two resolved endpoint anchors', () {
       final wires = wireDiagram().wires;
@@ -423,7 +407,10 @@ void main() {
     ) async {
       await tester.runAsync(() async {
         final diagram = wireDiagram();
-        final withWire = await rasteriseBlockDiagram(diagram);
+        final withWire = await rasteriseBlockDiagram(
+          diagram,
+          wires: [straightWire()],
+        );
         final wireFree = await rasteriseBlockDiagram(diagram, wires: const []);
         final cmp = await compareToReference(withWire!.image, wireFree!.image);
         // Same objects; the only difference is the routed wire.
@@ -446,8 +433,12 @@ void main() {
 
         final withNode = await rasteriseBlockDiagram(
           wireDiagram(midNode: true),
+          wires: [straightWire()],
         );
-        final withoutNode = await rasteriseBlockDiagram(wireDiagram());
+        final withoutNode = await rasteriseBlockDiagram(
+          wireDiagram(),
+          wires: [straightWire()],
+        );
         // Content extent is identical (the mid node lies within the existing
         // bounds), so the centre maps to the same pixel in both renders.
         expect(withNode!.content, withoutNode!.content);
