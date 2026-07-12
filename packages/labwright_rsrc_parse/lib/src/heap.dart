@@ -508,9 +508,10 @@ enum HeapAttribute {
   /// packed table payload (framed container — packed data, not a record
   /// stream); tables of 1/2/4 bytes ride the scalar `25 E7`/`45 E7`/`85 E7`
   /// widths (a 2-byte straight-wire table is a u16 scalar). The packed
-  /// layout IS decoded for two-endpoint signals — the stored wire route
-  /// polyline; see `decodeWireRoute`/`ViWireRoute` (graph.dart), which own
-  /// the grammar and the corpus census.
+  /// layout IS decoded — the two-endpoint stored route polyline
+  /// (`decodeWireRoute`/`ViWireRoute`) and the extended multi-endpoint
+  /// branching tree (`decodeWireBranchRoute`/`ViWireBranchRoute`), both in
+  /// graph.dart, which own the grammar and the corpus census.
   compressedWireTable(0x1e7, HeapAttrKind.numeric, 'compressedWireTable', AttrConfidence.inferred),
 
   /// Raw `0x09F` — **last signal kind**: the signal's **wire-type word**

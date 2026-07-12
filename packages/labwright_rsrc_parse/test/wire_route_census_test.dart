@@ -15,7 +15,7 @@ import 'snapshot_check.dart';
 /// from scratch and asserted exactly against the `wire_routes` snapshot
 /// section. One extra full-model corpus pass.
 ///
-/// Three censuses share the pass:
+/// Four censuses share the pass:
 ///
 ///  1. **Table forms** — per two-endpoint signal: which direction code the
 ///     table opens with, the undecoded residue, and the multi-endpoint
@@ -24,7 +24,11 @@ import 'snapshot_check.dart';
 ///     endpoints resolve a [ViDiagram.wireAttachPoint], whether the walked
 ///     route closes exactly (ships [ViWire.routePoints]) or how it fails.
 ///     Failures are never force-closed, so the miss buckets stay visible.
-///  3. **Plain-node landings** — for wires walkable from one anchored end
+///  3. **Branching routes** — per 3+-endpoint extended table: decode/walk
+///     totality, leaf closure onto the anchored attach points, the
+///     fully-anchored split gating [ViWire.routeTree], and the
+///     exact-attach-geometry subset (see [_extCensus]).
+///  4. **Plain-node landings** — for wires walkable from one anchored end
 ///     whose far endpoint is a plain-node DCO (no attach geometry), the
 ///     walked landing coordinate relative to the owner node's box, grouped
 ///     by (node kind / primResID, endpoint ordinal, box size, approach).
@@ -60,7 +64,9 @@ Map<String, int> _census(Uint8List bytes, String path) {
       // never exercised.
       if (raw.length == 3) bump('tables3Byte');
       if (eps != 2) {
-        bump(raw.length >= 2 && raw[1] == 0 ? 'multiExtTable' : 'multiShortTable');
+        final ext = raw.length >= 2 && raw[1] == 0;
+        bump(ext ? 'multiExtTable' : 'multiShortTable');
+        if (ext && eps >= 3) _extCensus(d, w, bump);
         continue;
       }
       bump('tables2ep');
@@ -158,6 +164,62 @@ Map<String, int> _census(Uint8List bytes, String path) {
   return c;
 }
 
+/// The extended (branching) route census for one 3+-endpoint signal whose
+/// table opens `[n][00]`: decode/walk totality, per-endpoint exact closure
+/// of the walked leaves onto the anchored attach points (greedy multiset
+/// matching in endpoint order), the fully-anchored closure split that gates
+/// [ViWire.routeTree], and the exact-attach-geometry subset (origin and
+/// endpoint both structure-framed or own-bounds — not the approximate
+/// node-framed rects), which isolates the walk rule from attach-point
+/// error.
+void _extCensus(ViDiagram d, ViWire w, void Function(String, [int]) bump) {
+  final branch = w.branchRoute;
+  if (branch == null) {
+    bump('extUndecoded'); // law: 0 — every extended table decodes
+    return;
+  }
+  bump('extDecoded');
+  final eps = w.endpointOids.length;
+  final attach = [for (final oid in w.endpointOids) d.wireAttachPoint(oid)];
+  final origin = attach[0];
+  if (origin == null) {
+    bump('extEp0Unanchored');
+    return;
+  }
+  final leaves = walkWireBranchRoute(branch, origin).leaves;
+  if (leaves.length != eps - 1) {
+    bump('extLeafMismatch'); // endpoint count disagrees with the stored tree
+    return;
+  }
+  // Exact attach geometry: a structure-framed terminal rect (border-exact)
+  // or a 0x16 own-bounds box; node-framed rects are approximate.
+  bool exact(int i) {
+    final terminal = d.endpointTerminal(w.endpointOids[i]);
+    if (terminal == null) return true; // anchored without a terminal = own bounds
+    final frame = terminal.parentOid == null ? null : d.byId[terminal.parentOid!];
+    return frame != null && frame.category == ViObjectKind.structure;
+  }
+
+  final originExact = exact(0);
+  final pool = List<ViPoint>.of(leaves);
+  var anchored = 0, hits = 0;
+  for (var i = 1; i < eps; i++) {
+    final p = attach[i];
+    if (p == null) continue;
+    anchored++;
+    final hit = pool.remove(p);
+    if (hit) hits++;
+    if (originExact && exact(i)) {
+      bump('extEpExact');
+      if (hit) bump('extEpExactHit');
+    }
+  }
+  bump('extEpAnchored', anchored);
+  bump('extEpHit', hits);
+  if (anchored == eps - 1) bump(hits == anchored ? 'extFullClosed' : 'extFullMiss');
+  if (w.routeTree != null) bump('extShipped'); // law: == extFullClosed
+}
+
 /// The owner node whose box the plain-node landing is measured against —
 /// the endpoint itself if bounded, else its nearest bounded ancestor.
 ViHeapObject? _boundedOwner(ViDiagram d, ViHeapObject ep) {
@@ -231,7 +293,7 @@ Map<String, int> _foldLandings(Map<String, int> c) {
   return out;
 }
 
-const _lawKeys = {'ext2ep', 'shippedBad', 'bounded15Endpoints', 'tables3Byte'};
+const _lawKeys = {'ext2ep', 'shippedBad', 'bounded15Endpoints', 'tables3Byte', 'extUndecoded'};
 
 void main() {
   final all = corpusVis();
@@ -255,6 +317,12 @@ void main() {
     expect(C['shippedBad'] ?? 0, 0, reason: 'every shipped polyline spans attach point to attach point');
     expect(C['bounded15Endpoints'] ?? 0, 0, reason: '0x15 node endpoints are bounds-less corpus-wide');
     expect(C['tables3Byte'] ?? 0, 0, reason: 'the grammar has no 3-byte table (u24 width unused)');
+    expect(C['extUndecoded'] ?? 0, 0, reason: 'every extended branching table decodes and walks');
+    expect(
+      C['extShipped'] ?? 0,
+      C['extFullClosed'] ?? 0,
+      reason: 'routeTree ships exactly the fully-anchored exactly-closing trees',
+    );
   });
 
   test('wire route census matches the committed snapshot exactly', () {
