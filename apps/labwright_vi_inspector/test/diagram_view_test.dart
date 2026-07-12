@@ -236,7 +236,7 @@ void main() {
       ViTypeKind.numericInt: Color(0xFF0000FF),
       ViTypeKind.enumRing: Color(0xFF0000FF),
       ViTypeKind.string: Color(0xFFFF00FF),
-      ViTypeKind.boolean: Color(0xFF007F00),
+      ViTypeKind.boolean: Color(0xFF006600),
       ViTypeKind.path: Color(0xFF669900),
       ViTypeKind.unknown: Color(0xFF8A8A8A),
     };

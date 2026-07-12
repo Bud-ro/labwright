@@ -143,6 +143,12 @@ Map<String, int> _census(Uint8List png, String path) {
       final oneAnchored = (a0 == null) ^ (a1 == null);
       if (w.routePointsFidelity == WireRouteFidelity.walked) {
         record('oa2_ship', [w.routePoints!]);
+        // ISOLATED into-node census: the novel reinterpretation is shipping the
+        // TRUNCATED polyline (last decoded bend inside the node) for a wire
+        // whose closing run enters the node. Measure ITS run overlay on its own
+        // — not folded into the aggregate — so the reinterpretation is proven
+        // to overlay ink independently, with its own gross-miss law below.
+        if (w.routeClosingStep != null) record('oa2_into', [w.routePoints!]);
         // Terminus-on-ink: recorded, NOT asserted — a box-edge snap lands on
         // the node outline regardless of the exact pin (see the library doc).
         final terminus = a0 != null ? w.routePoints!.last : w.routePoints!.first;
@@ -154,7 +160,7 @@ Map<String, int> _census(Uint8List png, String path) {
         final farBox = w.endpointAnchors[1 - ai];
         if (farBox == null) continue;
         final poly = walkOneAnchoredRoute(w.route!, anchor: (a0 ?? a1)!, anchoredIndex: ai, farBox: farBox);
-        if (poly != null) record('oa2_held', [poly]);
+        if (poly != null) record('oa2_held', [poly.points]);
       }
     } else if (w.endpointOids.length >= 3 && w.branchRoute != null) {
       if (w.routeTreeFidelity == WireRouteFidelity.walked) {
@@ -220,6 +226,18 @@ void main() {
     if ((C['oa2_held_runpx'] ?? 0) > 0) {
       expect(_pct(C, 'oa2_held'), lessThan(_pct(C, 'oa2_ship')), reason: 'withheld walks overlay worse than shipped');
     }
+  });
+
+  test('one-anchored oracle law: into-node ships overlay ink on their own', () {
+    // The into-node reinterpretation ships the TRUNCATED polyline (last decoded
+    // bend inside the node) instead of withholding. Measured in ISOLATION here
+    // — not folded into the aggregate — its run pixels must overlay reference
+    // ink, with the SAME zero-gross-miss law as the aggregate: no into-node ship
+    // below 50% overlay. This proves the novel ship overlays ink by itself.
+    expect(C['oa2_into_wires'] ?? 0, greaterThan(0), reason: 'the snippets carry into-node ships');
+    expect(C['oa2_into_qlo'] ?? 0, 0, reason: 'no into-node ship overlays below 50% ink');
+    final px = C['oa2_into_runpx'] ?? 0, ink = C['oa2_into_runink'] ?? 0;
+    expect(ink * 100, greaterThanOrEqualTo(93 * px), reason: 'into-node ships overlay reference ink >= 93%');
   });
 
   test('one-anchored oracle: shipped branch trees overlay well, with a documented drift residue', () {

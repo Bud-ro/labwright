@@ -127,15 +127,20 @@ class _ViDiagramViewState extends State<ViDiagramView> {
     null => const {},
     final diagram => bdDisabledObjectOids(diagram),
   };
-  late final Set<HeapRect> _loopTunnelRects = switch (_diagram) {
+  late final Map<HeapRect, ({int kind, bool hollow, bool disabled})>
+  _borderTerminalKinds = switch (_diagram) {
     null => const {},
-    final diagram => bdLoopTunnelAttachRects(diagram),
+    final diagram => bdBorderTerminalKinds(diagram),
   };
   late final Map<int, List<({HeapRect box, int bmp})>> _structureTerminals =
       switch (_diagram) {
         null => const {},
         final diagram => bdStructureTerminals(diagram),
       };
+  late final Map<int, String> _constValues = switch (_diagram) {
+    null => const {},
+    final diagram => bdConstValueTexts(diagram),
+  };
   // Wires are excluded from the fit: their absolute anchoring is not yet
   // verified (a misanchored run must not blow up the zoom-to-fit envelope).
   late final Rect _content = _drawable.isEmpty
@@ -329,10 +334,11 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                               primIcons: _primIcons,
                               primIconsGrey: primIconsGreyLoaded(),
                               disabledOids: _disabledOids,
-                              loopTunnelRects: _loopTunnelRects,
+                              borderTerminalKinds: _borderTerminalKinds,
                               iconFilterQuality: FilterQuality.low,
                               canvasScale: _anchorScale,
                               structureTerminals: _structureTerminals,
+                              constValues: _constValues,
                             ),
                             foregroundPainter: _OverlayPainter(
                               origin: content.topLeft,
@@ -522,11 +528,13 @@ Color labviewTypeColor(ViTypeKind kind) => switch (kind) {
   ViTypeKind.numericFloat => const Color(0xFFFF8000),
   // Integer/enum blue and string magenta are sampled from LabVIEW's own
   // snippet renders (terminal borders (0,0,255) and (255,0,255)); boolean
-  // green matches the decoded constant foreground (0x007F00).
+  // green (0,102,0) is sampled from crc8's boolean WIRE dots and selector
+  // border at decoded rects (the decoded constant FOREGROUND is a
+  // different green, 0x007F00 — constants are not wires).
   ViTypeKind.numericInt => const Color(0xFF0000FF),
   ViTypeKind.enumRing => const Color(0xFF0000FF),
   ViTypeKind.string => const Color(0xFFFF00FF),
-  ViTypeKind.boolean => const Color(0xFF007F00),
+  ViTypeKind.boolean => const Color(0xFF006600),
   ViTypeKind.path => const Color(0xFF669900),
   ViTypeKind.clnNode => const Color(0xFFE8C547),
   // Cluster/array/refnum borders are not yet colour-sampled from a
@@ -579,6 +587,21 @@ const Color kBdWireColor = Color(0xFF2B2B2B);
 /// wire's own colour).
 const Color kBdTunnelBorder = Color(0xFF444444);
 
+/// The cream fill inside shift-register and selector border terminals
+/// (sampled (255,255,204) from the crc8 reference at decoded rects — the
+/// same cream as primitive icon bodies).
+const Color kBdTerminalFill = Color(0xFFFFFFCC);
+
+/// The uniform grey a disabled frame renders dark NEUTRAL chrome in — the
+/// same (170,170,170) line-work grey as the disabled icon palette
+/// ([_greyDisabledPalette]). Measured on crc8's disabled tunnel at
+/// (405,220): all 32 pixels of its [kBdTunnelBorder] ring read
+/// (170,170,170), while the wire-derived colours on the same tunnel follow
+/// [dimDisabledFrameRgb] (the wire formula predicts (187,187,187) for this
+/// ring and is refuted by that measurement — neutral chrome takes the icon
+/// mapping, wire colours take the formula).
+const Color kBdDisabledChromeGrey = Color(0xFFAAAAAA);
+
 /// The opaque [Color] of a decoded 24-bit `0xRRGGBB` object colour ([rgb]), or
 /// null when the object carried no such colour. Used to fill a decoration or
 /// control in its own stored LabVIEW colour instead of a generic category tint.
@@ -593,69 +616,59 @@ Color? bdDecodedColor(int? rgb) =>
 Color? bdFillColor(ViHeapObject object) =>
     bdDecodedColor(object.contentRgb) ?? bdDecodedColor(object.bgRgb);
 
-/// The signal's **stored** route (its decoded `0x1e7` table) as absolute
-/// points from [source] to [sink]: segments alternate axes starting
-/// horizontal from the source connection point (anchor centre), the first
-/// segment aims toward the sink, interior-joint signs come from the table,
-/// and the trailing segment(s) close on the sink connection point (the
-/// stored route lands within the destination anchor for nearly all
-/// two-endpoint signals — census on [ViWireRoute]; the square-in below
-/// covers the miss tail). The first point is clipped to the source edge so
-/// the stroke does not cross the source icon. Null when the table's
-/// segments are empty or a sign byte is missing for an interior joint.
-/// Pure + public for testing.
-List<Offset>? bdStoredWireRoute(Rect source, Rect sink, ViWireRoute route) {
-  final lengths = route.segmentLengths;
-  final signs = route.jointSigns;
-  if (lengths.isEmpty) return null;
-  var x = source.center.dx;
-  var y = source.center.dy;
-  final points = <Offset>[Offset(x, y)];
-  var horiz = true;
-  for (var i = 0; i < lengths.length; i++) {
-    final double sign;
-    if (i == 0) {
-      sign = sink.center.dx >= source.center.dx ? 1 : -1;
-    } else {
-      if (i - 1 >= signs.length) return null;
-      sign = signs[i - 1].toDouble();
-    }
-    if (horiz) {
-      x += sign * lengths[i];
-    } else {
-      y += sign * lengths[i];
-    }
-    points.add(Offset(x, y));
-    horiz = !horiz;
-  }
-  // Close along the alternated axis: the stored route already fixed the
-  // perpendicular coordinate (that IS the sink connection row/column), so
-  // the trailing segment just runs to the sink. Square in with one extra
-  // elbow only when the landing misses the sink rect entirely (the rare
-  // fit-miss tail keeps an orthogonal path rather than a diagonal).
-  if (horiz) {
-    if ((sink.center.dx - x).abs() > 0.5) points.add(Offset(sink.center.dx, y));
-    if (y < sink.top || y > sink.bottom) {
-      points.add(Offset(sink.center.dx, sink.center.dy));
-    }
-  } else {
-    if ((sink.center.dy - y).abs() > 0.5) points.add(Offset(x, sink.center.dy));
-    if (x < sink.left || x > sink.right) {
-      points.add(Offset(sink.center.dx, sink.center.dy));
-    }
-  }
-  // Clip the leading run to the source box edge (LabVIEW stops the stroke at
-  // the icon; the stored length still measures from the connection point).
-  if (points.length >= 2 && points[1].dy == points[0].dy) {
-    final rightward = points[1].dx >= points[0].dx;
-    final edge = rightward ? source.right : source.left;
-    if ((rightward && points[1].dx > edge) ||
-        (!rightward && points[1].dx < edge)) {
-      points[0] = Offset(edge, points[0].dy);
-    }
-  }
-  return points;
-}
+/// [color] rendered through the measured disabled-frame palette transform
+/// ([dimDisabledFrameRgb], per channel `c' = min(255, 153 + c ~/ 2)`) —
+/// how LabVIEW draws every colour inside a disable structure's displayed
+/// Disabled frame. Alpha stays opaque.
+Color bdDimDisabled(Color color) =>
+    Color(0xFF000000 | dimDisabledFrameRgb(color.toARGB32() & 0xFFFFFF));
+
+/// The measured HORIZONTAL column cycles of the patterned wire strokes,
+/// transcribed from the [ViWireRenderStyle] catalogue: per style, the
+/// repeating per-column 5-bit ink masks where bit `b` inks row
+/// `cross + (b - 2)` (bit 2 = the route row; higher bits are rows BELOW it,
+/// y growing downward). The cycle SHAPES are census measurements; the
+/// census canonicalises each cycle by rotation, so the absolute phase is
+/// NOT measured — the painter anchors a cycle at `column mod period`
+/// (TODO: census the phases). The dotted styles are not here: their
+/// measured checkerboard phase law is applied directly (see [_drawWires]).
+///
+/// Only the solid styles ([ViWireRenderStyle.solid1px] / `solid2px` /
+/// `hollowDouble`) and the dotted pair have vertical treatments in the
+/// painter; every style in this map is drawn patterned on horizontal runs
+/// alone.
+const Map<ViWireRenderStyle, List<int>> kBdWireStrokeCycles = {
+  ViWireRenderStyle.zigzag: [0x02, 0x06, 0x04, 0x06],
+  ViWireRenderStyle.chainLink: [0x04, 0x0e, 0x0a, 0x0e],
+  ViWireRenderStyle.chainLinkWide: [0x05, 0x0f, 0x0a, 0x0f],
+  ViWireRenderStyle.braid: [0x0a, 0x0a, 0x0e, 0x0e],
+  ViWireRenderStyle.braidWide: [0x09, 0x0d, 0x0f, 0x0b],
+  ViWireRenderStyle.braidDense: [0x0a, 0x0e],
+  ViWireRenderStyle.braidDenseWide: [0x0b, 0x0d],
+  ViWireRenderStyle.weave: [0x02, 0x0a, 0x02, 0x0e, 0x08, 0x0a, 0x08, 0x0e],
+};
+
+/// The cross-axis ink band of a stroke [style] around its route row/column,
+/// as inclusive offsets — the rows a horizontal run of the style inks.
+/// Solid/dotted bands are measured (corpus render census: a 2 px wire
+/// straddles `cross-1..cross`, 16 clean runs with zero counterexamples of
+/// the alternative placement; crc8's routed 2 px wires confirm the same
+/// transposed on vertical runs); patterned bands are the union of their
+/// catalogued cycle masks.
+(int, int) bdWireStrokeBand(ViWireRenderStyle style) => switch (style) {
+  ViWireRenderStyle.solid1px || ViWireRenderStyle.dotted => (0, 0),
+  ViWireRenderStyle.solid2px ||
+  ViWireRenderStyle.dottedAlternating ||
+  ViWireRenderStyle.zigzag => (-1, 0),
+  ViWireRenderStyle.hollowDouble ||
+  ViWireRenderStyle.chainLink ||
+  ViWireRenderStyle.braid ||
+  ViWireRenderStyle.braidDense ||
+  ViWireRenderStyle.weave => (-1, 1),
+  ViWireRenderStyle.chainLinkWide ||
+  ViWireRenderStyle.braidWide ||
+  ViWireRenderStyle.braidDenseWide => (-2, 1),
+};
 
 /// The short operator glyph drawn on a primitive node's plate for a decoded
 /// [PrimOp] — the recognisable core of LabVIEW's icon art (the `+` of Add,
@@ -781,7 +794,41 @@ Color bdWireColor(
         )];
     if (color != null) return color;
   }
+  // Last: the signal's own decoded type word — an ESTIMATE (89.9% family
+  // agreement corpus-wide; see [ViSignalType]), which is why every
+  // terminal-derived source above outranks it. Arrays colour by ELEMENT
+  // kind, as LabVIEW does.
+  final wordKind = wire.elementTypeKind;
+  if (wordKind != null && wordKind != ViTypeKind.unknown) {
+    return labviewTypeColor(wordKind);
+  }
   return kBdWireColor;
+}
+
+/// Per data-view terminal oid, the **numeric literal** its block-diagram
+/// constant displays: the decoded value ([ViHeapObject.constNumeric]) lives on
+/// the `0x13` bdConstDCO record, and the drawn box is that record's bounded
+/// terminal child (crc8's oid 3033 shows `256` from its 0x13 parent's
+/// record). Only decoded values map — a constant whose flattened value was
+/// not recovered renders no text (never guessed). A whole-valued double
+/// formats without the trailing `.0`, matching the integer rendering LabVIEW
+/// gives whole values; stored per-constant display format specifiers are not
+/// yet decoded (TODO).
+Map<int, String> bdConstValueTexts(ViDiagram diagram) {
+  final byId = diagram.byId;
+  final out = <int, String>{};
+  for (final object in diagram.objects) {
+    if (object.category != ViObjectKind.terminal) continue;
+    final bounds = object.absBounds;
+    if (bounds == null || bounds.width <= 0 || bounds.height <= 0) continue;
+    final parent = byId[object.parentOid ?? -1];
+    final value = parent?.kind == 0x13 ? parent!.constNumeric : null;
+    if (value == null) continue;
+    out[object.oid] = value is double && value == value.roundToDouble()
+        ? value.toInt().toString()
+        : value.toString();
+  }
+  return out;
 }
 
 /// Packs a rectangle's four `s16` edges into one int key for anchor↔terminal
@@ -1167,12 +1214,13 @@ Set<int> bdHiddenFrameOids(ViDiagram diagram) {
 /// case's wires must not draw across the visible one, see
 /// [bdHiddenFrameOids]), and an endpoint whose anchor did not resolve to a
 /// positioned box (a structure tunnel — its border-crossing point carries no
-/// decoded bounds) is re-anchored to the endpoint's nearest drawable bounded
-/// ancestor, so the run reaches the structure's border the way LabVIEW's
-/// tunnel wires do. A leg that only resolves to the diagram root stays
-/// unanchored (drawing to the canvas edge would be wrong), and a wire whose
-/// remaining anchors collapse onto one identical box is dropped as
-/// degenerate.
+/// decoded bounds) is re-anchored to its decoded attach rectangle when one
+/// exists (the exact terminal square, [ViWire.endpointAttachRects]), else to
+/// the endpoint's nearest drawable bounded ancestor, so the run reaches the
+/// structure's border the way LabVIEW's tunnel wires do. A leg that only
+/// resolves to the diagram root stays unanchored (drawing to the canvas edge
+/// would be wrong), and a wire whose remaining anchors collapse onto one
+/// identical box is dropped as degenerate.
 List<ViWire> bdVisibleWires(ViDiagram diagram) {
   final hidden = bdHiddenFrameOids(diagram)
     ..addAll(bdInlinedInstanceOids(diagram));
@@ -1207,7 +1255,12 @@ List<ViWire> bdVisibleWires(ViDiagram diagram) {
         anchors.add(anchor);
         continue;
       }
-      final resolved = reanchor(wire.endpointOids[i]);
+      final attach = i < wire.endpointAttachRects.length
+          ? wire.endpointAttachRects[i]
+          : null;
+      final resolved = (attach != null && attach.width > 0 && attach.height > 0)
+          ? attach
+          : reanchor(wire.endpointOids[i]);
       anchors.add(resolved);
       if (resolved != null) {
         patched = true;
@@ -1234,12 +1287,17 @@ List<ViWire> bdVisibleWires(ViDiagram diagram) {
               signalOid: wire.signalOid,
               endpointOids: wire.endpointOids,
               endpointAnchors: anchors,
+              endpointAttachRects: wire.endpointAttachRects,
               // The stored route replays from endpoint 0's connection point:
               // it survives a re-anchored SINK (the route already targets the
               // border the sink was re-anchored to) but not a re-anchored
               // source, whose original connection point is what the lengths
-              // measure from.
+              // measure from. The proven absolute polyline and the decoded
+              // type word are independent of the anchor patch and ride along.
               route: sourcePatched ? null : wire.route,
+              routePoints: wire.routePoints,
+              routeTree: wire.routeTree,
+              signalType: wire.signalType,
             )
           : wire,
     );
@@ -1656,6 +1714,26 @@ Future<Map<int, PrimIconArt>> loadPrimIcons() => _primIcons ??= () async {
         alpha[i] = rgba.getUint8(i * 4 + 3);
       }
       _primIconMasks[id] = (w: image.width, h: image.height, alpha: alpha);
+      // The art-space ink (opaque-pixel) bounding box — the measured art
+      // edge the wire fallback router anchors icon-stamped endpoints to.
+      var minX = image.width, minY = image.height, maxX = -1, maxY = -1;
+      for (var y = 0; y < image.height; y++) {
+        for (var x = 0; x < image.width; x++) {
+          if (alpha[y * image.width + x] == 0) continue;
+          if (x < minX) minX = x;
+          if (y < minY) minY = y;
+          if (x > maxX) maxX = x;
+          if (y > maxY) maxY = y;
+        }
+      }
+      if (maxX >= minX && maxY >= minY) {
+        _primIconInkBounds[id] = ui.Rect.fromLTRB(
+          minX.toDouble(),
+          minY.toDouble(),
+          maxX + 1.0,
+          maxY + 1.0,
+        );
+      }
     }
     icons[id] = await _prescaledArt(image);
   }
@@ -1772,6 +1850,16 @@ Future<ui.Image> remapPrimIcon(ui.Image icon, Map<int, int> rgbMapping) async {
 
 final Map<int, ({int w, int h, Uint8List alpha})> _primIconMasks = {};
 
+/// Art-space opaque-pixel bounding boxes of the loaded icons (filled by
+/// [loadPrimIcons] from the same alpha masks that back hit testing).
+final Map<int, ui.Rect> _primIconInkBounds = {};
+
+/// The art-space ink (opaque-pixel) bounding box of the icon keyed [key], or
+/// null while the icons are still loading / for keys without art. The wire
+/// fallback router anchors an icon-stamped endpoint at this measured art
+/// edge instead of the (larger) node box.
+ui.Rect? primIconInkBounds(int key) => _primIconInkBounds[key];
+
 /// Whether the diagram-space point ([x],[y]) lands on an opaque pixel of the
 /// primitive icon stamped on [object] (natural size, centred in its bounds).
 /// True when no icon is stamped — the plain bounds hit stands. Pixel-precise
@@ -1832,14 +1920,36 @@ bool primIconHit(ViHeapObject object, double x, double y) {
 /// build under the test framework's fake async).
 Map<int, PrimIconArt> primIconsLoaded() => _primIconsSync;
 
-/// The attach rects of PLAIN LOOP TUNNELS — wire endpoints whose resolving
-/// terminal is the loop-tunnel class `0x22`. Only this kind draws the
-/// wire-colour-filled square (verified against crc8's reference at a
-/// decoded rect); shift registers (`0x27`/`0x28`), selector and other
-/// border terminals carry their own chrome and are TODO until each is
-/// reference-verified.
-Set<HeapRect> bdLoopTunnelAttachRects(ViDiagram diagram) {
-  final out = <HeapRect>{};
+/// Terminal class codes whose border chrome is REFERENCE-VERIFIED (each
+/// spec below was read from crc8/crc16/crc32 reference pixels at decoded
+/// attach rects): plain loop tunnel `0x22` and select tunnel `0x2d` (a
+/// wire-colour-filled square under a 1 px [kBdTunnelBorder] ring), left /
+/// right shift registers `0x27`/`0x28` (2 px wire-colour border, cream
+/// fill, wire-colour down-/up-arrow glyph), selector terminal `0x2e`
+/// (1 px wire-colour border, cream fill, wire-colour `?` glyph). Other
+/// border-terminal kinds stay undrawn until reference-verified.
+const Set<int> kVerifiedBorderTerminalKinds = {0x22, 0x2d, 0x27, 0x28, 0x2e};
+
+/// The terminal [ViHeapObject.objFlags] bit marking a HOLLOW tunnel square
+/// (cream interior with a wire-colour ring — LabVIEW's use-default look)
+/// instead of the solid wire-colour fill. Corpus census over both snippet
+/// repos, classifying each 0x22/0x2d's reference interior: bit set → 71/72
+/// hollow; bit clear → 289/296 solid. The 8 outliers (7 cream-dominant
+/// without the bit — a bracket-style look whose trigger is not yet
+/// decoded — and 1 set-but-solid) are drawn by the flag until that third
+/// look is decoded (TODO).
+const int kTunnelHollowFlag = 0x1000000;
+
+/// Per decoded attach rect, its resolving terminal's class code, hollow
+/// bit, and whether the terminal sits inside a disable structure's
+/// displayed Disabled frame ([bdDisabledObjectOids] — its chrome then draws
+/// through [dimDisabledFrameRgb]) — for the border-terminal chrome pass
+/// (only [kVerifiedBorderTerminalKinds] draw).
+Map<HeapRect, ({int kind, bool hollow, bool disabled})> bdBorderTerminalKinds(
+  ViDiagram diagram,
+) {
+  final disabledOids = bdDisabledObjectOids(diagram);
+  final out = <HeapRect, ({int kind, bool hollow, bool disabled})>{};
   for (final wire in bdVisibleWires(diagram)) {
     for (var e = 0; e < wire.endpointOids.length; e++) {
       final attach = e < wire.endpointAttachRects.length
@@ -1847,7 +1957,14 @@ Set<HeapRect> bdLoopTunnelAttachRects(ViDiagram diagram) {
           : null;
       if (attach == null) continue;
       final terminal = diagram.endpointTerminal(wire.endpointOids[e]);
-      if (terminal?.kind == 0x22) out.add(attach);
+      if (terminal != null &&
+          kVerifiedBorderTerminalKinds.contains(terminal.kind)) {
+        out[attach] = (
+          kind: terminal.kind,
+          hollow: ((terminal.objFlags ?? 0) & kTunnelHollowFlag) != 0,
+          disabled: disabledOids.contains(terminal.oid),
+        );
+      }
     }
   }
   return out;
@@ -1883,6 +2000,17 @@ Set<int> bdDisabledObjectOids(ViDiagram diagram) {
   return out;
 }
 
+/// One drawn wire segment in integer pixel space, kept for the crossing
+/// rule: orientation, along-axis extent `lo..hi` (inclusive), and the
+/// stroke's cross-axis ink band `bandLo..bandHi` (inclusive).
+typedef _BdWireSeg = ({
+  bool horizontal,
+  int lo,
+  int hi,
+  int bandLo,
+  int bandHi,
+});
+
 class BdDiagramPainter extends CustomPainter {
   BdDiagramPainter({
     required this.objects,
@@ -1892,10 +2020,12 @@ class BdDiagramPainter extends CustomPainter {
     this.primIcons = const {},
     this.primIconsGrey = const {},
     this.disabledOids = const {},
-    this.loopTunnelRects = const {},
+    this.borderTerminalKinds = const {},
     this.structureTerminals = const {},
+    this.constValues = const {},
     this.iconFilterQuality = FilterQuality.none,
     this.canvasScale = 1,
+    this.drawDotGrid = true,
   });
 
   final List<ViHeapObject> objects;
@@ -1929,9 +2059,23 @@ class BdDiagramPainter extends CustomPainter {
   /// Objects under a disabled displayed frame ([bdDisabledObjectOids]).
   final Set<int> disabledOids;
 
-  /// Attach rects of plain loop tunnels ([bdLoopTunnelAttachRects]) — the
-  /// only endpoints drawn as wire-colour squares.
-  final Set<HeapRect> loopTunnelRects;
+  /// Attach rect → terminal class for reference-verified border-terminal
+  /// chrome ([bdBorderTerminalKinds]).
+  final Map<HeapRect, ({int kind, bool hollow, bool disabled})>
+  borderTerminalKinds;
+
+  /// Per terminal oid, the numeric literal its constant box displays
+  /// ([bdConstValueTexts]). A mapped box drops the generic terminal's inner
+  /// ring (the reference draws constants with the 2 px outer border only)
+  /// and centres the value text.
+  final Map<int, String> constValues;
+
+  /// [color] through the measured disabled-frame palette transform when the
+  /// object [oid] sits under a disabled displayed frame ([disabledOids]),
+  /// alpha preserved ([dimDisabledFrameRgb] is measured on opaque ink).
+  Color _dimFor(int oid, Color color) => disabledOids.contains(oid)
+      ? bdDimDisabled(color).withValues(alpha: color.a)
+      : color;
 
   /// Sampling for stamped icons: nearest (the default) is pixel-exact in the
   /// 1:1 oracle raster; the interactive view passes [FilterQuality.low]
@@ -1945,6 +2089,12 @@ class BdDiagramPainter extends CustomPainter {
   /// magnifies a stale raster.
   final double canvasScale;
 
+  /// Whether the faint canvas alignment-dot grid draws. An interactive-view
+  /// affordance only: the oracle raster omits it (LabVIEW's reference
+  /// renders have a plain white canvas, and the grid's near-white dots
+  /// break byte-exact wire comparisons).
+  final bool drawDotGrid;
+
   @override
   void paint(Canvas canvas, Size size) {
     // The layer rasterises at [canvasScale]; everything below draws in
@@ -1953,7 +2103,7 @@ class BdDiagramPainter extends CustomPainter {
     canvas.scale(canvasScale);
     size = Size(size.width / canvasScale, size.height / canvasScale);
     canvas.drawRect(Offset.zero & size, Paint()..color = kBdCanvas);
-    _drawDotGrid(canvas, size);
+    if (drawDotGrid) _drawDotGrid(canvas, size);
 
     Rect rectOf(ViHeapObject o) {
       final bounds = o.absBounds!;
@@ -2031,13 +2181,16 @@ class BdDiagramPainter extends CustomPainter {
       final decoded =
           bdDecodedColor(object.bgRgb) ?? bdDecodedColor(object.contentRgb);
       if (decoded != null) {
-        canvas.drawRect(rect, Paint()..color = decoded);
+        canvas.drawRect(rect, Paint()..color = _dimFor(object.oid, decoded));
       } else if (!isBackdrop(object)) {
-        canvas.drawRect(rect, Paint()..color = const Color(0xFFF4F4F4));
+        canvas.drawRect(
+          rect,
+          Paint()..color = _dimFor(object.oid, const Color(0xFFF4F4F4)),
+        );
         canvas.drawRect(
           rect,
           Paint()
-            ..color = Colors.black.withValues(alpha: 0.45)
+            ..color = _dimFor(object.oid, Colors.black.withValues(alpha: 0.45))
             ..style = PaintingStyle.stroke
             ..strokeWidth = 0.8,
         );
@@ -2052,7 +2205,22 @@ class BdDiagramPainter extends CustomPainter {
     };
     final structureRects = {for (final o in structures) rectOf(o)};
     final tunnelLandings = <(Offset, Color)>[];
-    final tunnelSquares = <(Rect, Color)>[];
+    final tunnelSquares =
+        <(Rect, ({int kind, bool hollow, bool disabled}), Color)>[];
+    // Rects owned by the reference-verified border-terminal chrome pass
+    // (shift registers, selectors, tunnels). A modeled structure terminal at
+    // the same rect must not also draw: its anti-aliased ring strokes bleed
+    // a ring of blended pixels just OUTSIDE the rect that the byte-exact
+    // chrome cannot cover.
+    final chromeOwnedRects = <Rect>{
+      for (final attach in borderTerminalKinds.keys)
+        Rect.fromLTRB(
+          attach.left - origin.dx,
+          attach.top - origin.dy,
+          attach.right - origin.dx,
+          attach.bottom - origin.dy,
+        ),
+    };
     _drawWires(
       canvas,
       structureRects: structureRects,
@@ -2068,7 +2236,11 @@ class BdDiagramPainter extends CustomPainter {
       // the band (the pale sequence/timed tint); other structure kinds keep
       // the neutral double-line frame.
       final rect = rectOf(object);
-      final structColor = bdDecodedColor(object.structRgb);
+      final structDisabled = disabledOids.contains(object.oid);
+      final structColor = switch (bdDecodedColor(object.structRgb)) {
+        null => null,
+        final c => _dimFor(object.oid, c),
+      };
       // Structure terminals (iteration/count/conditional, shift registers,
       // case selector tunnel) draw at their MODELED frame-relative positions
       // with their MODELED glyph (see [bdStructureTerminals]); a terminal
@@ -2085,13 +2257,35 @@ class BdDiagramPainter extends CustomPainter {
       }
       switch (object.kind) {
         case 0x21 || 0x20: // While / for loop: rounded band + terminals.
-          _drawLoopBand(canvas, rect, structColor);
-          _drawStructureTerminals(canvas, rect, terminals, tunnelLandings);
+          _drawLoopBand(canvas, rect, structColor, disabled: structDisabled);
+          _drawStructureTerminals(
+            canvas,
+            rect,
+            terminals,
+            tunnelLandings,
+            chromeOwnedRects: chromeOwnedRects,
+            disabled: structDisabled,
+          );
         case 0x2c: // Case structure: the same band, un-rounded.
-          _drawLoopBand(canvas, rect, structColor, rounded: false);
-          _drawStructureTerminals(canvas, rect, terminals, tunnelLandings);
+          _drawLoopBand(
+            canvas,
+            rect,
+            structColor,
+            rounded: false,
+            disabled: structDisabled,
+          );
+          _drawStructureTerminals(
+            canvas,
+            rect,
+            terminals,
+            tunnelLandings,
+            chromeOwnedRects: chromeOwnedRects,
+            disabled: structDisabled,
+          );
         default:
-          final frame = structColor ?? _kindColor(ViObjectKind.structure);
+          final frame =
+              structColor ??
+              _dimFor(object.oid, _kindColor(ViObjectKind.structure));
           if (structColor != null) {
             canvas.drawRect(
               rect,
@@ -2114,8 +2308,14 @@ class BdDiagramPainter extends CustomPainter {
           );
       }
     }
-    for (final (rect, color) in tunnelSquares) {
-      _drawTunnelSquare(canvas, rect, color);
+    // Overlapping border terminals stack: the reference draws a selector
+    // OVER the select tunnel sharing its edge (crc8's 0x2e/0x2d pair
+    // overlaps by two rows), so squares first, registers, then selectors.
+    tunnelSquares.sort(
+      (a, b) => _chromeZOrder(a.$2.kind).compareTo(_chromeZOrder(b.$2.kind)),
+    );
+    for (final (rect, info, color) in tunnelSquares) {
+      _drawBorderTerminalChrome(canvas, rect, info, color);
     }
     // Wires: each 0x1d object is one stored Manhattan run, drawn exactly as
     // its own segment. Runs of the same wire already meet at their bend
@@ -2154,11 +2354,11 @@ class BdDiagramPainter extends CustomPainter {
             ? null
             : bdDecodedColor(object.bgRgb);
         if (backing != null) {
-          canvas.drawRect(rect, Paint()..color = backing);
+          canvas.drawRect(rect, Paint()..color = _dimFor(object.oid, backing));
           canvas.drawRect(
             rect,
             Paint()
-              ..color = Colors.black.withValues(alpha: 0.6)
+              ..color = _dimFor(object.oid, Colors.black).withValues(alpha: 0.6)
               ..style = PaintingStyle.stroke
               ..strokeWidth = 0.8,
           );
@@ -2178,13 +2378,23 @@ class BdDiagramPainter extends CustomPainter {
           // reads as an engraving artefact, not a meaningful distinction).
           final typed =
               object.typeKind != ViTypeKind.unknown || object.fgRgb != null;
-          final tint = object.typeKind != ViTypeKind.unknown
-              ? labviewTypeColor(object.typeKind)
-              : (bdDecodedColor(object.fgRgb) ?? kBdUnknownTerminalFill);
+          final tint = _dimFor(
+            object.oid,
+            object.typeKind != ViTypeKind.unknown
+                ? labviewTypeColor(object.typeKind)
+                : (bdDecodedColor(object.fgRgb) ?? kBdUnknownTerminalFill),
+          );
           // An unknown-type terminal keeps a dark neutral border — the light
           // "unknown" grey as a border is invisible to the eye and the edge
           // masks alike.
-          final border = typed ? tint : const Color(0xFF5A5A5A);
+          final border = typed
+              ? tint
+              : _dimFor(object.oid, const Color(0xFF5A5A5A));
+          // A constant box ([constValues]) carries the 2 px outer border
+          // only — the reference draws no inner ring around crc8's oid 3033
+          // (its whole 160 px perimeter reads the plain dim-blue border) —
+          // and shows its decoded literal centred instead of a type glyph.
+          final constValue = constValues[object.oid];
           canvas.drawRect(rect, Paint()..color = Colors.white);
           canvas.drawRect(
             rect.deflate(1),
@@ -2193,7 +2403,7 @@ class BdDiagramPainter extends CustomPainter {
               ..style = PaintingStyle.stroke
               ..strokeWidth = 2.0,
           );
-          if (rect.width > 10 && rect.height > 10) {
+          if (constValue == null && rect.width > 10 && rect.height > 10) {
             canvas.drawRect(
               rect.deflate(3.5),
               Paint()
@@ -2237,12 +2447,40 @@ class BdDiagramPainter extends CustomPainter {
               ..lineTo(tipX, cy)
               ..lineTo(tipX - 3, cy + 3.5)
               ..close();
-            canvas.drawPath(tri, Paint()..color = Colors.black87);
+            canvas.drawPath(
+              tri,
+              Paint()
+                ..color = _dimFor(
+                  object.oid,
+                  Colors.black,
+                ).withValues(alpha: 0.87),
+            );
+          }
+          // A constant's decoded literal, centred in its box the way
+          // LabVIEW shows the value (crc8's oid 3033 renders `256`); inked
+          // black through the disabled transform (the reference's disabled
+          // digits read as the (153,153,153) dim of black).
+          if (constValue != null && rect.width >= 12 && rect.height >= 12) {
+            final tp = TextPainter(
+              text: TextSpan(
+                text: constValue,
+                style: TextStyle(
+                  color: _dimFor(object.oid, Colors.black),
+                  fontSize: 10,
+                  fontFamily: 'Roboto',
+                ),
+              ),
+              maxLines: 1,
+              ellipsis: '…',
+              textDirection: TextDirection.ltr,
+            )..layout(maxWidth: math.max(8, rect.width - 6));
+            tp.paint(canvas, rect.center - Offset(tp.width / 2, tp.height / 2));
           }
           // The resolved data type's short label (DBL / I32 / TF / abc),
           // as LabVIEW stamps on the terminal — sized to sit inside the
-          // double border even on a 16 px terminal.
-          final glyph = object.dataType == null
+          // double border even on a 16 px terminal. A constant box shows
+          // its value instead, never the type.
+          final glyph = constValue != null || object.dataType == null
               ? null
               : dataTypeGlyph(object.dataType!);
           if (glyph != null &&
@@ -2310,7 +2548,10 @@ class BdDiagramPainter extends CustomPainter {
           } else if (icon != null) {
             paintLegacyIcon(canvas, icon, rect);
           } else {
-            final fill = isSubVi ? kBdSubViNodeFill : kBdPrimitiveNodeFill;
+            final fill = _dimFor(
+              object.oid,
+              isSubVi ? kBdSubViNodeFill : kBdPrimitiveNodeFill,
+            );
             canvas.drawRect(rect, Paint()..color = fill);
             if (rect.width > 6 && rect.height > 6) {
               canvas.drawLine(
@@ -2333,7 +2574,7 @@ class BdDiagramPainter extends CustomPainter {
             canvas.drawRect(
               rect.deflate(0.5),
               Paint()
-                ..color = Colors.black
+                ..color = _dimFor(object.oid, Colors.black)
                 ..style = PaintingStyle.stroke
                 ..strokeWidth = 1.0,
             );
@@ -2351,7 +2592,10 @@ class BdDiagramPainter extends CustomPainter {
               text: TextSpan(
                 text: glyph,
                 style: TextStyle(
-                  color: Colors.black.withValues(alpha: 0.75),
+                  color: _dimFor(
+                    object.oid,
+                    Colors.black,
+                  ).withValues(alpha: 0.75),
                   fontSize: glyph.length > 2 ? 8.0 : 12,
                   fontFamily: 'Roboto',
                 ),
@@ -2366,12 +2610,15 @@ class BdDiagramPainter extends CustomPainter {
           // A control/indicator is filled with its decoded interior colour when
           // recovered (the field/background LabVIEW stored), else its neutral
           // category colour — never a guessed tint.
-          final fill = bdFillColor(object) ?? _objectColor(object);
+          final fill = _dimFor(
+            object.oid,
+            bdFillColor(object) ?? _objectColor(object),
+          );
           canvas.drawRRect(rr, Paint()..color = fill.withValues(alpha: 0.92));
           canvas.drawRRect(
             rr,
             Paint()
-              ..color = Colors.black.withValues(alpha: 0.5)
+              ..color = _dimFor(object.oid, Colors.black).withValues(alpha: 0.5)
               ..style = PaintingStyle.stroke
               ..strokeWidth = 0.8,
           );
@@ -2425,9 +2672,11 @@ class BdDiagramPainter extends CustomPainter {
           text: TextSpan(
             text: text,
             style: TextStyle(
-              color:
-                  bdDecodedColor(object.fgRgb) ??
-                  Colors.black.withValues(alpha: 0.85),
+              color: _dimFor(
+                object.oid,
+                bdDecodedColor(object.fgRgb) ??
+                    Colors.black.withValues(alpha: 0.85),
+              ),
               fontSize: selector ? 9.5 : 10.5,
               fontFamily: 'Roboto',
             ),
@@ -2471,8 +2720,10 @@ class BdDiagramPainter extends CustomPainter {
       // A caption/constant is inked in the object's decoded foreground colour
       // when one was recovered (fgColor is the LabVIEW text/line colour), else
       // a neutral near-black.
-      final textColor =
-          bdDecodedColor(object.fgRgb) ?? Colors.black.withValues(alpha: 0.75);
+      final textColor = _dimFor(
+        object.oid,
+        bdDecodedColor(object.fgRgb) ?? Colors.black.withValues(alpha: 0.75),
+      );
       final tp = TextPainter(
         text: TextSpan(
           text: text,
@@ -2491,18 +2742,34 @@ class BdDiagramPainter extends CustomPainter {
     }
   }
 
-  /// Routes each decoded [ViWire] as a Manhattan run between its endpoint anchor
-  /// rectangles (index-aligned nearest-bounded-owner bounds). A wire is drawn in
-  /// the neutral [kBdWireColor] unless an endpoint anchor coincides with a
-  /// terminal whose datatype was recovered — then that terminal's LabVIEW colour
-  /// is used ([bdWireColor]). Multi-endpoint (branch) wires route from the first
-  /// endpoint to each other endpoint. The wire datatype itself is not decoded, so
-  /// no per-wire colour is fabricated.
+  /// Draws each decoded [ViWire], in HEAP SERIALIZATION ORDER of the `0x17`
+  /// signals ([ViDiagram.wires] order, preserved by [bdVisibleWires]) — the
+  /// draw order LabVIEW uses, which the crossing rule keys off (see
+  /// `wire_render.dart`: where two wires cross, the LATER-serialized signal
+  /// breaks with a 1 px gap either side of the earlier wire's ink band).
+  ///
+  /// Geometry: a wire with a proven absolute polyline
+  /// ([ViWire.routePoints]) draws it exactly as stored — no extension, no
+  /// clipping. Other wires fall back to a synthesized Manhattan run between
+  /// their endpoint anchors ([bdWireRoute]), extended under icon-stamped
+  /// nodes to the box centre so the art's own ink decides the visible
+  /// meeting point.
+  ///
+  /// Stroke: driven by the wire-type word's measured render style
+  /// ([ViSignalTypeRenderStyle.renderStyle]); the estimate tier
+  /// ([renderStyleEstimate]) stands in ONLY for the simple solid/dotted
+  /// styles (a patterned cycle is never drawn from an extrapolation), and
+  /// wires with neither keep the pre-catalogue simple laws (array ⇒ 2 px,
+  /// scalar boolean ⇒ dotted, else 1 px). Colour precedence is
+  /// [bdWireColor]'s (typed terminal > catalogued source op > word element
+  /// kind > neutral); a wire whose signal sits under a disabled displayed
+  /// frame draws through [bdDimDisabled].
   void _drawWires(
     Canvas canvas, {
     Set<Rect>? structureRects,
     List<(Offset, Color)>? tunnelLandings,
-    List<(Rect, Color)>? tunnelSquares,
+    List<(Rect, ({int kind, bool hollow, bool disabled}), Color)>?
+    tunnelSquares,
   }) {
     if (wires.isEmpty) return;
     // Endpoint-anchor rectangle → recovered terminal colour, for honest
@@ -2512,6 +2779,12 @@ class BdDiagramPainter extends CustomPainter {
     final typedTerminalColors = <int, Color>{};
     final sourceOutputColors = <int, Color>{};
     final iconNodeRects = <Rect>{};
+    // Node box → the stamped art's ink bounding box (canvas coords): the
+    // measured art edge a fallback-routed endpoint anchors to instead of
+    // the node box, so a leg meets the icon where its ink actually is
+    // (crc8's gates: the reference wires run at the art's edge-centre row,
+    // not the 32x32 box's).
+    final iconInkRects = <Rect, Rect>{};
     for (final object in objects) {
       final bounds = object.absBounds;
       if (bounds == null) continue;
@@ -2525,15 +2798,26 @@ class BdDiagramPainter extends CustomPainter {
           object.typeKind != ViTypeKind.unknown) {
         typedTerminalColors[packed] = labviewTypeColor(object.typeKind);
       }
-      if (primIconKeyOf(object) != null) {
-        iconNodeRects.add(
-          Rect.fromLTRB(
-            bounds.left - origin.dx,
-            bounds.top - origin.dy,
-            bounds.right - origin.dx,
-            bounds.bottom - origin.dy,
-          ),
+      final iconKey = primIconKeyOf(object);
+      if (iconKey != null) {
+        final boxRect = Rect.fromLTRB(
+          bounds.left - origin.dx,
+          bounds.top - origin.dy,
+          bounds.right - origin.dx,
+          bounds.bottom - origin.dy,
         );
+        iconNodeRects.add(boxRect);
+        final art = primIcons[iconKey]?.base;
+        final ink = primIconInkBounds(iconKey);
+        if (art != null && ink != null) {
+          final stamp = primIconStampRect(
+            boxRect,
+            art.width,
+            art.height,
+            key: iconKey,
+          );
+          iconInkRects[boxRect] = ink.shift(stamp.topLeft);
+        }
       }
       final output = object.primResId == null
           ? null
@@ -2542,12 +2826,15 @@ class BdDiagramPainter extends CustomPainter {
         sourceOutputColors[packed] = labviewTypeColor(output);
       }
     }
+    // Segments already drawn by EARLIER wires (heap serialization order),
+    // in integer pixel space — the crossing rule cuts later wires around
+    // them.
+    final drawn = <_BdWireSeg>[];
     for (final wire in wires) {
       final anchors = <Rect>[];
-      // Structure-anchored endpoints with a DECODED attach rect (the
-      // tunnel/border-terminal position, [ViWire.endpointAttachRects]) get a
-      // tunnel square drawn at it.
-      final tunnels = <Rect>[];
+      // Endpoints with a DECODED attach rect get their border-terminal
+      // chrome drawn at it (kind-specific, reference-verified only).
+      final tunnels = <(Rect, ({int kind, bool hollow, bool disabled}))>[];
       for (var e = 0; e < wire.endpointAnchors.length; e++) {
         final anchor = wire.endpointAnchors[e];
         if (anchor == null) continue;
@@ -2577,105 +2864,512 @@ class BdDiagramPainter extends CustomPainter {
             attach.bottom - origin.dy,
           );
           anchors.add(attachRect);
-          if (loopTunnelRects.contains(attach)) tunnels.add(attachRect);
+          final info = borderTerminalKinds[attach];
+          if (info != null) tunnels.add((attachRect, info));
         } else {
           anchors.add(anchorRect);
         }
       }
-      final paint = Paint()
-        ..color = bdWireColor(
-          wire,
-          typedTerminalColors,
-          sourceOutputColors: sourceOutputColors,
-        )
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4
-        ..strokeJoin = StrokeJoin.miter
-        ..strokeCap = StrokeCap.butt;
-      // The squares are collected whenever their position is decoded — even
-      // when the wire's OTHER endpoint is unresolvable and no route can be
+      var color = bdWireColor(
+        wire,
+        typedTerminalColors,
+        sourceOutputColors: sourceOutputColors,
+      );
+      final wireDisabled = disabledOids.contains(wire.signalOid);
+      if (wireDisabled) color = bdDimDisabled(color);
+      // Chrome is collected whenever its position is decoded — even when
+      // the wire's OTHER endpoint is unresolvable and no route can be
       // drawn — and painted AFTER the structure chrome (LabVIEW draws the
-      // tunnel over the band).
-      tunnelSquares?.addAll([for (final t in tunnels) (t, paint.color)]);
-      if (anchors.length < 2) continue;
-      final source = anchors.first;
-      final route = wire.route;
-      final storedApplies =
-          route != null && anchors.length == 2 && wire.endpointOids.length == 2;
-      for (var i = 1; i < anchors.length; i++) {
-        final points =
-            (storedApplies
-                ? bdStoredWireRoute(source, anchors[i], route)
-                : null) ??
-            bdWireRoute(source, anchors[i]);
-        // A leg ending on an icon-stamped node runs on UNDER it to the box
-        // centre: LabVIEW draws wires beneath nodes, so the art's own opaque
-        // pixels decide exactly where the wire visibly meets the icon
-        // (through a chamfer notch, up to a border — whatever the art says).
-        if (points.length >= 2) {
-          if (iconNodeRects.contains(source)) {
+      // terminal over the band). A terminal inside a disabled frame draws
+      // its chrome dimmed even when the wire's own signal is outside it.
+      tunnelSquares?.addAll([
+        for (final (t, info) in tunnels)
+          (
+            t,
+            info,
+            info.disabled && !wireDisabled ? bdDimDisabled(color) : color,
+          ),
+      ]);
+      // Leg polylines: the proven absolute polyline when the parse shipped
+      // one (exact at both ends — drawn as-is, no extension or clipping),
+      // else synthesized Manhattan legs from the first anchor to each other
+      // anchor.
+      final routePoints = wire.routePoints;
+      final routeTree = wire.routeTree;
+      final legs = <List<Offset>>[];
+      final junctions = <Offset>[];
+      if (routeTree != null) {
+        // A proven branching tree ([ViWire.routeTree]): every run drawn
+        // exactly (origin-relative, no extension or clipping) and a branch
+        // dot stamped at each junction. The runs feed the same stroke and
+        // crossing-gap machinery as any other leg, so a branch wire obeys the
+        // measured render laws. Its endpoints are decoded attach points (the
+        // closure gate requires them), so — like a routePoints leg — the
+        // attach-rect pass owns their chrome and no tunnel landing is added.
+        for (final run in routeTree.polylines) {
+          legs.add([
+            for (final p in run) Offset(p.x - origin.dx, p.y - origin.dy),
+          ]);
+        }
+        for (final j in routeTree.junctions) {
+          junctions.add(Offset(j.x - origin.dx, j.y - origin.dy));
+        }
+      } else if (routePoints != null) {
+        final points = [
+          for (final p in routePoints) Offset(p.x - origin.dx, p.y - origin.dy),
+        ];
+        // A proven polyline connects at its DECODED attach point on the
+        // endpoint's own border. Where that endpoint is an icon-stamped node,
+        // LabVIEW still draws the wire UNDER the art to the box centre — the
+        // art's transparent margin shows the stub between the border-centre
+        // attach and the opaque icon edge (crc8's U8 conversion, and the
+        // one-anchored terminal entries whose plain-node end lands on the box
+        // border). Extend the terminal segment there, exactly as the fallback
+        // path does for an icon-node leg; the covered interior is masked by
+        // the art itself.
+        if (points.length >= 2 && wire.endpointAnchors.length >= 2) {
+          Rect? iconBox(int e) {
+            final a = wire.endpointAnchors[e];
+            if (a == null) return null;
+            final box = Rect.fromLTRB(
+              a.left - origin.dx,
+              a.top - origin.dy,
+              a.right - origin.dx,
+              a.bottom - origin.dy,
+            );
+            return iconNodeRects.contains(box) ? box : null;
+          }
+
+          final sourceBox = iconBox(0);
+          if (sourceBox != null) {
+            final c = (iconInkRects[sourceBox] ?? sourceBox).center;
             final p0 = points.first, p1 = points[1];
             points[0] = p0.dy == p1.dy
-                ? Offset(source.center.dx, p0.dy)
-                : Offset(p0.dx, source.center.dy);
+                ? Offset(c.dx, p0.dy)
+                : Offset(p0.dx, c.dy);
           }
-          if (iconNodeRects.contains(anchors[i])) {
+          final sinkBox = iconBox(wire.endpointAnchors.length - 1);
+          if (sinkBox != null) {
+            final c = (iconInkRects[sinkBox] ?? sinkBox).center;
             final pn = points.last, pm = points[points.length - 2];
             points[points.length - 1] = pn.dy == pm.dy
-                ? Offset(anchors[i].center.dx, pn.dy)
-                : Offset(pn.dx, anchors[i].center.dy);
+                ? Offset(c.dx, pn.dy)
+                : Offset(pn.dx, c.dy);
           }
         }
-        // Each Manhattan segment fills whole 1 px pixel rows/columns
-        // (endpoints inclusive): a STROKED centreline at integer coordinates
-        // half-covers two rows — the solid-core-with-half-tone artefact.
-        final fill = Paint()
-          ..color = paint.color
-          ..isAntiAlias = false;
-        for (var j = 1; j < points.length; j++) {
-          final a = points[j - 1], b = points[j];
-          canvas.drawRect(
-            Rect.fromLTRB(
-              math.min(a.dx, b.dx).floorToDouble(),
-              math.min(a.dy, b.dy).floorToDouble(),
-              math.max(a.dx, b.dx).floorToDouble() + 1,
-              math.max(a.dy, b.dy).floorToDouble() + 1,
-            ),
-            fill,
-          );
-        }
-        // A leg whose anchor is a structure's own box is a border crossing —
-        // the landing point is where LabVIEW draws the tunnel square.
-        if (structureRects != null && tunnelLandings != null) {
-          if (structureRects.contains(source)) {
-            tunnelLandings.add((points.first, paint.color));
+        legs.add(points);
+      } else {
+        if (anchors.length < 2) continue;
+        // Icon-edge anchoring applies to plain 2-endpoint wires only:
+        // 3+-endpoint (junction) wires keep the box-anchored fallback
+        // untouched until their stored branch routes decode.
+        final twoEnded = anchors.length == 2;
+        final source = anchors.first;
+        final sourceInk = twoEnded ? iconInkRects[source] : null;
+        for (var i = 1; i < anchors.length; i++) {
+          final sink = anchors[i];
+          final sinkInk = twoEnded ? iconInkRects[sink] : null;
+          // Icon-stamped endpoints route from the measured art ink bounds
+          // ([iconInkRects]) instead of the node box, so the level rule
+          // picks the row where the art actually is.
+          final points = bdWireRoute(sourceInk ?? source, sinkInk ?? sink);
+          // A leg ending on an icon-stamped node runs on UNDER it to the
+          // art/box centre: LabVIEW draws wires beneath nodes, so the art's
+          // own opaque pixels decide exactly where the wire visibly meets
+          // the icon (through a chamfer notch, up to a border — whatever
+          // the art says).
+          if (points.length >= 2) {
+            final p0 = points.first, p1 = points[1];
+            if (sourceInk != null &&
+                p0.dy == p1.dy &&
+                p0.dy.floor() != sourceInk.center.dy.floor()) {
+              // The route row misses the source icon's output tip (the
+              // art's edge-centre row — a primitive has ONE output, at its
+              // tip): connect with a vertical stub at the leg's start
+              // column, the first pixel column outside the art edge.
+              // Reference-verified on crc8's XOR gate output (the stub at
+              // x=381 from the tip rows up to the tunnel row). No
+              // under-art extension here — the stub already meets the tip,
+              // and a run under the art would show through its transparent
+              // pixels where the reference has canvas.
+              points.insert(0, Offset(p0.dx, sourceInk.center.dy));
+            } else if (iconNodeRects.contains(source)) {
+              final c = (sourceInk ?? source).center;
+              points[0] = p0.dy == p1.dy
+                  ? Offset(c.dx, p0.dy)
+                  : Offset(p0.dx, c.dy);
+            }
+            if (iconNodeRects.contains(sink)) {
+              final c = (sinkInk ?? sink).center;
+              final pn = points.last, pm = points[points.length - 2];
+              points[points.length - 1] = pn.dy == pm.dy
+                  ? Offset(c.dx, pn.dy)
+                  : Offset(pn.dx, c.dy);
+            }
           }
-          if (structureRects.contains(anchors[i])) {
-            tunnelLandings.add((points.last, paint.color));
+          // A leg whose anchor is a structure's own box is a border
+          // crossing — the landing point is where LabVIEW draws the tunnel
+          // square. (A routePoints leg never needs this: its endpoints are
+          // decoded attach points, whose chrome the attach-rect pass owns.)
+          if (structureRects != null && tunnelLandings != null) {
+            if (structureRects.contains(source)) {
+              tunnelLandings.add((points.first, color));
+            }
+            if (structureRects.contains(anchors[i])) {
+              tunnelLandings.add((points.last, color));
+            }
           }
+          legs.add(points);
         }
+      }
+      // Stroke style: measured tier first; the estimate tier stands in for
+      // the simple solid/dotted styles only (never a patterned cycle); the
+      // pre-catalogue simple laws cover the remainder (array ⇒ 2 px, scalar
+      // boolean ⇒ dotted, else 1 px).
+      final st = wire.signalType;
+      var style = st?.renderStyle;
+      if (style == null) {
+        final estimate = st?.renderStyleEstimate;
+        if (estimate == ViWireRenderStyle.solid1px ||
+            estimate == ViWireRenderStyle.solid2px ||
+            estimate == ViWireRenderStyle.dotted) {
+          style = estimate;
+        }
+      }
+      style ??=
+          (wire.elementTypeKind == ViTypeKind.boolean &&
+              (st?.arrayDims ?? 0) == 0)
+          ? ViWireRenderStyle.dotted
+          : ((st?.arrayDims ?? 0) >= 1
+                ? ViWireRenderStyle.solid2px
+                : ViWireRenderStyle.solid1px);
+
+      final fill = Paint()
+        ..color = color
+        ..isAntiAlias = false;
+      final (bandLo, bandHi) = bdWireStrokeBand(style);
+      // Segments this wire draws — appended to [drawn] only after the whole
+      // wire, so a wire never gaps against its own bends.
+      final mine = <_BdWireSeg>[];
+      for (final leg in legs) {
+        for (var j = 1; j < leg.length; j++) {
+          final a = leg[j - 1], b = leg[j];
+          if (a == b) continue;
+          final horizontal = a.dy == b.dy;
+          var lo = (horizontal ? math.min(a.dx, b.dx) : math.min(a.dy, b.dy))
+              .floor();
+          var hi = (horizontal ? math.max(a.dx, b.dx) : math.max(a.dy, b.dy))
+              .floor();
+          final cross = (horizontal ? a.dy : a.dx).floor();
+          // Bend continuity for the 2 px solid stroke: at a shared vertex
+          // the segment also covers the perpendicular partner's ink band, so
+          // the corner fills its full 2x2 square (measured on crc8's routed
+          // 2 px elbows).
+          if (style == ViWireRenderStyle.solid2px) {
+            for (final neighbour in [
+              if (j >= 2) leg[j - 2],
+              if (j + 1 < leg.length) leg[j + 1],
+            ]) {
+              final nCross = (horizontal ? neighbour.dx : neighbour.dy).floor();
+              if (nCross + bandLo < lo) lo = nCross + bandLo;
+              if (nCross + bandHi > hi) hi = nCross + bandHi;
+            }
+          }
+          // Crossing gaps (the measured rule, see wire_render.dart): where
+          // this later-drawn segment properly crosses an EARLIER wire's
+          // perpendicular segment, it skips a 1 px gap either side of the
+          // earlier stroke's ink band; the earlier ink survives. Endpoint
+          // touches (T-junctions) are not crossings.
+          final gaps = <(int, int)>[];
+          for (final e in drawn) {
+            if (e.horizontal == horizontal) continue;
+            if (e.bandLo > lo &&
+                e.bandHi < hi &&
+                cross + bandLo > e.lo &&
+                cross + bandHi < e.hi) {
+              gaps.add((e.bandLo - 1, e.bandHi + 1));
+            }
+          }
+          _strokeSegment(canvas, fill, style, horizontal, lo, hi, cross, gaps);
+          mine.add((
+            horizontal: horizontal,
+            lo: lo,
+            hi: hi,
+            bandLo: cross + bandLo,
+            bandHi: cross + bandHi,
+          ));
+        }
+      }
+      drawn.addAll(mine);
+      // Branch dots sit on top of the wire's own runs (same colour); they are
+      // terminal features, not crossing segments, so they are not recorded in
+      // [drawn].
+      for (final junction in junctions) {
+        _drawWireJunctionDot(canvas, junction, fill);
       }
     }
   }
 
-  /// One tunnel square: LabVIEW draws a 1 px [kBdTunnelBorder] ring filled
-  /// with the wire's colour, over the structure border (crc8's loop tunnel
-  /// at (158,499)-(167,508) reads exactly this from the reference render).
-  void _drawTunnelSquare(Canvas canvas, Rect t, Color wireColor) {
-    canvas.drawRect(
-      t,
-      Paint()
-        ..color = wireColor
-        ..isAntiAlias = false,
-    );
-    canvas.drawRect(
-      Rect.fromLTRB(t.left + 0.5, t.top + 0.5, t.right - 0.5, t.bottom - 0.5),
-      Paint()
-        ..color = kBdTunnelBorder
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1
-        ..isAntiAlias = false,
-    );
+  /// The branch-junction dot LabVIEW stamps where a wire forks — a filled
+  /// 5x5 disc with the four corner pixels clipped (row widths 3/5/5/5/3),
+  /// centred on the junction pixel, in the wire's colour ([fill]). Measured
+  /// from reference snippets (Excel_Read_XLSX, Read VI Blocks, large,
+  /// ProjectItems) on 1 px scalar wires; the thick-wire dot size is not
+  /// separately sampled (TODO: measure a thick-wire junction).
+  void _drawWireJunctionDot(Canvas canvas, Offset center, Paint fill) {
+    final cx = center.dx.floorToDouble();
+    final cy = center.dy.floorToDouble();
+    for (var dy = -2; dy <= 2; dy++) {
+      for (var dx = -2; dx <= 2; dx++) {
+        if (dx.abs() == 2 && dy.abs() == 2) continue;
+        canvas.drawRect(Rect.fromLTWH(cx + dx, cy + dy, 1, 1), fill);
+      }
+    }
+  }
+
+  /// Draws one Manhattan wire segment in [style]: the along-axis pixel range
+  /// [lo]..[hi] (inclusive) at route row/column [cross], skipping the
+  /// crossing-gap ranges [gaps] (inclusive, along the same axis).
+  void _strokeSegment(
+    Canvas canvas,
+    Paint fill,
+    ViWireRenderStyle style,
+    bool horizontal,
+    int lo,
+    int hi,
+    int cross,
+    List<(int, int)> gaps,
+  ) {
+    gaps.sort((x, y) => x.$1.compareTo(y.$1));
+    var v = lo;
+    for (final (gLo, gHi) in [...gaps, (hi + 1, hi + 1)]) {
+      final end = math.min(hi, gLo - 1);
+      if (v <= end) _strokeRun(canvas, fill, style, horizontal, v, end, cross);
+      if (gHi + 1 > v) v = gHi + 1;
+    }
+  }
+
+  /// Draws one gap-free run of a wire stroke, pixels [lo]..[hi] inclusive.
+  ///
+  /// Horizontal runs follow the measured catalogue: the solid bands, the
+  /// dotted checkerboard (ink exactly where `x + y` is even — measured on
+  /// 20 clean corpus dotted runs and both crc8 orientations, zero
+  /// counterexamples), and the patterned column cycles
+  /// ([kBdWireStrokeCycles]). VERTICAL runs of the multi-row patterned
+  /// styles draw a plain 1 px line in the wire colour instead: the vertical
+  /// renditions of those cycles are not yet measured (the census pinned
+  /// them orientation-DEPENDENT — e.g. vertical string wires compress to a
+  /// period-2 cycle), so nothing is guessed. TODO: catalogue the vertical
+  /// cycles and draw them.
+  void _strokeRun(
+    Canvas canvas,
+    Paint fill,
+    ViWireRenderStyle style,
+    bool horizontal,
+    int lo,
+    int hi,
+    int cross,
+  ) {
+    Rect px(int along, int band) => horizontal
+        ? Rect.fromLTWH(along.toDouble(), band.toDouble(), 1, 1)
+        : Rect.fromLTWH(band.toDouble(), along.toDouble(), 1, 1);
+    Rect span(int bandLo, int bandHi) => horizontal
+        ? Rect.fromLTRB(
+            lo.toDouble(),
+            (cross + bandLo).toDouble(),
+            hi + 1.0,
+            cross + bandHi + 1.0,
+          )
+        : Rect.fromLTRB(
+            (cross + bandLo).toDouble(),
+            lo.toDouble(),
+            cross + bandHi + 1.0,
+            hi + 1.0,
+          );
+    switch (style) {
+      case ViWireRenderStyle.solid1px:
+        canvas.drawRect(span(0, 0), fill);
+      case ViWireRenderStyle.solid2px:
+        canvas.drawRect(span(-1, 0), fill);
+      case ViWireRenderStyle.hollowDouble:
+        // Period-1 and hence orientation-symmetric (see the catalogue).
+        canvas.drawRect(span(-1, -1), fill);
+        canvas.drawRect(span(1, 1), fill);
+      case ViWireRenderStyle.dotted:
+        for (var v = lo; v <= hi; v++) {
+          if ((v + cross).isEven) canvas.drawRect(px(v, cross), fill);
+        }
+      case ViWireRenderStyle.dottedAlternating when horizontal:
+        // Catalogued period-2 cycle: single dots alternating between the
+        // route row and the row above. The absolute phase is unmeasured;
+        // anchored so the route-row dot sits on even x+y, matching the
+        // dotted family's measured checkerboard (TODO: measure the phase).
+        for (var v = lo; v <= hi; v++) {
+          canvas.drawRect(px(v, (v + cross).isEven ? cross : cross - 1), fill);
+        }
+      default:
+        final cycle = horizontal ? kBdWireStrokeCycles[style] : null;
+        if (cycle == null) {
+          // Vertical run of a patterned style: the vertical cycles are not
+          // yet measured, so the honest fallback is a plain 1 px line in
+          // the wire colour (TODO above).
+          canvas.drawRect(span(0, 0), fill);
+          return;
+        }
+        for (var v = lo; v <= hi; v++) {
+          final mask = cycle[v % cycle.length];
+          for (var bit = 0; bit < 5; bit++) {
+            if ((mask >> bit) & 1 != 0) {
+              canvas.drawRect(px(v, cross + bit - 2), fill);
+            }
+          }
+        }
+    }
+  }
+
+  /// The stacking order for overlapping border-terminal chrome (see the
+  /// paint site): tunnels/select squares under registers under selectors.
+  static int _chromeZOrder(int kind) => switch (kind) {
+    0x22 || 0x2d => 0,
+    0x27 || 0x28 => 1,
+    _ => 2,
+  };
+
+  /// Border-terminal chrome at a DECODED attach rect, per terminal class —
+  /// every spec read from reference pixels (crc8/crc16/crc32):
+  ///
+  /// - tunnel `0x22` / select `0x2d`: the rect filled with the wire's
+  ///   colour under a 1 px [kBdTunnelBorder] ring, over the structure band
+  ///   (crc8's loop tunnel at (158,499)-(167,508)).
+  /// - shift registers `0x27`/`0x28` (16x12): a 2 px wire-colour border,
+  ///   cream fill, and a wire-colour 5-row triangle glyph — down (10,8,6,
+  ///   4,2 wide) on the left register, up on the right.
+  /// - selector `0x2e` (8x12): a 1 px wire-colour border, cream fill, and
+  ///   the 6x10 `?` glyph.
+  ///
+  /// A register/selector whose rect differs from the measured size draws
+  /// border + fill only (the glyph layout is pinned to the measured
+  /// geometry, never scaled by guesswork).
+  ///
+  /// A terminal inside a disable structure's displayed Disabled frame
+  /// (`info.disabled`) draws its wire-derived colours through the measured
+  /// wire transform ([bdDimDisabled], applied by the wire pass) and its
+  /// neutral chrome through the measured disabled mappings: the dark ring
+  /// goes to the icon line-work grey ([kBdDisabledChromeGrey]) and the
+  /// cream fill goes white (both measured mappings agree on the cream —
+  /// [bdDimDisabled] clamps it to white too). Nothing is hand-tuned.
+  void _drawBorderTerminalChrome(
+    Canvas canvas,
+    Rect t,
+    ({int kind, bool hollow, bool disabled}) info,
+    Color wireColor,
+  ) {
+    final kind = info.kind;
+    final ringColor = info.disabled ? kBdDisabledChromeGrey : kBdTunnelBorder;
+    final creamColor = info.disabled
+        ? bdDimDisabled(kBdTerminalFill)
+        : kBdTerminalFill;
+    final noAa = Paint()
+      ..color = wireColor
+      ..isAntiAlias = false;
+    switch (kind) {
+      case 0x22 || 0x2d:
+        // Hollow ([kTunnelHollowFlag]): cream interior with a 5x5
+        // wire-colour ring (open at the middle of its top/bottom edges),
+        // read from crc8's reference at (520,276). Solid: wire-colour fill.
+        if (info.hollow) {
+          canvas.drawRect(
+            t,
+            Paint()
+              ..color = creamColor
+              ..isAntiAlias = false,
+          );
+          if (t.width == 9 && t.height == 9) {
+            const ring = ['xx.xx', 'x...x', 'x...x', 'x...x', 'xx.xx'];
+            for (var y = 0; y < 5; y++) {
+              for (var x = 0; x < 5; x++) {
+                if (ring[y][x] != 'x') continue;
+                canvas.drawRect(
+                  Rect.fromLTWH(t.left + 2 + x, t.top + 2 + y, 1, 1),
+                  noAa,
+                );
+              }
+            }
+          }
+        } else {
+          canvas.drawRect(t, noAa);
+        }
+        canvas.drawRect(
+          Rect.fromLTRB(
+            t.left + 0.5,
+            t.top + 0.5,
+            t.right - 0.5,
+            t.bottom - 0.5,
+          ),
+          Paint()
+            ..color = ringColor
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1
+            ..isAntiAlias = false,
+        );
+      case 0x27 || 0x28:
+        canvas.drawRect(t, noAa);
+        canvas.drawRect(
+          t.deflate(2),
+          Paint()
+            ..color = creamColor
+            ..isAntiAlias = false,
+        );
+        if (t.width == 16 && t.height == 12) {
+          // Triangle rows within the 12x8 interior: row index 2..6 for the
+          // down arrow, 1..5 for the up arrow, widths 10/8/6/4/2 centred.
+          final down = kind == 0x27;
+          for (var i = 0; i < 5; i++) {
+            final width = down ? 10 - 2 * i : 2 + 2 * i;
+            final row = (down ? 2 + i : 1 + i).toDouble();
+            canvas.drawRect(
+              Rect.fromLTWH(
+                t.left + 2 + (12 - width) / 2,
+                t.top + 2 + row,
+                width.toDouble(),
+                1,
+              ),
+              noAa,
+            );
+          }
+        }
+      case 0x2e:
+        canvas.drawRect(t, noAa);
+        canvas.drawRect(
+          t.deflate(1),
+          Paint()
+            ..color = creamColor
+            ..isAntiAlias = false,
+        );
+        if (t.width == 8 && t.height == 12) {
+          const glyph = [
+            '......',
+            '..xx..',
+            '.x..x.',
+            '....x.',
+            '...x..',
+            '..x...',
+            '..x...',
+            '......',
+            '..x...',
+            '......',
+          ];
+          for (var y = 0; y < glyph.length; y++) {
+            for (var x = 0; x < 6; x++) {
+              if (glyph[y][x] != 'x') continue;
+              canvas.drawRect(
+                Rect.fromLTWH(t.left + 1 + x, t.top + 1 + y, 1, 1),
+                noAa,
+              );
+            }
+          }
+        }
+    }
   }
 
   /// The thick grey structure band LabVIEW draws for loops and cases: a
@@ -2687,8 +3381,10 @@ class BdDiagramPainter extends CustomPainter {
     Rect rect,
     Color? tint, {
     bool rounded = true,
+    bool disabled = false,
   }) {
-    final band = tint ?? const Color(0xFF9C9C9C);
+    Color dim(Color c) => disabled ? bdDimDisabled(c) : c;
+    final band = tint ?? dim(const Color(0xFF9C9C9C));
     final radius = rounded ? const Radius.circular(4) : Radius.zero;
     // A decoded structure colour (the pale sequence/timed tint) also washes
     // the interior, as LabVIEW's coloured structures do.
@@ -2708,7 +3404,7 @@ class BdDiagramPainter extends CustomPainter {
     canvas.drawRRect(
       RRect.fromRectAndRadius(rect, radius),
       Paint()
-        ..color = const Color(0xFF606060)
+        ..color = dim(const Color(0xFF606060))
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.0,
     );
@@ -2745,12 +3441,22 @@ class BdDiagramPainter extends CustomPainter {
   /// Draws a structure's modeled terminals at their frame-relative boxes,
   /// each with its modeled glyph (`termBMPs`): `i`→1, `N`→2, conditional
   /// stop→192, shift registers→3 (left ▼) / 4 (right ▲), case selector→5.
+  ///
+  /// A terminal whose box the reference-verified chrome pass owns
+  /// ([chromeOwnedRects] — shift registers, selectors, tunnels reached by a
+  /// decoded wire attach rect) is skipped: the chrome reproduces the
+  /// reference byte-for-byte inside the rect, and this pass's anti-aliased
+  /// ring would bleed blended pixels just outside it. [disabled] routes the
+  /// glyph/border colours through the measured disabled-frame transform.
   void _drawStructureTerminals(
     Canvas canvas,
     Rect frame,
-    List<({HeapRect box, int bmp})> terminals, [
-    List<(Offset, Color)>? tunnelLandings,
-  ]) {
+    List<({HeapRect box, int bmp})> terminals,
+    List<(Offset, Color)>? tunnelLandings, {
+    Set<Rect> chromeOwnedRects = const {},
+    bool disabled = false,
+  }) {
+    Color dim(Color c) => disabled ? bdDimDisabled(c) : c;
     for (final t in terminals) {
       final box = Rect.fromLTWH(
         frame.left + t.box.left,
@@ -2758,6 +3464,7 @@ class BdDiagramPainter extends CustomPainter {
         t.box.width.toDouble(),
         t.box.height.toDouble(),
       );
+      if (chromeOwnedRects.contains(box)) continue;
       // A wire landing inside this terminal's box takes over its colour —
       // LabVIEW paints the case selector [?] in the selector wire's datatype
       // colour (green for a boolean selector). The landing is consumed so no
@@ -2772,8 +3479,8 @@ class BdDiagramPainter extends CustomPainter {
         }
       }
       final border = switch (t.bmp) {
-        _bmpConditional => const Color(0xFF007F00),
-        _ => wireColor ?? _loopBlue,
+        _bmpConditional => dim(const Color(0xFF007F00)),
+        _ => wireColor ?? dim(_loopBlue),
       };
       canvas.drawRect(box, Paint()..color = Colors.white);
       canvas.drawRect(
@@ -2785,9 +3492,9 @@ class BdDiagramPainter extends CustomPainter {
       );
       switch (t.bmp) {
         case _bmpIteration:
-          _drawGlyphText(canvas, box, 'i', _loopBlue);
+          _drawGlyphText(canvas, box, 'i', dim(_loopBlue));
         case _bmpCount:
-          _drawGlyphText(canvas, box, 'N', _loopBlue);
+          _drawGlyphText(canvas, box, 'N', dim(_loopBlue));
         case _bmpCaseSelector:
           _drawGlyphText(canvas, box, '?', border);
         case _bmpLeftShiftRegister || _bmpRightShiftRegister:
@@ -2805,7 +3512,10 @@ class BdDiagramPainter extends CustomPainter {
                   ..lineTo(c.dx + 4, c.dy + 3)
                   ..lineTo(c.dx, c.dy - 4)
                   ..close());
-          canvas.drawPath(tri, Paint()..color = Colors.black87);
+          canvas.drawPath(
+            tri,
+            Paint()..color = dim(Colors.black).withValues(alpha: 0.87),
+          );
         case _bmpConditional:
           // Red stop octagon.
           final c = box.center;
@@ -2821,7 +3531,7 @@ class BdDiagramPainter extends CustomPainter {
             }
           }
           path.close();
-          canvas.drawPath(path, Paint()..color = const Color(0xFFCC0000));
+          canvas.drawPath(path, Paint()..color = dim(const Color(0xFFCC0000)));
       }
     }
   }
@@ -2891,7 +3601,9 @@ class BdDiagramPainter extends CustomPainter {
       !setEquals(old.disabledOids, disabledOids) ||
       old.iconFilterQuality != iconFilterQuality ||
       old.canvasScale != canvasScale ||
+      old.drawDotGrid != drawDotGrid ||
       !identical(old.structureTerminals, structureTerminals) ||
+      !identical(old.constValues, constValues) ||
       old.origin != origin;
 }
 

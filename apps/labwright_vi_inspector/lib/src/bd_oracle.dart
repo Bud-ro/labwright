@@ -114,12 +114,16 @@ Future<BdRaster?> rasteriseBlockDiagram(
     primIcons: primIcons,
     primIconsGrey: primIconsGreyLoaded(),
     disabledOids: disabledOids,
-    loopTunnelRects: bdLoopTunnelAttachRects(diagram),
+    borderTerminalKinds: bdBorderTerminalKinds(diagram),
     objects: ordered,
     origin: content.topLeft,
     wires: wireList,
     subViIcons: subViIcons,
     structureTerminals: bdStructureTerminals(diagram),
+    constValues: bdConstValueTexts(diagram),
+    // The reference renders have a plain white canvas; the interactive
+    // view's alignment-dot grid would break byte-exact comparisons.
+    drawDotGrid: false,
   ).paint(canvas, content.size);
   final picture = recorder.endRecording();
   try {
