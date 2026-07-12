@@ -1474,18 +1474,23 @@ class ViWire {
   ///
   /// Corpus census (7,524 VIs; pinned by `wire_route_census_test`): of the
   /// two-endpoint signals whose BOTH endpoints resolve, **126,839 close
-  /// exactly** and ship closed. The one-anchored walked tier adds **62,367
-  /// forward + 34,293 reverse-straight = 96,660** more (`shippedWalkedFwd` +
-  /// `shippedWalkedRev`); the rest of the single-anchor population
+  /// exactly** and ship closed. The one-anchored walked tier adds **69,402
+  /// forward + 34,293 reverse-straight = 103,695** more (`shippedWalkedFwd` +
+  /// `shippedWalkedRev`); the forward count includes **7,035 into-node closes**
+  /// (`shippedWalkedIntoNode`) whose last decoded bend enters the far node
+  /// INTERIOR and whose truncated polyline the consumer completes along
+  /// [routeClosingStep]. The rest of the single-anchor population
   /// (`oneAnchorUnshipped`) stay withheld: reverse-with-bends, coarse or
-  /// left-shift-register-bent anchors, out-of-box termini, and no-far-box.
-  /// Independent quality check (`wire_one_anchored_oracle`, over the
-  /// well-registered snippets its closed-tier registration control admits):
-  /// shipped walked paths overlay LabVIEW's snippet ink at **99.7%**
-  /// (35,734/35,841 px) with **zero** shipped wires below 50% overlay
-  /// (`oa2_ship_qlo == 0`, a census law) — at the closed control's own **99%**
-  /// snippet overlay. The withheld one-anchored walks overlay only ~52%
-  /// (`oa2_held_*`), the miss that justifies withholding them. The snippet
+  /// left-shift-register-bent anchors, out-of-box termini, degenerate
+  /// zero-segment into-node closes, and no-far-box. Independent quality check
+  /// (`wire_one_anchored_oracle`, over the well-registered snippets its
+  /// closed-tier registration control admits): shipped walked paths overlay
+  /// LabVIEW's snippet ink at **99.7%** (38,302/38,409 px) with **zero** shipped
+  /// wires below 50% overlay (`oa2_ship_qlo == 0`, a census law; the into-node
+  /// ships are ALSO isolated as `oa2_into` with their own zero-gross-miss law,
+  /// overlaying 100% — 2,568/2,568 px — on their own) — at the closed control's
+  /// own **99%** snippet overlay. The withheld one-anchored walks overlay only
+  /// ~52% (`oa2_held_*`), the miss that justifies withholding them. The snippet
   /// overlay is a quality measure over the registrable subset; the corpus-wide
   /// ship counts are the structural-gate coverage.
   final List<ViPoint>? routePoints;
@@ -1500,14 +1505,18 @@ class ViWire {
   /// The unit direction of an **implied closing run into the far plain node**,
   /// when [routePoints]' last point is the final DECODED bend and the run that
   /// enters the node has an undecoded length (the node's input-pin depth) — a
-  /// forward one-anchored walk whose last bend already lies inside the far box
+  /// forward one-anchored walk whose last bend lies in the far box interior
   /// (see [walkOneAnchoredRoute]). Null for every other route: closed routes,
   /// reverse walks, and forward walks whose closing run reached the far box
-  /// edge (already [routePoints]' last point). A renderer extends the polyline
-  /// from its last point along this step to the node's drawn ink edge at the
-  /// arrival row (the last point's cross-axis coordinate), where the wire
-  /// visibly meets the icon — the parse ships no fabricated terminus at a
-  /// guessed depth.
+  /// edge (already [routePoints]' last point — including a zero-length close).
+  ///
+  /// When non-null, [routePoints] is deliberately TRUNCATED short of the true
+  /// endpoint (its last point is a bend inside the node, not the connection),
+  /// and a consumer MUST complete the wire by extending from that point along
+  /// this step to the node's drawn ink edge at the arrival row (the last
+  /// point's cross-axis coordinate), where the wire visibly meets the icon —
+  /// the parse ships no fabricated terminus at a guessed depth. A consumer that
+  /// ignores this step draws the wire short of its node.
   final ViStep? routeClosingStep;
 
   /// The wire's decoded type word ([HeapAttribute.lastSignalKind]) — element
@@ -2021,13 +2030,18 @@ WireRouteDirection _reverse(WireRouteDirection d) => switch (d) {
 /// count); an odd count leaves the far endpoint's along-run position unpinned
 /// and returns null.
 ///
-/// A forward walk whose LAST decoded bend already lies at or past the near edge
-/// — inside [farBox] — is an **into-node** close: the implied run enters the
+/// A forward walk whose LAST decoded bend lies PAST the near edge — in the
+/// INTERIOR of [farBox] — is an **into-node** close: the implied run enters the
 /// plain node instead of reaching its edge, and its length (the node's
-/// input-pin depth) is not decoded. Such a walk ships the polyline to the last
-/// bend and reports `closingStep` = the run's unit direction, so a renderer can
-/// extend it to the node's drawn ink edge at the arrival row without the parse
-/// fabricating a terminus at a guessed depth.
+/// input-pin depth) is not decoded. Such a walk ships the polyline TRUNCATED at
+/// the last bend — deliberately short of the true endpoint — and reports
+/// `closingStep` = the run's unit direction; the consumer MUST complete the
+/// wire along that step to the node's drawn ink, since the parse fabricates no
+/// terminus at a guessed depth. The into-node case is accepted only when the
+/// polyline carries a real segment (>= 2 points) and the run points INTO the
+/// interior — the last bend and the pixel one step deeper both lie within
+/// `[left, right-1] x [top, bottom-1]` (right/bottom EXCLUSIVE); a bend at or
+/// beyond an edge, or a step that would exit the box, is rejected.
 ///
 /// Returns `(points, closingStep)`: the absolute polyline (anchor end to the
 /// far connection, in storage order) — [ViWireRoute.pointCount] points, one
@@ -2035,7 +2049,8 @@ WireRouteDirection _reverse(WireRouteDirection d) => switch (d) {
 /// `closingStep` non-null only for the into-node case. Null when the reverse
 /// geometry is underdetermined (above), the derived closing run would double
 /// back against the stored final sign (an inconsistent [farBox] placement), or
-/// an into-node bend falls beyond the box entirely. Total on any decoded route.
+/// an into-node close is not a genuine interior entry (above). Total on any
+/// decoded route.
 ///
 /// This is pure geometry: [ViWire.routePoints] applies the shipping gate (exact
 /// anchor, forward or reverse-straight, cross-axis containment, no
@@ -2088,14 +2103,26 @@ WireRouteDirection _reverse(WireRouteDirection d) => switch (d) {
       if (tail.y < farBox.top || tail.y > farBox.bottom) return null;
       final tx = closingSign > 0 ? farBox.left : farBox.right - 1;
       if ((tx - tail.x) * closingSign < 0) {
-        // The last decoded bend already sits at or past the near edge, INSIDE
-        // the far node: the implied closing run ENTERS the node rather than
-        // reaching its edge. Its length is the plain-node input-pin depth
-        // (undecoded), so ship the polyline to the last bend and expose the
-        // run's direction — a renderer extends it to the node's drawn ink edge
-        // at the arrival row. Reject only when the bend lies beyond the box
-        // entirely (no node to enter).
-        if (tail.x < farBox.left || tail.x > farBox.right) return null;
+        // The last decoded bend sits PAST the near edge, inside the far node:
+        // the implied closing run ENTERS the node INTERIOR rather than reaching
+        // its edge. Its length is the plain-node input-pin depth (undecoded),
+        // so ship the polyline to the last bend and expose the run's direction
+        // — the consumer completes it along closingStep to the node's drawn ink
+        // (see [ViWire.routeClosingStep]). Accept ONLY a genuine interior
+        // entry: the polyline must carry a real segment (>= 2 points), and the
+        // arrival ROW, the last bend, AND the pixel one step deeper must all lie
+        // in the box INTERIOR ([left, right-1] x [top, bottom-1]; right/bottom
+        // are EXCLUSIVE) — so the run heads INTO the node, never out of it.
+        final ahead = tail.x + closingSign;
+        if (pts.length < 2 ||
+            tail.y < farBox.top ||
+            tail.y >= farBox.bottom ||
+            tail.x < farBox.left ||
+            tail.x >= farBox.right ||
+            ahead < farBox.left ||
+            ahead >= farBox.right) {
+          return null;
+        }
         return (points: pts, closingStep: (dx: closingSign, dy: 0));
       }
       terminus = (x: tx, y: tail.y);
@@ -2103,8 +2130,19 @@ WireRouteDirection _reverse(WireRouteDirection d) => switch (d) {
       if (tail.x < farBox.left || tail.x > farBox.right) return null;
       final ty = closingSign > 0 ? farBox.top : farBox.bottom - 1;
       if ((ty - tail.y) * closingSign < 0) {
-        // Into-node closing run (see the horizontal branch).
-        if (tail.y < farBox.top || tail.y > farBox.bottom) return null;
+        // Into-node closing run along y — the same interior-entry gate as the
+        // horizontal branch (see there): a real segment, and the arrival
+        // COLUMN, the last bend, and the pixel one step deeper all interior.
+        final ahead = tail.y + closingSign;
+        if (pts.length < 2 ||
+            tail.x < farBox.left ||
+            tail.x >= farBox.right ||
+            tail.y < farBox.top ||
+            tail.y >= farBox.bottom ||
+            ahead < farBox.top ||
+            ahead >= farBox.bottom) {
+          return null;
+        }
         return (points: pts, closingStep: (dx: 0, dy: closingSign));
       }
       terminus = (x: tail.x, y: ty);
