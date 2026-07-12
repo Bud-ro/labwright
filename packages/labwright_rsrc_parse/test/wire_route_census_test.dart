@@ -34,9 +34,10 @@ import 'snapshot_check.dart';
 ///     by (node kind / primResID, endpoint ordinal, box size, approach).
 ///     Only the unanimity SUMMARY is pinned: the groups are dominated by a
 ///     single landing value but are NOT unanimous (rare stale-route
-///     outliers), so no placement table is shipped — the absolute routes
-///     stand alone. TODO: revisit a placement table once the outliers are
-///     separable (e.g. by a staleness signal).
+///     outliers), so no placement table is shipped — the walked polyline
+///     ([ViWire.routePoints], its far end derived from the owner box) stands
+///     alone. TODO: revisit a placement table once the outliers are separable
+///     (e.g. by a staleness signal).
 Map<String, int> _census(Uint8List bytes, String path) {
   final c = <String, int>{};
   void bump(String k, [int n = 1]) => c[k] = (c[k] ?? 0) + n;
@@ -98,8 +99,18 @@ Map<String, int> _census(Uint8List bytes, String path) {
       final points = w.routePoints;
       if (points != null) {
         bump('shipped');
-        // A zero-length closing run ships pointCount-1 points (the walk
-        // ends ON the far attach point; no duplicate terminal vertex). Its
+        // Tier split: both endpoints resolve = the proven closed polyline;
+        // exactly one resolves = the one-anchored walked polyline (forward
+        // from endpoint 0, or reverse from an endpoint-1 anchor on a straight
+        // route). See [ViWire.routePoints].
+        final walked = s == null || t == null;
+        if (!walked) {
+          bump('shippedClosed');
+        } else {
+          bump(s != null ? 'shippedWalkedFwd' : 'shippedWalkedRev');
+        }
+        // A zero-length closing/derived run ships pointCount-1 points (the
+        // walk ends ON the far point; no duplicate terminal vertex). Its
         // stored closing sign is uncheckable — census its split anyway.
         if (points.length == route.pointCount - 1) {
           bump('shippedZeroClose');
@@ -112,17 +123,24 @@ Map<String, int> _census(Uint8List bytes, String path) {
                 : 'Neg'}',
           );
         }
-        // Law: a shipped polyline is anchored at both attach points and
-        // carries the stored point count (one fewer for a zero closure).
-        if (points.first != s ||
-            points.last != t ||
-            (points.length != route.pointCount && points.length != route.pointCount - 1)) {
-          bump('shippedBad');
+        // Law: a shipped polyline carries the stored point count (one fewer
+        // for a zero run) and touches its anchor(s) — both attach points when
+        // closed, else the sole resolved end (leading for a forward walk,
+        // trailing for a reverse walk).
+        final lenOk = points.length == route.pointCount || points.length == route.pointCount - 1;
+        final bool anchorOk;
+        if (!walked) {
+          anchorOk = points.first == s && points.last == t;
+        } else if (s != null) {
+          anchorOk = points.first == s;
+        } else {
+          anchorOk = points.last == t;
         }
+        if (!lenOk || !anchorOk) bump('shippedBad');
       } else if (s == null && t == null) {
         bump('noAnchor');
       } else if (s == null || t == null) {
-        bump('oneAnchor');
+        bump('oneAnchorUnshipped');
       } else if (route.pointCount == 1) {
         bump('closeMissOnePoint'); // 1-point table, endpoints do not coincide
       } else {
@@ -290,7 +308,13 @@ void _extCensus(ViDiagram d, ViWire w, void Function(String, [int]) bump) {
   bump('extEpAnchored', anchored);
   bump('extEpHit', hits);
   if (anchored == eps - 1) bump(hits == anchored ? 'extFullClosed' : 'extFullMiss');
-  if (w.routeTree != null) bump('extShipped'); // law: == extFullClosed
+  // Tier split: a fully-anchored shipped tree is the proven closed tier (law:
+  // == extFullClosed); a shipped tree with a plain-node leaf is the walked
+  // tier (origin-anchored, contradiction-free — see [ViWire.routeTree]).
+  if (w.routeTree != null) {
+    bump('extShipped');
+    bump(fullyAnchored ? 'extShippedClosed' : 'extShippedWalked');
+  }
 }
 
 /// The walked leaf nearest [p] (Manhattan) — for the exact-subset miss
@@ -468,15 +492,29 @@ void main() {
 
   test('wire route laws: no extended two-endpoint tables, shipped polylines anchored', () {
     expect(C['ext2ep'] ?? 0, 0, reason: 'the extended [n][00] form is multi-endpoint only');
-    expect(C['shippedBad'] ?? 0, 0, reason: 'every shipped polyline spans attach point to attach point');
+    expect(
+      C['shippedBad'] ?? 0,
+      0,
+      reason: 'every shipped polyline carries the stored point count and touches its anchor',
+    );
     expect(C['bounded15Endpoints'] ?? 0, 0, reason: '0x15 node endpoints are bounds-less corpus-wide');
     expect(C['tables3Byte'] ?? 0, 0, reason: 'the grammar has no 3-byte table (u24 width unused)');
     expect(C['extUndecoded'] ?? 0, 0, reason: 'every extended branching table decodes and walks');
     expect(C['extJuncOffVertex'] ?? 0, 0, reason: 'every junction dot lies on a walked tree vertex');
     expect(
-      C['extShipped'] ?? 0,
+      C['extShippedClosed'] ?? 0,
       C['extFullClosed'] ?? 0,
-      reason: 'routeTree ships exactly the fully-anchored leaf-closing trees',
+      reason: 'the fully-anchored shipped trees are exactly the leaf-closing ones (closed tier)',
+    );
+    expect(
+      C['extShipped'] ?? 0,
+      (C['extShippedClosed'] ?? 0) + (C['extShippedWalked'] ?? 0),
+      reason: 'shipped branching trees partition into closed + walked tiers',
+    );
+    expect(
+      C['shipped'] ?? 0,
+      (C['shippedClosed'] ?? 0) + (C['shippedWalkedFwd'] ?? 0) + (C['shippedWalkedRev'] ?? 0),
+      reason: 'shipped polylines partition into closed + walked (forward/reverse) tiers',
     );
     // Junction-segment totals reconcile two ways (per-code sum == 41,304).
     final juncSum =
@@ -526,10 +564,13 @@ void main() {
     expect((landX.x, landX.y, landX.horizontal, landX.sign), (102, 21, true, 1));
     final landY = _openLanding(y.route!, (x: 74, y: 43))!;
     expect((landY.x, landY.y), (102, 31));
-    // Their far endpoints are plain-node DCOs: no attach point, so the
-    // closed polyline honestly does not ship.
-    expect(x.routePoints, isNull);
+    // The x wire's far endpoint is a plain-node DCO (the add input): it
+    // resolves no attach point, so the closed polyline cannot ship. The
+    // one-anchored walked tier does — the source terminal is an exact anchor,
+    // so the polyline walks the stored bends and lands the plain-node terminus
+    // on the add primitive's left edge (x=106) at the drawn input row (y=21).
     expect(d.wireAttachPoint(x.endpointOids[1]), isNull);
+    expect(x.routePoints, [(x: 74, y: 9), (x: 102, y: 9), (x: 102, y: 21), (x: 106, y: 21)]);
     // The third wire (add output -> indicator terminal) stored the trivial
     // straight table.
     final straight = d.wires.singleWhere((w) => w.signalOid != x.signalOid && w.signalOid != y.signalOid);

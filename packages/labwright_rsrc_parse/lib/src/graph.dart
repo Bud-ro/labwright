@@ -1312,15 +1312,24 @@ class ViWire {
 
   /// The wire's **absolute stored route tree** in diagram coordinates — the
   /// branching Manhattan geometry LabVIEW saved, polyline runs plus
-  /// junction-dot points — or null when it is not shippable. Non-null only
-  /// when [branchRoute] decodes, EVERY endpoint resolves an attach point
-  /// (see [ViDiagram.wireAttachPoint]), and the walked tree's **leaves
-  /// close**: [ViWireRouteTree.leaves] land on the attach points of
-  /// endpoints `1..n-1` in a one-to-one matching with zero slack, having
-  /// started at endpoint 0's attach point. Nothing is force-closed: a walk
-  /// that misses any leaf ships null and the census counts it. Computed
-  /// lazily on first access (a renderer's cost, not every [ViDiagram.wires]
-  /// build).
+  /// junction-dot points — or null when it is not shippable. Two tiers, both
+  /// walked from endpoint 0's attach point (the origin must resolve; see
+  /// [ViDiagram.wireAttachPoint]):
+  ///
+  ///  * **closed** — every endpoint resolves an attach point and the walked
+  ///    [ViWireRouteTree.leaves] land on endpoints `1..n-1` in a one-to-one
+  ///    zero-slack matching. The proven tier.
+  ///  * **walked** — some endpoints are plain-node DCOs that resolve no attach
+  ///    geometry (a primitive input/output, a subVI terminal), so their
+  ///    absolute position is taken from the walked leaf. Every endpoint that
+  ///    DOES resolve must still land on a distinct leaf: a resolved endpoint
+  ///    the walk misses is a **contradiction** (the walk drifted) and ships
+  ///    null. This is the origin-anchored, contradiction-free relaxation of
+  ///    the closed gate.
+  ///
+  /// Nothing is force-closed: a contradiction or a leaf-count mismatch ships
+  /// null and the census counts it. Computed lazily on first access (a
+  /// renderer's cost, not every [ViDiagram.wires] build).
   ///
   /// **What each gate proves.** The shipping gate proves the LEAF endpoints
   /// only — the interior bends and the junction-dot positions are decoded
@@ -1331,59 +1340,74 @@ class ViWire {
   ///
   /// Corpus census (7,524 VIs; 35,968 extended tables on 3+-endpoint
   /// signals, pinned by `wire_route_census_test`): every table decodes and
-  /// walks. 2,494 signals have all endpoints anchored; 2 carry a leaf-count
-  /// mismatch (excluded), leaving 2,492 = **1,882 (75.5%) leaf-close on
-  /// every endpoint** and ship here + 610 misses. Closure is gated by
-  /// attach-point exactness, not the walk rule: over the 18,233 anchored
-  /// non-origin endpoints, 14,343 (78.67%) land exactly; restricted to the
-  /// **13,932 endpoints whose own AND origin attach geometry are exact**
-  /// (structure-framed border rect via the real composing frame, or a
-  /// `0x16` own-bounds box — NOT the approximate node-framed rects or the
-  /// constant value-shell centres, whose attach point is the drawn edge, not
-  /// the box centre), **12,426 (89.19%) land exactly**. Of the 1,506
-  /// exact-subset misses (`extEpExact` − `extEpExactHit`), **1,356 (90%)
-  /// land inside the endpoint's own attach rect** (`extEpExactMissInRect`) —
-  /// the walk reaches the right terminal, off the floored-centre attach
-  /// convention, the same off-centre miss class as [routePoints] — leaving
-  /// 150 (`extEpExactMissFar`, ~1% of the exact set) genuinely far.
-  /// Independent geometry check: the pixel-overlay oracle
-  /// (`wire_branch_oracle`) overlays the shipped trees onto LabVIEW's own
-  /// snippet renders at **99.96%** ink coverage with every junction dot on
-  /// ink.
+  /// walks. Closure is gated by attach-point exactness, not the walk rule:
+  /// over the 18,233 anchored non-origin endpoints, 14,343 (78.67%) land
+  /// exactly; restricted to the **13,932 endpoints whose own AND origin
+  /// attach geometry are exact** (structure-framed border rect via the real
+  /// composing frame, or a `0x16` own-bounds box — NOT the approximate
+  /// node-framed rects or the constant value-shell centres, whose attach
+  /// point is the drawn edge, not the box centre), **12,426 (89.19%) land
+  /// exactly**. Of the 1,506 exact-subset misses (`extEpExact` −
+  /// `extEpExactHit`), **1,356 (90%) land inside the endpoint's own attach
+  /// rect** (`extEpExactMissInRect`) — the walk reaches the right terminal,
+  /// off the floored-centre attach convention, the same off-centre miss class
+  /// as [routePoints] — leaving 150 (`extEpExactMissFar`, ~1% of the exact
+  /// set) genuinely far.
+  ///
+  /// Corpus-wide the closed tier ships **1,882** trees (`extShippedClosed`);
+  /// the walked tier adds **15,555** more (`extShippedWalked`), 9× the shipped
+  /// population, on the origin-anchored signals with plain-node leaves
+  /// (15,162 more can never walk — the origin itself is unanchored).
+  ///
+  /// Independent geometry check (`wire_branch_oracle` /
+  /// `wire_one_anchored_oracle`): shipped **closed** trees overlay LabVIEW's
+  /// own snippet renders at **99.96%** ink coverage with every junction dot
+  /// on ink; shipped **walked** trees overlay at **88.6%** (24,039/27,145 px),
+  /// 96% of leaves on ink, 80% of wires ≥ 95% — the interior junction catalog
+  /// drifts on ~1-in-10 arms, so this tier is corroborated but weaker than
+  /// closed.
   late final ViWireRouteTree? routeTree = _routeTree ?? _routeTreeBuilder?.call();
 
   /// The wire's **absolute stored polyline** in diagram coordinates — the
-  /// exact Manhattan route LabVIEW saved — or null when it is not provable.
-  /// Non-null only when the signal has exactly two endpoints, both resolve
-  /// an attach point (see [ViDiagram.wireAttachPoint]), the stored table
-  /// decodes, and the walked route **closes exactly**: starting at the
-  /// first endpoint's attach point and walking [ViWireRoute.direction] +
-  /// the stored signs/lengths, the implied final segment must land on the
-  /// second endpoint's attach point dead-on (perpendicular coordinate equal,
-  /// closing direction agreeing with the stored final sign). Nothing is
-  /// force-closed: a walk that misses returns null and the census counts it.
+  /// Manhattan route LabVIEW saved — or null when it is not shippable. The
+  /// signal must have exactly two endpoints and a decoding table; then two
+  /// tiers:
   ///
-  /// The polyline carries [ViWireRoute.pointCount] points — one fewer when
-  /// the closing run is zero-length (5 corpus routes): the walk already
-  /// ends ON the far attach point, and a degenerate duplicate vertex is
-  /// never emitted. A zero-length closure has no drawn run to check the
-  /// stored final sign against, so that one check is skipped there
-  /// (censused: `shippedZeroClose` / `zeroCloseSign*`).
+  ///  * **closed** — both endpoints resolve an attach point
+  ///    ([ViDiagram.wireAttachPoint]) and the walk **closes exactly**:
+  ///    starting at the first endpoint's attach point and walking
+  ///    [ViWireRoute.direction] + the stored signs/lengths, the implied final
+  ///    segment lands on the second endpoint's attach point dead-on
+  ///    (perpendicular coordinate equal, closing direction agreeing with the
+  ///    stored final sign). Proven at both ends.
+  ///  * **walked** — exactly one endpoint resolves an attach point and it is
+  ///    an EXACT attach (a structure-framed terminal or an own-bounds leaf —
+  ///    not a coarse owner box or off-centre constant shell); the far
+  ///    endpoint is a plain-node DCO whose connection point is derived from
+  ///    its owner box ([walkOneAnchoredRoute]). Only forward walks (first
+  ///    endpoint anchored) and reverse walks of a straight route ship: the
+  ///    stored table implies the closing run's length, so a forward walk
+  ///    isolates that lone derived coordinate at the far end, whereas a
+  ///    reverse walk with bends must solve it from the box and drifts
+  ///    (withheld, censused).
   ///
-  /// Corpus census (7,524 VIs; pinned by `wire_route_census_test`): of the
-  /// 131,598 two-endpoint signals whose BOTH endpoints resolve an attach
-  /// point, **126,092 (95.82%) close exactly** and ship here. The rest:
-  /// 5,407 walked misses — 2,836 press against an elongated attach rect
-  /// (the grown border-terminal stacks, narrow-side ≤ 9 px and ≥ 2× as
-  /// long, whose per-element attach points are not yet decoded); 1,731
-  /// (overlapping that bucket) start on a constant shell, dominated by the
-  /// composite array/cluster shells whose off-centre attach point is not
-  /// yet decoded ([ViDiagram.endpointConstantBounds]); the remainder are
-  /// unattributed (TODO all) — plus 4 one-point tables whose endpoints do
-  /// not coincide, 29 off-by-1 landings, and 66 closures contradicting the
-  /// stored final sign. The closure is a zero-slack integrity check against
-  /// independently decoded geometry (the attach rects), so a shipped
-  /// polyline is proven at both ends, not fitted.
+  /// Nothing is force-closed: a walk that misses or an unshippable tier
+  /// returns null and the census counts it. The polyline carries
+  /// [ViWireRoute.pointCount] points — one fewer when the closing/derived run
+  /// is zero-length (the walk ends ON the far point; no duplicate vertex).
+  ///
+  /// Corpus census (7,523 VIs; pinned by `wire_route_census_test`): of the
+  /// two-endpoint signals whose BOTH endpoints resolve, **126,092 close
+  /// exactly** and ship closed. The one-anchored walked tier adds **63,734
+  /// forward + 34,303 reverse-straight = 98,037** more (an exact-anchor subset
+  /// of the 178,840 single-anchor signals); 80,803 stay withheld
+  /// (`oneAnchorUnshipped`: reverse-with-bends, coarse anchors, no far box).
+  /// Independent geometry check (`wire_one_anchored_oracle`, 34 registrable
+  /// snippets): shipped walked polylines overlay LabVIEW's snippet ink at
+  /// **95.2%** (36,769/38,627 px) with **97.7%** of termini on ink and **94%**
+  /// of wires ≥ 95% — matching the closed tier's own ~97% snippet overlay. The
+  /// withheld one-anchored walks overlay only ~52%, the miss that justifies
+  /// withholding them.
   final List<ViPoint>? routePoints;
 
   /// The wire's decoded type word ([HeapAttribute.lastSignalKind]) — element
@@ -1873,6 +1897,115 @@ WireRouteDirection _reverse(WireRouteDirection d) => switch (d) {
   WireRouteDirection.right => WireRouteDirection.left,
 };
 
+/// Walks a decoded two-endpoint [ViWireRoute] from a **single anchored
+/// endpoint**, deriving the plain-node endpoint at the far end (a primitive
+/// input/output or subVI terminal, which carries no independently decoded
+/// attach geometry) from its owner node box [farBox]. This is the walked tier
+/// behind [ViWire.routePoints] — the polyline LabVIEW saved, placed by one
+/// attach point instead of closed between two.
+///
+/// [anchoredIndex] selects the anchored end: `0` walks **forward** from the
+/// route's first endpoint ([anchor]) through the stored bends, then extends the
+/// implied closing run to the near edge of [farBox] (the second endpoint's
+/// connection point). `1` walks **reverse** from the second endpoint: the
+/// stored bends are exact off [anchor], and the first endpoint rides the far
+/// edge of [farBox]. The stored table implies only the closing run's length,
+/// so a forward walk isolates that one derived coordinate at the far end, while
+/// a reverse walk must solve it from the box — recoverable only when the
+/// departing segment shares the closing run's axis (an even stored point
+/// count); an odd count leaves the far endpoint's along-run position unpinned
+/// and returns null.
+///
+/// Returns the absolute polyline (anchor end to plain-node terminus, in
+/// storage order) — [ViWireRoute.pointCount] points, one fewer when the closing
+/// run is zero-length — or null when the reverse geometry is underdetermined
+/// (above) or the derived closing run would double back against the stored
+/// final sign (an inconsistent [farBox] placement). Total on any decoded route.
+///
+/// **Reliability (reference-pixel oracle, `wire_one_anchored_oracle`).** With
+/// an exact anchor (a structure-framed terminal or an own-bounds leaf, the
+/// same subset [ViWire.routePoints] ships), forward walks overlay LabVIEW's ink
+/// at ~99% (bent) / ~91% (straight) and reverse-straight walks at ~99.5%;
+/// reverse walks WITH bends drift to ~61% (the far-edge solve amplifies box
+/// error across the whole chain) and coarse anchors to ~30-90%. [ViWire]
+/// therefore ships forward and reverse-straight exact-anchor walks and
+/// withholds the rest — this function computes them all so the oracle can
+/// measure them.
+List<ViPoint>? walkOneAnchoredRoute(
+  ViWireRoute route, {
+  required ViPoint anchor,
+  required int anchoredIndex,
+  required HeapRect farBox,
+}) {
+  if (route.pointCount < 2) return null;
+  final direction = route.direction;
+  if (direction == null) return null;
+  // Walk the stored bends in a local frame (origin at the first endpoint,
+  // closing run length 0): local[0..pointCount-2], the last being the final
+  // stored bend before the implied closing run.
+  var x = 0, y = 0;
+  var horizontal = direction.isHorizontal;
+  var sign = direction.dx + direction.dy;
+  final local = <ViPoint>[(x: 0, y: 0)];
+  final lengths = route.segmentLengths;
+  for (var k = 0; k < lengths.length; k++) {
+    if (k > 0) sign = route.jointSigns[k - 1];
+    if (horizontal) {
+      x += lengths[k] * sign;
+    } else {
+      y += lengths[k] * sign;
+    }
+    local.add((x: x, y: y));
+    horizontal = !horizontal;
+  }
+  final closingHorizontal = horizontal;
+  final closingSign = route.jointSigns.isEmpty ? (direction.dx + direction.dy) : route.jointSigns.last;
+  final lastBend = local.last;
+
+  if (anchoredIndex == 0) {
+    // Forward: translate the local frame onto the anchor, then extend the
+    // closing run to the near edge of the far box.
+    final pts = [for (final p in local) (x: p.x + anchor.x, y: p.y + anchor.y)];
+    final tail = pts.last;
+    final ViPoint terminus;
+    if (closingHorizontal) {
+      final tx = closingSign > 0 ? farBox.left : farBox.right - 1;
+      if ((tx - tail.x) * closingSign < 0) return null;
+      terminus = (x: tx, y: tail.y);
+    } else {
+      final ty = closingSign > 0 ? farBox.top : farBox.bottom - 1;
+      if ((ty - tail.y) * closingSign < 0) return null;
+      terminus = (x: tail.x, y: ty);
+    }
+    if (terminus != tail) pts.add(terminus);
+    return pts;
+  }
+
+  // Reverse: the anchored second endpoint pins the perpendicular-to-closing
+  // axis; the far edge of the box pins the departing segment's axis. Solvable
+  // only when those axes differ — i.e. the departing segment shares the
+  // closing run's axis.
+  final seg0Sign = direction.dx + direction.dy;
+  if (direction.isHorizontal != closingHorizontal) return null;
+  final int tx, ty;
+  if (closingHorizontal) {
+    ty = anchor.y - lastBend.y;
+    tx = seg0Sign > 0 ? farBox.right - 1 : farBox.left;
+  } else {
+    tx = anchor.x - lastBend.x;
+    ty = seg0Sign > 0 ? farBox.bottom - 1 : farBox.top;
+  }
+  final pts = [for (final p in local) (x: p.x + tx, y: p.y + ty)];
+  final tail = pts.last;
+  if (closingHorizontal) {
+    if (tail.y != anchor.y || (anchor.x - tail.x) * closingSign < 0) return null;
+  } else {
+    if (tail.x != anchor.x || (anchor.y - tail.y) * closingSign < 0) return null;
+  }
+  if (anchor != tail) pts.add(anchor);
+  return pts;
+}
+
 /// Whether a `vers` string predates the **frame-relative termBounds
 /// coordinate space** — true iff it parses as a `major.minor` below 8.6.
 /// LabVIEW < 8.6 heaps store termBounds (and `C4 2D` bounds) in an absolute
@@ -1951,49 +2084,113 @@ class ViDiagram {
     final attachPoints = [
       for (var i = 0; i < object.refs.length; i++) _attachPointFrom(attachRects[i], object.refs[i]),
     ];
+    // A constant endpoint anchors on its own value shell (the box LabVIEW
+    // draws); every other endpoint on its nearest bounded owner.
+    final anchors = [
+      for (var i = 0; i < object.refs.length; i++) constantBounds[i] ?? _boundedOwnerBounds(object.refs[i]),
+    ];
     return ViWire(
       signalOid: object.oid,
       endpointOids: List<int>.of(object.refs),
-      // A constant endpoint anchors on its own value shell (the box LabVIEW
-      // draws); every other endpoint on its nearest bounded owner.
-      endpointAnchors: [
-        for (var i = 0; i < object.refs.length; i++) constantBounds[i] ?? _boundedOwnerBounds(object.refs[i]),
-      ],
+      endpointAnchors: anchors,
       endpointAttachRects: attachRects,
       route: route,
       routePoints: route == null || object.refs.length != 2
           ? null
-          : _closedRoutePoints(route, attachPoints[0], attachPoints[1]),
+          : _routePointsFor(route, object.refs, attachPoints, anchors),
       branchRoute: branchRoute,
       // Lazy: the walk + closure runs only when a consumer reads routeTree.
-      routeTreeBuilder: branchRoute == null ? null : () => _closedRouteTree(branchRoute, attachPoints),
+      routeTreeBuilder: branchRoute == null ? null : () => _shippableRouteTree(branchRoute, attachPoints),
       signalType: object.lastSignalKind == null ? null : ViSignalType(object.lastSignalKind!),
     );
   }
 
-  /// Walks [route] from the first endpoint's attach point and gates the
-  /// result on exact closure of EVERY leaf: each walked leaf must land on a
-  /// distinct remaining endpoint attach point dead-on (a one-to-one
-  /// matching; walk-leaf order is not endpoint storage order). Null when
-  /// any endpoint lacks an attach point, the leaf count disagrees with the
-  /// endpoint count, or any leaf misses (see [ViWire.routeTree]; never
-  /// force-closed).
-  static ViWireRouteTree? _closedRouteTree(ViWireBranchRoute route, List<ViPoint?> attachPoints) {
-    if (attachPoints.length < 3 || attachPoints.any((p) => p == null)) return null;
-    final tree = walkWireBranchRoute(route, attachPoints[0]!);
+  /// The shippable polyline for a two-endpoint [route] (see [ViWire.routePoints]).
+  ///
+  /// Highest tier first: when BOTH endpoints resolve an attach point and the
+  /// walk closes exactly ([_closedRoutePoints]), that proven polyline ships.
+  /// Otherwise the **walked tier** — exactly one endpoint resolves an EXACT
+  /// attach ([_exactAttach]: a structure-framed terminal or an own-bounds leaf,
+  /// never a coarse owner box or off-centre constant shell), and the far
+  /// plain-node endpoint is derived from its owner box via
+  /// [walkOneAnchoredRoute]. Only forward walks (first endpoint anchored) and
+  /// reverse walks of a straight (bend-less) route ship: reverse-with-bends and
+  /// coarse anchors drift off LabVIEW's ink (census on
+  /// `wire_one_anchored_oracle`) and are withheld.
+  List<ViPoint>? _routePointsFor(
+    ViWireRoute route,
+    List<int> refs,
+    List<ViPoint?> attachPoints,
+    List<HeapRect?> anchors,
+  ) {
+    final closed = _closedRoutePoints(route, attachPoints[0], attachPoints[1]);
+    if (closed != null) return closed;
+    final int anchoredIndex;
+    if (attachPoints[0] != null && attachPoints[1] == null) {
+      anchoredIndex = 0;
+    } else if (attachPoints[1] != null && attachPoints[0] == null) {
+      if (route.segmentLengths.isNotEmpty) return null; // reverse + bends: drifts, withheld
+      anchoredIndex = 1;
+    } else {
+      return null;
+    }
+    if (!_exactAttach(refs[anchoredIndex])) return null;
+    final farBox = anchors[1 - anchoredIndex];
+    if (farBox == null) return null;
+    return walkOneAnchoredRoute(
+      route,
+      anchor: attachPoints[anchoredIndex]!,
+      anchoredIndex: anchoredIndex,
+      farBox: farBox,
+    );
+  }
+
+  /// Whether [oid]'s attach point is **exact**: it resolves a terminal whose
+  /// real composing frame (the nearest bounded ancestor of the terminal's
+  /// parent, matching how [endpointTerminalBounds] composes) is a structure, or
+  /// it is an own-bounds `0x16` leaf (no terminal and no constant shell). The
+  /// coarse cases — node-framed terminal rects and constant value-shell centres,
+  /// whose attach point is the drawn edge, not the box centre — read false.
+  /// This is the walked-tier gate ([_routePointsFor]) and the exact-attach
+  /// subset the branch census isolates.
+  bool _exactAttach(int oid) {
+    final terminal = endpointTerminal(oid);
+    if (terminal == null) return endpointConstantBounds(oid) == null;
+    final parent = terminal.parentOid == null ? null : byId[terminal.parentOid!];
+    final frame = parent == null ? null : _boundedOwnerObject(parent);
+    return frame != null && frame.category == ViObjectKind.structure;
+  }
+
+  /// Walks a branching [route] from the first endpoint's attach point and ships
+  /// the tree when every RESOLVED endpoint corroborates it — the
+  /// **contradiction-free** gate. The origin (first endpoint) must resolve; the
+  /// walked leaf count must equal the endpoint count; and each OTHER endpoint
+  /// that resolves an attach point must land on a distinct walked leaf. Plain-
+  /// node leaves that resolve nothing ride the walk (their absolute position is
+  /// the tree's leaf). A resolved endpoint the walk MISSES is a contradiction
+  /// (the walk drifted) and ships null. When every endpoint resolves and closes
+  /// this is the proven closed tier; when some are plain nodes it is the walked
+  /// tier (see [ViWire.routeTree]). Never force-closed.
+  static ViWireRouteTree? _shippableRouteTree(ViWireBranchRoute route, List<ViPoint?> attachPoints) {
+    if (attachPoints.length < 3) return null;
+    final origin = attachPoints[0];
+    if (origin == null) return null;
+    final tree = walkWireBranchRoute(route, origin);
     final leaves = tree.leaves;
     if (leaves.length != attachPoints.length - 1) return null;
     final remaining = <ViPoint, int>{};
-    for (var i = 1; i < attachPoints.length; i++) {
-      remaining.update(attachPoints[i]!, (c) => c + 1, ifAbsent: () => 1);
-    }
     for (final leaf in leaves) {
-      final count = remaining[leaf];
-      if (count == null) return null;
+      remaining.update(leaf, (c) => c + 1, ifAbsent: () => 1);
+    }
+    for (var i = 1; i < attachPoints.length; i++) {
+      final p = attachPoints[i];
+      if (p == null) continue; // plain-node leaf: rides the walk
+      final count = remaining[p];
+      if (count == null) return null; // resolved endpoint the walk misses: contradiction
       if (count == 1) {
-        remaining.remove(leaf);
+        remaining.remove(p);
       } else {
-        remaining[leaf] = count - 1;
+        remaining[p] = count - 1;
       }
     }
     return tree;
@@ -2297,6 +2494,22 @@ class ViDiagram {
     final seen = <int>{};
     while (object != null && seen.add(object.oid)) {
       if (object.absBounds != null) return object.absBounds;
+      final parentOid = object.parentOid;
+      object = parentOid == null ? null : byId[parentOid];
+    }
+    return null;
+  }
+
+  /// [start]'s nearest bounded owner OBJECT — [start] itself if bounded, else
+  /// the nearest positional ancestor with [ViHeapObject.absBounds] — or null if
+  /// none. The object-returning analog of [_boundedOwnerBounds] used by
+  /// [_exactAttach] to read the composing frame's [ViHeapObject.category].
+  /// Guards a repeated-oid cycle.
+  ViHeapObject? _boundedOwnerObject(ViHeapObject start) {
+    ViHeapObject? object = start;
+    final seen = <int>{};
+    while (object != null && seen.add(object.oid)) {
+      if (object.absBounds != null) return object;
       final parentOid = object.parentOid;
       object = parentOid == null ? null : byId[parentOid];
     }

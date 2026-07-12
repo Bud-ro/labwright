@@ -315,9 +315,10 @@ void main() {
 
   test('wireAttachPoint: own-bounds fallback is the 0x16 endpoints alone', () {
     // A tunnel-anchored straight wire into a bounded endpoint: with a 0x16
-    // it attaches at the box's floored centre and the route ships; the same
-    // shape with a (hypothetical) bounded 0x15 ships nothing — node
-    // endpoints never anchor at their own box.
+    // it attaches at the box's floored centre and the closed route ships. A
+    // (hypothetical) bounded 0x15 still resolves NO attach point — node
+    // endpoints never anchor at their own box — but the one-anchored walked
+    // tier ships a route to the node box's near edge off the exact tunnel end.
     List<int> records(int endpointKind) => [
       ...open(0x20, 1),
       ...bounds(0, 0, 100, 100),
@@ -342,7 +343,7 @@ void main() {
     expect(leaf.wires.single.routePoints, [(x: 9, y: 14), (x: 116, y: 14)]);
     final node = dia(records(0x15));
     expect(node.wireAttachPoint(5), isNull);
-    expect(node.wires.single.routePoints, isNull);
+    expect(node.wires.single.routePoints, [(x: 9, y: 14), (x: 100, y: 14)]);
   });
 
   test('routePoints: a 3+-endpoint signal ships nothing even when its table decodes', () {
@@ -586,6 +587,186 @@ void main() {
     final miss = dia(records(thirdLeft: 51)).wires.single;
     expect(miss.branchRoute, isNotNull);
     expect(miss.routeTree, isNull);
+  });
+
+  test('walkOneAnchoredRoute: forward, reverse-straight, and underdetermined/inconsistent cases', () {
+    ViWireRoute r(int n, WireRouteDirection dir, List<int> signs, List<int> lens) =>
+        ViWireRoute(pointCount: n, direction: dir, segmentLengths: lens, jointSigns: signs);
+    // Far node box below-right of the walk; a vertical closing run into its
+    // top edge, a horizontal one into a side edge.
+    const box = HeapRect(top: 40, left: 40, bottom: 60, right: 60);
+
+    // Forward, one bend: anchor (10, 20) walks right 30, then the implied
+    // closing run drops onto the box's top edge (y = 40) at the bend column.
+    expect(
+      walkOneAnchoredRoute(
+        r(3, WireRouteDirection.right, [1], [30]),
+        anchor: (x: 10, y: 20),
+        anchoredIndex: 0,
+        farBox: box,
+      ),
+      [(x: 10, y: 20), (x: 40, y: 20), (x: 40, y: 40)],
+    );
+    // Forward, straight (no bends): the whole run is the closing run, ending
+    // on the box's near (left) edge.
+    expect(
+      walkOneAnchoredRoute(
+        r(2, WireRouteDirection.right, const [], const []),
+        anchor: (x: 5, y: 50),
+        anchoredIndex: 0,
+        farBox: box,
+      ),
+      [(x: 5, y: 50), (x: 40, y: 50)],
+    );
+    // Reverse, straight: the anchor is the SECOND endpoint (100, 50); the
+    // first endpoint rides the box's far (right) edge (x = 59), storage order.
+    expect(
+      walkOneAnchoredRoute(
+        r(2, WireRouteDirection.right, const [], const []),
+        anchor: (x: 100, y: 50),
+        anchoredIndex: 1,
+        farBox: box,
+      ),
+      [(x: 59, y: 50), (x: 100, y: 50)],
+    );
+    // Reverse with an odd point count leaves the far endpoint's along-run
+    // position unpinned — null (the departing and closing axes differ).
+    expect(
+      walkOneAnchoredRoute(
+        r(3, WireRouteDirection.right, [1], [30]),
+        anchor: (x: 100, y: 50),
+        anchoredIndex: 1,
+        farBox: box,
+      ),
+      isNull,
+    );
+    // A forward closing run that would double back against the stored sign
+    // (box placed the wrong way) ships null.
+    expect(
+      walkOneAnchoredRoute(
+        r(3, WireRouteDirection.right, [1], [30]),
+        anchor: (x: 10, y: 80),
+        anchoredIndex: 0,
+        farBox: box, // box.top = 40 is ABOVE the bend at y = 80; +sign wants down
+      ),
+      isNull,
+    );
+  });
+
+  test('routePoints walked tier: one exact anchor ships the walk; the far plain node rides its box', () {
+    // An anchored structure tunnel (attach 9,14) and a bounded primitive node
+    // whose plain 0x15 endpoint resolves no attach point. [refs] orders the
+    // signal's two endpoints; [table] is its stored route.
+    List<int> records(String a, String b, List<int> table) => [
+      ...open(0x20, 1),
+      ...bounds(0, 0, 200, 200),
+      ...open(0x22, 2, tag: 0x1a), // tunnel terminal, structure-framed -> exact anchor
+      ...hx('14 19 01 fd 0003'),
+      ...c5(0x29, [0, 10, 0, 5, 0, 19, 0, 14]), // attach (9, 14)
+      ...close(0x1a),
+      ...open(0x15, 3, tag: 0x1a),
+      ...close(0x1a),
+      ...open(0x2f, 6, tag: 0x1a), // a bounded primitive node
+      ...bounds(40, 40, 60, 90), // node box: top 40, left 40
+      ...open(0x15, 7, tag: 0x1b), // plain node endpoint (no terminal, no constant)
+      ...close(0x1b),
+      ...close(0x1a),
+      ...open(0x17, 9),
+      ...hx('14 19 01 fd 000$a'),
+      ...hx('14 19 01 fd 000$b'),
+      ...c5(0xe7, table),
+      ...close(),
+    ];
+    // Forward: anchor is endpoint 0 (the tunnel). Walk right 30 from (9,14),
+    // then the closing run drops onto the node box top edge (y = 40).
+    final fwdDia = dia(records('3', '7', [0x03, 0x08, 0x00, 30]));
+    expect(fwdDia.wireAttachPoint(3), (x: 9, y: 14));
+    expect(fwdDia.wireAttachPoint(7), isNull);
+    expect(fwdDia.wires.single.routePoints, [(x: 9, y: 14), (x: 39, y: 14), (x: 39, y: 40)]);
+    // Reverse straight: anchor is endpoint 1 (the tunnel); the plain node
+    // (endpoint 0) rides the box edge the wire departs. dir=left, so it leaves
+    // the node's LEFT edge (x = 40). Storage order: plain, then anchor.
+    final rev = dia(records('7', '3', [0x02, 0x02])).wires.single; // dir=left, straight
+    expect(rev.routePoints, [(x: 40, y: 14), (x: 9, y: 14)]);
+    // Reverse WITH bends is withheld (drifts): endpoint 1 anchored, a bent
+    // route ships nothing.
+    final revBent = dia(records('7', '3', [0x03, 0x02, 0x00, 30])).wires.single;
+    expect(revBent.routePoints, isNull);
+  });
+
+  test('routePoints walked tier: a coarse anchor or no anchor ships nothing', () {
+    // Both endpoints are bare plain nodes: neither resolves an attach point.
+    List<int> bothBare(List<int> table) => [
+      ...open(0x20, 1),
+      ...bounds(0, 0, 200, 200),
+      ...open(0x15, 3, tag: 0x1a),
+      ...close(0x1a),
+      ...open(0x2f, 6, tag: 0x1a),
+      ...bounds(40, 40, 60, 90),
+      ...open(0x15, 7, tag: 0x1b),
+      ...close(0x1b),
+      ...close(0x1a),
+      ...open(0x17, 9),
+      ...hx('14 19 01 fd 0003'),
+      ...hx('14 19 01 fd 0007'),
+      ...c5(0xe7, table),
+      ...close(),
+    ];
+    expect(dia(bothBare([0x03, 0x08, 0x00, 30])).wires.single.routePoints, isNull);
+  });
+
+  test('routeTree walked tier: origin-anchored, contradiction-free trees ship; a missed resolved leaf does not', () {
+    // Origin tunnel (attach 9,14) forks: right 20 to (29,14), branch down 30,
+    // resume right 25. Leaves at (29,44) and (54,14). [secondLeaf] is either a
+    // bare plain node (rides the walk) or an anchored tunnel that may or may
+    // not close.
+    List<int> records({required bool bareSecond, int thirdLeft = 50}) => [
+      ...open(0x20, 1),
+      ...bounds(0, 0, 200, 200),
+      ...open(0x22, 2, tag: 0x1a),
+      ...hx('14 19 01 fd 0003'),
+      ...c5(0x29, [0, 10, 0, 5, 0, 19, 0, 14]), // origin attach (9,14)
+      ...close(0x1a),
+      ...open(0x15, 3, tag: 0x1a),
+      ...close(0x1a),
+      // Second leaf: a bare plain node (oid 5) OR an anchored tunnel.
+      if (bareSecond) ...[
+        ...open(0x15, 5, tag: 0x1a),
+        ...close(0x1a),
+      ] else ...[
+        ...open(0x22, 4, tag: 0x1a),
+        ...hx('14 19 01 fd 0005'),
+        ...c5(0x29, [0, 40, 0, 25, 0, 49, 0, 34]), // attach (29,44)
+        ...close(0x1a),
+        ...open(0x15, 5, tag: 0x1a),
+        ...close(0x1a),
+      ],
+      ...open(0x22, 6, tag: 0x1a),
+      ...hx('14 19 01 fd 0007'),
+      ...c5(0x29, [0, 10, 0, thirdLeft, 0, 19, 0, thirdLeft + 9]), // attach (thirdLeft+4, 14)
+      ...close(0x1a),
+      ...open(0x15, 7, tag: 0x1a),
+      ...close(0x1a),
+      ...close(),
+      ...open(0x17, 9),
+      ...hx('14 19 01 fd 0003'),
+      ...hx('14 19 01 fd 0005'),
+      ...hx('14 19 01 fd 0007'),
+      ...c5(0xe7, [0x04, 0x00, 0x08, 0x05, 0x03, 20, 30, 25]),
+      ...close(),
+    ];
+    // Origin anchored, second leaf a plain node (rides the walk), third leaf
+    // closes exactly: the contradiction-free walked tree ships.
+    final walked = dia(records(bareSecond: true)).wires.single;
+    expect(walked.routeTree!.polylines, [
+      [(x: 9, y: 14), (x: 29, y: 14), (x: 29, y: 44)],
+      [(x: 29, y: 14), (x: 54, y: 14)],
+    ]);
+    expect(walked.routeTree!.junctions, [(x: 29, y: 14)]);
+    // The third leaf, now anchored, lands 1 px off its attach point: a
+    // resolved endpoint the walk MISSES is a contradiction — ships nothing.
+    final contradiction = dia(records(bareSecond: true, thirdLeft: 51)).wires.single;
+    expect(contradiction.routeTree, isNull);
   });
 
   test('endpointTerminalBounds: attach rect = termBounds + enclosing frame origin', () {
