@@ -651,13 +651,50 @@ void main() {
       ),
       isNull,
     );
+    // Cross-axis containment: a horizontal closing run whose terminus ROW falls
+    // outside the box's vertical span points into empty space beside the node —
+    // null. (Bend at y = 200, box spans y 40..60.)
+    expect(
+      walkOneAnchoredRoute(
+        r(3, WireRouteDirection.down, [1], [160]),
+        anchor: (x: 30, y: 40),
+        anchoredIndex: 0,
+        farBox: box, // walks down 160 to y = 200, then a horizontal run — y ∉ [40,60]
+      ),
+      isNull,
+    );
+    // Reverse straight with the box on the WRONG side (the departing run cannot
+    // reach it in the stored direction) ships null.
+    expect(
+      walkOneAnchoredRoute(
+        r(2, WireRouteDirection.right, const [], const []),
+        anchor: (x: 30, y: 50),
+        anchoredIndex: 1,
+        farBox: const HeapRect(top: 40, left: 100, bottom: 60, right: 120), // box is RIGHT of the anchor; dir=right departs right
+      ),
+      isNull,
+    );
+    // Zero-length closing run: the walk's last bend already sits on the box
+    // edge, so no duplicate terminal vertex is appended (pointCount - 1 points).
+    expect(
+      walkOneAnchoredRoute(
+        r(3, WireRouteDirection.right, [1], [30]),
+        anchor: (x: 10, y: 40),
+        anchoredIndex: 0,
+        farBox: box, // bend lands at (40, 40) == box top-left; closing run length 0
+      ),
+      [(x: 10, y: 40), (x: 40, y: 40)],
+    );
   });
 
   test('routePoints walked tier: one exact anchor ships the walk; the far plain node rides its box', () {
     // An anchored structure tunnel (attach 9,14) and a bounded primitive node
     // whose plain 0x15 endpoint resolves no attach point. [refs] orders the
     // signal's two endpoints; [table] is its stored route.
-    List<int> records(String a, String b, List<int> table) => [
+    // [nodeBounds] positions the far plain node's box so its edge actually
+    // contains the connection point (the cross-axis containment gate rejects a
+    // terminus that lands beside the box).
+    List<int> records(String a, String b, List<int> table, List<int> nodeBounds) => [
       ...open(0x20, 1),
       ...bounds(0, 0, 200, 200),
       ...open(0x22, 2, tag: 0x1a), // tunnel terminal, structure-framed -> exact anchor
@@ -667,7 +704,7 @@ void main() {
       ...open(0x15, 3, tag: 0x1a),
       ...close(0x1a),
       ...open(0x2f, 6, tag: 0x1a), // a bounded primitive node
-      ...bounds(40, 40, 60, 90), // node box: top 40, left 40
+      ...bounds(nodeBounds[0], nodeBounds[1], nodeBounds[2], nodeBounds[3]),
       ...open(0x15, 7, tag: 0x1b), // plain node endpoint (no terminal, no constant)
       ...close(0x1b),
       ...close(0x1a),
@@ -677,20 +714,23 @@ void main() {
       ...c5(0xe7, table),
       ...close(),
     ];
-    // Forward: anchor is endpoint 0 (the tunnel). Walk right 30 from (9,14),
-    // then the closing run drops onto the node box top edge (y = 40).
-    final fwdDia = dia(records('3', '7', [0x03, 0x08, 0x00, 30]));
+    // Forward: anchor is endpoint 0 (the tunnel). Walk right 30 from (9,14) to
+    // the bend (39,14), then the closing run drops onto the node's top edge
+    // (y = 40); x = 39 lies within the box span [30, 90].
+    final fwdDia = dia(records('3', '7', [0x03, 0x08, 0x00, 30], [40, 30, 60, 90]));
     expect(fwdDia.wireAttachPoint(3), (x: 9, y: 14));
     expect(fwdDia.wireAttachPoint(7), isNull);
     expect(fwdDia.wires.single.routePoints, [(x: 9, y: 14), (x: 39, y: 14), (x: 39, y: 40)]);
-    // Reverse straight: anchor is endpoint 1 (the tunnel); the plain node
-    // (endpoint 0) rides the box edge the wire departs. dir=left, so it leaves
-    // the node's LEFT edge (x = 40). Storage order: plain, then anchor.
-    final rev = dia(records('7', '3', [0x02, 0x02])).wires.single; // dir=left, straight
+    expect(fwdDia.wires.single.routePointsFidelity, WireRouteFidelity.walked);
+    // Reverse straight: anchor is endpoint 1 (the tunnel) at row 14; the plain
+    // node (endpoint 0) rides the box edge the wire departs. dir=left leaves
+    // the node's LEFT edge (x = 40); the box spans y [5, 25] around row 14.
+    // Storage order: plain, then anchor.
+    final rev = dia(records('7', '3', [0x02, 0x02], [5, 40, 25, 90])).wires.single;
     expect(rev.routePoints, [(x: 40, y: 14), (x: 9, y: 14)]);
     // Reverse WITH bends is withheld (drifts): endpoint 1 anchored, a bent
     // route ships nothing.
-    final revBent = dia(records('7', '3', [0x03, 0x02, 0x00, 30])).wires.single;
+    final revBent = dia(records('7', '3', [0x03, 0x02, 0x00, 30], [5, 40, 25, 90])).wires.single;
     expect(revBent.routePoints, isNull);
   });
 
@@ -713,6 +753,35 @@ void main() {
       ...close(),
     ];
     expect(dia(bothBare([0x03, 0x08, 0x00, 30])).wires.single.routePoints, isNull);
+
+    // Endpoint 3 wraps a drawn CONSTANT (a `0x13` DCO with a bounded value
+    // shell): it resolves an attach point (the shell centre) but it is COARSE —
+    // the wire leaves a constant at its drawn edge, not the box centre — so
+    // [_exactAttach] rejects it and the walked tier withholds the route, even
+    // though the far end is a plain node.
+    final constAnchor = dia([
+      ...open(0x20, 1),
+      ...bounds(0, 0, 200, 200),
+      ...open(0x15, 3, tag: 0x1a),
+      ...open(0x13, 10, tag: 0x1b), // constant DCO
+      ...open(0x2f, 11, tag: 0x1c),
+      ...bounds(10, 10, 26, 42), // bounded value shell -> shell centre (26, 18)
+      ...close(0x1c),
+      ...close(0x1b),
+      ...close(0x1a),
+      ...open(0x2f, 6, tag: 0x1a),
+      ...bounds(40, 40, 60, 90),
+      ...open(0x15, 7, tag: 0x1b),
+      ...close(0x1b),
+      ...close(0x1a),
+      ...open(0x17, 9),
+      ...hx('14 19 01 fd 0003'),
+      ...hx('14 19 01 fd 0007'),
+      ...c5(0xe7, [0x02, 0x08]),
+      ...close(),
+    ]);
+    expect(constAnchor.wireAttachPoint(3), isNotNull, reason: 'the constant shell resolves an attach point');
+    expect(constAnchor.wires.single.routePoints, isNull, reason: 'but a coarse constant-shell anchor is withheld');
   });
 
   test('routeTree walked tier: origin-anchored, contradiction-free trees ship; a missed resolved leaf does not', () {
@@ -756,17 +825,62 @@ void main() {
       ...close(),
     ];
     // Origin anchored, second leaf a plain node (rides the walk), third leaf
-    // closes exactly: the contradiction-free walked tree ships.
+    // closes exactly: the contradiction-free walked tree ships as the walked
+    // tier.
     final walked = dia(records(bareSecond: true)).wires.single;
     expect(walked.routeTree!.polylines, [
       [(x: 9, y: 14), (x: 29, y: 14), (x: 29, y: 44)],
       [(x: 29, y: 14), (x: 54, y: 14)],
     ]);
     expect(walked.routeTree!.junctions, [(x: 29, y: 14)]);
+    expect(walked.routeTreeFidelity, WireRouteFidelity.walked);
+    // All three anchored and closing = the proven closed tier.
+    final closed = dia(records(bareSecond: false)).wires.single;
+    expect(closed.routeTree, isNotNull);
+    expect(closed.routeTreeFidelity, WireRouteFidelity.closed);
     // The third leaf, now anchored, lands 1 px off its attach point: a
     // resolved endpoint the walk MISSES is a contradiction — ships nothing.
     final contradiction = dia(records(bareSecond: true, thirdLeft: 51)).wires.single;
     expect(contradiction.routeTree, isNull);
+  });
+
+  test('routeTree walked tier: two resolved endpoints cannot share one walked leaf', () {
+    // Origin (9,14) forks to leaves (29,44) and (54,14). BOTH non-origin
+    // endpoints are anchored tunnels whose attach point is (54,14): they would
+    // both have to claim the single (54,14) leaf — a collision the greedy
+    // multiset match rejects, so nothing ships (never double-counted).
+    final d = dia([
+      ...open(0x20, 1),
+      ...bounds(0, 0, 200, 200),
+      ...open(0x22, 2, tag: 0x1a),
+      ...hx('14 19 01 fd 0003'),
+      ...c5(0x29, [0, 10, 0, 5, 0, 19, 0, 14]), // origin (9,14)
+      ...close(0x1a),
+      ...open(0x15, 3, tag: 0x1a),
+      ...close(0x1a),
+      ...open(0x22, 4, tag: 0x1a),
+      ...hx('14 19 01 fd 0005'),
+      ...c5(0x29, [0, 10, 0, 50, 0, 19, 0, 59]), // (54,14)
+      ...close(0x1a),
+      ...open(0x15, 5, tag: 0x1a),
+      ...close(0x1a),
+      ...open(0x22, 6, tag: 0x1a),
+      ...hx('14 19 01 fd 0007'),
+      ...c5(0x29, [0, 10, 0, 50, 0, 19, 0, 59]), // (54,14) — same as leaf 5
+      ...close(0x1a),
+      ...open(0x15, 7, tag: 0x1a),
+      ...close(0x1a),
+      ...close(),
+      ...open(0x17, 9),
+      ...hx('14 19 01 fd 0003'),
+      ...hx('14 19 01 fd 0005'),
+      ...hx('14 19 01 fd 0007'),
+      ...c5(0xe7, [0x04, 0x00, 0x08, 0x05, 0x03, 20, 30, 25]),
+      ...close(),
+    ]);
+    expect(d.wireAttachPoint(5), (x: 54, y: 14));
+    expect(d.wireAttachPoint(7), (x: 54, y: 14));
+    expect(d.wires.single.routeTree, isNull);
   });
 
   test('endpointTerminalBounds: attach rect = termBounds + enclosing frame origin', () {

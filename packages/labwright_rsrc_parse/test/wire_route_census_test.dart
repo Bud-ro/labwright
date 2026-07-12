@@ -109,6 +109,10 @@ Map<String, int> _census(Uint8List bytes, String path) {
         } else {
           bump(s != null ? 'shippedWalkedFwd' : 'shippedWalkedRev');
         }
+        // Law: the exposed fidelity tier matches the anchoring (closed iff both
+        // ends resolve, walked otherwise).
+        final wantFid = walked ? WireRouteFidelity.walked : WireRouteFidelity.closed;
+        if (w.routePointsFidelity != wantFid) bump('fidelityBad');
         // A zero-length closing/derived run ships pointCount-1 points (the
         // walk ends ON the far point; no duplicate terminal vertex). Its
         // stored closing sign is uncheckable — census its split anyway.
@@ -314,6 +318,10 @@ void _extCensus(ViDiagram d, ViWire w, void Function(String, [int]) bump) {
   if (w.routeTree != null) {
     bump('extShipped');
     bump(fullyAnchored ? 'extShippedClosed' : 'extShippedWalked');
+    // Law: the exposed tree fidelity matches the anchoring.
+    if (w.routeTreeFidelity != (fullyAnchored ? WireRouteFidelity.closed : WireRouteFidelity.walked)) {
+      bump('extFidelityBad');
+    }
   }
 }
 
@@ -467,6 +475,8 @@ Map<String, int> _foldLandings(Map<String, int> c) {
 const _lawKeys = {
   'ext2ep',
   'shippedBad',
+  'fidelityBad',
+  'extFidelityBad',
   'bounded15Endpoints',
   'tables3Byte',
   'extUndecoded',
@@ -497,6 +507,8 @@ void main() {
       0,
       reason: 'every shipped polyline carries the stored point count and touches its anchor',
     );
+    expect(C['fidelityBad'] ?? 0, 0, reason: 'routePointsFidelity matches the anchoring (closed vs walked)');
+    expect(C['extFidelityBad'] ?? 0, 0, reason: 'routeTreeFidelity matches the anchoring (closed vs walked)');
     expect(C['bounded15Endpoints'] ?? 0, 0, reason: '0x15 node endpoints are bounds-less corpus-wide');
     expect(C['tables3Byte'] ?? 0, 0, reason: 'the grammar has no 3-byte table (u24 width unused)');
     expect(C['extUndecoded'] ?? 0, 0, reason: 'every extended branching table decodes and walks');

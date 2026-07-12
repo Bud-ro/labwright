@@ -11,21 +11,32 @@ import 'snapshot_check.dart';
 import 'wire_style_oracle.dart';
 
 /// Independent pixel oracle for the **one-anchored (walked) wire tier** — the
-/// polylines [ViWire.routePoints] / [ViWire.routeTree] ship when only one
-/// endpoint resolves an attach point and the far endpoint is a plain-node DCO
-/// (a primitive input/output or subVI terminal). The closed tier is proven by
-/// two-ended closure; the walked tier is placed by ONE attach point plus the
-/// stored table, so it is corroborated HERE against LabVIEW's own snippet
-/// renders: each registrable snippet's diagram is registered onto its reference
-/// raster (the shared [registerDiagram]), then every walked run is sampled
-/// pixel-by-pixel for ink overlay and every plain-node terminus tested for ink.
+/// polylines [ViWire.routePoints] / [ViWire.routeTree] ship
+/// ([WireRouteFidelity.walked]) when only one endpoint resolves an attach point
+/// and the far endpoint is a plain-node DCO (a primitive input/output or subVI
+/// terminal). The closed tier is proven by two-ended closure; the walked tier
+/// is placed by ONE attach point plus the stored table, so it is corroborated
+/// HERE against LabVIEW's own snippet renders.
+///
+/// **The headline signal is RUN overlay** — the fraction of a wire's PATH
+/// pixels that land on reference ink. The terminus-on-ink figure is NOT
+/// evidence the far end connects to the correct terminal: the walked terminus
+/// is snapped onto the far node's box edge, and the whole edge is ink, so it
+/// proves only "on the node outline," never "the right pin." It is recorded but
+/// never asserted as far-end correctness.
+///
+/// **Registration control.** Each snippet's diagram is registered onto its
+/// raster ([registerDiagram]); registration can still drift locally on a large
+/// diagram, which would make EVERY overlay there meaningless. So each snippet is
+/// gated on its CLOSED-tier control overlay (proven geometry): a snippet whose
+/// closed two-endpoint routes overlay below 90% is discarded from the walked
+/// census (`oa_reg_control_skip`) — its registration is untrustworthy.
 ///
 /// The census also measures the **withheld** one-anchored walks (computed but
-/// NOT shipped: reverse-with-bends and coarse anchors) so the miss rate that
-/// justifies withholding them is pinned, not asserted away. Sample sizes are
-/// small (registrable snippets are few), so this pins the overlay measurement
-/// and the shipped-tier floor, not a broad statistical claim; the corpus-wide
-/// ship counts live in `wire_route_census`.
+/// NOT shipped) so the miss that justifies withholding them is pinned. Sample
+/// sizes are small; this pins the overlay measurement and the zero-gross-miss
+/// law, not a broad statistical claim. Corpus-wide ship counts live in
+/// `wire_route_census`.
 Map<String, int> _census(Uint8List png, String path) {
   final c = <String, int>{};
   void bump(String k, [int n = 1]) => c[k] = (c[k] ?? 0) + n;
@@ -50,7 +61,6 @@ Map<String, int> _census(Uint8List png, String path) {
     bump('oa_reg_failed');
     return c;
   }
-  bump('oa_reg_ok');
 
   bool onInk(ViPoint p) {
     final px = p.x - reg.dx + interior.left, py = p.y - reg.dy + interior.top;
@@ -65,9 +75,9 @@ Map<String, int> _census(Uint8List png, String path) {
     return false;
   }
 
-  // Samples every run of [polys], tallying run pixels/ink under [tier], and
-  // returns the aggregate (px, ink) for the per-wire quality bucket.
-  (int, int) overlay(String tier, List<List<ViPoint>> polys) {
+  // Pixel overlay (px, ink) of a wire's polylines — no side effects, so the
+  // control pass can measure without recording.
+  (int, int) measure(List<List<ViPoint>> polys) {
     var px = 0, ink = 0;
     for (final poly in polys) {
       for (var s = 0; s + 1 < poly.length; s++) {
@@ -76,19 +86,42 @@ Map<String, int> _census(Uint8List png, String path) {
         for (var t = 0; t <= steps; t++) {
           final den = steps == 0 ? 1 : steps;
           final p = (x: a.x + (b.x - a.x) * t ~/ den, y: a.y + (b.y - a.y) * t ~/ den);
-          bump('${tier}_runpx');
           px++;
-          if (onInk(p)) {
-            bump('${tier}_runink');
-            ink++;
-          }
+          if (onInk(p)) ink++;
         }
       }
     }
     return (px, ink);
   }
 
-  void bucket(String tier, int px, int ink) {
+  // Registration control: the closed two-endpoint tier is proven geometry, so
+  // its overlay measures how faithfully THIS snippet registers. Below 90% (with
+  // enough sampled pixels to trust) the registration is unreliable and the
+  // whole snippet is discarded from the walked census.
+  var ctrlPx = 0, ctrlInk = 0;
+  for (final w in bd.wires) {
+    if (w.endpointOids.length != 2 || w.routePointsFidelity != WireRouteFidelity.closed) continue;
+    if (!objectVisibleInRender(bd, w.signalOid)) continue;
+    final (px, ink) = measure([w.routePoints!]);
+    ctrlPx += px;
+    ctrlInk += ink;
+  }
+  const kMinControlPx = 40;
+  if (ctrlPx >= kMinControlPx && ctrlInk * 100 < 90 * ctrlPx) {
+    bump('oa_reg_control_skip');
+    return c;
+  }
+  bump('oa_reg_ok');
+  // The closed-tier baseline (pinned): the proven-geometry overlay this
+  // snippet corpus achieves, the bar the walked tier is compared against.
+  bump('oa2_closed_runpx', ctrlPx);
+  bump('oa2_closed_runink', ctrlInk);
+
+  void record(String tier, List<List<ViPoint>> polys) {
+    final (px, ink) = measure(polys);
+    bump('${tier}_runpx', px);
+    bump('${tier}_runink', ink);
+    bump('${tier}_wires');
     final q = px == 0 ? 1.0 : ink / px;
     bump(
       '${tier}_q${q >= 0.95
@@ -108,45 +141,32 @@ Map<String, int> _census(Uint8List png, String path) {
       final a0 = bd.wireAttachPoint(w.endpointOids[0]);
       final a1 = bd.wireAttachPoint(w.endpointOids[1]);
       final oneAnchored = (a0 == null) ^ (a1 == null);
-      final points = w.routePoints;
-      if (points != null && oneAnchored) {
-        // Shipped walked polyline.
-        bump('oa2_ship_wires');
-        final (px, ink) = overlay('oa2_ship', [points]);
-        bucket('oa2_ship', px, ink);
-        final terminus = a0 != null ? points.last : points.first;
+      if (w.routePointsFidelity == WireRouteFidelity.walked) {
+        record('oa2_ship', [w.routePoints!]);
+        // Terminus-on-ink: recorded, NOT asserted — a box-edge snap lands on
+        // the node outline regardless of the exact pin (see the library doc).
+        final terminus = a0 != null ? w.routePoints!.last : w.routePoints!.first;
         bump('oa2_ship_term');
         if (onInk(terminus)) bump('oa2_ship_term_ink');
-      } else if (points == null && oneAnchored) {
-        // Withheld: the walk exists but did not ship (reverse-with-bends or a
-        // coarse anchor). Measure what would have shipped.
+      } else if (w.routePoints == null && oneAnchored) {
+        // Withheld: the walk exists but did not ship. Measure what it would be.
         final ai = a0 != null ? 0 : 1;
         final farBox = w.endpointAnchors[1 - ai];
         if (farBox == null) continue;
         final poly = walkOneAnchoredRoute(w.route!, anchor: (a0 ?? a1)!, anchoredIndex: ai, farBox: farBox);
-        if (poly == null) continue;
-        bump('oa2_held_wires');
-        final (px, ink) = overlay('oa2_held', [poly]);
-        bucket('oa2_held', px, ink);
+        if (poly != null) record('oa2_held', [poly]);
       }
     } else if (w.endpointOids.length >= 3 && w.branchRoute != null) {
-      final origin = bd.wireAttachPoint(w.endpointOids[0]);
-      if (origin == null) continue;
-      final fullyAnchored = w.endpointOids.every((oid) => bd.wireAttachPoint(oid) != null);
-      final tree = w.routeTree;
-      if (tree != null && !fullyAnchored) {
-        // Shipped walked tree (origin-anchored, contradiction-free).
-        bump('oab_ship_wires');
-        final (px, ink) = overlay('oab_ship', tree.polylines);
-        bucket('oab_ship', px, ink);
+      if (w.routeTreeFidelity == WireRouteFidelity.walked) {
+        final tree = w.routeTree!;
+        record('oab_ship', tree.polylines);
         for (final leaf in tree.leaves) {
           bump('oab_ship_leaf');
           if (onInk(leaf)) bump('oab_ship_leaf_ink');
         }
-      } else if (tree == null) {
-        // Withheld branch walk (origin-anchored but contradicted / mismatched).
-        overlay('oab_held', walkWireBranchRoute(w.branchRoute!, origin).polylines);
-        bump('oab_held_wires');
+      } else if (w.routeTree == null) {
+        final origin = bd.wireAttachPoint(w.endpointOids[0]);
+        if (origin != null) record('oab_held', walkWireBranchRoute(w.branchRoute!, origin).polylines);
       }
     }
   }
@@ -175,33 +195,43 @@ void main() {
     }
   });
 
-  test('one-anchored oracle laws: shipped walked routes overlay reference ink', () {
-    // Shipped walked two-endpoint polylines overlay LabVIEW's own ink at the
-    // both-ended baseline (~96%); reference floor guards against a regression
-    // that would ship drifting routes.
-    final ship2px = C['oa2_ship_runpx'] ?? 0, ship2ink = C['oa2_ship_runink'] ?? 0;
-    expect(ship2px, greaterThan(0), reason: 'the registrable snippets carry shipped walked polylines');
+  test('one-anchored oracle law: NO shipped two-endpoint walk grossly misses the ink', () {
+    // The real gate: the structural ship gate (exact anchor, forward or
+    // reverse-straight, cross-axis containment, no shift-register bent anchor)
+    // admits ZERO shipped two-endpoint walks below 50% path overlay. The
+    // aggregate floor below is secondary; this per-wire law is what proves no
+    // fabricated route is silently shipped.
+    expect(C['oa2_ship_wires'] ?? 0, greaterThan(0), reason: 'the snippets carry shipped walked polylines');
+    expect(C['oa2_ship_qlo'] ?? 0, 0, reason: 'no shipped two-endpoint walk overlays below 50% ink');
+    // Path overlay stays at the proven closed-tier's own snippet level.
+    final shipPx = C['oa2_ship_runpx'] ?? 0, shipInk = C['oa2_ship_runink'] ?? 0;
+    expect(shipInk * 100, greaterThanOrEqualTo(93 * shipPx), reason: 'shipped walked paths overlay reference ink >= 93%');
     expect(
-      ship2ink * 100,
-      greaterThanOrEqualTo(93 * ship2px),
-      reason: 'shipped walked polylines overlay reference ink >= 93%',
+      _pct(C, 'oa2_ship'),
+      greaterThanOrEqualTo(_pct(C, 'oa2_closed') - 3),
+      reason: 'shipped walked overlay tracks the closed-tier control',
     );
     // Withheld one-anchored walks overlay measurably WORSE — the miss that
-    // justifies withholding them (reverse-with-bends / coarse anchors).
-    final held2px = C['oa2_held_runpx'] ?? 0;
-    if (held2px > 0) {
+    // justifies the gate withholding them.
+    if ((C['oa2_held_runpx'] ?? 0) > 0) {
       expect(_pct(C, 'oa2_held'), lessThan(_pct(C, 'oa2_ship')), reason: 'withheld walks overlay worse than shipped');
     }
-    // Shipped walked branching trees overlay >= 85% (weaker than the closed
-    // tier's 99.96%, corroborated not proven).
-    final shipBpx = C['oab_ship_runpx'] ?? 0, shipBink = C['oab_ship_runink'] ?? 0;
-    if (shipBpx > 0) {
-      expect(
-        shipBink * 100,
-        greaterThanOrEqualTo(85 * shipBpx),
-        reason: 'shipped walked trees overlay reference ink >= 85%',
-      );
-    }
+  });
+
+  test('one-anchored oracle: shipped branch trees overlay well, with a documented drift residue', () {
+    final shipPx = C['oab_ship_runpx'] ?? 0, shipInk = C['oab_ship_runink'] ?? 0;
+    if (shipPx == 0) return;
+    // Walked branch trees are DECODED LabVIEW geometry (not fabricated) placed
+    // from the origin; overall they overlay well.
+    expect(shipInk * 100, greaterThanOrEqualTo(85 * shipPx), reason: 'shipped walked trees overlay reference ink >= 85%');
+    // A residue overlays below 50%: junction-catalog drift on a plain-node arm
+    // that no resolved leaf can close against — the drift the closed tier
+    // rejects via leaf closure but the walked tier cannot detect at decode
+    // time (no structural signal isolates it; corroboration/containment/junction
+    // -risk gates were measured and do not separate it). Bounded as a
+    // regression guard; the exact count is pinned by the snapshot.
+    final qlo = C['oab_ship_qlo'] ?? 0, wires = C['oab_ship_wires'] ?? 1;
+    expect(qlo * 20, lessThanOrEqualTo(wires), reason: 'walked-branch gross-miss residue stays under 5% (drift on plain-node arms)');
   });
 
   test('one-anchored oracle census matches the committed snapshot exactly', () {
