@@ -2006,16 +2006,26 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
         // A caption of 1-4 characters stored at a scalar attribute width:
         // raw 0x022 ([HeapAttribute.shortText]) is the same tag as the
         // `C4 22` caption container, with the text bytes magnitude-encoded
-        // big-endian in reading order (`84 22 58 4F 52 3F` = "XOR?").
-        // [HeapAttr.asciiText] decodes only all-printable payloads, so a
-        // genuinely numeric value never fabricates a label. Corpus (7,524
-        // VIs, all heap sections): 148,449 scalar-width records — 72,539
-        // printable (captured), 72,359 zero (empty), 3,551 non-printable
-        // (left numeric). First-wins against `C4 22` is trivially safe: no
-        // corpus object carries both forms.
+        // big-endian in reading order (`84 22 58 4F 52 3F` = "XOR?"). It is
+        // the dedicated short-label tag: 96.9% of the captured records sit on
+        // the label class 0x0A (98% across the text-label classes 0x0A/0x95),
+        // the rest on the enum/selector text carriers. A record becomes a
+        // caption only when every stored byte is a printable ASCII glyph AND
+        // the decoded text fills the whole stored width — a genuine N-char
+        // caption uses the N-byte width, so a value whose leading byte is null
+        // (a shorter string than the width, e.g. `00 42 42 42` at u32) is a
+        // number, not text, and stays numeric ([HeapAttr.asciiText] length <
+        // width). Non-printable bytes — control codes AND high-bit Latin-1
+        // alike — likewise stay numeric. Corpus (7,524 VIs, all heap
+        // sections): 148,449 scalar-width records — 72,537 captured, 72,359
+        // zero (empty), 2 width-inconsistent and 3,551 non-printable (550
+        // high-bit, 3,001 control) left numeric. First-wins against `C4 22`
+        // is trivially safe: no corpus object carries both forms.
         if (attr.attribute == HeapAttribute.shortText) {
           final text = attr.asciiText;
-          if (text != null) cur.label ??= text;
+          if (text != null && text.length == _attrScalarBytes(attr.width)) {
+            cur.label ??= text;
+          }
         }
         // A BD constant's flattened value record scopes to the 0x13 DCO itself
         // (record census on [HeapAttribute.constValue]). First-wins is

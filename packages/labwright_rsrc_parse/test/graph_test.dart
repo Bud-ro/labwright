@@ -104,16 +104,19 @@ void main() {
     expect(d.byId[2]!.primResId, 1051, reason: 'the u16 record wins; the flag form is inert');
   });
 
-  test('scalar-width 0x22 records decode as labels; non-printable payloads never do', () {
+  test('scalar-width 0x22: printable full-width tokens are labels, everything else stays numeric', () {
     final rows = <(List<int>, String?)>[
-      (attrU32(0x22, 0x584f523f), 'XOR?'), // big-endian reading order
-      (attrU24(0x22, 0x496478), 'Idx'),
-      (attrU16(0x22, 0x4f4b), 'OK'),
-      (attrU8(0x22, 0x79), 'y'),
-      (attrU16(0x22, 0x0102), null), // non-printable magnitude stays numeric
+      (attrU32(0x22, 0x584f523f), 'XOR?'), // big-endian reading order, width 4
+      (attrU24(0x22, 0x496478), 'Idx'), // width 3
+      (attrU16(0x22, 0x4f4b), 'OK'), // width 2
+      (attrU8(0x22, 0x79), 'y'), // width 1
+      (attrU16(0x22, 0x0102), null), // leading byte printable? no: first byte non-printable
+      (attrU16(0x22, 0x0179), null), // low byte 'y' printable, high byte 0x01 not: stays numeric
+      (attrU16(0x22, 0xc0e9), null), // high-bit Latin-1 bytes are not ASCII glyphs
+      (attrU32(0x22, 0x00424242), null), // width-inconsistent: "BBB" (3) in a 4-byte field is a number
       (attrU8(0x22, 0), null), // zero = empty
       ([0xe4, 0x22], null), // flag width carries no text bytes
-      ([...caption('Trigger'), ...attrU32(0x22, 0x584f523f)], 'Trigger'), // first-wins
+      ([...caption('Trigger'), ...attrU32(0x22, 0x584f523f)], 'Trigger'), // first-wins over the scalar form
     ];
     for (final (records, want) in rows) {
       final d = dia([...open(0x0a, 1), ...records, ...close()]);
@@ -122,7 +125,10 @@ void main() {
   });
 
   test('corpus pin: crc8 scalar-width caption', () {
-    if (!corpusViDir.existsSync()) return;
+    if (!corpusViDir.existsSync()) {
+      markTestSkipped('corpus not fetched');
+      return;
+    }
     // crc8.png stores oid221's label as `84 22 58 4F 52 3F` — the 4-byte
     // scalar form of raw 0x022 — on a label part under a case structure.
     final crc8 = File('${corpusViDir.path}/rcpacini_VI-Snippets/rcpacini-VI-Snippets-1662bd7/crc8.png');
