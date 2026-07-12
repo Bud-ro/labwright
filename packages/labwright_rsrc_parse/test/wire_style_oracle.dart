@@ -290,12 +290,23 @@ class WireRun {
 /// second endpoint contributes no runs.
 List<WireRun> wireRuns(ViDiagram bd) {
   final runs = <WireRun>[];
+  // Every constant value shell in the diagram: a wire's terminal runs reach
+  // under their own shell (the attach point is the shell's CENTRE), and a
+  // wire routed past ANOTHER constant is drawn beneath its box — either way
+  // the box's border/text pixels are not wire style, so shell spans are cut
+  // out of every run (splitting a run an occluder crosses mid-span).
+  final shells = <HeapRect>[
+    for (final w in bd.wires)
+      for (final oid in w.endpointOids)
+        if (bd.endpointConstantBounds(oid) case final s?) s,
+  ];
   for (final w in bd.wires) {
     if (w.endpointOids.length != 2) continue;
     if (!objectVisibleInRender(bd, w.signalOid)) continue;
     final rects = [for (var i = 0; i < 2; i++) w.endpointAttachRects[i] ?? w.endpointAnchors[i]];
     if (rects.any((r) => r == null || r.width <= 0 || r.height <= 0)) continue;
     final a = rects[0]!, b = rects[1]!;
+    final candidates = <WireRun>[];
     if (w.route == null || w.route!.segmentLengths.isEmpty) {
       // No stored bends (no table, or the 1/2-point straight tables): a
       // single run between aligned attach centres.
@@ -304,18 +315,52 @@ List<WireRun> wireRuns(ViDiagram bd) {
       if (cyA == cyB) {
         final lo = a.right <= b.left ? a.right : b.right;
         final hi = a.right <= b.left ? b.left : a.left;
-        if (hi - lo >= 1) runs.add(WireRun(w.signalOid, true, cyA, lo - 1, hi + 1));
+        if (hi - lo >= 1) candidates.add(WireRun(w.signalOid, true, cyA, lo - 1, hi + 1));
       } else if (cxA == cxB) {
         final lo = a.bottom <= b.top ? a.bottom : b.bottom;
         final hi = a.bottom <= b.top ? b.top : a.top;
-        if (hi - lo >= 1) runs.add(WireRun(w.signalOid, false, cxA, lo - 1, hi + 1));
+        if (hi - lo >= 1) candidates.add(WireRun(w.signalOid, false, cxA, lo - 1, hi + 1));
       }
-      continue;
+    } else if (w.endpointAttachRects[0] != null) {
+      candidates.addAll(_routeRuns(w, a, b) ?? const []);
     }
-    final routed = w.endpointAttachRects[0] != null ? _routeRuns(w, a, b) : null;
-    if (routed != null) runs.addAll(routed);
+    for (final run in candidates) {
+      runs.addAll(_clipRunOutOfRects(run, shells));
+    }
   }
   return runs;
+}
+
+/// [run] with every [rects] span cut out — 0, 1 or more sub-runs (a rect at a
+/// run's end trims it; one crossing mid-span splits it; one swallowing it
+/// drops it). Rects not crossing the run's band on the perpendicular axis do
+/// not cut. A 1-unit margin keeps the sampled pixels off the box border, and
+/// sub-runs shorter than 2 units are dropped like their [wireRuns] parents.
+List<WireRun> _clipRunOutOfRects(WireRun run, List<HeapRect> rects) {
+  var spans = <(int, int)>[(run.lo, run.hi)];
+  for (final rect in rects) {
+    final inBand = run.horizontal
+        ? run.axisPos >= rect.top && run.axisPos <= rect.bottom
+        : run.axisPos >= rect.left && run.axisPos <= rect.right;
+    if (!inBand) continue;
+    final cutLo = (run.horizontal ? rect.left : rect.top) - 1;
+    final cutHi = (run.horizontal ? rect.right : rect.bottom) + 1;
+    final next = <(int, int)>[];
+    for (final (lo, hi) in spans) {
+      if (hi < cutLo || lo > cutHi) {
+        next.add((lo, hi));
+        continue;
+      }
+      if (lo < cutLo) next.add((lo, cutLo - 1));
+      if (hi > cutHi) next.add((cutHi + 1, hi));
+    }
+    spans = next;
+    if (spans.isEmpty) break;
+  }
+  return [
+    for (final (lo, hi) in spans)
+      if (hi - lo >= 1) WireRun(run.sigOid, run.horizontal, run.axisPos, lo, hi),
+  ];
 }
 
 /// Reconstructs a routed wire's polyline from attach-rect centre [a] toward

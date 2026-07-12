@@ -38,6 +38,7 @@ const _sectionTests = [
   'test/signal_type_census_test.dart',
   'test/wire_route_census_test.dart',
   'test/wire_render_style_census_test.dart',
+  'test/loop_terminal_census_test.dart',
 ];
 
 void main(List<String> args) {

@@ -1278,36 +1278,22 @@ Set<int> bdInlinedInstanceOids(ViDiagram diagram) {
 /// case's selector tunnel — each with its decoded frame-relative box
 /// ([ViHeapObject.termBounds]) and glyph selector ([ViHeapObject.termBmp]:
 /// `i`→1, `N`→2, stop→192, shift registers→3/4, case selector→5). Terminals
-/// without a decoded box are omitted (nothing is placed by guesswork).
+/// without a decoded box are omitted (nothing is placed by guesswork), and a
+/// terminal LabVIEW hides is dropped via the file's own per-terminal flag
+/// ([ViDiagram.terminalGlyphHidden]: bit `0x800000` on the terminal's DCO,
+/// render-verified on crc8's four loops — two drawn and two hidden `i`
+/// glyphs, all four `N` glyphs drawn).
 Map<int, List<({HeapRect box, int bmp})>> bdStructureTerminals(
   ViDiagram diagram,
 ) {
   final byId = diagram.byId;
   final out = <int, List<({HeapRect box, int bmp})>>{};
-  // A for loop's N part (the 0x15 parent of the bmp-2 carrier) hides the
-  // N/i corner pair when its objFlags clear bit 0x8000 — render-verified
-  // both ways on crc8's four loops (571 hides both with the bit clear;
-  // 86/164/3042 show both with it set).
-  final hiddenCountLoops = <int>{};
-  for (final object in diagram.objects) {
-    if (object.termBmp != 2) continue;
-    final part = byId[object.parentOid ?? -1];
-    if (part == null || part.kind != 0x15) continue;
-    if (((part.objFlags ?? 0) & 0x8000) != 0) continue;
-    var cur = byId[part.parentOid ?? -1];
-    var depth = 0;
-    while (cur != null &&
-        cur.category != ViObjectKind.structure &&
-        depth++ < 8) {
-      cur = byId[cur.parentOid ?? -1];
-    }
-    if (cur != null) hiddenCountLoops.add(cur.oid);
-  }
   for (final object in diagram.objects) {
     final box = object.termBounds;
     final bmp = object.termBmp;
     if (box == null || bmp == null) continue;
     if (box.width <= 0 || box.height <= 0) continue;
+    if (diagram.terminalGlyphHidden(object.oid)) continue;
     // The owning structure: the nearest structure-category ancestor.
     var cur = byId[object.parentOid ?? -1];
     var depth = 0;
@@ -1317,7 +1303,6 @@ Map<int, List<({HeapRect box, int bmp})>> bdStructureTerminals(
       cur = byId[cur.parentOid ?? -1];
     }
     if (cur == null || cur.category != ViObjectKind.structure) continue;
-    if ((bmp == 1 || bmp == 2) && hiddenCountLoops.contains(cur.oid)) continue;
     (out[cur.oid] ??= []).add((box: box, bmp: bmp));
   }
   return out;
