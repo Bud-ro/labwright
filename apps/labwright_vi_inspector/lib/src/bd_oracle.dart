@@ -1050,13 +1050,13 @@ BdRegistration _translationRegistration(
   // their perimeter edge support discriminates the true peak where raw hits
   // cannot. Without anchors, raw hits decide.
   if (anchorRects.length >= 2) {
-    double anchorSupport(double dx, double dy) {
+    double anchorSupport(double dx, double dy, Uint8List edges) {
       var hits = 0, samples = 0;
       void sample(double fx, double fy) {
         final x = (fx * scale + dx).round(), y = (fy * scale + dy).round();
         if (x < 0 || y < 0 || x >= width || y >= height) return;
         samples++;
-        hits += nearEdges[y * width + x];
+        hits += edges[y * width + x];
       }
 
       for (final r in anchorRects) {
@@ -1073,16 +1073,38 @@ BdRegistration _translationRegistration(
     }
 
     var best = candidates.first;
-    var bestScore = anchorSupport(best.$1, best.$2);
+    var bestScore = anchorSupport(best.$1, best.$2, nearEdges);
     for (final c in candidates.skip(1)) {
-      final score = anchorSupport(c.$1, c.$2);
+      final score = anchorSupport(c.$1, c.$2, nearEdges);
       if (score > bestScore + 1e-9 ||
           (score > bestScore - 1e-9 && c.$3 > best.$3)) {
         best = c;
         bestScore = score;
       }
     }
-    return BdRegistration(scale: scale, dx: best.$1, dy: best.$2);
+    // Sub-pixel snap. The peak was chosen on the 1 px-dilated support, which
+    // cannot tell a pixel-exact alignment from its immediate neighbour — with
+    // crisp 1 px structure borders one whole-pixel offset lands the perimeters
+    // EXACTLY on the reference edges while its neighbour is a blurred near
+    // miss. Break that residual tie within ±1 px on the UN-dilated edge map,
+    // so a render whose chrome is already pixel-faithful registers to true
+    // alignment instead of drifting a pixel off. Moves only on a strict
+    // improvement, so an imperfect render (no exact overlap anywhere) stays on
+    // the dilated peak.
+    var bx = best.$1, by = best.$2;
+    var exact = anchorSupport(bx, by, referenceEdges);
+    for (var oy = -1; oy <= 1; oy++) {
+      for (var ox = -1; ox <= 1; ox++) {
+        if (ox == 0 && oy == 0) continue;
+        final e = anchorSupport(best.$1 + ox, best.$2 + oy, referenceEdges);
+        if (e > exact + 1e-9) {
+          exact = e;
+          bx = best.$1 + ox;
+          by = best.$2 + oy;
+        }
+      }
+    }
+    return BdRegistration(scale: scale, dx: bx, dy: by);
   }
   candidates.sort((a, b) => b.$3.compareTo(a.$3));
   return BdRegistration(

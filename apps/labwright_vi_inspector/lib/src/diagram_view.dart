@@ -2272,7 +2272,17 @@ class BdDiagramPainter extends CustomPainter {
         continue;
       }
       switch (object.kind) {
-        case 0x21 || 0x20: // While / for loop: rounded band + terminals.
+        case 0x20: // For loop: crisp 1px black border + stacked pages.
+          _drawForLoopBorder(canvas, rect, disabled: structDisabled);
+          _drawStructureTerminals(
+            canvas,
+            rect,
+            terminals,
+            tunnelLandings,
+            chromeOwnedRects: chromeOwnedRects,
+            disabled: structDisabled,
+          );
+        case 0x21: // While loop: rounded band + terminals.
           _drawLoopBand(canvas, rect, structColor, disabled: structDisabled);
           _drawStructureTerminals(
             canvas,
@@ -3407,6 +3417,43 @@ class BdDiagramPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.0,
     );
+  }
+
+  /// Draws a for-loop's border pixel-exact to LabVIEW's own render: a crisp
+  /// 1px-black rectangle carrying a stacked-page decoration. No
+  /// anti-aliasing, no translucent interior wash.
+  ///
+  /// Measured from LabVIEW's raster (crc8's outer for loop): the back page is
+  /// the full rectangle `[left, top]..[right-5, bottom-5]`, sharing single
+  /// top and left edges. Two further bottom+right corners peek out below and
+  /// to the right at +2 and +4, staircased at the bottom-left and top-right
+  /// so the loop reads as a stack of pages. The stack depth is fixed
+  /// decoration — it does not vary with the loop's `N`.
+  void _drawForLoopBorder(Canvas canvas, Rect rect, {bool disabled = false}) {
+    final ink = disabled
+        ? bdDimDisabled(const Color(0xFF000000))
+        : const Color(0xFF000000);
+    final paint = Paint()
+      ..color = ink
+      ..isAntiAlias = false;
+    final l = rect.left.roundToDouble();
+    final t = rect.top.roundToDouble();
+    final r = rect.right.roundToDouble();
+    final b = rect.bottom.roundToDouble();
+    // 1px fills spanning inclusive integer pixel endpoints.
+    void hline(double x0, double x1, double y) =>
+        canvas.drawRect(Rect.fromLTRB(x0, y, x1 + 1, y + 1), paint);
+    void vline(double x, double y0, double y1) =>
+        canvas.drawRect(Rect.fromLTRB(x, y0, x + 1, y1 + 1), paint);
+    // Back page: full rectangle whose top and left edges the stack shares.
+    hline(l, r - 5, t);
+    vline(l, t, b - 5);
+    // Back (offset 0) through front (offset 4): each an L of bottom + right
+    // edges, staircased 2px down-and-right from the one behind it.
+    for (final o in const [0, 2, 4]) {
+      vline(r - 5 + o, t + o, b - 5 + o);
+      hline(l + o, r - 5 + o, b - 5 + o);
+    }
   }
 
   static const _loopBlue = Color(0xFF0033CC);
