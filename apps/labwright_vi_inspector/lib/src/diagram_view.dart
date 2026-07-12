@@ -2915,9 +2915,49 @@ class BdDiagramPainter extends CustomPainter {
           junctions.add(Offset(j.x - origin.dx, j.y - origin.dy));
         }
       } else if (routePoints != null) {
-        legs.add([
+        final points = [
           for (final p in routePoints) Offset(p.x - origin.dx, p.y - origin.dy),
-        ]);
+        ];
+        // A proven polyline connects at its DECODED attach point on the
+        // endpoint's own border. Where that endpoint is an icon-stamped node,
+        // LabVIEW still draws the wire UNDER the art to the box centre — the
+        // art's transparent margin shows the stub between the border-centre
+        // attach and the opaque icon edge (crc8's U8 conversion, and the
+        // one-anchored terminal entries whose plain-node end lands on the box
+        // border). Extend the terminal segment there, exactly as the fallback
+        // path does for an icon-node leg; the covered interior is masked by
+        // the art itself.
+        if (points.length >= 2 && wire.endpointAnchors.length >= 2) {
+          Rect? iconBox(int e) {
+            final a = wire.endpointAnchors[e];
+            if (a == null) return null;
+            final box = Rect.fromLTRB(
+              a.left - origin.dx,
+              a.top - origin.dy,
+              a.right - origin.dx,
+              a.bottom - origin.dy,
+            );
+            return iconNodeRects.contains(box) ? box : null;
+          }
+
+          final sourceBox = iconBox(0);
+          if (sourceBox != null) {
+            final c = (iconInkRects[sourceBox] ?? sourceBox).center;
+            final p0 = points.first, p1 = points[1];
+            points[0] = p0.dy == p1.dy
+                ? Offset(c.dx, p0.dy)
+                : Offset(p0.dx, c.dy);
+          }
+          final sinkBox = iconBox(wire.endpointAnchors.length - 1);
+          if (sinkBox != null) {
+            final c = (iconInkRects[sinkBox] ?? sinkBox).center;
+            final pn = points.last, pm = points[points.length - 2];
+            points[points.length - 1] = pn.dy == pm.dy
+                ? Offset(c.dx, pn.dy)
+                : Offset(pn.dx, c.dy);
+          }
+        }
+        legs.add(points);
       } else {
         if (anchors.length < 2) continue;
         // Icon-edge anchoring applies to plain 2-endpoint wires only:
