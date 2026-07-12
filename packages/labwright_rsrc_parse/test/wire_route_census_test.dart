@@ -179,12 +179,13 @@ Map<String, int> _census(Uint8List bytes, String path) {
 ///
 /// The **exact-attach subset** (`extEpExact` / `extEpExactHit`) isolates
 /// the walk rule from attach-point error: an endpoint counts as exact when
-/// its attach geometry is border-exact — anchored on its own bounds (no
-/// terminal), or resolving a terminal whose REAL composing frame (the
-/// nearest BOUNDED ancestor of the terminal's parent, matching how
-/// [ViDiagram.endpointTerminalBounds] composes) is a structure. Node-framed
-/// rects (approximate) are excluded. Both origin and endpoint must be
-/// exact. Exact-subset misses are partitioned into `extEpExactMissInRect`
+/// its attach geometry is border-exact — anchored on its own `0x16` bounds
+/// (no terminal, no constant shell), or resolving a terminal whose REAL
+/// composing frame (the nearest BOUNDED ancestor of the terminal's parent,
+/// matching how [ViDiagram.endpointTerminalBounds] composes) is a structure.
+/// Node-framed rects and constant value-shell centres (both approximate) are
+/// excluded. Both origin and endpoint must be exact. Exact-subset misses are
+/// partitioned into `extEpExactMissInRect`
 /// (the nearest walked leaf still lands inside the endpoint's own attach
 /// rect — right terminal, off the floored-centre convention) and
 /// `extEpExactMissFar`.
@@ -249,11 +250,13 @@ void _extCensus(ViDiagram d, ViWire w, void Function(String, [int]) bump) {
   // Exact attach geometry: the endpoint resolves a structure-framed rect via
   // its REAL composing frame (endpointTerminalBounds composes against the
   // nearest BOUNDED ancestor of the terminal's parent), or is anchored on
-  // its own bounds (no terminal, the 0x16 box). Node-framed rects are
-  // approximate and excluded.
+  // its own `0x16` bounds (no terminal, no constant shell). Node-framed
+  // rects AND constant value-shell centres are approximate — the wire leaves
+  // a constant at its edge, not the shell centre — and are excluded.
   bool exact(int i) {
-    final terminal = d.endpointTerminal(w.endpointOids[i]);
-    if (terminal == null) return true; // own-bounds anchor
+    final oid = w.endpointOids[i];
+    final terminal = d.endpointTerminal(oid);
+    if (terminal == null) return d.endpointConstantBounds(oid) == null; // 0x16 own-bounds only
     final parent = terminal.parentOid == null ? null : d.byId[terminal.parentOid!];
     final frame = parent == null ? null : _boundedOwner(d, parent);
     return frame != null && frame.category == ViObjectKind.structure;

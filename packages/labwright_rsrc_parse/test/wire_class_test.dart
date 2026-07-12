@@ -132,8 +132,11 @@ void main() {
         for (final wire in diagram.wires) {
           for (var i = 0; i < wire.endpointOids.length; i++) {
             final pos = wire.endpointAttachRects[i];
-            if (pos == null) continue;
-            final frame = _boundedOwner(diagram, diagram.endpointTerminal(wire.endpointOids[i])!.oid);
+            // Constant endpoints carry attach rects without a terminal
+            // (endpointConstantBounds); this census is about terminal rects.
+            final terminal = diagram.endpointTerminal(wire.endpointOids[i]);
+            if (pos == null || terminal == null) continue;
+            final frame = _boundedOwner(diagram, terminal.oid);
             if (frame == null || frame.objectClass.category != ViObjectKind.structure) continue;
             structFramed++;
             final f = frame.absBounds!;
