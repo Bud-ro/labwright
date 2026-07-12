@@ -346,6 +346,60 @@ void main() {
     expect(node.wires.single.routePoints, [(x: 9, y: 14), (x: 100, y: 14)]);
   });
 
+  test('wireAttachPoint: the right shift register attaches 4px left of centre; the left stays centred', () {
+    // A shift-register terminal on a loop frame, attach rect floored-centre
+    // (9,14). The right register's (0x28) connection column sits 4px left, so
+    // its attach point is (5,14); the left register (0x27) and any other
+    // terminal keep the plain centre (9,14). Only x moves.
+    List<int> records(int terminalKind) => [
+      ...open(0x20, 1),
+      ...bounds(0, 0, 100, 100),
+      ...open(terminalKind, 2, tag: 0x1a),
+      ...hx('14 19 01 fd 0003'),
+      ...c5(0x29, [0, 10, 0, 5, 0, 19, 0, 14]), // floored centre (9, 14)
+      ...close(0x1a),
+      ...open(0x15, 3, tag: 0x1a),
+      ...close(0x1a),
+      ...close(),
+    ];
+    expect(dia(records(0x28)).wireAttachPoint(3), (x: 5, y: 14)); // right: centre.x - 4
+    expect(dia(records(0x27)).wireAttachPoint(3), (x: 9, y: 14)); // left: plain centre
+    expect(dia(records(0x22)).wireAttachPoint(3), (x: 9, y: 14)); // non-shift terminal: unchanged
+  });
+
+  test('routePoints: a bent walk ships off a right shift register but is withheld off a left one', () {
+    // One-anchored walk from a shift-register terminal (attach floored-centre
+    // (9,14)) into a plain-node box. The far 0x15 endpoint owns its box
+    // (40,60)-(60,92); the stored route bends (right then down). Off the RIGHT
+    // register the anchor lands on the decoded column x=5 and the bent walk
+    // ships; off the LEFT register — its column offset undecoded — the bent
+    // walk is withheld. A non-shift terminal ships from the plain centre.
+    List<int> records(int terminalKind) => [
+      ...open(0x20, 1),
+      ...bounds(0, 0, 200, 200),
+      ...open(terminalKind, 2, tag: 0x1a),
+      ...hx('14 19 01 fd 0003'),
+      ...c5(0x29, [0, 10, 0, 5, 0, 19, 0, 14]), // floored centre (9, 14)
+      ...close(0x1a),
+      ...open(0x15, 3, tag: 0x1a),
+      ...close(0x1a),
+      ...close(),
+      ...open(0x15, 5),
+      ...bounds(40, 60, 60, 92), // far plain-node box; left edge x=60
+      ...close(),
+      ...open(0x17, 9),
+      ...hx('14 19 01 fd 0003'),
+      ...hx('14 19 01 fd 0005'),
+      ...c5(0xe7, [0x04, 0x08, 0x00, 0x00, 55, 36]), // right then down
+      ...close(),
+    ];
+    // Right register: anchor (5,14), right 55 -> x=60 (far box left edge), down
+    // 36 -> y=50 (within the box's 40..60 y-span): a shipped bent walk.
+    expect(dia(records(0x28)).wires.single.routePoints, [(x: 5, y: 14), (x: 60, y: 14), (x: 60, y: 50)]);
+    // Left register: bent walk withheld (undecoded column offset).
+    expect(dia(records(0x27)).wires.single.routePoints, isNull);
+  });
+
   test('routePoints: a 3+-endpoint signal ships nothing even when its table decodes', () {
     final d = dia([
       ...open(0x20, 1),
