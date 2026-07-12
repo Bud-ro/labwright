@@ -521,54 +521,10 @@ void main() {
                 bottom: s.top + t.box.top + t.box.height,
               ),
       ];
-      // Synthesized fallback legs (wires without a proven [ViWire.routePoints]
-      // polyline) may cross a terminal's band anywhere — their divergence
-      // from LabVIEW's stored routing is a route-decode gap, not chrome
-      // bleed (crc8's sig 2588 slices through both of loop 571's shift
-      // registers at their bottom-border row) — so a ±3 px corridor around
-      // each synthesized leg is skipped too. The corridor replays
-      // [bdWireRoute] on the attach-preferred anchors, the same inputs the
-      // painter routes from.
-      final fallbackSegments = <({bool h, int lo, int hi, int cross})>[];
-      for (final w in wires) {
-        if (w.routePoints != null) continue;
-        final anchors = <HeapRect>[];
-        for (var e = 0; e < w.endpointAnchors.length; e++) {
-          final attach = e < w.endpointAttachRects.length
-              ? w.endpointAttachRects[e]
-              : null;
-          final a = (attach != null && attach.width > 0 && attach.height > 0)
-              ? attach
-              : w.endpointAnchors[e];
-          if (a != null && (a.width > 0 || a.height > 0)) anchors.add(a);
-        }
-        if (anchors.length < 2) continue;
-        ui.Rect rectOf(HeapRect r) => ui.Rect.fromLTRB(
-          r.left.toDouble(),
-          r.top.toDouble(),
-          r.right.toDouble(),
-          r.bottom.toDouble(),
-        );
-        for (var i = 1; i < anchors.length; i++) {
-          final pts = bdWireRoute(rectOf(anchors.first), rectOf(anchors[i]));
-          for (var j = 1; j < pts.length; j++) {
-            final a = pts[j - 1], b = pts[j];
-            final h = a.dy == b.dy;
-            fallbackSegments.add((
-              h: h,
-              lo: (h ? min(a.dx, b.dx) : min(a.dy, b.dy)).floor(),
-              hi: (h ? max(a.dx, b.dx) : max(a.dy, b.dy)).floor(),
-              cross: (h ? a.dy : a.dx).floor(),
-            ));
-          }
-        }
-      }
-      bool onFallbackLeg(int x, int y) => fallbackSegments.any((s) {
-        final (along, cross) = s.h ? (x, y) : (y, x);
-        return along >= s.lo - 3 &&
-            along <= s.hi + 3 &&
-            (cross - s.cross).abs() <= 3;
-      });
+      // Wires without a decoded route are no longer drawn (the synthesized
+      // Manhattan guesser was removed), so no fallback leg can cross a
+      // terminal's surround band — the bleed check below runs with no leg
+      // corridor to exclude.
       bool onStructureEdge(int x, int y) =>
           structureEdgeRects.any(
             (r) =>
@@ -612,7 +568,7 @@ void main() {
                   y < attach.bottom;
               if (inside) {
                 if (oursAt(x, y) != refAt(x, y)) mismatched++;
-              } else if (!onStructureEdge(x, y) && !onFallbackLeg(x, y)) {
+              } else if (!onStructureEdge(x, y)) {
                 bandCompared++;
                 if (refAt(x, y) == canvasWhite && oursAt(x, y) != canvasWhite) {
                   bleed++;
@@ -828,36 +784,153 @@ void main() {
         expect(oursAt(x, y), white, reason: 'inner-ring pixel ($x,$y)');
       }
 
-      // Fallback-routed wire endpoints at icon-stamped nodes: the router
-      // anchors the measured art ink bounds, and a leg leaving an icon at a
-      // row off its output tip gains the vertical connector at the first
-      // column past the art. Each window byte-compares a whole region —
-      // art, wire, stub, and canvas at once:
-      // - the XOR gate (oid 260) output: the tip stub at x=381 climbing to
-      //   the tunnel row 487;
-      // - the oid 1379 → oid 1224 gap: the run at the gate's tip row 280
-      //   (it previously took oid 1224's box-centre row 271 and missed the
-      //   gate art entirely);
-      // - the oid 653 → oid 649 gap at the tip row 310, and oid 831's
-      //   terminal entry at row 318 (both previously box-anchored rows).
-      for (final (label, x0, x1, y0, y1) in [
-        ('xor gate output', 378, 397, 481, 501),
-        ('1379-1224 gap', 578, 588, 256, 298),
-        ('653-649 gap', 716, 727, 306, 316),
-        ('831 terminal entry', 866, 872, 310, 326),
-      ]) {
-        var compared = 0, mismatched = 0;
-        for (var y = y0; y <= y1; y++) {
-          for (var x = x0; x <= x1; x++) {
-            compared++;
-            if (oursAt(x, y) != refAt(x, y)) mismatched++;
-          }
-        }
-        // ignore: avoid_print
-        print('$label window: $compared px byte-compared, $mismatched off');
-        expect(compared, greaterThan(70), reason: label);
-        expect(mismatched, 0, reason: '$label must match the reference');
+      // The one crc8 wire from the "Data in" own-bounds control terminal
+      // (oid 1988) to the 0x2f operator node (oid 902). Its far end is a
+      // plain-node DCO whose implied closing run ENTERS the node, so it ships a
+      // walked [ViWire.routePoints] polyline plus a [ViWire.routeClosingStep],
+      // and the painter extends the terminal segment to the node's drawn ink
+      // edge at the arrival row (not the icon centre). This is a MASKED-WIRE
+      // check: render the diagram again WITHOUT this wire, take the pixels that
+      // change as the wire's own VISIBLE drawn pixels (a run under the far icon
+      // is overdrawn by the art in BOTH renders, so it never enters the mask),
+      // and require (a) every drawn wire pixel is byte-identical to LabVIEW's
+      // reference, and (b) every reference wire-ink pixel of this wire — along
+      // its whole path, up to where the far icon's art begins — is covered.
+      final w1988 = wires.singleWhere((w) => w.endpointOids.contains(1988));
+      expect(
+        w1988.routePoints,
+        isNotNull,
+        reason: 'oid1988 wire must ship a route',
+      );
+      expect(
+        w1988.routeClosingStep,
+        (dx: 1, dy: 0),
+        reason: 'its implied closing run enters oid902 rightward',
+      );
+      final without = (await rasteriseBlockDiagram(
+        bd,
+        primIcons: icons,
+        scale: 1.0,
+        margin: 2,
+        wires: [
+          for (final w in wires)
+            if (w.signalOid != w1988.signalOid) w,
+        ],
+        drawable: drawable,
+      ))!;
+      expect(without.content, raster.content, reason: 'same content frame');
+      final woPx = (await without.image.toByteData())!.buffer.asUint8List();
+      String woAt(int x, int y) {
+        final i =
+            ((y - raster.content.top).toInt() * without.image.width +
+                (x - raster.content.left).toInt()) *
+            4;
+        return '${woPx[i]},${woPx[i + 1]},${woPx[i + 2]}';
       }
+
+      final rp = w1988.routePoints!;
+      final cl = raster.content.left.toInt(), ct = raster.content.top.toInt();
+      // The wire's own visible pixels are exactly those the second render
+      // changed; each must reproduce the reference byte-for-byte, and (mask ==
+      // reference) also forbids any ink of ours where the reference is blank.
+      final mask = <int>{};
+      var maskCount = 0, maskMismatched = 0;
+      for (var y = ct; y < ct + raster.image.height; y++) {
+        for (var x = cl; x < cl + raster.image.width; x++) {
+          if (oursAt(x, y) == woAt(x, y)) continue;
+          mask.add((y - ct) * raster.image.width + (x - cl));
+          maskCount++;
+          if (oursAt(x, y) != refAt(x, y)) maskMismatched++;
+        }
+      }
+      // ignore: avoid_print
+      print('oid1988 wire mask: $maskCount px, $maskMismatched off reference');
+      expect(maskCount, greaterThan(400), reason: 'the wire draws a long run');
+      expect(
+        maskMismatched,
+        0,
+        reason: 'every drawn oid1988 wire pixel must equal the reference',
+      );
+      // The wire's solid ink, sampled mid-run on its horizontal leg.
+      final wireColor = refAt((rp[0].x + rp[1].x) ~/ 2, rp[0].y);
+      expect(wireColor, isNot(canvasWhite), reason: 'the wire leg is inked');
+      bool inMask(int x, int y) =>
+          mask.contains((y - ct) * raster.image.width + (x - cl));
+      // Coverage: along the decoded geometry (each stored segment, then the
+      // implied closing run to the far art), every reference pixel that is this
+      // wire's solid ink MUST be present in the mask — no reference wire pixel
+      // is left undrawn. The control terminal's chrome (start) and oid902's art
+      // (end) are not the wire's ink and are skipped; where they yield, the
+      // blue must be reproduced.
+      // The endpoint terminal owns the pixels inside its own box — its "Data
+      // in" glyph is the same blue as the wire — so the wire's ink is what runs
+      // OUTSIDE it (the box's chrome is verified separately).
+      final termBox = w1988.endpointAnchors[0]!;
+      var wireInkCovered = 0;
+      void coverAlong(int x, int y) {
+        if (x >= termBox.left &&
+            x < termBox.right &&
+            y >= termBox.top &&
+            y < termBox.bottom) {
+          return;
+        }
+        if (refAt(x, y) != wireColor) return;
+        if (inMask(x, y)) {
+          wireInkCovered++;
+          return;
+        }
+        // A reference wire pixel we did not draw is only acceptable where
+        // ANOTHER wire independently inks it — a crossing, where the wire-free
+        // render already shows the same colour (e.g. the later-serialized wire
+        // gaps around the earlier one, exactly as LabVIEW does). Otherwise it
+        // is a genuine coverage gap.
+        expect(
+          woAt(x, y),
+          wireColor,
+          reason: 'reference wire ink at ($x,$y) undrawn (no crossing wire)',
+        );
+      }
+
+      for (var s = 0; s + 1 < rp.length; s++) {
+        final a = rp[s], b = rp[s + 1];
+        final horizontal = a.y == b.y;
+        final lo = horizontal ? min(a.x, b.x) : min(a.y, b.y);
+        final hi = horizontal ? max(a.x, b.x) : max(a.y, b.y);
+        for (var v = lo; v <= hi; v++) {
+          coverAlong(horizontal ? v : a.x, horizontal ? a.y : v);
+        }
+      }
+      // The implied closing run: from the last decoded bend, step along
+      // routeClosingStep across the far box until the reference stops being
+      // wire ink (oid902's art overdraws the rest).
+      final step = w1988.routeClosingStep!;
+      final farBox = w1988.endpointAnchors[1]!;
+      var cx = rp.last.x + step.dx, cy = rp.last.y + step.dy;
+      var closingRun = 0;
+      while (cx >= farBox.left &&
+          cx <= farBox.right &&
+          cy >= farBox.top &&
+          cy <= farBox.bottom &&
+          refAt(cx, cy) == wireColor) {
+        coverAlong(cx, cy);
+        closingRun++;
+        cx += step.dx;
+        cy += step.dy;
+      }
+      expect(
+        closingRun,
+        greaterThan(0),
+        reason: 'the closing run reaches oid902 before its art begins',
+      );
+      expect(
+        wireInkCovered,
+        greaterThan(600),
+        reason: 'the horizontal, vertical, and closing legs are all covered',
+      );
+      // ignore: avoid_print
+      print(
+        'oid1988 wire coverage: $wireInkCovered ink px (closing run $closingRun)',
+      );
 
       // The XOR? caption (oid 221) decodes from the scalar-width 0x022 caption
       // record and renders as text ink above the case structure. LabVIEW's

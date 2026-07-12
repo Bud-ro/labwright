@@ -715,45 +715,6 @@ String? primOpGlyph(PrimOp? op) => switch (op) {
   _ => null,
 };
 
-/// A synthesized Manhattan (right-angle) route between two endpoint-anchor
-/// rectangles, as an ordered polyline in the anchors' own coordinate space —
-/// the fallback for wires whose stored `0x1e7` route is not decoded
-/// (branching junction tables) or absent.
-///
-/// When one endpoint's horizontal centre-line crosses the other's vertical
-/// span, the run is a single **straight horizontal** at that centre-line,
-/// entering the partner's facing edge at that y — the common LabVIEW shape of
-/// a terminal wired level into a structure border or an aligned partner
-/// (routing to the partner's own midpoint instead dove a level wire to the
-/// centre of a tall loop frame). When both centre-lines cross (nested or
-/// overlapping spans), the smaller endpoint — the terminal-like one whose
-/// centre a LabVIEW wire actually leaves from — sets the y. Otherwise the
-/// route leaves [source] on the side facing [sink], turns at the mid-x column,
-/// and enters [sink] on its facing side (an H–V–H elbow). Pure + public so
-/// the routing is unit-testable independent of the canvas.
-List<Offset> bdWireRoute(Rect source, Rect sink) {
-  final sinkRight = sink.center.dx >= source.center.dx;
-  final startX = sinkRight ? source.right : source.left;
-  final endX = sinkRight ? sink.left : sink.right;
-  final sourceLevel =
-      source.center.dy > sink.top && source.center.dy < sink.bottom;
-  final sinkLevel =
-      sink.center.dy > source.top && sink.center.dy < source.bottom;
-  if (sourceLevel || sinkLevel) {
-    final double y;
-    if (sourceLevel && sinkLevel) {
-      y = (source.height <= sink.height ? source : sink).center.dy;
-    } else {
-      y = sourceLevel ? source.center.dy : sink.center.dy;
-    }
-    return [Offset(startX, y), Offset(endX, y)];
-  }
-  final start = Offset(startX, source.center.dy);
-  final end = Offset(endX, sink.center.dy);
-  final midX = (start.dx + end.dx) / 2;
-  return [start, Offset(midX, start.dy), Offset(midX, end.dy), end];
-}
-
 /// The colour a [wire] is drawn in: [kBdWireColor] unless one of its endpoint
 /// anchors exactly matches a terminal whose datatype was recovered, in which
 /// case that terminal's [labviewTypeColor] is used. [typedTerminalColors] maps a
@@ -1915,6 +1876,67 @@ bool primIconHit(ViHeapObject object, double x, double y) {
   return mask.alpha[iy * mask.w + ix] > 0;
 }
 
+/// The absolute diagram coordinate of [object]'s stamped-art opaque EDGE along
+/// one axis, on the line a wire's implied closing run arrives on — where the
+/// run visibly meets the icon. For a horizontal run ([horizontal] true) the
+/// scan is across art row [cross] (an absolute y) and [sign] is the run's x
+/// direction: `+1` returns the LEFTMOST opaque column (the near edge a
+/// rightward run meets), `-1` the column just past the RIGHTMOST. A vertical
+/// run scans column [cross] (an absolute x) for the top/bottom opaque row.
+/// Returns null when the object stamps no masked art or that row/column holds
+/// no opaque pixel — the art is transparent there, which the per-art ink
+/// bounding box ([primIconInkBounds]) cannot report. Absolute so the painter
+/// and tests agree on the meeting point.
+int? primIconInkEdge(
+  ViHeapObject object, {
+  required bool horizontal,
+  required int cross,
+  required int sign,
+}) {
+  final id = primIconKeyOf(object);
+  final mask = id == null ? null : _primIconMasks[id];
+  final b = object.absBounds;
+  if (mask == null || b == null) return null;
+  final stamp = primIconStampRect(
+    Rect.fromLTRB(
+      b.left.toDouble(),
+      b.top.toDouble(),
+      b.right.toDouble(),
+      b.bottom.toDouble(),
+    ),
+    mask.w,
+    mask.h,
+    key: id,
+  );
+  if (horizontal) {
+    final iy = (cross - stamp.top).floor();
+    if (iy < 0 || iy >= mask.h) return null;
+    final base = iy * mask.w;
+    if (sign >= 0) {
+      for (var ix = 0; ix < mask.w; ix++) {
+        if (mask.alpha[base + ix] > 0) return stamp.left.floor() + ix;
+      }
+    } else {
+      for (var ix = mask.w - 1; ix >= 0; ix--) {
+        if (mask.alpha[base + ix] > 0) return stamp.left.floor() + ix + 1;
+      }
+    }
+    return null;
+  }
+  final ix = (cross - stamp.left).floor();
+  if (ix < 0 || ix >= mask.w) return null;
+  if (sign >= 0) {
+    for (var iy = 0; iy < mask.h; iy++) {
+      if (mask.alpha[iy * mask.w + ix] > 0) return stamp.top.floor() + iy;
+    }
+  } else {
+    for (var iy = mask.h - 1; iy >= 0; iy--) {
+      if (mask.alpha[iy * mask.w + ix] > 0) return stamp.top.floor() + iy + 1;
+    }
+  }
+  return null;
+}
+
 /// The already-decoded primitive icons, or empty while [loadPrimIcons] is
 /// still in flight — for callers that must not block (the oracle's first
 /// build under the test framework's fake async).
@@ -2203,7 +2225,6 @@ class BdDiagramPainter extends CustomPainter {
       for (final o in objects)
         if (o.kind == 0x50 && o.parentOid != null) o.parentOid!,
     };
-    final structureRects = {for (final o in structures) rectOf(o)};
     final tunnelLandings = <(Offset, Color)>[];
     final tunnelSquares =
         <(Rect, ({int kind, bool hollow, bool disabled}), Color)>[];
@@ -2221,12 +2242,7 @@ class BdDiagramPainter extends CustomPainter {
           attach.bottom - origin.dy,
         ),
     };
-    _drawWires(
-      canvas,
-      structureRects: structureRects,
-      tunnelLandings: tunnelLandings,
-      tunnelSquares: tunnelSquares,
-    );
+    _drawWires(canvas, tunnelSquares: tunnelSquares);
     for (final object in structures) {
       // Class-accurate structure chrome (no badge text — LabVIEW names a
       // construct by its border furniture, not a label). Loops get the thick
@@ -2749,11 +2765,14 @@ class BdDiagramPainter extends CustomPainter {
   /// breaks with a 1 px gap either side of the earlier wire's ink band).
   ///
   /// Geometry: a wire with a proven absolute polyline
-  /// ([ViWire.routePoints]) draws it exactly as stored — no extension, no
-  /// clipping. Other wires fall back to a synthesized Manhattan run between
-  /// their endpoint anchors ([bdWireRoute]), extended under icon-stamped
-  /// nodes to the box centre so the art's own ink decides the visible
-  /// meeting point.
+  /// ([ViWire.routePoints]) or branch tree ([ViWire.routeTree]) draws it exactly
+  /// as stored — no extension, no clipping — except that a terminal segment
+  /// ending on an icon-stamped node is extended under the art (to the box
+  /// centre, or, for a one-anchored walk that enters the node off-centre,
+  /// [ViWire.routeClosingStep] carries the run direction and the segment
+  /// reaches the art's near ink edge on the arrival row). A wire with NO decoded
+  /// route is not drawn: there is no synthesized Manhattan guess (until an
+  /// editor exists), so an undecoded wire body simply does not appear.
   ///
   /// Stroke: driven by the wire-type word's measured render style
   /// ([ViSignalTypeRenderStyle.renderStyle]); the estimate tier
@@ -2766,8 +2785,6 @@ class BdDiagramPainter extends CustomPainter {
   /// frame draws through [bdDimDisabled].
   void _drawWires(
     Canvas canvas, {
-    Set<Rect>? structureRects,
-    List<(Offset, Color)>? tunnelLandings,
     List<(Rect, ({int kind, bool hollow, bool disabled}), Color)>?
     tunnelSquares,
   }) {
@@ -2785,6 +2802,9 @@ class BdDiagramPainter extends CustomPainter {
     // (crc8's gates: the reference wires run at the art's edge-centre row,
     // not the 32x32 box's).
     final iconInkRects = <Rect, Rect>{};
+    // Node box (canvas coords) → its object, so a wire's into-node closing run
+    // can query the art's opaque EDGE on the exact arrival row.
+    final iconNodeObjects = <Rect, ViHeapObject>{};
     for (final object in objects) {
       final bounds = object.absBounds;
       if (bounds == null) continue;
@@ -2807,6 +2827,7 @@ class BdDiagramPainter extends CustomPainter {
           bounds.bottom - origin.dy,
         );
         iconNodeRects.add(boxRect);
+        iconNodeObjects[boxRect] = object;
         final art = primIcons[iconKey]?.base;
         final ink = primIconInkBounds(iconKey);
         if (art != null && ink != null) {
@@ -2831,44 +2852,31 @@ class BdDiagramPainter extends CustomPainter {
     // them.
     final drawn = <_BdWireSeg>[];
     for (final wire in wires) {
-      final anchors = <Rect>[];
       // Endpoints with a DECODED attach rect get their border-terminal
-      // chrome drawn at it (kind-specific, reference-verified only).
+      // chrome drawn at it (kind-specific, reference-verified only). A wire's
+      // BODY comes from its decoded route ([ViWire.routePoints] /
+      // [ViWire.routeTree]); an endpoint's owner box no longer routes a leg.
       final tunnels = <(Rect, ({int kind, bool hollow, bool disabled}))>[];
       for (var e = 0; e < wire.endpointAnchors.length; e++) {
         final anchor = wire.endpointAnchors[e];
         if (anchor == null) continue;
         // A zero-area anchor is an endpoint whose nearest bounded owner is a
-        // degenerate wire-segment stub (often at the diagram origin or a
-        // far-off point) — its real location is not decoded, and routing to it
-        // draws strokes into empty space. Such a leg is skipped rather than
-        // drawn wrong.
+        // degenerate wire-segment stub — no chrome to place there.
         if (anchor.width <= 0 && anchor.height <= 0) continue;
-        final anchorRect = Rect.fromLTRB(
-          anchor.left - origin.dx,
-          anchor.top - origin.dy,
-          anchor.right - origin.dx,
-          anchor.bottom - origin.dy,
-        );
         // The decoded terminal attach rect pins the endpoint exactly (the
-        // tunnel on a structure border, a growable node's terminal) — the
-        // owner box is only the fallback.
+        // tunnel on a structure border, a growable node's terminal).
         final attach = e < wire.endpointAttachRects.length
             ? wire.endpointAttachRects[e]
             : null;
-        if (attach != null) {
-          final attachRect = Rect.fromLTRB(
-            attach.left - origin.dx,
-            attach.top - origin.dy,
-            attach.right - origin.dx,
-            attach.bottom - origin.dy,
-          );
-          anchors.add(attachRect);
-          final info = borderTerminalKinds[attach];
-          if (info != null) tunnels.add((attachRect, info));
-        } else {
-          anchors.add(anchorRect);
-        }
+        if (attach == null) continue;
+        final attachRect = Rect.fromLTRB(
+          attach.left - origin.dx,
+          attach.top - origin.dy,
+          attach.right - origin.dx,
+          attach.bottom - origin.dy,
+        );
+        final info = borderTerminalKinds[attach];
+        if (info != null) tunnels.add((attachRect, info));
       }
       var color = bdWireColor(
         wire,
@@ -2920,13 +2928,9 @@ class BdDiagramPainter extends CustomPainter {
         ];
         // A proven polyline connects at its DECODED attach point on the
         // endpoint's own border. Where that endpoint is an icon-stamped node,
-        // LabVIEW still draws the wire UNDER the art to the box centre — the
-        // art's transparent margin shows the stub between the border-centre
-        // attach and the opaque icon edge (crc8's U8 conversion, and the
-        // one-anchored terminal entries whose plain-node end lands on the box
-        // border). Extend the terminal segment there, exactly as the fallback
-        // path does for an icon-node leg; the covered interior is masked by
-        // the art itself.
+        // LabVIEW draws the wire UNDER the art — the art's opaque pixels decide
+        // the visible meeting point — so the terminal segment is extended into
+        // the icon; the covered interior is masked by the art itself.
         if (points.length >= 2 && wire.endpointAnchors.length >= 2) {
           Rect? iconBox(int e) {
             final a = wire.endpointAnchors[e];
@@ -2950,78 +2954,73 @@ class BdDiagramPainter extends CustomPainter {
           }
           final sinkBox = iconBox(wire.endpointAnchors.length - 1);
           if (sinkBox != null) {
-            final c = (iconInkRects[sinkBox] ?? sinkBox).center;
-            final pn = points.last, pm = points[points.length - 2];
-            points[points.length - 1] = pn.dy == pm.dy
-                ? Offset(c.dx, pn.dy)
-                : Offset(pn.dx, c.dy);
-          }
-        }
-        legs.add(points);
-      } else {
-        if (anchors.length < 2) continue;
-        // Icon-edge anchoring applies to plain 2-endpoint wires only:
-        // 3+-endpoint (junction) wires keep the box-anchored fallback
-        // untouched until their stored branch routes decode.
-        final twoEnded = anchors.length == 2;
-        final source = anchors.first;
-        final sourceInk = twoEnded ? iconInkRects[source] : null;
-        for (var i = 1; i < anchors.length; i++) {
-          final sink = anchors[i];
-          final sinkInk = twoEnded ? iconInkRects[sink] : null;
-          // Icon-stamped endpoints route from the measured art ink bounds
-          // ([iconInkRects]) instead of the node box, so the level rule
-          // picks the row where the art actually is.
-          final points = bdWireRoute(sourceInk ?? source, sinkInk ?? sink);
-          // A leg ending on an icon-stamped node runs on UNDER it to the
-          // art/box centre: LabVIEW draws wires beneath nodes, so the art's
-          // own opaque pixels decide exactly where the wire visibly meets
-          // the icon (through a chamfer notch, up to a border — whatever
-          // the art says).
-          if (points.length >= 2) {
-            final p0 = points.first, p1 = points[1];
-            if (sourceInk != null &&
-                p0.dy == p1.dy &&
-                p0.dy.floor() != sourceInk.center.dy.floor()) {
-              // The route row misses the source icon's output tip (the
-              // art's edge-centre row — a primitive has ONE output, at its
-              // tip): connect with a vertical stub at the leg's start
-              // column, the first pixel column outside the art edge.
-              // Reference-verified on crc8's XOR gate output (the stub at
-              // x=381 from the tip rows up to the tunnel row). No
-              // under-art extension here — the stub already meets the tip,
-              // and a run under the art would show through its transparent
-              // pixels where the reference has canvas.
-              points.insert(0, Offset(p0.dx, sourceInk.center.dy));
-            } else if (iconNodeRects.contains(source)) {
-              final c = (sourceInk ?? source).center;
-              points[0] = p0.dy == p1.dy
-                  ? Offset(c.dx, p0.dy)
-                  : Offset(p0.dx, c.dy);
-            }
-            if (iconNodeRects.contains(sink)) {
-              final c = (sinkInk ?? sink).center;
+            final ink = iconInkRects[sinkBox] ?? sinkBox;
+            final closing = wire.routeClosingStep;
+            if (closing != null) {
+              // The polyline ends at the last DECODED bend INSIDE the node;
+              // the implied closing run enters along [ViWire.routeClosingStep]
+              // at the wire's own input row (not the box centre). Extend a
+              // segment from that bend along the closing axis to where the art
+              // becomes OPAQUE on the arrival row ([primIconInkEdge]) — the ink
+              // bounding box is per-art, so it can be transparent on this row
+              // where a protruding feature elsewhere set its edge. The art then
+              // overdraws the covered stub. Falls back to the ink-box edge when
+              // the row carries no masked art.
+              final last = points.last;
+              final farObj = iconNodeObjects[sinkBox];
+              if (closing.dx != 0) {
+                final edge = farObj == null
+                    ? null
+                    : primIconInkEdge(
+                        farObj,
+                        horizontal: true,
+                        cross: (last.dy + origin.dy).round(),
+                        sign: closing.dx,
+                      );
+                points.add(
+                  Offset(
+                    edge != null
+                        ? edge - origin.dx
+                        : (closing.dx > 0 ? ink.left : ink.right - 1),
+                    last.dy,
+                  ),
+                );
+              } else {
+                final edge = farObj == null
+                    ? null
+                    : primIconInkEdge(
+                        farObj,
+                        horizontal: false,
+                        cross: (last.dx + origin.dx).round(),
+                        sign: closing.dy,
+                      );
+                points.add(
+                  Offset(
+                    last.dx,
+                    edge != null
+                        ? edge - origin.dy
+                        : (closing.dy > 0 ? ink.top : ink.bottom - 1),
+                  ),
+                );
+              }
+            } else {
+              // The closing run reached the box edge: run on under the art to
+              // the icon centre (the art masks the covered interior).
+              final c = ink.center;
               final pn = points.last, pm = points[points.length - 2];
               points[points.length - 1] = pn.dy == pm.dy
                   ? Offset(c.dx, pn.dy)
                   : Offset(pn.dx, c.dy);
             }
           }
-          // A leg whose anchor is a structure's own box is a border
-          // crossing — the landing point is where LabVIEW draws the tunnel
-          // square. (A routePoints leg never needs this: its endpoints are
-          // decoded attach points, whose chrome the attach-rect pass owns.)
-          if (structureRects != null && tunnelLandings != null) {
-            if (structureRects.contains(source)) {
-              tunnelLandings.add((points.first, color));
-            }
-            if (structureRects.contains(anchors[i])) {
-              tunnelLandings.add((points.last, color));
-            }
-          }
-          legs.add(points);
         }
+        legs.add(points);
       }
+      // A wire with NO decoded route (neither a proven [ViWire.routePoints]
+      // polyline nor a branch [ViWire.routeTree]) is not drawn: the app renders
+      // decoded geometry only, never a synthesized Manhattan guess (there is no
+      // built-in routing until an editor exists). Its endpoint chrome is still
+      // collected above; the wire body simply does not appear.
       // Stroke style: measured tier first; the estimate tier stands in for
       // the simple solid/dotted styles only (never a patterned cycle); the
       // pre-catalogue simple laws cover the remainder (array ⇒ 2 px, scalar
