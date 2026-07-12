@@ -21,8 +21,9 @@ import 'snapshot_check.dart';
 ///
 ///  1. **Terminal glyphs** — per [ViHeapObject.termBmp] value: the carrier
 ///     population, how its DCO resolves (unique / none / ambiguous), and the
-///     resolved DCO's hidden bit (`0x800000`) crossed with whether the DCO is
-///     wired (participates in any signal). The hidden×wired cross is what
+///     resolved DCO's hidden bit ([kTerminalGlyphHiddenFlag]) crossed with
+///     whether the DCO is wired (participates in any signal). The
+///     hidden×wired cross is what
 ///     backs the render law: LabVIEW's hidden loop terminals are unwired.
 ///  2. **Free hidden DCOs** — endpoint DCOs carrying the hidden bit with no
 ///     termBounds terminal claiming them, keyed by parent kind (the
@@ -66,13 +67,13 @@ Map<String, int> _census(Uint8List bytes, String path) {
         continue;
       }
       claimed.add(dco.oid);
-      final hidden = ((dco.objFlags ?? 0) & 0x800000) != 0;
+      final hidden = ((dco.objFlags ?? 0) & kTerminalGlyphHiddenFlag) != 0;
       bump('bmp$bmp${hidden ? 'Hidden' : 'Shown'}${wired.contains(dco.oid) ? 'Wired' : 'Unwired'}');
     }
 
     for (final o in d.objects) {
       if (!kSignalEndpointDcoKinds.contains(o.kind)) continue;
-      if (((o.objFlags ?? 0) & 0x800000) == 0 || claimed.contains(o.oid)) continue;
+      if (((o.objFlags ?? 0) & kTerminalGlyphHiddenFlag) == 0 || claimed.contains(o.oid)) continue;
       final p = byId[o.parentOid ?? -1];
       bump('freeHiddenDcoParent${p == null ? 'None' : p.kind.toRadixString(16)}');
     }
@@ -109,6 +110,14 @@ Map<String, int> _census(Uint8List bytes, String path) {
         bump('constSigNoFarAnchor');
       } else {
         bump('constSigCloseMiss');
+        // Which value-shell kind the missed constant sits on — the doc's
+        // "composite shell" attribution is pinned here, not asserted blind.
+        final srcIdx = shells[0] != null ? 0 : 1;
+        final constant = d.endpointConstant(w.endpointOids[srcIdx]);
+        final shell = constant == null
+            ? null
+            : d.children(constant.oid).firstWhere((g) => g.absBounds != null, orElse: () => constant);
+        bump('constCloseMissShell${(shell?.kind ?? -1).toRadixString(16)}');
       }
     }
   }
@@ -135,20 +144,24 @@ void main() {
     // Terminal glyph visibility, straight from LabVIEW's own raster in the
     // snippet: the four for loops (oids 86/164/571/3042) all draw `N`; only
     // 86 and 3042 draw `i` (the others' unwired iteration terminals are
-    // hidden). Terminal carrier oid -> (dco oid, hidden).
+    // hidden). Terminal carrier oid -> (dco oid, hidden, raw DCO objFlags):
+    // the raw flag words pin the hidden-vs-shown `i` pair as differing in
+    // kTerminalGlyphHiddenFlag alone (0x820140 vs 0x020140).
     const glyphs = {
-      119: (118, false), // i, "Create CRC-8 LUT" loop 86 — drawn
-      194: (193, true), //  i, inner 8-bit loop 164 — absent in the render
-      605: (604, true), //  i, "Calculate CRC-8" loop 571 — absent
-      3063: (3062, false), // i, disabled LUT loop 3042 — drawn
-      89: (91, false), //   N, loop 86 — drawn, fed by the "bytes" 256 box
-      167: (169, false), // N, loop 164 — drawn, fed by the "8-bits" 8 box
-      574: (576, false), // N, loop 571 — drawn bare (count unwired)
-      3045: (3047, false), // N, loop 3042 — drawn, fed by a 256 box
+      119: (118, false, 0x020140), // i, "Create CRC-8 LUT" loop 86 — drawn
+      194: (193, true, 0x820140), //  i, inner 8-bit loop 164 — absent
+      605: (604, true, 0x820140), //  i, "Calculate CRC-8" loop 571 — absent
+      3063: (3062, false, 0x020140), // i, disabled LUT loop 3042 — drawn
+      89: (91, false, 0x020000), //   N, loop 86 — fed by the "bytes" 256 box
+      167: (169, false, 0x020000), // N, loop 164 — fed by the "8-bits" 8 box
+      574: (576, false, 0x020000), // N, loop 571 — drawn bare (count unwired)
+      3045: (3047, false, 0x020000), // N, loop 3042 — fed by a 256 box
     };
     glyphs.forEach((oid, want) {
-      expect(d.terminalDco(oid)?.oid, want.$1, reason: 'terminal $oid DCO');
+      final dco = d.terminalDco(oid);
+      expect(dco?.oid, want.$1, reason: 'terminal $oid DCO');
       expect(d.terminalGlyphHidden(oid), want.$2, reason: 'terminal $oid hidden');
+      expect(dco?.objFlags, want.$3, reason: 'terminal $oid DCO objFlags');
     });
 
     // N-feeder linkage: the count signal's far endpoint wraps the constant
@@ -164,17 +177,21 @@ void main() {
       expect((r.top, r.left, r.bottom, r.right), want.$2, reason: 'endpoint $oid shell');
     });
 
-    // The feeder wires ship exact closed polylines from the shell centre to
-    // the N terminal's attach rect (previously they anchored on a degenerate
-    // zero-area segment and routed to nothing).
+    // Each feeder wire ships an exact closed two-point polyline from its
+    // constant shell's centre to the loop's N terminal attach rect.
     const routes = {
       399: [(x: 122, y: 383), (x: 166, y: 383)], // 256 -> loop 86 N
       375: [(x: 232, y: 441), (x: 271, y: 441)], // 8 -> loop 164 N
       3126: [(x: 201, y: 206), (x: 230, y: 206)], // 256 -> loop 3042 N
     };
+    final matched = <int>{};
     for (final w in d.wires) {
       final want = routes[w.signalOid];
-      if (want != null) expect(w.routePoints, want, reason: 'signal ${w.signalOid}');
+      if (want == null) continue;
+      matched.add(w.signalOid);
+      expect(w.routePoints, want, reason: 'signal ${w.signalOid}');
     }
+    // Guard against the loop vacuously passing zero assertions.
+    expect(matched, routes.keys.toSet(), reason: 'all three feeder signals present');
   });
 }

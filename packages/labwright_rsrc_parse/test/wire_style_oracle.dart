@@ -325,7 +325,7 @@ List<WireRun> wireRuns(ViDiagram bd) {
       candidates.addAll(_routeRuns(w, a, b) ?? const []);
     }
     for (final run in candidates) {
-      runs.addAll(_clipRunOutOfRects(run, shells));
+      runs.addAll(clipRunOutOfRects(run, shells));
     }
   }
   return runs;
@@ -336,7 +336,8 @@ List<WireRun> wireRuns(ViDiagram bd) {
 /// drops it). Rects not crossing the run's band on the perpendicular axis do
 /// not cut. A 1-unit margin keeps the sampled pixels off the box border, and
 /// sub-runs shorter than 2 units are dropped like their [wireRuns] parents.
-List<WireRun> _clipRunOutOfRects(WireRun run, List<HeapRect> rects) {
+/// Public for the unit suite (`wire_run_clip_test.dart`).
+List<WireRun> clipRunOutOfRects(WireRun run, List<HeapRect> rects) {
   var spans = <(int, int)>[(run.lo, run.hi)];
   for (final rect in rects) {
     final inBand = run.horizontal

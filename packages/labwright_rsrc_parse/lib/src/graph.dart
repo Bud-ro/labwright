@@ -891,7 +891,20 @@ const kControlTerminalCodes = {0x50, 0x4f, 0x57, 0x5b, 0x51};
 /// [HeapObjectClass.signal]). An endpoint's attach rectangle is resolved via
 /// the terminal object that declares it a member —
 /// [ViDiagram.endpointTerminalBounds], which owns the resolution census.
-const kSignalEndpointDcoKinds = {0x15, 0x16};
+const kSignalEndpointDcoKinds = {kNodeEndpointDcoKind, 0x16 /* HeapObjectClass.bdLeaf */};
+
+/// The **bounds-less node-endpoint DCO** class code (`0x15`) — the on-node
+/// member of [kSignalEndpointDcoKinds] (its sibling is the bounded
+/// free-standing `0x16` [HeapObjectClass.bdLeaf]). It carries no bounds of its
+/// own; when it parents a `0x13` constant it is how a wired block-diagram
+/// constant attaches to a signal (see [ViDiagram.endpointConstant]).
+const int kNodeEndpointDcoKind = 0x15;
+
+/// Object-flags ([ViHeapObject.objFlags]) bit marking a structure terminal's
+/// glyph **hidden** in LabVIEW's block-diagram render. It rides the terminal's
+/// DCO, not the terminal itself; [ViDiagram.terminalGlyphHidden] owns the
+/// render verification and the corpus census.
+const int kTerminalGlyphHiddenFlag = 0x800000;
 
 /// Attribute id bytes `buildDiagram` surfaces onto [ViHeapObject] (a fast
 /// pre-filter on the record's second byte before the heavier `decodeHeapAttr`):
@@ -1591,8 +1604,13 @@ class ViDiagram {
 
   ViWire _buildWire(ViHeapObject object) {
     final route = object.wireTableRaw == null ? null : decodeWireRoute(object.wireTableRaw!);
+    // Resolve each endpoint's constant value shell once and reuse it for the
+    // attach rect, the anchor, and the route closure (its child scan is not
+    // free — most endpoints wrap no constant and scan nothing, but the shared
+    // local avoids re-walking the ones that do).
+    final constantBounds = [for (final oid in object.refs) endpointConstantBounds(oid)];
     final attachRects = [
-      for (final oid in object.refs) endpointTerminalBounds(oid) ?? endpointConstantBounds(oid),
+      for (var i = 0; i < object.refs.length; i++) endpointTerminalBounds(object.refs[i]) ?? constantBounds[i],
     ];
     return ViWire(
       signalOid: object.oid,
@@ -1600,7 +1618,7 @@ class ViDiagram {
       // A constant endpoint anchors on its own value shell (the box LabVIEW
       // draws); every other endpoint on its nearest bounded owner.
       endpointAnchors: [
-        for (final oid in object.refs) endpointConstantBounds(oid) ?? _boundedOwnerBounds(oid),
+        for (var i = 0; i < object.refs.length; i++) constantBounds[i] ?? _boundedOwnerBounds(object.refs[i]),
       ],
       endpointAttachRects: attachRects,
       route: route,
@@ -1659,12 +1677,34 @@ class ViDiagram {
   /// and DCO resolvers below walk. Built once on first access.
   late final Map<int, List<ViHeapObject>> _childrenByOid = _childrenByParentOid(objects);
 
+  /// Terminal oid → the oid of the endpoint **DCO it carries** (the inverse of
+  /// [_terminalOidByMemberOid], with the added `14 4f` dcoRef backlink gate),
+  /// or the [_ambiguousTerminal] sentinel where two distinct DCOs claim the
+  /// terminal. Built once so [terminalDco] is an O(1) lookup rather than a
+  /// per-call child walk. Only termBounds-carrying terminals appear.
+  late final Map<int, int> _dcoOidByTerminalOid = _buildTerminalDcoIndex();
+
+  Map<int, int> _buildTerminalDcoIndex() {
+    final index = <int, int>{};
+    for (final terminal in objects) {
+      if (terminal.termBounds == null) continue;
+      for (final target in terminal.typedRefs[HeapRefKind.childRef] ?? const <int>[]) {
+        final candidate = byId[target];
+        if (candidate == null || !kSignalEndpointDcoKinds.contains(candidate.kind)) continue;
+        if (!(candidate.typedRefs[HeapRefKind.dcoRef] ?? const <int>[]).contains(terminal.oid)) continue;
+        final prev = index[terminal.oid];
+        index[terminal.oid] = (prev == null || prev == candidate.oid) ? candidate.oid : _ambiguousTerminal;
+      }
+    }
+    return index;
+  }
+
   /// The signal-endpoint **DCO a terminal carries** — [endpointTerminal]'s
   /// inverse: the unique `14 19` childRef target of terminal [oid] that is an
   /// endpoint-DCO kind ([kSignalEndpointDcoKinds]) *and* names the terminal
   /// back in its own `14 4f` dcoRef — or null when [oid] carries no
   /// [ViHeapObject.termBounds] rect, no such target exists, or more than one
-  /// does (never guessed).
+  /// does (never guessed). Backed by the built-once [_dcoOidByTerminalOid].
   ///
   /// Corpus (7,524 VIs; censused with the glyph census on
   /// [terminalGlyphHidden]): the loop terminals resolve almost totally — the
@@ -1676,41 +1716,34 @@ class ViDiagram {
   /// 6,421/6,737) often claim several DCOs (a stacked register holds one per
   /// frame) and resolve only where the claim is unique.
   ViHeapObject? terminalDco(int oid) {
-    final terminal = byId[oid];
-    if (terminal == null || terminal.termBounds == null) return null;
-    ViHeapObject? found;
-    for (final target in terminal.typedRefs[HeapRefKind.childRef] ?? const <int>[]) {
-      final candidate = byId[target];
-      if (candidate == null || !kSignalEndpointDcoKinds.contains(candidate.kind)) continue;
-      if (!(candidate.typedRefs[HeapRefKind.dcoRef] ?? const <int>[]).contains(oid)) continue;
-      if (found != null && found.oid != candidate.oid) return null;
-      found = candidate;
-    }
-    return found;
+    final dcoOid = _dcoOidByTerminalOid[oid];
+    return dcoOid == null || dcoOid == _ambiguousTerminal ? null : byId[dcoOid];
   }
 
-  /// Whether LabVIEW **hides this structure terminal's glyph**: bit `0x800000`
-  /// of the carried DCO's [ViHeapObject.objFlags] (via [terminalDco]; an
-  /// unresolved DCO or absent flags word reads as shown). Lets a renderer drop
-  /// exactly the loop-corner glyphs LabVIEW drops instead of guessing from
-  /// wiring.
+  /// Whether LabVIEW **hides this structure terminal's glyph**:
+  /// [kTerminalGlyphHiddenFlag] of the carried DCO's [ViHeapObject.objFlags]
+  /// (via [terminalDco]; an unresolved DCO or absent flags word reads as
+  /// shown). Lets a renderer drop exactly the loop-corner glyphs LabVIEW
+  /// drops instead of guessing from wiring.
   ///
   /// Render-verified on the crc8 snippet's own LabVIEW raster (four for
   /// loops in one VI): the two drawn `i` glyphs ride DCO flags `0x020140`
-  /// and the two absent ones `0x820140` — minimal pairs differing in bit
-  /// `0x800000` alone — while all four `N` glyphs are drawn and all four
-  /// count DCOs clear the bit. Corpus (7,524 VIs, structure terminals with a
-  /// resolved DCO): the bit hides 100/6,883 `i` iteration terminals — every
-  /// one unwired, consistent with LabVIEW offering the hide only for unused
-  /// terminals — and 12 of the `0xd7`/`0xd8` pairs (termBmp 214/215, also
-  /// all unwired); it is never set on a count (0/5,270), stop (0/1,892),
-  /// shift-register (0/13,208), or selector (0/66) DCO. The same bit rides
-  /// 9,024 endpoint DCOs no terminal uniquely claims — parented under
-  /// expandable-node kinds (`0x8c` 3,450 / `0xd6` 2,663 / `0x6a` 1,558 /
-  /// `0x2f` 308 / …) and the `0x1d` endpoint buckets (350) — plausibly the
-  /// same hidden/unused-terminal meaning there, but no reference render pins
-  /// those, so this accessor stays scoped to termBounds-carrying terminals.
-  bool terminalGlyphHidden(int oid) => ((terminalDco(oid)?.objFlags ?? 0) & 0x800000) != 0;
+  /// and the two absent ones `0x820140` — minimal pairs differing in the
+  /// hidden bit alone — while all four `N` glyphs are drawn and all four
+  /// count DCOs clear the bit (the crc8 unit test pins those four raw flag
+  /// words). Corpus (7,524 VIs, structure terminals with a resolved DCO):
+  /// the bit hides 100/6,883 resolved `i` iteration terminals — every one
+  /// unwired, consistent with LabVIEW offering the hide only for unused
+  /// terminals — and, on the timed-loop terminal pair, 8 `0xd7` (termBmp 214)
+  /// and 4 `0xd8` (termBmp 215) terminals (also all unwired); it is never set
+  /// on a count (0/5,270), stop (0/1,892), shift-register (0/13,208), or
+  /// selector (0/66) DCO. The same bit rides 9,024 endpoint
+  /// DCOs no terminal uniquely claims — parented under expandable-node kinds
+  /// (`0x8c` 3,450 / `0xd6` 2,663 / `0x6a` 1,558 / `0x2f` 308 / …) and the
+  /// `0x1d` endpoint buckets (350) — plausibly the same hidden/unused-terminal
+  /// meaning there, but no reference render pins those, so this accessor stays
+  /// scoped to termBounds-carrying terminals.
+  bool terminalGlyphHidden(int oid) => ((terminalDco(oid)?.objFlags ?? 0) & kTerminalGlyphHiddenFlag) != 0;
 
   /// The **block-diagram constant** a signal-endpoint DCO wraps — the `0x13`
   /// [HeapObjectClass.bdConstDco] child of a bounds-less `0x15` endpoint —
@@ -1729,9 +1762,9 @@ class ViDiagram {
   /// (the route source), never at endpoint 1 and never at both ends.
   ViHeapObject? endpointConstant(int oid) {
     final endpoint = byId[oid];
-    // The 0x16 endpoints are bounded leaves themselves and never wrap a
-    // constant; only the bounds-less 0x15 form does.
-    if (endpoint == null || endpoint.kind != 0x15) return null;
+    // The 0x16 bdLeaf endpoints are bounded leaves themselves and never wrap
+    // a constant; only the bounds-less node-endpoint form does.
+    if (endpoint == null || endpoint.kind != kNodeEndpointDcoKind) return null;
     for (final child in _childrenByOid[oid] ?? const <ViHeapObject>[]) {
       if (child.kind == HeapObjectClass.bdConstDco.code) return child;
     }
@@ -1751,12 +1784,13 @@ class ViDiagram {
   /// closure ([ViWire.routePoints]): walking each closable two-endpoint
   /// constant signal from this rect's floored centre closes exactly on the
   /// far attach point for 12,755 of 14,486 (88.1%) — the same centre
-  /// convention as the bounded `0x16` endpoints. The 1,731 misses
-  /// concentrate on array/cluster/container shells (`0x64` / `0x53` /
-  /// `0x52`), where the true attach point sits off-centre (the element
-  /// region, not the shell) and is not yet decoded — those routes stay
-  /// unshipped rather than force-closed; TODO: decode the composite-shell
-  /// attach offset.
+  /// convention as the bounded `0x16` endpoints. Of the 1,731 misses,
+  /// 1,508 (87%) sit on composite array/cluster/container shells — `0x64`
+  /// 621, `0x53` 492, `0x52` 395 (breakdown pinned per shell kind by
+  /// `loop_terminal_census_test`) — where the true attach point sits
+  /// off-centre (the element region, not the shell) and is not yet decoded;
+  /// those routes stay unshipped rather than force-closed. TODO: decode the
+  /// composite-shell attach offset.
   HeapRect? endpointConstantBounds(int oid) {
     if (_predatesFrameRelativeTermBounds(version)) return null;
     final constant = endpointConstant(oid);

@@ -1280,9 +1280,9 @@ Set<int> bdInlinedInstanceOids(ViDiagram diagram) {
 /// `i`→1, `N`→2, stop→192, shift registers→3/4, case selector→5). Terminals
 /// without a decoded box are omitted (nothing is placed by guesswork), and a
 /// terminal LabVIEW hides is dropped via the file's own per-terminal flag
-/// ([ViDiagram.terminalGlyphHidden]: bit `0x800000` on the terminal's DCO,
-/// render-verified on crc8's four loops — two drawn and two hidden `i`
-/// glyphs, all four `N` glyphs drawn).
+/// ([ViDiagram.terminalGlyphHidden]: [kTerminalGlyphHiddenFlag] on the
+/// terminal's DCO, render-verified on crc8's four loops — two drawn and two
+/// hidden `i` glyphs, all four `N` glyphs drawn).
 Map<int, List<({HeapRect box, int bmp})>> bdStructureTerminals(
   ViDiagram diagram,
 ) {
