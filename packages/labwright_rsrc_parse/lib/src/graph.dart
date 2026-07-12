@@ -1230,9 +1230,15 @@ class ViWire {
     this.route,
     this.routePoints,
     this.branchRoute,
-    this.routeTree,
+    ViWireRouteTree? routeTree,
+    ViWireRouteTree? Function()? routeTreeBuilder,
     this.signalType,
-  }) : endpointAttachRects = endpointAttachRects ?? List<HeapRect?>.filled(endpointOids.length, null);
+  }) : endpointAttachRects = endpointAttachRects ?? List<HeapRect?>.filled(endpointOids.length, null),
+       _routeTree = routeTree,
+       _routeTreeBuilder = routeTreeBuilder;
+
+  final ViWireRouteTree? _routeTree;
+  final ViWireRouteTree? Function()? _routeTreeBuilder;
 
   /// The [ViHeapObject.oid] of the signal (`0x17`) object this wire is.
   final int signalOid;
@@ -1273,34 +1279,49 @@ class ViWire {
   /// signal (see [ViWireBranchRoute] / [decodeWireBranchRoute]), or null
   /// when the signal has fewer than three endpoints, carries no table
   /// record, or the table is not the extended form. The unanchored analog
-  /// of [route]; the proven absolute geometry is [routeTree].
+  /// of [route]; the anchored, leaf-closed absolute geometry is [routeTree].
   final ViWireBranchRoute? branchRoute;
 
   /// The wire's **absolute stored route tree** in diagram coordinates — the
-  /// exact branching Manhattan geometry LabVIEW saved, polyline runs plus
-  /// junction-dot points — or null when it is not provable. Non-null only
+  /// branching Manhattan geometry LabVIEW saved, polyline runs plus
+  /// junction-dot points — or null when it is not shippable. Non-null only
   /// when [branchRoute] decodes, EVERY endpoint resolves an attach point
-  /// (see [ViDiagram.wireAttachPoint]), and the walked tree **closes
-  /// exactly**: its leaves ([ViWireRouteTree.leaves]) land on the attach
-  /// points of endpoints `1..n-1` in some one-to-one matching with zero
-  /// slack, having started at endpoint 0's attach point. Nothing is
-  /// force-closed: a walk that misses any leaf ships null and the census
-  /// counts it.
+  /// (see [ViDiagram.wireAttachPoint]), and the walked tree's **leaves
+  /// close**: [ViWireRouteTree.leaves] land on the attach points of
+  /// endpoints `1..n-1` in a one-to-one matching with zero slack, having
+  /// started at endpoint 0's attach point. Nothing is force-closed: a walk
+  /// that misses any leaf ships null and the census counts it. Computed
+  /// lazily on first access (a renderer's cost, not every [ViDiagram.wires]
+  /// build).
+  ///
+  /// **What each gate proves.** The shipping gate proves the LEAF endpoints
+  /// only — the interior bends and the junction-dot positions are decoded
+  /// from the stored mode/length stream, not re-derived from an endpoint,
+  /// so they are corroborated separately (below), not closed. The doc on
+  /// [WireRouteJunction] carries the branch axis/sign rule and its two
+  /// thin-support choices.
   ///
   /// Corpus census (7,524 VIs; 35,968 extended tables on 3+-endpoint
   /// signals, pinned by `wire_route_census_test`): every table decodes and
-  /// walks. 1,857 signals have ALL endpoints attach-anchored and the right
-  /// leaf count; **1,476 (79.5%) close exactly on every endpoint** and ship
-  /// here. Attribution of the 381 misses: closure is gated by attach-point
-  /// exactness, not the walk rule — over the 15,920 anchored non-origin
-  /// endpoints of all walkable tables, 12,729 (80.0%) land exactly, and the
-  /// subset whose OWN and origin attach geometry are both exact (a
-  /// structure-framed border rect or a `0x16` own-bounds box, not the
-  /// approximate node-framed rects) closes **514 of 514 (100.00%)** — every
-  /// residual miss presses on a node-framed attach rect (approximate; see
-  /// [ViDiagram.endpointTerminalBounds]), the same miss class as
-  /// [routePoints].
-  final ViWireRouteTree? routeTree;
+  /// walks. 1,859 signals have all endpoints anchored; 2 carry a leaf-count
+  /// mismatch (excluded), leaving 1,857 = **1,476 (79.5%) leaf-close on
+  /// every endpoint** and ship here + 381 misses. Closure is gated by
+  /// attach-point exactness, not the walk rule: over the 15,920 anchored
+  /// non-origin endpoints, 12,729 (79.96%) land exactly; restricted to the
+  /// **13,932 endpoints whose own AND origin attach geometry are exact**
+  /// (structure-framed border rect via the real composing frame, or a
+  /// `0x16` own-bounds box — not the approximate node-framed rects),
+  /// **12,426 (89.19%) land exactly**. Of the 1,506 exact-subset misses
+  /// (`extEpExact` − `extEpExactHit`), **1,356 (90%) land inside the
+  /// endpoint's own attach rect** (`extEpExactMissInRect`) — the walk
+  /// reaches the right terminal, off the floored-centre attach convention,
+  /// the same off-centre miss class as [routePoints] — leaving 150
+  /// (`extEpExactMissFar`, ~1% of the exact set) genuinely far.
+  /// Independent geometry check: the pixel-overlay oracle
+  /// (`wire_branch_oracle`) overlays the shipped trees onto LabVIEW's own
+  /// snippet renders at **99.96%** ink coverage with every junction dot on
+  /// ink.
+  late final ViWireRouteTree? routeTree = _routeTree ?? _routeTreeBuilder?.call();
 
   /// The wire's **absolute stored polyline** in diagram coordinates — the
   /// exact Manhattan route LabVIEW saved — or null when it is not provable.
@@ -1551,9 +1572,21 @@ ViWireRoute? decodeWireRoute(Uint8List table) {
 /// the edge just walked) is replaced by [WireRouteDirection.left] — the one
 /// direction no catalog entry lists. Corpus (7,524 VIs, 35,968 extended
 /// tables, census pinned by `wire_route_census_test`): 41,304 junction
-/// segments — `downRight` 23,561 / `upRight` 13,235 / `upDown` 4,110 /
-/// `cross` 398 — of which 535 substitute (all four codes, every blockable
-/// incoming direction observed).
+/// segments — `downRight` 23,561 (`extJuncDownRight`) / `upRight` 13,235
+/// (`extJuncUpRight`) / `upDown` 4,110 (`extJuncUpDown`) / `cross` 398
+/// (`extJuncCross`) — of which 535 substitute (`extJuncSubst`; all four
+/// codes, every blockable incoming direction observed).
+///
+/// The catalog visit orders and the substitution were selected against the
+/// 13,932-endpoint exact-attach labelled subset (see [ViWire.routeTree]):
+/// the shipped ordering closes 89.19%, beating every reordered cross
+/// catalog (next best 88.62%), no substitution (88.99%), and a right
+/// substitution (89.00%). The `cross` visit order and the LEFT
+/// substitution are the thinnest-supported choices (their nearest
+/// alternatives differ by ~80 and ~28 endpoints respectively); the
+/// pixel-overlay oracle corroborates the shipped trees at 99.96%
+/// (`wire_branch_oracle`), but a future larger anchored sample could
+/// refine these two choices.
 enum WireRouteJunction {
   /// `0x04` — a four-way **cross** junction: three outgoing edges, visited
   /// up, then down, then right (two pop returns).
@@ -1618,16 +1651,22 @@ enum WireRouteJunction {
 ///    attach point); the edge walks the next unconsumed outgoing direction
 ///    of the most recently declared junction that still has one (LIFO).
 ///
-/// The point after the final edge is the last leaf. Structural laws,
-/// corpus-wide over all 35,968 extended tables (census pinned by
+/// The point after the final edge is the last leaf, so the walk emits
+/// `#pop + 1` leaves — one per pop plus the trailing run — and the signal's
+/// endpoint count is those leaves plus the origin, `#pop + 2`. Structural
+/// laws, corpus-wide over all 35,968 extended tables (census pinned by
 /// `wire_route_census_test`): the pending-return count exactly balances —
 /// `#pop = (#maskBits−1 for a multi-bit first byte) + Σ (outgoing−1) per
-/// junction` — every mode byte is one of the forms above, and the leaf
-/// count `#pop + 2` equals the signal's endpoint count on 99.9% of tables
-/// (29 exceptions, walked but never force-matched). Geometry proof lives on
-/// [ViWire.routeTree].
+/// junction` — every mode byte is one of the forms above, and `#pop + 2`
+/// equals the endpoint count on 35,939 of 35,968 tables (99.92%; 29
+/// structural exceptions, key `extLeafLawViol`, walked but never
+/// force-matched — 22 of them fall in origin-anchored walkable tables,
+/// key `extLeafMismatch`). Geometry proof lives on [ViWire.routeTree].
 class ViWireBranchRoute {
-  ViWireBranchRoute({required this.pointCount, required this.modes, required this.segmentLengths});
+  /// Private: only [decodeWireBranchRoute] constructs a branch route, so
+  /// every instance satisfies the pop-balance and mode-grammar invariants
+  /// [walkWireBranchRoute] relies on (it is total on any instance).
+  ViWireBranchRoute._({required this.pointCount, required this.modes, required this.segmentLengths});
 
   /// The stored mode byte marking a pop edge — the walk returns to the most
   /// recent junction with an unconsumed outgoing direction. Deliberately
@@ -1692,7 +1731,7 @@ ViWireBranchRoute? decodeWireBranchRoute(Uint8List table) {
     lengths.add(v);
   }
   if (lengths.length != n - 1) return null;
-  return ViWireBranchRoute(pointCount: n, modes: modes, segmentLengths: lengths);
+  return ViWireBranchRoute._(pointCount: n, modes: modes, segmentLengths: lengths);
 }
 
 /// Set-bit count of a mode byte (Dart has no int.popCount; masks are ≤ 4 bits).
@@ -1719,7 +1758,8 @@ class ViWireRouteTree {
 
   /// The leaf landing points in walk order (each polyline's last point) —
   /// the walked positions of the other `endpointCount - 1` endpoints.
-  List<ViPoint> get leaves => [for (final polyline in polylines) polyline.last];
+  /// Computed once on first access.
+  late final List<ViPoint> leaves = [for (final polyline in polylines) polyline.last];
 }
 
 /// Walks a decoded branching route from [start] (the first endpoint's
@@ -1883,7 +1923,8 @@ class ViDiagram {
           ? null
           : _closedRoutePoints(route, attachPoints[0], attachPoints[1]),
       branchRoute: branchRoute,
-      routeTree: branchRoute == null ? null : _closedRouteTree(branchRoute, attachPoints),
+      // Lazy: the walk + closure runs only when a consumer reads routeTree.
+      routeTreeBuilder: branchRoute == null ? null : () => _closedRouteTree(branchRoute, attachPoints),
       signalType: object.lastSignalKind == null ? null : ViSignalType(object.lastSignalKind!),
     );
   }
