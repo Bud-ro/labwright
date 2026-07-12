@@ -75,7 +75,13 @@ Map<String, int> _census(Uint8List png, String path) {
     final origin = bd.wireAttachPoint(w.endpointOids[0]);
     if (origin == null || !objectVisibleInRender(bd, w.signalOid)) continue;
     final tree = walkWireBranchRoute(branch, origin);
-    final scope = w.routeTree != null ? 'shipped' : 'walk';
+    // The 'shipped' scope tracks the PROVEN closed tier (every endpoint
+    // resolves an attach point and closes); the origin-anchored walked tier
+    // ([ViWire.routeTree] non-null but not fully anchored) and unshipped walks
+    // fall in 'walk', whose far arms drift — that lower coverage is expected.
+    // The walked tier's own overlay is pinned by `wire_one_anchored_oracle`.
+    final closed = w.routeTree != null && w.endpointOids.every((oid) => bd.wireAttachPoint(oid) != null);
+    final scope = closed ? 'shipped' : 'walk';
     bump('brc_${scope}_wires');
     for (final line in tree.polylines) {
       for (var s = 0; s < line.length - 1; s++) {
