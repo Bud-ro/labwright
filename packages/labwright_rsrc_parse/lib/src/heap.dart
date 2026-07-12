@@ -508,9 +508,10 @@ enum HeapAttribute {
   /// packed table payload (framed container — packed data, not a record
   /// stream); tables of 1/2/4 bytes ride the scalar `25 E7`/`45 E7`/`85 E7`
   /// widths (a 2-byte straight-wire table is a u16 scalar). The packed
-  /// layout IS decoded for two-endpoint signals — the stored wire route
-  /// polyline; see `decodeWireRoute`/`ViWireRoute` (graph.dart), which own
-  /// the grammar and the corpus census.
+  /// layout IS decoded — the two-endpoint stored route polyline
+  /// (`decodeWireRoute`/`ViWireRoute`) and the extended multi-endpoint
+  /// branching tree (`decodeWireBranchRoute`/`ViWireBranchRoute`), both in
+  /// graph.dart, which own the grammar and the corpus census.
   compressedWireTable(0x1e7, HeapAttrKind.numeric, 'compressedWireTable', AttrConfidence.inferred),
 
   /// Raw `0x09F` — **last signal kind**: the signal's **wire-type word**
@@ -653,13 +654,18 @@ enum HeapAttribute {
   /// pairs — a packed size point, not a colour.
   minPaneSize(0x0b7, HeapAttrKind.point, 'minPaneSize', AttrConfidence.inferred),
 
-  /// Raw `0x022` — **short label text** (pylabview textHair tag 3 = text):
-  /// scope label `0x0A` at 79.7%; the integer widths carry the text BYTES
-  /// magnitude-encoded ("y", "x", "Page", "Name" — 95.3% of nonzero values
-  /// decode as all-printable ASCII; 0 = empty).
-  /// [decodeHeapAttr] exposes the printable ones as strings and leaves the
-  /// rest numeric. Long captions ride the `C4 22` opcode ([HeapOpcode.caption],
-  /// same tag, lp width). Distinct from raw `0x222` ([stdNumInc]).
+  /// Raw `0x022` — **short label text** (pylabview textHair tag 3 = text): the
+  /// scalar-width sibling of the `C4 22` caption opcode ([HeapOpcode.caption],
+  /// same tag, length-prefixed), carrying a 1-4 character caption with the text
+  /// BYTES magnitude-encoded big-endian ("y", "x", "Idx", "XOR?"; 0 = empty).
+  /// [HeapAttr.asciiText] exposes the reading; the caption consumer accepts it
+  /// only when it is a well-formed token — every stored byte a printable ASCII
+  /// glyph (`0x20..0x7e`, so control codes and high-bit Latin-1 stay numeric)
+  /// AND the text filling the whole stored width (a null leading byte means a
+  /// number, not an N-char caption, which occupies the N-byte width). Corpus
+  /// scope of the captured tokens: label class `0x0A` 96.9% (98% across the
+  /// text-label classes `0x0A`/`0x95`), the rest the enum/selector carriers.
+  /// Distinct from raw `0x222` ([stdNumInc]).
   shortText(0x022, HeapAttrKind.text, 'shortText', AttrConfidence.inferred),
 
   /// Raw `0x074` — **printf-format style** (RGB-width with style byte `0x25`,
@@ -1024,8 +1030,12 @@ class HeapAttr {
   /// magnitude bytes read as ASCII (`0x50616765` → `"Page"`), or null when the
   /// tag is not one of those text tags, the value is not integer-stored, or any
   /// magnitude byte is non-printable. The numeric [value] / [asInt] is preserved
-  /// — this is a separate reading of a genuinely-numeric record, never an
-  /// overwrite, so a numeric record is never fabricated into text.
+  /// — this is a separate reading, never an overwrite. It is the *printable*
+  /// reading only: a value with all-printable low bytes but a null leading byte
+  /// yields a string SHORTER than the stored [width] (`0x00424242` at u32 →
+  /// `"BBB"`), which is width-inconsistent and is a number, not a caption, so
+  /// callers treating this as text must additionally require the length to
+  /// equal the stored scalar width.
   String? get asciiText => _asciiIntRaws.contains(rawTag) && value is int ? _asciiFromInt(value as int) : null;
 
   /// The value as a [HeapRect], or null if it is not a rectangle-payload id.

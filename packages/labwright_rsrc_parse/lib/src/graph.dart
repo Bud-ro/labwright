@@ -117,7 +117,9 @@ class ViHeapObject {
   /// diagram/faithful layers currently group by this positional tree.
   int? parentOid;
 
-  /// The object's label/caption (from a `C4 22` record), or null.
+  /// The object's label/caption — from a `C4 22` record, or from the same
+  /// raw-0x022 tag stored at a scalar width when the text fits in 4 bytes
+  /// ([HeapAttribute.shortText] via [HeapAttr.asciiText]) — or null.
   String? label;
 
   /// Child-membership object-id references from `14 19 01 fd <id>` records (the
@@ -462,8 +464,8 @@ enum HeapObjectClass {
   /// [ViDiagram.endpointTerminalBounds] owns that census.
   /// The signal itself carries no bounds; its packed route lives in the
   /// compressedWireTable payload — decoded to an absolute polyline for
-  /// two-endpoint signals ([ViWire.routePoints]; the multi-endpoint
-  /// branching form is framed but not decoded, see [decodeWireRoute]). Its
+  /// two-endpoint signals ([ViWire.routePoints]) and an absolute tree for
+  /// branching signals ([ViWire.routeTree]). Its
   /// **datatype is decoded — with measured agreement, not certainty — from
   /// its own lastSignalKind record** (element type code + array depth +
   /// flags, carried by all but 14 corpus signals): the decoded family
@@ -891,7 +893,20 @@ const kControlTerminalCodes = {0x50, 0x4f, 0x57, 0x5b, 0x51};
 /// [HeapObjectClass.signal]). An endpoint's attach rectangle is resolved via
 /// the terminal object that declares it a member —
 /// [ViDiagram.endpointTerminalBounds], which owns the resolution census.
-const kSignalEndpointDcoKinds = {0x15, 0x16};
+const kSignalEndpointDcoKinds = {kNodeEndpointDcoKind, 0x16 /* HeapObjectClass.bdLeaf */};
+
+/// The **bounds-less node-endpoint DCO** class code (`0x15`) — the on-node
+/// member of [kSignalEndpointDcoKinds] (its sibling is the bounded
+/// free-standing `0x16` [HeapObjectClass.bdLeaf]). It carries no bounds of its
+/// own; when it parents a `0x13` constant it is how a wired block-diagram
+/// constant attaches to a signal (see [ViDiagram.endpointConstant]).
+const int kNodeEndpointDcoKind = 0x15;
+
+/// Object-flags ([ViHeapObject.objFlags]) bit marking a structure terminal's
+/// glyph **hidden** in LabVIEW's block-diagram render. It rides the terminal's
+/// DCO, not the terminal itself; [ViDiagram.terminalGlyphHidden] owns the
+/// render verification and the corpus census.
+const int kTerminalGlyphHiddenFlag = 0x800000;
 
 /// Attribute id bytes `buildDiagram` surfaces onto [ViHeapObject] (a fast
 /// pre-filter on the record's second byte before the heavier `decodeHeapAttr`):
@@ -915,7 +930,13 @@ const kSignalEndpointDcoKinds = {0x15, 0x16};
 // 0x9f is lastSignalKind, the wire-type word (gated to signal 0x17; raws
 // 0x19f/0x29f are uncatalogued today and decode to [HeapAttribute.unknown],
 // which no capture acts on — recheck this gate if one is catalogued).
-const _objAttrIds = {0x20, 0x21, 0x6c, 0x24, 0x28, 0x6f, 0x19, 0x2b, 0x2a, 0x29, 0x3a, 0xcb, 0xea, 0xe7, 0x4d, 0x9f};
+// 0x22 is shortText (raw 0x022), the scalar-width caption; raw 0x122 is
+// uncatalogued today ([HeapAttribute.unknown], no capture acts on it —
+// recheck this gate if it is catalogued) and raw 0x222 is the stdNumInc f64,
+// which no capture acts on.
+const _objAttrIds = {
+  0x20, 0x21, 0x6c, 0x24, 0x28, 0x6f, 0x19, 0x2b, 0x2a, 0x29, 0x3a, 0xcb, 0xea, 0xe7, 0x4d, 0x9f, 0x22, //
+};
 
 /// The structure classes that stack multiple `0x1b` frames and display one —
 /// case [HeapObjectClass.bdStructureFrame] `0x2c`, disable
@@ -1229,8 +1250,16 @@ class ViWire {
     List<HeapRect?>? endpointAttachRects,
     this.route,
     this.routePoints,
+    this.branchRoute,
+    ViWireRouteTree? routeTree,
+    ViWireRouteTree? Function()? routeTreeBuilder,
     this.signalType,
-  }) : endpointAttachRects = endpointAttachRects ?? List<HeapRect?>.filled(endpointOids.length, null);
+  }) : endpointAttachRects = endpointAttachRects ?? List<HeapRect?>.filled(endpointOids.length, null),
+       _routeTree = routeTree,
+       _routeTreeBuilder = routeTreeBuilder;
+
+  final ViWireRouteTree? _routeTree;
+  final ViWireRouteTree? Function()? _routeTreeBuilder;
 
   /// The [ViHeapObject.oid] of the signal (`0x17`) object this wire is.
   final int signalOid;
@@ -1241,30 +1270,87 @@ class ViWire {
   /// source) is not recovered, so the order is not asserted to be source-first.
   final List<int> endpointOids;
 
-  /// The absolute bounds anchoring each endpoint — the [ViHeapObject.absBounds]
-  /// of the endpoint's nearest bounded owner (itself or a positional ancestor:
-  /// the node or `0x1d` wire segment it attaches to). Index-aligned with
-  /// [endpointOids]; an entry is null only when the endpoint oid does not
-  /// resolve (not observed in the corpus).
+  /// The absolute bounds anchoring each endpoint — the constant value shell
+  /// where the endpoint wraps a drawn block-diagram constant
+  /// ([ViDiagram.endpointConstantBounds]: the box LabVIEW draws, e.g. a for
+  /// loop's count feeder), else the [ViHeapObject.absBounds] of the
+  /// endpoint's nearest bounded owner (itself or a positional ancestor: the
+  /// node or `0x1d` wire segment it attaches to — for a constant endpoint
+  /// that owner is a degenerate zero-area segment, which is why the shell
+  /// takes precedence). Index-aligned with [endpointOids]; an entry is null
+  /// only when the endpoint oid does not resolve (not observed in the
+  /// corpus).
   final List<HeapRect?> endpointAnchors;
 
   /// The **attach rectangle** of each endpoint in absolute diagram
   /// coordinates — the structure tunnel square / shift-register box /
-  /// selector glyph the wire visually connects to — index-aligned with
-  /// [endpointOids]. Structure-framed rects are border-exact; node-framed
-  /// (growable-node terminal) rects are approximate. Null where the endpoint
-  /// has no termBounds-carrying terminal (a plain node's connection point) or
-  /// the file predates the frame-relative coordinate space; the coarse
-  /// [endpointAnchors] owner rect still locates those. Decoded by
-  /// [ViDiagram.endpointTerminalBounds], which owns the corpus census;
+  /// selector glyph the wire visually connects to, or the value shell of a
+  /// wired block-diagram constant — index-aligned with [endpointOids].
+  /// Structure-framed rects are border-exact; node-framed (growable-node
+  /// terminal) rects are approximate. Null where the endpoint has neither a
+  /// termBounds-carrying terminal (a plain node's connection point) nor a
+  /// bounded constant shell, or the file predates the frame-relative
+  /// coordinate space; the coarse [endpointAnchors] owner rect still locates
+  /// those. Decoded by [ViDiagram.endpointTerminalBounds] /
+  /// [ViDiagram.endpointConstantBounds], which own the corpus censuses;
   /// defaults to all-null when constructed without a list (external callers
   /// re-deriving anchors keep their alignment guarantee).
   final List<HeapRect?> endpointAttachRects;
 
-  /// The decoded stored route shape (see [ViWireRoute] / [decodeWireRoute]),
-  /// or null when the signal carries no table record, or a form not yet
-  /// decoded (the extended multi-endpoint branching form).
+  /// The decoded stored route shape of a **two-endpoint** signal (see
+  /// [ViWireRoute] / [decodeWireRoute]), or null when the signal carries no
+  /// table record or the table is the extended multi-endpoint branching
+  /// form ([branchRoute]).
   final ViWireRoute? route;
+
+  /// The decoded stored route program of a **3+-endpoint (branching)**
+  /// signal (see [ViWireBranchRoute] / [decodeWireBranchRoute]), or null
+  /// when the signal has fewer than three endpoints, carries no table
+  /// record, or the table is not the extended form. The unanchored analog
+  /// of [route]; the anchored, leaf-closed absolute geometry is [routeTree].
+  final ViWireBranchRoute? branchRoute;
+
+  /// The wire's **absolute stored route tree** in diagram coordinates — the
+  /// branching Manhattan geometry LabVIEW saved, polyline runs plus
+  /// junction-dot points — or null when it is not shippable. Non-null only
+  /// when [branchRoute] decodes, EVERY endpoint resolves an attach point
+  /// (see [ViDiagram.wireAttachPoint]), and the walked tree's **leaves
+  /// close**: [ViWireRouteTree.leaves] land on the attach points of
+  /// endpoints `1..n-1` in a one-to-one matching with zero slack, having
+  /// started at endpoint 0's attach point. Nothing is force-closed: a walk
+  /// that misses any leaf ships null and the census counts it. Computed
+  /// lazily on first access (a renderer's cost, not every [ViDiagram.wires]
+  /// build).
+  ///
+  /// **What each gate proves.** The shipping gate proves the LEAF endpoints
+  /// only — the interior bends and the junction-dot positions are decoded
+  /// from the stored mode/length stream, not re-derived from an endpoint,
+  /// so they are corroborated separately (below), not closed. The doc on
+  /// [WireRouteJunction] carries the branch axis/sign rule and its two
+  /// thin-support choices.
+  ///
+  /// Corpus census (7,524 VIs; 35,968 extended tables on 3+-endpoint
+  /// signals, pinned by `wire_route_census_test`): every table decodes and
+  /// walks. 2,494 signals have all endpoints anchored; 2 carry a leaf-count
+  /// mismatch (excluded), leaving 2,492 = **1,882 (75.5%) leaf-close on
+  /// every endpoint** and ship here + 610 misses. Closure is gated by
+  /// attach-point exactness, not the walk rule: over the 18,233 anchored
+  /// non-origin endpoints, 14,343 (78.67%) land exactly; restricted to the
+  /// **13,932 endpoints whose own AND origin attach geometry are exact**
+  /// (structure-framed border rect via the real composing frame, or a
+  /// `0x16` own-bounds box — NOT the approximate node-framed rects or the
+  /// constant value-shell centres, whose attach point is the drawn edge, not
+  /// the box centre), **12,426 (89.19%) land exactly**. Of the 1,506
+  /// exact-subset misses (`extEpExact` − `extEpExactHit`), **1,356 (90%)
+  /// land inside the endpoint's own attach rect** (`extEpExactMissInRect`) —
+  /// the walk reaches the right terminal, off the floored-centre attach
+  /// convention, the same off-centre miss class as [routePoints] — leaving
+  /// 150 (`extEpExactMissFar`, ~1% of the exact set) genuinely far.
+  /// Independent geometry check: the pixel-overlay oracle
+  /// (`wire_branch_oracle`) overlays the shipped trees onto LabVIEW's own
+  /// snippet renders at **99.96%** ink coverage with every junction dot on
+  /// ink.
+  late final ViWireRouteTree? routeTree = _routeTree ?? _routeTreeBuilder?.call();
 
   /// The wire's **absolute stored polyline** in diagram coordinates — the
   /// exact Manhattan route LabVIEW saved — or null when it is not provable.
@@ -1286,16 +1372,19 @@ class ViWire {
   /// connection-point decode — the sole earlier hits were its artefact).
   ///
   /// Corpus census (7,524 VIs; pinned by `wire_route_census_test`): of the
-  /// 117,112 two-endpoint signals whose BOTH endpoints resolve an attach
-  /// point, **114,082 (97.41%) close exactly** and ship here. The rest:
-  /// 2,977 walked misses — 1,796 of them press against an elongated attach
-  /// rect (the grown border-terminal stacks, narrow-side ≤ 9 px and ≥ 2×
-  /// as long, whose per-element attach points are not yet decoded; the
-  /// other 1,181 are unattributed; TODO both) — plus 3 off-by-1 landings
-  /// and 50 closures contradicting the stored final sign. The closure is a
-  /// zero-slack integrity check against independently decoded geometry
-  /// (the attach rects), so a shipped polyline is proven at both ends,
-  /// not fitted.
+  /// 131,598 two-endpoint signals whose BOTH endpoints resolve an attach
+  /// point, **126,092 (95.82%) close exactly** and ship here. The rest:
+  /// 5,407 walked misses — 2,836 press against an elongated attach rect
+  /// (the grown border-terminal stacks, narrow-side ≤ 9 px and ≥ 2× as
+  /// long, whose per-element attach points are not yet decoded); 1,731
+  /// (overlapping that bucket) start on a constant shell, dominated by the
+  /// composite array/cluster shells whose off-centre attach point is not
+  /// yet decoded ([ViDiagram.endpointConstantBounds]); the remainder are
+  /// unattributed (TODO all) — plus 4 one-point tables whose endpoints do
+  /// not coincide, 29 off-by-1 landings, and 66 closures contradicting the
+  /// stored final sign. The closure is a zero-slack integrity check against
+  /// independently decoded geometry (the attach rects), so a shipped
+  /// polyline is proven at both ends, not fitted.
   final List<ViPoint>? routePoints;
 
   /// The wire's decoded type word ([HeapAttribute.lastSignalKind]) — element
@@ -1461,23 +1550,10 @@ class ViWireRoute {
 /// [direction] is a one-hot [WireRouteDirection] code. The 1-point table is
 /// the single byte `01`; the 2-point table is `[02][direction]`.
 ///
-/// Returns null (not decoded) for:
+/// Returns null (not decoded here) for:
 ///  * the extended `[n][00]…` **multi-endpoint branching form** (35,970
-///    corpus tables, on 3+-endpoint signals only — census `multiExtTable`).
-///    Its framing is established — `[u8 n][00][(n-1) mode bytes][(n-1)
-///    length values]`, all `n-1` tree-edge lengths stored — and the mode
-///    stream reads as a branch-tree program: a leading `1/2/4/8` is a
-///    plain [WireRouteDirection] code, `05`/`06`/`07` push the current
-///    point as a junction and start a branch, and `03` returns to the
-///    pushed junction and continues. That reading is validated on
-///    hand-walked samples only (six tables, one of them 4-endpoint, each
-///    closing exactly onto every endpoint attach point with the junction
-///    dot on the pushed point) — NOT corpus-wide: the axis/sign selection
-///    rule of the post-push and post-return segments is not yet decoded
-///    (leaving them free, most fully-anchored 3–6-endpoint tables admit a
-///    unique tree walk under a constraint search, but no per-code rule
-///    explains all of them). TODO: pin the branch axis rule and ship
-///    branching routes;
+///    corpus tables, on non-two-endpoint signals only — census
+///    `multiExtTable`), decoded by [decodeWireBranchRoute] instead;
 ///  * a second byte that is no direction code;
 ///  * sign bytes outside `00`/`01`, or a length count that disagrees with
 ///    the point count (malformed / not this grammar). The two-endpoint
@@ -1516,6 +1592,287 @@ ViWireRoute? decodeWireRoute(Uint8List table) {
   if (lengths.length != n - 2) return null;
   return ViWireRoute(pointCount: n, direction: direction, segmentLengths: lengths, jointSigns: signs);
 }
+
+/// The **junction codes** of the extended (branching) stored wire route —
+/// the mode bytes marking a point where the wire tree forks. Each code is a
+/// fixed catalog of the junction's outgoing tree-edge directions, in visit
+/// order: the FIRST direction is walked by the segment carrying the code
+/// itself; each later one is walked by a later pop segment
+/// ([ViWireBranchRoute.popCode]) returning to this junction. The directions
+/// are absolute, with one substitution: a listed direction equal to the
+/// reverse of the junction's incoming travel direction (walking back along
+/// the edge just walked) is replaced by [WireRouteDirection.left] — the one
+/// direction no catalog entry lists. Corpus (7,524 VIs, 35,968 extended
+/// tables, census pinned by `wire_route_census_test`): 41,304 junction
+/// segments — `downRight` 23,561 (`extJuncDownRight`) / `upRight` 13,235
+/// (`extJuncUpRight`) / `upDown` 4,110 (`extJuncUpDown`) / `cross` 398
+/// (`extJuncCross`) — of which 535 substitute (`extJuncSubst`; all four
+/// codes, every blockable incoming direction observed).
+///
+/// The catalog visit orders and the substitution were selected against the
+/// 13,932-endpoint exact-attach labelled subset (see [ViWire.routeTree]):
+/// the shipped ordering closes 89.19%, beating every reordered cross
+/// catalog (next best 88.62%), no substitution (88.99%), and a right
+/// substitution (89.00%). The `cross` visit order and the LEFT
+/// substitution are the thinnest-supported choices (their nearest
+/// alternatives differ by ~80 and ~28 endpoints respectively); the
+/// pixel-overlay oracle corroborates the shipped trees at 99.96%
+/// (`wire_branch_oracle`), but a future larger anchored sample could
+/// refine these two choices.
+enum WireRouteJunction {
+  /// `0x04` — a four-way **cross** junction: three outgoing edges, visited
+  /// up, then down, then right (two pop returns).
+  cross(0x04, [WireRouteDirection.up, WireRouteDirection.down, WireRouteDirection.right]),
+
+  /// `0x05` — branch **down** now, resume **right** on pop.
+  downRight(0x05, [WireRouteDirection.down, WireRouteDirection.right]),
+
+  /// `0x06` — branch **up** now, resume **right** on pop.
+  upRight(0x06, [WireRouteDirection.up, WireRouteDirection.right]),
+
+  /// `0x07` — branch **up** now, resume **down** on pop.
+  upDown(0x07, [WireRouteDirection.up, WireRouteDirection.down])
+  ;
+
+  const WireRouteJunction(this.code, this.outgoing);
+
+  /// The stored mode-byte value.
+  final int code;
+
+  /// The junction's outgoing directions in visit order (first = the segment
+  /// carrying the code, rest = later pop returns), before the
+  /// blocked-direction substitution (see the enum doc).
+  final List<WireRouteDirection> outgoing;
+
+  /// The catalog entry for a stored junction byte, or null for any other
+  /// value.
+  static WireRouteJunction? fromCode(int code) => switch (code) {
+    0x04 => cross,
+    0x05 => downRight,
+    0x06 => upRight,
+    0x07 => upDown,
+    _ => null,
+  };
+}
+
+/// The decoded shape of a signal's **extended (branching) wire table** —
+/// the `[u8 pointCount][00][(pointCount-1) mode bytes][(pointCount-1)
+/// length values]` form carried by multi-endpoint signals (the `00` second
+/// byte distinguishes it from the two-endpoint form, whose second byte is a
+/// direction code; the extended form appears on NO two-endpoint signal, a
+/// pinned law). Unlike the two-endpoint form, EVERY tree-edge length is
+/// stored (`FF` + u16be escape for ≥ 255) — nothing is implied by the far
+/// endpoint.
+///
+/// The mode stream is a depth-first walk of the wire TREE, one byte per
+/// edge in walk order:
+///
+///  * the **first** byte is either a one-hot [WireRouteDirection] code
+///    (the first edge's absolute direction) or a multi-bit **mask of
+///    one-hot direction codes** — the start point is itself a junction, its
+///    outgoing edges walked in ascending code order (up `01`, left `02`,
+///    down `04`, right `08`), the first by this edge and the rest by pop
+///    returns;
+///  * `00`/`01` — a plain bend: the edge's axis alternates off the previous
+///    edge and the byte is its sign (`00` = down/right, `01` = up/left),
+///    exactly the two-endpoint form's joint-sign bytes;
+///  * `04`–`07` — a [WireRouteJunction]: the current point is a branch
+///    point (LabVIEW draws its junction dot there) and the edge walks the
+///    catalog's first outgoing direction;
+///  * `03` ([popCode]) — the point just reached is a **leaf** (an endpoint
+///    attach point); the edge walks the next unconsumed outgoing direction
+///    of the most recently declared junction that still has one (LIFO).
+///
+/// The point after the final edge is the last leaf, so the walk emits
+/// `#pop + 1` leaves — one per pop plus the trailing run — and the signal's
+/// endpoint count is those leaves plus the origin, `#pop + 2`. Structural
+/// laws, corpus-wide over all 35,968 extended tables (census pinned by
+/// `wire_route_census_test`): the pending-return count exactly balances —
+/// `#pop = (#maskBits−1 for a multi-bit first byte) + Σ (outgoing−1) per
+/// junction` — every mode byte is one of the forms above, and `#pop + 2`
+/// equals the endpoint count on 35,939 of 35,968 tables (99.92%; 29
+/// structural exceptions, key `extLeafLawViol`, walked but never
+/// force-matched — 22 of them fall in origin-anchored walkable tables,
+/// key `extLeafMismatch`). Geometry proof lives on [ViWire.routeTree].
+class ViWireBranchRoute {
+  /// Private: only [decodeWireBranchRoute] constructs a branch route, so
+  /// every instance satisfies the pop-balance and mode-grammar invariants
+  /// [walkWireBranchRoute] relies on (it is total on any instance).
+  ViWireBranchRoute._({required this.pointCount, required this.modes, required this.segmentLengths});
+
+  /// The stored mode byte marking a pop edge — the walk returns to the most
+  /// recent junction with an unconsumed outgoing direction. Deliberately
+  /// NOT a [WireRouteJunction] catalog value: the byte declares no
+  /// directions of its own.
+  static const int popCode = 0x03;
+
+  /// The stored tree point count (the table's leading byte): endpoints +
+  /// bends + junctions.
+  final int pointCount;
+
+  /// The raw mode bytes, one per tree edge in walk order ([pointCount]−1;
+  /// validated against the grammar by [decodeWireBranchRoute]).
+  final Uint8List modes;
+
+  /// Unsigned lengths of every tree edge, index-aligned with [modes].
+  final List<int> segmentLengths;
+}
+
+/// Decodes a signal's packed `0x1e7` wire-table bytes as the **extended
+/// (branching) form** into a [ViWireBranchRoute], or null when the bytes
+/// are not that form (the two-endpoint form has a direction code where the
+/// extended form has `00` — see [decodeWireRoute]) or violate its grammar:
+/// a first mode byte outside `0x01..0x0f`, a later mode byte that is no
+/// sign/pop/junction code, a length count disagreeing with the point count,
+/// or an unbalanced pop stream (a pop with no pending junction direction,
+/// or pending directions left unconsumed at the end). Corpus (7,524 VIs):
+/// all 35,968 extended tables on 3+-endpoint signals decode; census pinned
+/// by `wire_route_census_test`.
+ViWireBranchRoute? decodeWireBranchRoute(Uint8List table) {
+  if (table.length < 2 || table[1] != 0) return null;
+  final n = table[0];
+  if (n < 2 || table.length < 1 + n) return null;
+  final modes = Uint8List.sublistView(table, 2, 1 + n);
+  // First byte: a one-hot direction or a multi-bit absolute direction mask.
+  // Pending pop returns start at its extra mask bits.
+  final first = modes[0];
+  if (first == 0 || first > 0x0f) return null;
+  var pending = _bitCount(first) - 1;
+  for (var k = 1; k < modes.length; k++) {
+    final m = modes[k];
+    if (m == 0 || m == 1) continue;
+    if (m == ViWireBranchRoute.popCode) {
+      if (pending == 0) return null;
+      pending--;
+      continue;
+    }
+    final junction = WireRouteJunction.fromCode(m);
+    if (junction == null) return null;
+    pending += junction.outgoing.length - 1;
+  }
+  if (pending != 0) return null;
+  var i = 1 + n;
+  final lengths = <int>[];
+  while (i < table.length) {
+    var v = table[i++];
+    if (v == 0xff) {
+      if (i + 1 >= table.length) return null;
+      v = (table[i] << 8) | table[i + 1];
+      i += 2;
+    }
+    lengths.add(v);
+  }
+  if (lengths.length != n - 1) return null;
+  return ViWireBranchRoute._(pointCount: n, modes: modes, segmentLengths: lengths);
+}
+
+/// Set-bit count of a mode byte (Dart has no int.popCount; masks are ≤ 4 bits).
+int _bitCount(int v) => (v & 1) + ((v >> 1) & 1) + ((v >> 2) & 1) + ((v >> 3) & 1);
+
+/// A walked branching wire route in absolute diagram coordinates — what a
+/// renderer draws: every polyline run plus the junction (branch-dot)
+/// points. Produced unanchored by [walkWireBranchRoute] and shipped proven
+/// as [ViWire.routeTree].
+class ViWireRouteTree {
+  ViWireRouteTree({required this.polylines, required this.junctions});
+
+  /// The drawn Manhattan runs. The first starts at the walk origin (the
+  /// first endpoint's attach point); every later one starts at a junction
+  /// point; every one ends on a **leaf** — an endpoint attach point. One
+  /// run per leaf: `polylines.length == endpointCount - 1` when the tree
+  /// matches its signal.
+  final List<List<ViPoint>> polylines;
+
+  /// The junction points, in walk order — where LabVIEW draws the wire's
+  /// branch dots (a multi-bit first mode byte contributes the walk origin
+  /// itself: the wire forks at its first endpoint's terminal).
+  final List<ViPoint> junctions;
+
+  /// The leaf landing points in walk order (each polyline's last point) —
+  /// the walked positions of the other `endpointCount - 1` endpoints.
+  /// Computed once on first access.
+  late final List<ViPoint> leaves = [for (final polyline in polylines) polyline.last];
+}
+
+/// Walks a decoded branching route from [start] (the first endpoint's
+/// attach point), returning the absolute tree geometry. Total for every
+/// [decodeWireBranchRoute]-validated table (the decoder already enforced
+/// the pop balance the walk relies on).
+///
+/// The walk follows the mode-stream semantics on [ViWireBranchRoute], with
+/// the blocked-direction substitution on junction codes (a catalog
+/// direction reversing the incoming edge becomes [WireRouteDirection.left];
+/// see [WireRouteJunction]). Start-mask directions never substitute — the
+/// origin has no incoming edge.
+ViWireRouteTree walkWireBranchRoute(ViWireBranchRoute route, ViPoint start) {
+  final modes = route.modes;
+  final lengths = route.segmentLengths;
+  final polylines = <List<ViPoint>>[];
+  final junctionPoints = <ViPoint>[];
+  // Junction stack: the point plus its unconsumed outgoing directions.
+  final stack = <(ViPoint, List<WireRouteDirection>)>[];
+  var run = <ViPoint>[start];
+  var pos = start;
+  WireRouteDirection? prev;
+  for (var k = 0; k < modes.length; k++) {
+    final m = modes[k];
+    final WireRouteDirection direction;
+    if (k == 0) {
+      final oneHot = WireRouteDirection.fromCode(m);
+      if (oneHot != null) {
+        direction = oneHot;
+      } else {
+        // Multi-bit start mask: outgoing directions in ascending code order.
+        final dirs = [
+          for (final d in WireRouteDirection.values)
+            if (m & d.code != 0) d,
+        ]..sort((a, b) => a.code.compareTo(b.code));
+        direction = dirs.first;
+        stack.add((pos, dirs.sublist(1)));
+        junctionPoints.add(pos);
+      }
+    } else if (m == 0 || m == 1) {
+      // Bend: alternate axis, stored sign.
+      final positive = m == 0;
+      direction = prev!.isHorizontal
+          ? (positive ? WireRouteDirection.down : WireRouteDirection.up)
+          : (positive ? WireRouteDirection.right : WireRouteDirection.left);
+    } else if (m == ViWireBranchRoute.popCode) {
+      // Leaf reached: resume the nearest junction with a pending direction.
+      polylines.add(run);
+      while (stack.last.$2.isEmpty) {
+        stack.removeLast();
+      }
+      final (jpos, dirs) = stack.last;
+      pos = jpos;
+      run = <ViPoint>[pos];
+      direction = dirs.removeAt(0);
+    } else {
+      // Junction: current point is a branch dot; walk the catalog's first
+      // direction, blocked entries substituted with `left`.
+      final blocked = _reverse(prev!);
+      final dirs = [
+        for (final d in WireRouteJunction.fromCode(m)!.outgoing) d == blocked ? WireRouteDirection.left : d,
+      ];
+      direction = dirs.first;
+      stack.add((pos, dirs.sublist(1)));
+      junctionPoints.add(pos);
+    }
+    pos = (x: pos.x + direction.dx * lengths[k], y: pos.y + direction.dy * lengths[k]);
+    run.add(pos);
+    prev = direction;
+  }
+  polylines.add(run);
+  return ViWireRouteTree(polylines: polylines, junctions: junctionPoints);
+}
+
+/// The opposite one-hot direction (walking back along the edge just walked).
+WireRouteDirection _reverse(WireRouteDirection d) => switch (d) {
+  WireRouteDirection.up => WireRouteDirection.down,
+  WireRouteDirection.down => WireRouteDirection.up,
+  WireRouteDirection.left => WireRouteDirection.right,
+  WireRouteDirection.right => WireRouteDirection.left,
+};
 
 /// Whether a `vers` string predates the **frame-relative termBounds
 /// coordinate space** — true iff it parses as a `major.minor` below 8.6.
@@ -1581,23 +1938,66 @@ class ViDiagram {
   ];
 
   ViWire _buildWire(ViHeapObject object) {
-    final route = object.wireTableRaw == null ? null : decodeWireRoute(object.wireTableRaw!);
-    final attachRects = [for (final oid in object.refs) endpointTerminalBounds(oid)];
+    final raw = object.wireTableRaw;
+    final route = raw == null ? null : decodeWireRoute(raw);
+    final branchRoute = raw == null || object.refs.length < 3 ? null : decodeWireBranchRoute(raw);
+    // Resolve each endpoint's constant value shell once and reuse it for the
+    // attach rect, the anchor, and the route closure (its child scan is not
+    // free — most endpoints wrap no constant and scan nothing, but the shared
+    // local avoids re-walking the ones that do).
+    final constantBounds = [for (final oid in object.refs) endpointConstantBounds(oid)];
+    final attachRects = [
+      for (var i = 0; i < object.refs.length; i++) endpointTerminalBounds(object.refs[i]) ?? constantBounds[i],
+    ];
+    final attachPoints = [
+      for (var i = 0; i < object.refs.length; i++) _attachPointFrom(attachRects[i], object.refs[i]),
+    ];
     return ViWire(
       signalOid: object.oid,
       endpointOids: List<int>.of(object.refs),
-      endpointAnchors: [for (final oid in object.refs) _boundedOwnerBounds(oid)],
+      // A constant endpoint anchors on its own value shell (the box LabVIEW
+      // draws); every other endpoint on its nearest bounded owner.
+      endpointAnchors: [
+        for (var i = 0; i < object.refs.length; i++) constantBounds[i] ?? _boundedOwnerBounds(object.refs[i]),
+      ],
       endpointAttachRects: attachRects,
       route: route,
       routePoints: route == null || object.refs.length != 2
           ? null
-          : _closedRoutePoints(
-              route,
-              _attachPointFrom(attachRects[0], object.refs[0]),
-              _attachPointFrom(attachRects[1], object.refs[1]),
-            ),
+          : _closedRoutePoints(route, attachPoints[0], attachPoints[1]),
+      branchRoute: branchRoute,
+      // Lazy: the walk + closure runs only when a consumer reads routeTree.
+      routeTreeBuilder: branchRoute == null ? null : () => _closedRouteTree(branchRoute, attachPoints),
       signalType: object.lastSignalKind == null ? null : ViSignalType(object.lastSignalKind!),
     );
+  }
+
+  /// Walks [route] from the first endpoint's attach point and gates the
+  /// result on exact closure of EVERY leaf: each walked leaf must land on a
+  /// distinct remaining endpoint attach point dead-on (a one-to-one
+  /// matching; walk-leaf order is not endpoint storage order). Null when
+  /// any endpoint lacks an attach point, the leaf count disagrees with the
+  /// endpoint count, or any leaf misses (see [ViWire.routeTree]; never
+  /// force-closed).
+  static ViWireRouteTree? _closedRouteTree(ViWireBranchRoute route, List<ViPoint?> attachPoints) {
+    if (attachPoints.length < 3 || attachPoints.any((p) => p == null)) return null;
+    final tree = walkWireBranchRoute(route, attachPoints[0]!);
+    final leaves = tree.leaves;
+    if (leaves.length != attachPoints.length - 1) return null;
+    final remaining = <ViPoint, int>{};
+    for (var i = 1; i < attachPoints.length; i++) {
+      remaining.update(attachPoints[i]!, (c) => c + 1, ifAbsent: () => 1);
+    }
+    for (final leaf in leaves) {
+      final count = remaining[leaf];
+      if (count == null) return null;
+      if (count == 1) {
+        remaining.remove(leaf);
+      } else {
+        remaining[leaf] = count - 1;
+      }
+    }
+    return tree;
   }
 
   /// Member oid → the oid of the **terminal object** that declares it in its
@@ -1638,6 +2038,134 @@ class ViDiagram {
     if (endpoint == null || !kSignalEndpointDcoKinds.contains(endpoint.kind)) return null;
     final terminalOid = _terminalOidByMemberOid[oid];
     return terminalOid == null || terminalOid == _ambiguousTerminal ? null : byId[terminalOid];
+  }
+
+  /// Direct children by parent oid — the positional child lists the constant
+  /// and DCO resolvers below walk. Built once on first access.
+  late final Map<int, List<ViHeapObject>> _childrenByOid = _childrenByParentOid(objects);
+
+  /// Terminal oid → the oid of the endpoint **DCO it carries** (the inverse of
+  /// [_terminalOidByMemberOid], with the added `14 4f` dcoRef backlink gate),
+  /// or the [_ambiguousTerminal] sentinel where two distinct DCOs claim the
+  /// terminal. Built once so [terminalDco] is an O(1) lookup rather than a
+  /// per-call child walk. Only termBounds-carrying terminals appear.
+  late final Map<int, int> _dcoOidByTerminalOid = _buildTerminalDcoIndex();
+
+  Map<int, int> _buildTerminalDcoIndex() {
+    final index = <int, int>{};
+    for (final terminal in objects) {
+      if (terminal.termBounds == null) continue;
+      for (final target in terminal.typedRefs[HeapRefKind.childRef] ?? const <int>[]) {
+        final candidate = byId[target];
+        if (candidate == null || !kSignalEndpointDcoKinds.contains(candidate.kind)) continue;
+        if (!(candidate.typedRefs[HeapRefKind.dcoRef] ?? const <int>[]).contains(terminal.oid)) continue;
+        final prev = index[terminal.oid];
+        index[terminal.oid] = (prev == null || prev == candidate.oid) ? candidate.oid : _ambiguousTerminal;
+      }
+    }
+    return index;
+  }
+
+  /// The signal-endpoint **DCO a terminal carries** — [endpointTerminal]'s
+  /// inverse: the unique `14 19` childRef target of terminal [oid] that is an
+  /// endpoint-DCO kind ([kSignalEndpointDcoKinds]) *and* names the terminal
+  /// back in its own `14 4f` dcoRef — or null when [oid] carries no
+  /// [ViHeapObject.termBounds] rect, no such target exists, or more than one
+  /// does (never guessed). Backed by the built-once [_dcoOidByTerminalOid].
+  ///
+  /// Corpus (7,524 VIs; censused with the glyph census on
+  /// [terminalGlyphHidden]): the loop terminals resolve almost totally — the
+  /// `i` iteration terminals (termBmp 1, class `0x24`) 6,883/6,889, the `N`
+  /// count terminals (termBmp 2) 5,270/5,277, the loop-condition stop
+  /// terminals (termBmp 192) 1,892/1,892, and the left shift registers
+  /// (termBmp 3) 6,787/6,796 — while the case-selector row (termBmp 5:
+  /// 66/15,398) and the right shift-register stacks (termBmp 4:
+  /// 6,421/6,737) often claim several DCOs (a stacked register holds one per
+  /// frame) and resolve only where the claim is unique.
+  ViHeapObject? terminalDco(int oid) {
+    final dcoOid = _dcoOidByTerminalOid[oid];
+    return dcoOid == null || dcoOid == _ambiguousTerminal ? null : byId[dcoOid];
+  }
+
+  /// Whether LabVIEW **hides this structure terminal's glyph**:
+  /// [kTerminalGlyphHiddenFlag] of the carried DCO's [ViHeapObject.objFlags]
+  /// (via [terminalDco]; an unresolved DCO or absent flags word reads as
+  /// shown). Lets a renderer drop exactly the loop-corner glyphs LabVIEW
+  /// drops instead of guessing from wiring.
+  ///
+  /// Render-verified on the crc8 snippet's own LabVIEW raster (four for
+  /// loops in one VI): the two drawn `i` glyphs ride DCO flags `0x020140`
+  /// and the two absent ones `0x820140` — minimal pairs differing in the
+  /// hidden bit alone — while all four `N` glyphs are drawn and all four
+  /// count DCOs clear the bit (the crc8 unit test pins those four raw flag
+  /// words). Corpus (7,524 VIs, structure terminals with a resolved DCO):
+  /// the bit hides 100/6,883 resolved `i` iteration terminals — every one
+  /// unwired, consistent with LabVIEW offering the hide only for unused
+  /// terminals — and, on the timed-loop terminal pair, 8 `0xd7` (termBmp 214)
+  /// and 4 `0xd8` (termBmp 215) terminals (also all unwired); it is never set
+  /// on a count (0/5,270), stop (0/1,892), shift-register (0/13,208), or
+  /// selector (0/66) DCO. The same bit rides 9,024 endpoint
+  /// DCOs no terminal uniquely claims — parented under expandable-node kinds
+  /// (`0x8c` 3,450 / `0xd6` 2,663 / `0x6a` 1,558 / `0x2f` 308 / …) and the
+  /// `0x1d` endpoint buckets (350) — plausibly the same hidden/unused-terminal
+  /// meaning there, but no reference render pins those, so this accessor stays
+  /// scoped to termBounds-carrying terminals.
+  bool terminalGlyphHidden(int oid) => ((terminalDco(oid)?.objFlags ?? 0) & kTerminalGlyphHiddenFlag) != 0;
+
+  /// The **block-diagram constant** a signal-endpoint DCO wraps — the `0x13`
+  /// [HeapObjectClass.bdConstDco] child of a bounds-less `0x15` endpoint —
+  /// or null when [oid] is not such an endpoint or wraps none. The returned
+  /// object carries the decoded value ([ViHeapObject.constNumeric] /
+  /// [ViHeapObject.constText] / [ViHeapObject.constBool]); its drawable box
+  /// is [endpointConstantBounds]. This is how a wired constant appears in
+  /// the heap: the signal's endpoint DCO *parents* the constant, so e.g. a
+  /// for loop's count feeder resolves as `N-part endpoint ↔ signal ↔
+  /// constant endpoint → 0x13 → the value box LabVIEW draws beside `N`.
+  ///
+  /// Corpus (7,524 VIs; census pinned by `loop_terminal_census_test`):
+  /// 54,627 signal endpoints wrap a constant — each exactly one `0x13`
+  /// (0 multi), 38,131 with a decoded value — and every one of the 51,146
+  /// two-endpoint signals resolving a constant shell holds it at endpoint 0
+  /// (the route source), never at endpoint 1 and never at both ends.
+  ViHeapObject? endpointConstant(int oid) {
+    final endpoint = byId[oid];
+    // The 0x16 bdLeaf endpoints are bounded leaves themselves and never wrap
+    // a constant; only the bounds-less node-endpoint form does.
+    if (endpoint == null || endpoint.kind != kNodeEndpointDcoKind) return null;
+    for (final child in _childrenByOid[oid] ?? const <ViHeapObject>[]) {
+      if (child.kind == HeapObjectClass.bdConstDco.code) return child;
+    }
+    return null;
+  }
+
+  /// The **absolute bounds of a constant endpoint's value shell** — the first
+  /// bounded direct child of [endpointConstant]'s `0x13` (the numeric /
+  /// boolean / string control or array/cluster shell LabVIEW draws as the
+  /// constant's box) — or null when no constant resolves, the shell is
+  /// unbounded, or [version] predates the frame-relative coordinate space
+  /// (< 8.6, the same gate as [endpointTerminalBounds]).
+  ///
+  /// Corpus (7,524 VIs; census pinned by `loop_terminal_census_test`): all
+  /// 54,627 constant endpoints resolve exactly one bounded shell (0 boxless,
+  /// 0 with two). Attach-point law, proven by the stored routes' zero-slack
+  /// closure ([ViWire.routePoints]): walking each closable two-endpoint
+  /// constant signal from this rect's floored centre closes exactly on the
+  /// far attach point for 12,755 of 14,486 (88.1%) — the same centre
+  /// convention as the bounded `0x16` endpoints. Of the 1,731 misses,
+  /// 1,508 (87%) sit on composite array/cluster/container shells — `0x64`
+  /// 621, `0x53` 492, `0x52` 395 (breakdown pinned per shell kind by
+  /// `loop_terminal_census_test`) — where the true attach point sits
+  /// off-centre (the element region, not the shell) and is not yet decoded;
+  /// those routes stay unshipped rather than force-closed. TODO: decode the
+  /// composite-shell attach offset.
+  HeapRect? endpointConstantBounds(int oid) {
+    if (_predatesFrameRelativeTermBounds(version)) return null;
+    final constant = endpointConstant(oid);
+    if (constant == null) return null;
+    for (final child in _childrenByOid[constant.oid] ?? const <ViHeapObject>[]) {
+      if (child.absBounds != null) return child.absBounds;
+    }
+    return null;
   }
 
   /// The **absolute attach rectangle** of the signal-endpoint DCO [oid] — the
@@ -1691,17 +2219,19 @@ class ViDiagram {
   /// geometry resolves. The point is the centre (halves floored, matching
   /// LabVIEW's integer grid) of the endpoint's attach rectangle:
   /// [endpointTerminalBounds] where a terminal resolves one (structure
-  /// tunnels / border terminals), else the endpoint object's OWN bounds when
-  /// it is bounded (the `0x16` front-panel-terminal endpoints — e.g. a 32×16
-  /// terminal at (58,1) attaches at its centre (74,9), which LabVIEW's own
-  /// render of that wire confirms). One measured exception: a right shift
+  /// tunnels / border terminals), else [endpointConstantBounds] where the
+  /// endpoint wraps a drawn constant, else the endpoint object's OWN bounds
+  /// when it is bounded (the `0x16` front-panel-terminal endpoints — e.g. a
+  /// 32×16 terminal at (58,1) attaches at its centre (74,9), which LabVIEW's
+  /// own render of that wire confirms). One measured exception: a right shift
   /// register (`0x28`) connects 4 px left of its rect centre — see
   /// [_attachPointFrom] for the render-oracle evidence. Null for the
   /// plain-node `0x15` endpoints (no attach geometry is stored; the wire
   /// meets the node at a per-terminal point the route's closing segment
   /// implies — see [ViWire.routePoints]) and for pre-8.6 files (the old
   /// coordinate space, same gate as [endpointTerminalBounds]).
-  ViPoint? wireAttachPoint(int oid) => _attachPointFrom(endpointTerminalBounds(oid), oid);
+  ViPoint? wireAttachPoint(int oid) =>
+      _attachPointFrom(endpointTerminalBounds(oid) ?? endpointConstantBounds(oid), oid);
 
   /// [wireAttachPoint] with the endpoint's attach rect already resolved
   /// (so [_buildWire] reuses the rects it just computed): the rect's
@@ -2012,6 +2542,30 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
         if (attr.attribute == HeapAttribute.constValue) {
           final text = attr.asString;
           if (text != null && text.isNotEmpty) cur.constText ??= text;
+        }
+        // A caption of 1-4 characters stored at a scalar attribute width:
+        // raw 0x022 ([HeapAttribute.shortText]) is the same tag as the
+        // `C4 22` caption container, with the text bytes magnitude-encoded
+        // big-endian in reading order (`84 22 58 4F 52 3F` = "XOR?"). It is
+        // the dedicated short-label tag: 96.9% of the captured records sit on
+        // the label class 0x0A (98% across the text-label classes 0x0A/0x95),
+        // the rest on the enum/selector text carriers. A record becomes a
+        // caption only when every stored byte is a printable ASCII glyph AND
+        // the decoded text fills the whole stored width — a genuine N-char
+        // caption uses the N-byte width, so a value whose leading byte is null
+        // (a shorter string than the width, e.g. `00 42 42 42` at u32) is a
+        // number, not text, and stays numeric ([HeapAttr.asciiText] length <
+        // width). Non-printable bytes — control codes AND high-bit Latin-1
+        // alike — likewise stay numeric. Corpus (7,524 VIs, all heap
+        // sections): 148,449 scalar-width records — 72,537 captured, 72,359
+        // zero (empty), 2 width-inconsistent and 3,551 non-printable (550
+        // high-bit, 3,001 control) left numeric. First-wins against `C4 22`
+        // is trivially safe: no corpus object carries both forms.
+        if (attr.attribute == HeapAttribute.shortText) {
+          final text = attr.asciiText;
+          if (text != null && text.length == _attrScalarBytes(attr.width)) {
+            cur.label ??= text;
+          }
         }
         // A BD constant's flattened value record scopes to the 0x13 DCO itself
         // (record census on [HeapAttribute.constValue]). First-wins is
