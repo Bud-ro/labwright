@@ -1467,8 +1467,19 @@ class _BdOracleViewState extends State<BdOracleView>
                         Expanded(
                           child: _pane(
                             'Rendered (clean-room)',
-                            data.displayRendered ?? data.rendered!,
-                            supersample: data.displayRendered != null
+                            // Show the render REGISTERED into the reference
+                            // frame (same placement the wipe overlays), so
+                            // toggling this pane against Reference reveals real
+                            // per-pixel differences — the raw content-framed
+                            // render sits at a different origin and reads as a
+                            // whole-image 1px shift.
+                            result != null
+                                ? (data.displayFitted ?? result.fitted)
+                                : (data.displayRendered ?? data.rendered!),
+                            supersample:
+                                (result != null
+                                    ? data.displayFitted != null
+                                    : data.displayRendered != null)
                                 ? kOracleDisplaySupersample
                                 : 1,
                           ),
