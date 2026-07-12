@@ -437,9 +437,126 @@ void main() {
       // Border-terminal chrome: every verified-kind terminal (tunnels,
       // select tunnels, both shift registers, the selector) must render
       // BYTE-IDENTICAL to LabVIEW's reference at its decoded rect —
-      // borders, fills, glyphs, and wire colours all at once.
+      // borders, fills, glyphs, and wire colours all at once — and hold a
+      // CLEAN 2 px surround band: no ink of ours on pixels the reference
+      // leaves canvas-white (the modeled structure-terminal pass once
+      // double-drew these rects and its anti-aliased ring bled a border of
+      // blended pixels just outside the byte-exact chrome).
       final refPx = (await reference.image.toByteData())!.buffer.asUint8List();
+      String oursAt(int x, int y) {
+        final i =
+            ((y - raster.content.top).toInt() * raster.image.width +
+                (x - raster.content.left).toInt()) *
+            4;
+        return '${rasterPx[i]},${rasterPx[i + 1]},${rasterPx[i + 2]}';
+      }
+
+      String refAt(int x, int y) {
+        final i =
+            ((y - raster.content.top + reg.dy).toInt() * reference.image.width +
+                (x - raster.content.left + reg.dx).toInt()) *
+            4;
+        return '${refPx[i]},${refPx[i + 1]},${refPx[i + 2]}';
+      }
+
+      // Structure-EDGE corridors are excluded from the band: the reference
+      // draws crc8's loop/case borders as a 1 px black line (measured on
+      // struct 164's left border — a single (0,0,0) column at x=263, white
+      // either side) while our structure band is a stylised anti-aliased
+      // stroke reaching ~4 px inside and 1 px outside the frame — a known,
+      // separate infidelity (TODO: measure the border render laws corpus-
+      // wide and draw them byte-faithfully).
+      final structureEdgeRects = [
+        for (final o in drawable)
+          if (o.category == ViObjectKind.structure) o.absBounds!,
+      ];
+      // Modeled structure-terminal boxes (the N/i corner pair and friends)
+      // are likewise excluded, ±1 px for their stroke: which of them
+      // LabVIEW actually shows is a visibility decode still in flight, so a
+      // modeled box the reference hides must not fail the chrome band
+      // (crc8's loop 164 draws its `i` box beside the (263,499) tunnel;
+      // the reference does not).
+      final modeledTerminalRects = [
+        for (final e in bdStructureTerminals(bd).entries)
+          for (final t in e.value)
+            if (bd.byId[e.key]?.absBounds case final s?)
+              (
+                left: s.left + t.box.left,
+                top: s.top + t.box.top,
+                right: s.left + t.box.left + t.box.width,
+                bottom: s.top + t.box.top + t.box.height,
+              ),
+      ];
+      // Synthesized fallback legs (wires without a proven [ViWire.routePoints]
+      // polyline) may cross a terminal's band anywhere — their divergence
+      // from LabVIEW's stored routing is a route-decode gap, not chrome
+      // bleed (crc8's sig 2588 slices through both of loop 571's shift
+      // registers at their bottom-border row) — so a ±3 px corridor around
+      // each synthesized leg is skipped too. The corridor replays
+      // [bdWireRoute] on the attach-preferred anchors, the same inputs the
+      // painter routes from.
+      final fallbackSegments = <({bool h, int lo, int hi, int cross})>[];
+      for (final w in wires) {
+        if (w.routePoints != null) continue;
+        final anchors = <HeapRect>[];
+        for (var e = 0; e < w.endpointAnchors.length; e++) {
+          final attach = e < w.endpointAttachRects.length
+              ? w.endpointAttachRects[e]
+              : null;
+          final a = (attach != null && attach.width > 0 && attach.height > 0)
+              ? attach
+              : w.endpointAnchors[e];
+          if (a != null && (a.width > 0 || a.height > 0)) anchors.add(a);
+        }
+        if (anchors.length < 2) continue;
+        ui.Rect rectOf(HeapRect r) => ui.Rect.fromLTRB(
+          r.left.toDouble(),
+          r.top.toDouble(),
+          r.right.toDouble(),
+          r.bottom.toDouble(),
+        );
+        for (var i = 1; i < anchors.length; i++) {
+          final pts = bdWireRoute(rectOf(anchors.first), rectOf(anchors[i]));
+          for (var j = 1; j < pts.length; j++) {
+            final a = pts[j - 1], b = pts[j];
+            final h = a.dy == b.dy;
+            fallbackSegments.add((
+              h: h,
+              lo: (h ? min(a.dx, b.dx) : min(a.dy, b.dy)).floor(),
+              hi: (h ? max(a.dx, b.dx) : max(a.dy, b.dy)).floor(),
+              cross: (h ? a.dy : a.dx).floor(),
+            ));
+          }
+        }
+      }
+      bool onFallbackLeg(int x, int y) => fallbackSegments.any((s) {
+        final (along, cross) = s.h ? (x, y) : (y, x);
+        return along >= s.lo - 3 &&
+            along <= s.hi + 3 &&
+            (cross - s.cross).abs() <= 3;
+      });
+      bool onStructureEdge(int x, int y) =>
+          structureEdgeRects.any(
+            (r) =>
+                x >= r.left - 1 &&
+                x < r.right + 1 &&
+                y >= r.top - 1 &&
+                y < r.bottom + 1 &&
+                !(x >= r.left + 5 &&
+                    x < r.right - 5 &&
+                    y >= r.top + 5 &&
+                    y < r.bottom - 5),
+          ) ||
+          modeledTerminalRects.any(
+            (r) =>
+                x >= r.left - 1 &&
+                x < r.right + 1 &&
+                y >= r.top - 1 &&
+                y < r.bottom + 1,
+          );
+      const canvasWhite = '255,255,255';
       final chromeCounts = <int, int>{};
+      var bandCompared = 0;
       for (final w in wires) {
         for (var e = 0; e < w.endpointAttachRects.length; e++) {
           final attach = w.endpointAttachRects[e];
@@ -451,21 +568,21 @@ void main() {
           }
           chromeCounts[kind] = (chromeCounts[kind] ?? 0) + 1;
           var mismatched = 0;
-          for (var y = attach.top; y < attach.bottom; y++) {
-            for (var x = attach.left; x < attach.right; x++) {
-              final ri =
-                  ((y - raster.content.top).toInt() * raster.image.width +
-                      (x - raster.content.left).toInt()) *
-                  4;
-              final fi =
-                  ((y - raster.content.top + reg.dy).toInt() *
-                          reference.image.width +
-                      (x - raster.content.left + reg.dx).toInt()) *
-                  4;
-              if (rasterPx[ri] != refPx[fi] ||
-                  rasterPx[ri + 1] != refPx[fi + 1] ||
-                  rasterPx[ri + 2] != refPx[fi + 2]) {
-                mismatched++;
+          var bleed = 0;
+          for (var y = attach.top - 2; y < attach.bottom + 2; y++) {
+            for (var x = attach.left - 2; x < attach.right + 2; x++) {
+              final inside =
+                  x >= attach.left &&
+                  x < attach.right &&
+                  y >= attach.top &&
+                  y < attach.bottom;
+              if (inside) {
+                if (oursAt(x, y) != refAt(x, y)) mismatched++;
+              } else if (!onStructureEdge(x, y) && !onFallbackLeg(x, y)) {
+                bandCompared++;
+                if (refAt(x, y) == canvasWhite && oursAt(x, y) != canvasWhite) {
+                  bleed++;
+                }
               }
             }
           }
@@ -476,8 +593,17 @@ void main() {
                 'terminal 0x${kind.toRadixString(16)} at (${attach.left},'
                 '${attach.top}) differs from the reference in $mismatched px',
           );
+          expect(
+            bleed,
+            0,
+            reason:
+                'terminal 0x${kind.toRadixString(16)} at (${attach.left},'
+                '${attach.top}): $bleed px of ink bleed onto reference-white '
+                'canvas in its 2 px surround band',
+          );
         }
       }
+      expect(bandCompared, greaterThan(1000));
       // ignore: avoid_print
       print(
         'chrome byte-verified vs reference: '
@@ -617,6 +743,87 @@ void main() {
       // ... and the earlier wire's checkerboard dot survives on the row.
       expect(ours(503, 297), green);
       expect(ours(502, 297), white);
+
+      // The numeric constant oid 3033 (I32 `256`, inside the disabled LUT
+      // frame): its whole 2 px border perimeter must reproduce the
+      // reference byte-for-byte — the (153,153,255) dim of integer blue,
+      // i.e. type colour THROUGH the disabled-frame transform, with no
+      // inner ring (the reference draws constants with the outer border
+      // only). The interior text is our font, not LabVIEW's, so it is
+      // asserted by property instead: some ink, all of it achromatic and
+      // no darker than the (153,153,153) dim of black.
+      final constBox = bd.byId[3033]!.absBounds!;
+      var borderPx = 0, borderMismatched = 0, dimBlue = 0;
+      for (var y = constBox.top; y < constBox.bottom; y++) {
+        for (var x = constBox.left; x < constBox.right; x++) {
+          final onBorder =
+              x < constBox.left + 2 ||
+              x >= constBox.right - 2 ||
+              y < constBox.top + 2 ||
+              y >= constBox.bottom - 2;
+          if (!onBorder) continue;
+          borderPx++;
+          if (oursAt(x, y) != refAt(x, y)) borderMismatched++;
+          if (oursAt(x, y) == '153,153,255') dimBlue++;
+        }
+      }
+      // ignore: avoid_print
+      print('oid3033 border: $borderPx px, $borderMismatched mismatched');
+      expect(borderPx, 160);
+      expect(borderMismatched, 0, reason: 'oid3033 border vs reference');
+      expect(dimBlue, borderPx, reason: 'the whole border is dim blue');
+      var valueInk = 0;
+      for (var y = constBox.top + 2; y < constBox.bottom - 2; y++) {
+        for (var x = constBox.left + 2; x < constBox.right - 2; x++) {
+          final v = oursAt(x, y);
+          if (v == white) continue;
+          valueInk++;
+          final c = v.split(',').map(int.parse).toList();
+          expect(c[0] == c[1] && c[1] == c[2], isTrue, reason: 'chromatic $v');
+          expect(c[0], greaterThanOrEqualTo(153), reason: 'undimmed ink $v');
+        }
+      }
+      expect(valueInk, greaterThan(30), reason: 'the 256 literal must draw');
+      // The removed inner ring's corner pixels stay canvas-white.
+      for (final (x, y) in [
+        (constBox.left + 3, constBox.top + 3),
+        (constBox.right - 4, constBox.top + 3),
+        (constBox.left + 3, constBox.bottom - 4),
+        (constBox.right - 4, constBox.bottom - 4),
+      ]) {
+        expect(oursAt(x, y), white, reason: 'inner-ring pixel ($x,$y)');
+      }
+
+      // Fallback-routed wire endpoints at icon-stamped nodes: the router
+      // anchors the measured art ink bounds, and a leg leaving an icon at a
+      // row off its output tip gains the vertical connector at the first
+      // column past the art. Each window byte-compares a whole region —
+      // art, wire, stub, and canvas at once:
+      // - the XOR gate (oid 260) output: the tip stub at x=381 climbing to
+      //   the tunnel row 487;
+      // - the oid 1379 → oid 1224 gap: the run at the gate's tip row 280
+      //   (it previously took oid 1224's box-centre row 271 and missed the
+      //   gate art entirely);
+      // - the oid 653 → oid 649 gap at the tip row 310, and oid 831's
+      //   terminal entry at row 318 (both previously box-anchored rows).
+      for (final (label, x0, x1, y0, y1) in [
+        ('xor gate output', 378, 397, 481, 501),
+        ('1379-1224 gap', 578, 588, 256, 298),
+        ('653-649 gap', 716, 727, 306, 316),
+        ('831 terminal entry', 866, 872, 310, 326),
+      ]) {
+        var compared = 0, mismatched = 0;
+        for (var y = y0; y <= y1; y++) {
+          for (var x = x0; x <= x1; x++) {
+            compared++;
+            if (oursAt(x, y) != refAt(x, y)) mismatched++;
+          }
+        }
+        // ignore: avoid_print
+        print('$label window: $compared px byte-compared, $mismatched off');
+        expect(compared, greaterThan(70), reason: label);
+        expect(mismatched, 0, reason: '$label must match the reference');
+      }
     });
   });
 }

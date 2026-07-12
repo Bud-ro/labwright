@@ -137,6 +137,10 @@ class _ViDiagramViewState extends State<ViDiagramView> {
         null => const {},
         final diagram => bdStructureTerminals(diagram),
       };
+  late final Map<int, String> _constValues = switch (_diagram) {
+    null => const {},
+    final diagram => bdConstValueTexts(diagram),
+  };
   // Wires are excluded from the fit: their absolute anchoring is not yet
   // verified (a misanchored run must not blow up the zoom-to-fit envelope).
   late final Rect _content = _drawable.isEmpty
@@ -334,6 +338,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                               iconFilterQuality: FilterQuality.low,
                               canvasScale: _anchorScale,
                               structureTerminals: _structureTerminals,
+                              constValues: _constValues,
                             ),
                             foregroundPainter: _OverlayPainter(
                               origin: content.topLeft,
@@ -798,6 +803,32 @@ Color bdWireColor(
     return labviewTypeColor(wordKind);
   }
   return kBdWireColor;
+}
+
+/// Per data-view terminal oid, the **numeric literal** its block-diagram
+/// constant displays: the decoded value ([ViHeapObject.constNumeric]) lives on
+/// the `0x13` bdConstDCO record, and the drawn box is that record's bounded
+/// terminal child (crc8's oid 3033 shows `256` from its 0x13 parent's
+/// record). Only decoded values map — a constant whose flattened value was
+/// not recovered renders no text (never guessed). A whole-valued double
+/// formats without the trailing `.0`, matching the integer rendering LabVIEW
+/// gives whole values; stored per-constant display format specifiers are not
+/// yet decoded (TODO).
+Map<int, String> bdConstValueTexts(ViDiagram diagram) {
+  final byId = diagram.byId;
+  final out = <int, String>{};
+  for (final object in diagram.objects) {
+    if (object.category != ViObjectKind.terminal) continue;
+    final bounds = object.absBounds;
+    if (bounds == null || bounds.width <= 0 || bounds.height <= 0) continue;
+    final parent = byId[object.parentOid ?? -1];
+    final value = parent?.kind == 0x13 ? parent!.constNumeric : null;
+    if (value == null) continue;
+    out[object.oid] = value is double && value == value.roundToDouble()
+        ? value.toInt().toString()
+        : value.toString();
+  }
+  return out;
 }
 
 /// Packs a rectangle's four `s16` edges into one int key for anchor↔terminal
@@ -1689,6 +1720,26 @@ Future<Map<int, PrimIconArt>> loadPrimIcons() => _primIcons ??= () async {
         alpha[i] = rgba.getUint8(i * 4 + 3);
       }
       _primIconMasks[id] = (w: image.width, h: image.height, alpha: alpha);
+      // The art-space ink (opaque-pixel) bounding box — the measured art
+      // edge the wire fallback router anchors icon-stamped endpoints to.
+      var minX = image.width, minY = image.height, maxX = -1, maxY = -1;
+      for (var y = 0; y < image.height; y++) {
+        for (var x = 0; x < image.width; x++) {
+          if (alpha[y * image.width + x] == 0) continue;
+          if (x < minX) minX = x;
+          if (y < minY) minY = y;
+          if (x > maxX) maxX = x;
+          if (y > maxY) maxY = y;
+        }
+      }
+      if (maxX >= minX && maxY >= minY) {
+        _primIconInkBounds[id] = ui.Rect.fromLTRB(
+          minX.toDouble(),
+          minY.toDouble(),
+          maxX + 1.0,
+          maxY + 1.0,
+        );
+      }
     }
     icons[id] = await _prescaledArt(image);
   }
@@ -1804,6 +1855,16 @@ Future<ui.Image> remapPrimIcon(ui.Image icon, Map<int, int> rgbMapping) async {
 }
 
 final Map<int, ({int w, int h, Uint8List alpha})> _primIconMasks = {};
+
+/// Art-space opaque-pixel bounding boxes of the loaded icons (filled by
+/// [loadPrimIcons] from the same alpha masks that back hit testing).
+final Map<int, ui.Rect> _primIconInkBounds = {};
+
+/// The art-space ink (opaque-pixel) bounding box of the icon keyed [key], or
+/// null while the icons are still loading / for keys without art. The wire
+/// fallback router anchors an icon-stamped endpoint at this measured art
+/// edge instead of the (larger) node box.
+ui.Rect? primIconInkBounds(int key) => _primIconInkBounds[key];
 
 /// Whether the diagram-space point ([x],[y]) lands on an opaque pixel of the
 /// primitive icon stamped on [object] (natural size, centred in its bounds).
@@ -1967,6 +2028,7 @@ class BdDiagramPainter extends CustomPainter {
     this.disabledOids = const {},
     this.borderTerminalKinds = const {},
     this.structureTerminals = const {},
+    this.constValues = const {},
     this.iconFilterQuality = FilterQuality.none,
     this.canvasScale = 1,
     this.drawDotGrid = true,
@@ -2007,6 +2069,19 @@ class BdDiagramPainter extends CustomPainter {
   /// chrome ([bdBorderTerminalKinds]).
   final Map<HeapRect, ({int kind, bool hollow, bool disabled})>
   borderTerminalKinds;
+
+  /// Per terminal oid, the numeric literal its constant box displays
+  /// ([bdConstValueTexts]). A mapped box drops the generic terminal's inner
+  /// ring (the reference draws constants with the 2 px outer border only)
+  /// and centres the value text.
+  final Map<int, String> constValues;
+
+  /// [color] through the measured disabled-frame palette transform when the
+  /// object [oid] sits under a disabled displayed frame ([disabledOids]),
+  /// alpha preserved ([dimDisabledFrameRgb] is measured on opaque ink).
+  Color _dimFor(int oid, Color color) => disabledOids.contains(oid)
+      ? bdDimDisabled(color).withValues(alpha: color.a)
+      : color;
 
   /// Sampling for stamped icons: nearest (the default) is pixel-exact in the
   /// 1:1 oracle raster; the interactive view passes [FilterQuality.low]
@@ -2112,13 +2187,16 @@ class BdDiagramPainter extends CustomPainter {
       final decoded =
           bdDecodedColor(object.bgRgb) ?? bdDecodedColor(object.contentRgb);
       if (decoded != null) {
-        canvas.drawRect(rect, Paint()..color = decoded);
+        canvas.drawRect(rect, Paint()..color = _dimFor(object.oid, decoded));
       } else if (!isBackdrop(object)) {
-        canvas.drawRect(rect, Paint()..color = const Color(0xFFF4F4F4));
+        canvas.drawRect(
+          rect,
+          Paint()..color = _dimFor(object.oid, const Color(0xFFF4F4F4)),
+        );
         canvas.drawRect(
           rect,
           Paint()
-            ..color = Colors.black.withValues(alpha: 0.45)
+            ..color = _dimFor(object.oid, Colors.black.withValues(alpha: 0.45))
             ..style = PaintingStyle.stroke
             ..strokeWidth = 0.8,
         );
@@ -2135,6 +2213,20 @@ class BdDiagramPainter extends CustomPainter {
     final tunnelLandings = <(Offset, Color)>[];
     final tunnelSquares =
         <(Rect, ({int kind, bool hollow, bool disabled}), Color)>[];
+    // Rects owned by the reference-verified border-terminal chrome pass
+    // (shift registers, selectors, tunnels). A modeled structure terminal at
+    // the same rect must not also draw: its anti-aliased ring strokes bleed
+    // a ring of blended pixels just OUTSIDE the rect that the byte-exact
+    // chrome cannot cover.
+    final chromeOwnedRects = <Rect>{
+      for (final attach in borderTerminalKinds.keys)
+        Rect.fromLTRB(
+          attach.left - origin.dx,
+          attach.top - origin.dy,
+          attach.right - origin.dx,
+          attach.bottom - origin.dy,
+        ),
+    };
     _drawWires(
       canvas,
       structureRects: structureRects,
@@ -2150,7 +2242,11 @@ class BdDiagramPainter extends CustomPainter {
       // the band (the pale sequence/timed tint); other structure kinds keep
       // the neutral double-line frame.
       final rect = rectOf(object);
-      final structColor = bdDecodedColor(object.structRgb);
+      final structDisabled = disabledOids.contains(object.oid);
+      final structColor = switch (bdDecodedColor(object.structRgb)) {
+        null => null,
+        final c => _dimFor(object.oid, c),
+      };
       // Structure terminals (iteration/count/conditional, shift registers,
       // case selector tunnel) draw at their MODELED frame-relative positions
       // with their MODELED glyph (see [bdStructureTerminals]); a terminal
@@ -2167,13 +2263,35 @@ class BdDiagramPainter extends CustomPainter {
       }
       switch (object.kind) {
         case 0x21 || 0x20: // While / for loop: rounded band + terminals.
-          _drawLoopBand(canvas, rect, structColor);
-          _drawStructureTerminals(canvas, rect, terminals, tunnelLandings);
+          _drawLoopBand(canvas, rect, structColor, disabled: structDisabled);
+          _drawStructureTerminals(
+            canvas,
+            rect,
+            terminals,
+            tunnelLandings,
+            chromeOwnedRects: chromeOwnedRects,
+            disabled: structDisabled,
+          );
         case 0x2c: // Case structure: the same band, un-rounded.
-          _drawLoopBand(canvas, rect, structColor, rounded: false);
-          _drawStructureTerminals(canvas, rect, terminals, tunnelLandings);
+          _drawLoopBand(
+            canvas,
+            rect,
+            structColor,
+            rounded: false,
+            disabled: structDisabled,
+          );
+          _drawStructureTerminals(
+            canvas,
+            rect,
+            terminals,
+            tunnelLandings,
+            chromeOwnedRects: chromeOwnedRects,
+            disabled: structDisabled,
+          );
         default:
-          final frame = structColor ?? _kindColor(ViObjectKind.structure);
+          final frame =
+              structColor ??
+              _dimFor(object.oid, _kindColor(ViObjectKind.structure));
           if (structColor != null) {
             canvas.drawRect(
               rect,
@@ -2242,11 +2360,11 @@ class BdDiagramPainter extends CustomPainter {
             ? null
             : bdDecodedColor(object.bgRgb);
         if (backing != null) {
-          canvas.drawRect(rect, Paint()..color = backing);
+          canvas.drawRect(rect, Paint()..color = _dimFor(object.oid, backing));
           canvas.drawRect(
             rect,
             Paint()
-              ..color = Colors.black.withValues(alpha: 0.6)
+              ..color = _dimFor(object.oid, Colors.black).withValues(alpha: 0.6)
               ..style = PaintingStyle.stroke
               ..strokeWidth = 0.8,
           );
@@ -2266,13 +2384,23 @@ class BdDiagramPainter extends CustomPainter {
           // reads as an engraving artefact, not a meaningful distinction).
           final typed =
               object.typeKind != ViTypeKind.unknown || object.fgRgb != null;
-          final tint = object.typeKind != ViTypeKind.unknown
-              ? labviewTypeColor(object.typeKind)
-              : (bdDecodedColor(object.fgRgb) ?? kBdUnknownTerminalFill);
+          final tint = _dimFor(
+            object.oid,
+            object.typeKind != ViTypeKind.unknown
+                ? labviewTypeColor(object.typeKind)
+                : (bdDecodedColor(object.fgRgb) ?? kBdUnknownTerminalFill),
+          );
           // An unknown-type terminal keeps a dark neutral border — the light
           // "unknown" grey as a border is invisible to the eye and the edge
           // masks alike.
-          final border = typed ? tint : const Color(0xFF5A5A5A);
+          final border = typed
+              ? tint
+              : _dimFor(object.oid, const Color(0xFF5A5A5A));
+          // A constant box ([constValues]) carries the 2 px outer border
+          // only — the reference draws no inner ring around crc8's oid 3033
+          // (its whole 160 px perimeter reads the plain dim-blue border) —
+          // and shows its decoded literal centred instead of a type glyph.
+          final constValue = constValues[object.oid];
           canvas.drawRect(rect, Paint()..color = Colors.white);
           canvas.drawRect(
             rect.deflate(1),
@@ -2281,7 +2409,7 @@ class BdDiagramPainter extends CustomPainter {
               ..style = PaintingStyle.stroke
               ..strokeWidth = 2.0,
           );
-          if (rect.width > 10 && rect.height > 10) {
+          if (constValue == null && rect.width > 10 && rect.height > 10) {
             canvas.drawRect(
               rect.deflate(3.5),
               Paint()
@@ -2325,12 +2453,40 @@ class BdDiagramPainter extends CustomPainter {
               ..lineTo(tipX, cy)
               ..lineTo(tipX - 3, cy + 3.5)
               ..close();
-            canvas.drawPath(tri, Paint()..color = Colors.black87);
+            canvas.drawPath(
+              tri,
+              Paint()
+                ..color = _dimFor(
+                  object.oid,
+                  Colors.black,
+                ).withValues(alpha: 0.87),
+            );
+          }
+          // A constant's decoded literal, centred in its box the way
+          // LabVIEW shows the value (crc8's oid 3033 renders `256`); inked
+          // black through the disabled transform (the reference's disabled
+          // digits read as the (153,153,153) dim of black).
+          if (constValue != null && rect.width >= 12 && rect.height >= 12) {
+            final tp = TextPainter(
+              text: TextSpan(
+                text: constValue,
+                style: TextStyle(
+                  color: _dimFor(object.oid, Colors.black),
+                  fontSize: 10,
+                  fontFamily: 'Roboto',
+                ),
+              ),
+              maxLines: 1,
+              ellipsis: '…',
+              textDirection: TextDirection.ltr,
+            )..layout(maxWidth: math.max(8, rect.width - 6));
+            tp.paint(canvas, rect.center - Offset(tp.width / 2, tp.height / 2));
           }
           // The resolved data type's short label (DBL / I32 / TF / abc),
           // as LabVIEW stamps on the terminal — sized to sit inside the
-          // double border even on a 16 px terminal.
-          final glyph = object.dataType == null
+          // double border even on a 16 px terminal. A constant box shows
+          // its value instead, never the type.
+          final glyph = constValue != null || object.dataType == null
               ? null
               : dataTypeGlyph(object.dataType!);
           if (glyph != null &&
@@ -2398,7 +2554,10 @@ class BdDiagramPainter extends CustomPainter {
           } else if (icon != null) {
             paintLegacyIcon(canvas, icon, rect);
           } else {
-            final fill = isSubVi ? kBdSubViNodeFill : kBdPrimitiveNodeFill;
+            final fill = _dimFor(
+              object.oid,
+              isSubVi ? kBdSubViNodeFill : kBdPrimitiveNodeFill,
+            );
             canvas.drawRect(rect, Paint()..color = fill);
             if (rect.width > 6 && rect.height > 6) {
               canvas.drawLine(
@@ -2421,7 +2580,7 @@ class BdDiagramPainter extends CustomPainter {
             canvas.drawRect(
               rect.deflate(0.5),
               Paint()
-                ..color = Colors.black
+                ..color = _dimFor(object.oid, Colors.black)
                 ..style = PaintingStyle.stroke
                 ..strokeWidth = 1.0,
             );
@@ -2439,7 +2598,10 @@ class BdDiagramPainter extends CustomPainter {
               text: TextSpan(
                 text: glyph,
                 style: TextStyle(
-                  color: Colors.black.withValues(alpha: 0.75),
+                  color: _dimFor(
+                    object.oid,
+                    Colors.black,
+                  ).withValues(alpha: 0.75),
                   fontSize: glyph.length > 2 ? 8.0 : 12,
                   fontFamily: 'Roboto',
                 ),
@@ -2454,12 +2616,15 @@ class BdDiagramPainter extends CustomPainter {
           // A control/indicator is filled with its decoded interior colour when
           // recovered (the field/background LabVIEW stored), else its neutral
           // category colour — never a guessed tint.
-          final fill = bdFillColor(object) ?? _objectColor(object);
+          final fill = _dimFor(
+            object.oid,
+            bdFillColor(object) ?? _objectColor(object),
+          );
           canvas.drawRRect(rr, Paint()..color = fill.withValues(alpha: 0.92));
           canvas.drawRRect(
             rr,
             Paint()
-              ..color = Colors.black.withValues(alpha: 0.5)
+              ..color = _dimFor(object.oid, Colors.black).withValues(alpha: 0.5)
               ..style = PaintingStyle.stroke
               ..strokeWidth = 0.8,
           );
@@ -2513,9 +2678,11 @@ class BdDiagramPainter extends CustomPainter {
           text: TextSpan(
             text: text,
             style: TextStyle(
-              color:
-                  bdDecodedColor(object.fgRgb) ??
-                  Colors.black.withValues(alpha: 0.85),
+              color: _dimFor(
+                object.oid,
+                bdDecodedColor(object.fgRgb) ??
+                    Colors.black.withValues(alpha: 0.85),
+              ),
               fontSize: selector ? 9.5 : 10.5,
               fontFamily: 'Roboto',
             ),
@@ -2559,8 +2726,10 @@ class BdDiagramPainter extends CustomPainter {
       // A caption/constant is inked in the object's decoded foreground colour
       // when one was recovered (fgColor is the LabVIEW text/line colour), else
       // a neutral near-black.
-      final textColor =
-          bdDecodedColor(object.fgRgb) ?? Colors.black.withValues(alpha: 0.75);
+      final textColor = _dimFor(
+        object.oid,
+        bdDecodedColor(object.fgRgb) ?? Colors.black.withValues(alpha: 0.75),
+      );
       final tp = TextPainter(
         text: TextSpan(
           text: text,
@@ -2616,6 +2785,12 @@ class BdDiagramPainter extends CustomPainter {
     final typedTerminalColors = <int, Color>{};
     final sourceOutputColors = <int, Color>{};
     final iconNodeRects = <Rect>{};
+    // Node box → the stamped art's ink bounding box (canvas coords): the
+    // measured art edge a fallback-routed endpoint anchors to instead of
+    // the node box, so a leg meets the icon where its ink actually is
+    // (crc8's gates: the reference wires run at the art's edge-centre row,
+    // not the 32x32 box's).
+    final iconInkRects = <Rect, Rect>{};
     for (final object in objects) {
       final bounds = object.absBounds;
       if (bounds == null) continue;
@@ -2629,15 +2804,26 @@ class BdDiagramPainter extends CustomPainter {
           object.typeKind != ViTypeKind.unknown) {
         typedTerminalColors[packed] = labviewTypeColor(object.typeKind);
       }
-      if (primIconKeyOf(object) != null) {
-        iconNodeRects.add(
-          Rect.fromLTRB(
-            bounds.left - origin.dx,
-            bounds.top - origin.dy,
-            bounds.right - origin.dx,
-            bounds.bottom - origin.dy,
-          ),
+      final iconKey = primIconKeyOf(object);
+      if (iconKey != null) {
+        final boxRect = Rect.fromLTRB(
+          bounds.left - origin.dx,
+          bounds.top - origin.dy,
+          bounds.right - origin.dx,
+          bounds.bottom - origin.dy,
         );
+        iconNodeRects.add(boxRect);
+        final art = primIcons[iconKey]?.base;
+        final ink = primIconInkBounds(iconKey);
+        if (art != null && ink != null) {
+          final stamp = primIconStampRect(
+            boxRect,
+            art.width,
+            art.height,
+            key: iconKey,
+          );
+          iconInkRects[boxRect] = ink.shift(stamp.topLeft);
+        }
       }
       final output = object.primResId == null
           ? null
@@ -2722,26 +2908,51 @@ class BdDiagramPainter extends CustomPainter {
         ]);
       } else {
         if (anchors.length < 2) continue;
+        // Icon-edge anchoring applies to plain 2-endpoint wires only:
+        // 3+-endpoint (junction) wires keep the box-anchored fallback
+        // untouched until their stored branch routes decode.
+        final twoEnded = anchors.length == 2;
         final source = anchors.first;
+        final sourceInk = twoEnded ? iconInkRects[source] : null;
         for (var i = 1; i < anchors.length; i++) {
-          final points = bdWireRoute(source, anchors[i]);
-          // A leg ending on an icon-stamped node runs on UNDER it to the box
-          // centre: LabVIEW draws wires beneath nodes, so the art's own
-          // opaque pixels decide exactly where the wire visibly meets the
-          // icon (through a chamfer notch, up to a border — whatever the art
-          // says).
+          final sink = anchors[i];
+          final sinkInk = twoEnded ? iconInkRects[sink] : null;
+          // Icon-stamped endpoints route from the measured art ink bounds
+          // ([iconInkRects]) instead of the node box, so the level rule
+          // picks the row where the art actually is.
+          final points = bdWireRoute(sourceInk ?? source, sinkInk ?? sink);
+          // A leg ending on an icon-stamped node runs on UNDER it to the
+          // art/box centre: LabVIEW draws wires beneath nodes, so the art's
+          // own opaque pixels decide exactly where the wire visibly meets
+          // the icon (through a chamfer notch, up to a border — whatever
+          // the art says).
           if (points.length >= 2) {
-            if (iconNodeRects.contains(source)) {
-              final p0 = points.first, p1 = points[1];
+            final p0 = points.first, p1 = points[1];
+            if (sourceInk != null &&
+                p0.dy == p1.dy &&
+                p0.dy.floor() != sourceInk.center.dy.floor()) {
+              // The route row misses the source icon's output tip (the
+              // art's edge-centre row — a primitive has ONE output, at its
+              // tip): connect with a vertical stub at the leg's start
+              // column, the first pixel column outside the art edge.
+              // Reference-verified on crc8's XOR gate output (the stub at
+              // x=381 from the tip rows up to the tunnel row). No
+              // under-art extension here — the stub already meets the tip,
+              // and a run under the art would show through its transparent
+              // pixels where the reference has canvas.
+              points.insert(0, Offset(p0.dx, sourceInk.center.dy));
+            } else if (iconNodeRects.contains(source)) {
+              final c = (sourceInk ?? source).center;
               points[0] = p0.dy == p1.dy
-                  ? Offset(source.center.dx, p0.dy)
-                  : Offset(p0.dx, source.center.dy);
+                  ? Offset(c.dx, p0.dy)
+                  : Offset(p0.dx, c.dy);
             }
-            if (iconNodeRects.contains(anchors[i])) {
+            if (iconNodeRects.contains(sink)) {
+              final c = (sinkInk ?? sink).center;
               final pn = points.last, pm = points[points.length - 2];
               points[points.length - 1] = pn.dy == pm.dy
-                  ? Offset(anchors[i].center.dx, pn.dy)
-                  : Offset(pn.dx, anchors[i].center.dy);
+                  ? Offset(c.dx, pn.dy)
+                  : Offset(pn.dx, c.dy);
             }
           }
           // A leg whose anchor is a structure's own box is a border
@@ -3095,8 +3306,10 @@ class BdDiagramPainter extends CustomPainter {
     Rect rect,
     Color? tint, {
     bool rounded = true,
+    bool disabled = false,
   }) {
-    final band = tint ?? const Color(0xFF9C9C9C);
+    Color dim(Color c) => disabled ? bdDimDisabled(c) : c;
+    final band = tint ?? dim(const Color(0xFF9C9C9C));
     final radius = rounded ? const Radius.circular(4) : Radius.zero;
     // A decoded structure colour (the pale sequence/timed tint) also washes
     // the interior, as LabVIEW's coloured structures do.
@@ -3116,7 +3329,7 @@ class BdDiagramPainter extends CustomPainter {
     canvas.drawRRect(
       RRect.fromRectAndRadius(rect, radius),
       Paint()
-        ..color = const Color(0xFF606060)
+        ..color = dim(const Color(0xFF606060))
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.0,
     );
@@ -3153,12 +3366,22 @@ class BdDiagramPainter extends CustomPainter {
   /// Draws a structure's modeled terminals at their frame-relative boxes,
   /// each with its modeled glyph (`termBMPs`): `i`→1, `N`→2, conditional
   /// stop→192, shift registers→3 (left ▼) / 4 (right ▲), case selector→5.
+  ///
+  /// A terminal whose box the reference-verified chrome pass owns
+  /// ([chromeOwnedRects] — shift registers, selectors, tunnels reached by a
+  /// decoded wire attach rect) is skipped: the chrome reproduces the
+  /// reference byte-for-byte inside the rect, and this pass's anti-aliased
+  /// ring would bleed blended pixels just outside it. [disabled] routes the
+  /// glyph/border colours through the measured disabled-frame transform.
   void _drawStructureTerminals(
     Canvas canvas,
     Rect frame,
-    List<({HeapRect box, int bmp})> terminals, [
-    List<(Offset, Color)>? tunnelLandings,
-  ]) {
+    List<({HeapRect box, int bmp})> terminals,
+    List<(Offset, Color)>? tunnelLandings, {
+    Set<Rect> chromeOwnedRects = const {},
+    bool disabled = false,
+  }) {
+    Color dim(Color c) => disabled ? bdDimDisabled(c) : c;
     for (final t in terminals) {
       final box = Rect.fromLTWH(
         frame.left + t.box.left,
@@ -3166,6 +3389,7 @@ class BdDiagramPainter extends CustomPainter {
         t.box.width.toDouble(),
         t.box.height.toDouble(),
       );
+      if (chromeOwnedRects.contains(box)) continue;
       // A wire landing inside this terminal's box takes over its colour —
       // LabVIEW paints the case selector [?] in the selector wire's datatype
       // colour (green for a boolean selector). The landing is consumed so no
@@ -3180,8 +3404,8 @@ class BdDiagramPainter extends CustomPainter {
         }
       }
       final border = switch (t.bmp) {
-        _bmpConditional => const Color(0xFF007F00),
-        _ => wireColor ?? _loopBlue,
+        _bmpConditional => dim(const Color(0xFF007F00)),
+        _ => wireColor ?? dim(_loopBlue),
       };
       canvas.drawRect(box, Paint()..color = Colors.white);
       canvas.drawRect(
@@ -3193,9 +3417,9 @@ class BdDiagramPainter extends CustomPainter {
       );
       switch (t.bmp) {
         case _bmpIteration:
-          _drawGlyphText(canvas, box, 'i', _loopBlue);
+          _drawGlyphText(canvas, box, 'i', dim(_loopBlue));
         case _bmpCount:
-          _drawGlyphText(canvas, box, 'N', _loopBlue);
+          _drawGlyphText(canvas, box, 'N', dim(_loopBlue));
         case _bmpCaseSelector:
           _drawGlyphText(canvas, box, '?', border);
         case _bmpLeftShiftRegister || _bmpRightShiftRegister:
@@ -3213,7 +3437,10 @@ class BdDiagramPainter extends CustomPainter {
                   ..lineTo(c.dx + 4, c.dy + 3)
                   ..lineTo(c.dx, c.dy - 4)
                   ..close());
-          canvas.drawPath(tri, Paint()..color = Colors.black87);
+          canvas.drawPath(
+            tri,
+            Paint()..color = dim(Colors.black).withValues(alpha: 0.87),
+          );
         case _bmpConditional:
           // Red stop octagon.
           final c = box.center;
@@ -3229,7 +3456,7 @@ class BdDiagramPainter extends CustomPainter {
             }
           }
           path.close();
-          canvas.drawPath(path, Paint()..color = const Color(0xFFCC0000));
+          canvas.drawPath(path, Paint()..color = dim(const Color(0xFFCC0000)));
       }
     }
   }
@@ -3301,6 +3528,7 @@ class BdDiagramPainter extends CustomPainter {
       old.canvasScale != canvasScale ||
       old.drawDotGrid != drawDotGrid ||
       !identical(old.structureTerminals, structureTerminals) ||
+      !identical(old.constValues, constValues) ||
       old.origin != origin;
 }
 
