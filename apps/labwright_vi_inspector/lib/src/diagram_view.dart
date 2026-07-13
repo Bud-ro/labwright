@@ -127,6 +127,10 @@ class _ViDiagramViewState extends State<ViDiagramView> {
     null => const {},
     final diagram => bdDisabledObjectOids(diagram),
   };
+  late final Set<int> _errorCaseOids = switch (_diagram) {
+    null => const {},
+    final diagram => bdErrorCaseOids(diagram),
+  };
   late final Map<HeapRect, ({int kind, bool hollow, bool disabled})>
   _borderTerminalKinds = switch (_diagram) {
     null => const {},
@@ -334,6 +338,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                               primIcons: _primIcons,
                               primIconsGrey: primIconsGreyLoaded(),
                               disabledOids: _disabledOids,
+                              errorCaseOids: _errorCaseOids,
                               borderTerminalKinds: _borderTerminalKinds,
                               iconFilterQuality: FilterQuality.low,
                               canvasScale: _anchorScale,
@@ -615,6 +620,21 @@ const kBdStructureHatch = ['.#.#', '#.#.', '##..', '..##'];
 /// Width (px) of the hatch band inside a case/sequence frame's solid 1px
 /// outer border.
 const kBdHatchBand = 5;
+
+/// The single-diagonal stripe lattice of an error case's border band
+/// ([bdErrorCaseOids]), indexed like [kBdStructureHatch] — grey ink on the
+/// green band where `(absX + absY) % 4 == 0`. Its per-capture phase is
+/// INDEPENDENT of the black hatch's (measured: one capture carries different
+/// phases for the two lattices), so it takes its own derived offset.
+const kBdErrorHatch = ['#...', '...#', '..#.', '.#..'];
+
+/// The green field an error case's border band is filled with, measured from
+/// the snippet references (153,255,153).
+const Color kBdErrorCaseFill = Color(0xFF99FF99);
+
+/// The grey of the error-band stripes — the same 119 grey as the while-loop
+/// band.
+const Color kBdErrorCaseStripe = Color(0xFF777777);
 
 /// The uniform grey a disabled frame renders dark NEUTRAL chrome in — the
 /// same (170,170,170) line-work grey as the disabled icon palette
@@ -2016,6 +2036,23 @@ Map<HeapRect, ({int kind, bool hollow, bool disabled})> bdBorderTerminalKinds(
   return out;
 }
 
+/// The oids of case structures whose DISPLAYED frame is the error-cluster
+/// "No Error" case — LabVIEW draws their border band green with grey diagonal
+/// stripes ([kBdErrorHatch]) instead of the black case hatch. The signal is
+/// the structure's own `0x95` selector label (the displayed frame's name),
+/// byte-verified across the snippet corpus: every green-banded case frame
+/// shows " No Error ", and no other selector value renders green (142 case
+/// frames censused; the corpus holds no displayed "Error" frame, so that
+/// variant stays undecoded).
+Set<int> bdErrorCaseOids(ViDiagram diagram) => {
+  for (final o in diagram.objects)
+    if (o.kind == 0x2c &&
+        diagram
+            .children(o.oid)
+            .any((k) => k.kind == 0x95 && k.label?.trim() == 'No Error'))
+      o.oid,
+};
+
 /// The oids of drawable objects sitting under a disable structure's
 /// DISPLAYED frame when that frame is a disabled one — LabVIEW renders their
 /// icons as grey line-work on white (see [_greyDisabledPalette]). The
@@ -2073,6 +2110,8 @@ class BdDiagramPainter extends CustomPainter {
     this.canvasScale = 1,
     this.drawDotGrid = true,
     this.globalHatchOffset = kNoHatchOffset,
+    this.errorHatchOffset = kNoHatchOffset,
+    this.errorCaseOids = const {},
   });
 
   final List<ViHeapObject> objects;
@@ -2124,6 +2163,15 @@ class BdDiagramPainter extends CustomPainter {
   /// [kNoHatchOffset] and the oracle derives a per-reference offset
   /// (`deriveGlobalHatchOffset`) to compare snapshots 1:1.
   final GlobalHatchOffset globalHatchOffset;
+
+  /// Phase of the error-case stripe lattice ([kBdErrorHatch]) — a separate
+  /// per-capture value from [globalHatchOffset] (the two lattices measure
+  /// different phases within one capture).
+  final GlobalHatchOffset errorHatchOffset;
+
+  /// Case structures displaying their "No Error" frame ([bdErrorCaseOids]) —
+  /// their band draws the green error style instead of the black hatch.
+  final Set<int> errorCaseOids;
 
   /// [color] through the measured disabled-frame palette transform when the
   /// object [oid] sits under a disabled displayed frame ([disabledOids]),
@@ -2342,6 +2390,7 @@ class BdDiagramPainter extends CustomPainter {
             object.absBounds!.left,
             object.absBounds!.top,
             disabled: structDisabled,
+            error: errorCaseOids.contains(object.oid),
           );
           _drawStructureTerminals(
             canvas,
@@ -3595,23 +3644,24 @@ class BdDiagramPainter extends CustomPainter {
 
   /// Draws a case/sequence frame's border exactly as LabVIEW does: a solid 1px
   /// black outer rectangle wrapping a [kBdHatchBand]-px band of the global
-  /// [kBdStructureHatch] lattice. The hatch phase is keyed on ABSOLUTE diagram
-  /// coordinates ([absLeft]/[absTop] give the frame's top-left in that space),
-  /// so the pattern is continuous across the diagram — the frame is a window
-  /// onto it, not a source of it. Drawn before the tunnel chrome pass, which
-  /// paints over it where border terminals land.
+  /// [kBdStructureHatch] lattice — or, for an [error] case displaying its
+  /// "No Error" frame, a green field striped with the [kBdErrorHatch]
+  /// lattice. Each lattice is keyed on ABSOLUTE diagram coordinates
+  /// ([absLeft]/[absTop] give the frame's top-left in that space) plus its own
+  /// per-capture offset, so the pattern is continuous across the diagram — the
+  /// frame is a window onto it, not a source of it. Drawn before the tunnel
+  /// chrome pass, which paints over it where border terminals land.
   void _drawStructureHatchBorder(
     Canvas canvas,
     Rect rect,
     int absLeft,
     int absTop, {
     bool disabled = false,
+    bool error = false,
   }) {
-    final ink = disabled
-        ? bdDimDisabled(const Color(0xFF000000))
-        : const Color(0xFF000000);
+    Color dim(Color c) => disabled ? bdDimDisabled(c) : c;
     final paint = Paint()
-      ..color = ink
+      ..color = dim(const Color(0xFF000000))
       ..isAntiAlias = false;
     final l = rect.left.round(), t = rect.top.round();
     final w = rect.width.round(), h = rect.height.round();
@@ -3633,9 +3683,12 @@ class BdDiagramPainter extends CustomPainter {
       Rect.fromLTWH((l + w - 1).toDouble(), t.toDouble(), 1, h.toDouble()),
       paint,
     );
-    // Hatch band: only the black cells, batched into one path. Iterate the
-    // perimeter ring (skip the interior columns of the middle rows).
+    // Hatch band, batched into ink/field paths. Iterate the perimeter ring
+    // (skip the interior columns of the middle rows).
+    final tile = error ? kBdErrorHatch : kBdStructureHatch;
+    final offset = error ? errorHatchOffset : globalHatchOffset;
     final band = Path();
+    final field = error ? Path() : null;
     for (var j = 0; j < h; j++) {
       final nearTopBottom = j <= kBdHatchBand || j >= h - 1 - kBdHatchBand;
       for (var i = 0; i < w; i++) {
@@ -3644,17 +3697,36 @@ class BdDiagramPainter extends CustomPainter {
         }
         final d = math.min(math.min(i, j), math.min(w - 1 - i, h - 1 - j));
         if (d < 1 || d > kBdHatchBand) continue; // 0 = solid, >5 = interior
-        if (kBdStructureHatch[(absTop + j + globalHatchOffset.y) &
-                3][(absLeft + i + globalHatchOffset.x) & 3] !=
-            '#') {
-          continue;
-        }
-        band.addRect(
-          Rect.fromLTWH((l + i).toDouble(), (t + j).toDouble(), 1, 1),
+        final cell = Rect.fromLTWH(
+          (l + i).toDouble(),
+          (t + j).toDouble(),
+          1,
+          1,
         );
+        if (tile[(absTop + j + offset.y) & 3][(absLeft + i + offset.x) & 3] ==
+            '#') {
+          band.addRect(cell);
+        } else {
+          field?.addRect(cell);
+        }
       }
     }
-    canvas.drawPath(band, paint);
+    if (field != null) {
+      canvas.drawPath(
+        field,
+        Paint()
+          ..color = dim(kBdErrorCaseFill)
+          ..isAntiAlias = false,
+      );
+    }
+    canvas.drawPath(
+      band,
+      error
+          ? (Paint()
+              ..color = dim(kBdErrorCaseStripe)
+              ..isAntiAlias = false)
+          : paint,
+    );
   }
 
   /// Side length (px) of the for-loop's dog-ear corner fold — fixed chrome,

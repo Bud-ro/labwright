@@ -77,11 +77,57 @@ GlobalHatchOffset deriveGlobalHatchOffset({
   required Uint8List referenceRgba,
   required int width,
   required int height,
+}) => _deriveHatchPhase(
+  diagram: diagram,
+  raster: raster,
+  registration: registration,
+  referenceRgba: referenceRgba,
+  width: width,
+  height: height,
+  errorStyle: false,
+);
+
+/// [deriveGlobalHatchOffset]'s counterpart for the error-case stripe lattice
+/// ([kBdErrorHatch]) — a SEPARATE per-capture phase: one capture measures
+/// different phases for the two lattices, so each derives independently.
+GlobalHatchOffset deriveErrorHatchOffset({
+  required ViDiagram diagram,
+  required BdRaster raster,
+  required BdRegistration registration,
+  required Uint8List referenceRgba,
+  required int width,
+  required int height,
+}) => _deriveHatchPhase(
+  diagram: diagram,
+  raster: raster,
+  registration: registration,
+  referenceRgba: referenceRgba,
+  width: width,
+  height: height,
+  errorStyle: true,
+);
+
+GlobalHatchOffset _deriveHatchPhase({
+  required ViDiagram diagram,
+  required BdRaster raster,
+  required BdRegistration registration,
+  required Uint8List referenceRgba,
+  required int width,
+  required int height,
+  required bool errorStyle,
 }) {
+  final errorOids = bdErrorCaseOids(diagram);
+  final drawableOids = {for (final o in bdDrawableObjects(diagram)) o.oid};
+  final tile = errorStyle ? kBdErrorHatch : kBdStructureHatch;
+  // The stripe lattice depends only on (px+py) mod 4, so its 16 phases
+  // collapse to 4 distinct lattices — searching py too would make every
+  // winner tie its aliases and the margin check reject them all.
+  final pyRange = errorStyle ? 1 : 4;
   final score = List.generate(4, (_) => List.filled(4, 0));
   var samples = 0;
   for (final o in diagram.objects) {
-    if (o.kind != 0x2c) continue;
+    if (o.kind != 0x2c || !drawableOids.contains(o.oid)) continue;
+    if (errorOids.contains(o.oid) != errorStyle) continue;
     final b = o.absBounds;
     if (b == null) continue;
     for (var y = b.top; y <= b.bottom; y++) {
@@ -99,14 +145,24 @@ GlobalHatchOffset deriveGlobalHatchOffset({
                 .round();
         if (rx < 0 || ry < 0 || rx >= width || ry >= height) continue;
         final i = (ry * width + rx) * 4;
-        final dark =
-            (referenceRgba[i] + referenceRgba[i + 1] + referenceRgba[i + 2]) ~/
-                3 <
-            110;
+        final r = referenceRgba[i],
+            g = referenceRgba[i + 1],
+            bl = referenceRgba[i + 2];
+        final bool dark;
+        if (errorStyle) {
+          // Stripe grey on the green field; anything else is overdraw.
+          final green = g > 200 && r < 200 && bl < 200;
+          final grey =
+              !green && (r - bl).abs() < 30 && g < 200 && r > 90 && r < 170;
+          if (!green && !grey) continue;
+          dark = grey;
+        } else {
+          dark = (r + g + bl) ~/ 3 < 110;
+        }
         samples++;
-        for (var py = 0; py < 4; py++) {
+        for (var py = 0; py < pyRange; py++) {
           for (var px = 0; px < 4; px++) {
-            final ink = kBdStructureHatch[(y + py) & 3][(x + px) & 3] == '#';
+            final ink = tile[(y + py) & 3][(x + px) & 3] == '#';
             score[py][px] += ink == dark ? 1 : -1;
           }
         }
@@ -115,7 +171,7 @@ GlobalHatchOffset deriveGlobalHatchOffset({
   }
   if (samples == 0) return kNoHatchOffset;
   var bestX = 0, bestY = 0, best = -samples - 1, second = -samples - 1;
-  for (var py = 0; py < 4; py++) {
+  for (var py = 0; py < pyRange; py++) {
     for (var px = 0; px < 4; px++) {
       final s = score[py][px];
       if (s > best) {
@@ -144,6 +200,7 @@ Future<BdRaster?> rasteriseBlockDiagram(
   List<ViWire>? wires,
   List<ViHeapObject>? drawable,
   GlobalHatchOffset globalHatchOffset = kNoHatchOffset,
+  GlobalHatchOffset errorHatchOffset = kNoHatchOffset,
 }) async {
   drawable ??= bdDrawableObjects(diagram);
   if (drawable.isEmpty) return null;
@@ -198,6 +255,8 @@ Future<BdRaster?> rasteriseBlockDiagram(
     // view's alignment-dot grid would break byte-exact comparisons.
     drawDotGrid: false,
     globalHatchOffset: globalHatchOffset,
+    errorHatchOffset: errorHatchOffset,
+    errorCaseOids: bdErrorCaseOids(diagram),
   ).paint(canvas, content.size);
   final picture = recorder.endRecording();
   try {
@@ -1438,10 +1497,13 @@ class _BdOracleViewState extends State<BdOracleView>
           ? bdStructureAnchorRects(diagram, raster, drawable: drawable)
           : const [],
     );
-    // The reference capture's hatch phase is a device-time value LabVIEW does
-    // not store, so it is measured from the capture and the render redone at
-    // the matching phase — the only path to a 1:1 hatch comparison.
+    // The reference capture's hatch phases (the black case lattice and the
+    // error-case stripe lattice each carry their own) are device-time values
+    // LabVIEW does not store, so they are measured from the capture and the
+    // render redone at the matching phases — the only path to a 1:1 hatch
+    // comparison.
     var hatchOffset = kNoHatchOffset;
+    var errorOffset = kNoHatchOffset;
     if (snippet) {
       hatchOffset = deriveGlobalHatchOffset(
         diagram: diagram,
@@ -1451,7 +1513,15 @@ class _BdOracleViewState extends State<BdOracleView>
         width: reference.image.width,
         height: reference.image.height,
       );
-      if (hatchOffset != kNoHatchOffset) {
+      errorOffset = deriveErrorHatchOffset(
+        diagram: diagram,
+        raster: raster,
+        registration: result.registration,
+        referenceRgba: result.referenceRgba,
+        width: reference.image.width,
+        height: reference.image.height,
+      );
+      if (hatchOffset != kNoHatchOffset || errorOffset != kNoHatchOffset) {
         final rephased = await rasteriseBlockDiagram(
           diagram,
           primIcons: primIconsLoaded(),
@@ -1462,6 +1532,7 @@ class _BdOracleViewState extends State<BdOracleView>
           wires: visibleWires,
           drawable: drawable,
           globalHatchOffset: hatchOffset,
+          errorHatchOffset: errorOffset,
         );
         if (rephased != null) {
           raster.image.dispose();
@@ -1504,6 +1575,7 @@ class _BdOracleViewState extends State<BdOracleView>
       wires: visibleWires,
       drawable: drawable,
       globalHatchOffset: hatchOffset,
+      errorHatchOffset: errorOffset,
     );
     ui.Image? displayFitted;
     ui.Image? displayReference;
