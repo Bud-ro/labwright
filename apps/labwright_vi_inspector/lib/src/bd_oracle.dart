@@ -37,6 +37,7 @@ import 'package:flutter/material.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 import 'diagram_view.dart';
+import 'image_clipboard.dart';
 
 /// A rasterised block diagram: the [image] plus the model-space [content]
 /// rectangle and the model-pixel → image-pixel [scale] it was drawn at (so a
@@ -1504,6 +1505,10 @@ class _BdOracleViewState extends State<BdOracleView>
                                     : data.displayRendered != null)
                                 ? kOracleDisplaySupersample
                                 : 1,
+                            copyImage: result != null
+                                ? (data.displayFitted ?? result.fitted)
+                                : (data.displayRendered ?? data.rendered),
+                            copyLabel: 'Rendered',
                           ),
                         ),
                         if (result != null) ...[
@@ -1514,6 +1519,9 @@ class _BdOracleViewState extends State<BdOracleView>
                               supersample: data.displayReference != null
                                   ? kOracleDisplaySupersample
                                   : 1,
+                              copyImage:
+                                  data.displayReference ?? result.reference,
+                              copyLabel: 'Reference',
                             ),
                           ),
                           Expanded(
@@ -1687,26 +1695,75 @@ class _BdOracleViewState extends State<BdOracleView>
     );
   }
 
-  Widget _pane(String caption, ui.Image image, {int supersample = 1}) =>
-      Padding(
-        padding: const EdgeInsets.all(4),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+  Widget _pane(
+    String caption,
+    ui.Image image, {
+    int supersample = 1,
+    ui.Image? copyImage,
+    String? copyLabel,
+  }) => Padding(
+    padding: const EdgeInsets.all(4),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
           children: [
-            Text(
-              caption,
-              style: const TextStyle(fontSize: 11, color: Colors.grey),
-            ),
-            const SizedBox(height: 4),
             Expanded(
-              child: ColoredBox(
-                color: const Color(0xFF202020),
-                child: CrispImage(image, supersample: supersample),
+              child: Text(
+                caption,
+                style: const TextStyle(fontSize: 11, color: Colors.grey),
               ),
             ),
+            if (copyImage != null)
+              Builder(
+                builder: (context) => IconButton(
+                  padding: EdgeInsets.zero,
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints(),
+                  iconSize: 15,
+                  color: Colors.grey,
+                  tooltip: 'Copy ${copyLabel ?? caption} (3×) to clipboard',
+                  icon: const Icon(Icons.content_copy),
+                  onPressed: () =>
+                      _copyImage(context, copyImage, copyLabel ?? caption),
+                ),
+              ),
           ],
         ),
-      );
+        const SizedBox(height: 4),
+        Expanded(
+          child: ColoredBox(
+            color: const Color(0xFF202020),
+            child: CrispImage(image, supersample: supersample),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  /// Copies a pane's [image] to the system clipboard as a PNG. The oracle
+  /// panes pass their [kOracleDisplaySupersample]x display image, so the copy
+  /// matches the wipe-compare's pixel scale.
+  Future<void> _copyImage(
+    BuildContext context,
+    ui.Image image,
+    String what,
+  ) async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final png = await image.toByteData(format: ui.ImageByteFormat.png);
+    var ok = false;
+    if (png != null) {
+      ok = await const SystemImageClipboard().copyPng(png.buffer.asUint8List());
+    }
+    messenger?.showSnackBar(
+      SnackBar(
+        content: Text(
+          ok ? 'Copied $what (3×) to clipboard' : 'Could not copy $what',
+        ),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
 }
 
 class _OracleData {
