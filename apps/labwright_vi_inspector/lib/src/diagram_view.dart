@@ -3386,11 +3386,59 @@ class BdDiagramPainter extends CustomPainter {
     }
   }
 
+  /// The while-loop's rounded corners, measured per-corner from LabVIEW's
+  /// raster (its rounding is NOT symmetric — the right and bottom edges round a
+  /// pixel fuller than the left and top). `#` = grey band pixel, indexed
+  /// `[distance-from-cap-edge][distance-from-side-edge]` from the outer corner.
+  /// The bottom-right corner is the arrow ([_kWhileArrow]).
+  static const _kWhileCornerTL = [
+    '.....#',
+    '..####',
+    '.#####',
+    '.#####',
+    '.#####',
+    '######',
+  ];
+  static const _kWhileCornerTR = [
+    '....##',
+    '...###',
+    '.#####',
+    '.#####',
+    '.#####',
+    '######',
+  ];
+  static const _kWhileCornerBL = [
+    '.....#',
+    '..####',
+    '..####',
+    '.#####',
+    '######',
+    '######',
+  ];
+
+  /// The rotational arrow LabVIEW draws into a while-loop's bottom-right corner
+  /// (the gap-and-arrowhead is what marks the frame a *while* loop), measured
+  /// from the raster. Rows run top→bottom, the last at the band's bottom row;
+  /// columns run left→right ending at the frame's right edge. `#` grey.
+  static const _kWhileArrow = [
+    '.........',
+    '.........',
+    '.########',
+    '..#######',
+    '#########',
+    '#########',
+    '#########',
+    '#########',
+    '#########',
+    '#####...#',
+  ];
+
   /// The while-loop border LabVIEW draws: a crisp [_kWhileBand]-px mid-grey
-  /// (0xFF777777) band with rounded corners, flat-filled with no
-  /// anti-aliasing so its outer edge is a hard line the oracle registration
-  /// locks onto. A decoded [tint] (the pale sequence/timed colour) replaces
-  /// the grey and washes the interior, as LabVIEW's coloured structures do.
+  /// (0xFF777777) band, hard-edged (no anti-aliasing) so its outer edge is a
+  /// line the oracle registration locks onto, with rounded corners
+  /// ([_kWhileCorner]) and the rotational arrow ([_kWhileArrow]) in the
+  /// bottom-right. The interior stays clear — LabVIEW washes no colour inside a
+  /// plain while loop. A decoded [tint] only recolours the band.
   void _drawWhileLoopBand(
     Canvas canvas,
     Rect rect,
@@ -3398,38 +3446,57 @@ class BdDiagramPainter extends CustomPainter {
     bool disabled = false,
   }) {
     Color dim(Color c) => disabled ? bdDimDisabled(c) : c;
-    final band = tint ?? dim(const Color(0xFF777777));
-    const outerR = Radius.circular(_kWhileOuterRadius);
-    const innerR = Radius.circular(_kWhileOuterRadius - _kWhileBand);
-    if (tint != null) {
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(rect, outerR),
-        Paint()..color = tint.withValues(alpha: 0.12),
-      );
+    final grey = tint ?? dim(const Color(0xFF777777));
+    // The band's drawn box runs 1px right of the stored bounds: a 1px gutter on
+    // the left, flush on the right (top flush, bottom inset 1). [l,r) × [t,b).
+    final l = rect.left.round() + 1, t = rect.top.round();
+    final r = rect.right.round() + 1, b = rect.bottom.round();
+    const band = _kWhileBand;
+    // Bottom-right arrow footprint (columns then rows), anchored to the frame's
+    // right/bottom edge; excluded from the ring loop so the arrow alone fills
+    // it. Its last row is the band's bottom row.
+    final aw = _kWhileArrow.first.length, ah = _kWhileArrow.length;
+    final ax0 = r - aw, ay0 = b - ah;
+
+    final path = Path();
+    void add(int x, int y) =>
+        path.addRect(Rect.fromLTWH(x.toDouble(), y.toDouble(), 1, 1));
+
+    for (var y = t; y < b; y++) {
+      final dt = y - t, db = b - 1 - y;
+      for (var x = l; x < r; x++) {
+        final dl = x - l, dr = r - 1 - x;
+        final edge = dl < band || dr < band || dt < band || db < band;
+        if (!edge) continue;
+        if (x >= ax0 && y >= ay0) continue; // arrow owns this cell
+        bool grey1;
+        if (dt < band && dl < band) {
+          grey1 = _kWhileCornerTL[dt][dl] == '#';
+        } else if (dt < band && dr < band) {
+          grey1 = _kWhileCornerTR[dt][dr] == '#';
+        } else if (db < band && dl < band) {
+          grey1 = _kWhileCornerBL[db][dl] == '#';
+        } else {
+          grey1 = true; // straight run (bottom-right handled by the arrow)
+        }
+        if (grey1) add(x, y);
+      }
     }
-    // The frame's stored bounds run 1px wider than the drawn band on the left
-    // and right (the shift-register column allowance); top and bottom are
-    // flush. Inset horizontally so the grey lands on the reference.
-    final outer = Rect.fromLTRB(
-      rect.left + 1,
-      rect.top,
-      rect.right - 1,
-      rect.bottom,
-    );
-    final ring = Path()
-      ..fillType = PathFillType.evenOdd
-      ..addRRect(RRect.fromRectAndRadius(outer, outerR))
-      ..addRRect(RRect.fromRectAndRadius(outer.deflate(_kWhileBand), innerR));
+    // Stamp the arrow (its last row sits one pixel below the band bottom).
+    for (var ry = 0; ry < ah; ry++) {
+      for (var rx = 0; rx < aw; rx++) {
+        if (_kWhileArrow[ry][rx] == '#') add(ax0 + rx, ay0 + ry);
+      }
+    }
     canvas.drawPath(
-      ring,
+      path,
       Paint()
-        ..color = band
+        ..color = grey
         ..isAntiAlias = false,
     );
   }
 
-  static const _kWhileBand = 6.0;
-  static const _kWhileOuterRadius = 6.0;
+  static const _kWhileBand = 6;
 
   /// Draws a for-loop's border pixel-exact to LabVIEW's own render: crisp
   /// 1px-black chrome shaped as a stack of three pages, the top page's
