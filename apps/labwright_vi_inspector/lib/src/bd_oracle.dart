@@ -1048,9 +1048,11 @@ BdRegistration _translationRegistration(
   }
   if (candidates.isEmpty) return base;
   // Final selection: the diagram's structure boxes are large and unique, so
-  // their perimeter edge support discriminates the true peak where raw hits
-  // cannot. Without anchors, raw hits decide.
-  if (anchorRects.length >= 2) {
+  // their perimeter edge support discriminates the true peak — and, in the
+  // sub-pixel snap below, the true whole-pixel offset — where raw hits cannot.
+  // Even a single structure (e.g. a lone while loop) is a strong enough anchor;
+  // with none, raw hits decide.
+  if (anchorRects.isNotEmpty) {
     double anchorSupport(double dx, double dy, Uint8List edges) {
       var hits = 0, samples = 0;
       void sample(double fx, double fy) {
@@ -1083,36 +1085,62 @@ BdRegistration _translationRegistration(
         bestScore = score;
       }
     }
-    // Sub-pixel snap. The peak was chosen on the 1 px-dilated support, which
-    // cannot tell a pixel-exact alignment from its immediate neighbour — with
-    // crisp 1 px structure borders one whole-pixel offset lands the perimeters
-    // EXACTLY on the reference edges while its neighbour is a blurred near
-    // miss. Break that residual tie within ±1 px on the UN-dilated edge map,
-    // so a render whose chrome is already pixel-faithful registers to true
-    // alignment instead of drifting a pixel off. Moves only on a strict
-    // improvement, so an imperfect render (no exact overlap anywhere) stays on
-    // the dilated peak.
-    var bx = best.$1, by = best.$2;
-    var exact = anchorSupport(bx, by, referenceEdges);
-    for (var oy = -1; oy <= 1; oy++) {
-      for (var ox = -1; ox <= 1; ox++) {
-        if (ox == 0 && oy == 0) continue;
-        final e = anchorSupport(best.$1 + ox, best.$2 + oy, referenceEdges);
-        if (e > exact + 1e-9) {
-          exact = e;
-          bx = best.$1 + ox;
-          by = best.$2 + oy;
-        }
-      }
-    }
-    return BdRegistration(scale: scale, dx: bx, dy: by);
+    return BdRegistration(
+      scale: scale,
+      dx: best.$1,
+      dy: best.$2,
+    )._exactSnap(points, referenceEdges, width, height);
   }
   candidates.sort((a, b) => b.$3.compareTo(a.$3));
   return BdRegistration(
     scale: scale,
     dx: candidates.first.$1,
     dy: candidates.first.$2,
-  );
+  )._exactSnap(points, referenceEdges, width, height);
+}
+
+extension _ExactSnap on BdRegistration {
+  /// Nudges the registration by up to ±1px to maximise how many of the render's
+  /// edge [points] land EXACTLY on a reference edge (the UN-dilated Sobel map).
+  ///
+  /// The coarse peak search scores overlap through a 1px dilation, which cannot
+  /// tell a pixel-exact alignment from its immediate neighbour, so its integer
+  /// pick can sit a pixel off the truth (most visible on diagrams whose only
+  /// structure is a faint grey loop, where the dilated peak wanders). Scoring
+  /// every edge point un-dilated breaks that tie toward the alignment where the
+  /// whole render — not just structure borders — coincides with the reference.
+  /// Moves only on a strict improvement, so a render with no exact overlap
+  /// anywhere keeps the coarse pick.
+  BdRegistration _exactSnap(
+    List<double> points,
+    Uint8List referenceEdges,
+    int width,
+    int height,
+  ) {
+    int exactHits(double ex, double ey) {
+      var hits = 0;
+      for (var i = 0; i < points.length; i += 2) {
+        final x = (points[i] + ex).round(), y = (points[i + 1] + ey).round();
+        if (x < 0 || y < 0 || x >= width || y >= height) continue;
+        hits += referenceEdges[y * width + x];
+      }
+      return hits;
+    }
+
+    var bx = dx, by = dy, best = exactHits(dx, dy);
+    for (var oy = -1; oy <= 1; oy++) {
+      for (var ox = -1; ox <= 1; ox++) {
+        if (ox == 0 && oy == 0) continue;
+        final h = exactHits(dx + ox, dy + oy);
+        if (h > best) {
+          best = h;
+          bx = dx + ox;
+          by = dy + oy;
+        }
+      }
+    }
+    return BdRegistration(scale: scale, dx: bx, dy: by);
+  }
 }
 
 /// The centred aspect-preserved letterbox of [src] into [width]×[height], as a
