@@ -107,6 +107,87 @@ GlobalHatchOffset deriveErrorHatchOffset({
   errorStyle: true,
 );
 
+/// Derives a reference capture's [BdChromePalette] — the while-band /
+/// error-stripe grey and the error case's green field. LabVIEW resolves these
+/// from the capture machine's palette, not the .vi (three same-version
+/// captures measure greys 119/127/119 and greens 153/178/153), so each
+/// component is read as the MODAL colour over the frames that draw it,
+/// falling back to the [kBdDefaultChromePalette] entry unless one value
+/// dominates (≥100 pixels and an absolute majority of its candidates).
+BdChromePalette deriveChromePalette({
+  required ViDiagram diagram,
+  required BdRaster raster,
+  required BdRegistration registration,
+  required Uint8List referenceRgba,
+  required int width,
+  required int height,
+}) {
+  final errorOids = bdErrorCaseOids(diagram);
+  final drawableOids = {for (final o in bdDrawableObjects(diagram)) o.oid};
+  final greys = <int, int>{};
+  final greens = <int, int>{};
+  var greyTotal = 0, greenTotal = 0;
+  for (final o in diagram.objects) {
+    final isWhile = o.kind == 0x21;
+    final isError = o.kind == 0x2c && errorOids.contains(o.oid);
+    if ((!isWhile && !isError) || !drawableOids.contains(o.oid)) continue;
+    // A tinted while band carries its stored colour, not the palette grey.
+    if (isWhile && o.structRgb != null && o.structRgb != kDefaultStructureRgb) {
+      continue;
+    }
+    final b = o.absBounds;
+    if (b == null) continue;
+    for (var y = b.top; y <= b.bottom; y++) {
+      for (var x = b.left; x <= b.right; x++) {
+        final d = math.min(
+          math.min(x - b.left, b.right - x),
+          math.min(y - b.top, b.bottom - y),
+        );
+        if (d < 1 || d > kBdHatchBand) continue;
+        final rx =
+            ((x - raster.content.left) * registration.scale + registration.dx)
+                .round();
+        final ry =
+            ((y - raster.content.top) * registration.scale + registration.dy)
+                .round();
+        if (rx < 0 || ry < 0 || rx >= width || ry >= height) continue;
+        final i = (ry * width + rx) * 4;
+        final r = referenceRgba[i],
+            g = referenceRgba[i + 1],
+            bl = referenceRgba[i + 2];
+        if (r == g && g == bl && r > 80 && r < 180) {
+          greys[r] = (greys[r] ?? 0) + 1;
+          greyTotal++;
+        } else if (isError && g > 200 && r == bl && r < 200) {
+          greens[r] = (greens[r] ?? 0) + 1;
+          greenTotal++;
+        }
+      }
+    }
+  }
+  T modal<T>(Map<int, int> hist, int total, T fallback, T Function(int) make) {
+    if (hist.isEmpty) return fallback;
+    final top = hist.entries.reduce((a, b) => a.value >= b.value ? a : b);
+    if (top.value < 100 || top.value * 2 < total) return fallback;
+    return make(top.key);
+  }
+
+  return (
+    bandGrey: modal(
+      greys,
+      greyTotal,
+      kBdDefaultChromePalette.bandGrey,
+      (v) => Color(0xFF000000 | (v << 16) | (v << 8) | v),
+    ),
+    errorGreen: modal(
+      greens,
+      greenTotal,
+      kBdDefaultChromePalette.errorGreen,
+      (v) => Color(0xFF000000 | (v << 16) | 0xFF00 | v),
+    ),
+  );
+}
+
 GlobalHatchOffset _deriveHatchPhase({
   required ViDiagram diagram,
   required BdRaster raster,
@@ -201,6 +282,7 @@ Future<BdRaster?> rasteriseBlockDiagram(
   List<ViHeapObject>? drawable,
   GlobalHatchOffset globalHatchOffset = kNoHatchOffset,
   GlobalHatchOffset errorHatchOffset = kNoHatchOffset,
+  BdChromePalette chromePalette = kBdDefaultChromePalette,
 }) async {
   drawable ??= bdDrawableObjects(diagram);
   if (drawable.isEmpty) return null;
@@ -257,6 +339,7 @@ Future<BdRaster?> rasteriseBlockDiagram(
     globalHatchOffset: globalHatchOffset,
     errorHatchOffset: errorHatchOffset,
     errorCaseOids: bdErrorCaseOids(diagram),
+    chromePalette: chromePalette,
   ).paint(canvas, content.size);
   final picture = recorder.endRecording();
   try {
@@ -1498,30 +1581,49 @@ class _BdOracleViewState extends State<BdOracleView>
           : const [],
     );
     // The reference capture's hatch phases (the black case lattice and the
-    // error-case stripe lattice each carry their own) are device-time values
-    // LabVIEW does not store, so they are measured from the capture and the
-    // render redone at the matching phases — the only path to a 1:1 hatch
-    // comparison.
+    // error-case stripe lattice each carry their own) and its chrome palette
+    // (band grey / error green) are capture-environment values LabVIEW does
+    // not store, so they are measured from the capture and the render redone
+    // to match — the only path to a 1:1 comparison.
     var hatchOffset = kNoHatchOffset;
     var errorOffset = kNoHatchOffset;
+    var palette = kBdDefaultChromePalette;
     if (snippet) {
-      hatchOffset = deriveGlobalHatchOffset(
+      final args = (
         diagram: diagram,
         raster: raster,
         registration: result.registration,
         referenceRgba: result.referenceRgba,
         width: reference.image.width,
         height: reference.image.height,
+      );
+      hatchOffset = deriveGlobalHatchOffset(
+        diagram: args.diagram,
+        raster: args.raster,
+        registration: args.registration,
+        referenceRgba: args.referenceRgba,
+        width: args.width,
+        height: args.height,
       );
       errorOffset = deriveErrorHatchOffset(
-        diagram: diagram,
-        raster: raster,
-        registration: result.registration,
-        referenceRgba: result.referenceRgba,
-        width: reference.image.width,
-        height: reference.image.height,
+        diagram: args.diagram,
+        raster: args.raster,
+        registration: args.registration,
+        referenceRgba: args.referenceRgba,
+        width: args.width,
+        height: args.height,
       );
-      if (hatchOffset != kNoHatchOffset || errorOffset != kNoHatchOffset) {
+      palette = deriveChromePalette(
+        diagram: args.diagram,
+        raster: args.raster,
+        registration: args.registration,
+        referenceRgba: args.referenceRgba,
+        width: args.width,
+        height: args.height,
+      );
+      if (hatchOffset != kNoHatchOffset ||
+          errorOffset != kNoHatchOffset ||
+          palette != kBdDefaultChromePalette) {
         final rephased = await rasteriseBlockDiagram(
           diagram,
           primIcons: primIconsLoaded(),
@@ -1533,6 +1635,7 @@ class _BdOracleViewState extends State<BdOracleView>
           drawable: drawable,
           globalHatchOffset: hatchOffset,
           errorHatchOffset: errorOffset,
+          chromePalette: palette,
         );
         if (rephased != null) {
           raster.image.dispose();
@@ -1576,6 +1679,7 @@ class _BdOracleViewState extends State<BdOracleView>
       drawable: drawable,
       globalHatchOffset: hatchOffset,
       errorHatchOffset: errorOffset,
+      chromePalette: palette,
     );
     ui.Image? displayFitted;
     ui.Image? displayReference;

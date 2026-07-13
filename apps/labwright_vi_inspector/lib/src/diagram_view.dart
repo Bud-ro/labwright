@@ -628,13 +628,21 @@ const kBdHatchBand = 5;
 /// phases for the two lattices), so it takes its own derived offset.
 const kBdErrorHatch = ['#...', '...#', '..#.', '.#..'];
 
-/// The green field an error case's border band is filled with, measured from
-/// the snippet references (153,255,153).
-const Color kBdErrorCaseFill = Color(0xFF99FF99);
+/// The structure-chrome colours LabVIEW resolves from the CAPTURE
+/// ENVIRONMENT's palette, not from the .vi: the while-loop band / error-stripe
+/// grey and the error case's green field. Measured to vary per capture with
+/// the LabVIEW version held fixed (three 19.0 captures: greys 119/127/119,
+/// greens 153/178/153), so — like [GlobalHatchOffset] — the viewer draws the
+/// common defaults ([kBdDefaultChromePalette]) and the oracle derives each
+/// reference's palette (`deriveChromePalette`) to compare 1:1.
+typedef BdChromePalette = ({Color bandGrey, Color errorGreen});
 
-/// The grey of the error-band stripes — the same 119 grey as the while-loop
-/// band.
-const Color kBdErrorCaseStripe = Color(0xFF777777);
+/// The dominant capture palette: band/stripe grey (119,119,119), error-case
+/// green (153,255,153).
+const BdChromePalette kBdDefaultChromePalette = (
+  bandGrey: Color(0xFF777777),
+  errorGreen: Color(0xFF99FF99),
+);
 
 /// The uniform grey a disabled frame renders dark NEUTRAL chrome in — the
 /// same (170,170,170) line-work grey as the disabled icon palette
@@ -2112,6 +2120,7 @@ class BdDiagramPainter extends CustomPainter {
     this.globalHatchOffset = kNoHatchOffset,
     this.errorHatchOffset = kNoHatchOffset,
     this.errorCaseOids = const {},
+    this.chromePalette = kBdDefaultChromePalette,
   });
 
   final List<ViHeapObject> objects;
@@ -2172,6 +2181,10 @@ class BdDiagramPainter extends CustomPainter {
   /// Case structures displaying their "No Error" frame ([bdErrorCaseOids]) —
   /// their band draws the green error style instead of the black hatch.
   final Set<int> errorCaseOids;
+
+  /// The capture-environment chrome colours (while band / error stripes /
+  /// error field). See [BdChromePalette].
+  final BdChromePalette chromePalette;
 
   /// [color] through the measured disabled-frame palette transform when the
   /// object [oid] sits under a disabled displayed frame ([disabledOids]),
@@ -3533,7 +3546,7 @@ class BdDiagramPainter extends CustomPainter {
     bool disabled = false,
   }) {
     Color dim(Color c) => disabled ? bdDimDisabled(c) : c;
-    final grey = tint ?? dim(const Color(0xFF777777));
+    final grey = tint ?? dim(chromePalette.bandGrey);
     // The band fills the frame's stored bounds; [l,r) × [t,b).
     final l = rect.left.round(), t = rect.top.round();
     final r = rect.right.round(), b = rect.bottom.round();
@@ -3715,7 +3728,7 @@ class BdDiagramPainter extends CustomPainter {
       canvas.drawPath(
         field,
         Paint()
-          ..color = dim(kBdErrorCaseFill)
+          ..color = dim(chromePalette.errorGreen)
           ..isAntiAlias = false,
       );
     }
@@ -3723,7 +3736,7 @@ class BdDiagramPainter extends CustomPainter {
       band,
       error
           ? (Paint()
-              ..color = dim(kBdErrorCaseStripe)
+              ..color = dim(chromePalette.bandGrey)
               ..isAntiAlias = false)
           : paint,
     );
