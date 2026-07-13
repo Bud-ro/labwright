@@ -597,6 +597,25 @@ const Color kBdTerminalFill = Color(0xFFFFFFCC);
 /// this nominal value over the border.
 const int kDefaultStructureRgb = 0x7F7F7F;
 
+/// Phase of the global structure-hatch lattice, in pixels added to absolute
+/// diagram coordinates before indexing the 4×4 tile (both components 0..3).
+typedef GlobalHatchOffset = ({int x, int y});
+
+/// The neutral hatch phase: the lattice indexed by absolute diagram
+/// coordinates directly.
+const GlobalHatchOffset kNoHatchOffset = (x: 0, y: 0);
+
+/// The diagonal hatch LabVIEW fills a structure (case / sequence) frame with,
+/// indexed `[absY % 4][absX % 4]` — one infinite lattice shared by every frame
+/// in a render, so neighbouring structures and the four corners of one frame
+/// show different phases. Measured from crc8's case frames (716 and 1861 fit
+/// this tile identically). `#` = black.
+const kBdStructureHatch = ['.#.#', '#.#.', '##..', '..##'];
+
+/// Width (px) of the hatch band inside a case/sequence frame's solid 1px
+/// outer border.
+const kBdHatchBand = 5;
+
 /// The uniform grey a disabled frame renders dark NEUTRAL chrome in — the
 /// same (170,170,170) line-work grey as the disabled icon palette
 /// ([_greyDisabledPalette]). Measured on crc8's disabled tunnel at
@@ -2053,6 +2072,7 @@ class BdDiagramPainter extends CustomPainter {
     this.iconFilterQuality = FilterQuality.none,
     this.canvasScale = 1,
     this.drawDotGrid = true,
+    this.globalHatchOffset = kNoHatchOffset,
   });
 
   final List<ViHeapObject> objects;
@@ -2096,6 +2116,14 @@ class BdDiagramPainter extends CustomPainter {
   /// ring (the reference draws constants with the 2 px outer border only)
   /// and centres the value text.
   final Map<int, String> constValues;
+
+  /// Phase of the structure-hatch lattice ([kBdStructureHatch]) relative to
+  /// absolute diagram coordinates. LabVIEW anchors the lattice to its
+  /// device/window brush origin at render time — a value that is NOT stored in
+  /// the .vi and differs per capture — so the viewer draws at the neutral
+  /// [kNoHatchOffset] and the oracle derives a per-reference offset
+  /// (`deriveGlobalHatchOffset`) to compare snapshots 1:1.
+  final GlobalHatchOffset globalHatchOffset;
 
   /// [color] through the measured disabled-frame palette transform when the
   /// object [oid] sits under a disabled displayed frame ([disabledOids]),
@@ -3566,8 +3594,8 @@ class BdDiagramPainter extends CustomPainter {
   }
 
   /// Draws a case/sequence frame's border exactly as LabVIEW does: a solid 1px
-  /// black outer rectangle wrapping a [_kHatchBand]-px band of the global
-  /// [_kStructureHatch] lattice. The hatch phase is keyed on ABSOLUTE diagram
+  /// black outer rectangle wrapping a [kBdHatchBand]-px band of the global
+  /// [kBdStructureHatch] lattice. The hatch phase is keyed on ABSOLUTE diagram
   /// coordinates ([absLeft]/[absTop] give the frame's top-left in that space),
   /// so the pattern is continuous across the diagram — the frame is a window
   /// onto it, not a source of it. Drawn before the tunnel chrome pass, which
@@ -3609,14 +3637,16 @@ class BdDiagramPainter extends CustomPainter {
     // perimeter ring (skip the interior columns of the middle rows).
     final band = Path();
     for (var j = 0; j < h; j++) {
-      final nearTopBottom = j <= _kHatchBand || j >= h - 1 - _kHatchBand;
+      final nearTopBottom = j <= kBdHatchBand || j >= h - 1 - kBdHatchBand;
       for (var i = 0; i < w; i++) {
-        if (!nearTopBottom && i > _kHatchBand && i < w - 1 - _kHatchBand) {
+        if (!nearTopBottom && i > kBdHatchBand && i < w - 1 - kBdHatchBand) {
           continue; // interior — no border here
         }
         final d = math.min(math.min(i, j), math.min(w - 1 - i, h - 1 - j));
-        if (d < 1 || d > _kHatchBand) continue; // 0 = solid, >5 = interior
-        if (_kStructureHatch[(absTop + j) & 3][(absLeft + i) & 3] != '#') {
+        if (d < 1 || d > kBdHatchBand) continue; // 0 = solid, >5 = interior
+        if (kBdStructureHatch[(absTop + j + globalHatchOffset.y) &
+                3][(absLeft + i + globalHatchOffset.x) & 3] !=
+            '#') {
           continue;
         }
         band.addRect(
@@ -3630,17 +3660,6 @@ class BdDiagramPainter extends CustomPainter {
   /// Side length (px) of the for-loop's dog-ear corner fold — fixed chrome,
   /// measured from LabVIEW's raster.
   static const _kForLoopFold = 8.0;
-
-  /// The diagonal hatch LabVIEW fills a structure (case / sequence) frame with,
-  /// indexed `[absY % 4][absX % 4]` — a single lattice anchored to absolute
-  /// diagram coordinates, NOT to each frame, so neighbouring structures and
-  /// the four corners of one frame show different phases. Measured from crc8's
-  /// case frames (716 and 1861 fit this tile identically). `#` = black.
-  static const _kStructureHatch = ['.#.#', '#.#.', '##..', '..##'];
-
-  /// Width (px) of the hatch band inside a case/sequence frame's solid 1px
-  /// outer border.
-  static const _kHatchBand = 5;
 
   static const _loopBlue = Color(0xFF0033CC);
 

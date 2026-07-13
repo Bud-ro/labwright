@@ -62,6 +62,77 @@ class BdRaster {
 /// (1.0 matches LabVIEW's own 1 diagram unit == 1 px snippet render, making a
 /// snippet reference comparable without resampling). Returns null when the
 /// diagram has no positioned objects.
+/// Derives a reference capture's [GlobalHatchOffset] by scoring every lattice
+/// phase against the reference pixels inside the case frames' hatch bands.
+/// LabVIEW anchors the hatch to its device/window brush origin at render time —
+/// not stored in the .vi and different per capture — so the phase can only be
+/// measured from the capture itself. Returns [kNoHatchOffset] unless one phase
+/// wins decisively (≥75% pixel agreement and a strict margin over the
+/// runner-up), so content-overdrawn or recoloured bands never force a bogus
+/// phase.
+GlobalHatchOffset deriveGlobalHatchOffset({
+  required ViDiagram diagram,
+  required BdRaster raster,
+  required BdRegistration registration,
+  required Uint8List referenceRgba,
+  required int width,
+  required int height,
+}) {
+  final score = List.generate(4, (_) => List.filled(4, 0));
+  var samples = 0;
+  for (final o in diagram.objects) {
+    if (o.kind != 0x2c) continue;
+    final b = o.absBounds;
+    if (b == null) continue;
+    for (var y = b.top; y <= b.bottom; y++) {
+      for (var x = b.left; x <= b.right; x++) {
+        final d = math.min(
+          math.min(x - b.left, b.right - x),
+          math.min(y - b.top, b.bottom - y),
+        );
+        if (d < 1 || d > kBdHatchBand) continue;
+        final rx =
+            ((x - raster.content.left) * registration.scale + registration.dx)
+                .round();
+        final ry =
+            ((y - raster.content.top) * registration.scale + registration.dy)
+                .round();
+        if (rx < 0 || ry < 0 || rx >= width || ry >= height) continue;
+        final i = (ry * width + rx) * 4;
+        final dark =
+            (referenceRgba[i] + referenceRgba[i + 1] + referenceRgba[i + 2]) ~/
+                3 <
+            110;
+        samples++;
+        for (var py = 0; py < 4; py++) {
+          for (var px = 0; px < 4; px++) {
+            final ink = kBdStructureHatch[(y + py) & 3][(x + px) & 3] == '#';
+            score[py][px] += ink == dark ? 1 : -1;
+          }
+        }
+      }
+    }
+  }
+  if (samples == 0) return kNoHatchOffset;
+  var bestX = 0, bestY = 0, best = -samples - 1, second = -samples - 1;
+  for (var py = 0; py < 4; py++) {
+    for (var px = 0; px < 4; px++) {
+      final s = score[py][px];
+      if (s > best) {
+        second = best;
+        best = s;
+        bestX = px;
+        bestY = py;
+      } else if (s > second) {
+        second = s;
+      }
+    }
+  }
+  // score = agree − disagree, so ≥75% agreement means score ≥ samples/2.
+  if (best < samples ~/ 2 || best == second) return kNoHatchOffset;
+  return (x: bestX, y: bestY);
+}
+
 Future<BdRaster?> rasteriseBlockDiagram(
   ViDiagram diagram, {
   int maxDimension = 2000,
@@ -72,6 +143,7 @@ Future<BdRaster?> rasteriseBlockDiagram(
   Map<int, PrimIconArt> primIcons = const {},
   List<ViWire>? wires,
   List<ViHeapObject>? drawable,
+  GlobalHatchOffset globalHatchOffset = kNoHatchOffset,
 }) async {
   drawable ??= bdDrawableObjects(diagram);
   if (drawable.isEmpty) return null;
@@ -125,6 +197,7 @@ Future<BdRaster?> rasteriseBlockDiagram(
     // The reference renders have a plain white canvas; the interactive
     // view's alignment-dot grid would break byte-exact comparisons.
     drawDotGrid: false,
+    globalHatchOffset: globalHatchOffset,
   ).paint(canvas, content.size);
   final picture = recorder.endRecording();
   try {
@@ -1342,7 +1415,7 @@ class _BdOracleViewState extends State<BdOracleView>
     // A snippet reference is LabVIEW's crop of the diagram's ink plus a 2 px
     // margin, so the unit-scale render uses the same margin — matched
     // dimensions, not just matched scale.
-    final raster = await rasteriseBlockDiagram(
+    var raster = await rasteriseBlockDiagram(
       diagram,
       primIcons: primIconsLoaded(),
       maxDimension: widget.maxDimension,
@@ -1357,7 +1430,7 @@ class _BdOracleViewState extends State<BdOracleView>
       return const _OracleData();
     }
     if (reference == null) return _OracleData(rendered: raster.image);
-    final result = await compareToReference(
+    var result = await compareToReference(
       raster.image,
       reference.image,
       lockScale: snippet ? 1.0 / raster.scale : null,
@@ -1365,6 +1438,49 @@ class _BdOracleViewState extends State<BdOracleView>
           ? bdStructureAnchorRects(diagram, raster, drawable: drawable)
           : const [],
     );
+    // The reference capture's hatch phase is a device-time value LabVIEW does
+    // not store, so it is measured from the capture and the render redone at
+    // the matching phase — the only path to a 1:1 hatch comparison.
+    var hatchOffset = kNoHatchOffset;
+    if (snippet) {
+      hatchOffset = deriveGlobalHatchOffset(
+        diagram: diagram,
+        raster: raster,
+        registration: result.registration,
+        referenceRgba: result.referenceRgba,
+        width: reference.image.width,
+        height: reference.image.height,
+      );
+      if (hatchOffset != kNoHatchOffset) {
+        final rephased = await rasteriseBlockDiagram(
+          diagram,
+          primIcons: primIconsLoaded(),
+          maxDimension: widget.maxDimension,
+          scale: 1.0,
+          margin: 2,
+          subViIcons: widget.subViIcons,
+          wires: visibleWires,
+          drawable: drawable,
+          globalHatchOffset: hatchOffset,
+        );
+        if (rephased != null) {
+          raster.image.dispose();
+          result.fitted.dispose();
+          result.diffImage.dispose();
+          raster = rephased;
+          result = await compareToReference(
+            raster.image,
+            reference.image,
+            lockScale: 1.0 / raster.scale,
+            anchorRects: bdStructureAnchorRects(
+              diagram,
+              raster,
+              drawable: drawable,
+            ),
+          );
+        }
+      }
+    }
     final placement = comparePlacement(
       diagram: diagram,
       raster: raster,
@@ -1387,6 +1503,7 @@ class _BdOracleViewState extends State<BdOracleView>
       subViIcons: widget.subViIcons,
       wires: visibleWires,
       drawable: drawable,
+      globalHatchOffset: hatchOffset,
     );
     ui.Image? displayFitted;
     ui.Image? displayReference;

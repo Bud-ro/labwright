@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:labwright_vi_inspector/src/bd_oracle.dart';
+import 'package:labwright_vi_inspector/src/diagram_view.dart';
 import 'package:labwright_vi_inspector/src/vi_demo.dart';
 
 import 'util.dart';
@@ -33,6 +34,106 @@ List<File> snippetCorpusPngs() {
 }
 
 void main() {
+  testWidgets('hatch phase derives per capture and rephases to the reference', (
+    tester,
+  ) async {
+    // LabVIEW anchors the case-hatch lattice to its device brush origin at
+    // capture time (not stored in the .vi), so the oracle measures each
+    // reference's phase. Expected offsets are pinned from the captures; the
+    // rephased render's hatch ring must then match the reference nearly
+    // everywhere (the small remainder is border-terminal overdraw).
+    const expected = {
+      'crc8.png': ((x: 0, y: 0), 716, 0.95),
+      'fg.png': ((x: 0, y: 2), 128, 0.95),
+      'MD5.png': ((x: 2, y: 2), 5720, 0.95),
+    };
+    final pngs = snippetCorpusPngs().where(
+      (f) => expected.keys.any((n) => f.path.endsWith('/$n')),
+    );
+    if (pngs.length < expected.length) {
+      markTestSkipped('corpus not fetched');
+      return;
+    }
+    await loadRealTextFont();
+    await tester.runAsync(() async {
+      for (final f in pngs) {
+        final name = f.path.split('/').last;
+        final (want, caseOid, floor) = expected[name]!;
+        final bytes = f.readAsBytesSync();
+        final bd = bestBlockDiagram(buildViModel(extractSnippetVi(bytes)!))!;
+        final drawable = bdDrawableObjects(bd);
+        final wires = bdVisibleWires(bd);
+        final icons = await loadPrimIcons();
+        Future<(BdRaster, BdOracleResult)> render(GlobalHatchOffset off) async {
+          final raster = (await rasteriseBlockDiagram(
+            bd,
+            primIcons: icons,
+            scale: 1.0,
+            margin: 2,
+            wires: wires,
+            drawable: drawable,
+            globalHatchOffset: off,
+          ))!;
+          final reference = await decodeReferenceImage(bytes);
+          final result = await compareToReference(
+            raster.image,
+            reference.image,
+            lockScale: 1.0 / raster.scale,
+            anchorRects: bdStructureAnchorRects(bd, raster, drawable: drawable),
+          );
+          reference.image.dispose();
+          return (raster, result);
+        }
+
+        final (raster, result) = await render(kNoHatchOffset);
+        final derived = deriveGlobalHatchOffset(
+          diagram: bd,
+          raster: raster,
+          registration: result.registration,
+          referenceRgba: result.referenceRgba,
+          width: result.reference.width,
+          height: result.reference.height,
+        );
+        expect(derived, want, reason: '$name derived offset');
+
+        final (raster2, result2) = await render(derived);
+        final w = result2.reference.width, h = result2.reference.height;
+        final refB = result2.referenceRgba;
+        final ourB = (await result2.fitted.toByteData())!.buffer.asUint8List();
+        bool dark(Uint8List im, int x, int y) {
+          final i = (y * w + x) * 4;
+          return (im[i] + im[i + 1] + im[i + 2]) ~/ 3 < 110;
+        }
+
+        final b = bd.byId[caseOid]!.absBounds!;
+        var same = 0, total = 0;
+        for (var y = b.top; y <= b.bottom; y++) {
+          for (var x = b.left; x <= b.right; x++) {
+            final d = [
+              x - b.left,
+              y - b.top,
+              b.right - x,
+              b.bottom - y,
+            ].reduce((p, q) => p < q ? p : q);
+            if (d > kBdHatchBand) continue;
+            final rx = (x - raster2.content.left + result2.registration.dx)
+                .round();
+            final ry = (y - raster2.content.top + result2.registration.dy)
+                .round();
+            if (rx < 0 || ry < 0 || rx >= w || ry >= h) continue;
+            total++;
+            if (dark(refB, rx, ry) == dark(ourB, rx, ry)) same++;
+          }
+        }
+        expect(
+          same / total,
+          greaterThan(floor),
+          reason: '$name case $caseOid hatch ring after rephasing',
+        );
+      }
+    });
+  });
+
   test('excessSupport rescales support against the chance rate', () {
     const cmp = PlacementComparison(
       perObject: [(oid: 1, support: 0.6), (oid: 2, support: 0.2)],
