@@ -525,6 +525,10 @@ void main() {
       // Manhattan guesser was removed), so no fallback leg can cross a
       // terminal's surround band — the bleed check below runs with no leg
       // corridor to exclude.
+      // A case/sequence frame's chrome is a 6px band (1px solid outer + a 5px
+      // hatch), so its innermost hatch row sits 5px inside the edge; the whole
+      // band is structure chrome, not canvas, and is excluded from the bleed
+      // check (which guards the clean interior beyond it).
       bool onStructureEdge(int x, int y) =>
           structureEdgeRects.any(
             (r) =>
@@ -532,10 +536,10 @@ void main() {
                 x < r.right + 1 &&
                 y >= r.top - 1 &&
                 y < r.bottom + 1 &&
-                !(x >= r.left + 5 &&
-                    x < r.right - 5 &&
-                    y >= r.top + 5 &&
-                    y < r.bottom - 5),
+                !(x >= r.left + 6 &&
+                    x < r.right - 6 &&
+                    y >= r.top + 6 &&
+                    y < r.bottom - 6),
           ) ||
           modeledTerminalRects.any(
             (r) =>
