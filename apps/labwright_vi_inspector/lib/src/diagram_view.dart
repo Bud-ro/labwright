@@ -592,6 +592,11 @@ const Color kBdTunnelBorder = Color(0xFF444444);
 /// same cream as primitive icon bodies).
 const Color kBdTerminalFill = Color(0xFFFFFFCC);
 
+/// LabVIEW's default structure colour (mid-grey). A frame carrying it has no
+/// user-chosen tint, so it draws in its standard chrome rather than washing
+/// this nominal value over the border.
+const int kDefaultStructureRgb = 0x7F7F7F;
+
 /// The uniform grey a disabled frame renders dark NEUTRAL chrome in — the
 /// same (170,170,170) line-work grey as the disabled icon palette
 /// ([_greyDisabledPalette]). Measured on crc8's disabled tunnel at
@@ -2253,7 +2258,12 @@ class BdDiagramPainter extends CustomPainter {
       // the neutral double-line frame.
       final rect = rectOf(object);
       final structDisabled = disabledOids.contains(object.oid);
-      final structColor = switch (bdDecodedColor(object.structRgb)) {
+      // A structure whose colour is LabVIEW's default grey (0x7F7F7F) carries
+      // no user tint — the frame draws in its standard chrome (a while loop's
+      // 119 grey band, not this nominal 127). Only a non-default colour tints.
+      final structColor = switch (object.structRgb == kDefaultStructureRgb
+          ? null
+          : bdDecodedColor(object.structRgb)) {
         null => null,
         final c => _dimFor(object.oid, c),
       };
@@ -3447,10 +3457,9 @@ class BdDiagramPainter extends CustomPainter {
   }) {
     Color dim(Color c) => disabled ? bdDimDisabled(c) : c;
     final grey = tint ?? dim(const Color(0xFF777777));
-    // The band's drawn box runs 1px right of the stored bounds: a 1px gutter on
-    // the left, flush on the right (top flush, bottom inset 1). [l,r) × [t,b).
-    final l = rect.left.round() + 1, t = rect.top.round();
-    final r = rect.right.round() + 1, b = rect.bottom.round();
+    // The band fills the frame's stored bounds; [l,r) × [t,b).
+    final l = rect.left.round(), t = rect.top.round();
+    final r = rect.right.round(), b = rect.bottom.round();
     const band = _kWhileBand;
     // Bottom-right arrow footprint (columns then rows), anchored to the frame's
     // right/bottom edge; excluded from the ring loop so the arrow alone fills
