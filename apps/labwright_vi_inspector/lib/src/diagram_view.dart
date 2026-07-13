@@ -2282,8 +2282,13 @@ class BdDiagramPainter extends CustomPainter {
             chromeOwnedRects: chromeOwnedRects,
             disabled: structDisabled,
           );
-        case 0x21: // While loop: rounded band + terminals.
-          _drawLoopBand(canvas, rect, structColor, disabled: structDisabled);
+        case 0x21: // While loop: crisp rounded grey band + terminals.
+          _drawWhileLoopBand(
+            canvas,
+            rect,
+            structColor,
+            disabled: structDisabled,
+          );
           _drawStructureTerminals(
             canvas,
             rect,
@@ -2292,12 +2297,12 @@ class BdDiagramPainter extends CustomPainter {
             chromeOwnedRects: chromeOwnedRects,
             disabled: structDisabled,
           );
-        case 0x2c: // Case structure: the same band, un-rounded.
-          _drawLoopBand(
+        case 0x2c: // Case structure: solid 1px border + global hatch band.
+          _drawStructureHatchBorder(
             canvas,
             rect,
-            structColor,
-            rounded: false,
+            object.absBounds!.left,
+            object.absBounds!.top,
             disabled: structDisabled,
           );
           _drawStructureTerminals(
@@ -3381,43 +3386,50 @@ class BdDiagramPainter extends CustomPainter {
     }
   }
 
-  /// The thick grey structure band LabVIEW draws for loops and cases: a
-  /// ~3.5 px mid-grey band with a 1 px darker outline, rounded on loops.
-  /// [tint] (a decoded structColor, e.g. the pale sequence colour) replaces
-  /// the band grey when present.
-  void _drawLoopBand(
+  /// The while-loop border LabVIEW draws: a crisp [_kWhileBand]-px mid-grey
+  /// (0xFF777777) band with rounded corners, flat-filled with no
+  /// anti-aliasing so its outer edge is a hard line the oracle registration
+  /// locks onto. A decoded [tint] (the pale sequence/timed colour) replaces
+  /// the grey and washes the interior, as LabVIEW's coloured structures do.
+  void _drawWhileLoopBand(
     Canvas canvas,
     Rect rect,
     Color? tint, {
-    bool rounded = true,
     bool disabled = false,
   }) {
     Color dim(Color c) => disabled ? bdDimDisabled(c) : c;
-    final band = tint ?? dim(const Color(0xFF9C9C9C));
-    final radius = rounded ? const Radius.circular(4) : Radius.zero;
-    // A decoded structure colour (the pale sequence/timed tint) also washes
-    // the interior, as LabVIEW's coloured structures do.
+    final band = tint ?? dim(const Color(0xFF777777));
+    const outerR = Radius.circular(_kWhileOuterRadius);
+    const innerR = Radius.circular(_kWhileOuterRadius - _kWhileBand);
     if (tint != null) {
       canvas.drawRRect(
-        RRect.fromRectAndRadius(rect, radius),
+        RRect.fromRectAndRadius(rect, outerR),
         Paint()..color = tint.withValues(alpha: 0.12),
       );
     }
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(rect.deflate(1.75), radius),
+    // The frame's stored bounds run 1px wider than the drawn band on the left
+    // and right (the shift-register column allowance); top and bottom are
+    // flush. Inset horizontally so the grey lands on the reference.
+    final outer = Rect.fromLTRB(
+      rect.left + 1,
+      rect.top,
+      rect.right - 1,
+      rect.bottom,
+    );
+    final ring = Path()
+      ..fillType = PathFillType.evenOdd
+      ..addRRect(RRect.fromRectAndRadius(outer, outerR))
+      ..addRRect(RRect.fromRectAndRadius(outer.deflate(_kWhileBand), innerR));
+    canvas.drawPath(
+      ring,
       Paint()
         ..color = band
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 3.5,
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(rect, radius),
-      Paint()
-        ..color = dim(const Color(0xFF606060))
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.0,
+        ..isAntiAlias = false,
     );
   }
+
+  static const _kWhileBand = 6.0;
+  static const _kWhileOuterRadius = 6.0;
 
   /// Draws a for-loop's border pixel-exact to LabVIEW's own render: crisp
   /// 1px-black chrome shaped as a stack of three pages, the top page's
@@ -3477,9 +3489,82 @@ class BdDiagramPainter extends CustomPainter {
     }
   }
 
+  /// Draws a case/sequence frame's border exactly as LabVIEW does: a solid 1px
+  /// black outer rectangle wrapping a [_kHatchBand]-px band of the global
+  /// [_kStructureHatch] lattice. The hatch phase is keyed on ABSOLUTE diagram
+  /// coordinates ([absLeft]/[absTop] give the frame's top-left in that space),
+  /// so the pattern is continuous across the diagram — the frame is a window
+  /// onto it, not a source of it. Drawn before the tunnel chrome pass, which
+  /// paints over it where border terminals land.
+  void _drawStructureHatchBorder(
+    Canvas canvas,
+    Rect rect,
+    int absLeft,
+    int absTop, {
+    bool disabled = false,
+  }) {
+    final ink = disabled
+        ? bdDimDisabled(const Color(0xFF000000))
+        : const Color(0xFF000000);
+    final paint = Paint()
+      ..color = ink
+      ..isAntiAlias = false;
+    final l = rect.left.round(), t = rect.top.round();
+    final w = rect.width.round(), h = rect.height.round();
+    if (w < 2 || h < 2) return;
+    // Solid 1px outer border.
+    canvas.drawRect(
+      Rect.fromLTWH(l.toDouble(), t.toDouble(), w.toDouble(), 1),
+      paint,
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(l.toDouble(), (t + h - 1).toDouble(), w.toDouble(), 1),
+      paint,
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(l.toDouble(), t.toDouble(), 1, h.toDouble()),
+      paint,
+    );
+    canvas.drawRect(
+      Rect.fromLTWH((l + w - 1).toDouble(), t.toDouble(), 1, h.toDouble()),
+      paint,
+    );
+    // Hatch band: only the black cells, batched into one path. Iterate the
+    // perimeter ring (skip the interior columns of the middle rows).
+    final band = Path();
+    for (var j = 0; j < h; j++) {
+      final nearTopBottom = j <= _kHatchBand || j >= h - 1 - _kHatchBand;
+      for (var i = 0; i < w; i++) {
+        if (!nearTopBottom && i > _kHatchBand && i < w - 1 - _kHatchBand) {
+          continue; // interior — no border here
+        }
+        final d = math.min(math.min(i, j), math.min(w - 1 - i, h - 1 - j));
+        if (d < 1 || d > _kHatchBand) continue; // 0 = solid, >5 = interior
+        if (_kStructureHatch[(absTop + j) & 3][(absLeft + i) & 3] != '#') {
+          continue;
+        }
+        band.addRect(
+          Rect.fromLTWH((l + i).toDouble(), (t + j).toDouble(), 1, 1),
+        );
+      }
+    }
+    canvas.drawPath(band, paint);
+  }
+
   /// Side length (px) of the for-loop's dog-ear corner fold — fixed chrome,
   /// measured from LabVIEW's raster.
   static const _kForLoopFold = 8.0;
+
+  /// The diagonal hatch LabVIEW fills a structure (case / sequence) frame with,
+  /// indexed `[absY % 4][absX % 4]` — a single lattice anchored to absolute
+  /// diagram coordinates, NOT to each frame, so neighbouring structures and
+  /// the four corners of one frame show different phases. Measured from crc8's
+  /// case frames (716 and 1861 fit this tile identically). `#` = black.
+  static const _kStructureHatch = ['.#.#', '#.#.', '##..', '..##'];
+
+  /// Width (px) of the hatch band inside a case/sequence frame's solid 1px
+  /// outer border.
+  static const _kHatchBand = 5;
 
   static const _loopBlue = Color(0xFF0033CC);
 
