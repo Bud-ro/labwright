@@ -117,7 +117,9 @@ GlobalHatchOffset _deriveHatchPhase({
   required bool errorStyle,
 }) {
   final errorOids = bdErrorCaseOids(diagram);
-  final drawableOids = {for (final o in bdDrawableObjects(diagram)) o.oid};
+  final drawableOids = {
+    for (final object in bdDrawableObjects(diagram)) object.oid,
+  };
   final tile = errorStyle ? kBdErrorHatch : kBdStructureHatch;
   // The stripe lattice depends only on (px+py) mod 4, so its 16 phases
   // collapse to 4 distinct lattices — searching py too would make every
@@ -125,18 +127,18 @@ GlobalHatchOffset _deriveHatchPhase({
   final pyRange = errorStyle ? 1 : 4;
   final score = List.generate(4, (_) => List.filled(4, 0));
   var samples = 0;
-  for (final o in diagram.objects) {
-    if (o.kind != 0x2c || !drawableOids.contains(o.oid)) continue;
-    if (errorOids.contains(o.oid) != errorStyle) continue;
-    final b = o.absBounds;
-    if (b == null) continue;
-    for (var y = b.top; y <= b.bottom; y++) {
-      for (var x = b.left; x <= b.right; x++) {
-        final d = math.min(
-          math.min(x - b.left, b.right - x),
-          math.min(y - b.top, b.bottom - y),
+  for (final frame in diagram.objects) {
+    if (frame.kind != 0x2c || !drawableOids.contains(frame.oid)) continue;
+    if (errorOids.contains(frame.oid) != errorStyle) continue;
+    final bounds = frame.absBounds;
+    if (bounds == null) continue;
+    for (var y = bounds.top; y <= bounds.bottom; y++) {
+      for (var x = bounds.left; x <= bounds.right; x++) {
+        final inset = math.min(
+          math.min(x - bounds.left, bounds.right - x),
+          math.min(y - bounds.top, bounds.bottom - y),
         );
-        if (d < 1 || d > kBdHatchBand) continue;
+        if (inset < 1 || inset > kBdHatchBand) continue;
         final rx =
             ((x - raster.content.left) * registration.scale + registration.dx)
                 .round();
@@ -145,19 +147,23 @@ GlobalHatchOffset _deriveHatchPhase({
                 .round();
         if (rx < 0 || ry < 0 || rx >= width || ry >= height) continue;
         final i = (ry * width + rx) * 4;
-        final r = referenceRgba[i],
-            g = referenceRgba[i + 1],
-            bl = referenceRgba[i + 2];
+        final red = referenceRgba[i],
+            green = referenceRgba[i + 1],
+            blue = referenceRgba[i + 2];
         final bool dark;
         if (errorStyle) {
           // Stripe grey on the green field; anything else is overdraw.
-          final green = g > 200 && r < 200 && bl < 200;
-          final grey =
-              !green && (r - bl).abs() < 30 && g < 200 && r > 90 && r < 170;
-          if (!green && !grey) continue;
-          dark = grey;
+          final isField = green > 200 && red < 200 && blue < 200;
+          final isStripe =
+              !isField &&
+              (red - blue).abs() < 30 &&
+              green < 200 &&
+              red > 90 &&
+              red < 170;
+          if (!isField && !isStripe) continue;
+          dark = isStripe;
         } else {
-          dark = (r + g + bl) ~/ 3 < 110;
+          dark = (red + green + blue) ~/ 3 < 110;
         }
         samples++;
         for (var py = 0; py < pyRange; py++) {
@@ -173,14 +179,14 @@ GlobalHatchOffset _deriveHatchPhase({
   var bestX = 0, bestY = 0, best = -samples - 1, second = -samples - 1;
   for (var py = 0; py < pyRange; py++) {
     for (var px = 0; px < 4; px++) {
-      final s = score[py][px];
-      if (s > best) {
+      final cellScore = score[py][px];
+      if (cellScore > best) {
         second = best;
-        best = s;
+        best = cellScore;
         bestX = px;
         bestY = py;
-      } else if (s > second) {
-        second = s;
+      } else if (cellScore > second) {
+        second = cellScore;
       }
     }
   }
@@ -201,15 +207,16 @@ Future<BdRaster?> rasteriseBlockDiagram(
   List<ViHeapObject>? drawable,
   BdRenderStyle style = const BdRenderStyle(),
 }) async {
-  drawable ??= bdDrawableObjects(diagram);
-  if (drawable.isEmpty) return null;
-  final content = bdContentRect(drawable, includeWires: false, margin: margin);
+  // wires defaults to the diagram's visible dataflow wires; pass `const []`
+  // to rasterise the wire-free layout (measuring the before/after delta).
+  final scene = BdScene(diagram, wires: wires, drawable: drawable);
+  if (scene.drawable.isEmpty) return null;
+  final content = bdContentRect(
+    scene.drawable,
+    includeWires: false,
+    margin: margin,
+  );
   if (content.width <= 0 || content.height <= 0) return null;
-  final ordered = bdPaintOrder(drawable, diagram.byId);
-  // Defaults to the diagram's visible dataflow wires (hidden multi-frame
-  // structure cases excluded); pass `const []` to rasterise the wire-free
-  // layout (used to measure the before/after delta).
-  final wireList = wires ?? bdVisibleWires(diagram);
 
   final longSide = math.max(content.width, content.height);
   var pxScale =
@@ -223,8 +230,7 @@ Future<BdRaster?> rasteriseBlockDiagram(
 
   // The raster must be exact on first paint, so a diagram holding a
   // disabled frame waits for the grey variants (built once, lazily).
-  final disabledOids = bdDisabledObjectOids(diagram);
-  if (disabledOids.isNotEmpty) await ensurePrimIconsGrey();
+  if (scene.disabledOids.isNotEmpty) await ensurePrimIconsGrey();
   final recorder = ui.PictureRecorder();
   final canvas = Canvas(
     recorder,
@@ -240,20 +246,14 @@ Future<BdRaster?> rasteriseBlockDiagram(
   );
   canvas.scale(pxScale);
   BdDiagramPainter(
+    scene: scene,
+    origin: content.topLeft,
+    subViIcons: subViIcons,
     primIcons: primIcons,
     primIconsGrey: primIconsGreyLoaded(),
-    disabledOids: disabledOids,
-    borderTerminalKinds: bdBorderTerminalKinds(diagram),
-    objects: ordered,
-    origin: content.topLeft,
-    wires: wireList,
-    subViIcons: subViIcons,
-    structureTerminals: bdStructureTerminals(diagram),
-    constValues: bdConstValueTexts(diagram),
     // The reference renders have a plain white canvas; the interactive
     // view's alignment-dot grid would break byte-exact comparisons.
     drawDotGrid: false,
-    errorCaseOids: bdErrorCaseOids(diagram),
     style: style,
   ).paint(canvas, content.size);
   final picture = recorder.endRecording();
@@ -685,17 +685,18 @@ List<Rect> bdStructureAnchorRects(
   final out = <Rect>[];
   for (final object in drawable) {
     if (object.category != ViObjectKind.structure) continue;
-    final b = object.absBounds!;
-    if (b.width < 24 || b.height < 24) continue;
-    if (b.width >= extent.width * 0.95 && b.height >= extent.height * 0.95) {
+    final bounds = object.absBounds!;
+    if (bounds.width < 24 || bounds.height < 24) continue;
+    if (bounds.width >= extent.width * 0.95 &&
+        bounds.height >= extent.height * 0.95) {
       continue;
     }
     out.add(
       Rect.fromLTRB(
-        (b.left - raster.content.left) * raster.scale,
-        (b.top - raster.content.top) * raster.scale,
-        (b.right - raster.content.left) * raster.scale,
-        (b.bottom - raster.content.top) * raster.scale,
+        (bounds.left - raster.content.left) * raster.scale,
+        (bounds.top - raster.content.top) * raster.scale,
+        (bounds.right - raster.content.left) * raster.scale,
+        (bounds.bottom - raster.content.top) * raster.scale,
       ),
     );
   }
@@ -1261,9 +1262,9 @@ extension _ExactSnap on BdRegistration {
     for (var oy = -1; oy <= 1; oy++) {
       for (var ox = -1; ox <= 1; ox++) {
         if (ox == 0 && oy == 0) continue;
-        final h = exactHits(dx + ox, dy + oy);
-        if (h > best) {
-          best = h;
+        final hits = exactHits(dx + ox, dy + oy);
+        if (hits > best) {
+          best = hits;
           bx = dx + ox;
           by = dy + oy;
         }
@@ -2014,12 +2015,12 @@ class _OracleData {
     disp(displayRendered);
     disp(displayFitted);
     disp(displayReference);
-    final r = result;
-    if (r != null) {
-      disp(r.rendered);
-      disp(r.fitted);
-      disp(r.reference);
-      disp(r.diffImage);
+    final res = result;
+    if (res != null) {
+      disp(res.rendered);
+      disp(res.fitted);
+      disp(res.reference);
+      disp(res.diffImage);
     }
   }
 }

@@ -114,42 +114,14 @@ class _ViDiagramViewState extends State<ViDiagramView> {
   // [_resolveIcons]); empty until then, and when no loader is supplied.
   Map<int, ViLegacyIcon> _subViIcons = const {};
   Map<int, PrimIconArt> _primIcons = const {};
-  late final List<ViHeapObject> _drawable = _diagram == null
-      ? const []
-      : bdDrawableObjects(_diagram);
-  late final List<ViHeapObject> _ordered = bdPaintOrder(_drawable, _byId);
-  // Decoded dataflow wires (empty on a front-panel heap). Drawn under the nodes.
-  late final List<ViWire> _wires = switch (_diagram) {
-    null => const [],
-    final diagram => bdVisibleWires(diagram),
+
+  /// The diagram-derived render inputs, computed once (see [BdScene]).
+  late final BdScene? _scene = switch (_diagram) {
+    null => null,
+    final diagram => BdScene(diagram),
   };
-  late final Set<int> _disabledOids = switch (_diagram) {
-    null => const {},
-    final diagram => bdDisabledObjectOids(diagram),
-  };
-  late final Set<int> _errorCaseOids = switch (_diagram) {
-    null => const {},
-    final diagram => bdErrorCaseOids(diagram),
-  };
-  late final Map<HeapRect, ({int kind, bool hollow, bool disabled})>
-  _borderTerminalKinds = switch (_diagram) {
-    null => const {},
-    final diagram => bdBorderTerminalKinds(diagram),
-  };
-  late final Map<int, List<({HeapRect box, int bmp})>> _structureTerminals =
-      switch (_diagram) {
-        null => const {},
-        final diagram => bdStructureTerminals(diagram),
-      };
-  late final Map<int, String> _constValues = switch (_diagram) {
-    null => const {},
-    final diagram => bdConstValueTexts(diagram),
-  };
-  // Wires are excluded from the fit: their absolute anchoring is not yet
-  // verified (a misanchored run must not blow up the zoom-to-fit envelope).
-  late final Rect _content = _drawable.isEmpty
-      ? Rect.zero
-      : bdContentRect(_drawable, includeWires: false);
+  List<ViHeapObject> get _drawable => _scene?.drawable ?? const [];
+  Rect get _content => _scene?.content ?? Rect.zero;
   late final Map<ViObjectKind, int> _counts = _computeCounts();
 
   Map<ViObjectKind, int> _computeCounts() {
@@ -167,7 +139,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
     loadPrimIcons().then((icons) {
       if (mounted && icons.isNotEmpty) setState(() => _primIcons = icons);
     });
-    if (_disabledOids.isNotEmpty) {
+    if (_scene?.disabledOids.isNotEmpty ?? false) {
       ensurePrimIconsGrey().then((grey) {
         if (mounted && grey.isNotEmpty) setState(() {});
       });
@@ -225,7 +197,6 @@ class _ViDiagramViewState extends State<ViDiagramView> {
 
     final content = _content;
     _lastContent = content;
-    final ordered = _ordered;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -236,7 +207,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(child: _diagramStack(content, ordered)),
+              Expanded(child: _diagramStack(content, _scene!.ordered)),
               if (_shelfOpen) _shelf(),
             ],
           ),
@@ -331,19 +302,13 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                               content.height * _anchorScale,
                             ),
                             painter: BdDiagramPainter(
-                              objects: ordered,
+                              scene: _scene!,
                               origin: content.topLeft,
-                              wires: _wires,
                               subViIcons: _subViIcons,
                               primIcons: _primIcons,
                               primIconsGrey: primIconsGreyLoaded(),
-                              disabledOids: _disabledOids,
-                              errorCaseOids: _errorCaseOids,
-                              borderTerminalKinds: _borderTerminalKinds,
                               iconFilterQuality: FilterQuality.low,
                               canvasScale: _anchorScale,
-                              structureTerminals: _structureTerminals,
-                              constValues: _constValues,
                             ),
                             foregroundPainter: _OverlayPainter(
                               origin: content.topLeft,
@@ -951,9 +916,10 @@ computeBdOutline(Iterable<ViHeapObject> objects) {
       nodeCount++;
       confidence[object.objectClass.confidence] =
           (confidence[object.objectClass.confidence] ?? 0) + 1;
-      final dl = nodeDisplayLabel(object);
-      if (!dl.isHint && !labeledNodes.contains(dl.text))
-        labeledNodes.add(dl.text);
+      final label = nodeDisplayLabel(object);
+      if (!label.isHint && !labeledNodes.contains(label.text)) {
+        labeledNodes.add(label.text);
+      }
     }
   }
   return (
@@ -1022,13 +988,13 @@ bool _isInlinedSubViControl(
   final seen = <int>{};
   var underConstOrStruct = false;
   while (parentOid != null && seen.add(parentOid)) {
-    final po = byId[parentOid];
-    if (po == null) break;
-    if (po.kind == 0x13 || po.kind == 0x15) {
+    final parent = byId[parentOid];
+    if (parent == null) break;
+    if (parent.kind == 0x13 || parent.kind == 0x15) {
       underConstOrStruct = true;
       break;
     }
-    parentOid = po.parentOid;
+    parentOid = parent.parentOid;
   }
   if (!underConstOrStruct) return false;
   final kids = childrenByOid[o.oid];
@@ -1049,10 +1015,10 @@ bool _isScaffolding(ViHeapObject o, Map<int, ViHeapObject> byId) {
     var parentOid = o.parentOid;
     var depth = 0;
     while (parentOid != null && depth < 64) {
-      final po = byId[parentOid];
-      if (po == null) break;
-      if (kControlTerminalCodes.contains(po.kind)) return true;
-      parentOid = po.parentOid;
+      final parent = byId[parentOid];
+      if (parent == null) break;
+      if (kControlTerminalCodes.contains(parent.kind)) return true;
+      parentOid = parent.parentOid;
       depth++;
     }
   }
@@ -1170,18 +1136,19 @@ Set<int> bdHiddenFrameOids(ViDiagram diagram) {
       var count = 0;
       var l = 1 << 30, t = 1 << 30, r = -(1 << 30), b = -(1 << 30);
       void visit(ViHeapObject o) {
-        final bb = o.absBounds;
-        if (bb != null && bb.width > 0 && bb.height > 0) {
-          final cx = (bb.left + bb.right) / 2, cy = (bb.top + bb.bottom) / 2;
+        final bounds = o.absBounds;
+        if (bounds != null && bounds.width > 0 && bounds.height > 0) {
+          final cx = (bounds.left + bounds.right) / 2,
+              cy = (bounds.top + bounds.bottom) / 2;
           if (cx >= box.left - 8 &&
               cx <= box.right + 8 &&
               cy >= box.top - 8 &&
               cy <= box.bottom + 8) {
             count++;
-            if (bb.left < l) l = bb.left;
-            if (bb.top < t) t = bb.top;
-            if (bb.right > r) r = bb.right;
-            if (bb.bottom > b) b = bb.bottom;
+            if (bounds.left < l) l = bounds.left;
+            if (bounds.top < t) t = bounds.top;
+            if (bounds.right > r) r = bounds.right;
+            if (bounds.bottom > b) b = bounds.bottom;
           }
         }
         for (final child in childrenByOid[o.oid] ?? const <ViHeapObject>[]) {
@@ -1263,13 +1230,13 @@ List<ViWire> bdVisibleWires(ViDiagram diagram) {
     var cur = byId[endpointOid];
     var depth = 0;
     while (cur != null && depth++ < 64) {
-      final b = cur.absBounds;
+      final bounds = cur.absBounds;
       if (!hidden.contains(cur.oid) &&
-          b != null &&
-          b.width > 0 &&
-          b.height > 0) {
+          bounds != null &&
+          bounds.width > 0 &&
+          bounds.height > 0) {
         // The diagram root's box is the whole canvas — not an anchor.
-        return cur.parentOid == null ? null : b;
+        return cur.parentOid == null ? null : bounds;
       }
       cur = cur.parentOid == null ? null : byId[cur.parentOid!];
     }
@@ -1512,9 +1479,9 @@ bool _escapesConstantBox(ViHeapObject object, Map<int, ViHeapObject> byId) {
   // Anchor: the outermost bounded shell just below the const record.
   HeapRect? anchor;
   for (final shell in chain.reversed) {
-    final b = shell.absBounds;
-    if (b != null && b.width > 0 && b.height > 0) {
-      anchor = b;
+    final bounds = shell.absBounds;
+    if (bounds != null && bounds.width > 0 && bounds.height > 0) {
+      anchor = bounds;
       break;
     }
   }
@@ -1526,14 +1493,17 @@ bool _escapesConstantBox(ViHeapObject object, Map<int, ViHeapObject> byId) {
       b.bottom <= box.top ||
       b.top >= box.bottom;
   for (final ancestor in chain) {
-    final b = ancestor.absBounds;
-    if (b == null || b.width <= 0 || b.height <= 0) continue;
-    if (identical(b, box)) continue;
-    if (outside(b)) return true;
+    final bounds = ancestor.absBounds;
+    if (bounds == null || bounds.width <= 0 || bounds.height <= 0) continue;
+    if (identical(bounds, box)) continue;
+    if (outside(bounds)) return true;
   }
   if (kBdTextLabelCodes.contains(object.kind)) return false;
-  final b = object.absBounds;
-  return b != null && b.width > 0 && b.height > 0 && outside(b);
+  final bounds = object.absBounds;
+  return bounds != null &&
+      bounds.width > 0 &&
+      bounds.height > 0 &&
+      outside(bounds);
 }
 
 /// Whether [object] is composed **entirely outside** its nearest bounded
@@ -1721,22 +1691,22 @@ Future<Map<int, PrimIconArt>> loadPrimIcons() => _primIcons ??= () async {
   final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
   final icons = <int, PrimIconArt>{};
   for (final asset in manifest.listAssets()) {
-    final m = RegExp(
+    final match = RegExp(
       r'assets/prim_icons/(prim|class)(\d+)(?:_[a-z0-9-]+)?\.png$',
     ).firstMatch(asset);
-    if (m == null) continue;
+    if (match == null) continue;
     // A rejected icon never stamps — the node falls back to the plate +
     // operator glyph until a better extraction or hand-drawn art lands.
-    if (kPrimIconStatus['${m.group(1)}${m.group(2)}'] ==
+    if (kPrimIconStatus['${match.group(1)}${match.group(2)}'] ==
         PrimIconStatus.rejected) {
       continue;
     }
     final bytes = await rootBundle.load(asset);
     final codec = await ui.instantiateImageCodec(bytes.buffer.asUint8List());
     final image = (await codec.getNextFrame()).image;
-    final id = m.group(1) == 'prim'
-        ? int.parse(m.group(2)!)
-        : -int.parse(m.group(2)!);
+    final id = match.group(1) == 'prim'
+        ? int.parse(match.group(2)!)
+        : -int.parse(match.group(2)!);
     // The alpha mask backs pixel-precise hit testing at LOGICAL resolution:
     // a stamped icon's transparent surround must not swallow clicks meant
     // for the wire or canvas behind it.
@@ -1928,13 +1898,13 @@ bool primIconHit(ViHeapObject object, double x, double y) {
   final id = primIconKeyOf(object);
   final mask = id == null ? null : _primIconMasks[id];
   if (mask == null || _primIconsSync[id] == null) return true;
-  final b = object.absBounds!;
+  final bounds = object.absBounds!;
   final stamp = primIconStampRect(
     Rect.fromLTRB(
-      b.left.toDouble(),
-      b.top.toDouble(),
-      b.right.toDouble(),
-      b.bottom.toDouble(),
+      bounds.left.toDouble(),
+      bounds.top.toDouble(),
+      bounds.right.toDouble(),
+      bounds.bottom.toDouble(),
     ),
     mask.w,
     mask.h,
@@ -2122,36 +2092,82 @@ typedef _BdWireSeg = ({
   int bandHi,
 });
 
+/// Everything the block-diagram painter needs that derives purely from one
+/// [ViDiagram] — computed once here and passed as a unit, instead of each
+/// caller re-deriving and threading a parameter per piece. Members are lazy,
+/// so a caller that never paints wires (say) never pays for their analysis.
+class BdScene {
+  BdScene(this.diagram, {List<ViWire>? wires, List<ViHeapObject>? drawable})
+    : wires = wires ?? bdVisibleWires(diagram),
+      drawable = drawable ?? bdDrawableObjects(diagram);
+
+  final ViDiagram diagram;
+
+  /// The drawn object set ([bdDrawableObjects]); callers may override (e.g.
+  /// a probe rendering a subset).
+  final List<ViHeapObject> drawable;
+
+  /// The decoded dataflow wires ([bdVisibleWires], one per `0x17` signal),
+  /// routed under the nodes/structures between their endpoint anchors; pass
+  /// `const []` for a wire-free render.
+  final List<ViWire> wires;
+
+  /// [drawable] in painting order ([bdPaintOrder]).
+  late final List<ViHeapObject> ordered = bdPaintOrder(drawable, diagram.byId);
+
+  /// Objects under a disabled displayed frame ([bdDisabledObjectOids]).
+  late final Set<int> disabledOids = bdDisabledObjectOids(diagram);
+
+  /// Case structures displaying their "No Error" frame ([bdErrorCaseOids]).
+  late final Set<int> errorCaseOids = bdErrorCaseOids(diagram);
+
+  /// Attach rect → terminal class for reference-verified border-terminal
+  /// chrome ([bdBorderTerminalKinds]).
+  late final Map<HeapRect, ({int kind, bool hollow, bool disabled})>
+  borderTerminalKinds = bdBorderTerminalKinds(diagram);
+
+  /// Per structure oid, its modeled terminals ([bdStructureTerminals]).
+  late final Map<int, List<({HeapRect box, int bmp})>> structureTerminals =
+      bdStructureTerminals(diagram);
+
+  /// Per terminal oid, the numeric literal its constant box displays
+  /// ([bdConstValueTexts]).
+  late final Map<int, String> constValues = bdConstValueTexts(diagram);
+
+  /// The ink envelope of [drawable] (wires excluded: their absolute anchoring
+  /// is not yet verified, and a misanchored run must not blow up the fit).
+  late final Rect content = drawable.isEmpty
+      ? Rect.zero
+      : bdContentRect(drawable, includeWires: false);
+}
+
 class BdDiagramPainter extends CustomPainter {
   BdDiagramPainter({
-    required this.objects,
+    required this.scene,
     required this.origin,
-    this.wires = const [],
     this.subViIcons = const {},
     this.primIcons = const {},
     this.primIconsGrey = const {},
-    this.disabledOids = const {},
-    this.borderTerminalKinds = const {},
-    this.structureTerminals = const {},
-    this.constValues = const {},
     this.iconFilterQuality = FilterQuality.none,
     this.canvasScale = 1,
     this.drawDotGrid = true,
-    this.errorCaseOids = const {},
     this.style = const BdRenderStyle(),
   });
 
-  final List<ViHeapObject> objects;
+  /// The diagram-derived render inputs (paint order, wires, chrome indexes).
+  final BdScene scene;
+
   final Offset origin;
 
-  /// Per structure oid, its modeled terminals (frame-relative box + glyph
-  /// selector; see [bdStructureTerminals]).
-  final Map<int, List<({HeapRect box, int bmp})>> structureTerminals;
-
-  /// The decoded dataflow wires ([ViDiagram.wires], one per `0x17` signal),
-  /// routed under the nodes/structures between their endpoint anchors. Empty
-  /// leaves the diagram wire-free. See [_drawWires].
-  final List<ViWire> wires;
+  List<ViHeapObject> get objects => scene.ordered;
+  List<ViWire> get wires => scene.wires;
+  Set<int> get disabledOids => scene.disabledOids;
+  Set<int> get errorCaseOids => scene.errorCaseOids;
+  Map<HeapRect, ({int kind, bool hollow, bool disabled})>
+  get borderTerminalKinds => scene.borderTerminalKinds;
+  Map<int, List<({HeapRect box, int bmp})>> get structureTerminals =>
+      scene.structureTerminals;
+  Map<int, String> get constValues => scene.constValues;
 
   /// Resolved subVI-call node icons, keyed by [ViHeapObject.oid] — the 32×32
   /// icon of the VI a subVI-call node targets, loaded from that VI's own file
@@ -2168,24 +2184,6 @@ class BdDiagramPainter extends CustomPainter {
   /// Disabled-palette variants of [primIcons] (see [primIconsGreyLoaded]),
   /// stamped for nodes in [disabledOids].
   final Map<int, PrimIconArt> primIconsGrey;
-
-  /// Objects under a disabled displayed frame ([bdDisabledObjectOids]).
-  final Set<int> disabledOids;
-
-  /// Attach rect → terminal class for reference-verified border-terminal
-  /// chrome ([bdBorderTerminalKinds]).
-  final Map<HeapRect, ({int kind, bool hollow, bool disabled})>
-  borderTerminalKinds;
-
-  /// Per terminal oid, the numeric literal its constant box displays
-  /// ([bdConstValueTexts]). A mapped box drops the generic terminal's inner
-  /// ring (the reference draws constants with the 2 px outer border only)
-  /// and centres the value text.
-  final Map<int, String> constValues;
-
-  /// Case structures displaying their "No Error" frame ([bdErrorCaseOids]) —
-  /// their band draws the green error style instead of the black hatch.
-  final Set<int> errorCaseOids;
 
   /// The structure-chrome style: band/field colours and per-capture hatch
   /// phases. See [BdRenderStyle].
