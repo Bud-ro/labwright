@@ -34,6 +34,77 @@ List<File> snippetCorpusPngs() {
 }
 
 void main() {
+  testWidgets('stop, bool T/F, and enum-pager chrome are byte-exact', (
+    tester,
+  ) async {
+    // Reference-measured chrome: the while-loop stop terminal, boolean T/F
+    // constant blocks (value = decoded constBool), and the enum/ring control
+    // terminal's pager glyphs. Each pinned box must match the reference
+    // byte-for-byte (dominant capture palette; fg-class captures differ only
+    // by the known boolean-green variance and are not pinned).
+    const expected = {
+      'Tokenize URL.png': [('stop', 286, 262, 16, 16)],
+      'crc8.png': [('F', 284, 472, 16, 14)],
+      'fg.png': [('enum', 39, 33, 32, 16)],
+    };
+    final pngs = snippetCorpusPngs().where(
+      (f) => expected.keys.any((n) => f.path.endsWith('/' + n)),
+    );
+    if (pngs.length < expected.length) {
+      markTestSkipped('corpus not fetched');
+      return;
+    }
+    await loadRealTextFont();
+    await tester.runAsync(() async {
+      for (final f in pngs) {
+        final name = f.path.split('/').last;
+        final bytes = f.readAsBytesSync();
+        final bd = bestBlockDiagram(buildViModel(extractSnippetVi(bytes)!))!;
+        final scene = BdScene(bd);
+        final icons = await loadPrimIcons();
+        final raster = (await rasteriseBlockDiagram(
+          bd,
+          primIcons: icons,
+          scale: 1.0,
+          margin: 2,
+          scene: scene,
+        ))!;
+        final reference = await decodeReferenceImage(bytes);
+        final result = await compareToReference(
+          raster.image,
+          reference.image,
+          lockScale: 1.0 / raster.scale,
+          anchorRects: bdStructureAnchorRects(
+            bd,
+            raster,
+            drawable: scene.drawable,
+          ),
+        );
+        reference.image.dispose();
+        final reg = result.registration;
+        final w = result.reference.width;
+        final refB = result.referenceRgba;
+        final ourB = (await result.fitted.toByteData())!.buffer.asUint8List();
+        for (final (label, x0, y0, bw, bh) in expected[name]!) {
+          var diff = 0;
+          for (var y = y0; y < y0 + bh; y++) {
+            for (var x = x0; x < x0 + bw; x++) {
+              final rx = (x - raster.content.left + reg.dx).round();
+              final ry = (y - raster.content.top + reg.dy).round();
+              final i = (ry * w + rx) * 4;
+              if (refB[i] != ourB[i] ||
+                  refB[i + 1] != ourB[i + 1] ||
+                  refB[i + 2] != ourB[i + 2]) {
+                diff++;
+              }
+            }
+          }
+          expect(diff, 0, reason: name + ' ' + label + ' chrome');
+        }
+      }
+    });
+  });
+
   testWidgets('hatch phase derives per capture and rephases to the reference', (
     tester,
   ) async {

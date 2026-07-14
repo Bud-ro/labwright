@@ -2484,6 +2484,19 @@ class BdDiagramPainter extends CustomPainter {
             );
             continue;
           }
+          // An enum/ring CONTROL at the standard box draws the exact pager
+          // chrome; indicators keep the generic frame until one is measured.
+          if (object.typeKind == ViTypeKind.enumRing &&
+              object.isIndicator != true &&
+              rect.width == 32 &&
+              rect.height == 16) {
+            _drawEnumControlTerminal(
+              canvas,
+              rect,
+              disabled: disabledOids.contains(object.oid),
+            );
+            continue;
+          }
           // LabVIEW terminal: datatype-coloured double border — a 2 px outer
           // border, a 1 px white gap, a 1 px inner border — over a plate
           // shaded only around the dataflow arrow. A recovered datatype (or
@@ -3768,6 +3781,57 @@ class BdDiagramPainter extends CustomPainter {
         canvas,
         e.value,
         _stopTerminal,
+        box.left,
+        box.top,
+        on: e.key,
+      );
+    }
+  }
+
+  /// An enum/ring CONTROL terminal exactly as LabVIEW rasters it in its
+  /// standard 32×16 box: the datatype-blue double border, the ◄ ► ring-pager
+  /// glyphs, and the data-out arrow plate (black arrow on the two-tone blue
+  /// shading). Measured from fg.png's enum input. `B` = (0,0,255),
+  /// `L` = (178,178,255), `M` = (76,76,255), `X` = black, `.` = white.
+  static const _enumControlTerminal = [
+    'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+    'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+    'BB....................LLLLLLLLMM',
+    'BB.BBBBBBBBBBBBBBBBBBBMMMMMMMLMM',
+    'BB.B..................LLLLLLMLMM',
+    'BB.B..........B...B...LLLLLXMLMM',
+    'BB.B.........BB...BB..LLLLLXXLMM',
+    'BB.B........BBB...BBB.LLLLLXXXMM',
+    'BB.B........BBB...BBB.LLLLLXXXMM',
+    'BB.B.........BB...BB..LLLLLXXLMM',
+    'BB.B..........B...B...LLLLLXMLMM',
+    'BB.B..................LLLLLLMLMM',
+    'BB.BBBBBBBBBBBBBBBBBBBMMMMMMMLMM',
+    'BB....................LLLLLLLLMM',
+    'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+    'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+  ];
+
+  /// Draws an enum/ring control terminal pixel-exact from
+  /// [_enumControlTerminal].
+  void _drawEnumControlTerminal(
+    Canvas canvas,
+    Rect box, {
+    bool disabled = false,
+  }) {
+    Color dim(Color c) => disabled ? bdDimDisabled(c) : c;
+    canvas.drawRect(box, _solidNoAa(dim(Colors.white)));
+    final inks = {
+      'B': _solidNoAa(dim(const Color(0xFF0000FF))),
+      'L': _solidNoAa(dim(const Color(0xFFB2B2FF))),
+      'M': _solidNoAa(dim(const Color(0xFF4C4CFF))),
+      'X': _solidNoAa(dim(const Color(0xFF000000))),
+    };
+    for (final e in inks.entries) {
+      _stampBitmap(
+        canvas,
+        e.value,
+        _enumControlTerminal,
         box.left,
         box.top,
         on: e.key,
