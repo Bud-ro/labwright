@@ -2996,6 +2996,22 @@ class BdDiagramPainter extends CustomPainter {
             );
             continue;
           }
+          // A growable node (0x63) draws a white field ringed by a 1px
+          // (68,68,68) border — no plate, no bevel (reference-measured on
+          // Excel_Read_XLSX oid 3233: ring rows/cols 0x444444, interior
+          // white; the row dividers, right terminal cells and row text are
+          // child content, not plate chrome — TODO measure via row DCOs).
+          if (object.kind == 0x63) {
+            canvas.drawRect(
+              rect,
+              Paint()..color = _dimFor(object.oid, const Color(0xFF444444)),
+            );
+            canvas.drawRect(
+              rect.deflate(1),
+              Paint()..color = _dimFor(object.oid, Colors.white),
+            );
+            continue;
+          }
           final icon = subViIcons[object.oid];
           final iconKey = primIconKeyOf(object);
           final disabled = disabledOids.contains(object.oid);

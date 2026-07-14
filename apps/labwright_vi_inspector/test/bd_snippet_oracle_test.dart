@@ -141,6 +141,13 @@ void main() {
         ('label-backing-bottom', 430, 915, 40, 3),
         ('label-backing-left', 423, 850, 3, 20),
         ('label-backing-right', 692, 850, 4, 20),
+        // The grown 0x63 node's plate ring (1px 0x444444 on white), on
+        // strips clear of its row text, dividers and terminal cells.
+        ('growable-top', 1404, 899, 60, 1),
+        ('growable-bottom', 1404, 967, 60, 1),
+        ('growable-left', 1397, 920, 1, 20),
+        ('growable-right', 1516, 920, 1, 20),
+        ('growable-field', 1404, 912, 40, 3),
       ],
     };
     final pngs = snippetCorpusPngs().where(
