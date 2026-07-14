@@ -548,6 +548,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                                             viImages: _images,
                                             subViIconResolver:
                                                 _subViIconResolver,
+                                            sections: _sections,
                                           ),
                                         ),
                                       ],

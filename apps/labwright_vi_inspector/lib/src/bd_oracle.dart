@@ -169,58 +169,6 @@ GlobalHatchOffset deriveHatchOffset({
 /// (1.0 matches LabVIEW's own 1 diagram unit == 1 px snippet render, making a
 /// snippet reference comparable without resampling). Returns null when the
 /// diagram has no positioned objects.
-/// XNode facade images: the k-th `0x105` object in heap order pairs with
-/// the k-th `DSIM` section, gated on exact geometry (corpus-verified — the
-/// per-snippet DSIM/0x105 counts and dimensions match, and the facades'
-/// error-code text matches the `C6 5D` configs under the same objects).
-/// A `DSIM` is a 46-byte geometry header followed by a PNG whose alpha is
-/// INVERTED (0 = opaque) with magenta (255,0,255) as a transparency key.
-Future<Map<int, ui.Image>> loadXnodeFacades(
-  Uint8List viBytes,
-  ViDiagram diagram,
-) async {
-  final xnodes = [
-    for (final o in diagram.objects)
-      if (o.kind == 0x105 && o.absBounds != null) o,
-  ];
-  if (xnodes.isEmpty) return const {};
-  List<DecodedSection> sections;
-  try {
-    sections = decodeSections(viBytes);
-  } catch (_) {
-    return const {};
-  }
-  final dsims = [
-    for (final s in sections)
-      if (s.tag == 'DSIM') s,
-  ];
-  final out = <int, ui.Image>{};
-  for (var k = 0; k < xnodes.length && k < dsims.length; k++) {
-    final payload = dsims[k].bytes;
-    if (payload.length < 54) continue;
-    final png = decodePngEnvelope(payload, 46);
-    if (png == null || 46 + png.byteLength > payload.length) continue;
-    final b = xnodes[k].absBounds!;
-    if (png.width != b.right - b.left || png.height != b.bottom - b.top) {
-      continue;
-    }
-    final codec = await ui.instantiateImageCodec(
-      payload.sublist(46, 46 + png.byteLength),
-    );
-    final frame = await codec.getNextFrame();
-    final data = await frame.image.toByteData();
-    frame.image.dispose();
-    if (data == null) continue;
-    final px = Uint8List.fromList(data.buffer.asUint8List());
-    for (var i = 0; i < px.length; i += 4) {
-      final magenta = px[i] == 255 && px[i + 1] == 0 && px[i + 2] == 255;
-      px[i + 3] = magenta ? 0 : 255 - px[i + 3];
-    }
-    out[xnodes[k].oid] = await imageFromRgba(px, png.width, png.height);
-  }
-  return out;
-}
-
 Future<BdRaster?> rasteriseBlockDiagram(
   ViDiagram diagram, {
   int maxDimension = 2000,

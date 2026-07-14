@@ -40,6 +40,7 @@ class ViDiagramView extends StatefulWidget {
     this.isFrontPanel = false,
     this.viImages = const ViImages(),
     this.subViIconResolver,
+    this.sections = const [],
   });
 
   /// The diagrams to render (block-diagram or front-panel heap trees); the
@@ -80,6 +81,12 @@ class ViDiagramView extends StatefulWidget {
   final Future<Map<String, ViLegacyIcon>> Function(Set<String> wantedNames)?
   subViIconResolver;
 
+  /// The VI's decoded sections, used to recover XNode facade images (`DSIM`
+  /// PNGs stamped over `0x105` nodes — see [xnodeFacadesFromSections]). Only
+  /// meaningful for the block diagram; empty (the default) draws XNodes as
+  /// plain boxes.
+  final List<DecodedSection> sections;
+
   @override
   State<ViDiagramView> createState() => _ViDiagramViewState();
 }
@@ -116,6 +123,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
   // [_resolveIcons]); empty until then, and when no loader is supplied.
   Map<int, ViLegacyIcon> _subViIcons = const {};
   Map<int, PrimIconArt> _primIcons = const {};
+  Map<int, ui.Image> _xnodeFacades = const {};
 
   /// The diagram-derived render inputs, computed once (see [BdScene]).
   late final BdScene? _scene = switch (_diagram) {
@@ -141,6 +149,17 @@ class _ViDiagramViewState extends State<ViDiagramView> {
     loadPrimIcons().then((icons) {
       if (mounted && icons.isNotEmpty) setState(() => _primIcons = icons);
     });
+    if (_diagram != null && widget.sections.isNotEmpty) {
+      xnodeFacadesFromSections(widget.sections, _diagram).then((facades) {
+        if (!mounted) {
+          for (final image in facades.values) {
+            image.dispose();
+          }
+          return;
+        }
+        if (facades.isNotEmpty) setState(() => _xnodeFacades = facades);
+      });
+    }
     if (_scene?.disabledOids.isNotEmpty ?? false) {
       ensurePrimIconsGrey().then((grey) {
         if (mounted && grey.isNotEmpty) setState(() {});
@@ -171,6 +190,9 @@ class _ViDiagramViewState extends State<ViDiagramView> {
   @override
   void dispose() {
     _transform.dispose();
+    for (final image in _xnodeFacades.values) {
+      image.dispose();
+    }
     super.dispose();
   }
 
@@ -307,6 +329,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                               scene: _scene!,
                               origin: content.topLeft,
                               subViIcons: _subViIcons,
+                              xnodeFacades: _xnodeFacades,
                               primIcons: _primIcons,
                               primIconsGrey: primIconsGreyLoaded(),
                               iconFilterQuality: FilterQuality.low,
@@ -1898,6 +1921,70 @@ Future<ui.Image> decodeImage(Uint8List bytes) {
 }
 
 /// Builds a [ui.Image] from a raw RGBA buffer ([width]×[height]×4 bytes).
+/// XNode facade images: the k-th `0x105` object in heap order pairs with
+/// the k-th `DSIM` section, gated on exact geometry (corpus-verified — the
+/// per-snippet DSIM/0x105 counts and dimensions match, and the facades'
+/// error-code text matches the `C6 5D` configs under the same objects).
+/// A `DSIM` is a 46-byte geometry header followed by a PNG whose alpha is
+/// INVERTED (0 = opaque) with magenta (255,0,255) as a transparency key.
+Future<Map<int, ui.Image>> xnodeFacadesFromSections(
+  List<DecodedSection> sections,
+  ViDiagram diagram,
+) async {
+  final xnodes = [
+    for (final o in diagram.objects)
+      if (o.kind == 0x105 && o.absBounds != null) o,
+  ];
+  if (xnodes.isEmpty) return const {};
+  final dsims = [
+    for (final s in sections)
+      if (s.tag == 'DSIM') s,
+  ];
+  final out = <int, ui.Image>{};
+  for (var k = 0; k < xnodes.length && k < dsims.length; k++) {
+    final payload = dsims[k].bytes;
+    if (payload.length < 54) continue;
+    final png = decodePngEnvelope(payload, 46);
+    if (png == null || 46 + png.byteLength > payload.length) continue;
+    final b = xnodes[k].absBounds!;
+    if (png.width != b.right - b.left || png.height != b.bottom - b.top) {
+      continue;
+    }
+    final codec = await ui.instantiateImageCodec(
+      payload.sublist(46, 46 + png.byteLength),
+    );
+    final frame = await codec.getNextFrame();
+    final data = await frame.image.toByteData();
+    frame.image.dispose();
+    if (data == null) continue;
+    final px = Uint8List.fromList(data.buffer.asUint8List());
+    for (var i = 0; i < px.length; i += 4) {
+      final magenta = px[i] == 255 && px[i + 1] == 0 && px[i + 2] == 255;
+      px[i + 3] = magenta ? 0 : 255 - px[i + 3];
+    }
+    out[xnodes[k].oid] = await imageFromRgba(px, png.width, png.height);
+  }
+  return out;
+}
+
+/// [xnodeFacadesFromSections] over a raw VI: decodes the sections first
+/// (skipped entirely when the diagram has no `0x105` objects).
+Future<Map<int, ui.Image>> loadXnodeFacades(
+  Uint8List viBytes,
+  ViDiagram diagram,
+) async {
+  if (!diagram.objects.any((o) => o.kind == 0x105 && o.absBounds != null)) {
+    return const {};
+  }
+  List<DecodedSection> sections;
+  try {
+    sections = decodeSections(viBytes);
+  } catch (_) {
+    return const {};
+  }
+  return xnodeFacadesFromSections(sections, diagram);
+}
+
 Future<ui.Image> imageFromRgba(Uint8List rgba, int width, int height) {
   final completer = Completer<ui.Image>();
   ui.decodeImageFromPixels(
