@@ -44,8 +44,18 @@ void main() {
     // by the known boolean-green variance and are not pinned).
     const expected = {
       'Tokenize URL.png': [('stop', 286, 262, 16, 16)],
-      'crc8.png': [('F', 284, 472, 16, 14)],
-      'fg.png': [('enum', 39, 33, 32, 16)],
+      'crc8.png': [
+        ('F', 284, 472, 16, 14),
+        // Selector strips (chrome only; the value text region is AA text and
+        // sits inside these two side windows' gap).
+        ('selector-left', 554, 237, 10, 17),
+        ('selector-right', 599, 237, 20, 17),
+      ],
+      'fg.png': [
+        ('enum', 39, 33, 32, 16),
+        ('abc-control', 39, 76, 32, 16),
+        ('abc-indicator', 313, 58, 32, 16),
+      ],
     };
     final pngs = snippetCorpusPngs().where(
       (f) => expected.keys.any((n) => f.path.endsWith('/' + n)),

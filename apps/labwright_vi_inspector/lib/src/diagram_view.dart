@@ -2410,6 +2410,12 @@ class BdDiagramPainter extends CustomPainter {
         disabled: structDisabled,
       );
     }
+    // The case-selector strips draw UNDER the border-terminal chrome: the
+    // reference draws a case's ? tunnel (and its wire) over the strip's
+    // bottom-left corner where they overlap.
+    for (final object in solids) {
+      if (object.kind == 0x95) _drawCaseSelector(canvas, rectOf(object));
+    }
     // Overlapping border terminals stack: the reference draws a selector
     // OVER the select tunnel sharing its edge (crc8's 0x2e/0x2d pair
     // overlaps by two rows), so squares first, registers, then selectors.
@@ -2445,12 +2451,9 @@ class BdDiagramPainter extends CustomPainter {
       // background colour paints that backing; no colour paints no box (never
       // guessed). The text pass below renders any recovered caption.
       if (kBdTextLabelCodes.contains(object.kind)) {
-        if (object.kind == 0x95) {
-          // Case selector chrome: the label ring on the case's top border —
-          // white value box with a ▼, flanked by ◄/► pager boxes.
-          _drawCaseSelector(canvas, rect);
-          continue;
-        }
+        // The case selector's chrome already drew in the pre-chrome pass; its
+        // value text draws in the text pass.
+        if (object.kind == 0x95) continue;
         // A hidden label paints nothing — neither backing nor (below) text.
         final backing = object.isLabelHidden
             ? null
@@ -2493,6 +2496,19 @@ class BdDiagramPainter extends CustomPainter {
             _drawEnumControlTerminal(
               canvas,
               rect,
+              disabled: disabledOids.contains(object.oid),
+            );
+            continue;
+          }
+          // String terminals at the standard box: both directions measured.
+          if (object.typeKind == ViTypeKind.string &&
+              object.isIndicator != null &&
+              rect.width == 32 &&
+              rect.height == 16) {
+            _drawStringTerminal(
+              canvas,
+              rect,
+              indicator: object.isIndicator == true,
               disabled: disabledOids.contains(object.oid),
             );
             continue;
@@ -3812,6 +3828,74 @@ class BdDiagramPainter extends CustomPainter {
     'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
   ];
 
+  /// A string CONTROL terminal exactly as LabVIEW rasters it in its standard
+  /// 32×16 box: the magenta double border, the pixelised `abc` glyph, and the
+  /// data-out arrow plate. Measured from fg.png. `B` = (255,0,255),
+  /// `L` = (255,178,255), `M` = (255,76,255), `X` = black, `.` = white.
+  static const _stringControlTerminal = [
+    'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+    'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+    'BB....................LLLLLLLLMM',
+    'BB.BBBBBBBBBBBBBBBBBBBMMMMMMMLMM',
+    'BB.B..................LLLLLLMLMM',
+    'BB.B..........BB......LLLLLXMLMM',
+    'BB.B.....BB...BB......LLLLLXXLMM',
+    'BB.B......BB..BBBB...BMMLLLXXXMM',
+    'BB.B.....BBB..BB.BB.BBLLLLLXXXMM',
+    'BB.B....B.BB..BB.BB.BBLLLLLXXLMM',
+    'BB.B.....BBBB.BBBB...BMMLLLXMLMM',
+    'BB.B..................LLLLLLMLMM',
+    'BB.BBBBBBBBBBBBBBBBBBBMMMMMMMLMM',
+    'BB....................LLLLLLLLMM',
+    'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+    'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+  ];
+
+  /// The string INDICATOR variant — mirrored plate with the data-in arrow on
+  /// the left and the thinner 1px outer border LabVIEW gives indicators.
+  /// Measured from fg.png's right-hand string terminal.
+  static const _stringIndicatorTerminal = [
+    'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+    'B..............................B',
+    'MLLLLLLLLL.....................B',
+    'MLLMMMMMMMBBBBBBBBBBBBBBBBBBB..B',
+    'MLLMLLLLLL..................B..B',
+    'MLLMXLLLLL....BB............B..B',
+    'MLLMXXLLLMB...BB............B..B',
+    'MLLMXXXLLLBB..BBBB...BBB....B..B',
+    'MLLMXXXLLMBB..BB.BB.BB......B..B',
+    'MLLMXXLLMLBB..BB.BB.BB......B..B',
+    'MLLMXLLLLMBBB.BBBB...BBB....B..B',
+    'MLLMLLLLLL..................B..B',
+    'MLLMMMMMMMBBBBBBBBBBBBBBBBBBB..B',
+    'MLLLLLLLLL.....................B',
+    'B..............................B',
+    'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+  ];
+
+  /// Draws a 32×16 string terminal pixel-exact from its measured bitmap.
+  void _drawStringTerminal(
+    Canvas canvas,
+    Rect box, {
+    required bool indicator,
+    bool disabled = false,
+  }) {
+    Color dim(Color c) => disabled ? bdDimDisabled(c) : c;
+    canvas.drawRect(box, _solidNoAa(dim(Colors.white)));
+    final inks = {
+      'B': _solidNoAa(dim(const Color(0xFFFF00FF))),
+      'L': _solidNoAa(dim(const Color(0xFFFFB2FF))),
+      'M': _solidNoAa(dim(const Color(0xFFFF4CFF))),
+      'X': _solidNoAa(dim(const Color(0xFF000000))),
+    };
+    final bitmap = indicator
+        ? _stringIndicatorTerminal
+        : _stringControlTerminal;
+    for (final e in inks.entries) {
+      _stampBitmap(canvas, e.value, bitmap, box.left, box.top, on: e.key);
+    }
+  }
+
   /// Draws an enum/ring control terminal pixel-exact from
   /// [_enumControlTerminal].
   void _drawEnumControlTerminal(
@@ -4038,44 +4122,59 @@ class BdDiagramPainter extends CustomPainter {
     }
   }
 
-  /// Case-selector chrome at the decoded `0x95` label [rect]: a white value
-  /// box with a black border and ▼, flanked by the ◄/► case-pager boxes that
-  /// sit on the case's top border. The selector STRING is drawn by the text
-  /// pass; only the furniture is drawn here.
-  void _drawCaseSelector(Canvas canvas, Rect rect) {
-    // Reference-measured chrome (the snippet renders): the selector strip is
-    // the modeled 0x95 label bounds; the pager boxes sit INSIDE its two ends
-    // at full height, 9 px wide, sharing the strip's border; the pager
-    // triangles are 4 px deep and 7 px tall; the dropdown is 7 px wide and
-    // 4 px tall against the value box's right edge.
-    final border = Paint()
-      ..color = Colors.black.withValues(alpha: 0.8)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0;
-    canvas.drawRect(rect, Paint()..color = Colors.white);
-    canvas.drawRect(rect.deflate(0.5), border);
-    final cy = rect.center.dy;
-    void pager(Rect box, bool left) {
-      canvas.drawRect(box.deflate(0.5), border);
-      final tipX = left ? box.center.dx - 2 : box.center.dx + 2;
-      final baseX = left ? box.center.dx + 2 : box.center.dx - 2;
-      final tri = Path()
-        ..moveTo(baseX, cy - 3.5)
-        ..lineTo(baseX, cy + 3.5)
-        ..lineTo(tipX, cy)
-        ..close();
-      canvas.drawPath(tri, Paint()..color = Colors.black87);
-    }
+  /// The case selector's ◄ pager, ▼ dropdown, and ► pager, measured from
+  /// crc8's crisp-black selectors. `#` = black.
+  static const _selectorLeftPager = [
+    '.....#',
+    '...###',
+    '.#####',
+    '######',
+    '.#####',
+    '...###',
+    '.....#',
+  ];
+  static const _selectorRightPager = [
+    '#.....',
+    '###...',
+    '#####.',
+    '######',
+    '#####.',
+    '###...',
+    '#.....',
+  ];
+  static const _selectorDropdown = ['#######', '.#####.', '..###..', '...#...'];
 
-    pager(Rect.fromLTWH(rect.left, rect.top, 9, rect.height), true);
-    pager(Rect.fromLTWH(rect.right - 9, rect.top, 9, rect.height), false);
-    final dx = rect.right - 15;
-    final down = Path()
-      ..moveTo(dx - 3.5, cy - 2)
-      ..lineTo(dx + 3.5, cy - 2)
-      ..lineTo(dx, cy + 2)
-      ..close();
-    canvas.drawPath(down, Paint()..color = Colors.black87);
+  /// Case-selector chrome around the decoded `0x95` label [rect] (the value
+  /// TEXT region): the strip extends 8px left and 18px right of it —
+  /// `[◄ pager | value … ▼ | ► pager]` — with 1px box borders on the outer edges,
+  /// further borders at rect.left / rect.right+10, and the
+  /// crisp pager/dropdown bitmaps. Measured on crc8's selectors; the value
+  /// STRING itself is drawn by the text pass (it is anti-aliased text in the
+  /// reference and outside the pixel-exact goal).
+  void _drawCaseSelector(Canvas canvas, Rect rect) {
+    final ink = _solidNoAa(Colors.black);
+    final l = rect.left.roundToDouble(), t = rect.top.roundToDouble();
+    final r = rect.right.roundToDouble();
+    final bottom = t + 16; // the strip is 17 rows; borders at t and t+16
+    final left = l - 8, right = r + 18;
+    void hline(double x0, double x1, double y) =>
+        canvas.drawRect(Rect.fromLTRB(x0, y, x1 + 1, y + 1), ink);
+    void vline(double x, double y0, double y1) =>
+        canvas.drawRect(Rect.fromLTRB(x, y0, x + 1, y1 + 1), ink);
+    // White strip over the border/hatch behind it, then the chrome.
+    canvas.drawRect(
+      Rect.fromLTRB(left, t, right + 1, bottom + 1),
+      _solidNoAa(Colors.white),
+    );
+    hline(left, right, t);
+    hline(left, right, bottom);
+    vline(left, t, bottom); // outer left edge
+    vline(l, t, bottom); // value box left border
+    vline(r + 10, t, bottom); // value box right border
+    vline(right, t, bottom); // right pager's outer edge
+    _stampBitmap(canvas, ink, _selectorLeftPager, l - 7, t + 5);
+    _stampBitmap(canvas, ink, _selectorDropdown, r + 1, t + 6);
+    _stampBitmap(canvas, ink, _selectorRightPager, r + 11, t + 5);
   }
 
   void _drawDotGrid(Canvas canvas, Size size) {
