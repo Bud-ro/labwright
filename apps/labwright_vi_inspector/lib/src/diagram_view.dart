@@ -2245,6 +2245,7 @@ class BdDiagramPainter extends CustomPainter {
     required this.scene,
     required this.origin,
     this.subViIcons = const {},
+    this.xnodeFacades = const {},
     this.primIcons = const {},
     this.primIconsGrey = const {},
     this.iconFilterQuality = FilterQuality.none,
@@ -2274,6 +2275,10 @@ class BdDiagramPainter extends CustomPainter {
   /// real icon on its plate; a node without one keeps the neutral
   /// connector-pane plate (the icon is never guessed).
   final Map<int, ViLegacyIcon> subViIcons;
+
+  /// XNode facade images decoded from the VI's `DSIM` sections
+  /// ([loadXnodeFacades] in bd_oracle.dart), keyed by the `0x105` oid.
+  final Map<int, ui.Image> xnodeFacades;
 
   /// Bundled primitive icon art keyed by primResID (see [loadPrimIcons]);
   /// stamped at natural size on primitive plates. A node without an entry
@@ -2880,6 +2885,23 @@ class BdDiagramPainter extends CustomPainter {
           // guessed. Everything gets the 1 px pure-black border LabVIEW
           // draws around node icons.
           final isSubVi = kSubViCallNodeCodes.contains(object.kind);
+          // An XNode facade is the node's own stored image — drawn verbatim
+          // at its bounds (the DSIM geometry matches them exactly).
+          final facade = xnodeFacades[object.oid];
+          if (facade != null) {
+            canvas.drawImageRect(
+              facade,
+              Rect.fromLTWH(
+                0,
+                0,
+                facade.width.toDouble(),
+                facade.height.toDouble(),
+              ),
+              rect,
+              Paint()..filterQuality = FilterQuality.none,
+            );
+            continue;
+          }
           final icon = subViIcons[object.oid];
           final iconKey = primIconKeyOf(object);
           final disabled = disabledOids.contains(object.oid);
