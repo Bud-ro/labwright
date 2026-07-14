@@ -887,10 +887,38 @@ void main() {
     // Storage order: plain, then anchor.
     final rev = dia(records('7', '3', [0x02, 0x02], [5, 40, 25, 90])).wires.single;
     expect(rev.routePoints, [(x: 40, y: 14), (x: 9, y: 14)]);
-    // Reverse WITH bends is withheld (drifts): endpoint 1 anchored, a bent
-    // route ships nothing.
+    // Reverse with an ODD stored-bend count: the departing and closing axes
+    // differ, so the reverse geometry is underdetermined and ships nothing.
     final revBent = dia(records('7', '3', [0x03, 0x02, 0x00, 30], [5, 40, 25, 90])).wires.single;
     expect(revBent.routePoints, isNull);
+    // Reverse with an EVEN stored-bend count ships, the head pinned at the
+    // departure edge and the undecoded terminal depth marked INTERIOR-ward
+    // on routeHeadSlack: dir=left departs the node's LEFT edge (x = 40), so
+    // the marked slide direction is +x, into the box.
+    final revSlack = dia(
+      records('7', '3', [0x04, 0x02, 0x00, 0x01, 10, 6], [5, 40, 25, 90]),
+    ).wires.single;
+    expect(revSlack.routePoints, [
+      (x: 40, y: 8),
+      (x: 30, y: 8),
+      (x: 30, y: 14),
+      (x: 9, y: 14),
+    ]);
+    expect(revSlack.routePointsFidelity, WireRouteFidelity.walked);
+    expect(revSlack.routeHeadSlack, (dx: 1, dy: 0));
+    // A zero-length closing run still carries the anchor as an explicit
+    // trailing point on a slack ship, so the consumer's
+    // translate-all-but-the-anchor resolution needs no special casing.
+    final revSlackZero = dia(
+      records('7', '3', [0x04, 0x02, 0x00, 0x01, 31, 6], [5, 40, 25, 90]),
+    ).wires.single;
+    expect(revSlackZero.routePoints, [
+      (x: 40, y: 8),
+      (x: 9, y: 8),
+      (x: 9, y: 14),
+      (x: 9, y: 14),
+    ]);
+    expect(revSlackZero.routeHeadSlack, (dx: 1, dy: 0));
   });
 
   test('routePoints walked tier: a coarse anchor or no anchor ships nothing', () {
