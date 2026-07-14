@@ -603,6 +603,7 @@ class BdRenderStyle {
   const BdRenderStyle({
     this.whileBandGrey = const Color(0xFF777777),
     this.errorCaseGreen = const Color(0xFF99FF99),
+    this.booleanGreen = const Color(0xFF006600),
     this.hatchOffset = kNoHatchOffset,
     this.errorHatchOffset = kNoHatchOffset,
   });
@@ -613,6 +614,11 @@ class BdRenderStyle {
 
   /// The error case's green band field — corpus-dominant (153,255,153).
   final Color errorCaseGreen;
+
+  /// The boolean-datatype green: T/F constant blocks and the while-loop stop
+  /// terminal's ring — corpus-dominant (0,102,0). (Some captures render it
+  /// as (0,127,0), the same palette family as [whileBandGrey]'s variance.)
+  final Color booleanGreen;
 
   /// Phase of the black case-hatch lattice ([kBdStructureHatch]).
   final GlobalHatchOffset hatchOffset;
@@ -2463,6 +2469,34 @@ class BdDiagramPainter extends CustomPainter {
       }
       switch (object.category) {
         case ViObjectKind.terminal:
+          // A boolean constant's shell draws LabVIEW's exact T/F block — the
+          // decoded [ViHeapObject.constBool] picks the bitmap.
+          final constHolder = scene.diagram.byId[object.parentOid ?? -1];
+          final boolValue = constHolder?.kind == 0x13
+              ? constHolder!.constBool
+              : null;
+          if (boolValue != null && rect.width == 16 && rect.height == 14) {
+            _drawBoolConstant(
+              canvas,
+              rect,
+              boolValue,
+              disabled: disabledOids.contains(object.oid),
+            );
+            continue;
+          }
+          // An enum/ring CONTROL at the standard box draws the exact pager
+          // chrome; indicators keep the generic frame until one is measured.
+          if (object.typeKind == ViTypeKind.enumRing &&
+              object.isIndicator != true &&
+              rect.width == 32 &&
+              rect.height == 16) {
+            _drawEnumControlTerminal(
+              canvas,
+              rect,
+              disabled: disabledOids.contains(object.oid),
+            );
+            continue;
+          }
           // LabVIEW terminal: datatype-coloured double border — a 2 px outer
           // border, a 1 px white gap, a 1 px inner border — over a plate
           // shaded only around the dataflow arrow. A recovered datatype (or
@@ -3705,6 +3739,162 @@ class BdDiagramPainter extends CustomPainter {
     rows: ['##', '..', '##', '##', '##', '##', '##', '##', '##'],
   );
 
+  /// The while-loop conditional (stop) terminal exactly as LabVIEW rasters it
+  /// in a 16×16 border box: a 1px [BdRenderStyle.booleanGreen] ring, cream
+  /// field, black octagon outline, red fill. Measured identical on both
+  /// capture palettes (fg.png and Tokenize URL.png) modulo the ring green.
+  static const _stopTerminal = [
+    'GGGGGGGGGGGGGGGG',
+    'GccccccccccccccG',
+    'GccccXXXXXXccccG',
+    'GcccXccccccXcccG',
+    'GccXccRRRRccXccG',
+    'GcXccRRRRRRccXcG',
+    'GcXcRRRRRRRRcXcG',
+    'GcXcRRRRRRRRcXcG',
+    'GcXcRRRRRRRRcXcG',
+    'GcXcRRRRRRRRcXcG',
+    'GcXccRRRRRRccXcG',
+    'GccXccRRRRccXccG',
+    'GcccXccccccXcccG',
+    'GccccXXXXXXccccG',
+    'GccccccccccccccG',
+    'GGGGGGGGGGGGGGGG',
+  ];
+
+  /// Draws the 16×16 conditional stop terminal pixel-exact from
+  /// [_stopTerminal], colours dimmed through the disabled transform.
+  void _drawConditionalTerminal(
+    Canvas canvas,
+    Rect box, {
+    bool disabled = false,
+  }) {
+    Color dim(Color c) => disabled ? bdDimDisabled(c) : c;
+    final inks = {
+      'G': _solidNoAa(dim(style.booleanGreen)),
+      'c': _solidNoAa(dim(kBdTerminalFill)),
+      'X': _solidNoAa(dim(const Color(0xFF000000))),
+      'R': _solidNoAa(dim(const Color(0xFFFF0000))),
+    };
+    for (final e in inks.entries) {
+      _stampBitmap(
+        canvas,
+        e.value,
+        _stopTerminal,
+        box.left,
+        box.top,
+        on: e.key,
+      );
+    }
+  }
+
+  /// An enum/ring CONTROL terminal exactly as LabVIEW rasters it in its
+  /// standard 32×16 box: the datatype-blue double border, the ◄ ► ring-pager
+  /// glyphs, and the data-out arrow plate (black arrow on the two-tone blue
+  /// shading). Measured from fg.png's enum input. `B` = (0,0,255),
+  /// `L` = (178,178,255), `M` = (76,76,255), `X` = black, `.` = white.
+  static const _enumControlTerminal = [
+    'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+    'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+    'BB....................LLLLLLLLMM',
+    'BB.BBBBBBBBBBBBBBBBBBBMMMMMMMLMM',
+    'BB.B..................LLLLLLMLMM',
+    'BB.B..........B...B...LLLLLXMLMM',
+    'BB.B.........BB...BB..LLLLLXXLMM',
+    'BB.B........BBB...BBB.LLLLLXXXMM',
+    'BB.B........BBB...BBB.LLLLLXXXMM',
+    'BB.B.........BB...BB..LLLLLXXLMM',
+    'BB.B..........B...B...LLLLLXMLMM',
+    'BB.B..................LLLLLLMLMM',
+    'BB.BBBBBBBBBBBBBBBBBBBMMMMMMMLMM',
+    'BB....................LLLLLLLLMM',
+    'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+    'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+  ];
+
+  /// Draws an enum/ring control terminal pixel-exact from
+  /// [_enumControlTerminal].
+  void _drawEnumControlTerminal(
+    Canvas canvas,
+    Rect box, {
+    bool disabled = false,
+  }) {
+    Color dim(Color c) => disabled ? bdDimDisabled(c) : c;
+    canvas.drawRect(box, _solidNoAa(dim(Colors.white)));
+    final inks = {
+      'B': _solidNoAa(dim(const Color(0xFF0000FF))),
+      'L': _solidNoAa(dim(const Color(0xFFB2B2FF))),
+      'M': _solidNoAa(dim(const Color(0xFF4C4CFF))),
+      'X': _solidNoAa(dim(const Color(0xFF000000))),
+    };
+    for (final e in inks.entries) {
+      _stampBitmap(
+        canvas,
+        e.value,
+        _enumControlTerminal,
+        box.left,
+        box.top,
+        on: e.key,
+      );
+    }
+  }
+
+  /// LabVIEW's boolean-constant block (a 16×14 shell): 2px green border on
+  /// white; False shows a green F glyph, True a green-filled inner block with
+  /// the T carved in white. Measured from crc8/fg (F) and WriteConsole (T);
+  /// the value is the decoded [ViHeapObject.constBool]. `#` = green.
+  static const _boolFalseBlock = [
+    '################',
+    '################',
+    '##............##',
+    '##............##',
+    '##....#####...##',
+    '##....##......##',
+    '##....####....##',
+    '##....##......##',
+    '##....##......##',
+    '##....##......##',
+    '##............##',
+    '##............##',
+    '################',
+    '################',
+  ];
+  static const _boolTrueBlock = [
+    '################',
+    '################',
+    '##............##',
+    '##.##########.##',
+    '##.##......##.##',
+    '##.####..####.##',
+    '##.####..####.##',
+    '##.####..####.##',
+    '##.####..####.##',
+    '##.####..####.##',
+    '##.##########.##',
+    '##............##',
+    '################',
+    '################',
+  ];
+
+  /// Draws a boolean constant's 16×14 block pixel-exact from
+  /// [_boolFalseBlock] / [_boolTrueBlock].
+  void _drawBoolConstant(
+    Canvas canvas,
+    Rect box,
+    bool value, {
+    bool disabled = false,
+  }) {
+    Color dim(Color c) => disabled ? bdDimDisabled(c) : c;
+    canvas.drawRect(box, _solidNoAa(dim(Colors.white)));
+    _stampBitmap(
+      canvas,
+      _solidNoAa(dim(style.booleanGreen)),
+      value ? _boolTrueBlock : _boolFalseBlock,
+      box.left,
+      box.top,
+    );
+  }
+
   /// Draws a 16×16 loop count/iteration terminal pixel-exact: cream field,
   /// 2px blue border, and the [glyph] bitmap in blue. Colours route through
   /// the measured disabled-frame transform when [disabled].
@@ -3782,6 +3972,12 @@ class BdDiagramPainter extends CustomPainter {
           t.bmp == _bmpCount ? _forLoopNGlyph : _forLoopIGlyph,
           disabled: disabled,
         );
+        continue;
+      }
+      // The conditional stop terminal at its standard 16×16 box is likewise
+      // pixel-exact chrome ([_stopTerminal]).
+      if (box.width == 16 && box.height == 16 && t.bmp == _bmpConditional) {
+        _drawConditionalTerminal(canvas, box, disabled: disabled);
         continue;
       }
       final border = switch (t.bmp) {
