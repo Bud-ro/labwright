@@ -1175,7 +1175,16 @@ void main() {
           // junction. Every EXPOSED disc pixel must be inked in BOTH images —
           // this catches the off-run cap pixels that only exist because
           // LabVIEW stamps a dot, not merely because two runs cross. A
-          // junction buried under a node exposes nothing and is skipped.
+          // junction buried under a node exposes nothing and is skipped, and
+          // so is a solid-2px wire's junction: its measured shape is the
+          // crossing DIAMOND (byte-exact-pinned on crc8 in
+          // bd_snippet_oracle_test), not this disc.
+          final sigStyle =
+              w.signalType?.renderStyle ?? w.signalType?.renderStyleEstimate;
+          if (sigStyle == ViWireRenderStyle.solid2px ||
+              (sigStyle == null && (w.signalType?.arrayDims ?? 0) >= 1)) {
+            continue;
+          }
           for (final j in tree.junctions) {
             var dotExposed = 0, dotRefInk = 0, dotRasterInk = 0;
             for (var dy = -2; dy <= 2; dy++) {

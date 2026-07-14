@@ -63,10 +63,28 @@ void main() {
         // LUT wire's fork at (512,178), plus the surrounding wire runs.
         ('junction', 506, 172, 13, 13),
         // Slack-headed prim departures resolved by the builtin-terminal
-        // catalog ([bdPrimTerminalOffset]): each box covers the wire's bend
+        // catalog ([bdPrimTerminalOf]): each box covers the wire's bend
         // column and arrival runs beside the head prim.
         ('slack-271', 378, 481, 33, 17),
         ('slack-686', 750, 304, 57, 17),
+        // Straight 2-point stub runs between builtin terminals: the visible
+        // gap between the two nodes' art ink (dotted boolean for 293).
+        ('stub-293', 296, 473, 13, 15),
+        ('stub-1393', 578, 274, 15, 15),
+        ('stub-701', 715, 303, 17, 15),
+        ('stub-704', 686, 303, 11, 15),
+        ('stub-881', 895, 311, 17, 15),
+      ],
+      // The crc siblings' slack wires resolve through the same catalog
+      // entries; each box covers the wire's bends and both arrivals.
+      'crc16.png': [
+        ('slack-271', 372, 484, 34, 11),
+        ('slack-683', 782, 303, 29, 15),
+      ],
+      'crc32.png': [
+        ('slack-2615', 291, 702, 34, 11),
+        ('slack-2396', 736, 523, 29, 15),
+        ('slack-3742', 1000, 517, 29, 25),
       ],
     };
     final pngs = snippetCorpusPngs().where(

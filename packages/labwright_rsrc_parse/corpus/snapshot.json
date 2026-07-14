@@ -473,6 +473,7 @@
       "oa2_ship_wires": 539,
       "oa2_slack_anchor": 54,
       "oa2_slack_anchor_ink": 54,
+      "oa2_slack_head_dco": 54,
       "oa2_slack_q50": 28,
       "oa2_slack_q80": 10,
       "oa2_slack_q95": 4,
@@ -886,16 +887,16 @@
       "shippedWalkedFwd": 69402,
       "shippedWalkedIntoNode": 7035,
       "shippedWalkedRev": 47641,
-      "shippedZeroClose": 631,
+      "shippedZeroClose": 412,
       "tables2ep": 388828,
       "undecoded2ep": 482,
       "undecoded2epHdr1": 479,
       "undecoded2epHdr2": 1,
       "undecoded2epHdr4": 1,
       "undecoded2epHdr8": 1,
-      "zeroCloseSignNeg": 99,
+      "zeroCloseSignNeg": 98,
       "zeroCloseSignNone": 15,
-      "zeroCloseSignPos": 517
+      "zeroCloseSignPos": 299
     },
     "writer": {
       "BDEx.bytes": 90832,
