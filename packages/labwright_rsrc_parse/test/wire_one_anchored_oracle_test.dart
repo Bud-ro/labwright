@@ -142,6 +142,17 @@ Map<String, int> _census(Uint8List png, String path) {
       final a1 = bd.wireAttachPoint(w.endpointOids[1]);
       final oneAnchored = (a0 == null) ^ (a1 == null);
       if (w.routePointsFidelity == WireRouteFidelity.walked) {
+        if (w.routeHeadSlack != null) {
+          // Head-slack tier: the head-side points carry an app-resolved
+          // degree of freedom (pin depth), so raw overlay is measured in its
+          // own bucket — the strict qlo law governs unslacked ships only.
+          // The slack-independent part (the anchor and its closing row/col)
+          // is pinned by the anchor law below.
+          record('oa2_slack', [w.routePoints!]);
+          bump('oa2_slack_anchor');
+          if (onInk(w.routePoints!.last)) bump('oa2_slack_anchor_ink');
+          continue;
+        }
         record('oa2_ship', [w.routePoints!]);
         // ISOLATED into-node census: the novel reinterpretation is shipping the
         // TRUNCATED polyline (last decoded bend inside the node) for a wire
@@ -209,6 +220,13 @@ void main() {
     // fabricated route is silently shipped.
     expect(C['oa2_ship_wires'] ?? 0, greaterThan(0), reason: 'the snippets carry shipped walked polylines');
     expect(C['oa2_ship_qlo'] ?? 0, 0, reason: 'no shipped two-endpoint walk overlays below 50% ink');
+    // Head-slack ships: raw overlay is app-resolved, but the anchored end is
+    // exact and must sit on ink unconditionally.
+    expect(
+      C['oa2_slack_anchor_ink'] ?? 0,
+      C['oa2_slack_anchor'] ?? 0,
+      reason: 'every head-slack ship anchors on reference ink',
+    );
     // Path overlay stays at the proven closed-tier's own snippet level.
     final shipPx = C['oa2_ship_runpx'] ?? 0, shipInk = C['oa2_ship_runink'] ?? 0;
     expect(

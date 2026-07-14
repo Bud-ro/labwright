@@ -1297,6 +1297,7 @@ class ViWire {
     this.routePoints,
     this.routePointsFidelity,
     this.routeClosingStep,
+    this.routeHeadSlack,
     this.branchRoute,
     ViWireRouteTree? routeTree,
     WireRouteFidelity? routeTreeFidelity,
@@ -1518,6 +1519,20 @@ class ViWire {
   /// the parse ships no fabricated terminus at a guessed depth. A consumer that
   /// ignores this step draws the wire short of its node.
   final ViStep? routeClosingStep;
+
+  /// The unit direction along which a **bent reverse walk's head may slide**
+  /// — non-null only when [routePointsFidelity] is
+  /// [WireRouteFidelity.walked], the walk was anchored at its SECOND endpoint,
+  /// and the stored route bends. The head ([routePoints]' first point) is
+  /// pinned at the far plain node's box edge, but the true connection sits at
+  /// the node's pin — an undecoded depth along this axis — and every point
+  /// EXCEPT the final anchor shifts together by that depth (the closing run
+  /// absorbs it). A consumer must translate all but the last point along this
+  /// step until the head meets the node's drawn ink edge on the departure
+  /// row/column (never past the point where the closing run would invert);
+  /// drawing unresolved leaves the perpendicular runs off the drawn wire by
+  /// the pin depth. The parse ships no fabricated pin depth.
+  final ViStep? routeHeadSlack;
 
   /// The wire's decoded type word ([HeapAttribute.lastSignalKind]) — element
   /// type code, array depth, flags — or null for the 14 corpus signals with
@@ -2054,7 +2069,7 @@ WireRouteDirection _reverse(WireRouteDirection d) => switch (d) {
 /// (`wire_one_anchored_oracle`, which pins the shipped-tier overlay and the
 /// worse withheld-walk overlay). Reverse walks WITH bends and coarse anchors
 /// are computed here so the oracle can measure them, but are not shipped.
-({List<ViPoint> points, ViStep? closingStep})? walkOneAnchoredRoute(
+({List<ViPoint> points, ViStep? closingStep, ViStep? headSlack})? walkOneAnchoredRoute(
   ViWireRoute route, {
   required ViPoint anchor,
   required int anchoredIndex,
@@ -2119,7 +2134,7 @@ WireRouteDirection _reverse(WireRouteDirection d) => switch (d) {
             ahead >= farBox.right) {
           return null;
         }
-        return (points: pts, closingStep: (dx: closingSign, dy: 0));
+        return (points: pts, closingStep: (dx: closingSign, dy: 0), headSlack: null);
       }
       terminus = (x: tx, y: tail.y);
     } else {
@@ -2139,12 +2154,12 @@ WireRouteDirection _reverse(WireRouteDirection d) => switch (d) {
             ahead >= farBox.bottom) {
           return null;
         }
-        return (points: pts, closingStep: (dx: 0, dy: closingSign));
+        return (points: pts, closingStep: (dx: 0, dy: closingSign), headSlack: null);
       }
       terminus = (x: tail.x, y: ty);
     }
     if (terminus != tail) pts.add(terminus);
-    return (points: pts, closingStep: null);
+    return (points: pts, closingStep: null, headSlack: null);
   }
 
   // Reverse: the anchored second endpoint pins the perpendicular-to-closing
@@ -2172,7 +2187,19 @@ WireRouteDirection _reverse(WireRouteDirection d) => switch (d) {
     if (tail.x != anchor.x || (anchor.y - tail.y) * closingSign < 0) return null;
   }
   if (anchor != tail) pts.add(anchor);
-  return (points: pts, closingStep: null);
+  // A bent reverse walk pins the head at the far box EDGE, but the true head
+  // sits at the node's pin — an undecoded depth along the departing axis.
+  // Every point except the anchor slides together by that depth (the closing
+  // run absorbs it), so the head-side placement carries one degree of
+  // freedom the consumer must resolve against the node's drawn ink
+  // ([ViWire.routeHeadSlack]). A straight reverse walk has no perpendicular
+  // run to displace, so it ships unmarked as before.
+  final headSlack = route.segmentLengths.isEmpty
+      ? null
+      : closingHorizontal
+      ? (dx: seg0Sign, dy: 0)
+      : (dx: 0, dy: seg0Sign);
+  return (points: pts, closingStep: null, headSlack: headSlack);
 }
 
 /// Whether a `vers` string predates the **frame-relative termBounds
@@ -2281,6 +2308,7 @@ class ViDiagram {
       routePoints: points?.points,
       routePointsFidelity: points?.fidelity,
       routeClosingStep: points?.closingStep,
+      routeHeadSlack: points?.headSlack,
       branchRoute: branchRoute,
       // Lazy: the walk + closure runs only when a consumer reads routeTree.
       routeTreeBuilder: branchRoute == null
@@ -2310,7 +2338,7 @@ class ViDiagram {
   /// ([kRightShiftRegisterClass]) is not withheld — its column offset IS decoded
   /// ([kShiftRegisterColumnLeftOffset]), so the anchor lands on the drawn
   /// column and the bent walk overlays the ink.
-  ({List<ViPoint> points, WireRouteFidelity fidelity, ViStep? closingStep})? _routePointsFor(
+  ({List<ViPoint> points, WireRouteFidelity fidelity, ViStep? closingStep, ViStep? headSlack})? _routePointsFor(
     ViWireRoute route,
     List<int> refs,
     List<ViPoint?> attachPoints,
@@ -2328,14 +2356,13 @@ class ViDiagram {
     ]) {
       final closed = _closedRoutePoints(route, pair.$1, pair.$2);
       if (closed != null) {
-        return (points: closed, fidelity: WireRouteFidelity.closed, closingStep: null);
+        return (points: closed, fidelity: WireRouteFidelity.closed, closingStep: null, headSlack: null);
       }
     }
     final int anchoredIndex;
     if (attachPoints[0] != null && attachPoints[1] == null) {
       anchoredIndex = 0;
     } else if (attachPoints[1] != null && attachPoints[0] == null) {
-      if (route.segmentLengths.isNotEmpty) return null; // reverse + bends: drifts, withheld
       anchoredIndex = 1;
     } else {
       return null;
@@ -2354,7 +2381,12 @@ class ViDiagram {
     );
     return walked == null
         ? null
-        : (points: walked.points, fidelity: WireRouteFidelity.walked, closingStep: walked.closingStep);
+        : (
+            points: walked.points,
+            fidelity: WireRouteFidelity.walked,
+            closingStep: walked.closingStep,
+            headSlack: walked.headSlack,
+          );
   }
 
   /// Whether [oid]'s attach terminal is a **left shift-register**
