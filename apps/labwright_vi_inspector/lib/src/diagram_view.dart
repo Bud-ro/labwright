@@ -989,6 +989,20 @@ bool _isInlinedSubViControl(
     final parent = byId[parentOid];
     if (parent == null) break;
     if (parent.kind == 0x13 || parent.kind == 0x15) {
+      // A `0x13` holder carrying a DECODED constant value is a real diagram
+      // constant, visible caption or not — LabVIEW draws the constant box
+      // with its name beside it (crc8's `bytes` / `8-bits` feeders). Only a
+      // valueless const/struct wrapper marks a spliced subVI control. Gated
+      // to the numeric-int terminals whose box chrome is reference-measured;
+      // a named enum constant (FileReadOnly's `Read Only`) keeps the old
+      // exclusion until its ring chrome is measured (TODO).
+      if (parent.kind == 0x13 &&
+          o.typeKind == ViTypeKind.numericInt &&
+          (parent.constNumeric != null ||
+              parent.constBool != null ||
+              parent.constText != null)) {
+        return false;
+      }
       underConstOrStruct = true;
       break;
     }
@@ -2589,16 +2603,42 @@ class BdDiagramPainter extends CustomPainter {
       }
       switch (object.category) {
         case ViObjectKind.terminal:
+          // A named constant draws its box around the VALUE part only (the
+          // `0x9` child window): LabVIEW places the visible caption beside
+          // the box, inside the same terminal bounds (crc8's `bytes` /
+          // `8-bits` feeders). An unnamed constant's whole bounds ARE the
+          // value box (crc8's oid 3033).
+          var box = rect;
+          if (constValues[object.oid] != null) {
+            final kids =
+                scene.diagram.childrenByOid[object.oid] ??
+                const <ViHeapObject>[];
+            final named = kids.any(
+              (c) =>
+                  c.kind == 0x0a &&
+                  !c.isLabelHidden &&
+                  (c.label?.trim().isNotEmpty ?? false),
+            );
+            if (named) {
+              for (final c in kids) {
+                final b = c.absBounds;
+                if (c.kind == 0x9 && b != null && b.right > b.left) {
+                  box = _toCanvas(b);
+                  break;
+                }
+              }
+            }
+          }
           // A boolean constant's shell draws LabVIEW's exact T/F block — the
           // decoded [ViHeapObject.constBool] picks the bitmap.
           final constHolder = scene.diagram.byId[object.parentOid ?? -1];
           final boolValue = constHolder?.kind == 0x13
               ? constHolder!.constBool
               : null;
-          if (boolValue != null && rect.width == 16 && rect.height == 14) {
+          if (boolValue != null && box.width == 16 && box.height == 14) {
             _drawBoolConstant(
               canvas,
-              rect,
+              box,
               boolValue,
               disabled: disabledOids.contains(object.oid),
             );
@@ -2611,8 +2651,8 @@ class BdDiagramPainter extends CustomPainter {
               object.dataType ?? _dataTypeOfTypeKind(object.typeKind);
           if (artType != null &&
               object.isIndicator != null &&
-              rect.width == 32 &&
-              rect.height == 16) {
+              box.width == 32 &&
+              box.height == 16) {
             final art = bdTerminalArtFor(
               artType,
               indicator: object.isIndicator == true,
@@ -2620,7 +2660,7 @@ class BdDiagramPainter extends CustomPainter {
             if (art != null) {
               _drawTerminalArt(
                 canvas,
-                rect,
+                box,
                 art,
                 disabled: disabledOids.contains(object.oid),
               );
@@ -2655,17 +2695,17 @@ class BdDiagramPainter extends CustomPainter {
           // (its whole 160 px perimeter reads the plain dim-blue border) —
           // and shows its decoded literal centred instead of a type glyph.
           final constValue = constValues[object.oid];
-          canvas.drawRect(rect, Paint()..color = Colors.white);
+          canvas.drawRect(box, Paint()..color = Colors.white);
           canvas.drawRect(
-            rect.deflate(1),
+            box.deflate(1),
             Paint()
               ..color = border
               ..style = PaintingStyle.stroke
               ..strokeWidth = 2.0,
           );
-          if (constValue == null && rect.width > 10 && rect.height > 10) {
+          if (constValue == null && box.width > 10 && box.height > 10) {
             canvas.drawRect(
-              rect.deflate(3.5),
+              box.deflate(3.5),
               Paint()
                 ..color = border
                 ..style = PaintingStyle.stroke
@@ -2680,23 +2720,23 @@ class BdDiagramPainter extends CustomPainter {
           // The plate shading hugs the arrow region only, leaving the 1 px
           // whitespace gap beside the borders — same size both directions.
           if (object.isIndicator != null &&
-              rect.height >= 12 &&
-              rect.width >= 12) {
+              box.height >= 12 &&
+              box.width >= 12) {
             final indicator = object.isIndicator == true;
-            final cy = rect.center.dy;
+            final cy = box.center.dy;
             final double tipX;
             if (indicator) {
               // Wire enters at the left: base on the inner border.
-              tipX = rect.left + 7;
+              tipX = box.left + 7;
             } else {
               // Data leaves at the right: tip touching the outer border.
-              tipX = rect.right - 3;
+              tipX = box.right - 3;
             }
             final shade = Rect.fromLTRB(
-              indicator ? rect.left + 3 : rect.right - 10,
-              rect.top + 4,
-              indicator ? rect.left + 10 : rect.right - 3,
-              rect.bottom - 4,
+              indicator ? box.left + 3 : box.right - 10,
+              box.top + 4,
+              indicator ? box.left + 10 : box.right - 3,
+              box.bottom - 4,
             );
             canvas.drawRect(
               shade,
@@ -2720,7 +2760,7 @@ class BdDiagramPainter extends CustomPainter {
           // LabVIEW shows the value (crc8's oid 3033 renders `256`); inked
           // black through the disabled transform (the reference's disabled
           // digits read as the (153,153,153) dim of black).
-          if (constValue != null && rect.width >= 12 && rect.height >= 12) {
+          if (constValue != null && box.width >= 12 && box.height >= 12) {
             final tp = TextPainter(
               text: TextSpan(
                 text: constValue,
@@ -2733,8 +2773,8 @@ class BdDiagramPainter extends CustomPainter {
               maxLines: 1,
               ellipsis: '…',
               textDirection: TextDirection.ltr,
-            )..layout(maxWidth: math.max(8, rect.width - 6));
-            tp.paint(canvas, rect.center - Offset(tp.width / 2, tp.height / 2));
+            )..layout(maxWidth: math.max(8, box.width - 6));
+            tp.paint(canvas, box.center - Offset(tp.width / 2, tp.height / 2));
           }
           // The resolved data type's short label (DBL / I32 / TF / abc),
           // as LabVIEW stamps on the terminal — sized to sit inside the
@@ -2744,8 +2784,8 @@ class BdDiagramPainter extends CustomPainter {
               ? null
               : dataTypeGlyph(object.dataType!);
           if (glyph != null &&
-              rect.width >= 6.0 * glyph.length + 10 &&
-              rect.height >= 13) {
+              box.width >= 6.0 * glyph.length + 10 &&
+              box.height >= 13) {
             final tp = TextPainter(
               text: TextSpan(
                 text: glyph,
@@ -2758,7 +2798,7 @@ class BdDiagramPainter extends CustomPainter {
               ),
               textDirection: TextDirection.ltr,
             )..layout();
-            tp.paint(canvas, rect.center - Offset(tp.width / 2, tp.height / 2));
+            tp.paint(canvas, box.center - Offset(tp.width / 2, tp.height / 2));
           }
         case ViObjectKind.node:
           // LabVIEW node icon plate: a verified primitive icon (the bundled

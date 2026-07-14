@@ -84,6 +84,17 @@ void main() {
         // t+16 at every prim abutment (straight-stub tier + the chain's
         // terminal-catalog entries).
         ('disable-seams', 246, 222, 159, 5),
+        // Named numeric constants (`bytes` / `8-bits`, the loop-N feeders):
+        // the 2 px blue value box draws at the 0x9 part bounds; the border
+        // strips are pinned (the interior digit text is AA text).
+        ('bytes-box-top', 125, 374, 25, 2),
+        ('bytes-box-bottom', 125, 391, 25, 2),
+        ('bytes-box-left', 125, 374, 2, 19),
+        ('bytes-box-right', 147, 374, 2, 19),
+        ('8bits-box-top', 242, 432, 13, 2),
+        ('8bits-box-bottom', 242, 449, 13, 2),
+        ('8bits-box-left', 242, 432, 2, 19),
+        ('8bits-box-right', 253, 432, 2, 19),
       ],
       // The crc siblings' slack wires resolve through the same catalog
       // entries; each box covers the wire's bends and both arrivals.
