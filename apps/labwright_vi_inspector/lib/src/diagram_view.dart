@@ -524,7 +524,9 @@ Color labviewTypeColor(ViTypeKind kind) => switch (kind) {
   ViTypeKind.enumRing => const Color(0xFF0000FF),
   ViTypeKind.string => const Color(0xFFFF00FF),
   ViTypeKind.boolean => const Color(0xFF006600),
-  ViTypeKind.path => const Color(0xFF669900),
+  // Path teal sampled from Excel_Read_XLSX's path-constant borders
+  // ((0,102,102) across both constants' 2px rings).
+  ViTypeKind.path => const Color(0xFF006666),
   ViTypeKind.clnNode => const Color(0xFFE8C547),
   // Cluster/array/refnum borders are not yet colour-sampled from a
   // reference; they keep the neutral grey rather than a guessed hue.
@@ -2872,7 +2874,12 @@ class BdDiagramPainter extends CustomPainter {
               ..style = PaintingStyle.stroke
               ..strokeWidth = 2.0,
           );
-          if (constValue == null && box.width > 10 && box.height > 10) {
+          // Any constant skips the inner ring — including one whose VALUE
+          // is not decoded (a `0x13` holder marks it): Excel_Read_XLSX's
+          // path constants read the plain 2px border in the reference,
+          // same as crc8's decoded oid 3033.
+          final isConstant = constValue != null || shellParent?.kind == 0x13;
+          if (!isConstant && box.width > 10 && box.height > 10) {
             canvas.drawRect(
               box.deflate(3.5),
               Paint()

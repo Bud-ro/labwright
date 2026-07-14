@@ -148,6 +148,11 @@ void main() {
         ('growable-left', 1397, 920, 1, 20),
         ('growable-right', 1516, 920, 1, 20),
         ('growable-field', 1404, 912, 40, 3),
+        // Path constants (0x5b under a 0x13 holder): plain 2px border, no
+        // inner ring; strips skirt the colored value text.
+        ('path-const-top', 770, 934, 40, 3),
+        ('path-const-bottom', 770, 949, 40, 4),
+        ('path-const2-top', 770, 968, 40, 3),
       ],
     };
     final pngs = snippetCorpusPngs().where(
