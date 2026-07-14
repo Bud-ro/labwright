@@ -1600,13 +1600,11 @@ enum WireRouteDirection {
 
   /// The catalog entry for a stored direction byte, or null for any other
   /// value (the `0x00` extended-form opener included).
-  static WireRouteDirection? fromCode(int code) => switch (code) {
-    0x01 => up,
-    0x02 => left,
-    0x04 => down,
-    0x08 => right,
-    _ => null,
+  static final Map<int, WireRouteDirection> _byCode = {
+    for (final value in values) value.code: value,
   };
+
+  static WireRouteDirection? fromCode(int code) => _byCode[code];
 }
 
 /// The decoded shape of a signal's stored wire route (its `0x1e7` packed
@@ -1678,6 +1676,24 @@ class ViWireRoute {
   final List<int> jointSigns;
 }
 
+/// Decodes a route table's length tail from [start]: one byte per segment,
+/// with `FF` escaping a big-endian u16 in the next two bytes. Null on a
+/// truncated escape.
+List<int>? _decodeLengthTail(Uint8List table, int start) {
+  var i = start;
+  final lengths = <int>[];
+  while (i < table.length) {
+    var value = table[i++];
+    if (value == 0xff) {
+      if (i + 1 >= table.length) return null;
+      value = (table[i] << 8) | table[i + 1];
+      i += 2;
+    }
+    lengths.add(value);
+  }
+  return lengths;
+}
+
 /// Decodes a signal's packed `0x1e7` wire-table bytes into a [ViWireRoute].
 ///
 /// Layout (corpus-validated, census pinned by `wire_route_census_test`):
@@ -1716,16 +1732,8 @@ ViWireRoute? decodeWireRoute(Uint8List table) {
     if (m != 0 && m != 1) return null;
     signs.add(m == 0 ? 1 : -1);
   }
-  final lengths = <int>[];
-  while (i < table.length) {
-    var v = table[i++];
-    if (v == 0xff) {
-      if (i + 1 >= table.length) return null;
-      v = (table[i] << 8) | table[i + 1];
-      i += 2;
-    }
-    lengths.add(v);
-  }
+  final lengths = _decodeLengthTail(table, i);
+  if (lengths == null) return null;
   if (lengths.length != n - 2) return null;
   return ViWireRoute(pointCount: n, direction: direction, segmentLengths: lengths, jointSigns: signs);
 }
@@ -1783,13 +1791,11 @@ enum WireRouteJunction {
 
   /// The catalog entry for a stored junction byte, or null for any other
   /// value.
-  static WireRouteJunction? fromCode(int code) => switch (code) {
-    0x04 => cross,
-    0x05 => downRight,
-    0x06 => upRight,
-    0x07 => upDown,
-    _ => null,
+  static final Map<int, WireRouteJunction> _byCode = {
+    for (final value in values) value.code: value,
   };
+
+  static WireRouteJunction? fromCode(int code) => _byCode[code];
 }
 
 /// The decoded shape of a signal's **extended (branching) wire table** —
@@ -1888,18 +1894,8 @@ ViWireBranchRoute? decodeWireBranchRoute(Uint8List table) {
     pending += junction.outgoing.length - 1;
   }
   if (pending != 0) return null;
-  var i = 1 + n;
-  final lengths = <int>[];
-  while (i < table.length) {
-    var v = table[i++];
-    if (v == 0xff) {
-      if (i + 1 >= table.length) return null;
-      v = (table[i] << 8) | table[i + 1];
-      i += 2;
-    }
-    lengths.add(v);
-  }
-  if (lengths.length != n - 1) return null;
+  final lengths = _decodeLengthTail(table, 1 + n);
+  if (lengths == null || lengths.length != n - 1) return null;
   return ViWireBranchRoute._(pointCount: n, modes: modes, segmentLengths: lengths);
 }
 
@@ -2228,7 +2224,7 @@ class ViDiagram {
   Iterable<ViHeapObject> get roots => objects.where((o) => o.parentOid == null);
 
   /// The direct children of the object with [oid] in the nesting tree.
-  Iterable<ViHeapObject> children(int oid) => objects.where((o) => o.parentOid == oid);
+  Iterable<ViHeapObject> children(int oid) => childrenByOid[oid] ?? const <ViHeapObject>[];
 
   /// The bounded objects (have an absolute rectangle) — the drawable layout layer.
   Iterable<ViHeapObject> get nodes => objects.where((o) => o.absBounds != null);
@@ -2443,9 +2439,9 @@ class ViDiagram {
     return terminalOid == null || terminalOid == _ambiguousTerminal ? null : byId[terminalOid];
   }
 
-  /// Direct children by parent oid — the positional child lists the constant
-  /// and DCO resolvers below walk. Built once on first access.
-  late final Map<int, List<ViHeapObject>> _childrenByOid = _childrenByParentOid(objects);
+  /// Direct children by parent oid — the positional child lists behind
+  /// [children] and the constant/DCO resolvers. Built once on first access.
+  late final Map<int, List<ViHeapObject>> childrenByOid = _childrenByParentOid(objects);
 
   /// Terminal oid → the oid of the endpoint **DCO it carries** (the inverse of
   /// [_terminalOidByMemberOid], with the added `14 4f` dcoRef backlink gate),
@@ -2535,7 +2531,7 @@ class ViDiagram {
     // The 0x16 bdLeaf endpoints are bounded leaves themselves and never wrap
     // a constant; only the bounds-less node-endpoint form does.
     if (endpoint == null || endpoint.kind != kNodeEndpointDcoKind) return null;
-    for (final child in _childrenByOid[oid] ?? const <ViHeapObject>[]) {
+    for (final child in childrenByOid[oid] ?? const <ViHeapObject>[]) {
       if (child.kind == HeapObjectClass.bdConstDco.code) return child;
     }
     return null;
@@ -2565,7 +2561,7 @@ class ViDiagram {
     if (_predatesFrameRelativeTermBounds(version)) return null;
     final constant = endpointConstant(oid);
     if (constant == null) return null;
-    for (final child in _childrenByOid[constant.oid] ?? const <ViHeapObject>[]) {
+    for (final child in childrenByOid[constant.oid] ?? const <ViHeapObject>[]) {
       if (child.absBounds != null) return child.absBounds;
     }
     return null;
@@ -2714,14 +2710,8 @@ class ViDiagram {
   /// itself if bounded, else the nearest positional ancestor with bounds — or
   /// null if none (and if [oid] does not resolve). Guards a repeated-oid cycle.
   HeapRect? _boundedOwnerBounds(int oid) {
-    var object = byId[oid];
-    final seen = <int>{};
-    while (object != null && seen.add(object.oid)) {
-      if (object.absBounds != null) return object.absBounds;
-      final parentOid = object.parentOid;
-      object = parentOid == null ? null : byId[parentOid];
-    }
-    return null;
+    final start = byId[oid];
+    return start == null ? null : _boundedOwnerObject(start)?.absBounds;
   }
 
   /// [start]'s nearest bounded owner OBJECT — [start] itself if bounded, else
@@ -2855,14 +2845,9 @@ Object? decodeBdConstantValue({required int? innerKind, required HeapAttr record
         return v;
       }
       if (carrier != HeapObjectClass.numericControl || raw == null) return null;
-      var allZero = true;
-      for (final b in raw) {
-        if (b != 0) {
-          allZero = false;
-          break;
-        }
+      if (_zeroPayloadLengths.contains(raw.length) && raw.every((byte) => byte == 0)) {
+        return 0;
       }
-      if (allZero && _zeroPayloadLengths.contains(raw.length)) return 0;
       if (raw.length == 8) {
         // An all-zero 8-byte payload lands here as +0.0.
         final d = ByteData.sublistView(raw).getFloat64(0);
@@ -3384,9 +3369,9 @@ void resolveDataSpaceTypes({
   ViHeapObject? findDco(ViDiagram own, int oid) {
     final local = own.byId[oid];
     if (local != null) return local;
-    for (final d in diagrams) {
-      if (identical(d, own)) continue;
-      final hit = d.byId[oid];
+    for (final diagram in diagrams) {
+      if (identical(diagram, own)) continue;
+      final hit = diagram.byId[oid];
       if (hit != null) return hit;
     }
     return null;
@@ -3397,19 +3382,19 @@ void resolveDataSpaceTypes({
   // terminal inherits it through its dcoRef (same-heap match first — the
   // corpus splits targets ~90/10 across heaps and oids repeat between
   // heaps).
-  for (final d in diagrams) {
-    for (final o in d.objects) {
-      if (o.kind == 0x12 && o.typeDescIdx != null) {
-        o.isIndicator = ((o.objFlags ?? 0) & 1) != 0;
+  for (final diagram in diagrams) {
+    for (final object in diagram.objects) {
+      if (object.kind == 0x12 && object.typeDescIdx != null) {
+        object.isIndicator = ((object.objFlags ?? 0) & 1) != 0;
       }
     }
   }
-  for (final d in diagrams) {
-    for (final o in d.objects) {
-      if (o.isIndicator != null) continue;
-      final dcoRefs = o.typedRefs[HeapRefKind.dcoRef];
+  for (final diagram in diagrams) {
+    for (final object in diagram.objects) {
+      if (object.isIndicator != null) continue;
+      final dcoRefs = object.typedRefs[HeapRefKind.dcoRef];
       if (dcoRefs == null || dcoRefs.isEmpty) continue;
-      o.isIndicator = findDco(d, dcoRefs.first)?.isIndicator;
+      object.isIndicator = findDco(diagram, dcoRefs.first)?.isIndicator;
     }
   }
 
@@ -3423,9 +3408,9 @@ void resolveDataSpaceTypes({
   }
 
   final anchors = <(int, int)>[
-    for (final d in blockDiagrams)
-      for (final o in d.objects)
-        if (o.typeDescIdx != null && _typeAnchors.containsKey(o.kind)) (o.kind, o.typeDescIdx!),
+    for (final diagram in blockDiagrams)
+      for (final object in diagram.objects)
+        if (object.typeDescIdx != null && _typeAnchors.containsKey(object.kind)) (object.kind, object.typeDescIdx!),
   ];
   if (anchors.length < 2) return;
   int? base;
@@ -3443,34 +3428,34 @@ void resolveDataSpaceTypes({
   }
   if (base == null || bestHits < anchors.length * 0.9) return;
 
-  for (final d in diagrams) {
-    for (final o in d.objects) {
-      final index = o.typeDescIdx;
+  for (final diagram in diagrams) {
+    for (final object in diagram.objects) {
+      final index = object.typeDescIdx;
       if (index == null) continue;
       final type = resolve(base, index);
       if (type == null) continue;
       final kind = _typeKindOf(type.kind);
-      if (kind != null) o.typeKind = kind;
-      o.dataType = type.kind;
-      o.resolvedType = type;
+      if (kind != null) object.typeKind = kind;
+      object.dataType = type.kind;
+      object.resolvedType = type;
       if (type.name != null && type.name!.trim().isNotEmpty) {
-        o.typeName ??= type.name!.trim();
+        object.typeName ??= type.name!.trim();
       }
     }
   }
   // A BD terminal inherits its paired DCO's resolved type: same-heap match
   // first, then the sibling heaps in diagram order.
-  for (final d in diagrams) {
-    for (final o in d.objects) {
-      if (o.typeDescIdx != null) continue;
-      final dcoRefs = o.typedRefs[HeapRefKind.dcoRef];
+  for (final diagram in diagrams) {
+    for (final object in diagram.objects) {
+      if (object.typeDescIdx != null) continue;
+      final dcoRefs = object.typedRefs[HeapRefKind.dcoRef];
       if (dcoRefs == null || dcoRefs.isEmpty) continue;
-      final dco = findDco(d, dcoRefs.first);
+      final dco = findDco(diagram, dcoRefs.first);
       if (dco == null) continue;
-      if (dco.typeKind != ViTypeKind.unknown) o.typeKind = dco.typeKind;
-      o.dataType ??= dco.dataType;
-      o.resolvedType ??= dco.resolvedType;
-      o.typeName ??= dco.typeName;
+      if (dco.typeKind != ViTypeKind.unknown) object.typeKind = dco.typeKind;
+      object.dataType ??= dco.dataType;
+      object.resolvedType ??= dco.resolvedType;
+      object.typeName ??= dco.typeName;
     }
   }
 }
