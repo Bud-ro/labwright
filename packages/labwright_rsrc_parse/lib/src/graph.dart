@@ -2259,9 +2259,10 @@ class ViDiagram {
     // candidate the closure-arbitrated gates may swap in.
     final altAttachPoints = [
       for (var i = 0; i < object.refs.length; i++)
-        attachPoints[i] == null
-            ? null
-            : _attachPointFrom(endpointConstantElementBounds(object.refs[i]), object.refs[i]),
+        switch (endpointConstantElementBounds(object.refs[i])) {
+          null => null,
+          final elem => attachPoints[i] == null ? null : _attachPointFrom(elem, object.refs[i]),
+        },
     ];
     // A constant endpoint anchors on its own value shell (the box LabVIEW
     // draws); every other endpoint on its nearest bounded owner.
@@ -2592,15 +2593,28 @@ class ViDiagram {
   /// off-centre (the element region, not the shell) and is not yet decoded;
   /// those routes stay unshipped rather than force-closed. TODO: decode the
   /// composite-shell attach offset.
+  HeapRect? endpointConstantBounds(int oid) {
+    if (_predatesFrameRelativeTermBounds(version)) return null;
+    final constant = endpointConstant(oid);
+    if (constant == null) return null;
+    for (final child in childrenByOid[constant.oid] ?? const <ViHeapObject>[]) {
+      if (child.absBounds != null) return child.absBounds;
+    }
+    return null;
+  }
+
   /// The **element box** of an ARRAY-shell (`0x52`) constant endpoint — the
-  /// rightmost bounded `0x50` child (the leftmost `0x50` is the index box) —
-  /// or null for every other endpoint. An array constant's stored route
-  /// anchors at either the shell's centre or this element's centre; the two
-  /// conventions coexist in the corpus, so the route closure arbitrates
-  /// ([_routePointsFor] / [_shippableRouteTree] try the shell first and fall
-  /// back to this rect, shipping only a zero-slack closure). Proven on crc8's
-  /// LUT branch wire, whose route walked from this box's floored centre
-  /// closes exactly on BOTH far tunnel attach rects.
+  /// rightmost bounded child that is not scaffolding (resize handles `0x9`,
+  /// the label `0xa`): the `0x50` index displays sit on the LEFT and the
+  /// value element (a `0x50` numeric, `0x4f` enum, a string box, …) sits
+  /// right of them — or null for every other endpoint. An array constant's
+  /// stored route anchors at either the shell's centre or this element's
+  /// centre; the two conventions coexist in the corpus (1,408 shell / 119
+  /// element closures), so the route closure arbitrates ([_routePointsFor] /
+  /// [_shippableRouteTree] try the shell first and fall back to this rect,
+  /// shipping only a zero-slack closure). Proven on crc8's LUT branch wire,
+  /// whose route walked from this box's floored centre closes exactly on
+  /// BOTH far tunnel attach rects.
   HeapRect? endpointConstantElementBounds(int oid) {
     if (_predatesFrameRelativeTermBounds(version)) return null;
     final constant = endpointConstant(oid);
@@ -2611,21 +2625,12 @@ class ViDiagram {
       HeapRect? element;
       for (final kid in childrenByOid[child.oid] ?? const <ViHeapObject>[]) {
         final kidBounds = kid.absBounds;
-        if (kid.kind == 0x50 && kidBounds != null && (element == null || kidBounds.left > element.left)) {
+        if (kid.kind == 0x9 || kid.kind == 0xa || kidBounds == null) continue;
+        if (element == null || kidBounds.left > element.left) {
           element = kidBounds;
         }
       }
       return element;
-    }
-    return null;
-  }
-
-  HeapRect? endpointConstantBounds(int oid) {
-    if (_predatesFrameRelativeTermBounds(version)) return null;
-    final constant = endpointConstant(oid);
-    if (constant == null) return null;
-    for (final child in childrenByOid[constant.oid] ?? const <ViHeapObject>[]) {
-      if (child.absBounds != null) return child.absBounds;
     }
     return null;
   }
