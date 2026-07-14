@@ -160,6 +160,14 @@ void main() {
         ('seq-tunnel-cb-str', 1248, 890, 9, 9),
         ('seq-tunnel-cb-int', 1248, 1041, 9, 9),
         ('seq-tunnel-cb-err', 1248, 1125, 9, 9),
+        // Growable-node internals (white flavour): row dividers at the 0x62
+        // strip boundaries and the right terminal cells (black separator
+        // columns + cream fills); the yellow flavour's ring + field.
+        ('growable-div-1', 1398, 916, 60, 1),
+        ('growable-div-2', 1398, 933, 60, 1),
+        ('growable-div-3', 1398, 950, 60, 1),
+        ('growable-cells', 1500, 903, 17, 10),
+        ('growable-yellow-left', 423, 888, 2, 12),
       ],
     };
     final pngs = snippetCorpusPngs().where(

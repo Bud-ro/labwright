@@ -3015,20 +3015,99 @@ class BdDiagramPainter extends CustomPainter {
             );
             continue;
           }
-          // A growable node (0x63) draws a white field ringed by a 1px
-          // (68,68,68) border — no plate, no bevel (reference-measured on
-          // Excel_Read_XLSX oid 3233: ring rows/cols 0x444444, interior
-          // white; the row dividers, right terminal cells and row text are
-          // child content, not plate chrome — TODO measure via row DCOs).
+          // A growable node (0x63) comes in two reference-measured flavours,
+          // discriminated by objFlags bit 0x10000 (Excel_Read_XLSX's two
+          // visible grown nodes — 3233 clear, 4547 set — are the only
+          // corpus-verified samples so far; TODO widen the census):
+          // - bit clear: white field in a 1px (68,68,68) ring, 1px black
+          //   dividers at the row boundaries (the `0x62` terminal strips
+          //   under the node's `0x15` DCOs, node-local geometry), and — when
+          //   a full-height terminal column sits right of the rows — black
+          //   separator columns at the rows' right edge and the column's
+          //   left edge with (255,255,204) cells between/inside them.
+          // - bit set: (255,255,204) field in a 1px black ring (row text is
+          //   content, not chrome).
           if (object.kind == 0x63) {
+            final yellowField = ((object.objFlags ?? 0) & 0x10000) != 0;
             canvas.drawRect(
               rect,
-              Paint()..color = _dimFor(object.oid, const Color(0xFF444444)),
+              Paint()
+                ..color = _dimFor(
+                  object.oid,
+                  yellowField ? Colors.black : const Color(0xFF444444),
+                ),
             );
             canvas.drawRect(
               rect.deflate(1),
-              Paint()..color = _dimFor(object.oid, Colors.white),
+              Paint()
+                ..color = _dimFor(
+                  object.oid,
+                  yellowField ? const Color(0xFFFFFFCC) : Colors.white,
+                ),
             );
+            if (!yellowField) {
+              // Node-local 0x62 terminal strips: rows (partial width) and
+              // full-height terminal columns.
+              final rows = <HeapRect>[];
+              final columns = <HeapRect>[];
+              final nodeH = object.absBounds!.bottom - object.absBounds!.top;
+              for (final dco in scene.diagram.children(object.oid)) {
+                if (dco.kind != 0x15) continue;
+                for (final t in scene.diagram.children(dco.oid)) {
+                  final tb = t.termBounds;
+                  if (t.kind != 0x62 || tb == null) continue;
+                  (tb.height >= nodeH ? columns : rows).add(tb);
+                }
+              }
+              final black = Paint()
+                ..color = _dimFor(object.oid, Colors.black)
+                ..isAntiAlias = false;
+              final cream = Paint()
+                ..color = _dimFor(object.oid, const Color(0xFFFFFFCC))
+                ..isAntiAlias = false;
+              if (rows.isNotEmpty) {
+                rows.sort((a, b) => a.top.compareTo(b.top));
+                final rowsRight = rows.first.right;
+                // Interior dividers at shared row boundaries.
+                for (var i = 0; i + 1 < rows.length; i++) {
+                  if (rows[i].bottom != rows[i + 1].top) continue;
+                  canvas.drawRect(
+                    Rect.fromLTWH(
+                      rect.left + rows[i].left + 1,
+                      rect.top + rows[i].bottom,
+                      (rowsRight - rows[i].left - 2).toDouble(),
+                      1,
+                    ),
+                    black,
+                  );
+                }
+                // A right-side terminal column: separator columns at the
+                // rows' right edge and the column's left edge, cream cells
+                // between them and inside the column (to its right-2).
+                for (final col in columns) {
+                  if (col.left < rowsRight) continue;
+                  final top = rect.top + 1;
+                  final h = rect.height - 2;
+                  canvas.drawRect(
+                    Rect.fromLTRB(
+                      rect.left + rowsRight,
+                      top,
+                      rect.left + col.right - 1,
+                      top + h,
+                    ),
+                    cream,
+                  );
+                  canvas.drawRect(
+                    Rect.fromLTWH(rect.left + rowsRight - 1, top, 1, h),
+                    black,
+                  );
+                  canvas.drawRect(
+                    Rect.fromLTWH(rect.left + col.left - 1, top, 1, h),
+                    black,
+                  );
+                }
+              }
+            }
             continue;
           }
           final icon = subViIcons[object.oid];
