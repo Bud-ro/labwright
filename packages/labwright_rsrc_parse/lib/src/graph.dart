@@ -3198,6 +3198,48 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
     );
   }
 
+  // A flat sequence's `0x121` frames compose against the `0xca`'s own final
+  // origin regardless of record order. The 0xca's bounds record serialises
+  // AFTER its frame children open, so the walk-time accumulator composed the
+  // whole strip's content against the strip's PARENT frame (Excel_Read_XLSX:
+  // every strip child lands 491px left / 106px up of its reference ink;
+  // shifted, 24 of 26 boxed children sit at 96-100% perimeter-on-ink, the
+  // other two are text labels). Constants and other late-bounds carriers
+  // keep the order-scoped composition — recomposing them against final
+  // origins regresses the wire-closure censuses — so this pass is scoped to
+  // 0xca→0x121 subtrees.
+  final childrenOf = <ViHeapObject, List<ViHeapObject>>{};
+  for (final object in objects) {
+    final parent = liveParent[object];
+    if (parent != null) (childrenOf[parent] ??= []).add(object);
+  }
+  void shiftSubtree(ViHeapObject root, int dTop, int dLeft) {
+    final b = root.absBounds;
+    if (b != null) {
+      root.absBounds = HeapRect(
+        top: b.top + dTop,
+        left: b.left + dLeft,
+        bottom: b.bottom + dTop,
+        right: b.right + dLeft,
+      );
+    }
+    for (final child in childrenOf[root] ?? const <ViHeapObject>[]) {
+      shiftSubtree(child, dTop, dLeft);
+    }
+  }
+
+  for (final object in objects) {
+    if (object.kind != 0xca || object.absBounds == null) continue;
+    for (final frame in childrenOf[object] ?? const <ViHeapObject>[]) {
+      final local = frame.bounds;
+      final abs = frame.absBounds;
+      if (frame.kind != 0x121 || local == null || abs == null) continue;
+      final dTop = object.absBounds!.top + local.top - abs.top;
+      final dLeft = object.absBounds!.left + local.left - abs.left;
+      if (dTop != 0 || dLeft != 0) shiftSubtree(frame, dTop, dLeft);
+    }
+  }
+
   for (final object in objects) {
     object.category = classifyObject(kind: object.kind, termCount: object.termCount);
     object.typeKind = inferTypeKind(c4ops[object] ?? const <int>{}, formatPayloads[object]);
