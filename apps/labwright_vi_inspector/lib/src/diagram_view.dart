@@ -3873,6 +3873,22 @@ class BdDiagramPainter extends CustomPainter {
             hi + 1.0,
           );
     switch (style) {
+      case ViWireRenderStyle.braid when horizontal:
+        // The error-cluster wire, measured on Excel_Read_XLSX: solid
+        // dark-yellow (102,102,0) rows either side of the route row, whose
+        // own ink alternates 2 px yellow (255,255,0) / 2 px black on the
+        // absolute column-pair parity (an even x~/2 pair is yellow). The
+        // braid draws its OWN palette — the signal's cluster grey never
+        // shows. (Disabled-frame dimming unmeasured for braid: no corpus
+        // reference shows one.)
+        final olive = _solidNoAa(const Color(0xFF666600));
+        final yellow = _solidNoAa(const Color(0xFFFFFF00));
+        final black = _solidNoAa(Colors.black);
+        canvas.drawRect(span(-1, -1), olive);
+        canvas.drawRect(span(1, 1), olive);
+        for (var v = lo; v <= hi; v++) {
+          canvas.drawRect(px(v, cross), (v ~/ 2).isEven ? yellow : black);
+        }
       case ViWireRenderStyle.solid1px:
         canvas.drawRect(span(0, 0), fill);
       case ViWireRenderStyle.solid2px:

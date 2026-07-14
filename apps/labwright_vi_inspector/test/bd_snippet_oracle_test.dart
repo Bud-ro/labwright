@@ -129,6 +129,11 @@ void main() {
         ('filmstrip-left', 870, 950, 6, 23),
         ('filmstrip-right', 1334, 966, 6, 8),
         ('filmstrip-divider', 1249, 950, 7, 24),
+        // An XNode facade drawn verbatim from its DSIM image, including the
+        // braid (error-cluster) wire crossing under it.
+        ('xnode-facade', 636, 1068, 46, 30),
+        // The braid wire's measured three-colour band on a clean stretch.
+        ('braid', 500, 1069, 40, 5),
       ],
     };
     final pngs = snippetCorpusPngs().where(
@@ -149,6 +154,7 @@ void main() {
         final raster = (await rasteriseBlockDiagram(
           bd,
           primIcons: icons,
+          xnodeFacades: await loadXnodeFacades(extractSnippetVi(bytes)!, bd),
           scale: 1.0,
           margin: 2,
           scene: scene,
