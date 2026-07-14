@@ -628,21 +628,41 @@ const kBdHatchBand = 5;
 /// phases for the two lattices), so it takes its own derived offset.
 const kBdErrorHatch = ['#...', '...#', '..#.', '.#..'];
 
-/// The structure-chrome colours LabVIEW resolves from the CAPTURE
-/// ENVIRONMENT's palette, not from the .vi: the while-loop band / error-stripe
-/// grey and the error case's green field. Measured to vary per capture with
-/// the LabVIEW version held fixed (three 19.0 captures: greys 119/127/119,
-/// greens 153/178/153), so — like [GlobalHatchOffset] — the viewer draws the
-/// common defaults ([kBdDefaultChromePalette]) and the oracle derives each
-/// reference's palette (`deriveChromePalette`) to compare 1:1.
-typedef BdChromePalette = ({Color bandGrey, Color errorGreen});
+/// The block-diagram render style: every user-tunable / capture-varying piece
+/// of the structure chrome in one object, so the painter and rasteriser take a
+/// single parameter instead of one per knob.
+///
+/// The colours are the values LabVIEW resolves from the CAPTURE ENVIRONMENT's
+/// system palette, not from the .vi: same-version captures measure different
+/// values (greys 119/127/119, greens 153/178/153 across three 19.0 captures).
+/// The defaults are the corpus-dominant readings; a capture from another
+/// environment may sit a few shades off, which is the reference's variance,
+/// not a render error. The hatch offsets are likewise per-capture (brush
+/// phases; see [GlobalHatchOffset]) — the oracle derives those because a
+/// mis-phased lattice reads as structural noise, while an 8-shade band delta
+/// does not.
+class BdRenderStyle {
+  const BdRenderStyle({
+    this.whileBandGrey = const Color(0xFF777777),
+    this.errorCaseGreen = const Color(0xFF99FF99),
+    this.hatchOffset = kNoHatchOffset,
+    this.errorHatchOffset = kNoHatchOffset,
+  });
 
-/// The dominant capture palette: band/stripe grey (119,119,119), error-case
-/// green (153,255,153).
-const BdChromePalette kBdDefaultChromePalette = (
-  bandGrey: Color(0xFF777777),
-  errorGreen: Color(0xFF99FF99),
-);
+  /// The while-loop band and error-stripe grey — corpus-dominant (119,119,119).
+  /// (Some captures render LabVIEW's stored default 0x7F7F7F literally.)
+  final Color whileBandGrey;
+
+  /// The error case's green band field — corpus-dominant (153,255,153).
+  final Color errorCaseGreen;
+
+  /// Phase of the black case-hatch lattice ([kBdStructureHatch]).
+  final GlobalHatchOffset hatchOffset;
+
+  /// Phase of the error-stripe lattice ([kBdErrorHatch]) — independent of
+  /// [hatchOffset] within one capture.
+  final GlobalHatchOffset errorHatchOffset;
+}
 
 /// The uniform grey a disabled frame renders dark NEUTRAL chrome in — the
 /// same (170,170,170) line-work grey as the disabled icon palette
@@ -2117,10 +2137,8 @@ class BdDiagramPainter extends CustomPainter {
     this.iconFilterQuality = FilterQuality.none,
     this.canvasScale = 1,
     this.drawDotGrid = true,
-    this.globalHatchOffset = kNoHatchOffset,
-    this.errorHatchOffset = kNoHatchOffset,
     this.errorCaseOids = const {},
-    this.chromePalette = kBdDefaultChromePalette,
+    this.style = const BdRenderStyle(),
   });
 
   final List<ViHeapObject> objects;
@@ -2165,26 +2183,13 @@ class BdDiagramPainter extends CustomPainter {
   /// and centres the value text.
   final Map<int, String> constValues;
 
-  /// Phase of the structure-hatch lattice ([kBdStructureHatch]) relative to
-  /// absolute diagram coordinates. LabVIEW anchors the lattice to its
-  /// device/window brush origin at render time — a value that is NOT stored in
-  /// the .vi and differs per capture — so the viewer draws at the neutral
-  /// [kNoHatchOffset] and the oracle derives a per-reference offset
-  /// (`deriveGlobalHatchOffset`) to compare snapshots 1:1.
-  final GlobalHatchOffset globalHatchOffset;
-
-  /// Phase of the error-case stripe lattice ([kBdErrorHatch]) — a separate
-  /// per-capture value from [globalHatchOffset] (the two lattices measure
-  /// different phases within one capture).
-  final GlobalHatchOffset errorHatchOffset;
-
   /// Case structures displaying their "No Error" frame ([bdErrorCaseOids]) —
   /// their band draws the green error style instead of the black hatch.
   final Set<int> errorCaseOids;
 
-  /// The capture-environment chrome colours (while band / error stripes /
-  /// error field). See [BdChromePalette].
-  final BdChromePalette chromePalette;
+  /// The structure-chrome style: band/field colours and per-capture hatch
+  /// phases. See [BdRenderStyle].
+  final BdRenderStyle style;
 
   /// [color] through the measured disabled-frame palette transform when the
   /// object [oid] sits under a disabled displayed frame ([disabledOids]),
@@ -3546,7 +3551,7 @@ class BdDiagramPainter extends CustomPainter {
     bool disabled = false,
   }) {
     Color dim(Color c) => disabled ? bdDimDisabled(c) : c;
-    final grey = tint ?? dim(chromePalette.bandGrey);
+    final grey = tint ?? dim(style.whileBandGrey);
     // The band fills the frame's stored bounds; [l,r) × [t,b).
     final l = rect.left.round(), t = rect.top.round();
     final r = rect.right.round(), b = rect.bottom.round();
@@ -3699,7 +3704,7 @@ class BdDiagramPainter extends CustomPainter {
     // Hatch band, batched into ink/field paths. Iterate the perimeter ring
     // (skip the interior columns of the middle rows).
     final tile = error ? kBdErrorHatch : kBdStructureHatch;
-    final offset = error ? errorHatchOffset : globalHatchOffset;
+    final offset = error ? style.errorHatchOffset : style.hatchOffset;
     final band = Path();
     final field = error ? Path() : null;
     for (var j = 0; j < h; j++) {
@@ -3728,7 +3733,7 @@ class BdDiagramPainter extends CustomPainter {
       canvas.drawPath(
         field,
         Paint()
-          ..color = dim(chromePalette.errorGreen)
+          ..color = dim(style.errorCaseGreen)
           ..isAntiAlias = false,
       );
     }
@@ -3736,7 +3741,7 @@ class BdDiagramPainter extends CustomPainter {
       band,
       error
           ? (Paint()
-              ..color = dim(chromePalette.bandGrey)
+              ..color = dim(style.whileBandGrey)
               ..isAntiAlias = false)
           : paint,
     );
