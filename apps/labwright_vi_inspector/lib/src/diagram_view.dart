@@ -1085,7 +1085,7 @@ Set<ViHeapObject> nodesWithin(
 /// keep every frame. Pure + public for testing; shared by
 /// [bdDrawableObjects] and [bdVisibleWires].
 Set<int> bdHiddenFrameOids(ViDiagram diagram) {
-  final childrenByOid = bdChildrenByOid(diagram);
+  final childrenByOid = diagram.childrenByOid;
   final hidden = <int>{};
 
   void hideSubtree(ViHeapObject root) {
@@ -1296,18 +1296,6 @@ List<ViWire> bdVisibleWires(ViDiagram diagram) {
   return out;
 }
 
-/// [diagram]'s parent-oid → children map — the walk index every grouping
-/// helper below shares.
-Map<int, List<ViHeapObject>> bdChildrenByOid(ViDiagram diagram) {
-  final childrenByOid = <int, List<ViHeapObject>>{};
-  for (final object in diagram.objects) {
-    if (object.parentOid != null) {
-      (childrenByOid[object.parentOid!] ??= <ViHeapObject>[]).add(object);
-    }
-  }
-  return childrenByOid;
-}
-
 /// The oids of every object inside an **inlined sub-VI instance** (`0x105`):
 /// an express/inlined call splices the called VI's whole internal diagram
 /// into this heap under the instance node, in the sub-VI's own coordinate
@@ -1316,7 +1304,7 @@ Map<int, List<ViHeapObject>> bdChildrenByOid(ViDiagram diagram) {
 /// the internals, so the subtree is excluded from the drawable set and the
 /// wire list.
 Set<int> bdInlinedInstanceOids(ViDiagram diagram) {
-  final childrenByOid = bdChildrenByOid(diagram);
+  final childrenByOid = diagram.childrenByOid;
   final out = <int>{};
   void collect(ViHeapObject root) {
     for (final child in childrenByOid[root.oid] ?? const <ViHeapObject>[]) {
@@ -1393,7 +1381,7 @@ List<ViHeapObject> bdDrawableObjects(ViDiagram diagram) {
   final byId = diagram.byId;
   final hidden = bdHiddenFrameOids(diagram)
     ..addAll(bdInlinedInstanceOids(diagram));
-  final childrenByOid = bdChildrenByOid(diagram);
+  final childrenByOid = diagram.childrenByOid;
   return [
     for (final object in diagram.objects)
       if (object.absBounds != null &&
