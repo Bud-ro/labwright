@@ -2486,6 +2486,11 @@ class BdDiagramPainter extends CustomPainter {
             disabled: structDisabled,
             error: errorCaseOids.contains(object.oid),
           );
+        case 0xca: // Flat sequence: the film-strip border.
+          _drawFlatSequenceBorder(canvas, rect, object);
+        case 0x121: // A flat-sequence frame: the parent 0xca owns the strip
+          // chrome and the inter-frame dividers; the frame draws nothing.
+          break;
         case 0xcd: // Diagram-disable structure: a single 1px grey rectangle
           // (153,153,153), measured on crc8's disabled frame — no double
           // line, no tint, no corner furniture.
@@ -3566,6 +3571,85 @@ class BdDiagramPainter extends CustomPainter {
       // [drawn].
       for (final junction in junctions) {
         _drawWireJunctionDot(canvas, junction, fill, bdWireStrokeBand(style));
+      }
+    }
+  }
+
+  /// A flat sequence's film-strip border (measured byte-for-byte on
+  /// Excel_Read_XLSX's sequence): 10 px top/bottom bands — 1 px black
+  /// outer edge, (221,221,221) grey, a 6-row sprocket strip of 6 px-wide
+  /// black-outlined WHITE holes on a 12 px period starting at left+9, grey,
+  /// 1 px black inner edge — 6 px side bands whose outer two columns weave
+  /// a 2×2 black/grey checker on absolute row pairs, and a 7 px
+  /// black/grey/black divider ending at each inter-frame boundary (the
+  /// cumulative 0x121 frame widths).
+  void _drawFlatSequenceBorder(Canvas canvas, Rect rect, ViHeapObject seq) {
+    final black = _dimFor(seq.oid, Colors.black);
+    final grey = _dimFor(seq.oid, const Color(0xFFDDDDDD));
+    final blackFill = _solidNoAa(black);
+    final greyFill = _solidNoAa(grey);
+    final whiteFill = _solidNoAa(Colors.white);
+    void px(Paint paint, double x, double y, [double w = 1, double h = 1]) {
+      canvas.drawRect(Rect.fromLTWH(x, y, w, h), paint);
+    }
+
+    final l = rect.left, t = rect.top, r = rect.right, b = rect.bottom;
+    final w = rect.width;
+    for (final top in [true, false]) {
+      final y0 = top ? t : b - 10;
+      // Row offsets within the band, outer edge first.
+      final rows = top
+          ? [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+          : [9, 8, 7, 6, 5, 4, 3, 2, 1, 0];
+      px(blackFill, l, y0 + rows[0], w);
+      px(greyFill, l, y0 + rows[1], w);
+      px(greyFill, l, y0 + rows[8], w);
+      px(blackFill, l, y0 + rows[9], w);
+      for (final holeRow in [rows[2], rows[7]]) {
+        px(greyFill, l, y0 + holeRow, w);
+      }
+      for (final sideRow in [rows[3], rows[4], rows[5], rows[6]]) {
+        px(greyFill, l, y0 + sideRow, w);
+      }
+      for (var hx = 9.0; hx + 6 <= w; hx += 12) {
+        for (final holeRow in [rows[2], rows[7]]) {
+          px(blackFill, l + hx, y0 + holeRow, 6);
+        }
+        for (final sideRow in [rows[3], rows[4], rows[5], rows[6]]) {
+          px(blackFill, l + hx, y0 + sideRow);
+          px(whiteFill, l + hx + 1, y0 + sideRow, 4);
+          px(blackFill, l + hx + 5, y0 + sideRow);
+        }
+      }
+    }
+    // Side bands between the horizontal bands.
+    final innerTop = t + 10, innerBottom = b - 10;
+    final sideH = innerBottom - innerTop;
+    if (sideH > 0) {
+      px(greyFill, l + 2, innerTop, 3, sideH);
+      px(blackFill, l + 5, innerTop, 1, sideH);
+      px(blackFill, r - 6, innerTop, 1, sideH);
+      px(greyFill, r - 5, innerTop, 3, sideH);
+      for (var y = innerTop; y < innerBottom; y++) {
+        // Absolute-row pair parity: odd pair index reads grey-first on the
+        // outer column (measured phase).
+        final greyFirst = (((y + origin.dy).round() + 1) ~/ 2).isOdd;
+        px(greyFirst ? greyFill : blackFill, l, y.toDouble());
+        px(greyFirst ? blackFill : greyFill, l + 1, y.toDouble());
+        px(greyFirst ? blackFill : greyFill, r - 2, y.toDouble());
+        px(greyFirst ? greyFill : blackFill, r - 1, y.toDouble());
+      }
+      // Inter-frame dividers at cumulative frame widths.
+      var cum = 0.0;
+      final frames = scene.diagram
+          .children(seq.oid)
+          .where((c) => c.kind == 0x121 && c.absBounds != null)
+          .toList();
+      for (var i = 0; i + 1 < frames.length; i++) {
+        cum += frames[i].absBounds!.right - frames[i].absBounds!.left;
+        px(blackFill, l + cum - 6, innerTop, 1, sideH);
+        px(greyFill, l + cum - 5, innerTop, 5, sideH);
+        px(blackFill, l + cum, innerTop, 1, sideH);
       }
     }
   }

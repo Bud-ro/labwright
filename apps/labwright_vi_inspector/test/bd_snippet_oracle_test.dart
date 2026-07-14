@@ -120,6 +120,16 @@ void main() {
         ('slack-2396', 736, 523, 29, 15),
         ('slack-3742', 1000, 517, 29, 25),
       ],
+      // The flat sequence's film-strip border (top/bottom sprocket bands,
+      // woven side columns, inter-frame divider) on clean stretches away
+      // from border tunnels.
+      'Excel_Read_XLSX.png': [
+        ('filmstrip-top', 1000, 851, 31, 10),
+        ('filmstrip-bottom', 1000, 1142, 31, 10),
+        ('filmstrip-left', 870, 950, 6, 23),
+        ('filmstrip-right', 1334, 966, 6, 8),
+        ('filmstrip-divider', 1249, 950, 7, 24),
+      ],
     };
     final pngs = snippetCorpusPngs().where(
       (f) => expected.keys.any((n) => f.path.endsWith('/' + n)),
