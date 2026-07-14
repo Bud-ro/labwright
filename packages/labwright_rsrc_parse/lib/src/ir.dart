@@ -258,13 +258,7 @@ ViModel buildViModelFromDecoded(Iterable<DecodedSection> decoded, {List<String> 
   final blockDiagrams = diagramsFor(const {'BDHb', 'BDHP', 'BDEx'});
   final frontPanelDiagrams = diagramsFor(const {'FPHb', 'FPHP', 'FPEx'});
   // Pool and top-level table come from the same located VCTP section.
-  Uint8List? vctp;
-  for (final section in list) {
-    if (section.tag == 'VCTP') {
-      vctp = section.bytes;
-      break;
-    }
-  }
+  final vctp = list.where((s) => s.tag == 'VCTP').map((s) => s.bytes).firstOrNull;
   final types = vctp == null ? const <ViType>[] : decodeTypePool(vctp);
   resolveDataSpaceTypes(
     pool: types,
