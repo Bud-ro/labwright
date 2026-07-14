@@ -86,13 +86,14 @@ void main() {
         }
 
         final (raster, result) = await render(kNoHatchOffset);
-        final derived = deriveGlobalHatchOffset(
+        final derived = deriveHatchOffset(
           diagram: bd,
           raster: raster,
           registration: result.registration,
           referenceRgba: result.referenceRgba,
           width: result.reference.width,
           height: result.reference.height,
+          errorStyle: false,
         );
         expect(derived, want, reason: '$name derived offset');
 
@@ -193,30 +194,18 @@ void main() {
         }
 
         final (raster, result) = await render(kNoHatchOffset, kNoHatchOffset);
-        final args = (
-          diagram: bd,
-          raster: raster,
-          registration: result.registration,
-          referenceRgba: result.referenceRgba,
-          width: result.reference.width,
-          height: result.reference.height,
-        );
-        final black = deriveGlobalHatchOffset(
-          diagram: args.diagram,
-          raster: args.raster,
-          registration: args.registration,
-          referenceRgba: args.referenceRgba,
-          width: args.width,
-          height: args.height,
-        );
-        final error = deriveErrorHatchOffset(
-          diagram: args.diagram,
-          raster: args.raster,
-          registration: args.registration,
-          referenceRgba: args.referenceRgba,
-          width: args.width,
-          height: args.height,
-        );
+        GlobalHatchOffset derive({required bool errorStyle}) =>
+            deriveHatchOffset(
+              diagram: bd,
+              raster: raster,
+              registration: result.registration,
+              referenceRgba: result.referenceRgba,
+              width: result.reference.width,
+              height: result.reference.height,
+              errorStyle: errorStyle,
+            );
+        final black = derive(errorStyle: false);
+        final error = derive(errorStyle: true);
         expect((black, error), (wantBlack, wantError), reason: '$name offsets');
 
         final (raster2, result2) = await render(black, error);

@@ -169,33 +169,31 @@ Uint8List encodeQuickTimeRasterPng(ViQuickTimeRaster raster) {
     final row = y * rowBytes;
     for (var x = 0; x < raster.width; x++) {
       // 32-bit pixels lead with the pad byte; 24-bit start at the red byte.
-      final p = row + x * bytesPerPixel + (bytesPerPixel - 3);
+      final base = row + x * bytesPerPixel + (bytesPerPixel - 3);
       image.setPixelRgb(
         x,
         y,
-        raster.pixels[p],
-        raster.pixels[p + 1],
-        raster.pixels[p + 2],
+        raster.pixels[base],
+        raster.pixels[base + 1],
+        raster.pixels[base + 2],
       );
     }
   }
   return img.encodePng(image);
 }
 
-/// The single richest-depth legacy icon of [images] (icl8 → icl4 → ICON), or
-/// null when the VI carries none. The depth order matches [_ViImageStrip] /
-/// [ViImagesView] so every surface picks the same icon for a VI.
-ViLegacyIcon? bestLegacyIcon(ViImages images) {
-  if (images.icons.isEmpty) return null;
+/// [icons] ordered richest depth first (icl8 → icl4 → ICON), so every surface
+/// picks the same lead icon for a VI.
+List<EmbeddedLegacyIcon> orderedLegacyIcons(List<EmbeddedLegacyIcon> icons) {
   const order = {'icl8': 0, 'icl4': 1, 'ICON': 2};
-  return ([...images.icons]
-        ..sort((a, b) => (order[a.tag] ?? 9).compareTo(order[b.tag] ?? 9)))
-      .first
-      .icon;
+  return [...icons]
+    ..sort((a, b) => (order[a.tag] ?? 9).compareTo(order[b.tag] ?? 9));
 }
 
-/// A short bit-depth label for a legacy-icon tag (`icl8` → `8-bit`).
-String legacyIconDepthLabel(int bpp) => '$bpp-bit';
+/// The single richest-depth legacy icon of [images], or null when the VI
+/// carries none.
+ViLegacyIcon? bestLegacyIcon(ViImages images) =>
+    images.icons.isEmpty ? null : orderedLegacyIcons(images.icons).first.icon;
 
 /// Encodes a decoded [ViLegacyIcon]'s 32×32 index grid to PNG bytes, mapping each
 /// stored pixel index through the standard Macintosh icon palette for the icon's
@@ -267,14 +265,8 @@ class ViImagesView extends StatelessWidget {
     );
   }
 
-  /// The legacy icons ordered by depth (icl8 → icl4 → ICON), so the richest
-  /// depth leads the "VI icon" group.
-  List<EmbeddedLegacyIcon> get _orderedIcons {
-    const order = {'icl8': 0, 'icl4': 1, 'ICON': 2};
-    final sorted = [...images.icons]
-      ..sort((a, b) => (order[a.tag] ?? 9).compareTo(order[b.tag] ?? 9));
-    return sorted;
-  }
+  List<EmbeddedLegacyIcon> get _orderedIcons =>
+      orderedLegacyIcons(images.icons);
 
   @override
   Widget build(BuildContext context) {
@@ -490,7 +482,7 @@ class _LegacyIconTile extends StatelessWidget {
   Widget build(BuildContext context) => _ImageTile(
     onCopy: onCopy,
     caption:
-        'VI icon · ${legacyIconDepthLabel(entry.icon.bpp)} (${entry.tag})'
+        'VI icon · ${entry.icon.bpp}-bit (${entry.tag})'
         '${sameAs != null ? ' · identical grid to $sameAs' : ''}',
     child: CustomPaint(
       size: const Size(128, 128),

@@ -222,7 +222,7 @@ class _VctpCorrelationViewState extends State<VctpCorrelationView> {
   static const _rowWidth = _offW + 16 * _cellW + _gap + 16 * _asciiW;
 
   Widget _hexRow(int row) {
-    final b = widget.body;
+    final body = widget.body;
     final base = row * 16;
     const hexStart = _offW;
     const asciiStart = _offW + 16 * _cellW + _gap;
@@ -236,7 +236,7 @@ class _VctpCorrelationViewState extends State<VctpCorrelationView> {
         } else if (dx >= asciiStart && dx < asciiStart + 16 * _asciiW) {
           off = base + ((dx - asciiStart) ~/ _asciiW);
         }
-        if (off != null && off >= 0 && off < b.length) {
+        if (off != null && off >= 0 && off < body.length) {
           final si = _byteToSpan[off];
           if (si >= 0) {
             _select(si, fromHex: true, byteOffset: off);
@@ -269,12 +269,12 @@ class _VctpCorrelationViewState extends State<VctpCorrelationView> {
     );
   }
 
-  Widget _cell(int o, {required bool hex}) {
-    final b = widget.body;
-    if (o >= b.length) return SizedBox(width: hex ? _cellW : _asciiW);
-    final si = _byteToSpan[o];
+  Widget _cell(int offset, {required bool hex}) {
+    final body = widget.body;
+    if (offset >= body.length) return SizedBox(width: hex ? _cellW : _asciiW);
+    final si = _byteToSpan[offset];
     final inSelected = si >= 0 && si == _selected;
-    final byte = b[o];
+    final byte = body[offset];
     final color = si < 0
         ? const Color(0xFF6E6E6E)
         : (inSelected ? Colors.white : const Color(0xFFBFA6E8));
@@ -286,7 +286,7 @@ class _VctpCorrelationViewState extends State<VctpCorrelationView> {
       alignment: Alignment.center,
       color: inSelected
           ? spanColorObject.withValues(alpha: 0.35)
-          : (o == _selectedByte ? Colors.white24 : null),
+          : (offset == _selectedByte ? Colors.white24 : null),
       child: Text(
         text,
         maxLines: 1,

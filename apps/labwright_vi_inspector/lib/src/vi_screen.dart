@@ -127,11 +127,6 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
     _images = widget.initialImages ?? const ViImages();
   }
 
-  @override
-  void dispose() {
-    super.dispose();
-  }
-
   /// Parse + decode a VI from its bytes, then show it. Decoding is total, so the
   /// UI never crashes on a file from the wild.
   ///
@@ -927,9 +922,7 @@ class _SummaryViewState extends State<_SummaryView> {
                   ? '${_fmtSize(component.decompressedBytes)}  (zlib ${_fmtSize(component.rawBytes)})'
                   : _fmtSize(component.decompressedBytes),
             ),
-        ],
 
-        if (widget.components.isNotEmpty) ...[
           const SizedBox(height: 16),
           const Text(
             'Block inventory (by category)',
@@ -959,7 +952,7 @@ class _SummaryViewState extends State<_SummaryView> {
           TextField(
             key: const Key('string-search'),
             controller: _filterCtrl,
-            onChanged: (v) => setState(() => _filter = v),
+            onChanged: (value) => setState(() => _filter = value),
             decoration: const InputDecoration(
               labelText: 'Filter strings',
               prefixIcon: Icon(Icons.search),
@@ -1124,7 +1117,7 @@ class _HexDialogState extends State<_HexDialog> {
                 DropdownButton<int>(
                   value: _idx,
                   isDense: true,
-                  onChanged: (v) => setState(() => _idx = v ?? 0),
+                  onChanged: (value) => setState(() => _idx = value ?? 0),
                   items: [
                     for (var i = 0; i < widget.sections.length; i++)
                       DropdownMenuItem(
