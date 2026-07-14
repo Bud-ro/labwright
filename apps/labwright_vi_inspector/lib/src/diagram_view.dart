@@ -2186,9 +2186,21 @@ Map<int, PrimIconArt> primIconsLoaded() => _primIconsSync;
 /// wire-colour-filled square under a 1 px [kBdTunnelBorder] ring), left /
 /// right shift registers `0x27`/`0x28` (2 px wire-colour border, cream
 /// fill, wire-colour down-/up-arrow glyph), selector terminal `0x2e`
-/// (1 px wire-colour border, cream fill, wire-colour `?` glyph). Other
-/// border-terminal kinds stay undrawn until reference-verified.
-const Set<int> kVerifiedBorderTerminalKinds = {0x22, 0x2d, 0x27, 0x28, 0x2e};
+/// (1 px wire-colour border, cream fill, wire-colour `?` glyph); flat-
+/// sequence border tunnels `0x2a`/`0xcb`, measured identical to the plain
+/// tunnel square (Excel_Read_XLSX: one 0x2a and three 0xcb rects all read
+/// the 1 px [kBdTunnelBorder] ring + solid wire-colour fill, punched
+/// through the film-strip band). Other border-terminal kinds stay undrawn
+/// until reference-verified.
+const Set<int> kVerifiedBorderTerminalKinds = {
+  0x22,
+  0x2d,
+  0x27,
+  0x28,
+  0x2e,
+  0x2a,
+  0xcb,
+};
 
 /// The terminal [ViHeapObject.objFlags] bit marking a HOLLOW tunnel square
 /// (cream interior with a wire-colour ring — LabVIEW's use-default look)
@@ -3368,6 +3380,12 @@ class BdDiagramPainter extends CustomPainter {
         typedTerminalColors,
         sourceOutputColors: sourceOutputColors,
       );
+      // A braid (error-cluster) wire's tunnel fills the braid's own olive
+      // — measured on Excel_Read_XLSX's sequence tunnel at (1248,1125),
+      // matching the wire body's flank colour, not the signal colour.
+      if (wire.signalType?.renderStyle == ViWireRenderStyle.braid) {
+        color = const Color(0xFF666600);
+      }
       final wireDisabled = disabledOids.contains(wire.signalOid);
       if (wireDisabled) color = bdDimDisabled(color);
       // Chrome is collected whenever its position is decoded — even when
@@ -4123,7 +4141,7 @@ class BdDiagramPainter extends CustomPainter {
         : kBdTerminalFill;
     final noAa = _solidNoAa(wireColor);
     switch (kind) {
-      case 0x22 || 0x2d:
+      case 0x22 || 0x2d || 0x2a || 0xcb:
         // Hollow ([kTunnelHollowFlag]): cream interior with a 5x5
         // wire-colour ring (open at the middle of its top/bottom edges),
         // read from crc8's reference at (520,276). Solid: wire-colour fill.

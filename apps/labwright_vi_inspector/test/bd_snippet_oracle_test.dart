@@ -153,6 +153,13 @@ void main() {
         ('path-const-top', 770, 934, 40, 3),
         ('path-const-bottom', 770, 949, 40, 4),
         ('path-const2-top', 770, 968, 40, 3),
+        // Flat-sequence border tunnels (0x2a/0xcb): 1px ring + solid
+        // wire-colour fill punched through the film-strip band — the last
+        // one is the braid wire's olive-filled tunnel.
+        ('seq-tunnel-2a', 1331, 890, 9, 9),
+        ('seq-tunnel-cb-str', 1248, 890, 9, 9),
+        ('seq-tunnel-cb-int', 1248, 1041, 9, 9),
+        ('seq-tunnel-cb-err', 1248, 1125, 9, 9),
       ],
     };
     final pngs = snippetCorpusPngs().where(
