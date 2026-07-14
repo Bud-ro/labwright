@@ -1308,6 +1308,9 @@ List<ViWire> bdVisibleWires(ViDiagram diagram) {
               // type word are independent of the anchor patch and ride along.
               route: sourcePatched ? null : wire.route,
               routePoints: wire.routePoints,
+              routePointsFidelity: wire.routePointsFidelity,
+              routeClosingStep: wire.routeClosingStep,
+              routeHeadSlack: wire.routeHeadSlack,
               routeTree: wire.routeTree,
               signalType: wire.signalType,
             )
@@ -1668,6 +1671,63 @@ String _iconStatusSuffix(ViHeapObject object) {
 int? primIconKeyOf(ViHeapObject object) =>
     object.primResId ??
     (kSingleOpPrimClasses.contains(object.kind) ? -object.kind : null);
+
+/// Builtin prim terminal positions, keyed by (icon key, terminal index
+/// among the prim's `0x15` DCO children, box width, box height) with the
+/// offset relative to the prim box's top-left. LabVIEW measures a route's
+/// stored segment lengths from the node TERMINAL, which for a primitive is
+/// environment-builtin geometry the file does not carry — a route departing
+/// a prim therefore ships with [ViWire.routeHeadSlack] and resolves here.
+///
+/// Derivation: the corpus route census — a reverse walk with stored bends
+/// pins the origin's coordinate perpendicular to its closing axis, so
+/// wires of both closing parities assemble a terminal's full position
+/// (13,348 slack heads corpus-wide, every one a prim `0x15` DCO). Each
+/// entry is corroborated byte-exactly against a reference render:
+///  * prim 1063 (crc8's XOR-family op): y=16 corpus-unanimous; x=22 from
+///    the crc8 reference bend column, matching the corpus-pinned x=22 of
+///    its neighbours prim 1061/1062.
+///  * class 0x44 at 32x27: (24, 22) — corpus-unanimous on both axes (11
+///    x-wires, 70 y-wires) and equal to the crc8 reference measurement.
+/// Growable classes move terminals with the box, hence the size key.
+const Map<(int, int, int, int), (int, int)> _kBdPrimTerminals = {
+  (1063, 0, 32, 32): (22, 16),
+  (-0x44, 1, 32, 27): (24, 22),
+};
+
+/// The absolute builtin-terminal position [wire]'s slack head measures
+/// from ([_kBdPrimTerminals]), or null when the head is not a prim `0x15`
+/// DCO or its terminal is uncatalogued.
+({int x, int y})? bdPrimTerminalOffset(ViDiagram diagram, ViWire wire) {
+  final head = diagram.byId[wire.endpointOids[0]];
+  final parentOid = head?.parentOid;
+  if (head == null || head.kind != 0x15 || parentOid == null) return null;
+  final parent = diagram.byId[parentOid];
+  final box = parent?.absBounds;
+  if (parent == null || box == null) return null;
+  final key = primIconKeyOf(parent);
+  if (key == null) return null;
+  var termIdx = -1;
+  var at = 0;
+  for (final c in diagram.childrenByOid[parentOid] ?? const <ViHeapObject>[]) {
+    if (c.kind != 0x15) continue;
+    if (c.oid == head.oid) {
+      termIdx = at;
+      break;
+    }
+    at++;
+  }
+  if (termIdx < 0) return null;
+  final offset =
+      _kBdPrimTerminals[(
+        key,
+        termIdx,
+        box.right - box.left,
+        box.bottom - box.top,
+      )];
+  if (offset == null) return null;
+  return (x: box.left + offset.$1, y: box.top + offset.$2);
+}
 
 /// Integer prescale applied to every bundled icon at load: the stored image
 /// is the asset replicated [kPrimIconPrescale]x with nearest sampling —
@@ -3070,15 +3130,48 @@ class BdDiagramPainter extends CustomPainter {
             return iconNodeRects.contains(box) ? box : null;
           }
 
-          final sourceBox = iconBox(0);
-          if (sourceBox != null) {
-            final c = (iconInkRects[sourceBox] ?? sourceBox).center;
-            final p0 = points.first, p1 = points[1];
-            points[0] = p0.dy == p1.dy
-                ? Offset(c.dx, p0.dy)
-                : Offset(p0.dx, c.dy);
+          final slack = wire.routeHeadSlack;
+          if (slack != null) {
+            // A slack-headed walk ([ViWire.routeHeadSlack]): the route's
+            // stored lengths measure from the head prim's own terminal — a
+            // builtin position the file does not carry — so the walk pinned
+            // the head at the prim's border and left the slack-axis
+            // coordinate one degree free. Resolve it from the terminal
+            // catalog ([bdPrimTerminalOffset]) by sliding every point but
+            // the anchored tail so the head lands on the terminal; a wire
+            // whose terminal is uncatalogued is not drawn (decoded geometry
+            // only, never a guess). The catalog entry must agree with the
+            // walk's pinned perpendicular coordinate, or it does not apply.
+            final terminal = bdPrimTerminalOffset(scene.diagram, wire);
+            final head = points.first;
+            final resolved =
+                terminal != null &&
+                (slack.dx != 0
+                    ? (head.dy + origin.dy).round() == terminal.y
+                    : (head.dx + origin.dx).round() == terminal.x);
+            if (!resolved) {
+              points.clear();
+            } else {
+              final delta = slack.dx != 0
+                  ? Offset(terminal.x - origin.dx - head.dx, 0)
+                  : Offset(0, terminal.y - origin.dy - head.dy);
+              for (var i = 0; i < points.length - 1; i++) {
+                points[i] = points[i] + delta;
+              }
+            }
+          } else {
+            final sourceBox = iconBox(0);
+            if (sourceBox != null) {
+              final c = (iconInkRects[sourceBox] ?? sourceBox).center;
+              final p0 = points.first, p1 = points[1];
+              points[0] = p0.dy == p1.dy
+                  ? Offset(c.dx, p0.dy)
+                  : Offset(p0.dx, c.dy);
+            }
           }
-          final sinkBox = iconBox(wire.endpointAnchors.length - 1);
+          final sinkBox = points.isEmpty
+              ? null
+              : iconBox(wire.endpointAnchors.length - 1);
           if (sinkBox != null) {
             final ink = iconInkRects[sinkBox] ?? sinkBox;
             final closing = wire.routeClosingStep;
@@ -3140,7 +3233,7 @@ class BdDiagramPainter extends CustomPainter {
             }
           }
         }
-        legs.add(points);
+        if (points.length >= 2) legs.add(points);
       }
       // A wire with NO decoded route (neither a proven [ViWire.routePoints]
       // polyline nor a branch [ViWire.routeTree]) is not drawn: the app renders
@@ -3228,25 +3321,54 @@ class BdDiagramPainter extends CustomPainter {
       // terminal features, not crossing segments, so they are not recorded in
       // [drawn].
       for (final junction in junctions) {
-        _drawWireJunctionDot(canvas, junction, fill);
+        _drawWireJunctionDot(canvas, junction, fill, bdWireStrokeBand(style));
       }
     }
   }
 
-  /// The branch-junction dot LabVIEW stamps where a wire forks — a filled
-  /// 5x5 disc with the four corner pixels clipped (row widths 3/5/5/5/3),
-  /// centred on the junction pixel, in the wire's colour ([fill]). Measured
-  /// from reference snippets (Excel_Read_XLSX, Read VI Blocks, large,
-  /// ProjectItems) on 1 px scalar wires; the thick-wire dot size is not
-  /// separately sampled (TODO: measure a thick-wire junction).
-  void _drawWireJunctionDot(Canvas canvas, Offset center, Paint fill) {
+  /// The branch-junction dot LabVIEW stamps where a wire forks, in the
+  /// wire's colour ([fill]). Two measured shapes by stroke [band]:
+  /// a 1 px wire gets a 5x5 disc with the corner pixels clipped (row widths
+  /// 3/5/5/5/3, centred on the junction pixel — measured on Excel_Read_XLSX,
+  /// Read VI Blocks, large, ProjectItems); a 2 px wire (band −1..0) gets a
+  /// diamond hugging the 2×2 crossing — rows band±2 relative to the junction
+  /// with widths 2/4/6/6/4/2 anchored on the band columns (measured on
+  /// crc8's thick LUT junction; the 6-wide middle rows lie under the wire's
+  /// own runs).
+  void _drawWireJunctionDot(
+    Canvas canvas,
+    Offset center,
+    Paint fill,
+    (int, int) band,
+  ) {
     final cx = center.dx.floorToDouble();
     final cy = center.dy.floorToDouble();
-    for (var dy = -2; dy <= 2; dy++) {
-      for (var dx = -2; dx <= 2; dx++) {
-        if (dx.abs() == 2 && dy.abs() == 2) continue;
-        canvas.drawRect(Rect.fromLTWH(cx + dx, cy + dy, 1, 1), fill);
+    final (bandLo, bandHi) = band;
+    if (bandLo == bandHi) {
+      for (var dy = -2; dy <= 2; dy++) {
+        for (var dx = -2; dx <= 2; dx++) {
+          if (dx.abs() == 2 && dy.abs() == 2) continue;
+          canvas.drawRect(Rect.fromLTWH(cx + dx, cy + dy, 1, 1), fill);
+        }
       }
+      return;
+    }
+    for (var dy = bandLo - 2; dy <= bandHi + 2; dy++) {
+      final outside = dy < bandLo
+          ? bandLo - dy
+          : dy > bandHi
+          ? dy - bandHi
+          : 0;
+      final reach = 2 - outside;
+      canvas.drawRect(
+        Rect.fromLTWH(
+          cx + bandLo - reach,
+          cy + dy,
+          (bandHi - bandLo + 1 + 2 * reach).toDouble(),
+          1,
+        ),
+        fill,
+      );
     }
   }
 

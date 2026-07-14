@@ -59,6 +59,14 @@ void main() {
         // sits inside these two side windows' gap).
         ('selector-left', 554, 237, 10, 17),
         ('selector-right', 599, 237, 20, 17),
+        // Thick-wire branch junction: the 2/4/6/6/4/2 diamond on the 2 px
+        // LUT wire's fork at (512,178), plus the surrounding wire runs.
+        ('junction', 506, 172, 13, 13),
+        // Slack-headed prim departures resolved by the builtin-terminal
+        // catalog ([bdPrimTerminalOffset]): each box covers the wire's bend
+        // column and arrival runs beside the head prim.
+        ('slack-271', 378, 481, 33, 17),
+        ('slack-686', 750, 304, 57, 17),
       ],
     };
     final pngs = snippetCorpusPngs().where(
