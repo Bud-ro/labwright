@@ -96,6 +96,21 @@ Map<String, int> _census(Uint8List bytes, String path) {
       }
       final s = d.wireAttachPoint(w.endpointOids[0]);
       final t = d.wireAttachPoint(w.endpointOids[1]);
+      // An array constant's closure may arbitrate onto its element-centre
+      // candidate instead of the shell centre (see
+      // [ViDiagram.endpointConstantElementBounds]).
+      ViPoint? altOf(int oid) {
+        final elem = d.endpointConstantElementBounds(oid);
+        return elem == null
+            ? null
+            : (
+                x: elem.left + (elem.right - elem.left) ~/ 2,
+                y: elem.top + (elem.bottom - elem.top) ~/ 2,
+              );
+      }
+
+      final sAlt = altOf(w.endpointOids[0]);
+      final tAlt = altOf(w.endpointOids[1]);
       final points = w.routePoints;
       if (points != null) {
         bump('shipped');
@@ -141,7 +156,7 @@ Map<String, int> _census(Uint8List bytes, String path) {
         final lenOk = points.length == route.pointCount || points.length == route.pointCount - 1;
         final bool anchorOk;
         if (!walked) {
-          anchorOk = points.first == s && points.last == t;
+          anchorOk = (points.first == s || points.first == sAlt) && (points.last == t || points.last == tAlt);
         } else if (s != null) {
           anchorOk = points.first == s;
         } else {
@@ -254,18 +269,50 @@ void _extCensus(ViDiagram d, ViWire w, void Function(String, [int]) bump) {
   // Fully-anchored accounting (independent of the walk): every endpoint has
   // an attach point.
   final attach = [for (final oid in w.endpointOids) d.wireAttachPoint(oid)];
+  // The closure-arbitrated element-centre candidates of array-constant
+  // endpoints (see [ViDiagram.endpointConstantElementBounds]): the model's
+  // ship gate may swap an endpoint onto its element centre, so this census
+  // walks and matches with the same candidates.
+  final altAttach = [
+    for (final oid in w.endpointOids)
+      switch (d.endpointConstantElementBounds(oid)) {
+        null => null,
+        final elem => (
+          x: elem.left + (elem.right - elem.left) ~/ 2,
+          y: elem.top + (elem.bottom - elem.top) ~/ 2,
+        ),
+      },
+  ];
   final fullyAnchored = attach.every((p) => p != null);
   if (fullyAnchored) {
     bump('extFullAnchored');
     if (pops + 2 != eps) bump('extFullLeafMismatch');
   }
 
-  final origin = attach[0];
-  if (origin == null) {
+  if (attach[0] == null) {
     bump('extEp0Unanchored');
     return;
   }
-  final tree = walkWireBranchRoute(branch, origin);
+  // Arbitrate the origin candidate exactly like the ship gate: the walk from
+  // the element centre is used only when it leaf-hits more resolved
+  // endpoints than the shell-centre walk.
+  ViWireRouteTree walkFrom(ViPoint origin) => walkWireBranchRoute(branch, origin);
+  int leafHits(ViWireRouteTree t) {
+    final pool = List<ViPoint>.of(t.leaves);
+    var n = 0;
+    for (var i = 1; i < eps; i++) {
+      final p = attach[i];
+      if (p == null) continue;
+      if (pool.remove(p) || (altAttach[i] != null && pool.remove(altAttach[i]))) n++;
+    }
+    return n;
+  }
+
+  var tree = walkFrom(attach[0]!);
+  if (altAttach[0] != null) {
+    final altTree = walkFrom(altAttach[0]!);
+    if (leafHits(altTree) > leafHits(tree)) tree = altTree;
+  }
   // Interior law: every junction dot lies on a walked vertex of the tree.
   final vertices = {for (final line in tree.polylines) ...line};
   for (final j in tree.junctions) {
@@ -298,7 +345,7 @@ void _extCensus(ViDiagram d, ViWire w, void Function(String, [int]) bump) {
     final p = attach[i];
     if (p == null) continue;
     anchored++;
-    final hit = pool.remove(p);
+    final hit = pool.remove(p) || (altAttach[i] != null && pool.remove(altAttach[i]));
     if (hit) hits++;
     if (originExact && exact(i)) {
       bump('extEpExact');

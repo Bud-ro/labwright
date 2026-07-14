@@ -2253,6 +2253,17 @@ class ViDiagram {
     final attachPoints = [
       for (var i = 0; i < object.refs.length; i++) _attachPointFrom(attachRects[i], object.refs[i]),
     ];
+    // An array constant's route may anchor at the shell centre OR its element
+    // box's centre (both conventions occur; see
+    // [endpointConstantElementBounds]) — the element point is the alternate
+    // candidate the closure-arbitrated gates may swap in.
+    final altAttachPoints = [
+      for (var i = 0; i < object.refs.length; i++)
+        switch (endpointConstantElementBounds(object.refs[i])) {
+          null => null,
+          final elem => attachPoints[i] == null ? null : _attachPointFrom(elem, object.refs[i]),
+        },
+    ];
     // A constant endpoint anchors on its own value shell (the box LabVIEW
     // draws); every other endpoint on its nearest bounded owner.
     final anchors = [
@@ -2260,7 +2271,7 @@ class ViDiagram {
     ];
     final points = route == null || object.refs.length != 2
         ? null
-        : _routePointsFor(route, object.refs, attachPoints, anchors);
+        : _routePointsFor(route, object.refs, attachPoints, anchors, altAttachPoints);
     return ViWire(
       signalOid: object.oid,
       endpointOids: List<int>.of(object.refs),
@@ -2272,7 +2283,9 @@ class ViDiagram {
       routeClosingStep: points?.closingStep,
       branchRoute: branchRoute,
       // Lazy: the walk + closure runs only when a consumer reads routeTree.
-      routeTreeBuilder: branchRoute == null ? null : () => _shippableRouteTree(branchRoute, attachPoints),
+      routeTreeBuilder: branchRoute == null
+          ? null
+          : () => _shippableRouteTree(branchRoute, attachPoints, altAttachPoints),
       signalType: object.lastSignalKind == null ? null : ViSignalType(object.lastSignalKind!),
     );
   }
@@ -2302,10 +2315,21 @@ class ViDiagram {
     List<int> refs,
     List<ViPoint?> attachPoints,
     List<HeapRect?> anchors,
+    List<ViPoint?> altAttachPoints,
   ) {
-    final closed = _closedRoutePoints(route, attachPoints[0], attachPoints[1]);
-    if (closed != null) {
-      return (points: closed, fidelity: WireRouteFidelity.closed, closingStep: null);
+    // Zero-slack closure arbitrates the attach convention: the shell-centre
+    // pair first, then each combination that swaps an array endpoint onto its
+    // element-centre candidate ([endpointConstantElementBounds]).
+    for (final pair in [
+      (attachPoints[0], attachPoints[1]),
+      (altAttachPoints[0], attachPoints[1]),
+      (attachPoints[0], altAttachPoints[1]),
+      (altAttachPoints[0], altAttachPoints[1]),
+    ]) {
+      final closed = _closedRoutePoints(route, pair.$1, pair.$2);
+      if (closed != null) {
+        return (points: closed, fidelity: WireRouteFidelity.closed, closingStep: null);
+      }
     }
     final int anchoredIndex;
     if (attachPoints[0] != null && attachPoints[1] == null) {
@@ -2370,33 +2394,45 @@ class ViDiagram {
   static ({ViWireRouteTree tree, WireRouteFidelity fidelity})? _shippableRouteTree(
     ViWireBranchRoute route,
     List<ViPoint?> attachPoints,
+    List<ViPoint?> altAttachPoints,
   ) {
     if (attachPoints.length < 3) return null;
-    final origin = attachPoints[0];
-    if (origin == null) return null;
-    final tree = walkWireBranchRoute(route, origin);
-    final leaves = tree.leaves;
-    if (leaves.length != attachPoints.length - 1) return null;
-    final remaining = <ViPoint, int>{};
-    for (final leaf in leaves) {
-      remaining.update(leaf, (c) => c + 1, ifAbsent: () => 1);
-    }
-    var fullyAnchored = true;
-    for (var i = 1; i < attachPoints.length; i++) {
-      final p = attachPoints[i];
-      if (p == null) {
-        fullyAnchored = false;
-        continue; // plain-node leaf: rides the walk
+    // The origin's attach convention is closure-arbitrated like the
+    // two-endpoint tier: shell centre first, the array element centre second.
+    for (final origin in [attachPoints[0], altAttachPoints[0]]) {
+      if (origin == null) continue;
+      final tree = walkWireBranchRoute(route, origin);
+      final leaves = tree.leaves;
+      if (leaves.length != attachPoints.length - 1) continue;
+      final remaining = <ViPoint, int>{};
+      for (final leaf in leaves) {
+        remaining.update(leaf, (c) => c + 1, ifAbsent: () => 1);
       }
-      final count = remaining[p];
-      if (count == null) return null; // resolved endpoint the walk misses: contradiction
-      if (count == 1) {
-        remaining.remove(p);
-      } else {
-        remaining[p] = count - 1;
+      var fullyAnchored = true;
+      var contradiction = false;
+      for (var i = 1; i < attachPoints.length; i++) {
+        // A far endpoint matches on either of its candidates.
+        final p = attachPoints[i], alt = altAttachPoints[i];
+        if (p == null) {
+          fullyAnchored = false;
+          continue; // plain-node leaf: rides the walk
+        }
+        final match = remaining.containsKey(p) ? p : (alt != null && remaining.containsKey(alt) ? alt : null);
+        if (match == null) {
+          contradiction = true; // resolved endpoint the walk misses
+          break;
+        }
+        final count = remaining[match]!;
+        if (count == 1) {
+          remaining.remove(match);
+        } else {
+          remaining[match] = count - 1;
+        }
       }
+      if (contradiction) continue;
+      return (tree: tree, fidelity: fullyAnchored ? WireRouteFidelity.closed : WireRouteFidelity.walked);
     }
-    return (tree: tree, fidelity: fullyAnchored ? WireRouteFidelity.closed : WireRouteFidelity.walked);
+    return null;
   }
 
   /// Member oid → the oid of the **terminal object** that declares it in its
@@ -2563,6 +2599,38 @@ class ViDiagram {
     if (constant == null) return null;
     for (final child in childrenByOid[constant.oid] ?? const <ViHeapObject>[]) {
       if (child.absBounds != null) return child.absBounds;
+    }
+    return null;
+  }
+
+  /// The **element box** of an ARRAY-shell (`0x52`) constant endpoint — the
+  /// rightmost bounded child that is not scaffolding (resize handles `0x9`,
+  /// the label `0xa`): the `0x50` index displays sit on the LEFT and the
+  /// value element (a `0x50` numeric, `0x4f` enum, a string box, …) sits
+  /// right of them — or null for every other endpoint. An array constant's
+  /// stored route anchors at either the shell's centre or this element's
+  /// centre; the two conventions coexist in the corpus (1,408 shell / 119
+  /// element closures), so the route closure arbitrates ([_routePointsFor] /
+  /// [_shippableRouteTree] try the shell first and fall back to this rect,
+  /// shipping only a zero-slack closure). Proven on crc8's LUT branch wire,
+  /// whose route walked from this box's floored centre closes exactly on
+  /// BOTH far tunnel attach rects.
+  HeapRect? endpointConstantElementBounds(int oid) {
+    if (_predatesFrameRelativeTermBounds(version)) return null;
+    final constant = endpointConstant(oid);
+    if (constant == null) return null;
+    for (final child in childrenByOid[constant.oid] ?? const <ViHeapObject>[]) {
+      if (child.absBounds == null) continue;
+      if (child.kind != 0x52) return null;
+      HeapRect? element;
+      for (final kid in childrenByOid[child.oid] ?? const <ViHeapObject>[]) {
+        final kidBounds = kid.absBounds;
+        if (kid.kind == 0x9 || kid.kind == 0xa || kidBounds == null) continue;
+        if (element == null || kidBounds.left > element.left) {
+          element = kidBounds;
+        }
+      }
+      return element;
     }
     return null;
   }

@@ -198,5 +198,17 @@ void main() {
     }
     // Guard against the loop vacuously passing zero assertions.
     expect(matched, routes.keys.toSet(), reason: 'all three feeder signals present');
+
+    // The three-endpoint thick LUT wire ships at the closed tier from its
+    // array constant's ELEMENT centre ([ViDiagram.
+    // endpointConstantElementBounds]) — the closure-arbitrated attach — with
+    // both branch leaves landing exactly on the 571/716 tunnel attach rects.
+    final lut = d.wires.singleWhere((w) => w.signalOid == 879);
+    expect(lut.routeTreeFidelity, WireRouteFidelity.closed, reason: 'LUT wire tier');
+    expect(lut.routeTree!.polylines, [
+      [(x: 483, y: 178), (x: 512, y: 178), (x: 512, y: 267), (x: 524, y: 267)],
+      [(x: 512, y: 178), (x: 842, y: 178), (x: 842, y: 305), (x: 861, y: 305)],
+    ], reason: 'LUT wire runs');
+    expect(lut.routeTree!.junctions, [(x: 512, y: 178)], reason: 'LUT junction');
   });
 }

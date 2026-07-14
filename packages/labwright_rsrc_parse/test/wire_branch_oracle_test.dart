@@ -72,15 +72,22 @@ Map<String, int> _census(Uint8List png, String path) {
     if (w.endpointOids.length < 3) continue;
     final branch = w.branchRoute;
     if (branch == null) continue;
-    final origin = bd.wireAttachPoint(w.endpointOids[0]);
-    if (origin == null || !objectVisibleInRender(bd, w.signalOid)) continue;
-    final tree = walkWireBranchRoute(branch, origin);
-    // The 'shipped' scope tracks the PROVEN closed tier (every endpoint
-    // resolves an attach point and closes); the origin-anchored walked tier
-    // ([ViWire.routeTree] non-null but not fully anchored) and unshipped walks
-    // fall in 'walk', whose far arms drift — that lower coverage is expected.
-    // The walked tier's own overlay is pinned by `wire_one_anchored_oracle`.
-    final closed = w.routeTree != null && w.endpointOids.every((oid) => bd.wireAttachPoint(oid) != null);
+    if (!objectVisibleInRender(bd, w.signalOid)) continue;
+    // The 'shipped' scope gates the PROVEN closed tier — the tree the model
+    // actually ships ([ViWire.routeTree], closure-arbitrated attach
+    // candidates included). Unshipped/partially-anchored wires fall in
+    // 'walk' (re-walked from the shell-centre attach), whose far arms
+    // drift — that lower coverage is expected. The walked tier's own
+    // overlay is pinned by `wire_one_anchored_oracle`.
+    final closed = w.routeTree != null && w.routeTreeFidelity == WireRouteFidelity.closed;
+    final ViWireRouteTree tree;
+    if (closed) {
+      tree = w.routeTree!;
+    } else {
+      final origin = bd.wireAttachPoint(w.endpointOids[0]);
+      if (origin == null) continue;
+      tree = walkWireBranchRoute(branch, origin);
+    }
     final scope = closed ? 'shipped' : 'walk';
     bump('brc_${scope}_wires');
     for (final line in tree.polylines) {
