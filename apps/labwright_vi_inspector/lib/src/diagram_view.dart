@@ -1696,12 +1696,21 @@ int? primIconKeyOf(ViHeapObject object) =>
 ///  * prim 1142 t0: dy=16 corpus-unanimous (20 wires); dx not yet pinned.
 ///  * prim 1171 t0: dy=16 corpus-unanimous (8 wires); dx=20 corpus-pinned
 ///    (1 wire) and independently equal to the crc32 reference bend column.
+///  * prim 1900 t0: dy=16 corpus-unanimous (8 wires); dx=24 corpus-pinned
+///    (1 wire).
+///  * prims 1143 / 1814 / 1815 t0: dy=16 measured from the crc8 reference
+///    (the disabled LUT chain's seam ink sits on the row t+16 at every
+///    abutment); no corpus route pins them yet, dx unpinned.
 /// Growable classes move terminals with the box, hence the size key.
 const Map<(int, int, int, int), ({int? dx, int? dy})> _kBdPrimTerminals = {
   (1063, 0, 32, 32): (dx: 22, dy: 16),
   (-0x44, 1, 32, 27): (dx: 24, dy: 22),
   (1142, 0, 32, 32): (dx: null, dy: 16),
+  (1143, 0, 32, 32): (dx: null, dy: 16),
   (1171, 0, 32, 32): (dx: 20, dy: 16),
+  (1814, 0, 32, 32): (dx: null, dy: 16),
+  (1815, 0, 32, 32): (dx: null, dy: 16),
+  (1900, 0, 32, 32): (dx: 24, dy: 16),
 };
 
 /// The catalogued builtin-terminal position of [endpointOid]'s prim
@@ -2463,6 +2472,26 @@ class BdDiagramPainter extends CustomPainter {
             object.absBounds!.top,
             disabled: structDisabled,
             error: errorCaseOids.contains(object.oid),
+          );
+        case 0xcd: // Diagram-disable structure: a single 1px grey rectangle
+          // (153,153,153), measured on crc8's disabled frame — no double
+          // line, no tint, no corner furniture.
+          final grey = _solidNoAa(_dimFor(object.oid, const Color(0xFF999999)));
+          canvas.drawRect(
+            Rect.fromLTWH(rect.left, rect.top, rect.width, 1),
+            grey,
+          );
+          canvas.drawRect(
+            Rect.fromLTWH(rect.left, rect.bottom - 1, rect.width, 1),
+            grey,
+          );
+          canvas.drawRect(
+            Rect.fromLTWH(rect.left, rect.top, 1, rect.height),
+            grey,
+          );
+          canvas.drawRect(
+            Rect.fromLTWH(rect.right - 1, rect.top, 1, rect.height),
+            grey,
           );
         default:
           final frame =

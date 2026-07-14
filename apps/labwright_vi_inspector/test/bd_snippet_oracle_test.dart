@@ -74,6 +74,16 @@ void main() {
         ('stub-701', 715, 303, 17, 15),
         ('stub-704', 686, 303, 11, 15),
         ('stub-881', 895, 311, 17, 15),
+        // Diagram-disable structure: a single 1px (153,153,153) rectangle
+        // (no double line, no tint) — pinned as four border strips.
+        ('disable-top', 184, 163, 239, 1),
+        ('disable-bottom', 184, 255, 239, 1),
+        ('disable-left', 184, 163, 1, 93),
+        ('disable-right', 422, 163, 1, 93),
+        // The disabled LUT chain's seam stubs: dimmed-blue ink on the row
+        // t+16 at every prim abutment (straight-stub tier + the chain's
+        // terminal-catalog entries).
+        ('disable-seams', 246, 222, 159, 5),
       ],
       // The crc siblings' slack wires resolve through the same catalog
       // entries; each box covers the wire's bends and both arrivals.
