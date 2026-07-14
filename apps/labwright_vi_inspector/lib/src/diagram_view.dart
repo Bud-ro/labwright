@@ -8,6 +8,8 @@ import 'package:flutter/services.dart' show AssetManifest, rootBundle;
 import 'package:flutter/material.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
+import 'terminal_bitmaps.dart';
+
 import 'images_view.dart';
 import 'prim_icon_catalog.dart';
 import 'span_annotations.dart';
@@ -554,6 +556,19 @@ const Color kBdTunnelBorder = Color(0xFF444444);
 /// (sampled (255,255,204) from the crc8 reference at decoded rects — the
 /// same cream as primitive icon bodies).
 const Color kBdTerminalFill = Color(0xFFFFFFCC);
+
+/// The representative [ViDataType] for a terminal that resolved only a
+/// coarse [ViTypeKind] (no VCTP-backed [ViHeapObject.dataType]) — enough to
+/// pick its measured art for the kinds whose art does not vary within the
+/// kind. Numeric kinds return null: the glyph depends on the exact width.
+ViDataType? _dataTypeOfTypeKind(ViTypeKind kind) => switch (kind) {
+  ViTypeKind.boolean => ViDataType.boolean,
+  ViTypeKind.string => ViDataType.string,
+  ViTypeKind.cluster => ViDataType.cluster,
+  ViTypeKind.path => ViDataType.path,
+  ViTypeKind.enumRing => ViDataType.enumU8,
+  _ => null,
+};
 
 /// LabVIEW's default structure colour (mid-grey). A frame carrying it has no
 /// user-chosen tint, so it draws in its standard chrome rather than washing
@@ -2487,31 +2502,28 @@ class BdDiagramPainter extends CustomPainter {
             );
             continue;
           }
-          // An enum/ring CONTROL at the standard box draws the exact pager
-          // chrome; indicators keep the generic frame until one is measured.
-          if (object.typeKind == ViTypeKind.enumRing &&
-              object.isIndicator != true &&
-              rect.width == 32 &&
-              rect.height == 16) {
-            _drawEnumControlTerminal(
-              canvas,
-              rect,
-              disabled: disabledOids.contains(object.oid),
-            );
-            continue;
-          }
-          // String terminals at the standard box: both directions measured.
-          if (object.typeKind == ViTypeKind.string &&
+          // A terminal whose (datatype, direction) has reference-measured
+          // art at the standard 32×16 box draws it pixel-exact
+          // ([kBdTerminalArt]); unmeasured types keep the generic frame.
+          final artType =
+              object.dataType ?? _dataTypeOfTypeKind(object.typeKind);
+          if (artType != null &&
               object.isIndicator != null &&
               rect.width == 32 &&
               rect.height == 16) {
-            _drawStringTerminal(
-              canvas,
-              rect,
+            final art = bdTerminalArtFor(
+              artType,
               indicator: object.isIndicator == true,
-              disabled: disabledOids.contains(object.oid),
             );
-            continue;
+            if (art != null) {
+              _drawTerminalArt(
+                canvas,
+                rect,
+                art,
+                disabled: disabledOids.contains(object.oid),
+              );
+              continue;
+            }
           }
           // LabVIEW terminal: datatype-coloured double border — a 2 px outer
           // border, a 1 px white gap, a 1 px inner border — over a plate
@@ -3798,122 +3810,24 @@ class BdDiagramPainter extends CustomPainter {
     }
   }
 
-  /// An enum/ring CONTROL terminal exactly as LabVIEW rasters it in its
-  /// standard 32×16 box: the datatype-blue double border, the ◄ ► ring-pager
-  /// glyphs, and the data-out arrow plate (black arrow on the two-tone blue
-  /// shading). Measured from fg.png's enum input. `B` = (0,0,255),
-  /// `L` = (178,178,255), `M` = (76,76,255), `X` = black, `.` = white.
-  static const _enumControlTerminal = [
-    'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
-    'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
-    'BB....................LLLLLLLLMM',
-    'BB.BBBBBBBBBBBBBBBBBBBMMMMMMMLMM',
-    'BB.B..................LLLLLLMLMM',
-    'BB.B..........B...B...LLLLLXMLMM',
-    'BB.B.........BB...BB..LLLLLXXLMM',
-    'BB.B........BBB...BBB.LLLLLXXXMM',
-    'BB.B........BBB...BBB.LLLLLXXXMM',
-    'BB.B.........BB...BB..LLLLLXXLMM',
-    'BB.B..........B...B...LLLLLXMLMM',
-    'BB.B..................LLLLLLMLMM',
-    'BB.BBBBBBBBBBBBBBBBBBBMMMMMMMLMM',
-    'BB....................LLLLLLLLMM',
-    'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
-    'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
-  ];
-
-  /// A string CONTROL terminal exactly as LabVIEW rasters it in its standard
-  /// 32×16 box: the magenta double border, the pixelised `abc` glyph, and the
-  /// data-out arrow plate. Measured from fg.png. `B` = (255,0,255),
-  /// `L` = (255,178,255), `M` = (255,76,255), `X` = black, `.` = white.
-  static const _stringControlTerminal = [
-    'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
-    'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
-    'BB....................LLLLLLLLMM',
-    'BB.BBBBBBBBBBBBBBBBBBBMMMMMMMLMM',
-    'BB.B..................LLLLLLMLMM',
-    'BB.B..........BB......LLLLLXMLMM',
-    'BB.B.....BB...BB......LLLLLXXLMM',
-    'BB.B......BB..BBBB...BMMLLLXXXMM',
-    'BB.B.....BBB..BB.BB.BBLLLLLXXXMM',
-    'BB.B....B.BB..BB.BB.BBLLLLLXXLMM',
-    'BB.B.....BBBB.BBBB...BMMLLLXMLMM',
-    'BB.B..................LLLLLLMLMM',
-    'BB.BBBBBBBBBBBBBBBBBBBMMMMMMMLMM',
-    'BB....................LLLLLLLLMM',
-    'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
-    'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
-  ];
-
-  /// The string INDICATOR variant — mirrored plate with the data-in arrow on
-  /// the left and the thinner 1px outer border LabVIEW gives indicators.
-  /// Measured from fg.png's right-hand string terminal.
-  static const _stringIndicatorTerminal = [
-    'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
-    'B..............................B',
-    'MLLLLLLLLL.....................B',
-    'MLLMMMMMMMBBBBBBBBBBBBBBBBBBB..B',
-    'MLLMLLLLLL..................B..B',
-    'MLLMXLLLLL....BB............B..B',
-    'MLLMXXLLLMB...BB............B..B',
-    'MLLMXXXLLLBB..BBBB...BBB....B..B',
-    'MLLMXXXLLMBB..BB.BB.BB......B..B',
-    'MLLMXXLLMLBB..BB.BB.BB......B..B',
-    'MLLMXLLLLMBBB.BBBB...BBB....B..B',
-    'MLLMLLLLLL..................B..B',
-    'MLLMMMMMMMBBBBBBBBBBBBBBBBBBB..B',
-    'MLLLLLLLLL.....................B',
-    'B..............................B',
-    'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
-  ];
-
-  /// Draws a 32×16 string terminal pixel-exact from its measured bitmap.
-  void _drawStringTerminal(
+  /// Draws a terminal's measured 32×16 art ([BdTerminalArt]) pixel-exact,
+  /// colours dimmed through the disabled transform.
+  void _drawTerminalArt(
     Canvas canvas,
-    Rect box, {
-    required bool indicator,
+    Rect box,
+    BdTerminalArt art, {
     bool disabled = false,
   }) {
     Color dim(Color c) => disabled ? bdDimDisabled(c) : c;
     canvas.drawRect(box, _solidNoAa(dim(Colors.white)));
     final inks = {
-      'B': _solidNoAa(dim(const Color(0xFFFF00FF))),
-      'L': _solidNoAa(dim(const Color(0xFFFFB2FF))),
-      'M': _solidNoAa(dim(const Color(0xFFFF4CFF))),
-      'X': _solidNoAa(dim(const Color(0xFF000000))),
-    };
-    final bitmap = indicator
-        ? _stringIndicatorTerminal
-        : _stringControlTerminal;
-    for (final e in inks.entries) {
-      _stampBitmap(canvas, e.value, bitmap, box.left, box.top, on: e.key);
-    }
-  }
-
-  /// Draws an enum/ring control terminal pixel-exact from
-  /// [_enumControlTerminal].
-  void _drawEnumControlTerminal(
-    Canvas canvas,
-    Rect box, {
-    bool disabled = false,
-  }) {
-    Color dim(Color c) => disabled ? bdDimDisabled(c) : c;
-    canvas.drawRect(box, _solidNoAa(dim(Colors.white)));
-    final inks = {
-      'B': _solidNoAa(dim(const Color(0xFF0000FF))),
-      'L': _solidNoAa(dim(const Color(0xFFB2B2FF))),
-      'M': _solidNoAa(dim(const Color(0xFF4C4CFF))),
+      'B': _solidNoAa(dim(art.base)),
+      'M': _solidNoAa(dim(art.mid)),
+      'L': _solidNoAa(dim(art.light)),
       'X': _solidNoAa(dim(const Color(0xFF000000))),
     };
     for (final e in inks.entries) {
-      _stampBitmap(
-        canvas,
-        e.value,
-        _enumControlTerminal,
-        box.left,
-        box.top,
-        on: e.key,
-      );
+      _stampBitmap(canvas, e.value, art.rows, box.left, box.top, on: e.key);
     }
   }
 

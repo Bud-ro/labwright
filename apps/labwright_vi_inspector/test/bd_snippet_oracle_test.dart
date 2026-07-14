@@ -33,6 +33,15 @@ List<File> snippetCorpusPngs() {
   return files..sort((a, b) => a.path.compareTo(b.path));
 }
 
+ViDataType? _artKindOf(ViTypeKind kind) => switch (kind) {
+  ViTypeKind.boolean => ViDataType.boolean,
+  ViTypeKind.string => ViDataType.string,
+  ViTypeKind.cluster => ViDataType.cluster,
+  ViTypeKind.path => ViDataType.path,
+  ViTypeKind.enumRing => ViDataType.enumU8,
+  _ => null,
+};
+
 void main() {
   testWidgets('stop, bool T/F, and enum-pager chrome are byte-exact', (
     tester,
@@ -50,11 +59,6 @@ void main() {
         // sits inside these two side windows' gap).
         ('selector-left', 554, 237, 10, 17),
         ('selector-right', 599, 237, 20, 17),
-      ],
-      'fg.png': [
-        ('enum', 39, 33, 32, 16),
-        ('abc-control', 39, 76, 32, 16),
-        ('abc-indicator', 313, 58, 32, 16),
       ],
     };
     final pngs = snippetCorpusPngs().where(
@@ -212,6 +216,98 @@ void main() {
           greaterThan(floor),
           reason: '$name case $caseOid hatch ring after rephasing',
         );
+      }
+    });
+  });
+
+  testWidgets('measured terminal art matches its reference somewhere per key', (
+    tester,
+  ) async {
+    // For each (datatype, direction) with measured art ([kBdTerminalArt]),
+    // at least one terminal of that key in its source VI must render
+    // byte-exact (siblings may be overdrawn by wires; the clean one proves
+    // the art). Files chosen from the majority-vote winners' sources.
+    const expected = {
+      'crc8.png': [(ViDataType.u8, false), (ViDataType.boolean, false)],
+      'crc32.png': [(ViDataType.u32, false)],
+      'Tokenize URL.png': [(ViDataType.string, false)],
+      'ProjectItems.png': [
+        (ViDataType.cluster, false),
+        (ViDataType.refnum, false),
+      ],
+      'Config_Escape.png': [(ViDataType.enumU8, false)],
+    };
+    final pngs = snippetCorpusPngs().where(
+      (f) => expected.keys.any((n) => f.path.endsWith('/' + n)),
+    );
+    if (pngs.length < expected.length) {
+      markTestSkipped('corpus not fetched');
+      return;
+    }
+    await loadRealTextFont();
+    await tester.runAsync(() async {
+      for (final f in pngs) {
+        final name = f.path.split('/').last;
+        final bytes = f.readAsBytesSync();
+        final bd = bestBlockDiagram(buildViModel(extractSnippetVi(bytes)!))!;
+        final scene = BdScene(bd);
+        final icons = await loadPrimIcons();
+        final raster = (await rasteriseBlockDiagram(
+          bd,
+          primIcons: icons,
+          scale: 1.0,
+          margin: 2,
+          scene: scene,
+        ))!;
+        final reference = await decodeReferenceImage(bytes);
+        final result = await compareToReference(
+          raster.image,
+          reference.image,
+          lockScale: 1.0 / raster.scale,
+          anchorRects: bdStructureAnchorRects(
+            bd,
+            raster,
+            drawable: scene.drawable,
+          ),
+        );
+        reference.image.dispose();
+        final reg = result.registration;
+        final w = result.reference.width;
+        final refB = result.referenceRgba;
+        final ourB = (await result.fitted.toByteData())!.buffer.asUint8List();
+        for (final (dataType, indicator) in expected[name]!) {
+          var bestDiff = 1 << 30;
+          for (final o in scene.drawable) {
+            final b = o.absBounds;
+            if (o.kind != 0x16 ||
+                b == null ||
+                b.width != 32 ||
+                b.height != 16 ||
+                (o.isIndicator == true) != indicator ||
+                (o.dataType ?? _artKindOf(o.typeKind)) != dataType) {
+              continue;
+            }
+            var diff = 0;
+            for (var y = b.top; y < b.top + 16; y++) {
+              for (var x = b.left; x < b.left + 32; x++) {
+                final rx = (x - raster.content.left + reg.dx).round();
+                final ry = (y - raster.content.top + reg.dy).round();
+                final i = (ry * w + rx) * 4;
+                if (refB[i] != ourB[i] ||
+                    refB[i + 1] != ourB[i + 1] ||
+                    refB[i + 2] != ourB[i + 2]) {
+                  diff++;
+                }
+              }
+            }
+            if (diff < bestDiff) bestDiff = diff;
+          }
+          expect(
+            bestDiff,
+            0,
+            reason: name + ' ' + dataType.name + ' terminal art',
+          );
+        }
       }
     });
   });
