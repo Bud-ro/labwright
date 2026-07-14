@@ -5,7 +5,6 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/services.dart' show AssetManifest, rootBundle;
 
-import 'package:flutter/foundation.dart' show setEquals;
 import 'package:flutter/material.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
@@ -114,42 +113,14 @@ class _ViDiagramViewState extends State<ViDiagramView> {
   // [_resolveIcons]); empty until then, and when no loader is supplied.
   Map<int, ViLegacyIcon> _subViIcons = const {};
   Map<int, PrimIconArt> _primIcons = const {};
-  late final List<ViHeapObject> _drawable = _diagram == null
-      ? const []
-      : bdDrawableObjects(_diagram);
-  late final List<ViHeapObject> _ordered = bdPaintOrder(_drawable, _byId);
-  // Decoded dataflow wires (empty on a front-panel heap). Drawn under the nodes.
-  late final List<ViWire> _wires = switch (_diagram) {
-    null => const [],
-    final diagram => bdVisibleWires(diagram),
+
+  /// The diagram-derived render inputs, computed once (see [BdScene]).
+  late final BdScene? _scene = switch (_diagram) {
+    null => null,
+    final diagram => BdScene(diagram),
   };
-  late final Set<int> _disabledOids = switch (_diagram) {
-    null => const {},
-    final diagram => bdDisabledObjectOids(diagram),
-  };
-  late final Set<int> _errorCaseOids = switch (_diagram) {
-    null => const {},
-    final diagram => bdErrorCaseOids(diagram),
-  };
-  late final Map<HeapRect, ({int kind, bool hollow, bool disabled})>
-  _borderTerminalKinds = switch (_diagram) {
-    null => const {},
-    final diagram => bdBorderTerminalKinds(diagram),
-  };
-  late final Map<int, List<({HeapRect box, int bmp})>> _structureTerminals =
-      switch (_diagram) {
-        null => const {},
-        final diagram => bdStructureTerminals(diagram),
-      };
-  late final Map<int, String> _constValues = switch (_diagram) {
-    null => const {},
-    final diagram => bdConstValueTexts(diagram),
-  };
-  // Wires are excluded from the fit: their absolute anchoring is not yet
-  // verified (a misanchored run must not blow up the zoom-to-fit envelope).
-  late final Rect _content = _drawable.isEmpty
-      ? Rect.zero
-      : bdContentRect(_drawable, includeWires: false);
+  List<ViHeapObject> get _drawable => _scene?.drawable ?? const [];
+  Rect get _content => _scene?.content ?? Rect.zero;
   late final Map<ViObjectKind, int> _counts = _computeCounts();
 
   Map<ViObjectKind, int> _computeCounts() {
@@ -167,7 +138,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
     loadPrimIcons().then((icons) {
       if (mounted && icons.isNotEmpty) setState(() => _primIcons = icons);
     });
-    if (_disabledOids.isNotEmpty) {
+    if (_scene?.disabledOids.isNotEmpty ?? false) {
       ensurePrimIconsGrey().then((grey) {
         if (mounted && grey.isNotEmpty) setState(() {});
       });
@@ -225,7 +196,6 @@ class _ViDiagramViewState extends State<ViDiagramView> {
 
     final content = _content;
     _lastContent = content;
-    final ordered = _ordered;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -236,7 +206,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(child: _diagramStack(content, ordered)),
+              Expanded(child: _diagramStack(content, _scene!.ordered)),
               if (_shelfOpen) _shelf(),
             ],
           ),
@@ -320,8 +290,8 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                       child: RepaintBoundary(
                         child: GestureDetector(
                           behavior: HitTestBehavior.opaque,
-                          onTapDown: (d) => _selectAt(
-                            d.localPosition / _anchorScale,
+                          onTapDown: (details) => _selectAt(
+                            details.localPosition / _anchorScale,
                             ordered,
                             content,
                           ),
@@ -331,19 +301,13 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                               content.height * _anchorScale,
                             ),
                             painter: BdDiagramPainter(
-                              objects: ordered,
+                              scene: _scene!,
                               origin: content.topLeft,
-                              wires: _wires,
                               subViIcons: _subViIcons,
                               primIcons: _primIcons,
                               primIconsGrey: primIconsGreyLoaded(),
-                              disabledOids: _disabledOids,
-                              errorCaseOids: _errorCaseOids,
-                              borderTerminalKinds: _borderTerminalKinds,
                               iconFilterQuality: FilterQuality.low,
                               canvasScale: _anchorScale,
-                              structureTerminals: _structureTerminals,
-                              constValues: _constValues,
                             ),
                             foregroundPainter: _OverlayPainter(
                               origin: content.topLeft,
@@ -442,14 +406,11 @@ class _ViDiagramViewState extends State<ViDiagramView> {
     }
     setState(() {
       _selected = hit;
-      _members = _membersOf(hit);
+      _members = hit != null && hit.category == ViObjectKind.structure
+          ? nodesWithin(hit, _drawable)
+          : membersOf(hit, _byId);
     });
   }
-
-  Set<ViHeapObject> _membersOf(ViHeapObject? o) =>
-      o != null && o.category == ViObjectKind.structure
-      ? nodesWithin(o, _drawable)
-      : membersOf(o, _byId);
 
   void _fit() {
     final viewport = _lastViewport;
@@ -459,14 +420,11 @@ class _ViDiagramViewState extends State<ViDiagramView> {
         content.width <= 0 ||
         content.height <= 0)
       return;
-    final widthScale = (viewport.width / content.width).clamp(
-      0.0,
-      double.infinity,
-    );
     final scale =
-        (widthScale < viewport.height / content.height
-            ? widthScale
-            : viewport.height / content.height) *
+        math.min(
+          viewport.width / content.width,
+          viewport.height / content.height,
+        ) *
         0.94;
     final tx = (viewport.width - content.width * scale) / 2;
     final ty = (viewport.height - content.height * scale) / 2;
@@ -496,7 +454,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
 }
 
 /// Faithful-ish LabVIEW palette: terminals colored by data type, else by class.
-Color _typeColor(ViTypeKind t) => switch (t) {
+Color _typeColor(ViTypeKind kind) => switch (kind) {
   ViTypeKind.numericFloat => const Color(0xFFE8732A),
   ViTypeKind.numericInt => const Color(0xFF1F6FE0),
   ViTypeKind.enumRing => const Color(0xFF1FA0C0),
@@ -510,7 +468,7 @@ Color _typeColor(ViTypeKind t) => switch (t) {
   ViTypeKind.unknown => const Color(0xFF707070),
 };
 
-Color _kindColor(ViObjectKind k) => switch (k) {
+Color _kindColor(ViObjectKind kind) => switch (kind) {
   ViObjectKind.node => const Color(0xFFE8C547),
   ViObjectKind.terminal => const Color(0xFF5C9BD6),
   ViObjectKind.terminalCluster => const Color(0xFF2BB8A8),
@@ -628,21 +586,41 @@ const kBdHatchBand = 5;
 /// phases for the two lattices), so it takes its own derived offset.
 const kBdErrorHatch = ['#...', '...#', '..#.', '.#..'];
 
-/// The structure-chrome colours LabVIEW resolves from the CAPTURE
-/// ENVIRONMENT's palette, not from the .vi: the while-loop band / error-stripe
-/// grey and the error case's green field. Measured to vary per capture with
-/// the LabVIEW version held fixed (three 19.0 captures: greys 119/127/119,
-/// greens 153/178/153), so — like [GlobalHatchOffset] — the viewer draws the
-/// common defaults ([kBdDefaultChromePalette]) and the oracle derives each
-/// reference's palette (`deriveChromePalette`) to compare 1:1.
-typedef BdChromePalette = ({Color bandGrey, Color errorGreen});
+/// The block-diagram render style: every user-tunable / capture-varying piece
+/// of the structure chrome in one object, so the painter and rasteriser take a
+/// single parameter instead of one per knob.
+///
+/// The colours are the values LabVIEW resolves from the CAPTURE ENVIRONMENT's
+/// system palette, not from the .vi: same-version captures measure different
+/// values (greys 119/127/119, greens 153/178/153 across three 19.0 captures).
+/// The defaults are the corpus-dominant readings; a capture from another
+/// environment may sit a few shades off, which is the reference's variance,
+/// not a render error. The hatch offsets are likewise per-capture (brush
+/// phases; see [GlobalHatchOffset]) — the oracle derives those because a
+/// mis-phased lattice reads as structural noise, while an 8-shade band delta
+/// does not.
+class BdRenderStyle {
+  const BdRenderStyle({
+    this.whileBandGrey = const Color(0xFF777777),
+    this.errorCaseGreen = const Color(0xFF99FF99),
+    this.hatchOffset = kNoHatchOffset,
+    this.errorHatchOffset = kNoHatchOffset,
+  });
 
-/// The dominant capture palette: band/stripe grey (119,119,119), error-case
-/// green (153,255,153).
-const BdChromePalette kBdDefaultChromePalette = (
-  bandGrey: Color(0xFF777777),
-  errorGreen: Color(0xFF99FF99),
-);
+  /// The while-loop band and error-stripe grey — corpus-dominant (119,119,119).
+  /// (Some captures render LabVIEW's stored default 0x7F7F7F literally.)
+  final Color whileBandGrey;
+
+  /// The error case's green band field — corpus-dominant (153,255,153).
+  final Color errorCaseGreen;
+
+  /// Phase of the black case-hatch lattice ([kBdStructureHatch]).
+  final GlobalHatchOffset hatchOffset;
+
+  /// Phase of the error-stripe lattice ([kBdErrorHatch]) — independent of
+  /// [hatchOffset] within one capture.
+  final GlobalHatchOffset errorHatchOffset;
+}
 
 /// The uniform grey a disabled frame renders dark NEUTRAL chrome in — the
 /// same (170,170,170) line-work grey as the disabled icon palette
@@ -931,9 +909,10 @@ computeBdOutline(Iterable<ViHeapObject> objects) {
       nodeCount++;
       confidence[object.objectClass.confidence] =
           (confidence[object.objectClass.confidence] ?? 0) + 1;
-      final dl = nodeDisplayLabel(object);
-      if (!dl.isHint && !labeledNodes.contains(dl.text))
-        labeledNodes.add(dl.text);
+      final label = nodeDisplayLabel(object);
+      if (!label.isHint && !labeledNodes.contains(label.text)) {
+        labeledNodes.add(label.text);
+      }
     }
   }
   return (
@@ -944,22 +923,6 @@ computeBdOutline(Iterable<ViHeapObject> objects) {
   );
 }
 
-/// Control-terminal classes — their internal sub-terminals are scaffolding.
-
-/// Whether [o] is pure LabVIEW chrome that a faithful layout view should not
-/// draw (corpus-validated; suppresses ~76% of raw heap objects, leaving real
-/// structures, nodes, controls, decorations and caption bars):
-/// - resize/scroll handles (`0x09`);
-/// - content viewports (`0x11c`) — used only as the re-anchor frame, the
-///   enclosing cluster/structure is drawn instead;
-/// - hidden no-bounds terminals (`0x68`);
-/// - the display/increment/terminal/item-list parts internal to a control
-///   (`0xe0`/`0x0b`/`0x0c`/`0x0d` with a control-kind ancestor) — the control is
-///   drawn as a single unit, not its internals (`0x0d`'s enum items are already
-///   propagated up to the control, so suppressing it loses nothing);
-/// - subVI-node internal display sub-parts (`0xe5`) — corpus: 947, all under a
-///   `0xc5` node; they overlap the parent node and would otherwise paint a stray
-///   unknown rectangle over it.
 /// The control/indicator terminal classes that, when they appear as a **named**
 /// leaf inside a block-diagram constant/structural subtree, are a called subVI's
 /// own connector-pane controls spliced into the caller's heap (an inlined/
@@ -1002,13 +965,13 @@ bool _isInlinedSubViControl(
   final seen = <int>{};
   var underConstOrStruct = false;
   while (parentOid != null && seen.add(parentOid)) {
-    final po = byId[parentOid];
-    if (po == null) break;
-    if (po.kind == 0x13 || po.kind == 0x15) {
+    final parent = byId[parentOid];
+    if (parent == null) break;
+    if (parent.kind == 0x13 || parent.kind == 0x15) {
       underConstOrStruct = true;
       break;
     }
-    parentOid = po.parentOid;
+    parentOid = parent.parentOid;
   }
   if (!underConstOrStruct) return false;
   final kids = childrenByOid[o.oid];
@@ -1021,6 +984,20 @@ bool _isInlinedSubViControl(
   );
 }
 
+/// Whether [o] is pure LabVIEW chrome that a faithful layout view should not
+/// draw (corpus-validated; suppresses ~76% of raw heap objects, leaving real
+/// structures, nodes, controls, decorations and caption bars):
+/// - resize/scroll handles (`0x09`);
+/// - content viewports (`0x11c`) — used only as the re-anchor frame, the
+///   enclosing cluster/structure is drawn instead;
+/// - hidden no-bounds terminals (`0x68`);
+/// - the display/increment/terminal/item-list parts internal to a control
+///   (`0xe0`/`0x0b`/`0x0c`/`0x0d` with a control-kind ancestor) — the control is
+///   drawn as a single unit, not its internals (`0x0d`'s enum items are already
+///   propagated up to the control, so suppressing it loses nothing);
+/// - subVI-node internal display sub-parts (`0xe5`) — corpus: 947, all under a
+///   `0xc5` node; they overlap the parent node and would otherwise paint a stray
+///   unknown rectangle over it.
 bool _isScaffolding(ViHeapObject o, Map<int, ViHeapObject> byId) {
   if (o.kind == 0x09 || o.kind == 0x11c) return true;
   if (o.kind == 0xe5) return true;
@@ -1029,10 +1006,10 @@ bool _isScaffolding(ViHeapObject o, Map<int, ViHeapObject> byId) {
     var parentOid = o.parentOid;
     var depth = 0;
     while (parentOid != null && depth < 64) {
-      final po = byId[parentOid];
-      if (po == null) break;
-      if (kControlTerminalCodes.contains(po.kind)) return true;
-      parentOid = po.parentOid;
+      final parent = byId[parentOid];
+      if (parent == null) break;
+      if (kControlTerminalCodes.contains(parent.kind)) return true;
+      parentOid = parent.parentOid;
       depth++;
     }
   }
@@ -1108,7 +1085,7 @@ Set<ViHeapObject> nodesWithin(
 /// keep every frame. Pure + public for testing; shared by
 /// [bdDrawableObjects] and [bdVisibleWires].
 Set<int> bdHiddenFrameOids(ViDiagram diagram) {
-  final childrenByOid = bdChildrenByOid(diagram);
+  final childrenByOid = diagram.childrenByOid;
   final hidden = <int>{};
 
   void hideSubtree(ViHeapObject root) {
@@ -1150,18 +1127,19 @@ Set<int> bdHiddenFrameOids(ViDiagram diagram) {
       var count = 0;
       var l = 1 << 30, t = 1 << 30, r = -(1 << 30), b = -(1 << 30);
       void visit(ViHeapObject o) {
-        final bb = o.absBounds;
-        if (bb != null && bb.width > 0 && bb.height > 0) {
-          final cx = (bb.left + bb.right) / 2, cy = (bb.top + bb.bottom) / 2;
+        final bounds = o.absBounds;
+        if (bounds != null && bounds.width > 0 && bounds.height > 0) {
+          final cx = (bounds.left + bounds.right) / 2,
+              cy = (bounds.top + bounds.bottom) / 2;
           if (cx >= box.left - 8 &&
               cx <= box.right + 8 &&
               cy >= box.top - 8 &&
               cy <= box.bottom + 8) {
             count++;
-            if (bb.left < l) l = bb.left;
-            if (bb.top < t) t = bb.top;
-            if (bb.right > r) r = bb.right;
-            if (bb.bottom > b) b = bb.bottom;
+            if (bounds.left < l) l = bounds.left;
+            if (bounds.top < t) t = bounds.top;
+            if (bounds.right > r) r = bounds.right;
+            if (bounds.bottom > b) b = bounds.bottom;
           }
         }
         for (final child in childrenByOid[o.oid] ?? const <ViHeapObject>[]) {
@@ -1243,13 +1221,13 @@ List<ViWire> bdVisibleWires(ViDiagram diagram) {
     var cur = byId[endpointOid];
     var depth = 0;
     while (cur != null && depth++ < 64) {
-      final b = cur.absBounds;
+      final bounds = cur.absBounds;
       if (!hidden.contains(cur.oid) &&
-          b != null &&
-          b.width > 0 &&
-          b.height > 0) {
+          bounds != null &&
+          bounds.width > 0 &&
+          bounds.height > 0) {
         // The diagram root's box is the whole canvas — not an anchor.
-        return cur.parentOid == null ? null : b;
+        return cur.parentOid == null ? null : bounds;
       }
       cur = cur.parentOid == null ? null : byId[cur.parentOid!];
     }
@@ -1318,18 +1296,6 @@ List<ViWire> bdVisibleWires(ViDiagram diagram) {
   return out;
 }
 
-/// [diagram]'s parent-oid → children map — the walk index every grouping
-/// helper below shares.
-Map<int, List<ViHeapObject>> bdChildrenByOid(ViDiagram diagram) {
-  final childrenByOid = <int, List<ViHeapObject>>{};
-  for (final object in diagram.objects) {
-    if (object.parentOid != null) {
-      (childrenByOid[object.parentOid!] ??= <ViHeapObject>[]).add(object);
-    }
-  }
-  return childrenByOid;
-}
-
 /// The oids of every object inside an **inlined sub-VI instance** (`0x105`):
 /// an express/inlined call splices the called VI's whole internal diagram
 /// into this heap under the instance node, in the sub-VI's own coordinate
@@ -1338,7 +1304,7 @@ Map<int, List<ViHeapObject>> bdChildrenByOid(ViDiagram diagram) {
 /// the internals, so the subtree is excluded from the drawable set and the
 /// wire list.
 Set<int> bdInlinedInstanceOids(ViDiagram diagram) {
-  final childrenByOid = bdChildrenByOid(diagram);
+  final childrenByOid = diagram.childrenByOid;
   final out = <int>{};
   void collect(ViHeapObject root) {
     for (final child in childrenByOid[root.oid] ?? const <ViHeapObject>[]) {
@@ -1415,7 +1381,7 @@ List<ViHeapObject> bdDrawableObjects(ViDiagram diagram) {
   final byId = diagram.byId;
   final hidden = bdHiddenFrameOids(diagram)
     ..addAll(bdInlinedInstanceOids(diagram));
-  final childrenByOid = bdChildrenByOid(diagram);
+  final childrenByOid = diagram.childrenByOid;
   return [
     for (final object in diagram.objects)
       if (object.absBounds != null &&
@@ -1492,9 +1458,9 @@ bool _escapesConstantBox(ViHeapObject object, Map<int, ViHeapObject> byId) {
   // Anchor: the outermost bounded shell just below the const record.
   HeapRect? anchor;
   for (final shell in chain.reversed) {
-    final b = shell.absBounds;
-    if (b != null && b.width > 0 && b.height > 0) {
-      anchor = b;
+    final bounds = shell.absBounds;
+    if (bounds != null && bounds.width > 0 && bounds.height > 0) {
+      anchor = bounds;
       break;
     }
   }
@@ -1506,14 +1472,17 @@ bool _escapesConstantBox(ViHeapObject object, Map<int, ViHeapObject> byId) {
       b.bottom <= box.top ||
       b.top >= box.bottom;
   for (final ancestor in chain) {
-    final b = ancestor.absBounds;
-    if (b == null || b.width <= 0 || b.height <= 0) continue;
-    if (identical(b, box)) continue;
-    if (outside(b)) return true;
+    final bounds = ancestor.absBounds;
+    if (bounds == null || bounds.width <= 0 || bounds.height <= 0) continue;
+    if (identical(bounds, box)) continue;
+    if (outside(bounds)) return true;
   }
   if (kBdTextLabelCodes.contains(object.kind)) return false;
-  final b = object.absBounds;
-  return b != null && b.width > 0 && b.height > 0 && outside(b);
+  final bounds = object.absBounds;
+  return bounds != null &&
+      bounds.width > 0 &&
+      bounds.height > 0 &&
+      outside(bounds);
 }
 
 /// Whether [object] is composed **entirely outside** its nearest bounded
@@ -1701,22 +1670,21 @@ Future<Map<int, PrimIconArt>> loadPrimIcons() => _primIcons ??= () async {
   final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
   final icons = <int, PrimIconArt>{};
   for (final asset in manifest.listAssets()) {
-    final m = RegExp(
+    final match = RegExp(
       r'assets/prim_icons/(prim|class)(\d+)(?:_[a-z0-9-]+)?\.png$',
     ).firstMatch(asset);
-    if (m == null) continue;
+    if (match == null) continue;
     // A rejected icon never stamps — the node falls back to the plate +
     // operator glyph until a better extraction or hand-drawn art lands.
-    if (kPrimIconStatus['${m.group(1)}${m.group(2)}'] ==
+    if (kPrimIconStatus['${match.group(1)}${match.group(2)}'] ==
         PrimIconStatus.rejected) {
       continue;
     }
     final bytes = await rootBundle.load(asset);
-    final codec = await ui.instantiateImageCodec(bytes.buffer.asUint8List());
-    final image = (await codec.getNextFrame()).image;
-    final id = m.group(1) == 'prim'
-        ? int.parse(m.group(2)!)
-        : -int.parse(m.group(2)!);
+    final image = await decodeImage(bytes.buffer.asUint8List());
+    final id = match.group(1) == 'prim'
+        ? int.parse(match.group(2)!)
+        : -int.parse(match.group(2)!);
     // The alpha mask backs pixel-precise hit testing at LOGICAL resolution:
     // a stamped icon's transparent surround must not swallow clicks meant
     // for the wire or canvas behind it.
@@ -1807,6 +1775,26 @@ Map<int, PrimIconArt> primIconsGreyLoaded() => _primIconsGreySync;
 
 /// Builds the disabled-palette variants of every loaded icon, once, on
 /// first demand (a diagram with a non-empty [bdDisabledObjectOids] set).
+/// Decodes PNG/other-encoded image [bytes] to a [ui.Image].
+Future<ui.Image> decodeImage(Uint8List bytes) {
+  final completer = Completer<ui.Image>();
+  ui.decodeImageFromList(bytes, completer.complete);
+  return completer.future;
+}
+
+/// Builds a [ui.Image] from a raw RGBA buffer ([width]×[height]×4 bytes).
+Future<ui.Image> imageFromRgba(Uint8List rgba, int width, int height) {
+  final completer = Completer<ui.Image>();
+  ui.decodeImageFromPixels(
+    rgba,
+    width,
+    height,
+    ui.PixelFormat.rgba8888,
+    completer.complete,
+  );
+  return completer.future;
+}
+
 Future<Map<int, PrimIconArt>> ensurePrimIconsGrey() =>
     _primIconsGrey ??= () async {
       final icons = await loadPrimIcons();
@@ -1816,15 +1804,9 @@ Future<Map<int, PrimIconArt>> ensurePrimIconsGrey() =>
         if (rgba == null) continue;
         final greyPx = Uint8List.fromList(rgba.buffer.asUint8List());
         _greyDisabledPalette(greyPx);
-        final completer = Completer<ui.Image>();
-        ui.decodeImageFromPixels(
-          greyPx,
-          e.value.base.width,
-          e.value.base.height,
-          ui.PixelFormat.rgba8888,
-          completer.complete,
+        grey[e.key] = await _prescaledArt(
+          await imageFromRgba(greyPx, e.value.base.width, e.value.base.height),
         );
-        grey[e.key] = await _prescaledArt(await completer.future);
       }
       return _primIconsGreySync = grey;
     }();
@@ -1850,15 +1832,7 @@ Future<ui.Image> remapPrimIcon(ui.Image icon, Map<int, int> rgbMapping) async {
     rgba[i + 1] = (mapped >> 8) & 0xff;
     rgba[i + 2] = mapped & 0xff;
   }
-  final completer = Completer<ui.Image>();
-  ui.decodeImageFromPixels(
-    rgba,
-    icon.width,
-    icon.height,
-    ui.PixelFormat.rgba8888,
-    completer.complete,
-  );
-  return completer.future;
+  return imageFromRgba(rgba, icon.width, icon.height);
 }
 
 final Map<int, ({int w, int h, Uint8List alpha})> _primIconMasks = {};
@@ -1908,13 +1882,13 @@ bool primIconHit(ViHeapObject object, double x, double y) {
   final id = primIconKeyOf(object);
   final mask = id == null ? null : _primIconMasks[id];
   if (mask == null || _primIconsSync[id] == null) return true;
-  final b = object.absBounds!;
+  final bounds = object.absBounds!;
   final stamp = primIconStampRect(
     Rect.fromLTRB(
-      b.left.toDouble(),
-      b.top.toDouble(),
-      b.right.toDouble(),
-      b.bottom.toDouble(),
+      bounds.left.toDouble(),
+      bounds.top.toDouble(),
+      bounds.right.toDouble(),
+      bounds.bottom.toDouble(),
     ),
     mask.w,
     mask.h,
@@ -2102,38 +2076,82 @@ typedef _BdWireSeg = ({
   int bandHi,
 });
 
+/// Everything the block-diagram painter needs that derives purely from one
+/// [ViDiagram] — computed once here and passed as a unit, instead of each
+/// caller re-deriving and threading a parameter per piece. Members are lazy,
+/// so a caller that never paints wires (say) never pays for their analysis.
+class BdScene {
+  BdScene(this.diagram, {List<ViWire>? wires, List<ViHeapObject>? drawable})
+    : wires = wires ?? bdVisibleWires(diagram),
+      drawable = drawable ?? bdDrawableObjects(diagram);
+
+  final ViDiagram diagram;
+
+  /// The drawn object set ([bdDrawableObjects]); callers may override (e.g.
+  /// a probe rendering a subset).
+  final List<ViHeapObject> drawable;
+
+  /// The decoded dataflow wires ([bdVisibleWires], one per `0x17` signal),
+  /// routed under the nodes/structures between their endpoint anchors; pass
+  /// `const []` for a wire-free render.
+  final List<ViWire> wires;
+
+  /// [drawable] in painting order ([bdPaintOrder]).
+  late final List<ViHeapObject> ordered = bdPaintOrder(drawable, diagram.byId);
+
+  /// Objects under a disabled displayed frame ([bdDisabledObjectOids]).
+  late final Set<int> disabledOids = bdDisabledObjectOids(diagram);
+
+  /// Case structures displaying their "No Error" frame ([bdErrorCaseOids]).
+  late final Set<int> errorCaseOids = bdErrorCaseOids(diagram);
+
+  /// Attach rect → terminal class for reference-verified border-terminal
+  /// chrome ([bdBorderTerminalKinds]).
+  late final Map<HeapRect, ({int kind, bool hollow, bool disabled})>
+  borderTerminalKinds = bdBorderTerminalKinds(diagram);
+
+  /// Per structure oid, its modeled terminals ([bdStructureTerminals]).
+  late final Map<int, List<({HeapRect box, int bmp})>> structureTerminals =
+      bdStructureTerminals(diagram);
+
+  /// Per terminal oid, the numeric literal its constant box displays
+  /// ([bdConstValueTexts]).
+  late final Map<int, String> constValues = bdConstValueTexts(diagram);
+
+  /// The ink envelope of [drawable] (wires excluded: their absolute anchoring
+  /// is not yet verified, and a misanchored run must not blow up the fit).
+  late final Rect content = drawable.isEmpty
+      ? Rect.zero
+      : bdContentRect(drawable, includeWires: false);
+}
+
 class BdDiagramPainter extends CustomPainter {
   BdDiagramPainter({
-    required this.objects,
+    required this.scene,
     required this.origin,
-    this.wires = const [],
     this.subViIcons = const {},
     this.primIcons = const {},
     this.primIconsGrey = const {},
-    this.disabledOids = const {},
-    this.borderTerminalKinds = const {},
-    this.structureTerminals = const {},
-    this.constValues = const {},
     this.iconFilterQuality = FilterQuality.none,
     this.canvasScale = 1,
     this.drawDotGrid = true,
-    this.globalHatchOffset = kNoHatchOffset,
-    this.errorHatchOffset = kNoHatchOffset,
-    this.errorCaseOids = const {},
-    this.chromePalette = kBdDefaultChromePalette,
+    this.style = const BdRenderStyle(),
   });
 
-  final List<ViHeapObject> objects;
+  /// The diagram-derived render inputs (paint order, wires, chrome indexes).
+  final BdScene scene;
+
   final Offset origin;
 
-  /// Per structure oid, its modeled terminals (frame-relative box + glyph
-  /// selector; see [bdStructureTerminals]).
-  final Map<int, List<({HeapRect box, int bmp})>> structureTerminals;
-
-  /// The decoded dataflow wires ([ViDiagram.wires], one per `0x17` signal),
-  /// routed under the nodes/structures between their endpoint anchors. Empty
-  /// leaves the diagram wire-free. See [_drawWires].
-  final List<ViWire> wires;
+  List<ViHeapObject> get objects => scene.ordered;
+  List<ViWire> get wires => scene.wires;
+  Set<int> get disabledOids => scene.disabledOids;
+  Set<int> get errorCaseOids => scene.errorCaseOids;
+  Map<HeapRect, ({int kind, bool hollow, bool disabled})>
+  get borderTerminalKinds => scene.borderTerminalKinds;
+  Map<int, List<({HeapRect box, int bmp})>> get structureTerminals =>
+      scene.structureTerminals;
+  Map<int, String> get constValues => scene.constValues;
 
   /// Resolved subVI-call node icons, keyed by [ViHeapObject.oid] — the 32×32
   /// icon of the VI a subVI-call node targets, loaded from that VI's own file
@@ -2151,40 +2169,18 @@ class BdDiagramPainter extends CustomPainter {
   /// stamped for nodes in [disabledOids].
   final Map<int, PrimIconArt> primIconsGrey;
 
-  /// Objects under a disabled displayed frame ([bdDisabledObjectOids]).
-  final Set<int> disabledOids;
+  /// The structure-chrome style: band/field colours and per-capture hatch
+  /// phases. See [BdRenderStyle].
+  final BdRenderStyle style;
 
-  /// Attach rect → terminal class for reference-verified border-terminal
-  /// chrome ([bdBorderTerminalKinds]).
-  final Map<HeapRect, ({int kind, bool hollow, bool disabled})>
-  borderTerminalKinds;
-
-  /// Per terminal oid, the numeric literal its constant box displays
-  /// ([bdConstValueTexts]). A mapped box drops the generic terminal's inner
-  /// ring (the reference draws constants with the 2 px outer border only)
-  /// and centres the value text.
-  final Map<int, String> constValues;
-
-  /// Phase of the structure-hatch lattice ([kBdStructureHatch]) relative to
-  /// absolute diagram coordinates. LabVIEW anchors the lattice to its
-  /// device/window brush origin at render time — a value that is NOT stored in
-  /// the .vi and differs per capture — so the viewer draws at the neutral
-  /// [kNoHatchOffset] and the oracle derives a per-reference offset
-  /// (`deriveGlobalHatchOffset`) to compare snapshots 1:1.
-  final GlobalHatchOffset globalHatchOffset;
-
-  /// Phase of the error-case stripe lattice ([kBdErrorHatch]) — a separate
-  /// per-capture value from [globalHatchOffset] (the two lattices measure
-  /// different phases within one capture).
-  final GlobalHatchOffset errorHatchOffset;
-
-  /// Case structures displaying their "No Error" frame ([bdErrorCaseOids]) —
-  /// their band draws the green error style instead of the black hatch.
-  final Set<int> errorCaseOids;
-
-  /// The capture-environment chrome colours (while band / error stripes /
-  /// error field). See [BdChromePalette].
-  final BdChromePalette chromePalette;
+  /// [rect] (absolute diagram coordinates) mapped into this painter's canvas
+  /// frame (the content origin subtracted).
+  Rect _toCanvas(HeapRect rect) => Rect.fromLTRB(
+    rect.left - origin.dx,
+    rect.top - origin.dy,
+    rect.right - origin.dx,
+    rect.bottom - origin.dy,
+  );
 
   /// [color] through the measured disabled-frame palette transform when the
   /// object [oid] sits under a disabled displayed frame ([disabledOids]),
@@ -2221,15 +2217,7 @@ class BdDiagramPainter extends CustomPainter {
     canvas.drawRect(Offset.zero & size, Paint()..color = kBdCanvas);
     if (drawDotGrid) _drawDotGrid(canvas, size);
 
-    Rect rectOf(ViHeapObject o) {
-      final bounds = o.absBounds!;
-      return Rect.fromLTRB(
-        bounds.left - origin.dx,
-        bounds.top - origin.dy,
-        bounds.right - origin.dx,
-        bounds.bottom - origin.dy,
-      );
-    }
+    Rect rectOf(ViHeapObject o) => _toCanvas(o.absBounds!);
 
     final structures = objects
         .where((o) => o.category == ViObjectKind.structure)
@@ -2319,7 +2307,6 @@ class BdDiagramPainter extends CustomPainter {
       for (final o in objects)
         if (o.kind == 0x50 && o.parentOid != null) o.parentOid!,
     };
-    final tunnelLandings = <(Offset, Color)>[];
     final tunnelSquares =
         <(Rect, ({int kind, bool hollow, bool disabled}), Color)>[];
     // Rects owned by the reference-verified border-terminal chrome pass
@@ -2328,13 +2315,7 @@ class BdDiagramPainter extends CustomPainter {
     // a ring of blended pixels just OUTSIDE the rect that the byte-exact
     // chrome cannot cover.
     final chromeOwnedRects = <Rect>{
-      for (final attach in borderTerminalKinds.keys)
-        Rect.fromLTRB(
-          attach.left - origin.dx,
-          attach.top - origin.dy,
-          attach.right - origin.dx,
-          attach.bottom - origin.dy,
-        ),
+      for (final attach in borderTerminalKinds.keys) _toCanvas(attach),
     };
     _drawWires(canvas, tunnelSquares: tunnelSquares);
     for (final object in structures) {
@@ -2373,27 +2354,11 @@ class BdDiagramPainter extends CustomPainter {
       switch (object.kind) {
         case 0x20: // For loop: crisp 1px black border + stacked pages.
           _drawForLoopBorder(canvas, rect, disabled: structDisabled);
-          _drawStructureTerminals(
-            canvas,
-            rect,
-            terminals,
-            tunnelLandings,
-            chromeOwnedRects: chromeOwnedRects,
-            disabled: structDisabled,
-          );
         case 0x21: // While loop: crisp rounded grey band + terminals.
           _drawWhileLoopBand(
             canvas,
             rect,
             structColor,
-            disabled: structDisabled,
-          );
-          _drawStructureTerminals(
-            canvas,
-            rect,
-            terminals,
-            tunnelLandings,
-            chromeOwnedRects: chromeOwnedRects,
             disabled: structDisabled,
           );
         case 0x2c: // Case structure: solid 1px border + global hatch band.
@@ -2404,14 +2369,6 @@ class BdDiagramPainter extends CustomPainter {
             object.absBounds!.top,
             disabled: structDisabled,
             error: errorCaseOids.contains(object.oid),
-          );
-          _drawStructureTerminals(
-            canvas,
-            rect,
-            terminals,
-            tunnelLandings,
-            chromeOwnedRects: chromeOwnedRects,
-            disabled: structDisabled,
           );
         default:
           final frame =
@@ -2437,7 +2394,15 @@ class BdDiagramPainter extends CustomPainter {
               ..style = PaintingStyle.stroke
               ..strokeWidth = 1.0,
           );
+          continue; // Generic frames draw no corner terminals.
       }
+      _drawStructureTerminals(
+        canvas,
+        rect,
+        terminals,
+        chromeOwnedRects: chromeOwnedRects,
+        disabled: structDisabled,
+      );
     }
     // Overlapping border terminals stack: the reference draws a selector
     // OVER the select tunnel sharing its edge (crc8's 0x2e/0x2d pair
@@ -2935,12 +2900,7 @@ class BdDiagramPainter extends CustomPainter {
       }
       final iconKey = primIconKeyOf(object);
       if (iconKey != null) {
-        final boxRect = Rect.fromLTRB(
-          bounds.left - origin.dx,
-          bounds.top - origin.dy,
-          bounds.right - origin.dx,
-          bounds.bottom - origin.dy,
-        );
+        final boxRect = _toCanvas(bounds);
         iconNodeRects.add(boxRect);
         iconNodeObjects[boxRect] = object;
         final art = primIcons[iconKey]?.base;
@@ -2984,12 +2944,7 @@ class BdDiagramPainter extends CustomPainter {
             ? wire.endpointAttachRects[e]
             : null;
         if (attach == null) continue;
-        final attachRect = Rect.fromLTRB(
-          attach.left - origin.dx,
-          attach.top - origin.dy,
-          attach.right - origin.dx,
-          attach.bottom - origin.dy,
-        );
+        final attachRect = _toCanvas(attach);
         final info = borderTerminalKinds[attach];
         if (info != null) tunnels.add((attachRect, info));
       }
@@ -3140,10 +3095,10 @@ class BdDiagramPainter extends CustomPainter {
       // the simple solid/dotted styles only (never a patterned cycle); the
       // pre-catalogue simple laws cover the remainder (array ⇒ 2 px, scalar
       // boolean ⇒ dotted, else 1 px).
-      final st = wire.signalType;
-      var style = st?.renderStyle;
+      final sigType = wire.signalType;
+      var style = sigType?.renderStyle;
       if (style == null) {
-        final estimate = st?.renderStyleEstimate;
+        final estimate = sigType?.renderStyleEstimate;
         if (estimate == ViWireRenderStyle.solid1px ||
             estimate == ViWireRenderStyle.solid2px ||
             estimate == ViWireRenderStyle.dotted) {
@@ -3152,15 +3107,13 @@ class BdDiagramPainter extends CustomPainter {
       }
       style ??=
           (wire.elementTypeKind == ViTypeKind.boolean &&
-              (st?.arrayDims ?? 0) == 0)
+              (sigType?.arrayDims ?? 0) == 0)
           ? ViWireRenderStyle.dotted
-          : ((st?.arrayDims ?? 0) >= 1
+          : ((sigType?.arrayDims ?? 0) >= 1
                 ? ViWireRenderStyle.solid2px
                 : ViWireRenderStyle.solid1px);
 
-      final fill = Paint()
-        ..color = color
-        ..isAntiAlias = false;
+      final fill = _solidNoAa(color);
       final (bandLo, bandHi) = bdWireStrokeBand(style);
       // Segments this wire draws — appended to [drawn] only after the whole
       // wire, so a wire never gaps against its own bends.
@@ -3372,6 +3325,31 @@ class BdDiagramPainter extends CustomPainter {
   /// goes to the icon line-work grey ([kBdDisabledChromeGrey]) and the
   /// cream fill goes white (both measured mappings agree on the cream —
   /// [bdDimDisabled] clamps it to white too). Nothing is hand-tuned.
+  /// A solid fill of [color] with anti-aliasing off — the pixel-exact chrome
+  /// paint (hard edges the oracle byte-compares).
+  static Paint _solidNoAa(Color color) => Paint()
+    ..color = color
+    ..isAntiAlias = false;
+
+  /// Stamps a `List<String>` bitmap at 1px per cell marked [on], with the
+  /// bitmap's (0,0) cell at ([left], [top]) — the shared form of every
+  /// reference-measured chrome glyph.
+  static void _stampBitmap(
+    Canvas canvas,
+    Paint paint,
+    List<String> rows,
+    double left,
+    double top, {
+    String on = '#',
+  }) {
+    for (var y = 0; y < rows.length; y++) {
+      for (var x = 0; x < rows[y].length; x++) {
+        if (rows[y][x] != on) continue;
+        canvas.drawRect(Rect.fromLTWH(left + x, top + y, 1, 1), paint);
+      }
+    }
+  }
+
   void _drawBorderTerminalChrome(
     Canvas canvas,
     Rect t,
@@ -3383,32 +3361,17 @@ class BdDiagramPainter extends CustomPainter {
     final creamColor = info.disabled
         ? bdDimDisabled(kBdTerminalFill)
         : kBdTerminalFill;
-    final noAa = Paint()
-      ..color = wireColor
-      ..isAntiAlias = false;
+    final noAa = _solidNoAa(wireColor);
     switch (kind) {
       case 0x22 || 0x2d:
         // Hollow ([kTunnelHollowFlag]): cream interior with a 5x5
         // wire-colour ring (open at the middle of its top/bottom edges),
         // read from crc8's reference at (520,276). Solid: wire-colour fill.
         if (info.hollow) {
-          canvas.drawRect(
-            t,
-            Paint()
-              ..color = creamColor
-              ..isAntiAlias = false,
-          );
+          canvas.drawRect(t, _solidNoAa(creamColor));
           if (t.width == 9 && t.height == 9) {
             const ring = ['xx.xx', 'x...x', 'x...x', 'x...x', 'xx.xx'];
-            for (var y = 0; y < 5; y++) {
-              for (var x = 0; x < 5; x++) {
-                if (ring[y][x] != 'x') continue;
-                canvas.drawRect(
-                  Rect.fromLTWH(t.left + 2 + x, t.top + 2 + y, 1, 1),
-                  noAa,
-                );
-              }
-            }
+            _stampBitmap(canvas, noAa, ring, t.left + 2, t.top + 2, on: 'x');
           }
         } else {
           canvas.drawRect(t, noAa);
@@ -3428,12 +3391,7 @@ class BdDiagramPainter extends CustomPainter {
         );
       case 0x27 || 0x28:
         canvas.drawRect(t, noAa);
-        canvas.drawRect(
-          t.deflate(2),
-          Paint()
-            ..color = creamColor
-            ..isAntiAlias = false,
-        );
+        canvas.drawRect(t.deflate(2), _solidNoAa(creamColor));
         if (t.width == 16 && t.height == 12) {
           // Triangle rows within the 12x8 interior: row index 2..6 for the
           // down arrow, 1..5 for the up arrow, widths 10/8/6/4/2 centred.
@@ -3454,12 +3412,7 @@ class BdDiagramPainter extends CustomPainter {
         }
       case 0x2e:
         canvas.drawRect(t, noAa);
-        canvas.drawRect(
-          t.deflate(1),
-          Paint()
-            ..color = creamColor
-            ..isAntiAlias = false,
-        );
+        canvas.drawRect(t.deflate(1), _solidNoAa(creamColor));
         if (t.width == 8 && t.height == 12) {
           const glyph = [
             '......',
@@ -3473,15 +3426,7 @@ class BdDiagramPainter extends CustomPainter {
             '..x...',
             '......',
           ];
-          for (var y = 0; y < glyph.length; y++) {
-            for (var x = 0; x < 6; x++) {
-              if (glyph[y][x] != 'x') continue;
-              canvas.drawRect(
-                Rect.fromLTWH(t.left + 1 + x, t.top + 1 + y, 1, 1),
-                noAa,
-              );
-            }
-          }
+          _stampBitmap(canvas, noAa, glyph, t.left + 1, t.top + 1, on: 'x');
         }
     }
   }
@@ -3546,7 +3491,7 @@ class BdDiagramPainter extends CustomPainter {
     bool disabled = false,
   }) {
     Color dim(Color c) => disabled ? bdDimDisabled(c) : c;
-    final grey = tint ?? dim(chromePalette.bandGrey);
+    final grey = tint ?? dim(style.whileBandGrey);
     // The band fills the frame's stored bounds; [l,r) × [t,b).
     final l = rect.left.round(), t = rect.top.round();
     final r = rect.right.round(), b = rect.bottom.round();
@@ -3587,12 +3532,7 @@ class BdDiagramPainter extends CustomPainter {
         if (_kWhileArrow[ry][rx] == '#') add(ax0 + rx, ay0 + ry);
       }
     }
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = grey
-        ..isAntiAlias = false,
-    );
+    canvas.drawPath(path, _solidNoAa(grey));
   }
 
   static const _kWhileBand = 6;
@@ -3615,9 +3555,7 @@ class BdDiagramPainter extends CustomPainter {
     final ink = disabled
         ? bdDimDisabled(const Color(0xFF000000))
         : const Color(0xFF000000);
-    final paint = Paint()
-      ..color = ink
-      ..isAntiAlias = false;
+    final paint = _solidNoAa(ink);
     final l = rect.left.roundToDouble();
     final t = rect.top.roundToDouble();
     final r = rect.right.roundToDouble();
@@ -3673,9 +3611,7 @@ class BdDiagramPainter extends CustomPainter {
     bool error = false,
   }) {
     Color dim(Color c) => disabled ? bdDimDisabled(c) : c;
-    final paint = Paint()
-      ..color = dim(const Color(0xFF000000))
-      ..isAntiAlias = false;
+    final paint = _solidNoAa(dim(const Color(0xFF000000)));
     final l = rect.left.round(), t = rect.top.round();
     final w = rect.width.round(), h = rect.height.round();
     if (w < 2 || h < 2) return;
@@ -3699,7 +3635,7 @@ class BdDiagramPainter extends CustomPainter {
     // Hatch band, batched into ink/field paths. Iterate the perimeter ring
     // (skip the interior columns of the middle rows).
     final tile = error ? kBdErrorHatch : kBdStructureHatch;
-    final offset = error ? errorHatchOffset : globalHatchOffset;
+    final offset = error ? style.errorHatchOffset : style.hatchOffset;
     final band = Path();
     final field = error ? Path() : null;
     for (var j = 0; j < h; j++) {
@@ -3725,21 +3661,9 @@ class BdDiagramPainter extends CustomPainter {
       }
     }
     if (field != null) {
-      canvas.drawPath(
-        field,
-        Paint()
-          ..color = dim(chromePalette.errorGreen)
-          ..isAntiAlias = false,
-      );
+      canvas.drawPath(field, _solidNoAa(dim(style.errorCaseGreen)));
     }
-    canvas.drawPath(
-      band,
-      error
-          ? (Paint()
-              ..color = dim(chromePalette.bandGrey)
-              ..isAntiAlias = false)
-          : paint,
-    );
+    canvas.drawPath(band, error ? _solidNoAa(dim(style.whileBandGrey)) : paint);
   }
 
   /// Side length (px) of the for-loop's dog-ear corner fold — fixed chrome,
@@ -3791,29 +3715,16 @@ class BdDiagramPainter extends CustomPainter {
     bool disabled = false,
   }) {
     Color dim(Color c) => disabled ? bdDimDisabled(c) : c;
-    final ink = Paint()
-      ..color = dim(const Color(0xFF0000FF))
-      ..isAntiAlias = false;
+    final ink = _solidNoAa(dim(const Color(0xFF0000FF)));
     final l = box.left.roundToDouble(), t = box.top.roundToDouble();
-    canvas.drawRect(
-      box,
-      Paint()
-        ..color = dim(kBdTerminalFill)
-        ..isAntiAlias = false,
-    );
+    canvas.drawRect(box, _solidNoAa(dim(kBdTerminalFill)));
     // 2px blue border as four bands.
     canvas.drawRect(Rect.fromLTWH(l, t, 16, 2), ink);
     canvas.drawRect(Rect.fromLTWH(l, t + 14, 16, 2), ink);
     canvas.drawRect(Rect.fromLTWH(l, t, 2, 16), ink);
     canvas.drawRect(Rect.fromLTWH(l + 14, t, 2, 16), ink);
     final (ox, oy) = glyph.origin;
-    for (var gy = 0; gy < glyph.rows.length; gy++) {
-      final row = glyph.rows[gy];
-      for (var gx = 0; gx < row.length; gx++) {
-        if (row[gx] != '#') continue;
-        canvas.drawRect(Rect.fromLTWH(l + ox + gx, t + oy + gy, 1, 1), ink);
-      }
-    }
+    _stampBitmap(canvas, ink, glyph.rows, l + ox, t + oy);
   }
 
   void _drawGlyphText(Canvas canvas, Rect box, String glyph, Color color) {
@@ -3846,8 +3757,7 @@ class BdDiagramPainter extends CustomPainter {
   void _drawStructureTerminals(
     Canvas canvas,
     Rect frame,
-    List<({HeapRect box, int bmp})> terminals,
-    List<(Offset, Color)>? tunnelLandings, {
+    List<({HeapRect box, int bmp})> terminals, {
     Set<Rect> chromeOwnedRects = const {},
     bool disabled = false,
   }) {
@@ -3860,19 +3770,6 @@ class BdDiagramPainter extends CustomPainter {
         t.box.height.toDouble(),
       );
       if (chromeOwnedRects.contains(box)) continue;
-      // A wire landing inside this terminal's box takes over its colour —
-      // LabVIEW paints the case selector [?] in the selector wire's datatype
-      // colour (green for a boolean selector). The landing is consumed so no
-      // separate tunnel square draws over the terminal.
-      Color? wireColor;
-      if (tunnelLandings != null) {
-        final inflated = box.inflate(3);
-        for (var i = tunnelLandings.length - 1; i >= 0; i--) {
-          if (inflated.contains(tunnelLandings[i].$1)) {
-            wireColor = tunnelLandings.removeAt(i).$2;
-          }
-        }
-      }
       // Count `N` / iteration `i` terminals: LabVIEW draws a 16×16 blue box
       // with a cream field and a bitmap glyph — reproduced pixel-exact, the
       // same reference-verified chrome treatment as the selector and tunnels.
@@ -3889,7 +3786,7 @@ class BdDiagramPainter extends CustomPainter {
       }
       final border = switch (t.bmp) {
         _bmpConditional => dim(const Color(0xFF007F00)),
-        _ => wireColor ?? dim(_loopBlue),
+        _ => dim(_loopBlue),
       };
       canvas.drawRect(box, Paint()..color = Colors.white);
       canvas.drawRect(
@@ -4002,17 +3899,16 @@ class BdDiagramPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant BdDiagramPainter old) =>
-      !identical(old.objects, objects) ||
-      !identical(old.wires, wires) ||
+      // One scene = one set of derived collections, so scene identity covers
+      // every diagram-derived input.
+      !identical(old.scene, scene) ||
       !identical(old.subViIcons, subViIcons) ||
       !identical(old.primIcons, primIcons) ||
       !identical(old.primIconsGrey, primIconsGrey) ||
-      !setEquals(old.disabledOids, disabledOids) ||
+      !identical(old.style, style) ||
       old.iconFilterQuality != iconFilterQuality ||
       old.canvasScale != canvasScale ||
       old.drawDotGrid != drawDotGrid ||
-      !identical(old.structureTerminals, structureTerminals) ||
-      !identical(old.constValues, constValues) ||
       old.origin != origin;
 }
 

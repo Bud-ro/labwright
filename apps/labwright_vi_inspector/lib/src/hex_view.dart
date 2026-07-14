@@ -251,7 +251,7 @@ class _BlockHexViewState extends State<BlockHexView> {
   static const _gap = 14.0;
   static const _rowWidth = _offW + 16 * _cellW + _gap + 16 * _asciiW;
 
-  Widget _hexRow(List<int> b, int row) {
+  Widget _hexRow(List<int> bytes, int row) {
     final base = row * 16;
     const hexStart = _offW;
     const asciiStart = _offW + 16 * _cellW + _gap;
@@ -265,7 +265,7 @@ class _BlockHexViewState extends State<BlockHexView> {
         } else if (dx >= asciiStart && dx < asciiStart + 16 * _asciiW) {
           off = base + ((dx - asciiStart) ~/ _asciiW);
         }
-        if (off != null && off >= 0 && off < b.length) {
+        if (off != null && off >= 0 && off < bytes.length) {
           final ri = _byteToRecord[off];
           if (ri >= 0) _select(ri, fromHex: true);
         }
@@ -283,22 +283,22 @@ class _BlockHexViewState extends State<BlockHexView> {
               ),
             ),
           ),
-          for (var i = 0; i < 16; i++) _cell(b, base + i, hex: true),
+          for (var i = 0; i < 16; i++) _cell(bytes, base + i, hex: true),
           const SizedBox(width: _gap),
-          for (var i = 0; i < 16; i++) _cell(b, base + i, hex: false),
+          for (var i = 0; i < 16; i++) _cell(bytes, base + i, hex: false),
         ],
       ),
     );
   }
 
-  Widget _cell(List<int> b, int o, {required bool hex}) {
-    if (o >= b.length) return SizedBox(width: hex ? _cellW : _asciiW);
-    final ri = _byteToRecord[o];
+  Widget _cell(List<int> bytes, int offset, {required bool hex}) {
+    if (offset >= bytes.length) return SizedBox(width: hex ? _cellW : _asciiW);
+    final ri = _byteToRecord[offset];
     final color = ri < 0 ? const Color(0xFF6E6E6E) : _records[ri].color;
     final sel = ri >= 0 && ri == _selected;
-    final byte = b[o];
+    final byte = bytes[offset];
     final text = hex
-        ? b[o].toRadixString(16).padLeft(2, '0')
+        ? bytes[offset].toRadixString(16).padLeft(2, '0')
         : (byte >= 0x20 && byte < 0x7f ? String.fromCharCode(byte) : '·');
     return Container(
       width: hex ? _cellW : _asciiW,
@@ -383,7 +383,7 @@ class _BlockHexViewState extends State<BlockHexView> {
     );
   }
 
-  Widget _detail(SpanInfo r) {
+  Widget _detail(SpanInfo record) {
     return Container(
       width: double.infinity,
       decoration: const BoxDecoration(
@@ -393,15 +393,21 @@ class _BlockHexViewState extends State<BlockHexView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(r.title, style: const TextStyle(fontWeight: FontWeight.bold)),
+          Text(
+            record.title,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 4),
           Text(
-            'offset 0x${r.offset.toRadixString(16)} · ${r.length} bytes · lead 0x${r.lead.toRadixString(16)}',
+            'offset 0x${record.offset.toRadixString(16)} · ${record.length} bytes · lead 0x${record.lead.toRadixString(16)}',
             style: const TextStyle(color: Colors.grey, fontSize: 11),
           ),
           const SizedBox(height: 8),
-          Text(r.detail, style: const TextStyle(fontSize: 12.5)),
-          if (r.display != null) ...[const SizedBox(height: 10), r.display!],
+          Text(record.detail, style: const TextStyle(fontSize: 12.5)),
+          if (record.display != null) ...[
+            const SizedBox(height: 10),
+            record.display!,
+          ],
         ],
       ),
     );
@@ -511,6 +517,14 @@ class _BlockHexViewState extends State<BlockHexView> {
     }
   }
 
+  /// The "Parsed · <name>" list header every parsed-section panel opens with.
+  List<Widget> _parsedHeader(String name, String subtitle) => [
+    Text('Parsed · $name', style: const TextStyle(fontWeight: FontWeight.bold)),
+    const SizedBox(height: 2),
+    Text(subtitle, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+    const Divider(height: 14),
+  ];
+
   Widget _nonHeapPanel() {
     final info = blockInfo(widget.section.tag);
     if (widget.section.tag == 'VCTP') {
@@ -521,16 +535,7 @@ class _BlockHexViewState extends State<BlockHexView> {
         return ListView(
           padding: const EdgeInsets.all(12),
           children: [
-            Text(
-              'Parsed · ${info.name}',
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              '${types.length} types',
-              style: const TextStyle(fontSize: 11, color: Colors.grey),
-            ),
-            const Divider(height: 14),
+            ..._parsedHeader(info.name, '${types.length} types'),
             for (final type in shown)
               Padding(
                 padding: const EdgeInsets.only(bottom: 2),
@@ -580,16 +585,10 @@ class _BlockHexViewState extends State<BlockHexView> {
         return ListView(
           padding: const EdgeInsets.all(12),
           children: [
-            Text(
-              'Parsed · ${info.name}',
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 2),
-            Text(
+            ..._parsedHeader(
+              info.name,
               '${widget.section.tag} · 32×32 @ ${bpp}bpp',
-              style: const TextStyle(fontSize: 11, color: Colors.grey),
             ),
-            const Divider(height: 14),
             Center(
               child: CustomPaint(
                 size: const Size(128, 128),
@@ -632,16 +631,10 @@ class _BlockHexViewState extends State<BlockHexView> {
     return ListView(
       padding: const EdgeInsets.all(12),
       children: [
-        Text(
-          'Parsed · ${info.name}',
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 2),
-        Text(
+        ..._parsedHeader(
+          info.name,
           '${widget.section.tag} — ${info.confidence.name}',
-          style: const TextStyle(fontSize: 11, color: Colors.grey),
         ),
-        const Divider(height: 14),
         for (final field in fields) ...[
           Text(
             field.key,
@@ -667,7 +660,7 @@ class _BlockHexViewState extends State<BlockHexView> {
   /// for blocks without a field layout (the raw-hex panel is shown instead).
   /// Whatever spans are produced, [_fillGaps] adds explicit "undecoded" spans so
   /// EVERY byte is accounted for — coverage is total and the gaps stay visible.
-  List<SpanInfo> _fieldSpans(String tag, List<int> b) {
+  List<SpanInfo> _fieldSpans(String tag, List<int> bytes) {
     final out = <SpanInfo>[];
     void span(
       int off,
@@ -677,12 +670,12 @@ class _BlockHexViewState extends State<BlockHexView> {
       String detail, {
       String? preview,
     }) {
-      if (len <= 0 || off < 0 || off + len > b.length) return;
+      if (len <= 0 || off < 0 || off + len > bytes.length) return;
       out.add(
         SpanInfo(
           offset: off,
           length: len,
-          lead: b[off],
+          lead: bytes[off],
           color: c,
           title: title,
           detail: detail,
@@ -693,9 +686,9 @@ class _BlockHexViewState extends State<BlockHexView> {
 
     switch (tag) {
       case 'vers':
-        final vw = b is Uint8List
-            ? decodeVersionWord(b)
-            : decodeVersionWord(Uint8List.fromList(b));
+        final vw = bytes is Uint8List
+            ? decodeVersionWord(bytes)
+            : decodeVersionWord(Uint8List.fromList(bytes));
         span(
           0,
           4,
@@ -703,7 +696,7 @@ class _BlockHexViewState extends State<BlockHexView> {
           'Version word (u32)',
           'BCD major · minor<<4|patch · stage · build. The same word heads LVSR. See decodeVersionWord.',
           preview: vw == null
-              ? '0x${readU32be(b, 0).toRadixString(16)}'
+              ? '0x${readU32be(bytes, 0).toRadixString(16)}'
               : 'v${vw.version}',
         );
       case 'STRG':
@@ -714,11 +707,11 @@ class _BlockHexViewState extends State<BlockHexView> {
           spanColorHeader,
           'Text length (u32)',
           'Byte length of the UTF-8 text that follows (== sectionLen-4).',
-          preview: '${readU32be(b, 0)} B',
+          preview: '${readU32be(bytes, 0)} B',
         );
         span(
           4,
-          b.length - 4,
+          bytes.length - 4,
           spanColorRect,
           'Text (UTF-8)',
           'The VI description / context-help text.',
@@ -726,8 +719,8 @@ class _BlockHexViewState extends State<BlockHexView> {
       case 'NUID':
       case 'SUID':
       case 'BNID':
-        if (b.length >= 4) {
-          final count = readU32be(b, 0);
+        if (bytes.length >= 4) {
+          final count = readU32be(bytes, 0);
           span(
             0,
             4,
@@ -736,14 +729,14 @@ class _BlockHexViewState extends State<BlockHexView> {
             '$count u32 id entries follow ([u32 count][count u32]).',
             preview: '$count',
           );
-          for (var i = 0; i < count && 4 + 4 * i + 4 <= b.length; i++) {
+          for (var i = 0; i < count && 4 + 4 * i + 4 <= bytes.length; i++) {
             span(
               4 + 4 * i,
               4,
               spanColorObject,
               'id[$i] (u32)',
               'An opaque UID/handle value (role not yet decoded).',
-              preview: '0x${readU32be(b, 4 + 4 * i).toRadixString(16)}',
+              preview: '0x${readU32be(bytes, 4 + 4 * i).toRadixString(16)}',
             );
           }
         }
@@ -762,7 +755,7 @@ class _BlockHexViewState extends State<BlockHexView> {
         ];
         for (
           var wordIndex = 0;
-          wordIndex < 10 && wordIndex * 4 + 4 <= b.length;
+          wordIndex < 10 && wordIndex * 4 + 4 <= bytes.length;
           wordIndex++
         ) {
           span(
@@ -771,7 +764,7 @@ class _BlockHexViewState extends State<BlockHexView> {
             spanColorObject,
             'HIST @${wordIndex * 4}: ${names[wordIndex]} (u32)',
             'Revision-history record word. See decodeHistory.',
-            preview: '${readU32be(b, wordIndex * 4)}',
+            preview: '${readU32be(bytes, wordIndex * 4)}',
           );
         }
       case 'LVSR':
@@ -781,7 +774,7 @@ class _BlockHexViewState extends State<BlockHexView> {
           spanColorObject,
           'Version word (u32)',
           'BCD major · minor<<4|patch · stage · build (== vers word). See decodeSaveRecord.',
-          preview: '0x${readU32be(b, 0).toRadixString(16)}',
+          preview: '0x${readU32be(bytes, 0).toRadixString(16)}',
         );
         for (final range in const [
           [4, 52],
@@ -791,7 +784,7 @@ class _BlockHexViewState extends State<BlockHexView> {
         ]) {
           for (
             var wordOffset = range[0];
-            wordOffset + 4 <= range[1] && wordOffset + 4 <= b.length;
+            wordOffset + 4 <= range[1] && wordOffset + 4 <= bytes.length;
             wordOffset += 4
           ) {
             span(
@@ -800,7 +793,7 @@ class _BlockHexViewState extends State<BlockHexView> {
               spanColorGroup,
               'Config/flags word (u32) @$wordOffset',
               'A low-cardinality LVSR config/flags word; exact bit meaning not yet decoded.',
-              preview: '0x${readU32be(b, wordOffset).toRadixString(16)}',
+              preview: '0x${readU32be(bytes, wordOffset).toRadixString(16)}',
             );
           }
         }
@@ -841,8 +834,8 @@ class _BlockHexViewState extends State<BlockHexView> {
         );
       case 'CONP':
       case 'CPC2':
-        if (b.length == 2) {
-          final idx = readU16be(b, 0);
+        if (bytes.length == 2) {
+          final idx = readU16be(bytes, 0);
           var resolved = '';
           if (widget.siblings.isNotEmpty) {
             final pool = typePoolFromDecoded(widget.siblings);
@@ -868,9 +861,9 @@ class _BlockHexViewState extends State<BlockHexView> {
           spanColorObject,
           'Version (u16)',
           'Font-table version (1 in the corpus).',
-          preview: '${readU16be(b, 0)}',
+          preview: '${readU16be(bytes, 0)}',
         );
-        if (b.length >= 6) {
+        if (bytes.length >= 6) {
           span(
             2,
             4,
@@ -879,17 +872,17 @@ class _BlockHexViewState extends State<BlockHexView> {
             'Fixed format sub-version words (u16 2, u16 3); 00 02 00 03 in all 322 corpus FTABs.',
           );
         }
-        if (b.length >= 8)
+        if (bytes.length >= 8)
           span(
             6,
             2,
             spanColorHeader,
             'Font count (u16)',
             'Number of packed name entries.',
-            preview: '${readU16be(b, 6)}',
+            preview: '${readU16be(bytes, 6)}',
           );
-        if (b.length >= 12) {
-          final nameOff = readU32be(b, 8);
+        if (bytes.length >= 12) {
+          final nameOff = readU32be(bytes, 8);
           span(
             8,
             4,
@@ -898,8 +891,8 @@ class _BlockHexViewState extends State<BlockHexView> {
             'Byte offset of the packed Pascal font-name strings.',
             preview: '$nameOff',
           );
-          final count = readU16be(b, 6);
-          if (nameOff >= 12 && nameOff <= b.length && count > 0) {
+          final count = readU16be(bytes, 6);
+          if (nameOff >= 12 && nameOff <= bytes.length && count > 0) {
             var pos = 12;
             for (var i = 0; i < count && pos + 12 <= nameOff; i++) {
               span(
@@ -917,16 +910,16 @@ class _BlockHexViewState extends State<BlockHexView> {
                   spanColorGroup,
                   'Font[$i] u32 field',
                   'A 4-byte value between font records (role not yet decoded).',
-                  preview: '${readU32be(b, pos)}',
+                  preview: '${readU32be(bytes, pos)}',
                 );
                 pos += 4;
               }
             }
           }
-          if (nameOff < b.length)
+          if (nameOff < bytes.length)
             span(
               nameOff,
-              b.length - nameOff,
+              bytes.length - nameOff,
               spanColorRect,
               'Font names (Pascal strings)',
               'Packed [u8 len][name] font face names. See decodeFontTable.',
@@ -943,25 +936,25 @@ class _BlockHexViewState extends State<BlockHexView> {
       case 'GCPR':
         span(
           0,
-          b.length,
+          bytes.length,
           spanColorGroup,
-          'Generated-code property (${b.length}B)',
+          'Generated-code property (${bytes.length}B)',
           'Fixed-size record, byte-constant (all-zero) across the corpus.',
         );
       case 'VPDP':
         span(
           0,
-          b.length,
+          bytes.length,
           spanColorGroup,
-          'VI property data (${b.length}B)',
+          'VI property data (${bytes.length}B)',
           'Fixed 4-byte record, byte-constant (all-zero) across the corpus.',
         );
       case 'DLDR':
         span(
           0,
-          b.length,
+          bytes.length,
           spanColorGroup,
-          'Default-data loader (${b.length}B)',
+          'Default-data loader (${bytes.length}B)',
           'Fixed 28-byte record, byte-constant across the corpus.',
         );
       case 'RTSG':
@@ -984,7 +977,7 @@ class _BlockHexViewState extends State<BlockHexView> {
           spanColorHeader,
           'Header (u32)',
           'Leading word 0x01000000 BE (version-ish).',
-          preview: '0x${readU32be(b, 0).toRadixString(16)}',
+          preview: '0x${readU32be(bytes, 0).toRadixString(16)}',
         );
         span(
           4,
@@ -996,14 +989,14 @@ class _BlockHexViewState extends State<BlockHexView> {
         );
       case 'FPSE':
       case 'BDSE':
-        for (var pos = 0; pos + 4 <= b.length; pos += 4) {
+        for (var pos = 0; pos + 4 <= bytes.length; pos += 4) {
           span(
             pos,
             4,
             spanColorObject,
             '$tag marker (u32)',
             '${tag == 'FPSE' ? 'Front-panel' : 'Block-diagram'} section marker word (value role not yet decoded).',
-            preview: '${readU32be(b, pos)}',
+            preview: '${readU32be(bytes, pos)}',
           );
         }
       case 'MUID':
@@ -1013,12 +1006,12 @@ class _BlockHexViewState extends State<BlockHexView> {
           spanColorObject,
           'MUID (u32)',
           'Module/object unique id (opaque value).',
-          preview: '${readU32be(b, 0)}',
+          preview: '${readU32be(bytes, 0)}',
         );
       case 'CPST':
       case 'CPSP':
-        if (b.length >= 4) {
-          final count = readU32be(b, 0);
+        if (bytes.length >= 4) {
+          final count = readU32be(bytes, 0);
           span(
             0,
             4,
@@ -1028,8 +1021,8 @@ class _BlockHexViewState extends State<BlockHexView> {
             preview: '$count',
           );
           var pos = 4;
-          for (var i = 0; i < count && pos < b.length; i++) {
-            final nameLen = b[pos];
+          for (var i = 0; i < count && pos < bytes.length; i++) {
+            final nameLen = bytes[pos];
             span(
               pos,
               1,
@@ -1038,7 +1031,7 @@ class _BlockHexViewState extends State<BlockHexView> {
               'Length of the label string that follows.',
               preview: '$nameLen',
             );
-            if (nameLen > 0 && pos + 1 + nameLen <= b.length) {
+            if (nameLen > 0 && pos + 1 + nameLen <= bytes.length) {
               span(
                 pos + 1,
                 nameLen,
@@ -1046,7 +1039,7 @@ class _BlockHexViewState extends State<BlockHexView> {
                 'entry[$i] (ASCII)',
                 'A boolean/comparison/report label.',
                 preview: String.fromCharCodes(
-                  b.sublist(pos + 1, pos + 1 + nameLen),
+                  bytes.sublist(pos + 1, pos + 1 + nameLen),
                 ),
               );
             }
@@ -1054,19 +1047,19 @@ class _BlockHexViewState extends State<BlockHexView> {
           }
         }
       case 'FPTD':
-        if (b.length == 2) {
+        if (bytes.length == 2) {
           span(
             0,
             2,
             spanColorObject,
             'Type index (u16)',
             'Front-panel terminal type descriptor; likely indexes the VCTP pool (not corpus-verified for FPTD).',
-            preview: '${readU16be(b, 0)}',
+            preview: '${readU16be(bytes, 0)}',
           );
         }
       case 'TITL':
-        if (b.isNotEmpty) {
-          final nameLen = b[0];
+        if (bytes.isNotEmpty) {
+          final nameLen = bytes[0];
           span(
             0,
             1,
@@ -1075,8 +1068,8 @@ class _BlockHexViewState extends State<BlockHexView> {
             'Pascal-string length of the VI title that follows.',
             preview: '$nameLen',
           );
-          if (1 + nameLen <= b.length) {
-            final text = String.fromCharCodes(b.sublist(1, 1 + nameLen));
+          if (1 + nameLen <= bytes.length) {
+            final text = String.fromCharCodes(bytes.sublist(1, 1 + nameLen));
             span(
               1,
               nameLen,
@@ -1090,14 +1083,14 @@ class _BlockHexViewState extends State<BlockHexView> {
       default:
         return const [];
     }
-    return _fillGaps(out, b.length);
+    return _fillGaps(out, bytes.length);
   }
 
   /// Inserts explicit "undecoded" spans for any byte ranges [fields] leaves
   /// uncovered (and a trailing tail), so the hex view accounts for every byte.
   List<SpanInfo> _fillGaps(List<SpanInfo> fields, int len) {
     if (fields.isEmpty) return fields;
-    fields.sort((a, b) => a.offset.compareTo(b.offset));
+    fields.sort((a, bytes) => a.offset.compareTo(bytes.offset));
     final out = <SpanInfo>[];
     var cursor = 0;
     void gap(int from, int to) {
@@ -1133,14 +1126,9 @@ class _BlockHexViewState extends State<BlockHexView> {
 
   /// Lower-case hex of [bytes]; [spaced] inserts a space between bytes for reading
   /// (continuous form pastes straight into a hasher — e.g. to check a BDPW hash).
-  static String _hex(List<int> bytes, {bool spaced = false}) {
-    final sb = StringBuffer();
-    for (var i = 0; i < bytes.length; i++) {
-      if (spaced && i > 0) sb.write(' ');
-      sb.write(bytes[i].toRadixString(16).padLeft(2, '0'));
-    }
-    return sb.toString();
-  }
+  static String _hex(List<int> bytes, {bool spaced = false}) => bytes
+      .map((byte) => byte.toRadixString(16).padLeft(2, '0'))
+      .join(spaced ? ' ' : '');
 
   void _copy(BuildContext context, String text, String what) {
     Clipboard.setData(ClipboardData(text: text));
@@ -1154,7 +1142,7 @@ class _BlockHexViewState extends State<BlockHexView> {
 
   /// A copy control for the block's bytes: continuous hex (default), spaced hex,
   /// and — when a record is selected — just that record's bytes.
-  Widget _copyMenu(BuildContext context, Uint8List b) {
+  Widget _copyMenu(BuildContext context, Uint8List bytes) {
     final sel = (_selected >= 0 && _selected < _records.length)
         ? _records[_selected]
         : null;
@@ -1164,18 +1152,18 @@ class _BlockHexViewState extends State<BlockHexView> {
       icon: const Icon(Icons.copy, size: 16),
       onSelected: (v) {
         if (v == 0) {
-          _copy(context, _hex(b), '$tag · ${b.length} B (hex)');
+          _copy(context, _hex(bytes), '$tag · ${bytes.length} B (hex)');
         } else if (v == 1) {
           _copy(
             context,
-            _hex(b, spaced: true),
-            '$tag · ${b.length} B (spaced hex)',
+            _hex(bytes, spaced: true),
+            '$tag · ${bytes.length} B (spaced hex)',
           );
         } else if (v == 2 && sel != null) {
-          final end = (sel.offset + sel.length).clamp(0, b.length);
+          final end = (sel.offset + sel.length).clamp(0, bytes.length);
           _copy(
             context,
-            _hex(b.sublist(sel.offset, end)),
+            _hex(bytes.sublist(sel.offset, end)),
             'record · ${end - sel.offset} B (hex)',
           );
         }

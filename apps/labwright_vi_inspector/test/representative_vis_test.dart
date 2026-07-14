@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_vi_inspector/src/bd_oracle.dart';
+import 'package:labwright_vi_inspector/src/diagram_view.dart';
 import 'package:labwright_vi_inspector/src/representative_vis.dart';
 import 'package:labwright_vi_inspector/src/vi_demo.dart';
 import 'package:labwright_vi_inspector/src/vi_screen.dart';

@@ -52,143 +52,28 @@ class BdRaster {
   final ui.Image image;
   final Rect content;
   final double scale;
-}
 
-/// Rasterises [diagram]'s drawable objects to a [ui.Image] using the shared
-/// [BdDiagramPainter], off-screen (via a [ui.PictureRecorder], no widget tree).
-/// The whole content rectangle is fit within [maxDimension] on its longer side
-/// (then multiplied by [pixelRatio]); the raster is clamped to 8192px. Pass
-/// [scale] to rasterise at an exact model-pixel → image-pixel factor instead
-/// (1.0 matches LabVIEW's own 1 diagram unit == 1 px snippet render, making a
-/// snippet reference comparable without resampling). Returns null when the
-/// diagram has no positioned objects.
-/// Derives a reference capture's [GlobalHatchOffset] by scoring every lattice
-/// phase against the reference pixels inside the case frames' hatch bands.
-/// LabVIEW anchors the hatch to its device/window brush origin at render time —
-/// not stored in the .vi and different per capture — so the phase can only be
-/// measured from the capture itself. Returns [kNoHatchOffset] unless one phase
-/// wins decisively (≥75% pixel agreement and a strict margin over the
-/// runner-up), so content-overdrawn or recoloured bands never force a bogus
-/// phase.
-GlobalHatchOffset deriveGlobalHatchOffset({
-  required ViDiagram diagram,
-  required BdRaster raster,
-  required BdRegistration registration,
-  required Uint8List referenceRgba,
-  required int width,
-  required int height,
-}) => _deriveHatchPhase(
-  diagram: diagram,
-  raster: raster,
-  registration: registration,
-  referenceRgba: referenceRgba,
-  width: width,
-  height: height,
-  errorStyle: false,
-);
-
-/// [deriveGlobalHatchOffset]'s counterpart for the error-case stripe lattice
-/// ([kBdErrorHatch]) — a SEPARATE per-capture phase: one capture measures
-/// different phases for the two lattices, so each derives independently.
-GlobalHatchOffset deriveErrorHatchOffset({
-  required ViDiagram diagram,
-  required BdRaster raster,
-  required BdRegistration registration,
-  required Uint8List referenceRgba,
-  required int width,
-  required int height,
-}) => _deriveHatchPhase(
-  diagram: diagram,
-  raster: raster,
-  registration: registration,
-  referenceRgba: referenceRgba,
-  width: width,
-  height: height,
-  errorStyle: true,
-);
-
-/// Derives a reference capture's [BdChromePalette] — the while-band /
-/// error-stripe grey and the error case's green field. LabVIEW resolves these
-/// from the capture machine's palette, not the .vi (three same-version
-/// captures measure greys 119/127/119 and greens 153/178/153), so each
-/// component is read as the MODAL colour over the frames that draw it,
-/// falling back to the [kBdDefaultChromePalette] entry unless one value
-/// dominates (≥100 pixels and an absolute majority of its candidates).
-BdChromePalette deriveChromePalette({
-  required ViDiagram diagram,
-  required BdRaster raster,
-  required BdRegistration registration,
-  required Uint8List referenceRgba,
-  required int width,
-  required int height,
-}) {
-  final errorOids = bdErrorCaseOids(diagram);
-  final drawableOids = {for (final o in bdDrawableObjects(diagram)) o.oid};
-  final greys = <int, int>{};
-  final greens = <int, int>{};
-  var greyTotal = 0, greenTotal = 0;
-  for (final o in diagram.objects) {
-    final isWhile = o.kind == 0x21;
-    final isError = o.kind == 0x2c && errorOids.contains(o.oid);
-    if ((!isWhile && !isError) || !drawableOids.contains(o.oid)) continue;
-    // A tinted while band carries its stored colour, not the palette grey.
-    if (isWhile && o.structRgb != null && o.structRgb != kDefaultStructureRgb) {
-      continue;
-    }
-    final b = o.absBounds;
-    if (b == null) continue;
-    for (var y = b.top; y <= b.bottom; y++) {
-      for (var x = b.left; x <= b.right; x++) {
-        final d = math.min(
-          math.min(x - b.left, b.right - x),
-          math.min(y - b.top, b.bottom - y),
-        );
-        if (d < 1 || d > kBdHatchBand) continue;
-        final rx =
-            ((x - raster.content.left) * registration.scale + registration.dx)
-                .round();
-        final ry =
-            ((y - raster.content.top) * registration.scale + registration.dy)
-                .round();
-        if (rx < 0 || ry < 0 || rx >= width || ry >= height) continue;
-        final i = (ry * width + rx) * 4;
-        final r = referenceRgba[i],
-            g = referenceRgba[i + 1],
-            bl = referenceRgba[i + 2];
-        if (r == g && g == bl && r > 80 && r < 180) {
-          greys[r] = (greys[r] ?? 0) + 1;
-          greyTotal++;
-        } else if (isError && g > 200 && r == bl && r < 200) {
-          greens[r] = (greens[r] ?? 0) + 1;
-          greenTotal++;
-        }
-      }
-    }
-  }
-  T modal<T>(Map<int, int> hist, int total, T fallback, T Function(int) make) {
-    if (hist.isEmpty) return fallback;
-    final top = hist.entries.reduce((a, b) => a.value >= b.value ? a : b);
-    if (top.value < 100 || top.value * 2 < total) return fallback;
-    return make(top.key);
-  }
-
-  return (
-    bandGrey: modal(
-      greys,
-      greyTotal,
-      kBdDefaultChromePalette.bandGrey,
-      (v) => Color(0xFF000000 | (v << 16) | (v << 8) | v),
-    ),
-    errorGreen: modal(
-      greens,
-      greenTotal,
-      kBdDefaultChromePalette.errorGreen,
-      (v) => Color(0xFF000000 | (v << 16) | 0xFF00 | v),
-    ),
+  /// [bounds] (absolute diagram coordinates) mapped into this raster's image
+  /// space (content origin subtracted, then scaled).
+  Rect modelRect(HeapRect bounds) => Rect.fromLTRB(
+    (bounds.left - content.left) * scale,
+    (bounds.top - content.top) * scale,
+    (bounds.right - content.left) * scale,
+    (bounds.bottom - content.top) * scale,
   );
 }
 
-GlobalHatchOffset _deriveHatchPhase({
+/// Derives a reference capture's [GlobalHatchOffset] for the black case-hatch
+/// lattice ([errorStyle] false) or the error-case stripe lattice (true; a
+/// SEPARATE per-capture phase — one capture measures different phases for the
+/// two lattices). Scores every lattice phase against the reference pixels
+/// inside the case frames' hatch bands. LabVIEW anchors each lattice to its
+/// device/window brush origin at render time — not stored in the .vi and
+/// different per capture — so the phase can only be measured from the capture
+/// itself. Returns [kNoHatchOffset] unless one phase wins decisively (≥75%
+/// pixel agreement and a strict margin over the runner-up), so
+/// content-overdrawn or recoloured bands never force a bogus phase.
+GlobalHatchOffset deriveHatchOffset({
   required ViDiagram diagram,
   required BdRaster raster,
   required BdRegistration registration,
@@ -198,7 +83,9 @@ GlobalHatchOffset _deriveHatchPhase({
   required bool errorStyle,
 }) {
   final errorOids = bdErrorCaseOids(diagram);
-  final drawableOids = {for (final o in bdDrawableObjects(diagram)) o.oid};
+  final drawableOids = {
+    for (final object in bdDrawableObjects(diagram)) object.oid,
+  };
   final tile = errorStyle ? kBdErrorHatch : kBdStructureHatch;
   // The stripe lattice depends only on (px+py) mod 4, so its 16 phases
   // collapse to 4 distinct lattices — searching py too would make every
@@ -206,18 +93,18 @@ GlobalHatchOffset _deriveHatchPhase({
   final pyRange = errorStyle ? 1 : 4;
   final score = List.generate(4, (_) => List.filled(4, 0));
   var samples = 0;
-  for (final o in diagram.objects) {
-    if (o.kind != 0x2c || !drawableOids.contains(o.oid)) continue;
-    if (errorOids.contains(o.oid) != errorStyle) continue;
-    final b = o.absBounds;
-    if (b == null) continue;
-    for (var y = b.top; y <= b.bottom; y++) {
-      for (var x = b.left; x <= b.right; x++) {
-        final d = math.min(
-          math.min(x - b.left, b.right - x),
-          math.min(y - b.top, b.bottom - y),
+  for (final frame in diagram.objects) {
+    if (frame.kind != 0x2c || !drawableOids.contains(frame.oid)) continue;
+    if (errorOids.contains(frame.oid) != errorStyle) continue;
+    final bounds = frame.absBounds;
+    if (bounds == null) continue;
+    for (var y = bounds.top; y <= bounds.bottom; y++) {
+      for (var x = bounds.left; x <= bounds.right; x++) {
+        final inset = math.min(
+          math.min(x - bounds.left, bounds.right - x),
+          math.min(y - bounds.top, bounds.bottom - y),
         );
-        if (d < 1 || d > kBdHatchBand) continue;
+        if (inset < 1 || inset > kBdHatchBand) continue;
         final rx =
             ((x - raster.content.left) * registration.scale + registration.dx)
                 .round();
@@ -226,19 +113,23 @@ GlobalHatchOffset _deriveHatchPhase({
                 .round();
         if (rx < 0 || ry < 0 || rx >= width || ry >= height) continue;
         final i = (ry * width + rx) * 4;
-        final r = referenceRgba[i],
-            g = referenceRgba[i + 1],
-            bl = referenceRgba[i + 2];
+        final red = referenceRgba[i],
+            green = referenceRgba[i + 1],
+            blue = referenceRgba[i + 2];
         final bool dark;
         if (errorStyle) {
           // Stripe grey on the green field; anything else is overdraw.
-          final green = g > 200 && r < 200 && bl < 200;
-          final grey =
-              !green && (r - bl).abs() < 30 && g < 200 && r > 90 && r < 170;
-          if (!green && !grey) continue;
-          dark = grey;
+          final isField = green > 200 && red < 200 && blue < 200;
+          final isStripe =
+              !isField &&
+              (red - blue).abs() < 30 &&
+              green < 200 &&
+              red > 90 &&
+              red < 170;
+          if (!isField && !isStripe) continue;
+          dark = isStripe;
         } else {
-          dark = (r + g + bl) ~/ 3 < 110;
+          dark = (red + green + blue) ~/ 3 < 110;
         }
         samples++;
         for (var py = 0; py < pyRange; py++) {
@@ -254,14 +145,14 @@ GlobalHatchOffset _deriveHatchPhase({
   var bestX = 0, bestY = 0, best = -samples - 1, second = -samples - 1;
   for (var py = 0; py < pyRange; py++) {
     for (var px = 0; px < 4; px++) {
-      final s = score[py][px];
-      if (s > best) {
+      final cellScore = score[py][px];
+      if (cellScore > best) {
         second = best;
-        best = s;
+        best = cellScore;
         bestX = px;
         bestY = py;
-      } else if (s > second) {
-        second = s;
+      } else if (cellScore > second) {
+        second = cellScore;
       }
     }
   }
@@ -270,6 +161,14 @@ GlobalHatchOffset _deriveHatchPhase({
   return (x: bestX, y: bestY);
 }
 
+/// Rasterises [diagram]'s drawable objects to a [ui.Image] using the shared
+/// [BdDiagramPainter], off-screen (via a [ui.PictureRecorder], no widget tree).
+/// The whole content rectangle is fit within [maxDimension] on its longer side
+/// (then multiplied by [pixelRatio]); the raster is clamped to 8192px. Pass
+/// [scale] to rasterise at an exact model-pixel → image-pixel factor instead
+/// (1.0 matches LabVIEW's own 1 diagram unit == 1 px snippet render, making a
+/// snippet reference comparable without resampling). Returns null when the
+/// diagram has no positioned objects.
 Future<BdRaster?> rasteriseBlockDiagram(
   ViDiagram diagram, {
   int maxDimension = 2000,
@@ -280,19 +179,20 @@ Future<BdRaster?> rasteriseBlockDiagram(
   Map<int, PrimIconArt> primIcons = const {},
   List<ViWire>? wires,
   List<ViHeapObject>? drawable,
-  GlobalHatchOffset globalHatchOffset = kNoHatchOffset,
-  GlobalHatchOffset errorHatchOffset = kNoHatchOffset,
-  BdChromePalette chromePalette = kBdDefaultChromePalette,
+  BdScene? scene,
+  BdRenderStyle style = const BdRenderStyle(),
 }) async {
-  drawable ??= bdDrawableObjects(diagram);
-  if (drawable.isEmpty) return null;
-  final content = bdContentRect(drawable, includeWires: false, margin: margin);
+  // wires defaults to the diagram's visible dataflow wires; pass `const []`
+  // to rasterise the wire-free layout (measuring the before/after delta), or
+  // a pre-built [scene] to reuse its cached analyses across renders.
+  scene ??= BdScene(diagram, wires: wires, drawable: drawable);
+  if (scene.drawable.isEmpty) return null;
+  final content = bdContentRect(
+    scene.drawable,
+    includeWires: false,
+    margin: margin,
+  );
   if (content.width <= 0 || content.height <= 0) return null;
-  final ordered = bdPaintOrder(drawable, diagram.byId);
-  // Defaults to the diagram's visible dataflow wires (hidden multi-frame
-  // structure cases excluded); pass `const []` to rasterise the wire-free
-  // layout (used to measure the before/after delta).
-  final wireList = wires ?? bdVisibleWires(diagram);
 
   final longSide = math.max(content.width, content.height);
   var pxScale =
@@ -306,8 +206,7 @@ Future<BdRaster?> rasteriseBlockDiagram(
 
   // The raster must be exact on first paint, so a diagram holding a
   // disabled frame waits for the grey variants (built once, lazily).
-  final disabledOids = bdDisabledObjectOids(diagram);
-  if (disabledOids.isNotEmpty) await ensurePrimIconsGrey();
+  if (scene.disabledOids.isNotEmpty) await ensurePrimIconsGrey();
   final recorder = ui.PictureRecorder();
   final canvas = Canvas(
     recorder,
@@ -323,23 +222,15 @@ Future<BdRaster?> rasteriseBlockDiagram(
   );
   canvas.scale(pxScale);
   BdDiagramPainter(
+    scene: scene,
+    origin: content.topLeft,
+    subViIcons: subViIcons,
     primIcons: primIcons,
     primIconsGrey: primIconsGreyLoaded(),
-    disabledOids: disabledOids,
-    borderTerminalKinds: bdBorderTerminalKinds(diagram),
-    objects: ordered,
-    origin: content.topLeft,
-    wires: wireList,
-    subViIcons: subViIcons,
-    structureTerminals: bdStructureTerminals(diagram),
-    constValues: bdConstValueTexts(diagram),
     // The reference renders have a plain white canvas; the interactive
     // view's alignment-dot grid would break byte-exact comparisons.
     drawDotGrid: false,
-    globalHatchOffset: globalHatchOffset,
-    errorHatchOffset: errorHatchOffset,
-    errorCaseOids: bdErrorCaseOids(diagram),
-    chromePalette: chromePalette,
+    style: style,
   ).paint(canvas, content.size);
   final picture = recorder.endRecording();
   try {
@@ -770,19 +661,13 @@ List<Rect> bdStructureAnchorRects(
   final out = <Rect>[];
   for (final object in drawable) {
     if (object.category != ViObjectKind.structure) continue;
-    final b = object.absBounds!;
-    if (b.width < 24 || b.height < 24) continue;
-    if (b.width >= extent.width * 0.95 && b.height >= extent.height * 0.95) {
+    final bounds = object.absBounds!;
+    if (bounds.width < 24 || bounds.height < 24) continue;
+    if (bounds.width >= extent.width * 0.95 &&
+        bounds.height >= extent.height * 0.95) {
       continue;
     }
-    out.add(
-      Rect.fromLTRB(
-        (b.left - raster.content.left) * raster.scale,
-        (b.top - raster.content.top) * raster.scale,
-        (b.right - raster.content.left) * raster.scale,
-        (b.bottom - raster.content.top) * raster.scale,
-      ),
-    );
+    out.add(raster.modelRect(bounds));
   }
   return out;
 }
@@ -801,26 +686,6 @@ ViDiagram? bestBlockDiagram(ViModel model) {
     }
   }
   return best;
-}
-
-/// Decodes PNG/other-encoded image [bytes] to a [ui.Image].
-Future<ui.Image> decodeImage(Uint8List bytes) {
-  final completer = Completer<ui.Image>();
-  ui.decodeImageFromList(bytes, completer.complete);
-  return completer.future;
-}
-
-/// Builds a [ui.Image] from a raw RGBA buffer ([width]×[height]×4 bytes).
-Future<ui.Image> imageFromRgba(Uint8List rgba, int width, int height) {
-  final completer = Completer<ui.Image>();
-  ui.decodeImageFromPixels(
-    rgba,
-    width,
-    height,
-    ui.PixelFormat.rgba8888,
-    completer.complete,
-  );
-  return completer.future;
 }
 
 /// Encodes [image] to PNG bytes (for writing a side-by-side / diff artifact).
@@ -924,7 +789,8 @@ class PlacementComparison {
   /// nothing was measurable).
   double get meanSupport => perObject.isEmpty
       ? 0
-      : perObject.fold(0.0, (a, e) => a + e.support) / perObject.length;
+      : perObject.fold(0.0, (sum, entry) => sum + entry.support) /
+            perObject.length;
 
   /// Mean support **in excess of chance**, per object, rescaled so 0 means
   /// "no better than a randomly placed border on this reference" and 1 means
@@ -933,8 +799,8 @@ class PlacementComparison {
   double get excessSupport {
     if (perObject.isEmpty || chance >= 1) return 0;
     var sum = 0.0;
-    for (final e in perObject) {
-      sum += ((e.support - chance) / (1 - chance)).clamp(0.0, 1.0);
+    for (final entry in perObject) {
+      sum += ((entry.support - chance) / (1 - chance)).clamp(0.0, 1.0);
     }
     return sum / perObject.length;
   }
@@ -998,13 +864,7 @@ PlacementComparison comparePlacement({
         bounds.height >= extent.height * 0.95) {
       continue;
     }
-    final renderRect = Rect.fromLTRB(
-      (bounds.left - raster.content.left) * raster.scale,
-      (bounds.top - raster.content.top) * raster.scale,
-      (bounds.right - raster.content.left) * raster.scale,
-      (bounds.bottom - raster.content.top) * raster.scale,
-    );
-    final r = registration.mapRect(renderRect);
+    final refRect = registration.mapRect(raster.modelRect(bounds));
     var hits = 0, samples = 0, total = 0;
     void sample(int x, int y) {
       total++;
@@ -1013,8 +873,8 @@ PlacementComparison comparePlacement({
       if (edges[y * width + x] != 0) hits++;
     }
 
-    final left = r.left.round(), right = r.right.round();
-    final top = r.top.round(), bottom = r.bottom.round();
+    final left = refRect.left.round(), right = refRect.right.round();
+    final top = refRect.top.round(), bottom = refRect.bottom.round();
     for (var x = left; x <= right; x++) {
       sample(x, top);
       sample(x, bottom);
@@ -1277,14 +1137,14 @@ BdRegistration _translationRegistration(
         hits += edges[y * width + x];
       }
 
-      for (final r in anchorRects) {
-        for (var x = r.left; x <= r.right; x += 2) {
-          sample(x, r.top);
-          sample(x, r.bottom);
+      for (final rect in anchorRects) {
+        for (var x = rect.left; x <= rect.right; x += 2) {
+          sample(x, rect.top);
+          sample(x, rect.bottom);
         }
-        for (var y = r.top + 2; y < r.bottom; y += 2) {
-          sample(r.left, y);
-          sample(r.right, y);
+        for (var y = rect.top + 2; y < rect.bottom; y += 2) {
+          sample(rect.left, y);
+          sample(rect.right, y);
         }
       }
       return samples == 0 ? 0 : hits / samples;
@@ -1292,11 +1152,11 @@ BdRegistration _translationRegistration(
 
     var best = candidates.first;
     var bestScore = anchorSupport(best.$1, best.$2, nearEdges);
-    for (final c in candidates.skip(1)) {
-      final score = anchorSupport(c.$1, c.$2, nearEdges);
+    for (final cand in candidates.skip(1)) {
+      final score = anchorSupport(cand.$1, cand.$2, nearEdges);
       if (score > bestScore + 1e-9 ||
-          (score > bestScore - 1e-9 && c.$3 > best.$3)) {
-        best = c;
+          (score > bestScore - 1e-9 && cand.$3 > best.$3)) {
+        best = cand;
         bestScore = score;
       }
     }
@@ -1346,9 +1206,9 @@ extension _ExactSnap on BdRegistration {
     for (var oy = -1; oy <= 1; oy++) {
       for (var ox = -1; ox <= 1; ox++) {
         if (ox == 0 && oy == 0) continue;
-        final h = exactHits(dx + ox, dy + oy);
-        if (h > best) {
-          best = h;
+        final hits = exactHits(dx + ox, dy + oy);
+        if (hits > best) {
+          best = hits;
           bx = dx + ox;
           by = dy + oy;
         }
@@ -1548,24 +1408,31 @@ class _BdOracleViewState extends State<BdOracleView>
     // decodeReferenceImage's snippetCropped flag drives BOTH decisions, so an
     // uncroppable snippet falls back to the generic comparison whole.
     final snippet = reference?.snippetCropped ?? false;
-    // The drawable set and visible wires are deterministic per diagram;
-    // computed once and threaded through the rasterise / anchor / placement
-    // stages (each would otherwise redo the full hidden-frame and
-    // inlined-instance analysis).
-    final drawable = bdDrawableObjects(diagram);
-    final visibleWires = bdVisibleWires(diagram);
-    // A snippet reference is LabVIEW's crop of the diagram's ink plus a 2 px
-    // margin, so the unit-scale render uses the same margin — matched
-    // dimensions, not just matched scale.
-    var raster = await rasteriseBlockDiagram(
+    // One scene for the whole pipeline: its lazy analyses (paint order,
+    // wires, chrome indexes, hidden frames) run once and every rasterise —
+    // initial, rephased, supersampled — reuses them.
+    final scene = BdScene(diagram);
+    final drawable = scene.drawable;
+    Future<BdRaster?> render({
+      required int maxDimension,
+      double? scale,
+      BdRenderStyle style = const BdRenderStyle(),
+    }) => rasteriseBlockDiagram(
       diagram,
       primIcons: primIconsLoaded(),
-      maxDimension: widget.maxDimension,
-      scale: snippet ? 1.0 : null,
+      maxDimension: maxDimension,
+      scale: scale,
+      // A snippet reference is LabVIEW's crop of the diagram's ink plus a
+      // 2 px margin, so the unit-scale render uses the same margin — matched
+      // dimensions, not just matched scale.
       margin: snippet ? 2 : 40,
       subViIcons: widget.subViIcons,
-      wires: visibleWires,
-      drawable: drawable,
+      scene: scene,
+      style: style,
+    );
+    var raster = await render(
+      maxDimension: widget.maxDimension,
+      scale: snippet ? 1.0 : null,
     );
     if (raster == null) {
       reference?.image.dispose();
@@ -1581,61 +1448,33 @@ class _BdOracleViewState extends State<BdOracleView>
           : const [],
     );
     // The reference capture's hatch phases (the black case lattice and the
-    // error-case stripe lattice each carry their own) and its chrome palette
-    // (band grey / error green) are capture-environment values LabVIEW does
-    // not store, so they are measured from the capture and the render redone
-    // to match — the only path to a 1:1 comparison.
-    var hatchOffset = kNoHatchOffset;
-    var errorOffset = kNoHatchOffset;
-    var palette = kBdDefaultChromePalette;
+    // error-case stripe lattice each carry their own) are brush phases from
+    // the capture environment, not stored in the .vi, so they are measured
+    // from the capture and the render redone at the matching style — the only
+    // path to a 1:1 hatch comparison. Chrome COLOURS stay at the style's
+    // fixed corpus-dominant defaults: a capture from another environment may
+    // read a few shades off, which is reference variance, not render error.
+    var style = const BdRenderStyle();
     if (snippet) {
-      final args = (
+      GlobalHatchOffset derive({required bool errorStyle}) => deriveHatchOffset(
         diagram: diagram,
-        raster: raster,
+        raster: raster!,
         registration: result.registration,
         referenceRgba: result.referenceRgba,
         width: reference.image.width,
         height: reference.image.height,
+        errorStyle: errorStyle,
       );
-      hatchOffset = deriveGlobalHatchOffset(
-        diagram: args.diagram,
-        raster: args.raster,
-        registration: args.registration,
-        referenceRgba: args.referenceRgba,
-        width: args.width,
-        height: args.height,
+      style = BdRenderStyle(
+        hatchOffset: derive(errorStyle: false),
+        errorHatchOffset: derive(errorStyle: true),
       );
-      errorOffset = deriveErrorHatchOffset(
-        diagram: args.diagram,
-        raster: args.raster,
-        registration: args.registration,
-        referenceRgba: args.referenceRgba,
-        width: args.width,
-        height: args.height,
-      );
-      palette = deriveChromePalette(
-        diagram: args.diagram,
-        raster: args.raster,
-        registration: args.registration,
-        referenceRgba: args.referenceRgba,
-        width: args.width,
-        height: args.height,
-      );
-      if (hatchOffset != kNoHatchOffset ||
-          errorOffset != kNoHatchOffset ||
-          palette != kBdDefaultChromePalette) {
-        final rephased = await rasteriseBlockDiagram(
-          diagram,
-          primIcons: primIconsLoaded(),
+      if (style.hatchOffset != kNoHatchOffset ||
+          style.errorHatchOffset != kNoHatchOffset) {
+        final rephased = await render(
           maxDimension: widget.maxDimension,
           scale: 1.0,
-          margin: 2,
-          subViIcons: widget.subViIcons,
-          wires: visibleWires,
-          drawable: drawable,
-          globalHatchOffset: hatchOffset,
-          errorHatchOffset: errorOffset,
-          chromePalette: palette,
+          style: style,
         );
         if (rephased != null) {
           raster.image.dispose();
@@ -1668,18 +1507,10 @@ class _BdOracleViewState extends State<BdOracleView>
     // Display pair: our side re-rendered as vectors at the supersample (real
     // detail for the downscale), the reference nearest-upscaled to match.
     const ss = kOracleDisplaySupersample;
-    final raster3 = await rasteriseBlockDiagram(
-      diagram,
-      primIcons: primIconsLoaded(),
+    final raster3 = await render(
       maxDimension: widget.maxDimension * ss,
       scale: raster.scale * ss,
-      margin: snippet ? 2 : 40,
-      subViIcons: widget.subViIcons,
-      wires: visibleWires,
-      drawable: drawable,
-      globalHatchOffset: hatchOffset,
-      errorHatchOffset: errorOffset,
-      chromePalette: palette,
+      style: style,
     );
     ui.Image? displayFitted;
     ui.Image? displayReference;
@@ -1776,7 +1607,7 @@ class _BdOracleViewState extends State<BdOracleView>
                       label: Text(_wipe ? 'Side-by-side' : 'Wipe compare'),
                     ),
                     if (_wipe) ...[
-                      for (final z in const [0, 1, 2, 3])
+                      for (final zoom in const [0, 1, 2, 3])
                         Padding(
                           padding: const EdgeInsets.only(right: 2),
                           child: TextButton(
@@ -1785,12 +1616,12 @@ class _BdOracleViewState extends State<BdOracleView>
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 6,
                               ),
-                              backgroundColor: _wipeZoom == z
+                              backgroundColor: _wipeZoom == zoom
                                   ? Colors.orange.withValues(alpha: 0.25)
                                   : null,
                             ),
-                            onPressed: () => setState(() => _wipeZoom = z),
-                            child: Text(z == 0 ? 'Fit' : '${z}x'),
+                            onPressed: () => setState(() => _wipeZoom = zoom),
+                            child: Text(zoom == 0 ? 'Fit' : '${zoom}x'),
                           ),
                         ),
                       const Text(
@@ -1953,8 +1784,9 @@ class _BdOracleViewState extends State<BdOracleView>
             // box-averaged pair is already at target resolution).
             final content = GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onTapDown: (d) => follow(d.localPosition),
-              onHorizontalDragUpdate: (d) => follow(d.localPosition),
+              onTapDown: (details) => follow(details.localPosition),
+              onHorizontalDragUpdate: (details) =>
+                  follow(details.localPosition),
               child: SizedBox(
                 width: dispW,
                 height: dispH,
@@ -2118,12 +1950,12 @@ class _OracleData {
     disp(displayRendered);
     disp(displayFitted);
     disp(displayReference);
-    final r = result;
-    if (r != null) {
-      disp(r.rendered);
-      disp(r.fitted);
-      disp(r.reference);
-      disp(r.diffImage);
+    final res = result;
+    if (res != null) {
+      disp(res.rendered);
+      disp(res.fitted);
+      disp(res.reference);
+      disp(res.diffImage);
     }
   }
 }
@@ -2222,26 +2054,23 @@ int boxDownscaleFactor(ui.Image src, int supersample, double fitPhys) {
 Future<ui.Image> boxDownscale(ui.Image src, int k) async {
   final data = (await src.toByteData())!;
   final sw = src.width, sh = src.height;
-  // A factor beyond a source dimension would truncate to zero; every caller
-  // clamps via [boxDownscaleFactor], and this floor keeps a direct call from
-  // ever asking the engine for a 0x0 image.
   // A factor beyond a source dimension is clamped (every caller already
   // clamps via [boxDownscaleFactor]); the floor below then keeps the block
   // reads in bounds AND the output at least 1x1.
-  final ke = math.min(k, math.min(sw, sh));
-  final dw = math.max(1, sw ~/ ke), dh = math.max(1, sh ~/ ke);
+  final blockK = math.min(k, math.min(sw, sh));
+  final dw = math.max(1, sw ~/ blockK), dh = math.max(1, sh ~/ blockK);
   final bytes = data.buffer.asUint8List();
   // The averaging is O(source pixels) on multi-megapixel supersampled
   // rasters — off the UI isolate so pane resizes don't jank.
   final out = await Isolate.run(() {
     final out = Uint8List(dw * dh * 4);
-    final n = ke * ke;
+    final n = blockK * blockK;
     for (var y = 0; y < dh; y++) {
       for (var x = 0; x < dw; x++) {
         var r = 0, g = 0, b = 0, a = 0;
-        for (var sy = y * ke; sy < y * ke + ke; sy++) {
-          var i = (sy * sw + x * ke) * 4;
-          for (var sx = 0; sx < ke; sx++) {
+        for (var sy = y * blockK; sy < y * blockK + blockK; sy++) {
+          var i = (sy * sw + x * blockK) * 4;
+          for (var sx = 0; sx < blockK; sx++) {
             r += bytes[i];
             g += bytes[i + 1];
             b += bytes[i + 2];
@@ -2258,15 +2087,7 @@ Future<ui.Image> boxDownscale(ui.Image src, int k) async {
     }
     return out;
   });
-  final completer = Completer<ui.Image>();
-  ui.decodeImageFromPixels(
-    out,
-    dw,
-    dh,
-    ui.PixelFormat.rgba8888,
-    completer.complete,
-  );
-  return completer.future;
+  return imageFromRgba(out, dw, dh);
 }
 
 /// Shows [image] crisp at any pane size: at native size or larger it draws

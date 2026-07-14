@@ -17,8 +17,8 @@ class ViCoverageView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final a = attribution;
-    if (a == null) {
+    final attr = attribution;
+    if (attr == null) {
       return const Center(
         child: Padding(
           padding: EdgeInsets.all(24),
@@ -49,9 +49,9 @@ class ViCoverageView extends StatelessWidget {
               child: _headline(
                 context,
                 label: 'Content model',
-                value: _pct(a.contentModelBytes, a.contentTotalBytes),
+                value: _pct(attr.contentModelBytes, attr.contentTotalBytes),
                 caption:
-                    '${_fmt(a.contentModelBytes)} of ${_fmt(a.contentTotalBytes)} content bytes',
+                    '${_fmt(attr.contentModelBytes)} of ${_fmt(attr.contentTotalBytes)} content bytes',
                 color: const Color(0xFF4C8C4C),
               ),
             ),
@@ -60,38 +60,38 @@ class ViCoverageView extends StatelessWidget {
               child: _headline(
                 context,
                 label: 'Byte model',
-                value: _pct(a.modelBytes, a.fileLength),
+                value: _pct(attr.modelBytes, attr.fileLength),
                 caption:
-                    '${_fmt(a.modelBytes)} of ${_fmt(a.fileLength)} file bytes',
+                    '${_fmt(attr.modelBytes)} of ${_fmt(attr.fileLength)} file bytes',
                 color: const Color(0xFF3F6FB0),
               ),
             ),
             const SizedBox(width: 8),
-            Expanded(child: _roundTripCard(context, a)),
+            Expanded(child: _roundTripCard(context, attr)),
           ],
         ),
         const SizedBox(height: 16),
 
         _BarSection(
           title: 'Content level (compressed sections at inflated size)',
-          total: a.contentTotalBytes,
+          total: attr.contentTotalBytes,
           segments: [
-            _Seg('model', a.contentModelBytes, const Color(0xFF4C8C4C)),
-            _Seg('copied', a.contentCopiedBytes, const Color(0xFF8A8A8A)),
+            _Seg('model', attr.contentModelBytes, const Color(0xFF4C8C4C)),
+            _Seg('copied', attr.contentCopiedBytes, const Color(0xFF8A8A8A)),
           ],
         ),
         const SizedBox(height: 12),
         _BarSection(
           title: 'Byte level (stored file bytes)',
-          total: a.fileLength,
+          total: attr.fileLength,
           segments: [
-            _Seg('model', a.modelBytes, const Color(0xFF3F6FB0)),
-            _Seg('copied', a.copiedBytes, const Color(0xFF8A8A8A)),
+            _Seg('model', attr.modelBytes, const Color(0xFF3F6FB0)),
+            _Seg('copied', attr.copiedBytes, const Color(0xFF8A8A8A)),
           ],
         ),
         const SizedBox(height: 16),
 
-        if (a.heapModelBugs > 0)
+        if (attr.heapModelBugs > 0)
           Card(
             color: Colors.red.shade900,
             child: Padding(
@@ -102,7 +102,7 @@ class ViCoverageView extends StatelessWidget {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      '${a.heapModelBugs} heap record(s) the model expected to '
+                      '${attr.heapModelBugs} heap record(s) the model expected to '
                       'reconstruct losslessly but did not.',
                       style: const TextStyle(color: Colors.white),
                     ),
@@ -111,27 +111,39 @@ class ViCoverageView extends StatelessWidget {
               ),
             ),
           ),
-        if (a.heapModelBugs > 0) const SizedBox(height: 12),
+        if (attr.heapModelBugs > 0) const SizedBox(height: 12),
 
         const Text(
           'Model bytes (emitted from a typed field)',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 6),
-        _catRow('RSRC header', a.headerBytes, a.contentTotalBytes),
-        _catRow('Info-area structs', a.infoStructBytes, a.contentTotalBytes),
+        _catRow('RSRC header', attr.headerBytes, attr.contentTotalBytes),
+        _catRow(
+          'Info-area structs',
+          attr.infoStructBytes,
+          attr.contentTotalBytes,
+        ),
         _catRow(
           'Section length prefixes',
-          a.sectionPrefixBytes,
-          a.contentTotalBytes,
+          attr.sectionPrefixBytes,
+          attr.contentTotalBytes,
         ),
         _catRow(
           'Typed block payloads',
-          a.typedPayloadBytes,
-          a.contentTotalBytes,
+          attr.typedPayloadBytes,
+          attr.contentTotalBytes,
         ),
-        _catRow('Heap content (model)', a.heapModelBytes, a.contentTotalBytes),
-        _catRow('Alignment padding', a.alignPadBytes, a.contentTotalBytes),
+        _catRow(
+          'Heap content (model)',
+          attr.heapModelBytes,
+          attr.contentTotalBytes,
+        ),
+        _catRow(
+          'Alignment padding',
+          attr.alignPadBytes,
+          attr.contentTotalBytes,
+        ),
         const SizedBox(height: 12),
 
         const Text(
@@ -139,14 +151,22 @@ class ViCoverageView extends StatelessWidget {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 6),
-        _catRow('Info-area raw words', a.infoRawBytes, a.contentTotalBytes),
-        _catRow('Data-area gaps', a.gapBytes, a.contentTotalBytes),
+        _catRow(
+          'Info-area raw words',
+          attr.infoRawBytes,
+          attr.contentTotalBytes,
+        ),
+        _catRow('Data-area gaps', attr.gapBytes, attr.contentTotalBytes),
         _catRow(
           'Heap content (copied)',
-          a.heapCopiedBytes,
-          a.contentTotalBytes,
+          attr.heapCopiedBytes,
+          attr.contentTotalBytes,
         ),
-        _catRow('Untyped payloads', a.untypedPayloadBytes, a.contentTotalBytes),
+        _catRow(
+          'Untyped payloads',
+          attr.untypedPayloadBytes,
+          attr.contentTotalBytes,
+        ),
         const SizedBox(height: 16),
 
         Card(
@@ -157,7 +177,7 @@ class ViCoverageView extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Inflated heap content: ${_fmt(a.inflatedContentBytes)}',
+                  'Inflated heap content: ${_fmt(attr.inflatedContentBytes)}',
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 6),
@@ -208,8 +228,8 @@ class ViCoverageView extends StatelessWidget {
     ),
   );
 
-  Widget _roundTripCard(BuildContext context, WriterAttribution a) {
-    final ok = a.byteExact;
+  Widget _roundTripCard(BuildContext context, WriterAttribution attr) {
+    final ok = attr.byteExact;
     final color = ok ? Colors.green : Colors.orange;
     return Container(
       padding: const EdgeInsets.all(12),
