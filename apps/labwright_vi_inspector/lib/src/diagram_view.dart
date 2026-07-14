@@ -2466,6 +2466,7 @@ class BdDiagramPainter extends CustomPainter {
       // 0x52 without an index box keeps its generic frame (decorations_only
       // scores on one).
       if (object.kind == 0x52 && arrayShellOids.contains(object.oid)) {
+        _drawArrayConstantShell(canvas, object);
         continue;
       }
       switch (object.kind) {
@@ -2695,6 +2696,72 @@ class BdDiagramPainter extends CustomPainter {
           // (its whole 160 px perimeter reads the plain dim-blue border) —
           // and shows its decoded literal centred instead of a type glyph.
           final constValue = constValues[object.oid];
+          // An ARRAY constant's element box draws LabVIEW's measured chrome
+          // instead of the generic stroked frame: a crisp 3 px ring whose
+          // outer edge sits 1 px outside the part bounds on the left/top and
+          // ON the bounds' right/bottom edges (crc8's Polynomial + LUT
+          // arrays, byte-verified), value digits in the element colour.
+          final shellParent = scene.diagram.byId[object.parentOid ?? -1];
+          if (object.kind == 0x50 && shellParent?.kind == 0x52) {
+            var elementRight = -1 << 30;
+            for (final sib in scene.diagram.children(shellParent!.oid)) {
+              if (sib.kind == 0x50 && sib.absBounds != null) {
+                elementRight = math.max(elementRight, sib.absBounds!.right);
+              }
+            }
+            if (object.absBounds!.right != elementRight) {
+              // The INDEX box: its window, spinner boxes, and arrows are
+              // the array shell's furniture ([_drawArrayConstantShell]);
+              // the generic stroked frame would double them.
+              continue;
+            }
+            {
+              final ringFill = _solidNoAa(tint);
+              final outer = Rect.fromLTRB(
+                box.left - 1,
+                box.top - 1,
+                box.right + 1,
+                box.bottom + 1,
+              );
+              canvas.drawRect(outer, Paint()..color = Colors.white);
+              canvas.drawRect(
+                Rect.fromLTWH(outer.left, outer.top, outer.width, 3),
+                ringFill,
+              );
+              canvas.drawRect(
+                Rect.fromLTWH(outer.left, outer.bottom - 3, outer.width, 3),
+                ringFill,
+              );
+              canvas.drawRect(
+                Rect.fromLTWH(outer.left, outer.top, 3, outer.height),
+                ringFill,
+              );
+              canvas.drawRect(
+                Rect.fromLTWH(outer.right - 3, outer.top, 3, outer.height),
+                ringFill,
+              );
+              if (constValue != null) {
+                final tp = TextPainter(
+                  text: TextSpan(
+                    text: constValue,
+                    style: TextStyle(
+                      color: tint,
+                      fontSize: 10,
+                      fontFamily: 'Roboto',
+                    ),
+                  ),
+                  maxLines: 1,
+                  ellipsis: '…',
+                  textDirection: TextDirection.ltr,
+                )..layout(maxWidth: math.max(8, box.width - 6));
+                tp.paint(
+                  canvas,
+                  box.center - Offset(tp.width / 2, tp.height / 2),
+                );
+              }
+              continue;
+            }
+          }
           canvas.drawRect(box, Paint()..color = Colors.white);
           canvas.drawRect(
             box.deflate(1),
@@ -3501,6 +3568,95 @@ class BdDiagramPainter extends CustomPainter {
       // [drawn].
       for (final junction in junctions) {
         _drawWireJunctionDot(canvas, junction, fill, bdWireStrokeBand(style));
+      }
+    }
+  }
+
+  /// An array constant's drawn furniture (measured on crc8's Polynomial
+  /// and U8-LUT arrays): a 1 px border in the ELEMENT type's colour at the
+  /// `0x52` shell bounds, at each bounded `0x9` wrap part (the sub-frames
+  /// around the index and element sides), and at the index `0x50`'s value
+  /// window and its two `0xb` spinner boxes. The element `0x50` keeps its
+  /// own constant-box chrome from the terminal pass.
+  void _drawArrayConstantShell(Canvas canvas, ViHeapObject shell) {
+    ViTypeKind elementType = ViTypeKind.unknown;
+    for (final c in scene.diagram.children(shell.oid)) {
+      if (c.kind == 0x50 && c.typeKind != ViTypeKind.unknown) {
+        elementType = c.typeKind;
+      }
+    }
+    final fill = _solidNoAa(_dimFor(shell.oid, labviewTypeColor(elementType)));
+    void border(HeapRect b) {
+      final l = (b.left - origin.dx).toDouble();
+      final t = (b.top - origin.dy).toDouble();
+      final w = (b.right - b.left).toDouble();
+      final h = (b.bottom - b.top).toDouble();
+      if (w <= 0 || h <= 0) return;
+      canvas.drawRect(Rect.fromLTWH(l, t, w, 1), fill);
+      canvas.drawRect(Rect.fromLTWH(l, t + h - 1, w, 1), fill);
+      canvas.drawRect(Rect.fromLTWH(l, t, 1, h), fill);
+      canvas.drawRect(Rect.fromLTWH(l + w - 1, t, 1, h), fill);
+    }
+
+    // The shell rect itself draws nothing — the visible outer frame is the
+    // pair of 0x9 wrap parts (index side + element side). The ELEMENT 0x50
+    // (rightmost bounded) draws its 3 px ring in the terminal pass; the
+    // INDEX 0x50 draws its spinner boxes and value window here.
+    var elementRight = -1 << 30;
+    for (final c in scene.diagram.children(shell.oid)) {
+      if (c.kind == 0x50 && c.absBounds != null) {
+        elementRight = math.max(elementRight, c.absBounds!.right);
+      }
+    }
+    final white = _solidNoAa(Colors.white);
+    // Wrap fills+borders first: the index/element furniture paints OVER
+    // the opaque wrap, whatever the heap child order.
+    for (final c in scene.diagram.children(shell.oid)) {
+      final b = c.absBounds;
+      if (c.kind == 0x9 && b != null) {
+        // The wrap is opaque: it masks the covered run of a wire that
+        // attaches under the array (the visible run starts at the wrap
+        // border, byte-verified on the Polynomial feed).
+        canvas.drawRect(
+          Rect.fromLTWH(
+            (b.left - origin.dx).toDouble(),
+            (b.top - origin.dy).toDouble(),
+            (b.right - b.left).toDouble(),
+            (b.bottom - b.top).toDouble(),
+          ),
+          white,
+        );
+        border(b);
+      }
+    }
+    for (final c in scene.diagram.children(shell.oid)) {
+      final b = c.absBounds;
+      if (c.kind == 0x50 && b != null && b.right != elementRight) {
+        for (final part in scene.diagram.children(c.oid)) {
+          final pb = part.absBounds;
+          if (pb == null) continue;
+          if (part.kind == 0xb || part.kind == 0x9) border(pb);
+          // The spinner's fat triangle (measured on crc8's Polynomial
+          // index): rows t+2..t+5 at widths 1/3/3/5 centred on l+3, the
+          // up box's tip on top and the down box's mirrored.
+          if (part.kind == 0xb) {
+            final up = pb.top == b.top;
+            final cx = (pb.left + 3 - origin.dx).toDouble();
+            for (var i = 0; i < 4; i++) {
+              final half = [0, 1, 1, 2][i];
+              final row = up ? pb.top + 2 + i : pb.bottom - 4 - i;
+              canvas.drawRect(
+                Rect.fromLTWH(
+                  cx - half,
+                  (row - origin.dy).toDouble(),
+                  2.0 * half + 1,
+                  1,
+                ),
+                fill,
+              );
+            }
+          }
+        }
       }
     }
   }

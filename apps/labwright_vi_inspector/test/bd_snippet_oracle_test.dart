@@ -95,6 +95,19 @@ void main() {
         ('8bits-box-bottom', 242, 449, 13, 2),
         ('8bits-box-left', 242, 432, 2, 19),
         ('8bits-box-right', 253, 432, 2, 19),
+        // Array-constant furniture (Polynomial + U8 LUT): wrap frames,
+        // index spinner boxes/arrows, element 3 px ring — pinned as strips
+        // that exclude the AA value/index digit text.
+        ('array-poly-top', 75, 397, 76, 6),
+        ('array-poly-bottom', 75, 414, 76, 9),
+        ('array-poly-left', 75, 397, 11, 26),
+        ('array-poly-mid', 110, 397, 8, 26),
+        ('array-poly-right', 143, 397, 8, 26),
+        ('array-lut-top', 429, 166, 74, 6),
+        ('array-lut-bottom', 429, 183, 74, 9),
+        ('array-lut-left', 429, 166, 11, 26),
+        ('array-lut-mid', 464, 166, 7, 26),
+        ('array-lut-right', 496, 166, 8, 26),
       ],
       // The crc siblings' slack wires resolve through the same catalog
       // entries; each box covers the wire's bends and both arrivals.
