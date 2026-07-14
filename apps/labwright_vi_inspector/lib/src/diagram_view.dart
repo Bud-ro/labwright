@@ -127,6 +127,10 @@ class _ViDiagramViewState extends State<ViDiagramView> {
     null => const {},
     final diagram => bdDisabledObjectOids(diagram),
   };
+  late final Set<int> _errorCaseOids = switch (_diagram) {
+    null => const {},
+    final diagram => bdErrorCaseOids(diagram),
+  };
   late final Map<HeapRect, ({int kind, bool hollow, bool disabled})>
   _borderTerminalKinds = switch (_diagram) {
     null => const {},
@@ -334,6 +338,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                               primIcons: _primIcons,
                               primIconsGrey: primIconsGreyLoaded(),
                               disabledOids: _disabledOids,
+                              errorCaseOids: _errorCaseOids,
                               borderTerminalKinds: _borderTerminalKinds,
                               iconFilterQuality: FilterQuality.low,
                               canvasScale: _anchorScale,
@@ -591,6 +596,53 @@ const Color kBdTunnelBorder = Color(0xFF444444);
 /// (sampled (255,255,204) from the crc8 reference at decoded rects — the
 /// same cream as primitive icon bodies).
 const Color kBdTerminalFill = Color(0xFFFFFFCC);
+
+/// LabVIEW's default structure colour (mid-grey). A frame carrying it has no
+/// user-chosen tint, so it draws in its standard chrome rather than washing
+/// this nominal value over the border.
+const int kDefaultStructureRgb = 0x7F7F7F;
+
+/// Phase of the global structure-hatch lattice, in pixels added to absolute
+/// diagram coordinates before indexing the 4×4 tile (both components 0..3).
+typedef GlobalHatchOffset = ({int x, int y});
+
+/// The neutral hatch phase: the lattice indexed by absolute diagram
+/// coordinates directly.
+const GlobalHatchOffset kNoHatchOffset = (x: 0, y: 0);
+
+/// The diagonal hatch LabVIEW fills a structure (case / sequence) frame with,
+/// indexed `[absY % 4][absX % 4]` — one infinite lattice shared by every frame
+/// in a render, so neighbouring structures and the four corners of one frame
+/// show different phases. Measured from crc8's case frames (716 and 1861 fit
+/// this tile identically). `#` = black.
+const kBdStructureHatch = ['.#.#', '#.#.', '##..', '..##'];
+
+/// Width (px) of the hatch band inside a case/sequence frame's solid 1px
+/// outer border.
+const kBdHatchBand = 5;
+
+/// The single-diagonal stripe lattice of an error case's border band
+/// ([bdErrorCaseOids]), indexed like [kBdStructureHatch] — grey ink on the
+/// green band where `(absX + absY) % 4 == 0`. Its per-capture phase is
+/// INDEPENDENT of the black hatch's (measured: one capture carries different
+/// phases for the two lattices), so it takes its own derived offset.
+const kBdErrorHatch = ['#...', '...#', '..#.', '.#..'];
+
+/// The structure-chrome colours LabVIEW resolves from the CAPTURE
+/// ENVIRONMENT's palette, not from the .vi: the while-loop band / error-stripe
+/// grey and the error case's green field. Measured to vary per capture with
+/// the LabVIEW version held fixed (three 19.0 captures: greys 119/127/119,
+/// greens 153/178/153), so — like [GlobalHatchOffset] — the viewer draws the
+/// common defaults ([kBdDefaultChromePalette]) and the oracle derives each
+/// reference's palette (`deriveChromePalette`) to compare 1:1.
+typedef BdChromePalette = ({Color bandGrey, Color errorGreen});
+
+/// The dominant capture palette: band/stripe grey (119,119,119), error-case
+/// green (153,255,153).
+const BdChromePalette kBdDefaultChromePalette = (
+  bandGrey: Color(0xFF777777),
+  errorGreen: Color(0xFF99FF99),
+);
 
 /// The uniform grey a disabled frame renders dark NEUTRAL chrome in — the
 /// same (170,170,170) line-work grey as the disabled icon palette
@@ -1992,6 +2044,23 @@ Map<HeapRect, ({int kind, bool hollow, bool disabled})> bdBorderTerminalKinds(
   return out;
 }
 
+/// The oids of case structures whose DISPLAYED frame is the error-cluster
+/// "No Error" case — LabVIEW draws their border band green with grey diagonal
+/// stripes ([kBdErrorHatch]) instead of the black case hatch. The signal is
+/// the structure's own `0x95` selector label (the displayed frame's name),
+/// byte-verified across the snippet corpus: every green-banded case frame
+/// shows " No Error ", and no other selector value renders green (142 case
+/// frames censused; the corpus holds no displayed "Error" frame, so that
+/// variant stays undecoded).
+Set<int> bdErrorCaseOids(ViDiagram diagram) => {
+  for (final o in diagram.objects)
+    if (o.kind == 0x2c &&
+        diagram
+            .children(o.oid)
+            .any((k) => k.kind == 0x95 && k.label?.trim() == 'No Error'))
+      o.oid,
+};
+
 /// The oids of drawable objects sitting under a disable structure's
 /// DISPLAYED frame when that frame is a disabled one — LabVIEW renders their
 /// icons as grey line-work on white (see [_greyDisabledPalette]). The
@@ -2048,6 +2117,10 @@ class BdDiagramPainter extends CustomPainter {
     this.iconFilterQuality = FilterQuality.none,
     this.canvasScale = 1,
     this.drawDotGrid = true,
+    this.globalHatchOffset = kNoHatchOffset,
+    this.errorHatchOffset = kNoHatchOffset,
+    this.errorCaseOids = const {},
+    this.chromePalette = kBdDefaultChromePalette,
   });
 
   final List<ViHeapObject> objects;
@@ -2091,6 +2164,27 @@ class BdDiagramPainter extends CustomPainter {
   /// ring (the reference draws constants with the 2 px outer border only)
   /// and centres the value text.
   final Map<int, String> constValues;
+
+  /// Phase of the structure-hatch lattice ([kBdStructureHatch]) relative to
+  /// absolute diagram coordinates. LabVIEW anchors the lattice to its
+  /// device/window brush origin at render time — a value that is NOT stored in
+  /// the .vi and differs per capture — so the viewer draws at the neutral
+  /// [kNoHatchOffset] and the oracle derives a per-reference offset
+  /// (`deriveGlobalHatchOffset`) to compare snapshots 1:1.
+  final GlobalHatchOffset globalHatchOffset;
+
+  /// Phase of the error-case stripe lattice ([kBdErrorHatch]) — a separate
+  /// per-capture value from [globalHatchOffset] (the two lattices measure
+  /// different phases within one capture).
+  final GlobalHatchOffset errorHatchOffset;
+
+  /// Case structures displaying their "No Error" frame ([bdErrorCaseOids]) —
+  /// their band draws the green error style instead of the black hatch.
+  final Set<int> errorCaseOids;
+
+  /// The capture-environment chrome colours (while band / error stripes /
+  /// error field). See [BdChromePalette].
+  final BdChromePalette chromePalette;
 
   /// [color] through the measured disabled-frame palette transform when the
   /// object [oid] sits under a disabled displayed frame ([disabledOids]),
@@ -2253,7 +2347,12 @@ class BdDiagramPainter extends CustomPainter {
       // the neutral double-line frame.
       final rect = rectOf(object);
       final structDisabled = disabledOids.contains(object.oid);
-      final structColor = switch (bdDecodedColor(object.structRgb)) {
+      // A structure whose colour is LabVIEW's default grey (0x7F7F7F) carries
+      // no user tint — the frame draws in its standard chrome (a while loop's
+      // 119 grey band, not this nominal 127). Only a non-default colour tints.
+      final structColor = switch (object.structRgb == kDefaultStructureRgb
+          ? null
+          : bdDecodedColor(object.structRgb)) {
         null => null,
         final c => _dimFor(object.oid, c),
       };
@@ -2304,6 +2403,7 @@ class BdDiagramPainter extends CustomPainter {
             object.absBounds!.left,
             object.absBounds!.top,
             disabled: structDisabled,
+            error: errorCaseOids.contains(object.oid),
           );
           _drawStructureTerminals(
             canvas,
@@ -3386,11 +3486,59 @@ class BdDiagramPainter extends CustomPainter {
     }
   }
 
+  /// The while-loop's rounded corners, measured per-corner from LabVIEW's
+  /// raster (its rounding is NOT symmetric — the right and bottom edges round a
+  /// pixel fuller than the left and top). `#` = grey band pixel, indexed
+  /// `[distance-from-cap-edge][distance-from-side-edge]` from the outer corner.
+  /// The bottom-right corner is the arrow ([_kWhileArrow]).
+  static const _kWhileCornerTL = [
+    '.....#',
+    '..####',
+    '.#####',
+    '.#####',
+    '.#####',
+    '######',
+  ];
+  static const _kWhileCornerTR = [
+    '....##',
+    '...###',
+    '.#####',
+    '.#####',
+    '.#####',
+    '######',
+  ];
+  static const _kWhileCornerBL = [
+    '.....#',
+    '..####',
+    '..####',
+    '.#####',
+    '######',
+    '######',
+  ];
+
+  /// The rotational arrow LabVIEW draws into a while-loop's bottom-right corner
+  /// (the gap-and-arrowhead is what marks the frame a *while* loop), measured
+  /// from the raster. Rows run top→bottom, the last at the band's bottom row;
+  /// columns run left→right ending at the frame's right edge. `#` grey.
+  static const _kWhileArrow = [
+    '.........',
+    '.........',
+    '.########',
+    '..#######',
+    '#########',
+    '#########',
+    '#########',
+    '#########',
+    '#########',
+    '#####...#',
+  ];
+
   /// The while-loop border LabVIEW draws: a crisp [_kWhileBand]-px mid-grey
-  /// (0xFF777777) band with rounded corners, flat-filled with no
-  /// anti-aliasing so its outer edge is a hard line the oracle registration
-  /// locks onto. A decoded [tint] (the pale sequence/timed colour) replaces
-  /// the grey and washes the interior, as LabVIEW's coloured structures do.
+  /// (0xFF777777) band, hard-edged (no anti-aliasing) so its outer edge is a
+  /// line the oracle registration locks onto, with rounded corners
+  /// ([_kWhileCorner]) and the rotational arrow ([_kWhileArrow]) in the
+  /// bottom-right. The interior stays clear — LabVIEW washes no colour inside a
+  /// plain while loop. A decoded [tint] only recolours the band.
   void _drawWhileLoopBand(
     Canvas canvas,
     Rect rect,
@@ -3398,38 +3546,56 @@ class BdDiagramPainter extends CustomPainter {
     bool disabled = false,
   }) {
     Color dim(Color c) => disabled ? bdDimDisabled(c) : c;
-    final band = tint ?? dim(const Color(0xFF777777));
-    const outerR = Radius.circular(_kWhileOuterRadius);
-    const innerR = Radius.circular(_kWhileOuterRadius - _kWhileBand);
-    if (tint != null) {
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(rect, outerR),
-        Paint()..color = tint.withValues(alpha: 0.12),
-      );
+    final grey = tint ?? dim(chromePalette.bandGrey);
+    // The band fills the frame's stored bounds; [l,r) × [t,b).
+    final l = rect.left.round(), t = rect.top.round();
+    final r = rect.right.round(), b = rect.bottom.round();
+    const band = _kWhileBand;
+    // Bottom-right arrow footprint (columns then rows), anchored to the frame's
+    // right/bottom edge; excluded from the ring loop so the arrow alone fills
+    // it. Its last row is the band's bottom row.
+    final aw = _kWhileArrow.first.length, ah = _kWhileArrow.length;
+    final ax0 = r - aw, ay0 = b - ah;
+
+    final path = Path();
+    void add(int x, int y) =>
+        path.addRect(Rect.fromLTWH(x.toDouble(), y.toDouble(), 1, 1));
+
+    for (var y = t; y < b; y++) {
+      final dt = y - t, db = b - 1 - y;
+      for (var x = l; x < r; x++) {
+        final dl = x - l, dr = r - 1 - x;
+        final edge = dl < band || dr < band || dt < band || db < band;
+        if (!edge) continue;
+        if (x >= ax0 && y >= ay0) continue; // arrow owns this cell
+        bool grey1;
+        if (dt < band && dl < band) {
+          grey1 = _kWhileCornerTL[dt][dl] == '#';
+        } else if (dt < band && dr < band) {
+          grey1 = _kWhileCornerTR[dt][dr] == '#';
+        } else if (db < band && dl < band) {
+          grey1 = _kWhileCornerBL[db][dl] == '#';
+        } else {
+          grey1 = true; // straight run (bottom-right handled by the arrow)
+        }
+        if (grey1) add(x, y);
+      }
     }
-    // The frame's stored bounds run 1px wider than the drawn band on the left
-    // and right (the shift-register column allowance); top and bottom are
-    // flush. Inset horizontally so the grey lands on the reference.
-    final outer = Rect.fromLTRB(
-      rect.left + 1,
-      rect.top,
-      rect.right - 1,
-      rect.bottom,
-    );
-    final ring = Path()
-      ..fillType = PathFillType.evenOdd
-      ..addRRect(RRect.fromRectAndRadius(outer, outerR))
-      ..addRRect(RRect.fromRectAndRadius(outer.deflate(_kWhileBand), innerR));
+    // Stamp the arrow (its last row sits one pixel below the band bottom).
+    for (var ry = 0; ry < ah; ry++) {
+      for (var rx = 0; rx < aw; rx++) {
+        if (_kWhileArrow[ry][rx] == '#') add(ax0 + rx, ay0 + ry);
+      }
+    }
     canvas.drawPath(
-      ring,
+      path,
       Paint()
-        ..color = band
+        ..color = grey
         ..isAntiAlias = false,
     );
   }
 
-  static const _kWhileBand = 6.0;
-  static const _kWhileOuterRadius = 6.0;
+  static const _kWhileBand = 6;
 
   /// Draws a for-loop's border pixel-exact to LabVIEW's own render: crisp
   /// 1px-black chrome shaped as a stack of three pages, the top page's
@@ -3490,24 +3656,25 @@ class BdDiagramPainter extends CustomPainter {
   }
 
   /// Draws a case/sequence frame's border exactly as LabVIEW does: a solid 1px
-  /// black outer rectangle wrapping a [_kHatchBand]-px band of the global
-  /// [_kStructureHatch] lattice. The hatch phase is keyed on ABSOLUTE diagram
-  /// coordinates ([absLeft]/[absTop] give the frame's top-left in that space),
-  /// so the pattern is continuous across the diagram — the frame is a window
-  /// onto it, not a source of it. Drawn before the tunnel chrome pass, which
-  /// paints over it where border terminals land.
+  /// black outer rectangle wrapping a [kBdHatchBand]-px band of the global
+  /// [kBdStructureHatch] lattice — or, for an [error] case displaying its
+  /// "No Error" frame, a green field striped with the [kBdErrorHatch]
+  /// lattice. Each lattice is keyed on ABSOLUTE diagram coordinates
+  /// ([absLeft]/[absTop] give the frame's top-left in that space) plus its own
+  /// per-capture offset, so the pattern is continuous across the diagram — the
+  /// frame is a window onto it, not a source of it. Drawn before the tunnel
+  /// chrome pass, which paints over it where border terminals land.
   void _drawStructureHatchBorder(
     Canvas canvas,
     Rect rect,
     int absLeft,
     int absTop, {
     bool disabled = false,
+    bool error = false,
   }) {
-    final ink = disabled
-        ? bdDimDisabled(const Color(0xFF000000))
-        : const Color(0xFF000000);
+    Color dim(Color c) => disabled ? bdDimDisabled(c) : c;
     final paint = Paint()
-      ..color = ink
+      ..color = dim(const Color(0xFF000000))
       ..isAntiAlias = false;
     final l = rect.left.round(), t = rect.top.round();
     final w = rect.width.round(), h = rect.height.round();
@@ -3529,42 +3696,55 @@ class BdDiagramPainter extends CustomPainter {
       Rect.fromLTWH((l + w - 1).toDouble(), t.toDouble(), 1, h.toDouble()),
       paint,
     );
-    // Hatch band: only the black cells, batched into one path. Iterate the
-    // perimeter ring (skip the interior columns of the middle rows).
+    // Hatch band, batched into ink/field paths. Iterate the perimeter ring
+    // (skip the interior columns of the middle rows).
+    final tile = error ? kBdErrorHatch : kBdStructureHatch;
+    final offset = error ? errorHatchOffset : globalHatchOffset;
     final band = Path();
+    final field = error ? Path() : null;
     for (var j = 0; j < h; j++) {
-      final nearTopBottom = j <= _kHatchBand || j >= h - 1 - _kHatchBand;
+      final nearTopBottom = j <= kBdHatchBand || j >= h - 1 - kBdHatchBand;
       for (var i = 0; i < w; i++) {
-        if (!nearTopBottom && i > _kHatchBand && i < w - 1 - _kHatchBand) {
+        if (!nearTopBottom && i > kBdHatchBand && i < w - 1 - kBdHatchBand) {
           continue; // interior — no border here
         }
         final d = math.min(math.min(i, j), math.min(w - 1 - i, h - 1 - j));
-        if (d < 1 || d > _kHatchBand) continue; // 0 = solid, >5 = interior
-        if (_kStructureHatch[(absTop + j) & 3][(absLeft + i) & 3] != '#') {
-          continue;
-        }
-        band.addRect(
-          Rect.fromLTWH((l + i).toDouble(), (t + j).toDouble(), 1, 1),
+        if (d < 1 || d > kBdHatchBand) continue; // 0 = solid, >5 = interior
+        final cell = Rect.fromLTWH(
+          (l + i).toDouble(),
+          (t + j).toDouble(),
+          1,
+          1,
         );
+        if (tile[(absTop + j + offset.y) & 3][(absLeft + i + offset.x) & 3] ==
+            '#') {
+          band.addRect(cell);
+        } else {
+          field?.addRect(cell);
+        }
       }
     }
-    canvas.drawPath(band, paint);
+    if (field != null) {
+      canvas.drawPath(
+        field,
+        Paint()
+          ..color = dim(chromePalette.errorGreen)
+          ..isAntiAlias = false,
+      );
+    }
+    canvas.drawPath(
+      band,
+      error
+          ? (Paint()
+              ..color = dim(chromePalette.bandGrey)
+              ..isAntiAlias = false)
+          : paint,
+    );
   }
 
   /// Side length (px) of the for-loop's dog-ear corner fold — fixed chrome,
   /// measured from LabVIEW's raster.
   static const _kForLoopFold = 8.0;
-
-  /// The diagonal hatch LabVIEW fills a structure (case / sequence) frame with,
-  /// indexed `[absY % 4][absX % 4]` — a single lattice anchored to absolute
-  /// diagram coordinates, NOT to each frame, so neighbouring structures and
-  /// the four corners of one frame show different phases. Measured from crc8's
-  /// case frames (716 and 1861 fit this tile identically). `#` = black.
-  static const _kStructureHatch = ['.#.#', '#.#.', '##..', '..##'];
-
-  /// Width (px) of the hatch band inside a case/sequence frame's solid 1px
-  /// outer border.
-  static const _kHatchBand = 5;
 
   static const _loopBlue = Color(0xFF0033CC);
 

@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:labwright_vi_inspector/src/bd_oracle.dart';
+import 'package:labwright_vi_inspector/src/diagram_view.dart';
 import 'package:labwright_vi_inspector/src/vi_demo.dart';
 
 import 'util.dart';
@@ -33,6 +34,339 @@ List<File> snippetCorpusPngs() {
 }
 
 void main() {
+  testWidgets('hatch phase derives per capture and rephases to the reference', (
+    tester,
+  ) async {
+    // LabVIEW anchors the case-hatch lattice to its device brush origin at
+    // capture time (not stored in the .vi), so the oracle measures each
+    // reference's phase. Expected offsets are pinned from the captures; the
+    // rephased render's hatch ring must then match the reference nearly
+    // everywhere (the small remainder is border-terminal overdraw).
+    const expected = {
+      'crc8.png': ((x: 0, y: 0), 716, 0.95),
+      'fg.png': ((x: 0, y: 2), 128, 0.95),
+      'MD5.png': ((x: 2, y: 2), 5720, 0.95),
+    };
+    final pngs = snippetCorpusPngs().where(
+      (f) => expected.keys.any((n) => f.path.endsWith('/$n')),
+    );
+    if (pngs.length < expected.length) {
+      markTestSkipped('corpus not fetched');
+      return;
+    }
+    await loadRealTextFont();
+    await tester.runAsync(() async {
+      for (final f in pngs) {
+        final name = f.path.split('/').last;
+        final (want, caseOid, floor) = expected[name]!;
+        final bytes = f.readAsBytesSync();
+        final bd = bestBlockDiagram(buildViModel(extractSnippetVi(bytes)!))!;
+        final drawable = bdDrawableObjects(bd);
+        final wires = bdVisibleWires(bd);
+        final icons = await loadPrimIcons();
+        Future<(BdRaster, BdOracleResult)> render(GlobalHatchOffset off) async {
+          final raster = (await rasteriseBlockDiagram(
+            bd,
+            primIcons: icons,
+            scale: 1.0,
+            margin: 2,
+            wires: wires,
+            drawable: drawable,
+            globalHatchOffset: off,
+          ))!;
+          final reference = await decodeReferenceImage(bytes);
+          final result = await compareToReference(
+            raster.image,
+            reference.image,
+            lockScale: 1.0 / raster.scale,
+            anchorRects: bdStructureAnchorRects(bd, raster, drawable: drawable),
+          );
+          reference.image.dispose();
+          return (raster, result);
+        }
+
+        final (raster, result) = await render(kNoHatchOffset);
+        final derived = deriveGlobalHatchOffset(
+          diagram: bd,
+          raster: raster,
+          registration: result.registration,
+          referenceRgba: result.referenceRgba,
+          width: result.reference.width,
+          height: result.reference.height,
+        );
+        expect(derived, want, reason: '$name derived offset');
+
+        final (raster2, result2) = await render(derived);
+        final w = result2.reference.width, h = result2.reference.height;
+        final refB = result2.referenceRgba;
+        final ourB = (await result2.fitted.toByteData())!.buffer.asUint8List();
+        bool dark(Uint8List im, int x, int y) {
+          final i = (y * w + x) * 4;
+          return (im[i] + im[i + 1] + im[i + 2]) ~/ 3 < 110;
+        }
+
+        final b = bd.byId[caseOid]!.absBounds!;
+        var same = 0, total = 0;
+        for (var y = b.top; y <= b.bottom; y++) {
+          for (var x = b.left; x <= b.right; x++) {
+            final d = [
+              x - b.left,
+              y - b.top,
+              b.right - x,
+              b.bottom - y,
+            ].reduce((p, q) => p < q ? p : q);
+            if (d > kBdHatchBand) continue;
+            final rx = (x - raster2.content.left + result2.registration.dx)
+                .round();
+            final ry = (y - raster2.content.top + result2.registration.dy)
+                .round();
+            if (rx < 0 || ry < 0 || rx >= w || ry >= h) continue;
+            total++;
+            if (dark(refB, rx, ry) == dark(ourB, rx, ry)) same++;
+          }
+        }
+        expect(
+          same / total,
+          greaterThan(floor),
+          reason: '$name case $caseOid hatch ring after rephasing',
+        );
+      }
+    });
+  });
+
+  testWidgets('error cases derive their stripe phase and rephase to match', (
+    tester,
+  ) async {
+    // A case displaying its "No Error" frame draws the green stripe band
+    // ([bdErrorCaseOids] / [kBdErrorHatch]); the stripe lattice carries a
+    // per-capture phase of its own, independent of the black hatch's. Both
+    // derived offsets are pinned; the rephased green ring must then match the
+    // reference (strict 4-class: green field / grey stripe / black / other).
+    const expected = {
+      'GetCurrentDirectory.png': ((x: 0, y: 0), (x: 2, y: 0), 2380, 0.95),
+      'Read VI Blocks.png': ((x: 3, y: 0), (x: 1, y: 0), 8715, 0.95),
+    };
+    final pngs = snippetCorpusPngs().where(
+      (f) => expected.keys.any((n) => f.path.endsWith('/$n')),
+    );
+    if (pngs.length < expected.length) {
+      markTestSkipped('corpus not fetched');
+      return;
+    }
+    await loadRealTextFont();
+    await tester.runAsync(() async {
+      for (final f in pngs) {
+        final name = f.path.split('/').last;
+        final (wantBlack, wantError, caseOid, floor) = expected[name]!;
+        final bytes = f.readAsBytesSync();
+        final bd = bestBlockDiagram(buildViModel(extractSnippetVi(bytes)!))!;
+        expect(
+          bdErrorCaseOids(bd),
+          contains(caseOid),
+          reason: '$name error-case detection',
+        );
+        final drawable = bdDrawableObjects(bd);
+        final wires = bdVisibleWires(bd);
+        final icons = await loadPrimIcons();
+        Future<(BdRaster, BdOracleResult)> render(
+          GlobalHatchOffset black,
+          GlobalHatchOffset error,
+        ) async {
+          final raster = (await rasteriseBlockDiagram(
+            bd,
+            primIcons: icons,
+            scale: 1.0,
+            margin: 2,
+            wires: wires,
+            drawable: drawable,
+            globalHatchOffset: black,
+            errorHatchOffset: error,
+          ))!;
+          final reference = await decodeReferenceImage(bytes);
+          final result = await compareToReference(
+            raster.image,
+            reference.image,
+            lockScale: 1.0 / raster.scale,
+            anchorRects: bdStructureAnchorRects(bd, raster, drawable: drawable),
+          );
+          reference.image.dispose();
+          return (raster, result);
+        }
+
+        final (raster, result) = await render(kNoHatchOffset, kNoHatchOffset);
+        final args = (
+          diagram: bd,
+          raster: raster,
+          registration: result.registration,
+          referenceRgba: result.referenceRgba,
+          width: result.reference.width,
+          height: result.reference.height,
+        );
+        final black = deriveGlobalHatchOffset(
+          diagram: args.diagram,
+          raster: args.raster,
+          registration: args.registration,
+          referenceRgba: args.referenceRgba,
+          width: args.width,
+          height: args.height,
+        );
+        final error = deriveErrorHatchOffset(
+          diagram: args.diagram,
+          raster: args.raster,
+          registration: args.registration,
+          referenceRgba: args.referenceRgba,
+          width: args.width,
+          height: args.height,
+        );
+        expect((black, error), (wantBlack, wantError), reason: '$name offsets');
+
+        final (raster2, result2) = await render(black, error);
+        final w = result2.reference.width, h = result2.reference.height;
+        final refB = result2.referenceRgba;
+        final ourB = (await result2.fitted.toByteData())!.buffer.asUint8List();
+        String cls(Uint8List im, int x, int y) {
+          final i = (y * w + x) * 4;
+          final r = im[i], g = im[i + 1], bl = im[i + 2];
+          if (g > 200 && r < 200 && bl < 200) return 'green';
+          if ((r + g + bl) ~/ 3 < 60) return 'black';
+          if ((r - bl).abs() < 30 && r > 90 && r < 170) return 'grey';
+          return 'other';
+        }
+
+        final b = bd.byId[caseOid]!.absBounds!;
+        var same = 0, total = 0;
+        for (var y = b.top; y <= b.bottom; y++) {
+          for (var x = b.left; x <= b.right; x++) {
+            final d = [
+              x - b.left,
+              y - b.top,
+              b.right - x,
+              b.bottom - y,
+            ].reduce((p, q) => p < q ? p : q);
+            if (d > kBdHatchBand) continue;
+            final rx = (x - raster2.content.left + result2.registration.dx)
+                .round();
+            final ry = (y - raster2.content.top + result2.registration.dy)
+                .round();
+            if (rx < 0 || ry < 0 || rx >= w || ry >= h) continue;
+            total++;
+            if (cls(refB, rx, ry) == cls(ourB, rx, ry)) same++;
+          }
+        }
+        expect(
+          same / total,
+          greaterThan(floor),
+          reason: '$name case $caseOid green ring after rephasing',
+        );
+      }
+    });
+  });
+
+  testWidgets('chrome palette derives per capture', (tester) async {
+    // The while-band/stripe grey and error-case green come from the capture
+    // machine's palette, not the .vi (same-version captures measure different
+    // values), so the oracle derives them per reference. Expected palettes
+    // pinned from the captures; fg's while band must then match the reference
+    // exactly (it is the sole all-grey band clear of overdraw).
+    const expected = {
+      'fg.png': (0xFF7F7F7F, 0xFF99FF99, 86, 0.98),
+      'large.png': (0xFF7F7F7F, 0xFFB2FFB2, null, 1.0),
+      'Read VI Blocks.png': (0xFF777777, 0xFF99FF99, null, 1.0),
+    };
+    final pngs = snippetCorpusPngs().where(
+      (f) => expected.keys.any((n) => f.path.endsWith('/$n')),
+    );
+    if (pngs.length < expected.length) {
+      markTestSkipped('corpus not fetched');
+      return;
+    }
+    await loadRealTextFont();
+    await tester.runAsync(() async {
+      for (final f in pngs) {
+        final name = f.path.split('/').last;
+        final (wantGrey, wantGreen, whileOid, floor) = expected[name]!;
+        final bytes = f.readAsBytesSync();
+        final bd = bestBlockDiagram(buildViModel(extractSnippetVi(bytes)!))!;
+        final drawable = bdDrawableObjects(bd);
+        final wires = bdVisibleWires(bd);
+        final icons = await loadPrimIcons();
+        Future<(BdRaster, BdOracleResult)> render(
+          BdChromePalette palette,
+        ) async {
+          final raster = (await rasteriseBlockDiagram(
+            bd,
+            primIcons: icons,
+            scale: 1.0,
+            margin: 2,
+            wires: wires,
+            drawable: drawable,
+            chromePalette: palette,
+          ))!;
+          final reference = await decodeReferenceImage(bytes);
+          final result = await compareToReference(
+            raster.image,
+            reference.image,
+            lockScale: 1.0 / raster.scale,
+            anchorRects: bdStructureAnchorRects(bd, raster, drawable: drawable),
+          );
+          reference.image.dispose();
+          return (raster, result);
+        }
+
+        final (raster, result) = await render(kBdDefaultChromePalette);
+        final palette = deriveChromePalette(
+          diagram: bd,
+          raster: raster,
+          registration: result.registration,
+          referenceRgba: result.referenceRgba,
+          width: result.reference.width,
+          height: result.reference.height,
+        );
+        expect(
+          (palette.bandGrey.toARGB32(), palette.errorGreen.toARGB32()),
+          (wantGrey, wantGreen),
+          reason: '$name derived palette',
+        );
+        if (whileOid == null) continue;
+
+        final (raster2, result2) = await render(palette);
+        final w = result2.reference.width, h = result2.reference.height;
+        final refB = result2.referenceRgba;
+        final ourB = (await result2.fitted.toByteData())!.buffer.asUint8List();
+        final b = bd.byId[whileOid]!.absBounds!;
+        var same = 0, total = 0;
+        for (var y = b.top; y <= b.bottom; y++) {
+          for (var x = b.left; x <= b.right; x++) {
+            final d = [
+              x - b.left,
+              y - b.top,
+              b.right - x,
+              b.bottom - y,
+            ].reduce((p, q) => p < q ? p : q);
+            if (d > 6) continue;
+            final rx = (x - raster2.content.left + result2.registration.dx)
+                .round();
+            final ry = (y - raster2.content.top + result2.registration.dy)
+                .round();
+            if (rx < 0 || ry < 0 || rx >= w || ry >= h) continue;
+            total++;
+            final i = (ry * w + rx) * 4;
+            if (refB[i] == ourB[i] &&
+                refB[i + 1] == ourB[i + 1] &&
+                refB[i + 2] == ourB[i + 2]) {
+              same++;
+            }
+          }
+        }
+        expect(
+          same / total,
+          greaterThan(floor),
+          reason: '$name while $whileOid band exact-RGB after palette',
+        );
+      }
+    });
+  });
+
   test('excessSupport rescales support against the chance rate', () {
     const cmp = PlacementComparison(
       perObject: [(oid: 1, support: 0.6), (oid: 2, support: 0.2)],

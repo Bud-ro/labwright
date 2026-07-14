@@ -62,6 +62,214 @@ class BdRaster {
 /// (1.0 matches LabVIEW's own 1 diagram unit == 1 px snippet render, making a
 /// snippet reference comparable without resampling). Returns null when the
 /// diagram has no positioned objects.
+/// Derives a reference capture's [GlobalHatchOffset] by scoring every lattice
+/// phase against the reference pixels inside the case frames' hatch bands.
+/// LabVIEW anchors the hatch to its device/window brush origin at render time —
+/// not stored in the .vi and different per capture — so the phase can only be
+/// measured from the capture itself. Returns [kNoHatchOffset] unless one phase
+/// wins decisively (≥75% pixel agreement and a strict margin over the
+/// runner-up), so content-overdrawn or recoloured bands never force a bogus
+/// phase.
+GlobalHatchOffset deriveGlobalHatchOffset({
+  required ViDiagram diagram,
+  required BdRaster raster,
+  required BdRegistration registration,
+  required Uint8List referenceRgba,
+  required int width,
+  required int height,
+}) => _deriveHatchPhase(
+  diagram: diagram,
+  raster: raster,
+  registration: registration,
+  referenceRgba: referenceRgba,
+  width: width,
+  height: height,
+  errorStyle: false,
+);
+
+/// [deriveGlobalHatchOffset]'s counterpart for the error-case stripe lattice
+/// ([kBdErrorHatch]) — a SEPARATE per-capture phase: one capture measures
+/// different phases for the two lattices, so each derives independently.
+GlobalHatchOffset deriveErrorHatchOffset({
+  required ViDiagram diagram,
+  required BdRaster raster,
+  required BdRegistration registration,
+  required Uint8List referenceRgba,
+  required int width,
+  required int height,
+}) => _deriveHatchPhase(
+  diagram: diagram,
+  raster: raster,
+  registration: registration,
+  referenceRgba: referenceRgba,
+  width: width,
+  height: height,
+  errorStyle: true,
+);
+
+/// Derives a reference capture's [BdChromePalette] — the while-band /
+/// error-stripe grey and the error case's green field. LabVIEW resolves these
+/// from the capture machine's palette, not the .vi (three same-version
+/// captures measure greys 119/127/119 and greens 153/178/153), so each
+/// component is read as the MODAL colour over the frames that draw it,
+/// falling back to the [kBdDefaultChromePalette] entry unless one value
+/// dominates (≥100 pixels and an absolute majority of its candidates).
+BdChromePalette deriveChromePalette({
+  required ViDiagram diagram,
+  required BdRaster raster,
+  required BdRegistration registration,
+  required Uint8List referenceRgba,
+  required int width,
+  required int height,
+}) {
+  final errorOids = bdErrorCaseOids(diagram);
+  final drawableOids = {for (final o in bdDrawableObjects(diagram)) o.oid};
+  final greys = <int, int>{};
+  final greens = <int, int>{};
+  var greyTotal = 0, greenTotal = 0;
+  for (final o in diagram.objects) {
+    final isWhile = o.kind == 0x21;
+    final isError = o.kind == 0x2c && errorOids.contains(o.oid);
+    if ((!isWhile && !isError) || !drawableOids.contains(o.oid)) continue;
+    // A tinted while band carries its stored colour, not the palette grey.
+    if (isWhile && o.structRgb != null && o.structRgb != kDefaultStructureRgb) {
+      continue;
+    }
+    final b = o.absBounds;
+    if (b == null) continue;
+    for (var y = b.top; y <= b.bottom; y++) {
+      for (var x = b.left; x <= b.right; x++) {
+        final d = math.min(
+          math.min(x - b.left, b.right - x),
+          math.min(y - b.top, b.bottom - y),
+        );
+        if (d < 1 || d > kBdHatchBand) continue;
+        final rx =
+            ((x - raster.content.left) * registration.scale + registration.dx)
+                .round();
+        final ry =
+            ((y - raster.content.top) * registration.scale + registration.dy)
+                .round();
+        if (rx < 0 || ry < 0 || rx >= width || ry >= height) continue;
+        final i = (ry * width + rx) * 4;
+        final r = referenceRgba[i],
+            g = referenceRgba[i + 1],
+            bl = referenceRgba[i + 2];
+        if (r == g && g == bl && r > 80 && r < 180) {
+          greys[r] = (greys[r] ?? 0) + 1;
+          greyTotal++;
+        } else if (isError && g > 200 && r == bl && r < 200) {
+          greens[r] = (greens[r] ?? 0) + 1;
+          greenTotal++;
+        }
+      }
+    }
+  }
+  T modal<T>(Map<int, int> hist, int total, T fallback, T Function(int) make) {
+    if (hist.isEmpty) return fallback;
+    final top = hist.entries.reduce((a, b) => a.value >= b.value ? a : b);
+    if (top.value < 100 || top.value * 2 < total) return fallback;
+    return make(top.key);
+  }
+
+  return (
+    bandGrey: modal(
+      greys,
+      greyTotal,
+      kBdDefaultChromePalette.bandGrey,
+      (v) => Color(0xFF000000 | (v << 16) | (v << 8) | v),
+    ),
+    errorGreen: modal(
+      greens,
+      greenTotal,
+      kBdDefaultChromePalette.errorGreen,
+      (v) => Color(0xFF000000 | (v << 16) | 0xFF00 | v),
+    ),
+  );
+}
+
+GlobalHatchOffset _deriveHatchPhase({
+  required ViDiagram diagram,
+  required BdRaster raster,
+  required BdRegistration registration,
+  required Uint8List referenceRgba,
+  required int width,
+  required int height,
+  required bool errorStyle,
+}) {
+  final errorOids = bdErrorCaseOids(diagram);
+  final drawableOids = {for (final o in bdDrawableObjects(diagram)) o.oid};
+  final tile = errorStyle ? kBdErrorHatch : kBdStructureHatch;
+  // The stripe lattice depends only on (px+py) mod 4, so its 16 phases
+  // collapse to 4 distinct lattices — searching py too would make every
+  // winner tie its aliases and the margin check reject them all.
+  final pyRange = errorStyle ? 1 : 4;
+  final score = List.generate(4, (_) => List.filled(4, 0));
+  var samples = 0;
+  for (final o in diagram.objects) {
+    if (o.kind != 0x2c || !drawableOids.contains(o.oid)) continue;
+    if (errorOids.contains(o.oid) != errorStyle) continue;
+    final b = o.absBounds;
+    if (b == null) continue;
+    for (var y = b.top; y <= b.bottom; y++) {
+      for (var x = b.left; x <= b.right; x++) {
+        final d = math.min(
+          math.min(x - b.left, b.right - x),
+          math.min(y - b.top, b.bottom - y),
+        );
+        if (d < 1 || d > kBdHatchBand) continue;
+        final rx =
+            ((x - raster.content.left) * registration.scale + registration.dx)
+                .round();
+        final ry =
+            ((y - raster.content.top) * registration.scale + registration.dy)
+                .round();
+        if (rx < 0 || ry < 0 || rx >= width || ry >= height) continue;
+        final i = (ry * width + rx) * 4;
+        final r = referenceRgba[i],
+            g = referenceRgba[i + 1],
+            bl = referenceRgba[i + 2];
+        final bool dark;
+        if (errorStyle) {
+          // Stripe grey on the green field; anything else is overdraw.
+          final green = g > 200 && r < 200 && bl < 200;
+          final grey =
+              !green && (r - bl).abs() < 30 && g < 200 && r > 90 && r < 170;
+          if (!green && !grey) continue;
+          dark = grey;
+        } else {
+          dark = (r + g + bl) ~/ 3 < 110;
+        }
+        samples++;
+        for (var py = 0; py < pyRange; py++) {
+          for (var px = 0; px < 4; px++) {
+            final ink = tile[(y + py) & 3][(x + px) & 3] == '#';
+            score[py][px] += ink == dark ? 1 : -1;
+          }
+        }
+      }
+    }
+  }
+  if (samples == 0) return kNoHatchOffset;
+  var bestX = 0, bestY = 0, best = -samples - 1, second = -samples - 1;
+  for (var py = 0; py < pyRange; py++) {
+    for (var px = 0; px < 4; px++) {
+      final s = score[py][px];
+      if (s > best) {
+        second = best;
+        best = s;
+        bestX = px;
+        bestY = py;
+      } else if (s > second) {
+        second = s;
+      }
+    }
+  }
+  // score = agree − disagree, so ≥75% agreement means score ≥ samples/2.
+  if (best < samples ~/ 2 || best == second) return kNoHatchOffset;
+  return (x: bestX, y: bestY);
+}
+
 Future<BdRaster?> rasteriseBlockDiagram(
   ViDiagram diagram, {
   int maxDimension = 2000,
@@ -72,6 +280,9 @@ Future<BdRaster?> rasteriseBlockDiagram(
   Map<int, PrimIconArt> primIcons = const {},
   List<ViWire>? wires,
   List<ViHeapObject>? drawable,
+  GlobalHatchOffset globalHatchOffset = kNoHatchOffset,
+  GlobalHatchOffset errorHatchOffset = kNoHatchOffset,
+  BdChromePalette chromePalette = kBdDefaultChromePalette,
 }) async {
   drawable ??= bdDrawableObjects(diagram);
   if (drawable.isEmpty) return null;
@@ -125,6 +336,10 @@ Future<BdRaster?> rasteriseBlockDiagram(
     // The reference renders have a plain white canvas; the interactive
     // view's alignment-dot grid would break byte-exact comparisons.
     drawDotGrid: false,
+    globalHatchOffset: globalHatchOffset,
+    errorHatchOffset: errorHatchOffset,
+    errorCaseOids: bdErrorCaseOids(diagram),
+    chromePalette: chromePalette,
   ).paint(canvas, content.size);
   final picture = recorder.endRecording();
   try {
@@ -1048,9 +1263,11 @@ BdRegistration _translationRegistration(
   }
   if (candidates.isEmpty) return base;
   // Final selection: the diagram's structure boxes are large and unique, so
-  // their perimeter edge support discriminates the true peak where raw hits
-  // cannot. Without anchors, raw hits decide.
-  if (anchorRects.length >= 2) {
+  // their perimeter edge support discriminates the true peak — and, in the
+  // sub-pixel snap below, the true whole-pixel offset — where raw hits cannot.
+  // Even a single structure (e.g. a lone while loop) is a strong enough anchor;
+  // with none, raw hits decide.
+  if (anchorRects.isNotEmpty) {
     double anchorSupport(double dx, double dy, Uint8List edges) {
       var hits = 0, samples = 0;
       void sample(double fx, double fy) {
@@ -1083,36 +1300,62 @@ BdRegistration _translationRegistration(
         bestScore = score;
       }
     }
-    // Sub-pixel snap. The peak was chosen on the 1 px-dilated support, which
-    // cannot tell a pixel-exact alignment from its immediate neighbour — with
-    // crisp 1 px structure borders one whole-pixel offset lands the perimeters
-    // EXACTLY on the reference edges while its neighbour is a blurred near
-    // miss. Break that residual tie within ±1 px on the UN-dilated edge map,
-    // so a render whose chrome is already pixel-faithful registers to true
-    // alignment instead of drifting a pixel off. Moves only on a strict
-    // improvement, so an imperfect render (no exact overlap anywhere) stays on
-    // the dilated peak.
-    var bx = best.$1, by = best.$2;
-    var exact = anchorSupport(bx, by, referenceEdges);
-    for (var oy = -1; oy <= 1; oy++) {
-      for (var ox = -1; ox <= 1; ox++) {
-        if (ox == 0 && oy == 0) continue;
-        final e = anchorSupport(best.$1 + ox, best.$2 + oy, referenceEdges);
-        if (e > exact + 1e-9) {
-          exact = e;
-          bx = best.$1 + ox;
-          by = best.$2 + oy;
-        }
-      }
-    }
-    return BdRegistration(scale: scale, dx: bx, dy: by);
+    return BdRegistration(
+      scale: scale,
+      dx: best.$1,
+      dy: best.$2,
+    )._exactSnap(points, referenceEdges, width, height);
   }
   candidates.sort((a, b) => b.$3.compareTo(a.$3));
   return BdRegistration(
     scale: scale,
     dx: candidates.first.$1,
     dy: candidates.first.$2,
-  );
+  )._exactSnap(points, referenceEdges, width, height);
+}
+
+extension _ExactSnap on BdRegistration {
+  /// Nudges the registration by up to ±1px to maximise how many of the render's
+  /// edge [points] land EXACTLY on a reference edge (the UN-dilated Sobel map).
+  ///
+  /// The coarse peak search scores overlap through a 1px dilation, which cannot
+  /// tell a pixel-exact alignment from its immediate neighbour, so its integer
+  /// pick can sit a pixel off the truth (most visible on diagrams whose only
+  /// structure is a faint grey loop, where the dilated peak wanders). Scoring
+  /// every edge point un-dilated breaks that tie toward the alignment where the
+  /// whole render — not just structure borders — coincides with the reference.
+  /// Moves only on a strict improvement, so a render with no exact overlap
+  /// anywhere keeps the coarse pick.
+  BdRegistration _exactSnap(
+    List<double> points,
+    Uint8List referenceEdges,
+    int width,
+    int height,
+  ) {
+    int exactHits(double ex, double ey) {
+      var hits = 0;
+      for (var i = 0; i < points.length; i += 2) {
+        final x = (points[i] + ex).round(), y = (points[i + 1] + ey).round();
+        if (x < 0 || y < 0 || x >= width || y >= height) continue;
+        hits += referenceEdges[y * width + x];
+      }
+      return hits;
+    }
+
+    var bx = dx, by = dy, best = exactHits(dx, dy);
+    for (var oy = -1; oy <= 1; oy++) {
+      for (var ox = -1; ox <= 1; ox++) {
+        if (ox == 0 && oy == 0) continue;
+        final h = exactHits(dx + ox, dy + oy);
+        if (h > best) {
+          best = h;
+          bx = dx + ox;
+          by = dy + oy;
+        }
+      }
+    }
+    return BdRegistration(scale: scale, dx: bx, dy: by);
+  }
 }
 
 /// The centred aspect-preserved letterbox of [src] into [width]×[height], as a
@@ -1314,7 +1557,7 @@ class _BdOracleViewState extends State<BdOracleView>
     // A snippet reference is LabVIEW's crop of the diagram's ink plus a 2 px
     // margin, so the unit-scale render uses the same margin — matched
     // dimensions, not just matched scale.
-    final raster = await rasteriseBlockDiagram(
+    var raster = await rasteriseBlockDiagram(
       diagram,
       primIcons: primIconsLoaded(),
       maxDimension: widget.maxDimension,
@@ -1329,7 +1572,7 @@ class _BdOracleViewState extends State<BdOracleView>
       return const _OracleData();
     }
     if (reference == null) return _OracleData(rendered: raster.image);
-    final result = await compareToReference(
+    var result = await compareToReference(
       raster.image,
       reference.image,
       lockScale: snippet ? 1.0 / raster.scale : null,
@@ -1337,6 +1580,81 @@ class _BdOracleViewState extends State<BdOracleView>
           ? bdStructureAnchorRects(diagram, raster, drawable: drawable)
           : const [],
     );
+    // The reference capture's hatch phases (the black case lattice and the
+    // error-case stripe lattice each carry their own) and its chrome palette
+    // (band grey / error green) are capture-environment values LabVIEW does
+    // not store, so they are measured from the capture and the render redone
+    // to match — the only path to a 1:1 comparison.
+    var hatchOffset = kNoHatchOffset;
+    var errorOffset = kNoHatchOffset;
+    var palette = kBdDefaultChromePalette;
+    if (snippet) {
+      final args = (
+        diagram: diagram,
+        raster: raster,
+        registration: result.registration,
+        referenceRgba: result.referenceRgba,
+        width: reference.image.width,
+        height: reference.image.height,
+      );
+      hatchOffset = deriveGlobalHatchOffset(
+        diagram: args.diagram,
+        raster: args.raster,
+        registration: args.registration,
+        referenceRgba: args.referenceRgba,
+        width: args.width,
+        height: args.height,
+      );
+      errorOffset = deriveErrorHatchOffset(
+        diagram: args.diagram,
+        raster: args.raster,
+        registration: args.registration,
+        referenceRgba: args.referenceRgba,
+        width: args.width,
+        height: args.height,
+      );
+      palette = deriveChromePalette(
+        diagram: args.diagram,
+        raster: args.raster,
+        registration: args.registration,
+        referenceRgba: args.referenceRgba,
+        width: args.width,
+        height: args.height,
+      );
+      if (hatchOffset != kNoHatchOffset ||
+          errorOffset != kNoHatchOffset ||
+          palette != kBdDefaultChromePalette) {
+        final rephased = await rasteriseBlockDiagram(
+          diagram,
+          primIcons: primIconsLoaded(),
+          maxDimension: widget.maxDimension,
+          scale: 1.0,
+          margin: 2,
+          subViIcons: widget.subViIcons,
+          wires: visibleWires,
+          drawable: drawable,
+          globalHatchOffset: hatchOffset,
+          errorHatchOffset: errorOffset,
+          chromePalette: palette,
+        );
+        if (rephased != null) {
+          raster.image.dispose();
+          result.fitted.dispose();
+          result.diffImage.dispose();
+          raster = rephased;
+          result = await compareToReference(
+            raster.image,
+            reference.image,
+            lockScale: 1.0 / raster.scale,
+            anchorRects: bdStructureAnchorRects(
+              diagram,
+              raster,
+              drawable: drawable,
+            ),
+          );
+        }
+      }
+    }
     final placement = comparePlacement(
       diagram: diagram,
       raster: raster,
@@ -1359,6 +1677,9 @@ class _BdOracleViewState extends State<BdOracleView>
       subViIcons: widget.subViIcons,
       wires: visibleWires,
       drawable: drawable,
+      globalHatchOffset: hatchOffset,
+      errorHatchOffset: errorOffset,
+      chromePalette: palette,
     );
     ui.Image? displayFitted;
     ui.Image? displayReference;
