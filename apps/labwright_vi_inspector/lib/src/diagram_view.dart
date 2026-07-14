@@ -8,6 +8,7 @@ import 'package:flutter/services.dart' show AssetManifest, rootBundle;
 import 'package:flutter/material.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
+import 'prim_terminal_catalog.dart';
 import 'terminal_bitmaps.dart';
 
 import 'images_view.dart';
@@ -1751,13 +1752,10 @@ const Map<(int, int, int, int), ({int? dx, int? dy})> _kBdPrimTerminals = {
     at++;
   }
   if (termIdx < 0) return null;
-  final offset =
-      _kBdPrimTerminals[(
-        key,
-        termIdx,
-        box.right - box.left,
-        box.bottom - box.top,
-      )];
+  // Reference-measured entries take precedence; the corpus-census table
+  // ([kBdPrimTerminalCensus]) supplies the long tail.
+  final sizedKey = (key, termIdx, box.right - box.left, box.bottom - box.top);
+  final offset = _kBdPrimTerminals[sizedKey] ?? kBdPrimTerminalCensus[sizedKey];
   if (offset == null) return null;
   return (
     x: offset.dx == null ? null : box.left + offset.dx!,
