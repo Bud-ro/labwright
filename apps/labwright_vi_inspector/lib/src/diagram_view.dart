@@ -2803,17 +2803,11 @@ class BdDiagramPainter extends CustomPainter {
         if (text == null || text.isEmpty) continue;
         final rect0 = rectOf(object);
         if (rect0.width < 8 || rect0.height < 8) continue;
-        // The case selector's value text sits between the inset pager boxes
-        // (see [_drawCaseSelector]) and is centred like LabVIEW's.
+        // The case selector's value text fills its decoded label bounds — the
+        // pager boxes and dropdown sit OUTSIDE them (see [_drawCaseSelector])
+        // — and is centred like LabVIEW's.
         final selector = object.kind == 0x95;
-        final rect = selector
-            ? Rect.fromLTRB(
-                rect0.left + 9,
-                rect0.top,
-                rect0.right - 9,
-                rect0.bottom,
-              )
-            : rect0;
+        final rect = rect0;
         final tp = TextPainter(
           text: TextSpan(
             text: text,
