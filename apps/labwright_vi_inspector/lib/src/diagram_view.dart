@@ -683,6 +683,14 @@ const Color kBdDisabledChromeGrey = Color(0xFFAAAAAA);
 Color? bdDecodedColor(int? rgb) =>
     rgb == null ? null : Color(0xFF000000 | (rgb & 0xFFFFFF));
 
+/// The rendered fill for a free label's backing given its stored background
+/// colour. The stored default token `0xFFFFD7` renders as `0xFFFFCC`
+/// (98/98 visible corpus bubbles; none renders the raw stored value); a
+/// non-default stored colour renders verbatim (measured: `0x333333`).
+/// TODO: one corpus sample renders stored `0x7F7F7F` as `0x777777` —
+/// possibly nearest-palette snapping; needs more samples to decide.
+int bdLabelBackingRgb(int rgb) => rgb == 0xFFFFD7 ? 0xFFFFCC : rgb;
+
 /// The decoded **fill** colour for [object] when one was recovered: a control's
 /// interior [ViHeapObject.contentRgb] if present, else its
 /// [ViHeapObject.bgRgb]. Null when neither was decoded (the object keeps its
@@ -2670,31 +2678,30 @@ class BdDiagramPainter extends CustomPainter {
       canvas.drawLine(rect.topLeft, rect.bottomRight, wirePaint);
     }
 
+    final labelBackings = <(int, Rect, Color)>[];
     for (final object in solids) {
       final rect = rectOf(object);
       // Free-text label parts (control caption 0x0a, case selector 0x95) are
-      // drawn by LabVIEW as text, backed by a bordered fill only when the
-      // label has its own colour (a comment's yellow backing). So: a decoded
-      // background colour paints that backing; no colour paints no box (never
-      // guessed). The text pass below renders any recovered caption.
+      // drawn by LabVIEW as text; only a FREE label (one held by a `0x1b`
+      // free-label holder — a diagram comment) is backed by an opaque
+      // bordered fill. Owned labels (a control/constant's caption, parent
+      // `0x51`/`0x50`/…) are transparent even when a background colour was
+      // decoded — across the snippet corpus every backed label sits under a
+      // `0x1b` and no owned label shows a backing. The text pass below
+      // renders any recovered caption.
       if (kBdTextLabelCodes.contains(object.kind)) {
         // The case selector's chrome already drew in the pre-chrome pass; its
         // value text draws in the text pass.
         if (object.kind == 0x95) continue;
         // A hidden label paints nothing — neither backing nor (below) text.
-        final backing = object.isLabelHidden
+        final free = scene.diagram.byId[object.parentOid ?? -1]?.kind == 0x1b;
+        final backing = object.isLabelHidden || !free || object.bgRgb == null
             ? null
-            : bdDecodedColor(object.bgRgb);
-        if (backing != null) {
-          canvas.drawRect(rect, Paint()..color = _dimFor(object.oid, backing));
-          canvas.drawRect(
-            rect,
-            Paint()
-              ..color = _dimFor(object.oid, Colors.black).withValues(alpha: 0.6)
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 0.8,
-          );
-        }
+            : bdDecodedColor(bdLabelBackingRgb(object.bgRgb!));
+        // Free labels float ABOVE nodes in LabVIEW's z-order (a comment's
+        // backing covers an overlapping node icon), so the backing is
+        // deferred past this pass and painted after it.
+        if (backing != null) labelBackings.add((object.oid, rect, backing));
         continue;
       }
       switch (object.category) {
@@ -3102,6 +3109,14 @@ class BdDiagramPainter extends CustomPainter {
               ..strokeWidth = 0.8,
           );
       }
+    }
+    // Free-label backings, above every node/icon they overlap: a 1px black
+    // border on the outermost pixel ring of the label bounds, filled with
+    // the decoded colour inside (reference-measured on Excel_Read_XLSX's
+    // comment). Caption text lands on top in the text pass below.
+    for (final (oid, rect, backing) in labelBackings) {
+      canvas.drawRect(rect, Paint()..color = _dimFor(oid, Colors.black));
+      canvas.drawRect(rect.deflate(1), Paint()..color = _dimFor(oid, backing));
     }
     // Wire landings on structure borders feed ONLY the structure-terminal
     // recolour above (the case selector [?] takes its wire's colour).

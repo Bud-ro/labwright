@@ -134,6 +134,13 @@ void main() {
         ('xnode-facade', 636, 1068, 46, 30),
         // The braid wire's measured three-colour band on a clean stretch.
         ('braid', 500, 1069, 40, 5),
+        // The free-label comment's backing: 1px black border ring filled
+        // with the decoded background colour. Strips hug each border edge
+        // away from the comment's text and overlapping constants.
+        ('label-backing-top', 435, 826, 40, 3),
+        ('label-backing-bottom', 430, 915, 40, 3),
+        ('label-backing-left', 423, 850, 3, 20),
+        ('label-backing-right', 692, 850, 4, 20),
       ],
     };
     final pngs = snippetCorpusPngs().where(
