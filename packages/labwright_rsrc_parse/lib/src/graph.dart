@@ -260,6 +260,11 @@ class ViHeapObject {
   /// [dataType]; resolve member/element indices against `ViModel.types`.
   ViType? resolvedType;
 
+  /// For a resolved [ViDataType.array], its ELEMENT's pool descriptor
+  /// ([ViType.elementIndex] resolved during [resolveDataSpaceTypes]), or
+  /// null — drives element-coloured array terminal art.
+  ViType? resolvedElementType;
+
   /// The object's packed flags word ([HeapAttribute.objFlags], raw `0x0cb`)
   /// — or null when the record is absent.
   int? objFlags;
@@ -3603,6 +3608,16 @@ void resolveDataSpaceTypes({
       if (kind != null) object.typeKind = kind;
       object.dataType = type.kind;
       object.resolvedType = type;
+      // The array descriptor's elementIndex addresses the POOL directly
+      // (verified on Excel_Read_XLSX: 'Cells'->string, 'Unzipped
+      // files'->path, 'filenames'->string; the table+base route resolves
+      // those to booleans). 'Worksheets' resolves to an array of CLUSTERS
+      // — LabVIEW's pink array rendering is the cluster-of-strings tint,
+      // not the string tint.
+      final elementIndex = type.elementIndex;
+      if (type.kind == ViDataType.array && elementIndex != null && elementIndex >= 0 && elementIndex < pool.length) {
+        object.resolvedElementType = pool[elementIndex];
+      }
       if (type.name != null && type.name!.trim().isNotEmpty) {
         object.typeName ??= type.name!.trim();
       }
@@ -3620,6 +3635,7 @@ void resolveDataSpaceTypes({
       if (dco.typeKind != ViTypeKind.unknown) object.typeKind = dco.typeKind;
       object.dataType ??= dco.dataType;
       object.resolvedType ??= dco.resolvedType;
+      object.resolvedElementType ??= dco.resolvedElementType;
       object.typeName ??= dco.typeName;
     }
   }

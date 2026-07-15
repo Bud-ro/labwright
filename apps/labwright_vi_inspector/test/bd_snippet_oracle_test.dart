@@ -170,6 +170,21 @@ void main() {
         ('growable-yellow-left', 423, 888, 2, 12),
         // The path INDICATOR terminal draws its measured mirrored art.
         ('path-indicator', 1852, 678, 32, 16),
+        // Film-strip corners (checker + clipped hole + interrupted inner
+        // border) and the divider junctions through the border rows.
+        ('strip-corner-tl', 870, 852, 6, 9),
+        ('strip-corner-tr', 1334, 852, 6, 9),
+        ('strip-corner-bl', 870, 1142, 6, 9),
+        ('strip-corner-br', 1334, 1142, 6, 9),
+        ('strip-div-top', 1244, 858, 16, 4),
+        ('strip-div-bot', 1244, 1140, 16, 4),
+        // The enabled-frame disable structure's grey crosshatch band
+        // (left/right/bottom) and plain black top row.
+        ('disable-left', 707, 1030, 3, 13),
+        ('disable-tunnel', 707, 1043, 9, 9),
+        ('disable-right', 848, 1030, 3, 16),
+        ('disable-bottom', 730, 1097, 24, 3),
+        ('disable-top', 770, 1008, 24, 1),
       ],
     };
     final pngs = snippetCorpusPngs().where(

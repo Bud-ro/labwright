@@ -2191,8 +2191,9 @@ Map<int, PrimIconArt> primIconsLoaded() => _primIconsSync;
 /// sequence border tunnels `0x2a`/`0xcb`, measured identical to the plain
 /// tunnel square (Excel_Read_XLSX: one 0x2a and three 0xcb rects all read
 /// the 1 px [kBdTunnelBorder] ring + solid wire-colour fill, punched
-/// through the film-strip band). Other border-terminal kinds stay undrawn
-/// until reference-verified.
+/// through the film-strip band); disable-structure border tunnels `0xce`,
+/// same square (Excel_Read_XLSX oid 2228's path tunnel at (707,1043)).
+/// Other border-terminal kinds stay undrawn until reference-verified.
 const Set<int> kVerifiedBorderTerminalKinds = {
   0x22,
   0x2d,
@@ -2201,6 +2202,7 @@ const Set<int> kVerifiedBorderTerminalKinds = {
   0x2e,
   0x2a,
   0xcb,
+  0xce,
 };
 
 /// The terminal [ViHeapObject.objFlags] bit marking a HOLLOW tunnel square
@@ -2646,26 +2648,74 @@ class BdDiagramPainter extends CustomPainter {
         case 0x121: // A flat-sequence frame: the parent 0xca owns the strip
           // chrome and the inter-frame dividers; the frame draws nothing.
           break;
-        case 0xcd: // Diagram-disable structure: a single 1px grey rectangle
-          // (153,153,153), measured on crc8's disabled frame — no double
-          // line, no tint, no corner furniture.
-          final grey = _solidNoAa(_dimFor(object.oid, const Color(0xFF999999)));
-          canvas.drawRect(
-            Rect.fromLTWH(rect.left, rect.top, rect.width, 1),
-            grey,
-          );
-          canvas.drawRect(
-            Rect.fromLTWH(rect.left, rect.bottom - 1, rect.width, 1),
-            grey,
-          );
-          canvas.drawRect(
-            Rect.fromLTWH(rect.left, rect.top, 1, rect.height),
-            grey,
-          );
-          canvas.drawRect(
-            Rect.fromLTWH(rect.right - 1, rect.top, 1, rect.height),
-            grey,
-          );
+        case 0xcd: // Diagram-disable structure. Displaying its Disabled
+          // frame: a single 1px grey rectangle (153,153,153), measured on
+          // crc8 — no double line, no tint. Displaying an ENABLED frame: a
+          // 3px (119,119,119) crosshatch band on the left/right/bottom
+          // edges (the case-hatch lattice, anchored to the structure's own
+          // rect with a +1 row phase) and a plain 1px black top row between
+          // the hatch corners — measured on Excel_Read_XLSX oid 2228.
+          final showsDisabled = scene.diagram
+              .children(object.oid)
+              .any(
+                (k) =>
+                    k.kind == 0x95 &&
+                    k.label?.trim().toLowerCase() == 'disabled',
+              );
+          if (showsDisabled) {
+            final grey = _solidNoAa(
+              _dimFor(object.oid, const Color(0xFF999999)),
+            );
+            canvas.drawRect(
+              Rect.fromLTWH(rect.left, rect.top, rect.width, 1),
+              grey,
+            );
+            canvas.drawRect(
+              Rect.fromLTWH(rect.left, rect.bottom - 1, rect.width, 1),
+              grey,
+            );
+            canvas.drawRect(
+              Rect.fromLTWH(rect.left, rect.top, 1, rect.height),
+              grey,
+            );
+            canvas.drawRect(
+              Rect.fromLTWH(rect.right - 1, rect.top, 1, rect.height),
+              grey,
+            );
+          } else {
+            final hatch = _solidNoAa(
+              _dimFor(object.oid, const Color(0xFF777777)),
+            );
+            final black = _solidNoAa(_dimFor(object.oid, Colors.black));
+            void hatchCell(double x, double y) {
+              final rx = (x - rect.left).round() & 3;
+              final ry = ((y - rect.top).round() + 1) & 3;
+              if (kBdStructureHatch[ry][rx] == '#') {
+                canvas.drawRect(Rect.fromLTWH(x, y, 1, 1), hatch);
+              }
+            }
+
+            for (var y = rect.top; y < rect.bottom; y++) {
+              for (var k = 0; k < 3; k++) {
+                hatchCell(rect.left + k, y);
+                hatchCell(rect.right - 3 + k, y);
+              }
+            }
+            for (var y = rect.bottom - 3; y < rect.bottom; y++) {
+              for (var x = rect.left + 3; x < rect.right - 3; x++) {
+                hatchCell(x, y);
+              }
+            }
+            canvas.drawRect(
+              Rect.fromLTRB(
+                rect.left + 3,
+                rect.top,
+                rect.right - 3,
+                rect.top + 1,
+              ),
+              black,
+            );
+          }
         default:
           final frame =
               structColor ??
@@ -3893,15 +3943,20 @@ class BdDiagramPainter extends CustomPainter {
         }
       }
     }
-    // Side bands between the horizontal bands.
+    // Side bands between the horizontal bands. The woven checker columns
+    // and the grey mid columns run the FULL height (t+1 .. b-1): through
+    // the corner rows and over the bands' inner border rows, so the
+    // corners join seamlessly and the border reads interrupted where the
+    // side band crosses it (reference-measured at all four corners). Only
+    // the 1px black edge columns stay between the inner borders.
     final innerTop = t + 10, innerBottom = b - 10;
     final sideH = innerBottom - innerTop;
     if (sideH > 0) {
-      px(greyFill, l + 2, innerTop, 3, sideH);
+      px(greyFill, l + 2, t + 1, 3, b - t - 2);
       px(blackFill, l + 5, innerTop, 1, sideH);
       px(blackFill, r - 6, innerTop, 1, sideH);
-      px(greyFill, r - 5, innerTop, 3, sideH);
-      for (var y = innerTop; y < innerBottom; y++) {
+      px(greyFill, r - 5, t + 1, 3, b - t - 2);
+      for (var y = t + 1; y < b - 1; y++) {
         // Absolute-row pair parity: odd pair index reads grey-first on the
         // outer column (measured phase).
         final greyFirst = (((y + origin.dy).round() + 1) ~/ 2).isOdd;
@@ -3910,7 +3965,25 @@ class BdDiagramPainter extends CustomPainter {
         px(greyFirst ? blackFill : greyFill, r - 2, y.toDouble());
         px(greyFirst ? greyFill : blackFill, r - 1, y.toDouble());
       }
-      // Inter-frame dividers at cumulative frame widths.
+      // Corner sprocket holes: the bands' hole run continues into every
+      // corner, clipped by the woven columns — a white sliver with its
+      // black border, stamped over the checker (byte-measured, all four
+      // corners of Excel_Read_XLSX's sequence).
+      for (final top in [true, false]) {
+        final holeTop = top ? t + 3 : b - 7;
+        final capTop = top ? t + 2 : b - 8;
+        px(whiteFill, l + 1, holeTop, 1, 4);
+        px(blackFill, l + 2, capTop, 1, 6);
+        px(blackFill, l + 1, capTop, 2);
+        px(blackFill, l + 1, capTop + 5, 2);
+        px(whiteFill, r - 4, holeTop, 3, 4);
+        px(blackFill, r - 5, capTop, 1, 6);
+        px(blackFill, r - 5, capTop, 4);
+        px(blackFill, r - 5, capTop + 5, 4);
+      }
+      // Inter-frame dividers at cumulative frame widths. The grey interior
+      // pokes 1px through each band's inner border row (the divider's
+      // black edges carry the border's line across — the visible seam).
       var cum = 0.0;
       final frames = scene.diagram
           .children(seq.oid)
@@ -3919,7 +3992,7 @@ class BdDiagramPainter extends CustomPainter {
       for (var i = 0; i + 1 < frames.length; i++) {
         cum += frames[i].absBounds!.right - frames[i].absBounds!.left;
         px(blackFill, l + cum - 6, innerTop, 1, sideH);
-        px(greyFill, l + cum - 5, innerTop, 5, sideH);
+        px(greyFill, l + cum - 5, innerTop - 1, 5, sideH + 2);
         px(blackFill, l + cum, innerTop, 1, sideH);
       }
     }
@@ -4247,7 +4320,7 @@ class BdDiagramPainter extends CustomPainter {
         : kBdTerminalFill;
     final noAa = _solidNoAa(wireColor);
     switch (kind) {
-      case 0x22 || 0x2d || 0x2a || 0xcb:
+      case 0x22 || 0x2d || 0x2a || 0xcb || 0xce:
         // Hollow ([kTunnelHollowFlag]): cream interior with a 5x5
         // wire-colour ring (open at the middle of its top/bottom edges),
         // read from crc8's reference at (520,276). Solid: wire-colour fill.
