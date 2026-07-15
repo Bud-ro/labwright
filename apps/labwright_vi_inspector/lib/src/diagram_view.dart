@@ -134,6 +134,10 @@ class _ViDiagramViewState extends State<ViDiagramView> {
   Rect get _content => _scene?.content ?? Rect.zero;
   late final Map<ViObjectKind, int> _counts = _computeCounts();
 
+  /// The control-flow outline, derived once — rebuilding it on every
+  /// selection tap / zoom re-anchor re-walked the whole object list.
+  late final _outline = computeBdOutline(_drawable);
+
   Map<ViObjectKind, int> _computeCounts() {
     final countsByKind = <ViObjectKind, int>{};
     for (final object in _drawable) {
@@ -265,10 +269,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
           ],
         ),
         const SizedBox(height: 8),
-        _BdOutline(
-          outline: computeBdOutline(_drawable),
-          linkedSubVis: widget.subViNames,
-        ),
+        _BdOutline(outline: _outline, linkedSubVis: widget.subViNames),
       ],
     ),
   );
@@ -2347,6 +2348,13 @@ class BdScene {
   late final Rect content = drawable.isEmpty
       ? Rect.zero
       : bdContentRect(drawable, includeWires: false);
+
+  /// Scale-independent text layouts, cached for the painter across repaints
+  /// and zoom re-anchors (the canvas itself is scaled, so a layout never
+  /// depends on [BdDiagramPainter.canvasScale]). Laying out hundreds of
+  /// labels per frame dominated interactive paint time. Keyed by the text +
+  /// full style + wrap width.
+  final Map<String, TextPainter> textLayoutCache = {};
 }
 
 class BdDiagramPainter extends CustomPainter {
@@ -2365,6 +2373,39 @@ class BdDiagramPainter extends CustomPainter {
 
   /// The diagram-derived render inputs (paint order, wires, chrome indexes).
   final BdScene scene;
+
+  /// A laid-out [TextPainter] from the scene's scale-independent layout
+  /// cache ([BdScene.textLayoutCache]) — label text re-lays-out only when
+  /// its content, style, or wrap width changes, not on every repaint or
+  /// zoom re-anchor.
+  TextPainter _layoutText(
+    String text, {
+    required Color color,
+    required double fontSize,
+    FontWeight fontWeight = FontWeight.w400,
+    FontStyle? fontStyle,
+    int? maxLines,
+    String? ellipsis,
+    double maxWidth = double.infinity,
+  }) => scene.textLayoutCache.putIfAbsent(
+    '$text|${color.toARGB32()}|$fontSize|$fontWeight|$fontStyle|'
+    '$maxLines|$ellipsis|$maxWidth',
+    () => TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(
+          color: color,
+          fontSize: fontSize,
+          fontWeight: fontWeight,
+          fontStyle: fontStyle,
+          fontFamily: 'Roboto',
+        ),
+      ),
+      maxLines: maxLines,
+      ellipsis: ellipsis,
+      textDirection: TextDirection.ltr,
+    )..layout(maxWidth: maxWidth),
+  );
 
   final Offset origin;
 
@@ -2857,19 +2898,14 @@ class BdDiagramPainter extends CustomPainter {
                 ringFill,
               );
               if (constValue != null) {
-                final tp = TextPainter(
-                  text: TextSpan(
-                    text: constValue,
-                    style: TextStyle(
-                      color: tint,
-                      fontSize: 10,
-                      fontFamily: 'Roboto',
-                    ),
-                  ),
+                final tp = _layoutText(
+                  constValue,
+                  color: tint,
+                  fontSize: 10,
                   maxLines: 1,
                   ellipsis: '…',
-                  textDirection: TextDirection.ltr,
-                )..layout(maxWidth: math.max(8, box.width - 6));
+                  maxWidth: math.max(8, box.width - 6),
+                );
                 tp.paint(
                   canvas,
                   box.center - Offset(tp.width / 2, tp.height / 2),
@@ -2971,19 +3007,14 @@ class BdDiagramPainter extends CustomPainter {
           // black through the disabled transform (the reference's disabled
           // digits read as the (153,153,153) dim of black).
           if (constValue != null && box.width >= 12 && box.height >= 12) {
-            final tp = TextPainter(
-              text: TextSpan(
-                text: constValue,
-                style: TextStyle(
-                  color: _dimFor(object.oid, Colors.black),
-                  fontSize: 10,
-                  fontFamily: 'Roboto',
-                ),
-              ),
+            final tp = _layoutText(
+              constValue,
+              color: _dimFor(object.oid, Colors.black),
+              fontSize: 10,
               maxLines: 1,
               ellipsis: '…',
-              textDirection: TextDirection.ltr,
-            )..layout(maxWidth: math.max(8, box.width - 6));
+              maxWidth: math.max(8, box.width - 6),
+            );
             tp.paint(canvas, box.center - Offset(tp.width / 2, tp.height / 2));
           }
           // The resolved data type's short label (DBL / I32 / TF / abc),
@@ -2996,18 +3027,12 @@ class BdDiagramPainter extends CustomPainter {
           if (glyph != null &&
               box.width >= 6.0 * glyph.length + 10 &&
               box.height >= 13) {
-            final tp = TextPainter(
-              text: TextSpan(
-                text: glyph,
-                style: TextStyle(
-                  color: border,
-                  fontSize: 8.5,
-                  fontWeight: FontWeight.w700,
-                  fontFamily: 'Roboto',
-                ),
-              ),
-              textDirection: TextDirection.ltr,
-            )..layout();
+            final tp = _layoutText(
+              glyph,
+              color: border,
+              fontSize: 8.5,
+              fontWeight: FontWeight.w700,
+            );
             tp.paint(canvas, box.center - Offset(tp.width / 2, tp.height / 2));
           }
         case ViObjectKind.node:
@@ -3210,21 +3235,12 @@ class BdDiagramPainter extends CustomPainter {
               ? primOpGlyph(PrimOp.fromId(object.primResId!))
               : null;
           if (glyph != null && rect.width >= 14 && rect.height >= 12) {
-            final tp = TextPainter(
-              text: TextSpan(
-                text: glyph,
-                style: TextStyle(
-                  color: _dimFor(
-                    object.oid,
-                    Colors.black,
-                  ).withValues(alpha: 0.75),
-                  fontSize: glyph.length > 2 ? 8.0 : 12,
-                  fontFamily: 'Roboto',
-                ),
-              ),
+            final tp = _layoutText(
+              glyph,
+              color: _dimFor(object.oid, Colors.black).withValues(alpha: 0.75),
+              fontSize: glyph.length > 2 ? 8.0 : 12,
               maxLines: 1,
-              textDirection: TextDirection.ltr,
-            )..layout();
+            );
             tp.paint(canvas, rect.center - Offset(tp.width / 2, tp.height / 2));
           }
         default:
@@ -3292,23 +3308,18 @@ class BdDiagramPainter extends CustomPainter {
         // — and is centred like LabVIEW's.
         final selector = object.kind == 0x95;
         final rect = rect0;
-        final tp = TextPainter(
-          text: TextSpan(
-            text: text,
-            style: TextStyle(
-              color: _dimFor(
-                object.oid,
-                bdDecodedColor(object.fgRgb) ??
-                    Colors.black.withValues(alpha: 0.85),
-              ),
-              fontSize: selector ? 9.5 : 10.5,
-              fontFamily: 'Roboto',
-            ),
+        final tp = _layoutText(
+          text,
+          color: _dimFor(
+            object.oid,
+            bdDecodedColor(object.fgRgb) ??
+                Colors.black.withValues(alpha: 0.85),
           ),
+          fontSize: selector ? 9.5 : 10.5,
           maxLines: math.max(1, rect.height ~/ 12),
           ellipsis: '…',
-          textDirection: TextDirection.ltr,
-        )..layout(maxWidth: math.max(8, rect.width - (selector ? 1 : 4)));
+          maxWidth: math.max(8, rect.width - (selector ? 1 : 4)),
+        );
         tp.paint(
           canvas,
           selector
@@ -3348,20 +3359,14 @@ class BdDiagramPainter extends CustomPainter {
         object.oid,
         bdDecodedColor(object.fgRgb) ?? Colors.black.withValues(alpha: 0.75),
       );
-      final tp = TextPainter(
-        text: TextSpan(
-          text: text,
-          style: TextStyle(
-            color: textColor,
-            fontSize: 10,
-            fontWeight: FontWeight.w400,
-            fontFamily: 'Roboto',
-          ),
-        ),
+      final tp = _layoutText(
+        text,
+        color: textColor,
+        fontSize: 10,
         maxLines: 1,
         ellipsis: '…',
-        textDirection: TextDirection.ltr,
-      )..layout(maxWidth: rect.width - 5);
+        maxWidth: rect.width - 5,
+      );
       tp.paint(canvas, rect.topLeft + const Offset(3, 1));
     }
   }
@@ -4733,19 +4738,13 @@ class BdDiagramPainter extends CustomPainter {
   }
 
   void _drawGlyphText(Canvas canvas, Rect box, String glyph, Color color) {
-    final tp = TextPainter(
-      text: TextSpan(
-        text: glyph,
-        style: TextStyle(
-          color: color,
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          fontStyle: FontStyle.italic,
-          fontFamily: 'Roboto',
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
+    final tp = _layoutText(
+      glyph,
+      color: color,
+      fontSize: 11,
+      fontWeight: FontWeight.w700,
+      fontStyle: FontStyle.italic,
+    );
     tp.paint(canvas, box.center - Offset(tp.width / 2, tp.height / 2));
   }
 
@@ -4929,6 +4928,7 @@ class BdDiagramPainter extends CustomPainter {
       // every diagram-derived input.
       !identical(old.scene, scene) ||
       !identical(old.subViIcons, subViIcons) ||
+      !identical(old.xnodeFacades, xnodeFacades) ||
       !identical(old.primIcons, primIcons) ||
       !identical(old.primIconsGrey, primIconsGrey) ||
       !identical(old.style, style) ||
