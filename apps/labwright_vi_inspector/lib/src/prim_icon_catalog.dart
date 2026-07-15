@@ -26,12 +26,13 @@ enum PrimIconStatus { verified, verifiedHand, unverified, rejected }
 // statuses are preserved — edit them freely.)
 const Map<String, PrimIconStatus> kPrimIconStatus = {
   'class108': PrimIconStatus.unverified,
-  'class147': PrimIconStatus.verified,
+  'class147': PrimIconStatus.verifiedHand,
   'class185': PrimIconStatus.verifiedHand,
   'class370': PrimIconStatus.unverified,
+  'class389': PrimIconStatus.unverified,
   'class52': PrimIconStatus.unverified,
-  'class58': PrimIconStatus.unverified,
-  'class62': PrimIconStatus.unverified,
+  'class58': PrimIconStatus.rejected,
+  'class62': PrimIconStatus.rejected,
   'class68': PrimIconStatus.verified,
   'prim1050': PrimIconStatus.unverified,
   'prim1051': PrimIconStatus.unverified,

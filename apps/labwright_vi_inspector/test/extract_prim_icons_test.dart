@@ -32,7 +32,17 @@ void main() {
       // Asset key -> candidate crops. Keys: 'prim<id>' for primResID-bearing
       // nodes, 'class<code>' for the single-op primitive classes that carry no
       // primResID (their class IS the identity — 0x44 etc.).
-      const primClasses = {0x3a, 0x34, 0x3e, 0x44, 0x6c, 0x93, 0x172};
+      const primClasses = {
+        0x3a,
+        0x34,
+        0x3e,
+        0x44,
+        0x6c,
+        0x93,
+        0x172,
+        0x185,
+        0x370,
+      };
       final samples =
           <
             String,
@@ -293,9 +303,6 @@ void main() {
       final keys = samples.keys.toList()..sort();
       for (final key in keys) {
         final all = samples[key]!;
-        for (final smp in all) {
-          erodeWireTails(smp.rgba, smp.w, smp.h);
-        }
         // Consensus base: the modal sample dimensions (identities render at a
         // fixed size; a divergent box is a mis-registered crop).
         final dims = <String, int>{};
@@ -308,6 +315,123 @@ void main() {
         final group = all.where((s) => '${s.w}x${s.h}' == modal).toList()
           ..sort((a, b) => b.quality.compareTo(a.quality));
         final w0 = group.first.w, h0 = group.first.h;
+
+        // RECT-BORDERED fast path (the border gate): when a reference crop
+        // shows a COMPLETE dark ring exactly at the node box perimeter, the
+        // icon is that box rect VERBATIM — the reference's own pixels beat
+        // any cleaning, wires attach outside the ring (LabVIEW draws the
+        // icon over them), and a candidate whose ring is broken or whose
+        // rect disagrees with the others is dirt by definition. Ring-exact
+        // rects are grouped byte-identically: prim keys ship the modal
+        // group (their art is globally unique; a minority rect is
+        // overdrawn); a CLASS key with two or more disagreeing rect groups
+        // carries multiple arts under one key (the class is not an
+        // identity) and FAILS rather than shipping any of them.
+        const boxPad = 5;
+        final bw = w0 - 2 * boxPad, bh = h0 - 2 * boxPad;
+        bool ringComplete(Uint8List rgba) {
+          if (bw < 8 || bh < 8) return false;
+          for (var x = boxPad; x < boxPad + bw; x++) {
+            if (!inky(rgba, w0, x, boxPad) ||
+                !inky(rgba, w0, x, boxPad + bh - 1)) {
+              return false;
+            }
+          }
+          for (var y = boxPad; y < boxPad + bh; y++) {
+            if (!inky(rgba, w0, boxPad, y) ||
+                !inky(rgba, w0, boxPad + bw - 1, y)) {
+              return false;
+            }
+          }
+          return true;
+        }
+
+        Uint8List boxRectOf(Uint8List rgba) {
+          final out = Uint8List(bw * bh * 4);
+          for (var y = 0; y < bh; y++) {
+            final src = ((boxPad + y) * w0 + boxPad) * 4;
+            out.setRange(y * bw * 4, (y + 1) * bw * 4, rgba, src);
+          }
+          for (var i = 3; i < out.length; i += 4) {
+            out[i] = 255;
+          }
+          return out;
+        }
+
+        final ringed = [
+          for (final s in group)
+            if (ringComplete(s.rgba))
+              (rect: boxRectOf(s.rgba), source: s.source),
+        ];
+        if (ringed.isNotEmpty) {
+          final rectGroups =
+              <String, ({Uint8List rect, int count, Set<String> sources})>{};
+          for (final c in ringed) {
+            final sig = String.fromCharCodes(c.rect);
+            final prev = rectGroups[sig];
+            rectGroups[sig] = (
+              rect: c.rect,
+              count: (prev?.count ?? 0) + 1,
+              sources: {...?prev?.sources, c.source},
+            );
+          }
+          // The fg-class captures AA their renders (non-web-safe blends);
+          // a rect group whose pixels are dominantly web-safe outranks a
+          // larger blended group — same dominant-palette rule the terminal
+          // art pipeline uses.
+          double webSafe(Uint8List rect) {
+            var safe = 0;
+            for (var i = 0; i < rect.length; i += 4) {
+              if (rect[i] % 0x33 == 0 &&
+                  rect[i + 1] % 0x33 == 0 &&
+                  rect[i + 2] % 0x33 == 0) {
+                safe++;
+              }
+            }
+            return safe / (rect.length ~/ 4);
+          }
+
+          final ranked = rectGroups.values.toList()
+            ..sort((a, b) {
+              final ws =
+                  (webSafe(b.rect) >= 0.9 ? 1 : 0) -
+                  (webSafe(a.rect) >= 0.9 ? 1 : 0);
+              return ws != 0 ? ws : b.count.compareTo(a.count);
+            });
+          if (key.startsWith('class') && ranked.length > 1) {
+            failed[key] =
+                'class key carries ${ranked.length} distinct border-exact '
+                'arts (${ranked.map((g) => '${g.count}x from ${g.sources.join('+')}').join(' | ')}) '
+                '— a per-node identity is needed, no single asset can be right';
+            continue;
+          }
+          final win = ranked.first;
+          final icon = img.Image(width: bw, height: bh, numChannels: 4);
+          for (var y = 0; y < bh; y++) {
+            for (var x = 0; x < bw; x++) {
+              final i = (y * bw + x) * 4;
+              icon.setPixelRgba(
+                x,
+                y,
+                win.rect[i],
+                win.rect[i + 1],
+                win.rect[i + 2],
+                255,
+              );
+            }
+          }
+          pending[key] = (
+            icon: icon,
+            sources:
+                'border-exact rect (${win.count}/${ringed.length} ring '
+                'samples agree byte-for-byte): ${win.sources.join(', ')}',
+          );
+          continue;
+        }
+
+        for (final smp in all) {
+          erodeWireTails(smp.rgba, smp.w, smp.h);
+        }
 
         // Align candidate [b] onto anchor [a]; returns (dx, dy, agreement)
         // where agreement is the matched fraction of the ink union. Two
@@ -596,6 +720,9 @@ void main() {
             keepMainCluster(copy);
             measure(copy);
             if (r < 0) continue;
+            // A sample whose surviving ink reaches the crop edge is still
+            // fused to a wire — never a salvage candidate.
+            if (l == 0 || t == 0 || r == w0 - 1 || btm == h0 - 1) continue;
             final cx = w0 ~/ 2, cy = h0 ~/ 2;
             if (l > cx || r < cx || t > cy || btm < cy) continue;
             if (r - l + 1 > w0 - 4 || btm - t + 1 > h0 - 4) continue;
@@ -632,6 +759,23 @@ void main() {
         if (r < 0) {
           failed[key] = 'no ink after cleaning (${group.length} samples)';
           continue;
+        }
+        // Surviving consensus ink on the crop edge means a wire fused past
+        // every cleaning stage (a real icon ends >= pad short of the edge):
+        // fall back to the cleanest single sample WITHOUT edge ink; only
+        // when none exists does the key fail — an absent icon beats
+        // shipping the wire.
+        if (l == 0 || t == 0 || r == w0 - 1 || btm == h0 - 1) {
+          final single = centredSingle();
+          if (single == null) {
+            failed[key] =
+                'cleaned ink still reaches the crop edge (wire fusion; '
+                '${group.length} samples)';
+            continue;
+          }
+          method = 'single-sample fallback after edge fusion';
+          consensus.setAll(0, single);
+          measure(consensus);
         }
         final w = r - l + 1, h = btm - t + 1;
         final icon = img.Image(width: w, height: h, numChannels: 4);
@@ -914,7 +1058,16 @@ void main() {
         ).allMatches(existing))
           m.group(1)!: m.group(2)!,
       };
-      final allKeys = {...pending.keys, ...failed.keys}.toList()..sort();
+      // Maintainer ground truth NEVER falls out of the catalog: a
+      // verified / hand-finished / rejected key keeps its entry even when
+      // this sweep observed no sample for it (dropping one once made a
+      // later run's handKeys parse miss it and reap its asset).
+      final allKeys = {
+        ...pending.keys,
+        ...failed.keys,
+        for (final e in oldStatus.entries)
+          if (e.value != 'unverified') e.key,
+      }.toList()..sort();
       final entries = StringBuffer(
         'const Map<String, PrimIconStatus> kPrimIconStatus = {\n',
       );

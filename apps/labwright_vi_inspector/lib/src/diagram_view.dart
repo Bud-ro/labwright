@@ -3210,10 +3210,22 @@ class BdDiagramPainter extends CustomPainter {
           final icon = subViIcons[object.oid];
           final iconKey = primIconKeyOf(object);
           final disabled = disabledOids.contains(object.oid);
-          final primIcon = iconKey == null
+          var primIcon = iconKey == null
               ? null
               : (disabled ? primIconsGrey[iconKey] : null) ??
                     primIcons[iconKey];
+          // A class-keyed icon (negated class code) is only PER-SIZE
+          // unique: the art is the full rect of the node boxes it was
+          // extracted from, and a same-class node with a different box
+          // carries different art (Excel_Read_XLSX's 0x44 at 32x35 vs
+          // crc8's at 32x27). Stamp only on an exact size match; any other
+          // box keeps the honest plate.
+          if (primIcon != null &&
+              iconKey! < 0 &&
+              (primIcon.base.width != rect.width.round() ||
+                  primIcon.base.height != rect.height.round())) {
+            primIcon = null;
+          }
           if (primIcon != null) {
             // The harvested art carries its own borders and transparency —
             // no plate, backing, or extra frame around it. Exactness paths
