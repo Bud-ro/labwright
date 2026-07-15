@@ -168,6 +168,8 @@ void main() {
         ('growable-div-3', 1398, 950, 60, 1),
         ('growable-cells', 1500, 903, 17, 10),
         ('growable-yellow-left', 423, 888, 2, 12),
+        // The path INDICATOR terminal draws its measured mirrored art.
+        ('path-indicator', 1852, 678, 32, 16),
       ],
     };
     final pngs = snippetCorpusPngs().where(

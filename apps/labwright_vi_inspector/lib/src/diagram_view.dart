@@ -2878,20 +2878,42 @@ class BdDiagramPainter extends CustomPainter {
               continue;
             }
           }
-          canvas.drawRect(box, Paint()..color = Colors.white);
-          canvas.drawRect(
-            box.deflate(1),
-            Paint()
-              ..color = border
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 2.0,
-          );
+          // Indicators wear LabVIEW's thin 1px single border (measured on
+          // Excel_Read_XLSX's path and array indicator terminals; matches
+          // the art table's indicator rasters); controls keep the 2px
+          // double-border weight.
+          if (object.isIndicator == true) {
+            canvas.drawRect(
+              box,
+              Paint()
+                ..color = border
+                ..isAntiAlias = false,
+            );
+            canvas.drawRect(
+              box.deflate(1),
+              Paint()
+                ..color = Colors.white
+                ..isAntiAlias = false,
+            );
+          } else {
+            canvas.drawRect(box, Paint()..color = Colors.white);
+            canvas.drawRect(
+              box.deflate(1),
+              Paint()
+                ..color = border
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 2.0,
+            );
+          }
           // Any constant skips the inner ring — including one whose VALUE
           // is not decoded (a `0x13` holder marks it): Excel_Read_XLSX's
           // path constants read the plain 2px border in the reference,
           // same as crc8's decoded oid 3033.
           final isConstant = constValue != null || shellParent?.kind == 0x13;
-          if (!isConstant && box.width > 10 && box.height > 10) {
+          if (object.isIndicator != true &&
+              !isConstant &&
+              box.width > 10 &&
+              box.height > 10) {
             canvas.drawRect(
               box.deflate(3.5),
               Paint()

@@ -112,6 +112,27 @@ const Map<(ViDataType, bool), BdTerminalArt> kBdTerminalArt = {
     'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
   ]),
   (
+    ViDataType.path,
+    true,
+  ): BdTerminalArt(Color(0xFF006666), Color(0xFF339999), Color(0xFF99CCCC), [
+    'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+    'B..............................B',
+    'MLLLLLLLLL.....................B',
+    'MLLMMMMMMMBBBBBBBBBBBBBBBBBBB..B',
+    'MLLMLLLLLL..................B..B',
+    'MLLMXLLLLMBB................B..B',
+    'MLLMXXLLLM.BB...............B..B',
+    'MLLMXXXLLMBB.BBB............B..B',
+    'MLLMXXXLLL......BBB.BBB.....B..B',
+    'MLLMXXLLLL.........BB.B.....B..B',
+    'MLLMXLLLLL..........BBB.....B..B',
+    'MLLMLLLLLL..................B..B',
+    'MLLMMMMMMMBBBBBBBBBBBBBBBBBBB..B',
+    'MLLLLLLLLL.....................B',
+    'B..............................B',
+    'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+  ]),
+  (
     ViDataType.cluster,
     true,
   ): BdTerminalArt(Color(0xFF666600), Color(0xFF999933), Color(0xFFCCCC99), [
