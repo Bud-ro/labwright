@@ -89,10 +89,17 @@ void main() {
           final refW = reference.image.width, refH = reference.image.height;
           final name = f.uri.pathSegments.last.replaceAll('.png', '');
           for (final o in bd.objects) {
+            final b = o.absBounds;
+            // Class-identified prims are growable stacked-terminal nodes
+            // (0x3a/0x44 grow ~8px per terminal): one class carries one art
+            // PER TERMINAL COUNT, so class keys embed the node's arity —
+            // the decoded identity, finer than the box size (0x44 renders
+            // t4 and t5 both at 32x35).
             final key = o.primResId != null
                 ? 'prim${o.primResId}'
-                : (primClasses.contains(o.kind) ? 'class${o.kind}' : null);
-            final b = o.absBounds;
+                : (primClasses.contains(o.kind)
+                      ? 'class${o.kind}_t${bd.children(o.oid).where((c) => c.kind == 0x15).length}'
+                      : null);
             if (key == null || b == null || b.width <= 0 || b.height <= 0) {
               continue;
             }
@@ -275,7 +282,7 @@ void main() {
       ).readAsStringSync();
       final verifiedKeys = {
         for (final m in RegExp(
-          r"'([a-z0-9]+)': PrimIconStatus\.verified,",
+          r"'([a-z0-9_]+)': PrimIconStatus\.verified,",
         ).allMatches(catalogNow))
           m.group(1)!,
       };
@@ -283,7 +290,7 @@ void main() {
       // (the pipeline cannot reproduce hand cleanup), never rewritten.
       final handKeys = {
         for (final m in RegExp(
-          r"'([a-z0-9]+)': PrimIconStatus\.verifiedHand,",
+          r"'([a-z0-9_]+)': PrimIconStatus\.verifiedHand,",
         ).allMatches(catalogNow))
           m.group(1)!,
       };
@@ -291,7 +298,7 @@ void main() {
       // silently disable the whole contract — the parse must see the map.
       expect(
         RegExp(
-          r"'([a-z0-9]+)': PrimIconStatus\.",
+          r"'([a-z0-9_]+)': PrimIconStatus\.",
         ).allMatches(catalogNow).length,
         greaterThan(50),
         reason: 'kPrimIconStatus parse came back (near-)empty',
@@ -398,7 +405,13 @@ void main() {
                   (webSafe(a.rect) >= 0.9 ? 1 : 0);
               return ws != 0 ? ws : b.count.compareTo(a.count);
             });
-          if (key.startsWith('class') && ranked.length > 1) {
+          // Only web-safe groups can witness a true multi-art class: the
+          // fg-class captures blend every render (non-web-safe), so their
+          // disagreement with a web-safe group is capture variance.
+          final webSafeGroups = ranked
+              .where((g) => webSafe(g.rect) >= 0.9)
+              .length;
+          if (key.startsWith('class') && webSafeGroups > 1) {
             failed[key] =
                 'class key carries ${ranked.length} distinct border-exact '
                 'arts (${ranked.map((g) => '${g.count}x from ${g.sources.join('+')}').join(' | ')}) '
@@ -535,7 +548,7 @@ void main() {
             final top =
                 (votes.entries.toList()..sort((a, b) => b.value - a.value))
                     .first;
-            if (aligned.length >= 3 && top.value * 2 < aligned.length) {
+            if (aligned.length >= 3 && top.value * 3 < aligned.length * 2) {
               // No majority: samples disagree here (a wire, a neighbour) —
               // background.
               consensus[i] = consensus[i + 1] = consensus[i + 2] = 255;
@@ -931,7 +944,9 @@ void main() {
             .listSync()
             .whereType<File>()
             .where(
-              (f) => RegExp('/$key(?:_[a-z0-9-]+)?\\.png\$').hasMatch(f.path),
+              (f) => RegExp(
+                '/$key(?:_(?!t\\d)[a-z0-9-]+)?\\.png\$',
+              ).hasMatch(f.path),
             )
             .toList();
         if (files.isEmpty) {
@@ -997,7 +1012,7 @@ void main() {
             : null;
         final op = primId == null ? null : PrimOp.fromId(primId);
         final classCode = key.startsWith('class')
-            ? int.parse(key.substring(5))
+            ? int.parse(key.substring(5).split('_').first)
             : null;
         final file = op != null ? '${key}_${op.slug}.png' : '$key.png';
         File('${outDir.path}/$file').writeAsBytesSync(img.encodePng(e.icon));
@@ -1037,7 +1052,7 @@ void main() {
       // removal is loud: it lands in the manifest's failure list above.
       for (final f in Directory(outDir.path).listSync().whereType<File>()) {
         final m = RegExp(
-          r'((?:prim|class)\d+)(?:_[a-z0-9-]+)?\.png$',
+          r'((?:prim|class)\d+(?:_t\d+)?)(?:_[a-z0-9-]+)?\.png$',
         ).firstMatch(f.path);
         if (m == null) continue;
         final key = m.group(1)!;
@@ -1054,7 +1069,7 @@ void main() {
       final existing = catalogFile.readAsStringSync();
       final oldStatus = {
         for (final m in RegExp(
-          r"'([a-z0-9]+)': PrimIconStatus\.(\w+)",
+          r"'([a-z0-9_]+)': PrimIconStatus\.(\w+)",
         ).allMatches(existing))
           m.group(1)!: m.group(2)!,
       };

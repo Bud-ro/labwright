@@ -1721,6 +1721,50 @@ int? primIconKeyOf(ViHeapObject object) =>
     object.primResId ??
     (kSingleOpPrimClasses.contains(object.kind) ? -object.kind : null);
 
+/// The PER-ARITY icon key for a class-identified prim: several single-op
+/// classes are growable stacked-terminal prims (0x3a/0x44 grow ~8px per
+/// terminal), so one class carries one art PER TERMINAL COUNT — the
+/// decoded identity, finer than the box size (0x44 renders t4 and t5 both
+/// at 32x35). Encoded collision-free below the plain negated class codes.
+/// Assets carry the arity in their name (`class58_t3.png`).
+int classVariantIconKey(int kind, int termCount) =>
+    -((kind << 8) | (termCount & 0xff)) - 0x100000;
+
+/// Resolves [object]'s prim icon: a primResID key directly; a class key
+/// first per terminal count ([classVariantIconKey], the `0x15` DCO
+/// children), then the legacy single-art class asset gated on an EXACT
+/// box-size match (class art varies per arity — Excel_Read_XLSX's 0x44 at
+/// 32x35 must not wear crc8's 32x27 art).
+PrimIconArt? primIconArtFor(
+  ViHeapObject object,
+  ViDiagram diagram,
+  Map<int, PrimIconArt> icons,
+) {
+  final key = primIconKeyOf(object);
+  if (key == null) return null;
+  if (key >= 0) return icons[key];
+  final terms = diagram
+      .children(object.oid)
+      .where((c) => c.kind == 0x15)
+      .length;
+  final variant = icons[classVariantIconKey(object.kind, terms)];
+  if (variant != null) {
+    final b = object.absBounds;
+    // The stamp is only exact when the art fills the box it was cut from.
+    if (b != null &&
+        variant.base.width == b.width &&
+        variant.base.height == b.height) {
+      return variant;
+    }
+  }
+  final legacy = icons[key];
+  final b = object.absBounds;
+  if (legacy == null || b == null) return legacy;
+  return legacy.base.width == b.width && legacy.base.height == b.height
+      ? legacy
+      : null;
+}
+
 /// Builtin prim terminal positions, keyed by (icon key, terminal index
 /// among the prim's `0x15` DCO children, box width, box height) with the
 /// offset relative to the prim box's top-left. LabVIEW measures a route's
@@ -1820,20 +1864,28 @@ Future<Map<int, PrimIconArt>> loadPrimIcons() => _primIcons ??= () async {
   final icons = <int, PrimIconArt>{};
   for (final asset in manifest.listAssets()) {
     final match = RegExp(
-      r'assets/prim_icons/(prim|class)(\d+)(?:_[a-z0-9-]+)?\.png$',
+      r'assets/prim_icons/(prim|class)(\d+)(?:_t(\d+))?(?:_[a-z0-9-]+)?\.png$',
     ).firstMatch(asset);
     if (match == null) continue;
+    final sized = match.group(3) != null;
+    final statusKey =
+        '${match.group(1)}${match.group(2)}'
+        '${sized ? '_t${match.group(3)}' : ''}';
     // A rejected icon never stamps — the node falls back to the plate +
     // operator glyph until a better extraction or hand-drawn art lands.
-    if (kPrimIconStatus['${match.group(1)}${match.group(2)}'] ==
-        PrimIconStatus.rejected) {
+    if (kPrimIconStatus[statusKey] == PrimIconStatus.rejected) {
       continue;
     }
     final bytes = await rootBundle.load(asset);
     final image = await decodeImage(bytes.buffer.asUint8List());
     final id = match.group(1) == 'prim'
         ? int.parse(match.group(2)!)
-        : -int.parse(match.group(2)!);
+        : (sized
+              ? classVariantIconKey(
+                  int.parse(match.group(2)!),
+                  int.parse(match.group(3)!),
+                )
+              : -int.parse(match.group(2)!));
     // The alpha mask backs pixel-precise hit testing at LOGICAL resolution:
     // a stamped icon's transparent surround must not swallow clicks meant
     // for the wire or canvas behind it.
@@ -2091,8 +2143,32 @@ Rect primIconStampRect(Rect nodeRect, int artW, int artH, {int? key}) {
   );
 }
 
+/// Resolves the LOADED icon id for [object]: a primResID directly; a
+/// class key by probing its per-arity variants ([classVariantIconKey])
+/// for one whose art matches the node box (variant art is always the full
+/// box rect), else the legacy plain class id gated on an exact box-size
+/// match. Same-size arities (0x44 t4/t5) alias here — harmless for masks
+/// and ink edges, which only read the fully-opaque rect; the STAMP path
+/// ([primIconArtFor]) resolves by the true terminal count.
+int? loadedPrimIconIdOf(ViHeapObject object) {
+  final key = primIconKeyOf(object);
+  if (key == null || key >= 0) return key;
+  final b = object.absBounds;
+  if (b == null) return key;
+  for (var t = 0; t <= 15; t++) {
+    final id = classVariantIconKey(object.kind, t);
+    final m = _primIconMasks[id];
+    if (m != null && m.w == b.width && m.h == b.height) return id;
+  }
+  final legacy = _primIconMasks[key];
+  if (legacy != null && (legacy.w != b.width || legacy.h != b.height)) {
+    return null;
+  }
+  return key;
+}
+
 bool primIconHit(ViHeapObject object, double x, double y) {
-  final id = primIconKeyOf(object);
+  final id = loadedPrimIconIdOf(object);
   final mask = id == null ? null : _primIconMasks[id];
   if (mask == null || _primIconsSync[id] == null) return true;
   final bounds = object.absBounds!;
@@ -2132,7 +2208,7 @@ int? primIconInkEdge(
   required int cross,
   required int sign,
 }) {
-  final id = primIconKeyOf(object);
+  final id = loadedPrimIconIdOf(object);
   final mask = id == null ? null : _primIconMasks[id];
   final b = object.absBounds;
   if (mask == null || b == null) return null;
@@ -3210,22 +3286,11 @@ class BdDiagramPainter extends CustomPainter {
           final icon = subViIcons[object.oid];
           final iconKey = primIconKeyOf(object);
           final disabled = disabledOids.contains(object.oid);
-          var primIcon = iconKey == null
-              ? null
-              : (disabled ? primIconsGrey[iconKey] : null) ??
-                    primIcons[iconKey];
-          // A class-keyed icon (negated class code) is only PER-SIZE
-          // unique: the art is the full rect of the node boxes it was
-          // extracted from, and a same-class node with a different box
-          // carries different art (Excel_Read_XLSX's 0x44 at 32x35 vs
-          // crc8's at 32x27). Stamp only on an exact size match; any other
-          // box keeps the honest plate.
-          if (primIcon != null &&
-              iconKey! < 0 &&
-              (primIcon.base.width != rect.width.round() ||
-                  primIcon.base.height != rect.height.round())) {
-            primIcon = null;
-          }
+          final primIcon =
+              (disabled
+                  ? primIconArtFor(object, scene.diagram, primIconsGrey)
+                  : null) ??
+              primIconArtFor(object, scene.diagram, primIcons);
           if (primIcon != null) {
             // The harvested art carries its own borders and transparency —
             // no plate, backing, or extra frame around it. Exactness paths
@@ -3493,7 +3558,7 @@ class BdDiagramPainter extends CustomPainter {
           object.typeKind != ViTypeKind.unknown) {
         typedTerminalColors[packed] = labviewTypeColor(object.typeKind);
       }
-      final iconKey = primIconKeyOf(object);
+      final iconKey = loadedPrimIconIdOf(object);
       if (iconKey != null) {
         final boxRect = _toCanvas(bounds);
         iconNodeRects.add(boxRect);

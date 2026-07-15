@@ -13,11 +13,22 @@ natural size.
 
 Palette (9 colours — every icon pixel is one of these): #000000 #0000ff #333333 #444444 #4c4c3d #666666 #aaaaaa #ffffcc #ffffff
 
-| class147 | (verified — committed asset authoritative) | | border-exact rect (2/2 ring samples agree byte-for-byte): example, Excel_Read_XLSX |
-| class370.png | class 0x172 | 32x18 | border-exact rect (1/1 ring samples agree byte-for-byte): Excel_Variant_Elements |
-| class389.png | class 0x185 | 41x49 | border-exact rect (1/1 ring samples agree byte-for-byte): GenerateTree |
-| class52.png | class 0x34 | 32x41 | border-exact rect (1/1 ring samples agree byte-for-byte): Excel_Variant_Elements |
-| class68 | (verified — committed asset authoritative) | | border-exact rect (7/7 ring samples agree byte-for-byte): ClassChildren, Config_Dump2 |
+| class108_t5.png | class 0x6c | 24x33 | border-exact rect (1/1 ring samples agree byte-for-byte): MD5 |
+| class147_t6.png | class 0x93 | 32x29 | border-exact rect (2/3 ring samples agree byte-for-byte): example, Excel_Read_XLSX |
+| class370_t3.png | class 0x172 | 32x18 | border-exact rect (1/1 ring samples agree byte-for-byte): Excel_Variant_Elements |
+| class389_t0.png | class 0x185 | 41x49 | border-exact rect (1/1 ring samples agree byte-for-byte): GenerateTree |
+| class52_t7.png | class 0x34 | 32x41 | border-exact rect (1/1 ring samples agree byte-for-byte): Excel_Variant_Elements |
+| class58_t2.png | class 0x3a | 32x9 | border-exact rect (2/3 ring samples agree byte-for-byte): GenerateTree |
+| class58_t3.png | class 0x3a | 32x17 | border-exact rect (4/6 ring samples agree byte-for-byte): ClassesInMemory, ClassChildren, Config_Dump2 |
+| class58_t4.png | class 0x3a | 32x25 | border-exact rect (1/2 ring samples agree byte-for-byte): Config_Load |
+| class58_t5.png | class 0x3a | 32x33 | border-exact rect (1/2 ring samples agree byte-for-byte): Config_Load2 |
+| class62_t3.png | class 0x3e | 32x17 | border-exact rect (7/8 ring samples agree byte-for-byte): ClassesInMemory, Config_Dump, ClassChildren, Config_Dump2 |
+| class62_t4.png | class 0x3e | 32x25 | border-exact rect (8/8 ring samples agree byte-for-byte): Config_Dump, Config_Dump2 |
+| class62_t5.png | class 0x3e | 32x33 | border-exact rect (2/2 ring samples agree byte-for-byte): MD5 |
+| class68_t3.png | class 0x44 | 32x27 | border-exact rect (7/7 ring samples agree byte-for-byte): ClassChildren, Config_Dump2 |
+| class68_t4.png | class 0x44 | 32x35 | border-exact rect (1/2 ring samples agree byte-for-byte): Excel_Cell_to_Value |
+| class68_t5.png | class 0x44 | 32x35 | border-exact rect (1/2 ring samples agree byte-for-byte): Excel_Read_XLSX |
+| class68_t7.png | class 0x44 | 32x43 | border-exact rect (3/3 ring samples agree byte-for-byte): Config_Dump, Config_Dump2, Config_Escape |
 | prim1050_add.png | Add | 29x28 | GenerateTree, IconHeader, MD5, basic — single-sample fallback (0/8 agreeing) |
 | prim1052_multiply.png | Multiply | 35x25 | Config_Load2, Config_Load, Excel_Read_XLSX, IconHeader, MD5 — single-sample fallback (0/8 agreeing) |
 | prim1061_and.png | And | 30x20 | large, MD5 — pair-seeded consensus (3/5 agreeing) |
@@ -51,12 +62,12 @@ Palette (9 colours — every icon pixel is one of these): #000000 #0000ff #33333
 | prim1420_strip-path.png | Strip Path | 32x32 | border-exact rect (1/1 ring samples agree byte-for-byte): Read Library Version |
 | prim1502_string-length.png | String Length | 32x17 | Config_Load2, Config_Load, MD5 — single-sample fallback after edge fusion (2/8 agreeing) |
 | prim1503_string-subset.png | String Subset | 32x32 | border-exact rect (2/2 ring samples agree byte-for-byte): Config_Load2, Config_Load |
-| prim1516_select.png | Select | 27x27 | Excel_Variant_Elements, Config_Dump, Config_Dump2, large — pair-seeded consensus (8/8 agreeing) |
+| prim1516_select.png | Select | 26x27 | Excel_Variant_Elements, Config_Dump, Config_Dump2, large — pair-seeded consensus (8/8 agreeing) |
 | prim1534.png | (uncatalogued) | 32x32 | border-exact rect (8/8 ring samples agree byte-for-byte): Excel_Cell_to_Value |
 | prim1535_match-pattern.png | Match Pattern | 32x32 | border-exact rect (8/8 ring samples agree byte-for-byte): ClassesInMemory, Config_Dump, ClassChildren, Config_Dump2 |
 | prim1539_spreadsheet-string-to-array.png | Spreadsheet String To Array | 32x32 | border-exact rect (1/1 ring samples agree byte-for-byte): Excel_Variant_Elements |
 | prim1606 | (verified — committed asset authoritative) | | crc8, crc16 — pair-seeded consensus (2/2 agreeing) |
-| prim1608 | (verified — committed asset authoritative) | | Read Library Version, Config_Escape, MD5, crc8, crc16 — single-sample fallback after edge fusion (4/6 agreeing) |
+| prim1608 | (verified — committed asset authoritative) | | Read Library Version, Config_Escape, MD5, crc8, crc16 — pair-seeded consensus (4/6 agreeing) |
 | prim1809_array-size.png | Array Size | 32x21 | Config_Load2, Config_Load, ClassChildren, large, Config_Escape — pair-seeded consensus (5/8 agreeing) |
 | prim1900 | (verified — committed asset authoritative) | | large, MD5 — pair-seeded consensus (2/2 agreeing) |
 | prim1901_search-1d-array.png | Search 1D Array | 32x32 | border-exact rect (7/7 ring samples agree byte-for-byte): ClassesInMemory, ClassChildren, Config_Dump2, Excel_Cell_to_Value |
@@ -94,9 +105,11 @@ Palette (9 colours — every icon pixel is one of these): #000000 #0000ff #33333
 
 ## Identities without a usable asset (kept visible, never hidden)
 
-- class108: no agreeing consensus and no centred sample survived cleaning (5 samples)
-- class58: class key carries 2 distinct border-exact arts (3x from ClassesInMemory+ClassChildren | 2x from large) — a per-node identity is needed, no single asset can be right
-- class62: class key carries 2 distinct border-exact arts (4x from ClassesInMemory+Config_Dump+ClassChildren | 1x from missing_terminal) — a per-node identity is needed, no single asset can be right
+- class108_t4: no agreeing consensus and no centred sample survived cleaning (5 samples)
+- class147_t7: no agreeing consensus and no centred sample survived cleaning (2 samples)
+- class52_t3: no agreeing consensus and no centred sample survived cleaning (1 samples)
+- class52_t4: no agreeing consensus and no centred sample survived cleaning (1 samples)
+- class68_t9: every sample came from a low-registration snippet
 - prim1051: cleaned ink still reaches the crop edge (wire fusion; 8 samples)
 - prim1056: cleaned ink still reaches the crop edge (wire fusion; 6 samples)
 - prim1057: cleaned ink still reaches the crop edge (wire fusion; 8 samples)
