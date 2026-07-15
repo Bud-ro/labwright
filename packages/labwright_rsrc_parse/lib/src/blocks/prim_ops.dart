@@ -18,13 +18,22 @@
 ///   measurements where the run alone underdetermines the name (terminal
 ///   arity via positional child count, corpus node frequency, or exhaustion
 ///   over a snippet's complete id set).
+/// - [PrimNameBasis.iconGlyph] — the snippet corpus's reference render (the
+///   PNG half of a VI snippet is LabVIEW's own 1:1 drawing of the diagram)
+///   shows the node's palette icon, and the icon carries a *self-describing*
+///   glyph — literal text (`U64`, `a A`, `ab→ba`, `8 8`) or the comparison
+///   chevron set calibrated against corpus-pinned neighbours (the doubled
+///   `≥` chevron of [greaterOrEqualToZero]'s `≥0` vs [greater]'s single
+///   `>`). The doc comment names the glyph read and the witnessing
+///   snippet(s); the arity/type signature is cross-checked where the model
+///   resolves it.
 ///
-/// Ids observed in the corpus without either kind of evidence (126 of 242)
-/// are deliberately absent — callers get null from [PrimOp.fromId] and must
-/// render/report the numeric id, never a guessed name. That includes ids
-/// with merely *suggestive* evidence: 1170/1171 read as Split/Join Numbers
-/// from CRC-snippet wiring, but 1170 pairs the pinned [clusterToArray] just
-/// as naturally as Array To Cluster, so neither is named.
+/// Ids observed in the corpus without any of these kinds of evidence
+/// (121 of 250) are deliberately absent — callers get null from
+/// [PrimOp.fromId] and must render/report the numeric id, never a guessed
+/// name. Signature-only hypotheses stay out: 1056 measures as the only
+/// 2-in/2-out integer arithmetic op (Quotient & Remainder's shape) but no
+/// label, run, or glyph witnesses it, so it is not named.
 ///
 /// @docImport '../heap.dart';
 library;
@@ -39,6 +48,11 @@ enum PrimNameBasis {
   /// Interpolated from corpus-pinned neighbours in a contiguous palette run,
   /// or the documented pair of a corpus-pinned entry.
   adjacency,
+
+  /// Read off the node's own icon in a snippet reference render (LabVIEW's
+  /// 1:1 drawing): a self-describing icon glyph — literal text or a chevron
+  /// calibrated against corpus-pinned comparison icons.
+  iconGlyph,
 }
 
 /// A named built-in primitive operation (see the library doc for evidence
@@ -86,6 +100,10 @@ enum PrimOp {
   /// binary (3 children).
   not(1064, 'Not', PrimNameBasis.adjacency),
 
+  /// Icon glyph `(-x)` in a triangle gate (GenerateTree snippet); measured
+  /// unary (1 in / 1 out over 83 corpus nodes).
+  negate(1069, 'Negate', PrimNameBasis.iconGlyph),
+
   /// ×3 corpus labels.
   randomNumber(1070, 'Random Number (0-1)', PrimNameBasis.corpusLabel),
 
@@ -98,11 +116,30 @@ enum PrimOp {
   /// ×6 corpus labels.
   logicalShift(1081, 'Logical Shift', PrimNameBasis.corpusLabel),
 
+  /// Icon: the wrap-around register pictogram (a value box whose shifted-out
+  /// bits arrow back in; MD5 snippet), the documented rotate counterpart of
+  /// the corpus-pinned [logicalShift] at the neighbouring id. Signature
+  /// matches ([u32, i32] → [u32]); the with-carry rotates are the separate
+  /// corpus-pinned pair 1606/1607.
+  rotate(1082, 'Rotate', PrimNameBasis.iconGlyph),
+
   /// ×6 corpus labels.
   firstCall(1083, 'First Call?', PrimNameBasis.corpusLabel),
 
   /// ×33 corpus labels.
   equal(1102, 'Equal?', PrimNameBasis.corpusLabel),
+
+  /// Icon: comparison triangle gate with the doubled `≥` chevron
+  /// (Config_Escape snippet) — byte-matching the `≥` half of
+  /// [greaterOrEqualToZero]'s corpus-pinned `≥0` icon, where [greater]'s
+  /// pinned icon shows the single `>` chevron. Measured binary
+  /// (2 in / 1 out).
+  greaterOrEqual(1103, 'Greater Or Equal?', PrimNameBasis.iconGlyph),
+
+  /// The documented pair of the glyph-pinned [greaterOrEqual], matching how
+  /// the corpus-pinned [greater]/[less] pair sits on neighbouring ids.
+  /// Measured binary (2 in / 1 out).
+  lessOrEqual(1104, 'Less Or Equal?', PrimNameBasis.adjacency),
 
   /// ×5 corpus labels.
   notEqual(1105, 'Not Equal?', PrimNameBasis.corpusLabel),
@@ -173,6 +210,23 @@ enum PrimOp {
   /// ×1 corpus label.
   toDoublePrecisionFloat(1147, 'To Double Precision Float', PrimNameBasis.corpusLabel),
 
+  /// The documented pair of the glyph-pinned [toUnsignedQuadInteger] on the
+  /// neighbouring id, in the signed-before-unsigned order the corpus-pinned
+  /// 1140..1147 conversion run fixes.
+  toQuadInteger(1155, 'To Quad Integer', PrimNameBasis.adjacency, output: ViTypeKind.numericInt),
+
+  /// Icon glyph `U64` in the conversion-pill outline (MD5 snippet).
+  toUnsignedQuadInteger(1156, 'To Unsigned Quad Integer', PrimNameBasis.iconGlyph, output: ViTypeKind.numericInt),
+
+  /// Icon glyph `8 8` under the swap pictogram (a register whose halves
+  /// cross via the paired over/under arrows; MD5 snippet). Signature
+  /// matches (unary, [u32] → [u32]).
+  swapBytes(1162, 'Swap Bytes', PrimNameBasis.iconGlyph),
+
+  /// Icon glyph `16 16` under the same swap pictogram as the glyph-pinned
+  /// [swapBytes] (MD5 snippet). Signature matches (unary, [u32] → [u32]).
+  swapWords(1163, 'Swap Words', PrimNameBasis.iconGlyph),
+
   /// ×1 corpus label.
   flattenToString(1164, 'Flatten To String', PrimNameBasis.corpusLabel),
 
@@ -185,11 +239,27 @@ enum PrimOp {
   /// ×4 corpus labels.
   clusterToArray(1169, 'Cluster To Array', PrimNameBasis.corpusLabel),
 
+  /// Icon: one full-height I-beam word on the input side splitting into two
+  /// half-height beams on the output side (crc16/crc32 snippets). Measured
+  /// 1 in / 2 out; the mirrored icon at the neighbouring id is the
+  /// glyph-pinned [joinNumbers].
+  splitNumber(1170, 'Split Number', PrimNameBasis.iconGlyph),
+
+  /// Icon: two half-height I-beam words on the input side joining into one
+  /// full-height beam on the output side (IconHeader/crc16/crc32 snippets)
+  /// — the mirror of the glyph-pinned [splitNumber]. Measured 2 in / 1 out.
+  joinNumbers(1171, 'Join Numbers', PrimNameBasis.iconGlyph),
+
   /// ×2 corpus labels.
   numberToDecimalString(1180, 'Number To Decimal String', PrimNameBasis.corpusLabel),
 
   /// ×2 corpus labels.
   decimalStringToNumber(1184, 'Decimal String To Number', PrimNameBasis.corpusLabel),
+
+  /// Icon glyph `a A` in the string-pill outline (Excel_Cell_to_Value
+  /// snippet) — the case counterpart of the corpus-pinned [toLowerCase] at
+  /// the neighbouring id. Measured unary ([string] → [string]).
+  toUpperCase(1188, 'To Upper Case', PrimNameBasis.iconGlyph),
 
   /// ×10 corpus labels.
   toLowerCase(1189, 'To Lower Case', PrimNameBasis.corpusLabel),
@@ -238,6 +308,10 @@ enum PrimOp {
 
   /// ×21 corpus labels.
   matchPattern(1535, 'Match Pattern', PrimNameBasis.corpusLabel),
+
+  /// Icon glyph `ab→ba` in the string-pill outline (Excel_Cell_to_RowCol
+  /// snippet). Measured unary ([string] → [string]).
+  reverseString(1537, 'Reverse String', PrimNameBasis.iconGlyph),
 
   /// ×11 corpus labels.
   searchSplitString(1538, 'Search/Split String', PrimNameBasis.corpusLabel),
@@ -341,6 +415,12 @@ enum PrimOp {
 
   /// ×2 corpus labels.
   openCreateReplaceFile(8050, 'Open/Create/Replace File', PrimNameBasis.corpusLabel),
+
+  /// Icon: the read pictogram (page with `0101` under reading glasses;
+  /// Read Library Version / Read VI Blocks snippets), sitting between the
+  /// corpus-pinned [openCreateReplaceFile] and [closeFile] in the file-op
+  /// id block.
+  readFromBinaryFile(8051, 'Read from Binary File', PrimNameBasis.iconGlyph),
 
   /// ×5 corpus labels.
   closeFile(8052, 'Close File', PrimNameBasis.corpusLabel),
