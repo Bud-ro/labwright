@@ -695,11 +695,16 @@ enum HeapObjectClass {
   /// parent `0x1b`; labelled ones read `Unbundle`. Renders as a node box.
   bdNode36(0x36, 'Node (primitive)', ViObjectKind.node, ClassConfidence.inferred),
 
-  /// `0x153` — a **built-in primitive node** (icon, name not yet recovered). Corpus:
-  /// 1466 BD (0 FP), 100% exactly **32×32** (the default node-icon footprint),
-  /// 100% parented to the node container `0x1b`, children only structural `0x15`
-  /// records — byte-for-byte the `0x2f` primitive profile, but with no `0xa`
-  /// caption, so the specific primitive is not yet recovered: [ClassConfidence.kindOnly].
+  /// `0x153` — a **data-value-reference access node** (pylabview
+  /// `decomposeDataValRefNode`). Corpus: 1466 BD (0 FP), 100% exactly
+  /// **32×32**, parent `0x1b`, always three `0x15` wrappers holding `0x155`
+  /// (`decomposeDCO`) terminals, plus a `15 cf` poser reference and a
+  /// `15 d0` data-value-ref DCO reference. Nodes come in halves balanced in
+  /// EVERY corpus VI (733/733 overall, equal counts in all 556 carrying
+  /// VIs): objFlags `0x10000` set pairs exactly with the terminal
+  /// `0x800000` bit on the input, clear with that bit on both outputs — a
+  /// read/write pair of one construct; which half is which is not yet
+  /// recovered, so no operation name is asserted.
   bdNode153(0x153, 'Node (primitive)', ViObjectKind.node, ClassConfidence.kindOnly),
 
   /// `0x6A` — a **Call Library Function Node** (calls into a native DLL/.so).

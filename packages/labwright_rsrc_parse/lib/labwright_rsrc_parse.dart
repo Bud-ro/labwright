@@ -27,6 +27,7 @@ export 'src/blocks/connector_pane.dart';
 export 'src/blocks/data_type_heap.dart';
 export 'src/blocks/dfds.dart';
 export 'src/blocks/font_table.dart';
+export 'src/blocks/growable_prims.dart';
 export 'src/blocks/help_path.dart';
 export 'src/blocks/history.dart';
 export 'src/blocks/icon.dart';

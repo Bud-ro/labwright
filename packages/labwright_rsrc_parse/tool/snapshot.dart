@@ -42,6 +42,7 @@ const _sectionTests = [
   'test/wire_render_style_census_test.dart',
   'test/loop_terminal_census_test.dart',
   'test/short_text_census_test.dart',
+  'test/growable_prim_test.dart',
 ];
 
 void main(List<String> args) {
