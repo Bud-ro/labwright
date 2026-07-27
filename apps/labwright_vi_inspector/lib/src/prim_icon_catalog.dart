@@ -47,7 +47,9 @@ const Map<String, PrimIconStatus> kPrimIconStatus = {
   'class62_t5': PrimIconStatus.unverified,
   'class68_t3': PrimIconStatus.unverified,
   'class68_t4': PrimIconStatus.unverified,
-  'class68_t5': PrimIconStatus.unverified,
+  // Mis-extraction: the asset pixels are a slice of Excel_Read_XLSX's
+  // zip-structure COMMENT ("…k infor…/…ring va…"), not icon art.
+  'class68_t5': PrimIconStatus.rejected,
   'class68_t7': PrimIconStatus.unverified,
   'class68_t9': PrimIconStatus.unverified,
   'prim1050': PrimIconStatus.unverified,

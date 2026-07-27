@@ -470,6 +470,37 @@ const Map<(ViDataType, bool), BdTerminalArt> kBdTerminalArt = {
   ]),
 };
 
+/// ARRAY terminal art, keyed by (ELEMENT datatype, isIndicator): an array
+/// terminal colours and glyphs by its element type (the `[≡]` bracket art in
+/// the element's palette), so the scalar table above cannot serve it.
+/// Reference-measured entries only — a single sample each so far
+/// (Excel_Read_XLSX's `Worksheets` array-of-cluster indicator, magenta
+/// family); other element types / directions keep the generic frame
+/// (TODO: corpus-census array terminals like the scalar table).
+const Map<(ViDataType, bool), BdTerminalArt> kBdArrayTerminalArt = {
+  (
+    ViDataType.cluster,
+    true,
+  ): BdTerminalArt(Color(0xFFFF00FF), Color(0xFFFF33FF), Color(0xFFFF99FF), [
+    'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+    'B..............................B',
+    'MLLLLLLLLL.....................B',
+    'MLLLLMMMLL..............BBB....B',
+    'MLLLLMLLLL...........BB...B....B',
+    'MLLLXMLLLMBBBB..BBB..BB...B....B',
+    'MLLLXXLLLM...B............B....B',
+    'MLLLXXXLLMBBBB............B....B',
+    'MLLLXXXLLL....BBBB...BBB..B....B',
+    'MLLLXXLLMMB...BBBB...B.B..B....B',
+    'MLLLXMLLMMB...BBBB...BBB..B....B',
+    'MLLLLMLLLL................B....B',
+    'MLLLLMMMLL..............BBB....B',
+    'MLLLLLLLLL.....................B',
+    'B..............................B',
+    'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+  ]),
+};
+
 /// The art for a terminal of [type] in the given direction, folding the enum
 /// widths onto the shared pager art. Null when unmeasured.
 BdTerminalArt? bdTerminalArtFor(ViDataType type, {required bool indicator}) {
@@ -479,3 +510,10 @@ BdTerminalArt? bdTerminalArtFor(ViDataType type, {required bool indicator}) {
   };
   return kBdTerminalArt[(folded, indicator)];
 }
+
+/// The art for an ARRAY terminal whose element resolved to [elementType], or
+/// null when unmeasured.
+BdTerminalArt? bdArrayTerminalArtFor(
+  ViDataType elementType, {
+  required bool indicator,
+}) => kBdArrayTerminalArt[(elementType, indicator)];
