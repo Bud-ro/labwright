@@ -265,6 +265,16 @@ class ViHeapObject {
   /// null — drives element-coloured array terminal art.
   ViType? resolvedElementType;
 
+  /// The resolved member descriptors of [resolvedType] when it is a cluster
+  /// (its [ViType.members] resolved against the pool during
+  /// [resolveDataSpaceTypes]), else empty. Drives the cluster tint (LabVIEW
+  /// inks a cluster by its member make-up, not a fixed colour).
+  List<ViType> resolvedMembers = const [];
+
+  /// [resolvedMembers] for the ELEMENT of a resolved array-of-cluster
+  /// ([resolvedElementType]'s members), else empty.
+  List<ViType> resolvedElementMembers = const [];
+
   /// The object's packed flags word ([HeapAttribute.objFlags], raw `0x0cb`)
   /// — or null when the record is absent.
   int? objFlags;
@@ -2910,6 +2920,46 @@ const double _dblWindowFloor = 1e-12, _dblWindowCeil = 1e12;
 /// declined with the rest of the EXT family, and no other all-zero lengths.
 const Set<int> _zeroPayloadLengths = {5, 9};
 
+/// Decodes a **flattened path** (`PTH0`) constant-value payload into the text
+/// LabVIEW displays inside the path-constant box, or null (not decoded).
+///
+/// Layout: 4-byte ident `PTH0`, `u32` content length, then the content —
+/// `u16` path type, `u16` component count, `count` × Pascal-string segments.
+/// Bytes beyond `8 + length` are slot padding, not content (68 of the 514
+/// corpus records carry it). Corpus (7,574 files): 514 path-typed constValue
+/// records, every one on a `0x13` [HeapObjectClass.bdConstDco]; 153 are the
+/// RELATIVE form (type 1) whose display is reference-render ground-truthed
+/// (Excel_Read_XLSX's `xl\workbook.xml` / `xl\sharedStrings.xml` /
+/// `xl\worksheets`): the segments joined by `\`. Absolute (type 0), UNC
+/// (type 2), the single `PTH2` record and empty paths are framed here but
+/// stay text-undecoded — their display form has no reference-render pin yet
+/// (TODO: pin `C:`-style absolute display against a reference before
+/// claiming it).
+String? decodeFlatPathText(Uint8List? raw) {
+  if (raw == null || raw.length < 12) return null;
+  if (raw[0] != 0x50 || raw[1] != 0x54 || raw[2] != 0x48 || raw[3] != 0x30) {
+    return null;
+  }
+  final view = ByteData.sublistView(raw);
+  final contentLength = view.getUint32(4);
+  final end = 8 + contentLength;
+  if (end > raw.length) return null;
+  final pathType = view.getUint16(8);
+  final count = view.getUint16(10);
+  if (pathType != 1 || count < 1) return null;
+  var offset = 12;
+  final segments = <String>[];
+  for (var i = 0; i < count; i++) {
+    if (offset >= end) return null;
+    final len = raw[offset];
+    if (offset + 1 + len > end) return null;
+    segments.add(String.fromCharCodes(raw, offset + 1, offset + 1 + len));
+    offset += 1 + len;
+  }
+  if (offset != end) return null;
+  return segments.join(r'\');
+}
+
 /// Decodes the **value of a block-diagram constant** from its `0x26C`
 /// ([HeapAttribute.constValue]) [record] without resolving the constant's VCTP
 /// type — the payload is typed by the constant's value-carrier class
@@ -2960,6 +3010,22 @@ Object? decodeBdConstantValue({required int? innerKind, required HeapAttr record
   final raw = record.width == HeapAttrWidth.container ? record.rawValueBytes : null;
   final carrier = innerKind == null ? HeapObjectClass.unknown : HeapObjectClass.fromCode(innerKind);
   switch (carrier) {
+    case HeapObjectClass.pathControl:
+      return decodeFlatPathText(record.rawValueBytes);
+    case HeapObjectClass.stringOrArrayControl:
+      // The 8-byte `[u32 strLen][ascii]` form: [decodeHeapAttr]'s u32-string
+      // gate excludes length 8 (width-ambiguous with a stored f64 without the
+      // carrier class in view), so the string carrier resolves it here. The
+      // framing must be exact (strLen + 4 == payload) and fully printable —
+      // Excel_Read_XLSX's `INIT` is the reference-render pin.
+      final u32String = record.rawValueBytes;
+      if (u32String != null && u32String.length == 8) {
+        final strLen = ByteData.sublistView(u32String).getUint32(0);
+        if (strLen == 4 && u32String.skip(4).every((b) => b >= 0x20 && b < 0x7f)) {
+          return String.fromCharCodes(u32String, 4);
+        }
+      }
+      return null;
     case HeapObjectClass.booleanOrClusterControl:
       if (scalarBytes != null && scalarBytes <= 2 && (v == 0 || v == 1)) return v == 1;
       return null;
@@ -3315,6 +3381,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
       );
       if (value is bool) object.constBool = value;
       if (value is num) object.constNumeric = value;
+      if (value is String) object.constText ??= value;
     }
   }
 
@@ -3617,6 +3684,12 @@ void resolveDataSpaceTypes({
       final elementIndex = type.elementIndex;
       if (type.kind == ViDataType.array && elementIndex != null && elementIndex >= 0 && elementIndex < pool.length) {
         object.resolvedElementType = pool[elementIndex];
+        if (object.resolvedElementType!.kind == ViDataType.cluster) {
+          object.resolvedElementMembers = clusterFields(object.resolvedElementType!, pool);
+        }
+      }
+      if (type.kind == ViDataType.cluster) {
+        object.resolvedMembers = clusterFields(type, pool);
       }
       if (type.name != null && type.name!.trim().isNotEmpty) {
         object.typeName ??= type.name!.trim();
@@ -3636,6 +3709,12 @@ void resolveDataSpaceTypes({
       object.dataType ??= dco.dataType;
       object.resolvedType ??= dco.resolvedType;
       object.resolvedElementType ??= dco.resolvedElementType;
+      if (object.resolvedMembers.isEmpty) {
+        object.resolvedMembers = dco.resolvedMembers;
+      }
+      if (object.resolvedElementMembers.isEmpty) {
+        object.resolvedElementMembers = dco.resolvedElementMembers;
+      }
       object.typeName ??= dco.typeName;
     }
   }
