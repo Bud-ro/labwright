@@ -161,6 +161,107 @@ GlobalHatchOffset deriveHatchOffset({
   return (x: bestX, y: bestY);
 }
 
+/// Derives a reference capture's [BdRenderStyle.wireCycleOffset] — the mod-4
+/// column shift the capture viewport's pan gives the patterned wire-stroke
+/// cycles ([kBdWireCyclePhase]; the same screen anchoring as the hatch
+/// lattice). Only the `x` component is meaningful: a row-parity pan flip is
+/// identical to a column shift of 2 (the cycles' row term is `2·(y & 1)`
+/// mod 4), so the candidate space is exactly the 4 column shifts. Scores
+/// every clean column of every horizontal patterned leg against the
+/// reference under each candidate. Braid legs are excluded: the
+/// error-cluster braid draws its own weave palette, and telling error from
+/// plain braid here would duplicate the painter's net resolution. Returns
+/// [kNoHatchOffset] unless one shift wins decisively (≥75% bit agreement
+/// and a strict margin), so a diagram without patterned wires keeps the
+/// neutral phase.
+GlobalHatchOffset deriveWireCycleOffset({
+  required BdScene scene,
+  required BdRaster raster,
+  required BdRegistration registration,
+  required Uint8List referenceRgba,
+  required int width,
+  required int height,
+}) {
+  int refPixel(int rx, int ry) {
+    if (rx < 0 || ry < 0 || rx >= width || ry >= height) return -1;
+    final i = (ry * width + rx) * 4;
+    return (referenceRgba[i] << 16) |
+        (referenceRgba[i + 1] << 8) |
+        referenceRgba[i + 2];
+  }
+
+  final score = List.filled(4, 0);
+  var samples = 0;
+  for (final wire in scene.wires) {
+    final style = wire.signalType?.renderStyle;
+    if (style == ViWireRenderStyle.braid) continue;
+    final cycle = kBdWireStrokeCycles[style];
+    final stylePhase = kBdWireCyclePhase[style];
+    if (cycle == null || stylePhase == null || cycle.length != 4) continue;
+    final legs = <List<ViPoint>>[
+      if (wire.routePoints case final p? when p.length >= 2) p,
+      ...?wire.routeTree?.polylines,
+    ];
+    for (final leg in legs) {
+      for (var s = 0; s + 1 < leg.length; s++) {
+        final a = leg[s], b = leg[s + 1];
+        if (a.y != b.y || (a.x - b.x).abs() < 14) continue;
+        final lo = math.min(a.x, b.x) + 3, hi = math.max(a.x, b.x) - 3;
+        int rxOf(num x) =>
+            ((x - raster.content.left) * registration.scale + registration.dx)
+                .round();
+        int ryOf(num y) =>
+            ((y - raster.content.top) * registration.scale + registration.dy)
+                .round();
+        // The leg's ink colour: the modal non-white pixel over its band.
+        final counts = <int, int>{};
+        for (var x = lo; x <= hi; x++) {
+          for (var bit = -2; bit <= 2; bit++) {
+            final c = refPixel(rxOf(x), ryOf(a.y + bit));
+            if (c != 0xffffff && c != -1) counts[c] = (counts[c] ?? 0) + 1;
+          }
+        }
+        if (counts.isEmpty) continue;
+        final ink =
+            (counts.entries.toList()
+                  ..sort((p, q) => q.value.compareTo(p.value)))
+                .first
+                .key;
+        for (var x = lo; x <= hi; x++) {
+          // Columns carrying any third colour are overdrawn — skip them.
+          var clean = true;
+          for (var bit = -2; bit <= 2; bit++) {
+            final c = refPixel(rxOf(x), ryOf(a.y + bit));
+            if (c != 0xffffff && c != ink) clean = false;
+          }
+          if (!clean) continue;
+          samples += 5;
+          for (var px = 0; px < 4; px++) {
+            final mask = cycle[(x + ((a.y & 1) << 1) + stylePhase + px) % 4];
+            for (var bit = 0; bit < 5; bit++) {
+              final inked = refPixel(rxOf(x), ryOf(a.y + bit - 2)) == ink;
+              score[px] += inked == ((mask >> bit) & 1 != 0) ? 1 : -1;
+            }
+          }
+        }
+      }
+    }
+  }
+  if (samples == 0) return kNoHatchOffset;
+  var bestX = 0, best = -samples - 1, second = -samples - 1;
+  for (var px = 0; px < 4; px++) {
+    if (score[px] > best) {
+      second = best;
+      best = score[px];
+      bestX = px;
+    } else if (score[px] > second) {
+      second = score[px];
+    }
+  }
+  if (best < samples ~/ 2 || best == second) return kNoHatchOffset;
+  return (x: bestX, y: 0);
+}
+
 /// Rasterises [diagram]'s drawable objects to a [ui.Image] using the shared
 /// [BdDiagramPainter], off-screen (via a [ui.PictureRecorder], no widget tree).
 /// The whole content rectangle is fit within [maxDimension] on its longer side
@@ -1475,9 +1576,18 @@ class _BdOracleViewState extends State<BdOracleView>
       style = BdRenderStyle(
         hatchOffset: derive(errorStyle: false),
         errorHatchOffset: derive(errorStyle: true),
+        wireCycleOffset: deriveWireCycleOffset(
+          scene: scene,
+          raster: raster,
+          registration: result.registration,
+          referenceRgba: result.referenceRgba,
+          width: reference.image.width,
+          height: reference.image.height,
+        ),
       );
       if (style.hatchOffset != kNoHatchOffset ||
-          style.errorHatchOffset != kNoHatchOffset) {
+          style.errorHatchOffset != kNoHatchOffset ||
+          style.wireCycleOffset != kNoHatchOffset) {
         final rephased = await render(
           maxDimension: widget.maxDimension,
           scale: 1.0,

@@ -743,6 +743,7 @@ class BdRenderStyle {
     this.booleanGreen = const Color(0xFF006600),
     this.hatchOffset = kNoHatchOffset,
     this.errorHatchOffset = kNoHatchOffset,
+    this.wireCycleOffset = kNoHatchOffset,
   });
 
   /// The while-loop band and error-stripe grey — corpus-dominant (119,119,119).
@@ -763,6 +764,12 @@ class BdRenderStyle {
   /// Phase of the error-stripe lattice ([kBdErrorHatch]) — independent of
   /// [hatchOffset] within one capture.
   final GlobalHatchOffset errorHatchOffset;
+
+  /// Phase of the patterned wire-stroke cycles ([kBdWireCyclePhase]): `x` is
+  /// the mod-4 column shift, `y` the row-parity flip, both from the capture
+  /// viewport's pan. Derived per reference by the oracle
+  /// (`deriveWireCycleOffset`); the viewer keeps (0,0).
+  final GlobalHatchOffset wireCycleOffset;
 }
 
 /// The uniform grey a disabled frame renders dark NEUTRAL chrome in — the
@@ -809,10 +816,10 @@ Color bdDimDisabled(Color color) =>
 /// repeating per-column 5-bit ink masks where bit `b` inks row
 /// `cross + (b - 2)` (bit 2 = the route row; higher bits are rows BELOW it,
 /// y growing downward). The cycle SHAPES are census measurements; the
-/// census canonicalises each cycle by rotation, so the absolute phase is
-/// NOT measured — the painter anchors a cycle at `column mod period`
-/// (TODO: census the phases). The dotted styles are not here: their
-/// measured checkerboard phase law is applied directly (see [_drawWires]).
+/// census canonicalises each cycle by rotation — the on-screen phase is
+/// measured separately ([kBdWireCyclePhase]). The dotted styles are not
+/// here: their measured checkerboard phase law is applied directly (see
+/// [_drawWires]).
 ///
 /// Only the solid styles ([ViWireRenderStyle.solid1px] / `solid2px` /
 /// `hollowDouble`) and the dotted pair have vertical treatments in the
@@ -827,6 +834,26 @@ const Map<ViWireRenderStyle, List<int>> kBdWireStrokeCycles = {
   ViWireRenderStyle.braidDense: [0x0a, 0x0e],
   ViWireRenderStyle.braidDenseWide: [0x0b, 0x0d],
   ViWireRenderStyle.weave: [0x02, 0x0a, 0x02, 0x0e, 0x08, 0x0a, 0x08, 0x0e],
+};
+
+/// The measured RELATIVE PHASE of each horizontal stroke cycle: LabVIEW
+/// indexes a cycle by `x + 2·(y & 1) + stylePhase + captureShift` — the
+/// pattern slides two columns between even and odd route rows, each style
+/// carries a fixed rotation relative to the others, and the whole family
+/// shifts by the capture viewport's pan (the same per-capture screen
+/// anchoring as the hatch lattice — [BdRenderStyle.wireCycleOffset], derived
+/// per reference by the oracle and (0,0) in the viewer). Phase census over
+/// every clean horizontal run of Excel_Read_XLSX's reference (39 legs, zero
+/// counterexamples, capture shift 1): zigzag legs measure absolute shift 3
+/// on odd rows / 1 on even rows, chainLink 1/3, braid 1 and braidWide 2 at
+/// even rows — rebased here so the zigzag entry is 0 (crc8's capture pins
+/// the zero shift). Styles absent keep phase 0 (TODO: census
+/// chainLinkWide/weave/dense phases when a clean reference run appears).
+const Map<ViWireRenderStyle, int> kBdWireCyclePhase = {
+  ViWireRenderStyle.zigzag: 0,
+  ViWireRenderStyle.chainLink: 2,
+  ViWireRenderStyle.braid: 0,
+  ViWireRenderStyle.braidWide: 1,
 };
 
 /// The cross-axis ink band of a stroke [style] around its route row/column,
@@ -2386,16 +2413,25 @@ const Set<int> kVerifiedBorderTerminalKinds = {
 /// look is decoded (TODO).
 const int kTunnelHollowFlag = 0x1000000;
 
+/// Tunnel-object flag bits whose BOTH-set form marks the tunnel that draws
+/// the wire-fill square with a 3×3 WHITE centre carrying a wire-colour
+/// centre dot (Excel_Read_XLSX's `Worksheets` case output tunnels at
+/// (1721,905) and (1833,905): their `0x2d` terminals read 0x300801 where the
+/// plain solid film tunnel reads 0x801). Measured on one VI — the two bits
+/// never split there, so they are gated together (TODO: corpus-census which
+/// bit carries the style, and the black-chevron tunnel variant beside it).
+const int kTunnelCentreDotFlags = 0x300000;
+
 /// Per decoded attach rect, its resolving terminal's class code, hollow
 /// bit, and whether the terminal sits inside a disable structure's
 /// displayed Disabled frame ([bdDisabledObjectOids] — its chrome then draws
 /// through [dimDisabledFrameRgb]) — for the border-terminal chrome pass
 /// (only [kVerifiedBorderTerminalKinds] draw).
-Map<HeapRect, ({int kind, bool hollow, bool disabled})> bdBorderTerminalKinds(
-  ViDiagram diagram,
-) {
+Map<HeapRect, ({int kind, bool hollow, bool centreDot, bool disabled})>
+bdBorderTerminalKinds(ViDiagram diagram) {
   final disabledOids = bdDisabledObjectOids(diagram);
-  final out = <HeapRect, ({int kind, bool hollow, bool disabled})>{};
+  final out =
+      <HeapRect, ({int kind, bool hollow, bool centreDot, bool disabled})>{};
   for (final wire in bdVisibleWires(diagram)) {
     for (var e = 0; e < wire.endpointOids.length; e++) {
       final attach = e < wire.endpointAttachRects.length
@@ -2408,6 +2444,9 @@ Map<HeapRect, ({int kind, bool hollow, bool disabled})> bdBorderTerminalKinds(
         out[attach] = (
           kind: terminal.kind,
           hollow: ((terminal.objFlags ?? 0) & kTunnelHollowFlag) != 0,
+          centreDot:
+              ((terminal.objFlags ?? 0) & kTunnelCentreDotFlags) ==
+              kTunnelCentreDotFlags,
           disabled: disabledOids.contains(terminal.oid),
         );
       }
@@ -2505,7 +2544,10 @@ class BdScene {
 
   /// Attach rect → terminal class for reference-verified border-terminal
   /// chrome ([bdBorderTerminalKinds]).
-  late final Map<HeapRect, ({int kind, bool hollow, bool disabled})>
+  late final Map<
+    HeapRect,
+    ({int kind, bool hollow, bool centreDot, bool disabled})
+  >
   borderTerminalKinds = bdBorderTerminalKinds(diagram);
 
   /// Per structure oid, its modeled terminals ([bdStructureTerminals]).
@@ -2586,7 +2628,7 @@ class BdDiagramPainter extends CustomPainter {
   List<ViWire> get wires => scene.wires;
   Set<int> get disabledOids => scene.disabledOids;
   Set<int> get errorCaseOids => scene.errorCaseOids;
-  Map<HeapRect, ({int kind, bool hollow, bool disabled})>
+  Map<HeapRect, ({int kind, bool hollow, bool centreDot, bool disabled})>
   get borderTerminalKinds => scene.borderTerminalKinds;
   Map<int, List<({HeapRect box, int bmp})>> get structureTerminals =>
       scene.structureTerminals;
@@ -2751,7 +2793,13 @@ class BdDiagramPainter extends CustomPainter {
         if (o.kind == 0x50 && o.parentOid != null) o.parentOid!,
     };
     final tunnelSquares =
-        <(Rect, ({int kind, bool hollow, bool disabled}), Color)>[];
+        <
+          (
+            Rect,
+            ({int kind, bool hollow, bool centreDot, bool disabled}),
+            Color,
+          )
+        >[];
     // Rects owned by the reference-verified border-terminal chrome pass
     // (shift registers, selectors, tunnels). A modeled structure terminal at
     // the same rect must not also draw: its anti-aliased ring strokes bleed
@@ -3734,7 +3782,9 @@ class BdDiagramPainter extends CustomPainter {
   /// frame draws through [bdDimDisabled].
   void _drawWires(
     Canvas canvas, {
-    List<(Rect, ({int kind, bool hollow, bool disabled}), Color)>?
+    List<
+      (Rect, ({int kind, bool hollow, bool centreDot, bool disabled}), Color)
+    >?
     tunnelSquares,
   }) {
     if (wires.isEmpty) return;
@@ -3834,8 +3884,17 @@ class BdDiagramPainter extends CustomPainter {
       ...?wire.routeTree?.junctions,
     ];
     for (final wire in wires) {
-      for (final p in netPointsOf(wire)) {
-        final key = ((p.x + 0x8000) << 17) | (p.y + 0x8000);
+      // Signals join a net where route endpoints/junctions coincide AND
+      // where they share a decoded attach rect (the two signals either
+      // side of one tunnel).
+      final keys = [
+        for (final p in netPointsOf(wire))
+          ((p.x + 0x8000) << 17) | (p.y + 0x8000),
+        for (final attach in wire.endpointAttachRects)
+          if (attach != null && attach.width > 0 && attach.height > 0)
+            _packRect(attach.top, attach.left, attach.bottom, attach.right),
+      ];
+      for (final key in keys) {
         final owner = pointOwner[key];
         if (owner == null) {
           pointOwner[key] = wire.signalOid;
@@ -3907,7 +3966,8 @@ class BdDiagramPainter extends CustomPainter {
       // chrome drawn at it (kind-specific, reference-verified only). A wire's
       // BODY comes from its decoded route ([ViWire.routePoints] /
       // [ViWire.routeTree]); an endpoint's owner box no longer routes a leg.
-      final tunnels = <(Rect, ({int kind, bool hollow, bool disabled}))>[];
+      final tunnels =
+          <(Rect, ({int kind, bool hollow, bool centreDot, bool disabled}))>[];
       for (var e = 0; e < wire.endpointAnchors.length; e++) {
         final anchor = wire.endpointAnchors[e];
         if (anchor == null) continue;
@@ -4623,9 +4683,11 @@ class BdDiagramPainter extends CustomPainter {
       case ViWireRenderStyle.braid when horizontal && errorBraid:
         // The ERROR-cluster wire, measured on Excel_Read_XLSX: solid
         // dark-yellow (102,102,0) rows either side of the route row, whose
-        // own ink alternates 2 px yellow (255,255,0) / 2 px black on the
-        // absolute column-pair parity (an even x~/2 pair is yellow). The
-        // error braid draws its OWN palette; a non-error cluster braid
+        // own ink alternates 2 px yellow (255,255,0) / 2 px black with the
+        // pattern anchored to `x + y`: a column is yellow where
+        // `(x + y + 1) mod 4 < 2` (phase census over Excel's four error
+        // rows y=933/993/1071/1129 — a parity-only rule fits neither pair).
+        // The error braid draws its OWN palette; a non-error cluster braid
         // falls through to the catalogued cycle in the signal tint.
         // (Disabled-frame dimming unmeasured for braid: no corpus
         // reference shows one.)
@@ -4635,18 +4697,57 @@ class BdDiagramPainter extends CustomPainter {
         canvas.drawRect(span(-1, -1), olive);
         canvas.drawRect(span(1, 1), olive);
         for (var v = lo; v <= hi; v++) {
-          canvas.drawRect(px(v, cross), (v ~/ 2).isEven ? yellow : black);
+          canvas.drawRect(
+            px(v, cross),
+            (v + cross + 1) % 4 < 2 ? yellow : black,
+          );
+        }
+      case ViWireRenderStyle.braid when !horizontal && errorBraid:
+        // VERTICAL error braid, measured on Excel_Read_XLSX's x=1768 run:
+        // solid dark-yellow flank columns and the same weave law as the
+        // horizontal core — yellow where `(x + y + 1) mod 4 < 2` (the
+        // x=1768 column reads yellow exactly on `(y + 1) mod 4 < 2`, which
+        // is that law at x ≡ 0 mod 4).
+        final olive = _solidNoAa(const Color(0xFF666600));
+        final yellow = _solidNoAa(const Color(0xFFFFFF00));
+        final black = _solidNoAa(Colors.black);
+        canvas.drawRect(span(-1, -1), olive);
+        canvas.drawRect(span(1, 1), olive);
+        for (var v = lo; v <= hi; v++) {
+          canvas.drawRect(
+            px(v, cross),
+            (v + cross + 1) % 4 < 2 ? yellow : black,
+          );
+        }
+      case ViWireRenderStyle.braid when !horizontal:
+        // VERTICAL cluster braid, measured on Excel_Read_XLSX's x=1513 run
+        // (single sample): solid flank columns either side, the route
+        // column inked where `(y + 2·(x & 1)) mod 4 ≥ 2` (rows y mod 4 in
+        // {0,1} at that odd column; the x-phase term is the horizontal
+        // law's transposed parity term — unconfirmed at an even column,
+        // TODO: pin when a clean even-x vertical braid appears).
+        canvas.drawRect(span(-1, -1), fill);
+        canvas.drawRect(span(1, 1), fill);
+        for (var v = lo; v <= hi; v++) {
+          if ((v + ((cross & 1) << 1)) % 4 >= 2) {
+            canvas.drawRect(px(v, cross), fill);
+          }
         }
       case ViWireRenderStyle.zigzag when !horizontal:
         // The VERTICAL string-family stroke compresses to a period-2
-        // two-column cycle (the census' `|V` keys): the column left of the
-        // route solid, the route column on the absolute-parity
-        // checkerboard (ink where `x + y` is odd) — measured on
-        // Excel_Read_XLSX's x=1741 vertical string run, both sides of its
-        // crossing tunnel.
-        canvas.drawRect(span(-1, -1), fill);
+        // two-column cycle (the census' `|V` keys) over the pair
+        // {route-1, route}: the EVEN column of the pair draws solid, the
+        // ODD column checkerboards where `(col ~/ 2) + y` is even —
+        // measured on Excel_Read_XLSX's x=1741 run (route odd: solid left,
+        // route col inked on even rows) and its x=996 run (route even:
+        // solid ON the route, left col inked on odd rows).
+        final evenCol = cross.isEven ? cross : cross - 1;
+        final oddCol = cross.isEven ? cross - 1 : cross;
+        canvas.drawRect(span(evenCol - cross, evenCol - cross), fill);
         for (var v = lo; v <= hi; v++) {
-          if ((v + cross).isOdd) canvas.drawRect(px(v, cross), fill);
+          if (((oddCol ~/ 2) + v).isEven) {
+            canvas.drawRect(px(v, oddCol), fill);
+          }
         }
       case ViWireRenderStyle.solid1px:
         canvas.drawRect(span(0, 0), fill);
@@ -4677,8 +4778,15 @@ class BdDiagramPainter extends CustomPainter {
           canvas.drawRect(span(0, 0), fill);
           return;
         }
+        // Cycle index = x + 2·(row parity) + the style's relative phase +
+        // the capture shift (see [kBdWireCyclePhase]).
+        final capture = this.style.wireCycleOffset;
+        final phase =
+            (((cross + capture.y) & 1) << 1) +
+            (kBdWireCyclePhase[style] ?? 0) +
+            capture.x;
         for (var v = lo; v <= hi; v++) {
-          final mask = cycle[v % cycle.length];
+          final mask = cycle[(v + phase) % cycle.length];
           for (var bit = 0; bit < 5; bit++) {
             if ((mask >> bit) & 1 != 0) {
               canvas.drawRect(px(v, cross + bit - 2), fill);
@@ -4747,7 +4855,7 @@ class BdDiagramPainter extends CustomPainter {
   void _drawBorderTerminalChrome(
     Canvas canvas,
     Rect t,
-    ({int kind, bool hollow, bool disabled}) info,
+    ({int kind, bool hollow, bool centreDot, bool disabled}) info,
     Color wireColor,
   ) {
     final kind = info.kind;
@@ -4769,6 +4877,18 @@ class BdDiagramPainter extends CustomPainter {
           }
         } else {
           canvas.drawRect(t, noAa);
+          // The centre-dot variant ([kTunnelCentreDotFlags]): a 3×3 white
+          // centre with a wire-colour dot, byte-measured on Excel's
+          // `Worksheets` case output tunnels.
+          if (info.centreDot && t.width >= 7 && t.height >= 7) {
+            final cx = t.left + (t.width - 3) / 2;
+            final cy = t.top + (t.height - 3) / 2;
+            canvas.drawRect(
+              Rect.fromLTWH(cx, cy, 3, 3),
+              _solidNoAa(Colors.white),
+            );
+            canvas.drawRect(Rect.fromLTWH(cx + 1, cy + 1, 1, 1), noAa);
+          }
         }
         canvas.drawRect(
           Rect.fromLTRB(
@@ -5070,7 +5190,7 @@ class BdDiagramPainter extends CustomPainter {
     '######.####....##.',
     '##..##.......####.',
     '##..##.####.##.##.',
-    '##..##......#####.',
+    '##..##.......#####',
   ];
 
   /// The `A=a` case-insensitive-match badge at a case frame's bottom-left
