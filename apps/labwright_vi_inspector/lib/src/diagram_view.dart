@@ -4330,11 +4330,16 @@ class BdDiagramPainter extends CustomPainter {
           var hi = (horizontal ? math.max(a.dx, b.dx) : math.max(a.dy, b.dy))
               .floor();
           final cross = (horizontal ? a.dy : a.dx).floor();
-          // Bend continuity for the 2 px solid stroke: at a shared vertex
-          // the segment also covers the perpendicular partner's ink band, so
-          // the corner fills its full 2x2 square (measured on crc8's routed
-          // 2 px elbows).
-          if (style == ViWireRenderStyle.solid2px) {
+          // Bend continuity: at a shared vertex the segment also covers the
+          // perpendicular partner's ink band so the corner fills (measured
+          // on crc8's routed 2 px elbows and on Excel's braid corner at
+          // (1513,808), whose flank rows reach the vertical's near band
+          // column). For the braid the HORIZONTAL run owns the corner: its
+          // flanks extend over the vertical's band, and the vertical run
+          // starts BELOW the horizontal band instead (the reference braid
+          // verticals begin at band+1 — Excel (1505,808)/(1513,808)).
+          if (style == ViWireRenderStyle.solid2px ||
+              (style == ViWireRenderStyle.braid && horizontal)) {
             for (final neighbour in [
               if (j >= 2) leg[j - 2],
               if (j + 1 < leg.length) leg[j + 1],
@@ -4344,6 +4349,17 @@ class BdDiagramPainter extends CustomPainter {
               if (nCross + bandHi > hi) hi = nCross + bandHi;
             }
           }
+          if (style == ViWireRenderStyle.braid && !horizontal) {
+            for (final neighbour in [
+              if (j >= 2) leg[j - 2],
+              if (j + 1 < leg.length) leg[j + 1],
+            ]) {
+              final nCross = (horizontal ? neighbour.dx : neighbour.dy).floor();
+              if ((nCross - lo).abs() <= 1) lo = nCross + 2;
+              if ((hi - nCross).abs() <= 1) hi = nCross - 2;
+            }
+          }
+
           // Crossing gaps (the measured rule, see wire_render.dart): where
           // this later-drawn segment properly crosses an EARLIER wire's
           // perpendicular segment, it skips a 1 px gap either side of the
