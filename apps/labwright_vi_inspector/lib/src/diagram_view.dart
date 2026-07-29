@@ -4720,16 +4720,18 @@ class BdDiagramPainter extends CustomPainter {
           );
         }
       case ViWireRenderStyle.braid when !horizontal:
-        // VERTICAL cluster braid, measured on Excel_Read_XLSX's x=1513 run
-        // (single sample): solid flank columns either side, the route
-        // column inked where `(y + 2·(x & 1)) mod 4 ≥ 2` (rows y mod 4 in
-        // {0,1} at that odd column; the x-phase term is the horizontal
-        // law's transposed parity term — unconfirmed at an even column,
-        // TODO: pin when a clean even-x vertical braid appears).
+        // VERTICAL cluster braid: solid flank columns either side, the
+        // route column inked where `(x + y) mod 4` is 1 or 2 — the same
+        // screen `x + y` anchoring as the dotted checkerboard and the
+        // error weave. Pinned by two Excel_Read_XLSX runs whose absolute
+        // phases differ: x=1513 (inked rows y mod 4 in {0,1}) and x=407
+        // (inked rows y mod 4 in {2,3}); a parity-only x term fits the
+        // first but contradicts the second.
         canvas.drawRect(span(-1, -1), fill);
         canvas.drawRect(span(1, 1), fill);
         for (var v = lo; v <= hi; v++) {
-          if ((v + ((cross & 1) << 1)) % 4 >= 2) {
+          final weave = (v + cross) % 4;
+          if (weave == 1 || weave == 2) {
             canvas.drawRect(px(v, cross), fill);
           }
         }
