@@ -1067,12 +1067,33 @@ void main() {
           anchorRects: bdStructureAnchorRects(bd, raster, drawable: drawable),
         );
         final reg = result.registration;
+        // Patterned-junction pixels only compare at the capture's derived
+        // wire-cycle phase (screen-anchored patterns, see
+        // [BdRenderStyle.wireCycleOffset]).
+        final rephased = (await rasteriseBlockDiagram(
+          bd,
+          primIcons: icons,
+          scale: 1.0,
+          margin: 2,
+          wires: wires,
+          drawable: drawable,
+          style: BdRenderStyle(
+            wireCycleOffset: deriveWireCycleOffset(
+              scene: BdScene(bd, wires: wires, drawable: drawable),
+              raster: raster,
+              registration: reg,
+              referenceRgba: result.referenceRgba,
+              width: reference.image.width,
+              height: reference.image.height,
+            ),
+          ),
+        ))!;
         final refPx = (await reference.image.toByteData())!.buffer
             .asUint8List();
-        final rasterPx = (await raster.image.toByteData())!.buffer
+        final rasterPx = (await rephased.image.toByteData())!.buffer
             .asUint8List();
         final rw = reference.image.width;
-        final aw = raster.image.width, ah = raster.image.height;
+        final aw = rephased.image.width, ah = rephased.image.height;
 
         // Node/structure/text mask: any drawable box, inflated to cover chrome
         // borders and icon overhang.

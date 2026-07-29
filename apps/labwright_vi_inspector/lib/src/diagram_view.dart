@@ -1916,6 +1916,11 @@ PrimIconArt? primIconArtFor(
 ///  * prims 1143 / 1814 / 1815 t0: dy=16 measured from the crc8 reference
 ///    (the disabled LUT chain's seam ink sits on the row t+16 at every
 ///    abutment); no corpus route pins them yet, dx unpinned.
+///  * prim 8083 t3 dx=28 / prim 1908 t0 dx=24: measured from the
+///    Excel_Read_XLSX reference bend columns of their slack wires (the
+///    walked route slides onto the terminal; the reference's vertical run
+///    pins the slide); the dy of both is corpus-unanimous in the census
+///    table and agrees with the same reference rows.
 /// Growable classes move terminals with the box, hence the size key.
 const Map<(int, int, int, int), ({int? dx, int? dy})> _kBdPrimTerminals = {
   (1063, 0, 32, 32): (dx: 22, dy: 16),
@@ -1926,6 +1931,8 @@ const Map<(int, int, int, int), ({int? dx, int? dy})> _kBdPrimTerminals = {
   (1814, 0, 32, 32): (dx: null, dy: 16),
   (1815, 0, 32, 32): (dx: null, dy: 16),
   (1900, 0, 32, 32): (dx: 24, dy: 16),
+  (1908, 0, 32, 32): (dx: 24, dy: 24),
+  (8083, 3, 32, 32): (dx: 28, dy: 4),
 };
 
 /// The catalogued builtin-terminal position of [endpointOid]'s prim
@@ -4244,7 +4251,21 @@ class BdDiagramPainter extends CustomPainter {
               cross: cross,
               sign: lowSide ? -1 : 1,
             );
-            return edge == null ? null : (lowSide ? edge : edge - 1);
+            if (edge != null) return lowSide ? edge : edge - 1;
+            // A node drawn as a PLAIN BOX (no icon art resolved) covers its
+            // interior with the box chrome, so the wire's visible ink ends
+            // at the 1 px border — reference-measured on Excel_Read_XLSX's
+            // F → zip-node dotted stub (ink runs to box.left - 1). Gated on
+            // the arrival row lying inside the box.
+            final bounds = owner.absBounds;
+            if (bounds == null) return null;
+            final inSpan = horizontal
+                ? cross >= bounds.top && cross < bounds.bottom
+                : cross >= bounds.left && cross < bounds.right;
+            if (!inSpan) return null;
+            return horizontal
+                ? (lowSide ? bounds.right : bounds.left - 1)
+                : (lowSide ? bounds.bottom : bounds.top - 1);
           }
 
           final lo = visibleBound(lowEnd, lowSide: true);
@@ -4363,7 +4384,13 @@ class BdDiagramPainter extends CustomPainter {
       // terminal features, not crossing segments, so they are not recorded in
       // [drawn].
       for (final junction in junctions) {
-        _drawWireJunctionDot(canvas, junction, fill, bdWireStrokeBand(style));
+        _drawWireJunctionDot(
+          canvas,
+          junction,
+          fill,
+          bdWireStrokeBand(style),
+          style: style,
+        );
       }
     }
   }
@@ -4574,15 +4601,49 @@ class BdDiagramPainter extends CustomPainter {
     Canvas canvas,
     Offset center,
     Paint fill,
-    (int, int) band,
-  ) {
+    (int, int) band, {
+    ViWireRenderStyle? style,
+  }) {
     final cx = center.dx.floorToDouble();
     final cy = center.dy.floorToDouble();
     final (bandLo, bandHi) = band;
-    if (!(bandLo == -1 && bandHi == 0)) {
+    // Whether a blob pixel is PUNCHED white by the wire's own global
+    // pattern lattice: the reference keeps the stroke lattice through the
+    // junction (measured on Excel's zigzag junctions — holes exactly at the
+    // cycle's no-ink column — and dotted junction dots; braid junctions
+    // measure SOLID).
+    final cycle = style == null ? null : kBdWireStrokeCycles[style];
+    final phaseBase = style == null ? null : kBdWireCyclePhase[style];
+    final capture = this.style.wireCycleOffset;
+    bool punched(int x, int y) {
+      if (style == ViWireRenderStyle.dotted ||
+          style == ViWireRenderStyle.dottedAlternating) {
+        return (x + y).isOdd;
+      }
+      if (style == ViWireRenderStyle.braid) return false;
+      if (cycle == null || phaseBase == null || cycle.length != 4) {
+        return false;
+      }
+      return (x + (((y + capture.y) & 1) << 1) + phaseBase + capture.x) % 4 ==
+          0;
+    }
+
+    // Blob geometry: the diamond hugging the stroke band (rows band±2,
+    // reach shrinking with distance) serves the solid 2 px thick wire
+    // (measured on crc8) AND the patterned (-1,0)-band styles, whose
+    // reference blobs read as the same diamond under their punch lattice
+    // (Excel's zigzag junctions). The 1 px styles keep the corner-clipped
+    // 5x5 disc (measured on Excel_Read_XLSX, Read VI Blocks, large,
+    // ProjectItems).
+    final diamond =
+        style == ViWireRenderStyle.solid2px ||
+        (bandLo == -1 && bandHi == 0 && cycle != null && cycle.length == 4);
+    if (!diamond) {
       for (var dy = -2; dy <= 2; dy++) {
         for (var dx = -2; dx <= 2; dx++) {
           if (dx.abs() == 2 && dy.abs() == 2) continue;
+          final x = (cx + dx).toInt(), y = (cy + dy).toInt();
+          if (style != ViWireRenderStyle.solid1px && punched(x, y)) continue;
           canvas.drawRect(Rect.fromLTWH(cx + dx, cy + dy, 1, 1), fill);
         }
       }
@@ -4595,15 +4656,26 @@ class BdDiagramPainter extends CustomPainter {
           ? dy - bandHi
           : 0;
       final reach = 2 - outside;
-      canvas.drawRect(
-        Rect.fromLTWH(
-          cx + bandLo - reach,
-          cy + dy,
-          (bandHi - bandLo + 1 + 2 * reach).toDouble(),
-          1,
-        ),
-        fill,
-      );
+      final left = cx + bandLo - reach;
+      final width = bandHi - bandLo + 1 + 2 * reach;
+      if (style == ViWireRenderStyle.solid2px) {
+        canvas.drawRect(
+          Rect.fromLTWH(left, cy + dy, width.toDouble(), 1),
+          fill,
+        );
+        continue;
+      }
+      for (var i = 0; i < width; i++) {
+        final x = (left + i).toInt(), y = (cy + dy).toInt();
+        // The lattice punch applies ABOVE the junction and on the band rows
+        // up to the junction column; right of / below it the blob ink wins
+        // (both measured Excel junction pairs read this asymmetry: holes at
+        // (883,960)/(885,961)/(263,686) with ink at the same lattice column
+        // on the far side, (887,960)/(267,686)).
+        final inPunchZone = dy < bandLo || (dy <= bandHi && x <= cx);
+        if (inPunchZone && punched(x, y)) continue;
+        canvas.drawRect(Rect.fromLTWH(left + i, cy + dy, 1, 1), fill);
+      }
     }
   }
 
@@ -4731,6 +4803,22 @@ class BdDiagramPainter extends CustomPainter {
         for (var v = lo; v <= hi; v++) {
           if ((v + ((cross & 1) << 1)) % 4 >= 2) {
             canvas.drawRect(px(v, cross), fill);
+          }
+        }
+      case ViWireRenderStyle.chainLink when !horizontal:
+        // The VERTICAL 1-D string/path-array stroke, measured on
+        // Excel_Read_XLSX's x=1076 run: the route column solid, BOTH side
+        // columns on the same checkerboard as the vertical zigzag's odd
+        // column — ink where `(col ~/ 2) + y` is even. Adjacent side
+        // columns always land on complementary parities, giving the
+        // alternating left/right ridge.
+        canvas.drawRect(span(0, 0), fill);
+        for (var v = lo; v <= hi; v++) {
+          for (final side in [-1, 1]) {
+            final col = cross + side;
+            if (((col ~/ 2) + v).isEven) {
+              canvas.drawRect(px(v, col), fill);
+            }
           }
         }
       case ViWireRenderStyle.zigzag when !horizontal:
