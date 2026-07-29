@@ -549,7 +549,7 @@ void main() {
     expect(tUpDown.leaves, [(x: 0, y: -30), (x: -30, y: -10)]);
   });
 
-  test('routeTree gate: origin-unanchored and leaf-count-mismatch ship nothing', () {
+  test('routeTree gate: an unanchored origin reverse-solves; a leaf-count mismatch ships nothing', () {
     // Three anchored tunnels (oids 3/5/7) plus a bare 0x15 node (oid 8) that
     // no terminal claims — it resolves no attach point.
     List<int> records(List<int> firstRef, List<int> table) => [
@@ -584,15 +584,58 @@ void main() {
       ...close(),
     ];
     // A valid 3-endpoint tree whose first endpoint (the bare node) resolves
-    // no attach point: the branch program decodes but the tree cannot anchor.
+    // no attach point: the REVERSE-SOLVED tier ships it — exactly one
+    // translation closes both anchored tunnels ((29,44) via the branch leaf,
+    // (54,14) via the trailing run) and lands the implied origin (9,14)
+    // inside the head's owner box (the alternative seed translation
+    // (-16,44) falls outside it). Fidelity is walked: the head is derived,
+    // not independently confirmed.
     final noOrigin = dia(records(hx('14 19 01 fd 0008'), [0x04, 0x00, 0x08, 0x05, 0x03, 20, 30, 25])).wires.single;
     expect(noOrigin.branchRoute, isNotNull);
-    expect(noOrigin.routeTree, isNull);
+    expect(noOrigin.routeTree, isNotNull);
+    expect(noOrigin.routeTreeFidelity, WireRouteFidelity.walked);
+    expect(noOrigin.routeTree!.polylines, [
+      [(x: 9, y: 14), (x: 29, y: 14), (x: 29, y: 44)],
+      [(x: 29, y: 14), (x: 54, y: 14)],
+    ]);
+    expect(noOrigin.routeTree!.junctions, [(x: 29, y: 14)]);
     // A table with too few leaves for the endpoint count (one straight run,
     // no pops -> a single leaf vs three endpoints): the gate rejects it.
     final fewLeaves = dia(records(hx('14 19 01 fd 0003'), [0x03, 0x00, 0x08, 0x00, 20, 30])).wires.single;
     expect(fewLeaves.branchRoute, isNotNull);
     expect(fewLeaves.routeTree, isNull);
+  });
+
+  test('routeTree reverse-solve gate: an ambiguous translation ships nothing', () {
+    // One anchored tunnel (oid 3) and TWO bare 0x15 nodes (oids 5 and 7 have
+    // no terminal claim): with a single resolved endpoint, BOTH leaves of the
+    // 08 05 03 tree yield a translation that closes it — (40,14) via the
+    // branch leaf and (15,44) via the trailing run — and both land inside
+    // the head's owner box, so the solve is ambiguous and withheld.
+    final records = [
+      ...open(0x20, 1),
+      ...bounds(0, 0, 100, 100),
+      ...open(0x22, 2, tag: 0x1a),
+      ...hx('14 19 01 fd 0003'),
+      ...c5(0x29, [0, 40, 0, 56, 0, 49, 0, 65]), // attach (60, 44)
+      ...close(0x1a),
+      ...open(0x15, 3, tag: 0x1a),
+      ...close(0x1a),
+      ...open(0x15, 5, tag: 0x1a),
+      ...close(0x1a),
+      ...open(0x15, 7, tag: 0x1a),
+      ...close(0x1a),
+      ...close(),
+      ...open(0x17, 9),
+      ...hx('14 19 01 fd 0005'),
+      ...hx('14 19 01 fd 0003'),
+      ...hx('14 19 01 fd 0007'),
+      ...c5(0xe7, [0x04, 0x00, 0x08, 0x05, 0x03, 20, 30, 25]),
+      ...close(),
+    ];
+    final wire = dia(records).wires.single;
+    expect(wire.branchRoute, isNotNull);
+    expect(wire.routeTree, isNull);
   });
 
   test('routeTree: a fully-anchored branching signal ships exactly-closing trees only', () {

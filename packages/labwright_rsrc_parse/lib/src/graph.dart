@@ -943,6 +943,42 @@ const int kLeftShiftRegisterClass = 0x27;
 /// <= 0.03), pinned by `wire_one_anchored_oracle`.
 const int kShiftRegisterColumnLeftOffset = 4;
 
+/// Heap object classes ([ViHeapObject.kind]) of the **node terminal strips** —
+/// the termBounds-carrying rows and full-height columns an expandable node
+/// draws its terminals in: `0x62` under the growable nodes (`0x63`, `0xd6`),
+/// `0x35` under the `0x34` nodes. Strips come in two shapes: wide rows and the
+/// [kTerminalStripColumnWidth]-px **columns**, whose stored-route DESTINATION
+/// convention differs from the plain floored centre (see
+/// [kTerminalStripTargetLeftOffset]).
+const kNodeTerminalStripClasses = {0x62, 0x35};
+
+/// Width (px) of a node terminal strip **column** — the full-height terminal
+/// column of an expandable node ([kNodeTerminalStripClasses]). Corpus: 6,683
+/// width-8 strips (5,024 `0x62` + 1,659 `0x35`) against row strips of widths
+/// 11-99; only the width-8 columns carry the destination-column route
+/// convention ([kTerminalStripTargetLeftOffset]).
+const int kTerminalStripColumnWidth = 8;
+
+/// Pixels a stored route's **destination point** on a node terminal strip
+/// COLUMN ([kNodeTerminalStripClasses], width [kTerminalStripColumnWidth])
+/// sits LEFT of the column rect's floored centre — i.e. 4 px left of the
+/// rect's left edge, where the wire's drawn run stops at the column's
+/// separator. Role-split convention, censused corpus-wide (7,524 VIs, pinned
+/// by `wire_route_census_test`):
+///
+///  * routes **terminating on** a width-8 strip land at `centre.x - 8`
+///    essentially unanimously — every near miss under the centre convention
+///    (2,755 two-endpoint closings + 1,210 branch-tree leaves) sits at
+///    exactly `(-8, 0)` across all four approach directions (34 more land
+///    far — stale-route residue), while the centre cross-axis-closes exactly
+///    1 two-endpoint route and 0 branch leaves corpus-wide;
+///  * routes **originating from** one anchor at the plain floored CENTRE
+///    (4,033 closed two-endpoint ships + 211 shipped trees), so
+///    [ViDiagram.wireAttachPoint] is unchanged and the offset applies only to
+///    the closure-arbitrated destination candidate
+///    ([ViDiagram._stripFarTarget]).
+const int kTerminalStripTargetLeftOffset = 8;
+
 /// Object-flags ([ViHeapObject.objFlags]) bit marking a structure terminal's
 /// glyph **hidden** in LabVIEW's block-diagram render. It rides the terminal's
 /// DCO, not the terminal itself; [ViDiagram.terminalGlyphHidden] owns the
@@ -1297,7 +1333,9 @@ enum WireRouteFidelity {
   /// (`wire_one_anchored_oracle`) but NOT closure-verified. A two-endpoint
   /// walk snaps the far plain-node terminus onto its owner box edge (the exact
   /// terminal pin within a multi-terminal node is not independently confirmed);
-  /// a branching walk takes plain-node leaves from the walk itself. A consumer
+  /// a branching walk takes plain-node leaves from the walk itself — a
+  /// reverse-solved branching tree ([ViWire.routeTree]) additionally derives
+  /// its plain-node ORIGIN from the resolved-endpoint closure. A consumer
   /// may render this identically to [closed] but MUST NOT treat it as proven.
   walked,
 }
@@ -1378,20 +1416,28 @@ class ViWire {
 
   /// The wire's **absolute stored route tree** in diagram coordinates — the
   /// branching Manhattan geometry LabVIEW saved, polyline runs plus
-  /// junction-dot points — or null when it is not shippable. Two tiers, both
-  /// walked from endpoint 0's attach point (the origin must resolve; see
-  /// [ViDiagram.wireAttachPoint]):
+  /// junction-dot points — or null when it is not shippable. Three tiers
+  /// (endpoint matching always tries each endpoint's destination candidates:
+  /// the terminal-strip column target first, then the attach centre, then
+  /// the array element centre — see [kTerminalStripTargetLeftOffset]):
   ///
-  ///  * **closed** — every endpoint resolves an attach point and the walked
-  ///    [ViWireRouteTree.leaves] land on endpoints `1..n-1` in a one-to-one
-  ///    zero-slack matching. The proven tier.
-  ///  * **walked** — some endpoints are plain-node DCOs that resolve no attach
-  ///    geometry (a primitive input/output, a subVI terminal), so their
-  ///    absolute position is taken from the walked leaf. Every endpoint that
-  ///    DOES resolve must still land on a distinct leaf: a resolved endpoint
-  ///    the walk misses is a **contradiction** (the walk drifted) and ships
-  ///    null. This is the origin-anchored, contradiction-free relaxation of
-  ///    the closed gate.
+  ///  * **closed** — endpoint 0's attach point resolves
+  ///    ([ViDiagram.wireAttachPoint]), every other endpoint resolves too, and
+  ///    the walked [ViWireRouteTree.leaves] land on endpoints `1..n-1` in a
+  ///    one-to-one zero-slack matching. The proven tier.
+  ///  * **walked** — walked from a resolved endpoint-0 attach point, but some
+  ///    endpoints are plain-node DCOs that resolve no attach geometry (a
+  ///    primitive input/output, a subVI terminal), so their absolute position
+  ///    is taken from the walked leaf. Every endpoint that DOES resolve must
+  ///    still land on a distinct leaf: a resolved endpoint the walk misses is
+  ///    a **contradiction** (the walk drifted) and ships null. This is the
+  ///    origin-anchored, contradiction-free relaxation of the closed gate.
+  ///  * **reverse-solved** (also reported [WireRouteFidelity.walked]) — the
+  ///    ORIGIN is a plain-node DCO, so the tree's translation is solved from
+  ///    the resolved far endpoints instead: ships only when exactly one
+  ///    candidate translation closes every resolved endpoint AND lands the
+  ///    implied origin inside the head endpoint's owner box
+  ///    ([ViDiagram._reverseSolvedRouteTree]).
   ///
   /// Nothing is force-closed: a contradiction or a leaf-count mismatch ships
   /// null and the census counts it. Computed lazily on first access (a
@@ -1407,8 +1453,9 @@ class ViWire {
   /// Corpus census (7,524 VIs; 35,968 extended tables on 3+-endpoint
   /// signals, pinned by `wire_route_census_test`): every table decodes and
   /// walks. Closure is gated by attach-point exactness, not the walk rule:
-  /// over the 18,233 anchored non-origin endpoints, 14,971 (82.11%) land
-  /// exactly; restricted to the **13,932 endpoints whose own AND origin
+  /// over the 18,233 anchored non-origin endpoints, 16,363 (89.74%) land
+  /// exactly on a destination candidate (`extEpHit`); restricted to the
+  /// **13,932 endpoints whose own AND origin
   /// attach geometry are exact** (structure-framed border rect via the real
   /// composing frame, or a `0x16` own-bounds box — NOT the approximate
   /// node-framed rects or the constant value-shell centres, whose attach
@@ -1420,18 +1467,22 @@ class ViWire {
   /// as [routePoints] — leaving 125 (`extEpExactMissFar`, ~1% of the exact
   /// set) genuinely far.
   ///
-  /// Corpus-wide the closed tier ships **2,020** trees (`extShippedClosed`);
-  /// the walked tier adds **15,958** more (`extShippedWalked`), 8× the shipped
-  /// population, on the origin-anchored signals with plain-node leaves
-  /// (15,162 more can never walk — the origin itself is unanchored).
+  /// Corpus-wide the closed tier ships **2,151** trees (`extShippedClosed`);
+  /// the walked tier adds **17,134** more (`extShippedWalked`) on the
+  /// origin-anchored signals with plain-node leaves, and the reverse-solved
+  /// tier **8,867** more (`extShippedRev`) on the origin-unanchored ones —
+  /// 28,152 of the 35,968 extended tables. The 7,816 unshipped remainder:
+  /// 6,008 origin-unanchored tables with NO resolved endpoint at all, plus
+  /// the withheld contradictions/ambiguities on either side.
   ///
   /// Independent geometry check on well-registered snippets
   /// (`wire_one_anchored_oracle`, whose registration control discards snippets
   /// whose CLOSED-tier control overlay falls below 90%): shipped **closed**
   /// trees overlay LabVIEW's own render at ~100% (also `wire_branch_oracle`,
-  /// 99.96%); shipped **walked** trees overlay at **90.5%** (23,806/26,294 px,
-  /// run pixels — the honest per-wire signal). A small residue (`oab_ship_qlo`,
-  /// 2 of 76 snippet trees) overlays below 50%: junction-catalog drift on a
+  /// 99.96%); shipped **walked** trees (reverse-solved included) overlay at
+  /// **94.1%** (36,648/38,960 px, run pixels — the honest per-wire signal). A
+  /// small residue (`oab_ship_qlo`, 1 of 109 snippet trees) overlays below
+  /// 50%: junction-catalog drift on a
   /// plain-node arm that no resolved leaf can close against — the same drift
   /// the closed tier rejects via leaf closure but the walked tier cannot detect
   /// at decode time (no structural signal isolates it; corroboration,
@@ -1444,9 +1495,10 @@ class ViWire {
 
   /// The confidence tier of [routeTree] — [WireRouteFidelity.closed] when every
   /// endpoint resolved and closed, [WireRouteFidelity.walked] when the tree was
-  /// placed from the origin alone (contradiction-free but not closure-proven) —
-  /// or null when [routeTree] is null. A tree supplied directly (not built
-  /// here) reports the fidelity its constructor passed, else null.
+  /// placed from the origin alone or reverse-solved from the far endpoints
+  /// (contradiction-free but not closure-proven) — or null when [routeTree] is
+  /// null. A tree supplied directly (not built here) reports the fidelity its
+  /// constructor passed, else null.
   late final WireRouteFidelity? routeTreeFidelity = routeTree == null
       ? null
       : (_routeTree != null ? _directRouteTreeFidelity : _routeTreeResult?.fidelity);
@@ -1460,9 +1512,11 @@ class ViWire {
   ///    ([ViDiagram.wireAttachPoint]) and the walk **closes exactly**:
   ///    starting at the first endpoint's attach point and walking
   ///    [ViWireRoute.direction] + the stored signs/lengths, the implied final
-  ///    segment lands on the second endpoint's attach point dead-on
-  ///    (perpendicular coordinate equal, closing direction agreeing with the
-  ///    stored final sign). Proven at both ends.
+  ///    segment lands on one of the second endpoint's destination candidates
+  ///    dead-on (perpendicular coordinate equal, closing direction agreeing
+  ///    with the stored final sign) — the terminal-strip column target where
+  ///    one exists ([kTerminalStripTargetLeftOffset], tried first), else the
+  ///    attach centre or an array element centre. Proven at both ends.
   ///  * **walked** — exactly one endpoint resolves an attach point and it is
   ///    an EXACT attach (a structure-framed terminal or an own-bounds leaf —
   ///    not a coarse owner box or off-centre constant shell); the far
@@ -2327,6 +2381,12 @@ class ViDiagram {
           final elem => attachPoints[i] == null ? null : _attachPointFrom(elem, object.refs[i]),
         },
     ];
+    // A route terminating on a node terminal strip COLUMN aims 8 px left of
+    // the column centre (see [kTerminalStripTargetLeftOffset]) — the
+    // destination candidate the closure-arbitrated gates try first.
+    final stripTargets = [
+      for (var i = 0; i < object.refs.length; i++) _stripFarTarget(object.refs[i], attachRects[i], attachPoints[i]),
+    ];
     // A constant endpoint anchors on its own value shell (the box LabVIEW
     // draws); every other endpoint on its nearest bounded owner.
     final anchors = [
@@ -2334,7 +2394,7 @@ class ViDiagram {
     ];
     final points = route == null || object.refs.length != 2
         ? null
-        : _routePointsFor(route, object.refs, attachPoints, anchors, altAttachPoints);
+        : _routePointsFor(route, object.refs, attachPoints, anchors, altAttachPoints, stripTargets);
     return ViWire(
       signalOid: object.oid,
       endpointOids: List<int>.of(object.refs),
@@ -2349,7 +2409,7 @@ class ViDiagram {
       // Lazy: the walk + closure runs only when a consumer reads routeTree.
       routeTreeBuilder: branchRoute == null
           ? null
-          : () => _shippableRouteTree(branchRoute, attachPoints, altAttachPoints),
+          : () => _shippableRouteTree(branchRoute, attachPoints, altAttachPoints, stripTargets, anchors[0]),
       signalType: object.lastSignalKind == null ? null : ViSignalType(object.lastSignalKind!),
     );
   }
@@ -2360,6 +2420,10 @@ class ViDiagram {
   ///
   /// Highest tier first: when BOTH endpoints resolve an attach point and the
   /// walk closes exactly ([_closedRoutePoints]), that proven polyline ships.
+  /// The far attach candidate set includes a terminal-strip COLUMN's
+  /// destination point ([_stripFarTarget], tried first) — a route ending on a
+  /// width-8 strip column aims [kTerminalStripTargetLeftOffset] px left of the
+  /// column centre, never the centre itself (1 corpus exception).
   /// Otherwise the **walked tier** — exactly one endpoint resolves an EXACT
   /// attach ([_exactAttach]: a structure-framed terminal or an own-bounds leaf,
   /// never a coarse owner box or off-centre constant shell), and the far
@@ -2382,11 +2446,16 @@ class ViDiagram {
     List<ViPoint?> attachPoints,
     List<HeapRect?> anchors,
     List<ViPoint?> altAttachPoints,
+    List<ViPoint?> stripTargets,
   ) {
-    // Zero-slack closure arbitrates the attach convention: the shell-centre
-    // pair first, then each combination that swaps an array endpoint onto its
-    // element-centre candidate ([endpointConstantElementBounds]).
+    // Zero-slack closure arbitrates the attach convention: a terminal-strip
+    // column destination first ([kTerminalStripTargetLeftOffset] — the
+    // near-unanimous convention for a strip-column far end), then the
+    // shell-centre pair, then each combination that swaps an array endpoint
+    // onto its element-centre candidate ([endpointConstantElementBounds]).
     for (final pair in [
+      (attachPoints[0], stripTargets[1]),
+      (altAttachPoints[0], stripTargets[1]),
       (attachPoints[0], attachPoints[1]),
       (altAttachPoints[0], attachPoints[1]),
       (attachPoints[0], altAttachPoints[1]),
@@ -2455,18 +2524,30 @@ class ViDiagram {
   /// the tree when every RESOLVED endpoint corroborates it — the
   /// **contradiction-free** gate. The origin (first endpoint) must resolve; the
   /// walked leaf count must equal the endpoint count; and each OTHER endpoint
-  /// that resolves an attach point must land on a distinct walked leaf. Plain-
-  /// node leaves that resolve nothing ride the walk (their absolute position is
-  /// the tree's leaf). A resolved endpoint the walk MISSES is a contradiction
-  /// (the walk drifted) and ships null. When every endpoint resolves and closes
-  /// this is the proven closed tier; when some are plain nodes it is the walked
-  /// tier (see [ViWire.routeTree]). Never force-closed.
+  /// that resolves an attach point must land on a distinct walked leaf — on
+  /// any of its destination candidates: the terminal-strip column target
+  /// ([_stripFarTarget], tried first), the attach centre, or the array
+  /// element centre. Plain-node leaves that resolve nothing ride the walk
+  /// (their absolute position is the tree's leaf). A resolved endpoint the
+  /// walk MISSES is a contradiction (the walk drifted) and ships null. When
+  /// every endpoint resolves and closes this is the proven closed tier; when
+  /// some are plain nodes it is the walked tier (see [ViWire.routeTree]).
+  /// Never force-closed.
+  ///
+  /// An UNRESOLVED origin falls through to the **reverse-solved** gate
+  /// ([_reverseSolvedRouteTree]): the tree's translation is solved from the
+  /// resolved far endpoints instead.
   static ({ViWireRouteTree tree, WireRouteFidelity fidelity})? _shippableRouteTree(
     ViWireBranchRoute route,
     List<ViPoint?> attachPoints,
     List<ViPoint?> altAttachPoints,
+    List<ViPoint?> stripTargets,
+    HeapRect? headBox,
   ) {
     if (attachPoints.length < 3) return null;
+    if (attachPoints[0] == null) {
+      return _reverseSolvedRouteTree(route, attachPoints, altAttachPoints, stripTargets, headBox);
+    }
     // The origin's attach convention is closure-arbitrated like the
     // two-endpoint tier: shell centre first, the array element centre second.
     for (final origin in [attachPoints[0], altAttachPoints[0]]) {
@@ -2481,13 +2562,17 @@ class ViDiagram {
       var fullyAnchored = true;
       var contradiction = false;
       for (var i = 1; i < attachPoints.length; i++) {
-        // A far endpoint matches on either of its candidates.
-        final p = attachPoints[i], alt = altAttachPoints[i];
-        if (p == null) {
+        if (attachPoints[i] == null) {
           fullyAnchored = false;
           continue; // plain-node leaf: rides the walk
         }
-        final match = remaining.containsKey(p) ? p : (alt != null && remaining.containsKey(alt) ? alt : null);
+        ViPoint? match;
+        for (final candidate in [stripTargets[i], attachPoints[i], altAttachPoints[i]]) {
+          if (candidate != null && remaining.containsKey(candidate)) {
+            match = candidate;
+            break;
+          }
+        }
         if (match == null) {
           contradiction = true; // resolved endpoint the walk misses
           break;
@@ -2503,6 +2588,104 @@ class ViDiagram {
       return (tree: tree, fidelity: fullyAnchored ? WireRouteFidelity.closed : WireRouteFidelity.walked);
     }
     return null;
+  }
+
+  /// The **reverse-solved** branching tier: the origin (first endpoint) is a
+  /// plain-node DCO with no attach geometry, so the tree's one degree of
+  /// freedom — its translation — is solved from the resolved FAR endpoints
+  /// instead of walked from the origin. The walk shape is fully stored
+  /// (every edge direction and length), so a single resolved far endpoint
+  /// pins the translation exactly once its leaf is identified; the gate
+  /// ships only when EXACTLY ONE candidate translation both
+  ///
+  ///  * closes every resolved far endpoint onto a distinct walked leaf (each
+  ///    on any of its destination candidates, strip column target first), and
+  ///  * lands the implied origin INSIDE the head endpoint's owner box
+  ///    ([ViWire.endpointAnchors], bounds inclusive) — the branching analog
+  ///    of the two-endpoint reverse walk's far-box containment.
+  ///
+  /// An ambiguous solve (two in-box candidates) or an origin beside the head
+  /// node ships nothing. Nothing is fabricated: the geometry is the stored
+  /// tree, placed by resolved-endpoint closure; the derived origin is
+  /// implied, not guessed, but the head is not independently confirmed, so
+  /// the tier is [WireRouteFidelity.walked]. Corpus (7,524 VIs, census
+  /// pinned by `wire_route_census_test`): 15,155 extended tables have an
+  /// unresolved origin; 9,147 carry a resolved far endpoint
+  /// (`extRevAnchored`), and 8,867 solve to a unique in-box translation and
+  /// ship (`extShippedRev`) — the other 280 are withheld (no candidate
+  /// closes, none lands in the head box, or two do). Of the shipped tables'
+  /// 8,148 UNRESOLVED far endpoints, 8,136 (99.85%) land their leaf within
+  /// 8 px of their own owner box (`extRevPlainLeafInBox`) — independent
+  /// corroboration the gate does not consume.
+  static ({ViWireRouteTree tree, WireRouteFidelity fidelity})? _reverseSolvedRouteTree(
+    ViWireBranchRoute route,
+    List<ViPoint?> attachPoints,
+    List<ViPoint?> altAttachPoints,
+    List<ViPoint?> stripTargets,
+    HeapRect? headBox,
+  ) {
+    if (headBox == null) return null;
+    final local = walkWireBranchRoute(route, (x: 0, y: 0));
+    final leaves = local.leaves;
+    if (leaves.length != attachPoints.length - 1) return null;
+    List<ViPoint> candidatesOf(int i) => [
+      for (final p in [stripTargets[i], attachPoints[i], altAttachPoints[i]])
+        if (p != null) p,
+    ];
+    // Whether translating the local walk by [origin] closes every resolved
+    // far endpoint onto a distinct leaf.
+    bool closesAll(ViPoint origin) {
+      final remaining = <ViPoint, int>{};
+      for (final leaf in leaves) {
+        final p = (x: leaf.x + origin.x, y: leaf.y + origin.y);
+        remaining.update(p, (c) => c + 1, ifAbsent: () => 1);
+      }
+      for (var i = 1; i < attachPoints.length; i++) {
+        if (attachPoints[i] == null) continue;
+        ViPoint? match;
+        for (final candidate in candidatesOf(i)) {
+          if (remaining.containsKey(candidate)) {
+            match = candidate;
+            break;
+          }
+        }
+        if (match == null) return false;
+        final count = remaining[match]!;
+        if (count == 1) {
+          remaining.remove(match);
+        } else {
+          remaining[match] = count - 1;
+        }
+      }
+      return true;
+    }
+
+    // Candidate translations: the first resolved far endpoint against every
+    // leaf (one of them must be its leaf, so the true translation is in the
+    // set); dedupe via the set literal (records compare structurally).
+    int? seed;
+    for (var i = 1; i < attachPoints.length; i++) {
+      if (attachPoints[i] != null) {
+        seed = i;
+        break;
+      }
+    }
+    if (seed == null) return null;
+    final candidates = <ViPoint>{
+      for (final leaf in leaves)
+        for (final p in candidatesOf(seed)) (x: p.x - leaf.x, y: p.y - leaf.y),
+    };
+    ViPoint? solved;
+    for (final origin in candidates) {
+      if (origin.x < headBox.left || origin.x > headBox.right || origin.y < headBox.top || origin.y > headBox.bottom) {
+        continue;
+      }
+      if (!closesAll(origin)) continue;
+      if (solved != null) return null; // ambiguous: two in-box solutions
+      solved = origin;
+    }
+    if (solved == null) return null;
+    return (tree: walkWireBranchRoute(route, solved), fidelity: WireRouteFidelity.walked);
   }
 
   /// Member oid → the oid of the **terminal object** that declares it in its
@@ -2801,6 +2984,24 @@ class ViDiagram {
       x -= kShiftRegisterColumnLeftOffset;
     }
     return (x: x, y: rect.top + (rect.bottom - rect.top) ~/ 2);
+  }
+
+  /// The stored-route **destination point** of endpoint [oid] when it attaches
+  /// through a node terminal strip COLUMN — [kTerminalStripTargetLeftOffset]
+  /// px left of the attach centre — or null for every other endpoint. Only a
+  /// [kNodeTerminalStripClasses] terminal whose attach rect is exactly
+  /// [kTerminalStripColumnWidth] px wide qualifies (row strips and other
+  /// terminals keep the centre convention). The offset applies to routes
+  /// ENDING on the strip alone; a route ORIGINATING from one anchors at the
+  /// plain centre (see [kTerminalStripTargetLeftOffset] for the role-split
+  /// census), so this is a far-endpoint candidate for the closure-arbitrated
+  /// gates ([_routePointsFor], [_shippableRouteTree]), never the
+  /// [wireAttachPoint].
+  ViPoint? _stripFarTarget(int oid, HeapRect? attachRect, ViPoint? attach) {
+    if (attachRect == null || attach == null) return null;
+    if (attachRect.right - attachRect.left != kTerminalStripColumnWidth) return null;
+    if (!kNodeTerminalStripClasses.contains(endpointTerminal(oid)?.kind)) return null;
+    return (x: attach.x - kTerminalStripTargetLeftOffset, y: attach.y);
   }
 
   /// Walks [route] from attach point [s] and closes it onto attach point
