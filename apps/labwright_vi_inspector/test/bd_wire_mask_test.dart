@@ -95,7 +95,7 @@ int missingWireInk({
 }
 
 void main() {
-  testWidgets('Excel per-wire masks: 72 of 85 drawn wires are byte-perfect', (
+  testWidgets('Excel per-wire masks: 80 of 85 drawn wires are byte-perfect', (
     tester,
   ) async {
     final dir = repoDir(
@@ -224,14 +224,14 @@ void main() {
       expect(drawn, greaterThanOrEqualTo(85), reason: 'drawn-wire floor');
       expect(
         perfect,
-        greaterThanOrEqualTo(72),
+        greaterThanOrEqualTo(80),
         reason:
             'byte-perfect wire floor — a regression here un-fixes a wire '
             'that matched LabVIEW exactly',
       );
       expect(
         totalOff,
-        lessThanOrEqualTo(49),
+        lessThanOrEqualTo(36),
         reason:
             'off-reference pixel ceiling over all wire masks — re-pin '
             'DOWNWARD as decodes land, never up',
@@ -388,7 +388,7 @@ void main() {
       // never byte-converge; they still guard against regressions).
       expect(
         totalOff,
-        lessThanOrEqualTo(77958),
+        lessThanOrEqualTo(77626),
         reason:
             'wire-layer pixels off the reference, corpus-wide — re-pin '
             'DOWNWARD as decodes land. (The reverse-solved routeTree tier '

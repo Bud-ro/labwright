@@ -3239,6 +3239,42 @@ class BdDiagramPainter extends CustomPainter {
                 ..style = PaintingStyle.stroke
                 ..strokeWidth = 2.0,
             );
+            // A STRING shell's LEFT border is 4 px (measured on
+            // Excel_Read_XLSX's `INIT` constant: rows read 4 border px on
+            // the left against 2 on the other three sides).
+            if (object.kind == 0x51 && box.width > 8) {
+              canvas.drawRect(
+                Rect.fromLTWH(box.left, box.top, 4, box.height),
+                _solidNoAa(border),
+              );
+            }
+            // A PATH shell carries the small path glyph inside its left
+            // border (measured on Excel_Read_XLSX's path constants: two
+            // linked 4x4 squares in the border teal at (+4,+6)).
+            if (object.kind == 0x5b && box.width > 14 && box.height >= 17) {
+              const glyphRows = [
+                '####.',
+                '#..#.',
+                '#..#.',
+                '####.',
+                '...#.',
+                '...#.',
+                '.####',
+                '.#..#',
+                '.#..#',
+                '.####',
+              ];
+              final ink = _solidNoAa(border);
+              for (var r = 0; r < glyphRows.length; r++) {
+                for (var c = 0; c < 5; c++) {
+                  if (glyphRows[r].codeUnitAt(c) != 0x23) continue;
+                  canvas.drawRect(
+                    Rect.fromLTWH(box.left + 4 + c, box.top + 6 + r, 1, 1),
+                    ink,
+                  );
+                }
+              }
+            }
           }
           // Any constant skips the inner ring — including one whose VALUE
           // is not decoded (a `0x13` holder marks it): Excel_Read_XLSX's
@@ -3367,167 +3403,187 @@ class BdDiagramPainter extends CustomPainter {
             );
             continue;
           }
-          // A growable node (0x63) comes in two reference-measured flavours,
-          // discriminated by objFlags bit 0x10000 (Excel_Read_XLSX's two
-          // visible grown nodes — 3233 clear, 4547 set — are the only
-          // corpus-verified samples so far; TODO widen the census):
-          // - bit clear: white field in a 1px (68,68,68) ring, 1px black
-          //   dividers at the row boundaries (the `0x62` terminal strips
-          //   under the node's `0x15` DCOs, node-local geometry), and — when
-          //   a full-height terminal column sits right of the rows — black
-          //   separator columns at the rows' right edge and the column's
-          //   left edge with (255,255,204) cells between/inside them.
-          // - bit set: (255,255,204) field in a 1px black ring (row text is
-          //   content, not chrome).
+          // A growable node (0x63): (68,68,68) ring, white field, and its
+          // `0x62` terminal strips laid out from their node-local termBounds
+          // (measured on Excel_Read_XLSX 3233 / 3179 / 2486):
+          // - FULL-HEIGHT cells are terminals: (255,255,204) fill with a 1px
+          //   black separator on the edge facing the node's interior; a LEFT
+          //   terminal cell carries the solid black input arrow, RIGHT
+          //   column cells the ridged output arrow.
+          // - Partial-height cells are text rows: the resolved data-space
+          //   name in the type colour (arrays by element), with 1px black
+          //   dividers at shared row boundaries.
+          // (objFlags bit 0x10000 marks the input-side flavour; both share
+          // the ring/field chrome.)
           if (object.kind == 0x63) {
-            final yellowField = ((object.objFlags ?? 0) & 0x10000) != 0;
             canvas.drawRect(
               rect,
-              Paint()
-                ..color = _dimFor(
-                  object.oid,
-                  yellowField ? Colors.black : const Color(0xFF444444),
-                ),
+              Paint()..color = _dimFor(object.oid, const Color(0xFF444444)),
             );
             canvas.drawRect(
               rect.deflate(1),
-              Paint()
-                ..color = _dimFor(
-                  object.oid,
-                  yellowField ? const Color(0xFFFFFFCC) : Colors.white,
-                ),
+              Paint()..color = _dimFor(object.oid, Colors.white),
             );
-            if (!yellowField) {
-              // Node-local 0x62 terminal strips: rows (partial width) and
-              // full-height terminal columns.
-              final rows = <HeapRect>[];
-              final rowTerms = <(ViHeapObject, HeapRect)>[];
-              final columns = <HeapRect>[];
-              final nodeH = object.absBounds!.bottom - object.absBounds!.top;
-              for (final dco in scene.diagram.children(object.oid)) {
-                if (dco.kind != 0x15) continue;
-                for (final t in scene.diagram.children(dco.oid)) {
-                  final tb = t.termBounds;
-                  if (t.kind != 0x62 || tb == null) continue;
-                  if (tb.height >= nodeH) {
-                    columns.add(tb);
-                  } else {
-                    rows.add(tb);
-                    rowTerms.add((t, tb));
-                  }
+            final rows = <HeapRect>[];
+            final rowTerms = <(ViHeapObject, HeapRect)>[];
+            final cells = <HeapRect>[];
+            final nodeH = object.absBounds!.bottom - object.absBounds!.top;
+            final nodeW = object.absBounds!.right - object.absBounds!.left;
+            for (final dco in scene.diagram.children(object.oid)) {
+              if (dco.kind != 0x15) continue;
+              for (final t in scene.diagram.children(dco.oid)) {
+                final tb = t.termBounds;
+                if (t.kind != 0x62 || tb == null) continue;
+                if (tb.height >= nodeH) {
+                  cells.add(tb);
+                } else {
+                  rows.add(tb);
+                  rowTerms.add((t, tb));
                 }
               }
-              final black = Paint()
-                ..color = _dimFor(object.oid, Colors.black)
-                ..isAntiAlias = false;
-              final cream = Paint()
-                ..color = _dimFor(object.oid, const Color(0xFFFFFFCC))
-                ..isAntiAlias = false;
-              if (rows.isNotEmpty) {
-                rows.sort((a, b) => a.top.compareTo(b.top));
-                final rowsRight = rows.first.right;
-                // Interior dividers at shared row boundaries.
-                for (var i = 0; i + 1 < rows.length; i++) {
-                  if (rows[i].bottom != rows[i + 1].top) continue;
+            }
+            final black = Paint()
+              ..color = _dimFor(object.oid, Colors.black)
+              ..isAntiAlias = false;
+            final cream = Paint()
+              ..color = _dimFor(object.oid, const Color(0xFFFFFFCC))
+              ..isAntiAlias = false;
+            rows.sort((a, b) => a.top.compareTo(b.top));
+            // Interior dividers at shared row boundaries.
+            for (var i = 0; i + 1 < rows.length; i++) {
+              if (rows[i].bottom != rows[i + 1].top) continue;
+              canvas.drawRect(
+                Rect.fromLTWH(
+                  rect.left + rows[i].left + 1,
+                  rect.top + rows[i].bottom,
+                  (rows[i].right - rows[i].left - 2).toDouble(),
+                  1,
+                ),
+                black,
+              );
+            }
+            for (final cell in cells) {
+              final leftSide = cell.left < nodeW - cell.right;
+              if (leftSide) {
+                // Input terminal cell: cream to the interior separator, the
+                // solid black arrow pointing INTO the node (measured on
+                // 2486: a 6x3 shaft and a 4-column head, centred).
+                canvas.drawRect(
+                  Rect.fromLTRB(
+                    rect.left + 1,
+                    rect.top + 1,
+                    rect.left + cell.right,
+                    rect.bottom - 1,
+                  ),
+                  cream,
+                );
+                canvas.drawRect(
+                  Rect.fromLTWH(
+                    rect.left + cell.right,
+                    rect.top + 1,
+                    1,
+                    rect.height - 2,
+                  ),
+                  black,
+                );
+                final cy = rect.top + (nodeH ~/ 2);
+                canvas.drawRect(
+                  Rect.fromLTWH(rect.left + 1, cy - 1.0, 6, 3),
+                  black,
+                );
+                for (var i = 0; i < 4; i++) {
                   canvas.drawRect(
                     Rect.fromLTWH(
-                      rect.left + rows[i].left + 1,
-                      rect.top + rows[i].bottom,
-                      (rowsRight - rows[i].left - 2).toDouble(),
+                      rect.left + 7 + i,
+                      cy - 3.0 + i,
                       1,
+                      (7 - 2 * i).toDouble(),
                     ),
                     black,
                   );
                 }
-                // A right-side terminal column: separator columns at the
-                // rows' right edge and the column's left edge, cream cells
-                // between them and inside the column (to its right-2).
-                for (final col in columns) {
-                  if (col.left < rowsRight) continue;
-                  final top = rect.top + 1;
-                  final h = rect.height - 2;
-                  canvas.drawRect(
-                    Rect.fromLTRB(
-                      rect.left + rowsRight,
-                      top,
-                      rect.left + col.right - 1,
-                      top + h,
-                    ),
-                    cream,
-                  );
-                  canvas.drawRect(
-                    Rect.fromLTWH(rect.left + rowsRight - 1, top, 1, h),
-                    black,
-                  );
-                  canvas.drawRect(
-                    Rect.fromLTWH(rect.left + col.left - 1, top, 1, h),
-                    black,
-                  );
-                }
-                // Each row cell shows its terminal's resolved data-space
-                // name (the VCTP member name — Excel's `sharedStrings.xml`
-                // rows), centred, inked in the terminal's type colour
-                // (array rows colour by ELEMENT type, as LabVIEW does).
-                for (final (term, tb) in rowTerms) {
-                  final name = term.typeName?.trim();
-                  if (name == null || name.isEmpty) continue;
-                  final elementKind = term.typeKind == ViTypeKind.array
-                      ? term.resolvedElementType?.kind
-                      : null;
-                  final rowColor = elementKind != null
-                      ? labviewTypeColor(_typeKindOfDataType(elementKind))
-                      : labviewTypeColor(term.typeKind);
-                  final cell = Rect.fromLTRB(
-                    rect.left + tb.left + 1,
-                    rect.top + tb.top,
-                    rect.left + tb.right - 1,
-                    rect.top + tb.bottom,
-                  );
-                  final tp = _layoutText(
-                    name,
-                    color: _dimFor(object.oid, rowColor),
-                    fontSize: 10.5,
-                    maxLines: 1,
-                    ellipsis: '…',
-                    maxWidth: math.max(8, cell.width - 2),
-                  );
-                  tp.paint(
-                    canvas,
-                    Offset(
-                      cell.center.dx - tp.width / 2,
-                      cell.center.dy - tp.height / 2,
-                    ),
-                  );
-                }
-                // The black output arrow through the terminal columns,
-                // centred on the node's middle row — reference-measured on
-                // Excel_Read_XLSX's oid3233 (single sample; the bitmap is
-                // anchored at the rows' right edge).
-                if (rows.isNotEmpty && columns.isNotEmpty) {
-                  const arrowRows = [
-                    '...........#...',
-                    '.#####.....##..',
-                    '#.############.',
-                    '#.#############',
-                    '#.############.',
-                    '.#####.....##..',
-                    '...........#...',
-                  ];
-                  final cy = rect.top + (nodeH ~/ 2);
-                  final x0 = rect.left + rowsRight;
-                  for (var r = 0; r < arrowRows.length; r++) {
-                    final y = cy - 3 + r;
-                    final mask = arrowRows[r];
-                    for (var c = 0; c < mask.length; c++) {
-                      if (mask.codeUnitAt(c) != 0x23) continue;
-                      canvas.drawRect(
-                        Rect.fromLTWH(x0 + c.toDouble(), y.toDouble(), 1, 1),
-                        black,
-                      );
-                    }
+              } else {
+                // Output column: cream from the rows' right edge through the
+                // cell, separators at the rows' edge and the cell's left.
+                final rowsRight = rows.isEmpty ? cell.left : rows.first.right;
+                final top = rect.top + 1;
+                final h = rect.height - 2;
+                canvas.drawRect(
+                  Rect.fromLTRB(
+                    rect.left + rowsRight,
+                    top,
+                    rect.left + cell.right - 1,
+                    top + h,
+                  ),
+                  cream,
+                );
+                canvas.drawRect(
+                  Rect.fromLTWH(rect.left + rowsRight - 1, top, 1, h),
+                  black,
+                );
+                canvas.drawRect(
+                  Rect.fromLTWH(rect.left + cell.left - 1, top, 1, h),
+                  black,
+                );
+                // The ridged output arrow through the columns, centred on
+                // the node's middle row (measured on 3233; 3179 reads the
+                // same bitmap).
+                const arrowRows = [
+                  '...........#...',
+                  '.#####.....##..',
+                  '#.############.',
+                  '#.#############',
+                  '#.############.',
+                  '.#####.....##..',
+                  '...........#...',
+                ];
+                final cy = rect.top + (nodeH ~/ 2);
+                final x0 = rect.left + rowsRight;
+                for (var r = 0; r < arrowRows.length; r++) {
+                  final y = cy - 3 + r;
+                  final mask = arrowRows[r];
+                  for (var c = 0; c < mask.length; c++) {
+                    if (mask.codeUnitAt(c) != 0x23) continue;
+                    canvas.drawRect(
+                      Rect.fromLTWH(x0 + c.toDouble(), y.toDouble(), 1, 1),
+                      black,
+                    );
                   }
                 }
               }
+            }
+            // Row text: the terminal's resolved data-space name, centred,
+            // in the type colour (array rows colour by element).
+            for (final (term, tb) in rowTerms) {
+              final name = term.typeName?.trim();
+              if (name == null || name.isEmpty) continue;
+              final elementKind = term.typeKind == ViTypeKind.array
+                  ? term.resolvedElementType?.kind
+                  : null;
+              final rowColor = elementKind != null
+                  ? labviewTypeColor(_typeKindOfDataType(elementKind))
+                  : labviewTypeColor(term.typeKind);
+              final cell = Rect.fromLTRB(
+                rect.left + tb.left + 1,
+                rect.top + tb.top,
+                rect.left + tb.right - 1,
+                rect.top + tb.bottom,
+              );
+              final tp = _layoutText(
+                name,
+                color: _dimFor(object.oid, rowColor),
+                fontSize: 10.5,
+                maxLines: 1,
+                ellipsis: '…',
+                maxWidth: math.max(8, cell.width - 2),
+              );
+              tp.paint(
+                canvas,
+                Offset(
+                  cell.center.dx - tp.width / 2,
+                  cell.center.dy - tp.height / 2,
+                ),
+              );
             }
             continue;
           }
@@ -3575,30 +3631,27 @@ class BdDiagramPainter extends CustomPainter {
               isSubVi ? kBdSubViNodeFill : kBdPrimitiveNodeFill,
             );
             canvas.drawRect(rect, Paint()..color = fill);
-            if (rect.width > 6 && rect.height > 6) {
-              canvas.drawLine(
-                rect.topLeft,
-                rect.topRight,
-                Paint()
-                  ..color = Colors.white.withValues(alpha: 0.85)
-                  ..strokeWidth = 1.0,
-              );
-              canvas.drawLine(
-                rect.topLeft,
-                rect.bottomLeft,
-                Paint()
-                  ..color = Colors.white.withValues(alpha: 0.85)
-                  ..strokeWidth = 1.0,
-              );
-            }
           }
           if (primIcon == null) {
+            // A node without icon art is a CLEAN crisp rectangle: 1 px black
+            // ring on the exact bounds, no anti-aliasing (the old half-pixel
+            // stroke read as a faint translucent outline).
+            final ring = _solidNoAa(_dimFor(object.oid, Colors.black));
             canvas.drawRect(
-              rect.deflate(0.5),
-              Paint()
-                ..color = _dimFor(object.oid, Colors.black)
-                ..style = PaintingStyle.stroke
-                ..strokeWidth = 1.0,
+              Rect.fromLTWH(rect.left, rect.top, rect.width, 1),
+              ring,
+            );
+            canvas.drawRect(
+              Rect.fromLTWH(rect.left, rect.bottom - 1, rect.width, 1),
+              ring,
+            );
+            canvas.drawRect(
+              Rect.fromLTWH(rect.left, rect.top, 1, rect.height),
+              ring,
+            );
+            canvas.drawRect(
+              Rect.fromLTWH(rect.right - 1, rect.top, 1, rect.height),
+              ring,
             );
           }
           // A decoded primitive identity draws its operator glyph on the
