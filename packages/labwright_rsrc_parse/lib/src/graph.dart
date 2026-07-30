@@ -1505,7 +1505,7 @@ class ViWire {
 
   /// The wire's **absolute stored polyline** in diagram coordinates — the
   /// Manhattan route LabVIEW saved — or null when it is not shippable. The
-  /// signal must have exactly two endpoints and a decoding table; then two
+  /// signal must have exactly two endpoints and a decoding table; then three
   /// tiers:
   ///
   ///  * **closed** — both endpoints resolve an attach point
@@ -1537,6 +1537,15 @@ class ViWire {
   ///    reaching its edge), the polyline stops at that bend and
   ///    [routeClosingStep] carries the run's direction — the parse ships no
   ///    fabricated terminus at the node's undecoded input-pin depth.
+  ///  * **DCO-child last resort** — consulted only after both tiers above
+  ///    decline: an endpoint with no standard attach substitutes its
+  ///    [ViDiagram.dcoChildTerminalAttach] candidates (the inverse
+  ///    terminal-storage convention, where the `0x15` DCO parents its own
+  ///    termBounds part). A zero-slack closure over the substituted pairs
+  ///    ships as [WireRouteFidelity.closed] (`shippedClosedDcoChild`,
+  ///    104,931 corpus routes); a wide-row cell anchor with no standard far
+  ///    attach ships a one-anchored walk (`shippedWalkedDcoRow`, 2,705).
+  ///    The standard attach rects/anchors the model exposes are untouched.
   ///
   /// Nothing is force-closed: a walk that misses, drifts out of the far box, or
   /// falls in an unshippable class returns null and the census counts it. The
@@ -1566,10 +1575,14 @@ class ViWire {
   /// ships are ALSO isolated as `oa2_into` with their own zero-gross-miss law,
   /// overlaying 100% — 2,568/2,568 px — on their own) — at the closed control's
   /// own **99%** snippet overlay. The withheld one-anchored walks overlay
-  /// only ~47% (`oa2_held_*`), the miss that justifies withholding them; the
+  /// worse than the shipped ones (`oa2_held_*`, an oracle law — the miss
+  /// that justifies withholding them); the
   /// slack ships are quality-bucketed apart (`oa2_slack_*`), their anchored
   /// closing row/column on ink but their perpendicular runs displaced by
-  /// each head's unresolved terminal depth. The snippet
+  /// each head's unresolved terminal depth, and the DCO-child tier's ships
+  /// apart again (`oa2_dcoclosed_*` / `oa2_dcorow_*` — their runs
+  /// legitimately thread under node boxes, so raw overlay undercounts).
+  /// The snippet
   /// overlay is a quality measure over the registrable subset; the corpus-wide
   /// ship counts are the structural-gate coverage.
   final List<ViPoint>? routePoints;
@@ -2472,17 +2485,103 @@ class ViDiagram {
     } else if (attachPoints[1] != null && attachPoints[0] == null) {
       anchoredIndex = 1;
     } else {
+      return _dcoChildTierPoints(route, refs, attachPoints, altAttachPoints, stripTargets, anchors);
+    }
+    if (_exactAttach(refs[anchoredIndex]) &&
+        // Left shift-register anchor with bends: its undecoded column offset
+        // drifts the perpendicular runs off the ink (see above).
+        !(route.segmentLengths.isNotEmpty && _isLeftShiftRegisterTerminal(refs[anchoredIndex]))) {
+      final farBox = anchors[1 - anchoredIndex];
+      if (farBox != null) {
+        final walked = walkOneAnchoredRoute(
+          route,
+          anchor: attachPoints[anchoredIndex]!,
+          anchoredIndex: anchoredIndex,
+          farBox: farBox,
+        );
+        if (walked != null) {
+          return (
+            points: walked.points,
+            fidelity: WireRouteFidelity.walked,
+            closingStep: walked.closingStep,
+            headSlack: walked.headSlack,
+          );
+        }
+      }
+    }
+    return _dcoChildTierPoints(route, refs, attachPoints, altAttachPoints, stripTargets, anchors);
+  }
+
+  /// The **DCO-child terminal** last-resort tier behind [ViWire.routePoints]:
+  /// consulted only after every standard tier declined, so it can add routes
+  /// but never change one — the endpoint attach rects/anchors the rest of the
+  /// model exposes ([ViWire.endpointAttachRects], [wireAttachPoint]) are
+  /// deliberately untouched.
+  ///
+  /// Ships, in order:
+  ///  * **closed** — a zero-slack closure ([_closedRoutePoints]) over the
+  ///    endpoint candidate sets, where an endpoint with no standard attach
+  ///    point substitutes its [dcoChildTerminalAttach] candidates (an
+  ///    endpoint that resolves neither way has no candidates and no pair
+  ///    ships). At least one end must use the fallback — the standard pairs
+  ///    were already tried and refused.
+  ///  * **walked** — no pair closes, one end is a fallback WIDE-ROW cell
+  ///    (the shape whose centre-row anchor is reference-proven — see
+  ///    [dcoChildTerminalAttach]) and the far end has no standard attach;
+  ///    [walkOneAnchoredRoute] places the route off the row's centre point
+  ///    with the usual cross-axis containment, the far terminus pinned by
+  ///    the owner box (a failed far fallback candidate does not block —
+  ///    the walk supersedes it).
+  ({List<ViPoint> points, WireRouteFidelity fidelity, ViStep? closingStep, ViStep? headSlack})? _dcoChildTierPoints(
+    ViWireRoute route,
+    List<int> refs,
+    List<ViPoint?> attachPoints,
+    List<ViPoint?> altAttachPoints,
+    List<ViPoint?> stripTargets,
+    List<HeapRect?> anchors,
+  ) {
+    final fallback = [for (final oid in refs) dcoChildTerminalAttach(oid)];
+    final usesFallback = [
+      for (var i = 0; i < 2; i++) attachPoints[i] == null && (fallback[i]?.candidates.isNotEmpty ?? false),
+    ];
+    if (!usesFallback[0] && !usesFallback[1]) return null;
+    final sourceCandidates = usesFallback[0]
+        ? fallback[0]!.candidates
+        : [
+            if (attachPoints[0] != null) attachPoints[0]!,
+            if (altAttachPoints[0] != null) altAttachPoints[0]!,
+          ];
+    final targetCandidates = usesFallback[1]
+        ? fallback[1]!.candidates
+        : [
+            if (stripTargets[1] != null) stripTargets[1]!,
+            if (attachPoints[1] != null) attachPoints[1]!,
+            if (altAttachPoints[1] != null) altAttachPoints[1]!,
+          ];
+    for (final source in sourceCandidates) {
+      for (final target in targetCandidates) {
+        final closed = _closedRoutePoints(route, source, target);
+        if (closed != null) {
+          return (points: closed, fidelity: WireRouteFidelity.closed, closingStep: null, headSlack: null);
+        }
+      }
+    }
+    // Walked: one wide-row fallback anchor; the far end resolves no standard
+    // attach (a failed far fallback CANDIDATE does not block — the walk pins
+    // the far terminus from the anchor and the owner box instead).
+    final int anchoredIndex;
+    if (usesFallback[0] && (fallback[0]?.wideRow ?? false) && attachPoints[1] == null) {
+      anchoredIndex = 0;
+    } else if (usesFallback[1] && (fallback[1]?.wideRow ?? false) && attachPoints[0] == null) {
+      anchoredIndex = 1;
+    } else {
       return null;
     }
-    if (!_exactAttach(refs[anchoredIndex])) return null;
-    // Left shift-register anchor with bends: its undecoded column offset drifts
-    // the perpendicular runs off the ink (see above).
-    if (route.segmentLengths.isNotEmpty && _isLeftShiftRegisterTerminal(refs[anchoredIndex])) return null;
     final farBox = anchors[1 - anchoredIndex];
     if (farBox == null) return null;
     final walked = walkOneAnchoredRoute(
       route,
-      anchor: attachPoints[anchoredIndex]!,
+      anchor: fallback[anchoredIndex]!.candidates.first,
       anchoredIndex: anchoredIndex,
       farBox: farBox,
     );
@@ -2931,6 +3030,60 @@ class ViDiagram {
       left: frame.left + rel.left,
       bottom: frame.top + rel.bottom,
       right: frame.left + rel.right,
+    );
+  }
+
+  /// The **DCO-child terminal** attach candidates of endpoint [oid] — the
+  /// second, inverse storage convention for a growable node's terminal
+  /// geometry: instead of a termBounds-carrying terminal NAMING the DCO in
+  /// its `14 19` childRefs (the [endpointTerminal] convention), the
+  /// bounds-less `0x15` DCO itself PARENTS one termBounds-carrying child
+  /// (an `0x30`/`0x33`/`0x3b`/`0x45`/`0x62`/… node-part), whose rect is
+  /// relative to the DCO's nearest bounded ancestor (the node box). Returns
+  /// the candidate attach points (most-likely first) plus whether the part
+  /// is a **wide row cell**, or null when [oid] is not a bounds-less `0x15`
+  /// DCO, parents no termBounds child or more than one (never guessed), no
+  /// ancestor is bounded, or the file predates the frame-relative
+  /// coordinate space (< 8.6, the same gate as [endpointTerminalBounds]).
+  ///
+  /// The attach point is the composed rect's floored centre — the same
+  /// convention as [wireAttachPoint]. For a **wide row cell** (`0x62`,
+  /// width > height: a growable node's row strip) the centre sits deep in
+  /// the node's interior; the reference render (Excel_Read_XLSX's two row
+  /// wires) pins the stored route on exactly that centre ROW, with the
+  /// wire's visible ink stopping at the node border — the interior run is
+  /// covered by the node body, like a route closing under a prim's icon.
+  ///
+  /// Corpus (7,524 VIs; pinned by `wire_route_census_test`): before this
+  /// tier 139,907 two-endpoint tables shipped no route and 139,072 of them
+  /// resolve this fallback on at least one end; 104,931 close zero-slack
+  /// against it (`shippedClosedDcoChild`) and 2,705 more ship as wide-row
+  /// anchored walks (`shippedWalkedDcoRow`). A part TALLER than one row can
+  /// carry its centre off the true connection row (reference-read on a
+  /// 16×27 `0x45` connecting 9 px below centre and an 11×21 `0x14b`
+  /// connecting 6 px below), so the point is a closure CANDIDATE, never
+  /// shipped bare — a signal whose candidates close nothing stays withheld.
+  /// TODO: decode the multi-row part connection row.
+  ({List<ViPoint> candidates, bool wideRow})? dcoChildTerminalAttach(int oid) {
+    if (_predatesFrameRelativeTermBounds(version)) return null;
+    final endpoint = byId[oid];
+    if (endpoint == null || endpoint.kind != kNodeEndpointDcoKind || endpoint.absBounds != null) return null;
+    ViHeapObject? part;
+    for (final child in childrenByOid[oid] ?? const <ViHeapObject>[]) {
+      if (child.termBounds == null) continue;
+      if (part != null) return null; // two claimants: never guessed
+      part = child;
+    }
+    final rel = part?.termBounds;
+    if (part == null || rel == null) return null;
+    final frame = _boundedOwnerBounds(oid);
+    if (frame == null) return null;
+    final left = frame.left + rel.left, top = frame.top + rel.top;
+    final width = rel.right - rel.left, height = rel.bottom - rel.top;
+    final centre = (x: left + width ~/ 2, y: top + height ~/ 2);
+    return (
+      candidates: [centre],
+      wideRow: part.kind == 0x62 && width > height,
     );
   }
 
