@@ -4359,6 +4359,24 @@ class BdDiagramPainter extends CustomPainter {
               if ((hi - nCross).abs() <= 1) hi = nCross - 2;
             }
           }
+          // A braid BEND's corner block is SOLID 3×3 — the vertical's
+          // columns fill the route row through the corner (Excel's
+          // (1513,808): (1512..1514, 807..809) all ink in the reference,
+          // where the weave lattice alone would hole (1512,808)).
+          if (style == ViWireRenderStyle.braid && horizontal) {
+            for (final neighbour in [
+              if (j >= 2) leg[j - 2],
+              if (j + 1 < leg.length) leg[j + 1],
+            ]) {
+              final nx = neighbour.dx.floor();
+              if (nx >= lo - 2 && nx <= hi + 2) {
+                canvas.drawRect(
+                  Rect.fromLTWH(nx - 1.0, cross - 1.0, 3, 3),
+                  fill,
+                );
+              }
+            }
+          }
 
           // Crossing gaps (the measured rule, see wire_render.dart): where
           // this later-drawn segment properly crosses an EARLIER wire's
@@ -4652,14 +4670,27 @@ class BdDiagramPainter extends CustomPainter {
           }
         }
       } else {
-        // The pink-braid blob: measured literal, '.' = punched WHITE.
-        const rows = ['.###.', '#####', '###.#', '###.#', '##..#'];
+        // The pink-braid blob, measured literal at Excel's (407,808): the
+        // weave row itself stays the wire's own lattice; the flank rows
+        // punch white at the marked cells; the taper rows fill solid.
+        // '#' = fill, 'W' = punched white, '.' = leave.
+        const rows = [
+          '...###...',
+          '..#####..',
+          '#####W###',
+          '.........',
+          '###WW####',
+          '..#####..',
+          '...###...',
+        ];
         final white = _solidNoAa(Colors.white);
         for (var r = 0; r < rows.length; r++) {
-          for (var c = 0; c < 5; c++) {
+          for (var c = 0; c < 9; c++) {
+            final ch = rows[r][c];
+            if (ch == '.') continue;
             canvas.drawRect(
-              Rect.fromLTWH(cx - 2 + c, cy - 3 + r, 1, 1),
-              rows[r][c] == '#' ? fill : white,
+              Rect.fromLTWH(cx - 4 + c, cy - 3 + r, 1, 1),
+              ch == '#' ? fill : white,
             );
           }
         }

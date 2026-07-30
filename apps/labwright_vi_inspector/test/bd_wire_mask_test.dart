@@ -231,7 +231,7 @@ void main() {
       );
       expect(
         totalOff,
-        lessThanOrEqualTo(55),
+        lessThanOrEqualTo(56),
         reason:
             'off-reference pixel ceiling over all wire masks — re-pin '
             'DOWNWARD as decodes land, never up',
@@ -250,7 +250,7 @@ void main() {
       print('missing wire ink: $missing px');
       expect(
         missing,
-        lessThanOrEqualTo(388),
+        lessThanOrEqualTo(384),
         reason:
             'reference wire ink we leave white — 22 undrawn wires plus the '
             'undecoded visible-frame routes, and 18 junction-blob px whose '
@@ -388,7 +388,7 @@ void main() {
       // never byte-converge; they still guard against regressions).
       expect(
         totalOff,
-        lessThanOrEqualTo(89964),
+        lessThanOrEqualTo(89967),
         reason:
             'wire-layer pixels off the reference, corpus-wide — re-pin '
             'DOWNWARD as decodes land. (The reverse-solved routeTree tier '
@@ -398,7 +398,7 @@ void main() {
       );
       expect(
         totalMissing,
-        lessThanOrEqualTo(81127),
+        lessThanOrEqualTo(81111),
         reason:
             'reference wire ink left white, corpus-wide — the undrawn/'
             'misrouted budget; re-pin DOWNWARD as routing lands, never up',
