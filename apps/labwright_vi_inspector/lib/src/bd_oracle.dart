@@ -205,6 +205,54 @@ GlobalHatchOffset deriveWireCycleOffset({
     for (final leg in legs) {
       for (var s = 0; s + 1 < leg.length; s++) {
         final a = leg[s], b = leg[s + 1];
+        // VERTICAL string-family runs score the same global texture through
+        // their column masks (ink where `(x + 2·(y&1) + shift) mod 4 != 0`),
+        // so captures without long horizontal patterned runs still derive.
+        if (a.x == b.x && (a.y - b.y).abs() >= 14) {
+          final vlo = math.min(a.y, b.y) + 3, vhi = math.max(a.y, b.y) - 3;
+          int rxOf(num x) =>
+              ((x - raster.content.left) * registration.scale + registration.dx)
+                  .round();
+          int ryOf(num y) =>
+              ((y - raster.content.top) * registration.scale + registration.dy)
+                  .round();
+          final bands = switch (style) {
+            ViWireRenderStyle.zigzag => const [-1, 0],
+            ViWireRenderStyle.chainLink => const [-1, 0, 1],
+            _ => const [-2, -1, 0, 1],
+          };
+          final counts = <int, int>{};
+          for (var y = vlo; y <= vhi; y++) {
+            for (var bit = -2; bit <= 2; bit++) {
+              final c = refPixel(rxOf(a.x + bit), ryOf(y));
+              if (c != 0xffffff && c != -1) counts[c] = (counts[c] ?? 0) + 1;
+            }
+          }
+          if (counts.isEmpty) continue;
+          final ink =
+              (counts.entries.toList()
+                    ..sort((p, q) => q.value.compareTo(p.value)))
+                  .first
+                  .key;
+          for (var y = vlo; y <= vhi; y++) {
+            var clean = true;
+            for (var bit = -2; bit <= 2; bit++) {
+              final c = refPixel(rxOf(a.x + bit), ryOf(y));
+              if (c != 0xffffff && c != ink) clean = false;
+            }
+            if (!clean) continue;
+            samples += bands.length;
+            for (var cand = 0; cand < 4; cand++) {
+              for (final band in bands) {
+                final x = a.x + band;
+                final predicted = (x + ((y & 1) << 1) + cand) % 4 != 0;
+                final observed = refPixel(rxOf(x), ryOf(y)) == ink;
+                score[cand] += predicted == observed ? 1 : -1;
+              }
+            }
+          }
+          continue;
+        }
         if (a.y != b.y || (a.x - b.x).abs() < 14) continue;
         final lo = math.min(a.x, b.x) + 3, hi = math.max(a.x, b.x) - 3;
         int rxOf(num x) =>

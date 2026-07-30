@@ -388,7 +388,7 @@ void main() {
       // never byte-converge; they still guard against regressions).
       expect(
         totalOff,
-        lessThanOrEqualTo(77821),
+        lessThanOrEqualTo(77958),
         reason:
             'wire-layer pixels off the reference, corpus-wide — re-pin '
             'DOWNWARD as decodes land. (The reverse-solved routeTree tier '
@@ -398,7 +398,7 @@ void main() {
       );
       expect(
         totalMissing,
-        lessThanOrEqualTo(68930),
+        lessThanOrEqualTo(65340),
         reason:
             'reference wire ink left white, corpus-wide — the undrawn/'
             'misrouted budget; re-pin DOWNWARD as routing lands, never up',

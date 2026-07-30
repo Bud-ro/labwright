@@ -4872,17 +4872,30 @@ class BdDiagramPainter extends CustomPainter {
     int cross, {
     bool errorBraid = false,
   }) {
-    // Pattern lattices anchor to ABSOLUTE diagram coordinates (plus the
-    // capture's screen shift, [BdRenderStyle.wireCycleOffset]) — exactly
-    // like the structure-hatch lattice — so the interactive view's pan
-    // cannot slide them.
-    final alongOrigin = (horizontal ? origin.dx : origin.dy).round();
-    final crossOrigin = (horizontal ? origin.dy : origin.dx).round();
-    int absAlong(int v) => v + alongOrigin;
-    final absCross = cross + crossOrigin;
+    // ONE MODEL FOR EVERY PATTERNED STROKE: a wire is a colour + a band
+    // width + a GLOBAL TEXTURE that the band masks in. The texture anchors
+    // to ABSOLUTE diagram coordinates (plus the capture's screen shift for
+    // the string family), so runs, corners, and both orientations are the
+    // same texture under different masks — the measured per-orientation
+    // cycles, the vertical "compressed" forms and the bend behaviour all
+    // fall out of the masking with no per-style phase constants.
+    //
+    // Textures (both reference-measured; see kBdWireStrokeCycles' history):
+    //  * STRING family (zigzag / chainLink / chainLinkWide): hole where
+    //    `x` is odd and `(x ~/ 2) + y` is odd — a 4-period weave whose
+    //    2/3/4-row masks are exactly the measured cycles and whose 2/3-col
+    //    masks are the measured vertical forms.
+    //  * BRAID family (cluster braids): the diagonal 50% texture, ink
+    //    where `(x + y) mod 4` is 1 or 2, between solid band-edge rows;
+    //    the ERROR braid paints the texture's holes black and its ink
+    //    yellow between olive edges (same lattice, its own palette).
+    //  * DOTTED family: the `(x + y)`-even checkerboard (1-row mask; the
+    //    2-row mask is the measured alternating-dot form).
+    final ox = origin.dx.round(), oy = origin.dy.round();
+    final captureX = this.style.wireCycleOffset.x;
     Rect px(int along, int band) => horizontal
-        ? Rect.fromLTWH(along.toDouble(), band.toDouble(), 1, 1)
-        : Rect.fromLTWH(band.toDouble(), along.toDouble(), 1, 1);
+        ? Rect.fromLTWH(along.toDouble(), (cross + band).toDouble(), 1, 1)
+        : Rect.fromLTWH((cross + band).toDouble(), along.toDouble(), 1, 1);
     Rect span(int bandLo, int bandHi) => horizontal
         ? Rect.fromLTRB(
             lo.toDouble(),
@@ -4896,141 +4909,100 @@ class BdDiagramPainter extends CustomPainter {
             cross + bandHi + 1.0,
             hi + 1.0,
           );
+    // Absolute diagram coords of a band cell: `along` runs along the wire,
+    // `band` is the cross-axis offset from the route row/column.
+    (int, int) abs(int along, int band) {
+      final canvasX = horizontal ? along : cross + band;
+      final canvasY = horizontal ? cross + band : along;
+      return (canvasX + ox, canvasY + oy);
+    }
+
+    bool stringTextureInk(int x, int y) =>
+        (x + ((y & 1) << 1) + captureX) % 4 != 0;
+
+    bool braidTextureInk(int x, int y) {
+      final m = (x + y) % 4;
+      return m == 1 || m == 2;
+    }
+
     switch (style) {
-      case ViWireRenderStyle.braid when horizontal && errorBraid:
-        // The ERROR-cluster wire, measured on Excel_Read_XLSX: solid
-        // dark-yellow (102,102,0) rows either side of the route row, whose
-        // own ink alternates 2 px yellow (255,255,0) / 2 px black with the
-        // pattern anchored to `x + y`: a column is yellow where
-        // `(x + y + 1) mod 4 < 2` (phase census over Excel's four error
-        // rows y=933/993/1071/1129 — a parity-only rule fits neither pair).
-        // The error braid draws its OWN palette; a non-error cluster braid
-        // falls through to the catalogued cycle in the signal tint.
-        // (Disabled-frame dimming unmeasured for braid: no corpus
-        // reference shows one.)
-        final olive = _solidNoAa(const Color(0xFF666600));
-        final yellow = _solidNoAa(const Color(0xFFFFFF00));
-        final black = _solidNoAa(Colors.black);
-        canvas.drawRect(span(-1, -1), olive);
-        canvas.drawRect(span(1, 1), olive);
-        for (var v = lo; v <= hi; v++) {
-          canvas.drawRect(
-            px(v, cross),
-            (v + cross + 1) % 4 < 2 ? yellow : black,
-          );
-        }
-      case ViWireRenderStyle.braid when !horizontal && errorBraid:
-        // VERTICAL error braid, measured on Excel_Read_XLSX's x=1768 run:
-        // solid dark-yellow flank columns and the same weave law as the
-        // horizontal core — yellow where `(x + y + 1) mod 4 < 2` (the
-        // x=1768 column reads yellow exactly on `(y + 1) mod 4 < 2`, which
-        // is that law at x ≡ 0 mod 4).
-        final olive = _solidNoAa(const Color(0xFF666600));
-        final yellow = _solidNoAa(const Color(0xFFFFFF00));
-        final black = _solidNoAa(Colors.black);
-        canvas.drawRect(span(-1, -1), olive);
-        canvas.drawRect(span(1, 1), olive);
-        for (var v = lo; v <= hi; v++) {
-          canvas.drawRect(
-            px(v, cross),
-            (absAlong(v) + absCross + 1) % 4 < 2 ? yellow : black,
-          );
-        }
-      case ViWireRenderStyle.braid when !horizontal:
-        // VERTICAL cluster braid: solid flank columns either side, the
-        // route column inked where `(x + y) mod 4` is 1 or 2 — the same
-        // screen `x + y` anchoring as the dotted checkerboard and the
-        // error weave. Pinned by two Excel_Read_XLSX runs whose absolute
-        // phases differ: x=1513 (inked rows y mod 4 in {0,1}) and x=407
-        // (inked rows y mod 4 in {2,3}); a parity-only x term fits the
-        // first but contradicts the second.
-        canvas.drawRect(span(-1, -1), fill);
-        canvas.drawRect(span(1, 1), fill);
-        for (var v = lo; v <= hi; v++) {
-          final weave = (absAlong(v) + absCross) % 4;
-          if (weave == 1 || weave == 2) {
-            canvas.drawRect(px(v, cross), fill);
-          }
-        }
-      case ViWireRenderStyle.chainLink when !horizontal:
-        // The VERTICAL 1-D string/path-array stroke, measured on
-        // Excel_Read_XLSX's x=1076 run: the route column solid, BOTH side
-        // columns on the same checkerboard as the vertical zigzag's odd
-        // column — ink where `(col ~/ 2) + y` is even. Adjacent side
-        // columns always land on complementary parities, giving the
-        // alternating left/right ridge.
-        canvas.drawRect(span(0, 0), fill);
-        for (var v = lo; v <= hi; v++) {
-          for (final side in [-1, 1]) {
-            final col = cross + side;
-            if ((((col + crossOrigin) ~/ 2) + absAlong(v)).isEven) {
-              canvas.drawRect(px(v, col), fill);
-            }
-          }
-        }
-      case ViWireRenderStyle.zigzag when !horizontal:
-        // The VERTICAL string-family stroke compresses to a period-2
-        // two-column cycle (the census' `|V` keys) over the pair
-        // {route-1, route}: the EVEN column of the pair draws solid, the
-        // ODD column checkerboards where `(col ~/ 2) + y` is even —
-        // measured on Excel_Read_XLSX's x=1741 run (route odd: solid left,
-        // route col inked on even rows) and its x=996 run (route even:
-        // solid ON the route, left col inked on odd rows).
-        final evenCol = absCross.isEven ? cross : cross - 1;
-        final oddCol = absCross.isEven ? cross - 1 : cross;
-        final oddColAbs = oddCol + crossOrigin;
-        canvas.drawRect(span(evenCol - cross, evenCol - cross), fill);
-        for (var v = lo; v <= hi; v++) {
-          if (((oddColAbs ~/ 2) + absAlong(v)).isEven) {
-            canvas.drawRect(px(v, oddCol), fill);
-          }
-        }
       case ViWireRenderStyle.solid1px:
         canvas.drawRect(span(0, 0), fill);
       case ViWireRenderStyle.solid2px:
         canvas.drawRect(span(-1, 0), fill);
       case ViWireRenderStyle.hollowDouble:
-        // Period-1 and hence orientation-symmetric (see the catalogue).
         canvas.drawRect(span(-1, -1), fill);
         canvas.drawRect(span(1, 1), fill);
       case ViWireRenderStyle.dotted:
         for (var v = lo; v <= hi; v++) {
-          if ((absAlong(v) + absCross).isEven) {
-            canvas.drawRect(px(v, cross), fill);
+          final (x, y) = abs(v, 0);
+          if ((x + y).isEven) canvas.drawRect(px(v, 0), fill);
+        }
+      case ViWireRenderStyle.dottedAlternating:
+        for (var v = lo; v <= hi; v++) {
+          for (final band in const [-1, 0]) {
+            final (x, y) = abs(v, band);
+            if ((x + y).isEven) canvas.drawRect(px(v, band), fill);
           }
         }
-      case ViWireRenderStyle.dottedAlternating when horizontal:
-        // Catalogued period-2 cycle: single dots alternating between the
-        // route row and the row above. The absolute phase is unmeasured;
-        // anchored so the route-row dot sits on even x+y, matching the
-        // dotted family's measured checkerboard (TODO: measure the phase).
+      case ViWireRenderStyle.zigzag ||
+          ViWireRenderStyle.chainLink ||
+          ViWireRenderStyle.chainLinkWide:
+        final (bandLo, bandHi) = switch (style) {
+          ViWireRenderStyle.zigzag => (-1, 0),
+          ViWireRenderStyle.chainLink => (-1, 1),
+          _ => (-2, 1),
+        };
         for (var v = lo; v <= hi; v++) {
-          canvas.drawRect(
-            px(v, (absAlong(v) + absCross).isEven ? cross : cross - 1),
-            fill,
-          );
+          for (var band = bandLo; band <= bandHi; band++) {
+            final (x, y) = abs(v, band);
+            if (stringTextureInk(x, y)) canvas.drawRect(px(v, band), fill);
+          }
+        }
+      case ViWireRenderStyle.braid when errorBraid:
+        final olive = _solidNoAa(const Color(0xFF666600));
+        final yellow = _solidNoAa(const Color(0xFFFFFF00));
+        final black = _solidNoAa(Colors.black);
+        canvas.drawRect(span(-1, -1), olive);
+        canvas.drawRect(span(1, 1), olive);
+        for (var v = lo; v <= hi; v++) {
+          final (x, y) = abs(v, 0);
+          canvas.drawRect(px(v, 0), braidTextureInk(x, y) ? black : yellow);
+        }
+      case ViWireRenderStyle.braid:
+        canvas.drawRect(span(-1, -1), fill);
+        canvas.drawRect(span(1, 1), fill);
+        for (var v = lo; v <= hi; v++) {
+          final (x, y) = abs(v, 0);
+          final ink = horizontal
+              ? (x + ((y & 1) << 1) + captureX) % 4 >= 2
+              : braidTextureInk(x, y);
+          if (ink) canvas.drawRect(px(v, 0), fill);
+        }
+      case ViWireRenderStyle.braidWide:
+        canvas.drawRect(span(-2, -2), fill);
+        canvas.drawRect(span(1, 1), fill);
+        for (var v = lo; v <= hi; v++) {
+          for (final band in const [-1, 0]) {
+            final (x, y) = abs(v, band);
+            if (braidTextureInk(x, y)) canvas.drawRect(px(v, band), fill);
+          }
         }
       default:
+        // The dense/weave cycles have no texture derivation yet — the
+        // catalogued horizontal cycles stand in, and vertical runs draw the
+        // honest 1 px line (TODO: measure and fold into the model).
         final cycle = horizontal ? kBdWireStrokeCycles[style] : null;
         if (cycle == null) {
-          // Vertical run of a patterned style: the vertical cycles are not
-          // yet measured, so the honest fallback is a plain 1 px line in
-          // the wire colour (TODO above).
           canvas.drawRect(span(0, 0), fill);
           return;
         }
-        // Cycle index = x + 2·(row parity) + the style's relative phase +
-        // the capture shift (see [kBdWireCyclePhase]).
-        final capture = this.style.wireCycleOffset;
-        final phase =
-            (((absCross + capture.y) & 1) << 1) +
-            (kBdWireCyclePhase[style] ?? 0) +
-            capture.x;
         for (var v = lo; v <= hi; v++) {
-          final mask = cycle[(absAlong(v) + phase) % cycle.length];
+          final (x, y) = abs(v, 0);
+          final mask = cycle[(x + ((y & 1) << 1) + 1) % cycle.length];
           for (var bit = 0; bit < 5; bit++) {
             if ((mask >> bit) & 1 != 0) {
-              canvas.drawRect(px(v, cross + bit - 2), fill);
+              canvas.drawRect(px(v, bit - 2), fill);
             }
           }
         }
