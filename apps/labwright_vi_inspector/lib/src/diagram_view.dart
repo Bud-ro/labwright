@@ -4406,6 +4406,7 @@ class BdDiagramPainter extends CustomPainter {
           fill,
           bdWireStrokeBand(style),
           style: style,
+          errorBraid: errorBraid,
         );
       }
     }
@@ -4619,15 +4620,56 @@ class BdDiagramPainter extends CustomPainter {
     Paint fill,
     (int, int) band, {
     ViWireRenderStyle? style,
+    bool errorBraid = false,
   }) {
     final cx = center.dx.floorToDouble();
     final cy = center.dy.floorToDouble();
     final (bandLo, bandHi) = band;
+    if (style == ViWireRenderStyle.braid) {
+      // Braid junctions, byte-measured on Excel_Read_XLSX (each from its
+      // one corpus junction — the vertical run joins from ABOVE for the
+      // error braid at (1768,1071) and leaves BELOW for the pink braid at
+      // (407,808); the mirrored topologies reuse the stamp flipped).
+      if (errorBraid) {
+        // The error wedge: weave-law colours through the 5-wide core
+        // (yellow where (x+y+1) mod 4 < 2), black transition rows toward
+        // the vertical, olive rim and taper away from it.
+        final olive = _solidNoAa(const Color(0xFF666600));
+        final yellow = _solidNoAa(const Color(0xFFFFFF00));
+        final black = _solidNoAa(Colors.black);
+        const rows = ['o###o', '###W#', 'WWWWW', 'WWWWW', 'o###o', '.ooo.'];
+        for (var r = 0; r < rows.length; r++) {
+          for (var c = 0; c < 5; c++) {
+            final ch = rows[r][c];
+            if (ch == '.') continue;
+            final x = (cx - 2 + c).toInt(), y = (cy - 2 + r).toInt();
+            final paint = ch == 'o'
+                ? olive
+                : ch == '#'
+                ? black
+                : ((x + y + 1) % 4 < 2 ? yellow : black);
+            canvas.drawRect(Rect.fromLTWH(cx - 2 + c, cy - 2 + r, 1, 1), paint);
+          }
+        }
+      } else {
+        // The pink-braid blob: measured literal, '.' = punched WHITE.
+        const rows = ['.###.', '#####', '###.#', '###.#', '##..#'];
+        final white = _solidNoAa(Colors.white);
+        for (var r = 0; r < rows.length; r++) {
+          for (var c = 0; c < 5; c++) {
+            canvas.drawRect(
+              Rect.fromLTWH(cx - 2 + c, cy - 3 + r, 1, 1),
+              rows[r][c] == '#' ? fill : white,
+            );
+          }
+        }
+      }
+      return;
+    }
     // Whether a blob pixel is PUNCHED white by the wire's own global
     // pattern lattice: the reference keeps the stroke lattice through the
     // junction (measured on Excel's zigzag junctions — holes exactly at the
-    // cycle's no-ink column — and dotted junction dots; braid junctions
-    // measure SOLID).
+    // cycle's no-ink column — and dotted junction dots).
     final cycle = style == null ? null : kBdWireStrokeCycles[style];
     final phaseBase = style == null ? null : kBdWireCyclePhase[style];
     final capture = this.style.wireCycleOffset;
@@ -4636,7 +4678,6 @@ class BdDiagramPainter extends CustomPainter {
           style == ViWireRenderStyle.dottedAlternating) {
         return (x + y).isOdd;
       }
-      if (style == ViWireRenderStyle.braid) return false;
       if (cycle == null || phaseBase == null || cycle.length != 4) {
         return false;
       }
@@ -4683,12 +4724,12 @@ class BdDiagramPainter extends CustomPainter {
       }
       for (var i = 0; i < width; i++) {
         final x = (left + i).toInt(), y = (cy + dy).toInt();
-        // The lattice punch applies ABOVE the junction and on the band rows
-        // up to the junction column; right of / below it the blob ink wins
-        // (both measured Excel junction pairs read this asymmetry: holes at
-        // (883,960)/(885,961)/(263,686) with ink at the same lattice column
-        // on the far side, (887,960)/(267,686)).
-        final inPunchZone = dy < bandLo || (dy <= bandHi && x <= cx);
+        // The lattice punch applies above the junction, and on the band
+        // rows on the side selected by the junction COLUMN's parity: odd
+        // columns punch at-and-left, even columns at-and-right (all five
+        // measured Excel zigzag junctions agree on the side switch).
+        final punchSide = cx.toInt().isOdd ? x <= cx : x >= cx;
+        final inPunchZone = dy < bandLo || (dy <= bandHi && punchSide);
         if (inPunchZone && punched(x, y)) continue;
         canvas.drawRect(Rect.fromLTWH(left + i, cy + dy, 1, 1), fill);
       }

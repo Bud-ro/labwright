@@ -95,7 +95,7 @@ int missingWireInk({
 }
 
 void main() {
-  testWidgets('Excel per-wire masks: 68 of 85 drawn wires are byte-perfect', (
+  testWidgets('Excel per-wire masks: 69 of 85 drawn wires are byte-perfect', (
     tester,
   ) async {
     final dir = repoDir(
@@ -224,14 +224,14 @@ void main() {
       expect(drawn, greaterThanOrEqualTo(85), reason: 'drawn-wire floor');
       expect(
         perfect,
-        greaterThanOrEqualTo(68),
+        greaterThanOrEqualTo(69),
         reason:
             'byte-perfect wire floor — a regression here un-fixes a wire '
             'that matched LabVIEW exactly',
       );
       expect(
         totalOff,
-        lessThanOrEqualTo(79),
+        lessThanOrEqualTo(55),
         reason:
             'off-reference pixel ceiling over all wire masks — re-pin '
             'DOWNWARD as decodes land, never up',
@@ -250,7 +250,7 @@ void main() {
       print('missing wire ink: $missing px');
       expect(
         missing,
-        lessThanOrEqualTo(401),
+        lessThanOrEqualTo(388),
         reason:
             'reference wire ink we leave white — 22 undrawn wires plus the '
             'undecoded visible-frame routes, and 18 junction-blob px whose '
@@ -388,7 +388,7 @@ void main() {
       // never byte-converge; they still guard against regressions).
       expect(
         totalOff,
-        lessThanOrEqualTo(90007),
+        lessThanOrEqualTo(89964),
         reason:
             'wire-layer pixels off the reference, corpus-wide — re-pin '
             'DOWNWARD as decodes land. (The reverse-solved routeTree tier '
@@ -398,7 +398,7 @@ void main() {
       );
       expect(
         totalMissing,
-        lessThanOrEqualTo(81156),
+        lessThanOrEqualTo(81127),
         reason:
             'reference wire ink left white, corpus-wide — the undrawn/'
             'misrouted budget; re-pin DOWNWARD as routing lands, never up',
