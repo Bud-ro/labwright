@@ -1205,6 +1205,27 @@ bool _isScaffolding(ViHeapObject o, Map<int, ViHeapObject> byId) {
       depth++;
     }
   }
+  // A control shell nested inside a bounded 0x53 CLUSTER container is the
+  // container's internal machinery: LabVIEW draws the cluster box as one
+  // unit, never the member shells (Excel_Read_XLSX's StateData box at
+  // (316,826) — the reference shows the single ringed box where the nested
+  // path shell's own chrome would otherwise clash).
+  if (kControlTerminalCodes.contains(o.kind)) {
+    var parentOid = o.parentOid;
+    var depth = 0;
+    while (parentOid != null && depth < 8) {
+      final parent = byId[parentOid];
+      if (parent == null) break;
+      if (parent.kind == 0x53 &&
+          parent.absBounds != null &&
+          parent.absBounds!.width <= 40 &&
+          parent.absBounds!.height <= 24) {
+        return true;
+      }
+      parentOid = parent.parentOid;
+      depth++;
+    }
+  }
   return false;
 }
 
@@ -3046,6 +3067,24 @@ class BdDiagramPainter extends CustomPainter {
         // backing covers an overlapping node icon), so the backing is
         // deferred past this pass and painted after it.
         if (backing != null) labelBackings.add((object.oid, rect, backing));
+        continue;
+      }
+      // A 0x53 CLUSTER container draws as ONE box: a double 1px ring in
+      // the cluster's member tint around a white interior (measured on
+      // Excel_Read_XLSX's StateData box at (316,826); its nested member
+      // shells are scaffolding-suppressed). The interior glyph art is not
+      // yet decoded (TODO).
+      if (object.kind == 0x53 && rect.width <= 40 && rect.height <= 24) {
+        final tint = _dimFor(
+          object.oid,
+          object.resolvedMembers.isNotEmpty
+              ? _clusterTint(object.resolvedMembers)
+              : labviewTypeColor(object.typeKind),
+        );
+        canvas.drawRect(rect, _solidNoAa(tint));
+        canvas.drawRect(rect.deflate(1), _solidNoAa(Colors.white));
+        canvas.drawRect(rect.deflate(2), _solidNoAa(tint));
+        canvas.drawRect(rect.deflate(3), _solidNoAa(Colors.white));
         continue;
       }
       switch (object.category) {
