@@ -117,20 +117,23 @@ Map<String, int> _census(Uint8List bytes, String path) {
       final points = w.routePoints;
       if (points != null) {
         bump('shipped');
-        // Tier split: both endpoints resolve = the proven closed polyline;
-        // exactly one resolves = the one-anchored walked polyline (forward
-        // from endpoint 0, or reverse from an endpoint-1 anchor on a straight
-        // route). See [ViWire.routePoints].
-        final walked = s == null || t == null;
+        // Tier split by the exposed fidelity and the standard-attach
+        // resolution: both standard endpoints = the historical closed tier;
+        // a closed ship with a missing standard end went through the
+        // DCO-child fallback candidates ([ViDiagram.dcoChildTerminalAttach]);
+        // a walked ship splits into the standard one-anchored walk (forward
+        // from endpoint 0 / reverse from endpoint 1) and the wide-row
+        // fallback-anchored walk (no standard attach at all).
+        final walked = w.routePointsFidelity == WireRouteFidelity.walked;
         if (!walked) {
-          bump('shippedClosed');
-        } else {
+          bump(s != null && t != null ? 'shippedClosed' : 'shippedClosedDcoChild');
+        } else if (s != null || t != null) {
           bump(s != null ? 'shippedWalkedFwd' : 'shippedWalkedRev');
+        } else {
+          bump('shippedWalkedDcoRow');
         }
-        // Law: the exposed fidelity tier matches the anchoring (closed iff both
-        // ends resolve, walked otherwise).
-        final wantFid = walked ? WireRouteFidelity.walked : WireRouteFidelity.closed;
-        if (w.routePointsFidelity != wantFid) bump('fidelityBad');
+        // Law: the fidelity tier is exposed for every ship.
+        if (w.routePointsFidelity == null) bump('fidelityBad');
         // A forward walk whose last decoded bend enters the far node ships the
         // polyline to that bend (pointCount-1 points) with an into-node closing
         // step; the length that would carry it to the node's connection is the
@@ -153,19 +156,29 @@ Map<String, int> _census(Uint8List bytes, String path) {
           );
         }
         // Law: a shipped polyline carries the stored point count (one fewer
-        // for a zero run) and touches its anchor(s) — both attach points when
-        // closed, else the sole resolved end (leading for a forward walk,
-        // trailing for a reverse walk).
+        // for a zero run) and touches its anchor(s) — both endpoint candidate
+        // sets when closed (standard attach/alt/strip points, else the
+        // DCO-child fallback candidates), else the sole anchored end (leading
+        // for a forward walk, trailing for a reverse walk; either end for the
+        // wide-row fallback walk).
         final lenOk = points.length == route.pointCount || points.length == route.pointCount - 1;
+        final fb0 = d.dcoChildTerminalAttach(w.endpointOids[0]);
+        final fb1 = d.dcoChildTerminalAttach(w.endpointOids[1]);
+        final sourceSet = {
+          if (s != null) ...{s, if (sAlt != null) sAlt} else ...?fb0?.candidates,
+        };
+        final targetSet = {
+          if (t != null) ...{t, if (tAlt != null) tAlt, if (tStrip != null) tStrip} else ...?fb1?.candidates,
+        };
         final bool anchorOk;
         if (!walked) {
-          anchorOk =
-              (points.first == s || points.first == sAlt) &&
-              (points.last == t || points.last == tAlt || points.last == tStrip);
+          anchorOk = sourceSet.contains(points.first) && targetSet.contains(points.last);
         } else if (s != null) {
           anchorOk = points.first == s;
-        } else {
+        } else if (t != null) {
           anchorOk = points.last == t;
+        } else {
+          anchorOk = sourceSet.contains(points.first) || targetSet.contains(points.last);
         }
         if (!lenOk || !anchorOk) bump('shippedBad');
       } else if (s == null && t == null) {
@@ -617,7 +630,7 @@ void main() {
       0,
       reason: 'every shipped polyline carries the stored point count and touches its anchor',
     );
-    expect(C['fidelityBad'] ?? 0, 0, reason: 'routePointsFidelity matches the anchoring (closed vs walked)');
+    expect(C['fidelityBad'] ?? 0, 0, reason: 'every shipped polyline exposes a routePointsFidelity tier');
     expect(C['extFidelityBad'] ?? 0, 0, reason: 'routeTreeFidelity matches the anchoring (closed vs walked)');
     expect(C['bounded15Endpoints'] ?? 0, 0, reason: '0x15 node endpoints are bounds-less corpus-wide');
     expect(C['tables3Byte'] ?? 0, 0, reason: 'the grammar has no 3-byte table (u24 width unused)');
@@ -635,8 +648,14 @@ void main() {
     );
     expect(
       C['shipped'] ?? 0,
-      (C['shippedClosed'] ?? 0) + (C['shippedWalkedFwd'] ?? 0) + (C['shippedWalkedRev'] ?? 0),
-      reason: 'shipped polylines partition into closed + walked (forward/reverse) tiers',
+      (C['shippedClosed'] ?? 0) +
+          (C['shippedClosedDcoChild'] ?? 0) +
+          (C['shippedWalkedFwd'] ?? 0) +
+          (C['shippedWalkedRev'] ?? 0) +
+          (C['shippedWalkedDcoRow'] ?? 0),
+      reason:
+          'shipped polylines partition into closed (standard + DCO-child '
+          'fallback) + walked (forward/reverse/wide-row) tiers',
     );
     // Junction-segment totals reconcile two ways (per-code sum == 41,304).
     final juncSum =
