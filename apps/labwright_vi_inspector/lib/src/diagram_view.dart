@@ -2674,6 +2674,40 @@ class BdDiagramPainter extends CustomPainter {
     rect.bottom - origin.dy,
   );
 
+  /// Whether every pixel of the axis-aligned polyline [points] lies under
+  /// some box in [cover] (canvas coords; a box covers `[left, right-1] ×
+  /// [top, bottom-1]`, its drawn extent). Interval-merges the covering
+  /// boxes along each run, bridging a 1 px seam between ABUTTING boxes (a
+  /// stacked prim chain's divider row carries no wire ink either —
+  /// measured on the crc32 LUT stack); any wider gap is visible ink and
+  /// reads false.
+  static bool _polylineUnderNodes(List<Offset> points, List<Rect> cover) {
+    for (var j = 1; j < points.length; j++) {
+      final a = points[j - 1], b = points[j];
+      final horizontal = a.dy == b.dy;
+      final lo = horizontal ? math.min(a.dx, b.dx) : math.min(a.dy, b.dy);
+      final hi = horizontal ? math.max(a.dx, b.dx) : math.max(a.dy, b.dy);
+      var at = lo;
+      var progressed = true;
+      while (at <= hi && progressed) {
+        progressed = false;
+        for (final r in cover) {
+          final crossOk = horizontal
+              ? (a.dy >= r.top && a.dy < r.bottom)
+              : (a.dx >= r.left && a.dx < r.right);
+          if (!crossOk) continue;
+          final (s, e) = horizontal ? (r.left, r.right) : (r.top, r.bottom);
+          if (s <= at + 1 && e > at) {
+            at = e;
+            progressed = true;
+          }
+        }
+      }
+      if (at <= hi) return false;
+    }
+    return points.isNotEmpty;
+  }
+
   /// [color] through the measured disabled-frame palette transform when the
   /// object [oid] sits under a disabled displayed frame ([disabledOids]),
   /// alpha preserved ([dimDisabledFrameRgb] is measured on opaque ink).
@@ -3811,9 +3845,21 @@ class BdDiagramPainter extends CustomPainter {
     // Node box (canvas coords) → its object, so a wire's into-node closing run
     // can query the art's opaque EDGE on the exact arrival row.
     final iconNodeObjects = <Rect, ViHeapObject>{};
+    // Node-category boxes (canvas coords): the cover set for the
+    // fully-under-nodes withhold below (LabVIEW paints nodes OVER wires, so
+    // a polyline every pixel of which lies under node boxes has no visible
+    // ink — drawing it would ink pixels LabVIEW leaves to the node art;
+    // measured on the crc-family LUT chains, whose abutting conversion
+    // prims carry stored routes threaded entirely under the chain).
+    final nodeCoverRects = <Rect>[];
     for (final object in objects) {
       final bounds = object.absBounds;
       if (bounds == null) continue;
+      if (object.category == ViObjectKind.node &&
+          bounds.width > 0 &&
+          bounds.height > 0) {
+        nodeCoverRects.add(_toCanvas(bounds));
+      }
       final packed = _packRect(
         bounds.top,
         bounds.left,
@@ -3961,7 +4007,16 @@ class BdDiagramPainter extends CustomPainter {
       }
       final wordKind = wire.elementTypeKind;
       if (wordKind != null && wordKind != ViTypeKind.unknown) {
-        consider(3, labviewTypeColor(wordKind));
+        // Refnum WIRES ink the same teal as paths — reference-measured on
+        // ProjectItems' six refnum runs (0x006666 against white, solid1px
+        // and solid2px alike). [labviewTypeColor] keeps refnum TERMINAL
+        // borders neutral: no reference has pinned those yet.
+        consider(
+          3,
+          wordKind == ViTypeKind.refnum
+              ? const Color(0xFF006666)
+              : labviewTypeColor(wordKind),
+        );
       }
     }
     // Segments already drawn by EARLIER wires (heap serialization order),
@@ -4034,6 +4089,12 @@ class BdDiagramPainter extends CustomPainter {
       final routeTree = wire.routeTree;
       final legs = <List<Offset>>[];
       final junctions = <Offset>[];
+      // Whether the straight-stub tier below may draw this wire: no decoded
+      // route shipped, OR the shipped polyline was withheld as fully covered
+      // by node boxes — its only visible ink is the seam between the
+      // adjacent nodes' ART, exactly what the stub tier draws from the ink
+      // edges (the crc8 disabled chain's abutment stubs).
+      var stubEligible = routeTree == null && routePoints == null;
       if (routeTree != null) {
         // A proven branching tree ([ViWire.routeTree]): every run drawn
         // exactly (origin-relative, no extension or clipping) and a branch
@@ -4188,8 +4249,23 @@ class BdDiagramPainter extends CustomPainter {
             }
           }
         }
-        if (points.length >= 2) legs.add(points);
-      } else if (wire.route?.pointCount == 2 &&
+        // Withhold a polyline with NO visible box-level ink: every pixel
+        // under a node box ([nodeCoverRects]) is painted over by node
+        // art/chrome in LabVIEW's draw order (the crc-family LUT chains'
+        // abutting conversion prims store exactly such routes). A withheld
+        // 2-point wire falls through to the straight-stub tier, which draws
+        // the seam ink between the adjacent nodes' ART edges — the one part
+        // LabVIEW shows.
+        if (points.length >= 2) {
+          if (!_polylineUnderNodes(points, nodeCoverRects)) {
+            legs.add(points);
+          } else {
+            stubEligible = true;
+          }
+        }
+      }
+      if (stubEligible &&
+          wire.route?.pointCount == 2 &&
           wire.route?.direction != null &&
           wire.endpointOids.length == 2 &&
           wire.endpointAttachRects.length >= 2) {
