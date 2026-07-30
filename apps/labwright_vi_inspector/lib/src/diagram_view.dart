@@ -4369,7 +4369,13 @@ class BdDiagramPainter extends CustomPainter {
               if (j + 1 < leg.length) leg[j + 1],
             ]) {
               final nx = neighbour.dx.floor();
-              if (nx >= lo - 2 && nx <= hi + 2) {
+              // A 3-way JUNCTION owns its own measured blob — the solid
+              // corner block is for plain 2-leg bends only.
+              final isJunction = junctions.any(
+                (junction) =>
+                    junction.dx.floor() == nx && junction.dy.floor() == cross,
+              );
+              if (!isJunction && nx >= lo - 2 && nx <= hi + 2) {
                 canvas.drawRect(
                   Rect.fromLTWH(nx - 1.0, cross - 1.0, 3, 3),
                   fill,
@@ -4418,6 +4424,17 @@ class BdDiagramPainter extends CustomPainter {
       // terminal features, not crossing segments, so they are not recorded in
       // [drawn].
       for (final junction in junctions) {
+        var vertUp = false, vertDown = false;
+        for (final leg in legs) {
+          for (var k = 0; k + 1 < leg.length; k++) {
+            final a = leg[k], b = leg[k + 1];
+            if (a.dx != b.dx || a.dx != junction.dx) continue;
+            final atJunction = a.dy == junction.dy || b.dy == junction.dy;
+            if (!atJunction) continue;
+            if (math.min(a.dy, b.dy) < junction.dy) vertUp = true;
+            if (math.max(a.dy, b.dy) > junction.dy) vertDown = true;
+          }
+        }
         _drawWireJunctionDot(
           canvas,
           junction,
@@ -4425,6 +4442,8 @@ class BdDiagramPainter extends CustomPainter {
           bdWireStrokeBand(style),
           style: style,
           errorBraid: errorBraid,
+          vertUp: vertUp,
+          vertDown: vertDown,
         );
       }
     }
@@ -4639,9 +4658,14 @@ class BdDiagramPainter extends CustomPainter {
     (int, int) band, {
     ViWireRenderStyle? style,
     bool errorBraid = false,
+    bool vertUp = false,
+    bool vertDown = false,
   }) {
     final cx = center.dx.floorToDouble();
     final cy = center.dy.floorToDouble();
+    // All pattern lattices anchor to ABSOLUTE diagram coordinates (the
+    // canvas origin is the interactive view's pan and must not slide them).
+    final ox = origin.dx.round(), oy = origin.dy.round();
     final (bandLo, bandHi) = band;
     if (style == ViWireRenderStyle.braid) {
       // Braid junctions, byte-measured on Excel_Read_XLSX (each from its
@@ -4660,7 +4684,7 @@ class BdDiagramPainter extends CustomPainter {
           for (var c = 0; c < 5; c++) {
             final ch = rows[r][c];
             if (ch == '.') continue;
-            final x = (cx - 2 + c).toInt(), y = (cy - 2 + r).toInt();
+            final x = (cx + ox - 2 + c).toInt(), y = (cy + oy - 2 + r).toInt();
             final paint = ch == 'o'
                 ? olive
                 : ch == '#'
@@ -4670,27 +4694,33 @@ class BdDiagramPainter extends CustomPainter {
           }
         }
       } else {
-        // The pink-braid blob, measured literal at Excel's (407,808): the
-        // weave row itself stays the wire's own lattice; the flank rows
-        // punch white at the marked cells; the taper rows fill solid.
-        // '#' = fill, 'W' = punched white, '.' = leave.
-        const rows = [
+        // The pink-braid blob (measured at Excel's (407,808)): solid taper
+        // rows above and below; the weave row stays the wire's own
+        // lattice; the FLANK rows show the weave's hole classes
+        // ((x+y) mod 4 in {0,3}) within one column of the junction and
+        // fill solid outside it — every cell of the measured junction
+        // agrees with this lattice form.
+        final white = _solidNoAa(Colors.white);
+        const taper = [
           '...###...',
           '..#####..',
-          '#####W###',
+          '#########',
           '.........',
-          '###WW####',
+          '#########',
           '..#####..',
           '...###...',
         ];
-        final white = _solidNoAa(Colors.white);
-        for (var r = 0; r < rows.length; r++) {
+        for (var r = 0; r < taper.length; r++) {
+          final dy = r - 3;
           for (var c = 0; c < 9; c++) {
-            final ch = rows[r][c];
-            if (ch == '.') continue;
+            if (taper[r][c] == '.') continue;
+            final dx = c - 4;
+            final x = (cx + ox + dx).toInt(), y = (cy + oy + dy).toInt();
+            final flank = dy == -1 || dy == 1;
+            final hole = flank && dx.abs() <= 1 && (x + y) % 4 % 3 == 0;
             canvas.drawRect(
-              Rect.fromLTWH(cx - 4 + c, cy - 3 + r, 1, 1),
-              ch == '#' ? fill : white,
+              Rect.fromLTWH(cx + dx, cy + dy, 1, 1),
+              hole ? white : fill,
             );
           }
         }
@@ -4704,7 +4734,8 @@ class BdDiagramPainter extends CustomPainter {
     final cycle = style == null ? null : kBdWireStrokeCycles[style];
     final phaseBase = style == null ? null : kBdWireCyclePhase[style];
     final capture = this.style.wireCycleOffset;
-    bool punched(int x, int y) {
+    bool punched(int cxp, int cyp) {
+      final x = cxp + ox, y = cyp + oy;
       if (style == ViWireRenderStyle.dotted ||
           style == ViWireRenderStyle.dottedAlternating) {
         return (x + y).isOdd;
@@ -4737,6 +4768,10 @@ class BdDiagramPainter extends CustomPainter {
       }
       return;
     }
+    // The junction's vertical pair {route-1, route}: the EVEN column draws
+    // solid, the ODD column carries the vertical checker (see the vertical
+    // zigzag stroke law).
+    final oddCol = (cx.toInt() + ox).isOdd ? cx.toInt() : cx.toInt() - 1;
     for (var dy = bandLo - 2; dy <= bandHi + 2; dy++) {
       final outside = dy < bandLo
           ? bandLo - dy
@@ -4755,13 +4790,27 @@ class BdDiagramPainter extends CustomPainter {
       }
       for (var i = 0; i < width; i++) {
         final x = (left + i).toInt(), y = (cy + dy).toInt();
-        // The lattice punch applies above the junction, and on the band
-        // rows on the side selected by the junction COLUMN's parity: odd
-        // columns punch at-and-left, even columns at-and-right (all five
-        // measured Excel zigzag junctions agree on the side switch).
-        final punchSide = cx.toInt().isOdd ? x <= cx : x >= cx;
-        final inPunchZone = dy < bandLo || (dy <= bandHi && punchSide);
-        if (inPunchZone && punched(x, y)) continue;
+        // Measured on all six Excel zigzag junctions (annotated diff-cell
+        // census, zero counterexamples):
+        //  * BAND rows hole the stroke lattice's no-ink column within the
+        //    4-wide window dx in [-2, +1] of the junction — exactly one
+        //    such column lands per row;
+        //  * the FIRST row beyond the band, on the side where the VERTICAL
+        //    RUN CONTINUES, obeys the vertical checker on the pair's odd
+        //    column;
+        //  * everything else (the outermost taper row, and the side with
+        //    no vertical) fills solid.
+        final dx = x - cx.toInt();
+        bool hole;
+        if (dy >= bandLo && dy <= bandHi) {
+          hole = dx >= -2 && dx <= 1 && punched(x, y);
+        } else if ((dy == bandLo - 1 && vertUp) ||
+            (dy == bandHi + 1 && vertDown)) {
+          hole = x == oddCol && (((oddCol + ox) ~/ 2) + y + oy).isOdd;
+        } else {
+          hole = false;
+        }
+        if (hole) continue;
         canvas.drawRect(Rect.fromLTWH(left + i, cy + dy, 1, 1), fill);
       }
     }
@@ -4823,6 +4872,14 @@ class BdDiagramPainter extends CustomPainter {
     int cross, {
     bool errorBraid = false,
   }) {
+    // Pattern lattices anchor to ABSOLUTE diagram coordinates (plus the
+    // capture's screen shift, [BdRenderStyle.wireCycleOffset]) — exactly
+    // like the structure-hatch lattice — so the interactive view's pan
+    // cannot slide them.
+    final alongOrigin = (horizontal ? origin.dx : origin.dy).round();
+    final crossOrigin = (horizontal ? origin.dy : origin.dx).round();
+    int absAlong(int v) => v + alongOrigin;
+    final absCross = cross + crossOrigin;
     Rect px(int along, int band) => horizontal
         ? Rect.fromLTWH(along.toDouble(), band.toDouble(), 1, 1)
         : Rect.fromLTWH(band.toDouble(), along.toDouble(), 1, 1);
@@ -4876,7 +4933,7 @@ class BdDiagramPainter extends CustomPainter {
         for (var v = lo; v <= hi; v++) {
           canvas.drawRect(
             px(v, cross),
-            (v + cross + 1) % 4 < 2 ? yellow : black,
+            (absAlong(v) + absCross + 1) % 4 < 2 ? yellow : black,
           );
         }
       case ViWireRenderStyle.braid when !horizontal:
@@ -4890,7 +4947,7 @@ class BdDiagramPainter extends CustomPainter {
         canvas.drawRect(span(-1, -1), fill);
         canvas.drawRect(span(1, 1), fill);
         for (var v = lo; v <= hi; v++) {
-          final weave = (v + cross) % 4;
+          final weave = (absAlong(v) + absCross) % 4;
           if (weave == 1 || weave == 2) {
             canvas.drawRect(px(v, cross), fill);
           }
@@ -4906,7 +4963,7 @@ class BdDiagramPainter extends CustomPainter {
         for (var v = lo; v <= hi; v++) {
           for (final side in [-1, 1]) {
             final col = cross + side;
-            if (((col ~/ 2) + v).isEven) {
+            if ((((col + crossOrigin) ~/ 2) + absAlong(v)).isEven) {
               canvas.drawRect(px(v, col), fill);
             }
           }
@@ -4919,11 +4976,12 @@ class BdDiagramPainter extends CustomPainter {
         // measured on Excel_Read_XLSX's x=1741 run (route odd: solid left,
         // route col inked on even rows) and its x=996 run (route even:
         // solid ON the route, left col inked on odd rows).
-        final evenCol = cross.isEven ? cross : cross - 1;
-        final oddCol = cross.isEven ? cross - 1 : cross;
+        final evenCol = absCross.isEven ? cross : cross - 1;
+        final oddCol = absCross.isEven ? cross - 1 : cross;
+        final oddColAbs = oddCol + crossOrigin;
         canvas.drawRect(span(evenCol - cross, evenCol - cross), fill);
         for (var v = lo; v <= hi; v++) {
-          if (((oddCol ~/ 2) + v).isEven) {
+          if (((oddColAbs ~/ 2) + absAlong(v)).isEven) {
             canvas.drawRect(px(v, oddCol), fill);
           }
         }
@@ -4937,7 +4995,9 @@ class BdDiagramPainter extends CustomPainter {
         canvas.drawRect(span(1, 1), fill);
       case ViWireRenderStyle.dotted:
         for (var v = lo; v <= hi; v++) {
-          if ((v + cross).isEven) canvas.drawRect(px(v, cross), fill);
+          if ((absAlong(v) + absCross).isEven) {
+            canvas.drawRect(px(v, cross), fill);
+          }
         }
       case ViWireRenderStyle.dottedAlternating when horizontal:
         // Catalogued period-2 cycle: single dots alternating between the
@@ -4945,7 +5005,10 @@ class BdDiagramPainter extends CustomPainter {
         // anchored so the route-row dot sits on even x+y, matching the
         // dotted family's measured checkerboard (TODO: measure the phase).
         for (var v = lo; v <= hi; v++) {
-          canvas.drawRect(px(v, (v + cross).isEven ? cross : cross - 1), fill);
+          canvas.drawRect(
+            px(v, (absAlong(v) + absCross).isEven ? cross : cross - 1),
+            fill,
+          );
         }
       default:
         final cycle = horizontal ? kBdWireStrokeCycles[style] : null;
@@ -4960,11 +5023,11 @@ class BdDiagramPainter extends CustomPainter {
         // the capture shift (see [kBdWireCyclePhase]).
         final capture = this.style.wireCycleOffset;
         final phase =
-            (((cross + capture.y) & 1) << 1) +
+            (((absCross + capture.y) & 1) << 1) +
             (kBdWireCyclePhase[style] ?? 0) +
             capture.x;
         for (var v = lo; v <= hi; v++) {
-          final mask = cycle[(v + phase) % cycle.length];
+          final mask = cycle[(absAlong(v) + phase) % cycle.length];
           for (var bit = 0; bit < 5; bit++) {
             if ((mask >> bit) & 1 != 0) {
               canvas.drawRect(px(v, cross + bit - 2), fill);
