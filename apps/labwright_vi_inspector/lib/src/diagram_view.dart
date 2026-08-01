@@ -3322,27 +3322,29 @@ class BdDiagramPainter extends CustomPainter {
               );
             }
             // A PATH shell carries the small path glyph inside its left
-            // border (measured on Excel_Read_XLSX's path constants: two
-            // linked 4x4 squares in the border teal at (+4,+6)).
+            // border: two linked 4x4 squares in the border teal, the lower
+            // square 2 px right of the upper, anchored at (+3,+4) — measured
+            // on Excel_Read_XLSX's three path control shells (byte-identical
+            // at all three).
             if (object.kind == 0x5b && box.width > 14 && box.height >= 17) {
               const glyphRows = [
-                '####.',
-                '#..#.',
-                '#..#.',
-                '####.',
-                '...#.',
-                '...#.',
-                '.####',
-                '.#..#',
-                '.#..#',
-                '.####',
+                '####..',
+                '#..#..',
+                '#..#..',
+                '####..',
+                '...#..',
+                '...#..',
+                '..####',
+                '..#..#',
+                '..#..#',
+                '..####',
               ];
               final ink = _solidNoAa(border);
               for (var r = 0; r < glyphRows.length; r++) {
-                for (var c = 0; c < 5; c++) {
+                for (var c = 0; c < glyphRows[r].length; c++) {
                   if (glyphRows[r].codeUnitAt(c) != 0x23) continue;
                   canvas.drawRect(
-                    Rect.fromLTWH(box.left + 4 + c, box.top + 6 + r, 1, 1),
+                    Rect.fromLTWH(box.left + 3 + c, box.top + 4 + r, 1, 1),
                     ink,
                   );
                 }
