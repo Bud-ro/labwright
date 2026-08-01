@@ -1209,12 +1209,13 @@ bool _isScaffolding(ViHeapObject o, Map<int, ViHeapObject> byId) {
       depth++;
     }
   }
-  // A control shell nested inside a bounded 0x53 CLUSTER container is the
+  // ANYTHING nested inside a small bounded 0x53 CLUSTER container is the
   // container's internal machinery: LabVIEW draws the cluster box as one
-  // unit, never the member shells (Excel_Read_XLSX's StateData box at
-  // (316,826) — the reference shows the single ringed box where the nested
-  // path shell's own chrome would otherwise clash).
-  if (kControlTerminalCodes.contains(o.kind)) {
+  // unit — never the member shells, value windows, or labels
+  // (Excel_Read_XLSX's StateData box at (316,826) — the reference shows the
+  // single double-ringed box + glyph where the nested parts' own chrome
+  // would otherwise clash).
+  {
     var parentOid = o.parentOid;
     var depth = 0;
     while (parentOid != null && depth < 8) {
@@ -2894,6 +2895,17 @@ class BdDiagramPainter extends CustomPainter {
     };
     _drawWires(canvas, tunnelSquares: tunnelSquares);
     for (final object in structures) {
+      // A small 0x53 CLUSTER container is a single drawn box, not a frame —
+      // routed to the same chrome as the solids pass (and drawn HERE, after
+      // the wire pass: the reference covers a wire crossing the box's
+      // interior — Excel_Read_XLSX's braid under the (316,826) constant).
+      if (object.kind == 0x53) {
+        final rect = rectOf(object);
+        if (rect.width <= 40 && rect.height <= 24) {
+          _drawSmallClusterBox(canvas, object, rect);
+          continue;
+        }
+      }
       // Class-accurate structure chrome (no badge text — LabVIEW names a
       // construct by its border furniture, not a label). Loops get the thick
       // rounded grey band with the iteration / conditional corner terminals;
@@ -3125,22 +3137,8 @@ class BdDiagramPainter extends CustomPainter {
         if (backing != null) labelBackings.add((object.oid, rect, backing));
         continue;
       }
-      // A 0x53 CLUSTER container draws as ONE box: a double 1px ring in
-      // the cluster's member tint around a white interior (measured on
-      // Excel_Read_XLSX's StateData box at (316,826); its nested member
-      // shells are scaffolding-suppressed). The interior glyph art is not
-      // yet decoded (TODO).
       if (object.kind == 0x53 && rect.width <= 40 && rect.height <= 24) {
-        final tint = _dimFor(
-          object.oid,
-          object.resolvedMembers.isNotEmpty
-              ? _clusterTint(object.resolvedMembers)
-              : labviewTypeColor(object.typeKind),
-        );
-        canvas.drawRect(rect, _solidNoAa(tint));
-        canvas.drawRect(rect.deflate(1), _solidNoAa(Colors.white));
-        canvas.drawRect(rect.deflate(2), _solidNoAa(tint));
-        canvas.drawRect(rect.deflate(3), _solidNoAa(Colors.white));
+        _drawSmallClusterBox(canvas, object, rect);
         continue;
       }
       switch (object.category) {
@@ -6046,6 +6044,43 @@ class BdDiagramPainter extends CustomPainter {
   /// crisp pager/dropdown bitmaps. Measured on crc8's selectors; the value
   /// STRING itself is drawn by the text pass (it is anti-aliased text in the
   /// reference and outside the pixel-exact goal).
+  /// A small `0x53` CLUSTER container draws as ONE box: a double 1px ring in
+  /// the cluster's member tint around a white interior, with every nested
+  /// part scaffolding-suppressed (measured on Excel_Read_XLSX's StateData
+  /// box at (316,826)). A CONSTANT cluster (`0x13` holder parent) adds the
+  /// measured 13x5 interior glyph at (+5,+6) in the same tint; other shells'
+  /// interior art is not yet decoded (TODO).
+  void _drawSmallClusterBox(Canvas canvas, ViHeapObject object, Rect rect) {
+    final tint = _dimFor(
+      object.oid,
+      object.resolvedMembers.isNotEmpty
+          ? _clusterTint(object.resolvedMembers)
+          : labviewTypeColor(object.typeKind),
+    );
+    canvas.drawRect(rect, _solidNoAa(tint));
+    canvas.drawRect(rect.deflate(1), _solidNoAa(Colors.white));
+    canvas.drawRect(rect.deflate(2), _solidNoAa(tint));
+    canvas.drawRect(rect.deflate(3), _solidNoAa(Colors.white));
+    if (scene.diagram.byId[object.parentOid ?? -1]?.kind != 0x13) return;
+    const glyphRows = [
+      '#####.###.###',
+      '#...#.#.#....',
+      '#####.#.#.###',
+      '......#.#.#.#',
+      '.###..###.###',
+    ];
+    final ink = _solidNoAa(tint);
+    for (var r = 0; r < glyphRows.length; r++) {
+      for (var c = 0; c < glyphRows[r].length; c++) {
+        if (glyphRows[r].codeUnitAt(c) != 0x23) continue;
+        canvas.drawRect(
+          Rect.fromLTWH(rect.left + 5 + c, rect.top + 6 + r, 1, 1),
+          ink,
+        );
+      }
+    }
+  }
+
   void _drawCaseSelector(Canvas canvas, Rect rect) {
     final ink = _solidNoAa(Colors.black);
     final l = rect.left.roundToDouble(), t = rect.top.roundToDouble();
