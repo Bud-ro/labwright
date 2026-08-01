@@ -1824,6 +1824,16 @@ int _depthOf(ViHeapObject object, Map<int, ViHeapObject> byId) {
 /// the bundle carries none.
 /// The primitive classes that ARE a single operation (no primResID record —
 /// the class code is the identity); their icons are keyed as `-code`.
+///
+/// No class-icon assets are bundled (see assets/prim_icons/MANIFEST.md);
+/// these nodes render as plain ringed plates. TODO(class-icons): re-extract
+/// per-arity art. Reference facts measured on Excel_Read_XLSX for that
+/// campaign: the 0x93 conversion node (oid 2714, 32x29) is a 0xFF444444
+/// ring around 0xFFFFCC cream with black conversion art in the upper half
+/// and its target-type text ("DBL") in the OUTPUT WIRE's datatype colour
+/// (0xFF6600 float orange there — the current class147 extraction had baked
+/// it grey); the 0x3a growable node's bottom-left cell shows TWO dotted
+/// boxes, not one empty box (review feedback on oid 3007's class58 art).
 const kSingleOpPrimClasses = {0x3a, 0x34, 0x3e, 0x44, 0x6c, 0x93, 0x172, 0xb9};
 
 /// The detail-card row describing a primitive's decoded identity: the
