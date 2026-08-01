@@ -18,11 +18,14 @@ ringed plates until clean per-arity art is re-extracted.
 
 Palette (15 colours — every icon pixel is one of these): #000000 #0000ff #333333 #444444 #4c4c3d #666666 #777777 #999966 #aaaaaa #cccccc #dddddd #ff00ff #ff6600 #ffffcc #ffffff
 
-| prim1050_add.png | Add | 29x28 | GenerateTree, IconHeader, MD5, basic — single-sample fallback (0/8 agreeing) |
+| prim1050_add.png | Add | 21x21 | full-node-box component crop from MD5 (wire ink erased); byte-verified against the reference at its node |
+
 | prim1052_multiply.png | Multiply | 32x32 | full-node-box crop from Excel_Read_XLSX (wire ink erased); byte-verified against the reference at its node |
-| prim1061_and.png | And | 30x20 | large, MD5 — pair-seeded consensus (3/5 agreeing) |
+| prim1061_and.png | And | 24x16 | full-node-box component crop from MD5 (wire ink erased); byte-verified against the reference at its node |
+
 | prim1063 | (verified — committed asset authoritative) | | MD5, crc8, crc16 — single-sample fallback after edge fusion (2/8 agreeing) |
-| prim1064_not.png | Not | 35x31 | Excel_Read_XLSX, ClassChildren, GenerateTree, MD5 — single-sample fallback (0/7 agreeing) |
+| prim1064_not.png | Not | 21x19 | full-node-box component crop from MD5 (wire ink erased); byte-verified against the reference at its node |
+
 | prim1070_random-number-0-1.png | Random Number (0-1) | 32x32 | full-node-box crop from Excel_Read_XLSX (wire ink erased); byte-verified against the reference at its node |
 | prim1077_path-to-string.png | Path To String | 25x11 | Export Palette Image WMF, Excel_Read_XLSX, large — single-sample fallback (0/5 agreeing) |
 | prim1082.png | (uncatalogued) | 37x15 | MD5 — single-sample fallback (0/1 agreeing) |
@@ -45,14 +48,16 @@ Palette (15 colours — every icon pixel is one of these): #000000 #0000ff #3333
 | prim1180_number-to-decimal-string.png | Number To Decimal String | 32x32 | border-exact rect (2/2 ring samples agree byte-for-byte): Excel_Variant_Elements |
 | prim1181.png | (uncatalogued) | 32x37 | border-exact rect (4/4 ring samples agree byte-for-byte): MD5 |
 | prim1185.png | (uncatalogued) | 37x32 | border-exact rect (1/1 ring samples agree byte-for-byte): Config_Escape |
-| prim1189_to-lower-case.png | To Lower Case | 34x32 | ClassesInMemory, ClassChildren, large — single-sample fallback after edge fusion (3/8 agreeing) |
+| prim1189_to-lower-case.png | To Lower Case | 25x11 | full-node-box component crop from MD5 (wire ink erased); byte-verified against the reference at its node |
+
 | prim1302_wait-ms.png | Wait (ms) | 32x32 | border-exact rect (1/1 ring samples agree byte-for-byte): VISA_Query |
 | prim1419 | (verified — committed asset authoritative) | | border-exact rect (5/7 ring samples agree byte-for-byte): Excel_Read_XLSX |
 | prim1420_strip-path.png | Strip Path | 32x32 | border-exact rect (1/1 ring samples agree byte-for-byte): Read Library Version |
 | prim1502_string-length.png | String Length | 32x17 | Config_Load2, Config_Load, MD5 — single-sample fallback after edge fusion (2/8 agreeing) |
 | prim1503_string-subset.png | String Subset | 32x37 | border-exact rect (2/2 ring samples agree byte-for-byte): Config_Load2, Config_Load |
 | prim1435.png | (uncatalogued) | 32x32 | full-node-box crop from Excel_Read_XLSX (wire ink erased); byte-verified against the reference at its node |
-| prim1516_select.png | Select | 27x27 | Excel_Variant_Elements, Config_Dump, Config_Dump2, large — pair-seeded consensus (8/8 agreeing) |
+| prim1516_select.png | Select | 28x27 | full-node-box component crop from MD5 (wire ink erased); byte-verified against the reference at its node |
+
 | prim1534.png | (uncatalogued) | 32x32 | border-exact rect (8/8 ring samples agree byte-for-byte): Excel_Cell_to_Value |
 | prim1535_match-pattern.png | Match Pattern | 32x32 | border-exact rect (8/8 ring samples agree byte-for-byte): ClassesInMemory, Config_Dump, ClassChildren, Config_Dump2 |
 | prim1539_spreadsheet-string-to-array.png | Spreadsheet String To Array | 32x32 | border-exact rect (1/1 ring samples agree byte-for-byte): Excel_Variant_Elements |
