@@ -66,14 +66,21 @@ void main() {
         // catalog ([bdPrimTerminalOf]): each box covers the wire's bend
         // column and arrival runs beside the head prim.
         ('slack-271', 378, 481, 33, 17),
-        ('slack-686', 750, 304, 57, 17),
+        // slack-686's window starts BESIDE its head node (oid 641, a class68
+        // growable): no class-icon asset is bundled, so the node body itself
+        // is not reference-exact — the wire chrome beside it still is.
+        ('slack-686', 758, 304, 49, 17),
         // Straight 2-point stub runs between builtin terminals: the visible
         // gap between the two nodes' art ink (dotted boolean for 293).
         ('stub-293', 296, 473, 13, 15),
-        ('stub-1393', 578, 274, 15, 15),
-        ('stub-701', 715, 303, 17, 15),
+        // stub-1393/-701 arrive at class68 growable nodes (oids 1224/641):
+        // their windows stop at the node box — no class-icon asset is
+        // bundled, so the node bodies are not reference-exact.
+        ('stub-1393', 578, 274, 7, 15),
+        ('stub-701', 715, 303, 10, 15),
         ('stub-704', 686, 303, 11, 15),
-        ('stub-881', 895, 311, 17, 15),
+        // stub-881 likewise stops at oid 789's class68 box.
+        ('stub-881', 895, 311, 9, 15),
         // Diagram-disable structure: a single 1px (153,153,153) rectangle
         // (no double line, no tint) — pinned as four border strips.
         ('disable-top', 184, 163, 239, 1),

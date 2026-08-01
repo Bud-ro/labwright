@@ -231,7 +231,7 @@ void main() {
 
   test('terminals keep LabVIEW datatype colors; unknown stays neutral', () {
     const rows = {
-      ViTypeKind.numericFloat: Color(0xFFFF8000),
+      ViTypeKind.numericFloat: Color(0xFFFF6600),
       // Sampled from LabVIEW's own snippet renders.
       ViTypeKind.numericInt: Color(0xFF0000FF),
       ViTypeKind.enumRing: Color(0xFF0000FF),

@@ -1958,7 +1958,15 @@ PrimIconArt? primIconArtFor(
 ///    table and agrees with the same reference rows.
 /// Growable classes move terminals with the box, hence the size key.
 const Map<(int, int, int, int), ({int? dx, int? dy})> _kBdPrimTerminals = {
+  // Multiply's triangle: inputs at art rows top+5 / top+15 (art top =
+  // box.top+6), output mid-height — Excel_Read_XLSX rows 1146/1156 on the
+  // (1135,477) node.
+  (1052, 1, 32, 32): (dx: null, dy: 21),
+  (1052, 2, 32, 32): (dx: null, dy: 11),
   (1063, 0, 32, 32): (dx: 22, dy: 16),
+  // Random Number's output rides its dice-art middle row — Excel_Read_XLSX
+  // row 1146 on the (1131,443) node.
+  (1070, 0, 32, 32): (dx: null, dy: 15),
   (-0x44, 1, 32, 27): (dx: 24, dy: 22),
   (1142, 0, 32, 32): (dx: null, dy: 16),
   (1143, 0, 32, 32): (dx: null, dy: 16),
@@ -4467,6 +4475,86 @@ class BdDiagramPainter extends CustomPainter {
                     ],
             );
           }
+        }
+      }
+      if (stubEligible &&
+          legs.isEmpty &&
+          wire.route?.pointCount == 3 &&
+          wire.route?.direction != null &&
+          wire.route!.segmentLengths.length == 1 &&
+          wire.endpointOids.length == 2 &&
+          wire.endpointAttachRects.length >= 2) {
+        // A 3-point route table anchored at ONE decoded attach rect, closing
+        // onto a CATALOGUED prim terminal: the stored segment is decoded
+        // geometry and the terminal position is reference-measured
+        // ([bdPrimTerminalOf]), so the whole polyline is determined — the
+        // parse layer withholds these because art-terminal positions are a
+        // renderer catalog. The walk's arrival coordinate must EQUAL the
+        // catalogued terminal's cross coordinate (never guessed); the leg is
+        // visible from the anchor rect's border to the far node's art ink
+        // edge on the arrival row/column (measured on Excel_Read_XLSX's
+        // numeric-constant → Multiply lower-input wire).
+        final route = wire.route!;
+        final dir = route.direction!;
+        for (final (tail, head) in [(0, 1), (1, 0)]) {
+          final attach = wire.endpointAttachRects[tail];
+          if (attach == null ||
+              attach.right <= attach.left ||
+              attach.bottom <= attach.top) {
+            continue;
+          }
+          if (wire.endpointAttachRects[head] != null) continue;
+          final terminal = bdPrimTerminalOf(
+            scene.diagram,
+            wire.endpointOids[head],
+          );
+          if (terminal == null) break;
+          final start = (
+            x: attach.left + (attach.right - attach.left) ~/ 2,
+            y: attach.top + (attach.bottom - attach.top) ~/ 2,
+          );
+          final bend = (
+            x: start.x + dir.dx * route.segmentLengths[0],
+            y: start.y + dir.dy * route.segmentLengths[0],
+          );
+          final closingHorizontal = dir.dx == 0;
+          final arrivalCross = closingHorizontal ? bend.y : bend.x;
+          final catalogued = closingHorizontal ? terminal.y : terminal.x;
+          if (catalogued == null || catalogued != arrivalCross) break;
+          final closingSign = route.jointSigns.isNotEmpty
+              ? route.jointSigns.last
+              : null;
+          final headObj = scene.diagram.byId[wire.endpointOids[head]];
+          final headOwner = headObj?.parentOid == null
+              ? null
+              : scene.diagram.byId[headObj!.parentOid!];
+          if (closingSign == null || headOwner == null) break;
+          final edge = primIconInkEdge(
+            headOwner,
+            horizontal: closingHorizontal,
+            cross: arrivalCross,
+            sign: closingSign,
+          );
+          if (edge == null) break;
+          final far = edge - closingSign;
+          // The first segment's visible ink starts just outside the anchor
+          // rect's border on the walk side.
+          final visStart = (
+            x: dir.dx == 0
+                ? start.x
+                : (dir.dx > 0 ? attach.right : attach.left - 1),
+            y: dir.dy == 0
+                ? start.y
+                : (dir.dy > 0 ? attach.bottom : attach.top - 1),
+          );
+          legs.add([
+            Offset(visStart.x - origin.dx, visStart.y - origin.dy),
+            Offset(bend.x - origin.dx, bend.y - origin.dy),
+            closingHorizontal
+                ? Offset(far - origin.dx, bend.y - origin.dy)
+                : Offset(bend.x - origin.dx, far - origin.dy),
+          ]);
+          break;
         }
       }
       // A wire with NO decoded route (neither a proven [ViWire.routePoints]
