@@ -3011,15 +3011,15 @@ class BdDiagramPainter extends CustomPainter {
               grey,
             );
           } else {
-            final hatch = _solidNoAa(
-              _dimFor(object.oid, const Color(0xFF777777)),
-            );
             final black = _solidNoAa(_dimFor(object.oid, Colors.black));
+            final hatchPts = <double>[];
             void hatchCell(double x, double y) {
               final rx = (x - rect.left).round() & 3;
               final ry = ((y - rect.top).round() + 1) & 3;
               if (kBdStructureHatch[ry][rx] == '#') {
-                canvas.drawRect(Rect.fromLTWH(x, y, 1, 1), hatch);
+                hatchPts
+                  ..add(x + 0.5)
+                  ..add(y + 0.5);
               }
             }
 
@@ -3034,6 +3034,11 @@ class BdDiagramPainter extends CustomPainter {
                 hatchCell(x, y);
               }
             }
+            _drawCellPoints(
+              canvas,
+              hatchPts,
+              _dimFor(object.oid, const Color(0xFF777777)),
+            );
             canvas.drawRect(
               Rect.fromLTRB(
                 rect.left + 3,
@@ -5326,6 +5331,28 @@ class BdDiagramPainter extends CustomPainter {
     ..color = color
     ..isAntiAlias = false;
 
+  /// Paints a batch of 1x1 cells (given as pixel-CENTRE coordinates,
+  /// `x + 0.5, y + 0.5, …`) in ONE canvas call: width-1 square-cap points
+  /// rasterise to exactly the pixels a per-cell 1x1 drawRect fill covers,
+  /// without the per-cell engine call that made large structure bands the
+  /// most expensive draw of a frame.
+  static void _drawCellPoints(
+    Canvas canvas,
+    List<double> centres,
+    Color color,
+  ) {
+    if (centres.isEmpty) return;
+    canvas.drawRawPoints(
+      ui.PointMode.points,
+      Float32List.fromList(centres),
+      Paint()
+        ..color = color
+        ..isAntiAlias = false
+        ..strokeWidth = 1
+        ..strokeCap = StrokeCap.square,
+    );
+  }
+
   /// Stamps a `List<String>` bitmap at 1px per cell marked [on], with the
   /// bitmap's (0,0) cell at ([left], [top]) — the shared form of every
   /// reference-measured chrome glyph.
@@ -5509,28 +5536,49 @@ class BdDiagramPainter extends CustomPainter {
     final aw = _kWhileArrow.first.length, ah = _kWhileArrow.length;
     final ax0 = r - aw, ay0 = b - ah;
 
-    final path = Path();
-    void add(int x, int y) =>
-        path.addRect(Rect.fromLTWH(x.toDouble(), y.toDouble(), 1, 1));
+    final pts = <double>[];
+    void add(int x, int y) => pts
+      ..add(x + 0.5)
+      ..add(y + 0.5);
 
-    for (var y = t; y < b; y++) {
+    // Only band cells are visited — full rows inside the top/bottom bands,
+    // and just the left/right band columns of the middle rows — so the cost
+    // is O(perimeter x band), never O(area) (a diagram-sized loop made this
+    // the most expensive draw of the whole frame).
+    void cell(int x, int y) {
       final dt = y - t, db = b - 1 - y;
+      final dl = x - l, dr = r - 1 - x;
+      if (x >= ax0 && y >= ay0) return; // arrow owns this cell
+      bool grey1;
+      if (dt < band && dl < band) {
+        grey1 = _kWhileCornerTL[dt][dl] == '#';
+      } else if (dt < band && dr < band) {
+        grey1 = _kWhileCornerTR[dt][dr] == '#';
+      } else if (db < band && dl < band) {
+        grey1 = _kWhileCornerBL[db][dl] == '#';
+      } else {
+        grey1 = true; // straight run (bottom-right handled by the arrow)
+      }
+      if (grey1) add(x, y);
+    }
+
+    final bandBottom = math.max(b - band, t + band);
+    for (var y = t; y < math.min(t + band, b); y++) {
       for (var x = l; x < r; x++) {
-        final dl = x - l, dr = r - 1 - x;
-        final edge = dl < band || dr < band || dt < band || db < band;
-        if (!edge) continue;
-        if (x >= ax0 && y >= ay0) continue; // arrow owns this cell
-        bool grey1;
-        if (dt < band && dl < band) {
-          grey1 = _kWhileCornerTL[dt][dl] == '#';
-        } else if (dt < band && dr < band) {
-          grey1 = _kWhileCornerTR[dt][dr] == '#';
-        } else if (db < band && dl < band) {
-          grey1 = _kWhileCornerBL[db][dl] == '#';
-        } else {
-          grey1 = true; // straight run (bottom-right handled by the arrow)
-        }
-        if (grey1) add(x, y);
+        cell(x, y);
+      }
+    }
+    for (var y = bandBottom; y < b; y++) {
+      for (var x = l; x < r; x++) {
+        cell(x, y);
+      }
+    }
+    for (var y = t + band; y < bandBottom; y++) {
+      for (var x = l; x < math.min(l + band, r); x++) {
+        cell(x, y);
+      }
+      for (var x = math.max(r - band, l + band); x < r; x++) {
+        cell(x, y);
       }
     }
     // Stamp the arrow (its last row sits one pixel below the band bottom).
@@ -5539,7 +5587,7 @@ class BdDiagramPainter extends CustomPainter {
         if (_kWhileArrow[ry][rx] == '#') add(ax0 + rx, ay0 + ry);
       }
     }
-    canvas.drawPath(path, _solidNoAa(grey));
+    _drawCellPoints(canvas, pts, grey);
   }
 
   static const _kWhileBand = 6;
@@ -5639,38 +5687,61 @@ class BdDiagramPainter extends CustomPainter {
       Rect.fromLTWH((l + w - 1).toDouble(), t.toDouble(), 1, h.toDouble()),
       paint,
     );
-    // Hatch band, batched into ink/field paths. Iterate the perimeter ring
-    // (skip the interior columns of the middle rows).
+    // Hatch band, batched into ink/field paths. Only the perimeter ring's
+    // cells are visited — full rows inside the top/bottom bands, just the
+    // side-band columns of the middle rows — so the cost is
+    // O(perimeter x band), never O(area).
     final tile = error ? kBdErrorHatch : kBdStructureHatch;
     final offset = error ? style.errorHatchOffset : style.hatchOffset;
-    final band = Path();
-    final field = error ? Path() : null;
-    for (var j = 0; j < h; j++) {
-      final nearTopBottom = j <= kBdHatchBand || j >= h - 1 - kBdHatchBand;
+    final band = <double>[];
+    final field = error ? <double>[] : null;
+    void cell(int i, int j) {
+      final d = math.min(math.min(i, j), math.min(w - 1 - i, h - 1 - j));
+      if (d < 1 || d > kBdHatchBand) return; // 0 = solid, >5 = interior
+      if (tile[(absTop + j + offset.y) & 3][(absLeft + i + offset.x) & 3] ==
+          '#') {
+        band
+          ..add(l + i + 0.5)
+          ..add(t + j + 0.5);
+      } else {
+        field
+          ?..add(l + i + 0.5)
+          ..add(t + j + 0.5);
+      }
+    }
+
+    final sideTop = math.min(kBdHatchBand + 1, h);
+    final sideBottom = math.max(h - 1 - kBdHatchBand, sideTop);
+    for (var j = 0; j < sideTop; j++) {
       for (var i = 0; i < w; i++) {
-        if (!nearTopBottom && i > kBdHatchBand && i < w - 1 - kBdHatchBand) {
-          continue; // interior — no border here
-        }
-        final d = math.min(math.min(i, j), math.min(w - 1 - i, h - 1 - j));
-        if (d < 1 || d > kBdHatchBand) continue; // 0 = solid, >5 = interior
-        final cell = Rect.fromLTWH(
-          (l + i).toDouble(),
-          (t + j).toDouble(),
-          1,
-          1,
-        );
-        if (tile[(absTop + j + offset.y) & 3][(absLeft + i + offset.x) & 3] ==
-            '#') {
-          band.addRect(cell);
-        } else {
-          field?.addRect(cell);
-        }
+        cell(i, j);
+      }
+    }
+    for (var j = sideBottom; j < h; j++) {
+      for (var i = 0; i < w; i++) {
+        cell(i, j);
+      }
+    }
+    for (var j = sideTop; j < sideBottom; j++) {
+      for (var i = 0; i < math.min(kBdHatchBand + 1, w); i++) {
+        cell(i, j);
+      }
+      for (
+        var i = math.max(w - 1 - kBdHatchBand, kBdHatchBand + 1);
+        i < w;
+        i++
+      ) {
+        cell(i, j);
       }
     }
     if (field != null) {
-      canvas.drawPath(field, _solidNoAa(dim(style.errorCaseGreen)));
+      _drawCellPoints(canvas, field, dim(style.errorCaseGreen));
     }
-    canvas.drawPath(band, error ? _solidNoAa(dim(style.whileBandGrey)) : paint);
+    _drawCellPoints(
+      canvas,
+      band,
+      error ? dim(style.whileBandGrey) : dim(const Color(0xFF000000)),
+    );
   }
 
   /// The magenta `A=a` glyph rows of the case-insensitive badge, 1px cells at

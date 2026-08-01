@@ -688,6 +688,8 @@ Future<BdOracleResult> compareToReference(
   int threshold = 16,
   double? lockScale,
   List<Rect> anchorRects = const [],
+  BdRegistration? knownRegistration,
+  Uint8List? knownReferenceEdges,
 }) async {
   final width = reference.width;
   final height = reference.height;
@@ -701,49 +703,59 @@ Future<BdOracleResult> compareToReference(
   // spike when the oracle first opened.
   final skipResample =
       lockScale == null && renderedWidth == width && renderedHeight == height;
-  final renderedOwnRgba = skipResample ? null : await _rgbaOf(rendered);
-  final reg = await Isolate.run(() {
-    // The reference's Sobel edge mask, computed once and shared by the
-    // translation refinement, the structural comparison, and (via the
-    // result) the placement metric — three consumers, one O(pixels) pass.
-    final referenceEdges = _sobelMask(
-      _luma(referenceRgba, width * height),
-      width,
-      height,
-      kBdEdgeThreshold,
-    );
-    BdRegistration? registration;
-    if (renderedOwnRgba != null) {
-      // Register the render onto the reference by aligning their drawn-ink
-      // bounding boxes (aspect-preserved scale + centre), so a correct
-      // render at a different crop/scale is credited instead of penalised.
-      // Null when either image has no ink to register on (the caller falls
-      // back to a centred letterbox).
-      final srcInk = inkBoundsOf(
-        renderedOwnRgba,
-        renderedWidth,
-        renderedHeight,
-      );
-      final dstInk = inkBoundsOf(referenceRgba, width, height);
-      if (srcInk != null && dstInk != null) {
-        registration = lockScale != null
-            ? _translationRegistration(
-                lockScale,
-                srcInk,
-                dstInk,
-                renderedOwnRgba,
-                renderedWidth,
-                renderedHeight,
-                referenceEdges,
+  // A caller re-comparing the SAME geometry (a lattice-rephased re-render
+  // registers where the original did — only pattern phases moved) passes the
+  // first result's registration and reference edge mask back in, and the
+  // whole search is skipped: re-deriving a known answer is pure waste.
+  final renderedOwnRgba = skipResample || knownRegistration != null
+      ? null
+      : await _rgbaOf(rendered);
+  final reg = knownRegistration != null && knownReferenceEdges != null
+      ? (referenceEdges: knownReferenceEdges, registration: knownRegistration)
+      : await Isolate.run(() {
+          // The reference's Sobel edge mask, computed once and shared by the
+          // translation refinement, the structural comparison, and (via the
+          // result) the placement metric — three consumers, one O(pixels) pass.
+          final referenceEdges =
+              knownReferenceEdges ??
+              _sobelMask(
+                _luma(referenceRgba, width * height),
                 width,
                 height,
-                anchorRects: anchorRects,
-              )
-            : _inkBoundsRegistration(srcInk, dstInk);
-      }
-    }
-    return (referenceEdges: referenceEdges, registration: registration);
-  });
+                kBdEdgeThreshold,
+              );
+          BdRegistration? registration = knownRegistration;
+          if (registration == null && renderedOwnRgba != null) {
+            // Register the render onto the reference by aligning their drawn-ink
+            // bounding boxes (aspect-preserved scale + centre), so a correct
+            // render at a different crop/scale is credited instead of penalised.
+            // Null when either image has no ink to register on (the caller falls
+            // back to a centred letterbox).
+            final srcInk = inkBoundsOf(
+              renderedOwnRgba,
+              renderedWidth,
+              renderedHeight,
+            );
+            final dstInk = inkBoundsOf(referenceRgba, width, height);
+            if (srcInk != null && dstInk != null) {
+              registration = lockScale != null
+                  ? _translationRegistration(
+                      lockScale,
+                      srcInk,
+                      dstInk,
+                      renderedOwnRgba,
+                      renderedWidth,
+                      renderedHeight,
+                      referenceEdges,
+                      width,
+                      height,
+                      anchorRects: anchorRects,
+                    )
+                  : _inkBoundsRegistration(srcInk, dstInk);
+            }
+          }
+          return (referenceEdges: referenceEdges, registration: registration);
+        });
   final referenceEdges = reg.referenceEdges;
   // Skip the resample when the render already matches the reference exactly, so
   // an identical pair diffs to a true zero (a same-size letterbox still applies
@@ -1223,6 +1235,22 @@ BdRegistration _translationRegistration(
     return hits;
   }
 
+  // The stride-6 sweep only RANKS cells to seed peaks — a strided subset of
+  // the edge samples ranks them the same way at a fraction of the cost (the
+  // full sample set still scores every refinement and the exact snap). The
+  // subset is at most ~4k points, taken uniformly across the list.
+  final int coarseStep = 2 * math.max(1, (points.length ~/ 2) ~/ 4000);
+  int coarseHitsAt(double dx, double dy) {
+    var hits = 0;
+    for (var i = 0; i < points.length; i += coarseStep) {
+      final x = (points[i] + dx).round();
+      final y = (points[i + 1] + dy).round();
+      if (x < 0 || y < 0 || x >= width || y >= height) continue;
+      hits += nearEdges[y * width + x];
+    }
+    return hits;
+  }
+
   // Multi-start, multi-peak coarse-to-fine. A stride-6 sweep around each
   // start collects candidate cells; non-maximum suppression keeps the
   // strongest well-separated PEAKS (repetitive texture — hatched structure
@@ -1243,7 +1271,7 @@ BdRegistration _translationRegistration(
   for (final (sx, sy) in starts) {
     for (var oy = -searchRadius; oy <= searchRadius; oy += 6) {
       for (var ox = -searchRadius; ox <= searchRadius; ox += 6) {
-        cells.add((sx + ox, sy + oy, hitsAt(sx + ox, sy + oy)));
+        cells.add((sx + ox, sy + oy, coarseHitsAt(sx + ox, sy + oy)));
       }
     }
   }
@@ -1257,8 +1285,12 @@ BdRegistration _translationRegistration(
     if (farEnough) peaks.add(cell);
   }
   final candidates = <(double, double, int)>[];
-  for (final (px, py, ph) in peaks) {
-    var bestDx = px, bestDy = py, bestHits = ph;
+  for (final (px, py, _) in peaks) {
+    // Re-score the peak with the FULL sample set before refining: the coarse
+    // rank is subsampled, and mixing the two scales would let any full-set
+    // neighbour beat the peak by construction.
+    var bestDx = px, bestDy = py;
+    var bestHits = hitsAt(px, py);
     for (var oy = -5; oy <= 5; oy++) {
       for (var ox = -5; ox <= 5; ox++) {
         if (ox == 0 && oy == 0) continue;
@@ -1646,15 +1678,14 @@ class _BdOracleViewState extends State<BdOracleView>
           result.fitted.dispose();
           result.diffImage.dispose();
           raster = rephased;
+          // Same geometry, rephased lattices: the first pass's registration
+          // and reference edge mask still hold — no second search.
           result = await compareToReference(
             raster.image,
             reference.image,
             lockScale: 1.0 / raster.scale,
-            anchorRects: bdStructureAnchorRects(
-              diagram,
-              raster,
-              drawable: drawable,
-            ),
+            knownRegistration: result.registration,
+            knownReferenceEdges: result.referenceEdges,
           );
         }
       }
