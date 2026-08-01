@@ -1933,7 +1933,7 @@ PrimIconArt? primIconArtFor(
 /// Derivation: the corpus route census — a reverse walk with stored bends
 /// pins the origin's coordinate perpendicular to its closing axis, so
 /// wires of both closing parities assemble a terminal's full position
-/// (13,348 slack heads corpus-wide, every one a prim `0x15` DCO; the
+/// (every slack head corpus-wide is a prim `0x15` DCO; the
 /// `oa2_slack_head_dco` census law pins that identity). An axis stays null
 /// until pinned. Entries and their basis:
 ///  * prim 1063 t0: dy=16 corpus-unanimous; dx=22 measured once from the
@@ -1957,24 +1957,49 @@ PrimIconArt? primIconArtFor(
 ///    walked route slides onto the terminal; the reference's vertical run
 ///    pins the slide); the dy of both is corpus-unanimous in the census
 ///    table and agrees with the same reference rows.
+///  * MD5-reference entries (each pinned by a stored route whose bend
+///    column/row is visible ink, dy corpus-unanimous where the census has
+///    one): prim 1050 t0 dx=21 (bend column x=1418 = box.left + 21 + the
+///    stored 14); 1050 t1 dy=21 (riser tops at box.top + 21); 1082 t0
+///    (22, 16) (riser bottom row box.top + 16, bend column box.left + 22 +
+///    12); 1142 t0 dx=22 (bend column x=642); 1502 t0 (24, 15) (a branch
+///    trunk column x=345 = box.left + 24 + 13, its leaf rows pinning
+///    dy=15); 1056 t3 (10, 10) (that same ref-pinned trunk's walked leaf,
+///    corroborated by an independent arrival row box.top + 10); 1166 t2
+///    dx=26 (a slack wire's drawn column pins the slide at -5); 1900 t1
+///    dy=16 (an arrival seam's stroke rows); 1051 t2 (11, 11) / 1155 t1
+///    (10, 16) / 1156 t1 (10, 16) — the walked leaves of the branch route
+///    whose trunk column and leaf rows are the ref-pinned 1502-t0 ink
+///    (the stored edge lengths are exact, so a pinned origin pins every
+///    leaf).
 /// Growable classes move terminals with the box, hence the size key.
 const Map<(int, int, int, int), ({int? dx, int? dy})> _kBdPrimTerminals = {
   // Multiply's triangle: inputs at art rows top+5 / top+15 (art top =
   // box.top+6), output mid-height — Excel_Read_XLSX rows 1146/1156 on the
   // (1135,477) node.
+  (1050, 0, 32, 32): (dx: 21, dy: 16),
+  (1050, 1, 32, 32): (dx: null, dy: 21),
+  (1051, 2, 32, 32): (dx: 11, dy: 11),
   (1052, 1, 32, 32): (dx: null, dy: 21),
   (1052, 2, 32, 32): (dx: null, dy: 11),
+  (1056, 3, 32, 32): (dx: 10, dy: 10),
   (1063, 0, 32, 32): (dx: 22, dy: 16),
   // Random Number's output rides its dice-art middle row — Excel_Read_XLSX
   // row 1146 on the (1131,443) node.
   (1070, 0, 32, 32): (dx: null, dy: 15),
+  (1082, 0, 32, 32): (dx: 22, dy: 16),
   (-0x44, 1, 32, 27): (dx: 24, dy: 22),
-  (1142, 0, 32, 32): (dx: null, dy: 16),
+  (1142, 0, 32, 32): (dx: 22, dy: 16),
   (1143, 0, 32, 32): (dx: null, dy: 16),
+  (1155, 1, 32, 32): (dx: 10, dy: 16),
+  (1156, 1, 32, 32): (dx: 10, dy: 16),
+  (1166, 2, 32, 32): (dx: 26, dy: 16),
   (1171, 0, 32, 32): (dx: 20, dy: 16),
+  (1502, 0, 32, 32): (dx: 24, dy: 15),
   (1814, 0, 32, 32): (dx: null, dy: 16),
   (1815, 0, 32, 32): (dx: null, dy: 16),
   (1900, 0, 32, 32): (dx: 24, dy: 16),
+  (1900, 1, 32, 32): (dx: null, dy: 16),
   (1908, 0, 32, 32): (dx: 24, dy: 24),
   (8083, 3, 32, 32): (dx: 28, dy: 4),
 };
@@ -4295,8 +4320,53 @@ class BdDiagramPainter extends CustomPainter {
               }
             }
           } else {
+            // A polyline closed onto a [ViDiagram.dcoChildTerminalAttach]
+            // candidate whose prim terminal is CATALOGUED at both axes
+            // ([bdPrimTerminalOf], reference-measured — it outranks the
+            // candidate convention) re-anchors: the whole polyline
+            // translates so that endpoint sits on the catalogued terminal
+            // (the stored segments are exact; only the anchor convention
+            // differed — measured on MD5, where every such wire's candidate
+            // anchor misses the reference ink the catalogued terminal
+            // lands on). Two catalogued ends demanding different
+            // translations contradict, and the wire is withheld.
+            Offset? reanchor;
+            var reanchorConflict = false;
+            if (wire.endpointOids.length == 2) {
+              for (final (e, p) in [(0, points.first), (1, points.last)]) {
+                final oid = wire.endpointOids[e];
+                if (scene.diagram.wireAttachPoint(oid) != null) continue;
+                final abs = (
+                  x: (p.dx + origin.dx).round(),
+                  y: (p.dy + origin.dy).round(),
+                );
+                final candidates = scene.diagram
+                    .dcoChildTerminalAttach(oid)
+                    ?.candidates;
+                if (candidates == null || !candidates.contains(abs)) continue;
+                final term = bdPrimTerminalOf(scene.diagram, oid);
+                if (term?.x == null || term?.y == null) continue;
+                final delta = Offset(
+                  (term!.x! - abs.x).toDouble(),
+                  (term.y! - abs.y).toDouble(),
+                );
+                if (delta == Offset.zero) continue;
+                if (reanchor == null) {
+                  reanchor = delta;
+                } else if (reanchor != delta) {
+                  reanchorConflict = true;
+                }
+              }
+            }
+            if (reanchorConflict) {
+              points.clear();
+            } else if (reanchor != null) {
+              for (var i = 0; i < points.length; i++) {
+                points[i] = points[i] + reanchor;
+              }
+            }
             final sourceBox = iconBox(0);
-            if (sourceBox != null) {
+            if (points.length >= 2 && sourceBox != null) {
               final c = (iconInkRects[sourceBox] ?? sourceBox).center;
               final p0 = points.first, p1 = points[1];
               points[0] = p0.dy == p1.dy
@@ -4382,8 +4452,72 @@ class BdDiagramPainter extends CustomPainter {
             stubEligible = true;
           }
         }
+      } else if (wire.branchRoute != null && wire.endpointOids.length >= 3) {
+        // A branching table whose ORIGIN is a catalogued prim terminal
+        // ([bdPrimTerminalOf], both axes) and no endpoint resolves a
+        // standard attach (the parse gates all declined): the stored tree
+        // is fully decoded off the catalogued origin, and it ships only
+        // when EVERY walked leaf lands exactly on its own endpoint's
+        // catalogued terminal or [ViDiagram.dcoChildTerminalAttach]
+        // candidate — zero-slack closure at every endpoint, never a guess.
+        // Leaves sit under their nodes' art, which overdraws the covered
+        // interior (the same law as every routeTree leaf).
+        final headTerminal = bdPrimTerminalOf(
+          scene.diagram,
+          wire.endpointOids[0],
+        );
+        if (headTerminal?.x != null && headTerminal?.y != null) {
+          final tree = walkWireBranchRoute(wire.branchRoute!, (
+            x: headTerminal!.x!,
+            y: headTerminal.y!,
+          ));
+          final leaves = tree.leaves;
+          var closed = leaves.length == wire.endpointOids.length - 1;
+          if (closed) {
+            final remaining = <ViPoint, int>{};
+            for (final leaf in leaves) {
+              remaining.update(leaf, (c) => c + 1, ifAbsent: () => 1);
+            }
+            for (var e = 1; e < wire.endpointOids.length; e++) {
+              final oid = wire.endpointOids[e];
+              final term = bdPrimTerminalOf(scene.diagram, oid);
+              ViPoint? match;
+              for (final candidate in [
+                if (term?.x != null && term?.y != null)
+                  (x: term!.x!, y: term.y!),
+                ...?scene.diagram.dcoChildTerminalAttach(oid)?.candidates,
+              ]) {
+                if (remaining.containsKey(candidate)) {
+                  match = candidate;
+                  break;
+                }
+              }
+              if (match == null) {
+                closed = false;
+                break;
+              }
+              final count = remaining[match]!;
+              if (count == 1) {
+                remaining.remove(match);
+              } else {
+                remaining[match] = count - 1;
+              }
+            }
+          }
+          if (closed) {
+            for (final run in tree.polylines) {
+              legs.add([
+                for (final p in run) Offset(p.x - origin.dx, p.y - origin.dy),
+              ]);
+            }
+            for (final j in tree.junctions) {
+              junctions.add(Offset(j.x - origin.dx, j.y - origin.dy));
+            }
+          }
+        }
       }
       if (stubEligible &&
+          legs.isEmpty &&
           wire.route?.pointCount == 2 &&
           wire.route?.direction != null &&
           wire.endpointOids.length == 2 &&
@@ -4558,6 +4692,120 @@ class BdDiagramPainter extends CustomPainter {
                 : Offset(bend.x - origin.dx, far - origin.dy),
           ]);
           break;
+        }
+      }
+      if (stubEligible &&
+          legs.isEmpty &&
+          wire.routePoints == null &&
+          (wire.route?.pointCount ?? 0) >= 3 &&
+          wire.route?.direction != null &&
+          wire.route!.segmentLengths.length == wire.route!.pointCount - 2 &&
+          wire.endpointOids.length == 2) {
+        // A full stored route departing a CATALOGUED prim terminal
+        // ([bdPrimTerminalOf], both axes pinned) with no decoded attach at
+        // that end: every stored segment is decoded geometry off the
+        // catalogued origin, and the implied closing run's arrival
+        // coordinate must EQUAL the far end's independently known cross
+        // coordinate — a decoded attach rect's centre row/column, the far
+        // prim's catalogued terminal, or its [dcoChildTerminalAttach]
+        // candidate — never a guess. The closing run ends at the far
+        // attach rect's border, or at the far node's art ink edge
+        // ([primIconInkEdge], plain box border when no art resolves); the
+        // origin sits under the head node's own art, which overdraws the
+        // covered interior (measured on MD5's arithmetic-chain wires).
+        final route = wire.route!;
+        final headTerminal = bdPrimTerminalOf(
+          scene.diagram,
+          wire.endpointOids[0],
+        );
+        final headAttach = wire.endpointAttachRects[0];
+        if (headTerminal?.x != null &&
+            headTerminal?.y != null &&
+            (headAttach == null ||
+                headAttach.right <= headAttach.left ||
+                headAttach.bottom <= headAttach.top)) {
+          final dir = route.direction!;
+          var horizontal = dir.isHorizontal;
+          var sign = dir.dx + dir.dy;
+          var walkX = headTerminal!.x!, walkY = headTerminal.y!;
+          final walk = <(int, int)>[(walkX, walkY)];
+          for (var k = 0; k < route.segmentLengths.length; k++) {
+            if (k > 0) sign = route.jointSigns[k - 1];
+            if (horizontal) {
+              walkX += route.segmentLengths[k] * sign;
+            } else {
+              walkY += route.segmentLengths[k] * sign;
+            }
+            walk.add((walkX, walkY));
+            horizontal = !horizontal;
+          }
+          final closingHorizontal = horizontal;
+          final closingSign = route.jointSigns.last;
+          final arrivalCross = closingHorizontal ? walkY : walkX;
+          int? terminus;
+          final farAttach = wire.endpointAttachRects[1];
+          if (farAttach != null &&
+              farAttach.right > farAttach.left &&
+              farAttach.bottom > farAttach.top) {
+            final cross = closingHorizontal
+                ? farAttach.top + (farAttach.bottom - farAttach.top) ~/ 2
+                : farAttach.left + (farAttach.right - farAttach.left) ~/ 2;
+            if (cross == arrivalCross) {
+              terminus = closingHorizontal
+                  ? (closingSign > 0 ? farAttach.left - 1 : farAttach.right)
+                  : (closingSign > 0 ? farAttach.top - 1 : farAttach.bottom);
+            }
+          } else {
+            final farTerminal = bdPrimTerminalOf(
+              scene.diagram,
+              wire.endpointOids[1],
+            );
+            var farCross = closingHorizontal ? farTerminal?.y : farTerminal?.x;
+            if (farCross == null) {
+              for (final c
+                  in scene.diagram
+                          .dcoChildTerminalAttach(wire.endpointOids[1])
+                          ?.candidates ??
+                      const <ViPoint>[]) {
+                final cross = closingHorizontal ? c.y : c.x;
+                if (cross == arrivalCross) {
+                  farCross = cross;
+                  break;
+                }
+              }
+            }
+            final farObj = scene.diagram.byId[wire.endpointOids[1]];
+            final farOwner = farObj?.parentOid == null
+                ? null
+                : scene.diagram.byId[farObj!.parentOid!];
+            final farBox = farOwner?.absBounds;
+            if (farCross == arrivalCross && farBox != null) {
+              final edge = primIconInkEdge(
+                farOwner!,
+                horizontal: closingHorizontal,
+                cross: arrivalCross,
+                sign: closingSign,
+              );
+              terminus = edge != null
+                  ? edge - closingSign
+                  : (closingSign > 0
+                        ? (closingHorizontal ? farBox.left : farBox.top) - 1
+                        : (closingHorizontal ? farBox.right : farBox.bottom));
+            }
+          }
+          // The closing run must extend beyond the last bend in its stored
+          // direction; a double-back means the resolved geometry is wrong.
+          if (terminus != null &&
+              (terminus - (closingHorizontal ? walkX : walkY)) * closingSign >=
+                  0) {
+            legs.add([
+              for (final (px, py) in walk)
+                Offset(px - origin.dx, py - origin.dy),
+              closingHorizontal
+                  ? Offset(terminus - origin.dx, walkY - origin.dy)
+                  : Offset(walkX - origin.dx, terminus - origin.dy),
+            ]);
+          }
         }
       }
       // A wire with NO decoded route (neither a proven [ViWire.routePoints]

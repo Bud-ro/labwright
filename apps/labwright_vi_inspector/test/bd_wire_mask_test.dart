@@ -388,17 +388,18 @@ void main() {
       // never byte-converge; they still guard against regressions).
       expect(
         totalOff,
-        lessThanOrEqualTo(72767),
+        lessThanOrEqualTo(72110),
         reason:
             'wire-layer pixels off the reference, corpus-wide — re-pin '
-            'DOWNWARD as decodes land. (The reverse-solved routeTree tier '
-            'draws thousands of new wires corpus-wide; the not-yet-perfect '
-            'ones moved this up in trade for the missing-ink ceiling '
-            'dropping 91,712 -> 81,174.)',
+            'DOWNWARD as decodes land. (Per-snippet trades inside the '
+            'net drop: the shift-register column decode and the '
+            'catalogued-terminal tiers draw hundreds of new wires; the '
+            'not-yet-perfect ones raise a few rows — ClassChildren, large '
+            '— against the missing-ink ceiling dropping 51,707 -> 39,805.)',
       );
       expect(
         totalMissing,
-        lessThanOrEqualTo(51699),
+        lessThanOrEqualTo(39805),
         reason:
             'reference wire ink left white, corpus-wide — the undrawn/'
             'misrouted budget; re-pin DOWNWARD as routing lands, never up',
