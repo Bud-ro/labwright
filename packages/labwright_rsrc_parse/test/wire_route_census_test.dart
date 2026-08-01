@@ -28,7 +28,8 @@ import 'snapshot_check.dart';
 ///     totality, leaf closure onto the anchored attach points (destination
 ///     candidates include the strip-column target,
 ///     [kTerminalStripTargetLeftOffset]), the fully-anchored split gating
-///     [ViWire.routeTree], the reverse-solved tier (`extShippedRev`), and the
+///     [ViWire.routeTree], the reverse-solved tier (`extShippedRev`), the
+///     DCO-child closed tier (`extShippedDcoClosed`), and the
 ///     exact-attach-geometry subset (see [_extCensus]).
 ///  4. **Plain-node landings** — for wires walkable from one anchored end
 ///     whose far endpoint is a plain-node DCO (no attach geometry), the
@@ -325,6 +326,13 @@ void _extCensus(ViDiagram d, ViWire w, void Function(String, [int]) bump) {
     final tree = w.routeTree;
     if (tree != null) {
       bump('extShipped');
+      // The DCO-child closed tier ships an unanchored-origin tree as closed
+      // (every endpoint zero-slack on a candidate); the reverse-solved tier
+      // ships walked.
+      if (w.routeTreeFidelity == WireRouteFidelity.closed) {
+        bump('extShippedDcoClosed');
+        return;
+      }
       bump('extShippedRev');
       if (w.routeTreeFidelity != WireRouteFidelity.walked) bump('extFidelityBad');
       // Corroboration the gate does NOT consume: after the resolved far
@@ -643,8 +651,13 @@ void main() {
     );
     expect(
       C['extShipped'] ?? 0,
-      (C['extShippedClosed'] ?? 0) + (C['extShippedWalked'] ?? 0) + (C['extShippedRev'] ?? 0),
-      reason: 'shipped branching trees partition into closed + walked + reverse-solved tiers',
+      (C['extShippedClosed'] ?? 0) +
+          (C['extShippedWalked'] ?? 0) +
+          (C['extShippedRev'] ?? 0) +
+          (C['extShippedDcoClosed'] ?? 0),
+      reason:
+          'shipped branching trees partition into closed + walked + '
+          'reverse-solved + DCO-child-closed tiers',
     );
     expect(
       C['shipped'] ?? 0,

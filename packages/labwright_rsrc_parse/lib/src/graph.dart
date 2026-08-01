@@ -927,11 +927,10 @@ const int kRightShiftRegisterClass = 0x28;
 
 /// Heap object class ([ViHeapObject.kind]) of the **left shift-register
 /// terminal** — the input column on a loop's left edge (glyph
-/// [ViHeapObject.termBmp] 3). The corpus offers no x-testable routed walk from
-/// one yet (its routed sample is vertical-first, so its connection column is
-/// unobservable), so its own column offset is undecoded: its attach point stays
-/// the plain floored centre and a BENT walk anchored on it is withheld
-/// ([ViDiagram._routePointsFor]). TODO: revisit when an x-testable walk appears.
+/// [ViHeapObject.termBmp] 3). Its stored-route wire connection column sits
+/// [kShiftRegisterColumnRightOffset] px RIGHT of its attach-rect centre — the
+/// mirror of the right register's [kShiftRegisterColumnLeftOffset]: both
+/// registers connect one column toward the loop interior.
 const int kLeftShiftRegisterClass = 0x27;
 
 /// Pixels the right shift register's ([kRightShiftRegisterClass]) drawn wire
@@ -942,6 +941,18 @@ const int kLeftShiftRegisterClass = 0x27;
 /// exactly `centre.x - 4` (support >= 0.96; the plain centre column scores
 /// <= 0.03), pinned by `wire_one_anchored_oracle`.
 const int kShiftRegisterColumnLeftOffset = 4;
+
+/// Pixels the left shift register's ([kLeftShiftRegisterClass]) drawn wire
+/// connection column sits RIGHT of its attach-rect centre — the mirror of
+/// [kShiftRegisterColumnLeftOffset] (both registers connect one column toward
+/// the loop interior). Measured against LabVIEW's own render of the MD5
+/// snippet, whose nested loops carry eight branching routes anchored on
+/// left-register terminals (16x12 rects): every walk placed at `centre.x + 4`
+/// lands its bend columns and junction dots on the reference ink exactly, and
+/// four of the trees additionally close ZERO-SLACK onto both far endpoints'
+/// independently decoded attach points (which the plain centre misses by
+/// exactly 4 px, the contradiction that withheld them).
+const int kShiftRegisterColumnRightOffset = 4;
 
 /// Heap object classes ([ViHeapObject.kind]) of the **node terminal strips** —
 /// the termBounds-carrying rows and full-height columns an expandable node
@@ -1416,7 +1427,7 @@ class ViWire {
 
   /// The wire's **absolute stored route tree** in diagram coordinates — the
   /// branching Manhattan geometry LabVIEW saved, polyline runs plus
-  /// junction-dot points — or null when it is not shippable. Three tiers
+  /// junction-dot points — or null when it is not shippable. Four tiers
   /// (endpoint matching always tries each endpoint's destination candidates:
   /// the terminal-strip column target first, then the attach centre, then
   /// the array element centre — see [kTerminalStripTargetLeftOffset]):
@@ -1438,6 +1449,13 @@ class ViWire {
   ///    candidate translation closes every resolved endpoint AND lands the
   ///    implied origin inside the head endpoint's owner box
   ///    ([ViDiagram._reverseSolvedRouteTree]).
+  ///  * **DCO-child closed** (reported [WireRouteFidelity.closed]) —
+  ///    consulted only after the gates above declined, for an unanchored
+  ///    origin: endpoints with no standard attach substitute their
+  ///    [ViDiagram.dcoChildTerminalAttach] candidates and EVERY endpoint
+  ///    must close zero-slack onto a distinct leaf — the branching analog
+  ///    of [routePoints]' DCO-child closed tier
+  ///    ([ViDiagram._dcoChildRouteTree]).
   ///
   /// Nothing is force-closed: a contradiction or a leaf-count mismatch ships
   /// null and the census counts it. Computed lazily on first access (a
@@ -1453,26 +1471,26 @@ class ViWire {
   /// Corpus census (7,524 VIs; 35,968 extended tables on 3+-endpoint
   /// signals, pinned by `wire_route_census_test`): every table decodes and
   /// walks. Closure is gated by attach-point exactness, not the walk rule:
-  /// over the 18,233 anchored non-origin endpoints, 16,363 (89.74%) land
+  /// over the 18,233 anchored non-origin endpoints, 17,529 (96.14%) land
   /// exactly on a destination candidate (`extEpHit`); restricted to the
   /// **13,932 endpoints whose own AND origin
   /// attach geometry are exact** (structure-framed border rect via the real
   /// composing frame, or a `0x16` own-bounds box — NOT the approximate
   /// node-framed rects or the constant value-shell centres, whose attach
-  /// point is the drawn edge, not the box centre), **13,040 (93.60%) land
-  /// exactly**. Of the 892 exact-subset misses (`extEpExact` −
-  /// `extEpExactHit`), **767 (86%) land inside the endpoint's own attach
-  /// rect** (`extEpExactMissInRect`) — the walk reaches the right terminal,
-  /// off the floored-centre attach convention, the same off-centre miss class
-  /// as [routePoints] — leaving 125 (`extEpExactMissFar`, ~1% of the exact
-  /// set) genuinely far.
+  /// point is the drawn edge, not the box centre), **13,920 (99.91%) land
+  /// exactly** — the once-dominant in-rect miss class
+  /// (`extEpExactMissInRect`) emptied when the shift-register connection
+  /// columns were decoded ([kShiftRegisterColumnLeftOffset] /
+  /// [kShiftRegisterColumnRightOffset]), leaving 12 (`extEpExactMissFar`)
+  /// genuinely far.
   ///
-  /// Corpus-wide the closed tier ships **2,151** trees (`extShippedClosed`);
-  /// the walked tier adds **17,134** more (`extShippedWalked`) on the
-  /// origin-anchored signals with plain-node leaves, and the reverse-solved
-  /// tier **8,867** more (`extShippedRev`) on the origin-unanchored ones —
-  /// 28,152 of the 35,968 extended tables. The 7,816 unshipped remainder:
-  /// 6,008 origin-unanchored tables with NO resolved endpoint at all, plus
+  /// Corpus-wide the closed tier ships **2,421** trees (`extShippedClosed`);
+  /// the walked tier adds **17,755** more (`extShippedWalked`) on the
+  /// origin-anchored signals with plain-node leaves, the reverse-solved
+  /// tier **8,950** more (`extShippedRev`) on the origin-unanchored ones,
+  /// and the DCO-child closed tier **2,889** more (`extShippedDcoClosed`) —
+  /// 32,015 of the 35,968 extended tables. The 3,953 unshipped remainder:
+  /// origin-unanchored tables with no resolvable endpoint at all, plus
   /// the withheld contradictions/ambiguities on either side.
   ///
   /// Independent geometry check on well-registered snippets
@@ -1480,16 +1498,10 @@ class ViWire {
   /// whose CLOSED-tier control overlay falls below 90%): shipped **closed**
   /// trees overlay LabVIEW's own render at ~100% (also `wire_branch_oracle`,
   /// 99.96%); shipped **walked** trees (reverse-solved included) overlay at
-  /// **94.1%** (36,648/38,960 px, run pixels — the honest per-wire signal). A
-  /// small residue (`oab_ship_qlo`, 1 of 109 snippet trees) overlays below
-  /// 50%: junction-catalog drift on a
-  /// plain-node arm that no resolved leaf can close against — the same drift
-  /// the closed tier rejects via leaf closure but the walked tier cannot detect
-  /// at decode time (no structural signal isolates it; corroboration,
-  /// leaf-containment and junction-risk gates were each measured and do not
-  /// separate it). The tree is DECODED LabVIEW geometry, not fabricated, and
-  /// [routeTreeFidelity] flags it; a consumer needing proven geometry reads
-  /// that tier.
+  /// **99.5%** (39,464/39,671 px, run pixels — the honest per-wire signal),
+  /// with none below 50% (`oab_ship_qlo` = 0). The tree is DECODED LabVIEW
+  /// geometry, not fabricated, and [routeTreeFidelity] carries the tier; a
+  /// consumer needing closure-proven geometry reads that tier.
   late final ({ViWireRouteTree tree, WireRouteFidelity fidelity})? _routeTreeResult = _routeTreeBuilder?.call();
   late final ViWireRouteTree? routeTree = _routeTree ?? _routeTreeResult?.tree;
 
@@ -1526,10 +1538,7 @@ class ViWire {
   ///    undecoded degree of freedom marked on [routeHeadSlack] — and only
   ///    when the derived closing run lands WITHIN the far box's span
   ///    (cross-axis containment) — a
-  ///    terminus beside the node is a drifted/stale route and is withheld. A
-  ///    LEFT shift-register anchor ([kLeftShiftRegisterClass]) with bends is
-  ///    withheld too (its column offset is undecoded); the RIGHT register
-  ///    ([kRightShiftRegisterClass]) ships, its offset decoded. The
+  ///    terminus beside the node is a drifted/stale route and is withheld. The
   ///    far end is snapped to the owner box edge, so the exact terminal pin
   ///    inside a multi-terminal node is not independently verified; the walked
   ///    PATH is what the oracle validates. When the last decoded bend already
@@ -1543,7 +1552,7 @@ class ViWire {
   ///    terminal-storage convention, where the `0x15` DCO parents its own
   ///    termBounds part). A zero-slack closure over the substituted pairs
   ///    ships as [WireRouteFidelity.closed] (`shippedClosedDcoChild`,
-  ///    104,931 corpus routes); a wide-row cell anchor with no standard far
+  ///    103,652 corpus routes); a wide-row cell anchor with no standard far
   ///    attach ships a one-anchored walk (`shippedWalkedDcoRow`, 2,705).
   ///    The standard attach rects/anchors the model exposes are untouched.
   ///
@@ -1555,22 +1564,22 @@ class ViWire {
   /// its anchor as an explicit trailing point. Read [routePointsFidelity] to
   /// tell the tiers apart.
   ///
-  /// Corpus census (7,524 VIs; pinned by `wire_route_census_test`): of the
-  /// two-endpoint signals whose BOTH endpoints resolve, **126,839 close
-  /// exactly** and ship closed. The one-anchored walked tier adds **69,402
-  /// forward + 47,641 reverse = 117,043** more (`shippedWalkedFwd` +
-  /// `shippedWalkedRev`); the reverse count includes **13,348 bent reverse
-  /// walks** shipped with [routeHeadSlack] marked, and the forward count
-  /// includes **7,035 into-node closes** (`shippedWalkedIntoNode`) whose
+  /// Corpus census (7,524 VIs; pinned by `wire_route_census_test`): the
+  /// standard closed tier ships **131,258** exact closures
+  /// (`shippedClosed`). The one-anchored walked tier adds **71,155
+  /// forward + 48,573 reverse = 119,728** more (`shippedWalkedFwd` +
+  /// `shippedWalkedRev`); the reverse count includes the bent reverse
+  /// walks shipped with [routeHeadSlack] marked, and the forward count
+  /// includes **7,630 into-node closes** (`shippedWalkedIntoNode`) whose
   /// last decoded bend enters the far node INTERIOR and whose truncated
   /// polyline the consumer completes along [routeClosingStep]. The rest of
   /// the single-anchor population (`oneAnchorUnshipped`) stay withheld:
-  /// coarse or left-shift-register-bent anchors, out-of-box termini,
+  /// coarse anchors, out-of-box termini,
   /// degenerate zero-segment into-node closes, and no-far-box. Independent
   /// quality check
   /// (`wire_one_anchored_oracle`, over the well-registered snippets its
   /// closed-tier registration control admits): shipped walked paths overlay
-  /// LabVIEW's snippet ink at **99.7%** (38,302/38,409 px) with **zero** shipped
+  /// LabVIEW's snippet ink at **99.7%** (39,763/39,870 px) with **zero** shipped
   /// wires below 50% overlay (`oa2_ship_qlo == 0`, a census law; the into-node
   /// ships are ALSO isolated as `oa2_into` with their own zero-gross-miss law,
   /// overlaying 100% — 2,568/2,568 px — on their own) — at the closed control's
@@ -2163,8 +2172,8 @@ WireRouteDirection _reverse(WireRouteDirection d) => switch (d) {
 /// (above). Total on any decoded route.
 ///
 /// This is pure geometry: [ViWire.routePoints] applies the shipping gate
-/// (exact anchor, cross-axis containment, no left-shift-register bent
-/// anchor) and the reference-pixel validation (`wire_one_anchored_oracle`,
+/// (exact anchor, cross-axis containment) and the
+/// reference-pixel validation (`wire_one_anchored_oracle`,
 /// which pins the shipped-tier overlay and the worse withheld-walk
 /// overlay). Coarse anchors are computed here so the oracle can measure
 /// them, but are not shipped.
@@ -2422,7 +2431,9 @@ class ViDiagram {
       // Lazy: the walk + closure runs only when a consumer reads routeTree.
       routeTreeBuilder: branchRoute == null
           ? null
-          : () => _shippableRouteTree(branchRoute, attachPoints, altAttachPoints, stripTargets, anchors[0]),
+          : () =>
+                _shippableRouteTree(branchRoute, attachPoints, altAttachPoints, stripTargets, anchors[0]) ??
+                _dcoChildRouteTree(branchRoute, object.refs, attachPoints, altAttachPoints, stripTargets),
       signalType: object.lastSignalKind == null ? null : ViSignalType(object.lastSignalKind!),
     );
   }
@@ -2445,14 +2456,10 @@ class ViDiagram {
   /// reverse walk carries the head's undecoded terminal depth on
   /// [ViWire.routeHeadSlack] — and only when the walk's cross-axis
   /// containment holds
-  /// (the terminus lands within the far box span). A LEFT shift-register anchor
-  /// ([kLeftShiftRegisterClass]) with bends is withheld: its drawn connection
-  /// column is one column off the resolved box centre by an offset the corpus
-  /// does not yet expose, which a bent walk carries onto its perpendicular runs,
-  /// missing the ink (census on `wire_one_anchored_oracle`). The RIGHT register
-  /// ([kRightShiftRegisterClass]) is not withheld — its column offset IS decoded
-  /// ([kShiftRegisterColumnLeftOffset]), so the anchor lands on the drawn
-  /// column and the bent walk overlays the ink.
+  /// (the terminus lands within the far box span). Both shift registers'
+  /// connection columns are decoded ([kShiftRegisterColumnLeftOffset] /
+  /// [kShiftRegisterColumnRightOffset]), so a bent walk anchored on either
+  /// register lands on the drawn column.
   ({List<ViPoint> points, WireRouteFidelity fidelity, ViStep? closingStep, ViStep? headSlack})? _routePointsFor(
     ViWireRoute route,
     List<int> refs,
@@ -2487,10 +2494,7 @@ class ViDiagram {
     } else {
       return _dcoChildTierPoints(route, refs, attachPoints, altAttachPoints, stripTargets, anchors);
     }
-    if (_exactAttach(refs[anchoredIndex]) &&
-        // Left shift-register anchor with bends: its undecoded column offset
-        // drifts the perpendicular runs off the ink (see above).
-        !(route.segmentLengths.isNotEmpty && _isLeftShiftRegisterTerminal(refs[anchoredIndex]))) {
+    if (_exactAttach(refs[anchoredIndex])) {
       final farBox = anchors[1 - anchoredIndex];
       if (farBox != null) {
         final walked = walkOneAnchoredRoute(
@@ -2594,14 +2598,6 @@ class ViDiagram {
             headSlack: walked.headSlack,
           );
   }
-
-  /// Whether [oid]'s attach terminal is a **left shift-register**
-  /// ([kLeftShiftRegisterClass]). Its wire connection sits one column off the
-  /// box centre by an offset the corpus does not yet expose, so a bent walk
-  /// anchored on it drifts and is withheld ([_routePointsFor]). The right
-  /// register's ([kRightShiftRegisterClass]) offset is decoded, so it is not
-  /// withheld.
-  bool _isLeftShiftRegisterTerminal(int oid) => endpointTerminal(oid)?.kind == kLeftShiftRegisterClass;
 
   /// Whether [oid]'s attach point is **exact**: it resolves a terminal whose
   /// real composing frame (the nearest bounded ancestor of the terminal's
@@ -2785,6 +2781,65 @@ class ViDiagram {
     }
     if (solved == null) return null;
     return (tree: walkWireBranchRoute(route, solved), fidelity: WireRouteFidelity.walked);
+  }
+
+  /// The **DCO-child closed** branching tier — the branching analog of the
+  /// two-endpoint [_dcoChildTierPoints] closed tier, consulted only after
+  /// [_shippableRouteTree] (and its reverse-solved gate) declined. Applies
+  /// only when the ORIGIN resolves no standard attach point: each origin
+  /// candidate from [dcoChildTerminalAttach] walks the stored tree, and the
+  /// tier ships — as [WireRouteFidelity.closed] — only when EVERY far
+  /// endpoint closes zero-slack onto a distinct walked leaf via one of its
+  /// destination candidates (the strip-column target, the standard/alternate
+  /// attach points, or its own [dcoChildTerminalAttach] candidates, in that
+  /// order). Nothing rides the walk: an endpoint with no candidate, or one
+  /// the walk misses, withholds the tree.
+  ({ViWireRouteTree tree, WireRouteFidelity fidelity})? _dcoChildRouteTree(
+    ViWireBranchRoute route,
+    List<int> refs,
+    List<ViPoint?> attachPoints,
+    List<ViPoint?> altAttachPoints,
+    List<ViPoint?> stripTargets,
+  ) {
+    if (attachPoints.length < 3 || attachPoints[0] != null) return null;
+    final origins = dcoChildTerminalAttach(refs[0])?.candidates;
+    if (origins == null) return null;
+    for (final origin in origins) {
+      final tree = walkWireBranchRoute(route, origin);
+      final leaves = tree.leaves;
+      if (leaves.length != attachPoints.length - 1) continue;
+      final remaining = <ViPoint, int>{};
+      for (final leaf in leaves) {
+        remaining.update(leaf, (c) => c + 1, ifAbsent: () => 1);
+      }
+      var closed = true;
+      for (var i = 1; i < attachPoints.length; i++) {
+        ViPoint? match;
+        for (final candidate in [
+          stripTargets[i],
+          attachPoints[i],
+          altAttachPoints[i],
+          ...?dcoChildTerminalAttach(refs[i])?.candidates,
+        ]) {
+          if (candidate != null && remaining.containsKey(candidate)) {
+            match = candidate;
+            break;
+          }
+        }
+        if (match == null) {
+          closed = false;
+          break;
+        }
+        final count = remaining[match]!;
+        if (count == 1) {
+          remaining.remove(match);
+        } else {
+          remaining[match] = count - 1;
+        }
+      }
+      if (closed) return (tree: tree, fidelity: WireRouteFidelity.closed);
+    }
+    return null;
   }
 
   /// Member oid → the oid of the **terminal object** that declares it in its
@@ -3056,7 +3111,7 @@ class ViDiagram {
   ///
   /// Corpus (7,524 VIs; pinned by `wire_route_census_test`): before this
   /// tier 139,907 two-endpoint tables shipped no route and 139,072 of them
-  /// resolve this fallback on at least one end; 104,931 close zero-slack
+  /// resolve this fallback on at least one end; 103,652 close zero-slack
   /// against it (`shippedClosedDcoChild`) and 2,705 more ship as wide-row
   /// anchored walks (`shippedWalkedDcoRow`). A part TALLER than one row can
   /// carry its centre off the true connection row (reference-read on a
@@ -3114,14 +3169,14 @@ class ViDiagram {
   /// are bounds-less corpus-wide (0 of 862,159 carry bounds, a pinned
   /// law), and a bounded one would not make its box an attach rect.
   ///
-  /// **Right shift register ([kRightShiftRegisterClass]) exception**: the
-  /// stored-route connection column sits [kShiftRegisterColumnLeftOffset] px
-  /// LEFT of the register rect's centre, so the resolved attach point subtracts
-  /// that offset from the floored-centre x. Only the x moves; the y stays the
-  /// floored centre (pinned by the vertical-first walk and by every crossing
-  /// row). See [kShiftRegisterColumnLeftOffset] for the render-oracle evidence.
-  /// The left register ([kLeftShiftRegisterClass]) keeps the plain centre — its
-  /// column offset is unobserved. The offset applies only to a resolved attach
+  /// **Shift-register ([kRightShiftRegisterClass] /
+  /// [kLeftShiftRegisterClass]) exception**: the stored-route connection
+  /// column sits one column toward the loop INTERIOR of the register rect's
+  /// centre — [kShiftRegisterColumnLeftOffset] px left for the right register,
+  /// [kShiftRegisterColumnRightOffset] px right for the left register. Only
+  /// the x moves; the y stays the floored centre (pinned by the vertical-first
+  /// walk and by every crossing row). See the two constants for the
+  /// render-oracle evidence. The offset applies only to a resolved attach
   /// rect (a terminal/constant bounds), never the own-bounds `0x16` fallback.
   ViPoint? _attachPointFrom(HeapRect? attachRect, int oid) {
     var rect = attachRect;
@@ -3133,8 +3188,13 @@ class ViDiagram {
       if (rect == null) return null;
     }
     var x = rect.left + (rect.right - rect.left) ~/ 2;
-    if (attachRect != null && endpointTerminal(oid)?.kind == kRightShiftRegisterClass) {
-      x -= kShiftRegisterColumnLeftOffset;
+    if (attachRect != null) {
+      final terminalKind = endpointTerminal(oid)?.kind;
+      if (terminalKind == kRightShiftRegisterClass) {
+        x -= kShiftRegisterColumnLeftOffset;
+      } else if (terminalKind == kLeftShiftRegisterClass) {
+        x += kShiftRegisterColumnRightOffset;
+      }
     }
     return (x: x, y: rect.top + (rect.bottom - rect.top) ~/ 2);
   }
