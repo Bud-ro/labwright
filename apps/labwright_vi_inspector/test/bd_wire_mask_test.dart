@@ -95,7 +95,7 @@ int missingWireInk({
 }
 
 void main() {
-  testWidgets('Excel per-wire masks: 86 of 90 drawn wires are byte-perfect', (
+  testWidgets('Excel per-wire masks: 87 of 90 drawn wires are byte-perfect', (
     tester,
   ) async {
     final dir = repoDir(
@@ -224,14 +224,14 @@ void main() {
       expect(drawn, greaterThanOrEqualTo(90), reason: 'drawn-wire floor');
       expect(
         perfect,
-        greaterThanOrEqualTo(86),
+        greaterThanOrEqualTo(87),
         reason:
             'byte-perfect wire floor — a regression here un-fixes a wire '
             'that matched LabVIEW exactly',
       );
       expect(
         totalOff,
-        lessThanOrEqualTo(35),
+        lessThanOrEqualTo(34),
         reason:
             'off-reference pixel ceiling over all wire masks — re-pin '
             'DOWNWARD as decodes land, never up. (13 px of the budget are '
@@ -252,12 +252,10 @@ void main() {
       print('missing wire ink: $missing px');
       expect(
         missing,
-        lessThanOrEqualTo(6),
+        lessThanOrEqualTo(0),
         reason:
-            'reference wire ink we leave white — 22 undrawn wires plus the '
-            'undecoded visible-frame routes, and 18 junction-blob px whose '
-            'exact shape the punch lattice does not yet model; re-pin '
-            'DOWNWARD as routing lands',
+            'reference wire ink we leave white — every palette wire pixel '
+            'outside node boxes is covered; keep at zero',
       );
     });
   });
@@ -390,7 +388,7 @@ void main() {
       // never byte-converge; they still guard against regressions).
       expect(
         totalOff,
-        lessThanOrEqualTo(73449),
+        lessThanOrEqualTo(73456),
         reason:
             'wire-layer pixels off the reference, corpus-wide — re-pin '
             'DOWNWARD as decodes land. (The reverse-solved routeTree tier '
@@ -400,7 +398,7 @@ void main() {
       );
       expect(
         totalMissing,
-        lessThanOrEqualTo(51620),
+        lessThanOrEqualTo(51529),
         reason:
             'reference wire ink left white, corpus-wide — the undrawn/'
             'misrouted budget; re-pin DOWNWARD as routing lands, never up',

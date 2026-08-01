@@ -4499,14 +4499,23 @@ class BdDiagramPainter extends CustomPainter {
               .floor();
           final cross = (horizontal ? a.dy : a.dx).floor();
           // Bend continuity: at a shared vertex the segment also covers the
-          // perpendicular partner's ink band so the corner fills (measured
-          // on crc8's routed 2 px elbows and on Excel's braid corner at
-          // (1513,808), whose flank rows reach the vertical's near band
-          // column). For the braid the HORIZONTAL run owns the corner: its
-          // flanks extend over the vertical's band, and the vertical run
-          // starts BELOW the horizontal band instead (the reference braid
-          // verticals begin at band+1 — Excel (1505,808)/(1513,808)).
-          if (style == ViWireRenderStyle.solid2px ||
+          // perpendicular partner's ink band, so the two bands fully overlap
+          // and the texture masks the whole corner square (measured on crc8's
+          // routed 2 px elbows and on Excel's string-family bend corners —
+          // e.g. the zigzag corner pixel at (1186,893) and the chainLink
+          // corner at (1077,970), both plain texture continuations). The
+          // braid is the one exception: its HORIZONTAL run owns the corner —
+          // flanks and core texture extend over the vertical's band — while
+          // the vertical run starts BELOW the horizontal band (the reference
+          // braid verticals begin at band+1 — Excel (1505,808)/(1513,808)).
+          if (const {
+                ViWireRenderStyle.solid1px,
+                ViWireRenderStyle.solid2px,
+                ViWireRenderStyle.dotted,
+                ViWireRenderStyle.zigzag,
+                ViWireRenderStyle.chainLink,
+                ViWireRenderStyle.chainLinkWide,
+              }.contains(style) ||
               (style == ViWireRenderStyle.braid && horizontal)) {
             for (final neighbour in [
               if (j >= 2) leg[j - 2],
@@ -4527,31 +4536,32 @@ class BdDiagramPainter extends CustomPainter {
               if ((hi - nCross).abs() <= 1) hi = nCross - 2;
             }
           }
-          // A braid BEND's corner block is SOLID 3×3 — the vertical's
-          // columns fill the route row through the corner (Excel's
-          // (1513,808): (1512..1514, 807..809) all ink in the reference,
-          // where the weave lattice alone would hole (1512,808)).
+          // A braid elbow's OUTER WALL is continuous: the cell where the
+          // vertical's far flank column (away from the horizontal run) meets
+          // the route row inks even where the core texture holes it — Excel
+          // (1512,808) inks (texture idx would hole it) while the mirrored
+          // near-side cell (1504,808) at the (1505,808) elbow stays a texture
+          // hole. Junction blobs own their measured art instead.
           if (style == ViWireRenderStyle.braid && horizontal) {
-            for (final neighbour in [
-              if (j >= 2) leg[j - 2],
-              if (j + 1 < leg.length) leg[j + 1],
+            for (final (vertex, other) in [
+              if (j >= 2) (a, b),
+              if (j + 1 < leg.length) (b, a),
             ]) {
-              final nx = neighbour.dx.floor();
-              // A 3-way JUNCTION owns its own measured blob — the solid
-              // corner block is for plain 2-leg bends only.
+              final bendX = vertex.dx.floor();
+              final farX = bendX - (other.dx > vertex.dx ? 1 : -1);
               final isJunction = junctions.any(
                 (junction) =>
-                    junction.dx.floor() == nx && junction.dy.floor() == cross,
+                    junction.dx.floor() == bendX &&
+                    junction.dy.floor() == cross,
               );
-              if (!isJunction && nx >= lo - 2 && nx <= hi + 2) {
+              if (!isJunction) {
                 canvas.drawRect(
-                  Rect.fromLTWH(nx - 1.0, cross - 1.0, 3, 3),
+                  Rect.fromLTWH(farX * 1.0, cross * 1.0, 1, 1),
                   fill,
                 );
               }
             }
           }
-
           // Crossing gaps (the measured rule, see wire_render.dart): where
           // this later-drawn segment properly crosses an EARLIER wire's
           // perpendicular segment, it skips a 1 px gap either side of the
