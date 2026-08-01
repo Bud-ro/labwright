@@ -44,7 +44,7 @@ const Set<int> kWireInkPalette = {
   0x006600, // boolean
   0x666600, // error braid flanks
   0xffff00, // error braid weave
-  0xff8000, // float
+  0xff6600, // float
   0x660066, // tag
 };
 

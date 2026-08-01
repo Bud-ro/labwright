@@ -515,7 +515,11 @@ Color _objectColor(ViHeapObject object) =>
 /// reads like the original: orange = float, blue = int/enum, green-brown =
 /// path, yellow = call-library node. Unknown stays neutral (never guessed).
 Color labviewTypeColor(ViTypeKind kind) => switch (kind) {
-  ViTypeKind.numericFloat => const Color(0xFFFF8000),
+  // Float orange is (255,102,0): the snippet corpus references contain
+  // 1,000 px of 0xFF6600 and ZERO of 0xFF8000 (exact-colour census over
+  // every reference PNG), and Excel_Read_XLSX's DBL wires/stubs all read
+  // 0xFF6600.
+  ViTypeKind.numericFloat => const Color(0xFFFF6600),
   // Integer/enum blue and string magenta are sampled from LabVIEW's own
   // snippet renders (terminal borders (0,0,255) and (255,0,255)); boolean
   // green (0,102,0) is sampled from crc8's boolean WIRE dots and selector
